@@ -1,0 +1,29 @@
+# Compiled Lua files
+*.luac
+
+# Backup files
+*.bak
+*.toc.bak
+
+# World of Warcraft specific
+WTF/
+Interface/AddOns/*/
+!Interface/AddOns/Sfui/
+12*/
+*.txt
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+
+# OS generated files
+.DS_Store
+.localized
+Thumbs.db
+
+# Gemini related files
+.gemini/
+.geminiignore
