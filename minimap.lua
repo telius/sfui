@@ -52,20 +52,32 @@ end
 
 function sfui.minimap.CollectButtons()
     local ldbi = LibStub("LibDBIcon-1.0")
-    if not ldbi then return end
+    if not ldbi then
+        print("sfui: LibDBIcon-1.0 not found!")
+        return
+    end
 
     if not button_bar then
-        button_bar = CreateFrame("Frame", "sfui_minimap_button_bar", Minimap)
+        button_bar = CreateFrame("Frame", "sfui_minimap_button_bar", Minimap, "BackdropTemplate")
         button_bar:SetPoint("TOP", Minimap, "TOP", 0, 20)
         button_bar:SetSize(sfui.config.minimap.default_size, 30)
+        button_bar:SetBackdrop({
+            bgFile = "Interface/Buttons/WHITE8X8",
+            tile = true,
+            tileSize = 16,
+        })
+        button_bar:SetBackdropColor(0, 0, 0, 0.5) -- Semi-transparent black
     end
 
     local function ArrangeAllButtons()
+        print("sfui: Arranging minimap buttons...")
         local buttons = ldbi:GetButtonList()
+        print(string.format("sfui: Found %d buttons.", #buttons))
         local lastButton = nil
-        for _, buttonName in ipairs(buttons) do
+        for i, buttonName in ipairs(buttons) do
             local button = _G[buttonName]
             if button then
+                print(string.format("sfui: Processing button %d: %s", i, buttonName))
                 button:SetParent(button_bar)
                 button:ClearAllPoints()
                 if not lastButton then
@@ -80,8 +92,11 @@ function sfui.minimap.CollectButtons()
 
     ArrangeAllButtons()
 
-    frame.OnButtonCreated = ArrangeAllButtons
-    ldbi:RegisterCallback(frame, "LibDBIcon_IconCreated", "OnButtonCreated")
+    frame.OnButtonCreated = function()
+        print("sfui: New minimap button created, re-arranging all buttons.")
+        ArrangeAllButtons()
+    end
+    ldbi.RegisterCallback(frame, "LibDBIcon_IconCreated", "OnButtonCreated")
 end
 
 -- Function to set the minimap to the default zoom level
@@ -112,8 +127,8 @@ frame:SetScript("OnEvent", function(self, event, ...)
     SfuiDB.minimap_square = SfuiDB.minimap_square or false
     sfui.minimap.SetSquareMinimap(SfuiDB.minimap_square)
 
-    -- Collect minimap buttons
-    sfui.minimap.CollectButtons()
+    -- Collect minimap buttons after a delay to let other addons initialize
+    C_Timer.After(2, sfui.minimap.CollectButtons)
 
     self:UnregisterEvent("PLAYER_ENTERING_WORLD") -- Only need this once
     return
