@@ -65,6 +65,10 @@ end
 function ButtonManager:IsButton(frame)
     if not frame or type(frame) ~= "table" then return false end
     
+    -- Safely check for GetName method presence to avoid errors
+    local successName, getNameFunc = pcall(function() return frame.GetName end)
+    if not successName or type(getNameFunc) ~= "function" then return false end
+    
     local name = frame:GetName()
     if not name then return false end
     
