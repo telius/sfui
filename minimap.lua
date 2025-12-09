@@ -64,11 +64,10 @@ end
 
 function ButtonManager:IsButton(frame)
     if not frame or type(frame) ~= "table" then return false end
-    
-    -- Safely check for GetName method presence to avoid errors
-    local successName, getNameFunc = pcall(function() return frame.GetName end)
-    if not successName or type(getNameFunc) ~= "function" then return false end
-    
+
+    -- Check if it has the GetName method
+    if type(frame.GetName) ~= "function" then return false end
+
     local name = frame:GetName()
     if not name then return false end
     
@@ -77,21 +76,21 @@ function ButtonManager:IsButton(frame)
         return false
     end
 
-    -- Safely check if it's a Button or CheckButton
-    local isButton, isCheckButton = pcall(function() return frame:IsObjectType("Button") end)
-    local isAButton, isACheckButton = pcall(function() return frame:IsObjectType("CheckButton") end)
+    -- Check if it has the IsObjectType method
+    if type(frame.IsObjectType) ~= "function" then return false end
 
-    if not isButton or not isCheckButton or (not isButton and not isCheckButton) then
+    -- Check if it's a Button or CheckButton
+    if not frame:IsObjectType("Button") and not frame:IsObjectType("CheckButton") then
         return false
     end
 
     -- Check for scripts
-    if not frame:GetScript("OnClick") and not frame:GetScript("OnMouseDown") and not frame:GetScript("OnMouseUp") then
+    if type(frame.GetScript) ~= "function" or (not frame:GetScript("OnClick") and not frame:GetScript("OnMouseDown") and not frame:GetScript("OnMouseUp")) then
         return false
     end
 
     -- Check for textures
-    if frame:GetNumRegions() == 0 then
+    if type(frame.GetNumRegions) ~= "function" or frame:GetNumRegions() == 0 then
         return false
     end
 
