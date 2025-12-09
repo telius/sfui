@@ -139,7 +139,7 @@ function sfui.create_options_panel()
     -- Reload UI button
     local reload_button = CreateFrame("Button", nil, main_panel, "UIPanelButtonTemplate")
     reload_button:SetSize(100, 22)
-    reload_button:SetPoint("TOPLEFT", auto_zoom_checkbox, "BOTTOMLEFT", 0, -20)
+    reload_button:SetPoint("TOPLEFT", main_text, "BOTTOMLEFT", 0, -20)
     reload_button:SetText("Reload UI")
     reload_button:SetScript("OnClick", function()
         C_UI.Reload()
@@ -358,77 +358,7 @@ function sfui.create_options_panel()
         end
     end)
 
-    -- populate debug panel
-    local spec_id_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
-    spec_id_label:SetPoint("TOPLEFT", 15, -15)
-    spec_id_label:SetText("Spec ID:")
-    local spec_id_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
-    spec_id_value:SetPoint("LEFT", spec_id_label, "RIGHT", 5, 0)
 
-    local color_swatch = debug_panel:CreateTexture(nil, "ARTWORK")
-    color_swatch:SetSize(20, 20)
-    color_swatch:SetPoint("LEFT", spec_id_value, "RIGHT", 10, 0)
-    color_swatch:SetTexture("Interface/Buttons/WHITE8X8")
-
-    local primary_power_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
-    primary_power_label:SetPoint("TOPLEFT", spec_id_label, "BOTTOMLEFT", 0, -15)
-    primary_power_label:SetText("Primary Power:")
-    local primary_power_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
-    primary_power_value:SetPoint("LEFT", primary_power_label, "RIGHT", 5, 0)
-
-    local secondary_power_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
-    secondary_power_label:SetPoint("TOPLEFT", primary_power_label, "BOTTOMLEFT", 0, -15)
-    secondary_power_label:SetText("Secondary Power:")
-    local secondary_power_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
-    secondary_power_value:SetPoint("LEFT", secondary_power_label, "RIGHT", 5, 0)
-    
-    local function get_power_type_name(power_enum)
-        if not power_enum then return "None" end
-        if type(power_enum) ~= "number" then return tostring(power_enum) end
-        for name, value in pairs(Enum.PowerType) do
-            if value == power_enum then return name end
-        end
-        return "Unknown"
-    end
-
-    local function update_debug_info()
-        local spec = C_SpecializationInfo.GetSpecialization()
-        local specID = spec and C_SpecializationInfo.GetSpecializationInfo(spec) or "N/A"
-        spec_id_value:SetText(tostring(specID))
-
-        local color
-        if specID and g.spec_colors[specID] then
-            local c = g.spec_colors[specID]
-            color = { r = c[1], g = c[2], b = c[3] }
-        elseif specID then
-            local _, _, _, r, g, b = C_SpecializationInfo.GetSpecializationInfo(specID)
-            if r then color = { r = r, g = g, b = b } end
-        end
-        if not color then local _, class = UnitClass("player"); color = RAID_CLASS_COLORS[class] end
-        if color then color_swatch:SetColorTexture(color.r, color.g, color.b) end
-        
-        if sfui.common.GetPrimaryResource then
-            primary_power_value:SetText(get_power_type_name(sfui.common.GetPrimaryResource()))
-        end
-        if sfui.common.GetSecondaryResource then
-            secondary_power_value:SetText(get_power_type_name(sfui.common.GetSecondaryResource()))
-        end
-    end
-
-    local debug_refresh_button = CreateFrame("Button", nil, debug_panel, "UIPanelButtonTemplate")
-    debug_refresh_button:SetSize(100, 22)
-    debug_refresh_button:SetPoint("BOTTOM", debug_panel, "BOTTOM", 0, 10)
-    debug_refresh_button:SetText("Refresh")
-    debug_refresh_button:SetScript("OnClick", update_debug_info)
-
-    -- Hook into the debug tab's OnClick to refresh info when selected
-    local original_on_click_debug = debug_tab_button:GetScript("OnClick")
-    debug_tab_button:SetScript("OnClick", function(self)
-        original_on_click_debug(self)
-        update_debug_info()
-    end)
-    
-    update_debug_info()
 
     -- populate bars panel
     local bars_header = bars_panel:CreateFontString(nil, "OVERLAY", g.font)

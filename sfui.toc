@@ -4,6 +4,7 @@
 ## Version: 0.0.1
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## SavedVariables: SfuiDB
+## OptionalDeps: Masque
 
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml

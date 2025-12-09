@@ -193,6 +193,7 @@ sfui.config = {
         button_bar = {
             spacing = 2,
             position = "LEFT", -- or TOP, RIGHT, BOTTOM
+            button_size = 28,
         },
     },
 }

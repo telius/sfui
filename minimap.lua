@@ -14,13 +14,15 @@ local button_bar = nil
 local original_width = Minimap:GetWidth()
 local original_height = Minimap:GetHeight()
 
--- Button Collection
-local ButtonCollection = {
+-- ============================================================================
+-- Button Manager
+-- ============================================================================
+local ButtonManager = {
     collectedButtons = {},
     processedButtons = {},
 }
 
-function ButtonCollection:StoreOriginalState(button)
+function ButtonManager:StoreOriginalState(button)
     local name = button:GetName()
     if not name or self.processedButtons[name] then return end
 
@@ -37,7 +39,7 @@ function ButtonCollection:StoreOriginalState(button)
     button.sfuiOriginalState = orig
 end
 
-function ButtonCollection:RestoreButton(button)
+function ButtonManager:RestoreButton(button)
     if button and button.sfuiOriginalState then
         local orig = button.sfuiOriginalState
         button:SetParent(orig.parent)
@@ -52,7 +54,7 @@ function ButtonCollection:RestoreButton(button)
     end
 end
 
-function ButtonCollection:RestoreAll()
+function ButtonManager:RestoreAll()
     for _, button in ipairs(self.collectedButtons) do
         self:RestoreButton(button)
     end
@@ -60,7 +62,26 @@ function ButtonCollection:RestoreAll()
     wipe(self.processedButtons)
 end
 
-function ButtonCollection:AddButton(button)
+function ButtonManager:IsButton(frame)
+    if not frame or type(frame) ~= "table" or not frame.IsObjectType then return false end
+    if not frame:IsObjectType("Frame") then return false end
+    
+    local name = frame:GetName()
+    if not name then return false end
+    
+    -- Exclude frames that are known not to be addon buttons
+    if name:find("Minimap") or name:find("MinimapCluster") or name:find("GameTime") or name:find("QueueStatus") then
+        return false
+    end
+
+    -- A simple check for now: if it has "Button" in its object type, it's a button.
+    return frame:IsObjectType("Button")
+end
+
+
+function ButtonManager:AddButton(button)
+    if not self:IsButton(button) then return end
+
     local name = button:GetName()
     if not name or self.processedButtons[name] then return end
 
@@ -68,6 +89,100 @@ function ButtonCollection:AddButton(button)
     table.insert(self.collectedButtons, button)
     self.processedButtons[name] = true
 end
+
+function ButtonManager:CollectButtons()
+    local ldbi = LibStub("LibDBIcon-1.0", true)
+    if ldbi then
+        for _, buttonName in ipairs(ldbi:GetButtonList()) do
+            local button = _G[buttonName]
+            if button then self:AddButton(button) end
+        end
+    end
+
+    for i = 1, Minimap:GetNumChildren() do
+        self:AddButton(select(i, Minimap:GetChildren()))
+    end
+    
+    if MinimapCluster then
+        for i = 1, MinimapCluster:GetNumChildren() do
+            self:AddButton(select(i, MinimapCluster:GetChildren()))
+        end
+    end
+end
+
+function ButtonManager:ArrangeButtons()
+    if not button_bar then return end
+
+    local lastButton = nil
+    local cfg = sfui.config.minimap.button_bar
+    local size = cfg.button_size
+    local spacing = cfg.spacing
+
+    for _, button in ipairs(self.collectedButtons) do
+        button:SetParent(button_bar)
+        button:ClearAllPoints()
+        button:SetSize(size, size)
+
+        -- Add to Masque group if Masque is loaded
+        if sfui.minimap.masque_group then
+            local buttonData = {}
+            local iconTexture = nil
+
+            -- Find the icon texture and hide borders
+            for _, region in ipairs({button:GetRegions()}) do
+                if region and region:IsObjectType("Texture") then
+                    local name = region:GetName()
+                    if name and (name:find("Icon") or name:find("icon")) then
+                        iconTexture = region
+                    elseif name and (name:find("Border") or name:find("border")) then
+                        region:Hide()
+                    end
+                end
+            end
+
+            if iconTexture then
+                buttonData.Icon = iconTexture
+            end
+
+            sfui.minimap.masque_group:AddButton(button, buttonData)
+        end
+        
+        if not lastButton then
+            button:SetPoint("LEFT", button_bar, "LEFT", 5, 0)
+        else
+            button:SetPoint("LEFT", lastButton, "RIGHT", spacing, 0)
+        end
+        lastButton = button
+    end
+end
+
+function sfui.minimap.EnableButtonManager(enabled)
+    if enabled then
+        if not button_bar then
+            button_bar = CreateFrame("Frame", "sfui_minimap_button_bar", Minimap, "BackdropTemplate")
+            button_bar:SetPoint("TOP", Minimap, "TOP", 0, 20)
+            button_bar:SetSize(sfui.config.minimap.default_size, 30)
+            button_bar:SetBackdrop({
+                bgFile = "Interface/Buttons/WHITE8X8",
+                tile = true,
+                tileSize = 16,
+            })
+            button_bar:SetBackdropColor(0, 0, 0, 0.5) -- Semi-transparent black
+        end
+        button_bar:Show()
+        ButtonManager:CollectButtons()
+        ButtonManager:ArrangeButtons()
+    else
+        ButtonManager:RestoreAll()
+        if button_bar then
+            button_bar:Hide()
+        end
+    end
+end
+
+-- ============================================================================
+-- Original Minimap functions
+-- ============================================================================
 
 function sfui.minimap.SetSquareMinimap(isSquare)
     if isSquare then
@@ -101,97 +216,6 @@ function sfui.minimap.SetSquareMinimap(isSquare)
     end
 end
 
-function sfui.minimap.ArrangeButtons()
-    if not button_bar then return end
-
-    local lastButton = nil
-    local spacing = sfui.config.minimap.button_bar.spacing
-    for _, button in ipairs(ButtonCollection.collectedButtons) do
-        -- Make button square by removing mask and border
-        for i, region in ipairs({button:GetRegions()}) do
-            if region and region.IsObjectType and region:IsObjectType("Texture") then
-                local regionName = region:GetName()
-                -- print(string.format("sfui: Found texture '%s' on button '%s'", tostring(regionName), button:GetName()))
-                
-                -- Try to find and hide the border
-                if regionName and (regionName:find("Border") or regionName:find("border")) then
-                    region:SetTexture(nil)
-                    -- print("sfui: Hiding border on", button:GetName())
-                end
-
-                -- Try to find and modify the icon texture to be square
-                if regionName and (regionName:find("Icon") or regionName:find("icon")) then
-                    region:SetTexCoord(0, 1, 0, 1)
-                    -- print("sfui: Squaring icon on", button:GetName())
-                end
-            end
-        end
-
-        button:SetParent(button_bar)
-        button:ClearAllPoints()
-        if not lastButton then
-            button:SetPoint("LEFT", button_bar, "LEFT", 5, 0)
-        else
-            button:SetPoint("LEFT", lastButton, "RIGHT", spacing, 0)
-        end
-        lastButton = button
-    end
-end
-
-function sfui.minimap.CollectButtons()
-    print("sfui: Starting button collection...")
-    local ldbi = LibStub("LibDBIcon-1.0", true)
-    local ldbi_found = 0
-    if ldbi then
-        local buttons = ldbi:GetButtonList()
-        ldbi_found = #buttons
-        for _, buttonName in ipairs(buttons) do
-            local button = _G[buttonName]
-            if button and button.IsObjectType and button:IsObjectType("Frame") then
-                ButtonCollection:AddButton(button)
-            end
-        end
-    end
-
-    local children_found = 0
-    for i = 1, Minimap:GetNumChildren() do
-        local child = select(i, Minimap:GetChildren())
-        if child:IsObjectType("Button") and child:GetName() then
-            children_found = children_found + 1
-            ButtonCollection:AddButton(child)
-        end
-    end
-
-    print(string.format("sfui: Found %d buttons from LDBI, %d buttons from Minimap children.", ldbi_found, children_found))
-    print(string.format("sfui: Total collected buttons: %d", #ButtonCollection.collectedButtons))
-
-    sfui.minimap.ArrangeButtons()
-end
-
-function sfui.minimap.SetButtonCollection(enabled)
-    print("sfui: SetButtonCollection called with enabled =", tostring(enabled))
-    if enabled then
-        if not button_bar then
-            button_bar = CreateFrame("Frame", "sfui_minimap_button_bar", Minimap, "BackdropTemplate")
-            button_bar:SetPoint("TOP", Minimap, "TOP", 0, 32)
-            button_bar:SetSize(sfui.config.minimap.default_size, 30)
-            button_bar:SetBackdrop({
-                bgFile = "Interface/Buttons/WHITE8X8",
-                tile = true,
-                tileSize = 16,
-            })
-            button_bar:SetBackdropColor(0, 0, 0, 0.5) -- Semi-transparent black
-        end
-        button_bar:Show()
-        sfui.minimap.CollectButtons()
-    else
-        ButtonCollection:RestoreAll()
-        if button_bar then
-            button_bar:Hide()
-        end
-    end
-end
-
 local function set_default_zoom()
     if zoom_timer then
         zoom_timer:Cancel()
@@ -216,7 +240,11 @@ frame:SetScript("OnEvent", function(self, event, ...)
     sfui.minimap.SetSquareMinimap(SfuiDB.minimap_square)
 
     SfuiDB.minimap_collect_buttons = SfuiDB.minimap_collect_buttons or false
-    sfui.minimap.SetButtonCollection(SfuiDB.minimap_collect_buttons)
+    sfui.minimap.EnableButtonManager(SfuiDB.minimap_collect_buttons)
+
+    if Masque then
+        sfui.minimap.masque_group = Masque:Group("sfui", "Minimap Buttons")
+    end
 
     self:UnregisterEvent("PLAYER_ENTERING_WORLD") -- Only need this once
     return
