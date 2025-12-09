@@ -180,7 +180,7 @@ do
         if not max or max <= 0 then return end
         bar:SetMinMaxValues(0, max)
         bar:SetValue(current)
-        bar:SetStatusBarColor(1, 1, 1)
+        bar:SetStatusBarColor(0.2, 0.2, 0.2) -- Set to very dark grey
 
         -- Heal prediction logic
         local incomingHeals = UnitGetIncomingHeals("player") or 0

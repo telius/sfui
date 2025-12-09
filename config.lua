@@ -182,5 +182,13 @@ sfui.config = {
         { text = "Flat", value = "Interface/Buttons/WHITE8X8" },
     },
 
-    absorbBarColor = {0.392, 1.0, 1.0, 0.75} -- Hardcoded #64ffff with 75% alpha
+    absorbBarColor = {0.392, 1.0, 1.0, 0.75}, -- Hardcoded #64ffff with 75% alpha
+
+    minimap = {
+        default_size = 220, -- Default size for square minimap
+        border = {
+            size = 2,
+            color = {0, 0, 0, 0.5}, -- Black, 50% transparent
+        },
+    },
 }

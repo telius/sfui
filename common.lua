@@ -157,7 +157,12 @@ function sfui.common.CreateBar(name, frameType, parent, template)
     bar:SetSize(cfg.width, cfg.height)
     bar:SetPoint("CENTER")
     if bar.SetStatusBarTexture then
-        bar:SetStatusBarTexture(SfuiDB.barTexture)
+        -- Provide a fallback in case SfuiDB.barTexture is still invalid somehow
+        local textureToUse = SfuiDB.barTexture
+        if type(textureToUse) ~= "string" or textureToUse == "" then
+            textureToUse = sfui.config.barTexture
+        end
+        bar:SetStatusBarTexture(textureToUse)
     end
     bar.backdrop = backdrop
     bar.fadeInAnim, bar.fadeOutAnim = sfui.common.CreateFadeAnimations(backdrop)

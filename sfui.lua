@@ -6,7 +6,9 @@ sfui = sfui or {}
 -- We ensure the table exists and initialize default values at the global scope.
 -- This guarantees that SfuiDB is available when other files (like options.lua) are parsed.
 SfuiDB = SfuiDB or {}
-SfuiDB.barTexture = SfuiDB.barTexture or sfui.config.barTexture
+if type(SfuiDB.barTexture) ~= "string" or SfuiDB.barTexture == "" then
+    SfuiDB.barTexture = sfui.config.barTexture
+end
 SfuiDB.absorbBarColor = SfuiDB.absorbBarColor or sfui.config.absorbBarColor
 SfuiDB.minimap = nil -- Remove minimap saved data
 

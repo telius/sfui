@@ -116,13 +116,17 @@ function sfui.create_options_panel()
     currency_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
     last_tab_button = currency_tab_button
 
-    local debug_panel, debug_tab_button = create_tab("debug")
-    debug_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
-    last_tab_button = debug_tab_button
-
     local bars_panel, bars_tab_button = create_tab("bars")
     bars_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
     last_tab_button = bars_tab_button
+
+    local minimap_panel, minimap_tab_button = create_tab("minimap") -- New Minimap Tab
+    minimap_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
+    last_tab_button = minimap_tab_button
+
+    local debug_panel, debug_tab_button = create_tab("debug") -- Debug Tab at bottom
+    debug_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
+    last_tab_button = debug_tab_button
     
     -- populate main panel
     local main_text = main_panel:CreateFontString(nil, "OVERLAY", g.font)
@@ -130,22 +134,7 @@ function sfui.create_options_panel()
     main_text:SetTextColor(1, 1, 1)
     main_text:SetText("welcome to sfui. please select a category on the left.")
 
-    -- Minimap Auto Zoom checkbox
-    local auto_zoom_checkbox = CreateFrame("CheckButton", nil, main_panel, "UICheckButtonTemplate")
-    auto_zoom_checkbox:SetSize(26, 26)
-    auto_zoom_checkbox:SetPoint("TOPLEFT", main_text, "BOTTOMLEFT", 0, -20)
 
-    local auto_zoom_text = auto_zoom_checkbox:CreateFontString(nil, "OVERLAY", g.font)
-    auto_zoom_text:SetPoint("LEFT", auto_zoom_checkbox, "RIGHT", 5, 0)
-    auto_zoom_text:SetText("Enable Minimap Auto Zoom")
-    auto_zoom_text:SetTextColor(1, 1, 1)
-
-    SfuiDB.minimap_auto_zoom = SfuiDB.minimap_auto_zoom or false
-    auto_zoom_checkbox:SetChecked(SfuiDB.minimap_auto_zoom)
-
-    auto_zoom_checkbox:SetScript("OnClick", function(self)
-        SfuiDB.minimap_auto_zoom = self:GetChecked()
-    end)
 
     -- Reload UI button
     local reload_button = CreateFrame("Button", nil, main_panel, "UIPanelButtonTemplate")
@@ -168,9 +157,47 @@ function sfui.create_options_panel()
     -- (removed font size input section)
 
     -- populate combined currency/items panel
-    -- ... (content is in another replace operation)
-
-    -- populate debug panel
+        -- populate minimap panel
+        -- Minimap Auto Zoom checkbox (moved to minimap panel)
+        local auto_zoom_checkbox = CreateFrame("CheckButton", nil, minimap_panel, "UICheckButtonTemplate")
+        auto_zoom_checkbox:SetSize(26, 26)
+        auto_zoom_checkbox:SetPoint("TOPLEFT", minimap_panel, "TOPLEFT", 15, -15)
+    
+        local auto_zoom_text = auto_zoom_checkbox:CreateFontString(nil, "OVERLAY", g.font)
+        auto_zoom_text:SetPoint("LEFT", auto_zoom_checkbox, "RIGHT", 5, 0)
+        auto_zoom_text:SetText("Enable Minimap Auto Zoom")
+        auto_zoom_text:SetTextColor(1, 1, 1)
+    
+        SfuiDB.minimap_auto_zoom = SfuiDB.minimap_auto_zoom or false
+        auto_zoom_checkbox:SetChecked(SfuiDB.minimap_auto_zoom)
+    
+            auto_zoom_checkbox:SetScript("OnClick", function(self)
+                SfuiDB.minimap_auto_zoom = self:GetChecked()
+            end)
+        
+            -- Square Minimap checkbox
+            local square_minimap_checkbox = CreateFrame("CheckButton", nil, minimap_panel, "UICheckButtonTemplate")
+            square_minimap_checkbox:SetSize(26, 26)
+            square_minimap_checkbox:SetPoint("TOPLEFT", auto_zoom_checkbox, "BOTTOMLEFT", 0, -5)
+        
+            local square_minimap_text = square_minimap_checkbox:CreateFontString(nil, "OVERLAY", g.font)
+            square_minimap_text:SetPoint("LEFT", square_minimap_checkbox, "RIGHT", 5, 0)
+            square_minimap_text:SetText("Enable Square Minimap")
+            square_minimap_text:SetTextColor(1, 1, 1)
+        
+            SfuiDB.minimap_square = SfuiDB.minimap_square or false
+            square_minimap_checkbox:SetChecked(SfuiDB.minimap_square)
+        
+            square_minimap_checkbox:SetScript("OnClick", function(self)
+                SfuiDB.minimap_square = self:GetChecked()
+                if sfui.minimap and sfui.minimap.SetSquareMinimap then
+                    sfui.minimap.SetSquareMinimap(SfuiDB.minimap_square)
+                end
+            end)    
+    
+        -- populate debug panel
+    
+    
     local spec_id_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
     spec_id_label:SetPoint("TOPLEFT", 15, -15)
     spec_id_label:SetText("Spec ID:")
@@ -235,7 +262,6 @@ function sfui.create_options_panel()
     debug_refresh_button:SetScript("OnClick", update_debug_info)
 
     -- Hook into the debug tab's OnClick to refresh info when selected
-    local debug_tab_button = frame.tabs[3].button
     local original_on_click_debug = debug_tab_button:GetScript("OnClick")
     debug_tab_button:SetScript("OnClick", function(self)
         original_on_click_debug(self) -- Call original select_tab logic
