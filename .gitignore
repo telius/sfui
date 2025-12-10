@@ -17,13 +17,3 @@ Interface/AddOns/*/
 .vscode/
 *.swp
 *~
-.DS_Store
-
-# OS generated files
-.DS_Store
-.localized
-Thumbs.db
-
-# Gemini related files
-.gemini/
-.geminiignore
