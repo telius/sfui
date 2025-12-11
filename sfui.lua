@@ -84,6 +84,9 @@ event_frame:SetScript("OnEvent", function(self, event, name)
         if sfui.bars and sfui.bars.OnStateChanged then
             sfui.bars:OnStateChanged()
         end
+        if sfui.warnings and sfui.warnings.Initialize then
+            sfui.warnings.Initialize()
+        end
 
         local ldb = LibStub:GetLibrary("LibDataBroker-1.1", true)
         local icon = LibStub:GetLibrary("LibDBIcon-1.0", true)

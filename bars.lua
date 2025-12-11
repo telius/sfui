@@ -98,7 +98,9 @@ do
 
             -- Secondary Power Bar visibility for non-dragonflying
             if secondary_power_bar then
-                if specID == 270 then -- Mistweaver Monk
+                if IsMounted() then -- Hide if mounted
+                    secondary_power_bar.backdrop:Hide()
+                elseif specID == 270 then -- Mistweaver Monk
                     secondary_power_bar.backdrop:Hide()
                 elseif showCoreBars then
                     secondary_power_bar.backdrop:Show()

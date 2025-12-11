@@ -335,11 +335,30 @@ function sfui.create_options_panel()
         end
     end
 
+    -- Pet Warning Status
+    local pet_warning_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+    pet_warning_label:SetPoint("TOPLEFT", secondary_power_label, "BOTTOMLEFT", 0, -15)
+    pet_warning_label:SetText("Pet Warning Status:")
+    local pet_warning_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+    pet_warning_value:SetPoint("LEFT", pet_warning_label, "RIGHT", 5, 0)
+
     local debug_refresh_button = CreateFrame("Button", nil, debug_panel, "UIPanelButtonTemplate")
     debug_refresh_button:SetSize(100, 22)
     debug_refresh_button:SetPoint("BOTTOM", debug_panel, "BOTTOM", 0, 10)
     debug_refresh_button:SetText("Refresh")
-    debug_refresh_button:SetScript("OnClick", update_debug_info)
+    
+    -- Update update_debug_info to include pet warning status
+    local original_update_debug_info = update_debug_info
+    function update_debug_info()
+        original_update_debug_info() -- Call original function
+
+        if sfui.warnings and sfui.warnings.GetStatus then
+            pet_warning_value:SetText(sfui.warnings.GetStatus())
+        else
+            pet_warning_value:SetText("N/A (Module Missing)")
+        end
+        debug_refresh_button:SetScript("OnClick", update_debug_info) -- Assign script here
+    end
 
     -- Hook into the debug tab's OnClick to refresh info when selected
     local original_on_click_debug = debug_tab_button:GetScript("OnClick")
