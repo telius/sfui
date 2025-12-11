@@ -45,9 +45,13 @@ function sfui.create_options_panel()
     header_text:SetTextColor(g.header_color[1], g.header_color[2], g.header_color[3])
     header_text:SetText(g.title .. " v" .. g.version)
 
-    -- Add Close Button
-    local close_button = CreateFrame("Button", "sfui_options_close_button", frame, "UIPanelButtonTemplate")
-    close_button:SetSize(24, 24)
+    local addon_icon = frame:CreateTexture(nil, "ARTWORK")
+    addon_icon:SetSize(32, 32) -- Adjust size as needed
+    addon_icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 5, -5)
+            addon_icon:SetTexture("Interface\\Icons\\Spell_shadow_deathcoil")
+        
+            -- Add Close Button
+            local close_button = CreateFrame("Button", "sfui_options_close_button", frame, "UIPanelButtonTemplate")    close_button:SetSize(24, 24)
     close_button:SetPoint("TOPRIGHT", -5, -5)
     close_button:SetNormalFontObject(g.font_large)
     close_button:SetText("X")
@@ -192,6 +196,18 @@ function sfui.create_options_panel()
     reload_button:SetScript("OnClick", function()
         C_UI.Reload()
     end)
+
+    local hide_minimap_icon_cb = CreateCheckbox(main_panel, "Hide Minimap Icon", "minimap_icon.hide", function(checked)
+        local icon = LibStub:GetLibrary("LibDBIcon-1.0", true)
+        if icon then
+            if checked then
+                icon:Hide("sfui")
+            else
+                icon:Show("sfui")
+            end
+        end
+    end, "Hides the sfui minimap icon.")
+    hide_minimap_icon_cb:SetPoint("TOPLEFT", reload_button, "BOTTOMLEFT", 0, -20)
 
     -- Memory and CPU Usage Display
 

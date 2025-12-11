@@ -61,6 +61,7 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             SfuiDB.minimap_masque = SfuiDB.minimap_masque or sfui.config.minimap.masque
             SfuiDB.minimap_rearrange = SfuiDB.minimap_rearrange or false
             SfuiDB.minimap_button_order = SfuiDB.minimap_button_order or {}
+            SfuiDB.minimap_icon = SfuiDB.minimap_icon or { hide = false } -- Reset to original (no x,y)
 
             -- Set CVars on load
             if sfui.config and sfui.config.cvars_on_load then
@@ -82,6 +83,31 @@ event_frame:SetScript("OnEvent", function(self, event, name)
         end
         if sfui.bars and sfui.bars.OnStateChanged then
             sfui.bars:OnStateChanged()
+        end
+
+        local ldb = LibStub:GetLibrary("LibDataBroker-1.1", true)
+        local icon = LibStub:GetLibrary("LibDBIcon-1.0", true)
+        if ldb and icon then
+            local broker = ldb:NewDataObject("sfui", {
+                type = "launcher",
+                text = "sfui",
+                icon = "Interface\\Icons\\Spell_shadow_deathcoil", -- Death Coil (Shadow) icon path
+                OnClick = function(_, button)
+                    if button == "LeftButton" then
+                        sfui.toggle_options_panel()
+                    elseif button == "RightButton" then
+                        C_UI.Reload()
+                    end
+                end,
+                OnTooltipShow = function(tooltip)
+                    tooltip:AddLine("sfui")
+                    tooltip:AddLine("Left-click to toggle options", 0.2, 1, 0.2)
+                    tooltip:AddLine("Right-click to Reload UI", 1, 0.2, 0.2)
+                end,
+            })
+            icon:Register("sfui", broker, SfuiDB.minimap_icon)
+        else
+            print("sfui: LibDataBroker-1.1 or LibDBIcon-1.0 not loaded (LibDBIcon registration).")
         end
         -- We only need this event once per session.
         self:UnregisterEvent("PLAYER_LOGIN")

@@ -280,7 +280,7 @@ do
         if mount_speed_bar then return mount_speed_bar end
         local bar = sfui.common.CreateBar("mountSpeedBar", "StatusBar", UIParent)
         bar.TextValue = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        bar.TextValue:SetFont("Fonts\\FRIZQT__.TTF", 18, "NONE")
+        bar.TextValue:SetFont("Fonts\\FRIZQT__.TTF", 12, "NONE")
         bar.TextValue:SetShadowOffset(1, -1)
         bar.TextValue:SetPoint("CENTER")
         local elapsedSince = 0

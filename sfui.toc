@@ -5,6 +5,7 @@
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## SavedVariables: SfuiDB
 ## OptionalDeps: Masque
+## Icon: Interface\Icons\Spell_shadow_deathcoil
 
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml

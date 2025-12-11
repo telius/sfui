@@ -395,6 +395,10 @@ function ButtonManager:ArrangeButtons()
         
         if aName == "QueueStatusButton" then return true end
         if bName == "QueueStatusButton" then return false end
+        
+        -- Prioritize LibDBIcon_sfui to be at the end
+        if aName == "LibDBIcon_sfui" then return false end -- "a" is sfui icon, sort it after "b"
+        if bName == "LibDBIcon_sfui" then return true end  -- "b" is sfui icon, sort it after "a"
 
         if #SfuiDB.minimap_button_order > 0 then
             local order = {}
@@ -560,10 +564,19 @@ function sfui.minimap.EnableButtonManager(enabled)
 
         ButtonManager:CollectButtons()
         ButtonManager:ArrangeButtons()
+
+        -- Hide Blizzard AddonCompartment if our button manager is enabled
+        if AddonCompartmentFrame then
+            AddonCompartmentFrame:Hide()
+        end
     else
         ButtonManager:RestoreAll()
         if button_bar then
             button_bar:Hide()
+        end
+        -- Show Blizzard AddonCompartment if our button manager is disabled
+        if AddonCompartmentFrame then
+            AddonCompartmentFrame:Show()
         end
     end
 end
