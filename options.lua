@@ -509,7 +509,9 @@ end
 
 -- global toggle function
 function sfui.toggle_options_panel()
-    if not frame then return end
+    if not frame then
+        sfui.create_options_panel()
+    end
 
     if frame:IsShown() then
         frame:Hide()

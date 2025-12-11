@@ -7,6 +7,22 @@ sfui.warnings = {}
 local warningFrame
 local warningText
 local warningTimer
+local event_frame -- Declare event_frame at a higher scope
+local hasGrimoireOfSacrifice = false -- Cached status
+
+local registeredEvents = {
+    "UNIT_PET",
+    "PLAYER_MOUNT_DISPLAY_CHANGED",
+    "PLAYER_TARGET_CHANGED",
+    "PLAYER_REGEN_DISABLED",
+    "PLAYER_REGEN_ENABLED",
+    "PLAYER_TALENT_UPDATE", -- For Grimoire of Sacrifice check
+}
+
+local function UpdateGrimoireOfSacrificeStatus()
+    local GRIMOIRE_OF_SACRIFICE_SPELL_ID = 108503
+    hasGrimoireOfSacrifice = IsPlayerSpell(GRIMOIRE_OF_SACRIFICE_SPELL_ID)
+end
 
 local function CreateWarningFrame()
     warningFrame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
@@ -42,9 +58,7 @@ local function CheckPetWarning()
     elseif playerClass == "DEATHKNIGHT" and specID == 252 then -- Unholy DK
         isAppropriateSpec = true
     elseif playerClass == "WARLOCK" then -- Any Warlock spec
-        -- Check for Grimoire of Sacrifice (Spell ID 108503)
-        local GRIMOIRE_OF_SACRIFICE_SPELL_ID = 108503
-        if not IsPlayerSpell(GRIMOIRE_OF_SACRIFICE_SPELL_ID) then
+        if not hasGrimoireOfSacrifice then
             isAppropriateSpec = true
         end
     end
@@ -72,6 +86,42 @@ local function CheckPetWarning()
     end
 end
 
+local function UpdateWarningActiveState()
+    local _, playerClass = UnitClass("player")
+    local spec = C_SpecializationInfo.GetSpecialization()
+    local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
+
+    local isAppropriateSpec = false
+    if playerClass == "HUNTER" and (specID == 253 or specID == 255) then
+        isAppropriateSpec = true
+    elseif playerClass == "DEATHKNIGHT" and specID == 252 then
+        isAppropriateSpec = true
+    elseif playerClass == "WARLOCK" then
+        if not hasGrimoireOfSacrifice then
+            isAppropriateSpec = true
+        end
+    end
+
+    if isAppropriateSpec then
+        -- Enable specific pet-related events
+        for _, eventName in ipairs(registeredEvents) do
+            event_frame:RegisterEvent(eventName)
+        end
+        CheckPetWarning() -- Initial check
+    else
+        -- Disable pet-related events and OnUpdate
+        for _, eventName in ipairs(registeredEvents) do
+            event_frame:UnregisterEvent(eventName)
+        end
+        event_frame:SetScript("OnUpdate", nil)
+        warningFrame:Hide() -- Hide if spec is no longer appropriate
+        if warningTimer then
+            C_Timer.Cancel(warningTimer)
+            warningTimer = nil
+        end
+    end
+end
+
 function sfui.warnings.GetStatus()
     if not warningFrame then return "Not Initialized" end
     if warningFrame:IsShown() then
@@ -89,8 +139,7 @@ function sfui.warnings.GetStatus()
         elseif playerClass == "DEATHKNIGHT" and specID == 252 then
             isAppropriateSpec = true
         elseif playerClass == "WARLOCK" then
-            local GRIMOIRE_OF_SACRIFICE_SPELL_ID = 108503
-            if not IsPlayerSpell(GRIMOIRE_OF_SACRIFICE_SPELL_ID) then
+            if not hasGrimoireOfSacrifice then
                 isAppropriateSpec = true
             end
         end
@@ -111,27 +160,18 @@ function sfui.warnings.GetStatus()
 end
 
 function sfui.warnings.Initialize()
-    local event_frame = CreateFrame("Frame")
+    event_frame = CreateFrame("Frame") -- Assign to higher-scoped variable
     event_frame:RegisterEvent("PLAYER_ENTERING_WORLD")
     event_frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-    event_frame:RegisterEvent("UNIT_PET") -- Pet summoned/dismissed
-    event_frame:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
-    event_frame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    event_frame:RegisterEvent("PLAYER_REGEN_DISABLED") -- Entering combat
-    event_frame:RegisterEvent("PLAYER_REGEN_ENABLED") -- Leaving combat
 
     event_frame:SetScript("OnEvent", function(self, event, ...)
         if event == "PLAYER_ENTERING_WORLD" then
             CreateWarningFrame() -- Create frame only once
+            UpdateGrimoireOfSacrificeStatus() -- Initial update
+        elseif event == "PLAYER_TALENT_UPDATE" then
+            UpdateGrimoireOfSacrificeStatus()
         end
-        CheckPetWarning()
+        UpdateWarningActiveState() -- Check/update state on relevant events
     end)
-    -- Also check periodically
-    event_frame:SetScript("OnUpdate", function(self, elapsed)
-        -- Only call CheckPetWarning if we potentially need to show/hide it.
-        -- This prevents constant API calls if conditions are stable.
-        if (not IsMounted()) and (not UnitExists("pet")) then
-            CheckPetWarning()
-        end
-    end)
+    -- OnUpdate will be managed by UpdateWarningActiveState
 end

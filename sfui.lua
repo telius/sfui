@@ -72,9 +72,6 @@ event_frame:SetScript("OnEvent", function(self, event, name)
         end
     elseif event == "PLAYER_LOGIN" then
         -- Create all our UI elements now that the player is in the world.
-        if sfui.create_options_panel then
-            sfui.create_options_panel()
-        end
         if sfui.create_currency_frame then
             sfui.create_currency_frame()
         end
@@ -110,7 +107,7 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             })
             icon:Register("sfui", broker, SfuiDB.minimap_icon)
         else
-            print("sfui: LibDataBroker-1.1 or LibDBIcon-1.0 not loaded (LibDBIcon registration).")
+            -- LibDataBroker-1.1 or LibDBIcon-1.0 not loaded, do nothing.
         end
         -- We only need this event once per session.
         self:UnregisterEvent("PLAYER_LOGIN")

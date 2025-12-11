@@ -54,6 +54,29 @@ local resourceColorsCache = {
     ["ARCANE_CHARGES"] = {r=0.6,g=0.8,b=1.0},
 }
 
+-- Add a cached specID
+local cachedSpecID = 0
+local common_event_frame = CreateFrame("Frame")
+
+local function UpdateCachedSpecID()
+    local spec = C_SpecializationInfo.GetSpecialization()
+    cachedSpecID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
+end
+
+common_event_frame:RegisterEvent("PLAYER_LOGIN")
+common_event_frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+common_event_frame:RegisterEvent("PLAYER_TALENT_UPDATE") -- Talent updates can affect active spec.
+
+common_event_frame:SetScript("OnEvent", function(self, event, ...)
+    if event == "PLAYER_LOGIN" then
+        UpdateCachedSpecID() -- Initial update on login
+    elseif event == "PLAYER_SPECIALIZATION_CHANGED" then
+        UpdateCachedSpecID()
+    elseif event == "PLAYER_TALENT_UPDATE" then
+        UpdateCachedSpecID()
+    end
+end)
+
 
 function sfui.common.update_widget_bar(widget_frame, icons_pool, labels_pool, source_data, get_details_func)
     if not widget_frame then return end
@@ -110,30 +133,21 @@ function sfui.common.update_widget_bar(widget_frame, icons_pool, labels_pool, so
 end
 
 function sfui.common.GetPrimaryResource()
-    local spec = C_SpecializationInfo.GetSpecialization()
-    local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
     if playerClass == "DRUID" then return primaryResourcesCache[playerClass][GetShapeshiftFormID() or 0] end
     local cache = primaryResourcesCache[playerClass]
-    if type(cache) == "table" then return cache[specID] else return cache end
+    if type(cache) == "table" then return cache[cachedSpecID] else return cache end
 end
 
 function sfui.common.GetSecondaryResource()
-    local spec = C_SpecializationInfo.GetSpecialization()
-    local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
     if playerClass == "DRUID" then return secondaryResourcesCache[playerClass][GetShapeshiftFormID() or 0] end
     local cache = secondaryResourcesCache[playerClass]
-    if type(cache) == "table" then return cache[specID] else return cache end
+    if type(cache) == "table" then return cache[cachedSpecID] else return cache end
 end
 
 function sfui.common.GetClassOrSpecColor()
     local color
-    local spec = C_SpecializationInfo.GetSpecialization()
-    local specID
-    if spec then
-        specID = select(1, C_SpecializationInfo.GetSpecializationInfo(spec))
-    end
-    if specID and sfui.config.spec_colors[specID] then
-        local custom_color = sfui.config.spec_colors[specID]
+    if cachedSpecID and sfui.config.spec_colors[cachedSpecID] then
+        local custom_color = sfui.config.spec_colors[cachedSpecID]
         color = { r = custom_color.r, g = custom_color.g, b = custom_color.b }
     end
     return color
