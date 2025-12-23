@@ -2,6 +2,7 @@
 
 -- addon table for scope
 sfui = sfui or {}
+sfui.is_ready_for_vendor_frame = false -- Flag to ensure vendor frame is initialized
 
 -- We ensure the table exists at the global scope.
 -- This guarantees that SfuiDB is available when other files (like options.lua) are parsed.
@@ -36,6 +37,8 @@ SlashCmdList["RL"] = sfui.reload_ui_handler -- Register the reload command
 local event_frame = CreateFrame("Frame")
 event_frame:RegisterEvent("ADDON_LOADED")
 event_frame:RegisterEvent("PLAYER_LOGIN")
+event_frame:RegisterEvent("MERCHANT_SHOW") -- Register MERCHANT_SHOW here
+event_frame:RegisterEvent("MERCHANT_CLOSED") -- Register MERCHANT_CLOSED here
 
 event_frame:SetScript("OnEvent", function(self, event, name)
     if event == "ADDON_LOADED" then
@@ -85,8 +88,8 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             sfui.warnings.Initialize()
         end
 
-        local ldb = LibStub:GetLibrary("LibDataBroker-1.1", true)
-        local icon = LibStub:GetLibrary("LibDBIcon-1.0", true)
+        local ldb = LibStub("LibDataBroker-1.1", true)
+        local icon = LibStub("LibDBIcon-1.0", true)
         if ldb and icon then
             local broker = ldb:NewDataObject("sfui", {
                 type = "launcher",
@@ -111,5 +114,23 @@ event_frame:SetScript("OnEvent", function(self, event, name)
         end
         -- We only need this event once per session.
         self:UnregisterEvent("PLAYER_LOGIN")
+
+        -- Now that everything is loaded, set the flag
+        sfui.is_ready_for_vendor_frame = true
+        
+        -- If MerchantFrame is already shown (e.g., logged in at a vendor), open our custom frame
+        if MerchantFrame and MerchantFrame:IsShown() and _G.sfui.vendor and _G.sfui.vendor.Open then
+            _G.sfui.vendor.Open(false)
+            MerchantFrame:Hide()
+        end
+    elseif event == "MERCHANT_SHOW" then
+        if MerchantFrame then MerchantFrame:Hide() end -- Always hide the default merchant frame first
+        if sfui.is_ready_for_vendor_frame and _G.sfui.vendor and _G.sfui.vendor.Open then
+            _G.sfui.vendor.Open(false) -- Open our custom merchant frame (default to merchant view)
+        end
+    elseif event == "MERCHANT_CLOSED" then
+        if _G.sfui.vendor and _G.sfui.vendor.Close then
+            _G.sfui.vendor.Close()
+        end
     end
 end)

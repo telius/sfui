@@ -25,6 +25,15 @@
     *   **Clock & Calendar Toggles:** Control visibility of the game clock and calendar button.
     *   **Custom Spacing:** Adjustable spacing between minimap buttons.
     *   **Addon Icon:** A dedicated minimap icon for sfui (Death Coil) for quick access, with right-click to reload UI.
+*   **Skyriding Enhancements:**
+    *   **Improved Vigor & Speed Bars:** Custom Vigor and Mount Speed bars for Dragonriding/Skyriding.
+    *   **Ability Tracking:** Displays icons for **Whirling Surge** and **Second Wind** below the speed bar, tracking their cooldowns and charges (Second Wind) for better visibility.
+*   **Custom Merchant Frame:**
+    *   **Modern Replacement:** Replaces the default merchant frame with a sleek, borderless, 4-column x 7-row responsive grid.
+    *   **Smart Item Display:** Features intelligent item name truncation and rarity-colored text.
+    *   **Masque Support:** Item icons are fully skinable with Masque.
+    *   **Currency Integration:** Supports buying items with alternative currencies, displaying costs appropriately.
+    *   **Vendor Header:** Displays the NPC's portrait, name, and title in a custom header layout.
 *   **Customizable Bar Appearance:**
     *   Select from various LibSharedMedia statusbar textures to personalize your UI.
     *   Configurable absorb bar color.
