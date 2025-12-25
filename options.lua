@@ -16,12 +16,15 @@ local function select_tab(selected_tab_button)
         tab_data.panel:Hide()
     end
     selected_tab_button.panel:Show()
-    selected_tab_button:GetFontString():SetTextColor(c.tabs.selected_color.r, c.tabs.selected_color.g, c.tabs.selected_color.b)
+    selected_tab_button:GetFontString():SetTextColor(c.tabs.selected_color.r, c.tabs.selected_color.g,
+        c.tabs.selected_color.b)
     frame.selected_tab = selected_tab_button
 end
 
 function sfui.create_options_panel()
     if frame then return end
+
+    local CreateFlatButton = sfui.common.CreateFlatButton
 
     frame = CreateFrame("Frame", "sfui_options_frame", UIParent, "BackdropTemplate")
     frame:SetSize(c.width, c.height)
@@ -34,7 +37,8 @@ function sfui.create_options_panel()
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
     frame:SetBackdrop({
         bgFile = g.textures.white,
-        tile = true, tileSize = 32,
+        tile = true,
+        tileSize = 32,
     })
     frame:SetBackdropColor(c.backdrop_color.r, c.backdrop_color.g, c.backdrop_color.b, c.backdrop_color.a)
     frame:Hide()
@@ -48,21 +52,13 @@ function sfui.create_options_panel()
     local addon_icon = frame:CreateTexture(nil, "ARTWORK")
     addon_icon:SetSize(32, 32) -- Adjust size as needed
     addon_icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 5, -5)
-            addon_icon:SetTexture("Interface\\Icons\\Spell_shadow_deathcoil")
-        
-            -- Add Close Button
-            local close_button = CreateFrame("Button", "sfui_options_close_button", frame, "UIPanelButtonTemplate")    close_button:SetSize(24, 24)
+    addon_icon:SetTexture("Interface\\Icons\\Spell_shadow_deathcoil")
+
+    -- Add Close Button
+    local close_button = CreateFlatButton(frame, "X", 24, 24)
     close_button:SetPoint("TOPRIGHT", -5, -5)
-    close_button:SetNormalFontObject(g.font_large)
-    close_button:SetText("X")
     close_button:SetScript("OnClick", function()
         frame:Hide()
-    end)
-    close_button:SetScript("OnEnter", function(self)
-        self:GetFontString():SetTextColor(1, 0, 0) -- Red on hover
-    end)
-    close_button:SetScript("OnLeave", function(self)
-        self:GetFontString():SetTextColor(1, 1, 1) -- White normally
     end)
 
     local function CreateCheckbox(parent, label, dbKey, onClickFunc, tooltip)
@@ -97,7 +93,7 @@ function sfui.create_options_panel()
         slider:SetMinMaxValues(minVal, maxVal)
         slider:SetValueStep(step)
         slider:SetObeyStepOnDrag(true)
-        
+
         getglobal(slider:GetName() .. 'Low'):SetText(minVal)
         getglobal(slider:GetName() .. 'High'):SetText(maxVal)
         getglobal(slider:GetName() .. 'Text'):SetText(label)
@@ -106,7 +102,7 @@ function sfui.create_options_panel()
             SfuiDB[dbKey] = value
             if onValueChangedFunc then onValueChangedFunc(value) end
         end)
-        
+
         slider:SetScript("OnShow", function(self)
             self:SetValue(SfuiDB[dbKey] or minVal) -- Default to minVal if nil, or handle specifically
         end)
@@ -133,7 +129,7 @@ function sfui.create_options_panel()
         local tab_button = CreateFrame("Button", "sfui_options_tab_" .. name, frame)
         tab_button:SetSize(c.tabs.width, c.tabs.height)
         tab_button:SetText(name)
-        
+
         local font_string = tab_button:GetFontString()
         font_string:SetFontObject(g.font)
         font_string:SetJustifyH("LEFT")
@@ -149,7 +145,7 @@ function sfui.create_options_panel()
         content_panel:Hide()
 
         tab_button.panel = content_panel
-        
+
         tab_button:SetScript("OnClick", OnTabClick)
         tab_button:SetScript("OnEnter", OnTabEnter)
         tab_button:SetScript("OnLeave", OnTabLeave)
@@ -179,7 +175,7 @@ function sfui.create_options_panel()
     local debug_panel, debug_tab_button = create_tab("debug") -- Debug Tab at bottom
     debug_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
     last_tab_button = debug_tab_button
-    
+
     -- populate main panel
     local main_text = main_panel:CreateFontString(nil, "OVERLAY", g.font)
     main_text:SetPoint("TOPLEFT", 15, -15)
@@ -189,10 +185,8 @@ function sfui.create_options_panel()
 
 
     -- Reload UI button
-    local reload_button = CreateFrame("Button", nil, main_panel, "UIPanelButtonTemplate")
-    reload_button:SetSize(100, 22)
+    local reload_button = CreateFlatButton(main_panel, "Reload UI", 100, 22)
     reload_button:SetPoint("TOPLEFT", main_text, "BOTTOMLEFT", 0, -20)
-    reload_button:SetText("Reload UI")
     reload_button:SetScript("OnClick", function()
         C_UI.Reload()
     end)
@@ -209,6 +203,20 @@ function sfui.create_options_panel()
     end, "Hides the sfui minimap icon.")
     hide_minimap_icon_cb:SetPoint("TOPLEFT", reload_button, "BOTTOMLEFT", 0, -20)
 
+    -- Merchant Settings
+    local merchant_header = main_panel:CreateFontString(nil, "OVERLAY", g.font)
+    merchant_header:SetPoint("TOPLEFT", hide_minimap_icon_cb, "BOTTOMLEFT", 0, -30)
+    merchant_header:SetTextColor(1, 1, 1)
+    merchant_header:SetText("Merchant Settings")
+
+    local auto_sell_cb = CreateCheckbox(main_panel, "Auto-Sell Greys", "autoSellGreys", nil,
+        "Automatically sells all grey items when opening a merchant.")
+    auto_sell_cb:SetPoint("TOPLEFT", merchant_header, "BOTTOMLEFT", 0, -10)
+
+    local auto_repair_cb = CreateCheckbox(main_panel, "Auto-Repair", "autoRepair", nil,
+        "Automatically repairs gear (guild first, skips if blacksmith hammer available).")
+    auto_repair_cb:SetPoint("TOPLEFT", auto_sell_cb, "BOTTOMLEFT", 0, -10)
+
     -- Memory and CPU Usage Display
 
     -- populate minimap panel
@@ -217,11 +225,12 @@ function sfui.create_options_panel()
     minimap_header:SetTextColor(1, 1, 1)
     minimap_header:SetText("Minimap Settings")
 
-    local show_gametime_checkbox = CreateCheckbox(minimap_panel, "Show Calendar / Game Time", "minimap_show_gametime", function(checked)
-        if GameTimeFrame then
-            if checked then GameTimeFrame:Show() else GameTimeFrame:Hide() end
-        end
-    end, "Toggles the display of the game time and calendar button on the minimap.")
+    local show_gametime_checkbox = CreateCheckbox(minimap_panel, "Show Calendar / Game Time", "minimap_show_gametime",
+        function(checked)
+            if GameTimeFrame then
+                if checked then GameTimeFrame:Show() else GameTimeFrame:Hide() end
+            end
+        end, "Toggles the display of the game time and calendar button on the minimap.")
     show_gametime_checkbox:SetPoint("TOPLEFT", minimap_header, "BOTTOMLEFT", 0, -10)
 
     local show_clock_checkbox = CreateCheckbox(minimap_panel, "Show Clock", "minimap_show_clock", function(checked)
@@ -247,37 +256,39 @@ function sfui.create_options_panel()
 
     local mouseover_cb = CreateCheckbox(minimap_panel, "Mouseover Only", "minimap_buttons_mouseover", function(checked)
         if sfui.minimap and sfui.minimap.EnableButtonManager and SfuiDB.minimap_collect_buttons then
-             -- Re-enable to refresh logic
-             sfui.minimap.EnableButtonManager(false)
-             sfui.minimap.EnableButtonManager(true)
+            -- Re-enable to refresh logic
+            sfui.minimap.EnableButtonManager(false)
+            sfui.minimap.EnableButtonManager(true)
         end
     end, "Only show the button bar when hovering the minimap. Also moves Group Finder eye to Top Left.")
     mouseover_cb:SetPoint("TOPLEFT", collect_cb, "BOTTOMLEFT", 0, -10)
 
-    local autozoom_cb = CreateCheckbox(minimap_panel, "Auto Zoom", "minimap_auto_zoom", nil, "Automatically zooms out the minimap.")
+    local autozoom_cb = CreateCheckbox(minimap_panel, "Auto Zoom", "minimap_auto_zoom", nil,
+        "Automatically zooms out the minimap.")
     autozoom_cb:SetPoint("TOPLEFT", mouseover_cb, "BOTTOMLEFT", 0, -10)
-    
+
     local masque_cb = CreateCheckbox(minimap_panel, "Use Masque", "minimap_masque", function(checked)
-         print("sfui: Please reload UI (/rl) for Masque changes to fully apply.")
+        print("sfui: Please reload UI (/rl) for Masque changes to fully apply.")
     end, "Enables Masque support for minimap buttons (requires Reload).")
     masque_cb:SetPoint("TOPLEFT", autozoom_cb, "BOTTOMLEFT", 0, -10)
 
-    local spacing_slider = CreateSlider(minimap_panel, "Button Spacing", "minimap_button_spacing", 0, 10, 1, function(value)
-        -- Assuming we need to re-arrange to see changes
-        if sfui.minimap and sfui.minimap.EnableButtonManager and SfuiDB.minimap_collect_buttons then
-            sfui.minimap.EnableButtonManager(true)
-        end
-    end)
+    local spacing_slider = CreateSlider(minimap_panel, "Button Spacing", "minimap_button_spacing", 0, 10, 1,
+        function(value)
+            -- Assuming we need to re-arrange to see changes
+            if sfui.minimap and sfui.minimap.EnableButtonManager and SfuiDB.minimap_collect_buttons then
+                sfui.minimap.EnableButtonManager(true)
+            end
+        end)
     spacing_slider:SetPoint("TOPLEFT", masque_cb, "BOTTOMLEFT", 0, -20) -- More padding for slider text
 
     -- (removed font size input section)
 
     -- populate combined currency/items panel
 
-                
-        -- populate debug panel
-    
-    
+
+    -- populate debug panel
+
+
     local spec_id_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
     spec_id_label:SetPoint("TOPLEFT", 15, -15)
     spec_id_label:SetText("Spec ID:")
@@ -300,7 +311,7 @@ function sfui.create_options_panel()
     secondary_power_label:SetText("Secondary Power:")
     local secondary_power_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
     secondary_power_value:SetPoint("LEFT", secondary_power_label, "RIGHT", 5, 0)
-    
+
     local function get_power_type_name(power_enum)
         if not power_enum then return "None" end
         if type(power_enum) ~= "number" then return tostring(power_enum) end
@@ -323,9 +334,11 @@ function sfui.create_options_panel()
             local _, _, _, r, g, b = C_SpecializationInfo.GetSpecializationInfo(specID)
             if r then color = { r = r, g = g, b = b } end
         end
-        if not color then local _, class = UnitClass("player"); color = RAID_CLASS_COLORS[class] end
+        if not color then
+            local _, class = UnitClass("player"); color = RAID_CLASS_COLORS[class]
+        end
         if color then color_swatch:SetColorTexture(color.r, color.g, color.b) end
-        
+
         -- Need to get these functions from common.lua
         if sfui.common.GetPrimaryResource then
             primary_power_value:SetText(get_power_type_name(sfui.common.GetPrimaryResource()))
@@ -342,11 +355,9 @@ function sfui.create_options_panel()
     local pet_warning_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
     pet_warning_value:SetPoint("LEFT", pet_warning_label, "RIGHT", 5, 0)
 
-    local debug_refresh_button = CreateFrame("Button", nil, debug_panel, "UIPanelButtonTemplate")
-    debug_refresh_button:SetSize(100, 22)
+    local debug_refresh_button = CreateFlatButton(debug_panel, "Refresh", 100, 22)
     debug_refresh_button:SetPoint("BOTTOM", debug_panel, "BOTTOM", 0, 10)
-    debug_refresh_button:SetText("Refresh")
-    
+
     -- Update update_debug_info to include pet warning status
     local original_update_debug_info = update_debug_info
     function update_debug_info()
@@ -366,7 +377,7 @@ function sfui.create_options_panel()
         original_on_click_debug(self) -- Call original select_tab logic
         update_debug_info()
     end)
-    
+
     update_debug_info()
 
     -- populate combined currency/items panel
@@ -380,7 +391,8 @@ function sfui.create_options_panel()
     currency_info_text:SetPoint("TOPLEFT", currency_header, "BOTTOMLEFT", 0, -10)
     currency_info_text:SetPoint("RIGHT", -15, 0)
     currency_info_text:SetJustifyH("LEFT")
-    currency_info_text:SetText("The currency display is automatic. To add or remove currencies, open the default Character panel, go to the Currencies tab, and check 'Show on Backpack' for any currency you wish to track. Opening and closing the Character Panel will also update the display.")
+    currency_info_text:SetText(
+        "The currency display is automatic. To add or remove currencies, open the default Character panel, go to the Currencies tab, and check 'Show on Backpack' for any currency you wish to track. Opening and closing the Character Panel will also update the display.")
 
     -- Items Section
     local item_header = currency_items_panel:CreateFontString(nil, "OVERLAY", g.font)
@@ -397,10 +409,8 @@ function sfui.create_options_panel()
     item_id_input:SetSize(100, 32)
     item_id_input:SetAutoFocus(false)
 
-    local add_button = CreateFrame("Button", nil, currency_items_panel, "UIPanelButtonTemplate")
+    local add_button = CreateFlatButton(currency_items_panel, "Add", 50, 22)
     add_button:SetPoint("LEFT", item_id_input, "RIGHT", 5, 0)
-    add_button:SetSize(50, 22)
-    add_button:SetText("Add")
     add_button:SetScript("OnClick", function()
         local id = tonumber(item_id_input:GetText())
         if id and sfui.add_item then
@@ -413,13 +423,16 @@ function sfui.create_options_panel()
     drop_frame:SetPoint("TOPLEFT", item_id_label, "BOTTOMLEFT", 0, -20)
     drop_frame:SetSize(250, 50)
     local drop_frame_backdrop = {
-        bgFile = g.textures.tooltip, tile = true, tileSize = 16,
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border", edgeSize = 1,
+        bgFile = g.textures.tooltip,
+        tile = true,
+        tileSize = 16,
+        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+        edgeSize = 1,
         insets = { left = 0, right = 0, top = 0, bottom = 0 }
     }
     drop_frame:SetBackdrop(drop_frame_backdrop)
     drop_frame:SetBackdropColor(0.3, 0.3, 0.3, 0.7) -- Lighter background
-    drop_frame:SetBackdropBorderColor(0, 0, 0, 1) -- 100% black border
+    drop_frame:SetBackdropBorderColor(0, 0, 0, 1)   -- 100% black border
 
     local drop_label = drop_frame:CreateFontString(nil, "OVERLAY", g.font)
     drop_label:SetAllPoints()
@@ -456,7 +469,7 @@ function sfui.create_options_panel()
     local function OnTextureSelect(self)
         local textureName = self.value
         SfuiDB.barTexture = textureName
-        
+
         local LSM = LibStub("LibSharedMedia-3.0", true)
         local texturePath = LSM and LSM:Fetch("statusbar", textureName) or "Interface/Buttons/WHITE8X8"
 
@@ -469,12 +482,12 @@ function sfui.create_options_panel()
     local function InitializeTextureDropdown(self, level)
         local LSM = LibStub("LibSharedMedia-3.0", true)
         local info = UIDropDownMenu_CreateInfo()
-        
+
         local sortedTextures = {}
         -- Ensure Flat is always available
         local seen = { ["Flat"] = true }
         table.insert(sortedTextures, "Flat")
-        
+
         if LSM then
             local textures = LSM:HashTable("statusbar")
             for name, _ in pairs(textures) do
@@ -498,14 +511,7 @@ function sfui.create_options_panel()
     UIDropDownMenu_Initialize(dropdown, InitializeTextureDropdown)
     UIDropDownMenu_SetSelectedValue(dropdown, SfuiDB.barTexture)
     UIDropDownMenu_SetWidth(dropdown, 150)
-
-
-
-
 end
-
-
-
 
 -- global toggle function
 function sfui.toggle_options_panel()

@@ -11,6 +11,7 @@ do
     local health_bar
     local vigor_bar
     local mount_speed_bar
+    local UpdateMountSpeedBarInternal
 
     local function GetSecondaryResourceValue(resource)
         if not resource then return nil, nil end
@@ -60,6 +61,11 @@ do
 
                     vigor_bar.secondWindIcon:ClearAllPoints()
                     vigor_bar.secondWindIcon:SetPoint("TOPLEFT", mount_speed_bar.backdrop, "BOTTOM", gap / 2, -5)
+
+                    if vigor_bar.staticChargeIcon then
+                        vigor_bar.staticChargeIcon:ClearAllPoints()
+                        vigor_bar.staticChargeIcon:SetPoint("LEFT", vigor_bar.backdrop, "RIGHT", 5, 0)
+                    end
                 end
             end
             if vigor_bar and vigor_bar.backdrop and health_bar and health_bar.backdrop then
@@ -295,7 +301,7 @@ do
         bar.TextValue:SetShadowOffset(1, -1)
         bar.TextValue:SetPoint("CENTER")
 
-        local iconSize = 25
+        local iconSize = 30
         -- Icons created but not positioned here anymore (handled in UpdateBarPositions)
         -- Whirling Surge Icon (Spell ID 361584)
         local wsIcon = CreateIcon(bar, "sfui_WhirlingSurgeIcon", iconSize, 361584)
@@ -304,6 +310,13 @@ do
         -- Second Wind Icon (Spell ID 425782)
         local swIcon = CreateIcon(bar, "sfui_SecondWindIcon", iconSize, 425782)
         bar.secondWindIcon = swIcon
+
+        -- Static Charge Icon (Spell ID 418590)
+        local scIcon = CreateIcon(bar, "sfui_StaticChargeIcon", iconSize, 418590)
+        scIcon.countText:ClearAllPoints()
+        scIcon.countText:SetPoint("CENTER", scIcon, "CENTER", 0, 0) -- Center text for this one
+        bar.staticChargeIcon = scIcon
+        bar.staticChargeIcon:Hide()                                 -- Hidden by default
 
         vigor_bar = bar
         return bar
@@ -331,10 +344,35 @@ do
             bar:SetStatusBarColor(cfg.color[1], cfg.color[2], cfg.color[3])
         end
 
-        -- Update Whirling Surge Cooldown (361584)
-        local wsInfo = C_Spell.GetSpellCooldown(361584)
+        -- Update Whirling Surge (361584) or Lightning Rush (418592)
+        local surgeSpellID = 361584
+        local isLightningRush = IsPlayerSpell(418592)
+
+        if isLightningRush then
+            surgeSpellID = 418592
+        end
+
+        -- Update Icon Texture dynamically
+        local surgeTexture = C_Spell.GetSpellTexture(surgeSpellID)
+        bar.whirlingSurgeIcon.texture:SetTexture(surgeTexture or "Interface\\Icons\\INV_Misc_QuestionMark")
+
+        -- Revert desaturation logic (always saturated)
+        bar.whirlingSurgeIcon.texture:SetDesaturated(false)
+        -- Clear stack text from surge icon if any
+        bar.whirlingSurgeIcon.countText:SetText("")
+
+        local wsInfo = C_Spell.GetSpellCooldown(surgeSpellID)
         if wsInfo then
             bar.whirlingSurgeIcon.cooldown:SetCooldown(wsInfo.startTime, wsInfo.duration)
+        end
+
+        -- Update Static Charge (418590)
+        local scAura = C_UnitAuras.GetPlayerAuraBySpellID(418590)
+        if scAura and scAura.applications > 0 then
+            bar.staticChargeIcon:Show()
+            bar.staticChargeIcon.countText:SetText(scAura.applications)
+        else
+            bar.staticChargeIcon:Hide()
         end
 
         -- Update Second Wind Cooldown (425782)
@@ -348,9 +386,6 @@ do
         else
             bar.secondWindIcon.countText:SetText("")
         end
-
-        -- Ensure positions update
-        UpdateBarPositions()
     end
 
     local function GetMountSpeedBar()
@@ -364,7 +399,7 @@ do
         bar:SetScript("OnUpdate", function(self, elapsed)
             elapsedSince = elapsedSince + elapsed
             if elapsedSince > 0.1 then
-                sfui.bars:UpdateMountSpeedBar()
+                UpdateMountSpeedBarInternal()
                 elapsedSince = 0
             end
         end)
@@ -372,13 +407,13 @@ do
         return bar
     end
 
-    function sfui.bars:UpdateMountSpeedBar()
+    UpdateMountSpeedBarInternal = function()
         local cfg = sfui.config.mountSpeedBar
         if not cfg.enabled or not IsDragonflying() then
             if mount_speed_bar then mount_speed_bar.backdrop:Hide() end
             return
         end
-        local bar = GetMountSpeedBar()
+        local bar = mount_speed_bar or GetMountSpeedBar()
         local _, _, forwardSpeed = C_PlayerInfo.GetGlidingInfo()
         if not forwardSpeed then return end
         local speed = forwardSpeed * 14.286
@@ -386,7 +421,21 @@ do
         bar:SetMinMaxValues(0, maxSpeed)
         bar:SetValue(speed)
         bar.TextValue:SetFormattedText("%d", speed)
+
+        -- Thrill of the Skies check (377234)
+        local aura = C_UnitAuras.GetPlayerAuraBySpellID(377234)
+        if aura then
+            bar:SetStatusBarColor(1, 0, 1) -- #ff00ff (Magenta)
+        else
+            if cfg.color then
+                bar:SetStatusBarColor(cfg.color[1], cfg.color[2], cfg.color[3])
+            else
+                bar:SetStatusBarColor(1, 1, 1) -- Default to White
+            end
+        end
     end
+
+    sfui.bars.UpdateMountSpeedBar = UpdateMountSpeedBarInternal
 
     function sfui.bars:SetBarTexture(texturePath)
         if primary_power_bar then primary_power_bar:SetStatusBarTexture(texturePath) end

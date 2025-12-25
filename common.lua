@@ -14,15 +14,15 @@ end
 local primaryResourcesCache = {
     DEATHKNIGHT = Enum.PowerType.RunicPower,
     DEMONHUNTER = Enum.PowerType.Fury,
-    DRUID = {[0]=Enum.PowerType.Mana,[1]=Enum.PowerType.Energy,[5]=Enum.PowerType.Rage,[27]=Enum.PowerType.Mana,[31]=Enum.PowerType.LunarPower},
+    DRUID = { [0] = Enum.PowerType.Mana, [1] = Enum.PowerType.Energy, [5] = Enum.PowerType.Rage, [27] = Enum.PowerType.Mana, [31] = Enum.PowerType.LunarPower },
     EVOKER = Enum.PowerType.Mana,
     HUNTER = Enum.PowerType.Focus,
     MAGE = Enum.PowerType.Mana,
-    MONK = {[268]=Enum.PowerType.Energy,[270]=Enum.PowerType.Energy,[269]=Enum.PowerType.Mana},
+    MONK = { [268] = Enum.PowerType.Energy, [270] = Enum.PowerType.Energy, [269] = Enum.PowerType.Mana },
     PALADIN = Enum.PowerType.Mana,
-    PRIEST = {[256]=Enum.PowerType.Mana,[257]=Enum.PowerType.Mana,[258]=Enum.PowerType.Insanity},
+    PRIEST = { [256] = Enum.PowerType.Mana, [257] = Enum.PowerType.Mana, [258] = Enum.PowerType.Insanity },
     ROGUE = Enum.PowerType.Energy,
-    SHAMAN = {[262]=Enum.PowerType.Maelstrom,[263]=Enum.PowerType.Mana,[264]=Enum.PowerType.Mana},
+    SHAMAN = { [262] = Enum.PowerType.Maelstrom, [263] = Enum.PowerType.Mana, [264] = Enum.PowerType.Mana },
     WARLOCK = Enum.PowerType.Mana,
     WARRIOR = Enum.PowerType.Rage
 }
@@ -30,28 +30,28 @@ local primaryResourcesCache = {
 local secondaryResourcesCache = {
     DEATHKNIGHT = Enum.PowerType.Runes,
     DEMONHUNTER = nil,
-    DRUID = {[1]=Enum.PowerType.ComboPoints,[31]=Enum.PowerType.Mana},
+    DRUID = { [1] = Enum.PowerType.ComboPoints, [31] = Enum.PowerType.Mana },
     EVOKER = Enum.PowerType.Essence,
     HUNTER = nil,
-    MAGE = {[62]=Enum.PowerType.ArcaneCharges},
-    MONK = {[268]="STAGGER",[269]=Enum.PowerType.Chi,[270]=nil},
+    MAGE = { [62] = Enum.PowerType.ArcaneCharges },
+    MONK = { [268] = "STAGGER", [269] = Enum.PowerType.Chi, [270] = nil },
     PALADIN = Enum.PowerType.HolyPower,
-    PRIEST = {[258]=Enum.PowerType.Mana},
+    PRIEST = { [258] = Enum.PowerType.Mana },
     ROGUE = Enum.PowerType.ComboPoints,
-    SHAMAN = {[262]=Enum.PowerType.Mana},
+    SHAMAN = { [262] = Enum.PowerType.Mana },
     WARLOCK = Enum.PowerType.SoulShards,
     WARRIOR = nil
 }
 
 local resourceColorsCache = {
-    ["STAGGER"] = {r=1,g=0.5,b=0},
-    ["SOUL_SHARDS"] = {r=0.58,g=0.51,b=0.79},
-    ["RUNES"] = {r=0.77,g=0.12,b=0.23},
-    ["ESSENCE"] = {r=0.20,g=0.58,b=0.50},
-    ["COMBO_POINTS"] = {r=1.00,g=0.96,b=0.41},
-    ["CHI"] = {r=0.00,g=1.00,b=0.59},
-    ["HOLY_POWER"] = {r=0.96,g=0.91,b=0.55},
-    ["ARCANE_CHARGES"] = {r=0.6,g=0.8,b=1.0},
+    ["STAGGER"] = { r = 1, g = 0.5, b = 0 },
+    ["SOUL_SHARDS"] = { r = 0.58, g = 0.51, b = 0.79 },
+    ["RUNES"] = { r = 0.77, g = 0.12, b = 0.23 },
+    ["ESSENCE"] = { r = 0.20, g = 0.58, b = 0.50 },
+    ["COMBO_POINTS"] = { r = 1.00, g = 0.96, b = 0.41 },
+    ["CHI"] = { r = 0.00, g = 1.00, b = 0.59 },
+    ["HOLY_POWER"] = { r = 0.96, g = 0.91, b = 0.55 },
+    ["ARCANE_CHARGES"] = { r = 0.6, g = 0.8, b = 1.0 },
 }
 
 -- Add a cached specID
@@ -155,7 +155,7 @@ end
 
 function sfui.common.CreateBar(name, frameType, parent, template)
     local cfg = sfui.config[name]
-    local backdrop = CreateFrame("Frame", "sfui_"..name.."_Backdrop", parent, "BackdropTemplate")
+    local backdrop = CreateFrame("Frame", "sfui_" .. name .. "_Backdrop", parent, "BackdropTemplate")
     backdrop:SetFrameStrata("MEDIUM")
     backdrop:SetSize(cfg.width + cfg.backdrop.padding * 2, cfg.height + cfg.backdrop.padding * 2)
     backdrop:SetBackdrop({
@@ -164,7 +164,7 @@ function sfui.common.CreateBar(name, frameType, parent, template)
         tileSize = 32,
     })
     backdrop:SetBackdropColor(cfg.backdrop.color[1], cfg.backdrop.color[2], cfg.backdrop.color[3], cfg.backdrop.color[4])
-    local bar = CreateFrame(frameType, "sfui_"..name, backdrop, template)
+    local bar = CreateFrame(frameType, "sfui_" .. name, backdrop, template)
     bar:SetSize(cfg.width, cfg.height)
     bar:SetPoint("CENTER")
     if bar.SetStatusBarTexture then
@@ -174,7 +174,7 @@ function sfui.common.CreateBar(name, frameType, parent, template)
         if LSM then
             texturePath = LSM:Fetch("statusbar", textureName)
         end
-        
+
         -- Fallback to default if fetch failed or returned nil
         if not texturePath or texturePath == "" then
             texturePath = sfui.config.barTexture
@@ -210,4 +210,75 @@ function sfui.common.GetResourceColor(resource)
         powerName = powerTypeToName[resource]
     end
     return resourceColorsCache[powerName] or GetPowerBarColor("MANA")
+end
+
+function sfui.common.CreateFlatButton(parent, text, width, height)
+    local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    btn:SetSize(width, height)
+    btn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    })
+    btn:SetBackdropColor(0, 0, 0, 1)
+    btn:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+
+    local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    fs:SetPoint("CENTER")
+    fs:SetText(text)
+    fs:SetTextColor(1, 1, 1, 1) -- White
+    btn:SetFontString(fs)
+
+    btn:SetScript("OnEnter", function(self)
+        self:GetFontString():SetTextColor(0, 1, 1, 1) -- #00ffff
+        self:SetBackdropBorderColor(0, 1, 1, 1)
+    end)
+    btn:SetScript("OnLeave", function(self)
+        self:GetFontString():SetTextColor(1, 1, 1, 1)
+        self:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+    end)
+
+    return btn
+end
+
+function sfui.common.IsItemKnown(itemLink)
+    if not itemLink then return false end
+
+    -- 1. Check Tooltip for "Already known"
+    local data = C_TooltipInfo.GetHyperlink(itemLink)
+    if data and data.lines then
+        for _, line in ipairs(data.lines) do
+            local text = line.leftText
+            if text then
+                if text == ITEM_SPELL_KNOWN or text == "Already known" then
+                    return true
+                end
+                if string.find(text, "You've collected this appearance") then
+                    return true
+                end
+            end
+        end
+    end
+
+    -- 2. Check Transmog
+    local itemID = GetItemInfoFromHyperlink(itemLink)
+    if itemID then
+        local appearanceID, sourceID = C_TransmogCollection.GetItemInfo(itemID)
+        if sourceID then
+            local categoryID, visualID, canEnchant, icon, isCollected = C_TransmogCollection.GetAppearanceSourceInfo(
+                sourceID)
+            if isCollected then
+                return true
+            end
+        end
+
+        -- Also check toys?
+        if C_ToyBox and C_ToyBox.GetToyInfo then
+            local toyID = C_ToyBox.GetToyInfo(itemID)
+            if toyID and PlayerHasToy(itemID) then return true end
+        end
+    end
+
+    return false
 end
