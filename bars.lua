@@ -118,7 +118,7 @@ do
                     secondary_power_bar.backdrop:Hide()
                 elseif specID == 270 then -- Mistweaver Monk
                     secondary_power_bar.backdrop:Hide()
-                elseif showCoreBars then
+                elseif showCoreBars and sfui.common.GetSecondaryResource() then
                     secondary_power_bar.backdrop:Show()
                 else
                     secondary_power_bar.backdrop:Hide()
@@ -160,6 +160,9 @@ do
         if color then bar:SetStatusBarColor(color.r, color.g, color.b) end
     end
 
+    -- UpdateFillPosition removed (Secret Values cannot be used in arithmetic).
+    -- We rely on StatusBar:SetValue() to handle secure values internally.
+
     local function GetHealthBar()
         if health_bar then return health_bar end
         local bar = sfui.common.CreateBar("healthBar", "StatusBar", UIParent)
@@ -178,50 +181,66 @@ do
             texturePath = sfui.config.barTexture
         end
 
+        -- Heal Prediction (StatusBar)
         local healPredBar = CreateFrame("StatusBar", "sfui_HealthBar_HealPred", health_bar)
-        healPredBar:SetHeight(cfg.height / 2)
-        healPredBar:SetPoint("TOPLEFT")
-        healPredBar:SetPoint("TOPRIGHT")                  -- Anchored top-right
-        healPredBar:SetStatusBarTexture(texturePath)
-        healPredBar:SetStatusBarColor(0.5, 1.0, 0.5, 0.5) -- Light-soft-green
         healPredBar:SetFrameLevel(bar:GetFrameLevel() + 1)
-        healPredBar:SetReverseFill(true)
+        healPredBar:SetStatusBarTexture(texturePath)
+        healPredBar:SetStatusBarColor(0.0, 0.8, 0.6, 0.5)     -- Teal-Green with transparency
+        healPredBar:GetStatusBarTexture():SetBlendMode("ADD") -- Glow effect
         bar.healPredBar = healPredBar
 
+        -- Absorb (StatusBar)
         local absorbBar = CreateFrame("StatusBar", "sfui_HealthBar_Absorb", health_bar)
-        absorbBar:SetHeight(cfg.height / 2)
-        absorbBar:SetPoint("BOTTOMLEFT")
-        absorbBar:SetPoint("BOTTOMRIGHT")                -- Anchored bottom-right
+        absorbBar:SetFrameLevel(bar:GetFrameLevel() + 2)
         absorbBar:SetStatusBarTexture(texturePath)
-        absorbBar:SetFrameLevel(bar:GetFrameLevel() + 2) -- On top of heal prediction
-        absorbBar:SetReverseFill(true)
+        absorbBar:GetStatusBarTexture():SetBlendMode("ADD") -- Glow effect
         bar.absorbBar = absorbBar
 
         return bar
     end
 
-    local function UpdateHealthBar(current, max)
+    local function UpdateHealthBar(current, maxVal)
         local cfg = sfui.config.healthBar
         if not cfg.enabled then return end
         local bar = GetHealthBar()
         -- current and max are passed in now
-        if not max or max <= 0 then return end
-        bar:SetMinMaxValues(0, max)
+        if not maxVal or maxVal <= 0 then return end
+        bar:SetMinMaxValues(0, maxVal)
         bar:SetValue(current)
         bar:SetStatusBarColor(0.2, 0.2, 0.2) -- Set to very dark grey
 
-        -- Heal prediction logic
-        local incomingHeals = UnitGetIncomingHeals("player") or 0
-        bar.healPredBar:SetMinMaxValues(0, max)
-        bar.healPredBar:SetValue(incomingHeals)
+        local width, height = bar:GetSize()
 
-        -- Absorb bar logic
-        local absorbAmount = UnitGetTotalAbsorbs("player")
-        bar.absorbBar:SetMinMaxValues(0, max)
-        bar.absorbBar:SetValue(absorbAmount)
+        -- Secure Stacking Logic:
+        -- 1. Anchor HealPredBar to the end of HealthBar's TEXTURE.
+        -- 2. Set HealPredBar Width to FULL width of the parent (so SetValue works correctly relative to full bar).
+        -- 3. SetValue(incoming) -> The engine calculates the texture width securely.
+
+        local healPred = bar.healPredBar
+        healPred:SetSize(width, height)
+        healPred:SetMinMaxValues(0, maxVal)
+
+        healPred:ClearAllPoints()
+        healPred:SetPoint("TOPLEFT", bar:GetStatusBarTexture(), "TOPRIGHT", 0, 0)
+
+        local incomingHeals = UnitGetIncomingHeals("player") or 0
+        healPred:SetValue(incomingHeals)
+
+        -- Absorb Logic
+        -- Anchor AbsorbBar to the end of HealPredBar's TEXTURE.
+        local absorbBar = bar.absorbBar
+        absorbBar:SetSize(width, height)
+        absorbBar:SetMinMaxValues(0, maxVal)
+
+        absorbBar:ClearAllPoints()
+        absorbBar:SetPoint("TOPLEFT", healPred:GetStatusBarTexture(), "TOPRIGHT", 0, 0)
+
+        local absorbAmount = UnitGetTotalAbsorbs("player") or 0
+        absorbBar:SetValue(absorbAmount)
+
         local color = SfuiDB.absorbBarColor or (sfui.config and sfui.config.absorbBarColor)
         if color then
-            bar.absorbBar:SetStatusBarColor(color.r, color.g, color.b, color.a) -- Use configurable color
+            absorbBar:SetStatusBarColor(color.r, color.g, color.b, color.a)
         end
     end
 
@@ -243,18 +262,22 @@ do
             return
         end
 
-        local bar = GetSecondaryPowerBar()
-        -- The primary resource is determined in common.lua. If it's nil, we hide.
         local resource = sfui.common.GetSecondaryResource()
+        -- Return early if no resource or invalid stats, preventing Bar creation
         if not resource then
-            if bar.backdrop then bar.backdrop:Hide() end
+            if secondary_power_bar and secondary_power_bar.backdrop then secondary_power_bar.backdrop:Hide() end
             return
-        else
-            if bar.backdrop then bar.backdrop:Show() end -- Ensure it's shown if resource exists
         end
 
         local max, current = GetSecondaryResourceValue(resource)
-        if not max or max <= 0 then return end
+        if not max or max <= 0 then
+            if secondary_power_bar and secondary_power_bar.backdrop then secondary_power_bar.backdrop:Hide() end
+            return
+        end
+
+        local bar = GetSecondaryPowerBar() -- Create ONLY if we have valid data
+
+        if bar.backdrop then bar.backdrop:Show() end
         bar.TextValue:SetText(current)
         bar:SetMinMaxValues(0, max)
         bar:SetValue(current)

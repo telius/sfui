@@ -179,7 +179,8 @@ function sfui.create_options_panel()
     -- populate main panel
     local main_text = main_panel:CreateFontString(nil, "OVERLAY", g.font)
     main_text:SetPoint("TOPLEFT", 15, -15)
-    main_text:SetTextColor(1, 1, 1)
+    local white = sfui.config.colors.white
+    main_text:SetTextColor(white[1], white[2], white[3])
     main_text:SetText("welcome to sfui. please select a category on the left.")
 
 
@@ -206,7 +207,8 @@ function sfui.create_options_panel()
     -- Merchant Settings
     local merchant_header = main_panel:CreateFontString(nil, "OVERLAY", g.font)
     merchant_header:SetPoint("TOPLEFT", hide_minimap_icon_cb, "BOTTOMLEFT", 0, -30)
-    merchant_header:SetTextColor(1, 1, 1)
+    local white = sfui.config.colors.white
+    merchant_header:SetTextColor(white[1], white[2], white[3])
     merchant_header:SetText("Merchant Settings")
 
     local auto_sell_cb = CreateCheckbox(main_panel, "Auto-Sell Greys", "autoSellGreys", nil,
@@ -222,7 +224,8 @@ function sfui.create_options_panel()
     -- populate minimap panel
     local minimap_header = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
     minimap_header:SetPoint("TOPLEFT", 15, -15)
-    minimap_header:SetTextColor(1, 1, 1)
+    local white = sfui.config.colors.white
+    minimap_header:SetTextColor(white[1], white[2], white[3])
     minimap_header:SetText("Minimap Settings")
 
     local show_gametime_checkbox = CreateCheckbox(minimap_panel, "Show Calendar / Game Time", "minimap_show_gametime",
@@ -355,6 +358,8 @@ function sfui.create_options_panel()
     local pet_warning_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
     pet_warning_value:SetPoint("LEFT", pet_warning_label, "RIGHT", 5, 0)
 
+
+
     local debug_refresh_button = CreateFlatButton(debug_panel, "Refresh", 100, 22)
     debug_refresh_button:SetPoint("BOTTOM", debug_panel, "BOTTOM", 0, 10)
 
@@ -368,8 +373,9 @@ function sfui.create_options_panel()
         else
             pet_warning_value:SetText("N/A (Module Missing)")
         end
-        debug_refresh_button:SetScript("OnClick", update_debug_info) -- Assign script here
     end
+
+    debug_refresh_button:SetScript("OnClick", update_debug_info)
 
     -- Hook into the debug tab's OnClick to refresh info when selected
     local original_on_click_debug = debug_tab_button:GetScript("OnClick")
@@ -384,7 +390,8 @@ function sfui.create_options_panel()
     -- Currency Section
     local currency_header = currency_items_panel:CreateFontString(nil, "OVERLAY", g.font)
     currency_header:SetPoint("TOPLEFT", 15, -15)
-    currency_header:SetTextColor(1, 1, 1)
+    local white = sfui.config.colors.white
+    currency_header:SetTextColor(white[1], white[2], white[3])
     currency_header:SetText("Currency Display Settings")
 
     local currency_info_text = currency_items_panel:CreateFontString(nil, "OVERLAY", g.font)
@@ -397,7 +404,8 @@ function sfui.create_options_panel()
     -- Items Section
     local item_header = currency_items_panel:CreateFontString(nil, "OVERLAY", g.font)
     item_header:SetPoint("TOPLEFT", currency_info_text, "BOTTOMLEFT", 0, -20)
-    item_header:SetTextColor(1, 1, 1)
+    local white = sfui.config.colors.white
+    item_header:SetTextColor(white[1], white[2], white[3])
     item_header:SetText("Item Tracking Settings")
 
     local item_id_label = currency_items_panel:CreateFontString(nil, "OVERLAY", g.font)
@@ -456,7 +464,8 @@ function sfui.create_options_panel()
     -- populate bars panel
     local bars_header = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
     bars_header:SetPoint("TOPLEFT", 15, -15)
-    bars_header:SetTextColor(1, 1, 1)
+    local white = sfui.config.colors.white
+    bars_header:SetTextColor(white[1], white[2], white[3])
     bars_header:SetText("Bar Settings")
 
     local texture_label = bars_panel:CreateFontString(nil, "OVERLAY", g.font)

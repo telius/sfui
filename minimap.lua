@@ -5,6 +5,9 @@
 sfui = sfui or {}
 sfui.minimap = {}
 
+-- Cache color references
+local colors = sfui.config.colors
+
 local addonName, addon = ...
 local frame = CreateFrame("Frame", addonName)
 
@@ -438,7 +441,7 @@ function ButtonManager:ArrangeButtons()
                 edgeSize = 1,                          -- 1 pixel border
                 insets = { left = 0, right = 0, top = 0, bottom = 0 }
             })
-            button:SetBackdropBorderColor(0, 0, 0, 1) -- Black, fully opaque
+            sfui.common.SetColor(button, "black")
         end
 
         if SfuiDB.minimap_rearrange then

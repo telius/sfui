@@ -4,6 +4,9 @@
 sfui = sfui or {}
 sfui.warnings = {}
 
+-- Cache color references
+local colors = sfui.config.colors
+
 local warningFrame
 local warningText
 local warningTimer
@@ -45,7 +48,7 @@ local function CreateWarningFrame()
     warningText = warningFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
     warningText:SetAllPoints(warningFrame)
     warningText:SetText("** FU PET **")
-    warningText:SetTextColor(1, 0, 1, 1) -- #ff00ff
+    sfui.common.SetColor(warningText, "magenta")
 end
 
 local function CheckPetWarning()

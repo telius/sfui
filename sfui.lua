@@ -8,6 +8,7 @@ sfui.is_ready_for_vendor_frame = false -- Flag to ensure vendor frame is initial
 -- This guarantees that SfuiDB is available when other files (like options.lua) are parsed.
 SfuiDB = SfuiDB or {}
 
+
 -- register slash command global variable (required by wow api)
 SLASH_SFUI1 = "/sfui"
 SLASH_RL1 = "/rl" -- New reload clash command
@@ -41,7 +42,7 @@ event_frame:RegisterEvent("PLAYER_LOGIN")
 
 event_frame:SetScript("OnEvent", function(self, event, name)
     if event == "ADDON_LOADED" then
-        if name == "sfui" then
+        if string.lower(name) == "sfui" then
             -- Register SharedMedia
             local LSM = LibStub("LibSharedMedia-3.0", true)
             if LSM then
@@ -68,6 +69,9 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             -- Merchant auto-actions
             if SfuiDB.autoSellGreys == nil then SfuiDB.autoSellGreys = false end
             if SfuiDB.autoRepair == nil then SfuiDB.autoRepair = false end
+
+
+
 
             -- Set CVars on load
             if sfui.config and sfui.config.cvars_on_load then

@@ -1,8 +1,12 @@
+---@diagnostic disable: undefined-global
 -- frames/merchant.lua
 -- Custom 4x7 grid merchant frame for sfui
 
 sfui = sfui or {}
 sfui.merchant = {}
+
+-- Cache color references
+local colors = sfui.config.colors
 
 local MSQ = LibStub and LibStub("Masque", true)
 local msqGroup
@@ -110,94 +114,95 @@ end)
 local scrollOffset = 0
 local totalMerchantItems = 0
 
+-- Housing Decor Filter State: 0 = show all, 1 = hide owned, 2 = hide if any in storage
+sfui.merchant.housingDecorFilter = sfui.merchant.housingDecorFilter or 0
+
+-- Track if current merchant is a decor vendor
+local isDecorVendor = false
+
 -- Item Buttons Array
 local buttons = {}
 
+-- Create the stack split dialog frame
+function sfui.merchant.CreateStackSplitFrame(parent)
+    local f = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    f:SetSize(180, 110)
+    f:SetPoint("CENTER")
+    f:SetFrameStrata("DIALOG")
+    f:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 }
+    })
+    f:SetBackdropColor(0.05, 0.05, 0.05, 0.95)
+    f:SetBackdropBorderColor(0, 0, 0, 1)
+
+    -- Title
+    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    f.title:SetPoint("TOP", 0, -8)
+    f.title:SetText("Enter Quantity")
+
+    -- EditBox
+    local eb = CreateFrame("EditBox", nil, f)
+    eb:SetSize(80, 24)
+    eb:SetPoint("TOP", 0, -30)
+    eb:SetFontObject("ChatFontNormal")
+    eb:SetJustifyH("CENTER")
+    eb:SetNumeric(true)
+    eb:SetAutoFocus(true)
+
+    local bg = eb:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.2, 0.2, 0.2, 1)
+
+    eb:SetScript("OnEnterPressed", function() f.buyBtn:Click() end)
+    eb:SetScript("OnEscapePressed", function() f:Hide() end)
+    f.editBox = eb
+
+    -- Max Button
+    f.maxBtn = sfui.common.CreateFlatButton(f, "Max", 40, 24)
+    f.maxBtn:SetPoint("LEFT", eb, "RIGHT", 5, 0)
+    sfui.common.SetColor(f.maxBtn, "black")
+    f.maxBtn:SetScript("OnClick", function()
+        local maxStack = f.maxStack or 1
+        local price = f.price or 0
+        local money = GetMoney()
+        local affordable = price > 0 and math.floor(money / price) or maxStack
+
+        local stackSize = f.stackCount or 1
+        local maxPurchases = math.floor(maxStack / stackSize)
+        local canBuy = math.min(affordable, maxPurchases)
+        if canBuy < 1 then canBuy = 1 end
+
+        eb:SetText(canBuy)
+        eb:SetFocus()
+    end)
+
+    -- Buy Button
+    f.buyBtn = sfui.common.CreateFlatButton(f, "Buy", 70, 24)
+    f.buyBtn:SetPoint("BOTTOMLEFT", 10, 10)
+    sfui.common.SetColor(f.buyBtn, "black")
+    f.buyBtn:SetScript("OnClick", function()
+        local val = tonumber(eb:GetText()) or 1
+        if val > 0 then
+            BuyMerchantItem(f.index, val)
+        end
+        f:Hide()
+    end)
+
+    -- Cancel Button
+    f.cancelBtn = sfui.common.CreateFlatButton(f, "Cancel", 70, 24)
+    f.cancelBtn:SetPoint("BOTTOMRIGHT", -10, 10)
+    sfui.common.SetColor(f.cancelBtn, "black")
+    f.cancelBtn:SetScript("OnClick", function() f:Hide() end)
+
+    return f
+end
+
 local function OpenStackSplit(index)
     if not sfui.merchant.stackSplitFrame then
-        local f = CreateFrame("Frame", nil, sfui.merchant.frame, "BackdropTemplate")
-        f:SetSize(180, 110)
-        f:SetPoint("CENTER")
-        f:SetFrameStrata("DIALOG")
-        f:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-            insets = { left = 1, right = 1, top = 1, bottom = 1 }
-        })
-        f:SetBackdropColor(0.05, 0.05, 0.05, 0.95)
-        f:SetBackdropBorderColor(0, 0, 0, 1)
-
-        -- Title
-        f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        f.title:SetPoint("TOP", 0, -8)
-        f.title:SetText("Enter Quantity")
-
-        -- EditBox
-        local eb = CreateFrame("EditBox", nil, f)
-        eb:SetSize(80, 24)
-        eb:SetPoint("TOP", 0, -30)
-        eb:SetFontObject("ChatFontNormal")
-        eb:SetJustifyH("CENTER")
-        eb:SetNumeric(true)
-        eb:SetAutoFocus(true)
-
-        local bg = eb:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints()
-        bg:SetColorTexture(0.2, 0.2, 0.2, 1)
-
-        eb:SetScript("OnEnterPressed", function() f.buyBtn:Click() end)
-        eb:SetScript("OnEscapePressed", function() f:Hide() end)
-        f.editBox = eb
-
-        -- Max Button
-        f.maxBtn = sfui.common.CreateFlatButton(f, "Max", 40, 24)
-        f.maxBtn:SetPoint("LEFT", eb, "RIGHT", 5, 0)
-        f.maxBtn:SetBackdropBorderColor(0, 0, 0, 1)
-        f.maxBtn:SetScript("OnClick", function()
-            local maxStack = f.maxStack or 1
-            local price = f.price or 0
-            local money = GetMoney()
-            local affordable = price > 0 and math.floor(money / price) or maxStack
-
-            -- If items are sold in stacks (quant>1), price is for that stack.
-            -- BuyMerchantItem takes quantity as "number of stacks".
-            -- Standard UI often confuses this.
-            -- Let's stick to standard behavior: if quantity=1 (standard), amount is units.
-            -- If vendor sells "5x Item", Buy(1) gets 5.
-            -- Max Calculation:
-            -- affordable is number of *purchases*.
-            -- maxStack is item's max stack size.
-            -- If vendor sells X items per purchase, we can hold floor(maxStack / X) purchases.
-
-            local stackSize = f.stackCount or 1
-            local maxPurchases = math.floor(maxStack / stackSize)
-            local canBuy = math.min(affordable, maxPurchases)
-            if canBuy < 1 then canBuy = 1 end
-
-            eb:SetText(canBuy)
-            eb:SetFocus()
-        end)
-
-        -- Buy Button
-        f.buyBtn = sfui.common.CreateFlatButton(f, "Buy", 70, 24)
-        f.buyBtn:SetPoint("BOTTOMLEFT", 10, 10)
-        f.buyBtn:SetBackdropBorderColor(0, 0, 0, 1)
-        f.buyBtn:SetScript("OnClick", function()
-            local val = tonumber(eb:GetText()) or 1
-            if val > 0 then
-                BuyMerchantItem(f.index, val)
-            end
-            f:Hide()
-        end)
-
-        -- Cancel Button
-        f.cancelBtn = sfui.common.CreateFlatButton(f, "Cancel", 70, 24)
-        f.cancelBtn:SetPoint("BOTTOMRIGHT", -10, 10)
-        f.cancelBtn:SetBackdropBorderColor(0, 0, 0, 1)
-        f.cancelBtn:SetScript("OnClick", function() f:Hide() end)
-
-        sfui.merchant.stackSplitFrame = f
+        sfui.merchant.stackSplitFrame = sfui.merchant.CreateStackSplitFrame(sfui.merchant.frame)
     end
 
     local f = sfui.merchant.stackSplitFrame
@@ -225,8 +230,9 @@ local function OpenStackSplit(index)
     f.editBox:SetFocus()
 end
 
-local function CreateItemButton(id)
-    local btn = CreateFrame("Button", "SfuiMerchantItem" .. id, frame, "BackdropTemplate")
+-- Create Item Button
+function sfui.merchant.CreateItemButton(id, parent, msqGroup)
+    local btn = CreateFrame("Button", "SfuiMerchantItem" .. id, parent, "BackdropTemplate")
     btn:SetSize(190, 45)
 
     -- Icon Wrap (for Masque)
@@ -242,7 +248,7 @@ local function CreateItemButton(id)
 
     -- Name
     btn.nameStub = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    btn.nameStub:SetPoint("TOPLEFT", iconWrap, "TOPRIGHT", 5, 2) -- Moved up slightly
+    btn.nameStub:SetPoint("TOPLEFT", iconWrap, "TOPRIGHT", 5, 2)
     btn.nameStub:SetJustifyH("LEFT")
 
     -- SubType (below Name)
@@ -304,7 +310,7 @@ end
 
 -- Create Button Grid
 for i = 1, ITEMS_PER_PAGE do
-    local btn = CreateItemButton(i)
+    local btn = sfui.merchant.CreateItemButton(i, frame, msqGroup)
     local row = math.floor((i - 1) / NUM_COLS)
     local col = (i - 1) % NUM_COLS
 
@@ -341,11 +347,13 @@ frame.scrollBar = scrollBar
 
 
 
-local currencyDisplays = {}
+-- Update Currency Display
+function sfui.merchant.UpdateCurrencyDisplay(frame)
+    frame.currencyDisplays = frame.currencyDisplays or {}
+    local displays = frame.currencyDisplays
 
-local function UpdateCurrencies()
     -- Hide old
-    for _, f in pairs(currencyDisplays) do f:Hide() end
+    for _, f in pairs(displays) do f:Hide() end
 
     local cache = sfui.merchant.currencyCache or {}
 
@@ -375,7 +383,7 @@ local function UpdateCurrencies()
         local idx = i
         local data = item.data
 
-        local display = currencyDisplays[idx]
+        local display = displays[idx]
         if not display then
             display = CreateFrame("Frame", nil, container)
             display:SetSize(100, 20)
@@ -387,7 +395,7 @@ local function UpdateCurrencies()
             display.text = display:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             display.text:SetPoint("LEFT", display.icon, "RIGHT", 5, 0)
 
-            currencyDisplays[idx] = display
+            displays[idx] = display
         end
 
         display.icon:SetTexture(data.texture)
@@ -430,8 +438,6 @@ local function UpdateCurrencies()
     end
 end
 
-
-
 sfui.merchant.mode = "merchant" -- "merchant" or "buyback"
 sfui.merchant.filterKnown = true
 
@@ -465,12 +471,12 @@ filterBtn:SetPoint("LEFT", buybackBtn, "RIGHT", 5, 0)
 local function UpdateFilterButtonStyle(self)
     if sfui.merchant.filterKnown then
         self:SetText("hiding known")
-        self:SetBackdropBorderColor(0, 1, 0, 1) -- Green
-        self:GetFontString():SetTextColor(0, 1, 0)
+        self:SetBackdropBorderColor(0.4, 0, 1, 1)    -- Purple (#6600FF)
+        self:GetFontString():SetTextColor(0.4, 0, 1) -- Purple
     else
         self:SetText("showing known")
-        self:SetBackdropBorderColor(0.2, 0.2, 0.2, 1) -- Standard
-        self:GetFontString():SetTextColor(1, 1, 1)
+        self:SetBackdropBorderColor(1, 1, 1, 1)    -- White
+        self:GetFontString():SetTextColor(1, 1, 1) -- White
     end
 end
 UpdateFilterButtonStyle(filterBtn)
@@ -486,12 +492,54 @@ end)
 filterBtn:SetScript("OnEnter", function(self)
     if not sfui.merchant.filterKnown then
         self:GetFontString():SetTextColor(0, 1, 1, 1) -- Cyan hover if not active
-        self:SetBackdropBorderColor(0, 1, 1, 1)
+        self:SetBackdropBorderColor(0, 1, 1, 1)       -- Cyan (#00FFFF)
     end
 end)
 
+
 filterBtn:SetScript("OnLeave", function(self)
     UpdateFilterButtonStyle(self) -- Revert to state color
+end)
+
+-- Housing Decor Filter Button
+local housingFilterBtn = CreateFlatButton(utilityBar, "decor: all", 100, 22)
+housingFilterBtn:SetPoint("LEFT", filterBtn, "RIGHT", 5, 0)
+
+local function UpdateHousingFilterButtonStyle(self)
+    if sfui.merchant.housingDecorFilter == 1 then
+        self:SetText("decor: hide owned")
+        self:SetBackdropBorderColor(1, 0, 1, 1)    -- Magenta (#FF00FF)
+        self:GetFontString():SetTextColor(1, 0, 1) -- Magenta
+    elseif sfui.merchant.housingDecorFilter == 2 then
+        self:SetText("decor: hide storage")
+        self:SetBackdropBorderColor(0.4, 0, 1, 1)    -- Purple (#6600FF)
+        self:GetFontString():SetTextColor(0.4, 0, 1) -- Purple
+    else
+        self:SetText("decor: show all")
+        self:SetBackdropBorderColor(1, 1, 1, 1)    -- White
+        self:GetFontString():SetTextColor(1, 1, 1) -- White
+    end
+end
+UpdateHousingFilterButtonStyle(housingFilterBtn)
+
+housingFilterBtn:SetScript("OnClick", function(self)
+    -- Cycle through states: 0 -> 1 -> 2 -> 0
+    sfui.merchant.housingDecorFilter = (sfui.merchant.housingDecorFilter + 1) % 3
+    UpdateHousingFilterButtonStyle(self)
+    scrollOffset = 0
+    frame.scrollBar:SetValue(0)
+    sfui.merchant.BuildItemList()
+end)
+
+housingFilterBtn:SetScript("OnEnter", function(self)
+    if sfui.merchant.housingDecorFilter == 0 then
+        self:GetFontString():SetTextColor(0, 1, 1, 1) -- Cyan hover if showing all
+        self:SetBackdropBorderColor(0, 1, 1, 1)       -- Cyan (#00FFFF)
+    end
+end)
+
+housingFilterBtn:SetScript("OnLeave", function(self)
+    UpdateHousingFilterButtonStyle(self) -- Revert to state color
 end)
 
 -- Guild Repair
@@ -691,6 +739,35 @@ sfui.merchant.BuildItemList = function()
                 include = false
             end
         end
+
+        -- Housing Decor Filter
+        if include and sfui.merchant.mode == "merchant" and sfui.merchant.housingDecorFilter > 0 then
+            local link = GetMerchantItemLink(i)
+            if link then
+                local housingInfo = C_HousingCatalog and C_HousingCatalog.GetCatalogEntryInfoByItem and
+                    C_HousingCatalog.GetCatalogEntryInfoByItem(link, true)
+
+                if housingInfo then
+                    local function isValidCount(value)
+                        return value and value > 0 and value < 4294967295
+                    end
+
+                    if sfui.merchant.housingDecorFilter == 1 then
+                        -- Hide if owned (any quantity or placed)
+                        if isValidCount(housingInfo.quantity) or isValidCount(housingInfo.numPlaced) or
+                            isValidCount(housingInfo.remainingRedeemable) then
+                            include = false
+                        end
+                    elseif sfui.merchant.housingDecorFilter == 2 then
+                        -- Hide if any in storage
+                        if isValidCount(housingInfo.quantity) then
+                            include = false
+                        end
+                    end
+                end
+            end
+        end
+
         if include then
             table.insert(sfui.merchant.filteredIndices, i)
         end
@@ -746,6 +823,30 @@ sfui.merchant.BuildItemList = function()
         end
     end
 
+    -- Detect if vendor sells housing decor items
+    local hasHousingDecor = false
+    if sfui.merchant.mode == "merchant" and C_HousingCatalog and C_HousingCatalog.GetCatalogEntryInfoByItem then
+        for i = 1, numItemsRaw do
+            local link = GetMerchantItemLink(i)
+            if link then
+                local housingInfo = C_HousingCatalog.GetCatalogEntryInfoByItem(link, true)
+                if housingInfo then
+                    hasHousingDecor = true
+                    break
+                end
+            end
+        end
+    end
+
+    -- Show/hide housing filter button based on whether vendor sells housing decor
+    if housingFilterBtn then
+        if hasHousingDecor then
+            housingFilterBtn:Show()
+        else
+            housingFilterBtn:Hide()
+        end
+    end
+
     totalMerchantItems = #sfui.merchant.filteredIndices
 
     -- Setup ScrollBar Max
@@ -762,7 +863,7 @@ sfui.merchant.BuildItemList = function()
 
     -- Update Display
     sfui.merchant.UpdateMerchant()
-    UpdateCurrencies() -- Now uses cache
+    sfui.merchant.UpdateCurrencyDisplay(frame) -- Now uses cache
 end
 
 sfui.merchant.UpdateMerchant = function()
@@ -824,24 +925,122 @@ sfui.merchant.UpdateMerchant = function()
                 btn.hasItem = true
                 btn.icon:SetTexture(data.texture)
 
-                -- Item Type Display
+                -- Item Type Display or Housing Decor Info
                 local typeText = ""
-                local slotText = (data.equipLoc and data.equipLoc ~= "" and _G[data.equipLoc]) or ""
-                local subTypeText = data.subType or ""
 
-                if slotText ~= "" then
-                    typeText = slotText
-                    -- Only append Armor Type for Cloth(1), Leather(2), Mail(3), Plate(4)
-                    -- Item Class 4 is Armor
-                    if data.classID == 4 and data.subClassID and (data.subClassID >= 1 and data.subClassID <= 4) then
-                        if subTypeText ~= slotText then
-                            typeText = typeText .. " - " .. subTypeText
+                -- Check if this is a housing decor item (Decor vendor OR item is Decor type)
+                -- We check subType "Decor" or "Housing" to catch items on general vendors
+                local isDecorItem = data.subType and
+                    (string.find(data.subType, "Decor") or string.find(data.subType, "Housing"))
+                local shouldQuery = isDecorVendor or isDecorItem
+
+                if shouldQuery then
+                    -- 1. Try Live API
+                    local housingInfo = C_HousingCatalog and C_HousingCatalog.GetCatalogEntryInfoByItem and
+                        btn.link and C_HousingCatalog.GetCatalogEntryInfoByItem(btn.link, true)
+
+                    local totalOwned, placed, storage = 0, 0, 0
+                    local hasData = false
+
+                    -- Helper to validate values
+                    local function isValidCount(value)
+                        return value and value >= 0 and value < 4294967000
+                    end
+
+                    if housingInfo then
+                        -- Sanitize values to prevent integer overflow (UINT_MAX)
+                        local rawQty = housingInfo.quantity
+                        local rawRedeem = housingInfo.remainingRedeemable
+                        local rawPlaced = housingInfo.numPlaced
+
+                        local qty = isValidCount(rawQty) and rawQty or 0
+                        local redeem = isValidCount(rawRedeem) and rawRedeem or 0
+                        local numsPlaced = isValidCount(rawPlaced) and rawPlaced or 0
+
+                        totalOwned = qty + redeem
+                        placed = numsPlaced
+                        storage = qty
+
+                        -- Update Cache (only if we have valid, non-zero data to save)
+                        if SfuiDecorDB and SfuiDecorDB.items and btn.link then
+                            local itemID = C_Item.GetItemInfoInstant(btn.link)
+                            if not itemID then
+                                itemID = tonumber(string.match(btn.link, "item:(%d+)"))
+                            end
+
+                            if itemID then
+                                -- Save even if 0, so we know we checked it
+                                SfuiDecorDB.items[itemID] = { o = totalOwned, p = placed, s = storage }
+                            end
+                        end
+                        hasData = true
+                    else
+                        -- 2. Fallback to Cache
+                        -- use robust ID extraction
+                        local itemID = C_Item.GetItemInfoInstant(btn.link)
+                        if not itemID then
+                            itemID = tonumber(string.match(btn.link, "item:(%d+)"))
+                        end
+
+                        if SfuiDecorDB and SfuiDecorDB.items and itemID then
+                            local cached = SfuiDecorDB.items[itemID]
+                            if cached then
+                                totalOwned = cached.o or 0
+                                placed = cached.p or 0
+                                storage = cached.s or 0
+                                hasData = true
+                            end
+                        end
+                    end
+
+                    -- 3. Construct Display String
+                    local parts = {}
+                    if hasData then
+                        -- Always show 'o' if we have data, even if 0
+                        local oStr = "o:" .. math.max(0, totalOwned)
+                        table.insert(parts, oStr)
+
+                        if isValidCount(placed) and placed > 0 then
+                            table.insert(parts, "p:" .. placed)
+                        end
+                        if isValidCount(storage) and storage > 0 then
+                            table.insert(parts, "s:" .. storage)
+                        end
+                    end
+
+                    if #parts > 0 then
+                        typeText = table.concat(parts, " ")
+                    else
+                        -- Fallback only if strictly NO data (nil housingInfo AND nil cache)
+                        -- Or if for some reason hasData is true but parts is empty (shouldn't happen with change above)
+                        local slotText = (data.equipLoc and data.equipLoc ~= "" and _G[data.equipLoc]) or ""
+                        local subTypeText = data.subType or ""
+
+                        if slotText ~= "" then
+                            typeText = slotText
+                        elseif subTypeText ~= "" then
+                            typeText = subTypeText
                         end
                     end
                 else
-                    typeText = subTypeText
+                    -- Regular item type display
+                    local slotText = (data.equipLoc and data.equipLoc ~= "" and _G[data.equipLoc]) or ""
+                    local subTypeText = data.subType or ""
+
+                    if slotText ~= "" then
+                        typeText = slotText
+                        -- Only append Armor Type for Cloth(1), Leather(2), Mail(3), Plate(4)
+                        -- Item Class 4 is Armor
+                        if data.classID == 4 and data.subClassID and (data.subClassID >= 1 and data.subClassID <= 4) then
+                            if subTypeText ~= slotText then
+                                typeText = typeText .. " - " .. subTypeText
+                            end
+                        end
+                    else
+                        typeText = subTypeText
+                    end
+                    if typeText == "Other" then typeText = "" end
                 end
-                if typeText == "Other" then typeText = "" end
                 btn.subName:SetText(typeText)
 
                 -- Rarity Color
@@ -978,7 +1177,12 @@ local function UpdateHeader()
         end
     end
     frame.merchantTitle:SetText(titleText)
+
+    -- Check if this is a decor vendor
+    isDecorVendor = titleText and (string.find(titleText:lower(), "decor") or string.find(titleText:lower(), "housing"))
 end
+
+local isSystemClose = false
 
 -- Events
 frame:RegisterEvent("MERCHANT_SHOW")
@@ -994,10 +1198,38 @@ frame:SetScript("OnEvent", function(self, event, ...)
         sfui.merchant.BuildItemList()
         AutoSellGreys()
         AutoRepair()
-        if MerchantFrame then MerchantFrame:Hide() end
+
+        -- Delayed refresh for housing decor data (API needs time to load)
+        -- Try multiple times with increasing delays to ensure data loads
+        C_Timer.After(0.5, function()
+            if self:IsShown() then
+                sfui.merchant.BuildItemList()
+            end
+        end)
+        C_Timer.After(1.0, function()
+            if self:IsShown() then
+                sfui.merchant.BuildItemList()
+            end
+        end)
+
+        -- Ghost Frame: Make default frame invisible and unclickable, but keep it "open"
+        if MerchantFrame then
+            MerchantFrame:SetAlpha(0)
+            MerchantFrame:EnableMouse(false)
+            MerchantFrame:SetFrameStrata("BACKGROUND") -- Move to lowest strata
+            -- We do NOT call Hide() because that closes the merchant connection
+        end
     elseif event == "MERCHANT_CLOSED" then
+        isSystemClose = true
         self:Hide()
+        isSystemClose = false
     elseif event == "MERCHANT_UPDATE" then
         sfui.merchant.BuildItemList()
     end
 end)
+
+-- Allow closing with Escape key
+tinsert(UISpecialFrames, "SfuiMerchantFrame")
+
+-- Ensure frame is hidden on load
+frame:Hide()

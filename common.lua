@@ -222,24 +222,54 @@ function sfui.common.CreateFlatButton(parent, text, width, height)
         insets = { left = 0, right = 0, top = 0, bottom = 0 }
     })
     btn:SetBackdropColor(0, 0, 0, 1)
-    btn:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+    local gray = sfui.config.colors.gray
+    btn:SetBackdropBorderColor(gray[1], gray[2], gray[3], 1)
 
     local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     fs:SetPoint("CENTER")
     fs:SetText(text)
-    fs:SetTextColor(1, 1, 1, 1) -- White
+    local white = sfui.config.colors.white
+    fs:SetTextColor(white[1], white[2], white[3], 1)
     btn:SetFontString(fs)
 
+    local cyan = sfui.config.colors.cyan
     btn:SetScript("OnEnter", function(self)
-        self:GetFontString():SetTextColor(0, 1, 1, 1) -- #00ffff
-        self:SetBackdropBorderColor(0, 1, 1, 1)
+        self:GetFontString():SetTextColor(cyan[1], cyan[2], cyan[3], 1)
+        self:SetBackdropBorderColor(cyan[1], cyan[2], cyan[3], 1)
     end)
     btn:SetScript("OnLeave", function(self)
-        self:GetFontString():SetTextColor(1, 1, 1, 1)
-        self:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+        self:GetFontString():SetTextColor(white[1], white[2], white[3], 1)
+        self:SetBackdropBorderColor(gray[1], gray[2], gray[3], 1)
     end)
 
     return btn
+end
+
+-- Helper function to apply colors consistently
+function sfui.common.SetColor(element, colorName, alpha)
+    local color = sfui.config.colors[colorName]
+    if not color then return end
+    alpha = alpha or 1
+
+    if element.SetTextColor then
+        element:SetTextColor(color[1], color[2], color[3], alpha)
+    elseif element.SetBackdropBorderColor then
+        element:SetBackdropBorderColor(color[1], color[2], color[3], alpha)
+    elseif element.SetBackdropColor then
+        element:SetBackdropColor(color[1], color[2], color[3], alpha)
+    end
+end
+
+-- Helper function to create font strings with consistent styling
+function sfui.common.CreateFontString(parent, font, point, x, y, colorName)
+    local fs = parent:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
+    if point then
+        fs:SetPoint(point, x or 0, y or 0)
+    end
+    if colorName then
+        sfui.common.SetColor(fs, colorName)
+    end
+    return fs
 end
 
 function sfui.common.IsItemKnown(itemLink)
