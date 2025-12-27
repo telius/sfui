@@ -13,6 +13,26 @@ SfuiDB = SfuiDB or {}
 SLASH_SFUI1 = "/sfui"
 SLASH_RL1 = "/rl" -- New reload clash command
 
+-- Pixel Perfect Scale Logic
+sfui.pixelScale = 1
+local function UpdatePixelScale()
+    local resolution = GetCVar("gxWindowedResolution")
+    if resolution then
+        local height = tonumber(string.match(resolution, "%d+x(%d+)"))
+        if height then
+            sfui.pixelScale = 768 / (height * UIParent:GetScale())
+        end
+    end
+end
+sfui.UpdatePixelScale = UpdatePixelScale
+
+-- Event frame for scale updates
+local scale_event_frame = CreateFrame("Frame")
+scale_event_frame:RegisterEvent("UI_SCALE_CHANGED")
+scale_event_frame:SetScript("OnEvent", UpdatePixelScale)
+
+-- function to handle /sfui slash commands
+
 -- function to handle /sfui slash commands
 function sfui.slash_command_handler(msg)
     if msg == "" then
@@ -82,6 +102,9 @@ event_frame:SetScript("OnEvent", function(self, event, name)
         end
     elseif event == "PLAYER_LOGIN" then
         -- Create all our UI elements now that the player is in the world.
+        -- Ensure pixel scale is accurate
+        if sfui.UpdatePixelScale then sfui.UpdatePixelScale() end
+
         if sfui.create_currency_frame then
             sfui.create_currency_frame()
         end

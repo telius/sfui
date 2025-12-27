@@ -20,4 +20,5 @@ options.lua
 currency.lua
 minimap.lua
 bars.lua
+frames\castbar.lua
 frames\merchant.lua

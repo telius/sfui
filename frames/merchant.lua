@@ -286,6 +286,13 @@ function sfui.merchant.CreateItemButton(id, parent, msqGroup)
                 BuybackItem(self:GetID())
             else
                 -- Merchant
+                if IsControlKeyDown() and button == "RightButton" then
+                    if self.link then
+                        DressUpLink(self.link)
+                    end
+                    return
+                end
+
                 if IsShiftKeyDown() and button == "RightButton" then
                     OpenStackSplit(self:GetID())
                     return
@@ -737,6 +744,21 @@ sfui.merchant.BuildItemList = function()
             local link = GetMerchantItemLink(i)
             if sfui.common.IsItemKnown(link) then
                 include = false
+            end
+
+            -- Battle Pet Check
+            if include and link then
+                local itemID = GetItemInfoFromHyperlink(link)
+                if itemID then
+                    -- GetPetInfoByItemID returns: ..., speciesID (13th return)
+                    local speciesID = select(13, C_PetJournal.GetPetInfoByItemID(itemID))
+                    if speciesID then
+                        local numCollected = C_PetJournal.GetNumCollectedInfo(speciesID)
+                        if numCollected and numCollected > 0 then
+                            include = false
+                        end
+                    end
+                end
             end
         end
 

@@ -107,7 +107,7 @@ function ButtonManager:IsButton(frame)
     if not name then return false end
 
     -- Exclude frames that are known not to be addon buttons
-    if name:find("Minimap") or name:find("MinimapCluster") or name:find("GameTime") then
+    if name:find("Minimap") or name:find("MinimapCluster") or name:find("GameTime") or name:find("MicroMenu") then
         return false
     end
 
@@ -195,6 +195,7 @@ function ButtonManager:CollectButtons()
             -- Hook SetPoint to enforce position if Blizzard tries to move it
             if not QueueStatusButton.sfuiHooked then
                 hooksecurefunc(QueueStatusButton, "SetPoint", function(self)
+                    if InCombatLockdown() then return end
                     if SfuiDB.minimap_buttons_mouseover then
                         local p, r, rp, x, y = self:GetPoint(1)
                         if p ~= "TOPLEFT" or r ~= Minimap or rp ~= "TOPLEFT" then
@@ -383,6 +384,7 @@ function ButtonManager:SkinButton(button)
 end
 
 function ButtonManager:ArrangeButtons()
+    if InCombatLockdown() then return end
     if not button_bar then return end
 
     if SfuiDB.minimap_button_order == nil then

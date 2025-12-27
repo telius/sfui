@@ -155,9 +155,14 @@ end
 
 function sfui.common.CreateBar(name, frameType, parent, template)
     local cfg = sfui.config[name]
+    local mult = sfui.pixelScale or 1
     local backdrop = CreateFrame("Frame", "sfui_" .. name .. "_Backdrop", parent, "BackdropTemplate")
     backdrop:SetFrameStrata("MEDIUM")
-    backdrop:SetSize(cfg.width + cfg.backdrop.padding * 2, cfg.height + cfg.backdrop.padding * 2)
+
+    -- Scale padding to be pixel perfect
+    local padding = cfg.backdrop.padding * mult
+    backdrop:SetSize(cfg.width + padding * 2, cfg.height + padding * 2)
+
     backdrop:SetBackdrop({
         bgFile = sfui.config.textures.white,
         tile = true,
@@ -212,13 +217,58 @@ function sfui.common.GetResourceColor(resource)
     return resourceColorsCache[powerName] or GetPowerBarColor("MANA")
 end
 
+-- Helper to create a pixel perfect border using textures
+function sfui.common.CreateBorder(frame, thickness, color)
+    local mult = sfui.pixelScale or 1
+    thickness = (thickness or 1) * mult
+
+    if not frame.borders then
+        frame.borders = {}
+        for i = 1, 4 do
+            frame.borders[i] = frame:CreateTexture(nil, "BACKGROUND")
+            frame.borders[i]:SetTexture("Interface\\Buttons\\WHITE8x8")
+        end
+    end
+
+    local top, bottom, left, right = unpack(frame.borders)
+    local r, g, b, a = 0, 0, 0, 1
+    if color then r, g, b, a = unpack(color) end
+
+    for _, border in ipairs(frame.borders) do
+        border:SetVertexColor(r, g, b, a)
+    end
+
+    -- Positioning
+    -- Top
+    top:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+    top:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+    top:SetHeight(thickness)
+
+    -- Bottom
+    bottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+    bottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+    bottom:SetHeight(thickness)
+
+    -- Left
+    left:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+    left:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+    left:SetWidth(thickness)
+
+    -- Right
+    right:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+    right:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+    right:SetWidth(thickness)
+end
+
 function sfui.common.CreateFlatButton(parent, text, width, height)
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:SetSize(width, height)
+
+    local mult = sfui.pixelScale or 1
     btn:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
+        edgeSize = mult, -- Pixel perfect edge
         insets = { left = 0, right = 0, top = 0, bottom = 0 }
     })
     btn:SetBackdropColor(0, 0, 0, 1)

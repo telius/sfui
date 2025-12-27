@@ -128,7 +128,19 @@ do
             -- Health and Primary Power Bar visibility for non-dragonflying
             if showCoreBars then
                 if health_bar then health_bar.backdrop:Show() end
-                if primary_power_bar then primary_power_bar.backdrop:Show() end
+
+                local hidePowerBar = false
+                if sfui.config.powerBar.hiddenSpecs and sfui.config.powerBar.hiddenSpecs[specID] then
+                    hidePowerBar = true
+                end
+
+                if primary_power_bar then
+                    if hidePowerBar then
+                        primary_power_bar.backdrop:Hide()
+                    else
+                        primary_power_bar.backdrop:Show()
+                    end
+                end
             else
                 if health_bar then health_bar.backdrop:Hide() end
                 if primary_power_bar then primary_power_bar.backdrop:Hide() end
@@ -148,7 +160,10 @@ do
 
     local function UpdatePrimaryPowerBar()
         local cfg = sfui.config.powerBar
-        if not cfg.enabled then return end
+        if not cfg.enabled or IsDragonflying() then
+            if primary_power_bar and primary_power_bar.backdrop then primary_power_bar.backdrop:Hide() end
+            return
+        end
         local bar = GetPrimaryPowerBar()
         local resource = sfui.common.GetPrimaryResource()
         if not resource then return end
@@ -257,7 +272,7 @@ do
 
     local function UpdateSecondaryPowerBar()
         local cfg = sfui.config.secondaryPowerBar
-        if not cfg.enabled then
+        if not cfg.enabled or IsDragonflying() then
             if secondary_power_bar and secondary_power_bar.backdrop then secondary_power_bar.backdrop:Hide() end
             return
         end
@@ -324,7 +339,7 @@ do
         bar.TextValue:SetShadowOffset(1, -1)
         bar.TextValue:SetPoint("CENTER")
 
-        local iconSize = 30
+        local iconSize = 40
         -- Icons created but not positioned here anymore (handled in UpdateBarPositions)
         -- Whirling Surge Icon (Spell ID 361584)
         local wsIcon = CreateIcon(bar, "sfui_WhirlingSurgeIcon", iconSize, 361584)

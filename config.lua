@@ -133,6 +133,64 @@ sfui.config = {
             padding = 2,
             color = { 0, 0, 0, 0.5 },
         },
+        hiddenSpecs = {
+            [1467] = true, -- Devastation Evoker
+            [1473] = true, -- Augmentation Evoker
+            [265] = true,  -- Affliction Warlock
+            [266] = true,  -- Demonology Warlock
+            [267] = true,  -- Destruction Warlock
+            [63] = true,   -- Fire Mage
+            [64] = true,   -- Frost Mage
+            [268] = true,  -- Brewmaster Monk
+            [269] = true,  -- Windwalker Monk
+            [70] = true,   -- Retribution Paladin
+            [256] = true,  -- Discipline Priest
+            [258] = true,  -- Shadow Priest
+        },
+    },
+
+    -- Cast Bar settings
+    castBar = {
+        enabled = true,
+        width = 300,
+        height = 15,
+        color = { 1, 1, 1 },            -- White color for casts
+        channelColor = { 0, 1, 0 },     -- Green for channels
+        empoweredColor = { 0.4, 0, 1 }, -- Default/Fallback Purple
+        empoweredStageColors = {
+            [1] = { 1, 1, 1 },          -- White (Charging Stage 1)
+            [2] = { 0, 1, 1 },          -- Cyan (Charging Stage 2)
+            [3] = { 0.4, 0, 1 },        -- Purple (Charging Stage 3)
+            [4] = { 1, 0, 1 },          -- Magenta (Charging Stage 4)
+        },
+        interruptedColor = { 1, 0, 0 }, -- Red for interrupted
+        gcdColor = { 0.5, 0.5, 0.5 },   -- Gray for GCD
+        backdrop = {
+            padding = 2,
+            color = { 0, 0, 0, 0.5 },
+        },
+    },
+
+    targetCastBar = {
+        enabled = true,
+        width = 300,
+        height = 30, -- Double height as requested
+        color = { 1, 1, 1 },
+        channelColor = { 0, 1, 0 },
+        empoweredColor = { 0.4, 0, 1 },
+        empoweredStageColors = {
+            [1] = { 1, 1, 1 },
+            [2] = { 0, 1, 1 },
+            [3] = { 0.4, 0, 1 },
+            [4] = { 1, 0, 1 },
+        },
+        interruptedColor = { 1, 0, 0 },
+        gcdColor = { 0.5, 0.5, 0.5 },
+        iconSize = 34,
+        backdrop = {
+            padding = 2,
+            color = { 0, 0, 0, 0.5 },
+        },
     },
 
     -- Health Bar settings
@@ -191,7 +249,7 @@ sfui.config = {
         { text = "Flat",              value = "Interface/Buttons/WHITE8X8" },
     },
 
-    absorbBarColor = { r = 0.392, g = 1.0, b = 1.0, a = 0.75 }, -- Hardcoded #64ffff with 75% alpha
+    absorbBarColor = { r = 0.4, g = 0.0, b = 1.0, a = 0.75 }, -- #6600ff with 75% alpha
 
     minimap = {
         default_size = 220, -- Default size for square minimap
