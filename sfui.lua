@@ -1,27 +1,16 @@
--- sfui by teli
-
--- addon table for scope
 sfui = sfui or {}
-sfui.is_ready_for_vendor_frame = false -- Flag to ensure vendor frame is initialized
-
--- We ensure the table exists at the global scope.
--- This guarantees that SfuiDB is available when other files (like options.lua) are parsed.
+sfui.is_ready_for_vendor_frame = false
 SfuiDB = SfuiDB or {}
 
 
--- register slash command global variable (required by wow api)
 SLASH_SFUI1 = "/sfui"
-SLASH_RL1 = "/rl" -- New reload clash command
+SLASH_RL1 = "/rl"
 
--- Pixel Perfect Scale Logic
-sfui.pixelScale = 1
 local function UpdatePixelScale()
     local resolution = GetCVar("gxWindowedResolution")
     if resolution then
         local height = tonumber(string.match(resolution, "%d+x(%d+)"))
-        if height then
-            sfui.pixelScale = 768 / (height * UIParent:GetScale())
-        end
+        if height then sfui.pixelScale = 768 / (height * UIParent:GetScale()) end
     end
 end
 sfui.UpdatePixelScale = UpdatePixelScale
@@ -31,18 +20,10 @@ local scale_event_frame = CreateFrame("Frame")
 scale_event_frame:RegisterEvent("UI_SCALE_CHANGED")
 scale_event_frame:SetScript("OnEvent", UpdatePixelScale)
 
--- function to handle /sfui slash commands
-
--- function to handle /sfui slash commands
 function sfui.slash_command_handler(msg)
     if msg == "" then
-        if sfui.toggle_options_panel then
-            sfui.toggle_options_panel()
-        else
-            print("sfui: options panel not available.")
-        end
+        if sfui.toggle_options_panel then sfui.toggle_options_panel() else print("sfui: options panel not available.") end
     end
-    -- you can add more commands here later, like /sfui help
 end
 
 -- function to handle /rl slash command
@@ -50,11 +31,8 @@ function sfui.reload_ui_handler(msg)
     C_UI.Reload()
 end
 
--- register the slash command handlers (required by wow api)
 SlashCmdList["SFUI"] = sfui.slash_command_handler
-SlashCmdList["RL"] = sfui.reload_ui_handler -- Register the reload command
-
--- frame to listen for events
+SlashCmdList["RL"] = sfui.reload_ui_handler
 local event_frame = CreateFrame("Frame")
 event_frame:RegisterEvent("ADDON_LOADED")
 event_frame:RegisterEvent("PLAYER_LOGIN")
@@ -63,7 +41,6 @@ event_frame:RegisterEvent("PLAYER_LOGIN")
 event_frame:SetScript("OnEvent", function(self, event, name)
     if event == "ADDON_LOADED" then
         if string.lower(name) == "sfui" then
-            -- Register SharedMedia
             local LSM = LibStub("LibSharedMedia-3.0", true)
             if LSM then
                 LSM:Register("statusbar", "Flat", "Interface/Buttons/WHITE8X8")
@@ -72,11 +49,10 @@ event_frame:SetScript("OnEvent", function(self, event, name)
                 LSM:Register("statusbar", "Spark", "Interface/CastingBar/UI-CastingBar-Spark")
             end
 
-            -- Initialize DB
-            if type(SfuiDB.barTexture) ~= "string" or SfuiDB.barTexture == "" then
-                SfuiDB.barTexture = "Flat"
-            end
+            if type(SfuiDB.barTexture) ~= "string" or SfuiDB.barTexture == "" then SfuiDB.barTexture = "Flat" end
             SfuiDB.absorbBarColor = SfuiDB.absorbBarColor or sfui.config.absorbBarColor
+            SfuiDecorDB = SfuiDecorDB or {}
+            SfuiDecorDB.items = SfuiDecorDB.items or {}
 
             SfuiDB.minimap_auto_zoom = SfuiDB.minimap_auto_zoom or sfui.config.minimap.auto_zoom
             SfuiDB.minimap_square = SfuiDB.minimap_square or sfui.config.minimap.square
@@ -84,16 +60,14 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             SfuiDB.minimap_masque = SfuiDB.minimap_masque or sfui.config.minimap.masque
             SfuiDB.minimap_rearrange = SfuiDB.minimap_rearrange or false
             SfuiDB.minimap_button_order = SfuiDB.minimap_button_order or {}
-            SfuiDB.minimap_icon = SfuiDB.minimap_icon or { hide = false } -- Reset to original (no x,y)
-
-            -- Merchant auto-actions
+            SfuiDB.minimap_icon = SfuiDB.minimap_icon or { hide = false }
             if SfuiDB.autoSellGreys == nil then SfuiDB.autoSellGreys = false end
             if SfuiDB.autoRepair == nil then SfuiDB.autoRepair = false end
+            if SfuiDB.disableMerchant == nil then SfuiDB.disableMerchant = true end
 
 
 
 
-            -- Set CVars on load
             if sfui.config and sfui.config.cvars_on_load then
                 for _, cvar_data in ipairs(sfui.config.cvars_on_load) do
                     C_CVar.SetCVar(cvar_data.name, cvar_data.value)
@@ -101,8 +75,6 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             end
         end
     elseif event == "PLAYER_LOGIN" then
-        -- Create all our UI elements now that the player is in the world.
-        -- Ensure pixel scale is accurate
         if sfui.UpdatePixelScale then sfui.UpdatePixelScale() end
 
         if sfui.create_currency_frame then
@@ -118,19 +90,15 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             sfui.warnings.Initialize()
         end
 
-        local ldb = LibStub("LibDataBroker-1.1", true)
-        local icon = LibStub("LibDBIcon-1.0", true)
+        local ldb, icon = LibStub("LibDataBroker-1.1", true), LibStub("LibDBIcon-1.0", true)
         if ldb and icon then
             local broker = ldb:NewDataObject("sfui", {
                 type = "launcher",
                 text = "sfui",
-                icon = "Interface\\Icons\\Spell_shadow_deathcoil", -- Death Coil (Shadow) icon path
+                icon = "Interface\\Icons\\Spell_shadow_deathcoil",
                 OnClick = function(_, button)
-                    if button == "LeftButton" then
-                        sfui.toggle_options_panel()
-                    elseif button == "RightButton" then
-                        C_UI.Reload()
-                    end
+                    if button == "LeftButton" then sfui.toggle_options_panel() elseif button == "RightButton" then C_UI
+                            .Reload() end
                 end,
                 OnTooltipShow = function(tooltip)
                     tooltip:AddLine("sfui")
@@ -139,10 +107,7 @@ event_frame:SetScript("OnEvent", function(self, event, name)
                 end,
             })
             icon:Register("sfui", broker, SfuiDB.minimap_icon)
-        else
-            -- LibDataBroker-1.1 or LibDBIcon-1.0 not loaded, do nothing.
         end
-        -- We only need this event once per session.
         self:UnregisterEvent("PLAYER_LOGIN")
     end
 end)

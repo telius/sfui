@@ -240,6 +240,8 @@ sfui.config = {
         },
     },
 
+
+
     barTexture = "Interface/Buttons/WHITE8X8",
 
     barTextures = {
@@ -268,14 +270,65 @@ sfui.config = {
         masque = true,
     },
 
+    -- Warnings
+    warnings = {
+        pet = {
+            enabled = true,
+            text = "** FU PET **",
+            priority = 10,
+            color = "magenta",
+        },
+        rune = {
+            enabled = true,
+            text = "** USE YOUR RUNE IDIOT **",
+            priority = 5,
+            color = "magenta",
+        }
+    },
+
+    -- Bar Layout Settings
+    barLayout = {
+        spacing = 1, -- Vertical spacing between bars
+    },
+
     -- Merchant Frame settings
     merchant = {
-        frame_width = 800,
-        frame_height = 480,
-        item_width = 190,
-        item_height = 58,
-        items_per_page = 28,
-        icon_size = 46,
+        -- Grid layout
+        grid = {
+            rows = 7,
+            cols = 4,
+            item_width = 190,
+            item_height = 45,
+            spacing_x = 195,
+            spacing_y = 50,
+            offset_x = 20,
+            offset_y = -40,
+        },
+        -- Frame dimensions
+        frame = {
+            width = 840,  -- 4 cols * 200 + 40
+            height = 450, -- 7 rows * 50 + 100
+        },
+        -- Utility bar
+        utility_bar = {
+            height = 30,
+            bottom_offset = 2,
+            button_height = 22,
+            button_small = 60,  -- buyback, filter buttons
+            button_medium = 70, -- sell greys
+            button_large = 90,  -- housing filter
+            spacing = 5,
+        },
+        -- Scrollbar
+        scrollbar = {
+            height = 6,
+            bottom_offset = 35,
+        },
+        -- Currency display
+        currency = {
+            height = 20,
+            bottom_offset = 8,
+        },
         -- Button colors (references to colors table)
         button_colors = {
             filter_active = "purple",

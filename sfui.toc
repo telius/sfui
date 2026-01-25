@@ -3,7 +3,7 @@
 ## Author: teli
 ## Version: 0.0.1
 ## Notes: modular and dynamic uistuffs for world of warcraft.
-## SavedVariables: SfuiDB
+## SavedVariables: SfuiDB, SfuiDecorDB
 ## OptionalDeps: Masque
 ## Icon: Interface\Icons\Spell_shadow_deathcoil
 
@@ -19,6 +19,7 @@ sfui.lua
 options.lua
 currency.lua
 minimap.lua
+
 bars.lua
 frames\castbar.lua
 frames\merchant.lua

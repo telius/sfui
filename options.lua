@@ -1,13 +1,6 @@
--- options.lua for sfui
--- author: teli
-
--- shortcuts for the config tables
 local c = sfui.config.options_panel
 local g = sfui.config
-
-local frame -- this will hold our main frame once it's created
-
--- this function is now local to the file and shared by all other functions here
+local frame
 local function select_tab(selected_tab_button)
     if not frame or not frame.tabs then return end
 
@@ -35,14 +28,9 @@ function sfui.create_options_panel()
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-    frame:SetBackdrop({
-        bgFile = g.textures.white,
-        tile = true,
-        tileSize = 32,
-    })
+    frame:SetBackdrop({ bgFile = g.textures.white, tile = true, tileSize = 32 })
     frame:SetBackdropColor(c.backdrop_color.r, c.backdrop_color.g, c.backdrop_color.b, c.backdrop_color.a)
-    frame:Hide()
-    frame.tabs = {}
+    frame:Hide(); frame.tabs = {}
 
     local header_text = frame:CreateFontString(nil, "OVERLAY", g.font_large)
     header_text:SetPoint("TOP", frame, "TOP", 0, -10)
@@ -50,11 +38,9 @@ function sfui.create_options_panel()
     header_text:SetText(g.title .. " v" .. g.version)
 
     local addon_icon = frame:CreateTexture(nil, "ARTWORK")
-    addon_icon:SetSize(32, 32) -- Adjust size as needed
-    addon_icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 5, -5)
+    addon_icon:SetSize(32, 32); addon_icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 5, -5)
     addon_icon:SetTexture("Interface\\Icons\\Spell_shadow_deathcoil")
 
-    -- Add Close Button
     local close_button = CreateFlatButton(frame, "X", 24, 24)
     close_button:SetPoint("TOPRIGHT", -5, -5)
     close_button:SetScript("OnClick", function()
@@ -154,7 +140,6 @@ function sfui.create_options_panel()
         return content_panel, tab_button
     end
 
-    -- Create tabs in desired order
     local last_tab_button
     local main_panel, main_tab_button = create_tab("main")
     main_tab_button:SetPoint("TOPLEFT", frame, "TOPLEFT", 5, -40)
@@ -168,15 +153,14 @@ function sfui.create_options_panel()
     bars_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
     last_tab_button = bars_tab_button
 
-    local minimap_panel, minimap_tab_button = create_tab("minimap") -- New Minimap Tab
+    local minimap_panel, minimap_tab_button = create_tab("minimap")
     minimap_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
     last_tab_button = minimap_tab_button
 
-    local debug_panel, debug_tab_button = create_tab("debug") -- Debug Tab at bottom
+    local debug_panel, debug_tab_button = create_tab("debug")
     debug_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
     last_tab_button = debug_tab_button
 
-    -- populate main panel
     local main_text = main_panel:CreateFontString(nil, "OVERLAY", g.font)
     main_text:SetPoint("TOPLEFT", 15, -15)
     local white = sfui.config.colors.white
@@ -185,12 +169,9 @@ function sfui.create_options_panel()
 
 
 
-    -- Reload UI button
     local reload_button = CreateFlatButton(main_panel, "Reload UI", 100, 22)
     reload_button:SetPoint("TOPLEFT", main_text, "BOTTOMLEFT", 0, -20)
-    reload_button:SetScript("OnClick", function()
-        C_UI.Reload()
-    end)
+    reload_button:SetScript("OnClick", function() C_UI.Reload() end)
 
     local hide_minimap_icon_cb = CreateCheckbox(main_panel, "Hide Minimap Icon", "minimap_icon.hide", function(checked)
         local icon = LibStub:GetLibrary("LibDBIcon-1.0", true)
@@ -204,10 +185,8 @@ function sfui.create_options_panel()
     end, "Hides the sfui minimap icon.")
     hide_minimap_icon_cb:SetPoint("TOPLEFT", reload_button, "BOTTOMLEFT", 0, -20)
 
-    -- Merchant Settings
     local merchant_header = main_panel:CreateFontString(nil, "OVERLAY", g.font)
     merchant_header:SetPoint("TOPLEFT", hide_minimap_icon_cb, "BOTTOMLEFT", 0, -30)
-    local white = sfui.config.colors.white
     merchant_header:SetTextColor(white[1], white[2], white[3])
     merchant_header:SetText("Merchant Settings")
 
@@ -215,16 +194,18 @@ function sfui.create_options_panel()
         "Automatically sells all grey items when opening a merchant.")
     auto_sell_cb:SetPoint("TOPLEFT", merchant_header, "BOTTOMLEFT", 0, -10)
 
+    local disable_merchant_cb = CreateCheckbox(main_panel, "Disable Merchant Frame", "disableMerchant", nil,
+        "Restores the default WoW merchant frame.")
+    disable_merchant_cb:SetPoint("TOPLEFT", auto_sell_cb, "BOTTOMLEFT", 0, -10)
+
     local auto_repair_cb = CreateCheckbox(main_panel, "Auto-Repair", "autoRepair", nil,
         "Automatically repairs gear (guild first, skips if blacksmith hammer available).")
-    auto_repair_cb:SetPoint("TOPLEFT", auto_sell_cb, "BOTTOMLEFT", 0, -10)
+    auto_repair_cb:SetPoint("TOPLEFT", disable_merchant_cb, "BOTTOMLEFT", 0, -10)
 
     -- Memory and CPU Usage Display
 
-    -- populate minimap panel
     local minimap_header = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
     minimap_header:SetPoint("TOPLEFT", 15, -15)
-    local white = sfui.config.colors.white
     minimap_header:SetTextColor(white[1], white[2], white[3])
     minimap_header:SetText("Minimap Settings")
 
@@ -277,19 +258,12 @@ function sfui.create_options_panel()
 
     local spacing_slider = CreateSlider(minimap_panel, "Button Spacing", "minimap_button_spacing", 0, 10, 1,
         function(value)
-            -- Assuming we need to re-arrange to see changes
             if sfui.minimap and sfui.minimap.EnableButtonManager and SfuiDB.minimap_collect_buttons then
                 sfui.minimap.EnableButtonManager(true)
             end
         end)
     spacing_slider:SetPoint("TOPLEFT", masque_cb, "BOTTOMLEFT", 0, -20) -- More padding for slider text
 
-    -- (removed font size input section)
-
-    -- populate combined currency/items panel
-
-
-    -- populate debug panel
 
 
     local spec_id_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
@@ -342,7 +316,6 @@ function sfui.create_options_panel()
         end
         if color then color_swatch:SetColorTexture(color.r, color.g, color.b) end
 
-        -- Need to get these functions from common.lua
         if sfui.common.GetPrimaryResource then
             primary_power_value:SetText(get_power_type_name(sfui.common.GetPrimaryResource()))
         end
@@ -386,11 +359,8 @@ function sfui.create_options_panel()
 
     update_debug_info()
 
-    -- populate combined currency/items panel
-    -- Currency Section
     local currency_header = currency_items_panel:CreateFontString(nil, "OVERLAY", g.font)
     currency_header:SetPoint("TOPLEFT", 15, -15)
-    local white = sfui.config.colors.white
     currency_header:SetTextColor(white[1], white[2], white[3])
     currency_header:SetText("Currency Display Settings")
 
@@ -401,10 +371,8 @@ function sfui.create_options_panel()
     currency_info_text:SetText(
         "The currency display is automatic. To add or remove currencies, open the default Character panel, go to the Currencies tab, and check 'Show on Backpack' for any currency you wish to track. Opening and closing the Character Panel will also update the display.")
 
-    -- Items Section
     local item_header = currency_items_panel:CreateFontString(nil, "OVERLAY", g.font)
     item_header:SetPoint("TOPLEFT", currency_info_text, "BOTTOMLEFT", 0, -20)
-    local white = sfui.config.colors.white
     item_header:SetTextColor(white[1], white[2], white[3])
     item_header:SetText("Item Tracking Settings")
 
@@ -461,10 +429,8 @@ function sfui.create_options_panel()
 
 
 
-    -- populate bars panel
     local bars_header = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
     bars_header:SetPoint("TOPLEFT", 15, -15)
-    local white = sfui.config.colors.white
     bars_header:SetTextColor(white[1], white[2], white[3])
     bars_header:SetText("Bar Settings")
 
@@ -493,7 +459,6 @@ function sfui.create_options_panel()
         local info = UIDropDownMenu_CreateInfo()
 
         local sortedTextures = {}
-        -- Ensure Flat is always available
         local seen = { ["Flat"] = true }
         table.insert(sortedTextures, "Flat")
 
@@ -522,18 +487,13 @@ function sfui.create_options_panel()
     UIDropDownMenu_SetWidth(dropdown, 150)
 end
 
--- global toggle function
 function sfui.toggle_options_panel()
-    if not frame then
-        sfui.create_options_panel()
-    end
+    if not frame then sfui.create_options_panel() end
 
     if frame:IsShown() then
         frame:Hide()
     else
         frame:Show()
-        if not frame.selected_tab then
-            select_tab(frame.tabs[1].button)
-        end
+        if not frame.selected_tab then select_tab(frame.tabs[1].button) end
     end
 end

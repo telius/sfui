@@ -1,7 +1,3 @@
--- bars.lua for sfui
--- author: teli
--- Adapted from NephUI's resource bar implementation.
-
 sfui = sfui or {}
 sfui.bars = {}
 
@@ -20,7 +16,6 @@ do
             local maxHealth = UnitHealthMax("player") or 1
             return maxHealth, stagger
         end
-        -- For Runes, we just show the count, not individual cooldowns.
         if resource == Enum.PowerType.Runes then
             local current, max = 0, UnitPowerMax("player", resource)
             if max <= 0 then return nil, nil end
@@ -43,6 +38,8 @@ do
     end
 
     local function UpdateBarPositions()
+        local spacing = sfui.config.barLayout.spacing or 1
+
         if health_bar and health_bar.backdrop then
             health_bar.backdrop:ClearAllPoints()
             health_bar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 300)
@@ -51,14 +48,12 @@ do
         if IsDragonflying() then
             if mount_speed_bar and mount_speed_bar.backdrop and vigor_bar and vigor_bar.backdrop then
                 mount_speed_bar.backdrop:ClearAllPoints()
-                mount_speed_bar.backdrop:SetPoint("TOP", vigor_bar.backdrop, "BOTTOM", 0, -5) -- Stack under and center with vigor bar
+                mount_speed_bar.backdrop:SetPoint("TOP", vigor_bar.backdrop, "BOTTOM", 0, -spacing) -- Stack under and center with vigor bar
 
-                -- Position icons below Mount Speed Bar if they exist
                 if vigor_bar.whirlingSurgeIcon and vigor_bar.secondWindIcon then
                     local gap = 5
                     vigor_bar.whirlingSurgeIcon:ClearAllPoints()
                     vigor_bar.whirlingSurgeIcon:SetPoint("TOPRIGHT", mount_speed_bar.backdrop, "BOTTOM", -gap / 2, -5)
-
                     vigor_bar.secondWindIcon:ClearAllPoints()
                     vigor_bar.secondWindIcon:SetPoint("TOPLEFT", mount_speed_bar.backdrop, "BOTTOM", gap / 2, -5)
 
@@ -70,16 +65,16 @@ do
             end
             if vigor_bar and vigor_bar.backdrop and health_bar and health_bar.backdrop then
                 vigor_bar.backdrop:ClearAllPoints()
-                vigor_bar.backdrop:SetPoint("BOTTOM", health_bar.backdrop, "TOP", 0, 5)
+                vigor_bar.backdrop:SetPoint("BOTTOM", health_bar.backdrop, "TOP", 0, spacing)
             end
         else
             if primary_power_bar and primary_power_bar.backdrop and health_bar and health_bar.backdrop then
                 primary_power_bar.backdrop:ClearAllPoints()
-                primary_power_bar.backdrop:SetPoint("TOP", health_bar.backdrop, "BOTTOM", 0, -5)
+                primary_power_bar.backdrop:SetPoint("TOP", health_bar.backdrop, "BOTTOM", 0, -spacing)
             end
             if secondary_power_bar and secondary_power_bar.backdrop and health_bar and health_bar.backdrop then
                 secondary_power_bar.backdrop:ClearAllPoints()
-                secondary_power_bar.backdrop:SetPoint("BOTTOM", health_bar.backdrop, "TOP", 0, 5)
+                secondary_power_bar.backdrop:SetPoint("BOTTOM", health_bar.backdrop, "TOP", 0, spacing)
             end
         end
     end
@@ -90,18 +85,9 @@ do
         local hasEnemyTarget = UnitCanAttack("player", "target")
         local showCoreBars = inCombat or hasEnemyTarget
 
-        -- Vigor and Mount Speed bars (instant show/hide)
         if isDragonflying then
             if vigor_bar then vigor_bar.backdrop:Show() end
             if mount_speed_bar then mount_speed_bar.backdrop:Show() end
-        else
-            if vigor_bar then vigor_bar.backdrop:Hide() end
-            if mount_speed_bar then mount_speed_bar.backdrop:Hide() end
-        end
-
-        -- Core bars (health, primary, secondary)
-        if isDragonflying then
-            -- When dragonflying, core bars are always hidden.
             if health_bar then health_bar.backdrop:Hide() end
             if primary_power_bar then primary_power_bar.backdrop:Hide() end
             if secondary_power_bar then secondary_power_bar.backdrop:Hide() end
@@ -114,9 +100,7 @@ do
 
             -- Secondary Power Bar visibility for non-dragonflying
             if secondary_power_bar then
-                if IsMounted() then       -- Hide if mounted
-                    secondary_power_bar.backdrop:Hide()
-                elseif specID == 270 then -- Mistweaver Monk
+                if IsMounted() or specID == 270 then
                     secondary_power_bar.backdrop:Hide()
                 elseif showCoreBars and sfui.common.GetSecondaryResource() then
                     secondary_power_bar.backdrop:Show()
@@ -128,17 +112,13 @@ do
             -- Health and Primary Power Bar visibility for non-dragonflying
             if showCoreBars then
                 if health_bar then health_bar.backdrop:Show() end
-
-                local hidePowerBar = false
-                if sfui.config.powerBar.hiddenSpecs and sfui.config.powerBar.hiddenSpecs[specID] then
-                    hidePowerBar = true
-                end
-
+                local hide = sfui.config.powerBar.hiddenSpecs and sfui.config.powerBar.hiddenSpecs[specID]
                 if primary_power_bar then
-                    if hidePowerBar then
+                    if hide then
                         primary_power_bar.backdrop:Hide()
                     else
-                        primary_power_bar.backdrop:Show()
+                        primary_power_bar.backdrop
+                            :Show()
                     end
                 end
             else
@@ -184,8 +164,6 @@ do
         bar:GetStatusBarTexture():SetHorizTile(true)
         health_bar = bar
 
-        local cfg = sfui.config.healthBar -- Need this to get height
-
         local textureName = SfuiDB.barTexture
         local LSM = LibStub("LibSharedMedia-3.0", true)
         local texturePath
@@ -196,21 +174,18 @@ do
             texturePath = sfui.config.barTexture
         end
 
-        -- Heal Prediction (StatusBar)
-        local healPredBar = CreateFrame("StatusBar", "sfui_HealthBar_HealPred", health_bar)
+        local healPredBar = CreateFrame("StatusBar", nil, bar)
         healPredBar:SetFrameLevel(bar:GetFrameLevel() + 1)
         healPredBar:SetStatusBarTexture(texturePath)
-        healPredBar:SetStatusBarColor(0.0, 0.8, 0.6, 0.5)     -- Teal-Green with transparency
-        healPredBar:GetStatusBarTexture():SetBlendMode("ADD") -- Glow effect
+        healPredBar:SetStatusBarColor(0.0, 0.8, 0.6, 0.5)
+        healPredBar:GetStatusBarTexture():SetBlendMode("ADD")
         bar.healPredBar = healPredBar
 
-        -- Absorb (StatusBar)
-        local absorbBar = CreateFrame("StatusBar", "sfui_HealthBar_Absorb", health_bar)
+        local absorbBar = CreateFrame("StatusBar", nil, bar)
         absorbBar:SetFrameLevel(bar:GetFrameLevel() + 2)
         absorbBar:SetStatusBarTexture(texturePath)
-        absorbBar:GetStatusBarTexture():SetBlendMode("ADD") -- Glow effect
+        absorbBar:GetStatusBarTexture():SetBlendMode("ADD")
         bar.absorbBar = absorbBar
-
         return bar
     end
 
@@ -222,41 +197,25 @@ do
         if not maxVal or maxVal <= 0 then return end
         bar:SetMinMaxValues(0, maxVal)
         bar:SetValue(current)
-        bar:SetStatusBarColor(0.2, 0.2, 0.2) -- Set to very dark grey
 
         local width, height = bar:GetSize()
-
-        -- Secure Stacking Logic:
-        -- 1. Anchor HealPredBar to the end of HealthBar's TEXTURE.
-        -- 2. Set HealPredBar Width to FULL width of the parent (so SetValue works correctly relative to full bar).
-        -- 3. SetValue(incoming) -> The engine calculates the texture width securely.
-
         local healPred = bar.healPredBar
         healPred:SetSize(width, height)
         healPred:SetMinMaxValues(0, maxVal)
-
         healPred:ClearAllPoints()
         healPred:SetPoint("TOPLEFT", bar:GetStatusBarTexture(), "TOPRIGHT", 0, 0)
 
         local incomingHeals = UnitGetIncomingHeals("player") or 0
         healPred:SetValue(incomingHeals)
 
-        -- Absorb Logic
-        -- Anchor AbsorbBar to the end of HealPredBar's TEXTURE.
         local absorbBar = bar.absorbBar
-        absorbBar:SetSize(width, height)
-        absorbBar:SetMinMaxValues(0, maxVal)
-
+        absorbBar:SetSize(width, height); absorbBar:SetMinMaxValues(0, maxVal)
         absorbBar:ClearAllPoints()
         absorbBar:SetPoint("TOPLEFT", healPred:GetStatusBarTexture(), "TOPRIGHT", 0, 0)
-
         local absorbAmount = UnitGetTotalAbsorbs("player") or 0
         absorbBar:SetValue(absorbAmount)
-
         local color = SfuiDB.absorbBarColor or (sfui.config and sfui.config.absorbBarColor)
-        if color then
-            absorbBar:SetStatusBarColor(color.r, color.g, color.b, color.a)
-        end
+        if color then absorbBar:SetStatusBarColor(color.r, color.g, color.b, color.a) end
     end
 
     local function GetSecondaryPowerBar()
@@ -278,7 +237,6 @@ do
         end
 
         local resource = sfui.common.GetSecondaryResource()
-        -- Return early if no resource or invalid stats, preventing Bar creation
         if not resource then
             if secondary_power_bar and secondary_power_bar.backdrop then secondary_power_bar.backdrop:Hide() end
             return
@@ -290,8 +248,7 @@ do
             return
         end
 
-        local bar = GetSecondaryPowerBar() -- Create ONLY if we have valid data
-
+        local bar = GetSecondaryPowerBar()
         if bar.backdrop then bar.backdrop:Show() end
         bar.TextValue:SetText(current)
         bar:SetMinMaxValues(0, max)
@@ -322,10 +279,9 @@ do
         cd:SetAllPoints()
         frame.cooldown = cd
 
-        -- Text for charges
         local text = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         text:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
-        text:SetPoint("TOP", frame, "BOTTOM", 0, -2) -- Below the icon
+        text:SetPoint("TOP", frame, "BOTTOM", 0, -2)
         frame.countText = text
 
         return frame
@@ -336,26 +292,14 @@ do
         local bar = sfui.common.CreateBar("vigorBar", "StatusBar", UIParent)
         bar.TextValue = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         bar.TextValue:SetFont("Fonts\\FRIZQT__.TTF", sfui.config.secondaryPowerBar.fontSize, "NONE")
-        bar.TextValue:SetShadowOffset(1, -1)
-        bar.TextValue:SetPoint("CENTER")
-
+        bar.TextValue:SetShadowOffset(1, -1); bar.TextValue:SetPoint("CENTER")
         local iconSize = 40
-        -- Icons created but not positioned here anymore (handled in UpdateBarPositions)
-        -- Whirling Surge Icon (Spell ID 361584)
-        local wsIcon = CreateIcon(bar, "sfui_WhirlingSurgeIcon", iconSize, 361584)
-        bar.whirlingSurgeIcon = wsIcon
-
-        -- Second Wind Icon (Spell ID 425782)
-        local swIcon = CreateIcon(bar, "sfui_SecondWindIcon", iconSize, 425782)
-        bar.secondWindIcon = swIcon
-
-        -- Static Charge Icon (Spell ID 418590)
-        local scIcon = CreateIcon(bar, "sfui_StaticChargeIcon", iconSize, 418590)
-        scIcon.countText:ClearAllPoints()
-        scIcon.countText:SetPoint("CENTER", scIcon, "CENTER", 0, 0) -- Center text for this one
-        bar.staticChargeIcon = scIcon
-        bar.staticChargeIcon:Hide()                                 -- Hidden by default
-
+        bar.whirlingSurgeIcon = CreateIcon(bar, "sfui_WhirlingSurgeIcon", iconSize, 361584)
+        bar.secondWindIcon = CreateIcon(bar, "sfui_SecondWindIcon", iconSize, 425782)
+        bar.staticChargeIcon = CreateIcon(bar, "sfui_StaticChargeIcon", iconSize, 418590)
+        bar.staticChargeIcon.countText:ClearAllPoints()
+        bar.staticChargeIcon.countText:SetPoint("CENTER", bar.staticChargeIcon, "CENTER", 0, 0)
+        bar.staticChargeIcon:Hide()
         vigor_bar = bar
         return bar
     end
@@ -370,8 +314,6 @@ do
         end
         local bar = GetVigorBar()
         local chargesInfo = C_Spell.GetSpellCharges(372608)
-
-        -- Update Charges
         if chargesInfo then
             bar:SetMinMaxValues(0, chargesInfo.maxCharges)
             bar:SetValue(chargesInfo.currentCharges)
@@ -382,21 +324,11 @@ do
             bar:SetStatusBarColor(cfg.color[1], cfg.color[2], cfg.color[3])
         end
 
-        -- Update Whirling Surge (361584) or Lightning Rush (418592)
-        local surgeSpellID = 361584
-        local isLightningRush = IsPlayerSpell(418592)
+        local surgeSpellID = IsPlayerSpell(418592) and 418592 or 361584
 
-        if isLightningRush then
-            surgeSpellID = 418592
-        end
-
-        -- Update Icon Texture dynamically
         local surgeTexture = C_Spell.GetSpellTexture(surgeSpellID)
         bar.whirlingSurgeIcon.texture:SetTexture(surgeTexture or "Interface\\Icons\\INV_Misc_QuestionMark")
-
-        -- Revert desaturation logic (always saturated)
         bar.whirlingSurgeIcon.texture:SetDesaturated(false)
-        -- Clear stack text from surge icon if any
         bar.whirlingSurgeIcon.countText:SetText("")
 
         local wsInfo = C_Spell.GetSpellCooldown(surgeSpellID)
@@ -404,26 +336,17 @@ do
             bar.whirlingSurgeIcon.cooldown:SetCooldown(wsInfo.startTime, wsInfo.duration)
         end
 
-        -- Update Static Charge (418590)
         local scAura = C_UnitAuras.GetPlayerAuraBySpellID(418590)
         if scAura and scAura.applications > 0 then
-            bar.staticChargeIcon:Show()
-            bar.staticChargeIcon.countText:SetText(scAura.applications)
+            bar.staticChargeIcon:Show(); bar.staticChargeIcon.countText:SetText(scAura.applications)
         else
             bar.staticChargeIcon:Hide()
         end
 
-        -- Update Second Wind Cooldown (425782)
         local swInfo = C_Spell.GetSpellCooldown(425782)
         local swCharges = C_Spell.GetSpellCharges(425782)
-        if swInfo then
-            bar.secondWindIcon.cooldown:SetCooldown(swInfo.startTime, swInfo.duration)
-        end
-        if swCharges then
-            bar.secondWindIcon.countText:SetText(swCharges.currentCharges)
-        else
-            bar.secondWindIcon.countText:SetText("")
-        end
+        if swInfo then bar.secondWindIcon.cooldown:SetCooldown(swInfo.startTime, swInfo.duration) end
+        bar.secondWindIcon.countText:SetText(swCharges and swCharges.currentCharges or "")
     end
 
     local function GetMountSpeedBar()
@@ -460,10 +383,9 @@ do
         bar:SetValue(speed)
         bar.TextValue:SetFormattedText("%d", speed)
 
-        -- Thrill of the Skies check (377234)
         local aura = C_UnitAuras.GetPlayerAuraBySpellID(377234)
         if aura then
-            bar:SetStatusBarColor(1, 0, 1) -- #ff00ff (Magenta)
+            bar:SetStatusBarColor(1, 0, 1)
         else
             if cfg.color then
                 bar:SetStatusBarColor(cfg.color[1], cfg.color[2], cfg.color[3])
@@ -493,7 +415,7 @@ do
         UpdateHealthBar(current, max)
         UpdateSecondaryPowerBar()
         UpdateVigorBar()
-        sfui.bars:UpdateMountSpeedBar() -- this one is public for the OnUpdate script
+        sfui.bars:UpdateMountSpeedBar()
         UpdateBarVisibility()
     end
 

@@ -1,14 +1,5 @@
--- currency.lua for sfui
--- author: teli
--- This file now contains logic for both the currency and item frames.
-
---------------------------------------------------------------------
--- Currency Frame Logic
---------------------------------------------------------------------
-do -- Use a block to contain currency-specific local variables
-    local widget_frame
-    local icons = {}
-    local value_labels = {}
+do
+    local widget_frame, icons, value_labels = nil, {}, {}
 
     local function OnCurrencyIconEnter(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -26,9 +17,7 @@ do -- Use a block to contain currency-specific local variables
         return {
             texture = currencyInfo.iconFileID,
             quantity = currencyInfo.quantity,
-            on_enter = OnCurrencyIconEnter,
-            on_leave = OnIconLeave,
-            on_mouseup = nil, -- No right-click action for currencies
+            on_mouseup = nil,
         }
     end
 
@@ -64,7 +53,7 @@ do -- Use a block to contain currency-specific local variables
         end
         CharacterFrame:HookScript("OnShow", update_visibility)
         CharacterFrame:HookScript("OnHide", update_visibility)
-        
+
         local event_frame = CreateFrame("Frame")
         event_frame:RegisterEvent("CURRENCY_DISPLAY_UPDATE")
         event_frame:SetScript("OnEvent", function()
@@ -76,14 +65,8 @@ do -- Use a block to contain currency-specific local variables
     end
 end
 
---------------------------------------------------------------------
--- Items Frame Logic
---------------------------------------------------------------------
-do -- Use a separate block for item-specific local variables
-    local widget_frame
-    local icons = {}
-    local value_labels = {}
-
+do
+    local widget_frame, icons, value_labels = nil, {}, {}
     local function remove_item(itemID)
         if not SfuiDB or not SfuiDB.items then return end
         for i, id in ipairs(SfuiDB.items) do
@@ -154,7 +137,7 @@ do -- Use a separate block for item-specific local variables
         end
         CharacterFrame:HookScript("OnShow", update_visibility)
         CharacterFrame:HookScript("OnHide", update_visibility)
-        
+
         local event_frame = CreateFrame("Frame")
         event_frame:RegisterEvent("BAG_UPDATE")
         event_frame:SetScript("OnEvent", sfui.update_item_display)

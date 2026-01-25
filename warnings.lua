@@ -1,99 +1,89 @@
--- warnings.lua for sfui
--- author: teli
-
 sfui = sfui or {}
 sfui.warnings = {}
 
--- Cache color references
 local colors = sfui.config.colors
-
-local warningFrame
-local warningText
-local warningTimer
-local event_frame                    -- Declare event_frame at a higher scope
-local hasGrimoireOfSacrifice = false -- Cached status
-
-local registeredEvents = {
-    "UNIT_PET",
-    "PLAYER_MOUNT_DISPLAY_CHANGED",
-    "PLAYER_TARGET_CHANGED",
-    "PLAYER_REGEN_DISABLED",
-    "PLAYER_REGEN_ENABLED",
-    "PLAYER_TALENT_UPDATE",  -- For Grimoire of Sacrifice check
-    "PLAYER_UPDATE_RESTING", -- For Rest area check
-}
-
-local function UpdateGrimoireOfSacrificeStatus()
-    local GRIMOIRE_OF_SACRIFICE_SPELL_ID = 108503
-    hasGrimoireOfSacrifice = IsPlayerSpell(GRIMOIRE_OF_SACRIFICE_SPELL_ID)
-end
+local warningFrame, warningText, event_frame
+local activeWarnings = {}
+local PET_WARNING_PRIORITY, RUNE_WARNING_PRIORITY = 10, 5
 
 local function CreateWarningFrame()
-    warningFrame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    warningFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -150) -- Move 150p down
-    warningFrame:SetSize(300, 50)                                -- Adjust size as needed
-    warningFrame:SetFrameStrata("HIGH")
-    warningFrame:SetBackdrop({
-        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "", -- No edge file for no border
-        tile = true,
-        tileSize = 16,
-        edgeSize = 0,                                         -- No edge size for no border
-        insets = { left = 0, right = 0, top = 0, bottom = 0 } -- No insets
-    })
-    warningFrame:SetBackdropColor(0.8, 0, 0, 0.8)             -- Red background
-    warningFrame:SetBackdropBorderColor(0, 0, 0, 0)           -- Transparent border
-    warningFrame:Hide()
+    if warningFrame then return end
+
+    warningFrame = CreateFrame("Frame", "SfuiWarningFrame", UIParent, "BackdropTemplate")
+    warningFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -150)
+    warningFrame:SetSize(300, 50); warningFrame:SetFrameStrata("HIGH")
+    warningFrame:SetBackdrop({ bgFile = "Interface/Tooltips/UI-Tooltip-Background", tile = true, tileSize = 16, edgeSize = 0, insets = { 0, 0, 0, 0 } })
+    warningFrame:SetBackdropColor(0.8, 0, 0, 0.8); warningFrame:Hide()
 
     warningText = warningFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
     warningText:SetAllPoints(warningFrame)
-    warningText:SetText("** FU PET **")
-    sfui.common.SetColor(warningText, "magenta")
+    warningText:SetText("")
 end
 
-local function CheckPetWarning()
+local function UpdateWarningDisplay()
     if not warningFrame then CreateWarningFrame() end
 
-    local _, playerClass = UnitClass("player")
-    local spec = C_SpecializationInfo.GetSpecialization()
-    local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
-
-    local isAppropriateSpec = false
-    if playerClass == "HUNTER" and (specID == 253 or specID == 255) then -- BM or Survival Hunter
-        isAppropriateSpec = true
-    elseif playerClass == "DEATHKNIGHT" and specID == 252 then           -- Unholy DK
-        isAppropriateSpec = true
-    elseif playerClass == "WARLOCK" then                                 -- Any Warlock spec
-        if not hasGrimoireOfSacrifice then
-            isAppropriateSpec = true
+    local highestPri, bestWarning = 0, nil
+    for key, warning in pairs(activeWarnings) do
+        if warning.active and warning.priority > highestPri then
+            highestPri, bestWarning = warning.priority, warning
         end
     end
 
-    local hasPet = UnitExists("pet")
-    local mounted = IsMounted()
-    local resting = IsResting()
-
-    if isAppropriateSpec and not hasPet and not mounted and not resting then
-        if not warningTimer then                                  -- Start timer only if not already running
-            warningTimer = C_Timer.After(2, function()
-                if not UnitExists("pet") and not IsResting() then -- Re-check if pet still not out after delay
-                    warningFrame:Show()
-                else
-                    warningFrame:Hide() -- Hide if pet appeared during delay
-                end
-                warningTimer = nil      -- Clear timer reference
-            end)
-        end
+    if bestWarning then
+        warningText:SetText(bestWarning.text)
+        sfui.common.SetColor(warningText, bestWarning.color or "magenta")
+        warningFrame:Show()
     else
-        if warningTimer then
-            C_Timer.Cancel(warningTimer) -- Cancel existing timer if conditions are no longer met
-            warningTimer = nil
-        end
         warningFrame:Hide()
     end
 end
 
-local function UpdateWarningActiveState()
+local function SetWarning(key, active, text, priority, colorName)
+    activeWarnings[key] = {
+        active = active,
+        text = text,
+        priority = priority or 1,
+        color = colorName
+    }
+    UpdateWarningDisplay()
+end
+
+local function CheckAugmentRunes()
+    local cfg = sfui.config.warnings.rune
+    if not cfg or not cfg.enabled or UnitAffectingCombat("player") then
+        SetWarning("rune", false); return
+    end
+
+    local RUNE_PAIRS = { { itemID = 243191, spellID = 1234969 }, { itemID = 211495, spellID = 393438 } }
+    local missingRune = false
+    for _, pair in ipairs(RUNE_PAIRS) do
+        if C_Item.GetItemCount(pair.itemID) > 0 and not C_UnitAuras.GetPlayerAuraBySpellID(pair.spellID) then
+            missingRune = true; break
+        end
+    end
+
+    if missingRune then
+        SetWarning("rune", true, cfg.text, cfg.priority, cfg.color)
+    else
+        SetWarning("rune", false)
+    end
+end
+
+local petWarningTimer = nil
+local hasGrimoireOfSacrifice = false
+
+local function UpdateGrimoireOfSacrificeStatus()
+    hasGrimoireOfSacrifice = IsPlayerSpell(108503)
+end
+
+local function CheckPetWarning()
+    local cfg = sfui.config.warnings.pet
+    if not cfg or not cfg.enabled then
+        SetWarning("pet", false)
+        return
+    end
+
     local _, playerClass = UnitClass("player")
     local spec = C_SpecializationInfo.GetSpecialization()
     local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
@@ -109,76 +99,75 @@ local function UpdateWarningActiveState()
         end
     end
 
-    if isAppropriateSpec then
-        -- Enable specific pet-related events
-        for _, eventName in ipairs(registeredEvents) do
-            event_frame:RegisterEvent(eventName)
+    local hasPet = UnitExists("pet")
+    local mounted = IsMounted()
+    local resting = IsResting()
+
+    if isAppropriateSpec and not hasPet and not mounted and not resting then
+        if not petWarningTimer then
+            petWarningTimer = C_Timer.After(2, function()
+                if not UnitExists("pet") and not IsResting() then
+                    SetWarning("pet", true, cfg.text, cfg.priority, cfg.color)
+                else
+                    SetWarning("pet", false)
+                end
+                petWarningTimer = nil
+            end)
         end
-        CheckPetWarning() -- Initial check
     else
-        -- Disable pet-related events and OnUpdate
-        for _, eventName in ipairs(registeredEvents) do
-            event_frame:UnregisterEvent(eventName)
+        if petWarningTimer then
+            C_Timer.Cancel(petWarningTimer)
+            petWarningTimer = nil
         end
-        event_frame:SetScript("OnUpdate", nil)
-        warningFrame:Hide() -- Hide if spec is no longer appropriate
-        if warningTimer then
-            C_Timer.Cancel(warningTimer)
-            warningTimer = nil
-        end
+        SetWarning("pet", false)
+    end
+end
+
+local function OnEvent(self, event, ...)
+    if event == "PLAYER_ENTERING_WORLD" then
+        CreateWarningFrame()
+        UpdateGrimoireOfSacrificeStatus()
+        CheckPetWarning()
+        CheckAugmentRunes()
+    elseif event == "UNIT_PET" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "PLAYER_UPDATE_RESTING" then
+        CheckPetWarning()
+    elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
+        CheckPetWarning(); CheckAugmentRunes()
+    elseif event == "PLAYER_TALENT_UPDATE" or event == "PLAYER_SPECIALIZATION_CHANGED" then
+        UpdateGrimoireOfSacrificeStatus(); CheckPetWarning()
+    elseif event == "BAG_UPDATE_DELAYED" or event == "UNIT_AURA" then
+        CheckAugmentRunes()
     end
 end
 
 function sfui.warnings.GetStatus()
     if not warningFrame then return "Not Initialized" end
-    if warningFrame:IsShown() then
-        return "Warning Active"
-    elseif warningTimer then
-        return "Timer Active (2s Delay)"
+
+    local status = {}
+    for k, v in pairs(activeWarnings) do
+        if v.active then
+            table.insert(status, k .. ": " .. v.text)
+        end
+    end
+
+    if #status > 0 then
+        return table.concat(status, ", ")
     else
-        local _, playerClass = UnitClass("player")
-        local spec = C_SpecializationInfo.GetSpecialization()
-        local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
-
-        local isAppropriateSpec = false
-        if playerClass == "HUNTER" and (specID == 253 or specID == 255) then
-            isAppropriateSpec = true
-        elseif playerClass == "DEATHKNIGHT" and specID == 252 then
-            isAppropriateSpec = true
-        elseif playerClass == "WARLOCK" then
-            if not hasGrimoireOfSacrifice then
-                isAppropriateSpec = true
-            end
-        end
-
-        local hasPet = UnitExists("pet")
-        local mounted = IsMounted()
-
-        if isAppropriateSpec and not hasPet and not mounted then
-            return "Ready to Activate (Delaying)"
-        else
-            -- More specific status why conditions are not met
-            if not isAppropriateSpec then return "Not Appropriate Spec" end
-            if hasPet then return "Pet Out" end
-            if mounted then return "Mounted" end
-            return "Conditions Not Met"
-        end
+        return "No Active Warnings"
     end
 end
 
 function sfui.warnings.Initialize()
-    event_frame = CreateFrame("Frame") -- Assign to higher-scoped variable
+    event_frame = CreateFrame("Frame")
     event_frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    event_frame:RegisterEvent("UNIT_PET")
+    event_frame:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
+    event_frame:RegisterEvent("PLAYER_REGEN_DISABLED")
+    event_frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+    event_frame:RegisterEvent("PLAYER_UPDATE_RESTING")
+    event_frame:RegisterEvent("PLAYER_TALENT_UPDATE")
     event_frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-
-    event_frame:SetScript("OnEvent", function(self, event, ...)
-        if event == "PLAYER_ENTERING_WORLD" then
-            CreateWarningFrame()              -- Create frame only once
-            UpdateGrimoireOfSacrificeStatus() -- Initial update
-        elseif event == "PLAYER_TALENT_UPDATE" then
-            UpdateGrimoireOfSacrificeStatus()
-        end
-        UpdateWarningActiveState() -- Check/update state on relevant events
-    end)
-    -- OnUpdate will be managed by UpdateWarningActiveState
+    event_frame:RegisterEvent("BAG_UPDATE_DELAYED")
+    event_frame:RegisterEvent("UNIT_AURA")
+    event_frame:SetScript("OnEvent", OnEvent)
 end

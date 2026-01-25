@@ -1,35 +1,23 @@
--- frames/castbar.lua for sfui
--- author: teli
--- Implements a casting bar anchored below the power bar (Player) and Center (Target).
-
 sfui = sfui or {}
 sfui.castbar = {}
 
 local function CreateCastBar(configName, unit)
-    -- configName must exist in config.lua
     local bar = sfui.common.CreateBar(configName, "StatusBar", UIParent)
-    bar.unit = unit
-    bar.configName = configName
+    bar.unit, bar.configName = unit, configName
 
-    -- Ensure alpha is reset on show
     bar.backdrop:SetScript("OnShow", function(self) self:SetAlpha(1) end)
 
-    -- Setup Text
     bar.Text = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     bar.Text:SetPoint("CENTER", 0, 0)
 
-    -- Setup Timer Text
     bar.TimerText = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     bar.TimerText:SetPoint("RIGHT", -5, 0)
 
-    -- Setup Spark
     bar.Spark = bar:CreateTexture(nil, "OVERLAY")
     bar.Spark:SetTexture("Interface\\CastingBar\\UI-CastingBar-Spark")
     bar.Spark:SetBlendMode("ADD")
-    bar.Spark:SetSize(20, bar:GetHeight() * 2.5) -- Adjust spark height relative to bar height
+    bar.Spark:SetSize(20, bar:GetHeight() * 2.5)
 
-    -- Setup Icon
-    -- We want the icon to the left of the bar
     bar.Icon = bar.backdrop:CreateTexture(nil, "ARTWORK")
     bar.Icon:SetSize(bar:GetHeight() + 4, bar:GetHeight() + 4)
     bar.Icon:SetPoint("RIGHT", bar.backdrop, "LEFT", -5, 0)
@@ -47,18 +35,10 @@ local function CreateCastBar(configName, unit)
     end
     bar:SetStatusBarTexture(texturePath)
 
-    -- Retrieve Config
     local cfg = sfui.config[configName]
-
-    -- Update Anchoring
     bar.backdrop:ClearAllPoints()
-    if unit == "player" then
-        bar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 110)
-    end
-
-    -- Start hidden
+    if unit == "player" then bar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 110) end
     bar.backdrop:Hide()
-
     return bar
 end
 
@@ -115,33 +95,25 @@ local function OnUpdate(self, elapsed)
         -- Spark Logic
         local sparkPosition = (self.value / self.maxValue) * self:GetWidth()
         self.Spark:SetPoint("CENTER", self, "LEFT", sparkPosition, 0)
-    elseif self.empowering then -- Empowered spells fill UP (like a cast)
+    elseif self.empowering then
         self.value = self.value + elapsed
         if self.value >= self.maxValue then
-            self:SetValue(self.maxValue)
-            StartLinger(self)
-            return
+            self:SetValue(self.maxValue); StartLinger(self); return
         end
         self:SetValue(self.value)
         self.TimerText:SetFormattedText("%.1f", self.maxValue - self.value)
 
-        -- Dynamic Color Logic
         if self.numStages and self.numStages > 0 then
             local progress = self.value / self.maxValue
-            local currentStage = math.floor(progress * self.numStages) + 1
-            if currentStage > self.numStages then currentStage = self.numStages end
+            local currentStage = math.min(math.floor(progress * self.numStages) + 1, self.numStages)
 
             if currentStage ~= self.empowerStage then
                 self.empowerStage = currentStage
                 local stageColors = sfui.config[self.configName].empoweredStageColors
-                if stageColors and stageColors[currentStage] then
-                    local c = stageColors[currentStage]
-                    self:SetStatusBarColor(c[1], c[2], c[3])
-                end
+                local c = stageColors and stageColors[currentStage]
+                if c then self:SetStatusBarColor(c[1], c[2], c[3]) end
             end
         end
-
-        -- Spark Logic
         local sparkPosition = (self.value / self.maxValue) * self:GetWidth()
         self.Spark:SetPoint("CENTER", self, "LEFT", sparkPosition, 0)
     elseif self.isLingering then
@@ -149,17 +121,13 @@ local function OnUpdate(self, elapsed)
         if self.lingerTime <= 0 then
             self.fadeTime = self.fadeTime - elapsed
             if self.fadeTime <= 0 then
-                self.isLingering = nil
-                self.backdrop:Hide()
-                self.backdrop:SetAlpha(1)
+                self.isLingering = nil; self.backdrop:Hide(); self.backdrop:SetAlpha(1)
             else
                 self.backdrop:SetAlpha(self.fadeTime / 0.5)
             end
         end
     else
-        self.value = 0
-        self.backdrop:Hide()
-        self.backdrop:SetAlpha(1)
+        self.value = 0; self.backdrop:Hide(); self.backdrop:SetAlpha(1)
     end
 end
 
@@ -226,47 +194,23 @@ local function OnEvent(self, event, unit, ...)
         self.Text:SetText(name)
 
         local isEmpowered = numStages and numStages > 0
-
         if isEmpowered then
-            -- Empowered spells fill UP (like a cast), but are channels
-            -- Using GetUnitEmpowerHoldAtMaxTime requires 10.0+ API, checking availability
-            local holdTime = 0
-            if GetUnitEmpowerHoldAtMaxTime then
-                holdTime = GetUnitEmpowerHoldAtMaxTime(unit)
-            end
+            local holdTime = GetUnitEmpowerHoldAtMaxTime and GetUnitEmpowerHoldAtMaxTime(unit) or 0
             endTime = endTime + holdTime
-
             self.value = (GetTime() - (startTime / 1000))
             self.maxValue = (endTime - startTime) / 1000
+            self.casting, self.channeling, self.empowering = nil, nil, true
+            self.numStages, self.empowerStage = numStages, 0
 
-            self.casting = nil
-            self.channeling = nil
-            self.empowering = true
-
-            self.numStages = numStages
-            self.empowerStage = 0
-
-            -- Set Initial Color (Stage 1)
             local stageColors = sfui.config[self.configName].empoweredStageColors
-            if stageColors and stageColors[1] then
-                local c = stageColors[1]
-                self:SetStatusBarColor(c[1], c[2], c[3])
-            else
-                UpdateCastBarColor(self, "EMPOWER")
-            end
-
+            local c = stageColors and stageColors[1]
+            if c then self:SetStatusBarColor(c[1], c[2], c[3]) else UpdateCastBarColor(self, "EMPOWER") end
             CreateStageDividers(self, numStages)
         else
-            -- Standard Channel fills DOWN
             self.value = ((endTime / 1000) - GetTime())
             self.maxValue = (endTime - startTime) / 1000
-
-            self.casting = nil
-            self.channeling = true
-            self.empowering = nil
-
-            UpdateCastBarColor(self, "CHANNEL")
-            CreateStageDividers(self, 0)
+            self.casting, self.channeling, self.empowering = nil, true, nil
+            UpdateCastBarColor(self, "CHANNEL"); CreateStageDividers(self, 0)
         end
 
         self:SetMinMaxValues(0, self.maxValue)
@@ -342,13 +286,6 @@ local function OnEvent(self, event, unit, ...)
     end
 end
 
--- Update OnUpdate to handle GCD
--- We need to modify the OnUpdate function near line 73 too, so let's include it in a separate edit or bigger chunk?
--- I'll do a MultiReplace or just replace the whole file content for safety if it's not too big.
--- Actually I can just update UpdateCastBarColor and OnUpdate in previous chunks if I use MultiReplace.
--- Let's use MultiReplace for this.
-
--- Initialize Bars
 local event_frame = CreateFrame("Frame")
 event_frame:RegisterEvent("PLAYER_LOGIN")
 
@@ -374,14 +311,10 @@ end
 
 event_frame:SetScript("OnEvent", function(self, event)
     if event == "PLAYER_LOGIN" then
-        -- Player Cast Bar
         SetupBar("castBar", "player")
-
-
         if _G.PlayerCastingBarFrame then
-            _G.PlayerCastingBarFrame:SetAlpha(0)
-            _G.PlayerCastingBarFrame:UnregisterAllEvents()
-            _G.PlayerCastingBarFrame:Hide()
+            _G.PlayerCastingBarFrame:SetAlpha(0); _G.PlayerCastingBarFrame:UnregisterAllEvents(); _G
+                .PlayerCastingBarFrame:Hide()
         end
     end
 end)

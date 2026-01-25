@@ -1,7 +1,3 @@
--- common.lua for sfui
--- author: teli
--- This file will hold shared functions to reduce code duplication.
-
 sfui.common = {}
 
 local _, playerClass = UnitClass("player")
@@ -54,7 +50,6 @@ local resourceColorsCache = {
     ["ARCANE_CHARGES"] = { r = 0.6, g = 0.8, b = 1.0 },
 }
 
--- Add a cached specID
 local cachedSpecID = 0
 local common_event_frame = CreateFrame("Frame")
 
@@ -65,16 +60,10 @@ end
 
 common_event_frame:RegisterEvent("PLAYER_LOGIN")
 common_event_frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-common_event_frame:RegisterEvent("PLAYER_TALENT_UPDATE") -- Talent updates can affect active spec.
+common_event_frame:RegisterEvent("PLAYER_TALENT_UPDATE")
 
-common_event_frame:SetScript("OnEvent", function(self, event, ...)
-    if event == "PLAYER_LOGIN" then
-        UpdateCachedSpecID() -- Initial update on login
-    elseif event == "PLAYER_SPECIALIZATION_CHANGED" then
-        UpdateCachedSpecID()
-    elseif event == "PLAYER_TALENT_UPDATE" then
-        UpdateCachedSpecID()
-    end
+common_event_frame:SetScript("OnEvent", function(self, event)
+    UpdateCachedSpecID()
 end)
 
 
@@ -158,8 +147,6 @@ function sfui.common.CreateBar(name, frameType, parent, template)
     local mult = sfui.pixelScale or 1
     local backdrop = CreateFrame("Frame", "sfui_" .. name .. "_Backdrop", parent, "BackdropTemplate")
     backdrop:SetFrameStrata("MEDIUM")
-
-    -- Scale padding to be pixel perfect
     local padding = cfg.backdrop.padding * mult
     backdrop:SetSize(cfg.width + padding * 2, cfg.height + padding * 2)
 
@@ -180,7 +167,6 @@ function sfui.common.CreateBar(name, frameType, parent, template)
             texturePath = LSM:Fetch("statusbar", textureName)
         end
 
-        -- Fallback to default if fetch failed or returned nil
         if not texturePath or texturePath == "" then
             texturePath = sfui.config.barTexture
         end
@@ -217,7 +203,6 @@ function sfui.common.GetResourceColor(resource)
     return resourceColorsCache[powerName] or GetPowerBarColor("MANA")
 end
 
--- Helper to create a pixel perfect border using textures
 function sfui.common.CreateBorder(frame, thickness, color)
     local mult = sfui.pixelScale or 1
     thickness = (thickness or 1) * mult
@@ -238,26 +223,14 @@ function sfui.common.CreateBorder(frame, thickness, color)
         border:SetVertexColor(r, g, b, a)
     end
 
-    -- Positioning
-    -- Top
-    top:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
-    top:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
-    top:SetHeight(thickness)
-
-    -- Bottom
-    bottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
-    bottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
-    bottom:SetHeight(thickness)
-
-    -- Left
-    left:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
-    left:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
-    left:SetWidth(thickness)
-
-    -- Right
-    right:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
-    right:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
-    right:SetWidth(thickness)
+    top:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0); top:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0); top:SetHeight(
+    thickness)
+    bottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0); bottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0); bottom
+        :SetHeight(thickness)
+    left:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0); left:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0); left
+        :SetWidth(thickness)
+    right:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0); right:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0); right
+        :SetWidth(thickness)
 end
 
 function sfui.common.CreateFlatButton(parent, text, width, height)
@@ -268,7 +241,7 @@ function sfui.common.CreateFlatButton(parent, text, width, height)
     btn:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = mult, -- Pixel perfect edge
+        edgeSize = mult,
         insets = { left = 0, right = 0, top = 0, bottom = 0 }
     })
     btn:SetBackdropColor(0, 0, 0, 1)
@@ -295,7 +268,6 @@ function sfui.common.CreateFlatButton(parent, text, width, height)
     return btn
 end
 
--- Helper function to apply colors consistently
 function sfui.common.SetColor(element, colorName, alpha)
     local color = sfui.config.colors[colorName]
     if not color then return end
@@ -310,7 +282,6 @@ function sfui.common.SetColor(element, colorName, alpha)
     end
 end
 
--- Helper function to create font strings with consistent styling
 function sfui.common.CreateFontString(parent, font, point, x, y, colorName)
     local fs = parent:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
     if point then
@@ -325,7 +296,6 @@ end
 function sfui.common.IsItemKnown(itemLink)
     if not itemLink then return false end
 
-    -- 1. Check Tooltip for "Already known"
     local data = C_TooltipInfo.GetHyperlink(itemLink)
     if data and data.lines then
         for _, line in ipairs(data.lines) do
@@ -341,7 +311,6 @@ function sfui.common.IsItemKnown(itemLink)
         end
     end
 
-    -- 2. Check Transmog
     local itemID = GetItemInfoFromHyperlink(itemLink)
     if itemID then
         local appearanceID, sourceID = C_TransmogCollection.GetItemInfo(itemID)
@@ -353,7 +322,6 @@ function sfui.common.IsItemKnown(itemLink)
             end
         end
 
-        -- Also check toys?
         if C_ToyBox and C_ToyBox.GetToyInfo then
             local toyID = C_ToyBox.GetToyInfo(itemID)
             if toyID and PlayerHasToy(itemID) then return true end
