@@ -185,8 +185,17 @@ function sfui.create_options_panel()
     end, "Hides the sfui minimap icon.")
     hide_minimap_icon_cb:SetPoint("TOPLEFT", reload_button, "BOTTOMLEFT", 0, -20)
 
+    local vehicle_header = main_panel:CreateFontString(nil, "OVERLAY", g.font)
+    vehicle_header:SetPoint("TOPLEFT", hide_minimap_icon_cb, "BOTTOMLEFT", 0, -30)
+    vehicle_header:SetTextColor(white[1], white[2], white[3])
+    vehicle_header:SetText("Vehicle Settings")
+
+    local disable_vehicle_cb = CreateCheckbox(main_panel, "Disable Vehicle UI", "disableVehicle", nil,
+        "Restores the default WoW vehicle/overlay bar.")
+    disable_vehicle_cb:SetPoint("TOPLEFT", vehicle_header, "BOTTOMLEFT", 0, -10)
+
     local merchant_header = main_panel:CreateFontString(nil, "OVERLAY", g.font)
-    merchant_header:SetPoint("TOPLEFT", hide_minimap_icon_cb, "BOTTOMLEFT", 0, -30)
+    merchant_header:SetPoint("TOPLEFT", disable_vehicle_cb, "BOTTOMLEFT", 0, -30)
     merchant_header:SetTextColor(white[1], white[2], white[3])
     merchant_header:SetText("Merchant Settings")
 
@@ -202,41 +211,17 @@ function sfui.create_options_panel()
         "Automatically repairs gear (guild first, skips if blacksmith hammer available).")
     auto_repair_cb:SetPoint("TOPLEFT", disable_merchant_cb, "BOTTOMLEFT", 0, -10)
 
-    -- Memory and CPU Usage Display
-
     local minimap_header = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
     minimap_header:SetPoint("TOPLEFT", 15, -15)
     minimap_header:SetTextColor(white[1], white[2], white[3])
     minimap_header:SetText("Minimap Settings")
-
-    local show_gametime_checkbox = CreateCheckbox(minimap_panel, "Show Calendar / Game Time", "minimap_show_gametime",
-        function(checked)
-            if GameTimeFrame then
-                if checked then GameTimeFrame:Show() else GameTimeFrame:Hide() end
-            end
-        end, "Toggles the display of the game time and calendar button on the minimap.")
-    show_gametime_checkbox:SetPoint("TOPLEFT", minimap_header, "BOTTOMLEFT", 0, -10)
-
-    local show_clock_checkbox = CreateCheckbox(minimap_panel, "Show Clock", "minimap_show_clock", function(checked)
-        if TimeManagerClockButton then
-            if checked then TimeManagerClockButton:Show() else TimeManagerClockButton:Hide() end
-        end
-    end, "Toggles the display of the clock under the minimap.")
-    show_clock_checkbox:SetPoint("TOPLEFT", show_gametime_checkbox, "BOTTOMLEFT", 0, -10)
-
-    local square_cb = CreateCheckbox(minimap_panel, "Square Minimap", "minimap_square", function(checked)
-        if sfui.minimap and sfui.minimap.SetSquareMinimap then
-            sfui.minimap.SetSquareMinimap(checked)
-        end
-    end, "Toggles between square and round minimap.")
-    square_cb:SetPoint("TOPLEFT", show_clock_checkbox, "BOTTOMLEFT", 0, -10)
 
     local collect_cb = CreateCheckbox(minimap_panel, "Collect Buttons", "minimap_collect_buttons", function(checked)
         if sfui.minimap and sfui.minimap.EnableButtonManager then
             sfui.minimap.EnableButtonManager(checked)
         end
     end, "Collects minimap buttons into a bar.")
-    collect_cb:SetPoint("TOPLEFT", square_cb, "BOTTOMLEFT", 0, -10)
+    collect_cb:SetPoint("TOPLEFT", minimap_header, "BOTTOMLEFT", 0, -10)
 
     local mouseover_cb = CreateCheckbox(minimap_panel, "Mouseover Only", "minimap_buttons_mouseover", function(checked)
         if sfui.minimap and sfui.minimap.EnableButtonManager and SfuiDB.minimap_collect_buttons then
@@ -247,22 +232,6 @@ function sfui.create_options_panel()
     end, "Only show the button bar when hovering the minimap. Also moves Group Finder eye to Top Left.")
     mouseover_cb:SetPoint("TOPLEFT", collect_cb, "BOTTOMLEFT", 0, -10)
 
-    local autozoom_cb = CreateCheckbox(minimap_panel, "Auto Zoom", "minimap_auto_zoom", nil,
-        "Automatically zooms out the minimap.")
-    autozoom_cb:SetPoint("TOPLEFT", mouseover_cb, "BOTTOMLEFT", 0, -10)
-
-    local masque_cb = CreateCheckbox(minimap_panel, "Use Masque", "minimap_masque", function(checked)
-        print("sfui: Please reload UI (/rl) for Masque changes to fully apply.")
-    end, "Enables Masque support for minimap buttons (requires Reload).")
-    masque_cb:SetPoint("TOPLEFT", autozoom_cb, "BOTTOMLEFT", 0, -10)
-
-    local spacing_slider = CreateSlider(minimap_panel, "Button Spacing", "minimap_button_spacing", 0, 10, 1,
-        function(value)
-            if sfui.minimap and sfui.minimap.EnableButtonManager and SfuiDB.minimap_collect_buttons then
-                sfui.minimap.EnableButtonManager(true)
-            end
-        end)
-    spacing_slider:SetPoint("TOPLEFT", masque_cb, "BOTTOMLEFT", 0, -20) -- More padding for slider text
 
 
 

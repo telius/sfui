@@ -18,8 +18,10 @@ local function CreateCastBar(configName, unit)
     bar.Spark:SetBlendMode("ADD")
     bar.Spark:SetSize(20, bar:GetHeight() * 2.5)
 
+    local cfg = sfui.config[configName]
     bar.Icon = bar.backdrop:CreateTexture(nil, "ARTWORK")
-    bar.Icon:SetSize(bar:GetHeight() + 4, bar:GetHeight() + 4)
+    local iconSize = cfg and cfg.iconSize or (bar:GetHeight() + 4)
+    bar.Icon:SetSize(iconSize, iconSize)
     bar.Icon:SetPoint("RIGHT", bar.backdrop, "LEFT", -5, 0)
     bar.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
@@ -35,9 +37,8 @@ local function CreateCastBar(configName, unit)
     end
     bar:SetStatusBarTexture(texturePath)
 
-    local cfg = sfui.config[configName]
     bar.backdrop:ClearAllPoints()
-    if unit == "player" then bar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 110) end
+    bar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 110)
     bar.backdrop:Hide()
     return bar
 end
@@ -237,7 +238,7 @@ local function OnEvent(self, event, unit, ...)
         -- Only process if it matches our current cast
         if self.casting and castID == self.castID then
             self:SetValue(self.maxValue)
-            UpdateCastBarColor(self, "INTERRUPTED")
+            UpdateCastBarColor(self, "INTERRUPTED", self.notInterruptible)
             self.Text:SetText(FAILED)
             if event == "UNIT_SPELLCAST_INTERRUPTED" then
                 self.Text:SetText(INTERRUPTED)
@@ -257,7 +258,7 @@ local function OnEvent(self, event, unit, ...)
             -- If UnitChannelInfo is gone, it's gone.
             if not UnitChannelInfo(unit) then
                 self:SetValue(self.maxValue)
-                UpdateCastBarColor(self, "INTERRUPTED")
+                UpdateCastBarColor(self, "INTERRUPTED", self.notInterruptible)
                 self.Text:SetText(INTERRUPTED)
 
                 self.casting = nil
@@ -312,9 +313,11 @@ end
 event_frame:SetScript("OnEvent", function(self, event)
     if event == "PLAYER_LOGIN" then
         SetupBar("castBar", "player")
+
         if _G.PlayerCastingBarFrame then
-            _G.PlayerCastingBarFrame:SetAlpha(0); _G.PlayerCastingBarFrame:UnregisterAllEvents(); _G
-                .PlayerCastingBarFrame:Hide()
+            _G.PlayerCastingBarFrame:SetAlpha(0)
+            _G.PlayerCastingBarFrame:UnregisterAllEvents()
+            _G.PlayerCastingBarFrame:Hide()
         end
     end
 end)

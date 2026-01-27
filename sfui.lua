@@ -54,16 +54,15 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             SfuiDecorDB = SfuiDecorDB or {}
             SfuiDecorDB.items = SfuiDecorDB.items or {}
 
-            SfuiDB.minimap_auto_zoom = SfuiDB.minimap_auto_zoom or sfui.config.minimap.auto_zoom
-            SfuiDB.minimap_square = SfuiDB.minimap_square or sfui.config.minimap.square
-            SfuiDB.minimap_collect_buttons = SfuiDB.minimap_collect_buttons or sfui.config.minimap.collect_buttons
-            SfuiDB.minimap_masque = SfuiDB.minimap_masque or sfui.config.minimap.masque
-            SfuiDB.minimap_rearrange = SfuiDB.minimap_rearrange or false
-            SfuiDB.minimap_button_order = SfuiDB.minimap_button_order or {}
             SfuiDB.minimap_icon = SfuiDB.minimap_icon or { hide = false }
+            SfuiDB.minimap_collect_buttons = (SfuiDB.minimap_collect_buttons == nil) and true or
+                SfuiDB.minimap_collect_buttons
+            SfuiDB.minimap_buttons_mouseover = (SfuiDB.minimap_buttons_mouseover == nil) and false or
+                SfuiDB.minimap_buttons_mouseover
             if SfuiDB.autoSellGreys == nil then SfuiDB.autoSellGreys = false end
             if SfuiDB.autoRepair == nil then SfuiDB.autoRepair = false end
             if SfuiDB.disableMerchant == nil then SfuiDB.disableMerchant = true end
+            if SfuiDB.disableVehicle == nil then SfuiDB.disableVehicle = false end
 
 
 
@@ -97,8 +96,12 @@ event_frame:SetScript("OnEvent", function(self, event, name)
                 text = "sfui",
                 icon = "Interface\\Icons\\Spell_shadow_deathcoil",
                 OnClick = function(_, button)
-                    if button == "LeftButton" then sfui.toggle_options_panel() elseif button == "RightButton" then C_UI
-                            .Reload() end
+                    if button == "LeftButton" then
+                        sfui.toggle_options_panel()
+                    elseif button == "RightButton" then
+                        C_UI
+                            .Reload()
+                    end
                 end,
                 OnTooltipShow = function(tooltip)
                     tooltip:AddLine("sfui")

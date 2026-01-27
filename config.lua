@@ -39,8 +39,8 @@ sfui.config = {
     spec_colors = {
         -- Death Knight
         [250] = { r = 0.77, g = 0.12, b = 0.23 },  -- Blood
-        [251] = { r = 0.0, g = 1.0, b = 1.0 },     -- Frost (User Override)
-        [252] = { r = 0.0, g = 1.0, b = 0.0 },     -- Unholy (User Override)
+        [251] = { r = 0.0, g = 1.0, b = 1.0 },     -- Frost
+        [252] = { r = 0.0, g = 1.0, b = 0.0 },     -- Unholy
         -- Demon Hunter
         [577] = { r = 0.64, g = 0.19, b = 0.79 },  -- Havoc
         [581] = { r = 0.64, g = 0.19, b = 0.79 },  -- Vengeance
@@ -141,7 +141,6 @@ sfui.config = {
             [267] = true,  -- Destruction Warlock
             [63] = true,   -- Fire Mage
             [64] = true,   -- Frost Mage
-            [268] = true,  -- Brewmaster Monk
             [269] = true,  -- Windwalker Monk
             [70] = true,   -- Retribution Paladin
             [256] = true,  -- Discipline Priest
@@ -165,28 +164,6 @@ sfui.config = {
         },
         interruptedColor = { 1, 0, 0 }, -- Red for interrupted
         gcdColor = { 0.5, 0.5, 0.5 },   -- Gray for GCD
-        backdrop = {
-            padding = 2,
-            color = { 0, 0, 0, 0.5 },
-        },
-    },
-
-    targetCastBar = {
-        enabled = true,
-        width = 300,
-        height = 30, -- Double height as requested
-        color = { 1, 1, 1 },
-        channelColor = { 0, 1, 0 },
-        empoweredColor = { 0.4, 0, 1 },
-        empoweredStageColors = {
-            [1] = { 1, 1, 1 },
-            [2] = { 0, 1, 1 },
-            [3] = { 0.4, 0, 1 },
-            [4] = { 1, 0, 1 },
-        },
-        interruptedColor = { 1, 0, 0 },
-        gcdColor = { 0.5, 0.5, 0.5 },
-        iconSize = 34,
         backdrop = {
             padding = 2,
             color = { 0, 0, 0, 0.5 },
@@ -222,7 +199,7 @@ sfui.config = {
         enabled = true,
         width = 240,
         height = 15,
-        color = { 0.4, 0, 1 }, -- #6600ff
+        color = { 0.4, 0, 1 },
         backdrop = {
             padding = 2,
             color = { 0, 0, 0, 0.5 },
@@ -232,7 +209,7 @@ sfui.config = {
     -- Mount Speed Bar settings
     mountSpeedBar = {
         enabled = true,
-        width = 240, -- Inherit width from vigorBar
+        width = 240,
         height = 10,
         backdrop = {
             padding = 2,
@@ -251,23 +228,14 @@ sfui.config = {
         { text = "Flat",              value = "Interface/Buttons/WHITE8X8" },
     },
 
-    absorbBarColor = { r = 0.4, g = 0.0, b = 1.0, a = 0.75 }, -- #6600ff with 75% alpha
+    absorbBarColor = { r = 0.4, g = 0.0, b = 1.0, a = 0.75 },
 
     minimap = {
-        default_size = 220, -- Default size for square minimap
-        border = {
-            size = 2,
-            color = { 0, 0, 0, 0.5 }, -- Black, 50% transparent
-        },
+        default_size = 220,
         button_bar = {
-            spacing = 2,
-            position = "LEFT", -- or TOP, RIGHT, BOTTOM
-            button_size = 28,
+            spacing = 5,
+            button_size = 20,
         },
-        auto_zoom = true,
-        square = true,
-        collect_buttons = true,
-        masque = true,
     },
 
     -- Warnings
@@ -288,7 +256,18 @@ sfui.config = {
 
     -- Bar Layout Settings
     barLayout = {
-        spacing = 1, -- Vertical spacing between bars
+        spacing = 1,
+    },
+
+    -- Vehicle UI settings
+    vehicle = {
+        enabled = true,
+        width = 300,
+        height = 60,
+        anchor = { point = "BOTTOM", x = 0, y = 200 },
+        button_size = 40,
+        button_spacing = 5,
+        leave_button_size = 30,
     },
 
     -- Merchant Frame settings
@@ -314,9 +293,9 @@ sfui.config = {
             height = 30,
             bottom_offset = 2,
             button_height = 22,
-            button_small = 60,  -- buyback, filter buttons
+            button_small = 80,  -- buyback, filter buttons (Increased from 60)
             button_medium = 70, -- sell greys
-            button_large = 90,  -- housing filter
+            button_large = 110, -- housing filter (Increased from 90)
             spacing = 5,
         },
         -- Scrollbar

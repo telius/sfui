@@ -224,7 +224,7 @@ function sfui.common.CreateBorder(frame, thickness, color)
     end
 
     top:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0); top:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0); top:SetHeight(
-    thickness)
+        thickness)
     bottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0); bottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0); bottom
         :SetHeight(thickness)
     left:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0); left:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0); left
@@ -311,7 +311,7 @@ function sfui.common.IsItemKnown(itemLink)
         end
     end
 
-    local itemID = GetItemInfoFromHyperlink(itemLink)
+    local itemID = tonumber(string.match(itemLink, "item:(%d+)"))
     if itemID then
         local appearanceID, sourceID = C_TransmogCollection.GetItemInfo(itemID)
         if sourceID then
@@ -329,4 +329,17 @@ function sfui.common.IsItemKnown(itemLink)
     end
 
     return false
+end
+
+function sfui.common.ShortenName(name, length)
+    if not name or type(name) ~= "string" then return "" end
+    length = length or 25
+    if strlenutf8(name) <= length then return name end
+    return strsub(name, 1, length - 3) .. "..."
+end
+
+function sfui.common.GetMasqueGroup(subGroupName)
+    local Masque = LibStub and LibStub("Masque", true)
+    if not Masque then return nil end
+    return Masque:Group("Sfui", subGroupName)
 end

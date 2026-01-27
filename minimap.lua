@@ -1,18 +1,20 @@
 sfui = sfui or {}
 sfui.minimap = {}
 
-local colors = sfui.config.colors
-
 local addonName, addon = ...
 local frame = CreateFrame("Frame", addonName)
 
 local zoom_timer = nil
 local DEFAULT_ZOOM = 0
-local custom_border = nil
 local button_bar = nil
 
-local original_width = Minimap:GetWidth()
-local original_height = Minimap:GetHeight()
+local function set_default_zoom()
+    if zoom_timer then
+        zoom_timer:Cancel()
+        zoom_timer = nil
+    end
+    Minimap:SetZoom(DEFAULT_ZOOM)
+end
 
 local ButtonManager = {
     collectedButtons = {},
@@ -20,13 +22,8 @@ local ButtonManager = {
 }
 
 function sfui.minimap.InitializeMasque()
-    local Masque = LibStub("Masque", true)
-    if not Masque then
-        return
-    end
-
     if SfuiDB.minimap_masque then
-        sfui.minimap.masque_group = Masque:Group("sfui", "Minimap Buttons")
+        sfui.minimap.masque_group = sfui.common.GetMasqueGroup("Minimap Buttons")
     end
 end
 
@@ -49,11 +46,6 @@ end
 
 function ButtonManager:RestoreButton(button)
     if button and button.sfuiOriginalState then
-        if button == QueueStatusButton and button.sfuiOriginalUpdatePosition then
-            button.UpdatePosition = button.sfuiOriginalUpdatePosition
-            button.sfuiOriginalUpdatePosition = nil
-        end
-
         local orig = button.sfuiOriginalState
         button:SetParent(orig.parent)
         button:ClearAllPoints()
@@ -120,51 +112,13 @@ function ButtonManager:CollectButtons()
 
     for i = 1, Minimap:GetNumChildren() do
         local child = select(i, Minimap:GetChildren())
-        if child ~= QueueStatusButton then
-            self:AddButton(child)
-        end
+        self:AddButton(child)
     end
 
     if MinimapCluster then
         for i = 1, MinimapCluster:GetNumChildren() do
             local child = select(i, MinimapCluster:GetChildren())
-            if child ~= QueueStatusButton then
-                self:AddButton(child)
-            end
-        end
-    end
-
-    if QueueStatusFrame then
-        self:AddButton(QueueStatusFrame)
-    end
-
-    if QueueStatusButton then
-        if SfuiDB.minimap_buttons_mouseover then
-            if QueueStatusButton.sfuiOriginalUpdatePosition then
-                QueueStatusButton.UpdatePosition = QueueStatusButton.sfuiOriginalUpdatePosition
-                QueueStatusButton.sfuiOriginalUpdatePosition = nil
-            end
-
-            QueueStatusButton:ClearAllPoints(); QueueStatusButton:SetParent(Minimap)
-            QueueStatusButton:SetPoint("TOPLEFT", Minimap, "TOPLEFT", 5, -5)
-            QueueStatusButton:SetFrameStrata("MEDIUM")
-
-            if not QueueStatusButton.sfuiHooked then
-                hooksecurefunc(QueueStatusButton, "SetPoint", function(self)
-                    if InCombatLockdown() or not SfuiDB.minimap_buttons_mouseover then return end
-                    local p, r, rp = self:GetPoint(1)
-                    if p ~= "TOPLEFT" or r ~= Minimap or rp ~= "TOPLEFT" then
-                        self:ClearAllPoints(); self:SetPoint("TOPLEFT", Minimap, "TOPLEFT", 5, -5)
-                    end
-                end)
-                QueueStatusButton.sfuiHooked = true
-            end
-        else
-            self:AddButton(QueueStatusButton)
-            if not QueueStatusButton.sfuiOriginalUpdatePosition then
-                QueueStatusButton.sfuiOriginalUpdatePosition = QueueStatusButton.UpdatePosition
-                QueueStatusButton.UpdatePosition = function() end
-            end
+            self:AddButton(child)
         end
     end
 end
@@ -181,12 +135,6 @@ function ButtonManager:SkinButton(button)
 
     local Masque = LibStub("Masque", true)
     if not Masque then return end
-
-    if button:GetName() == "QueueStatusButton" then
-        local data = { Icon = button.Eye and button.Eye.texture, Highlight = button.Highlight, }
-        sfui.minimap.masque_group:AddButton(button, data)
-        return
-    end
 
     -- Based on HidingBar's Masque integration
     local isButton = button:IsObjectType("Button")
@@ -328,12 +276,6 @@ function ButtonManager:ArrangeButtons()
         local aName = a:GetName() or ""
         local bName = b:GetName() or ""
 
-        if aName == "QueueStatusFrame" then return true end
-        if bName == "QueueStatusFrame" then return false end
-
-        if aName == "QueueStatusButton" then return true end
-        if bName == "QueueStatusButton" then return false end
-
         if aName == "LibDBIcon_sfui" then return false end
         if bName == "LibDBIcon_sfui" then return true end
 
@@ -357,7 +299,7 @@ function ButtonManager:ArrangeButtons()
     local lastButton = nil
     local cfg = sfui.config.minimap.button_bar
     local size = cfg.button_size
-    local spacing = SfuiDB.minimap_button_spacing or cfg.spacing
+    local spacing = cfg.spacing
 
     for i, button in ipairs(self.collectedButtons) do
         button:SetParent(button_bar)
@@ -384,12 +326,18 @@ function ButtonManager:ArrangeButtons()
             button:SetScript("OnDragStop", function(self)
                 self:StopMovingOrSizing(); self.isMoving = false
                 local newIndex = 1
-                for j, btn in ipairs(ButtonManager.collectedButtons) do if self:GetCenter() > btn:GetCenter() then newIndex =
-                        j + 1 end end
+                for j, btn in ipairs(ButtonManager.collectedButtons) do
+                    if self:GetCenter() > btn:GetCenter() then
+                        newIndex =
+                            j + 1
+                    end
+                end
                 local oldIndex
-                for j, btn in ipairs(ButtonManager.collectedButtons) do if btn == self then
+                for j, btn in ipairs(ButtonManager.collectedButtons) do
+                    if btn == self then
                         oldIndex = j; break
-                    end end
+                    end
+                end
                 if oldIndex then
                     table.remove(ButtonManager.collectedButtons, oldIndex)
                     if newIndex > oldIndex then newIndex = newIndex - 1 end
@@ -397,8 +345,10 @@ function ButtonManager:ArrangeButtons()
                     if newIndex < 1 then newIndex = 1 end
                     table.insert(ButtonManager.collectedButtons, newIndex, self)
                     SfuiDB.minimap_button_order = {}
-                    for _, btn in ipairs(ButtonManager.collectedButtons) do table.insert(SfuiDB.minimap_button_order,
-                            btn:GetName()) end
+                    for _, btn in ipairs(ButtonManager.collectedButtons) do
+                        table.insert(SfuiDB.minimap_button_order,
+                            btn:GetName())
+                    end
                     ButtonManager:ArrangeButtons()
                 else
                     ButtonManager:ArrangeButtons()
@@ -482,81 +432,18 @@ function sfui.minimap.EnableButtonManager(enabled)
     end
 end
 
-function sfui.minimap.SetSquareMinimap(isSquare)
-    if isSquare then
-        if MinimapBorder then MinimapBorder:Hide() end
-        if MinimapBackdrop then MinimapBackdrop:Hide() end
-
-        if not custom_border then
-            custom_border = CreateFrame("Frame", "sfui_minimap_border", Minimap, "BackdropTemplate")
-            custom_border:SetAllPoints(Minimap)
-        end
-
-        local cfg = sfui.config.minimap.border
-        custom_border:SetBackdrop({
-            edgeFile = "Interface/Buttons/WHITE8X8",
-            edgeSize = cfg.size,
-        })
-        custom_border:SetBackdropBorderColor(cfg.color[1], cfg.color[2], cfg.color[3], cfg.color[4])
-        custom_border:Show()
-
-        Minimap:SetMaskTexture("Interface/Buttons/WHITE8X8")
-        Minimap:SetSize(sfui.config.minimap.default_size, sfui.config.minimap.default_size)
-    else
-        if MinimapBorder then MinimapBorder:Show() end
-        if MinimapBackdrop then MinimapBackdrop:Show() end
-        if custom_border then
-            custom_border:Hide()
-        end
-
-        Minimap:SetMaskTexture("Interface/Minimap/Minimap-Circle-Mask")
-        Minimap:SetSize(original_width, original_height)
-    end
-end
-
-local function set_default_zoom()
-    if zoom_timer then
-        zoom_timer:Cancel()
-        zoom_timer = nil
-    end
-    Minimap:SetZoom(DEFAULT_ZOOM)
-end
-
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
 frame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
 frame:RegisterEvent("MINIMAP_UPDATE_ZOOM")
+frame:RegisterEvent("ADDON_LOADED")
 
+local startup_scans = 0
 frame:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_ENTERING_WORLD" then
-        sfui.minimap.InitializeMasque() -- Initialize Masque group
-
-        if SfuiDB.minimap_auto_zoom then
-            set_default_zoom()
-        end
-
-        sfui.minimap.SetSquareMinimap(SfuiDB.minimap_square)
+        sfui.minimap.InitializeMasque()
+        set_default_zoom()
         sfui.minimap.EnableButtonManager(SfuiDB.minimap_collect_buttons)
-
-        if SfuiDB.minimap_show_gametime == nil then SfuiDB.minimap_show_gametime = true end
-
-        if GameTimeFrame then
-            if SfuiDB.minimap_show_gametime then
-                GameTimeFrame:Show()
-            else
-                GameTimeFrame:Hide()
-            end
-        end
-
-        if SfuiDB.minimap_show_clock == nil then SfuiDB.minimap_show_clock = true end
-
-        if TimeManagerClockButton then
-            if SfuiDB.minimap_show_clock then
-                TimeManagerClockButton:Show()
-            else
-                TimeManagerClockButton:Hide()
-            end
-        end
 
         if MinimapCluster and MinimapCluster.IndicatorFrame then
             MinimapCluster.IndicatorFrame:Hide(); MinimapCluster.IndicatorFrame:SetAlpha(0)
@@ -565,14 +452,27 @@ frame:SetScript("OnEvent", function(self, event, ...)
             MinimapCluster.BorderTop:Hide(); MinimapCluster.BorderTop:SetAlpha(0)
         end
 
+        -- Startup timer to catch late-loading buttons
+        if SfuiDB.minimap_collect_buttons then
+            C_Timer.NewTicker(2, function(self)
+                startup_scans = startup_scans + 1
+                if startup_scans > 5 then
+                    self:Cancel()
+                else
+                    ButtonManager:CollectButtons()
+                    ButtonManager:ArrangeButtons()
+                end
+            end)
+        end
+
         self:UnregisterEvent("PLAYER_ENTERING_WORLD")
         return
     end
 
-    if not SfuiDB.minimap_auto_zoom then
-        if zoom_timer then
-            zoom_timer:Cancel()
-            zoom_timer = nil
+    if event == "ADDON_LOADED" then
+        if SfuiDB.minimap_collect_buttons then
+            ButtonManager:CollectButtons()
+            ButtonManager:ArrangeButtons()
         end
         return
     end
