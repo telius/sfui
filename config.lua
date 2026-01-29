@@ -2,8 +2,8 @@ sfui = sfui or {}
 
 sfui.config = {
     -- addon metadata
-    title = "|cff6600ffst|r fui - frameworks",
-    version = "0.1.0",
+    title = "|cff0066FF[SF]|rui |cff0066FF[GFY]|r edition",
+    version = "0.1.1",
 
     -- general appearance
     font = "GameFontNormal",

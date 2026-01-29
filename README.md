@@ -30,8 +30,9 @@ Track items, currencies, and cooldowns.
 ![Item Tracker](shots/itemtracker.png)
 *Standard Tracker*
 
-![Bars Item Tracker](shots/bars_itemtracker.png)
-*Bar Style Tracker*
+### Player Status
+Health, Primary Power, Secondary Power, Stagger, etc.
+![Player Status](shots/bars_itemtracker.png)
 
 ### Research
 View talents, artifacts, and covenants directly in-game.
