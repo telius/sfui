@@ -1,47 +1,49 @@
-# Sfui (Beta)
+# sfui (beta)
 
-**Powerful additions and helpers for the World of Warcraft UI.**
-**Designed as a comprehensive replacement for lost WeakAuras and complex configurations.**
+Additions and helpers for the World of Warcraft UI.
+Designed to replace lost WeakAuras and complex configurations.
 
 ![UI Overview](shots/ui.png)
 
 ## Overview
+Modular, lightweight, and "set-and-forget" interface. Handles functionality that typically requires multiple addons. Focuses on clarity and automation.
 
-Sfui aims to provide a modular, lightweight, and "set-and-forget" interface that handles everything you used to need multiple addons or WeakAuras for. It focuses on clarity, automation, and providing the right information at the right time.
+## Features
 
-## Key Features
-
-### Dynamic Buffs & Reminders
-Intelligent tracking of raid buffs, personal consumables, and class mechanics. The system automatically filters for relevant buffs based on your class and group composition.
+### Buffs and Reminders
+Tracks out of combat raid buffs and personal consumables.
+- Smart filtering for your class and group
+- Shift+Click to announce missing buffs
 ![Dynamic Buffs](shots/dynamicbuffscheck.png)
 
-### Enhanced Merchant Interface
-A completely redesigned merchant frame with better filtering, currency display, and "dressing room" preview integration.
-- **Ctrl+Click**: Preview item on your character.
-- **Shift+RightClick**: Buy stacks (or max affordable) easily.
+### Merchant Frame
+Redesigned merchant interface with filtering and currency display.
+- Ctrl+Click to preview items
+- Shift+RightClick to buy stacks or max affordable
+- Integrated housing decor filtering
 ![Merchant UI](shots/merchant.png)
 
-### Automated Item Tracking
-Keep track of essential items, currencies, and cooldowns.
-- **Right-Click**: Remove an item from the tracker.
+### Item Tracking
+Track items, currencies, and cooldowns.
+- Right-Click to remove items
+
 ![Item Tracker](shots/itemtracker.png)
+*Standard Tracker*
+
 ![Bars Item Tracker](shots/bars_itemtracker.png)
+*Bar Style Tracker*
 
-### Dynamic Buffs & Reminders
-Intelligent tracking of raid buffs, personal consumables, and class mechanics.
-- **Shift+Click**: Announce missing buff to your party/raid channel.
-![Dynamic Buffs](shots/dynamicbuffscheck.png)
-
-### Research & Knowledge Viewer
-Built-in tools to view and research game data directly within the UI.
+### Research
+View talents, artifacts, and covenants directly in-game.
 ![Research Viewer](shots/researchviewer.png)
 
-### Vehicle Integration
-A clean, responsive, and intuitive vehicle interface that doesn't get in your way.
-![Vehicle UI](shots/vehicleui.png)
+### Vehicle and Dragonriding
+Clean interfaces for vehicles and dragonriding.
+- Improved visibility for vigor and speed
 
-### Dragonriding Enhancements
-Improved visibility for vigor, speed, and critical warnings while dragonriding.
 ![Dragonflying](shots/dragonflying.png)
 ![Dragonflying Warning](shots/dragonflying_warning.png)
+*Dragonflying HUD*
 
+![Vehicle UI](shots/vehicleui.png)
+*Vehicle Interface*
