@@ -1,7 +1,7 @@
 # Sfui (Beta)
 
-A complete UI replacement and enhancement suite for World of Warcraft.
-**Designed as a comprehensive replacement for lost WeakAuras and complex UI configurations.**
+**Powerful additions and helpers for the World of Warcraft UI.**
+**Designed as a comprehensive replacement for lost WeakAuras and complex configurations.**
 
 ![UI Overview](shots/ui.png)
 
