@@ -9,6 +9,8 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to create a release
     env:
       # Set these secrets in your repository settings (Settings > Secrets and variables > Actions)
       CF_API_KEY: ${{ secrets.CF_API_KEY }}   # CurseForge API Token
