@@ -57,12 +57,12 @@ local function UpdateBuffData()
     local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
 
     local raidBuffs = {
-        { name = "Stamina",      spellID = 21562,  icon = 135987,  class = "PRIEST" },                -- Power Word: Fortitude
-        { name = "Intellect",    spellID = 1459,   icon = 135932,  class = "MAGE" },                  -- Arcane Intellect
-        { name = "Attack Power", spellID = 6673,   icon = 132333,  class = "WARRIOR" },               -- Battle Shout
-        { name = "Versatility",  spellID = 1126,   icon = 136078,  class = "DRUID" },                 -- Mark of the Wild
-        { name = "Bronze",       spellID = 364343, icon = 4622455, class = "EVOKER" },                -- Blessing of the Bronze
-        { name = "Soulstone",    spellID = 20707,  icon = 134336,  class = "WARLOCK", isAny = true }, -- Soulstone
+        { name = "Stamina",      spellID = 21562,  icon = 135987,  class = "PRIEST" },                                        -- Power Word: Fortitude
+        { name = "Intellect",    spellID = 1459,   icon = 135932,  class = "MAGE" },                                          -- Arcane Intellect
+        { name = "Attack Power", spellID = 6673,   icon = 132333,  class = "WARRIOR" },                                       -- Battle Shout
+        { name = "Versatility",  spellID = 1126,   icon = 136078,  class = "DRUID" },                                         -- Mark of the Wild
+        { name = "Bronze",       spellID = 364343, icon = 4622455, class = "EVOKER" },                                        -- Blessing of the Bronze
+        { name = "Soulstone",    spellID = 20707,  icon = 134336,  class = "WARLOCK", isAny = true, ignoreThreshold = true }, -- Soulstone
     }
 
     -- Reset BUFF_DATA
@@ -154,7 +154,7 @@ end
 
 local threshold = 600 -- 10 minutes
 
-local function HasAura(spellID, unit)
+local function HasAura(spellID, unit, ignoreThreshold)
     unit = unit or "player"
     local spellName
     if C_Spell and C_Spell.GetSpellName then
@@ -168,15 +168,15 @@ local function HasAura(spellID, unit)
         if not aura then break end
 
         if aura.spellId == spellID or (spellName and aura.name == spellName) then
-            if aura.expirationTime == 0 then return true end
+            if aura.expirationTime == 0 or ignoreThreshold then return true end
             return (aura.expirationTime - GetTime()) > threshold
         end
     end
     return false
 end
 
-local function CheckGroupBuffStatus(spellID)
-    if not IsInGroup() then return HasAura(spellID, "player") end
+local function CheckGroupBuffStatus(spellID, ignoreThreshold)
+    if not IsInGroup() then return HasAura(spellID, "player", ignoreThreshold) end
     if not spellID then return false end
 
     local numMembers = GetNumGroupMembers()
@@ -192,14 +192,14 @@ local function CheckGroupBuffStatus(spellID)
 
     for _, unit in ipairs(unitsToCheck) do
         if UnitExists(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit) then
-            if not HasAura(spellID, unit) then return false end
+            if not HasAura(spellID, unit, ignoreThreshold) then return false end
         end
     end
     return true
 end
 
-local function CheckAnyGroupBuffStatus(spellID)
-    if not IsInGroup() then return HasAura(spellID, "player") end
+local function CheckAnyGroupBuffStatus(spellID, ignoreThreshold)
+    if not IsInGroup() then return HasAura(spellID, "player", ignoreThreshold) end
     if not spellID then return false end
 
     local numMembers = GetNumGroupMembers()
@@ -215,7 +215,7 @@ local function CheckAnyGroupBuffStatus(spellID)
 
     for _, unit in ipairs(unitsToCheck) do
         if UnitExists(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit) then
-            if HasAura(spellID, unit) then return true end
+            if HasAura(spellID, unit, ignoreThreshold) then return true end
         end
     end
     return false
@@ -440,11 +440,11 @@ local function UpdateIcons()
             local hasBuff = false
             if data.spellID then
                 if data.isPersonal then
-                    hasBuff = HasAura(data.spellID, "player")
+                    hasBuff = HasAura(data.spellID, "player", data.ignoreThreshold)
                 elseif data.isAny then
-                    hasBuff = CheckAnyGroupBuffStatus(data.spellID)
+                    hasBuff = CheckAnyGroupBuffStatus(data.spellID, data.ignoreThreshold)
                 else
-                    hasBuff = CheckGroupBuffStatus(data.spellID)
+                    hasBuff = CheckGroupBuffStatus(data.spellID, data.ignoreThreshold)
                 end
             elseif data.isFood then
                 hasBuff = HasFood()
