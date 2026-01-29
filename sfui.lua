@@ -23,6 +23,12 @@ scale_event_frame:SetScript("OnEvent", UpdatePixelScale)
 function sfui.slash_command_handler(msg)
     if msg == "" then
         if sfui.toggle_options_panel then sfui.toggle_options_panel() else print("sfui: options panel not available.") end
+    elseif msg == "research" then
+        if sfui.research and sfui.research.ToggleSelection then
+            sfui.research.ToggleSelection()
+        else
+            print("sfui: research viewer not available.")
+        end
     end
 end
 
@@ -88,6 +94,9 @@ event_frame:SetScript("OnEvent", function(self, event, name)
         if sfui.warnings and sfui.warnings.Initialize then
             sfui.warnings.Initialize()
         end
+        if sfui.research and sfui.research.Initialize then
+            sfui.research.Initialize()
+        end
 
         local ldb, icon = LibStub("LibDataBroker-1.1", true), LibStub("LibDBIcon-1.0", true)
         if ldb and icon then
@@ -99,13 +108,17 @@ event_frame:SetScript("OnEvent", function(self, event, name)
                     if button == "LeftButton" then
                         sfui.toggle_options_panel()
                     elseif button == "RightButton" then
-                        C_UI
-                            .Reload()
+                        C_UI.Reload()
+                    elseif button == "MiddleButton" then
+                        if sfui.research and sfui.research.ToggleSelection then
+                            sfui.research.ToggleSelection()
+                        end
                     end
                 end,
                 OnTooltipShow = function(tooltip)
                     tooltip:AddLine("sfui")
                     tooltip:AddLine("Left-click to toggle options", 0.2, 1, 0.2)
+                    tooltip:AddLine("Middle-click to toggle Research Viewer", 0.2, 0.6, 1)
                     tooltip:AddLine("Right-click to Reload UI", 1, 0.2, 0.2)
                 end,
             })

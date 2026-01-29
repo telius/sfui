@@ -100,7 +100,9 @@ do
 
             -- Secondary Power Bar visibility for non-dragonflying
             if secondary_power_bar then
-                if IsMounted() or specID == 270 then
+                local hideSecondary = sfui.config.secondaryPowerBar.hiddenSpecs and
+                    sfui.config.secondaryPowerBar.hiddenSpecs[specID]
+                if IsMounted() or hideSecondary then
                     secondary_power_bar.backdrop:Hide()
                 elseif showCoreBars and sfui.common.GetSecondaryResource() then
                     secondary_power_bar.backdrop:Show()
@@ -134,13 +136,26 @@ do
         if primary_power_bar then return primary_power_bar end
         local bar = sfui.common.CreateBar("powerBar", "StatusBar", UIParent)
         bar:GetStatusBarTexture():SetHorizTile(true)
+
+        local marker = bar:CreateTexture(nil, "OVERLAY")
+        marker:SetColorTexture(1, 1, 1, 0.8)
+        marker:SetWidth(2)
+        marker:SetPoint("TOP", bar, "TOP")
+        marker:SetPoint("BOTTOM", bar, "BOTTOM")
+        marker:Hide()
+        bar.marker = marker
+
         primary_power_bar = bar
         return bar
     end
 
     local function UpdatePrimaryPowerBar()
         local cfg = sfui.config.powerBar
-        if not cfg.enabled or IsDragonflying() then
+        local spec = C_SpecializationInfo.GetSpecialization()
+        local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
+        local hide = cfg.hiddenSpecs and cfg.hiddenSpecs[specID]
+
+        if not cfg.enabled or IsDragonflying() or hide then
             if primary_power_bar and primary_power_bar.backdrop then primary_power_bar.backdrop:Hide() end
             return
         end
@@ -153,6 +168,16 @@ do
         bar:SetValue(current)
         local color = sfui.common.GetClassOrSpecColor()
         if color then bar:SetStatusBarColor(color.r, color.g, color.b) end
+
+        -- Marker logic (Shadow Priest 55% threshold)
+        if specID == 258 then
+            bar.marker:ClearAllPoints()
+            bar.marker:SetPoint("LEFT", bar, "LEFT", bar:GetWidth() * 0.55, 0)
+            bar.marker:SetHeight(bar:GetHeight())
+            bar.marker:Show()
+        else
+            bar.marker:Hide()
+        end
     end
 
     -- UpdateFillPosition removed (Secret Values cannot be used in arithmetic).
@@ -198,6 +223,10 @@ do
         bar:SetMinMaxValues(0, maxVal)
         bar:SetValue(current)
 
+        if cfg.color then
+            bar:SetStatusBarColor(cfg.color[1], cfg.color[2], cfg.color[3], cfg.color[4] or 1)
+        end
+
         local width, height = bar:GetSize()
         local healPred = bar.healPredBar
         healPred:SetSize(width, height)
@@ -231,7 +260,11 @@ do
 
     local function UpdateSecondaryPowerBar()
         local cfg = sfui.config.secondaryPowerBar
-        if not cfg.enabled or IsDragonflying() then
+        local spec = C_SpecializationInfo.GetSpecialization()
+        local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
+        local hide = cfg.hiddenSpecs and cfg.hiddenSpecs[specID]
+
+        if not cfg.enabled or IsDragonflying() or hide then
             if secondary_power_bar and secondary_power_bar.backdrop then secondary_power_bar.backdrop:Hide() end
             return
         end

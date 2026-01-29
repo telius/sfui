@@ -14,7 +14,7 @@ sfui.config = {
     textures = {
         white = "Interface/Buttons/WHITE8X8",
         tooltip = "Interface/Tooltips/UI-Tooltip-Background",
-        gold_icon = "Interface\MoneyFrame\UI-GoldIcon",
+        gold_icon = "Interface\\MoneyFrame\\UI-GoldIcon",
     },
 
     -- addon-wide color palette
@@ -73,7 +73,7 @@ sfui.config = {
         -- Priest
         [256] = { r = 1.00, g = 1.00, b = 1.00 },  -- Discipline
         [257] = { r = 1.00, g = 1.00, b = 1.00 },  -- Holy
-        [258] = { r = 1.00, g = 1.00, b = 1.00 },  -- Shadow
+        [258] = { r = 0.40, g = 0.00, b = 1.00 },  -- Shadow
         -- Rogue
         [259] = { r = 1.00, g = 0.96, b = 0.41 },  -- Assassination
         [260] = { r = 1.00, g = 0.96, b = 0.41 },  -- Outlaw
@@ -143,8 +143,7 @@ sfui.config = {
             [64] = true,   -- Frost Mage
             [269] = true,  -- Windwalker Monk
             [70] = true,   -- Retribution Paladin
-            [256] = true,  -- Discipline Priest
-            [258] = true,  -- Shadow Priest
+
         },
     },
 
@@ -153,17 +152,17 @@ sfui.config = {
         enabled = true,
         width = 300,
         height = 15,
-        color = { 1, 1, 1 },            -- White color for casts
-        channelColor = { 0, 1, 0 },     -- Green for channels
-        empoweredColor = { 0.4, 0, 1 }, -- Default/Fallback Purple
+        color = { 0.133, 0.133, 0.133 },   -- #222222
+        channelColor = { 0, 1, 0 },        -- Green for channels
+        empoweredColor = { 0.4, 0, 1 },    -- Default/Fallback Purple
         empoweredStageColors = {
-            [1] = { 1, 1, 1 },          -- White (Charging Stage 1)
-            [2] = { 0, 1, 1 },          -- Cyan (Charging Stage 2)
-            [3] = { 0.4, 0, 1 },        -- Purple (Charging Stage 3)
-            [4] = { 1, 0, 1 },          -- Magenta (Charging Stage 4)
+            [1] = { 0.133, 0.133, 0.133 }, -- #222222
+            [2] = { 0, 1, 1 },             -- Cyan (Charging Stage 2)
+            [3] = { 0.4, 0, 1 },           -- Purple (Charging Stage 3)
+            [4] = { 1, 0, 1 },             -- Magenta (Charging Stage 4)
         },
-        interruptedColor = { 1, 0, 0 }, -- Red for interrupted
-        gcdColor = { 0.5, 0.5, 0.5 },   -- Gray for GCD
+        interruptedColor = { 1, 0, 0 },    -- Red for interrupted
+        gcdColor = { 0.5, 0.5, 0.5 },      -- Gray for GCD
         backdrop = {
             padding = 2,
             color = { 0, 0, 0, 0.5 },
@@ -175,9 +174,10 @@ sfui.config = {
         enabled = true,
         width = 300,
         height = 20,
+        color = { 0.2, 0.2, 0.2 }, -- Dark Grey
         backdrop = {
             padding = 2,
-            color = { 0, 0, 0, 0.5 },
+            color = { 0, 0, 0, 0.5 }, -- Black/Transparent
         },
     },
 
@@ -191,6 +191,10 @@ sfui.config = {
         backdrop = {
             padding = 2,
             color = { 0, 0, 0, 0.5 },
+        },
+        hiddenSpecs = {
+            [258] = true, -- Shadow Priest
+            [270] = true, -- Mistweaver Monk
         },
     },
 

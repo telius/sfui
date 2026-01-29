@@ -70,6 +70,28 @@ function sfui.create_options_panel()
         return cb
     end
 
+    local function CreateCVarCheckbox(parent, label, cvar, tooltip)
+        local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+        cb:SetHitRectInsets(0, -100, 0, 0)
+        cb.text:SetText(label)
+        cb:SetScript("OnClick", function(self)
+            local checked = self:GetChecked()
+            C_CVar.SetCVar(cvar, checked and "1" or "0")
+        end)
+        cb:SetScript("OnShow", function(self)
+            self:SetChecked(C_CVar.GetCVarBool(cvar))
+        end)
+        if tooltip then
+            cb:SetScript("OnEnter", function(self)
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:SetText(tooltip)
+                GameTooltip:Show()
+            end)
+            cb:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+        end
+        return cb
+    end
+
     local function CreateSlider(parent, label, dbKey, minVal, maxVal, step, onValueChangedFunc)
         local name = "sfui_option_slider_" .. dbKey
         local slider = CreateFrame("Slider", name, parent, "OptionsSliderTemplate")
@@ -149,6 +171,14 @@ function sfui.create_options_panel()
     currency_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
     last_tab_button = currency_tab_button
 
+    local merchant_panel, merchant_tab_button = create_tab("merchant")
+    merchant_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
+    last_tab_button = merchant_tab_button
+
+    local sct_panel, sct_tab_button = create_tab("combat text")
+    sct_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
+    last_tab_button = sct_tab_button
+
     local bars_panel, bars_tab_button = create_tab("bars")
     bars_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
     last_tab_button = bars_tab_button
@@ -156,6 +186,10 @@ function sfui.create_options_panel()
     local minimap_panel, minimap_tab_button = create_tab("minimap")
     minimap_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
     last_tab_button = minimap_tab_button
+
+    local research_panel, research_tab_button = create_tab("research")
+    research_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
+    last_tab_button = research_tab_button
 
     local debug_panel, debug_tab_button = create_tab("debug")
     debug_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
@@ -194,22 +228,75 @@ function sfui.create_options_panel()
         "Restores the default WoW vehicle/overlay bar.")
     disable_vehicle_cb:SetPoint("TOPLEFT", vehicle_header, "BOTTOMLEFT", 0, -10)
 
-    local merchant_header = main_panel:CreateFontString(nil, "OVERLAY", g.font)
-    merchant_header:SetPoint("TOPLEFT", disable_vehicle_cb, "BOTTOMLEFT", 0, -30)
+    disable_vehicle_cb:SetPoint("TOPLEFT", vehicle_header, "BOTTOMLEFT", 0, -10)
+
+
+    local merchant_header = merchant_panel:CreateFontString(nil, "OVERLAY", g.font)
+    merchant_header:SetPoint("TOPLEFT", 15, -15)
     merchant_header:SetTextColor(white[1], white[2], white[3])
     merchant_header:SetText("Merchant Settings")
 
-    local auto_sell_cb = CreateCheckbox(main_panel, "Auto-Sell Greys", "autoSellGreys", nil,
+    local auto_sell_cb = CreateCheckbox(merchant_panel, "Auto-Sell Greys", "autoSellGreys", nil,
         "Automatically sells all grey items when opening a merchant.")
     auto_sell_cb:SetPoint("TOPLEFT", merchant_header, "BOTTOMLEFT", 0, -10)
 
-    local disable_merchant_cb = CreateCheckbox(main_panel, "Disable Merchant Frame", "disableMerchant", nil,
+    local disable_merchant_cb = CreateCheckbox(merchant_panel, "Disable Merchant Frame", "disableMerchant", nil,
         "Restores the default WoW merchant frame.")
     disable_merchant_cb:SetPoint("TOPLEFT", auto_sell_cb, "BOTTOMLEFT", 0, -10)
 
-    local auto_repair_cb = CreateCheckbox(main_panel, "Auto-Repair", "autoRepair", nil,
+    local auto_repair_cb = CreateCheckbox(merchant_panel, "Auto-Repair", "autoRepair", nil,
         "Automatically repairs gear (guild first, skips if blacksmith hammer available).")
     auto_repair_cb:SetPoint("TOPLEFT", disable_merchant_cb, "BOTTOMLEFT", 0, -10)
+
+
+    local sct_header = sct_panel:CreateFontString(nil, "OVERLAY", g.font)
+    sct_header:SetPoint("TOPLEFT", 15, -15)
+    sct_header:SetTextColor(white[1], white[2], white[3])
+    sct_header:SetText("Blizzard Combat Text Settings")
+
+    local master_cb = CreateCVarCheckbox(sct_panel, "Enable Floating Combat Text", "enableFloatingCombatText",
+        "Master toggle for Blizzard's floating combat text.")
+    master_cb:SetPoint("TOPLEFT", sct_header, "BOTTOMLEFT", 0, -10)
+
+    local damage_cb = CreateCVarCheckbox(sct_panel, "Show Damage", "floatingCombatTextCombatDamage",
+        "Toggles display of damage numbers over targets.")
+    damage_cb:SetPoint("TOPLEFT", master_cb, "BOTTOMLEFT", 0, -5)
+
+    local periodic_cb = CreateCVarCheckbox(sct_panel, "Show Periodic Damage (DoTs)",
+        "floatingCombatTextCombatLogPeriodicSpells", "Toggles display of periodic damage (DoTs) numbers.")
+    periodic_cb:SetPoint("TOPLEFT", damage_cb, "BOTTOMLEFT", 0, -5)
+
+    local healing_cb = CreateCVarCheckbox(sct_panel, "Show Healing", "floatingCombatTextCombatHealing",
+        "Toggles display of healing numbers over targets.")
+    healing_cb:SetPoint("TOPLEFT", periodic_cb, "BOTTOMLEFT", 0, -5)
+
+    local pet_melee_cb = CreateCVarCheckbox(sct_panel, "Show Pet Melee Damage", "floatingCombatTextPetMeleeDamage",
+        "Toggles display of pet melee damage numbers.")
+    pet_melee_cb:SetPoint("TOPLEFT", healing_cb, "BOTTOMLEFT", 0, -5)
+
+    local pet_spell_cb = CreateCVarCheckbox(sct_panel, "Show Pet Spell Damage", "floatingCombatTextPetSpellDamage",
+        "Toggles display of pet spell damage numbers.")
+    pet_spell_cb:SetPoint("TOPLEFT", pet_melee_cb, "BOTTOMLEFT", 0, -5)
+
+    local avoid_cb = CreateCVarCheckbox(sct_panel, "Show Dodge/Parry/Miss", "floatingCombatTextDodgeParryMiss",
+        "Toggles display of avoidances.")
+    avoid_cb:SetPoint("TOPLEFT", pet_spell_cb, "BOTTOMLEFT", 0, -5)
+
+    local reduction_cb = CreateCVarCheckbox(sct_panel, "Show Resist/Block/Absorb", "floatingCombatTextDamageReduction",
+        "Toggles display of damage reduction.")
+    reduction_cb:SetPoint("TOPLEFT", avoid_cb, "BOTTOMLEFT", 0, -5)
+
+    local energy_cb = CreateCVarCheckbox(sct_panel, "Show Energy Gains/Runes", "floatingCombatTextEnergyGains",
+        "Toggles display of energy gains and runes.")
+    energy_cb:SetPoint("TOPLEFT", reduction_cb, "BOTTOMLEFT", 0, -5)
+
+    local auras_cb = CreateCVarCheckbox(sct_panel, "Show Auras", "floatingCombatTextAuras",
+        "Toggles display of aura gains/losses.")
+    auras_cb:SetPoint("TOPLEFT", energy_cb, "BOTTOMLEFT", 0, -5)
+
+    local state_cb = CreateCVarCheckbox(sct_panel, "Show Combat State", "floatingCombatTextCombatState",
+        "Toggles display of entering/leaving combat.")
+    state_cb:SetPoint("TOPLEFT", auras_cb, "BOTTOMLEFT", 0, -5)
 
     local minimap_header = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
     minimap_header:SetPoint("TOPLEFT", 15, -15)
@@ -300,6 +387,12 @@ function sfui.create_options_panel()
     local pet_warning_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
     pet_warning_value:SetPoint("LEFT", pet_warning_label, "RIGHT", 5, 0)
 
+    local decor_cache_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+    decor_cache_label:SetPoint("TOPLEFT", pet_warning_label, "BOTTOMLEFT", 0, -15)
+    decor_cache_label:SetText("Decor Cache:")
+    local decor_cache_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+    decor_cache_value:SetPoint("LEFT", decor_cache_label, "RIGHT", 5, 0)
+
 
 
     local debug_refresh_button = CreateFlatButton(debug_panel, "Refresh", 100, 22)
@@ -314,6 +407,12 @@ function sfui.create_options_panel()
             pet_warning_value:SetText(sfui.warnings.GetStatus())
         else
             pet_warning_value:SetText("N/A (Module Missing)")
+        end
+
+        if sfui.merchant and sfui.merchant.decorCacheStatus then
+            decor_cache_value:SetText(sfui.merchant.decorCacheStatus)
+        else
+            decor_cache_value:SetText("N/A (Not Populated)")
         end
     end
 
@@ -454,6 +553,73 @@ function sfui.create_options_panel()
     UIDropDownMenu_Initialize(dropdown, InitializeTextureDropdown)
     UIDropDownMenu_SetSelectedValue(dropdown, SfuiDB.barTexture)
     UIDropDownMenu_SetWidth(dropdown, 150)
+
+    local research_header = research_panel:CreateFontString(nil, "OVERLAY", g.font)
+    research_header:SetPoint("TOPLEFT", 15, -15)
+    research_header:SetTextColor(white[1], white[2], white[3])
+    research_header:SetText("Research Viewer Settings")
+
+    local research_info = research_panel:CreateFontString(nil, "OVERLAY", g.font)
+    research_info:SetPoint("TOPLEFT", research_header, "BOTTOMLEFT", 0, -10)
+    research_info:SetPoint("RIGHT", -15, 0)
+    research_info:SetJustifyH("LEFT")
+    research_info:SetText(
+        "The Research Viewer allows you to view various talent and research trees (Order Halls, Dragonriding, Delves, etc.) from anywhere. You can also open it by middle-clicking the sfui minimap icon.")
+
+    local toggle_research_button = CreateFlatButton(research_panel, "Open Research Viewer", 160, 22)
+    toggle_research_button:SetPoint("TOPLEFT", research_info, "BOTTOMLEFT", 0, -20)
+    toggle_research_button:SetScript("OnClick", function()
+        if sfui.research and sfui.research.ToggleSelection then
+            sfui.research.ToggleSelection()
+            frame:Hide()
+        end
+    end)
+
+    local custom_header = research_panel:CreateFontString(nil, "OVERLAY", g.font)
+    custom_header:SetPoint("TOPLEFT", toggle_research_button, "BOTTOMLEFT", 0, -30)
+    custom_header:SetTextColor(white[1], white[2], white[3])
+    custom_header:SetText("Manual Tree Entry")
+
+    local custom_id_label = research_panel:CreateFontString(nil, "OVERLAY", g.font)
+    custom_id_label:SetPoint("TOPLEFT", custom_header, "BOTTOMLEFT", 0, -10)
+    custom_id_label:SetText("Enter Tree ID:")
+
+    local custom_id_input = CreateFrame("EditBox", nil, research_panel, "InputBoxTemplate")
+    custom_id_input:SetPoint("LEFT", custom_id_label, "RIGHT", 10, 0)
+    custom_id_input:SetSize(80, 32)
+    custom_id_input:SetAutoFocus(false)
+
+    local add_trait_button = CreateFlatButton(research_panel, "Trait", 60, 22)
+    add_trait_button:SetPoint("LEFT", custom_id_input, "RIGHT", 5, 0)
+    add_trait_button:SetScript("OnClick", function()
+        local id = tonumber(custom_id_input:GetText())
+        if id and sfui.research and sfui.research.OpenTree then
+            sfui.research.OpenTree({ id = id, isTraitTree = true, name = "Custom " .. id })
+            frame:Hide()
+        end
+    end)
+    add_trait_button:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Trait Tree (Dragonriding, Delves, etc.)")
+        GameTooltip:Show()
+    end)
+    add_trait_button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    local add_garr_button = CreateFlatButton(research_panel, "Garr", 60, 22)
+    add_garr_button:SetPoint("LEFT", add_trait_button, "RIGHT", 5, 0)
+    add_garr_button:SetScript("OnClick", function()
+        local id = tonumber(custom_id_input:GetText())
+        if id and sfui.research and sfui.research.OpenTree then
+            sfui.research.OpenTree({ id = id, isTraitTree = false, type = 111, name = "Custom " .. id })
+            frame:Hide()
+        end
+    end)
+    add_garr_button:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Garrison Tree (Class Halls, Covenants, etc.)")
+        GameTooltip:Show()
+    end)
+    add_garr_button:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
 function sfui.toggle_options_panel()

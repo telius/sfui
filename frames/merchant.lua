@@ -15,6 +15,26 @@ local NUM_ROWS = cfg.grid.rows
 local NUM_COLS = cfg.grid.cols
 local ITEMS_PER_PAGE = NUM_ROWS * NUM_COLS
 
+sfui.merchant.lootFilterState = 0 -- 0=All, 1=Class, 2=Spec
+
+local _, playerClass, playerClassID = UnitClass("player")
+local classArmor = {
+    ["WARRIOR"] = 4,
+    ["PALADIN"] = 4,
+    ["DEATHKNIGHT"] = 4,
+    ["HUNTER"] = 3,
+    ["SHAMAN"] = 3,
+    ["EVOKER"] = 3,
+    ["DRUID"] = 2,
+    ["MONK"] = 2,
+    ["ROGUE"] = 2,
+    ["DEMONHUNTER"] = 2,
+    ["MAGE"] = 1,
+    ["PRIEST"] = 1,
+    ["WARLOCK"] = 1,
+}
+local preferredArmor = classArmor[playerClass]
+
 local frame = CreateFrame("Frame", "SfuiMerchantFrame", UIParent, "BackdropTemplate")
 frame:SetSize(cfg.frame.width, cfg.frame.height)
 frame:SetPoint("CENTER")
@@ -62,19 +82,19 @@ filterDropdownBtn:SetScript("OnClick", function(self)
         rootDescription:SetTag("MENU_MERCHANT_FILTER");
 
         rootDescription:CreateButton("All Items", function()
-            SetMerchantFilter(LE_LOOT_FILTER_ALL)
+            sfui.merchant.lootFilterState = 0
             self:SetText("showing all")
-            sfui.merchant.BuildItemList()
+            sfui.merchant.ResetScrollAndRebuild()
         end);
         rootDescription:CreateButton("Current Class", function()
-            SetMerchantFilter(LE_LOOT_FILTER_CLASS)
+            sfui.merchant.lootFilterState = 1
             self:SetText("current class")
-            sfui.merchant.BuildItemList()
+            sfui.merchant.ResetScrollAndRebuild()
         end);
         rootDescription:CreateButton("Current Specialization", function()
-            SetMerchantFilter(LE_LOOT_FILTER_SPEC)
+            sfui.merchant.lootFilterState = 2
             self:SetText("current spec")
-            sfui.merchant.BuildItemList()
+            sfui.merchant.ResetScrollAndRebuild()
         end);
     end);
 end)
@@ -782,7 +802,7 @@ sfui.merchant.PopulateDecorCache = function()
             end
         end
         sfui.merchant.decorCachePopulated = true
-        print("Sfui: Populated Decor Cache with " .. (results and #results or 0) .. " entries.")
+        sfui.merchant.decorCacheStatus = "Populated with " .. (results and #results or 0) .. " entries."
     end
 
     searcher:SetResultsUpdatedCallback(OnResults)
@@ -823,6 +843,34 @@ sfui.merchant.BuildItemList = function()
             if SfuiDecorDB and SfuiDecorDB.items and SfuiDecorDB.items[itemID] then
                 local cached = SfuiDecorDB.items[itemID]
                 if sfui.merchant.housingDecorFilter == 1 and ((cached.o or 0) + (cached.p or 0) + (cached.s or 0)) > 0 then
+                    include = false
+                end
+            end
+        end
+
+        if include and mode == "merchant" and sfui.merchant.lootFilterState > 0 and link then
+            local isClassMatch = true
+            local info = C_MerchantFrame.GetItemInfo(i)
+            if not info or not info.isUsable then
+                isClassMatch = false
+            else
+                local _, _, _, _, _, classID, subclassID = C_Item.GetItemInfoInstant(link)
+                -- If it's armor, check preferred armor type
+                if classID == 4 and preferredArmor then
+                    -- Subclasses: 0=Generic, 1=Cloth, 2=Leather, 3=Mail, 4=Plate, 5=Cosmetic, 6=Shield
+                    if subclassID >= 1 and subclassID <= 4 and subclassID ~= preferredArmor then
+                        isClassMatch = false
+                    end
+                end
+            end
+
+            if not isClassMatch then
+                include = false
+            elseif sfui.merchant.lootFilterState == 2 then
+                -- Spec Filter
+                local spec = GetSpecialization()
+                local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
+                if specID > 0 and not C_Item.DoesItemContainSpec(link, playerClassID, specID) then
                     include = false
                 end
             end
