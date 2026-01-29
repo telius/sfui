@@ -8,6 +8,8 @@ Designed to replace lost WeakAuras and complex configurations.
 ## Overview
 Modular, lightweight, and "set-and-forget" interface. Handles functionality that typically requires multiple addons. Focuses on clarity and automation.
 
+Supports [Masque](https://www.curseforge.com/wow/addons/masque) for button skinning. Screenshots use [Masque: Caith](https://www.curseforge.com/wow/addons/masque-caith).
+
 ## Features
 
 ### Buffs and Reminders
