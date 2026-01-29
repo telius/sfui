@@ -16,13 +16,21 @@ Intelligent tracking of raid buffs, personal consumables, and class mechanics. T
 ![Dynamic Buffs](shots/dynamicbuffscheck.png)
 
 ### Enhanced Merchant Interface
-A completely redesigned merchant frame with better filtering, currency display, and "dressing room" preview integration (Ctrl+Click).
+A completely redesigned merchant frame with better filtering, currency display, and "dressing room" preview integration.
+- **Ctrl+Click**: Preview item on your character.
+- **Shift+RightClick**: Buy stacks (or max affordable) easily.
 ![Merchant UI](shots/merchant.png)
 
 ### Automated Item Tracking
-Keep track of essential items, currencies, and cooldowns without manual configuration.
+Keep track of essential items, currencies, and cooldowns.
+- **Right-Click**: Remove an item from the tracker.
 ![Item Tracker](shots/itemtracker.png)
 ![Bars Item Tracker](shots/bars_itemtracker.png)
+
+### Dynamic Buffs & Reminders
+Intelligent tracking of raid buffs, personal consumables, and class mechanics.
+- **Shift+Click**: Announce missing buff to your party/raid channel.
+![Dynamic Buffs](shots/dynamicbuffscheck.png)
 
 ### Research & Knowledge Viewer
 Built-in tools to view and research game data directly within the UI.
