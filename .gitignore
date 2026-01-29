@@ -14,6 +14,7 @@ Interface/AddOns/*/
 
 # IDE and editor files
 .idea/
+
 .vscode/
 *.swp
 *~

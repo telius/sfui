@@ -1,46 +1,38 @@
-# Sfui
+# Sfui (Beta)
 
-**Sfui** is a modular UI addon for World of Warcraft focusing on a clean, high-performance interface.
+A complete UI replacement and enhancement suite for World of Warcraft.
+**Designed as a comprehensive replacement for lost WeakAuras and complex UI configurations.**
 
-## Modules
+![UI Overview](shots/ui.png)
 
-### Core Bars 
-- **Centralized Health**: Features healing prediction and total absorb tracking. Customizable position and visibility toggle.
-- **Dynamic Power Bars**: Specialization-aware resource bars (Mana, Rage, Energy, etc.) with independent enable/disable toggles.
-- **Secondary Resources**: Integrated tracking for class-specific mechanics like Runes, Holy Power, Stagger, and Combo Points.
-- **Skyriding Suite**: Dedicated Vigor bar and real-time speed display, both toggleable in settings.
-- **Intelligent Visibility**: Bars automatically transition based on combat/targeting. Now features coordinate-based positioning in the options panel.
+## Overview
 
-### Merchant
-- **4x7 Grid UI**: Compact grid replacement for the default merchant list.
-- **Advanced Filtering**: Toggle known appearances, toys, and housing decor.
-- **Automation**: Optional auto-sell junk and gear repair (standard/guild).
-- **Currency System**: Dynamic listing of required items for the current merchant.
+Sfui aims to provide a modular, lightweight, and "set-and-forget" interface that handles everything you used to need multiple addons or WeakAuras for. It focuses on clarity, automation, and providing the right information at the right time.
 
-### Minimap Button Container
-- **Button Bar**: Collects addon icons into a semi-transparent bar.
-- **Full Customization**: Adjustable X/Y position with a dedicated reset button to return it to the top of the map.
-- **Mouseover Support**: Optional fading for both the map and the button bar.
+## Key Features
 
-### Vehicle UI
-- **Secure Action Bar**: 12-button bar for vehicles and possess modes.
-- **Modern Exit**: Integrated "Leave Vehicle" button with modern textures.
+### Dynamic Buffs & Reminders
+Intelligent tracking of raid buffs, personal consumables, and class mechanics. The system automatically filters for relevant buffs based on your class and group composition.
+![Dynamic Buffs](shots/dynamicbuffscheck.png)
 
-### Castbar
-- **Precision Casting**: Player castbar with timer, spark, and empowered spell stage coloring.
+### Enhanced Merchant Interface
+A completely redesigned merchant frame with better filtering, currency display, and "dressing room" preview integration (Ctrl+Click).
+![Merchant UI](shots/merchant.png)
 
-### Reminders & Warnings 
-- **HUD Alerts**: High-priority warnings for missing pets or augment runes.
-- **Buff Tracker**: Icon bar for raid buffs (Fortitude, Intellect, etc.) and personal buffs (Food, Flasks, Poisons).
-- **Combat Optimized**: Strict `InCombatLockdown` checks ensure zero processing overhead during combat.
-- **Granular Controls**: Independent toggles for individual modules and repositioning support.
+### Automated Item Tracking
+Keep track of essential items, currencies, and cooldowns without manual configuration.
+![Item Tracker](shots/itemtracker.png)
+![Bars Item Tracker](shots/bars_itemtracker.png)
 
-## Commands
-- `/sfui`: Open the settings panel.
-- `/rl`: Reload the UI.
+### Research & Knowledge Viewer
+Built-in tools to view and research game data directly within the UI.
+![Research Viewer](shots/researchviewer.png)
 
-## Installation
-Place the `Sfui` folder in your `_retail_/Interface/AddOns/` directory.
+### Vehicle Integration
+A clean, responsive, and intuitive vehicle interface that doesn't get in your way.
+![Vehicle UI](shots/vehicleui.png)
 
-## License
-MIT
+### Dragonriding Enhancements
+Improved visibility for vigor, speed, and critical warnings while dragonriding.
+![Dragonflying](shots/dragonflying.png)
+![Dragonflying Warning](shots/dragonflying_warning.png)
