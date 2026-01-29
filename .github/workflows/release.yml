@@ -24,7 +24,7 @@ jobs:
       - name: Package and Release
         uses: BigWigsMods/packager@v2
         with:
-          args: -d # Disable debug output (remove -d to see debug info)
+          args: # -d removed to enable uploads
           # The packager automatically handles:
           # 1. Reading .pkgmeta
           # 2. Downloading externals (Libs)
