@@ -1,22 +1,10 @@
 externals:
-  Libs/LibStub:
-    url: https://repos.curseforge.com/wow/libstub/libstub/trunk
-    tag: latest
-  Libs/CallbackHandler-1.0:
-    url: https://repos.curseforge.com/wow/callbackhandler/callbackhandler/trunk
-    tag: latest
-  Libs/AceDB-3.0:
-    url: https://repos.curseforge.com/wow/ace3/ace3/trunk/AceDB-3.0
-    tag: latest
-  Libs/LibSharedMedia-3.0:
-    url: https://repos.curseforge.com/wow/libsharedmedia-3-0/libsharedmedia-3-0/trunk
-    tag: latest
-  Libs/LibDataBroker-1.1:
-    url: https://repos.curseforge.com/wow/libdatabroker-1-1/libdatabroker-1-1/trunk
-    tag: latest
-  Libs/LibDBIcon-1.0:
-    url: https://repos.curseforge.com/wow/libdbicon-1-0/libdbicon-1-0/trunk
-    tag: latest
+  Libs/LibStub: https://github.com/LuaStubs/LibStub.git
+  Libs/CallbackHandler-1.0: https://github.com/LuaStubs/CallbackHandler.git
+  Libs/AceDB-3.0: https://github.com/Ace3/Ace3.git/AceDB-3.0
+  Libs/LibSharedMedia-3.0: https://github.com/BigWigsMods/LibSharedMedia-3.0.git
+  Libs/LibDataBroker-1.1: https://github.com/tekkub/libdatabroker-1-1.git
+  Libs/LibDBIcon-1.0: https://github.com/tekkub/libdbicon-1-0.git
 
 ignore:
   - .git
