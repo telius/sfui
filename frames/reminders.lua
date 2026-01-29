@@ -43,17 +43,26 @@ local function HasWeaponEnchant()
     return false
 end
 
+local function HasHealthstone()
+    local HEALTHSTONES = { 5512, 162397, 221235, 224464 } -- Classic, Abyssal, Algari, Demonic
+    for _, id in ipairs(HEALTHSTONES) do
+        if C_Item.GetItemCount(id) > 0 then return true end
+    end
+    return false
+end
+
 local function UpdateBuffData()
     local _, playerClass = UnitClass("player")
     local spec = C_SpecializationInfo.GetSpecialization()
     local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
 
     local raidBuffs = {
-        { name = "Stamina",      spellID = 21562,  icon = 135987,  class = "PRIEST" },  -- Power Word: Fortitude
-        { name = "Intellect",    spellID = 1459,   icon = 135932,  class = "MAGE" },    -- Arcane Intellect
-        { name = "Attack Power", spellID = 6673,   icon = 132333,  class = "WARRIOR" }, -- Battle Shout
-        { name = "Versatility",  spellID = 1126,   icon = 136078,  class = "DRUID" },   -- Mark of the Wild
-        { name = "Bronze",       spellID = 364343, icon = 4622455, class = "EVOKER" },  -- Blessing of the Bronze
+        { name = "Stamina",      spellID = 21562,  icon = 135987,  class = "PRIEST" },                -- Power Word: Fortitude
+        { name = "Intellect",    spellID = 1459,   icon = 135932,  class = "MAGE" },                  -- Arcane Intellect
+        { name = "Attack Power", spellID = 6673,   icon = 132333,  class = "WARRIOR" },               -- Battle Shout
+        { name = "Versatility",  spellID = 1126,   icon = 136078,  class = "DRUID" },                 -- Mark of the Wild
+        { name = "Bronze",       spellID = 364343, icon = 4622455, class = "EVOKER" },                -- Blessing of the Bronze
+        { name = "Soulstone",    spellID = 20707,  icon = 134336,  class = "WARLOCK", isAny = true }, -- Soulstone
     }
 
     -- Reset BUFF_DATA
@@ -66,6 +75,10 @@ local function UpdateBuffData()
         end
     end
 
+    if IsClassPresent("WARLOCK") then
+        table.insert(PERSONAL_BUFFS, { name = "Healthstone", isHealthstone = true, icon = 135230 })
+    end
+
     table.insert(PERSONAL_BUFFS, { name = "Food", isFood = true, icon = 136000 })
     table.insert(PERSONAL_BUFFS, { name = "Flask", isFlask = true, icon = 5931173 })
 
@@ -76,7 +89,7 @@ local function UpdateBuffData()
     end
 
     -- Weapon Oil / Enchant
-    table.insert(PERSONAL_BUFFS, { name = "Weapon Oil", isWeaponEnchant = true, icon = 132837 }) -- Generic vial icon
+    table.insert(PERSONAL_BUFFS, { name = "Weapon Oil", isWeaponEnchant = true, icon = 609892 })
 
     -- Personal Buffs
     if playerClass == "ROGUE" then
@@ -183,6 +196,29 @@ local function CheckGroupBuffStatus(spellID)
         end
     end
     return true
+end
+
+local function CheckAnyGroupBuffStatus(spellID)
+    if not IsInGroup() then return HasAura(spellID, "player") end
+    if not spellID then return false end
+
+    local numMembers = GetNumGroupMembers()
+    local isRaid = IsInRaid()
+    local unitsToCheck = {}
+
+    if isRaid then
+        for i = 1, numMembers do table.insert(unitsToCheck, "raid" .. i) end
+    else
+        table.insert(unitsToCheck, "player")
+        for i = 1, numMembers - 1 do table.insert(unitsToCheck, "party" .. i) end
+    end
+
+    for _, unit in ipairs(unitsToCheck) do
+        if UnitExists(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit) then
+            if HasAura(spellID, unit) then return true end
+        end
+    end
+    return false
 end
 
 local function HasFood()
@@ -405,6 +441,8 @@ local function UpdateIcons()
             if data.spellID then
                 if data.isPersonal then
                     hasBuff = HasAura(data.spellID, "player")
+                elseif data.isAny then
+                    hasBuff = CheckAnyGroupBuffStatus(data.spellID)
                 else
                     hasBuff = CheckGroupBuffStatus(data.spellID)
                 end
@@ -416,6 +454,8 @@ local function UpdateIcons()
                 hasBuff = HasPoison()
             elseif data.isWeaponEnchant then
                 hasBuff = HasWeaponEnchant()
+            elseif data.isHealthstone then
+                hasBuff = HasHealthstone()
             end
             button:SetAlpha(hasBuff and 0.1 or 1.0)
         end
