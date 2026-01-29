@@ -4,7 +4,7 @@
 
 ## Modules
 
-### Core Bars (`bars.lua`)
+### Core Bars 
 - **Centralized Health**: Features healing prediction and total absorb tracking. Customizable position and visibility toggle.
 - **Dynamic Power Bars**: Specialization-aware resource bars (Mana, Rage, Energy, etc.) with independent enable/disable toggles.
 - **Secondary Resources**: Integrated tracking for class-specific mechanics like Runes, Holy Power, Stagger, and Combo Points.
@@ -17,7 +17,7 @@
 - **Automation**: Optional auto-sell junk and gear repair (standard/guild).
 - **Currency System**: Dynamic listing of required items for the current merchant.
 
-### Minimap
+### Minimap Button Container
 - **Button Bar**: Collects addon icons into a semi-transparent bar.
 - **Full Customization**: Adjustable X/Y position with a dedicated reset button to return it to the top of the map.
 - **Mouseover Support**: Optional fading for both the map and the button bar.
@@ -29,7 +29,7 @@
 ### Castbar
 - **Precision Casting**: Player castbar with timer, spark, and empowered spell stage coloring.
 
-### Reminders & Warnings (`reminders.lua`)
+### Reminders & Warnings 
 - **HUD Alerts**: High-priority warnings for missing pets or augment runes.
 - **Buff Tracker**: Icon bar for raid buffs (Fortitude, Intellect, etc.) and personal buffs (Food, Flasks, Poisons).
 - **Combat Optimized**: Strict `InCombatLockdown` checks ensure zero processing overhead during combat.
