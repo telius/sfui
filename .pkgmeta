@@ -1,10 +1,10 @@
 externals:
-  Libs/LibStub: https://github.com/LuaStubs/LibStub.git
-  Libs/CallbackHandler-1.0: https://github.com/LuaStubs/CallbackHandler.git
+  Libs/LibStub: https://github.com/lua-wow/LibStub.git
+  Libs/CallbackHandler-1.0: https://github.com/zerosnake0/CallbackHandler-1.0.git
   Libs/Ace3: https://github.com/Ace3/Ace3.git
-  Libs/LibSharedMedia-3.0: https://github.com/BigWigsMods/LibSharedMedia-3.0.git
+  Libs/LibSharedMedia-3.0: https://github.com/tomrus88/LibSharedMedia-3.0.git
   Libs/LibDataBroker-1.1: https://github.com/tekkub/libdatabroker-1-1.git
-  Libs/LibDBIcon-1.0: https://github.com/tekkub/libdbicon-1-0.git
+  Libs/LibDBIcon-1.0: https://github.com/zerosnake0/LibDBIcon-1.0.git
 
 ignore:
   - .git
