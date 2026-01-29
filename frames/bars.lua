@@ -42,7 +42,7 @@ do
 
         if health_bar and health_bar.backdrop then
             health_bar.backdrop:ClearAllPoints()
-            health_bar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 300)
+            health_bar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", SfuiDB.healthBarX or 0, SfuiDB.healthBarY or 300)
         end
 
         if IsDragonflying() then
@@ -86,8 +86,21 @@ do
         local showCoreBars = inCombat or hasEnemyTarget
 
         if isDragonflying then
-            if vigor_bar then vigor_bar.backdrop:Show() end
-            if mount_speed_bar then mount_speed_bar.backdrop:Show() end
+            if vigor_bar and SfuiDB.enableVigorBar then
+                vigor_bar.backdrop:Show()
+            else
+                if vigor_bar then
+                    vigor_bar
+                        .backdrop:Hide()
+                end
+            end
+            if mount_speed_bar and SfuiDB.enableMountSpeedBar then
+                mount_speed_bar.backdrop:Show()
+            else
+                if mount_speed_bar then
+                    mount_speed_bar.backdrop:Hide()
+                end
+            end
             if health_bar then health_bar.backdrop:Hide() end
             if primary_power_bar then primary_power_bar.backdrop:Hide() end
             if secondary_power_bar then secondary_power_bar.backdrop:Hide() end
@@ -99,7 +112,7 @@ do
             end
 
             -- Secondary Power Bar visibility for non-dragonflying
-            if secondary_power_bar then
+            if secondary_power_bar and SfuiDB.enableSecondaryPowerBar then
                 local hideSecondary = sfui.config.secondaryPowerBar.hiddenSpecs and
                     sfui.config.secondaryPowerBar.hiddenSpecs[specID]
                 if IsMounted() or hideSecondary then
@@ -109,19 +122,27 @@ do
                 else
                     secondary_power_bar.backdrop:Hide()
                 end
+            elseif secondary_power_bar then
+                secondary_power_bar.backdrop:Hide()
             end
 
             -- Health and Primary Power Bar visibility for non-dragonflying
             if showCoreBars then
-                if health_bar then health_bar.backdrop:Show() end
+                if health_bar and SfuiDB.enableHealthBar then
+                    health_bar.backdrop:Show()
+                elseif health_bar then
+                    health_bar.backdrop:Hide()
+                end
                 local hide = sfui.config.powerBar.hiddenSpecs and sfui.config.powerBar.hiddenSpecs[specID]
-                if primary_power_bar then
+                if primary_power_bar and SfuiDB.enablePowerBar then
                     if hide then
                         primary_power_bar.backdrop:Hide()
                     else
                         primary_power_bar.backdrop
                             :Show()
                     end
+                elseif primary_power_bar then
+                    primary_power_bar.backdrop:Hide()
                 end
             else
                 if health_bar then health_bar.backdrop:Hide() end
@@ -450,6 +471,10 @@ do
         UpdateVigorBar()
         sfui.bars:UpdateMountSpeedBar()
         UpdateBarVisibility()
+    end
+
+    function sfui.bars:UpdateHealthBarPosition()
+        UpdateBarPositions()
     end
 
     local event_frame = CreateFrame("Frame")

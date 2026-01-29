@@ -167,6 +167,14 @@ function sfui.create_options_panel()
     main_tab_button:SetPoint("TOPLEFT", frame, "TOPLEFT", 5, -40)
     last_tab_button = main_tab_button
 
+    local bars_panel, bars_tab_button = create_tab("bars")
+    bars_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
+    last_tab_button = bars_tab_button
+
+    local sct_panel, sct_tab_button = create_tab("combat text")
+    sct_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
+    last_tab_button = sct_tab_button
+
     local currency_items_panel, currency_tab_button = create_tab("currency/items")
     currency_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
     last_tab_button = currency_tab_button
@@ -175,17 +183,13 @@ function sfui.create_options_panel()
     merchant_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
     last_tab_button = merchant_tab_button
 
-    local sct_panel, sct_tab_button = create_tab("combat text")
-    sct_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
-    last_tab_button = sct_tab_button
-
-    local bars_panel, bars_tab_button = create_tab("bars")
-    bars_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
-    last_tab_button = bars_tab_button
-
     local minimap_panel, minimap_tab_button = create_tab("minimap")
     minimap_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
     last_tab_button = minimap_tab_button
+
+    local reminders_panel, reminders_tab_button = create_tab("reminders")
+    reminders_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
+    last_tab_button = reminders_tab_button
 
     local research_panel, research_tab_button = create_tab("research")
     research_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
@@ -228,27 +232,160 @@ function sfui.create_options_panel()
         "Restores the default WoW vehicle/overlay bar.")
     disable_vehicle_cb:SetPoint("TOPLEFT", vehicle_header, "BOTTOMLEFT", 0, -10)
 
-    disable_vehicle_cb:SetPoint("TOPLEFT", vehicle_header, "BOTTOMLEFT", 0, -10)
 
+    -- 2. Bars Panel
+    local bars_header = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
+    bars_header:SetPoint("TOPLEFT", 15, -15)
+    bars_header:SetTextColor(white[1], white[2], white[3])
+    bars_header:SetText("Bar Settings")
 
-    local merchant_header = merchant_panel:CreateFontString(nil, "OVERLAY", g.font)
-    merchant_header:SetPoint("TOPLEFT", 15, -15)
-    merchant_header:SetTextColor(white[1], white[2], white[3])
-    merchant_header:SetText("Merchant Settings")
+    local texture_label = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
+    texture_label:SetPoint("TOPLEFT", bars_header, "BOTTOMLEFT", 0, -10)
+    texture_label:SetText("Bar Texture:")
 
-    local auto_sell_cb = CreateCheckbox(merchant_panel, "Auto-Sell Greys", "autoSellGreys", nil,
-        "Automatically sells all grey items when opening a merchant.")
-    auto_sell_cb:SetPoint("TOPLEFT", merchant_header, "BOTTOMLEFT", 0, -10)
+    local dropdown = CreateFrame("Frame", "sfui_options_texture_dropdown", bars_panel, "UIDropDownMenuTemplate")
+    dropdown:SetPoint("LEFT", texture_label, "RIGHT", 10, 0)
 
-    local disable_merchant_cb = CreateCheckbox(merchant_panel, "Disable Merchant Frame", "disableMerchant", nil,
-        "Restores the default WoW merchant frame.")
-    disable_merchant_cb:SetPoint("TOPLEFT", auto_sell_cb, "BOTTOMLEFT", 0, -10)
+    local function OnTextureSelect(self)
+        local textureName = self.value
+        SfuiDB.barTexture = textureName
 
-    local auto_repair_cb = CreateCheckbox(merchant_panel, "Auto-Repair", "autoRepair", nil,
-        "Automatically repairs gear (guild first, skips if blacksmith hammer available).")
-    auto_repair_cb:SetPoint("TOPLEFT", disable_merchant_cb, "BOTTOMLEFT", 0, -10)
+        local LSM = LibStub("LibSharedMedia-3.0", true)
+        local texturePath = LSM and LSM:Fetch("statusbar", textureName) or "Interface/Buttons/WHITE8X8"
 
+        if sfui.bars and sfui.bars.SetBarTexture then
+            sfui.bars:SetBarTexture(texturePath)
+        end
+        UIDropDownMenu_SetSelectedValue(dropdown, textureName)
+    end
 
+    local function InitializeTextureDropdown(self, level)
+        local LSM = LibStub("LibSharedMedia-3.0", true)
+        local info = UIDropDownMenu_CreateInfo()
+
+        local sortedTextures = {}
+        local seen = { ["Flat"] = true }
+        table.insert(sortedTextures, "Flat")
+
+        if LSM then
+            local textures = LSM:HashTable("statusbar")
+            for name, _ in pairs(textures) do
+                if not seen[name] then
+                    table.insert(sortedTextures, name)
+                    seen[name] = true
+                end
+            end
+        end
+        table.sort(sortedTextures)
+
+        for _, name in ipairs(sortedTextures) do
+            info.text = name
+            info.value = name
+            info.func = OnTextureSelect
+            info.checked = (SfuiDB.barTexture == name)
+            UIDropDownMenu_AddButton(info)
+        end
+    end
+
+    UIDropDownMenu_Initialize(dropdown, InitializeTextureDropdown)
+    UIDropDownMenu_SetSelectedValue(dropdown, SfuiDB.barTexture)
+    UIDropDownMenu_SetWidth(dropdown, 150)
+
+    -- Bar Toggles
+    local toggles_header = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
+    toggles_header:SetPoint("TOPLEFT", dropdown, "BOTTOMLEFT", -10, -20)
+    toggles_header:SetTextColor(white[1], white[2], white[3])
+    toggles_header:SetText("Bar Visibility")
+
+    local health_bar_cb = CreateCheckbox(bars_panel, "Enable Health Bar", "enableHealthBar", function(checked)
+        if sfui.bars and sfui.bars.OnStateChanged then sfui.bars:OnStateChanged() end
+    end, "Toggles the health bar.")
+    health_bar_cb:SetPoint("TOPLEFT", toggles_header, "BOTTOMLEFT", 0, -10)
+
+    local power_bar_cb = CreateCheckbox(bars_panel, "Enable Power Bar", "enablePowerBar", function(checked)
+        if sfui.bars and sfui.bars.OnStateChanged then sfui.bars:OnStateChanged() end
+    end, "Toggles the primary power bar.")
+    power_bar_cb:SetPoint("TOPLEFT", health_bar_cb, "BOTTOMLEFT", 0, -10)
+
+    local secondary_power_cb = CreateCheckbox(bars_panel, "Enable Secondary Power Bar", "enableSecondaryPowerBar",
+        function(checked)
+            if sfui.bars and sfui.bars.OnStateChanged then sfui.bars:OnStateChanged() end
+        end, "Toggles the secondary power bar (e.g., Chi, Holy Power).")
+    secondary_power_cb:SetPoint("TOPLEFT", power_bar_cb, "BOTTOMLEFT", 0, -10)
+
+    local vigor_bar_cb = CreateCheckbox(bars_panel, "Enable Vigor Bar", "enableVigorBar", function(checked)
+        if sfui.bars and sfui.bars.OnStateChanged then sfui.bars:OnStateChanged() end
+    end, "Toggles the vigor bar (Dragonriding).")
+    vigor_bar_cb:SetPoint("TOPLEFT", secondary_power_cb, "BOTTOMLEFT", 0, -10)
+
+    local mount_speed_cb = CreateCheckbox(bars_panel, "Enable Mount Speed Bar", "enableMountSpeedBar", function(checked)
+        if sfui.bars and sfui.bars.OnStateChanged then sfui.bars:OnStateChanged() end
+    end, "Toggles the mount speed bar (Dragonriding).")
+    mount_speed_cb:SetPoint("TOPLEFT", vigor_bar_cb, "BOTTOMLEFT", 0, -10)
+
+    -- Health Bar Position
+    local position_header = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
+    position_header:SetPoint("TOPLEFT", mount_speed_cb, "BOTTOMLEFT", 0, -20)
+    position_header:SetTextColor(white[1], white[2], white[3])
+    position_header:SetText("Health Bar Position")
+
+    local health_x_label = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
+    health_x_label:SetPoint("TOPLEFT", position_header, "BOTTOMLEFT", 0, -10)
+    health_x_label:SetText("X:")
+    health_x_label:SetTextColor(white[1], white[2], white[3])
+
+    local health_x_input = CreateFrame("EditBox", nil, bars_panel, "InputBoxTemplate")
+    health_x_input:SetSize(60, 20)
+    health_x_input:SetPoint("LEFT", health_x_label, "RIGHT", 5, 0)
+    health_x_input:SetAutoFocus(false)
+    health_x_input:SetText(tostring(SfuiDB.healthBarX or 0))
+    health_x_input:SetScript("OnEnterPressed", function(self)
+        local val = tonumber(self:GetText())
+        if val then
+            SfuiDB.healthBarX = val
+            if sfui.bars and sfui.bars.UpdateHealthBarPosition then
+                sfui.bars:UpdateHealthBarPosition()
+            end
+        end
+        self:ClearFocus()
+    end)
+
+    local health_y_label = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
+    health_y_label:SetPoint("LEFT", health_x_input, "RIGHT", 15, 0)
+    health_y_label:SetText("Y:")
+    health_y_label:SetTextColor(white[1], white[2], white[3])
+
+    local health_y_input = CreateFrame("EditBox", nil, bars_panel, "InputBoxTemplate")
+    health_y_input:SetSize(60, 20)
+    health_y_input:SetPoint("LEFT", health_y_label, "RIGHT", 5, 0)
+    health_y_input:SetAutoFocus(false)
+    health_y_input:SetText(tostring(SfuiDB.healthBarY or 300))
+    health_y_input:SetScript("OnEnterPressed", function(self)
+        local val = tonumber(self:GetText())
+        if val then
+            SfuiDB.healthBarY = val
+            if sfui.bars and sfui.bars.UpdateHealthBarPosition then
+                sfui.bars:UpdateHealthBarPosition()
+            end
+        end
+        self:ClearFocus()
+    end)
+
+    local reset_health_pos_btn = CreateFrame("Button", nil, bars_panel, "UIPanelButtonTemplate")
+    reset_health_pos_btn:SetSize(120, 22)
+    reset_health_pos_btn:SetPoint("TOPLEFT", health_x_label, "BOTTOMLEFT", 0, -10)
+    reset_health_pos_btn:SetText("Reset Position")
+    reset_health_pos_btn:SetScript("OnClick", function()
+        SfuiDB.healthBarX = 0
+        SfuiDB.healthBarY = 300
+        health_x_input:SetText("0")
+        health_y_input:SetText("300")
+        if sfui.bars and sfui.bars.UpdateHealthBarPosition then
+            sfui.bars:UpdateHealthBarPosition()
+        end
+    end)
+
+    -- 3. Combat Text Panel (SCT)
     local sct_header = sct_panel:CreateFontString(nil, "OVERLAY", g.font)
     sct_header:SetPoint("TOPLEFT", 15, -15)
     sct_header:SetTextColor(white[1], white[2], white[3])
@@ -298,6 +435,94 @@ function sfui.create_options_panel()
         "Toggles display of entering/leaving combat.")
     state_cb:SetPoint("TOPLEFT", auras_cb, "BOTTOMLEFT", 0, -5)
 
+    -- 4. Currency / Items Panel
+    local currency_header = currency_items_panel:CreateFontString(nil, "OVERLAY", g.font)
+    currency_header:SetPoint("TOPLEFT", 15, -15)
+    currency_header:SetTextColor(white[1], white[2], white[3])
+    currency_header:SetText("Currency Display Settings")
+
+    local currency_info_text = currency_items_panel:CreateFontString(nil, "OVERLAY", g.font)
+    currency_info_text:SetPoint("TOPLEFT", currency_header, "BOTTOMLEFT", 0, -10)
+    currency_info_text:SetPoint("RIGHT", -15, 0)
+    currency_info_text:SetJustifyH("LEFT")
+    currency_info_text:SetText(
+        "The currency display is automatic. To add or remove currencies, open the default Character panel, go to the Currencies tab, and check 'Show on Backpack' for any currency you wish to track. Opening and closing the Character Panel will also update the display.")
+
+    local item_header = currency_items_panel:CreateFontString(nil, "OVERLAY", g.font)
+    item_header:SetPoint("TOPLEFT", currency_info_text, "BOTTOMLEFT", 0, -20)
+    item_header:SetTextColor(white[1], white[2], white[3])
+    item_header:SetText("Item Tracking Settings")
+
+    local item_id_label = currency_items_panel:CreateFontString(nil, "OVERLAY", g.font)
+    item_id_label:SetPoint("TOPLEFT", item_header, "BOTTOMLEFT", 0, -10)
+    item_id_label:SetText("Add Item by ID:")
+
+    local item_id_input = CreateFrame("EditBox", nil, currency_items_panel, "InputBoxTemplate")
+    item_id_input:SetPoint("LEFT", item_id_label, "RIGHT", 10, 0)
+    item_id_input:SetSize(100, 32)
+    item_id_input:SetAutoFocus(false)
+
+    local add_button = CreateFlatButton(currency_items_panel, "Add", 50, 22)
+    add_button:SetPoint("LEFT", item_id_input, "RIGHT", 5, 0)
+    add_button:SetScript("OnClick", function()
+        local id = tonumber(item_id_input:GetText())
+        if id and sfui.add_item then
+            sfui.add_item(id)
+            item_id_input:SetText("")
+        end
+    end)
+
+    local drop_frame = CreateFrame("Frame", "sfui_item_drop_frame", currency_items_panel, "BackdropTemplate")
+    drop_frame:SetPoint("TOPLEFT", item_id_label, "BOTTOMLEFT", 0, -20)
+    drop_frame:SetSize(250, 50)
+    local drop_frame_backdrop = {
+        bgFile = g.textures.tooltip,
+        tile = true,
+        tileSize = 16,
+        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+        edgeSize = 1,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    }
+    drop_frame:SetBackdrop(drop_frame_backdrop)
+    drop_frame:SetBackdropColor(0.3, 0.3, 0.3, 0.7) -- Lighter background
+    drop_frame:SetBackdropBorderColor(0, 0, 0, 1)   -- 100% black border
+
+    local drop_label = drop_frame:CreateFontString(nil, "OVERLAY", g.font)
+    drop_label:SetAllPoints()
+    drop_label:SetText("Drop Item Here")
+    drop_label:EnableMouse(false)
+
+    drop_frame:EnableMouse(true)
+    drop_frame:RegisterForDrag("LeftButton")
+    drop_frame:SetScript("OnReceiveDrag", function(self)
+        local type, id, link = GetCursorInfo()
+        if type == "item" and link then
+            local itemID = GetItemInfoFromHyperlink(link)
+            if itemID and sfui.add_item then
+                sfui.add_item(itemID)
+            end
+        end
+    end)
+
+    -- 5. Merchant Panel
+    local merchant_header = merchant_panel:CreateFontString(nil, "OVERLAY", g.font)
+    merchant_header:SetPoint("TOPLEFT", 15, -15)
+    merchant_header:SetTextColor(white[1], white[2], white[3])
+    merchant_header:SetText("Merchant Settings")
+
+    local auto_sell_cb = CreateCheckbox(merchant_panel, "Auto-Sell Greys", "autoSellGreys", nil,
+        "Automatically sells all grey items when opening a merchant.")
+    auto_sell_cb:SetPoint("TOPLEFT", merchant_header, "BOTTOMLEFT", 0, -10)
+
+    local disable_merchant_cb = CreateCheckbox(merchant_panel, "Disable Merchant Frame", "disableMerchant", nil,
+        "Restores the default WoW merchant frame.")
+    disable_merchant_cb:SetPoint("TOPLEFT", auto_sell_cb, "BOTTOMLEFT", 0, -10)
+
+    local auto_repair_cb = CreateCheckbox(merchant_panel, "Auto-Repair", "autoRepair", nil,
+        "Automatically repairs gear (guild first, skips if blacksmith hammer available).")
+    auto_repair_cb:SetPoint("TOPLEFT", disable_merchant_cb, "BOTTOMLEFT", 0, -10)
+
+    -- 6. Minimap Panel
     local minimap_header = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
     minimap_header:SetPoint("TOPLEFT", 15, -15)
     minimap_header:SetTextColor(white[1], white[2], white[3])
@@ -319,9 +544,209 @@ function sfui.create_options_panel()
     end, "Only show the button bar when hovering the minimap. Also moves Group Finder eye to Top Left.")
     mouseover_cb:SetPoint("TOPLEFT", collect_cb, "BOTTOMLEFT", 0, -10)
 
+    -- Position X input
+    local pos_x_label = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
+    pos_x_label:SetPoint("TOPLEFT", mouseover_cb, "BOTTOMLEFT", 0, -15)
+    pos_x_label:SetText("Position X:")
+    pos_x_label:SetTextColor(white[1], white[2], white[3])
 
+    local pos_x_input = CreateFrame("EditBox", nil, minimap_panel, "InputBoxTemplate")
+    pos_x_input:SetSize(60, 20)
+    pos_x_input:SetPoint("LEFT", pos_x_label, "RIGHT", 5, 0)
+    pos_x_input:SetAutoFocus(false)
+    pos_x_input:SetText(tostring(SfuiDB.minimap_button_x or 0))
+    pos_x_input:SetScript("OnEnterPressed", function(self)
+        local val = tonumber(self:GetText())
+        if val then
+            SfuiDB.minimap_button_x = val
+            if sfui.minimap and sfui.minimap.UpdateButtonBarPosition then
+                sfui.minimap.UpdateButtonBarPosition()
+            end
+        end
+        self:ClearFocus()
+    end)
 
+    -- Position Y input
+    local pos_y_label = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
+    pos_y_label:SetPoint("LEFT", pos_x_input, "RIGHT", 15, 0)
+    pos_y_label:SetText("Y:")
+    pos_y_label:SetTextColor(white[1], white[2], white[3])
 
+    local pos_y_input = CreateFrame("EditBox", nil, minimap_panel, "InputBoxTemplate")
+    pos_y_input:SetSize(60, 20)
+    pos_y_input:SetPoint("LEFT", pos_y_label, "RIGHT", 5, 0)
+    pos_y_input:SetAutoFocus(false)
+    pos_y_input:SetText(tostring(SfuiDB.minimap_button_y or 35))
+    pos_y_input:SetScript("OnEnterPressed", function(self)
+        local val = tonumber(self:GetText())
+        if val then
+            SfuiDB.minimap_button_y = val
+            if sfui.minimap and sfui.minimap.UpdateButtonBarPosition then
+                sfui.minimap.UpdateButtonBarPosition()
+            end
+        end
+        self:ClearFocus()
+    end)
+
+    -- Reset button
+    local reset_pos_btn = CreateFrame("Button", nil, minimap_panel, "UIPanelButtonTemplate")
+    reset_pos_btn:SetSize(120, 22)
+    reset_pos_btn:SetPoint("TOPLEFT", pos_x_label, "BOTTOMLEFT", 0, -10)
+    reset_pos_btn:SetText("Reset Position")
+    reset_pos_btn:SetScript("OnClick", function()
+        SfuiDB.minimap_button_x = 0
+        SfuiDB.minimap_button_y = 35
+        pos_x_input:SetText("0")
+        pos_y_input:SetText("35")
+        if sfui.minimap and sfui.minimap.UpdateButtonBarPosition then
+            sfui.minimap.UpdateButtonBarPosition()
+        end
+    end)
+
+    -- 7. Reminders Panel
+    local reminders_header = reminders_panel:CreateFontString(nil, "OVERLAY", g.font)
+    reminders_header:SetPoint("TOPLEFT", 15, -15)
+    reminders_header:SetTextColor(white[1], white[2], white[3])
+    reminders_header:SetText("Reminders & Warnings")
+
+    local enable_reminders_cb = CreateCheckbox(reminders_panel, "Enable Buff Reminders", "enableReminders",
+        function(checked)
+            if sfui.reminders and sfui.reminders.OnStateChanged then sfui.reminders.OnStateChanged(checked) end
+        end, "Toggles the buff reminders frame.")
+    enable_reminders_cb:SetPoint("TOPLEFT", reminders_header, "BOTTOMLEFT", 0, -10)
+
+    local reminders_everywhere_cb = CreateCheckbox(reminders_panel, "Show outside Instances", "remindersEverywhere",
+        function(checked)
+            if sfui.reminders and sfui.reminders.UpdateVisibility then sfui.reminders.UpdateVisibility() end
+        end, "Shows the reminders frame even when not in an instance.")
+    reminders_everywhere_cb:SetPoint("TOPLEFT", enable_reminders_cb, "BOTTOMLEFT", 0, -10)
+
+    local reminders_solo_cb = CreateCheckbox(reminders_panel, "Show while Solo", "remindersSolo",
+        function(checked)
+            if sfui.reminders and sfui.reminders.UpdateVisibility then sfui.reminders.UpdateVisibility() end
+        end, "Shows the reminders frame even when not in a group.")
+    reminders_solo_cb:SetPoint("TOPLEFT", reminders_everywhere_cb, "BOTTOMLEFT", 0, -10)
+
+    local reminders_x_label = reminders_panel:CreateFontString(nil, "OVERLAY", g.font)
+    reminders_x_label:SetPoint("TOPLEFT", reminders_solo_cb, "BOTTOMLEFT", 0, -20)
+    reminders_x_label:SetText("Position X:")
+
+    local reminders_x_input = CreateFrame("EditBox", nil, reminders_panel, "InputBoxTemplate")
+    reminders_x_input:SetPoint("LEFT", reminders_x_label, "RIGHT", 10, 0)
+    reminders_x_input:SetSize(60, 32)
+    reminders_x_input:SetAutoFocus(false)
+    reminders_x_input:SetNumeric(true)
+    reminders_x_input:SetScript("OnShow", function(self) self:SetText(tostring(SfuiDB.remindersX)) end)
+    reminders_x_input:SetScript("OnEnterPressed", function(self)
+        local val = tonumber(self:GetText()) or 0
+        SfuiDB.remindersX = val
+        if sfui.reminders and sfui.reminders.UpdatePosition then sfui.reminders.UpdatePosition() end
+        self:ClearFocus()
+    end)
+
+    local reminders_y_label = reminders_panel:CreateFontString(nil, "OVERLAY", g.font)
+    reminders_y_label:SetPoint("LEFT", reminders_x_input, "RIGHT", 20, 0)
+    reminders_y_label:SetText("Y:")
+
+    local reminders_y_input = CreateFrame("EditBox", nil, reminders_panel, "InputBoxTemplate")
+    reminders_y_input:SetPoint("LEFT", reminders_y_label, "RIGHT", 10, 0)
+    reminders_y_input:SetSize(60, 32)
+    reminders_y_input:SetAutoFocus(false)
+    reminders_y_input:SetNumeric(true)
+    reminders_y_input:SetScript("OnShow", function(self) self:SetText(tostring(SfuiDB.remindersY)) end)
+    reminders_y_input:SetScript("OnEnterPressed", function(self)
+        local val = tonumber(self:GetText()) or 0
+        SfuiDB.remindersY = val
+        if sfui.reminders and sfui.reminders.UpdatePosition then sfui.reminders.UpdatePosition() end
+        self:ClearFocus()
+    end)
+
+    local warnings_header = reminders_panel:CreateFontString(nil, "OVERLAY", g.font)
+    warnings_header:SetPoint("TOPLEFT", reminders_x_label, "BOTTOMLEFT", 0, -30)
+    warnings_header:SetTextColor(white[1], white[2], white[3])
+    warnings_header:SetText("Warning Settings")
+
+    local enable_pet_warning_cb = CreateCheckbox(reminders_panel, "Enable Pet Warning", "enablePetWarning",
+        function(checked)
+            if sfui.reminders and sfui.reminders.UpdateWarnings then sfui.reminders.UpdateWarnings() end
+        end, "Warns you if your pet is missing (for pet classes).")
+    enable_pet_warning_cb:SetPoint("TOPLEFT", warnings_header, "BOTTOMLEFT", 0, -10)
+
+    local enable_rune_warning_cb = CreateCheckbox(reminders_panel, "Enable Rune Warning", "enableRuneWarning",
+        function(checked)
+            if sfui.reminders and sfui.reminders.UpdateWarnings then sfui.reminders.UpdateWarnings() end
+        end, "Warns you if you are missing an Augment Rune buff but have runes in your bags.")
+    enable_rune_warning_cb:SetPoint("TOPLEFT", enable_pet_warning_cb, "BOTTOMLEFT", 0, -10)
+
+    -- 8. Research Viewer Panel
+    local research_header = research_panel:CreateFontString(nil, "OVERLAY", g.font)
+    research_header:SetPoint("TOPLEFT", 15, -15)
+    research_header:SetTextColor(white[1], white[2], white[3])
+    research_header:SetText("Research Viewer Settings")
+
+    local research_info = research_panel:CreateFontString(nil, "OVERLAY", g.font)
+    research_info:SetPoint("TOPLEFT", research_header, "BOTTOMLEFT", 0, -10)
+    research_info:SetPoint("RIGHT", -15, 0)
+    research_info:SetJustifyH("LEFT")
+    research_info:SetText(
+        "The Research Viewer allows you to view various talent and research trees (Order Halls, Dragonriding, Delves, etc.) from anywhere. You can also open it by middle-clicking the sfui minimap icon.")
+
+    local toggle_research_button = CreateFlatButton(research_panel, "Open Research Viewer", 160, 22)
+    toggle_research_button:SetPoint("TOPLEFT", research_info, "BOTTOMLEFT", 0, -20)
+    toggle_research_button:SetScript("OnClick", function()
+        if sfui.research and sfui.research.ToggleSelection then
+            sfui.research.ToggleSelection()
+            frame:Hide()
+        end
+    end)
+
+    local custom_header = research_panel:CreateFontString(nil, "OVERLAY", g.font)
+    custom_header:SetPoint("TOPLEFT", toggle_research_button, "BOTTOMLEFT", 0, -30)
+    custom_header:SetTextColor(white[1], white[2], white[3])
+    custom_header:SetText("Manual Tree Entry")
+
+    local custom_id_label = research_panel:CreateFontString(nil, "OVERLAY", g.font)
+    custom_id_label:SetPoint("TOPLEFT", custom_header, "BOTTOMLEFT", 0, -10)
+    custom_id_label:SetText("Enter Tree ID:")
+
+    local custom_id_input = CreateFrame("EditBox", nil, research_panel, "InputBoxTemplate")
+    custom_id_input:SetPoint("LEFT", custom_id_label, "RIGHT", 10, 0)
+    custom_id_input:SetSize(80, 32)
+    custom_id_input:SetAutoFocus(false)
+
+    local add_trait_button = CreateFlatButton(research_panel, "Trait", 60, 22)
+    add_trait_button:SetPoint("LEFT", custom_id_input, "RIGHT", 5, 0)
+    add_trait_button:SetScript("OnClick", function()
+        local id = tonumber(custom_id_input:GetText())
+        if id and sfui.research and sfui.research.OpenTree then
+            sfui.research.OpenTree({ id = id, isTraitTree = true, name = "Custom " .. id })
+            frame:Hide()
+        end
+    end)
+    add_trait_button:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Trait Tree (Dragonriding, Delves, etc.)")
+        GameTooltip:Show()
+    end)
+    add_trait_button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    local add_garr_button = CreateFlatButton(research_panel, "Garr", 60, 22)
+    add_garr_button:SetPoint("LEFT", add_trait_button, "RIGHT", 5, 0)
+    add_garr_button:SetScript("OnClick", function()
+        local id = tonumber(custom_id_input:GetText())
+        if id and sfui.research and sfui.research.OpenTree then
+            sfui.research.OpenTree({ id = id, isTraitTree = false, type = 111, name = "Custom " .. id })
+            frame:Hide()
+        end
+    end)
+    add_garr_button:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Garrison Tree (Class Halls, Covenants, etc.)")
+        GameTooltip:Show()
+    end)
+    add_garr_button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    -- 9. Debug Panel
     local spec_id_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
     spec_id_label:SetPoint("TOPLEFT", 15, -15)
     spec_id_label:SetText("Spec ID:")
@@ -393,8 +818,6 @@ function sfui.create_options_panel()
     local decor_cache_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
     decor_cache_value:SetPoint("LEFT", decor_cache_label, "RIGHT", 5, 0)
 
-
-
     local debug_refresh_button = CreateFlatButton(debug_panel, "Refresh", 100, 22)
     debug_refresh_button:SetPoint("BOTTOM", debug_panel, "BOTTOM", 0, 10)
 
@@ -403,8 +826,8 @@ function sfui.create_options_panel()
     function update_debug_info()
         original_update_debug_info() -- Call original function
 
-        if sfui.warnings and sfui.warnings.GetStatus then
-            pet_warning_value:SetText(sfui.warnings.GetStatus())
+        if sfui.reminders and sfui.reminders.GetStatus then
+            pet_warning_value:SetText(sfui.reminders.GetStatus())
         else
             pet_warning_value:SetText("N/A (Module Missing)")
         end
@@ -426,200 +849,6 @@ function sfui.create_options_panel()
     end)
 
     update_debug_info()
-
-    local currency_header = currency_items_panel:CreateFontString(nil, "OVERLAY", g.font)
-    currency_header:SetPoint("TOPLEFT", 15, -15)
-    currency_header:SetTextColor(white[1], white[2], white[3])
-    currency_header:SetText("Currency Display Settings")
-
-    local currency_info_text = currency_items_panel:CreateFontString(nil, "OVERLAY", g.font)
-    currency_info_text:SetPoint("TOPLEFT", currency_header, "BOTTOMLEFT", 0, -10)
-    currency_info_text:SetPoint("RIGHT", -15, 0)
-    currency_info_text:SetJustifyH("LEFT")
-    currency_info_text:SetText(
-        "The currency display is automatic. To add or remove currencies, open the default Character panel, go to the Currencies tab, and check 'Show on Backpack' for any currency you wish to track. Opening and closing the Character Panel will also update the display.")
-
-    local item_header = currency_items_panel:CreateFontString(nil, "OVERLAY", g.font)
-    item_header:SetPoint("TOPLEFT", currency_info_text, "BOTTOMLEFT", 0, -20)
-    item_header:SetTextColor(white[1], white[2], white[3])
-    item_header:SetText("Item Tracking Settings")
-
-    local item_id_label = currency_items_panel:CreateFontString(nil, "OVERLAY", g.font)
-    item_id_label:SetPoint("TOPLEFT", item_header, "BOTTOMLEFT", 0, -10)
-    item_id_label:SetText("Add Item by ID:")
-
-    local item_id_input = CreateFrame("EditBox", nil, currency_items_panel, "InputBoxTemplate")
-    item_id_input:SetPoint("LEFT", item_id_label, "RIGHT", 10, 0)
-    item_id_input:SetSize(100, 32)
-    item_id_input:SetAutoFocus(false)
-
-    local add_button = CreateFlatButton(currency_items_panel, "Add", 50, 22)
-    add_button:SetPoint("LEFT", item_id_input, "RIGHT", 5, 0)
-    add_button:SetScript("OnClick", function()
-        local id = tonumber(item_id_input:GetText())
-        if id and sfui.add_item then
-            sfui.add_item(id)
-            item_id_input:SetText("")
-        end
-    end)
-
-    local drop_frame = CreateFrame("Frame", "sfui_item_drop_frame", currency_items_panel, "BackdropTemplate")
-    drop_frame:SetPoint("TOPLEFT", item_id_label, "BOTTOMLEFT", 0, -20)
-    drop_frame:SetSize(250, 50)
-    local drop_frame_backdrop = {
-        bgFile = g.textures.tooltip,
-        tile = true,
-        tileSize = 16,
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        edgeSize = 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 }
-    }
-    drop_frame:SetBackdrop(drop_frame_backdrop)
-    drop_frame:SetBackdropColor(0.3, 0.3, 0.3, 0.7) -- Lighter background
-    drop_frame:SetBackdropBorderColor(0, 0, 0, 1)   -- 100% black border
-
-    local drop_label = drop_frame:CreateFontString(nil, "OVERLAY", g.font)
-    drop_label:SetAllPoints()
-    drop_label:SetText("Drop Item Here")
-    drop_label:EnableMouse(false)
-
-    drop_frame:EnableMouse(true)
-    drop_frame:RegisterForDrag("LeftButton")
-    drop_frame:SetScript("OnReceiveDrag", function(self)
-        local type, id, link = GetCursorInfo()
-        if type == "item" and link then
-            local itemID = GetItemInfoFromHyperlink(link)
-            if itemID and sfui.add_item then
-                sfui.add_item(itemID)
-            end
-        end
-    end)
-
-
-
-    local bars_header = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
-    bars_header:SetPoint("TOPLEFT", 15, -15)
-    bars_header:SetTextColor(white[1], white[2], white[3])
-    bars_header:SetText("Bar Settings")
-
-    local texture_label = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
-    texture_label:SetPoint("TOPLEFT", bars_header, "BOTTOMLEFT", 0, -10)
-    texture_label:SetText("Bar Texture:")
-
-    local dropdown = CreateFrame("Frame", "sfui_options_texture_dropdown", bars_panel, "UIDropDownMenuTemplate")
-    dropdown:SetPoint("LEFT", texture_label, "RIGHT", 10, 0)
-
-    local function OnTextureSelect(self)
-        local textureName = self.value
-        SfuiDB.barTexture = textureName
-
-        local LSM = LibStub("LibSharedMedia-3.0", true)
-        local texturePath = LSM and LSM:Fetch("statusbar", textureName) or "Interface/Buttons/WHITE8X8"
-
-        if sfui.bars and sfui.bars.SetBarTexture then
-            sfui.bars:SetBarTexture(texturePath)
-        end
-        UIDropDownMenu_SetSelectedValue(dropdown, textureName)
-    end
-
-    local function InitializeTextureDropdown(self, level)
-        local LSM = LibStub("LibSharedMedia-3.0", true)
-        local info = UIDropDownMenu_CreateInfo()
-
-        local sortedTextures = {}
-        local seen = { ["Flat"] = true }
-        table.insert(sortedTextures, "Flat")
-
-        if LSM then
-            local textures = LSM:HashTable("statusbar")
-            for name, _ in pairs(textures) do
-                if not seen[name] then
-                    table.insert(sortedTextures, name)
-                    seen[name] = true
-                end
-            end
-        end
-        table.sort(sortedTextures)
-
-        for _, name in ipairs(sortedTextures) do
-            info.text = name
-            info.value = name
-            info.func = OnTextureSelect
-            info.checked = (SfuiDB.barTexture == name)
-            UIDropDownMenu_AddButton(info)
-        end
-    end
-
-    UIDropDownMenu_Initialize(dropdown, InitializeTextureDropdown)
-    UIDropDownMenu_SetSelectedValue(dropdown, SfuiDB.barTexture)
-    UIDropDownMenu_SetWidth(dropdown, 150)
-
-    local research_header = research_panel:CreateFontString(nil, "OVERLAY", g.font)
-    research_header:SetPoint("TOPLEFT", 15, -15)
-    research_header:SetTextColor(white[1], white[2], white[3])
-    research_header:SetText("Research Viewer Settings")
-
-    local research_info = research_panel:CreateFontString(nil, "OVERLAY", g.font)
-    research_info:SetPoint("TOPLEFT", research_header, "BOTTOMLEFT", 0, -10)
-    research_info:SetPoint("RIGHT", -15, 0)
-    research_info:SetJustifyH("LEFT")
-    research_info:SetText(
-        "The Research Viewer allows you to view various talent and research trees (Order Halls, Dragonriding, Delves, etc.) from anywhere. You can also open it by middle-clicking the sfui minimap icon.")
-
-    local toggle_research_button = CreateFlatButton(research_panel, "Open Research Viewer", 160, 22)
-    toggle_research_button:SetPoint("TOPLEFT", research_info, "BOTTOMLEFT", 0, -20)
-    toggle_research_button:SetScript("OnClick", function()
-        if sfui.research and sfui.research.ToggleSelection then
-            sfui.research.ToggleSelection()
-            frame:Hide()
-        end
-    end)
-
-    local custom_header = research_panel:CreateFontString(nil, "OVERLAY", g.font)
-    custom_header:SetPoint("TOPLEFT", toggle_research_button, "BOTTOMLEFT", 0, -30)
-    custom_header:SetTextColor(white[1], white[2], white[3])
-    custom_header:SetText("Manual Tree Entry")
-
-    local custom_id_label = research_panel:CreateFontString(nil, "OVERLAY", g.font)
-    custom_id_label:SetPoint("TOPLEFT", custom_header, "BOTTOMLEFT", 0, -10)
-    custom_id_label:SetText("Enter Tree ID:")
-
-    local custom_id_input = CreateFrame("EditBox", nil, research_panel, "InputBoxTemplate")
-    custom_id_input:SetPoint("LEFT", custom_id_label, "RIGHT", 10, 0)
-    custom_id_input:SetSize(80, 32)
-    custom_id_input:SetAutoFocus(false)
-
-    local add_trait_button = CreateFlatButton(research_panel, "Trait", 60, 22)
-    add_trait_button:SetPoint("LEFT", custom_id_input, "RIGHT", 5, 0)
-    add_trait_button:SetScript("OnClick", function()
-        local id = tonumber(custom_id_input:GetText())
-        if id and sfui.research and sfui.research.OpenTree then
-            sfui.research.OpenTree({ id = id, isTraitTree = true, name = "Custom " .. id })
-            frame:Hide()
-        end
-    end)
-    add_trait_button:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Trait Tree (Dragonriding, Delves, etc.)")
-        GameTooltip:Show()
-    end)
-    add_trait_button:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
-    local add_garr_button = CreateFlatButton(research_panel, "Garr", 60, 22)
-    add_garr_button:SetPoint("LEFT", add_trait_button, "RIGHT", 5, 0)
-    add_garr_button:SetScript("OnClick", function()
-        local id = tonumber(custom_id_input:GetText())
-        if id and sfui.research and sfui.research.OpenTree then
-            sfui.research.OpenTree({ id = id, isTraitTree = false, type = 111, name = "Custom " .. id })
-            frame:Hide()
-        end
-    end)
-    add_garr_button:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Garrison Tree (Class Halls, Covenants, etc.)")
-        GameTooltip:Show()
-    end)
-    add_garr_button:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
 function sfui.toggle_options_panel()

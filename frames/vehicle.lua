@@ -133,9 +133,9 @@ end)
 
 -- Handle Vehicle State
 -- Suppress during Dragonriding (skyriding) but only when on a mount
--- This avoids suppressing quest vehicles that might trigger advfly
+-- This avoids suppressing quest vehicles that might trigger dragonriding
 RegisterStateDriver(frame, "visibility",
-    "[petbattle] hide; [mounted,advfly] hide; [vehicleui][possessbar][overridebar][bonusbar:5] show; hide")
+    "[petbattle] hide; [mounted,bonusbar:5] hide; [vehicleui][possessbar][overridebar][bonusbar:5] show; hide")
 
 local function UpdateActionButtons()
     if InCombatLockdown() then

@@ -381,7 +381,6 @@ function sfui.minimap.EnableButtonManager(enabled)
     if enabled then
         if not button_bar then
             button_bar = CreateFrame("Frame", "sfui_minimap_button_bar", Minimap, "BackdropTemplate")
-            button_bar:SetPoint("TOP", Minimap, "TOP", 0, 35)
             button_bar:SetSize(sfui.config.minimap.default_size, 30)
             button_bar:SetBackdrop({
                 bgFile = "Interface/Buttons/WHITE8X8",
@@ -390,6 +389,11 @@ function sfui.minimap.EnableButtonManager(enabled)
             })
             button_bar:SetBackdropColor(0, 0, 0, 0.5) -- Semi-transparent black
         end
+
+        -- Update position from saved coordinates
+        button_bar:ClearAllPoints()
+        button_bar:SetPoint("TOP", Minimap, "BOTTOM", SfuiDB.minimap_button_x or 0, SfuiDB.minimap_button_y or -5)
+
         button_bar:Show()
 
         -- Mouseover logic
@@ -429,6 +433,13 @@ function sfui.minimap.EnableButtonManager(enabled)
         ButtonManager:RestoreAll()
         if button_bar then button_bar:Hide() end
         if AddonCompartmentFrame then AddonCompartmentFrame:Show() end
+    end
+end
+
+function sfui.minimap.UpdateButtonBarPosition()
+    if button_bar then
+        button_bar:ClearAllPoints()
+        button_bar:SetPoint("TOP", Minimap, "BOTTOM", SfuiDB.minimap_button_x or 0, SfuiDB.minimap_button_y or -5)
     end
 end
 

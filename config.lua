@@ -175,6 +175,8 @@ sfui.config = {
         width = 300,
         height = 20,
         color = { 0.2, 0.2, 0.2 }, -- Dark Grey
+        defaultX = 0,
+        defaultY = 300,
         backdrop = {
             padding = 2,
             color = { 0, 0, 0, 0.5 }, -- Black/Transparent
@@ -239,6 +241,8 @@ sfui.config = {
         button_bar = {
             spacing = 5,
             button_size = 20,
+            defaultX = 0,
+            defaultY = 35,
         },
     },
 

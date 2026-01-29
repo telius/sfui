@@ -65,10 +65,29 @@ event_frame:SetScript("OnEvent", function(self, event, name)
                 SfuiDB.minimap_collect_buttons
             SfuiDB.minimap_buttons_mouseover = (SfuiDB.minimap_buttons_mouseover == nil) and false or
                 SfuiDB.minimap_buttons_mouseover
+            if SfuiDB.minimap_button_x == nil then SfuiDB.minimap_button_x = 0 end
+            if SfuiDB.minimap_button_y == nil then SfuiDB.minimap_button_y = 35 end
             if SfuiDB.autoSellGreys == nil then SfuiDB.autoSellGreys = false end
             if SfuiDB.autoRepair == nil then SfuiDB.autoRepair = false end
             if SfuiDB.disableMerchant == nil then SfuiDB.disableMerchant = true end
             if SfuiDB.disableVehicle == nil then SfuiDB.disableVehicle = false end
+
+            -- Bar settings
+            if SfuiDB.healthBarX == nil then SfuiDB.healthBarX = 0 end
+            if SfuiDB.healthBarY == nil then SfuiDB.healthBarY = 300 end
+            if SfuiDB.enableHealthBar == nil then SfuiDB.enableHealthBar = true end
+            if SfuiDB.enablePowerBar == nil then SfuiDB.enablePowerBar = true end
+            if SfuiDB.enableSecondaryPowerBar == nil then SfuiDB.enableSecondaryPowerBar = true end
+            if SfuiDB.enableVigorBar == nil then SfuiDB.enableVigorBar = true end
+            if SfuiDB.enableMountSpeedBar == nil then SfuiDB.enableMountSpeedBar = true end
+
+            if SfuiDB.enableReminders == nil then SfuiDB.enableReminders = true end
+            if SfuiDB.remindersX == nil then SfuiDB.remindersX = 0 end
+            if SfuiDB.remindersY == nil then SfuiDB.remindersY = 10 end
+            if SfuiDB.remindersSolo == nil then SfuiDB.remindersSolo = false end
+            if SfuiDB.remindersEverywhere == nil then SfuiDB.remindersEverywhere = false end
+            if SfuiDB.enablePetWarning == nil then SfuiDB.enablePetWarning = true end
+            if SfuiDB.enableRuneWarning == nil then SfuiDB.enableRuneWarning = true end
 
 
 
@@ -91,11 +110,11 @@ event_frame:SetScript("OnEvent", function(self, event, name)
         if sfui.bars and sfui.bars.OnStateChanged then
             sfui.bars:OnStateChanged()
         end
-        if sfui.warnings and sfui.warnings.Initialize then
-            sfui.warnings.Initialize()
-        end
         if sfui.research and sfui.research.Initialize then
             sfui.research.Initialize()
+        end
+        if sfui.reminders and sfui.reminders.Initialize then
+            sfui.reminders.Initialize()
         end
 
         local ldb, icon = LibStub("LibDataBroker-1.1", true), LibStub("LibDBIcon-1.0", true)
