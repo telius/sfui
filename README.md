@@ -43,4 +43,5 @@ A clean, responsive, and intuitive vehicle interface that doesn't get in your wa
 ### Dragonriding Enhancements
 Improved visibility for vigor, speed, and critical warnings while dragonriding.
 ![Dragonflying](shots/dragonflying.png)
+![Dragonflying Warning](shots/dragonflying_warning.png)
 
