@@ -1,3 +1,8 @@
+## v0.1.3 (2026-01-30)
+
+### Bug Fixes
+- Add package-as directive for WowUp compatibility (addon folder now named Sfui)
+
 ## v0.1.2 (2026-01-30)
 
 ### Documentation
