@@ -3,7 +3,7 @@ sfui = sfui or {}
 sfui.config = {
     -- addon metadata
     title = "|cff6600FFSF|rui |cff6600FFGFY|r edition",
-    version = "0.1.1",
+    version = "0.1.2",
 
     -- general appearance
     font = "GameFontNormal",

@@ -1,3 +1,12 @@
+## v0.1.2 (2026-01-30)
+
+### Documentation
+- Add Masque support information and screenshot attribution
+- Clarify dynamic group composition detection for buffs
+- Expand buff abbreviations for readability (Mark of the Wild, Evoker buffs)
+- Add healthbar and stagger screenshot
+- Remove dragonflying_warning.png (character name exposure)
+
 ## v0.1.1 (2026-01-29)
 
 ### Features

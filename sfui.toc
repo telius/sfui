@@ -1,7 +1,7 @@
 ## Interface: 120000
 ## Title: |cff6600ffst|rfui
 ## Author: teli
-## Version: 0.1.1
+## Version: 0.1.2
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## SavedVariables: SfuiDB, SfuiDecorDB
 ## OptionalDeps: Masque
