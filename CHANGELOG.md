@@ -1,7 +1,13 @@
-## v0.1.3 (2026-01-30)
+## v0.1.3.a (2026-01-30)
+
+### Refactor
+- Standardized all custom functions and methods to lowercase snake_case for codebase consistency.
+- Standardized addon namespace and folder references to lowercase "sfui".
+- Fixed various "nil value" errors resulting from capitalization mismatches.
+- Removed redundant configuration lines in merchant frame logic.
 
 ### Bug Fixes
-- Add package-as directive for WowUp compatibility (addon folder now named Sfui)
+- Add package-as directive for WowUp compatibility (addon folder now named sfui)
 
 ## v0.1.2 (2026-01-30)
 

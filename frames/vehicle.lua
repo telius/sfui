@@ -6,7 +6,7 @@ sfui.vehicle.frame = frame
 local cfg = sfui.config.vehicle
 local g = sfui.config
 local mult = sfui.pixelScale or 1
-local msqGroup = sfui.common.GetMasqueGroup("Vehicle")
+local msqGroup = sfui.common.get_masque_group("Vehicle")
 
 frame:SetSize(cfg.width, cfg.height)
 frame:SetPoint(cfg.anchor.point, cfg.anchor.x, cfg.anchor.y)

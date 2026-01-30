@@ -53,7 +53,7 @@ local resourceColorsCache = {
 local cachedSpecID = 0
 local common_event_frame = CreateFrame("Frame")
 
-local function UpdateCachedSpecID()
+local function update_cached_spec_id()
     local spec = C_SpecializationInfo.GetSpecialization()
     cachedSpecID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
 end
@@ -63,7 +63,7 @@ common_event_frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 common_event_frame:RegisterEvent("PLAYER_TALENT_UPDATE")
 
 common_event_frame:SetScript("OnEvent", function(self, event)
-    UpdateCachedSpecID()
+    update_cached_spec_id()
 end)
 
 
@@ -121,19 +121,19 @@ function sfui.common.update_widget_bar(widget_frame, icons_pool, labels_pool, so
     end
 end
 
-function sfui.common.GetPrimaryResource()
+function sfui.common.get_primary_resource()
     if playerClass == "DRUID" then return primaryResourcesCache[playerClass][GetShapeshiftFormID() or 0] end
     local cache = primaryResourcesCache[playerClass]
     if type(cache) == "table" then return cache[cachedSpecID] else return cache end
 end
 
-function sfui.common.GetSecondaryResource()
+function sfui.common.get_secondary_resource()
     if playerClass == "DRUID" then return secondaryResourcesCache[playerClass][GetShapeshiftFormID() or 0] end
     local cache = secondaryResourcesCache[playerClass]
     if type(cache) == "table" then return cache[cachedSpecID] else return cache end
 end
 
-function sfui.common.GetClassOrSpecColor()
+function sfui.common.get_class_or_spec_color()
     local color
     if cachedSpecID and sfui.config.spec_colors[cachedSpecID] then
         local custom_color = sfui.config.spec_colors[cachedSpecID]
@@ -142,7 +142,7 @@ function sfui.common.GetClassOrSpecColor()
     return color
 end
 
-function sfui.common.CreateBar(name, frameType, parent, template)
+function sfui.common.create_bar(name, frameType, parent, template)
     local cfg = sfui.config[name]
     local mult = sfui.pixelScale or 1
     local backdrop = CreateFrame("Frame", "sfui_" .. name .. "_Backdrop", parent, "BackdropTemplate")
@@ -173,11 +173,11 @@ function sfui.common.CreateBar(name, frameType, parent, template)
         bar:SetStatusBarTexture(texturePath)
     end
     bar.backdrop = backdrop
-    bar.fadeInAnim, bar.fadeOutAnim = sfui.common.CreateFadeAnimations(backdrop)
+    bar.fadeInAnim, bar.fadeOutAnim = sfui.common.create_fade_animations(backdrop)
     return bar
 end
 
-function sfui.common.CreateFadeAnimations(frame)
+function sfui.common.create_fade_animations(frame)
     local fadeInGroup = frame:CreateAnimationGroup()
     local fadeIn = fadeInGroup:CreateAnimation("Alpha")
     fadeIn:SetDuration(0.5)
@@ -193,7 +193,7 @@ function sfui.common.CreateFadeAnimations(frame)
     return fadeInGroup, fadeOutGroup
 end
 
-function sfui.common.GetResourceColor(resource)
+function sfui.common.get_resource_color(resource)
     local colorInfo = GetPowerBarColor(resource)
     if colorInfo then return colorInfo end
     local powerName = ""
@@ -203,7 +203,7 @@ function sfui.common.GetResourceColor(resource)
     return resourceColorsCache[powerName] or GetPowerBarColor("MANA")
 end
 
-function sfui.common.CreateBorder(frame, thickness, color)
+function sfui.common.create_border(frame, thickness, color)
     local mult = sfui.pixelScale or 1
     thickness = (thickness or 1) * mult
 
@@ -233,7 +233,7 @@ function sfui.common.CreateBorder(frame, thickness, color)
         :SetWidth(thickness)
 end
 
-function sfui.common.CreateFlatButton(parent, text, width, height)
+function sfui.common.create_flat_button(parent, text, width, height)
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:SetSize(width, height)
 
@@ -268,7 +268,7 @@ function sfui.common.CreateFlatButton(parent, text, width, height)
     return btn
 end
 
-function sfui.common.SetColor(element, colorName, alpha)
+function sfui.common.set_color(element, colorName, alpha)
     local color = sfui.config.colors[colorName]
     if not color then return end
     alpha = alpha or 1
@@ -282,18 +282,18 @@ function sfui.common.SetColor(element, colorName, alpha)
     end
 end
 
-function sfui.common.CreateFontString(parent, font, point, x, y, colorName)
+function sfui.common.create_font_string(parent, font, point, x, y, colorName)
     local fs = parent:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
     if point then
         fs:SetPoint(point, x or 0, y or 0)
     end
     if colorName then
-        sfui.common.SetColor(fs, colorName)
+        sfui.common.set_color(fs, colorName)
     end
     return fs
 end
 
-function sfui.common.IsItemKnown(itemLink)
+function sfui.common.is_item_known(itemLink)
     if not itemLink then return false end
 
     local data = C_TooltipInfo.GetHyperlink(itemLink)
@@ -331,15 +331,15 @@ function sfui.common.IsItemKnown(itemLink)
     return false
 end
 
-function sfui.common.ShortenName(name, length)
+function sfui.common.shorten_name(name, length)
     if not name or type(name) ~= "string" then return "" end
     length = length or 25
     if strlenutf8(name) <= length then return name end
     return strsub(name, 1, length - 3) .. "..."
 end
 
-function sfui.common.GetMasqueGroup(subGroupName)
+function sfui.common.get_masque_group(subGroupName)
     local Masque = LibStub and LibStub("Masque", true)
     if not Masque then return nil end
-    return Masque:Group("Sfui", subGroupName)
+    return Masque:Group("sfui", subGroupName)
 end

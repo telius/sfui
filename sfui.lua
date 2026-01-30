@@ -6,26 +6,26 @@ SfuiDB = SfuiDB or {}
 SLASH_SFUI1 = "/sfui"
 SLASH_RL1 = "/rl"
 
-local function UpdatePixelScale()
+local function update_pixel_scale()
     local resolution = GetCVar("gxWindowedResolution")
     if resolution then
         local height = tonumber(string.match(resolution, "%d+x(%d+)"))
         if height then sfui.pixelScale = 768 / (height * UIParent:GetScale()) end
     end
 end
-sfui.UpdatePixelScale = UpdatePixelScale
+sfui.update_pixel_scale = update_pixel_scale
 
 -- Event frame for scale updates
 local scale_event_frame = CreateFrame("Frame")
 scale_event_frame:RegisterEvent("UI_SCALE_CHANGED")
-scale_event_frame:SetScript("OnEvent", UpdatePixelScale)
+scale_event_frame:SetScript("OnEvent", update_pixel_scale)
 
 function sfui.slash_command_handler(msg)
     if msg == "" then
         if sfui.toggle_options_panel then sfui.toggle_options_panel() else print("sfui: options panel not available.") end
     elseif msg == "research" then
-        if sfui.research and sfui.research.ToggleSelection then
-            sfui.research.ToggleSelection()
+        if sfui.research and sfui.research.toggle_selection then
+            sfui.research.toggle_selection()
         else
             print("sfui: research viewer not available.")
         end
@@ -53,6 +53,12 @@ event_frame:SetScript("OnEvent", function(self, event, name)
                 LSM:Register("statusbar", "Blizzard", "Interface/TargetingFrame/UI-StatusBar")
                 LSM:Register("statusbar", "Raid", "Interface/RaidFrame/Raid-Bar-Hp-Fill")
                 LSM:Register("statusbar", "Spark", "Interface/CastingBar/UI-CastingBar-Spark")
+            end
+
+            -- Sync version from TOC to config (single source of truth)
+            local tocVersion = C_AddOns.GetAddOnMetadata("sfui", "Version")
+            if tocVersion then
+                sfui.config.version = tocVersion
             end
 
             if type(SfuiDB.barTexture) ~= "string" or SfuiDB.barTexture == "" then SfuiDB.barTexture = "Flat" end
@@ -99,7 +105,7 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             end
         end
     elseif event == "PLAYER_LOGIN" then
-        if sfui.UpdatePixelScale then sfui.UpdatePixelScale() end
+        if sfui.update_pixel_scale then sfui.update_pixel_scale() end
 
         if sfui.create_currency_frame then
             sfui.create_currency_frame()
@@ -107,14 +113,14 @@ event_frame:SetScript("OnEvent", function(self, event, name)
         if sfui.create_item_frame then
             sfui.create_item_frame()
         end
-        if sfui.bars and sfui.bars.OnStateChanged then
-            sfui.bars:OnStateChanged()
+        if sfui.bars and sfui.bars.on_state_changed then
+            sfui.bars:on_state_changed()
         end
-        if sfui.research and sfui.research.Initialize then
-            sfui.research.Initialize()
+        if sfui.research and sfui.research.initialize then
+            sfui.research.initialize()
         end
-        if sfui.reminders and sfui.reminders.Initialize then
-            sfui.reminders.Initialize()
+        if sfui.reminders and sfui.reminders.initialize then
+            sfui.reminders.initialize()
         end
 
         local ldb, icon = LibStub("LibDataBroker-1.1", true), LibStub("LibDBIcon-1.0", true)
@@ -129,8 +135,8 @@ event_frame:SetScript("OnEvent", function(self, event, name)
                     elseif button == "RightButton" then
                         C_UI.Reload()
                     elseif button == "MiddleButton" then
-                        if sfui.research and sfui.research.ToggleSelection then
-                            sfui.research.ToggleSelection()
+                        if sfui.research and sfui.research.toggle_selection then
+                            sfui.research.toggle_selection()
                         end
                     end
                 end,

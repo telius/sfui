@@ -2,7 +2,7 @@ sfui = sfui or {}
 sfui.castbar = {}
 
 local function CreateCastBar(configName, unit)
-    local bar = sfui.common.CreateBar(configName, "StatusBar", UIParent)
+    local bar = sfui.common.create_bar(configName, "StatusBar", UIParent)
     bar.unit, bar.configName = unit, configName
 
     bar.backdrop:SetScript("OnShow", function(self) self:SetAlpha(1) end)

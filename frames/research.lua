@@ -113,7 +113,7 @@ sfui.research.talentTrees = {
 
 local selectedTreeInfo = nil
 
-function sfui.research.Initialize()
+function sfui.research.initialize()
     local original = C_Garrison.GetCurrentGarrTalentTreeID
     C_Garrison.GetCurrentGarrTalentTreeID = function()
         if selectedTreeInfo and not selectedTreeInfo.isTraitTree then
@@ -126,21 +126,21 @@ function sfui.research.Initialize()
     f:RegisterEvent("ADDON_LOADED")
     f:SetScript("OnEvent", function(_, _, addonName)
         if addonName == "Blizzard_OrderHallUI" then
-            sfui.research.ApplySideButtons(OrderHallTalentFrame)
+            sfui.research.apply_side_buttons(OrderHallTalentFrame)
         elseif addonName == "Blizzard_GenericTraitUI" then
-            sfui.research.ApplySideButtons(GenericTraitFrame)
+            sfui.research.apply_side_buttons(GenericTraitFrame)
         end
     end)
 
     if C_AddOns.IsAddOnLoaded("Blizzard_OrderHallUI") then
-        sfui.research.ApplySideButtons(OrderHallTalentFrame)
+        sfui.research.apply_side_buttons(OrderHallTalentFrame)
     end
     if C_AddOns.IsAddOnLoaded("Blizzard_GenericTraitUI") then
-        sfui.research.ApplySideButtons(GenericTraitFrame)
+        sfui.research.apply_side_buttons(GenericTraitFrame)
     end
 end
 
-function sfui.research.OpenTree(data)
+function sfui.research.open_tree(data)
     if not data then return end
     selectedTreeInfo = data
     SfuiDB.last_research_tree = data
@@ -165,7 +165,7 @@ function sfui.research.OpenTree(data)
     end
 end
 
-function sfui.research.ToggleSelection()
+function sfui.research.toggle_selection()
     if not selectedTreeInfo then
         selectedTreeInfo = SfuiDB.last_research_tree or sfui.research.talentTrees["The War Within"][1]
     end
@@ -174,7 +174,7 @@ function sfui.research.ToggleSelection()
     if frame and frame:IsShown() then
         HideUIPanel(frame)
     else
-        sfui.research.OpenTree(selectedTreeInfo)
+        sfui.research.open_tree(selectedTreeInfo)
     end
 end
 
@@ -184,7 +184,7 @@ local colors = {
     black = { 0, 0, 0 },
 }
 
-local function CreateSFUIButton(parent, text, width, height, tooltip)
+local function create_sfui_button(parent, text, width, height, tooltip)
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:SetSize(width, height)
     btn:SetBackdrop({
@@ -234,7 +234,7 @@ local function CreateSFUIButton(parent, text, width, height, tooltip)
     return btn
 end
 
-function sfui.research.ApplySideButtons(parent)
+function sfui.research.apply_side_buttons(parent)
     if not parent or parent.sfui_side_buttons then return end
 
     local side_frame = CreateFrame("Frame", nil, parent)
@@ -251,18 +251,18 @@ function sfui.research.ApplySideButtons(parent)
     custom_input:SetAutoFocus(false)
     custom_input:SetText("")
 
-    local trait_btn = CreateSFUIButton(side_frame, "T", 25, 20, "Trait Tree (Dragonriding, Delves, etc.)")
+    local trait_btn = create_sfui_button(side_frame, "T", 25, 20, "Trait Tree (Dragonriding, Delves, etc.)")
     trait_btn:SetPoint("LEFT", custom_input, "RIGHT", 5, 0)
     trait_btn:SetScript("OnClick", function()
         local id = tonumber(custom_input:GetText())
-        if id then sfui.research.OpenTree({ id = id, isTraitTree = true, name = "Custom " .. id }) end
+        if id then sfui.research.open_tree({ id = id, isTraitTree = true, name = "Custom " .. id }) end
     end)
 
-    local garr_btn = CreateSFUIButton(side_frame, "G", 25, 20, "Garrison Tree (Class Halls, Covenants, etc.)")
+    local garr_btn = create_sfui_button(side_frame, "G", 25, 20, "Garrison Tree (Class Halls, Covenants, etc.)")
     garr_btn:SetPoint("LEFT", trait_btn, "RIGHT", 5, 0)
     garr_btn:SetScript("OnClick", function()
         local id = tonumber(custom_input:GetText())
-        if id then sfui.research.OpenTree({ id = id, isTraitTree = false, type = 111, name = "Custom " .. id }) end
+        if id then sfui.research.open_tree({ id = id, isTraitTree = false, type = 111, name = "Custom " .. id }) end
     end)
 
     local tree_frame = CreateFrame("Frame", nil, side_frame)
@@ -272,7 +272,7 @@ function sfui.research.ApplySideButtons(parent)
 
     local activeExpBtn, activeTreeBtn
 
-    local function ClearTreeButtons()
+    local function clear_tree_buttons()
         if tree_frame.labels then
             for _, el in ipairs(tree_frame.labels) do el:Hide() end
         end
@@ -284,8 +284,8 @@ function sfui.research.ApplySideButtons(parent)
         activeTreeBtn = nil
     end
 
-    local function ShowExpansionTrees(list)
-        ClearTreeButtons()
+    local function show_expansion_trees(list)
+        clear_tree_buttons()
         tree_frame:Show()
 
         local yOffset = 0
@@ -294,7 +294,7 @@ function sfui.research.ApplySideButtons(parent)
 
         local playerCovenant = C_Covenants.GetActiveCovenantID()
 
-        local function Populate(items)
+        local function populate(items)
             local keys = {}
             for k in pairs(items) do table.insert(keys, k) end
             table.sort(keys, function(a, b)
@@ -319,12 +319,12 @@ function sfui.research.ApplySideButtons(parent)
                     label:Show()
                     yOffset = yOffset - 20
                     labelIndex = labelIndex + 1
-                    Populate(v)
+                    populate(v)
                 elseif type(v) == "table" and v.id then
                     -- Tree Button
                     local btn = tree_frame.buttons[buttonIndex]
                     if not btn then
-                        btn = CreateSFUIButton(tree_frame, "", 170, 24)
+                        btn = create_sfui_button(tree_frame, "", 170, 24)
                         tree_frame.buttons[buttonIndex] = btn
                     end
                     btn:ClearAllPoints()
@@ -348,7 +348,7 @@ function sfui.research.ApplySideButtons(parent)
                             if activeTreeBtn then activeTreeBtn:SetSelected(false) end
                             activeTreeBtn = btn
                             btn:SetSelected(true)
-                            sfui.research.OpenTree(v)
+                            sfui.research.open_tree(v)
                         end)
                     end
 
@@ -358,20 +358,20 @@ function sfui.research.ApplySideButtons(parent)
                 end
             end
         end
-        Populate(list)
+        populate(list)
     end
 
     local expansions = { "Midnight", "The War Within", "Dragonflight", "Shadowlands" }
     local yOffset = -35
     for _, exp in ipairs(expansions) do
-        local btn = CreateSFUIButton(side_frame, exp, 120, 30)
+        local btn = create_sfui_button(side_frame, exp, 120, 30)
         btn:SetPoint("TOPLEFT", 0, yOffset)
         btn.text:SetPoint("CENTER")
         btn:SetScript("OnClick", function()
             if activeExpBtn then activeExpBtn:SetSelected(false) end
             activeExpBtn = btn
             btn:SetSelected(true)
-            ShowExpansionTrees(sfui.research.talentTrees[exp])
+            show_expansion_trees(sfui.research.talentTrees[exp])
         end)
         yOffset = yOffset - 35
     end

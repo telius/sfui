@@ -9,7 +9,25 @@ do
     local mount_speed_bar
     local UpdateMountSpeedBarInternal
 
-    local function GetSecondaryResourceValue(resource)
+    -- Throttling system for high-frequency events
+    local throttle = {
+        health = { lastUpdate = 0, interval = 0.05 },    -- 50ms throttle for health updates
+        power = { lastUpdate = 0, interval = 0.05 },     -- 50ms throttle for power updates
+        absorb = { lastUpdate = 0, interval = 0.1 },     -- 100ms throttle for absorb updates
+        visibility = { lastUpdate = 0, interval = 0.1 }, -- 100ms throttle for visibility checks
+    }
+
+    local function should_throttle(key)
+        local now = GetTime()
+        local t = throttle[key]
+        if now - t.lastUpdate >= t.interval then
+            t.lastUpdate = now
+            return false
+        end
+        return true
+    end
+
+    local function get_secondary_resource_value(resource)
         if not resource then return nil, nil end
         if resource == "STAGGER" then
             local stagger = UnitStagger("player") or 0
@@ -31,13 +49,13 @@ do
         return max, current
     end
 
-    local function IsDragonflying()
+    local function is_dragonflying()
         local isFlying, canGlide, _ = C_PlayerInfo.GetGlidingInfo()
         local hasSkyridingBar = (GetBonusBarIndex() == 11 and GetBonusBarOffset() == 5)
         return isFlying or (canGlide and hasSkyridingBar)
     end
 
-    local function UpdateBarPositions()
+    local function update_bar_positions()
         local spacing = sfui.config.barLayout.spacing or 1
 
         if health_bar and health_bar.backdrop then
@@ -45,7 +63,7 @@ do
             health_bar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", SfuiDB.healthBarX or 0, SfuiDB.healthBarY or 300)
         end
 
-        if IsDragonflying() then
+        if is_dragonflying() then
             if mount_speed_bar and mount_speed_bar.backdrop and vigor_bar and vigor_bar.backdrop then
                 mount_speed_bar.backdrop:ClearAllPoints()
                 mount_speed_bar.backdrop:SetPoint("TOP", vigor_bar.backdrop, "BOTTOM", 0, -spacing) -- Stack under and center with vigor bar
@@ -79,8 +97,8 @@ do
         end
     end
 
-    local function UpdateBarVisibility()
-        local isDragonflying = IsDragonflying()
+    local function update_bar_visibility()
+        local isDragonflying = is_dragonflying()
         local inCombat = UnitAffectingCombat("player")
         local hasEnemyTarget = UnitCanAttack("player", "target")
         local showCoreBars = inCombat or hasEnemyTarget
@@ -117,7 +135,7 @@ do
                     sfui.config.secondaryPowerBar.hiddenSpecs[specID]
                 if IsMounted() or hideSecondary then
                     secondary_power_bar.backdrop:Hide()
-                elseif showCoreBars and sfui.common.GetSecondaryResource() then
+                elseif showCoreBars and sfui.common.get_secondary_resource() then
                     secondary_power_bar.backdrop:Show()
                 else
                     secondary_power_bar.backdrop:Hide()
@@ -150,12 +168,12 @@ do
             end
         end
 
-        UpdateBarPositions()
+        update_bar_positions()
     end
 
-    local function GetPrimaryPowerBar()
+    local function get_primary_power_bar()
         if primary_power_bar then return primary_power_bar end
-        local bar = sfui.common.CreateBar("powerBar", "StatusBar", UIParent)
+        local bar = sfui.common.create_bar("powerBar", "StatusBar", UIParent)
         bar:GetStatusBarTexture():SetHorizTile(true)
 
         local marker = bar:CreateTexture(nil, "OVERLAY")
@@ -170,24 +188,24 @@ do
         return bar
     end
 
-    local function UpdatePrimaryPowerBar()
+    local function update_primary_power_bar()
         local cfg = sfui.config.powerBar
         local spec = C_SpecializationInfo.GetSpecialization()
         local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
         local hide = cfg.hiddenSpecs and cfg.hiddenSpecs[specID]
 
-        if not cfg.enabled or IsDragonflying() or hide then
+        if not cfg.enabled or is_dragonflying() or hide then
             if primary_power_bar and primary_power_bar.backdrop then primary_power_bar.backdrop:Hide() end
             return
         end
-        local bar = GetPrimaryPowerBar()
-        local resource = sfui.common.GetPrimaryResource()
+        local bar = get_primary_power_bar()
+        local resource = sfui.common.get_primary_resource()
         if not resource then return end
         local max, current = UnitPowerMax("player", resource), UnitPower("player", resource)
         if not max or max <= 0 then return end
         bar:SetMinMaxValues(0, max)
         bar:SetValue(current)
-        local color = sfui.common.GetClassOrSpecColor()
+        local color = sfui.common.get_class_or_spec_color()
         if color then bar:SetStatusBarColor(color.r, color.g, color.b) end
 
         -- Marker logic (Shadow Priest 55% threshold)
@@ -204,9 +222,9 @@ do
     -- UpdateFillPosition removed (Secret Values cannot be used in arithmetic).
     -- We rely on StatusBar:SetValue() to handle secure values internally.
 
-    local function GetHealthBar()
+    local function get_health_bar()
         if health_bar then return health_bar end
-        local bar = sfui.common.CreateBar("healthBar", "StatusBar", UIParent)
+        local bar = sfui.common.create_bar("healthBar", "StatusBar", UIParent)
         bar:GetStatusBarTexture():SetHorizTile(true)
         health_bar = bar
 
@@ -235,10 +253,10 @@ do
         return bar
     end
 
-    local function UpdateHealthBar(current, maxVal)
+    local function update_health_bar(current, maxVal)
         local cfg = sfui.config.healthBar
         if not cfg.enabled then return end
-        local bar = GetHealthBar()
+        local bar = get_health_bar()
         -- current and max are passed in now
         if not maxVal or maxVal <= 0 then return end
         bar:SetMinMaxValues(0, maxVal)
@@ -268,9 +286,9 @@ do
         if color then absorbBar:SetStatusBarColor(color.r, color.g, color.b, color.a) end
     end
 
-    local function GetSecondaryPowerBar()
+    local function get_secondary_power_bar()
         if secondary_power_bar then return secondary_power_bar end
-        local bar = sfui.common.CreateBar("secondaryPowerBar", "StatusBar", UIParent)
+        local bar = sfui.common.create_bar("secondaryPowerBar", "StatusBar", UIParent)
         bar.TextValue = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         bar.TextValue:SetFont("Fonts\\FRIZQT__.TTF", sfui.config.secondaryPowerBar.fontSize, "NONE")
         bar.TextValue:SetShadowOffset(1, -1)
@@ -279,46 +297,46 @@ do
         return bar
     end
 
-    local function UpdateSecondaryPowerBar()
+    local function update_secondary_power_bar()
         local cfg = sfui.config.secondaryPowerBar
         local spec = C_SpecializationInfo.GetSpecialization()
         local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
         local hide = cfg.hiddenSpecs and cfg.hiddenSpecs[specID]
 
-        if not cfg.enabled or IsDragonflying() or hide then
+        if not cfg.enabled or is_dragonflying() or hide then
             if secondary_power_bar and secondary_power_bar.backdrop then secondary_power_bar.backdrop:Hide() end
             return
         end
 
-        local resource = sfui.common.GetSecondaryResource()
+        local resource = sfui.common.get_secondary_resource()
         if not resource then
             if secondary_power_bar and secondary_power_bar.backdrop then secondary_power_bar.backdrop:Hide() end
             return
         end
 
-        local max, current = GetSecondaryResourceValue(resource)
+        local max, current = get_secondary_resource_value(resource)
         if not max or max <= 0 then
             if secondary_power_bar and secondary_power_bar.backdrop then secondary_power_bar.backdrop:Hide() end
             return
         end
 
-        local bar = GetSecondaryPowerBar()
+        local bar = get_secondary_power_bar()
         if bar.backdrop then bar.backdrop:Show() end
         bar.TextValue:SetText(current)
         bar:SetMinMaxValues(0, max)
         bar:SetValue(current)
         local color
         if cfg.useClassColor then
-            color = sfui.common.GetClassOrSpecColor()
+            color = sfui.common.get_class_or_spec_color()
         else
-            color = sfui.common.GetResourceColor(resource)
+            color = sfui.common.get_resource_color(resource)
         end
         if color then
             bar:SetStatusBarColor(color.r, color.g, color.b)
         end
     end
 
-    local function CreateIcon(parent, name, size, spellID)
+    local function create_icon(parent, name, size, spellID)
         local frame = CreateFrame("Frame", name, parent)
         frame:SetSize(size, size)
 
@@ -341,16 +359,16 @@ do
         return frame
     end
 
-    local function GetVigorBar()
+    local function get_vigor_bar()
         if vigor_bar then return vigor_bar end
-        local bar = sfui.common.CreateBar("vigorBar", "StatusBar", UIParent)
+        local bar = sfui.common.create_bar("vigorBar", "StatusBar", UIParent)
         bar.TextValue = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         bar.TextValue:SetFont("Fonts\\FRIZQT__.TTF", sfui.config.secondaryPowerBar.fontSize, "NONE")
         bar.TextValue:SetShadowOffset(1, -1); bar.TextValue:SetPoint("CENTER")
         local iconSize = 40
-        bar.whirlingSurgeIcon = CreateIcon(bar, "sfui_WhirlingSurgeIcon", iconSize, 361584)
-        bar.secondWindIcon = CreateIcon(bar, "sfui_SecondWindIcon", iconSize, 425782)
-        bar.staticChargeIcon = CreateIcon(bar, "sfui_StaticChargeIcon", iconSize, 418590)
+        bar.whirlingSurgeIcon = create_icon(bar, "sfui_WhirlingSurgeIcon", iconSize, 361584)
+        bar.secondWindIcon = create_icon(bar, "sfui_SecondWindIcon", iconSize, 425782)
+        bar.staticChargeIcon = create_icon(bar, "sfui_StaticChargeIcon", iconSize, 418590)
         bar.staticChargeIcon.countText:ClearAllPoints()
         bar.staticChargeIcon.countText:SetPoint("CENTER", bar.staticChargeIcon, "CENTER", 0, 0)
         bar.staticChargeIcon:Hide()
@@ -358,15 +376,15 @@ do
         return bar
     end
 
-    local function UpdateVigorBar()
+    local function update_vigor_bar()
         local cfg = sfui.config.vigorBar
-        if not cfg.enabled or not IsDragonflying() then
+        if not cfg.enabled or not is_dragonflying() then
             if vigor_bar then
                 vigor_bar.backdrop:Hide()
             end
             return
         end
-        local bar = GetVigorBar()
+        local bar = get_vigor_bar()
         local chargesInfo = C_Spell.GetSpellCharges(372608)
         if chargesInfo then
             bar:SetMinMaxValues(0, chargesInfo.maxCharges)
@@ -403,9 +421,9 @@ do
         bar.secondWindIcon.countText:SetText(swCharges and swCharges.currentCharges or "")
     end
 
-    local function GetMountSpeedBar()
+    local function get_mount_speed_bar()
         if mount_speed_bar then return mount_speed_bar end
-        local bar = sfui.common.CreateBar("mountSpeedBar", "StatusBar", UIParent)
+        local bar = sfui.common.create_bar("mountSpeedBar", "StatusBar", UIParent)
         bar.TextValue = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         bar.TextValue:SetFont("Fonts\\FRIZQT__.TTF", 12, "NONE")
         bar.TextValue:SetShadowOffset(1, -1)
@@ -414,7 +432,7 @@ do
         bar:SetScript("OnUpdate", function(self, elapsed)
             elapsedSince = elapsedSince + elapsed
             if elapsedSince > 0.1 then
-                UpdateMountSpeedBarInternal()
+                update_mount_speed_bar_internal()
                 elapsedSince = 0
             end
         end)
@@ -422,13 +440,13 @@ do
         return bar
     end
 
-    UpdateMountSpeedBarInternal = function()
+    update_mount_speed_bar_internal = function()
         local cfg = sfui.config.mountSpeedBar
-        if not cfg.enabled or not IsDragonflying() then
+        if not cfg.enabled or not is_dragonflying() then
             if mount_speed_bar then mount_speed_bar.backdrop:Hide() end
             return
         end
-        local bar = mount_speed_bar or GetMountSpeedBar()
+        local bar = mount_speed_bar or get_mount_speed_bar()
         local _, _, forwardSpeed = C_PlayerInfo.GetGlidingInfo()
         if not forwardSpeed then return end
         local speed = forwardSpeed * 14.286
@@ -449,9 +467,9 @@ do
         end
     end
 
-    sfui.bars.UpdateMountSpeedBar = UpdateMountSpeedBarInternal
+    sfui.bars.update_mount_speed_bar = update_mount_speed_bar_internal
 
-    function sfui.bars:SetBarTexture(texturePath)
+    function sfui.bars:set_bar_texture(texturePath)
         if primary_power_bar then primary_power_bar:SetStatusBarTexture(texturePath) end
         if health_bar then
             health_bar:SetStatusBarTexture(texturePath)
@@ -463,18 +481,18 @@ do
         if mount_speed_bar then mount_speed_bar:SetStatusBarTexture(texturePath) end
     end
 
-    function sfui.bars:OnStateChanged()
-        UpdatePrimaryPowerBar()
+    function sfui.bars:on_state_changed()
+        update_primary_power_bar()
         local max, current = UnitHealthMax("player"), UnitHealth("player")
-        UpdateHealthBar(current, max)
-        UpdateSecondaryPowerBar()
-        UpdateVigorBar()
-        sfui.bars:UpdateMountSpeedBar()
-        UpdateBarVisibility()
+        update_health_bar(current, max)
+        update_secondary_power_bar()
+        update_vigor_bar()
+        sfui.bars:update_mount_speed_bar()
+        update_bar_visibility()
     end
 
-    function sfui.bars:UpdateHealthBarPosition()
-        UpdateBarPositions()
+    function sfui.bars:update_health_bar_position()
+        update_bar_positions()
     end
 
     local event_frame = CreateFrame("Frame")
@@ -492,17 +510,23 @@ do
 
     event_frame:SetScript("OnEvent", function(self, event, unit, ...)
         if event == "PLAYER_SPECIALIZATION_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" or event == "PLAYER_CAN_GLIDE_CHANGED" or event == "PLAYER_IS_GLIDING_CHANGED" then
-            sfui.bars:OnStateChanged()
+            sfui.bars:on_state_changed()
         elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_TARGET_CHANGED" then
-            UpdateBarVisibility()
+            if not should_throttle("visibility") then
+                update_bar_visibility()
+            end
         elseif event == "UNIT_POWER_UPDATE" and (not unit or unit == "player") then
-            UpdatePrimaryPowerBar()
-            UpdateSecondaryPowerBar()
+            if not should_throttle("power") then
+                update_primary_power_bar()
+                update_secondary_power_bar()
+            end
         elseif (event == "UNIT_HEALTH" or event == "UNIT_ABSORB_AMOUNT_CHANGED") and (not unit or unit == "player") then
-            local max, current = UnitHealthMax("player"), UnitHealth("player")
-            UpdateHealthBar(current, max)
+            if not should_throttle("health") then
+                local max, current = UnitHealthMax("player"), UnitHealth("player")
+                update_health_bar(current, max)
+            end
         elseif event == "SPELL_UPDATE_CHARGES" then
-            UpdateVigorBar()
+            update_vigor_bar()
         end
     end)
 end

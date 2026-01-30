@@ -17,7 +17,7 @@ end
 function sfui.create_options_panel()
     if frame then return end
 
-    local CreateFlatButton = sfui.common.CreateFlatButton
+    local CreateFlatButton = sfui.common.create_flat_button
 
     frame = CreateFrame("Frame", "sfui_options_frame", UIParent, "BackdropTemplate")
     frame:SetSize(c.width, c.height)
@@ -47,7 +47,7 @@ function sfui.create_options_panel()
         frame:Hide()
     end)
 
-    local function CreateCheckbox(parent, label, dbKey, onClickFunc, tooltip)
+    local function create_checkbox(parent, label, dbKey, onClickFunc, tooltip)
         local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
         cb:SetHitRectInsets(0, -100, 0, 0)
         cb.text:SetText(label)
@@ -70,7 +70,7 @@ function sfui.create_options_panel()
         return cb
     end
 
-    local function CreateCVarCheckbox(parent, label, cvar, tooltip)
+    local function create_cvar_checkbox(parent, label, cvar, tooltip)
         local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
         cb:SetHitRectInsets(0, -100, 0, 0)
         cb.text:SetText(label)
@@ -92,7 +92,7 @@ function sfui.create_options_panel()
         return cb
     end
 
-    local function CreateSlider(parent, label, dbKey, minVal, maxVal, step, onValueChangedFunc)
+    local function create_slider(parent, label, dbKey, minVal, maxVal, step, onValueChangedFunc)
         local name = "sfui_option_slider_" .. dbKey
         local slider = CreateFrame("Slider", name, parent, "OptionsSliderTemplate")
         slider:SetOrientation("HORIZONTAL")
@@ -117,15 +117,15 @@ function sfui.create_options_panel()
         return slider
     end
 
-    local function OnTabClick(self)
+    local function on_tab_click(self)
         select_tab(self)
     end
 
-    local function OnTabEnter(self)
+    local function on_tab_enter(self)
         self:GetFontString():SetTextColor(c.tabs.highlight_color.r, c.tabs.highlight_color.g, c.tabs.highlight_color.b)
     end
 
-    local function OnTabLeave(self)
+    local function on_tab_leave(self)
         if self == frame.selected_tab then
             self:GetFontString():SetTextColor(c.tabs.selected_color.r, c.tabs.selected_color.g, c.tabs.selected_color.b)
         else
@@ -154,9 +154,9 @@ function sfui.create_options_panel()
 
         tab_button.panel = content_panel
 
-        tab_button:SetScript("OnClick", OnTabClick)
-        tab_button:SetScript("OnEnter", OnTabEnter)
-        tab_button:SetScript("OnLeave", OnTabLeave)
+        tab_button:SetScript("OnClick", on_tab_click)
+        tab_button:SetScript("OnEnter", on_tab_enter)
+        tab_button:SetScript("OnLeave", on_tab_leave)
 
         table.insert(frame.tabs, { button = tab_button, panel = content_panel })
         return content_panel, tab_button
@@ -211,7 +211,7 @@ function sfui.create_options_panel()
     reload_button:SetPoint("TOPLEFT", main_text, "BOTTOMLEFT", 0, -20)
     reload_button:SetScript("OnClick", function() C_UI.Reload() end)
 
-    local hide_minimap_icon_cb = CreateCheckbox(main_panel, "Hide Minimap Icon", "minimap_icon.hide", function(checked)
+    local hide_minimap_icon_cb = create_checkbox(main_panel, "Hide Minimap Icon", "minimap_icon.hide", function(checked)
         local icon = LibStub:GetLibrary("LibDBIcon-1.0", true)
         if icon then
             if checked then
@@ -228,7 +228,7 @@ function sfui.create_options_panel()
     vehicle_header:SetTextColor(white[1], white[2], white[3])
     vehicle_header:SetText("Vehicle Settings")
 
-    local disable_vehicle_cb = CreateCheckbox(main_panel, "Disable Vehicle UI", "disableVehicle", nil,
+    local disable_vehicle_cb = create_checkbox(main_panel, "Disable Vehicle UI", "disableVehicle", nil,
         "Restores the default WoW vehicle/overlay bar.")
     disable_vehicle_cb:SetPoint("TOPLEFT", vehicle_header, "BOTTOMLEFT", 0, -10)
 
@@ -246,20 +246,20 @@ function sfui.create_options_panel()
     local dropdown = CreateFrame("Frame", "sfui_options_texture_dropdown", bars_panel, "UIDropDownMenuTemplate")
     dropdown:SetPoint("LEFT", texture_label, "RIGHT", 10, 0)
 
-    local function OnTextureSelect(self)
+    local function on_texture_select(self)
         local textureName = self.value
         SfuiDB.barTexture = textureName
 
         local LSM = LibStub("LibSharedMedia-3.0", true)
         local texturePath = LSM and LSM:Fetch("statusbar", textureName) or "Interface/Buttons/WHITE8X8"
 
-        if sfui.bars and sfui.bars.SetBarTexture then
-            sfui.bars:SetBarTexture(texturePath)
+        if sfui.bars and sfui.bars.set_bar_texture then
+            sfui.bars:set_bar_texture(texturePath)
         end
         UIDropDownMenu_SetSelectedValue(dropdown, textureName)
     end
 
-    local function InitializeTextureDropdown(self, level)
+    local function initialize_texture_dropdown(self, level)
         local LSM = LibStub("LibSharedMedia-3.0", true)
         local info = UIDropDownMenu_CreateInfo()
 
@@ -281,13 +281,13 @@ function sfui.create_options_panel()
         for _, name in ipairs(sortedTextures) do
             info.text = name
             info.value = name
-            info.func = OnTextureSelect
+            info.func = on_texture_select
             info.checked = (SfuiDB.barTexture == name)
             UIDropDownMenu_AddButton(info)
         end
     end
 
-    UIDropDownMenu_Initialize(dropdown, InitializeTextureDropdown)
+    UIDropDownMenu_Initialize(dropdown, initialize_texture_dropdown)
     UIDropDownMenu_SetSelectedValue(dropdown, SfuiDB.barTexture)
     UIDropDownMenu_SetWidth(dropdown, 150)
 
@@ -297,29 +297,29 @@ function sfui.create_options_panel()
     toggles_header:SetTextColor(white[1], white[2], white[3])
     toggles_header:SetText("Bar Visibility")
 
-    local health_bar_cb = CreateCheckbox(bars_panel, "Enable Health Bar", "enableHealthBar", function(checked)
-        if sfui.bars and sfui.bars.OnStateChanged then sfui.bars:OnStateChanged() end
+    local health_bar_cb = create_checkbox(bars_panel, "Enable Health Bar", "enableHealthBar", function(checked)
+        if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
     end, "Toggles the health bar.")
     health_bar_cb:SetPoint("TOPLEFT", toggles_header, "BOTTOMLEFT", 0, -10)
 
-    local power_bar_cb = CreateCheckbox(bars_panel, "Enable Power Bar", "enablePowerBar", function(checked)
-        if sfui.bars and sfui.bars.OnStateChanged then sfui.bars:OnStateChanged() end
+    local power_bar_cb = create_checkbox(bars_panel, "Enable Power Bar", "enablePowerBar", function(checked)
+        if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
     end, "Toggles the primary power bar.")
     power_bar_cb:SetPoint("TOPLEFT", health_bar_cb, "BOTTOMLEFT", 0, -10)
 
-    local secondary_power_cb = CreateCheckbox(bars_panel, "Enable Secondary Power Bar", "enableSecondaryPowerBar",
+    local secondary_power_cb = create_checkbox(bars_panel, "Enable Secondary Power Bar", "enableSecondaryPowerBar",
         function(checked)
-            if sfui.bars and sfui.bars.OnStateChanged then sfui.bars:OnStateChanged() end
+            if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
         end, "Toggles the secondary power bar (e.g., Chi, Holy Power).")
     secondary_power_cb:SetPoint("TOPLEFT", power_bar_cb, "BOTTOMLEFT", 0, -10)
 
-    local vigor_bar_cb = CreateCheckbox(bars_panel, "Enable Vigor Bar", "enableVigorBar", function(checked)
-        if sfui.bars and sfui.bars.OnStateChanged then sfui.bars:OnStateChanged() end
+    local vigor_bar_cb = create_checkbox(bars_panel, "Enable Vigor Bar", "enableVigorBar", function(checked)
+        if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
     end, "Toggles the vigor bar (Dragonriding).")
     vigor_bar_cb:SetPoint("TOPLEFT", secondary_power_cb, "BOTTOMLEFT", 0, -10)
 
-    local mount_speed_cb = CreateCheckbox(bars_panel, "Enable Mount Speed Bar", "enableMountSpeedBar", function(checked)
-        if sfui.bars and sfui.bars.OnStateChanged then sfui.bars:OnStateChanged() end
+    local mount_speed_cb = create_checkbox(bars_panel, "Enable Mount Speed Bar", "enableMountSpeedBar", function(checked)
+        if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
     end, "Toggles the mount speed bar (Dragonriding).")
     mount_speed_cb:SetPoint("TOPLEFT", vigor_bar_cb, "BOTTOMLEFT", 0, -10)
 
@@ -343,8 +343,8 @@ function sfui.create_options_panel()
         local val = tonumber(self:GetText())
         if val then
             SfuiDB.healthBarX = val
-            if sfui.bars and sfui.bars.UpdateHealthBarPosition then
-                sfui.bars:UpdateHealthBarPosition()
+            if sfui.bars and sfui.bars.update_health_bar_position then
+                sfui.bars:update_health_bar_position()
             end
         end
         self:ClearFocus()
@@ -364,8 +364,8 @@ function sfui.create_options_panel()
         local val = tonumber(self:GetText())
         if val then
             SfuiDB.healthBarY = val
-            if sfui.bars and sfui.bars.UpdateHealthBarPosition then
-                sfui.bars:UpdateHealthBarPosition()
+            if sfui.bars and sfui.bars.update_health_bar_position then
+                sfui.bars:update_health_bar_position()
             end
         end
         self:ClearFocus()
@@ -380,8 +380,8 @@ function sfui.create_options_panel()
         SfuiDB.healthBarY = 300
         health_x_input:SetText("0")
         health_y_input:SetText("300")
-        if sfui.bars and sfui.bars.UpdateHealthBarPosition then
-            sfui.bars:UpdateHealthBarPosition()
+        if sfui.bars and sfui.bars.update_health_bar_position then
+            sfui.bars:update_health_bar_position()
         end
     end)
 
@@ -391,47 +391,47 @@ function sfui.create_options_panel()
     sct_header:SetTextColor(white[1], white[2], white[3])
     sct_header:SetText("Blizzard Combat Text Settings")
 
-    local master_cb = CreateCVarCheckbox(sct_panel, "Enable Floating Combat Text", "enableFloatingCombatText",
+    local master_cb = create_cvar_checkbox(sct_panel, "Enable Floating Combat Text", "enableFloatingCombatText",
         "Master toggle for Blizzard's floating combat text.")
     master_cb:SetPoint("TOPLEFT", sct_header, "BOTTOMLEFT", 0, -10)
 
-    local damage_cb = CreateCVarCheckbox(sct_panel, "Show Damage", "floatingCombatTextCombatDamage",
+    local damage_cb = create_cvar_checkbox(sct_panel, "Show Damage", "floatingCombatTextCombatDamage",
         "Toggles display of damage numbers over targets.")
     damage_cb:SetPoint("TOPLEFT", master_cb, "BOTTOMLEFT", 0, -5)
 
-    local periodic_cb = CreateCVarCheckbox(sct_panel, "Show Periodic Damage (DoTs)",
+    local periodic_cb = create_cvar_checkbox(sct_panel, "Show Periodic Damage (DoTs)",
         "floatingCombatTextCombatLogPeriodicSpells", "Toggles display of periodic damage (DoTs) numbers.")
     periodic_cb:SetPoint("TOPLEFT", damage_cb, "BOTTOMLEFT", 0, -5)
 
-    local healing_cb = CreateCVarCheckbox(sct_panel, "Show Healing", "floatingCombatTextCombatHealing",
+    local healing_cb = create_cvar_checkbox(sct_panel, "Show Healing", "floatingCombatTextCombatHealing",
         "Toggles display of healing numbers over targets.")
     healing_cb:SetPoint("TOPLEFT", periodic_cb, "BOTTOMLEFT", 0, -5)
 
-    local pet_melee_cb = CreateCVarCheckbox(sct_panel, "Show Pet Melee Damage", "floatingCombatTextPetMeleeDamage",
+    local pet_melee_cb = create_cvar_checkbox(sct_panel, "Show Pet Melee Damage", "floatingCombatTextPetMeleeDamage",
         "Toggles display of pet melee damage numbers.")
     pet_melee_cb:SetPoint("TOPLEFT", healing_cb, "BOTTOMLEFT", 0, -5)
 
-    local pet_spell_cb = CreateCVarCheckbox(sct_panel, "Show Pet Spell Damage", "floatingCombatTextPetSpellDamage",
+    local pet_spell_cb = create_cvar_checkbox(sct_panel, "Show Pet Spell Damage", "floatingCombatTextPetSpellDamage",
         "Toggles display of pet spell damage numbers.")
     pet_spell_cb:SetPoint("TOPLEFT", pet_melee_cb, "BOTTOMLEFT", 0, -5)
 
-    local avoid_cb = CreateCVarCheckbox(sct_panel, "Show Dodge/Parry/Miss", "floatingCombatTextDodgeParryMiss",
+    local avoid_cb = create_cvar_checkbox(sct_panel, "Show Dodge/Parry/Miss", "floatingCombatTextDodgeParryMiss",
         "Toggles display of avoidances.")
     avoid_cb:SetPoint("TOPLEFT", pet_spell_cb, "BOTTOMLEFT", 0, -5)
 
-    local reduction_cb = CreateCVarCheckbox(sct_panel, "Show Resist/Block/Absorb", "floatingCombatTextDamageReduction",
+    local reduction_cb = create_cvar_checkbox(sct_panel, "Show Resist/Block/Absorb", "floatingCombatTextDamageReduction",
         "Toggles display of damage reduction.")
     reduction_cb:SetPoint("TOPLEFT", avoid_cb, "BOTTOMLEFT", 0, -5)
 
-    local energy_cb = CreateCVarCheckbox(sct_panel, "Show Energy Gains/Runes", "floatingCombatTextEnergyGains",
+    local energy_cb = create_cvar_checkbox(sct_panel, "Show Energy Gains/Runes", "floatingCombatTextEnergyGains",
         "Toggles display of energy gains and runes.")
     energy_cb:SetPoint("TOPLEFT", reduction_cb, "BOTTOMLEFT", 0, -5)
 
-    local auras_cb = CreateCVarCheckbox(sct_panel, "Show Auras", "floatingCombatTextAuras",
+    local auras_cb = create_cvar_checkbox(sct_panel, "Show Auras", "floatingCombatTextAuras",
         "Toggles display of aura gains/losses.")
     auras_cb:SetPoint("TOPLEFT", energy_cb, "BOTTOMLEFT", 0, -5)
 
-    local state_cb = CreateCVarCheckbox(sct_panel, "Show Combat State", "floatingCombatTextCombatState",
+    local state_cb = create_cvar_checkbox(sct_panel, "Show Combat State", "floatingCombatTextCombatState",
         "Toggles display of entering/leaving combat.")
     state_cb:SetPoint("TOPLEFT", auras_cb, "BOTTOMLEFT", 0, -5)
 
@@ -510,15 +510,15 @@ function sfui.create_options_panel()
     merchant_header:SetTextColor(white[1], white[2], white[3])
     merchant_header:SetText("Merchant Settings")
 
-    local auto_sell_cb = CreateCheckbox(merchant_panel, "Auto-Sell Greys", "autoSellGreys", nil,
+    local auto_sell_cb = create_checkbox(merchant_panel, "Auto-Sell Greys", "autoSellGreys", nil,
         "Automatically sells all grey items when opening a merchant.")
     auto_sell_cb:SetPoint("TOPLEFT", merchant_header, "BOTTOMLEFT", 0, -10)
 
-    local disable_merchant_cb = CreateCheckbox(merchant_panel, "Disable Merchant Frame", "disableMerchant", nil,
+    local disable_merchant_cb = create_checkbox(merchant_panel, "Disable Merchant Frame", "disableMerchant", nil,
         "Restores the default WoW merchant frame.")
     disable_merchant_cb:SetPoint("TOPLEFT", auto_sell_cb, "BOTTOMLEFT", 0, -10)
 
-    local auto_repair_cb = CreateCheckbox(merchant_panel, "Auto-Repair", "autoRepair", nil,
+    local auto_repair_cb = create_checkbox(merchant_panel, "Auto-Repair", "autoRepair", nil,
         "Automatically repairs gear (guild first, skips if blacksmith hammer available).")
     auto_repair_cb:SetPoint("TOPLEFT", disable_merchant_cb, "BOTTOMLEFT", 0, -10)
 
@@ -528,18 +528,19 @@ function sfui.create_options_panel()
     minimap_header:SetTextColor(white[1], white[2], white[3])
     minimap_header:SetText("Minimap Settings")
 
-    local collect_cb = CreateCheckbox(minimap_panel, "Collect Buttons", "minimap_collect_buttons", function(checked)
-        if sfui.minimap and sfui.minimap.EnableButtonManager then
-            sfui.minimap.EnableButtonManager(checked)
+    local collect_cb = create_checkbox(minimap_panel, "Collect Buttons", "minimap_collect_buttons", function(checked)
+        if sfui.minimap and sfui.minimap.enable_button_manager then
+            sfui.minimap.enable_button_manager(checked)
         end
     end, "Collects minimap buttons into a bar.")
     collect_cb:SetPoint("TOPLEFT", minimap_header, "BOTTOMLEFT", 0, -10)
 
-    local mouseover_cb = CreateCheckbox(minimap_panel, "Mouseover Only", "minimap_buttons_mouseover", function(checked)
-        if sfui.minimap and sfui.minimap.EnableButtonManager and SfuiDB.minimap_collect_buttons then
-            -- Re-enable to refresh logic
-            sfui.minimap.EnableButtonManager(false)
-            sfui.minimap.EnableButtonManager(true)
+    local mouseover_cb = create_checkbox(minimap_panel, "Mouseover Only", "minimap_buttons_mouseover", function(checked)
+        if sfui.minimap and sfui.minimap.enable_button_manager and SfuiDB.minimap_collect_buttons then
+            C_Timer.After(0.1, function()
+                sfui.minimap.enable_button_manager(false)
+                sfui.minimap.enable_button_manager(true)
+            end)
         end
     end, "Only show the button bar when hovering the minimap. Also moves Group Finder eye to Top Left.")
     mouseover_cb:SetPoint("TOPLEFT", collect_cb, "BOTTOMLEFT", 0, -10)
@@ -559,8 +560,8 @@ function sfui.create_options_panel()
         local val = tonumber(self:GetText())
         if val then
             SfuiDB.minimap_button_x = val
-            if sfui.minimap and sfui.minimap.UpdateButtonBarPosition then
-                sfui.minimap.UpdateButtonBarPosition()
+            if sfui.minimap and sfui.minimap.update_button_bar_position then
+                sfui.minimap.update_button_bar_position()
             end
         end
         self:ClearFocus()
@@ -581,8 +582,8 @@ function sfui.create_options_panel()
         local val = tonumber(self:GetText())
         if val then
             SfuiDB.minimap_button_y = val
-            if sfui.minimap and sfui.minimap.UpdateButtonBarPosition then
-                sfui.minimap.UpdateButtonBarPosition()
+            if sfui.minimap and sfui.minimap.update_button_bar_position then
+                sfui.minimap.update_button_bar_position()
             end
         end
         self:ClearFocus()
@@ -598,8 +599,8 @@ function sfui.create_options_panel()
         SfuiDB.minimap_button_y = 35
         pos_x_input:SetText("0")
         pos_y_input:SetText("35")
-        if sfui.minimap and sfui.minimap.UpdateButtonBarPosition then
-            sfui.minimap.UpdateButtonBarPosition()
+        if sfui.minimap and sfui.minimap.update_button_bar_position then
+            sfui.minimap.update_button_bar_position()
         end
     end)
 
@@ -609,21 +610,21 @@ function sfui.create_options_panel()
     reminders_header:SetTextColor(white[1], white[2], white[3])
     reminders_header:SetText("Reminders & Warnings")
 
-    local enable_reminders_cb = CreateCheckbox(reminders_panel, "Enable Buff Reminders", "enableReminders",
+    local enable_reminders_cb = create_checkbox(reminders_panel, "Enable Buff Reminders", "enableReminders",
         function(checked)
-            if sfui.reminders and sfui.reminders.OnStateChanged then sfui.reminders.OnStateChanged(checked) end
+            if sfui.reminders and sfui.reminders.on_state_changed then sfui.reminders.on_state_changed(checked) end
         end, "Toggles the buff reminders frame.")
     enable_reminders_cb:SetPoint("TOPLEFT", reminders_header, "BOTTOMLEFT", 0, -10)
 
-    local reminders_everywhere_cb = CreateCheckbox(reminders_panel, "Show outside Instances", "remindersEverywhere",
+    local reminders_everywhere_cb = create_checkbox(reminders_panel, "Show outside Instances", "remindersEverywhere",
         function(checked)
-            if sfui.reminders and sfui.reminders.UpdateVisibility then sfui.reminders.UpdateVisibility() end
+            if sfui.reminders and sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
         end, "Shows the reminders frame even when not in an instance.")
     reminders_everywhere_cb:SetPoint("TOPLEFT", enable_reminders_cb, "BOTTOMLEFT", 0, -10)
 
-    local reminders_solo_cb = CreateCheckbox(reminders_panel, "Show while Solo", "remindersSolo",
+    local reminders_solo_cb = create_checkbox(reminders_panel, "Show while Solo", "remindersSolo",
         function(checked)
-            if sfui.reminders and sfui.reminders.UpdateVisibility then sfui.reminders.UpdateVisibility() end
+            if sfui.reminders and sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
         end, "Shows the reminders frame even when not in a group.")
     reminders_solo_cb:SetPoint("TOPLEFT", reminders_everywhere_cb, "BOTTOMLEFT", 0, -10)
 
@@ -640,7 +641,7 @@ function sfui.create_options_panel()
     reminders_x_input:SetScript("OnEnterPressed", function(self)
         local val = tonumber(self:GetText()) or 0
         SfuiDB.remindersX = val
-        if sfui.reminders and sfui.reminders.UpdatePosition then sfui.reminders.UpdatePosition() end
+        if sfui.reminders and sfui.reminders.update_position then sfui.reminders.update_position() end
         self:ClearFocus()
     end)
 
@@ -657,7 +658,7 @@ function sfui.create_options_panel()
     reminders_y_input:SetScript("OnEnterPressed", function(self)
         local val = tonumber(self:GetText()) or 0
         SfuiDB.remindersY = val
-        if sfui.reminders and sfui.reminders.UpdatePosition then sfui.reminders.UpdatePosition() end
+        if sfui.reminders and sfui.reminders.update_position then sfui.reminders.update_position() end
         self:ClearFocus()
     end)
 
@@ -666,15 +667,15 @@ function sfui.create_options_panel()
     warnings_header:SetTextColor(white[1], white[2], white[3])
     warnings_header:SetText("Warning Settings")
 
-    local enable_pet_warning_cb = CreateCheckbox(reminders_panel, "Enable Pet Warning", "enablePetWarning",
+    local enable_pet_warning_cb = create_checkbox(reminders_panel, "Enable Pet Warning", "enablePetWarning",
         function(checked)
-            if sfui.reminders and sfui.reminders.UpdateWarnings then sfui.reminders.UpdateWarnings() end
+            if sfui.reminders and sfui.reminders.update_warnings then sfui.reminders.update_warnings() end
         end, "Warns you if your pet is missing (for pet classes).")
     enable_pet_warning_cb:SetPoint("TOPLEFT", warnings_header, "BOTTOMLEFT", 0, -10)
 
-    local enable_rune_warning_cb = CreateCheckbox(reminders_panel, "Enable Rune Warning", "enableRuneWarning",
+    local enable_rune_warning_cb = create_checkbox(reminders_panel, "Enable Rune Warning", "enableRuneWarning",
         function(checked)
-            if sfui.reminders and sfui.reminders.UpdateWarnings then sfui.reminders.UpdateWarnings() end
+            if sfui.reminders and sfui.reminders.update_warnings then sfui.reminders.update_warnings() end
         end, "Warns you if you are missing an Augment Rune buff but have runes in your bags.")
     enable_rune_warning_cb:SetPoint("TOPLEFT", enable_pet_warning_cb, "BOTTOMLEFT", 0, -10)
 
@@ -694,8 +695,8 @@ function sfui.create_options_panel()
     local toggle_research_button = CreateFlatButton(research_panel, "Open Research Viewer", 160, 22)
     toggle_research_button:SetPoint("TOPLEFT", research_info, "BOTTOMLEFT", 0, -20)
     toggle_research_button:SetScript("OnClick", function()
-        if sfui.research and sfui.research.ToggleSelection then
-            sfui.research.ToggleSelection()
+        if sfui.research and sfui.research.toggle_selection then
+            sfui.research.toggle_selection()
             frame:Hide()
         end
     end)
@@ -718,8 +719,8 @@ function sfui.create_options_panel()
     add_trait_button:SetPoint("LEFT", custom_id_input, "RIGHT", 5, 0)
     add_trait_button:SetScript("OnClick", function()
         local id = tonumber(custom_id_input:GetText())
-        if id and sfui.research and sfui.research.OpenTree then
-            sfui.research.OpenTree({ id = id, isTraitTree = true, name = "Custom " .. id })
+        if id and sfui.research and sfui.research.open_tree then
+            sfui.research.open_tree({ id = id, isTraitTree = true, name = "Custom " .. id })
             frame:Hide()
         end
     end)
@@ -734,8 +735,8 @@ function sfui.create_options_panel()
     add_garr_button:SetPoint("LEFT", add_trait_button, "RIGHT", 5, 0)
     add_garr_button:SetScript("OnClick", function()
         local id = tonumber(custom_id_input:GetText())
-        if id and sfui.research and sfui.research.OpenTree then
-            sfui.research.OpenTree({ id = id, isTraitTree = false, type = 111, name = "Custom " .. id })
+        if id and sfui.research and sfui.research.open_tree then
+            sfui.research.open_tree({ id = id, isTraitTree = false, type = 111, name = "Custom " .. id })
             frame:Hide()
         end
     end)
@@ -797,11 +798,11 @@ function sfui.create_options_panel()
         end
         if color then color_swatch:SetColorTexture(color.r, color.g, color.b) end
 
-        if sfui.common.GetPrimaryResource then
-            primary_power_value:SetText(get_power_type_name(sfui.common.GetPrimaryResource()))
+        if sfui.common.get_primary_resource then
+            primary_power_value:SetText(get_power_type_name(sfui.common.get_primary_resource()))
         end
-        if sfui.common.GetSecondaryResource then
-            secondary_power_value:SetText(get_power_type_name(sfui.common.GetSecondaryResource()))
+        if sfui.common.get_secondary_resource then
+            secondary_power_value:SetText(get_power_type_name(sfui.common.get_secondary_resource()))
         end
     end
 
@@ -826,8 +827,8 @@ function sfui.create_options_panel()
     function update_debug_info()
         original_update_debug_info() -- Call original function
 
-        if sfui.reminders and sfui.reminders.GetStatus then
-            pet_warning_value:SetText(sfui.reminders.GetStatus())
+        if sfui.reminders and sfui.reminders.get_status then
+            pet_warning_value:SetText(sfui.reminders.get_status())
         else
             pet_warning_value:SetText("N/A (Module Missing)")
         end

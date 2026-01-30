@@ -4,7 +4,7 @@ sfui.reminders = {}
 local RAID_BUFFS = {}
 local PERSONAL_BUFFS = {}
 
-local function IsClassPresent(className)
+local function is_class_present(className)
     local _, playerClass = UnitClass("player")
     if playerClass == className then return true end
     if not IsInGroup() then return false end
@@ -20,7 +20,7 @@ local function IsClassPresent(className)
     return false
 end
 
-local function HasRune()
+local function has_rune()
     local RUNE_PAIRS = {
         { itemID = 243191, spellID = 1234969 }, -- Ethereal Augment Rune (TWW Permanent)
         { itemID = 224572, spellID = 449652 },  -- Algari Augment Rune (TWW Consumable)
@@ -36,14 +36,14 @@ local function HasRune()
     return false
 end
 
-local function HasWeaponEnchant()
+local function has_weapon_enchant()
     local hasMainHandEnchant, mainHandExpiration, _, _, hasOffHandEnchant, offHandExpiration = GetWeaponEnchantInfo()
     if hasMainHandEnchant and (mainHandExpiration / 1000) > (10 * 60) then return true end
     if hasOffHandEnchant and (offHandExpiration / 1000) > (10 * 60) then return true end
     return false
 end
 
-local function HasHealthstone()
+local function has_healthstone()
     local HEALTHSTONES = { 5512, 162397, 221235, 224464 } -- Classic, Abyssal, Algari, Demonic
     for _, id in ipairs(HEALTHSTONES) do
         if C_Item.GetItemCount(id) > 0 then return true end
@@ -51,7 +51,7 @@ local function HasHealthstone()
     return false
 end
 
-local function UpdateBuffData()
+local function update_buff_data()
     local _, playerClass = UnitClass("player")
     local spec = C_SpecializationInfo.GetSpecialization()
     local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
@@ -70,19 +70,19 @@ local function UpdateBuffData()
     wipe(PERSONAL_BUFFS)
 
     for _, b in ipairs(raidBuffs) do
-        if IsClassPresent(b.class) then
+        if is_class_present(b.class) then
             table.insert(RAID_BUFFS, b)
         end
     end
 
-    if IsClassPresent("WARLOCK") then
+    if is_class_present("WARLOCK") then
         table.insert(PERSONAL_BUFFS, { name = "Healthstone", isHealthstone = true, icon = 135230 })
     end
 
     table.insert(PERSONAL_BUFFS, { name = "Food", isFood = true, icon = 136000 })
     table.insert(PERSONAL_BUFFS, { name = "Flask", isFlask = true, icon = 5931173 })
 
-    local hasRune, runeSpellID, runeItemID, runeIcon = HasRune()
+    local hasRune, runeSpellID, runeItemID, runeIcon = has_rune()
     if hasRune then
         table.insert(PERSONAL_BUFFS,
             { name = "Rune", spellID = runeSpellID, itemID = runeItemID, icon = runeIcon or 134430, isPersonal = true })
@@ -110,13 +110,13 @@ end
 
 local frame
 local icons = {}
-local masqueGroup = sfui.common.GetMasqueGroup("Reminders")
+local masqueGroup = sfui.common.get_masque_group("Reminders")
 
 -- Warning Frame Logic (Merged from warnings.lua)
 local warningFrame, warningText
 local activeWarnings = {}
 
-local function CreateWarningFrame()
+local function create_warning_frame()
     if warningFrame then return end
     warningFrame = CreateFrame("Frame", "SfuiWarningFrame", UIParent, "BackdropTemplate")
     warningFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -150)
@@ -129,8 +129,8 @@ local function CreateWarningFrame()
     warningText:SetText("")
 end
 
-local function UpdateWarningDisplay()
-    if not warningFrame then CreateWarningFrame() end
+local function update_warning_display()
+    if not warningFrame then create_warning_frame() end
     local highestPri, bestWarning = 0, nil
     for _, warning in pairs(activeWarnings) do
         if warning.active and warning.priority > highestPri then
@@ -140,21 +140,21 @@ local function UpdateWarningDisplay()
 
     if bestWarning then
         warningText:SetText(bestWarning.text)
-        sfui.common.SetColor(warningText, bestWarning.color or "magenta")
+        sfui.common.set_color(warningText, bestWarning.color or "magenta")
         warningFrame:Show()
     else
         warningFrame:Hide()
     end
 end
 
-local function SetWarning(key, active, text, priority, colorName)
+local function set_warning(key, active, text, priority, colorName)
     activeWarnings[key] = { active = active, text = text, priority = priority or 1, color = colorName }
-    UpdateWarningDisplay()
+    update_warning_display()
 end
 
 local threshold = 600 -- 10 minutes
 
-local function HasAura(spellID, unit, ignoreThreshold)
+local function has_aura(spellID, unit, ignoreThreshold)
     unit = unit or "player"
     local spellName
     if C_Spell and C_Spell.GetSpellName then
@@ -175,8 +175,8 @@ local function HasAura(spellID, unit, ignoreThreshold)
     return false
 end
 
-local function CheckGroupBuffStatus(spellID, ignoreThreshold)
-    if not IsInGroup() then return HasAura(spellID, "player", ignoreThreshold) end
+local function check_group_buff_status(spellID, ignoreThreshold)
+    if not IsInGroup() then return has_aura(spellID, "player", ignoreThreshold) end
     if not spellID then return false end
 
     local numMembers = GetNumGroupMembers()
@@ -192,14 +192,14 @@ local function CheckGroupBuffStatus(spellID, ignoreThreshold)
 
     for _, unit in ipairs(unitsToCheck) do
         if UnitExists(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit) then
-            if not HasAura(spellID, unit, ignoreThreshold) then return false end
+            if not has_aura(spellID, unit, ignoreThreshold) then return false end
         end
     end
     return true
 end
 
-local function CheckAnyGroupBuffStatus(spellID, ignoreThreshold)
-    if not IsInGroup() then return HasAura(spellID, "player", ignoreThreshold) end
+local function check_any_group_buff_status(spellID, ignoreThreshold)
+    if not IsInGroup() then return has_aura(spellID, "player", ignoreThreshold) end
     if not spellID then return false end
 
     local numMembers = GetNumGroupMembers()
@@ -215,13 +215,13 @@ local function CheckAnyGroupBuffStatus(spellID, ignoreThreshold)
 
     for _, unit in ipairs(unitsToCheck) do
         if UnitExists(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit) then
-            if HasAura(spellID, unit, ignoreThreshold) then return true end
+            if has_aura(spellID, unit, ignoreThreshold) then return true end
         end
     end
     return false
 end
 
-local function HasFood()
+local function has_food()
     for i = 1, 40 do
         local aura = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")
         if not aura then break end
@@ -234,7 +234,7 @@ local function HasFood()
     return false
 end
 
-local function HasFlask()
+local function has_flask()
     for i = 1, 40 do
         local aura = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")
         if not aura then break end
@@ -248,7 +248,7 @@ local function HasFlask()
     return false
 end
 
-local function HasPoison()
+local function has_poison()
     for i = 1, 40 do
         local aura = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")
         if not aura then break end
@@ -265,33 +265,33 @@ local function HasPoison()
     return false
 end
 
-local function CheckAugmentRunes()
+local function check_augment_runes()
     if InCombatLockdown() or not SfuiDB.enableRuneWarning then
-        SetWarning("rune", false); return
+        set_warning("rune", false); return
     end
 
     local cfg = sfui.config.warnings.rune
 
-    local hasRune, spellID = HasRune()
-    -- Use HasAura for robust name matching
-    local missingRune = hasRune and not HasAura(spellID, "player")
+    local hasRune, spellID = has_rune()
+    -- Use has_aura for robust name matching
+    local missingRune = hasRune and not has_aura(spellID, "player")
 
     if missingRune then
-        SetWarning("rune", true, cfg.text, cfg.priority, cfg.color)
+        set_warning("rune", true, cfg.text, cfg.priority, cfg.color)
     else
-        SetWarning("rune", false)
+        set_warning("rune", false)
     end
 end
 
 local petWarningTimer = nil
 local hasGrimoireOfSacrifice = false
 
-local function UpdateGrimoireOfSacrificeStatus()
+local function update_grimoire_of_sacrifice_status()
     hasGrimoireOfSacrifice = IsPlayerSpell(108503)
 end
-local function CheckPetWarning()
+local function check_pet_warning()
     if InCombatLockdown() or not SfuiDB.enablePetWarning then
-        SetWarning("pet", false); return
+        set_warning("pet", false); return
     end
 
     local _, playerClass = UnitClass("player")
@@ -312,9 +312,9 @@ local function CheckPetWarning()
             petWarningTimer = C_Timer.After(2, function()
                 if not UnitExists("pet") and not IsResting() then
                     local cfg = sfui.config.warnings.pet
-                    SetWarning("pet", true, cfg.text, cfg.priority, cfg.color)
+                    set_warning("pet", true, cfg.text, cfg.priority, cfg.color)
                 else
-                    SetWarning("pet", false)
+                    set_warning("pet", false)
                 end
                 petWarningTimer = nil
             end)
@@ -323,12 +323,12 @@ local function CheckPetWarning()
         if petWarningTimer then
             C_Timer.Cancel(petWarningTimer); petWarningTimer = nil
         end
-        SetWarning("pet", false)
+        set_warning("pet", false)
     end
 end
 
 
-local function CreateIcons()
+local function create_icons()
     if InCombatLockdown() then return end
     if not frame then
         frame = CreateFrame("Frame", "SfuiRemindersFrame", UIParent, "SecureHandlerStateTemplate")
@@ -416,7 +416,7 @@ local function CreateIcons()
     end
 end
 
-local function UpdateIcons()
+local function update_icons()
     if not frame then return end
     if InCombatLockdown() then return end
 
@@ -440,36 +440,36 @@ local function UpdateIcons()
             local hasBuff = false
             if data.spellID then
                 if data.isPersonal then
-                    hasBuff = HasAura(data.spellID, "player", data.ignoreThreshold)
+                    hasBuff = has_aura(data.spellID, "player", data.ignoreThreshold)
                 elseif data.isAny then
-                    hasBuff = CheckAnyGroupBuffStatus(data.spellID, data.ignoreThreshold)
+                    hasBuff = check_any_group_buff_status(data.spellID, data.ignoreThreshold)
                 else
-                    hasBuff = CheckGroupBuffStatus(data.spellID, data.ignoreThreshold)
+                    hasBuff = check_group_buff_status(data.spellID, data.ignoreThreshold)
                 end
             elseif data.isFood then
-                hasBuff = HasFood()
+                hasBuff = has_food()
             elseif data.isFlask then
-                hasBuff = HasFlask()
+                hasBuff = has_flask()
             elseif data.isPoison then
-                hasBuff = HasPoison()
+                hasBuff = has_poison()
             elseif data.isWeaponEnchant then
-                hasBuff = HasWeaponEnchant()
+                hasBuff = has_weapon_enchant()
             elseif data.isHealthstone then
-                hasBuff = HasHealthstone()
+                hasBuff = has_healthstone()
             end
             button:SetAlpha(hasBuff and 0.1 or 1.0)
         end
     end
 end
 
-function sfui.reminders.UpdatePosition()
+function sfui.reminders.update_position()
     if frame then frame:SetPoint("BOTTOM", UIParent, "BOTTOM", SfuiDB.remindersX, SfuiDB.remindersY) end
 end
 
-function sfui.reminders.OnStateChanged(enabled)
+function sfui.reminders.on_state_changed(enabled)
     if enabled then
-        UpdateBuffData(); CreateIcons(); UpdateIcons()
-        if sfui.reminders.UpdateVisibility then sfui.reminders.UpdateVisibility() end
+        update_buff_data(); create_icons(); update_icons()
+        if sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
     else
         if frame then
             if not InCombatLockdown() then frame:Hide() end
@@ -477,14 +477,14 @@ function sfui.reminders.OnStateChanged(enabled)
         end
     end
     -- Always check warnings as they have their own toggles
-    CheckPetWarning(); CheckAugmentRunes()
+    check_pet_warning(); check_augment_runes()
 end
 
-function sfui.reminders.UpdateWarnings()
-    CheckPetWarning(); CheckAugmentRunes()
+function sfui.reminders.update_warnings()
+    check_pet_warning(); check_augment_runes()
 end
 
-function sfui.reminders.GetStatus()
+function sfui.reminders.get_status()
     local status = {}
     for k, v in pairs(activeWarnings) do
         if v.active then table.insert(status, k .. ": " .. v.text) end
@@ -492,7 +492,7 @@ function sfui.reminders.GetStatus()
     return #status > 0 and table.concat(status, ", ") or "No Active Warnings"
 end
 
-function sfui.reminders.UpdateVisibility()
+function sfui.reminders.update_visibility()
     if InCombatLockdown() then return end
     if not frame then return end
 
@@ -521,14 +521,14 @@ function sfui.reminders.UpdateVisibility()
     RegisterStateDriver(frame, "visibility", driver)
 end
 
-function sfui.reminders.Initialize()
-    UpdateBuffData()
-    UpdateGrimoireOfSacrificeStatus()
-    CreateIcons()
-    CreateWarningFrame()
+function sfui.reminders.initialize()
+    update_buff_data()
+    update_grimoire_of_sacrifice_status()
+    create_icons()
+    create_warning_frame()
 
     if frame then
-        sfui.reminders.UpdateVisibility()
+        sfui.reminders.update_visibility()
     end
 
     local eventFrame = CreateFrame("Frame")
@@ -554,27 +554,27 @@ function sfui.reminders.Initialize()
         if InCombatLockdown() then return end
 
         if event == "PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "GROUP_ROSTER_UPDATE" or event == "BAG_UPDATE_DELAYED" or event == "PLAYER_TALENT_UPDATE" or event == "ZONE_CHANGED_NEW_AREA" then
-            UpdateBuffData()
-            UpdateGrimoireOfSacrificeStatus()
-            CreateIcons()
-            CheckPetWarning()
-            CheckAugmentRunes()
-            if sfui.reminders.UpdateVisibility then sfui.reminders.UpdateVisibility() end
+            update_buff_data()
+            update_grimoire_of_sacrifice_status()
+            create_icons()
+            check_pet_warning()
+            check_augment_runes()
+            if sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
         end
         if event == "UNIT_AURA" and unit ~= "player" and not IsInGroup() then return end
 
-        if event == "UNIT_AURA" or event == "BAG_UPDATE_DELAYED" then CheckAugmentRunes() end
+        if event == "UNIT_AURA" or event == "BAG_UPDATE_DELAYED" then check_augment_runes() end
         if event == "UNIT_PET" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "PLAYER_UPDATE_RESTING" then
-            CheckPetWarning()
+            check_pet_warning()
         end
         if event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
-            CheckPetWarning(); CheckAugmentRunes()
+            check_pet_warning(); check_augment_runes()
         end
 
         -- Throttle updates to avoid excessive processing in raids
         if not self.updateTimer then
             self.updateTimer = C_Timer.NewTimer(0.5, function()
-                UpdateIcons()
+                update_icons()
                 self.updateTimer = nil
             end)
         end
@@ -584,11 +584,11 @@ function sfui.reminders.Initialize()
     frame:SetScript("OnUpdate", function(self, elapsed)
         lastUpdate = lastUpdate + elapsed
         if lastUpdate > 10 then
-            UpdateIcons(); lastUpdate = 0
+            update_icons(); lastUpdate = 0
         end
     end)
 
-    UpdateIcons()
-    CheckPetWarning()
-    CheckAugmentRunes()
+    update_icons()
+    check_pet_warning()
+    check_augment_runes()
 end

@@ -8,9 +8,7 @@ sfui.merchant = {}
 local colors = sfui.config.colors
 
 local cfg = sfui.config.merchant
-local msqGroup = sfui.common.GetMasqueGroup("Merchant")
-
-local cfg = sfui.config.merchant
+local msqGroup = sfui.common.get_masque_group("Merchant")
 local NUM_ROWS = cfg.grid.rows
 local NUM_COLS = cfg.grid.cols
 local ITEMS_PER_PAGE = NUM_ROWS * NUM_COLS
@@ -69,7 +67,7 @@ frame.merchantTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight"
 frame.merchantTitle:SetPoint("TOPLEFT", frame.merchantName, "BOTTOMLEFT", 0, -2)
 frame.merchantTitle:SetJustifyH("LEFT")
 
-local CreateFlatButton = sfui.common.CreateFlatButton
+local CreateFlatButton = sfui.common.create_flat_button
 
 local closeBtn = CreateFlatButton(frame, "X", 20, 20)
 closeBtn:SetPoint("TOPRIGHT", -5, -5)
@@ -84,17 +82,17 @@ filterDropdownBtn:SetScript("OnClick", function(self)
         rootDescription:CreateButton("All Items", function()
             sfui.merchant.lootFilterState = 0
             self:SetText("showing all")
-            sfui.merchant.ResetScrollAndRebuild()
+            sfui.merchant.reset_scroll_and_rebuild()
         end);
         rootDescription:CreateButton("Current Class", function()
             sfui.merchant.lootFilterState = 1
             self:SetText("current class")
-            sfui.merchant.ResetScrollAndRebuild()
+            sfui.merchant.reset_scroll_and_rebuild()
         end);
         rootDescription:CreateButton("Current Specialization", function()
             sfui.merchant.lootFilterState = 2
             self:SetText("current spec")
-            sfui.merchant.ResetScrollAndRebuild()
+            sfui.merchant.reset_scroll_and_rebuild()
         end);
     end);
 end)
@@ -102,12 +100,12 @@ end)
 sfui.merchant.scrollOffset = 0
 sfui.merchant.totalMerchantItems = 0
 
-function sfui.merchant.ResetScrollAndRebuild()
+function sfui.merchant.reset_scroll_and_rebuild()
     sfui.merchant.scrollOffset = 0
     if frame.scrollBar then
         frame.scrollBar:SetValue(0)
     end
-    sfui.merchant.BuildItemList()
+    sfui.merchant.build_item_list()
 end
 
 local settingsDropdownBtn = CreateFlatButton(frame, "settings", 70, 20)
@@ -135,14 +133,14 @@ end)
 -- (Moved above)
 local buttons = {}
 
-local function GetItemID(link)
+local function get_item_id(link)
     if not link then return nil end
     local id = C_Item.GetItemInfoInstant(link)
     return id or tonumber(string.match(link, "item:(%d+)"))
 end
 
-local function IsHousingDecor(link)
-    local itemID = GetItemID(link)
+local function is_housing_decor(link)
+    local itemID = get_item_id(link)
     if itemID and C_HousingCatalog and C_HousingCatalog.GetCatalogEntryInfoByItem then
         local info = C_HousingCatalog.GetCatalogEntryInfoByItem(itemID, false)
         return info and info.entryID and info.entryID.entryType == 1
@@ -151,7 +149,7 @@ local function IsHousingDecor(link)
 end
 sfui.merchant.housingDecorFilter = sfui.merchant.housingDecorFilter or 0
 
-function sfui.merchant.CreateStackSplitFrame(parent)
+function sfui.merchant.create_stack_split_frame(parent)
     local f = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     f:SetSize(180, 110)
     f:SetPoint("CENTER")
@@ -185,9 +183,9 @@ function sfui.merchant.CreateStackSplitFrame(parent)
     eb:SetScript("OnEscapePressed", function() f:Hide() end)
     f.editBox = eb
 
-    f.maxBtn = sfui.common.CreateFlatButton(f, "Max", 40, 24)
+    f.maxBtn = sfui.common.create_flat_button(f, "Max", 40, 24)
     f.maxBtn:SetPoint("LEFT", eb, "RIGHT", 5, 0)
-    sfui.common.SetColor(f.maxBtn, "black")
+    sfui.common.set_color(f.maxBtn, "black")
     f.maxBtn:SetScript("OnClick", function()
         local maxStack = f.maxStack or 1
         local price = f.price or 0
@@ -203,9 +201,9 @@ function sfui.merchant.CreateStackSplitFrame(parent)
         eb:SetFocus()
     end)
 
-    f.buyBtn = sfui.common.CreateFlatButton(f, "Buy", 70, 24)
+    f.buyBtn = sfui.common.create_flat_button(f, "Buy", 70, 24)
     f.buyBtn:SetPoint("BOTTOMLEFT", 10, 10)
-    sfui.common.SetColor(f.buyBtn, "black")
+    sfui.common.set_color(f.buyBtn, "black")
     f.buyBtn:SetScript("OnClick", function()
         local val = tonumber(eb:GetText()) or 1
         if val > 0 then
@@ -214,17 +212,17 @@ function sfui.merchant.CreateStackSplitFrame(parent)
         f:Hide()
     end)
 
-    f.cancelBtn = sfui.common.CreateFlatButton(f, "Cancel", 70, 24)
+    f.cancelBtn = sfui.common.create_flat_button(f, "Cancel", 70, 24)
     f.cancelBtn:SetPoint("BOTTOMRIGHT", -10, 10)
-    sfui.common.SetColor(f.cancelBtn, "black")
+    sfui.common.set_color(f.cancelBtn, "black")
     f.cancelBtn:SetScript("OnClick", function() f:Hide() end)
 
     return f
 end
 
-local function OpenStackSplit(index)
+local function open_stack_split(index)
     if not sfui.merchant.stackSplitFrame then
-        sfui.merchant.stackSplitFrame = sfui.merchant.CreateStackSplitFrame(sfui.merchant.frame)
+        sfui.merchant.stackSplitFrame = sfui.merchant.create_stack_split_frame(sfui.merchant.frame)
     end
 
     local f = sfui.merchant.stackSplitFrame
@@ -253,7 +251,7 @@ local function OpenStackSplit(index)
     f.editBox:SetFocus()
 end
 
-function sfui.merchant.CreateItemButton(id, parent, msqGroup)
+function sfui.merchant.create_item_button(id, parent, msqGroup)
     local btn = CreateFrame("Button", "SfuiMerchantItem" .. id, parent, "BackdropTemplate")
     btn:SetSize(190, 45)
 
@@ -338,7 +336,7 @@ function sfui.merchant.CreateItemButton(id, parent, msqGroup)
                     if link and HandleModifiedItemClick(link) then return end
 
                     if IsModifiedClick("SPLITSTACK") and button == "RightButton" then
-                        OpenStackSplit(self:GetID())
+                        open_stack_split(self:GetID())
                         return
                     end
                 end
@@ -366,7 +364,7 @@ function sfui.merchant.CreateItemButton(id, parent, msqGroup)
 end
 
 for i = 1, ITEMS_PER_PAGE do
-    local btn = sfui.merchant.CreateItemButton(i, frame, msqGroup)
+    local btn = sfui.merchant.create_item_button(i, frame, msqGroup)
     local row = math.floor((i - 1) / NUM_COLS)
     local col = (i - 1) % NUM_COLS
 
@@ -391,7 +389,7 @@ scrollBar:SetScript("OnValueChanged", function(self, value)
 
     if sfui.merchant.scrollOffset ~= newOffset then
         sfui.merchant.scrollOffset = newOffset
-        sfui.merchant.UpdateMerchant()
+        sfui.merchant.update_merchant()
     end
 end)
 
@@ -404,7 +402,7 @@ frame.scrollBar = scrollBar
 
 
 -- Update Currency Display
-function sfui.merchant.UpdateCurrencyDisplay(frame)
+function sfui.merchant.update_currency_display(frame)
     frame.currencyDisplays = frame.currencyDisplays or {}
     local displays = frame.currencyDisplays
 
@@ -532,14 +530,14 @@ sfui.merchant.buybackBtn:SetScript("OnClick", function(self)
         sfui.merchant.mode = "merchant"
         self:SetText("buyback")
     end
-    sfui.merchant.ResetScrollAndRebuild()
+    sfui.merchant.reset_scroll_and_rebuild()
 end)
 
 sfui.merchant.filterBtn = CreateFlatButton(utilityBar, "hide known", cfg.utility_bar.button_small,
     cfg.utility_bar.button_height)
 sfui.merchant.filterBtn:SetPoint("LEFT", sfui.merchant.buybackBtn, "RIGHT", 5, 0)
 
-local function UpdateFilterButtonStyle(self)
+local function update_filter_button_style(self)
     if sfui.merchant.filterKnown then
         self:SetText("hiding known")
         self:SetBackdropBorderColor(0.4, 0, 1, 1)    -- Purple (#6600FF)
@@ -550,12 +548,12 @@ local function UpdateFilterButtonStyle(self)
         self:GetFontString():SetTextColor(1, 1, 1) -- White
     end
 end
-UpdateFilterButtonStyle(sfui.merchant.filterBtn)
+update_filter_button_style(sfui.merchant.filterBtn)
 
 sfui.merchant.filterBtn:SetScript("OnClick", function(self)
     sfui.merchant.filterKnown = not sfui.merchant.filterKnown
-    UpdateFilterButtonStyle(self)
-    sfui.merchant.ResetScrollAndRebuild()
+    update_filter_button_style(self)
+    sfui.merchant.reset_scroll_and_rebuild()
 end)
 
 sfui.merchant.filterBtn:SetScript("OnEnter", function(self)
@@ -567,14 +565,14 @@ end)
 
 
 sfui.merchant.filterBtn:SetScript("OnLeave", function(self)
-    UpdateFilterButtonStyle(self) -- Revert to state color
+    update_filter_button_style(self) -- Revert to state color
 end)
 
 sfui.merchant.housingFilterBtn = CreateFlatButton(utilityBar, "decor: all", cfg.utility_bar.button_large,
     cfg.utility_bar.button_height)
 sfui.merchant.housingFilterBtn:SetPoint("LEFT", sfui.merchant.filterBtn, "RIGHT", 5, 0)
 
-local function UpdateHousingFilterButtonStyle(self)
+local function update_housing_filter_button_style(self)
     if sfui.merchant.housingDecorFilter == 1 then
         self:SetText("decor: hide known")
         self:SetBackdropBorderColor(1, 0, 1, 1)    -- Magenta (#FF00FF)
@@ -585,13 +583,13 @@ local function UpdateHousingFilterButtonStyle(self)
         self:GetFontString():SetTextColor(1, 1, 1) -- White
     end
 end
-UpdateHousingFilterButtonStyle(sfui.merchant.housingFilterBtn)
+update_housing_filter_button_style(sfui.merchant.housingFilterBtn)
 
 sfui.merchant.housingFilterBtn:SetScript("OnClick", function(self)
     -- Cycle through states: 0 -> 1 -> 0
     sfui.merchant.housingDecorFilter = (sfui.merchant.housingDecorFilter + 1) % 2
-    UpdateHousingFilterButtonStyle(self)
-    sfui.merchant.ResetScrollAndRebuild()
+    update_housing_filter_button_style(self)
+    sfui.merchant.reset_scroll_and_rebuild()
 end)
 
 sfui.merchant.housingFilterBtn:SetScript("OnEnter", function(self)
@@ -602,7 +600,7 @@ sfui.merchant.housingFilterBtn:SetScript("OnEnter", function(self)
 end)
 
 sfui.merchant.housingFilterBtn:SetScript("OnLeave", function(self)
-    UpdateHousingFilterButtonStyle(self) -- Revert to state color
+    update_housing_filter_button_style(self) -- Revert to state color
 end)
 
 local guildRepairBtn = CreateFrame("Button", nil, utilityBar, "BackdropTemplate")
@@ -692,7 +690,7 @@ sellJunkBtn:SetScript("OnClick", function()
     end
 end)
 
-local function AutoSellGreys()
+local function auto_sell_greys()
     if not SfuiDB.autoSellGreys then return end
 
     local totalPrice = 0
@@ -713,7 +711,7 @@ local function AutoSellGreys()
     end
 end
 
-local function AutoRepair()
+local function auto_repair()
     if not SfuiDB.autoRepair then return end
     if not CanMerchantRepair() then return end
 
@@ -736,7 +734,7 @@ local function AutoRepair()
 end
 
 
-local function UpdateRepairButtons()
+local function update_repair_buttons()
     local canRepair = CanMerchantRepair()
     local repairAllCost, canRepairItems = GetRepairAllCost()
     local needsRepair = canRepairItems and repairAllCost > 0
@@ -753,7 +751,7 @@ end
 frame:RegisterEvent("UPDATE_INVENTORY_DURABILITY")
 frame:HookScript("OnEvent", function(self, event)
     if event == "MERCHANT_SHOW" or event == "UPDATE_INVENTORY_DURABILITY" then
-        UpdateRepairButtons()
+        update_repair_buttons()
     end
 end)
 
@@ -763,7 +761,7 @@ sfui.merchant.filteredIndices = {}
 sfui.merchant.currencyCache = {}
 sfui.merchant.decorCachePopulated = false
 
-sfui.merchant.PopulateDecorCache = function()
+sfui.merchant.populate_decor_cache = function()
     if sfui.merchant.decorCachePopulated then return end
     if not (C_HousingCatalog and C_HousingCatalog.CreateCatalogSearcher) then return end
 
@@ -809,7 +807,7 @@ sfui.merchant.PopulateDecorCache = function()
     searcher:RunSearch()
 end
 
-sfui.merchant.BuildItemList = function()
+sfui.merchant.build_item_list = function()
     local mode = sfui.merchant.mode
     local numItemsRaw = (mode == "buyback") and GetNumBuybackItems() or GetMerchantNumItems()
 
@@ -821,16 +819,16 @@ sfui.merchant.BuildItemList = function()
         local include, link = true, nil
         if mode == "merchant" then
             link = GetMerchantItemLink(i)
-            if link and not hasHousingItems and IsHousingDecor(link) then
+            if link and not hasHousingItems and is_housing_decor(link) then
                 hasHousingItems = true
             end
         else
             link = GetBuybackItemLink(i)
         end
 
-        local itemID = GetItemID(link)
+        local itemID = get_item_id(link)
         if include and mode == "merchant" and sfui.merchant.filterKnown and link then
-            if sfui.common.IsItemKnown(link) then
+            if sfui.common.is_item_known(link) then
                 include = false
             elseif itemID then
                 local _, _, _, _, _, _, _, _, _, _, _, _, speciesID = C_PetJournal.GetPetInfoByItemID(itemID)
@@ -839,7 +837,7 @@ sfui.merchant.BuildItemList = function()
                 end
             end
         end
-        if include and mode == "merchant" and sfui.merchant.housingDecorFilter > 0 and IsHousingDecor(link) then
+        if include and mode == "merchant" and sfui.merchant.housingDecorFilter > 0 and is_housing_decor(link) then
             if SfuiDecorDB and SfuiDecorDB.items and SfuiDecorDB.items[itemID] then
                 local cached = SfuiDecorDB.items[itemID]
                 if sfui.merchant.housingDecorFilter == 1 and ((cached.o or 0) + (cached.p or 0) + (cached.s or 0)) > 0 then
@@ -912,7 +910,7 @@ sfui.merchant.BuildItemList = function()
                             local cID = tonumber(string.match(costLink, "currency:(%d+)"))
                             local count = cID and (C_CurrencyInfo.GetCurrencyInfo(cID) or {}).quantity or
                                 C_Item.GetItemCount(costLink)
-                            AddToCache(cID or GetItemID(costLink), currencyName, texture, count,
+                            AddToCache(cID or get_item_id(costLink), currencyName, texture, count,
                                 cID and "currency" or "item")
                         end
                     end
@@ -939,11 +937,11 @@ sfui.merchant.BuildItemList = function()
         frame.scrollBar:Hide()
     end
 
-    sfui.merchant.UpdateMerchant()
-    sfui.merchant.UpdateCurrencyDisplay(frame)
+    sfui.merchant.update_merchant()
+    sfui.merchant.update_currency_display(frame)
 end
 
-local function GetMerchantItemData(index, mode)
+local function get_merchant_item_data(index, mode)
     local d = {}
     if mode == "buyback" then
         local name, texture, price, qty, _, usable = GetBuybackItemInfo(index)
@@ -962,19 +960,19 @@ local function GetMerchantItemData(index, mode)
     return d
 end
 
-sfui.merchant.UpdateMerchant = function()
+sfui.merchant.update_merchant = function()
     local indices = sfui.merchant.filteredIndices or {}
     for i = 1, ITEMS_PER_PAGE do
         local btn, index = buttons[i], indices[sfui.merchant.scrollOffset + i]
         if index then
-            local data = GetMerchantItemData(index, sfui.merchant.mode)
+            local data = get_merchant_item_data(index, sfui.merchant.mode)
             if data then
                 btn:SetID(index); btn.hasItem, btn.link = true, data.link
                 btn.icon:SetTexture(data.texture or 134400)
 
-                local typeText, isDecor = "", IsHousingDecor(data.link)
+                local typeText, isDecor = "", is_housing_decor(data.link)
                 if isDecor then
-                    local id = GetItemID(data.link)
+                    local id = get_item_id(data.link)
                     local cached = id and SfuiDecorDB and SfuiDecorDB.items and SfuiDecorDB.items[id]
                     local count = cached and ((cached.o or 0) + (cached.p or 0)) or 0
                     if count > 0 then
@@ -993,7 +991,7 @@ sfui.merchant.UpdateMerchant = function()
                 btn.subName:SetText(typeText == "Other" and "" or typeText)
 
                 local r, g, b = C_Item.GetItemQualityColor(data.quality or 1)
-                btn.nameStub:SetTextColor(r, g, b); btn.nameStub:SetText(sfui.common.ShortenName(data.name, 22))
+                btn.nameStub:SetTextColor(r, g, b); btn.nameStub:SetText(sfui.common.shorten_name(data.name, 22))
 
                 local cost = (data.price > 0) and
                     ((GetMoney() < data.price and "|cffff0000" or "|cffffffff") .. C_CurrencyInfo.GetCoinTextureString(data.price) .. "|r") or
@@ -1089,7 +1087,7 @@ frame:SetScript("OnUpdate", function(self, elapsed)
     end
 end)
 
-local function UpdateHeader()
+local function update_header()
     local unit = "npc"
     if not UnitExists(unit) then unit = "target" end
 
@@ -1124,15 +1122,15 @@ frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 
 frame:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_ENTERING_WORLD" then
-        C_Timer.After(2, function() sfui.merchant.PopulateDecorCache() end)
+        C_Timer.After(2, function() sfui.merchant.populate_decor_cache() end)
     elseif event == "MERCHANT_SHOW" then
-        UpdateHeader()
-        sfui.merchant.ResetScrollAndRebuild()
-        AutoSellGreys()
-        AutoRepair()
+        update_header()
+        sfui.merchant.reset_scroll_and_rebuild()
+        auto_sell_greys()
+        auto_repair()
         if SfuiDB.disableMerchant then return end
         self:Show()
-        sfui.merchant.BuildItemList()
+        sfui.merchant.build_item_list()
 
         if MerchantFrame then
             MerchantFrame:SetAlpha(0)
@@ -1161,7 +1159,7 @@ frame:SetScript("OnEvent", function(self, event, ...)
             if not self.updatePending then
                 self.updatePending = true
                 C_Timer.After(0.05, function()
-                    if self:IsShown() then sfui.merchant.BuildItemList() end
+                    if self:IsShown() then sfui.merchant.build_item_list() end
                     self.updatePending = false
                 end)
             end
