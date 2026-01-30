@@ -14,7 +14,7 @@ Supports [Masque](https://www.curseforge.com/wow/addons/masque) for button skinn
 
 ### Buffs and Reminders
 Tracks out of combat raid buffs and personal consumables.
-- Dynamically shows Mark of the Wild, Evoker buffs, and Stamina based on group composition
+- Dynamically shows raidbuffs like Mark of the Wild, Evoker buffs, and Stamina based on group composition
 - Smart filtering for your class and group
 - Shift+Click to announce missing buffs
 ![Dynamic Buffs](shots/dynamicbuffscheck.png)
@@ -34,8 +34,8 @@ Track items, currencies, and cooldowns.
 *Standard Tracker*
 
 ### Player Status
-Health, Primary Power, Secondary Power, Stagger, etc.
-![Player Status](shots/bars_itemtracker.png)
+Health, primary power, and secondary resources (Stagger, Runes, etc).
+![Player Status](shots/playerhp_stagger.png)
 
 ### Research
 View talents, artifacts, and covenants directly in-game.
