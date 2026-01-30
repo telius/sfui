@@ -46,7 +46,6 @@ Clean interfaces for vehicles and dragonriding.
 - Improved visibility for vigor and speed
 
 ![Dragonflying](shots/dragonflying.png)
-![Dragonflying Warning](shots/dragonflying_warning.png)
 *Dragonflying HUD*
 
 ![Vehicle UI](shots/vehicleui.png)
