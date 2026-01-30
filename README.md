@@ -14,7 +14,7 @@ Supports [Masque](https://www.curseforge.com/wow/addons/masque) for button skinn
 
 ### Buffs and Reminders
 Tracks out of combat raid buffs and personal consumables.
-- Dynamically shows AI/AP/Stamina based on group composition
+- Dynamically shows Mark of the Wild, Evoker buffs, and Stamina based on group composition
 - Smart filtering for your class and group
 - Shift+Click to announce missing buffs
 ![Dynamic Buffs](shots/dynamicbuffscheck.png)
