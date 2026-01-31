@@ -44,6 +44,41 @@ do
             end
             return max, current
         end
+        if resource == "FURY" then
+            local current = UnitPower("player", Enum.PowerType.Fury)
+            local max = UnitPowerMax("player", Enum.PowerType.Fury)
+            if max <= 0 then return nil, nil end
+            return max, current
+        end
+        if resource == "DEVOURER_FRAGMENTS" then
+            -- Spell IDs verified from 12.0.1.64914 dump
+            local VOID_META_ID = 1217607
+            local DARK_HEART_ID = 1225789
+            local SILENCE_WHISPERS_ID = 1227702
+
+            local inVoidMeta = C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID(VOID_META_ID)
+            local current, max = 0, 5
+
+            if inVoidMeta then
+                local aura = C_UnitAuras.GetPlayerAuraBySpellID(SILENCE_WHISPERS_ID)
+                if aura then current = aura.applications end
+                -- Try new API for max cost, fallback to 5
+                if GetCollapsingStarCost then
+                    max = GetCollapsingStarCost()
+                else
+                    max = 5
+                end
+            else
+                local aura = C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID(DARK_HEART_ID)
+                if aura then current = aura.applications end
+                if C_Spell and C_Spell.GetSpellMaxCumulativeAuraApplications then
+                    max = C_Spell.GetSpellMaxCumulativeAuraApplications(DARK_HEART_ID)
+                else
+                    max = 5
+                end
+            end
+            return max, current
+        end
         local current = UnitPower("player", resource)
         local max = UnitPowerMax("player", resource)
         if max <= 0 then return nil, nil end
@@ -464,7 +499,7 @@ do
 
     sfui.bars.update_mount_speed_bar = update_mount_speed_bar_internal
 
-    function sfui.bars:set_bar_texture(texturePath)
+    function sfui.bars.set_bar_texture(texturePath)
         if primary_power_bar then primary_power_bar:SetStatusBarTexture(texturePath) end
         if health_bar then
             health_bar:SetStatusBarTexture(texturePath)
