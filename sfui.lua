@@ -80,6 +80,8 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             if SfuiDB.minimap_button_y == nil then SfuiDB.minimap_button_y = 35 end
             if SfuiDB.autoSellGreys == nil then SfuiDB.autoSellGreys = false end
             if SfuiDB.autoRepair == nil then SfuiDB.autoRepair = false end
+            if SfuiDB.repairThreshold == nil then SfuiDB.repairThreshold = 90 end
+            if SfuiDB.enableMasterHammer == nil then SfuiDB.enableMasterHammer = true end
             if SfuiDB.disableMerchant == nil then SfuiDB.disableMerchant = true end
             if SfuiDB.disableVehicle == nil then SfuiDB.disableVehicle = false end
 
@@ -125,6 +127,26 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             if sfui.config and sfui.config.cvars_on_load then
                 for _, cvar_data in ipairs(sfui.config.cvars_on_load) do
                     C_CVar.SetCVar(cvar_data.name, cvar_data.value)
+                end
+            end
+
+            -- Enforce Combat Text Settings from DB
+            local combatTextCVars = {
+                "enableFloatingCombatText",
+                "floatingCombatTextCombatDamage",
+                "floatingCombatTextCombatLogPeriodicSpells",
+                "floatingCombatTextCombatHealing",
+                "floatingCombatTextPetMeleeDamage",
+                "floatingCombatTextPetSpellDamage",
+                "floatingCombatTextDodgeParryMiss",
+                "floatingCombatTextDamageReduction",
+                "floatingCombatTextEnergyGains",
+                "floatingCombatTextAuras",
+                "floatingCombatTextCombatState"
+            }
+            for _, cvar in ipairs(combatTextCVars) do
+                if SfuiDB[cvar] ~= nil then
+                    C_CVar.SetCVar(cvar, SfuiDB[cvar] and "1" or "0")
                 end
             end
         end

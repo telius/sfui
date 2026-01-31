@@ -362,12 +362,16 @@ function update_hammer_popup()
     local displayPct = 0
 
     -- 1. Count total broken and find lowest for display purposes
+    -- Uses the configured threshold (default 90%)
     local lowestDur = 100
+    local threshold = SfuiDB.repairThreshold or 90
     for _, slot in ipairs(SLOT_ORDER) do
         local cur, max = GetInventoryItemDurability(slot)
         if cur and max and cur < max then
             local pct = (cur / max) * 100
-            totalBroken = totalBroken + 1
+            if pct <= threshold then
+                totalBroken = totalBroken + 1
+            end
             if pct < lowestDur then lowestDur = pct end
         end
     end
@@ -397,7 +401,9 @@ function update_hammer_popup()
         end
 
         popup:Show()
-        if SfuiDB.hideRepairHammer then
+        popup:Show()
+        -- Respect enable setting (defaults to true if nil)
+        if SfuiDB.enableMasterHammer == false then
             popup:SetAlpha(0)
             popup:EnableMouse(false)
         else

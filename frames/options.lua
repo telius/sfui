@@ -89,9 +89,15 @@ function sfui.create_options_panel()
         cb:SetScript("OnClick", function(self)
             local checked = self:GetChecked()
             C_CVar.SetCVar(cvar, checked and "1" or "0")
+            SfuiDB[cvar] = checked -- Persist to DB
         end)
         cb:SetScript("OnShow", function(self)
-            self:SetChecked(C_CVar.GetCVarBool(cvar))
+            -- Check DB first for persistence, fallback to current CVar state
+            if SfuiDB[cvar] ~= nil then
+                self:SetChecked(SfuiDB[cvar])
+            else
+                self:SetChecked(C_CVar.GetCVarBool(cvar))
+            end
         end)
         if tooltip then
             cb:SetScript("OnEnter", function(self)
@@ -667,21 +673,51 @@ function sfui.create_options_panel()
         "Automatically repairs gear (guild first, skips if blacksmith hammer available).")
     auto_repair_cb:SetPoint("TOPLEFT", auto_sell_cb, "BOTTOMLEFT", 0, -10)
 
-    local hide_hammer_cb = create_checkbox(automation_panel, "hide repair hammer", "hideRepairHammer", function(checked)
-        if sfui.automation and sfui.automation.update_hammer_popup then
-            sfui.automation.update_hammer_popup()
-        end
-    end, "Hides the repair hammer pop-up button completely (keybind will still work).")
-    hide_hammer_cb:SetPoint("TOPLEFT", auto_repair_cb, "BOTTOMLEFT", 0, -10)
-
-    -- Aesthetics
+    -- Master's Hammer Settings
     local aesthetic_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
-    aesthetic_header:SetPoint("TOPLEFT", hide_hammer_cb, "BOTTOMLEFT", 0, -20)
+    aesthetic_header:SetPoint("TOPLEFT", auto_repair_cb, "BOTTOMLEFT", 0, -20)
     aesthetic_header:SetTextColor(white[1], white[2], white[3])
     aesthetic_header:SetText("master's hammer settings")
 
+    -- Enable Toggle
+    local enable_hammer_cb = create_checkbox(automation_panel, "master's hammer", "enableMasterHammer", function(checked)
+        if sfui.automation and sfui.automation.update_hammer_popup then
+            sfui.automation.update_hammer_popup()
+        end
+    end, "Enables the automated Master's Hammer repair popup.")
+    enable_hammer_cb:SetPoint("TOPLEFT", aesthetic_header, "BOTTOMLEFT", 0, -10)
+
+    -- Threshold
+    local threshold_label = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
+    threshold_label:SetPoint("TOPLEFT", enable_hammer_cb, "BOTTOMLEFT", 0, -10)
+    threshold_label:SetText("repair threshold (%):")
+    threshold_label:SetTextColor(white[1], white[2], white[3])
+
+    local threshold_input = CreateFrame("EditBox", nil, automation_panel, "InputBoxTemplate")
+    threshold_input:SetSize(40, 20)
+    threshold_input:SetPoint("LEFT", threshold_label, "RIGHT", 5, 0)
+    threshold_input:SetAutoFocus(false)
+    threshold_input:SetNumeric(true)
+    threshold_input:SetScript("OnShow", function(self)
+        self:SetText(tostring(SfuiDB.repairThreshold or 90))
+    end)
+    threshold_input:SetScript("OnEnterPressed", function(self)
+        local val = tonumber(self:GetText())
+        if val then
+            if val < 0 then val = 0 end
+            if val > 100 then val = 100 end
+            SfuiDB.repairThreshold = val
+            self:SetText(tostring(val))
+            if sfui.automation and sfui.automation.update_hammer_popup then
+                sfui.automation.update_hammer_popup()
+            end
+        end
+        self:ClearFocus()
+    end)
+
+    -- Aesthetics Inputs
     local icon_x_label = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
-    icon_x_label:SetPoint("TOPLEFT", aesthetic_header, "BOTTOMLEFT", 0, -10)
+    icon_x_label:SetPoint("TOPLEFT", threshold_label, "BOTTOMLEFT", 0, -15)
     icon_x_label:SetText("x:")
 
     local icon_x_input = CreateFrame("EditBox", nil, automation_panel, "InputBoxTemplate")
