@@ -18,3 +18,6 @@ Interface/AddOns/*/
 .vscode/
 *.swp
 *~
+
+# Internal tools
+.agent/
