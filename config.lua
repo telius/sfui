@@ -50,7 +50,7 @@ sfui.config = {
         -- Demon Hunter
         [577] = { r = 0.635, g = 1.0, b = 0.0 },      -- Havoc
         [581] = { r = 0.64, g = 0.19, b = 0.79 },     -- Vengeance
-        [1480] = { r = 0.196, g = 0.259, b = 0.941 }, -- Devourer
+        [1480] = { r = 0.788, g = 0.259, b = 0.992 }, -- Devourer (Official Blizzard UI Color)
         -- Druid
         [102] = { r = 1.00, g = 0.49, b = 0.04 },     -- Balance
         [103] = { r = 1.00, g = 0.49, b = 0.04 },     -- Feral

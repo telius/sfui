@@ -239,10 +239,17 @@ do
         local color = sfui.common.get_class_or_spec_color()
         if color then bar:SetStatusBarColor(color.r, color.g, color.b) end
 
-        -- Marker logic (Shadow Priest 55% threshold)
-        if specID == 258 then
+        -- Marker logic
+        if specID == 258 then -- Shadow Priest (55% threshold)
             bar.marker:ClearAllPoints()
             bar.marker:SetPoint("LEFT", bar, "LEFT", bar:GetWidth() * 0.55, 0)
+            bar.marker:SetHeight(bar:GetHeight())
+            bar.marker:Show()
+        elseif specID == 1480 and max >= 100 then -- Devourer Demon Hunter (100 value)
+            bar.marker:ClearAllPoints()
+            local width = bar:GetWidth()
+            local pct = 100 / max
+            bar.marker:SetPoint("LEFT", bar, "LEFT", width * pct, 0)
             bar.marker:SetHeight(bar:GetHeight())
             bar.marker:Show()
         else
@@ -355,14 +362,21 @@ do
         bar.TextValue:SetText(current)
         bar:SetMinMaxValues(0, max)
         bar:SetValue(current)
-        local color
-        if cfg.useClassColor then
-            color = sfui.common.get_class_or_spec_color()
+
+        -- Devourer Customization
+        if specID == 1480 then
+            -- Cosmic Purple (#6600FF)
+            bar:SetStatusBarColor(0.4, 0.0, 1.0)
         else
-            color = sfui.common.get_resource_color(resource)
-        end
-        if color then
-            bar:SetStatusBarColor(color.r, color.g, color.b)
+            local color
+            if cfg.useClassColor then
+                color = sfui.common.get_class_or_spec_color()
+            else
+                color = sfui.common.get_resource_color(resource)
+            end
+            if color then
+                bar:SetStatusBarColor(color.r, color.g, color.b)
+            end
         end
     end
 
