@@ -26,7 +26,7 @@ jobs:
       - name: Package and Release
         uses: BigWigsMods/packager@v2
         with:
-          args: # -d removed to enable uploads
+          args: -n sfui.zip
           # The packager automatically handles:
           # 1. Reading .pkgmeta
           # 2. Downloading externals (Libs)
