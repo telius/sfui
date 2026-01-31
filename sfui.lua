@@ -87,6 +87,21 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             if SfuiDB.enableVigorBar == nil then SfuiDB.enableVigorBar = true end
             if SfuiDB.enableMountSpeedBar == nil then SfuiDB.enableMountSpeedBar = true end
 
+            -- Castbar settings
+            if SfuiDB.castBarEnabled == nil then SfuiDB.castBarEnabled = sfui.config.castBar.enabled end
+            if SfuiDB.castBarX == nil then SfuiDB.castBarX = sfui.config.castBar.pos.x end
+            if SfuiDB.castBarY == nil then SfuiDB.castBarY = sfui.config.castBar.pos.y end
+            sfui.config.castBar.enabled = SfuiDB.castBarEnabled
+            sfui.config.castBar.pos.x = SfuiDB.castBarX
+            sfui.config.castBar.pos.y = SfuiDB.castBarY
+
+            if SfuiDB.targetCastBarEnabled == nil then SfuiDB.targetCastBarEnabled = sfui.config.targetCastBar.enabled end
+            if SfuiDB.targetCastBarX == nil then SfuiDB.targetCastBarX = sfui.config.targetCastBar.pos.x end
+            if SfuiDB.targetCastBarY == nil then SfuiDB.targetCastBarY = sfui.config.targetCastBar.pos.y end
+            sfui.config.targetCastBar.enabled = SfuiDB.targetCastBarEnabled
+            sfui.config.targetCastBar.pos.x = SfuiDB.targetCastBarX
+            sfui.config.targetCastBar.pos.y = SfuiDB.targetCastBarY
+
             if SfuiDB.enableReminders == nil then SfuiDB.enableReminders = true end
             if SfuiDB.remindersX == nil then SfuiDB.remindersX = 0 end
             if SfuiDB.remindersY == nil then SfuiDB.remindersY = 10 end

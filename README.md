@@ -23,7 +23,7 @@ Tracks out of combat raid buffs and personal consumables.
 Redesigned merchant interface with filtering and currency display.
 - Ctrl+Click to preview items
 - Shift+RightClick to buy stacks or max affordable
-- Integrated housing decor filtering
+- Integrated housing decor filtering (can be disabled in options)
 ![Merchant UI](shots/merchant.png)
 
 ### Item Tracking
@@ -45,6 +45,8 @@ View talents, artifacts, and covenants directly in-game.
 Quality of life features to streamline daily tasks.
 - **Auto Role Check**: Automatically accepts role checks.
 - **Enhanced LFG**: Double-click groups in the LFG tool to sign up instantly.
+- **Auto-Sell Greys**: Automatically sells grey items at vendors.
+- **Auto-Repair**: Automatically repairs gear (prioritizing guild repairs).
 
 ### Vehicle and Dragonriding
 Clean interfaces for vehicles and dragonriding.

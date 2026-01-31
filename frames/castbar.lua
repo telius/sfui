@@ -1,6 +1,29 @@
 sfui = sfui or {}
 sfui.castbar = {}
 
+local UnitCastingInfo = UnitCastingInfo
+local UnitChannelInfo = UnitChannelInfo
+local UnitName = UnitName
+local UnitSpellHaste = UnitSpellHaste
+local UnitCastingDuration = UnitCastingDuration
+local UnitChannelDuration = UnitChannelDuration
+local GetTime = GetTime
+local C_Spell = C_Spell
+local C_Timer = C_Timer
+local Enum = Enum
+local LibStub = LibStub
+local UIParent = UIParent
+local CreateFrame = CreateFrame
+
+-- ========================
+-- helpers for basic checks
+-- ========================
+local function SafeBoolean(value)
+    local status, result = pcall(function() return not value end)
+    if not status then return false end
+    return not result
+end
+
 -- ========================
 -- helpers for instant cast
 -- ========================
@@ -142,6 +165,14 @@ local function CreateStageDividers(bar, numStages)
 end
 
 local function OnUpdate(self, elapsed)
+    -- Throttle text updates to ~20fps
+    self.throttle = (self.throttle or 0) + elapsed
+    local updateText = false
+    if self.throttle > 0.05 then
+        updateText = true
+        self.throttle = 0
+    end
+
     if self.casting then
         self.value = self.value + elapsed
         if self.value >= self.maxValue then
@@ -149,7 +180,9 @@ local function OnUpdate(self, elapsed)
             return
         end
         self:SetValue(self.value)
-        self.TimerText:SetFormattedText("%.1f", self.maxValue - self.value)
+        if updateText then
+            self.TimerText:SetFormattedText("%.1f", self.maxValue - self.value)
+        end
 
         -- Spark Logic
         local sparkPosition = (self.value / self.maxValue) * self:GetWidth()
@@ -161,7 +194,9 @@ local function OnUpdate(self, elapsed)
             return
         end
         self:SetValue(self.value)
-        self.TimerText:SetFormattedText("%.1f", self.value)
+        if updateText then
+            self.TimerText:SetFormattedText("%.1f", self.value)
+        end
 
         -- Spark Logic
         local sparkPosition = (self.value / self.maxValue) * self:GetWidth()
@@ -173,7 +208,9 @@ local function OnUpdate(self, elapsed)
             return
         end
         self:SetValue(self.value)
-        self.TimerText:SetFormattedText("%.1f", self.maxValue - self.value)
+        if updateText then
+            self.TimerText:SetFormattedText("%.1f", self.maxValue - self.value)
+        end
 
         if self.numStages and self.numStages > 0 then
             local progress = self.value / self.maxValue
@@ -200,7 +237,9 @@ local function OnUpdate(self, elapsed)
         if remaining < 0 then remaining = 0 end
 
         self:SetValue(remaining)
-        self.TimerText:SetFormattedText("%.1f", remaining)
+        if updateText then
+            self.TimerText:SetFormattedText("%.1f", remaining)
+        end
 
         local sparkPosition = (remaining / self.instant_dur) * self:GetWidth()
         self.Spark:SetPoint("CENTER", self, "LEFT", sparkPosition, 0)
@@ -383,6 +422,8 @@ event_frame:RegisterEvent("PLAYER_LOGIN")
 
 local function SetupBar(configName, unit)
     local bar = CreateCastBar(configName, unit)
+    sfui.castbar.bars = sfui.castbar.bars or {}
+    sfui.castbar.bars[unit] = bar
     bar:SetScript("OnUpdate", OnUpdate)
 
     bar:RegisterUnitEvent("UNIT_SPELLCAST_START", unit)
@@ -402,9 +443,192 @@ local function SetupBar(configName, unit)
     return bar
 end
 
+-- ========================
+-- Target CastBar Logic
+-- ========================
+
+local function UpdateTargetCastBarColor(bar, notInterruptible)
+    local cfg = sfui.config[bar.configName]
+    local color
+
+    -- Use SafeBoolean to check the value without crashing
+    local isShielded = SafeBoolean(notInterruptible)
+
+    if isShielded then
+        color = cfg.nonInterruptibleColor or { 0.2, 0.2, 0.2 }
+    else
+        color = cfg.color or { 1, 1, 1 }
+    end
+    bar:SetStatusBarColor(color[1], color[2], color[3])
+end
+
+local function Target_StartCast(self, unit)
+    local name, text, texture, startTime, endTime, isTradeSkill, castID, notInterruptible = UnitCastingInfo(unit)
+
+    if not name then
+        self.backdrop:Hide()
+        return
+    end
+
+    self.casting = true
+    self.channeling = nil
+    self.castID = castID
+
+    -- Use duration object API (works with secret values)
+    local duration = UnitCastingDuration(unit)
+
+    if duration then
+        local StatusBarTimerDirection = Enum.StatusBarTimerDirection
+        local StatusBarInterpolation = Enum.StatusBarInterpolation
+        self:SetTimerDuration(duration, StatusBarInterpolation.Linear, StatusBarTimerDirection.ElapsedTime)
+    end
+
+    self.Icon:SetTexture(texture)
+    UpdateTargetCastBarColor(self, notInterruptible)
+
+    local targetName = UnitName("targettarget")
+    if targetName then
+        self.Text:SetText(text .. " > " .. targetName)
+    else
+        self.Text:SetText(text)
+    end
+
+    self.backdrop:Show()
+end
+
+local function Target_StartChannel(self, unit)
+    local name, text, texture, startTime, endTime, isTradeSkill, notInterruptible = UnitChannelInfo(unit)
+
+    if not name then
+        return
+    end
+
+    self.casting = nil
+    self.channeling = true
+
+    -- Use duration object API (works with secret values)
+    local duration = UnitChannelDuration(unit)
+    if duration then
+        local StatusBarTimerDirection = Enum.StatusBarTimerDirection
+        local StatusBarInterpolation = Enum.StatusBarInterpolation
+        self:SetTimerDuration(duration, StatusBarInterpolation.Linear, StatusBarTimerDirection.RemainingTime)
+    end
+
+    self.Icon:SetTexture(texture)
+    UpdateTargetCastBarColor(self, notInterruptible)
+
+    local targetName = UnitName("targettarget")
+    if targetName then
+        self.Text:SetText(name .. " > " .. targetName)
+    else
+        self.Text:SetText(name)
+    end
+
+    self.backdrop:Show()
+end
+
+local function Target_OnEvent(self, event, ...)
+    local unit = ...
+    if unit and unit ~= self.unit and event ~= "PLAYER_TARGET_CHANGED" then return end
+
+    if event == "PLAYER_TARGET_CHANGED" then
+        if UnitCastingInfo("target") then
+            Target_StartCast(self, "target")
+        elseif UnitChannelInfo("target") then
+            Target_StartChannel(self, "target")
+        else
+            self.casting = nil
+            self.channeling = nil
+            self.backdrop:Hide()
+        end
+    elseif event == "UNIT_SPELLCAST_START" then
+        Target_StartCast(self, unit)
+    elseif event == "UNIT_SPELLCAST_CHANNEL_START" then
+        Target_StartChannel(self, unit)
+    elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" then
+        if event == "UNIT_SPELLCAST_STOP" then self.casting = nil end
+        if event == "UNIT_SPELLCAST_CHANNEL_STOP" then self.channeling = nil end
+
+        if not self.casting and not self.channeling then
+            self.backdrop:Hide()
+        end
+    elseif event == "UNIT_SPELLCAST_INTERRUPTIBLE" or event == "UNIT_SPELLCAST_NOT_INTERRUPTIBLE" then
+        local _, _, _, _, _, _, _, notInterruptible = UnitCastingInfo(unit)
+        if notInterruptible == nil then
+            local _, _, _, _, _, _, notInterruptibleChannel = UnitChannelInfo(unit)
+            if notInterruptibleChannel ~= nil then
+                notInterruptible = notInterruptibleChannel
+            end
+        end
+        UpdateTargetCastBarColor(self, notInterruptible)
+    end
+end
+
+
+
+local function SetupTargetBar(configName, unit)
+    local cfg = sfui.config[configName]
+    if not cfg or not cfg.enabled then return end
+
+    local bar = CreateCastBar(configName, unit)
+    sfui.castbar.bars = sfui.castbar.bars or {}
+    sfui.castbar.bars[unit] = bar
+    -- Target specific setup
+    bar:RegisterEvent("PLAYER_TARGET_CHANGED")
+    bar:RegisterUnitEvent("UNIT_SPELLCAST_START", unit)
+    bar:RegisterUnitEvent("UNIT_SPELLCAST_STOP", unit)
+    bar:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", unit)
+    bar:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", unit)
+    bar:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTIBLE", unit)
+    bar:RegisterUnitEvent("UNIT_SPELLCAST_NOT_INTERRUPTIBLE", unit)
+
+    bar:SetScript("OnEvent", Target_OnEvent)
+    bar:SetScript("OnUpdate", nil)
+    if bar.Spark then bar.Spark:Hide() end
+
+    return bar
+end
+
+function sfui.castbar.update_settings()
+    -- Sync config from DB
+    if SfuiDB.castBarEnabled ~= nil then sfui.config.castBar.enabled = SfuiDB.castBarEnabled end
+    if SfuiDB.castBarX ~= nil then sfui.config.castBar.pos.x = SfuiDB.castBarX end
+    if SfuiDB.castBarY ~= nil then sfui.config.castBar.pos.y = SfuiDB.castBarY end
+
+    if SfuiDB.targetCastBarEnabled ~= nil then sfui.config.targetCastBar.enabled = SfuiDB.targetCastBarEnabled end
+    if SfuiDB.targetCastBarX ~= nil then sfui.config.targetCastBar.pos.x = SfuiDB.targetCastBarX end
+    if SfuiDB.targetCastBarY ~= nil then sfui.config.targetCastBar.pos.y = SfuiDB.targetCastBarY end
+
+    -- Apply to active bars
+    if sfui.castbar.bars then
+        local playerBar = sfui.castbar.bars["player"]
+        if playerBar then
+            local cfg = sfui.config.castBar
+            playerBar.backdrop:ClearAllPoints()
+            playerBar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", cfg.pos.x, cfg.pos.y)
+        end
+
+        local targetBar = sfui.castbar.bars["target"]
+        if targetBar then
+            local cfg = sfui.config.targetCastBar
+            targetBar.backdrop:ClearAllPoints()
+            targetBar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", cfg.pos.x, cfg.pos.y)
+        end
+    end
+end
+
+function sfui.castbar.set_bar_texture(texturePath)
+    if sfui.castbar.bars then
+        for _, bar in pairs(sfui.castbar.bars) do
+            bar:SetStatusBarTexture(texturePath)
+        end
+    end
+end
+
 event_frame:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_LOGIN" then
         SetupBar("castBar", "player")
+        SetupTargetBar("targetCastBar", "target")
 
         if _G.PlayerCastingBarFrame then
             _G.PlayerCastingBarFrame:SetAlpha(0)

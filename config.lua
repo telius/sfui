@@ -176,6 +176,20 @@ sfui.config = {
         },
     },
 
+    targetCastBar = {
+        enabled = true,
+        width = 300,
+        height = 50,
+        pos = { x = 0, y = 480 },
+        color = { 1, 1, 1 },                       -- Interruptible (White)
+        nonInterruptibleColor = { 0.2, 0.2, 0.2 }, -- Dark Grey
+        interruptedColor = { 1, 0, 0 },
+        backdrop = {
+            padding = 2,
+            color = { 0, 0, 0, 0.5 },
+        },
+    },
+
     -- Instant Cast Bar (GCD Bar) settings
     instantCastBar = {
         enabled = true,

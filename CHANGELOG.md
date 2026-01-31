@@ -1,3 +1,14 @@
+## v0.1.3.c (2026-01-31)
+
+### Features
+- **Decor Filter**: Added option to disable decor caching/filtering in Merchant settings (clears cache when enabled).
+- **Automation**: Consolidated "Auto-Sell Greys" and "Auto-Repair" into the Automation tab.
+- **UI**: Lowercased all text in the Options Panel for a cleaner aesthetic.
+
+### Code Cleanup
+- **Optimization**: Added aliases for global API functions in `castbar.lua` and `options.lua`.
+- **Refactor**: Cleaned up duplicate code and resolved lint warnings in `options.lua`.
+
 ## v0.1.3.b (2026-01-31)
 
 ### Refactor

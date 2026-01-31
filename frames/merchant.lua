@@ -758,6 +758,7 @@ sfui.merchant.currencyCache = {}
 sfui.merchant.decorCachePopulated = false
 
 sfui.merchant.populate_decor_cache = function()
+    if SfuiDB and SfuiDB.disableDecor then return end
     if sfui.merchant.decorCachePopulated then return end
     if not (C_HousingCatalog and C_HousingCatalog.CreateCatalogSearcher) then return end
 
@@ -845,7 +846,7 @@ sfui.merchant.build_item_list = function()
                 end
             end
         end
-        if include and mode == "merchant" and sfui.merchant.housingDecorFilter > 0 and is_housing_decor(link) then
+        if include and mode == "merchant" and (not (SfuiDB and SfuiDB.disableDecor)) and sfui.merchant.housingDecorFilter > 0 and is_housing_decor(link) then
             if SfuiDecorDB and SfuiDecorDB.items and SfuiDecorDB.items[itemID] then
                 local cached = SfuiDecorDB.items[itemID]
                 if sfui.merchant.housingDecorFilter == 1 and ((cached.o or 0) + (cached.p or 0) + (cached.s or 0)) > 0 then
@@ -922,7 +923,11 @@ sfui.merchant.build_item_list = function()
 
 
     if sfui.merchant.housingFilterBtn then
-        sfui.merchant.housingFilterBtn:Show()
+        if SfuiDB and SfuiDB.disableDecor then
+            sfui.merchant.housingFilterBtn:Hide()
+        else
+            sfui.merchant.housingFilterBtn:Show()
+        end
     end
 
     sfui.merchant.totalMerchantItems = #sfui.merchant.filteredIndices
