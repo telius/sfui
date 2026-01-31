@@ -14,15 +14,11 @@ local Enum = Enum
 local LibStub = LibStub
 local UIParent = UIParent
 local CreateFrame = CreateFrame
+local C_CurveUtil = C_CurveUtil
 
 -- ========================
 -- helpers for basic checks
 -- ========================
-local function SafeBoolean(value)
-    local status, result = pcall(function() return not value end)
-    if not status then return false end
-    return not result
-end
 
 -- ========================
 -- helpers for instant cast
@@ -357,6 +353,15 @@ local function OnEvent(self, event, ...)
         if self.casting and event == "UNIT_SPELLCAST_STOP" then
             local castGUID = select(2, ...)
             if castGUID ~= self.castID then return end
+            self.casting = nil
+        end
+
+        if event == "UNIT_SPELLCAST_EMPOWER_STOP" then
+            self.empowering = nil
+        end
+
+        if event == "UNIT_SPELLCAST_CHANNEL_STOP" then
+            self.channeling = nil
         end
 
         if not self.casting and not self.channeling and not self.empowering then
@@ -451,15 +456,18 @@ local function UpdateTargetCastBarColor(bar, notInterruptible)
     local cfg = sfui.config[bar.configName]
     local color
 
-    -- Use SafeBoolean to check the value without crashing
-    local isShielded = SafeBoolean(notInterruptible)
+    -- Direct boolean check
+    local normal = cfg.color or { 1, 1, 1 }
+    local shielded = cfg.nonInterruptibleColor or { 0.2, 0.2, 0.2 }
 
-    if isShielded then
-        color = cfg.nonInterruptibleColor or { 0.2, 0.2, 0.2 }
+    if notInterruptible ~= nil then
+        local r = C_CurveUtil.EvaluateColorValueFromBoolean(notInterruptible, shielded[1], normal[1])
+        local g = C_CurveUtil.EvaluateColorValueFromBoolean(notInterruptible, shielded[2], normal[2])
+        local b = C_CurveUtil.EvaluateColorValueFromBoolean(notInterruptible, shielded[3], normal[3])
+        bar:GetStatusBarTexture():SetVertexColor(r, g, b)
     else
-        color = cfg.color or { 1, 1, 1 }
+        bar:SetStatusBarColor(normal[1], normal[2], normal[3])
     end
-    bar:SetStatusBarColor(color[1], color[2], color[3])
 end
 
 local function Target_StartCast(self, unit)

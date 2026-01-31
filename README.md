@@ -38,22 +38,34 @@ Health, primary power, and secondary resources (Stagger, Runes, etc).
 ![Player Status](shots/playerhp_stagger.png)
 
 ### Research
-View talents, artifacts, and covenants directly in-game.
+View talents, archaeology, and profession trees directly in-game. Supports Skyriding, Delves, and expansion-specific research systems.
 ![Research Viewer](shots/researchviewer.png)
+
+### Castbars
+Enhanced cast visualization for both player and target.
+- **Player Castbar**: Clean, high-fidelity bar with integrated **Instant Cast Tracking** (shows a quick highlight when instant spells are used). Supports Empowered (Evoker) spell stages with dynamic color shifting.
+- **Target Castbar**: High-visibility bar positioned for better combat awareness. Distinct colors for interruptible vs. non-interruptible spells.
 
 ### Automation
 Quality of life features to streamline daily tasks.
 - **Auto Role Check**: Automatically accepts role checks.
 - **Enhanced LFG**: Double-click groups in the LFG tool to sign up instantly.
 - **Auto-Sell Greys**: Automatically sells grey items at vendors.
-- **Auto-Repair**: Automatically repairs gear (prioritizing guild repairs).
+- **Auto-Repair**: Automatically repairs gear (prioritizing guild repairs). Automatically skips if you have a Master's Hammer to prevent wasting durability.
+- **Master's Hammer System**: When damaged gear is detected and a hammer is in your bags, a large context-sensitive popup appears. 
+    - **Sequential Rotation**: Each click or keybind press repairs the next item in the list (Priority: Weapons/Shields -> Plate Armor).
+    - **Spam Proof**: Advances the target immediately on click, allowing you to spam all repairs in a single GCD window without double-casting.
+    - **Keybind Support**: Can be bound to a single key via the WoW Bindings menu (SFUI -> Master's Hammer Repair).
 
-### Vehicle and Dragonriding
-Clean interfaces for vehicles and dragonriding.
+![Master's Hammer Repair](shots/mastersrepair.png)
+
+### Vehicle and Skyriding
+Clean interfaces for vehicles and current flight systems.
 - Improved visibility for vigor and speed
+- Terminology updated for modern Skyriding systems
 
-![Dragonflying](shots/dragonflying.png)
-*Dragonflying HUD*
+![Skyriding](shots/dragonflying.png)
+*Skyriding HUD*
 
 ![Vehicle UI](shots/vehicleui.png)
 *Vehicle Interface*

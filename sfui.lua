@@ -2,6 +2,9 @@ sfui = sfui or {}
 sfui.is_ready_for_vendor_frame = false
 SfuiDB = SfuiDB or {}
 
+BINDING_HEADER_SFUI = "SFUI"
+_G["BINDING_NAME_CLICK SfuiHammerPopup:LeftButton"] = "Master's Hammer Repair"
+
 
 SLASH_SFUI1 = "/sfui"
 SLASH_RL1 = "/rl"
@@ -55,7 +58,11 @@ event_frame:SetScript("OnEvent", function(self, event, name)
                 LSM:Register("statusbar", "Spark", "Interface/CastingBar/UI-CastingBar-Spark")
             end
 
-            -- Sync version from TOC to config (single source of truth)
+            -- Database & Config Sync
+            SfuiDB = SfuiDB or {}
+            SfuiDecorDB = SfuiDecorDB or {}
+            SfuiDecorDB.items = SfuiDecorDB.items or {}
+
             local tocVersion = C_AddOns.GetAddOnMetadata("sfui", "Version")
             if tocVersion then
                 sfui.config.version = tocVersion
@@ -63,8 +70,6 @@ event_frame:SetScript("OnEvent", function(self, event, name)
 
             if type(SfuiDB.barTexture) ~= "string" or SfuiDB.barTexture == "" then SfuiDB.barTexture = "Flat" end
             SfuiDB.absorbBarColor = SfuiDB.absorbBarColor or sfui.config.absorbBarColor
-            SfuiDecorDB = SfuiDecorDB or {}
-            SfuiDecorDB.items = SfuiDecorDB.items or {}
 
             SfuiDB.minimap_icon = SfuiDB.minimap_icon or { hide = false }
             SfuiDB.minimap_collect_buttons = (SfuiDB.minimap_collect_buttons == nil) and true or

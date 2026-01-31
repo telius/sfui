@@ -108,28 +108,6 @@ function sfui.merchant.reset_scroll_and_rebuild()
     sfui.merchant.build_item_list()
 end
 
-local settingsDropdownBtn = CreateFlatButton(frame, "settings", 70, 20)
-settingsDropdownBtn:SetPoint("RIGHT", filterDropdownBtn, "LEFT", -5, 0)
-settingsDropdownBtn:SetScript("OnClick", function(self)
-    MenuUtil.CreateContextMenu(self, function(owner, rootDescription)
-        rootDescription:SetTag("MENU_MERCHANT_SETTINGS");
-
-        rootDescription:CreateCheckbox("Auto-Sell Greys",
-            function() return SfuiDB.autoSellGreys end,
-            function()
-                SfuiDB.autoSellGreys = not SfuiDB.autoSellGreys
-            end);
-
-        rootDescription:CreateCheckbox("Auto-Repair",
-            function() return SfuiDB.autoRepair end,
-            function()
-                SfuiDB.autoRepair = not SfuiDB.autoRepair
-            end);
-
-        rootDescription:CreateSpacer();
-    end);
-end)
-
 -- (Moved above)
 local buttons = {}
 
@@ -686,48 +664,6 @@ sellJunkBtn:SetScript("OnClick", function()
     end
 end)
 
-local function auto_sell_greys()
-    if not SfuiDB.autoSellGreys then return end
-
-    local totalPrice = 0
-    for bag = 0, 4 do
-        for slot = 1, C_Container.GetContainerNumSlots(bag) do
-            local info = C_Container.GetContainerItemInfo(bag, slot)
-            if info and info.hyperlink and info.quality == 0 then
-                local price = info.noValue and 0 or (select(11, C_Item.GetItemInfo(info.hyperlink)) or 0)
-                if price > 0 then
-                    totalPrice = totalPrice + (price * info.stackCount)
-                    C_Container.UseContainerItem(bag, slot)
-                end
-            end
-        end
-    end
-    if totalPrice > 0 then
-        print("|cff00ff00Auto-sold greys for " .. C_CurrencyInfo.GetCoinTextureString(totalPrice) .. ".|r")
-    end
-end
-
-local function auto_repair()
-    if not SfuiDB.autoRepair then return end
-    if not CanMerchantRepair() then return end
-
-    if hasBlacksmithHammer then
-        print("|cffff9900Auto-repair skipped: Blacksmith hammer detected.|r")
-        return
-    end
-
-    local repairAllCost, canRepair = GetRepairAllCost()
-    if not canRepair or repairAllCost == 0 then return end
-
-    if CanGuildBankRepair() then
-        RepairAllItems(true)
-        print("|cff00ff00Auto-repaired using guild funds for " ..
-            C_CurrencyInfo.GetCoinTextureString(repairAllCost) .. ".|r")
-    else
-        RepairAllItems(false)
-        print("|cff00ff00Auto-repaired for " .. C_CurrencyInfo.GetCoinTextureString(repairAllCost) .. ".|r")
-    end
-end
 
 
 local function update_repair_buttons()
@@ -1131,8 +1067,6 @@ frame:SetScript("OnEvent", function(self, event, ...)
     elseif event == "MERCHANT_SHOW" then
         update_header()
         sfui.merchant.reset_scroll_and_rebuild()
-        auto_sell_greys()
-        auto_repair()
         if SfuiDB.disableMerchant then return end
         self:Show()
         sfui.merchant.build_item_list()

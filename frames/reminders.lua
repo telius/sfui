@@ -12,7 +12,6 @@ local function has_rune()
     local RUNE_PAIRS = {
         { itemID = 243191, spellID = 1234969 }, -- Ethereal Augment Rune (TWW Permanent)
         { itemID = 224572, spellID = 449652 },  -- Algari Augment Rune (TWW Consumable)
-        { itemID = 211495, spellID = 393438 },  -- Draconic Augment Rune (DF)
     }
     for _, pair in ipairs(RUNE_PAIRS) do
         if C_Item.GetItemCount(pair.itemID) > 0 then
@@ -48,7 +47,7 @@ local function update_buff_data()
         { name = "Intellect",    spellID = 1459,   icon = 135932,  class = "MAGE" },                                          -- Arcane Intellect
         { name = "Attack Power", spellID = 6673,   icon = 132333,  class = "WARRIOR" },                                       -- Battle Shout
         { name = "Versatility",  spellID = 1126,   icon = 136078,  class = "DRUID" },                                         -- Mark of the Wild
-        { name = "Bronze",       spellID = 364343, icon = 4622455, class = "EVOKER" },                                        -- Blessing of the Bronze
+        { name = "Bronze",       spellID = 381748, icon = 4622448, class = "EVOKER" },                                        -- Blessing of the Bronze
         { name = "Soulstone",    spellID = 20707,  icon = 134336,  class = "WARLOCK", isAny = true, ignoreThreshold = true }, -- Soulstone
     }
 

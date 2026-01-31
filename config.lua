@@ -378,4 +378,56 @@ sfui.config = {
         auto_role_check = true,
         auto_sign_lfg = true,
     },
+
+    -- Master's Hammer Specialization Nodes
+    -- Organised by expansion version keys.
+    masterHammer = {
+        [225660] = { -- Earthen Master's Hammer (TWW)
+            nodes = {
+                ["HEAD"] = 99233,
+                ["SHOULDER"] = 99232,
+                ["CHEST"] = 99237,
+                ["WRIST"] = 99228,
+                ["HANDS"] = 99227,
+                ["WAIST"] = 99229,
+                ["LEGS"] = 99236,
+                ["FEET"] = 99231,
+                ["SHIELD"] = 99235,
+                -- Weapon SubClassIDs (Class 2)
+                [0] = 99447,
+                [1] = 99447,
+                [6] = 99447, -- Axes/Polearms
+                [4] = 99448,
+                [5] = 99448, -- Maces
+                [7] = 99450,
+                [8] = 99450,
+                [9] = 99450, -- Long Blades
+                [15] = 99451,
+                [13] = 99451 -- Short Blades
+            }
+        },
+        [238020] = { -- Thalassian Master Repair Hammer (Midnight)
+            nodes = {
+                ["HEAD"] = 104570,
+                ["SHOULDER"] = 104569,
+                ["CHEST"] = 104574,
+                ["WRIST"] = 104565,
+                ["HANDS"] = 104564,
+                ["WAIST"] = 104566,
+                ["LEGS"] = 104573,
+                ["FEET"] = 104568,
+                ["SHIELD"] = 104572,
+                [0] = 104627,
+                [1] = 104627,
+                [6] = 104627, -- Axes/Polearms
+                [4] = 104628,
+                [5] = 104628, -- Maces
+                [7] = 104630,
+                [8] = 104630,
+                [9] = 104630, -- Long Blades
+                [15] = 104631,
+                [13] = 104631 -- Short Blades
+            }
+        },
+    }
 }

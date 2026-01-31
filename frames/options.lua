@@ -435,12 +435,12 @@ function sfui.create_options_panel()
 
     local vigor_bar_cb = create_checkbox(bars_panel, "enable vigor bar", "enableVigorBar", function(checked)
         if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
-    end, "toggles the vigor bar (dragonriding).")
+    end, "toggles the vigor bar (skyriding).")
     vigor_bar_cb:SetPoint("TOPLEFT", secondary_power_cb, "BOTTOMLEFT", 0, -10)
 
     local mount_speed_cb = create_checkbox(bars_panel, "enable mount speed bar", "enableMountSpeedBar", function(checked)
         if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
-    end, "toggles the mount speed bar (dragonriding).")
+    end, "toggles the mount speed bar (skyriding).")
     mount_speed_cb:SetPoint("TOPLEFT", vigor_bar_cb, "BOTTOMLEFT", 0, -10)
 
     -- Health Bar Position
@@ -667,6 +667,73 @@ function sfui.create_options_panel()
         "Automatically repairs gear (guild first, skips if blacksmith hammer available).")
     auto_repair_cb:SetPoint("TOPLEFT", auto_sell_cb, "BOTTOMLEFT", 0, -10)
 
+    local hide_hammer_cb = create_checkbox(automation_panel, "hide repair hammer", "hideRepairHammer", function(checked)
+        if sfui.automation and sfui.automation.update_hammer_popup then
+            sfui.automation.update_hammer_popup()
+        end
+    end, "Hides the repair hammer pop-up button completely (keybind will still work).")
+    hide_hammer_cb:SetPoint("TOPLEFT", auto_repair_cb, "BOTTOMLEFT", 0, -10)
+
+    -- Aesthetics
+    local aesthetic_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
+    aesthetic_header:SetPoint("TOPLEFT", hide_hammer_cb, "BOTTOMLEFT", 0, -20)
+    aesthetic_header:SetTextColor(white[1], white[2], white[3])
+    aesthetic_header:SetText("master's hammer settings")
+
+    local icon_x_label = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
+    icon_x_label:SetPoint("TOPLEFT", aesthetic_header, "BOTTOMLEFT", 0, -10)
+    icon_x_label:SetText("x:")
+
+    local icon_x_input = CreateFrame("EditBox", nil, automation_panel, "InputBoxTemplate")
+    icon_x_input:SetPoint("LEFT", icon_x_label, "RIGHT", 5, 0)
+    icon_x_input:SetSize(50, 20)
+    icon_x_input:SetAutoFocus(false)
+    icon_x_input:SetScript("OnShow", function(self) self:SetText(tostring(SfuiDB.repairIconX or 880)) end)
+    icon_x_input:SetScript("OnEnterPressed", function(self)
+        local val = tonumber(self:GetText()) or 880
+        SfuiDB.repairIconX = val
+        if sfui.automation and sfui.automation.update_popup_style then
+            sfui.automation.update_popup_style()
+        end
+        self:ClearFocus()
+    end)
+
+    local icon_y_label = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
+    icon_y_label:SetPoint("LEFT", icon_x_input, "RIGHT", 10, 0)
+    icon_y_label:SetText("y:")
+
+    local icon_y_input = CreateFrame("EditBox", nil, automation_panel, "InputBoxTemplate")
+    icon_y_input:SetPoint("LEFT", icon_y_label, "RIGHT", 5, 0)
+    icon_y_input:SetSize(50, 20)
+    icon_y_input:SetAutoFocus(false)
+    icon_y_input:SetScript("OnShow", function(self) self:SetText(tostring(SfuiDB.repairIconY or 397)) end)
+    icon_y_input:SetScript("OnEnterPressed", function(self)
+        local val = tonumber(self:GetText()) or 397
+        SfuiDB.repairIconY = val
+        if sfui.automation and sfui.automation.update_popup_style then
+            sfui.automation.update_popup_style()
+        end
+        self:ClearFocus()
+    end)
+
+    local color_label = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
+    color_label:SetPoint("LEFT", icon_y_input, "RIGHT", 15, 0)
+    color_label:SetText("color (#hex):")
+
+    local color_input = CreateFrame("EditBox", nil, automation_panel, "InputBoxTemplate")
+    color_input:SetPoint("LEFT", color_label, "RIGHT", 5, 0)
+    color_input:SetSize(70, 20)
+    color_input:SetAutoFocus(false)
+    color_input:SetScript("OnShow", function(self) self:SetText(SfuiDB.repairIconColor or "00FFFF") end)
+    color_input:SetScript("OnEnterPressed", function(self)
+        local val = self:GetText()
+        SfuiDB.repairIconColor = val
+        if sfui.automation and sfui.automation.update_popup_style then
+            sfui.automation.update_popup_style()
+        end
+        self:ClearFocus()
+    end)
+
     -- 7. Minimap Panel
     local minimap_header = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
     minimap_header:SetPoint("TOPLEFT", 15, -15)
@@ -835,7 +902,7 @@ function sfui.create_options_panel()
     research_info:SetPoint("RIGHT", -15, 0)
     research_info:SetJustifyH("LEFT")
     research_info:SetText(
-        "the research viewer allows you to view various talent and research trees (order halls, dragonriding, delves, etc.) from anywhere. you can also open it by middle-clicking the sfui minimap icon.")
+        "the research viewer allows you to view various talent and research trees (skyriding, delves, etc.) from anywhere. you can also open it by middle-clicking the sfui minimap icon.")
 
     local toggle_research_button = CreateFlatButton(research_panel, "open research viewer", 160, 22)
     toggle_research_button:SetPoint("TOPLEFT", research_info, "BOTTOMLEFT", 0, -20)
@@ -871,7 +938,7 @@ function sfui.create_options_panel()
     end)
     add_trait_button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText("trait tree (dragonriding, delves, etc.)")
+        GameTooltip:SetText("trait tree (skyriding, delves, etc.)")
         GameTooltip:Show()
     end)
     add_trait_button:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -953,6 +1020,19 @@ function sfui.create_options_panel()
     local decor_cache_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
     decor_cache_value:SetPoint("LEFT", decor_cache_label, "RIGHT", 5, 0)
 
+    -- Hammer Status
+    local hammer_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+    hammer_label:SetPoint("TOPLEFT", decor_cache_label, "BOTTOMLEFT", 0, -15)
+    hammer_label:SetText("master's hammer:")
+    local hammer_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+    hammer_value:SetPoint("LEFT", hammer_label, "RIGHT", 5, 0)
+
+    local hammer_id_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+    hammer_id_label:SetPoint("TOPLEFT", hammer_label, "BOTTOMLEFT", 0, -15)
+    hammer_id_label:SetText("hammer item id:")
+    local hammer_id_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+    hammer_id_value:SetPoint("LEFT", hammer_id_label, "RIGHT", 5, 0)
+
     local debug_refresh_button = CreateFlatButton(debug_panel, "refresh", 100, 22)
     debug_refresh_button:SetPoint("BOTTOM", debug_panel, "BOTTOM", 0, 10)
 
@@ -971,6 +1051,20 @@ function sfui.create_options_panel()
             decor_cache_value:SetText(sfui.merchant.decorCacheStatus)
         else
             decor_cache_value:SetText("N/A (Not Populated)")
+        end
+
+        if sfui.automation and sfui.automation.has_repair_hammer then
+            local found, name, icon, itemID = sfui.automation.has_repair_hammer(true)
+            if found then
+                hammer_value:SetText("|cff00ff00Found|r (" .. (name or "Unknown") .. ")")
+                hammer_id_value:SetText(tostring(itemID))
+            else
+                hammer_value:SetText("|cffff0000Not Found|r")
+                hammer_id_value:SetText("None")
+            end
+        else
+            hammer_value:SetText("N/A")
+            hammer_id_value:SetText("N/A")
         end
     end
 
