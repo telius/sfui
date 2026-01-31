@@ -1,6 +1,13 @@
 sfui.common = {}
 
-local _, playerClass = UnitClass("player")
+local _, playerClass, playerClassID = UnitClass("player")
+
+-- ... (skipping lines)
+
+-- Returns the cached player class (e.g., "WARRIOR", "MAGE")
+function sfui.common.get_player_class()
+    return playerClass, playerClassID
+end
 
 local powerTypeToName = {}
 for name, value in pairs(Enum.PowerType) do
@@ -66,6 +73,10 @@ common_event_frame:SetScript("OnEvent", function(self, event)
     update_cached_spec_id()
 end)
 
+function sfui.common.get_current_spec_id()
+    if cachedSpecID == 0 then update_cached_spec_id() end
+    return cachedSpecID
+end
 
 function sfui.common.update_widget_bar(widget_frame, icons_pool, labels_pool, source_data, get_details_func)
     if not widget_frame then return end
@@ -138,6 +149,13 @@ function sfui.common.get_class_or_spec_color()
     if cachedSpecID and sfui.config.spec_colors[cachedSpecID] then
         local custom_color = sfui.config.spec_colors[cachedSpecID]
         color = { r = custom_color.r, g = custom_color.g, b = custom_color.b }
+    end
+    if not color and playerClass then
+        local classColor = C_ClassColor and C_ClassColor.GetClassColor(playerClass) or
+            (RAID_CLASS_COLORS and RAID_CLASS_COLORS[playerClass])
+        if classColor then
+            color = { r = classColor.r, g = classColor.g, b = classColor.b }
+        end
     end
     return color
 end
@@ -342,4 +360,66 @@ function sfui.common.get_masque_group(subGroupName)
     local Masque = LibStub and LibStub("Masque", true)
     if not Masque then return nil end
     return Masque:Group("sfui", subGroupName)
+end
+
+-- ========================
+-- Player & Group Utilities
+-- ========================
+
+-- Returns the cached player class (e.g., "WARRIOR", "MAGE")
+function sfui.common.get_player_class()
+    return playerClass
+end
+
+-- Returns a table of unit IDs for all group members (including player)
+-- Returns {"player"} if not in a group
+function sfui.common.get_group_units()
+    local units = {}
+    if not IsInGroup() then
+        return { "player" }
+    end
+
+    local numMembers = GetNumGroupMembers()
+    local isRaid = IsInRaid()
+
+    if isRaid then
+        for i = 1, numMembers do
+            table.insert(units, "raid" .. i)
+        end
+    else
+        table.insert(units, "player")
+        for i = 1, numMembers - 1 do
+            table.insert(units, "party" .. i)
+        end
+    end
+
+    return units
+end
+
+-- Checks if a specific class is present in the current group
+-- @param className: The class to check for (e.g., "WARRIOR", "PRIEST")
+-- @return: true if the class is present, false otherwise
+function sfui.common.is_class_in_group(className)
+    if playerClass == className then return true end
+    if not IsInGroup() then return false end
+
+    for _, unit in ipairs(sfui.common.get_group_units()) do
+        if UnitExists(unit) then
+            local _, class = UnitClass(unit)
+            if class == className then return true end
+        end
+    end
+    return false
+end
+
+-- ========================
+-- Item Utilities
+-- ========================
+
+-- Extracts the item ID from an item link
+-- @param link: Item link string (e.g., "|cff0070dd|Hitem:12345:0:0:0|h[Item Name]|h|r")
+-- @return: Item ID as a number, or nil if not found
+function sfui.common.get_item_id_from_link(link)
+    if not link then return nil end
+    return tonumber(link:match("item:(%d+)"))
 end

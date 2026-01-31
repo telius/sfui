@@ -1,6 +1,32 @@
 sfui = sfui or {}
 sfui.castbar = {}
 
+-- ========================
+-- helpers for instant cast
+-- ========================
+local function apply_haste_to_gcd(base)
+    local hasteprocent = UnitSpellHaste("player") or 0
+    local haste = hasteprocent / 100
+    local gcd = base / (1 + haste)
+    if base >= 1.5 then
+        if gcd < 0.75 then gcd = 0.75 end
+    else
+        if gcd < 1.0 then gcd = 1.0 end
+    end
+    return gcd
+end
+
+local function is_instant_spell(spellID)
+    if not spellID then return false, nil end
+    local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(spellID)
+    if not info then return false, nil end
+
+    if info.castTime and info.castTime == 0 then
+        return true, info.name
+    end
+    return false, nil
+end
+
 local function CreateCastBar(configName, unit)
     local bar = sfui.common.create_bar(configName, "StatusBar", UIParent)
     bar.unit, bar.configName = unit, configName
@@ -38,98 +64,55 @@ local function CreateCastBar(configName, unit)
     bar:SetStatusBarTexture(texturePath)
 
     bar.backdrop:ClearAllPoints()
-    bar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 110)
+    bar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", cfg.pos.x, cfg.pos.y)
     bar.backdrop:Hide()
     return bar
 end
 
 local function UpdateCastBarColor(bar, state)
-    local cfg = sfui.config[bar.configName]
-    local color = cfg.color -- Default
+    -- determine base color
+    local color
 
-    if state == "CHANNEL" then
-        color = cfg.channelColor or { 0, 1, 0 }
-    elseif state == "INTERRUPTED" then
+    -- always use red for interrupted
+    if state == "INTERRUPTED" then
+        local cfg = sfui.config[bar.configName]
         color = cfg.interruptedColor or { 1, 0, 0 }
     elseif state == "EMPOWER" then
+        -- empower uses its own color system
+        local cfg = sfui.config[bar.configName]
         color = cfg.empoweredColor or { 0.4, 0, 1 }
+    else
+        -- INSTANT, CAST, CHANNEL
+        -- Logic: If player, try spec color. Else fallback to config color.
+        -- For INSTANT/CHANNEL, if fallback needed, use channelColor.
+
+        local specColor = nil
+        if bar.unit == "player" then
+            specColor = sfui.common.get_class_or_spec_color()
+        end
+
+        if specColor then
+            color = { specColor.r, specColor.g, specColor.b }
+        else
+            -- Fallback
+            local cfg = sfui.config[bar.configName]
+            color = cfg.color
+
+            if state == "CHANNEL" or state == "INSTANT" then
+                color = cfg.channelColor or { 0, 1, 0 }
+            end
+        end
     end
 
     bar:SetStatusBarColor(color[1], color[2], color[3])
 end
 
-local function StartLinger(self)
+local function ResetBar(self)
     self.casting = nil
     self.channeling = nil
     self.empowering = nil
-    self.isLingering = true
-    self.lingerTime = 1.0 -- Linger for 1 second
-    self.fadeTime = 0.5   -- Fade over 0.5 seconds
-    self.backdrop:Show()  -- Ensure it stays shown
-    self.backdrop:SetAlpha(1)
-end
-
-local function OnUpdate(self, elapsed)
-    if self.casting then
-        self.value = self.value + elapsed
-        if self.value >= self.maxValue then
-            self:SetValue(self.maxValue)
-            StartLinger(self)
-            return
-        end
-        self:SetValue(self.value)
-        self.TimerText:SetFormattedText("%.1f", self.maxValue - self.value)
-
-        -- Spark Logic
-        local sparkPosition = (self.value / self.maxValue) * self:GetWidth()
-        self.Spark:SetPoint("CENTER", self, "LEFT", sparkPosition, 0)
-    elseif self.channeling then
-        self.value = self.value - elapsed
-        if self.value <= 0 then
-            self.value = 0
-            StartLinger(self)
-            return
-        end
-        self:SetValue(self.value)
-        self.TimerText:SetFormattedText("%.1f", self.value)
-
-        -- Spark Logic
-        local sparkPosition = (self.value / self.maxValue) * self:GetWidth()
-        self.Spark:SetPoint("CENTER", self, "LEFT", sparkPosition, 0)
-    elseif self.empowering then
-        self.value = self.value + elapsed
-        if self.value >= self.maxValue then
-            self:SetValue(self.maxValue); StartLinger(self); return
-        end
-        self:SetValue(self.value)
-        self.TimerText:SetFormattedText("%.1f", self.maxValue - self.value)
-
-        if self.numStages and self.numStages > 0 then
-            local progress = self.value / self.maxValue
-            local currentStage = math.min(math.floor(progress * self.numStages) + 1, self.numStages)
-
-            if currentStage ~= self.empowerStage then
-                self.empowerStage = currentStage
-                local stageColors = sfui.config[self.configName].empoweredStageColors
-                local c = stageColors and stageColors[currentStage]
-                if c then self:SetStatusBarColor(c[1], c[2], c[3]) end
-            end
-        end
-        local sparkPosition = (self.value / self.maxValue) * self:GetWidth()
-        self.Spark:SetPoint("CENTER", self, "LEFT", sparkPosition, 0)
-    elseif self.isLingering then
-        self.lingerTime = self.lingerTime - elapsed
-        if self.lingerTime <= 0 then
-            self.fadeTime = self.fadeTime - elapsed
-            if self.fadeTime <= 0 then
-                self.isLingering = nil; self.backdrop:Hide(); self.backdrop:SetAlpha(1)
-            else
-                self.backdrop:SetAlpha(self.fadeTime / 0.5)
-            end
-        end
-    else
-        self.value = 0; self.backdrop:Hide(); self.backdrop:SetAlpha(1)
-    end
+    self.instant = nil -- Reset instant state
+    self.backdrop:Hide()
 end
 
 local function CreateStageDividers(bar, numStages)
@@ -158,7 +141,118 @@ local function CreateStageDividers(bar, numStages)
     end
 end
 
-local function OnEvent(self, event, unit, ...)
+local function OnUpdate(self, elapsed)
+    if self.casting then
+        self.value = self.value + elapsed
+        if self.value >= self.maxValue then
+            ResetBar(self)
+            return
+        end
+        self:SetValue(self.value)
+        self.TimerText:SetFormattedText("%.1f", self.maxValue - self.value)
+
+        -- Spark Logic
+        local sparkPosition = (self.value / self.maxValue) * self:GetWidth()
+        self.Spark:SetPoint("CENTER", self, "LEFT", sparkPosition, 0)
+    elseif self.channeling then
+        self.value = self.value - elapsed
+        if self.value <= 0 then
+            ResetBar(self)
+            return
+        end
+        self:SetValue(self.value)
+        self.TimerText:SetFormattedText("%.1f", self.value)
+
+        -- Spark Logic
+        local sparkPosition = (self.value / self.maxValue) * self:GetWidth()
+        self.Spark:SetPoint("CENTER", self, "LEFT", sparkPosition, 0)
+    elseif self.empowering then
+        self.value = self.value + elapsed
+        if self.value >= self.maxValue then
+            ResetBar(self)
+            return
+        end
+        self:SetValue(self.value)
+        self.TimerText:SetFormattedText("%.1f", self.maxValue - self.value)
+
+        if self.numStages and self.numStages > 0 then
+            local progress = self.value / self.maxValue
+            local currentStage = math.min(math.floor(progress * self.numStages) + 1, self.numStages)
+
+            if currentStage ~= self.empowerStage then
+                self.empowerStage = currentStage
+                local stageColors = sfui.config[self.configName].empoweredStageColors
+                local c = stageColors and stageColors[currentStage]
+                if c then self:SetStatusBarColor(c[1], c[2], c[3]) end
+            end
+        end
+        local sparkPosition = (self.value / self.maxValue) * self:GetWidth()
+        self.Spark:SetPoint("CENTER", self, "LEFT", sparkPosition, 0)
+    elseif self.instant then
+        -- Handle Instant Cast Bar Logic
+        local t = GetTime() - self.instant_t0
+        if t >= self.instant_dur then
+            ResetBar(self)
+            return
+        end
+
+        local remaining = self.instant_dur - t
+        if remaining < 0 then remaining = 0 end
+
+        self:SetValue(remaining)
+        self.TimerText:SetFormattedText("%.1f", remaining)
+
+        local sparkPosition = (remaining / self.instant_dur) * self:GetWidth()
+        self.Spark:SetPoint("CENTER", self, "LEFT", sparkPosition, 0)
+    else
+        self.value = 0; self.backdrop:Hide(); self.backdrop:SetAlpha(1)
+    end
+end
+
+
+local function OnEvent(self, event, ...)
+    if event == "UNIT_SPELLCAST_SUCCEEDED" then
+        local unit, _, spellID = ...
+        if unit ~= self.unit then return end
+
+        -- Don't override if casting/channeling
+        if self.casting or self.channeling or self.empowering then return end
+
+        local isInstant, name = is_instant_spell(spellID)
+        if isInstant then
+            local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(spellID)
+            local texture = info and info.iconID
+
+            -- Predictive GCD Logic
+            local duration = apply_haste_to_gcd(1.5)
+
+            self.instant = true
+            self.casting = nil
+            self.channeling = nil
+            self.empowering = nil
+
+            self.instant_t0 = GetTime()
+            self.instant_dur = duration
+
+            self.backdrop:Show()
+            self.backdrop:SetAlpha(1)
+            self:SetMinMaxValues(0, duration)
+            self:SetValue(duration)
+
+            self.Text:SetText(name or "GCD")
+            if texture then
+                self.Icon:SetTexture(texture)
+            end
+
+            UpdateCastBarColor(self, "INSTANT")
+            self.Spark:Show()
+            CreateStageDividers(self, 0)
+        end
+        return
+    end
+
+    -- UNIT arg handling for other events
+    local unit = ...
     if unit ~= self.unit then return end
 
     if event == "UNIT_SPELLCAST_START" then
@@ -179,6 +273,7 @@ local function OnEvent(self, event, unit, ...)
         self.casting = true
         self.channeling = nil
         self.empowering = nil
+        self.instant = nil -- Clear instant state
         self.castID = castID
 
         UpdateCastBarColor(self, "CAST")
@@ -201,6 +296,7 @@ local function OnEvent(self, event, unit, ...)
             self.value = (GetTime() - (startTime / 1000))
             self.maxValue = (endTime - startTime) / 1000
             self.casting, self.channeling, self.empowering = nil, nil, true
+            self.instant = nil
             self.numStages, self.empowerStage = numStages, 0
 
             local stageColors = sfui.config[self.configName].empoweredStageColors
@@ -211,6 +307,7 @@ local function OnEvent(self, event, unit, ...)
             self.value = ((endTime / 1000) - GetTime())
             self.maxValue = (endTime - startTime) / 1000
             self.casting, self.channeling, self.empowering = nil, true, nil
+            self.instant = nil
             UpdateCastBarColor(self, "CHANNEL"); CreateStageDividers(self, 0)
         end
 
@@ -219,24 +316,24 @@ local function OnEvent(self, event, unit, ...)
         self.Spark:Show()
     elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "UNIT_SPELLCAST_EMPOWER_STOP" then
         if self.casting and event == "UNIT_SPELLCAST_STOP" then
-            local castID = select(1, ...)
-            if castID ~= self.castID then return end -- Ignore unrelated cast stops
+            local castGUID = select(2, ...)
+            if castGUID ~= self.castID then return end
         end
 
-        -- Channel stops usually pass spellID
-
         if not self.casting and not self.channeling and not self.empowering then
-            StartLinger(self)
+            ResetBar(self)
         end
 
         if not UnitCastingInfo(unit) and not UnitChannelInfo(unit) then
-            StartLinger(self)
+            if not self.instant then
+                ResetBar(self)
+            end
         end
     elseif event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_INTERRUPTED" then
-        local castID = select(1, ...)
+        local castGUID = select(2, ...)
 
         -- Only process if it matches our current cast
-        if self.casting and castID == self.castID then
+        if self.casting and castGUID == self.castID then
             self:SetValue(self.maxValue)
             UpdateCastBarColor(self, "INTERRUPTED", self.notInterruptible)
             self.Text:SetText(FAILED)
@@ -247,15 +344,14 @@ local function OnEvent(self, event, unit, ...)
             self.casting = nil
             self.channeling = nil
             self.empowering = nil
+            self.instant = nil
 
             C_Timer.After(0.5, function()
-                if not self.casting and not self.channeling and not self.empowering then
-                    StartLinger(self)
+                if not self.casting and not self.channeling and not self.empowering and not self.instant then
+                    ResetBar(self)
                 end
             end)
         elseif (self.channeling or self.empowering) and (event == "UNIT_SPELLCAST_INTERRUPTED") then
-            -- Channels don't always use castID, but if interrupted, we should check availability
-            -- If UnitChannelInfo is gone, it's gone.
             if not UnitChannelInfo(unit) then
                 self:SetValue(self.maxValue)
                 UpdateCastBarColor(self, "INTERRUPTED", self.notInterruptible)
@@ -264,10 +360,11 @@ local function OnEvent(self, event, unit, ...)
                 self.casting = nil
                 self.channeling = nil
                 self.empowering = nil
+                self.instant = nil
 
                 C_Timer.After(0.5, function()
-                    if not self.casting and not self.channeling and not self.empowering then
-                        StartLinger(self)
+                    if not self.casting and not self.channeling and not self.empowering and not self.instant then
+                        ResetBar(self)
                     end
                 end)
             end
@@ -276,12 +373,6 @@ local function OnEvent(self, event, unit, ...)
         local name, _, _, startTime, endTime, _, castID = UnitCastingInfo(unit)
         if not name or not startTime or not endTime or not castID then return end
         self.value = (GetTime() - (startTime / 1000))
-        self.maxValue = (endTime - startTime) / 1000
-        self:SetMinMaxValues(0, self.maxValue)
-    elseif event == "UNIT_SPELLCAST_CHANNEL_UPDATE" or event == "UNIT_SPELLCAST_EMPOWER_UPDATE" then
-        local name, _, _, startTime, endTime, _, _, spellID = UnitChannelInfo(unit)
-        if not name or not startTime or not endTime or not spellID then return end
-        self.value = ((endTime / 1000) - GetTime())
         self.maxValue = (endTime - startTime) / 1000
         self:SetMinMaxValues(0, self.maxValue)
     end
@@ -305,12 +396,13 @@ local function SetupBar(configName, unit)
     bar:RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_START", unit)
     bar:RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_UPDATE", unit)
     bar:RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_STOP", unit)
+    bar:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", unit)
 
     bar:SetScript("OnEvent", OnEvent)
     return bar
 end
 
-event_frame:SetScript("OnEvent", function(self, event)
+event_frame:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_LOGIN" then
         SetupBar("castBar", "player")
 

@@ -5,19 +5,7 @@ local RAID_BUFFS = {}
 local PERSONAL_BUFFS = {}
 
 local function is_class_present(className)
-    local _, playerClass = UnitClass("player")
-    if playerClass == className then return true end
-    if not IsInGroup() then return false end
-
-    local numMembers = GetNumGroupMembers()
-    for i = 1, numMembers do
-        local unit = IsInRaid() and ("raid" .. i) or ("party" .. i)
-        if UnitExists(unit) then
-            local _, class = UnitClass(unit)
-            if class == className then return true end
-        end
-    end
-    return false
+    return sfui.common.is_class_in_group(className)
 end
 
 local function has_rune()
@@ -52,9 +40,8 @@ local function has_healthstone()
 end
 
 local function update_buff_data()
-    local _, playerClass = UnitClass("player")
-    local spec = C_SpecializationInfo.GetSpecialization()
-    local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
+    local playerClass = sfui.common.get_player_class()
+    local specID = sfui.common.get_current_spec_id()
 
     local raidBuffs = {
         { name = "Stamina",      spellID = 21562,  icon = 135987,  class = "PRIEST" },                                        -- Power Word: Fortitude
@@ -179,16 +166,7 @@ local function check_group_buff_status(spellID, ignoreThreshold)
     if not IsInGroup() then return has_aura(spellID, "player", ignoreThreshold) end
     if not spellID then return false end
 
-    local numMembers = GetNumGroupMembers()
-    local isRaid = IsInRaid()
-    local unitsToCheck = {}
-
-    if isRaid then
-        for i = 1, numMembers do table.insert(unitsToCheck, "raid" .. i) end
-    else
-        table.insert(unitsToCheck, "player")
-        for i = 1, numMembers - 1 do table.insert(unitsToCheck, "party" .. i) end
-    end
+    local unitsToCheck = sfui.common.get_group_units()
 
     for _, unit in ipairs(unitsToCheck) do
         if UnitExists(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit) then
@@ -202,16 +180,7 @@ local function check_any_group_buff_status(spellID, ignoreThreshold)
     if not IsInGroup() then return has_aura(spellID, "player", ignoreThreshold) end
     if not spellID then return false end
 
-    local numMembers = GetNumGroupMembers()
-    local isRaid = IsInRaid()
-    local unitsToCheck = {}
-
-    if isRaid then
-        for i = 1, numMembers do table.insert(unitsToCheck, "raid" .. i) end
-    else
-        table.insert(unitsToCheck, "player")
-        for i = 1, numMembers - 1 do table.insert(unitsToCheck, "party" .. i) end
-    end
+    local unitsToCheck = sfui.common.get_group_units()
 
     for _, unit in ipairs(unitsToCheck) do
         if UnitExists(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit) then
@@ -294,9 +263,8 @@ local function check_pet_warning()
         set_warning("pet", false); return
     end
 
-    local _, playerClass = UnitClass("player")
-    local spec = C_SpecializationInfo.GetSpecialization()
-    local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
+    local playerClass = sfui.common.get_player_class()
+    local specID = sfui.common.get_current_spec_id()
     local isAppropriateSpec = false
 
     if playerClass == "HUNTER" and (specID == 253 or specID == 255) then
@@ -330,6 +298,8 @@ end
 
 local function create_icons()
     if InCombatLockdown() then return end
+    local cfg = sfui.config.reminders
+
     if not frame then
         frame = CreateFrame("Frame", "SfuiRemindersFrame", UIParent, "SecureHandlerStateTemplate")
 
@@ -341,15 +311,15 @@ local function create_icons()
             tile = true,
             tileSize = 16,
         })
-        frame.bg:SetBackdropColor(0, 0, 0, 0.5) -- Semi-transparent black
-        frame.bg:SetPoint("TOPLEFT", frame, "TOPLEFT", -4, 4)
-        frame.bg:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 4, -4)
+        frame.bg:SetBackdropColor(unpack(cfg.backdrop.color)) -- Semi-transparent black
+        frame.bg:SetPoint("TOPLEFT", frame, "TOPLEFT", -cfg.backdrop.padding, cfg.backdrop.padding)
+        frame.bg:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", cfg.backdrop.padding, -cfg.backdrop.padding)
     end
-    frame:SetPoint("BOTTOM", UIParent, "BOTTOM", SfuiDB.remindersX, SfuiDB.remindersY)
+    frame:SetPoint("BOTTOM", UIParent, "BOTTOM", SfuiDB.remindersX or cfg.pos.x, SfuiDB.remindersY or cfg.pos.y)
 
     for _, icon in ipairs(icons) do icon:Hide() end
 
-    local size, spacing, groupSpacing = 32, 4, 12
+    local size, spacing, groupSpacing = cfg.icon_size, cfg.spacing, cfg.group_spacing
     local combined = {}
     for _, b in ipairs(RAID_BUFFS) do table.insert(combined, b) end
     for i, b in ipairs(PERSONAL_BUFFS) do

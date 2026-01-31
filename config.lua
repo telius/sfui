@@ -11,6 +11,12 @@ sfui.config = {
     font_large = "GameFontNormalLarge",
     font_highlight = "GameFontHighlight",
     header_color = { 1, 1, 1 },
+    throttle = {
+        health = 0.05,
+        power = 0.05,
+        absorb = 0.1,
+        visibility = 0.1,
+    },
     textures = {
         white = "Interface/Buttons/WHITE8X8",
         tooltip = "Interface/Tooltips/UI-Tooltip-Background",
@@ -152,6 +158,7 @@ sfui.config = {
         enabled = true,
         width = 300,
         height = 15,
+        pos = { x = 0, y = 110 },
         color = { 0.133, 0.133, 0.133 },   -- #222222
         channelColor = { 0, 1, 0 },        -- Green for channels
         empoweredColor = { 0.4, 0, 1 },    -- Default/Fallback Purple
@@ -163,6 +170,19 @@ sfui.config = {
         },
         interruptedColor = { 1, 0, 0 },    -- Red for interrupted
         gcdColor = { 0.5, 0.5, 0.5 },      -- Gray for GCD
+        backdrop = {
+            padding = 2,
+            color = { 0, 0, 0, 0.5 },
+        },
+    },
+
+    -- Instant Cast Bar (GCD Bar) settings
+    instantCastBar = {
+        enabled = true,
+        width = 300,
+        height = 15,
+        channelColor = { 0, 1, 0 }, -- Green for GCD
+        iconSize = 19,
         backdrop = {
             padding = 2,
             color = { 0, 0, 0, 0.5 },
@@ -246,6 +266,18 @@ sfui.config = {
         },
     },
 
+    -- Reminders (Buffs/Debuffs)
+    reminders = {
+        icon_size = 32,
+        spacing = 4,
+        group_spacing = 12,
+        pos = { x = 250, y = 220 }, -- Default if not saved
+        backdrop = {
+            padding = 4,
+            color = { 0, 0, 0, 0.5 },
+        },
+    },
+
     -- Warnings
     warnings = {
         pet = {
@@ -325,5 +357,11 @@ sfui.config = {
             decor_hide_storage = "purple",
             decor_show_all = "white",
         },
+    },
+
+    -- automation settings
+    automation = {
+        auto_role_check = true,
+        auto_sign_lfg = true,
     },
 }

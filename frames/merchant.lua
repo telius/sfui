@@ -15,7 +15,7 @@ local ITEMS_PER_PAGE = NUM_ROWS * NUM_COLS
 
 sfui.merchant.lootFilterState = 0 -- 0=All, 1=Class, 2=Spec
 
-local _, playerClass, playerClassID = UnitClass("player")
+local playerClass, playerClassID = sfui.common.get_player_class()
 local classArmor = {
     ["WARRIOR"] = 4,
     ["PALADIN"] = 4,
@@ -133,11 +133,7 @@ end)
 -- (Moved above)
 local buttons = {}
 
-local function get_item_id(link)
-    if not link then return nil end
-    local id = C_Item.GetItemInfoInstant(link)
-    return id or tonumber(string.match(link, "item:(%d+)"))
-end
+local get_item_id = sfui.common.get_item_id_from_link
 
 local function is_housing_decor(link)
     local itemID = get_item_id(link)
@@ -807,13 +803,25 @@ sfui.merchant.populate_decor_cache = function()
     searcher:RunSearch()
 end
 
+
+
+sfui.merchant.filteredIndices = sfui.merchant.filteredIndices or {}
+sfui.merchant.currencyCache = sfui.merchant.currencyCache or {}
+
+local function AddToCache(id, name, texture, count, type)
+    if name and not sfui.merchant.currencyCache[name] then
+        sfui.merchant.currencyCache[name] = { id = id, texture = texture, count = count, type = type }
+    end
+end
+
 sfui.merchant.build_item_list = function()
     local mode = sfui.merchant.mode
     local numItemsRaw = (mode == "buyback") and GetNumBuybackItems() or GetMerchantNumItems()
 
-    sfui.merchant.filteredIndices = {}
-    sfui.merchant.currencyCache = {}
+    wipe(sfui.merchant.filteredIndices)
+    wipe(sfui.merchant.currencyCache)
     local hasHousingItems = false
+    local specID = sfui.common.get_current_spec_id() -- Optimization: Hoist out of loop
 
     for i = 1, numItemsRaw do
         local include, link = true, nil
@@ -865,9 +873,7 @@ sfui.merchant.build_item_list = function()
             if not isClassMatch then
                 include = false
             elseif sfui.merchant.lootFilterState == 2 then
-                -- Spec Filter
-                local spec = GetSpecialization()
-                local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
+                -- Spec Filter (specID already fetched)
                 if specID > 0 and not C_Item.DoesItemContainSpec(link, playerClassID, specID) then
                     include = false
                 end
@@ -885,12 +891,6 @@ sfui.merchant.build_item_list = function()
                         type =
                         "gold"
                     }
-                end
-
-                local function AddToCache(id, name, texture, count, type)
-                    if name and not sfui.merchant.currencyCache[name] then
-                        sfui.merchant.currencyCache[name] = { id = id, texture = texture, count = count, type = type }
-                    end
                 end
 
                 if itemInfo.currencyID then

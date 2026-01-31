@@ -1,3 +1,14 @@
+## v0.1.3.b (2026-01-31)
+
+### Refactor
+- Centralized configuration: Moved hardcoded settings (frame positions, sizes, throttles) from `bars.lua`, `castbar.lua` (added position config), and `reminders.lua` to `config.lua`.
+- Centralized utility functions: Added `sfui.common` helpers for group iteration, class checking, and item ID extraction.
+- Optimized merchant frame: Implemented table reuse and hoisted invariant logic.
+- Code cleanup: Removed unused variables and dead code from `research.lua`.
+
+### Automation
+- Added `automation.lua`: Includes auto-accept functionality for role checks and enhanced LFG signup (double-click to sign up, auto-confirm dialog).
+
 ## v0.1.3.a (2026-01-30)
 
 ### Refactor

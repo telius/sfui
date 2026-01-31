@@ -41,6 +41,11 @@ Health, primary power, and secondary resources (Stagger, Runes, etc).
 View talents, artifacts, and covenants directly in-game.
 ![Research Viewer](shots/researchviewer.png)
 
+### Automation
+Quality of life features to streamline daily tasks.
+- **Auto Role Check**: Automatically accepts role checks.
+- **Enhanced LFG**: Double-click groups in the LFG tool to sign up instantly.
+
 ### Vehicle and Dragonriding
 Clean interfaces for vehicles and dragonriding.
 - Improved visibility for vigor and speed

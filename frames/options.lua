@@ -167,6 +167,10 @@ function sfui.create_options_panel()
     main_tab_button:SetPoint("TOPLEFT", frame, "TOPLEFT", 5, -40)
     last_tab_button = main_tab_button
 
+    local automation_panel, automation_tab_button = create_tab("automation")
+    automation_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, -10) -- distinct gap from main
+    last_tab_button = automation_tab_button
+
     local bars_panel, bars_tab_button = create_tab("bars")
     bars_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
     last_tab_button = bars_tab_button
@@ -196,7 +200,7 @@ function sfui.create_options_panel()
     last_tab_button = research_tab_button
 
     local debug_panel, debug_tab_button = create_tab("debug")
-    debug_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
+    debug_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, -10) -- distinct gap before debug
     last_tab_button = debug_tab_button
 
     local main_text = main_panel:CreateFontString(nil, "OVERLAY", g.font)
@@ -522,7 +526,21 @@ function sfui.create_options_panel()
         "Automatically repairs gear (guild first, skips if blacksmith hammer available).")
     auto_repair_cb:SetPoint("TOPLEFT", disable_merchant_cb, "BOTTOMLEFT", 0, -10)
 
-    -- 6. Minimap Panel
+    -- 6. automation panel
+    local automation_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
+    automation_header:SetPoint("TOPLEFT", 15, -15)
+    automation_header:SetTextColor(white[1], white[2], white[3])
+    automation_header:SetText("automation settings")
+
+    local auto_role_cb = create_checkbox(automation_panel, "auto confirm role checks", "auto_role_check", nil,
+        "automatically selects and accepts the role check when a group leader signs up.")
+    auto_role_cb:SetPoint("TOPLEFT", automation_header, "BOTTOMLEFT", 0, -10)
+
+    local auto_sign_cb = create_checkbox(automation_panel, "auto sign lfg", "auto_sign_lfg", nil,
+        "enables double-click signing for premade groups in the lfg tool. hold shift to bypass.")
+    auto_sign_cb:SetPoint("TOPLEFT", auto_role_cb, "BOTTOMLEFT", 0, -10)
+
+    -- 7. Minimap Panel
     local minimap_header = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
     minimap_header:SetPoint("TOPLEFT", 15, -15)
     minimap_header:SetTextColor(white[1], white[2], white[3])
@@ -781,21 +799,10 @@ function sfui.create_options_panel()
     end
 
     local function update_debug_info()
-        local spec = C_SpecializationInfo.GetSpecialization()
-        local specID = spec and C_SpecializationInfo.GetSpecializationInfo(spec) or "N/A"
-        spec_id_value:SetText(tostring(specID))
+        local specID = sfui.common.get_current_spec_id()
+        spec_id_value:SetText(specID > 0 and tostring(specID) or "N/A")
 
-        local color
-        if specID and g.spec_colors[specID] then
-            local c = g.spec_colors[specID]
-            color = { r = c.r, g = c.g, b = c.b }
-        elseif specID then
-            local _, _, _, r, g, b = C_SpecializationInfo.GetSpecializationInfo(specID)
-            if r then color = { r = r, g = g, b = b } end
-        end
-        if not color then
-            local _, class = UnitClass("player"); color = RAID_CLASS_COLORS[class]
-        end
+        local color = sfui.common.get_class_or_spec_color()
         if color then color_swatch:SetColorTexture(color.r, color.g, color.b) end
 
         if sfui.common.get_primary_resource then

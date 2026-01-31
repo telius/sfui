@@ -95,6 +95,10 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             if SfuiDB.enablePetWarning == nil then SfuiDB.enablePetWarning = true end
             if SfuiDB.enableRuneWarning == nil then SfuiDB.enableRuneWarning = true end
 
+            -- automation settings
+            if SfuiDB.auto_role_check == nil then SfuiDB.auto_role_check = true end
+            if SfuiDB.auto_sign_lfg == nil then SfuiDB.auto_sign_lfg = true end
+
 
 
 
@@ -121,6 +125,9 @@ event_frame:SetScript("OnEvent", function(self, event, name)
         end
         if sfui.reminders and sfui.reminders.initialize then
             sfui.reminders.initialize()
+        end
+        if sfui.automation and sfui.automation.initialize then
+            sfui.automation.initialize()
         end
 
         local ldb, icon = LibStub("LibDataBroker-1.1", true), LibStub("LibDBIcon-1.0", true)

@@ -1,7 +1,7 @@
 local _G = _G
 local select, unpack, ipairs, pairs, type, tostring, table, print = _G.select, _G.unpack, _G.ipairs, _G.pairs, _G.type,
     _G.tostring, _G.table, _G.print
-local CreateFrame, UnitClass = _G.CreateFrame, _G.UnitClass
+local CreateFrame = _G.CreateFrame
 local C_Garrison, C_Traits, C_AddOns, C_Covenants = _G.C_Garrison, _G.C_Traits, _G.C_AddOns, _G.C_Covenants
 local GameTooltip = _G.GameTooltip
 local ShowUIPanel, HideUIPanel = _G.ShowUIPanel, _G.HideUIPanel
@@ -10,24 +10,7 @@ local GenericTraitUI_LoadUI, OrderHall_LoadUI = _G.GenericTraitUI_LoadUI, _G.Ord
 sfui = sfui or {}
 sfui.research = {}
 
-local LEGION_ARTIFACT_TREE = 1161
 
-local playerClass = select(2, UnitClass("player"))
-local orderHalls = {
-    ["WARRIOR"] = 122,
-    ["PALADIN"] = 119,
-    ["HUNTER"] = 113,
-    ["ROGUE"] = 131,
-    ["PRIEST"] = 134,
-    ["DEATHKNIGHT"] = 128,
-    ["SHAMAN"] = 31,
-    ["MAGE"] = 116,
-    ["WARLOCK"] = 110,
-    ["MONK"] = 4,
-    ["DRUID"] = 107,
-    ["DEMONHUNTER"] = 125,
-    ["EVOKER"] = -1,
-}
 
 sfui.research.talentTrees = {
     ["Midnight"] = {

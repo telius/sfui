@@ -10,11 +10,12 @@ do
     local UpdateMountSpeedBarInternal
 
     -- Throttling system for high-frequency events
+    local tCfg = sfui.config.throttle
     local throttle = {
-        health = { lastUpdate = 0, interval = 0.05 },    -- 50ms throttle for health updates
-        power = { lastUpdate = 0, interval = 0.05 },     -- 50ms throttle for power updates
-        absorb = { lastUpdate = 0, interval = 0.1 },     -- 100ms throttle for absorb updates
-        visibility = { lastUpdate = 0, interval = 0.1 }, -- 100ms throttle for visibility checks
+        health = { lastUpdate = 0, interval = tCfg.health },
+        power = { lastUpdate = 0, interval = tCfg.power },
+        absorb = { lastUpdate = 0, interval = tCfg.absorb },
+        visibility = { lastUpdate = 0, interval = tCfg.visibility },
     }
 
     local function should_throttle(key)
@@ -123,11 +124,7 @@ do
             if primary_power_bar then primary_power_bar.backdrop:Hide() end
             if secondary_power_bar then secondary_power_bar.backdrop:Hide() end
         else
-            local spec = C_SpecializationInfo.GetSpecialization()
-            local specID = 0
-            if spec then
-                specID = select(1, C_SpecializationInfo.GetSpecializationInfo(spec))
-            end
+            local specID = sfui.common.get_current_spec_id()
 
             -- Secondary Power Bar visibility for non-dragonflying
             if secondary_power_bar and SfuiDB.enableSecondaryPowerBar then
@@ -190,8 +187,7 @@ do
 
     local function update_primary_power_bar()
         local cfg = sfui.config.powerBar
-        local spec = C_SpecializationInfo.GetSpecialization()
-        local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
+        local specID = sfui.common.get_current_spec_id()
         local hide = cfg.hiddenSpecs and cfg.hiddenSpecs[specID]
 
         if not cfg.enabled or is_dragonflying() or hide then
@@ -299,8 +295,7 @@ do
 
     local function update_secondary_power_bar()
         local cfg = sfui.config.secondaryPowerBar
-        local spec = C_SpecializationInfo.GetSpecialization()
-        local specID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
+        local specID = sfui.common.get_current_spec_id()
         local hide = cfg.hiddenSpecs and cfg.hiddenSpecs[specID]
 
         if not cfg.enabled or is_dragonflying() or hide then
