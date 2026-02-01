@@ -61,25 +61,34 @@ local function update_buff_data()
         end
     end
 
-    if is_class_present("WARLOCK") then
-        table.insert(PERSONAL_BUFFS, { name = "Healthstone", isHealthstone = true, icon = 135230 })
+    local isSolo = not IsInGroup()
+    -- Allow consumables if explicitly enabled solo (via general toggles? no, specific toggle)
+    -- Logic: If disableConsumablesSolo is true AND we are solo, skip adding them.
+    local showConsumables = not (SfuiDB.disableConsumablesSolo and isSolo)
+
+    if showConsumables then
+        if is_class_present("WARLOCK") then
+            table.insert(PERSONAL_BUFFS, { name = "Healthstone", isHealthstone = true, icon = 135230 })
+        end
+
+        table.insert(PERSONAL_BUFFS, { name = "Food", isFood = true, icon = 136000 })
+        table.insert(PERSONAL_BUFFS, { name = "Flask", isFlask = true, icon = 5931173 })
+
+        local hasRune, runeSpellID, runeItemID, runeIcon = has_rune()
+        if hasRune then
+            table.insert(PERSONAL_BUFFS,
+                { name = "Rune", spellID = runeSpellID, itemID = runeItemID, icon = runeIcon or 134430, isPersonal = true })
+        end
+
+        -- Weapon Oil / Enchant
+        table.insert(PERSONAL_BUFFS, { name = "Weapon Oil", isWeaponEnchant = true, icon = 609892 })
     end
-
-    table.insert(PERSONAL_BUFFS, { name = "Food", isFood = true, icon = 136000 })
-    table.insert(PERSONAL_BUFFS, { name = "Flask", isFlask = true, icon = 5931173 })
-
-    local hasRune, runeSpellID, runeItemID, runeIcon = has_rune()
-    if hasRune then
-        table.insert(PERSONAL_BUFFS,
-            { name = "Rune", spellID = runeSpellID, itemID = runeItemID, icon = runeIcon or 134430, isPersonal = true })
-    end
-
-    -- Weapon Oil / Enchant
-    table.insert(PERSONAL_BUFFS, { name = "Weapon Oil", isWeaponEnchant = true, icon = 609892 })
 
     -- Personal Buffs
     if playerClass == "ROGUE" then
-        table.insert(PERSONAL_BUFFS, { name = "Poison", isPoison = true, icon = 132273 })
+        if showConsumables then
+            table.insert(PERSONAL_BUFFS, { name = "Poison", isPoison = true, icon = 132273 })
+        end
     elseif playerClass == "PRIEST" and specID == 258 then
         table.insert(PERSONAL_BUFFS, { name = "Shadowform", isShadowform = true, icon = 136200 })
     elseif playerClass == "SHAMAN" then
@@ -331,7 +340,11 @@ local function create_icons()
     local totalWidth = 0
     for i, b in ipairs(combined) do
         totalWidth = totalWidth + size
-        if i < #combined then totalWidth = totalWidth + (b.isNewGroup and groupSpacing or spacing) end
+        if i < #combined then
+            local nextItem = combined[i + 1]
+            local space = (nextItem and nextItem.isNewGroup) and groupSpacing or spacing
+            totalWidth = totalWidth + space
+        end
     end
     frame:SetSize(totalWidth or size, size)
 

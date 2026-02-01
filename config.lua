@@ -290,6 +290,7 @@ sfui.config = {
             padding = 4,
             color = { 0, 0, 0, 0.5 },
         },
+        disableConsumablesSolo = true,
     },
 
     -- Warnings

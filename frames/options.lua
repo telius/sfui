@@ -876,8 +876,16 @@ function sfui.create_options_panel()
         end, "shows the reminders frame even when not in a group.")
     reminders_solo_cb:SetPoint("TOPLEFT", reminders_everywhere_cb, "BOTTOMLEFT", 0, -10)
 
+    local disable_consumables_solo_cb = create_checkbox(reminders_panel, "disable consumables solo",
+        "disableConsumablesSolo",
+        function(checked)
+            -- Trigger update to refresh buff list
+            if sfui.reminders and sfui.reminders.on_state_changed then sfui.reminders.on_state_changed(true) end
+        end, "hides food, flask, and weapon enchants when not in a group.")
+    disable_consumables_solo_cb:SetPoint("TOPLEFT", reminders_solo_cb, "BOTTOMLEFT", 0, -10)
+
     local reminders_x_label = reminders_panel:CreateFontString(nil, "OVERLAY", g.font)
-    reminders_x_label:SetPoint("TOPLEFT", reminders_solo_cb, "BOTTOMLEFT", 0, -20)
+    reminders_x_label:SetPoint("TOPLEFT", disable_consumables_solo_cb, "BOTTOMLEFT", 0, -20)
     reminders_x_label:SetText("position x:")
 
     local reminders_x_input = CreateFrame("EditBox", nil, reminders_panel, "InputBoxTemplate")
