@@ -59,81 +59,14 @@ function sfui.create_options_panel()
         frame:Hide()
     end)
 
-    local function create_checkbox(parent, label, dbKey, onClickFunc, tooltip)
-        local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-        cb:SetHitRectInsets(0, -100, 0, 0)
-        cb.text:SetText(label)
-        cb:SetScript("OnClick", function(self)
-            local checked = self:GetChecked()
-            SfuiDB[dbKey] = checked
-            if onClickFunc then onClickFunc(checked) end
-        end)
-        cb:SetScript("OnShow", function(self)
-            self:SetChecked(SfuiDB[dbKey])
-        end)
-        if tooltip then
-            cb:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:SetText(tooltip)
-                GameTooltip:Show()
-            end)
-            cb:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
-        end
-        return cb
-    end
+    local create_checkbox = sfui.common.create_checkbox
 
-    local function create_cvar_checkbox(parent, label, cvar, tooltip)
-        local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-        cb:SetHitRectInsets(0, -100, 0, 0)
-        cb.text:SetText(label)
-        cb:SetScript("OnClick", function(self)
-            local checked = self:GetChecked()
-            C_CVar.SetCVar(cvar, checked and "1" or "0")
-            SfuiDB[cvar] = checked -- Persist to DB
-        end)
-        cb:SetScript("OnShow", function(self)
-            -- Check DB first for persistence, fallback to current CVar state
-            if SfuiDB[cvar] ~= nil then
-                self:SetChecked(SfuiDB[cvar])
-            else
-                self:SetChecked(C_CVar.GetCVarBool(cvar))
-            end
-        end)
-        if tooltip then
-            cb:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:SetText(tooltip)
-                GameTooltip:Show()
-            end)
-            cb:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
-        end
-        return cb
-    end
 
-    local function create_slider(parent, label, dbKey, minVal, maxVal, step, onValueChangedFunc)
-        local name = "sfui_option_slider_" .. dbKey
-        local slider = CreateFrame("Slider", name, parent, "OptionsSliderTemplate")
-        slider:SetOrientation("HORIZONTAL")
-        slider:SetHeight(20)
-        slider:SetWidth(150)
-        slider:SetMinMaxValues(minVal, maxVal)
-        slider:SetValueStep(step)
-        slider:SetObeyStepOnDrag(true)
+    local create_cvar_checkbox = sfui.common.create_cvar_checkbox
 
-        getglobal(slider:GetName() .. 'Low'):SetText(minVal)
-        getglobal(slider:GetName() .. 'High'):SetText(maxVal)
-        getglobal(slider:GetName() .. 'Text'):SetText(label)
 
-        slider:SetScript("OnValueChanged", function(self, value)
-            SfuiDB[dbKey] = value
-            if onValueChangedFunc then onValueChangedFunc(value) end
-        end)
+    local create_slider_input = sfui.common.create_slider_input
 
-        slider:SetScript("OnShow", function(self)
-            self:SetValue(SfuiDB[dbKey] or minVal) -- Default to minVal if nil, or handle specifically
-        end)
-        return slider
-    end
 
     local function on_tab_click(self)
         select_tab(self)
@@ -212,45 +145,19 @@ function sfui.create_options_panel()
     end, "toggles the player castbar.")
     enable_player_cb:SetPoint("TOPLEFT", player_header, "BOTTOMLEFT", 0, -10)
 
-    local player_x_label = castbar_panel:CreateFontString(nil, "OVERLAY", g.font)
-    player_x_label:SetPoint("TOPLEFT", enable_player_cb, "BOTTOMLEFT", 0, -10)
-    player_x_label:SetText("x:")
-
-    local player_x_input = CreateFrame("EditBox", nil, castbar_panel, "InputBoxTemplate")
-    player_x_input:SetSize(60, 20)
-    player_x_input:SetPoint("LEFT", player_x_label, "RIGHT", 5, 0)
-    player_x_input:SetAutoFocus(false)
-    player_x_input:SetText(tostring(SfuiDB.castBarX or 0))
-    player_x_input:SetScript("OnEnterPressed", function(self)
-        local val = tonumber(self:GetText())
-        if val then
-            SfuiDB.castBarX = val
-            if sfui.castbar and sfui.castbar.update_settings then sfui.castbar.update_settings() end
-        end
-        self:ClearFocus()
+    local player_x_slider = create_slider_input(castbar_panel, "x:", "castBarX", -1000, 1000, 1, function(val)
+        if sfui.castbar and sfui.castbar.update_settings then sfui.castbar.update_settings() end
     end)
+    player_x_slider:SetPoint("TOPLEFT", enable_player_cb, "BOTTOMLEFT", 0, -10)
 
-    local player_y_label = castbar_panel:CreateFontString(nil, "OVERLAY", g.font)
-    player_y_label:SetPoint("LEFT", player_x_input, "RIGHT", 15, 0)
-    player_y_label:SetText("y:")
-
-    local player_y_input = CreateFrame("EditBox", nil, castbar_panel, "InputBoxTemplate")
-    player_y_input:SetSize(60, 20)
-    player_y_input:SetPoint("LEFT", player_y_label, "RIGHT", 5, 0)
-    player_y_input:SetAutoFocus(false)
-    player_y_input:SetText(tostring(SfuiDB.castBarY or 140))
-    player_y_input:SetScript("OnEnterPressed", function(self)
-        local val = tonumber(self:GetText())
-        if val then
-            SfuiDB.castBarY = val
-            if sfui.castbar and sfui.castbar.update_settings then sfui.castbar.update_settings() end
-        end
-        self:ClearFocus()
+    local player_y_slider = create_slider_input(castbar_panel, "y:", "castBarY", -1000, 1000, 1, function(val)
+        if sfui.castbar and sfui.castbar.update_settings then sfui.castbar.update_settings() end
     end)
+    player_y_slider:SetPoint("LEFT", player_x_slider, "RIGHT", 10, 0)
 
     -- Target Castbar --
     local target_header = castbar_panel:CreateFontString(nil, "OVERLAY", g.font)
-    target_header:SetPoint("TOPLEFT", player_x_label, "BOTTOMLEFT", 0, -30)
+    target_header:SetPoint("TOPLEFT", player_x_slider, "BOTTOMLEFT", 0, -30)
     target_header:SetText("target castbar")
 
     local enable_target_cb = create_checkbox(castbar_panel, "enable", "targetCastBarEnabled", function(checked)
@@ -258,41 +165,15 @@ function sfui.create_options_panel()
     end, "toggles the target castbar.")
     enable_target_cb:SetPoint("TOPLEFT", target_header, "BOTTOMLEFT", 0, -10)
 
-    local target_x_label = castbar_panel:CreateFontString(nil, "OVERLAY", g.font)
-    target_x_label:SetPoint("TOPLEFT", enable_target_cb, "BOTTOMLEFT", 0, -10)
-    target_x_label:SetText("x:")
-
-    local target_x_input = CreateFrame("EditBox", nil, castbar_panel, "InputBoxTemplate")
-    target_x_input:SetSize(60, 20)
-    target_x_input:SetPoint("LEFT", target_x_label, "RIGHT", 5, 0)
-    target_x_input:SetAutoFocus(false)
-    target_x_input:SetText(tostring(SfuiDB.targetCastBarX or 0))
-    target_x_input:SetScript("OnEnterPressed", function(self)
-        local val = tonumber(self:GetText())
-        if val then
-            SfuiDB.targetCastBarX = val
-            if sfui.castbar and sfui.castbar.update_settings then sfui.castbar.update_settings() end
-        end
-        self:ClearFocus()
+    local target_x_slider = create_slider_input(castbar_panel, "x:", "targetCastBarX", -1000, 1000, 1, function(val)
+        if sfui.castbar and sfui.castbar.update_settings then sfui.castbar.update_settings() end
     end)
+    target_x_slider:SetPoint("TOPLEFT", enable_target_cb, "BOTTOMLEFT", 0, -10)
 
-    local target_y_label = castbar_panel:CreateFontString(nil, "OVERLAY", g.font)
-    target_y_label:SetPoint("LEFT", target_x_input, "RIGHT", 15, 0)
-    target_y_label:SetText("y:")
-
-    local target_y_input = CreateFrame("EditBox", nil, castbar_panel, "InputBoxTemplate")
-    target_y_input:SetSize(60, 20)
-    target_y_input:SetPoint("LEFT", target_y_label, "RIGHT", 5, 0)
-    target_y_input:SetAutoFocus(false)
-    target_y_input:SetText(tostring(SfuiDB.targetCastBarY or 480))
-    target_y_input:SetScript("OnEnterPressed", function(self)
-        local val = tonumber(self:GetText())
-        if val then
-            SfuiDB.targetCastBarY = val
-            if sfui.castbar and sfui.castbar.update_settings then sfui.castbar.update_settings() end
-        end
-        self:ClearFocus()
+    local target_y_slider = create_slider_input(castbar_panel, "y:", "targetCastBarY", -1000, 1000, 1, function(val)
+        if sfui.castbar and sfui.castbar.update_settings then sfui.castbar.update_settings() end
     end)
+    target_y_slider:SetPoint("LEFT", target_x_slider, "RIGHT", 10, 0)
 
     local sct_panel, sct_tab_button = create_tab("combat text")
     sct_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
@@ -455,57 +336,30 @@ function sfui.create_options_panel()
     position_header:SetTextColor(white[1], white[2], white[3])
     position_header:SetText("health bar position")
 
-    local health_x_label = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
-    health_x_label:SetPoint("TOPLEFT", position_header, "BOTTOMLEFT", 0, -10)
-    health_x_label:SetText("x:")
-    health_x_label:SetTextColor(white[1], white[2], white[3])
-
-    local health_x_input = CreateFrame("EditBox", nil, bars_panel, "InputBoxTemplate")
-    health_x_input:SetSize(60, 20)
-    health_x_input:SetPoint("LEFT", health_x_label, "RIGHT", 5, 0)
-    health_x_input:SetAutoFocus(false)
-    health_x_input:SetText(tostring(SfuiDB.healthBarX or 0))
-    health_x_input:SetScript("OnEnterPressed", function(self)
-        local val = tonumber(self:GetText())
-        if val then
-            SfuiDB.healthBarX = val
-            if sfui.bars and sfui.bars.update_health_bar_position then
-                sfui.bars:update_health_bar_position()
-            end
+    local health_x_slider = create_slider_input(bars_panel, "x:", "healthBarX", -1000, 1000, 1, function(val)
+        if sfui.bars and sfui.bars.update_health_bar_position then
+            sfui.bars:update_health_bar_position()
         end
-        self:ClearFocus()
     end)
+    health_x_slider:SetPoint("TOPLEFT", position_header, "BOTTOMLEFT", 0, -10)
 
-    local health_y_label = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
-    health_y_label:SetPoint("LEFT", health_x_input, "RIGHT", 15, 0)
-    health_y_label:SetText("y:")
-    health_y_label:SetTextColor(white[1], white[2], white[3])
-
-    local health_y_input = CreateFrame("EditBox", nil, bars_panel, "InputBoxTemplate")
-    health_y_input:SetSize(60, 20)
-    health_y_input:SetPoint("LEFT", health_y_label, "RIGHT", 5, 0)
-    health_y_input:SetAutoFocus(false)
-    health_y_input:SetText(tostring(SfuiDB.healthBarY or 300))
-    health_y_input:SetScript("OnEnterPressed", function(self)
-        local val = tonumber(self:GetText())
-        if val then
-            SfuiDB.healthBarY = val
-            if sfui.bars and sfui.bars.update_health_bar_position then
-                sfui.bars:update_health_bar_position()
-            end
+    local health_y_slider = create_slider_input(bars_panel, "y:", "healthBarY", -1000, 1000, 1, function(val)
+        if sfui.bars and sfui.bars.update_health_bar_position then
+            sfui.bars:update_health_bar_position()
         end
-        self:ClearFocus()
     end)
+    health_y_slider:SetPoint("LEFT", health_x_slider, "RIGHT", 10, 0)
+    -- Actually, side-by-side (200px each) fits in 500px panel? Yes, 200+10+200 = 410 < 500.
 
     local reset_health_pos_btn = CreateFrame("Button", nil, bars_panel, "UIPanelButtonTemplate")
     reset_health_pos_btn:SetSize(120, 22)
-    reset_health_pos_btn:SetPoint("TOPLEFT", health_x_label, "BOTTOMLEFT", 0, -10)
+    reset_health_pos_btn:SetPoint("TOPLEFT", health_x_slider, "BOTTOMLEFT", 0, -10)
     reset_health_pos_btn:SetText("reset position")
     reset_health_pos_btn:SetScript("OnClick", function()
         SfuiDB.healthBarX = 0
         SfuiDB.healthBarY = 300
-        health_x_input:SetText("0")
-        health_y_input:SetText("300")
+        health_x_slider:SetSliderValue(0)
+        health_y_slider:SetSliderValue(300)
         if sfui.bars and sfui.bars.update_health_bar_position then
             sfui.bars:update_health_bar_position()
         end
@@ -688,72 +542,32 @@ function sfui.create_options_panel()
     enable_hammer_cb:SetPoint("TOPLEFT", aesthetic_header, "BOTTOMLEFT", 0, -10)
 
     -- Threshold
-    local threshold_label = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
-    threshold_label:SetPoint("TOPLEFT", enable_hammer_cb, "BOTTOMLEFT", 0, -10)
-    threshold_label:SetText("repair threshold (%):")
-    threshold_label:SetTextColor(white[1], white[2], white[3])
-
-    local threshold_input = CreateFrame("EditBox", nil, automation_panel, "InputBoxTemplate")
-    threshold_input:SetSize(40, 20)
-    threshold_input:SetPoint("LEFT", threshold_label, "RIGHT", 5, 0)
-    threshold_input:SetAutoFocus(false)
-    threshold_input:SetNumeric(true)
-    threshold_input:SetScript("OnShow", function(self)
-        self:SetText(tostring(SfuiDB.repairThreshold or 90))
-    end)
-    threshold_input:SetScript("OnEnterPressed", function(self)
-        local val = tonumber(self:GetText())
-        if val then
-            if val < 0 then val = 0 end
-            if val > 100 then val = 100 end
-            SfuiDB.repairThreshold = val
-            self:SetText(tostring(val))
+    -- Threshold
+    local threshold_slider = create_slider_input(automation_panel, "repair threshold (%):", "repairThreshold", 0, 100, 1,
+        function(val)
             if sfui.automation and sfui.automation.update_hammer_popup then
                 sfui.automation.update_hammer_popup()
             end
-        end
-        self:ClearFocus()
-    end)
+        end)
+    threshold_slider:SetPoint("TOPLEFT", enable_hammer_cb, "BOTTOMLEFT", 0, -10)
 
     -- Aesthetics Inputs
-    local icon_x_label = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
-    icon_x_label:SetPoint("TOPLEFT", threshold_label, "BOTTOMLEFT", 0, -15)
-    icon_x_label:SetText("x:")
-
-    local icon_x_input = CreateFrame("EditBox", nil, automation_panel, "InputBoxTemplate")
-    icon_x_input:SetPoint("LEFT", icon_x_label, "RIGHT", 5, 0)
-    icon_x_input:SetSize(50, 20)
-    icon_x_input:SetAutoFocus(false)
-    icon_x_input:SetScript("OnShow", function(self) self:SetText(tostring(SfuiDB.repairIconX or 880)) end)
-    icon_x_input:SetScript("OnEnterPressed", function(self)
-        local val = tonumber(self:GetText()) or 880
-        SfuiDB.repairIconX = val
+    local icon_x_slider = create_slider_input(automation_panel, "icon x:", "repairIconX", -1000, 1000, 1, function(val)
         if sfui.automation and sfui.automation.update_popup_style then
             sfui.automation.update_popup_style()
         end
-        self:ClearFocus()
     end)
+    icon_x_slider:SetPoint("TOPLEFT", threshold_slider, "BOTTOMLEFT", 0, -15)
 
-    local icon_y_label = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
-    icon_y_label:SetPoint("LEFT", icon_x_input, "RIGHT", 10, 0)
-    icon_y_label:SetText("y:")
-
-    local icon_y_input = CreateFrame("EditBox", nil, automation_panel, "InputBoxTemplate")
-    icon_y_input:SetPoint("LEFT", icon_y_label, "RIGHT", 5, 0)
-    icon_y_input:SetSize(50, 20)
-    icon_y_input:SetAutoFocus(false)
-    icon_y_input:SetScript("OnShow", function(self) self:SetText(tostring(SfuiDB.repairIconY or 397)) end)
-    icon_y_input:SetScript("OnEnterPressed", function(self)
-        local val = tonumber(self:GetText()) or 397
-        SfuiDB.repairIconY = val
+    local icon_y_slider = create_slider_input(automation_panel, "icon y:", "repairIconY", -1000, 1000, 1, function(val)
         if sfui.automation and sfui.automation.update_popup_style then
             sfui.automation.update_popup_style()
         end
-        self:ClearFocus()
     end)
+    icon_y_slider:SetPoint("LEFT", icon_x_slider, "RIGHT", 10, 0)
 
     local color_label = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
-    color_label:SetPoint("LEFT", icon_y_input, "RIGHT", 15, 0)
+    color_label:SetPoint("TOPLEFT", icon_x_slider, "BOTTOMLEFT", 0, -15)
     color_label:SetText("color (#hex):")
 
     local color_input = CreateFrame("EditBox", nil, automation_panel, "InputBoxTemplate")
@@ -794,53 +608,27 @@ function sfui.create_options_panel()
     mouseover_cb:SetPoint("TOPLEFT", collect_cb, "BOTTOMLEFT", 0, -10)
 
     -- Position X input
-    local pos_x_label = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
-    pos_x_label:SetPoint("TOPLEFT", mouseover_cb, "BOTTOMLEFT", 0, -15)
-    pos_x_label:SetText("position x:")
-    pos_x_label:SetTextColor(white[1], white[2], white[3])
-
-    local pos_x_input = CreateFrame("EditBox", nil, minimap_panel, "InputBoxTemplate")
-    pos_x_input:SetSize(60, 20)
-    pos_x_input:SetPoint("LEFT", pos_x_label, "RIGHT", 5, 0)
-    pos_x_input:SetAutoFocus(false)
-    pos_x_input:SetText(tostring(SfuiDB.minimap_button_x or 0))
-    pos_x_input:SetScript("OnEnterPressed", function(self)
-        local val = tonumber(self:GetText())
-        if val then
-            SfuiDB.minimap_button_x = val
+    local pos_x_slider = create_slider_input(minimap_panel, "minimap x:", "minimap_button_x", -1000, 1000, 1,
+        function(val)
             if sfui.minimap and sfui.minimap.update_button_bar_position then
                 sfui.minimap.update_button_bar_position()
             end
-        end
-        self:ClearFocus()
-    end)
+        end)
+    pos_x_slider:SetPoint("TOPLEFT", mouseover_cb, "BOTTOMLEFT", 0, -15)
 
     -- Position Y input
-    local pos_y_label = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
-    pos_y_label:SetPoint("LEFT", pos_x_input, "RIGHT", 15, 0)
-    pos_y_label:SetText("y:")
-    pos_y_label:SetTextColor(white[1], white[2], white[3])
-
-    local pos_y_input = CreateFrame("EditBox", nil, minimap_panel, "InputBoxTemplate")
-    pos_y_input:SetSize(60, 20)
-    pos_y_input:SetPoint("LEFT", pos_y_label, "RIGHT", 5, 0)
-    pos_y_input:SetAutoFocus(false)
-    pos_y_input:SetText(tostring(SfuiDB.minimap_button_y or 35))
-    pos_y_input:SetScript("OnEnterPressed", function(self)
-        local val = tonumber(self:GetText())
-        if val then
-            SfuiDB.minimap_button_y = val
+    local pos_y_slider = create_slider_input(minimap_panel, "minimap y:", "minimap_button_y", -1000, 1000, 1,
+        function(val)
             if sfui.minimap and sfui.minimap.update_button_bar_position then
                 sfui.minimap.update_button_bar_position()
             end
-        end
-        self:ClearFocus()
-    end)
+        end)
+    pos_y_slider:SetPoint("LEFT", pos_x_slider, "RIGHT", 10, 0)
 
     -- Reset button
     local reset_pos_btn = CreateFrame("Button", nil, minimap_panel, "UIPanelButtonTemplate")
     reset_pos_btn:SetSize(120, 22)
-    reset_pos_btn:SetPoint("TOPLEFT", pos_x_label, "BOTTOMLEFT", 0, -10)
+    reset_pos_btn:SetPoint("TOPLEFT", pos_x_slider, "BOTTOMLEFT", 0, -10)
     reset_pos_btn:SetText("reset position")
     reset_pos_btn:SetScript("OnClick", function()
         SfuiDB.minimap_button_x = 0
@@ -884,42 +672,19 @@ function sfui.create_options_panel()
         end, "hides food, flask, and weapon enchants when not in a group.")
     disable_consumables_solo_cb:SetPoint("TOPLEFT", reminders_solo_cb, "BOTTOMLEFT", 0, -10)
 
-    local reminders_x_label = reminders_panel:CreateFontString(nil, "OVERLAY", g.font)
-    reminders_x_label:SetPoint("TOPLEFT", disable_consumables_solo_cb, "BOTTOMLEFT", 0, -20)
-    reminders_x_label:SetText("position x:")
+    local reminders_x_slider = create_slider_input(reminders_panel, "position x:", "remindersX", -1000, 1000, 1,
+        function(val)
+            if sfui.reminders and sfui.reminders.update_position then sfui.reminders.update_position() end
+        end)
+    reminders_x_slider:SetPoint("TOPLEFT", disable_consumables_solo_cb, "BOTTOMLEFT", 0, -20)
 
-    local reminders_x_input = CreateFrame("EditBox", nil, reminders_panel, "InputBoxTemplate")
-    reminders_x_input:SetPoint("LEFT", reminders_x_label, "RIGHT", 10, 0)
-    reminders_x_input:SetSize(60, 32)
-    reminders_x_input:SetAutoFocus(false)
-    reminders_x_input:SetNumeric(true)
-    reminders_x_input:SetScript("OnShow", function(self) self:SetText(tostring(SfuiDB.remindersX)) end)
-    reminders_x_input:SetScript("OnEnterPressed", function(self)
-        local val = tonumber(self:GetText()) or 0
-        SfuiDB.remindersX = val
+    local reminders_y_slider = create_slider_input(reminders_panel, "y:", "remindersY", -1000, 1000, 1, function(val)
         if sfui.reminders and sfui.reminders.update_position then sfui.reminders.update_position() end
-        self:ClearFocus()
     end)
-
-    local reminders_y_label = reminders_panel:CreateFontString(nil, "OVERLAY", g.font)
-    reminders_y_label:SetPoint("LEFT", reminders_x_input, "RIGHT", 20, 0)
-    reminders_y_label:SetText("y:")
-
-    local reminders_y_input = CreateFrame("EditBox", nil, reminders_panel, "InputBoxTemplate")
-    reminders_y_input:SetPoint("LEFT", reminders_y_label, "RIGHT", 10, 0)
-    reminders_y_input:SetSize(60, 32)
-    reminders_y_input:SetAutoFocus(false)
-    reminders_y_input:SetNumeric(true)
-    reminders_y_input:SetScript("OnShow", function(self) self:SetText(tostring(SfuiDB.remindersY)) end)
-    reminders_y_input:SetScript("OnEnterPressed", function(self)
-        local val = tonumber(self:GetText()) or 0
-        SfuiDB.remindersY = val
-        if sfui.reminders and sfui.reminders.update_position then sfui.reminders.update_position() end
-        self:ClearFocus()
-    end)
+    reminders_y_slider:SetPoint("LEFT", reminders_x_slider, "RIGHT", 10, 0)
 
     local warnings_header = reminders_panel:CreateFontString(nil, "OVERLAY", g.font)
-    warnings_header:SetPoint("TOPLEFT", reminders_x_label, "BOTTOMLEFT", 0, -30)
+    warnings_header:SetPoint("TOPLEFT", reminders_x_slider, "BOTTOMLEFT", 0, -30)
     warnings_header:SetTextColor(white[1], white[2], white[3])
     warnings_header:SetText("warning settings")
 

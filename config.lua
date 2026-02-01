@@ -25,8 +25,8 @@ sfui.config = {
 
     -- addon-wide color palette
     colors = {
-        purple = { 0.4, 0, 1 }, -- #6600FF
-        cyan = { 0, 1, 1 },     -- #00FFFF
+        purple = { 0.4, 0, 1 }, -- #6600FF (Highlight Color)
+        cyan = { 0, 1, 1 },     -- #00FFFF (Text Color)
         magenta = { 1, 0, 1 },  -- #FF00FF
         white = { 1, 1, 1 },
         black = { 0, 0, 0 },
@@ -106,8 +106,8 @@ sfui.config = {
         tabs = {
             width = 100,
             height = 30,
-            color = { r = 0.4, g = 0.0, b = 1.0 },           -- 6600ff for unselected tabs
-            selected_color = { r = 0.9, g = 0.9, b = 0.9 },  -- Off-white for selected tab
+            color = { r = 0.4, g = 0.0, b = 1.0 },           -- #6600FF for unselected tabs
+            selected_color = { r = 0, g = 1, b = 1 },        -- #00FFFF for selected tab
             highlight_color = { r = 0.6, g = 0.6, b = 0.6 }, -- Medium gray for hover
         }
     },

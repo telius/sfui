@@ -286,6 +286,218 @@ function sfui.common.create_flat_button(parent, text, width, height)
     return btn
 end
 
+function sfui.common.create_checkbox(parent, label, dbKey, onClickFunc, tooltip)
+    local cb = CreateFrame("CheckButton", nil, parent, "BackdropTemplate")
+    cb:SetSize(20, 20)
+
+    -- Custom Backdrop
+    cb:SetBackdrop({
+        bgFile = "Interface/Buttons/WHITE8X8",
+        edgeFile = "Interface/Buttons/WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    })
+    cb:SetBackdropColor(0.2, 0.2, 0.2, 1)
+    cb:SetBackdropBorderColor(0, 0, 0, 1)
+
+    -- Checked Texture (Purple)
+    cb:SetCheckedTexture("Interface/Buttons/WHITE8X8")
+    cb:GetCheckedTexture():SetVertexColor(0.4, 0, 1, 1)
+    cb:GetCheckedTexture():SetPoint("TOPLEFT", 2, -2)
+    cb:GetCheckedTexture():SetPoint("BOTTOMRIGHT", -2, 2)
+
+    -- Highlight
+    cb:SetHighlightTexture("Interface/Buttons/WHITE8X8")
+    cb:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.1)
+
+    -- Text
+    cb.text = cb:CreateFontString(nil, "OVERLAY", sfui.config.font)
+    cb.text:SetPoint("LEFT", cb, "RIGHT", 5, 0)
+    cb.text:SetText(label)
+
+    cb:SetScript("OnClick", function(self)
+        local checked = self:GetChecked()
+        SfuiDB[dbKey] = checked
+        if onClickFunc then onClickFunc(checked) end
+    end)
+    cb:SetScript("OnShow", function(self)
+        self:SetChecked(SfuiDB[dbKey])
+    end)
+    if tooltip then
+        cb:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(tooltip)
+            GameTooltip:Show()
+        end)
+        cb:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+    end
+    return cb
+end
+
+function sfui.common.create_cvar_checkbox(parent, label, cvar, tooltip)
+    local cb = CreateFrame("CheckButton", nil, parent, "BackdropTemplate")
+    cb:SetSize(20, 20)
+
+    -- Custom Backdrop
+    cb:SetBackdrop({
+        bgFile = "Interface/Buttons/WHITE8X8",
+        edgeFile = "Interface/Buttons/WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    })
+    cb:SetBackdropColor(0.2, 0.2, 0.2, 1)
+    cb:SetBackdropBorderColor(0, 0, 0, 1)
+
+    -- Checked Texture (Purple)
+    cb:SetCheckedTexture("Interface/Buttons/WHITE8X8")
+    cb:GetCheckedTexture():SetVertexColor(0.4, 0, 1, 1)
+    cb:GetCheckedTexture():SetPoint("TOPLEFT", 2, -2)
+    cb:GetCheckedTexture():SetPoint("BOTTOMRIGHT", -2, 2)
+
+    -- Highlight
+    cb:SetHighlightTexture("Interface/Buttons/WHITE8X8")
+    cb:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.1)
+
+    -- Text
+    cb.text = cb:CreateFontString(nil, "OVERLAY", sfui.config.font)
+    cb.text:SetPoint("LEFT", cb, "RIGHT", 5, 0)
+    cb.text:SetText(label)
+
+    cb:SetScript("OnClick", function(self)
+        local checked = self:GetChecked()
+        C_CVar.SetCVar(cvar, checked and "1" or "0")
+        SfuiDB[cvar] = checked -- Persist to DB
+    end)
+    cb:SetScript("OnShow", function(self)
+        -- Check DB first for persistence, fallback to current CVar state
+        if SfuiDB[cvar] ~= nil then
+            self:SetChecked(SfuiDB[cvar])
+        else
+            self:SetChecked(C_CVar.GetCVarBool(cvar))
+        end
+    end)
+    if tooltip then
+        cb:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(tooltip)
+            GameTooltip:Show()
+        end)
+        cb:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+    end
+    return cb
+end
+
+function sfui.common.create_slider_input(parent, label, dbKey, minVal, maxVal, step, onValueChangedFunc)
+    local container = CreateFrame("Frame", nil, parent)
+    -- Increased height to accommodate input box below slider
+    container:SetSize(160, 60)
+
+    local title = container:CreateFontString(nil, "OVERLAY", sfui.config.font)
+    title:SetPoint("TOPLEFT", 0, 0)
+    title:SetText(label)
+
+    local slider = CreateFrame("Slider", nil, container, "BackdropTemplate")
+    slider:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -5)
+    slider:SetSize(160, 12) -- Reduced height slightly for sharper look
+    slider:SetOrientation("HORIZONTAL")
+    slider:SetMinMaxValues(minVal, maxVal)
+    slider:SetValueStep(step)
+    slider:SetObeyStepOnDrag(true)
+
+    -- Slider Backdrop (Flat Square)
+    slider:SetBackdrop({
+        bgFile = "Interface/Buttons/WHITE8X8",
+        edgeFile = "Interface/Buttons/WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    })
+    slider:SetBackdropColor(0.1, 0.1, 0.1, 1)
+    slider:SetBackdropBorderColor(0, 0, 0, 1)
+
+    -- Thumb
+    local thumb = slider:CreateTexture(nil, "OVERLAY")
+    thumb:SetSize(6, 12)
+    thumb:SetColorTexture(0.4, 0, 1, 1) -- Purple Thumb
+    slider:SetThumbTexture(thumb)
+
+    -- EditBox (Square, Flat, Below Slider)
+    local editbox = CreateFrame("EditBox", nil, container, "BackdropTemplate")
+    editbox:SetSize(50, 18)
+    -- Centered below the slider
+    editbox:SetPoint("TOP", slider, "BOTTOM", 0, -5)
+    editbox:SetAutoFocus(false)
+    editbox:SetFontObject(sfui.config.font)
+    editbox:SetJustifyH("CENTER")
+
+    editbox:SetBackdrop({
+        bgFile = "Interface/Buttons/WHITE8X8",
+        edgeFile = "Interface/Buttons/WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    })
+    editbox:SetBackdropColor(0.15, 0.15, 0.15, 1)
+    editbox:SetBackdropBorderColor(0, 0, 0, 1)
+
+    editbox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    editbox:SetScript("OnEnterPressed", function(self)
+        local val = tonumber(self:GetText())
+        if val then
+            if val < minVal then val = minVal end
+            if val > maxVal then val = maxVal end
+            slider:SetValue(val)
+            SfuiDB[dbKey] = val
+            if onValueChangedFunc then onValueChangedFunc(val) end
+        end
+        self:ClearFocus()
+    end)
+    -- Only highlight border on edit, no cyan text
+    editbox:SetScript("OnEditFocusGained", function(self)
+        self:SetBackdropBorderColor(0.4, 0, 1, 1)
+    end)
+    editbox:SetScript("OnEditFocusLost", function(self)
+        self:SetBackdropBorderColor(0, 0, 0, 1)
+    end)
+
+
+    slider:SetScript("OnValueChanged", function(self, value)
+        local stepped = math.floor((value - minVal) / step + 0.5) * step + minVal
+        -- To avoid float jitter
+        if math.abs(value - stepped) > 0.001 then
+            -- Logic handled by slider mostly
+        end
+        SfuiDB[dbKey] = value
+        -- Clean number display
+        local displayVal = math.floor(value * 100) / 100
+        editbox:SetText(tostring(displayVal))
+        if onValueChangedFunc then onValueChangedFunc(value) end
+    end)
+
+    slider:SetScript("OnShow", function(self)
+        local val = SfuiDB[dbKey]
+        if val == nil then val = minVal end
+        self:SetValue(val)
+        editbox:SetText(tostring(val))
+    end)
+
+    -- Labels for Min/Max
+    local low = slider:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    low:SetPoint("TOPLEFT", slider, "BOTTOMLEFT", 0, -2)
+    low:SetText(minVal)
+    low:Hide() -- Hiding min/max labels to keep it clean as per "input box below" request usually implies compact or just focus on value.
+    -- Actually user didn't say hide them, but with input box below, they might clutter. I'll keep them hidden or move them.
+    -- Let's keep them visible but pushed out or just hidden if input box is the focus.
+    -- User asked: "put the input boxes below the sliders".
+    -- I'll hide min/max for cleaner look unless insisted.
+
+    -- Expose method to set value programmatically
+    function container:SetSliderValue(val)
+        slider:SetValue(val)
+        editbox:SetText(tostring(val))
+    end
+
+    return container
+end
+
 function sfui.common.set_color(element, colorName, alpha)
     local color = sfui.config.colors[colorName]
     if not color then return end
