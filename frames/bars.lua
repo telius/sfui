@@ -513,7 +513,10 @@ do
 
     sfui.bars.update_mount_speed_bar = update_mount_speed_bar_internal
 
-    function sfui.bars.set_bar_texture(texturePath)
+    function sfui.bars.set_bar_texture(arg1, arg2)
+        local texturePath = (type(arg1) == "string") and arg1 or arg2
+        if not texturePath then return end
+
         if primary_power_bar then primary_power_bar:SetStatusBarTexture(texturePath) end
         if health_bar then
             health_bar:SetStatusBarTexture(texturePath)

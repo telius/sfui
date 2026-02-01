@@ -369,7 +369,7 @@ function sfui.create_options_panel()
         local texturePath = LSM and LSM:Fetch("statusbar", textureName) or "Interface/Buttons/WHITE8X8"
 
         if sfui.bars and sfui.bars.set_bar_texture then
-            sfui.bars:set_bar_texture(texturePath)
+            sfui.bars.set_bar_texture(texturePath)
         end
         if sfui.castbar and sfui.castbar.set_bar_texture then
             sfui.castbar.set_bar_texture(texturePath)

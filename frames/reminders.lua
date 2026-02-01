@@ -81,7 +81,7 @@ local function update_buff_data()
     if playerClass == "ROGUE" then
         table.insert(PERSONAL_BUFFS, { name = "Poison", isPoison = true, icon = 132273 })
     elseif playerClass == "PRIEST" and specID == 258 then
-        table.insert(PERSONAL_BUFFS, { name = "Shadowform", spellID = 15473, icon = 136202 })
+        table.insert(PERSONAL_BUFFS, { name = "Shadowform", isShadowform = true, icon = 136200 })
     elseif playerClass == "SHAMAN" then
         if specID == 263 then -- Enhancement
             table.insert(PERSONAL_BUFFS, { name = "Windfury", spellID = 33757, icon = 136018 })
@@ -425,6 +425,9 @@ local function update_icons()
                 hasBuff = has_weapon_enchant()
             elseif data.isHealthstone then
                 hasBuff = has_healthstone()
+            elseif data.isShadowform then
+                -- Check for Shadowform (Form ID 28)
+                hasBuff = (GetShapeshiftFormID() == 28)
             end
             button:SetAlpha(hasBuff and 0.1 or 1.0)
         end
