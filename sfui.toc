@@ -27,3 +27,4 @@ frames\castbar.lua
 frames\merchant.lua
 frames\vehicle.lua
 frames\automation.lua
+frames\cursor.lua

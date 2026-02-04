@@ -176,6 +176,9 @@ event_frame:SetScript("OnEvent", function(self, event, name)
         if sfui.automation and sfui.automation.initialize then
             sfui.automation.initialize()
         end
+        if sfui.cursor and sfui.cursor.initialize then
+            sfui.cursor.initialize()
+        end
 
 
 
