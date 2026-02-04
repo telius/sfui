@@ -4,6 +4,7 @@ SfuiDB = SfuiDB or {}
 
 BINDING_HEADER_SFUI = "SFUI"
 _G["BINDING_NAME_CLICK SfuiHammerPopup:LeftButton"] = "Master's Hammer Repair"
+_G["BINDING_NAME_SFUI_MATCHMOUNT"] = "Match Target Mount"
 
 
 SLASH_SFUI1 = "/sfui"
@@ -74,16 +75,19 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             SfuiDB.minimap_icon = SfuiDB.minimap_icon or { hide = false }
             SfuiDB.minimap_collect_buttons = (SfuiDB.minimap_collect_buttons == nil) and true or
                 SfuiDB.minimap_collect_buttons
+            if SfuiDB.minimap_rearrange == nil then SfuiDB.minimap_rearrange = true end
             SfuiDB.minimap_buttons_mouseover = (SfuiDB.minimap_buttons_mouseover == nil) and false or
                 SfuiDB.minimap_buttons_mouseover
+            if SfuiDB.minimap_masque == nil then SfuiDB.minimap_masque = true end
             if SfuiDB.minimap_button_x == nil then SfuiDB.minimap_button_x = 0 end
             if SfuiDB.minimap_button_y == nil then SfuiDB.minimap_button_y = 35 end
-            if SfuiDB.autoSellGreys == nil then SfuiDB.autoSellGreys = false end
-            if SfuiDB.autoRepair == nil then SfuiDB.autoRepair = false end
+            if SfuiDB.autoSellGreys == nil then SfuiDB.autoSellGreys = true end
+            if SfuiDB.autoRepair == nil then SfuiDB.autoRepair = true end
             if SfuiDB.repairThreshold == nil then SfuiDB.repairThreshold = 90 end
             if SfuiDB.enableMasterHammer == nil then SfuiDB.enableMasterHammer = true end
-            if SfuiDB.disableMerchant == nil then SfuiDB.disableMerchant = true end
-            if SfuiDB.disableVehicle == nil then SfuiDB.disableVehicle = false end
+            if SfuiDB.enableMerchant == nil then SfuiDB.enableMerchant = true end
+            if SfuiDB.enableDecor == nil then SfuiDB.enableDecor = true end
+            if SfuiDB.enableVehicle == nil then SfuiDB.enableVehicle = true end
 
             -- Bar settings
             if SfuiDB.healthBarX == nil then SfuiDB.healthBarX = 0 end
@@ -112,8 +116,9 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             if SfuiDB.enableReminders == nil then SfuiDB.enableReminders = true end
             if SfuiDB.remindersX == nil then SfuiDB.remindersX = 0 end
             if SfuiDB.remindersY == nil then SfuiDB.remindersY = 10 end
-            if SfuiDB.remindersSolo == nil then SfuiDB.remindersSolo = false end
-            if SfuiDB.remindersEverywhere == nil then SfuiDB.remindersEverywhere = false end
+            if SfuiDB.remindersSolo == nil then SfuiDB.remindersSolo = true end
+            if SfuiDB.enableConsumablesSolo == nil then SfuiDB.enableConsumablesSolo = true end
+            if SfuiDB.remindersEverywhere == nil then SfuiDB.remindersEverywhere = true end
             if SfuiDB.enablePetWarning == nil then SfuiDB.enablePetWarning = true end
             if SfuiDB.enableRuneWarning == nil then SfuiDB.enableRuneWarning = true end
 
@@ -172,6 +177,8 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             sfui.automation.initialize()
         end
 
+
+
         local ldb, icon = LibStub("LibDataBroker-1.1", true), LibStub("LibDBIcon-1.0", true)
         if ldb and icon then
             local broker = ldb:NewDataObject("sfui", {
@@ -179,7 +186,16 @@ event_frame:SetScript("OnEvent", function(self, event, name)
                 text = "sfui",
                 icon = "Interface\\Icons\\Spell_shadow_deathcoil",
                 OnClick = function(_, button)
-                    if button == "LeftButton" then
+                    if IsShiftKeyDown() and button == "LeftButton" then
+                        if not CooldownViewerSettings then
+                            C_AddOns.LoadAddOn("Blizzard_CooldownViewer")
+                        end
+                        if CooldownViewerSettings then
+                            ShowUIPanel(CooldownViewerSettings)
+                        else
+                            print("SFUI: C_CooldownViewer global not found.")
+                        end
+                    elseif button == "LeftButton" then
                         sfui.toggle_options_panel()
                     elseif button == "RightButton" then
                         C_UI.Reload()
@@ -192,6 +208,7 @@ event_frame:SetScript("OnEvent", function(self, event, name)
                 OnTooltipShow = function(tooltip)
                     tooltip:AddLine("sfui")
                     tooltip:AddLine("Left-click to toggle options", 0.2, 1, 0.2)
+                    tooltip:AddLine("Shift+Left-click to Configure Cooldowns", 0.4, 0.7, 1)
                     tooltip:AddLine("Middle-click to toggle Research Viewer", 0.2, 0.6, 1)
                     tooltip:AddLine("Right-click to Reload UI", 1, 0.2, 0.2)
                 end,

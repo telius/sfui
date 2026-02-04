@@ -106,6 +106,7 @@ function ButtonManager:collect_buttons()
     if ldbi then
         for _, buttonName in ipairs(ldbi:GetButtonList()) do
             local button = _G[buttonName]
+            -- Note: LibDBIcon often names button "LibDBIcon10_AddonName"
             if button then self:add_button(button) end
         end
     end

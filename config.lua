@@ -74,7 +74,7 @@ sfui.config = {
         [270] = { r = 0.00, g = 1.00, b = 0.59 },     -- Windwalker
         -- Paladin
         [65] = { r = 0.96, g = 0.55, b = 0.73 },      -- Holy
-        [66] = { r = 0.96, g = 0.55, b = 0.73 },      -- Protection
+        [66] = { r = 1.00, g = 0.75, b = 0.20 },      -- Protection
         [70] = { r = 0.96, g = 0.55, b = 0.73 },      -- Retribution
         -- Priest
         [256] = { r = 1.00, g = 1.00, b = 1.00 },     -- Discipline
@@ -291,6 +291,7 @@ sfui.config = {
             color = { 0, 0, 0, 0.5 },
         },
         disableConsumablesSolo = true,
+        enableConsumables = true,
     },
 
     -- Warnings
@@ -372,6 +373,7 @@ sfui.config = {
             decor_hide_storage = "purple",
             decor_show_all = "white",
         },
+        lootFilterState = 0,
     },
 
     -- automation settings

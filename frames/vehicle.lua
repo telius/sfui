@@ -198,7 +198,7 @@ frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 
 frame:SetScript("OnEvent", function(self, event, ...)
-    if SfuiDB.disableVehicle then
+    if not SfuiDB.enableVehicle then
         self:Hide()
         if UnregisterStateDriver then UnregisterStateDriver(self, "visibility") end
         if OverrideActionBar then

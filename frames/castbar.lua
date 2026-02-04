@@ -246,6 +246,12 @@ end
 
 
 local function OnEvent(self, event, ...)
+    local cfg = sfui.config[self.configName]
+    if not cfg or not cfg.enabled then
+        self.backdrop:Hide()
+        return
+    end
+
     if event == "UNIT_SPELLCAST_SUCCEEDED" then
         local unit, _, spellID = ...
         if unit ~= self.unit then return end
@@ -536,6 +542,12 @@ local function Target_StartChannel(self, unit)
 end
 
 local function Target_OnEvent(self, event, ...)
+    local cfg = sfui.config[self.configName]
+    if not cfg or not cfg.enabled then
+        self.backdrop:Hide()
+        return
+    end
+
     local unit = ...
     if unit and unit ~= self.unit and event ~= "PLAYER_TARGET_CHANGED" then return end
 
@@ -576,7 +588,7 @@ end
 
 local function SetupTargetBar(configName, unit)
     local cfg = sfui.config[configName]
-    if not cfg or not cfg.enabled then return end
+    -- if not cfg or not cfg.enabled then return end -- Removed to allow runtime toggling
 
     local bar = CreateCastBar(configName, unit)
     sfui.castbar.bars = sfui.castbar.bars or {}
@@ -612,15 +624,26 @@ function sfui.castbar.update_settings()
         local playerBar = sfui.castbar.bars["player"]
         if playerBar then
             local cfg = sfui.config.castBar
-            playerBar.backdrop:ClearAllPoints()
-            playerBar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", cfg.pos.x, cfg.pos.y)
+            if not cfg.enabled then
+                playerBar.backdrop:Hide()
+                ResetBar(playerBar)
+            else
+                playerBar.backdrop:ClearAllPoints()
+                playerBar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", cfg.pos.x, cfg.pos.y)
+            end
         end
 
         local targetBar = sfui.castbar.bars["target"]
         if targetBar then
             local cfg = sfui.config.targetCastBar
-            targetBar.backdrop:ClearAllPoints()
-            targetBar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", cfg.pos.x, cfg.pos.y)
+            if not cfg.enabled then
+                targetBar.backdrop:Hide()
+                targetBar.casting = nil
+                targetBar.channeling = nil
+            else
+                targetBar.backdrop:ClearAllPoints()
+                targetBar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", cfg.pos.x, cfg.pos.y)
+            end
         end
     end
 end

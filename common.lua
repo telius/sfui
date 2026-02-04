@@ -578,10 +578,7 @@ end
 -- Player & Group Utilities
 -- ========================
 
--- Returns the cached player class (e.g., "WARRIOR", "MAGE")
-function sfui.common.get_player_class()
-    return playerClass
-end
+-- (get_player_class removed, used at top)
 
 -- Returns a table of unit IDs for all group members (including player)
 -- Returns {"player"} if not in a group
@@ -624,9 +621,45 @@ function sfui.common.is_class_in_group(className)
     return false
 end
 
+-- Checks if a unit has a specific aura (buff)
+-- @param spellID: The spell ID to check for
+-- @param unit: The unit ID to check (default: "player")
+-- @param threshold: (Optional) Only return true if duration remaining > threshold (seconds). Pass explicit nil or 0 to ignore.
+-- @return: true if cached, false otherwise
+function sfui.common.has_aura(spellID, unit, threshold)
+    unit = unit or "player"
+    local spellName
+    if C_Spell and C_Spell.GetSpellName then
+        spellName = C_Spell.GetSpellName(spellID)
+    elseif GetSpellInfo then
+        spellName = GetSpellInfo(spellID)
+    end
+
+    for i = 1, 40 do
+        local aura = C_UnitAuras.GetAuraDataByIndex(unit, i, "HELPFUL")
+        if not aura then break end
+
+        if aura.spellId == spellID or (spellName and aura.name == spellName) then
+            if not threshold or aura.expirationTime == 0 then return true end
+            return (aura.expirationTime - GetTime()) > threshold
+        end
+    end
+    return false
+end
+
 -- ========================
 -- Item Utilities
 -- ========================
+
+-- Checks if an item link corresponds to a housing decor item
+function sfui.common.is_housing_decor(link)
+    local itemID = sfui.common.get_item_id_from_link(link)
+    if itemID and C_HousingCatalog and C_HousingCatalog.GetCatalogEntryInfoByItem then
+        local info = C_HousingCatalog.GetCatalogEntryInfoByItem(itemID, false)
+        return info and info.entryID and info.entryID.entryType == 1
+    end
+    return false
+end
 
 -- Extracts the item ID from an item link
 -- @param link: Item link string (e.g., "|cff0070dd|Hitem:12345:0:0:0|h[Item Name]|h|r")

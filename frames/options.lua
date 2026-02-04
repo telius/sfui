@@ -231,12 +231,17 @@ function sfui.create_options_panel()
     vehicle_header:SetTextColor(white[1], white[2], white[3])
     vehicle_header:SetText("vehicle settings")
 
-    local disable_vehicle_cb = create_checkbox(main_panel, "disable vehicle ui", "disableVehicle", nil,
-        "restores the default wow vehicle/overlay bar.")
-    disable_vehicle_cb:SetPoint("TOPLEFT", vehicle_header, "BOTTOMLEFT", 0, -10)
+    local enable_vehicle_cb = create_checkbox(main_panel, "enable vehicle ui", "enableVehicle", function(checked)
+        if checked then
+            print("|cff00ff00Sfui: Vehicle UI enabled. Please reload UI for changes to fully apply.|r")
+        else
+            print("|cffff0000Sfui: Vehicle UI disabled. Default WoW frame will be used on reload.|r")
+        end
+    end, "Enables the custom vehicle/overlay bar (requires reload).")
+    enable_vehicle_cb:SetPoint("TOPLEFT", vehicle_header, "BOTTOMLEFT", 0, -10)
 
     local texture_label = main_panel:CreateFontString(nil, "OVERLAY", g.font)
-    texture_label:SetPoint("TOPLEFT", disable_vehicle_cb, "BOTTOMLEFT", 0, -20)
+    texture_label:SetPoint("TOPLEFT", enable_vehicle_cb, "BOTTOMLEFT", 0, -20)
     texture_label:SetText("bar texture:")
 
     local dropdown = CreateFrame("Frame", "sfui_options_texture_dropdown", main_panel, "UIDropDownMenuTemplate")
@@ -490,20 +495,37 @@ function sfui.create_options_panel()
     merchant_header:SetTextColor(white[1], white[2], white[3])
     merchant_header:SetText("merchant settings")
 
-    local disable_merchant_cb = create_checkbox(merchant_panel, "disable merchant frame", "disableMerchant", nil,
-        "restores the default wow merchant frame.")
-    disable_merchant_cb:SetPoint("TOPLEFT", merchant_header, "BOTTOMLEFT", 0, -10)
+    local enable_merchant_cb = create_checkbox(merchant_panel, "enable merchant frame", "enableMerchant", nil,
+        "enables the custom merchant frame.")
+    enable_merchant_cb:SetPoint("TOPLEFT", merchant_header, "BOTTOMLEFT", 0, -10)
 
-    local disable_decor_cb = create_checkbox(merchant_panel, "disable decor filter", "disableDecor", function(checked)
-        if checked and SfuiDecorDB then
+    local enable_decor_cb = create_checkbox(merchant_panel, "enable decor filter", "enableDecor", function(checked)
+        if not checked and SfuiDecorDB then
             wipe(SfuiDecorDB)
             print("|cff00ff00Sfui: Decor cache cleared.|r")
         end
         if sfui.merchant and sfui.merchant.reset_scroll_and_rebuild then
             sfui.merchant.reset_scroll_and_rebuild()
         end
-    end, "disables the caching and filtering of merchant items. clears existing cache when enabled.")
-    disable_decor_cb:SetPoint("TOPLEFT", disable_merchant_cb, "BOTTOMLEFT", 0, -10)
+    end, "enables the caching and filtering of housing decor items.")
+    enable_decor_cb:SetPoint("TOPLEFT", enable_merchant_cb, "BOTTOMLEFT", 0, -10)
+
+    local decor_cache_label = merchant_panel:CreateFontString(nil, "OVERLAY", g.font)
+    decor_cache_label:SetPoint("TOPLEFT", enable_decor_cb, "BOTTOMLEFT", 0, -15)
+    decor_cache_label:SetTextColor(white[1], white[2], white[3])
+    decor_cache_label:SetText("decor cache status:")
+
+    local decor_cache_value = merchant_panel:CreateFontString(nil, "OVERLAY", g.font)
+    decor_cache_value:SetPoint("LEFT", decor_cache_label, "RIGHT", 5, 0)
+    decor_cache_value:SetText("N/A")
+
+    merchant_panel:HookScript("OnShow", function()
+        if sfui.merchant and sfui.merchant.decorCacheStatus then
+            decor_cache_value:SetText(sfui.merchant.decorCacheStatus)
+        else
+            decor_cache_value:SetText("N/A (Not Populated)")
+        end
+    end)
 
     -- 6. automation panel
     local automation_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
@@ -633,8 +655,8 @@ function sfui.create_options_panel()
     reset_pos_btn:SetScript("OnClick", function()
         SfuiDB.minimap_button_x = 0
         SfuiDB.minimap_button_y = 35
-        pos_x_input:SetText("0")
-        pos_y_input:SetText("35")
+        pos_x_slider:SetSliderValue(0)
+        pos_y_slider:SetSliderValue(35)
         if sfui.minimap and sfui.minimap.update_button_bar_position then
             sfui.minimap.update_button_bar_position()
         end
@@ -664,19 +686,49 @@ function sfui.create_options_panel()
         end, "shows the reminders frame even when not in a group.")
     reminders_solo_cb:SetPoint("TOPLEFT", reminders_everywhere_cb, "BOTTOMLEFT", 0, -10)
 
-    local disable_consumables_solo_cb = create_checkbox(reminders_panel, "disable consumables solo",
-        "disableConsumablesSolo",
+    if SfuiDB.enableConsumables == nil then SfuiDB.enableConsumables = true end
+
+    local enable_consumables_solo_cb -- Forward declaration for dependency
+
+    local enable_consumables_cb = create_checkbox(reminders_panel, "enable consumables", "enableConsumables",
+        function(checked)
+            if sfui.reminders and sfui.reminders.on_state_changed then sfui.reminders.on_state_changed(true) end
+            if enable_consumables_solo_cb then
+                if checked then
+                    enable_consumables_solo_cb:Enable()
+                    enable_consumables_solo_cb:SetAlpha(1.0)
+                else
+                    enable_consumables_solo_cb:Disable()
+                    enable_consumables_solo_cb:SetAlpha(0.5)
+                end
+            end
+        end, "master toggle to show consumables (food, flask, weapon enchant).")
+    enable_consumables_cb:SetPoint("TOPLEFT", reminders_solo_cb, "BOTTOMLEFT", 0, -10)
+
+    enable_consumables_solo_cb = create_checkbox(reminders_panel, "enable consumables solo",
+        "enableConsumablesSolo",
         function(checked)
             -- Trigger update to refresh buff list
             if sfui.reminders and sfui.reminders.on_state_changed then sfui.reminders.on_state_changed(true) end
-        end, "hides food, flask, and weapon enchants when not in a group.")
-    disable_consumables_solo_cb:SetPoint("TOPLEFT", reminders_solo_cb, "BOTTOMLEFT", 0, -10)
+        end, "shows food, flask, and weapon enchants even when not in a group.")
+    enable_consumables_solo_cb:SetPoint("TOPLEFT", enable_consumables_cb, "BOTTOMLEFT", 0, -10)
+
+    -- Initialize state
+    enable_consumables_solo_cb:HookScript("OnShow", function(self)
+        if SfuiDB.enableConsumables then
+            self:Enable()
+            self:SetAlpha(1.0)
+        else
+            self:Disable()
+            self:SetAlpha(0.5)
+        end
+    end)
 
     local reminders_x_slider = create_slider_input(reminders_panel, "position x:", "remindersX", -1000, 1000, 1,
         function(val)
             if sfui.reminders and sfui.reminders.update_position then sfui.reminders.update_position() end
         end)
-    reminders_x_slider:SetPoint("TOPLEFT", disable_consumables_solo_cb, "BOTTOMLEFT", 0, -20)
+    reminders_x_slider:SetPoint("TOPLEFT", enable_consumables_solo_cb, "BOTTOMLEFT", 0, -20)
 
     local reminders_y_slider = create_slider_input(reminders_panel, "y:", "remindersY", -1000, 1000, 1, function(val)
         if sfui.reminders and sfui.reminders.update_position then sfui.reminders.update_position() end
@@ -823,15 +875,9 @@ function sfui.create_options_panel()
     local pet_warning_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
     pet_warning_value:SetPoint("LEFT", pet_warning_label, "RIGHT", 5, 0)
 
-    local decor_cache_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
-    decor_cache_label:SetPoint("TOPLEFT", pet_warning_label, "BOTTOMLEFT", 0, -15)
-    decor_cache_label:SetText("decor cache:")
-    local decor_cache_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
-    decor_cache_value:SetPoint("LEFT", decor_cache_label, "RIGHT", 5, 0)
-
     -- Hammer Status
     local hammer_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
-    hammer_label:SetPoint("TOPLEFT", decor_cache_label, "BOTTOMLEFT", 0, -15)
+    hammer_label:SetPoint("TOPLEFT", pet_warning_label, "BOTTOMLEFT", 0, -15)
     hammer_label:SetText("master's hammer:")
     local hammer_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
     hammer_value:SetPoint("LEFT", hammer_label, "RIGHT", 5, 0)
@@ -856,11 +902,7 @@ function sfui.create_options_panel()
             pet_warning_value:SetText("N/A (Module Missing)")
         end
 
-        if sfui.merchant and sfui.merchant.decorCacheStatus then
-            decor_cache_value:SetText(sfui.merchant.decorCacheStatus)
-        else
-            decor_cache_value:SetText("N/A (Not Populated)")
-        end
+
 
         if sfui.automation and sfui.automation.has_repair_hammer then
             local found, name, icon, itemID = sfui.automation.has_repair_hammer(true)

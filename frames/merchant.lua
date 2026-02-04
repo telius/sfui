@@ -81,20 +81,37 @@ filterDropdownBtn:SetScript("OnClick", function(self)
 
         rootDescription:CreateButton("All Items", function()
             sfui.merchant.lootFilterState = 0
+            if SfuiDB.merchant then SfuiDB.merchant.lootFilterState = 0 end
             self:SetText("showing all")
             sfui.merchant.reset_scroll_and_rebuild()
         end);
         rootDescription:CreateButton("Current Class", function()
             sfui.merchant.lootFilterState = 1
+            if SfuiDB.merchant then SfuiDB.merchant.lootFilterState = 1 end
             self:SetText("current class")
             sfui.merchant.reset_scroll_and_rebuild()
         end);
         rootDescription:CreateButton("Current Specialization", function()
             sfui.merchant.lootFilterState = 2
+            if SfuiDB.merchant then SfuiDB.merchant.lootFilterState = 2 end
             self:SetText("current spec")
             sfui.merchant.reset_scroll_and_rebuild()
         end);
     end);
+end)
+
+-- Initialize filter state from DB on load
+frame:HookScript("OnShow", function()
+    if SfuiDB and SfuiDB.merchant and SfuiDB.merchant.lootFilterState then
+        sfui.merchant.lootFilterState = SfuiDB.merchant.lootFilterState
+        if sfui.merchant.lootFilterState == 0 then
+            filterDropdownBtn:SetText("showing all")
+        elseif sfui.merchant.lootFilterState == 1 then
+            filterDropdownBtn:SetText("current class")
+        elseif sfui.merchant.lootFilterState == 2 then
+            filterDropdownBtn:SetText("current spec")
+        end
+    end
 end)
 
 sfui.merchant.scrollOffset = 0
@@ -113,14 +130,7 @@ local buttons = {}
 
 local get_item_id = sfui.common.get_item_id_from_link
 
-local function is_housing_decor(link)
-    local itemID = get_item_id(link)
-    if itemID and C_HousingCatalog and C_HousingCatalog.GetCatalogEntryInfoByItem then
-        local info = C_HousingCatalog.GetCatalogEntryInfoByItem(itemID, false)
-        return info and info.entryID and info.entryID.entryType == 1
-    end
-    return false
-end
+
 sfui.merchant.housingDecorFilter = sfui.merchant.housingDecorFilter or 0
 
 function sfui.merchant.create_stack_split_frame(parent)
@@ -694,7 +704,7 @@ sfui.merchant.currencyCache = {}
 sfui.merchant.decorCachePopulated = false
 
 sfui.merchant.populate_decor_cache = function()
-    if SfuiDB and SfuiDB.disableDecor then return end
+    if SfuiDB and not SfuiDB.enableDecor then return end
     if sfui.merchant.decorCachePopulated then return end
     if not (C_HousingCatalog and C_HousingCatalog.CreateCatalogSearcher) then return end
 
@@ -764,7 +774,7 @@ sfui.merchant.build_item_list = function()
         local include, link = true, nil
         if mode == "merchant" then
             link = GetMerchantItemLink(i)
-            if link and not hasHousingItems and is_housing_decor(link) then
+            if link and not hasHousingItems and sfui.common.is_housing_decor(link) then
                 hasHousingItems = true
             end
         else
@@ -782,7 +792,7 @@ sfui.merchant.build_item_list = function()
                 end
             end
         end
-        if include and mode == "merchant" and (not (SfuiDB and SfuiDB.disableDecor)) and sfui.merchant.housingDecorFilter > 0 and is_housing_decor(link) then
+        if include and mode == "merchant" and (SfuiDB and SfuiDB.enableDecor) and sfui.merchant.housingDecorFilter > 0 and sfui.common.is_housing_decor(link) then
             if SfuiDecorDB and SfuiDecorDB.items and SfuiDecorDB.items[itemID] then
                 local cached = SfuiDecorDB.items[itemID]
                 if sfui.merchant.housingDecorFilter == 1 and ((cached.o or 0) + (cached.p or 0) + (cached.s or 0)) > 0 then
@@ -859,7 +869,7 @@ sfui.merchant.build_item_list = function()
 
 
     if sfui.merchant.housingFilterBtn then
-        if SfuiDB and SfuiDB.disableDecor then
+        if SfuiDB and not SfuiDB.enableDecor then
             sfui.merchant.housingFilterBtn:Hide()
         else
             sfui.merchant.housingFilterBtn:Show()
@@ -911,7 +921,7 @@ sfui.merchant.update_merchant = function()
                 btn:SetID(index); btn.hasItem, btn.link = true, data.link
                 btn.icon:SetTexture(data.texture or 134400)
 
-                local typeText, isDecor = "", is_housing_decor(data.link)
+                local typeText, isDecor = "", sfui.common.is_housing_decor(data.link)
                 if isDecor then
                     local id = get_item_id(data.link)
                     local cached = id and SfuiDecorDB and SfuiDecorDB.items and SfuiDecorDB.items[id]
@@ -1067,7 +1077,7 @@ frame:SetScript("OnEvent", function(self, event, ...)
     elseif event == "MERCHANT_SHOW" then
         update_header()
         sfui.merchant.reset_scroll_and_rebuild()
-        if SfuiDB.disableMerchant then return end
+        if not SfuiDB.enableMerchant then return end
         self:Show()
         sfui.merchant.build_item_list()
 

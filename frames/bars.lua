@@ -7,6 +7,7 @@ do
     local health_bar
     local vigor_bar
     local mount_speed_bar
+    local rune_bar
     local UpdateMountSpeedBarInternal
 
     -- Throttling system for high-frequency events
@@ -16,6 +17,7 @@ do
         power = { lastUpdate = 0, interval = tCfg.power },
         absorb = { lastUpdate = 0, interval = tCfg.absorb },
         visibility = { lastUpdate = 0, interval = tCfg.visibility },
+        runes = { lastUpdate = 0, interval = 0.05 },
     }
 
     local function should_throttle(key)
@@ -130,6 +132,10 @@ do
                 secondary_power_bar.backdrop:ClearAllPoints()
                 secondary_power_bar.backdrop:SetPoint("BOTTOM", health_bar.backdrop, "TOP", 0, spacing)
             end
+            if rune_bar and health_bar and health_bar.backdrop then
+                rune_bar:ClearAllPoints()
+                rune_bar:SetPoint("BOTTOM", health_bar.backdrop, "TOP", 0, spacing)
+            end
         end
     end
 
@@ -144,8 +150,7 @@ do
                 vigor_bar.backdrop:Show()
             else
                 if vigor_bar then
-                    vigor_bar
-                        .backdrop:Hide()
+                    vigor_bar.backdrop:Hide()
                 end
             end
             if mount_speed_bar and SfuiDB.enableMountSpeedBar then
@@ -158,45 +163,50 @@ do
             if health_bar then health_bar.backdrop:Hide() end
             if primary_power_bar then primary_power_bar.backdrop:Hide() end
             if secondary_power_bar then secondary_power_bar.backdrop:Hide() end
+            if rune_bar then rune_bar:Hide() end
         else
             local specID = sfui.common.get_current_spec_id()
 
-            -- Secondary Power Bar visibility for non-dragonflying
-            if secondary_power_bar and SfuiDB.enableSecondaryPowerBar then
-                local hideSecondary = sfui.config.secondaryPowerBar.hiddenSpecs and
-                    sfui.config.secondaryPowerBar.hiddenSpecs[specID]
-                if IsMounted() or hideSecondary then
-                    secondary_power_bar.backdrop:Hide()
-                elseif showCoreBars and sfui.common.get_secondary_resource() then
-                    secondary_power_bar.backdrop:Show()
-                else
-                    secondary_power_bar.backdrop:Hide()
-                end
-            elseif secondary_power_bar then
-                secondary_power_bar.backdrop:Hide()
-            end
-
-            -- Health and Primary Power Bar visibility for non-dragonflying
+            -- Core Bars Visibility (Health, Power, Secondary Power)
             if showCoreBars then
+                -- Health Bar
                 if health_bar and SfuiDB.enableHealthBar then
                     health_bar.backdrop:Show()
                 elseif health_bar then
                     health_bar.backdrop:Hide()
                 end
-                local hide = sfui.config.powerBar.hiddenSpecs and sfui.config.powerBar.hiddenSpecs[specID]
-                if primary_power_bar and SfuiDB.enablePowerBar then
-                    if hide then
-                        primary_power_bar.backdrop:Hide()
-                    else
-                        primary_power_bar.backdrop
-                            :Show()
-                    end
+
+                -- Primary Power Bar
+                local hidePower = sfui.config.powerBar.hiddenSpecs and sfui.config.powerBar.hiddenSpecs[specID]
+                if primary_power_bar and SfuiDB.enablePowerBar and not hidePower then
+                    primary_power_bar.backdrop:Show()
                 elseif primary_power_bar then
                     primary_power_bar.backdrop:Hide()
+                end
+
+                -- Secondary Power Bar
+                local hideSecondary = sfui.config.secondaryPowerBar.hiddenSpecs and
+                    sfui.config.secondaryPowerBar.hiddenSpecs[specID]
+                local secResource = sfui.common.get_secondary_resource()
+
+                if secondary_power_bar and SfuiDB.enableSecondaryPowerBar and not hideSecondary and secResource and secResource ~= Enum.PowerType.Runes then
+                    secondary_power_bar.backdrop:Show()
+                elseif secondary_power_bar then
+                    secondary_power_bar.backdrop:Hide()
+                end
+
+                -- Rune Bar
+                local isRune = (secResource == Enum.PowerType.Runes)
+                if rune_bar and isRune and SfuiDB.enableSecondaryPowerBar then
+                    rune_bar:Show()
+                elseif rune_bar then
+                    rune_bar:Hide()
                 end
             else
                 if health_bar then health_bar.backdrop:Hide() end
                 if primary_power_bar then primary_power_bar.backdrop:Hide() end
+                if secondary_power_bar then secondary_power_bar.backdrop:Hide() end
+                if rune_bar then rune_bar:Hide() end
             end
         end
 
@@ -324,6 +334,148 @@ do
         if color then absorbBar:SetStatusBarColor(color.r, color.g, color.b, color.a) end
     end
 
+    local function get_rune_bar()
+        if rune_bar then return rune_bar end
+        local container = CreateFrame("Frame", "sfui_runeBar", UIParent)
+        container:SetHeight(20)
+
+        container.runes = {}
+
+        -- Resolve texture once
+        local textureName = SfuiDB.barTexture
+        local LSM = LibStub("LibSharedMedia-3.0", true)
+        local texturePath
+        if LSM then
+            texturePath = LSM:Fetch("statusbar", textureName)
+        end
+        if not texturePath or texturePath == "" then
+            texturePath = sfui.config.barTexture
+        end
+
+        for i = 1, 6 do
+            local rune = CreateFrame("StatusBar", nil, container, "BackdropTemplate")
+            rune:SetStatusBarTexture(texturePath)
+            rune:SetStatusBarColor(1, 1, 1) -- Set later
+
+            rune:SetBackdrop({
+                bgFile = "Interface/Buttons/WHITE8X8",
+                edgeFile = "Interface/Buttons/WHITE8X8",
+                edgeSize = 1,
+                insets = { left = 0, right = 0, top = 0, bottom = 0 }
+            })
+            rune:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
+            rune:SetBackdropBorderColor(0, 0, 0, 1)
+
+            container.runes[i] = rune
+        end
+
+        container:SetScript("OnUpdate", function(self, elapsed)
+            self.elapsed = (self.elapsed or 0) + elapsed
+            if self.elapsed > 0.05 then
+                self.elapsed = 0
+                local now = GetTime()
+                for i = 1, 6 do
+                    local rune = self.runes[i]
+                    if rune.start and rune.duration and not rune.ready then
+                        local progress = now - rune.start
+                        rune:SetValue(progress)
+                    elseif rune.ready then
+                        rune:SetValue(1) -- Should be Max
+                    end
+                end
+            end
+        end)
+
+        rune_bar = container
+        return rune_bar
+    end
+
+    local function update_rune_bar()
+        local secResource = sfui.common.get_secondary_resource()
+        if secResource ~= Enum.PowerType.Runes then
+            if rune_bar then rune_bar:Hide() end
+            return
+        end
+
+        local bar = get_rune_bar()
+
+        local healthWidth = sfui.config.healthBar.width
+        local maxTotalWidth = healthWidth * 0.8
+        local spacing = 2
+        local numRunes = 6
+
+        -- Integer division for perfect pixel alignment
+        local runeWidth = math.floor((maxTotalWidth - (spacing * (numRunes - 1))) / numRunes)
+        local usedWidth = (runeWidth * numRunes) + (spacing * (numRunes - 1))
+
+        local runeHeight = 10
+
+        bar:SetSize(usedWidth, runeHeight)
+        bar:Show()
+
+        -- Sorting Logic
+        local runeInfo = {}
+        for i = 1, 6 do
+            local start, duration, ready = GetRuneCooldown(i)
+            local expiration = 0
+            if not ready then
+                expiration = start + duration
+            end
+            tinsert(runeInfo, { id = i, ready = ready, expiration = expiration, start = start, duration = duration })
+        end
+
+        table.sort(runeInfo, function(a, b)
+            if a.ready and not b.ready then return true end
+            if not a.ready and b.ready then return false end
+            if not a.ready and not b.ready then
+                return a.expiration < b.expiration
+            end
+            -- Both ready, order by ID to keep stable
+            return a.id < b.id
+        end)
+
+        local specColor = sfui.common.get_class_or_spec_color()
+
+        -- Position frames according to sorted order
+        for pos = 1, 6 do
+            local info = runeInfo[pos]
+            local rune = bar.runes[info.id] -- Get the actual frame for this rune ID
+
+            rune:SetSize(runeWidth, runeHeight)
+            rune:ClearAllPoints()
+            if pos == 1 then
+                rune:SetPoint("LEFT", bar, "LEFT", 0, 0)
+            else
+                -- Point to the previously positioned rune
+                local prevInfo = runeInfo[pos - 1]
+                local prevRune = bar.runes[prevInfo.id]
+                rune:SetPoint("LEFT", prevRune, "RIGHT", spacing, 0)
+            end
+
+            -- Store state on the frame for OnUpdate
+            rune.start = info.start
+            rune.duration = info.duration
+            rune.ready = info.ready
+
+            -- Set Colors
+            if info.ready then
+                if specColor then
+                    rune:SetStatusBarColor(specColor.r, specColor.g, specColor.b)
+                else
+                    rune:SetStatusBarColor(1, 0.2, 0.3)
+                end
+                rune:SetMinMaxValues(0, 1)
+                rune:SetValue(1)
+            else
+                -- Charging: #444444 (Lighter Grey)
+                rune:SetStatusBarColor(0.266, 0.266, 0.266)
+                rune:SetMinMaxValues(0, info.duration)
+                local current = GetTime() - info.start
+                rune:SetValue(current)
+            end
+        end
+    end
+
     local function get_secondary_power_bar()
         if secondary_power_bar then return secondary_power_bar end
         local bar = sfui.common.create_bar("secondaryPowerBar", "StatusBar", UIParent)
@@ -346,6 +498,12 @@ do
         end
 
         local resource = sfui.common.get_secondary_resource()
+
+        if resource == Enum.PowerType.Runes then
+            if secondary_power_bar and secondary_power_bar.backdrop then secondary_power_bar.backdrop:Hide() end
+            return
+        end
+
         if not resource then
             if secondary_power_bar and secondary_power_bar.backdrop then secondary_power_bar.backdrop:Hide() end
             return
@@ -534,6 +692,7 @@ do
         update_health_bar(current, max)
         update_secondary_power_bar()
         update_vigor_bar()
+        update_rune_bar()
         sfui.bars:update_mount_speed_bar()
         update_bar_visibility()
     end
@@ -554,6 +713,7 @@ do
     event_frame:RegisterEvent("PLAYER_REGEN_DISABLED")
     event_frame:RegisterEvent("PLAYER_REGEN_ENABLED")
     event_frame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    event_frame:RegisterEvent("RUNE_POWER_UPDATE")
 
     event_frame:SetScript("OnEvent", function(self, event, unit, ...)
         if event == "PLAYER_SPECIALIZATION_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" or event == "PLAYER_CAN_GLIDE_CHANGED" or event == "PLAYER_IS_GLIDING_CHANGED" then
@@ -574,6 +734,10 @@ do
             end
         elseif event == "SPELL_UPDATE_CHARGES" then
             update_vigor_bar()
+        elseif event == "RUNE_POWER_UPDATE" then
+            if not should_throttle("runes") then
+                update_rune_bar()
+            end
         end
     end)
 end

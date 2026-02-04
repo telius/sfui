@@ -39,7 +39,6 @@ end
 local currentTargetSlot = nil
 local SLOT_ORDER = { 16, 17, 1, 3, 5, 9, 10, 8, 7, 6 }
 local rotationIndex = 1
-local currentREPAIR_NODES = {}
 
 local update_hammer_popup -- Forward declaration
 
@@ -166,32 +165,6 @@ function sfui.automation.has_repair_hammer(debug)
     return false
 end
 
-local SLOT_BUTTON_MAP = {
-    [1] = "CharacterHeadSlot",
-    [3] = "CharacterShoulderSlot",
-    [5] = "CharacterChestSlot",
-    [6] = "CharacterWaistSlot",
-    [7] = "CharacterLegsSlot",
-    [8] = "CharacterFeetSlot",
-    [9] = "CharacterWristSlot",
-    [10] = "CharacterHandsSlot",
-    [16] = "CharacterMainHandSlot",
-    [17] = "CharacterSecondaryHandSlot"
-}
-
-local SLOT_NAMES = {
-    [1] = "Head",
-    [3] = "Shoulder",
-    [5] = "Chest",
-    [6] = "Waist",
-    [7] = "Legs",
-    [8] = "Feet",
-    [9] = "Wrist",
-    [10] = "Hands",
-    [16] = "MainHand",
-    [17] = "OffHand"
-}
-
 local ARMOR_LOC_MAP = {
     ["INVTYPE_HEAD"] = "HEAD",
     ["INVTYPE_SHOULDER"] = "SHOULDER",
@@ -205,8 +178,63 @@ local ARMOR_LOC_MAP = {
     ["INVTYPE_HAND"] = "HANDS"
 }
 
--- Forward declarations for debug system
--- (None needed, debug consolidated to options.lua)
+local function has_repair_perk(nodeID)
+    if not nodeID then return false end
+    local cfgID = find_bs_config()
+    if not cfgID then return true end
+
+    local nodeInfo = C_Traits.GetNodeInfo(cfgID, nodeID)
+    if not nodeInfo or not nodeInfo.currentRank then
+        return false
+    end
+
+    if nodeInfo.currentRank >= 26 then
+        return true
+    end
+    return false
+end
+
+local function check_repair_eligibility(slot)
+    local itemLink = GetInventoryItemLink("player", slot)
+    if not itemLink then return false end
+
+    local _, _, _, _, _, _, _, equipLoc, _, _, classID, subClassID = C_Item.GetItemInfo(itemLink)
+    if not classID then return false end
+
+    -- Check if item is repairable? (Max Durability > 0)
+    -- The caller checks cur < max, so it is repairable.
+
+    local hasHammer, _, _, hammerItemID = sfui.automation.has_repair_hammer()
+    if not hasHammer or not hammerItemID then return false end
+
+    -- Get nodes from config
+    local nodes = sfui.config.masterHammer[hammerItemID] and sfui.config.masterHammer[hammerItemID].nodes
+    if not nodes then return true end -- No restrictions defined? Allow.
+
+    -- Weapon (Class 2)
+    if classID == 2 then
+        local node = nodes[subClassID]
+        if node then return has_repair_perk(node) end
+        return false
+    end
+
+    -- Armor (Class 4)
+    if classID == 4 then
+        if subClassID == 6 then -- Shield
+            if nodes["SHIELD"] then return has_repair_perk(nodes["SHIELD"]) end
+            return false
+        end
+        if subClassID == 4 then -- Plate (4)
+            local key = ARMOR_LOC_MAP[equipLoc]
+            if key and nodes[key] then return has_repair_perk(nodes[key]) end
+            -- If plate but no node map?
+            return false
+        end
+        return false -- Non-plate/shield
+    end
+
+    return false
+end
 
 local function create_hammer_popup()
     if hammerPopup then return hammerPopup end
@@ -222,7 +250,6 @@ local function create_hammer_popup()
         insets = { left = 2, right = 2, top = 2, bottom = 2 }
     })
     hammerPopup:SetBackdropColor(0, 0, 0, 0.8)
-    -- Border color set below dynamically
 
     local icon = hammerPopup:CreateTexture(nil, "ARTWORK")
     icon:SetPoint("TOPLEFT", 2, -2)
@@ -282,68 +309,6 @@ function sfui.automation.update_popup_style()
     end
 end
 
-local function get_repair_nodes(hammerItemID)
-    if not hammerItemID or not sfui.config.masterHammer[hammerItemID] then
-        return {}
-    end
-    currentREPAIR_NODES = sfui.config.masterHammer[hammerItemID].nodes or {}
-    return currentREPAIR_NODES
-end
-
-local function has_repair_perk(nodeID)
-    if not nodeID then return false end
-    local cfgID = find_bs_config()
-    if not cfgID then return true end
-
-    local nodeInfo = C_Traits.GetNodeInfo(cfgID, nodeID)
-    if not nodeInfo or not nodeInfo.ID or nodeInfo.ID == 0 or not nodeInfo.currentRank then
-        return true
-    end
-
-    return true
-end
-
-local function check_repair_eligibility(slot)
-    local itemLink = GetInventoryItemLink("player", slot)
-    if not itemLink then
-        return nil -- Data not ready
-    end
-
-    local name, _, _, _, _, _, _, _, equipLoc, _, _, classID, subClassID = C_Item.GetItemInfo(itemLink)
-    if not classID then
-        print("SFUI Debug: ItemInfo not ready for", itemLink)
-        return nil
-    end
-
-    local hasHammer, _, _, hammerItemID = sfui.automation.has_repair_hammer()
-    if not hasHammer or not hammerItemID then return false end
-
-    local nodes = get_repair_nodes(hammerItemID)
-
-    -- Weapon (Class 2)
-    if classID == 2 then
-        local node = nodes[subClassID]
-        if node then
-            return has_repair_perk(node)
-        end
-        return false -- Unsupported weapon type
-    end
-
-    -- Armor (Class 4)
-    if classID == 4 then
-        if subClassID == 6 then -- Shield
-            return has_repair_perk(nodes["SHIELD"])
-        end
-        if subClassID == 4 then -- Plate (4)
-            local key = ARMOR_LOC_MAP[equipLoc]
-            if key then return has_repair_perk(nodes[key]) end
-            return false -- Plate slot we don't handle
-        end
-        return false     -- Non-plate/shield not supported
-    end
-    return false
-end
-
 function update_hammer_popup()
     if InCombatLockdown() then return end
 
@@ -384,10 +349,13 @@ function update_hammer_popup()
         local cur, max = GetInventoryItemDurability(slot)
 
         if cur and max and cur < max then
-            targetSlot = slot
-            rotationIndex = idx
-            damagedFound = true
-            break
+            -- Check eligibility (Armor Type + Traits)
+            if check_repair_eligibility(slot) then
+                targetSlot = slot
+                rotationIndex = idx
+                damagedFound = true
+                break
+            end
         end
     end
 
@@ -442,6 +410,36 @@ local function auto_repair()
     end
 end
 
+function sfui.automation.match_mount()
+    if InCombatLockdown() then return end
+
+    local target = "target"
+    if UnitExists(target) then
+        for i = 1, 40 do
+            local aura = C_UnitAuras.GetAuraDataByIndex(target, i, "HELPFUL")
+            if not aura then break end
+
+            local spellID = aura.spellId
+            -- C_MountJournal.GetMountFromSpell was added in 10.0
+            if C_MountJournal.GetMountFromSpell then
+                local mountID = C_MountJournal.GetMountFromSpell(spellID)
+                if mountID then
+                    local _, _, _, _, _, _, _, _, _, _, isCollected = C_MountJournal.GetMountInfoByID(mountID)
+                    if isCollected then
+                        C_MountJournal.SummonByID(mountID)
+                        return
+                    end
+                end
+            end
+        end
+    end
+
+    -- Fallback: Summon Random Favorite
+    C_MountJournal.SummonByID(0)
+end
+
+_G["SFUI_MATCHMOUNT"] = sfui.automation.match_mount
+
 function sfui.automation.initialize()
     local frame = CreateFrame("Frame")
     frame:RegisterEvent("LFG_ROLE_CHECK_SHOW")
@@ -451,9 +449,7 @@ function sfui.automation.initialize()
     frame:RegisterEvent("MERCHANT_CLOSED")
     frame:RegisterEvent("UPDATE_INVENTORY_DURABILITY")
     frame:RegisterEvent("PLAYER_REGEN_ENABLED")
-    -- frame:RegisterEvent("BAG_UPDATE") -- Performance opt: Only scan on logic/reload
     frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
-    -- frame:RegisterEvent("UI_ERROR_MESSAGE") -- Removed as per user request to rely on durability only
     frame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
     frame:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
 
@@ -484,9 +480,6 @@ function sfui.automation.initialize()
                 currentTargetSlot = nil
                 update_hammer_popup()
             end
-            -- elseif event == "UI_ERROR_MESSAGE" then
-            --     -- Removed error handling to prevent false positives/spam.
-            --     -- Items are repaired based solely on durability state.
         elseif event == "UPDATE_INVENTORY_DURABILITY" or event == "PLAYER_REGEN_ENABLED" or event == "GET_ITEM_INFO_RECEIVED" then
             update_hammer_popup()
         end

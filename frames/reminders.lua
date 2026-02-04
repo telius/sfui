@@ -4,9 +4,7 @@ sfui.reminders = {}
 local RAID_BUFFS = {}
 local PERSONAL_BUFFS = {}
 
-local function is_class_present(className)
-    return sfui.common.is_class_in_group(className)
-end
+
 
 local function has_rune()
     local RUNE_PAIRS = {
@@ -56,18 +54,18 @@ local function update_buff_data()
     wipe(PERSONAL_BUFFS)
 
     for _, b in ipairs(raidBuffs) do
-        if is_class_present(b.class) then
+        if sfui.common.is_class_in_group(b.class) then
             table.insert(RAID_BUFFS, b)
         end
     end
 
     local isSolo = not IsInGroup()
-    -- Allow consumables if explicitly enabled solo (via general toggles? no, specific toggle)
-    -- Logic: If disableConsumablesSolo is true AND we are solo, skip adding them.
-    local showConsumables = not (SfuiDB.disableConsumablesSolo and isSolo)
+    -- Logic: If enableConsumables is true AND (enableConsumablesSolo is true OR we are in a group), show them.
+    local enableConsumables = (SfuiDB.enableConsumables ~= false)
+    local showConsumables = enableConsumables and (SfuiDB.enableConsumablesSolo or not isSolo)
 
     if showConsumables then
-        if is_class_present("WARLOCK") then
+        if sfui.common.is_class_in_group("WARLOCK") then
             table.insert(PERSONAL_BUFFS, { name = "Healthstone", isHealthstone = true, icon = 135230 })
         end
 
@@ -149,50 +147,31 @@ end
 
 local threshold = 600 -- 10 minutes
 
-local function has_aura(spellID, unit, ignoreThreshold)
-    unit = unit or "player"
-    local spellName
-    if C_Spell and C_Spell.GetSpellName then
-        spellName = C_Spell.GetSpellName(spellID)
-    elseif GetSpellInfo then
-        spellName = GetSpellInfo(spellID)
-    end
 
-    for i = 1, 40 do
-        local aura = C_UnitAuras.GetAuraDataByIndex(unit, i, "HELPFUL")
-        if not aura then break end
-
-        if aura.spellId == spellID or (spellName and aura.name == spellName) then
-            if aura.expirationTime == 0 or ignoreThreshold then return true end
-            return (aura.expirationTime - GetTime()) > threshold
-        end
-    end
-    return false
-end
 
 local function check_group_buff_status(spellID, ignoreThreshold)
-    if not IsInGroup() then return has_aura(spellID, "player", ignoreThreshold) end
+    if not IsInGroup() then return sfui.common.has_aura(spellID, "player", not ignoreThreshold and threshold) end
     if not spellID then return false end
 
     local unitsToCheck = sfui.common.get_group_units()
 
     for _, unit in ipairs(unitsToCheck) do
         if UnitExists(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit) then
-            if not has_aura(spellID, unit, ignoreThreshold) then return false end
+            if not sfui.common.has_aura(spellID, unit, not ignoreThreshold and threshold) then return false end
         end
     end
     return true
 end
 
 local function check_any_group_buff_status(spellID, ignoreThreshold)
-    if not IsInGroup() then return has_aura(spellID, "player", ignoreThreshold) end
+    if not IsInGroup() then return sfui.common.has_aura(spellID, "player", not ignoreThreshold and threshold) end
     if not spellID then return false end
 
     local unitsToCheck = sfui.common.get_group_units()
 
     for _, unit in ipairs(unitsToCheck) do
         if UnitExists(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit) then
-            if has_aura(spellID, unit, ignoreThreshold) then return true end
+            if sfui.common.has_aura(spellID, unit, not ignoreThreshold and threshold) then return true end
         end
     end
     return false
@@ -251,7 +230,7 @@ local function check_augment_runes()
 
     local hasRune, spellID = has_rune()
     -- Use has_aura for robust name matching
-    local missingRune = hasRune and not has_aura(spellID, "player")
+    local missingRune = hasRune and not sfui.common.has_aura(spellID, "player", threshold)
 
     if missingRune then
         set_warning("rune", true, cfg.text, cfg.priority, cfg.color)
@@ -422,7 +401,7 @@ local function update_icons()
             local hasBuff = false
             if data.spellID then
                 if data.isPersonal then
-                    hasBuff = has_aura(data.spellID, "player", data.ignoreThreshold)
+                    hasBuff = sfui.common.has_aura(data.spellID, "player", not data.ignoreThreshold and threshold)
                 elseif data.isAny then
                     hasBuff = check_any_group_buff_status(data.spellID, data.ignoreThreshold)
                 else
