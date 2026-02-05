@@ -108,7 +108,7 @@ local hammerCache = {
     checked = false
 }
 
-function sfui.automation.has_repair_hammer(debug)
+function sfui.automation.has_repair_hammer()
     -- If we've already found a hammer this session, just return it
     if hammerCache.checked and hammerCache.found then
         return hammerCache.found, hammerCache.name, hammerCache.icon, hammerCache.itemID
@@ -143,7 +143,6 @@ function sfui.automation.has_repair_hammer(debug)
                 -- Fallback for older/unknown hammers (matches "Master's Hammer")
                 local name = C_Item.GetItemInfo(info.hyperlink)
                 if name and name:find("Master.s Hammer") then
-                    if debug then print("SFUI Debug: Found Hammer:", name) end
                     local _, _, _, _, _, _, _, _, _, icon = C_Item.GetItemInfo(info.hyperlink)
 
                     hammerCache.found = true
@@ -161,7 +160,6 @@ function sfui.automation.has_repair_hammer(debug)
     -- If user picks one up later, BAG_UPDATE should clear this flag
     hammerCache.found = false
     hammerCache.checked = true
-    if debug then print("SFUI Debug: No Hammer Found after scan.") end
     return false
 end
 
@@ -198,7 +196,7 @@ local function check_repair_eligibility(slot)
     local itemLink = GetInventoryItemLink("player", slot)
     if not itemLink then return false end
 
-    local _, _, _, _, _, _, _, equipLoc, _, _, classID, subClassID = C_Item.GetItemInfo(itemLink)
+    local _, _, _, _, _, _, _, _, equipLoc, _, _, classID, subClassID = C_Item.GetItemInfo(itemLink)
     if not classID then return false end
 
     -- Check if item is repairable? (Max Durability > 0)
@@ -277,11 +275,37 @@ local function create_hammer_popup()
     -- Apply Aesthetics from DB
     hammerPopup:Hide()
 
-    hammerPopup:SetScript("PostClick", function(self)
+    hammerPopup:SetScript("PostClick", function(self, button, down)
+        if down then return end
         if InCombatLockdown() then return end
         -- Move to the next slot in the rotation immediately
         rotationIndex = (rotationIndex % #SLOT_ORDER) + 1
         update_hammer_popup()
+    end)
+
+    -- Make Movable
+    hammerPopup:SetMovable(true)
+    hammerPopup:RegisterForDrag("LeftButton")
+    hammerPopup:SetScript("OnDragStart", function(self)
+        if not SfuiDB.lockRepairIcon then
+            self:StartMoving()
+        end
+    end)
+    hammerPopup:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        -- Save position relative to center
+        local center_x, center_y = self:GetCenter()
+        local uip_x, uip_y = UIParent:GetCenter()
+        if not center_x or not center_y or not uip_x or not uip_y then return end
+
+        local x = math.floor(center_x - uip_x)
+        local y = math.floor(center_y - uip_y)
+
+        SfuiDB.repairIconX = x
+        SfuiDB.repairIconY = y
+
+        self:ClearAllPoints()
+        self:SetPoint("CENTER", UIParent, "CENTER", x, y)
     end)
 
     sfui.automation.update_popup_style() -- Apply initial style
@@ -292,10 +316,13 @@ function sfui.automation.update_popup_style()
     if not hammerPopup then return end
 
     -- Apply Aesthetics from DB
-    local x = SfuiDB.repairIconX or 0
-    local y = SfuiDB.repairIconY or 200
+    -- Default locked to false if nil? actually defaults provided via checkbox logic usually.
+    -- If locked, we could discourage dragging? The OnDragStart handles that.
+
+    local x = SfuiDB.repairIconX or 880
+    local y = SfuiDB.repairIconY or -430
     hammerPopup:ClearAllPoints()
-    hammerPopup:SetPoint("CENTER", x, y)
+    hammerPopup:SetPoint("CENTER", UIParent, "CENTER", x, y)
 
     local hex = SfuiDB.repairIconColor or "00FFFF"
     if hex:sub(1, 1) == "#" then hex = hex:sub(2) end
@@ -327,7 +354,6 @@ function update_hammer_popup()
     local displayPct = 0
 
     -- 1. Count total broken and find lowest for display purposes
-    -- Uses the configured threshold (default 90%)
     local lowestDur = 100
     local threshold = SfuiDB.repairThreshold or 90
     for _, slot in ipairs(SLOT_ORDER) do
@@ -349,12 +375,15 @@ function update_hammer_popup()
         local cur, max = GetInventoryItemDurability(slot)
 
         if cur and max and cur < max then
-            -- Check eligibility (Armor Type + Traits)
-            if check_repair_eligibility(slot) then
-                targetSlot = slot
-                rotationIndex = idx
-                damagedFound = true
-                break
+            local pct = (cur / max) * 100
+            if pct <= threshold then
+                local eligible = check_repair_eligibility(slot)
+                if eligible then
+                    targetSlot = slot
+                    rotationIndex = idx
+                    damagedFound = true
+                    break
+                end
             end
         end
     end
@@ -369,7 +398,6 @@ function update_hammer_popup()
         end
 
         popup:Show()
-        popup:Show()
         -- Respect enable setting (defaults to true if nil)
         if SfuiDB.enableMasterHammer == false then
             popup:SetAlpha(0)
@@ -382,8 +410,6 @@ function update_hammer_popup()
     else
         popup:Hide()
     end
-
-    -- update_debug_panel() -- Removed: Use Options -> Debug
 end
 
 local function auto_repair()
@@ -445,6 +471,7 @@ function sfui.automation.initialize()
     frame:RegisterEvent("LFG_ROLE_CHECK_SHOW")
     frame:RegisterEvent("LFG_LIST_SEARCH_RESULTS_RECEIVED")
     frame:RegisterEvent("PLAYER_LOGIN")
+    frame:RegisterEvent("BAG_UPDATE")
     frame:RegisterEvent("MERCHANT_SHOW")
     frame:RegisterEvent("MERCHANT_CLOSED")
     frame:RegisterEvent("UPDATE_INVENTORY_DURABILITY")
@@ -462,7 +489,10 @@ function sfui.automation.initialize()
         elseif event == "PLAYER_LOGIN" then
             setup_lfg_dialog()
             -- Perform initial one-time scan and check durability immediately
-            sfui.automation.has_repair_hammer(false)
+            update_hammer_popup()
+        elseif event == "BAG_UPDATE" then
+            hammerCache.checked = false
+            hammerCache.found = false
             update_hammer_popup()
         elseif event == "MERCHANT_SHOW" then
             rotationIndex = 1

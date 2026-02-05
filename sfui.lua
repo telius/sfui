@@ -88,6 +88,7 @@ event_frame:SetScript("OnEvent", function(self, event, name)
             if SfuiDB.enableMerchant == nil then SfuiDB.enableMerchant = true end
             if SfuiDB.enableDecor == nil then SfuiDB.enableDecor = true end
             if SfuiDB.enableVehicle == nil then SfuiDB.enableVehicle = true end
+            if SfuiDB.enableCursorRing == nil then SfuiDB.enableCursorRing = true end
 
             -- Bar settings
             if SfuiDB.healthBarX == nil then SfuiDB.healthBarX = 0 end

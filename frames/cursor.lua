@@ -1,17 +1,20 @@
 sfui = sfui or {}
 sfui.cursor = {}
 
+local f -- specific frame reference
+local scale = 1
+local lastX, lastY
+
 function sfui.cursor.initialize()
     if _G.SfuiCursor then return end
 
     -- Locals for performance
     local uiparent = UIParent
     local GetCursorPosition = GetCursorPosition
-    local scale = uiparent:GetEffectiveScale()
-    local lastX, lastY
+    scale = uiparent:GetEffectiveScale()
 
     -- Create Frame
-    local f = CreateFrame("Frame", "SfuiCursor", uiparent)
+    f = CreateFrame("Frame", "SfuiCursor", uiparent)
     f:SetSize(64, 64)
     f:SetFrameStrata("TOOLTIP")
     f:SetFrameLevel(9999)
@@ -46,8 +49,8 @@ function sfui.cursor.initialize()
         end
     end)
 
-    -- Update Loop
-    f:SetScript("OnUpdate", function(self)
+    -- Define Update Loop function
+    f.OnUpdate = function(self)
         local x, y = GetCursorPosition()
         local cx, cy = x / scale, y / scale
 
@@ -55,8 +58,24 @@ function sfui.cursor.initialize()
             lastX, lastY = cx, cy
             self:SetPoint("CENTER", uiparent, "BOTTOMLEFT", cx, cy)
         end
-    end)
+    end
 
-    -- Initialize
+    -- Initialize Color
     UpdateColor()
+
+    -- Apply initial state
+    sfui.cursor.toggle(SfuiDB.enableCursorRing)
+end
+
+function sfui.cursor.toggle(enabled)
+    SfuiDB.enableCursorRing = enabled
+    if not f then return end
+
+    if enabled then
+        f:Show()
+        f:SetScript("OnUpdate", f.OnUpdate)
+    else
+        f:Hide()
+        f:SetScript("OnUpdate", nil)
+    end
 end

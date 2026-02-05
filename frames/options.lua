@@ -226,8 +226,15 @@ function sfui.create_options_panel()
     end, "hides the sfui minimap icon.")
     hide_minimap_icon_cb:SetPoint("TOPLEFT", reload_button, "BOTTOMLEFT", 0, -20)
 
+    local enable_ring_cursor_cb = create_checkbox(main_panel, "enable ring cursor", "enableCursorRing", function(checked)
+        if sfui.cursor and sfui.cursor.toggle then
+            sfui.cursor.toggle(checked)
+        end
+    end, "toggles the ring cursor around the mouse.")
+    enable_ring_cursor_cb:SetPoint("TOPLEFT", hide_minimap_icon_cb, "BOTTOMLEFT", 0, -10)
+
     local vehicle_header = main_panel:CreateFontString(nil, "OVERLAY", g.font)
-    vehicle_header:SetPoint("TOPLEFT", hide_minimap_icon_cb, "BOTTOMLEFT", 0, -30)
+    vehicle_header:SetPoint("TOPLEFT", enable_ring_cursor_cb, "BOTTOMLEFT", 0, -30)
     vehicle_header:SetTextColor(white[1], white[2], white[3])
     vehicle_header:SetText("vehicle settings")
 
@@ -562,6 +569,10 @@ function sfui.create_options_panel()
         end
     end, "Enables the automated Master's Hammer repair popup.")
     enable_hammer_cb:SetPoint("TOPLEFT", aesthetic_header, "BOTTOMLEFT", 0, -10)
+
+    local lock_hammer_cb = create_checkbox(automation_panel, "lock repair icon", "lockRepairIcon", nil,
+        "Locks the repair icon in place so it cannot be dragged.")
+    lock_hammer_cb:SetPoint("LEFT", enable_hammer_cb, "RIGHT", 150, 0)
 
     -- Threshold
     -- Threshold
