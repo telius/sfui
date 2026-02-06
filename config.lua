@@ -382,6 +382,26 @@ sfui.config = {
         auto_sign_lfg = true,
     },
 
+    -- Tracked Bars (Custom Cooldown Tracker)
+    trackedBars = {
+        -- Position anchor
+        anchor = {
+            point = "TOP",
+            x = 0,
+            y = -150,
+        },
+        -- Default visibility settings
+        hideOOC = false,     -- Hide all bars when out of combat
+        hideInactive = true, -- Hide bars when cooldowns are inactive
+        -- Default bar configuration per cooldown ID
+        defaults = {
+            [18469] = {                            -- Ignore Pain (Warrior)
+                isSecondary = true,                -- Attach to healthbar (secondary position)
+                color = { r = 0.4, g = 0, b = 1 }, -- Purple
+            },
+        },
+    },
+
     -- Master's Hammer Specialization Nodes
     -- Organised by expansion version keys.
     masterHammer = {

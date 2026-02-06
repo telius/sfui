@@ -33,6 +33,12 @@ function sfui.slash_command_handler(msg)
         else
             print("sfui: research viewer not available.")
         end
+    elseif msg == "cv" then
+        if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
+            sfui.trackedoptions.toggle_viewer()
+        else
+            print("sfui: cooldown viewer not available.")
+        end
     end
 end
 
@@ -180,6 +186,9 @@ event_frame:SetScript("OnEvent", function(self, event, name)
         if sfui.cursor and sfui.cursor.initialize then
             sfui.cursor.initialize()
         end
+        if sfui.trackedbars and sfui.trackedbars.initialize then
+            sfui.trackedbars.initialize()
+        end
 
 
 
@@ -202,7 +211,13 @@ event_frame:SetScript("OnEvent", function(self, event, name)
                     elseif button == "LeftButton" then
                         sfui.toggle_options_panel()
                     elseif button == "RightButton" then
-                        C_UI.Reload()
+                        if IsShiftKeyDown() then
+                            if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
+                                sfui.trackedoptions.toggle_viewer()
+                            end
+                        else
+                            C_UI.Reload()
+                        end
                     elseif button == "MiddleButton" then
                         if sfui.research and sfui.research.toggle_selection then
                             sfui.research.toggle_selection()
@@ -215,6 +230,7 @@ event_frame:SetScript("OnEvent", function(self, event, name)
                     tooltip:AddLine("Shift+Left-click to Configure Cooldowns", 0.4, 0.7, 1)
                     tooltip:AddLine("Middle-click to toggle Research Viewer", 0.2, 0.6, 1)
                     tooltip:AddLine("Right-click to Reload UI", 1, 0.2, 0.2)
+                    tooltip:AddLine("Shift+Right-click to Tracking Manager", 1, 0.5, 0.2)
                 end,
             })
             icon:Register("sfui", broker, SfuiDB.minimap_icon)

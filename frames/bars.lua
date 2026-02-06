@@ -369,22 +369,8 @@ do
             container.runes[i] = rune
         end
 
-        container:SetScript("OnUpdate", function(self, elapsed)
-            self.elapsed = (self.elapsed or 0) + elapsed
-            if self.elapsed > 0.05 then
-                self.elapsed = 0
-                local now = GetTime()
-                for i = 1, 6 do
-                    local rune = self.runes[i]
-                    if rune.start and rune.duration and not rune.ready then
-                        local progress = now - rune.start
-                        rune:SetValue(progress)
-                    elseif rune.ready then
-                        rune:SetValue(1) -- Should be Max
-                    end
-                end
-            end
-        end)
+        -- Rune updates are handled by RUNE_POWER_UPDATE event (line 716, 737-740)
+        -- OnUpdate removed to eliminate 20fps polling overhead
 
         rune_bar = container
         return rune_bar

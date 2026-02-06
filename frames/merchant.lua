@@ -1020,23 +1020,8 @@ frame:SetScript("OnMouseWheel", function(self, delta)
     scrollBar:SetValue(val)
 end)
 
-frame:SetScript("OnUpdate", function(self, elapsed)
-    if self.itemHover then
-        if IsModifiedClick("DRESSUP") then
-            ShowInspectCursor()
-        else
-            if sfui.merchant.mode == "merchant" then
-                if CanAffordMerchantItem(self.itemHover) == false then
-                    SetCursor("BUY_ERROR_CURSOR")
-                else
-                    SetCursor("BUY_CURSOR")
-                end
-            else
-                SetCursor("BUY_CURSOR")
-            end
-        end
-    end
-end)
+-- Cursor tracking is handled by item button OnEnter/OnLeave events (lines 302-309)
+-- OnUpdate removed to eliminate 60-144fps polling overhead
 
 local function update_header()
     local unit = "npc"

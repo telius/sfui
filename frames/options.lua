@@ -303,6 +303,15 @@ function sfui.create_options_panel()
     UIDropDownMenu_SetSelectedValue(dropdown, SfuiDB.barTexture)
     UIDropDownMenu_SetWidth(dropdown, 150)
 
+    local open_cv_main = CreateFlatButton(main_panel, "manage tracking", 140, 22)
+    open_cv_main:SetPoint("TOPLEFT", texture_label, "BOTTOMLEFT", 0, -20)
+    open_cv_main:SetScript("OnClick", function()
+        if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
+            sfui.trackedoptions.toggle_viewer()
+            frame:Hide()
+        end
+    end)
+
 
     -- 2. Bars Panel
     local bars_header = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
@@ -374,6 +383,15 @@ function sfui.create_options_panel()
         health_y_slider:SetSliderValue(300)
         if sfui.bars and sfui.bars.update_health_bar_position then
             sfui.bars:update_health_bar_position()
+        end
+    end)
+
+    local open_cv_bars = CreateFlatButton(bars_panel, "manage tracked bars", 140, 22)
+    open_cv_bars:SetPoint("TOPLEFT", reset_health_pos_btn, "BOTTOMLEFT", 0, -20)
+    open_cv_bars:SetScript("OnClick", function()
+        if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
+            sfui.trackedoptions.toggle_viewer()
+            frame:Hide()
         end
     end)
 

@@ -21,3 +21,5 @@ Interface/AddOns/*/
 
 # Internal tools
 .agent/
+PERFORMANCE_REPORT.md
+OPTIMIZATIONS_APPLIED.md
