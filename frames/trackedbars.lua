@@ -9,19 +9,42 @@ local standardBars = {}
 local activeCooldownIDs = {}
 
 -- Helper to get tracking config for a specific ID
+local configCache = {}
 local function GetTrackedBarConfig(cooldownID)
-    -- Check DB first (user customizations)
-    if SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars[cooldownID] then
-        return SfuiDB.trackedBars[cooldownID]
-    end
+    if configCache[cooldownID] then return configCache[cooldownID] end
 
-    -- Check config defaults (from config.lua)
-    if sfui.config.trackedBars and sfui.config.trackedBars.defaults and sfui.config.trackedBars.defaults[cooldownID] then
-        return sfui.config.trackedBars.defaults[cooldownID]
-    end
+    local proxy = setmetatable({}, {
+        __index = function(_, k)
+            -- 1. Check DB (User Customization)
+            if SfuiDB and SfuiDB.trackedBars then
+                local entry = SfuiDB.trackedBars[cooldownID]
+                if not entry then entry = SfuiDB.trackedBars[tonumber(cooldownID)] end
 
-    return nil
+                if entry then
+                    local v = entry[k]
+                    if v ~= nil then return v end
+                end
+            end
+
+            -- 2. Check Defaults
+            if sfui.config.trackedBars and sfui.config.trackedBars.defaults then
+                local defaults = sfui.config.trackedBars.defaults
+                local entry = defaults[cooldownID]
+                if not entry then entry = defaults[tonumber(cooldownID)] end
+
+                if entry then
+                    local v = entry[k]
+                    if v ~= nil then return v end
+                end
+            end
+            return nil
+        end
+    })
+
+    configCache[cooldownID] = proxy
+    return proxy
 end
+sfui.trackedbars.GetConfig = GetTrackedBarConfig
 
 -- Helper to determine max stacks for a bar
 -- Checks in order: special cases -> user config -> charge info -> default
@@ -29,14 +52,14 @@ local function GetMaxStacksForBar(cooldownID, config, spellID)
     local cfg = sfui.config.trackedBars
     local maxStacks = cfg.defaultMaxStacks
 
-    -- 1. Check for special case overrides (highest priority)
-    if cfg.specialCases and cfg.specialCases[cooldownID] and cfg.specialCases[cooldownID].maxStacks then
-        return cfg.specialCases[cooldownID].maxStacks
-    end
-
-    -- 2. Check user config override
+    -- 1. Check user config override (highest priority)
     if config and config.maxStacks then
         return config.maxStacks
+    end
+
+    -- 2. Check for special case overrides
+    if cfg.specialCases and cfg.specialCases[cooldownID] and cfg.specialCases[cooldownID].maxStacks then
+        return cfg.specialCases[cooldownID].maxStacks
     end
 
     -- 3. Try to get from charge info (for charge-based abilities)
@@ -49,6 +72,7 @@ local function GetMaxStacksForBar(cooldownID, config, spellID)
 
     return maxStacks
 end
+sfui.trackedbars.GetMaxStacks = GetMaxStacksForBar
 
 
 
@@ -136,7 +160,6 @@ end
 -- Helper function to apply common bar styling and positioning
 -- Reduces duplicate code between stack mode and standard mode
 -- Helper function to setup bar content (text, icons, stack mode logic) state
--- Helper function to setup bar content (text, icons, stack mode logic) state
 local function SetupBarState(bar, config, cfg)
     local isStackMode = config and config.stackMode or false
     local isAttached = config and config.stackAboveHealth or false
@@ -154,13 +177,15 @@ local function SetupBarState(bar, config, cfg)
         bar.time:ClearAllPoints()
         bar.time:SetPoint("CENTER", bar.status, "CENTER", 0, 0)
         sfui.common.style_text(bar.time, nil, cfg.fonts.stackModeDurationSize, "")
+
+        if config and config.showName == false then bar.name:Hide() end
     else
         for i = 1, cfg.maxSegments do bar.segments[i]:Hide() end
         -- Standard Mode
         bar.status:Show(); bar.name:Show(); bar.time:Show(); bar.icon:Show()
         bar.count:ClearAllPoints()
         bar.count:SetPoint("CENTER", bar.icon, "CENTER", 0, 0)
-        sfui.common.style_text(bar.count, nil, nil, "")
+        sfui.common.style_text(bar.count, nil, nil)
 
         if config and config.showName == false then bar.name:Hide() end
         if config and config.showDuration == false then bar.time:Hide() end
@@ -209,6 +234,9 @@ local function ApplyBarStyling(bar, yOffset, config, cfg)
     return yOffset + (cfg.height + cfg.spacing)
 end
 
+-- Helper to get sort index removed
+
+
 local function UpdateLayout()
     local cfg = sfui.config.trackedBars
     table.wipe(standardBars)
@@ -227,8 +255,21 @@ local function UpdateLayout()
         end
     end
 
+    -- Simple Sort (Priority > Name)
+    local function SimpleSort(a, b)
+        local cA = GetTrackedBarConfig(a.cooldownID)
+        local cB = GetTrackedBarConfig(b.cooldownID)
+        local pA = (cA and cA.priority) or 0
+        local pB = (cB and cB.priority) or 0
+        if pA ~= pB then return pA < pB end
+
+        local nA = C_Spell.GetSpellName(a.cooldownID) or ""
+        local nB = C_Spell.GetSpellName(b.cooldownID) or ""
+        return nA < nB
+    end
+
     -- 1. Standard Layout
-    table.sort(standardBars, function(a, b) return a.cooldownID < b.cooldownID end)
+    table.sort(standardBars, SimpleSort)
     local yOffset = 0
     for _, bar in ipairs(standardBars) do
         local config = GetTrackedBarConfig(bar.cooldownID)
@@ -238,14 +279,17 @@ local function UpdateLayout()
 
     -- 2. Attached Layout
     if #attachedBars > 0 then
-        table.sort(attachedBars, function(a, b) return a.cooldownID < b.cooldownID end)
+        table.sort(attachedBars, SimpleSort)
 
-        local spacing = sfui.config.barLayout and sfui.config.barLayout.spacing or 1
+        local spacing = sfui.config.barLayout.spacing or 1
         local anchor = _G["sfui_bar0_Backdrop"]
         local isBar1 = false
 
         if _G["sfui_bar1_Backdrop"] and _G["sfui_bar1_Backdrop"]:IsShown() then
             anchor = _G["sfui_bar1_Backdrop"]
+            isBar1 = true
+        elseif _G["sfui_runeBar"] then
+            anchor = _G["sfui_runeBar"]
             isBar1 = true
         end
 
@@ -381,14 +425,16 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
         end
     end
 
+    -- Set Name (Config > Aura Data > Blizzard Text)
+    if config and config.name then
+        myBar.name:SetText(config.name)
+    elseif not blizzFrame.auraInstanceID and blizzFrame.Bar and blizzFrame.Bar.Name then -- Only use blizz text if no aura data
+        myBar.name:SetText(blizzFrame.Bar.Name:GetText())
+    end
+
     -- Default to 0
     if not currentStacks then currentStacks = 0 end
     myBar.currentStacks = currentStacks -- Store for OnUpdate access
-
-    -- Set Name from Config (ignore Blizzard name scraping)
-    if config and config.name then
-        myBar.name:SetText(config.name)
-    end
 
     -- MAIN BAR UPDATE LOGIC
     if isStackMode then
@@ -423,15 +469,8 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
             myBar.time:SetText(text)
         end
 
-        -- In Normal Mode, Stack Count is shown as text
-        -- Check if Blizzard thinks stacks should be shown (Safe check avoids secret value compare)
-        local showApps = false
-        if blizzFrame.Icon and blizzFrame.Icon.Applications and blizzFrame.Icon.Applications:IsShown() then
-            showApps = true
-        end
-
-        if showApps then
-            myBar.count:SetText(currentStacks)
+        if showApps and stackText ~= "0" and stackText ~= "" then
+            myBar.count:SetText(stackText)
         else
             myBar.count:SetText("")
         end

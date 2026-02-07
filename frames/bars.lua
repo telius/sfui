@@ -399,6 +399,11 @@ do
         bar:SetSize(usedWidth, runeHeight)
         bar:Show()
 
+        -- Update tracked bars layout to respect Rune Bar presence
+        if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+            sfui.trackedbars.ForceLayoutUpdate()
+        end
+
         -- Sorting Logic
         local runeInfo = {}
         for i = 1, 6 do

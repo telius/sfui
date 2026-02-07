@@ -1,3 +1,15 @@
+## v0.2.1 (2026-02-08)
+
+### Changes
+- **Configuration Defaults**: Updated Bone Shield to default to green (`0, 0.8, 0.067`) and hidden title. Updated Ignore Pain to default to orange (`1, 0.533, 0`).
+- **Positioning Improvements**: Improved tracked bars anchoring logic to check for Rune Bar existence rather than visibility, fixing positioning delays for Death Knights.
+- **Safety**: Added combat lockdown check to the Tracking Manager to prevent errors when opening it during combat.
+- **Bug Fixes**:
+    - Fixed the "Reset" button in Tracking Manager to properly clear and reload default settings.
+    - Fixed Color Swatch not loading default colors correctly in the options panel.
+    - Reverted recent "secret value" sanitization changes that caused crashes.
+- **Code Cleanup**: Removed redundant comments and unused code in `trackedbars.lua` and `trackedoptions.lua`.
+
 ## v0.2.0 (2026-02-07)
 
 ### Major Features

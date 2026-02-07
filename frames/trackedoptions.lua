@@ -4,17 +4,40 @@ sfui.trackedoptions = {}
 local frame
 local scrollFrame
 local content
+local UpdateCooldownsList -- Forward declaration
+local CreateFlatButton = sfui.common.create_flat_button
 local c = sfui.config.options_panel
 local g = sfui.config
 
 
 
 
+local function CreateNumericEditBox(parent, w, h, callback)
+    local eb = CreateFrame("EditBox", nil, parent, "BackdropTemplate")
+    eb:SetSize(w, h)
+    eb:SetFontObject("GameFontHighlightSmall")
+    eb:SetAutoFocus(false)
+    eb:SetJustifyH("CENTER")
+    eb:SetBackdrop({
+        bgFile = "Interface/Buttons/WHITE8X8",
+        edgeFile = "Interface/Buttons/WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    })
+    eb:SetBackdropColor(0.2, 0.2, 0.2, 1)
+    eb:SetBackdropBorderColor(0, 0, 0, 1)
+    eb:SetScript("OnEnterPressed", function(self)
+        local val = tonumber(self:GetText())
+        if callback then callback(val) end
+        self:ClearFocus()
+    end)
+    eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    return eb
+end
 
 local function CreateCooldownsFrame()
     if frame then return end
 
-    local CreateFlatButton = sfui.common.create_flat_button
     local create_slider_input = sfui.common.create_slider_input
 
     frame = CreateFrame("Frame", "SfuiCooldownsViewer", UIParent, "BackdropTemplate")
@@ -39,15 +62,83 @@ local function CreateCooldownsFrame()
         frame:Hide()
     end)
 
+    -- Reset Button
+    local resetBtn = CreateFlatButton(frame, "reset", 80, 22)
+    resetBtn:SetPoint("RIGHT", close_button, "LEFT", -5, 0)
+    resetBtn:SetScript("OnClick", function()
+        if SfuiDB and SfuiDB.trackedBars then
+            SfuiDB.trackedBars = {}
+            if UpdateCooldownsList then UpdateCooldownsList() end
+            if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+                sfui.trackedbars.ForceLayoutUpdate()
+            end
+        end
+    end)
+
     -- Title
     local header_text = frame:CreateFontString(nil, "OVERLAY", g.font_large)
     header_text:SetPoint("TOP", frame, "TOP", 0, -10)
     header_text:SetTextColor(g.header_color[1], g.header_color[2], g.header_color[3])
     header_text:SetText("tracking manager")
 
+    -- Navigation Buttons
+    local btnSFUI = CreateFlatButton(frame, "sfui options", 100, 22)
+    btnSFUI:SetPoint("TOPLEFT", 10, -5)
+    btnSFUI:SetScript("OnClick", function()
+        if sfui.toggle_options_panel then
+            sfui.toggle_options_panel()
+
+            if sfui_options_frame and sfui_options_frame:IsShown() and frame then
+                local p, rel, rp, x, y = frame:GetPoint()
+                if rel == sfui_options_frame then
+                    local left = frame:GetLeft()
+                    local top = frame:GetTop()
+                    frame:ClearAllPoints()
+                    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+                end
+
+                sfui_options_frame:ClearAllPoints()
+                sfui_options_frame:SetPoint("TOPRIGHT", frame, "TOPLEFT", -5, 0)
+            end
+        end
+    end)
+
+    local btnBlizz = CreateFlatButton(frame, "blizzard cv", 100, 22)
+    btnBlizz:SetPoint("LEFT", btnSFUI, "RIGHT", 5, 0)
+    btnBlizz:SetScript("OnClick", function()
+        if not CooldownViewerSettings then
+            C_AddOns.LoadAddOn("Blizzard_CooldownViewer")
+        end
+        if CooldownViewerSettings then
+            ShowUIPanel(CooldownViewerSettings)
+        else
+            print("SFUI: Blizzard_CooldownViewer not found.")
+        end
+    end)
+    frame:SetScript("OnShow", function()
+        -- Prevent opening the Blizzard Cooldown Viewer in combat, as it can cause errors
+        if InCombatLockdown() then
+            print("|cffFF0000SFUI:|r Cannot configure tracked bars in combat.")
+            frame:Hide()
+            return
+        end
+
+        UpdateCooldownsList()
+        -- If user hasn't loaded Cooldowns yet, trigger load
+        if not C_AddOns.IsAddOnLoaded("Blizzard_CooldownViewer") then
+            -- Note: We can force load it, but UpdateCooldownsList usually handles the check
+            C_AddOns.LoadAddOn("Blizzard_CooldownViewer")
+        end
+        -- Show Blizzard's frame (it needs to be shown to be scraped?)
+        if BuffBarCooldownViewer then
+            BuffBarCooldownViewer:Show()
+            BuffBarCooldownViewer:SetAlpha(0) -- Hide it visually
+        end
+    end)
+
     -- Position Controls
     local pos_header = frame:CreateFontString(nil, "OVERLAY", g.font)
-    pos_header:SetPoint("TOPLEFT", 15, -40)
+    pos_header:SetPoint("TOPLEFT", 15, -45)
     pos_header:SetTextColor(1, 1, 1)
     pos_header:SetText("tracking frame position")
 
@@ -109,40 +200,39 @@ local function CreateCooldownsFrame()
     chk_inactive:SetChecked(inactiveState)
 
     -- Table Header for cooldown list
-    local tableHeader = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local tableHeader = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
     tableHeader:SetPoint("TOPLEFT", chk_ooc, "BOTTOMLEFT", 0, -20)
     tableHeader:SetTextColor(0.8, 0.8, 0.8)
     tableHeader:SetText("tracked bars")
 
-    -- Column Headers
+    -- Column Headers (Wider Layout 800px)
     local colHeader = CreateFrame("Frame", nil, frame)
-    colHeader:SetSize(600, 20)
+    colHeader:SetSize(800, 40)
     colHeader:SetPoint("TOPLEFT", tableHeader, "BOTTOMLEFT", 0, -5)
 
-    local col1 = colHeader:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    col1:SetPoint("LEFT", 30, 0)
-    col1:SetTextColor(0.7, 0.7, 0.7)
-    col1:SetText("ability")
+    local function CreateHeader(point, text, subText)
+        local h = colHeader:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        h:SetPoint("TOPLEFT", point, 0)
+        h:SetTextColor(0.7, 0.7, 0.7)
+        h:SetText(text)
 
-    local col2 = colHeader:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    col2:SetPoint("LEFT", 280, 0)
-    col2:SetTextColor(0.7, 0.7, 0.7)
-    col2:SetText("attach")
+        if subText then
+            local s = colHeader:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+            s:SetPoint("TOPLEFT", h, "BOTTOMLEFT", 0, -2)
+            s:SetTextColor(0.5, 0.5, 0.5)
+            s:SetText(subText)
+            sfui.common.style_text(s, nil, 9, nil) -- Smaller font
+        end
+        return h
+    end
 
-    local col3 = colHeader:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    col3:SetPoint("LEFT", 340, 0)
-    col3:SetTextColor(0.7, 0.7, 0.7)
-    col3:SetText("mode")
-
-    local col4 = colHeader:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    col4:SetPoint("LEFT", 400, 0)
-    col4:SetTextColor(0.7, 0.7, 0.7)
-    col4:SetText("text")
-
-    local col5 = colHeader:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    col5:SetPoint("LEFT", 460, 0)
-    col5:SetTextColor(0.7, 0.7, 0.7)
-    col5:SetText("color")
+    CreateHeader(10, "ability")
+    CreateHeader(300, "attach", "to health bar")
+    CreateHeader(400, "mode", "stack bar")
+    CreateHeader(480, "max", "stacks")
+    CreateHeader(550, "text", "show stacks")
+    CreateHeader(630, "text", "show title")
+    CreateHeader(710, "color")
 
     -- Content Frame (Direct child, no scrollbar)
     content = CreateFrame("Frame", nil, frame)
@@ -152,7 +242,7 @@ end
 
 
 
-local function UpdateCooldownsList()
+UpdateCooldownsList = function()
     if not frame then return end
 
     -- Clear previous content
@@ -194,12 +284,14 @@ local function UpdateCooldownsList()
     if not dataProvider then return end
 
     local cooldownIDs = dataProvider:GetOrderedCooldownIDs()
+
     local groupedCooldowns = {}
 
     for _, cooldownID in ipairs(cooldownIDs) do
         local info = dataProvider:GetCooldownInfoForID(cooldownID)
         if info then
             local groupID = info.category or 0
+
             if not groupedCooldowns[groupID] then
                 groupedCooldowns[groupID] = {}
             end
@@ -235,15 +327,11 @@ local function UpdateCooldownsList()
             table.insert(sortedGroups, groupID)
         end
     end
-    table.sort(sortedGroups, function(a, b)
-        if a == 3 then return true end
-        if b == 3 then return false end
-        return a < b
-    end)
+    table.sort(sortedGroups) -- Sort group IDs numerically
 
     for _, groupID in ipairs(sortedGroups) do
         -- No Group Header Title logic needed as per user request
-        for _, cd in ipairs(groupedCooldowns[groupID]) do
+        for i, cd in ipairs(groupedCooldowns[groupID]) do
             local row = CreateFrame("Frame", nil, content)
             row:SetSize(580, 24)
             row:SetPoint("TOPLEFT", 10, yOffset)
@@ -251,7 +339,7 @@ local function UpdateCooldownsList()
             -- Icon Button (for Tooltip)
             local iconButton = CreateFrame("Button", nil, row)
             iconButton:SetSize(20, 20)
-            iconButton:SetPoint("LEFT", 0, 0)
+            iconButton:SetPoint("LEFT", 70, 0) -- Shifted right for order buttons
 
             local icon = iconButton:CreateTexture(nil, "ARTWORK")
             icon:SetAllPoints()
@@ -284,75 +372,126 @@ local function UpdateCooldownsList()
             -- Spell Name (Left Aligned)
             local nameText = row:CreateFontString(nil, "ARTWORK")
             nameText:SetFontObject(g.font)
-            nameText:SetPoint("LEFT", iconButton, "RIGHT", 10, 0)
-            nameText:SetWidth(240) -- Adjusted width for new columns
+            nameText:SetPoint("LEFT", iconButton, "RIGHT", 5, 0)
+            nameText:SetWidth(190) -- Wider name column
             nameText:SetJustifyH("LEFT")
             nameText:SetWordWrap(false)
             nameText:SetText(cd.name)
             nameText:SetTextColor(1, 1, 1, 1)
 
-            if groupID == 3 then
-                -- Attach Checkbox (Stack on Health)
-                local attachChk = sfui.common.create_checkbox(row, "", nil, function(val)
-                    local barDB = sfui.common.ensure_tracked_bar_db(cd.cooldownID)
-                    SfuiDB.trackedBars[cd.cooldownID].stackAboveHealth = val
-                    if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
-                        sfui.trackedbars.ForceLayoutUpdate()
-                    end
-                end)
-                attachChk:SetPoint("LEFT", row, "LEFT", 280, 0)
-
-                local attachVal = false
-                if SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars[cd.cooldownID] then
-                    attachVal = SfuiDB.trackedBars[cd.cooldownID].stackAboveHealth or false
+            -- Attach Checkbox (Stack on Health)
+            local attachChk = sfui.common.create_checkbox(row, "", nil, function(val)
+                local barDB = sfui.common.ensure_tracked_bar_db(cd.cooldownID)
+                SfuiDB.trackedBars[cd.cooldownID].stackAboveHealth = val
+                if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+                    sfui.trackedbars.ForceLayoutUpdate()
                 end
-                attachChk:SetChecked(attachVal)
+            end)
+            attachChk:SetPoint("LEFT", row, "LEFT", 300, 0) -- Matching Header 300
 
-                -- Stack Mode Checkbox (Visual Bar Fill)
-                local stackChk = sfui.common.create_checkbox(row, "", nil, function(val)
-                    local barDB = sfui.common.ensure_tracked_bar_db(cd.cooldownID)
-                    SfuiDB.trackedBars[cd.cooldownID].stackMode = val
-                    if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
-                        sfui.trackedbars.ForceLayoutUpdate()
-                    end
-                end)
-                stackChk:SetPoint("LEFT", row, "LEFT", 340, 0)
-
-                local stackVal = false
-                if SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars[cd.cooldownID] then
-                    stackVal = SfuiDB.trackedBars[cd.cooldownID].stackMode or false
-                end
-                stackChk:SetChecked(stackVal)
-
-                -- Text Checkbox (Show Stacks as Text)
-                local textChk = sfui.common.create_checkbox(row, "", nil, function(val)
-                    local barDB = sfui.common.ensure_tracked_bar_db(cd.cooldownID)
-                    SfuiDB.trackedBars[cd.cooldownID].showStacksText = val
-                    if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
-                        sfui.trackedbars.ForceLayoutUpdate()
-                    end
-                end)
-                textChk:SetPoint("LEFT", row, "LEFT", 400, 0)
-
-                local showStacksTextVal = false
-                if SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars[cd.cooldownID] then
-                    showStacksTextVal = SfuiDB.trackedBars[cd.cooldownID].showStacksText or false
-                end
-                textChk:SetChecked(showStacksTextVal)
-
-                -- Color Swatch
-                local initialColor = sfui.config.colors.purple
-                if SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars[cd.cooldownID] and SfuiDB.trackedBars[cd.cooldownID].color then
-                    initialColor = SfuiDB.trackedBars[cd.cooldownID].color
-                end
-
-                local swatch = sfui.common.create_color_swatch(row, initialColor, function(r, g, b)
-                    if sfui.trackedbars and sfui.trackedbars.SetColor then
-                        sfui.trackedbars.SetColor(cd.cooldownID, r, g, b)
-                    end
-                end)
-                swatch:SetPoint("LEFT", row, "LEFT", 460, 0)
+            local attachVal = false
+            if sfui.trackedbars and sfui.trackedbars.GetConfig then
+                local cfg = sfui.trackedbars.GetConfig(cd.cooldownID)
+                if cfg and cfg.stackAboveHealth then attachVal = true end
             end
+            attachChk:SetChecked(attachVal)
+
+            -- Stack Mode Checkbox (Visual Bar Fill)
+            local stackChk = sfui.common.create_checkbox(row, "", nil, function(val)
+                local barDB = sfui.common.ensure_tracked_bar_db(cd.cooldownID)
+                SfuiDB.trackedBars[cd.cooldownID].stackMode = val
+                if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+                    sfui.trackedbars.ForceLayoutUpdate()
+                end
+            end)
+            stackChk:SetPoint("LEFT", row, "LEFT", 400, 0) -- Matching Header 400
+
+            local stackVal = false
+            if sfui.trackedbars and sfui.trackedbars.GetConfig then
+                local cfg = sfui.trackedbars.GetConfig(cd.cooldownID)
+                if cfg and cfg.stackMode then stackVal = true end
+            end
+            stackChk:SetChecked(stackVal)
+
+            -- Max Stacks Input
+            local maxInput = CreateNumericEditBox(row, 30, 18, function(val)
+                local barDB = sfui.common.ensure_tracked_bar_db(cd.cooldownID)
+                if val and val > 0 then
+                    SfuiDB.trackedBars[cd.cooldownID].maxStacks = val
+                else
+                    SfuiDB.trackedBars[cd.cooldownID].maxStacks = nil
+                end
+                if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+                    sfui.trackedbars.ForceLayoutUpdate()
+                end
+            end)
+            maxInput:SetPoint("LEFT", row, "LEFT", 480, 0) -- Matching Header 480
+
+            local dbVal = nil
+            if SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars[cd.cooldownID] then
+                dbVal = SfuiDB.trackedBars[cd.cooldownID].maxStacks
+            end
+
+            local specialVal = nil
+            if sfui.config.trackedBars.specialCases and sfui.config.trackedBars.specialCases[cd.cooldownID] then
+                specialVal = sfui.config.trackedBars.specialCases[cd.cooldownID].maxStacks
+            end
+
+            if dbVal then
+                maxInput:SetText(dbVal)
+            elseif specialVal then
+                maxInput:SetText(specialVal)
+            end
+
+            -- Text Checkbox (Show Stacks as Text)
+            local textChk = sfui.common.create_checkbox(row, "", nil, function(val)
+                local barDB = sfui.common.ensure_tracked_bar_db(cd.cooldownID)
+                SfuiDB.trackedBars[cd.cooldownID].showStacksText = val
+                if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+                    sfui.trackedbars.ForceLayoutUpdate()
+                end
+            end)
+            textChk:SetPoint("LEFT", row, "LEFT", 550, 0) -- Matching Header 550
+
+            local showStacksTextVal = false
+            if sfui.trackedbars and sfui.trackedbars.GetConfig then
+                local cfg = sfui.trackedbars.GetConfig(cd.cooldownID)
+                if cfg and cfg.showStacksText then showStacksTextVal = true end
+            end
+            textChk:SetChecked(showStacksTextVal)
+
+            -- Title Checkbox (Show Name)
+            local titleChk = sfui.common.create_checkbox(row, "", nil, function(val)
+                local barDB = sfui.common.ensure_tracked_bar_db(cd.cooldownID)
+                SfuiDB.trackedBars[cd.cooldownID].showName = val
+                if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+                    sfui.trackedbars.ForceLayoutUpdate()
+                end
+            end)
+            titleChk:SetPoint("LEFT", row, "LEFT", 630, 0) -- Matching Header 630
+
+            local showNameVal = true
+            if sfui.trackedbars and sfui.trackedbars.GetConfig then
+                local cfg = sfui.trackedbars.GetConfig(cd.cooldownID)
+                if cfg and cfg.showName == false then showNameVal = false end
+            end
+            titleChk:SetChecked(showNameVal)
+
+            -- Color Swatch
+            local initialColor = sfui.config.colors.purple
+            if sfui.trackedbars and sfui.trackedbars.GetConfig then
+                local cfg = sfui.trackedbars.GetConfig(cd.cooldownID)
+                if cfg and cfg.color then
+                    initialColor = cfg.color
+                end
+            end
+
+            local swatch = sfui.common.create_color_swatch(row, initialColor, function(r, g, b)
+                if sfui.trackedbars and sfui.trackedbars.SetColor then
+                    sfui.trackedbars.SetColor(cd.cooldownID, r, g, b)
+                end
+            end)
+            swatch:SetPoint("LEFT", row, "LEFT", 710, 0) -- Matching Header 710
 
             yOffset = yOffset - 26
         end

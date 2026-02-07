@@ -308,7 +308,19 @@ function sfui.create_options_panel()
     open_cv_main:SetScript("OnClick", function()
         if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
             sfui.trackedoptions.toggle_viewer()
-            frame:Hide()
+
+            if SfuiCooldownsViewer and SfuiCooldownsViewer:IsShown() and sfui_options_frame then
+                local p, rel, rp, x, y = sfui_options_frame:GetPoint()
+                if rel == SfuiCooldownsViewer then
+                    local left = sfui_options_frame:GetLeft()
+                    local top = sfui_options_frame:GetTop()
+                    sfui_options_frame:ClearAllPoints()
+                    sfui_options_frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+                end
+
+                SfuiCooldownsViewer:ClearAllPoints()
+                SfuiCooldownsViewer:SetPoint("TOPLEFT", sfui_options_frame, "TOPRIGHT", 5, 0)
+            end
         end
     end)
 

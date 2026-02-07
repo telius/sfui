@@ -415,23 +415,31 @@ sfui.config = {
         updateThrottle = 0.05, -- OnUpdate throttle interval (~20fps)
         -- Special case overrides (by cooldownID)
         specialCases = {
-            [9039] = { maxStacks = 12 }, -- Bone Shield (Death Knight)
+            [9039] = { maxStacks = 12 },   -- Bone Shield (Death Knight)
+            [18469] = { maxStacks = 100 }, -- Ignore Pain (Warrior)
         },
         -- Default visibility settings
         hideOOC = false,     -- Hide all bars when out of combat
         hideInactive = true, -- Hide bars when cooldowns are inactive
         -- Default bar configuration per cooldown ID
         defaults = {
-            [18469] = {                            -- Ignore Pain (Warrior)
-                isSecondary = true,                -- Attach to healthbar (secondary position)
-                color = { r = 0.4, g = 0, b = 1 }, -- Purple
+            [18469] = {                                -- Ignore Pain (Warrior)
+                stackAboveHealth = true,               -- Attach to healthbar (secondary position)
+                color = { r = 1, g = 0.533, b = 0 },   -- Orange
+                showStacksText = true,                 -- Show stack count as duration text
+            },
+            [9039] = {                                 -- Bone Shield (Death Knight)
+                stackAboveHealth = true,               -- Attach to healthbar
+                stackMode = true,                      -- Use stack count as bar value
+                color = { r = 0, g = 0.8, b = 0.067 }, -- Green
+                showName = false,                      -- Hide name
             },
         },
     },
 
     -- Tracked Options Window
     trackedOptionsWindow = {
-        width = 600,
+        width = 800,
         height = 500,
     },
 
