@@ -12,6 +12,15 @@ Supports [Masque](https://www.curseforge.com/wow/addons/masque) for button skinn
 
 ## Features
 
+### Tracked Bars
+Powerful cooldown and aura tracking system that integrates seamlessly with your character frame.
+- **Smart Attachment**: Stack tracked bars directly above your Health or Secondary Power bar for a unified HUD.
+- **Dynamic Layout**: Automatically adjusts positioning based on resource bar visibility, maintaining a clean interface.
+- **Stack Mode**: Visualize stack counts as a progress bar or centered text for clarity.
+- **Flexible Display**: Customize colors, text alignment, and visibility per ability.
+
+![Tracked Bars](shots/trackedbars.png)
+
 ### Buffs and Reminders
 Tracks out of combat raid buffs and personal consumables.
 - Dynamically shows raidbuffs like Mark of the Wild, Evoker buffs, and Stamina based on group composition

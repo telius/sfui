@@ -125,14 +125,24 @@ local function CreateCooldownsFrame()
     col1:SetText("ability")
 
     local col2 = colHeader:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    col2:SetPoint("LEFT", 420, 0)
+    col2:SetPoint("LEFT", 280, 0)
     col2:SetTextColor(0.7, 0.7, 0.7)
-    col2:SetText("stacks")
+    col2:SetText("attach")
 
     local col3 = colHeader:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    col3:SetPoint("LEFT", 500, 0)
+    col3:SetPoint("LEFT", 340, 0)
     col3:SetTextColor(0.7, 0.7, 0.7)
-    col3:SetText("color")
+    col3:SetText("mode")
+
+    local col4 = colHeader:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    col4:SetPoint("LEFT", 400, 0)
+    col4:SetTextColor(0.7, 0.7, 0.7)
+    col4:SetText("text")
+
+    local col5 = colHeader:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    col5:SetPoint("LEFT", 460, 0)
+    col5:SetTextColor(0.7, 0.7, 0.7)
+    col5:SetText("color")
 
     -- Content Frame (Direct child, no scrollbar)
     content = CreateFrame("Frame", nil, frame)
@@ -275,30 +285,60 @@ local function UpdateCooldownsList()
             local nameText = row:CreateFontString(nil, "ARTWORK")
             nameText:SetFontObject(g.font)
             nameText:SetPoint("LEFT", iconButton, "RIGHT", 10, 0)
-            nameText:SetWidth(400) -- Increased width as attachment options are gone
+            nameText:SetWidth(240) -- Adjusted width for new columns
             nameText:SetJustifyH("LEFT")
             nameText:SetWordWrap(false)
             nameText:SetText(cd.name)
             nameText:SetTextColor(1, 1, 1, 1)
 
             if groupID == 3 then
-                -- Stack Mode Checkbox
-                local stackChk = sfui.common.create_checkbox(row, "", nil, function(val)
+                -- Attach Checkbox (Stack on Health)
+                local attachChk = sfui.common.create_checkbox(row, "", nil, function(val)
                     local barDB = sfui.common.ensure_tracked_bar_db(cd.cooldownID)
-                    SfuiDB.trackedBars[cd.cooldownID].stackMode = val
-
-                    -- Force immediate layout update
+                    SfuiDB.trackedBars[cd.cooldownID].stackAboveHealth = val
                     if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
                         sfui.trackedbars.ForceLayoutUpdate()
                     end
                 end)
-                stackChk:SetPoint("LEFT", row, "LEFT", 420, 0)
+                attachChk:SetPoint("LEFT", row, "LEFT", 280, 0)
+
+                local attachVal = false
+                if SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars[cd.cooldownID] then
+                    attachVal = SfuiDB.trackedBars[cd.cooldownID].stackAboveHealth or false
+                end
+                attachChk:SetChecked(attachVal)
+
+                -- Stack Mode Checkbox (Visual Bar Fill)
+                local stackChk = sfui.common.create_checkbox(row, "", nil, function(val)
+                    local barDB = sfui.common.ensure_tracked_bar_db(cd.cooldownID)
+                    SfuiDB.trackedBars[cd.cooldownID].stackMode = val
+                    if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+                        sfui.trackedbars.ForceLayoutUpdate()
+                    end
+                end)
+                stackChk:SetPoint("LEFT", row, "LEFT", 340, 0)
 
                 local stackVal = false
                 if SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars[cd.cooldownID] then
                     stackVal = SfuiDB.trackedBars[cd.cooldownID].stackMode or false
                 end
                 stackChk:SetChecked(stackVal)
+
+                -- Text Checkbox (Show Stacks as Text)
+                local textChk = sfui.common.create_checkbox(row, "", nil, function(val)
+                    local barDB = sfui.common.ensure_tracked_bar_db(cd.cooldownID)
+                    SfuiDB.trackedBars[cd.cooldownID].showStacksText = val
+                    if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+                        sfui.trackedbars.ForceLayoutUpdate()
+                    end
+                end)
+                textChk:SetPoint("LEFT", row, "LEFT", 400, 0)
+
+                local showStacksTextVal = false
+                if SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars[cd.cooldownID] then
+                    showStacksTextVal = SfuiDB.trackedBars[cd.cooldownID].showStacksText or false
+                end
+                textChk:SetChecked(showStacksTextVal)
 
                 -- Color Swatch
                 local initialColor = sfui.config.colors.purple
@@ -311,7 +351,7 @@ local function UpdateCooldownsList()
                         sfui.trackedbars.SetColor(cd.cooldownID, r, g, b)
                     end
                 end)
-                swatch:SetPoint("LEFT", row, "LEFT", 500, 0)
+                swatch:SetPoint("LEFT", row, "LEFT", 460, 0)
             end
 
             yOffset = yOffset - 26

@@ -135,95 +135,145 @@ end
 
 -- Helper function to apply common bar styling and positioning
 -- Reduces duplicate code between stack mode and standard mode
-local function ApplyBarStyling(bar, yOffset, config, cfg)
-    -- Apply color
-    local color = config and config.color or sfui.config.colors.purple
-    if color then
-        bar.status:SetStatusBarColor(
-            color.r or color[1],
-            color.g or color[2],
-            color.b or color[3]
-        )
+-- Helper function to setup bar content (text, icons, stack mode logic) state
+-- Helper function to setup bar content (text, icons, stack mode logic) state
+local function SetupBarState(bar, config, cfg)
+    local isStackMode = config and config.stackMode or false
+    local isAttached = config and config.stackAboveHealth or false
+    local showStacksText = config and config.showStacksText or false
+
+    if isStackMode then
+        for i = 1, cfg.maxSegments do bar.segments[i]:Hide() end
+        bar.status:Show(); bar.name:Show(); bar.time:Show(); bar.icon:Show(); bar.count:Hide()
+        local currentStacks = tonumber(bar.count:GetText()) or 0
+        local maxStacks = GetMaxStacksForBar(bar.cooldownID, config, bar.spellID)
+        bar.status:SetMinMaxValues(0, maxStacks)
+        bar.status:SetValue(currentStacks)
+
+        -- Center time in Stack Mode
+        bar.time:ClearAllPoints()
+        bar.time:SetPoint("CENTER", bar.status, "CENTER", 0, 0)
+        sfui.common.style_text(bar.time, nil, cfg.fonts.stackModeDurationSize, "")
+    else
+        for i = 1, cfg.maxSegments do bar.segments[i]:Hide() end
+        -- Standard Mode
+        bar.status:Show(); bar.name:Show(); bar.time:Show(); bar.icon:Show()
+        bar.count:ClearAllPoints()
+        bar.count:SetPoint("CENTER", bar.icon, "CENTER", 0, 0)
+        sfui.common.style_text(bar.count, nil, nil, "")
+
+        if config and config.showName == false then bar.name:Hide() end
+        if config and config.showDuration == false then bar.time:Hide() end
+        if config and config.showStacks == false then bar.count:Hide() end
+
+        -- Text Position Logic: Center if Attached or Stacks Text, Right if Standard
+        bar.time:ClearAllPoints()
+        if isAttached or showStacksText then
+            bar.time:SetPoint("CENTER", bar.status, "CENTER", 0, 0)
+            sfui.common.style_text(bar.time, nil, cfg.fonts.stackModeDurationSize, "")
+        else
+            bar.time:SetPoint("RIGHT", -5, 0)
+            -- Use default small font style implicitly or re-apply if needed (assuming CreateBar set it)
+        end
     end
 
-    -- Size and position
+    -- Icon Visibility Override for Attached bars
+    if isAttached then
+        bar.icon:Hide()
+        bar.count:Hide()                            -- Hide count on icon position
+    else
+        if not isStackMode then bar.icon:Show() end -- Restore
+    end
+
+    -- Hide count if showing stacks as main text (redundant)
+    if showStacksText then
+        bar.count:Hide()
+    end
+
+    local color = config and config.color or sfui.config.colors.purple
+    if color then
+        bar.status:SetStatusBarColor(color.r or color[1], color.g or color[2], color.b or color[3])
+    end
+end
+
+-- Helper for Standard Bar Positioning
+local function ApplyBarStyling(bar, yOffset, config, cfg)
     bar:SetSize(cfg.width, cfg.height)
     bar:ClearAllPoints()
     bar:SetPoint("BOTTOM", container, "BOTTOM", 0, yOffset)
-
-    -- Backdrop styling
-    bar.status:ClearAllPoints()
     local pad = cfg.backdrop.padding
+    bar.status:ClearAllPoints()
     bar.status:SetPoint("TOPLEFT", pad, -pad)
     bar.status:SetPoint("BOTTOMRIGHT", -pad, pad)
     bar:SetBackdropColor(unpack(cfg.backdrop.color))
-
     return yOffset + (cfg.height + cfg.spacing)
 end
 
 local function UpdateLayout()
     local cfg = sfui.config.trackedBars
-    table.wipe(standardBars) -- Reuse table instead of creating new
+    table.wipe(standardBars)
+    local attachedBars = {}
 
     for _, bar in pairs(bars) do
         if bar:IsShown() then
-            table.insert(standardBars, bar)
+            local config = GetTrackedBarConfig(bar.cooldownID)
+            SetupBarState(bar, config, cfg)
+
+            if config and config.stackAboveHealth then
+                table.insert(attachedBars, bar)
+            else
+                table.insert(standardBars, bar)
+            end
         end
     end
 
-    local yOffset = 0
+    -- 1. Standard Layout
     table.sort(standardBars, function(a, b) return a.cooldownID < b.cooldownID end)
-
+    local yOffset = 0
     for _, bar in ipairs(standardBars) do
-        local config = GetTrackedBarConfig(bar.cooldownID) -- Cache config lookup
-        local isStackMode = config and config.stackMode or false
+        local config = GetTrackedBarConfig(bar.cooldownID)
+        bar:SetParent(container)
+        yOffset = ApplyBarStyling(bar, yOffset, config, cfg)
+    end
 
-        if isStackMode then
-            -- Stack Mode: Show bar filled based on stack count
-            for i = 1, cfg.maxSegments do
-                bar.segments[i]:Hide()
+    -- 2. Attached Layout
+    if #attachedBars > 0 then
+        table.sort(attachedBars, function(a, b) return a.cooldownID < b.cooldownID end)
+
+        local spacing = sfui.config.barLayout and sfui.config.barLayout.spacing or 1
+        local anchor = _G["sfui_bar0_Backdrop"]
+        local isBar1 = false
+
+        if _G["sfui_bar1_Backdrop"] and _G["sfui_bar1_Backdrop"]:IsShown() then
+            anchor = _G["sfui_bar1_Backdrop"]
+            isBar1 = true
+        end
+
+        if anchor then
+            for _, bar in ipairs(attachedBars) do
+                bar:SetParent(UIParent)
+                bar:ClearAllPoints()
+
+                local width, height = cfg.width, cfg.height
+                if not isBar1 then
+                    -- Acting as Bar1
+                    width = sfui.config.healthBar.width * 0.8
+                    height = 20
+                    isBar1 = true -- Stack next ones normally
+                end
+
+                bar:SetSize(width, height)
+                bar:SetPoint("BOTTOM", anchor, "TOP", 0, spacing)
+
+                -- Style Fix
+                local pad = cfg.backdrop.padding
+                bar.status:ClearAllPoints()
+                bar.status:SetPoint("TOPLEFT", pad, -pad)
+                bar.status:SetPoint("BOTTOMRIGHT", -pad, pad)
+                bar:SetBackdropColor(unpack(cfg.backdrop.color))
+
+                anchor = bar
             end
-
-            bar.status:Show()
-            bar.name:Show()
-            bar.time:Show()  -- Show duration text
-            bar.icon:Show()
-            bar.count:Hide() -- Hide stack count number (it's represented by bar fill)
-
-            -- Get current stacks from the count text (already set by SyncWithBlizzard)
-            local currentStacks = tonumber(bar.count:GetText()) or 0
-            local maxStacks = GetMaxStacksForBar(bar.cooldownID, config, bar.spellID)
-
-            -- Set bar to fill based on stack count
-            bar.status:SetMinMaxValues(0, maxStacks)
-            bar.status:SetValue(currentStacks)
-
-            -- Position duration text prominently on the bar
-            bar.time:ClearAllPoints()
-            bar.time:SetPoint("CENTER", bar.status, "CENTER", 0, 0)
-            sfui.common.style_text(bar.time, nil, cfg.fonts.stackModeDurationSize, "")
-
-            yOffset = ApplyBarStyling(bar, yOffset, config, cfg)
-        else
-            -- Standard Mode: Show duration bar, hide segments
-            for i = 1, cfg.maxSegments do
-                bar.segments[i]:Hide()
-            end
-
-            bar.status:Show()
-            bar.name:Show()
-            bar.time:Show()
-            bar.icon:Show()
-            bar.count:ClearAllPoints()
-            bar.count:SetPoint("CENTER", bar.icon, "CENTER", 0, 0)
-            sfui.common.style_text(bar.count, nil, nil, "")
-
-            -- Check visibility configs (Standard only)
-            if config and config.showName == false then bar.name:Hide() end
-            if config and config.showDuration == false then bar.time:Hide() end
-            if config and config.showStacks == false then bar.count:Hide() end
-
-            yOffset = ApplyBarStyling(bar, yOffset, config, cfg)
         end
     end
 end
@@ -333,6 +383,12 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
 
     -- Default to 0
     if not currentStacks then currentStacks = 0 end
+    myBar.currentStacks = currentStacks -- Store for OnUpdate access
+
+    -- Set Name from Config (ignore Blizzard name scraping)
+    if config and config.name then
+        myBar.name:SetText(config.name)
+    end
 
     -- MAIN BAR UPDATE LOGIC
     if isStackMode then
@@ -344,10 +400,13 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
         -- FORCE HIDE BLIZZ BAR COMPONENTS if strict
         if blizzFrame.Bar then blizzFrame.Bar:SetAlpha(0) end
 
-        -- Sync Text (Name/Duration) from Blizzard Frame
+        -- Sync Time Text
         if blizzFrame.Bar then
-            if blizzFrame.Bar.Name then myBar.name:SetText(blizzFrame.Bar.Name:GetText()) end
-            if blizzFrame.Bar.Duration then myBar.time:SetText(blizzFrame.Bar.Duration:GetText()) end
+            local text = blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
+            if config and config.showStacksText then
+                text = tostring(currentStacks)
+            end
+            myBar.time:SetText(text)
         end
     else
         -- NORMAL MODE: Bar represents Duration (Copy from Blizzard)
@@ -357,8 +416,11 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
             myBar.status:SetMinMaxValues(min, max)
             myBar.status:SetValue(val)
 
-            if blizzFrame.Bar.Name then myBar.name:SetText(blizzFrame.Bar.Name:GetText()) end
-            if blizzFrame.Bar.Duration then myBar.time:SetText(blizzFrame.Bar.Duration:GetText()) end
+            local text = blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
+            if config and config.showStacksText then
+                text = tostring(currentStacks)
+            end
+            myBar.time:SetText(text)
         end
 
         -- In Normal Mode, Stack Count is shown as text
@@ -524,11 +586,13 @@ function sfui.trackedbars.initialize()
                             end
 
                             -- Update duration/name text (always safe to sync text)
-                            if blizzFrame.Bar.Name then
-                                myBar.name:SetText(blizzFrame.Bar.Name:GetText())
-                            end
+                            -- Note: Name is set in SyncBarData from config, avoiding frame scraping
                             if blizzFrame.Bar.Duration then
-                                myBar.time:SetText(blizzFrame.Bar.Duration:GetText())
+                                local text = blizzFrame.Bar.Duration:GetText() or ""
+                                if config and config.showStacksText then
+                                    text = tostring(myBar.currentStacks or 0)
+                                end
+                                myBar.time:SetText(text)
                             end
                         end
                     end
@@ -578,6 +642,18 @@ function sfui.trackedbars.initialize()
             BuffBarCooldownViewer:SetScale(0.001)
             BuffBarCooldownViewer:ClearAllPoints()
             BuffBarCooldownViewer:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", -1000, 1000)
+        end)
+    end
+
+    -- Hook into bars state for attachment updates
+    if sfui.bars then
+        hooksecurefunc(sfui.bars, "on_state_changed", function()
+            -- Delay slightly to ensure bars have hidden/shown
+            C_Timer.After(0.05, function()
+                if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+                    sfui.trackedbars.ForceLayoutUpdate()
+                end
+            end)
         end)
     end
 end

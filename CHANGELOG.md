@@ -8,6 +8,9 @@
     - **Integration**: Seamlessly integrates with Blizzard's Cooldown Viewer addon for advanced configuration.
     - **Memory Optimized**: Frame pooling and table reuse for high-performance updates.
     - **Configuration Panel**: Dedicated UI in options for managing all tracked bars.
+    - **Smart Attachment**: New option to stack bars above Health Frame or Secondary Power Bar.
+    - **Text Mode**: Option to display stack counts as centered text instead of duration.
+    - **Refinements**: Improved text positioning, hidden icons for attached bars, and flicker-free updates.
 
 ### Improvements
 - **Code Optimization**: Comprehensive refactor across 8 files for improved performance and maintainability:
