@@ -161,43 +161,28 @@ function sfui.research.toggle_selection()
     end
 end
 
-local colors = {
-    purple = { 0.4, 0, 1 },
-    teal = { 0, 1, 1 },
-    black = { 0, 0, 0 },
-}
-
 local function create_sfui_button(parent, text, width, height, tooltip)
-    local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    btn:SetSize(width, height)
-    btn:SetBackdrop({
-        bgFile = "Interface/Buttons/WHITE8X8",
-        edgeFile = "Interface/Buttons/WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 }
-    })
+    local btn = sfui.common.create_styled_button(parent, text, width, height)
     btn:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
-    btn:SetBackdropBorderColor(unpack(colors.black))
 
-    btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    btn.text:ClearAllPoints()
     btn.text:SetPoint("LEFT", 5, 0)
     btn.text:SetPoint("RIGHT", -5, 0)
-    btn.text:SetText(text)
     btn.text:SetWordWrap(false)
 
     function btn:SetSelected(selected)
         self.isSelected = selected
         if selected then
-            self:SetBackdropBorderColor(unpack(colors.purple))
+            self:SetBackdropBorderColor(unpack(sfui.config.colors.purple))
         else
-            self:SetBackdropBorderColor(unpack(colors.black))
+            self:SetBackdropBorderColor(unpack(sfui.config.colors.black))
         end
     end
 
     btn:SetScript("OnEnter", function(self)
         self:SetBackdropColor(0.15, 0.15, 0.15, 1)
         if not self.isSelected then
-            self:SetBackdropBorderColor(unpack(colors.teal))
+            self:SetBackdropBorderColor(unpack(sfui.config.colors.cyan))
         end
         if tooltip or (self.text.IsTruncated and self.text:IsTruncated()) then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -208,9 +193,9 @@ local function create_sfui_button(parent, text, width, height, tooltip)
     btn:SetScript("OnLeave", function(self)
         self:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
         if self.isSelected then
-            self:SetBackdropBorderColor(unpack(colors.purple))
+            self:SetBackdropBorderColor(unpack(sfui.config.colors.purple))
         else
-            self:SetBackdropBorderColor(unpack(colors.black))
+            self:SetBackdropBorderColor(unpack(sfui.config.colors.black))
         end
         GameTooltip:Hide()
     end)

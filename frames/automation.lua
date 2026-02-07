@@ -186,7 +186,8 @@ local function has_repair_perk(nodeID)
         return false
     end
 
-    if nodeInfo.currentRank >= 26 then
+    local requiredRank = sfui.config.masterHammer.requiredRank or 26
+    if nodeInfo.currentRank >= requiredRank then
         return true
     end
     return false
@@ -315,16 +316,15 @@ end
 function sfui.automation.update_popup_style()
     if not hammerPopup then return end
 
-    -- Apply Aesthetics from DB
-    -- Default locked to false if nil? actually defaults provided via checkbox logic usually.
-    -- If locked, we could discourage dragging? The OnDragStart handles that.
-
-    local x = SfuiDB.repairIconX or 880
-    local y = SfuiDB.repairIconY or -430
+    -- Apply position from DB or config defaults
+    local defaultPos = sfui.config.masterHammer.defaultPosition
+    local x = SfuiDB.repairIconX or defaultPos.x
+    local y = SfuiDB.repairIconY or defaultPos.y
     hammerPopup:ClearAllPoints()
     hammerPopup:SetPoint("CENTER", UIParent, "CENTER", x, y)
 
-    local hex = SfuiDB.repairIconColor or "00FFFF"
+    -- Apply color from DB or config default
+    local hex = SfuiDB.repairIconColor or sfui.config.masterHammer.defaultColor
     if hex:sub(1, 1) == "#" then hex = hex:sub(2) end
     local r = tonumber("0x" .. hex:sub(1, 2)) or 255
     local g = tonumber("0x" .. hex:sub(3, 4)) or 0

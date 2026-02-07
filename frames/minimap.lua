@@ -1,11 +1,18 @@
 sfui = sfui or {}
 sfui.minimap = {}
 
+-- ========================
+-- Local Variables
+-- ========================
+local frame = nil
+local isInitialized = false
+local collectAttempts = 0
+
 local addonName, addon = ...
-local frame = CreateFrame("Frame", addonName)
+frame = CreateFrame("Frame", addonName)
 
 local zoom_timer = nil
-local DEFAULT_ZOOM = 0
+local DEFAULT_ZOOM = sfui.config.minimap.defaultZoom or 0
 local button_bar = nil
 
 local function set_default_zoom()
@@ -393,7 +400,8 @@ function sfui.minimap.enable_button_manager(enabled)
 
         -- Update position from saved coordinates
         button_bar:ClearAllPoints()
-        button_bar:SetPoint("TOP", Minimap, "BOTTOM", SfuiDB.minimap_button_x or 0, SfuiDB.minimap_button_y or -5)
+        button_bar:SetPoint(SfuiDB.minimap_button_point or "TOP", Minimap,
+            SfuiDB.minimap_button_relative_point or "BOTTOM", SfuiDB.minimap_button_x or 0, SfuiDB.minimap_button_y or -5)
 
         button_bar:Show()
 
@@ -440,7 +448,8 @@ end
 function sfui.minimap.update_button_bar_position()
     if button_bar then
         button_bar:ClearAllPoints()
-        button_bar:SetPoint("TOP", Minimap, "BOTTOM", SfuiDB.minimap_button_x or 0, SfuiDB.minimap_button_y or -5)
+        button_bar:SetPoint(SfuiDB.minimap_button_point or "TOP", Minimap,
+            SfuiDB.minimap_button_relative_point or "BOTTOM", SfuiDB.minimap_button_x or 0, SfuiDB.minimap_button_y or -5)
     end
 end
 

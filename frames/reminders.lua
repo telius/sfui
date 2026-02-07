@@ -145,8 +145,10 @@ local function set_warning(key, active, text, priority, colorName)
     update_warning_display()
 end
 
-local threshold = 600 -- 10 minutes
+local threshold = sfui.config.reminders.buffThreshold -- From config
 
+-- Reusable table for combining buffs (performance optimization)
+local combined = {}
 
 
 local function check_group_buff_status(spellID, ignoreThreshold)
@@ -178,43 +180,41 @@ local function check_any_group_buff_status(spellID, ignoreThreshold)
 end
 
 local function has_food()
-    for i = 1, 40 do
-        local aura = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")
-        if not aura then break end
+    return sfui.common.scan_player_auras(function(aura)
         if aura.name == "Well Fed" or (aura.spellId == 22568) then
             if aura.expirationTime == 0 or (aura.expirationTime - GetTime()) > threshold then
                 return true
             end
         end
-    end
-    return false
+        return false
+    end)
 end
 
 local function has_flask()
-    for i = 1, 40 do
-        local aura = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")
-        if not aura then break end
+    return sfui.common.scan_player_auras(function(aura)
         local name = aura.name:lower()
         if name:find("flask") or name:find("phial") or name:find("greater flask") then
             if aura.expirationTime == 0 or (aura.expirationTime - GetTime()) > threshold then
                 return true
             end
         end
-    end
-    return false
+        return false
+    end)
 end
 
 local function has_poison()
-    for i = 1, 40 do
-        local aura = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")
-        if not aura then break end
+    local hasAura = sfui.common.scan_player_auras(function(aura)
         local name = aura.name:lower()
         if name:find("poison") then
             if aura.expirationTime == 0 or (aura.expirationTime - GetTime()) > threshold then
                 return true
             end
         end
-    end
+        return false
+    end)
+    if hasAura then return true end
+
+    -- Check weapon enchants
     local hasMainHandEnchant, mainHandExpiration, _, _, hasOffHandEnchant, offHandExpiration = GetWeaponEnchantInfo()
     if hasMainHandEnchant and (mainHandExpiration / 1000) > threshold then return true end
     if hasOffHandEnchant and (offHandExpiration / 1000) > threshold then return true end
@@ -307,7 +307,9 @@ local function create_icons()
     for _, icon in ipairs(icons) do icon:Hide() end
 
     local size, spacing, groupSpacing = cfg.icon_size, cfg.spacing, cfg.group_spacing
-    local combined = {}
+
+    -- Reuse combined table instead of recreating it
+    table.wipe(combined)
     for _, b in ipairs(RAID_BUFFS) do table.insert(combined, b) end
     for i, b in ipairs(PERSONAL_BUFFS) do
         local entry = {}

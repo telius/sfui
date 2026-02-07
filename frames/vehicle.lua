@@ -58,8 +58,7 @@ for i = 1, 12 do
     -- Keybind
     btn.kb = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     btn.kb:SetPoint("TOPRIGHT", -2, -2)
-    local kbText = tostring(i)
-    if i == 10 then kbText = "0" elseif i == 11 then kbText = "-" elseif i == 12 then kbText = "=" end
+    local kbText = sfui.common.VEHICLE_KEYBIND_MAP[i] or tostring(i)
     btn.kb:SetText(kbText)
 
     if i == 1 then

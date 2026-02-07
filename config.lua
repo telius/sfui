@@ -170,6 +170,7 @@ sfui.config = {
         },
         interruptedColor = { 1, 0, 0 },    -- Red for interrupted
         gcdColor = { 0.5, 0.5, 0.5 },      -- Gray for GCD
+        updateThrottle = 0.05,             -- Text update throttle (~20fps)
         backdrop = {
             padding = 2,
             color = { 0, 0, 0, 0.5 },
@@ -272,6 +273,7 @@ sfui.config = {
 
     minimap = {
         default_size = 220,
+        defaultZoom = 0, -- Default zoom level
         button_bar = {
             spacing = 5,
             button_size = 20,
@@ -292,6 +294,7 @@ sfui.config = {
         },
         disableConsumablesSolo = true,
         enableConsumables = true,
+        buffThreshold = 600, -- 10 minutes in seconds
     },
 
     -- Warnings
@@ -390,6 +393,30 @@ sfui.config = {
             x = 0,
             y = -150,
         },
+        -- Visual settings
+        width = 200,
+        height = 20,
+        icon_size = 20,
+        icon_offset = -5, -- Space between bar and icon
+        spacing = 5,
+        backdrop = {
+            padding = 1,
+            color = { 0, 0, 0, 0.5 },
+        },
+        -- Stack/Segment settings
+        maxSegments = 10, -- Maximum number of stack segments to create
+        defaultMaxStacks = 10,
+        -- Font settings
+        fonts = {
+            standard = "GameFontNormalSmall",
+            stackModeDurationSize = 14, -- Larger size for stack mode duration text
+        },
+        -- Performance settings
+        updateThrottle = 0.05, -- OnUpdate throttle interval (~20fps)
+        -- Special case overrides (by cooldownID)
+        specialCases = {
+            [9039] = { maxStacks = 12 }, -- Bone Shield (Death Knight)
+        },
         -- Default visibility settings
         hideOOC = false,     -- Hide all bars when out of combat
         hideInactive = true, -- Hide bars when cooldowns are inactive
@@ -402,9 +429,18 @@ sfui.config = {
         },
     },
 
+    -- Tracked Options Window
+    trackedOptionsWindow = {
+        width = 600,
+        height = 500,
+    },
+
     -- Master's Hammer Specialization Nodes
     -- Organised by expansion version keys.
     masterHammer = {
+        requiredRank = 26, -- Required trait rank for repair perks
+        defaultPosition = { x = 880, y = -430 },
+        defaultColor = "00FFFF",
         [225660] = { -- Earthen Master's Hammer (TWW)
             nodes = {
                 ["HEAD"] = 99233,

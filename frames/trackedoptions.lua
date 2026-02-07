@@ -7,50 +7,9 @@ local content
 local c = sfui.config.options_panel
 local g = sfui.config
 
-local GROUP_NAMES = {
-    [0] = "Essential",
-    [1] = "Utility Cooldowns",
-    [2] = "Tracked Buffs",
-    [3] = "Tracked Bars",
-    [-1] = "Disabled Cooldowns",
-    [-2] = "Disabled Buffs",
-    [-3] = "Unknown / Not Learned"
-}
 
-local function CreateCustomCheckbox(parent, xPos, label, onClick)
-    local cb = CreateFrame("CheckButton", nil, parent, "BackdropTemplate")
-    cb:SetSize(20, 20)
-    cb:SetPoint("LEFT", parent, "LEFT", xPos, 0)
 
-    cb:SetBackdrop({
-        bgFile = "Interface/Buttons/WHITE8X8",
-        edgeFile = "Interface/Buttons/WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 }
-    })
-    cb:SetBackdropColor(0.2, 0.2, 0.2, 1)
-    cb:SetBackdropBorderColor(0, 0, 0, 1)
 
-    cb:SetCheckedTexture("Interface/Buttons/WHITE8X8")
-    cb:GetCheckedTexture():SetVertexColor(0.4, 0, 1, 1)
-    cb:GetCheckedTexture():SetPoint("TOPLEFT", 2, -2)
-    cb:GetCheckedTexture():SetPoint("BOTTOMRIGHT", -2, 2)
-
-    cb:SetHighlightTexture("Interface/Buttons/WHITE8X8")
-    cb:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.1)
-
-    if label then
-        cb.text = cb:CreateFontString(nil, "OVERLAY", g.font or "GameFontHighlightSmall")
-        cb.text:SetPoint("LEFT", cb, "RIGHT", 5, 0)
-        cb.text:SetText(label)
-        cb.text:SetTextColor(1, 1, 1, 1)
-    end
-
-    cb:SetScript("OnClick", function(self)
-        if onClick then onClick(self:GetChecked()) end
-    end)
-    return cb
-end
 
 local function CreateCooldownsFrame()
     if frame then return end
@@ -59,7 +18,8 @@ local function CreateCooldownsFrame()
     local create_slider_input = sfui.common.create_slider_input
 
     frame = CreateFrame("Frame", "SfuiCooldownsViewer", UIParent, "BackdropTemplate")
-    frame:SetSize(600, 500)
+    local winCfg = sfui.config.trackedOptionsWindow or { width = 600, height = 500 }
+    frame:SetSize(winCfg.width, winCfg.height)
     frame:SetPoint("CENTER")
     frame:SetMovable(true)
     frame:EnableMouse(true)
@@ -126,14 +86,15 @@ local function CreateCooldownsFrame()
     end
 
     -- Checkbox: Hide Out of Combat
-    local chk_ooc = CreateCustomCheckbox(frame, 15, "hide out of combat", function(val)
+    local chk_ooc = sfui.common.create_checkbox(frame, "hide out of combat", nil, function(val)
         UpdateVisibility("hideOOC", val)
     end)
+    chk_ooc:SetPoint("LEFT", frame, "LEFT", 15, 0)
     chk_ooc:SetPoint("TOPLEFT", global_header, "BOTTOMLEFT", 0, -10)
     chk_ooc:SetChecked(SfuiDB and SfuiDB.hideOOC or false)
 
     -- Checkbox: Hide When Inactive
-    local chk_inactive = CreateCustomCheckbox(frame, 150, "hide when inactive", function(val)
+    local chk_inactive = sfui.common.create_checkbox(frame, "hide when inactive", nil, function(val)
         UpdateVisibility("hideInactive", val, true)
     end)
     chk_inactive:SetPoint("LEFT", chk_ooc, "RIGHT", 200, 0)
@@ -151,7 +112,7 @@ local function CreateCooldownsFrame()
     local tableHeader = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     tableHeader:SetPoint("TOPLEFT", chk_ooc, "BOTTOMLEFT", 0, -20)
     tableHeader:SetTextColor(0.8, 0.8, 0.8)
-    tableHeader:SetText("tracked cooldowns")
+    tableHeader:SetText("tracked bars")
 
     -- Column Headers
     local colHeader = CreateFrame("Frame", nil, frame)
@@ -164,9 +125,9 @@ local function CreateCooldownsFrame()
     col1:SetText("ability")
 
     local col2 = colHeader:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    col2:SetPoint("LEFT", 300, 0)
+    col2:SetPoint("LEFT", 420, 0)
     col2:SetTextColor(0.7, 0.7, 0.7)
-    col2:SetText("attach")
+    col2:SetText("stacks")
 
     local col3 = colHeader:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     col3:SetPoint("LEFT", 500, 0)
@@ -179,66 +140,7 @@ local function CreateCooldownsFrame()
     content:SetPoint("BOTTOMRIGHT", -10, 10)
 end
 
-local function CreateColorSwatch(parent, xPos, initialColor, onSet)
-    local swatch = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    swatch:SetSize(16, 16)
-    swatch:SetPoint("LEFT", parent, "LEFT", xPos, 0)
-    swatch:SetBackdrop({
-        bgFile = "Interface/Buttons/WHITE8X8",
-        edgeFile = "Interface/Buttons/WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 }
-    })
-    swatch:SetBackdropBorderColor(0, 0, 0, 1)
 
-    local function SetColor(r, g, b)
-        swatch:SetBackdropColor(r, g, b, 1)
-        if onSet then onSet(r, g, b) end
-    end
-
-    if initialColor then
-        swatch:SetBackdropColor(initialColor.r or initialColor[1], initialColor.g or initialColor[2],
-            initialColor.b or initialColor[3], 1)
-    else
-        swatch:SetBackdropColor(0.4, 0, 1, 1) -- Default Purple
-    end
-
-    swatch:SetScript("OnClick", function()
-        local r, g, b = swatch:GetBackdropColor()
-
-        -- ColorPickerFrame Setup
-        if ColorPickerFrame.SetupColorPickerAndShow then
-            local info = {
-                r = r,
-                g = g,
-                b = b,
-                hasOpacity = false,
-                swatchFunc = function()
-                    local nr, ng, nb = ColorPickerFrame:GetColorRGB()
-                    SetColor(nr, ng, nb)
-                end,
-                cancelFunc = function()
-                    SetColor(r, g, b)
-                end,
-            }
-            ColorPickerFrame:SetupColorPickerAndShow(info)
-        else
-            -- Fallback
-            ColorPickerFrame:SetColorRGB(r, g, b)
-            ColorPickerFrame.hasOpacity = false
-            ColorPickerFrame.func = function()
-                local nr, ng, nb = ColorPickerFrame:GetColorRGB()
-                SetColor(nr, ng, nb)
-            end
-            ColorPickerFrame.cancelFunc = function()
-                SetColor(r, g, b)
-            end
-            ColorPickerFrame:Hide()
-            ColorPickerFrame:Show()
-        end
-    end)
-    return swatch
-end
 
 local function UpdateCooldownsList()
     if not frame then return end
@@ -351,11 +253,21 @@ local function UpdateCooldownsList()
             if not cd.isKnown then icon:SetDesaturated(true) end
 
             iconButton:SetScript("OnEnter", function(self)
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                 if cd.effectiveSpellID then
-                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                     GameTooltip:SetSpellByID(cd.effectiveSpellID)
-                    GameTooltip:Show()
                 end
+                -- Add debug info
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine("IDs:", 0.5, 0.5, 0.5)
+                GameTooltip:AddDoubleLine("cooldownID:", tostring(cd.cooldownID), 1, 1, 1, 0.8, 0.8, 1)
+                if cd.spellID then
+                    GameTooltip:AddDoubleLine("spellID:", tostring(cd.spellID), 1, 1, 1, 0.8, 0.8, 1)
+                end
+                if cd.effectiveSpellID then
+                    GameTooltip:AddDoubleLine("effectiveSpellID:", tostring(cd.effectiveSpellID), 1, 1, 1, 0.8, 0.8, 1)
+                end
+                GameTooltip:Show()
             end)
             iconButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
@@ -363,60 +275,30 @@ local function UpdateCooldownsList()
             local nameText = row:CreateFontString(nil, "ARTWORK")
             nameText:SetFontObject(g.font)
             nameText:SetPoint("LEFT", iconButton, "RIGHT", 10, 0)
-            nameText:SetWidth(270) -- Restore width to 270
+            nameText:SetWidth(400) -- Increased width as attachment options are gone
             nameText:SetJustifyH("LEFT")
             nameText:SetWordWrap(false)
             nameText:SetText(cd.name)
             nameText:SetTextColor(1, 1, 1, 1)
-            -- Simplified attachment checkbox creation
-            local function CreateAttachCheckbox(row, label, settingKey, onToggle)
-                local chk = CreateCustomCheckbox(row, 300, label, function(val)
-                    if onToggle then onToggle(cd.cooldownID, val) end
-                end)
-                local val = SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars[cd.cooldownID] and
-                SfuiDB.trackedBars[cd.cooldownID][settingKey] or false
-                chk:SetChecked(val)
-                return chk
-            end
 
             if groupID == 3 then
-                -- Determine Context (Has Secondary Power Bar?)
-                local specID = sfui.common.get_current_spec_id and sfui.common.get_current_spec_id() or 0
-                local hasSecondary = false
-                if sfui.common.get_secondary_resource and sfui.common.get_secondary_resource() then
-                    -- Check if hidden spec
-                    if not (sfui.config.secondaryPowerBar.hiddenSpecs and sfui.config.secondaryPowerBar.hiddenSpecs[specID]) then
-                        hasSecondary = true
-                    end
-                end
+                -- Stack Mode Checkbox
+                local stackChk = sfui.common.create_checkbox(row, "", nil, function(val)
+                    local barDB = sfui.common.ensure_tracked_bar_db(cd.cooldownID)
+                    SfuiDB.trackedBars[cd.cooldownID].stackMode = val
 
-                if hasSecondary then
-                    -- Option: attach to secondary powerbar (Stacking)
-                    local chk = CreateCustomCheckbox(row, 300, "secondary", function(val)
-                        if sfui.trackedbars and sfui.trackedbars.SetAttachSecondary then
-                            sfui.trackedbars.SetAttachSecondary(cd.cooldownID, val)
-                        end
-                    end)
-                    local val = false
-                    if SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars[cd.cooldownID] then
-                        val = SfuiDB.trackedBars[cd.cooldownID].attachSecondary or false
+                    -- Force immediate layout update
+                    if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+                        sfui.trackedbars.ForceLayoutUpdate()
                     end
-                    chk:SetChecked(val)
-                else
-                    -- Option: attach to healthbar (Exclusive 'Secondary' replacement)
-                    local chk = CreateCustomCheckbox(row, 300, "health", function(val)
-                        if sfui.trackedbars and sfui.trackedbars.SetAttachHealth then
-                            sfui.trackedbars.SetAttachHealth(cd.cooldownID, val)
-                        end
-                    end)
-                    local val = false
-                    if SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars[cd.cooldownID] then
-                        val = SfuiDB.trackedBars[cd.cooldownID].isSecondary or false
-                    end
-                    chk:SetChecked(val)
-                end
+                end)
+                stackChk:SetPoint("LEFT", row, "LEFT", 420, 0)
 
-                -- REMOVED Per-Bar HideOOC/Inactive Checkboxes
+                local stackVal = false
+                if SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars[cd.cooldownID] then
+                    stackVal = SfuiDB.trackedBars[cd.cooldownID].stackMode or false
+                end
+                stackChk:SetChecked(stackVal)
 
                 -- Color Swatch
                 local initialColor = sfui.config.colors.purple
@@ -424,11 +306,12 @@ local function UpdateCooldownsList()
                     initialColor = SfuiDB.trackedBars[cd.cooldownID].color
                 end
 
-                CreateColorSwatch(row, 500, initialColor, function(r, g, b)
+                local swatch = sfui.common.create_color_swatch(row, initialColor, function(r, g, b)
                     if sfui.trackedbars and sfui.trackedbars.SetColor then
                         sfui.trackedbars.SetColor(cd.cooldownID, r, g, b)
                     end
                 end)
+                swatch:SetPoint("LEFT", row, "LEFT", 500, 0)
             end
 
             yOffset = yOffset - 26

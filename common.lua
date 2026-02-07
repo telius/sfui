@@ -9,6 +9,18 @@ function sfui.common.get_player_class()
     return playerClass, playerClassID
 end
 
+-- Helper to safely ensure tracked bar DB structure exists
+-- Returns the tracked bar entry for the given cooldownID, or the trackedBars table if no ID provided
+function sfui.common.ensure_tracked_bar_db(cooldownID)
+    SfuiDB = SfuiDB or {}
+    SfuiDB.trackedBars = SfuiDB.trackedBars or {}
+    if cooldownID then
+        SfuiDB.trackedBars[cooldownID] = SfuiDB.trackedBars[cooldownID] or {}
+        return SfuiDB.trackedBars[cooldownID]
+    end
+    return SfuiDB.trackedBars
+end
+
 local powerTypeToName = {}
 for name, value in pairs(Enum.PowerType) do
     powerTypeToName[value] = name
@@ -139,9 +151,22 @@ function sfui.common.get_primary_resource()
 end
 
 function sfui.common.get_secondary_resource()
-    if playerClass == "DRUID" then return secondaryResourcesCache[playerClass][GetShapeshiftFormID() or 0] end
-    local cache = secondaryResourcesCache[playerClass]
-    if type(cache) == "table" then return cache[cachedSpecID] else return cache end
+    local res
+    if playerClass == "DRUID" then
+        res = secondaryResourcesCache[playerClass][GetShapeshiftFormID() or 0]
+    else
+        local cache = secondaryResourcesCache[playerClass]
+        if type(cache) == "table" then
+            res = cache[cachedSpecID]
+        else
+            res = cache
+        end
+    end
+
+    if sfui.bars then
+        sfui.bars.bar1_in_use = (res ~= nil)
+    end
+    return res
 end
 
 function sfui.common.get_class_or_spec_color()
@@ -160,8 +185,8 @@ function sfui.common.get_class_or_spec_color()
     return color
 end
 
-function sfui.common.create_bar(name, frameType, parent, template)
-    local cfg = sfui.config[name]
+function sfui.common.create_bar(name, frameType, parent, template, configName)
+    local cfg = sfui.config[configName or name]
     local mult = sfui.pixelScale or 1
     local backdrop = CreateFrame("Frame", "sfui_" .. name .. "_Backdrop", parent, "BackdropTemplate")
     backdrop:SetFrameStrata("MEDIUM")
@@ -317,12 +342,16 @@ function sfui.common.create_checkbox(parent, label, dbKey, onClickFunc, tooltip)
 
     cb:SetScript("OnClick", function(self)
         local checked = self:GetChecked()
-        SfuiDB[dbKey] = checked
+        if dbKey then SfuiDB[dbKey] = checked end
         if onClickFunc then onClickFunc(checked) end
     end)
     cb:SetScript("OnShow", function(self)
-        self:SetChecked(SfuiDB[dbKey])
+        if dbKey and SfuiDB[dbKey] ~= nil then
+            self:SetChecked(SfuiDB[dbKey])
+        end
     end)
+
+
     if tooltip then
         cb:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -332,6 +361,75 @@ function sfui.common.create_checkbox(parent, label, dbKey, onClickFunc, tooltip)
         cb:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
     end
     return cb
+end
+
+function sfui.common.style_text(fs, fontObj, size, flags)
+    if not fs then return end
+    if fontObj then fs:SetFontObject(fontObj) end
+    if size or flags then
+        local font, curSize, curFlags = fs:GetFont()
+        fs:SetFont(font, size or curSize, flags or "")
+    end
+    -- Standard Shadow
+    fs:SetShadowOffset(0, 0)
+    fs:SetTextColor(1, 1, 1, 1)
+end
+
+function sfui.common.create_color_swatch(parent, initialColor, onSetFunc)
+    local swatch = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    swatch:SetSize(16, 16)
+
+    swatch:SetBackdrop({
+        bgFile = "Interface/Buttons/WHITE8X8",
+        edgeFile = "Interface/Buttons/WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    })
+    swatch:SetBackdropBorderColor(0, 0, 0, 1)
+
+    local function SetColor(r, g, b)
+        swatch:SetBackdropColor(r, g, b, 1)
+        if onSetFunc then onSetFunc(r, g, b) end
+    end
+
+    if initialColor then
+        local r = initialColor.r or initialColor[1] or 0.4
+        local g = initialColor.g or initialColor[2] or 0
+        local b = initialColor.b or initialColor[3] or 1
+        swatch:SetBackdropColor(r, g, b, 1)
+    else
+        swatch:SetBackdropColor(0.4, 0, 1, 1)
+    end
+
+    swatch:SetScript("OnClick", function()
+        local r, g, b = swatch:GetBackdropColor()
+
+        if ColorPickerFrame.SetupColorPickerAndShow then
+            local info = {
+                r = r,
+                g = g,
+                b = b,
+                hasOpacity = false,
+                swatchFunc = function()
+                    local nr, ng, nb = ColorPickerFrame:GetColorRGB()
+                    SetColor(nr, ng, nb)
+                end,
+                cancelFunc = function() SetColor(r, g, b) end,
+            }
+            ColorPickerFrame:SetupColorPickerAndShow(info)
+        else
+            ColorPickerFrame:SetColorRGB(r, g, b)
+            ColorPickerFrame.hasOpacity = false
+            ColorPickerFrame.func = function()
+                local nr, ng, nb = ColorPickerFrame:GetColorRGB()
+                SetColor(nr, ng, nb)
+            end
+            ColorPickerFrame.cancelFunc = function() SetColor(r, g, b) end
+            ColorPickerFrame:Hide()
+            ColorPickerFrame:Show()
+        end
+    end)
+    return swatch
 end
 
 function sfui.common.create_cvar_checkbox(parent, label, cvar, tooltip)
@@ -668,3 +766,65 @@ function sfui.common.get_item_id_from_link(link)
     if not link then return nil end
     return tonumber(link:match("item:(%d+)"))
 end
+
+-- ========================
+-- Utility Helpers
+-- ========================
+
+-- Scans player auras (buffs) and applies a filter function
+-- @param filterFunc: Function that receives aura data and returns true to include
+-- @return: true if any matching aura found, false otherwise
+function sfui.common.scan_player_auras(filterFunc)
+    if not filterFunc then return false end
+    for i = 1, 40 do
+        local aura = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")
+        if not aura then break end
+        if filterFunc(aura) then
+            return true
+        end
+    end
+    return false
+end
+
+-- Creates a styled button consistent with sfui design
+-- @param parent: Parent frame
+-- @param text: Button text
+-- @param width: Button width
+-- @param height: Button height
+-- @return: Button frame
+function sfui.common.create_styled_button(parent, text, width, height)
+    local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    btn:SetSize(width or 120, height or 25)
+    btn:SetBackdrop({
+        bgFile = sfui.config.textures.white,
+        edgeFile = sfui.config.textures.white,
+        edgeSize = 1,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    })
+    btn:SetBackdropColor(0.2, 0.2, 0.2, 1)
+    btn:SetBackdropBorderColor(0, 0, 0, 1)
+
+    -- Hover effect
+    btn:SetScript("OnEnter", function(self)
+        self:SetBackdropBorderColor(sfui.config.colors.purple[1], sfui.config.colors.purple[2],
+            sfui.config.colors.purple[3], 1)
+    end)
+    btn:SetScript("OnLeave", function(self)
+        self:SetBackdropBorderColor(0, 0, 0, 1)
+    end)
+
+    -- Text
+    btn.text = btn:CreateFontString(nil, "OVERLAY", sfui.config.font)
+    btn.text:SetPoint("CENTER")
+    btn.text:SetText(text or "")
+    sfui.common.style_text(btn.text)
+
+    return btn
+end
+
+-- Vehicle action bar keybind text map
+sfui.common.VEHICLE_KEYBIND_MAP = {
+    [10] = "0",
+    [11] = "-",
+    [12] = "="
+}

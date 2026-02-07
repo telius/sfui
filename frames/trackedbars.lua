@@ -4,6 +4,10 @@ sfui.trackedbars = {}
 local bars = {} -- Active sfui bars
 local container
 
+-- Reusable tables (performance optimization)
+local standardBars = {}
+local activeCooldownIDs = {}
+
 -- Helper to get tracking config for a specific ID
 local function GetTrackedBarConfig(cooldownID)
     -- Check DB first (user customizations)
@@ -19,65 +23,40 @@ local function GetTrackedBarConfig(cooldownID)
     return nil
 end
 
--- Definition of "Secondary Power Bar" behavior
-local function ApplySecondaryBarStyle(bar, config, overrideParams)
-    local parentName = "sfui_secondaryPowerBar_Backdrop"
-    local fallbackName = "sfui_healthBar_Backdrop"
+-- Helper to determine max stacks for a bar
+-- Checks in order: special cases -> user config -> charge info -> default
+local function GetMaxStacksForBar(cooldownID, config, spellID)
+    local cfg = sfui.config.trackedBars
+    local maxStacks = cfg.defaultMaxStacks
 
-    local parent = _G[parentName]
-    local anchorTarget = parent
-
-    if not (parent and parent:IsShown()) then
-        anchorTarget = _G[fallbackName]
+    -- 1. Check for special case overrides (highest priority)
+    if cfg.specialCases and cfg.specialCases[cooldownID] and cfg.specialCases[cooldownID].maxStacks then
+        return cfg.specialCases[cooldownID].maxStacks
     end
 
-    if anchorTarget then
-        bar:ClearAllPoints()
-
-        local mult = sfui.pixelScale or 1
-        local padding = 2
-        local backdropColor = sfui.config.healthBar.backdrop.color or { 0, 0, 0, 0.5 }
-        local height = 15 -- Default
-
-        -- Pull from Secondary Power Bar Config
-        if sfui.config.secondaryPowerBar then
-            height = sfui.config.secondaryPowerBar.height or height
-            if sfui.config.secondaryPowerBar.backdrop then
-                padding = sfui.config.secondaryPowerBar.backdrop.padding or padding
-                backdropColor = sfui.config.secondaryPowerBar.backdrop.color or backdropColor
-            end
-        end
-
-        local widthRatio = 0.8
-
-        -- Positioning
-        if anchorTarget == parent then
-            bar:SetPoint("CENTER", anchorTarget, "CENTER", 0, 0)
-        else
-            -- Fallback: Above Health Bar
-            local spacing = sfui.config.barLayout.spacing or 1
-            bar:SetPoint("BOTTOM", anchorTarget, "TOP", 0, spacing)
-        end
-
-        local w = anchorTarget:GetWidth() * widthRatio
-        local scaledPadding = padding * mult
-
-        bar:SetSize(w + (scaledPadding * 2), height + (scaledPadding * 2))
-        bar:SetBackdropColor(unpack(backdropColor))
-
-        bar.status:ClearAllPoints()
-        bar.status:SetPoint("TOPLEFT", scaledPadding, -scaledPadding)
-        bar.status:SetPoint("BOTTOMRIGHT", -scaledPadding, scaledPadding)
-
-        return true -- Applied
+    -- 2. Check user config override
+    if config and config.maxStacks then
+        return config.maxStacks
     end
-    return false
+
+    -- 3. Try to get from charge info (for charge-based abilities)
+    if spellID then
+        local chargeInfo = C_Spell.GetSpellCharges(spellID)
+        if chargeInfo and chargeInfo.maxCharges then
+            maxStacks = chargeInfo.maxCharges
+        end
+    end
+
+    return maxStacks
 end
 
+
+
 local function CreateBar(cooldownID)
+    local cfg = sfui.config.trackedBars
     -- Frame is the Backdrop/Container
     local bar = CreateFrame("Frame", nil, container, "BackdropTemplate")
-    bar:SetSize(200, 20)
+    bar:SetSize(cfg.width, cfg.height)
 
     -- Backdrop styling (Flat, no border)
     bar:SetBackdrop({
@@ -86,7 +65,8 @@ local function CreateBar(cooldownID)
         tileSize = 32,
     })
 
-    local defaultColor = sfui.config.healthBar.backdrop.color or { 0, 0, 0, 0.5 }
+    -- Status Bar
+    local defaultColor = cfg.backdrop.color
     bar:SetBackdropColor(unpack(defaultColor))
 
     -- Status Bar
@@ -98,33 +78,43 @@ local function CreateBar(cooldownID)
 
     -- Icon
     bar.icon = bar:CreateTexture(nil, "ARTWORK")
-    bar.icon:SetSize(20, 20)
-    bar.icon:SetPoint("RIGHT", bar, "LEFT", -5, 0)
-
-    -- Helper to styling text
-    local function StyleText(fs)
-        fs:SetTextColor(1, 1, 1, 1)
-        local font, size, flags = fs:GetFont()
-        fs:SetFont(font, size, "NONE")
-        fs:SetShadowOffset(1, -1)
-    end
+    bar.icon:SetSize(cfg.icon_size, cfg.icon_size)
+    bar.icon:SetPoint("RIGHT", bar, "LEFT", cfg.icon_offset, 0)
 
     -- Text
     bar.name = bar.status:CreateFontString(nil, "OVERLAY")
     bar.name:SetFontObject(sfui.config.font_small)
     bar.name:SetPoint("LEFT", 5, 0)
-    StyleText(bar.name)
+    sfui.common.style_text(bar.name, nil, nil, "")
 
     bar.time = bar.status:CreateFontString(nil, "OVERLAY")
     bar.time:SetFontObject(sfui.config.font_small)
     bar.time:SetPoint("RIGHT", -5, 0)
-    StyleText(bar.time)
+    sfui.common.style_text(bar.time, nil, nil, "")
 
     -- Stack Count
     bar.count = bar.status:CreateFontString(nil, "OVERLAY")
     bar.count:SetFontObject(sfui.config.font_small)
     bar.count:SetPoint("CENTER", bar.icon, "CENTER", 0, 0)
-    StyleText(bar.count)
+    sfui.common.style_text(bar.count, nil, nil, "")
+
+    -- Stack Segments (for stack mode display)
+    bar.segments = {}
+    for i = 1, cfg.maxSegments do
+        local seg = CreateFrame("StatusBar", nil, bar)
+        seg:SetStatusBarTexture(sfui.config.textures.white)
+        seg:SetStatusBarColor(unpack(sfui.config.colors.purple))
+        seg:SetMinMaxValues(0, 1)
+        seg:SetValue(1)
+        seg:Hide()
+
+        -- Segment background
+        seg.bg = seg:CreateTexture(nil, "BACKGROUND")
+        seg.bg:SetAllPoints(seg)
+        seg.bg:SetColorTexture(0, 0, 0, 0.5)
+
+        bar.segments[i] = seg
+    end
 
     bar.cooldownID = cooldownID
 
@@ -143,145 +133,97 @@ local function CreateBar(cooldownID)
     return bar
 end
 
-local function ApplyStyle_Compact(bar)
-    local padding = 2
-    local mult = sfui.pixelScale or 1
-    local scaledPadding = padding * mult
-    local height = 15
-    if sfui.config.secondaryPowerBar then
-        height = sfui.config.secondaryPowerBar.height or 15
+-- Helper function to apply common bar styling and positioning
+-- Reduces duplicate code between stack mode and standard mode
+local function ApplyBarStyling(bar, yOffset, config, cfg)
+    -- Apply color
+    local color = config and config.color or sfui.config.colors.purple
+    if color then
+        bar.status:SetStatusBarColor(
+            color.r or color[1],
+            color.g or color[2],
+            color.b or color[3]
+        )
     end
 
-    -- Compact Style: Hide labels, center Count
-    bar.name:Hide()
-    bar.time:Hide()
-    bar.icon:Hide()
+    -- Size and position
+    bar:SetSize(cfg.width, cfg.height)
+    bar:ClearAllPoints()
+    bar:SetPoint("BOTTOM", container, "BOTTOM", 0, yOffset)
 
-    bar.count:ClearAllPoints()
-    bar.count:SetPoint("CENTER", bar.status, "CENTER", 0, 0)
-    local fontSize = sfui.config.secondaryPowerBar and sfui.config.secondaryPowerBar.fontSize or 18
-    local fontName = bar.count:GetFont()
-    bar.count:SetFont(fontName, fontSize, "NONE")
+    -- Backdrop styling
+    bar.status:ClearAllPoints()
+    local pad = cfg.backdrop.padding
+    bar.status:SetPoint("TOPLEFT", pad, -pad)
+    bar.status:SetPoint("BOTTOMRIGHT", -pad, pad)
+    bar:SetBackdropColor(unpack(cfg.backdrop.color))
 
-    -- Return height and padding for external sizing
-    return height, scaledPadding
+    return yOffset + (cfg.height + cfg.spacing)
 end
 
 local function UpdateLayout()
-    local healthAnchored = nil
-    local secondaryAnchored = {}
-    local standardBars = {}
+    local cfg = sfui.config.trackedBars
+    table.wipe(standardBars) -- Reuse table instead of creating new
 
     for _, bar in pairs(bars) do
         if bar:IsShown() then
-            local config = GetTrackedBarConfig(bar.cooldownID)
-
-            -- Detect Mode
-            if config and config.isSecondary then
-                healthAnchored = bar
-            elseif config and config.attachSecondary then
-                table.insert(secondaryAnchored, bar)
-            else
-                table.insert(standardBars, bar)
-            end
+            table.insert(standardBars, bar)
         end
     end
 
-    local mult = sfui.pixelScale or 1
-
-    -- 1. Apply Health Attached
-    if healthAnchored then
-        local anchor = _G["sfui_healthBar_Backdrop"]
-        if anchor and healthAnchored:IsShown() then
-            local h, p = ApplyStyle_Compact(healthAnchored)
-            local w = anchor:GetWidth() * 0.8
-            healthAnchored:SetSize(w + (p * 2), h + (p * 2))
-            healthAnchored:ClearAllPoints()
-            local spacing = sfui.config.barLayout.spacing or 1
-            healthAnchored:SetPoint("BOTTOM", anchor, "TOP", 0, spacing)
-
-            local config = GetTrackedBarConfig(healthAnchored.cooldownID)
-            local color = config and config.color or sfui.config.colors.purple
-            if color then
-                healthAnchored.status:SetStatusBarColor(color.r or color[1], color.g or color[2],
-                    color.b or color[3])
-            end
-        end
-    end
-
-    -- 2. Apply Secondary Attached
-    if #secondaryAnchored > 0 then
-        local anchor = _G["sfui_secondaryPowerBar_Backdrop"]
-        if anchor and anchor:IsShown() then
-            table.sort(secondaryAnchored, function(a, b) return a.cooldownID < b.cooldownID end)
-
-            local prev = anchor
-            for _, bar in ipairs(secondaryAnchored) do
-                if bar:IsShown() then
-                    local h, p = ApplyStyle_Compact(bar)
-                    local w = anchor:GetWidth() -- Match Secondary Bar Width
-                    bar:SetSize(w + (p * 2), h + (p * 2))
-                    bar:ClearAllPoints()
-                    local spacing = sfui.config.barLayout.spacing or 1
-                    bar:SetPoint("BOTTOM", prev, "TOP", 0, spacing)
-
-                    local config = GetTrackedBarConfig(bar.cooldownID)
-                    local color = config and config.color or sfui.config.colors.purple
-                    if color then
-                        bar.status:SetStatusBarColor(color.r or color[1], color.g or color[2],
-                            color.b or color[3])
-                    end
-
-                    prev = bar
-                end
-            end
-        else
-            -- Fallback
-            for _, bar in ipairs(secondaryAnchored) do
-                if bar:IsShown() then
-                    table.insert(standardBars, bar)
-                end
-            end
-        end
-    end
-
-    -- 3. Apply Standard
     local yOffset = 0
     table.sort(standardBars, function(a, b) return a.cooldownID < b.cooldownID end)
 
     for _, bar in ipairs(standardBars) do
-        if bar:IsShown() then
-            -- Standard Style
+        local config = GetTrackedBarConfig(bar.cooldownID) -- Cache config lookup
+        local isStackMode = config and config.stackMode or false
+
+        if isStackMode then
+            -- Stack Mode: Show bar filled based on stack count
+            for i = 1, cfg.maxSegments do
+                bar.segments[i]:Hide()
+            end
+
+            bar.status:Show()
+            bar.name:Show()
+            bar.time:Show()  -- Show duration text
+            bar.icon:Show()
+            bar.count:Hide() -- Hide stack count number (it's represented by bar fill)
+
+            -- Get current stacks from the count text (already set by SyncWithBlizzard)
+            local currentStacks = tonumber(bar.count:GetText()) or 0
+            local maxStacks = GetMaxStacksForBar(bar.cooldownID, config, bar.spellID)
+
+            -- Set bar to fill based on stack count
+            bar.status:SetMinMaxValues(0, maxStacks)
+            bar.status:SetValue(currentStacks)
+
+            -- Position duration text prominently on the bar
+            bar.time:ClearAllPoints()
+            bar.time:SetPoint("CENTER", bar.status, "CENTER", 0, 0)
+            sfui.common.style_text(bar.time, nil, cfg.fonts.stackModeDurationSize, "")
+
+            yOffset = ApplyBarStyling(bar, yOffset, config, cfg)
+        else
+            -- Standard Mode: Show duration bar, hide segments
+            for i = 1, cfg.maxSegments do
+                bar.segments[i]:Hide()
+            end
+
+            bar.status:Show()
             bar.name:Show()
             bar.time:Show()
             bar.icon:Show()
             bar.count:ClearAllPoints()
             bar.count:SetPoint("CENTER", bar.icon, "CENTER", 0, 0)
-            local font, size = GameFontNormalSmall:GetFont()
-            bar.count:SetFont(font, size, "NONE")
+            sfui.common.style_text(bar.count, nil, nil, "")
 
             -- Check visibility configs (Standard only)
-            local config = GetTrackedBarConfig(bar.cooldownID)
             if config and config.showName == false then bar.name:Hide() end
             if config and config.showDuration == false then bar.time:Hide() end
             if config and config.showStacks == false then bar.count:Hide() end
 
-            -- Apply Color
-            local color = config and config.color or sfui.config.colors.purple
-            if color then bar.status:SetStatusBarColor(color.r or color[1], color.g or color[2], color.b or color[3]) end
-
-            bar:SetSize(200, 20)
-            bar:ClearAllPoints()
-            -- Grow Upwards
-            bar:SetPoint("BOTTOM", container, "BOTTOM", 0, yOffset)
-            yOffset = yOffset + 25
-
-            -- Reset styling
-            bar.status:ClearAllPoints()
-            bar.status:SetPoint("TOPLEFT", 1, -1)
-            bar.status:SetPoint("BOTTOMRIGHT", -1, 1)
-            local defaultColor = sfui.config.healthBar.backdrop.color or { 0, 0, 0, 0.5 }
-            bar:SetBackdropColor(unpack(defaultColor))
+            yOffset = ApplyBarStyling(bar, yOffset, config, cfg)
         end
     end
 end
@@ -296,15 +238,11 @@ function sfui.trackedbars.UpdatePosition()
 end
 
 function sfui.trackedbars.SetColor(cooldownID, r, g, b)
-    if not SfuiDB then SfuiDB = {} end
-    if not SfuiDB.trackedBars then SfuiDB.trackedBars = {} end
-    if not SfuiDB.trackedBars[cooldownID] then SfuiDB.trackedBars[cooldownID] = {} end
-
-    SfuiDB.trackedBars[cooldownID].color = { r = r, g = g, b = b }
+    local barDB = sfui.common.ensure_tracked_bar_db(cooldownID)
+    barDB.color = { r = r, g = g, b = b }
     UpdateLayout() -- Refresh to apply color
 end
 
-local activeCooldownIDs = {}
 local barPool = {}
 
 local function RecycleBar(bar)
@@ -335,6 +273,109 @@ function sfui.trackedbars.RemoveBar(cooldownID, suppressLayout)
     end
 end
 
+-- Helper: Determine if bar should be visible based on settings
+local function ShouldBarBeVisible(config, blizzFrame, isStackModeWithStacks, hideInactive)
+    if isStackModeWithStacks then
+        -- Always show stack mode bars with active stacks
+        return true
+    elseif hideInactive then
+        -- Only show if Blizzard shows it (it's active)
+        return blizzFrame:IsShown()
+    else
+        -- Show all bars regardless of active state
+        return true
+    end
+end
+
+-- Helper: Sync bar data from Blizzard frame
+local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
+    local cfg = sfui.config.trackedBars
+
+    myBar.spellID = blizzFrame.spellID or (blizzFrame.info and blizzFrame.info.spellID)
+
+    -- Mirror Icon and Desaturation
+    if blizzFrame.Icon and blizzFrame.Icon.Icon then
+        myBar.icon:SetTexture(blizzFrame.Icon.Icon:GetTexture())
+
+        -- Detect Desaturation (Inactive State)
+        if blizzFrame.Icon.Icon.GetDesaturated and blizzFrame.Icon.Icon:GetDesaturated() then
+            myBar.icon:SetDesaturated(true)
+        else
+            myBar.icon:SetDesaturated(false)
+        end
+    end
+
+    -- Stack data gathering
+    local currentStacks = nil
+    local maxStacks = GetMaxStacksForBar(id, config, myBar.spellID)
+
+    -- 1. Try Aura Data (Always preferred over scraping text)
+    if blizzFrame.auraInstanceID then
+        local auraData = C_UnitAuras.GetAuraDataByAuraInstanceID("player", blizzFrame.auraInstanceID)
+        if auraData then
+            if auraData.applications then
+                currentStacks = auraData.applications
+            end
+            -- Update name safely
+            if auraData.name then myBar.name:SetText(auraData.name) end
+        end
+    end
+
+    -- 2. Fallback to Text (Blizzard's Display)
+    if not currentStacks then
+        if blizzFrame.Icon and blizzFrame.Icon.Applications then
+            local text = blizzFrame.Icon.Applications:GetText()
+            if text and text ~= "" then
+                currentStacks = tonumber(text)
+            end
+        end
+    end
+
+    -- Default to 0
+    if not currentStacks then currentStacks = 0 end
+
+    -- MAIN BAR UPDATE LOGIC
+    if isStackMode then
+        -- STACK MODE: Bar represents Stack Count
+        myBar.status:SetMinMaxValues(0, maxStacks)
+        myBar.status:SetValue(currentStacks)
+        myBar.count:SetText(currentStacks) -- Hidden but used for visibility logic
+
+        -- FORCE HIDE BLIZZ BAR COMPONENTS if strict
+        if blizzFrame.Bar then blizzFrame.Bar:SetAlpha(0) end
+
+        -- Sync Text (Name/Duration) from Blizzard Frame
+        if blizzFrame.Bar then
+            if blizzFrame.Bar.Name then myBar.name:SetText(blizzFrame.Bar.Name:GetText()) end
+            if blizzFrame.Bar.Duration then myBar.time:SetText(blizzFrame.Bar.Duration:GetText()) end
+        end
+    else
+        -- NORMAL MODE: Bar represents Duration (Copy from Blizzard)
+        if blizzFrame.Bar then
+            local min, max = blizzFrame.Bar:GetMinMaxValues()
+            local val = blizzFrame.Bar:GetValue()
+            myBar.status:SetMinMaxValues(min, max)
+            myBar.status:SetValue(val)
+
+            if blizzFrame.Bar.Name then myBar.name:SetText(blizzFrame.Bar.Name:GetText()) end
+            if blizzFrame.Bar.Duration then myBar.time:SetText(blizzFrame.Bar.Duration:GetText()) end
+        end
+
+        -- In Normal Mode, Stack Count is shown as text
+        -- Check if Blizzard thinks stacks should be shown (Safe check avoids secret value compare)
+        local showApps = false
+        if blizzFrame.Icon and blizzFrame.Icon.Applications and blizzFrame.Icon.Applications:IsShown() then
+            showApps = true
+        end
+
+        if showApps then
+            myBar.count:SetText(currentStacks)
+        else
+            myBar.count:SetText("")
+        end
+    end
+end
+
 local function SyncWithBlizzard()
     if not BuffBarCooldownViewer or not BuffBarCooldownViewer.itemFramePool then return end
 
@@ -347,10 +388,6 @@ local function SyncWithBlizzard()
     if SfuiDB and SfuiDB.hideOOC and not InCombatLockdown() then
         mustHide = true
     end
-
-    -- Still respect Blizzard's major hidden state (e.g. Pet Battle) but ignore its internal OOC/Inactive logic
-    -- if it's causing secret value errors.
-    -- Actually, just use InCombatLockdown for our OOC.
 
     if mustHide then
         for id, bar in pairs(bars) do
@@ -365,10 +402,8 @@ local function SyncWithBlizzard()
 
     -- Process Blizzard Frames
     for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
-        -- Respect our internal "Show Inactive" setting.
-        -- If hideInactive is false, we show even if blizzFrame:IsShown() is false.
-
         if blizzFrame.cooldownID then
+            blizzFrame:SetAlpha(0) -- Hide Blizzard frame so only ours is visible
             local id = blizzFrame.cooldownID
             activeCooldownIDs[id] = true
 
@@ -383,19 +418,22 @@ local function SyncWithBlizzard()
             end
 
             local myBar = bars[id]
+            local config = GetTrackedBarConfig(id) -- Cache config lookup once
+            local isStackMode = config and config.stackMode or false
 
             -- Sync Visibility
-            -- hideInactive = true (default): Only show bars that Blizzard shows (active cooldowns)
-            -- hideInactive = false: Show all bars, even if inactive
             local hideInactive = SfuiDB and SfuiDB.hideInactive ~= false -- Default to True if nil
-            local shouldShow
-            if hideInactive then
-                -- Only show if Blizzard shows it (it's active)
-                shouldShow = blizzFrame:IsShown()
-            else
-                -- Show all bars regardless of active state
-                shouldShow = true
+
+            -- Check if this is a stack mode bar with active stacks
+            local isStackModeWithStacks = false
+            if isStackMode then
+                local currentStacks = tonumber(myBar.count:GetText()) or 0
+                if currentStacks > 0 then
+                    isStackModeWithStacks = true
+                end
             end
+
+            local shouldShow = ShouldBarBeVisible(config, blizzFrame, isStackModeWithStacks, hideInactive)
 
             if shouldShow then
                 if not myBar:IsShown() then
@@ -409,58 +447,8 @@ local function SyncWithBlizzard()
                 end
             end
 
-            myBar.spellID = blizzFrame.spellID or (blizzFrame.info and blizzFrame.info.spellID)
-
-            -- Mirror Icon and Desaturation
-            if blizzFrame.Icon and blizzFrame.Icon.Icon then
-                myBar.icon:SetTexture(blizzFrame.Icon.Icon:GetTexture())
-
-                -- Detect Desaturation (Inactive State)
-                if blizzFrame.Icon.Icon.GetDesaturated and blizzFrame.Icon.Icon:GetDesaturated() then
-                    myBar.icon:SetDesaturated(true)
-                else
-                    myBar.icon:SetDesaturated(false)
-                end
-            end
-
-            -- Copy bar values and text from Blizzard
-            if blizzFrame.Bar then
-                local min, max = blizzFrame.Bar:GetMinMaxValues()
-                local val = blizzFrame.Bar:GetValue()
-                myBar.status:SetMinMaxValues(min, max)
-                myBar.status:SetValue(val)
-
-                if blizzFrame.Bar.Name then
-                    myBar.name:SetText(blizzFrame.Bar.Name:GetText())
-                end
-                if blizzFrame.Bar.Duration then
-                    myBar.time:SetText(blizzFrame.Bar.Duration:GetText())
-                end
-            end
-
-            -- Enhanced: Query C_Spell.GetSpellCharges for multi-charge abilities
-            -- This provides more accurate charge info than Blizzard's Applications text
-            local spellID = myBar.spellID
-            if spellID then
-                local chargeInfo = C_Spell.GetSpellCharges(spellID)
-                if chargeInfo and chargeInfo.currentCharges then
-                    myBar.count:SetText(chargeInfo.currentCharges)
-                else
-                    -- Fallback to Blizzard's stack display for buffs/debuffs
-                    local stacks = ""
-                    if blizzFrame.Icon and blizzFrame.Icon.Applications then
-                        stacks = blizzFrame.Icon.Applications:GetText() or ""
-                    end
-                    myBar.count:SetText(stacks)
-                end
-            else
-                -- No spellID, use Blizzard's display
-                local stacks = ""
-                if blizzFrame.Icon and blizzFrame.Icon.Applications then
-                    stacks = blizzFrame.Icon.Applications:GetText() or ""
-                end
-                myBar.count:SetText(stacks)
-            end
+            -- Sync all bar data from Blizzard
+            SyncBarData(myBar, blizzFrame, config, isStackMode, id)
         end
     end
 
@@ -477,42 +465,7 @@ local function SyncWithBlizzard()
     end
 end
 
--- Functions to modify config
-function sfui.trackedbars.SetAttachHealth(cooldownID, enable)
-    if not SfuiDB then SfuiDB = {} end
-    if not SfuiDB.trackedBars then SfuiDB.trackedBars = {} end
-    if not SfuiDB.trackedBars[cooldownID] then SfuiDB.trackedBars[cooldownID] = {} end
 
-    if enable then
-        -- Enforce exclusivity: Clear other Health attachments
-        for k, v in pairs(SfuiDB.trackedBars) do
-            if v.isSecondary then v.isSecondary = false end
-        end
-        SfuiDB.trackedBars[cooldownID].isSecondary = true
-        SfuiDB.trackedBars[cooldownID].attachSecondary = false
-    else
-        SfuiDB.trackedBars[cooldownID].isSecondary = false
-    end
-    UpdateLayout()
-    -- Refresh options UI if open
-    if sfui.trackedoptions and sfui.trackedoptions.RefreshList then
-        sfui.trackedoptions.RefreshList()
-    end
-end
-
-function sfui.trackedbars.SetAttachSecondary(cooldownID, enable)
-    if not SfuiDB then SfuiDB = {} end
-    if not SfuiDB.trackedBars then SfuiDB.trackedBars = {} end
-    if not SfuiDB.trackedBars[cooldownID] then SfuiDB.trackedBars[cooldownID] = {} end
-
-    if enable then
-        SfuiDB.trackedBars[cooldownID].attachSecondary = true
-        SfuiDB.trackedBars[cooldownID].isSecondary = false
-    else
-        SfuiDB.trackedBars[cooldownID].attachSecondary = false
-    end
-    UpdateLayout()
-end
 
 -- Public function to trigger visibility update from options panel
 function sfui.trackedbars.UpdateVisibility()
@@ -521,17 +474,21 @@ function sfui.trackedbars.UpdateVisibility()
     end
 end
 
+-- Public function to force layout update (e.g., when settings change)
+function sfui.trackedbars.ForceLayoutUpdate()
+    UpdateLayout()
+end
+
 function sfui.trackedbars.initialize()
     if container then return end
     local loaded, reason = C_AddOns.LoadAddOn("Blizzard_CooldownViewer")
     container = CreateFrame("Frame", "SfuiTrackedBarsContainer", UIParent)
-    container:SetSize(200, 20)
+    local cfg = sfui.config.trackedBars
+    container:SetSize(cfg.width, cfg.height)
 
-    if not SfuiDB then SfuiDB = {} end
-    if not SfuiDB.trackedBars then SfuiDB.trackedBars = {} end
+    sfui.common.ensure_tracked_bar_db() -- Initialize DB structure
 
     -- Set visibility defaults from config if not already set
-    local cfg = sfui.config.trackedBars or {}
     if SfuiDB.hideOOC == nil then
         SfuiDB.hideOOC = cfg.hideOOC ~= nil and cfg.hideOOC or false
     end
@@ -542,11 +499,11 @@ function sfui.trackedbars.initialize()
     -- Position
     sfui.trackedbars.UpdatePosition()
 
-    -- Throttled OnUpdate for smooth bar progress (0.05s = ~20fps)
+    -- Throttled OnUpdate for smooth bar progress
     local updateThrottle = 0
     container:SetScript("OnUpdate", function(self, elapsed)
         updateThrottle = updateThrottle + elapsed
-        if updateThrottle >= 0.05 then
+        if updateThrottle >= cfg.updateThrottle then
             updateThrottle = 0
 
             -- Update all visible bars from Blizzard's data
@@ -554,12 +511,22 @@ function sfui.trackedbars.initialize()
                 for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
                     if blizzFrame.cooldownID then
                         local myBar = bars[blizzFrame.cooldownID]
+                        -- Only update if bar exists AND is shown (performance optimization)
                         if myBar and myBar:IsShown() and blizzFrame.Bar then
-                            -- Copy current bar values
-                            local val = blizzFrame.Bar:GetValue()
-                            myBar.status:SetValue(val)
+                            -- Check Stack Mode
+                            local config = GetTrackedBarConfig(blizzFrame.cooldownID) -- Cache config
+                            local isStackMode = config and config.stackMode or false
 
-                            -- Update duration text
+                            -- Only copy bar animation values if NOT in stack mode
+                            if not isStackMode then
+                                local val = blizzFrame.Bar:GetValue()
+                                myBar.status:SetValue(val)
+                            end
+
+                            -- Update duration/name text (always safe to sync text)
+                            if blizzFrame.Bar.Name then
+                                myBar.name:SetText(blizzFrame.Bar.Name:GetText())
+                            end
                             if blizzFrame.Bar.Duration then
                                 myBar.time:SetText(blizzFrame.Bar.Duration:GetText())
                             end

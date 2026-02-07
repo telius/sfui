@@ -2,9 +2,9 @@ sfui = sfui or {}
 sfui.bars = {}
 
 do
-    local primary_power_bar
-    local secondary_power_bar
-    local health_bar
+    local bar_minus_1
+    local bar1
+    local bar0
     local vigor_bar
     local mount_speed_bar
     local rune_bar
@@ -13,8 +13,8 @@ do
     -- Throttling system for high-frequency events
     local tCfg = sfui.config.throttle
     local throttle = {
-        health = { lastUpdate = 0, interval = tCfg.health },
-        power = { lastUpdate = 0, interval = tCfg.power },
+        bar0 = { lastUpdate = 0, interval = tCfg.health },
+        bar_minus_1 = { lastUpdate = 0, interval = tCfg.power },
         absorb = { lastUpdate = 0, interval = tCfg.absorb },
         visibility = { lastUpdate = 0, interval = tCfg.visibility },
         runes = { lastUpdate = 0, interval = 0.05 },
@@ -96,9 +96,9 @@ do
     local function update_bar_positions()
         local spacing = sfui.config.barLayout.spacing or 1
 
-        if health_bar and health_bar.backdrop then
-            health_bar.backdrop:ClearAllPoints()
-            health_bar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", SfuiDB.healthBarX or 0, SfuiDB.healthBarY or 300)
+        if bar0 and bar0.backdrop then
+            bar0.backdrop:ClearAllPoints()
+            bar0.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", SfuiDB.healthBarX or 0, SfuiDB.healthBarY or 300)
         end
 
         if is_dragonflying() then
@@ -119,22 +119,22 @@ do
                     end
                 end
             end
-            if vigor_bar and vigor_bar.backdrop and health_bar and health_bar.backdrop then
+            if vigor_bar and vigor_bar.backdrop and bar0 and bar0.backdrop then
                 vigor_bar.backdrop:ClearAllPoints()
-                vigor_bar.backdrop:SetPoint("BOTTOM", health_bar.backdrop, "TOP", 0, spacing)
+                vigor_bar.backdrop:SetPoint("BOTTOM", bar0.backdrop, "TOP", 0, spacing)
             end
         else
-            if primary_power_bar and primary_power_bar.backdrop and health_bar and health_bar.backdrop then
-                primary_power_bar.backdrop:ClearAllPoints()
-                primary_power_bar.backdrop:SetPoint("TOP", health_bar.backdrop, "BOTTOM", 0, -spacing)
+            if bar_minus_1 and bar_minus_1.backdrop and bar0 and bar0.backdrop then
+                bar_minus_1.backdrop:ClearAllPoints()
+                bar_minus_1.backdrop:SetPoint("TOP", bar0.backdrop, "BOTTOM", 0, -spacing)
             end
-            if secondary_power_bar and secondary_power_bar.backdrop and health_bar and health_bar.backdrop then
-                secondary_power_bar.backdrop:ClearAllPoints()
-                secondary_power_bar.backdrop:SetPoint("BOTTOM", health_bar.backdrop, "TOP", 0, spacing)
+            if bar1 and bar1.backdrop and bar0 and bar0.backdrop then
+                bar1.backdrop:ClearAllPoints()
+                bar1.backdrop:SetPoint("BOTTOM", bar0.backdrop, "TOP", 0, spacing)
             end
-            if rune_bar and health_bar and health_bar.backdrop then
+            if rune_bar and bar0 and bar0.backdrop then
                 rune_bar:ClearAllPoints()
-                rune_bar:SetPoint("BOTTOM", health_bar.backdrop, "TOP", 0, spacing)
+                rune_bar:SetPoint("BOTTOM", bar0.backdrop, "TOP", 0, spacing)
             end
         end
     end
@@ -160,39 +160,39 @@ do
                     mount_speed_bar.backdrop:Hide()
                 end
             end
-            if health_bar then health_bar.backdrop:Hide() end
-            if primary_power_bar then primary_power_bar.backdrop:Hide() end
-            if secondary_power_bar then secondary_power_bar.backdrop:Hide() end
+            if bar0 then bar0.backdrop:Hide() end
+            if bar_minus_1 then bar_minus_1.backdrop:Hide() end
+            if bar1 then bar1.backdrop:Hide() end
             if rune_bar then rune_bar:Hide() end
         else
             local specID = sfui.common.get_current_spec_id()
 
             -- Core Bars Visibility (Health, Power, Secondary Power)
             if showCoreBars then
-                -- Health Bar
-                if health_bar and SfuiDB.enableHealthBar then
-                    health_bar.backdrop:Show()
-                elseif health_bar then
-                    health_bar.backdrop:Hide()
+                -- Health Bar (bar0)
+                if bar0 and SfuiDB.enableHealthBar then
+                    bar0.backdrop:Show()
+                elseif bar0 then
+                    bar0.backdrop:Hide()
                 end
 
-                -- Primary Power Bar
+                -- Primary Power Bar (bar_minus_1)
                 local hidePower = sfui.config.powerBar.hiddenSpecs and sfui.config.powerBar.hiddenSpecs[specID]
-                if primary_power_bar and SfuiDB.enablePowerBar and not hidePower then
-                    primary_power_bar.backdrop:Show()
-                elseif primary_power_bar then
-                    primary_power_bar.backdrop:Hide()
+                if bar_minus_1 and SfuiDB.enablePowerBar and not hidePower then
+                    bar_minus_1.backdrop:Show()
+                elseif bar_minus_1 then
+                    bar_minus_1.backdrop:Hide()
                 end
 
-                -- Secondary Power Bar
+                -- Secondary Power Bar (bar1)
                 local hideSecondary = sfui.config.secondaryPowerBar.hiddenSpecs and
                     sfui.config.secondaryPowerBar.hiddenSpecs[specID]
                 local secResource = sfui.common.get_secondary_resource()
 
-                if secondary_power_bar and SfuiDB.enableSecondaryPowerBar and not hideSecondary and secResource and secResource ~= Enum.PowerType.Runes then
-                    secondary_power_bar.backdrop:Show()
-                elseif secondary_power_bar then
-                    secondary_power_bar.backdrop:Hide()
+                if bar1 and SfuiDB.enableSecondaryPowerBar and not hideSecondary and secResource and secResource ~= Enum.PowerType.Runes then
+                    bar1.backdrop:Show()
+                elseif bar1 then
+                    bar1.backdrop:Hide()
                 end
 
                 -- Rune Bar
@@ -203,9 +203,9 @@ do
                     rune_bar:Hide()
                 end
             else
-                if health_bar then health_bar.backdrop:Hide() end
-                if primary_power_bar then primary_power_bar.backdrop:Hide() end
-                if secondary_power_bar then secondary_power_bar.backdrop:Hide() end
+                if bar0 then bar0.backdrop:Hide() end
+                if bar_minus_1 then bar_minus_1.backdrop:Hide() end
+                if bar1 then bar1.backdrop:Hide() end
                 if rune_bar then rune_bar:Hide() end
             end
         end
@@ -213,9 +213,9 @@ do
         update_bar_positions()
     end
 
-    local function get_primary_power_bar()
-        if primary_power_bar then return primary_power_bar end
-        local bar = sfui.common.create_bar("powerBar", "StatusBar", UIParent)
+    local function get_bar_minus_1()
+        if bar_minus_1 then return bar_minus_1 end
+        local bar = sfui.common.create_bar("bar_minus_1", "StatusBar", UIParent, nil, "powerBar")
         bar:GetStatusBarTexture():SetHorizTile(true)
 
         local marker = bar:CreateTexture(nil, "OVERLAY")
@@ -226,20 +226,20 @@ do
         marker:Hide()
         bar.marker = marker
 
-        primary_power_bar = bar
+        bar_minus_1 = bar
         return bar
     end
 
-    local function update_primary_power_bar()
+    local function update_bar_minus_1()
         local cfg = sfui.config.powerBar
         local specID = sfui.common.get_current_spec_id()
         local hide = cfg.hiddenSpecs and cfg.hiddenSpecs[specID]
 
         if not cfg.enabled or is_dragonflying() or hide then
-            if primary_power_bar and primary_power_bar.backdrop then primary_power_bar.backdrop:Hide() end
+            if bar_minus_1 and bar_minus_1.backdrop then bar_minus_1.backdrop:Hide() end
             return
         end
-        local bar = get_primary_power_bar()
+        local bar = get_bar_minus_1()
         local resource = sfui.common.get_primary_resource()
         if not resource then return end
         local max, current = UnitPowerMax("player", resource), UnitPower("player", resource)
@@ -270,11 +270,11 @@ do
     -- UpdateFillPosition removed (Secret Values cannot be used in arithmetic).
     -- We rely on StatusBar:SetValue() to handle secure values internally.
 
-    local function get_health_bar()
-        if health_bar then return health_bar end
-        local bar = sfui.common.create_bar("healthBar", "StatusBar", UIParent)
+    local function get_bar0()
+        if bar0 then return bar0 end
+        local bar = sfui.common.create_bar("bar0", "StatusBar", UIParent, nil, "healthBar")
         bar:GetStatusBarTexture():SetHorizTile(true)
-        health_bar = bar
+        bar0 = bar
 
         local textureName = SfuiDB.barTexture
         local LSM = LibStub("LibSharedMedia-3.0", true)
@@ -301,10 +301,10 @@ do
         return bar
     end
 
-    local function update_health_bar(current, maxVal)
+    local function update_bar0(current, maxVal)
         local cfg = sfui.config.healthBar
         if not cfg.enabled then return end
-        local bar = get_health_bar()
+        local bar = get_bar0()
         -- current and max are passed in now
         if not maxVal or maxVal <= 0 then return end
         bar:SetMinMaxValues(0, maxVal)
@@ -462,46 +462,46 @@ do
         end
     end
 
-    local function get_secondary_power_bar()
-        if secondary_power_bar then return secondary_power_bar end
-        local bar = sfui.common.create_bar("secondaryPowerBar", "StatusBar", UIParent)
+    local function get_bar1()
+        if bar1 then return bar1 end
+        local bar = sfui.common.create_bar("bar1", "StatusBar", UIParent, nil, "secondaryPowerBar")
         bar.TextValue = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         bar.TextValue:SetFont("Fonts\\FRIZQT__.TTF", sfui.config.secondaryPowerBar.fontSize, "NONE")
         bar.TextValue:SetShadowOffset(1, -1)
         bar.TextValue:SetPoint("CENTER")
-        secondary_power_bar = bar
+        bar1 = bar
         return bar
     end
 
-    local function update_secondary_power_bar()
+    local function update_bar1()
         local cfg = sfui.config.secondaryPowerBar
         local specID = sfui.common.get_current_spec_id()
         local hide = cfg.hiddenSpecs and cfg.hiddenSpecs[specID]
 
         if not cfg.enabled or is_dragonflying() or hide then
-            if secondary_power_bar and secondary_power_bar.backdrop then secondary_power_bar.backdrop:Hide() end
+            if bar1 and bar1.backdrop then bar1.backdrop:Hide() end
             return
         end
 
         local resource = sfui.common.get_secondary_resource()
 
         if resource == Enum.PowerType.Runes then
-            if secondary_power_bar and secondary_power_bar.backdrop then secondary_power_bar.backdrop:Hide() end
+            if bar1 and bar1.backdrop then bar1.backdrop:Hide() end
             return
         end
 
         if not resource then
-            if secondary_power_bar and secondary_power_bar.backdrop then secondary_power_bar.backdrop:Hide() end
+            if bar1 and bar1.backdrop then bar1.backdrop:Hide() end
             return
         end
 
         local max, current = get_secondary_resource_value(resource)
         if not max or max <= 0 then
-            if secondary_power_bar and secondary_power_bar.backdrop then secondary_power_bar.backdrop:Hide() end
+            if bar1 and bar1.backdrop then bar1.backdrop:Hide() end
             return
         end
 
-        local bar = get_secondary_power_bar()
+        local bar = get_bar1()
         if bar.backdrop then bar.backdrop:Show() end
         bar.TextValue:SetText(current)
         bar:SetMinMaxValues(0, max)
@@ -661,22 +661,22 @@ do
         local texturePath = (type(arg1) == "string") and arg1 or arg2
         if not texturePath then return end
 
-        if primary_power_bar then primary_power_bar:SetStatusBarTexture(texturePath) end
-        if health_bar then
-            health_bar:SetStatusBarTexture(texturePath)
-            if health_bar.healPredBar then health_bar.healPredBar:SetStatusBarTexture(texturePath) end
-            if health_bar.absorbBar then health_bar.absorbBar:SetStatusBarTexture(texturePath) end
+        if bar_minus_1 then bar_minus_1:SetStatusBarTexture(texturePath) end
+        if bar0 then
+            bar0:SetStatusBarTexture(texturePath)
+            if bar0.healPredBar then bar0.healPredBar:SetStatusBarTexture(texturePath) end
+            if bar0.absorbBar then bar0.absorbBar:SetStatusBarTexture(texturePath) end
         end
-        if secondary_power_bar then secondary_power_bar:SetStatusBarTexture(texturePath) end
+        if bar1 then bar1:SetStatusBarTexture(texturePath) end
         if vigor_bar then vigor_bar:SetStatusBarTexture(texturePath) end
         if mount_speed_bar then mount_speed_bar:SetStatusBarTexture(texturePath) end
     end
 
     function sfui.bars:on_state_changed()
-        update_primary_power_bar()
+        update_bar_minus_1()
         local max, current = UnitHealthMax("player"), UnitHealth("player")
-        update_health_bar(current, max)
-        update_secondary_power_bar()
+        update_bar0(current, max)
+        update_bar1()
         update_vigor_bar()
         update_rune_bar()
         sfui.bars:update_mount_speed_bar()
@@ -709,14 +709,14 @@ do
                 update_bar_visibility()
             end
         elseif event == "UNIT_POWER_UPDATE" and (not unit or unit == "player") then
-            if not should_throttle("power") then
-                update_primary_power_bar()
-                update_secondary_power_bar()
+            if not should_throttle("bar_minus_1") then
+                update_bar_minus_1()
+                update_bar1()
             end
         elseif (event == "UNIT_HEALTH" or event == "UNIT_ABSORB_AMOUNT_CHANGED") and (not unit or unit == "player") then
-            if not should_throttle("health") then
+            if not should_throttle("bar0") then
                 local max, current = UnitHealthMax("player"), UnitHealth("player")
-                update_health_bar(current, max)
+                update_bar0(current, max)
             end
         elseif event == "SPELL_UPDATE_CHARGES" then
             update_vigor_bar()

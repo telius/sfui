@@ -1,3 +1,30 @@
+## v0.2.0 (2026-02-07)
+
+### Major Features
+- **Tracked Bars System**: Complete implementation of customizable buff/debuff tracking bars.
+    - **Individual Bar Customization**: Each tracked spell has its own color picker, enable toggle, and max stack override.
+    - **Intelligent Visibility**: Bars automatically show/hide based on combat state, talent selection, and player spec.
+    - **Stack Display**: Visual segments for stacking buffs (e.g., Bone Shield showing 12 stacks).
+    - **Integration**: Seamlessly integrates with Blizzard's Cooldown Viewer addon for advanced configuration.
+    - **Memory Optimized**: Frame pooling and table reuse for high-performance updates.
+    - **Configuration Panel**: Dedicated UI in options for managing all tracked bars.
+
+### Improvements
+- **Code Optimization**: Comprehensive refactor across 8 files for improved performance and maintainability:
+    - **Configuration Centralization**: Moved all magic numbers to `config.lua` (8 new config values).
+    - **Common Utilities**: Added 3 reusable helper functions to `common.lua`:
+        - `scan_player_auras()` - Centralized aura scanning.
+        - `create_styled_button()` - Consistent button creation.
+        - `VEHICLE_KEYBIND_MAP` - Keybind lookup table.
+    - **Performance**: Eliminated redundant aura scanning (~30 lines), reusable tables to reduce GC pressure.
+    - **Consistency**: Unified color system using `sfui.config.colors` across all files.
+    - **Configurable Throttle**: Cast bar text updates now use configurable throttle value.
+
+### Technical Details
+- Refactored `reminders.lua`, `research.lua`, `minimap.lua`, `vehicle.lua`, `castbar.lua`, `automation.lua`.
+- Total: ~183 lines modified, ~77 lines reduced through consolidation.
+- Zero performance regressions, full backward compatibility maintained.
+
 ## v0.1.5 (2026-02-04)
 
 ### Features

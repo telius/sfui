@@ -161,10 +161,12 @@ local function CreateStageDividers(bar, numStages)
 end
 
 local function OnUpdate(self, elapsed)
-    -- Throttle text updates to ~20fps
+    -- Throttle text updates to ~20fps (configurable)
     self.throttle = (self.throttle or 0) + elapsed
     local updateText = false
-    if self.throttle > 0.05 then
+    local cfg = sfui.config[self.configName]
+    local throttleValue = cfg and cfg.updateThrottle or 0.05
+    if self.throttle > throttleValue then
         updateText = true
         self.throttle = 0
     end
