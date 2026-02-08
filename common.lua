@@ -487,22 +487,22 @@ end
 
 function sfui.common.create_slider_input(parent, label, dbKey, minVal, maxVal, step, onValueChangedFunc)
     local container = CreateFrame("Frame", nil, parent)
-    -- Increased height to accommodate input box below slider
-    container:SetSize(160, 60)
+    container:SetSize(160, 40) -- Compact height
 
-    local title = container:CreateFontString(nil, "OVERLAY", sfui.config.font)
+    local title = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     title:SetPoint("TOPLEFT", 0, 0)
     title:SetText(label)
+    title:SetTextColor(1, 1, 1, 0.8)
 
     local slider = CreateFrame("Slider", nil, container, "BackdropTemplate")
-    slider:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -5)
-    slider:SetSize(160, 12) -- Reduced height slightly for sharper look
+    slider:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -2)
+    slider:SetSize(100, 10) -- Smaller width
     slider:SetOrientation("HORIZONTAL")
     slider:SetMinMaxValues(minVal, maxVal)
     slider:SetValueStep(step)
     slider:SetObeyStepOnDrag(true)
 
-    -- Slider Backdrop (Flat Square)
+    -- Slider Backdrop
     slider:SetBackdrop({
         bgFile = "Interface/Buttons/WHITE8X8",
         edgeFile = "Interface/Buttons/WHITE8X8",
@@ -514,17 +514,16 @@ function sfui.common.create_slider_input(parent, label, dbKey, minVal, maxVal, s
 
     -- Thumb
     local thumb = slider:CreateTexture(nil, "OVERLAY")
-    thumb:SetSize(6, 12)
-    thumb:SetColorTexture(0.4, 0, 1, 1) -- Purple Thumb
+    thumb:SetSize(6, 10)
+    thumb:SetColorTexture(0.4, 0, 1, 1)
     slider:SetThumbTexture(thumb)
 
-    -- EditBox (Square, Flat, Below Slider)
+    -- EditBox (Square, Flat, RIGHT of Slider)
     local editbox = CreateFrame("EditBox", nil, container, "BackdropTemplate")
-    editbox:SetSize(50, 18)
-    -- Centered below the slider
-    editbox:SetPoint("TOP", slider, "BOTTOM", 0, -5)
+    editbox:SetSize(45, 16)
+    editbox:SetPoint("LEFT", slider, "RIGHT", 8, 0)
     editbox:SetAutoFocus(false)
-    editbox:SetFontObject(sfui.config.font)
+    editbox:SetFontObject("GameFontHighlightSmall")
     editbox:SetJustifyH("CENTER")
 
     editbox:SetBackdrop({
@@ -548,21 +547,12 @@ function sfui.common.create_slider_input(parent, label, dbKey, minVal, maxVal, s
         end
         self:ClearFocus()
     end)
-    -- Only highlight border on edit, no cyan text
-    editbox:SetScript("OnEditFocusGained", function(self)
-        self:SetBackdropBorderColor(0.4, 0, 1, 1)
-    end)
-    editbox:SetScript("OnEditFocusLost", function(self)
-        self:SetBackdropBorderColor(0, 0, 0, 1)
-    end)
+    editbox:SetScript("OnEditFocusGained", function(self) self:SetBackdropBorderColor(0.4, 0, 1, 1) end)
+    editbox:SetScript("OnEditFocusLost", function(self) self:SetBackdropBorderColor(0, 0, 0, 1) end)
 
 
     slider:SetScript("OnValueChanged", function(self, value)
         local stepped = math.floor((value - minVal) / step + 0.5) * step + minVal
-        -- To avoid float jitter
-        if math.abs(value - stepped) > 0.001 then
-            -- Logic handled by slider mostly
-        end
         SfuiDB[dbKey] = value
         -- Clean number display
         local displayVal = math.floor(value * 100) / 100
@@ -576,16 +566,6 @@ function sfui.common.create_slider_input(parent, label, dbKey, minVal, maxVal, s
         self:SetValue(val)
         editbox:SetText(tostring(val))
     end)
-
-    -- Labels for Min/Max
-    local low = slider:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    low:SetPoint("TOPLEFT", slider, "BOTTOMLEFT", 0, -2)
-    low:SetText(minVal)
-    low:Hide() -- Hiding min/max labels to keep it clean as per "input box below" request usually implies compact or just focus on value.
-    -- Actually user didn't say hide them, but with input box below, they might clutter. I'll keep them hidden or move them.
-    -- Let's keep them visible but pushed out or just hidden if input box is the focus.
-    -- User asked: "put the input boxes below the sliders".
-    -- I'll hide min/max for cleaner look unless insisted.
 
     -- Expose method to set value programmatically
     function container:SetSliderValue(val)

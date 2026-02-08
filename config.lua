@@ -258,6 +258,11 @@ sfui.config = {
         },
     },
 
+    trackedIcons = {
+        left = { x = -200, y = 0 },
+        right = { x = 200, y = 0 },
+    },
+
 
 
     barTexture = "Interface/Buttons/WHITE8X8",
@@ -384,6 +389,7 @@ sfui.config = {
         auto_role_check = true,
         auto_sign_lfg = true,
     },
+
 
     -- Tracked Bars (Custom Cooldown Tracker)
     trackedBars = {
