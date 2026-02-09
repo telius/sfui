@@ -314,8 +314,10 @@ UpdateCooldownsList = function()
                 if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then sfui.trackedbars.ForceLayoutUpdate() end
             end)
             maxInput:SetPoint("LEFT", row, "LEFT", 480, 0)
-            local dbVal = SfuiDB.trackedBars[cd.cooldownID] and SfuiDB.trackedBars[cd.cooldownID].maxStacks
+            local dbVal = SfuiDB.trackedBars and SfuiDB.trackedBars[cd.cooldownID] and
+            SfuiDB.trackedBars[cd.cooldownID].maxStacks
             if dbVal then maxInput:SetText(dbVal) end
+
 
             local textChk = sfui.common.create_checkbox(row, "", nil, function(val)
                 local barDB = sfui.common.ensure_tracked_bar_db(cd.cooldownID)

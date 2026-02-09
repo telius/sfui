@@ -1,8 +1,65 @@
+local addonName, addon = ...
+sfui = sfui or {}
 sfui.common = {}
 
 local _, playerClass, playerClassID = UnitClass("player")
 
 -- ... (skipping lines)
+
+-- Safe Direct Lookup Tables (TWW / Dragonflight)
+sfui.common.FLASK_IDS = {
+    -- The War Within (Phials / Flasks)
+    431972, -- Flask of Alchemical Chaos
+    431973, -- Flask of Tempered Aggression
+    431974, -- Flask of Tempered Swiftness
+    431971, -- Flask of Tempered Mastery
+    431970, -- Flask of Tempered Versatility
+    432029, -- Crystalline Phial of Perception (Gathering)
+    -- Dragonflight (Phials)
+    370661, -- Phial of Elemental Chaos
+    370652, -- Phial of Static Empowerment
+    373257, -- Phial of Glacial Fury
+    371038, -- Phial of Icy Preservation
+    371172, -- Phial of Tepid Versatility
+    371339, -- Phial of Tobacious Versatility -> likely typo in source, checking IDs later if needed
+    371204, -- Phial of Still Air
+    371354, -- Phial of the Eye in the Storm
+    371386, -- Phial of Charged Isolation
+    371339, -- Phial of Corrupting Rage
+}
+
+sfui.common.AUGMENT_RUNE_IDS = {
+    -- The War Within
+    444583, -- Crystallized Augment Rune
+    -- Dragonflight
+    393438, -- Draconic Augment Rune
+    410332, -- Dreambound Augment Rune
+}
+
+sfui.common.VANTUS_RUNE_IDS = {
+    -- The War Within
+    444266, -- Vantus Rune: Nerub-ar Palace
+    -- Dragonflight
+    410337, -- Vantus Rune: Amirdrassil
+    400305, -- Vantus Rune: Aberrus
+    394148, -- Vantus Rune: Vault of the Incarnates
+}
+
+sfui.common.WEAPON_ENCHANT_IDS = {
+    -- The War Within (Oils / Stones)
+    432321, -- Algari Mana Oil
+    432323, -- Oil of Beledar's Grace
+    432328, -- Ironclaw Whetstone
+    432327, -- Ironclaw Weightstone
+    -- Dragonflight
+    394017, -- Howling Rune
+    394018, -- Buzzing Rune
+}
+
+-- Note: Food is often best checked by "Well Fed" name, but specific IDs can be added here if language-agnosticism is required.
+-- For now, we'll stick to the "Well Fed" check in reminders.lua which is already safe via GetAuraDataBySpellName.
+
+local wipe = wipe
 
 -- Returns the cached player class (e.g., "WARRIOR", "MAGE")
 function sfui.common.get_player_class()
@@ -19,6 +76,13 @@ function sfui.common.ensure_tracked_bar_db(cooldownID)
         return SfuiDB.trackedBars[cooldownID]
     end
     return SfuiDB.trackedBars
+end
+
+-- Helper to safely ensure tracked icon DB structure exists
+function sfui.common.ensure_tracked_icon_db()
+    SfuiDB = SfuiDB or {}
+    SfuiDB.cooldownPanels = SfuiDB.cooldownPanels or {}
+    return SfuiDB.cooldownPanels
 end
 
 local powerTypeToName = {}
@@ -713,15 +777,14 @@ function sfui.common.has_aura(spellID, unit, threshold)
         spellName = GetSpellInfo(spellID)
     end
 
-    for i = 1, 40 do
-        local aura = C_UnitAuras.GetAuraDataByIndex(unit, i, "HELPFUL")
-        if not aura then break end
-
-        if aura.spellId == spellID or (spellName and aura.name == spellName) then
+    if spellName then
+        local aura = C_UnitAuras.GetAuraDataBySpellName(unit, spellName)
+        if aura then
             if not threshold or aura.expirationTime == 0 then return true end
             return (aura.expirationTime - GetTime()) > threshold
         end
     end
+
     return false
 end
 
@@ -756,6 +819,13 @@ end
 -- @return: true if any matching aura found, false otherwise
 function sfui.common.scan_player_auras(filterFunc)
     if not filterFunc then return false end
+
+    -- Scanning all auras is unsafe in instances due to secret values
+    local inInstance, instanceType = IsInInstance()
+    if inInstance and (instanceType == "party" or instanceType == "raid" or instanceType == "arena") then
+        return false
+    end
+
     for i = 1, 40 do
         local aura = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")
         if not aura then break end

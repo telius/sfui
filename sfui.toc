@@ -1,32 +1,34 @@
 ## Interface: 120001, 120000
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: 0.2.1
+## Version: 0.2.2
 ## Notes: modular and dynamic uistuffs for world of warcraft.
-## SavedVariables: SfuiDB, SfuiDecorDB
+## SavedVariables: SfuiDB
 ## OptionalDeps: Masque
-## IconTexture: Interface\AddOns\sfui\icon.png
+## IconTexture: Interface/AddOns/sfui/icon.png
 
-Libs\LibStub\LibStub.lua
-Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
-Libs\AceDB-3.0\AceDB-3.0.xml
-Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
-Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
+Libs/LibStub/LibStub.lua
+Libs/CallbackHandler-1.0/CallbackHandler-1.0.xml
+Libs/AceDB-3.0/AceDB-3.0.xml
+Libs/LibDataBroker-1.1/LibDataBroker-1.1.lua
+Libs/LibDBIcon-1.0/LibDBIcon-1.0.lua
 config.lua
 common.lua
-frames\reminders.lua
-sfui.lua
-frames\options.lua
-frames\currency.lua
-frames\minimap.lua
+frames/reminders.lua
+core.lua
 
-frames\bars.lua
-frames\research.lua
-frames\castbar.lua
+frames/options.lua
+frames/currency.lua
+frames/minimap.lua
 
-frames\merchant.lua
-frames\vehicle.lua
-frames\automation.lua
-frames\trackedoptions.lua
-frames\trackedbars.lua
-frames\cursor.lua
+
+frames/bars.lua
+frames/research.lua
+frames/castbar.lua
+
+frames/merchant.lua
+frames/vehicle.lua
+frames/automation.lua
+frames/trackedoptions.lua
+frames/trackedbars.lua
+frames/cursor.lua

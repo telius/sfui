@@ -1,4 +1,7 @@
+local addonName, addon = ...
 sfui = sfui or {}
+SfuiDB = SfuiDB or {}
+SfuiDecorDB = SfuiDecorDB or {}
 
 sfui.config = {
     -- addon metadata
@@ -395,9 +398,9 @@ sfui.config = {
     trackedBars = {
         -- Position anchor
         anchor = {
-            point = "TOP",
-            x = 0,
-            y = -150,
+            point = "BOTTOM",
+            x = -300,
+            y = 300,
         },
         -- Visual settings
         width = 200,
@@ -504,3 +507,69 @@ sfui.config = {
         },
     }
 }
+
+function sfui.initialize_database()
+    if type(SfuiDB) ~= "table" then SfuiDB = {} end
+    if type(SfuiDecorDB) ~= "table" then SfuiDecorDB = {} end
+    SfuiDecorDB.items = SfuiDecorDB.items or {}
+
+    if type(SfuiDB.barTexture) ~= "string" or SfuiDB.barTexture == "" then SfuiDB.barTexture = "Flat" end
+    SfuiDB.absorbBarColor = SfuiDB.absorbBarColor or sfui.config.absorbBarColor
+
+    SfuiDB.minimap_icon = SfuiDB.minimap_icon or { hide = false }
+    SfuiDB.minimap_collect_buttons = (SfuiDB.minimap_collect_buttons == nil) and true or SfuiDB.minimap_collect_buttons
+    if SfuiDB.minimap_rearrange == nil then SfuiDB.minimap_rearrange = true end
+    SfuiDB.minimap_buttons_mouseover = (SfuiDB.minimap_buttons_mouseover == nil) and false or
+        SfuiDB.minimap_buttons_mouseover
+    if SfuiDB.minimap_masque == nil then SfuiDB.minimap_masque = true end
+    if SfuiDB.minimap_button_x == nil then SfuiDB.minimap_button_x = 0 end
+    if SfuiDB.minimap_button_y == nil then SfuiDB.minimap_button_y = 35 end
+    if SfuiDB.autoSellGreys == nil then SfuiDB.autoSellGreys = true end
+    if SfuiDB.autoRepair == nil then SfuiDB.autoRepair = true end
+    if SfuiDB.repairThreshold == nil then SfuiDB.repairThreshold = 90 end
+    if SfuiDB.enableMasterHammer == nil then SfuiDB.enableMasterHammer = true end
+    if SfuiDB.enableMerchant == nil then SfuiDB.enableMerchant = true end
+    if SfuiDB.enableDecor == nil then SfuiDB.enableDecor = false end -- Opt-in feature
+    if SfuiDB.enableVehicle == nil then SfuiDB.enableVehicle = true end
+    if SfuiDB.enableCursorRing == nil then SfuiDB.enableCursorRing = true end
+
+    -- Bar settings
+    if SfuiDB.healthBarX == nil then SfuiDB.healthBarX = 0 end
+    if SfuiDB.healthBarY == nil then SfuiDB.healthBarY = 300 end
+    if SfuiDB.enableHealthBar == nil then SfuiDB.enableHealthBar = true end
+    if SfuiDB.enablePowerBar == nil then SfuiDB.enablePowerBar = true end
+    if SfuiDB.enableSecondaryPowerBar == nil then SfuiDB.enableSecondaryPowerBar = true end
+    if SfuiDB.enableVigorBar == nil then SfuiDB.enableVigorBar = true end
+    if SfuiDB.enableMountSpeedBar == nil then SfuiDB.enableMountSpeedBar = true end
+
+    -- Castbar settings
+    if SfuiDB.castBarEnabled == nil then SfuiDB.castBarEnabled = sfui.config.castBar.enabled end
+    if SfuiDB.castBarX == nil then SfuiDB.castBarX = sfui.config.castBar.pos.x end
+    if SfuiDB.castBarY == nil then SfuiDB.castBarY = sfui.config.castBar.pos.y end
+    sfui.config.castBar.enabled = SfuiDB.castBarEnabled
+    sfui.config.castBar.pos.x = SfuiDB.castBarX
+    sfui.config.castBar.pos.y = SfuiDB.castBarY
+
+    if SfuiDB.targetCastBarEnabled == nil then SfuiDB.targetCastBarEnabled = sfui.config.targetCastBar.enabled end
+    if SfuiDB.targetCastBarX == nil then SfuiDB.targetCastBarX = sfui.config.targetCastBar.pos.x end
+    if SfuiDB.targetCastBarY == nil then SfuiDB.targetCastBarY = sfui.config.targetCastBar.pos.y end
+    sfui.config.targetCastBar.enabled = SfuiDB.targetCastBarEnabled
+    sfui.config.targetCastBar.pos.x = SfuiDB.targetCastBarX
+    sfui.config.targetCastBar.pos.y = SfuiDB.targetCastBarY
+
+    if SfuiDB.enableReminders == nil then SfuiDB.enableReminders = true end
+    if SfuiDB.remindersX == nil then SfuiDB.remindersX = 0 end
+    if SfuiDB.remindersY == nil then SfuiDB.remindersY = 10 end
+    if SfuiDB.remindersSolo == nil then SfuiDB.remindersSolo = true end
+    if SfuiDB.enableConsumablesSolo == nil then SfuiDB.enableConsumablesSolo = true end
+    if SfuiDB.remindersEverywhere == nil then SfuiDB.remindersEverywhere = true end
+    if SfuiDB.enablePetWarning == nil then SfuiDB.enablePetWarning = true end
+    if SfuiDB.enableRuneWarning == nil then SfuiDB.enableRuneWarning = true end
+
+    -- automation settings
+    if SfuiDB.auto_role_check == nil then SfuiDB.auto_role_check = true end
+    if SfuiDB.auto_sign_lfg == nil then SfuiDB.auto_sign_lfg = true end
+
+    -- Tracked Bars
+    SfuiDB.trackedBars = SfuiDB.trackedBars or {}
+end

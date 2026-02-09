@@ -1,3 +1,4 @@
+local addonName, addon = ...
 sfui = sfui or {}
 sfui.castbar = {}
 

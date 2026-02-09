@@ -1,3 +1,8 @@
+## v0.2.2 (2026-02-09)
+### Bug Fixes
+- **Tracked Bars**: Fixed a Lua error ("secret value") that occurred when interacting with Blizzard's CooldownViewer frames in restricted environments (e.g., M+, combat).
+- **Positioning**: Updated default tracked bars anchor to x=-300, y=300 to better align with user interface standards.
+
 ## v0.2.1 (2026-02-08)
 
 ### Changes

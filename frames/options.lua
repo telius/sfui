@@ -1,3 +1,4 @@
+local addonName, addon = ...
 local c = sfui.config.options_panel
 local g = sfui.config
 

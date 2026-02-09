@@ -1,3 +1,4 @@
+local addonName, addon = ...
 sfui = sfui or {}
 sfui.reminders = {}
 
@@ -180,101 +181,140 @@ local function check_any_group_buff_status(spellID, ignoreThreshold)
 end
 
 local function has_food()
-    return sfui.common.scan_player_auras(function(aura)
-        if aura.name == "Well Fed" or (aura.spellId == 22568) then
-            if aura.expirationTime == 0 or (aura.expirationTime - GetTime()) > threshold then
-                return true
-            end
+    -- Direct safe lookup for "Well Fed" to avoid scanning in instances
+    local aura = C_UnitAuras.GetAuraDataBySpellName("player", "Well Fed")
+    if aura then
+        if aura.expirationTime == 0 or (aura.expirationTime - GetTime()) > threshold then
+            return true
         end
-        return false
-    end)
+    end
+    return false
 end
 
 local function has_flask()
-    return sfui.common.scan_player_auras(function(aura)
-        local name = aura.name:lower()
-        if name:find("flask") or name:find("phial") or name:find("greater flask") then
-            if aura.expirationTime == 0 or (aura.expirationTime - GetTime()) > threshold then
-                return true
+    -- Direct Safe Lookup: Iterate known Flask IDs
+    if sfui.common.FLASK_IDS then
+        for _, spellID in ipairs(sfui.common.FLASK_IDS) do
+            local aura = C_UnitAuras.GetPlayerAuraBySpellID(spellID)
+            if aura then
+                if aura.expirationTime == 0 or (aura.expirationTime - GetTime()) > threshold then
+                    return true
+                end
             end
         end
-        return false
-    end)
+    end
+    return false
 end
 
 local function has_poison()
-    local hasAura = sfui.common.scan_player_auras(function(aura)
-        local name = aura.name:lower()
-        if name:find("poison") then
-            if aura.expirationTime == 0 or (aura.expirationTime - GetTime()) > threshold then
-                return true
-            end
-        end
-        return false
-    end)
-    if hasAura then return true end
-
-    -- Check weapon enchants
+    -- Poisons are now best checked via Weapon Enchants (Temp Enchants) for safety/compatibility
     local hasMainHandEnchant, mainHandExpiration, _, _, hasOffHandEnchant, offHandExpiration = GetWeaponEnchantInfo()
     if hasMainHandEnchant and (mainHandExpiration / 1000) > threshold then return true end
     if hasOffHandEnchant and (offHandExpiration / 1000) > threshold then return true end
     return false
 end
 
-local function check_augment_runes()
-    if InCombatLockdown() or not SfuiDB.enableRuneWarning then
-        set_warning("rune", false); return
+local function IsPetOnPassive()
+    if not UnitExists("pet") or not PetHasActionBar() then return false end
+    for i = 1, 10 do
+        local name, _, isToken, isActive = GetPetActionInfo(i)
+        if isToken and name == "PET_MODE_PASSIVE" and isActive then return true end
     end
+    return false
+end
 
-    local cfg = sfui.config.warnings.rune
-
-    local hasRune, spellID = has_rune()
-    -- Use has_aura for robust name matching
-    local missingRune = hasRune and not sfui.common.has_aura(spellID, "player", threshold)
-
-    if missingRune then
-        set_warning("rune", true, cfg.text, cfg.priority, cfg.color)
-    else
-        set_warning("rune", false)
-    end
+local function IsPetFelguard()
+    local guid = UnitGUID("pet")
+    if not guid then return false end
+    local _, _, _, _, _, npcID = strsplit("-", guid)
+    local id = tonumber(npcID)
+    -- 17252: Felguard, 58965: Wrathguard (Glyph)
+    return id == 17252 or id == 58965
 end
 
 local petWarningTimer = nil
 local hasGrimoireOfSacrifice = false
 
-local function update_grimoire_of_sacrifice_status()
+function sfui.reminders.update_grimoire_status()
     hasGrimoireOfSacrifice = IsPlayerSpell(108503)
 end
+
 local function check_pet_warning()
     if InCombatLockdown() or not SfuiDB.enablePetWarning then
         set_warning("pet", false); return
     end
 
+    -- 1. Check Passive Stance (Priority)
+    if UnitExists("pet") and IsPetOnPassive() then
+        -- Don't warn if we are mounted/resting, unless in combat (but we return early in combat anyway)
+        if not IsMounted() and not IsResting() then
+            set_warning("pet", true, "PET PASSIVE", 2, "red")
+            return
+        end
+    end
+
+    -- 2. Check Missing / Wrong Pet
     local playerClass = sfui.common.get_player_class()
     local specID = sfui.common.get_current_spec_id()
     local isAppropriateSpec = false
+    local expectFelguard = false
 
-    if playerClass == "HUNTER" and (specID == 253 or specID == 255) then
+    if playerClass == "HUNTER" and (specID == 253 or specID == 255) then -- BM or SV
         isAppropriateSpec = true
-    elseif playerClass == "DEATHKNIGHT" and specID == 252 then
+    elseif playerClass == "DEATHKNIGHT" and specID == 252 then           -- Unholy
         isAppropriateSpec = true
-    elseif playerClass == "WARLOCK" and not hasGrimoireOfSacrifice then -- Grimoire of Sacrifice
-        isAppropriateSpec = true
+    elseif playerClass == "WARLOCK" then
+        if not hasGrimoireOfSacrifice then
+            isAppropriateSpec = true
+            if specID == 266 then -- Demonology
+                expectFelguard = true
+            end
+        end
+    elseif playerClass == "MAGE" and specID == 64 then -- Frost
+        if IsPlayerSpell(31687) then                   -- Summon Water Elemental
+            isAppropriateSpec = true
+        end
     end
 
-    if isAppropriateSpec and not UnitExists("pet") and not IsMounted() and not IsResting() then
+    if not isAppropriateSpec then
+        if petWarningTimer then
+            C_Timer.Cancel(petWarningTimer); petWarningTimer = nil
+        end
+        set_warning("pet", false)
+        return
+    end
+
+    -- Delayed check to handle dismount/zoning
+    local function do_check()
+        if InCombatLockdown() then return end
+        local warning = false
+        local text = ""
+
+        if expectFelguard then
+            if not UnitExists("pet") then
+                warning = true; text = "NO PET"
+            elseif not IsPetFelguard() then
+                warning = true; text = "WRONG PET"
+            end
+        elseif not UnitExists("pet") then
+            warning = true; text = "NO PET"
+        end
+
+        if warning and not IsMounted() and not IsResting() then
+            local cfg = sfui.config.warnings.pet
+            set_warning("pet", true, text, cfg.priority, cfg.color)
+        else
+            set_warning("pet", false)
+        end
+        petWarningTimer = nil
+    end
+
+    if not UnitExists("pet") or (expectFelguard and not IsPetFelguard()) then
         if not petWarningTimer then
-            petWarningTimer = C_Timer.After(2, function()
-                if not UnitExists("pet") and not IsResting() then
-                    local cfg = sfui.config.warnings.pet
-                    set_warning("pet", true, cfg.text, cfg.priority, cfg.color)
-                else
-                    set_warning("pet", false)
-                end
-                petWarningTimer = nil
-            end)
+            petWarningTimer = C_Timer.After(2, do_check)
         end
     else
+        -- Happy path: Pet exists and is correct
         if petWarningTimer then
             C_Timer.Cancel(petWarningTimer); petWarningTimer = nil
         end
@@ -309,7 +349,7 @@ local function create_icons()
     local size, spacing, groupSpacing = cfg.icon_size, cfg.spacing, cfg.group_spacing
 
     -- Reuse combined table instead of recreating it
-    table.wipe(combined)
+    wipe(combined)
     for _, b in ipairs(RAID_BUFFS) do table.insert(combined, b) end
     for i, b in ipairs(PERSONAL_BUFFS) do
         local entry = {}
@@ -434,7 +474,7 @@ end
 
 function sfui.reminders.on_state_changed(enabled)
     if enabled then
-        update_buff_data(); create_icons(); update_icons()
+        update_buff_data(); sfui.reminders.update_grimoire_status(); create_icons(); update_icons()
         if sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
     else
         if frame then
@@ -443,11 +483,11 @@ function sfui.reminders.on_state_changed(enabled)
         end
     end
     -- Always check warnings as they have their own toggles
-    check_pet_warning(); check_augment_runes()
+    check_pet_warning()
 end
 
 function sfui.reminders.update_warnings()
-    check_pet_warning(); check_augment_runes()
+    check_pet_warning()
 end
 
 function sfui.reminders.get_status()
@@ -464,6 +504,13 @@ function sfui.reminders.update_visibility()
 
     local settings = SfuiDB
     if not settings.enableReminders then
+        RegisterStateDriver(frame, "visibility", "hide")
+        return
+    end
+
+    -- Check for M+ / Challenge Mode
+    local activeKeystoneLevel = C_ChallengeMode.GetActiveKeystoneInfo()
+    if activeKeystoneLevel and activeKeystoneLevel > 0 then
         RegisterStateDriver(frame, "visibility", "hide")
         return
     end
@@ -489,7 +536,7 @@ end
 
 function sfui.reminders.initialize()
     update_buff_data()
-    update_grimoire_of_sacrifice_status()
+    sfui.reminders.update_grimoire_status()
     create_icons()
     create_warning_frame()
 
@@ -510,31 +557,39 @@ function sfui.reminders.initialize()
     eventFrame:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
     eventFrame:RegisterEvent("PLAYER_UPDATE_RESTING")
     eventFrame:RegisterEvent("PLAYER_TALENT_UPDATE")
+    -- M+ Events
+    eventFrame:RegisterEvent("CHALLENGE_MODE_START")
+    eventFrame:RegisterEvent("CHALLENGE_MODE_COMPLETED")
+    eventFrame:RegisterEvent("CHALLENGE_MODE_RESET")
 
     eventFrame:SetScript("OnEvent", function(self, event, unit)
         if event == "PLAYER_REGEN_DISABLED" then
-            -- Visibility is handled by State Driver
+            return
+        end
+
+        if event == "PLAYER_REGEN_ENABLED" then
+            check_pet_warning()
+            if sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
             return
         end
 
         if InCombatLockdown() then return end
 
+        if event == "CHALLENGE_MODE_START" or event == "CHALLENGE_MODE_COMPLETED" or event == "CHALLENGE_MODE_RESET" then
+            if sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
+        end
+
         if event == "PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "GROUP_ROSTER_UPDATE" or event == "BAG_UPDATE_DELAYED" or event == "PLAYER_TALENT_UPDATE" or event == "ZONE_CHANGED_NEW_AREA" then
             update_buff_data()
-            update_grimoire_of_sacrifice_status()
+            sfui.reminders.update_grimoire_status()
             create_icons()
             check_pet_warning()
-            check_augment_runes()
             if sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
         end
         if event == "UNIT_AURA" and unit ~= "player" and not IsInGroup() then return end
 
-        if event == "UNIT_AURA" or event == "BAG_UPDATE_DELAYED" then check_augment_runes() end
         if event == "UNIT_PET" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "PLAYER_UPDATE_RESTING" then
             check_pet_warning()
-        end
-        if event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
-            check_pet_warning(); check_augment_runes()
         end
 
         -- Throttle updates to avoid excessive processing in raids
@@ -556,5 +611,4 @@ function sfui.reminders.initialize()
 
     update_icons()
     check_pet_warning()
-    check_augment_runes()
 end

@@ -1,3 +1,4 @@
+local addonName, addon = ...
 ---@diagnostic disable: undefined-global
 -- frames/merchant.lua
 -- Custom 4x7 grid merchant frame for sfui

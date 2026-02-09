@@ -1,3 +1,4 @@
+local addonName, addon = ...
 sfui = sfui or {}
 sfui.minimap = {}
 
@@ -9,7 +10,7 @@ local isInitialized = false
 local collectAttempts = 0
 
 local addonName, addon = ...
-frame = CreateFrame("Frame", addonName)
+frame = CreateFrame("Frame", "SfuiMinimapFrame")
 
 local zoom_timer = nil
 local DEFAULT_ZOOM = sfui.config.minimap.defaultZoom or 0

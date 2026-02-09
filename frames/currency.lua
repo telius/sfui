@@ -1,3 +1,4 @@
+local addonName, addon = ...
 do
     local widget_frame, icons, value_labels = nil, {}, {}
 
@@ -18,6 +19,8 @@ do
             texture = currencyInfo.iconFileID,
             quantity = currencyInfo.quantity,
             on_mouseup = nil,
+            on_enter = OnCurrencyIconEnter,
+            on_leave = OnIconLeave,
         }
     end
 
@@ -76,6 +79,10 @@ do
                 return
             end
         end
+    end
+
+    local function OnIconLeave(self)
+        GameTooltip:Hide()
     end
 
     local function OnItemIconEnter(self)

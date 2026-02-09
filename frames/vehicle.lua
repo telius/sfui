@@ -1,3 +1,4 @@
+local addonName, addon = ...
 sfui.vehicle = {}
 
 local frame = CreateFrame("Frame", "SfuiVehicleBar", UIParent, "SecureHandlerStateTemplate")

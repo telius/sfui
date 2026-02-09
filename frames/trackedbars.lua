@@ -239,7 +239,7 @@ end
 
 local function UpdateLayout()
     local cfg = sfui.config.trackedBars
-    table.wipe(standardBars)
+    wipe(standardBars)
     local attachedBars = {}
 
     for _, bar in pairs(bars) do
@@ -325,8 +325,11 @@ end
 -- Update Position External Reference
 function sfui.trackedbars.UpdatePosition()
     if not container then return end
-    local x = SfuiDB.trackedBarsX or -300
-    local y = SfuiDB.trackedBarsY or 300
+    local x = (SfuiDB and SfuiDB.trackedBarsX) or (sfui.config.trackedBars.anchor and sfui.config.trackedBars.anchor.x) or
+        -300
+    local y = (SfuiDB and SfuiDB.trackedBarsY) or (sfui.config.trackedBars.anchor and sfui.config.trackedBars.anchor.y) or
+        300
+
     container:ClearAllPoints()
     container:SetPoint("BOTTOM", UIParent, "BOTTOM", x, y)
 end
@@ -405,9 +408,10 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
 
     -- 1. Try Aura Data (Always preferred over scraping text)
     if blizzFrame.auraInstanceID then
-        local auraData = C_UnitAuras.GetAuraDataByAuraInstanceID("player", blizzFrame.auraInstanceID)
+        local unit = blizzFrame.auraDataUnit or "player"
+        local auraData = C_UnitAuras.GetAuraDataByAuraInstanceID(unit, blizzFrame.auraInstanceID)
         if auraData then
-            if auraData.applications then
+            if auraData.applications and type(auraData.applications) == "number" then
                 currentStacks = auraData.applications
             end
             -- Update name safely
@@ -415,11 +419,13 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
         end
     end
 
-    -- 2. Fallback to Text (Blizzard's Display)
-    if not currentStacks then
+    -- 2. Fallback to Text (Blizzard's Display) - ONLY IF SAFE
+    -- Text access on restricted frames returns "secret value" which crashes on comparison
+    if not currentStacks and not InCombatLockdown() and not IsInInstance() then
         if blizzFrame.Icon and blizzFrame.Icon.Applications then
             local text = blizzFrame.Icon.Applications:GetText()
-            if text and text ~= "" then
+            -- Avoid 'secret value' errors by removing comparison
+            if text and type(text) == "string" then
                 currentStacks = tonumber(text)
             end
         end
@@ -432,8 +438,15 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
         myBar.name:SetText(blizzFrame.Bar.Name:GetText())
     end
 
-    -- Default to 0
-    if not currentStacks then currentStacks = 0 end
+    -- Default to 0 and Ensure Safety
+    -- Force sanitize currentStacks to be a clean number to prevent secret value crashes
+    -- Use tostring/tonumber roundtrip to scrub taint from "secret numbers"
+    if currentStacks and type(currentStacks) == "number" then
+        local valid = tonumber(tostring(currentStacks))
+        currentStacks = valid or 0
+    else
+        currentStacks = 0
+    end
     myBar.currentStacks = currentStacks -- Store for OnUpdate access
 
     -- MAIN BAR UPDATE LOGIC
@@ -469,8 +482,8 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
             myBar.time:SetText(text)
         end
 
-        if showApps and stackText ~= "0" and stackText ~= "" then
-            myBar.count:SetText(stackText)
+        if currentStacks and currentStacks > 0 then
+            myBar.count:SetText(tostring(currentStacks))
         else
             myBar.count:SetText("")
         end
@@ -480,7 +493,7 @@ end
 local function SyncWithBlizzard()
     if not BuffBarCooldownViewer or not BuffBarCooldownViewer.itemFramePool then return end
 
-    table.wipe(activeCooldownIDs)
+    wipe(activeCooldownIDs)
     local layoutNeeded = false
 
     -- Global Hide Check
