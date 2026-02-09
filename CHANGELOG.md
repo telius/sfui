@@ -1,9 +1,6 @@
-## v0.2.4 (2026-02-09)
-### Build
-- **WowUp Hub**: Added `.previews` folder for enhanced addon discovery in WowUp Hub.
-
 ## v0.2.3 (2026-02-09)
 ### Build
+- **WowUp Hub**: Added `.previews` folder for enhanced addon discovery in WowUp Hub.
 - **WowUp**: Added project metadata and ensured correct zip structure for WowUp compliance.
 
 ## v0.2.2 (2026-02-09)
