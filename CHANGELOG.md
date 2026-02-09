@@ -1,3 +1,7 @@
+## v0.2.4 (2026-02-09)
+### Build
+- **Icons**: Added `icon_400.png` and `icon_400_variant.png` for enhanced project visibility.
+
 ## v0.2.3 (2026-02-09)
 ### Build
 - **WowUp Hub**: Added `.previews` folder for enhanced addon discovery in WowUp Hub.
