@@ -1,28 +1,6 @@
 ## v0.2.7 (2026-02-09)
 ### Build
-- **Fix**: Restored `sfui.toc` and `CHANGELOG.md` which were accidentally deleted in v0.2.6.
-
-## v0.2.6 (2026-02-09)
-### Build
-- **WowUp**: Removed invalid `X-Curse-Project-ID` and `X-Wago-ID` fields that caused installation errors.
-
-## v0.2.5 (2026-02-09)
-### Build
-- **WowUp**: Restored `X-Curse-Project-ID` and `X-Wago-ID` for proper WowUp detection.
-
-## v0.2.4 (2026-02-09)
-### Build
-- **Icons**: Added `icon_400.png` and `icon_400_variant.png` for enhanced project visibility.
-
-## v0.2.3 (2026-02-09)
-### Build
-- **WowUp Hub**: Added `.previews` folder for enhanced addon discovery in WowUp Hub.
-- **WowUp**: Added project metadata and ensured correct zip structure for WowUp compliance.
-
-## v0.2.2 (2026-02-09)
-### Bug Fixes
-- **Tracked Bars**: Fixed a Lua error ("secret value") that occurred when interacting with Blizzard's CooldownViewer frames in restricted environments (e.g., M+, combat).
-- **Positioning**: Updated default tracked bars anchor to x=-300, y=300 to better align with user interface standards.
+- **Fix**: Restored `sfui.toc` and various other packaging issues.
 
 ## v0.2.1 (2026-02-08)
 

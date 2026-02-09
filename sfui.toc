@@ -5,6 +5,8 @@
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## SavedVariables: SfuiDB
 ## OptionalDeps: Masque
+## X-Curse-Project-ID: 1
+## X-Wago-ID: 1
 ## IconTexture: Interface/AddOns/sfui/icon.png
 
 Libs/LibStub/LibStub.lua
