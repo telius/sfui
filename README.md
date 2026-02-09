@@ -3,7 +3,7 @@
 Additions and helpers for the World of Warcraft UI.
 Designed to replace lost WeakAuras and complex configurations.
 
-![UI Overview](shots/ui.png)
+![UI Overview](.previews/ui.png)
 
 ## Overview
 Modular, lightweight, and "set-and-forget" interface. Handles functionality that typically requires multiple addons. Focuses on clarity and automation.
@@ -19,36 +19,36 @@ Powerful cooldown and aura tracking system that integrates seamlessly with your 
 - **Stack Mode**: Visualize stack counts as a progress bar or centered text for clarity.
 - **Flexible Display**: Customize colors, text alignment, and visibility per ability.
 
-![Tracked Bars](shots/trackedbars.png)
+![Tracked Bars](.previews/trackedbars.png)
 
 ### Buffs and Reminders
 Tracks out of combat raid buffs and personal consumables.
 - Dynamically shows raidbuffs like Mark of the Wild, Evoker buffs, and Stamina based on group composition
 - Smart filtering for your class and group
 - Shift+Click to announce missing buffs
-![Dynamic Buffs](shots/dynamicbuffscheck.png)
+![Dynamic Buffs](.previews/dynamicbuffscheck.png)
 
 ### Merchant Frame
 Redesigned merchant interface with filtering and currency display.
 - Ctrl+Click to preview items
 - Shift+RightClick to buy stacks or max affordable
 - Integrated housing decor filtering (can be disabled in options)
-![Merchant UI](shots/merchant.png)
+![Merchant UI](.previews/merchant.png)
 
 ### Item Tracking
 Track items, currencies, and cooldowns.
 - Right-Click to remove items
 
-![Item Tracker](shots/itemtracker.png)
+![Item Tracker](.previews/itemtracker.png)
 *Standard Tracker*
 
 ### Player Status
 Health, primary power, and secondary resources (Stagger, Runes, etc).
-![Player Status](shots/playerhp_stagger.png)
+![Player Status](.previews/playerhp_stagger.png)
 
 ### Research
 View talents, archaeology, and profession trees directly in-game. Supports Skyriding, Delves, and expansion-specific research systems.
-![Research Viewer](shots/researchviewer.png)
+![Research Viewer](.previews/researchviewer.png)
 
 ### Castbars
 Enhanced cast visualization for both player and target.
@@ -66,15 +66,15 @@ Quality of life features to streamline daily tasks.
     - **Spam Proof**: Advances the target immediately on click, allowing you to spam all repairs in a single GCD window without double-casting.
     - **Keybind Support**: Can be bound to a single key via the WoW Bindings menu (SFUI -> Master's Hammer Repair).
 
-![Master's Hammer Repair](shots/mastersrepair.png)
+![Master's Hammer Repair](.previews/mastersrepair.png)
 
 ### Vehicle and Skyriding
 Clean interfaces for vehicles and current flight systems.
 - Improved visibility for vigor and speed
 - Terminology updated for modern Skyriding systems
 
-![Skyriding](shots/dragonflying.png)
+![Skyriding](.previews/dragonflying.png)
 *Skyriding HUD*
 
-![Vehicle UI](shots/vehicleui.png)
+![Vehicle UI](.previews/vehicleui.png)
 *Vehicle Interface*

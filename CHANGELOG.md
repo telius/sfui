@@ -1,3 +1,8 @@
+## v0.2.8 (2026-02-09)
+### Build
+- **WowUp Hub**: Configured `.previews` folder for Hub image support.
+- **WowUp**: Removed invalid X-fields to fix Hub installation errors.
+
 ## v0.2.7 (2026-02-09)
 ### Build
 - **Fix**: Restored `sfui.toc` and various other packaging issues.
