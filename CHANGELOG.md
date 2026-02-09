@@ -1,6 +1,7 @@
 ## v0.2.10 (2026-02-09)
 ### Build
 - **CI**: Fixed YAML syntax error in release workflow.
+- **Packaging**: Removed redundant packager arguments and disabled nolib creation to fix WowUp installation issues.
 
 
 ### Changes
