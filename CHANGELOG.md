@@ -1,3 +1,7 @@
+## v0.2.9 (2026-02-09)
+### Build
+- **Packaging**: Removed redundant packager arguments and disabled nolib creation to fix WowUp installation issues.
+
 ## v0.2.8 (2026-02-09)
 ### Build
 - **WowUp Hub**: Configured `.previews` folder for Hub image support.
