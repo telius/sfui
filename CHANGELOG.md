@@ -1,3 +1,7 @@
+## v0.2.5 (2026-02-09)
+### Build
+- **WowUp**: Restored `X-Curse-Project-ID` and `X-Wago-ID` for proper WowUp detection.
+
 ## v0.2.4 (2026-02-09)
 ### Build
 - **Icons**: Added `icon_400.png` and `icon_400_variant.png` for enhanced project visibility.

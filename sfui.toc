@@ -1,9 +1,11 @@
 ## Interface: 120001, 120000
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: 0.2.4
+## Version: 0.2.5
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## SavedVariables: SfuiDB
+## X-Curse-Project-ID: 1
+## X-Wago-ID: 1
 ## OptionalDeps: Masque
 ## IconTexture: Interface/AddOns/sfui/icon.png
 
