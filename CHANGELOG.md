@@ -1,3 +1,11 @@
+## v0.2.4 (2026-02-09)
+### Build
+- **WowUp Hub**: Added `.previews` folder for enhanced addon discovery in WowUp Hub.
+
+## v0.2.3 (2026-02-09)
+### Build
+- **WowUp**: Added project metadata and ensured correct zip structure for WowUp compliance.
+
 ## v0.2.2 (2026-02-09)
 ### Bug Fixes
 - **Tracked Bars**: Fixed a Lua error ("secret value") that occurred when interacting with Blizzard's CooldownViewer frames in restricted environments (e.g., M+, combat).
