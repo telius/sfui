@@ -1,17 +1,10 @@
+## v0.2.10 (2026-02-09)
+### Build
+- **CI**: Fixed YAML syntax error in release workflow.
+
 ## v0.2.9 (2026-02-09)
 ### Build
 - **Packaging**: Removed redundant packager arguments and disabled nolib creation to fix WowUp installation issues.
-
-## v0.2.8 (2026-02-09)
-### Build
-- **WowUp Hub**: Configured `.previews` folder for Hub image support.
-- **WowUp**: Removed invalid X-fields to fix Hub installation errors.
-
-## v0.2.7 (2026-02-09)
-### Build
-- **Fix**: Restored `sfui.toc` and various other packaging issues.
-
-## v0.2.1 (2026-02-08)
 
 ### Changes
 - **Configuration Defaults**: Updated Bone Shield to default to green (`0, 0.8, 0.067`) and hidden title. Updated Ignore Pain to default to orange (`1, 0.533, 0`).

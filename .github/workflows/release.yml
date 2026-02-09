@@ -25,7 +25,6 @@ jobs:
 
       - name: Package and Release
         uses: BigWigsMods/packager@v2
-        with:
           # args: -n sfui
           # The packager automatically handles:
           # 1. Reading .pkgmeta
