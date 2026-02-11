@@ -201,6 +201,10 @@ end
 
 
 function sfui.editor.Toggle()
+    if InCombatLockdown() then
+        print("|cffff0000SFUI:|r Cannot open editor in combat.")
+        return
+    end
     if not editorFrame then CreateEditorFrame() end
     if editorFrame:IsShown() then
         editorFrame:Hide()

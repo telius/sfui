@@ -12,6 +12,7 @@
 
 Libs/LibStub/LibStub.lua
 Libs/CallbackHandler-1.0/CallbackHandler-1.0.xml
+Libs/LibCustomGlow-1.0/LibCustomGlow-1.0.xml
 Libs/AceDB-3.0/AceDB-3.0.xml
 Libs/LibDataBroker-1.1/LibDataBroker-1.1.lua
 Libs/LibDBIcon-1.0/LibDBIcon-1.0.lua
@@ -35,3 +36,5 @@ frames/automation.lua
 frames/trackedoptions.lua
 frames/trackedbars.lua
 frames/cursor.lua
+frames/trackedicons.lua
+frames/editor.lua

@@ -103,8 +103,8 @@ function ButtonManager:add_button(button)
     self.processedButtons[name] = true
 
     if not button.sfuiLayoutHooked then
-        button:HookScript("OnShow", function() ButtonManager:arrange_buttons() end); button:HookScript("OnHide",
-            function() ButtonManager:arrange_buttons() end)
+        hooksecurefunc(button, "Show", function() ButtonManager:arrange_buttons() end)
+        hooksecurefunc(button, "Hide", function() ButtonManager:arrange_buttons() end)
         button.sfuiLayoutHooked = true
     end
 end
@@ -408,12 +408,33 @@ function sfui.minimap.enable_button_manager(enabled)
 
         -- Mouseover logic
         if not button_bar.sfuiMouseoverHooked then
+            -- Create an invisible detector frame over the Minimap to avoid HookScript on a secure frame
+            if not sfui.minimap.detector then
+                sfui.minimap.detector = CreateFrame("Frame", nil, Minimap)
+                sfui.minimap.detector:SetAllPoints(Minimap)
+                sfui.minimap.detector:SetFrameLevel(Minimap:GetFrameLevel() + 1)
+                sfui.minimap.detector:EnableMouse(false) -- Pass through by default
+            end
+
             local function update_alpha()
                 if SfuiDB.minimap_buttons_mouseover then
-                    if button_bar:IsMouseOver() or Minimap:IsMouseOver() then
+                    local isHovering = button_bar:IsMouseOver() or Minimap:IsMouseOver()
+                    if isHovering then
                         button_bar:SetAlpha(1)
+                        if lib then -- lib is LibDBIcon if requested via LibStub
+                            local LibDBIcon = LibStub("LibDBIcon-1.0", true)
+                            if LibDBIcon and LibDBIcon.OnMinimapEnter then
+                                pcall(LibDBIcon.OnMinimapEnter)
+                            end
+                        end
                     else
                         button_bar:SetAlpha(0)
+                        if lib then
+                            local LibDBIcon = LibStub("LibDBIcon-1.0", true)
+                            if LibDBIcon and LibDBIcon.OnMinimapLeave then
+                                pcall(LibDBIcon.OnMinimapLeave)
+                            end
+                        end
                     end
                 else
                     button_bar:SetAlpha(1)
@@ -422,8 +443,17 @@ function sfui.minimap.enable_button_manager(enabled)
 
             button_bar:SetScript("OnEnter", update_alpha)
             button_bar:SetScript("OnLeave", function() C_Timer.After(0.1, update_alpha) end)
-            Minimap:HookScript("OnEnter", update_alpha)
-            Minimap:HookScript("OnLeave", function() C_Timer.After(0.1, update_alpha) end)
+
+            -- Instead of hooking Minimap directly, we use a simple OnUpdate on our detector
+            -- OR we can just rely on the button_bar's own OnEnter/OnLeave if the user is okay with that.
+            -- To keep the exact same behavior safely:
+            sfui.minimap.detector:SetScript("OnUpdate", function(self, elapsed)
+                self.elapsed = (self.elapsed or 0) + elapsed
+                if self.elapsed > 0.1 then
+                    update_alpha()
+                    self.elapsed = 0
+                end
+            end)
 
             button_bar.sfuiMouseoverHooked = true
         end

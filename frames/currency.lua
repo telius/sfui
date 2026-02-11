@@ -54,8 +54,8 @@ do
                 widget_frame:Hide()
             end
         end
-        CharacterFrame:HookScript("OnShow", update_visibility)
-        CharacterFrame:HookScript("OnHide", update_visibility)
+        hooksecurefunc(CharacterFrame, "Show", update_visibility)
+        hooksecurefunc(CharacterFrame, "Hide", update_visibility)
 
         local event_frame = CreateFrame("Frame")
         event_frame:RegisterEvent("CURRENCY_DISPLAY_UPDATE")
@@ -142,8 +142,8 @@ do
                 widget_frame:Hide()
             end
         end
-        CharacterFrame:HookScript("OnShow", update_visibility)
-        CharacterFrame:HookScript("OnHide", update_visibility)
+        hooksecurefunc(CharacterFrame, "Show", update_visibility)
+        hooksecurefunc(CharacterFrame, "Hide", update_visibility)
 
         local event_frame = CreateFrame("Frame")
         event_frame:RegisterEvent("BAG_UPDATE")

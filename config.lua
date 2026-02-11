@@ -38,7 +38,7 @@ sfui.config = {
 
     -- shared settings for icon bars
     widget_bar = {
-        icon_size = 40,
+        icon_size = 50,
         icon_spacing = 5,
         label_offset_y = -2,
         label_color = { 1, 1, 1 },

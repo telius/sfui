@@ -45,14 +45,16 @@ local update_hammer_popup -- Forward declaration
 
 local function setup_lfg_dialog()
     if LFGListApplicationDialog then
-        LFGListApplicationDialog:HookScript("OnShow", function(self)
-            if not SfuiDB.auto_sign_lfg then return end
-            if IsShiftKeyDown() then return end
+        if LFGListApplicationDialog.Show then
+            hooksecurefunc(LFGListApplicationDialog, "Show", function(self)
+                if not SfuiDB.auto_sign_lfg then return end
+                if IsShiftKeyDown() then return end
 
-            if self.SignUpButton and self.SignUpButton:IsEnabled() then
-                self.SignUpButton:Click()
-            end
-        end)
+                if self.SignUpButton and self.SignUpButton:IsEnabled() then
+                    self.SignUpButton:Click()
+                end
+            end)
+        end
     end
 end
 

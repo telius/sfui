@@ -4,11 +4,55 @@ sfui.trackedoptions = {}
 local frame
 local scrollFrame
 local scrollChild
-local content             -- The list of tracked bars
-local UpdateCooldownsList -- Forward declaration
+local content -- The list of tracked bars
+local UpdateCooldownsList
+local issecretvalue = sfui.common.issecretvalue
+-- Forward declaration
 local CreateFlatButton = sfui.common.create_flat_button
 local c = sfui.config.options_panel
 local g = sfui.config
+
+local function select_tab(frame, id)
+    if not frame.tabs then return end
+    for i, tab in ipairs(frame.tabs) do
+        local btn = tab.button
+        if i == id then
+            tab.panel:Show()
+            btn.text:SetTextColor(g.colors.cyan[1], g.colors.cyan[2], g.colors.cyan[3])
+        else
+            tab.panel:Hide()
+            btn.text:SetTextColor(g.colors.purple[1], g.colors.purple[2], g.colors.purple[3])
+        end
+    end
+    frame.selectedTabId = id
+    SfuiDB.lastSelectedTabId = id -- Persist tab selection
+
+    if id == 2 then
+        sfui.trackedoptions.UpdateEditor()
+    end
+end
+
+local function CreateNavButton(parent, name, id)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(60, 22)
+    local t = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    t:SetPoint("CENTER")
+    t:SetText(name)
+    b.text = t
+
+    b:SetScript("OnClick", function() select_tab(parent, id) end)
+    b:SetScript("OnEnter", function()
+        t:SetTextColor(1, 1, 1)
+    end)
+    b:SetScript("OnLeave", function()
+        if parent.selectedTabId == id then
+            t:SetTextColor(g.colors.cyan[1], g.colors.cyan[2], g.colors.cyan[3])
+        else
+            t:SetTextColor(g.colors.purple[1], g.colors.purple[2], g.colors.purple[3])
+        end
+    end)
+    return b
+end
 
 local function CreateNumericEditBox(parent, w, h, callback)
     local eb = CreateFrame("EditBox", nil, parent, "BackdropTemplate")
@@ -39,11 +83,12 @@ local function CreateCooldownsFrame()
     local create_slider_input = sfui.common.create_slider_input
 
     frame = CreateFrame("Frame", "SfuiCooldownsViewer", UIParent, "BackdropTemplate")
-    local winCfg = sfui.config.trackedOptionsWindow or { width = 850, height = 600 }
+    local winCfg = sfui.config.trackedOptionsWindow or { width = 1100, height = 650 }
     frame:SetSize(winCfg.width, winCfg.height)
     frame:SetPoint("CENTER")
     frame:SetMovable(true)
     frame:EnableMouse(true)
+    frame:SetFrameStrata("DIALOG")
     frame:SetClampedToScreen(true)
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
@@ -89,33 +134,57 @@ local function CreateCooldownsFrame()
         end
     end)
 
-    -- CooldownViewer (Left)
+    -- CooldownViewer (Header)
     local blizBtn = CreateFlatButton(frame, "cooldownviewer", 100, 22)
     blizBtn:SetPoint("LEFT", optionsBtn, "RIGHT", 5, 0)
     blizBtn:SetScript("OnClick", function()
         if CooldownViewerSettings then
-            if CooldownViewerSettings:IsShown() then
-                CooldownViewerSettings:Hide()
-            else
-                CooldownViewerSettings:Show()
-            end
+            if CooldownViewerSettings:IsShown() then CooldownViewerSettings:Hide() else CooldownViewerSettings:Show() end
         end
     end)
+
+    -- Tabs Container (Header)
+    frame.tabs = {}
+
+    -- Tab 1: Bars
+    local barsBtn = CreateNavButton(frame, "bars", 1)
+    barsBtn:SetPoint("LEFT", blizBtn, "RIGHT", 5, 0)
+
+    -- Tab 2: Icons
+    local iconsBtn = CreateNavButton(frame, "icons", 2)
+    iconsBtn:SetPoint("LEFT", barsBtn, "RIGHT", 5, 0)
+
+    sfui.trackedoptions.selectedPanelIndex = 1
+    sfui.trackedoptions.selectedEntryIndex = nil
 
     local header_text = frame:CreateFontString(nil, "OVERLAY", g.font_large)
     header_text:SetPoint("TOP", frame, "TOP", 0, -5)
     header_text:SetTextColor(g.header_color[1], g.header_color[2], g.header_color[3])
     header_text:SetText("tracking manager")
 
-    scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", 10, -50)
-    scrollFrame:SetPoint("BOTTOMRIGHT", -30, 10)
+    -- Content Panels
+    local barsPanel = CreateFrame("Frame", nil, frame)
+    barsPanel:SetPoint("TOPLEFT", 10, -50)
+    barsPanel:SetPoint("BOTTOMRIGHT", -10, 10)
 
-    scrollChild = CreateFrame("Frame", nil, scrollFrame)
-    scrollChild:SetSize(800, 1000)
-    scrollFrame:SetScrollChild(scrollChild)
+    local barsScroll = CreateFrame("ScrollFrame", "SfuiTrackingBarsScroll", barsPanel, "UIPanelScrollFrameTemplate")
+    barsScroll:SetPoint("TOPLEFT", 0, 0)
+    barsScroll:SetPoint("BOTTOMRIGHT", -25, 0)
+    local barsContent = CreateFrame("Frame", nil, barsScroll)
+    barsContent:SetSize(800, 1000)
+    barsScroll:SetScrollChild(barsContent)
 
-    local global_header = scrollChild:CreateFontString(nil, "OVERLAY", g.font)
+    table.insert(frame.tabs, { button = barsBtn, panel = barsPanel, scrollChild = barsContent })
+
+    local iconsPanel = CreateFrame("Frame", "SfuiIconsTab", frame)
+    iconsPanel:SetPoint("TOPLEFT", 10, -50)
+    iconsPanel:SetPoint("BOTTOMRIGHT", -10, 10)
+    iconsPanel:Hide()
+
+    table.insert(frame.tabs, { button = iconsBtn, panel = iconsPanel })
+
+    -- Global Header within Bars Tab
+    local global_header = barsContent:CreateFontString(nil, "OVERLAY", g.font)
     global_header:SetPoint("TOPLEFT", 10, -10)
     global_header:SetTextColor(1, 1, 1)
     global_header:SetText("visibility and positioning")
@@ -129,12 +198,12 @@ local function CreateCooldownsFrame()
         if sfui.trackedbars and sfui.trackedbars.UpdateVisibility then sfui.trackedbars.UpdateVisibility() end
     end
 
-    local chk_ooc = sfui.common.create_checkbox(scrollChild, "hide bar out of combat", nil,
+    local chk_ooc = sfui.common.create_checkbox(barsContent, "hide bar out of combat", nil,
         function(val) UpdateVisibility("hideOOC", val, true) end)
     chk_ooc:SetPoint("TOPLEFT", global_header, "BOTTOMLEFT", 0, -10)
     chk_ooc:SetChecked(SfuiDB and SfuiDB.hideOOC or false)
 
-    local chk_inactive = sfui.common.create_checkbox(scrollChild, "hide when inactive", nil,
+    local chk_inactive = sfui.common.create_checkbox(barsContent, "hide when inactive", nil,
         function(val) UpdateVisibility("hideInactive", val, true) end)
     chk_inactive:SetPoint("TOPLEFT", chk_ooc, "BOTTOMLEFT", 0, -5)
     local inactiveState = true
@@ -146,17 +215,17 @@ local function CreateCooldownsFrame()
     chk_inactive:SetChecked(inactiveState)
 
     -- Positioning Sliders (stay on top line, anchored to first checkbox)
-    local sliderX = sfui.common.create_slider_input(scrollChild, "posX:", "trackedBarsX", -1000, 1000, 1, function(val)
+    local sliderX = sfui.common.create_slider_input(barsContent, "posX:", "trackedBarsX", -1000, 1000, 1, function(val)
         if sfui.trackedbars and sfui.trackedbars.UpdatePosition then sfui.trackedbars.UpdatePosition() end
     end)
     sliderX:SetPoint("LEFT", chk_ooc, "RIGHT", 180, 0)
 
-    local sliderY = sfui.common.create_slider_input(scrollChild, "posY:", "trackedBarsY", -1000, 1000, 1, function(val)
+    local sliderY = sfui.common.create_slider_input(barsContent, "posY:", "trackedBarsY", -1000, 1000, 1, function(val)
         if sfui.trackedbars and sfui.trackedbars.UpdatePosition then sfui.trackedbars.UpdatePosition() end
     end)
     sliderY:SetPoint("LEFT", sliderX, "RIGHT", 10, 0)
 
-    local colHeader = CreateFrame("Frame", nil, scrollChild)
+    local colHeader = CreateFrame("Frame", nil, barsContent)
     colHeader:SetSize(800, 25)
     colHeader:SetPoint("TOPLEFT", chk_inactive, "BOTTOMLEFT", 0, -25)
 
@@ -188,9 +257,141 @@ local function CreateCooldownsFrame()
     CreateHeader(640, "text", "show title")
     CreateHeader(720, "color")
 
-    content = CreateFrame("Frame", nil, scrollChild)
+    content = CreateFrame("Frame", "SfuiTrackedBarsContent", barsContent)
+    content:SetSize(800, 210)
     content:SetPoint("TOPLEFT", colHeader, "BOTTOMLEFT", 0, 0)
-    content:SetWidth(800)
+
+    -- === ICON EDITOR SECTION (Directly in iconsPanel) ===
+    -- LEFT: Panel List
+    local leftPanel = CreateFrame("Frame", nil, iconsPanel, "BackdropTemplate")
+    leftPanel:SetPoint("TOPLEFT", 0, 0)
+    leftPanel:SetPoint("BOTTOMLEFT", 0, 0)
+    leftPanel:SetWidth(120) -- Reduced from 150
+    leftPanel:SetBackdrop({ bgFile = g.textures.white })
+    leftPanel:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
+
+    local lpScroll = CreateFrame("ScrollFrame", nil, leftPanel, "UIPanelScrollFrameTemplate")
+    lpScroll:SetPoint("TOPLEFT", 5, -5)
+    lpScroll:SetPoint("BOTTOMRIGHT", -25, 45)
+    local lpContent = CreateFrame("Frame", nil, lpScroll)
+    lpContent:SetSize(1, 1)
+    lpScroll:SetScrollChild(lpContent)
+    sfui.trackedoptions.lpContent = lpContent
+
+    local addBtn = CreateFlatButton(leftPanel, "+ add", 85, 22)
+    addBtn:SetPoint("BOTTOMLEFT", 5, 5)
+    addBtn:SetScript("OnClick", function()
+        SfuiDB.cooldownPanels = SfuiDB.cooldownPanels or {}
+        table.insert(SfuiDB.cooldownPanels, {
+            name = "Panel " .. (#SfuiDB.cooldownPanels + 1),
+            enabled = true,
+            entries = {},
+            size = 50,
+            spacing = 2,
+            x = 0,
+            y = 250,
+            columns = 10,
+            textEnabled = true,
+            textColor = { r = 1, g = 1, b = 1 },
+            readyGlow = true,
+            cooldownDesat = true,
+            cooldownAlpha = 1.0,
+            glowType = "blizzard",
+            glowColor = { r = 1, g = 1, b = 0 },
+            glowScale = 1.0,
+            glowIntensity = 1.0,
+            glowSpeed = 0.25
+        })
+        sfui.trackedoptions.UpdateEditor()
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end)
+
+    local delBtn = CreateFlatButton(leftPanel, "- del", 80, 22)
+    delBtn:SetPoint("BOTTOMRIGHT", -5, 5)
+    delBtn:SetScript("OnClick", function()
+        local idx = sfui.trackedoptions.selectedPanelIndex
+        if idx and SfuiDB.cooldownPanels[idx] then
+            table.remove(SfuiDB.cooldownPanels, idx)
+            sfui.trackedoptions.selectedPanelIndex = 1
+            sfui.trackedoptions.selectedEntryIndex = nil
+            sfui.trackedoptions.UpdateEditor()
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end
+    end)
+
+    -- MIDDLE: Preview / Drop area (NOW RIGHT-SIDE AND EXPANDED)
+    local midPanel = CreateFrame("Frame", nil, iconsPanel, "BackdropTemplate")
+    midPanel:SetBackdrop({ bgFile = g.textures.white })
+    midPanel:SetBackdropColor(0.1, 0.1, 0.1, 0.6)
+
+    local midHeader = midPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    midHeader:SetPoint("TOPLEFT", 5, -5)
+    midHeader:SetText("icon preview / drop area")
+
+    local previewChild = CreateFrame("Frame", nil, midPanel, "BackdropTemplate")
+    previewChild:SetPoint("CENTER", midPanel, "CENTER", 0, 0)
+    previewChild:SetSize(1, 1)
+    previewChild:SetBackdrop({ bgFile = g.textures.white, edgeFile = g.textures.white, edgeSize = 1 })
+    previewChild:SetBackdropColor(1, 1, 1, 0.05)
+    previewChild:SetBackdropBorderColor(1, 1, 1, 0.05)
+    sfui.trackedoptions.previewChild = previewChild
+
+    -- Drop Logic
+    local function OnReceiveDrag()
+        local infoType, id, _, spellID = GetCursorInfo()
+        if not infoType then return end
+
+        local dragId, dragType = id, infoType
+        if infoType == "spell" then
+            dragId = spellID
+        elseif infoType == "macro" then
+            local sId = GetMacroSpell(id)
+            if sId then
+                dragId = sId; dragType = "spell"
+            else
+                local _, link = GetMacroItem(id)
+                if link then
+                    dragId = tonumber(link:match("item:(%d+)")); dragType = "item"
+                end
+            end
+        end
+
+        if dragId and (dragType == "spell" or dragType == "item") then
+            local idx = sfui.trackedoptions.selectedPanelIndex or 1
+            local panel = SfuiDB.cooldownPanels and SfuiDB.cooldownPanels[idx]
+            if panel then
+                panel.entries = panel.entries or {}
+                table.insert(panel.entries, { type = dragType, id = dragId, settings = { showText = true } })
+                ClearCursor()
+                sfui.trackedoptions.selectedEntryIndex = #panel.entries
+                sfui.trackedoptions.UpdateEditor()
+                if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+            end
+        end
+    end
+    midPanel:SetScript("OnMouseUp", OnReceiveDrag)
+    midPanel:SetScript("OnReceiveDrag", OnReceiveDrag)
+
+    -- RIGHT 1: General Options Panel (NOW MOVED TO MIDDLE)
+    local genPanel = CreateFrame("Frame", nil, iconsPanel, "BackdropTemplate")
+    genPanel:SetPoint("TOPLEFT", leftPanel, "TOPRIGHT", 5, 0)
+    genPanel:SetPoint("BOTTOMLEFT", leftPanel, "BOTTOMRIGHT", 5, 0)
+    genPanel:SetWidth(235)
+    genPanel:SetBackdrop({ bgFile = g.textures.white })
+    genPanel:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
+
+    local gpScroll = CreateFrame("ScrollFrame", nil, genPanel, "UIPanelScrollFrameTemplate")
+    gpScroll:SetPoint("TOPLEFT", 5, -5)
+    gpScroll:SetPoint("BOTTOMRIGHT", -25, 5)
+    local gpContent = CreateFrame("Frame", nil, gpScroll)
+    gpContent:SetSize(1, 1)
+    gpScroll:SetScrollChild(gpContent)
+    sfui.trackedoptions.gpContent = gpContent
+
+    -- Anchoring Expanded Preview (midPanel) to the right of General Options
+    midPanel:SetPoint("TOPLEFT", genPanel, "TOPRIGHT", 5, 0)
+    midPanel:SetPoint("BOTTOMRIGHT", iconsPanel, "BOTTOMRIGHT", 0, 0)
+    sfui.trackedoptions.iconsPanel = iconsPanel
 
     frame.StartMoving = function() frame:StartMoving() end
     frame.StopMovingOrSizing = function() frame:StopMovingOrSizing() end
@@ -201,6 +402,7 @@ local function CreateCooldownsFrame()
             frame:Hide()
             return
         end
+        select_tab(frame, SfuiDB.lastSelectedTabId or frame.selectedTabId or 1)
         UpdateCooldownsList() -- Updates content list
         if not C_AddOns.IsAddOnLoaded("Blizzard_CooldownViewer") then C_AddOns.LoadAddOn("Blizzard_CooldownViewer") end
     end)
@@ -217,23 +419,26 @@ UpdateCooldownsList = function()
     local groupedCooldowns = {}
 
     for _, cooldownID in ipairs(cooldownIDs) do
-        local info = dataProvider:GetCooldownInfoForID(cooldownID)
-        if info then
-            -- We only care about Default Tracks for this list
-            local groupID = info.category or 0
-            if not groupedCooldowns[groupID] then groupedCooldowns[groupID] = {} end
+        if not issecretvalue(cooldownID) then
+            local info = dataProvider:GetCooldownInfoForID(cooldownID)
+            if info then
+                -- We only care about Default Tracks for this list
+                local groupID = info.category or 0
+                if not groupedCooldowns[groupID] then groupedCooldowns[groupID] = {} end
 
-            local effectiveSpellID = info.overrideTooltipSpellID or info.overrideSpellID or info.spellID
-            local iconTexture
-            if effectiveSpellID then iconTexture = C_Spell.GetSpellTexture(effectiveSpellID) end
+                local effectiveSpellID = info.overrideTooltipSpellID or info.overrideSpellID or info.spellID
+                if effectiveSpellID and not issecretvalue(effectiveSpellID) then
+                    local iconTexture = C_Spell.GetSpellTexture(effectiveSpellID)
 
-            table.insert(groupedCooldowns[groupID], {
-                cooldownID = cooldownID,
-                name = C_Spell.GetSpellName(effectiveSpellID or 0) or "Unknown",
-                icon = iconTexture,
-                spellID = effectiveSpellID, -- Capture ID for tooltip
-                isKnown = info.isKnown
-            })
+                    table.insert(groupedCooldowns[groupID], {
+                        cooldownID = cooldownID,
+                        name = C_Spell.GetSpellName(effectiveSpellID) or "Unknown",
+                        icon = iconTexture,
+                        spellID = effectiveSpellID, -- Capture ID for tooltip
+                        isKnown = info.isKnown
+                    })
+                end
+            end
         end
     end
 
@@ -315,7 +520,7 @@ UpdateCooldownsList = function()
             end)
             maxInput:SetPoint("LEFT", row, "LEFT", 480, 0)
             local dbVal = SfuiDB.trackedBars and SfuiDB.trackedBars[cd.cooldownID] and
-            SfuiDB.trackedBars[cd.cooldownID].maxStacks
+                SfuiDB.trackedBars[cd.cooldownID].maxStacks
             if dbVal then maxInput:SetText(dbVal) end
 
 
@@ -359,8 +564,332 @@ UpdateCooldownsList = function()
         end
     end
 
-    content:SetHeight(math.abs(yOffset) + 20)
-    scrollChild:SetHeight(content:GetHeight() + 200) -- Clean height
+    content:SetHeight(math.max(math.abs(yOffset), 210)) -- Minimum height for 8 bars
+    sfui.trackedoptions.UpdateEditor()
+end
+
+function sfui.trackedoptions.UpdateEditor()
+    sfui.trackedoptions.UpdatePanelList()
+    sfui.trackedoptions.UpdatePreview()
+    sfui.trackedoptions.UpdateSettings()
+
+    -- Update Scroll Heights
+    if frame and frame.tabs then
+        local barsTab = frame.tabs[1]
+        if barsTab.scrollChild then
+            barsTab.scrollChild:SetHeight(content:GetHeight() + 100)
+        end
+        -- Icons tab no longer has a main scrollChild to update
+    end
+end
+
+function sfui.trackedoptions.UpdatePanelList()
+    local lpContent = sfui.trackedoptions.lpContent
+    if not lpContent then return end
+    for _, child in ipairs({ lpContent:GetChildren() }) do
+        child:Hide(); child:SetParent(nil)
+    end
+
+    local panels = SfuiDB.cooldownPanels or {}
+    local y = 0
+    for i, panel in ipairs(panels) do
+        local btn = CreateFlatButton(lpContent, panel.name or ("Panel " .. i), 120, 20)
+        btn:SetPoint("TOPLEFT", 0, y)
+        if i == sfui.trackedoptions.selectedPanelIndex then
+            btn:SetBackdropBorderColor(g.colors.purple[1], g.colors.purple[2], g.colors.purple[3], 1)
+        end
+        btn:SetScript("OnClick", function()
+            sfui.trackedoptions.selectedPanelIndex = i
+            sfui.trackedoptions.selectedEntryIndex = nil
+            sfui.trackedoptions.UpdateEditor()
+        end)
+        y = y - 22
+    end
+    lpContent:SetHeight(math.abs(y))
+end
+
+function sfui.trackedoptions.UpdatePreview()
+    local parent = sfui.trackedoptions.previewChild
+    if not parent then return end
+    for _, child in ipairs({ parent:GetChildren() }) do
+        if sfui.trackedicons and sfui.trackedicons.StopGlow then
+            sfui.trackedicons.StopGlow(child)
+        end
+        child:Hide(); child:SetParent(nil)
+    end
+
+    local idx = sfui.trackedoptions.selectedPanelIndex or 1
+    local panel = SfuiDB.cooldownPanels and SfuiDB.cooldownPanels[idx]
+    if not panel then return end
+
+    local entries = panel.entries or {}
+    local size = panel.size or 50
+    local spacing = panel.spacing or 2
+    local maxW, maxH = 0, 0
+
+    for i, entry in ipairs(entries) do
+        local icon = CreateFrame("Button", nil, parent, "BackdropTemplate")
+        icon:SetSize(size, size)
+        icon:RegisterForClicks("AnyUp")
+        local tex = icon:CreateTexture(nil, "ARTWORK")
+        tex:SetAllPoints()
+        local iconTexture
+        if entry.type == "item" then
+            iconTexture = C_Item.GetItemIconByID(entry.id)
+        else
+            iconTexture = C_Spell.GetSpellTexture(entry.id)
+        end
+        tex:SetTexture(iconTexture or 134400) -- Fallback to generic question mark if nil
+
+        local col = (i - 1) % (panel.columns or 100)
+        local row = math.floor((i - 1) / (panel.columns or 100))
+        icon:SetPoint("TOPLEFT", col * (size + spacing), -row * (size + spacing))
+
+        icon:SetScript("OnClick", function(_, btn)
+            if btn == "RightButton" then
+                table.remove(panel.entries, i)
+                sfui.trackedoptions.selectedEntryIndex = nil
+            else
+                sfui.trackedoptions.selectedEntryIndex = i
+            end
+            sfui.trackedoptions.UpdateEditor()
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end)
+
+        -- Highlighting selected icons in preview with purple
+        if i == sfui.trackedoptions.selectedEntryIndex then
+            sfui.common.create_border(icon, 1, { g.colors.purple[1], g.colors.purple[2], g.colors.purple[3], 1 })
+        end
+
+        -- Apply Preview Glow if enabled
+        local function GetIconValue(key, default)
+            if entry.settings and entry.settings[key] ~= nil then return entry.settings[key] end
+            if panel[key] ~= nil then return panel[key] end
+            return default
+        end
+
+        if GetIconValue("readyGlow", true) then
+            local glowCfg = {
+                glowType = GetIconValue("glowType", "blizzard"),
+                glowColor = GetIconValue("glowColor", { r = 1, g = 1, b = 0 }),
+                glowScale = GetIconValue("glowScale", 1.0),
+                glowIntensity = GetIconValue("glowIntensity", 1.0),
+                glowSpeed = GetIconValue("glowSpeed", 0.25)
+            }
+            if sfui.trackedicons and sfui.trackedicons.StartGlow then
+                sfui.trackedicons.StartGlow(icon, glowCfg)
+            end
+        end
+
+        maxW = math.max(maxW, (col + 1) * (size + spacing))
+        maxH = math.max(maxH, (row + 1) * (size + spacing))
+    end
+    parent:SetSize(math.max(maxW, 10), math.max(maxH, 10))
+end
+
+function sfui.trackedoptions.UpdateSettings()
+    local gpContent = sfui.trackedoptions.gpContent
+    if not gpContent then return end
+
+    -- Clear panel
+    for _, child in ipairs({ gpContent:GetChildren() }) do
+        child:Hide(); child:SetParent(nil)
+    end
+    for _, reg in ipairs({ gpContent:GetRegions() }) do reg:Hide() end
+
+    local idx = sfui.trackedoptions.selectedPanelIndex or 1
+    local panel = SfuiDB.cooldownPanels and SfuiDB.cooldownPanels[idx]
+    if not panel then return end
+
+    -- Panel-wide y-offset
+    local gy = -10
+    local function AddGeneralHeader(text)
+        gy = gy - 5
+        local h = gpContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        h:SetPoint("TOPLEFT", 5, gy)
+        h:SetText(text)
+        h:SetTextColor(g.colors.cyan[1], g.colors.cyan[2], g.colors.cyan[3])
+        gy = gy - 20
+        return h
+    end
+
+    local function AddGeneralLabel(text)
+        local l = gpContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        l:SetPoint("TOPLEFT", 5, gy)
+        l:SetText(text)
+        gy = gy - 15
+        return l
+    end
+
+    -- POPULATE GENERAL PANEL
+    AddGeneralHeader("Panel: " .. (panel.name or "Unnamed"))
+    AddGeneralLabel("panel name")
+    local nameEB = CreateNumericEditBox(gpContent, 120, 18, function(val) end)
+    nameEB:SetScript("OnEnterPressed", function(self)
+        panel.name = self:GetText(); sfui.trackedoptions.UpdateEditor()
+    end)
+    nameEB:SetPoint("TOPLEFT", 5, gy)
+    nameEB:SetText(panel.name or "")
+    gy = gy - 30
+
+    local xSlider = sfui.common.create_slider_input(gpContent, "pos x", function() return panel.x end, -1000, 1000,
+        1, function(v)
+            panel.x = v; if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end)
+    xSlider:SetPoint("TOPLEFT", 5, gy); xSlider:SetSliderValue(panel.x or 0)
+    gy = gy - 40
+
+    local ySlider = sfui.common.create_slider_input(gpContent, "pos y", function() return panel.y end, -1000, 1000,
+        1, function(v)
+            panel.y = v; if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end)
+    ySlider:SetPoint("TOPLEFT", 5, gy); ySlider:SetSliderValue(panel.y or 0)
+    gy = gy - 40
+
+    AddGeneralHeader("Layout Defaults")
+    local sizeSlider = sfui.common.create_slider_input(gpContent, "icon size", function() return panel.size end, 10,
+        100, 1, function(v)
+            panel.size = v; sfui.trackedoptions.UpdatePreview()
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end)
+    sizeSlider:SetPoint("TOPLEFT", 5, gy); sizeSlider:SetSliderValue(panel.size or 50)
+    gy = gy - 40
+
+    local spacingSlider = sfui.common.create_slider_input(gpContent, "spacing", function() return panel.spacing end, 0,
+        50, 1, function(v)
+            panel.spacing = v; sfui.trackedoptions.UpdatePreview()
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end)
+    spacingSlider:SetPoint("TOPLEFT", 5, gy); spacingSlider:SetSliderValue(panel.spacing or 2)
+    gy = gy - 40
+
+    local columnsSlider = sfui.common.create_slider_input(gpContent, "columns", function() return panel.columns end, 1,
+        20,
+        1, function(v)
+            panel.columns = v; sfui.trackedoptions.UpdatePreview()
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end)
+    columnsSlider:SetPoint("TOPLEFT", 5, gy); columnsSlider:SetSliderValue(panel.columns or 10)
+    gy = gy - 40
+
+    AddGeneralHeader("Panel Defaults")
+    local resetBtn = CreateFlatButton(gpContent, "reset all overrides", 160, 20)
+    resetBtn:SetPoint("TOPLEFT", 5, gy)
+    resetBtn:SetScript("OnClick", function()
+        for _, entry in ipairs(panel.entries) do
+            entry.settings = {} -- Clear all per-icon adjustments
+        end
+        sfui.trackedoptions.UpdateEditor()
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end)
+    gy = gy - 30
+
+    local textCBC = sfui.common.create_checkbox(gpContent, "enable countdown text", function()
+        if panel.textEnabled == nil then panel.textEnabled = true end
+        return panel.textEnabled
+    end, function(v)
+        panel.textEnabled = v
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        sfui.trackedoptions.UpdatePreview()
+    end)
+    textCBC:SetPoint("TOPLEFT", 5, gy)
+    gy = gy - 25
+
+    local colorLabelC = AddGeneralLabel("text color")
+    local colorSwatchC = sfui.common.create_color_swatch(gpContent, panel.textColor or { r = 1, g = 1, b = 1 },
+        function(r, g, b)
+            panel.textColor = { r = r, g = g, b = b }
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end)
+    colorSwatchC:SetPoint("LEFT", colorLabelC, "RIGHT", 10, 0)
+    gy = gy - 20
+
+    local glowCBC = sfui.common.create_checkbox(gpContent, "enable ready glow", function()
+        if panel.readyGlow == nil then panel.readyGlow = true end
+        return panel.readyGlow
+    end, function(v)
+        panel.readyGlow = v
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        sfui.trackedoptions.UpdatePreview()
+    end)
+    glowCBC:SetPoint("TOPLEFT", 5, gy)
+    gy = gy - 25
+
+    local desatCBC = sfui.common.create_checkbox(gpContent, "desaturate on cooldown", function()
+        if panel.cooldownDesat == nil then panel.cooldownDesat = true end
+        return panel.cooldownDesat
+    end, function(v)
+        panel.cooldownDesat = v
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end)
+    desatCBC:SetPoint("TOPLEFT", 5, gy)
+    gy = gy - 25
+
+    local alphaSliderC = sfui.common.create_slider_input(gpContent, "cooldown alpha",
+        function() return panel.cooldownAlpha end, 0, 1, 0.05, function(v)
+            panel.cooldownAlpha = v
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end)
+    alphaSliderC:SetPoint("TOPLEFT", 5, gy); alphaSliderC:SetSliderValue(panel.cooldownAlpha or 1.0)
+    gy = gy - 40
+
+    local glowTypes = { "blizzard", "pixel", "autocast" }
+    local typeBtnC = CreateFlatButton(gpContent, "glow type: " .. (panel.glowType or "blizzard"), 160, 20)
+    typeBtnC:SetPoint("TOPLEFT", 5, gy)
+    typeBtnC:SetScript("OnClick", function(self)
+        local cur = panel.glowType or "blizzard"
+        local found = 1
+        for i, t in ipairs(glowTypes) do
+            if t == cur then
+                found = i; break
+            end
+        end
+        local nextIdx = (found % #glowTypes) + 1
+        panel.glowType = glowTypes[nextIdx]
+        self:SetText("glow type: " .. panel.glowType)
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        sfui.trackedoptions.UpdatePreview()
+    end)
+    gy = gy - 25
+
+    local colorLabelG = AddGeneralLabel("glow color")
+    local colorSwatchG = sfui.common.create_color_swatch(gpContent, panel.glowColor or { r = 1, g = 1, b = 0 },
+        function(r, g, b)
+            panel.glowColor = { r = r, g = g, b = b }
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+            sfui.trackedoptions.UpdatePreview()
+        end)
+    colorSwatchG:SetPoint("LEFT", colorLabelG, "RIGHT", 10, 0)
+    gy = gy - 10
+
+    local scaleSliderG = sfui.common.create_slider_input(gpContent, "glow scale",
+        function() return panel.glowScale end, 0.5, 2.0, 0.1, function(v)
+            panel.glowScale = v
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+            sfui.trackedoptions.UpdatePreview()
+        end)
+    scaleSliderG:SetPoint("TOPLEFT", 5, gy); scaleSliderG:SetSliderValue(panel.glowScale or 1.0)
+    gy = gy - 40
+
+    local intensitySliderG = sfui.common.create_slider_input(gpContent, "glow intensity",
+        function() return panel.glowIntensity end, 0.1, 2.0, 0.1, function(v)
+            panel.glowIntensity = v
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+            sfui.trackedoptions.UpdatePreview()
+        end)
+    intensitySliderG:SetPoint("TOPLEFT", 5, gy); intensitySliderG:SetSliderValue(panel.glowIntensity or 1.0)
+    gy = gy - 40
+
+    local speedSliderG = sfui.common.create_slider_input(gpContent, "glow speed",
+        function() return panel.glowSpeed end, -1, 1, 0.05, function(v)
+            panel.glowSpeed = v
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+            sfui.trackedoptions.UpdatePreview()
+        end)
+    speedSliderG:SetPoint("TOPLEFT", 5, gy); speedSliderG:SetSliderValue(panel.glowSpeed or 0.25)
+    gy = gy - 40
+
+    gpContent:SetHeight(math.abs(gy) + 20)
 end
 
 function sfui.trackedoptions.toggle_viewer()

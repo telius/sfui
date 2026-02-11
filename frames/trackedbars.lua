@@ -3,6 +3,7 @@ sfui.trackedbars = {}
 
 local bars = {} -- Active sfui bars
 local container
+local issecretvalue = sfui.common.issecretvalue
 
 -- Reusable tables (performance optimization)
 local standardBars = {}
@@ -63,11 +64,13 @@ local function GetMaxStacksForBar(cooldownID, config, spellID)
     end
 
     -- 3. Try to get from charge info (for charge-based abilities)
-    if spellID then
-        local chargeInfo = C_Spell.GetSpellCharges(spellID)
-        if chargeInfo and chargeInfo.maxCharges then
-            maxStacks = chargeInfo.maxCharges
-        end
+    if spellID and not issecretvalue(spellID) then
+        pcall(function()
+            local chargeInfo = C_Spell.GetSpellCharges(spellID)
+            if chargeInfo and chargeInfo.maxCharges then
+                maxStacks = chargeInfo.maxCharges
+            end
+        end)
     end
 
     return maxStacks
@@ -407,11 +410,11 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     local maxStacks = GetMaxStacksForBar(id, config, myBar.spellID)
 
     -- 1. Try Aura Data (Always preferred over scraping text)
-    if blizzFrame.auraInstanceID then
+    if sfui.common.HasAuraInstanceID(blizzFrame.auraInstanceID) then
         local unit = blizzFrame.auraDataUnit or "player"
         local auraData = C_UnitAuras.GetAuraDataByAuraInstanceID(unit, blizzFrame.auraInstanceID)
         if auraData then
-            if auraData.applications and type(auraData.applications) == "number" then
+            if sfui.common.IsNumericAndPositive(auraData.applications) then
                 currentStacks = auraData.applications
             end
             -- Update name safely
@@ -422,28 +425,31 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     -- 2. Fallback to Text (Blizzard's Display) - ONLY IF SAFE
     -- Text access on restricted frames returns "secret value" which crashes on comparison
     if not currentStacks and not InCombatLockdown() and not IsInInstance() then
-        if blizzFrame.Icon and blizzFrame.Icon.Applications then
-            local text = blizzFrame.Icon.Applications:GetText()
-            -- Avoid 'secret value' errors by removing comparison
-            if text and type(text) == "string" then
-                currentStacks = tonumber(text)
+        pcall(function()
+            if blizzFrame.Icon and blizzFrame.Icon.Applications then
+                local text = blizzFrame.Icon.Applications:GetText()
+                -- Avoid 'secret value' errors by removing comparison
+                if text and not issecretvalue(text) and type(text) == "string" then
+                    currentStacks = tonumber(text)
+                end
             end
-        end
+        end)
     end
 
     -- Set Name (Config > Aura Data > Blizzard Text)
     if config and config.name then
-        myBar.name:SetText(config.name)
+        sfui.common.SafeSetText(myBar.name, config.name)
     elseif not blizzFrame.auraInstanceID and blizzFrame.Bar and blizzFrame.Bar.Name then -- Only use blizz text if no aura data
-        myBar.name:SetText(blizzFrame.Bar.Name:GetText())
+        local bName = blizzFrame.Bar.Name:GetText()
+        if bName and not issecretvalue(bName) then
+            sfui.common.SafeSetText(myBar.name, bName)
+        end
     end
 
     -- Default to 0 and Ensure Safety
     -- Force sanitize currentStacks to be a clean number to prevent secret value crashes
-    -- Use tostring/tonumber roundtrip to scrub taint from "secret numbers"
-    if currentStacks and type(currentStacks) == "number" then
-        local valid = tonumber(tostring(currentStacks))
-        currentStacks = valid or 0
+    if sfui.common.IsNumericAndPositive(currentStacks) then
+        currentStacks = tonumber(tostring(currentStacks)) or 0
     else
         currentStacks = 0
     end
@@ -461,29 +467,34 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
 
         -- Sync Time Text
         if blizzFrame.Bar then
-            local text = blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
+            local text = ""
+            pcall(function()
+                text = blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
+            end)
             if config and config.showStacksText then
-                text = tostring(currentStacks)
+                text = sfui.common.SafeFormatDuration(currentStacks, 0)
             end
-            myBar.time:SetText(text)
+            sfui.common.SafeSetText(myBar.time, text)
         end
     else
         -- NORMAL MODE: Bar represents Duration (Copy from Blizzard)
         if blizzFrame.Bar then
-            local min, max = blizzFrame.Bar:GetMinMaxValues()
-            local val = blizzFrame.Bar:GetValue()
-            myBar.status:SetMinMaxValues(min, max)
-            myBar.status:SetValue(val)
+            pcall(function()
+                local min, max = blizzFrame.Bar:GetMinMaxValues()
+                local val = blizzFrame.Bar:GetValue()
+                myBar.status:SetMinMaxValues(min, max)
+                sfui.common.SafeSetValue(myBar.status, val)
 
-            local text = blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
-            if config and config.showStacksText then
-                text = tostring(currentStacks)
-            end
-            myBar.time:SetText(text)
+                local text = blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
+                if config and config.showStacksText then
+                    text = sfui.common.SafeFormatDuration(currentStacks, 0)
+                end
+                sfui.common.SafeSetText(myBar.time, text)
+            end)
         end
 
-        if currentStacks and currentStacks > 0 then
-            myBar.count:SetText(tostring(currentStacks))
+        if sfui.common.IsNumericAndPositive(currentStacks) then
+            myBar.count:SetText(sfui.common.SafeFormatDuration(currentStacks, 0))
         else
             myBar.count:SetText("")
         end
@@ -515,56 +526,58 @@ local function SyncWithBlizzard()
     end
 
     -- Process Blizzard Frames
-    for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
-        if blizzFrame.cooldownID then
-            blizzFrame:SetAlpha(0) -- Hide Blizzard frame so only ours is visible
-            local id = blizzFrame.cooldownID
-            activeCooldownIDs[id] = true
+    pcall(function()
+        for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
+            if blizzFrame.cooldownID then
+                blizzFrame:SetAlpha(0) -- Hide Blizzard frame so only ours is visible
+                local id = blizzFrame.cooldownID
+                activeCooldownIDs[id] = true
 
-            if not bars[id] then
-                local pooledBar = GetBarFromPool(id)
-                if pooledBar then
-                    bars[id] = pooledBar
+                if not bars[id] then
+                    local pooledBar = GetBarFromPool(id)
+                    if pooledBar then
+                        bars[id] = pooledBar
+                    else
+                        bars[id] = CreateBar(id)
+                    end
+                    layoutNeeded = true
+                end
+
+                local myBar = bars[id]
+                local config = GetTrackedBarConfig(id) -- Cache config lookup once
+                local isStackMode = config and config.stackMode or false
+
+                -- Sync Visibility
+                local hideInactive = SfuiDB and SfuiDB.hideInactive ~= false -- Default to True if nil
+
+                -- Check if this is a stack mode bar with active stacks
+                local isStackModeWithStacks = false
+                if isStackMode then
+                    local currentStacks = tonumber(myBar.count:GetText()) or 0
+                    if currentStacks > 0 then
+                        isStackModeWithStacks = true
+                    end
+                end
+
+                local shouldShow = ShouldBarBeVisible(config, blizzFrame, isStackModeWithStacks, hideInactive)
+
+                if shouldShow then
+                    if not myBar:IsShown() then
+                        myBar:Show()
+                        layoutNeeded = true
+                    end
                 else
-                    bars[id] = CreateBar(id)
+                    if myBar:IsShown() then
+                        myBar:Hide()
+                        layoutNeeded = true
+                    end
                 end
-                layoutNeeded = true
+
+                -- Sync all bar data from Blizzard
+                SyncBarData(myBar, blizzFrame, config, isStackMode, id)
             end
-
-            local myBar = bars[id]
-            local config = GetTrackedBarConfig(id) -- Cache config lookup once
-            local isStackMode = config and config.stackMode or false
-
-            -- Sync Visibility
-            local hideInactive = SfuiDB and SfuiDB.hideInactive ~= false -- Default to True if nil
-
-            -- Check if this is a stack mode bar with active stacks
-            local isStackModeWithStacks = false
-            if isStackMode then
-                local currentStacks = tonumber(myBar.count:GetText()) or 0
-                if currentStacks > 0 then
-                    isStackModeWithStacks = true
-                end
-            end
-
-            local shouldShow = ShouldBarBeVisible(config, blizzFrame, isStackModeWithStacks, hideInactive)
-
-            if shouldShow then
-                if not myBar:IsShown() then
-                    myBar:Show()
-                    layoutNeeded = true
-                end
-            else
-                if myBar:IsShown() then
-                    myBar:Hide()
-                    layoutNeeded = true
-                end
-            end
-
-            -- Sync all bar data from Blizzard
-            SyncBarData(myBar, blizzFrame, config, isStackMode, id)
         end
-    end
+    end)
 
     -- Cleanup
     for id, bar in pairs(bars) do
@@ -585,6 +598,23 @@ end
 function sfui.trackedbars.UpdateVisibility()
     if SyncWithBlizzard then
         SyncWithBlizzard()
+    end
+end
+
+-- Hook-based updates (v2.10.0 pattern from ArcUI)
+local hookedFrames = {}
+local function HookBlizzardFrame(frame)
+    if not frame or hookedFrames[frame] then return end
+    hookedFrames[frame] = true
+
+    if frame.RefreshData then
+        hooksecurefunc(frame, "RefreshData", function() SyncWithBlizzard() end)
+    end
+    if frame.RefreshApplications then
+        hooksecurefunc(frame, "RefreshApplications", function() SyncWithBlizzard() end)
+    end
+    if frame.SetAuraInstanceInfo then
+        hooksecurefunc(frame, "SetAuraInstanceInfo", function() SyncWithBlizzard() end)
     end
 end
 
@@ -622,79 +652,65 @@ function sfui.trackedbars.initialize()
 
             -- Update all visible bars from Blizzard's data
             if BuffBarCooldownViewer and BuffBarCooldownViewer.itemFramePool then
-                for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
-                    if blizzFrame.cooldownID then
-                        local myBar = bars[blizzFrame.cooldownID]
-                        -- Only update if bar exists AND is shown (performance optimization)
-                        if myBar and myBar:IsShown() and blizzFrame.Bar then
-                            -- Check Stack Mode
-                            local config = GetTrackedBarConfig(blizzFrame.cooldownID) -- Cache config
-                            local isStackMode = config and config.stackMode or false
+                pcall(function()
+                    for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
+                        if blizzFrame.cooldownID then
+                            local myBar = bars[blizzFrame.cooldownID]
+                            -- Only update if bar exists AND is shown (performance optimization)
+                            if myBar and myBar:IsShown() and blizzFrame.Bar then
+                                -- Check Stack Mode
+                                local config = GetTrackedBarConfig(blizzFrame.cooldownID) -- Cache config
+                                local isStackMode = config and config.stackMode or false
 
-                            -- Only copy bar animation values if NOT in stack mode
-                            if not isStackMode then
-                                local val = blizzFrame.Bar:GetValue()
-                                myBar.status:SetValue(val)
-                            end
-
-                            -- Update duration/name text (always safe to sync text)
-                            -- Note: Name is set in SyncBarData from config, avoiding frame scraping
-                            if blizzFrame.Bar.Duration then
-                                local text = blizzFrame.Bar.Duration:GetText() or ""
-                                if config and config.showStacksText then
-                                    text = tostring(myBar.currentStacks or 0)
+                                -- Only copy bar animation values if NOT in stack mode
+                                if not isStackMode then
+                                    local val = blizzFrame.Bar:GetValue()
+                                    sfui.common.SafeSetValue(myBar.status, val)
                                 end
-                                myBar.time:SetText(text)
+
+                                -- Update duration/name text (always safe to sync text)
+                                -- Note: Name is set in SyncBarData from config, avoiding frame scraping
+                                if blizzFrame.Bar.Duration then
+                                    local text = blizzFrame.Bar.Duration:GetText() or ""
+                                    if config and config.showStacksText then
+                                        text = tostring(myBar.currentStacks or 0)
+                                    end
+                                    sfui.common.SafeSetText(myBar.time, text)
+                                end
                             end
                         end
                     end
-                end
+                end)
             end
         end
     end)
 
     -- Event-driven updates instead of OnUpdate polling
-    -- Hook into Blizzard's events to avoid 60+ fps polling
-    if BuffBarCooldownViewer then
-        -- Register for the same events Blizzard uses
-        BuffBarCooldownViewer:HookScript("OnEvent", function(self, event, ...)
-            if event == "SPELL_UPDATE_COOLDOWN" or
-                event == "UNIT_AURA" or
-                event == "UNIT_TARGET" or
-                event == "PLAYER_TOTEM_UPDATE" or
-                event == "COOLDOWN_VIEWER_SPELL_OVERRIDE_UPDATED" then
-                SyncWithBlizzard()
-            end
+    -- Hook into Blizzard's frames for instant updates (ArcUI approach)
+    if BuffBarCooldownViewer and BuffBarCooldownViewer.itemFramePool then
+        hooksecurefunc(BuffBarCooldownViewer.itemFramePool, "Acquire", function(_, frame)
+            HookBlizzardFrame(frame)
         end)
-
-        -- Also hook the RefreshLayout callback for data changes
-        EventRegistry:RegisterCallback("CooldownViewerSettings.OnDataChanged", function()
-            SyncWithBlizzard()
-        end, container)
-
-        -- Initial sync
-        C_Timer.After(0.1, function()
-            SyncWithBlizzard()
-        end)
+        -- Hook existing frames
+        for frame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
+            HookBlizzardFrame(frame)
+        end
     end
 
     -- Hide Blizzard Frame
     if BuffBarCooldownViewer then
+        -- Only hide, don't aggressively move/scale/strata it.
+        -- The alpha(0) is enough to make it invisible.
         BuffBarCooldownViewer:SetAlpha(0)
         BuffBarCooldownViewer:EnableMouse(false)
-        BuffBarCooldownViewer:HookScript("OnShow", function(self)
+        hooksecurefunc(BuffBarCooldownViewer, "Show", function(self)
             self:SetAlpha(0)
             self:EnableMouse(false)
         end)
-
-        C_Timer.After(0, function()
+        if BuffBarCooldownViewer:IsShown() then
             BuffBarCooldownViewer:SetAlpha(0)
             BuffBarCooldownViewer:EnableMouse(false)
-            BuffBarCooldownViewer:SetFrameStrata("BACKGROUND")
-            BuffBarCooldownViewer:SetScale(0.001)
-            BuffBarCooldownViewer:ClearAllPoints()
-            BuffBarCooldownViewer:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", -1000, 1000)
-        end)
+        end
     end
 
     -- Hook into bars state for attachment updates

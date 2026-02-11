@@ -2,6 +2,120 @@ local addonName, addon = ...
 sfui = sfui or {}
 sfui.common = {}
 
+
+-- Internal helper to detect restricted data in Mythic+
+-- Comparing "Secret Values" to anything (including themselves) throws a Lua error.
+-- WoW 11.x+ has a built-in issecretvalue global; we use it if present.
+local function issecretvalue(val)
+    if _G.issecretvalue then return _G.issecretvalue(val) end
+    if val == nil then return false end
+    local success = pcall(function() return val == val end)
+    return not success
+end
+sfui.common.issecretvalue = issecretvalue
+
+-- Robust helper to check if an aura/ID is present, even if it's a secret value
+function sfui.common.HasAuraInstanceID(value)
+    if value == nil then return false end
+    if issecretvalue(value) then return true end
+    if type(value) == "number" and value == 0 then return false end
+    return true
+end
+
+-- Safe numeric comparison (ArcUI pattern)
+function sfui.common.IsNumericAndPositive(value)
+    if value == nil then return false end
+    local ok, result = pcall(function() return type(value) == "number" and value > 0 end)
+    return ok and result
+end
+
+-- Safe duration formatting (ArcUI pattern)
+function sfui.common.SafeFormatDuration(value, decimals)
+    if value == nil then return "" end
+    decimals = decimals or 1
+    local ok, formatted = pcall(function()
+        local num = tonumber(value)
+        if num then return string.format("%." .. decimals .. "f", num) end
+        return value
+    end)
+    return ok and formatted or value
+end
+
+-- Safe helper to get a duration object for a spell (nil check is non-secret)
+function sfui.common.GetCooldownDurationObj(spellID)
+    if not spellID then return nil end
+    local obj
+    if C_Spell.GetSpellChargeDuration then
+        pcall(function() obj = C_Spell.GetSpellChargeDuration(spellID) end)
+    end
+    if not obj and C_Spell.GetSpellCooldownDuration then
+        pcall(function() obj = C_Spell.GetSpellCooldownDuration(spellID) end)
+    end
+    if issecretvalue(obj) then return nil end
+    return obj
+end
+
+-- Safe comparison helpers (Crash-proof against Secret Values in M+)
+function sfui.common.SafeGT(val, target)
+    if val == nil then return false end
+    if issecretvalue(val) then return true end -- Secret = exists/active
+    local ok, result = pcall(function() return val > (target or 0) end)
+    return ok and result
+end
+
+function sfui.common.SafeValue(val, fallback)
+    if val == nil then return fallback end
+    if issecretvalue(val) then return val end
+    local ok, result = pcall(function() return val end)
+    return ok and result or fallback
+end
+
+function sfui.common.SafeNotFalse(val)
+    if val == nil then return true end
+    if issecretvalue(val) then return true end
+    return val ~= false
+end
+
+-- Safely set text on a fontstring (SetText accepts secret values)
+function sfui.common.SafeSetText(fontString, text, decimals)
+    if not fontString then return end
+    fontString:SetText(sfui.common.SafeFormatDuration(text, decimals) or "")
+end
+
+-- Safely set value on a statusbar (SetValue accepts secret values)
+function sfui.common.SafeSetValue(bar, value)
+    if not bar or not bar.SetValue then return end
+    bar:SetValue(value or 0)
+end
+
+-- Safely compare units (UnitIsUnit crashes on secret values if execution is tainted)
+function sfui.common.SafeUnitIsUnit(unit1, unit2)
+    if not unit1 or not unit2 then return false end
+    if issecretvalue(unit1) or issecretvalue(unit2) then
+        -- In secret context, we can't safely use UnitIsUnit.
+        -- We fall back to direct string comparison if they are strings.
+        if type(unit1) == "string" and type(unit2) == "string" then
+            return unit1 == unit2
+        end
+        return false
+    end
+    local success, result = pcall(UnitIsUnit, unit1, unit2)
+    return success and result
+end
+
+function sfui.common.copy(t)
+    if type(t) ~= "table" then return t end
+    local res = {}
+    for k, v in pairs(t) do
+        if type(v) == "table" then
+            res[k] = sfui.common.copy(v)
+        else
+            res[k] = v
+        end
+    end
+    return res
+end
+
 local _, playerClass, playerClassID = UnitClass("player")
 
 -- ... (skipping lines)
@@ -197,7 +311,7 @@ function sfui.common.update_widget_bar(widget_frame, icons_pool, labels_pool, so
     end
     for j = i, #icons_pool do icons_pool[j]:Hide() end
     for j = i, #labels_pool do labels_pool[j]:Hide() end
-    if last_icon then
+    if last_icon and not InCombatLockdown() then
         local left = widget_frame:GetLeft()
         if left then
             widget_frame:SetWidth(last_icon:GetRight() - left + 5)
@@ -375,7 +489,7 @@ function sfui.common.create_flat_button(parent, text, width, height)
     return btn
 end
 
-function sfui.common.create_checkbox(parent, label, dbKey, onClickFunc, tooltip)
+function sfui.common.create_checkbox(parent, label, dbKeyOrGetter, onClickFunc, tooltip)
     local cb = CreateFrame("CheckButton", nil, parent, "BackdropTemplate")
     cb:SetSize(20, 20)
 
@@ -406,15 +520,16 @@ function sfui.common.create_checkbox(parent, label, dbKey, onClickFunc, tooltip)
 
     cb:SetScript("OnClick", function(self)
         local checked = self:GetChecked()
-        if dbKey then SfuiDB[dbKey] = checked end
+        if type(dbKeyOrGetter) == "string" then SfuiDB[dbKeyOrGetter] = checked end
         if onClickFunc then onClickFunc(checked) end
     end)
     cb:SetScript("OnShow", function(self)
-        if dbKey and SfuiDB[dbKey] ~= nil then
-            self:SetChecked(SfuiDB[dbKey])
+        if type(dbKeyOrGetter) == "string" then
+            if SfuiDB[dbKeyOrGetter] ~= nil then self:SetChecked(SfuiDB[dbKeyOrGetter]) end
+        elseif type(dbKeyOrGetter) == "function" then
+            self:SetChecked(dbKeyOrGetter())
         end
     end)
-
 
     if tooltip then
         cb:SetScript("OnEnter", function(self)
@@ -497,59 +612,19 @@ function sfui.common.create_color_swatch(parent, initialColor, onSetFunc)
 end
 
 function sfui.common.create_cvar_checkbox(parent, label, cvar, tooltip)
-    local cb = CreateFrame("CheckButton", nil, parent, "BackdropTemplate")
-    cb:SetSize(20, 20)
-
-    -- Custom Backdrop
-    cb:SetBackdrop({
-        bgFile = "Interface/Buttons/WHITE8X8",
-        edgeFile = "Interface/Buttons/WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 }
-    })
-    cb:SetBackdropColor(0.2, 0.2, 0.2, 1)
-    cb:SetBackdropBorderColor(0, 0, 0, 1)
-
-    -- Checked Texture (Purple)
-    cb:SetCheckedTexture("Interface/Buttons/WHITE8X8")
-    cb:GetCheckedTexture():SetVertexColor(0.4, 0, 1, 1)
-    cb:GetCheckedTexture():SetPoint("TOPLEFT", 2, -2)
-    cb:GetCheckedTexture():SetPoint("BOTTOMRIGHT", -2, 2)
-
-    -- Highlight
-    cb:SetHighlightTexture("Interface/Buttons/WHITE8X8")
-    cb:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.1)
-
-    -- Text
-    cb.text = cb:CreateFontString(nil, "OVERLAY", sfui.config.font)
-    cb.text:SetPoint("LEFT", cb, "RIGHT", 5, 0)
-    cb.text:SetText(label)
-
-    cb:SetScript("OnClick", function(self)
-        local checked = self:GetChecked()
-        C_CVar.SetCVar(cvar, checked and "1" or "0")
-        SfuiDB[cvar] = checked -- Persist to DB
-    end)
-    cb:SetScript("OnShow", function(self)
-        -- Check DB first for persistence, fallback to current CVar state
+    return sfui.common.create_checkbox(parent, label, function()
         if SfuiDB[cvar] ~= nil then
-            self:SetChecked(SfuiDB[cvar])
+            return SfuiDB[cvar]
         else
-            self:SetChecked(C_CVar.GetCVarBool(cvar))
+            return C_CVar.GetCVarBool(cvar)
         end
-    end)
-    if tooltip then
-        cb:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText(tooltip)
-            GameTooltip:Show()
-        end)
-        cb:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
-    end
-    return cb
+    end, function(checked)
+        C_CVar.SetCVar(cvar, checked and "1" or "0")
+        SfuiDB[cvar] = checked
+    end, tooltip)
 end
 
-function sfui.common.create_slider_input(parent, label, dbKey, minVal, maxVal, step, onValueChangedFunc)
+function sfui.common.create_slider_input(parent, label, dbKeyOrGetter, minVal, maxVal, step, onValueChangedFunc)
     local container = CreateFrame("Frame", nil, parent)
     container:SetSize(160, 40) -- Compact height
 
@@ -606,7 +681,7 @@ function sfui.common.create_slider_input(parent, label, dbKey, minVal, maxVal, s
             if val < minVal then val = minVal end
             if val > maxVal then val = maxVal end
             slider:SetValue(val)
-            SfuiDB[dbKey] = val
+            if type(dbKeyOrGetter) == "string" then SfuiDB[dbKeyOrGetter] = val end
             if onValueChangedFunc then onValueChangedFunc(val) end
         end
         self:ClearFocus()
@@ -617,18 +692,23 @@ function sfui.common.create_slider_input(parent, label, dbKey, minVal, maxVal, s
 
     slider:SetScript("OnValueChanged", function(self, value)
         local stepped = math.floor((value - minVal) / step + 0.5) * step + minVal
-        SfuiDB[dbKey] = value
+        if type(dbKeyOrGetter) == "string" then SfuiDB[dbKeyOrGetter] = stepped end
         -- Clean number display
-        local displayVal = math.floor(value * 100) / 100
+        local displayVal = math.floor(stepped * 100) / 100
         editbox:SetText(tostring(displayVal))
-        if onValueChangedFunc then onValueChangedFunc(value) end
+        if onValueChangedFunc then onValueChangedFunc(stepped) end
     end)
 
     slider:SetScript("OnShow", function(self)
-        local val = SfuiDB[dbKey]
+        local val
+        if type(dbKeyOrGetter) == "string" then
+            val = SfuiDB[dbKeyOrGetter]
+        elseif type(dbKeyOrGetter) == "function" then
+            val = dbKeyOrGetter()
+        end
         if val == nil then val = minVal end
         self:SetValue(val)
-        editbox:SetText(tostring(val))
+        editbox:SetText(math.floor(val * 100) / 100)
     end)
 
     -- Expose method to set value programmatically
@@ -780,8 +860,9 @@ function sfui.common.has_aura(spellID, unit, threshold)
     if spellName then
         local aura = C_UnitAuras.GetAuraDataBySpellName(unit, spellName)
         if aura then
-            if not threshold or aura.expirationTime == 0 then return true end
-            return (aura.expirationTime - GetTime()) > threshold
+            if not threshold or not sfui.common.IsNumericAndPositive(threshold) then return true end
+            if issecretvalue(aura.expirationTime) then return true end
+            return sfui.common.SafeGT(aura.expirationTime - GetTime(), threshold)
         end
     end
 
