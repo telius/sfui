@@ -32,7 +32,8 @@ end
 -- Safe duration formatting (ArcUI pattern)
 function sfui.common.SafeFormatDuration(value, decimals)
     if value == nil then return "" end
-    decimals = decimals or 1
+    -- Default to 0 decimals for clean counts (e.g. "5" instead of "5.0")
+    decimals = decimals or 0
     local ok, formatted = pcall(function()
         local num = tonumber(value)
         if num then return string.format("%." .. decimals .. "f", num) end
@@ -79,7 +80,12 @@ end
 -- Safely set text on a fontstring (SetText accepts secret values)
 function sfui.common.SafeSetText(fontString, text, decimals)
     if not fontString then return end
-    fontString:SetText(sfui.common.SafeFormatDuration(text, decimals) or "")
+    -- if decimals is nil and text is a string, skip duration formatting to avoid 0.0 suffix
+    if decimals == nil and type(text) == "string" then
+        fontString:SetText(text)
+    else
+        fontString:SetText(sfui.common.SafeFormatDuration(text, decimals) or "")
+    end
 end
 
 -- Safely set value on a statusbar (SetValue accepts secret values)

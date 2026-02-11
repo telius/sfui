@@ -81,7 +81,7 @@ local function UpdateCountText(icon, count)
     local hasCount = sfui.common.SafeGT(count, 1)
 
     if isSecret or hasCount then
-        sfui.common.SafeSetText(icon.count, count)
+        sfui.common.SafeSetText(icon.count, count, 0)
         icon.count:Show()
     else
         icon.count:Hide()
