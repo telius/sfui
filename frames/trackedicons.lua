@@ -105,43 +105,28 @@ local function CreateCountText(icon)
 end
 
 -- Helper to safely check if icon is on active cooldown (avoiding secret value taint)
+-- Uses frame-based detection that works with secret values
 local function IsCooldownActive(cooldownFrame, hasCharges, icon)
     if not cooldownFrame then return false end
 
-    -- 1. Try Duration Object evaluation (Best for Spells in M+)
-    -- sfui.common.EvaluateCooldown uses Curve evaluation which is secret-safe
-    if icon and icon.id and not icon._isItem then
-        local durObj = sfui.common.GetCooldownDurationObj(icon.id)
-        if durObj then
-            local cdValue = sfui.common.EvaluateCooldown(durObj)
-            if cdValue > 0 then
-                -- Check for GCD to avoid desaturating during it
-                local ok_gcd, cdInfo = pcall(C_Spell.GetSpellCooldown, icon.id)
-                if ok_gcd and cdInfo and cdInfo.isOnGCD then
-                    return false
-                end
-                return not hasCharges
-            end
-            return false -- durObj exists but says spell is ready
-        end
-    end
+    -- Check if cooldown frame shows active cooldown
+    -- This works even with secret values
+    local isActive = sfui.common.IsCooldownFrameActive(cooldownFrame)
 
-    -- 2. Frame Polling Fallback (For items and fallback cases)
-    local ok, durationMs = pcall(function() return cooldownFrame:GetCooldownDuration() end)
-
-    if not ok then return false end
-
-    if issecretvalue(durationMs) then
-        -- In protected context (M+), assume ON COOLDOWN if it's secret (and no charges)
-        return not hasCharges
-    end
-
-    if not durationMs or durationMs == 0 then
+    if not isActive then
         return false
     end
 
-    -- Duration is in milliseconds, check if > 1500ms (1.5s) to exclude GCD
-    return (durationMs > 1500) and not hasCharges
+    -- For spells: check if it's just GCD
+    if icon and icon.id and not icon._isItem then
+        local ok_gcd, cdInfo = pcall(C_Spell.GetSpellCooldown, icon.id)
+        if ok_gcd and cdInfo and cdInfo.isOnGCD then
+            return false
+        end
+    end
+
+    -- Active cooldown, but has charges available
+    return not hasCharges
 end
 
 -- Helper to update count text value

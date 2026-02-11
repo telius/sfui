@@ -69,35 +69,31 @@ function sfui.common.GetCooldownDurationObj(spellID)
     return obj
 end
 
--- Global curves for secret-safe evaluation
-local function InitCurves()
-    if sfui.common.BinaryCurve then return end
-    if not _G.C_CurveUtil or not _G.C_CurveUtil.CreateCurve then return end
+-- Check if a cooldown frame is showing an active cooldown
+-- Uses frame methods that work with secret values
+function sfui.common.IsCooldownFrameActive(cooldownFrame)
+    if not cooldownFrame then return false end
 
-    local curve = _G.C_CurveUtil.CreateCurve()
-    curve:AddPoint(0.0, 0)   -- 0% remaining (ready) -> 0
-    curve:AddPoint(0.001, 1) -- >0% remaining (on CD) -> 1
-    curve:AddPoint(1.0, 1)
-    sfui.common.BinaryCurve = curve
-end
+    -- GetCooldownDuration returns duration in milliseconds
+    -- Can be secret, but we can pass it to comparison via pcall
+    local ok, duration = pcall(function() return cooldownFrame:GetCooldownDuration() end)
 
--- Safely evaluate a duration object (returns 1 for on CD, 0 for ready)
-function sfui.common.EvaluateCooldown(durObj)
-    if not durObj then return 0 end
-    if not sfui.common.BinaryCurve then InitCurves() end
-    if not sfui.common.BinaryCurve then
-        -- Fallback if curves not supported
-        return issecretvalue(durObj) and 1 or 0
+    if not ok then return false end
+
+    -- If duration is secret, we can't compare it directly
+    -- But we can use issecretvalue to detect it
+    if issecretvalue(duration) then
+        -- Secret duration means there IS a cooldown active
+        -- (Blizzard only secrets active cooldowns, not zero values)
+        return true
     end
 
-    -- EvaluateRemainingPercent is secret-safe: returns non-secret number from secret duration object
-    local ok, result = pcall(function() return durObj:EvaluateRemainingPercent(sfui.common.BinaryCurve) end)
-    if ok and result then
-        return result
-    else
-        -- Fallback: if it's a secret object, we treat it as active
-        return issecretvalue(durObj) and 1 or 0
+    -- Non-secret: check if > 1500ms (exclude GCD)
+    if not duration or duration == 0 then
+        return false
     end
+
+    return duration > 1500
 end
 
 -- Safe comparison helpers (Crash-proof against Secret Values in M+)

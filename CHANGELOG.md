@@ -1,3 +1,9 @@
+## v0.2.10a (2026-02-11)
+### Improvements
+- **Security Hardening**: Implemented robust detection and handling for "secret values" in restricted combat environments (Mythic+), preventing UI crashes when accessing protected cooldown data.
+- **Tracked Icons**: Improved cooldown detection logic to correctly exclude the Global Cooldown (GCD), ensuring icons only desaturate for actual ability cooldowns.
+- **Performance**: Optimized aura event handling to utilize the latest `UNIT_AURA` update signals for more efficient tracking.
+
 ## v0.2.10 (2026-02-09)
 ### Build
 - **CI**: Fixed YAML syntax error in release workflow.
