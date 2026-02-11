@@ -410,26 +410,16 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     local maxStacks = GetMaxStacksForBar(id, config, myBar.spellID)
 
     -- 1. Try Aura Data (Always preferred over scraping text)
-    local auraData = nil
     if sfui.common.HasAuraInstanceID(blizzFrame.auraInstanceID) then
         local unit = blizzFrame.auraDataUnit or "player"
-        auraData = C_UnitAuras.GetAuraDataByAuraInstanceID(unit, blizzFrame.auraInstanceID)
-    elseif myBar.spellID then
-        -- Fallback to spell name lookup if instance ID is missing (common for some specialty bars)
-        local unit = blizzFrame.auraDataUnit or "player"
-        local name = C_Spell.GetSpellName(myBar.spellID)
-        if name then
-            auraData = C_UnitAuras.GetAuraDataBySpellName(unit, name)
+        local auraData = C_UnitAuras.GetAuraDataByAuraInstanceID(unit, blizzFrame.auraInstanceID)
+        if auraData then
+            if type(auraData.applications) == "number" then
+                currentStacks = auraData.applications
+            end
+            -- Update name safely
+            if auraData.name then myBar.name:SetText(auraData.name) end
         end
-    end
-
-    if auraData then
-        -- Use applications if numeric (can be 0)
-        if type(auraData.applications) == "number" then
-            currentStacks = auraData.applications
-        end
-        -- Update name safely
-        if auraData.name then myBar.name:SetText(auraData.name) end
     end
 
     -- 2. Fallback to Text (Blizzard's Display) - ONLY IF SAFE
@@ -458,8 +448,8 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
 
     -- Default to 0 and Ensure Safety
     -- Force sanitize currentStacks to be a clean number to prevent secret value crashes
-    if sfui.common.IsNumericAndPositive(currentStacks) then
-        currentStacks = tonumber(tostring(currentStacks)) or 0
+    if type(currentStacks) == "number" then
+        currentStacks = tonumber(currentStacks) or 0
     else
         currentStacks = 0
     end
@@ -683,6 +673,15 @@ function sfui.trackedbars.initialize()
                                 if blizzFrame.Bar.Duration then
                                     local text = blizzFrame.Bar.Duration:GetText() or ""
                                     if config and config.showStacksText then
+                                        -- Try to refresh applications value live if possible
+                                        if blizzFrame.auraInstanceID then
+                                            local unit = blizzFrame.auraDataUnit or "player"
+                                            local data = C_UnitAuras.GetAuraDataByAuraInstanceID(unit,
+                                                blizzFrame.auraInstanceID)
+                                            if data and type(data.applications) == "number" then
+                                                myBar.currentStacks = data.applications
+                                            end
+                                        end
                                         text = tostring(myBar.currentStacks or 0)
                                     end
                                     sfui.common.SafeSetText(myBar.time, text)
