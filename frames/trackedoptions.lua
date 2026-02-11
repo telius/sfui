@@ -9,8 +9,8 @@ local UpdateCooldownsList
 local issecretvalue = sfui.common.issecretvalue
 -- Forward declaration
 local CreateFlatButton = sfui.common.create_flat_button
-local c = sfui.config.options_panel
 local g = sfui.config
+local c = g.options_panel
 
 local function select_tab(frame, id)
     if not frame.tabs then return end
@@ -261,7 +261,7 @@ local function CreateCooldownsFrame()
     content:SetSize(800, 210)
     content:SetPoint("TOPLEFT", colHeader, "BOTTOMLEFT", 0, 0)
 
-    -- === ICON EDITOR SECTION (Directly in iconsPanel) ===
+    -- === ICON EDITOR SECTION ===
     -- LEFT: Panel List
     local leftPanel = CreateFrame("Frame", nil, iconsPanel, "BackdropTemplate")
     leftPanel:SetPoint("TOPLEFT", 0, 0)
@@ -319,7 +319,7 @@ local function CreateCooldownsFrame()
         end
     end)
 
-    -- MIDDLE: Preview / Drop area (NOW RIGHT-SIDE AND EXPANDED)
+    -- MIDDLE: Preview / Drop area
     local midPanel = CreateFrame("Frame", nil, iconsPanel, "BackdropTemplate")
     midPanel:SetBackdrop({ bgFile = g.textures.white })
     midPanel:SetBackdropColor(0.1, 0.1, 0.1, 0.6)
@@ -372,7 +372,7 @@ local function CreateCooldownsFrame()
     midPanel:SetScript("OnMouseUp", OnReceiveDrag)
     midPanel:SetScript("OnReceiveDrag", OnReceiveDrag)
 
-    -- RIGHT 1: General Options Panel (NOW MOVED TO MIDDLE)
+    -- RIGHT 1: General Options Panel
     local genPanel = CreateFrame("Frame", nil, iconsPanel, "BackdropTemplate")
     genPanel:SetPoint("TOPLEFT", leftPanel, "TOPRIGHT", 5, 0)
     genPanel:SetPoint("BOTTOMLEFT", leftPanel, "BOTTOMRIGHT", 5, 0)

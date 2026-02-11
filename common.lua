@@ -3,13 +3,19 @@ sfui = sfui or {}
 sfui.common = {}
 
 
+-- Static pcall targets (Performance optimization: no closures in hot paths)
+local function pcall_issecret(val) return val == val end
+local function pcall_num_pos(val) return type(val) == "number" and val > 0 end
+local function pcall_gt(v1, v2) return v1 > (v2 or 0) end
+local function pcall_identity(val) return val end
+
 -- Internal helper to detect restricted data in Mythic+
 -- Comparing "Secret Values" to anything (including themselves) throws a Lua error.
 -- WoW 11.x+ has a built-in issecretvalue global; we use it if present.
 local function issecretvalue(val)
     if _G.issecretvalue then return _G.issecretvalue(val) end
     if val == nil then return false end
-    local success = pcall(function() return val == val end)
+    local success = pcall(pcall_issecret, val)
     return not success
 end
 sfui.common.issecretvalue = issecretvalue
@@ -22,35 +28,42 @@ function sfui.common.HasAuraInstanceID(value)
     return true
 end
 
--- Safe numeric comparison (ArcUI pattern)
+-- Safe numeric comparison
 function sfui.common.IsNumericAndPositive(value)
     if value == nil then return false end
-    local ok, result = pcall(function() return type(value) == "number" and value > 0 end)
+    local ok, result = pcall(pcall_num_pos, value)
     return ok and result
 end
 
--- Safe duration formatting (ArcUI pattern)
+-- Reusable buffer for string.format
+local fmt_cache = "%.0f"
+local function pcall_format(val, decimals)
+    local fmt = (decimals == 0) and "%.0f" or ("%." .. (decimals or 0) .. "f")
+    return string.format(fmt, val)
+end
+
+-- Safe duration formatting
 function sfui.common.SafeFormatDuration(value, decimals)
     if value == nil then return "" end
-    -- Default to 0 decimals for clean counts (e.g. "5" instead of "5.0")
-    decimals = decimals or 0
-    local ok, formatted = pcall(function()
-        local num = tonumber(value)
-        if num then return string.format("%." .. decimals .. "f", num) end
-        return value
-    end)
-    return ok and formatted or value
+    local ok, formatted = pcall(pcall_format, tonumber(value), decimals or 0)
+    return ok and formatted or tostring(value)
 end
+
+-- Reusable cooldown lookups
+local function pcall_charge_dur(id) return C_Spell.GetSpellChargeDuration(id) end
+local function pcall_spell_dur(id) return C_Spell.GetSpellCooldownDuration(id) end
 
 -- Safe helper to get a duration object for a spell (nil check is non-secret)
 function sfui.common.GetCooldownDurationObj(spellID)
     if not spellID then return nil end
-    local obj
+    local ok, obj
     if C_Spell.GetSpellChargeDuration then
-        pcall(function() obj = C_Spell.GetSpellChargeDuration(spellID) end)
+        ok, obj = pcall(pcall_charge_dur, spellID)
     end
-    if not obj and C_Spell.GetSpellCooldownDuration then
-        pcall(function() obj = C_Spell.GetSpellCooldownDuration(spellID) end)
+    if not ok or not obj then
+        if C_Spell.GetSpellCooldownDuration then
+            ok, obj = pcall(pcall_spell_dur, spellID)
+        end
     end
     if issecretvalue(obj) then return nil end
     return obj
@@ -60,14 +73,14 @@ end
 function sfui.common.SafeGT(val, target)
     if val == nil then return false end
     if issecretvalue(val) then return true end -- Secret = exists/active
-    local ok, result = pcall(function() return val > (target or 0) end)
+    local ok, result = pcall(pcall_gt, val, target)
     return ok and result
 end
 
 function sfui.common.SafeValue(val, fallback)
     if val == nil then return fallback end
     if issecretvalue(val) then return val end
-    local ok, result = pcall(function() return val end)
+    local ok, result = pcall(pcall_identity, val)
     return ok and result or fallback
 end
 

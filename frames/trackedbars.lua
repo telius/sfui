@@ -11,37 +11,42 @@ local activeCooldownIDs = {}
 
 -- Helper to get tracking config for a specific ID
 local configCache = {}
-local function GetTrackedBarConfig(cooldownID)
-    if configCache[cooldownID] then return configCache[cooldownID] end
-
-    local proxy = setmetatable({}, {
-        __index = function(_, k)
-            -- 1. Check DB (User Customization)
-            if SfuiDB and SfuiDB.trackedBars then
-                local entry = SfuiDB.trackedBars[cooldownID]
-                if not entry then entry = SfuiDB.trackedBars[tonumber(cooldownID)] end
-
-                if entry then
-                    local v = entry[k]
-                    if v ~= nil then return v end
-                end
+-- Metatable for tracked bar config proxies (Performance optimization: reused)
+local _configProxyMT = {
+    __index = function(t, k)
+        local cooldownID = rawget(t, "_id")
+        -- 1. Check DB (User Customization)
+        if SfuiDB and SfuiDB.trackedBars then
+            local entry = SfuiDB.trackedBars[cooldownID]
+            if not entry then entry = SfuiDB.trackedBars[tonumber(cooldownID)] end
+            if entry then
+                local v = entry[k]
+                if v ~= nil then return v end
             end
-
-            -- 2. Check Defaults
-            if sfui.config.trackedBars and sfui.config.trackedBars.defaults then
-                local defaults = sfui.config.trackedBars.defaults
-                local entry = defaults[cooldownID]
-                if not entry then entry = defaults[tonumber(cooldownID)] end
-
-                if entry then
-                    local v = entry[k]
-                    if v ~= nil then return v end
-                end
-            end
-            return nil
         end
-    })
 
+        -- 2. Check Defaults
+        if sfui.config.trackedBars and sfui.config.trackedBars.defaults then
+            local defaults = sfui.config.trackedBars.defaults
+            local entry = defaults[cooldownID]
+            if not entry then entry = defaults[tonumber(cooldownID)] end
+            if entry then
+                local v = entry[k]
+                if v ~= nil then return v end
+            end
+        end
+        return nil
+    end
+}
+
+local configCache = {}
+local function GetTrackedBarConfig(cooldownID)
+    if not cooldownID then return nil end
+    local cached = configCache[cooldownID]
+    if cached then return cached end
+
+    local proxy = { _id = cooldownID }
+    setmetatable(proxy, _configProxyMT)
     configCache[cooldownID] = proxy
     return proxy
 end
@@ -160,9 +165,7 @@ local function CreateBar(cooldownID)
     return bar
 end
 
--- Helper function to apply common bar styling and positioning
--- Reduces duplicate code between stack mode and standard mode
--- Helper function to setup bar content (text, icons, stack mode logic) state
+-- Helper function to setup bar content (text, icons, stack mode logic)
 local function SetupBarState(bar, config, cfg)
     local isStackMode = config and config.stackMode or false
     local isAttached = config and config.stackAboveHealth or false
@@ -236,8 +239,6 @@ local function ApplyBarStyling(bar, yOffset, config, cfg)
     bar:SetBackdropColor(unpack(cfg.backdrop.color))
     return yOffset + (cfg.height + cfg.spacing)
 end
-
--- Helper to get sort index removed
 
 
 local function UpdateLayout()
@@ -477,7 +478,7 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
             sfui.common.SafeSetText(myBar.time, text)
         end
     else
-        -- NORMAL MODE: Bar represents Duration (Copy from Blizzard)
+        -- NORMAL MODE: Bar represents Duration
         if blizzFrame.Bar then
             pcall(function()
                 local min, max = blizzFrame.Bar:GetMinMaxValues()
@@ -601,7 +602,7 @@ function sfui.trackedbars.UpdateVisibility()
     end
 end
 
--- Hook-based updates (v2.10.0 pattern from ArcUI)
+-- Hook-based updates
 local hookedFrames = {}
 local function HookBlizzardFrame(frame)
     if not frame or hookedFrames[frame] then return end
@@ -621,6 +622,38 @@ end
 -- Public function to force layout update (e.g., when settings change)
 function sfui.trackedbars.ForceLayoutUpdate()
     UpdateLayout()
+end
+
+-- Static update loop for bars (Eliminates OnUpdate closure churn)
+local function UpdateBarsState()
+    if not BuffBarCooldownViewer or not BuffBarCooldownViewer.itemFramePool then return end
+
+    for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
+        if blizzFrame.cooldownID then
+            local myBar = bars[blizzFrame.cooldownID]
+            -- Only update if bar exists AND is shown (performance optimization)
+            if myBar and myBar:IsShown() and blizzFrame.Bar then
+                -- Check Stack Mode
+                local config = GetTrackedBarConfig(blizzFrame.cooldownID)
+                local isStackMode = config and config.stackMode or false
+
+                -- Only copy bar animation values if NOT in stack mode
+                if not isStackMode then
+                    local val = blizzFrame.Bar:GetValue()
+                    sfui.common.SafeSetValue(myBar.status, val)
+                end
+
+                -- Update duration/name text
+                if blizzFrame.Bar.Duration then
+                    local text = blizzFrame.Bar.Duration:GetText() or ""
+                    if config and config.showStacksText then
+                        text = tostring(myBar.currentStacks or 0)
+                    end
+                    sfui.common.SafeSetText(myBar.time, text)
+                end
+            end
+        end
+    end
 end
 
 function sfui.trackedbars.initialize()
@@ -652,49 +685,12 @@ function sfui.trackedbars.initialize()
 
             -- Update all visible bars from Blizzard's data
             if BuffBarCooldownViewer and BuffBarCooldownViewer.itemFramePool then
-                pcall(function()
-                    for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
-                        if blizzFrame.cooldownID then
-                            local myBar = bars[blizzFrame.cooldownID]
-                            -- Only update if bar exists AND is shown (performance optimization)
-                            if myBar and myBar:IsShown() and blizzFrame.Bar then
-                                -- Check Stack Mode
-                                local config = GetTrackedBarConfig(blizzFrame.cooldownID) -- Cache config
-                                local isStackMode = config and config.stackMode or false
-
-                                -- Only copy bar animation values if NOT in stack mode
-                                if not isStackMode then
-                                    local val = blizzFrame.Bar:GetValue()
-                                    sfui.common.SafeSetValue(myBar.status, val)
-                                end
-
-                                -- Update duration/name text (always safe to sync text)
-                                -- Note: Name is set in SyncBarData from config, avoiding frame scraping
-                                if blizzFrame.Bar.Duration then
-                                    local text = blizzFrame.Bar.Duration:GetText() or ""
-                                    if config and config.showStacksText then
-                                        -- Try to refresh applications value live if possible
-                                        if blizzFrame.auraInstanceID then
-                                            local unit = blizzFrame.auraDataUnit or "player"
-                                            local data = C_UnitAuras.GetAuraDataByAuraInstanceID(unit,
-                                                blizzFrame.auraInstanceID)
-                                            if data and type(data.applications) == "number" then
-                                                myBar.currentStacks = data.applications
-                                            end
-                                        end
-                                        text = tostring(myBar.currentStacks or 0)
-                                    end
-                                    sfui.common.SafeSetText(myBar.time, text)
-                                end
-                            end
-                        end
-                    end
-                end)
+                pcall(UpdateBarsState)
             end
         end
     end)
 
-    -- Event-driven updates instead of OnUpdate polling
+    -- Event-driven updates
     -- Hook into Blizzard's frames for instant updates (ArcUI approach)
     if BuffBarCooldownViewer and BuffBarCooldownViewer.itemFramePool then
         hooksecurefunc(BuffBarCooldownViewer.itemFramePool, "Acquire", function(_, frame)

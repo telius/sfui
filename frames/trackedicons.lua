@@ -11,6 +11,40 @@ local function GetLCG()
 end
 sfui.trackedicons.GetLCG = GetLCG
 
+-- STATIC REUSE (Memory Optimization)
+local _tempGlowCfg = {}
+local _defaultColor = { r = 1, g = 1, b = 0 }
+local _emptyTable = {}
+
+local function GetIconValue(entrySettings, panelConfig, key, default)
+    if entrySettings and entrySettings[key] ~= nil then return entrySettings[key] end
+    if panelConfig and panelConfig[key] ~= nil then return panelConfig[key] end
+    return default
+end
+
+-- Static pcall targets
+local function pcall_item_cd(icon)
+    local s, d, e = C_Item.GetItemCooldown(icon.id)
+    icon._start, icon._duration, icon._isEnabled = s, d, e
+    CooldownFrame_Set(icon.cooldown, s, d, e)
+    if icon.shadowCooldown then icon.shadowCooldown:SetCooldown(s, d) end
+    return C_Item.GetItemCount(icon.id)
+end
+
+local function pcall_spell_cd(icon)
+    local ci = C_Spell.GetSpellCooldown(icon.id)
+    if ci then
+        icon._start, icon._duration, icon._isEnabled, icon._modRate = ci.startTime, ci.duration, ci.isEnabled, ci
+        .modRate
+        return ci.isEnabled
+    end
+end
+
+local function pcall_sync_swipe(icon, durObj)
+    icon.cooldown:SetCooldownFromDurationObject(durObj)
+    if icon.shadowCooldown then icon.shadowCooldown:SetCooldownFromDurationObject(durObj) end
+end
+
 local function StopGlow(icon)
     if ActionButton_HideOverlayGlow then
         ActionButton_HideOverlayGlow(icon)
@@ -59,9 +93,6 @@ end
 sfui.trackedicons.StartGlow = StartGlow
 
 
--- Cooldown text (timers) now uses Blizzard's native SetHideCountdownNumbers(false)
--- and SetCooldownFromDurationObject for max compatibility with Mythic+
-
 
 -- Helper to create count text (stacks/charges)
 local function CreateCountText(icon)
@@ -91,65 +122,36 @@ end
 -- Helper to update icon state (visibility, cooldown, charges)
 local function UpdateIconState(icon, panelConfig)
     if not icon.id or not icon.entry then return false end
-    panelConfig = panelConfig or {}
-    local entrySettings = icon.entry.settings or {}
-
-    -- Merge Logic: Entry Settings > Panel Config
-    local function GetValue(key, default)
-        if entrySettings[key] ~= nil then return entrySettings[key] end
-        if panelConfig[key] ~= nil then return panelConfig[key] end
-        return default
-    end
-
+    local entrySettings = icon.entry.settings or _emptyTable
     local durObj = nil
     local count = 0
     local isEnabled = true
 
     if icon.type == "item" then
-        pcall(function()
-            local s, d, e = C_Item.GetItemCooldown(icon.id)
-            icon._start, icon._duration, icon._isEnabled = s, d, e
-            isEnabled = e
-            count = C_Item.GetItemCount(icon.id)
-            -- Item fallback: use manual SetCooldown as no DurationObject exists for items
-            CooldownFrame_Set(icon.cooldown, s, d, e)
-            if icon.shadowCooldown then
-                icon.shadowCooldown:SetCooldown(s, d)
-            end
-        end)
+        local ok, countVal = pcall(pcall_item_cd, icon)
+        if ok then
+            count = countVal or 0
+            isEnabled = icon._isEnabled
+        end
     else
-        -- Pass 4/7: Spell Logic using DurationObject
         durObj = sfui.common.GetCooldownDurationObj(icon.id)
+        local ok, enabledVal = pcall(pcall_spell_cd, icon)
+        if ok then isEnabled = enabledVal end
 
-        pcall(function()
-            local ci = C_Spell.GetSpellCooldown(icon.id)
-            if ci then
-                icon._start, icon._duration, icon._isEnabled, icon._modRate = ci.startTime, ci.duration, ci
-                    .isEnabled, ci.modRate
-                isEnabled = ci.isEnabled
+        if not issecretvalue(icon.id) then
+            local charges = C_Spell.GetSpellCharges(icon.id)
+            if charges then
+                count = sfui.common.SafeValue(charges.currentCharges, 0)
             end
+        end
 
-            if not issecretvalue(icon.id) then
-                local charges = C_Spell.GetSpellCharges(icon.id)
-                if charges then
-                    count = sfui.common.SafeValue(charges.currentCharges, 0)
-                end
-            end
-
-            -- Native Sync Swipe
-            if durObj and not issecretvalue(durObj) then
-                pcall(function()
-                    icon.cooldown:SetCooldownFromDurationObject(durObj)
-                    if icon.shadowCooldown then
-                        icon.shadowCooldown:SetCooldownFromDurationObject(durObj)
-                    end
-                end)
-            else
-                -- No duration object = Ready (Clear cooldown)
-                icon.cooldown:Clear()
-                if icon.shadowCooldown then icon.shadowCooldown:Clear() end
-            end
-        end)
+        if durObj and not issecretvalue(durObj) then
+            pcall(pcall_sync_swipe, icon, durObj)
+        else
+            -- No duration object = Ready (Clear cooldown)
+            icon.cooldown:Clear()
+            if icon.shadowCooldown then icon.shadowCooldown:Clear() end
+        end
     end
 
     icon._isItem = (icon.type == "item")
@@ -181,19 +183,17 @@ local function UpdateIconState(icon, panelConfig)
             icon:SetAlpha(1)
         end
 
-
         -- Update Count Text
         UpdateCountText(icon, count)
 
         -- Visibility / Settings check
-        icon.cooldown:SetHideCountdownNumbers(not GetValue("textEnabled", true))
-
+        icon.cooldown:SetHideCountdownNumbers(not GetIconValue(entrySettings, panelConfig, "textEnabled", true))
 
         -- Visuals
-        local showGlow = GetValue("readyGlow", true)
-        local useDesat = GetValue("cooldownDesat", true)
-        local cdAlpha = GetValue("cooldownAlpha", 1.0)
-        local glowType = GetValue("glowType", "blizzard")
+        local showGlow = GetIconValue(entrySettings, panelConfig, "readyGlow", true)
+        local useDesat = GetIconValue(entrySettings, panelConfig, "cooldownDesat", true)
+        local cdAlpha = GetIconValue(entrySettings, panelConfig, "cooldownAlpha", 1.0)
+        local glowType = GetIconValue(entrySettings, panelConfig, "glowType", "blizzard")
 
         -- Desaturation Logic (Mirror Cooldown State)
         local desatState = not isReady
@@ -204,14 +204,12 @@ local function UpdateIconState(icon, panelConfig)
 
         -- Glow Logic
         if isReady and showGlow then
-            -- Resolved config for glow
-            local currentGlowCfg = {
-                glowType = glowType,
-                glowColor = GetValue("glowColor", { r = 1, g = 1, b = 0 }),
-                glowScale = GetValue("glowScale", 1.0),
-                glowIntensity = GetValue("glowIntensity", 1.0),
-                glowSpeed = GetValue("glowSpeed", 0.25)
-            }
+            -- Resolved config for glow (REUSED TABLE)
+            _tempGlowCfg.glowType = glowType
+            _tempGlowCfg.glowColor = GetIconValue(entrySettings, panelConfig, "glowColor", _defaultColor)
+            _tempGlowCfg.glowScale = GetIconValue(entrySettings, panelConfig, "glowScale", 1.0)
+            _tempGlowCfg.glowIntensity = GetIconValue(entrySettings, panelConfig, "glowIntensity", 1.0)
+            _tempGlowCfg.glowSpeed = GetIconValue(entrySettings, panelConfig, "glowSpeed", 0.25)
 
             -- Restart if type or parameters changed
             local needsRestart = false
@@ -223,19 +221,19 @@ local function UpdateIconState(icon, panelConfig)
                 needsRestart = true
             else
                 local prev = icon._lastGlowCfg
-                if math.abs(prev.glowColor.r - currentGlowCfg.glowColor.r) > 0.01 or
-                    math.abs(prev.glowColor.g - currentGlowCfg.glowColor.g) > 0.01 or
-                    math.abs(prev.glowColor.b - currentGlowCfg.glowColor.b) > 0.01 or
-                    math.abs(prev.glowScale - currentGlowCfg.glowScale) > 0.01 or
-                    math.abs(prev.glowIntensity - currentGlowCfg.glowIntensity) > 0.01 or
-                    math.abs(prev.glowSpeed - currentGlowCfg.glowSpeed) > 0.01 then
+                if math.abs(prev.glowColor.r - _tempGlowCfg.glowColor.r) > 0.01 or
+                    math.abs(prev.glowColor.g - _tempGlowCfg.glowColor.g) > 0.01 or
+                    math.abs(prev.glowColor.b - _tempGlowCfg.glowColor.b) > 0.01 or
+                    math.abs(prev.glowScale - _tempGlowCfg.glowScale) > 0.01 or
+                    math.abs(prev.glowIntensity - _tempGlowCfg.glowIntensity) > 0.01 or
+                    math.abs(prev.glowSpeed - _tempGlowCfg.glowSpeed) > 0.01 then
                     needsRestart = true
                 end
             end
 
             if needsRestart then
                 if icon._glowActive then StopGlow(icon) end
-                StartGlow(icon, currentGlowCfg)
+                StartGlow(icon, _tempGlowCfg)
             end
         else
             if icon._glowActive then
@@ -252,7 +250,6 @@ local function UpdateIconState(icon, panelConfig)
 
     return isVisible
 end
-
 
 -- Create a single icon frame (Standard Button for Taint Isolation)
 local function CreateIconFrame(parent, id, entry)
@@ -333,8 +330,6 @@ local function CreateIconFrame(parent, id, entry)
         f:Show()
     end
 
-    -- Event-Driven Update (OnUpdate no longer needed for text)
-    -- But we keep it for desat/glow logic if needed, or remove to save cycles
     f:SetScript("OnUpdate", nil)
 
     return f
@@ -342,7 +337,7 @@ end
 
 function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
     if not panelFrame or not panelConfig then return end
-    if InCombatLockdown() then return end -- Pass 8: Block heavy layout mid-combat to prevent ActionBlocked
+    if InCombatLockdown() then return end
     panelFrame.config = panelConfig
 
     -- PROTECT: Cannot move frames in combat!
@@ -488,8 +483,6 @@ function sfui.trackedicons.Update()
 end
 
 function sfui.trackedicons.initialize()
-    -- sfui.common.ensure_tracked_icon_db() -- Removed to allow Update() to detect empty state
-
     -- Event handling
     local eventFrame = CreateFrame("Frame")
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
