@@ -601,13 +601,8 @@ function sfui.reminders.initialize()
         end
     end)
 
-    local lastUpdate = 0
-    frame:SetScript("OnUpdate", function(self, elapsed)
-        lastUpdate = lastUpdate + elapsed
-        if lastUpdate > 10 then
-            update_icons(); lastUpdate = 0
-        end
-    end)
+    -- Use ticker instead of OnUpdate for better performance
+    C_Timer.NewTicker(10, update_icons)
 
     update_icons()
     check_pet_warning()

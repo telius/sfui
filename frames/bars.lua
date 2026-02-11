@@ -622,14 +622,7 @@ do
         bar.TextValue:SetFont("Fonts\\FRIZQT__.TTF", 12, "NONE")
         bar.TextValue:SetShadowOffset(1, -1)
         bar.TextValue:SetPoint("CENTER")
-        local elapsedSince = 0
-        bar:SetScript("OnUpdate", function(self, elapsed)
-            elapsedSince = elapsedSince + elapsed
-            if elapsedSince > 0.1 then
-                update_mount_speed_bar_internal()
-                elapsedSince = 0
-            end
-        end)
+        bar.lastSpeed = 0 -- Cache for change detection
         mount_speed_bar = bar
         return bar
     end
@@ -647,7 +640,12 @@ do
         local maxSpeed = 1200
         bar:SetMinMaxValues(0, maxSpeed)
         bar:SetValue(speed)
-        bar.TextValue:SetFormattedText("%d", speed)
+
+        -- Only update text if speed changed significantly (>5 units)
+        if math.abs(speed - bar.lastSpeed) > 5 then
+            bar.TextValue:SetFormattedText("%d", speed)
+            bar.lastSpeed = speed
+        end
 
         local aura = C_UnitAuras.GetPlayerAuraBySpellID(377234)
         if aura then

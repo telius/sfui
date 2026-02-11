@@ -16,7 +16,9 @@ local ITEMS_PER_PAGE = NUM_ROWS * NUM_COLS
 
 sfui.merchant.lootFilterState = 0 -- 0=All, 1=Class, 2=Spec
 
+-- Cache player data for filtering (Performance optimization)
 local playerClass, playerClassID = sfui.common.get_player_class()
+local playerSpecID = sfui.common.get_current_spec_id() -- Cache spec ID
 local classArmor = {
     ["WARRIOR"] = 4,
     ["PALADIN"] = 4,
@@ -33,6 +35,13 @@ local classArmor = {
     ["WARLOCK"] = 1,
 }
 local preferredArmor = classArmor[playerClass]
+
+-- Update spec cache when spec changes
+local specUpdateFrame = CreateFrame("Frame")
+specUpdateFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+specUpdateFrame:SetScript("OnEvent", function()
+    playerSpecID = sfui.common.get_current_spec_id()
+end)
 
 local frame = CreateFrame("Frame", "SfuiMerchantFrame", UIParent, "BackdropTemplate")
 frame:SetSize(cfg.frame.width, cfg.frame.height)
@@ -1069,7 +1078,7 @@ frame:SetScript("OnEvent", function(self, event, ...)
 
         if MerchantFrame then
             MerchantFrame:SetAlpha(0)
-            C_Timer.After(0, function()
+            C_Timer.After(0.01, function()
                 MerchantFrame:SetAlpha(0)
                 MerchantFrame:EnableMouse(false)
                 MerchantFrame:SetFrameStrata("BACKGROUND")

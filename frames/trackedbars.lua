@@ -52,6 +52,11 @@ local function GetTrackedBarConfig(cooldownID)
 end
 sfui.trackedbars.GetConfig = GetTrackedBarConfig
 
+-- Cache invalidation (call when settings change)
+function sfui.trackedbars.InvalidateConfigCache()
+    configCache = {}
+end
+
 -- Helper to determine max stacks for a bar
 -- Checks in order: special cases -> user config -> charge info -> default
 local function GetMaxStacksForBar(cooldownID, config, spellID)
