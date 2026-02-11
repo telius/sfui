@@ -410,16 +410,26 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     local maxStacks = GetMaxStacksForBar(id, config, myBar.spellID)
 
     -- 1. Try Aura Data (Always preferred over scraping text)
+    local auraData = nil
     if sfui.common.HasAuraInstanceID(blizzFrame.auraInstanceID) then
         local unit = blizzFrame.auraDataUnit or "player"
-        local auraData = C_UnitAuras.GetAuraDataByAuraInstanceID(unit, blizzFrame.auraInstanceID)
-        if auraData then
-            if sfui.common.IsNumericAndPositive(auraData.applications) then
-                currentStacks = auraData.applications
-            end
-            -- Update name safely
-            if auraData.name then myBar.name:SetText(auraData.name) end
+        auraData = C_UnitAuras.GetAuraDataByAuraInstanceID(unit, blizzFrame.auraInstanceID)
+    elseif myBar.spellID then
+        -- Fallback to spell name lookup if instance ID is missing (common for some specialty bars)
+        local unit = blizzFrame.auraDataUnit or "player"
+        local name = C_Spell.GetSpellName(myBar.spellID)
+        if name then
+            auraData = C_UnitAuras.GetAuraDataBySpellName(unit, name)
         end
+    end
+
+    if auraData then
+        -- Use applications if numeric (can be 0)
+        if type(auraData.applications) == "number" then
+            currentStacks = auraData.applications
+        end
+        -- Update name safely
+        if auraData.name then myBar.name:SetText(auraData.name) end
     end
 
     -- 2. Fallback to Text (Blizzard's Display) - ONLY IF SAFE
