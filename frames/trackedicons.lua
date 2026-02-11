@@ -35,7 +35,7 @@ local function pcall_spell_cd(icon)
     local ci = C_Spell.GetSpellCooldown(icon.id)
     if ci then
         icon._start, icon._duration, icon._isEnabled, icon._modRate = ci.startTime, ci.duration, ci.isEnabled, ci
-        .modRate
+            .modRate
         return ci.isEnabled
     end
 end
@@ -104,6 +104,46 @@ local function CreateCountText(icon)
     icon.count = count
 end
 
+-- Helper to safely check if icon is on active cooldown (avoiding secret value taint)
+local function IsCooldownActive(cooldownFrame, hasCharges, icon)
+    if not cooldownFrame then return false end
+
+    -- 1. Try Duration Object evaluation (Best for Spells in M+)
+    -- sfui.common.EvaluateCooldown uses Curve evaluation which is secret-safe
+    if icon and icon.id and not icon._isItem then
+        local durObj = sfui.common.GetCooldownDurationObj(icon.id)
+        if durObj then
+            local cdValue = sfui.common.EvaluateCooldown(durObj)
+            if cdValue > 0 then
+                -- Check for GCD to avoid desaturating during it
+                local ok_gcd, cdInfo = pcall(C_Spell.GetSpellCooldown, icon.id)
+                if ok_gcd and cdInfo and cdInfo.isOnGCD then
+                    return false
+                end
+                return not hasCharges
+            end
+            return false -- durObj exists but says spell is ready
+        end
+    end
+
+    -- 2. Frame Polling Fallback (For items and fallback cases)
+    local ok, durationMs = pcall(function() return cooldownFrame:GetCooldownDuration() end)
+
+    if not ok then return false end
+
+    if issecretvalue(durationMs) then
+        -- In protected context (M+), assume ON COOLDOWN if it's secret (and no charges)
+        return not hasCharges
+    end
+
+    if not durationMs or durationMs == 0 then
+        return false
+    end
+
+    -- Duration is in milliseconds, check if > 1500ms (1.5s) to exclude GCD
+    return (durationMs > 1500) and not hasCharges
+end
+
 -- Helper to update count text value
 local function UpdateCountText(icon, count)
     if not icon.count then CreateCountText(icon) end
@@ -145,7 +185,7 @@ local function UpdateIconState(icon, panelConfig)
             end
         end
 
-        if durObj and not issecretvalue(durObj) then
+        if durObj then
             pcall(pcall_sync_swipe, icon, durObj)
         else
             -- No duration object = Ready (Clear cooldown)
@@ -195,47 +235,68 @@ local function UpdateIconState(icon, panelConfig)
         local cdAlpha = GetIconValue(entrySettings, panelConfig, "cooldownAlpha", 1.0)
         local glowType = GetIconValue(entrySettings, panelConfig, "glowType", "blizzard")
 
-        -- Desaturation Logic (Mirror Cooldown State)
-        local desatState = not isReady
+        -- Desaturation & Opacity Logic (Strictly Cooldown-based, taint-safe)
+        local countSafe = sfui.common.SafeGT(count, 0)
+        local isOnCooldown = IsCooldownActive(icon.cooldown, countSafe, icon)
+
         if icon.texture then
-            icon.texture:SetDesaturated(useDesat and desatState)
-            icon.texture:SetAlpha(isReady and 1 or cdAlpha)
+            icon.texture:SetDesaturated(useDesat and isOnCooldown)
         end
+        icon:SetAlpha(isOnCooldown and cdAlpha or 1)
 
-        -- Glow Logic
+        -- Glow Logic with 5s duration limit
         if isReady and showGlow then
-            -- Resolved config for glow (REUSED TABLE)
-            _tempGlowCfg.glowType = glowType
-            _tempGlowCfg.glowColor = GetIconValue(entrySettings, panelConfig, "glowColor", _defaultColor)
-            _tempGlowCfg.glowScale = GetIconValue(entrySettings, panelConfig, "glowScale", 1.0)
-            _tempGlowCfg.glowIntensity = GetIconValue(entrySettings, panelConfig, "glowIntensity", 1.0)
-            _tempGlowCfg.glowSpeed = GetIconValue(entrySettings, panelConfig, "glowSpeed", 0.25)
+            -- Check if glow has been active for too long
+            local maxDuration = sfui.config.cooldown_panel_defaults.glow_max_duration or 5.0
+            local now = GetTime()
 
-            -- Restart if type or parameters changed
-            local needsRestart = false
-            if not icon._glowActive then
-                needsRestart = true
-            elseif icon._lastGlowType ~= glowType then
-                needsRestart = true
-            elseif not icon._lastGlowCfg then
-                needsRestart = true
-            else
-                local prev = icon._lastGlowCfg
-                if math.abs(prev.glowColor.r - _tempGlowCfg.glowColor.r) > 0.01 or
-                    math.abs(prev.glowColor.g - _tempGlowCfg.glowColor.g) > 0.01 or
-                    math.abs(prev.glowColor.b - _tempGlowCfg.glowColor.b) > 0.01 or
-                    math.abs(prev.glowScale - _tempGlowCfg.glowScale) > 0.01 or
-                    math.abs(prev.glowIntensity - _tempGlowCfg.glowIntensity) > 0.01 or
-                    math.abs(prev.glowSpeed - _tempGlowCfg.glowSpeed) > 0.01 then
+            if not icon._glowStartTime then
+                icon._glowStartTime = now
+            end
+
+            local elapsed = now - icon._glowStartTime
+
+            if elapsed < maxDuration then
+                -- Resolved config for glow (REUSED TABLE)
+                _tempGlowCfg.glowType = glowType
+                _tempGlowCfg.glowColor = GetIconValue(entrySettings, panelConfig, "glowColor", _defaultColor)
+                _tempGlowCfg.glowScale = GetIconValue(entrySettings, panelConfig, "glowScale", 1.0)
+                _tempGlowCfg.glowIntensity = GetIconValue(entrySettings, panelConfig, "glowIntensity", 1.0)
+                _tempGlowCfg.glowSpeed = GetIconValue(entrySettings, panelConfig, "glowSpeed", 0.25)
+
+                -- Restart if type or parameters changed
+                local needsRestart = false
+                if not icon._glowActive then
                     needsRestart = true
+                elseif icon._lastGlowType ~= glowType then
+                    needsRestart = true
+                elseif not icon._lastGlowCfg then
+                    needsRestart = true
+                else
+                    local prev = icon._lastGlowCfg
+                    if math.abs(prev.glowColor.r - _tempGlowCfg.glowColor.r) > 0.01 or
+                        math.abs(prev.glowColor.g - _tempGlowCfg.glowColor.g) > 0.01 or
+                        math.abs(prev.glowColor.b - _tempGlowCfg.glowColor.b) > 0.01 or
+                        math.abs(prev.glowScale - _tempGlowCfg.glowScale) > 0.01 or
+                        math.abs(prev.glowIntensity - _tempGlowCfg.glowIntensity) > 0.01 or
+                        math.abs(prev.glowSpeed - _tempGlowCfg.glowSpeed) > 0.01 then
+                        needsRestart = true
+                    end
+                end
+
+                if needsRestart then
+                    if icon._glowActive then StopGlow(icon) end
+                    StartGlow(icon, _tempGlowCfg)
+                end
+            else
+                -- Exceeded duration, stop glow
+                if icon._glowActive then
+                    StopGlow(icon)
                 end
             end
-
-            if needsRestart then
-                if icon._glowActive then StopGlow(icon) end
-                StartGlow(icon, _tempGlowCfg)
-            end
         else
+            -- Reset start time when not ready
+            icon._glowStartTime = nil
             if icon._glowActive then
                 StopGlow(icon)
             end
@@ -349,9 +410,22 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
     -- Ensure panel position is updated from Config with Dynamic Anchoring
     panelFrame:ClearAllPoints()
     local isLeft = (panelConfig.x or 0) < 0
-    local anchor = isLeft and "TOPRIGHT" or "TOPLEFT"
+    local rawAnchor = panelConfig.anchor or (isLeft and "topright" or "topleft")
+    local anchor = string.upper(rawAnchor)
 
-    panelFrame:SetPoint(anchor, UIParent, "BOTTOM", panelConfig.x or 0, panelConfig.y or 0)
+    local targetFrame = UIParent
+    local targetPoint = "BOTTOM"
+    local anchorTo = panelConfig.anchorTo or "UIParent"
+
+    if anchorTo == "Health Bar" and _G["sfui_bar0_Backdrop"] then
+        targetFrame = _G["sfui_bar0_Backdrop"]
+        targetPoint = "TOP" -- Default to top when anchoring to bars
+    elseif anchorTo == "Tracked Bars" and _G["SfuiTrackedBarsContainer"] then
+        targetFrame = _G["SfuiTrackedBarsContainer"]
+        targetPoint = "TOP"
+    end
+
+    panelFrame:SetPoint(anchor, targetFrame, targetPoint, panelConfig.x or 0, panelConfig.y or 0)
 
     -- Hide all known icons first (full redraw of state)
     -- Safe out of combat
@@ -395,6 +469,11 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
     local numColumns = panelConfig.columns or #activeIcons
     if numColumns < 1 then numColumns = 1 end
 
+    local growthH = panelConfig.growthH or (rawAnchor == "topright" and "Left" or "Right")
+    local growthV = panelConfig.growthV or "Down"
+    local hSign = (growthH == "Left") and -1 or 1
+    local vSign = (growthV == "Up") and 1 or -1
+
     local maxWidth, maxHeight = 0, 0
 
     for i, icon in ipairs(activeIcons) do
@@ -404,14 +483,10 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
         local col = (i - 1) % numColumns
         local row = math.floor((i - 1) / numColumns)
 
-        local x = col * (size + spacing)
-        local y = -row * (size + spacing)
+        local ox = col * (size + spacing) * hSign
+        local oy = row * (size + spacing) * vSign
 
-        if isLeft then
-            icon:SetPoint("TOPRIGHT", panelFrame, "TOPRIGHT", -x, y)
-        else
-            icon:SetPoint("TOPLEFT", panelFrame, "TOPLEFT", x, y)
-        end
+        icon:SetPoint(anchor, panelFrame, anchor, ox, oy)
 
         maxWidth = math.max(maxWidth, (col + 1) * (size + spacing) - spacing)
         maxHeight = math.max(maxHeight, (row + 1) * (size + spacing) - spacing)
@@ -421,12 +496,18 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
 end
 
 function sfui.trackedicons.Update()
-    -- DB Migration / Initialization
-    if not SfuiDB.cooldownPanels or not SfuiDB.iconsInitialized then
-        SfuiDB.cooldownPanels = SfuiDB.cooldownPanels or {}
-        SfuiDB.iconsInitialized = true
+    -- Per-spec DB Migration / Initialization
+    local specID = sfui.common.get_current_spec_id()
+    if not specID or specID == 0 then return end -- No spec yet
+
+    SfuiDB.iconsInitializedBySpec = SfuiDB.iconsInitializedBySpec or {}
+
+    if not SfuiDB.iconsInitializedBySpec[specID] then
+        local panels = sfui.common.get_cooldown_panels()
+        SfuiDB.iconsInitializedBySpec[specID] = true
 
         local leftEntries = {}
+        local rightEntries = {}
 
         -- Migrate legacy trackedIcons if present
         if SfuiDB.trackedIcons then
@@ -438,37 +519,45 @@ function sfui.trackedicons.Update()
             SfuiDB.trackedIcons = nil -- Clear old
         end
 
-        -- Default Left Panel
-        table.insert(SfuiDB.cooldownPanels, {
-            name = "Left Panel",
-            point = "BOTTOM",
-            relativePoint = "BOTTOM",
-            x = -300,
-            y = 250,
-            size = 40,
-            spacing = 5,
-            enabled = true,
-            entries = leftEntries -- Put migrated icons here
-        })
+        -- Get defaults from config
+        local leftDefaults = sfui.config.cooldown_panel_defaults.left
+        local rightDefaults = sfui.config.cooldown_panel_defaults.right
 
-        -- Default Right Panel
-        table.insert(SfuiDB.cooldownPanels, {
-            name = "Right Panel",
-            point = "BOTTOM",
-            relativePoint = "BOTTOM",
-            x = 300,
-            y = 250,
-            size = 40,
-            spacing = 5,
-            enabled = true,
-            entries = {}
-        })
+        -- Deep copy helper
+        local function CopyDefaults(src)
+            local copy = {}
+            for k, v in pairs(src) do
+                if type(v) == "table" then
+                    copy[k] = {}
+                    for tk, tv in pairs(v) do
+                        copy[k][tk] = tv
+                    end
+                else
+                    copy[k] = v
+                end
+            end
+            return copy
+        end
+
+        -- Default Left Panel for this spec
+        local leftPanel = CopyDefaults(leftDefaults)
+        leftPanel.entries = leftEntries -- Add migrated icons
+        table.insert(panels, leftPanel)
+
+        -- Default Right Panel for this spec
+        local rightPanel = CopyDefaults(rightDefaults)
+        rightPanel.entries = rightEntries -- Add migrated icons
+        table.insert(panels, rightPanel)
+
+        -- Save panels to spec
+        sfui.common.set_cooldown_panels(panels)
     end
 
-    if not SfuiDB or not SfuiDB.cooldownPanels then return end
+    local panelConfigs = sfui.common.get_cooldown_panels()
+    if not panelConfigs then return end
 
     -- Render Panels
-    for i, panelConfig in ipairs(SfuiDB.cooldownPanels) do
+    for i, panelConfig in ipairs(panelConfigs) do
         if panelConfig.enabled then
             if not panels[i] then
                 panels[i] = CreateFrame("Frame", "SfuiIconPanel_" .. i, UIParent)
@@ -489,23 +578,79 @@ function sfui.trackedicons.initialize()
     eventFrame:RegisterEvent("SPELL_UPDATE_COOLDOWN")
     eventFrame:RegisterEvent("BAG_UPDATE_COOLDOWN")
     eventFrame:RegisterEvent("UNIT_AURA")
-    eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED") -- To retry layout updates
-    eventFrame:SetScript("OnEvent", function(self, event)
+    eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")          -- To retry layout updates
+    eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED") -- Reload panels on spec change
+    eventFrame:SetScript("OnEvent", function(self, event, unitTarget, updateInfo)
         if event == "PLAYER_REGEN_ENABLED" then
             sfui.trackedicons.Update()
-        elseif event == "PLAYER_ENTERING_WORLD" then
+        elseif event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_SPECIALIZATION_CHANGED" then
             -- Force a sync of spell data before UI refresh
             if sfui.common.SyncTrackedSpells then
                 sfui.common.SyncTrackedSpells()
             end
             sfui.trackedicons.Update()
+        elseif event == "UNIT_AURA" and unitTarget == "player" then
+            -- NEW: Use updateInfo for targeted updates (12.0.1.65867+)
+            if updateInfo and not InCombatLockdown() then
+                local needsFullUpdate = false
+
+                -- Process added auras
+                if updateInfo.addedAuras and #updateInfo.addedAuras > 0 then
+                    needsFullUpdate = true -- Full update needed to add new icons
+                end
+
+                -- Process updated auras (cooldown/stack changes)
+                if updateInfo.updatedAuraInstanceIDs and not needsFullUpdate then
+                    for _, instanceID in ipairs(updateInfo.updatedAuraInstanceIDs) do
+                        pcall(function()
+                            -- Update icons tracking this instance
+                            local panelConfigs = sfui.common.get_cooldown_panels()
+                            for i, panel in pairs(panels) do
+                                local config = panelConfigs[i]
+                                if panel.icons then
+                                    for _, icon in pairs(panel.icons) do
+                                        if icon.auraInstanceID == instanceID then
+                                            UpdateIconState(icon, config)
+                                        end
+                                    end
+                                end
+                            end
+                        end)
+                    end
+                end
+
+                -- Process removed auras
+                if updateInfo.removedAuraInstanceIDs and #updateInfo.removedAuraInstanceIDs > 0 then
+                    needsFullUpdate = true -- Full update needed to remove icons
+                end
+
+                -- Do full update if needed
+                if needsFullUpdate then
+                    sfui.trackedicons.Update()
+                end
+            else
+                -- Fallback: Generic update (backwards compatibility or combat)
+                if InCombatLockdown() then
+                    local panelConfigs = sfui.common.get_cooldown_panels()
+                    for i, panel in pairs(panels) do
+                        local config = panelConfigs[i]
+                        if panel.icons then
+                            for _, icon in pairs(panel.icons) do
+                                UpdateIconState(icon, config)
+                            end
+                        end
+                    end
+                else
+                    sfui.trackedicons.Update()
+                end
+            end
         else
-            -- For visual updates (cooldowns), we can run in combat
-            -- But layout updates (add/remove) must be skipped
+            -- Other events: use existing logic
             if InCombatLockdown() then
                 -- Iterate existing panels and just update states/cooldowns
+                local panelConfigs = sfui.common.get_cooldown_panels()
                 for i, panel in pairs(panels) do
-                    local config = SfuiDB.cooldownPanels[i]
+                    local config = panelConfigs[i]
                     if panel.icons then
                         for _, icon in pairs(panel.icons) do
                             UpdateIconState(icon, config)
@@ -524,9 +669,10 @@ function sfui.trackedicons.initialize()
         lastUpdate = lastUpdate + elapsed
         if lastUpdate > 0.1 then
             lastUpdate = 0
-            if not InCombatLockdown() or SfuiDB.cooldownPanels then
+            local panelConfigs = sfui.common.get_cooldown_panels()
+            if not InCombatLockdown() or panelConfigs then
                 for i, panel in pairs(panels) do
-                    local config = SfuiDB.cooldownPanels[i]
+                    local config = panelConfigs[i]
                     if panel.icons then
                         for _, icon in pairs(panel.icons) do
                             UpdateIconState(icon, config)

@@ -9,7 +9,7 @@ do
     local vigor_bar
     local mount_speed_bar
     local rune_bar
-    local UpdateMountSpeedBarInternal
+    local update_mount_speed_bar_internal
 
     -- Throttling system for high-frequency events
     local tCfg = sfui.config.throttle
@@ -623,6 +623,16 @@ do
         bar.TextValue:SetShadowOffset(1, -1)
         bar.TextValue:SetPoint("CENTER")
         bar.lastSpeed = 0 -- Cache for change detection
+
+        -- Speed requires polling as there is no gliding speed event
+        bar:SetScript("OnUpdate", function(self, elapsed)
+            self.timer = (self.timer or 0) + elapsed
+            if self.timer > 0.1 then -- Throttled to 10fps
+                self.timer = 0
+                update_mount_speed_bar_internal()
+            end
+        end)
+
         mount_speed_bar = bar
         return bar
     end
@@ -683,7 +693,7 @@ do
         update_bar1()
         update_vigor_bar()
         update_rune_bar()
-        sfui.bars:update_mount_speed_bar()
+        update_mount_speed_bar_internal()
         update_bar_visibility()
     end
 

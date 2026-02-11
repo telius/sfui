@@ -65,8 +65,39 @@ function sfui.common.GetCooldownDurationObj(spellID)
             ok, obj = pcall(pcall_spell_dur, spellID)
         end
     end
-    if issecretvalue(obj) then return nil end
+    -- Support secret duration objects for curve evaluation (ArcUI pattern)
     return obj
+end
+
+-- Global curves for secret-safe evaluation
+local function InitCurves()
+    if sfui.common.BinaryCurve then return end
+    if not _G.C_CurveUtil or not _G.C_CurveUtil.CreateCurve then return end
+
+    local curve = _G.C_CurveUtil.CreateCurve()
+    curve:AddPoint(0.0, 0)   -- 0% remaining (ready) -> 0
+    curve:AddPoint(0.001, 1) -- >0% remaining (on CD) -> 1
+    curve:AddPoint(1.0, 1)
+    sfui.common.BinaryCurve = curve
+end
+
+-- Safely evaluate a duration object (returns 1 for on CD, 0 for ready)
+function sfui.common.EvaluateCooldown(durObj)
+    if not durObj then return 0 end
+    if not sfui.common.BinaryCurve then InitCurves() end
+    if not sfui.common.BinaryCurve then
+        -- Fallback if curves not supported
+        return issecretvalue(durObj) and 1 or 0
+    end
+
+    -- EvaluateRemainingPercent is secret-safe: returns non-secret number from secret duration object
+    local ok, result = pcall(function() return durObj:EvaluateRemainingPercent(sfui.common.BinaryCurve) end)
+    if ok and result then
+        return result
+    else
+        -- Fallback: if it's a secret object, we treat it as active
+        return issecretvalue(durObj) and 1 or 0
+    end
 end
 
 -- Safe comparison helpers (Crash-proof against Secret Values in M+)
@@ -211,11 +242,65 @@ function sfui.common.ensure_tracked_bar_db(cooldownID)
     return SfuiDB.trackedBars
 end
 
--- Helper to safely ensure tracked icon DB structure exists
+-- ========================================
+-- Per-Spec Panel Configuration Helpers
+-- ========================================
+
+-- One-time migration from old flat array to per-spec structure
+function sfui.common.migrate_cooldown_panels_to_spec()
+    -- Skip if already migrated or nothing to migrate
+    if SfuiDB.cooldownPanelsBySpec or not SfuiDB.cooldownPanels then
+        return
+    end
+
+    -- Get current spec
+    local currentSpecID = sfui.common.get_current_spec_id()
+    if not currentSpecID or currentSpecID == 0 then
+        -- No spec yet (low level character), defer migration
+        return
+    end
+
+    -- Migrate existing panels to current spec
+    SfuiDB.cooldownPanelsBySpec = {
+        [currentSpecID] = SfuiDB.cooldownPanels
+    }
+
+    -- Mark old format as migrated (keep for reference but don't use)
+    SfuiDB._cooldownPanelsMigrated = true
+end
+
+-- Get panels for current spec
+function sfui.common.get_cooldown_panels()
+    local specID = sfui.common.get_current_spec_id()
+    if not specID or specID == 0 then
+        -- Fallback to empty table if no spec
+        return {}
+    end
+
+    SfuiDB.cooldownPanelsBySpec = SfuiDB.cooldownPanelsBySpec or {}
+    SfuiDB.cooldownPanelsBySpec[specID] = SfuiDB.cooldownPanelsBySpec[specID] or {}
+
+    return SfuiDB.cooldownPanelsBySpec[specID]
+end
+
+-- Set panels for current spec
+function sfui.common.set_cooldown_panels(panels)
+    local specID = sfui.common.get_current_spec_id()
+    if not specID or specID == 0 then return end
+
+    SfuiDB.cooldownPanelsBySpec = SfuiDB.cooldownPanelsBySpec or {}
+    SfuiDB.cooldownPanelsBySpec[specID] = panels
+end
+
+-- Get panel at index for current spec
+function sfui.common.get_cooldown_panel(index)
+    local panels = sfui.common.get_cooldown_panels()
+    return panels[index]
+end
+
+-- Backwards compatibility wrapper - now returns per-spec panels
 function sfui.common.ensure_tracked_icon_db()
-    SfuiDB = SfuiDB or {}
-    SfuiDB.cooldownPanels = SfuiDB.cooldownPanels or {}
-    return SfuiDB.cooldownPanels
+    return sfui.common.get_cooldown_panels()
 end
 
 local powerTypeToName = {}
@@ -537,18 +622,21 @@ function sfui.common.create_checkbox(parent, label, dbKeyOrGetter, onClickFunc, 
     cb.text:SetPoint("LEFT", cb, "RIGHT", 5, 0)
     cb.text:SetText(label)
 
+    local function updateChecked()
+        if type(dbKeyOrGetter) == "string" then
+            if SfuiDB[dbKeyOrGetter] ~= nil then cb:SetChecked(SfuiDB[dbKeyOrGetter]) end
+        elseif type(dbKeyOrGetter) == "function" then
+            cb:SetChecked(dbKeyOrGetter())
+        end
+    end
+
     cb:SetScript("OnClick", function(self)
         local checked = self:GetChecked()
         if type(dbKeyOrGetter) == "string" then SfuiDB[dbKeyOrGetter] = checked end
         if onClickFunc then onClickFunc(checked) end
     end)
-    cb:SetScript("OnShow", function(self)
-        if type(dbKeyOrGetter) == "string" then
-            if SfuiDB[dbKeyOrGetter] ~= nil then self:SetChecked(SfuiDB[dbKeyOrGetter]) end
-        elseif type(dbKeyOrGetter) == "function" then
-            self:SetChecked(dbKeyOrGetter())
-        end
-    end)
+    cb:SetScript("OnShow", updateChecked)
+    updateChecked() -- Initialize state immediately
 
     if tooltip then
         cb:SetScript("OnEnter", function(self)
@@ -643,9 +731,10 @@ function sfui.common.create_cvar_checkbox(parent, label, cvar, tooltip)
     end, tooltip)
 end
 
-function sfui.common.create_slider_input(parent, label, dbKeyOrGetter, minVal, maxVal, step, onValueChangedFunc)
+function sfui.common.create_slider_input(parent, label, dbKeyOrGetter, minVal, maxVal, step, onValueChangedFunc, width)
     local container = CreateFrame("Frame", nil, parent)
-    container:SetSize(160, 40) -- Compact height
+    local w = width or 160
+    container:SetSize(w, 40) -- Compact height
 
     local title = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     title:SetPoint("TOPLEFT", 0, 0)
@@ -654,7 +743,7 @@ function sfui.common.create_slider_input(parent, label, dbKeyOrGetter, minVal, m
 
     local slider = CreateFrame("Slider", nil, container, "BackdropTemplate")
     slider:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -2)
-    slider:SetSize(100, 10) -- Smaller width
+    slider:SetSize(w - 60, 10) -- Dynamic width
     slider:SetOrientation("HORIZONTAL")
     slider:SetMinMaxValues(minVal, maxVal)
     slider:SetValueStep(step)

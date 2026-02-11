@@ -101,6 +101,56 @@ sfui.config = {
         [73] = { r = 1.00, g = 0.00, b = 0.00 },      -- Protection
     },
 
+    -- Default panel settings for tracked icons
+    cooldown_panel_defaults = {
+        left = {
+            name = "Left",
+            anchor = "topleft",
+            growthH = "Left",
+            growthV = "Down",
+            x = -425,
+            y = 295,
+            size = 40,
+            spacing = 2,
+            columns = 4,
+            enabled = true,
+            textEnabled = true,
+            textColor = { r = 1, g = 1, b = 1 },
+            readyGlow = true,
+            cooldownDesat = true,
+            cooldownAlpha = 0.5, -- Only applied when on cooldown
+            glowType = "blizzard",
+            glowColor = { r = 1, g = 1, b = 0 },
+            glowScale = 1.0,
+            glowIntensity = 1.0,
+            glowSpeed = 0.25,
+        },
+        right = {
+            name = "Right",
+            anchor = "topleft",
+            growthH = "Right",
+            growthV = "Down",
+            x = 210,
+            y = 295,
+            size = 50,
+            spacing = 2,
+            columns = 4,
+            enabled = true,
+            textEnabled = true,
+            textColor = { r = 1, g = 1, b = 1 },
+            readyGlow = true,
+            cooldownDesat = true,
+            cooldownAlpha = 1.0,
+            glowType = "blizzard",
+            glowColor = { r = 1, g = 1, b = 0 },
+            glowScale = 1.0,
+            glowIntensity = 1.0,
+            glowSpeed = 0.25,
+        },
+        -- Glow duration limit (seconds)
+        glow_max_duration = 5.0,
+    },
+
     -- options panel specific settings
     options_panel = {
         width = 500,

@@ -76,6 +76,11 @@ event_frame:SetScript("OnEvent", function(self, event, ...)
                 sfui.initialize_database()
             end
 
+            -- Migrate cooldown panels to per-spec structure
+            if sfui.common and sfui.common.migrate_cooldown_panels_to_spec then
+                sfui.common.migrate_cooldown_panels_to_spec()
+            end
+
             local tocVersion = C_AddOns.GetAddOnMetadata("sfui", "Version")
             if tocVersion then
                 sfui.config.version = tocVersion

@@ -661,6 +661,47 @@ local function UpdateBarsState()
     end
 end
 
+-- Event-driven stack count updates using new UNIT_AURA updateInfo (12.0.1.65867+)
+local function HandleUnitAuraUpdate(unitTarget, updateInfo)
+    if unitTarget ~= "player" then return end
+    if not updateInfo then return end -- Backwards compatibility
+    if not container or not container.bars then return end
+
+    -- Process updated auras (includes stack count changes)
+    local updatedIDs = updateInfo.updatedAuraInstanceIDs or {}
+    for _, auraInstanceID in ipairs(updatedIDs) do
+        pcall(function()
+            -- Find bars tracking this aura instance
+            for _, barFrame in pairs(container.bars) do
+                if barFrame.auraInstanceID == auraInstanceID then
+                    local unit = barFrame.auraDataUnit or "player"
+                    local auraData = C_UnitAuras.GetAuraDataByAuraInstanceID(unit, auraInstanceID)
+
+                    if auraData and not sfui.common.issecretvalue(auraData.applications) then
+                        barFrame.currentStacks = sfui.common.SafeValue(auraData.applications, 0)
+                        local config = GetTrackedBarConfig(barFrame.cooldownID)
+                        if config and config.showStacksText then
+                            sfui.common.SafeSetText(barFrame.time, tostring(barFrame.currentStacks))
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    -- Process removed auras
+    local removedIDs = updateInfo.removedAuraInstanceIDs or {}
+    for _, auraInstanceID in ipairs(removedIDs) do
+        -- Clear stack display for removed auras
+        for _, barFrame in pairs(container.bars) do
+            if barFrame.auraInstanceID == auraInstanceID then
+                barFrame.currentStacks = 0
+                sfui.common.SafeSetText(barFrame.time, "")
+            end
+        end
+    end
+end
+
 function sfui.trackedbars.initialize()
     if container then return end
     local loaded, reason = C_AddOns.LoadAddOn("Blizzard_CooldownViewer")
@@ -706,6 +747,15 @@ function sfui.trackedbars.initialize()
             HookBlizzardFrame(frame)
         end
     end
+
+    -- Register UNIT_AURA event for instant stack updates (12.0.1.65867+)
+    local eventFrame = CreateFrame("Frame")
+    eventFrame:RegisterEvent("UNIT_AURA")
+    eventFrame:SetScript("OnEvent", function(self, event, unitTarget, updateInfo)
+        if event == "UNIT_AURA" then
+            HandleUnitAuraUpdate(unitTarget, updateInfo)
+        end
+    end)
 
     -- Hide Blizzard Frame
     if BuffBarCooldownViewer then
