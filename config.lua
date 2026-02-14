@@ -106,7 +106,7 @@ sfui.config = {
         left = {
             name = "Left",
             anchor = "topleft",
-            growthH = "Left",
+            growthH = "Right",
             growthV = "Down",
             x = -425,
             y = 295,
@@ -116,39 +116,60 @@ sfui.config = {
             enabled = true,
             textEnabled = true,
             textColor = { r = 1, g = 1, b = 1 },
-            readyGlow = true,
-            cooldownDesat = true,
-            cooldownAlpha = 0.5, -- Only applied when on cooldown
-            glowType = "blizzard",
-            glowColor = { r = 1, g = 1, b = 0 },
-            glowScale = 1.0,
-            glowIntensity = 1.0,
-            glowSpeed = 0.25,
         },
         right = {
             name = "Right",
-            anchor = "topleft",
-            growthH = "Right",
+            anchor = "topright",
+            growthH = "Left",
             growthV = "Down",
-            x = 210,
+            x = 425,
             y = 295,
-            size = 50,
+            size = 40,
             spacing = 2,
             columns = 4,
             enabled = true,
             textEnabled = true,
             textColor = { r = 1, g = 1, b = 1 },
-            readyGlow = true,
-            cooldownDesat = true,
-            cooldownAlpha = 1.0,
-            glowType = "blizzard",
-            glowColor = { r = 1, g = 1, b = 0 },
-            glowScale = 1.0,
-            glowIntensity = 1.0,
-            glowSpeed = 0.25,
+        },
+        center = {
+            name = "CENTER",
+            anchor = "center",
+            growthH = "Center",
+            growthV = "Down",
+            x = 0,
+            y = 232,
+            size = 50,
+            spacing = 1,
+            columns = 10,
+            enabled = true,
+            textEnabled = true,
+            textColor = { r = 1, g = 1, b = 1 },
         },
         -- Glow duration limit (seconds)
         glow_max_duration = 5.0,
+    },
+
+    -- Global defaults for icon panels (can be overridden per-panel or per-icon)
+    -- These provide fallback values for all visual effect settings
+    icon_panel_global_defaults = {
+        -- Ready Glow (when spell is off cooldown/available)
+        readyGlow = true,                    -- Enable glow when ready
+        glowType = "pixel",                  -- Options: pixel, autocast, proc, button
+        glowColor = { r = 1, g = 1, b = 0 }, -- Yellow by default
+        glowScale = 1.0,
+        glowIntensity = 1.0,
+        glowSpeed = 1.0,         -- Changed from 0.25 to 1.0 per user request
+        glowLines = 4,           -- Pixel glow: number of particles
+        glowThickness = 1,       -- Pixel glow: line thickness
+        glowParticles = 4,       -- Autocast glow: particle count
+        glow_max_duration = 5.0, -- Max seconds to show glow
+
+        -- Cooldown Visual State
+        cooldownDesat = true, -- Desaturate while on cooldown
+
+        -- Text Display
+        textEnabled = true,                  -- Show countdown numbers on icons
+        textColor = { r = 1, g = 1, b = 1 }, -- White text
     },
 
     -- options panel specific settings

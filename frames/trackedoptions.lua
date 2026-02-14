@@ -146,26 +146,313 @@ local function CreateCooldownsFrame()
     -- Tabs Container (Header)
     frame.tabs = {}
 
-    -- Tab 1: Bars
-    local barsBtn = CreateNavButton(frame, "bars", 1)
-    barsBtn:SetPoint("LEFT", blizBtn, "RIGHT", 5, 0)
+    -- Tab 1: Global Settings
+    local globalBtn = CreateNavButton(frame, "global", 1)
+    globalBtn:SetPoint("LEFT", blizBtn, "RIGHT", 5, 0)
 
-    -- Tab 2: Icons
-    local iconsBtn = CreateNavButton(frame, "icons", 2)
+    -- Tab 2: Bars
+    local barsBtn = CreateNavButton(frame, "bars", 2)
+    barsBtn:SetPoint("LEFT", globalBtn, "RIGHT", 5, 0)
+
+    -- Tab 3: Icons
+    local iconsBtn = CreateNavButton(frame, "icons", 3)
     iconsBtn:SetPoint("LEFT", barsBtn, "RIGHT", 5, 0)
 
     sfui.trackedoptions.selectedPanelIndex = 1
     sfui.trackedoptions.selectedEntryIndex = nil
 
-    local header_text = frame:CreateFontString(nil, "OVERLAY", g.font_large)
-    header_text:SetPoint("TOP", frame, "TOP", 0, -5)
-    header_text:SetTextColor(g.header_color[1], g.header_color[2], g.header_color[3])
-    header_text:SetText("tracking manager")
+    -- ═══════════════════════════════════════
+    -- Tab 1: Global Settings Panel
+    -- ═══════════════════════════════════════
+    local globalPanel = CreateFrame("Frame", nil, frame)
+    globalPanel:SetPoint("TOPLEFT", 10, -35)
+    globalPanel:SetPoint("BOTTOMRIGHT", -10, 10)
+    globalPanel:Hide()
 
-    -- Content Panels
+    local globScroll = CreateFrame("ScrollFrame", nil, globalPanel, "UIPanelScrollFrameTemplate")
+    globScroll:SetPoint("TOPLEFT", 0, 0)
+    globScroll:SetPoint("BOTTOMRIGHT", -25, 0)
+    local globContent = CreateFrame("Frame", nil, globScroll)
+    globContent:SetSize(800, 600)
+    globScroll:SetScrollChild(globContent)
+
+    -- Initialize global settings if not present
+    SfuiDB.iconGlobalSettings = SfuiDB.iconGlobalSettings or {}
+    local globalCfg = SfuiDB.iconGlobalSettings
+
+    -- Two-column layout
+    local leftCol = 10   -- Left column X position
+    local rightCol = 390 -- Right column X position
+    local gy = -10       -- Y position tracker
+    local colWidth = 350 -- Column width
+
+    local function AddGlobalHeader(text, xPos)
+        local h = globContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        h:SetPoint("TOPLEFT", xPos, gy)
+        h:SetText(text)
+        h:SetTextColor(g.colors.cyan[1], g.colors.cyan[2], g.colors.cyan[3])
+        return h
+    end
+
+    -- ===== LEFT COLUMN: GLOW SETTINGS =====
+    AddGlobalHeader("ready glow settings", leftCol)
+    gy = gy - 25
+
+    -- Glow Preview Icon (create early so UpdateGlowPreview can reference it)
+    local previewIcon = CreateFrame("Button", "SfuiGlowPreviewIcon", globContent)
+    previewIcon:SetSize(64, 64)
+    previewIcon:SetPoint("TOPLEFT", leftCol, gy)
+
+    local previewTex = previewIcon:CreateTexture(nil, "ARTWORK")
+    previewTex:SetAllPoints()
+    previewTex:SetTexture(136145) -- Death Coil icon
+    previewIcon.texture = previewTex
+
+    -- Preview label
+    local previewLabel = globContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    previewLabel:SetPoint("LEFT", previewIcon, "RIGHT", 10, 0)
+    previewLabel:SetText("preview →")
+
+    gy = gy - 80
+
+    -- Update function for preview glow (defined early so callbacks can use it)
+    local function UpdateGlowPreview()
+        if not sfui.glows then return end
+
+        -- Stop existing glow
+        sfui.glows.stop_glow(previewIcon)
+
+        -- Start new glow if enabled
+        if globalCfg.readyGlow then
+            local glowCfg = {
+                glowType = globalCfg.glowType or g.icon_panel_global_defaults.glowType,
+                glowColor = globalCfg.glowColor or g.icon_panel_global_defaults.glowColor,
+                glowScale = globalCfg.glowScale or g.icon_panel_global_defaults.glowScale,
+                glowIntensity = globalCfg.glowIntensity or g.icon_panel_global_defaults.glowIntensity,
+                glowSpeed = globalCfg.glowSpeed or g.icon_panel_global_defaults.glowSpeed,
+                glowLines = globalCfg.glowLines or g.icon_panel_global_defaults.glowLines,
+                glowThickness = globalCfg.glowThickness or g.icon_panel_global_defaults.glowThickness,
+                glowParticles = globalCfg.glowParticles or g.icon_panel_global_defaults.glowParticles
+            }
+            sfui.glows.start_glow(previewIcon, glowCfg)
+        end
+    end
+
+    local glowChk = sfui.common.create_checkbox(globContent, "enable ready glow", nil, function(val)
+        globalCfg.readyGlow = val
+        UpdateGlowPreview()
+        if sfui.trackedicons and sfui.trackedicons.ForceRefreshGlows then sfui.trackedicons.ForceRefreshGlows() end
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end)
+    glowChk:SetPoint("TOPLEFT", leftCol, gy)
+    glowChk:SetChecked(globalCfg.readyGlow ~= nil and globalCfg.readyGlow or g.icon_panel_global_defaults.readyGlow)
+    gy = gy - 30
+
+    -- Initial preview
+    UpdateGlowPreview()
+    gy = gy - 10
+
+    -- Glow Type Dropdown
+    local glowTypeLabel = globContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    glowTypeLabel:SetPoint("TOPLEFT", leftCol, gy)
+    glowTypeLabel:SetText("glow type")
+    gy = gy - 20
+
+    local glowTypeDrop = CreateFrame("Frame", "SfuiGlobalGlowTypeDropdown", globContent, "UIDropDownMenuTemplate")
+    glowTypeDrop:SetPoint("TOPLEFT", leftCol - 10, gy)
+    UIDropDownMenu_SetWidth(glowTypeDrop, 150)
+    UIDropDownMenu_SetText(glowTypeDrop, globalCfg.glowType or g.icon_panel_global_defaults.glowType)
+    UIDropDownMenu_Initialize(glowTypeDrop, function(self, level)
+        local info = UIDropDownMenu_CreateInfo()
+        for _, type in ipairs({ "pixel", "autocast", "proc", "button" }) do
+            info.text = type
+            info.func = function()
+                globalCfg.glowType = type
+                UIDropDownMenu_SetText(glowTypeDrop, type)
+                UpdateGlowPreview()
+                if sfui.trackedicons and sfui.trackedicons.ForceRefreshGlows then sfui.trackedicons.ForceRefreshGlows() end
+                if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+            end
+            UIDropDownMenu_AddButton(info)
+        end
+    end)
+    gy = gy - 40
+
+    -- Glow Color Picker
+    local glowColorLabel = globContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    glowColorLabel:SetPoint("TOPLEFT", leftCol, gy)
+    glowColorLabel:SetText("glow color")
+
+    local glowSwatch = sfui.common.create_color_swatch(globContent,
+        globalCfg.glowColor or g.icon_panel_global_defaults.glowColor,
+        function(r, gb, b)
+            globalCfg.glowColor = { r = r, g = gb, b = b }
+            UpdateGlowPreview()
+            if sfui.trackedicons and sfui.trackedicons.ForceRefreshGlows then sfui.trackedicons.ForceRefreshGlows() end
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end)
+    glowSwatch:SetPoint("LEFT", glowColorLabel, "RIGHT", 10, 0)
+    gy = gy - 35
+
+    -- Glow Sliders (2 per row)
+    local halfW = 165
+    local glowScale = sfui.common.create_slider_input(globContent, "scale:",
+        function() return SfuiDB.iconGlobalSettings.glowScale or 1.0 end,
+        0.5, 2.0, 0.1, function(val)
+            globalCfg.glowScale = val
+            UpdateGlowPreview()
+            if sfui.trackedicons and sfui.trackedicons.ForceRefreshGlows then sfui.trackedicons.ForceRefreshGlows() end
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end, halfW)
+    glowScale:SetPoint("TOPLEFT", leftCol, gy)
+
+    local glowIntensity = sfui.common.create_slider_input(globContent, "intensity:",
+        function() return SfuiDB.iconGlobalSettings.glowIntensity or 1.0 end,
+        0.1, 2.0, 0.1, function(val)
+            globalCfg.glowIntensity = val
+            UpdateGlowPreview()
+            if sfui.trackedicons and sfui.trackedicons.ForceRefreshGlows then sfui.trackedicons.ForceRefreshGlows() end
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end, halfW)
+    glowIntensity:SetPoint("TOPLEFT", leftCol + halfW + 10, gy)
+    gy = gy - 40
+
+    local glowSpeed = sfui.common.create_slider_input(globContent, "speed:",
+        function() return SfuiDB.iconGlobalSettings.glowSpeed or 1.0 end,
+        0.05, 1.0, 0.05, function(val)
+            globalCfg.glowSpeed = val
+            UpdateGlowPreview()
+            if sfui.trackedicons and sfui.trackedicons.ForceRefreshGlows then sfui.trackedicons.ForceRefreshGlows() end
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end, halfW)
+    glowSpeed:SetPoint("TOPLEFT", leftCol, gy)
+
+    local glowLines = sfui.common.create_slider_input(globContent, "lines:",
+        function() return SfuiDB.iconGlobalSettings.glowLines or 4 end,
+        4, 16, 1, function(val)
+            globalCfg.glowLines = val
+            UpdateGlowPreview()
+            if sfui.trackedicons and sfui.trackedicons.ForceRefreshGlows then sfui.trackedicons.ForceRefreshGlows() end
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end, halfW)
+    glowLines:SetPoint("TOPLEFT", leftCol + halfW + 10, gy)
+    gy = gy - 40
+
+    local glowThickness = sfui.common.create_slider_input(globContent, "thickness:",
+        function() return SfuiDB.iconGlobalSettings.glowThickness or 1 end,
+        1, 4, 0.5, function(val)
+            globalCfg.glowThickness = val
+            UpdateGlowPreview()
+            if sfui.trackedicons and sfui.trackedicons.ForceRefreshGlows then sfui.trackedicons.ForceRefreshGlows() end
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end, halfW)
+    glowThickness:SetPoint("TOPLEFT", leftCol, gy)
+
+    local glowParticles = sfui.common.create_slider_input(globContent, "particles:",
+        function() return SfuiDB.iconGlobalSettings.glowParticles or 4 end,
+        2, 8, 1, function(val)
+            globalCfg.glowParticles = val
+            UpdateGlowPreview()
+            if sfui.trackedicons and sfui.trackedicons.ForceRefreshGlows then sfui.trackedicons.ForceRefreshGlows() end
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end, halfW)
+    glowParticles:SetPoint("TOPLEFT", leftCol + halfW + 10, gy)
+
+    -- Reset Y for right column
+    local rightY = -10
+
+    -- ===== RIGHT COLUMN: COOLDOWN & TEXT SETTINGS =====
+    AddGlobalHeader("cooldown visual state", rightCol)
+    rightY = rightY - 25
+
+    local desatChk = sfui.common.create_checkbox(globContent, "desaturate on cooldown", nil, function(val)
+        globalCfg.cooldownDesat = val
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end)
+    desatChk:SetPoint("TOPLEFT", rightCol, rightY)
+    desatChk:SetChecked(globalCfg.cooldownDesat ~= nil and globalCfg.cooldownDesat or
+        g.icon_panel_global_defaults.cooldownDesat)
+    rightY = rightY - 30
+
+    rightY = rightY - 20
+
+    -- Text Settings
+    AddGlobalHeader("text display", rightCol)
+    rightY = rightY - 25
+
+    local textChk = sfui.common.create_checkbox(globContent, "show countdown text", nil, function(val)
+        globalCfg.textEnabled = val
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end)
+    textChk:SetPoint("TOPLEFT", rightCol, rightY)
+    textChk:SetChecked(globalCfg.textEnabled ~= nil and globalCfg.textEnabled or g.icon_panel_global_defaults
+        .textEnabled)
+    rightY = rightY - 30
+
+    local textColorLabel = globContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    textColorLabel:SetPoint("TOPLEFT", rightCol, rightY)
+    textColorLabel:SetText("text color")
+
+    local textSwatch = sfui.common.create_color_swatch(globContent,
+        globalCfg.textColor or g.icon_panel_global_defaults.textColor,
+        function(r, gb, b)
+            globalCfg.textColor = { r = r, g = gb, b = b }
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end)
+    textSwatch:SetPoint("LEFT", textColorLabel, "RIGHT", 10, 0)
+
+    -- Info text at bottom
+    rightY = rightY - 50
+    local infoText = globContent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    infoText:SetPoint("TOPLEFT", rightCol, rightY)
+    infoText:SetWidth(colWidth)
+    infoText:SetJustifyH("LEFT")
+    infoText:SetText(
+        "|cff888888These settings apply to all icon panels by default.\nPer-panel and per-icon overrides take priority.|r")
+
+    globContent:SetHeight(400) -- Fixed height since we're using columns
+
+    -- Function to update all UI controls from current globalCfg
+    local function UpdateGlobalControls()
+        -- Glow settings
+        if glowChk and glowChk.SetChecked then
+            glowChk:SetChecked(globalCfg.readyGlow)
+        end
+
+        if SfuiGlobalGlowTypeDropdown then
+            UIDropDownMenu_SetText(SfuiGlobalGlowTypeDropdown, globalCfg.glowType or "pixel")
+        end
+
+        -- Sliders
+        if glowScale and glowScale.SetSliderValue then glowScale:SetSliderValue(globalCfg.glowScale or 1.0) end
+        if glowIntensity and glowIntensity.SetSliderValue then
+            glowIntensity:SetSliderValue(globalCfg.glowIntensity or
+                1.0)
+        end
+        if glowSpeed and glowSpeed.SetSliderValue then glowSpeed:SetSliderValue(globalCfg.glowSpeed or 1.0) end
+        if glowLines and glowLines.SetSliderValue then glowLines:SetSliderValue(globalCfg.glowLines or 4) end
+        if glowThickness and glowThickness.SetSliderValue then glowThickness:SetSliderValue(globalCfg.glowThickness or 1) end
+        if glowParticles and glowParticles.SetSliderValue then glowParticles:SetSliderValue(globalCfg.glowParticles or 4) end
+
+        -- Text settings
+        if desatChk and desatChk.SetChecked then desatChk:SetChecked(globalCfg.cooldownDesat) end
+        if textChk and textChk.SetChecked then textChk:SetChecked(globalCfg.textEnabled) end
+
+        -- Refresh preview
+        UpdateGlowPreview()
+    end
+
+    -- Update controls when panel is shown (fixes reset bug)
+    globalPanel:SetScript("OnShow", UpdateGlobalControls)
+
+
+    -- ═══════════════════════════════════════
+    -- Tab 2: Bars Panel
+    -- ═══════════════════════════════════════
     local barsPanel = CreateFrame("Frame", nil, frame)
     barsPanel:SetPoint("TOPLEFT", 10, -50)
     barsPanel:SetPoint("BOTTOMRIGHT", -10, 10)
+    barsPanel:Hide()
 
     local barsScroll = CreateFrame("ScrollFrame", "SfuiTrackingBarsScroll", barsPanel, "UIPanelScrollFrameTemplate")
     barsScroll:SetPoint("TOPLEFT", 0, 0)
@@ -174,6 +461,7 @@ local function CreateCooldownsFrame()
     barsContent:SetSize(800, 1000)
     barsScroll:SetScrollChild(barsContent)
 
+    table.insert(frame.tabs, { button = globalBtn, panel = globalPanel, scrollChild = globContent })
     table.insert(frame.tabs, { button = barsBtn, panel = barsPanel, scrollChild = barsContent })
 
     local iconsPanel = CreateFrame("Frame", "SfuiIconsTab", frame)
@@ -293,17 +581,37 @@ local function CreateCooldownsFrame()
             columns = 10,
             textEnabled = true,
             textColor = { r = 1, g = 1, b = 1 },
-            readyGlow = true,
-            cooldownDesat = true,
-            cooldownAlpha = 1.0,
-            glowType = "blizzard",
-            glowColor = { r = 1, g = 1, b = 0 },
-            glowScale = 1.0,
-            glowIntensity = 1.0,
-            glowSpeed = 0.25
+            x = 0,
+            y = 250,
+            columns = 10,
+            textEnabled = true,
+            textColor = { r = 1, g = 1, b = 1 }
         })
         sfui.common.set_cooldown_panels(panels)
         sfui.trackedoptions.UpdateEditor()
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end)
+
+    local resetGlobalBtn = CreateFrame("Button", nil, globContent, "UIPanelButtonTemplate")
+    resetGlobalBtn:SetSize(80, 22)
+    resetGlobalBtn:SetText("reset defaults")
+    resetGlobalBtn:SetPoint("TOPRIGHT", globContent, "TOPRIGHT", -10, -10)
+    resetGlobalBtn:SetScript("OnClick", function()
+        globalCfg.readyGlow = true
+        globalCfg.glowType = "pixel"
+        globalCfg.glowColor = { r = 1, g = 1, b = 0 }
+        globalCfg.glowScale = 1.0
+        globalCfg.glowIntensity = 1.0
+        globalCfg.glowSpeed = 1.0
+        globalCfg.glowLines = 4
+        globalCfg.glowThickness = 1
+        globalCfg.glowParticles = 4
+        globalCfg.cooldownDesat = true
+        globalCfg.textEnabled = true
+        globalCfg.textColor = { r = 1, g = 1, b = 1 }
+
+        UpdateGlobalControls()
+        if sfui.trackedicons and sfui.trackedicons.ForceRefreshGlows then sfui.trackedicons.ForceRefreshGlows() end
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
     end)
 
@@ -326,6 +634,7 @@ local function CreateCooldownsFrame()
     local midPanel = CreateFrame("Frame", nil, iconsPanel, "BackdropTemplate")
     midPanel:SetBackdrop({ bgFile = g.textures.white })
     midPanel:SetBackdropColor(0.1, 0.1, 0.1, 0.6)
+    midPanel:EnableMouse(true)
 
     local midHeader = midPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     midHeader:SetPoint("TOPLEFT", 5, -5)
@@ -341,6 +650,40 @@ local function CreateCooldownsFrame()
 
     -- Drop Logic
     local function OnReceiveDrag()
+        -- NEW: Check if dragging from Cooldown Viewer
+        local cooldownID
+        if CooldownViewerSettings and CooldownViewerSettings.GetReorderSourceItem then
+            local sourceItem = CooldownViewerSettings:GetReorderSourceItem()
+            if sourceItem and sourceItem.GetCooldownID then
+                cooldownID = sourceItem:GetCooldownID()
+            end
+        end
+
+        if cooldownID and C_CooldownViewer then
+            local info = C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID)
+            if info and info.isKnown then
+                local idx = sfui.trackedoptions.selectedPanelIndex or 1
+                local panels = sfui.common.get_cooldown_panels()
+                local panel = panels and panels[idx]
+                if panel then
+                    panel.entries = panel.entries or {}
+                    table.insert(panel.entries, {
+                        type = "cooldown",
+                        cooldownID = cooldownID,
+                        spellID = info.spellID,
+                        id = info.spellID, -- For compatibility
+                        settings = { showText = true }
+                    })
+                    ClearCursor()
+                    sfui.trackedoptions.selectedEntryIndex = #panel.entries
+                    sfui.trackedoptions.UpdateEditor()
+                    if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+                    return
+                end
+            end
+        end
+
+        -- Existing spell/item/macro handling
         local infoType, id, _, spellID = GetCursorInfo()
         if not infoType then return end
 
@@ -406,7 +749,7 @@ local function CreateCooldownsFrame()
             frame:Hide()
             return
         end
-        select_tab(frame, SfuiDB.lastSelectedTabId or frame.selectedTabId or 1)
+        select_tab(frame, 3)  -- Default to Icons tab every time it opens
         UpdateCooldownsList() -- Updates content list
         if not C_AddOns.IsAddOnLoaded("Blizzard_CooldownViewer") then C_AddOns.LoadAddOn("Blizzard_CooldownViewer") end
     end)
@@ -639,7 +982,15 @@ function sfui.trackedoptions.UpdatePreview()
         local tex = icon:CreateTexture(nil, "ARTWORK")
         tex:SetAllPoints()
         local iconTexture
-        if entry.type == "item" then
+        if entry.type == "cooldown" and entry.cooldownID then
+            local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(entry.cooldownID)
+            if cdInfo then
+                local spellID = cdInfo.overrideSpellID or cdInfo.spellID
+                iconTexture = C_Spell.GetSpellTexture(spellID)
+            else
+                iconTexture = C_Spell.GetSpellTexture(entry.spellID or entry.id)
+            end
+        elseif entry.type == "item" then
             iconTexture = C_Item.GetItemIconByID(entry.id)
         else
             iconTexture = C_Spell.GetSpellTexture(entry.id)
@@ -649,8 +1000,14 @@ function sfui.trackedoptions.UpdatePreview()
         local isLeft = (panel.x or 0) < 0
         local rawAnchor = panel.anchor or (isLeft and "topright" or "topleft")
         local anchor = string.upper(rawAnchor)
-        local growthH = panel.growthH or (rawAnchor == "topright" and "Left" or "Right")
+
+        -- Preview panel always uses standard L/R growth for easy editing
+        local growthH = panel.growthH
+        if not growthH or growthH == "Center" then
+            growthH = (rawAnchor == "topright" and "Left" or "Right")
+        end
         local growthV = panel.growthV or "Down"
+
         local hSign = (growthH == "Left") and -1 or 1
         local vSign = (growthV == "Up") and 1 or -1
 
@@ -724,20 +1081,63 @@ function sfui.trackedoptions.UpdatePreview()
             sfui.common.create_border(icon, 1, { g.colors.purple[1], g.colors.purple[2], g.colors.purple[3], 1 })
         end
 
+        -- Add cooldown-type badge indicator
+        if entry.type == "cooldown" then
+            local badge = icon:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            badge:SetPoint("TOPRIGHT", icon, "TOPRIGHT", -2, -2)
+            badge:SetText("C")
+            badge:SetTextColor(g.colors.cyan[1], g.colors.cyan[2], g.colors.cyan[3], 1)
+            badge:SetFont(badge:GetFont(), 10, "OUTLINE")
+        end
+
+        -- Enhanced tooltip for all icons
+        icon:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            if entry.type == "cooldown" and entry.cooldownID then
+                local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(entry.cooldownID)
+                if cdInfo then
+                    local spellID = cdInfo.overrideSpellID or cdInfo.spellID
+                    GameTooltip:SetSpellByID(spellID)
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cff00FFFFCooldown Viewer Entry|r", 1, 1, 1)
+                    GameTooltip:AddDoubleLine("Cooldown ID:", tostring(entry.cooldownID), 0.7, 0.7, 0.7, 1, 1, 1)
+                    if cdInfo.category then
+                        GameTooltip:AddDoubleLine("Category:", cdInfo.category, 0.7, 0.7, 0.7, 1, 1, 1)
+                    end
+                else
+                    GameTooltip:SetSpellByID(entry.spellID or entry.id)
+                end
+            elseif entry.type == "item" then
+                GameTooltip:SetItemByID(entry.id)
+            else
+                GameTooltip:SetSpellByID(entry.id)
+            end
+            GameTooltip:Show()
+        end)
+        icon:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+
         -- Apply Preview Glow if enabled
         local function GetIconValue(key, default)
+            -- Priority: Entry > Panel > Global > Default
             if entry.settings and entry.settings[key] ~= nil then return entry.settings[key] end
             if panel[key] ~= nil then return panel[key] end
+            local globalSettings = SfuiDB.iconGlobalSettings or {}
+            if globalSettings[key] ~= nil then return globalSettings[key] end
             return default
         end
 
         if GetIconValue("readyGlow", true) then
             local glowCfg = {
-                glowType = GetIconValue("glowType", "blizzard"),
+                glowType = GetIconValue("glowType", "pixel"),
                 glowColor = GetIconValue("glowColor", { r = 1, g = 1, b = 0 }),
                 glowScale = GetIconValue("glowScale", 1.0),
                 glowIntensity = GetIconValue("glowIntensity", 1.0),
-                glowSpeed = GetIconValue("glowSpeed", 0.25)
+                glowSpeed = GetIconValue("glowSpeed", 0.25),
+                glowLines = GetIconValue("glowLines", 8),
+                glowThickness = GetIconValue("glowThickness", 2),
+                glowParticles = GetIconValue("glowParticles", 4)
             }
             if sfui.trackedicons and sfui.trackedicons.StartGlow then
                 sfui.trackedicons.StartGlow(icon, glowCfg)
@@ -865,16 +1265,105 @@ function sfui.trackedoptions.UpdateSettings()
         end)
     end
 
-    AddGeneralHeader("Placement")
-    AddGeneralLabel("anchor point")
+    AddGeneralHeader("Placement & Growth")
+
+    local anchorLabel = gpContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    anchorLabel:SetPoint("TOPLEFT", 5, gy)
+    anchorLabel:SetText("anchor")
+
+    local growthLabel = gpContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    growthLabel:SetPoint("TOPLEFT", 110, gy)
+    growthLabel:SetText("growth")
+
+    gy = gy - 20
+
+    -- Anchor Grid (3x3)
     local anchorGrid = CreateFrame("Frame", nil, gpContent)
     anchorGrid:SetSize(65, 65)
     anchorGrid:SetPoint("TOPLEFT", 5, gy)
 
-    -- Anchor To dropdown to the right of the grid
+    local anchorBtns = {}
+    local function CreateAnchorBtn(name, anchorKey, x, y)
+        local b = CreateFlatButton(anchorGrid, name, 20, 20)
+        b:SetPoint("TOPLEFT", x, y)
+        b:SetScript("OnClick", function()
+            panel.anchor = anchorKey
+            for _, btn in pairs(anchorBtns) do StyleSelection(btn, btn.key == anchorKey) end
+            sfui.trackedoptions.UpdatePreview()
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end)
+        b.key = anchorKey
+        anchorBtns[anchorKey] = b
+        ApplyPlacementHover(b)
+        StyleSelection(b, (panel.anchor or "topleft") == anchorKey)
+        return b
+    end
+
+    CreateAnchorBtn("TL", "topleft", 0, 0)
+    CreateAnchorBtn("T", "top", 22, 0)
+    CreateAnchorBtn("TR", "topright", 44, 0)
+
+    CreateAnchorBtn("L", "left", 0, -22)
+    CreateAnchorBtn("C", "center", 22, -22)
+    CreateAnchorBtn("R", "right", 44, -22)
+
+    CreateAnchorBtn("BL", "bottomleft", 0, -44)
+    CreateAnchorBtn("B", "bottom", 22, -44)
+    CreateAnchorBtn("BR", "bottomright", 44, -44)
+
+    -- Growth Grid (Cross Pattern)
+    local growthGrid = CreateFrame("Frame", nil, gpContent)
+    growthGrid:SetSize(65, 65)
+    growthGrid:SetPoint("TOPLEFT", 110, gy)
+
+    local hBtns = {}
+    local function CreateHGrowthBtn(name, val, x, y)
+        local b = CreateFlatButton(growthGrid, name, 20, 20)
+        b:SetPoint("TOPLEFT", x, y)
+        b:SetScript("OnClick", function()
+            panel.growthH = val
+            for _, btn in pairs(hBtns) do StyleSelection(btn, btn.val == val) end
+            sfui.trackedoptions.UpdatePreview()
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end)
+        b.val = val
+        hBtns[val] = b
+        ApplyPlacementHover(b)
+        StyleSelection(b, (panel.growthH or "Right") == val)
+    end
+
+    local vBtns = {}
+    local function CreateVGrowthBtn(name, val, x, y)
+        local b = CreateFlatButton(growthGrid, name, 20, 20)
+        b:SetPoint("TOPLEFT", x, y)
+        b:SetScript("OnClick", function()
+            panel.growthV = val
+            for _, btn in pairs(vBtns) do StyleSelection(btn, btn.val == val) end
+            sfui.trackedoptions.UpdatePreview()
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end)
+        b.val = val
+        vBtns[val] = b
+        ApplyPlacementHover(b)
+        StyleSelection(b, (panel.growthV or "Down") == val)
+    end
+
+    -- Cross Pattern:
+    --    UP
+    -- L  C  R
+    --   DOWN
+    CreateVGrowthBtn("U", "Up", 22, 0)
+    CreateHGrowthBtn("L", "Left", 0, -22)
+    CreateHGrowthBtn("C", "Center", 22, -22)
+    CreateHGrowthBtn("R", "Right", 44, -22)
+    CreateVGrowthBtn("D", "Down", 22, -44)
+
+    gy = gy - 85
+
+    -- Anchor To Frame (moved row down)
     local anchorToOptions = { "UIParent", "Health Bar", "Tracked Bars" }
     local anchorToBtn = CreateFlatButton(gpContent, panel.anchorTo or "UIParent", 130, 20)
-    anchorToBtn:SetPoint("TOPLEFT", anchorGrid, "TOPRIGHT", 25, -15)
+    anchorToBtn:SetPoint("TOPLEFT", 5, gy)
 
     local atLabel = gpContent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     atLabel:SetPoint("BOTTOMLEFT", anchorToBtn, "TOPLEFT", 0, 4)
@@ -898,82 +1387,7 @@ function sfui.trackedoptions.UpdateSettings()
     StyleSelection(anchorToBtn, (panel.anchorTo or "UIParent") ~= "UIParent")
     ApplyPlacementHover(anchorToBtn)
 
-    gy = gy - 75
-
-    local anchorBtns = {}
-    local function CreateAnchorBtn(name, anchorKey, x, y)
-        local b = CreateFlatButton(anchorGrid, name, 30, 30)
-        b:SetPoint("TOPLEFT", x, y)
-        b:SetScript("OnClick", function()
-            panel.anchor = anchorKey
-            for _, btn in pairs(anchorBtns) do StyleSelection(btn, btn.key == anchorKey) end
-            sfui.trackedoptions.UpdatePreview()
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-        end)
-        b.key = anchorKey
-        anchorBtns[anchorKey] = b
-        ApplyPlacementHover(b)
-        StyleSelection(b, (panel.anchor or "topleft") == anchorKey)
-        return b
-    end
-
-    CreateAnchorBtn("TL", "topleft", 0, 0)
-    CreateAnchorBtn("TR", "topright", 35, 0)
-    CreateAnchorBtn("BL", "bottomleft", 0, -35)
-    CreateAnchorBtn("BR", "bottomright", 35, -35)
-
-    -- Growth Row (Horizontal & Vertical side-by-side)
-    local ghLabel = gpContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    ghLabel:SetPoint("TOPLEFT", 5, gy)
-    ghLabel:SetText("horizontal growth")
-
-    local gvLabel = gpContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    gvLabel:SetPoint("TOPLEFT", 140, gy) -- Tightened
-    gvLabel:SetText("vertical growth")
-
-    gy = gy - 18
-
-    local growHContainer = CreateFrame("Frame", nil, gpContent)
-    growHContainer:SetSize(120, 25)
-    growHContainer:SetPoint("TOPLEFT", 5, gy)
-
-    local hBtns = {}
-    local function CreateHBtn(name, val, x)
-        local b = CreateFlatButton(growHContainer, name, 55, 20) -- Smaller
-        b:SetPoint("LEFT", x, 0)
-        b:SetScript("OnClick", function()
-            panel.growthH = val
-            StyleSelection(hBtns["Left"], val == "Left"); StyleSelection(hBtns["Right"], val == "Right")
-            sfui.trackedoptions.UpdatePreview()
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-        end)
-        hBtns[val] = b
-        ApplyPlacementHover(b)
-        StyleSelection(b, (panel.growthH or "Right") == val)
-    end
-    CreateHBtn("Left", "Left", 0)
-    CreateHBtn("Right", "Right", 60)
-
-    local growVContainer = CreateFrame("Frame", nil, gpContent)
-    growVContainer:SetSize(120, 25)
-    growVContainer:SetPoint("TOPLEFT", 140, gy)
-
-    local vBtns = {}
-    local function CreateVBtn(name, val, x)
-        local b = CreateFlatButton(growVContainer, name, 55, 20) -- Smaller
-        b:SetPoint("LEFT", x, 0)
-        b:SetScript("OnClick", function()
-            panel.growthV = val
-            StyleSelection(vBtns["Up"], val == "Up"); StyleSelection(vBtns["Down"], val == "Down")
-            sfui.trackedoptions.UpdatePreview()
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-        end)
-        vBtns[val] = b
-        ApplyPlacementHover(b)
-        StyleSelection(b, (panel.growthV or "Down") == val)
-    end
-    CreateVBtn("Up", "Up", 0)
-    CreateVBtn("Down", "Down", 60)
+    gy = gy - 40
 
     gy = gy - 40
 
@@ -989,8 +1403,16 @@ function sfui.trackedoptions.UpdateSettings()
         -- Get defaults from config
         local panels = sfui.common.get_cooldown_panels()
         local idx = sfui.trackedoptions.selectedPanelIndex or 1
-        local defaults = idx == 1 and sfui.config.cooldown_panel_defaults.left
-            or sfui.config.cooldown_panel_defaults.right
+        local panels = sfui.common.get_cooldown_panels()
+        local panel = panels[idx]
+        local defaults
+        if panel and panel.name == "CENTER" then
+            defaults = sfui.config.cooldown_panel_defaults.center
+        elseif panel and panel.name == "Left" then
+            defaults = sfui.config.cooldown_panel_defaults.left
+        else
+            defaults = sfui.config.cooldown_panel_defaults.right
+        end
 
         -- Apply all defaults (except entries)
         for k, v in pairs(defaults) do
@@ -1010,106 +1432,22 @@ function sfui.trackedoptions.UpdateSettings()
         sfui.trackedoptions.UpdateEditor()
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
     end)
-    gy = gy - 30
+    gy = gy - 35
 
-    local textCBC = sfui.common.create_checkbox(gpContent, "countdown text", function()
-        if panel.textEnabled == nil then panel.textEnabled = true end
-        return panel.textEnabled
-    end, function(v)
-        panel.textEnabled = v
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-        sfui.trackedoptions.UpdatePreview()
-    end)
-    textCBC:SetPoint("TOPLEFT", 5, gy)
+    -- Info text about global settings
+    local infoHeader = gpContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    infoHeader:SetPoint("TOPLEFT", 5, gy)
+    infoHeader:SetText("Visual Effect Overrides")
+    infoHeader:SetTextColor(g.colors.cyan[1], g.colors.cyan[2], g.colors.cyan[3])
+    gy = gy - 20
 
-    local colorSwatchC = sfui.common.create_color_swatch(gpContent, panel.textColor or { r = 1, g = 1, b = 1 },
-        function(r, g, b)
-            panel.textColor = { r = r, g = g, b = b }
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-        end)
-    colorSwatchC:SetPoint("LEFT", textCBC.text, "RIGHT", 10, 0)
-    gy = gy - 25
-
-    local glowCBC = sfui.common.create_checkbox(gpContent, "ready glow", function()
-        if panel.readyGlow == nil then panel.readyGlow = true end
-        return panel.readyGlow
-    end, function(v)
-        panel.readyGlow = v
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-        sfui.trackedoptions.UpdatePreview()
-    end)
-    glowCBC:SetPoint("TOPLEFT", 5, gy)
-
-    local desatCBC = sfui.common.create_checkbox(gpContent, "desaturate", function()
-        if panel.cooldownDesat == nil then panel.cooldownDesat = true end
-        return panel.cooldownDesat
-    end, function(v)
-        panel.cooldownDesat = v
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-    end)
-    desatCBC:SetPoint("TOPLEFT", 125, gy) -- Side-by-side
-    gy = gy - 30
-
-    local alphaSliderC = sfui.common.create_slider_input(gpContent, "opacity",
-        function() return panel.cooldownAlpha end, 0, 1, 0.05, function(v)
-            panel.cooldownAlpha = v
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-        end, fullW)
-    alphaSliderC:SetPoint("TOPLEFT", 5, gy); alphaSliderC:SetSliderValue(panel.cooldownAlpha or 1.0)
-    gy = gy - 40
-
-    local glowTypes = { "blizzard", "pixel", "autocast" }
-    local typeBtnC = CreateFlatButton(gpContent, "glow type: " .. (panel.glowType or "blizzard"), 160, 20)
-    typeBtnC:SetPoint("TOPLEFT", 5, gy)
-    typeBtnC:SetScript("OnClick", function(self)
-        local cur = panel.glowType or "blizzard"
-        local found = 1
-        for i, t in ipairs(glowTypes) do
-            if t == cur then
-                found = i; break
-            end
-        end
-        local nextIdx = (found % #glowTypes) + 1
-        panel.glowType = glowTypes[nextIdx]
-        self:SetText("glow type: " .. panel.glowType)
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-        sfui.trackedoptions.UpdatePreview()
-    end)
-
-    local colorSwatchG = sfui.common.create_color_swatch(gpContent, panel.glowColor or { r = 1, g = 1, b = 0 },
-        function(r, g, b)
-            panel.glowColor = { r = r, g = g, b = b }
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-            sfui.trackedoptions.UpdatePreview()
-        end)
-    colorSwatchG:SetPoint("LEFT", typeBtnC, "RIGHT", 10, 0)
-    gy = gy - 30
-
-    local scaleSliderG = sfui.common.create_slider_input(gpContent, "glow scale",
-        function() return panel.glowScale end, 0.5, 2.0, 0.1, function(v)
-            panel.glowScale = v
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-            sfui.trackedoptions.UpdatePreview()
-        end, halfW)
-    scaleSliderG:SetPoint("TOPLEFT", 5, gy); scaleSliderG:SetSliderValue(panel.glowScale or 1.0)
-
-    local intensitySliderG = sfui.common.create_slider_input(gpContent, "glow intensity",
-        function() return panel.glowIntensity end, 0.1, 2.0, 0.1, function(v)
-            panel.glowIntensity = v
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-            sfui.trackedoptions.UpdatePreview()
-        end, halfW)
-    intensitySliderG:SetPoint("TOPLEFT", 5 + halfW + 10, gy); intensitySliderG:SetSliderValue(panel.glowIntensity or 1.0)
-    gy = gy - 40
-
-    local speedSliderG = sfui.common.create_slider_input(gpContent, "glow speed",
-        function() return panel.glowSpeed end, -1, 1, 0.05, function(v)
-            panel.glowSpeed = v
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-            sfui.trackedoptions.UpdatePreview()
-        end, fullW)
-    speedSliderG:SetPoint("TOPLEFT", 5, gy); speedSliderG:SetSliderValue(panel.glowSpeed or 0.25)
-    gy = gy - 40
+    local infoText = gpContent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    infoText:SetPoint("TOPLEFT", 5, gy)
+    infoText:SetWidth(fullW)
+    infoText:SetJustifyH("LEFT")
+    infoText:SetText(
+        "|cff888888Visual effect settings (glow, desaturation, text) are now configured in the |cff00FFFF'global'|r |cff888888tab.\n\nThis panel uses global settings by default. To override specific settings for this panel only, edit them in the |cff00FFFF'icons'|r |cff888888tab after selecting this panel.|r")
+    gy = gy - 60
 
     gpContent:SetHeight(math.abs(gy) + 20)
 end

@@ -7,7 +7,7 @@
 ## X-Website: https://github.com/telius/sfui
 ## X-Website-Source: https://github.com/telius/sfui
 ## SavedVariables: SfuiDB
-## OptionalDeps: Masque
+## OptionalDeps: Masque, LibCustomGlow-1.0
 ## IconTexture: Interface/AddOns/sfui/icon.png
 
 Libs/LibStub/LibStub.lua
@@ -36,5 +36,6 @@ frames/automation.lua
 frames/trackedoptions.lua
 frames/trackedbars.lua
 frames/cursor.lua
+frames/glows.lua
 frames/trackedicons.lua
 frames/editor.lua

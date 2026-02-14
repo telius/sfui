@@ -49,6 +49,15 @@ function sfui.common.SafeFormatDuration(value, decimals)
     return ok and formatted or tostring(value)
 end
 
+-- Safe helper to check if player is on GCD and get the duration
+function sfui.common.GetGCDInfo()
+    local ok, ci = pcall(C_Spell.GetSpellCooldown, 61304)
+    if ok and ci and ci.duration and ci.duration > 0 then
+        return true, ci.duration
+    end
+    return false, 0
+end
+
 -- Reusable cooldown lookups
 local function pcall_charge_dur(id) return C_Spell.GetSpellChargeDuration(id) end
 local function pcall_spell_dur(id) return C_Spell.GetSpellCooldownDuration(id) end
@@ -65,7 +74,7 @@ function sfui.common.GetCooldownDurationObj(spellID)
             ok, obj = pcall(pcall_spell_dur, spellID)
         end
     end
-    -- Support secret duration objects for curve evaluation (ArcUI pattern)
+    -- Return object as-is, let caller handle GCD
     return obj
 end
 
@@ -80,20 +89,26 @@ function sfui.common.IsCooldownFrameActive(cooldownFrame)
 
     if not ok then return false end
 
-    -- If duration is secret, we can't compare it directly
-    -- But we can use issecretvalue to detect it
+    -- If duration is secret, check if it's just GCD
     if issecretvalue(duration) then
-        -- Secret duration means there IS a cooldown active
-        -- (Blizzard only secrets active cooldowns, not zero values)
+        local onGCD, gcdDur = sfui.common.GetGCDInfo()
+        -- If player is on GCD, assume this is GCD and not a real cooldown
+        if onGCD then return false end
+        -- Otherwise assume it's a real cooldown (secret in M+)
         return true
     end
 
-    -- Non-secret: check if > 1500ms (exclude GCD)
+    -- Non-secret: check if > 1510ms (exclude GCD + small buffer)
     if not duration or duration == 0 then
         return false
     end
 
-    return duration > 1500
+    local onGCD, gcdDur = sfui.common.GetGCDInfo()
+    if onGCD and duration <= (gcdDur * 1000 + 10) then
+        return false
+    end
+
+    return duration > 1510
 end
 
 -- Safe comparison helpers (Crash-proof against Secret Values in M+)
@@ -265,6 +280,57 @@ function sfui.common.migrate_cooldown_panels_to_spec()
     SfuiDB._cooldownPanelsMigrated = true
 end
 
+-- Populate CENTER panel with cooldowns from CDM Essential Cooldowns (category 0)
+function sfui.common.populate_center_panel_from_cdm()
+    local entries = {}
+
+    -- Try using CooldownViewerSettings DataProvider (source of truth for the list)
+    if CooldownViewerSettings and CooldownViewerSettings.GetDataProvider then
+        local dataProvider = CooldownViewerSettings:GetDataProvider()
+        if dataProvider then
+            local cooldownIDs = dataProvider:GetOrderedCooldownIDs()
+            if cooldownIDs then
+                for _, cooldownID in ipairs(cooldownIDs) do
+                    if not sfui.common.issecretvalue(cooldownID) then
+                        local info = dataProvider:GetCooldownInfoForID(cooldownID)
+                        -- Category 0 is Essential Cooldowns
+                        if info and info.isKnown and (info.category == 0 or not info.category) then
+                            table.insert(entries, {
+                                type = "cooldown",
+                                cooldownID = cooldownID,
+                                spellID = info.spellID,
+                                id = info.spellID,
+                                settings = { showText = true }
+                            })
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Fallback: use C_CooldownViewer direct API if provider not ready or empty
+    if #entries == 0 and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
+        local cooldownIDs = C_CooldownViewer.GetCooldownViewerCategorySet(0, false)
+        if cooldownIDs then
+            for _, cooldownID in ipairs(cooldownIDs) do
+                local cdInfo = C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID)
+                if cdInfo and cdInfo.isKnown then
+                    table.insert(entries, {
+                        type = "cooldown",
+                        cooldownID = cooldownID,
+                        spellID = cdInfo.spellID,
+                        id = cdInfo.spellID,
+                        settings = { showText = true }
+                    })
+                end
+            end
+        end
+    end
+
+    return entries
+end
+
 -- Get panels for current spec
 function sfui.common.get_cooldown_panels()
     local specID = sfui.common.get_current_spec_id()
@@ -276,7 +342,45 @@ function sfui.common.get_cooldown_panels()
     SfuiDB.cooldownPanelsBySpec = SfuiDB.cooldownPanelsBySpec or {}
     SfuiDB.cooldownPanelsBySpec[specID] = SfuiDB.cooldownPanelsBySpec[specID] or {}
 
-    return SfuiDB.cooldownPanelsBySpec[specID]
+    local panels = SfuiDB.cooldownPanelsBySpec[specID]
+
+    -- Auto-create CENTER panel if it doesn't exist (one-time population)
+    local centerPanelIdx = nil
+    for i, panel in ipairs(panels) do
+        if panel.name == "CENTER" then
+            centerPanelIdx = i
+            break
+        end
+    end
+
+    if not centerPanelIdx then
+        local centerPanel = {
+            name = "CENTER",
+            enabled = true,
+            x = 0,
+            y = 232,
+            size = 50,
+            columns = 10,
+            spacing = 1,
+            placement = "center",
+            anchor = "center",
+            growthV = "Down",
+            entries = sfui.common.populate_center_panel_from_cdm()
+        }
+        table.insert(panels, 1, centerPanel) -- Insert at beginning
+        sfui.common.set_cooldown_panels(panels)
+    else
+        -- If it exists but is empty, try to populate it now (handles early load race condition)
+        local panel = panels[centerPanelIdx]
+        if not panel.entries or #panel.entries == 0 then
+            panel.entries = sfui.common.populate_center_panel_from_cdm()
+            if #panel.entries > 0 then
+                sfui.common.set_cooldown_panels(panels)
+            end
+        end
+    end
+
+    return panels
 end
 
 -- Set panels for current spec
