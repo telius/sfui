@@ -1,3 +1,9 @@
+## v0.2.11 (2026-02-14)
+### Bug Fixes
+- **Tracked Bars**: Fixed default Blizzard bar hiding logic to correctly use the `category` API, ensuring Essential and Utility bars remain hidden as intended.
+- **Tracking Manager**: Improved first-load reliability by refining the data provider ticker, resolving the "blank tab" issue after UI reloads.
+- **Hiding Stability**: Added persistent alpha overrides to prevent Blizzard frames from reappearing after certain UI events.
+
 ## v0.2.10a (2026-02-11)
 ### Improvements
 - **Security Hardening**: Implemented robust detection and handling for "secret values" in restricted combat environments (Mythic+), preventing UI crashes when accessing protected cooldown data.

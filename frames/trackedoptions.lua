@@ -27,8 +27,13 @@ local function select_tab(frame, id)
     frame.selectedTabId = id
     SfuiDB.lastSelectedTabId = id -- Persist tab selection
 
-    if id == 2 then
+    if id == 2 or id == 3 then
         sfui.trackedoptions.UpdateEditor()
+    end
+
+    -- Refresh icons to apply visibility override
+    if sfui.trackedicons and sfui.trackedicons.Update then
+        sfui.trackedicons.Update()
     end
 end
 
@@ -102,14 +107,13 @@ local function CreateCooldownsFrame()
     close_button:SetPoint("TOPRIGHT", -5, -5)
     close_button:SetScript("OnClick", function() frame:Hide() end)
 
-    -- Reset (Right)
-    local resetBtn = CreateFlatButton(frame, "reset", 60, 22)
-    resetBtn:SetPoint("TOPRIGHT", -34, -5) -- Aligned with options/cooldownviewer Y offset
-    resetBtn:SetScript("OnClick", function()
-        if sfui.trackedbars and sfui.trackedbars.RequestReset then
-            sfui.trackedbars.RequestReset()
+    frame:SetScript("OnHide", function()
+        if sfui.trackedicons and sfui.trackedicons.Update then
+            sfui.trackedicons.Update()
         end
     end)
+
+
 
     -- Options (Left)
     local optionsBtn = CreateFlatButton(frame, "options", 80, 22)
@@ -361,8 +365,31 @@ local function CreateCooldownsFrame()
     -- Reset Y for right column
     local rightY = -10
 
-    -- ===== RIGHT COLUMN: COOLDOWN & TEXT SETTINGS =====
-    AddGlobalHeader("cooldown visual state", rightCol)
+    -- ===== RIGHT COLUMN: VISIBILITY SETTINGS =====
+    AddGlobalHeader("global visibility", rightCol)
+    rightY = rightY - 25
+
+    local function UpdateIconVisibility(key, val)
+        SfuiDB.iconGlobalSettings = SfuiDB.iconGlobalSettings or {}
+        SfuiDB.iconGlobalSettings[key] = val
+        -- Force update icons
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end
+
+    local chk_icon_ooc = sfui.common.create_checkbox(globContent, "hide icons out of combat", nil,
+        function(val) UpdateIconVisibility("hideOOC", val) end)
+    chk_icon_ooc:SetPoint("TOPLEFT", rightCol, rightY)
+    chk_icon_ooc:SetChecked(globalCfg.hideOOC or false)
+    rightY = rightY - 30
+
+    local chk_icon_dragon = sfui.common.create_checkbox(globContent, "hide icons dragonriding", nil,
+        function(val) UpdateIconVisibility("hideDragonriding", val) end)
+    chk_icon_dragon:SetPoint("TOPLEFT", rightCol, rightY)
+    chk_icon_dragon:SetChecked(globalCfg.hideDragonriding or false)
+    rightY = rightY - 30
+
+    -- ===== COOLDOWN TEXT & VISUALS =====
+    AddGlobalHeader("cooldown visuals", rightCol)
     rightY = rightY - 25
 
     local desatChk = sfui.common.create_checkbox(globContent, "desaturate on cooldown", nil, function(val)
@@ -373,12 +400,6 @@ local function CreateCooldownsFrame()
     desatChk:SetChecked(globalCfg.cooldownDesat ~= nil and globalCfg.cooldownDesat or
         g.icon_panel_global_defaults.cooldownDesat)
     rightY = rightY - 30
-
-    rightY = rightY - 20
-
-    -- Text Settings
-    AddGlobalHeader("text display", rightCol)
-    rightY = rightY - 25
 
     local textChk = sfui.common.create_checkbox(globContent, "show countdown text", nil, function(val)
         globalCfg.textEnabled = val
@@ -400,6 +421,7 @@ local function CreateCooldownsFrame()
             if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
         end)
     textSwatch:SetPoint("LEFT", textColorLabel, "RIGHT", 10, 0)
+    rightY = rightY - 30
 
     -- Info text at bottom
     rightY = rightY - 50
@@ -410,7 +432,8 @@ local function CreateCooldownsFrame()
     infoText:SetText(
         "|cff888888These settings apply to all icon panels by default.\nPer-panel and per-icon overrides take priority.|r")
 
-    globContent:SetHeight(400) -- Fixed height since we're using columns
+    globContent:SetHeight(400)
+
 
     -- Function to update all UI controls from current globalCfg
     local function UpdateGlobalControls()
@@ -434,12 +457,23 @@ local function CreateCooldownsFrame()
         if glowThickness and glowThickness.SetSliderValue then glowThickness:SetSliderValue(globalCfg.glowThickness or 1) end
         if glowParticles and glowParticles.SetSliderValue then glowParticles:SetSliderValue(globalCfg.glowParticles or 4) end
 
-        -- Text settings
+        -- Vis settings (Icons)
+        if chk_icon_ooc and chk_icon_ooc.SetChecked then chk_icon_ooc:SetChecked(globalCfg.hideOOC) end
+        if chk_icon_dragon and chk_icon_dragon.SetChecked then chk_icon_dragon:SetChecked(globalCfg.hideDragonriding) end
+
+        -- Text/Visual settings
         if desatChk and desatChk.SetChecked then desatChk:SetChecked(globalCfg.cooldownDesat) end
         if textChk and textChk.SetChecked then textChk:SetChecked(globalCfg.textEnabled) end
 
         -- Refresh preview
         UpdateGlowPreview()
+
+        -- Update Alpha Slider
+        --[[
+        if alphaSlider and alphaSlider.SetSliderValue then
+            alphaSlider:SetSliderValue(globalCfg.alphaOnCooldown or 1.0)
+        end
+        ]]
     end
 
     -- Update controls when panel is shown (fixes reset bug)
@@ -477,30 +511,29 @@ local function CreateCooldownsFrame()
     global_header:SetTextColor(1, 1, 1)
     global_header:SetText("visibility and positioning")
 
-    local function UpdateVisibility(key, val, syncBlizzard)
+    -- Global Visibility Settings (Bars Only)
+    local function UpdateBarsVisibility(key, val)
         SfuiDB = SfuiDB or {}
         SfuiDB[key] = val
-        if syncBlizzard and BuffBarCooldownViewer and BuffBarCooldownViewer.SetHideWhenInactive then
-            BuffBarCooldownViewer:SetHideWhenInactive(val)
-        end
+        -- REMOVED: BuffBarCooldownViewer interaction to prevent taint/blocked actions in combat/M+
         if sfui.trackedbars and sfui.trackedbars.UpdateVisibility then sfui.trackedbars.UpdateVisibility() end
     end
 
     local chk_ooc = sfui.common.create_checkbox(barsContent, "hide bar out of combat", nil,
-        function(val) UpdateVisibility("hideOOC", val, true) end)
+        function(val) UpdateBarsVisibility("hideOOC", val) end)
     chk_ooc:SetPoint("TOPLEFT", global_header, "BOTTOMLEFT", 0, -10)
     chk_ooc:SetChecked(SfuiDB and SfuiDB.hideOOC or false)
 
     local chk_inactive = sfui.common.create_checkbox(barsContent, "hide when inactive", nil,
-        function(val) UpdateVisibility("hideInactive", val, true) end)
+        function(val) UpdateBarsVisibility("hideInactive", val) end)
     chk_inactive:SetPoint("TOPLEFT", chk_ooc, "BOTTOMLEFT", 0, -5)
-    local inactiveState = true
-    if SfuiDB and SfuiDB.hideInactive ~= nil then
-        inactiveState = SfuiDB.hideInactive
-    elseif BuffBarCooldownViewer and BuffBarCooldownViewer.GetHideWhenInactive then
-        inactiveState = BuffBarCooldownViewer:GetHideWhenInactive()
-    end
-    chk_inactive:SetChecked(inactiveState)
+    chk_inactive:SetChecked(SfuiDB and SfuiDB.hideInactive or false)
+
+    local chk_dragon = sfui.common.create_checkbox(barsContent, "hide while dragonriding", nil,
+        function(val) UpdateBarsVisibility("hideDragonriding", val) end)
+    chk_dragon:SetPoint("TOPLEFT", chk_inactive, "BOTTOMLEFT", 0, -5)
+    chk_dragon:SetChecked(SfuiDB and SfuiDB.hideDragonriding or false)
+
 
     -- Positioning Sliders (stay on top line, anchored to first checkbox)
     local sliderX = sfui.common.create_slider_input(barsContent, "posX:", "trackedBarsX", -1000, 1000, 1, function(val)
@@ -580,11 +613,6 @@ local function CreateCooldownsFrame()
             y = 250,
             columns = 10,
             textEnabled = true,
-            textColor = { r = 1, g = 1, b = 1 },
-            x = 0,
-            y = 250,
-            columns = 10,
-            textEnabled = true,
             textColor = { r = 1, g = 1, b = 1 }
         })
         sfui.common.set_cooldown_panels(panels)
@@ -604,11 +632,16 @@ local function CreateCooldownsFrame()
         globalCfg.glowIntensity = 1.0
         globalCfg.glowSpeed = 1.0
         globalCfg.glowLines = 4
+        globalCfg.glowLines = 4
         globalCfg.glowThickness = 1
         globalCfg.glowParticles = 4
         globalCfg.cooldownDesat = true
         globalCfg.textEnabled = true
         globalCfg.textColor = { r = 1, g = 1, b = 1 }
+        globalCfg.glowParticles = 4
+        globalCfg.glowLines = 4
+        globalCfg.glowThickness = 1
+        globalCfg.glowParticles = 4
 
         UpdateGlobalControls()
         if sfui.trackedicons and sfui.trackedicons.ForceRefreshGlows then sfui.trackedicons.ForceRefreshGlows() end
@@ -749,8 +782,29 @@ local function CreateCooldownsFrame()
             frame:Hide()
             return
         end
-        select_tab(frame, 3)  -- Default to Icons tab every time it opens
-        UpdateCooldownsList() -- Updates content list
+        -- Select last tab immediately to avoid blank frame
+        local startTab = SfuiDB.lastSelectedTabId or 3
+        select_tab(frame, startTab)
+
+        -- Retry checking for panels until specced info is available
+        local attempts = 0
+        local ticker
+        ticker = C_Timer.NewTicker(0.1, function()
+            attempts = attempts + 1
+            local panels = sfui.common.get_cooldown_panels()
+            local dataProvider = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and
+            CooldownViewerSettings:GetDataProvider()
+
+            if #panels > 0 and dataProvider then
+                UpdateCooldownsList() -- Updates content list
+                ticker:Cancel()
+            elseif attempts > 30 then
+                -- Give up after 3 seconds
+                UpdateCooldownsList()
+                ticker:Cancel()
+            end
+        end)
+
         if not C_AddOns.IsAddOnLoaded("Blizzard_CooldownViewer") then C_AddOns.LoadAddOn("Blizzard_CooldownViewer") end
     end)
 end
@@ -997,27 +1051,46 @@ function sfui.trackedoptions.UpdatePreview()
         end
         tex:SetTexture(iconTexture or 134400) -- Fallback to generic question mark if nil
 
-        local isLeft = (panel.x or 0) < 0
-        local rawAnchor = panel.anchor or (isLeft and "topright" or "topleft")
-        local anchor = string.upper(rawAnchor)
-
-        -- Preview panel always uses standard L/R growth for easy editing
-        local growthH = panel.growthH
-        if not growthH or growthH == "Center" then
-            growthH = (rawAnchor == "topright" and "Left" or "Right")
-        end
+        -- Preview panel layout logic
+        local growthH = panel.growthH or "Center" -- Default to Center for preview if not set
         local growthV = panel.growthV or "Down"
+
+        -- Force Center growth for better preview experience if requested,
+        -- or just ensure Center works if selected.
 
         local hSign = (growthH == "Left") and -1 or 1
         local vSign = (growthV == "Up") and 1 or -1
+        local numColumns = panel.columns or 10
+        local col = (i - 1) % numColumns
+        local row = math.floor((i - 1) / numColumns)
 
-        local col = (i - 1) % (panel.columns or 100)
-        local row = math.floor((i - 1) / (panel.columns or 100))
+        local ox, oy, anchorPoint
 
-        local ox = col * (size + spacing) * hSign
-        local oy = row * (size + spacing) * vSign
+        if growthH == "Center" then
+            -- Centered Layout
+            local totalIcons = #entries
+            local startIdx = row * numColumns + 1
+            local endIdx = math.min((row + 1) * numColumns, totalIcons)
+            local numInRow = endIdx - startIdx + 1
 
-        icon:SetPoint(anchor, parent, anchor, ox, oy)
+            local centerOffset = col - (numInRow - 1) / 2
+            ox = centerOffset * (size + spacing)
+            oy = row * (size + spacing) * vSign
+
+            -- Anchor to CENTER of the preview window
+            anchorPoint = "CENTER"
+        else
+            -- Standard Directional Layout
+            ox = col * (size + spacing) * hSign
+            oy = row * (size + spacing) * vSign
+
+            -- Anchor based on panel setting (e.g. TOPLEFT)
+            local isLeft = (panel.x or 0) < 0
+            local rawAnchor = panel.anchor or (isLeft and "topright" or "topleft")
+            anchorPoint = string.upper(rawAnchor)
+        end
+
+        icon:SetPoint(anchorPoint, parent, anchorPoint, ox, oy)
 
         -- Drag and drop reordering
         icon:SetMovable(true)

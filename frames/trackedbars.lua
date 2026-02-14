@@ -5,6 +5,7 @@ local bars = {} -- Active sfui bars
 local container
 local issecretvalue = sfui.common.issecretvalue
 
+
 -- Reusable tables (performance optimization)
 local standardBars = {}
 local activeCooldownIDs = {}
@@ -518,6 +519,8 @@ local function SyncWithBlizzard()
     local mustHide = false
     if SfuiDB and SfuiDB.hideOOC and not InCombatLockdown() then
         mustHide = true
+    elseif SfuiDB and SfuiDB.hideDragonriding and sfui.common.IsDragonriding() then
+        mustHide = true
     end
 
     if mustHide then
@@ -535,52 +538,60 @@ local function SyncWithBlizzard()
     pcall(function()
         for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
             if blizzFrame.cooldownID then
-                blizzFrame:SetAlpha(0) -- Hide Blizzard frame so only ours is visible
+                blizzFrame:SetAlpha(0) -- Hide Blizzard frame regardless
+
                 local id = blizzFrame.cooldownID
-                activeCooldownIDs[id] = true
+                local info = C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
 
-                if not bars[id] then
-                    local pooledBar = GetBarFromPool(id)
-                    if pooledBar then
-                        bars[id] = pooledBar
-                    else
-                        bars[id] = CreateBar(id)
-                    end
-                    layoutNeeded = true
-                end
-
-                local myBar = bars[id]
-                local config = GetTrackedBarConfig(id) -- Cache config lookup once
-                local isStackMode = config and config.stackMode or false
-
-                -- Sync Visibility
-                local hideInactive = SfuiDB and SfuiDB.hideInactive ~= false -- Default to True if nil
-
-                -- Check if this is a stack mode bar with active stacks
-                local isStackModeWithStacks = false
-                if isStackMode then
-                    local currentStacks = tonumber(myBar.count:GetText()) or 0
-                    if currentStacks > 0 then
-                        isStackModeWithStacks = true
-                    end
-                end
-
-                local shouldShow = ShouldBarBeVisible(config, blizzFrame, isStackModeWithStacks, hideInactive)
-
-                if shouldShow then
-                    if not myBar:IsShown() then
-                        myBar:Show()
-                        layoutNeeded = true
-                    end
+                -- HIDE: Blizzard Essential (0) and Utility (1) bars if not manually added
+                if info and (info.category == 0 or info.category == 1) then
+                    -- If it's a default Blizzard "essential" or "utility" bar, we skip tracking it
                 else
-                    if myBar:IsShown() then
-                        myBar:Hide()
+                    activeCooldownIDs[id] = true
+
+                    if not bars[id] then
+                        local pooledBar = GetBarFromPool(id)
+                        if pooledBar then
+                            bars[id] = pooledBar
+                        else
+                            bars[id] = CreateBar(id)
+                        end
                         layoutNeeded = true
                     end
-                end
 
-                -- Sync all bar data from Blizzard
-                SyncBarData(myBar, blizzFrame, config, isStackMode, id)
+                    local myBar = bars[id]
+                    local config = GetTrackedBarConfig(id) -- Cache config lookup once
+                    local isStackMode = config and config.stackMode or false
+
+                    -- Sync Visibility
+                    local hideInactive = SfuiDB and SfuiDB.hideInactive ~= false -- Default to True if nil
+
+                    -- Check if this is a stack mode bar with active stacks
+                    local isStackModeWithStacks = false
+                    if isStackMode then
+                        local currentStacks = tonumber(myBar.count:GetText()) or 0
+                        if currentStacks > 0 then
+                            isStackModeWithStacks = true
+                        end
+                    end
+
+                    local shouldShow = ShouldBarBeVisible(config, blizzFrame, isStackModeWithStacks, hideInactive)
+
+                    if shouldShow then
+                        if not myBar:IsShown() then
+                            myBar:Show()
+                            layoutNeeded = true
+                        end
+                    else
+                        if myBar:IsShown() then
+                            myBar:Hide()
+                            layoutNeeded = true
+                        end
+                    end
+
+                    -- Sync all bar data from Blizzard
+                    SyncBarData(myBar, blizzFrame, config, isStackMode, id)
+                end
             end
         end
     end)
@@ -635,6 +646,9 @@ local function UpdateBarsState()
 
     for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
         if blizzFrame.cooldownID then
+            -- Persistent Hide
+            if blizzFrame.SetAlpha then blizzFrame:SetAlpha(0) end
+
             local myBar = bars[blizzFrame.cooldownID]
             -- Only update if bar exists AND is shown (performance optimization)
             if myBar and myBar:IsShown() and blizzFrame.Bar then
@@ -716,11 +730,19 @@ function sfui.trackedbars.initialize()
         SfuiDB.hideOOC = cfg.hideOOC ~= nil and cfg.hideOOC or false
     end
     if SfuiDB.hideInactive == nil then
-        SfuiDB.hideInactive = cfg.hideInactive ~= nil and cfg.hideInactive or true
+        SfuiDB.hideInactive = cfg.hideInactive ~= nil and cfg.hideInactive or false
     end
 
     -- Position
     sfui.trackedbars.UpdatePosition()
+
+    -- Event listener for visibility updates
+    container:RegisterEvent("PLAYER_REGEN_DISABLED")
+    container:RegisterEvent("PLAYER_REGEN_ENABLED")
+    container:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
+    container:SetScript("OnEvent", function()
+        if SyncWithBlizzard then SyncWithBlizzard() end
+    end)
 
     -- Throttled OnUpdate for smooth bar progress
     local updateThrottle = 0
