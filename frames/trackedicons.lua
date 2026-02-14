@@ -238,8 +238,14 @@ local function UpdateIconState(icon, panelConfig)
 
     icon._isItem = (icon.type == "item")
 
+    -- Usability Logic (Execute, Procs, Resource constraints)
+    local isUsable, notEnoughPower = true, false
+    if activeID and not issecretvalue(activeID) and icon.type ~= "item" then
+        isUsable, notEnoughPower = C_Spell.IsSpellUsable(activeID)
+    end
+
     -- Readiness Logic (Native Safe)
-    -- Ready Check: Based on stored duration object
+    -- Ready Check: Based on stored duration object AND usability
     local isReady = true
     local safeS, safeD, safeEnabled = 0, 0, true
     local countSafe = count
@@ -258,7 +264,8 @@ local function UpdateIconState(icon, panelConfig)
         if countSafe and not issecretvalue(countSafe) then
             hasCharges = (countSafe > 0)
         end
-        isReady = (icon._durationObj == nil or hasCharges) and (icon._isEnabled ~= false)
+        -- Spell is only "Ready" if it's off cooldown (or has charges) AND is usable
+        isReady = (icon._durationObj == nil or hasCharges) and (icon._isEnabled ~= false) and isUsable
     end
 
     -- Visibility Decision: Icons are always shown if they exist in the panel,
@@ -279,7 +286,6 @@ local function UpdateIconState(icon, panelConfig)
         icon.cooldown:SetHideCountdownNumbers(not GetIconValue(entrySettings, panelConfig, "textEnabled", true))
 
         -- Visuals
-        -- Visuals
         local showGlow = GetIconValue(entrySettings, panelConfig, "readyGlow", true)
         local useDesat = GetIconValue(entrySettings, panelConfig, "cooldownDesat", true)
 
@@ -291,14 +297,27 @@ local function UpdateIconState(icon, panelConfig)
         end
 
         if icon.texture then
-            icon.texture:SetDesaturated(useDesat and isOnCooldown)
-            -- Reset any previous alpha/vertex modifications
+            -- Desaturate if on cooldown (if enabled) OR if the spell is unusable (health, proc, etc)
+            local desaturate = (useDesat and isOnCooldown) or (not isUsable)
+            icon.texture:SetDesaturated(desaturate)
+
+            -- Alpha logic: use cooldown alpha if on CD, otherwise dim if unusable
             local alpha = 1.0
             if isOnCooldown then
                 alpha = GetIconValue(entrySettings, panelConfig, "alphaOnCooldown", 1.0)
+            elseif not isUsable then
+                -- Dim unusable icons slightly more than default to distinguish from "ready"
+                alpha = 0.5
             end
             icon:SetAlpha(alpha)
-            icon.texture:SetVertexColor(1, 1, 1)
+
+            -- Color tinting: Use Blizzard's choice for power-restricted spells
+            local useResourceCheck = GetIconValue(entrySettings, panelConfig, "useResourceCheck", true)
+            if notEnoughPower and useResourceCheck then
+                icon.texture:SetVertexColor(0.5, 0.5, 1.0) -- Blue tint for out of mana/power
+            else
+                icon.texture:SetVertexColor(1, 1, 1)
+            end
         end
 
         -- Glow Logic (Permanent while ready)
@@ -661,21 +680,54 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
         end
     else
         -- Standard left-to-right, top-to-bottom layout
-        for i, icon in ipairs(activeIcons) do
-            icon:ClearAllPoints()
-            icon:SetSize(size, size)
-
-            local col = (i - 1) % numColumns
-            local row = math.floor((i - 1) / numColumns)
+        for idx, icon in ipairs(activeIcons) do
+            local col = (idx - 1) % numColumns
+            local row = math.floor((idx - 1) / numColumns)
 
             local ox = col * (size + spacing) * hSign
             local oy = row * (size + spacing) * vSign
 
+            icon:SetSize(size, size)
             icon:SetPoint(anchor, panelFrame, anchor, ox, oy)
 
-            maxWidth = math.max(maxWidth, (col + 1) * (size + spacing) - spacing)
-            maxHeight = math.max(maxHeight, (row + 1) * (size + spacing) - spacing)
+            maxWidth = math.max(maxWidth, (col + 1) * size + col * spacing)
+            maxHeight = math.max(maxHeight, (row + 1) * size + row * spacing)
         end
+    end
+
+    -- Background Frame Logic (Universal for all panels)
+    local showBG = GetIconValue(nil, panelConfig, "showBackground", true)
+    local bgAlpha = GetIconValue(nil, panelConfig, "backgroundAlpha", 0.5)
+
+    if showBG and #activeIcons > 0 then
+        if not panelFrame.bg then
+            panelFrame.bg = CreateFrame("Frame", nil, panelFrame, "BackdropTemplate")
+            panelFrame.bg:SetFrameStrata("BACKGROUND")
+            panelFrame.bg:SetBackdrop({
+                bgFile = "Interface/Buttons/WHITE8X8",
+                insets = { left = 0, right = 0, top = 0, bottom = 0 }
+            })
+            panelFrame.bg:SetBackdropColor(0, 0, 0, bgAlpha)
+        else
+            panelFrame.bg:SetBackdropColor(0, 0, 0, bgAlpha)
+            panelFrame.bg:Show()
+        end
+
+        local bgW = maxWidth
+        local bgH = maxHeight
+        panelFrame.bg:SetSize(bgW, bgH)
+
+        panelFrame.bg:ClearAllPoints()
+        if panelConfig.placement == "center" or growthH == "Center" then
+            -- For centered layouts, the icons are horizontally centered on the anchor
+            -- but vertically they usually grow from the anchor (TOP or BOTTOM)
+            panelFrame.bg:SetPoint(anchor, panelFrame, anchor, 0, 0)
+        else
+            -- Standard growth
+            panelFrame.bg:SetPoint(anchor, panelFrame, anchor, 0, 0)
+        end
+    elseif panelFrame.bg then
+        panelFrame.bg:Hide()
     end
 
     panelFrame:SetSize(math.max(maxWidth, 1), math.max(maxHeight, 1))
@@ -852,6 +904,11 @@ function sfui.trackedicons.initialize()
         end
         -- Initial sync
         SyncBlizzardVisibility()
+    end
+
+    -- Hide Blizzard Cooldown Frames
+    if sfui.common.hide_blizzard_cooldown_viewers then
+        sfui.common.hide_blizzard_cooldown_viewers()
     end
 
     -- Event handling

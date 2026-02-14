@@ -1346,3 +1346,40 @@ function sfui.initialize_database()
     -- Tracked Bars
     SfuiDB.trackedBars = SfuiDB.trackedBars or {}
 end
+
+-- Helper to systematically hide specific Blizzard CooldownViewer frames
+function sfui.common.hide_blizzard_cooldown_viewers()
+    -- Ensure the addon is loaded first
+    if not C_AddOns.IsAddOnLoaded("Blizzard_CooldownViewer") then
+        C_AddOns.LoadAddOn("Blizzard_CooldownViewer")
+    end
+
+    local viewers = {
+        "EssentialCooldownViewer",
+        "UtilityCooldownViewer",
+    }
+
+    for _, viewerName in ipairs(viewers) do
+        local viewer = _G[viewerName]
+        if viewer then
+            viewer:SetAlpha(0)
+            viewer:EnableMouse(false)
+            viewer:Hide()
+            viewer:UnregisterAllEvents()
+
+            if not viewer._sfui_hooked then
+                hooksecurefunc(viewer, "Show", function(self)
+                    self:SetAlpha(0)
+                    self:EnableMouse(false)
+                    self:Hide()
+                end)
+                viewer._sfui_hooked = true
+            end
+        end
+    end
+    -- Ensure the CVar is set to 1 so Blizzard's internal data systems are active.
+    -- We hide the frames visually, but we need the data provider to function.
+    if GetCVar("cooldownViewerEnabled") == "0" then
+        SetCVar("cooldownViewerEnabled", 1)
+    end
+end

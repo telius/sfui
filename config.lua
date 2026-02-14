@@ -181,8 +181,11 @@ sfui.config = {
         glow_max_duration = 5.0, -- Max seconds to show glow
 
         -- Cooldown Visual State
-        cooldownDesat = true,  -- Desaturate while on cooldown
-        alphaOnCooldown = 1.0, -- Alpha transparency while on cooldown (1.0 = Opaque)
+        cooldownDesat = true,    -- Desaturate while on cooldown
+        alphaOnCooldown = 1.0,   -- Alpha transparency while on cooldown (1.0 = Opaque)
+        useResourceCheck = true, -- Enable mana/power based tinting
+        showBackground = true,   -- Show a semi-transparent black background behind panels
+        backgroundAlpha = 0.5,   -- 50% transparency for the background
 
         -- Text Display
         textEnabled = true,                  -- Show countdown numbers on icons

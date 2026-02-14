@@ -163,7 +163,6 @@ local function CreateCooldownsFrame()
     iconsBtn:SetPoint("LEFT", barsBtn, "RIGHT", 5, 0)
 
     sfui.trackedoptions.selectedPanelIndex = 1
-    sfui.trackedoptions.selectedEntryIndex = nil
 
     -- ═══════════════════════════════════════
     -- Tab 1: Global Settings Panel
@@ -366,9 +365,6 @@ local function CreateCooldownsFrame()
     local rightY = -10
 
     -- ===== RIGHT COLUMN: VISIBILITY SETTINGS =====
-    AddGlobalHeader("global visibility", rightCol)
-    rightY = rightY - 25
-
     local function UpdateIconVisibility(key, val)
         SfuiDB.iconGlobalSettings = SfuiDB.iconGlobalSettings or {}
         SfuiDB.iconGlobalSettings[key] = val
@@ -389,9 +385,6 @@ local function CreateCooldownsFrame()
     rightY = rightY - 30
 
     -- ===== COOLDOWN TEXT & VISUALS =====
-    AddGlobalHeader("cooldown visuals", rightCol)
-    rightY = rightY - 25
-
     local desatChk = sfui.common.create_checkbox(globContent, "desaturate on cooldown", nil, function(val)
         globalCfg.cooldownDesat = val
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
@@ -410,6 +403,15 @@ local function CreateCooldownsFrame()
         .textEnabled)
     rightY = rightY - 30
 
+    local resourceChk = sfui.common.create_checkbox(globContent, "enable resource check", nil, function(val)
+        globalCfg.useResourceCheck = val
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end)
+    resourceChk:SetPoint("TOPLEFT", rightCol, rightY)
+    resourceChk:SetChecked(globalCfg.useResourceCheck ~= nil and globalCfg.useResourceCheck or
+        g.icon_panel_global_defaults.useResourceCheck)
+    rightY = rightY - 30
+
     local textColorLabel = globContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     textColorLabel:SetPoint("TOPLEFT", rightCol, rightY)
     textColorLabel:SetText("text color")
@@ -421,18 +423,36 @@ local function CreateCooldownsFrame()
             if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
         end)
     textSwatch:SetPoint("LEFT", textColorLabel, "RIGHT", 10, 0)
+    rightY = rightY - 35
+
+    local alphaSlider = sfui.common.create_slider_input(globContent, "alpha on cooldown:",
+        function() return SfuiDB.iconGlobalSettings.alphaOnCooldown or 1.0 end,
+        0.1, 1.0, 0.1, function(val)
+            globalCfg.alphaOnCooldown = val
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end, colWidth)
+    alphaSlider:SetPoint("TOPLEFT", rightCol, rightY)
+    rightY = rightY - 40
+
+    local bgChk = sfui.common.create_checkbox(globContent, "show panel background", nil, function(val)
+        globalCfg.showBackground = val
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end)
+    bgChk:SetPoint("TOPLEFT", rightCol, rightY)
+    bgChk:SetChecked(globalCfg.showBackground ~= nil and globalCfg.showBackground or
+    g.icon_panel_global_defaults.showBackground)
     rightY = rightY - 30
 
-    -- Info text at bottom
-    rightY = rightY - 50
-    local infoText = globContent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    infoText:SetPoint("TOPLEFT", rightCol, rightY)
-    infoText:SetWidth(colWidth)
-    infoText:SetJustifyH("LEFT")
-    infoText:SetText(
-        "|cff888888These settings apply to all icon panels by default.\nPer-panel and per-icon overrides take priority.|r")
+    local bgAlphaSlider = sfui.common.create_slider_input(globContent, "background alpha:",
+        function() return SfuiDB.iconGlobalSettings.backgroundAlpha or 0.5 end,
+        0.1, 1.0, 0.1, function(val)
+            globalCfg.backgroundAlpha = val
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end, colWidth)
+    bgAlphaSlider:SetPoint("TOPLEFT", rightCol, rightY)
+    rightY = rightY - 40
 
-    globContent:SetHeight(400)
+    globContent:SetHeight(500)
 
 
     -- Function to update all UI controls from current globalCfg
@@ -464,16 +484,23 @@ local function CreateCooldownsFrame()
         -- Text/Visual settings
         if desatChk and desatChk.SetChecked then desatChk:SetChecked(globalCfg.cooldownDesat) end
         if textChk and textChk.SetChecked then textChk:SetChecked(globalCfg.textEnabled) end
+        if resourceChk and resourceChk.SetChecked then resourceChk:SetChecked(globalCfg.useResourceCheck) end
 
         -- Refresh preview
         UpdateGlowPreview()
 
         -- Update Alpha Slider
-        --[[
         if alphaSlider and alphaSlider.SetSliderValue then
             alphaSlider:SetSliderValue(globalCfg.alphaOnCooldown or 1.0)
         end
-        ]]
+
+        if bgChk and bgChk.SetChecked then
+            bgChk:SetChecked(globalCfg.showBackground)
+        end
+
+        if bgAlphaSlider and bgAlphaSlider.SetSliderValue then
+            bgAlphaSlider:SetSliderValue(globalCfg.backgroundAlpha or 0.5)
+        end
     end
 
     -- Update controls when panel is shown (fixes reset bug)
@@ -657,7 +684,6 @@ local function CreateCooldownsFrame()
             table.remove(panels, idx)
             sfui.common.set_cooldown_panels(panels)
             sfui.trackedoptions.selectedPanelIndex = 1
-            sfui.trackedoptions.selectedEntryIndex = nil
             sfui.trackedoptions.UpdateEditor()
             if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
         end
@@ -708,7 +734,6 @@ local function CreateCooldownsFrame()
                         settings = { showText = true }
                     })
                     ClearCursor()
-                    sfui.trackedoptions.selectedEntryIndex = #panel.entries
                     sfui.trackedoptions.UpdateEditor()
                     if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
                     return
@@ -743,7 +768,6 @@ local function CreateCooldownsFrame()
                 panel.entries = panel.entries or {}
                 table.insert(panel.entries, { type = dragType, id = dragId, settings = { showText = true } })
                 ClearCursor()
-                sfui.trackedoptions.selectedEntryIndex = #panel.entries
                 sfui.trackedoptions.UpdateEditor()
                 if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
             end
@@ -793,7 +817,7 @@ local function CreateCooldownsFrame()
             attempts = attempts + 1
             local panels = sfui.common.get_cooldown_panels()
             local dataProvider = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and
-            CooldownViewerSettings:GetDataProvider()
+                CooldownViewerSettings:GetDataProvider()
 
             if #panels > 0 and dataProvider then
                 UpdateCooldownsList() -- Updates content list
@@ -1001,7 +1025,6 @@ function sfui.trackedoptions.UpdatePanelList()
         end
         btn:SetScript("OnClick", function()
             sfui.trackedoptions.selectedPanelIndex = i
-            sfui.trackedoptions.selectedEntryIndex = nil
             sfui.trackedoptions.UpdateEditor()
         end)
         y = y - 22
@@ -1092,76 +1115,7 @@ function sfui.trackedoptions.UpdatePreview()
 
         icon:SetPoint(anchorPoint, parent, anchorPoint, ox, oy)
 
-        -- Drag and drop reordering
-        icon:SetMovable(true)
-        icon:RegisterForDrag("LeftButton")
-        icon.index = i
 
-        icon:SetScript("OnDragStart", function(self)
-            self:StartMoving()
-            self:SetAlpha(0.6)
-            self:SetFrameStrata("TOOLTIP") -- Bring to front while dragging
-        end)
-
-        icon:SetScript("OnDragStop", function(self)
-            self:StopMovingOrSizing()
-            self:SetAlpha(1.0)
-            self:SetFrameStrata("DIALOG") -- Reset strata (assuming DIALOG from parent)
-
-            local targetIndex
-            for _, child in ipairs({ parent:GetChildren() }) do
-                if child ~= self and child:IsMouseOver() and child.index then
-                    targetIndex = child.index
-                    break
-                end
-            end
-
-            if targetIndex then
-                local sourceEntry = table.remove(panel.entries, self.index)
-                table.insert(panel.entries, targetIndex, sourceEntry)
-
-                -- Update selection if needed
-                if sfui.trackedoptions.selectedEntryIndex == self.index then
-                    sfui.trackedoptions.selectedEntryIndex = targetIndex
-                elseif sfui.trackedoptions.selectedEntryIndex == targetIndex then
-                    -- This case is tricky, depends on how table.insert shifts things
-                    -- Usually just refreshing is enough
-                    sfui.trackedoptions.selectedEntryIndex = nil
-                end
-
-                sfui.common.set_cooldown_panels(panels)
-                sfui.trackedoptions.UpdateEditor()
-                if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-            end
-
-            -- Always refresh preview to put icons back in their grid spots
-            sfui.trackedoptions.UpdatePreview()
-        end)
-
-        icon:SetScript("OnClick", function(_, btn)
-            if btn == "RightButton" then
-                table.remove(panel.entries, i)
-                sfui.trackedoptions.selectedEntryIndex = nil
-            else
-                sfui.trackedoptions.selectedEntryIndex = i
-            end
-            sfui.trackedoptions.UpdateEditor()
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-        end)
-
-        -- Highlighting selected icons in preview with purple
-        if i == sfui.trackedoptions.selectedEntryIndex then
-            sfui.common.create_border(icon, 1, { g.colors.purple[1], g.colors.purple[2], g.colors.purple[3], 1 })
-        end
-
-        -- Add cooldown-type badge indicator
-        if entry.type == "cooldown" then
-            local badge = icon:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            badge:SetPoint("TOPRIGHT", icon, "TOPRIGHT", -2, -2)
-            badge:SetText("C")
-            badge:SetTextColor(g.colors.cyan[1], g.colors.cyan[2], g.colors.cyan[3], 1)
-            badge:SetFont(badge:GetFont(), 10, "OUTLINE")
-        end
 
         -- Enhanced tooltip for all icons
         icon:SetScript("OnEnter", function(self)
@@ -1171,12 +1125,6 @@ function sfui.trackedoptions.UpdatePreview()
                 if cdInfo then
                     local spellID = cdInfo.overrideSpellID or cdInfo.spellID
                     GameTooltip:SetSpellByID(spellID)
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("|cff00FFFFCooldown Viewer Entry|r", 1, 1, 1)
-                    GameTooltip:AddDoubleLine("Cooldown ID:", tostring(entry.cooldownID), 0.7, 0.7, 0.7, 1, 1, 1)
-                    if cdInfo.category then
-                        GameTooltip:AddDoubleLine("Category:", cdInfo.category, 0.7, 0.7, 0.7, 1, 1, 1)
-                    end
                 else
                     GameTooltip:SetSpellByID(entry.spellID or entry.id)
                 end
@@ -1465,62 +1413,7 @@ function sfui.trackedoptions.UpdateSettings()
     gy = gy - 40
 
     AddGeneralHeader("Panel Defaults")
-    local resetBtn = CreateFlatButton(gpContent, "reset all overrides", 180, 20)
-    resetBtn:SetPoint("TOPLEFT", 5, gy)
-    resetBtn:SetScript("OnClick", function()
-        -- Clear per-icon overrides
-        for _, entry in ipairs(panel.entries) do
-            entry.settings = {} -- Clear all per-icon adjustments
-        end
 
-        -- Get defaults from config
-        local panels = sfui.common.get_cooldown_panels()
-        local idx = sfui.trackedoptions.selectedPanelIndex or 1
-        local panels = sfui.common.get_cooldown_panels()
-        local panel = panels[idx]
-        local defaults
-        if panel and panel.name == "CENTER" then
-            defaults = sfui.config.cooldown_panel_defaults.center
-        elseif panel and panel.name == "Left" then
-            defaults = sfui.config.cooldown_panel_defaults.left
-        else
-            defaults = sfui.config.cooldown_panel_defaults.right
-        end
-
-        -- Apply all defaults (except entries)
-        for k, v in pairs(defaults) do
-            if k ~= "entries" then
-                if type(v) == "table" then
-                    panel[k] = {}
-                    for tk, tv in pairs(v) do
-                        panel[k][tk] = tv
-                    end
-                else
-                    panel[k] = v
-                end
-            end
-        end
-
-        sfui.common.set_cooldown_panels(panels)
-        sfui.trackedoptions.UpdateEditor()
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-    end)
-    gy = gy - 35
-
-    -- Info text about global settings
-    local infoHeader = gpContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    infoHeader:SetPoint("TOPLEFT", 5, gy)
-    infoHeader:SetText("Visual Effect Overrides")
-    infoHeader:SetTextColor(g.colors.cyan[1], g.colors.cyan[2], g.colors.cyan[3])
-    gy = gy - 20
-
-    local infoText = gpContent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    infoText:SetPoint("TOPLEFT", 5, gy)
-    infoText:SetWidth(fullW)
-    infoText:SetJustifyH("LEFT")
-    infoText:SetText(
-        "|cff888888Visual effect settings (glow, desaturation, text) are now configured in the |cff00FFFF'global'|r |cff888888tab.\n\nThis panel uses global settings by default. To override specific settings for this panel only, edit them in the |cff00FFFF'icons'|r |cff888888tab after selecting this panel.|r")
-    gy = gy - 60
 
     gpContent:SetHeight(math.abs(gy) + 20)
 end

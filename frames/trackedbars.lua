@@ -40,7 +40,6 @@ local _configProxyMT = {
     end
 }
 
-local configCache = {}
 local function GetTrackedBarConfig(cooldownID)
     if not cooldownID then return nil end
     local cached = configCache[cooldownID]
@@ -793,6 +792,11 @@ function sfui.trackedbars.initialize()
             BuffBarCooldownViewer:SetAlpha(0)
             BuffBarCooldownViewer:EnableMouse(false)
         end
+    end
+
+    -- Hide Blizzard Cooldown Frames
+    if sfui.common.hide_blizzard_cooldown_viewers then
+        sfui.common.hide_blizzard_cooldown_viewers()
     end
 
     -- Hook into bars state for attachment updates
