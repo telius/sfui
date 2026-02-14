@@ -49,6 +49,27 @@ function sfui.common.SafeFormatDuration(value, decimals)
     return ok and formatted or tostring(value)
 end
 
+-- Helper: Check for Dragonriding state (Vigor)
+function sfui.common.IsDragonriding()
+    if not IsMounted() then return false end
+
+    -- Check for Vigor (Enum.PowerType.AlternateMount = 29)
+    -- This resource is only active/max > 0 when on a Dragonriding/Skyriding mount
+    if UnitPowerMax("player", 29) > 0 then
+        return true
+    end
+
+    -- Fallback: Check for Gliding Info
+    local isDragonriding = false
+    pcall(function()
+        if C_PlayerInfo and C_PlayerInfo.GetGlidingInfo then
+            local _, canGlide = C_PlayerInfo.GetGlidingInfo()
+            if canGlide then isDragonriding = true end
+        end
+    end)
+    return isDragonriding
+end
+
 -- Safe helper to check if player is on GCD and get the duration
 function sfui.common.GetGCDInfo()
     local ok, ci = pcall(C_Spell.GetSpellCooldown, 61304)
@@ -331,6 +352,57 @@ function sfui.common.populate_center_panel_from_cdm()
     return entries
 end
 
+-- Populate UTILITY panel with cooldowns from CDM Group 1 (Category 1)
+function sfui.common.populate_utility_panel_from_cdm()
+    local entries = {}
+
+    -- Try using CooldownViewerSettings DataProvider
+    if CooldownViewerSettings and CooldownViewerSettings.GetDataProvider then
+        local dataProvider = CooldownViewerSettings:GetDataProvider()
+        if dataProvider then
+            local cooldownIDs = dataProvider:GetOrderedCooldownIDs()
+            if cooldownIDs then
+                for _, cooldownID in ipairs(cooldownIDs) do
+                    if not sfui.common.issecretvalue(cooldownID) then
+                        local info = dataProvider:GetCooldownInfoForID(cooldownID)
+                        -- Category 1 is Utility / Group 1
+                        if info and info.isKnown and info.category == 1 then
+                            table.insert(entries, {
+                                type = "cooldown",
+                                cooldownID = cooldownID,
+                                spellID = info.spellID,
+                                id = info.spellID,
+                                settings = { showText = true }
+                            })
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Fallback: C_CooldownViewer direct API
+    if #entries == 0 and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
+        local cooldownIDs = C_CooldownViewer.GetCooldownViewerCategorySet(1, false) -- Category 1
+        if cooldownIDs then
+            for _, cooldownID in ipairs(cooldownIDs) do
+                local cdInfo = C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID)
+                if cdInfo and cdInfo.isKnown then
+                    table.insert(entries, {
+                        type = "cooldown",
+                        cooldownID = cooldownID,
+                        spellID = cdInfo.spellID,
+                        id = cdInfo.spellID,
+                        settings = { showText = true }
+                    })
+                end
+            end
+        end
+    end
+
+    return entries
+end
+
 -- Get panels for current spec
 function sfui.common.get_cooldown_panels()
     local specID = sfui.common.get_current_spec_id()
@@ -374,6 +446,46 @@ function sfui.common.get_cooldown_panels()
         local panel = panels[centerPanelIdx]
         if not panel.entries or #panel.entries == 0 then
             panel.entries = sfui.common.populate_center_panel_from_cdm()
+            if #panel.entries > 0 then
+                sfui.common.set_cooldown_panels(panels)
+            end
+        end
+    end
+
+    -- Auto-create UTILITY panel if it doesn't exist
+    local utilityPanelIdx = nil
+    for i, panel in ipairs(panels) do
+        if panel.name == "UTILITY" then
+            utilityPanelIdx = i
+            break
+        end
+    end
+
+    if not utilityPanelIdx then
+        local utilityPanel = {
+            name = "UTILITY",
+            enabled = true,
+            x = 0,
+            y = -109,
+            size = 50,
+            columns = 9,
+            spacing = 1,
+            placement = "center",
+            anchor = "center",
+            anchorTo = "Health Bar",
+            growthV = "Down",
+            growthH = "Center", -- Default to Center growth
+            entries = sfui.common.populate_utility_panel_from_cdm()
+        }
+        -- Insert after CENTER if possible, or just append
+        local insertPos = centerPanelIdx and (centerPanelIdx + 1) or (#panels + 1)
+        table.insert(panels, insertPos, utilityPanel)
+        sfui.common.set_cooldown_panels(panels)
+    else
+        -- Populate if empty
+        local panel = panels[utilityPanelIdx]
+        if not panel.entries or #panel.entries == 0 then
+            panel.entries = sfui.common.populate_utility_panel_from_cdm()
             if #panel.entries > 0 then
                 sfui.common.set_cooldown_panels(panels)
             end
@@ -1167,3 +1279,70 @@ sfui.common.VEHICLE_KEYBIND_MAP = {
     [11] = "-",
     [12] = "="
 }
+
+-- Moved from config.lua to clean up that file
+function sfui.initialize_database()
+    if type(SfuiDB) ~= "table" then SfuiDB = {} end
+    if type(SfuiDecorDB) ~= "table" then SfuiDecorDB = {} end
+    SfuiDecorDB.items = SfuiDecorDB.items or {}
+
+    if type(SfuiDB.barTexture) ~= "string" or SfuiDB.barTexture == "" then SfuiDB.barTexture = "Flat" end
+    SfuiDB.absorbBarColor = SfuiDB.absorbBarColor or sfui.config.absorbBarColor
+
+    SfuiDB.minimap_icon = SfuiDB.minimap_icon or { hide = false }
+    SfuiDB.minimap_collect_buttons = (SfuiDB.minimap_collect_buttons == nil) and true or SfuiDB.minimap_collect_buttons
+    if SfuiDB.minimap_rearrange == nil then SfuiDB.minimap_rearrange = true end
+    SfuiDB.minimap_buttons_mouseover = (SfuiDB.minimap_buttons_mouseover == nil) and false or
+        SfuiDB.minimap_buttons_mouseover
+    if SfuiDB.minimap_masque == nil then SfuiDB.minimap_masque = true end
+    if SfuiDB.minimap_button_x == nil then SfuiDB.minimap_button_x = 0 end
+    if SfuiDB.minimap_button_y == nil then SfuiDB.minimap_button_y = 35 end
+    if SfuiDB.autoSellGreys == nil then SfuiDB.autoSellGreys = true end
+    if SfuiDB.autoRepair == nil then SfuiDB.autoRepair = true end
+    if SfuiDB.repairThreshold == nil then SfuiDB.repairThreshold = 90 end
+    if SfuiDB.enableMasterHammer == nil then SfuiDB.enableMasterHammer = true end
+    if SfuiDB.enableMerchant == nil then SfuiDB.enableMerchant = true end
+    if SfuiDB.enableDecor == nil then SfuiDB.enableDecor = false end -- Opt-in feature
+    if SfuiDB.enableVehicle == nil then SfuiDB.enableVehicle = true end
+    if SfuiDB.enableCursorRing == nil then SfuiDB.enableCursorRing = true end
+
+    -- Bar settings
+    if SfuiDB.healthBarX == nil then SfuiDB.healthBarX = 0 end
+    if SfuiDB.healthBarY == nil then SfuiDB.healthBarY = 300 end
+    if SfuiDB.enableHealthBar == nil then SfuiDB.enableHealthBar = true end
+    if SfuiDB.enablePowerBar == nil then SfuiDB.enablePowerBar = true end
+    if SfuiDB.enableSecondaryPowerBar == nil then SfuiDB.enableSecondaryPowerBar = true end
+    if SfuiDB.enableVigorBar == nil then SfuiDB.enableVigorBar = true end
+    if SfuiDB.enableMountSpeedBar == nil then SfuiDB.enableMountSpeedBar = true end
+
+    -- Castbar settings
+    if SfuiDB.castBarEnabled == nil then SfuiDB.castBarEnabled = sfui.config.castBar.enabled end
+    if SfuiDB.castBarX == nil then SfuiDB.castBarX = sfui.config.castBar.pos.x end
+    if SfuiDB.castBarY == nil then SfuiDB.castBarY = sfui.config.castBar.pos.y end
+    sfui.config.castBar.enabled = SfuiDB.castBarEnabled
+    sfui.config.castBar.pos.x = SfuiDB.castBarX
+    sfui.config.castBar.pos.y = SfuiDB.castBarY
+
+    if SfuiDB.targetCastBarEnabled == nil then SfuiDB.targetCastBarEnabled = sfui.config.targetCastBar.enabled end
+    if SfuiDB.targetCastBarX == nil then SfuiDB.targetCastBarX = sfui.config.targetCastBar.pos.x end
+    if SfuiDB.targetCastBarY == nil then SfuiDB.targetCastBarY = sfui.config.targetCastBar.pos.y end
+    sfui.config.targetCastBar.enabled = SfuiDB.targetCastBarEnabled
+    sfui.config.targetCastBar.pos.x = SfuiDB.targetCastBarX
+    sfui.config.targetCastBar.pos.y = SfuiDB.targetCastBarY
+
+    if SfuiDB.enableReminders == nil then SfuiDB.enableReminders = true end
+    if SfuiDB.remindersX == nil then SfuiDB.remindersX = 0 end
+    if SfuiDB.remindersY == nil then SfuiDB.remindersY = 10 end
+    if SfuiDB.remindersSolo == nil then SfuiDB.remindersSolo = true end
+    if SfuiDB.enableConsumablesSolo == nil then SfuiDB.enableConsumablesSolo = true end
+    if SfuiDB.remindersEverywhere == nil then SfuiDB.remindersEverywhere = true end
+    if SfuiDB.enablePetWarning == nil then SfuiDB.enablePetWarning = true end
+    if SfuiDB.enableRuneWarning == nil then SfuiDB.enableRuneWarning = true end
+
+    -- automation settings
+    if SfuiDB.auto_role_check == nil then SfuiDB.auto_role_check = true end
+    if SfuiDB.auto_sign_lfg == nil then SfuiDB.auto_sign_lfg = true end
+
+    -- Tracked Bars
+    SfuiDB.trackedBars = SfuiDB.trackedBars or {}
+end

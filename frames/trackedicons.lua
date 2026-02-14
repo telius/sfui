@@ -1,6 +1,9 @@
 local addonName, addon = ...
 sfui.trackedicons = {}
 
+local C_Spell = C_Spell
+local GetTime = GetTime
+
 local panels = {} -- Active icon panels
 local issecretvalue = sfui.common.issecretvalue
 
@@ -92,6 +95,17 @@ local function UpdateCountText(icon, count)
     else
         icon.count:Hide()
     end
+end
+
+local function IsDragonriding()
+    if not IsMounted() then return false end
+
+    local isDragonriding = false
+    -- Native API check (might be protected/restricted?)
+    pcall(function()
+        isDragonriding = (C_PlayerInfo and C_PlayerInfo.IsDragonriding and C_PlayerInfo.IsDragonriding("player"))
+    end)
+    return isDragonriding
 end
 
 -- Helper to update icon state (visibility, cooldown, charges)
@@ -265,11 +279,11 @@ local function UpdateIconState(icon, panelConfig)
         icon.cooldown:SetHideCountdownNumbers(not GetIconValue(entrySettings, panelConfig, "textEnabled", true))
 
         -- Visuals
+        -- Visuals
         local showGlow = GetIconValue(entrySettings, panelConfig, "readyGlow", true)
         local useDesat = GetIconValue(entrySettings, panelConfig, "cooldownDesat", true)
 
         -- Desaturation Logic: Use stored duration object (CooldownCompanion pattern)
-        -- Checking frame state can give false positives when GCD is cleared
         local isOnCooldown = false
         if icon._durationObj then
             -- We have a duration object (non-GCD cooldown)
@@ -278,8 +292,14 @@ local function UpdateIconState(icon, panelConfig)
 
         if icon.texture then
             icon.texture:SetDesaturated(useDesat and isOnCooldown)
+            -- Reset any previous alpha/vertex modifications
+            local alpha = 1.0
+            if isOnCooldown then
+                alpha = GetIconValue(entrySettings, panelConfig, "alphaOnCooldown", 1.0)
+            end
+            icon:SetAlpha(alpha)
+            icon.texture:SetVertexColor(1, 1, 1)
         end
-        -- Icons always stay fully visible - no alpha changes
 
         -- Glow Logic (Permanent while ready)
         if isReady and showGlow then
@@ -447,11 +467,81 @@ end
 
 function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
     if not panelFrame or not panelConfig then return end
-    if InCombatLockdown() then return end
     panelFrame.config = panelConfig
 
     local size = panelConfig.size or 50
     local spacing = panelConfig.spacing or 5
+
+    -- Register Event-Driven Visibility Handler for this panel
+    if not panelFrame.visHandler then
+        panelFrame.visHandler = CreateFrame("Frame", nil, panelFrame)
+        panelFrame.visHandler:RegisterEvent("PLAYER_REGEN_DISABLED")
+        panelFrame.visHandler:RegisterEvent("PLAYER_REGEN_ENABLED")
+        panelFrame.visHandler:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
+        panelFrame.visHandler:RegisterEvent("UNIT_POWER_BAR_SHOW")
+        panelFrame.visHandler:RegisterEvent("UNIT_POWER_BAR_HIDE")
+
+        panelFrame.visHandler:SetScript("OnEvent", function(self, event)
+            if not SfuiDB or not SfuiDB.iconGlobalSettings then return end
+
+            local shouldShow = true
+            local globalVis = SfuiDB.iconGlobalSettings
+
+            -- Robust Combat Detection
+            -- PLAYER_REGEN_DISABLED = We are entering combat (InCombatLockdown might lag slightly)
+            local inCombat = InCombatLockdown()
+            if event == "PLAYER_REGEN_DISABLED" then
+                inCombat = true
+            elseif event == "PLAYER_REGEN_ENABLED" then
+                inCombat = false
+            end
+
+            -- Debug
+            -- print("SFUI Vis Check:", event, "InCombat:", inCombat, "IsMounted:", IsMounted())
+
+            -- 1. Check OOC
+            if globalVis.hideOOC and not inCombat then
+                shouldShow = false
+            end
+
+            -- 2. Check Dragonriding
+            if shouldShow and globalVis.hideDragonriding then
+                -- Only apply Dragonriding Hide if we are NOT in combat
+                -- Combat visibility always takes priority
+                if sfui.common.IsDragonriding() and not inCombat then
+                    shouldShow = false
+                end
+            end
+
+            -- OVERRIDE: Always show if Options Panel (Global/Icons tabs) is open
+            if _G["SfuiCooldownsViewer"] and _G["SfuiCooldownsViewer"]:IsShown() then
+                local tabId = _G["SfuiCooldownsViewer"].selectedTabId
+                if tabId == 1 or tabId == 3 then
+                    shouldShow = true
+                end
+            end
+
+            -- Apply Visibility State
+            if shouldShow then
+                if not panelFrame:IsShown() then
+                    panelFrame:Show()
+                end
+            else
+                if panelFrame:IsShown() then
+                    panelFrame:Hide()
+                end
+            end
+        end)
+    end
+
+
+
+    -- Trigger initial visibility check IMMEDIATELY
+    if panelFrame.visHandler then
+        pcall(panelFrame.visHandler:GetScript("OnEvent"), panelFrame.visHandler)
+    end
+
+
 
     -- Ensure panel position is updated from Config with Dynamic Anchoring
     panelFrame:ClearAllPoints()
@@ -476,6 +566,15 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
     elseif anchorTo == "Tracked Bars" and _G["SfuiTrackedBarsContainer"] then
         targetFrame = _G["SfuiTrackedBarsContainer"]
         targetPoint = "TOP"
+    else
+        -- Check if anchoring to another panel by name
+        for _, otherPanel in pairs(panels) do
+            if otherPanel.config and otherPanel.config.name == anchorTo then
+                targetFrame = otherPanel
+                targetPoint = "BOTTOM" -- Default stacking direction
+                break
+            end
+        end
     end
 
     panelFrame:SetPoint(anchor, targetFrame, targetPoint, panelConfig.x or 0, panelConfig.y or 0)
@@ -705,7 +804,56 @@ function sfui.trackedicons.Update()
     end
 end
 
+-- Hook to hide specific categories from Blizzard's CooldownViewer
+local function SyncBlizzardVisibility()
+    if not BuffBarCooldownViewer or not BuffBarCooldownViewer.itemFramePool then return end
+
+    pcall(function()
+        for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
+            if blizzFrame.cooldownID then
+                local shouldHide = false
+                -- Check category via C_CooldownViewer (if available)
+                if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
+                    local info = C_CooldownViewer.GetCooldownViewerCooldownInfo(blizzFrame.cooldownID)
+                    if info then
+                        -- Category 0 = Essential, 1 = Utility
+                        -- Hide these as we track them with icons
+                        if info.category == 0 or info.category == 1 then
+                            shouldHide = true
+                        end
+                    end
+                end
+
+                if shouldHide then
+                    blizzFrame:SetAlpha(0)
+                    if blizzFrame.SetAlpha then -- Ensure interaction is disabled too?
+                        blizzFrame:EnableMouse(false)
+                    end
+                end
+            end
+        end
+    end)
+end
+
 function sfui.trackedicons.initialize()
+    -- Ensure Blizzard addon is loaded so we can hook it
+    local loaded, reason = C_AddOns.LoadAddOn("Blizzard_CooldownViewer")
+
+    -- Register hooks if available
+    if BuffBarCooldownViewer then
+        if BuffBarCooldownViewer.RefreshData then
+            hooksecurefunc(BuffBarCooldownViewer, "RefreshData", SyncBlizzardVisibility)
+        end
+        if BuffBarCooldownViewer.RefreshApplications then
+            hooksecurefunc(BuffBarCooldownViewer, "RefreshApplications", SyncBlizzardVisibility)
+        end
+        if BuffBarCooldownViewer.SetAuraInstanceInfo then
+            hooksecurefunc(BuffBarCooldownViewer, "SetAuraInstanceInfo", SyncBlizzardVisibility)
+        end
+        -- Initial sync
+        SyncBlizzardVisibility()
+    end
+
     -- Event handling
     local eventFrame = CreateFrame("Frame")
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -713,10 +861,12 @@ function sfui.trackedicons.initialize()
     eventFrame:RegisterEvent("BAG_UPDATE_COOLDOWN")
     eventFrame:RegisterEvent("UNIT_AURA")
     eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")          -- To retry layout updates
+    eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")         -- Visibility trigger
+    eventFrame:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")  -- Dragonriding trigger
     eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED") -- Reload panels on spec change
     eventFrame:RegisterEvent("TRAIT_CONFIG_UPDATED")          -- Talent changes (for cooldown overrideSpellID)
     eventFrame:SetScript("OnEvent", function(self, event, unitTarget, updateInfo)
-        if event == "PLAYER_REGEN_ENABLED" then
+        if event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" then
             sfui.trackedicons.Update()
         elseif event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_SPECIALIZATION_CHANGED" then
             -- Force a sync of spell data before UI refresh
