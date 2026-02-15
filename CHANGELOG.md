@@ -1,3 +1,7 @@
+## v0.2.14 (2026-02-15)
+### Maintenance
+- **Release Automation**: Triggering new release workflow.
+
 ## v0.2.13 (2026-02-15)
 ### Optimizations
 - **Memory Leak Fixes**: Implemented a comprehensive widget pooling system in the options panel, eliminating memory growth caused by repeated frame creation.
