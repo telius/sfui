@@ -1,3 +1,22 @@
+## v0.2.12 (2026-02-15)
+
+### Major Improvements
+- **Options UI Overhaul**:
+    - **Global Tab**: Removed the scroll frame from the Global settings tab for a cleaner, static layout.
+    - **Left Panel (Icons)**: 
+        - Removed the scroll frame from the panel list.
+        - Redesigned "Add" and "Del" buttons to be compact and positioned side-by-side at the bottom.
+        - Resized panel selection buttons to perfectly fit the panel width.
+        - **Active State Styling**: Selected panel buttons now highlight with a **#6600FF** (purple) border and text for clear visibility.
+
+### Bug Fixes
+- **Glow Logic**:
+    - **"Glow Pop" Fix**: Implemented `_pendingGlow` logic to prevent unwanted glows when regaining control after CC (e.g., Stun, Fear). Glows now only trigger after a valid cooldown cycle (> 0.1s).
+    - **Taint Fix**: Added safety checks for "secret values" in cooldown durations to prevent crashes in restricted environments (M+, combat).
+    - **Sustained Glows**: Fixed an issue where glows would flash for a split second; they now sustain correctly for their full duration.
+- **Desaturation**:
+    - Restored `HasFullControl()` check to ensure icons remain **saturated** (colored) during temporary loss-of-control events, improving visibility while CC'd.
+
 ## v0.2.11 (2026-02-14)
 ### Bug Fixes
 - **Tracked Bars**: Fixed default Blizzard bar hiding logic to correctly use the `category` API, ensuring Essential and Utility bars remain hidden as intended.
