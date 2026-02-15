@@ -172,12 +172,8 @@ local function CreateCooldownsFrame()
     globalPanel:SetPoint("BOTTOMRIGHT", -10, 10)
     globalPanel:Hide()
 
-    local globScroll = CreateFrame("ScrollFrame", nil, globalPanel, "UIPanelScrollFrameTemplate")
-    globScroll:SetPoint("TOPLEFT", 0, 0)
-    globScroll:SetPoint("BOTTOMRIGHT", -25, 0)
-    local globContent = CreateFrame("Frame", nil, globScroll)
-    globContent:SetSize(800, 600)
-    globScroll:SetScrollChild(globContent)
+    local globContent = CreateFrame("Frame", nil, globalPanel)
+    globContent:SetAllPoints(globalPanel)
 
     -- Initialize global settings if not present
     SfuiDB.iconGlobalSettings = SfuiDB.iconGlobalSettings or {}
@@ -622,15 +618,13 @@ local function CreateCooldownsFrame()
     leftPanel:SetBackdrop({ bgFile = g.textures.white })
     leftPanel:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
 
-    local lpScroll = CreateFrame("ScrollFrame", nil, leftPanel, "UIPanelScrollFrameTemplate")
-    lpScroll:SetPoint("TOPLEFT", 5, -5)
-    lpScroll:SetPoint("BOTTOMRIGHT", -25, 45)
-    local lpContent = CreateFrame("Frame", nil, lpScroll)
-    lpContent:SetSize(1, 1)
-    lpScroll:SetScrollChild(lpContent)
+    local lpContent = CreateFrame("Frame", nil, leftPanel)
+    lpContent:SetPoint("TOPLEFT", 5, -5)
+    lpContent:SetPoint("BOTTOMRIGHT", -5, 30) -- Leave room for buttons at bottom
     sfui.trackedoptions.lpContent = lpContent
 
-    local addBtn = CreateFlatButton(leftPanel, "+ add", 85, 22)
+    -- Re-design Add/Del Buttons (Fit 120 width: 5 pad + 50 btn + 10 gap + 50 btn + 5 pad)
+    local addBtn = CreateFlatButton(leftPanel, "Add", 50, 22)
     addBtn:SetPoint("BOTTOMLEFT", 5, 5)
     addBtn:SetScript("OnClick", function()
         local panels = sfui.common.get_cooldown_panels()
@@ -676,7 +670,7 @@ local function CreateCooldownsFrame()
     end)
     resetGlobalBtn:SetPoint("TOPRIGHT", globContent, "TOPRIGHT", -10, -10)
 
-    local delBtn = CreateFlatButton(leftPanel, "- del", 80, 22)
+    local delBtn = CreateFlatButton(leftPanel, "Del", 50, 22)
     delBtn:SetPoint("BOTTOMRIGHT", -5, 5)
     delBtn:SetScript("OnClick", function()
         local idx = sfui.trackedoptions.selectedPanelIndex
@@ -1019,11 +1013,27 @@ function sfui.trackedoptions.UpdatePanelList()
     local panels = sfui.common.get_cooldown_panels()
     local y = 0
     for i, panel in ipairs(panels) do
-        local btn = CreateFlatButton(lpContent, panel.name or ("Panel " .. i), 120, 20)
+        -- Width 110 to fit in 120 panel with 5px padding
+        local btn = CreateFlatButton(lpContent, panel.name or ("Panel " .. i), 110, 20)
         btn:SetPoint("TOPLEFT", 0, y)
-        if i == sfui.trackedoptions.selectedPanelIndex then
+
+        local isSelected = (i == sfui.trackedoptions.selectedPanelIndex)
+        if isSelected then
             btn:SetBackdropBorderColor(g.colors.purple[1], g.colors.purple[2], g.colors.purple[3], 1)
+            btn:GetFontString():SetTextColor(g.colors.purple[1], g.colors.purple[2], g.colors.purple[3], 1)
         end
+
+        -- Override OnLeave to maintain selected state
+        btn:SetScript("OnLeave", function(self)
+            if i == sfui.trackedoptions.selectedPanelIndex then
+                self:GetFontString():SetTextColor(g.colors.purple[1], g.colors.purple[2], g.colors.purple[3], 1)
+                self:SetBackdropBorderColor(g.colors.purple[1], g.colors.purple[2], g.colors.purple[3], 1)
+            else
+                self:GetFontString():SetTextColor(g.colors.white[1], g.colors.white[2], g.colors.white[3], 1)
+                self:SetBackdropBorderColor(g.colors.gray[1], g.colors.gray[2], g.colors.gray[3], 1)
+            end
+        end)
+
         btn:SetScript("OnClick", function()
             sfui.trackedoptions.selectedPanelIndex = i
             sfui.trackedoptions.UpdateEditor()

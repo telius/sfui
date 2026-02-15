@@ -211,6 +211,15 @@ local function UpdateIconState(icon, panelConfig)
 
                     if useIt then
                         icon._durationObj = spellCooldownDuration
+                        -- Set pending glow if valid cooldown > 0.1s (rely on isOnGCD check)
+                        if cdInfo and cdInfo.duration then
+                            if issecretvalue(cdInfo.duration) then
+                                icon._pendingGlow = true
+                            elseif cdInfo.duration > 0.1 then
+                                icon._pendingGlow = true
+                            end
+                        end
+
                         pcall(function()
                             icon.cooldown:SetCooldownFromDurationObject(spellCooldownDuration)
                             if icon.shadowCooldown then
@@ -239,6 +248,7 @@ local function UpdateIconState(icon, panelConfig)
                 local tempCDIcon = { cooldown = icon.cooldown, shadowCooldown = icon.shadowCooldown }
                 pcall(pcall_sync_swipe, tempCDIcon, fallbackDurObj)
                 icon._durationObj = fallbackDurObj
+                -- Assume safe duration for secret fallback ??
             end
         else
             -- No duration object = Ready (Clear cooldown)
@@ -253,6 +263,12 @@ local function UpdateIconState(icon, panelConfig)
     local isUsable, notEnoughPower = true, false
     if activeID and not issecretvalue(activeID) and icon.type ~= "item" then
         isUsable, notEnoughPower = C_Spell.IsSpellUsable(activeID)
+
+        -- If player has lost control (stun, fear, etc), force usable to prevent desaturation
+        -- Glow logic is safe because of _pendingGlow
+        if not HasFullControl() and not isUsable then
+            isUsable = true
+        end
     end
 
     -- Readiness Logic (Native Safe)
@@ -332,7 +348,24 @@ local function UpdateIconState(icon, panelConfig)
         end
 
         -- Glow Logic (Permanent while ready)
+        -- Logic:
+        -- 1. Trigger if _pendingGlow is set (armed by previous valid cooldown)
+        -- 2. Sustain if already active (and duration not exceeded)
+
+        local shouldGlow = false
         if isReady and showGlow then
+            if icon._pendingGlow then
+                -- Trigger!
+                shouldGlow = true
+                icon._pendingGlow = false       -- Consume the trigger
+                icon._glowStartTime = GetTime() -- Reset timer for new glow
+            elseif icon._glowActive then
+                -- Sustain
+                shouldGlow = true
+            end
+        end
+
+        if shouldGlow then
             -- Check if glow has been active for too long
             local maxDuration = sfui.config.cooldown_panel_defaults.glow_max_duration or 5.0
             local now = GetTime()
