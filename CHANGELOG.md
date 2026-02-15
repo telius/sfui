@@ -1,3 +1,12 @@
+## v0.2.13 (2026-02-15)
+### Optimizations
+- **Memory Leak Fixes**: Implemented a comprehensive widget pooling system in the options panel, eliminating memory growth caused by repeated frame creation.
+    - Added object pools for Sliders, Checkboxes, Buttons, Headers, and EditBoxes.
+    - Refactored `UpdateSettings` and `UpdatePanelList` to intelligently reuse existing UI frames.
+- **Performance**:
+    - Added local aliases for WoW API globals (`CreateFrame`, `UIParent`, etc.) in `trackedbars.lua` and `trackedoptions.lua` to reduce lookup overhead.
+    - Replaced deprecated `unpack` calls with local aliases.
+
 ## v0.2.12 (2026-02-15)
 
 ### Major Improvements

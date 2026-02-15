@@ -11,6 +11,18 @@ local issecretvalue = sfui.common.issecretvalue
 local CreateFlatButton = sfui.common.create_flat_button
 local g = sfui.config
 local c = g.options_panel
+local CreateFrame = CreateFrame
+local GameTooltip = GameTooltip
+local UIParent = UIParent
+local InCombatLockdown = InCombatLockdown
+local GetCursorPosition = GetCursorPosition
+local GetSpecialization = GetSpecialization
+local GetSpecializationInfo = GetSpecializationInfo
+local UIDropDownMenu_SetWidth = UIDropDownMenu_SetWidth
+local UIDropDownMenu_SetText = UIDropDownMenu_SetText
+local UIDropDownMenu_Initialize = UIDropDownMenu_Initialize
+local UIDropDownMenu_CreateInfo = UIDropDownMenu_CreateInfo
+local UIDropDownMenu_AddButton = UIDropDownMenu_AddButton
 
 local function select_tab(frame, id)
     if not frame.tabs then return end
@@ -1003,19 +1015,197 @@ function sfui.trackedoptions.UpdateEditor()
     end
 end
 
+-- Widget Pools (Memory Optimization)
+local widgetPools = {
+    panelButton = {},
+    slider = {},
+    checkbox = {},
+    header = {},
+    button = {},
+    editbox = {},
+    label = {},
+    dropdown = {}
+}
+local activeWidgets = {
+    panelButton = {},
+    settings = {} -- Mixed types
+}
+
+-- ... ReleaseWidget / AcquireWidget ...
+
+
+
+local function ReleaseWidget(poolType, widget)
+    if not widget then return end
+    widget:Hide()
+    widget:ClearAllPoints()
+    widget:SetParent(nil)
+    table.insert(widgetPools[poolType], widget)
+end
+
+local function AcquireWidget(poolType, createFunc, parent)
+    local widget = table.remove(widgetPools[poolType])
+    if not widget then
+        widget = createFunc(parent)
+    else
+        widget:SetParent(parent)
+        widget:SetFrameLevel(parent:GetFrameLevel() + 1)
+    end
+    widget:Show() -- Ensure it's shown
+    return widget
+end
+
+-- Widget Factories for Reuse
+local function AcquireCheckbox(parent, label, dbKeyOrGetter, onClickFunc, tooltip)
+    local cb = AcquireWidget("checkbox", function(p)
+        return sfui.common.create_checkbox(p, "", nil, nil, nil)
+    end, parent)
+
+    if cb.text then cb.text:SetText(label) end
+
+    local function updateChecked()
+        if type(dbKeyOrGetter) == "string" then
+            if SfuiDB[dbKeyOrGetter] ~= nil then cb:SetChecked(SfuiDB[dbKeyOrGetter]) end
+        elseif type(dbKeyOrGetter) == "function" then
+            local val = dbKeyOrGetter()
+            if val ~= nil then cb:SetChecked(val) end
+        end
+    end
+
+    cb:SetScript("OnClick", function(self)
+        local checked = self:GetChecked()
+        if type(dbKeyOrGetter) == "string" then SfuiDB[dbKeyOrGetter] = checked end
+        if onClickFunc then onClickFunc(checked) end
+    end)
+    cb:SetScript("OnShow", updateChecked)
+    updateChecked()
+
+    if tooltip then
+        cb:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(tooltip)
+            GameTooltip:Show()
+        end)
+        cb:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+    else
+        cb:SetScript("OnEnter", nil)
+        cb:SetScript("OnLeave", nil)
+    end
+
+    return cb
+end
+
+local function AcquireSlider(parent, label, dbKeyOrGetter, minVal, maxVal, step, onValueChangedFunc, width)
+    local container = AcquireWidget("slider", function(p)
+        return sfui.common.create_slider_input(p, "", nil, 0, 100, 1, nil, width)
+    end, parent)
+
+    if container.label then container.label:SetText(label) end
+    if width then container:SetWidth(width) end
+
+    local slider = container.slider
+    local editbox = container.editbox
+
+    if slider then
+        slider:SetMinMaxValues(minVal, maxVal)
+        slider:SetValueStep(step)
+
+        slider:SetScript("OnValueChanged", function(self, value)
+            local stepped = math.floor((value - minVal) / step + 0.5) * step + minVal
+            if type(dbKeyOrGetter) == "string" then SfuiDB[dbKeyOrGetter] = stepped end
+
+            local displayVal = math.floor(stepped * 100) / 100
+            if editbox then editbox:SetText(tostring(displayVal)) end
+            if onValueChangedFunc then onValueChangedFunc(stepped) end
+        end)
+
+        -- Init value
+        local val = minVal
+        if type(dbKeyOrGetter) == "string" and SfuiDB[dbKeyOrGetter] then val = SfuiDB[dbKeyOrGetter] end
+        if type(dbKeyOrGetter) == "function" then val = dbKeyOrGetter() end
+        slider:SetValue(val)
+    end
+
+    if editbox then
+        editbox:SetScript("OnEnterPressed", function(self)
+            local val = tonumber(self:GetText())
+            if val then
+                if val < minVal then val = minVal end
+                if val > maxVal then val = maxVal end
+                if slider then slider:SetValue(val) end
+                if type(dbKeyOrGetter) == "string" then SfuiDB[dbKeyOrGetter] = val end
+                if onValueChangedFunc then onValueChangedFunc(val) end
+            end
+            self:ClearFocus()
+        end)
+    end
+
+    return container
+end
+
+local function AcquireEditBox(parent, width, height, callback, initialValue)
+    local eb = AcquireWidget("editbox", function(p)
+        return CreateNumericEditBox(p, width, height, nil)
+    end, parent)
+
+    eb:SetSize(width, height)
+    eb:SetText(initialValue or "")
+
+    eb:SetScript("OnEnterPressed", function(self)
+        local val = tonumber(self:GetText())
+        if callback then callback(val) end
+        self:ClearFocus()
+    end)
+
+    return eb
+end
+
+local function AcquireFlatButton(parent, text, w, h, onClick)
+    local btn = AcquireWidget("button", function(p)
+        return sfui.common.create_flat_button(p, text, w, h)
+    end, parent)
+
+    btn:SetSize(w, h)
+    btn:SetText(text)
+
+    if onClick then
+        btn:SetScript("OnClick", onClick)
+    else
+        btn:SetScript("OnClick", nil)
+    end
+
+    btn:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+    btn:GetFontString():SetTextColor(0.6, 0.6, 0.6, 1)
+
+    return btn
+end
+
 function sfui.trackedoptions.UpdatePanelList()
     local lpContent = sfui.trackedoptions.lpContent
     if not lpContent then return end
-    for _, child in ipairs({ lpContent:GetChildren() }) do
-        child:Hide(); child:SetParent(nil)
+
+    -- Release all active panel buttons
+    for _, btn in ipairs(activeWidgets.panelButton) do
+        ReleaseWidget("panelButton", btn)
     end
+    -- Clear table (mock wipe if needed, or use sfui.common.wipe)
+    sfui.common.wipe(activeWidgets.panelButton)
 
     local panels = sfui.common.get_cooldown_panels()
     local y = 0
     for i, panel in ipairs(panels) do
         -- Width 110 to fit in 120 panel with 5px padding
-        local btn = CreateFlatButton(lpContent, panel.name or ("Panel " .. i), 110, 20)
+        local btn = AcquireWidget("panelButton", function(p)
+            return CreateFlatButton(p, "", 110, 20)
+        end, lpContent)
+
+        btn:SetSize(110, 20)
         btn:SetPoint("TOPLEFT", 0, y)
+        btn:SetText(panel.name or ("Panel " .. i))
+
+        -- Reset state
+        btn:SetBackdropBorderColor(g.colors.gray[1], g.colors.gray[2], g.colors.gray[3], 1)
+        btn:GetFontString():SetTextColor(g.colors.white[1], g.colors.white[2], g.colors.white[3], 1)
 
         local isSelected = (i == sfui.trackedoptions.selectedPanelIndex)
         if isSelected then
@@ -1038,6 +1228,8 @@ function sfui.trackedoptions.UpdatePanelList()
             sfui.trackedoptions.selectedPanelIndex = i
             sfui.trackedoptions.UpdateEditor()
         end)
+
+        table.insert(activeWidgets.panelButton, btn)
         y = y - 22
     end
     lpContent:SetHeight(math.abs(y))
@@ -1403,15 +1595,19 @@ function sfui.trackedoptions.UpdatePreview()
     end
 end
 
+-- Helper to release all settings widgets
+local function ReleaseSettingsWidgets()
+    for _, item in ipairs(activeWidgets.settings) do
+        ReleaseWidget(item.type, item.widget)
+    end
+    sfui.common.wipe(activeWidgets.settings)
+end
+
 function sfui.trackedoptions.UpdateSettings()
     local gpContent = sfui.trackedoptions.gpContent
     if not gpContent then return end
 
-    -- Clear panel
-    for _, child in ipairs({ gpContent:GetChildren() }) do
-        child:Hide(); child:SetParent(nil)
-    end
-    for _, reg in ipairs({ gpContent:GetRegions() }) do reg:Hide() end
+    ReleaseSettingsWidgets()
 
     local idx = sfui.trackedoptions.selectedPanelIndex or 1
     local panels = sfui.common.get_cooldown_panels()
@@ -1425,18 +1621,28 @@ function sfui.trackedoptions.UpdateSettings()
 
     local function AddGeneralHeader(text)
         gy = gy - 5
-        local h = gpContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        local h = AcquireWidget("header", function(p)
+            local fs = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+            fs:SetJustifyH("LEFT")
+            return fs
+        end, gpContent)
+
         h:SetPoint("TOPLEFT", 5, gy)
         h:SetText(text)
         h:SetTextColor(g.colors.cyan[1], g.colors.cyan[2], g.colors.cyan[3])
+
+        table.insert(activeWidgets.settings, { type = "header", widget = h })
         gy = gy - 20
         return h
     end
 
     local function AddGeneralLabel(text)
-        local l = gpContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        local l = AcquireWidget("label", function(p)
+            return p:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        end, gpContent)
         l:SetPoint("TOPLEFT", 5, gy)
         l:SetText(text)
+        table.insert(activeWidgets.settings, { type = "label", widget = l })
         gy = gy - 15
         return l
     end
@@ -1444,84 +1650,107 @@ function sfui.trackedoptions.UpdateSettings()
     -- POPULATE GENERAL PANEL
     AddGeneralHeader("Panel: " .. (panel.name or "Unnamed"))
     AddGeneralLabel("panel name")
-    local nameEB = CreateNumericEditBox(gpContent, 160, 18, function(val) end)
+    local nameEB = AcquireEditBox(gpContent, 160, 18, function(val)
+        -- val is number from AcquireEditBox parsing, but name might be string?
+        -- CreateNumericEditBox forces number. But panel name is string.
+        -- Wait, logic error in original code? CreateNumericEditBox uses tonumber().
+        -- If panel name is string "CENTER", tonumber is nil.
+        -- Original code (line 1496): panel.name = self:GetText();
+        -- It ignores CreateNumericEditBox callback and sets OnEnterPressed manually!
+        -- My AcquireEditBox sets OnEnterPressed.
+        -- I need a string edit box or override the script?
+    end)
+    -- Override for String
     nameEB:SetScript("OnEnterPressed", function(self)
         panel.name = self:GetText(); sfui.trackedoptions.UpdateEditor()
+        self:ClearFocus()
     end)
+
     nameEB:SetPoint("TOPLEFT", 5, gy)
     nameEB:SetText(panel.name or "")
+    table.insert(activeWidgets.settings, { type = "editbox", widget = nameEB })
     gy = gy - 30
 
-    local xSlider = sfui.common.create_slider_input(gpContent, "pos x", function() return panel.x end, -1000, 1000,
-        1, function(v)
-            panel.x = v; if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-        end, halfW)
-    xSlider:SetPoint("TOPLEFT", 5, gy); xSlider:SetSliderValue(panel.x or 0)
+    local xSlider = AcquireSlider(gpContent, "pos x", nil, -1000, 1000, 1, function(v)
+        panel.x = v; if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end, halfW)
+    xSlider:SetPoint("TOPLEFT", 5, gy);
+    -- Manually set value as AcquireSlider expects getter or init value, passing nil for getter
+    xSlider.slider:SetValue(panel.x or 0)
+    table.insert(activeWidgets.settings, { type = "slider", widget = xSlider })
 
-    local ySlider = sfui.common.create_slider_input(gpContent, "pos y", function() return panel.y end, -1000, 1000,
-        1, function(v)
-            panel.y = v; if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-        end, halfW)
-    ySlider:SetPoint("TOPLEFT", 5 + halfW + 10, gy); ySlider:SetSliderValue(panel.y or 0)
+    local ySlider = AcquireSlider(gpContent, "pos y", nil, -1000, 1000, 1, function(v)
+        panel.y = v; if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end, halfW)
+    ySlider:SetPoint("TOPLEFT", 5 + halfW + 10, gy);
+    ySlider.slider:SetValue(panel.y or 0)
+    table.insert(activeWidgets.settings, { type = "slider", widget = ySlider })
     gy = gy - 45
 
     -- Icon Size Input directly below Pos X/Y
     AddGeneralLabel("icon size")
-    local sizeEB = CreateNumericEditBox(gpContent, 60, 18, function(val)
-        panel.size = tonumber(val) or panel.size
+    local sizeEB = AcquireEditBox(gpContent, 60, 18, function(val)
+        panel.size = val or panel.size
         sfui.trackedoptions.UpdatePreview()
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-    end)
+    end, panel.size or 50)
     sizeEB:SetPoint("TOPLEFT", 5, gy)
-    sizeEB:SetText(panel.size or 50)
+    table.insert(activeWidgets.settings, { type = "editbox", widget = sizeEB })
     gy = gy - 30
 
-    local spacingSlider = sfui.common.create_slider_input(gpContent, "spacing", function() return panel.spacing end, 0,
-        50, 1, function(v)
-            panel.spacing = v; sfui.trackedoptions.UpdatePreview()
+    local spacingSlider = AcquireSlider(gpContent, "spacing", nil, 0, 50, 1, function(v)
+        panel.spacing = v; sfui.trackedoptions.UpdatePreview()
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end, halfW)
+    spacingSlider:SetPoint("TOPLEFT", 5, gy);
+    spacingSlider.slider:SetValue(panel.spacing or 2)
+    table.insert(activeWidgets.settings, { type = "slider", widget = spacingSlider })
+
+    if string.lower(panel.name or "") ~= "center" then -- Fix undefined 'key'
+        local columnsSlider = AcquireSlider(gpContent, "columns", nil, 1, 20, 1, function(v)
+            panel.columns = v; sfui.trackedoptions.UpdatePreview()
             if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
         end, halfW)
-    spacingSlider:SetPoint("TOPLEFT", 5, gy); spacingSlider:SetSliderValue(panel.spacing or 2)
-
-    if key ~= "center" then
-        local columnsSlider = sfui.common.create_slider_input(gpContent, "columns", function() return panel.columns end,
-            1,
-            20,
-            1, function(v)
-                panel.columns = v; sfui.trackedoptions.UpdatePreview()
-                if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-            end, halfW)
-        columnsSlider:SetPoint("TOPLEFT", 5 + halfW + 10, gy); columnsSlider:SetSliderValue(panel.columns or 10)
+        columnsSlider:SetPoint("TOPLEFT", 5 + halfW + 10, gy);
+        columnsSlider.slider:SetValue(panel.columns or 10)
+        table.insert(activeWidgets.settings, { type = "slider", widget = columnsSlider })
     end
     gy = gy - 30
 
-    local spanChk = sfui.common.create_checkbox(gpContent, "auto-span width (center)", nil, function(v)
+    local spanChk = AcquireCheckbox(gpContent, "auto-span width (center)", nil, function(v)
         panel.spanWidth = v
         sfui.trackedoptions.UpdatePreview()
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
     end)
+    -- Span width defaults to true for center, but false for others?
+    -- Logic: checkbox state needs to reflect value.
+    if panel.spanWidth == nil then
+        -- Check default? Center defaults to true.
+        spanChk:SetChecked(string.lower(panel.name or "") == "center")
+    else
+        spanChk:SetChecked(panel.spanWidth)
+    end
     spanChk:SetPoint("TOPLEFT", 5, gy)
-    -- For panel settings, nil usually means inherit, but checkbox needs state.
-    -- Default to unchecked if nil? Or check global?
-    -- Let's just use boolean logic.
-    spanChk:SetChecked(panel.spanWidth or false)
+    table.insert(activeWidgets.settings, { type = "checkbox", widget = spanChk })
     gy = gy - 30
 
-    local bgChk = sfui.common.create_checkbox(gpContent, "show panel background", nil, function(v)
+    local bgChk = AcquireCheckbox(gpContent, "show panel background", nil, function(v)
         panel.showBackground = v
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
     end)
     bgChk:SetPoint("TOPLEFT", 5, gy)
-    bgChk:SetChecked(panel.showBackground == nil and g.icon_panel_global_defaults.showBackground or panel.showBackground)
+    local defaultBg = g.icon_panel_global_defaults.showBackground
+    if panel.showBackground == nil then bgChk:SetChecked(defaultBg) else bgChk:SetChecked(panel.showBackground) end
+    table.insert(activeWidgets.settings, { type = "checkbox", widget = bgChk })
     gy = gy - 30
 
-    local bgAlphaS = sfui.common.create_slider_input(gpContent, "bg alpha",
-        function() return panel.backgroundAlpha or 0.5 end, 0.1, 1.0, 0.1, function(v)
-            panel.backgroundAlpha = v
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-        end, halfW)
+    local bgAlphaS = AcquireSlider(gpContent, "bg alpha", nil, 0.1, 1.0, 0.1, function(v)
+        panel.backgroundAlpha = v
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end, halfW)
     bgAlphaS:SetPoint("TOPLEFT", 5, gy)
-    bgAlphaS:SetSliderValue(panel.backgroundAlpha or 0.5)
+    bgAlphaS.slider:SetValue(panel.backgroundAlpha or 0.5)
+    table.insert(activeWidgets.settings, { type = "slider", widget = bgAlphaS })
     gy = gy - 40
 
     local function StyleSelection(btn, isActive)
@@ -1552,35 +1781,75 @@ function sfui.trackedoptions.UpdateSettings()
 
     AddGeneralHeader("Placement & Growth")
 
-    local anchorLabel = gpContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    local anchorLabel = AcquireWidget("label",
+        function(p) return p:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall") end, gpContent)
     anchorLabel:SetPoint("TOPLEFT", 5, gy)
     anchorLabel:SetText("anchor")
+    table.insert(activeWidgets.settings, { type = "label", widget = anchorLabel })
 
-    local growthLabel = gpContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    local growthLabel = AcquireWidget("label",
+        function(p) return p:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall") end, gpContent)
     growthLabel:SetPoint("TOPLEFT", 110, gy)
     growthLabel:SetText("growth")
+    table.insert(activeWidgets.settings, { type = "label", widget = growthLabel })
 
     gy = gy - 20
 
     -- Anchor Grid (3x3)
-    local anchorGrid = CreateFrame("Frame", nil, gpContent)
-    anchorGrid:SetSize(65, 65)
-    anchorGrid:SetPoint("TOPLEFT", 5, gy)
+    -- We can reuse a container logic or just create frames.
+    -- Since grids are static layout, reusing them is fine.
+    -- AcquireWidget("container", ...)
+    -- I'll use "header" pool (Frame) or new "container" pool.
+    -- Actually "header" pool stores FontStrings? No, in my AcquireHelper I created a FontString.
+    -- Wait, AcquireWidget("header", createFunc). createFunc returns FontString?
+    -- Yes.
+    -- I need a Frame pool. "button" is Button.
+    -- I'll define "frame" pool or use "container" pool if added.
+    -- I added "dropdown".
+    -- I'll reuse "button" pool for Frame? No.
+    -- I'll just CreateFrame for the container but NOT pool it?
+    -- If I don't pool it, I must Hide/Parent(nil) it manually. Use ReleaseSettingsWidgets logic.
+    -- "ReleaseSettingsWidgets" only releases what's in activeWidgets.
+    -- So I MUST pool it or manually track it.
+    -- I'll add "container" pool support via AcquireWidget.
+    -- Pool type "container".
+    -- I added "dropdown".
+    -- I'll use "dropdown" pool for generic frames? No, Dropdown template has overhead.
+    -- I'll just use AcquireWidget("container", ...) and add type "container" to pool if missing.
+    -- Wait, if usage key missing in table, it errors?
+    -- "widgetPools[poolType]" -> nil if missing. table.remove(nil) errors?
+    -- No, table.remove(nil) errors.
+    -- So I must use existing pool type.
+    -- I'll use "panelButton" (Button) as container? No.
+    -- I'll Add "container" to pools in previous step? No I added "label", "dropdown".
+    -- I'll Update pools definition implicitly or assume I missed it.
+    -- I'll use "dropdown" pool for the container frames for now (Frame type).
+    -- Wait, UIDropDownMenuTemplate creates a Frame.
+    -- The AnchorGrid needs a Frame.
+    -- I'll use AcquireWidget("dropdown", ...) for now.
+
+    -- Actually, I can just create the frame and NOT pool it, but verify ReleaseSettingsWidgets handles non-pooled items?
+    -- ReleaseSettingsWidgets calls ReleaseWidget. ReleaseWidget assumes pool exists.
+    -- So I MUST have a pool.
+    -- I'll skip pooling the grid containers for this step and fix pools definition in next step if needed.
+    -- OR, simpler: The grid containers are just parents for buttons.
+    -- I can attach buttons to gpContent directly and calculate offsets.
+    -- Yes, no need for container frames.
 
     local anchorBtns = {}
     local function CreateAnchorBtn(name, anchorKey, x, y)
-        local b = CreateFlatButton(anchorGrid, name, 20, 20)
-        b:SetPoint("TOPLEFT", x, y)
-        b:SetScript("OnClick", function()
+        local b = AcquireFlatButton(gpContent, name, 20, 20, function()
             panel.anchor = anchorKey
             for _, btn in pairs(anchorBtns) do StyleSelection(btn, btn.key == anchorKey) end
             sfui.trackedoptions.UpdatePreview()
             if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
         end)
+        b:SetPoint("TOPLEFT", 5 + x, gy + y) -- Offset manually
         b.key = anchorKey
         anchorBtns[anchorKey] = b
         ApplyPlacementHover(b)
         StyleSelection(b, (panel.anchor or "topleft") == anchorKey)
+        table.insert(activeWidgets.settings, { type = "button", widget = b })
         return b
     end
 
@@ -1597,46 +1866,40 @@ function sfui.trackedoptions.UpdateSettings()
     CreateAnchorBtn("BR", "bottomright", 44, -44)
 
     -- Growth Grid (Cross Pattern)
-    local growthGrid = CreateFrame("Frame", nil, gpContent)
-    growthGrid:SetSize(65, 65)
-    growthGrid:SetPoint("TOPLEFT", 110, gy)
-
+    -- Offset X by 110
     local hBtns = {}
     local function CreateHGrowthBtn(name, val, x, y)
-        local b = CreateFlatButton(growthGrid, name, 20, 20)
-        b:SetPoint("TOPLEFT", x, y)
-        b:SetScript("OnClick", function()
+        local b = AcquireFlatButton(gpContent, name, 20, 20, function()
             panel.growthH = val
             for _, btn in pairs(hBtns) do StyleSelection(btn, btn.val == val) end
             sfui.trackedoptions.UpdatePreview()
             if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
         end)
+        b:SetPoint("TOPLEFT", 110 + x, gy + y)
         b.val = val
         hBtns[val] = b
         ApplyPlacementHover(b)
         StyleSelection(b, (panel.growthH or "Right") == val)
+        table.insert(activeWidgets.settings, { type = "button", widget = b })
     end
 
     local vBtns = {}
     local function CreateVGrowthBtn(name, val, x, y)
-        local b = CreateFlatButton(growthGrid, name, 20, 20)
-        b:SetPoint("TOPLEFT", x, y)
-        b:SetScript("OnClick", function()
+        local b = AcquireFlatButton(gpContent, name, 20, 20, function()
             panel.growthV = val
             for _, btn in pairs(vBtns) do StyleSelection(btn, btn.val == val) end
             sfui.trackedoptions.UpdatePreview()
             if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
         end)
+        b:SetPoint("TOPLEFT", 110 + x, gy + y)
         b.val = val
         vBtns[val] = b
         ApplyPlacementHover(b)
         StyleSelection(b, (panel.growthV or "Down") == val)
+        table.insert(activeWidgets.settings, { type = "button", widget = b })
     end
 
     -- Cross Pattern:
-    --    UP
-    -- L  C  R
-    --   DOWN
     CreateVGrowthBtn("U", "Up", 22, 0)
     CreateHGrowthBtn("L", "Left", 0, -22)
     CreateHGrowthBtn("C", "Center", 22, -22)
@@ -1645,12 +1908,12 @@ function sfui.trackedoptions.UpdateSettings()
 
     gy = gy - 85
 
-    -- Anchor To Frame (moved row down)
+    -- Anchor To Frame
     local anchorToOptions = { "UIParent", "Health Bar", "Tracked Bars" }
     -- Add other panels to the list (excluding self)
     if sfui.config and sfui.config.cooldown_panel_defaults then
         for pName, pCfg in pairs(sfui.config.cooldown_panel_defaults) do
-            if pName ~= key and pName ~= "global" and type(pCfg) == "table" then
+            if pName ~= panel.name and pName ~= "global" and type(pCfg) == "table" then
                 if pCfg.name then
                     table.insert(anchorToOptions, pCfg.name)
                 end
@@ -1658,7 +1921,11 @@ function sfui.trackedoptions.UpdateSettings()
         end
     end
 
-    local anchorDrop = CreateFrame("Frame", "SfuiAnchorToDropdown", gpContent, "UIDropDownMenuTemplate")
+    local anchorDrop = AcquireWidget("dropdown", function(p)
+        local f = CreateFrame("Frame", "SfuiAnchorToDropdown", p, "UIDropDownMenuTemplate")
+        return f
+    end, gpContent)
+
     anchorDrop:SetPoint("TOPLEFT", -15, gy)
     UIDropDownMenu_SetWidth(anchorDrop, 120)
     UIDropDownMenu_SetText(anchorDrop, panel.anchorTo or "UIParent")
@@ -1671,15 +1938,15 @@ function sfui.trackedoptions.UpdateSettings()
                 panel.anchorTo = opt
                 UIDropDownMenu_SetText(anchorDrop, opt)
 
-                -- Auto-Snap Logic: If anchoring center/utility panel to HUD or another panel, snap to correct offset
+                -- Auto-Snap Logic
                 local isHudCenter = (opt == "Health Bar") and (panel.name == "CENTER" or panel.placement == "center")
                 local isPanelStack = (opt ~= "UIParent" and opt ~= "Health Bar" and opt ~= "Tracked Bars")
 
                 if isHudCenter or isPanelStack then
                     local snapY = -2
                     panel.y = snapY
-                    if ySlider and ySlider.SetSliderValue then
-                        ySlider:SetSliderValue(snapY)
+                    if ySlider and ySlider.slider then -- use ySlider ref
+                        ySlider.slider:SetValue(snapY)
                     end
                 end
 
@@ -1688,18 +1955,19 @@ function sfui.trackedoptions.UpdateSettings()
             UIDropDownMenu_AddButton(info)
         end
     end)
+    table.insert(activeWidgets.settings, { type = "dropdown", widget = anchorDrop })
 
-    local atLabel = gpContent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local atLabel = AcquireWidget("label",
+        function(p) return p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall") end, gpContent)
     atLabel:SetPoint("BOTTOMLEFT", anchorDrop, "TOPLEFT", 20, 4)
     atLabel:SetText("anchor to frame")
     atLabel:SetTextColor(0.6, 0.6, 0.6)
+    table.insert(activeWidgets.settings, { type = "label", widget = atLabel })
 
     gy = gy - 40
-
     gy = gy - 40
 
     AddGeneralHeader("Panel Defaults")
-
 
     gpContent:SetHeight(math.abs(gy) + 20)
 end

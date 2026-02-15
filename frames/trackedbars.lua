@@ -4,6 +4,21 @@ sfui.trackedbars = {}
 local bars = {} -- Active sfui bars
 local container
 local issecretvalue = sfui.common.issecretvalue
+local CreateFrame = CreateFrame
+local UIParent = UIParent
+local GameTooltip = GameTooltip
+local C_Spell = C_Spell
+local InCombatLockdown = InCombatLockdown
+local wipe = table.wipe or wipe
+local hooksecurefunc = hooksecurefunc
+local C_UnitAuras = C_UnitAuras
+local BuffBarCooldownViewer = BuffBarCooldownViewer
+local C_CooldownViewer = C_CooldownViewer
+local IsInInstance = IsInInstance
+local C_Timer = C_Timer
+local GetTime = GetTime
+local UnitGUID = UnitGUID
+local unpack = unpack
 
 
 -- Reusable tables (performance optimization)

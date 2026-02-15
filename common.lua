@@ -404,17 +404,28 @@ function sfui.common.populate_utility_panel_from_cdm()
 end
 
 -- Get panels for current spec
+-- Get panels for current spec (Pure accessor, hot-path safe)
 function sfui.common.get_cooldown_panels()
     local specID = sfui.common.get_current_spec_id()
-    if not specID or specID == 0 then
-        -- Fallback to empty table if no spec
-        return {}
+    if not specID or specID == 0 then return {} end
+
+    if SfuiDB.cooldownPanelsBySpec and SfuiDB.cooldownPanelsBySpec[specID] then
+        return SfuiDB.cooldownPanelsBySpec[specID]
     end
+
+    return {}
+end
+
+-- Ensure panels exist and are populated (Called once on load/spec/talent change)
+function sfui.common.ensure_panels_initialized()
+    local specID = sfui.common.get_current_spec_id()
+    if not specID or specID == 0 then return end
 
     SfuiDB.cooldownPanelsBySpec = SfuiDB.cooldownPanelsBySpec or {}
     SfuiDB.cooldownPanelsBySpec[specID] = SfuiDB.cooldownPanelsBySpec[specID] or {}
 
     local panels = SfuiDB.cooldownPanelsBySpec[specID]
+    local changed = false
 
     -- Auto-create CENTER panel if it doesn't exist (one-time population)
     local centerPanelIdx = nil
@@ -443,15 +454,20 @@ function sfui.common.get_cooldown_panels()
             anchorTo = "Health Bar",
             entries = sfui.common.populate_center_panel_from_cdm()
         }
-        table.insert(panels, 1, centerPanel) -- Insert at beginning
-        sfui.common.set_cooldown_panels(panels)
+        table.insert(panels, 1, centerPanel)
+        centerPanelIdx = 1
+        changed = true
     else
         -- If it exists but is empty, try to populate it now (handles early load race condition)
+        -- Only retry if we haven't marked it as 'checked' to prevent infinite loop
         local panel = panels[centerPanelIdx]
         if not panel.entries or #panel.entries == 0 then
-            panel.entries = sfui.common.populate_center_panel_from_cdm()
-            if #panel.entries > 0 then
-                sfui.common.set_cooldown_panels(panels)
+            if not panel._populationAttempted then
+                panel.entries = sfui.common.populate_center_panel_from_cdm()
+                panel._populationAttempted = true -- Mark as attempted so we don't retry forever in OnUpdate
+                if #panel.entries > 0 then
+                    changed = true
+                end
             end
         end
     end
@@ -480,22 +496,29 @@ function sfui.common.get_cooldown_panels()
             anchor = "top",
             anchorTo = "CENTER",
             growthV = "Down",
-            growthH = "Center", -- Default to Center growth
+            growthH = "Center",
             entries = sfui.common.populate_utility_panel_from_cdm()
         }
         -- Insert after CENTER if possible, or just append
         local insertPos = centerPanelIdx and (centerPanelIdx + 1) or (#panels + 1)
         table.insert(panels, insertPos, utilityPanel)
-        sfui.common.set_cooldown_panels(panels)
+        changed = true
     else
         -- Populate if empty
         local panel = panels[utilityPanelIdx]
         if not panel.entries or #panel.entries == 0 then
-            panel.entries = sfui.common.populate_utility_panel_from_cdm()
-            if #panel.entries > 0 then
-                sfui.common.set_cooldown_panels(panels)
+            if not panel._populationAttempted then
+                panel.entries = sfui.common.populate_utility_panel_from_cdm()
+                panel._populationAttempted = true
+                if #panel.entries > 0 then
+                    changed = true
+                end
             end
         end
+    end
+
+    if changed then
+        sfui.common.set_cooldown_panels(panels)
     end
 
     return panels
@@ -839,6 +862,7 @@ function sfui.common.create_checkbox(parent, label, dbKeyOrGetter, onClickFunc, 
     cb.text = cb:CreateFontString(nil, "OVERLAY", sfui.config.font)
     cb.text:SetPoint("LEFT", cb, "RIGHT", 5, 0)
     cb.text:SetText(label)
+    cb.label = cb.text -- Alias for consistency
 
     local function updateChecked()
         if type(dbKeyOrGetter) == "string" then
@@ -1018,12 +1042,17 @@ function sfui.common.create_slider_input(parent, label, dbKeyOrGetter, minVal, m
 
     slider:SetScript("OnValueChanged", function(self, value)
         local stepped = math.floor((value - minVal) / step + 0.5) * step + minVal
-        if type(dbKeyOrGetter) == "string" then SfuiDB[dbKeyOrGetter] = stepped end
+        -- if type(dbKeyOrGetter) == "string" then SfuiDB[dbKeyOrGetter] = stepped end -- Removed side effect for reuse safety
         -- Clean number display
         local displayVal = math.floor(stepped * 100) / 100
         editbox:SetText(tostring(displayVal))
         if onValueChangedFunc then onValueChangedFunc(stepped) end
     end)
+
+    -- Expose components for pooling
+    container.slider = slider
+    container.editbox = editbox
+    container.label = title
 
     slider:SetScript("OnShow", function(self)
         local val

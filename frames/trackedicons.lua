@@ -1028,6 +1028,9 @@ function sfui.trackedicons.initialize()
         if event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" then
             sfui.trackedicons.Update()
         elseif event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_SPECIALIZATION_CHANGED" then
+            -- Ensure panels are populated for the new spec/session
+            sfui.common.ensure_panels_initialized()
+
             -- Force a sync of spell data before UI refresh
             if sfui.common.SyncTrackedSpells then
                 sfui.common.SyncTrackedSpells()
@@ -1141,5 +1144,7 @@ function sfui.trackedicons.initialize()
         end
     end)
 
+    -- Initial setup
+    sfui.common.ensure_panels_initialized()
     sfui.trackedicons.Update()
 end
