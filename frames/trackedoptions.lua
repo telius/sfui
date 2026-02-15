@@ -440,7 +440,7 @@ local function CreateCooldownsFrame()
     end)
     bgChk:SetPoint("TOPLEFT", rightCol, rightY)
     bgChk:SetChecked(globalCfg.showBackground ~= nil and globalCfg.showBackground or
-    g.icon_panel_global_defaults.showBackground)
+        g.icon_panel_global_defaults.showBackground)
     rightY = rightY - 30
 
     local bgAlphaSlider = sfui.common.create_slider_input(globContent, "background alpha:",
@@ -451,6 +451,14 @@ local function CreateCooldownsFrame()
         end, colWidth)
     bgAlphaSlider:SetPoint("TOPLEFT", rightCol, rightY)
     rightY = rightY - 40
+
+    local spanChk = sfui.common.create_checkbox(globContent, "auto-span center panel", nil, function(val)
+        globalCfg.spanWidth = val
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end)
+    spanChk:SetPoint("TOPLEFT", rightCol, rightY)
+    spanChk:SetChecked(globalCfg.spanWidth ~= nil and globalCfg.spanWidth or g.icon_panel_global_defaults.spanWidth)
+    rightY = rightY - 30
 
     globContent:SetHeight(500)
 
@@ -500,6 +508,10 @@ local function CreateCooldownsFrame()
 
         if bgAlphaSlider and bgAlphaSlider.SetSliderValue then
             bgAlphaSlider:SetSliderValue(globalCfg.backgroundAlpha or 0.5)
+        end
+
+        if spanChk and spanChk.SetChecked then
+            spanChk:SetChecked(globalCfg.spanWidth)
         end
     end
 
@@ -1032,6 +1044,159 @@ function sfui.trackedoptions.UpdatePanelList()
     lpContent:SetHeight(math.abs(y))
 end
 
+local function GetGridIndexFromMouse(parent, panel, size, spacing)
+    local mx, my = GetCursorPosition()
+    local s = UIParent:GetEffectiveScale()
+    mx, my = mx / s, my / s
+    if not parent then return nil end
+
+    local entries = panel.entries or {}
+    local dragIdx = sfui.trackedoptions.draggingIndex
+    local children = { parent:GetChildren() }
+
+    local bestDist = math.huge
+    local targetChildIndex = nil
+    local isAfter = false
+
+    local growthH = panel.growthH or "Right"
+    local growthV = panel.growthV or "Down"
+
+    for i, child in ipairs(children) do
+        -- Ignore the dragged icon itself for targeting to prevent jitter
+        if i ~= dragIdx then
+            local l, b, w, h = child:GetRect()
+            if l then
+                local cx, cy = l + w / 2, b + h / 2
+                local dx = math.abs(mx - cx)
+                local dy = math.abs(my - cy)
+
+                -- Horizontal layouts: Priority to current row
+                if growthH == "Center" or growthH == "Right" or growthH == "Left" then
+                    if my > b and my < b + h then dy = 0 end
+                end
+
+                local dist = dx + dy * 10 -- Vertical priority weighting
+                if dist < bestDist then
+                    bestDist = dist
+                    targetChildIndex = i
+                    -- Determine before/after based on growth direction
+                    if growthH == "Center" or growthH == "Right" or growthH == "Left" then
+                        isAfter = (mx > cx)
+                        if growthH == "Left" then isAfter = (mx < cx) end
+                    else
+                        isAfter = (my < cy)
+                        if growthV == "Up" then isAfter = (my > cy) end
+                    end
+                end
+            end
+        end
+    end
+
+    if not targetChildIndex then return nil end
+
+    -- Map targetChildIndex to visual list position
+    local visualPosOfTarget = 0
+    for i, _ in ipairs(entries) do
+        if i ~= dragIdx then
+            visualPosOfTarget = visualPosOfTarget + 1
+            if i == targetChildIndex then
+                break
+            end
+        end
+    end
+
+    local dropIdx = isAfter and (visualPosOfTarget + 1) or visualPosOfTarget
+    return dropIdx, targetChildIndex, isAfter
+end
+sfui.trackedoptions.GetGridIndexFromMouse = GetGridIndexFromMouse
+
+local function UpdatePreviewLayout(dropIdx)
+    local parent = sfui.trackedoptions.previewChild
+    if not parent then return end
+
+    local idx = sfui.trackedoptions.selectedPanelIndex or 1
+    local panels = sfui.common.get_cooldown_panels()
+    local panel = panels and panels[idx]
+    if not panel then return end
+
+    local entries = panel.entries or {}
+    local size = panel.size or 50
+    local spacing = panel.spacing or 2
+    local dragIdx = sfui.trackedoptions.draggingIndex
+
+    -- Create visual list order
+    local visualList = {}
+
+    -- 1. Add all non-dragged items
+    for i, _ in ipairs(entries) do
+        if i ~= dragIdx then
+            table.insert(visualList, i)
+        end
+    end
+
+    -- 2. Insert dragIdx at dropIdx (simulated)
+    if dragIdx then
+        local insertPos = dropIdx or #visualList + 1
+        -- Boundary clamp
+        if insertPos > #visualList + 1 then insertPos = #visualList + 1 end
+        table.insert(visualList, insertPos, dragIdx)
+    end
+
+    -- 3. Position children
+    local children = { parent:GetChildren() }
+
+    local maxW, maxH = 0, 0
+    local numColumns = panel.columns or 10
+    local growthH = panel.growthH or "Center"
+    local growthV = panel.growthV or "Down"
+    local hSign = (growthH == "Left") and -1 or 1
+    local vSign = (growthV == "Up") and 1 or -1
+
+    for pos, originalIdx in ipairs(visualList) do
+        local child = children[originalIdx]
+        if child then
+            local col = (pos - 1) % numColumns
+            local row = math.floor((pos - 1) / numColumns)
+
+            local ox, oy, anchorPoint
+
+            if growthH == "Center" then
+                local totalIcons = #visualList
+                local startIdx = row * numColumns + 1
+                local endIdx = math.min((row + 1) * numColumns, totalIcons)
+                local numInRow = endIdx - startIdx + 1
+                local centerOffset = col - (numInRow - 1) / 2
+                ox = centerOffset * (size + spacing)
+                oy = row * (size + spacing) * vSign
+                anchorPoint = "CENTER"
+            else
+                ox = col * (size + spacing) * hSign
+                oy = row * (size + spacing) * vSign
+                local isLeft = (panel.x or 0) < 0
+                local rawAnchor = panel.anchor or (isLeft and "topright" or "topleft")
+                anchorPoint = string.upper(rawAnchor)
+            end
+
+            child:ClearAllPoints()
+            child:SetPoint(anchorPoint, parent, anchorPoint, ox, oy)
+
+            -- Ghost Visibility
+            if originalIdx == dragIdx then
+                child:SetAlpha(0)
+            else
+                child:SetAlpha(1)
+            end
+
+            child:Show()
+
+            maxW = math.max(maxW, (col + 1) * (size + spacing))
+            maxH = math.max(maxH, (row + 1) * (size + spacing))
+        end
+    end
+    parent:SetSize(math.max(maxW, 10), math.max(maxH, 10))
+end
+sfui.trackedoptions.UpdatePreviewLayout = UpdatePreviewLayout
+
 function sfui.trackedoptions.UpdatePreview()
     local parent = sfui.trackedoptions.previewChild
     if not parent then return end
@@ -1084,41 +1249,12 @@ function sfui.trackedoptions.UpdatePreview()
         local hSign = (growthH == "Left") and -1 or 1
         local vSign = (growthV == "Up") and 1 or -1
         local numColumns = panel.columns or 10
-        local col = (i - 1) % numColumns
-        local row = math.floor((i - 1) / numColumns)
-
-        local ox, oy, anchorPoint
-
-        if growthH == "Center" then
-            -- Centered Layout
-            local totalIcons = #entries
-            local startIdx = row * numColumns + 1
-            local endIdx = math.min((row + 1) * numColumns, totalIcons)
-            local numInRow = endIdx - startIdx + 1
-
-            local centerOffset = col - (numInRow - 1) / 2
-            ox = centerOffset * (size + spacing)
-            oy = row * (size + spacing) * vSign
-
-            -- Anchor to CENTER of the preview window
-            anchorPoint = "CENTER"
-        else
-            -- Standard Directional Layout
-            ox = col * (size + spacing) * hSign
-            oy = row * (size + spacing) * vSign
-
-            -- Anchor based on panel setting (e.g. TOPLEFT)
-            local isLeft = (panel.x or 0) < 0
-            local rawAnchor = panel.anchor or (isLeft and "topright" or "topleft")
-            anchorPoint = string.upper(rawAnchor)
-        end
-
-        icon:SetPoint(anchorPoint, parent, anchorPoint, ox, oy)
-
-
+        icon.originalIndex = i         -- Store original index for drag operations
+        icon.iconTexture = iconTexture -- Store texture for ghost icon
 
         -- Enhanced tooltip for all icons
         icon:SetScript("OnEnter", function(self)
+            if sfui.trackedoptions.draggingIndex then return end -- Suppression
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             if entry.type == "cooldown" and entry.cooldownID then
                 local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(entry.cooldownID)
@@ -1139,36 +1275,133 @@ function sfui.trackedoptions.UpdatePreview()
             GameTooltip:Hide()
         end)
 
-        -- Apply Preview Glow if enabled
-        local function GetIconValue(key, default)
-            -- Priority: Entry > Panel > Global > Default
-            if entry.settings and entry.settings[key] ~= nil then return entry.settings[key] end
-            if panel[key] ~= nil then return panel[key] end
-            local globalSettings = SfuiDB.iconGlobalSettings or {}
-            if globalSettings[key] ~= nil then return globalSettings[key] end
-            return default
-        end
-
-        if GetIconValue("readyGlow", true) then
-            local glowCfg = {
-                glowType = GetIconValue("glowType", "pixel"),
-                glowColor = GetIconValue("glowColor", { r = 1, g = 1, b = 0 }),
-                glowScale = GetIconValue("glowScale", 1.0),
-                glowIntensity = GetIconValue("glowIntensity", 1.0),
-                glowSpeed = GetIconValue("glowSpeed", 0.25),
-                glowLines = GetIconValue("glowLines", 8),
-                glowThickness = GetIconValue("glowThickness", 2),
-                glowParticles = GetIconValue("glowParticles", 4)
-            }
-            if sfui.trackedicons and sfui.trackedicons.StartGlow then
-                sfui.trackedicons.StartGlow(icon, glowCfg)
+        -- Right-Click to Remove
+        icon:SetScript("OnClick", function(self, button)
+            if button == "RightButton" then
+                table.remove(entries, i)
+                sfui.trackedoptions.UpdateEditor()
+                if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
             end
-        end
+        end)
 
-        maxW = math.max(maxW, (col + 1) * (size + spacing))
-        maxH = math.max(maxH, (row + 1) * (size + spacing))
+        -- Drag to Reorder
+        icon:RegisterForDrag("LeftButton")
+        icon:SetScript("OnDragStart", function(self)
+            if InCombatLockdown() then return end
+            sfui.trackedoptions.draggingIndex = self.originalIndex
+            GameTooltip:Hide() -- Preemptive hide
+
+            -- Ghost Icon
+            local ghost = sfui.trackedoptions.ghostIcon
+            if not ghost then
+                ghost = CreateFrame("Frame", nil, UIParent)
+                ghost:SetSize(size, size)
+                ghost:SetFrameStrata("TOOLTIP")
+                ghost.tex = ghost:CreateTexture(nil, "ARTWORK")
+                ghost.tex:SetAllPoints()
+                ghost:SetAlpha(0.6)
+                sfui.trackedoptions.ghostIcon = ghost
+            end
+            ghost:SetSize(size, size)
+            ghost.tex:SetTexture(self.iconTexture or 134400)
+            ghost:Show()
+
+            -- Start following cursor
+            ghost:SetScript("OnUpdate", function(self)
+                local cx, cy = GetCursorPosition()
+                local scale = UIParent:GetEffectiveScale() or 1
+                self:SetPoint("CENTER", UIParent, "BOTTOMLEFT", cx / scale, cy / scale)
+
+                -- Update Insertion Marker logic
+                local marker = sfui.trackedoptions.insertionMarker
+                if not marker then
+                    marker = parent:CreateTexture(nil, "OVERLAY", nil, 7)
+                    marker:SetTexture("Interface\\ChatFrame\\UI-ChatFrame-DockHighlight")
+                    marker:SetBlendMode("ADD")
+                    marker:SetVertexColor(0, 1, 1, 0.8) -- Cyan glow
+                    sfui.trackedoptions.insertionMarker = marker
+                end
+
+                local dropIdx, targetChildIndex, isAfter = sfui.trackedoptions.GetGridIndexFromMouse(parent, panel, size,
+                    spacing)
+                sfui.trackedoptions.dropTargetIndex = dropIdx
+
+                if dropIdx then
+                    -- Restore Live Spacing
+                    sfui.trackedoptions.UpdatePreviewLayout(dropIdx)
+
+                    -- Position marker relative to the target child's edge
+                    local children = { parent:GetChildren() }
+                    local targetFrame = targetChildIndex and children[targetChildIndex]
+
+                    if targetFrame then
+                        marker:ClearAllPoints()
+                        -- Horizontal/Vertical orientation
+                        if panel.growthH == "Center" or panel.growthH == "Left" or panel.growthH == "Right" then
+                            marker:SetSize(8, size + 10)
+                            local point = isAfter and "RIGHT" or "LEFT"
+                            local relPoint = isAfter and "RIGHT" or "LEFT"
+                            marker:SetPoint("CENTER", targetFrame, point, (isAfter and 1 or -1) * (spacing / 2), 0)
+                        else
+                            marker:SetSize(size + 10, 8)
+                            local point = isAfter and "BOTTOM" or "TOP"
+                            local relPoint = isAfter and "BOTTOM" or "TOP"
+                            marker:SetPoint("CENTER", targetFrame, point, 0, (isAfter and -1 or 1) * (spacing / 2))
+                        end
+                        marker:Show()
+                    else
+                        marker:Hide()
+                    end
+                else
+                    sfui.trackedoptions.UpdatePreviewLayout(nil)
+                    marker:Hide()
+                end
+            end)
+
+            -- Global Drop Logic
+            parent:RegisterEvent("GLOBAL_MOUSE_UP")
+            parent:SetScript("OnEvent", function(p, event, button)
+                if event == "GLOBAL_MOUSE_UP" and button == "LeftButton" then
+                    p:UnregisterEvent("GLOBAL_MOUSE_UP")
+                    p:SetScript("OnEvent", nil)
+
+                    local ghost = sfui.trackedoptions.ghostIcon
+                    if ghost then
+                        ghost:Hide()
+                        ghost:SetScript("OnUpdate", nil)
+                    end
+
+                    local marker = sfui.trackedoptions.insertionMarker
+                    if marker then marker:Hide() end
+
+                    local fromIdx = sfui.trackedoptions.draggingIndex
+                    local toIdx = sfui.trackedoptions.dropTargetIndex
+
+                    if fromIdx and toIdx and fromIdx ~= toIdx then
+                        -- Correction for shifting indices if moving forward
+                        if fromIdx < toIdx then toIdx = toIdx - 1 end
+                        -- Boundary check
+                        if toIdx > #entries + 1 then toIdx = #entries + 1 end
+
+                        local item = table.remove(entries, fromIdx)
+                        table.insert(entries, toIdx, item)
+
+                        sfui.trackedoptions.UpdateEditor()
+                        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+                    end
+
+                    sfui.trackedoptions.draggingIndex = nil
+                    sfui.trackedoptions.dropTargetIndex = nil
+                    sfui.trackedoptions.UpdatePreviewLayout(nil)
+                end
+            end)
+        end)
     end
-    parent:SetSize(math.max(maxW, 10), math.max(maxH, 10))
+
+    -- Call default layout
+    if sfui.trackedoptions.UpdatePreviewLayout then
+        sfui.trackedoptions.UpdatePreviewLayout(nil)
+    end
 end
 
 function sfui.trackedoptions.UpdateSettings()
@@ -1251,13 +1484,28 @@ function sfui.trackedoptions.UpdateSettings()
         end, halfW)
     spacingSlider:SetPoint("TOPLEFT", 5, gy); spacingSlider:SetSliderValue(panel.spacing or 2)
 
-    local columnsSlider = sfui.common.create_slider_input(gpContent, "columns", function() return panel.columns end, 1,
-        20,
-        1, function(v)
-            panel.columns = v; sfui.trackedoptions.UpdatePreview()
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-        end, halfW)
-    columnsSlider:SetPoint("TOPLEFT", 5 + halfW + 10, gy); columnsSlider:SetSliderValue(panel.columns or 10)
+    if key ~= "center" then
+        local columnsSlider = sfui.common.create_slider_input(gpContent, "columns", function() return panel.columns end,
+            1,
+            20,
+            1, function(v)
+                panel.columns = v; sfui.trackedoptions.UpdatePreview()
+                if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+            end, halfW)
+        columnsSlider:SetPoint("TOPLEFT", 5 + halfW + 10, gy); columnsSlider:SetSliderValue(panel.columns or 10)
+    end
+    gy = gy - 30
+
+    local spanChk = sfui.common.create_checkbox(gpContent, "auto-span width (center)", nil, function(v)
+        panel.spanWidth = v
+        sfui.trackedoptions.UpdatePreview()
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end)
+    spanChk:SetPoint("TOPLEFT", 5, gy)
+    -- For panel settings, nil usually means inherit, but checkbox needs state.
+    -- Default to unchecked if nil? Or check global?
+    -- Let's just use boolean logic.
+    spanChk:SetChecked(panel.spanWidth or false)
     gy = gy - 40
 
     local function StyleSelection(btn, isActive)
@@ -1383,30 +1631,39 @@ function sfui.trackedoptions.UpdateSettings()
 
     -- Anchor To Frame (moved row down)
     local anchorToOptions = { "UIParent", "Health Bar", "Tracked Bars" }
-    local anchorToBtn = CreateFlatButton(gpContent, panel.anchorTo or "UIParent", 130, 20)
-    anchorToBtn:SetPoint("TOPLEFT", 5, gy)
-
-    local atLabel = gpContent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    atLabel:SetPoint("BOTTOMLEFT", anchorToBtn, "TOPLEFT", 0, 4)
-    atLabel:SetText("anchor to frame")
-    atLabel:SetTextColor(0.6, 0.6, 0.6)
-
-    anchorToBtn:SetScript("OnClick", function(self)
-        local cur = panel.anchorTo or "UIParent"
-        local idx = 1
-        for i, opt in ipairs(anchorToOptions) do
-            if opt == cur then
-                idx = i; break
+    -- Add other panels to the list (excluding self)
+    if sfui.config and sfui.config.cooldown_panel_defaults then
+        for pName, pCfg in pairs(sfui.config.cooldown_panel_defaults) do
+            if pName ~= key and pName ~= "global" and type(pCfg) == "table" then
+                if pCfg.name then
+                    table.insert(anchorToOptions, pCfg.name)
+                end
             end
         end
-        local nextIdx = (idx % #anchorToOptions) + 1
-        panel.anchorTo = anchorToOptions[nextIdx]
-        self:GetFontString():SetText(panel.anchorTo)
-        StyleSelection(self, panel.anchorTo ~= "UIParent")
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end
+
+    local anchorDrop = CreateFrame("Frame", "SfuiAnchorToDropdown", gpContent, "UIDropDownMenuTemplate")
+    anchorDrop:SetPoint("TOPLEFT", -15, gy)
+    UIDropDownMenu_SetWidth(anchorDrop, 120)
+    UIDropDownMenu_SetText(anchorDrop, panel.anchorTo or "UIParent")
+    UIDropDownMenu_Initialize(anchorDrop, function(self, level)
+        local info = UIDropDownMenu_CreateInfo()
+        for _, opt in ipairs(anchorToOptions) do
+            info.text = opt
+            info.checked = (panel.anchorTo == opt)
+            info.func = function()
+                panel.anchorTo = opt
+                UIDropDownMenu_SetText(anchorDrop, opt)
+                if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+            end
+            UIDropDownMenu_AddButton(info)
+        end
     end)
-    StyleSelection(anchorToBtn, (panel.anchorTo or "UIParent") ~= "UIParent")
-    ApplyPlacementHover(anchorToBtn)
+
+    local atLabel = gpContent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    atLabel:SetPoint("BOTTOMLEFT", anchorDrop, "TOPLEFT", 20, 4)
+    atLabel:SetText("anchor to frame")
+    atLabel:SetTextColor(0.6, 0.6, 0.6)
 
     gy = gy - 40
 

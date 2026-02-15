@@ -2,6 +2,7 @@ local addonName, addon = ...
 sfui.trackedicons = {}
 
 local C_Spell = C_Spell
+local C_Item = C_Item
 local GetTime = GetTime
 
 local panels = {} -- Active icon panels
@@ -117,27 +118,31 @@ local function UpdateIconState(icon, panelConfig)
 
     -- Resolve actual spell/item ID for cooldown types
     local activeID = icon.id
-    local entry = icon.entry -- Get entry from icon for cooldown detection
+    local entry = icon.entry
+
+    -- 1. Determine the Correct Spell/Item ID and Texture
+    local iconTexture
     if icon.type == "cooldown" and entry and entry.cooldownID then
         local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(entry.cooldownID)
         if cdInfo then
-            -- Use override spell if available (talent/spec changes)
             activeID = cdInfo.overrideSpellID or cdInfo.spellID
-
-            -- Update texture if spell changed
-            if activeID ~= icon._lastActiveID then
-                local newTexture = C_Spell.GetSpellTexture(activeID)
-                if newTexture then
-                    icon.texture:SetTexture(newTexture)
-                end
-                icon._lastActiveID = activeID
-            end
+            iconTexture = C_Spell.GetSpellTexture(activeID)
         else
-            -- Cooldown info not available - use the base spell ID from entry
-            -- This can happen during cooldowns or CDM updates
             activeID = entry.spellID or icon.id
+            iconTexture = C_Spell.GetSpellTexture(activeID)
         end
+    elseif icon.type == "item" then
+        iconTexture = C_Item.GetItemIconByID(activeID)
+    else
+        iconTexture = C_Spell.GetSpellTexture(activeID)
     end
+
+    -- 2. FORCE TEXTURE REFRESH (Fixes "Reload Required" for reordering)
+    -- This ensures that when frames are reused, the visual representation matches the new ID.
+    if icon.texture and iconTexture then
+        icon.texture:SetTexture(iconTexture)
+    end
+    icon._lastActiveID = activeID
 
     if icon.type == "item" then
         local ok, countVal = pcall(pcall_item_cd, icon)
@@ -640,12 +645,41 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
     local numColumns = panelConfig.columns or #activeIcons
     if numColumns < 1 then numColumns = 1 end
 
+    -- Force Single Row for Center Panel
+    if panelConfig.placement == "center" or panelConfig.growthH == "Center" then
+        numColumns = #activeIcons
+    end
+
     local growthH = panelConfig.growthH or (rawAnchor == "topright" and "Left" or "Right")
     local growthV = panelConfig.growthV or "Down"
     local hSign = (growthH == "Left") and -1 or 1
     local vSign = (growthV == "Up") and 1 or -1
 
     local maxWidth, maxHeight = 0, 0
+
+    -- Auto-Span Width Logic
+    local spanWidth = GetIconValue(nil, panelConfig, "spanWidth", false)
+    if spanWidth and (panelConfig.placement == "center" or growthH == "Center") and #activeIcons > 0 then
+        local targetWidth = sfui.config.healthBar.width or 300
+        local iconsPerRow = math.min(numColumns, #activeIcons)
+
+        -- Calculate current width with configured size/spacing
+        local currentWidth = (iconsPerRow * size) + (math.max(0, iconsPerRow - 1) * spacing)
+
+        if currentWidth < targetWidth then
+            -- Expand spacing to fill width
+            if iconsPerRow > 1 then
+                spacing = (targetWidth - (iconsPerRow * size)) / (iconsPerRow - 1)
+            end
+        else
+            -- Shrink size to fit width (keeping spacing fixed)
+            -- size * N + spacing * (N-1) = targetWidth
+            -- size * N = targetWidth - spacing * (N-1)
+            local newSize = (targetWidth - (math.max(0, iconsPerRow - 1) * spacing)) / iconsPerRow
+            if newSize < 10 then newSize = 10 end -- Hard min size
+            size = newSize
+        end
+    end
 
     -- Layout icons based on growth mode
     -- Non-protected frames can be positioned freely even during combat

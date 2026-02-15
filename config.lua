@@ -38,7 +38,7 @@ sfui.config = {
 
     -- shared settings for icon bars
     widget_bar = {
-        icon_size = 50,
+        icon_size = 32,
         icon_spacing = 5,
         label_offset_y = -2,
         label_color = { 1, 1, 1 },
@@ -140,7 +140,7 @@ sfui.config = {
             y = -92,
             size = 50,
             spacing = 1,
-            columns = 10,
+            columns = 20, -- Single row by default (high column count)
             enabled = true,
             textEnabled = true,
             textColor = { r = 1, g = 1, b = 1 },
@@ -186,6 +186,7 @@ sfui.config = {
         useResourceCheck = true, -- Enable mana/power based tinting
         showBackground = true,   -- Show a semi-transparent black background behind panels
         backgroundAlpha = 0.5,   -- 50% transparency for the background
+        spanWidth = false,       -- Auto-span width for center panel
 
         -- Text Display
         textEnabled = true,                  -- Show countdown numbers on icons
