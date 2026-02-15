@@ -227,9 +227,23 @@ local function CreateCooldownsFrame()
 
         -- Start new glow if enabled
         if globalCfg.readyGlow then
+            local glowColor = globalCfg.glowColor or g.icon_panel_global_defaults.glowColor
+            local useSpecColor = (globalCfg.useSpecColor ~= nil) and globalCfg.useSpecColor or
+                g.icon_panel_global_defaults.useSpecColor
+
+            if useSpecColor then
+                local specIndex = GetSpecialization()
+                if specIndex and specIndex > 0 then
+                    local specID = GetSpecializationInfo(specIndex)
+                    if specID and sfui.config.spec_colors and sfui.config.spec_colors[specID] then
+                        glowColor = sfui.config.spec_colors[specID]
+                    end
+                end
+            end
+
             local glowCfg = {
                 glowType = globalCfg.glowType or g.icon_panel_global_defaults.glowType,
-                glowColor = globalCfg.glowColor or g.icon_panel_global_defaults.glowColor,
+                glowColor = glowColor,
                 glowScale = globalCfg.glowScale or g.icon_panel_global_defaults.glowScale,
                 glowIntensity = globalCfg.glowIntensity or g.icon_panel_global_defaults.glowIntensity,
                 glowSpeed = globalCfg.glowSpeed or g.icon_panel_global_defaults.glowSpeed,
@@ -295,6 +309,14 @@ local function CreateCooldownsFrame()
             if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
         end)
     glowSwatch:SetPoint("LEFT", glowColorLabel, "RIGHT", 10, 0)
+
+    local specColorChk = sfui.common.create_checkbox(globContent, "use spec color", nil, function(val)
+        globalCfg.useSpecColor = val
+        UpdateGlowPreview()
+        if sfui.trackedicons and sfui.trackedicons.ForceRefreshGlows then sfui.trackedicons.ForceRefreshGlows() end
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end)
+    specColorChk:SetPoint("LEFT", glowSwatch, "RIGHT", 20, 0)
     gy = gy - 35
 
     -- Glow Sliders (2 per row)
@@ -434,33 +456,7 @@ local function CreateCooldownsFrame()
     alphaSlider:SetPoint("TOPLEFT", rightCol, rightY)
     rightY = rightY - 40
 
-    local bgChk = sfui.common.create_checkbox(globContent, "show panel background", nil, function(val)
-        globalCfg.showBackground = val
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-    end)
-    bgChk:SetPoint("TOPLEFT", rightCol, rightY)
-    bgChk:SetChecked(globalCfg.showBackground ~= nil and globalCfg.showBackground or
-        g.icon_panel_global_defaults.showBackground)
-    rightY = rightY - 30
-
-    local bgAlphaSlider = sfui.common.create_slider_input(globContent, "background alpha:",
-        function() return SfuiDB.iconGlobalSettings.backgroundAlpha or 0.5 end,
-        0.1, 1.0, 0.1, function(val)
-            globalCfg.backgroundAlpha = val
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-        end, colWidth)
-    bgAlphaSlider:SetPoint("TOPLEFT", rightCol, rightY)
-    rightY = rightY - 40
-
-    local spanChk = sfui.common.create_checkbox(globContent, "auto-span center panel", nil, function(val)
-        globalCfg.spanWidth = val
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-    end)
-    spanChk:SetPoint("TOPLEFT", rightCol, rightY)
-    spanChk:SetChecked(globalCfg.spanWidth ~= nil and globalCfg.spanWidth or g.icon_panel_global_defaults.spanWidth)
-    rightY = rightY - 30
-
-    globContent:SetHeight(500)
+    globContent:SetHeight(400)
 
 
     -- Function to update all UI controls from current globalCfg
@@ -472,6 +468,11 @@ local function CreateCooldownsFrame()
 
         if SfuiGlobalGlowTypeDropdown then
             UIDropDownMenu_SetText(SfuiGlobalGlowTypeDropdown, globalCfg.glowType or "pixel")
+        end
+
+        if specColorChk and specColorChk.SetChecked then
+            specColorChk:SetChecked(globalCfg.useSpecColor ~= nil and globalCfg.useSpecColor or
+                g.icon_panel_global_defaults.useSpecColor)
         end
 
         -- Sliders
@@ -498,20 +499,11 @@ local function CreateCooldownsFrame()
         UpdateGlowPreview()
 
         -- Update Alpha Slider
+        UpdateGlowPreview()
+
+        -- Update Alpha Slider
         if alphaSlider and alphaSlider.SetSliderValue then
             alphaSlider:SetSliderValue(globalCfg.alphaOnCooldown or 1.0)
-        end
-
-        if bgChk and bgChk.SetChecked then
-            bgChk:SetChecked(globalCfg.showBackground)
-        end
-
-        if bgAlphaSlider and bgAlphaSlider.SetSliderValue then
-            bgAlphaSlider:SetSliderValue(globalCfg.backgroundAlpha or 0.5)
-        end
-
-        if spanChk and spanChk.SetChecked then
-            spanChk:SetChecked(globalCfg.spanWidth)
         end
     end
 
@@ -659,33 +651,30 @@ local function CreateCooldownsFrame()
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
     end)
 
-    local resetGlobalBtn = CreateFrame("Button", nil, globContent, "UIPanelButtonTemplate")
-    resetGlobalBtn:SetSize(80, 22)
-    resetGlobalBtn:SetText("reset defaults")
-    resetGlobalBtn:SetPoint("TOPRIGHT", globContent, "TOPRIGHT", -10, -10)
+    local resetGlobalBtn = CreateFlatButton(globContent, "reset defaults", 100, 22)
     resetGlobalBtn:SetScript("OnClick", function()
         globalCfg.readyGlow = true
-        globalCfg.glowType = "pixel"
+        globalCfg.useSpecColor = true
+        globalCfg.glowType = "autocast"
         globalCfg.glowColor = { r = 1, g = 1, b = 0 }
-        globalCfg.glowScale = 1.0
+        globalCfg.glowScale = 2.0
         globalCfg.glowIntensity = 1.0
-        globalCfg.glowSpeed = 1.0
-        globalCfg.glowLines = 4
+        globalCfg.glowSpeed = 0.5
         globalCfg.glowLines = 4
         globalCfg.glowThickness = 1
         globalCfg.glowParticles = 4
+        globalCfg.hideOOC = true
+        globalCfg.hideDragonriding = true
         globalCfg.cooldownDesat = true
         globalCfg.textEnabled = true
-        globalCfg.textColor = { r = 1, g = 1, b = 1 }
-        globalCfg.glowParticles = 4
-        globalCfg.glowLines = 4
-        globalCfg.glowThickness = 1
-        globalCfg.glowParticles = 4
+        globalCfg.useResourceCheck = true
+        globalCfg.alphaOnCooldown = 1.0
 
         UpdateGlobalControls()
         if sfui.trackedicons and sfui.trackedicons.ForceRefreshGlows then sfui.trackedicons.ForceRefreshGlows() end
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
     end)
+    resetGlobalBtn:SetPoint("TOPRIGHT", globContent, "TOPRIGHT", -10, -10)
 
     local delBtn = CreateFlatButton(leftPanel, "- del", 80, 22)
     delBtn:SetPoint("BOTTOMRIGHT", -5, 5)
@@ -1506,6 +1495,23 @@ function sfui.trackedoptions.UpdateSettings()
     -- Default to unchecked if nil? Or check global?
     -- Let's just use boolean logic.
     spanChk:SetChecked(panel.spanWidth or false)
+    gy = gy - 30
+
+    local bgChk = sfui.common.create_checkbox(gpContent, "show panel background", nil, function(v)
+        panel.showBackground = v
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end)
+    bgChk:SetPoint("TOPLEFT", 5, gy)
+    bgChk:SetChecked(panel.showBackground == nil and g.icon_panel_global_defaults.showBackground or panel.showBackground)
+    gy = gy - 30
+
+    local bgAlphaS = sfui.common.create_slider_input(gpContent, "bg alpha",
+        function() return panel.backgroundAlpha or 0.5 end, 0.1, 1.0, 0.1, function(v)
+            panel.backgroundAlpha = v
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end, halfW)
+    bgAlphaS:SetPoint("TOPLEFT", 5, gy)
+    bgAlphaS:SetSliderValue(panel.backgroundAlpha or 0.5)
     gy = gy - 40
 
     local function StyleSelection(btn, isActive)
@@ -1654,6 +1660,19 @@ function sfui.trackedoptions.UpdateSettings()
             info.func = function()
                 panel.anchorTo = opt
                 UIDropDownMenu_SetText(anchorDrop, opt)
+
+                -- Auto-Snap Logic: If anchoring center/utility panel to HUD or another panel, snap to correct offset
+                local isHudCenter = (opt == "Health Bar") and (panel.name == "CENTER" or panel.placement == "center")
+                local isPanelStack = (opt ~= "UIParent" and opt ~= "Health Bar" and opt ~= "Tracked Bars")
+
+                if isHudCenter or isPanelStack then
+                    local snapY = -2
+                    panel.y = snapY
+                    if ySlider and ySlider.SetSliderValue then
+                        ySlider:SetSliderValue(snapY)
+                    end
+                end
+
                 if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
             end
             UIDropDownMenu_AddButton(info)

@@ -430,13 +430,17 @@ function sfui.common.get_cooldown_panels()
             name = "CENTER",
             enabled = true,
             x = 0,
-            y = 232,
+            y = 0,
             size = 50,
             columns = 10,
-            spacing = 1,
+            spacing = 0,
+            spanWidth = true,
+            showBackground = true,
+            backgroundAlpha = 0.5,
             placement = "center",
             anchor = "center",
             growthV = "Down",
+            anchorTo = "Health Bar",
             entries = sfui.common.populate_center_panel_from_cdm()
         }
         table.insert(panels, 1, centerPanel) -- Insert at beginning
@@ -466,13 +470,15 @@ function sfui.common.get_cooldown_panels()
             name = "UTILITY",
             enabled = true,
             x = 0,
-            y = -109,
-            size = 50,
+            y = 0,
+            size = 32,
             columns = 9,
-            spacing = 1,
+            spacing = 0,
+            showBackground = false,
+            backgroundAlpha = 0.5,
             placement = "center",
-            anchor = "center",
-            anchorTo = "Health Bar",
+            anchor = "top",
+            anchorTo = "CENTER",
             growthV = "Down",
             growthH = "Center", -- Default to Center growth
             entries = sfui.common.populate_utility_panel_from_cdm()
@@ -1345,6 +1351,8 @@ function sfui.initialize_database()
 
     -- Tracked Bars
     SfuiDB.trackedBars = SfuiDB.trackedBars or {}
+    if SfuiDB.trackedBarsX == nil then SfuiDB.trackedBarsX = -300 end
+    if SfuiDB.trackedBarsY == nil then SfuiDB.trackedBarsY = 300 end
 end
 
 -- Helper to systematically hide specific Blizzard CooldownViewer frames

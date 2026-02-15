@@ -3,7 +3,13 @@ sfui.trackedicons = {}
 
 local C_Spell = C_Spell
 local C_Item = C_Item
+local C_CooldownViewer = C_CooldownViewer
 local GetTime = GetTime
+local InCombatLockdown = InCombatLockdown
+local CreateFrame = CreateFrame
+local UIParent = UIParent
+local hooksecurefunc = hooksecurefunc
+local C_Timer = C_Timer
 
 local panels = {} -- Active icon panels
 local issecretvalue = sfui.common.issecretvalue
@@ -342,7 +348,20 @@ local function UpdateIconState(icon, panelConfig)
                 local glowType = GetIconValue(entrySettings, panelConfig, "glowType", "pixel")
 
                 _tempGlowCfg.glowType = glowType
-                _tempGlowCfg.glowColor = GetIconValue(entrySettings, panelConfig, "glowColor", _defaultColor)
+                local glowColor = GetIconValue(entrySettings, panelConfig, "glowColor", _defaultColor)
+                local useSpecColor = GetIconValue(entrySettings, panelConfig, "useSpecColor", true)
+
+                if useSpecColor then
+                    -- Get current specialization ID
+                    local specIndex = GetSpecialization()
+                    if specIndex and specIndex > 0 then
+                        local specID = GetSpecializationInfo(specIndex)
+                        if specID and sfui.config.spec_colors and sfui.config.spec_colors[specID] then
+                            glowColor = sfui.config.spec_colors[specID]
+                        end
+                    end
+                end
+                _tempGlowCfg.glowColor = glowColor
                 _tempGlowCfg.glowScale = GetIconValue(entrySettings, panelConfig, "glowScale", 1.0)
                 _tempGlowCfg.glowIntensity = GetIconValue(entrySettings, panelConfig, "glowIntensity", 1.0)
                 _tempGlowCfg.glowSpeed = GetIconValue(entrySettings, panelConfig, "glowSpeed", 0.25)
@@ -586,16 +605,26 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
 
     if anchorTo == "Health Bar" and _G["sfui_bar0_Backdrop"] then
         targetFrame = _G["sfui_bar0_Backdrop"]
-        targetPoint = "TOP" -- Default to top when anchoring to bars
+        targetPoint = "BOTTOM"
+        anchor = "TOP" -- FORCE TOP alignment for HUD panels so posY is predictable
+
+        -- Smart Anchoring: Check if Power Bar (bar_minus_1) is visible and below health
+        local powerBar = _G["sfui_bar_minus_1_Backdrop"]
+        if powerBar and powerBar:IsShown() then
+            targetFrame = powerBar
+            targetPoint = "BOTTOM"
+        end
     elseif anchorTo == "Tracked Bars" and _G["SfuiTrackedBarsContainer"] then
         targetFrame = _G["SfuiTrackedBarsContainer"]
         targetPoint = "TOP"
+        anchor = "BOTTOM" -- Stacking upwards from tracked bars list
     else
         -- Check if anchoring to another panel by name
         for _, otherPanel in pairs(panels) do
             if otherPanel.config and otherPanel.config.name == anchorTo then
                 targetFrame = otherPanel
                 targetPoint = "BOTTOM" -- Default stacking direction
+                anchor = "TOP"         -- FORCE TOP alignment for panel-to-panel stacking
                 break
             end
         end
@@ -645,8 +674,8 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
     local numColumns = panelConfig.columns or #activeIcons
     if numColumns < 1 then numColumns = 1 end
 
-    -- Force Single Row for Center Panel
-    if panelConfig.placement == "center" or panelConfig.growthH == "Center" then
+    -- Force Single Row ONLY for the main CENTER panel
+    if panelConfig.name == "CENTER" then
         numColumns = #activeIcons
     end
 
@@ -661,6 +690,12 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
     local spanWidth = GetIconValue(nil, panelConfig, "spanWidth", false)
     if spanWidth and (panelConfig.placement == "center" or growthH == "Center") and #activeIcons > 0 then
         local targetWidth = sfui.config.healthBar.width or 300
+        if _G["sfui_bar0_Backdrop"] then
+            targetWidth = _G["sfui_bar0_Backdrop"]:GetWidth()
+        else
+            targetWidth = targetWidth + 4 -- Fallback to width + 4px for backdrop padding
+        end
+
         local iconsPerRow = math.min(numColumns, #activeIcons)
 
         -- Calculate current width with configured size/spacing

@@ -137,10 +137,13 @@ sfui.config = {
             growthH = "Center",
             growthV = "Down",
             x = 0,
-            y = -92,
+            y = 0,
             size = 50,
-            spacing = 1,
+            spacing = 0,
             columns = 20, -- Single row by default (high column count)
+            spanWidth = true,
+            showBackground = true,
+            backgroundAlpha = 0.5,
             enabled = true,
             textEnabled = true,
             textColor = { r = 1, g = 1, b = 1 },
@@ -152,10 +155,12 @@ sfui.config = {
             growthH = "Center",
             growthV = "Down",
             x = 0,
-            y = -2, -- 2px spacing below target
+            y = 0, -- Default position
             size = 32,
-            spacing = 1,
+            spacing = 0,
             columns = 9,
+            showBackground = false,
+            backgroundAlpha = 0.5,
             enabled = true,
             textEnabled = true,
             textColor = { r = 1, g = 1, b = 1 },
@@ -170,11 +175,12 @@ sfui.config = {
     icon_panel_global_defaults = {
         -- Ready Glow (when spell is off cooldown/available)
         readyGlow = true,                    -- Enable glow when ready
-        glowType = "pixel",                  -- Options: pixel, autocast, proc, button
+        glowType = "autocast",               -- Options: pixel, autocast, proc, button
+        useSpecColor = true,                 -- Use specialization-based color for glows
         glowColor = { r = 1, g = 1, b = 0 }, -- Yellow by default
-        glowScale = 1.0,
+        glowScale = 2.0,
         glowIntensity = 1.0,
-        glowSpeed = 1.0,         -- Changed from 0.25 to 1.0 per user request
+        glowSpeed = 0.5,         -- User request: 0.5
         glowLines = 4,           -- Pixel glow: number of particles
         glowThickness = 1,       -- Pixel glow: line thickness
         glowParticles = 4,       -- Autocast glow: particle count
@@ -184,9 +190,8 @@ sfui.config = {
         cooldownDesat = true,    -- Desaturate while on cooldown
         alphaOnCooldown = 1.0,   -- Alpha transparency while on cooldown (1.0 = Opaque)
         useResourceCheck = true, -- Enable mana/power based tinting
-        showBackground = true,   -- Show a semi-transparent black background behind panels
+        showBackground = false,  -- Default backgrounds to OFF
         backgroundAlpha = 0.5,   -- 50% transparency for the background
-        spanWidth = false,       -- Auto-span width for center panel
 
         -- Text Display
         textEnabled = true,                  -- Show countdown numbers on icons
