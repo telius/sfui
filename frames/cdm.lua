@@ -19,194 +19,171 @@ local issecretvalue = sfui.common.issecretvalue
 local g = sfui.config
 local c = g.options_panel
 
+local function AddVerticalAccent(frame)
+    if not frame then return end
+    local accent = frame:CreateTexture(nil, "ARTWORK")
+    accent:SetPoint("TOPLEFT", 0, 0)
+    accent:SetPoint("BOTTOMLEFT", 0, 0)
+    accent:SetWidth(3)
+    accent:SetColorTexture(0.4, 0, 1, 1) -- Purple accent
+    frame.accent = accent
+end
+
+local function IsValidID(id)
+    if not id then return false end
+    local nid = tonumber(id)
+    return nid and nid >= -2147483648 and nid <= 2147483647
+end
+
 -- Layout Constants
-local POOL_WIDTH = 350
-local ZONE_WIDTH = 350
-local ICON_SIZE = 30
-local ICON_SPACING = 2
-local GROUP_HEADER_HEIGHT = 20
+local ICON_SIZE          = 30
+local ICON_SPACING       = 2
 
 -- Main Container
-local cdmFrame = nil
-local poolFrame = nil
-local zonesFrame = nil
+local cdmFrame           = nil
+local poolFrame          = nil
+local zonesFrame         = nil
 
 -- Data Storage for Dragging
-local draggedInfo = nil
+local draggedInfo        = nil
+local selectedPanelIndex = nil -- Index of panel being edited in settings below
+local selectedPanelData  = nil -- Data of selected panel (or true for Tracked Bars)
 
 -- Frame Pools (avoid GC churn on refresh)
-local poolIconFrames = {}
-local poolIconCount = 0
-local poolBucketFrames = {}
-local poolBucketCount = 0
+local zoneIconFrames     = {}
+local zoneIconCount      = 0
 
 -- Forward Declarations (must be before AcquirePoolIcon closures)
-local RefreshPool
 local RefreshZones
 local OnIconDragStart
 local OnIconDragStop
 local OnZoneReceiveDrag
 local HandleExternalDrop
 
-local function AcquirePoolIcon(parent)
-    poolIconCount = poolIconCount + 1
-    local icon = poolIconFrames[poolIconCount]
+local function AcquireZoneIcon(parent)
+    zoneIconCount = zoneIconCount + 1
+    local icon = zoneIconFrames[zoneIconCount]
     if not icon then
         icon = CreateFrame("Button", nil, parent)
         icon:SetSize(ICON_SIZE, ICON_SIZE)
+
+        local bb = icon:CreateTexture(nil, "BACKGROUND")
+        bb:SetAllPoints()
+        bb:SetColorTexture(0, 0, 0, 1)
+        bb:Hide()
+        icon.borderBackdrop = bb
+
         local tex = icon:CreateTexture(nil, "ARTWORK")
         tex:SetAllPoints()
-        icon.tex = tex
+        icon.texture = tex
+
         icon:RegisterForDrag("LeftButton")
-        icon:SetScript("OnDragStart", function(self) OnIconDragStart(self) end)
-        icon:SetScript("OnDragStop", function(self) OnIconDragStop(self) end)
         icon:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        poolIconFrames[poolIconCount] = icon
+        zoneIconFrames[zoneIconCount] = icon
     end
+
+    if sfui.trackedicons and sfui.trackedicons.ApplyIconBorderStyle then
+        sfui.trackedicons.ApplyIconBorderStyle(icon, SfuiDB.iconGlobalSettings)
+    end
+    -- Enforce borderless logic removed to respect user settings
+
+    sfui.common.sync_masque(icon, { Icon = icon.texture })
+
     icon:SetParent(parent)
     icon:ClearAllPoints()
     icon:Show()
     return icon
 end
 
-local function AcquirePoolBucket(parent)
-    poolBucketCount = poolBucketCount + 1
-    local bucket = poolBucketFrames[poolBucketCount]
-    if not bucket then
-        bucket = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-        bucket:SetBackdrop({
-            bgFile = "Interface/Buttons/WHITE8X8",
-            edgeFile = "Interface/Buttons/WHITE8X8",
-            edgeSize = 1,
-        })
-        bucket.header = bucket:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        bucket.header:SetPoint("TOPLEFT", 5, -3)
-        poolBucketFrames[poolBucketCount] = bucket
-    end
-    bucket:SetParent(parent)
-    bucket:ClearAllPoints()
-    bucket:Show()
-    return bucket
-end
+-- ... (skipping to HandleExternalDrop updates)
 
-local function ResetPools()
-    for i = 1, poolIconCount do poolIconFrames[i]:Hide() end
-    for i = 1, poolBucketCount do poolBucketFrames[i]:Hide() end
-    poolIconCount = 0
-    poolBucketCount = 0
+local function ResetBucketPool()
+    for i = 1, #zoneIconFrames do zoneIconFrames[i]:Hide() end
+    zoneIconCount = 0
 end
 
 -- ----------------------------------------------------------------------------
 -- Initialization & Layout
 -- ----------------------------------------------------------------------------
 
-function sfui.cdm.RefreshPool()
-    if RefreshPool then RefreshPool() end
-end
-
 function sfui.cdm.RefreshZones()
     if RefreshZones then RefreshZones() end
 end
+
+-- Layout Constants
+local PANEL_LIST_W = 360 -- Left column: panel list
+local SETTINGS_W = 370   -- Right column: settings
+local GAP = 10
 
 function sfui.cdm.create_panel(parent)
     if cdmFrame then
         cdmFrame:SetParent(parent)
         cdmFrame:SetAllPoints(parent)
         cdmFrame:Show()
-        RefreshPool()
-        RefreshZones()
+        sfui.cdm.RefreshLayout()
         return cdmFrame
     end
 
     cdmFrame = CreateFrame("Frame", "SfuiCDMPanel", parent)
     cdmFrame:SetAllPoints(parent)
 
-    -- Global Drag Cleanup (if mouse released outside any zone)
+    -- Global Drag Cleanup
     cdmFrame:SetScript("OnMouseUp", function()
         if draggedInfo then
-            local icon = draggedInfo.icon
-            if icon then
-                -- icon:StopMovingOrSizing() -- we use a cursor frame, so no need to stop moving the original
-            end
             if draggedInfo.cursor then draggedInfo.cursor:Hide() end
             draggedInfo = nil
         end
     end)
 
+    -- ─── Left Column: Panel List ─────────────────────────────────────────────
+    local leftScroll = CreateFrame("ScrollFrame", "SfuiCDMLeftScroll", cdmFrame, "UIPanelScrollFrameTemplate")
+    leftScroll:SetPoint("TOPLEFT", 5, -5)
+    leftScroll:SetPoint("BOTTOMLEFT", 5, 5)
+    leftScroll:SetWidth(PANEL_LIST_W - 20) -- Move scrollbar 20px left by reducing width
 
-    -- 1. Blizzard Cooldown Pool (Left Column)
-    poolFrame = CreateFrame("Frame", nil, cdmFrame, "BackdropTemplate")
-    poolFrame:SetPoint("TOPLEFT", 10, -10)
-    poolFrame:SetPoint("BOTTOMLEFT", 10 + POOL_WIDTH, 10)
-    poolFrame:SetWidth(POOL_WIDTH)
-    poolFrame:SetBackdrop({
-        bgFile = "Interface/Buttons/WHITE8X8",
-        edgeFile = "Interface/Buttons/WHITE8X8",
-        edgeSize = 1,
-    })
-    poolFrame:SetBackdropColor(0.1, 0.1, 0.1, 0.5)
-    poolFrame:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+    local leftContent = CreateFrame("Frame", nil, leftScroll)
+    leftContent:SetSize(PANEL_LIST_W - 20, 2000)
+    leftScroll:SetScrollChild(leftContent)
+    cdmFrame.leftContent = leftContent
 
-    local poolHeader = poolFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    poolHeader:SetPoint("TOPLEFT", 5, 10)
-    poolHeader:SetText("blizzard cooldown pool")
+    -- ─── Right Column: Settings ───────────────────────────────────────────────
+    local rightScroll = CreateFrame("ScrollFrame", "SfuiCDMRightScroll", cdmFrame, "UIPanelScrollFrameTemplate")
+    rightScroll:SetPoint("TOPLEFT", 5 + PANEL_LIST_W + GAP, -5)
+    rightScroll:SetPoint("BOTTOMRIGHT", -25, 5)
 
-    local refreshBtn = CreateFlatButton(poolFrame, "refresh", 60, 18)
-    refreshBtn:SetPoint("TOPRIGHT", poolFrame, "TOPRIGHT", -5, 12)
-    refreshBtn:SetScript("OnClick", function()
-        RefreshPool()
-    end)
+    local rightContent = CreateFrame("Frame", nil, rightScroll)
+    rightContent:SetSize(SETTINGS_W, 3000)
+    rightScroll:SetScrollChild(rightContent)
+    cdmFrame.rightContent = rightContent
 
-    -- Pool Scroll Area
-    local poolScroll = CreateFrame("ScrollFrame", "SfuiCDMPoolScroll", poolFrame, "UIPanelScrollFrameTemplate")
-    poolScroll:SetPoint("TOPLEFT", 5, -5)
-    poolScroll:SetPoint("BOTTOMRIGHT", -25, 5)
+    -- ─── Divider ──────────────────────────────────────────────────────────────
+    local divider = cdmFrame:CreateTexture(nil, "ARTWORK")
+    divider:SetWidth(1)
+    divider:SetPoint("TOPLEFT", 5 + PANEL_LIST_W + 5, -5)
+    divider:SetPoint("BOTTOMLEFT", 5 + PANEL_LIST_W + 5, 5)
+    divider:SetColorTexture(0.4, 0, 1, 0.5)
 
-    local poolContent = CreateFrame("Frame", nil, poolScroll)
-    poolContent:SetSize(POOL_WIDTH - 30, 800)
-    poolScroll:SetScrollChild(poolContent)
-    cdmFrame.poolContent = poolContent
-
-    -- Capture mouse up on pool frame too
-    poolFrame:SetScript("OnMouseUp", function()
-        if draggedInfo then cdmFrame:GetScript("OnMouseUp")(cdmFrame) end
-    end)
-
-
-    -- 2. Drop Zones (Right Column) (Vertical Stack)
-    zonesFrame = CreateFrame("Frame", nil, cdmFrame, "BackdropTemplate")
-    zonesFrame:SetPoint("TOPLEFT", poolFrame, "TOPRIGHT", 10, 0)
-    zonesFrame:SetPoint("BOTTOMRIGHT", -10, 10)
-    zonesFrame:SetBackdrop({
-        bgFile = "Interface/Buttons/WHITE8X8",
-        edgeFile = "Interface/Buttons/WHITE8X8",
-        edgeSize = 1,
-    })
-    zonesFrame:SetBackdropColor(0.1, 0.1, 0.1, 0.5)
-    zonesFrame:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
-
-    -- Zones Scroll Area
-    local zonesScroll = CreateFrame("ScrollFrame", "SfuiCDMZonesScroll", zonesFrame, "UIPanelScrollFrameTemplate")
-    zonesScroll:SetPoint("TOPLEFT", 5, -5)
-    zonesScroll:SetPoint("BOTTOMRIGHT", -25, 5)
-
-    local zonesContent = CreateFrame("Frame", nil, zonesScroll)
-    zonesContent:SetSize(zonesFrame:GetWidth() - 30, 800)
-    zonesScroll:SetScrollChild(zonesContent)
-    cdmFrame.zonesContent = zonesContent
-
-    -- Initial Population
-    cdmFrame:SetScript("OnShow", function()
-        RefreshPool()
+    function sfui.cdm.RefreshLayout()
+        ResetBucketPool()
         RefreshZones()
-    end)
+        -- Resize left content to actual zone height
+        local kids = { leftContent:GetChildren() }
+        local maxBottom = 0
+        for _, k in ipairs(kids) do
+            if k:IsShown() then
+                local _, _, _, _, y = k:GetPoint(1)
+                maxBottom = math.max(maxBottom, math.abs(y or 0) + k:GetHeight())
+            end
+        end
+        leftContent:SetHeight(math.max(maxBottom + 50, 200))
+    end
+
+    cdmFrame:SetScript("OnShow", sfui.cdm.RefreshLayout)
     cdmFrame:SetScript("OnHide", function()
         if draggedInfo then OnIconDragStop(draggedInfo.icon) end
     end)
 
-    RefreshPool()
-    RefreshZones()
-
+    sfui.cdm.RefreshLayout()
     return cdmFrame
 end
 
@@ -214,154 +191,64 @@ end
 -- Logic
 -- ----------------------------------------------------------------------------
 
-RefreshPool = function()
-    local container = cdmFrame and cdmFrame.poolContent
-    if not container then return end
-
-    -- Reset pools to recycle all frames
-    ResetPools()
-
-    if not CooldownViewerSettings then return end
-
-    local dataProvider = CooldownViewerSettings:GetDataProvider()
-    if not dataProvider then return end
-
-    local cooldownIDs = dataProvider:GetOrderedCooldownIDs()
-
-    -- Group Icons
-    local groups = {}
-    for i = -2, 4 do groups[i] = {} end
-
-    for _, id in ipairs(cooldownIDs) do
-        local info = dataProvider:GetCooldownInfoForID(id)
-        if info then
-            local gId = info.category or 4
-            if not groups[gId] then groups[gId] = {} end
-            table.insert(groups[gId], { id = id, info = info })
-        end
-    end
-
-    local yPos = -5
-    local MAX_ROW_WIDTH = container:GetWidth() - 10
-
-    local groupNames = {
-        [-2] = "Internal / Ignored",
-        [-1] = "Essential",
-        [0] = "Essential",
-        [1] = "Utility",
-        [2] = "Buffs",
-        [3] = "Tracked Bars",
-        [4] = "Items / Trinkets / Misc"
-    }
-
-    for gId = 0, 4 do
-        local list = groups[gId] or {}
-
-        -- Acquire bucket from pool
-        local bucket = AcquirePoolBucket(container)
-        bucket:SetPoint("TOPLEFT", 5, yPos)
-        bucket:SetPoint("RIGHT", -5, 0)
-        bucket:SetBackdropColor(0.15, 0.15, 0.15, 0.3)
-        bucket:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.5)
-
-        -- Header
-        bucket.header:SetText((groupNames[gId] or ("Group " .. gId)) .. " (" .. #list .. ")")
-        bucket.header:SetTextColor(1, 0.8, 0, 1)
-
-        -- Icons Grid inside Bucket
-        local xOffset = 5
-        local yOffset = -20
-
-        for _, item in ipairs(list) do
-            local icon = AcquirePoolIcon(bucket)
-
-            -- Grid Logic
-            if xOffset + ICON_SIZE > (MAX_ROW_WIDTH - 10) then
-                xOffset = 5
-                yOffset = yOffset - ICON_SIZE - ICON_SPACING
-            end
-
-            icon:SetPoint("TOPLEFT", xOffset, yOffset)
-            xOffset = xOffset + ICON_SIZE + ICON_SPACING
-
-            local spellId = item.info.spellID or item.info.itemID
-            local texture = C_Spell.GetSpellTexture(spellId)
-            if not texture then texture = C_Item.GetItemIconByID(spellId) end
-
-            icon.tex:SetTexture(texture or 134400)
-            icon.info = item.info
-            icon.cooldownID = item.id
-
-            -- Masque Support
-            sfui.common.sync_masque(icon, { Icon = icon.tex })
-
-            -- Tooltip
-            icon:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                if self.info.spellID then
-                    GameTooltip:SetSpellByID(self.info.spellID)
-                elseif self.info.itemID then
-                    GameTooltip:SetItemByID(self.info.itemID)
-                else
-                    GameTooltip:SetText(self.info.name or "Unknown")
-                end
-
-                GameTooltip:AddLine(" ")
-                if self.info.cooldownID then
-                    GameTooltip:AddDoubleLine("Cooldown ID:", "|cffffffff" .. self.info.cooldownID .. "|r")
-                end
-                if self.info.spellID then
-                    GameTooltip:AddDoubleLine("Spell ID:", "|cffffffff" .. self.info.spellID .. "|r")
-                end
-                if self.info.itemID then
-                    GameTooltip:AddDoubleLine("Item ID:", "|cffffffff" .. self.info.itemID .. "|r")
-                end
-
-                GameTooltip:Show()
-            end)
-        end
-
-        -- Resize Bucket
-        local bucketHeight = math.abs(yOffset) + ICON_SIZE + 5
-        bucket:SetHeight(bucketHeight)
-
-        -- Prepare for next group
-        yPos = yPos - bucketHeight - 5
-    end
-
-    container:SetHeight(math.abs(yPos) + 50)
-end
-
-local function CreateZone(parent, name, yPos, panelData, isTrackedBars, panelIndex)
+local function CreateZone(parent, name, yPos, xPos, width, panelData, isTrackedBars, panelIndex)
     local zone = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    zone:SetPoint("TOPLEFT", 0, yPos)
-    zone:SetPoint("RIGHT", 0, 0)
-    -- Limit to 2 rows: 20 (header) + 5 (pad) + 30 (row1) + 2 (spacing) + 30 (row2) + 5 (bottom pad) = 92
-    zone:SetHeight(92)
+    zone:SetPoint("TOPLEFT", xPos, yPos)
+    zone:SetSize(width or 400, 92)
     zone:SetBackdrop({
         bgFile = "Interface/Buttons/WHITE8X8",
-        edgeFile = "Interface/Buttons/WHITE8X8",
-        edgeSize = 1,
     })
+    AddVerticalAccent(zone)
 
     -- Visual Style
     if isTrackedBars then
-        zone:SetBackdropColor(0.1, 0.0, 0.2, 0.3) -- Purple tint
-        zone:SetBackdropBorderColor(0.8, 0.4, 1.0, 0.8)
+        zone:SetBackdropColor(0.06, 0, 0.12, 0.9) -- Dark Purple tint
+        zone:SetBackdropBorderColor(0, 0, 0, 0)
     else
-        zone:SetBackdropColor(0.05, 0.05, 0.05, 0.5)
-        zone:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+        zone:SetBackdropColor(0.06, 0.06, 0.06, 0.9)
+        zone:SetBackdropBorderColor(0, 0, 0, 0)
     end
 
     local label = zone:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     label:SetPoint("TOPLEFT", 5, -5)
 
     if isTrackedBars then
-        label:SetText("Tracked Bars (Global Visibility)")
-        label:SetTextColor(0.8, 0.4, 1.0)
+        label:SetText("Tracked Bars")
+        label:SetTextColor(0.4, 0, 1, 1) -- Purple accent
     else
         label:SetText(panelData.name or "Unnamed Panel")
+        label:SetTextColor(0.4, 0, 1, 1) -- Purple accent
+    end
 
+    -- Selection Checkbox (Right side)
+    local sel = sfui.common.create_checkbox(zone, "Edit",
+        function()
+            return selectedPanelIndex == panelIndex
+        end,
+        function(val)
+            if val then
+                selectedPanelIndex = panelIndex
+                selectedPanelData = isTrackedBars and true or panelData
+            else
+                if selectedPanelIndex == panelIndex then
+                    selectedPanelIndex = nil
+                    selectedPanelData = nil
+                end
+            end
+            sfui.cdm.RefreshLayout()
+        end)
+    sel:SetPoint("BOTTOMRIGHT", -5, 5)
+
+    -- Customize label position and color
+    if sel.text then
+        sel.text:ClearAllPoints()
+        sel.text:SetPoint("BOTTOM", sel, "TOP", 0, 2)
+        sel.text:SetTextColor(1, 1, 1, 1) -- White
+    end
+
+    zone.selCheck = sel
+
+    if not isTrackedBars then
         -- Delete Button for custom panels
         local isBuiltIn = (name == "CENTER" or name == "UTILITY" or name == "Left" or name == "Right")
         if not isBuiltIn and panelIndex then
@@ -373,7 +260,7 @@ local function CreateZone(parent, name, yPos, panelData, isTrackedBars, panelInd
             del:SetPushedTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Down")
             del:SetScript("OnClick", function()
                 if sfui.common.delete_custom_panel(panelIndex) then
-                    RefreshZones()
+                    sfui.cdm.RefreshLayout()
                 end
             end)
             zone.deleteBtn = del
@@ -398,23 +285,28 @@ local function CreateZone(parent, name, yPos, panelData, isTrackedBars, panelInd
         if dp then
             for _, cooldownID in ipairs(list) do
                 if not sfui.common.issecretvalue(cooldownID) then
-                    local entry = { id = cooldownID, type = "cooldown", cooldownID = cooldownID }
-                    if isTrackedBars then
-                        entries[cooldownID] = entry
+                    if not IsValidID(cooldownID) then
+                        print("|cffff0000SFUI CDM Error:|r Skipping invalid ID " ..
+                            tostring(cooldownID) .. " (outside 32-bit range)")
                     else
-                        local exists = false
-                        for _, val in ipairs(entries) do
-                            local existingId = (type(val) == "table" and val.id) or val
-                            if existingId == cooldownID then
-                                exists = true; break
+                        local entry = { id = cooldownID, type = "cooldown", cooldownID = cooldownID }
+                        if isTrackedBars then
+                            entries[cooldownID] = entry
+                        else
+                            local exists = false
+                            for _, val in ipairs(entries) do
+                                local existingId = (type(val) == "table" and val.id) or val
+                                if existingId == cooldownID then
+                                    exists = true; break
+                                end
                             end
+                            if not exists then table.insert(entries, entry) end
                         end
-                        if not exists then table.insert(entries, entry) end
                     end
                 end
             end
         end
-        RefreshZones()
+        sfui.cdm.RefreshLayout()
         -- Also refresh the visual icons in the panels if they are active
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
         if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then sfui.trackedbars.ForceLayoutUpdate() end
@@ -435,25 +327,15 @@ local function CreateZone(parent, name, yPos, panelData, isTrackedBars, panelInd
 
     -- Helper to get texture
     local function GetIconTexture(cdID)
-        if not CooldownViewerSettings then return 134400 end
-        local dp = CooldownViewerSettings:GetDataProvider()
-        if not dp then return 134400 end
-
         local id = (type(cdID) == "table" and cdID.id) or cdID
         local typeStr = (type(cdID) == "table" and cdID.type) or "spell"
-        local cooldownID = (type(cdID) == "table" and cdID.cooldownID) or id
+        local entry = (type(cdID) == "table") and cdID or { id = id, type = typeStr }
 
-        local info = dp:GetCooldownInfoForID(cooldownID)
-        if not info then
-            -- Fallback if type is spell/item
-            if typeStr == "item" then return C_Item.GetItemIconByID(id) or 134400 end
-            return C_Spell.GetSpellTexture(id) or 134400
+        if sfui.trackedicons and sfui.trackedicons.GetIconTexture then
+            local tex, _ = sfui.trackedicons.GetIconTexture(id, typeStr, entry)
+            return tex or 134400
         end
-
-        local spellId = info.spellID or info.itemID
-        local texture = C_Spell.GetSpellTexture(spellId)
-        if not texture then texture = C_Item.GetItemIconByID(spellId) end
-        return texture or 134400
+        return 134400
     end
 
     if entries then
@@ -461,24 +343,18 @@ local function CreateZone(parent, name, yPos, panelData, isTrackedBars, panelInd
         local list = {}
         if isTrackedBars then
             for id, enabled in pairs(entries) do
-                if enabled then table.insert(list, id) end
+                if enabled and IsValidID(id) then
+                    table.insert(list, tonumber(id))
+                end
             end
         else
             list = entries
         end
 
         for _, cdID in ipairs(list) do
-            local icon = CreateFrame("Button", nil, content)
-            icon:SetSize(ICON_SIZE, ICON_SIZE)
+            local icon = AcquireZoneIcon(content)
             icon:SetPoint("TOPLEFT", x, y)
-
-            local tex = icon:CreateTexture(nil, "ARTWORK")
-            tex:SetAllPoints()
-            tex:SetTexture(GetIconTexture(cdID))
-            icon.tex = tex
-
-            -- Masque Support
-            sfui.common.sync_masque(icon, { Icon = tex })
+            icon.texture:SetTexture(GetIconTexture(cdID))
 
 
             -- Right click to delete
@@ -553,6 +429,12 @@ local function CreateZone(parent, name, yPos, panelData, isTrackedBars, panelInd
 
                 GameTooltip:Show()
             end)
+            icon:SetScript("OnDragStart", function(self)
+                OnIconDragStart(self, isTrackedBars)
+            end)
+            icon:SetScript("OnDragStop", function(self)
+                OnIconDragStop(self)
+            end)
             icon:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
             -- Drag Handling (Allow picking up from zones)
@@ -608,50 +490,79 @@ local function CreateZone(parent, name, yPos, panelData, isTrackedBars, panelInd
 end
 
 RefreshZones = function()
-    local container = cdmFrame and cdmFrame.zonesContent
-    if not container then return end
+    local leftContainer  = cdmFrame and cdmFrame.leftContent
+    local rightContainer = cdmFrame and cdmFrame.rightContent
+    if not leftContainer then return end
 
-    -- Clear old zones
-    if container.children then
-        for _, child in ipairs(container.children) do child:Hide() end
+    -- ── Clear Left (panels list) ──────────────────────────────────────────────
+    if sfui.trackedoptions.ReleaseSettingsWidgets then
+        sfui.trackedoptions.ReleaseSettingsWidgets(leftContainer)
     end
-    container.children = {}
+    leftContainer.zoneChildren = {}
 
-    local yPos = 0
-    local GAP = 10
+    -- ── Clear Right (settings) ────────────────────────────────────────────────
+    if rightContainer and sfui.trackedoptions.ReleaseSettingsWidgets then
+        sfui.trackedoptions.ReleaseSettingsWidgets(rightContainer)
+    end
 
-    -- 1. Tracked Bars Zone (Always Top)
-    local tbZone = CreateZone(container, "Tracked Bars", yPos, nil, true)
-    table.insert(container.children, tbZone)
-    yPos = yPos - 102 -- Height 92 + 10 gap
+    local currentY = -5
+    local ZONE_H   = 92
+    local ROW_GAP  = 8
+    local ZONE_W   = PANEL_LIST_W - 22 -- leave room for scroll bar
 
-    -- 2. Custom Panels
+    local function MakeZone(panelData, isTrackedBars, panelIndex)
+        local zone = CreateZone(leftContainer, isTrackedBars and "Tracked Bars" or (panelData and panelData.name),
+            currentY, 0, ZONE_W, panelData, isTrackedBars, panelIndex)
+
+
+
+        if not selectedPanelIndex then
+            selectedPanelIndex = panelIndex
+            selectedPanelData = panelData
+            if isTrackedBars then selectedPanelIndex = "TRACKED_BARS" end
+        end
+
+        -- ── Accent colour based on selection ─────────────────────────────────
+        local isSelected = (selectedPanelIndex == panelIndex)
+        if zone.accent then
+            if isSelected then
+                zone.accent:SetColorTexture(0, 1, 1, 1)   -- Cyan #00FFFF
+            else
+                zone.accent:SetColorTexture(0.4, 0, 1, 1) -- Purple
+            end
+        end
+
+        if not leftContainer.zoneChildren then leftContainer.zoneChildren = {} end
+        table.insert(leftContainer.zoneChildren, zone)
+
+        currentY = currentY - ZONE_H - ROW_GAP
+    end
+
+    -- 1. Tracked Bars
+    MakeZone(nil, true, "TRACKED_BARS")
+
+    -- 2. All Panels
     local panels = sfui.common.get_cooldown_panels()
     if panels then
         for i, panel in ipairs(panels) do
-            local zone = CreateZone(container, panel.name, yPos, panel, false, i)
-            table.insert(container.children, zone)
-            yPos = yPos - 102
+            MakeZone(panel, false, i)
         end
     end
 
-    -- 3. Add Panel UI
-    local addFrame = CreateFrame("Frame", nil, container, "BackdropTemplate")
-    addFrame:SetSize(300, 30)
-    addFrame:SetPoint("TOPLEFT", 0, yPos - 10)
-    addFrame:SetBackdrop({
-        bgFile = "Interface/Buttons/WHITE8X8",
-        edgeFile = "Interface/Buttons/WHITE8X8",
-        edgeSize = 1,
-    })
-    addFrame:SetBackdropColor(0, 0, 0, 0.5)
-    addFrame:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
-    table.insert(container.children, addFrame)
+    -- 3. Add Panel row
+    local addFrame = CreateFrame("Frame", nil, leftContainer, "BackdropTemplate")
+    addFrame:SetSize(ZONE_W, 30)
+    addFrame:SetPoint("TOPLEFT", 0, currentY - 8)
+    addFrame:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8" })
+    addFrame:SetBackdropColor(0.06, 0.06, 0.06, 0.9)
+    addFrame:SetBackdropBorderColor(0, 0, 0, 0)
+    AddVerticalAccent(addFrame)
 
     local eb = CreateFrame("EditBox", nil, addFrame)
-    eb:SetSize(200, 20)
-    eb:SetPoint("LEFT", 5, 0)
+    eb:SetSize(ZONE_W - 70, 20)
+    eb:SetPoint("LEFT", 10, 0)
     eb:SetFontObject("ChatFontNormal")
+    eb:SetTextColor(0.8, 0.8, 0.8)
     eb:SetMultiLine(false)
     eb:SetAutoFocus(false)
     eb:SetText("New Panel Name")
@@ -660,25 +571,47 @@ RefreshZones = function()
         local name = self:GetText()
         if name and name ~= "" and name ~= "New Panel Name" then
             sfui.common.add_custom_panel(name)
-            RefreshZones()
+            sfui.cdm.RefreshLayout()
         end
         self:ClearFocus()
     end)
     eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
-    local addBtn = sfui.common.create_flat_button(addFrame, "Add", 60, 20)
+    local addBtn = sfui.common.create_flat_button(addFrame, "Add", 55, 20)
     addBtn:SetPoint("RIGHT", -5, 0)
+    addBtn:SetBackdropBorderColor(0.4, 0, 1, 1)
     addBtn:SetScript("OnClick", function()
         local name = eb:GetText()
         if name and name ~= "" and name ~= "New Panel Name" then
             sfui.common.add_custom_panel(name)
-            RefreshZones()
+            sfui.cdm.RefreshLayout()
         end
         eb:ClearFocus()
     end)
+    currentY = currentY - 46
 
-    container:SetHeight(math.abs(yPos) + 100)
+    leftContainer:SetHeight(math.abs(currentY) + 20)
+
+    -- ── Render Settings on Right ──────────────────────────────────────────────
+    if rightContainer then
+        if selectedPanelData then
+            sfui.trackedoptions.RenderPanelSettings(rightContainer, selectedPanelData, 0, -5, SETTINGS_W - 22)
+        else
+            -- Placeholder hint
+            local hint = rightContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            hint:SetPoint("TOP", 0, -30)
+            hint:SetWidth(SETTINGS_W - 40)
+            hint:SetTextColor(0.4, 0.4, 0.4, 1)
+
+            if selectedPanelIndex == "TRACKED_BARS" then
+                hint:SetText("Tracked Bars configuration has been moved to the 'Bars' tab in the main options window.")
+            else
+                hint:SetText("← Select a panel to configure it")
+            end
+        end
+    end
 end
+
 
 -- ----------------------------------------------------------------------------
 -- Logic Helpers
@@ -720,12 +653,12 @@ OnIconDragStart = function(self, isFromTrackedBars)
         cursor = CreateFrame("Frame", nil, UIParent)
         cursor:SetSize(ICON_SIZE, ICON_SIZE)
         cursor:SetFrameStrata("TOOLTIP")
-        cursor.tex = cursor:CreateTexture(nil, "OVERLAY")
-        cursor.tex:SetAllPoints()
+        cursor.texture = cursor:CreateTexture(nil, "OVERLAY")
+        cursor.texture:SetAllPoints()
     end
 
-    cursor.tex:SetTexture(self.tex:GetTexture())
-    cursor.tex:SetAlpha(0.7)
+    cursor.texture:SetTexture(self.texture:GetTexture())
+    cursor.texture:SetAlpha(0.7)
 
     cursor:EnableMouse(false) -- CRITICAL: Ghost must not block MouseUp events
 
@@ -819,9 +752,9 @@ OnIconDragStop = function(self)
 
     -- Hit-test Zones
     local dropTargetZone = nil
-    local container = cdmFrame and cdmFrame.zonesContent
-    if container and container.children then
-        for _, zone in ipairs(container.children) do
+    local container = cdmFrame and cdmFrame.leftContent
+    if container and container.zoneChildren then
+        for _, zone in ipairs(container.zoneChildren) do
             if zone:IsVisible() and zone:IsMouseOver() then
                 dropTargetZone = zone
                 break
@@ -864,7 +797,7 @@ OnIconDragStop = function(self)
     if targetIcon then targetIcon:SetAlpha(1) end
     draggedInfo = nil
 
-    RefreshZones()
+    sfui.cdm.RefreshLayout()
 end
 
 -- Handle drops from Blizzard UI (spellbook, bags, character panel)
@@ -912,6 +845,15 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
 
     local incomingId = entry.cooldownID or entry.id
 
+    -- Debug print to help user verify ID
+    if entry.type == "spell" then
+        local link = C_Spell.GetSpellLink(incomingId)
+        print("|cff00FF00SFUI:|r Imported Spell: " .. (link or incomingId) .. " (ID: " .. incomingId .. ")")
+    elseif entry.type == "item" then
+        local link = C_Item.GetItemLink(incomingId) or incomingId
+        print("|cff00FF00SFUI:|r Imported Item: " .. link .. " (ID: " .. incomingId .. ")")
+    end
+
     if isTrackedBars then
         sfui.common.ensure_tracked_bar_db(incomingId)
         if sfui.trackedbars and sfui.trackedbars.UpdateVisibility then sfui.trackedbars.UpdateVisibility() end
@@ -936,5 +878,33 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
     end
 
     ClearCursor()
-    RefreshZones()
+    sfui.cdm.RefreshLayout()
+end
+sfui.cdm.activeZones = {}
+
+function sfui.cdm.UpdateVisibility()
+    if not sfui.cdm.activeZones then return end
+    local inCombat = InCombatLockdown()
+    local isMounted = IsMounted()
+
+    for _, zone in ipairs(sfui.cdm.activeZones) do
+        local shouldShow = true
+        local panelData = zone.panelData
+
+        if zone.isTrackedBars then
+            -- Tracked Bars visibility logic (optional, currently always shown unless empty logic handled elsewhere)
+        elseif panelData then
+            if panelData.hideOOC and not inCombat then shouldShow = false end
+            if panelData.hideMounted and isMounted then shouldShow = false end
+            -- Legacy support
+            if panelData.visibility == "combat" and not inCombat then shouldShow = false end
+            if panelData.visibility == "noCombat" and inCombat then shouldShow = false end
+        end
+
+        if shouldShow then
+            zone:Show()
+        else
+            zone:Hide()
+        end
+    end
 end

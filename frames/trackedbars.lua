@@ -47,8 +47,19 @@ local _configProxyMT = {
             local entry = defaults[cooldownID]
             if not entry then entry = defaults[tonumber(cooldownID)] end
             if entry then
-                local v = entry[k]
-                if v ~= nil then return v end
+                -- Check specID matching
+                local match = true
+                if entry.specID then
+                    local currentSpec = sfui.common.get_current_spec_id and sfui.common.get_current_spec_id()
+                    if currentSpec and entry.specID ~= currentSpec then
+                        match = false
+                    end
+                end
+
+                if match then
+                    local v = entry[k]
+                    if v ~= nil then return v end
+                end
             end
         end
         return nil
@@ -66,6 +77,91 @@ local function GetTrackedBarConfig(cooldownID)
     return proxy
 end
 sfui.trackedbars.GetConfig = GetTrackedBarConfig
+
+-- Public: Get all known spells (active or configured) for the settings panel
+function sfui.trackedbars.GetKnownSpells()
+    local known = {}
+
+    local function GetInfo(id)
+        local name, icon
+        if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
+            local info = C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
+            if info then
+                if info.spellID then
+                    name = C_Spell.GetSpellName(info.spellID)
+                    icon = C_Spell.GetSpellTexture(info.spellID)
+                elseif info.itemID then
+                    name = C_Item.GetItemNameByID(info.itemID)
+                    icon = C_Item.GetItemIconByID(info.itemID)
+                end
+            end
+        end
+        -- Fallback to direct spell lookup if info failed
+        if not name then name = C_Spell.GetSpellName(id) end
+        if not icon then icon = C_Spell.GetSpellTexture(id) end
+
+        return name or ("Unknown (" .. id .. ")"), icon or sfui.config.textures.white
+    end
+
+    -- 1. Add currently active bars
+    for id, bar in pairs(bars) do
+        local n, i = GetInfo(id)
+        known[id] = {
+            id = id,
+            name = n,
+            icon = i,
+            active = true
+        }
+    end
+
+    -- 2. Add configured bars from DB
+    if SfuiDB and SfuiDB.trackedBars then
+        for id, cfg in pairs(SfuiDB.trackedBars) do
+            if type(id) == "number" and not known[id] then
+                local n, i = GetInfo(id)
+                known[id] = {
+                    id = id,
+                    name = n,
+                    icon = i,
+                    active = false
+                }
+            end
+        end
+    end
+
+    -- 3. Add defaults from config
+    local defaults = sfui.config.trackedBars and sfui.config.trackedBars.defaults
+    local currentSpec = sfui.common.get_current_spec_id and sfui.common.get_current_spec_id()
+    if defaults then
+        for id, def in pairs(defaults) do
+            local idNum = tonumber(id)
+            if idNum and not known[idNum] then
+                -- Check specID matching
+                local match = true
+                if def.specID and currentSpec and def.specID ~= currentSpec then
+                    match = false
+                end
+
+                if match then
+                    local n, i = GetInfo(idNum)
+                    known[idNum] = {
+                        id = idNum,
+                        name = n,
+                        icon = i,
+                        active = false
+                    }
+                end
+            end
+        end
+    end
+
+    -- Sort by name
+    local sorted = {}
+    for _, info in pairs(known) do table.insert(sorted, info) end
+    table.sort(sorted, function(a, b) return (a.name or "") < (b.name or "") end)
+
+    return sorted
+end
 
 -- Cache invalidation (call when settings change)
 function sfui.trackedbars.InvalidateConfigCache()
@@ -112,7 +208,8 @@ end
 local function CreateBar(cooldownID)
     local cfg = sfui.config.trackedBars
     -- Frame is the Backdrop/Container
-    local bar = CreateFrame("Frame", nil, container, "BackdropTemplate")
+    local barName = "sfui_bar" .. tostring(cooldownID) .. "_Backdrop"
+    local bar = CreateFrame("Frame", barName, container, "BackdropTemplate")
     bar:SetSize(cfg.width, cfg.height)
 
     -- Backdrop styling (Flat, no border)
@@ -186,6 +283,18 @@ local function CreateBar(cooldownID)
     bar.cooldownID = cooldownID
 
     bar:EnableMouse(true)
+    bar:RegisterForDrag("LeftButton")
+    bar:SetScript("OnDragStart", function(self)
+        if self.spellID then
+            if C_Spell and C_Spell.PickupSpell then
+                C_Spell.PickupSpell(self.spellID)
+            else
+                PickupSpell(self.spellID)
+            end
+        elseif self.itemID then
+            PickupItem(self.itemID)
+        end
+    end)
     bar:SetScript("OnEnter", function(self)
         if GameTooltip and self.spellID then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -256,7 +365,24 @@ local function SetupBarState(bar, config, cfg)
         bar.count:Hide()
     end
 
-    local color = config and config.color or sfui.config.colors.purple
+    -- Color Logic
+    local color = sfui.config.colors.purple -- ultimate fallback
+    if config then
+        if config.customColor then
+            color = config.customColor
+        elseif config.useSpecColor then
+            local specID = GetSpecializationInfo(GetSpecialization())
+            local c = sfui.config.spec_colors[specID]
+            if c then color = c end
+        elseif SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars.defaultBarColor then
+            color = SfuiDB.trackedBars.defaultBarColor
+        elseif config.color then
+            color = config.color
+        end
+    elseif SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars.defaultBarColor then
+        color = SfuiDB.trackedBars.defaultBarColor
+    end
+
     bar.status:SetStatusBarColor(sfui.common.unpack_color(color))
 end
 
@@ -588,6 +714,18 @@ local function SyncWithBlizzard()
                     end
 
                     local myBar = bars[id]
+                    -- Retroactive global name assignment for existing bars
+                    if not myBar:GetName() then
+                        local globalName = "sfui_bar" .. tostring(id) .. "_Backdrop"
+                        -- SetName is not available on frames created without a name in vanilla Lua,
+                        -- but we can try to register it globally manually if needed, or rely on CreateBar
+                        -- Since we can't easily rename an anonymous frame, we primarily rely on new frames.
+                        -- However, for the specific anchor frames (1 and -1), we can force a global reference.
+                        if id == 1 or id == -1 or id == 0 then
+                            _G[globalName] = myBar
+                        end
+                    end
+
                     local config = GetTrackedBarConfig(id) -- Cache config lookup once
                     local isStackMode = config and config.stackMode or false
 

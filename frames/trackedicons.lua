@@ -10,6 +10,7 @@ local CreateFrame = CreateFrame
 local UIParent = UIParent
 local hooksecurefunc = hooksecurefunc
 local C_Timer = C_Timer
+local IsMounted = IsMounted
 
 local panels = {} -- Active icon panels
 local issecretvalue = sfui.common.issecretvalue
@@ -324,6 +325,16 @@ local function UpdateIconGlow(icon, entrySettings, panelConfig, isReady)
     end
 end
 
+local function SafeGetCooldownViewerCooldownInfo(id)
+    if not id or not C_CooldownViewer or not C_CooldownViewer.GetCooldownViewerCooldownInfo then return nil end
+    local cid = tonumber(id)
+    if cid and cid >= -2147483648 and cid <= 2147483647 then
+        local ok, info = pcall(C_CooldownViewer.GetCooldownViewerCooldownInfo, cid)
+        if ok then return info end
+    end
+    return nil
+end
+
 -- Helper to update icon state (visibility, cooldown, charges)
 local function UpdateIconState(icon, panelConfig)
     if not icon.id or not icon.entry then return false end
@@ -346,6 +357,20 @@ local function UpdateIconState(icon, panelConfig)
 
     -- 4. Visibility Decision
     local shouldShow = true
+
+    -- Visibility overrides
+    local hideOOC = GetIconValue(nil, panelConfig, "hideOOC", false)
+    local hideMounted = GetIconValue(nil, panelConfig, "hideMounted", false)
+
+    if hideOOC and not InCombatLockdown() then shouldShow = false end
+    if hideMounted and IsMounted() then shouldShow = false end
+
+    if panelConfig then
+        -- Legacy dropdown support (optional/fallback)
+        if panelConfig.visibility == "combat" and not InCombatLockdown() then shouldShow = false end
+        if panelConfig.visibility == "noCombat" and InCombatLockdown() then shouldShow = false end
+    end
+
     local isVisible = shouldShow -- In simple panel mode, all icons are visible holders
 
     if isVisible then
@@ -390,7 +415,7 @@ function sfui.trackedicons.GetIconTexture(id, type, entry)
 
     if type == "cooldown" and entry and entry.cooldownID then
         -- Get cooldown info from Blizzard's CDM
-        local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(entry.cooldownID)
+        local cdInfo = SafeGetCooldownViewerCooldownInfo(entry.cooldownID)
         if cdInfo then
             activeID = cdInfo.overrideSpellID or cdInfo.spellID
             iconTexture = C_Spell.GetSpellTexture(activeID)
@@ -403,7 +428,7 @@ function sfui.trackedicons.GetIconTexture(id, type, entry)
         iconTexture = C_Item.GetItemIconByID(activeID)
     else
         -- Smart Detection: if it's a simple ID, check if it exists in CooldownViewer categories
-        local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(activeID)
+        local cdInfo = SafeGetCooldownViewerCooldownInfo(activeID)
         if cdInfo then
             activeID = cdInfo.overrideSpellID or cdInfo.spellID
             iconTexture = C_Spell.GetSpellTexture(activeID)
@@ -597,17 +622,10 @@ local function CreateIconFrame(parent, id, entry, panelConfig)
     return f
 end
 
--- Visibility Event Handler (Named function for better closure performance)
-function sfui.trackedicons.OnVisibilityEvent(self, event)
-    local panelFrame = self:GetParent()
-    if not panelFrame then return end
+local function CheckPanelVisibility(panelConfig, event)
+    if not panelConfig or not panelConfig.enabled then return false end
 
-    if not SfuiDB or not SfuiDB.iconGlobalSettings then return end
-
-    local shouldShow = true
-    local globalVis = SfuiDB.iconGlobalSettings
-
-    -- Robust Combat Detection
+    -- Helper: Robust Combat Status
     local inCombat = InCombatLockdown()
     if event == "PLAYER_REGEN_DISABLED" then
         inCombat = true
@@ -615,51 +633,54 @@ function sfui.trackedicons.OnVisibilityEvent(self, event)
         inCombat = false
     end
 
-    -- Per-panel visibility mode (from panel config, falls back to global, then "always")
-    local panelConfig = panelFrame.config
-    local visMode = "always"
-    if panelConfig and panelConfig.visibility then
-        visMode = panelConfig.visibility
-    elseif globalVis.visibility then
-        visMode = globalVis.visibility
-    end
-
-    -- Apply visibility mode
-    if visMode == "combat" then
-        if not inCombat then shouldShow = false end
-    elseif visMode == "noCombat" then
-        if inCombat then shouldShow = false end
-    else -- "always"
-        -- Legacy hideOOC support for "always" mode
-        if globalVis.hideOOC and not inCombat then
-            shouldShow = false
-        end
-    end
-
-    -- Check Dragonriding (applies to all modes)
-    if shouldShow and globalVis.hideDragonriding then
-        if sfui.common.IsDragonriding() and not inCombat then
-            shouldShow = false
-        end
-    end
-
-    -- OVERRIDE: Always show if Options Panel is open
+    -- OVERRIDE: Always show if Options Panel is open on relevant tabs
     if _G["SfuiCooldownsViewer"] and _G["SfuiCooldownsViewer"]:IsShown() then
         local tabId = _G["SfuiCooldownsViewer"].selectedTabId
         if tabId == 1 or tabId == 3 then
-            shouldShow = true
+            return true
         end
     end
 
-    -- Apply Visibility State
+    -- 1. Per-Panel Conditionals
+    -- Hide if Out of Combat enabled
+    if panelConfig.hideOOC and not inCombat then return false end
+    -- Hide while Mounted enabled
+    if panelConfig.hideMounted and IsMounted() then return false end
+
+    -- 2. Global Visibility Settings
+    local globalVis = SfuiDB and SfuiDB.iconGlobalSettings
+    if globalVis then
+        -- Legacy Global Hide OOC
+        if globalVis.hideOOC and not inCombat then return false end
+        -- Dragonriding
+        if globalVis.hideDragonriding and sfui.common.IsDragonriding() and not inCombat then return false end
+    end
+
+    -- 3. Visibility Mode (Dropdown Toggle: Always, Combat, NoCombat)
+    local visMode = panelConfig.visibility
+    if not visMode and globalVis then visMode = globalVis.visibility end
+    visMode = visMode or "always"
+
+    if visMode == "combat" then
+        if not inCombat then return false end
+    elseif visMode == "noCombat" then
+        if inCombat then return false end
+    end
+
+    return true
+end
+
+-- Visibility Event Handler
+function sfui.trackedicons.OnVisibilityEvent(self, event)
+    local panelFrame = self:GetParent()
+    if not panelFrame or not panelFrame.config then return end
+
+    local shouldShow = CheckPanelVisibility(panelFrame.config, event)
+
     if shouldShow then
-        if not panelFrame:IsShown() then
-            panelFrame:Show()
-        end
+        if not panelFrame:IsShown() then panelFrame:Show() end
     else
-        if panelFrame:IsShown() then
-            panelFrame:Hide()
-        end
+        if panelFrame:IsShown() then panelFrame:Hide() end
     end
 end
 
@@ -734,9 +755,9 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
         targetPoint = "BOTTOM"
         anchorPoint = "TOP"
 
-        -- Smart Anchoring: Check if Power Bar (bar_minus_1) is visible and below health
-        local powerBar = _G["sfui_bar_minus_1_Backdrop"]
-        if powerBar and powerBar:IsShown() then
+        -- Smart Anchoring: Check if Power Bar (bar_minus_1) EXISTS (don't check IsShown to prevent popping)
+        local powerBar = _G["sfui_bar-1_Backdrop"] or _G["sfui_bar_minus_1_Backdrop"]
+        if powerBar then
             targetFrame = powerBar
             targetPoint = "BOTTOM"
         end
@@ -950,8 +971,8 @@ local function SanitizePanelConfig(panelConfig)
         "readyGlow", "useSpecColor", "glowType", "glowColor",
         "glowScale", "glowSpeed", "glowIntensity", "glow_max_duration",
         "glowLines", "glowParticles", "glowThickness",
-        "cooldownDesat", "useResourceCheck", "showBackground",
-        "textEnabled", "alphaOnCooldown", "backgroundAlpha",
+        "cooldownDesat", "useResourceCheck",
+        "textEnabled", "alphaOnCooldown",
         "textColor", "squareIcons", "showBorder"
     }
 
@@ -988,7 +1009,14 @@ function sfui.trackedicons.Update()
             if not panels[i] then
                 panels[i] = CreateFrame("Frame", "SfuiIconPanel_" .. i, UIParent)
             end
-            sfui.trackedicons.UpdatePanelLayout(panels[i], panelConfig)
+
+            local shouldShow = CheckPanelVisibility(panelConfig)
+            if shouldShow then
+                panels[i]:Show()
+                sfui.trackedicons.UpdatePanelLayout(panels[i], panelConfig)
+            else
+                panels[i]:Hide()
+            end
         elseif panels[i] then
             if not InCombatLockdown() then
                 panels[i]:Hide()

@@ -129,6 +129,7 @@ sfui.config = {
             spacing = 2,
             columns = 4,
             enabled = true,
+            hideMounted = true,
         },
         right = {
             name = "Right",
@@ -141,6 +142,7 @@ sfui.config = {
             spacing = 2,
             columns = 4,
             enabled = true,
+            hideMounted = true,
         },
         center_panel = {
             name = "CENTER",
@@ -156,6 +158,7 @@ sfui.config = {
             anchorPoint = "TOP",
             growthV = "Down",
             anchorTo = "Health Bar",
+            hideMounted = true,
         },
         utility = {
             name = "UTILITY",
@@ -170,6 +173,7 @@ sfui.config = {
             columns = 9,
             placement = "center",
             anchorTo = "CENTER",
+            hideMounted = true,
         },
         -- Glow duration limit (seconds)
         glow_max_duration = 5.0,
@@ -179,6 +183,10 @@ sfui.config = {
     -- These provide fallback values for visual effect settings (like glows)
     icon_panel_global_defaults = {
         enableMasque = true,
+        -- Visibility
+        hideOOC = false,
+        hideMounted = true,
+
         -- Ready Glow (when spell is off cooldown/available)
         readyGlow = true,           -- Enable glow when ready
         glowType = "autocast",      -- Options: pixel, autocast, proc, button
@@ -572,11 +580,13 @@ sfui.config = {
         -- Default bar configuration per cooldown ID
         defaults = {
             [18469] = {                       -- Ignore Pain (Warrior)
+                specID = 73,                  -- Protection Warrior
                 stackAboveHealth = true,      -- Attach to healthbar (secondary position)
                 color = { 1, 0.533, 0, 1 },   -- Orange
                 showStacksText = true,        -- Show stack count as duration text
             },
             [9039] = {                        -- Bone Shield (Death Knight)
+                specID = 250,                 -- Blood DK
                 stackAboveHealth = true,      -- Attach to healthbar
                 stackMode = true,             -- Use stack count as bar value
                 color = { 0, 0.8, 0.067, 1 }, -- Green
