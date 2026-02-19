@@ -7,7 +7,6 @@ sfui.vehicle.frame = frame
 local cfg = sfui.config.vehicle
 local g = sfui.config
 local mult = sfui.pixelScale or 1
-local msqGroup = sfui.common.get_masque_group("Vehicle")
 
 frame:SetSize(cfg.width, cfg.height)
 frame:SetPoint(cfg.anchor.point, cfg.anchor.x, cfg.anchor.y)
@@ -68,9 +67,7 @@ for i = 1, 12 do
         btn:SetPoint("LEFT", buttons[i - 1], "RIGHT", cfg.button_spacing, 0)
     end
 
-    if msqGroup then
-        msqGroup:AddButton(btn)
-    end
+    sfui.common.sync_masque(btn)
 
     btn:SetScript("OnEnter", function(self)
         if self:GetAttribute("action") then
@@ -112,9 +109,7 @@ leaveBtn.kb = leaveBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"
 leaveBtn.kb:SetPoint("TOPRIGHT", -2, -2)
 leaveBtn.kb:SetText("=")
 
-if msqGroup then
-    msqGroup:AddButton(leaveBtn)
-end
+sfui.common.sync_masque(leaveBtn)
 
 leaveBtn:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -170,6 +165,8 @@ local function UpdateActionButtons()
             btn.icon:SetTexture(icon)
             btn:Show()
             lastIdx = i
+            -- Sync Masque state
+            sfui.common.sync_masque(btn)
         else
             btn:Hide()
         end

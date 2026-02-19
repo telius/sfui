@@ -17,12 +17,12 @@ local function select_tab(selected_tab_button)
     if not frame or not frame.tabs then return end
 
     for _, tab_data in ipairs(frame.tabs) do
-        tab_data.button:GetFontString():SetTextColor(c.tabs.color.r, c.tabs.color.g, c.tabs.color.b)
+        tab_data.button:GetFontString():SetTextColor(c.tabs.color[1], c.tabs.color[2], c.tabs.color[3])
         tab_data.panel:Hide()
     end
     selected_tab_button.panel:Show()
-    selected_tab_button:GetFontString():SetTextColor(c.tabs.selected_color.r, c.tabs.selected_color.g,
-        c.tabs.selected_color.b)
+    selected_tab_button:GetFontString():SetTextColor(c.tabs.selected_color[1], c.tabs.selected_color[2],
+        c.tabs.selected_color[3])
     frame.selected_tab = selected_tab_button
 end
 
@@ -42,7 +42,7 @@ function sfui.create_options_panel()
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
     frame:SetBackdrop({ bgFile = g.textures.white, tile = true, tileSize = 32 })
-    frame:SetBackdropColor(c.backdrop_color.r, c.backdrop_color.g, c.backdrop_color.b, c.backdrop_color.a)
+    frame:SetBackdropColor(c.backdrop_color[1], c.backdrop_color[2], c.backdrop_color[3], c.backdrop_color[4])
     frame:Hide(); frame.tabs = {}
 
     local header_text = frame:CreateFontString(nil, "OVERLAY", g.font_large)
@@ -74,14 +74,16 @@ function sfui.create_options_panel()
     end
 
     local function on_tab_enter(self)
-        self:GetFontString():SetTextColor(c.tabs.highlight_color.r, c.tabs.highlight_color.g, c.tabs.highlight_color.b)
+        local accent = sfui.config.appearance.accentColor
+        self:GetFontString():SetTextColor(accent[1], accent[2], accent[3])
     end
 
     local function on_tab_leave(self)
         if self == frame.selected_tab then
-            self:GetFontString():SetTextColor(c.tabs.selected_color.r, c.tabs.selected_color.g, c.tabs.selected_color.b)
+            self:GetFontString():SetTextColor(c.tabs.selected_color[1], c.tabs.selected_color[2],
+                c.tabs.selected_color[3])
         else
-            self:GetFontString():SetTextColor(c.tabs.color.r, c.tabs.color.g, c.tabs.color.b)
+            self:GetFontString():SetTextColor(c.tabs.color[1], c.tabs.color[2], c.tabs.color[3])
         end
     end
 
@@ -95,13 +97,13 @@ function sfui.create_options_panel()
         font_string:SetJustifyH("LEFT")
         font_string:SetJustifyV("MIDDLE")
         font_string:SetPoint("LEFT", tab_button, "LEFT", 5, 0)
-        font_string:SetTextColor(c.tabs.color.r, c.tabs.color.g, c.tabs.color.b)
+        font_string:SetTextColor(c.tabs.color[1], c.tabs.color[2], c.tabs.color[3])
 
         local content_panel = CreateFrame("Frame", "sfui_options_panel_" .. name, frame, "BackdropTemplate")
         content_panel:SetPoint("TOPLEFT", frame, "TOPLEFT", c.tabs.width + 20, -40)
         content_panel:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 5)
         content_panel:SetBackdrop({ bgFile = g.textures.white, tile = true, tileSize = 32 })
-        content_panel:SetBackdropColor(0, 0, 0, 0.5)
+        content_panel:SetBackdropColor(unpack(sfui.config.appearance.backdropColor))
         content_panel:Hide()
 
         tab_button.panel = content_panel
@@ -390,10 +392,11 @@ function sfui.create_options_panel()
     reset_health_pos_btn:SetPoint("TOPLEFT", health_x_slider, "BOTTOMLEFT", 0, -10)
     reset_health_pos_btn:SetText("reset position")
     reset_health_pos_btn:SetScript("OnClick", function()
-        SfuiDB.healthBarX = 0
-        SfuiDB.healthBarY = 300
-        health_x_slider:SetSliderValue(0)
-        health_y_slider:SetSliderValue(300)
+        local def = sfui.config.healthBar.pos
+        SfuiDB.healthBarX = def.x
+        SfuiDB.healthBarY = def.y
+        health_x_slider:SetSliderValue(def.x)
+        health_y_slider:SetSliderValue(def.y)
         if sfui.bars and sfui.bars.update_health_bar_position then
             sfui.bars:update_health_bar_position()
         end
@@ -630,8 +633,23 @@ function sfui.create_options_panel()
     end)
     icon_y_slider:SetPoint("LEFT", icon_x_slider, "RIGHT", 10, 0)
 
+    local reset_hammer_pos_btn = CreateFrame("Button", nil, automation_panel, "UIPanelButtonTemplate")
+    reset_hammer_pos_btn:SetSize(120, 22)
+    reset_hammer_pos_btn:SetPoint("TOPLEFT", icon_x_slider, "BOTTOMLEFT", 0, -10)
+    reset_hammer_pos_btn:SetText("reset position")
+    reset_hammer_pos_btn:SetScript("OnClick", function()
+        local def = sfui.config.masterHammer.defaultPosition
+        SfuiDB.repairIconX = def.x
+        SfuiDB.repairIconY = def.y
+        icon_x_slider:SetSliderValue(def.x)
+        icon_y_slider:SetSliderValue(def.y)
+        if sfui.automation and sfui.automation.update_popup_style then
+            sfui.automation.update_popup_style()
+        end
+    end)
+
     local color_label = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
-    color_label:SetPoint("TOPLEFT", icon_x_slider, "BOTTOMLEFT", 0, -15)
+    color_label:SetPoint("TOPLEFT", reset_hammer_pos_btn, "BOTTOMLEFT", 0, -15)
     color_label:SetText("color (#hex):")
 
     local color_input = CreateFrame("EditBox", nil, automation_panel, "InputBoxTemplate")
@@ -695,10 +713,11 @@ function sfui.create_options_panel()
     reset_pos_btn:SetPoint("TOPLEFT", pos_x_slider, "BOTTOMLEFT", 0, -10)
     reset_pos_btn:SetText("reset position")
     reset_pos_btn:SetScript("OnClick", function()
-        SfuiDB.minimap_button_x = 0
-        SfuiDB.minimap_button_y = 35
-        pos_x_slider:SetSliderValue(0)
-        pos_y_slider:SetSliderValue(35)
+        local def = sfui.config.minimap.button_bar
+        SfuiDB.minimap_button_x = def.defaultX
+        SfuiDB.minimap_button_y = def.defaultY
+        pos_x_slider:SetSliderValue(def.defaultX)
+        pos_y_slider:SetSliderValue(def.defaultY)
         if sfui.minimap and sfui.minimap.update_button_bar_position then
             sfui.minimap.update_button_bar_position()
         end
@@ -900,7 +919,7 @@ function sfui.create_options_panel()
         spec_id_value:SetText(specID > 0 and tostring(specID) or "N/A")
 
         local color = sfui.common.get_class_or_spec_color()
-        if color then color_swatch:SetColorTexture(color.r, color.g, color.b) end
+        if color then color_swatch:SetColorTexture(color[1], color[2], color[3]) end
 
         if sfui.common.get_primary_resource then
             primary_power_value:SetText(get_power_type_name(sfui.common.get_primary_resource()))

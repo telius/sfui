@@ -129,7 +129,7 @@ function sfui.common.IsCooldownFrameActive(cooldownFrame)
         return false
     end
 
-    return duration > 1510
+    return duration > (sfui.config.castBar.gcdThreshold or 1510)
 end
 
 -- Safe comparison helpers (Crash-proof against Secret Values in M+)
@@ -221,7 +221,7 @@ sfui.common.FLASK_IDS = {
     371204, -- Phial of Still Air
     371354, -- Phial of the Eye in the Storm
     371386, -- Phial of Charged Isolation
-    371339, -- Phial of Corrupting Rage
+    -- 371339 removed: was duplicate of Tobacious Versatility above
 }
 
 sfui.common.AUGMENT_RUNE_IDS = {
@@ -256,6 +256,7 @@ sfui.common.WEAPON_ENCHANT_IDS = {
 -- For now, we'll stick to the "Well Fed" check in reminders.lua which is already safe via GetAuraDataBySpellName.
 
 local wipe = wipe
+local C_Timer = C_Timer
 
 -- Returns the cached player class (e.g., "WARRIOR", "MAGE")
 function sfui.common.get_player_class()
@@ -301,125 +302,117 @@ function sfui.common.migrate_cooldown_panels_to_spec()
     SfuiDB._cooldownPanelsMigrated = true
 end
 
--- Populate CENTER panel with cooldowns from CDM Essential Cooldowns (category 0)
-function sfui.common.populate_center_panel_from_cdm()
-    local entries = {}
+-- Shared helper to get categorized CDM entries
+local function get_all_cdm_entries()
+    local cat0 = {} -- Essential
+    local cat1 = {} -- Utility
 
-    -- Try using CooldownViewerSettings DataProvider (source of truth for the list)
+    local function categorize(cooldownID, info)
+        if not info or not info.isKnown then return end
+        local entry = {
+            type = "cooldown",
+            cooldownID = cooldownID,
+            spellID = info.spellID,
+            id = info.spellID,
+            settings = { showText = true }
+        }
+        if info.category == 0 or not info.category then
+            table.insert(cat0, entry)
+        elseif info.category == 1 then
+            table.insert(cat1, entry)
+        end
+    end
+
+    -- Try using CooldownViewerSettings DataProvider
     if CooldownViewerSettings and CooldownViewerSettings.GetDataProvider then
         local dataProvider = CooldownViewerSettings:GetDataProvider()
-        if dataProvider then
-            local cooldownIDs = dataProvider:GetOrderedCooldownIDs()
-            if cooldownIDs then
-                for _, cooldownID in ipairs(cooldownIDs) do
-                    if not sfui.common.issecretvalue(cooldownID) then
-                        local info = dataProvider:GetCooldownInfoForID(cooldownID)
-                        -- Category 0 is Essential Cooldowns
-                        if info and info.isKnown and (info.category == 0 or not info.category) then
-                            table.insert(entries, {
-                                type = "cooldown",
-                                cooldownID = cooldownID,
-                                spellID = info.spellID,
-                                id = info.spellID,
-                                settings = { showText = true }
-                            })
-                        end
-                    end
+        local cooldownIDs = dataProvider and dataProvider:GetOrderedCooldownIDs()
+        if cooldownIDs then
+            for _, cooldownID in ipairs(cooldownIDs) do
+                if not sfui.common.issecretvalue(cooldownID) then
+                    categorize(cooldownID, dataProvider:GetCooldownInfoForID(cooldownID))
                 end
             end
         end
     end
 
     -- Fallback: use C_CooldownViewer direct API if provider not ready or empty
-    if #entries == 0 and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
-        local cooldownIDs = C_CooldownViewer.GetCooldownViewerCategorySet(0, false)
-        if cooldownIDs then
-            for _, cooldownID in ipairs(cooldownIDs) do
-                local cdInfo = C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID)
-                if cdInfo and cdInfo.isKnown then
-                    table.insert(entries, {
-                        type = "cooldown",
-                        cooldownID = cooldownID,
-                        spellID = cdInfo.spellID,
-                        id = cdInfo.spellID,
-                        settings = { showText = true }
-                    })
-                end
-            end
-        end
-    end
-
-    return entries
-end
-
--- Populate UTILITY panel with cooldowns from CDM Group 1 (Category 1)
-function sfui.common.populate_utility_panel_from_cdm()
-    local entries = {}
-
-    -- Try using CooldownViewerSettings DataProvider
-    if CooldownViewerSettings and CooldownViewerSettings.GetDataProvider then
-        local dataProvider = CooldownViewerSettings:GetDataProvider()
-        if dataProvider then
-            local cooldownIDs = dataProvider:GetOrderedCooldownIDs()
+    if #cat0 == 0 and #cat1 == 0 and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
+        for cat = 0, 1 do
+            local cooldownIDs = C_CooldownViewer.GetCooldownViewerCategorySet(cat, false)
             if cooldownIDs then
                 for _, cooldownID in ipairs(cooldownIDs) do
-                    if not sfui.common.issecretvalue(cooldownID) then
-                        local info = dataProvider:GetCooldownInfoForID(cooldownID)
-                        -- Category 1 is Utility / Group 1
-                        if info and info.isKnown and info.category == 1 then
-                            table.insert(entries, {
-                                type = "cooldown",
-                                cooldownID = cooldownID,
-                                spellID = info.spellID,
-                                id = info.spellID,
-                                settings = { showText = true }
-                            })
-                        end
-                    end
+                    categorize(cooldownID, C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID))
                 end
             end
         end
     end
 
-    -- Fallback: C_CooldownViewer direct API
-    if #entries == 0 and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
-        local cooldownIDs = C_CooldownViewer.GetCooldownViewerCategorySet(1, false) -- Category 1
-        if cooldownIDs then
-            for _, cooldownID in ipairs(cooldownIDs) do
-                local cdInfo = C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID)
-                if cdInfo and cdInfo.isKnown then
-                    table.insert(entries, {
-                        type = "cooldown",
-                        cooldownID = cooldownID,
-                        spellID = cdInfo.spellID,
-                        id = cdInfo.spellID,
-                        settings = { showText = true }
-                    })
-                end
-            end
+    return cat0, cat1
+end
+
+-- Populate CENTER panel with cooldowns from CDM Essential Cooldowns (category 0)
+function sfui.common.populate_center_panel_from_cdm()
+    local cat0, _ = get_all_cdm_entries()
+    local entries = {}
+    -- CENTER holds 7 max
+    for i = 1, math.min(7, #cat0) do
+        table.insert(entries, cat0[i])
+    end
+    return entries
+end
+
+-- Populate UTILITY panel with cooldowns from CDM Group 1 (Category 1) + overflow
+function sfui.common.populate_utility_panel_from_cdm()
+    local cat0, cat1 = get_all_cdm_entries()
+    local entries = {}
+
+    -- 1. Add overflow from cat 0 (index 8+)
+    if #cat0 > 7 then
+        for i = 8, #cat0 do
+            table.insert(entries, cat0[i])
         end
+    end
+
+    -- 2. Add cat 1
+    for _, entry in ipairs(cat1) do
+        table.insert(entries, entry)
     end
 
     return entries
 end
 
--- Get panels for current spec
+-- Cached panels reference (invalidated on spec change or panel modification)
+local _cachedPanels = nil
+local _cachedPanelsSpecID = nil
+
 -- Get panels for current spec (Pure accessor, hot-path safe)
 function sfui.common.get_cooldown_panels()
-    local specID = sfui.common.get_current_spec_id()
-    if not specID or specID == 0 then return {} end
+    local specID = sfui.common.get_current_spec_id() or 0
 
-    if SfuiDB.cooldownPanelsBySpec and SfuiDB.cooldownPanelsBySpec[specID] then
-        return SfuiDB.cooldownPanelsBySpec[specID]
+    -- Return cached if valid
+    if _cachedPanels and _cachedPanelsSpecID == specID and #_cachedPanels > 0 then
+        return _cachedPanels
     end
 
-    return {}
+    if not SfuiDB.cooldownPanelsBySpec or not SfuiDB.cooldownPanelsBySpec[specID] or #SfuiDB.cooldownPanelsBySpec[specID] == 0 then
+        _cachedPanels = sfui.common.ensure_panels_initialized()
+    else
+        _cachedPanels = SfuiDB.cooldownPanelsBySpec[specID]
+    end
+    _cachedPanelsSpecID = specID
+    return _cachedPanels
+end
+
+-- Invalidate panels cache (call when panels are modified)
+function sfui.common.invalidate_panels_cache()
+    _cachedPanels = nil
+    _cachedPanelsSpecID = nil
 end
 
 -- Ensure panels exist and are populated (Called once on load/spec/talent change)
 function sfui.common.ensure_panels_initialized()
-    local specID = sfui.common.get_current_spec_id()
-    if not specID or specID == 0 then return end
+    local specID = sfui.common.get_current_spec_id() or 0
 
     SfuiDB.cooldownPanelsBySpec = SfuiDB.cooldownPanelsBySpec or {}
     SfuiDB.cooldownPanelsBySpec[specID] = SfuiDB.cooldownPanelsBySpec[specID] or {}
@@ -427,101 +420,127 @@ function sfui.common.ensure_panels_initialized()
     local panels = SfuiDB.cooldownPanelsBySpec[specID]
     local changed = false
 
-    -- Auto-create CENTER panel if it doesn't exist (one-time population)
-    local centerPanelIdx = nil
-    for i, panel in ipairs(panels) do
-        if panel.name == "CENTER" then
-            centerPanelIdx = i
-            break
-        end
-    end
+    SfuiDB.iconsInitializedBySpec = SfuiDB.iconsInitializedBySpec or {}
 
-    if not centerPanelIdx then
-        local centerPanel = {
-            name = "CENTER",
-            enabled = true,
-            x = 0,
-            y = 0,
-            size = 50,
-            columns = 10,
-            spacing = 0,
-            spanWidth = true,
-            showBackground = true,
-            backgroundAlpha = 0.5,
-            placement = "center",
-            anchor = "center",
-            growthV = "Down",
-            anchorTo = "Health Bar",
-            entries = sfui.common.populate_center_panel_from_cdm()
-        }
-        table.insert(panels, 1, centerPanel)
-        centerPanelIdx = 1
-        changed = true
-    else
-        -- If it exists but is empty, try to populate it now (handles early load race condition)
-        -- Only retry if we haven't marked it as 'checked' to prevent infinite loop
-        local panel = panels[centerPanelIdx]
-        if not panel.entries or #panel.entries == 0 then
-            if not panel._populationAttempted then
-                panel.entries = sfui.common.populate_center_panel_from_cdm()
-                panel._populationAttempted = true -- Mark as attempted so we don't retry forever in OnUpdate
-                if #panel.entries > 0 then
-                    changed = true
-                end
+    local defaultPanelSpecs = {
+        { key = "center_panel", name = "CENTER",  populateFunc = sfui.common.populate_center_panel_from_cdm },
+        { key = "utility",      name = "UTILITY", populateFunc = sfui.common.populate_utility_panel_from_cdm },
+        { key = "left",         name = "Left" },
+        { key = "right",        name = "Right" },
+    }
+
+    -- Migrate legacy trackedIcons if not already done for this spec
+    local migratedEntries = nil
+    if not SfuiDB.iconsInitializedBySpec[specID] and SfuiDB.trackedIcons then
+        migratedEntries = {}
+        for id, cfg in pairs(SfuiDB.trackedIcons) do
+            if type(id) == "number" then
+                table.insert(migratedEntries, { id = id, settings = cfg, type = "spell" })
             end
         end
     end
 
-    -- Auto-create UTILITY panel if it doesn't exist
-    local utilityPanelIdx = nil
-    for i, panel in ipairs(panels) do
-        if panel.name == "UTILITY" then
-            utilityPanelIdx = i
-            break
+    for _, spec in ipairs(defaultPanelSpecs) do
+        local panelIdx = nil
+        for i, panel in ipairs(panels) do
+            if panel.name == spec.name then
+                panelIdx = i
+                break
+            end
+        end
+
+        if not panelIdx then
+            local newPanel = sfui.common.copy(sfui.config.cooldown_panel_defaults[spec.key])
+            if spec.populateFunc then
+                if not SfuiDB.iconsInitializedBySpec[specID] then
+                    newPanel.entries = spec.populateFunc()
+                else
+                    newPanel.entries = {}
+                end
+            elseif spec.name == "Left" and migratedEntries then
+                newPanel.entries = migratedEntries
+            else
+                newPanel.entries = {}
+            end
+            table.insert(panels, newPanel)
+
+            -- Ensure "utility" and "center_panel" get their specific defaults applied robustly
+            if spec.key == "utility" or spec.key == "center_panel" then
+                local defaults = sfui.config.cooldown_panel_defaults[spec.key]
+                for k, v in pairs(defaults) do
+                    if newPanel[k] == nil then newPanel[k] = v end
+                end
+            end
+            changed = true
+        else
+            -- Ensure all default keys exist in existing panel (merge missing)
+            local panel = panels[panelIdx]
+            local default = sfui.config.cooldown_panel_defaults[spec.key]
+            if type(default) == "table" then
+                for k, v in pairs(default) do
+                    if panel[k] == nil then
+                        panel[k] = v
+                        changed = true
+                    end
+                end
+            end
+
+            -- Removing automatic population of existing empty panels to give user full control.
         end
     end
 
-    if not utilityPanelIdx then
-        local utilityPanel = {
-            name = "UTILITY",
-            enabled = true,
-            x = 0,
-            y = 0,
-            size = 32,
-            columns = 9,
-            spacing = 0,
-            showBackground = false,
-            backgroundAlpha = 0.5,
-            placement = "center",
-            anchor = "top",
-            anchorTo = "CENTER",
-            growthV = "Down",
-            growthH = "Center",
-            entries = sfui.common.populate_utility_panel_from_cdm()
-        }
-        -- Insert after CENTER if possible, or just append
-        local insertPos = centerPanelIdx and (centerPanelIdx + 1) or (#panels + 1)
-        table.insert(panels, insertPos, utilityPanel)
+    if not SfuiDB.iconsInitializedBySpec[specID] then
+        SfuiDB.iconsInitializedBySpec[specID] = true
+        if migratedEntries then SfuiDB.trackedIcons = nil end -- Clear global migration source once first spec consumes it
         changed = true
-    else
-        -- Populate if empty
-        local panel = panels[utilityPanelIdx]
-        if not panel.entries or #panel.entries == 0 then
-            if not panel._populationAttempted then
-                panel.entries = sfui.common.populate_utility_panel_from_cdm()
-                panel._populationAttempted = true
-                if #panel.entries > 0 then
-                    changed = true
-                end
-            end
-        end
     end
 
     if changed then
         sfui.common.set_cooldown_panels(panels)
+    else
+        -- If no entries were found but population was expected, retry once after a short delay
+        -- This handles the race condition on fresh installations/characters
+        if not SfuiDB._populationRetryDone then
+            local needsRetry = false
+            for _, panel in ipairs(panels) do
+                if (panel.name == "CENTER" or panel.name == "UTILITY") and (#panel.entries == 0) then
+                    needsRetry = true
+                    break
+                end
+            end
+
+            if needsRetry then
+                SfuiDB._populationRetryDone = true
+                C_Timer.After(2, function()
+                    sfui.common.ensure_panels_initialized()
+                end)
+            end
+        end
     end
 
     return panels
+end
+
+function sfui.common.add_custom_panel(name)
+    if not name or name == "" then return end
+    local panels = sfui.common.get_cooldown_panels()
+
+    -- Use 'utility' as a template for custom panels since it's a good middle ground
+    local newPanel = sfui.common.copy(sfui.config.cooldown_panel_defaults.utility)
+    newPanel.name = name
+    newPanel.entries = {}
+
+    table.insert(panels, newPanel)
+    return #panels
+end
+
+function sfui.common.delete_custom_panel(index)
+    local panels = sfui.common.get_cooldown_panels()
+    if panels[index] then
+        table.remove(panels, index)
+        return true
+    end
+    return false
 end
 
 -- Set panels for current spec
@@ -531,6 +550,28 @@ function sfui.common.set_cooldown_panels(panels)
 
     SfuiDB.cooldownPanelsBySpec = SfuiDB.cooldownPanelsBySpec or {}
     SfuiDB.cooldownPanelsBySpec[specID] = panels
+    sfui.common.invalidate_panels_cache()
+end
+
+-- Get all available anchor targets for icon panels
+function sfui.common.get_all_anchor_targets(excludeName)
+    local targets = {
+        { text = "Screen (UIParent)", value = "UIParent" },
+        { text = "Health Bar",        value = "Health Bar" },
+        { text = "Tracked Bars",      value = "Tracked Bars" },
+    }
+
+    -- Add all panels as potential targets
+    local panels = sfui.common.get_cooldown_panels()
+    if panels then
+        for _, p in ipairs(panels) do
+            if p.name and p.name ~= excludeName then
+                table.insert(targets, { text = "Panel: " .. p.name, value = p.name })
+            end
+        end
+    end
+
+    return targets
 end
 
 -- Get panel at index for current spec
@@ -644,7 +685,7 @@ function sfui.common.update_widget_bar(widget_frame, icons_pool, labels_pool, so
             icon.texture:SetTexture(details.texture or sfui.config.textures.gold_icon)
             label:SetText(details.quantity)
             if i == 1 then
-                icon:SetPoint("TOPLEFT", 5, -5)
+                icon:SetPoint("TOPLEFT", cfg.spacing or 5, -(cfg.spacing or 5))
             elseif last_icon then
                 icon:SetPoint("TOPLEFT", last_icon, "TOPRIGHT", cfg.icon_spacing, 0)
             end
@@ -659,7 +700,7 @@ function sfui.common.update_widget_bar(widget_frame, icons_pool, labels_pool, so
     if last_icon and not InCombatLockdown() then
         local left = widget_frame:GetLeft()
         if left then
-            widget_frame:SetWidth(last_icon:GetRight() - left + 5)
+            widget_frame:SetWidth(last_icon:GetRight() - left + (cfg.spacing or 5))
         end
         if CharacterFrame:IsShown() then widget_frame:Show() end
     else
@@ -696,16 +737,25 @@ function sfui.common.get_class_or_spec_color()
     local color
     if cachedSpecID and sfui.config.spec_colors[cachedSpecID] then
         local custom_color = sfui.config.spec_colors[cachedSpecID]
-        color = { r = custom_color.r, g = custom_color.g, b = custom_color.b }
+        color = { custom_color[1], custom_color[2], custom_color[3], 1 }
     end
     if not color and playerClass then
         local classColor = C_ClassColor and C_ClassColor.GetClassColor(playerClass) or
             (RAID_CLASS_COLORS and RAID_CLASS_COLORS[playerClass])
         if classColor then
-            color = { r = classColor.r, g = classColor.g, b = classColor.b }
+            color = { classColor.r, classColor.g, classColor.b, 1 }
         end
     end
     return color
+end
+
+function sfui.common.unpack_color(color, defaultR, defaultG, defaultB, defaultA)
+    if not color then return defaultR or 1, defaultG or 1, defaultB or 1, defaultA or 1 end
+    local r = color[1] or color.r or defaultR or 1
+    local g = color[2] or color.g or defaultG or 1
+    local b = color[3] or color.b or defaultB or 1
+    local a = color[4] or color.a or defaultA or 1
+    return r, g, b, a
 end
 
 function sfui.common.create_bar(name, frameType, parent, template, configName)
@@ -845,12 +895,14 @@ function sfui.common.create_checkbox(parent, label, dbKeyOrGetter, onClickFunc, 
         edgeSize = 1,
         insets = { left = 0, right = 0, top = 0, bottom = 0 }
     })
-    cb:SetBackdropColor(0.2, 0.2, 0.2, 1)
+    local app = sfui.config.appearance
+    cb:SetBackdropColor(app.widgetBackdropColor[1], app.widgetBackdropColor[2], app.widgetBackdropColor[3],
+        app.widgetBackdropColor[4])
     cb:SetBackdropBorderColor(0, 0, 0, 1)
 
-    -- Checked Texture (Purple)
+    -- Checked Texture (Highlight Purple/Custom)
     cb:SetCheckedTexture("Interface/Buttons/WHITE8X8")
-    cb:GetCheckedTexture():SetVertexColor(0.4, 0, 1, 1)
+    cb:GetCheckedTexture():SetVertexColor(app.highlightColor[1], app.highlightColor[2], app.highlightColor[3], 1)
     cb:GetCheckedTexture():SetPoint("TOPLEFT", 2, -2)
     cb:GetCheckedTexture():SetPoint("BOTTOMRIGHT", -2, 2)
 
@@ -920,13 +972,14 @@ function sfui.common.create_color_swatch(parent, initialColor, onSetFunc)
         if onSetFunc then onSetFunc(r, g, b) end
     end
 
+    local app = sfui.config.appearance
     if initialColor then
-        local r = initialColor.r or initialColor[1] or 0.4
-        local g = initialColor.g or initialColor[2] or 0
-        local b = initialColor.b or initialColor[3] or 1
+        local r = initialColor.r or initialColor[1] or app.highlightColor[1]
+        local g = initialColor.g or initialColor[2] or app.highlightColor[2]
+        local b = initialColor.b or initialColor[3] or app.highlightColor[3]
         swatch:SetBackdropColor(r, g, b, 1)
     else
-        swatch:SetBackdropColor(0.4, 0, 1, 1)
+        swatch:SetBackdropColor(app.highlightColor[1], app.highlightColor[2], app.highlightColor[3], 1)
     end
 
     swatch:SetScript("OnClick", function()
@@ -991,20 +1044,15 @@ function sfui.common.create_slider_input(parent, label, dbKeyOrGetter, minVal, m
     slider:SetValueStep(step)
     slider:SetObeyStepOnDrag(true)
 
-    -- Slider Backdrop
-    slider:SetBackdrop({
-        bgFile = "Interface/Buttons/WHITE8X8",
-        edgeFile = "Interface/Buttons/WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 }
-    })
-    slider:SetBackdropColor(0.1, 0.1, 0.1, 1)
+    local app = sfui.config.appearance
+    slider:SetBackdropColor(app.sliderBackdropColor[1], app.sliderBackdropColor[2], app.sliderBackdropColor[3],
+        app.sliderBackdropColor[4])
     slider:SetBackdropBorderColor(0, 0, 0, 1)
 
     -- Thumb
     local thumb = slider:CreateTexture(nil, "OVERLAY")
     thumb:SetSize(6, 10)
-    thumb:SetColorTexture(0.4, 0, 1, 1)
+    thumb:SetColorTexture(app.highlightColor[1], app.highlightColor[2], app.highlightColor[3], 1)
     slider:SetThumbTexture(thumb)
 
     -- EditBox (Square, Flat, RIGHT of Slider)
@@ -1021,7 +1069,7 @@ function sfui.common.create_slider_input(parent, label, dbKeyOrGetter, minVal, m
         edgeSize = 1,
         insets = { left = 0, right = 0, top = 0, bottom = 0 }
     })
-    editbox:SetBackdropColor(0.15, 0.15, 0.15, 1)
+    editbox:SetBackdropColor(app.editBoxColor[1], app.editBoxColor[2], app.editBoxColor[3], app.editBoxColor[4])
     editbox:SetBackdropBorderColor(0, 0, 0, 1)
 
     editbox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
@@ -1036,7 +1084,8 @@ function sfui.common.create_slider_input(parent, label, dbKeyOrGetter, minVal, m
         end
         self:ClearFocus()
     end)
-    editbox:SetScript("OnEditFocusGained", function(self) self:SetBackdropBorderColor(0.4, 0, 1, 1) end)
+    editbox:SetScript("OnEditFocusGained",
+        function(self) self:SetBackdropBorderColor(app.highlightColor[1], app.highlightColor[2], app.highlightColor[3], 1) end)
     editbox:SetScript("OnEditFocusLost", function(self) self:SetBackdropBorderColor(0, 0, 0, 1) end)
 
 
@@ -1141,14 +1190,61 @@ end
 function sfui.common.shorten_name(name, length)
     if not name or type(name) ~= "string" then return "" end
     length = length or 25
-    if strlenutf8(name) <= length then return name end
-    return strsub(name, 1, length - 3) .. "..."
+    if string.len(name) <= length then return name end
+    return string.sub(name, 1, length - 3) .. "..."
 end
 
-function sfui.common.get_masque_group(subGroupName)
+-- Shared Masque group for all sfui buttons
+function sfui.common.get_masque_group()
+    -- Check global setting
+    local enabled = sfui.config.icon_panel_global_defaults.enableMasque
+    if SfuiDB and SfuiDB.iconGlobalSettings and SfuiDB.iconGlobalSettings.enableMasque ~= nil then
+        enabled = SfuiDB.iconGlobalSettings.enableMasque
+    end
+
+    if not enabled then
+        return nil
+    end
+
     local Masque = LibStub and LibStub("Masque", true)
     if not Masque then return nil end
-    return Masque:Group("sfui", subGroupName)
+    local group = Masque:Group("sfui")
+    if group and not group._sfui_init then
+        -- Set "Dream" as the preferred default skin with safety checks
+        if group.Skin then
+            group:Skin("Dream")
+        elseif group.SetSkin then
+            group:SetSkin("Dream")
+        end
+        group._sfui_init = true
+    end
+    return group
+end
+
+-- Centralized Helper to Sync Frame with Masque State
+function sfui.common.sync_masque(frame, subElements)
+    if not frame then return end
+    local Masque = LibStub and LibStub("Masque", true)
+    if not Masque then return end
+    local group = Masque:Group("sfui")
+    if not group then return end
+
+    local enabled = sfui.config.icon_panel_global_defaults.enableMasque
+    if SfuiDB and SfuiDB.iconGlobalSettings and SfuiDB.iconGlobalSettings.enableMasque ~= nil then
+        enabled = SfuiDB.iconGlobalSettings.enableMasque
+    end
+
+    if enabled then
+        if not frame._isMasqued then
+            group:AddButton(frame, subElements)
+            frame._isMasqued = true
+        end
+    else
+        if frame._isMasqued then
+            group:RemoveButton(frame)
+            frame._isMasqued = false
+        end
+    end
 end
 
 -- ========================
@@ -1320,6 +1416,12 @@ function sfui.initialize_database()
     if type(SfuiDB) ~= "table" then SfuiDB = {} end
     if type(SfuiDecorDB) ~= "table" then SfuiDecorDB = {} end
     SfuiDecorDB.items = SfuiDecorDB.items or {}
+    SfuiDB.iconGlobalSettings = SfuiDB.iconGlobalSettings or {}
+    local igs = SfuiDB.iconGlobalSettings
+    local g = sfui.config.icon_panel_global_defaults
+    if igs.enableMasque == nil then igs.enableMasque = g.enableMasque end
+    if igs.readyGlow == nil then igs.readyGlow = g.readyGlow end
+    if igs.glowType == nil then igs.glowType = g.glowType or "pixel" end
 
     if type(SfuiDB.barTexture) ~= "string" or SfuiDB.barTexture == "" then SfuiDB.barTexture = "Flat" end
     SfuiDB.absorbBarColor = SfuiDB.absorbBarColor or sfui.config.absorbBarColor
@@ -1330,8 +1432,8 @@ function sfui.initialize_database()
     SfuiDB.minimap_buttons_mouseover = (SfuiDB.minimap_buttons_mouseover == nil) and false or
         SfuiDB.minimap_buttons_mouseover
     if SfuiDB.minimap_masque == nil then SfuiDB.minimap_masque = true end
-    if SfuiDB.minimap_button_x == nil then SfuiDB.minimap_button_x = 0 end
-    if SfuiDB.minimap_button_y == nil then SfuiDB.minimap_button_y = 35 end
+    if SfuiDB.minimap_button_x == nil then SfuiDB.minimap_button_x = sfui.config.minimap.button_bar.defaultX end
+    if SfuiDB.minimap_button_y == nil then SfuiDB.minimap_button_y = sfui.config.minimap.button_bar.defaultY end
     if SfuiDB.autoSellGreys == nil then SfuiDB.autoSellGreys = true end
     if SfuiDB.autoRepair == nil then SfuiDB.autoRepair = true end
     if SfuiDB.repairThreshold == nil then SfuiDB.repairThreshold = 90 end
@@ -1340,6 +1442,9 @@ function sfui.initialize_database()
     if SfuiDB.enableDecor == nil then SfuiDB.enableDecor = false end -- Opt-in feature
     if SfuiDB.enableVehicle == nil then SfuiDB.enableVehicle = true end
     if SfuiDB.enableCursorRing == nil then SfuiDB.enableCursorRing = true end
+    if SfuiDB.repairIconX == nil then SfuiDB.repairIconX = sfui.config.masterHammer.defaultPosition.x end
+    if SfuiDB.repairIconY == nil then SfuiDB.repairIconY = sfui.config.masterHammer.defaultPosition.y end
+    if SfuiDB.repairIconColor == nil then SfuiDB.repairIconColor = sfui.config.masterHammer.defaultColor end
 
     -- Bar settings
     if SfuiDB.healthBarX == nil then SfuiDB.healthBarX = 0 end
@@ -1419,4 +1524,75 @@ function sfui.common.hide_blizzard_cooldown_viewers()
     if GetCVar("cooldownViewerEnabled") == "0" then
         SetCVar("cooldownViewerEnabled", 1)
     end
+end
+
+-- Centralized Dropdown Menu Widget
+local activeDropdown = nil
+function sfui.common.create_dropdown(parent, width, options, onSelectFunc)
+    local btn = sfui.common.create_flat_button(parent, "import...", width or 80, 18)
+
+    local menu = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    menu:SetPoint("TOPRIGHT", btn, "BOTTOMRIGHT", 0, -2)
+    menu:SetFrameStrata("FULLSCREEN_DIALOG")
+    menu:SetFrameLevel(100)
+    menu:Hide()
+
+    local function updateMenuSize()
+        local maxW = width or 80
+        local totalH = 5
+        for _, opt in ipairs(options) do
+            totalH = totalH + 20
+        end
+        menu:SetSize(maxW + 40, totalH + 5)
+    end
+
+    menu:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    menu:SetBackdropColor(0, 0, 0, 0.9)
+    menu:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+
+    local function fillOptions()
+        local y = -5
+        for _, opt in ipairs(options) do
+            local optBtn = CreateFrame("Button", nil, menu)
+            optBtn:SetSize(menu:GetWidth() - 10, 20)
+            optBtn:SetPoint("TOPLEFT", 5, y)
+
+            local t = optBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            t:SetPoint("LEFT", 5, 0)
+            t:SetText(opt.text)
+
+            optBtn:SetScript("OnEnter", function(self) t:SetTextColor(0, 1, 1) end)
+            optBtn:SetScript("OnLeave", function(self) t:SetTextColor(1, 1, 1) end)
+            optBtn:SetScript("OnClick", function()
+                if onSelectFunc then onSelectFunc(opt.value) end
+                menu:Hide()
+                activeDropdown = nil
+            end)
+            y = y - 20
+        end
+    end
+
+    btn:SetScript("OnClick", function()
+        if menu:IsShown() then
+            menu:Hide()
+            activeDropdown = nil
+        else
+            if activeDropdown then activeDropdown:Hide() end
+            updateMenuSize()
+            -- Clear old children if options changed
+            local kids = { menu:GetChildren() }
+            for _, k in ipairs(kids) do
+                k:Hide(); k:SetParent(nil)
+            end
+            fillOptions()
+            menu:Show()
+            activeDropdown = menu
+        end
+    end)
+
+    return btn
 end

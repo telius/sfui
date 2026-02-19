@@ -95,11 +95,13 @@ do
     end
 
     local function update_bar_positions()
-        local spacing = sfui.config.barLayout.spacing or 1
+        local spacing = sfui.config.barLayout.spacing
 
         if bar0 and bar0.backdrop then
             bar0.backdrop:ClearAllPoints()
-            bar0.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", SfuiDB.healthBarX or 0, SfuiDB.healthBarY or 300)
+            local cfg = sfui.config.healthBar
+            bar0.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", SfuiDB.healthBarX or cfg.pos.x,
+                SfuiDB.healthBarY or cfg.pos.y)
         end
 
         if is_dragonflying() then
@@ -108,15 +110,18 @@ do
                 mount_speed_bar.backdrop:SetPoint("TOP", vigor_bar.backdrop, "BOTTOM", 0, -spacing) -- Stack under and center with vigor bar
 
                 if vigor_bar.whirlingSurgeIcon and vigor_bar.secondWindIcon then
-                    local gap = 5
+                    local iconCfg = sfui.config.vigorBar.icons
+                    local gap = iconCfg.gap
                     vigor_bar.whirlingSurgeIcon:ClearAllPoints()
-                    vigor_bar.whirlingSurgeIcon:SetPoint("TOPRIGHT", mount_speed_bar.backdrop, "BOTTOM", -gap / 2, -5)
+                    vigor_bar.whirlingSurgeIcon:SetPoint("TOPRIGHT", mount_speed_bar.backdrop, "BOTTOM", -gap / 2,
+                        iconCfg.offsetY)
                     vigor_bar.secondWindIcon:ClearAllPoints()
-                    vigor_bar.secondWindIcon:SetPoint("TOPLEFT", mount_speed_bar.backdrop, "BOTTOM", gap / 2, -5)
+                    vigor_bar.secondWindIcon:SetPoint("TOPLEFT", mount_speed_bar.backdrop, "BOTTOM", gap / 2,
+                        iconCfg.offsetY)
 
                     if vigor_bar.staticChargeIcon then
                         vigor_bar.staticChargeIcon:ClearAllPoints()
-                        vigor_bar.staticChargeIcon:SetPoint("LEFT", vigor_bar.backdrop, "RIGHT", 5, 0)
+                        vigor_bar.staticChargeIcon:SetPoint("LEFT", vigor_bar.backdrop, "RIGHT", iconCfg.sideOffset, 0)
                     end
                 end
             end
@@ -248,7 +253,7 @@ do
         bar:SetMinMaxValues(0, max)
         bar:SetValue(current)
         local color = sfui.common.get_class_or_spec_color()
-        if color then bar:SetStatusBarColor(color.r, color.g, color.b) end
+        if color then bar:SetStatusBarColor(color[1], color[2], color[3]) end
 
         -- Marker logic
         if specID == 258 then -- Shadow Priest (55% threshold)
@@ -332,7 +337,7 @@ do
         local absorbAmount = UnitGetTotalAbsorbs("player") or 0
         absorbBar:SetValue(absorbAmount)
         local color = SfuiDB.absorbBarColor or (sfui.config and sfui.config.absorbBarColor)
-        if color then absorbBar:SetStatusBarColor(color.r, color.g, color.b, color.a) end
+        absorbBar:SetStatusBarColor(sfui.common.unpack_color(color))
     end
 
     local function get_rune_bar()
@@ -452,7 +457,7 @@ do
             -- Set Colors
             if info.ready then
                 if specColor then
-                    rune:SetStatusBarColor(specColor.r, specColor.g, specColor.b)
+                    rune:SetStatusBarColor(specColor[1], specColor[2], specColor[3])
                 else
                     rune:SetStatusBarColor(1, 0.2, 0.3)
                 end
@@ -525,7 +530,7 @@ do
                 color = sfui.common.get_resource_color(resource)
             end
             if color then
-                bar:SetStatusBarColor(color.r, color.g, color.b)
+                bar:SetStatusBarColor(color[1], color[2], color[3])
             end
         end
     end

@@ -36,6 +36,21 @@ sfui.config = {
         gray = { 0.2, 0.2, 0.2 }, -- Dark gray for borders
     },
 
+    appearance = {
+        highlightColor = { 0.4, 0.0, 1.0, 1 }, -- #6600FF
+        accentColor = { 0, 1, 1, 1 },          -- #00FFFF
+        white = { 1, 1, 1, 1 },
+        backdropColor = { 0.05, 0.05, 0.05, 0.8 },
+        widgetBackdropColor = { 0.2, 0.2, 0.2, 1 }, -- For checkboxes/buttons
+        editBoxColor = { 0.15, 0.15, 0.15, 1 },
+        sliderBackdropColor = { 0.1, 0.1, 0.1, 1 },
+        lockColor = { 0.5, 0, 0, 0.5 },
+        errorColor = { 1, 0.2, 0.2, 1 },
+        goldColor = { 1, 0.82, 0, 1 },
+        dimTextColor = { 0.6, 0.6, 0.6, 1 },
+        addonIcon = "Interface/Icons/Spell_shadow_deathcoil",
+    },
+
     -- shared settings for icon bars
     widget_bar = {
         icon_size = 32,
@@ -47,65 +62,65 @@ sfui.config = {
     -- custom spec colors (for example, to override defaults or add new ones)
     spec_colors = {
         -- Death Knight
-        [250] = { r = 0.77, g = 0.12, b = 0.23 },     -- Blood
-        [251] = { r = 0.0, g = 1.0, b = 1.0 },        -- Frost
-        [252] = { r = 0.0, g = 1.0, b = 0.0 },        -- Unholy
+        [250] = { 0.77, 0.12, 0.23, 1 },     -- Blood
+        [251] = { 0.0, 1.0, 1.0, 1 },        -- Frost
+        [252] = { 0.0, 1.0, 0.0, 1 },        -- Unholy
         -- Demon Hunter
-        [577] = { r = 0.635, g = 1.0, b = 0.0 },      -- Havoc
-        [581] = { r = 0.64, g = 0.19, b = 0.79 },     -- Vengeance
-        [1480] = { r = 0.788, g = 0.259, b = 0.992 }, -- Devourer (Official Blizzard UI Color)
+        [577] = { 0.635, 1.0, 0.0, 1 },      -- Havoc
+        [581] = { 0.64, 0.19, 0.79, 1 },     -- Vengeance
+        [1480] = { 0.788, 0.259, 0.992, 1 }, -- Devourer (Official Blizzard UI Color)
         -- Druid
-        [102] = { r = 1.00, g = 0.49, b = 0.04 },     -- Balance
-        [103] = { r = 1.00, g = 0.49, b = 0.04 },     -- Feral
-        [104] = { r = 1.00, g = 0.49, b = 0.04 },     -- Guardian
-        [105] = { r = 1.00, g = 0.49, b = 0.04 },     -- Restoration
+        [102] = { 1.00, 0.49, 0.04, 1 },     -- Balance
+        [103] = { 1.00, 0.49, 0.04, 1 },     -- Feral
+        [104] = { 1.00, 0.49, 0.04, 1 },     -- Guardian
+        [105] = { 1.00, 0.49, 0.04, 1 },     -- Restoration
         -- Evoker
-        [1467] = { r = 0.20, g = 0.58, b = 0.50 },    -- Devastation
-        [1468] = { r = 0.20, g = 0.58, b = 0.50 },    -- Preservation
-        [1473] = { r = 0.20, g = 0.58, b = 0.50 },    -- Augmentation
+        [1467] = { 0.20, 0.58, 0.50, 1 },    -- Devastation
+        [1468] = { 0.20, 0.58, 0.50, 1 },    -- Preservation
+        [1473] = { 0.20, 0.58, 0.50, 1 },    -- Augmentation
         -- Hunter
-        [253] = { r = 0.67, g = 0.83, b = 0.45 },     -- Beast Mastery
-        [254] = { r = 0.67, g = 0.83, b = 0.45 },     -- Marksmanship
-        [255] = { r = 0.67, g = 0.83, b = 0.45 },     -- Survival
+        [253] = { 0.67, 0.83, 0.45, 1 },     -- Beast Mastery
+        [254] = { 0.67, 0.83, 0.45, 1 },     -- Marksmanship
+        [255] = { 0.67, 0.83, 0.45, 1 },     -- Survival
         -- Mage
-        [62] = { r = 0.25, g = 0.78, b = 0.92 },      -- Arcane
-        [63] = { r = 0.25, g = 0.78, b = 0.92 },      -- Fire
-        [64] = { r = 0.25, g = 0.78, b = 0.92 },      -- Frost
+        [62] = { 0.25, 0.78, 0.92, 1 },      -- Arcane
+        [63] = { 0.25, 0.78, 0.92, 1 },      -- Fire
+        [64] = { 0.25, 0.78, 0.92, 1 },      -- Frost
         -- Monk
-        [268] = { r = 0.00, g = 1.00, b = 0.59 },     -- Brewmaster
-        [269] = { r = 0.00, g = 1.00, b = 0.59 },     -- Mistweaver
-        [270] = { r = 0.00, g = 1.00, b = 0.59 },     -- Windwalker
+        [268] = { 0.00, 1.00, 0.59, 1 },     -- Brewmaster
+        [269] = { 0.00, 1.00, 0.59, 1 },     -- Mistweaver
+        [270] = { 0.00, 1.00, 0.59, 1 },     -- Windwalker
         -- Paladin
-        [65] = { r = 0.96, g = 0.55, b = 0.73 },      -- Holy
-        [66] = { r = 1.00, g = 0.75, b = 0.20 },      -- Protection
-        [70] = { r = 0.96, g = 0.55, b = 0.73 },      -- Retribution
+        [65] = { 0.96, 0.55, 0.73, 1 },      -- Holy
+        [66] = { 1.00, 0.75, 0.20, 1 },      -- Protection
+        [70] = { 0.96, 0.55, 0.73, 1 },      -- Retribution
         -- Priest
-        [256] = { r = 1.00, g = 1.00, b = 1.00 },     -- Discipline
-        [257] = { r = 1.00, g = 1.00, b = 1.00 },     -- Holy
-        [258] = { r = 0.40, g = 0.00, b = 1.00 },     -- Shadow
+        [256] = { 1.00, 1.00, 1.00, 1 },     -- Discipline
+        [257] = { 1.00, 1.00, 1.00, 1 },     -- Holy
+        [258] = { 0.40, 0.00, 1.00, 1 },     -- Shadow
         -- Rogue
-        [259] = { r = 1.00, g = 0.96, b = 0.41 },     -- Assassination
-        [260] = { r = 1.00, g = 0.96, b = 0.41 },     -- Outlaw
-        [261] = { r = 1.00, g = 0.96, b = 0.41 },     -- Subtlety
+        [259] = { 1.00, 0.96, 0.41, 1 },     -- Assassination
+        [260] = { 1.00, 0.96, 0.41, 1 },     -- Outlaw
+        [261] = { 1.00, 0.96, 0.41, 1 },     -- Subtlety
         -- Shaman
-        [262] = { r = 0.00, g = 0.44, b = 0.87 },     -- Elemental
-        [263] = { r = 0.00, g = 0.44, b = 0.87 },     -- Enhancement
-        [264] = { r = 0.00, g = 0.44, b = 0.87 },     -- Restoration
+        [262] = { 0.00, 0.44, 0.87, 1 },     -- Elemental
+        [263] = { 0.00, 0.44, 0.87, 1 },     -- Enhancement
+        [264] = { 0.00, 0.44, 0.87, 1 },     -- Restoration
         -- Warlock
-        [265] = { r = 0.53, g = 0.53, b = 0.93 },     -- Affliction
-        [266] = { r = 0.53, g = 0.53, b = 0.93 },     -- Demonology
-        [267] = { r = 0.635, g = 1.0, b = 0.0 },      -- Destruction
+        [265] = { 0.53, 0.53, 0.93, 1 },     -- Affliction
+        [266] = { 0.53, 0.53, 0.93, 1 },     -- Demonology
+        [267] = { 0.635, 1.0, 0.0, 1 },      -- Destruction
         -- Warrior
-        [71] = { r = 1.00, g = 0.00, b = 0.00 },      -- Arms
-        [72] = { r = 1.00, g = 0.00, b = 0.00 },      -- Fury
-        [73] = { r = 1.00, g = 0.00, b = 0.00 },      -- Protection
+        [71] = { 1.00, 0.00, 0.00, 1 },      -- Arms
+        [72] = { 1.00, 0.00, 0.00, 1 },      -- Fury
+        [73] = { 1.00, 0.00, 0.00, 1 },      -- Protection
     },
 
     -- Default panel settings for tracked icons
     cooldown_panel_defaults = {
         left = {
             name = "Left",
-            anchor = "topleft",
+            anchorPoint = "TOPLEFT",
             growthH = "Right",
             growthV = "Down",
             x = -425,
@@ -114,12 +129,10 @@ sfui.config = {
             spacing = 2,
             columns = 4,
             enabled = true,
-            textEnabled = true,
-            textColor = { r = 1, g = 1, b = 1 },
         },
         right = {
             name = "Right",
-            anchor = "topright",
+            anchorPoint = "TOPRIGHT",
             growthH = "Left",
             growthV = "Down",
             x = 425,
@@ -128,30 +141,26 @@ sfui.config = {
             spacing = 2,
             columns = 4,
             enabled = true,
-            textEnabled = true,
-            textColor = { r = 1, g = 1, b = 1 },
         },
-        center = {
+        center_panel = {
             name = "CENTER",
-            anchor = "center",
-            growthH = "Center",
-            growthV = "Down",
+            enabled = true,
             x = 0,
             y = 0,
             size = 50,
+            columns = 7,
             spacing = 0,
-            columns = 20, -- Single row by default (high column count)
             spanWidth = true,
-            showBackground = true,
-            backgroundAlpha = 0.5,
-            enabled = true,
-            textEnabled = true,
-            textColor = { r = 1, g = 1, b = 1 },
+            placement = "center",
+            growthH = "Center",
+            anchorPoint = "TOP",
+            growthV = "Down",
             anchorTo = "Health Bar",
         },
         utility = {
             name = "UTILITY",
-            anchor = "top", -- Anchors top of this panel to bottom of target
+            enabled = true,
+            anchorPoint = "TOP", -- Anchors top of this panel to bottom of target
             growthH = "Center",
             growthV = "Down",
             x = 0,
@@ -159,11 +168,7 @@ sfui.config = {
             size = 32,
             spacing = 0,
             columns = 9,
-            showBackground = false,
-            backgroundAlpha = 0.5,
-            enabled = true,
-            textEnabled = true,
-            textColor = { r = 1, g = 1, b = 1 },
+            placement = "center",
             anchorTo = "CENTER",
         },
         -- Glow duration limit (seconds)
@@ -171,13 +176,14 @@ sfui.config = {
     },
 
     -- Global defaults for icon panels (can be overridden per-panel or per-icon)
-    -- These provide fallback values for all visual effect settings
+    -- These provide fallback values for visual effect settings (like glows)
     icon_panel_global_defaults = {
+        enableMasque = true,
         -- Ready Glow (when spell is off cooldown/available)
-        readyGlow = true,                    -- Enable glow when ready
-        glowType = "autocast",               -- Options: pixel, autocast, proc, button
-        useSpecColor = true,                 -- Use specialization-based color for glows
-        glowColor = { r = 1, g = 1, b = 0 }, -- Yellow by default
+        readyGlow = true,           -- Enable glow when ready
+        glowType = "autocast",      -- Options: pixel, autocast, proc, button
+        useSpecColor = true,        -- Use specialization-based color for glows
+        glowColor = { 1, 1, 0, 1 }, -- Yellow by default
         glowScale = 2.0,
         glowIntensity = 1.0,
         glowSpeed = 0.5,         -- User request: 0.5
@@ -194,22 +200,43 @@ sfui.config = {
         backgroundAlpha = 0.5,   -- 50% transparency for the background
 
         -- Text Display
-        textEnabled = true,                  -- Show countdown numbers on icons
-        textColor = { r = 1, g = 1, b = 1 }, -- White text
+        textEnabled = true,         -- Show countdown numbers on icons
+        textColor = { 1, 1, 1, 1 }, -- White text
+
+        -- Hotkey Display
+        showHotkeys = true,        -- Show keybinding text on icons
+        hotkeyFontSize = 12,       -- Font size for hotkey text
+        hotkeyAnchor = "TOPLEFT",  -- Anchor point (TOPLEFT, TOPRIGHT, BOTTOMLEFT, BOTTOMRIGHT, CENTER)
+        hotkeyOutline = "OUTLINE", -- Font outline (OUTLINE, THICKOUTLINE, or "")
+
+        -- Icon Style
+        showBorder = true,  -- Show 2px black border around icons
+        squareIcons = true, -- Crop round icon edges to square
+
+        -- Panel Visibility
+        visibility = "always", -- "always", "combat", "noCombat"
     },
 
     -- options panel specific settings
     options_panel = {
         width = 500,
         height = 500,
-        backdrop_color = { r = 0.05, g = 0.05, b = 0.05, a = 0.8 },
+        backdrop_color = { 0.05, 0.05, 0.05, 0.8 },
         tabs = {
             width = 100,
             height = 30,
-            color = { r = 0.4, g = 0.0, b = 1.0 },           -- #6600FF for unselected tabs
-            selected_color = { r = 0, g = 1, b = 1 },        -- #00FFFF for selected tab
-            highlight_color = { r = 0.6, g = 0.6, b = 0.6 }, -- Medium gray for hover
-        }
+            color = { 0.4, 0.0, 1.0, 1 },           -- #6600FF for unselected tabs
+            selected_color = { 0, 1, 1, 1 },        -- #00FFFF for selected tab
+            highlight_color = { 0.6, 0.6, 0.6, 1 }, -- Medium gray for hover
+        },
+        icon_border_color = { 0.4, 0.4, 0.4, 1 },
+    },
+
+    tracked_options_layout = {
+        ROW_HEIGHT = 30,
+        COL_WIDTH = 135,
+        PADDING = 5,
+        HEADER_Y = 20,
     },
 
     -- currency frame settings
@@ -234,6 +261,7 @@ sfui.config = {
         enabled = true,
         width = 300,
         height = 10,
+        pos = { x = 0, y = 285 },
         useClassColor = true,
         backdrop = {
             padding = 2,
@@ -275,6 +303,13 @@ sfui.config = {
             padding = 2,
             color = { 0, 0, 0, 0.5 },
         },
+        spark = {
+            width = 20,
+            heightMultiplier = 2.5,
+        },
+        icon = {
+            offset = -5,
+        },
     },
 
     targetCastBar = {
@@ -310,8 +345,7 @@ sfui.config = {
         width = 300,
         height = 20,
         color = { 0.2, 0.2, 0.2 }, -- Dark Grey
-        defaultX = 0,
-        defaultY = 300,
+        pos = { x = 0, y = 300 },
         backdrop = {
             padding = 2,
             color = { 0, 0, 0, 0.5 }, -- Black/Transparent
@@ -345,6 +379,11 @@ sfui.config = {
             padding = 2,
             color = { 0, 0, 0, 0.5 },
         },
+        icons = {
+            gap = 5,
+            offsetY = -5,
+            sideOffset = 5,
+        },
     },
 
     -- Mount Speed Bar settings
@@ -374,7 +413,7 @@ sfui.config = {
         { text = "Flat",              value = "Interface/Buttons/WHITE8X8" },
     },
 
-    absorbBarColor = { r = 0.4, g = 0.0, b = 1.0, a = 0.75 },
+    absorbBarColor = { 0.4, 0.0, 1.0, 0.75 },
 
     minimap = {
         default_size = 220,
@@ -383,7 +422,7 @@ sfui.config = {
             spacing = 5,
             button_size = 20,
             defaultX = 0,
-            defaultY = 35,
+            defaultY = -25,
         },
     },
 
@@ -400,6 +439,7 @@ sfui.config = {
         disableConsumablesSolo = true,
         enableConsumables = true,
         buffThreshold = 600, -- 10 minutes in seconds
+        inactiveAlpha = 0.1,
     },
 
     -- Warnings
@@ -502,8 +542,10 @@ sfui.config = {
         -- Visual settings
         width = 200,
         height = 20,
+        attachedWidthMultiplier = 0.8, -- Multiplier for Health Bar width when acting as secondary bar
+        attachedHeight = 20,           -- Standard height for attached bars
         icon_size = 20,
-        icon_offset = -5, -- Space between bar and icon
+        icon_offset = -5,              -- Space between bar and icon
         spacing = 5,
         backdrop = {
             padding = 1,
@@ -529,16 +571,16 @@ sfui.config = {
         hideInactive = true, -- Hide bars when cooldowns are inactive
         -- Default bar configuration per cooldown ID
         defaults = {
-            [18469] = {                                -- Ignore Pain (Warrior)
-                stackAboveHealth = true,               -- Attach to healthbar (secondary position)
-                color = { r = 1, g = 0.533, b = 0 },   -- Orange
-                showStacksText = true,                 -- Show stack count as duration text
+            [18469] = {                       -- Ignore Pain (Warrior)
+                stackAboveHealth = true,      -- Attach to healthbar (secondary position)
+                color = { 1, 0.533, 0, 1 },   -- Orange
+                showStacksText = true,        -- Show stack count as duration text
             },
-            [9039] = {                                 -- Bone Shield (Death Knight)
-                stackAboveHealth = true,               -- Attach to healthbar
-                stackMode = true,                      -- Use stack count as bar value
-                color = { r = 0, g = 0.8, b = 0.067 }, -- Green
-                showName = false,                      -- Hide name
+            [9039] = {                        -- Bone Shield (Death Knight)
+                stackAboveHealth = true,      -- Attach to healthbar
+                stackMode = true,             -- Use stack count as bar value
+                color = { 0, 0.8, 0.067, 1 }, -- Green
+                showName = false,             -- Hide name
             },
         },
     },
@@ -553,7 +595,7 @@ sfui.config = {
     -- Organised by expansion version keys.
     masterHammer = {
         requiredRank = 26, -- Required trait rank for repair perks
-        defaultPosition = { x = 880, y = -430 },
+        defaultPosition = { x = 0, y = 0 },
         defaultColor = "00FFFF",
         [225660] = { -- Earthen Master's Hammer (TWW)
             nodes = {

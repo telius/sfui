@@ -60,15 +60,19 @@ local function CreateCastBar(configName, unit)
     bar.TimerText:SetPoint("RIGHT", -5, 0)
 
     bar.Spark = bar:CreateTexture(nil, "OVERLAY")
-    bar.Spark:SetTexture("Interface\\CastingBar\\UI-CastingBar-Spark")
+    bar.Spark:SetTexture("Interface/CastingBar/UI-CastingBar-Spark")
     bar.Spark:SetBlendMode("ADD")
-    bar.Spark:SetSize(20, bar:GetHeight() * 2.5)
+
+    local cfg = sfui.config[configName]
+    local sparkCfg = cfg and cfg.spark or { width = 20, heightMultiplier = 2.5 }
+    bar.Spark:SetSize(sparkCfg.width, bar:GetHeight() * sparkCfg.heightMultiplier)
 
     local cfg = sfui.config[configName]
     bar.Icon = bar.backdrop:CreateTexture(nil, "ARTWORK")
     local iconSize = cfg and cfg.iconSize or (bar:GetHeight() + 4)
     bar.Icon:SetSize(iconSize, iconSize)
-    bar.Icon:SetPoint("RIGHT", bar.backdrop, "LEFT", -5, 0)
+    local iconCfg = cfg and cfg.icon or { offset = -5 }
+    bar.Icon:SetPoint("RIGHT", bar.backdrop, "LEFT", iconCfg.offset, 0)
     bar.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
     -- Setup Texture (Inherit from Options Panel)
@@ -112,7 +116,7 @@ local function UpdateCastBarColor(bar, state)
         end
 
         if specColor then
-            color = { specColor.r, specColor.g, specColor.b }
+            color = { specColor[1], specColor[2], specColor[3] }
         else
             -- Fallback
             local cfg = sfui.config[bar.configName]
@@ -387,8 +391,7 @@ local function OnEvent(self, event, ...)
 
         -- Only process if it matches our current cast
         if self.casting and castGUID == self.castID then
-            self:SetValue(self.maxValue)
-            UpdateCastBarColor(self, "INTERRUPTED", self.notInterruptible)
+            UpdateCastBarColor(self, "INTERRUPTED")
             self.Text:SetText(FAILED)
             if event == "UNIT_SPELLCAST_INTERRUPTED" then
                 self.Text:SetText(INTERRUPTED)
@@ -406,8 +409,7 @@ local function OnEvent(self, event, ...)
             end)
         elseif (self.channeling or self.empowering) and (event == "UNIT_SPELLCAST_INTERRUPTED") then
             if not UnitChannelInfo(unit) then
-                self:SetValue(self.maxValue)
-                UpdateCastBarColor(self, "INTERRUPTED", self.notInterruptible)
+                UpdateCastBarColor(self, "INTERRUPTED")
                 self.Text:SetText(INTERRUPTED)
 
                 self.casting = nil

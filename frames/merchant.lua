@@ -9,7 +9,6 @@ sfui.merchant = {}
 local colors = sfui.config.colors
 
 local cfg = sfui.config.merchant
-local msqGroup = sfui.common.get_masque_group("Merchant")
 local NUM_ROWS = cfg.grid.rows
 local NUM_COLS = cfg.grid.cols
 local ITEMS_PER_PAGE = NUM_ROWS * NUM_COLS
@@ -54,7 +53,7 @@ frame:SetBackdrop({
     edgeSize = 0,
     insets = { left = 0, right = 0, top = 0, bottom = 0 }
 })
-frame:SetBackdropColor(0, 0, 0, 0.7)
+frame:SetBackdropColor(unpack(sfui.config.appearance.backdropColor))
 frame:Hide()
 frame:EnableMouse(true)
 frame:SetMovable(true)
@@ -154,7 +153,8 @@ function sfui.merchant.create_stack_split_frame(parent)
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 }
     })
-    f:SetBackdropColor(0.05, 0.05, 0.05, 0.95)
+    local app = sfui.config.appearance
+    f:SetBackdropColor(app.backdropColor[1], app.backdropColor[2], app.backdropColor[3], 0.95)
     f:SetBackdropBorderColor(0, 0, 0, 1)
 
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -169,9 +169,9 @@ function sfui.merchant.create_stack_split_frame(parent)
     eb:SetNumeric(true)
     eb:SetAutoFocus(true)
 
-    local bg = eb:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(0.2, 0.2, 0.2, 1)
+    local eb_bg = eb:CreateTexture(nil, "BACKGROUND")
+    eb_bg:SetAllPoints()
+    eb_bg:SetColorTexture(app.widgetBackdropColor[1], app.widgetBackdropColor[2], app.widgetBackdropColor[3], 1)
 
     eb:SetScript("OnEnterPressed", function() f.buyBtn:Click() end)
     eb:SetScript("OnEscapePressed", function() f:Hide() end)
@@ -245,7 +245,7 @@ local function open_stack_split(index)
     f.editBox:SetFocus()
 end
 
-function sfui.merchant.create_item_button(id, parent, msqGroup)
+function sfui.merchant.create_item_button(id, parent)
     local btn = CreateFrame("Button", "SfuiMerchantItem" .. id, parent, "BackdropTemplate")
     btn:SetSize(190, 45)
 
@@ -261,10 +261,11 @@ function sfui.merchant.create_item_button(id, parent, msqGroup)
     btn.nameStub:SetPoint("TOPLEFT", iconWrap, "TOPRIGHT", 5, 2)
     btn.nameStub:SetJustifyH("LEFT")
 
+    local app = sfui.config.appearance
     btn.subName = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     btn.subName:SetPoint("TOPLEFT", btn.nameStub, "BOTTOMLEFT", 0, -1)
     btn.subName:SetJustifyH("LEFT")
-    btn.subName:SetTextColor(0.6, 0.6, 0.6)
+    btn.subName:SetTextColor(app.dimTextColor[1], app.dimTextColor[2], app.dimTextColor[3], 1)
 
     btn.price = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     btn.price:SetPoint("BOTTOMLEFT", iconWrap, "BOTTOMRIGHT", 5, 0)
@@ -275,7 +276,7 @@ function sfui.merchant.create_item_button(id, parent, msqGroup)
 
     btn.lockBackground = btn:CreateTexture(nil, "BACKGROUND")
     btn.lockBackground:SetAllPoints(btn)
-    btn.lockBackground:SetColorTexture(0.5, 0, 0, 0.5)
+    btn.lockBackground:SetColorTexture(app.lockColor[1], app.lockColor[2], app.lockColor[3], app.lockColor[4])
     btn.lockBackground:Hide()
 
     btn.lockReason = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -284,7 +285,7 @@ function sfui.merchant.create_item_button(id, parent, msqGroup)
     btn.lockReason:SetMaxLines(1)
     btn.lockReason:SetWordWrap(false)
     btn.lockReason:SetJustifyH("LEFT")
-    btn.lockReason:SetTextColor(1, 0.2, 0.2)
+    btn.lockReason:SetTextColor(app.errorColor[1], app.errorColor[2], app.errorColor[3], 1)
     btn.lockReason:Hide()
 
     btn.check = btn:CreateTexture(nil, "OVERLAY")
@@ -296,7 +297,7 @@ function sfui.merchant.create_item_button(id, parent, msqGroup)
     btn.unknownDecor = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     btn.unknownDecor:SetPoint("TOPRIGHT", -6, -4)
     btn.unknownDecor:SetText("!")
-    btn.unknownDecor:SetTextColor(1, 0.82, 0)
+    btn.unknownDecor:SetTextColor(app.goldColor[1], app.goldColor[2], app.goldColor[3], 1)
     btn.unknownDecor:Hide()
 
     btn:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
@@ -350,15 +351,13 @@ function sfui.merchant.create_item_button(id, parent, msqGroup)
     end)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
-    if msqGroup then
-        msqGroup:AddButton(iconWrap, { Icon = btn.icon })
-    end
+    sfui.common.sync_masque(iconWrap, { Icon = btn.icon })
 
     return btn
 end
 
 for i = 1, ITEMS_PER_PAGE do
-    local btn = sfui.merchant.create_item_button(i, frame, msqGroup)
+    local btn = sfui.merchant.create_item_button(i, frame)
     local row = math.floor((i - 1) / NUM_COLS)
     local col = (i - 1) % NUM_COLS
 
@@ -367,6 +366,7 @@ for i = 1, ITEMS_PER_PAGE do
     buttons[i] = btn
 end
 
+local app = sfui.config.appearance
 local scrollBar = CreateFrame("Slider", nil, frame, "BackdropTemplate")
 scrollBar:SetOrientation("HORIZONTAL")
 scrollBar:SetPoint("BOTTOMLEFT", 15, cfg.scrollbar.bottom_offset)
@@ -389,7 +389,7 @@ end)
 
 local thumb = scrollBar:CreateTexture(nil, "ARTWORK")
 thumb:SetSize(30, 6)
-thumb:SetColorTexture(1, 1, 1, 1) -- Flat white
+thumb:SetColorTexture(app.white[1], app.white[2], app.white[3], 1) -- Flat white
 scrollBar:SetThumbTexture(thumb)
 frame.scrollBar = scrollBar
 
@@ -534,12 +534,10 @@ sfui.merchant.filterBtn:SetPoint("LEFT", sfui.merchant.buybackBtn, "RIGHT", 5, 0
 local function update_filter_button_style(self)
     if sfui.merchant.filterKnown then
         self:SetText("hiding known")
-        self:SetBackdropBorderColor(0.4, 0, 1, 1)    -- Purple (#6600FF)
-        self:GetFontString():SetTextColor(0.4, 0, 1) -- Purple
+        sfui.common.set_color(self, sfui.config.merchant.button_colors.filter_active)
     else
         self:SetText("showing known")
-        self:SetBackdropBorderColor(1, 1, 1, 1)    -- White
-        self:GetFontString():SetTextColor(1, 1, 1) -- White
+        sfui.common.set_color(self, sfui.config.merchant.button_colors.filter_inactive)
     end
 end
 update_filter_button_style(sfui.merchant.filterBtn)
@@ -552,8 +550,7 @@ end)
 
 sfui.merchant.filterBtn:SetScript("OnEnter", function(self)
     if not sfui.merchant.filterKnown then
-        self:GetFontString():SetTextColor(0, 1, 1, 1) -- Cyan hover if not active
-        self:SetBackdropBorderColor(0, 1, 1, 1)       -- Cyan (#00FFFF)
+        sfui.common.set_color(self, sfui.config.merchant.button_colors.filter_hover)
     end
 end)
 
@@ -569,12 +566,10 @@ sfui.merchant.housingFilterBtn:SetPoint("LEFT", sfui.merchant.filterBtn, "RIGHT"
 local function update_housing_filter_button_style(self)
     if sfui.merchant.housingDecorFilter == 1 then
         self:SetText("decor: hide known")
-        self:SetBackdropBorderColor(1, 0, 1, 1)    -- Magenta (#FF00FF)
-        self:GetFontString():SetTextColor(1, 0, 1) -- Magenta
+        sfui.common.set_color(self, sfui.config.merchant.button_colors.decor_hide_owned)
     else
         self:SetText("decor: show all")
-        self:SetBackdropBorderColor(1, 1, 1, 1)    -- White
-        self:GetFontString():SetTextColor(1, 1, 1) -- White
+        sfui.common.set_color(self, sfui.config.merchant.button_colors.decor_show_all)
     end
 end
 update_housing_filter_button_style(sfui.merchant.housingFilterBtn)
@@ -588,8 +583,7 @@ end)
 
 sfui.merchant.housingFilterBtn:SetScript("OnEnter", function(self)
     if sfui.merchant.housingDecorFilter == 0 then
-        self:GetFontString():SetTextColor(0, 1, 1, 1) -- Cyan hover if showing all
-        self:SetBackdropBorderColor(0, 1, 1, 1)       -- Cyan (#00FFFF)
+        sfui.common.set_color(self, sfui.config.merchant.button_colors.filter_hover)
     end
 end)
 
@@ -930,6 +924,9 @@ sfui.merchant.update_merchant = function()
             if data then
                 btn:SetID(index); btn.hasItem, btn.link = true, data.link
                 btn.icon:SetTexture(data.texture or 134400)
+
+                -- Sync Masque state
+                sfui.common.sync_masque(btn.iconWrap, { Icon = btn.icon })
 
                 local typeText, isDecor = "", sfui.common.is_housing_decor(data.link)
                 if isDecor then

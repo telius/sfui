@@ -17,7 +17,7 @@ local C_CooldownViewer = C_CooldownViewer
 local IsInInstance = IsInInstance
 local C_Timer = C_Timer
 local GetTime = GetTime
-local UnitGUID = UnitGUID
+
 local unpack = unpack
 
 
@@ -35,7 +35,7 @@ local _configProxyMT = {
         if SfuiDB and SfuiDB.trackedBars then
             local entry = SfuiDB.trackedBars[cooldownID]
             if not entry then entry = SfuiDB.trackedBars[tonumber(cooldownID)] end
-            if entry then
+            if type(entry) == "table" then
                 local v = entry[k]
                 if v ~= nil then return v end
             end
@@ -102,6 +102,11 @@ local function GetMaxStacksForBar(cooldownID, config, spellID)
 end
 sfui.trackedbars.GetMaxStacks = GetMaxStacksForBar
 
+-- Helper for Masque Sync
+local function SyncBarMasque(bar)
+    sfui.common.sync_masque(bar.iconFrame, { Icon = bar.icon })
+end
+
 
 
 local function CreateBar(cooldownID)
@@ -123,25 +128,35 @@ local function CreateBar(cooldownID)
 
     -- Status Bar
     bar.status = CreateFrame("StatusBar", nil, bar)
-    bar.status:SetPoint("TOPLEFT", bar, "TOPLEFT", 1, -1)
-    bar.status:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -1, 1)
+    local pad = cfg.backdrop.padding
+    bar.status:SetPoint("TOPLEFT", bar, "TOPLEFT", pad, -pad)
+    bar.status:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -pad, pad)
     bar.status:SetStatusBarTexture(sfui.config.textures.white)
     bar.status:SetStatusBarColor(unpack(sfui.config.colors.purple))
 
     -- Icon
-    bar.icon = bar:CreateTexture(nil, "ARTWORK")
-    bar.icon:SetSize(cfg.icon_size, cfg.icon_size)
-    bar.icon:SetPoint("RIGHT", bar, "LEFT", cfg.icon_offset, 0)
+    bar.iconFrame = CreateFrame("Button", nil, bar)
+    bar.iconFrame:SetSize(cfg.icon_size, cfg.icon_size)
+    bar.iconFrame:SetPoint("RIGHT", bar, "LEFT", cfg.icon_offset, 0)
+
+    bar.icon = bar.iconFrame:CreateTexture(nil, "ARTWORK")
+    bar.icon:SetAllPoints()
+
+    local msq = sfui.common.get_masque_group()
+    if msq then
+        msq:AddButton(bar.iconFrame, { Icon = bar.icon })
+        bar._isMasqued = true
+    end
 
     -- Text
     bar.name = bar.status:CreateFontString(nil, "OVERLAY")
     bar.name:SetFontObject(sfui.config.font_small)
-    bar.name:SetPoint("LEFT", 5, 0)
+    bar.name:SetPoint("LEFT", cfg.spacing or 5, 0)
     sfui.common.style_text(bar.name, nil, nil, "")
 
     bar.time = bar.status:CreateFontString(nil, "OVERLAY")
     bar.time:SetFontObject(sfui.config.font_small)
-    bar.time:SetPoint("RIGHT", -5, 0)
+    bar.time:SetPoint("RIGHT", -(cfg.spacing or 5), 0)
     sfui.common.style_text(bar.time, nil, nil, "")
 
     -- Stack Count
@@ -163,7 +178,7 @@ local function CreateBar(cooldownID)
         -- Segment background
         seg.bg = seg:CreateTexture(nil, "BACKGROUND")
         seg.bg:SetAllPoints(seg)
-        seg.bg:SetColorTexture(0, 0, 0, 0.5)
+        seg.bg:SetColorTexture(unpack(cfg.backdrop.color))
 
         bar.segments[i] = seg
     end
@@ -223,7 +238,7 @@ local function SetupBarState(bar, config, cfg)
             bar.time:SetPoint("CENTER", bar.status, "CENTER", 0, 0)
             sfui.common.style_text(bar.time, nil, cfg.fonts.stackModeDurationSize, "")
         else
-            bar.time:SetPoint("RIGHT", -5, 0)
+            bar.time:SetPoint("RIGHT", -(cfg.spacing or 5), 0)
             -- Use default small font style implicitly or re-apply if needed (assuming CreateBar set it)
         end
     end
@@ -242,9 +257,7 @@ local function SetupBarState(bar, config, cfg)
     end
 
     local color = config and config.color or sfui.config.colors.purple
-    if color then
-        bar.status:SetStatusBarColor(color.r or color[1], color.g or color[2], color.b or color[3])
-    end
+    bar.status:SetStatusBarColor(sfui.common.unpack_color(color))
 end
 
 -- Helper for Standard Bar Positioning
@@ -270,6 +283,7 @@ local function UpdateLayout()
         if bar:IsShown() then
             local config = GetTrackedBarConfig(bar.cooldownID)
             SetupBarState(bar, config, cfg)
+            SyncBarMasque(bar)
 
             if config and config.stackAboveHealth then
                 table.insert(attachedBars, bar)
@@ -325,8 +339,8 @@ local function UpdateLayout()
                 local width, height = cfg.width, cfg.height
                 if not isBar1 then
                     -- Acting as Bar1
-                    width = sfui.config.healthBar.width * 0.8
-                    height = 20
+                    width = sfui.config.healthBar.width * (cfg.attachedWidthMultiplier or 0.8)
+                    height = cfg.attachedHeight or 20
                     isBar1 = true -- Stack next ones normally
                 end
 
@@ -690,45 +704,7 @@ local function UpdateBarsState()
 end
 
 -- Event-driven stack count updates using new UNIT_AURA updateInfo (12.0.1.65867+)
-local function HandleUnitAuraUpdate(unitTarget, updateInfo)
-    if unitTarget ~= "player" then return end
-    if not updateInfo then return end -- Backwards compatibility
-    if not container or not container.bars then return end
 
-    -- Process updated auras (includes stack count changes)
-    local updatedIDs = updateInfo.updatedAuraInstanceIDs or {}
-    for _, auraInstanceID in ipairs(updatedIDs) do
-        pcall(function()
-            -- Find bars tracking this aura instance
-            for _, barFrame in pairs(container.bars) do
-                if barFrame.auraInstanceID == auraInstanceID then
-                    local unit = barFrame.auraDataUnit or "player"
-                    local auraData = C_UnitAuras.GetAuraDataByAuraInstanceID(unit, auraInstanceID)
-
-                    if auraData and not sfui.common.issecretvalue(auraData.applications) then
-                        barFrame.currentStacks = sfui.common.SafeValue(auraData.applications, 0)
-                        local config = GetTrackedBarConfig(barFrame.cooldownID)
-                        if config and config.showStacksText then
-                            sfui.common.SafeSetText(barFrame.time, tostring(barFrame.currentStacks))
-                        end
-                    end
-                end
-            end
-        end)
-    end
-
-    -- Process removed auras
-    local removedIDs = updateInfo.removedAuraInstanceIDs or {}
-    for _, auraInstanceID in ipairs(removedIDs) do
-        -- Clear stack display for removed auras
-        for _, barFrame in pairs(container.bars) do
-            if barFrame.auraInstanceID == auraInstanceID then
-                barFrame.currentStacks = 0
-                sfui.common.SafeSetText(barFrame.time, "")
-            end
-        end
-    end
-end
 
 function sfui.trackedbars.initialize()
     if container then return end
@@ -785,13 +761,7 @@ function sfui.trackedbars.initialize()
     end
 
     -- Register UNIT_AURA event for instant stack updates (12.0.1.65867+)
-    local eventFrame = CreateFrame("Frame")
-    eventFrame:RegisterEvent("UNIT_AURA")
-    eventFrame:SetScript("OnEvent", function(self, event, unitTarget, updateInfo)
-        if event == "UNIT_AURA" then
-            HandleUnitAuraUpdate(unitTarget, updateInfo)
-        end
-    end)
+
 
     -- Hide Blizzard Frame
     if BuffBarCooldownViewer then

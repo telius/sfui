@@ -30,9 +30,8 @@ local ButtonManager = {
 }
 
 function sfui.minimap.initialize_masque()
-    if SfuiDB.minimap_masque then
-        sfui.minimap.masque_group = sfui.common.get_masque_group("Minimap Buttons")
-    end
+    -- Global and local check handled by common.get_masque_group()
+    sfui.minimap.masque_group = sfui.common.get_masque_group()
 end
 
 function ButtonManager:store_original_state(button)
@@ -136,7 +135,7 @@ function ButtonManager:skin_button(button)
     if not SfuiDB.minimap_masque then
         return
     end
-    if not sfui.minimap.masque_group then
+    if not SfuiDB.minimap_masque then
         return
     end
 
@@ -214,7 +213,7 @@ function ButtonManager:skin_button(button)
         background = nil
     end
 
-    sfui.minimap.masque_group:AddButton(button, { Icon = icon, Highlight = highlight, Border = border })
+    sfui.common.sync_masque(button, { Icon = icon, Highlight = highlight, Border = border })
 
     for _, region in ipairs(regions) do
         if region:IsObjectType("Texture") and region ~= icon then region:SetTexture(nil) end
@@ -402,7 +401,8 @@ function sfui.minimap.enable_button_manager(enabled)
         -- Update position from saved coordinates
         button_bar:ClearAllPoints()
         button_bar:SetPoint(SfuiDB.minimap_button_point or "TOP", Minimap,
-            SfuiDB.minimap_button_relative_point or "BOTTOM", SfuiDB.minimap_button_x or 0, SfuiDB.minimap_button_y or -5)
+            SfuiDB.minimap_button_relative_point or "BOTTOM", SfuiDB.minimap_button_x or 0,
+            SfuiDB.minimap_button_y or sfui.config.minimap.button_bar.defaultY)
 
         button_bar:Show()
 
@@ -476,7 +476,8 @@ function sfui.minimap.update_button_bar_position()
     if button_bar then
         button_bar:ClearAllPoints()
         button_bar:SetPoint(SfuiDB.minimap_button_point or "TOP", Minimap,
-            SfuiDB.minimap_button_relative_point or "BOTTOM", SfuiDB.minimap_button_x or 0, SfuiDB.minimap_button_y or -5)
+            SfuiDB.minimap_button_relative_point or "BOTTOM", SfuiDB.minimap_button_x or 0,
+            SfuiDB.minimap_button_y or sfui.config.minimap.button_bar.defaultY)
     end
 end
 

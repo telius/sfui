@@ -33,9 +33,11 @@ frames/castbar.lua
 frames/merchant.lua
 frames/vehicle.lua
 frames/automation.lua
+frames/cdm.lua
 frames/trackedoptions.lua
 frames/trackedbars.lua
 frames/cursor.lua
 frames/glows.lua
+frames/hotkeys.lua
 frames/trackedicons.lua
-frames/editor.lua
+

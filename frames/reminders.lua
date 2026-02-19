@@ -4,6 +4,7 @@ sfui.reminders = {}
 
 local RAID_BUFFS = {}
 local PERSONAL_BUFFS = {}
+local cfg
 
 
 
@@ -104,7 +105,6 @@ end
 
 local frame
 local icons = {}
-local masqueGroup = sfui.common.get_masque_group("Reminders")
 
 -- Warning Frame Logic (Merged from warnings.lua)
 local warningFrame, warningText
@@ -325,7 +325,7 @@ end
 
 local function create_icons()
     if InCombatLockdown() then return end
-    local cfg = sfui.config.reminders
+    cfg = sfui.config.reminders
 
     if not frame then
         frame = CreateFrame("Frame", "SfuiRemindersFrame", UIParent, "SecureHandlerStateTemplate")
@@ -378,7 +378,7 @@ local function create_icons()
             button.texture:SetAllPoints()
             button.bg = button:CreateTexture(nil, "BACKGROUND")
             button.bg:SetAllPoints()
-            button.bg:SetColorTexture(0, 0, 0, 0.5)
+            button.bg:SetColorTexture(unpack(cfg.backdrop.color))
             button:HookScript("OnClick", function(self)
                 if IsShiftKeyDown() and self.data and not self.data.isPersonal then
                     local name = self.data.name
@@ -392,7 +392,7 @@ local function create_icons()
                     SendChatMessage(msg, channel)
                 end
             end)
-            if masqueGroup then masqueGroup:AddButton(button) end
+            sfui.common.sync_masque(button, { Icon = button.texture })
             icons[i] = button
         end
 
@@ -422,6 +422,8 @@ end
 local function update_icons()
     if not frame then return end
     if InCombatLockdown() then return end
+
+    if not cfg then cfg = sfui.config.reminders end
 
     local inInstance, _ = IsInInstance()
     local inGroup = IsInGroup()
@@ -463,7 +465,9 @@ local function update_icons()
                 -- Check for Shadowform (Form ID 28)
                 hasBuff = (GetShapeshiftFormID() == 28)
             end
-            button:SetAlpha(hasBuff and 0.1 or 1.0)
+            button:SetAlpha(hasBuff and cfg.inactiveAlpha or 1.0)
+            -- Sync Masque state continuously
+            sfui.common.sync_masque(button, { Icon = button.texture })
         end
     end
 end

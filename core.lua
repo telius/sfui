@@ -142,6 +142,9 @@ event_frame:SetScript("OnEvent", function(self, event, ...)
         if sfui.trackedicons and sfui.trackedicons.initialize then
             sfui.trackedicons.initialize()
         end
+        if sfui.trackedoptions and sfui.trackedoptions.initialize then
+            sfui.trackedoptions.initialize()
+        end
 
 
 
@@ -154,7 +157,7 @@ event_frame:SetScript("OnEvent", function(self, event, ...)
             local broker = ldb:NewDataObject("sfui", {
                 type = "launcher",
                 text = "sfui",
-                icon = "Interface\\Icons\\Spell_shadow_deathcoil",
+                icon = sfui.config.appearance.addonIcon,
                 OnClick = function(_, button)
                     if IsShiftKeyDown() and button == "LeftButton" then
                         if not CooldownViewerSettings then
