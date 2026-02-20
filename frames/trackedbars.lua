@@ -31,10 +31,11 @@ local configCache = {}
 local _configProxyMT = {
     __index = function(t, k)
         local cooldownID = rawget(t, "_id")
-        -- 1. Check DB (User Customization)
-        if SfuiDB and SfuiDB.trackedBars then
-            local entry = SfuiDB.trackedBars[cooldownID]
-            if not entry then entry = SfuiDB.trackedBars[tonumber(cooldownID)] end
+        -- 1. Check DB (User Customization) for per-spec overrides
+        local specBars = sfui.common.get_tracked_bars()
+        if specBars then
+            local entry = specBars[cooldownID]
+            if not entry then entry = specBars[tonumber(cooldownID)] end
             if type(entry) == "table" then
                 local v = entry[k]
                 if v ~= nil then return v end
@@ -103,54 +104,18 @@ function sfui.trackedbars.GetKnownSpells()
         return name or ("Unknown (" .. id .. ")"), icon or sfui.config.textures.white
     end
 
-    -- 1. Add currently active bars
-    for id, bar in pairs(bars) do
-        local n, i = GetInfo(id)
-        known[id] = {
-            id = id,
-            name = n,
-            icon = i,
-            active = true
-        }
-    end
-
-    -- 2. Add configured bars from DB
-    if SfuiDB and SfuiDB.trackedBars then
-        for id, cfg in pairs(SfuiDB.trackedBars) do
+    -- Only add configured bars from DB to ensure synchronization with assignments
+    local specBars = sfui.common.get_tracked_bars()
+    if specBars then
+        for id, cfg in pairs(specBars) do
             if type(id) == "number" and not known[id] then
                 local n, i = GetInfo(id)
                 known[id] = {
                     id = id,
                     name = n,
                     icon = i,
-                    active = false
+                    active = bars[id] ~= nil
                 }
-            end
-        end
-    end
-
-    -- 3. Add defaults from config
-    local defaults = sfui.config.trackedBars and sfui.config.trackedBars.defaults
-    local currentSpec = sfui.common.get_current_spec_id and sfui.common.get_current_spec_id()
-    if defaults then
-        for id, def in pairs(defaults) do
-            local idNum = tonumber(id)
-            if idNum and not known[idNum] then
-                -- Check specID matching
-                local match = true
-                if def.specID and currentSpec and def.specID ~= currentSpec then
-                    match = false
-                end
-
-                if match then
-                    local n, i = GetInfo(idNum)
-                    known[idNum] = {
-                        id = idNum,
-                        name = n,
-                        icon = i,
-                        active = false
-                    }
-                end
             end
         end
     end
@@ -597,6 +562,27 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
         end)
     end
 
+    local db = SfuiDB and SfuiDB.trackedBars or {}
+
+    -- Handle text visibility toggles (Global and Per-Bar options)
+    if db.showName == false or (config and config.showName == false) then
+        myBar.name:Hide()
+    else
+        myBar.name:Show()
+    end
+
+    if db.showDuration == false or (config and config.showDuration == false) then
+        myBar.time:Hide()
+    else
+        myBar.time:Show()
+    end
+
+    if db.showStacks == false or (config and config.showStacks == false) then
+        myBar.count:Hide()
+    else
+        myBar.count:Show()
+    end
+
     -- Set Name (Config > Aura Data > Blizzard Text)
     if config and config.name then
         sfui.common.SafeSetText(myBar.name, config.name)
@@ -663,6 +649,10 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
 end
 
 local function SyncWithBlizzard()
+    sfui.trackedbars.isDirty = true
+end
+
+local function ProcessBlizzardSync()
     if not BuffBarCooldownViewer or not BuffBarCooldownViewer.itemFramePool then return end
 
     wipe(activeCooldownIDs)
@@ -671,7 +661,12 @@ local function SyncWithBlizzard()
     -- Global Hide Check
     -- We use our own OOC logic to avoid touching Blizzard's protected viewer state if it's crashing.
     local mustHide = false
-    if SfuiDB and SfuiDB.hideOOC and not InCombatLockdown() then
+    local db = SfuiDB and SfuiDB.trackedBars or
+        (sfui.config and sfui.config.trackedBars and sfui.config.trackedBars.defaults) or {}
+
+    if db.hideOOC and not InCombatLockdown() then
+        mustHide = true
+    elseif db.hideMounted and IsMounted() then
         mustHide = true
     elseif SfuiDB and SfuiDB.hideDragonriding and sfui.common.IsDragonriding() then
         mustHide = true
@@ -697,66 +692,94 @@ local function SyncWithBlizzard()
                 local id = blizzFrame.cooldownID
                 local info = C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
 
-                -- HIDE: Blizzard Essential (0) and Utility (1) bars if not manually added
-                if info and (info.category == 0 or info.category == 1) then
-                    -- If it's a default Blizzard "essential" or "utility" bar, we skip tracking it
+                -- ONLY sync Native Blizzard Tracked Bars (Category 3)
+                -- We manage this category directly in cdm.lua via CooldownViewerSettings
+                local specBars = sfui.common.get_tracked_bars()
+                local isManuallyTracked = specBars and specBars[id]
+
+                local isValidTrackedBar = false
+                if isManuallyTracked then
+                    isValidTrackedBar = true
+                elseif info and info.category == 3 then
+                    isValidTrackedBar = true
+                elseif info and Enum and Enum.CooldownViewerCategory and info.category == Enum.CooldownViewerCategory.TrackedBar then
+                    isValidTrackedBar = true
+                end
+
+                if not isValidTrackedBar then
+                    -- Skip anything else entirely
                 else
-                    activeCooldownIDs[id] = true
+                    local isSpecRestricted = false
 
-                    if not bars[id] then
-                        local pooledBar = GetBarFromPool(id)
-                        if pooledBar then
-                            bars[id] = pooledBar
+                    if not isManuallyTracked and sfui.config.trackedBars and sfui.config.trackedBars.defaults then
+                        local def = sfui.config.trackedBars.defaults[id]
+                        if def and def.specID then
+                            local currentSpec = sfui.common.get_current_spec_id and sfui.common.get_current_spec_id()
+                            if currentSpec and def.specID ~= currentSpec then
+                                isSpecRestricted = true
+                            end
+                        end
+                    end
+
+                    if not isSpecRestricted then
+                        activeCooldownIDs[id] = true
+
+                        if not bars[id] then
+                            local pooledBar = GetBarFromPool(id)
+                            if pooledBar then
+                                bars[id] = pooledBar
+                            else
+                                bars[id] = CreateBar(id)
+                            end
+                            layoutNeeded = true
+                        end
+
+                        local myBar = bars[id]
+                        -- Retroactive global name assignment for existing bars
+                        if not myBar:GetName() then
+                            local globalName = "sfui_bar" .. tostring(id) .. "_Backdrop"
+                            -- SetName is not available on frames created without a name in vanilla Lua,
+                            -- but we can try to register it globally manually if needed, or rely on CreateBar
+                            -- Since we can't easily rename an anonymous frame, we primarily rely on new frames.
+                            -- However, for the specific anchor frames (1 and -1), we can force a global reference.
+                            if id == 1 or id == -1 or id == 0 then
+                                _G[globalName] = myBar
+                            end
+                        end
+
+                        local config = GetTrackedBarConfig(id) -- Cache config lookup once
+                        local isStackMode = config and config.stackMode or false
+
+                        -- Sync Visibility
+                        local db = SfuiDB and SfuiDB.trackedBars or {}
+                        local hideInactive = db.hideInactive ~= false -- Default to True if nil
+
+                        -- Check if this is a stack mode bar with active stacks
+                        local isStackModeWithStacks = false
+                        if isStackMode then
+                            local currentStacks = tonumber(myBar.count:GetText()) or 0
+                            if currentStacks > 0 then
+                                isStackModeWithStacks = true
+                            end
+                        end
+
+                        local shouldShow = ShouldBarBeVisible(config, blizzFrame, isStackModeWithStacks, hideInactive)
+
+                        if shouldShow then
+                            if not myBar:IsShown() then
+                                myBar:Show()
+                                layoutNeeded = true
+                            end
                         else
-                            bars[id] = CreateBar(id)
+                            if myBar:IsShown() then
+                                myBar:Hide()
+                                layoutNeeded = true
+                            end
                         end
-                        layoutNeeded = true
+
+                        -- Sync all bar data from Blizzard
+                        SyncBarData(myBar, blizzFrame, config, isStackMode, id)
                     end
-
-                    local myBar = bars[id]
-                    -- Retroactive global name assignment for existing bars
-                    if not myBar:GetName() then
-                        local globalName = "sfui_bar" .. tostring(id) .. "_Backdrop"
-                        -- SetName is not available on frames created without a name in vanilla Lua,
-                        -- but we can try to register it globally manually if needed, or rely on CreateBar
-                        -- Since we can't easily rename an anonymous frame, we primarily rely on new frames.
-                        -- However, for the specific anchor frames (1 and -1), we can force a global reference.
-                        if id == 1 or id == -1 or id == 0 then
-                            _G[globalName] = myBar
-                        end
-                    end
-
-                    local config = GetTrackedBarConfig(id) -- Cache config lookup once
-                    local isStackMode = config and config.stackMode or false
-
-                    -- Sync Visibility
-                    local hideInactive = SfuiDB and SfuiDB.hideInactive ~= false -- Default to True if nil
-
-                    -- Check if this is a stack mode bar with active stacks
-                    local isStackModeWithStacks = false
-                    if isStackMode then
-                        local currentStacks = tonumber(myBar.count:GetText()) or 0
-                        if currentStacks > 0 then
-                            isStackModeWithStacks = true
-                        end
-                    end
-
-                    local shouldShow = ShouldBarBeVisible(config, blizzFrame, isStackModeWithStacks, hideInactive)
-
-                    if shouldShow then
-                        if not myBar:IsShown() then
-                            myBar:Show()
-                            layoutNeeded = true
-                        end
-                    else
-                        if myBar:IsShown() then
-                            myBar:Hide()
-                            layoutNeeded = true
-                        end
-                    end
-
-                    -- Sync all bar data from Blizzard
-                    SyncBarData(myBar, blizzFrame, config, isStackMode, id)
                 end
             end
         end
@@ -854,11 +877,15 @@ function sfui.trackedbars.initialize()
     sfui.common.ensure_tracked_bar_db() -- Initialize DB structure
 
     -- Set visibility defaults from config if not already set
-    if SfuiDB.hideOOC == nil then
-        SfuiDB.hideOOC = cfg.hideOOC ~= nil and cfg.hideOOC or false
+    SfuiDB.trackedBars = SfuiDB.trackedBars or {}
+    if SfuiDB.trackedBars.hideOOC == nil then
+        SfuiDB.trackedBars.hideOOC = cfg.hideOOC ~= nil and cfg.hideOOC or false
     end
-    if SfuiDB.hideInactive == nil then
-        SfuiDB.hideInactive = cfg.hideInactive ~= nil and cfg.hideInactive or false
+    if SfuiDB.trackedBars.hideInactive == nil then
+        SfuiDB.trackedBars.hideInactive = cfg.hideInactive ~= nil and cfg.hideInactive or false
+    end
+    if SfuiDB.trackedBars.hideMounted == nil then
+        SfuiDB.trackedBars.hideMounted = cfg.hideMounted ~= nil and cfg.hideMounted or true
     end
 
     -- Position
@@ -872,16 +899,27 @@ function sfui.trackedbars.initialize()
         if SyncWithBlizzard then SyncWithBlizzard() end
     end)
 
-    -- Throttled OnUpdate for smooth bar progress
+    -- Throttled OnUpdate for smooth bar progress AND structure updates
     local updateThrottle = 0
+    local syncThrottle = 0
     container:SetScript("OnUpdate", function(self, elapsed)
+        -- 1. Visual Updates (Smooth, higher frequency)
         updateThrottle = updateThrottle + elapsed
         if updateThrottle >= cfg.updateThrottle then
             updateThrottle = 0
-
-            -- Update all visible bars from Blizzard's data
             if BuffBarCooldownViewer and BuffBarCooldownViewer.itemFramePool then
                 pcall(UpdateBarsState)
+            end
+        end
+
+        -- 2. Structure/Visibility Sync (Throttled, lower frequency)
+        if sfui.trackedbars.isDirty then
+            syncThrottle = syncThrottle + elapsed
+            -- 0.05s delay allows grouping multiple events (e.g. entering world/combat) into one redraw
+            if syncThrottle > 0.05 then
+                sfui.trackedbars.isDirty = false
+                syncThrottle = 0
+                ProcessBlizzardSync()
             end
         end
     end)

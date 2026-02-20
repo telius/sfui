@@ -264,15 +264,64 @@ function sfui.common.get_player_class()
 end
 
 -- Helper to safely ensure tracked bar DB structure exists
--- Returns the tracked bar entry for the given cooldownID, or the trackedBars table if no ID provided
+-- Returns the tracked bar entry for the given cooldownID, or the trackedBarsBySpec table if no ID provided
 function sfui.common.ensure_tracked_bar_db(cooldownID)
     SfuiDB = SfuiDB or {}
     SfuiDB.trackedBars = SfuiDB.trackedBars or {}
+
+    local specID = sfui.common.get_current_spec_id() or 0
+    SfuiDB.trackedBarsBySpec = SfuiDB.trackedBarsBySpec or {}
+    SfuiDB.trackedBarsBySpec[specID] = SfuiDB.trackedBarsBySpec[specID] or {}
+
+    local specBars = SfuiDB.trackedBarsBySpec[specID]
+
     if cooldownID then
-        SfuiDB.trackedBars[cooldownID] = SfuiDB.trackedBars[cooldownID] or {}
-        return SfuiDB.trackedBars[cooldownID]
+        specBars[cooldownID] = specBars[cooldownID] or {}
+        return specBars[cooldownID]
     end
-    return SfuiDB.trackedBars
+    return specBars
+end
+
+function sfui.common.get_tracked_bars()
+    local specID = sfui.common.get_current_spec_id() or 0
+    SfuiDB = SfuiDB or {}
+    SfuiDB.trackedBarsBySpec = SfuiDB.trackedBarsBySpec or {}
+    SfuiDB.trackedBarsBySpec[specID] = SfuiDB.trackedBarsBySpec[specID] or {}
+    return SfuiDB.trackedBarsBySpec[specID]
+end
+
+-- ========================================
+-- Per-Spec Configuration Migrations
+-- ========================================
+
+function sfui.common.migrate_tracked_bars_to_spec()
+    SfuiDB = SfuiDB or {}
+    SfuiDB.trackedBars = SfuiDB.trackedBars or {}
+
+    local specID = sfui.common.get_current_spec_id() or 0
+    SfuiDB.trackedBarsBySpec = SfuiDB.trackedBarsBySpec or {}
+
+    -- If current spec is already populated, assume migration ran previously for this spec
+    if SfuiDB.trackedBarsBySpec[specID] and next(SfuiDB.trackedBarsBySpec[specID]) then
+        return
+    end
+
+    SfuiDB.trackedBarsBySpec[specID] = {}
+    local specBars = SfuiDB.trackedBarsBySpec[specID]
+    local keysToRemove = {}
+
+    -- Extract numeric IDs (Population) to the per-Spec array
+    for k, v in pairs(SfuiDB.trackedBars) do
+        if type(k) == "number" then
+            specBars[k] = v
+            table.insert(keysToRemove, k)
+        end
+    end
+
+    -- Remove the numeric IDs from the global settings root
+    for _, k in ipairs(keysToRemove) do
+        SfuiDB.trackedBars[k] = nil
+    end
 end
 
 -- ========================================
@@ -1089,13 +1138,29 @@ function sfui.common.create_slider_input(parent, label, dbKeyOrGetter, minVal, m
     editbox:SetScript("OnEditFocusLost", function(self) self:SetBackdropBorderColor(0, 0, 0, 1) end)
 
 
+    local lastUpdate = 0
+    local throttle = 0.05 -- 50ms throttle
+
     slider:SetScript("OnValueChanged", function(self, value)
         local stepped = math.floor((value - minVal) / step + 0.5) * step + minVal
         -- if type(dbKeyOrGetter) == "string" then SfuiDB[dbKeyOrGetter] = stepped end -- Removed side effect for reuse safety
         -- Clean number display
         local displayVal = math.floor(stepped * 100) / 100
         editbox:SetText(tostring(displayVal))
+
+        local now = GetTime()
+        if now - lastUpdate > throttle then
+            lastUpdate = now
+            if onValueChangedFunc then onValueChangedFunc(stepped) end
+        end
+    end)
+
+    -- Ensure final value is sent on mouse up
+    slider:SetScript("OnMouseUp", function(self)
+        local value = self:GetValue()
+        local stepped = math.floor((value - minVal) / step + 0.5) * step + minVal
         if onValueChangedFunc then onValueChangedFunc(stepped) end
+        lastUpdate = GetTime() -- Prevent immediate double-fire from Drag logic
     end)
 
     -- Expose components for pooling

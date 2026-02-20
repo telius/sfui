@@ -301,6 +301,12 @@ select_tab = function(frame, id)
             if id == 2 and sfui.trackedoptions.GenerateGlobalSettingsControls and sfui.trackedoptions.globContent then
                 sfui.trackedoptions.GenerateGlobalSettingsControls(sfui.trackedoptions.globContent)
             end
+            if id == 3 and sfui.trackedoptions.RenderBarsTab and sfui.trackedoptions.barsContent then
+                local finalY = sfui.trackedoptions.RenderBarsTab(sfui.trackedoptions.barsContent)
+                if finalY then
+                    sfui.trackedoptions.barsContent:SetHeight(math.abs(finalY) + 40)
+                end
+            end
         else
             -- Deselected state
             tab.panel:Hide()
@@ -334,6 +340,9 @@ end
 
 -- Initialization
 function sfui.trackedoptions.initialize()
+    if sfui.trackedoptions.initialized then return end
+    sfui.trackedoptions.initialized = true
+
     if not SfuiDB then SfuiDB = {} end
     if not SfuiDB.trackedBars then SfuiDB.trackedBars = {} end
 
@@ -438,17 +447,28 @@ function sfui.trackedoptions.initialize()
     local barsContent = CreateFrame("Frame", nil, barsScroll)
     barsContent:SetSize(750, 1200) -- Plenty of height for the list
     barsScroll:SetScrollChild(barsContent)
-
-    local finalY = sfui.trackedoptions.RenderBarsTab(barsContent)
-    barsContent:SetHeight(math.abs(finalY) + 40)
+    sfui.trackedoptions.barsContent = barsContent
 end
 
 function sfui.trackedoptions.RenderBarsTab(parent)
     if not parent then return end
 
+    if sfui.trackedoptions.ReleaseSettingsWidgets then
+        sfui.trackedoptions.ReleaseSettingsWidgets(parent)
+    else
+        local kids = { parent:GetChildren() }
+        for _, kid in ipairs(kids) do kid:Hide() end
+    end
+    local regions = { parent:GetRegions() }
+    for _, region in ipairs(regions) do region:Hide() end
+
+    -- Checkbox list
+    -- Build sorted list of trackable spells across supported categories
     SfuiDB.trackedBars = SfuiDB.trackedBars or {}
-    local db = SfuiDB.trackedBars
-    local cfg = sfui.config.trackedBars
+    local specBars = sfui.common.get_tracked_bars()
+
+    local known = {}
+    local cats = { 1, 2, 3 } -- Essential, Utility, TrackedBuff, TrackedBars
     local WIDTH = parent:GetWidth() - 40
     local yPos = -10
 
@@ -635,7 +655,10 @@ function sfui.trackedoptions.RenderBarsTab(parent)
             -- Checkboxes (No labels, centered under headers)
             local function RC(k, tip, x)
                 local cb = sfui.common.create_checkbox(row, "",
-                    function() return sfui.common.ensure_tracked_bar_db(id)[k] == true end,
+                    function()
+                        local dbEntry = SfuiDB.trackedBars and SfuiDB.trackedBars[id]
+                        return dbEntry and dbEntry[k] == true
+                    end,
                     function(v)
                         sfui.common.ensure_tracked_bar_db(id)[k] = v; Refresh()
                     end, tip)
@@ -658,8 +681,8 @@ function sfui.trackedoptions.RenderBarsTab(parent)
             swatch:SetBackdropBorderColor(0, 0, 0, 1)
 
             local function UpdateSwatch()
-                local entry = sfui.common.ensure_tracked_bar_db(id)
-                if entry.customColor then
+                local entry = SfuiDB.trackedBars and SfuiDB.trackedBars[id]
+                if entry and entry.customColor then
                     swatch:SetBackdropColor(unpack(entry.customColor))
                 else
                     swatch:SetBackdropColor(0.5, 0.5, 0.5, 0.5) -- Grey if no custom color
@@ -675,21 +698,6 @@ function sfui.trackedoptions.RenderBarsTab(parent)
                 end
 
                 ColorPickerFrame:SetupColorPickerAndShow({
-                    swatchFunc = function()
-                        local r, g, b = ColorPickerFrame:GetColorRGB()
-                        local a = ColorPickerFrame:GetColorAlpha()
-                        entry.customColor = { r, g, b, a }
-                        UpdateSwatch()
-                        Refresh()
-                    end,
-                    hasOpacity = true,
-                    opacityFunc = function()
-                        local r, g, b = ColorPickerFrame:GetColorRGB()
-                        local a = ColorPickerFrame:GetColorAlpha() -- opacityFunc sometimes needs explicit fetch
-                        entry.customColor = { r, g, b, a }
-                        UpdateSwatch()
-                        Refresh()
-                    end,
                     cancelFunc = function(prev)
                         entry.customColor = prev
                         UpdateSwatch()
@@ -1141,6 +1149,10 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
     end)
     visDropDown:SetPoint("LEFT", lVis, "RIGHT", 5, 0)
+    s1y = s1y - 40
+
+    PCheck(s1c, "Show Background", "showBackground", "Show a background behind the icons.", 0, s1y)
+    PSlider(s1c, "BG Opacity", "backgroundAlpha", 0, 1, 0.05, 150, s1y, 140)
     s1y = s1y - 35
 
     sec1:SetHeight(h1 + math.abs(s1y) + 10)

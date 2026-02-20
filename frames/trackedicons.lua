@@ -10,7 +10,15 @@ local CreateFrame = CreateFrame
 local UIParent = UIParent
 local hooksecurefunc = hooksecurefunc
 local C_Timer = C_Timer
+local InCombatLockdown = InCombatLockdown
+local CreateFrame = CreateFrame
+local UIParent = UIParent
+local hooksecurefunc = hooksecurefunc
+local C_Timer = C_Timer
 local IsMounted = IsMounted
+local pairs = pairs
+local ipairs = ipairs
+local tinsert = table.insert
 
 local panels = {} -- Active icon panels
 local issecretvalue = sfui.common.issecretvalue
@@ -116,13 +124,13 @@ local scratchParent = CreateFrame("Frame")
 scratchParent:Hide()
 local scratchCooldown = CreateFrame("Cooldown", nil, scratchParent, "CooldownFrameTemplate")
 
-local function UpdateIconCooldown(icon, activeID)
+local function UpdateIconCooldown(icon, activeID, resolvedType)
     local count = 0
     local isEnabled = true
     local isUsable, notEnoughPower = true, false
     local isOnCooldown = false
 
-    if icon.type == "item" then
+    if resolvedType == "item" then
         local ok, countVal = pcall(pcall_item_cd, icon)
         if ok then
             count = countVal or 0
@@ -341,7 +349,7 @@ local function UpdateIconState(icon, panelConfig)
     local entrySettings = icon.entry.settings or _emptyTable
 
     -- 1. Determine the Correct Spell/Item ID and Texture
-    local iconTexture, activeID = sfui.trackedicons.GetIconTexture(icon.id, icon.type, icon.entry)
+    local iconTexture, activeID, resolvedType = sfui.trackedicons.GetIconTexture(icon.id, icon.type, icon.entry)
 
     -- 2. FORCE TEXTURE REFRESH (Fixes "Reload Required" for reordering)
     if icon.texture and iconTexture then
@@ -351,9 +359,10 @@ local function UpdateIconState(icon, panelConfig)
         end
     end
     icon._lastActiveID = activeID
+    icon._resolvedType = resolvedType
 
     -- 3. Update Cooldown & Logic
-    local count, isReady, isUsable, notEnoughPower, isOnCooldown = UpdateIconCooldown(icon, activeID)
+    local count, isReady, isUsable, notEnoughPower, isOnCooldown = UpdateIconCooldown(icon, activeID, resolvedType)
 
     -- 4. Visibility Decision
     local shouldShow = true
@@ -412,35 +421,54 @@ end
 function sfui.trackedicons.GetIconTexture(id, type, entry)
     local activeID = id
     local iconTexture
+    local resolvedType = type
 
     if type == "cooldown" and entry and entry.cooldownID then
         -- Get cooldown info from Blizzard's CDM
         local cdInfo = SafeGetCooldownViewerCooldownInfo(entry.cooldownID)
         if cdInfo then
-            activeID = cdInfo.overrideSpellID or cdInfo.spellID
-            iconTexture = C_Spell.GetSpellTexture(activeID)
+            if cdInfo.spellID and cdInfo.spellID > 0 then
+                activeID = cdInfo.overrideSpellID or cdInfo.spellID
+                iconTexture = C_Spell.GetSpellTexture(activeID)
+                resolvedType = "spell"
+            elseif cdInfo.itemID and cdInfo.itemID > 0 then
+                activeID = cdInfo.itemID
+                iconTexture = C_Item.GetItemIconByID(activeID)
+                resolvedType = "item"
+            end
         else
             -- Fallback if cooldown no longer exists
             activeID = entry.spellID or id
             iconTexture = C_Spell.GetSpellTexture(activeID)
+            resolvedType = "spell"
         end
     elseif type == "item" then
         iconTexture = C_Item.GetItemIconByID(activeID)
+        resolvedType = "item"
     else
         -- Smart Detection: if it's a simple ID, check if it exists in CooldownViewer categories
         local cdInfo = SafeGetCooldownViewerCooldownInfo(activeID)
         if cdInfo then
-            activeID = cdInfo.overrideSpellID or cdInfo.spellID
-            iconTexture = C_Spell.GetSpellTexture(activeID)
+            if cdInfo.spellID and cdInfo.spellID > 0 then
+                activeID = cdInfo.overrideSpellID or cdInfo.spellID
+                iconTexture = C_Spell.GetSpellTexture(activeID)
+                resolvedType = "spell"
+            elseif cdInfo.itemID and cdInfo.itemID > 0 then
+                activeID = cdInfo.itemID
+                iconTexture = C_Item.GetItemIconByID(activeID)
+                resolvedType = "item"
+            end
         else
             iconTexture = C_Spell.GetSpellTexture(activeID)
+            resolvedType = "spell"
             if not iconTexture then
                 iconTexture = C_Item.GetItemIconByID(activeID)
+                resolvedType = "item"
             end
         end
     end
 
-    return iconTexture, activeID
+    return iconTexture, activeID, resolvedType
 end
 
 -- Apply square icon + border style from config
@@ -1026,7 +1054,8 @@ function sfui.trackedicons.Update()
 end
 
 -- Hook to hide specific categories from Blizzard's CooldownViewer
-local function SyncBlizzardVisibility()
+-- Hook to hide specific categories from Blizzard's CooldownViewer
+local function ProcessBlizzardVisibilitySync()
     if not BuffBarCooldownViewer or not BuffBarCooldownViewer.itemFramePool then return end
 
     pcall(function()
@@ -1054,6 +1083,10 @@ local function SyncBlizzardVisibility()
             end
         end
     end)
+end
+
+local function SyncBlizzardVisibility()
+    sfui.trackedicons.blizzSyncDirty = true
 end
 
 function sfui.trackedicons.initialize()
@@ -1196,7 +1229,17 @@ function sfui.trackedicons.initialize()
 
     -- OnUpdate: Only process when dirty or during burst period (for smooth glow/alpha transitions)
     local lastUpdate = 0
+    local blizzSyncTimer = 0
     eventFrame:SetScript("OnUpdate", function(self, elapsed)
+        if sfui.trackedicons.blizzSyncDirty then
+            blizzSyncTimer = blizzSyncTimer + elapsed
+            if blizzSyncTimer > 0.1 then
+                blizzSyncTimer = 0
+                sfui.trackedicons.blizzSyncDirty = false
+                ProcessBlizzardVisibilitySync()
+            end
+        end
+
         lastUpdate = lastUpdate + elapsed
         if lastUpdate > 0.1 then
             lastUpdate = 0
