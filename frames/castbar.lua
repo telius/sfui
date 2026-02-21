@@ -68,12 +68,16 @@ local function CreateCastBar(configName, unit)
     bar.Spark:SetSize(sparkCfg.width, bar:GetHeight() * sparkCfg.heightMultiplier)
 
     local cfg = sfui.config[configName]
-    bar.Icon = bar.backdrop:CreateTexture(nil, "ARTWORK")
+    bar.IconFrame = CreateFrame("Frame", nil, bar.backdrop, "BackdropTemplate")
     local iconSize = cfg and cfg.iconSize or (bar:GetHeight() + 4)
-    bar.Icon:SetSize(iconSize, iconSize)
+    bar.IconFrame:SetSize(iconSize, iconSize)
     local iconCfg = cfg and cfg.icon or { offset = -5 }
-    bar.Icon:SetPoint("RIGHT", bar.backdrop, "LEFT", iconCfg.offset, 0)
-    bar.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    bar.IconFrame:SetPoint("RIGHT", bar.backdrop, "LEFT", iconCfg.offset, 0)
+
+    bar.Icon = bar.IconFrame:CreateTexture(nil, "ARTWORK")
+    bar.Icon:SetAllPoints()
+
+    sfui.common.apply_square_icon_style(bar.IconFrame, bar.Icon)
 
     -- Setup Texture (Inherit from Options Panel)
     local textureName = SfuiDB.barTexture

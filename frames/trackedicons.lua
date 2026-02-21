@@ -688,11 +688,11 @@ local function CheckPanelVisibility(panelConfig, event)
         end
     end
 
-    -- 1. Per-Panel Conditionals
+    -- 1. Per-Panel Conditionals (Using GetIconValue for nested/global inheritance)
     -- Hide if Out of Combat enabled
-    if panelConfig.hideOOC and not inCombat then return false end
+    if GetIconValue(nil, panelConfig, "hideOOC", false) and not inCombat then return false end
     -- Hide while Mounted enabled
-    if panelConfig.hideMounted and IsMounted() then return false end
+    if GetIconValue(nil, panelConfig, "hideMounted", false) and IsMounted() then return false end
 
     -- 2. Global Visibility Settings
     local globalVis = SfuiDB and SfuiDB.iconGlobalSettings
@@ -976,19 +976,8 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
             panelFrame.bg:Show()
         end
 
-        local bgW = maxWidth + 4
-        local bgH = maxHeight + 4
-        panelFrame.bg:SetSize(bgW, bgH)
-
         panelFrame.bg:ClearAllPoints()
-        if panelConfig.placement == "center" or growthH == "Center" then
-            -- For centered layouts, the icons are horizontally centered on the anchor
-            -- but vertically they usually grow from the anchor (TOP or BOTTOM)
-            panelFrame.bg:SetPoint(anchor, panelFrame, anchor, 0, 0)
-        else
-            -- Standard growth
-            panelFrame.bg:SetPoint(anchor, panelFrame, anchor, 0, 0)
-        end
+        panelFrame.bg:SetAllPoints(panelFrame)
     elseif panelFrame.bg then
         panelFrame.bg:Hide()
     end

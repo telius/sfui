@@ -270,6 +270,10 @@ function ButtonManager:skin_button(button)
             icon:RemoveMaskTexture(iconMask)
         end
     end
+
+    if not SfuiDB.minimap_masque and icon then
+        sfui.common.apply_square_icon_style(button, icon)
+    end
 end
 
 function ButtonManager:arrange_buttons()

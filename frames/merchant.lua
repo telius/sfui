@@ -257,6 +257,8 @@ function sfui.merchant.create_item_button(id, parent)
     btn.icon = iconWrap:CreateTexture(nil, "ARTWORK")
     btn.icon:SetAllPoints(iconWrap)
 
+    sfui.common.apply_square_icon_style(iconWrap, btn.icon)
+
     btn.nameStub = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     btn.nameStub:SetPoint("TOPLEFT", iconWrap, "TOPRIGHT", 5, 2)
     btn.nameStub:SetJustifyH("LEFT")

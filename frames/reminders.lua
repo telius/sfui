@@ -376,6 +376,9 @@ local function create_icons()
             button:SetSize(size, size)
             button.texture = button:CreateTexture(nil, "ARTWORK")
             button.texture:SetAllPoints()
+
+            sfui.common.apply_square_icon_style(button, button.texture)
+
             button.bg = button:CreateTexture(nil, "BACKGROUND")
             button.bg:SetAllPoints()
             button.bg:SetColorTexture(unpack(cfg.backdrop.color))

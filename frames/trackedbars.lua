@@ -204,6 +204,8 @@ local function CreateBar(cooldownID)
     bar.icon = bar.iconFrame:CreateTexture(nil, "ARTWORK")
     bar.icon:SetAllPoints()
 
+    sfui.common.apply_square_icon_style(bar.iconFrame, bar.icon)
+
     local msq = sfui.common.get_masque_group()
     if msq then
         msq:AddButton(bar.iconFrame, { Icon = bar.icon })
@@ -403,6 +405,8 @@ local function UpdateLayout()
     for _, bar in ipairs(standardBars) do
         local config = GetTrackedBarConfig(bar.cooldownID)
         bar:SetParent(container)
+        bar.iconFrame:Show()
+        if bar.iconFrame.borderBackdrop then bar.iconFrame.borderBackdrop:Show() end
         yOffset = ApplyBarStyling(bar, yOffset, config, cfg)
     end
 
@@ -439,6 +443,14 @@ local function UpdateLayout()
                 bar.status:SetPoint("TOPLEFT", pad, -pad)
                 bar.status:SetPoint("BOTTOMRIGHT", -pad, pad)
                 bar:SetBackdropColor(unpack(cfg.backdrop.color))
+
+                -- Hide Icon for Attached Bars
+                bar.iconFrame:Hide()
+                if bar.iconFrame.borderBackdrop then bar.iconFrame.borderBackdrop:Hide() end
+
+                -- Re-anchor name to the far left since icon is hidden
+                bar.name:ClearAllPoints()
+                bar.name:SetPoint("LEFT", cfg.spacing or 5, 0)
 
                 anchor = bar
             end

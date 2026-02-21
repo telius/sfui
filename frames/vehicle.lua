@@ -45,15 +45,8 @@ for i = 1, 12 do
 
     btn.icon = btn:CreateTexture(nil, "ARTWORK")
     btn.icon:SetAllPoints()
-    btn.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
 
-    btn.border = CreateFrame("Frame", nil, btn, "BackdropTemplate")
-    btn.border:SetAllPoints()
-    btn.border:SetBackdrop({
-        edgeFile = g.textures.white,
-        edgeSize = mult,
-    })
-    btn.border:SetBackdropBorderColor(g.colors.gray[1], g.colors.gray[2], g.colors.gray[3], 1)
+    sfui.common.apply_square_icon_style(btn, btn.icon)
 
     -- Keybind
     btn.kb = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -96,13 +89,7 @@ end
 leaveBtn.Icon = leaveIcon
 leaveBtn.icon = leaveIcon -- For internal script compatibility if needed
 
-leaveBtn.border = CreateFrame("Frame", nil, leaveBtn, "BackdropTemplate")
-leaveBtn.border:SetAllPoints()
-leaveBtn.border:SetBackdrop({
-    edgeFile = g.textures.white,
-    edgeSize = mult,
-})
-leaveBtn.border:SetBackdropBorderColor(g.colors.gray[1], g.colors.gray[2], g.colors.gray[3], 1)
+sfui.common.apply_square_icon_style(leaveBtn, leaveBtn.icon)
 
 -- Keybind for Leave
 leaveBtn.kb = leaveBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")

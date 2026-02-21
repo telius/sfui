@@ -184,7 +184,7 @@ sfui.config = {
     -- Global defaults for icon panels (can be overridden per-panel or per-icon)
     -- These provide fallback values for visual effect settings (like glows)
     icon_panel_global_defaults = {
-        enableMasque = true,
+        enableMasque = false,
         -- Visibility
         hideOOC = false,
         hideMounted = true,

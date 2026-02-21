@@ -898,6 +898,37 @@ function sfui.common.create_border(frame, thickness, color)
         :SetWidth(thickness)
 end
 
+function sfui.common.apply_square_icon_style(frame, texture)
+    if not frame or not texture then return end
+
+    -- Crop WoW's default rounded edges to make it a perfect square
+    texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+
+    -- Inset the texture slightly off the frame edges
+    texture:ClearAllPoints()
+    texture:SetPoint("TOPLEFT", frame, "TOPLEFT", 2, -2)
+    texture:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
+
+    -- Create a solid black backdrop to serve as the border behind the inset texture
+    if not frame.borderBackdrop then
+        frame.borderBackdrop = _G.CreateFrame("Frame", nil, frame, "BackdropTemplate")
+        frame.borderBackdrop:SetAllPoints(frame)
+        -- Ensure it renders strictly behind the texture
+        frame.borderBackdrop:SetFrameLevel(math.max(1, frame:GetFrameLevel() - 1))
+
+        frame.borderBackdrop:SetBackdrop({
+            bgFile = sfui.config.textures.white,
+            edgeFile = "",
+            tile = false,
+            tileSize = 0,
+            edgeSize = 0,
+            insets = { left = 0, right = 0, top = 0, bottom = 0 }
+        })
+        frame.borderBackdrop:SetBackdropColor(0, 0, 0, 1)
+    end
+    frame.borderBackdrop:Show()
+end
+
 function sfui.common.create_flat_button(parent, text, width, height)
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:SetSize(width, height)
