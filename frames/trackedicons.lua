@@ -157,11 +157,10 @@ local function UpdateIconCooldown(icon, activeID, resolvedType)
                     -- Readable: d > 1.5 catches real CDs, skips GCD
                     isOnCooldown = (type(d) == "number" and d > 1.5)
                 else
-                    -- Secret: scratch probe
-                    scratchCooldown:Hide()
-                    scratchCooldown:SetCooldown(cdInfo.startTime or 0, cdInfo.duration or 0)
-                    isOnCooldown = scratchCooldown:IsShown() and not isOnGCD
-                    scratchCooldown:Hide()
+                    -- Secret: We CANNOT safely distinguish GCD from Real CD in Lua.
+                    -- Let the native CooldownFrame handle the visual dark overlay.
+                    -- Trying to probe it will fake-trigger glows on every GCD.
+                    isOnCooldown = false
                 end
             end
 
@@ -224,16 +223,20 @@ end
 local function UpdateIconVisuals(icon, entrySettings, panelConfig, isUsable, isOnCooldown, notEnoughPower)
     if not icon.texture then return end
 
-    -- Desaturate during cooldowns OR when unusable (Execute)
+    -- Unusable usually means genuinely invalid (wrong stance, dead)
+    -- Lacking power (Rage/Energy) sets notEnoughPower, so we spare it from full grey-out/dim.
+    local actuallyUnusable = (not isUsable) and not notEnoughPower
+
+    -- Desaturate during cooldowns OR when genuinely unusable
     local useDesat = GetIconValue(entrySettings, panelConfig, "cooldownDesat", true)
-    local desaturate = (useDesat and isOnCooldown) or (not isUsable)
+    local desaturate = (useDesat and isOnCooldown) or actuallyUnusable
     if icon._currentDesaturated ~= desaturate then
         icon.texture:SetDesaturated(desaturate)
         icon._currentDesaturated = desaturate
     end
 
-    -- Alpha: dim during cooldowns OR when unusable
-    local baseAlpha = (not isUsable) and 0.5 or 1.0
+    -- Alpha: dim during cooldowns OR when genuinely unusable
+    local baseAlpha = actuallyUnusable and 0.5 or 1.0
     local alpha = isOnCooldown and GetIconValue(entrySettings, panelConfig, "alphaOnCooldown", 0.5) or baseAlpha
     if icon._currentAlpha ~= alpha then
         icon:SetAlpha(alpha)
@@ -397,7 +400,7 @@ local function UpdateIconState(icon, panelConfig)
         -- 5. Update Visuals
         UpdateIconVisuals(icon, entrySettings, panelConfig, isUsable, isOnCooldown, notEnoughPower)
 
-        -- 5b. Update Border Style
+        -- 5b. Update Border Style (Force re-apply in case Masque overrode anchors)
         sfui.trackedicons.ApplyIconBorderStyle(icon, panelConfig)
 
         -- 5c. Update Hotkey Text
@@ -475,6 +478,11 @@ end
 function sfui.trackedicons.ApplyIconBorderStyle(icon, panelConfig)
     if not icon or not icon.texture then return end
 
+    if icon._isMasqued then
+        if icon.borderBackdrop then icon.borderBackdrop:Hide() end
+        return
+    end
+
     local showBorder = GetIconValue(nil, panelConfig, "showBorder", false)
     local squareIcons = GetIconValue(nil, panelConfig, "squareIcons", false)
 
@@ -497,6 +505,17 @@ function sfui.trackedicons.ApplyIconBorderStyle(icon, panelConfig)
             icon.texture:ClearAllPoints()
             icon.texture:SetAllPoints()
         end
+
+        -- Explicitly re-anchor cooldowns whenever we shift the primary texture,
+        -- otherwise CooldownFrames bleed out beyond borders when layout updates.
+        if icon.cooldown then
+            icon.cooldown:ClearAllPoints()
+            icon.cooldown:SetAllPoints(icon.texture)
+        end
+        if icon.shadowCooldown then
+            icon.shadowCooldown:ClearAllPoints()
+            icon.shadowCooldown:SetAllPoints(icon.texture)
+        end
     end
 end
 
@@ -504,7 +523,7 @@ end
 function sfui.trackedicons.UpdateIconHotkey(icon, panelConfig)
     if not icon or not icon.hotkeyText then return end
 
-    local showHotkeys = GetIconValue(nil, panelConfig, "showHotkeys", true)
+    local showHotkeys = GetIconValue(nil, panelConfig, "showHotkeys", false)
     if not showHotkeys or not sfui.hotkeys then
         icon.hotkeyText:Hide()
         return
@@ -852,7 +871,7 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
                     icon.entry = { id = id, type = "spell" }
                 end
 
-                -- Sync Masque state immediately
+                -- Sync Masque state
                 SyncIconMasque(icon)
 
                 -- Always add icons to layout; errors in state update should not hide them
@@ -957,8 +976,8 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
             panelFrame.bg:Show()
         end
 
-        local bgW = maxWidth
-        local bgH = maxHeight
+        local bgW = maxWidth + 4
+        local bgH = maxHeight + 4
         panelFrame.bg:SetSize(bgW, bgH)
 
         panelFrame.bg:ClearAllPoints()

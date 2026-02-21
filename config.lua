@@ -126,7 +126,7 @@ sfui.config = {
             x = -425,
             y = 295,
             size = 40,
-            spacing = 2,
+            spacing = 0,
             columns = 4,
             enabled = true,
             hideMounted = true,
@@ -139,7 +139,7 @@ sfui.config = {
             x = 425,
             y = 295,
             size = 40,
-            spacing = 2,
+            spacing = 0,
             columns = 4,
             enabled = true,
             hideMounted = true,
@@ -153,7 +153,7 @@ sfui.config = {
             y = 0,
             size = 50,
             columns = 7,
-            spacing = 0,
+            spacing = 4,
             spanWidth = true,
             placement = "center",
             growthH = "Center",
@@ -214,7 +214,7 @@ sfui.config = {
         textColor = { 1, 1, 1, 1 }, -- White text
 
         -- Hotkey Display
-        showHotkeys = true,        -- Show keybinding text on icons
+        showHotkeys = false,       -- Show keybinding text on icons
         hotkeyFontSize = 12,       -- Font size for hotkey text
         hotkeyAnchor = "TOPLEFT",  -- Anchor point (TOPLEFT, TOPRIGHT, BOTTOMLEFT, BOTTOMRIGHT, CENTER)
         hotkeyOutline = "OUTLINE", -- Font outline (OUTLINE, THICKOUTLINE, or "")
@@ -295,8 +295,8 @@ sfui.config = {
     castBar = {
         enabled = true,
         width = 300,
-        height = 15,
-        pos = { x = 0, y = 110 },
+        height = 20,
+        pos = { x = 0, y = 150 },
         color = { 0.133, 0.133, 0.133 },   -- #222222
         channelColor = { 0, 1, 0 },        -- Green for channels
         empoweredColor = { 0.4, 0, 1 },    -- Default/Fallback Purple

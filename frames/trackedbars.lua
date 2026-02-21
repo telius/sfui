@@ -427,13 +427,8 @@ local function UpdateLayout()
                 bar:SetParent(UIParent)
                 bar:ClearAllPoints()
 
-                local width, height = cfg.width, cfg.height
-                if not isBar1 then
-                    -- Acting as Bar1
-                    width = sfui.config.healthBar.width * (cfg.attachedWidthMultiplier or 0.8)
-                    height = cfg.attachedHeight or 20
-                    isBar1 = true -- Stack next ones normally
-                end
+                local width = sfui.config.healthBar.width * (cfg.attachedWidthMultiplier or 0.8)
+                local height = cfg.attachedHeight or 20
 
                 bar:SetSize(width, height)
                 bar:SetPoint("BOTTOM", anchor, "TOP", 0, spacing)

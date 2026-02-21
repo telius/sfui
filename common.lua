@@ -913,12 +913,11 @@ function sfui.common.create_flat_button(parent, text, width, height)
     local gray = sfui.config.colors.gray
     btn:SetBackdropBorderColor(gray[1], gray[2], gray[3], 1)
 
-    local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    fs:SetPoint("CENTER")
-    fs:SetText(text)
+    btn:SetNormalFontObject("GameFontHighlightSmall")
+    btn:SetText(text)
+    local fs = btn:GetFontString()
     local white = sfui.config.colors.white
-    fs:SetTextColor(white[1], white[2], white[3], 1)
-    btn:SetFontString(fs)
+    if fs then fs:SetTextColor(white[1], white[2], white[3], 1) end
 
     local cyan = sfui.config.colors.cyan
     btn:SetScript("OnEnter", function(self)
@@ -1593,8 +1592,21 @@ end
 
 -- Centralized Dropdown Menu Widget
 local activeDropdown = nil
-function sfui.common.create_dropdown(parent, width, options, onSelectFunc)
-    local btn = sfui.common.create_flat_button(parent, "import...", width or 80, 18)
+function sfui.common.create_dropdown(parent, width, options, onSelectFunc, initialValue)
+    local initialText = "Select..."
+    if initialValue ~= nil then
+        for _, opt in ipairs(options) do
+            if opt.value == initialValue then
+                initialText = opt.text
+                break
+            end
+        end
+    elseif options and #options > 0 then
+        -- Default to the first option if no initial value provided
+        initialText = options[1].text
+    end
+
+    local btn = sfui.common.create_flat_button(parent, initialText, width or 80, 18)
 
     local menu = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
     menu:SetPoint("TOPRIGHT", btn, "BOTTOMRIGHT", 0, -2)
@@ -1633,6 +1645,7 @@ function sfui.common.create_dropdown(parent, width, options, onSelectFunc)
             optBtn:SetScript("OnEnter", function(self) t:SetTextColor(0, 1, 1) end)
             optBtn:SetScript("OnLeave", function(self) t:SetTextColor(1, 1, 1) end)
             optBtn:SetScript("OnClick", function()
+                btn:GetFontString():SetText(opt.text) -- Update displayed text
                 if onSelectFunc then onSelectFunc(opt.value) end
                 menu:Hide()
                 activeDropdown = nil

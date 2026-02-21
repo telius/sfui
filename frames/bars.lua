@@ -143,6 +143,9 @@ do
                 rune_bar:SetPoint("BOTTOM", bar0.backdrop, "TOP", 0, spacing)
             end
         end
+        if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+            sfui.trackedbars.ForceLayoutUpdate()
+        end
     end
 
     local function update_bar_visibility()

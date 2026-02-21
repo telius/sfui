@@ -16,8 +16,8 @@ local _emptyTable = {}
 local glowTypes = {
     { text = "Pixel",    value = "pixel" },
     { text = "Autocast", value = "autocast" },
-    { text = "Proc",     value = "proc" },
-    { text = "Button",   value = "button" }
+    { text = "Action",   value = "proc" },
+    { text = "Thick",    value = "proc" }
 }
 local ReloadUI = ReloadUI or C_UI.Reload
 local C_AddOns = C_AddOns
@@ -503,6 +503,10 @@ function sfui.trackedoptions.RenderBarsTab(parent)
     -- ═══════════════════════════════════
     -- SECTION 1: GLOBAL SETTINGS (2 Columns)
     -- ═══════════════════════════════════
+    SfuiDB.trackedBars = SfuiDB.trackedBars or {}
+    local db = SfuiDB.trackedBars
+    local cfg = sfui.config.trackedBars or {}
+
     local sec1, sec1c, h1 = sfui.trackedoptions.CreateSection(parent, "Global Bar Settings",
         "Configure defaults for all tracked bars.", yPos, WIDTH)
     sec1:SetPoint("TOPLEFT", 10, yPos)
@@ -513,18 +517,28 @@ function sfui.trackedoptions.RenderBarsTab(parent)
     lVis:SetPoint("TOPLEFT", 0, s1y)
     lVis:SetText("Visibility & Behaviour")
 
-    BCheck(sec1c, "Hide Out of Combat", function() return db.hideOOC end, function(v) db.hideOOC = v end, nil, 0,
+    local function GetB(k, d)
+        if db[k] ~= nil then return db[k] end
+        if cfg[k] ~= nil then return cfg[k] end
+        return d
+    end
+
+    BCheck(sec1c, "Hide Out of Combat", function() return GetB("hideOOC", false) end, function(v) db.hideOOC = v end, nil,
+        0,
         s1y - 20)
-    BCheck(sec1c, "Hide Inactive Bars", function() return db.hideInactive end, function(v) db.hideInactive = v end, nil,
+    BCheck(sec1c, "Hide Inactive Bars", function() return GetB("hideInactive", true) end,
+        function(v) db.hideInactive = v end, nil,
         0, s1y - 50)
-    BCheck(sec1c, "Hide While Mounted", function() return db.hideMounted end, function(v) db.hideMounted = v end, nil, 0,
+    BCheck(sec1c, "Hide While Mounted", function() return GetB("hideMounted", false) end,
+        function(v) db.hideMounted = v end, nil, 0,
         s1y - 80)
 
-    BCheck(sec1c, "Show Bar Name", function() return db.showName ~= false end, function(v) db.showName = v end, nil, 160,
+    BCheck(sec1c, "Show Bar Name", function() return GetB("showName", true) end, function(v) db.showName = v end, nil,
+        160,
         s1y - 20)
-    BCheck(sec1c, "Show Duration", function() return db.showDuration ~= false end, function(v) db.showDuration = v end,
+    BCheck(sec1c, "Show Duration", function() return GetB("showDuration", true) end, function(v) db.showDuration = v end,
         nil, 160, s1y - 50)
-    BCheck(sec1c, "Show Stack Count", function() return db.showStacks ~= false end, function(v) db.showStacks = v end,
+    BCheck(sec1c, "Show Stack Count", function() return GetB("showStacks", true) end, function(v) db.showStacks = v end,
         nil, 160, s1y - 80)
 
     -- Col 2: Position & Size
@@ -573,7 +587,7 @@ function sfui.trackedoptions.RenderBarsTab(parent)
     local texDropDown = sfui.common.create_dropdown(sec2c, 160, barTextures,
         function(val)
             db.barTexture = val; Refresh()
-        end)
+        end, db.barTexture or cfg.barTexture)
     texDropDown:SetPoint("LEFT", lTex, "RIGHT", 5, 0)
 
     -- Backdrop Alpha
@@ -816,7 +830,7 @@ function sfui.trackedoptions.GenerateGlobalSettingsControls(parent)
     local gtDropDown = sfui.common.create_dropdown(s1c, 100, glowTypes, function(val)
         igs.glowType = val
         UpdateAll()
-    end)
+    end, igs.glowType or defaults.glowType)
     gtDropDown:SetPoint("LEFT", lGT, "RIGHT", 5, 0)
 
     local lGC = s1c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1147,7 +1161,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     local visDropDown = sfui.common.create_dropdown(s1c, 130, visOpts, function(val)
         panel.visibility = val
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-    end)
+    end, panel.visibility or "always")
     visDropDown:SetPoint("LEFT", lVis, "RIGHT", 5, 0)
     s1y = s1y - 40
 
@@ -1208,7 +1222,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     local anchorTo = sfui.common.create_dropdown(s3c, 130, anchorTargets, function(val)
         panel.anchorTo = val
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-    end)
+    end, panel.anchorTo)
     anchorTo:SetPoint("LEFT", lA, "RIGHT", 5, 0)
 
     local lRP = s3c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1223,7 +1237,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     local rPoint = sfui.common.create_dropdown(s3c, 130, points, function(val)
         panel.relativePoint = val
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-    end)
+    end, panel.relativePoint)
     rPoint:SetPoint("LEFT", lRP, "RIGHT", 5, 0)
     s3y = s3y - 65
 

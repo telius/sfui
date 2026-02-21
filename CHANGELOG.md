@@ -1,3 +1,10 @@
+## v0.2.15 (2026-02-22)
+### Bug Fixes
+- **Options UI**: Fixed empty dropdown boxes when using default settings. Repaired font string rendering, a casing typo in track bars configuration, and glow type mismatches.
+- **Tracked Bars**:
+    - Fixed an overlap issue where tracked bars attached to the Health Bar would cover the secondary power bar (e.g., Monk Stagger). Tracked bars now dynamically slide up when secondary resources appear.
+    - Standardized width scaling so tracked bars retain their correct proportional size when stacked above secondary resource bars.
+
 ## v0.2.14 (2026-02-15)
 ### Maintenance
 - **Release Automation**: Triggering new release workflow.
