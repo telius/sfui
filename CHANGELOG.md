@@ -1,3 +1,10 @@
+## v0.2.18 (2026-02-22)
+### Features
+- **Cursor Ring Scale**: Added a slider to the Main tab to scale the cursor ring (0.5x to 2.0x).
+
+### Bug Fixes
+- **Options UI (Sliders)**: Fixed a core issue where sliders would not persist their values to the database when dragged. They now correctly update the UI and save settings in real-time.
+
 ## v0.2.17 (2026-02-22)
 ### Features
 - **Global Spec Color**: Added a master toggle on the main options tab to enable/disable spec-based coloring addon-wide, featuring a customizable fallback color swatch.
