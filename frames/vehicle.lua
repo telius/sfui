@@ -116,8 +116,14 @@ end)
 -- Handle Vehicle State
 -- Suppress during Dragonriding (skyriding) but only when on a mount
 -- This avoids suppressing quest vehicles that might trigger dragonriding
-RegisterStateDriver(frame, "visibility",
-    "[petbattle] hide; [mounted,bonusbar:5] hide; [vehicleui][possessbar][overridebar][bonusbar:5] show; hide")
+local visString = "[petbattle] hide; [mounted,bonusbar:5] hide; "
+if sfui.common.get_player_class() == "DRUID" then
+    visString = visString ..
+    "[form:3,bonusbar:5] hide; [form:4,bonusbar:5] hide; "                          -- Form 3 & 4 catches Travel/Moonkin edge cases
+end
+visString = visString .. "[vehicleui][possessbar][overridebar][bonusbar:5] show; hide"
+
+RegisterStateDriver(frame, "visibility", visString)
 
 local function UpdateActionButtons()
     if InCombatLockdown() then

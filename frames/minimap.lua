@@ -5,12 +5,10 @@ sfui.minimap = {}
 -- ========================
 -- Local Variables
 -- ========================
-local frame = nil
 local isInitialized = false
 local collectAttempts = 0
 
-local addonName, addon = ...
-frame = CreateFrame("Frame", "SfuiMinimapFrame")
+local frame = CreateFrame("Frame", "SfuiMinimapFrame")
 
 local zoom_timer = nil
 local DEFAULT_ZOOM = sfui.config.minimap.defaultZoom or 0
@@ -74,20 +72,33 @@ function ButtonManager:restore_all()
     wipe(self.processedButtons)
 end
 
+local ignoreNameCache = {}
+local validNameCache = {}
+
 function ButtonManager:is_button(frame)
     if not frame or type(frame) ~= "table" then return false end
 
     if type(frame.GetName) ~= "function" then return false end
     local name = frame:GetName()
     if not name then return false end
-    if name:find("Minimap") or name:find("MinimapCluster") or name:find("GameTime") or name:find("MicroMenu") then return false end
-    if name:find("OverrideActionBar") or name:find("MainMenuBar") or name:find("PetBattle") or name:find("MultiBar") then return false end
+
+    if ignoreNameCache[name] then return false end
+    if validNameCache[name] then return true end
+
+    if name:find("Minimap") or name:find("MinimapCluster") or name:find("GameTime") or name:find("MicroMenu") then
+        ignoreNameCache[name] = true; return false
+    end
+    if name:find("OverrideActionBar") or name:find("MainMenuBar") or name:find("PetBattle") or name:find("MultiBar") then
+        ignoreNameCache[name] = true; return false
+    end
     if type(frame.IsObjectType) ~= "function" then return false end
     if not frame:IsObjectType("Button") and not frame:IsObjectType("CheckButton") then return false end
     if type(frame.GetScript) ~= "function" or (not frame:GetScript("OnClick") and not frame:GetScript("OnMouseDown") and not frame:GetScript("OnMouseUp")) then
         return false
     end
     if type(frame.GetNumRegions) ~= "function" or frame:GetNumRegions() == 0 then return false end
+
+    validNameCache[name] = true
     return true
 end
 

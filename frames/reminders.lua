@@ -38,67 +38,81 @@ local function has_healthstone()
     return false
 end
 
+local raidBuffs_static = {
+    { name = "Stamina",      spellID = 21562,  icon = 135987,  class = "PRIEST" },
+    { name = "Intellect",    spellID = 1459,   icon = 135932,  class = "MAGE" },
+    { name = "Attack Power", spellID = 6673,   icon = 132333,  class = "WARRIOR" },
+    { name = "Versatility",  spellID = 1126,   icon = 136078,  class = "DRUID" },
+    { name = "Bronze",       spellID = 381748, icon = 4622448, class = "EVOKER" },
+    { name = "Soulstone",    spellID = 20707,  icon = 134336,  class = "WARLOCK", isAny = true, ignoreThreshold = true },
+}
+
+local pBuffs_static = {
+    healthstone = { name = "Healthstone", isHealthstone = true, icon = 135230 },
+    food = { name = "Food", isFood = true, icon = 136000 },
+    flask = { name = "Flask", isFlask = true, icon = 5931173 },
+    rune = { name = "Rune", isPersonal = true, icon = 134430 },
+    weaponOil = { name = "Weapon Oil", isWeaponEnchant = true, icon = 609892 },
+    poison = { name = "Poison", isPoison = true, icon = 132273 },
+    shadowform = { name = "Shadowform", isShadowform = true, icon = 136200 },
+    windfury = { name = "Windfury", spellID = 33757, icon = 136018 },
+    flametongue = { name = "Flametongue", spellID = 318038, icon = 135814 },
+    earthliving = { name = "Earthliving", spellID = 382303, icon = 135945 },
+}
+
 local function update_buff_data()
     local playerClass = sfui.common.get_player_class()
     local specID = sfui.common.get_current_spec_id()
-
-    local raidBuffs = {
-        { name = "Stamina",      spellID = 21562,  icon = 135987,  class = "PRIEST" },                                        -- Power Word: Fortitude
-        { name = "Intellect",    spellID = 1459,   icon = 135932,  class = "MAGE" },                                          -- Arcane Intellect
-        { name = "Attack Power", spellID = 6673,   icon = 132333,  class = "WARRIOR" },                                       -- Battle Shout
-        { name = "Versatility",  spellID = 1126,   icon = 136078,  class = "DRUID" },                                         -- Mark of the Wild
-        { name = "Bronze",       spellID = 381748, icon = 4622448, class = "EVOKER" },                                        -- Blessing of the Bronze
-        { name = "Soulstone",    spellID = 20707,  icon = 134336,  class = "WARLOCK", isAny = true, ignoreThreshold = true }, -- Soulstone
-    }
 
     -- Reset BUFF_DATA
     wipe(RAID_BUFFS)
     wipe(PERSONAL_BUFFS)
 
-    for _, b in ipairs(raidBuffs) do
+    for _, b in ipairs(raidBuffs_static) do
         if sfui.common.is_class_in_group(b.class) then
+            -- We reuse preallocated tables instead of creating new ones
             table.insert(RAID_BUFFS, b)
         end
     end
 
     local isSolo = not IsInGroup()
-    -- Logic: If enableConsumables is true AND (enableConsumablesSolo is true OR we are in a group), show them.
     local enableConsumables = (SfuiDB.enableConsumables ~= false)
     local showConsumables = enableConsumables and (SfuiDB.enableConsumablesSolo or not isSolo)
 
     if showConsumables then
         if sfui.common.is_class_in_group("WARLOCK") then
-            table.insert(PERSONAL_BUFFS, { name = "Healthstone", isHealthstone = true, icon = 135230 })
+            table.insert(PERSONAL_BUFFS, pBuffs_static.healthstone)
         end
 
-        table.insert(PERSONAL_BUFFS, { name = "Food", isFood = true, icon = 136000 })
-        table.insert(PERSONAL_BUFFS, { name = "Flask", isFlask = true, icon = 5931173 })
+        table.insert(PERSONAL_BUFFS, pBuffs_static.food)
+        table.insert(PERSONAL_BUFFS, pBuffs_static.flask)
 
         local hasRune, runeSpellID, runeItemID, runeIcon = has_rune()
         if hasRune then
-            table.insert(PERSONAL_BUFFS,
-                { name = "Rune", spellID = runeSpellID, itemID = runeItemID, icon = runeIcon or 134430, isPersonal = true })
+            pBuffs_static.rune.spellID = runeSpellID
+            pBuffs_static.rune.itemID = runeItemID
+            pBuffs_static.rune.icon = runeIcon or 134430
+            table.insert(PERSONAL_BUFFS, pBuffs_static.rune)
         end
 
-        -- Weapon Oil / Enchant
-        table.insert(PERSONAL_BUFFS, { name = "Weapon Oil", isWeaponEnchant = true, icon = 609892 })
+        table.insert(PERSONAL_BUFFS, pBuffs_static.weaponOil)
     end
 
     -- Personal Buffs
     if playerClass == "ROGUE" then
         if showConsumables then
-            table.insert(PERSONAL_BUFFS, { name = "Poison", isPoison = true, icon = 132273 })
+            table.insert(PERSONAL_BUFFS, pBuffs_static.poison)
         end
     elseif playerClass == "PRIEST" and specID == 258 then
-        table.insert(PERSONAL_BUFFS, { name = "Shadowform", isShadowform = true, icon = 136200 })
+        table.insert(PERSONAL_BUFFS, pBuffs_static.shadowform)
     elseif playerClass == "SHAMAN" then
         if specID == 263 then -- Enhancement
-            table.insert(PERSONAL_BUFFS, { name = "Windfury", spellID = 33757, icon = 136018 })
-            table.insert(PERSONAL_BUFFS, { name = "Flametongue", spellID = 318038, icon = 135814 })
+            table.insert(PERSONAL_BUFFS, pBuffs_static.windfury)
+            table.insert(PERSONAL_BUFFS, pBuffs_static.flametongue)
         elseif specID == 262 then -- Elemental
-            table.insert(PERSONAL_BUFFS, { name = "Flametongue", spellID = 318038, icon = 135814 })
+            table.insert(PERSONAL_BUFFS, pBuffs_static.flametongue)
         elseif specID == 264 then -- Restoration
-            table.insert(PERSONAL_BUFFS, { name = "Earthliving", spellID = 382303, icon = 135945 })
+            table.insert(PERSONAL_BUFFS, pBuffs_static.earthliving)
         end
     end
 end
@@ -236,7 +250,9 @@ local petWarningTimer = nil
 local hasGrimoireOfSacrifice = false
 
 function sfui.reminders.update_grimoire_status()
-    hasGrimoireOfSacrifice = IsPlayerSpell(108503)
+    local isPlayerSpell = IsPlayerSpell or
+        function(id) return C_SpellBook and C_SpellBook.IsSpellKnown(id, Enum.SpellBookSpellBank.Player) end
+    hasGrimoireOfSacrifice = isPlayerSpell(108503)
 end
 
 local function check_pet_warning()
@@ -258,6 +274,8 @@ local function check_pet_warning()
     local specID = sfui.common.get_current_spec_id()
     local isAppropriateSpec = false
     local expectFelguard = false
+    local isPlayerSpellFn = IsPlayerSpell or
+    function(id) return C_SpellBook and C_SpellBook.IsSpellKnown(id, Enum.SpellBookSpellBank.Player) end
 
     if playerClass == "HUNTER" and (specID == 253 or specID == 255) then -- BM or SV
         isAppropriateSpec = true
@@ -271,7 +289,7 @@ local function check_pet_warning()
             end
         end
     elseif playerClass == "MAGE" and specID == 64 then -- Frost
-        if IsPlayerSpell(31687) then                   -- Summon Water Elemental
+        if isPlayerSpellFn(31687) then                 -- Summon Water Elemental
             isAppropriateSpec = true
         end
     end

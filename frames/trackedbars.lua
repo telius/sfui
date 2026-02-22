@@ -673,7 +673,7 @@ local function ProcessBlizzardSync()
 
     if db.hideOOC and not InCombatLockdown() then
         mustHide = true
-    elseif db.hideMounted and IsMounted() then
+    elseif db.hideMounted and sfui.common.is_mounted_or_travel_form() then
         mustHide = true
     elseif SfuiDB and SfuiDB.hideDragonriding and sfui.common.IsDragonriding() then
         mustHide = true

@@ -90,7 +90,9 @@ do
 
     local function is_dragonflying()
         local isFlying, canGlide, _ = C_PlayerInfo.GetGlidingInfo()
-        local hasSkyridingBar = (GetBonusBarIndex() == 11 and GetBonusBarOffset() == 5)
+        local getBonusIdx = C_ActionBar and C_ActionBar.GetBonusBarIndex or GetBonusBarIndex
+        local getBonusOff = C_ActionBar and C_ActionBar.GetBonusBarOffset or GetBonusBarOffset
+        local hasSkyridingBar = getBonusIdx and getBonusOff and (getBonusIdx() == 11 and getBonusOff() == 5) or false
         return isFlying or (canGlide and hasSkyridingBar)
     end
 
@@ -598,7 +600,9 @@ do
             bar:SetStatusBarColor(cfg.color[1], cfg.color[2], cfg.color[3])
         end
 
-        local surgeSpellID = IsPlayerSpell(418592) and 418592 or 361584
+        local isPlayerSpell = IsPlayerSpell or
+        function(id) return C_SpellBook and C_SpellBook.IsSpellKnown(id, Enum.SpellBookSpellBank.Player) end
+        local surgeSpellID = isPlayerSpell(418592) and 418592 or 361584
 
         local surgeTexture = C_Spell.GetSpellTexture(surgeSpellID)
         bar.whirlingSurgeIcon.texture:SetTexture(surgeTexture or "Interface\\Icons\\INV_Misc_QuestionMark")

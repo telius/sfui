@@ -375,7 +375,7 @@ local function UpdateIconState(icon, panelConfig)
     local hideMounted = GetIconValue(nil, panelConfig, "hideMounted", false)
 
     if hideOOC and not InCombatLockdown() then shouldShow = false end
-    if hideMounted and IsMounted() then shouldShow = false end
+    if hideMounted and sfui.common.is_mounted_or_travel_form() then shouldShow = false end
 
     if panelConfig then
         -- Legacy dropdown support (optional/fallback)
@@ -692,7 +692,7 @@ local function CheckPanelVisibility(panelConfig, event)
     -- Hide if Out of Combat enabled
     if GetIconValue(nil, panelConfig, "hideOOC", false) and not inCombat then return false end
     -- Hide while Mounted enabled
-    if GetIconValue(nil, panelConfig, "hideMounted", false) and IsMounted() then return false end
+    if GetIconValue(nil, panelConfig, "hideMounted", false) and sfui.common.is_mounted_or_travel_form() then return false end
 
     -- 2. Global Visibility Settings
     local globalVis = SfuiDB and SfuiDB.iconGlobalSettings

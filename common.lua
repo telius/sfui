@@ -49,9 +49,18 @@ function sfui.common.SafeFormatDuration(value, decimals)
     return ok and formatted or tostring(value)
 end
 
+-- Helper: Check if Mounted OR in Druid Travel Form (Spell 783)
+function sfui.common.is_mounted_or_travel_form()
+    if IsMounted() then return true end
+    if sfui.common.get_player_class() == "DRUID" and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
+        return C_UnitAuras.GetPlayerAuraBySpellID(783) ~= nil
+    end
+    return false
+end
+
 -- Helper: Check for Dragonriding state (Vigor)
 function sfui.common.IsDragonriding()
-    if not IsMounted() then return false end
+    if not sfui.common.is_mounted_or_travel_form() then return false end
 
     -- Check for Vigor (Enum.PowerType.AlternateMount = 29)
     -- This resource is only active/max > 0 when on a Dragonriding/Skyriding mount
