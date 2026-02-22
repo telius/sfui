@@ -68,12 +68,12 @@ sfui.config = {
         -- Demon Hunter
         [577] = { 0.635, 1.0, 0.0, 1 },      -- Havoc
         [581] = { 0.64, 0.19, 0.79, 1 },     -- Vengeance
-        [1480] = { 0.788, 0.259, 0.992, 1 }, -- Devourer (Official Blizzard UI Color)
+        [1480] = { 0.788, 0.259, 0.992, 1 }, -- Devourer
         -- Druid
-        [102] = { 1.00, 0.49, 0.04, 1 },     -- Balance
+        [102] = { 0.2, 0.0, 0.8, 1 },        -- Balance
         [103] = { 1.00, 0.49, 0.04, 1 },     -- Feral
         [104] = { 1.00, 0.49, 0.04, 1 },     -- Guardian
-        [105] = { 1.00, 0.49, 0.04, 1 },     -- Restoration
+        [105] = { 0.2, 0.8, 0.2, 1 },        -- Restoration
         -- Evoker
         [1467] = { 0.20, 0.58, 0.50, 1 },    -- Devastation
         [1468] = { 0.20, 0.58, 0.50, 1 },    -- Preservation
@@ -188,6 +188,7 @@ sfui.config = {
         -- Visibility
         hideOOC = false,
         hideMounted = true,
+        showTooltips = false, -- Default to false as per user request
 
         -- Ready Glow (when spell is off cooldown/available)
         readyGlow = true,           -- Enable glow when ready

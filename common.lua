@@ -458,7 +458,7 @@ function sfui.common.get_cooldown_panels()
         return _cachedPanels
     end
 
-    if not SfuiDB.cooldownPanelsBySpec or not SfuiDB.cooldownPanelsBySpec[specID] or #SfuiDB.cooldownPanelsBySpec[specID] == 0 then
+    if not SfuiDB.cooldownPanelsBySpec or not SfuiDB.cooldownPanelsBySpec[specID] or #SfuiDB.cooldownPanelsBySpec[specID] == 0 or ((sfui.common.get_player_class() == "DRUID" or sfui.common.get_player_class() == "ROGUE") and not SfuiDB.druidMigrationV7) then
         _cachedPanels = sfui.common.ensure_panels_initialized()
     else
         _cachedPanels = SfuiDB.cooldownPanelsBySpec[specID]
@@ -476,6 +476,7 @@ end
 -- Ensure panels exist and are populated (Called once on load/spec/talent change)
 function sfui.common.ensure_panels_initialized()
     local specID = sfui.common.get_current_spec_id() or 0
+    local playerClass = sfui.common.get_player_class()
 
     SfuiDB.cooldownPanelsBySpec = SfuiDB.cooldownPanelsBySpec or {}
     SfuiDB.cooldownPanelsBySpec[specID] = SfuiDB.cooldownPanelsBySpec[specID] or {}
@@ -492,6 +493,18 @@ function sfui.common.ensure_panels_initialized()
         { key = "right",        name = "Right" },
     }
 
+    if playerClass == "DRUID" or playerClass == "ROGUE" then
+        -- Inject druid/rogue specific default forms immediately after the base CENTER panel (index 1)
+        defaultPanelSpecs[1].requiredForm = 0
+    end
+
+    if playerClass == "DRUID" then
+        table.insert(defaultPanelSpecs, 2, { key = "center_panel", name = "CAT", requiredForm = 1 })
+        table.insert(defaultPanelSpecs, 3, { key = "center_panel", name = "BEAR", requiredForm = 5 })
+        table.insert(defaultPanelSpecs, 4, { key = "center_panel", name = "MOONKIN", requiredForm = { 31, 35 } })
+        table.insert(defaultPanelSpecs, 5, { key = "center_panel", name = "STEALTH", requiredForm = "stealth" })
+    end
+
     -- Migrate legacy trackedIcons if not already done for this spec
     local migratedEntries = nil
     if not SfuiDB.iconsInitializedBySpec[specID] and SfuiDB.trackedIcons then
@@ -505,8 +518,14 @@ function sfui.common.ensure_panels_initialized()
 
     for _, spec in ipairs(defaultPanelSpecs) do
         local panelIdx = nil
+        local uSpecName = string.upper(spec.name)
         for i, panel in ipairs(panels) do
-            if panel.name == spec.name then
+            local uPanelName = string.upper(panel.name or "")
+            if uPanelName == uSpecName then
+                panelIdx = i
+                break
+                -- Also match if the database name is "CENTER" but we are looking for "CENTER" (we rename visually only in cdm)
+            elseif uPanelName == "CENTER" and uSpecName == "CENTER" and spec.requiredForm == 0 then
                 panelIdx = i
                 break
             end
@@ -525,6 +544,10 @@ function sfui.common.ensure_panels_initialized()
             else
                 newPanel.entries = {}
             end
+            if spec.requiredForm ~= nil then
+                newPanel.requiredForm = spec.requiredForm
+            end
+            newPanel.name = spec.name
             table.insert(panels, newPanel)
 
             -- Ensure "utility" and "center_panel" get their specific defaults applied robustly
@@ -549,6 +572,75 @@ function sfui.common.ensure_panels_initialized()
             end
 
             -- Removing automatic population of existing empty panels to give user full control.
+        end
+    end
+
+    -- Fast migration fallback and cleanup
+    if (playerClass == "DRUID" or playerClass == "ROGUE") and not SfuiDB.druidMigrationV7 then
+        local hasBareCenter = false
+        local upper = string.upper
+        for _, p in ipairs(panels) do
+            if p.name and upper(p.name) == "CENTER" then
+                hasBareCenter = true; break
+            end
+        end
+
+        for i = #panels, 1, -1 do
+            local p = panels[i]
+            local uname = upper(p.name)
+            -- Retroactively apply requiredForm to bare 'CENTER' panels if missing
+            if uname == "CENTER" and p.requiredForm == nil then
+                p.requiredForm = 0
+                changed = true
+            end
+
+            if playerClass == "DRUID" then
+                -- Rename legacy named panels if we don't have a bare CENTER yet, otherwise purge ghosts
+                if uname == "CENTER (BASE FORM)" then
+                    if not hasBareCenter then
+                        p.name = "CENTER"
+                        p.requiredForm = 0
+                        hasBareCenter = true
+                        changed = true
+                    else
+                        table.remove(panels, i)
+                        changed = true
+                    end
+                elseif uname == "CENTER (CAT FORM)" or uname == "CENTER (BEAR FORM)" or uname == "CENTER (MOONKIN FORM)" then
+                    table.remove(panels, i)
+                    changed = true
+                end
+            end
+        end
+        SfuiDB.druidMigrationV7 = true
+    end
+
+    -- Cleanup duplicates generated by bug for the exact target names (case-insensitive)
+    local seenUpperNames = {}
+    local upper = string.upper
+    local builtins = {
+        CENTER = true,
+        UTILITY = true,
+        LEFT = true,
+        RIGHT = true,
+        CAT = true,
+        BEAR = true,
+        MOONKIN = true,
+        STEALTH = true
+    }
+
+    for i = #panels, 1, -1 do
+        local pName = panels[i].name
+        if pName then
+            local uName = upper(pName)
+            if builtins[uName] then
+                if seenUpperNames[uName] then
+                    table.remove(panels, i)
+                    changed = true
+                else
+                    seenUpperNames[uName] = true
+                end
+            end
         end
     end
 
@@ -587,6 +679,13 @@ end
 function sfui.common.add_custom_panel(name)
     if not name or name == "" then return end
     local panels = sfui.common.get_cooldown_panels()
+
+    -- Prevent creating duplicate builtin panels
+    if name == "CENTER" or name == "UTILITY" or name == "Left" or name == "Right" or name == "CAT" or name == "BEAR" or name == "MOONKIN" or name == "STEALTH" then
+        for _, p in ipairs(panels) do
+            if p.name == name then return #panels end
+        end
+    end
 
     -- Use 'utility' as a template for custom panels since it's a good middle ground
     local newPanel = sfui.common.copy(sfui.config.cooldown_panel_defaults.utility)
@@ -656,7 +755,7 @@ end
 local primaryResourcesCache = {
     DEATHKNIGHT = Enum.PowerType.RunicPower,
     DEMONHUNTER = Enum.PowerType.Fury,
-    DRUID = { [0] = Enum.PowerType.Mana, [1] = Enum.PowerType.Energy, [5] = Enum.PowerType.Rage, [27] = Enum.PowerType.Mana, [31] = Enum.PowerType.LunarPower },
+    DRUID = { [0] = Enum.PowerType.Mana, [1] = Enum.PowerType.Energy, [5] = Enum.PowerType.Rage, [27] = Enum.PowerType.Mana, [31] = Enum.PowerType.LunarPower, [35] = Enum.PowerType.LunarPower },
     EVOKER = Enum.PowerType.Mana,
     HUNTER = Enum.PowerType.Focus,
     MAGE = Enum.PowerType.Mana,
@@ -672,7 +771,7 @@ local primaryResourcesCache = {
 local secondaryResourcesCache = {
     DEATHKNIGHT = Enum.PowerType.Runes,
     DEMONHUNTER = { [1480] = "DEVOURER_FRAGMENTS" },
-    DRUID = { [1] = Enum.PowerType.ComboPoints, [31] = Enum.PowerType.Mana },
+    DRUID = { [1] = Enum.PowerType.ComboPoints },
     EVOKER = Enum.PowerType.Essence,
     HUNTER = nil,
     MAGE = { [62] = Enum.PowerType.ArcaneCharges },
@@ -797,6 +896,11 @@ function sfui.common.get_secondary_resource()
 end
 
 function sfui.common.get_class_or_spec_color()
+    -- Global Override: if spec colors are disabled, use the fallback color
+    if SfuiDB and SfuiDB.useSpecColor == false then
+        return SfuiDB.specColorFallback or { 1, 1, 1, 1 }
+    end
+
     local color
     if cachedSpecID and sfui.config.spec_colors[cachedSpecID] then
         local custom_color = sfui.config.spec_colors[cachedSpecID]
@@ -1187,7 +1291,7 @@ function sfui.common.create_slider_input(parent, label, dbKeyOrGetter, minVal, m
 
     slider:SetScript("OnValueChanged", function(self, value)
         local stepped = math.floor((value - minVal) / step + 0.5) * step + minVal
-        -- if type(dbKeyOrGetter) == "string" then SfuiDB[dbKeyOrGetter] = stepped end -- Removed side effect for reuse safety
+        if type(dbKeyOrGetter) == "string" then SfuiDB[dbKeyOrGetter] = stepped end
         -- Clean number display
         local displayVal = math.floor(stepped * 100) / 100
         editbox:SetText(tostring(displayVal))
@@ -1199,10 +1303,11 @@ function sfui.common.create_slider_input(parent, label, dbKeyOrGetter, minVal, m
         end
     end)
 
-    -- Ensure final value is sent on mouse up
+    -- Ensure final value is sent on mouse up and persisted
     slider:SetScript("OnMouseUp", function(self)
         local value = self:GetValue()
         local stepped = math.floor((value - minVal) / step + 0.5) * step + minVal
+        if type(dbKeyOrGetter) == "string" then SfuiDB[dbKeyOrGetter] = stepped end
         if onValueChangedFunc then onValueChangedFunc(stepped) end
         lastUpdate = GetTime() -- Prevent immediate double-fire from Drag logic
     end)
@@ -1567,10 +1672,11 @@ function sfui.initialize_database()
     if SfuiDB.enableMerchant == nil then SfuiDB.enableMerchant = true end
     if SfuiDB.enableDecor == nil then SfuiDB.enableDecor = false end -- Opt-in feature
     if SfuiDB.enableVehicle == nil then SfuiDB.enableVehicle = true end
-    if SfuiDB.enableCursorRing == nil then SfuiDB.enableCursorRing = true end
-    if SfuiDB.repairIconX == nil then SfuiDB.repairIconX = sfui.config.masterHammer.defaultPosition.x end
-    if SfuiDB.repairIconY == nil then SfuiDB.repairIconY = sfui.config.masterHammer.defaultPosition.y end
     if SfuiDB.repairIconColor == nil then SfuiDB.repairIconColor = sfui.config.masterHammer.defaultColor end
+    if SfuiDB.enableCursorRing == nil then SfuiDB.enableCursorRing = true end
+    if SfuiDB.cursorRingScale == nil then SfuiDB.cursorRingScale = 1.0 end
+    if SfuiDB.useSpecColor == nil then SfuiDB.useSpecColor = true end
+    if SfuiDB.specColorFallback == nil then SfuiDB.specColorFallback = { 1, 1, 1, 1 } end
 
     -- Bar settings
     if SfuiDB.healthBarX == nil then SfuiDB.healthBarX = 0 end

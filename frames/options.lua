@@ -236,6 +236,14 @@ function sfui.create_options_panel()
     end, "toggles the ring cursor around the mouse.")
     enable_ring_cursor_cb:SetPoint("TOPLEFT", hide_minimap_icon_cb, "BOTTOMLEFT", 0, -10)
 
+    local cursor_scale_slider = create_slider_input(main_panel, "cursor ring scale:", "cursorRingScale", 0.5, 2.0, 0.05,
+        function(val)
+            if sfui.cursor and sfui.cursor.update_scale then
+                sfui.cursor.update_scale()
+            end
+        end)
+    cursor_scale_slider:SetPoint("LEFT", enable_ring_cursor_cb, "RIGHT", 150, 0)
+
     local vehicle_header = main_panel:CreateFontString(nil, "OVERLAY", g.font)
     vehicle_header:SetPoint("TOPLEFT", enable_ring_cursor_cb, "BOTTOMLEFT", 0, -30)
     vehicle_header:SetTextColor(white[1], white[2], white[3])
@@ -250,8 +258,32 @@ function sfui.create_options_panel()
     end, "Enables the custom vehicle/overlay bar (requires reload).")
     enable_vehicle_cb:SetPoint("TOPLEFT", vehicle_header, "BOTTOMLEFT", 0, -10)
 
+    local spec_color_header = main_panel:CreateFontString(nil, "OVERLAY", g.font)
+    spec_color_header:SetPoint("TOPLEFT", enable_vehicle_cb, "BOTTOMLEFT", 0, -30)
+    spec_color_header:SetTextColor(white[1], white[2], white[3])
+    spec_color_header:SetText("global color settings")
+
+    local use_spec_color_cb = create_checkbox(main_panel, "use spec color", "useSpecColor", function(checked)
+        -- This is a global setting that other modules can poll
+        if sfui.bars and sfui.bars.update_settings then sfui.bars.update_settings() end
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+    end, "toggles whether the UI uses specialization/class based colors globally.")
+    use_spec_color_cb:SetPoint("TOPLEFT", spec_color_header, "BOTTOMLEFT", 0, -10)
+
+    local fallback_label = main_panel:CreateFontString(nil, "OVERLAY", g.font)
+    fallback_label:SetPoint("LEFT", use_spec_color_cb, "RIGHT", 150, 0)
+    fallback_label:SetText("fallback:")
+
+    local fallback_swatch = sfui.common.create_color_swatch(main_panel, SfuiDB.specColorFallback or { 1, 1, 1, 1 },
+        function(r, g, b)
+            SfuiDB.specColorFallback = { r, g, b, 1 }
+            if sfui.bars and sfui.bars.update_settings then sfui.bars.update_settings() end
+            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        end)
+    fallback_swatch:SetPoint("LEFT", fallback_label, "RIGHT", 5, 0)
+
     local texture_label = main_panel:CreateFontString(nil, "OVERLAY", g.font)
-    texture_label:SetPoint("TOPLEFT", enable_vehicle_cb, "BOTTOMLEFT", 0, -20)
+    texture_label:SetPoint("TOPLEFT", use_spec_color_cb, "BOTTOMLEFT", 0, -30)
     texture_label:SetText("bar texture:")
 
     local dropdown = CreateFrame("Frame", "sfui_options_texture_dropdown", main_panel, "UIDropDownMenuTemplate")
@@ -981,6 +1013,12 @@ function sfui.create_options_panel()
     local hammer_id_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
     hammer_id_value:SetPoint("LEFT", hammer_id_label, "RIGHT", 5, 0)
 
+    local form_id_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+    form_id_label:SetPoint("TOPLEFT", hammer_id_label, "BOTTOMLEFT", 0, -15)
+    form_id_label:SetText("current form id:")
+    local form_id_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+    form_id_value:SetPoint("LEFT", form_id_label, "RIGHT", 5, 0)
+
     local debug_refresh_button = CreateFlatButton(debug_panel, "refresh", 100, 22)
     debug_refresh_button:SetPoint("BOTTOM", debug_panel, "BOTTOM", 0, 10)
 
@@ -1010,6 +1048,10 @@ function sfui.create_options_panel()
             hammer_value:SetText("N/A")
             hammer_id_value:SetText("N/A")
         end
+
+        local formID = GetShapeshiftFormID()
+        local isStealthed = IsStealthed()
+        form_id_value:SetText((formID or "0") .. (isStealthed and " |cff00ffff(Stealthed)|r" or ""))
     end
 
     debug_refresh_button:SetScript("OnClick", update_debug_info)

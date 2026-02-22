@@ -74,12 +74,19 @@ function sfui.cursor.initialize()
     sfui.cursor.toggle(SfuiDB.enableCursorRing)
 end
 
+function sfui.cursor.update_scale()
+    if not f then return end
+    local scale = SfuiDB.cursorRingScale or 1.0
+    f:SetSize(64 * scale, 64 * scale)
+end
+
 function sfui.cursor.toggle(enabled)
     SfuiDB.enableCursorRing = enabled
     if not f then return end
 
     if enabled then
         f:Show()
+        sfui.cursor.update_scale() -- Ensure scale is correct when shown
         f:SetScript("OnUpdate", f.OnUpdate)
     else
         f:Hide()

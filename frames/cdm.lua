@@ -806,10 +806,11 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
     else
         zone:SetBackdropColor(0.06, 0.06, 0.06, 0.9)
         zone:SetBackdropBorderColor(0, 0, 0, 0)
-        zone.label:SetText(panelData.name or "Unnamed Panel")
-        zone.label:SetTextColor(0.4, 0, 1, 1) -- Purple accent
-
         local isBuiltIn = (name == "CENTER" or name == "UTILITY" or name == "Left" or name == "Right")
+        if name and (name == "CAT" or name == "BEAR" or name == "MOONKIN" or name == "STEALTH") then isBuiltIn = true end
+
+        local displayName = name or "Unnamed Panel"
+        zone.label:SetText(displayName)
         if not isBuiltIn and panelIndex then
             zone.deleteBtn:Show()
         else
@@ -1502,7 +1503,8 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
         local link = C_Spell.GetSpellLink(incomingId)
         print("|cff00FF00SFUI:|r Imported Spell: " .. (link or incomingId) .. " (ID: " .. incomingId .. ")")
     elseif entry.type == "item" then
-        local link = C_Item.GetItemLink(incomingId) or incomingId
+        local link = (GetItemInfo and select(2, GetItemInfo(incomingId))) or C_Item.GetItemNameByID(incomingId) or
+            incomingId
         print("|cff00FF00SFUI:|r Imported Item: " .. link .. " (ID: " .. incomingId .. ")")
     elseif entry.type == "cooldown" then
         local link = GetCooldownName(incomingId, "spell") or incomingId

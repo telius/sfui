@@ -894,6 +894,8 @@ function sfui.trackedoptions.GenerateGlobalSettingsControls(parent)
 
     MakeCheck(s3c, "Show Cooldown Text", "textEnabled", "Show the numerical countdown on icons.", 0, s3y)
     MakeCheck(s3c, "Enable Masque Support", "enableMasque", "Requires Masque addon and reload.", 240, s3y)
+    s3y = s3y - 28
+    MakeCheck(s3c, "Enable Tooltips", "showTooltips", "Show tooltips when hovering over icons.", 0, s3y)
     s3y = s3y - 35
 
     local lTC = s3c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")

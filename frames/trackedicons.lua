@@ -640,7 +640,8 @@ local function CreateIconFrame(parent, id, entry, panelConfig)
     -- Tooltips still work via OnEnter/OnLeave scripts below
 
     f:SetScript("OnEnter", function(self)
-        if GameTooltip and self.id and not issecretvalue(self.id) then
+        local showTooltips = GetIconValue(self.entry.settings, panelConfig, "showTooltips", false)
+        if showTooltips and GameTooltip and self.id and not issecretvalue(self.id) then
             pcall(function()
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                 if self.entry.type == "item" then
@@ -652,8 +653,9 @@ local function CreateIconFrame(parent, id, entry, panelConfig)
             end)
         end
     end)
-    f:SetScript("OnLeave", function()
-        if GameTooltip then pcall(GameTooltip.Hide, GameTooltip) end
+    f:SetScript("OnLeave", function(self)
+        local showTooltips = GetIconValue(self.entry.settings, panelConfig, "showTooltips", false)
+        if showTooltips and GameTooltip then pcall(GameTooltip.Hide, GameTooltip) end
     end)
 
     -- Initial State: Show immediately
@@ -998,6 +1000,76 @@ function sfui.trackedicons.ForceRefreshGlows()
     end
 end
 
+-- Visibility Logic check per panel
+local function CheckPanelVisibility(panelConfig)
+    if not panelConfig then return false end
+
+    -- Check Form Specificity (Druid CENTER panels mostly)
+    local isStealthed = IsStealthed()
+    local currentForm = GetShapeshiftFormID() or 0
+    local playerClass = sfui.common.get_player_class()
+
+    if panelConfig.requiredForm ~= nil then
+        if panelConfig.requiredForm == "stealth" then
+            if not isStealthed then return false end
+
+            -- If we are a Druid in Bear or Moonkin form, we prioritize the form-specific bar over Stealth.
+            if playerClass == "DRUID" and currentForm ~= 0 and currentForm ~= 1 then
+                return false
+            end
+        else
+            -- Non-stealth form panel logic
+            local matchesForm = false
+            if type(panelConfig.requiredForm) == "table" then
+                for _, id in ipairs(panelConfig.requiredForm) do
+                    if currentForm == id then
+                        matchesForm = true; break
+                    end
+                end
+            elseif currentForm == panelConfig.requiredForm then
+                matchesForm = true
+            end
+
+            if not matchesForm then return false end
+        end
+    end
+
+    -- If we are stealthed, we usually want the STEALTH bar to take priority for Human and Cat.
+    -- This hides ALL base bars to prevent overlap, even if requiredForm matches.
+    if isStealthed and (currentForm == 0 or currentForm == 1) then
+        if panelConfig.requiredForm ~= "stealth" then
+            return false
+        end
+    end
+
+    -- If the panel visibility is set to ALWAYS, it overrides Hide OOC/Hide Mounted
+    if panelConfig.visibility == "always" then
+        return true
+    end
+
+    -- Hide OOC (Out of Combat)
+    if panelConfig.hideOOC and not InCombatLockdown() then
+        return false
+    end
+
+    -- Hide Mounted
+    if panelConfig.hideMounted and IsMounted() then
+        return false
+    end
+
+    -- Hide in Dragonriding
+    if panelConfig.hideDragonriding and C_MountJournal.IsDragonRidingActive() then
+        return false
+    end
+
+    -- Hide if no active icons
+    if panelConfig.hideIfEmpty and (not panelConfig.entries or #panelConfig.entries == 0) then
+        return false
+    end
+
+    return true
+end
+
 -- Helper to remove legacy defaults from panels so they use global settings
 local function SanitizePanelConfig(panelConfig)
     if not panelConfig then return end
@@ -1168,8 +1240,10 @@ function sfui.trackedicons.initialize()
     eventFrame:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")  -- Dragonriding trigger
     eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED") -- Reload panels on spec change
     eventFrame:RegisterEvent("TRAIT_CONFIG_UPDATED")          -- Talent changes (for cooldown overrideSpellID)
+    eventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")        -- For form-specific panels
+    eventFrame:RegisterEvent("UPDATE_STEALTH")                -- For stealth-specific panels
     eventFrame:SetScript("OnEvent", function(self, event, unitTarget, updateInfo)
-        if event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" then
+        if event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" or event == "UPDATE_STEALTH" then
             sfui.trackedicons.Update()
             MarkDirty(1.0) -- Longer burst for combat transitions
         elseif event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_SPECIALIZATION_CHANGED" then
