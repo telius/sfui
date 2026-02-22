@@ -1410,20 +1410,37 @@ end
 -- @return: true if cached, false otherwise
 function sfui.common.has_aura(spellID, unit, threshold)
     unit = unit or "player"
-    local spellName
-    if C_Spell and C_Spell.GetSpellName then
-        spellName = C_Spell.GetSpellName(spellID)
-    elseif GetSpellInfo then
-        spellName = GetSpellInfo(spellID)
+    local aura
+
+    -- WoW 11.0+ API can check for specific Spell IDs directly instead of by name,
+    -- avoiding clashes when different auras share the same name (like "Stagger" debuffs).
+    if C_UnitAuras and C_UnitAuras.GetUnitAuraBySpellID then
+        aura = C_UnitAuras.GetUnitAuraBySpellID(unit, spellID)
     end
 
-    if spellName then
-        local aura = C_UnitAuras.GetAuraDataBySpellName(unit, spellName)
-        if aura then
-            if not threshold or not sfui.common.IsNumericAndPositive(threshold) then return true end
-            if issecretvalue(aura.expirationTime) then return true end
-            return sfui.common.SafeGT(aura.expirationTime - GetTime(), threshold)
+    -- Legacy fallback
+    if not aura then
+        local spellName
+        if C_Spell and C_Spell.GetSpellName then
+            spellName = C_Spell.GetSpellName(spellID)
+        elseif GetSpellInfo then
+            spellName = GetSpellInfo(spellID)
         end
+
+        if spellName then
+            -- First check helpful auras (Buffs)
+            aura = C_UnitAuras.GetAuraDataBySpellName(unit, spellName, "HELPFUL")
+            -- If not found, check harmful auras (Debuffs)
+            if not aura then
+                aura = C_UnitAuras.GetAuraDataBySpellName(unit, spellName, "HARMFUL")
+            end
+        end
+    end
+
+    if aura then
+        if not threshold or not sfui.common.IsNumericAndPositive(threshold) then return true end
+        if type(issecretvalue) == "function" and issecretvalue(aura.expirationTime) then return true end
+        return sfui.common.SafeGT(aura.expirationTime - GetTime(), threshold)
     end
 
     return false

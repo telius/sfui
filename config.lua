@@ -352,7 +352,6 @@ sfui.config = {
     -- Health Bar settings
     healthBar = {
         enabled = true,
-        enableAnimatedHealthLoss = true,
         width = 300,
         height = 20,
         color = { 0.2, 0.2, 0.2 }, -- Dark Grey

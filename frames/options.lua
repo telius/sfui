@@ -345,16 +345,10 @@ function sfui.create_options_panel()
     end, "toggles the health bar.")
     health_bar_cb:SetPoint("TOPLEFT", toggles_header, "BOTTOMLEFT", 0, -10)
 
-    local animated_health_cb = create_checkbox(bars_panel, "enable animated health loss", "enableAnimatedHealthLoss",
-        function(checked)
-            if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
-        end, "shows damage chunks trailing the health bar (Option 1).")
-    animated_health_cb:SetPoint("TOPLEFT", health_bar_cb, "BOTTOMLEFT", 0, -10)
-
     local power_bar_cb = create_checkbox(bars_panel, "enable power bar", "enablePowerBar", function(checked)
         if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
     end, "toggles the primary power bar.")
-    power_bar_cb:SetPoint("TOPLEFT", animated_health_cb, "BOTTOMLEFT", 0, -10)
+    power_bar_cb:SetPoint("TOPLEFT", health_bar_cb, "BOTTOMLEFT", 0, -10)
 
     local secondary_power_cb = create_checkbox(bars_panel, "enable secondary power bar", "enableSecondaryPowerBar",
         function(checked)
@@ -408,8 +402,40 @@ function sfui.create_options_panel()
         end
     end)
 
+    -- Health Bar Colors
+    local color_header = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
+    color_header:SetPoint("TOPLEFT", reset_health_pos_btn, "BOTTOMLEFT", 0, -20)
+    color_header:SetTextColor(white[1], white[2], white[3])
+    color_header:SetText("health bar colors")
+
+    local fg_color_label = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
+    fg_color_label:SetPoint("TOPLEFT", color_header, "BOTTOMLEFT", 0, -10)
+    fg_color_label:SetTextColor(white[1], white[2], white[3])
+    fg_color_label:SetText("foreground:")
+
+    local fg_color_swatch
+    fg_color_swatch = sfui.common.create_color_swatch(bars_panel, SfuiDB.healthBarColor or sfui.config.healthBar.color,
+        function(r, g, b)
+            SfuiDB.healthBarColor = { r, g, b, 1 }
+            if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
+        end)
+    fg_color_swatch:SetPoint("LEFT", fg_color_label, "RIGHT", 5, 0)
+
+    local bg_color_label = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
+    bg_color_label:SetPoint("LEFT", fg_color_swatch, "RIGHT", 15, 0)
+    bg_color_label:SetTextColor(white[1], white[2], white[3])
+    bg_color_label:SetText("backdrop:")
+
+    local bg_color_swatch
+    bg_color_swatch = sfui.common.create_color_swatch(bars_panel,
+        SfuiDB.healthBarBackdropColor or sfui.config.healthBar.backdrop.color, function(r, g, b)
+            SfuiDB.healthBarBackdropColor = { r, g, b, 0.5 }
+            if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
+        end)
+    bg_color_swatch:SetPoint("LEFT", bg_color_label, "RIGHT", 5, 0)
+
     local open_cv_bars = CreateFlatButton(bars_panel, "manage tracked bars", 140, 22)
-    open_cv_bars:SetPoint("TOPLEFT", reset_health_pos_btn, "BOTTOMLEFT", 0, -20)
+    open_cv_bars:SetPoint("TOPLEFT", fg_color_label, "BOTTOMLEFT", 0, -20)
     open_cv_bars:SetScript("OnClick", function()
         if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
             sfui.trackedoptions.toggle_viewer()
