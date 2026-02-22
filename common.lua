@@ -143,10 +143,15 @@ end
 
 -- Safe comparison helpers (Crash-proof against Secret Values in M+)
 function sfui.common.SafeGT(val, target)
-    if val == nil then return false end
-    if issecretvalue(val) then return true end -- Secret = exists/active
-    local ok, result = pcall(pcall_gt, val, target)
-    return ok and result
+    if val == nil or target == nil then return false end
+    local ok, result = pcall(function() return val > target end)
+    return ok and result or false
+end
+
+function sfui.common.SafeLT(val, target)
+    if val == nil or target == nil then return false end
+    local ok, result = pcall(function() return val < target end)
+    return ok and result or false
 end
 
 function sfui.common.SafeValue(val, fallback)

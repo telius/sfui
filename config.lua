@@ -352,6 +352,7 @@ sfui.config = {
     -- Health Bar settings
     healthBar = {
         enabled = true,
+        enableAnimatedHealthLoss = true,
         width = 300,
         height = 20,
         color = { 0.2, 0.2, 0.2 }, -- Dark Grey
@@ -575,24 +576,33 @@ sfui.config = {
         specialCases = {
             [9039] = { maxStacks = 12 },   -- Bone Shield (Death Knight)
             [18469] = { maxStacks = 100 }, -- Ignore Pain (Warrior)
+            [20811] = { maxStacks = 6 },   -- Soul Fragments (Demon Hunter)
         },
         -- Default visibility settings
         hideOOC = false,     -- Hide all bars when out of combat
         hideInactive = true, -- Hide bars when cooldowns are inactive
         -- Default bar configuration per cooldown ID
         defaults = {
-            [18469] = {                       -- Ignore Pain (Warrior)
-                specID = 73,                  -- Protection Warrior
-                stackAboveHealth = true,      -- Attach to healthbar (secondary position)
-                color = { 1, 0.533, 0, 1 },   -- Orange
-                showStacksText = true,        -- Show stack count as duration text
+            [18469] = {                          -- Ignore Pain (Warrior)
+                specID = 73,                     -- Protection Warrior
+                stackAboveHealth = true,         -- Attach to healthbar (secondary position)
+                color = { 1, 0.533, 0, 1 },      -- Orange
+                showStacksText = true,           -- Show stack count as duration text
             },
-            [9039] = {                        -- Bone Shield (Death Knight)
-                specID = 250,                 -- Blood DK
-                stackAboveHealth = true,      -- Attach to healthbar
-                stackMode = true,             -- Use stack count as bar value
-                color = { 0, 0.8, 0.067, 1 }, -- Green
-                showName = false,             -- Hide name
+            [9039] = {                           -- Bone Shield (Death Knight)
+                specID = 250,                    -- Blood DK
+                stackAboveHealth = true,         -- Attach to healthbar
+                stackMode = true,                -- Use stack count as bar value
+                color = { 0, 0.8, 0.067, 1 },    -- Green
+                showName = false,                -- Hide name
+            },
+            [20811] = {                          -- Soul Fragments (Demon Hunter)
+                specID = 581,                    -- Vengeance DH
+                stackAboveHealth = true,         -- Attach to healthbar
+                stackMode = true,                -- Use stacks as bar value
+                showStacksText = true,           -- Show stack count
+                color = { 0.64, 0.19, 0.79, 1 }, -- Purple/Magenta
+                showName = false,                -- Hide name
             },
         },
     },

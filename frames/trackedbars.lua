@@ -584,7 +584,10 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
         myBar.time:Show()
     end
 
-    if db.showStacks == false or (config and config.showStacks == false) then
+    local isAttached = config and config.stackAboveHealth or false
+    local showStacksText = config and config.showStacksText or false
+
+    if db.showStacks == false or (config and config.showStacks == false) or isStackMode or isAttached or showStacksText then
         myBar.count:Hide()
     else
         myBar.count:Show()

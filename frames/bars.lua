@@ -309,6 +309,31 @@ do
         absorbBar:SetStatusBarTexture(texturePath)
         absorbBar:GetStatusBarTexture():SetBlendMode("ADD")
         bar.absorbBar = absorbBar
+
+        -- Option 1: Animated Health Loss (Damage Chunks)
+        local lossBar = CreateFrame("StatusBar", nil, bar)
+        lossBar:SetFrameLevel(bar:GetFrameLevel() - 1) -- Behind the health bar
+        lossBar:SetStatusBarTexture(texturePath)
+        lossBar:SetStatusBarColor(1, 0, 0, 1)          -- Red damage chunk
+        lossBar:Hide()
+
+        -- Attach Blizzard's native mixin if available, otherwise we'll have to wait for reload or provide a fallback.
+        -- We'll assume it's available as it's a core UI component.
+        if AnimatedHealthLossMixin then
+            Mixin(lossBar, AnimatedHealthLossMixin)
+            lossBar:OnLoad()
+            lossBar:SetUnitHealthBar("player", bar)
+            lossBar:SetFrameLevel(bar:GetFrameLevel() - 1)
+        end
+
+        lossBar:SetScript("OnUpdate", function(self, elapsed)
+            if self.animationStartTime then
+                pcall(self.UpdateLossAnimation, self, UnitHealth("player"))
+            end
+        end)
+
+        bar.lossBar = lossBar
+
         return bar
     end
 
@@ -316,10 +341,28 @@ do
         local cfg = sfui.config.healthBar
         if not cfg.enabled then return end
         local bar = get_bar0()
+        local oldHealth = bar.currValue or current
+
         -- current and max are passed in now
         if not maxVal or maxVal <= 0 then return end
         bar:SetMinMaxValues(0, maxVal)
         bar:SetValue(current)
+        bar.currValue = current
+
+        -- Update Animated Health Loss
+        if bar.lossBar and SfuiDB.enableAnimatedHealthLoss then
+            pcall(function()
+                bar.lossBar:UpdateHealthMinMax()
+                if sfui.common.SafeLT(current, oldHealth) then
+                    bar.lossBar:UpdateHealth(current, oldHealth)
+                elseif sfui.common.SafeGT(current, oldHealth) then
+                    -- Healing: Cancel animation or instantly match
+                    bar.lossBar:CancelAnimation()
+                end
+            end)
+        else
+            if bar.lossBar then bar.lossBar:Hide() end
+        end
 
         if cfg.color then
             bar:SetStatusBarColor(cfg.color[1], cfg.color[2], cfg.color[3], cfg.color[4] or 1)
@@ -601,7 +644,7 @@ do
         end
 
         local isPlayerSpell = IsPlayerSpell or
-        function(id) return C_SpellBook and C_SpellBook.IsSpellKnown(id, Enum.SpellBookSpellBank.Player) end
+            function(id) return C_SpellBook and C_SpellBook.IsSpellKnown(id, Enum.SpellBookSpellBank.Player) end
         local surgeSpellID = isPlayerSpell(418592) and 418592 or 361584
 
         local surgeTexture = C_Spell.GetSpellTexture(surgeSpellID)
@@ -692,6 +735,7 @@ do
             bar0:SetStatusBarTexture(texturePath)
             if bar0.healPredBar then bar0.healPredBar:SetStatusBarTexture(texturePath) end
             if bar0.absorbBar then bar0.absorbBar:SetStatusBarTexture(texturePath) end
+            if bar0.lossBar then bar0.lossBar:SetStatusBarTexture(texturePath) end
         end
         if bar1 then bar1:SetStatusBarTexture(texturePath) end
         if vigor_bar then vigor_bar:SetStatusBarTexture(texturePath) end

@@ -1,3 +1,15 @@
+## v0.2.16 (2026-02-22)
+### Features
+- **Animated Health Loss**: Implemented smooth damage "chunks" animation for health bars, bringing modern Blizzard-style feedback to custom bars.
+- **Vengeance Demon Hunter**: Added native support for **Soul Fragments** (20811). It defaults to stack mode (max 6), attaches to the health bar, and displays stack counts.
+- **Compatibility**: Migrated legacy APIs (`GetBonusBarIndex`, `GetBonusBarOffset`, `IsPlayerSpell`) to modern `C_ActionBar` and `C_SpellBook` for 12.0.1+ readiness.
+
+### Bug Fixes
+- **Stability (M+/Restricted Zones)**: Hardened health animation logic with "Secret Value" protection. Comparisons and `OnUpdate` loops are now wrapped in `pcall` to prevent crashes in instances.
+- **Options UI**: Fixed overlapping checkboxes in the Bars tab and ensured consistent vertical spacing.
+- **Tracked Bars**: Resolved a "ghost text" issue where stack counts remained visible at the icon position on attached bars.
+- **Druid Stances**: Suppressed the default vehicle UI when in Druid Flight Form to prevent layout overlap.
+
 ## v0.2.15 (2026-02-22)
 ### Bug Fixes
 - **Options UI**: Fixed empty dropdown boxes when using default settings. Repaired font string rendering, a casing typo in track bars configuration, and glow type mismatches.

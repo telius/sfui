@@ -345,10 +345,16 @@ function sfui.create_options_panel()
     end, "toggles the health bar.")
     health_bar_cb:SetPoint("TOPLEFT", toggles_header, "BOTTOMLEFT", 0, -10)
 
+    local animated_health_cb = create_checkbox(bars_panel, "enable animated health loss", "enableAnimatedHealthLoss",
+        function(checked)
+            if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
+        end, "shows damage chunks trailing the health bar (Option 1).")
+    animated_health_cb:SetPoint("TOPLEFT", health_bar_cb, "BOTTOMLEFT", 0, -10)
+
     local power_bar_cb = create_checkbox(bars_panel, "enable power bar", "enablePowerBar", function(checked)
         if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
     end, "toggles the primary power bar.")
-    power_bar_cb:SetPoint("TOPLEFT", health_bar_cb, "BOTTOMLEFT", 0, -10)
+    power_bar_cb:SetPoint("TOPLEFT", animated_health_cb, "BOTTOMLEFT", 0, -10)
 
     local secondary_power_cb = create_checkbox(bars_panel, "enable secondary power bar", "enableSecondaryPowerBar",
         function(checked)
