@@ -16,10 +16,16 @@ local LibStub = LibStub
 local UIParent = UIParent
 local CreateFrame = CreateFrame
 local C_CurveUtil = C_CurveUtil
+local IsPlayerSpell = IsPlayerSpell
 
 -- ========================
 -- helpers for basic checks
 -- ========================
+local DEFAULT_INTERRUPTED_COLOR = { 1, 0, 0 }
+local DEFAULT_EMPOWERED_COLOR = { 0.4, 0, 1 }
+local DEFAULT_CHANNEL_COLOR = { 0, 1, 0 }
+local DEFAULT_NORMAL_COLOR = { 1, 1, 1 }
+local DEFAULT_SHIELDED_COLOR = { 0.2, 0.2, 0.2 }
 
 -- ========================
 -- helpers for instant cast
@@ -42,7 +48,13 @@ local function is_instant_spell(spellID)
     if not info then return false, nil end
 
     if info.castTime and info.castTime == 0 then
-        return true, info.name
+        -- Filter out hidden aura triggers (like Frailty) and passives
+        if IsPlayerSpell(spellID) then
+            if C_Spell and C_Spell.IsSpellPassive and C_Spell.IsSpellPassive(spellID) then
+                return false, nil
+            end
+            return true, info.name
+        end
     end
     return false, nil
 end
@@ -101,14 +113,13 @@ local function UpdateCastBarColor(bar, state)
     -- determine base color
     local color
 
-    -- always use red for interrupted
     if state == "INTERRUPTED" then
         local cfg = sfui.config[bar.configName]
-        color = cfg.interruptedColor or { 1, 0, 0 }
+        color = cfg.interruptedColor or DEFAULT_INTERRUPTED_COLOR
     elseif state == "EMPOWER" then
         -- empower uses its own color system
         local cfg = sfui.config[bar.configName]
-        color = cfg.empoweredColor or { 0.4, 0, 1 }
+        color = cfg.empoweredColor or DEFAULT_EMPOWERED_COLOR
     else
         -- INSTANT, CAST, CHANNEL
         -- Logic: If player, try spec color. Else fallback to config color.
@@ -120,14 +131,14 @@ local function UpdateCastBarColor(bar, state)
         end
 
         if specColor then
-            color = { specColor[1], specColor[2], specColor[3] }
+            color = specColor
         else
             -- Fallback
             local cfg = sfui.config[bar.configName]
             color = cfg.color
 
             if state == "CHANNEL" or state == "INSTANT" then
-                color = cfg.channelColor or { 0, 1, 0 }
+                color = cfg.channelColor or DEFAULT_CHANNEL_COLOR
             end
         end
     end
@@ -401,31 +412,39 @@ local function OnEvent(self, event, ...)
                 self.Text:SetText(INTERRUPTED)
             end
 
+            if not self.resetTimerObj then
+                self.resetTimerObj = function()
+                    if not self.casting and not self.channeling and not self.empowering and not self.instant then
+                        ResetBar(self)
+                    end
+                end
+            end
+
             self.casting = nil
             self.channeling = nil
             self.empowering = nil
             self.instant = nil
 
-            C_Timer.After(0.5, function()
-                if not self.casting and not self.channeling and not self.empowering and not self.instant then
-                    ResetBar(self)
-                end
-            end)
+            C_Timer.After(0.5, self.resetTimerObj)
         elseif (self.channeling or self.empowering) and (event == "UNIT_SPELLCAST_INTERRUPTED") then
             if not UnitChannelInfo(unit) then
                 UpdateCastBarColor(self, "INTERRUPTED")
                 self.Text:SetText(INTERRUPTED)
+
+                if not self.resetTimerObj then
+                    self.resetTimerObj = function()
+                        if not self.casting and not self.channeling and not self.empowering and not self.instant then
+                            ResetBar(self)
+                        end
+                    end
+                end
 
                 self.casting = nil
                 self.channeling = nil
                 self.empowering = nil
                 self.instant = nil
 
-                C_Timer.After(0.5, function()
-                    if not self.casting and not self.channeling and not self.empowering and not self.instant then
-                        ResetBar(self)
-                    end
-                end)
+                C_Timer.After(0.5, self.resetTimerObj)
             end
         end
     elseif event == "UNIT_SPELLCAST_DELAYED" then
@@ -472,8 +491,8 @@ local function UpdateTargetCastBarColor(bar, notInterruptible)
     local color
 
     -- Direct boolean check
-    local normal = cfg.color or { 1, 1, 1 }
-    local shielded = cfg.nonInterruptibleColor or { 0.2, 0.2, 0.2 }
+    local normal = cfg.color or DEFAULT_NORMAL_COLOR
+    local shielded = cfg.nonInterruptibleColor or DEFAULT_SHIELDED_COLOR
 
     if notInterruptible ~= nil then
         local r = C_CurveUtil.EvaluateColorValueFromBoolean(notInterruptible, shielded[1], normal[1])
