@@ -1,3 +1,15 @@
+## v0.2.17 (2026-02-22)
+### Features
+- **Global Spec Color**: Added a master toggle on the main options tab to enable/disable spec-based coloring addon-wide, featuring a customizable fallback color swatch.
+- **Tracked Icons**:
+    - **Tooltip Toggle**: Tooltips are now disabled by default for cleaner UI. Added an "Enable Tooltips" checkbox in the Tracking Options (Text & Misc section).
+    - **Druid Optimizations**: The secondary power bar (Mana) is now automatically hidden for Moonkin Druids.
+    - **Form Scaling**: Properly handles form-specific REQUIRED_FORM tags (e.g., Human form) to prevent bar overlaps.
+
+### Bug Fixes
+- **Panel De-duplication (Migration V7)**: Implemented case-insensitive panel matching to prevent "ghost" duplicate panels (e.g., "utility" vs "UTILITY").
+- **Druid Stealth Logic**: Refined stealth priority logic to ensure the stealth bar correctly overrides other utility bars in Human/Cat/Bear forms consistently.
+
 ## v0.2.16 (2026-02-22)
 ### Features
 - **Animated Health Loss**: Implemented smooth damage "chunks" animation for health bars, bringing modern Blizzard-style feedback to custom bars.
