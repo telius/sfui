@@ -64,11 +64,13 @@ local function StopGlow(icon)
     -- Do NOT clear _glowStartTime here, as it breaks the timeout logic (infinite restart loop)
     -- _glowStartTime is cleared explicitly when the icon is no longer ready.
     icon._lastGlowCfg = nil
+    icon._glowActive = false
 end
 
 
 local function StartGlow(icon, cfg)
     sfui.glows.start_glow(icon, cfg)
+    icon._glowActive = true
     -- Track config for comparison without allocating a new table
     if not icon._lastGlowCfg then icon._lastGlowCfg = {} end
     local t = icon._lastGlowCfg
@@ -152,20 +154,45 @@ local function UpdateIconCooldown(icon, activeID, resolvedType)
             -- isOnGCD is NeverSecret (safe to branch)
             local isOnGCD = cdInfo.isOnGCD
             local d = cdInfo.duration
+            local shouldClearSwipe = false
+
             if d ~= nil then
                 if not issecretvalue(d) then
                     -- Readable: d > 1.5 catches real CDs, skips GCD
                     isOnCooldown = (type(d) == "number" and d > 1.5)
+                    icon._secretGCDDropTime = nil
+                    shouldClearSwipe = isOnGCD
                 else
-                    -- Secret: We CANNOT safely distinguish GCD from Real CD in Lua.
-                    -- Let the native CooldownFrame handle the visual dark overlay.
-                    -- Trying to probe it will fake-trigger glows on every GCD.
-                    isOnCooldown = false
+                    -- Secret value handling (Mythic+)
+                    -- We cannot read the true duration, so we use CooldownFrame:IsShown()
+                    -- which natively processes the secret value correctly.
+                    local isShown = icon.cooldown:IsShown()
+
+                    if isOnGCD then
+                        isOnCooldown = false
+                        icon._secretGCDDropTime = nil
+                        shouldClearSwipe = true
+                    elseif not isShown then
+                        isOnCooldown = false
+                        icon._secretGCDDropTime = nil
+                    else
+                        -- Not on GCD, but showing a cooldown. We use a 0.1s debounce
+                        -- to confirm it's a real CD to bypass the 1-frame API desync when GCDs end.
+                        if not icon._secretGCDDropTime then
+                            icon._secretGCDDropTime = GetTime()
+                        end
+                        if GetTime() - icon._secretGCDDropTime > 0.1 then
+                            isOnCooldown = true
+                        else
+                            isOnCooldown = false
+                            shouldClearSwipe = true
+                        end
+                    end
                 end
             end
 
-            -- Clear swipe only when confirmed GCD-only
-            if not isOnCooldown and isOnGCD then
+            -- Clear swipe if it's just the GCD (and we want to hide it) or a stale desync
+            if not isOnCooldown and shouldClearSwipe then
                 icon.cooldown:Clear()
                 if icon.shadowCooldown then icon.shadowCooldown:Clear() end
             end
@@ -184,7 +211,7 @@ local function UpdateIconCooldown(icon, activeID, resolvedType)
         local ok_ch, charges = pcall(C_Spell.GetSpellCharges, activeID)
         if ok_ch and charges ~= nil then
             local cc = charges.currentCharges
-            if cc ~= nil and not issecretvalue(cc) then
+            if cc ~= nil then
                 count = cc
             end
         end
@@ -201,8 +228,8 @@ local function UpdateIconCooldown(icon, activeID, resolvedType)
         local ok_u, u, p = pcall(C_Spell.IsSpellUsable, activeID)
         if ok_u then
             -- Guard results: if secret, assume true so we don't hide spells blindly
-            isUsable = (u == nil or issecretvalue(u)) or u
-            notEnoughPower = (p ~= nil and not issecretvalue(p)) and p
+            isUsable = sfui.common.SafeValue(u, true)
+            notEnoughPower = sfui.common.SafeValue(p, false)
         end
         if not HasFullControl() and not isUsable then isUsable = true end
     end
@@ -212,8 +239,7 @@ local function UpdateIconCooldown(icon, activeID, resolvedType)
     if icon.type == "item" then
         isReady = not isOnCooldown and (isEnabled ~= false)
     else
-        -- count is plain number (guarded above)
-        isReady = (not isOnCooldown or count > 0) and (isEnabled ~= false) and isUsable
+        isReady = (not isOnCooldown or sfui.common.SafeGT(count, 0)) and (isEnabled ~= false) and isUsable
     end
 
     return count, isReady, isUsable, notEnoughPower, isOnCooldown

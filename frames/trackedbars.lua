@@ -555,7 +555,20 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
         end
     end
 
-    -- 2. Fallback to Text (Blizzard's Display) - ONLY IF SAFE
+    -- 2. Try Spell Charges (for abilities with charges, mostly missing auraInstanceID)
+    if not currentStacks and myBar.spellID then
+        pcall(function()
+            local chargeInfo = C_Spell.GetSpellCharges(myBar.spellID)
+            if chargeInfo and chargeInfo.currentCharges then
+                local cc = chargeInfo.currentCharges
+                if not issecretvalue(cc) then
+                    currentStacks = cc
+                end
+            end
+        end)
+    end
+
+    -- 3. Fallback to Text (Blizzard's Display) - ONLY IF SAFE
     -- Text access on restricted frames returns "secret value" which crashes on comparison
     if not currentStacks and not InCombatLockdown() and not IsInInstance() then
         pcall(function()
