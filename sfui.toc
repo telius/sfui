@@ -1,11 +1,13 @@
-## Interface: 120001, 120000
+## Interface: 120001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: 0.2.18a
+## Version: 0.2.18b
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
 ## X-Website-Source: https://github.com/telius/sfui
+## X-GitHub-Repository: https://github.com/telius/sfui
+## X-Project-Name: sfui
 ## SavedVariables: SfuiDB
 ## OptionalDeps: Masque, LibCustomGlow-1.0
 ## IconTexture: Interface/AddOns/sfui/icon.png

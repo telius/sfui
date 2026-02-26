@@ -1,3 +1,8 @@
+## v0.2.18b (2026-02-26)
+
+### Bug Fixes
+- **Release**: Improved WowUp compatibility by simplifying TOC metadata and ensuring explicit asset naming in GitHub releases.
+
 ## v0.2.18a (2026-02-26)
 
 ### Bug Fixes
