@@ -220,7 +220,7 @@ local function CreateBar(cooldownID)
 
     bar.time = bar.status:CreateFontString(nil, "OVERLAY")
     bar.time:SetFontObject(sfui.config.font_small)
-    bar.time:SetPoint("RIGHT", -(cfg.spacing or 5), 0)
+    bar.time:SetPoint("CENTER", bar.status, "CENTER", 0, 0)
     sfui.common.style_text(bar.time, nil, nil, "")
 
     -- Stack Count
@@ -568,15 +568,13 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
         end)
     end
 
-    -- 3. Fallback to Text (Blizzard's Display) - ONLY IF SAFE
-    -- Text access on restricted frames returns "secret value" which crashes on comparison
-    if not currentStacks and not InCombatLockdown() and not IsInInstance() then
+    -- 3. Fallback to Text (Blizzard's Display) - UNRESTRICTED
+    if not currentStacks then
         pcall(function()
             if blizzFrame.Icon and blizzFrame.Icon.Applications then
                 local text = blizzFrame.Icon.Applications:GetText()
-                -- Avoid 'secret value' errors by removing comparison
-                if text and not issecretvalue(text) and type(text) == "string" then
-                    currentStacks = tonumber(text)
+                if text and text ~= "" then
+                    currentStacks = text
                 end
             end
         end)
@@ -630,10 +628,8 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     end
 
     -- Default to 0 and Ensure Safety
-    -- Force sanitize currentStacks to be a clean number to prevent secret value crashes
-    if type(currentStacks) == "number" then
-        currentStacks = tonumber(currentStacks) or 0
-    else
+    -- Allow strings to pass through natively (e.g. "150k" absorbs)
+    if currentStacks == nil then
         currentStacks = 0
     end
     myBar.currentStacks = currentStacks -- Store for OnUpdate access
@@ -655,9 +651,9 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
                 text = blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
             end)
             if config and config.showStacksText then
-                text = sfui.common.SafeFormatDuration(currentStacks, 0)
+                text = currentStacks
             end
-            sfui.common.SafeSetText(myBar.time, text)
+            myBar.time:SetText(text)
         end
     else
         -- NORMAL MODE: Bar represents Duration
@@ -668,11 +664,10 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
                 myBar.status:SetMinMaxValues(min, max)
                 sfui.common.SafeSetValue(myBar.status, val)
 
-                local text = blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
                 if config and config.showStacksText then
-                    text = sfui.common.SafeFormatDuration(currentStacks, 0)
+                    text = currentStacks
                 end
-                sfui.common.SafeSetText(myBar.time, text)
+                myBar.time:SetText(text)
             end)
         end
 
