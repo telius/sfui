@@ -354,8 +354,12 @@ local function SetupBarState(bar, config, cfg)
 end
 
 -- Helper for Standard Bar Positioning
-local function ApplyBarStyling(bar, yOffset, config, cfg)
-    bar:SetSize(cfg.width, cfg.height)
+local function ApplyBarStyling(bar, yOffset, config, cfg, globalDB)
+    local width = globalDB.width or cfg.width
+    local height = globalDB.height or cfg.height
+    local spacing = globalDB.spacing or cfg.spacing or 5
+
+    bar:SetSize(width, height)
     bar:ClearAllPoints()
     bar:SetPoint("BOTTOM", container, "BOTTOM", 0, yOffset)
     local pad = cfg.backdrop.padding
@@ -363,12 +367,13 @@ local function ApplyBarStyling(bar, yOffset, config, cfg)
     bar.status:SetPoint("TOPLEFT", pad, -pad)
     bar.status:SetPoint("BOTTOMRIGHT", -pad, pad)
     bar:SetBackdropColor(unpack(cfg.backdrop.color))
-    return yOffset + (cfg.height + cfg.spacing)
+    return yOffset + (height + spacing)
 end
 
 
 local function UpdateLayout()
     local cfg = sfui.config.trackedBars
+    local globalDB = SfuiDB and SfuiDB.trackedBars or {}
     wipe(standardBars)
     local attachedBars = {}
 
@@ -385,6 +390,9 @@ local function UpdateLayout()
             end
         end
     end
+
+    -- Update container/child icon sizes if changed globally
+    local iconSize = globalDB.iconSize or cfg.icon_size or 20
 
     -- Simple Sort (Priority > Name)
     local function SimpleSort(a, b)
@@ -406,8 +414,9 @@ local function UpdateLayout()
         local config = GetTrackedBarConfig(bar.cooldownID)
         bar:SetParent(container)
         bar.iconFrame:Show()
+        bar.iconFrame:SetSize(iconSize, iconSize) -- Apply global icon size override
         if bar.iconFrame.borderBackdrop then bar.iconFrame.borderBackdrop:Show() end
-        yOffset = ApplyBarStyling(bar, yOffset, config, cfg)
+        yOffset = ApplyBarStyling(bar, yOffset, config, cfg, globalDB)
     end
 
     -- 2. Attached Layout
@@ -461,10 +470,11 @@ end
 -- Update Position External Reference
 function sfui.trackedbars.UpdatePosition()
     if not container then return end
-    local x = (SfuiDB and SfuiDB.trackedBarsX) or (sfui.config.trackedBars.anchor and sfui.config.trackedBars.anchor.x) or
-        -300
-    local y = (SfuiDB and SfuiDB.trackedBarsY) or (sfui.config.trackedBars.anchor and sfui.config.trackedBars.anchor.y) or
-        300
+    local db = SfuiDB and SfuiDB.trackedBars
+    local x = (db and db.anchor and db.anchor.x) or (SfuiDB and SfuiDB.trackedBarsX) or
+        (sfui.config.trackedBars.anchor and sfui.config.trackedBars.anchor.x) or -300
+    local y = (db and db.anchor and db.anchor.y) or (SfuiDB and SfuiDB.trackedBarsY) or
+        (sfui.config.trackedBars.anchor and sfui.config.trackedBars.anchor.y) or 300
 
     container:ClearAllPoints()
     container:SetPoint("BOTTOM", UIParent, "BOTTOM", x, y)
@@ -596,7 +606,12 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     local db = SfuiDB and SfuiDB.trackedBars or {}
 
     -- Handle text visibility toggles (Global and Per-Bar options)
-    if db.showName == false or (config and config.showName == false) then
+    local showName = db.showName
+    if config and config.showName ~= nil then
+        showName = config.showName
+    end
+
+    if showName == false then
         myBar.name:Hide()
     else
         myBar.name:Show()
@@ -635,25 +650,25 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     myBar.currentStacks = currentStacks -- Store for OnUpdate access
 
     -- MAIN BAR UPDATE LOGIC
+    local barText = ""
     if isStackMode then
         -- STACK MODE: Bar represents Stack Count
         myBar.status:SetMinMaxValues(0, maxStacks)
         myBar.status:SetValue(currentStacks)
-        myBar.count:SetText(currentStacks) -- Hidden but used for visibility logic
+        myBar.count:SetText(tostring(currentStacks)) -- Hidden but used for visibility logic
 
         -- FORCE HIDE BLIZZ BAR COMPONENTS if strict
         if blizzFrame.Bar then blizzFrame.Bar:SetAlpha(0) end
 
         -- Sync Time Text
         if blizzFrame.Bar then
-            local text = ""
             pcall(function()
-                text = blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
+                barText = blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
             end)
             if config and config.showStacksText then
-                text = currentStacks
+                barText = tostring(currentStacks)
             end
-            myBar.time:SetText(text)
+            myBar.time:SetText(barText)
         end
     else
         -- NORMAL MODE: Bar represents Duration
@@ -664,10 +679,11 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
                 myBar.status:SetMinMaxValues(min, max)
                 sfui.common.SafeSetValue(myBar.status, val)
 
+                barText = blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
                 if config and config.showStacksText then
-                    text = currentStacks
+                    barText = tostring(currentStacks)
                 end
-                myBar.time:SetText(text)
+                myBar.time:SetText(barText)
             end)
         end
 

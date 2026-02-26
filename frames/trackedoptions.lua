@@ -640,13 +640,14 @@ function sfui.trackedoptions.RenderBarsTab(parent)
         return h
     end
 
-    Header("Spell / Icon", 5, 200)
-    Header("Stack Mode", 220, 80)
-    Header("Show Stacks", 300, 80)
-    Header("To Health", 380, 80)
-    Header("Timer", 460, 60)
-    Header("Spec Color", 540, 80)
-    Header("Custom Color", 625, 80)
+    Header("Spell / Icon", 5, 160)
+    Header("Show Name", 165, 80)
+    Header("Stack Mode", 245, 80)
+    Header("Show Stacks", 325, 80)
+    Header("To Health", 405, 80)
+    Header("Timer", 485, 80)
+    Header("Spec Color", 565, 80)
+    Header("Custom Color", 645, 80)
 
     s3y = s3y - 25
 
@@ -674,11 +675,13 @@ function sfui.trackedoptions.RenderBarsTab(parent)
             local function RC(k, tip, x)
                 local cb = sfui.common.create_checkbox(row, "",
                     function()
-                        local dbEntry = SfuiDB.trackedBars and SfuiDB.trackedBars[id]
+                        local dbEntry = specBars and specBars[id]
                         if dbEntry and dbEntry[k] ~= nil then return dbEntry[k] end
                         local cfgEntry = sfui.config.trackedBars and sfui.config.trackedBars.defaults and
                             sfui.config.trackedBars.defaults[id]
                         if cfgEntry and cfgEntry[k] ~= nil then return cfgEntry[k] end
+                        -- Defaults for specific keys
+                        if k == "showName" then return true end
                         return false
                     end,
                     function(v)
@@ -689,28 +692,29 @@ function sfui.trackedoptions.RenderBarsTab(parent)
                 return cb
             end
 
-            RC("stackMode", "Bar becomes a stack counter", 230)
-            RC("showStacksText", "Show stack count as text", 310)
-            RC("stackAboveHealth", "Attach to Health Bar", 390)
-            RC("showDuration", "Show cooldown timer", 470)
-            RC("useSpecColor", "Use Spec Color (from config)", 550)
+            RC("showName", "Show spell name on bar", 185)
+            RC("stackMode", "Bar becomes a stack counter", 265)
+            RC("showStacksText", "Show stack count as text", 345)
+            RC("stackAboveHealth", "Attach to Health Bar", 425)
+            RC("showDuration", "Show cooldown timer", 505)
+            RC("useSpecColor", "Use Spec Color (from config)", 585)
 
             -- Custom Color Swatch
             local swatch = CreateFrame("Button", nil, row, "BackdropTemplate")
             swatch:SetSize(20, 20)
-            swatch:SetPoint("LEFT", 640, 0)
+            swatch:SetPoint("LEFT", 665, 0)
             swatch:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
             swatch:SetBackdropBorderColor(0, 0, 0, 1)
 
             local function UpdateSwatch()
-                local entry = SfuiDB.trackedBars and SfuiDB.trackedBars[id]
+                local entry = specBars and specBars[id]
                 local cfgEntry = sfui.config.trackedBars and sfui.config.trackedBars.defaults and
                     sfui.config.trackedBars.defaults[id]
 
                 if entry and entry.customColor then
-                    swatch:SetBackdropColor(unpack(entry.customColor))
+                    swatch:SetBackdropColor(sfui.common.unpack_color(entry.customColor))
                 elseif cfgEntry and cfgEntry.color then
-                    swatch:SetBackdropColor(unpack(cfgEntry.color))
+                    swatch:SetBackdropColor(sfui.common.unpack_color(cfgEntry.color))
                 else
                     swatch:SetBackdropColor(0.5, 0.5, 0.5, 0.5) -- Grey if no custom color
                 end
@@ -722,16 +726,33 @@ function sfui.trackedoptions.RenderBarsTab(parent)
                 local cfgEntry = sfui.config.trackedBars and sfui.config.trackedBars.defaults and
                     sfui.config.trackedBars.defaults[id]
 
-                local r, g, b, a = 1, 1, 1, 1
+                local r, g, b, a
                 if entry.customColor then
-                    r, g, b, a = unpack(entry.customColor)
+                    r, g, b, a = sfui.common.unpack_color(entry.customColor)
                 elseif cfgEntry and cfgEntry.color then
-                    r, g, b, a = unpack(cfgEntry.color)
+                    r, g, b, a = sfui.common.unpack_color(cfgEntry.color)
+                else
+                    r, g, b, a = 1, 1, 1, 1
                 end
 
+                local oldColor = { r, g, b, a }
                 ColorPickerFrame:SetupColorPickerAndShow({
-                    cancelFunc = function(prev)
-                        entry.customColor = prev
+                    swatchFunc = function()
+                        local nr, ng, nb = ColorPickerFrame:GetColorRGB()
+                        local na = ColorPickerFrame:GetColorAlpha()
+                        entry.customColor = { nr, ng, nb, na }
+                        UpdateSwatch()
+                        Refresh()
+                    end,
+                    opacityFunc = function()
+                        local nr, ng, nb = ColorPickerFrame:GetColorRGB()
+                        local na = ColorPickerFrame:GetColorAlpha()
+                        entry.customColor = { nr, ng, nb, na }
+                        UpdateSwatch()
+                        Refresh()
+                    end,
+                    cancelFunc = function()
+                        entry.customColor = oldColor
                         UpdateSwatch()
                         Refresh()
                     end,
@@ -739,6 +760,7 @@ function sfui.trackedoptions.RenderBarsTab(parent)
                     g = g,
                     b = b,
                     opacity = a,
+                    hasOpacity = true,
                 })
             end)
 

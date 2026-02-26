@@ -1,11 +1,11 @@
-## Title: sfui
+## Interface: 120001
+## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: 0.2.19
+## Version: 0.3.0
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
-## X-AddonProvider: GitHub
-## X-GitHub-User: telius
-## X-GitHub-Repo: sfui
+## X-Website: https://github.com/telius/sfui
+## X-Website-Source: https://github.com/telius/sfui
 ## X-GitHub-Repository: https://github.com/telius/sfui
 ## X-Project-Name: sfui
 ## SavedVariables: SfuiDB

@@ -13,6 +13,27 @@ local C_Spell = C_Spell
 local C_Item = C_Item
 local C_Timer = C_Timer
 
+local ReloadUI = _G.ReloadUI or (C_UI and C_UI.Reload)
+
+StaticPopupDialogs["SFUI_RELOAD_UI"] = {
+    text = "|cff00FF00SFUI:|r Tracked Bars modified. Reload UI to apply changes?",
+    button1 = "Reload",
+    button2 = "Later",
+    OnAccept = function()
+        ReloadUI()
+    end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+}
+
+local function ShowReloadPrompt()
+    if not StaticPopup_Visible("SFUI_RELOAD_UI") then
+        StaticPopup_Show("SFUI_RELOAD_UI")
+    end
+end
+
 -- Local references to common utilities
 local CreateFlatButton = sfui.common.create_flat_button
 local issecretvalue = sfui.common.issecretvalue
@@ -337,6 +358,15 @@ local function RenderTrackedBarsRightSide(parent, width)
                     dataProvider:SetCooldownToCategory(cdID, 3)
                 end
             end
+
+            -- Force save Blizzard CooldownViewer settings
+            local layoutManager = CooldownViewerSettings and CooldownViewerSettings.GetLayoutManager and
+                CooldownViewerSettings:GetLayoutManager()
+            if layoutManager and layoutManager.SaveLayouts then
+                layoutManager:SaveLayouts()
+            end
+            ShowReloadPrompt()
+
             if not next(entries) then SfuiDB.trackedBars = {} end
             if sfui.trackedbars and sfui.trackedbars.UpdateVisibility then sfui.trackedbars.UpdateVisibility() end
             if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then sfui.trackedbars.ForceLayoutUpdate() end
@@ -543,6 +573,15 @@ function sfui.cdm.create_panel(parent)
         end
         leftContent:SetHeight(math.max(maxBottom + 50, 200))
     end
+
+    cdmFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+    cdmFrame:SetScript("OnEvent", function(self, event)
+        if event == "PLAYER_SPECIALIZATION_CHANGED" then
+            selectedPanelIndex = nil
+            selectedPanelData = nil
+            sfui.cdm.RefreshLayout()
+        end
+    end)
 
     cdmFrame:SetScript("OnShow", sfui.cdm.RefreshLayout)
     cdmFrame:SetScript("OnHide", function()
@@ -1268,6 +1307,19 @@ local function PurgeIconFromEverywhere(targetId)
     -- 1. Purge from Tracked Bars
     if SfuiDB.trackedBars then
         SfuiDB.trackedBars[targetId] = nil
+
+        -- Update Blizzard backend and save
+        local dp = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and
+            CooldownViewerSettings:GetDataProvider()
+        if dp then
+            dp:SetCooldownToCategory(targetId, -1) -- HiddenSpell
+            local layoutManager = CooldownViewerSettings and CooldownViewerSettings.GetLayoutManager and
+                CooldownViewerSettings:GetLayoutManager()
+            if layoutManager and layoutManager.SaveLayouts then
+                layoutManager:SaveLayouts()
+            end
+            ShowReloadPrompt()
+        end
     end
 
     -- 2. Purge from Custom Panels
@@ -1370,6 +1422,21 @@ OnZoneReceiveDrag = function(zoneFrame, panelData, isTrackedBars)
     elseif draggedInfo.isFromTrackedBars and not isTrackedBars then
         -- Moving from Tracked Bars to a custom panel
         sfui.common.get_tracked_bars()[incomingId] = nil
+
+        -- Move to a hidden category and save
+        local dp = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and
+            CooldownViewerSettings:GetDataProvider()
+        if dp then
+            local hiddenCategory = -1 -- HiddenSpell
+            dp:SetCooldownToCategory(incomingId, hiddenCategory)
+
+            local layoutManager = CooldownViewerSettings and CooldownViewerSettings.GetLayoutManager and
+                CooldownViewerSettings:GetLayoutManager()
+            if layoutManager and layoutManager.SaveLayouts then
+                layoutManager:SaveLayouts()
+            end
+            ShowReloadPrompt()
+        end
     end
 
     if isTrackedBars then
@@ -1525,11 +1592,19 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
             CooldownViewerSettings:GetDataProvider()
         if dp and Enum and Enum.CooldownViewerCategory then
             dp:SetCooldownToCategory(incomingId, 3)
+
+            -- Force save Blizzard CooldownViewer settings
+            local layoutManager = CooldownViewerSettings and CooldownViewerSettings.GetLayoutManager and
+                CooldownViewerSettings:GetLayoutManager()
+            if layoutManager and layoutManager.SaveLayouts then
+                layoutManager:SaveLayouts()
+            end
+            ShowReloadPrompt()
         end
 
         if sfui.trackedbars and sfui.trackedbars.UpdateVisibility then sfui.trackedbars.UpdateVisibility() end
         if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then sfui.trackedbars.ForceLayoutUpdate() end
-        print("|cff00FF00SFUI:|r Added to Tracked Bars")
+        print("|cff00FF00SFUI:|r Added to Tracked Bars and Saved")
     else
         if not panelData.entries then panelData.entries = {} end
 
@@ -1578,6 +1653,29 @@ OnIconDragStop = function(self)
             if targetId then
                 if draggedInfo.isFromTrackedBars then
                     source[targetId] = nil
+
+                    -- Move to a hidden category in Blizzard backend and force save
+                    local dp = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and
+                        CooldownViewerSettings:GetDataProvider()
+                    if dp then
+                        -- Hidden categories are defined as: HiddenSpell = -1, HiddenAura = -2
+                        -- We try to determine if it's a spell or aura
+                        local hiddenCategory = -1 -- Default to HiddenSpell
+                        local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(targetId)
+                        if cdInfo and cdInfo.itemID and cdInfo.itemID > 0 then
+                            -- Items are usually handled as spells/cooldowns, but if it's specifically an aura tracker
+                            -- we might want HiddenAura. For now, HiddenSpell is the safest catch-all for bars.
+                        end
+
+                        dp:SetCooldownToCategory(targetId, hiddenCategory)
+
+                        local layoutManager = CooldownViewerSettings and CooldownViewerSettings.GetLayoutManager and
+                            CooldownViewerSettings:GetLayoutManager()
+                        if layoutManager and layoutManager.SaveLayouts then
+                            layoutManager:SaveLayouts()
+                        end
+                        ShowReloadPrompt()
+                    end
                 else
                     local entries = source -- Assuming 'entries' refers to 'source' in this context
                     local cdID = targetId  -- Assuming 'cdID' refers to 'targetId' in this context
@@ -1592,7 +1690,7 @@ OnIconDragStop = function(self)
                 end
 
                 if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-                print("|cffFF0000SFUI:|r Removed from Zone")
+                print("|cffFF0000SFUI:|r Removed from Zone and Saved")
             end
         end
     end

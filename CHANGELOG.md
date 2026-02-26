@@ -1,9 +1,10 @@
-## v0.2.19 (2026-02-26)
+## v0.3.0 (2026-02-26)
 
-### Bug Fixes
-- **WowUp Hub**: Finalized TOC metadata and removed color codes from the addon title to ensure reliable installation via third-party clients.
+### Features
+- **Spec-Specific Panels**: Cooldown panels are now saved and loaded based on the player's active specialization.
+- **Forced CooldownViewer Saving**: Added programmatic save triggers for Blizzard's CooldownViewer when modifying Tracked Bars to prevent UI state loss.
+- **Reload UI Prompt**: Added a user prompt to reload the UI after modifying Tracked Bars to ensure changes are applied correctly.
 
-## v0.2.18b (2026-02-26)
-
-### Bug Fixes
-- **Release**: Improved WowUp compatibility by simplifying TOC metadata and ensuring explicit asset naming in GitHub releases.
+### Improvements
+- Converted `cdm.lua` to LF line endings for better cross-platform compatibility.
+- Added various performance optimizations and safety checks in `cdm.lua`.

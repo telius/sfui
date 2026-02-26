@@ -548,6 +548,7 @@ function sfui.common.ensure_panels_initialized()
                 newPanel.requiredForm = spec.requiredForm
             end
             newPanel.name = spec.name
+            newPanel.specID = specID
             table.insert(panels, newPanel)
 
             -- Ensure "utility" and "center_panel" get their specific defaults applied robustly
@@ -691,6 +692,7 @@ function sfui.common.add_custom_panel(name)
     local newPanel = sfui.common.copy(sfui.config.cooldown_panel_defaults.utility)
     newPanel.name = name
     newPanel.entries = {}
+    newPanel.specID = sfui.common.get_current_spec_id()
 
     table.insert(panels, newPanel)
     return #panels
@@ -809,6 +811,8 @@ common_event_frame:RegisterEvent("PLAYER_TALENT_UPDATE")
 
 common_event_frame:SetScript("OnEvent", function(self, event)
     update_cached_spec_id()
+    sfui.common.invalidate_panels_cache()
+    if SfuiDB then SfuiDB._populationRetryDone = nil end
 end)
 
 function sfui.common.get_current_spec_id()
