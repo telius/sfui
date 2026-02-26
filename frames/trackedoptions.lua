@@ -549,12 +549,16 @@ function sfui.trackedoptions.RenderBarsTab(parent)
 
     if not db.anchor then db.anchor = { x = 0, y = 0 } end
 
-    BSlider(sec1c, "X", function() return db.anchor.x or cfg.anchor.x or 0 end, -1000, 1000, 1,
+    BSlider(sec1c, "X", function() return (db.anchor and db.anchor.x) or (cfg.anchor and cfg.anchor.x) or 0 end, -1000,
+        1000, 1,
         function(v)
+            if not db.anchor then db.anchor = {} end
             db.anchor.x = v; if sfui.trackedbars.UpdatePosition then sfui.trackedbars.UpdatePosition() end
         end, col2x, s1y - 20, 120)
-    BSlider(sec1c, "Y", function() return db.anchor.y or cfg.anchor.y or 0 end, -1000, 1000, 1,
+    BSlider(sec1c, "Y", function() return (db.anchor and db.anchor.y) or (cfg.anchor and cfg.anchor.y) or 0 end, -1000,
+        1000, 1,
         function(v)
+            if not db.anchor then db.anchor = {} end
             db.anchor.y = v; if sfui.trackedbars.UpdatePosition then sfui.trackedbars.UpdatePosition() end
         end, col2x + 130, s1y - 20, 120)
 
@@ -671,7 +675,11 @@ function sfui.trackedoptions.RenderBarsTab(parent)
                 local cb = sfui.common.create_checkbox(row, "",
                     function()
                         local dbEntry = SfuiDB.trackedBars and SfuiDB.trackedBars[id]
-                        return dbEntry and dbEntry[k] == true
+                        if dbEntry and dbEntry[k] ~= nil then return dbEntry[k] end
+                        local cfgEntry = sfui.config.trackedBars and sfui.config.trackedBars.defaults and
+                            sfui.config.trackedBars.defaults[id]
+                        if cfgEntry and cfgEntry[k] ~= nil then return cfgEntry[k] end
+                        return false
                     end,
                     function(v)
                         sfui.common.ensure_tracked_bar_db(id)[k] = v; Refresh()
@@ -696,8 +704,13 @@ function sfui.trackedoptions.RenderBarsTab(parent)
 
             local function UpdateSwatch()
                 local entry = SfuiDB.trackedBars and SfuiDB.trackedBars[id]
+                local cfgEntry = sfui.config.trackedBars and sfui.config.trackedBars.defaults and
+                    sfui.config.trackedBars.defaults[id]
+
                 if entry and entry.customColor then
                     swatch:SetBackdropColor(unpack(entry.customColor))
+                elseif cfgEntry and cfgEntry.color then
+                    swatch:SetBackdropColor(unpack(cfgEntry.color))
                 else
                     swatch:SetBackdropColor(0.5, 0.5, 0.5, 0.5) -- Grey if no custom color
                 end
@@ -706,9 +719,14 @@ function sfui.trackedoptions.RenderBarsTab(parent)
 
             swatch:SetScript("OnClick", function()
                 local entry = sfui.common.ensure_tracked_bar_db(id)
+                local cfgEntry = sfui.config.trackedBars and sfui.config.trackedBars.defaults and
+                    sfui.config.trackedBars.defaults[id]
+
                 local r, g, b, a = 1, 1, 1, 1
                 if entry.customColor then
                     r, g, b, a = unpack(entry.customColor)
+                elseif cfgEntry and cfgEntry.color then
+                    r, g, b, a = unpack(cfgEntry.color)
                 end
 
                 ColorPickerFrame:SetupColorPickerAndShow({

@@ -582,6 +582,19 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
         end)
     end
 
+    -- 4. Apply Cache Debounce to prevent 1-frame combat flicker
+    -- When abilities like Bone Shield refresh, the Aura API can briefly report 0/nil stacks.
+    if currentStacks then
+        myBar._auraStackCache = currentStacks
+        myBar._auraStackTimer = GetTime()
+    elseif myBar._auraStackCache and myBar._auraStackTimer then
+        if GetTime() - myBar._auraStackTimer < 0.2 then
+            currentStacks = myBar._auraStackCache -- Sustain previous stack count momentarily
+        else
+            myBar._auraStackCache = nil           -- Expire cache
+        end
+    end
+
     local db = SfuiDB and SfuiDB.trackedBars or {}
 
     -- Handle text visibility toggles (Global and Per-Bar options)

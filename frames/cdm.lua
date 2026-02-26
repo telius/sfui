@@ -92,6 +92,13 @@ local function AcquirePreviewBar(parent)
         upBtn:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up")
         upBtn:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Highlight")
         upBtn:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Down")
+
+        -- Fix "skin the up button properly like the down button is"
+        -- Sometimes upBtn gets custom skinned by ElvUI/Aurora if it has a certain name or if we manually style it,
+        -- but if the down button looks right, let's make sure they share identical dimensions/properties.
+        if upBtn.GetNormalTexture and upBtn:GetNormalTexture() then
+            upBtn:GetNormalTexture():SetTexCoord(0, 1, 0, 1)
+        end
         bar.upBtn = upBtn
 
         local dnBtn = CreateFrame("Button", nil, bar)
@@ -383,8 +390,8 @@ local function RenderTrackedBarsRightSide(parent, width)
     end
 
     local function SimpleSort(a, b)
-        local cA = sfui.trackedbars and sfui.trackedbars.GetTrackedBarConfig and sfui.trackedbars.GetTrackedBarConfig(a)
-        local cB = sfui.trackedbars and sfui.trackedbars.GetTrackedBarConfig and sfui.trackedbars.GetTrackedBarConfig(b)
+        local cA = sfui.trackedbars and sfui.trackedbars.GetConfig and sfui.trackedbars.GetConfig(a)
+        local cB = sfui.trackedbars and sfui.trackedbars.GetConfig and sfui.trackedbars.GetConfig(b)
         local pA = (cA and cA.priority) or 0
         local pB = (cB and cB.priority) or 0
         if pA ~= pB then return pA < pB end
