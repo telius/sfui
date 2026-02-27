@@ -262,16 +262,12 @@ local function RenderTrackedBarsRightSide(parent, width)
             }
         end
         for _, cat in ipairs(cats) do
-            -- Pass false to allowUnlearned to skip most unlearned spells natively
-            local ok, ids = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, cat, false)
+            -- Pass true to allowUnlearned to include unavailable spells gracefully
+            local ok, ids = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, cat, true)
             if ok and ids then
                 for _, id in ipairs(ids) do
                     if not sfui.common.issecretvalue(id) and IsValidID(id) then
-                        local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
-                        -- Only collect if it is explicitly known or has no restrictive known metadata
-                        if not cdInfo or cdInfo.isKnown ~= false then
-                            table.insert(list, id)
-                        end
+                        table.insert(list, id)
                     end
                 end
             end
@@ -325,6 +321,12 @@ local function RenderTrackedBarsRightSide(parent, width)
             itemID = (cdInfo and cdInfo.itemID and cdInfo.itemID > 0) and cdInfo.itemID or nil,
             name = iconName or ("Unknown (" .. cdID .. ")")
         }
+
+        if cdInfo and cdInfo.isKnown == false then
+            icon.texture:SetDesaturated(true)
+        else
+            icon.texture:SetDesaturated(false)
+        end
 
         -- Hide all borders initially
         if icon.borders then
@@ -945,6 +947,12 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
             local cdInfo = cooldownID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID)
             local spellID = cdInfo and cdInfo.spellID or (entry.type == "spell" and iconId)
             local itemID = cdInfo and cdInfo.itemID or (entry.type == "item" and iconId)
+
+            if cdInfo and cdInfo.isKnown == false then
+                icon.texture:SetDesaturated(true)
+            else
+                icon.texture:SetDesaturated(false)
+            end
 
             icon.id = iconId
             icon.type = entry.type

@@ -760,7 +760,11 @@ local function ProcessBlizzardSync()
                 else
                     local isSpecRestricted = false
 
-                    if not isManuallyTracked and sfui.config.trackedBars and sfui.config.trackedBars.defaults then
+                    if info and info.isKnown == false then
+                        isSpecRestricted = true
+                    end
+
+                    if not isSpecRestricted and not isManuallyTracked and sfui.config.trackedBars and sfui.config.trackedBars.defaults then
                         local def = sfui.config.trackedBars.defaults[id]
                         if def and def.specID then
                             local currentSpec = sfui.common.get_current_spec_id and sfui.common.get_current_spec_id()
