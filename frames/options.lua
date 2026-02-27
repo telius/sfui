@@ -249,6 +249,18 @@ function sfui.create_options_panel()
     vehicle_header:SetTextColor(white[1], white[2], white[3])
     vehicle_header:SetText("vehicle settings")
 
+    local enable_auto_compare_cb = create_checkbox(main_panel, "enable auto compare", "enableAutoCompare",
+        function(checked)
+            if sfui.compare and sfui.compare.init then
+                sfui.compare.init()
+            end
+        end, "automatically sets 'alwaysCompareItems' cvar.")
+    enable_auto_compare_cb:SetPoint("LEFT", enable_ring_cursor_cb, "RIGHT", 150, 0)
+
+    local auto_compare_shift_cb = create_checkbox(main_panel, "shift to disable auto compare", "autoCompareShiftDisable",
+        nil, "hold shift to temporarily disable auto compare.")
+    auto_compare_shift_cb:SetPoint("TOPLEFT", enable_auto_compare_cb, "BOTTOMLEFT", 0, -10)
+
     local enable_vehicle_cb = create_checkbox(main_panel, "enable vehicle ui", "enableVehicle", function(checked)
         if checked then
             print("|cff00ff00Sfui: Vehicle UI enabled. Please reload UI for changes to fully apply.|r")

@@ -1,3 +1,8 @@
+## v0.3.0e (2026-02-27)
+
+### Features
+- **Auto Compare**: Added built-in auto equipment compare with a "hold shift to disable" option. Configurable under the main options tab.
+
 ## v0.3.0d (2026-02-27)
 
 ### Bug Fixes
