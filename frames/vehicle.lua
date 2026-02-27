@@ -4,6 +4,11 @@ sfui.vehicle = {}
 local frame = CreateFrame("Frame", "SfuiVehicleBar", UIParent, "SecureHandlerStateTemplate")
 sfui.vehicle.frame = frame
 
+local GetActionCooldown = GetActionCooldown
+local GetActionCount = GetActionCount
+local GetActionCharges = GetActionCharges
+local CooldownFrame_Set = CooldownFrame_Set
+
 local cfg = sfui.config.vehicle
 local g = sfui.config
 local mult = sfui.pixelScale or 1
@@ -36,7 +41,14 @@ for i = 1, 12 do
     if btn.NewActionTexture then btn.NewActionTexture:SetAlpha(0) end
     if btn.Border then btn.Border:SetAlpha(0) end
     if btn.HotKey then btn.HotKey:SetAlpha(0) end
-    if btn.Count then btn.Count:SetAlpha(0) end
+
+    if btn.Count then
+        btn.Count:ClearAllPoints()
+        btn.Count:SetPoint("BOTTOMRIGHT", -2, 2)
+        btn.Count:SetFontObject("GameFontHighlight")
+        btn.Count:SetJustifyH("RIGHT")
+        btn.Count:SetAlpha(1)
+    end
 
     btn:SetNormalTexture("")
     btn:SetPushedTexture("")
@@ -47,6 +59,21 @@ for i = 1, 12 do
     btn.icon:SetAllPoints()
 
     sfui.common.apply_square_icon_style(btn, btn.icon)
+
+    local cd = _G[btn:GetName() .. "Cooldown"] or btn.cooldown
+    if cd then
+        cd:SetDrawEdge(true)
+        cd:SetHideCountdownNumbers(false)
+    end
+
+    local shadow = CreateFrame("Cooldown", "$parentShadowCD", btn, "CooldownFrameTemplate")
+    shadow:SetAllPoints(btn.icon)
+    shadow:SetDrawSwipe(false)
+    shadow:SetDrawEdge(false)
+    shadow:SetDrawBling(false)
+    shadow:SetHideCountdownNumbers(true)
+    shadow:SetAlpha(0)
+    btn.shadowCooldown = shadow
 
     -- Keybind
     btn.kb = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -119,11 +146,50 @@ end)
 local visString = "[petbattle] hide; [mounted,bonusbar:5] hide; "
 if sfui.common.get_player_class() == "DRUID" then
     visString = visString ..
-    "[form:3,bonusbar:5] hide; [form:4,bonusbar:5] hide; "                          -- Form 3 & 4 catches Travel/Moonkin edge cases
+        "[form:3,bonusbar:5] hide; [form:4,bonusbar:5] hide; " -- Form 3 & 4 catches Travel/Moonkin edge cases
 end
 visString = visString .. "[vehicleui][possessbar][overridebar][bonusbar:5] show; hide"
 
 RegisterStateDriver(frame, "visibility", visString)
+
+local function UpdateCooldowns()
+    if not frame:IsVisible() then return end
+    for i = 1, 12 do
+        local btn = buttons[i]
+        local actionID = btn:GetAttribute("action")
+        if btn:IsVisible() and actionID then
+            local start, duration, enable = GetActionCooldown(actionID)
+            local cd = _G[btn:GetName() .. "Cooldown"] or btn.cooldown
+            if cd then
+                CooldownFrame_Set(cd, start, duration, enable)
+            end
+            if btn.shadowCooldown then
+                btn.shadowCooldown:SetCooldown(start, duration)
+            end
+
+            local count = GetActionCount(actionID)
+            local charges, maxCharges, chargeStart, chargeDuration = GetActionCharges(actionID)
+
+            local displayCount = charges or count or 0
+            if btn.Count then
+                if displayCount > 0 or (maxCharges and maxCharges > 1) then
+                    btn.Count:SetText(tostring(displayCount))
+                    btn.Count:Show()
+                else
+                    btn.Count:Hide()
+                end
+            end
+
+            if (start > 0 and duration > 1.5) or (maxCharges and charges == 0) or (enable == 0) then
+                btn.icon:SetDesaturated(true)
+                btn.icon:SetVertexColor(0.4, 0.4, 0.4)
+            else
+                btn.icon:SetDesaturated(false)
+                btn.icon:SetVertexColor(1, 1, 1)
+            end
+        end
+    end
+end
 
 local function UpdateActionButtons()
     if InCombatLockdown() then
@@ -174,6 +240,8 @@ local function UpdateActionButtons()
     else
         -- Don't Hide() here, let the state driver handle main frame visibility
     end
+
+    UpdateCooldowns()
 end
 
 frame:RegisterEvent("UNIT_ENTERED_VEHICLE")
@@ -186,6 +254,9 @@ frame:RegisterEvent("UPDATE_POSSESS_BAR")
 frame:RegisterEvent("ACTIONBAR_UPDATE_STATE")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+frame:RegisterEvent("ACTIONBAR_UPDATE_COOLDOWN")
+frame:RegisterEvent("SPELL_UPDATE_CHARGES")
+frame:RegisterEvent("SPELL_UPDATE_USABLE")
 
 frame:SetScript("OnEvent", function(self, event, ...)
     if not SfuiDB.enableVehicle then
@@ -197,6 +268,11 @@ frame:SetScript("OnEvent", function(self, event, ...)
         if MainMenuBarVehicleLeaveButton then
             MainMenuBarVehicleLeaveButton:SetAlpha(1); MainMenuBarVehicleLeaveButton:EnableMouse(true)
         end
+        return
+    end
+
+    if event == "ACTIONBAR_UPDATE_COOLDOWN" or event == "SPELL_UPDATE_CHARGES" or event == "SPELL_UPDATE_USABLE" then
+        UpdateCooldowns()
         return
     end
 
