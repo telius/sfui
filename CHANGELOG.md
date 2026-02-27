@@ -4,6 +4,13 @@
 - **Event Dispatcher**: Fixed a Lua error (`compare string with number`) in the central update loop caused by a signature mismatch in `RegisterUpdate`.
 - **API Stability**: `sfui.events.RegisterUpdate` is now polymorphic, safely handling both `(interval, callback)` and `(name, interval, callback)` call styles.
 
+## v0.3.0f (2026-02-27)
+
+### Features
+- **Vehicle UI**: Massive aesthetic overhaul matching `trackedicons`. Complete with cooldown sweeps, stack texts (counts), and shadow desaturation effects. Uses highly performant event-based refreshes rather than an `OnUpdate` loop.
+- **Auto Compare**: Repositioned the Auto Compare toggle directly under Ring Cursor in options and removed over-complex logic like the shift-to-disable hotkey to streamline the feature.
+- **Event Dispatcher**: Fixed a Lua error (`compare string with number`) in the central update loop caused by a signature mismatch in `RegisterUpdate`.
+
 ## v0.3.0e (2026-02-27)
 
 ### Features
