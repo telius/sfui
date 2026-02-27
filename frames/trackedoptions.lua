@@ -1363,6 +1363,8 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
             local bx = 165
             local currentFilter = entry.settings.heroTalentFilter or "Any"
 
+            local configID = C_ClassTalents and C_ClassTalents.GetActiveConfigID and C_ClassTalents.GetActiveConfigID()
+
             local function CreateHeroBtn(heroInfo, xPos)
                 local btn = CreateFrame("Button", nil, row, "BackdropTemplate")
                 btn:SetSize(24, 24)
@@ -1373,8 +1375,13 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
                 if heroInfo == "Any" then
                     tex:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
                 else
-                    local traitInfo = C_Traits.GetTraitDescriptionInfo(heroInfo)
-                    tex:SetTexture(traitInfo and traitInfo.iconID or 134400)
+                    local traitInfo = configID and C_Traits and C_Traits.GetSubTreeInfo and
+                    C_Traits.GetSubTreeInfo(configID, heroInfo)
+                    if traitInfo and traitInfo.iconElementID then
+                        tex:SetAtlas(traitInfo.iconElementID)
+                    else
+                        tex:SetTexture(134400)
+                    end
                 end
 
                 -- Inside border to indicate selection like tracked icon pool
@@ -1399,7 +1406,8 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
                     if heroInfo == "Any" then
                         GameTooltip:SetText("Any Hero Talent")
                     else
-                        local traitInfo = C_Traits.GetTraitDescriptionInfo(heroInfo)
+                        local traitInfo = configID and C_Traits and C_Traits.GetSubTreeInfo and
+                        C_Traits.GetSubTreeInfo(configID, heroInfo)
                         GameTooltip:SetText(traitInfo and traitInfo.name or "Unknown")
                     end
                     GameTooltip:Show()
