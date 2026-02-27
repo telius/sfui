@@ -473,6 +473,30 @@ function sfui.common.invalidate_panels_cache()
     _cachedPanelsSpecID = nil
 end
 
+-- Get only the active (available) entries for a panel
+function sfui.common.get_active_panel_entries(panelConfig)
+    if not panelConfig or type(panelConfig.entries) ~= "table" then return {} end
+    local activeEntries = {}
+    for _, entry in ipairs(panelConfig.entries) do
+        local isKnown = true
+        local typeHint = (type(entry) == "table" and entry.type) or "spell"
+
+        if (typeHint == "spell" or typeHint == "cooldown") and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
+            local id = (type(entry) == "table" and entry.id) or entry
+            local cdID = (type(entry) == "table" and entry.cooldownID) or id
+            local cdInfo = C_CooldownViewer.GetCooldownViewerCooldownInfo(cdID)
+            if cdInfo and cdInfo.isKnown == false then
+                isKnown = false
+            end
+        end
+
+        if isKnown then
+            table.insert(activeEntries, entry)
+        end
+    end
+    return activeEntries
+end
+
 -- Ensure panels exist and are populated (Called once on load/spec/talent change)
 function sfui.common.ensure_panels_initialized()
     local specID = sfui.common.get_current_spec_id() or 0

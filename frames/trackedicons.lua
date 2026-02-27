@@ -881,7 +881,7 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
     end
 
     local activeIcons = {}
-    local entries = panelConfig.entries or {}
+    local entries = sfui.common.get_active_panel_entries(panelConfig)
 
     for i, entry in ipairs(entries) do
         -- Handle both new simple numeric IDs and legacy table entries
@@ -1093,8 +1093,11 @@ local function CheckPanelVisibility(panelConfig)
     end
 
     -- Hide if no active icons
-    if panelConfig.hideIfEmpty and (not panelConfig.entries or #panelConfig.entries == 0) then
-        return false
+    if panelConfig.hideIfEmpty then
+        local activeEntries = sfui.common.get_active_panel_entries(panelConfig)
+        if #activeEntries == 0 then
+            return false
+        end
     end
 
     return true
