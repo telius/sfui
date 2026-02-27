@@ -1,3 +1,12 @@
+## v0.3.0c (2026-02-27)
+
+### Features
+- **Event Consolidation**: Centralized all `OnEvent` and `OnUpdate` handlers into a unified dispatcher in `common.lua`. This significantly improves technical debt and performance.
+- **Improved Performance**: Reduced CPU and memory overhead during active gameplay by eliminating redundant frame allocations and event registrations.
+
+### Bug Fixes
+- **Tracked Icons**: Fixed a Lua error (`nil self`) in `trackedicons.lua` that occurred when transitioning between combat/mounting.
+
 ## v0.3.0a (2026-02-27)
 
 ### Bug Fixes

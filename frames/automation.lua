@@ -469,52 +469,48 @@ end
 
 _G["SFUI_MATCHMOUNT"] = sfui.automation.match_mount
 
-function sfui.automation.initialize()
-    local frame = CreateFrame("Frame")
-    frame:RegisterEvent("LFG_ROLE_CHECK_SHOW")
-    frame:RegisterEvent("LFG_LIST_SEARCH_RESULTS_RECEIVED")
-    frame:RegisterEvent("PLAYER_LOGIN")
-    frame:RegisterEvent("BAG_UPDATE")
-    frame:RegisterEvent("MERCHANT_SHOW")
-    frame:RegisterEvent("MERCHANT_CLOSED")
-    frame:RegisterEvent("UPDATE_INVENTORY_DURABILITY")
-    frame:RegisterEvent("PLAYER_REGEN_ENABLED")
-    frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
-    frame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
-    frame:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
+sfui.events.RegisterEvent("LFG_ROLE_CHECK_SHOW", function()
+    C_Timer.After(0.1, on_role_check_show)
+end)
+sfui.events.RegisterEvent("LFG_LIST_SEARCH_RESULTS_RECEIVED", function()
+    C_Timer.After(0.1, initialize_lfg_buttons)
+end)
+sfui.events.RegisterEvent("PLAYER_LOGIN", function()
+    setup_lfg_dialog()
+    update_hammer_popup()
+end)
+sfui.events.RegisterEvent("BAG_UPDATE", function()
+    hammerCache.checked = false
+    hammerCache.found = false
+    update_hammer_popup()
+end)
+sfui.events.RegisterEvent("MERCHANT_SHOW", function()
+    rotationIndex = 1
+    auto_sell_greys()
+    auto_repair()
+    update_hammer_popup()
+end)
+sfui.events.RegisterEvent("MERCHANT_CLOSED", function() end)
 
-    frame:SetScript("OnEvent", function(self, event, ...)
-        local arg1, arg2, arg3 = ...
-        if event == "LFG_ROLE_CHECK_SHOW" then
-            C_Timer.After(0.1, on_role_check_show)
-        elseif event == "LFG_LIST_SEARCH_RESULTS_RECEIVED" then
-            C_Timer.After(0.1, initialize_lfg_buttons)
-        elseif event == "PLAYER_LOGIN" then
-            setup_lfg_dialog()
-            -- Perform initial one-time scan and check durability immediately
-            update_hammer_popup()
-        elseif event == "BAG_UPDATE" then
-            hammerCache.checked = false
-            hammerCache.found = false
-            update_hammer_popup()
-        elseif event == "MERCHANT_SHOW" then
-            rotationIndex = 1
-            auto_sell_greys()
-            auto_repair()
-            update_hammer_popup()
-        elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
-            if arg1 == "player" and (arg3 == 382404 or arg3 == 382403) then -- Master's Hammer cast IDs
-                currentTargetSlot = nil
-                update_hammer_popup()
-            end
-        elseif event == "UNIT_SPELLCAST_INTERRUPTED" then
-            if arg1 == "player" and (arg3 == 382404 or arg3 == 382403) then
-                -- Cast was cancelled/interrupted, clear the current target so it doesn't get blocked
-                currentTargetSlot = nil
-                update_hammer_popup()
-            end
-        elseif event == "UPDATE_INVENTORY_DURABILITY" or event == "PLAYER_REGEN_ENABLED" or event == "GET_ITEM_INFO_RECEIVED" then
-            update_hammer_popup()
-        end
-    end)
+sfui.events.RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
+    if unit == "player" and (spellID == 382404 or spellID == 382403) then     -- Master's Hammer cast IDs
+        currentTargetSlot = nil
+        update_hammer_popup()
+    end
+end)
+
+sfui.events.RegisterEvent("UNIT_SPELLCAST_INTERRUPTED", function(unit, _, spellID)
+    if unit == "player" and (spellID == 382404 or spellID == 382403) then
+        -- Cast was cancelled/interrupted, clear the current target so it doesn't get blocked
+        currentTargetSlot = nil
+        update_hammer_popup()
+    end
+end)
+
+local function refreshHammer()
+    update_hammer_popup()
 end
+
+sfui.events.RegisterEvent("UPDATE_INVENTORY_DURABILITY", refreshHammer)
+sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", refreshHammer)
+sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", refreshHammer)

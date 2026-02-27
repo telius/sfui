@@ -575,13 +575,10 @@ function sfui.cdm.create_panel(parent)
         leftContent:SetHeight(math.max(maxBottom + 50, 200))
     end
 
-    cdmFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-    cdmFrame:SetScript("OnEvent", function(self, event)
-        if event == "PLAYER_SPECIALIZATION_CHANGED" then
-            selectedPanelIndex = nil
-            selectedPanelData = nil
-            sfui.cdm.RefreshLayout()
-        end
+    sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function()
+        selectedPanelIndex = nil
+        selectedPanelData = nil
+        sfui.cdm.RefreshLayout()
     end)
 
     cdmFrame:SetScript("OnShow", sfui.cdm.RefreshLayout)
@@ -1384,10 +1381,11 @@ OnIconDragStart = function(self, isFromTrackedBars)
     }
 
     -- Creating a ghost cursor follows mouse
-    cursor:SetScript("OnUpdate", function(c)
+    sfui.events.RegisterUpdate(0, function(c)
+        if not cursor:IsShown() then return end
         local x, y = GetCursorPosition()
         local scale = UIParent:GetEffectiveScale()
-        c:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
+        cursor:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
     end)
     cursor:Show()
 

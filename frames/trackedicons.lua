@@ -783,17 +783,17 @@ local function CheckPanelVisibility(panelConfig, event)
     return true
 end
 
--- Visibility Event Handler
-function sfui.trackedicons.OnVisibilityEvent(self, event)
-    local panelFrame = self:GetParent()
-    if not panelFrame or not panelFrame.config then return end
-
-    local shouldShow = CheckPanelVisibility(panelFrame.config, event)
-
-    if shouldShow then
-        if not panelFrame:IsShown() then panelFrame:Show() end
-    else
-        if panelFrame:IsShown() then panelFrame:Hide() end
+-- Visibility Event Handler (Triggered centrally now)
+function sfui.trackedicons.OnVisibilityEvent(_, event)
+    for _, panelFrame in pairs(panels) do
+        if panelFrame.config then
+            local shouldShow = CheckPanelVisibility(panelFrame.config, event)
+            if shouldShow then
+                if not panelFrame:IsShown() then panelFrame:Show() end
+            else
+                if panelFrame:IsShown() then panelFrame:Hide() end
+            end
+        end
     end
 end
 
@@ -834,16 +834,19 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
     panelFrame.config = panelConfig
 
 
-    -- Register Event-Driven Visibility Handler for this panel
-    if not panelFrame.visHandler then
-        panelFrame.visHandler = CreateFrame("Frame", nil, panelFrame)
-        panelFrame.visHandler:RegisterEvent("PLAYER_REGEN_DISABLED")
-        panelFrame.visHandler:RegisterEvent("PLAYER_REGEN_ENABLED")
-        panelFrame.visHandler:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
-        panelFrame.visHandler:RegisterEvent("UNIT_POWER_BAR_SHOW")
-        panelFrame.visHandler:RegisterEvent("UNIT_POWER_BAR_HIDE")
-
-        panelFrame.visHandler:SetScript("OnEvent", sfui.trackedicons.OnVisibilityEvent)
+    -- Register Event-Driven Visibility Handlers (once central hook)
+    if not sfui.trackedicons._eventsRegistered then
+        sfui.trackedicons._eventsRegistered = true
+        sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED",
+            function(...) sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_REGEN_DISABLED", ...) end)
+        sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED",
+            function(...) sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_REGEN_ENABLED", ...) end)
+        sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED",
+            function(...) sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_MOUNT_DISPLAY_CHANGED", ...) end)
+        sfui.events.RegisterEvent("UNIT_POWER_BAR_SHOW",
+            function(...) sfui.trackedicons.OnVisibilityEvent(nil, "UNIT_POWER_BAR_SHOW", ...) end)
+        sfui.events.RegisterEvent("UNIT_POWER_BAR_HIDE",
+            function(...) sfui.trackedicons.OnVisibilityEvent(nil, "UNIT_POWER_BAR_HIDE", ...) end)
     end
 
 
@@ -1300,88 +1303,131 @@ function sfui.trackedicons.initialize()
     -- Event handling
     local eventFrame = CreateFrame("Frame")
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterEvent("SPELL_UPDATE_COOLDOWN")
-    eventFrame:RegisterEvent("BAG_UPDATE_COOLDOWN")
-    eventFrame:RegisterEvent("UNIT_AURA")
-    eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")          -- To retry layout updates
-    eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")         -- Visibility trigger
-    eventFrame:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")  -- Dragonriding trigger
-    eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED") -- Reload panels on spec change
-    eventFrame:RegisterEvent("PLAYER_TALENT_UPDATE")          -- Reload panels on talent/hero spec change
-    eventFrame:RegisterEvent("TRAIT_CONFIG_UPDATED")          -- Talent changes (for cooldown overrideSpellID)
-    eventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")        -- For form-specific panels
-    eventFrame:RegisterEvent("UPDATE_STEALTH")                -- For stealth-specific panels
-    eventFrame:SetScript("OnEvent", function(self, event, unitTarget, updateInfo)
-        if event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" or event == "UPDATE_STEALTH" then
+    sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+        sfui.trackedicons.Update()
+        MarkDirty(1.0) -- Longer burst for combat transitions
+    end)
+    sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+        sfui.trackedicons.Update()
+        MarkDirty(1.0) -- Longer burst for combat transitions
+    end)
+    sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", function()
+        sfui.trackedicons.Update()
+        MarkDirty(1.0) -- Longer burst for combat transitions
+    end)
+    sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORM", function()
+        sfui.trackedicons.Update()
+        MarkDirty(1.0) -- Longer burst for combat transitions
+    end)
+    sfui.events.RegisterEvent("UPDATE_STEALTH", function()
+        sfui.trackedicons.Update()
+        MarkDirty(1.0) -- Longer burst for combat transitions
+    end)
+
+    sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
+        sfui.common.ensure_panels_initialized()
+        if sfui.common.SyncTrackedSpells then
+            sfui.common.SyncTrackedSpells()
+        end
+        sfui.trackedicons.Update()
+        MarkDirty(2.0) -- Longer burst for world entry
+    end)
+    sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function()
+        sfui.common.ensure_panels_initialized()
+        if sfui.common.SyncTrackedSpells then
+            sfui.common.SyncTrackedSpells()
+        end
+        sfui.trackedicons.Update()
+        MarkDirty(2.0) -- Longer burst for world entry
+    end)
+    sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", function()
+        sfui.common.ensure_panels_initialized()
+        if sfui.common.SyncTrackedSpells then
+            sfui.common.SyncTrackedSpells()
+        end
+        sfui.trackedicons.Update()
+        MarkDirty(2.0) -- Longer burst for world entry
+    end)
+    sfui.events.RegisterEvent("SPELLS_CHANGED", function() MarkDirty() end)
+
+    -- Real-time events that require immediate structural/GCD sync
+    sfui.events.RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", function(unit)
+        if unit == "player" then
             sfui.trackedicons.Update()
-            MarkDirty(1.0) -- Longer burst for combat transitions
-        elseif event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_TALENT_UPDATE" then
-            sfui.common.ensure_panels_initialized()
-            if sfui.common.SyncTrackedSpells then
-                sfui.common.SyncTrackedSpells()
+        end
+    end)
+
+    sfui.events.RegisterEvent("SPELL_UPDATE_COOLDOWN", function()
+        if InCombatLockdown() then
+            UpdateAllIconStates()
+        else
+            sfui.trackedicons.Update()
+        end
+        MarkDirty(0.5)
+    end)
+
+    sfui.events.RegisterEvent("BAG_UPDATE_COOLDOWN", function()
+        if InCombatLockdown() then
+            UpdateAllIconStates()
+        else
+            sfui.trackedicons.Update()
+        end
+        MarkDirty(0.5)
+    end)
+
+    -- 11.0 C_UnitAuras Event Migration
+    sfui.events.RegisterEvent("UNIT_AURA", function(unit, updateInfo)
+        if unit == "player" and updateInfo then
+            local needsFullUpdate = false
+
+            if updateInfo.addedAuras and #updateInfo.addedAuras > 0 then
+                needsFullUpdate = true
             end
-            sfui.trackedicons.Update()
-            MarkDirty(2.0) -- Longer burst for world entry
-        elseif event == "UNIT_AURA" and unitTarget == "player" then
-            if updateInfo and not InCombatLockdown() then
-                local needsFullUpdate = false
 
-                if updateInfo.addedAuras and #updateInfo.addedAuras > 0 then
-                    needsFullUpdate = true
-                end
-
-                if updateInfo.updatedAuraInstanceIDs and not needsFullUpdate then
-                    for _, instanceID in ipairs(updateInfo.updatedAuraInstanceIDs) do
-                        pcall(function()
-                            for _, panel in pairs(panels) do
-                                local config = panel.config
-                                if panel.icons and config then
-                                    for _, icon in pairs(panel.icons) do
-                                        if icon.auraInstanceID == instanceID then
-                                            UpdateIconState(icon, config)
-                                        end
+            if updateInfo.updatedAuraInstanceIDs and not needsFullUpdate then
+                for _, instanceID in ipairs(updateInfo.updatedAuraInstanceIDs) do
+                    pcall(function()
+                        for _, panel in pairs(panels) do
+                            local config = panel.config
+                            if panel.icons and config then
+                                for _, icon in pairs(panel.icons) do
+                                    if icon.auraInstanceID == instanceID then
+                                        UpdateIconState(icon, config)
                                     end
                                 end
                             end
-                        end)
-                    end
-                end
-
-                if updateInfo.removedAuraInstanceIDs and #updateInfo.removedAuraInstanceIDs > 0 then
-                    needsFullUpdate = true
-                end
-
-                if needsFullUpdate then
-                    sfui.trackedicons.Update()
-                end
-            else
-                if InCombatLockdown() then
-                    UpdateAllIconStates()
-                else
-                    sfui.trackedicons.Update()
+                        end
+                    end)
                 end
             end
-            MarkDirty(0.5)
-        elseif event == "TRAIT_CONFIG_UPDATED" then
-            if not InCombatLockdown() then
-                UpdateCooldownIconStates()
+
+            if updateInfo.removedAuraInstanceIDs and #updateInfo.removedAuraInstanceIDs > 0 then
+                needsFullUpdate = true
             end
-            MarkDirty(0.5)
+
+            if needsFullUpdate then
+                sfui.trackedicons.Update()
+            end
         else
-            -- SPELL_UPDATE_COOLDOWN, BAG_UPDATE_COOLDOWN
             if InCombatLockdown() then
                 UpdateAllIconStates()
             else
                 sfui.trackedicons.Update()
             end
-            MarkDirty(0.5)
         end
+        MarkDirty(0.5)
+    end)
+
+    sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", function()
+        if not InCombatLockdown() then
+            UpdateCooldownIconStates()
+        end
+        MarkDirty(0.5)
     end)
 
     -- OnUpdate: Only process when dirty or during burst period (for smooth glow/alpha transitions)
-    local lastUpdate = 0
     local blizzSyncTimer = 0
-    eventFrame:SetScript("OnUpdate", function(self, elapsed)
+    sfui.events.RegisterUpdate(0.1, function(elapsed)
         if sfui.trackedicons.blizzSyncDirty then
             blizzSyncTimer = blizzSyncTimer + elapsed
             if blizzSyncTimer > 0.1 then
@@ -1391,29 +1437,24 @@ function sfui.trackedicons.initialize()
             end
         end
 
-        lastUpdate = lastUpdate + elapsed
-        if lastUpdate > 0.1 then
-            lastUpdate = 0
+        -- Decrement burst timer
+        if _burstTimer > 0 then
+            _burstTimer = _burstTimer - 0.1
+        end
 
-            -- Decrement burst timer
-            if _burstTimer > 0 then
-                _burstTimer = _burstTimer - 0.1
-            end
-
-            -- Only update if dirty flag set or burst timer active or any glows are running
-            if _needsStateUpdate or _burstTimer > 0 then
-                _needsStateUpdate = false
-                UpdateAllIconStates()
-            else
-                -- Even when idle, check icons with active glows for timeout
-                for _, panel in pairs(panels) do
-                    if panel.icons then
-                        for _, icon in pairs(panel.icons) do
-                            if icon._glowActive then
-                                local config = panel.config
-                                if config then
-                                    UpdateIconGlow(icon, icon.entry and icon.entry.settings or _emptyTable, config, true)
-                                end
+        -- Only update if dirty flag set or burst timer active or any glows are running
+        if _needsStateUpdate or _burstTimer > 0 then
+            _needsStateUpdate = false
+            UpdateAllIconStates()
+        else
+            -- Even when idle, check icons with active glows for timeout
+            for _, panel in pairs(panels) do
+                if panel.icons then
+                    for _, icon in pairs(panel.icons) do
+                        if icon._glowActive then
+                            local config = panel.config
+                            if config then
+                                UpdateIconGlow(icon, icon.entry and icon.entry.settings or _emptyTable, config, true)
                             end
                         end
                     end

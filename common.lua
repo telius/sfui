@@ -517,7 +517,7 @@ function sfui.common.get_active_panel_entries(panelConfig)
 
                 if hasWhitelistItems then
                     local activeHeroSpec = C_ClassTalents and C_ClassTalents.GetActiveHeroTalentSpec and
-                    C_ClassTalents.GetActiveHeroTalentSpec()
+                        C_ClassTalents.GetActiveHeroTalentSpec()
                     if not activeHeroSpec or not entry.settings.heroTalentWhitelist[activeHeroSpec] then
                         isKnown = false
                     end
@@ -857,21 +857,77 @@ local resourceColorsCache = {
 }
 
 local cachedSpecID = 0
-local common_event_frame = CreateFrame("Frame")
+sfui.events = {}
+
+local eventCallbacks = {}
+local updateCallbacks = {}
+
+local central_event_frame = CreateFrame("Frame")
+central_event_frame:SetScript("OnEvent", function(self, event, ...)
+    local cbs = eventCallbacks[event]
+    if cbs then
+        for _, cb in ipairs(cbs) do
+            -- Catch errors to prevent one bad callback from breaking all others listening to this event
+            local ok, err = pcall(cb, event, ...)
+            if not ok then
+                print("|cff6600ffsfui|r: Event callback error (" .. tostring(event) .. "):", err)
+            end
+        end
+    end
+end)
+
+local updateTimer = 0
+central_event_frame:SetScript("OnUpdate", function(self, elapsed)
+    updateTimer = updateTimer + elapsed
+    for _, data in ipairs(updateCallbacks) do
+        data.elapsed = data.elapsed + elapsed
+        if data.elapsed >= data.interval then
+            local ok, err = pcall(data.callback, data.elapsed)
+            if not ok then
+                print("|cff6600ffsfui|r: Update callback error:", err)
+            end
+            data.elapsed = 0
+        end
+    end
+end)
+
+-- Register an event callback
+function sfui.events.RegisterEvent(event, callback)
+    if not eventCallbacks[event] then
+        eventCallbacks[event] = {}
+        central_event_frame:RegisterEvent(event)
+    end
+    table.insert(eventCallbacks[event], callback)
+end
+
+-- Register a throttled update loop
+function sfui.events.RegisterUpdate(interval, callback)
+    table.insert(updateCallbacks, {
+        interval = interval,
+        elapsed = 0,
+        callback = callback
+    })
+end
 
 local function update_cached_spec_id()
     local spec = C_SpecializationInfo.GetSpecialization()
     cachedSpecID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
 end
 
-common_event_frame:RegisterEvent("PLAYER_LOGIN")
-common_event_frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-common_event_frame:RegisterEvent("PLAYER_TALENT_UPDATE")
+sfui.events.RegisterEvent("PLAYER_LOGIN", function()
+    update_cached_spec_id()
+    sfui.common.invalidate_panels_cache()
+end)
 
-common_event_frame:SetScript("OnEvent", function(self, event)
+sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function()
     update_cached_spec_id()
     sfui.common.invalidate_panels_cache()
     if SfuiDB then SfuiDB._populationRetryDone = nil end
+end)
+
+sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", function()
+    update_cached_spec_id()
+    sfui.common.invalidate_panels_cache()
 end)
 
 function sfui.common.get_current_spec_id()

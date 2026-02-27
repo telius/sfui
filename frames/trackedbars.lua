@@ -935,24 +935,22 @@ function sfui.trackedbars.initialize()
     sfui.trackedbars.UpdatePosition()
 
     -- Event listener for visibility updates
-    container:RegisterEvent("PLAYER_REGEN_DISABLED")
-    container:RegisterEvent("PLAYER_REGEN_ENABLED")
-    container:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
-    container:SetScript("OnEvent", function()
+    sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+        if SyncWithBlizzard then SyncWithBlizzard() end
+    end)
+    sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+        if SyncWithBlizzard then SyncWithBlizzard() end
+    end)
+    sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", function()
         if SyncWithBlizzard then SyncWithBlizzard() end
     end)
 
     -- Throttled OnUpdate for smooth bar progress AND structure updates
-    local updateThrottle = 0
     local syncThrottle = 0
-    container:SetScript("OnUpdate", function(self, elapsed)
-        -- 1. Visual Updates (Smooth, higher frequency)
-        updateThrottle = updateThrottle + elapsed
-        if updateThrottle >= cfg.updateThrottle then
-            updateThrottle = 0
-            if BuffBarCooldownViewer and BuffBarCooldownViewer.itemFramePool then
-                pcall(UpdateBarsState)
-            end
+    sfui.events.RegisterUpdate(cfg.updateThrottle or 0.05, function(elapsed)
+        -- 1. Visual Updates (Smooth, higher frequency based on config)
+        if BuffBarCooldownViewer and BuffBarCooldownViewer.itemFramePool then
+            pcall(UpdateBarsState)
         end
 
         -- 2. Structure/Visibility Sync (Throttled, lower frequency)

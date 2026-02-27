@@ -275,7 +275,7 @@ local function check_pet_warning()
     local isAppropriateSpec = false
     local expectFelguard = false
     local isPlayerSpellFn = IsPlayerSpell or
-    function(id) return C_SpellBook and C_SpellBook.IsSpellKnown(id, Enum.SpellBookSpellBank.Player) end
+        function(id) return C_SpellBook and C_SpellBook.IsSpellKnown(id, Enum.SpellBookSpellBank.Player) end
 
     if playerClass == "HUNTER" and (specID == 253 or specID == 255) then -- BM or SV
         isAppropriateSpec = true
@@ -569,61 +569,60 @@ function sfui.reminders.initialize()
         sfui.reminders.update_visibility()
     end
 
-    local eventFrame = CreateFrame("Frame")
-    eventFrame:RegisterEvent("UNIT_AURA")
-    eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-    eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-    eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
-    eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-    eventFrame:RegisterEvent("BAG_UPDATE_DELAYED")
-    eventFrame:RegisterEvent("UNIT_PET")
-    eventFrame:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
-    eventFrame:RegisterEvent("PLAYER_UPDATE_RESTING")
-    eventFrame:RegisterEvent("PLAYER_TALENT_UPDATE")
-    -- M+ Events
-    eventFrame:RegisterEvent("CHALLENGE_MODE_START")
-    eventFrame:RegisterEvent("CHALLENGE_MODE_COMPLETED")
-    eventFrame:RegisterEvent("CHALLENGE_MODE_RESET")
-
-    eventFrame:SetScript("OnEvent", function(self, event, unit)
-        if event == "PLAYER_REGEN_DISABLED" then
-            return
-        end
-
-        if event == "PLAYER_REGEN_ENABLED" then
-            check_pet_warning()
-            if sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
-            return
-        end
-
+    local commonUpdates = function()
         if InCombatLockdown() then return end
+        update_buff_data()
+        sfui.reminders.update_grimoire_status()
+        create_icons()
+        check_pet_warning()
+        if sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
+    end
 
-        if event == "CHALLENGE_MODE_START" or event == "CHALLENGE_MODE_COMPLETED" or event == "CHALLENGE_MODE_RESET" then
-            if sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
-        end
-
-        if event == "PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "GROUP_ROSTER_UPDATE" or event == "BAG_UPDATE_DELAYED" or event == "PLAYER_TALENT_UPDATE" or event == "ZONE_CHANGED_NEW_AREA" then
-            update_buff_data()
-            sfui.reminders.update_grimoire_status()
-            create_icons()
-            check_pet_warning()
-            if sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
-        end
-        if event == "UNIT_AURA" and unit ~= "player" and not IsInGroup() then return end
-
-        if event == "UNIT_PET" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "PLAYER_UPDATE_RESTING" then
-            check_pet_warning()
-        end
-
-        -- Throttle updates to avoid excessive processing in raids
-        if not self.updateTimer then
-            self.updateTimer = C_Timer.NewTimer(0.5, function()
+    local function throttled_update_icons()
+        if not sfui.reminders._updateTimer then
+            sfui.reminders._updateTimer = C_Timer.NewTimer(0.5, function()
                 update_icons()
-                self.updateTimer = nil
+                sfui.reminders._updateTimer = nil
             end)
         end
+    end
+
+    sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+        check_pet_warning()
+        if sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
+    end)
+
+    sfui.events.RegisterEvent("CHALLENGE_MODE_START", function()
+        if not InCombatLockdown() and sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
+    end)
+    sfui.events.RegisterEvent("CHALLENGE_MODE_COMPLETED", function()
+        if not InCombatLockdown() and sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
+    end)
+    sfui.events.RegisterEvent("CHALLENGE_MODE_RESET", function()
+        if not InCombatLockdown() and sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
+    end)
+
+    sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", commonUpdates)
+    sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", commonUpdates)
+    sfui.events.RegisterEvent("GROUP_ROSTER_UPDATE", commonUpdates)
+    sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", commonUpdates)
+    sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", commonUpdates)
+    sfui.events.RegisterEvent("ZONE_CHANGED_NEW_AREA", commonUpdates)
+
+    sfui.events.RegisterEvent("UNIT_AURA", function(...)
+        local unit = ...
+        if unit ~= "player" and not IsInGroup() then return end
+        throttled_update_icons()
+    end)
+
+    sfui.events.RegisterEvent("UNIT_PET", function()
+        check_pet_warning(); throttled_update_icons()
+    end)
+    sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", function()
+        check_pet_warning(); throttled_update_icons()
+    end)
+    sfui.events.RegisterEvent("PLAYER_UPDATE_RESTING", function()
+        check_pet_warning(); throttled_update_icons()
     end)
 
     -- Use ticker instead of OnUpdate for better performance
