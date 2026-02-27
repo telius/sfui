@@ -27,55 +27,42 @@ local activeCooldownIDs = {}
 
 -- Helper to get tracking config for a specific ID
 local configCache = {}
--- Metatable for tracked bar config proxies (Performance optimization: reused)
-local _configProxyMT = {
-    __index = function(t, k)
-        local cooldownID = rawget(t, "_id")
-        -- 1. Check DB (User Customization) for per-spec overrides
-        local specBars = sfui.common.get_tracked_bars()
-        if specBars then
-            local entry = specBars[cooldownID]
-            if not entry then entry = specBars[tonumber(cooldownID)] end
-            if type(entry) == "table" then
-                local v = entry[k]
-                if v ~= nil then return v end
-            end
-        end
-
-        -- 2. Check Defaults
-        if sfui.config.trackedBars and sfui.config.trackedBars.defaults then
-            local defaults = sfui.config.trackedBars.defaults
-            local entry = defaults[cooldownID]
-            if not entry then entry = defaults[tonumber(cooldownID)] end
-            if entry then
-                -- Check specID matching
-                local match = true
-                if entry.specID then
-                    local currentSpec = sfui.common.get_current_spec_id and sfui.common.get_current_spec_id()
-                    if currentSpec and entry.specID ~= currentSpec then
-                        match = false
-                    end
-                end
-
-                if match then
-                    local v = entry[k]
-                    if v ~= nil then return v end
-                end
-            end
-        end
-        return nil
-    end
-}
-
 local function GetTrackedBarConfig(cooldownID)
     if not cooldownID then return nil end
     local cached = configCache[cooldownID]
     if cached then return cached end
 
-    local proxy = { _id = cooldownID }
-    setmetatable(proxy, _configProxyMT)
-    configCache[cooldownID] = proxy
-    return proxy
+    local cfg = { _id = cooldownID }
+
+    -- 1. Base Defaults (lowest priority)
+    if sfui.config.trackedBars and sfui.config.trackedBars.defaults then
+        local defaults = sfui.config.trackedBars.defaults
+        local entry = defaults[cooldownID] or defaults[tonumber(cooldownID)]
+        if entry then
+            local match = true
+            if entry.specID then
+                local currentSpec = sfui.common.get_current_spec_id and sfui.common.get_current_spec_id()
+                if currentSpec and entry.specID ~= currentSpec then
+                    match = false
+                end
+            end
+            if match then
+                for k, v in pairs(entry) do cfg[k] = v end
+            end
+        end
+    end
+
+    -- 2. User DB Overrides (highest priority)
+    local specBars = sfui.common.get_tracked_bars()
+    if specBars then
+        local entry = specBars[cooldownID] or specBars[tonumber(cooldownID)]
+        if type(entry) == "table" then
+            for k, v in pairs(entry) do cfg[k] = v end
+        end
+    end
+
+    configCache[cooldownID] = cfg
+    return cfg
 end
 sfui.trackedbars.GetConfig = GetTrackedBarConfig
 
@@ -151,12 +138,10 @@ local function GetMaxStacksForBar(cooldownID, config, spellID)
 
     -- 3. Try to get from charge info (for charge-based abilities)
     if spellID and not issecretvalue(spellID) then
-        pcall(function()
-            local chargeInfo = C_Spell.GetSpellCharges(spellID)
-            if chargeInfo and chargeInfo.maxCharges then
-                maxStacks = chargeInfo.maxCharges
-            end
-        end)
+        local ok, chargeInfo = pcall(C_Spell.GetSpellCharges, spellID)
+        if ok and chargeInfo and chargeInfo.maxCharges then
+            maxStacks = chargeInfo.maxCharges
+        end
     end
 
     return maxStacks
@@ -530,6 +515,31 @@ local function ShouldBarBeVisible(config, blizzFrame, isStackModeWithStacks, hid
     end
 end
 
+-- Helper: Perform protected blizzard frame scraping
+local function _pcall_get_app_text(blizzFrame)
+    if blizzFrame.Icon and blizzFrame.Icon.Applications then
+        return blizzFrame.Icon.Applications:GetText()
+    end
+    return nil
+end
+
+local function _pcall_get_duration_text(blizzFrame)
+    return blizzFrame.Bar and blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
+end
+
+local function _pcall_sync_bar_values(blizzFrame, status, timeString, config, currentStacks)
+    local min, max = blizzFrame.Bar:GetMinMaxValues()
+    local val = blizzFrame.Bar:GetValue()
+    status:SetMinMaxValues(min, max)
+    sfui.common.SafeSetValue(status, val)
+
+    local barText = blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
+    if config and config.showStacksText then
+        barText = tostring(currentStacks)
+    end
+    timeString:SetText(barText)
+end
+
 -- Helper: Sync bar data from Blizzard frame
 local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     local cfg = sfui.config.trackedBars
@@ -567,27 +577,21 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
 
     -- 2. Try Spell Charges (for abilities with charges, mostly missing auraInstanceID)
     if not currentStacks and myBar.spellID then
-        pcall(function()
-            local chargeInfo = C_Spell.GetSpellCharges(myBar.spellID)
-            if chargeInfo and chargeInfo.currentCharges then
-                local cc = chargeInfo.currentCharges
-                if not issecretvalue(cc) then
-                    currentStacks = cc
-                end
+        local ok, chargeInfo = pcall(C_Spell.GetSpellCharges, myBar.spellID)
+        if ok and chargeInfo and chargeInfo.currentCharges then
+            local cc = chargeInfo.currentCharges
+            if not issecretvalue(cc) then
+                currentStacks = cc
             end
-        end)
+        end
     end
 
     -- 3. Fallback to Text (Blizzard's Display) - UNRESTRICTED
     if not currentStacks then
-        pcall(function()
-            if blizzFrame.Icon and blizzFrame.Icon.Applications then
-                local text = blizzFrame.Icon.Applications:GetText()
-                if text and text ~= "" then
-                    currentStacks = text
-                end
-            end
-        end)
+        local ok, text = pcall(_pcall_get_app_text, blizzFrame)
+        if ok and text and text ~= "" then
+            currentStacks = text
+        end
     end
 
     -- 4. Apply Cache Debounce to prevent 1-frame combat flicker
@@ -662,9 +666,9 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
 
         -- Sync Time Text
         if blizzFrame.Bar then
-            pcall(function()
-                barText = blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
-            end)
+            local ok, txt = pcall(_pcall_get_duration_text, blizzFrame)
+            if ok and txt then barText = txt end
+
             if config and config.showStacksText then
                 barText = tostring(currentStacks)
             end
@@ -673,18 +677,7 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     else
         -- NORMAL MODE: Bar represents Duration
         if blizzFrame.Bar then
-            pcall(function()
-                local min, max = blizzFrame.Bar:GetMinMaxValues()
-                local val = blizzFrame.Bar:GetValue()
-                myBar.status:SetMinMaxValues(min, max)
-                sfui.common.SafeSetValue(myBar.status, val)
-
-                barText = blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
-                if config and config.showStacksText then
-                    barText = tostring(currentStacks)
-                end
-                myBar.time:SetText(barText)
-            end)
+            pcall(_pcall_sync_bar_values, blizzFrame, myBar.status, myBar.time, config, currentStacks)
         end
 
         if sfui.common.IsNumericAndPositive(currentStacks) then
@@ -733,7 +726,7 @@ local function ProcessBlizzardSync()
     end
 
     -- Process Blizzard Frames
-    pcall(function()
+    local function processBlizzardFramesInternal()
         for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
             if blizzFrame.cooldownID then
                 blizzFrame:SetAlpha(0) -- Hide Blizzard frame regardless
@@ -791,10 +784,6 @@ local function ProcessBlizzardSync()
                         -- Retroactive global name assignment for existing bars
                         if not myBar:GetName() then
                             local globalName = "sfui_bar" .. tostring(id) .. "_Backdrop"
-                            -- SetName is not available on frames created without a name in vanilla Lua,
-                            -- but we can try to register it globally manually if needed, or rely on CreateBar
-                            -- Since we can't easily rename an anonymous frame, we primarily rely on new frames.
-                            -- However, for the specific anchor frames (1 and -1), we can force a global reference.
                             if id == 1 or id == -1 or id == 0 then
                                 _G[globalName] = myBar
                             end
@@ -836,7 +825,8 @@ local function ProcessBlizzardSync()
                 end
             end
         end
-    end)
+    end
+    pcall(processBlizzardFramesInternal)
 
     -- Cleanup
     for id, bar in pairs(bars) do

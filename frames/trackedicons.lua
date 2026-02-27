@@ -28,19 +28,53 @@ local _defaultColor = { 1, 1, 0, 1 }
 local _emptyTable = {}
 local _iconCounter = 0
 
+local _iconConfigCache = {}
+function sfui.trackedicons.InvalidateConfigCache()
+    for k in pairs(_iconConfigCache) do
+        _iconConfigCache[k] = nil
+    end
+end
+
 -- Helper: Get value from entry → panel → global → hardcoded default (M+ safe)
 -- All sources are safe tables (user config, SfuiDB, config.lua) - no secret values
 local function GetIconValue(entrySettings, panelConfig, key, default)
-    if entrySettings and entrySettings[key] ~= nil then return entrySettings[key] end
-    if panelConfig and panelConfig[key] ~= nil then return panelConfig[key] end
-    -- Check global settings (M+ safe: no secret values in SfuiDB)
-    local globalCfg = SfuiDB and SfuiDB.iconGlobalSettings
-    if globalCfg and globalCfg[key] ~= nil then return globalCfg[key] end
-    -- Check config.lua defaults (M+ safe: static config)
-    local g = sfui.config
-    local configDefault = g and g.icon_panel_global_defaults
-    if configDefault and configDefault[key] ~= nil then return configDefault[key] end
-    return default
+    local cacheKey = entrySettings or panelConfig or "global"
+    local cache = _iconConfigCache[cacheKey]
+    if not cache then
+        cache = {}
+        _iconConfigCache[cacheKey] = cache
+    end
+
+    local val = cache[key]
+    if val ~= nil then
+        if val == "__NIL__" then return default end
+        return val
+    end
+
+    if entrySettings and entrySettings[key] ~= nil then
+        val = entrySettings[key]
+    elseif panelConfig and panelConfig[key] ~= nil then
+        val = panelConfig[key]
+    else
+        local globalCfg = SfuiDB and SfuiDB.iconGlobalSettings
+        if globalCfg and globalCfg[key] ~= nil then
+            val = globalCfg[key]
+        else
+            local g = sfui.config
+            local configDefault = g and g.icon_panel_global_defaults
+            if configDefault and configDefault[key] ~= nil then
+                val = configDefault[key]
+            end
+        end
+    end
+
+    if val == nil then
+        cache[key] = "__NIL__"
+        return default
+    end
+
+    cache[key] = val
+    return val
 end
 
 -- Static pcall targets
@@ -328,7 +362,7 @@ local function UpdateIconGlow(icon, entrySettings, panelConfig, isReady)
                 needsRestart = true
             else
                 local prev = icon._lastGlowCfg
-                if prev and prev.glowColor then
+                if prev and prev.glowColor and _tempGlowCfg.glowColor then
                     if math.abs(prev.glowColor[1] - _tempGlowCfg.glowColor[1]) > 0.01 or
                         math.abs(prev.glowColor[2] - _tempGlowCfg.glowColor[2]) > 0.01 or
                         math.abs(prev.glowColor[3] - _tempGlowCfg.glowColor[3]) > 0.01 or
@@ -1140,6 +1174,7 @@ local function SanitizePanelConfig(panelConfig)
 end
 
 function sfui.trackedicons.Update()
+    sfui.trackedicons.InvalidateConfigCache()
     local panelConfigs = sfui.common.get_cooldown_panels()
     if not panelConfigs or #panelConfigs == 0 then return end
 
