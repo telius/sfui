@@ -1,3 +1,8 @@
+## v0.3.0d (2026-02-27)
+
+### Bug Fixes
+- **Options UI**: Fixed a Lua error (`SetSize`) when opening the Minimap options panel, caused by a tooltip/width argument mismatch in the slider component.
+
 ## v0.3.0c (2026-02-27)
 
 ### Features

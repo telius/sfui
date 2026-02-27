@@ -1342,10 +1342,29 @@ function sfui.common.create_cvar_checkbox(parent, label, cvar, tooltip)
     end, tooltip)
 end
 
-function sfui.common.create_slider_input(parent, label, dbKeyOrGetter, minVal, maxVal, step, onValueChangedFunc, width)
+function sfui.common.create_slider_input(parent, label, dbKeyOrGetter, minVal, maxVal, step, onValueChangedFunc, tooltip,
+                                         width)
     local container = CreateFrame("Frame", nil, parent)
-    local w = width or 160
+
+    -- Detect if 'tooltip' was actually 'width' (legacy support check)
+    local w = 160
+    if type(width) == "number" then
+        w = width
+    elseif type(tooltip) == "number" then
+        w = tooltip
+        tooltip = nil
+    end
+
     container:SetSize(w, 40) -- Compact height
+
+    if tooltip then
+        container:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(tooltip)
+            GameTooltip:Show()
+        end)
+        container:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+    end
 
     local title = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     title:SetPoint("TOPLEFT", 0, 0)
