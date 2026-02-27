@@ -1,3 +1,9 @@
+## v0.3.0f (2026-02-27)
+
+### Bug Fixes
+- **Event Dispatcher**: Fixed a Lua error (`compare string with number`) in the central update loop caused by a signature mismatch in `RegisterUpdate`.
+- **API Stability**: `sfui.events.RegisterUpdate` is now polymorphic, safely handling both `(interval, callback)` and `(name, interval, callback)` call styles.
+
 ## v0.3.0e (2026-02-27)
 
 ### Features

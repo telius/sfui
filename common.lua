@@ -901,11 +901,22 @@ function sfui.events.RegisterEvent(event, callback)
 end
 
 -- Register a throttled update loop
-function sfui.events.RegisterUpdate(interval, callback)
+function sfui.events.RegisterUpdate(arg1, arg2, arg3)
+    local interval, callback, name
+    if type(arg1) == "string" then
+        name = arg1
+        interval = arg2
+        callback = arg3
+    else
+        interval = arg1
+        callback = arg2
+    end
+
     table.insert(updateCallbacks, {
-        interval = interval,
+        interval = interval or 0,
         elapsed = 0,
-        callback = callback
+        callback = callback,
+        name = name
     })
 end
 
