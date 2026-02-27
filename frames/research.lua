@@ -16,7 +16,7 @@ sfui.research = {}
 sfui.research.talentTrees = {
     ["Midnight"] = {
         { type = 111,         id = 499,  name = "Loa Blessings" },
-        { isTraitTree = true, id = 1180, name = "T1180" },
+        { isTraitTree = true, id = 1180, name = "Void Research" },
         { isTraitTree = true, id = 1179, name = "T1179" },
         { isTraitTree = true, id = 1177, name = "T1177" },
         { isTraitTree = true, id = 1166, name = "T1166" },

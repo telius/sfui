@@ -415,7 +415,6 @@ do
         local runeHeight = 10
 
         bar:SetSize(usedWidth, runeHeight)
-        bar:Show()
 
         -- Update tracked bars layout to respect Rune Bar presence
         if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
@@ -525,7 +524,6 @@ do
         end
 
         local bar = get_bar1()
-        if bar.backdrop then bar.backdrop:Show() end
         bar.TextValue:SetText(current)
         bar:SetMinMaxValues(0, max)
         bar:SetValue(current)

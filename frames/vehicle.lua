@@ -7,7 +7,6 @@ sfui.vehicle.frame = frame
 local GetActionCooldown = GetActionCooldown
 local GetActionCount = GetActionCount
 local GetActionCharges = GetActionCharges
-local CooldownFrame_Set = CooldownFrame_Set
 
 local cfg = sfui.config.vehicle
 local g = sfui.config
@@ -161,7 +160,7 @@ local function UpdateCooldowns()
             local start, duration, enable = GetActionCooldown(actionID)
             local cd = _G[btn:GetName() .. "Cooldown"] or btn.cooldown
             if cd then
-                CooldownFrame_Set(cd, start, duration, enable)
+                cd:SetCooldown(start, duration)
             end
             if btn.shadowCooldown then
                 btn.shadowCooldown:SetCooldown(start, duration)
@@ -178,14 +177,6 @@ local function UpdateCooldowns()
                 else
                     btn.Count:Hide()
                 end
-            end
-
-            if (start > 0 and duration > 1.5) or (maxCharges and charges == 0) or (enable == 0) then
-                btn.icon:SetDesaturated(true)
-                btn.icon:SetVertexColor(0.4, 0.4, 0.4)
-            else
-                btn.icon:SetDesaturated(false)
-                btn.icon:SetVertexColor(1, 1, 1)
             end
         end
     end
