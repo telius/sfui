@@ -1361,17 +1361,29 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
 
             -- Hero Talent buttons
             local bx = 165
-            if not entry.settings.heroTalentsDisabled then entry.settings.heroTalentsDisabled = {} end
-            local disabledList = entry.settings.heroTalentsDisabled
+            if not entry.settings.heroTalentWhitelist then entry.settings.heroTalentWhitelist = {} end
+            local whitelist = entry.settings.heroTalentWhitelist
 
-            -- Migrate old generic setting to the disabled list
+            -- Migrate old generic setting to the whitelist
             if entry.settings.heroTalentFilter and entry.settings.heroTalentFilter ~= "Any" and entry.settings.heroTalentFilter ~= 0 then
+                whitelist[entry.settings.heroTalentFilter] = true
+                entry.settings.heroTalentFilter = nil
+            end
+
+            -- Migrate old disabled setting to whitelist
+            if entry.settings.heroTalentsDisabled then
                 for _, hInfo in ipairs(heroSpecs) do
-                    if hInfo ~= entry.settings.heroTalentFilter then
-                        disabledList[hInfo] = true
+                    if not entry.settings.heroTalentsDisabled[hInfo] then
+                        local allEnabled = true
+                        for _, h in ipairs(heroSpecs) do
+                            if entry.settings.heroTalentsDisabled[h] then allEnabled = false end
+                        end
+                        if not allEnabled then
+                            whitelist[hInfo] = true
+                        end
                     end
                 end
-                entry.settings.heroTalentFilter = nil
+                entry.settings.heroTalentsDisabled = nil
             end
 
             local configID = C_ClassTalents and C_ClassTalents.GetActiveConfigID and C_ClassTalents.GetActiveConfigID()
@@ -1384,7 +1396,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
                 local tex = btn:CreateTexture(nil, "ARTWORK")
                 tex:SetAllPoints()
                 local traitInfo = configID and C_Traits and C_Traits.GetSubTreeInfo and
-                C_Traits.GetSubTreeInfo(configID, heroInfo)
+                    C_Traits.GetSubTreeInfo(configID, heroInfo)
                 if traitInfo and traitInfo.iconElementID then
                     tex:SetAtlas(traitInfo.iconElementID)
                 else
@@ -1398,20 +1410,20 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
                 })
 
                 local function UpdateVisuals()
-                    if disabledList[heroInfo] then
+                    if whitelist[heroInfo] then
+                        btn:SetBackdropBorderColor(0, 0, 0, 1) -- Active = Black
+                        tex:SetDesaturated(false)
+                        tex:SetVertexColor(1, 1, 1)
+                    else
                         btn:SetBackdropBorderColor(0, 0, 0, 1) -- Inactive = Black
                         tex:SetDesaturated(true)
                         tex:SetVertexColor(0.5, 0.5, 0.5)
-                    else
-                        btn:SetBackdropBorderColor(0, 1, 0, 1) -- Active = Green
-                        tex:SetDesaturated(false)
-                        tex:SetVertexColor(1, 1, 1)
                     end
                 end
                 UpdateVisuals()
 
                 btn:SetScript("OnClick", function()
-                    disabledList[heroInfo] = not disabledList[heroInfo]
+                    whitelist[heroInfo] = not whitelist[heroInfo]
                     UpdateVisuals()
                     if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
                     if sfui.cdm and sfui.cdm.RefreshLayout then sfui.cdm.RefreshLayout() end
@@ -1420,9 +1432,8 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
                 btn:SetScript("OnEnter", function(self)
                     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                     local tInfo = configID and C_Traits and C_Traits.GetSubTreeInfo and
-                    C_Traits.GetSubTreeInfo(configID, heroInfo)
+                        C_Traits.GetSubTreeInfo(configID, heroInfo)
                     GameTooltip:SetText(tInfo and tInfo.name or "Unknown")
-                    GameTooltip:AddLine(disabledList[heroInfo] and "Click to Enable" or "Click to Disable", 1, 1, 1)
                     GameTooltip:Show()
                 end)
                 btn:SetScript("OnLeave", function() GameTooltip:Hide() end)

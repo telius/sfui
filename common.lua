@@ -491,25 +491,36 @@ function sfui.common.get_active_panel_entries(panelConfig)
         end
 
         -- Hero Talent Filter logic
+        -- Hero Talent Filter logic
         if isKnown and type(entry) == "table" and entry.settings then
             -- Fallback for legacy single-item filter setting to new table format
             if entry.settings.heroTalentFilter and entry.settings.heroTalentFilter ~= "Any" and entry.settings.heroTalentFilter ~= 0 then
-                if not entry.settings.heroTalentsDisabled then
-                    entry.settings.heroTalentsDisabled = {}
+                if not entry.settings.heroTalentWhitelist then
+                    entry.settings.heroTalentWhitelist = {}
                 end
-                -- We don't know the exact class subtrees here easily to invert,
-                -- so we will just let trackedoptions.lua do the full conversion when the panel is opened.
-                -- For now, if active spec isn't the legacy one, it's false.
-                local activeHeroSpec = C_ClassTalents and C_ClassTalents.GetActiveHeroTalentSpec and
-                C_ClassTalents.GetActiveHeroTalentSpec()
-                if activeHeroSpec and activeHeroSpec ~= entry.settings.heroTalentFilter then
-                    isKnown = false
+                entry.settings.heroTalentWhitelist[entry.settings.heroTalentFilter] = true
+                entry.settings.heroTalentFilter = nil
+            end
+
+            if entry.settings.heroTalentsDisabled then
+                entry.settings.heroTalentsDisabled = nil
+            end
+
+            if entry.settings.heroTalentWhitelist then
+                local hasWhitelistItems = false
+                for k, v in pairs(entry.settings.heroTalentWhitelist) do
+                    if v then
+                        hasWhitelistItems = true
+                        break
+                    end
                 end
-            elseif entry.settings.heroTalentsDisabled then
-                local activeHeroSpec = C_ClassTalents and C_ClassTalents.GetActiveHeroTalentSpec and
-                C_ClassTalents.GetActiveHeroTalentSpec()
-                if activeHeroSpec and entry.settings.heroTalentsDisabled[activeHeroSpec] then
-                    isKnown = false
+
+                if hasWhitelistItems then
+                    local activeHeroSpec = C_ClassTalents and C_ClassTalents.GetActiveHeroTalentSpec and
+                    C_ClassTalents.GetActiveHeroTalentSpec()
+                    if not activeHeroSpec or not entry.settings.heroTalentWhitelist[activeHeroSpec] then
+                        isKnown = false
+                    end
                 end
             end
         end
