@@ -1201,19 +1201,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     PCheck(s1c, "Hide While in Vehicle UI", "hideInVehicle", "Hide this panel when using vehicle UI.", 0, s1y)
     s1y = s1y - 28
 
-    local lVis = s1c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    lVis:SetPoint("TOPLEFT", 0, s1y); lVis:SetText("Visibility:")
-    local visOpts = {
-        { text = "Always Show",   value = "always" },
-        { text = "Combat Only",   value = "combat" },
-        { text = "Out of Combat", value = "noCombat" },
-    }
-    local visDropDown = sfui.common.create_dropdown(s1c, 130, visOpts, function(val)
-        panel.visibility = val
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-    end, panel.visibility or "always")
-    visDropDown:SetPoint("LEFT", lVis, "RIGHT", 5, 0)
-    s1y = s1y - 40
+
 
     PCheck(s1c, "Show Background", "showBackground", "Show a background behind the icons.", 0, s1y)
     PSlider(s1c, "BG Opacity", "backgroundAlpha", 0, 1, 0.05, 150, s1y, 140)

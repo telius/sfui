@@ -9,4 +9,5 @@
 ### Bug Fixes
 - **UI Tweaks**: Renamed Research node T1180 to "Void Research".
 - **Power Bars**: Fixed DK runebars (and auxiliary power bars) forcefully showing themselves out of combat, allowing them to correctly follow healthbar visibility rules.
+- **Tracked Icons**: Fixed an issue where panel backgrounds would erroneously persist out of combat despite icons hiding. Removed an overlapping legacy "Visibility Mode" dropdown setting that conflicted with granular hide conditions.
 - **Options UI**: Fixed a Lua error (`SetSize`) when opening the Minimap options panel, caused by a tooltip/width argument mismatch in the slider component.

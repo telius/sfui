@@ -1723,9 +1723,6 @@ function sfui.cdm.UpdateVisibility()
         elseif panelData then
             if panelData.hideOOC and not inCombat then shouldShow = false end
             if panelData.hideMounted and isMounted then shouldShow = false end
-            -- Legacy support
-            if panelData.visibility == "combat" and not inCombat then shouldShow = false end
-            if panelData.visibility == "noCombat" and inCombat then shouldShow = false end
         end
 
         if shouldShow then

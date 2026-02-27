@@ -1031,7 +1031,15 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
     local showBG = GetIconValue(nil, panelConfig, "showBackground", true)
     local bgAlpha = GetIconValue(nil, panelConfig, "backgroundAlpha", 0.5)
 
-    if showBG and #activeIcons > 0 then
+    local anyVisible = false
+    for _, icon in ipairs(activeIcons) do
+        if icon:IsShown() then
+            anyVisible = true
+            break
+        end
+    end
+
+    if showBG and anyVisible then
         if not panelFrame.bg then
             panelFrame.bg = CreateFrame("Frame", nil, panelFrame, "BackdropTemplate")
             panelFrame.bg:SetFrameStrata("BACKGROUND")
@@ -1109,10 +1117,7 @@ local function CheckPanelVisibility(panelConfig)
         end
     end
 
-    -- If the panel visibility is set to ALWAYS, it overrides Hide OOC/Hide Mounted
-    if panelConfig.visibility == "always" then
-        return true
-    end
+    -- Removed legacy always/combat visibility override checks
 
     -- Hide OOC (Out of Combat)
     if panelConfig.hideOOC and not InCombatLockdown() then
