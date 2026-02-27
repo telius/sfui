@@ -1298,6 +1298,140 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     sec3:SetHeight(h3 + math.abs(s3y) + 8)
     yPos = yPos - sec3:GetHeight() - 8
 
+    -- ═══════════════════════════════════
+    -- SECTION 4: INDIVIDUAL ICON OVERRIDES
+    -- ═══════════════════════════════════
+    if panel.entries and #(panel.entries) > 0 then
+        local sec4, s4c, h4 = sfui.trackedoptions.CreateSection(parent, "Hero Talent Overrides",
+            "Show these assigned icons ONLY when a specific Hero Talent is active.", yPos, SEC_W)
+        if xOffset then sec4:SetPoint("TOPLEFT", xOffset, yPos) end
+        local s4y = 0
+
+        local _, _, classID = UnitClass("player")
+        local specID = sfui.common.get_current_spec_id()
+        local heroSpecs = C_ClassTalents and C_ClassTalents.GetHeroTalentSpecsForClassSpec(classID, specID) or {}
+
+        -- Draw Header
+        local hIcon = s4c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        hIcon:SetPoint("TOPLEFT", 10, s4y); hIcon:SetWidth(150); hIcon:SetJustifyH("LEFT"); hIcon:SetText(
+        "Assigned Spell")
+
+        local hFilter = s4c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        hFilter:SetPoint("TOPLEFT", 170, s4y); hFilter:SetWidth(150); hFilter:SetJustifyH("LEFT"); hFilter:SetText(
+        "Filter by Hero Talent")
+        s4y = s4y - 25
+
+        for i, entry in ipairs(panel.entries) do
+            local id = (type(entry) == "table" and entry.id) or entry
+            local typeHint = (type(entry) == "table" and entry.type) or "spell"
+
+            -- Ensure entry is a table to store settings
+            if type(entry) ~= "table" then
+                entry = { id = id, type = typeHint, cooldownID = id }
+                panel.entries[i] = entry
+            end
+            if not entry.settings then entry.settings = {} end
+
+            local name
+            if typeHint == "item" then name = C_Item.GetItemNameByID(id) else name = C_Spell.GetSpellName(id) end
+            name = name or ("Unknown (" .. id .. ")")
+
+            local row = CreateFrame("Frame", nil, s4c, "BackdropTemplate")
+            row:SetSize(SEC_W - 10, 36)
+            row:SetPoint("TOPLEFT", 0, s4y)
+            row:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8" })
+            row:SetBackdropColor(0.1, 0.1, 0.1, (i % 2 == 0) and 0.5 or 0.3)
+
+            -- Icon
+            local iconTex = row:CreateTexture(nil, "ARTWORK")
+            iconTex:SetSize(24, 24)
+            iconTex:SetPoint("LEFT", 4, 0)
+            local texPath
+            if typeHint == "item" then
+                texPath = C_Item.GetItemIconByID(id)
+            else
+                local spellInfo = C_Spell.GetSpellInfo(id)
+                texPath = spellInfo and spellInfo.iconID
+            end
+            iconTex:SetTexture(texPath or 134400)
+
+            local lName = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            lName:SetPoint("LEFT", iconTex, "RIGHT", 8, 0)
+            lName:SetWidth(120); lName:SetJustifyH("LEFT")
+            lName:SetText(name)
+
+            -- Hero Talent buttons
+            local bx = 165
+            local currentFilter = entry.settings.heroTalentFilter or "Any"
+
+            local function CreateHeroBtn(heroInfo, xPos)
+                local btn = CreateFrame("Button", nil, row, "BackdropTemplate")
+                btn:SetSize(24, 24)
+                btn:SetPoint("LEFT", xPos, 0)
+
+                local tex = btn:CreateTexture(nil, "ARTWORK")
+                tex:SetAllPoints()
+                if heroInfo == "Any" then
+                    tex:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+                else
+                    local traitInfo = C_Traits.GetTraitDescriptionInfo(heroInfo)
+                    tex:SetTexture(traitInfo and traitInfo.iconID or 134400)
+                end
+
+                -- Inside border to indicate selection like tracked icon pool
+                btn:SetBackdrop({
+                    edgeFile = "Interface/Buttons/WHITE8X8",
+                    edgeSize = 2,
+                })
+                if heroInfo == currentFilter then
+                    btn:SetBackdropBorderColor(0, 1, 0, 1) -- Active = Green
+                else
+                    btn:SetBackdropBorderColor(0, 0, 0, 1) -- Inactive = Black
+                end
+
+                btn:SetScript("OnClick", function()
+                    entry.settings.heroTalentFilter = heroInfo
+                    if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+                    if sfui.cdm and sfui.cdm.RefreshLayout then sfui.cdm.RefreshLayout() end
+                end)
+
+                btn:SetScript("OnEnter", function(self)
+                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                    if heroInfo == "Any" then
+                        GameTooltip:SetText("Any Hero Talent")
+                    else
+                        local traitInfo = C_Traits.GetTraitDescriptionInfo(heroInfo)
+                        GameTooltip:SetText(traitInfo and traitInfo.name or "Unknown")
+                    end
+                    GameTooltip:Show()
+                end)
+                btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+                -- Masque sync just to make it square if the user prefers, but left as default works too
+                if sfui.common.sync_masque then
+                    sfui.common.sync_masque(btn, { Icon = tex, Border = nil })
+                end
+
+                return btn
+            end
+
+            -- Any Button
+            CreateHeroBtn("Any", bx)
+            bx = bx + 30
+
+            -- Hero Talent Buttons
+            for _, hID in ipairs(heroSpecs) do
+                CreateHeroBtn(hID, bx)
+                bx = bx + 30
+            end
+
+            s4y = s4y - 38
+        end
+
+        sec4:SetHeight(h4 + math.abs(s4y) + 8)
+        yPos = yPos - sec4:GetHeight() - 8
+    end
+
     return yPos
 end
 

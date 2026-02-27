@@ -1272,6 +1272,7 @@ function sfui.trackedicons.initialize()
     eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")         -- Visibility trigger
     eventFrame:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")  -- Dragonriding trigger
     eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED") -- Reload panels on spec change
+    eventFrame:RegisterEvent("PLAYER_TALENT_UPDATE")          -- Reload panels on talent/hero spec change
     eventFrame:RegisterEvent("TRAIT_CONFIG_UPDATED")          -- Talent changes (for cooldown overrideSpellID)
     eventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")        -- For form-specific panels
     eventFrame:RegisterEvent("UPDATE_STEALTH")                -- For stealth-specific panels
@@ -1279,7 +1280,7 @@ function sfui.trackedicons.initialize()
         if event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" or event == "UPDATE_STEALTH" then
             sfui.trackedicons.Update()
             MarkDirty(1.0) -- Longer burst for combat transitions
-        elseif event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_SPECIALIZATION_CHANGED" then
+        elseif event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_TALENT_UPDATE" then
             sfui.common.ensure_panels_initialized()
             if sfui.common.SyncTrackedSpells then
                 sfui.common.SyncTrackedSpells()

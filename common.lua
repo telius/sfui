@@ -490,6 +490,17 @@ function sfui.common.get_active_panel_entries(panelConfig)
             end
         end
 
+        -- Hero Talent Filter logic
+        if isKnown and type(entry) == "table" and entry.settings and entry.settings.heroTalentFilter then
+            local requiredHeroSpec = entry.settings.heroTalentFilter
+            if requiredHeroSpec ~= "Any" and requiredHeroSpec ~= 0 and C_ClassTalents and C_ClassTalents.GetActiveHeroTalentSpec then
+                local activeHeroSpec = C_ClassTalents.GetActiveHeroTalentSpec()
+                if activeHeroSpec ~= requiredHeroSpec then
+                    isKnown = false
+                end
+            end
+        end
+
         if isKnown then
             table.insert(activeEntries, entry)
         end
