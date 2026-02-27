@@ -1308,17 +1308,16 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
         local s4y = 0
 
         local _, _, classID = UnitClass("player")
-        local specID = sfui.common.get_current_spec_id()
-        local heroSpecs = C_ClassTalents and C_ClassTalents.GetHeroTalentSpecsForClassSpec(classID, specID) or {}
+        local heroSpecs = C_ClassTalents and C_ClassTalents.GetHeroTalentSpecsForClassSpec() or {}
 
         -- Draw Header
         local hIcon = s4c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         hIcon:SetPoint("TOPLEFT", 10, s4y); hIcon:SetWidth(150); hIcon:SetJustifyH("LEFT"); hIcon:SetText(
-        "Assigned Spell")
+            "Assigned Spell")
 
         local hFilter = s4c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         hFilter:SetPoint("TOPLEFT", 170, s4y); hFilter:SetWidth(150); hFilter:SetJustifyH("LEFT"); hFilter:SetText(
-        "Filter by Hero Talent")
+            "Filter")
         s4y = s4y - 25
 
         for i, entry in ipairs(panel.entries) do
