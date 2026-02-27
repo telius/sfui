@@ -715,6 +715,8 @@ local function ProcessBlizzardSync()
         mustHide = true
     elseif db.hideMounted and sfui.common.is_mounted_or_travel_form() then
         mustHide = true
+    elseif db.hideInVehicle and (UnitHasVehicleUI("player") or UnitInVehicle("player")) then
+        mustHide = true
     elseif SfuiDB and SfuiDB.hideDragonriding and sfui.common.IsDragonriding() then
         mustHide = true
     end

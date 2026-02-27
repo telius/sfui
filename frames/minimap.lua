@@ -542,13 +542,15 @@ frame:SetScript("OnEvent", function(self, event, ...)
     end
 
     if event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" then
-        set_default_zoom()
+        if SfuiDB.minimap_auto_zoom then
+            set_default_zoom()
+        end
     elseif event == "MINIMAP_UPDATE_ZOOM" then
-        if Minimap:GetZoom() ~= DEFAULT_ZOOM then
+        if SfuiDB.minimap_auto_zoom and Minimap:GetZoom() ~= DEFAULT_ZOOM then
             if zoom_timer then
                 zoom_timer:Cancel()
             end
-            zoom_timer = C_Timer.NewTimer(5, set_default_zoom)
+            zoom_timer = C_Timer.NewTimer(SfuiDB.minimap_auto_zoom_delay or 5, set_default_zoom)
         end
     end
 end)

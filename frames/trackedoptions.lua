@@ -532,6 +532,9 @@ function sfui.trackedoptions.RenderBarsTab(parent)
     BCheck(sec1c, "Hide While Mounted", function() return GetB("hideMounted", false) end,
         function(v) db.hideMounted = v end, nil, 0,
         s1y - 80)
+    BCheck(sec1c, "Hide While in Vehicle UI", function() return GetB("hideInVehicle", true) end,
+        function(v) db.hideInVehicle = v end, nil, 0,
+        s1y - 110)
 
     BCheck(sec1c, "Show Bar Name", function() return GetB("showName", true) end, function(v) db.showName = v end, nil,
         160,
@@ -913,6 +916,9 @@ function sfui.trackedoptions.GenerateGlobalSettingsControls(parent)
     MakeCheck(s2c, "Hide Out of Combat", "hideOOC", "Global default: Hide panels when out of combat.", 0, s2y)
     MakeCheck(s2c, "Hide While Mounted", "hideMounted", "Global default: Hide panels while mounted.", 240, s2y)
     s2y = s2y - 28
+    MakeCheck(s2c, "Hide While in Vehicle UI", "hideInVehicle", "Global default: Hide panels while using vehicle UI.", 0,
+        s2y)
+    s2y = s2y - 28
 
     MakeCheck(s2c, "Show Background", "showBackground", "Show a dark background behind the icon panel.", 0, s2y)
     s2y = s2y - 35
@@ -1191,7 +1197,9 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
 
     PCheck(s1c, "Hide Out of Combat", "hideOOC", "Hide this panel when not in combat.", 0, s1y)
     PCheck(s1c, "Hide While Mounted", "hideMounted", "Hide this panel when mounted (including Dragonriding).", 150, s1y)
-    s1y = s1y - 35
+    s1y = s1y - 28
+    PCheck(s1c, "Hide While in Vehicle UI", "hideInVehicle", "Hide this panel when using vehicle UI.", 0, s1y)
+    s1y = s1y - 28
 
     local lVis = s1c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     lVis:SetPoint("TOPLEFT", 0, s1y); lVis:SetText("Visibility:")

@@ -249,17 +249,16 @@ local function RenderTrackedBarsRightSide(parent, width)
 
     local poolTitle = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     poolTitle:SetPoint("TOPLEFT", 0, -5)
-    poolTitle:SetText("Buff Tracking Pool (-2, 2, 3)")
+    poolTitle:SetText("Tracked Buffs & Bars Pool (2, 3)")
 
     local yPos = -25
     local list = {}
     if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
-        local cats = { -2, 2, 3 }
+        local cats = { 2, 3 }
         if Enum and Enum.CooldownViewerCategory then
             cats = {
-                Enum.CooldownViewerCategory.HiddenAura or -2,
                 Enum.CooldownViewerCategory.TrackedBuff or 2,
-                3
+                Enum.CooldownViewerCategory.TrackedBar or 3
             }
         end
         for _, cat in ipairs(cats) do

@@ -1667,6 +1667,8 @@ function sfui.initialize_database()
     SfuiDB.minimap_buttons_mouseover = (SfuiDB.minimap_buttons_mouseover == nil) and false or
         SfuiDB.minimap_buttons_mouseover
     if SfuiDB.minimap_masque == nil then SfuiDB.minimap_masque = true end
+    if SfuiDB.minimap_auto_zoom == nil then SfuiDB.minimap_auto_zoom = true end
+    if SfuiDB.minimap_auto_zoom_delay == nil then SfuiDB.minimap_auto_zoom_delay = 5 end
     if SfuiDB.minimap_button_x == nil then SfuiDB.minimap_button_x = sfui.config.minimap.button_bar.defaultX end
     if SfuiDB.minimap_button_y == nil then SfuiDB.minimap_button_y = sfui.config.minimap.button_bar.defaultY end
     if SfuiDB.autoSellGreys == nil then SfuiDB.autoSellGreys = true end

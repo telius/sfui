@@ -399,9 +399,11 @@ local function UpdateIconState(icon, panelConfig)
     -- Visibility overrides
     local hideOOC = GetIconValue(nil, panelConfig, "hideOOC", false)
     local hideMounted = GetIconValue(nil, panelConfig, "hideMounted", false)
+    local hideInVehicle = GetIconValue(nil, panelConfig, "hideInVehicle", true)
 
     if hideOOC and not InCombatLockdown() then shouldShow = false end
     if hideMounted and sfui.common.is_mounted_or_travel_form() then shouldShow = false end
+    if hideInVehicle and (UnitHasVehicleUI("player") or UnitInVehicle("player")) then shouldShow = false end
 
     if panelConfig then
         -- Legacy dropdown support (optional/fallback)
@@ -721,6 +723,8 @@ local function CheckPanelVisibility(panelConfig, event)
     if GetIconValue(nil, panelConfig, "hideOOC", false) and not inCombat then return false end
     -- Hide while Mounted enabled
     if GetIconValue(nil, panelConfig, "hideMounted", false) and sfui.common.is_mounted_or_travel_form() then return false end
+    -- Hide while in Vehicle UI enabled
+    if GetIconValue(nil, panelConfig, "hideInVehicle", true) and (UnitHasVehicleUI("player") or UnitInVehicle("player")) then return false end
 
     -- 2. Global Visibility Settings
     local globalVis = SfuiDB and SfuiDB.iconGlobalSettings

@@ -188,6 +188,7 @@ sfui.config = {
         -- Visibility
         hideOOC = false,
         hideMounted = true,
+        hideInVehicle = true,
         showTooltips = false, -- Default to false as per user request
 
         -- Ready Glow (when spell is off cooldown/available)
@@ -479,7 +480,7 @@ sfui.config = {
         enabled = true,
         width = 300,
         height = 60,
-        anchor = { point = "BOTTOM", x = 0, y = 200 },
+        anchor = { point = "BOTTOM", x = 0, y = 50 },
         button_size = 40,
         button_spacing = 5,
         leave_button_size = 30,
@@ -579,8 +580,10 @@ sfui.config = {
             [20811] = { maxStacks = 6 },   -- Soul Fragments (Demon Hunter)
         },
         -- Default visibility settings
-        hideOOC = false,     -- Hide all bars when out of combat
-        hideInactive = true, -- Hide bars when cooldowns are inactive
+        hideOOC = false,      -- Hide all bars when out of combat
+        hideMounted = false,  -- Default to false for bars
+        hideInVehicle = true, -- Hide all bars when in vehicle UI
+        hideInactive = true,  -- Hide bars when cooldowns are inactive
         -- Default bar configuration per cooldown ID
         defaults = {
             [18469] = {                          -- Ignore Pain (Warrior)
