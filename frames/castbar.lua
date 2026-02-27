@@ -694,5 +694,11 @@ event_frame:SetScript("OnEvent", function(self, event, ...)
             _G.PlayerCastingBarFrame:UnregisterAllEvents()
             _G.PlayerCastingBarFrame:Hide()
         end
+
+        if _G.OverlayPlayerCastingBarFrame then
+            _G.OverlayPlayerCastingBarFrame:SetAlpha(0)
+            _G.OverlayPlayerCastingBarFrame:UnregisterAllEvents()
+            _G.OverlayPlayerCastingBarFrame:Hide()
+        end
     end
 end)
