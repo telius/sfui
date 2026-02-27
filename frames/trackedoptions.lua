@@ -1361,7 +1361,18 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
 
             -- Hero Talent buttons
             local bx = 165
-            local currentFilter = entry.settings.heroTalentFilter or "Any"
+            if not entry.settings.heroTalentsDisabled then entry.settings.heroTalentsDisabled = {} end
+            local disabledList = entry.settings.heroTalentsDisabled
+
+            -- Migrate old generic setting to the disabled list
+            if entry.settings.heroTalentFilter and entry.settings.heroTalentFilter ~= "Any" and entry.settings.heroTalentFilter ~= 0 then
+                for _, hInfo in ipairs(heroSpecs) do
+                    if hInfo ~= entry.settings.heroTalentFilter then
+                        disabledList[hInfo] = true
+                    end
+                end
+                entry.settings.heroTalentFilter = nil
+            end
 
             local configID = C_ClassTalents and C_ClassTalents.GetActiveConfigID and C_ClassTalents.GetActiveConfigID()
 
@@ -1372,16 +1383,12 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
 
                 local tex = btn:CreateTexture(nil, "ARTWORK")
                 tex:SetAllPoints()
-                if heroInfo == "Any" then
-                    tex:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+                local traitInfo = configID and C_Traits and C_Traits.GetSubTreeInfo and
+                C_Traits.GetSubTreeInfo(configID, heroInfo)
+                if traitInfo and traitInfo.iconElementID then
+                    tex:SetAtlas(traitInfo.iconElementID)
                 else
-                    local traitInfo = configID and C_Traits and C_Traits.GetSubTreeInfo and
-                    C_Traits.GetSubTreeInfo(configID, heroInfo)
-                    if traitInfo and traitInfo.iconElementID then
-                        tex:SetAtlas(traitInfo.iconElementID)
-                    else
-                        tex:SetTexture(134400)
-                    end
+                    tex:SetTexture(134400)
                 end
 
                 -- Inside border to indicate selection like tracked icon pool
@@ -1389,27 +1396,33 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
                     edgeFile = "Interface/Buttons/WHITE8X8",
                     edgeSize = 2,
                 })
-                if heroInfo == currentFilter then
-                    btn:SetBackdropBorderColor(0, 1, 0, 1) -- Active = Green
-                else
-                    btn:SetBackdropBorderColor(0, 0, 0, 1) -- Inactive = Black
+
+                local function UpdateVisuals()
+                    if disabledList[heroInfo] then
+                        btn:SetBackdropBorderColor(0, 0, 0, 1) -- Inactive = Black
+                        tex:SetDesaturated(true)
+                        tex:SetVertexColor(0.5, 0.5, 0.5)
+                    else
+                        btn:SetBackdropBorderColor(0, 1, 0, 1) -- Active = Green
+                        tex:SetDesaturated(false)
+                        tex:SetVertexColor(1, 1, 1)
+                    end
                 end
+                UpdateVisuals()
 
                 btn:SetScript("OnClick", function()
-                    entry.settings.heroTalentFilter = heroInfo
+                    disabledList[heroInfo] = not disabledList[heroInfo]
+                    UpdateVisuals()
                     if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
                     if sfui.cdm and sfui.cdm.RefreshLayout then sfui.cdm.RefreshLayout() end
                 end)
 
                 btn:SetScript("OnEnter", function(self)
                     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                    if heroInfo == "Any" then
-                        GameTooltip:SetText("Any Hero Talent")
-                    else
-                        local traitInfo = configID and C_Traits and C_Traits.GetSubTreeInfo and
-                        C_Traits.GetSubTreeInfo(configID, heroInfo)
-                        GameTooltip:SetText(traitInfo and traitInfo.name or "Unknown")
-                    end
+                    local tInfo = configID and C_Traits and C_Traits.GetSubTreeInfo and
+                    C_Traits.GetSubTreeInfo(configID, heroInfo)
+                    GameTooltip:SetText(tInfo and tInfo.name or "Unknown")
+                    GameTooltip:AddLine(disabledList[heroInfo] and "Click to Enable" or "Click to Disable", 1, 1, 1)
                     GameTooltip:Show()
                 end)
                 btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -1421,10 +1434,6 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
 
                 return btn
             end
-
-            -- Any Button
-            CreateHeroBtn("Any", bx)
-            bx = bx + 30
 
             -- Hero Talent Buttons
             for _, hID in ipairs(heroSpecs) do
