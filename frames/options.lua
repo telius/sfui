@@ -11,6 +11,7 @@ local wipe = wipe
 local LibStub = LibStub
 local CreateFrame = CreateFrame
 local UIParent = UIParent
+local C_Timer = C_Timer
 
 local frame
 local function select_tab(selected_tab_button)
@@ -178,6 +179,7 @@ function sfui.create_options_panel()
     end)
     target_y_slider:SetPoint("LEFT", target_x_slider, "RIGHT", 10, 0)
 
+    -- Extra Power Bars Settings
     local sct_panel, sct_tab_button = create_tab("combat text")
     sct_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
     last_tab_button = sct_tab_button
@@ -212,6 +214,27 @@ function sfui.create_options_panel()
     local reload_button = CreateFlatButton(main_panel, "reload ui", 100, 22)
     reload_button:SetPoint("TOPLEFT", main_text, "BOTTOMLEFT", 0, -20)
     reload_button:SetScript("OnClick", function() C_UI.Reload() end)
+
+    local open_cv_main = CreateFlatButton(main_panel, "tracking manager", 140, 22)
+    open_cv_main:SetPoint("LEFT", reload_button, "RIGHT", 10, 0)
+    open_cv_main:SetScript("OnClick", function()
+        if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
+            sfui.trackedoptions.toggle_viewer()
+
+            if SfuiCooldownsViewer and SfuiCooldownsViewer:IsShown() and sfui_options_frame then
+                local p, rel, rp, x, y = sfui_options_frame:GetPoint()
+                if rel == SfuiCooldownsViewer then
+                    local left = sfui_options_frame:GetLeft()
+                    local top = sfui_options_frame:GetTop()
+                    sfui_options_frame:ClearAllPoints()
+                    sfui_options_frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+                end
+
+                SfuiCooldownsViewer:ClearAllPoints()
+                SfuiCooldownsViewer:SetPoint("TOPLEFT", sfui_options_frame, "TOPRIGHT", 5, 0)
+            end
+        end
+    end)
 
     local hide_minimap_icon_cb = create_checkbox(main_panel, "hide minimap icon", "minimap_icon.hide", function(checked)
         local icon = LibStub:GetLibrary("LibDBIcon-1.0", true)
@@ -248,12 +271,49 @@ function sfui.create_options_panel()
         end, "automatically sets 'alwaysCompareItems' cvar.")
     enable_auto_compare_cb:SetPoint("TOPLEFT", enable_ring_cursor_cb, "BOTTOMLEFT", 0, -10)
 
-    local vehicle_header = main_panel:CreateFontString(nil, "OVERLAY", g.font)
-    vehicle_header:SetPoint("TOPLEFT", enable_auto_compare_cb, "BOTTOMLEFT", 0, -30)
-    vehicle_header:SetTextColor(white[1], white[2], white[3])
-    vehicle_header:SetText("vehicle settings")
+    local enable_prey_cb = create_checkbox(main_panel, "enable prey bar", "preyBar.enabled",
+        function(checked)
+            sfui.config.preyBar.enabled = checked
+            if sfui.prey and sfui.prey.bar and sfui.prey.bar.backdrop then
+                if not checked then
+                    sfui.prey.bar.backdrop:Hide()
+                end
+            end
+        end, "toggles the prey progress bar.")
+    enable_prey_cb:SetPoint("TOPLEFT", enable_auto_compare_cb, "BOTTOMLEFT", 0, -20)
 
+    local preview_prey_btn = CreateFlatButton(main_panel, "preview", 70, 22)
+    preview_prey_btn:SetPoint("LEFT", enable_prey_cb.text, "RIGHT", 10, 0)
+    preview_prey_btn:SetScript("OnClick", function()
+        if sfui.prey and sfui.prey.bar then
+            sfui.prey.preview = true
+            sfui.prey.UpdatePreyBar(sfui.prey.bar)
+            C_Timer.After(5, function()
+                sfui.prey.preview = false
+                sfui.prey.UpdatePreyBar(sfui.prey.bar)
+            end)
+        end
+    end)
 
+    local prey_x_input = sfui.common.create_input_field(main_panel, "position x:", "preyBar.pos.x", 120,
+        function(val)
+            SfuiDB.preyBar.pos.x = val
+            sfui.config.preyBar.pos.x = val
+            if sfui.prey and sfui.prey.bar then
+                sfui.prey.UpdatePreyBar(sfui.prey.bar)
+            end
+        end, "horizontal offset from top center.")
+    prey_x_input:SetPoint("TOPLEFT", enable_prey_cb, "BOTTOMLEFT", 0, -20)
+
+    local prey_y_input = sfui.common.create_input_field(main_panel, "position y:", "preyBar.pos.y", 120,
+        function(val)
+            SfuiDB.preyBar.pos.y = val
+            sfui.config.preyBar.pos.y = val
+            if sfui.prey and sfui.prey.bar then
+                sfui.prey.UpdatePreyBar(sfui.prey.bar)
+            end
+        end, "vertical offset from top.")
+    prey_y_input:SetPoint("LEFT", prey_x_input, "RIGHT", 10, 0)
 
     local enable_vehicle_cb = create_checkbox(main_panel, "enable vehicle ui", "enableVehicle", function(checked)
         if checked then
@@ -262,19 +322,15 @@ function sfui.create_options_panel()
             print("|cffff0000Sfui: Vehicle UI disabled. Default WoW frame will be used on reload.|r")
         end
     end, "Enables the custom vehicle/overlay bar (requires reload).")
-    enable_vehicle_cb:SetPoint("TOPLEFT", vehicle_header, "BOTTOMLEFT", 0, -10)
+    enable_vehicle_cb:SetPoint("TOPLEFT", prey_x_input, "BOTTOMLEFT", 0, -20)
 
-    local spec_color_header = main_panel:CreateFontString(nil, "OVERLAY", g.font)
-    spec_color_header:SetPoint("TOPLEFT", enable_vehicle_cb, "BOTTOMLEFT", 0, -30)
-    spec_color_header:SetTextColor(white[1], white[2], white[3])
-    spec_color_header:SetText("global color settings")
 
     local use_spec_color_cb = create_checkbox(main_panel, "use spec color", "useSpecColor", function(checked)
         -- This is a global setting that other modules can poll
         if sfui.bars and sfui.bars.update_settings then sfui.bars.update_settings() end
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
     end, "toggles whether the UI uses specialization/class based colors globally.")
-    use_spec_color_cb:SetPoint("TOPLEFT", spec_color_header, "BOTTOMLEFT", 0, -10)
+    use_spec_color_cb:SetPoint("TOPLEFT", enable_vehicle_cb, "BOTTOMLEFT", 0, -20)
 
     local fallback_label = main_panel:CreateFontString(nil, "OVERLAY", g.font)
     fallback_label:SetPoint("LEFT", use_spec_color_cb, "RIGHT", 150, 0)
@@ -322,10 +378,12 @@ function sfui.create_options_panel()
 
         if LSM then
             local textures = LSM:HashTable("statusbar")
-            for name, _ in pairs(textures) do
-                if not seen[name] then
-                    table.insert(sortedTextures, name)
-                    seen[name] = true
+            if textures then
+                for name, _ in pairs(textures) do
+                    if not seen[name] then
+                        table.insert(sortedTextures, name)
+                        seen[name] = true
+                    end
                 end
             end
         end
@@ -343,27 +401,6 @@ function sfui.create_options_panel()
     UIDropDownMenu_Initialize(dropdown, initialize_texture_dropdown)
     UIDropDownMenu_SetSelectedValue(dropdown, SfuiDB.barTexture)
     UIDropDownMenu_SetWidth(dropdown, 150)
-
-    local open_cv_main = CreateFlatButton(main_panel, "manage tracking", 140, 22)
-    open_cv_main:SetPoint("TOPLEFT", texture_label, "BOTTOMLEFT", 0, -20)
-    open_cv_main:SetScript("OnClick", function()
-        if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
-            sfui.trackedoptions.toggle_viewer()
-
-            if SfuiCooldownsViewer and SfuiCooldownsViewer:IsShown() and sfui_options_frame then
-                local p, rel, rp, x, y = sfui_options_frame:GetPoint()
-                if rel == SfuiCooldownsViewer then
-                    local left = sfui_options_frame:GetLeft()
-                    local top = sfui_options_frame:GetTop()
-                    sfui_options_frame:ClearAllPoints()
-                    sfui_options_frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
-                end
-
-                SfuiCooldownsViewer:ClearAllPoints()
-                SfuiCooldownsViewer:SetPoint("TOPLEFT", sfui_options_frame, "TOPRIGHT", 5, 0)
-            end
-        end
-    end)
 
 
     -- 2. Bars Panel
@@ -471,15 +508,6 @@ function sfui.create_options_panel()
             if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
         end)
     bg_color_swatch:SetPoint("LEFT", bg_color_label, "RIGHT", 5, 0)
-
-    local open_cv_bars = CreateFlatButton(bars_panel, "manage tracked bars", 140, 22)
-    open_cv_bars:SetPoint("TOPLEFT", fg_color_label, "BOTTOMLEFT", 0, -20)
-    open_cv_bars:SetScript("OnClick", function()
-        if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
-            sfui.trackedoptions.toggle_viewer()
-            frame:Hide()
-        end
-    end)
 
     -- 3. Combat Text Panel (SCT)
     local sct_header = sct_panel:CreateFontString(nil, "OVERLAY", g.font)

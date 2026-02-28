@@ -299,28 +299,41 @@ sfui.config = {
         width = 300,
         height = 20,
         pos = { x = 0, y = 150 },
-        color = { 0.133, 0.133, 0.133 },   -- #222222
-        channelColor = { 0, 1, 0 },        -- Green for channels
-        empoweredColor = { 0.4, 0, 1 },    -- Default/Fallback Purple
+        color = { 1, 1, 1 },
+        channelColor = { 0, 1, 0 },
+        empoweredColor = { 0.4, 0, 1 },
+        interruptedColor = { 1, 0, 0 },
         empoweredStageColors = {
-            [1] = { 0.133, 0.133, 0.133 }, -- #222222
-            [2] = { 0, 1, 1 },             -- Cyan (Charging Stage 2)
-            [3] = { 0.4, 0, 1 },           -- Purple (Charging Stage 3)
-            [4] = { 1, 0, 1 },             -- Magenta (Charging Stage 4)
+            { 0, 1,   0 }, -- stage 1: green
+            { 1, 1,   0 }, -- stage 2: yellow
+            { 1, 0.5, 0 }, -- stage 3: orange
+            { 1, 0,   0 }, -- stage 4: red
         },
-        interruptedColor = { 1, 0, 0 },    -- Red for interrupted
-        gcdColor = { 0.5, 0.5, 0.5 },      -- Gray for GCD
-        updateThrottle = 0.05,             -- Text update throttle (~20fps)
+        alpha = 1,
         backdrop = {
             padding = 2,
-            color = { 0, 0, 0, 0.5 },
+            color = { 0, 0, 0, 0.7 },
         },
+        updateThrottle = 0.05,
         spark = {
             width = 20,
-            heightMultiplier = 2.5,
+            heightMultiplier = 2.5
         },
+        iconSize = 24,
         icon = {
-            offset = -5,
+            offset = -5
+        }
+    },
+
+    preyBar = {
+        enabled = true,
+        width = 250,
+        height = 16,
+        pos = { x = 0, y = -2 }, -- Top of screen like castbar request
+        alpha = 1,
+        backdrop = {
+            padding = 2,
+            color = { 0, 0, 0, 0.7 },
         },
     },
 

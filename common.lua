@@ -1486,6 +1486,104 @@ function sfui.common.create_slider_input(parent, label, dbKeyOrGetter, minVal, m
     return container
 end
 
+function sfui.common.create_input_field(parent, label, dbKeyOrGetter, width, onValueChangedFunc, tooltip)
+    local container = CreateFrame("Frame", nil, parent)
+    local w = width or 100
+    container:SetSize(w, 40)
+
+    if tooltip then
+        container:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(tooltip)
+            GameTooltip:Show()
+        end)
+        container:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+    end
+
+    local title = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    title:SetPoint("TOPLEFT", 0, 0)
+    title:SetText(label)
+    title:SetTextColor(1, 1, 1, 0.8)
+
+    local editbox = CreateFrame("EditBox", nil, container, "BackdropTemplate")
+    editbox:SetSize(w - 10, 20)
+    editbox:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -2)
+    editbox:SetAutoFocus(false)
+    editbox:SetFontObject("GameFontHighlightSmall")
+    editbox:SetJustifyH("LEFT")
+    editbox:SetTextInsets(5, 0, 0, 0)
+
+    local app = sfui.config.appearance
+    editbox:SetBackdrop({
+        bgFile = "Interface/Buttons/WHITE8X8",
+        edgeFile = "Interface/Buttons/WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    })
+    editbox:SetBackdropColor(app.editBoxColor[1], app.editBoxColor[2], app.editBoxColor[3], app.editBoxColor[4])
+    editbox:SetBackdropBorderColor(0, 0, 0, 1)
+
+    editbox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    editbox:SetScript("OnEnterPressed", function(self)
+        local val = tonumber(self:GetText())
+        if val then
+            if type(dbKeyOrGetter) == "string" then
+                -- Support nested keys like "preyBar.pos.x"
+                local keys = {}
+                for key in string.gmatch(dbKeyOrGetter, "([^.]+)") do
+                    table.insert(keys, key)
+                end
+
+                local current = SfuiDB
+                for i = 1, #keys - 1 do
+                    if not current[keys[i]] then current[keys[i]] = {} end
+                    current = current[keys[i]]
+                end
+                current[keys[#keys]] = val
+            end
+            if onValueChangedFunc then onValueChangedFunc(val) end
+        end
+        self:ClearFocus()
+    end)
+    editbox:SetScript("OnEditFocusGained", function(self)
+        self:SetBackdropBorderColor(app.highlightColor[1], app.highlightColor[2], app.highlightColor[3], 1)
+    end)
+    editbox:SetScript("OnEditFocusLost", function(self)
+        self:SetBackdropBorderColor(0, 0, 0, 1)
+        -- Reset value to DB on focus lost and invalid input
+        local val = tonumber(self:GetText())
+        if not val then
+            if type(dbKeyOrGetter) == "string" then
+                local keys = {}
+                for key in string.gmatch(dbKeyOrGetter, "([^.]+)") do
+                    table.insert(keys, key)
+                end
+                local current = SfuiDB
+                for i = 1, #keys do
+                    if current then current = current[keys[i]] end
+                end
+                self:SetText(tostring(current or 0))
+            elseif type(dbKeyOrGetter) == "function" then
+                self:SetText(tostring(dbKeyOrGetter() or 0))
+            end
+        end
+    end)
+
+    editbox:SetScript("OnShow", function(self)
+        local val
+        if type(dbKeyOrGetter) == "string" then
+            val = SfuiDB[dbKeyOrGetter]
+        elseif type(dbKeyOrGetter) == "function" then
+            val = dbKeyOrGetter()
+        end
+        self:SetText(tostring(val or 0))
+    end)
+
+    container.editbox = editbox
+    container.label = title
+    return container
+end
+
 function sfui.common.set_color(element, colorName, alpha)
     local color = sfui.config.colors[colorName]
     if not color then return end
@@ -1827,6 +1925,19 @@ function sfui.initialize_database()
     if SfuiDB.cursorRingScale == nil then SfuiDB.cursorRingScale = 1.0 end
     if SfuiDB.useSpecColor == nil then SfuiDB.useSpecColor = true end
     if SfuiDB.specColorFallback == nil then SfuiDB.specColorFallback = { 1, 1, 1, 1 } end
+
+    -- Prey Bar Settings
+    if SfuiDB.preyBar == nil then SfuiDB.preyBar = {} end
+    if SfuiDB.preyBar.enabled == nil or SfuiDB.preyBar.enabled == false then
+        -- Force enable for now since we just launched the feature as opt-out
+        SfuiDB.preyBar.enabled = true
+    end
+    if SfuiDB.preyBar.pos == nil then SfuiDB.preyBar.pos = {} end
+    if SfuiDB.preyBar.pos.x == nil then SfuiDB.preyBar.pos.x = sfui.config.preyBar.pos.x end
+    if SfuiDB.preyBar.pos.y == nil then SfuiDB.preyBar.pos.y = sfui.config.preyBar.pos.y end
+    sfui.config.preyBar.enabled = SfuiDB.preyBar.enabled
+    sfui.config.preyBar.pos.x = SfuiDB.preyBar.pos.x
+    sfui.config.preyBar.pos.y = SfuiDB.preyBar.pos.y
 
     -- Bar settings
     if SfuiDB.healthBarX == nil then SfuiDB.healthBarX = 0 end
