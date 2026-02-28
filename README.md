@@ -3,8 +3,6 @@
 Additions and helpers for the World of Warcraft UI.
 Designed to replace lost WeakAuras and complex configurations.
 
-![UI Overview](.previews/ui.png)
-
 ## Overview
 Modular, lightweight, and "set-and-forget" interface. Handles functionality that typically requires multiple addons. Focuses on clarity and automation.
 
