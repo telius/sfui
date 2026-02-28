@@ -12,6 +12,19 @@ Supports [Masque](https://www.curseforge.com/wow/addons/masque) for button skinn
 
 ## Features
 
+### Tracking Manager
+Comprehensive manager for all your tracking needs. Configure auras, cooldowns, and specialty bars with ease.
+- **Unified Interface**: Single point of control for all SFUI tracking modules.
+- **Live Previews**: Visual feedback for adjustments to positions and sizing.
+
+![Tracking Manager](.previews/trackingmanager.png)
+
+### Prey Bar
+High-performance tracker for expansion hunts and area activities.
+- **Zone Aware**: Automatically toggles visibility based on hunt location.
+- **Clean Display**: Robust title cropping and final-stage "Ready" status tracking.
+- **API Driven**: Minimal CPU impact using direct Blizzard API data instead of UI scanning.
+
 ### Tracked Bars
 Powerful cooldown and aura tracking system that integrates seamlessly with your character frame.
 - **Smart Attachment**: Stack tracked bars directly above your Health or Secondary Power bar for a unified HUD.

@@ -1,21 +1,16 @@
+## v0.3.2 (2026-02-28)
+
+### Features
+- **Tracking Manager**: New integrated system for managing auras, cooldowns, and custom tracks with real-time visual feedback.
+- **Prey Bar**: Performance-optimized API-driven hunt tracker with zone-based visibility and robust text handling.
+
+### Optimizations
+- **Prey Functionality**: Full overhaul of the Prey bar logic. Switched to API polling with throttled updates, localized functions, and data-change gating to minimize CPU overhead.
+
 ## v0.3.1 (2026-02-28)
 
 ### Backwards Incompatible Changes
 - **Reminders**: Removed the Reminders module completely. Functionality for raid buff and consumable tracking is no longer supported natively.
 
-### Bug Fixes
-- **Tracked Icons**: Fixed a Lua ternary logic bug in \`sfui.common.SafeValue\` that caused unusable abilities (like Touch of Death) to incorrectly appear fully usable (not desaturated, 100% alpha).
-
-## v0.3.0f (2026-02-27)
-
-### Features
-- **Vehicle UI**: Massive aesthetic overhaul matching `trackedicons`. Complete with cooldown sweeps, stack texts (counts), and shadow desaturation effects. Uses highly performant event-based refreshes rather than an `OnUpdate` loop.
-- **Auto Compare**: Repositioned the Auto Compare toggle directly under Ring Cursor in options and removed over-complex logic like the shift-to-disable hotkey to streamline the feature.
-- **Event Dispatcher**: Centralized all `OnEvent` and `OnUpdate` handlers into a unified dispatcher in `common.lua`. This significantly improves technical debt and performance. Fixed Lua errors (`compare string with number`). `sfui.events.RegisterUpdate` is now polymorphic.
-- **Improved Performance**: Reduced CPU and memory overhead during active gameplay by eliminating redundant frame allocations and event registrations.
-
-### Bug Fixes
-- **UI Tweaks**: Renamed Research node T1180 to "Void Research".
-- **Power Bars**: Fixed DK runebars (and auxiliary power bars) forcefully showing themselves out of combat, allowing them to correctly follow healthbar visibility rules.
-- **Tracked Icons**: Fixed an issue where panel backgrounds would erroneously persist out of combat despite icons hiding. Removed an overlapping legacy "Visibility Mode" dropdown setting that conflicted with granular hide conditions.
-- **Options UI**: Fixed a Lua error (`SetSize`) when opening the Minimap options panel, caused by a tooltip/width argument mismatch in the slider component.
+### New Features
+- **Prey Bar**: Added a new prey bar feature with configurable options and a generic input field utility.
