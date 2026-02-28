@@ -1,3 +1,11 @@
+## v0.3.1 (2026-02-28)
+
+### Backwards Incompatible Changes
+- **Reminders**: Removed the Reminders module completely. Functionality for raid buff and consumable tracking is no longer supported natively.
+
+### Bug Fixes
+- **Tracked Icons**: Fixed a Lua ternary logic bug in \`sfui.common.SafeValue\` that caused unusable abilities (like Touch of Death) to incorrectly appear fully usable (not desaturated, 100% alpha).
+
 ## v0.3.0f (2026-02-27)
 
 ### Features

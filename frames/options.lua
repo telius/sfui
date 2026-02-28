@@ -194,10 +194,6 @@ function sfui.create_options_panel()
     minimap_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
     last_tab_button = minimap_tab_button
 
-    local reminders_panel, reminders_tab_button = create_tab("reminders")
-    reminders_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
-    last_tab_button = reminders_tab_button
-
     local research_panel, research_tab_button = create_tab("research")
     research_tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
     last_tab_button = research_tab_button
@@ -804,96 +800,6 @@ function sfui.create_options_panel()
             sfui.minimap.update_button_bar_position()
         end
     end)
-
-    -- 7. Reminders Panel
-    local reminders_header = reminders_panel:CreateFontString(nil, "OVERLAY", g.font)
-    reminders_header:SetPoint("TOPLEFT", 15, -15)
-    reminders_header:SetTextColor(white[1], white[2], white[3])
-    reminders_header:SetText("reminders & warnings")
-
-    local enable_reminders_cb = create_checkbox(reminders_panel, "enable buff reminders", "enableReminders",
-        function(checked)
-            if sfui.reminders and sfui.reminders.on_state_changed then sfui.reminders.on_state_changed(checked) end
-        end, "toggles the buff reminders frame.")
-    enable_reminders_cb:SetPoint("TOPLEFT", reminders_header, "BOTTOMLEFT", 0, -10)
-
-    local reminders_everywhere_cb = create_checkbox(reminders_panel, "show outside instances", "remindersEverywhere",
-        function(checked)
-            if sfui.reminders and sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
-        end, "shows the reminders frame even when not in an instance.")
-    reminders_everywhere_cb:SetPoint("TOPLEFT", enable_reminders_cb, "BOTTOMLEFT", 0, -10)
-
-    local reminders_solo_cb = create_checkbox(reminders_panel, "show while solo", "remindersSolo",
-        function(checked)
-            if sfui.reminders and sfui.reminders.update_visibility then sfui.reminders.update_visibility() end
-        end, "shows the reminders frame even when not in a group.")
-    reminders_solo_cb:SetPoint("TOPLEFT", reminders_everywhere_cb, "BOTTOMLEFT", 0, -10)
-
-    if SfuiDB.enableConsumables == nil then SfuiDB.enableConsumables = true end
-
-    local enable_consumables_solo_cb -- Forward declaration for dependency
-
-    local enable_consumables_cb = create_checkbox(reminders_panel, "enable consumables", "enableConsumables",
-        function(checked)
-            if sfui.reminders and sfui.reminders.on_state_changed then sfui.reminders.on_state_changed(true) end
-            if enable_consumables_solo_cb then
-                if checked then
-                    enable_consumables_solo_cb:Enable()
-                    enable_consumables_solo_cb:SetAlpha(1.0)
-                else
-                    enable_consumables_solo_cb:Disable()
-                    enable_consumables_solo_cb:SetAlpha(0.5)
-                end
-            end
-        end, "master toggle to show consumables (food, flask, weapon enchant).")
-    enable_consumables_cb:SetPoint("TOPLEFT", reminders_solo_cb, "BOTTOMLEFT", 0, -10)
-
-    enable_consumables_solo_cb = create_checkbox(reminders_panel, "enable consumables solo",
-        "enableConsumablesSolo",
-        function(checked)
-            -- Trigger update to refresh buff list
-            if sfui.reminders and sfui.reminders.on_state_changed then sfui.reminders.on_state_changed(true) end
-        end, "shows food, flask, and weapon enchants even when not in a group.")
-    enable_consumables_solo_cb:SetPoint("TOPLEFT", enable_consumables_cb, "BOTTOMLEFT", 0, -10)
-
-    -- Initialize state
-    enable_consumables_solo_cb:HookScript("OnShow", function(self)
-        if SfuiDB.enableConsumables then
-            self:Enable()
-            self:SetAlpha(1.0)
-        else
-            self:Disable()
-            self:SetAlpha(0.5)
-        end
-    end)
-
-    local reminders_x_slider = create_slider_input(reminders_panel, "position x:", "remindersX", -1000, 1000, 1,
-        function(val)
-            if sfui.reminders and sfui.reminders.update_position then sfui.reminders.update_position() end
-        end)
-    reminders_x_slider:SetPoint("TOPLEFT", enable_consumables_solo_cb, "BOTTOMLEFT", 0, -20)
-
-    local reminders_y_slider = create_slider_input(reminders_panel, "y:", "remindersY", -1000, 1000, 1, function(val)
-        if sfui.reminders and sfui.reminders.update_position then sfui.reminders.update_position() end
-    end)
-    reminders_y_slider:SetPoint("LEFT", reminders_x_slider, "RIGHT", 10, 0)
-
-    local warnings_header = reminders_panel:CreateFontString(nil, "OVERLAY", g.font)
-    warnings_header:SetPoint("TOPLEFT", reminders_x_slider, "BOTTOMLEFT", 0, -30)
-    warnings_header:SetTextColor(white[1], white[2], white[3])
-    warnings_header:SetText("warning settings")
-
-    local enable_pet_warning_cb = create_checkbox(reminders_panel, "enable pet warning", "enablePetWarning",
-        function(checked)
-            if sfui.reminders and sfui.reminders.update_warnings then sfui.reminders.update_warnings() end
-        end, "warns you if your pet is missing (for pet classes).")
-    enable_pet_warning_cb:SetPoint("TOPLEFT", warnings_header, "BOTTOMLEFT", 0, -10)
-
-    local enable_rune_warning_cb = create_checkbox(reminders_panel, "enable rune warning", "enableRuneWarning",
-        function(checked)
-            if sfui.reminders and sfui.reminders.update_warnings then sfui.reminders.update_warnings() end
-        end, "warns you if you are missing an augment rune buff but have runes in your bags.")
-    enable_rune_warning_cb:SetPoint("TOPLEFT", enable_pet_warning_cb, "BOTTOMLEFT", 0, -10)
 
     -- 8. Research Viewer Panel
     local research_header = research_panel:CreateFontString(nil, "OVERLAY", g.font)

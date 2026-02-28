@@ -127,9 +127,6 @@ event_frame:SetScript("OnEvent", function(self, event, ...)
         if sfui.research and sfui.research.initialize then
             sfui.research.initialize()
         end
-        if sfui.reminders and sfui.reminders.initialize then
-            sfui.reminders.initialize()
-        end
         if sfui.automation and sfui.automation.initialize then
             sfui.automation.initialize()
         end

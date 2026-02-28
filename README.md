@@ -21,12 +21,6 @@ Powerful cooldown and aura tracking system that integrates seamlessly with your 
 
 ![Tracked Bars](.previews/trackedbars.png)
 
-### Buffs and Reminders
-Tracks out of combat raid buffs and personal consumables.
-- Dynamically shows raidbuffs like Mark of the Wild, Evoker buffs, and Stamina based on group composition
-- Smart filtering for your class and group
-- Shift+Click to announce missing buffs
-![Dynamic Buffs](.previews/dynamicbuffscheck.png)
 
 ### Merchant Frame
 Redesigned merchant interface with filtering and currency display.

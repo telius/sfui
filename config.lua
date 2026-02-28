@@ -438,38 +438,6 @@ sfui.config = {
         },
     },
 
-    -- Reminders (Buffs/Debuffs)
-    reminders = {
-        icon_size = 32,
-        spacing = 4,
-        group_spacing = 12,
-        pos = { x = 250, y = 220 }, -- Default if not saved
-        backdrop = {
-            padding = 4,
-            color = { 0, 0, 0, 0.5 },
-        },
-        disableConsumablesSolo = true,
-        enableConsumables = true,
-        buffThreshold = 600, -- 10 minutes in seconds
-        inactiveAlpha = 0.1,
-    },
-
-    -- Warnings
-    warnings = {
-        pet = {
-            enabled = true,
-            text = "** FU PET **",
-            priority = 10,
-            color = "magenta",
-        },
-        rune = {
-            enabled = true,
-            text = "** USE YOUR RUNE IDIOT **",
-            priority = 5,
-            color = "magenta",
-        }
-    },
-
     -- Bar Layout Settings
     barLayout = {
         spacing = 1,

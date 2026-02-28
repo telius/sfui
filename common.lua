@@ -158,7 +158,7 @@ function sfui.common.SafeValue(val, fallback)
     if val == nil then return fallback end
     if issecretvalue(val) then return val end
     local ok, result = pcall(pcall_identity, val)
-    return ok and result or fallback
+    if ok then return result else return fallback end
 end
 
 function sfui.common.SafeNotFalse(val)
@@ -266,8 +266,7 @@ sfui.common.WEAPON_ENCHANT_IDS = {
     394018, -- Buzzing Rune
 }
 
--- Note: Food is often best checked by "Well Fed" name, but specific IDs can be added here if language-agnosticism is required.
--- For now, we'll stick to the "Well Fed" check in reminders.lua which is already safe via GetAuraDataBySpellName.
+-- For now, we'll stick to the "Well Fed" check which is safe via GetAuraDataBySpellName.
 
 local wipe = wipe
 local C_Timer = C_Timer
@@ -1852,15 +1851,6 @@ function sfui.initialize_database()
     sfui.config.targetCastBar.enabled = SfuiDB.targetCastBarEnabled
     sfui.config.targetCastBar.pos.x = SfuiDB.targetCastBarX
     sfui.config.targetCastBar.pos.y = SfuiDB.targetCastBarY
-
-    if SfuiDB.enableReminders == nil then SfuiDB.enableReminders = true end
-    if SfuiDB.remindersX == nil then SfuiDB.remindersX = 0 end
-    if SfuiDB.remindersY == nil then SfuiDB.remindersY = 10 end
-    if SfuiDB.remindersSolo == nil then SfuiDB.remindersSolo = true end
-    if SfuiDB.enableConsumablesSolo == nil then SfuiDB.enableConsumablesSolo = true end
-    if SfuiDB.remindersEverywhere == nil then SfuiDB.remindersEverywhere = true end
-    if SfuiDB.enablePetWarning == nil then SfuiDB.enablePetWarning = true end
-    if SfuiDB.enableRuneWarning == nil then SfuiDB.enableRuneWarning = true end
 
     -- automation settings
     if SfuiDB.auto_role_check == nil then SfuiDB.auto_role_check = true end
