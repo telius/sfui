@@ -170,8 +170,12 @@ local function UpdateCooldowns()
             local charges, maxCharges, chargeStart, chargeDuration = GetActionCharges(actionID)
 
             local displayCount = charges or count or 0
+
+            -- Check for secret values to avoid taint during comparison
+            local isSecret = sfui.common.issecretvalue(displayCount) or sfui.common.issecretvalue(maxCharges)
+
             if btn.Count then
-                if displayCount > 0 or (maxCharges and maxCharges > 1) then
+                if not isSecret and (displayCount > 0 or (maxCharges and maxCharges > 1)) then
                     btn.Count:SetText(tostring(displayCount))
                     btn.Count:Show()
                 else

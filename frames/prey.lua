@@ -8,6 +8,7 @@ local C_QuestLog = C_QuestLog
 local C_TaskQuest = C_TaskQuest
 local C_UIWidgetManager = C_UIWidgetManager
 local CreateFrame = CreateFrame
+local InCombatLockdown = InCombatLockdown
 local UIParent = UIParent
 local GetTime = GetTime
 local ipairs = ipairs
@@ -23,6 +24,7 @@ local GetActivePreyQuest = C_QuestLog.GetActivePreyQuest
 local GetTitleForQuestID = C_QuestLog.GetTitleForQuestID
 local GetQuestObjectives = C_QuestLog.GetQuestObjectives
 local IsOnMap = C_QuestLog.IsOnMap
+local issecretvalue = sfui.common.issecretvalue
 local GetPreyHuntProgressWidgetVisualizationInfo = C_UIWidgetManager.GetPreyHuntProgressWidgetVisualizationInfo
 local GetStatusBarWidgetVisualizationInfo = C_UIWidgetManager.GetStatusBarWidgetVisualizationInfo
 local GetQuestProgressBarInfo = C_TaskQuest.GetQuestProgressBarInfo
@@ -88,6 +90,7 @@ end
 
 function sfui.prey.UpdatePreyBar(bar)
     if not bar then return end
+    if InCombatLockdown() then return end
 
     local cfg = sfui.config.preyBar
     if not cfg.enabled then
@@ -239,7 +242,7 @@ function sfui.prey.HandleWidget(widgetID)
 
             -- Capture title/tooltip if present
             local text = widgetInfo.tooltip or widgetInfo.text or widgetInfo.title
-            if text and text ~= "" then
+            if text and text ~= "" and not issecretvalue(text) then
                 widgetCache.title = CropToFirstLine(text)
             end
             -- Capture progress if present
@@ -250,10 +253,12 @@ function sfui.prey.HandleWidget(widgetID)
                 local text = barInfo.tooltip or barInfo.text or ""
                 -- Broaden search to support "Mordril Shadowfell" etc if we have an active hunt
                 local hasHunt = GetActivePreyQuest() ~= nil
-                local lowerText = lower(text)
-                if find(lowerText, "prey") or find(lowerText, "revealed") or (hasHunt and text ~= "") then
-                    widgetCache.title = CropToFirstLine(text)
-                    widgetCache.progress = barInfo.barValue or barInfo.curValue
+                if text and text ~= "" and not issecretvalue(text) then
+                    local lowerText = lower(text)
+                    if find(lowerText, "prey") or find(lowerText, "revealed") or (hasHunt) then
+                        widgetCache.title = CropToFirstLine(text)
+                        widgetCache.progress = barInfo.barValue or barInfo.curValue
+                    end
                 end
             end
         end
@@ -274,22 +279,31 @@ event_frame:RegisterEvent("UPDATE_UI_WIDGET")
 local preyBar = nil
 
 event_frame:SetScript("OnEvent", function(self, event, payload)
+    if InCombatLockdown() then return end
+
     if event == "UPDATE_UI_WIDGET" and payload then
-        -- Check if the widget is a PreyHuntProgress widget
-        local widgetInfo = GetPreyHuntProgressWidgetVisualizationInfo(payload.widgetID)
-        if widgetInfo then
-            sfui.prey.HandleWidget(payload.widgetID)
+        local widgetID = payload.widgetID
+        if not widgetID or issecretvalue(widgetID) then return end
+
+        local widgetType = payload.widgetType
+        local widgetSetID = payload.widgetSetID
+
+        -- Explicitly ignore Warband world quests (1900) and other known protected sets
+        if widgetSetID == 1900 or widgetSetID == 1611 then return end
+
+        -- Only process types used by Prey hunts (31: PreyHunt, 2: StatusBar)
+        if widgetType == 31 then
+            sfui.prey.HandleWidget(widgetID)
             if preyBar then
                 sfui.prey.UpdatePreyBar(preyBar)
             end
-        else
-            -- Also check if it's a StatusBar widget that might be prey-related
-            local barInfo = GetStatusBarWidgetVisualizationInfo(payload.widgetID)
+        elseif widgetType == 2 then
+            local barInfo = GetStatusBarWidgetVisualizationInfo(widgetID)
             if barInfo then
                 local text = barInfo.tooltip or barInfo.text or ""
                 local lowerText = lower(text)
                 if find(lowerText, "prey") or find(lowerText, "revealed") then
-                    sfui.prey.HandleWidget(payload.widgetID)
+                    sfui.prey.HandleWidget(widgetID)
                     if preyBar then
                         sfui.prey.UpdatePreyBar(preyBar)
                     end

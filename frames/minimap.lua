@@ -3,6 +3,39 @@ sfui = sfui or {}
 sfui.minimap = {}
 
 -- ========================
+-- Localization
+-- ========================
+local _G = _G
+local type = type
+local select = select
+local ipairs = ipairs
+local pairs = pairs
+local unpack = unpack
+local table_insert = _G.table.insert
+local table_sort = _G.table.sort
+local table_wipe = _G.wipe
+local string_lower = _G.string.lower
+local string_find = _G.string.find
+local string_match = _G.string.match
+local string_gsub = _G.string.gsub
+local tostring = _G.tostring
+local math_floor = _G.math.floor
+
+local C_Timer = _G.C_Timer
+local C_ActionBar = _G.C_ActionBar
+local C_Texture = _G.C_Texture
+local Minimap = _G.Minimap
+local MinimapCluster = _G.MinimapCluster
+local CreateFrame = _G.CreateFrame
+local InCombatLockdown = _G.InCombatLockdown
+local hooksecurefunc = _G.hooksecurefunc
+local GetTime = _G.GetTime
+local UnitOnTaxi = _G.UnitOnTaxi
+local VehicleExit = _G.VehicleExit
+local TaxiRequestEarlyLanding = _G.TaxiRequestEarlyLanding
+local LibStub = _G.LibStub
+
+-- ========================
 -- Local Variables
 -- ========================
 local isInitialized = false
@@ -20,6 +53,16 @@ local function set_default_zoom()
         zoom_timer = nil
     end
     Minimap:SetZoom(DEFAULT_ZOOM)
+end
+
+function sfui.minimap.reset_zoom_timer()
+    if zoom_timer then
+        zoom_timer:Cancel()
+        zoom_timer = nil
+    end
+    if SfuiDB.minimap_auto_zoom and Minimap:GetZoom() ~= DEFAULT_ZOOM then
+        zoom_timer = C_Timer.NewTimer(SfuiDB.minimap_auto_zoom_delay or 5, set_default_zoom)
+    end
 end
 
 local ButtonManager = {
@@ -44,7 +87,7 @@ function ButtonManager:store_original_state(button)
         level = button:GetFrameLevel(),
     }
     for i = 1, button:GetNumPoints() do
-        table.insert(orig.points, { button:GetPoint(i) })
+        table_insert(orig.points, { button:GetPoint(i) })
     end
     button.sfuiOriginalState = orig
 end
@@ -68,8 +111,8 @@ function ButtonManager:restore_all()
     for _, button in ipairs(self.collectedButtons) do
         self:restore_button(button)
     end
-    wipe(self.collectedButtons)
-    wipe(self.processedButtons)
+    table_wipe(self.collectedButtons)
+    table_wipe(self.processedButtons)
 end
 
 local ignoreNameCache = {}
@@ -78,38 +121,63 @@ local validNameCache = {}
 function ButtonManager:is_button(frame)
     if not frame or type(frame) ~= "table" then return false end
 
-    if type(frame.GetName) ~= "function" then return false end
-    local name = frame:GetName()
-    if not name then return false end
+    -- Quick cache check first
+    local name = frame.GetName and frame:GetName()
+    if name then
+        if ignoreNameCache[name] then return false end
+        if validNameCache[name] then return true end
+    end
+
+    -- NEVER touch forbidden/protected frames or those with unit attributes (POIs)
+    if frame.IsForbidden and frame:IsForbidden() then return false end
+    if frame.IsProtected and frame:IsProtected() then return false end
+
+    if not name then
+        -- Check if it's a generic child we should ignore
+        if frame.IsObjectType and frame:IsObjectType("Button") then
+            -- POI and World Quest buttons often have no name in Dragonflight/TWW
+            return false
+        end
+        return false
+    end
 
     if ignoreNameCache[name] then return false end
     if validNameCache[name] then return true end
 
-    if name:find("Minimap") or name:find("MinimapCluster") or name:find("GameTime") or name:find("MicroMenu") then
+    -- Filter out Blizzard internal/protected buttons
+    local lowerName = name:lower()
+    if lowerName:find("minimap") or lowerName:find("cluster") or lowerName:find("gametime") or lowerName:find("micro") then
         ignoreNameCache[name] = true; return false
     end
-    if name:find("OverrideActionBar") or name:find("MainMenuBar") or name:find("PetBattle") or name:find("MultiBar") then
+    if lowerName:find("poi") or lowerName:find("quest") or lowerName:find("flight") or lowerName:find("garrison") then
         ignoreNameCache[name] = true; return false
     end
+    if lowerName:find("actionbar") or lowerName:find("petbattle") or lowerName:find("button_") then
+        ignoreNameCache[name] = true; return false
+    end
+    -- Explicitly skip Warband/Scenario/Blizzard frames
+    if lowerName:find("warband") or lowerName:find("scenario") or lowerName:find("blizzard") or lowerName:find("area") then
+        ignoreNameCache[name] = true; return false
+    end
+
     if type(frame.IsObjectType) ~= "function" then return false end
     if not frame:IsObjectType("Button") and not frame:IsObjectType("CheckButton") then return false end
     if type(frame.GetScript) ~= "function" or (not frame:GetScript("OnClick") and not frame:GetScript("OnMouseDown") and not frame:GetScript("OnMouseUp")) then
         return false
     end
-    if type(frame.GetNumRegions) ~= "function" or frame:GetNumRegions() == 0 then return false end
 
     validNameCache[name] = true
     return true
 end
 
 function ButtonManager:add_button(button)
-    if not self:is_button(button) then return end
+    if not self:is_button(button) then return false end
 
     local name = button:GetName()
-    if not name or self.processedButtons[name] then return end
+    if not name or self.processedButtons[name] then return false end
 
     self:store_original_state(button)
-    table.insert(self.collectedButtons, button)
+    table_insert(self.collectedButtons, button)
     self.processedButtons[name] = true
 
     if not button.sfuiLayoutHooked then
@@ -117,36 +185,53 @@ function ButtonManager:add_button(button)
         hooksecurefunc(button, "Hide", function() ButtonManager:arrange_buttons() end)
         button.sfuiLayoutHooked = true
     end
+    return true
 end
 
 function ButtonManager:collect_buttons()
+    local foundNew = false
     local ldbi = LibStub("LibDBIcon-1.0", true)
     if ldbi then
         for _, buttonName in ipairs(ldbi:GetButtonList()) do
             local button = _G[buttonName]
-            -- Note: LibDBIcon often names button "LibDBIcon10_AddonName"
-            if button then self:add_button(button) end
+            if button and self:add_button(button) then foundNew = true end
         end
     end
 
     for i = 1, Minimap:GetNumChildren() do
         local child = select(i, Minimap:GetChildren())
-        self:add_button(child)
+        if self:add_button(child) then foundNew = true end
     end
 
     if MinimapCluster then
         for i = 1, MinimapCluster:GetNumChildren() do
             local child = select(i, MinimapCluster:GetChildren())
-            self:add_button(child)
+            if self:add_button(child) then foundNew = true end
         end
     end
+    return foundNew
 end
 
 function ButtonManager:skin_button(button)
+    if button.sfuiSkinned then return end
+
     if not SfuiDB.minimap_masque then
-        return
-    end
-    if not SfuiDB.minimap_masque then
+        -- Standard square styling if Masque is disabled
+        local regions = { button:GetRegions() }
+        local icon
+        for _, region in ipairs(regions) do
+            if region:IsObjectType("Texture") then
+                local texture = region:GetTexture()
+                if texture and type(texture) == "string" and texture:lower():find("icon") then
+                    icon = region
+                    break
+                end
+            end
+        end
+        if icon then
+            sfui.common.apply_square_icon_style(button, icon)
+        end
+        button.sfuiSkinned = true
         return
     end
 
@@ -282,9 +367,7 @@ function ButtonManager:skin_button(button)
         end
     end
 
-    if not SfuiDB.minimap_masque and icon then
-        sfui.common.apply_square_icon_style(button, icon)
-    end
+    button.sfuiSkinned = true
 end
 
 function ButtonManager:arrange_buttons()
@@ -295,7 +378,7 @@ function ButtonManager:arrange_buttons()
         SfuiDB.minimap_button_order = {}
     end
 
-    table.sort(self.collectedButtons, function(a, b)
+    table_sort(self.collectedButtons, function(a, b)
         local aName = a:GetName() or ""
         local bName = b:GetName() or ""
 
@@ -366,10 +449,10 @@ function ButtonManager:arrange_buttons()
                     if newIndex > oldIndex then newIndex = newIndex - 1 end
                     if newIndex > #ButtonManager.collectedButtons + 1 then newIndex = #ButtonManager.collectedButtons + 1 end
                     if newIndex < 1 then newIndex = 1 end
-                    table.insert(ButtonManager.collectedButtons, newIndex, self)
+                    table_insert(ButtonManager.collectedButtons, newIndex, self)
                     SfuiDB.minimap_button_order = {}
                     for _, btn in ipairs(ButtonManager.collectedButtons) do
-                        table.insert(SfuiDB.minimap_button_order,
+                        table_insert(SfuiDB.minimap_button_order,
                             btn:GetName())
                     end
                     ButtonManager:arrange_buttons()
@@ -436,19 +519,19 @@ function sfui.minimap.enable_button_manager(enabled)
                     local isHovering = button_bar:IsMouseOver() or Minimap:IsMouseOver()
                     if isHovering then
                         button_bar:SetAlpha(1)
-                        if lib then -- lib is LibDBIcon if requested via LibStub
-                            local LibDBIcon = LibStub("LibDBIcon-1.0", true)
-                            if LibDBIcon and LibDBIcon.OnMinimapEnter then
-                                pcall(LibDBIcon.OnMinimapEnter)
-                            end
+                        if not sfui.minimap.ldbi then
+                            sfui.minimap.ldbi = LibStub("LibDBIcon-1.0", true)
+                        end
+                        if sfui.minimap.ldbi and sfui.minimap.ldbi.OnMinimapEnter then
+                            pcall(sfui.minimap.ldbi.OnMinimapEnter)
                         end
                     else
                         button_bar:SetAlpha(0)
-                        if lib then
-                            local LibDBIcon = LibStub("LibDBIcon-1.0", true)
-                            if LibDBIcon and LibDBIcon.OnMinimapLeave then
-                                pcall(LibDBIcon.OnMinimapLeave)
-                            end
+                        if not sfui.minimap.ldbi then
+                            sfui.minimap.ldbi = LibStub("LibDBIcon-1.0", true)
+                        end
+                        if sfui.minimap.ldbi and sfui.minimap.ldbi.OnMinimapLeave then
+                            pcall(sfui.minimap.ldbi.OnMinimapLeave)
                         end
                     end
                 else
@@ -506,7 +589,9 @@ local startup_scans = 0
 frame:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_ENTERING_WORLD" then
         sfui.minimap.initialize_masque()
-        set_default_zoom()
+        if SfuiDB.minimap_auto_zoom then
+            set_default_zoom()
+        end
         sfui.minimap.enable_button_manager(SfuiDB.minimap_collect_buttons)
 
         if MinimapCluster and MinimapCluster.IndicatorFrame then
@@ -523,8 +608,9 @@ frame:SetScript("OnEvent", function(self, event, ...)
                 if startup_scans > 5 then
                     self:Cancel()
                 else
-                    ButtonManager:collect_buttons()
-                    ButtonManager:arrange_buttons()
+                    if ButtonManager:collect_buttons() then
+                        ButtonManager:arrange_buttons()
+                    end
                 end
             end)
         end
@@ -535,17 +621,15 @@ frame:SetScript("OnEvent", function(self, event, ...)
 
     if event == "ADDON_LOADED" then
         if SfuiDB.minimap_collect_buttons then
-            ButtonManager:collect_buttons()
-            ButtonManager:arrange_buttons()
+            if ButtonManager:collect_buttons() then
+                ButtonManager:arrange_buttons()
+            end
         end
         return
     end
 
-    if event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" then
-        if SfuiDB.minimap_auto_zoom then
-            set_default_zoom()
-        end
-    elseif event == "MINIMAP_UPDATE_ZOOM" then
+    -- Autozoom on manual zoom changes
+    if event == "MINIMAP_UPDATE_ZOOM" then
         if SfuiDB.minimap_auto_zoom and Minimap:GetZoom() ~= DEFAULT_ZOOM then
             if zoom_timer then
                 zoom_timer:Cancel()
