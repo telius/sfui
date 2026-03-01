@@ -144,19 +144,26 @@ function ButtonManager:is_button(frame)
     if ignoreNameCache[name] then return false end
     if validNameCache[name] then return true end
 
-    -- Filter out Blizzard internal/protected buttons
+    -- Filter out Blizzard internal/protected buttons with surgical patterns
+    -- We use specific prefixes instead of broad substrings like "poi" or "quest"
+    -- to avoid clobbering addons like "MyusKnowledgePointsTracker".
     local lowerName = name:lower()
-    if lowerName:find("minimap") or lowerName:find("cluster") or lowerName:find("gametime") or lowerName:find("micro") then
+    if lowerName:find("^minimap") or lowerName:find("^areapoi") or lowerName:find("^minimappoi") then
         ignoreNameCache[name] = true; return false
     end
-    if lowerName:find("poi") or lowerName:find("quest") or lowerName:find("flight") or lowerName:find("garrison") then
+    if lowerName:find("^worldquest") or lowerName:find("^warband") or lowerName:find("^scenario") then
         ignoreNameCache[name] = true; return false
     end
-    if lowerName:find("actionbar") or lowerName:find("petbattle") or lowerName:find("button_") then
+    if lowerName:find("cluster") or lowerName:find("gametime") or lowerName:find("micro") then
         ignoreNameCache[name] = true; return false
     end
-    -- Explicitly skip Warband/Scenario/Blizzard frames
-    if lowerName:find("warband") or lowerName:find("scenario") or lowerName:find("blizzard") or lowerName:find("area") then
+    if lowerName:find("flight") or lowerName:find("garrison") then
+        ignoreNameCache[name] = true; return false
+    end
+    if lowerName:find("actionbar") or lowerName:find("petbattle") then
+        ignoreNameCache[name] = true; return false
+    end
+    if lowerName:find("^blizzard_") or lowerName:find("^blizzard") then
         ignoreNameCache[name] = true; return false
     end
 
