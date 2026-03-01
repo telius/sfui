@@ -184,6 +184,27 @@ function sfui.common.SafeSetValue(bar, value)
     bar:SetValue(value or 0)
 end
 
+-- Safely call SetTooltipMoney or show [Protected] if value is secret
+function sfui.common.SafeSetTooltipMoney(tooltip, amount, label)
+    if not tooltip or not amount then return end
+    if issecretvalue(amount) then
+        tooltip:AddLine((label or "") .. " |cff00ffff[Protected]|r", 1, 1, 1)
+    else
+        if label then tooltip:AddLine(label) end
+        SetTooltipMoney(tooltip, amount)
+    end
+end
+
+-- Safely add a money line using GetCoinTextureString or show [Protected]
+function sfui.common.SafeAddMoneyLine(tooltip, label, amount)
+    if not tooltip or not amount then return end
+    if issecretvalue(amount) then
+        tooltip:AddLine((label or "") .. " |cff00ffff[Protected]|r", 1, 1, 1)
+    else
+        tooltip:AddLine((label or "") .. GetCoinTextureString(amount), 1, 1, 1)
+    end
+end
+
 -- Safely compare units (UnitIsUnit crashes on secret values if execution is tainted)
 function sfui.common.SafeUnitIsUnit(unit1, unit2)
     if not unit1 or not unit2 then return false end

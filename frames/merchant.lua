@@ -602,15 +602,19 @@ grIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 guildRepairBtn:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     local repairAllCost, canRepair = GetRepairAllCost()
-    if canRepair and repairAllCost > 0 then
-        GameTooltip:SetText("Guild Repair")
-        SetTooltipMoney(GameTooltip, repairAllCost)
+
+    if canRepair and (sfui.common.issecretvalue(repairAllCost) or sfui.common.SafeGT(repairAllCost, 0)) then
+        sfui.common.SafeSetTooltipMoney(GameTooltip, repairAllCost, "Guild Repair")
+
         local amount = GetGuildBankMoney()
         local withdrawLimit = GetGuildBankWithdrawMoney()
-        if withdrawLimit >= 0 then
+        local isSecretAmount = sfui.common.issecretvalue(amount)
+
+        if not isSecretAmount and withdrawLimit >= 0 then
             amount = math.min(amount, withdrawLimit)
         end
-        GameTooltip:AddLine("Guild Funds: " .. GetCoinTextureString(amount), 1, 1, 1)
+
+        sfui.common.SafeAddMoneyLine(GameTooltip, "Guild Funds: ", amount)
     else
         GameTooltip:SetText("No Repair Needed")
     end
@@ -633,9 +637,10 @@ rIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 repairBtn:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     local repairAllCost, canRepair = GetRepairAllCost()
-    if canRepair and repairAllCost > 0 then
-        GameTooltip:SetText("Repair All")
-        SetTooltipMoney(GameTooltip, repairAllCost)
+    local isSecret = sfui.common.issecretvalue(repairAllCost)
+
+    if canRepair and (isSecret or sfui.common.SafeGT(repairAllCost, 0)) then
+        sfui.common.SafeSetTooltipMoney(GameTooltip, repairAllCost, "Repair All")
     else
         GameTooltip:SetText("No Repair Needed")
     end
