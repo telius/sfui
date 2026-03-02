@@ -2,18 +2,36 @@ local addonName, addon = ...
 sfui = sfui or {}
 sfui.is_ready_for_vendor_frame = false
 
+-- Localize Globals
+local _G = _G
+local print = print
+local type = type
+local tonumber = tonumber
+local string_lower = string.lower
+local string_match = string.match
+local string_gmatch = string.gmatch
+
+local CreateFrame = CreateFrame
+local UIParent = UIParent
+local IsShiftKeyDown = IsShiftKeyDown
+local GetCVar = GetCVar
+local C_CVar = C_CVar
+local C_UI = C_UI
+local C_AddOns = C_AddOns
+local LibStub = LibStub
+
 BINDING_HEADER_SFUI = "SFUI"
 _G["BINDING_NAME_CLICK SfuiHammerPopup:LeftButton"] = "Master's Hammer Repair"
 _G["BINDING_NAME_SFUI_MATCHMOUNT"] = "Match Target Mount"
 
 
-SLASH_SFUI1 = "/sfui"
-SLASH_RL1 = "/rl"
+local SLASH_SFUI1 = "/sfui"
+local SLASH_RL1 = "/rl"
 
 local function update_pixel_scale()
     local resolution = GetCVar("gxWindowedResolution")
     if resolution then
-        local height = tonumber(string.match(resolution, "%d+x(%d+)"))
+        local height = tonumber(string_match(resolution, "%d+x(%d+)"))
         if height then sfui.pixelScale = 768 / (height * UIParent:GetScale()) end
     end
 end
@@ -55,10 +73,12 @@ event_frame:RegisterEvent("ADDON_LOADED")
 event_frame:RegisterEvent("PLAYER_LOGIN")
 
 
+local ipairs = ipairs
+
 event_frame:SetScript("OnEvent", function(self, event, ...)
     if event == "ADDON_LOADED" then
         local name = ...
-        if string.lower(name) == "sfui" then
+        if string_lower(name) == "sfui" then
             local LSM = LibStub("LibSharedMedia-3.0", true)
             if LSM then
                 LSM:Register("statusbar", "Flat", "Interface/Buttons/WHITE8X8")
@@ -71,7 +91,6 @@ event_frame:SetScript("OnEvent", function(self, event, ...)
             SfuiDB = SfuiDB or {}
             SfuiDB.alts = SfuiDB.alts or {}
             SfuiDB.minimap_icon = SfuiDB.minimap_icon or {}
-            SfuiDB.minimap_icon_alts = SfuiDB.minimap_icon_alts or {}
             SfuiDecorDB = SfuiDecorDB or {}
             SfuiDecorDB.items = SfuiDecorDB.items or {}
 
@@ -164,59 +183,86 @@ event_frame:SetScript("OnEvent", function(self, event, ...)
                 type = "launcher",
                 text = "sfui",
                 icon = sfui.config.appearance.addonIcon,
-                OnClick = function(_, button)
-                    if IsShiftKeyDown() and button == "LeftButton" then
-                        if not CooldownViewerSettings then
-                            C_AddOns.LoadAddOn("Blizzard_CooldownViewer")
+                OnClick = function(self, button)
+                    if button == "LeftButton" then
+                        if not SfuiMinimapMenu then
+                            SfuiMinimapMenu = CreateFrame("Frame", "SfuiMinimapMenu", UIParent, "BackdropTemplate")
+                            SfuiMinimapMenu:SetSize(160, 105)
+                            SfuiMinimapMenu:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+                            SfuiMinimapMenu:SetBackdropColor(0, 0, 0, 0.5)
+                            SfuiMinimapMenu:SetFrameStrata("TOOLTIP")
+                            SfuiMinimapMenu:SetClampedToScreen(true)
+
+                            local function AddMenuButton(text, func, y)
+                                local btn = sfui.common.create_flat_button(SfuiMinimapMenu, text, 150, 20)
+                                btn:SetPoint("TOP", 0, y)
+                                btn:SetScript("OnClick", function()
+                                    SfuiMinimapMenu:Hide()
+                                    if func then func() end
+                                end)
+                            end
+
+                            AddMenuButton("|cff00ffffOptions|r", function() sfui.toggle_options_panel() end, -5)
+                            AddMenuButton("|cff00ff00Tracking Manager|r", function()
+                                if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
+                                    sfui.trackedoptions.toggle_viewer()
+                                end
+                            end, -30)
+                            AddMenuButton("|cff9966ffAlts|r", function()
+                                if sfui.alts and sfui.alts.Toggle then
+                                    sfui.alts.Toggle()
+                                end
+                            end, -55)
+                            AddMenuButton("|cff99ccffResearch Viewer|r", function()
+                                if sfui.research and sfui.research.toggle_selection then
+                                    sfui.research.toggle_selection()
+                                end
+                            end, -80)
+
+                            SfuiMinimapMenu.anchor = self
+                            SfuiMinimapMenu.throttle = 0
+                            SfuiMinimapMenu:SetScript("OnUpdate", function(self, elapsed)
+                                self.throttle = self.throttle + elapsed
+                                if self.throttle < 0.5 then return end
+                                self.throttle = 0
+
+                                if self:IsMouseOver() or (self.anchor and self.anchor:IsMouseOver()) then
+                                    self.hideTimer = 0
+                                else
+                                    self.hideTimer = (self.hideTimer or 0) + 0.5
+                                    if self.hideTimer > 0.5 then
+                                        self:Hide()
+                                    end
+                                end
+                            end)
                         end
-                        if CooldownViewerSettings then
-                            ShowUIPanel(CooldownViewerSettings)
+
+                        if SfuiMinimapMenu:IsShown() then
+                            SfuiMinimapMenu:Hide()
                         else
-                            print("SFUI: C_CooldownViewer global not found.")
+                            SfuiMinimapMenu.anchor = self
+                            SfuiMinimapMenu.throttle = 0
+                            SfuiMinimapMenu.hideTimer = 0
+                            SfuiMinimapMenu:ClearAllPoints()
+                            SfuiMinimapMenu:SetPoint("TOPRIGHT", self, "BOTTOMRIGHT", 0, -5)
+                            SfuiMinimapMenu:Show()
                         end
-                    elseif button == "LeftButton" then
-                        sfui.toggle_options_panel()
                     elseif button == "RightButton" then
                         if IsShiftKeyDown() then
-                            if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
-                                sfui.trackedoptions.toggle_viewer()
-                            end
-                        else
                             C_UI.Reload()
-                        end
-                    elseif button == "MiddleButton" then
-                        if sfui.research and sfui.research.toggle_selection then
-                            sfui.research.toggle_selection()
+                        elseif sfui.alts and sfui.alts.Toggle then
+                            sfui.alts.Toggle()
                         end
                     end
                 end,
                 OnTooltipShow = function(tooltip)
                     tooltip:AddLine("sfui")
-                    tooltip:AddLine("Left-click to toggle options", 0.2, 1, 0.2)
-                    tooltip:AddLine("Shift+Left-click to Configure Cooldowns", 0.4, 0.7, 1)
-                    tooltip:AddLine("Middle-click to toggle Research Viewer", 0.2, 0.6, 1)
-                    tooltip:AddLine("Right-click to Reload UI", 1, 0.2, 0.2)
-                    tooltip:AddLine("Shift+Right-click to Tracking Manager", 1, 0.5, 0.2)
+                    tooltip:AddLine("Left-click for Menu", 0.2, 1, 0.2)
+                    tooltip:AddLine("Right-click for Alts", 0.4, 0.7, 1)
+                    tooltip:AddLine("Shift+Right-click to Reload UI", 1, 0.2, 0.2)
                 end,
             })
             icon:Register("sfui", broker, SfuiDB.minimap_icon)
-
-            -- Alts Launcher
-            local altsBroker = ldb:NewDataObject("sfui_alts", {
-                type = "launcher",
-                text = "Alts",
-                icon = 136197, -- spell_shadow_shadowbolt
-                OnClick = function(_, button)
-                    if sfui.alts and sfui.alts.Toggle then
-                        sfui.alts.Toggle()
-                    end
-                end,
-                OnTooltipShow = function(tooltip)
-                    tooltip:AddLine("SFUI Alts")
-                    tooltip:AddLine("Left-click to toggle Alts panel", 0.2, 1, 0.2)
-                end,
-            })
-            icon:Register("sfui_alts", altsBroker, SfuiDB.minimap_icon_alts)
         end
         self:UnregisterEvent("PLAYER_LOGIN")
     end
