@@ -4,7 +4,12 @@ sfui.common = {}
 
 
 -- Static pcall targets (Performance optimization: no closures in hot paths)
-local function pcall_issecret(val) return val == val end
+local function pcall_issecret(val)
+    if type(val) == "number" then
+        return val + 0 == val
+    end
+    return val == val
+end
 local function pcall_num_pos(val) return type(val) == "number" and val > 0 end
 local function pcall_gt(v1, v2) return v1 > (v2 or 0) end
 local function pcall_identity(val) return val end
@@ -13,10 +18,14 @@ local function pcall_identity(val) return val end
 -- Comparing "Secret Values" to anything (including themselves) throws a Lua error.
 -- WoW 11.x+ has a built-in issecretvalue global; we use it if present.
 local function issecretvalue(val)
-    if _G.issecretvalue then return _G.issecretvalue(val) end
     if val == nil then return false end
+    -- We always check via pcall to catch "wrapped" or "tainted" numbers
+    -- that _G.issecretvalue might not flag but Blizzard's C-code will.
     local success = pcall(pcall_issecret, val)
-    return not success
+    if not success then return true end
+
+    if _G.issecretvalue then return _G.issecretvalue(val) end
+    return false
 end
 sfui.common.issecretvalue = issecretvalue
 
@@ -191,7 +200,10 @@ function sfui.common.SafeSetTooltipMoney(tooltip, amount, label)
         tooltip:AddLine((label or "") .. " |cff00ffff[Protected]|r", 1, 1, 1)
     else
         if label then tooltip:AddLine(label) end
-        SetTooltipMoney(tooltip, amount)
+        local ok = pcall(SetTooltipMoney, tooltip, amount)
+        if not ok then
+            tooltip:AddLine("Spend |cff00ffff[Protected]|r", 1, 1, 1)
+        end
     end
 end
 
@@ -201,7 +213,12 @@ function sfui.common.SafeAddMoneyLine(tooltip, label, amount)
     if issecretvalue(amount) then
         tooltip:AddLine((label or "") .. " |cff00ffff[Protected]|r", 1, 1, 1)
     else
-        tooltip:AddLine((label or "") .. GetCoinTextureString(amount), 1, 1, 1)
+        local ok, textureString = pcall(GetCoinTextureString, amount)
+        if ok then
+            tooltip:AddLine((label or "") .. textureString, 1, 1, 1)
+        else
+            tooltip:AddLine((label or "") .. " |cff00ffff[Protected]|r", 1, 1, 1)
+        end
     end
 end
 
