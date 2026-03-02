@@ -2033,35 +2033,50 @@ end
 
 -- Centralized Dropdown Menu Widget
 local activeDropdown = nil
-function sfui.common.create_dropdown(parent, width, options, onSelectFunc, initialValue)
-    local initialText = "Select..."
-    if initialValue ~= nil then
-        for _, opt in ipairs(options) do
-            if opt.value == initialValue then
-                initialText = opt.text
-                break
+function sfui.common.create_dropdown(parent, width, options, onSelectFunc, initialValue, fixedText, menuWidth)
+    local actualOptions = (type(options) == "function") and options() or options
+    local initialText = fixedText or "Select..."
+    if not fixedText then
+        if initialValue ~= nil then
+            for _, opt in ipairs(actualOptions) do
+                if opt.value == initialValue then
+                    initialText = opt.text
+                    break
+                end
             end
+        elseif actualOptions and #actualOptions > 0 then
+            -- Default to the first option if no initial value provided
+            initialText = actualOptions[1].text
         end
-    elseif options and #options > 0 then
-        -- Default to the first option if no initial value provided
-        initialText = options[1].text
     end
 
     local btn = sfui.common.create_flat_button(parent, initialText, width or 80, 18)
 
     local menu = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
     menu:SetPoint("TOPRIGHT", btn, "BOTTOMRIGHT", 0, -2)
-    menu:SetFrameStrata("FULLSCREEN_DIALOG")
+    menu:SetFrameStrata("TOOLTIP")
     menu:SetFrameLevel(100)
     menu:Hide()
 
     local function updateMenuSize()
-        local maxW = width or 80
+        local currentOptions = (type(options) == "function") and options() or options
+        local maxW = menuWidth or width or 80
+
+        -- If no menuWidth, try to estimate from text if not using onRender
+        if not menuWidth then
+            for _, opt in ipairs(currentOptions) do
+                if opt.text then
+                    local textWidth = #opt.text * 7 -- Rough estimate
+                    if textWidth > maxW then maxW = textWidth end
+                end
+            end
+        end
+
         local totalH = 5
-        for _, opt in ipairs(options) do
+        for _, opt in ipairs(currentOptions) do
             totalH = totalH + 20
         end
-        menu:SetSize(maxW + 40, totalH + 5)
+        menu:SetSize(maxW + 20, totalH + 5)
     end
 
     menu:SetBackdrop({
@@ -2073,24 +2088,35 @@ function sfui.common.create_dropdown(parent, width, options, onSelectFunc, initi
     menu:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
 
     local function fillOptions()
+        local currentOptions = (type(options) == "function") and options() or options
         local y = -5
-        for _, opt in ipairs(options) do
+        for _, opt in ipairs(currentOptions) do
             local optBtn = CreateFrame("Button", nil, menu)
             optBtn:SetSize(menu:GetWidth() - 10, 20)
             optBtn:SetPoint("TOPLEFT", 5, y)
 
-            local t = optBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            t:SetPoint("LEFT", 5, 0)
-            t:SetText(opt.text)
+            if opt.onRender then
+                opt.onRender(optBtn, opt)
+            else
+                local t = optBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                t:SetPoint("LEFT", 5, 0)
+                t:SetText(opt.text)
 
-            optBtn:SetScript("OnEnter", function(self) t:SetTextColor(0, 1, 1) end)
-            optBtn:SetScript("OnLeave", function(self) t:SetTextColor(1, 1, 1) end)
-            optBtn:SetScript("OnClick", function()
-                btn:GetFontString():SetText(opt.text) -- Update displayed text
-                if onSelectFunc then onSelectFunc(opt.value) end
-                menu:Hide()
-                activeDropdown = nil
-            end)
+                optBtn:SetScript("OnEnter", function(self) t:SetTextColor(0, 1, 1) end)
+                optBtn:SetScript("OnLeave", function(self) t:SetTextColor(1, 1, 1) end)
+
+                optBtn:SetScript("OnClick", function()
+                    if not fixedText then
+                        btn:GetFontString():SetText(opt.text) -- Update displayed text
+                    end
+                    if onSelectFunc then onSelectFunc(opt.value) end
+
+                    if not opt.keepOpen then
+                        menu:Hide()
+                        activeDropdown = nil
+                    end
+                end)
+            end
             y = y - 20
         end
     end

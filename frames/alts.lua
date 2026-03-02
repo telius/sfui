@@ -18,58 +18,137 @@ local GetAverageItemLevel = GetAverageItemLevel
 local GetServerTime = GetServerTime
 local GetMoney = GetMoney
 local AbbreviateLargeNumbers = AbbreviateLargeNumbers
+local table = table
+local wipe = wipe
+local C_Timer = C_Timer
 
 -- Configuration & Data Tables
+local CATEGORIES = {}
 local CURRENCIES = {
     { id = 3383, label = "Adventurer", icon = 7639517 }, -- Adventurer's Dawncrest
     { id = 3341, label = "Veteran",    icon = 7639525 }, -- Veteran Dawncrest
     { id = 3343, label = "Champ",      icon = 7639519 }, -- Champion Dawncrest
     { id = 3345, label = "Hero",       icon = 7639521 }, -- Hero Dawncrest
+    { id = 3347, label = "Gilded",     icon = 7639523 }, -- Gilded Dawncrest
     { id = 3212, label = "Spark",      icon = 7551418 }, -- Spark of Fortune
     { id = 3378, label = "Catalyst",   icon = 4622294 }, -- Catalyst Charges
 }
 
-local CATEGORIES = {
-    { name = "GENERAL",         label = "Character",           type = "header" },
-    { name = "ILVL",            label = "Level / iLvl",        type = "stat",      key = "iLvl",     format = "%.1f" },
-    { name = "RATING",          label = "M+ Rating",           type = "stat",      key = "rating" },
-    { name = "KEystone",        label = "Current Key",         type = "keystone" },
+local BASE_CATEGORIES = {
+    { name = "GENERAL",       label = "Character",     type = "header" },
+    { name = "ILVL",          label = "Level / iLvl",  type = "stat",      key = "iLvl",     format = "%.1f" },
+    { name = "RATING",        label = "M+ Rating",     type = "stat",      key = "rating" },
+    { name = "KEystone",      label = "Current Key",   type = "keystone" },
 
-    { name = "PREY_HEADER",     label = "Prey Hunt",           type = "header" },
-    { name = "PREY",            label = "Hunt Progress",       type = "prey" },
+    { name = "PREY_HEADER",   label = "Prey Hunt",     type = "header" },
+    { name = "PREY",          label = "Hunt Progress", type = "prey" },
 
-    { name = "VAULT_HEADER",    label = "Great Vault",         type = "header" },
-    { name = "VAULT_RAID",      label = "Raid",                type = "vault_row", group = "raid" },
-    { name = "VAULT_DUNGEON",   label = "Dungeon",             type = "vault_row", group = "dungeon" },
-    { name = "VAULT_WORLD",     label = "World/Delve",         type = "vault_row", group = "world" },
+    { name = "VAULT_HEADER",  label = "Great Vault",   type = "header" },
+    { name = "VAULT_RAID",    label = "Raid",          type = "vault_row", group = "raid" },
+    { name = "VAULT_DUNGEON", label = "Dungeon",       type = "vault_row", group = "dungeon" },
+    { name = "VAULT_WORLD",   label = "World/Delve",   type = "vault_row", group = "world" },
 
-    { name = "RAID_HEADER",     label = "Raid Progress",       type = "header" },
-    { name = "RAID_M",          label = "Mythic",              type = "raid_grid", difficulty = 16 },
-    { name = "RAID_H",          label = "Heroic",              type = "raid_grid", difficulty = 15 },
-    { name = "RAID_N",          label = "Normal",              type = "raid_grid", difficulty = 14 },
-
-    { name = "DUNGEONS_HEADER", label = "Dungeons",            type = "header" },
-    { name = "DUNGEON_1",       label = "Magister's Terrace",  type = "dungeon",   mapID = 501 },
-    { name = "DUNGEON_2",       label = "Maisara Caverns",     type = "dungeon",   mapID = 502 },
-    { name = "DUNGEON_3",       label = "Nexus-Point Xenas",   type = "dungeon",   mapID = 503 },
-    { name = "DUNGEON_4",       label = "Windrunner Spire",    type = "dungeon",   mapID = 504 },
-    { name = "DUNGEON_5",       label = "Algeth'ar Academy",   type = "dungeon",   mapID = 505 },
-    { name = "DUNGEON_6",       label = "Pit of Saron",        type = "dungeon",   mapID = 506 },
-    { name = "DUNGEON_7",       label = "Seat of Triumvirate", type = "dungeon",   mapID = 507 },
-    { name = "DUNGEON_8",       label = "Skyreach",            type = "dungeon",   mapID = 508 },
-
-    { name = "CURRENCY_HEADER", label = "Currency",            type = "header" },
+    { name = "RAID_HEADER",   label = "Raid Progress", type = "header" },
+    { name = "RAID_M",        label = "Mythic",        type = "raid_grid", difficulty = 16 },
+    { name = "RAID_H",        label = "Heroic",        type = "raid_grid", difficulty = 15 },
+    { name = "RAID_N",        label = "Normal",        type = "raid_grid", difficulty = 14 },
 }
 
--- Insert Currencies into Categories
-for _, currencyDef in ipairs(CURRENCIES) do
-    table.insert(CATEGORIES, {
-        name = "CURRENCY_" .. (type(currencyDef.id) == "string" and currencyDef.id:upper() or currencyDef.id),
-        label = currencyDef.label,
-        type = "currency",
-        id = currencyDef.id,
-        icon = currencyDef.icon
-    })
+function sfui.alts.RefreshDynamicCategories()
+    -- Initialize with base categories
+    wipe(CATEGORIES)
+    for i, cat in ipairs(BASE_CATEGORIES) do
+        CATEGORIES[i] = cat
+    end
+
+    -- Add Dungeons dynamically
+    local maps = C_ChallengeMode.GetMapTable()
+    if maps and #maps > 0 then
+        table.insert(CATEGORIES, { name = "DUNGEONS_HEADER", label = "Dungeons", type = "header" })
+        for _, mapID in ipairs(maps) do
+            local name = C_ChallengeMode.GetMapUIInfo(mapID)
+            if name then
+                table.insert(CATEGORIES, {
+                    name = "DUNGEON_" .. mapID,
+                    label = name,
+                    type = "dungeon",
+                    mapID = mapID
+                })
+            end
+        end
+    end
+
+    -- Add Currencies from hardcoded list
+    table.insert(CATEGORIES, { name = "CURRENCY_HEADER", label = "Currency", type = "header" })
+    for _, currencyDef in ipairs(CURRENCIES) do
+        table.insert(CATEGORIES, {
+            name = "CURRENCY_" .. currencyDef.id,
+            label = currencyDef.label,
+            type = "currency",
+            id = currencyDef.id,
+            icon = currencyDef.icon
+        })
+    end
+end
+
+-- Frame Pooling
+local columnPool = {}
+local cellPool = {}
+
+local function AcquireColumn(parent)
+    local f = table.remove(columnPool)
+    if not f then
+        f = CreateFrame("Frame", nil, parent)
+    else
+        f:SetParent(parent)
+        f:Show()
+    end
+    return f
+end
+
+local function ReleaseColumn(f)
+    f:Hide()
+    f:SetParent(nil)
+    f:ClearAllPoints()
+    table.insert(columnPool, f)
+end
+
+local function AcquireCell(parent)
+    local f = table.remove(cellPool)
+    if not f then
+        f = CreateFrame("Frame", nil, parent)
+        f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        f.text:SetPoint("CENTER")
+    else
+        f:SetParent(parent)
+        f:Show()
+        if f.text then
+            f.text:Show()
+            f.text:SetText("")
+            f.text:SetTextColor(1, 1, 1)
+            f.text:SetFontObject("GameFontHighlightSmall")
+            f.text:SetPoint("CENTER")
+        end
+        -- Hide any extra textures/buttons that might have been added
+        local regions = { f:GetRegions() }
+        for _, r in ipairs(regions) do
+            if r:IsObjectType("Texture") then r:Hide() end
+        end
+        local children = { f:GetChildren() }
+        for _, c in ipairs(children) do
+            c:Hide()
+        end
+    end
+    return f
+end
+
+local function ReleaseCell(f)
+    f:Hide()
+    f:SetParent(nil)
+    f:ClearAllPoints()
+    f:SetScript("OnEnter", nil)
+    f:SetScript("OnLeave", nil)
+    table.insert(cellPool, f)
 end
 
 -- Character data collection
@@ -77,7 +156,24 @@ local function GetCurrentCharacterGUID()
     return UnitGUID("player")
 end
 
+local syncTimer = nil
+local needsSync = false
+
 function sfui.alts.SyncCurrentCharacter()
+    if InCombatLockdown() then
+        needsSync = true
+        return
+    end
+
+    if syncTimer then return end
+    syncTimer = C_Timer.After(1.0, function()
+        syncTimer = nil
+        sfui.alts.PerformSync()
+    end)
+end
+
+function sfui.alts.PerformSync()
+    sfui.alts.RefreshDynamicCategories()
     local guid = GetCurrentCharacterGUID()
     if not guid then return end
 
@@ -110,6 +206,20 @@ function sfui.alts.SyncCurrentCharacter()
     local level = C_MythicPlus.GetOwnedKeystoneLevel()
     if mapID and level then
         data.keystone = { mapID = mapID, level = level }
+    end
+
+    -- Mythic+ Dungeon Best Scores
+    data.dungeons = data.dungeons or {}
+    local maps = C_ChallengeMode.GetMapTable()
+    if maps and #maps > 0 then
+        for _, mID in ipairs(maps) do
+            local intimeInfo, overtimeInfo = C_MythicPlus.GetSeasonBestForMap(mID)
+            local bestLevel = 0
+            if intimeInfo then bestLevel = intimeInfo.level end
+            if overtimeInfo and overtimeInfo.level > bestLevel then bestLevel = overtimeInfo.level end
+
+            data.dungeons[mID] = { level = bestLevel }
+        end
     end
 
     -- Great Vault Progress
@@ -158,15 +268,17 @@ function sfui.alts.SyncCurrentCharacter()
     -- PvP and Expansion Currencies
     data.currencies = data.currencies or {}
     for _, currencyDef in ipairs(CURRENCIES) do
-        local key = currencyDef.id
-        if type(key) == "number" then
-            -- Vault Tokens (248242) are items, not currencies in the C_CurrencyInfo sense
-            if key == 248242 then
-                local count = C_Item.GetItemCount(key, true) or 0
-                data.currencies[key] = count
-            else
-                local info = C_CurrencyInfo.GetCurrencyInfo(key)
-                if info then data.currencies[key] = info.quantity end
+        if currencyDef.id == 248242 then -- Vault Tokens are items, not currencies in C_CurrencyInfo
+            local count = C_Item.GetItemCount(currencyDef.id, true) or 0
+            data.currencies[currencyDef.id] = count
+        else
+            local info = C_CurrencyInfo.GetCurrencyInfo(currencyDef.id)
+            if info then
+                data.currencies[currencyDef.id] = {
+                    val = info.quantity,
+                    earned = info.quantityEarnedThisWeek,
+                    max = info.maxWeeklyQuantity
+                }
             end
         end
     end
@@ -225,6 +337,10 @@ function sfui.alts.SyncCurrentCharacter()
     end
 
     data.prey.lastUpdate = GetServerTime()
+
+    if frame and frame:IsVisible() then
+        sfui.alts.UpdateUI(true)
+    end
 end
 
 -- Confirmation Dialog for Removing Characters
@@ -274,6 +390,59 @@ function sfui.alts.CreateFrame()
     close:SetPoint("TOPRIGHT", -5, -5)
     close:SetScript("OnClick", function() frame:Hide() end)
 
+    -- Sort Dropdown
+    local sortOptions = {
+        { text = "Name (A-Z)", value = "name" },
+        { text = "Item Level", value = "ilvl" },
+        { text = "M+ Rating",  value = "rating" },
+    }
+    local sortDropdown = sfui.common.create_dropdown(frame, 24, sortOptions, function(val)
+        SfuiDB.altsSort = val
+        sfui.alts.UpdateUI()
+    end, SfuiDB.altsSort or "name", "≣")
+    sortDropdown:SetPoint("TOPRIGHT", close, "TOPLEFT", -5, 0)
+
+    -- Character Manager Dropdown
+    local function populateManagerOptions()
+        local options = {}
+        for guid, data in pairs(SfuiDB.alts) do
+            table.insert(options, {
+                guid = guid,
+                data = data,
+                keepOpen = true,
+                onRender = function(parent, opt)
+                    local name = opt.data.name or "Unknown"
+                    local classColor = RAID_CLASS_COLORS[opt.data.class] or NORMAL_FONT_COLOR
+
+                    local t = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                    t:SetPoint("LEFT", 5, 0)
+                    t:SetText(string.format("|c%s%s|r", classColor.colorStr, name))
+
+                    -- Remove button [X]
+                    local xBtn = sfui.common.create_flat_button(parent, "X", 18, 16)
+                    xBtn:SetPoint("RIGHT", -5, 0)
+                    xBtn:SetScript("OnClick", function()
+                        StaticPopup_Show("SFUI_ALTS_REMOVE_CHARACTER", name, nil, { guid = opt.guid })
+                    end)
+
+                    -- Hide button [H]
+                    local hStatus = opt.data.isHidden and "|cff00ff00H|r" or "|cffccccccH|r"
+                    local hBtn = sfui.common.create_flat_button(parent, hStatus, 18, 16)
+                    hBtn:SetPoint("RIGHT", xBtn, "LEFT", -2, 0)
+                    hBtn:SetScript("OnClick", function()
+                        opt.data.isHidden = not opt.data.isHidden
+                        sfui.alts.UpdateUI()
+                        hBtn:GetFontString():SetText(opt.data.isHidden and "|cff00ff00H|r" or "|cffccccccH|r")
+                    end)
+                end
+            })
+        end
+        return options
+    end
+
+    local managerDropdown = sfui.common.create_dropdown(frame, 24, populateManagerOptions, nil, nil, "=", 200)
+    managerDropdown:SetPoint("RIGHT", sortDropdown, "LEFT", -5, 0)
+
     -- Sidebar for row labels
     local sidebar = CreateFrame("Frame", nil, frame)
     sidebar:SetPoint("TOPLEFT", 10, -35)
@@ -306,38 +475,59 @@ function sfui.alts.CreateFrame()
     return frame
 end
 
-function sfui.alts.Toggle()
-    if not frame then sfui.alts.CreateFrame() end
-    if frame:IsShown() then
-        frame:Hide()
-    else
-        sfui.alts.UpdateUI()
-        frame:Show()
-    end
-end
+function sfui.alts.UpdateUI(force)
+    if not frame or (not force and not frame:IsVisible()) then return end
 
-function sfui.alts.UpdateUI()
-    if not frame then return end
-
-    -- Clear previous content
-    local children = { frame.content:GetChildren() }
-    for _, child in ipairs(children) do
-        child:Hide(); child:SetParent(nil)
+    -- Release existing content to pools
+    if not frame.content then return end
+    local columns = { frame.content:GetChildren() }
+    for _, col in ipairs(columns) do
+        local cells = { col:GetChildren() }
+        for _, cell in ipairs(cells) do
+            ReleaseCell(cell)
+        end
+        ReleaseColumn(col)
     end
 
     local alts = {}
     for guid, data in pairs(SfuiDB.alts) do
-        table.insert(alts, { guid = guid, data = data })
+        if not data.isHidden then
+            table.insert(alts, { guid = guid, data = data })
+        end
     end
 
+    local sortMethod = SfuiDB.altsSort or "name"
     table.sort(alts, function(a, b)
-        if a.data.level ~= b.data.level then return a.data.level > b.data.level end
-        return a.data.name < b.data.name
+        if sortMethod == "ilvl" then
+            local aLevel = a.data.level or 0
+            local bLevel = b.data.level or 0
+            local aILvl = a.data.iLvl or 0
+            local bILvl = b.data.iLvl or 0
+
+            -- Sort by Level first if one is not max (90)
+            if aLevel ~= bLevel then
+                return aLevel > bLevel
+            end
+
+            -- If both same level, sort by iLvl
+            if aILvl ~= bILvl then
+                return aILvl > bILvl
+            end
+        elseif sortMethod == "rating" then
+            local aRating = a.data.rating or 0
+            local bRating = b.data.rating or 0
+            if aRating ~= bRating then
+                return aRating > bRating
+            end
+        end
+
+        -- Fallback to Name (A-Z)
+        return (a.data.name or "") < (b.data.name or "")
     end)
 
     local xOffset = 0
     for i, alt in ipairs(alts) do
-        local col = CreateFrame("Frame", nil, frame.content)
+        local col = AcquireColumn(frame.content)
         col:SetSize(cfg.columnWidth, #CATEGORIES * cfg.rowHeight)
         col:SetPoint("TOPLEFT", xOffset, 0)
 
@@ -345,12 +535,12 @@ function sfui.alts.UpdateUI()
 
         local y = 0
         for _, cat in ipairs(CATEGORIES) do
-            local cell = CreateFrame("Frame", nil, col)
+            local cell = AcquireCell(col)
             cell:SetSize(cfg.columnWidth, cfg.rowHeight)
             cell:SetPoint("TOPLEFT", 0, -y)
 
-            local text = cell:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            text:SetPoint("CENTER")
+            local text = cell.text
+            text:Show()
 
             if cat.type == "header" then
                 if cat.name == "GENERAL" then
@@ -360,19 +550,34 @@ function sfui.alts.UpdateUI()
 
                     -- Remove Button on Character Header
                     cell:EnableMouse(true)
-                    local del = CreateFrame("Button", nil, cell)
-                    del:SetSize(12, 12)
+                    local del = cell.del or CreateFrame("Button", nil, cell)
+                    cell.del = del
+                    del:Show()
+                    del:SetSize(14, 14)
                     del:SetPoint("TOPRIGHT", -2, -2)
                     del:SetNormalTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
+                    del:SetHighlightTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Highlight")
+                    del:SetPushedTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Down")
+
                     del:SetScript("OnClick", function()
-                        StaticPopup_Show("SFUI_ALTS_REMOVE_CHARACTER", alt.data.name, nil, { guid = alt.guid })
+                        alt.data.isHidden = true
+                        sfui.alts.UpdateUI()
                     end)
-                    del:Hide()
-                    cell:SetScript("OnEnter", function() del:Show() end)
-                    cell:SetScript("OnLeave", function() del:Hide() end)
+
+                    -- Always visible but low alpha until hover
+                    del:SetAlpha(0.2)
+                    local function onEnter() del:SetAlpha(1) end
+                    local function onLeave() del:SetAlpha(0.2) end
+                    cell:SetScript("OnEnter", onEnter)
+                    cell:SetScript("OnLeave", onLeave)
+                    del:SetScript("OnEnter", onEnter)
+                    del:SetScript("OnLeave", onLeave)
                 else
+                    text:Hide()
                     -- Divider underline
-                    local line = cell:CreateTexture(nil, "BACKGROUND")
+                    local line = cell.line or cell:CreateTexture(nil, "BACKGROUND")
+                    cell.line = line
+                    line:Show()
                     line:SetHeight(1)
                     line:SetPoint("LEFT", 5, -5)
                     line:SetPoint("RIGHT", -5, -5)
@@ -413,7 +618,7 @@ function sfui.alts.UpdateUI()
                     local rankProgress = alt.data.prey.rankProgress or 0
 
                     -- Show Weekly Hunts (x/4) and overall Rank progress
-                    text:SetText(string.format("%d/4 |cff9966ffR%d|r (%d%%)", weekly, rank, rankProgress))
+                    text:SetText(string.format("%d/4 (%d%%)", weekly, activeProgress))
 
                     if weekly >= 4 then
                         text:SetTextColor(0, 1, 0) -- Completed weekly goal
@@ -422,20 +627,58 @@ function sfui.alts.UpdateUI()
                     else
                         text:SetTextColor(0, 1, 1)
                     end
+
+                    -- Add tooltip for more details
+                    cell:SetScript("OnEnter", function(self)
+                        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                        GameTooltip:SetText("Prey Hunt Progress")
+                        GameTooltip:AddDoubleLine("Weekly Completion:", string.format("%d / 4", weekly), 1, 1, 1, 1, 1, 1)
+                        if alt.data.prey.title then
+                            GameTooltip:AddDoubleLine("Active Hunt:", alt.data.prey.title, 1, 1, 1, 1, 1, 1)
+                        end
+                        GameTooltip:AddDoubleLine("Hunt Progress:", string.format("%d%%", activeProgress), 1, 1, 1, 1, 1,
+                            1)
+                        GameTooltip:AddLine(" ")
+                        GameTooltip:AddDoubleLine("Renown Rank:", string.format("%d (%d%%)", rank, rankProgress), 1, 1,
+                            1, 1, 1, 1)
+                        GameTooltip:Show()
+                    end)
+                    cell:SetScript("OnLeave", function()
+                        GameTooltip:Hide()
+                    end)
                 else
                     text:SetText("-")
                     text:SetTextColor(0.5, 0.5, 0.5)
                 end
             elseif cat.type == "dungeon" then
-                -- Search vault or M+ score for this mapID
-                -- Simplifying for now: just showing a dot if any score exists
-                text:SetText("-")
-                text:SetTextColor(0.5, 0.5, 0.5)
+                local best = alt.data.dungeons and alt.data.dungeons[cat.mapID]
+                if best and best.level > 0 then
+                    text:SetText(tostring(best.level))
+                    local color = C_ChallengeMode.GetKeystoneLevelRarityColor(best.level)
+                    if color then
+                        text:SetTextColor(color.r, color.g, color.b)
+                    end
+                else
+                    text:SetText("-")
+                    text:SetTextColor(0.5, 0.5, 0.5)
+                end
             elseif cat.type == "currency" then
-                local val = alt.data.currencies[cat.id] or 0
+                local cData = alt.data.currencies[cat.id]
+                local val = cData and (type(cData) == "table" and cData.val or cData) or 0
                 local displayVal
-                displayVal = val >= 1000 and string.format("%.1fK", val / 1000) or val
+                if val >= 1000 then
+                    displayVal = string.format("%.1fk", val / 1000)
+                else
+                    displayVal = tostring(val)
+                end
                 text:SetText(string.format("|T%d:12:12:0:0|t %s", cat.icon, displayVal))
+
+                -- Check weekly cap
+                if cData and type(cData) == "table" and cData.max and cData.max > 0 and cData.earned >= cData.max then
+                    text:SetTextColor(1, 0, 0) -- Red when maxed
+                else
+                    text:SetTextColor(1, 1, 1) -- White
+                end
 
                 -- Add tooltip for currency
                 cell:SetScript("OnEnter", function(self)
@@ -444,6 +687,15 @@ function sfui.alts.UpdateUI()
                         GameTooltip:SetItemByID(cat.id)
                     else
                         GameTooltip:SetCurrencyByID(cat.id)
+                        -- Add weekly progress info
+                        if cData and type(cData) == "table" and cData.max and cData.max > 0 then
+                            GameTooltip:AddLine(" ")
+                            GameTooltip:AddDoubleLine("Weekly Earned:", string.format("%d / %d", cData.earned, cData.max),
+                                1, 1, 1, 1, 1, 1)
+                            if cData.earned >= cData.max then
+                                GameTooltip:AddLine("Weekly cap reached!", 1, 0, 0)
+                            end
+                        end
                     end
                     GameTooltip:Show()
                 end)
@@ -455,42 +707,56 @@ function sfui.alts.UpdateUI()
                 local group = cat.group
                 local squareSize = (cfg.columnWidth - 10) / 3
                 for slotIdx = 1, 3 do
-                    local rect = cell:CreateTexture(nil, "ARTWORK")
+                    local rect = cell["rect" .. slotIdx] or cell:CreateTexture(nil, "ARTWORK")
+                    cell["rect" .. slotIdx] = rect
+                    rect:Show()
                     rect:SetSize(squareSize - 4, cfg.rowHeight - 6)
-                    local xPos = (slotIdx - 1) * squareSize + 5
-                    rect:SetPoint("LEFT", xPos, 0)
+                    rect:SetPoint("LEFT", (slotIdx - 1) * squareSize + 5, 0)
 
-                    local slotData = alt.data.vault and alt.data.vault[group] and alt.data.vault[group][slotIdx]
-                    if slotData and slotData.progress >= slotData.threshold and slotData.threshold > 0 then
-                        local level = slotData.level or 0
-                        local color = C_ChallengeMode.GetKeystoneLevelRarityColor(level)
-                        if color and level > 0 then
-                            rect:SetColorTexture(color.r, color.g, color.b, 0.8)
-                        else
-                            rect:SetColorTexture(0, 1, 1, 0.8) -- Default Teal
-                        end
+                    local vData = alt.data.vault and alt.data.vault[group] and alt.data.vault[group][slotIdx]
+                    if vData and vData.progress >= vData.threshold and vData.threshold > 0 then
+                        rect:SetColorTexture(0, 1, 0, 0.8)       -- Green
                     else
-                        rect:SetColorTexture(0, 0, 0, 0.5) -- Black (Not completed)
+                        rect:SetColorTexture(0.2, 0.2, 0.2, 0.5) -- Gray
                     end
                 end
+
+                cell:SetScript("OnEnter", function(self)
+                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                    GameTooltip:SetText("Great Vault: " .. cat.label)
+                    local vGroup = alt.data.vault and alt.data.vault[group]
+                    for idx = 1, 3 do
+                        local v = vGroup and vGroup[idx]
+                        if v and v.threshold > 0 then
+                            local status = v.progress >= v.threshold and "|cff00ff00Unlocked|r" or
+                                string.format("%d/%d", v.progress, v.threshold)
+                            local levelStr = v.level > 0 and string.format(" (Level: %d)", v.level) or ""
+                            GameTooltip:AddDoubleLine("Slot " .. idx .. ":", status .. levelStr, 1, 1, 1, 1, 1, 1)
+                        end
+                    end
+                    GameTooltip:Show()
+                end)
+                cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
             elseif cat.type == "raid_grid" then
                 text:Hide()
-                local diff = cat.difficulty
-                local bossData = alt.data.raids and alt.data.raids[diff]
+                local difficulty = cat.difficulty
+                local bossData = alt.data.raids and alt.data.raids[difficulty]
                 local numBosses = 8 -- Hardcoded for current raid context
                 local squareSize = (cfg.columnWidth - 10) / numBosses
 
-                local r, g, b = 0.2, 0.2, 0.2  -- Default blackish
-                if diff == 16 then
+                local r, g, b = 1, 0.8, 0      -- Default gold
+                if difficulty == 16 then
                     r, g, b = 0.64, 0.21, 0.93 -- Mythic Purple
-                elseif diff == 15 then
-                    r, g, b = 0, 0.44, 0.87    -- Heroic Blue
-                elseif diff == 14 then
+                elseif difficulty == 15 then
+                    r, g, b = 0, 0.44, 1       -- Heroic Blue
+                elseif difficulty == 14 then
                     r, g, b = 0.12, 1, 0       -- Normal Green
                 end
 
                 for bIdx = 1, numBosses do
-                    local rect = cell:CreateTexture(nil, "ARTWORK")
+                    local rect = cell["raidRect" .. bIdx] or cell:CreateTexture(nil, "ARTWORK")
+                    cell["raidRect" .. bIdx] = rect
+                    rect:Show()
                     rect:SetSize(squareSize - 2, cfg.rowHeight - 6)
                     rect:SetPoint("LEFT", (bIdx - 1) * squareSize + 5, 0)
 
@@ -514,7 +780,21 @@ function sfui.alts.UpdateUI()
     frame:SetSize(totalWidth, totalHeight)
 end
 
+function sfui.alts.Toggle()
+    sfui.alts.RefreshDynamicCategories()
+    if not frame then
+        frame = sfui.alts.CreateFrame()
+    end
+    if frame:IsShown() then
+        frame:Hide()
+    else
+        frame:Show()
+        sfui.alts.UpdateUI(true)
+    end
+end
+
 function sfui.alts.initialize()
+    sfui.alts.RefreshDynamicCategories()
     sfui.alts.SyncCurrentCharacter()
 
     local eventFrame = CreateFrame("Frame")
@@ -525,9 +805,17 @@ function sfui.alts.initialize()
     eventFrame:RegisterEvent("UPDATE_UI_WIDGET")
     eventFrame:RegisterEvent("QUEST_TURNED_IN")
     eventFrame:RegisterEvent("QUEST_LOG_UPDATE")
+    eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 
     eventFrame:SetScript("OnEvent", function(self, event)
-        sfui.alts.SyncCurrentCharacter()
+        if event == "PLAYER_REGEN_ENABLED" then
+            if needsSync then
+                needsSync = false
+                sfui.alts.SyncCurrentCharacter()
+            end
+        else
+            sfui.alts.SyncCurrentCharacter()
+        end
     end)
 
     SlashCmdList["SFUIALTS"] = function() sfui.alts.Toggle() end
