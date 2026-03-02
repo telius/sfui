@@ -477,7 +477,6 @@ sfui.events.RegisterEvent("LFG_LIST_SEARCH_RESULTS_RECEIVED", function()
 end)
 sfui.events.RegisterEvent("PLAYER_LOGIN", function()
     setup_lfg_dialog()
-    update_hammer_popup()
 end)
 sfui.events.RegisterEvent("BAG_UPDATE", function()
     hammerCache.checked = false
@@ -493,7 +492,7 @@ end)
 sfui.events.RegisterEvent("MERCHANT_CLOSED", function() end)
 
 sfui.events.RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
-    if unit == "player" and (spellID == 382404 or spellID == 382403) then     -- Master's Hammer cast IDs
+    if unit == "player" and (spellID == 382404 or spellID == 382403) then -- Master's Hammer cast IDs
         currentTargetSlot = nil
         update_hammer_popup()
     end
