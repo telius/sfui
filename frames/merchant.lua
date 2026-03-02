@@ -42,6 +42,34 @@ specUpdateFrame:SetScript("OnEvent", function()
     playerSpecID = sfui.common.get_current_spec_id()
 end)
 
+-- Memory optimization: Table pooling and scratch tables
+local tablePool = {}
+local function getTable()
+    local t = next(tablePool)
+    if t then
+        tablePool[t] = nil
+        return t
+    end
+    return {}
+end
+
+local function releaseTable(t)
+    if not t then return end
+    wipe(t)
+    tablePool[t] = true
+end
+
+local function releaseCache(cache)
+    if not cache then return end
+    for k, t in pairs(cache) do
+        releaseTable(t)
+        cache[k] = nil
+    end
+end
+
+local scratchItemData = {}
+local sortedCurrencyItems = {}
+
 local frame = CreateFrame("Frame", "SfuiMerchantFrame", UIParent, "BackdropTemplate")
 frame:SetSize(cfg.frame.width, cfg.frame.height)
 frame:SetPoint("CENTER")
@@ -406,18 +434,24 @@ function sfui.merchant.update_currency_display(frame)
 
     local cache = sfui.merchant.currencyCache or {}
 
-    -- Sort currencies by name for stability
-    local sorted = {}
+    -- Memory optimization: Reuse sorted table and pool its entries
+    releaseCache(sortedCurrencyItems)
+    wipe(sortedCurrencyItems)
+
     for name, data in pairs(cache) do
-        table.insert(sorted, { name = name, data = data })
+        local entry = getTable()
+        entry.name = name
+        entry.data = data
+        table.insert(sortedCurrencyItems, entry)
     end
-    table.sort(sorted, function(a, b)
+
+    table.sort(sortedCurrencyItems, function(a, b)
         if a.name == "Gold" then return false end -- Gold always last (greater)
         if b.name == "Gold" then return true end
         return a.name < b.name
     end)
 
-    if #sorted == 0 then return end
+    if #sortedCurrencyItems == 0 then return end
 
     if not frame.currencyContainer then
         frame.currencyContainer = CreateFrame("Frame", nil, frame)
@@ -430,7 +464,7 @@ function sfui.merchant.update_currency_display(frame)
     local activeDisplays = {}
     local totalWidth = 0
 
-    for i, item in ipairs(sorted) do
+    for i, item in ipairs(sortedCurrencyItems) do
         local idx = i
         local data = item.data
 
@@ -768,7 +802,9 @@ sfui.merchant.currencyCache = sfui.merchant.currencyCache or {}
 
 local function AddToCache(id, name, texture, count, type)
     if name and not sfui.merchant.currencyCache[name] then
-        sfui.merchant.currencyCache[name] = { id = id, texture = texture, count = count, type = type }
+        local t = getTable()
+        t.id = id; t.texture = texture; t.count = count; t.type = type
+        sfui.merchant.currencyCache[name] = t
     end
 end
 
@@ -777,7 +813,7 @@ sfui.merchant.build_item_list = function()
     local numItemsRaw = (mode == "buyback") and GetNumBuybackItems() or GetMerchantNumItems()
 
     wipe(sfui.merchant.filteredIndices)
-    wipe(sfui.merchant.currencyCache)
+    releaseCache(sfui.merchant.currencyCache)
     local hasHousingItems = false
     local specID = sfui.common.get_current_spec_id() -- Optimization: Hoist out of loop
 
@@ -843,12 +879,11 @@ sfui.merchant.build_item_list = function()
             local itemInfo = C_MerchantFrame.GetItemInfo(i)
             if itemInfo then
                 if itemInfo.price and itemInfo.price > 0 and not sfui.merchant.currencyCache["Gold"] then
-                    sfui.merchant.currencyCache["Gold"] = {
-                        texture = 133784,
-                        count = math.floor(GetMoney() / 10000),
-                        type =
-                        "gold"
-                    }
+                    local t = getTable()
+                    t.texture = 133784
+                    t.count = math.floor(GetMoney() / 10000)
+                    t.type = "gold"
+                    sfui.merchant.currencyCache["Gold"] = t
                 end
 
                 if itemInfo.currencyID then
@@ -904,7 +939,8 @@ sfui.merchant.build_item_list = function()
 end
 
 local function get_merchant_item_data(index, mode)
-    local d = {}
+    wipe(scratchItemData)
+    local d = scratchItemData
     if mode == "buyback" then
         local name, texture, price, qty, _, usable = GetBuybackItemInfo(index)
         if not name then return nil end
@@ -913,7 +949,9 @@ local function get_merchant_item_data(index, mode)
     else
         local info = C_MerchantFrame.GetItemInfo(index)
         if not info or not info.name then return nil end
-        d = info; d.link = info.hyperlink or GetMerchantItemLink(index)
+        -- Copy values from C_MerchantFrame result to avoid returning the internal table if it's protected or shared
+        for k, v in pairs(info) do d[k] = v end
+        d.link = info.hyperlink or GetMerchantItemLink(index)
     end
     if d.link then
         local _, _, q, _, _, _, st, _, el, _, _, ci, sci = C_Item.GetItemInfo(d.link)
@@ -983,7 +1021,7 @@ sfui.merchant.update_merchant = function()
                 local locked, reason = not data.isUsable, "Unusable"
                 local tip = C_TooltipInfo.GetMerchantItem(index)
                 if tip and tip.lines then
-                    local reasons = {}
+                    local reasons = getTable()
                     for _, line in ipairs(tip.lines) do
                         local clr = line.leftColor
                         if clr and clr.r > 0.9 and clr.g < 0.2 and clr.b < 0.2 and line.leftText then
@@ -999,6 +1037,7 @@ sfui.merchant.update_merchant = function()
                     if #reasons > 0 then
                         reason = table.concat(reasons, ", ")
                     end
+                    releaseTable(reasons)
                 end
 
                 if locked then
