@@ -650,5 +650,16 @@ sfui.config = {
                 [13] = 104631 -- Short Blades
             }
         },
+    },
+    -- Alts Frame settings
+    alts = {
+        width = 1000,
+        height = 650,
+        columnWidth = 140,
+        rowHeight = 25,
+        headerHeight = 40,
+        backdropColor = { 0.05, 0.05, 0.05, 0.9 },
+        borderColor = { 0, 0, 0, 1 },
+        highlightColor = { 0.4, 0, 1, 1 }, -- Purple
     }
 }

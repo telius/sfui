@@ -69,6 +69,9 @@ event_frame:SetScript("OnEvent", function(self, event, ...)
 
             -- Database & Config Sync
             SfuiDB = SfuiDB or {}
+            SfuiDB.alts = SfuiDB.alts or {}
+            SfuiDB.minimap_icon = SfuiDB.minimap_icon or {}
+            SfuiDB.minimap_icon_alts = SfuiDB.minimap_icon_alts or {}
             SfuiDecorDB = SfuiDecorDB or {}
             SfuiDecorDB.items = SfuiDecorDB.items or {}
 
@@ -145,6 +148,9 @@ event_frame:SetScript("OnEvent", function(self, event, ...)
         if sfui.trackedoptions and sfui.trackedoptions.initialize then
             sfui.trackedoptions.initialize()
         end
+        if sfui.alts and sfui.alts.initialize then
+            sfui.alts.initialize()
+        end
 
 
 
@@ -194,6 +200,23 @@ event_frame:SetScript("OnEvent", function(self, event, ...)
                 end,
             })
             icon:Register("sfui", broker, SfuiDB.minimap_icon)
+
+            -- Alts Launcher
+            local altsBroker = ldb:NewDataObject("sfui_alts", {
+                type = "launcher",
+                text = "Alts",
+                icon = 136197, -- spell_shadow_shadowbolt
+                OnClick = function(_, button)
+                    if sfui.alts and sfui.alts.Toggle then
+                        sfui.alts.Toggle()
+                    end
+                end,
+                OnTooltipShow = function(tooltip)
+                    tooltip:AddLine("SFUI Alts")
+                    tooltip:AddLine("Left-click to toggle Alts panel", 0.2, 1, 0.2)
+                end,
+            })
+            icon:Register("sfui_alts", altsBroker, SfuiDB.minimap_icon_alts)
         end
         self:UnregisterEvent("PLAYER_LOGIN")
     end

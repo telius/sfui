@@ -26,13 +26,11 @@ core.lua
 frames/options.lua
 frames/currency.lua
 frames/minimap.lua
-
-
 frames/bars.lua
 frames/research.lua
 frames/castbar.lua
-
 frames/merchant.lua
+frames/alts.lua
 frames/vehicle.lua
 frames/automation.lua
 frames/cdm.lua
@@ -43,4 +41,3 @@ frames/glows.lua
 frames/hotkeys.lua
 frames/trackedicons.lua
 frames/compare.lua
-
