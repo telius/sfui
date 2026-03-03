@@ -755,10 +755,14 @@ local function CheckPanelVisibility(panelConfig, event)
     -- 1. Per-Panel Conditionals (Using GetIconValue for nested/global inheritance)
     -- Hide if Out of Combat enabled
     if GetIconValue(nil, panelConfig, "hideOOC", false) and not inCombat then return false end
-    -- Hide while Mounted enabled
-    if GetIconValue(nil, panelConfig, "hideMounted", false) and sfui.common.is_mounted_or_travel_form() then return false end
-    -- Hide while in Vehicle UI enabled
-    if GetIconValue(nil, panelConfig, "hideInVehicle", true) and (UnitHasVehicleUI("player") or UnitInVehicle("player")) then return false end
+
+    -- Priority: Combat status always overrides mount/vehicle hide conditions
+    if not inCombat then
+        -- Hide while Mounted enabled
+        if GetIconValue(nil, panelConfig, "hideMounted", false) and sfui.common.is_mounted_or_travel_form() then return false end
+        -- Hide while in Vehicle UI enabled
+        if GetIconValue(nil, panelConfig, "hideInVehicle", true) and (UnitHasVehicleUI("player") or UnitInVehicle("player")) then return false end
+    end
 
     -- 2. Global Visibility Settings
     local globalVis = SfuiDB and SfuiDB.iconGlobalSettings
@@ -1124,14 +1128,17 @@ local function CheckPanelVisibility(panelConfig)
         return false
     end
 
-    -- Hide Mounted
-    if panelConfig.hideMounted and IsMounted() then
-        return false
-    end
+    -- Priority: Combat status always overrides mount/vehicle hide conditions
+    if not InCombatLockdown() then
+        -- Hide Mounted
+        if panelConfig.hideMounted and IsMounted() then
+            return false
+        end
 
-    -- Hide in Dragonriding
-    if panelConfig.hideDragonriding and C_MountJournal.IsDragonRidingActive() then
-        return false
+        -- Hide in Dragonriding
+        if panelConfig.hideDragonriding and C_MountJournal.IsDragonRidingActive() then
+            return false
+        end
     end
 
     -- Hide if no active icons

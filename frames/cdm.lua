@@ -1722,7 +1722,12 @@ function sfui.cdm.UpdateVisibility()
             -- Tracked Bars visibility logic (optional, currently always shown unless empty logic handled elsewhere)
         elseif panelData then
             if panelData.hideOOC and not inCombat then shouldShow = false end
-            if panelData.hideMounted and isMounted then shouldShow = false end
+
+            -- Priority: Combat status always overrides mount/vehicle hide conditions
+            if not inCombat then
+                if panelData.hideMounted and isMounted then shouldShow = false end
+                if panelData.hideInVehicle and (UnitHasVehicleUI("player") or UnitInVehicle("player")) then shouldShow = false end
+            end
         end
 
         if shouldShow then
