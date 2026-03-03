@@ -108,13 +108,14 @@ local hammerCache = {
     name = nil,
     icon = nil,
     itemID = nil,
+    expacID = nil,
     checked = false
 }
 
 function sfui.automation.has_repair_hammer()
     -- If we've already found a hammer this session, just return it
     if hammerCache.checked and hammerCache.found then
-        return hammerCache.found, hammerCache.name, hammerCache.icon, hammerCache.itemID
+        return hammerCache.found, hammerCache.name, hammerCache.icon, hammerCache.itemID, hammerCache.expacID
     end
 
     -- Restriction: Only scan if we have a valid BS config
@@ -130,30 +131,28 @@ function sfui.automation.has_repair_hammer()
             local info = C_Container.GetContainerItemInfo(bag, slot)
             if info and info.hyperlink then
                 local itemID = C_Item.GetItemInfoInstant(info.hyperlink)
+                local name, _, _, _, _, _, _, _, _, icon, _, _, _, _, expacID = C_Item.GetItemInfo(info.hyperlink)
+
                 -- Fast check against known IDs first to avoid string matching if possible
                 if sfui.config.masterHammer[itemID] then
-                    local name = C_Item.GetItemInfo(info.hyperlink)
-                    local _, _, _, _, _, _, _, _, _, icon = C_Item.GetItemInfo(info.hyperlink)
-
                     hammerCache.found = true
                     hammerCache.name = name
                     hammerCache.icon = icon
                     hammerCache.itemID = itemID
+                    hammerCache.expacID = expacID
                     hammerCache.checked = true
-                    return true, name, icon, itemID
+                    return true, name, icon, itemID, expacID
                 end
 
                 -- Fallback for older/unknown hammers (matches "Master's Hammer")
-                local name = C_Item.GetItemInfo(info.hyperlink)
                 if name and name:find("Master.s Hammer") then
-                    local _, _, _, _, _, _, _, _, _, icon = C_Item.GetItemInfo(info.hyperlink)
-
                     hammerCache.found = true
                     hammerCache.name = name
                     hammerCache.icon = icon
                     hammerCache.itemID = itemID
+                    hammerCache.expacID = expacID
                     hammerCache.checked = true
-                    return true, name, icon, itemID
+                    return true, name, icon, itemID, expacID
                 end
             end
         end
@@ -200,14 +199,16 @@ local function check_repair_eligibility(slot)
     local itemLink = GetInventoryItemLink("player", slot)
     if not itemLink then return false end
 
-    local _, _, _, _, _, _, _, _, equipLoc, _, _, classID, subClassID = C_Item.GetItemInfo(itemLink)
+    local _, _, _, _, _, _, _, _, equipLoc, _, _, classID, subClassID, _, expacID = C_Item.GetItemInfo(itemLink)
     if not classID then return false end
 
-    -- Check if item is repairable? (Max Durability > 0)
-    -- The caller checks cur < max, so it is repairable.
-
-    local hasHammer, _, _, hammerItemID = sfui.automation.has_repair_hammer()
+    local hasHammer, _, _, hammerItemID, hammerExpacID = sfui.automation.has_repair_hammer()
     if not hasHammer or not hammerItemID then return false end
+
+    -- LOW-CPU Expansion Check: Hammer cannot repair items from newer expansions
+    if expacID and hammerExpacID and expacID > hammerExpacID then
+        return false
+    end
 
     -- Get nodes from config
     local nodes = sfui.config.masterHammer[hammerItemID] and sfui.config.masterHammer[hammerItemID].nodes
