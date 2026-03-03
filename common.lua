@@ -252,8 +252,6 @@ end
 
 local _, playerClass, playerClassID = UnitClass("player")
 
--- ... (skipping lines)
-
 -- Safe Direct Lookup Tables (TWW / Dragonflight)
 sfui.common.FLASK_IDS = {
     -- The War Within (Phials / Flasks)
