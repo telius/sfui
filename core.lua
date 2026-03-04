@@ -177,6 +177,61 @@ event_frame:SetScript("OnEvent", function(self, event, ...)
             print("|cffff0000SFUI Error:|r LibStub global not found!")
             return
         end
+
+        -- Initialize Minimap Menu
+        if not SfuiMinimapMenu then
+            SfuiMinimapMenu = CreateFrame("Frame", "SfuiMinimapMenu", UIParent, "BackdropTemplate")
+            SfuiMinimapMenu:SetSize(160, 105)
+            SfuiMinimapMenu:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+            SfuiMinimapMenu:SetBackdropColor(0, 0, 0, 0.5)
+            SfuiMinimapMenu:SetFrameStrata("TOOLTIP")
+            SfuiMinimapMenu:SetClampedToScreen(true)
+
+            local function AddMenuButton(text, func, y)
+                local btn = sfui.common.create_flat_button(SfuiMinimapMenu, text, 150, 20)
+                btn:SetPoint("TOP", 0, y)
+                btn:SetScript("OnClick", function()
+                    SfuiMinimapMenu:Hide()
+                    if func then func() end
+                end)
+            end
+
+            AddMenuButton("|cff00ffffOptions|r", function() sfui.toggle_options_panel() end, -5)
+            AddMenuButton("|cff00ff00Tracking Manager|r", function()
+                if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
+                    sfui.trackedoptions.toggle_viewer()
+                end
+            end, -30)
+            AddMenuButton("|cff9966ffAlts|r", function()
+                if sfui.alts and sfui.alts.Toggle then
+                    sfui.alts.Toggle()
+                end
+            end, -55)
+            AddMenuButton("|cff99ccffResearch Viewer|r", function()
+                if sfui.research and sfui.research.toggle_selection then
+                    sfui.research.toggle_selection()
+                end
+            end, -80)
+
+            SfuiMinimapMenu.throttle = 0
+            SfuiMinimapMenu.hideTimer = 0
+            SfuiMinimapMenu:SetScript("OnUpdate", function(self, elapsed)
+                self.throttle = self.throttle + elapsed
+                if self.throttle < 0.5 then return end
+                self.throttle = 0
+
+                if self:IsMouseOver() or (self.anchor and self.anchor:IsMouseOver()) then
+                    self.hideTimer = 0
+                else
+                    self.hideTimer = (self.hideTimer or 0) + 0.5
+                    if self.hideTimer > 0.5 then
+                        self:Hide()
+                    end
+                end
+            end)
+            SfuiMinimapMenu:Hide()
+        end
+
         local ldb, icon = LibStub("LibDataBroker-1.1", true), LibStub("LibDBIcon-1.0", true)
         if ldb and icon then
             local broker = ldb:NewDataObject("sfui", {
@@ -185,58 +240,6 @@ event_frame:SetScript("OnEvent", function(self, event, ...)
                 icon = sfui.config.appearance.addonIcon,
                 OnClick = function(self, button)
                     if button == "LeftButton" then
-                        if not SfuiMinimapMenu then
-                            SfuiMinimapMenu = CreateFrame("Frame", "SfuiMinimapMenu", UIParent, "BackdropTemplate")
-                            SfuiMinimapMenu:SetSize(160, 105)
-                            SfuiMinimapMenu:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
-                            SfuiMinimapMenu:SetBackdropColor(0, 0, 0, 0.5)
-                            SfuiMinimapMenu:SetFrameStrata("TOOLTIP")
-                            SfuiMinimapMenu:SetClampedToScreen(true)
-
-                            local function AddMenuButton(text, func, y)
-                                local btn = sfui.common.create_flat_button(SfuiMinimapMenu, text, 150, 20)
-                                btn:SetPoint("TOP", 0, y)
-                                btn:SetScript("OnClick", function()
-                                    SfuiMinimapMenu:Hide()
-                                    if func then func() end
-                                end)
-                            end
-
-                            AddMenuButton("|cff00ffffOptions|r", function() sfui.toggle_options_panel() end, -5)
-                            AddMenuButton("|cff00ff00Tracking Manager|r", function()
-                                if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
-                                    sfui.trackedoptions.toggle_viewer()
-                                end
-                            end, -30)
-                            AddMenuButton("|cff9966ffAlts|r", function()
-                                if sfui.alts and sfui.alts.Toggle then
-                                    sfui.alts.Toggle()
-                                end
-                            end, -55)
-                            AddMenuButton("|cff99ccffResearch Viewer|r", function()
-                                if sfui.research and sfui.research.toggle_selection then
-                                    sfui.research.toggle_selection()
-                                end
-                            end, -80)
-
-                            SfuiMinimapMenu.anchor = self
-                            SfuiMinimapMenu.throttle = 0
-                            SfuiMinimapMenu:SetScript("OnUpdate", function(self, elapsed)
-                                self.throttle = self.throttle + elapsed
-                                if self.throttle < 0.5 then return end
-                                self.throttle = 0
-
-                                if self:IsMouseOver() or (self.anchor and self.anchor:IsMouseOver()) then
-                                    self.hideTimer = 0
-                                else
-                                    self.hideTimer = (self.hideTimer or 0) + 0.5
-                                    if self.hideTimer > 0.5 then
-                                        self:Hide()
-                                    end
-                                end
-                            end)
-                        end
-
                         if SfuiMinimapMenu:IsShown() then
                             SfuiMinimapMenu:Hide()
                         else
