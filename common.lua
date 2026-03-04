@@ -14,17 +14,14 @@ local function pcall_num_pos(val) return type(val) == "number" and val > 0 end
 local function pcall_gt(v1, v2) return v1 > (v2 or 0) end
 local function pcall_identity(val) return val end
 
--- Internal helper to detect restricted data in Mythic+
--- Comparing "Secret Values" to anything (including themselves) throws a Lua error.
--- WoW 11.x+ has a built-in issecretvalue global; we use it if present.
 local function issecretvalue(val)
     if val == nil then return false end
-    -- We always check via pcall to catch "wrapped" or "tainted" numbers
-    -- that _G.issecretvalue might not flag but Blizzard's C-code will.
+    if _G.issecretvalue and _G.issecretvalue(val) then return true end
+
+    -- Deeper check: arithmetic and identity
     local success = pcall(pcall_issecret, val)
     if not success then return true end
 
-    if _G.issecretvalue then return _G.issecretvalue(val) end
     return false
 end
 sfui.common.issecretvalue = issecretvalue
@@ -193,32 +190,42 @@ function sfui.common.SafeSetValue(bar, value)
     bar:SetValue(value or 0)
 end
 
--- Safely call SetTooltipMoney or show [Protected] if value is secret
+-- Safely set money display in a tooltip using securecall to avoid arithmetic taint.
 function sfui.common.SafeSetTooltipMoney(tooltip, amount, label)
-    if not tooltip or not amount then return end
-    if issecretvalue(amount) then
-        tooltip:AddLine((label or "") .. " |cff00ffff[Protected]|r", 1, 1, 1)
-    else
-        if label then tooltip:AddLine(label) end
-        local ok = pcall(SetTooltipMoney, tooltip, amount)
-        if not ok then
-            tooltip:AddLine("Spend |cff00ffff[Protected]|r", 1, 1, 1)
-        end
+    if not tooltip or amount == nil then return end
+
+    -- If we have a label, add it as a separate line first
+    if label then tooltip:AddLine(label) end
+
+    -- Use securecall to invoke SetTooltipMoney. This bypasses the arithmetic trap
+    -- for "secret" values by running in a secure context.
+    local ok = securecall(pcall, SetTooltipMoney, tooltip, amount)
+    if not ok then
+        -- Fallback if SetTooltipMoney itself fails even in secure context
+        tooltip:AddLine("|cff00ffff[Protected Data]|r")
     end
 end
 
--- Safely add a money line using GetCoinTextureString or show [Protected]
+-- Safely add a money line using GetCoinTextureString via securecall
 function sfui.common.SafeAddMoneyLine(tooltip, label, amount)
-    if not tooltip or not amount then return end
-    if issecretvalue(amount) then
-        tooltip:AddLine((label or "") .. " |cff00ffff[Protected]|r", 1, 1, 1)
+    if not tooltip or amount == nil then return end
+
+    local ok, coinStr = securecall(pcall, GetCoinTextureString, amount)
+    if ok and coinStr then
+        tooltip:AddLine((label or "") .. coinStr)
     else
-        local ok, textureString = pcall(GetCoinTextureString, amount)
-        if ok then
-            tooltip:AddLine((label or "") .. textureString, 1, 1, 1)
-        else
-            tooltip:AddLine((label or "") .. " |cff00ffff[Protected]|r", 1, 1, 1)
-        end
+        tooltip:AddLine((label or "") .. "|cff00ffff[Protected Data]|r")
+    end
+end
+
+-- Safely get a coin texture string using securecall
+function sfui.common.SafeGetCoinTextureString(amount)
+    if amount == nil then return "" end
+    local ok, coinStr = securecall(pcall, GetCoinTextureString, amount)
+    if ok and coinStr then
+        return coinStr
+    else
+        return "|cff00ffff[Protected]|r"
     end
 end
 

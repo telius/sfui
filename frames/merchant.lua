@@ -652,7 +652,7 @@ guildRepairBtn:SetScript("OnEnter", function(self)
     else
         GameTooltip:SetText("No Repair Needed")
     end
-    GameTooltip:Show()
+    securecall(pcall, GameTooltip.Show, GameTooltip)
 end)
 guildRepairBtn:SetScript("OnLeave", GameTooltip_Hide)
 guildRepairBtn:SetScript("OnClick", function()
@@ -678,7 +678,7 @@ repairBtn:SetScript("OnEnter", function(self)
     else
         GameTooltip:SetText("No Repair Needed")
     end
-    GameTooltip:Show()
+    securecall(pcall, GameTooltip.Show, GameTooltip)
 end)
 repairBtn:SetScript("OnLeave", GameTooltip_Hide)
 repairBtn:SetScript("OnClick", function()
@@ -713,7 +713,7 @@ sellJunkBtn:SetScript("OnClick", function()
         end
     end
     if totalPrice > 0 then
-        print("|cff00ff00Sold greys for " .. C_CurrencyInfo.GetCoinTextureString(totalPrice) .. ".|r")
+        print("|cff00ff00Sold greys for " .. sfui.common.SafeGetCoinTextureString(totalPrice) .. ".|r")
     else
         print("|cffff0000No greys to sell.|r")
     end
@@ -997,7 +997,7 @@ sfui.merchant.update_merchant = function()
                 btn.nameStub:SetTextColor(r, g, b); btn.nameStub:SetText(sfui.common.shorten_name(data.name, 22))
 
                 local cost = (data.price > 0) and
-                    ((GetMoney() < data.price and "|cffff0000" or "|cffffffff") .. C_CurrencyInfo.GetCoinTextureString(data.price) .. "|r") or
+                    ((GetMoney() < data.price and "|cffff0000" or "|cffffffff") .. sfui.common.SafeGetCoinTextureString(data.price) .. "|r") or
                     ""
                 if data.hasExtendedCost then
                     for j = 1, GetMerchantItemCostInfo(index) do

@@ -75,7 +75,7 @@ local function auto_sell_greys()
         end
     end
     if totalPrice > 0 then
-        print("|cff00ff00Auto-sold greys for " .. C_CurrencyInfo.GetCoinTextureString(totalPrice) .. ".|r")
+        print("|cff00ff00Auto-sold greys for " .. sfui.common.SafeGetCoinTextureString(totalPrice) .. ".|r")
     end
 end
 
@@ -433,10 +433,10 @@ local function auto_repair()
     if CanGuildBankRepair() then
         RepairAllItems(true)
         print("|cff00ff00Auto-repaired using guild funds for " ..
-            C_CurrencyInfo.GetCoinTextureString(repairAllCost) .. ".|r")
+            sfui.common.SafeGetCoinTextureString(repairAllCost) .. ".|r")
     else
         RepairAllItems(false)
-        print("|cff00ff00Auto-repaired for " .. C_CurrencyInfo.GetCoinTextureString(repairAllCost) .. ".|r")
+        print("|cff00ff00Auto-repaired for " .. sfui.common.SafeGetCoinTextureString(repairAllCost) .. ".|r")
     end
 end
 

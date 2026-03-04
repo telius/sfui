@@ -99,6 +99,20 @@ function sfui.prey.UpdatePreyBar(bar)
     end
 
     local questID = GetActivePreyQuest()
+
+    -- Clear cache if quest changes or drops
+    if questID ~= widgetCache.activeQuestID then
+        widgetCache.title = nil
+        widgetCache.color = nil
+        widgetCache.progress = nil
+        widgetCache.progressState = nil
+        widgetCache.lastTitle = nil
+        widgetCache.lastProgress = nil
+        widgetCache.lastColor = nil
+        widgetCache.lastObjectives = nil
+        widgetCache.activeQuestID = questID
+    end
+
     if not questID and not sfui.prey.preview then
         bar.backdrop:Hide()
         return
@@ -235,18 +249,22 @@ function sfui.prey.HandleWidget(widgetID)
     pcall(function()
         local widgetInfo = GetPreyHuntProgressWidgetVisualizationInfo(widgetID)
         if widgetInfo then
-            -- Update color state
-            widgetCache.color = stateColors[widgetInfo.progressState]
-            -- Store the discrete state (0-3)
-            widgetCache.progressState = widgetInfo.progressState
+            -- Update color state securely
+            if widgetInfo.progressState ~= nil then
+                widgetCache.color = stateColors[widgetInfo.progressState]
+                widgetCache.progressState = widgetInfo.progressState
+            end
 
             -- Capture title/tooltip if present
             local text = widgetInfo.tooltip or widgetInfo.text or widgetInfo.title
             if text and text ~= "" and not issecretvalue(text) then
                 widgetCache.title = CropToFirstLine(text)
             end
-            -- Capture progress if present
-            widgetCache.progress = widgetInfo.barValue or widgetInfo.fillValue or widgetInfo.curValue
+            -- Capture progress only if present, preserving existing
+            local newProg = widgetInfo.barValue or widgetInfo.fillValue or widgetInfo.curValue
+            if newProg ~= nil then
+                widgetCache.progress = newProg
+            end
         else
             local barInfo = GetStatusBarWidgetVisualizationInfo(widgetID)
             if barInfo then
@@ -257,7 +275,10 @@ function sfui.prey.HandleWidget(widgetID)
                     local lowerText = lower(text)
                     if find(lowerText, "prey") or find(lowerText, "revealed") or (hasHunt) then
                         widgetCache.title = CropToFirstLine(text)
-                        widgetCache.progress = barInfo.barValue or barInfo.curValue
+                        local newProg = barInfo.barValue or barInfo.curValue
+                        if newProg ~= nil then
+                            widgetCache.progress = newProg
+                        end
                     end
                 end
             end
@@ -317,16 +338,8 @@ event_frame:SetScript("OnEvent", function(self, event, payload)
             preyBar = CreatePreyBar()
             sfui.prey.bar = preyBar
         end
-        -- Reset and Update
-        widgetCache.title = nil
-        widgetCache.color = nil
-        widgetCache.progress = nil
-        widgetCache.progressState = nil
-        widgetCache.lastTitle = nil
-        widgetCache.lastProgress = nil
-        widgetCache.lastColor = nil
-        widgetCache.lastObjectives = nil
-
+        -- Cache is now safely retained across zones. It is automatically cleared inside
+        -- UpdatePreyBar when GetActivePreyQuest() changes or drops to nil.
         sfui.prey.UpdatePreyBar(preyBar)
     elseif event == "QUEST_LOG_UPDATE" then
         -- Salt the objectives cache on Quest Log Update
