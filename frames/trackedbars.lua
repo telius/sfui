@@ -524,7 +524,10 @@ local function _pcall_get_app_text(blizzFrame)
 end
 
 local function _pcall_get_duration_text(blizzFrame)
-    return blizzFrame.Bar and blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
+    if blizzFrame.Bar and blizzFrame.Bar.Duration then
+        return blizzFrame.Bar.Duration:GetText() or ""
+    end
+    return ""
 end
 
 local function _pcall_sync_bar_values(blizzFrame, status, timeString, config, currentStacks)
@@ -533,9 +536,13 @@ local function _pcall_sync_bar_values(blizzFrame, status, timeString, config, cu
     status:SetMinMaxValues(min, max)
     sfui.common.SafeSetValue(status, val)
 
-    local barText = blizzFrame.Bar.Duration and blizzFrame.Bar.Duration:GetText() or ""
+    local barText = _pcall_get_duration_text(blizzFrame)
     if config and config.showStacksText then
-        barText = tostring(currentStacks)
+        if type(currentStacks) == "number" or (not issecretvalue(currentStacks)) then
+            barText = tostring(currentStacks)
+        else
+            barText = currentStacks
+        end
     end
     timeString:SetText(barText)
 end
@@ -589,8 +596,12 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     -- 3. Fallback to Text (Blizzard's Display) - UNRESTRICTED
     if not currentStacks then
         local ok, text = pcall(_pcall_get_app_text, blizzFrame)
-        if ok and text and text ~= "" then
-            currentStacks = text
+        if ok and text then
+            if issecretvalue(text) then
+                currentStacks = text
+            elseif text ~= "" then
+                currentStacks = text
+            end
         end
     end
 
@@ -657,9 +668,23 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     local barText = ""
     if isStackMode then
         -- STACK MODE: Bar represents Stack Count
-        myBar.status:SetMinMaxValues(0, maxStacks)
-        myBar.status:SetValue(currentStacks)
-        myBar.count:SetText(tostring(currentStacks)) -- Hidden but used for visibility logic
+        local maxVal = type(maxStacks) == "number" and maxStacks or 10
+        myBar.status:SetMinMaxValues(0, maxVal)
+
+        local currentVal = 0
+        if type(currentStacks) == "number" then
+            currentVal = currentStacks
+        elseif not issecretvalue(currentStacks) then
+            currentVal = tonumber(currentStacks) or 0
+        end
+
+        myBar.status:SetValue(currentVal)
+
+        if type(currentStacks) == "number" or not issecretvalue(currentStacks) then
+            myBar.count:SetText(tostring(currentStacks)) -- Hidden but used for visibility logic
+        else
+            myBar.count:SetText(currentStacks)
+        end
 
         -- FORCE HIDE BLIZZ BAR COMPONENTS if strict
         if blizzFrame.Bar then blizzFrame.Bar:SetAlpha(0) end
@@ -681,9 +706,15 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
         end
 
         if sfui.common.IsNumericAndPositive(currentStacks) then
-            myBar.count:SetText(sfui.common.SafeFormatDuration(currentStacks, 0))
+            myBar.count:SetText(tostring(currentStacks))
         else
-            myBar.count:SetText("")
+            if issecretvalue(currentStacks) then
+                myBar.count:SetText(currentStacks)
+            elseif currentStacks ~= 0 and currentStacks ~= "" then
+                myBar.count:SetText(currentStacks)
+            else
+                myBar.count:SetText("")
+            end
         end
     end
 end
@@ -801,9 +832,14 @@ local function ProcessBlizzardSync()
                         -- Check if this is a stack mode bar with active stacks
                         local isStackModeWithStacks = false
                         if isStackMode then
-                            local currentStacks = tonumber(myBar.count:GetText()) or 0
-                            if currentStacks > 0 then
+                            local txt = myBar.count:GetText()
+                            if issecretvalue(txt) then
                                 isStackModeWithStacks = true
+                            else
+                                local currentStacks = tonumber(txt) or 0
+                                if currentStacks > 0 then
+                                    isStackModeWithStacks = true
+                                end
                             end
                         end
 
@@ -900,9 +936,20 @@ local function UpdateBarsState()
                 if blizzFrame.Bar.Duration then
                     local text = blizzFrame.Bar.Duration:GetText() or ""
                     if config and config.showStacksText then
-                        text = tostring(myBar.currentStacks or 0)
+                        if myBar.currentStacks then
+                            if type(myBar.currentStacks) == "number" or not issecretvalue(myBar.currentStacks) then
+                                text = tostring(myBar.currentStacks)
+                            else
+                                text = myBar.currentStacks
+                            end
+                        end
                     end
-                    sfui.common.SafeSetText(myBar.time, text)
+
+                    if issecretvalue(text) then
+                        myBar.time:SetText(text)
+                    else
+                        sfui.common.SafeSetText(myBar.time, text)
+                    end
                 end
             end
         end

@@ -65,6 +65,7 @@ function sfui.alts.RefreshDynamicCategories()
     local maps = C_ChallengeMode.GetMapTable()
     if maps and #maps > 0 then
         table.insert(CATEGORIES, { name = "DUNGEONS_HEADER", label = "Dungeons", type = "header" })
+        table.insert(CATEGORIES, { name = "M0_GRID", label = "Mythic 0", type = "m0_grid" })
         for _, mapID in ipairs(maps) do
             local name = C_ChallengeMode.GetMapUIInfo(mapID)
             if name then
@@ -210,7 +211,11 @@ function sfui.alts.PerformSync()
 
     -- Mythic+ Dungeon Best Scores
     data.dungeons = data.dungeons or {}
+    data.m0 = data.m0 or {}
     local maps = C_ChallengeMode.GetMapTable()
+    local m0Maps = { 557, 558, 559, 560, 561, 562, 563, 564 } -- MIDNIGHT S1 PRESEASON OVERRIDE
+
+    local seasonDungeonNames = {}
     if maps and #maps > 0 then
         for _, mID in ipairs(maps) do
             local intimeInfo, overtimeInfo = C_MythicPlus.GetSeasonBestForMap(mID)
@@ -219,6 +224,32 @@ function sfui.alts.PerformSync()
             if overtimeInfo and overtimeInfo.level > bestLevel then bestLevel = overtimeInfo.level end
 
             data.dungeons[mID] = { level = bestLevel }
+
+            local name = C_ChallengeMode.GetMapUIInfo(mID)
+            if name then
+                seasonDungeonNames[name] = mID
+            end
+        end
+    end
+
+    -- Populate M0 defaults based on override
+    for _, mID in ipairs(m0Maps) do
+        local name = C_ChallengeMode.GetMapUIInfo(mID)
+        if name then
+            seasonDungeonNames[name] = mID
+            data.m0[mID] = false -- Default available
+        end
+    end
+
+    -- M0 Lockouts
+    local numSaved = GetNumSavedInstances()
+    for i = 1, numSaved do
+        local name, _, _, difficulty, locked, _, _, isRaid = GetSavedInstanceInfo(i)
+        if difficulty == 23 and locked and not isRaid then
+            local mapID = seasonDungeonNames[name]
+            if mapID then
+                data.m0[mapID] = true
+            end
         end
     end
 
@@ -299,28 +330,39 @@ function sfui.alts.PerformSync()
     end
 
     -- Weekly Hunts (x/4) using specific completion quest IDs for Midnight Prey
-    local huntQuests = {
-        -- Normal
+    local huntNormal = {
         91098, 91099, 91096, 91104, 91105, 91106, 91107, 91108, 91109, 91110,
         91111, 91112, 91113, 91114, 91115, 91116, 91117, 91118, 91119, 91120,
-        91121, 91122, 91123, 91124, 91095, 91097, 91100, 91101, 91102, 91103,
-        -- Hard
+        91121, 91122, 91123, 91124, 91095, 91097, 91100, 91101, 91102, 91103
+    }
+    local huntHard = {
         91210, 91212, 91214, 91216, 91218, 91220, 91222, 91224, 91226, 91228,
         91230, 91232, 91234, 91236, 91238, 91240, 91242, 91243, 91244, 91245,
-        91246, 91247, 91248, 91249, 91250, 91251, 91252, 91253, 91254, 91255,
-        -- Nightmare
+        91246, 91247, 91248, 91249, 91250, 91251, 91252, 91253, 91254, 91255
+    }
+    local huntMythic = {
         91211, 91213, 91215, 91217, 91219, 91221, 91223, 91225, 91227, 91229,
         91231, 91233, 91235, 91237, 91239, 91241, 91256, 91257, 91258, 91259,
         91260, 91261, 91262, 91263, 91264, 91265, 91266, 91267, 91268, 91269
     }
-    local weeklyHunts = 0
-    for _, qID in ipairs(huntQuests) do
+
+    data.prey.normal = 0
+    data.prey.hard = 0
+    data.prey.mythic = 0
+    for _, qID in ipairs(huntNormal) do
         if C_QuestLog.IsQuestFlaggedCompleted(qID) then
-            weeklyHunts = weeklyHunts + 1
+            data.prey.normal = data.prey
+                .normal + 1
         end
     end
-    data.prey.weekly = weeklyHunts
-
+    for _, qID in ipairs(huntHard) do if C_QuestLog.IsQuestFlaggedCompleted(qID) then data.prey.hard = data.prey.hard + 1 end end
+    for _, qID in ipairs(huntMythic) do
+        if C_QuestLog.IsQuestFlaggedCompleted(qID) then
+            data.prey.mythic = data.prey
+                .mythic + 1
+        end
+    end
+    data.prey.weekly = data.prey.normal + data.prey.hard + data.prey.mythic
     -- Active Hunt Progress using Remnant of Anguish (ID 3392)
     local remnants = C_CurrencyInfo.GetCurrencyInfo(3392)
     if remnants and remnants.quantity then
@@ -331,9 +373,11 @@ function sfui.alts.PerformSync()
 
     -- Active Hunt Quests
     local questID = C_QuestLog.GetActivePreyQuest()
+    data.prey.isQuestActive = false
     if questID then
         data.prey.title = C_QuestLog.GetTitleForQuestID(questID)
         data.prey.activeHuntProgress = C_TaskQuest.GetQuestProgressBarInfo(questID) or 0
+        data.prey.isQuestActive = true
     end
 
     data.prey.lastUpdate = GetServerTime()
@@ -612,17 +656,21 @@ function sfui.alts.UpdateUI(force)
                 end
             elseif cat.type == "prey" then
                 if alt.data.prey then
-                    local weekly = alt.data.prey.weekly or 0
+                    local normal = alt.data.prey.normal or 0
+                    local hard = alt.data.prey.hard or 0
+                    local mythic = alt.data.prey.mythic or 0
                     local activeProgress = alt.data.prey.activeHuntProgress or 0
+                    local isQuestActive = alt.data.prey.isQuestActive
                     local rank = alt.data.prey.rank or 1
                     local rankProgress = alt.data.prey.rankProgress or 0
 
-                    -- Show Weekly Hunts (x/4) and overall Rank progress
-                    text:SetText(string.format("%d/4 (%d%%)", weekly, activeProgress))
+                    local progressStr = isQuestActive and string.format("%d%%", activeProgress) or
+                        tostring(activeProgress)
+                    text:SetText(string.format("%d/%d/%d (%s)", normal, hard, mythic, progressStr))
 
-                    if weekly >= 4 then
-                        text:SetTextColor(0, 1, 0) -- Completed weekly goal
-                    elseif activeProgress >= 100 then
+                    if (normal + hard + mythic) >= 4 then
+                        text:SetTextColor(0, 1, 0) -- Completed weekly goal (at least 4 hunts of any diff)
+                    elseif isQuestActive and activeProgress >= 100 then
                         text:SetTextColor(1, 0, 1) -- Ready for confrontation
                     else
                         text:SetTextColor(0, 1, 1)
@@ -632,12 +680,14 @@ function sfui.alts.UpdateUI(force)
                     cell:SetScript("OnEnter", function(self)
                         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                         GameTooltip:SetText("Prey Hunt Progress")
-                        GameTooltip:AddDoubleLine("Weekly Completion:", string.format("%d / 4", weekly), 1, 1, 1, 1, 1, 1)
+                        GameTooltip:AddDoubleLine("Normal:", string.format("%d / 4", normal), 1, 1, 1, 1, 1, 1)
+                        GameTooltip:AddDoubleLine("Hard:", string.format("%d / 4", hard), 1, 1, 1, 1, 1, 1)
+                        GameTooltip:AddDoubleLine("Mythic:", string.format("%d / 4", mythic), 1, 1, 1, 1, 1, 1)
                         if alt.data.prey.title then
                             GameTooltip:AddDoubleLine("Active Hunt:", alt.data.prey.title, 1, 1, 1, 1, 1, 1)
                         end
-                        GameTooltip:AddDoubleLine("Hunt Progress:", string.format("%d%%", activeProgress), 1, 1, 1, 1, 1,
-                            1)
+                        GameTooltip:AddDoubleLine(isQuestActive and "Hunt Progress:" or "Remnants of Anguish:",
+                            progressStr, 1, 1, 1, 1, 1, 1)
                         GameTooltip:AddLine(" ")
                         GameTooltip:AddDoubleLine("Renown Rank:", string.format("%d (%d%%)", rank, rankProgress), 1, 1,
                             1, 1, 1, 1)
@@ -710,7 +760,7 @@ function sfui.alts.UpdateUI(force)
                     local rect = cell["rect" .. slotIdx] or cell:CreateTexture(nil, "ARTWORK")
                     cell["rect" .. slotIdx] = rect
                     rect:Show()
-                    rect:SetSize(squareSize - 4, cfg.rowHeight - 6)
+                    rect:SetSize(squareSize - 4, cfg.rowHeight - 12)
                     rect:SetPoint("LEFT", (slotIdx - 1) * squareSize + 5, 0)
 
                     local vData = alt.data.vault and alt.data.vault[group] and alt.data.vault[group][slotIdx]
@@ -737,6 +787,42 @@ function sfui.alts.UpdateUI(force)
                     GameTooltip:Show()
                 end)
                 cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            elseif cat.type == "m0_grid" then
+                text:Hide()
+                local m0Data = alt.data.m0
+                local maps = C_ChallengeMode.GetMapTable()
+                maps = { 557, 558, 559, 560, 561, 562, 563, 564 } -- MIDNIGHT S1 PRESEASON OVERRIDE
+                local numDungeons = maps and #maps or 8
+                local squareSize = (cfg.columnWidth - 10) / numDungeons
+
+                for bIdx, mapID in ipairs(maps or {}) do
+                    local rect = cell["m0Rect" .. bIdx] or cell:CreateTexture(nil, "ARTWORK")
+                    cell["m0Rect" .. bIdx] = rect
+                    rect:Show()
+                    rect:SetSize(squareSize - 2, cfg.rowHeight - 12)
+                    rect:SetPoint("LEFT", (bIdx - 1) * squareSize + 5, 0)
+
+                    if m0Data and m0Data[mapID] then
+                        rect:SetColorTexture(0, 1, 1, 0.8) -- #00ffff completed
+                    else
+                        rect:SetColorTexture(0, 0, 0, 0.5) -- black (available)
+                    end
+                end
+
+                cell:SetScript("OnEnter", function(self)
+                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                    GameTooltip:SetText("Mythic 0 Lockouts")
+                    if maps then
+                        for _, mID in ipairs(maps) do
+                            local name = C_ChallengeMode.GetMapUIInfo(mID) or "Unknown Dungeon"
+                            local isLocked = m0Data and m0Data[mID]
+                            local status = isLocked and "|cff00ffffCompleted|r" or "|cff888888Available|r"
+                            GameTooltip:AddDoubleLine(name, status, 1, 1, 1, 1, 1, 1)
+                        end
+                    end
+                    GameTooltip:Show()
+                end)
+                cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
             elseif cat.type == "raid_grid" then
                 text:Hide()
                 local difficulty = cat.difficulty
@@ -757,7 +843,7 @@ function sfui.alts.UpdateUI(force)
                     local rect = cell["raidRect" .. bIdx] or cell:CreateTexture(nil, "ARTWORK")
                     cell["raidRect" .. bIdx] = rect
                     rect:Show()
-                    rect:SetSize(squareSize - 2, cfg.rowHeight - 6)
+                    rect:SetSize(squareSize - 2, cfg.rowHeight - 12)
                     rect:SetPoint("LEFT", (bIdx - 1) * squareSize + 5, 0)
 
                     if bossData and bossData[bIdx] then
