@@ -1,3 +1,12 @@
+## v0.4.0 (2026-03-05)
+
+### Optimizations
+- **Comprehensive Code Audit**: Addressed multiple core execution bottlenecks to stabilize baseline memory footprint.
+- **UI Element Pooling**: Rewrote dropdown menus to reuse elements natively, eliminating a persistent memory leak.
+- **Event Debouncing**: Throttled high-frequency events like `QUEST_LOG_UPDATE` for the Prey tracker.
+- **Resource Caching**: Implemented a per-tick cache for cooldown APIs, reducing `pcall` barrage down to one call per unique ID per cycle.
+- **Memory Management**: Hoisted allocations and reused stable tables across the Merchant, Minimap, and Options modules.
+
 ## v0.3.4 (2026-03-05)
 
 ### Features
