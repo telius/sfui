@@ -247,9 +247,13 @@ local function RenderTrackedBarsRightSide(parent, width)
         sfui.trackedoptions.ReleaseSettingsWidgets(parent)
     end
 
-    local poolTitle = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    poolTitle:SetPoint("TOPLEFT", 0, -5)
-    poolTitle:SetText("Tracked Buffs & Bars Pool (2, 3)")
+    -- Reuse FontStrings across refreshes (FontStrings cannot be freed in WoW Lua)
+    if not parent._poolTitle then
+        parent._poolTitle = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        parent._poolTitle:SetPoint("TOPLEFT", 0, -5)
+    end
+    parent._poolTitle:SetText("Tracked Buffs & Bars Pool (2, 3)")
+    parent._poolTitle:Show()
 
     local yPos = -25
     local list = {}
@@ -401,16 +405,26 @@ local function RenderTrackedBarsRightSide(parent, width)
         end
     end
 
+    if not parent._noIconsLabel then
+        parent._noIconsLabel = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        parent._noIconsLabel:SetText("No icons found in groups -2, 2, or 3.")
+    end
     if #list == 0 then
-        local noIcons = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        noIcons:SetPoint("TOPLEFT", 0, yPos)
-        noIcons:SetText("No icons found in groups -2, 2, or 3.")
+        parent._noIconsLabel:ClearAllPoints()
+        parent._noIconsLabel:SetPoint("TOPLEFT", 0, yPos)
+        parent._noIconsLabel:Show()
         yPos = yPos - 20
+    else
+        parent._noIconsLabel:Hide()
     end
 
-    local title2 = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    title2:SetPoint("TOPLEFT", 0, yPos)
-    title2:SetText("Tracked Bars Preview (Active)")
+    if not parent._title2 then
+        parent._title2 = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        parent._title2:SetText("Tracked Bars Preview (Active)")
+    end
+    parent._title2:ClearAllPoints()
+    parent._title2:SetPoint("TOPLEFT", 0, yPos)
+    parent._title2:Show()
     yPos = yPos - 25
 
     local activeList = {}
@@ -1017,9 +1031,13 @@ local function RenderAssignmentsIconPool(parent, width, entries)
         sfui.trackedoptions.ReleaseSettingsWidgets(parent)
     end
 
-    local poolTitle = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    poolTitle:SetPoint("TOPLEFT", 0, -5)
-    poolTitle:SetText("Assignments Pool (-1, 0, 1)")
+    -- Reuse FontString across refreshes (FontStrings cannot be freed in WoW Lua)
+    if not parent._assignPoolTitle then
+        parent._assignPoolTitle = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        parent._assignPoolTitle:SetPoint("TOPLEFT", 0, -5)
+    end
+    parent._assignPoolTitle:SetText("Assignments Pool (-1, 0, 1)")
+    parent._assignPoolTitle:Show()
 
     local yPos = -25
     local list = {}

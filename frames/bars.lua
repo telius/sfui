@@ -88,12 +88,24 @@ do
         return max, current
     end
 
+    -- Resolve C_ActionBar references once at module load (they never change)
+    local _getBonusIdx = C_ActionBar and C_ActionBar.GetBonusBarIndex or GetBonusBarIndex
+    local _getBonusOff = C_ActionBar and C_ActionBar.GetBonusBarOffset or GetBonusBarOffset
+
+    -- Cached dragonflying state — invalidated only when glide state changes
+    local _dragonflyingCache = nil
+
+    local function invalidate_dragonflying_cache()
+        _dragonflyingCache = nil
+    end
+
     local function is_dragonflying()
+        if _dragonflyingCache ~= nil then return _dragonflyingCache end
         local isFlying, canGlide, _ = C_PlayerInfo.GetGlidingInfo()
-        local getBonusIdx = C_ActionBar and C_ActionBar.GetBonusBarIndex or GetBonusBarIndex
-        local getBonusOff = C_ActionBar and C_ActionBar.GetBonusBarOffset or GetBonusBarOffset
-        local hasSkyridingBar = getBonusIdx and getBonusOff and (getBonusIdx() == 11 and getBonusOff() == 5) or false
-        return isFlying or (canGlide and hasSkyridingBar)
+        local hasSkyridingBar = _getBonusIdx and _getBonusOff and
+            (_getBonusIdx() == 11 and _getBonusOff() == 5) or false
+        _dragonflyingCache = isFlying or (canGlide and hasSkyridingBar)
+        return _dragonflyingCache
     end
 
     local function update_bar_positions()
@@ -421,15 +433,21 @@ do
             sfui.trackedbars.ForceLayoutUpdate()
         end
 
-        -- Sorting Logic
-        local runeInfo = {}
+        -- Sorting Logic — reuse pre-allocated table to avoid GC pressure
+        local runeInfo = bar._runeInfo
+        if not runeInfo then
+            runeInfo = {}
+            for i = 1, 6 do runeInfo[i] = { id = i, ready = false, expiration = 0, start = 0, duration = 0 } end
+            bar._runeInfo = runeInfo
+        end
         for i = 1, 6 do
             local start, duration, ready = GetRuneCooldown(i)
-            local expiration = 0
-            if not ready then
-                expiration = start + duration
-            end
-            tinsert(runeInfo, { id = i, ready = ready, expiration = expiration, start = start, duration = duration })
+            local entry = runeInfo[i]
+            entry.id = i
+            entry.ready = ready
+            entry.start = start or 0
+            entry.duration = duration or 0
+            entry.expiration = (not ready) and (start + duration) or 0
         end
 
         table.sort(runeInfo, function(a, b)
@@ -732,9 +750,11 @@ do
     event_frame:RegisterEvent("PLAYER_REGEN_ENABLED")
     event_frame:RegisterEvent("PLAYER_TARGET_CHANGED")
     event_frame:RegisterEvent("RUNE_POWER_UPDATE")
+    event_frame:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
 
     event_frame:SetScript("OnEvent", function(self, event, unit, ...)
-        if event == "PLAYER_SPECIALIZATION_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" or event == "PLAYER_CAN_GLIDE_CHANGED" or event == "PLAYER_IS_GLIDING_CHANGED" then
+        if event == "PLAYER_SPECIALIZATION_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" or event == "PLAYER_CAN_GLIDE_CHANGED" or event == "PLAYER_IS_GLIDING_CHANGED" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" then
+            invalidate_dragonflying_cache()
             sfui.bars:on_state_changed()
         elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_TARGET_CHANGED" then
             if not should_throttle("visibility") then

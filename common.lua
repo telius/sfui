@@ -965,6 +965,7 @@ end
 local function update_cached_spec_id()
     local spec = C_SpecializationInfo.GetSpecialization()
     cachedSpecID = spec and select(1, C_SpecializationInfo.GetSpecializationInfo(spec)) or 0
+    sfui.common.invalidate_spec_color_cache()
 end
 
 sfui.events.RegisterEvent("PLAYER_LOGIN", function()
@@ -1067,25 +1068,41 @@ function sfui.common.get_secondary_resource()
     return res
 end
 
+-- Reuse table to avoid per-call allocations in bar update loops.
+-- Rebuilt lazily when spec/class changes via invalidate_spec_color_cache().
+local _specColorCache = { 1, 1, 1, 1 }
+local _specColorDirty = true
+
+function sfui.common.invalidate_spec_color_cache()
+    _specColorDirty = true
+end
+
 function sfui.common.get_class_or_spec_color()
     -- Global Override: if spec colors are disabled, use the fallback color
     if SfuiDB and SfuiDB.useSpecColor == false then
         return SfuiDB.specColorFallback or { 1, 1, 1, 1 }
     end
 
-    local color
-    if cachedSpecID and sfui.config.spec_colors[cachedSpecID] then
-        local custom_color = sfui.config.spec_colors[cachedSpecID]
-        color = { custom_color[1], custom_color[2], custom_color[3], 1 }
+    if not _specColorDirty then
+        return _specColorCache
     end
-    if not color and playerClass then
+
+    -- Rebuild the cached table in-place (no new allocation)
+    _specColorCache[1], _specColorCache[2], _specColorCache[3], _specColorCache[4] = 1, 1, 1, 1
+    if cachedSpecID and sfui.config.spec_colors[cachedSpecID] then
+        local c = sfui.config.spec_colors[cachedSpecID]
+        _specColorCache[1], _specColorCache[2], _specColorCache[3], _specColorCache[4] = c[1], c[2], c[3], 1
+    elseif playerClass then
         local classColor = C_ClassColor and C_ClassColor.GetClassColor(playerClass) or
             (RAID_CLASS_COLORS and RAID_CLASS_COLORS[playerClass])
         if classColor then
-            color = { classColor.r, classColor.g, classColor.b, 1 }
+            _specColorCache[1], _specColorCache[2], _specColorCache[3], _specColorCache[4] =
+                classColor.r, classColor.g, classColor.b, 1
         end
     end
-    return color
+
+    _specColorDirty = false
+    return _specColorCache
 end
 
 function sfui.common.unpack_color(color, defaultR, defaultG, defaultB, defaultA)

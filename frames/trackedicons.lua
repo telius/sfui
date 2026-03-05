@@ -20,10 +20,11 @@ local issecretvalue = sfui.common.issecretvalue
 -- STATIC REUSE (Memory Optimization)
 local _tempGlowCfg = {}
 local _defaultColor = { 1, 1, 0, 1 }
+local _defaultTextColor = { 1, 1, 1, 1 } -- Reuse to avoid per-call allocation
 local _emptyTable = {}
 local _iconCounter = 0
 
-local _iconConfigCache = {}
+local _iconConfigCache = setmetatable({}, { __mode = "k" })
 function sfui.trackedicons.InvalidateConfigCache()
     for k in pairs(_iconConfigCache) do
         _iconConfigCache[k] = nil
@@ -304,7 +305,7 @@ local function UpdateIconVisuals(icon, entrySettings, panelConfig, isUsable, isO
         if targetColor == "blue" then
             icon.texture:SetVertexColor(0.5, 0.5, 1.0)
         else
-            local textColor = GetIconValue(entrySettings, panelConfig, "textColor", { 1, 1, 1, 1 })
+            local textColor = GetIconValue(entrySettings, panelConfig, "textColor", _defaultTextColor)
             if type(textColor) == "table" then
                 icon.texture:SetVertexColor(textColor[1] or 1, textColor[2] or 1, textColor[3] or 1)
             else
@@ -1369,11 +1370,15 @@ function sfui.trackedicons.initialize()
     end)
 
     sfui.events.RegisterEvent("SPELL_UPDATE_COOLDOWN", function()
-        MarkDirty(0.5, not InCombatLockdown())
+        -- Only mark state dirty — do NOT extend the burst timer.
+        -- SPELL_UPDATE_COOLDOWN fires on every GCD tick while idle.
+        -- Extending _burstTimer here keeps UpdateAllIconStates running
+        -- at 10fps continuously while out of combat, causing ~0.2MB/s GC pressure.
+        _needsStateUpdate = true
     end)
 
     sfui.events.RegisterEvent("BAG_UPDATE_COOLDOWN", function()
-        MarkDirty(0.5, not InCombatLockdown())
+        _needsStateUpdate = true
     end)
 
     -- 11.0 C_UnitAuras Event Migration

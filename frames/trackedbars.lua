@@ -117,7 +117,7 @@ end
 
 -- Cache invalidation (call when settings change)
 function sfui.trackedbars.InvalidateConfigCache()
-    configCache = {}
+    wipe(configCache)
 end
 
 -- Helper to determine max stacks for a bar
@@ -889,7 +889,7 @@ function sfui.trackedbars.UpdateVisibility()
 end
 
 -- Hook-based updates
-local hookedFrames = {}
+local hookedFrames = setmetatable({}, { __mode = "k" }) -- weak keys: stale frame userdata auto-collected
 local function HookBlizzardFrame(frame)
     if not frame or hookedFrames[frame] then return end
     hookedFrames[frame] = true

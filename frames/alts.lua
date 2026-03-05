@@ -149,6 +149,14 @@ local function ReleaseCell(f)
     f:ClearAllPoints()
     f:SetScript("OnEnter", nil)
     f:SetScript("OnLeave", nil)
+    -- Clear the delete button's stale OnClick closure so the previous
+    -- alt's data table can be garbage-collected.
+    if f.del then
+        f.del:SetScript("OnClick", nil)
+        f.del:SetScript("OnEnter", nil)
+        f.del:SetScript("OnLeave", nil)
+        f.del:Hide()
+    end
     table.insert(cellPool, f)
 end
 
@@ -252,12 +260,14 @@ function sfui.alts.PerformSync()
         end
     end
 
-    -- Great Vault Progress
     data.vault = data.vault or {}
+    data.vault.raid = data.vault.raid or {}
+    data.vault.dungeon = data.vault.dungeon or {}
+    data.vault.world = data.vault.world or {}
+    wipe(data.vault.raid)
+    wipe(data.vault.dungeon)
+    wipe(data.vault.world)
     local activities = C_WeeklyRewards.GetActivities()
-    data.vault.raid = {}
-    data.vault.dungeon = {}
-    data.vault.world = {}
 
     for _, activity in ipairs(activities) do
         local group = "world"
@@ -280,7 +290,8 @@ function sfui.alts.PerformSync()
     data.raids = data.raids or {}
     local difficulties = { 14, 15, 16 } -- Normal, Heroic, Mythic
     for _, diff in ipairs(difficulties) do
-        data.raids[diff] = {}
+        data.raids[diff] = data.raids[diff] or {}
+        wipe(data.raids[diff])
     end
 
     local numSaved = GetNumSavedInstances()
@@ -922,9 +933,10 @@ function sfui.alts.initialize()
     eventFrame:RegisterEvent("CURRENCY_DISPLAY_UPDATE")
     eventFrame:RegisterEvent("CHALLENGE_MODE_COMPLETED")
     eventFrame:RegisterEvent("WEEKLY_REWARDS_UPDATE")
-    eventFrame:RegisterEvent("UPDATE_UI_WIDGET")
     eventFrame:RegisterEvent("QUEST_TURNED_IN")
-    eventFrame:RegisterEvent("QUEST_LOG_UPDATE")
+    -- Note: QUEST_LOG_UPDATE and UPDATE_UI_WIDGET intentionally omitted — both fire
+    -- extremely frequently (every quest tick / every UI widget change). The events
+    -- above cover all meaningful vault/raid/dungeon state changes.
     eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 
     eventFrame:SetScript("OnEvent", function(self, event)
