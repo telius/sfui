@@ -181,6 +181,15 @@ local function CreateStageDividers(bar, numStages)
 end
 
 local function OnUpdate(self, elapsed)
+    if not self.casting and not self.channeling and not self.empowering and not self.instant then
+        if self.backdrop:IsShown() then
+            self.value = 0
+            self.backdrop:Hide()
+            self.backdrop:SetAlpha(1)
+        end
+        return
+    end
+
     -- Throttle text updates to ~20fps (configurable)
     self.throttle = (self.throttle or 0) + elapsed
     local updateText = false
@@ -261,8 +270,6 @@ local function OnUpdate(self, elapsed)
 
         local sparkPosition = (remaining / self.instant_dur) * self:GetWidth()
         self.Spark:SetPoint("CENTER", self, "LEFT", sparkPosition, 0)
-    else
-        self.value = 0; self.backdrop:Hide(); self.backdrop:SetAlpha(1)
     end
 end
 

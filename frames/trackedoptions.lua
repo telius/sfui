@@ -264,12 +264,12 @@ optBtn:SetScript("OnClick", function()
         sfui.toggle_options_panel()
 
         -- Attach logic
-        if sfui_options_frame and sfui_options_frame:IsShown() then
-            SfuiCooldownsViewer:ClearAllPoints()
-            SfuiCooldownsViewer:SetPoint("CENTER") -- Back to center default before re-anchoring if needed
+        if _G.sfui_options_frame and _G.sfui_options_frame:IsShown() then
+            frame:ClearAllPoints()
+            frame:SetPoint("CENTER") -- Back to center default before re-anchoring if needed
 
-            sfui_options_frame:ClearAllPoints()
-            sfui_options_frame:SetPoint("TOPRIGHT", SfuiCooldownsViewer, "TOPLEFT", -5, 0)
+            _G.sfui_options_frame:ClearAllPoints()
+            _G.sfui_options_frame:SetPoint("TOPRIGHT", frame, "TOPLEFT", -5, 0)
         end
     end
 end)
@@ -277,11 +277,11 @@ end)
 local blizzBtn = CreateFlatButton(frame, "Blizzard Manager", 120, 20)
 blizzBtn:SetPoint("LEFT", optBtn, "RIGHT", 5, 0)
 blizzBtn:SetScript("OnClick", function()
-    if CooldownViewerSettings then
-        if CooldownViewerSettings:IsShown() then
-            HideUIPanel(CooldownViewerSettings)
+    if _G.CooldownViewerSettings then
+        if _G.CooldownViewerSettings:IsShown() then
+            HideUIPanel(_G.CooldownViewerSettings)
         else
-            ShowUIPanel(CooldownViewerSettings)
+            ShowUIPanel(_G.CooldownViewerSettings)
         end
     end
 end)
@@ -1296,7 +1296,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
         local s4y = 0
 
         local _, _, classID = UnitClass("player")
-        local heroSpecs = C_ClassTalents and C_ClassTalents.GetHeroTalentSpecsForClassSpec() or {}
+        local heroSpecs = C_ClassTalents and classID and C_ClassTalents.GetHeroTalentSpecsForClassSpec(classID) or {}
 
         -- Draw Header
         local hIcon = s4c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")

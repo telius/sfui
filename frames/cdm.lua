@@ -707,7 +707,11 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
             end
 
             if draggedInfo and self:IsMouseOver() then
-                self:SetBackdropBorderColor(0, 1, 0, 1) -- Hover highlight
+                if not self._isHovered then
+                    self:SetBackdropBorderColor(0, 1, 0, 1) -- Hover highlight
+                    self._isHovered = true
+                    self._isIdle = false
+                end
 
                 -- Determine closest icon index to insert before
                 local mX, mY = GetCursorPosition()
@@ -793,22 +797,26 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
                     end
                 end
             else
-                if self.isTrackedBars then
-                    self:SetBackdropBorderColor(0.8, 0.4, 1.0, 0.8)
-                else
-                    self:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
-                end
-                if self.dropInsertIndex then
-                    hideIndicator()
-                    -- Revert layout to normal
-                    local cx, cy = 0, 0
-                    for i, icon in ipairs(self.content.icons) do
-                        icon:SetPoint("TOPLEFT", self.content, "TOPLEFT", cx, cy)
-                        cx = cx + ICON_SIZE + 2
-                        if cx > 300 then
-                            cx = 0; cy = cy - ICON_SIZE - 2
+                if not self._isIdle then
+                    if self.isTrackedBars then
+                        self:SetBackdropBorderColor(0.8, 0.4, 1.0, 0.8)
+                    else
+                        self:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+                    end
+                    if self.dropInsertIndex then
+                        hideIndicator()
+                        -- Revert layout to normal
+                        local cx, cy = 0, 0
+                        for i, icon in ipairs(self.content.icons) do
+                            icon:SetPoint("TOPLEFT", self.content, "TOPLEFT", cx, cy)
+                            cx = cx + ICON_SIZE + 2
+                            if cx > 300 then
+                                cx = 0; cy = cy - ICON_SIZE - 2
+                            end
                         end
                     end
+                    self._isIdle = true
+                    self._isHovered = false
                 end
             end
         end)

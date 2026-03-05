@@ -10,11 +10,6 @@ local CreateFrame = CreateFrame
 local UIParent = UIParent
 local hooksecurefunc = hooksecurefunc
 local C_Timer = C_Timer
-local InCombatLockdown = InCombatLockdown
-local CreateFrame = CreateFrame
-local UIParent = UIParent
-local hooksecurefunc = hooksecurefunc
-local C_Timer = C_Timer
 local IsMounted = IsMounted
 local pairs = pairs
 local ipairs = ipairs
@@ -91,7 +86,6 @@ end
 
 sfui.trackedicons.StopGlow = sfui.glows.stop_glow
 
--- Local wrapper to ensure state cleanup
 -- Local wrapper to ensure state cleanup
 local function StopGlow(icon)
     sfui.glows.stop_glow(icon)
@@ -311,7 +305,11 @@ local function UpdateIconVisuals(icon, entrySettings, panelConfig, isUsable, isO
             icon.texture:SetVertexColor(0.5, 0.5, 1.0)
         else
             local textColor = GetIconValue(entrySettings, panelConfig, "textColor", { 1, 1, 1, 1 })
-            icon.texture:SetVertexColor(textColor[1] or 1, textColor[2] or 1, textColor[3] or 1)
+            if type(textColor) == "table" then
+                icon.texture:SetVertexColor(textColor[1] or 1, textColor[2] or 1, textColor[3] or 1)
+            else
+                icon.texture:SetVertexColor(1, 1, 1)
+            end
         end
         icon._currentVertexColor = targetColor
     end
@@ -1217,7 +1215,6 @@ function sfui.trackedicons.Update()
 end
 
 -- Hook to hide specific categories from Blizzard's CooldownViewer
--- Hook to hide specific categories from Blizzard's CooldownViewer
 local function ProcessBlizzardVisibilitySync()
     if not BuffBarCooldownViewer or not BuffBarCooldownViewer.itemFramePool then return end
 
@@ -1278,11 +1275,13 @@ function sfui.trackedicons.initialize()
 
     -- Dirty-flag system: events set this flag, OnUpdate only processes when dirty
     local _needsStateUpdate = true -- Start dirty for initial render
+    local _needsLayoutUpdate = true
     local _burstTimer = 0          -- Brief burst period after events for smooth transitions
 
     -- Helper: Mark icons as needing a state refresh
-    local function MarkDirty(burstDuration)
+    local function MarkDirty(burstDuration, needsLayout)
         _needsStateUpdate = true
+        if needsLayout then _needsLayoutUpdate = true end
         _burstTimer = math.max(_burstTimer, burstDuration or 0.5)
     end
 
@@ -1365,26 +1364,16 @@ function sfui.trackedicons.initialize()
     -- Real-time events that require immediate structural/GCD sync
     sfui.events.RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", function(unit)
         if unit == "player" then
-            sfui.trackedicons.Update()
+            MarkDirty(0.5, true)
         end
     end)
 
     sfui.events.RegisterEvent("SPELL_UPDATE_COOLDOWN", function()
-        if InCombatLockdown() then
-            UpdateAllIconStates()
-        else
-            sfui.trackedicons.Update()
-        end
-        MarkDirty(0.5)
+        MarkDirty(0.5, not InCombatLockdown())
     end)
 
     sfui.events.RegisterEvent("BAG_UPDATE_COOLDOWN", function()
-        if InCombatLockdown() then
-            UpdateAllIconStates()
-        else
-            sfui.trackedicons.Update()
-        end
-        MarkDirty(0.5)
+        MarkDirty(0.5, not InCombatLockdown())
     end)
 
     -- 11.0 C_UnitAuras Event Migration
@@ -1395,46 +1384,18 @@ function sfui.trackedicons.initialize()
             if updateInfo.addedAuras and #updateInfo.addedAuras > 0 then
                 needsFullUpdate = true
             end
-
-            if updateInfo.updatedAuraInstanceIDs and not needsFullUpdate then
-                for _, instanceID in ipairs(updateInfo.updatedAuraInstanceIDs) do
-                    pcall(function()
-                        for _, panel in pairs(panels) do
-                            local config = panel.config
-                            if panel.icons and config then
-                                for _, icon in pairs(panel.icons) do
-                                    if icon.auraInstanceID == instanceID then
-                                        UpdateIconState(icon, config)
-                                    end
-                                end
-                            end
-                        end
-                    end)
-                end
-            end
-
             if updateInfo.removedAuraInstanceIDs and #updateInfo.removedAuraInstanceIDs > 0 then
                 needsFullUpdate = true
             end
 
-            if needsFullUpdate then
-                sfui.trackedicons.Update()
-            end
+            MarkDirty(0.5, needsFullUpdate)
         else
-            if InCombatLockdown() then
-                UpdateAllIconStates()
-            else
-                sfui.trackedicons.Update()
-            end
+            MarkDirty(0.5, not InCombatLockdown())
         end
-        MarkDirty(0.5)
     end)
 
     sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", function()
-        if not InCombatLockdown() then
-            UpdateCooldownIconStates()
-        end
-        MarkDirty(0.5)
+        MarkDirty(0.5, not InCombatLockdown())
     end)
 
     -- OnUpdate: Only process when dirty or during burst period (for smooth glow/alpha transitions)
@@ -1455,7 +1416,11 @@ function sfui.trackedicons.initialize()
         end
 
         -- Only update if dirty flag set or burst timer active or any glows are running
-        if _needsStateUpdate or _burstTimer > 0 then
+        if _needsLayoutUpdate then
+            _needsLayoutUpdate = false
+            _needsStateUpdate = false
+            sfui.trackedicons.Update()
+        elseif _needsStateUpdate or _burstTimer > 0 then
             _needsStateUpdate = false
             UpdateAllIconStates()
         else

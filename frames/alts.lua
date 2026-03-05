@@ -29,7 +29,7 @@ local CURRENCIES = {
     { id = 3341, label = "Veteran",    icon = 7639525 }, -- Veteran Dawncrest
     { id = 3343, label = "Champ",      icon = 7639519 }, -- Champion Dawncrest
     { id = 3345, label = "Hero",       icon = 7639521 }, -- Hero Dawncrest
-    { id = 3347, label = "Gilded",     icon = 7639523 }, -- Gilded Dawncrest
+    { id = 3347, label = "Myth",       icon = 7639523 }, -- Gilded Dawncrest
     { id = 3212, label = "Spark",      icon = 7551418 }, -- Spark of Fortune
     { id = 3378, label = "Catalyst",   icon = 4622294 }, -- Catalyst Charges
 }
@@ -224,21 +224,20 @@ function sfui.alts.PerformSync()
             if overtimeInfo and overtimeInfo.level > bestLevel then bestLevel = overtimeInfo.level end
 
             data.dungeons[mID] = { level = bestLevel }
-
-            local name = C_ChallengeMode.GetMapUIInfo(mID)
-            if name then
-                seasonDungeonNames[name] = mID
-            end
         end
     end
 
-    -- Populate M0 defaults based on override
-    for _, mID in ipairs(m0Maps) do
-        local name = C_ChallengeMode.GetMapUIInfo(mID)
-        if name then
-            seasonDungeonNames[name] = mID
-            data.m0[mID] = false -- Default available
-        end
+    -- Cross-reference current expansion M0s using Encounter Journal
+    local currentTier = EJ_GetCurrentTier()
+    EJ_SelectTier(currentTier)
+    local ejNames = {}
+    local index = 1
+    while true do
+        local instanceID, name = EJ_GetInstanceByIndex(index, false)
+        if not instanceID then break end
+        ejNames[name] = instanceID
+        data.m0[instanceID] = false -- Default available
+        index = index + 1
     end
 
     -- M0 Lockouts
@@ -246,9 +245,9 @@ function sfui.alts.PerformSync()
     for i = 1, numSaved do
         local name, _, _, difficulty, locked, _, _, isRaid = GetSavedInstanceInfo(i)
         if difficulty == 23 and locked and not isRaid then
-            local mapID = seasonDungeonNames[name]
-            if mapID then
-                data.m0[mapID] = true
+            local instanceID = ejNames[name]
+            if instanceID then
+                data.m0[instanceID] = true
             end
         end
     end
@@ -308,7 +307,10 @@ function sfui.alts.PerformSync()
                 data.currencies[currencyDef.id] = {
                     val = info.quantity,
                     earned = info.quantityEarnedThisWeek,
-                    max = info.maxWeeklyQuantity
+                    max = info.maxWeeklyQuantity,
+                    maxQuantity = info.maxQuantity,
+                    totalEarned = info.totalEarned,
+                    useTotalEarned = info.useTotalEarnedForMaxQty
                 }
             end
         end
@@ -412,6 +414,7 @@ function sfui.alts.CreateFrame()
     if frame then return frame end
 
     frame = CreateFrame("Frame", "SfuiAltsFrame", UIParent, "BackdropTemplate")
+    frame:SetFrameStrata("DIALOG")
     frame:SetSize(cfg.width, cfg.height)
     frame:SetPoint("CENTER")
     frame:SetMovable(true)
@@ -724,7 +727,20 @@ function sfui.alts.UpdateUI(force)
                 text:SetText(string.format("|T%d:12:12:0:0|t %s", cat.icon, displayVal))
 
                 -- Check weekly cap
-                if cData and type(cData) == "table" and cData.max and cData.max > 0 and cData.earned >= cData.max then
+                local isCapped = false
+                if cData and type(cData) == "table" then
+                    if cData.max and cData.max > 0 and cData.earned and cData.earned >= cData.max then
+                        isCapped = true
+                    elseif cData.maxQuantity and cData.maxQuantity > 0 then
+                        if cData.useTotalEarned and cData.totalEarned and cData.totalEarned >= cData.maxQuantity then
+                            isCapped = true
+                        elseif not cData.useTotalEarned and cData.val and cData.val >= cData.maxQuantity then
+                            isCapped = true
+                        end
+                    end
+                end
+
+                if isCapped then
                     text:SetTextColor(1, 0, 0) -- Red when maxed
                 else
                     text:SetTextColor(1, 1, 1) -- White
@@ -738,12 +754,18 @@ function sfui.alts.UpdateUI(force)
                     else
                         GameTooltip:SetCurrencyByID(cat.id)
                         -- Add weekly progress info
-                        if cData and type(cData) == "table" and cData.max and cData.max > 0 then
+                        if cData and type(cData) == "table" then
                             GameTooltip:AddLine(" ")
-                            GameTooltip:AddDoubleLine("Weekly Earned:", string.format("%d / %d", cData.earned, cData.max),
-                                1, 1, 1, 1, 1, 1)
-                            if cData.earned >= cData.max then
-                                GameTooltip:AddLine("Weekly cap reached!", 1, 0, 0)
+                            if cData.max and cData.max > 0 then
+                                GameTooltip:AddDoubleLine("Weekly Earned:",
+                                    string.format("%d / %d", cData.earned or 0, cData.max), 1, 1, 1, 1, 1, 1)
+                            elseif cData.maxQuantity and cData.maxQuantity > 0 then
+                                local currentAmount = cData.useTotalEarned and cData.totalEarned or cData.val
+                                GameTooltip:AddDoubleLine("Season Earned:",
+                                    string.format("%d / %d", currentAmount or 0, cData.maxQuantity), 1, 1, 1, 1, 1, 1)
+                            end
+                            if isCapped then
+                                GameTooltip:AddLine("Season/Weekly cap reached!", 1, 0, 0)
                             end
                         end
                     end
@@ -790,19 +812,30 @@ function sfui.alts.UpdateUI(force)
             elseif cat.type == "m0_grid" then
                 text:Hide()
                 local m0Data = alt.data.m0
-                local maps = C_ChallengeMode.GetMapTable()
-                maps = { 557, 558, 559, 560, 561, 562, 563, 564 } -- MIDNIGHT S1 PRESEASON OVERRIDE
-                local numDungeons = maps and #maps or 8
+
+                -- Dynamic Encounter Journal query for M0s
+                local currentTier = EJ_GetCurrentTier()
+                EJ_SelectTier(currentTier)
+                local ejInstances = {}
+                local index = 1
+                while true do
+                    local instanceID, name = EJ_GetInstanceByIndex(index, false)
+                    if not instanceID then break end
+                    table.insert(ejInstances, { id = instanceID, name = name })
+                    index = index + 1
+                end
+
+                local numDungeons = #ejInstances > 0 and #ejInstances or 8
                 local squareSize = (cfg.columnWidth - 10) / numDungeons
 
-                for bIdx, mapID in ipairs(maps or {}) do
+                for bIdx, inst in ipairs(ejInstances) do
                     local rect = cell["m0Rect" .. bIdx] or cell:CreateTexture(nil, "ARTWORK")
                     cell["m0Rect" .. bIdx] = rect
                     rect:Show()
                     rect:SetSize(squareSize - 2, cfg.rowHeight - 12)
                     rect:SetPoint("LEFT", (bIdx - 1) * squareSize + 5, 0)
 
-                    if m0Data and m0Data[mapID] then
+                    if m0Data and m0Data[inst.id] then
                         rect:SetColorTexture(0, 1, 1, 0.8) -- #00ffff completed
                     else
                         rect:SetColorTexture(0, 0, 0, 0.5) -- black (available)
@@ -812,13 +845,10 @@ function sfui.alts.UpdateUI(force)
                 cell:SetScript("OnEnter", function(self)
                     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                     GameTooltip:SetText("Mythic 0 Lockouts")
-                    if maps then
-                        for _, mID in ipairs(maps) do
-                            local name = C_ChallengeMode.GetMapUIInfo(mID) or "Unknown Dungeon"
-                            local isLocked = m0Data and m0Data[mID]
-                            local status = isLocked and "|cff00ffffCompleted|r" or "|cff888888Available|r"
-                            GameTooltip:AddDoubleLine(name, status, 1, 1, 1, 1, 1, 1)
-                        end
+                    for _, inst in ipairs(ejInstances) do
+                        local isLocked = m0Data and m0Data[inst.id]
+                        local status = isLocked and "|cff00ffffCompleted|r" or "|cff888888Available|r"
+                        GameTooltip:AddDoubleLine(inst.name, status, 1, 1, 1, 1, 1, 1)
                     end
                     GameTooltip:Show()
                 end)
