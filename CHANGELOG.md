@@ -4,6 +4,7 @@
 - **Dynamic Mythic 0 Tracking**: Replaced hardcoded dungeon grids with dynamic Encounter Journal querying for current expansion dungeons.
 - **Seasonal Crest Caps**: Added tracking for seasonal maximum quantities and "Myth" crest renaming.
 - **Alts UI Priority**: Set Alts tracker frame to `DIALOG` strata for visibility over all other UI elements.
+- **Improved Key Coloring**: Mythic+ keys level 12 and higher are now highlighted in **Orange** for better visibility in the Alts tracker.
 
 ### Optimizations
 - **Throttled Layout Rebuilds**: Deferred expensive `trackedicons.lua` layout updates to a 0.1s ticker to prevent combat hitching.

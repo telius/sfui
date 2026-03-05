@@ -648,7 +648,9 @@ function sfui.alts.UpdateUI(force)
                 if alt.data.keystone then
                     text:SetText(string.format("%d", alt.data.keystone.level))
                     local color = C_ChallengeMode.GetKeystoneLevelRarityColor(alt.data.keystone.level)
-                    if color then
+                    if alt.data.keystone.level >= 12 then
+                        text:SetTextColor(1, 0.5, 0) -- Orange for 12+
+                    elseif color then
                         text:SetTextColor(color.r, color.g, color.b)
                     else
                         text:SetTextColor(1, 1, 1)
@@ -708,7 +710,9 @@ function sfui.alts.UpdateUI(force)
                 if best and best.level > 0 then
                     text:SetText(tostring(best.level))
                     local color = C_ChallengeMode.GetKeystoneLevelRarityColor(best.level)
-                    if color then
+                    if best.level >= 12 then
+                        text:SetTextColor(1, 0.5, 0) -- Orange for 12+
+                    elseif color then
                         text:SetTextColor(color.r, color.g, color.b)
                     end
                 else
