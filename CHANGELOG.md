@@ -1,3 +1,14 @@
+## v0.3.4 (2026-03-05)
+
+### Features
+- **Dynamic Mythic 0 Tracking**: Replaced hardcoded dungeon grids with dynamic Encounter Journal querying for current expansion dungeons.
+- **Seasonal Crest Caps**: Added tracking for seasonal maximum quantities and "Myth" crest renaming.
+- **Alts UI Priority**: Set Alts tracker frame to `DIALOG` strata for visibility over all other UI elements.
+
+### Optimizations
+- **Throttled Layout Rebuilds**: Deferred expensive `trackedicons.lua` layout updates to a 0.1s ticker to prevent combat hitching.
+- **OnUpdate Cleanup**: Removed redundant per-frame logic in `castbar.lua` and `cdm.lua` when idle.
+
 ## v0.3.3b (2026-03-02)
 
 ### Features
