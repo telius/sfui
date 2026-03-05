@@ -385,6 +385,13 @@ function ButtonManager:arrange_buttons()
         SfuiDB.minimap_button_order = {}
     end
 
+    local orderCache = {}
+    if #SfuiDB.minimap_button_order > 0 then
+        for i, name in ipairs(SfuiDB.minimap_button_order) do
+            orderCache[name] = i
+        end
+    end
+
     table_sort(self.collectedButtons, function(a, b)
         local aName = a:GetName() or ""
         local bName = b:GetName() or ""
@@ -393,12 +400,8 @@ function ButtonManager:arrange_buttons()
         if bName == "LibDBIcon_sfui" then return true end
 
         if #SfuiDB.minimap_button_order > 0 then
-            local order = {}
-            for i, name in ipairs(SfuiDB.minimap_button_order) do
-                order[name] = i
-            end
-            local aOrder = order[aName] or 999
-            local bOrder = order[bName] or 999
+            local aOrder = orderCache[aName] or 999
+            local bOrder = orderCache[bName] or 999
             if aOrder == bOrder then
                 return aName < bName
             else

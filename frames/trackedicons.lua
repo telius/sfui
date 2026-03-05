@@ -11,6 +11,7 @@ local UIParent = UIParent
 local hooksecurefunc = hooksecurefunc
 local C_Timer = C_Timer
 local IsMounted = IsMounted
+local wipe = wipe
 local pairs = pairs
 local ipairs = ipairs
 local tinsert = table.insert
@@ -395,12 +396,17 @@ local function UpdateIconGlow(icon, entrySettings, panelConfig, isReady)
     end
 end
 
+local _cdInfoCache = {}
+
 local function SafeGetCooldownViewerCooldownInfo(id)
     if not id or not C_CooldownViewer or not C_CooldownViewer.GetCooldownViewerCooldownInfo then return nil end
     local cid = tonumber(id)
     if cid and cid >= -2147483648 and cid <= 2147483647 then
-        local ok, info = pcall(C_CooldownViewer.GetCooldownViewerCooldownInfo, cid)
-        if ok then return info end
+        if _cdInfoCache[cid] == nil then
+            local ok, info = pcall(C_CooldownViewer.GetCooldownViewerCooldownInfo, cid)
+            _cdInfoCache[cid] = ok and info or false
+        end
+        return _cdInfoCache[cid] or nil
     end
     return nil
 end
@@ -1424,9 +1430,11 @@ function sfui.trackedicons.initialize()
         if _needsLayoutUpdate then
             _needsLayoutUpdate = false
             _needsStateUpdate = false
+            wipe(_cdInfoCache)
             sfui.trackedicons.Update()
         elseif _needsStateUpdate or _burstTimer > 0 then
             _needsStateUpdate = false
+            wipe(_cdInfoCache)
             UpdateAllIconStates()
         else
             -- Even when idle, check icons with active glows for timeout

@@ -246,44 +246,47 @@ end
 function sfui.prey.HandleWidget(widgetID)
     if not widgetID then return end
 
-    pcall(function()
-        local widgetInfo = GetPreyHuntProgressWidgetVisualizationInfo(widgetID)
-        if widgetInfo then
-            -- Update color state securely
-            if widgetInfo.progressState ~= nil then
-                widgetCache.color = stateColors[widgetInfo.progressState]
-                widgetCache.progressState = widgetInfo.progressState
-            end
+    pcall(sfui.prey._HandleWidgetImpl, widgetID)
+end
 
-            -- Capture title/tooltip if present
-            local text = widgetInfo.tooltip or widgetInfo.text or widgetInfo.title
+-- Named pcall target to avoid anonymous closure allocation per-event
+function sfui.prey._HandleWidgetImpl(widgetID)
+    local widgetInfo = GetPreyHuntProgressWidgetVisualizationInfo(widgetID)
+    if widgetInfo then
+        -- Update color state securely
+        if widgetInfo.progressState ~= nil then
+            widgetCache.color = stateColors[widgetInfo.progressState]
+            widgetCache.progressState = widgetInfo.progressState
+        end
+
+        -- Capture title/tooltip if present
+        local text = widgetInfo.tooltip or widgetInfo.text or widgetInfo.title
+        if text and text ~= "" and not issecretvalue(text) then
+            widgetCache.title = CropToFirstLine(text)
+        end
+        -- Capture progress only if present, preserving existing
+        local newProg = widgetInfo.barValue or widgetInfo.fillValue or widgetInfo.curValue
+        if newProg ~= nil then
+            widgetCache.progress = newProg
+        end
+    else
+        local barInfo = GetStatusBarWidgetVisualizationInfo(widgetID)
+        if barInfo then
+            local text = barInfo.tooltip or barInfo.text or ""
+            -- Broaden search to support "Mordril Shadowfell" etc if we have an active hunt
+            local hasHunt = GetActivePreyQuest() ~= nil
             if text and text ~= "" and not issecretvalue(text) then
-                widgetCache.title = CropToFirstLine(text)
-            end
-            -- Capture progress only if present, preserving existing
-            local newProg = widgetInfo.barValue or widgetInfo.fillValue or widgetInfo.curValue
-            if newProg ~= nil then
-                widgetCache.progress = newProg
-            end
-        else
-            local barInfo = GetStatusBarWidgetVisualizationInfo(widgetID)
-            if barInfo then
-                local text = barInfo.tooltip or barInfo.text or ""
-                -- Broaden search to support "Mordril Shadowfell" etc if we have an active hunt
-                local hasHunt = GetActivePreyQuest() ~= nil
-                if text and text ~= "" and not issecretvalue(text) then
-                    local lowerText = lower(text)
-                    if find(lowerText, "prey") or find(lowerText, "revealed") or (hasHunt) then
-                        widgetCache.title = CropToFirstLine(text)
-                        local newProg = barInfo.barValue or barInfo.curValue
-                        if newProg ~= nil then
-                            widgetCache.progress = newProg
-                        end
+                local lowerText = lower(text)
+                if find(lowerText, "prey") or find(lowerText, "revealed") or (hasHunt) then
+                    widgetCache.title = CropToFirstLine(text)
+                    local newProg = barInfo.barValue or barInfo.curValue
+                    if newProg ~= nil then
+                        widgetCache.progress = newProg
                     end
                 end
             end
         end
-    end)
+    end
 end
 
 local event_frame = CreateFrame("Frame")
@@ -293,7 +296,8 @@ event_frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 event_frame:RegisterEvent("QUEST_ACCEPTED")
 event_frame:RegisterEvent("QUEST_REMOVED")
 event_frame:RegisterEvent("QUEST_LOG_UPDATE")
-local lastQuestUpdate = 0
+local _lastQuestUpdateTime = 0
+local _QUEST_UPDATE_THROTTLE = 1.0 -- seconds
 -- The magic event for API-only low CPU tracking
 event_frame:RegisterEvent("UPDATE_UI_WIDGET")
 
@@ -342,9 +346,14 @@ event_frame:SetScript("OnEvent", function(self, event, payload)
         -- UpdatePreyBar when GetActivePreyQuest() changes or drops to nil.
         sfui.prey.UpdatePreyBar(preyBar)
     elseif event == "QUEST_LOG_UPDATE" then
-        -- Salt the objectives cache on Quest Log Update
-        widgetCache.lastObjectives = nil
-        if preyBar then sfui.prey.UpdatePreyBar(preyBar) end
+        -- Debounced: QUEST_LOG_UPDATE fires constantly while idle.
+        -- Only process at most once per second to avoid continuous UpdatePreyBar calls.
+        local now = GetTime()
+        if now - _lastQuestUpdateTime >= _QUEST_UPDATE_THROTTLE then
+            _lastQuestUpdateTime = now
+            widgetCache.lastObjectives = nil -- Salt objectives cache
+            if preyBar then sfui.prey.UpdatePreyBar(preyBar) end
+        end
     elseif preyBar then
         sfui.prey.UpdatePreyBar(preyBar)
     end

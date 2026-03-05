@@ -461,7 +461,9 @@ function sfui.merchant.update_currency_display(frame)
     local container = frame.currencyContainer
     container:Show()
 
-    local activeDisplays = {}
+    frame._activeCurrencyDisplays = frame._activeCurrencyDisplays or {}
+    local activeDisplays = frame._activeCurrencyDisplays
+    wipe(activeDisplays)
     local totalWidth = 0
 
     for i, item in ipairs(sortedCurrencyItems) do

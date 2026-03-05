@@ -2129,16 +2129,28 @@ function sfui.common.create_dropdown(parent, width, options, onSelectFunc, initi
     local function fillOptions()
         local currentOptions = (type(options) == "function") and options() or options
         local y = -5
-        for _, opt in ipairs(currentOptions) do
-            local optBtn = CreateFrame("Button", nil, menu)
+
+        menu.buttons = menu.buttons or {}
+        for _, optBtn in ipairs(menu.buttons) do
+            optBtn:Hide()
+        end
+
+        for i, opt in ipairs(currentOptions) do
+            local optBtn = menu.buttons[i]
+            if not optBtn then
+                optBtn = CreateFrame("Button", nil, menu)
+                menu.buttons[i] = optBtn
+                optBtn.textString = optBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                optBtn.textString:SetPoint("LEFT", 5, 0)
+            end
+
             optBtn:SetSize(menu:GetWidth() - 10, 20)
             optBtn:SetPoint("TOPLEFT", 5, y)
 
             if opt.onRender then
                 opt.onRender(optBtn, opt)
             else
-                local t = optBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-                t:SetPoint("LEFT", 5, 0)
+                local t = optBtn.textString
                 t:SetText(opt.text)
 
                 optBtn:SetScript("OnEnter", function(self) t:SetTextColor(0, 1, 1) end)
@@ -2156,6 +2168,7 @@ function sfui.common.create_dropdown(parent, width, options, onSelectFunc, initi
                     end
                 end)
             end
+            optBtn:Show()
             y = y - 20
         end
     end
@@ -2167,11 +2180,6 @@ function sfui.common.create_dropdown(parent, width, options, onSelectFunc, initi
         else
             if activeDropdown then activeDropdown:Hide() end
             updateMenuSize()
-            -- Clear old children if options changed
-            local kids = { menu:GetChildren() }
-            for _, k in ipairs(kids) do
-                k:Hide(); k:SetParent(nil)
-            end
             fillOptions()
             menu:Show()
             activeDropdown = menu

@@ -1052,9 +1052,13 @@ function sfui.trackedbars.initialize()
 
     -- Hook into bars state for attachment updates
     if sfui.bars then
+        local _pendingLayoutTimer = false
         hooksecurefunc(sfui.bars, "on_state_changed", function()
+            if _pendingLayoutTimer then return end
+            _pendingLayoutTimer = true
             -- Delay slightly to ensure bars have hidden/shown
             C_Timer.After(0.05, function()
+                _pendingLayoutTimer = false
                 if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
                     sfui.trackedbars.ForceLayoutUpdate()
                 end

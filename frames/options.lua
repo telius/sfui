@@ -326,6 +326,7 @@ function sfui.create_options_panel()
 
 
     local use_spec_color_cb = create_checkbox(main_panel, "use spec color", "useSpecColor", function(checked)
+        if sfui.common.invalidate_spec_color_cache then sfui.common.invalidate_spec_color_cache() end
         -- This is a global setting that other modules can poll
         if sfui.bars and sfui.bars.update_settings then sfui.bars.update_settings() end
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
@@ -339,6 +340,7 @@ function sfui.create_options_panel()
     local fallback_swatch = sfui.common.create_color_swatch(main_panel, SfuiDB.specColorFallback or { 1, 1, 1, 1 },
         function(r, g, b)
             SfuiDB.specColorFallback = { r, g, b, 1 }
+            if sfui.common.invalidate_spec_color_cache then sfui.common.invalidate_spec_color_cache() end
             if sfui.bars and sfui.bars.update_settings then sfui.bars.update_settings() end
             if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
         end)
