@@ -194,15 +194,15 @@ end
 function sfui.common.SafeSetTooltipMoney(tooltip, amount, label)
     if not tooltip or amount == nil then return end
 
-    -- If we have a label, add it as a separate line first
-    if label then tooltip:AddLine(label) end
+    -- Use securecall to get a safe coin string.
+    -- Constructing the tooltip line manually with strings avoids triggering
+    -- arithmetic in the MoneyFrame widget during GameTooltip:Show().
+    local coinStr = sfui.common.SafeGetCoinTextureString(amount)
 
-    -- Use securecall to invoke SetTooltipMoney. This bypasses the arithmetic trap
-    -- for "secret" values by running in a secure context.
-    local ok = securecall(pcall, SetTooltipMoney, tooltip, amount)
-    if not ok then
-        -- Fallback if SetTooltipMoney itself fails even in secure context
-        tooltip:AddLine("|cff00ffff[Protected Data]|r")
+    if label then
+        tooltip:AddDoubleLine(label, coinStr, 1, 1, 1, 1, 1, 1)
+    else
+        tooltip:AddLine(coinStr)
     end
 end
 

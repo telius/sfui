@@ -113,8 +113,8 @@ local hammerCache = {
 }
 
 function sfui.automation.has_repair_hammer()
-    -- If we've already found a hammer this session, just return it
-    if hammerCache.checked and hammerCache.found then
+    -- If we've already checked this session (or since last BAG_UPDATE), return cached result
+    if hammerCache.checked then
         return hammerCache.found, hammerCache.name, hammerCache.icon, hammerCache.itemID, hammerCache.expacID
     end
 
@@ -131,10 +131,10 @@ function sfui.automation.has_repair_hammer()
             local info = C_Container.GetContainerItemInfo(bag, slot)
             if info and info.hyperlink then
                 local itemID = C_Item.GetItemInfoInstant(info.hyperlink)
-                local name, _, _, _, _, _, _, _, _, icon, _, _, _, _, expacID = C_Item.GetItemInfo(info.hyperlink)
 
-                -- Fast check against known IDs first to avoid string matching if possible
-                if sfui.config.masterHammer[itemID] then
+                -- Fast check against known IDs first to avoid expensive GetItemInfo calls
+                if itemID and sfui.config.masterHammer[itemID] then
+                    local name, _, _, _, _, _, _, _, _, icon, _, _, _, _, expacID = C_Item.GetItemInfo(info.hyperlink)
                     hammerCache.found = true
                     hammerCache.name = name
                     hammerCache.icon = icon
@@ -145,7 +145,10 @@ function sfui.automation.has_repair_hammer()
                 end
 
                 -- Fallback for older/unknown hammers (matches "Master's Hammer")
+                -- We only do this if it's NOT a known ID but might be a hammer string match
+                local name = C_Item.GetItemNameByID(info.hyperlink)
                 if name and name:find("Master.s Hammer") then
+                    local _, _, _, _, _, _, _, _, _, icon, _, _, _, _, expacID = C_Item.GetItemInfo(info.hyperlink)
                     hammerCache.found = true
                     hammerCache.name = name
                     hammerCache.icon = icon
@@ -513,4 +516,12 @@ end
 
 sfui.events.RegisterEvent("UPDATE_INVENTORY_DURABILITY", refreshHammer)
 sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", refreshHammer)
-sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", refreshHammer)
+
+sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", function(itemID, success)
+    if not success or not itemID then return end
+
+    -- Only refresh if the received item is a known Master's Hammer
+    if sfui.config.masterHammer[itemID] then
+        refreshHammer()
+    end
+end)

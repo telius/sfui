@@ -156,6 +156,7 @@ sfui.merchant.totalMerchantItems = 0
 
 function sfui.merchant.reset_scroll_and_rebuild()
     sfui.merchant.scrollOffset = 0
+    wipe(sfui.merchant.lockCache)
     if frame.scrollBar then
         frame.scrollBar:SetValue(0)
     end
@@ -748,6 +749,7 @@ end)
 sfui.merchant.filteredIndices = {}
 
 sfui.merchant.currencyCache = {}
+sfui.merchant.lockCache = {} -- Persistent cache for lock reasons
 sfui.merchant.decorCachePopulated = false
 
 sfui.merchant.populate_decor_cache = function()
@@ -1021,26 +1023,37 @@ sfui.merchant.update_merchant = function()
                 end
                 btn.price:SetText(cost); btn.count:SetText(data.stackCount > 1 and data.stackCount or "")
 
-                local locked, reason = not data.isUsable, "Unusable"
-                local tip = C_TooltipInfo.GetMerchantItem(index)
-                if tip and tip.lines then
-                    local reasons = getTable()
-                    for _, line in ipairs(tip.lines) do
-                        local clr = line.leftColor
-                        if clr and clr.r > 0.9 and clr.g < 0.2 and clr.b < 0.2 and line.leftText then
-                            local text = line.leftText
-                            if not text:find("Already known") then
-                                text = text:gsub("Requires", "R"):gsub("Rank ", ""):gsub("Defeat ", ""):gsub(
-                                    "Reputation ", "");
-                                table.insert(reasons, text)
-                                locked = true
+                local id = get_item_id(data.link)
+                local locked, reason
+                local cachedLock = id and sfui.merchant.lockCache[id]
+
+                if cachedLock then
+                    locked, reason = cachedLock.locked, cachedLock.reason
+                else
+                    locked, reason = not data.isUsable, "Unusable"
+                    local tip = C_TooltipInfo.GetMerchantItem(index)
+                    if tip and tip.lines then
+                        local reasons = getTable()
+                        for _, line in ipairs(tip.lines) do
+                            local clr = line.leftColor
+                            if clr and clr.r > 0.9 and clr.g < 0.2 and clr.b < 0.2 and line.leftText then
+                                local text = line.leftText
+                                if not text:find("Already known") then
+                                    text = text:gsub("Requires", "R"):gsub("Rank ", ""):gsub("Defeat ", ""):gsub(
+                                        "Reputation ", "");
+                                    table.insert(reasons, text)
+                                    locked = true
+                                end
                             end
                         end
+                        if #reasons > 0 then
+                            reason = table.concat(reasons, ", ")
+                        end
+                        releaseTable(reasons)
                     end
-                    if #reasons > 0 then
-                        reason = table.concat(reasons, ", ")
+                    if id then
+                        sfui.merchant.lockCache[id] = { locked = locked, reason = reason }
                     end
-                    releaseTable(reasons)
                 end
 
                 if locked then
@@ -1116,6 +1129,7 @@ frame:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_ENTERING_WORLD" then
         C_Timer.After(2, function() sfui.merchant.populate_decor_cache() end)
     elseif event == "MERCHANT_SHOW" then
+        wipe(sfui.merchant.lockCache)
         update_header()
         sfui.merchant.reset_scroll_and_rebuild()
         if not SfuiDB.enableMerchant then return end
@@ -1134,6 +1148,7 @@ frame:SetScript("OnEvent", function(self, event, ...)
             end)
         end
     elseif event == "MERCHANT_CLOSED" then
+        wipe(sfui.merchant.lockCache)
         isSystemClose = true
         self:Hide()
         isSystemClose = false
@@ -1145,6 +1160,22 @@ frame:SetScript("OnEvent", function(self, event, ...)
         end
     elseif event == "MERCHANT_UPDATE" or event == "GET_ITEM_INFO_RECEIVED"
         or event == "HOUSING_STORAGE_UPDATED" or event == "HOUSING_STORAGE_ENTRY_UPDATED" then
+        if event == "GET_ITEM_INFO_RECEIVED" then
+            local itemID, success = ...
+            if not success or not itemID then return end
+
+            -- Only rebuild if the item is actually in the merchant's current stock
+            local found = false
+            for i = 1, GetMerchantNumItems() do
+                local link = GetMerchantItemLink(i)
+                if link and get_item_id(link) == itemID then
+                    found = true
+                    break
+                end
+            end
+            if not found then return end
+        end
+
         if self:IsShown() then
             if not self.updatePending then
                 self.updatePending = true

@@ -472,7 +472,7 @@ sfui.config = {
         -- Grid layout
         grid = {
             rows = 10,
-            cols = 2,
+            cols = 3,
             item_width = 190,
             item_height = 45,
             spacing_x = 195,
@@ -482,7 +482,7 @@ sfui.config = {
         },
         -- Frame dimensions
         frame = {
-            width = 425,  -- 2 cols * 195 + padding
+            width = 615,  -- 3 cols * 195 + padding
             height = 620, -- 10 rows * 50 + header/footer
         },
         -- Utility bar
