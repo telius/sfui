@@ -24,17 +24,17 @@ local C_Timer = C_Timer
 
 -- Professional Weekly KP Sources (TWW & Midnight Combined)
 local PROF_KP_SOURCES = {
-    [171] = { treatise = { 95127, 83725 }, quest = { 93690, 84133 }, treasures = { { 93528, 83253 }, { 93529, 83255 } } },                                                                                                                         -- Alchemy
-    [164] = { treatise = { 95128, 83726 }, quest = { 93691, 84127 }, treasures = { { 93530, 83256 }, { 93531, 83257 } } },                                                                                                                         -- Blacksmithing
-    [333] = { treatise = { 95129, 83727 }, quest = { 93699, 93698, 93697, 84084, 84085, 84086 }, treasures = { { 95048, 95049, 95050, 95051, 95052, 84290, 84291, 84292, 84293, 84294 }, { 95053, 84295 }, { 93532, 83258 }, { 93533, 83259 } } }, -- Enchanting
-    [202] = { treatise = { 95138, 83728 }, quest = { 93692, 84128 }, treasures = { { 93534, 83260 }, { 93535, 83261 } } },                                                                                                                         -- Engineering
-    [182] = { treatise = { 95130, 83729 }, quest = { 93700, 93701, 93702, 93703, 93704, 82970, 82958, 82965, 82916, 82962 }, treasures = { { 81425, 81426, 81427, 81428, 81429, 81416, 81417, 81418, 81419, 81420 }, { 81430, 81421 } } },         -- Herbalism
-    [773] = { treatise = { 95131, 83730 }, quest = { 93693, 84129 }, treasures = { { 93536, 83262 }, { 93537, 83264 } } },                                                                                                                         -- Inscription
-    [755] = { treatise = { 95133, 83731 }, quest = { 93694, 84130 }, treasures = { { 93539, 83265 }, { 93538, 83266 } } },                                                                                                                         -- Jewelcrafting
-    [165] = { treatise = { 95134, 83732 }, quest = { 93695, 84131 }, treasures = { { 93540, 83267 }, { 93541, 83268 } } },                                                                                                                         -- Leatherworking
-    [186] = { treatise = { 95135, 83733 }, quest = { 93705, 93706, 93707, 93708, 93709, 83104, 83105, 83103, 83106, 83102 }, treasures = { { 88673, 88674, 88675, 88676, 88677, 83050, 83051, 83052, 83053, 83054 }, { 88678, 83049 } } },         -- Mining
-    [393] = { treatise = { 95136, 83734 }, quest = { 93710, 93711, 93712, 93713, 93714, 83097, 83098, 83100, 82992, 82993 }, treasures = { { 88534, 88549, 88536, 88537, 88530, 81459, 81460, 81461, 81462, 81463 }, { 88529, 81464 } } },         -- Skinning
-    [197] = { treatise = { 95137, 83735 }, quest = { 93696, 84132 }, treasures = { { 93542, 83269 }, { 93543, 83270 } } },                                                                                                                         -- Tailoring
+    [171] = { treatise = { 95127 }, quest = { 93690 }, treasures = { { 93528 }, { 93529 } }, catchup = 3189 },                                                                 -- Alchemy
+    [164] = { treatise = { 95128 }, quest = { 93691 }, treasures = { { 93530 }, { 93531 } }, catchup = 3199 },                                                                 -- Blacksmithing
+    [333] = { treatise = { 95129 }, quest = { 93699, 93698, 93697 }, treasures = { { 95048, 95049, 95050, 95051, 95052 }, { 95053 }, { 93532 }, { 93533 } }, catchup = 3198 }, -- Enchanting
+    [202] = { treatise = { 95138 }, quest = { 93692 }, treasures = { { 93534 }, { 93535 } }, catchup = 3197 },                                                                 -- Engineering
+    [182] = { treatise = { 95130 }, quest = { 93700, 93701, 93702, 93703, 93704 }, treasures = { { 81425, 81426, 81427, 81428, 81429 }, { 81430 } }, catchup = 3196 },         -- Herbalism
+    [773] = { treatise = { 95131 }, quest = { 93693 }, treasures = { { 93536 }, { 93537 } }, catchup = 3195 },                                                                 -- Inscription
+    [755] = { treatise = { 95133 }, quest = { 93694 }, treasures = { { 93539 }, { 93538 } }, catchup = 3194 },                                                                 -- Jewelcrafting
+    [165] = { treatise = { 95134 }, quest = { 93695 }, treasures = { { 93540 }, { 93541 } }, catchup = 3193 },                                                                 -- Leatherworking
+    [186] = { treatise = { 95135 }, quest = { 93705, 93706, 93707, 93708, 93709 }, treasures = { { 88673, 88674, 88675, 88676, 88677 }, { 88678 } }, catchup = 3192 },         -- Mining
+    [393] = { treatise = { 95136 }, quest = { 93710, 93711, 93712, 93713, 93714 }, treasures = { { 88534, 88549, 88536, 88537, 88530 }, { 88529 } }, catchup = 3191 },         -- Skinning
+    [197] = { treatise = { 95137 }, quest = { 93696 }, treasures = { { 93542 }, { 93543 } }, catchup = 3190 },                                                                 -- Tailoring
 }
 
 -- Configuration & Data Tables
@@ -214,6 +214,22 @@ function sfui.alts.SyncCurrentCharacter()
     end)
 end
 
+local ejInstanceCache = nil
+local function GetEJInstanceCache()
+    if ejInstanceCache then return ejInstanceCache end
+    ejInstanceCache = {}
+    local currentTier = EJ_GetCurrentTier()
+    EJ_SelectTier(currentTier)
+    local index = 1
+    while true do
+        local instanceID, name = EJ_GetInstanceByIndex(index, false)
+        if not instanceID then break end
+        ejInstanceCache[name] = instanceID
+        index = index + 1
+    end
+    return ejInstanceCache
+end
+
 function sfui.alts.PerformSync()
     sfui.alts.RefreshDynamicCategories()
     local guid = GetCurrentCharacterGUID()
@@ -269,24 +285,16 @@ function sfui.alts.PerformSync()
     end
 
     -- Cross-reference current expansion M0s using Encounter Journal
-    local currentTier = EJ_GetCurrentTier()
-    EJ_SelectTier(currentTier)
-    local ejNames = {}
-    local index = 1
-    while true do
-        local instanceID, name = EJ_GetInstanceByIndex(index, false)
-        if not instanceID then break end
-        ejNames[name] = instanceID
+    local instanceCache = GetEJInstanceCache()
+    for name, instanceID in pairs(instanceCache) do
         data.m0[instanceID] = false -- Default available
-        index = index + 1
     end
 
-    -- M0 Lockouts
     local numSaved = GetNumSavedInstances()
     for i = 1, numSaved do
         local name, _, _, difficulty, locked, _, _, isRaid = GetSavedInstanceInfo(i)
         if difficulty == 23 and locked and not isRaid then
-            local instanceID = ejNames[name]
+            local instanceID = instanceCache[name]
             if instanceID then
                 data.m0[instanceID] = true
             end
@@ -441,7 +449,7 @@ function sfui.alts.PerformSync()
             GetProfessionInfo(pIndex)
         local tracking = PROF_KP_SOURCES[skillLine]
         if tracking then
-            local pData = { name = name, icon = icon, skill = skillLevel, done = 0, total = 0, details = { treatise = false, quest = false, treasures = 0, treasuresMax = #tracking.treasures } }
+            local pData = { name = name, icon = icon, skill = skillLevel, done = 0, total = 0, catchUp = 0, details = { treatise = false, quest = false, treasures = 0, treasuresMax = #tracking.treasures } }
 
             pData.total = pData.total + 1
             for _, qid in ipairs(tracking.treatise) do
@@ -468,6 +476,18 @@ function sfui.alts.PerformSync()
                         pData.done = pData.done + 1
                         pData.details.treasures = pData.details.treasures + 1
                         break
+                    end
+                end
+            end
+
+
+            -- Catchup tracking (Midnight Only)
+            if tracking.catchup then
+                local currencyInfo = C_CurrencyInfo.GetCurrencyInfo(tracking.catchup)
+                if currencyInfo and currencyInfo.maxQuantity and currencyInfo.quantity then
+                    local remaining = currencyInfo.maxQuantity - currencyInfo.quantity
+                    if remaining > 0 then
+                        pData.catchUp = pData.catchUp + remaining
                     end
                 end
             end
@@ -612,8 +632,19 @@ local PROF_SHORT_NAMES = {
     ["Tailoring"] = "Tail",
 }
 
+local updateRequested = false
 function sfui.alts.UpdateUI(force)
     if not frame or (not force and not frame:IsVisible()) then return end
+
+    if not force then
+        if updateRequested then return end
+        updateRequested = true
+        C_Timer.After(0, function()
+            updateRequested = false
+            sfui.alts.UpdateUI(true)
+        end)
+        return
+    end
 
     SfuiDB.altsCollapsed = SfuiDB.altsCollapsed or {}
 
@@ -941,6 +972,11 @@ function sfui.alts.UpdateUI(force)
                 if pData then
                     local shortName = PROF_SHORT_NAMES[pData.name] or pData.name
 
+                    local catchUpString = ""
+                    if pData.catchUp and pData.catchUp > 0 then
+                        catchUpString = "|cffffcc00*|r"
+                    end
+
                     text:ClearAllPoints()
                     text:SetPoint("LEFT", 15, 0)
                     text:SetText(string.format("%s - %d", shortName, pData.skill or 0))
@@ -954,7 +990,7 @@ function sfui.alts.UpdateUI(force)
                     rightText:Show()
                     rightText:ClearAllPoints()
                     rightText:SetPoint("RIGHT", -15, 0)
-                    rightText:SetText(string.format("%d/%d", pData.done, pData.total))
+                    rightText:SetText(string.format("%d/%d%s", pData.done, pData.total, catchUpString))
 
                     if pData.done >= pData.total then
                         rightText:SetTextColor(0, 1, 0) -- Green
@@ -968,6 +1004,9 @@ function sfui.alts.UpdateUI(force)
                         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                         GameTooltip:SetText(pData.name .. " Knowledge")
                         GameTooltip:AddDoubleLine("Skill Level:", string.format("%d", pData.skill or 0), 1, 1, 1, 1, 1, 1)
+                        if pData.catchUp and pData.catchUp > 0 then
+                            GameTooltip:AddDoubleLine("Catch-up Available:", pData.catchUp, 1, 0.82, 0, 1, 0.82, 0)
+                        end
                         GameTooltip:AddLine("Weekly Progress", 1, 1, 1)
                         local tStr = pData.details.treatise and "|cff00ff00Done|r" or "|cffff0000Missing|r"
                         GameTooltip:AddDoubleLine("Treatise:", tStr, 1, 1, 1, 1, 1, 1)
@@ -1025,18 +1064,12 @@ function sfui.alts.UpdateUI(force)
             elseif cat.type == "m0_grid" then
                 text:Hide()
                 local m0Data = alt.data.m0
-
-                -- Dynamic Encounter Journal query for M0s
-                local currentTier = EJ_GetCurrentTier()
-                EJ_SelectTier(currentTier)
+                local instanceCache = GetEJInstanceCache()
                 local ejInstances = {}
-                local index = 1
-                while true do
-                    local instanceID, name = EJ_GetInstanceByIndex(index, false)
-                    if not instanceID then break end
-                    table.insert(ejInstances, { id = instanceID, name = name })
-                    index = index + 1
+                for name, id in pairs(instanceCache) do
+                    table.insert(ejInstances, { id = id, name = name })
                 end
+                table.sort(ejInstances, function(a, b) return a.id < b.id end)
 
                 local numDungeons = #ejInstances > 0 and #ejInstances or 8
                 local squareSize = (cfg.columnWidth - 10) / numDungeons
@@ -1143,6 +1176,9 @@ function sfui.alts.initialize()
                 needsSync = false
                 sfui.alts.SyncCurrentCharacter()
             end
+        elseif event == "CURRENCY_DISPLAY_UPDATE" then
+            -- Throttled for currency spam
+            sfui.alts.SyncCurrentCharacter()
         else
             sfui.alts.SyncCurrentCharacter()
         end

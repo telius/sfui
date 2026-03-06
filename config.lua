@@ -471,39 +471,39 @@ sfui.config = {
     merchant = {
         -- Grid layout
         grid = {
-            rows = 7,
-            cols = 4,
+            rows = 10,
+            cols = 2,
             item_width = 190,
             item_height = 45,
             spacing_x = 195,
             spacing_y = 50,
-            offset_x = 20,
+            offset_x = 15,
             offset_y = -40,
         },
         -- Frame dimensions
         frame = {
-            width = 840,  -- 4 cols * 200 + 40
-            height = 450, -- 7 rows * 50 + 100
+            width = 425,  -- 2 cols * 195 + padding
+            height = 620, -- 10 rows * 50 + header/footer
         },
         -- Utility bar
         utility_bar = {
             height = 30,
             bottom_offset = 2,
             button_height = 22,
-            button_small = 80,  -- buyback, filter buttons (Increased from 60)
+            button_small = 75,  -- buyback, filter buttons
             button_medium = 70, -- sell greys
-            button_large = 110, -- housing filter (Increased from 90)
-            spacing = 5,
+            button_large = 110, -- housing filter
+            spacing = 4,
         },
         -- Scrollbar
         scrollbar = {
-            height = 6,
-            bottom_offset = 35,
+            width = 6,
+            right_offset = 5,
         },
         -- Currency display
         currency = {
             height = 20,
-            bottom_offset = 8,
+            bottom_offset = 35,
         },
         -- Button colors (references to colors table)
         button_colors = {

@@ -17,7 +17,7 @@ local find = string.find
 local match = string.match
 local type = type
 local tonumber = tonumber
-local C_Timer = _G.C_Timer
+local C_Timer = C_Timer
 
 -- Localized APIs for optimization
 local GetActivePreyQuest = C_QuestLog.GetActivePreyQuest
@@ -62,6 +62,18 @@ local widgetCache = {
     lastQuestID = nil,
     lastObjectives = nil, -- Throttled scanning
 }
+
+local updateRequested = false
+local function RequestUpdate()
+    if updateRequested then return end
+    updateRequested = true
+    C_Timer.After(0, function()
+        updateRequested = false
+        if sfui.prey.bar then
+            sfui.prey.UpdatePreyBar(sfui.prey.bar)
+        end
+    end)
+end
 
 local function CreatePreyBar()
     local cfg = sfui.config.preyBar
@@ -154,7 +166,7 @@ function sfui.prey.UpdatePreyBar(bar)
 
     -- Priority 4: Quest Objectives (The "API-Only" Secret Sauce)
     -- This handles the login/reload case where widgets haven't fired yet
-    if questID and progress < 75 then
+    if questID and progress < 100 then
         -- Throttle: Only call GetQuestObjectives if quest ID changed or we have no objectives cached
         local objectives = (widgetCache.lastQuestID == questID and widgetCache.lastObjectives) or
             GetQuestObjectives(questID)
@@ -319,9 +331,7 @@ event_frame:SetScript("OnEvent", function(self, event, payload)
         -- Only process types used by Prey hunts (31: PreyHunt, 2: StatusBar)
         if widgetType == 31 then
             sfui.prey.HandleWidget(widgetID)
-            if preyBar then
-                sfui.prey.UpdatePreyBar(preyBar)
-            end
+            RequestUpdate()
         elseif widgetType == 2 then
             local barInfo = GetStatusBarWidgetVisualizationInfo(widgetID)
             if barInfo then
@@ -329,9 +339,7 @@ event_frame:SetScript("OnEvent", function(self, event, payload)
                 local lowerText = lower(text)
                 if find(lowerText, "prey") or find(lowerText, "revealed") then
                     sfui.prey.HandleWidget(widgetID)
-                    if preyBar then
-                        sfui.prey.UpdatePreyBar(preyBar)
-                    end
+                    RequestUpdate()
                 end
             end
         end
@@ -344,7 +352,7 @@ event_frame:SetScript("OnEvent", function(self, event, payload)
         end
         -- Cache is now safely retained across zones. It is automatically cleared inside
         -- UpdatePreyBar when GetActivePreyQuest() changes or drops to nil.
-        sfui.prey.UpdatePreyBar(preyBar)
+        RequestUpdate()
     elseif event == "QUEST_LOG_UPDATE" then
         -- Debounced: QUEST_LOG_UPDATE fires constantly while idle.
         -- Only process at most once per second to avoid continuous UpdatePreyBar calls.
@@ -352,10 +360,10 @@ event_frame:SetScript("OnEvent", function(self, event, payload)
         if now - _lastQuestUpdateTime >= _QUEST_UPDATE_THROTTLE then
             _lastQuestUpdateTime = now
             widgetCache.lastObjectives = nil -- Salt objectives cache
-            if preyBar then sfui.prey.UpdatePreyBar(preyBar) end
+            RequestUpdate()
         end
     elseif preyBar then
-        sfui.prey.UpdatePreyBar(preyBar)
+        RequestUpdate()
     end
 end)
 
@@ -366,10 +374,10 @@ function sfui.prey.initialize()
     end
 
     -- Initial Update
-    sfui.prey.UpdatePreyBar(preyBar)
+    RequestUpdate()
 
     -- Small delay to catch lazy-loading quest data
     C_Timer.After(1, function()
-        if preyBar then sfui.prey.UpdatePreyBar(preyBar) end
+        RequestUpdate()
     end)
 end

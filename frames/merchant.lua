@@ -398,10 +398,10 @@ end
 
 local app = sfui.config.appearance
 local scrollBar = CreateFrame("Slider", nil, frame, "BackdropTemplate")
-scrollBar:SetOrientation("HORIZONTAL")
-scrollBar:SetPoint("BOTTOMLEFT", 15, cfg.scrollbar.bottom_offset)
-scrollBar:SetPoint("BOTTOMRIGHT", -15, cfg.scrollbar.bottom_offset)
-scrollBar:SetHeight(cfg.scrollbar.height)
+scrollBar:SetOrientation("VERTICAL")
+scrollBar:SetPoint("TOPRIGHT", -cfg.scrollbar.right_offset, cfg.grid.offset_y)
+scrollBar:SetPoint("BOTTOMRIGHT", -cfg.scrollbar.right_offset, 65)
+scrollBar:SetWidth(cfg.scrollbar.width)
 scrollBar:SetBackdrop({
     bgFile = "Interface\\Buttons\\WHITE8x8",
 })
@@ -409,7 +409,7 @@ scrollBar:SetBackdropColor(0, 0, 0, 0.3)
 scrollBar:SetMinMaxValues(0, 0)
 scrollBar:SetValue(0)
 scrollBar:SetScript("OnValueChanged", function(self, value)
-    local newOffset = math.floor(value)
+    local newOffset = math.floor(value) * NUM_COLS
 
     if sfui.merchant.scrollOffset ~= newOffset then
         sfui.merchant.scrollOffset = newOffset
@@ -418,7 +418,7 @@ scrollBar:SetScript("OnValueChanged", function(self, value)
 end)
 
 local thumb = scrollBar:CreateTexture(nil, "ARTWORK")
-thumb:SetSize(30, 6)
+thumb:SetSize(6, 30)
 thumb:SetColorTexture(app.white[1], app.white[2], app.white[3], 1) -- Flat white
 scrollBar:SetThumbTexture(thumb)
 frame.scrollBar = scrollBar
@@ -456,7 +456,7 @@ function sfui.merchant.update_currency_display(frame)
     if not frame.currencyContainer then
         frame.currencyContainer = CreateFrame("Frame", nil, frame)
         frame.currencyContainer:SetHeight(cfg.currency.height)
-        frame.currencyContainer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -160, cfg.utility_bar.bottom_offset + 4)
+        frame.currencyContainer:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 10, cfg.currency.bottom_offset)
     end
     local container = frame.currencyContainer
     container:Show()
@@ -926,7 +926,8 @@ sfui.merchant.build_item_list = function()
 
     sfui.merchant.totalMerchantItems = #sfui.merchant.filteredIndices
 
-    local maxOffset = math.max(0, sfui.merchant.totalMerchantItems - ITEMS_PER_PAGE)
+    local totalRows = math.ceil(sfui.merchant.totalMerchantItems / NUM_COLS)
+    local maxOffset = math.max(0, totalRows - NUM_ROWS)
     frame.scrollBar:SetMinMaxValues(0, maxOffset)
     frame.scrollBar:SetValueStep(1)
 
@@ -1062,7 +1063,7 @@ end
 frame:SetScript("OnMouseWheel", function(self, delta)
     local min, max = scrollBar:GetMinMaxValues()
     local val = scrollBar:GetValue()
-    local step = 1 -- Scroll 1 item for horizontal feel
+    local step = 1 -- Scroll 1 row
     if delta > 0 then
         val = val - step
     else
