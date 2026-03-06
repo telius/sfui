@@ -69,7 +69,33 @@ local BASE_CATEGORIES = {
     { name = "RAID_N",        label = "Normal",        type = "raid_grid", difficulty = 14 },
 }
 
+local categoriesBuilt = false
 function sfui.alts.RefreshDynamicCategories()
+    if categoriesBuilt then
+        -- Only add Professions dynamically based on characters data, as it might change
+        -- Remove old profession headers/slots if they exist
+        for i = #CATEGORIES, 1, -1 do
+            if CATEGORIES[i].type == "prof_slot" or CATEGORIES[i].name == "PROFESSION_HEADER" then
+                table.remove(CATEGORIES, i)
+            end
+        end
+
+        local hasProf = false
+        for guid, data in pairs(SfuiDB.alts or {}) do
+            if data.profKP and next(data.profKP) then
+                hasProf = true
+                break
+            end
+        end
+
+        if hasProf then
+            table.insert(CATEGORIES, { name = "PROFESSION_HEADER", label = "Professions", type = "header" })
+            table.insert(CATEGORIES, { name = "PROFESSION_1", label = "", type = "prof_slot", slot = 1 })
+            table.insert(CATEGORIES, { name = "PROFESSION_2", label = "", type = "prof_slot", slot = 2 })
+        end
+        return
+    end
+
     -- Initialize with base categories
     wipe(CATEGORIES)
     for i, cat in ipairs(BASE_CATEGORIES) do
@@ -106,7 +132,6 @@ function sfui.alts.RefreshDynamicCategories()
         })
     end
 
-    -- Add Professions dynamically based on characters data
     local hasProf = false
     for guid, data in pairs(SfuiDB.alts or {}) do
         if data.profKP and next(data.profKP) then
@@ -120,6 +145,8 @@ function sfui.alts.RefreshDynamicCategories()
         table.insert(CATEGORIES, { name = "PROFESSION_1", label = "", type = "prof_slot", slot = 1 })
         table.insert(CATEGORIES, { name = "PROFESSION_2", label = "", type = "prof_slot", slot = 2 })
     end
+
+    categoriesBuilt = true
 end
 
 -- Frame Pooling
@@ -207,9 +234,15 @@ function sfui.alts.SyncCurrentCharacter()
         return
     end
 
+    if not frame or not frame:IsVisible() then
+        needsSync = true
+        return
+    end
+
     if syncTimer then return end
     syncTimer = C_Timer.After(1.0, function()
         syncTimer = nil
+        needsSync = false
         sfui.alts.PerformSync()
     end)
 end
@@ -230,12 +263,24 @@ local function GetEJInstanceCache()
     return ejInstanceCache
 end
 
+local preyLogDirty = true
+
 function sfui.alts.PerformSync()
     sfui.alts.RefreshDynamicCategories()
+    SfuiDB.alts = SfuiDB.alts or {}
+
+    -- Auto-prune characters not logged into for 30 days
+    local now = GetServerTime()
+    local thirtyDaysSecs = 30 * 24 * 60 * 60
+    for g, d in pairs(SfuiDB.alts) do
+        if d.lastUpdate and (now - d.lastUpdate > thirtyDaysSecs) then
+            SfuiDB.alts[g] = nil
+        end
+    end
+
     local guid = GetCurrentCharacterGUID()
     if not guid then return end
 
-    SfuiDB.alts = SfuiDB.alts or {}
     SfuiDB.alts[guid] = SfuiDB.alts[guid] or {}
     local data = SfuiDB.alts[guid]
 
@@ -263,14 +308,15 @@ function sfui.alts.PerformSync()
     local mapID = C_MythicPlus.GetOwnedKeystoneChallengeMapID()
     local level = C_MythicPlus.GetOwnedKeystoneLevel()
     if mapID and level then
-        data.keystone = { mapID = mapID, level = level }
+        data.keystone = data.keystone or {}
+        data.keystone.mapID = mapID
+        data.keystone.level = level
     end
 
     -- Mythic+ Dungeon Best Scores
     data.dungeons = data.dungeons or {}
     data.m0 = data.m0 or {}
     local maps = C_ChallengeMode.GetMapTable()
-    local m0Maps = { 557, 558, 559, 560, 561, 562, 563, 564 } -- MIDNIGHT S1 PRESEASON OVERRIDE
 
     local seasonDungeonNames = {}
     if maps and #maps > 0 then
@@ -280,7 +326,8 @@ function sfui.alts.PerformSync()
             if intimeInfo then bestLevel = intimeInfo.level end
             if overtimeInfo and overtimeInfo.level > bestLevel then bestLevel = overtimeInfo.level end
 
-            data.dungeons[mID] = { level = bestLevel }
+            data.dungeons[mID] = data.dungeons[mID] or {}
+            data.dungeons[mID].level = bestLevel
         end
     end
 
@@ -319,11 +366,10 @@ function sfui.alts.PerformSync()
         end
 
         if activity.index >= 1 and activity.index <= 3 then
-            data.vault[group][activity.index] = {
-                progress = activity.progress or 0,
-                threshold = activity.threshold or 0,
-                level = activity.level or 0
-            }
+            data.vault[group][activity.index] = data.vault[group][activity.index] or {}
+            data.vault[group][activity.index].progress = activity.progress or 0
+            data.vault[group][activity.index].threshold = activity.threshold or 0
+            data.vault[group][activity.index].level = activity.level or 0
         end
     end
 
@@ -356,14 +402,14 @@ function sfui.alts.PerformSync()
         else
             local info = C_CurrencyInfo.GetCurrencyInfo(currencyDef.id)
             if info then
-                data.currencies[currencyDef.id] = {
-                    val = info.quantity,
-                    earned = info.quantityEarnedThisWeek,
-                    max = info.maxWeeklyQuantity,
-                    maxQuantity = info.maxQuantity,
-                    totalEarned = info.totalEarned,
-                    useTotalEarned = info.useTotalEarnedForMaxQty
-                }
+                data.currencies[currencyDef.id] = data.currencies[currencyDef.id] or {}
+                local c = data.currencies[currencyDef.id]
+                c.val = info.quantity
+                c.earned = info.quantityEarnedThisWeek
+                c.max = info.maxWeeklyQuantity
+                c.maxQuantity = info.maxQuantity
+                c.totalEarned = info.totalEarned
+                c.useTotalEarned = info.useTotalEarnedForMaxQty
             end
         end
     end
@@ -372,7 +418,7 @@ function sfui.alts.PerformSync()
     data.prey = data.prey or {}
 
     -- Season 1 Progress (ID 2764 from HomeworkTracker)
-    local progInfo = C_MajorFactions.GetMajorFactionData(2764)
+    local progInfo = C_MajorFactions.GetMajorFactionData(cfg.expansion and cfg.expansion.preyFactionID or 2764)
     if progInfo then
         data.prey.rank = progInfo.renownLevel
         if progInfo.renownLevelThreshold and progInfo.renownLevelThreshold > 0 then
@@ -400,29 +446,38 @@ function sfui.alts.PerformSync()
         91260, 91261, 91262, 91263, 91264, 91265, 91266, 91267, 91268, 91269
     }
 
-    data.prey.normal = 0
-    data.prey.hard = 0
-    data.prey.mythic = 0
-    for _, qID in ipairs(huntNormal) do
-        if C_QuestLog.IsQuestFlaggedCompleted(qID) then
-            data.prey.normal = data.prey
-                .normal + 1
+    if preyLogDirty then
+        data.prey.normal = 0
+        data.prey.hard = 0
+        data.prey.mythic = 0
+        for _, qID in ipairs(huntNormal) do
+            if C_QuestLog.IsQuestFlaggedCompleted(qID) then
+                data.prey.normal = data.prey
+                    .normal + 1
+            end
         end
-    end
-    for _, qID in ipairs(huntHard) do if C_QuestLog.IsQuestFlaggedCompleted(qID) then data.prey.hard = data.prey.hard + 1 end end
-    for _, qID in ipairs(huntMythic) do
-        if C_QuestLog.IsQuestFlaggedCompleted(qID) then
-            data.prey.mythic = data.prey
-                .mythic + 1
+        for _, qID in ipairs(huntHard) do
+            if C_QuestLog.IsQuestFlaggedCompleted(qID) then
+                data.prey.hard = data.prey
+                    .hard + 1
+            end
         end
-    end
-    data.prey.weekly = data.prey.normal + data.prey.hard + data.prey.mythic
-    -- Active Hunt Progress using Remnant of Anguish (ID 3392)
-    local remnants = C_CurrencyInfo.GetCurrencyInfo(3392)
-    if remnants and remnants.quantity then
-        data.prey.activeHuntProgress = remnants.quantity
-    else
-        data.prey.activeHuntProgress = 0
+        for _, qID in ipairs(huntMythic) do
+            if C_QuestLog.IsQuestFlaggedCompleted(qID) then
+                data.prey.mythic = data.prey
+                    .mythic + 1
+            end
+        end
+        data.prey.weekly = data.prey.normal + data.prey.hard + data.prey.mythic
+        -- Active Hunt Progress using config ID
+        local remnants = C_CurrencyInfo.GetCurrencyInfo(cfg.expansion and cfg.expansion.activeHuntCurrencyID or 3392)
+        if remnants and remnants.quantity then
+            data.prey.activeHuntProgress = remnants.quantity
+        else
+            data.prey.activeHuntProgress = 0
+        end
+
+        preyLogDirty = false
     end
 
     -- Active Hunt Quests
@@ -572,25 +627,29 @@ function sfui.alts.CreateFrame()
                     local name = opt.data.name or "Unknown"
                     local classColor = RAID_CLASS_COLORS[opt.data.class] or NORMAL_FONT_COLOR
 
-                    local t = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-                    t:SetPoint("LEFT", 5, 0)
+                    local t = parent.textString
                     t:SetText(string.format("|c%s%s|r", classColor.colorStr, name))
 
                     -- Remove button [X]
-                    local xBtn = sfui.common.create_flat_button(parent, "X", 18, 16)
+                    parent.xBtn = parent.xBtn or sfui.common.create_flat_button(parent, "X", 18, 16)
+                    local xBtn = parent.xBtn
+                    xBtn:Show()
                     xBtn:SetPoint("RIGHT", -5, 0)
                     xBtn:SetScript("OnClick", function()
                         StaticPopup_Show("SFUI_ALTS_REMOVE_CHARACTER", name, nil, { guid = opt.guid })
                     end)
 
                     -- Hide button [H]
+                    parent.hBtn = parent.hBtn or sfui.common.create_flat_button(parent, "", 18, 16)
+                    local hBtn = parent.hBtn
+                    hBtn:Show()
                     local hStatus = opt.data.isHidden and "|cff00ff00H|r" or "|cffccccccH|r"
-                    local hBtn = sfui.common.create_flat_button(parent, hStatus, 18, 16)
+                    hBtn:SetText(hStatus)
                     hBtn:SetPoint("RIGHT", xBtn, "LEFT", -2, 0)
                     hBtn:SetScript("OnClick", function()
                         opt.data.isHidden = not opt.data.isHidden
                         sfui.alts.UpdateUI()
-                        hBtn:GetFontString():SetText(opt.data.isHidden and "|cff00ff00H|r" or "|cffccccccH|r")
+                        hBtn:SetText(opt.data.isHidden and "|cff00ff00H|r" or "|cffccccccH|r")
                     end)
                 end
             })
@@ -600,6 +659,45 @@ function sfui.alts.CreateFrame()
 
     local managerDropdown = sfui.common.create_dropdown(frame, 24, populateManagerOptions, nil, nil, "=", 200)
     managerDropdown:SetPoint("RIGHT", sortDropdown, "LEFT", -5, 0)
+
+    -- Section Manager Dropdown
+    local function populateSectionsOptions()
+        local options = {}
+        SfuiDB.altsHiddenSections = SfuiDB.altsHiddenSections or {}
+        for _, cat in ipairs(CATEGORIES) do
+            if cat.type == "header" and cat.name ~= "GENERAL" then
+                table.insert(options, {
+                    catName = cat.name,
+                    label = cat.label,
+                    keepOpen = true,
+                    onRender = function(parent, opt)
+                        local t = parent.textString
+                        t:SetText(opt.label)
+
+                        if parent.xBtn then parent.xBtn:Hide() end
+
+                        local isHidden = SfuiDB.altsHiddenSections[opt.catName]
+                        local hStatus = isHidden and "|cffff0000H|r" or "|cff00ff00V|r"
+                        parent.hBtn = parent.hBtn or sfui.common.create_flat_button(parent, "", 18, 16)
+                        local hBtn = parent.hBtn
+                        hBtn:Show()
+                        hBtn:SetText(hStatus)
+                        hBtn:SetPoint("RIGHT", -5, 0)
+                        hBtn:SetScript("OnClick", function()
+                            SfuiDB.altsHiddenSections[opt.catName] = not SfuiDB.altsHiddenSections[opt.catName]
+                            sfui.alts.UpdateUI()
+                            hBtn:SetText(SfuiDB.altsHiddenSections[opt.catName] and "|cffff0000H|r" or
+                                "|cff00ff00V|r")
+                        end)
+                    end
+                })
+            end
+        end
+        return options
+    end
+
+    local sectionsDropdown = sfui.common.create_dropdown(frame, 24, populateSectionsOptions, nil, nil, "⚙", 150)
+    sectionsDropdown:SetPoint("RIGHT", managerDropdown, "LEFT", -5, 0)
 
     -- Sidebar for row labels
     local sidebar = CreateFrame("Frame", nil, frame)
@@ -647,15 +745,20 @@ function sfui.alts.UpdateUI(force)
     end
 
     SfuiDB.altsCollapsed = SfuiDB.altsCollapsed or {}
+    SfuiDB.altsHiddenSections = SfuiDB.altsHiddenSections or {}
 
     local visibleCats = {}
     local currentHeader = nil
     for _, cat in ipairs(CATEGORIES) do
         if cat.type == "header" then
-            currentHeader = cat.name
-            table.insert(visibleCats, cat)
+            if not SfuiDB.altsHiddenSections[cat.name] then
+                currentHeader = cat.name
+                table.insert(visibleCats, cat)
+            else
+                currentHeader = nil
+            end
         else
-            if not currentHeader or not SfuiDB.altsCollapsed[currentHeader] then
+            if currentHeader and not SfuiDB.altsCollapsed[currentHeader] then
                 table.insert(visibleCats, cat)
             end
         end
@@ -681,8 +784,7 @@ function sfui.alts.UpdateUI(force)
             if cat.type == "header" then
                 text:SetFontObject("GameFontNormal")
                 text:SetTextColor(0.4, 0, 1) -- Purple
-                local prefix = SfuiDB.altsCollapsed[cat.name] and "[+] " or "[-] "
-                text:SetText(prefix .. cat.label)
+                text:SetText(cat.label)
 
                 row:EnableMouse(true)
                 row:SetScript("OnMouseUp", function()
@@ -775,30 +877,9 @@ function sfui.alts.UpdateUI(force)
                     text:SetText(alt.data.name)
                     text:SetTextColor(classColor.r, classColor.g, classColor.b)
 
-                    -- Remove Button on Character Header
-                    cell:EnableMouse(true)
-                    local del = cell.del or CreateFrame("Button", nil, cell)
-                    cell.del = del
-                    del:Show()
-                    del:SetSize(14, 14)
-                    del:SetPoint("TOPRIGHT", -2, -2)
-                    del:SetNormalTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-                    del:SetHighlightTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Highlight")
-                    del:SetPushedTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Down")
-
-                    del:SetScript("OnClick", function()
-                        alt.data.isHidden = true
-                        sfui.alts.UpdateUI()
-                    end)
-
-                    -- Always visible but low alpha until hover
-                    del:SetAlpha(0.2)
-                    local function onEnter() del:SetAlpha(1) end
-                    local function onLeave() del:SetAlpha(0.2) end
-                    cell:SetScript("OnEnter", onEnter)
-                    cell:SetScript("OnLeave", onLeave)
-                    del:SetScript("OnEnter", onEnter)
-                    del:SetScript("OnLeave", onLeave)
+                    if cell.del then cell.del:Hide() end
+                    cell:SetScript("OnEnter", nil)
+                    cell:SetScript("OnLeave", nil)
                 else
                     text:Hide()
                     -- Divider underline
@@ -1146,6 +1227,10 @@ function sfui.alts.Toggle()
         frame:Hide()
     else
         frame:Show()
+        if needsSync then
+            sfui.alts.PerformSync()
+            needsSync = false
+        end
         sfui.alts.UpdateUI(true)
     end
 end
@@ -1160,19 +1245,28 @@ function sfui.alts.initialize()
     eventFrame:RegisterEvent("CHALLENGE_MODE_COMPLETED")
     eventFrame:RegisterEvent("WEEKLY_REWARDS_UPDATE")
     eventFrame:RegisterEvent("QUEST_TURNED_IN")
-    -- Note: QUEST_LOG_UPDATE and UPDATE_UI_WIDGET intentionally omitted — both fire
-    -- extremely frequently (every quest tick / every UI widget change). The events
+    eventFrame:RegisterEvent("QUEST_LOG_UPDATE")
+    -- Note: UPDATE_UI_WIDGET intentionally omitted — it fires
+    -- extremely frequently (every UI widget change). The events
     -- above cover all meaningful vault/raid/dungeon state changes.
     eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+    eventFrame:RegisterEvent("PLAYER_LEAVING_WORLD")
 
     eventFrame:SetScript("OnEvent", function(self, event)
-        if event == "PLAYER_REGEN_ENABLED" then
+        if event == "PLAYER_LEAVING_WORLD" then
             if needsSync then
+                sfui.alts.PerformSync()
                 needsSync = false
+            end
+        elseif event == "PLAYER_REGEN_ENABLED" then
+            if needsSync then
                 sfui.alts.SyncCurrentCharacter()
             end
         elseif event == "CURRENCY_DISPLAY_UPDATE" then
             -- Throttled for currency spam
+            sfui.alts.SyncCurrentCharacter()
+        elseif event == "QUEST_LOG_UPDATE" then
+            preyLogDirty = true
             sfui.alts.SyncCurrentCharacter()
         else
             sfui.alts.SyncCurrentCharacter()

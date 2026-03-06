@@ -1,3 +1,13 @@
+## v0.4.2 (2026-03-06)
+
+### Optimizations
+- **Alts Background CPU Usage**: Added panel-aware sync throttling in `alts.lua`. Background synchronization now correctly defers execution unless the UI is actively open, preventing unnecessary 1-second interval execution during gameplay.
+- **UI Update Polling**: Eliminated an infinite CPU update leak in `cdm.lua` caused by the drag-and-drop ghost cursor.
+- **Quest Tracking Throttle**: `prey.lua` now actively throttles `QUEST_ACCEPTED` and `QUEST_REMOVED` events to the same 1-second debounce as log updates, preventing unthrottled UI recalculations during gameplay.
+
+### Bug Fixes
+- **Alts Dropdown Interactivity**: Fixed an issue where the Character Manager and Section Manager dropdown toggles (Hide/Show) in `alts.lua` were unresponsive and overlaying duplicate font strings due to a recycling bug.
+
 ## v0.4.1 (2026-03-06)
 
 ### Features

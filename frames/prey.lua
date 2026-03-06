@@ -353,8 +353,8 @@ event_frame:SetScript("OnEvent", function(self, event, payload)
         -- Cache is now safely retained across zones. It is automatically cleared inside
         -- UpdatePreyBar when GetActivePreyQuest() changes or drops to nil.
         RequestUpdate()
-    elseif event == "QUEST_LOG_UPDATE" then
-        -- Debounced: QUEST_LOG_UPDATE fires constantly while idle.
+    elseif event == "QUEST_LOG_UPDATE" or event == "QUEST_ACCEPTED" or event == "QUEST_REMOVED" then
+        -- Debounced: These events fire constantly while idle or when any quest changes.
         -- Only process at most once per second to avoid continuous UpdatePreyBar calls.
         local now = GetTime()
         if now - _lastQuestUpdateTime >= _QUEST_UPDATE_THROTTLE then
@@ -362,8 +362,6 @@ event_frame:SetScript("OnEvent", function(self, event, payload)
             widgetCache.lastObjectives = nil -- Salt objectives cache
             RequestUpdate()
         end
-    elseif preyBar then
-        RequestUpdate()
     end
 end)
 

@@ -1407,11 +1407,11 @@ OnIconDragStart = function(self, isFromTrackedBars)
     }
 
     -- Creating a ghost cursor follows mouse
-    sfui.events.RegisterUpdate(0, function(c)
-        if not cursor:IsShown() then return end
+    cursor:SetScript("OnUpdate", function(self)
+        if not self:IsShown() then return end
         local x, y = GetCursorPosition()
         local scale = UIParent:GetEffectiveScale()
-        cursor:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
+        self:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
     end)
     cursor:Show()
 
