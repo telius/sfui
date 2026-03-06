@@ -22,6 +22,21 @@ local table = table
 local wipe = wipe
 local C_Timer = C_Timer
 
+-- Professional Weekly KP Sources (TWW & Midnight Combined)
+local PROF_KP_SOURCES = {
+    [171] = { treatise = { 95127, 83725 }, quest = { 93690, 84133 }, treasures = { { 93528, 83253 }, { 93529, 83255 } } },                                                                                                                         -- Alchemy
+    [164] = { treatise = { 95128, 83726 }, quest = { 93691, 84127 }, treasures = { { 93530, 83256 }, { 93531, 83257 } } },                                                                                                                         -- Blacksmithing
+    [333] = { treatise = { 95129, 83727 }, quest = { 93699, 93698, 93697, 84084, 84085, 84086 }, treasures = { { 95048, 95049, 95050, 95051, 95052, 84290, 84291, 84292, 84293, 84294 }, { 95053, 84295 }, { 93532, 83258 }, { 93533, 83259 } } }, -- Enchanting
+    [202] = { treatise = { 95138, 83728 }, quest = { 93692, 84128 }, treasures = { { 93534, 83260 }, { 93535, 83261 } } },                                                                                                                         -- Engineering
+    [182] = { treatise = { 95130, 83729 }, quest = { 93700, 93701, 93702, 93703, 93704, 82970, 82958, 82965, 82916, 82962 }, treasures = { { 81425, 81426, 81427, 81428, 81429, 81416, 81417, 81418, 81419, 81420 }, { 81430, 81421 } } },         -- Herbalism
+    [773] = { treatise = { 95131, 83730 }, quest = { 93693, 84129 }, treasures = { { 93536, 83262 }, { 93537, 83264 } } },                                                                                                                         -- Inscription
+    [755] = { treatise = { 95133, 83731 }, quest = { 93694, 84130 }, treasures = { { 93539, 83265 }, { 93538, 83266 } } },                                                                                                                         -- Jewelcrafting
+    [165] = { treatise = { 95134, 83732 }, quest = { 93695, 84131 }, treasures = { { 93540, 83267 }, { 93541, 83268 } } },                                                                                                                         -- Leatherworking
+    [186] = { treatise = { 95135, 83733 }, quest = { 93705, 93706, 93707, 93708, 93709, 83104, 83105, 83103, 83106, 83102 }, treasures = { { 88673, 88674, 88675, 88676, 88677, 83050, 83051, 83052, 83053, 83054 }, { 88678, 83049 } } },         -- Mining
+    [393] = { treatise = { 95136, 83734 }, quest = { 93710, 93711, 93712, 93713, 93714, 83097, 83098, 83100, 82992, 82993 }, treasures = { { 88534, 88549, 88536, 88537, 88530, 81459, 81460, 81461, 81462, 81463 }, { 88529, 81464 } } },         -- Skinning
+    [197] = { treatise = { 95137, 83735 }, quest = { 93696, 84132 }, treasures = { { 93542, 83269 }, { 93543, 83270 } } },                                                                                                                         -- Tailoring
+}
+
 -- Configuration & Data Tables
 local CATEGORIES = {}
 local CURRENCIES = {
@@ -90,6 +105,21 @@ function sfui.alts.RefreshDynamicCategories()
             icon = currencyDef.icon
         })
     end
+
+    -- Add Professions dynamically based on characters data
+    local hasProf = false
+    for guid, data in pairs(SfuiDB.alts or {}) do
+        if data.profKP and next(data.profKP) then
+            hasProf = true
+            break
+        end
+    end
+
+    if hasProf then
+        table.insert(CATEGORIES, { name = "PROFESSION_HEADER", label = "Professions", type = "header" })
+        table.insert(CATEGORIES, { name = "PROFESSION_1", label = "", type = "prof_slot", slot = 1 })
+        table.insert(CATEGORIES, { name = "PROFESSION_2", label = "", type = "prof_slot", slot = 2 })
+    end
 end
 
 -- Frame Pooling
@@ -129,6 +159,9 @@ local function AcquireCell(parent)
             f.text:SetTextColor(1, 1, 1)
             f.text:SetFontObject("GameFontHighlightSmall")
             f.text:SetPoint("CENTER")
+        end
+        if f.rightText then
+            f.rightText:Hide()
         end
         -- Hide any extra textures/buttons that might have been added
         local regions = { f:GetRegions() }
@@ -395,6 +428,53 @@ function sfui.alts.PerformSync()
 
     data.prey.lastUpdate = GetServerTime()
 
+    -- Professions Knowledge Points
+    data.profKP = data.profKP or {}
+    wipe(data.profKP)
+    local prof1, prof2 = GetProfessions()
+    local profsToCheck = {}
+    if prof1 then table.insert(profsToCheck, prof1) end
+    if prof2 then table.insert(profsToCheck, prof2) end
+
+    for _, pIndex in ipairs(profsToCheck) do
+        local name, icon, skillLevel, maxSkillLevel, numAbilities, spelloffset, skillLine, skillModifier, specializationOffset =
+            GetProfessionInfo(pIndex)
+        local tracking = PROF_KP_SOURCES[skillLine]
+        if tracking then
+            local pData = { name = name, icon = icon, skill = skillLevel, done = 0, total = 0, details = { treatise = false, quest = false, treasures = 0, treasuresMax = #tracking.treasures } }
+
+            pData.total = pData.total + 1
+            for _, qid in ipairs(tracking.treatise) do
+                if C_QuestLog.IsQuestFlaggedCompleted(qid) then
+                    pData.done = pData.done + 1
+                    pData.details.treatise = true
+                    break
+                end
+            end
+
+            pData.total = pData.total + 1
+            for _, qid in ipairs(tracking.quest) do
+                if C_QuestLog.IsQuestFlaggedCompleted(qid) then
+                    pData.done = pData.done + 1
+                    pData.details.quest = true
+                    break
+                end
+            end
+
+            pData.total = pData.total + #tracking.treasures
+            for _, tList in ipairs(tracking.treasures) do
+                for _, qid in ipairs(tList) do
+                    if C_QuestLog.IsQuestFlaggedCompleted(qid) then
+                        pData.done = pData.done + 1
+                        pData.details.treasures = pData.details.treasures + 1
+                        break
+                    end
+                end
+            end
+            data.profKP[skillLine] = pData
+        end
+    end
+
     if frame and frame:IsVisible() then
         sfui.alts.UpdateUI(true)
     end
@@ -508,22 +588,7 @@ function sfui.alts.CreateFrame()
     sidebar:SetWidth(140)
     frame.sidebar = sidebar
 
-    local y = 0
-    for _, cat in ipairs(CATEGORIES) do
-        local row = CreateFrame("Frame", nil, sidebar)
-        row:SetSize(140, cfg.rowHeight)
-        row:SetPoint("TOPLEFT", 0, -y)
 
-        local text = row:CreateFontString(nil, "OVERLAY",
-            cat.type == "header" and "GameFontNormal" or "GameFontHighlightSmall")
-        text:SetPoint("LEFT", 5, 0)
-        text:SetText(cat.label)
-        if cat.type == "header" then
-            text:SetTextColor(0.4, 0, 1) -- Purple
-        end
-
-        y = y + cfg.rowHeight
-    end
 
     frame.content = CreateFrame("Frame", nil, frame)
     frame.content:SetPoint("TOPLEFT", sidebar, "TOPRIGHT", 10, 0)
@@ -533,8 +598,79 @@ function sfui.alts.CreateFrame()
     return frame
 end
 
+local PROF_SHORT_NAMES = {
+    ["Blacksmithing"] = "BS",
+    ["Alchemy"] = "Alc",
+    ["Enchanting"] = "Enc",
+    ["Engineering"] = "Eng",
+    ["Herbalism"] = "Herb",
+    ["Inscription"] = "Insc",
+    ["Jewelcrafting"] = "JC",
+    ["Leatherworking"] = "LW",
+    ["Mining"] = "Min",
+    ["Skinning"] = "Skin",
+    ["Tailoring"] = "Tail",
+}
+
 function sfui.alts.UpdateUI(force)
     if not frame or (not force and not frame:IsVisible()) then return end
+
+    SfuiDB.altsCollapsed = SfuiDB.altsCollapsed or {}
+
+    local visibleCats = {}
+    local currentHeader = nil
+    for _, cat in ipairs(CATEGORIES) do
+        if cat.type == "header" then
+            currentHeader = cat.name
+            table.insert(visibleCats, cat)
+        else
+            if not currentHeader or not SfuiDB.altsCollapsed[currentHeader] then
+                table.insert(visibleCats, cat)
+            end
+        end
+    end
+
+    -- Update sidebar
+    if frame.sidebar then
+        local cells = { frame.sidebar:GetChildren() }
+        for _, cell in ipairs(cells) do
+            ReleaseCell(cell)
+        end
+        local visY = 0
+        for _, cat in ipairs(visibleCats) do
+            local row = AcquireCell(frame.sidebar)
+            row:SetSize(140, cfg.rowHeight)
+            row:SetPoint("TOPLEFT", 0, -visY)
+
+            local text = row.text
+            text:Show()
+            text:ClearAllPoints()
+            text:SetPoint("LEFT", 5, 0)
+
+            if cat.type == "header" then
+                text:SetFontObject("GameFontNormal")
+                text:SetTextColor(0.4, 0, 1) -- Purple
+                local prefix = SfuiDB.altsCollapsed[cat.name] and "[+] " or "[-] "
+                text:SetText(prefix .. cat.label)
+
+                row:EnableMouse(true)
+                row:SetScript("OnMouseUp", function()
+                    SfuiDB.altsCollapsed[cat.name] = not SfuiDB.altsCollapsed[cat.name]
+                    sfui.alts.UpdateUI(true)
+                end)
+            else
+                text:SetFontObject("GameFontHighlightSmall")
+                text:SetTextColor(1, 1, 1)
+                text:SetText(cat.label)
+                row:EnableMouse(false)
+                row:SetScript("OnMouseUp", nil)
+            end
+            visY = visY + cfg.rowHeight
+        end
+
+        -- Adjust frame height dynamically based on visible categories
+        frame:SetHeight(visY + 45) -- 35 for top offset + 10 for bottom offset
+    end
 
     -- Release existing content to pools
     if not frame.content then return end
@@ -586,18 +722,20 @@ function sfui.alts.UpdateUI(force)
     local xOffset = 0
     for i, alt in ipairs(alts) do
         local col = AcquireColumn(frame.content)
-        col:SetSize(cfg.columnWidth, #CATEGORIES * cfg.rowHeight)
+        col:SetSize(cfg.columnWidth, #visibleCats * cfg.rowHeight)
         col:SetPoint("TOPLEFT", xOffset, 0)
 
         local classColor = RAID_CLASS_COLORS[alt.data.class] or NORMAL_FONT_COLOR
 
         local y = 0
-        for _, cat in ipairs(CATEGORIES) do
+        for _, cat in ipairs(visibleCats) do
             local cell = AcquireCell(col)
             cell:SetSize(cfg.columnWidth, cfg.rowHeight)
             cell:SetPoint("TOPLEFT", 0, -y)
 
             local text = cell.text
+            text:ClearAllPoints()
+            text:SetPoint("CENTER")
             text:Show()
 
             if cat.type == "header" then
@@ -789,6 +927,66 @@ function sfui.alts.UpdateUI(force)
                 cell:SetScript("OnLeave", function()
                     GameTooltip:Hide()
                 end)
+            elseif cat.type == "prof_slot" then
+                local pData
+                local profs = {}
+                if alt.data.profKP then
+                    for skillLine, data in pairs(alt.data.profKP) do
+                        table.insert(profs, data)
+                    end
+                end
+                table.sort(profs, function(a, b) return (a.name or "") < (b.name or "") end)
+                pData = profs[cat.slot]
+
+                if pData then
+                    local shortName = PROF_SHORT_NAMES[pData.name] or pData.name
+
+                    text:ClearAllPoints()
+                    text:SetPoint("LEFT", 15, 0)
+                    text:SetText(string.format("%s - %d", shortName, pData.skill or 0))
+                    text:SetTextColor(1, 1, 1)
+
+                    local rightText = cell.rightText
+                    if not rightText then
+                        rightText = cell:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                        cell.rightText = rightText
+                    end
+                    rightText:Show()
+                    rightText:ClearAllPoints()
+                    rightText:SetPoint("RIGHT", -15, 0)
+                    rightText:SetText(string.format("%d/%d", pData.done, pData.total))
+
+                    if pData.done >= pData.total then
+                        rightText:SetTextColor(0, 1, 0) -- Green
+                    elseif pData.done > 0 then
+                        rightText:SetTextColor(0, 1, 1) -- Cyan
+                    else
+                        rightText:SetTextColor(1, 1, 1)
+                    end
+
+                    cell:SetScript("OnEnter", function(self)
+                        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                        GameTooltip:SetText(pData.name .. " Knowledge")
+                        GameTooltip:AddDoubleLine("Skill Level:", string.format("%d", pData.skill or 0), 1, 1, 1, 1, 1, 1)
+                        GameTooltip:AddLine("Weekly Progress", 1, 1, 1)
+                        local tStr = pData.details.treatise and "|cff00ff00Done|r" or "|cffff0000Missing|r"
+                        GameTooltip:AddDoubleLine("Treatise:", tStr, 1, 1, 1, 1, 1, 1)
+                        local qStr = pData.details.quest and "|cff00ff00Done|r" or "|cffff0000Missing|r"
+                        GameTooltip:AddDoubleLine("Weekly Quest/Patron:", qStr, 1, 1, 1, 1, 1, 1)
+                        if pData.details.treasuresMax > 0 then
+                            local gColor = pData.details.treasures >= pData.details.treasuresMax and "|cff00ff00" or
+                                "|cffff0000"
+                            GameTooltip:AddDoubleLine("Treasures/Drops:",
+                                string.format("%s%d/%d|r", gColor, pData.details.treasures, pData.details.treasuresMax),
+                                1, 1, 1, 1, 1, 1)
+                        end
+                        GameTooltip:Show()
+                    end)
+                    cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+                else
+                    text:SetText("-")
+                    text:SetTextColor(0.5, 0.5, 0.5)
+                end
             elseif cat.type == "vault_row" then
                 text:Hide()
                 local group = cat.group
@@ -906,8 +1104,8 @@ function sfui.alts.UpdateUI(force)
     end
 
     -- Adjust frame size to fit content
-    local totalWidth = 140 + 20 + xOffset + 10                  -- sidebar + padding + columns + padding
-    local totalHeight = 35 + (#CATEGORIES * cfg.rowHeight) + 10 -- padding + rows + padding
+    local totalWidth = 140 + 20 + xOffset + 10                   -- sidebar + padding + columns + padding
+    local totalHeight = 35 + (#visibleCats * cfg.rowHeight) + 10 -- padding + rows + padding
     frame:SetSize(totalWidth, totalHeight)
 end
 
