@@ -972,11 +972,6 @@ function sfui.alts.UpdateUI(force)
                 if pData then
                     local shortName = PROF_SHORT_NAMES[pData.name] or pData.name
 
-                    local catchUpString = ""
-                    if pData.catchUp and pData.catchUp > 0 then
-                        catchUpString = "|cffffcc00*|r"
-                    end
-
                     text:ClearAllPoints()
                     text:SetPoint("LEFT", 15, 0)
                     text:SetText(string.format("%s - %d", shortName, pData.skill or 0))
@@ -990,7 +985,7 @@ function sfui.alts.UpdateUI(force)
                     rightText:Show()
                     rightText:ClearAllPoints()
                     rightText:SetPoint("RIGHT", -15, 0)
-                    rightText:SetText(string.format("%d/%d%s", pData.done, pData.total, catchUpString))
+                    rightText:SetText(string.format("%d/%d", pData.done, pData.total))
 
                     if pData.done >= pData.total then
                         rightText:SetTextColor(0, 1, 0) -- Green
