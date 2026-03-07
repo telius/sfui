@@ -160,6 +160,9 @@ do
         if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
             sfui.trackedbars.ForceLayoutUpdate()
         end
+        if sfui.trackedicons and sfui.trackedicons.MarkDirty then
+            sfui.trackedicons.MarkDirty(0.5, true)
+        end
     end
 
     local function update_bar_visibility()

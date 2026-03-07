@@ -22,6 +22,101 @@ local table = table
 local wipe = wipe
 local C_Timer = C_Timer
 
+-- Frame Pooling
+local columnPool = {}
+local cellPool = {}
+local tablePool = {}
+
+local function AcquireTable()
+    return table.remove(tablePool) or {}
+end
+
+local function ReleaseTable(t)
+    if not t then return end
+    wipe(t)
+    table.insert(tablePool, t)
+end
+
+local function ReleaseTableRecursive(t)
+    if not t then return end
+    for k, v in pairs(t) do
+        if type(v) == "table" then
+            ReleaseTableRecursive(v)
+        end
+    end
+    ReleaseTable(t)
+end
+
+local function AcquireColumn(parent)
+    local f = table.remove(columnPool)
+    if not f then
+        f = CreateFrame("Frame", nil, parent)
+    else
+        f:SetParent(parent)
+        f:Show()
+    end
+    return f
+end
+
+local function ReleaseColumn(f)
+    f:Hide()
+    f:SetParent(nil)
+    f:ClearAllPoints()
+    table.insert(columnPool, f)
+end
+
+local function AcquireCell(parent)
+    local f = table.remove(cellPool)
+    if not f then
+        f = CreateFrame("Frame", nil, parent)
+        f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        f.text:SetPoint("CENTER")
+    else
+        f:SetParent(parent)
+        f:Show()
+        if f.text then
+            f.text:Show()
+            f.text:SetText("")
+            f.text:SetTextColor(1, 1, 1)
+            f.text:SetFontObject("GameFontHighlightSmall")
+            f.text:SetPoint("CENTER")
+        end
+        if f.rightText then
+            f.rightText:Hide()
+        end
+        -- Hide any extra textures/buttons that might have been added
+        -- OPTIMIZATION: Avoid { f:GetRegions() } which creates a temporary table
+        local numRegions = f:GetNumRegions()
+        for i = 1, numRegions do
+            local r = select(i, f:GetRegions())
+            if r and r:IsObjectType("Texture") then r:Hide() end
+        end
+        local numChildren = f:GetNumChildren()
+        for i = 1, numChildren do
+            local c = select(i, f:GetChildren())
+            if c then c:Hide() end
+        end
+    end
+    return f
+end
+
+local function ReleaseCell(f)
+    f:Hide()
+    f:SetParent(nil)
+    f:ClearAllPoints()
+    f:SetScript("OnEnter", nil)
+    f:SetScript("OnLeave", nil)
+    -- Clear the delete button's stale OnClick closure so the previous
+    -- alt's data table can be garbage-collected.
+    if f.del then
+        f.del:SetScript("OnClick", nil)
+        f.del:SetScript("OnEnter", nil)
+        f.del:SetScript("OnLeave", nil)
+        f.del:Hide()
+    end
+    table.insert(cellPool, f)
+end
+
 -- Professional Weekly KP Sources (TWW & Midnight Combined)
 local PROF_KP_SOURCES = {
     [171] = { treatise = { 95127 }, quest = { 93690 }, treasures = { { 93528 }, { 93529 } }, catchup = 3189 },                                                                 -- Alchemy
@@ -76,7 +171,8 @@ function sfui.alts.RefreshDynamicCategories()
         -- Remove old profession headers/slots if they exist
         for i = #CATEGORIES, 1, -1 do
             if CATEGORIES[i].type == "prof_slot" or CATEGORIES[i].name == "PROFESSION_HEADER" then
-                table.remove(CATEGORIES, i)
+                local cat = table.remove(CATEGORIES, i)
+                ReleaseTable(cat)
             end
         end
 
@@ -89,9 +185,17 @@ function sfui.alts.RefreshDynamicCategories()
         end
 
         if hasProf then
-            table.insert(CATEGORIES, { name = "PROFESSION_HEADER", label = "Professions", type = "header" })
-            table.insert(CATEGORIES, { name = "PROFESSION_1", label = "", type = "prof_slot", slot = 1 })
-            table.insert(CATEGORIES, { name = "PROFESSION_2", label = "", type = "prof_slot", slot = 2 })
+            local h = AcquireTable()
+            h.name, h.label, h.type = "PROFESSION_HEADER", "Professions", "header"
+            table.insert(CATEGORIES, h)
+
+            local p1 = AcquireTable()
+            p1.name, p1.label, p1.type, p1.slot = "PROFESSION_1", "", "prof_slot", 1
+            table.insert(CATEGORIES, p1)
+
+            local p2 = AcquireTable()
+            p2.name, p2.label, p2.type, p2.slot = "PROFESSION_2", "", "prof_slot", 2
+            table.insert(CATEGORIES, p2)
         end
         return
     end
@@ -102,34 +206,36 @@ function sfui.alts.RefreshDynamicCategories()
         CATEGORIES[i] = cat
     end
 
-    -- Add Dungeons dynamically
     local maps = C_ChallengeMode.GetMapTable()
     if maps and #maps > 0 then
-        table.insert(CATEGORIES, { name = "DUNGEONS_HEADER", label = "Dungeons", type = "header" })
-        table.insert(CATEGORIES, { name = "M0_GRID", label = "Mythic 0", type = "m0_grid" })
+        local dh = AcquireTable()
+        dh.name, dh.label, dh.type = "DUNGEONS_HEADER", "Dungeons", "header"
+        table.insert(CATEGORIES, dh)
+
+        local m0 = AcquireTable()
+        m0.name, m0.label, m0.type = "M0_GRID", "Mythic 0", "m0_grid"
+        table.insert(CATEGORIES, m0)
+
         for _, mapID in ipairs(maps) do
             local name = C_ChallengeMode.GetMapUIInfo(mapID)
             if name then
-                table.insert(CATEGORIES, {
-                    name = "DUNGEON_" .. mapID,
-                    label = name,
-                    type = "dungeon",
-                    mapID = mapID
-                })
+                local dc = AcquireTable()
+                dc.name, dc.label, dc.type, dc.mapID = "DUNGEON_" .. mapID, name, "dungeon", mapID
+                table.insert(CATEGORIES, dc)
             end
         end
     end
 
     -- Add Currencies from hardcoded list
-    table.insert(CATEGORIES, { name = "CURRENCY_HEADER", label = "Currency", type = "header" })
+    local ch = AcquireTable()
+    ch.name, ch.label, ch.type = "CURRENCY_HEADER", "Currency", "header"
+    table.insert(CATEGORIES, ch)
+
     for _, currencyDef in ipairs(CURRENCIES) do
-        table.insert(CATEGORIES, {
-            name = "CURRENCY_" .. currencyDef.id,
-            label = currencyDef.label,
-            type = "currency",
-            id = currencyDef.id,
-            icon = currencyDef.icon
-        })
+        local cc = AcquireTable()
+        cc.name, cc.label, cc.type = "CURRENCY_" .. currencyDef.id, currencyDef.label, "currency"
+        cc.id, cc.icon = currencyDef.id, currencyDef.icon
+        table.insert(CATEGORIES, cc)
     end
 
     local hasProf = false
@@ -141,84 +247,22 @@ function sfui.alts.RefreshDynamicCategories()
     end
 
     if hasProf then
-        table.insert(CATEGORIES, { name = "PROFESSION_HEADER", label = "Professions", type = "header" })
-        table.insert(CATEGORIES, { name = "PROFESSION_1", label = "", type = "prof_slot", slot = 1 })
-        table.insert(CATEGORIES, { name = "PROFESSION_2", label = "", type = "prof_slot", slot = 2 })
+        local h = AcquireTable()
+        h.name, h.label, h.type = "PROFESSION_HEADER", "Professions", "header"
+        table.insert(CATEGORIES, h)
+
+        local p1 = AcquireTable()
+        p1.name, p1.label, p1.type, p1.slot = "PROFESSION_1", "", "prof_slot", 1
+        table.insert(CATEGORIES, p1)
+
+        local p2 = AcquireTable()
+        p2.name, p2.label, p2.type, p2.slot = "PROFESSION_2", "", "prof_slot", 2
+        table.insert(CATEGORIES, p2)
     end
 
     categoriesBuilt = true
 end
 
--- Frame Pooling
-local columnPool = {}
-local cellPool = {}
-
-local function AcquireColumn(parent)
-    local f = table.remove(columnPool)
-    if not f then
-        f = CreateFrame("Frame", nil, parent)
-    else
-        f:SetParent(parent)
-        f:Show()
-    end
-    return f
-end
-
-local function ReleaseColumn(f)
-    f:Hide()
-    f:SetParent(nil)
-    f:ClearAllPoints()
-    table.insert(columnPool, f)
-end
-
-local function AcquireCell(parent)
-    local f = table.remove(cellPool)
-    if not f then
-        f = CreateFrame("Frame", nil, parent)
-        f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        f.text:SetPoint("CENTER")
-    else
-        f:SetParent(parent)
-        f:Show()
-        if f.text then
-            f.text:Show()
-            f.text:SetText("")
-            f.text:SetTextColor(1, 1, 1)
-            f.text:SetFontObject("GameFontHighlightSmall")
-            f.text:SetPoint("CENTER")
-        end
-        if f.rightText then
-            f.rightText:Hide()
-        end
-        -- Hide any extra textures/buttons that might have been added
-        local regions = { f:GetRegions() }
-        for _, r in ipairs(regions) do
-            if r:IsObjectType("Texture") then r:Hide() end
-        end
-        local children = { f:GetChildren() }
-        for _, c in ipairs(children) do
-            c:Hide()
-        end
-    end
-    return f
-end
-
-local function ReleaseCell(f)
-    f:Hide()
-    f:SetParent(nil)
-    f:ClearAllPoints()
-    f:SetScript("OnEnter", nil)
-    f:SetScript("OnLeave", nil)
-    -- Clear the delete button's stale OnClick closure so the previous
-    -- alt's data table can be garbage-collected.
-    if f.del then
-        f.del:SetScript("OnClick", nil)
-        f.del:SetScript("OnEnter", nil)
-        f.del:SetScript("OnLeave", nil)
-        f.del:Hide()
-    end
-    table.insert(cellPool, f)
-end
 
 -- Character data collection
 local function GetCurrentCharacterGUID()
@@ -234,10 +278,6 @@ function sfui.alts.SyncCurrentCharacter()
         return
     end
 
-    if not frame or not frame:IsVisible() then
-        needsSync = true
-        return
-    end
 
     if syncTimer then return end
     syncTimer = C_Timer.After(1.0, function()
@@ -279,12 +319,18 @@ function sfui.alts.PerformSync()
     end
 
     local guid = GetCurrentCharacterGUID()
-    if not guid then return end
+    local name = UnitName("player")
+    local level = UnitLevel("player")
+
+    -- VALIDATION GUARD: Do not sync if character and level data are not yet available (e.g., during login or world transitions).
+    if not guid or not name or name == "Unknown Entity" or not level or level <= 0 then
+        return
+    end
 
     SfuiDB.alts[guid] = SfuiDB.alts[guid] or {}
     local data = SfuiDB.alts[guid]
 
-    local name, realm = UnitName("player")
+    local _, realm = UnitName("player")
     data.name = name
     data.realm = realm or GetRealmName()
 
@@ -294,7 +340,7 @@ function sfui.alts.PerformSync()
     local _, race = UnitRace("player")
     data.race = race
 
-    data.level = UnitLevel("player")
+    data.level = level
 
     local _, avgItemLevelEquipped = GetAverageItemLevel()
     data.iLvl = avgItemLevelEquipped
@@ -306,11 +352,11 @@ function sfui.alts.PerformSync()
     data.rating = rating
 
     local mapID = C_MythicPlus.GetOwnedKeystoneChallengeMapID()
-    local level = C_MythicPlus.GetOwnedKeystoneLevel()
-    if mapID and level then
-        data.keystone = data.keystone or {}
+    local keystoneLevel = C_MythicPlus.GetOwnedKeystoneLevel()
+    if mapID and keystoneLevel then
+        data.keystone = data.keystone or AcquireTable()
         data.keystone.mapID = mapID
-        data.keystone.level = level
+        data.keystone.level = keystoneLevel
     end
 
     -- Mythic+ Dungeon Best Scores
@@ -451,22 +497,13 @@ function sfui.alts.PerformSync()
         data.prey.hard = 0
         data.prey.mythic = 0
         for _, qID in ipairs(huntNormal) do
-            if C_QuestLog.IsQuestFlaggedCompleted(qID) then
-                data.prey.normal = data.prey
-                    .normal + 1
-            end
+            if C_QuestLog.IsQuestFlaggedCompleted(qID) then data.prey.normal = data.prey.normal + 1 end
         end
         for _, qID in ipairs(huntHard) do
-            if C_QuestLog.IsQuestFlaggedCompleted(qID) then
-                data.prey.hard = data.prey
-                    .hard + 1
-            end
+            if C_QuestLog.IsQuestFlaggedCompleted(qID) then data.prey.hard = data.prey.hard + 1 end
         end
         for _, qID in ipairs(huntMythic) do
-            if C_QuestLog.IsQuestFlaggedCompleted(qID) then
-                data.prey.mythic = data.prey
-                    .mythic + 1
-            end
+            if C_QuestLog.IsQuestFlaggedCompleted(qID) then data.prey.mythic = data.prey.mythic + 1 end
         end
         data.prey.weekly = data.prey.normal + data.prey.hard + data.prey.mythic
         -- Active Hunt Progress using config ID
@@ -500,11 +537,23 @@ function sfui.alts.PerformSync()
     if prof2 then table.insert(profsToCheck, prof2) end
 
     for _, pIndex in ipairs(profsToCheck) do
-        local name, icon, skillLevel, maxSkillLevel, numAbilities, spelloffset, skillLine, skillModifier, specializationOffset =
-            GetProfessionInfo(pIndex)
+        local name, icon, skillLevel, _, _, _, skillLine = GetProfessionInfo(pIndex)
         local tracking = PROF_KP_SOURCES[skillLine]
         if tracking then
-            local pData = { name = name, icon = icon, skill = skillLevel, done = 0, total = 0, catchUp = 0, details = { treatise = false, quest = false, treasures = 0, treasuresMax = #tracking.treasures } }
+            -- Re-use existing table or acquire new one
+            local pData = data.profKP[skillLine] or AcquireTable()
+            pData.name = name
+            pData.icon = icon
+            pData.skill = skillLevel
+            pData.done = 0
+            pData.total = 0
+            pData.catchUp = 0
+            pData.details = pData.details or AcquireTable()
+            local d = pData.details
+            d.treatise = false
+            d.quest = false
+            d.treasures = 0
+            d.treasuresMax = #tracking.treasures
 
             pData.total = pData.total + 1
             for _, qid in ipairs(tracking.treatise) do
@@ -730,6 +779,24 @@ local PROF_SHORT_NAMES = {
     ["Tailoring"] = "Tail",
 }
 
+-- Optimization: Static tables and sort function to avoid garbage collection
+local visibleCats = {}
+local altsList = {}
+
+local function SortAlts(a, b)
+    local sortMethod = SfuiDB.altsSort or "name"
+    if sortMethod == "ilvl" then
+        local aLevel, bLevel = a.data.level or 0, b.data.level or 0
+        local aILvl, bILvl = a.data.iLvl or 0, b.data.iLvl or 0
+        if aLevel ~= bLevel then return aLevel > bLevel end
+        if aILvl ~= bILvl then return aILvl > bILvl end
+    elseif sortMethod == "rating" then
+        local aRating, bRating = a.data.rating or 0, b.data.rating or 0
+        if aRating ~= bRating then return aRating > bRating end
+    end
+    return (a.data.name or "") < (b.data.name or "")
+end
+
 local updateRequested = false
 function sfui.alts.UpdateUI(force)
     if not frame or (not force and not frame:IsVisible()) then return end
@@ -747,7 +814,7 @@ function sfui.alts.UpdateUI(force)
     SfuiDB.altsCollapsed = SfuiDB.altsCollapsed or {}
     SfuiDB.altsHiddenSections = SfuiDB.altsHiddenSections or {}
 
-    local visibleCats = {}
+    wipe(visibleCats)
     local currentHeader = nil
     for _, cat in ipairs(CATEGORIES) do
         if cat.type == "header" then
@@ -766,9 +833,10 @@ function sfui.alts.UpdateUI(force)
 
     -- Update sidebar
     if frame.sidebar then
-        local cells = { frame.sidebar:GetChildren() }
-        for _, cell in ipairs(cells) do
-            ReleaseCell(cell)
+        -- OPTIMIZATION: Avoid { GetChildren() }
+        for i = 1, frame.sidebar:GetNumChildren() do
+            local cell = select(i, frame.sidebar:GetChildren())
+            if cell then ReleaseCell(cell) end
         end
         local visY = 0
         for _, cat in ipairs(visibleCats) do
@@ -807,53 +875,29 @@ function sfui.alts.UpdateUI(force)
 
     -- Release existing content to pools
     if not frame.content then return end
-    local columns = { frame.content:GetChildren() }
-    for _, col in ipairs(columns) do
-        local cells = { col:GetChildren() }
-        for _, cell in ipairs(cells) do
-            ReleaseCell(cell)
+    -- OPTIMIZATION: Avoid temporary tables for children iteration
+    for i = 1, frame.content:GetNumChildren() do
+        local col = select(i, frame.content:GetChildren())
+        if col then
+            for j = 1, col:GetNumChildren() do
+                local cell = select(j, col:GetChildren())
+                if cell then ReleaseCell(cell) end
+            end
+            ReleaseColumn(col)
         end
-        ReleaseColumn(col)
     end
 
-    local alts = {}
+    wipe(altsList)
     for guid, data in pairs(SfuiDB.alts) do
         if not data.isHidden then
-            table.insert(alts, { guid = guid, data = data })
+            table.insert(altsList, { guid = guid, data = data })
         end
     end
 
-    local sortMethod = SfuiDB.altsSort or "name"
-    table.sort(alts, function(a, b)
-        if sortMethod == "ilvl" then
-            local aLevel = a.data.level or 0
-            local bLevel = b.data.level or 0
-            local aILvl = a.data.iLvl or 0
-            local bILvl = b.data.iLvl or 0
-
-            -- Sort by Level first if one is not max (90)
-            if aLevel ~= bLevel then
-                return aLevel > bLevel
-            end
-
-            -- If both same level, sort by iLvl
-            if aILvl ~= bILvl then
-                return aILvl > bILvl
-            end
-        elseif sortMethod == "rating" then
-            local aRating = a.data.rating or 0
-            local bRating = b.data.rating or 0
-            if aRating ~= bRating then
-                return aRating > bRating
-            end
-        end
-
-        -- Fallback to Name (A-Z)
-        return (a.data.name or "") < (b.data.name or "")
-    end)
+    table.sort(altsList, SortAlts)
 
     local xOffset = 0
-    for i, alt in ipairs(alts) do
+    for i, alt in ipairs(altsList) do
         local col = AcquireColumn(frame.content)
         col:SetSize(cfg.columnWidth, #visibleCats * cfg.rowHeight)
         col:SetPoint("TOPLEFT", xOffset, 0)
@@ -1246,28 +1290,21 @@ function sfui.alts.initialize()
     eventFrame:RegisterEvent("WEEKLY_REWARDS_UPDATE")
     eventFrame:RegisterEvent("QUEST_TURNED_IN")
     eventFrame:RegisterEvent("QUEST_LOG_UPDATE")
-    -- Note: UPDATE_UI_WIDGET intentionally omitted — it fires
-    -- extremely frequently (every UI widget change). The events
-    -- above cover all meaningful vault/raid/dungeon state changes.
+    eventFrame:RegisterEvent("PLAYER_LEVEL_UP")
+    eventFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+    eventFrame:RegisterEvent("SKILL_LINES_CHANGED")
+    eventFrame:RegisterEvent("CHAT_MSG_SKILL")
     eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
     eventFrame:RegisterEvent("PLAYER_LEAVING_WORLD")
 
-    eventFrame:SetScript("OnEvent", function(self, event)
-        if event == "PLAYER_LEAVING_WORLD" then
-            if needsSync then
-                sfui.alts.PerformSync()
-                needsSync = false
-            end
-        elseif event == "PLAYER_REGEN_ENABLED" then
-            if needsSync then
-                sfui.alts.SyncCurrentCharacter()
-            end
-        elseif event == "CURRENCY_DISPLAY_UPDATE" then
-            -- Throttled for currency spam
-            sfui.alts.SyncCurrentCharacter()
-        elseif event == "QUEST_LOG_UPDATE" then
+    eventFrame:SetScript("OnEvent", function(_, event)
+        if event == "QUEST_LOG_UPDATE" then
             preyLogDirty = true
-            sfui.alts.SyncCurrentCharacter()
+        end
+
+        if event == "PLAYER_LEAVING_WORLD" then
+            -- Sync immediately on logout to catch final changes, protected by validation guards in PerformSync
+            sfui.alts.PerformSync()
         else
             sfui.alts.SyncCurrentCharacter()
         end

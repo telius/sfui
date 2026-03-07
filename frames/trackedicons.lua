@@ -17,6 +17,20 @@ local ipairs = ipairs
 local tinsert = table.insert
 
 local panels = {} -- Active icon panels
+local _needsStateUpdate = true -- Start dirty for initial render
+local _needsLayoutUpdate = true
+local _burstTimer = 0          -- Brief burst period after events for smooth transitions
+local _layoutCooldown = 0
+
+-- Helper: Mark icons as needing a state refresh
+local function MarkDirty(burstDuration, needsLayout)
+    _needsStateUpdate = true
+    if needsLayout then
+        _needsLayoutUpdate = true
+    end
+    _burstTimer = math.max(_burstTimer, burstDuration or 0.5)
+end
+sfui.trackedicons.MarkDirty = MarkDirty
 local issecretvalue = sfui.common.issecretvalue
 -- STATIC REUSE (Memory Optimization)
 local _tempGlowCfg = {}
@@ -880,9 +894,9 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
         targetPoint = "BOTTOM"
         anchorPoint = "TOP"
 
-        -- Smart Anchoring: Check if Power Bar (bar_minus_1) EXISTS (don't check IsShown to prevent popping)
+        -- Smart Anchoring: Check if Power Bar (bar_minus_1) EXISTS and IS SHOWN
         local powerBar = _G["sfui_bar-1_Backdrop"] or _G["sfui_bar_minus_1_Backdrop"]
-        if powerBar then
+        if powerBar and powerBar:IsShown() then
             targetFrame = powerBar
             targetPoint = "BOTTOM"
         end
@@ -962,6 +976,17 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
 
                 table.insert(activeIcons, icon)
             end
+        end
+    end
+
+    -- Cleanup stale icons (from previous specs/layouts) that exceed the current entry count
+    for x = #entries + 1, #panelFrame.icons do
+        local oldIcon = panelFrame.icons[x]
+        if oldIcon then
+            oldIcon:Hide()
+            oldIcon.id = nil
+            oldIcon.entry = nil
+            panelFrame.icons[x] = nil
         end
     end
 
@@ -1280,17 +1305,20 @@ function sfui.trackedicons.initialize()
         sfui.common.hide_blizzard_cooldown_viewers()
     end
 
-    -- Dirty-flag system: events set this flag, OnUpdate only processes when dirty
-    local _needsStateUpdate = true -- Start dirty for initial render
-    local _needsLayoutUpdate = true
+    -- (State variables and MarkDirty moved to module level)
     local _burstTimer = 0          -- Brief burst period after events for smooth transitions
 
     -- Helper: Mark icons as needing a state refresh
+    -- Helper: Mark icons as needing a state refresh
+    local _layoutCooldown = 0
     local function MarkDirty(burstDuration, needsLayout)
         _needsStateUpdate = true
-        if needsLayout then _needsLayoutUpdate = true end
+        if needsLayout then
+            _needsLayoutUpdate = true
+        end
         _burstTimer = math.max(_burstTimer, burstDuration or 0.5)
     end
+
 
     -- Helper: Update only icon states (no layout rebuild) using cached panel.config
     local function UpdateAllIconStates()
@@ -1328,6 +1356,9 @@ function sfui.trackedicons.initialize()
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
         sfui.trackedicons.Update()
         MarkDirty(1.0) -- Longer burst for combat transitions
+    end)
+    sfui.events.RegisterEvent("PLAYER_TARGET_CHANGED", function()
+        MarkDirty(0.5, true)
     end)
     sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", function()
         sfui.trackedicons.Update()
@@ -1421,15 +1452,19 @@ function sfui.trackedicons.initialize()
             end
         end
 
-        -- Decrement burst timer
+        -- Decrement burst and layout timers
         if _burstTimer > 0 then
             _burstTimer = _burstTimer - 0.1
         end
+        if _layoutCooldown > 0 then
+            _layoutCooldown = _layoutCooldown - 0.1
+        end
 
         -- Only update if dirty flag set or burst timer active or any glows are running
-        if _needsLayoutUpdate then
+        if _needsLayoutUpdate and _layoutCooldown <= 0 then
             _needsLayoutUpdate = false
             _needsStateUpdate = false
+            _layoutCooldown = 0.5 -- 500ms throttle for layout updates
             wipe(_cdInfoCache)
             sfui.trackedicons.Update()
         elseif _needsStateUpdate or _burstTimer > 0 then

@@ -1,3 +1,19 @@
+## v0.4.3 (2026-03-07)
+
+### Features
+- **Alts Background Syncing**: Character data now updates in the background upon level-up, profession changes, and equipment updates without requiring the UI to be open.
+- **Safe Logout Synchronization**: Restored logout triggers with robust validation guards, ensuring final session data is saved safely during the logout sequence.
+
+### Optimizations
+- **Memory Pooling Architecture**: Implemented a comprehensive `tablePool` system in `alts.lua` to eliminate garbage collection (GC) pressure via object recycling.
+- **Efficient Frame Acquisition**: Optimized UI updates to avoid redundant object creation and temporary table allocations when iterating over frame regions.
+- **Smart Stance/Form Anchoring**: Tracked icons now intelligently detect mana/resource bar visibility, automatically shifting position to avoid overlapping UI elements.
+
+### Bug Fixes
+- **Alts Data Persistence**: Fixed a critical issue where character level and professions were being cleared on logout.
+- **Respec Icon Cleanup**: Resolved a bug where icons from a previous specialization remained visible after switching specs.
+- **API Errors**: Fixed "AcquireTable nil" scope error and corrected invalid `PLAYER_AVG_ITEM_LEVEL_READY` event registration.
+
 ## v0.4.2 (2026-03-06)
 
 ### Optimizations

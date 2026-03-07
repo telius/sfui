@@ -661,5 +661,9 @@ sfui.config = {
         backdropColor = { 0.05, 0.05, 0.05, 0.9 },
         borderColor = { 0, 0, 0, 1 },
         highlightColor = { 0.4, 0, 1, 1 }, -- Purple
+        expansion = {
+            preyFactionID = 2764,          -- Midnight Season 1 Progress
+            activeHuntCurrencyID = 3392,   -- Remnant of Anguish
+        },
     }
 }

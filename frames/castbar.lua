@@ -293,8 +293,9 @@ local function OnEvent(self, event, ...)
             local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(spellID)
             local texture = info and info.iconID
 
-            -- Predictive GCD Logic
-            local duration = apply_haste_to_gcd(1.5)
+            -- Precise API GCD Logic
+            local onGCD, gcdDuration = sfui.common.GetGCDInfo()
+            local duration = (onGCD and gcdDuration > 0) and gcdDuration or apply_haste_to_gcd(1.5)
 
             self.instant = true
             self.casting = nil
