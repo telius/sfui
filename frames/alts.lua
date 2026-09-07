@@ -352,6 +352,28 @@ function sfui.alts.CheckWeeklyResets()
         C_DateAndTime.GetSecondsUntilWeeklyReset() or 0
     local currentNextReset = secondsToReset > 0 and (now + secondsToReset) or nil
 
+    -- Repair any legacy corrupted World/Delve slot 2 that was overwritten by PvP activity 229
+    for _, d in pairs(SfuiDB.alts or {}) do
+        if d.vault and d.vault.world then
+            local w = d.vault.world
+            if w[2] and (w[2].id == 229 or w[2].threshold == 3) then
+                w[2].id = 208
+                w[2].threshold = 4
+                if not w[2].level or w[2].level == 0 then
+                    local s3 = w[3]
+                    local s1 = w[1]
+                    if s3 and s3.level and s3.level > 0 then
+                        w[2].level = s3.level
+                        w[2].itemLevel = w[2].itemLevel or s3.itemLevel
+                    elseif s1 and s1.level and s1.level > 0 then
+                        w[2].level = s1.level
+                        w[2].itemLevel = w[2].itemLevel or s1.itemLevel
+                    end
+                end
+            end
+        end
+    end
+
     for g, d in pairs(SfuiDB.alts or {}) do
         if d.lastUpdate and (now - d.lastUpdate > thirtyDaysSecs) then
             SfuiDB.alts[g] = nil
@@ -538,17 +560,24 @@ function sfui.alts.PerformSync(isLogout)
     wipe(data.vault.raid)
     wipe(data.vault.dungeon)
     wipe(data.vault.world)
-    local activities = C_WeeklyRewards.GetActivities()
+    local vaultCategories = {
+        { group = "raid", type = Enum.WeeklyRewardChestThresholdType.Raid },
+        { group = "dungeon", type = Enum.WeeklyRewardChestThresholdType.Activities },
+        { group = "world", type = Enum.WeeklyRewardChestThresholdType.World },
+    }
 
-    for _, activity in ipairs(activities) do
-        local group = "world"
+    local function recordVaultActivity(activity, defaultGroup)
+        if not activity then return end
+        local group = defaultGroup
         if activity.type == Enum.WeeklyRewardChestThresholdType.Raid then
             group = "raid"
         elseif activity.type == Enum.WeeklyRewardChestThresholdType.Activities then
             group = "dungeon"
+        elseif Enum.WeeklyRewardChestThresholdType.World and activity.type == Enum.WeeklyRewardChestThresholdType.World then
+            group = "world"
         end
 
-        if activity.index >= 1 and activity.index <= 3 then
+        if group and activity.index and activity.index >= 1 and activity.index <= 3 then
             data.vault[group][activity.index] = data.vault[group][activity.index] or {}
             data.vault[group][activity.index].id = activity.id
             data.vault[group][activity.index].progress = activity.progress or 0
@@ -565,6 +594,29 @@ function sfui.alts.PerformSync(isLogout)
                 end
             end
             data.vault[group][activity.index].itemLevel = itemLevel
+        end
+    end
+
+    if C_WeeklyRewards and C_WeeklyRewards.GetActivities then
+        for _, cat in ipairs(vaultCategories) do
+            if cat.type then
+                local activities = C_WeeklyRewards.GetActivities(cat.type)
+                if activities and #activities > 0 then
+                    for _, act in ipairs(activities) do
+                        recordVaultActivity(act, cat.group)
+                    end
+                end
+            end
+        end
+
+        -- Fallback: if any category wasn't populated, scan global GetActivities() safely
+        if not next(data.vault.raid) and not next(data.vault.dungeon) and not next(data.vault.world) then
+            local allActivities = C_WeeklyRewards.GetActivities()
+            if allActivities then
+                for _, act in ipairs(allActivities) do
+                    recordVaultActivity(act, nil)
+                end
+            end
         end
     end
 
@@ -2041,20 +2093,20 @@ function sfui.alts.UpdateUI(force)
                 local group = cat.group
                 local squareSize = (cfg.columnWidth - 10) / 3
 
-                local GetVaultColor = function(g, l)
+                local GetVaultColor = function(g, l, ilvl)
                     if g == "raid" then
-                        if l == 16 then return { 1.0, 0.5, 0.0, 0.8 } end     -- Mythic (Orange)
-                        if l == 15 then return { 0.64, 0.21, 0.93, 0.8 } end  -- Heroic (Purple)
-                        if l == 14 then return { 0.0, 0.44, 0.87, 0.8 } end   -- Normal (Blue)
+                        if l == 16 or (ilvl and ilvl >= 318) then return { 1.0, 0.5, 0.0, 0.8 } end     -- Mythic (Orange)
+                        if l == 15 or (ilvl and ilvl >= 305) then return { 0.64, 0.21, 0.93, 0.8 } end  -- Heroic (Purple)
+                        if l == 14 or (ilvl and ilvl >= 292) then return { 0.0, 0.44, 0.87, 0.8 } end   -- Normal (Blue)
                         return { 0.12, 1.0, 0.0, 0.8 }                        -- LFR (Green)
                     elseif g == "world" then
-                        if l >= 7 then return { 0.64, 0.21, 0.93, 0.8 } end   -- Hero (Tier 7-8+ Delves, Purple)
-                        if l >= 4 then return { 0.0, 0.44, 0.87, 0.8 } end    -- Champion (Tier 4-6 Delves, Blue)
+                        if (l and l >= 7) or (ilvl and ilvl >= 305) then return { 0.64, 0.21, 0.93, 0.8 } end   -- Hero (Tier 7-8+ Delves, Purple)
+                        if (l and l >= 4) or (ilvl and ilvl >= 292) then return { 0.0, 0.44, 0.87, 0.8 } end    -- Champion (Tier 4-6 Delves, Blue)
                         return { 0.12, 1.0, 0.0, 0.8 }                         -- Veteran (Tier 1-3 Delves, Green)
                     else -- dungeon
-                        if l >= 10 then return { 1.0, 0.5, 0.0, 0.8 } end     -- Myth (+10+, Orange)
-                        if l >= 2  then return { 0.64, 0.21, 0.93, 0.8 } end  -- Hero (+2 to +9, Purple)
-                        if l >= 0  then return { 0.0, 0.44, 0.87, 0.8 } end   -- Champion (M0, Blue)
+                        if (l and l >= 10) or (ilvl and ilvl >= 318) then return { 1.0, 0.5, 0.0, 0.8 } end     -- Myth (+10+, Orange)
+                        if (l and l >= 2)  or (ilvl and ilvl >= 305) then return { 0.64, 0.21, 0.93, 0.8 } end  -- Hero (+2 to +9, Purple)
+                        if (l and l >= 0)  or (ilvl and ilvl >= 292) then return { 0.0, 0.44, 0.87, 0.8 } end   -- Champion (M0, Blue)
                         return { 0.12, 1.0, 0.0, 0.8 }                         -- Veteran (Heroic Dungeon, Green)
                     end
                 end
@@ -2086,10 +2138,16 @@ function sfui.alts.UpdateUI(force)
                     return nil
                 end
 
-                local GetVaultTrack = function(g, l)
+                local GetVaultTrack = function(g, l, ilvl)
                     if sfui.season and sfui.season.GetVaultBaseline then
                         local _, track = sfui.season.GetVaultBaseline(g, l)
                         if track then return track end
+                    end
+                    if ilvl then
+                        if ilvl >= 318 then return "|cffff8000Myth|r" end
+                        if ilvl >= 305 then return "|cffa335eeHero|r" end
+                        if ilvl >= 292 then return "|cff0070ddChampion|r" end
+                        if ilvl >= 279 then return "|cff1eff00Veteran|r" end
                     end
                     return nil
                 end
@@ -2102,8 +2160,24 @@ function sfui.alts.UpdateUI(force)
                     rect:SetPoint("LEFT", (slotIdx - 1) * squareSize + 5, 0)
 
                     local vData = alt.data.vault and alt.data.vault[group] and alt.data.vault[group][slotIdx]
+                    if group == "world" and slotIdx == 2 and vData and (vData.id == 229 or vData.threshold == 3) then
+                        vData.id = 208
+                        vData.threshold = 4
+                        if not vData.level or vData.level == 0 then
+                            local s3 = alt.data.vault[group][3]
+                            local s1 = alt.data.vault[group][1]
+                            if s3 and s3.level and s3.level > 0 then
+                                vData.level = s3.level
+                                vData.itemLevel = vData.itemLevel or s3.itemLevel
+                            elseif s1 and s1.level and s1.level > 0 then
+                                vData.level = s1.level
+                                vData.itemLevel = vData.itemLevel or s1.itemLevel
+                            end
+                        end
+                    end
+
                     if vData and vData.progress >= vData.threshold and vData.threshold > 0 then
-                        rect:SetColorTexture(unpack(GetVaultColor(group, vData.level)))
+                        rect:SetColorTexture(unpack(GetVaultColor(group, vData.level, vData.itemLevel)))
                     else
                         local sColors = cfg.statusColors
                         rect:SetColorTexture(unpack(sColors and sColors.available or { 0, 0, 0, 0.5 }))
@@ -2127,6 +2201,22 @@ function sfui.alts.UpdateUI(force)
 
                     for idx = 1, 3 do
                         local v = vGroup and vGroup[idx]
+                        if group == "world" and idx == 2 and v and (v.id == 229 or v.threshold == 3) then
+                            v.id = 208
+                            v.threshold = 4
+                            if not v.level or v.level == 0 then
+                                local s3 = vGroup[3]
+                                local s1 = vGroup[1]
+                                if s3 and s3.level and s3.level > 0 then
+                                    v.level = s3.level
+                                    v.itemLevel = v.itemLevel or s3.itemLevel
+                                elseif s1 and s1.level and s1.level > 0 then
+                                    v.level = s1.level
+                                    v.itemLevel = v.itemLevel or s1.itemLevel
+                                end
+                            end
+                        end
+
                         if v and v.threshold > 0 then
                             local isUnlocked = v.progress >= v.threshold
                             local statusStr = isUnlocked and "|cff00ff00Unlocked|r" or
@@ -2146,7 +2236,7 @@ function sfui.alts.UpdateUI(force)
                             end
 
                             local ilvl = GetVaultItemLevel(group, v.level, v)
-                            local track = GetVaultTrack(group, v.level)
+                            local track = GetVaultTrack(group, v.level, ilvl)
                             if ilvl and (isUnlocked or v.level > 0) then
                                 if track then
                                     table.insert(detailParts, string.format("|cffffd100%d ilvl|r (%s)", ilvl, track))
