@@ -728,21 +728,65 @@ function sfui.cdm.create_panel(parent)
     leftScroll:SetPoint("TOPLEFT", 5, -5)
     leftScroll:SetPoint("BOTTOMLEFT", 5, 5)
     leftScroll:SetWidth(PANEL_LIST_W - 20) -- Move scrollbar 20px left by reducing width
+    leftScroll:EnableMouseWheel(true)
+    common.style_scrollbar(leftScroll.ScrollBar)
 
     local leftContent = CreateFrame("Frame", nil, leftScroll)
     leftContent:SetSize(PANEL_LIST_W - 20, 2000)
     leftScroll:SetScrollChild(leftContent)
+    leftContent:EnableMouseWheel(true)
     cdmFrame.leftContent = leftContent
+
+    local function on_left_wheel(self, delta)
+        local scrollBar = leftScroll.ScrollBar
+        if scrollBar then
+            local minVal, maxVal = scrollBar:GetMinMaxValues()
+            if maxVal and maxVal > (minVal or 0) then
+                local cur = scrollBar:GetValue()
+                scrollBar:SetValue(math.max(minVal, math.min(maxVal, cur - delta * 30)))
+                return
+            end
+        end
+        local cur = leftScroll:GetVerticalScroll()
+        local maxScroll = leftScroll:GetVerticalScrollRange()
+        if maxScroll > 0 then
+            leftScroll:SetVerticalScroll(math.max(0, math.min(maxScroll, cur - delta * 30)))
+        end
+    end
+    leftScroll:SetScript("OnMouseWheel", on_left_wheel)
+    leftContent:SetScript("OnMouseWheel", on_left_wheel)
 
     -- ─── Right Column: Settings ───────────────────────────────────────────────
     local rightScroll = CreateFrame("ScrollFrame", "SfuiCDMRightScroll", cdmFrame, "UIPanelScrollFrameTemplate")
     rightScroll:SetPoint("TOPLEFT", 5 + PANEL_LIST_W + GAP, -5)
     rightScroll:SetPoint("BOTTOMRIGHT", -25, 5)
+    rightScroll:EnableMouseWheel(true)
+    common.style_scrollbar(rightScroll.ScrollBar)
 
     local rightContent = CreateFrame("Frame", nil, rightScroll)
     rightContent:SetSize(SETTINGS_W, 3000)
     rightScroll:SetScrollChild(rightContent)
+    rightContent:EnableMouseWheel(true)
     cdmFrame.rightContent = rightContent
+
+    local function on_right_wheel(self, delta)
+        local scrollBar = rightScroll.ScrollBar
+        if scrollBar then
+            local minVal, maxVal = scrollBar:GetMinMaxValues()
+            if maxVal and maxVal > (minVal or 0) then
+                local cur = scrollBar:GetValue()
+                scrollBar:SetValue(math.max(minVal, math.min(maxVal, cur - delta * 30)))
+                return
+            end
+        end
+        local cur = rightScroll:GetVerticalScroll()
+        local maxScroll = rightScroll:GetVerticalScrollRange()
+        if maxScroll > 0 then
+            rightScroll:SetVerticalScroll(math.max(0, math.min(maxScroll, cur - delta * 30)))
+        end
+    end
+    rightScroll:SetScript("OnMouseWheel", on_right_wheel)
+    rightContent:SetScript("OnMouseWheel", on_right_wheel)
 
     -- ─── Divider ──────────────────────────────────────────────────────────────
     local divider = cdmFrame:CreateTexture(nil, "ARTWORK")

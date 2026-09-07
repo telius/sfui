@@ -88,8 +88,8 @@ sfui.config = {
         [64] = { 0.25, 0.78, 0.92, 1 },      -- Frost
         -- Monk
         [268] = { 0.90, 0.60, 0.15, 1 },     -- Brewmaster
-        [269] = { 0.00, 1.00, 0.59, 1 },     -- Mistweaver
-        [270] = { 0.00, 1.00, 0.59, 1 },     -- Windwalker
+        [269] = { 0.40, 0.80, 1.00, 1 },     -- Windwalker
+        [270] = { 0.00, 1.00, 0.59, 1 },     -- Mistweaver
         -- Paladin
         [65] = { 0.96, 0.55, 0.73, 1 },      -- Holy
         [66] = { 1.00, 0.75, 0.20, 1 },      -- Protection
@@ -108,7 +108,7 @@ sfui.config = {
         [264] = { 0.00, 0.44, 0.87, 1 },     -- Restoration
         -- Warlock
         [265] = { 0.53, 0.53, 0.93, 1 },     -- Affliction
-        [266] = { 0.53, 0.53, 0.93, 1 },     -- Demonology
+        [266] = { 0.71, 0.26, 0.93, 1 },     -- Demonology
         [267] = { 0.635, 1.0, 0.0, 1 },      -- Destruction
         -- Warrior
         [71] = { 1.00, 0.00, 0.00, 1 },      -- Arms
@@ -674,3 +674,4 @@ sfui.config = {
         posY    = 50, -- default vertical offset (+50px from bottom)
     },
 }
+

@@ -33,7 +33,9 @@ function sfui.cursor.initialize()
     local function UpdateColor()
         local spec = GetSpecialization()
         local specID = spec and GetSpecializationInfo(spec) or 0
-        local color = sfui.config.spec_colors[specID] or { 1, 1, 1, 1 }
+        local color = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
+            or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
+            or { 1, 1, 1, 1 }
         ring:SetVertexColor(color[1], color[2], color[3], 0.8)
     end
 

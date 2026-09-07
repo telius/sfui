@@ -3,17 +3,15 @@ local c = sfui.config.options_panel
 local g = sfui.config
 local common = sfui.common
 
-local UIDropDownMenu_Initialize = UIDropDownMenu_Initialize
-local UIDropDownMenu_CreateInfo = UIDropDownMenu_CreateInfo
-local UIDropDownMenu_AddButton = UIDropDownMenu_AddButton
-local UIDropDownMenu_SetSelectedValue = UIDropDownMenu_SetSelectedValue
-local UIDropDownMenu_SetWidth = UIDropDownMenu_SetWidth
 local wipe = wipe
 local LibStub = LibStub
 local CreateFrame = CreateFrame
 local UIParent = UIParent
 local C_Timer = C_Timer
 local GameTooltip = sfui.tooltip or _G.GameTooltip
+local GetNumSpecializations = GetNumSpecializations
+local GetSpecializationInfo = GetSpecializationInfo
+local select = select
 
 local frame
 local function select_tab(selected_tab_button)
@@ -27,6 +25,9 @@ local function select_tab(selected_tab_button)
     selected_tab_button:GetFontString():SetTextColor(c.tabs.selected_color[1], c.tabs.selected_color[2],
         c.tabs.selected_color[3])
     frame.selected_tab = selected_tab_button
+    if selected_tab_button.panel and selected_tab_button.panel.update_scroll_height then
+        C_Timer.After(0.01, selected_tab_button.panel.update_scroll_height)
+    end
 end
 
 function sfui.create_options_panel()
@@ -57,11 +58,7 @@ function sfui.create_options_panel()
     addon_icon:SetSize(32, 32); addon_icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 5, -5)
     addon_icon:SetTexture("Interface\\Icons\\Spell_shadow_deathcoil")
 
-    local close_button = CreateFlatButton(frame, "X", 24, 24)
-    close_button:SetPoint("TOPRIGHT", -5, -5)
-    close_button:SetScript("OnClick", function()
-        frame:Hide()
-    end)
+    local close_button = common.create_close_button(frame)
 
     local create_checkbox = common.create_checkbox
 
@@ -102,20 +99,100 @@ function sfui.create_options_panel()
         font_string:SetPoint("LEFT", tab_button, "LEFT", 5, 0)
         font_string:SetTextColor(c.tabs.color[1], c.tabs.color[2], c.tabs.color[3])
 
-        local content_panel = CreateFrame("Frame", "sfui_options_panel_" .. name, frame, "BackdropTemplate")
-        content_panel:SetPoint("TOPLEFT", frame, "TOPLEFT", c.tabs.width + 20, -40)
-        content_panel:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 5)
-        content_panel:SetBackdrop({ bgFile = g.textures.white, tile = true, tileSize = 32 })
-        content_panel:SetBackdropColor(unpack(sfui.config.appearance.backdropColor))
-        content_panel:Hide()
+        local container_panel = CreateFrame("Frame", "sfui_options_container_" .. name, frame, "BackdropTemplate")
+        container_panel:SetPoint("TOPLEFT", frame, "TOPLEFT", c.tabs.width + 20, -40)
+        container_panel:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 5)
+        container_panel:SetBackdrop({ bgFile = g.textures.white, tile = true, tileSize = 32 })
+        container_panel:SetBackdropColor(unpack(sfui.config.appearance.backdropColor))
+        container_panel:Hide()
 
-        tab_button.panel = content_panel
+        local scroll_frame = CreateFrame("ScrollFrame", "sfui_options_scroll_" .. name, container_panel, "UIPanelScrollFrameTemplate")
+        scroll_frame:SetPoint("TOPLEFT", container_panel, "TOPLEFT", 4, -4)
+        scroll_frame:SetPoint("BOTTOMRIGHT", container_panel, "BOTTOMRIGHT", -4, 4)
+        scroll_frame:EnableMouseWheel(true)
+        common.style_scrollbar(scroll_frame.ScrollBar)
+
+        local content_panel = CreateFrame("Frame", "sfui_options_panel_" .. name, scroll_frame)
+        content_panel:SetSize(c.width - c.tabs.width - 35, c.height - 50)
+        scroll_frame:SetScrollChild(content_panel)
+        content_panel:EnableMouseWheel(true)
+
+        local function on_mouse_wheel(self, delta)
+            local scrollBar = scroll_frame.ScrollBar
+            if scrollBar then
+                local minVal, maxVal = scrollBar:GetMinMaxValues()
+                if maxVal and maxVal > (minVal or 0) then
+                    local cur = scrollBar:GetValue()
+                    scrollBar:SetValue(math.max(minVal, math.min(maxVal, cur - delta * 30)))
+                    return
+                end
+            end
+            local cur = scroll_frame:GetVerticalScroll()
+            local maxScroll = scroll_frame:GetVerticalScrollRange()
+            if maxScroll > 0 then
+                scroll_frame:SetVerticalScroll(math.max(0, math.min(maxScroll, cur - delta * 30)))
+            end
+        end
+
+        scroll_frame:SetScript("OnMouseWheel", on_mouse_wheel)
+        content_panel:SetScript("OnMouseWheel", on_mouse_wheel)
+
+        local function update_scroll_height()
+            local top = content_panel:GetTop()
+            if not top then return end
+            local maxBottomOffset = container_panel:GetHeight() - 8
+            local function checkEl(el)
+                if el and el.GetBottom then
+                    local b = el:GetBottom()
+                    if b then
+                        local offset = top - b + 25
+                        if offset > maxBottomOffset then
+                            maxBottomOffset = offset
+                        end
+                    end
+                end
+            end
+            local function scan(f, depth)
+                if depth > 3 then return end
+                for _, child in ipairs({ f:GetChildren() }) do
+                    checkEl(child)
+                    scan(child, depth + 1)
+                end
+                for _, reg in ipairs({ f:GetRegions() }) do
+                    checkEl(reg)
+                end
+            end
+            scan(content_panel, 1)
+
+            local minH = container_panel:GetHeight() - 8
+            if maxBottomOffset < minH then maxBottomOffset = minH end
+            content_panel:SetHeight(maxBottomOffset)
+            scroll_frame:UpdateScrollChildRect()
+
+            if scroll_frame.ScrollBar then
+                local minVal, maxVal = scroll_frame.ScrollBar:GetMinMaxValues()
+                if not maxVal or maxVal <= (minVal or 0) or scroll_frame:GetVerticalScrollRange() <= 0 then
+                    scroll_frame.ScrollBar:Hide()
+                else
+                    scroll_frame.ScrollBar:Show()
+                end
+            end
+        end
+
+        container_panel.update_scroll_height = update_scroll_height
+        content_panel.update_scroll_height = update_scroll_height
+
+        container_panel:HookScript("OnShow", function()
+            C_Timer.After(0.01, update_scroll_height)
+        end)
+
+        tab_button.panel = container_panel
 
         tab_button:SetScript("OnClick", on_tab_click)
         tab_button:SetScript("OnEnter", on_tab_enter)
         tab_button:SetScript("OnLeave", on_tab_leave)
 
-        table.insert(frame.tabs, { button = tab_button, panel = content_panel })
+        table.insert(frame.tabs, { button = tab_button, panel = container_panel })
         return content_panel, tab_button
     end
 
@@ -339,15 +416,35 @@ function sfui.create_options_panel()
     texture_label:SetPoint("TOPLEFT", use_spec_color_cb, "BOTTOMLEFT", 0, -30)
     texture_label:SetText("bar texture:")
 
-    local dropdown = CreateFrame("Frame", "sfui_options_texture_dropdown", main_panel, "UIDropDownMenuTemplate")
-    dropdown:SetPoint("LEFT", texture_label, "RIGHT", 10, 0)
-
-    local function on_texture_select(self)
-        local textureName = self.value
-        SfuiDB.barTexture = textureName
-
+    local function GetTextureOptions()
         local LSM = LibStub("LibSharedMedia-3.0", true)
-        local texturePath = LSM and LSM:Fetch("statusbar", textureName) or "Interface/Buttons/WHITE8X8"
+        local sortedTextures = {}
+        local seen = { ["Flat"] = true }
+        table.insert(sortedTextures, { text = "Flat", value = "Flat" })
+
+        if LSM then
+            local textures = LSM:HashTable("statusbar")
+            if textures then
+                local rawNames = {}
+                for name, _ in pairs(textures) do
+                    if not seen[name] then
+                        table.insert(rawNames, name)
+                        seen[name] = true
+                    end
+                end
+                table.sort(rawNames)
+                for _, name in ipairs(rawNames) do
+                    table.insert(sortedTextures, { text = name, value = name })
+                end
+            end
+        end
+        return sortedTextures
+    end
+
+    local texture_dropdown = common.create_dropdown(main_panel, 140, GetTextureOptions, function(val)
+        SfuiDB.barTexture = val
+        local LSM = LibStub("LibSharedMedia-3.0", true)
+        local texturePath = LSM and LSM:Fetch("statusbar", val) or "Interface/Buttons/WHITE8X8"
 
         if sfui.bars and sfui.bars.set_bar_texture then
             sfui.bars.set_bar_texture(texturePath)
@@ -358,43 +455,87 @@ function sfui.create_options_panel()
         if sfui.vehicle and sfui.vehicle.set_bar_texture then
             sfui.vehicle.set_bar_texture(texturePath)
         end
+    end, SfuiDB.barTexture or "Flat")
+    texture_dropdown:SetPoint("LEFT", texture_label, "RIGHT", 10, 0)
 
-        UIDropDownMenu_SetSelectedValue(dropdown, textureName)
+    -- Spec Colors Customization
+    local spec_header = main_panel:CreateFontString(nil, "OVERLAY", g.font)
+    spec_header:SetPoint("TOPLEFT", texture_label, "BOTTOMLEFT", 0, -25)
+    spec_header:SetTextColor(white[1], white[2], white[3])
+    spec_header:SetText("specialization colors:")
+
+    local spec_swatches = {}
+    local numSpecs = (GetNumSpecializations and GetNumSpecializations()) or 0
+    local prevAnchor = spec_header
+
+    for i = 1, numSpecs do
+        local specID, specName, _, icon = GetSpecializationInfo(i)
+        if specID then
+            local iconTex = main_panel:CreateTexture(nil, "ARTWORK")
+            iconTex:SetSize(16, 16)
+            if i == 1 then
+                iconTex:SetPoint("TOPLEFT", spec_header, "BOTTOMLEFT", 0, -10)
+            else
+                iconTex:SetPoint("TOPLEFT", prevAnchor, "BOTTOMLEFT", 0, -8)
+            end
+            iconTex:SetTexture(icon)
+            iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+            local specText = main_panel:CreateFontString(nil, "OVERLAY", g.font)
+            specText:SetPoint("LEFT", iconTex, "RIGHT", 6, 0)
+            specText:SetTextColor(1, 1, 1, 1)
+            specText:SetText(specName or ("Spec " .. i))
+
+            local curCol = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
+                or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
+                or { 1, 1, 1, 1 }
+            local swatch = common.create_color_swatch(main_panel, curCol, function(r, g, b)
+                SfuiDB.spec_colors = SfuiDB.spec_colors or {}
+                SfuiDB.spec_colors[specID] = { r, g, b, 1 }
+                if common.invalidate_spec_color_cache then common.invalidate_spec_color_cache() end
+                if sfui.bars and sfui.bars.update_settings then sfui.bars.update_settings() end
+                if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+                if sfui.trackedbars and sfui.trackedbars.update_settings then sfui.trackedbars.update_settings() end
+                if sfui.gear and sfui.gear.Update then sfui.gear.Update() end
+                if sfui.lootviewer and sfui.lootviewer.Rebuild then sfui.lootviewer.Rebuild() end
+            end)
+            swatch:SetPoint("LEFT", iconTex, "LEFT", 150, 0)
+            spec_swatches[specID] = swatch
+
+            prevAnchor = iconTex
+        end
     end
 
-    local function initialize_texture_dropdown(self, level)
-        local LSM = LibStub("LibSharedMedia-3.0", true)
-        local info = UIDropDownMenu_CreateInfo()
-
-        local sortedTextures = {}
-        local seen = { ["Flat"] = true }
-        table.insert(sortedTextures, "Flat")
-
-        if LSM then
-            local textures = LSM:HashTable("statusbar")
-            if textures then
-                for name, _ in pairs(textures) do
-                    if not seen[name] then
-                        table.insert(sortedTextures, name)
-                        seen[name] = true
-                    end
+    local reset_spec_btn = CreateFlatButton(main_panel, "reset spec colors", 130, 20)
+    if prevAnchor ~= spec_header then
+        reset_spec_btn:SetPoint("TOPLEFT", prevAnchor, "BOTTOMLEFT", 0, -12)
+    else
+        reset_spec_btn:SetPoint("TOPLEFT", spec_header, "BOTTOMLEFT", 0, -12)
+    end
+    reset_spec_btn:SetScript("OnClick", function()
+        for i = 1, numSpecs do
+            local specID = select(1, GetSpecializationInfo(i))
+            if specID then
+                if SfuiDB.spec_colors then
+                    SfuiDB.spec_colors[specID] = nil
+                end
+                local baseColor = sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID]
+                local r, g, b = 1, 1, 1
+                if baseColor then
+                    r, g, b = baseColor[1], baseColor[2], baseColor[3]
+                end
+                if spec_swatches[specID] then
+                    spec_swatches[specID]:SetBackdropColor(r, g, b, 1)
                 end
             end
         end
-        table.sort(sortedTextures)
-
-        for _, name in ipairs(sortedTextures) do
-            info.text = name
-            info.value = name
-            info.func = on_texture_select
-            info.checked = (SfuiDB.barTexture == name)
-            UIDropDownMenu_AddButton(info)
-        end
-    end
-
-    UIDropDownMenu_Initialize(dropdown, initialize_texture_dropdown)
-    UIDropDownMenu_SetSelectedValue(dropdown, SfuiDB.barTexture)
-    UIDropDownMenu_SetWidth(dropdown, 150)
+        if common.invalidate_spec_color_cache then common.invalidate_spec_color_cache() end
+        if sfui.bars and sfui.bars.update_settings then sfui.bars.update_settings() end
+        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        if sfui.trackedbars and sfui.trackedbars.update_settings then sfui.trackedbars.update_settings() end
+        if sfui.gear and sfui.gear.Update then sfui.gear.Update() end
+        if sfui.lootviewer and sfui.lootviewer.Rebuild then sfui.lootviewer.Rebuild() end
+    end)
 
 
     -- 2. Bars Panel
@@ -456,10 +597,8 @@ function sfui.create_options_panel()
     health_y_slider:SetPoint("LEFT", health_x_slider, "RIGHT", 10, 0)
     -- Actually, side-by-side (200px each) fits in 500px panel? Yes, 200+10+200 = 410 < 500.
 
-    local reset_health_pos_btn = CreateFrame("Button", nil, bars_panel, "UIPanelButtonTemplate")
-    reset_health_pos_btn:SetSize(120, 22)
+    local reset_health_pos_btn = CreateFlatButton(bars_panel, "reset position", 120, 22)
     reset_health_pos_btn:SetPoint("TOPLEFT", health_x_slider, "BOTTOMLEFT", 0, -10)
-    reset_health_pos_btn:SetText("reset position")
     reset_health_pos_btn:SetScript("OnClick", function()
         local def = sfui.config.healthBar.pos
         SfuiDB.healthBarX = def.x
@@ -725,10 +864,8 @@ function sfui.create_options_panel()
     end)
     icon_y_slider:SetPoint("LEFT", icon_x_slider, "RIGHT", 10, 0)
 
-    local reset_hammer_pos_btn = CreateFrame("Button", nil, automation_panel, "UIPanelButtonTemplate")
-    reset_hammer_pos_btn:SetSize(120, 22)
+    local reset_hammer_pos_btn = CreateFlatButton(automation_panel, "reset position", 120, 22)
     reset_hammer_pos_btn:SetPoint("TOPLEFT", icon_x_slider, "BOTTOMLEFT", 0, -10)
-    reset_hammer_pos_btn:SetText("reset position")
     reset_hammer_pos_btn:SetScript("OnClick", function()
         local def = sfui.config.masterHammer.defaultPosition
         SfuiDB.repairIconX = def.x
@@ -837,10 +974,8 @@ function sfui.create_options_panel()
     pos_y_slider:SetPoint("LEFT", pos_x_slider, "RIGHT", 10, 0)
 
     -- Reset button
-    local reset_pos_btn = CreateFrame("Button", nil, minimap_panel, "UIPanelButtonTemplate")
-    reset_pos_btn:SetSize(120, 22)
+    local reset_pos_btn = CreateFlatButton(minimap_panel, "reset position", 120, 22)
     reset_pos_btn:SetPoint("TOPLEFT", pos_x_slider, "BOTTOMLEFT", 0, -10)
-    reset_pos_btn:SetText("reset position")
     reset_pos_btn:SetScript("OnClick", function()
         local def = sfui.config.minimap.button_bar
         SfuiDB.minimap_button_x = def.defaultX

@@ -13,6 +13,7 @@ local C_AreaPoiInfo        = _G.C_AreaPoiInfo
 local C_SuperTrack         = _G.C_SuperTrack
 local C_Map                = _G.C_Map
 local C_Timer              = _G.C_Timer
+local C_UIWidgetManager    = _G.C_UIWidgetManager
 local Enum                 = _G.Enum
 local InCombatLockdown     = _G.InCombatLockdown
 local time                 = _G.time
@@ -47,15 +48,16 @@ local function ReleaseTable(t)
 end
 
 -- ─── Module State & Caching ─────────────────────────────────────────────────
-local cachedEvents    = {}
-local seenPoi         = {}
-local poiNameCache    = {}
-local poiAtlasCache   = {}
-local poiZoneCache    = {}
-local poiMapCache     = {}
-local isDirty         = true
-local lastUpdateTime  = 0
-local reminderCount   = 0
+local cachedEvents       = {}
+local seenPoi            = {}
+local poiNameCache       = {}
+local poiAtlasCache      = {}
+local poiZoneCache       = {}
+local poiMapCache        = {}
+local poiWidgetSetCache  = {}
+local isDirty            = true
+local lastUpdateTime     = 0
+local reminderCount      = 0
 
 local function FormatTimerSeconds(sec)
     if not sec or sec <= 0 then return "now" end
@@ -110,7 +112,8 @@ local function ResolvePoiDetails(areaPoiID, displayInfo)
     local name = poiNameCache[areaPoiID]
     if name then
         local atlas = (displayInfo and displayInfo.overrideAtlas and not issecretvalue(displayInfo.overrideAtlas) and displayInfo.overrideAtlas) or poiAtlasCache[areaPoiID]
-        return name, atlas, poiZoneCache[areaPoiID], poiMapCache[areaPoiID]
+        local wSet  = (displayInfo and displayInfo.overrideTooltipWidgetSetID and not issecretvalue(displayInfo.overrideTooltipWidgetSetID) and displayInfo.overrideTooltipWidgetSetID) or poiWidgetSetCache[areaPoiID]
+        return name, atlas, poiZoneCache[areaPoiID], poiMapCache[areaPoiID], wSet
     end
 
     local uiMapID = C_EventScheduler and C_EventScheduler.GetEventUiMapID and C_EventScheduler.GetEventUiMapID(areaPoiID)
@@ -136,12 +139,17 @@ local function ResolvePoiDetails(areaPoiID, displayInfo)
 
     name = name or zoneName or "World Event"
 
-    poiNameCache[areaPoiID]  = name
-    poiAtlasCache[areaPoiID] = atlas
-    poiZoneCache[areaPoiID]  = zoneName
-    poiMapCache[areaPoiID]   = uiMapID
+    local widgetSetID = (displayInfo and displayInfo.overrideTooltipWidgetSetID and not issecretvalue(displayInfo.overrideTooltipWidgetSetID) and displayInfo.overrideTooltipWidgetSetID)
+                     or (poiInfo and poiInfo.tooltipWidgetSet and not issecretvalue(poiInfo.tooltipWidgetSet) and poiInfo.tooltipWidgetSet)
+                     or (poiInfo and poiInfo.iconWidgetSet and not issecretvalue(poiInfo.iconWidgetSet) and poiInfo.iconWidgetSet)
 
-    return name, atlas, zoneName, uiMapID
+    poiNameCache[areaPoiID]      = name
+    poiAtlasCache[areaPoiID]     = atlas
+    poiZoneCache[areaPoiID]      = zoneName
+    poiMapCache[areaPoiID]       = uiMapID
+    poiWidgetSetCache[areaPoiID] = widgetSetID
+
+    return name, atlas, zoneName, uiMapID, widgetSetID
 end
 
 -- ─── Event Sort Comparator ──────────────────────────────────────────────────
@@ -231,13 +239,14 @@ function sfui.worldevents.UpdateEventsData()
                     local isFocused = (superTrackedPOI > 0 and pID == superTrackedPOI)
                     local isEligible = showOngoing or isFocused
                     if isEligible then
-                        local name, atlas, zoneName, uiMapID = ResolvePoiDetails(pID, oEvent.displayInfo)
+                        local name, atlas, zoneName, uiMapID, widgetSetID = ResolvePoiDetails(pID, oEvent.displayInfo)
                         if name then
                             seenPoi[pID] = true
                             local item = AcquireTable()
                             item.eventKey     = "ongoing_" .. tostring(pID)
                             item.areaPoiID    = pID
                             item.uiMapID      = uiMapID
+                            item.widgetSetID  = widgetSetID
                             item.name         = name
                             item.atlasName    = atlas
                             item.zoneName     = zoneName
@@ -279,13 +288,14 @@ function sfui.worldevents.UpdateEventsData()
 
                 local pID = sEvent.areaPoiID
                 if isEligible and pID and not seenPoi[pID] then
-                    local name, atlas, zoneName, uiMapID = ResolvePoiDetails(pID, sEvent.displayInfo)
+                    local name, atlas, zoneName, uiMapID, widgetSetID = ResolvePoiDetails(pID, sEvent.displayInfo)
                     if name then
                         seenPoi[pID] = true
                         local item = AcquireTable()
                         item.eventKey     = sEvent.eventKey or ("sched_" .. tostring(sEvent.eventID or pID))
                         item.areaPoiID    = pID
                         item.uiMapID      = uiMapID
+                        item.widgetSetID  = widgetSetID
                         item.name         = name
                         item.atlasName    = atlas
                         item.zoneName     = zoneName
@@ -382,7 +392,7 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
         entry.done         = 0
         entry.total        = 1
 
-        -- Sub-objectives: Location & Time Remaining (quests.lua prepends "- ")
+        -- Sub-objectives: Location & Time Remaining & Active Progress Widgets
         local objs = Alloc()
 
         local locObj = Alloc()
@@ -396,6 +406,131 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
         timeObj.text = string_format("%sTime remaining: %s|r", timeCol, remStr)
         timeObj.finished = false
         table_insert(objs, timeObj)
+
+        -- Progress Widgets (Status Bars, Double Status Bars, Steps)
+        if ev.widgetSetID and ev.widgetSetID > 0 and C_UIWidgetManager and C_UIWidgetManager.GetAllWidgetsBySetID then
+            local widgets = C_UIWidgetManager.GetAllWidgetsBySetID(ev.widgetSetID)
+            if widgets and type(widgets) == "table" then
+                for _, w in ipairs(widgets) do
+                    local wID = (type(w) == "table" and w.widgetID) or (type(w) == "number" and w)
+                    if wID then
+                        -- 1. Single StatusBar
+                        if C_UIWidgetManager.GetStatusBarWidgetVisualizationInfo then
+                            local sInfo = C_UIWidgetManager.GetStatusBarWidgetVisualizationInfo(wID)
+                            if sInfo and sInfo.shownState ~= 0 and sInfo.shownState ~= Enum.WidgetShownState.Hidden then
+                                local minVal = sInfo.barMin or 0
+                                local maxVal = sInfo.barMax or 0
+                                local curVal = sInfo.barValue or 0
+                                if minVal > 0 and minVal == maxVal and curVal == maxVal then
+                                    minVal, maxVal, curVal = 0, 1, 1
+                                end
+                                curVal = math_min(maxVal, math_max(minVal, curVal))
+                                local range = maxVal - minVal
+                                if range > 0 or curVal > 0 then
+                                    local pct = (range > 0) and math_min(100, math_max(0, math_floor(((curVal - minVal) / range) * 100))) or 0
+
+                                    local valText = nil
+                                    if sInfo.overrideBarText and sInfo.overrideBarText ~= "" and not issecretvalue(sInfo.overrideBarText) then
+                                        valText = sInfo.overrideBarText
+                                    elseif sInfo.barValueText and sInfo.barValueText ~= "" and not issecretvalue(sInfo.barValueText) then
+                                        valText = sInfo.barValueText
+                                    end
+
+                                    local barLabel = (sInfo.text and sInfo.text ~= "" and not issecretvalue(sInfo.text) and sInfo.text)
+                                                  or (sInfo.tooltip and sInfo.tooltip ~= "" and not issecretvalue(sInfo.tooltip) and sInfo.tooltip:match("^[^\n]+"))
+                                                  or "Progress"
+
+                                    local pObj = Alloc()
+                                    pObj.text = string_format("%s (%d%%)", barLabel, pct)
+                                    if valText and valText:find("%%") then
+                                        pObj.barText = valText
+                                    elseif valText and valText ~= "" then
+                                        pObj.barText = string_format("%s (%d%%)", valText, pct)
+                                    else
+                                        pObj.barText = tostring(pct) .. "%"
+                                    end
+                                    pObj.type = "progressbar"
+                                    pObj.numFulfilled = pct
+                                    pObj.numRequired = 100
+                                    pObj.finished = (pct >= 100)
+                                    table_insert(objs, pObj)
+                                end
+                            end
+                        end
+
+                        -- 2. Double StatusBar
+                        if C_UIWidgetManager.GetDoubleStatusBarWidgetVisualizationInfo then
+                            local dInfo = C_UIWidgetManager.GetDoubleStatusBarWidgetVisualizationInfo(wID)
+                            if dInfo and dInfo.shownState ~= 0 and dInfo.shownState ~= Enum.WidgetShownState.Hidden then
+                                local lMin = dInfo.leftBarMin or 0
+                                local lMax = dInfo.leftBarMax or 100
+                                local lCur = dInfo.leftBarValue or 0
+                                lCur = math_min(lMax, math_max(lMin, lCur))
+                                local lRange = lMax - lMin
+                                if lRange > 0 or lCur > 0 then
+                                    local pct = (lRange > 0) and math_min(100, math_max(0, math_floor(((lCur - lMin) / lRange) * 100))) or 0
+                                    local lbl = (dInfo.text and dInfo.text ~= "" and not issecretvalue(dInfo.text) and dInfo.text)
+                                             or (dInfo.leftBarTooltip and not issecretvalue(dInfo.leftBarTooltip) and dInfo.leftBarTooltip:match("^[^\n]+"))
+                                             or "Progress"
+                                    local pObj = Alloc()
+                                    pObj.text = string_format("%s (%d%%)", lbl, pct)
+                                    pObj.barText = tostring(pct) .. "%"
+                                    pObj.type = "progressbar"
+                                    pObj.numFulfilled = pct
+                                    pObj.numRequired = 100
+                                    pObj.finished = (pct >= 100)
+                                    table_insert(objs, pObj)
+                                end
+                            end
+                        end
+
+                        -- 3. FillUpFrames
+                        if C_UIWidgetManager.GetFillUpFramesWidgetVisualizationInfo then
+                            local fInfo = C_UIWidgetManager.GetFillUpFramesWidgetVisualizationInfo(wID)
+                            if fInfo and fInfo.shownState ~= 0 and fInfo.shownState ~= Enum.WidgetShownState.Hidden then
+                                local full = fInfo.numFullFrames or 0
+                                local totalF = fInfo.numTotalFrames or 0
+                                local val = fInfo.fillValue or full
+                                local maxV = fInfo.fillMax or totalF
+                                if maxV > 0 then
+                                    local pct = math_min(100, math_max(0, math_floor((val / maxV) * 100)))
+                                    local lbl = (fInfo.tooltip and not issecretvalue(fInfo.tooltip) and fInfo.tooltip:match("^[^\n]+")) or "Progress"
+                                    local pObj = Alloc()
+                                    pObj.text = string_format("%s (%d%%)", lbl, pct)
+                                    pObj.barText = string_format("%d/%d (%d%%)", val, maxV, pct)
+                                    pObj.type = "progressbar"
+                                    pObj.numFulfilled = pct
+                                    pObj.numRequired = 100
+                                    pObj.finished = (pct >= 100)
+                                    table_insert(objs, pObj)
+                                end
+                            end
+                        end
+
+                        -- 4. DiscreteProgressSteps
+                        if C_UIWidgetManager.GetDiscreteProgressStepsVisualizationInfo then
+                            local dpInfo = C_UIWidgetManager.GetDiscreteProgressStepsVisualizationInfo(wID)
+                            if dpInfo and dpInfo.shownState ~= 0 and dpInfo.shownState ~= Enum.WidgetShownState.Hidden then
+                                local pVal = dpInfo.progressVal or 0
+                                local pMax = dpInfo.progressMax or dpInfo.numSteps or 0
+                                if pMax > 0 then
+                                    local pct = math_min(100, math_max(0, math_floor((pVal / pMax) * 100)))
+                                    local lbl = (dpInfo.tooltip and not issecretvalue(dpInfo.tooltip) and dpInfo.tooltip:match("^[^\n]+")) or "Progress"
+                                    local pObj = Alloc()
+                                    pObj.text = string_format("%s (%d%%)", lbl, pct)
+                                    pObj.barText = string_format("%d/%d (%d%%)", pVal, pMax, pct)
+                                    pObj.type = "progressbar"
+                                    pObj.numFulfilled = pct
+                                    pObj.numRequired = 100
+                                    pObj.finished = (pct >= 100)
+                                    table_insert(objs, pObj)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
 
         entry.objectives = objs
         entry._syntheticObjs = true
@@ -433,6 +568,12 @@ if sfui.events then
 
     sfui.events.RegisterEvent("SUPER_TRACKING_CHANGED", function()
         sfui.worldevents.RequestUpdate()
+    end)
+
+    sfui.events.RegisterEvent("UPDATE_UI_WIDGET", function()
+        if not isDirty then
+            sfui.worldevents.RequestUpdate()
+        end
     end)
 
     sfui.events.RegisterUpdate("WorldEvents", 5.0, function(elapsed)

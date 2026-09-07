@@ -205,7 +205,8 @@ local function print_instance_status()
         if sName then
             specName = isDefault and (sName .. " (Default)") or sName
         end
-        local sc = sfui_config.spec_colors and sfui_config.spec_colors[specID]
+        local sc = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
+            or (sfui_config and sfui_config.spec_colors and sfui_config.spec_colors[specID])
         if sc then
             specColor = string.format("|cff%02x%02x%02x", sc[1] * 255, sc[2] * 255, sc[3] * 255)
         end

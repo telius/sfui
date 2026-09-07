@@ -223,8 +223,8 @@ sfui.highest.rules = {
     [1480] = { armor = 2, stat = 4, weaps = { ["1H_Dual"] = true }, allowedWeapons = WEAPONS_DH_DEVOURER }, -- Devourer (Intellect; CAN use Daggers)
     -- Druid
     [102] = { armor = 2, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID },
-    [103] = { armor = 2, stat = 2, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID },
-    [104] = { armor = 2, stat = 2, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID },
+    [103] = { armor = 2, stat = 2, weaps = { ["2H"] = true }, allowedWeapons = WEAPONS_DRUID },
+    [104] = { armor = 2, stat = 2, weaps = { ["2H"] = true }, allowedWeapons = WEAPONS_DRUID },
     [105] = { armor = 2, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID },
     -- Evoker
     [1467] = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_EVOKER },
@@ -291,7 +291,7 @@ local function HasPrimaryStat(itemLink, primaryStatName)
                 local text = line.leftText
                 if text and type(text) == "string" then
                     -- If the dynamic tooltip clearly broadcasts the primary stat or main stat, we know it's there
-                    if text:find(primaryString, 1, true) or text:find("Agility", 1, true) or text:find("Primary Stat", 1, true) or text:find("Main Stat", 1, true) then
+                    if text:find(primaryString, 1, true) or text:find("Primary Stat", 1, true) or text:find("Main Stat", 1, true) then
                         return true
                     end
                 end
@@ -299,9 +299,10 @@ local function HasPrimaryStat(itemLink, primaryStatName)
         end
     end
 
-    -- If there's literally NO primary stats on the item, we allow it (generic trinkets/rings/necks/cloaks)
-    local classID = select(6, GetItemInfoInstant(itemLink))
-    if classID ~= 2 then
+    -- If there's literally NO primary stats on the item, we allow it for genuine statless slots (generic trinkets/rings/necks/cloaks)
+    local _, _, _, equipLoc = GetItemInfoInstant(itemLink)
+    local isStatlessSlot = (equipLoc == "INVTYPE_FINGER" or equipLoc == "INVTYPE_NECK" or equipLoc == "INVTYPE_CLOAK" or equipLoc == "INVTYPE_TRINKET")
+    if isStatlessSlot then
         local hasAnyPrimary = stats and (stats["ITEM_MOD_STRENGTH_SHORT"] or stats["ITEM_MOD_AGILITY_SHORT"] or stats["ITEM_MOD_INTELLECT_SHORT"])
         if not hasAnyPrimary then return true end
     end
@@ -398,8 +399,10 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
     elseif classID == 4 then
         if itemEquipLoc == "INVTYPE_SHIELD" then
             if not rule.weaps["1H_Shield"] then return false end
-        elseif itemEquipLoc == "INVTYPE_HOLDABLE" or itemEquipLoc == "INVTYPE_WEAPONOFFHAND" then
-            if not rule.weaps["1H_Off"] and not rule.weaps["1H_Dual"] then return false end
+        elseif itemEquipLoc == "INVTYPE_HOLDABLE" then
+            if not rule.weaps["1H_Off"] then return false end
+        elseif itemEquipLoc == "INVTYPE_WEAPONOFFHAND" then
+            if not rule.weaps["1H_Dual"] and not rule.weaps["1H_Off"] then return false end
         end
     end
 

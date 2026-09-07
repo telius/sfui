@@ -183,6 +183,10 @@ SlashCmdList["SFUI"] = function(msg)
                 sfui.common.print("sfui: loot browser not available.")
             end
         end
+    elseif cmd == "bonusroll" or cmd == "br" or cmd == "rescan" then
+        if sfui.bonusroll and sfui.bonusroll.CheckAll then
+            sfui.bonusroll.CheckAll(true)
+        end
     elseif cmd == "research" then
         if sfui.research and sfui.research.toggle_selection then
             sfui.research.toggle_selection()

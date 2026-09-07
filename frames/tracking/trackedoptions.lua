@@ -84,8 +84,7 @@ frame:Hide()
 
 -- (Title removed for better space efficiency)
 
-local closeBtn = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-closeBtn:SetPoint("TOPRIGHT", -5, -5)
+local closeBtn = common.create_close_button(frame)
 
 -- === UX Section Container ===
 -- Creates a visually distinct section with dark bg, purple left accent, title, and content area.
@@ -437,10 +436,32 @@ function sfui.trackedoptions.initialize()
     local globScroll = CreateFrame("ScrollFrame", "SfuiGlobalScroll", globalPanel, "UIPanelScrollFrameTemplate")
     globScroll:SetPoint("TOPLEFT", 0, 0)
     globScroll:SetPoint("BOTTOMRIGHT", -25, 0)
+    globScroll:EnableMouseWheel(true)
+    common.style_scrollbar(globScroll.ScrollBar)
     local globContent = CreateFrame("Frame", nil, globScroll)
     globContent:SetSize(750, 800)
     globScroll:SetScrollChild(globContent)
+    globContent:EnableMouseWheel(true)
     sfui.trackedoptions.globContent = globContent
+
+    local function on_glob_wheel(self, delta)
+        local scrollBar = globScroll.ScrollBar
+        if scrollBar then
+            local minVal, maxVal = scrollBar:GetMinMaxValues()
+            if maxVal and maxVal > (minVal or 0) then
+                local cur = scrollBar:GetValue()
+                scrollBar:SetValue(math.max(minVal, math.min(maxVal, cur - delta * 30)))
+                return
+            end
+        end
+        local cur = globScroll:GetVerticalScroll()
+        local maxScroll = globScroll:GetVerticalScrollRange()
+        if maxScroll > 0 then
+            globScroll:SetVerticalScroll(math.max(0, math.min(maxScroll, cur - delta * 30)))
+        end
+    end
+    globScroll:SetScript("OnMouseWheel", on_glob_wheel)
+    globContent:SetScript("OnMouseWheel", on_glob_wheel)
 
     local resetGlobalBtn = CreateFlatButton(globContent, "reset defaults", 100, 22)
     resetGlobalBtn:SetPoint("TOPRIGHT", globContent, "TOPRIGHT", -10, -10)
@@ -464,10 +485,32 @@ function sfui.trackedoptions.initialize()
     local barsScroll = CreateFrame("ScrollFrame", "SfuiBarsScroll", barsPanel, "UIPanelScrollFrameTemplate")
     barsScroll:SetPoint("TOPLEFT", 0, 0)
     barsScroll:SetPoint("BOTTOMRIGHT", -25, 0)
+    barsScroll:EnableMouseWheel(true)
+    common.style_scrollbar(barsScroll.ScrollBar)
     local barsContent = CreateFrame("Frame", nil, barsScroll)
     barsContent:SetSize(750, 1200) -- Plenty of height for the list
     barsScroll:SetScrollChild(barsContent)
+    barsContent:EnableMouseWheel(true)
     sfui.trackedoptions.barsContent = barsContent
+
+    local function on_bars_wheel(self, delta)
+        local scrollBar = barsScroll.ScrollBar
+        if scrollBar then
+            local minVal, maxVal = scrollBar:GetMinMaxValues()
+            if maxVal and maxVal > (minVal or 0) then
+                local cur = scrollBar:GetValue()
+                scrollBar:SetValue(math.max(minVal, math.min(maxVal, cur - delta * 30)))
+                return
+            end
+        end
+        local cur = barsScroll:GetVerticalScroll()
+        local maxScroll = barsScroll:GetVerticalScrollRange()
+        if maxScroll > 0 then
+            barsScroll:SetVerticalScroll(math.max(0, math.min(maxScroll, cur - delta * 30)))
+        end
+    end
+    barsScroll:SetScript("OnMouseWheel", on_bars_wheel)
+    barsContent:SetScript("OnMouseWheel", on_bars_wheel)
 end
 
 function sfui.trackedoptions.RenderBarsTab(parent)

@@ -2164,6 +2164,10 @@ local function RenderSections(state, superTracked)
                                     local barTxt = obj.barText
                                     local isHighPct = false
                                     if barTxt and type(barTxt) == "string" then
+                                        local duplicatePct = barTxt:match("^(%d+%%)%s*%(%d+%%%)$")
+                                        if duplicatePct then
+                                            barTxt = duplicatePct
+                                        end
                                         local pctNum = barTxt:match("(%d+)%%")
                                         if pctNum and tonumber(pctNum) > 100 then
                                             isHighPct = true

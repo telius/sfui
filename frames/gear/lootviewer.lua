@@ -16,7 +16,7 @@ local table                     = table
 
 -- ─── Constants ────────────────────────────────────────────────────────────────
 local FRAME_W    = 780
-local FRAME_H    = 600
+local FRAME_H    = 650
 local PAD        = 8
 local ICON_SZ    = 32
 local ICON_PAD   = 3
@@ -25,20 +25,46 @@ local BOSS_ICO   = 36
 local SCROLL_W       = FRAME_W - 4
 
 -- ─── Class / spec helpers ─────────────────────────────────────────────────────
+local CLASS_NAMES_TO_ID = {
+    WARRIOR = 1, PALADIN = 2, HUNTER = 3, ROGUE = 4, PRIEST = 5,
+    DEATHKNIGHT = 6, SHAMAN = 7, MAGE = 8, WARLOCK = 9, MONK = 10,
+    DRUID = 11, DEMONHUNTER = 12, EVOKER = 13,
+}
+
 local _, ENGLISH_CLASS, PLAYER_CLASS_ID = UnitClass("player")
 if not PLAYER_CLASS_ID or PLAYER_CLASS_ID == 0 then
-    local _, _, cid = UnitClass("player")
-    PLAYER_CLASS_ID = cid or 0
+    local _, eng, cid = UnitClass("player")
+    if cid and cid > 0 then
+        PLAYER_CLASS_ID = cid
+    elseif eng and CLASS_NAMES_TO_ID[eng] then
+        PLAYER_CLASS_ID = CLASS_NAMES_TO_ID[eng]
+    else
+        PLAYER_CLASS_ID = 0
+    end
 end
+
+local function GetPlayerClassID()
+    if PLAYER_CLASS_ID and PLAYER_CLASS_ID > 0 then
+        return PLAYER_CLASS_ID
+    end
+    local _, eng, cid = UnitClass("player")
+    if cid and cid > 0 then
+        PLAYER_CLASS_ID = cid
+        return cid
+    end
+    if eng and CLASS_NAMES_TO_ID[eng] then
+        PLAYER_CLASS_ID = CLASS_NAMES_TO_ID[eng]
+        return PLAYER_CLASS_ID
+    end
+    return 0
+end
+
 
 local playerSpecs   = {}
 local playerSpecIDs = {}
 
 local function InitPlayerSpecs()
-    if not PLAYER_CLASS_ID or PLAYER_CLASS_ID == 0 then
-        local _, _, cid = UnitClass("player")
-        PLAYER_CLASS_ID = cid or 0
-    end
+    GetPlayerClassID()
     if #playerSpecIDs > 0 then return end
     local n = GetNumSpecializations() or 0
     for i = 1, n do
@@ -89,8 +115,9 @@ local function GetSpecColor(specID)
     if sfui.common and sfui.common.get_spec_color then
         return sfui.common.get_spec_color(specID)
     end
-    if sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID] then
-        local c = sfui.config.spec_colors[specID]
+    local c = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
+        or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
+    if c then
         return c[1], c[2], c[3], c[4] or 1
     end
     return 0.0, 0.8, 1.0, 1
@@ -138,6 +165,24 @@ local EQUIP_LOC_TO_SLOT = {
     INVTYPE_THROWN         = "weapon",
 }
 
+local FILTER_TYPE_TO_SLOT = {
+    [0]  = "head",     -- Enum.ItemSlotFilterType.Head
+    [1]  = "neck",     -- Enum.ItemSlotFilterType.Neck
+    [2]  = "shoulder", -- Enum.ItemSlotFilterType.Shoulder
+    [3]  = "back",     -- Enum.ItemSlotFilterType.Cloak
+    [4]  = "chest",    -- Enum.ItemSlotFilterType.Chest
+    [5]  = "wrist",    -- Enum.ItemSlotFilterType.Wrist
+    [6]  = "hands",    -- Enum.ItemSlotFilterType.Hand
+    [7]  = "waist",    -- Enum.ItemSlotFilterType.Waist
+    [8]  = "legs",     -- Enum.ItemSlotFilterType.Legs
+    [9]  = "feet",     -- Enum.ItemSlotFilterType.Feet
+    [10] = "weapon",   -- Enum.ItemSlotFilterType.MainHand
+    [11] = "weapon",   -- Enum.ItemSlotFilterType.OffHand
+    [12] = "ring",     -- Enum.ItemSlotFilterType.Finger
+    [13] = "trinket",  -- Enum.ItemSlotFilterType.Trinket
+    [14] = "other",    -- Enum.ItemSlotFilterType.Other
+}
+
 local function IsSetItemToken(itemID, itemLink, filterType, name)
     if not itemID then return false end
     if _G.TokenTooltip and _G.TokenTooltip.TokenItems and _G.TokenTooltip.TokenItems[itemID] then
@@ -149,8 +194,8 @@ local function IsSetItemToken(itemID, itemLink, filterType, name)
     end
     local isNonEquip = (not itemEquipLoc or itemEquipLoc == "" or itemEquipLoc == "INVTYPE_NON_EQUIP_IGNORE")
     if isNonEquip then
-        -- In Dungeon Journal, slot filters 1 (head), 3 (shoulder), 4 (chest), 6 (legs), 9 (hands)
-        if filterType and (filterType == 1 or filterType == 3 or filterType == 4 or filterType == 6 or filterType == 9) then
+        -- In Dungeon Journal, slot filters 0 (head), 2 (shoulder), 4 (chest), 6 (hands), 8 (legs)
+        if filterType and (filterType == 0 or filterType == 2 or filterType == 4 or filterType == 6 or filterType == 8) then
             return true
         end
         if name and (name:find("Curio") or name:find("Omnipotence") or name:find("Token") or name:find("Mark of") or name:find("Trophy of") or name:find("Zenith") or name:find("Dreadful") or name:find("Mystic") or name:find("Venerated") or name:find("Blazing") or name:find("Idol")) then
@@ -164,6 +209,9 @@ local function ResolveItemSlot(itemID, itemLink, filterType)
     local _, _, _, equipLoc = GetItemInfoInstant(itemLink or itemID)
     if equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_NON_EQUIP_IGNORE" and EQUIP_LOC_TO_SLOT[equipLoc] then
         return EQUIP_LOC_TO_SLOT[equipLoc]
+    end
+    if filterType and FILTER_TYPE_TO_SLOT[filterType] then
+        return FILTER_TYPE_TO_SLOT[filterType]
     end
     return "other"
 end
@@ -209,6 +257,8 @@ local function IsItemForPlayerClass(itemID, itemLink)
     end
 
     local link = itemLink or ("item:" .. itemID)
+    local isToken = IsSetItemToken(itemID, link)
+    local _, _, _, _, _, _ = GetItemInfoInstant(link or itemID)
 
     -- 1. Check C_Item.GetItemSpecInfo if available
     if C_Item and C_Item.GetItemSpecInfo then
@@ -364,10 +414,11 @@ local function GetValidPlayerSpecsForItem(itemID, link)
 
     -- 1. Check KeystoneLoot (official KeystoneLootAPI or global table)
     local klSpecs = nil
+    local classId = GetPlayerClassID()
     if _G.KeystoneLootAPI and _G.KeystoneLootAPI.GetItemInfo then
         local ok, klInfo = pcall(_G.KeystoneLootAPI.GetItemInfo, _G.KeystoneLootAPI, itemID)
         if ok and klInfo and klInfo.classes then
-            klSpecs = klInfo.classes[PLAYER_CLASS_ID]
+            klSpecs = klInfo.classes[classId]
             if not klSpecs or #klSpecs == 0 then
                 return nil -- KeystoneLoot curated database confirms: item does not drop for this class!
             end
@@ -375,7 +426,7 @@ local function GetValidPlayerSpecsForItem(itemID, link)
     elseif _G.KeystoneLoot and _G.KeystoneLoot.ItemDatabase then
         local klItem = _G.KeystoneLoot.ItemDatabase[itemID]
         if klItem and klItem.classes then
-            klSpecs = klItem.classes[PLAYER_CLASS_ID]
+            klSpecs = klItem.classes[classId]
             if not klSpecs or #klSpecs == 0 then
                 return nil
             end
@@ -410,26 +461,18 @@ local function GetValidPlayerSpecsForItem(itemID, link)
         end
     end
 
-    -- 3. Integrate sfui gear rules (from frames/gear/highest.lua, ignoring combat talent overrides)
-    if sfui.highest and sfui.highest.IsItemValidForSpec then
-        local validSpecs = {}
-        for _, specID in ipairs(playerSpecIDs) do
-            local isValid = sfui.highest.IsItemValidForSpec(itemLink, specID, true, true)
-            if isValid then
-                validSpecs[specID] = true
-            end
+    -- Set tokens, curios, or explicit non-equipment items can be shared across all specs
+    local isToken = IsSetItemToken(itemID, itemLink)
+    if isToken then
+        local allSpecs = {}
+        for _, sID in ipairs(playerSpecIDs) do
+            allSpecs[sID] = true
         end
-        if next(validSpecs) then
-            return validSpecs
-        end
+        return allSpecs
     end
 
-    -- 4. Fallback: all player specs
-    local allSpecs = {}
-    for _, sID in ipairs(playerSpecIDs) do
-        allSpecs[sID] = true
-    end
-    return allSpecs
+    -- Equippable gear must NEVER fall back to all specs!
+    return nil
 end
 
 -- Sort loot items: Trinkets first (1), Weapons second (2), Gear (3), Other items last (4)
@@ -459,50 +502,69 @@ local function FetchEncounterLoot(bossID)
     local lootMap   = {}
     local lootOrder = {}
 
+    local oldSlot = C_EncounterJournal and C_EncounterJournal.GetSlotFilter and C_EncounterJournal.GetSlotFilter()
     if C_EncounterJournal and C_EncounterJournal.ResetSlotFilter then
         C_EncounterJournal.ResetSlotFilter()
+    end
+
+    local playerClassID = select(3, UnitClass("player")) or GetPlayerClassID()
+    if not playerClassID or playerClassID <= 0 then
+        if oldSlot and C_EncounterJournal and C_EncounterJournal.SetSlotFilter then
+            securecall(C_EncounterJournal.SetSlotFilter, oldSlot)
+        end
+        return lootOrder
     end
 
     -- 1. Query for each specialization of the player's class
     for _, specID in ipairs(playerSpecIDs) do
         if bossID then securecall(EJ_SelectEncounter, bossID) end
-        securecall(EJ_SetLootFilter, PLAYER_CLASS_ID, specID)
+        securecall(EJ_SetLootFilter, playerClassID, specID)
         local n = EJ_GetNumLoot and EJ_GetNumLoot() or 0
         for i = 1, n do
             local info = C_EncounterJournal.GetLootInfoByIndex(i)
             if info and info.itemID and info.itemID > 0 then
-                local itemID = info.itemID
-                if IsItemForPlayerClass(itemID, info.link) then
-                    local entry = lootMap[itemID]
-                    if not entry then
+                -- CRITICAL: Check Blizzard's handError and weaponTypeError.
+                -- If either is true, this spec cannot equip or use this item.
+                if not (info.handError or info.weaponTypeError) then
+                    local itemID = info.itemID
+                    if IsItemForPlayerClass(itemID, info.link) then
                         local isToken = IsSetItemToken(itemID, info.link, info.filterType, info.name)
-                        local resolvedSlot = ResolveItemSlot(itemID, info.link, info.filterType)
-                        entry = {
-                            id         = itemID,
-                            name       = info.name,
-                            slot       = resolvedSlot,
-                            icon       = info.icon,
-                            quality    = (C_Item and C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(itemID))
-                                          or (select(3, GetItemInfo(info.link or itemID)))
-                                          or 4,
-                            link       = info.link,
-                            specs      = {},
-                            filterType = info.filterType,
-                            isSetToken = isToken,
-                        }
-                        lootMap[itemID] = entry
-                        lootOrder[#lootOrder + 1] = entry
+                        local entry = lootMap[itemID]
+                        if not entry then
+                            local resolvedSlot = ResolveItemSlot(itemID, info.link, info.filterType)
+                            entry = {
+                                id         = itemID,
+                                name       = info.name,
+                                slot       = resolvedSlot,
+                                icon       = info.icon,
+                                quality    = (C_Item and C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(itemID))
+                                              or (select(3, GetItemInfo(info.link or itemID)))
+                                              or 4,
+                                link       = info.link,
+                                specs      = {},
+                                filterType = info.filterType,
+                                isSetToken = isToken,
+                            }
+                            lootMap[itemID] = entry
+                            lootOrder[#lootOrder + 1] = entry
+                        end
+                        if isToken then
+                            for _, sID in ipairs(playerSpecIDs) do
+                                entry.specs[sID] = true
+                            end
+                        else
+                            entry.specs[specID] = true
+                        end
                     end
-                    entry.specs[specID] = true
                 end
             end
         end
     end
 
     -- 2. Query class-wide with all specializations (specID = 0)
-    -- to catch any class-wide or general drops (tokens, cosmetics, generic trinkets)
+    -- to catch any class-wide drops (tokens, generic curios) that may only appear when unspecialized
     if bossID then securecall(EJ_SelectEncounter, bossID) end
-    securecall(EJ_SetLootFilter, PLAYER_CLASS_ID, 0)
+    securecall(EJ_SetLootFilter, playerClassID, 0)
     local nAll = EJ_GetNumLoot and EJ_GetNumLoot() or 0
     for i = 1, nAll do
         local info = C_EncounterJournal.GetLootInfoByIndex(i)
@@ -510,10 +572,9 @@ local function FetchEncounterLoot(bossID)
             local itemID = info.itemID
             local entry = lootMap[itemID]
             -- Only process if this item was NOT already added from spec queries
-            if not entry and IsItemForPlayerClass(itemID, info.link) then
-                local specificSpecs = GetValidPlayerSpecsForItem(itemID, info.link)
-                if specificSpecs and next(specificSpecs) then
-                    local isToken = IsSetItemToken(itemID, info.link, info.filterType, info.name)
+            if not entry and not (info.handError or info.weaponTypeError) and IsItemForPlayerClass(itemID, info.link) then
+                local isToken = IsSetItemToken(itemID, info.link, info.filterType, info.name)
+                if isToken then
                     local resolvedSlot = ResolveItemSlot(itemID, info.link, info.filterType)
                     entry = {
                         id         = itemID,
@@ -526,65 +587,63 @@ local function FetchEncounterLoot(bossID)
                         link       = info.link,
                         specs      = {},
                         filterType = info.filterType,
-                        isSetToken = isToken,
+                        isSetToken = true,
                     }
                     lootMap[itemID] = entry
                     lootOrder[#lootOrder + 1] = entry
-                    for sID in pairs(specificSpecs) do
+                    for _, sID in ipairs(playerSpecIDs) do
                         entry.specs[sID] = true
                     end
-                end
-            end
-        end
-    end
-
-    -- 3. Query all-loot (class = 0, spec = 0) specifically for non-equipment "other" items
-    -- that may drop for multiple classes (e.g. tier tokens, curios, omni-tokens)
-    if bossID then securecall(EJ_SelectEncounter, bossID) end
-    securecall(EJ_SetLootFilter, 0, 0)
-    local nRoot = EJ_GetNumLoot and EJ_GetNumLoot() or 0
-    for i = 1, nRoot do
-        local info = C_EncounterJournal.GetLootInfoByIndex(i)
-        if info and info.itemID and info.itemID > 0 then
-            local itemID = info.itemID
-            if not lootMap[itemID] then
-                local resolvedSlot = ResolveItemSlot(itemID, info.link, info.filterType)
-                if resolvedSlot == "other" then
-                    local _, _, _, itemEquipLoc, _, classID, subclassID = GetItemInfoInstant(info.link or itemID)
-                    local isMountOrPet = (classID == 15 and (subclassID == 5 or subclassID == 2))
-                    local isRecipe = (classID == 9)
-                    local isCosmetic = (C_Item and C_Item.IsCosmeticItem and C_Item.IsCosmeticItem(itemID)) or (classID == 4 and subclassID == 5)
-                    local q = (C_Item and C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(itemID)) or 4
-                    local isJunk = q and q < 2
-
-                    if not isMountOrPet and not isRecipe and not isCosmetic and not isJunk then
-                        if IsItemForPlayerClass(itemID, info.link) then
-                            local isToken = IsSetItemToken(itemID, info.link, info.filterType, info.name)
-                            local entry = {
-                                id         = itemID,
-                                name       = info.name,
-                                slot       = "other",
-                                icon       = info.icon,
-                                quality    = q,
-                                link       = info.link,
-                                specs      = {},
-                                filterType = info.filterType,
-                                isSetToken = isToken,
-                            }
-                            lootMap[itemID] = entry
-                            lootOrder[#lootOrder + 1] = entry
-                            for _, sID in ipairs(playerSpecIDs) do
-                                entry.specs[sID] = true
-                            end
+                else
+                    -- For non-tokens appearing only under spec 0: ONLY add if KeystoneLoot
+                    -- or C_Item.GetItemSpecInfo explicitly verifies valid player specs!
+                    local specificSpecs = GetValidPlayerSpecsForItem(itemID, info.link)
+                    if specificSpecs and next(specificSpecs) then
+                        local resolvedSlot = ResolveItemSlot(itemID, info.link, info.filterType)
+                        entry = {
+                            id         = itemID,
+                            name       = info.name,
+                            slot       = resolvedSlot,
+                            icon       = info.icon,
+                            quality    = (C_Item and C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(itemID))
+                                          or (select(3, GetItemInfo(info.link or itemID)))
+                                          or 4,
+                            link       = info.link,
+                            specs      = {},
+                            filterType = info.filterType,
+                            isSetToken = false,
+                        }
+                        lootMap[itemID] = entry
+                        lootOrder[#lootOrder + 1] = entry
+                        for sID in pairs(specificSpecs) do
+                            entry.specs[sID] = true
                         end
                     end
                 end
             end
         end
     end
-    securecall(EJ_SetLootFilter, PLAYER_CLASS_ID, 0)
+
+    if oldSlot and C_EncounterJournal and C_EncounterJournal.SetSlotFilter then
+        securecall(C_EncounterJournal.SetSlotFilter, oldSlot)
+    end
 
     return SortLootItems(lootOrder)
+end
+
+local function RestoreDefaultLootFilter(savedClass, savedSpec)
+    if savedClass and savedClass > 0 then
+        securecall(EJ_SetLootFilter, savedClass, savedSpec or 0)
+    else
+        local pClass = select(3, UnitClass("player")) or GetPlayerClassID()
+        local activeSpec = GetSpecialization()
+        local activeSpecID = activeSpec and select(1, GetSpecializationInfo(activeSpec)) or 0
+        if pClass and pClass > 0 and activeSpecID and activeSpecID > 0 then
+            securecall(EJ_SetLootFilter, pClass, activeSpecID)
+        elseif pClass and pClass > 0 then
+            securecall(EJ_SetLootFilter, pClass, 0)
+        end
+    end
 end
 
 local raidDataCache    = nil
@@ -598,6 +657,15 @@ local function GetRaidData()
     local oldInstance = EJ_GetCurrentInstance and EJ_GetCurrentInstance()
     local oldClass, oldSpec = EJ_GetLootFilter and EJ_GetLootFilter()
     local oldDiff = EJ_GetDifficulty and EJ_GetDifficulty()
+    local oldTier = EJ_GetCurrentTier and EJ_GetCurrentTier()
+    local oldSlot = C_EncounterJournal and C_EncounterJournal.GetSlotFilter and C_EncounterJournal.GetSlotFilter()
+
+    -- Automatically target the current expansion tier (highest tier index) dynamically
+    local currentTier = (EJ_GetNumTiers and EJ_GetNumTiers()) or oldTier
+    if currentTier then
+        securecall(EJ_SelectTier, currentTier)
+    end
+
     local raids = {}
     local instIdx = 1
     while true do
@@ -611,23 +679,20 @@ local function GetRaidData()
             local raid = { name = name, instanceID = instanceID, bosses = {} }
             securecall(EJ_SelectInstance, instanceID)
 
-            -- Check if this instance has valid raid difficulties
-            local hasRaidDiff = true
-            if EJ_IsValidInstanceDifficulty then
-                hasRaidDiff = EJ_IsValidInstanceDifficulty(14)
-                           or EJ_IsValidInstanceDifficulty(15)
-                           or EJ_IsValidInstanceDifficulty(16)
-                           or EJ_IsValidInstanceDifficulty(17)
+            -- Prioritize Mythic difficulty (16 = Mythic Raid) for highest tier loot
+            local hasRaidDiff = false
+            if EJ_IsValidInstanceDifficulty and EJ_IsValidInstanceDifficulty(16) then
+                hasRaidDiff = true
+                securecall(EJ_SetDifficulty, 16)
+            elseif EJ_IsValidInstanceDifficulty and EJ_IsValidInstanceDifficulty(15) then
+                hasRaidDiff = true
+                securecall(EJ_SetDifficulty, 15)
+            elseif EJ_IsValidInstanceDifficulty and (EJ_IsValidInstanceDifficulty(14) or EJ_IsValidInstanceDifficulty(17)) then
+                hasRaidDiff = true
+                securecall(EJ_SetDifficulty, 14)
             end
 
             if hasRaidDiff then
-                -- Set Mythic difficulty (16 = Mythic Raid) for highest ilvl
-                if EJ_IsValidInstanceDifficulty and EJ_IsValidInstanceDifficulty(16) then
-                    securecall(EJ_SetDifficulty, 16)
-                elseif EJ_IsValidInstanceDifficulty and EJ_IsValidInstanceDifficulty(15) then
-                    securecall(EJ_SetDifficulty, 15)
-                end
-
                 local encIdx = 1
                 while true do
                     local encName, _, bossID, _, _, _, dungeonEncounterID = EJ_GetEncounterInfoByIndex(encIdx)
@@ -660,13 +725,38 @@ local function GetRaidData()
 
     if oldInstance then securecall(EJ_SelectInstance, oldInstance) end
     if oldDiff and EJ_SetDifficulty then securecall(EJ_SetDifficulty, oldDiff) end
-    if oldClass then
-        securecall(EJ_SetLootFilter, oldClass, oldSpec)
-    else
-        securecall(EJ_SetLootFilter, PLAYER_CLASS_ID, 0)
+    if oldTier and EJ_SelectTier then securecall(EJ_SelectTier, oldTier) end
+    if oldSlot and C_EncounterJournal and C_EncounterJournal.SetSlotFilter then
+        securecall(C_EncounterJournal.SetSlotFilter, oldSlot)
     end
+    RestoreDefaultLootFilter(oldClass, oldSpec)
     raidDataCache = raids
     return raids
+end
+
+local dungeonNameToInstanceCache = nil
+
+local function GetDungeonNameToInstanceMap()
+    if dungeonNameToInstanceCache then return dungeonNameToInstanceCache end
+    local map = {}
+    local oldTier = EJ_GetCurrentTier and EJ_GetCurrentTier()
+    local numTiers = EJ_GetNumTiers and EJ_GetNumTiers() or 1
+    for t = 1, numTiers do
+        securecall(EJ_SelectTier, t)
+        local instIdx = 1
+        while true do
+            local instanceID, name = EJ_GetInstanceByIndex(instIdx, false)
+            if not instanceID then break end
+            map[name] = instanceID
+            if name then
+                map[string.lower(name)] = instanceID
+            end
+            instIdx = instIdx + 1
+        end
+    end
+    if oldTier then securecall(EJ_SelectTier, oldTier) end
+    dungeonNameToInstanceCache = map
+    return map
 end
 
 local function GetDungeonData()
@@ -678,24 +768,10 @@ local function GetDungeonData()
     local oldClass, oldSpec = EJ_GetLootFilter and EJ_GetLootFilter()
     local oldDiff = EJ_GetDifficulty and EJ_GetDifficulty()
     local oldTier = EJ_GetCurrentTier and EJ_GetCurrentTier()
+    local oldSlot = C_EncounterJournal and C_EncounterJournal.GetSlotFilter and C_EncounterJournal.GetSlotFilter()
 
     -- Build EJ instance name → instanceID map for dungeons across ALL expansion tiers
-    local nameToInstance = {}
-    local numTiers = EJ_GetNumTiers and EJ_GetNumTiers() or 1
-    for t = 1, numTiers do
-        securecall(EJ_SelectTier, t)
-        local instIdx = 1
-        while true do
-            local instanceID, name = EJ_GetInstanceByIndex(instIdx, false)
-            if not instanceID then break end
-            nameToInstance[name] = instanceID
-            if name then
-                nameToInstance[string.lower(name)] = instanceID
-            end
-            instIdx = instIdx + 1
-        end
-    end
-    if oldTier then securecall(EJ_SelectTier, oldTier) end
+    local nameToInstance = GetDungeonNameToInstanceMap()
 
     -- Fallback map from KeystoneLoot database if available
     local klMapToInstance = {}
@@ -726,13 +802,21 @@ local function GetDungeonData()
             if instanceID then
                 securecall(EJ_SelectInstance, instanceID)
 
-                -- Set Mythic difficulty (23 = Mythic Dungeon) for highest ilvl and M+ loot tables
-                if EJ_IsValidInstanceDifficulty and EJ_IsValidInstanceDifficulty(23) then
+                -- Prioritize Mythic+ (8 = Challenge Mode) for M+ scaling; fallback to Mythic (23), Heroic (2), Normal (1)
+                if EJ_IsValidInstanceDifficulty and EJ_IsValidInstanceDifficulty(8) then
+                    securecall(EJ_SetDifficulty, 8)
+                elseif EJ_IsValidInstanceDifficulty and EJ_IsValidInstanceDifficulty(23) then
                     securecall(EJ_SetDifficulty, 23)
                 elseif EJ_IsValidInstanceDifficulty and EJ_IsValidInstanceDifficulty(2) then
                     securecall(EJ_SetDifficulty, 2)
                 elseif EJ_IsValidInstanceDifficulty and EJ_IsValidInstanceDifficulty(1) then
                     securecall(EJ_SetDifficulty, 1)
+                end
+
+                -- Scale dungeon loot preview dynamically to Keystone Level 10 (Hero 3/6)
+                -- Must be set AFTER EJ_SetDifficulty so difficulty change does not reset preview level
+                if C_EncounterJournal and C_EncounterJournal.SetPreviewMythicPlusLevel then
+                    securecall(C_EncounterJournal.SetPreviewMythicPlusLevel, 10)
                 end
 
                 local encIdx = 1
@@ -782,13 +866,18 @@ local function GetDungeonData()
         end
     end
 
+    -- Reset M+ preview level so standard journal browsing is unaffected
+    if C_EncounterJournal and C_EncounterJournal.SetPreviewMythicPlusLevel then
+        securecall(C_EncounterJournal.SetPreviewMythicPlusLevel, 0)
+    end
+
     if oldInstance then securecall(EJ_SelectInstance, oldInstance) end
     if oldDiff and EJ_SetDifficulty then securecall(EJ_SetDifficulty, oldDiff) end
-    if oldClass then
-        securecall(EJ_SetLootFilter, oldClass, oldSpec)
-    else
-        securecall(EJ_SetLootFilter, PLAYER_CLASS_ID, 0)
+    if oldTier and EJ_SelectTier then securecall(EJ_SelectTier, oldTier) end
+    if oldSlot and C_EncounterJournal and C_EncounterJournal.SetSlotFilter then
+        securecall(C_EncounterJournal.SetSlotFilter, oldSlot)
     end
+    RestoreDefaultLootFilter(oldClass, oldSpec)
 
     table.sort(dungeons, function(a, b) return a.name < b.name end)
     dungeonDataCache = dungeons
@@ -800,8 +889,25 @@ sfui.events.RegisterEvent("ADDON_LOADED", function(_, addonLoaded)
     if addonLoaded == "Blizzard_EncounterJournal" then
         raidDataCache    = nil
         dungeonDataCache = nil
+        dungeonNameToInstanceCache = nil
         if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
             sfui.lootviewer.Rebuild()
+        end
+    end
+end)
+
+local ejLootTimer = nil
+sfui.events.RegisterEvent("EJ_LOOT_DATA_RECIEVED", function()
+    raidDataCache    = nil
+    dungeonDataCache = nil
+    if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
+        if not ejLootTimer then
+            ejLootTimer = C_Timer.NewTimer(0.2, function()
+                ejLootTimer = nil
+                if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
+                    sfui.lootviewer.Rebuild()
+                end
+            end)
         end
     end
 end)
@@ -926,7 +1032,7 @@ end
 local iconPool      = {}
 local iconPoolCount = 0
 
-local ITEM_BORDER_SZ = 4
+local ITEM_BORDER_SZ = 2
 
 local function CreateButtonBorders(b)
     if b.borders then return end
@@ -977,12 +1083,22 @@ local function AcquireIconBtn(parent)
         b.badge:SetPoint("BOTTOMRIGHT", -2, 2)
         b.badge:SetJustifyH("RIGHT")
         b.badge:SetTextColor(1, 1, 1, 1)
+
+        b.bonusRollIcon = b:CreateTexture(nil, "OVERLAY", nil, 7)
+        b.bonusRollIcon:SetAtlas("lootroll-toast-icon-need-up")
+        b.bonusRollIcon:SetSize(14, 14)
+        b.bonusRollIcon:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
+        b.bonusRollIcon:Hide()
+
         iconPool[iconPoolCount] = b
     else
         CreateButtonBorders(b)
         b.tex:ClearAllPoints()
         b.tex:SetPoint("TOPLEFT", 0, 0)
         b.tex:SetPoint("BOTTOMRIGHT", 0, 0)
+        if b.bonusRollIcon then
+            b.bonusRollIcon:Hide()
+        end
         if b.badge then
             b.badge:SetFont("Fonts\\FRIZQT__.TTF", 8, "")
             b.badge:SetShadowOffset(0, 0)
@@ -1007,6 +1123,9 @@ local function ReleaseIconPool()
             b:SetScript("OnClick", nil)
             if sfui.glows and sfui.glows.stop_glow then
                 sfui.glows.stop_glow(b)
+            end
+            if b.bonusRollIcon then
+                b.bonusRollIcon:Hide()
             end
             if b.borders then
                 for _, border in ipairs(b.borders) do
@@ -1034,13 +1153,9 @@ local function AcquireCard(parent)
 
         c = CreateFrame("Frame", nil, parent, "BackdropTemplate")
         c:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = mult,
-            insets   = { left = 0, right = 0, top = 0, bottom = 0 },
+            bgFile = "Interface\\Buttons\\WHITE8x8",
         })
         c:SetBackdropColor(0.05, 0.05, 0.06, 0.95)
-        c:SetBackdropBorderColor(gray[1], gray[2], gray[3], 0.5)
 
         c.portrait = c:CreateTexture(nil, "ARTWORK")
         c.portrait:SetSize(BOSS_ICO, BOSS_ICO)
@@ -1059,13 +1174,9 @@ local function AcquireCard(parent)
         specBtn:SetSize(130, 18)
         specBtn:SetPoint("BOTTOMLEFT", c.portrait, "BOTTOMRIGHT", 6, 3)
         specBtn:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = mult,
-            insets   = { left = 0, right = 0, top = 0, bottom = 0 },
+            bgFile = "Interface\\Buttons\\WHITE8x8",
         })
         specBtn:SetBackdropColor(0.07, 0.07, 0.07, 1)
-        specBtn:SetBackdropBorderColor(gray[1], gray[2], gray[3], 0.6)
 
         local sIcon = specBtn:CreateTexture(nil, "ARTWORK")
         sIcon:SetSize(13, 13)
@@ -1122,7 +1233,6 @@ local function AcquireCard(parent)
             self:Refresh()
         end)
         specBtn:SetScript("OnEnter", function(self)
-            self:SetBackdropBorderColor(cyan[1], cyan[2], cyan[3], 1)
             if not self.keyID or not GameTooltip then return end
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText("loot spec — " .. (self.isBoss and "boss" or "dungeon"))
@@ -1131,7 +1241,6 @@ local function AcquireCard(parent)
             GameTooltip:Show()
         end)
         specBtn:SetScript("OnLeave", function(self)
-            self:SetBackdropBorderColor(gray[1], gray[2], gray[3], 0.6)
             if GameTooltip then
                 GameTooltip:Hide()
             end
@@ -1211,19 +1320,52 @@ local function AddSpecLinesToTooltip(item)
 end
 
 -- ─── Highest item level link helper ───────────────────────────────────────────
-local function GetHighestItemLink(item)
+local function GetHighestItemLink(item, isDungeon)
     if not item then return nil end
     local itemID = item.id
 
-    -- 1. If KeystoneLoot is loaded, use its Upgrade module to get the highest upgrade track link
+    -- 1. If KeystoneLoot is loaded, use its Upgrade module to get the highest upgrade track link.
+    -- For dungeons, select M+10 as default (Hero track, rank 3 = Hero 3/6 / hc 3/6).
+    -- For raids, select Mythic raid tier (Mythic difficulty, rank 1).
     if _G.KeystoneLoot and _G.KeystoneLoot.Upgrade and _G.KeystoneLoot.Upgrade.BuildItemLink then
-        local ok, klLink = pcall(_G.KeystoneLoot.Upgrade.BuildItemLink, _G.KeystoneLoot.Upgrade, itemID)
+        local kl = _G.KeystoneLoot
+        local oldTab, oldTrack, oldRank
+        if kl.DB and kl.DB.Get and kl.DB.Set then
+            oldTab = kl.DB:Get("ui.selectedTab")
+            if isDungeon then
+                oldTrack = kl.DB:Get("filters.dungeon.track")
+                oldRank  = kl.DB:Get("filters.dungeon.rank")
+                kl.DB:Set("ui.selectedTab", "dungeons")
+                kl.DB:Set("filters.dungeon.track", "hero")
+                kl.DB:Set("filters.dungeon.rank", 3) -- M+10 = Hero 3/6 (hc 3/6)
+            else
+                oldTrack = kl.DB:Get("filters.raid.difficulty")
+                oldRank  = kl.DB:Get("filters.raid.rank")
+                kl.DB:Set("ui.selectedTab", "raids")
+                kl.DB:Set("filters.raid.difficulty", "mythic")
+                kl.DB:Set("filters.raid.rank", 1) -- Mythic raid tier
+            end
+        end
+
+        local ok, klLink = pcall(kl.Upgrade.BuildItemLink, kl.Upgrade, itemID)
+
+        if kl.DB and kl.DB.Set then
+            if oldTab then kl.DB:Set("ui.selectedTab", oldTab) end
+            if isDungeon then
+                if oldTrack then kl.DB:Set("filters.dungeon.track", oldTrack) end
+                if oldRank then kl.DB:Set("filters.dungeon.rank", oldRank) end
+            else
+                if oldTrack then kl.DB:Set("filters.raid.difficulty", oldTrack) end
+                if oldRank then kl.DB:Set("filters.raid.rank", oldRank) end
+            end
+        end
+
         if ok and klLink and klLink ~= ("item:" .. itemID) then
             return klLink
         end
     end
 
-    -- 2. Use the Mythic item link fetched from EJ with EJ_SetDifficulty(23 / 16)
+    -- 2. Use the item link fetched from EJ (configured with difficulty 8 + M+10 preview for dungeons, or 16 for raids)
     if item.link then
         return item.link
     end
@@ -1238,7 +1380,7 @@ local STAT_KEYS = {
     versatility = { "ITEM_MOD_VERSATILITY", "ITEM_MOD_VERSATILITY_RATING" },
 }
 
-local function ItemHasStat(item, statKey)
+local function ItemHasStat(item, statKey, isDungeon)
     if not item then return false end
     if not item._stats then
         item._stats = {}
@@ -1247,7 +1389,7 @@ local function ItemHasStat(item, statKey)
         return item._stats[statKey]
     end
 
-    local link = GetHighestItemLink(item) or item.link or (item.id and ("item:" .. item.id))
+    local link = GetHighestItemLink(item, isDungeon) or item.link or (item.id and ("item:" .. item.id))
     if not link then
         return false
     end
@@ -1343,7 +1485,7 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
     for statKey, isActive in pairs(highlightStats) do
         if isActive then
             activeCount = activeCount + 1
-            if ItemHasStat(curItem, statKey) then
+            if ItemHasStat(curItem, statKey, not isBoss) then
                 matchCount = matchCount + 1
                 matchedColor = STAT_COLORS[statKey]
             end
@@ -1369,25 +1511,55 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
     b.badge:SetText(badgeText)
     b.badge:SetTextColor(1, 1, 1, 1)
 
+    if b.bonusRollIcon then
+        local isEligible = sfui.bonusroll and sfui.bonusroll.IsEligible and sfui.bonusroll.IsEligible(itemID)
+        local isUsed = isEligible and sfui.bonusroll.IsUsed and sfui.bonusroll.IsUsed(itemID)
+        if isUsed then
+            b.bonusRollIcon:Show()
+        else
+            b.bonusRollIcon:Hide()
+        end
+    end
+
+    local isDungeonItem = not isBoss
+
     b:SetScript("OnEnter", function(self)
         if not GameTooltip then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        local bestLink = GetHighestItemLink(curItem)
+        if isDungeonItem and C_EncounterJournal and C_EncounterJournal.SetPreviewMythicPlusLevel then
+            securecall(C_EncounterJournal.SetPreviewMythicPlusLevel, 10)
+        end
+        local bestLink = GetHighestItemLink(curItem, isDungeonItem)
         if bestLink then
             GameTooltip:SetHyperlink(bestLink)
         else
             GameTooltip:SetItemByID(itemID)
         end
         AddSpecLinesToTooltip(curItem)
+
+        if sfui.bonusroll and sfui.bonusroll.IsEligible and sfui.bonusroll.IsEligible(itemID) then
+            local isUsed = sfui.bonusroll.IsUsed and sfui.bonusroll.IsUsed(itemID)
+            GameTooltip:AddLine(" ")
+            if isUsed then
+                GameTooltip:AddLine("|cffff2020[Bonus Roll Used]|r", 1, 0.2, 0.2)
+            else
+                GameTooltip:AddLine("|cff00ff00[Bonus Roll Available]|r", 0, 1, 0)
+            end
+            GameTooltip:AddLine("|cff888888<Alt + Right-Click to toggle>|r", 0.6, 0.6, 0.6)
+        end
+
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function()
+        if isDungeonItem and C_EncounterJournal and C_EncounterJournal.SetPreviewMythicPlusLevel then
+            securecall(C_EncounterJournal.SetPreviewMythicPlusLevel, 0)
+        end
         if GameTooltip then
             GameTooltip:Hide()
         end
     end)
     b:SetScript("OnClick", function(_, mouseBtn)
-        local bestLink = GetHighestItemLink(curItem)
+        local bestLink = GetHighestItemLink(curItem, isDungeonItem)
         if mouseBtn == "LeftButton" then
             if IsModifiedClick("CHATLINK") and bestLink then
                 ChatEdit_InsertLink(bestLink)
@@ -1397,6 +1569,16 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
                 return
             end
         elseif mouseBtn == "RightButton" then
+            if IsAltKeyDown() and sfui.bonusroll and sfui.bonusroll.IsEligible and sfui.bonusroll.IsEligible(itemID) then
+                local curUsed = sfui.bonusroll.IsUsed(itemID)
+                sfui.bonusroll.SetUsed(itemID, not curUsed)
+                SetupItemButton(b, curItem, keyID, isBoss, card)
+                if GameTooltip:IsOwned(b) then
+                    b:GetScript("OnEnter")(b)
+                end
+                return
+            end
+
             -- Right-click: advance loot spec one step for this boss/dungeon
             local db  = DB()
             local cur = 0
@@ -1446,9 +1628,6 @@ local function PopulateCard(card, entry, keyID, isBoss, parentName)
 
     local strip  = card.iconStrip
     local stripW = SCROLL_W - STRIP_LEFT - PAD * 2 - 6
-    strip:SetPoint("TOPLEFT",  STRIP_LEFT, -4)
-    strip:SetPoint("TOPRIGHT", -PAD,       -4)
-    strip:SetHeight(1)
 
     local x, y, count = 0, 0, 0
     local lineH = ICON_SZ + ICON_PAD
@@ -1489,10 +1668,16 @@ local function PopulateCard(card, entry, keyID, isBoss, parentName)
     end
 
     local rowsUsed = (count > 0) and math.ceil(count / iconsPerRow) or 0
-    local stripH   = (count > 0) and (rowsUsed * lineH) or 0
-    strip:SetHeight(math.max(stripH, 1))
-    card:SetHeight(math.max(ROW_H, stripH + 12))
-    return card:GetHeight()
+    local actualH  = (rowsUsed > 0) and ((rowsUsed * ICON_SZ) + ((rowsUsed - 1) * ICON_PAD)) or 0
+    local cardH    = math.max(ROW_H, actualH + 16)
+    card:SetHeight(cardH)
+
+    strip:ClearAllPoints()
+    strip:SetPoint("LEFT",  card, "LEFT",  STRIP_LEFT, 0)
+    strip:SetPoint("RIGHT", card, "RIGHT", -PAD,       0)
+    strip:SetHeight(math.max(actualH, 1))
+
+    return cardH
 end
 
 -- ─── Section header pool ─────────────────────────────────────────────────────
@@ -1668,25 +1853,17 @@ function sfui.lootviewer.CreateFrame()
     local purple = (app and app.highlightColor) or { 0.4, 0.0, 1.0 }
 
     frame:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = mult,
-        insets   = { left = 0, right = 0, top = 0, bottom = 0 },
+        bgFile = "Interface\\Buttons\\WHITE8x8",
     })
     frame:SetBackdropColor(bgCol[1], bgCol[2], bgCol[3], bgCol[4] or 0.95)
-    frame:SetBackdropBorderColor(gray[1], gray[2], gray[3], 1)
 
     local function MkBtn(parent, text, width, height)
         local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
         btn:SetSize(width, height)
         btn:SetBackdrop({
             bgFile   = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = mult,
-            insets   = { left = 0, right = 0, top = 0, bottom = 0 },
         })
         btn:SetBackdropColor(0, 0, 0, 1)
-        btn:SetBackdropBorderColor(gray[1], gray[2], gray[3], 0.8)
 
         btn:SetNormalFontObject("GameFontHighlightSmall")
         btn:SetText(text)
@@ -1755,12 +1932,8 @@ function sfui.lootviewer.CreateFrame()
     defBtn:SetPoint("LEFT", defLabel, "RIGHT", 6, 0)
     defBtn:SetBackdrop({
         bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = mult,
-        insets   = { left = 0, right = 0, top = 0, bottom = 0 },
     })
     defBtn:SetBackdropColor(0.05, 0.05, 0.05, 1)
-    defBtn:SetBackdropBorderColor(gray[1], gray[2], gray[3], 0.8)
 
     local defIcon = defBtn:CreateTexture(nil, "ARTWORK")
     defIcon:SetSize(14, 14)
@@ -1838,23 +2011,19 @@ function sfui.lootviewer.CreateFrame()
     searchBox:SetSize(130, 18)
     searchBox:SetPoint("TOPRIGHT", -30, filterY)
     searchBox:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = mult,
-        insets   = { left = 0, right = 0, top = 0, bottom = 0 },
+        bgFile = "Interface\\Buttons\\WHITE8x8",
     })
     searchBox:SetBackdropColor(0.08, 0.08, 0.08, 1)
-    searchBox:SetBackdropBorderColor(gray[1], gray[2], gray[3], 0.8)
     searchBox:SetFont("Fonts\\FRIZQT__.TTF", 11, "")
     searchBox:SetTextColor(0.85, 0.85, 0.85, 1)
     searchBox:SetAutoFocus(false)
     searchBox:SetMaxLetters(40)
     searchBox:SetTextInsets(4, 4, 2, 2)
     searchBox:SetScript("OnEditFocusGained", function(self)
-        self:SetBackdropBorderColor(purple[1], purple[2], purple[3], 1)
+        self:SetBackdropColor(purple[1] * 0.3, purple[2] * 0.3, purple[3] * 0.3, 0.9)
     end)
     searchBox:SetScript("OnEditFocusLost", function(self)
-        self:SetBackdropBorderColor(gray[1], gray[2], gray[3], 0.8)
+        self:SetBackdropColor(0.08, 0.08, 0.08, 1)
     end)
 
     local searchHint = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1876,12 +2045,6 @@ function sfui.lootviewer.CreateFrame()
     local tabRaid = MkBtn(frame, "Raids", 68, 20)
     tabDung:SetPoint("TOPLEFT", 10, tabY)
     tabRaid:SetPoint("LEFT", tabDung, "RIGHT", 4, 0)
-
-    local sepTex = frame:CreateTexture(nil, "ARTWORK")
-    sepTex:SetHeight(1)
-    sepTex:SetPoint("TOPLEFT",  0, tabY - 24)
-    sepTex:SetPoint("TOPRIGHT", 0, tabY - 24)
-    sepTex:SetColorTexture(purple[1] * 0.5, purple[2] * 0.5, purple[3] * 0.5, 0.5)
 
     -- ── Spec filter row (all specs / per-spec) ───────────────────────────────
     InitPlayerSpecs()
@@ -1913,15 +2076,23 @@ function sfui.lootviewer.CreateFrame()
     local function RefreshSpecBtns()
         for _, b in ipairs(specBtns) do
             local active = (b._specID == filterSpec)
+            local r, g, bCol
+            if b._specID == 0 then
+                r, g, bCol = purple[1], purple[2], purple[3]
+            else
+                r, g, bCol = GetSpecColor(b._specID)
+            end
+
+            if b.text then b.text:SetTextColor(1, 1, 1, 1) end
+
             if active then
-                b:SetBackdropColor(purple[1] * 0.35, purple[2] * 0.35, purple[3] * 0.35, 1)
-                b:SetBackdropBorderColor(purple[1], purple[2], purple[3], 1)
+                b:SetBackdropColor(r * 0.35, g * 0.35, bCol * 0.35, 1)
             else
                 b:SetBackdropColor(0.0, 0.0, 0.0, 1)
-                b:SetBackdropBorderColor(gray[1], gray[2], gray[3], 0.8)
             end
         end
     end
+    sfui.lootviewer.RefreshSpecBtns = RefreshSpecBtns
 
     for _, b in ipairs(specBtns) do
         local sID = b._specID
@@ -1932,9 +2103,9 @@ function sfui.lootviewer.CreateFrame()
         end)
     end
 
-    -- ── Stat highlight toggles (inline of spec filter) ───────────────────────
+    -- ── Stat highlight toggles (beneath spec filter row) ────────────────────
+    local statY = tabY - 24
     local statLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    statLabel:SetPoint("LEFT", prevBtn, "RIGHT", 14, 0)
     statLabel:SetText("stats:")
     statLabel:SetTextColor(0.4, 0.4, 0.4, 1)
 
@@ -1946,10 +2117,15 @@ function sfui.lootviewer.CreateFrame()
     }
 
     local statBtns = {}
-    local prevStat = statLabel
-    for _, def in ipairs(statDefs) do
+    local prevStat = nil
+    for i, def in ipairs(statDefs) do
         local sb = MkBtn(frame, def.label, 48, 20)
-        sb:SetPoint("LEFT", prevStat, "RIGHT", 3, 0)
+        if i == 1 then
+            sb:SetPoint("TOPLEFT", 48, statY)
+            statLabel:SetPoint("RIGHT", sb, "LEFT", -6, 0)
+        else
+            sb:SetPoint("LEFT", prevStat, "RIGHT", 4, 0)
+        end
         sb._statKey = def.key
         sb._color   = def.color
         statBtns[#statBtns + 1] = sb
@@ -1961,32 +2137,48 @@ function sfui.lootviewer.CreateFrame()
             highlightStats[k] = not highlightStats[k]
             if highlightStats[k] then
                 sb:SetBackdropColor(col[1] * 0.25, col[2] * 0.25, col[3] * 0.25, 1)
-                sb:SetBackdropBorderColor(col[1], col[2], col[3], 1)
                 if sb.text then sb.text:SetTextColor(col[1], col[2], col[3], 1) end
             else
                 sb:SetBackdropColor(0.0, 0.0, 0.0, 1)
-                sb:SetBackdropBorderColor(gray[1], gray[2], gray[3], 0.8)
                 if sb.text then sb.text:SetTextColor(1, 1, 1, 1) end
             end
             DoRebuild()
         end)
     end
 
+    local function RefreshStatBtns()
+        for _, sb in ipairs(statBtns) do
+            local k = sb._statKey
+            local col = sb._color
+            if highlightStats[k] then
+                sb:SetBackdropColor(col[1] * 0.25, col[2] * 0.25, col[3] * 0.25, 1)
+                if sb.text then sb.text:SetTextColor(col[1], col[2], col[3], 1) end
+            else
+                sb:SetBackdropColor(0.0, 0.0, 0.0, 1)
+                if sb.text then sb.text:SetTextColor(1, 1, 1, 1) end
+            end
+        end
+    end
+
+    local sepTex = frame:CreateTexture(nil, "ARTWORK")
+    sepTex:SetHeight(1)
+    sepTex:SetPoint("TOPLEFT",  0, statY - 24)
+    sepTex:SetPoint("TOPRIGHT", 0, statY - 24)
+    sepTex:SetColorTexture(purple[1] * 0.5, purple[2] * 0.5, purple[3] * 0.5, 0.5)
+
     local function RefreshTabs()
         local isDung = (activeTab == "dungeons")
         local dR, dG, dB = isDung and (purple[1] * 0.35) or 0.0, isDung and (purple[2] * 0.35) or 0.0, isDung and (purple[3] * 0.35) or 0.0
         local rR, rG, rB = (not isDung) and (purple[1] * 0.35) or 0.0, (not isDung) and (purple[2] * 0.35) or 0.0, (not isDung) and (purple[3] * 0.35) or 0.0
         tabDung:SetBackdropColor(dR, dG, dB, 1)
-        tabDung:SetBackdropBorderColor(isDung and purple[1] or gray[1], isDung and purple[2] or gray[2], isDung and purple[3] or gray[3], isDung and 1 or 0.8)
         tabRaid:SetBackdropColor(rR, rG, rB, 1)
-        tabRaid:SetBackdropBorderColor((not isDung) and purple[1] or gray[1], (not isDung) and purple[2] or gray[2], (not isDung) and purple[3] or gray[3], (not isDung) and 1 or 0.8)
     end
 
     tabDung:SetScript("OnClick", function() activeTab = "dungeons" ; RefreshTabs() ; DoRebuild() end)
     tabRaid:SetScript("OnClick", function() activeTab = "raids"    ; RefreshTabs() ; DoRebuild() end)
 
     -- ── Scroll frame ──────────────────────────────────────────────────────────
-    local CONTENT_Y = tabY - 28
+    local CONTENT_Y = statY - 28
 
     local sf = CreateFrame("ScrollFrame", "SfuiLootViewerScroll", frame, "UIPanelScrollFrameTemplate")
     sf:SetPoint("TOPLEFT",     4, CONTENT_Y)
@@ -2015,6 +2207,7 @@ function sfui.lootviewer.CreateFrame()
         activeTab = "dungeons"
         RefreshTabs()
         RefreshSpecBtns()
+        RefreshStatBtns()
         if RefreshDefBtn then RefreshDefBtn() end
         if enableCB_ref and enableCB_ref.SetChecked then
             enableCB_ref:SetChecked(DB().enabled)
@@ -2043,18 +2236,41 @@ function sfui.lootviewer.Toggle()
     if frame:IsShown() then frame:Hide() else frame:Show() end
 end
 
+function sfui.lootviewer.ClearCache()
+    raidDataCache              = nil
+    dungeonDataCache           = nil
+    dungeonNameToInstanceCache = nil
+    itemClassCache             = {}
+end
+
 function sfui.lootviewer.Rebuild()
+    if sfui.lootviewer.RefreshSpecBtns then sfui.lootviewer.RefreshSpecBtns() end
     DoRebuild()
 end
 
 function sfui.lootviewer.initialize()
-    -- lazy — frame created on first Toggle()
+    -- Add delay on initialization so Blizzard_EncounterJournal loads and stabilizes cleanly
+    C_Timer.After(2.0, function()
+        EnsureEJ()
+        -- Ensure the default Blizzard EJ filter is set to the player's current class and active spec
+        local curClass, curSpec = EJ_GetLootFilter and EJ_GetLootFilter()
+        if not curClass or curClass == 0 or not curSpec or curSpec == 0 then
+            RestoreDefaultLootFilter()
+        end
+    end)
 end
 
--- ─── Spec change invalidation ─────────────────────────────────────────────────
+-- ─── Spec change & seasonal map invalidation ──────────────────────────────────
 sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function()
     if RefreshDefBtn then RefreshDefBtn() end
+    raidDataCache    = nil
+    dungeonDataCache = nil
     if frame and frame:IsShown() then DoRebuild() end
+end)
+
+sfui.events.RegisterEvent("CHALLENGE_MODE_MAPS_UPDATE", function()
+    dungeonDataCache = nil
+    if frame and frame:IsShown() and activeTab == "dungeons" then DoRebuild() end
 end)
 
 local itemDataTimer = nil

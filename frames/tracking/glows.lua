@@ -50,8 +50,12 @@ function sfui.glows.resolve_config(entrySettings, panelConfig, targetTable)
         local specIndex = GetSpecialization()
         if specIndex and specIndex > 0 then
             local specID = GetSpecializationInfo(specIndex)
-            if specID and sfui.config.spec_colors and sfui.config.spec_colors[specID] then
-                color = sfui.config.spec_colors[specID]
+            if specID then
+                local c = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
+                    or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
+                if c then
+                    color = c
+                end
             end
         end
     end

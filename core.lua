@@ -57,7 +57,10 @@ sfui.events.RegisterEvent("ADDON_LOADED", function(_, name)
         SfuiDB.items = SfuiDB.items or {}
         SfuiDB.mythicBestTimes = SfuiDB.mythicBestTimes or {}
         SfuiDB.lootspec = SfuiDB.lootspec or {}
+        SfuiDB.bonusroll = SfuiDB.bonusroll or {}
         SfuiDB.worldevents = SfuiDB.worldevents or {}
+        SfuiDB.spec_colors = SfuiDB.spec_colors or {}
+
 
         SfuiDecorDB = SfuiDecorDB or {}
         SfuiDecorDB.items = SfuiDecorDB.items or {}
@@ -170,6 +173,9 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
         end
         if sfui.lootspec and sfui.lootspec.initialize then
             sfui.lootspec.initialize()
+        end
+        if sfui.lootviewer and sfui.lootviewer.initialize then
+            sfui.lootviewer.initialize()
         end
         if sfui.lfg and sfui.lfg.initialize then
             sfui.lfg.initialize()

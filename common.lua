@@ -325,9 +325,10 @@ end
 -- Returns RGB(A) color for a specialization ID, falling back to class color or cyan
 function sfui.common.get_spec_color(specID)
     if not specID or specID == 0 then return 0.35, 0.35, 0.35, 1 end
-    local specColor = sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID]
+    local specColor = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
+        or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
     if specColor then
-        return specColor[1], specColor[2], specColor[3], 1
+        return specColor[1], specColor[2], specColor[3], specColor[4] or 1
     end
     local _, _, _, _, _, classFile = GetSpecializationInfoByID(specID)
     local cc = classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
@@ -1163,9 +1164,11 @@ function sfui.common.get_class_or_spec_color()
 
     -- Rebuild the cached table in-place (no new allocation)
     _specColorCache[1], _specColorCache[2], _specColorCache[3], _specColorCache[4] = 1, 1, 1, 1
-    if cachedSpecID and sfui.config.spec_colors[cachedSpecID] then
-        local c = sfui.config.spec_colors[cachedSpecID]
-        _specColorCache[1], _specColorCache[2], _specColorCache[3], _specColorCache[4] = c[1], c[2], c[3], 1
+    local specColor = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[cachedSpecID])
+        or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[cachedSpecID])
+    if cachedSpecID and specColor then
+        _specColorCache[1], _specColorCache[2], _specColorCache[3], _specColorCache[4] =
+            specColor[1], specColor[2], specColor[3], specColor[4] or 1
     elseif playerClass then
         local classColor = C_ClassColor and C_ClassColor.GetClassColor(playerClass) or
             (RAID_CLASS_COLORS and RAID_CLASS_COLORS[playerClass])
@@ -2206,6 +2209,80 @@ function sfui.common.are_blizzard_cooldown_viewers_hidden()
     return true
 end
 
+-- Standard SFUI Close Button ("✕" icon with hover highlight)
+function sfui.common.create_close_button(parent, onClickFunc, size)
+    size = size or 20
+    local btn = sfui.common.create_flat_button(parent, "✕", size, size)
+    btn:SetPoint("TOPRIGHT", -6, -6)
+    btn:SetScript("OnClick", onClickFunc or function()
+        if parent and parent.Hide then parent:Hide() end
+    end)
+    return btn
+end
+
+-- Styles a scrollbar with SFUI minimal flat design
+function sfui.common.style_scrollbar(scrollBar)
+    if not scrollBar then return end
+
+    local name = scrollBar.GetName and scrollBar:GetName()
+    local upBtn = (name and _G[name .. "ScrollUpButton"]) or scrollBar.ScrollUpButton
+    local downBtn = (name and _G[name .. "ScrollDownButton"]) or scrollBar.ScrollDownButton
+
+    if upBtn and upBtn.Hide then
+        upBtn:Hide()
+        upBtn:SetAlpha(0)
+        upBtn:EnableMouse(false)
+    end
+    if downBtn and downBtn.Hide then
+        downBtn:Hide()
+        downBtn:SetAlpha(0)
+        downBtn:EnableMouse(false)
+    end
+
+    if scrollBar.Track and scrollBar.Track.Hide then
+        scrollBar.Track:Hide()
+    end
+
+    -- Hide default background/marble regions
+    if scrollBar.GetNumRegions then
+        for i = 1, scrollBar:GetNumRegions() do
+            local region = select(i, scrollBar:GetRegions())
+            if region and region:IsObjectType("Texture") and region ~= scrollBar:GetThumbTexture() then
+                region:SetTexture(nil)
+            end
+        end
+    end
+
+    scrollBar:SetWidth(6)
+
+    if not scrollBar.SetBackdrop and BackdropTemplateMixin then
+        Mixin(scrollBar, BackdropTemplateMixin)
+    end
+    if scrollBar.SetBackdrop then
+        scrollBar:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+        })
+        scrollBar:SetBackdropColor(0, 0, 0, 0.3)
+    end
+
+    local thumb = scrollBar:GetThumbTexture()
+    if not thumb and scrollBar.CreateTexture then
+        thumb = scrollBar:CreateTexture(nil, "ARTWORK")
+        scrollBar:SetThumbTexture(thumb)
+    end
+    if thumb then
+        thumb:SetSize(6, 30)
+        thumb:SetColorTexture(1, 1, 1, 0.75)
+    end
+
+    local parent = scrollBar:GetParent()
+    if parent and scrollBar.ClearAllPoints then
+        scrollBar:ClearAllPoints()
+        scrollBar:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -2, -2)
+        scrollBar:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -2, 2)
+    end
+end
+
 -- Centralized Dropdown Menu Widget
 local activeDropdown = nil
 function sfui.common.create_dropdown(parent, width, options, onSelectFunc, initialValue, fixedText, menuWidth)
@@ -2220,7 +2297,6 @@ function sfui.common.create_dropdown(parent, width, options, onSelectFunc, initi
                 end
             end
         elseif actualOptions and #actualOptions > 0 then
-            -- Default to the first option if no initial value provided
             initialText = actualOptions[1].text
         end
     end
@@ -2232,6 +2308,29 @@ function sfui.common.create_dropdown(parent, width, options, onSelectFunc, initi
     menu:SetFrameStrata("TOOLTIP")
     menu:SetFrameLevel(100)
     menu:Hide()
+
+    menu:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    menu:SetBackdropColor(0, 0, 0, 0.9)
+    menu:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+
+    local scrollFrame = CreateFrame("ScrollFrame", nil, menu, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", 4, -4)
+    scrollFrame:SetPoint("BOTTOMRIGHT", -4, 4)
+    scrollFrame:EnableMouseWheel(true)
+    sfui.common.style_scrollbar(scrollFrame.ScrollBar)
+
+    local scrollContent = CreateFrame("Frame", nil, scrollFrame)
+    scrollFrame:SetScrollChild(scrollContent)
+
+    scrollFrame:SetScript("OnMouseWheel", function(self, delta)
+        local cur = self:GetVerticalScroll()
+        local maxScroll = self:GetVerticalScrollRange()
+        self:SetVerticalScroll(math.max(0, math.min(maxScroll, cur - delta * 20)))
+    end)
 
     btn.menu = menu
     btn:HookScript("OnHide", function()
@@ -2261,51 +2360,56 @@ function sfui.common.create_dropdown(parent, width, options, onSelectFunc, initi
         local currentOptions = (type(options) == "function") and options() or options
         local maxW = menuWidth or width or 80
 
-        -- If no menuWidth, try to estimate from text if not using onRender
         if not menuWidth then
             for _, opt in ipairs(currentOptions) do
                 if opt.text then
-                    local textWidth = #opt.text * 7 -- Rough estimate
+                    local textWidth = #opt.text * 7
                     if textWidth > maxW then maxW = textWidth end
                 end
             end
         end
 
-        local totalH = 5
-        for _, opt in ipairs(currentOptions) do
-            totalH = totalH + 20
-        end
-        menu:SetSize(maxW + 20, totalH + 5)
-    end
+        local totalH = #currentOptions * 20
+        local maxH = 260
+        local displayH = math.min(maxH, totalH)
+        local needsScroll = totalH > maxH
+        local extraW = needsScroll and 12 or 0
 
-    menu:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    menu:SetBackdropColor(0, 0, 0, 0.9)
-    menu:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+        menu:SetSize(maxW + 20 + extraW, displayH + 8)
+        scrollContent:SetSize(maxW + 12, totalH)
+
+        if scrollFrame.ScrollBar then
+            if needsScroll then
+                scrollFrame.ScrollBar:Show()
+                scrollFrame:SetPoint("BOTTOMRIGHT", -12, 4)
+            else
+                scrollFrame.ScrollBar:Hide()
+                scrollFrame:SetPoint("BOTTOMRIGHT", -4, 4)
+            end
+        end
+    end
 
     local function fillOptions()
         local currentOptions = (type(options) == "function") and options() or options
-        local y = -5
+        local y = 0
 
-        menu.buttons = menu.buttons or {}
-        for _, optBtn in ipairs(menu.buttons) do
+        scrollFrame:SetVerticalScroll(0)
+        scrollContent.buttons = scrollContent.buttons or {}
+        for _, optBtn in ipairs(scrollContent.buttons) do
             optBtn:Hide()
         end
 
         for i, opt in ipairs(currentOptions) do
-            local optBtn = menu.buttons[i]
+            local optBtn = scrollContent.buttons[i]
             if not optBtn then
-                optBtn = CreateFrame("Button", nil, menu)
-                menu.buttons[i] = optBtn
+                optBtn = CreateFrame("Button", nil, scrollContent)
+                scrollContent.buttons[i] = optBtn
                 optBtn.textString = optBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-                optBtn.textString:SetPoint("LEFT", 5, 0)
+                optBtn.textString:SetPoint("LEFT", 4, 0)
             end
 
-            optBtn:SetSize(menu:GetWidth() - 10, 20)
-            optBtn:SetPoint("TOPLEFT", 5, y)
+            optBtn:SetSize(scrollContent:GetWidth(), 20)
+            optBtn:SetPoint("TOPLEFT", 0, y)
 
             if opt.onRender then
                 opt.onRender(optBtn, opt)
@@ -2318,7 +2422,7 @@ function sfui.common.create_dropdown(parent, width, options, onSelectFunc, initi
 
                 optBtn:SetScript("OnClick", function()
                     if not fixedText then
-                        btn:GetFontString():SetText(opt.text) -- Update displayed text
+                        btn:GetFontString():SetText(opt.text)
                     end
                     if onSelectFunc then onSelectFunc(opt.value) end
 

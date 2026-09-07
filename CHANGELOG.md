@@ -2,6 +2,31 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-33 (2026-09-07)
+
+### UI & Styling Standardizations
+- **Options Panel SFUI Default Styling (`frames/options.lua`)**:
+  - Replaced legacy Blizzard `UIDropDownMenuTemplate` bar texture dropdown with centralized `sfui.common.create_dropdown`.
+  - Replaced close buttons across options and tracking panels with `sfui.common.create_close_button` (`"✕"` flat styling with hover cyan accent).
+  - Wrapped options tabs in scrollframes with dynamic height calculation and `sfui.common.style_scrollbar`, allowing tall tabs (`automation`, `main`, etc.) to scroll smoothly via mouse wheel without clipping off-screen.
+  - Converted position reset buttons to SFUI flat buttons (`CreateFlatButton`).
+- **Scrollbar Architecture (`common.lua`, `trackedoptions.lua`, `cdm.lua`)**:
+  - Implemented `sfui.common.style_scrollbar`: strips Blizzard gold arrows and track textures, applying a 6px dark track and flat white thumb.
+  - Added auto-scrolling with styled scrollbars to `sfui.common.create_dropdown` when lists exceed 260px.
+  - Styled scrollbars and added mouse-wheel scrolling across Tracking Manager and CDM panels.
+
+### Specialization Color Management
+- **Single Source of Truth & Clean Resets**:
+  - Maintained `sfui.config.spec_colors` as the canonical default, eliminating `default_spec_colors`.
+  - Fixed options panel reset button to restore colors directly from `sfui.config.spec_colors` without class-color fallbacks or mutating defaults.
+  - Spec color customizations write strictly to `SfuiDB.spec_colors`.
+
+### Gear & Automation
+- **Bonus Roll Automation (`frames/gear/bonusroll.lua`)**:
+  - Added new dedicated bonus roll automation module.
+
+---
+
 ## v12.1.0-31 (2026-09-06)
 
 ### Loot & Spec Browser (`frames/gear/lootviewer.lua`)

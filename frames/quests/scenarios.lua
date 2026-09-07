@@ -353,6 +353,10 @@ local function ScanWorldEventScenario(list, AcquireTable, ReleaseTable)
                 local minVal = sInfo.barMin or 0
                 local maxVal = sInfo.barMax or 0
                 local curVal = sInfo.barValue or 0
+                if minVal > 0 and minVal == maxVal and curVal == maxVal then
+                    minVal, maxVal, curVal = 0, 1, 1
+                end
+                curVal = math_min(maxVal, math_max(minVal, curVal))
                 local range = maxVal - minVal
                 if range > 0 or curVal > 0 then
                     local pct = (range > 0) and math_min(100, math_max(0, math_floor(((curVal - minVal) / range) * 100))) or 0
@@ -362,10 +366,6 @@ local function ScanWorldEventScenario(list, AcquireTable, ReleaseTable)
                         valText = sInfo.overrideBarText
                     elseif sInfo.barValueText and sInfo.barValueText ~= "" and not issecretvalue(sInfo.barValueText) then
                         valText = sInfo.barValueText
-                    elseif maxVal > 0 then
-                        valText = string_format("%d/%d", curVal, maxVal)
-                    else
-                        valText = tostring(curVal)
                     end
 
                     local barLabel = (sInfo.text and sInfo.text ~= "" and not issecretvalue(sInfo.text) and sInfo.text)
@@ -376,7 +376,13 @@ local function ScanWorldEventScenario(list, AcquireTable, ReleaseTable)
 
                     local sObj = AcquireTable()
                     sObj.text = string_format("%s (%d%%)", barLabel, pct)
-                    sObj.barText = valText and string_format("%s (%d%%)", valText, pct) or (pct .. "%")
+                    if valText and valText:find("%%") then
+                        sObj.barText = valText
+                    elseif valText and valText ~= "" then
+                        sObj.barText = string_format("%s (%d%%)", valText, pct)
+                    else
+                        sObj.barText = tostring(pct) .. "%"
+                    end
                     sObj.type = "progressbar"
                     sObj.numFulfilled = pct
                     sObj.numRequired = 100
@@ -394,6 +400,7 @@ local function ScanWorldEventScenario(list, AcquireTable, ReleaseTable)
                 local lMin = dInfo.leftBarMin or 0
                 local lMax = dInfo.leftBarMax or 100
                 local lCur = dInfo.leftBarValue or 0
+                lCur = math_min(lMax, math_max(lMin, lCur))
                 local lRange = lMax - lMin
                 if lRange > 0 or lCur > 0 then
                     local pct = (lRange > 0) and math_min(100, math_max(0, math_floor(((lCur - lMin) / lRange) * 100))) or 0
@@ -402,7 +409,7 @@ local function ScanWorldEventScenario(list, AcquireTable, ReleaseTable)
                              or "Progress"
                     local sObj = AcquireTable()
                     sObj.text = string_format("%s (%d%%)", lbl, pct)
-                    sObj.barText = (lMax > 0) and string_format("%d/%d (%d%%)", lCur, lMax, pct) or (pct .. "%")
+                    sObj.barText = tostring(pct) .. "%"
                     sObj.type = "progressbar"
                     sObj.numFulfilled = pct
                     sObj.numRequired = 100
