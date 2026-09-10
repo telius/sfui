@@ -66,10 +66,26 @@ local FRAME_WIDTH       = ICONS_PER_ROW * (ICON_SIZE + ICON_SPACING_X) + ICON_SP
 -- This is the only reliable taint-free casting method from an addon frame.
 -- ========================
 local actionBtn         = CreateFrame("Button", "SfuiPortalsActionBtn", UIParent, "InsecureActionButtonTemplate")
-actionBtn:RegisterForClicks("AnyDown", "AnyUp")
+if actionBtn.SetAttributeNoHandler then
+    actionBtn:SetAttributeNoHandler("pressAndHoldAction", 1)
+else
+    actionBtn:SetAttribute("pressAndHoldAction", 1)
+end
+actionBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+actionBtn:SetPropagateMouseClicks(true)
 actionBtn:SetPropagateMouseMotion(true)
 actionBtn:SetFrameStrata("TOOLTIP")
 actionBtn:Hide()
+
+local currentlyClicking = false
+
+local function set_attr(frame, name, val)
+    if frame.SetAttributeNoHandler then
+        frame:SetAttributeNoHandler(name, val)
+    else
+        frame:SetAttribute(name, val)
+    end
+end
 
 -- ========================
 -- Helpers
@@ -198,54 +214,70 @@ local currentHoverFrame = nil
 local function arm_spell(spellID, portalID, frame)
     if InCombatLockdown() then return end
     currentHoverFrame = frame
-    actionBtn:SetAttribute("type", nil)
-    actionBtn:SetAttribute("spell", nil)
-    actionBtn:SetAttribute("type1", "spell")
-    actionBtn:SetAttribute("spell1", spellID)
+    set_attr(actionBtn, "pressAndHoldAction", 1)
+    set_attr(actionBtn, "type", "spell")
+    set_attr(actionBtn, "typerelease", "spell")
+    set_attr(actionBtn, "spell", spellID)
+    set_attr(actionBtn, "type1", "spell")
+    set_attr(actionBtn, "typerelease1", "spell")
+    set_attr(actionBtn, "spell1", spellID)
     if portalID and player_has_spell(portalID) then
-        actionBtn:SetAttribute("type2", "spell")
-        actionBtn:SetAttribute("spell2", portalID)
+        set_attr(actionBtn, "type2", "spell")
+        set_attr(actionBtn, "typerelease2", "spell")
+        set_attr(actionBtn, "spell2", portalID)
     else
-        actionBtn:SetAttribute("type2", nil)
-        actionBtn:SetAttribute("spell2", nil)
+        set_attr(actionBtn, "type2", nil)
+        set_attr(actionBtn, "typerelease2", nil)
+        set_attr(actionBtn, "spell2", nil)
     end
     actionBtn:SetParent(frame)
     actionBtn:ClearAllPoints()
     actionBtn:SetAllPoints(frame)
+    actionBtn:SetFrameStrata("TOOLTIP")
     actionBtn:Show()
 end
 
 local function arm_toy(toyID, frame)
     if InCombatLockdown() then return end
     currentHoverFrame = frame
-    actionBtn:SetAttribute("type", nil)
-    actionBtn:SetAttribute("spell", nil)
-    actionBtn:SetAttribute("toy", nil)
-    actionBtn:SetAttribute("type1", "toy")
-    actionBtn:SetAttribute("toy1", toyID)
-    actionBtn:SetAttribute("type2", nil)
-    actionBtn:SetAttribute("spell2", nil)
+    set_attr(actionBtn, "pressAndHoldAction", 1)
+    set_attr(actionBtn, "type", "toy")
+    set_attr(actionBtn, "typerelease", "toy")
+    set_attr(actionBtn, "toy", toyID)
+    set_attr(actionBtn, "type1", "toy")
+    set_attr(actionBtn, "typerelease1", "toy")
+    set_attr(actionBtn, "toy1", toyID)
+    set_attr(actionBtn, "type2", nil)
+    set_attr(actionBtn, "typerelease2", nil)
+    set_attr(actionBtn, "spell2", nil)
     actionBtn:SetParent(frame)
     actionBtn:ClearAllPoints()
     actionBtn:SetAllPoints(frame)
+    actionBtn:SetFrameStrata("TOOLTIP")
     actionBtn:Show()
 end
 
 local function disarm()
+    if currentlyClicking then return end
     if currentHoverFrame and currentHoverFrame.resetHover then
         currentHoverFrame.resetHover()
     end
     currentHoverFrame = nil
     if not InCombatLockdown() then
         actionBtn:Hide()
-        actionBtn:SetParent(UIParent)
         actionBtn:ClearAllPoints()
-        actionBtn:SetAttribute("type1", nil)
-        actionBtn:SetAttribute("spell1", nil)
-        actionBtn:SetAttribute("type2", nil)
-        actionBtn:SetAttribute("spell2", nil)
-        actionBtn:SetAttribute("type", nil)
-        actionBtn:SetAttribute("spell", nil)
+        actionBtn:SetParent(nil)
+        set_attr(actionBtn, "type", nil)
+        set_attr(actionBtn, "typerelease", nil)
+        set_attr(actionBtn, "spell", nil)
+        set_attr(actionBtn, "toy", nil)
+        set_attr(actionBtn, "type1", nil)
+        set_attr(actionBtn, "typerelease1", nil)
+        set_attr(actionBtn, "spell1", nil)
+        set_attr(actionBtn, "toy1", nil)
+        set_attr(actionBtn, "type2", nil)
+        set_attr(actionBtn, "typerelease2", nil)
+        set_attr(actionBtn, "spell2", nil)
     end
 end
 
@@ -316,17 +348,25 @@ local function hide_tooltip()
     end
 end
 
+actionBtn:SetScript("PreClick", function(self, button)
+    currentlyClicking = true
+end)
+
 -- Forward right-click to hovered frame if not using secondary spell
 actionBtn:SetScript("OnMouseUp", function(self, button)
     if button == "RightButton" and currentHoverFrame and currentHoverFrame.OnRightClick then
-        currentHoverFrame:OnRightClick()
+        if not self:GetAttribute("type2") then
+            currentHoverFrame:OnRightClick()
+        end
     end
 end)
 
 -- Close portal frame after a cast
-actionBtn:HookScript("PostClick", function(self, button)
-    if button == "LeftButton" or (button == "RightButton" and self:GetAttribute("type2") == "spell") then
-        _G.C_Timer.After(0.05, function()
+actionBtn:SetScript("PostClick", function(self, button)
+    local isCast = (button == "LeftButton") or (button == "RightButton" and self:GetAttribute("type2") == "spell")
+    if isCast then
+        _G.C_Timer.After(0.01, function()
+            currentlyClicking = false
             disarm()
             hide_tooltip()
             if portalFrame then portalFrame:Hide() end
@@ -335,11 +375,14 @@ actionBtn:HookScript("PostClick", function(self, button)
                 openLegacyMenu = nil
             end
         end)
+    else
+        currentlyClicking = false
     end
 end)
 
 -- Safety: always clear highlight when mouse leaves the overlay button
 actionBtn:SetScript("OnLeave", function()
+    if currentlyClicking then return end
     disarm()
     hide_tooltip()
 end)
@@ -461,6 +504,7 @@ local function make_spell_icon(parent, spellID, label, x, y)
         show_tooltip(self, spellID, nil, label, nil, rem)
     end)
     frame:SetScript("OnLeave", function(self)
+        if currentlyClicking then return end
         if not actionBtn:IsShown() or actionBtn:GetParent() ~= self then
             refresh()
             disarm()
@@ -562,6 +606,7 @@ local function make_action_row(parent, spellID, portalID, toyID, name, icon, yPo
         show_tooltip(self, spellID, toyID, nil, portalID, rem)
     end)
     frame:SetScript("OnLeave", function(self)
+        if currentlyClicking then return end
         if not actionBtn:IsShown() or actionBtn:GetParent() ~= self then
             refresh()
             disarm()
@@ -643,6 +688,7 @@ local function make_legacy_dropdown(parent, group, yPos)
             show_tooltip(self, spellID, nil, nil, nil, rem)
         end)
         row:SetScript("OnLeave", function(self)
+            if currentlyClicking then return end
             if not actionBtn:IsShown() or actionBtn:GetParent() ~= self then
                 refresh_row()
                 disarm()
@@ -1022,6 +1068,7 @@ function sfui.portals.initialize()
         end
     end)
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+        currentlyClicking = false
         if portalFrame and portalFrame:IsShown() then
             portalFrame:Hide()
         end

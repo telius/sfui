@@ -30,7 +30,7 @@ local string_format        = string.format
 local issecretvalue        = (common and common.issecretvalue) or function() return false end
 
 -- ─── Zero-Allocation Table Pool ─────────────────────────────────────────────
-local MAX_TABLE_POOL = 30
+local MAX_TABLE_POOL = 60
 local tablePool      = {}
 
 local function AcquireTable()
@@ -49,6 +49,7 @@ end
 
 -- ─── Module State & Caching ─────────────────────────────────────────────────
 local cachedEvents       = {}
+local stagingEvents      = {}
 local seenPoi            = {}
 local poiNameCache       = {}
 local poiAtlasCache      = {}
@@ -109,47 +110,63 @@ end
 local function ResolvePoiDetails(areaPoiID, displayInfo)
     if not areaPoiID or areaPoiID <= 0 then return nil end
 
-    local name = poiNameCache[areaPoiID]
-    if name then
-        local atlas = (displayInfo and displayInfo.overrideAtlas and not issecretvalue(displayInfo.overrideAtlas) and displayInfo.overrideAtlas) or poiAtlasCache[areaPoiID]
-        local wSet  = (displayInfo and displayInfo.overrideTooltipWidgetSetID and not issecretvalue(displayInfo.overrideTooltipWidgetSetID) and displayInfo.overrideTooltipWidgetSetID) or poiWidgetSetCache[areaPoiID]
-        return name, atlas, poiZoneCache[areaPoiID], poiMapCache[areaPoiID], wSet
-    end
+    local name     = poiNameCache[areaPoiID]
+    local atlas    = (displayInfo and displayInfo.overrideAtlas and not issecretvalue(displayInfo.overrideAtlas) and displayInfo.overrideAtlas) or poiAtlasCache[areaPoiID]
+    local zoneName = poiZoneCache[areaPoiID]
+    local uiMapID  = poiMapCache[areaPoiID]
+    local wSet     = (displayInfo and displayInfo.overrideTooltipWidgetSetID and not issecretvalue(displayInfo.overrideTooltipWidgetSetID) and displayInfo.overrideTooltipWidgetSetID) or poiWidgetSetCache[areaPoiID]
 
-    local uiMapID = C_EventScheduler and C_EventScheduler.GetEventUiMapID and C_EventScheduler.GetEventUiMapID(areaPoiID)
-    local poiInfo = nil
-    if C_AreaPoiInfo and C_AreaPoiInfo.GetAreaPOIInfo then
-        if uiMapID then
-            poiInfo = C_AreaPoiInfo.GetAreaPOIInfo(uiMapID, areaPoiID)
+    -- If name, zoneName, or wSet are missing or unresolved, query C_AreaPoiInfo fresh
+    if not name or not zoneName or not wSet or wSet <= 0 then
+        if not uiMapID and C_EventScheduler and C_EventScheduler.GetEventUiMapID then
+            uiMapID = C_EventScheduler.GetEventUiMapID(areaPoiID)
         end
-        if not poiInfo then
-            poiInfo = C_AreaPoiInfo.GetAreaPOIInfo(nil, areaPoiID)
+        local poiInfo = nil
+        if C_AreaPoiInfo and C_AreaPoiInfo.GetAreaPOIInfo then
+            if uiMapID then
+                poiInfo = C_AreaPoiInfo.GetAreaPOIInfo(uiMapID, areaPoiID)
+            end
+            if not poiInfo then
+                poiInfo = C_AreaPoiInfo.GetAreaPOIInfo(nil, areaPoiID)
+            end
+        end
+
+        if poiInfo then
+            if not name and poiInfo.name and not issecretvalue(poiInfo.name) then
+                name = poiInfo.name
+            end
+            if not atlas and poiInfo.atlasName and not issecretvalue(poiInfo.atlasName) then
+                atlas = poiInfo.atlasName
+            end
+            if not uiMapID and poiInfo.linkedUiMapID and poiInfo.linkedUiMapID > 0 then
+                uiMapID = poiInfo.linkedUiMapID
+            end
+            if not wSet or wSet <= 0 then
+                wSet = (poiInfo.tooltipWidgetSet and not issecretvalue(poiInfo.tooltipWidgetSet) and poiInfo.tooltipWidgetSet)
+                    or (poiInfo.iconWidgetSet and not issecretvalue(poiInfo.iconWidgetSet) and poiInfo.iconWidgetSet)
+            end
+        end
+
+        if not zoneName then
+            zoneName = C_EventScheduler and C_EventScheduler.GetEventZoneName and C_EventScheduler.GetEventZoneName(areaPoiID)
+            if not zoneName and uiMapID and C_Map and C_Map.GetMapInfo then
+                local mapInfo = C_Map.GetMapInfo(uiMapID)
+                zoneName = mapInfo and mapInfo.name
+            end
+        end
+
+        name = name or zoneName or "World Event"
+
+        poiNameCache[areaPoiID]  = name
+        poiAtlasCache[areaPoiID] = atlas
+        poiZoneCache[areaPoiID]  = zoneName
+        poiMapCache[areaPoiID]   = uiMapID
+        if wSet and wSet > 0 then
+            poiWidgetSetCache[areaPoiID] = wSet
         end
     end
 
-    name = (poiInfo and poiInfo.name and not issecretvalue(poiInfo.name) and poiInfo.name)
-    local atlas = (displayInfo and displayInfo.overrideAtlas and not issecretvalue(displayInfo.overrideAtlas) and displayInfo.overrideAtlas)
-               or (poiInfo and poiInfo.atlasName and not issecretvalue(poiInfo.atlasName) and poiInfo.atlasName)
-
-    local zoneName = C_EventScheduler and C_EventScheduler.GetEventZoneName and C_EventScheduler.GetEventZoneName(areaPoiID)
-    if not zoneName and uiMapID and C_Map and C_Map.GetMapInfo then
-        local mapInfo = C_Map.GetMapInfo(uiMapID)
-        zoneName = mapInfo and mapInfo.name
-    end
-
-    name = name or zoneName or "World Event"
-
-    local widgetSetID = (displayInfo and displayInfo.overrideTooltipWidgetSetID and not issecretvalue(displayInfo.overrideTooltipWidgetSetID) and displayInfo.overrideTooltipWidgetSetID)
-                     or (poiInfo and poiInfo.tooltipWidgetSet and not issecretvalue(poiInfo.tooltipWidgetSet) and poiInfo.tooltipWidgetSet)
-                     or (poiInfo and poiInfo.iconWidgetSet and not issecretvalue(poiInfo.iconWidgetSet) and poiInfo.iconWidgetSet)
-
-    poiNameCache[areaPoiID]      = name
-    poiAtlasCache[areaPoiID]     = atlas
-    poiZoneCache[areaPoiID]      = zoneName
-    poiMapCache[areaPoiID]       = uiMapID
-    poiWidgetSetCache[areaPoiID] = widgetSetID
-
-    return name, atlas, zoneName, uiMapID, widgetSetID
+    return name, atlas, zoneName, uiMapID, wSet
 end
 
 -- ─── Event Sort Comparator ──────────────────────────────────────────────────
@@ -191,16 +208,20 @@ function sfui.worldevents.UpdateEventsData()
     end
 
     if not C_EventScheduler or not C_EventScheduler.CanShowEvents or not C_EventScheduler.CanShowEvents() then
-        for i = #cachedEvents, 1, -1 do
-            ReleaseTable(table_remove(cachedEvents, i))
+        if #cachedEvents > 0 then
+            for i = #cachedEvents, 1, -1 do
+                ReleaseTable(table_remove(cachedEvents, i))
+            end
         end
         reminderCount = 0
         isDirty = false
         return
     end
 
-    -- Request events from server if data isn't ready
-    if C_EventScheduler.HasData and not C_EventScheduler.HasData() and C_EventScheduler.RequestEvents then
+    local inCombat = InCombatLockdown and InCombatLockdown()
+
+    -- Request events from server if data isn't ready (only when out of combat to prevent network/throttle spikes)
+    if not inCombat and C_EventScheduler.HasData and not C_EventScheduler.HasData() and C_EventScheduler.RequestEvents then
         C_EventScheduler.RequestEvents()
     end
 
@@ -212,9 +233,23 @@ function sfui.worldevents.UpdateEventsData()
     local now = time()
     reminderCount = 0
 
-    -- Clear old cached items back into pool
-    for i = #cachedEvents, 1, -1 do
-        ReleaseTable(table_remove(cachedEvents, i))
+    -- Query ongoing and scheduled lists
+    local ongoingList = C_EventScheduler.GetOngoingEvents and C_EventScheduler.GetOngoingEvents()
+    local scheduledList = C_EventScheduler.GetScheduledEvents and C_EventScheduler.GetScheduledEvents()
+
+    -- If both returned nil (client/server query throttle active, MayReturnNothing = true):
+    -- NEVER wipe existing cachedEvents! Retain current events safely.
+    if ongoingList == nil and scheduledList == nil then
+        if #cachedEvents > 0 then
+            lastUpdateTime = now
+            isDirty = false
+            return
+        end
+    end
+
+    -- Clear staging list for zero-allocation rebuild
+    for i = #stagingEvents, 1, -1 do
+        ReleaseTable(table_remove(stagingEvents, i))
     end
 
     -- Check if player has focused an event on the map
@@ -224,100 +259,113 @@ function sfui.worldevents.UpdateEventsData()
         superTrackedPOI = pID or 0
     end
 
+    local playerMap = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
     local showOngoing    = not remindersOnly and (cfg.show_ongoing ~= false)
     local maxUpcomingSec = (cfg.max_upcoming_minutes or 60) * 60
     local maxLimit       = cfg.max_events or 5
     wipe(seenPoi)
 
     -- 1. Ongoing Events
-    if C_EventScheduler.GetOngoingEvents then
-        local ongoingList = C_EventScheduler.GetOngoingEvents()
-        if ongoingList then
-            for _, oEvent in ipairs(ongoingList) do
-                local pID = oEvent.areaPoiID
-                if pID and not seenPoi[pID] then
-                    local isFocused = (superTrackedPOI > 0 and pID == superTrackedPOI)
-                    local isEligible = showOngoing or isFocused
-                    if isEligible then
-                        local name, atlas, zoneName, uiMapID, widgetSetID = ResolvePoiDetails(pID, oEvent.displayInfo)
-                        if name then
-                            seenPoi[pID] = true
-                            local item = AcquireTable()
-                            item.eventKey     = "ongoing_" .. tostring(pID)
-                            item.areaPoiID    = pID
-                            item.uiMapID      = uiMapID
-                            item.widgetSetID  = widgetSetID
-                            item.name         = name
-                            item.atlasName    = atlas
-                            item.zoneName     = zoneName
-                            item.isOngoing    = true
-                            item.hasReminder  = false
-                            item.startTime    = now
-                            item.endTime      = 0
-                            item.timeLeftText = "Active Now"
-                            item.remText      = "now"
-                            table_insert(cachedEvents, item)
-                        end
+    if ongoingList then
+        for _, oEvent in ipairs(ongoingList) do
+            local pID = oEvent.areaPoiID
+            if pID and not seenPoi[pID] then
+                local isFocused = (superTrackedPOI > 0 and pID == superTrackedPOI)
+                local name, atlas, zoneName, uiMapID, widgetSetID = ResolvePoiDetails(pID, oEvent.displayInfo)
+                local isCurrentZone = (uiMapID and playerMap and uiMapID == playerMap)
+                local isEligible = showOngoing or isFocused or isCurrentZone
+                if isEligible and name then
+                    seenPoi[pID] = true
+                    local item = AcquireTable()
+                    item.eventKey     = "ongoing_" .. tostring(pID)
+                    item.areaPoiID    = pID
+                    item.uiMapID      = uiMapID
+                    item.widgetSetID  = widgetSetID
+                    item.name         = name
+                    item.atlasName    = atlas
+                    item.zoneName     = zoneName
+                    item.isOngoing    = true
+                    item.hasReminder  = false
+                    item.startTime    = now
+
+                    -- Accurate remaining time via C_AreaPoiInfo.GetAreaPOISecondsLeft (WoW 12.1.0)
+                    local secLeft = C_AreaPoiInfo and C_AreaPoiInfo.GetAreaPOISecondsLeft and C_AreaPoiInfo.GetAreaPOISecondsLeft(pID)
+                    if secLeft and secLeft > 0 then
+                        item.endTime = now + secLeft
+                    else
+                        item.endTime = 0
                     end
+                    item.timeLeftText = FormatEventTime(item, now)
+                    table_insert(stagingEvents, item)
                 end
             end
         end
     end
 
     -- 2. Scheduled Events (Upcoming & Reminded & Focused)
-    if C_EventScheduler.GetScheduledEvents then
-        local scheduledList = C_EventScheduler.GetScheduledEvents()
-        if scheduledList then
-            for _, sEvent in ipairs(scheduledList) do
-                local hasReminder = (sEvent.hasReminder == true)
-                if hasReminder then
-                    reminderCount = reminderCount + 1
-                end
+    if scheduledList then
+        for _, sEvent in ipairs(scheduledList) do
+            local hasReminder = (sEvent.hasReminder == true)
+            if hasReminder then
+                reminderCount = reminderCount + 1
+            end
 
-                local toStart = (sEvent.startTime or now) - now
-                local toEnd   = (sEvent.endTime or now) - now
-                local isCurrentlyActive = (toStart <= 0 and toEnd > 0)
-                local isFocused = (superTrackedPOI > 0 and sEvent.areaPoiID == superTrackedPOI)
+            local toStart = (sEvent.startTime or now) - now
+            local toEnd   = (sEvent.endTime or now) - now
+            local isCurrentlyActive = (toStart <= 0 and toEnd > 0)
+            local isFocused = (superTrackedPOI > 0 and sEvent.areaPoiID == superTrackedPOI)
 
-                local isEligible = false
-                if remindersOnly then
-                    isEligible = hasReminder or isFocused
-                else
-                    isEligible = hasReminder or isFocused or isCurrentlyActive or (toStart > 0 and toStart <= maxUpcomingSec)
-                end
+            local pID = sEvent.areaPoiID
+            local name, atlas, zoneName, uiMapID, widgetSetID = nil, nil, nil, nil, nil
+            if pID then
+                name, atlas, zoneName, uiMapID, widgetSetID = ResolvePoiDetails(pID, sEvent.displayInfo)
+            end
+            local isCurrentZone = (uiMapID and playerMap and uiMapID == playerMap and isCurrentlyActive)
 
-                local pID = sEvent.areaPoiID
-                if isEligible and pID and not seenPoi[pID] then
-                    local name, atlas, zoneName, uiMapID, widgetSetID = ResolvePoiDetails(pID, sEvent.displayInfo)
-                    if name then
-                        seenPoi[pID] = true
-                        local item = AcquireTable()
-                        item.eventKey     = sEvent.eventKey or ("sched_" .. tostring(sEvent.eventID or pID))
-                        item.areaPoiID    = pID
-                        item.uiMapID      = uiMapID
-                        item.widgetSetID  = widgetSetID
-                        item.name         = name
-                        item.atlasName    = atlas
-                        item.zoneName     = zoneName
-                        item.startTime    = sEvent.startTime
-                        item.endTime      = sEvent.endTime
-                        item.hasReminder  = hasReminder
-                        item.isOngoing    = isCurrentlyActive
-                        item.timeLeftText = FormatEventTime(item, now)
-                        table_insert(cachedEvents, item)
-                    end
-                end
+            local isEligible = false
+            if remindersOnly then
+                isEligible = hasReminder or isFocused or isCurrentZone
+            else
+                isEligible = hasReminder or isFocused or isCurrentZone or isCurrentlyActive or (toStart > 0 and toStart <= maxUpcomingSec)
+            end
+
+            if isEligible and pID and not seenPoi[pID] and name then
+                seenPoi[pID] = true
+                local item = AcquireTable()
+                item.eventKey     = sEvent.eventKey or ("sched_" .. tostring(sEvent.eventID or pID))
+                item.areaPoiID    = pID
+                item.uiMapID      = uiMapID
+                item.widgetSetID  = widgetSetID
+                item.name         = name
+                item.atlasName    = atlas
+                item.zoneName     = zoneName
+                item.startTime    = sEvent.startTime
+                item.endTime      = sEvent.endTime
+                item.hasReminder  = hasReminder
+                item.isOngoing    = isCurrentlyActive
+                item.timeLeftText = FormatEventTime(item, now)
+                table_insert(stagingEvents, item)
             end
         end
     end
 
-    -- 3. Sort & Trim
-    if #cachedEvents > 1 then
-        table_sort(cachedEvents, EventSortComparator)
+    -- 3. Sort & Trim Staging List
+    if #stagingEvents > 1 then
+        table_sort(stagingEvents, EventSortComparator)
     end
 
-    while #cachedEvents > maxLimit do
-        ReleaseTable(table_remove(cachedEvents))
+    while #stagingEvents > maxLimit do
+        ReleaseTable(table_remove(stagingEvents))
+    end
+
+    -- 4. Swap Staged Events into cachedEvents Non-Destructively
+    for i = #cachedEvents, 1, -1 do
+        ReleaseTable(table_remove(cachedEvents, i))
+    end
+
+    for i = 1, #stagingEvents do
+        cachedEvents[i] = stagingEvents[i]
+        stagingEvents[i] = nil
     end
 
     lastUpdateTime = now
@@ -407,9 +455,23 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
         timeObj.finished = false
         table_insert(objs, timeObj)
 
-        -- Progress Widgets (Status Bars, Double Status Bars, Steps)
-        if ev.widgetSetID and ev.widgetSetID > 0 and C_UIWidgetManager and C_UIWidgetManager.GetAllWidgetsBySetID then
-            local widgets = C_UIWidgetManager.GetAllWidgetsBySetID(ev.widgetSetID)
+        -- Progress Widgets (Status Bars, Double Status Bars, Steps, Timers, Text)
+        local widgetSetID = ev.widgetSetID
+        if (not widgetSetID or widgetSetID <= 0) and ev.isOngoing then
+            if C_UIWidgetManager and C_UIWidgetManager.GetObjectiveTrackerWidgetSetID then
+                local otSet = C_UIWidgetManager.GetObjectiveTrackerWidgetSetID()
+                if otSet and otSet > 0 then
+                    local otWidgets = C_UIWidgetManager.GetAllWidgetsBySetID(otSet)
+                    if otWidgets and #otWidgets > 0 then
+                        widgetSetID = otSet
+                        ev.widgetSetID = otSet
+                    end
+                end
+            end
+        end
+
+        if widgetSetID and widgetSetID > 0 and C_UIWidgetManager and C_UIWidgetManager.GetAllWidgetsBySetID then
+            local widgets = C_UIWidgetManager.GetAllWidgetsBySetID(widgetSetID)
             if widgets and type(widgets) == "table" then
                 for _, w in ipairs(widgets) do
                     local wID = (type(w) == "table" and w.widgetID) or (type(w) == "number" and w)
@@ -527,6 +589,60 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                                 end
                             end
                         end
+
+                        -- 5. ScenarioHeaderTimer (Stage Countdown Timers)
+                        if C_UIWidgetManager.GetScenarioHeaderTimerWidgetVisualizationInfo then
+                            local tInfo = C_UIWidgetManager.GetScenarioHeaderTimerWidgetVisualizationInfo(wID)
+                            if tInfo and tInfo.shownState ~= 0 and tInfo.shownState ~= Enum.WidgetShownState.Hidden then
+                                local tMin = tInfo.timerMin or 0
+                                local tMax = tInfo.timerMax or 0
+                                local tVal = tInfo.timerValue or 0
+                                local rem = 0
+                                if tMax > tMin and tVal >= tMin then
+                                    rem = math_max(0, tVal - tMin)
+                                elseif tVal > 0 then
+                                    rem = tVal
+                                end
+                                local tStr = FormatTimerSeconds(rem)
+                                if tStr then
+                                    local lbl = (tInfo.headerText and tInfo.headerText ~= "" and not issecretvalue(tInfo.headerText) and tInfo.headerText)
+                                             or (tInfo.timerTooltip and tInfo.timerTooltip ~= "" and not issecretvalue(tInfo.timerTooltip) and tInfo.timerTooltip:match("^[^\n]+"))
+                                             or "Stage Timer"
+                                    local sObj = Alloc()
+                                    sObj.text = string_format("%s: %s", lbl, tStr)
+                                    sObj.finished = (rem <= 0)
+                                    table_insert(objs, sObj)
+                                end
+                            end
+                        end
+
+                        -- 6. TextWithState (Stage Instructions / Status)
+                        if C_UIWidgetManager.GetTextWithStateWidgetVisualizationInfo then
+                            local twInfo = C_UIWidgetManager.GetTextWithStateWidgetVisualizationInfo(wID)
+                            if twInfo and twInfo.shownState ~= 0 and twInfo.shownState ~= Enum.WidgetShownState.Hidden then
+                                local txt = (twInfo.text and twInfo.text ~= "" and not issecretvalue(twInfo.text) and twInfo.text)
+                                if txt and txt ~= "" then
+                                    local tObj = Alloc()
+                                    tObj.text = txt
+                                    tObj.finished = false
+                                    table_insert(objs, tObj)
+                                end
+                            end
+                        end
+
+                        -- 7. IconAndText
+                        if C_UIWidgetManager.GetIconAndTextWidgetVisualizationInfo then
+                            local itInfo = C_UIWidgetManager.GetIconAndTextWidgetVisualizationInfo(wID)
+                            if itInfo and itInfo.shownState ~= 0 and itInfo.shownState ~= Enum.WidgetShownState.Hidden then
+                                local txt = (itInfo.text and itInfo.text ~= "" and not issecretvalue(itInfo.text) and itInfo.text)
+                                if txt and txt ~= "" then
+                                    local iObj = Alloc()
+                                    iObj.text = txt
+                                    iObj.finished = false
+                                    table_insert(objs, iObj)
+                                end
+                            end
+                        end
                     end
                 end
             end
@@ -556,7 +672,8 @@ end
 -- ─── Central Dispatcher Registration ────────────────────────────────────────
 if sfui.events then
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
-        if C_EventScheduler and C_EventScheduler.RequestEvents then
+        local inCombat = InCombatLockdown and InCombatLockdown()
+        if not inCombat and C_EventScheduler and C_EventScheduler.RequestEvents then
             C_EventScheduler.RequestEvents()
         end
         C_Timer.After(2.0, sfui.worldevents.RequestUpdate)
@@ -570,8 +687,43 @@ if sfui.events then
         sfui.worldevents.RequestUpdate()
     end)
 
-    sfui.events.RegisterEvent("UPDATE_UI_WIDGET", function()
-        if not isDirty then
+    sfui.events.RegisterEvent("AREA_POIS_UPDATED", function()
+        sfui.worldevents.RequestUpdate()
+    end)
+
+    local function HasActiveWidgetSet(setID)
+        if not setID or setID <= 0 then return false end
+        for _, ev in ipairs(cachedEvents) do
+            if ev.widgetSetID == setID then return true end
+        end
+        if C_UIWidgetManager and C_UIWidgetManager.GetObjectiveTrackerWidgetSetID then
+            if C_UIWidgetManager.GetObjectiveTrackerWidgetSetID() == setID then return true end
+        end
+        return false
+    end
+
+    -- Decoupled widget updates: do NOT re-query C_EventScheduler.
+    -- Simply refresh the quest log so ScanEvents reads updated values from C_UIWidgetManager.
+    sfui.events.RegisterEvent("UPDATE_UI_WIDGET", function(event, widgetInfo)
+        if not sfui.worldevents.is_enabled() or #cachedEvents == 0 then return end
+        local setID = widgetInfo and widgetInfo.widgetSetID
+        if not setID or HasActiveWidgetSet(setID) then
+            if sfui.questlog and sfui.questlog.RequestRefresh then
+                sfui.questlog.RequestRefresh()
+            end
+        end
+    end)
+
+    sfui.events.RegisterEvent("UPDATE_ALL_UI_WIDGETS", function()
+        if not sfui.worldevents.is_enabled() or #cachedEvents == 0 then return end
+        if sfui.questlog and sfui.questlog.RequestRefresh then
+            sfui.questlog.RequestRefresh()
+        end
+    end)
+
+    sfui.events.RegisterEvent("QUEST_LOG_UPDATE", function()
+        local inCombat = InCombatLockdown and InCombatLockdown()
+        if not inCombat and isDirty then
             sfui.worldevents.RequestUpdate()
         end
     end)
@@ -580,3 +732,4 @@ if sfui.events then
         sfui.worldevents.OnTimerTick(elapsed)
     end)
 end
+

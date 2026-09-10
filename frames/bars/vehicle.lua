@@ -67,6 +67,8 @@ local HasTempShapeshiftActionBar = C_ActionBar and C_ActionBar.HasTempShapeshift
 local GetTempShapeshiftBarIndex = C_ActionBar and C_ActionBar.GetTempShapeshiftBarIndex
 local HasBonusActionBar   = C_ActionBar and C_ActionBar.HasBonusActionBar
 local GetBonusBarIndex    = C_ActionBar and C_ActionBar.GetBonusBarIndex
+local GetActionCooldownDuration = C_ActionBar and C_ActionBar.GetActionCooldownDuration
+local GetActionChargeDuration   = C_ActionBar and C_ActionBar.GetActionChargeDuration
 
 local C_Spell             = _G.C_Spell
 
@@ -181,7 +183,7 @@ for i = 1, MAX_BUTTONS do
     if btn._isMasqued and btn.borderBackdrop then btn.borderBackdrop:Hide() end
 
     btn:SetScript("OnEnter", function(self)
-        local action = self:GetAttribute("action")
+        local action = self.currentActionID or self:GetAttribute("action")
         if GameTooltip and action and HasAction(action) then
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
             GameTooltip:SetAction(action)
@@ -501,6 +503,7 @@ end
 -- The entire stack is positioned matching the player health bar position (hx, hy).
 -- The health bar sits at (hx, hy), the power bar directly underneath, and the buttons 69px underneath.
 local function UpdateAnchor()
+    if InCombatLockdown() then return end
     frame:ClearAllPoints()
     local hcfg = (g and g.healthBar) or (sfui.config and sfui.config.healthBar)
     local hx = (SfuiDB and SfuiDB.healthBarX) or (hcfg and hcfg.pos and hcfg.pos.x) or 0
@@ -513,29 +516,22 @@ local function GetResolvedVehicleBarIndex()
     if HasVehicleActionBar and HasVehicleActionBar()        then return GetVehicleBarIndex()          end
     if HasOverrideActionBar and HasOverrideActionBar()       then return GetOverrideBarIndex()         end
     if HasTempShapeshiftActionBar and HasTempShapeshiftActionBar() then return GetTempShapeshiftBarIndex()   end
-    if HasBonusActionBar and HasBonusActionBar() then
-        local bonusIdx = GetBonusBarIndex and GetBonusBarIndex()
-        -- Bonus bar 5 is Skyriding / Dragonriding in modern WoW, not a vehicle bar
-        if bonusIdx and bonusIdx ~= 5 then
-            return bonusIdx
-        end
-    end
     return nil
 end
 
--- ─── UpdateBar — sets secure attributes (must be out-of-combat) ──────────────
+-- ─── UpdateBar — secure attributes & visuals (combat-safe) ───────────────────
 local pendingUpdate = false
 
-local function UpdateBar()
-    if InCombatLockdown() then
-        pendingUpdate = true
-        return
-    end
-    pendingUpdate = false
+-- Forward declaration of visual updates
+local UpdateCooldowns, UpdateUsable
 
+local function UpdateBar()
     local barIndex = GetResolvedVehicleBarIndex()
     if not barIndex or barIndex == 0 then
-        for i = 1, MAX_BUTTONS do buttons[i]:SetAlpha(0) end
+        for i = 1, MAX_BUTTONS do
+            buttons[i].currentActionID = nil
+            buttons[i]:SetAlpha(0)
+        end
         healthBackdrop:Hide()
         powerBackdrop:Hide()
         StopCastBar()
@@ -543,11 +539,24 @@ local function UpdateBar()
         return
     end
 
+    -- Secure attribute setting: cannot modify protected attributes in combat lockdown.
+    -- If in combat, defer SetAttribute until PLAYER_REGEN_ENABLED.
+    if InCombatLockdown() then
+        pendingUpdate = true
+    else
+        pendingUpdate = false
+        for i = 1, MAX_BUTTONS do
+            local actionID = (barIndex - 1) * 12 + i
+            buttons[i]:SetAttribute("action", actionID)
+        end
+    end
+
+    -- Visual updates (textures, alphas, sizing) are non-secure and safe during combat!
     local lastVisible = 0
     for i = 1, MAX_BUTTONS do
         local btn = buttons[i]
         local actionID = (barIndex - 1) * 12 + i
-        btn:SetAttribute("action", actionID)
+        btn.currentActionID = actionID
 
         local tex = GetActionTexture and GetActionTexture(actionID)
         if tex then
@@ -569,36 +578,57 @@ local function UpdateBar()
     end
 
     _lastVisibleButtons = lastVisible
-    -- Resize frame to fit only visible buttons
-    local w = math_max(1, lastVisible * BTN_SIZE + math_max(0, lastVisible - 1) * BTN_GAP)
-    frame:SetSize(w, BTN_SIZE)
-    UpdateAnchor()
+    if not InCombatLockdown() then
+        -- Resize frame to fit only visible buttons (never touch protected frame size/points in combat)
+        local w = math_max(1, lastVisible * BTN_SIZE + math_max(0, lastVisible - 1) * BTN_GAP)
+        frame:SetSize(w, BTN_SIZE)
+        UpdateAnchor()
+    end
 
     UpdateVehicleHealth(true)
     UpdateVehiclePower(true)
     StartCast(GetVehicleUnit())
+
+    if UpdateCooldowns then UpdateCooldowns() end
+    if UpdateUsable then UpdateUsable() end
 end
 sfui.vehicle.UpdateBar = UpdateBar
 
--- ─── UpdateCooldowns — safe every tick, handles 12.1 secret values ───────────
-local function UpdateCooldowns()
+-- ─── UpdateCooldowns — 12.0.1+ / Mythic+ Secret-Safe Cooldown Handling ────────
+UpdateCooldowns = function()
     if not frame:IsShown() then return end
     for i = 1, MAX_BUTTONS do
         local btn = buttons[i]
         if btn:GetAlpha() > 0 then
-            local actionID = btn:GetAttribute("action")
+            local actionID = btn.currentActionID or btn:GetAttribute("action")
             if actionID then
                 local cd = btn.cooldown
                 if cd then
-                    _start, _duration, _enable = GetActionCooldown(actionID)
-                    local isSecret = issecretvalue and (issecretvalue(_start) or issecretvalue(_duration) or issecretvalue(_enable))
-                    if isSecret then
-                        cd:Clear()
-                    else
-                        if not _enable or _enable == 0 or not _duration or _duration == 0 then
-                            cd:Clear()
+                    -- 12.0.1+ / Mythic+ Secret-Safe Path:
+                    -- SetCooldownFromDurationObject handles LuaDurationObject at C++ level
+                    -- without passing secret numbers through Lua or triggering secret comparison errors.
+                    if cd.SetCooldownFromDurationObject and GetActionCooldownDuration then
+                        local durationObj = GetActionCooldownDuration(actionID, true)
+                        -- If no standard cooldown is active, check charge recharge duration (e.g. vehicle mortars/speed boosts)
+                        if not durationObj and GetActionChargeDuration then
+                            durationObj = GetActionChargeDuration(actionID)
+                        end
+
+                        if durationObj then
+                            cd:SetCooldownFromDurationObject(durationObj)
                         else
-                            cd:SetCooldown(_start, _duration)
+                            cd:Clear()
+                        end
+                    else
+                        -- Pre-12.0.1 Fallback with strict secret checks
+                        local start, duration, enable = GetActionCooldown(actionID)
+                        local isSecret = issecretvalue and (issecretvalue(start) or issecretvalue(duration) or issecretvalue(enable))
+                        if isSecret then
+                            cd:Clear()
+                        elseif enable and enable ~= 0 and start and start > 0 and duration and duration > 0 then
+                            cd:SetCooldown(start, duration)
+                        else
+                            cd:Clear()
                         end
                     end
                 end
@@ -607,20 +637,30 @@ local function UpdateCooldowns()
     end
 end
 
--- ─── UpdateUsable — icon tinting for usability / range with state caching ───
-local function UpdateUsable()
+-- ─── UpdateUsable — icon tinting for usability / range with secret protection ─
+UpdateUsable = function()
     if not frame:IsShown() then return end
     for i = 1, MAX_BUTTONS do
         local btn = buttons[i]
         if btn:GetAlpha() > 0 then
-            local actionID = btn:GetAttribute("action")
+            local actionID = btn.currentActionID or btn:GetAttribute("action")
             if actionID then
                 local usable, noMana = IsUsableAction and IsUsableAction(actionID)
                 local inRange = IsActionInRange and IsActionInRange(actionID)
                 local state = 1
+
+                -- Protect against secret values in M+ / combat
                 if issecretvalue(usable) then
-                    state = 1
-                elseif not usable then
+                    usable = true
+                end
+                if issecretvalue(noMana) then
+                    noMana = false
+                end
+                if issecretvalue(inRange) then
+                    inRange = nil
+                end
+
+                if not usable then
                     state = noMana and 2 or 3
                 elseif inRange == false then
                     state = 4
@@ -672,6 +712,11 @@ end)
 local function on_vehicle_global(event)
     if event == "PLAYER_REGEN_ENABLED" then
         if pendingUpdate then UpdateBar() end
+    elseif event == "ACTIONBAR_UPDATE_STATE" then
+        -- Only update when the vehicle bar is actually active or shown
+        if frame:IsShown() or GetResolvedVehicleBarIndex() then
+            UpdateBar()
+        end
     else
         UpdateBar()
     end
@@ -684,8 +729,9 @@ sfui.events.RegisterEvent("VEHICLE_UPDATE",           on_vehicle_global)
 sfui.events.RegisterEvent("UPDATE_VEHICLE_ACTIONBAR", on_vehicle_global)
 sfui.events.RegisterEvent("UPDATE_OVERRIDE_ACTIONBAR",on_vehicle_global)
 sfui.events.RegisterEvent("UPDATE_POSSESS_BAR",       on_vehicle_global)
-sfui.events.RegisterEvent("UPDATE_BONUS_ACTIONBAR",   on_vehicle_global)
 sfui.events.RegisterEvent("ACTIONBAR_UPDATE_STATE",   on_vehicle_global)
+sfui.events.RegisterEvent("ACTIONBAR_UPDATE_COOLDOWN",UpdateCooldowns)
+sfui.events.RegisterEvent("ACTIONBAR_UPDATE_USABLE",  UpdateUsable)
 sfui.events.RegisterEvent("UPDATE_BINDINGS",          on_vehicle_global)
 
 -- Unit-filtered health/power: only fire for player or vehicle unit, never for

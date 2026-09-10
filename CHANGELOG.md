@@ -2,6 +2,20 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-35 (2026-09-10)
+
+### Features
+- **Master's Repair Hammer Module (`frames/gear/hammer.lua`)**:
+  - Extracted Master's Hammer repair system into dedicated `frames/gear/hammer.lua` module, cleanly decoupled from `frames/automation.lua`.
+  - Added multi-expansion item and trait recognition across Midnight (12.0), The War Within (11.0), and Dragonflight (10.0), automatically pairing eligible gear to the proper expansion hammer and profession node.
+  - Implemented Midnight profession trait evaluation (node 104572 for shields, 104565-104570 for plate armor, requiring rank 26).
+  - Implemented secure repair macro button (`sfui_MasterHammerSecureButton`) with dynamic slot targeting and attribute cycling.
+  - Added full zero-allocation table recycling (`hammerPool`), trait evaluation caching (`perkCache`), and item expansion caching (`itemExpansionCache`).
+  - Added `/sfui hammer [status|debug|test|reset]` CLI commands and options panel controls.
+  - Added 1.0s event debouncing and robust type guards preventing dispatcher timer errors.
+
+---
+
 ## v12.1.0-33 (2026-09-07)
 
 ### UI & Styling Standardizations

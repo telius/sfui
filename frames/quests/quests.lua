@@ -2,10 +2,6 @@ local addonName, addon = ...
 sfui = sfui or {}
 sfui.questlog = sfui.questlog or {}
 
-if C_AddOns and C_AddOns.LoadAddOn then
-    pcall(C_AddOns.LoadAddOn, "Blizzard_ObjectiveTracker")
-end
-
 local scenarios = sfui.questlog.scenarios
 local providers = sfui.questlog.providers
 

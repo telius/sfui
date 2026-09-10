@@ -5,7 +5,7 @@ SfuiDecorDB = SfuiDecorDB or {}
 
 sfui.config = {
     -- addon metadata
-    title = "|cff6600FFSTF|rui |cff6600FFGFY|r edition",
+    title = "|cff6600FFSF|rui |cff6600FFGFY|r edition",
     version = "0.0.0", -- Set dynamically from TOC during ADDON_LOADED
     prefix = "|cff6600ffsfui:|r",
 
@@ -118,10 +118,10 @@ sfui.config = {
 
     -- Secondary stat palette for loot & gear highlighting
     stat_colors = {
-        haste       = { 0.2,  0.85, 0.3,  1.0 },
-        crit        = { 1.0,  0.45, 0.1,  1.0 },
-        mastery     = { 0.75, 0.4,  1.0,  1.0 },
-        versatility = { 0.2,  0.65, 1.0,  1.0 },
+        haste       = { 0.2, 0.85, 0.3, 1.0 },
+        crit        = { 1.0, 0.45, 0.1, 1.0 },
+        mastery     = { 0.75, 0.4, 1.0, 1.0 },
+        versatility = { 0.2, 0.65, 1.0, 1.0 },
     },
 
     -- Default panel settings for tracked icons
@@ -238,8 +238,8 @@ sfui.config = {
     },
 
     options_panel = {
-        width = 500,
-        height = 500,
+        width = 700,
+        height = 700,
         backdrop_color = { 0.05, 0.05, 0.05, 0.8 },
         tabs = {
             width = 100,
@@ -275,6 +275,7 @@ sfui.config = {
 
     cvars_on_load = {
         { name = "autoLootDefault", value = 1 },
+        { name = "turnspeed",       value = 300 },
     },
 
     powerBar = {
@@ -574,10 +575,43 @@ sfui.config = {
     -- Master's Hammer Specialization Nodes
     -- Organised by expansion version keys.
     masterHammer = {
-        requiredRank = 26, -- Required trait rank for repair perks
+        requiredRank = 26, -- Required trait rank for repair perks (Milestone 5 is unlocked at rank 26, 0 counts as a step too)
         defaultPosition = { x = 0, y = 0 },
         defaultColor = "00FFFF",
-        [238020] = { -- Thalassian Master Repair Hammer (Midnight)
+        [225660] = { -- Earthen Master's Hammer (The War Within)
+            expansion = 10,
+            expansionName = "The War Within",
+            nodes = {
+                ["HEAD"] = 99233,
+                ["SHOULDER"] = 99232,
+                ["CHEST"] = 99237,
+                ["WRIST"] = 99228,
+                ["HANDS"] = 99227,
+                ["WAIST"] = 99229,
+                ["LEGS"] = 99236,
+                ["FEET"] = 99231,
+                ["SHIELD"] = 99235,
+                [0] = 99447,
+                [1] = 99447,
+                [6] = 99447, -- Axes/Polearms
+                [4] = 99448,
+                [5] = 99448, -- Maces
+                [7] = 99450,
+                [8] = 99450,
+                [9] = 99450, -- Long Blades
+                [15] = 99451,
+                [13] = 99451 -- Short Blades
+            }
+        },
+        [198254] = {   -- Master's Hammer (Dragonflight)
+            expansion = 9,
+            expansionName = "Dragonflight",
+            universalNode = 82244,
+            nodes = {} -- Universal Hammer Control
+        },
+        [238020] = {   -- Thalassian Master Repair Hammer (Midnight)
+            expansion = 11,
+            expansionName = "Midnight",
             nodes = {
                 ["HEAD"] = 104570,
                 ["SHOULDER"] = 104569,
@@ -674,4 +708,3 @@ sfui.config = {
         posY    = 50, -- default vertical offset (+50px from bottom)
     },
 }
-

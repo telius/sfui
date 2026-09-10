@@ -123,183 +123,186 @@ sfui.events.RegisterEvent("ADDON_LOADED", function(_, name)
 end)
 
 sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
-        if sfui.update_pixel_scale then sfui.update_pixel_scale() end
+    if sfui.update_pixel_scale then sfui.update_pixel_scale() end
 
-        if sfui.common and sfui.common.hide_blizzard_cooldown_viewers then
-            sfui.common.hide_blizzard_cooldown_viewers()
+    if sfui.common and sfui.common.hide_blizzard_cooldown_viewers then
+        sfui.common.hide_blizzard_cooldown_viewers()
+    end
+
+    if sfui.create_currency_frame then
+        sfui.create_currency_frame()
+    end
+    if sfui.create_item_frame then
+        sfui.create_item_frame()
+    end
+    if sfui.bars and sfui.bars.on_state_changed then
+        sfui.bars:on_state_changed()
+    end
+    if sfui.castbar and sfui.castbar.initialize then
+        sfui.castbar.initialize()
+    end
+    if sfui.compare and sfui.compare.init then
+        sfui.compare.init()
+    end
+    if sfui.gear and sfui.gear.initialize then
+        sfui.gear.initialize()
+    end
+    if sfui.hammer and sfui.hammer.initialize then
+        sfui.hammer.initialize()
+    end
+    if sfui.research and sfui.research.initialize then
+        sfui.research.initialize()
+    end
+    if sfui.automation and sfui.automation.initialize then
+        sfui.automation.initialize()
+    end
+    if sfui.cursor and sfui.cursor.initialize then
+        sfui.cursor.initialize()
+    end
+    if sfui.trackedbars and sfui.trackedbars.initialize then
+        sfui.trackedbars.initialize()
+    end
+    if sfui.trackedicons and sfui.trackedicons.initialize then
+        sfui.trackedicons.initialize()
+    end
+    if sfui.trackedoptions and sfui.trackedoptions.initialize then
+        sfui.trackedoptions.initialize()
+    end
+    if sfui.alts and sfui.alts.initialize then
+        sfui.alts.initialize()
+    end
+    if sfui.portals and sfui.portals.initialize then
+        sfui.portals.initialize()
+    end
+    if sfui.lootspec and sfui.lootspec.initialize then
+        sfui.lootspec.initialize()
+    end
+    if sfui.lootviewer and sfui.lootviewer.initialize then
+        sfui.lootviewer.initialize()
+    end
+    if sfui.lfg and sfui.lfg.initialize then
+        sfui.lfg.initialize()
+    end
+    if sfui.questlog and sfui.questlog.initialize then
+        sfui.questlog.initialize()
+    end
+
+
+
+    if not LibStub then
+        sfui.common.print("|cffff0000SFUI Error:|r LibStub global not found!")
+        return
+    end
+
+    -- Initialize Minimap Menu
+    if not SfuiMinimapMenu then
+        SfuiMinimapMenu = CreateFrame("Frame", "SfuiMinimapMenu", UIParent, "BackdropTemplate")
+        SfuiMinimapMenu:SetSize(160, 185)
+        SfuiMinimapMenu:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+        SfuiMinimapMenu:SetBackdropColor(0, 0, 0, 0.5)
+        SfuiMinimapMenu:SetFrameStrata("TOOLTIP")
+        SfuiMinimapMenu:SetClampedToScreen(true)
+
+        local function AddMenuButton(text, func, y)
+            local btn = sfui.common.create_flat_button(SfuiMinimapMenu, text, 150, 20)
+            btn:SetPoint("TOP", 0, y)
+            btn:SetScript("OnClick", function()
+                SfuiMinimapMenu:Hide()
+                if func then func() end
+            end)
         end
 
-        if sfui.create_currency_frame then
-            sfui.create_currency_frame()
-        end
-        if sfui.create_item_frame then
-            sfui.create_item_frame()
-        end
-        if sfui.bars and sfui.bars.on_state_changed then
-            sfui.bars:on_state_changed()
-        end
-        if sfui.castbar and sfui.castbar.initialize then
-            sfui.castbar.initialize()
-        end
-        if sfui.compare and sfui.compare.init then
-            sfui.compare.init()
-        end
-        if sfui.gear and sfui.gear.initialize then
-            sfui.gear.initialize()
-        end
-        if sfui.research and sfui.research.initialize then
-            sfui.research.initialize()
-        end
-        if sfui.automation and sfui.automation.initialize then
-            sfui.automation.initialize()
-        end
-        if sfui.cursor and sfui.cursor.initialize then
-            sfui.cursor.initialize()
-        end
-        if sfui.trackedbars and sfui.trackedbars.initialize then
-            sfui.trackedbars.initialize()
-        end
-        if sfui.trackedicons and sfui.trackedicons.initialize then
-            sfui.trackedicons.initialize()
-        end
-        if sfui.trackedoptions and sfui.trackedoptions.initialize then
-            sfui.trackedoptions.initialize()
-        end
-        if sfui.alts and sfui.alts.initialize then
-            sfui.alts.initialize()
-        end
-        if sfui.portals and sfui.portals.initialize then
-            sfui.portals.initialize()
-        end
-        if sfui.lootspec and sfui.lootspec.initialize then
-            sfui.lootspec.initialize()
-        end
-        if sfui.lootviewer and sfui.lootviewer.initialize then
-            sfui.lootviewer.initialize()
-        end
-        if sfui.lfg and sfui.lfg.initialize then
-            sfui.lfg.initialize()
-        end
-        if sfui.questlog and sfui.questlog.initialize then
-            sfui.questlog.initialize()
-        end
-
-
-
-        if not LibStub then
-            sfui.common.print("|cffff0000SFUI Error:|r LibStub global not found!")
-            return
-        end
-
-        -- Initialize Minimap Menu
-        if not SfuiMinimapMenu then
-            SfuiMinimapMenu = CreateFrame("Frame", "SfuiMinimapMenu", UIParent, "BackdropTemplate")
-            SfuiMinimapMenu:SetSize(160, 185)
-            SfuiMinimapMenu:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
-            SfuiMinimapMenu:SetBackdropColor(0, 0, 0, 0.5)
-            SfuiMinimapMenu:SetFrameStrata("TOOLTIP")
-            SfuiMinimapMenu:SetClampedToScreen(true)
-
-            local function AddMenuButton(text, func, y)
-                local btn = sfui.common.create_flat_button(SfuiMinimapMenu, text, 150, 20)
-                btn:SetPoint("TOP", 0, y)
-                btn:SetScript("OnClick", function()
-                    SfuiMinimapMenu:Hide()
-                    if func then func() end
-                end)
+        AddMenuButton("|cff00ffffoptions|r", function() sfui.toggle_options_panel() end, -5)
+        AddMenuButton("|cff00ff00tracking manager|r", function()
+            if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
+                sfui.trackedoptions.toggle_viewer()
             end
-
-            AddMenuButton("|cff00ffffoptions|r", function() sfui.toggle_options_panel() end, -5)
-            AddMenuButton("|cff00ff00tracking manager|r", function()
-                if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
-                    sfui.trackedoptions.toggle_viewer()
-                end
-            end, -30)
-            AddMenuButton("|cff9966ffalts|r", function()
-                if sfui.alts and sfui.alts.Toggle then
-                    sfui.alts.Toggle()
-                end
-            end, -55)
-            AddMenuButton("|cff99ccffresearch viewer|r", function()
-                if sfui.research and sfui.research.toggle_selection then
-                    sfui.research.toggle_selection()
-                end
-            end, -80)
-            AddMenuButton("|cffff9900portals|r", function()
-                if sfui.portals and sfui.portals.Toggle then
-                    sfui.portals.Toggle()
-                end
-            end, -105)
-            AddMenuButton("|cff22aaffloot browser|r", function()
-                if sfui.lootviewer and sfui.lootviewer.Toggle then
-                    sfui.lootviewer.Toggle()
-                end
-            end, -130)
-            AddMenuButton("|cffee8833quest log|r", function()
-                if sfui.questlog and sfui.questlog.toggle then
-                    sfui.questlog.toggle()
-                end
-            end, -155)
-
-            local function on_menu_update(self, elapsed)
-                self.throttle = self.throttle + elapsed
-                if self.throttle < 0.5 then return end
-                self.throttle = 0
-
-                if self:IsMouseOver() or (self.anchor and self.anchor:IsMouseOver()) then
-                    self.hideTimer = 0
-                else
-                    self.hideTimer = (self.hideTimer or 0) + 0.5
-                    if self.hideTimer > 0.5 then
-                        self:Hide()
-                    end
-                end
+        end, -30)
+        AddMenuButton("|cff9966ffalts|r", function()
+            if sfui.alts and sfui.alts.Toggle then
+                sfui.alts.Toggle()
             end
+        end, -55)
+        AddMenuButton("|cff99ccffresearch viewer|r", function()
+            if sfui.research and sfui.research.toggle_selection then
+                sfui.research.toggle_selection()
+            end
+        end, -80)
+        AddMenuButton("|cffff9900portals|r", function()
+            if sfui.portals and sfui.portals.Toggle then
+                sfui.portals.Toggle()
+            end
+        end, -105)
+        AddMenuButton("|cff22aaffloot browser|r", function()
+            if sfui.lootviewer and sfui.lootviewer.Toggle then
+                sfui.lootviewer.Toggle()
+            end
+        end, -130)
+        AddMenuButton("|cffee8833quest log|r", function()
+            if sfui.questlog and sfui.questlog.toggle then
+                sfui.questlog.toggle()
+            end
+        end, -155)
 
-            SfuiMinimapMenu:SetScript("OnShow", function(self)
-                self.throttle = 0
+        local function on_menu_update(self, elapsed)
+            self.throttle = self.throttle + elapsed
+            if self.throttle < 0.5 then return end
+            self.throttle = 0
+
+            if self:IsMouseOver() or (self.anchor and self.anchor:IsMouseOver()) then
                 self.hideTimer = 0
-                self:SetScript("OnUpdate", on_menu_update)
-            end)
-            SfuiMinimapMenu:SetScript("OnHide", function(self)
-                self:SetScript("OnUpdate", nil)
-            end)
-            SfuiMinimapMenu:Hide()
+            else
+                self.hideTimer = (self.hideTimer or 0) + 0.5
+                if self.hideTimer > 0.5 then
+                    self:Hide()
+                end
+            end
         end
 
-        local ldb, icon = LibStub("LibDataBroker-1.1", true), LibStub("LibDBIcon-1.0", true)
-        if ldb and icon then
-            local broker = ldb:NewDataObject("sfui", {
-                type = "launcher",
-                text = "sfui",
-                icon = sfui.config.appearance.addonIcon,
-                OnClick = function(self, button)
-                    if button == "LeftButton" then
-                        if SfuiMinimapMenu:IsShown() then
-                            SfuiMinimapMenu:Hide()
-                        else
-                            SfuiMinimapMenu.anchor = self
-                            SfuiMinimapMenu.throttle = 0
-                            SfuiMinimapMenu.hideTimer = 0
-                            SfuiMinimapMenu:ClearAllPoints()
-                            SfuiMinimapMenu:SetPoint("TOPRIGHT", self, "BOTTOMRIGHT", 0, -5)
-                            SfuiMinimapMenu:Show()
-                        end
-                    elseif button == "RightButton" then
-                        if IsShiftKeyDown() then
-                            C_UI.Reload()
-                        elseif sfui.alts and sfui.alts.Toggle then
-                            sfui.alts.Toggle()
-                        end
+        SfuiMinimapMenu:SetScript("OnShow", function(self)
+            self.throttle = 0
+            self.hideTimer = 0
+            self:SetScript("OnUpdate", on_menu_update)
+        end)
+        SfuiMinimapMenu:SetScript("OnHide", function(self)
+            self:SetScript("OnUpdate", nil)
+        end)
+        SfuiMinimapMenu:Hide()
+    end
+
+    local ldb, icon = LibStub("LibDataBroker-1.1", true), LibStub("LibDBIcon-1.0", true)
+    if ldb and icon then
+        local broker = ldb:NewDataObject("sfui", {
+            type = "launcher",
+            text = "sfui",
+            icon = sfui.config.appearance.addonIcon,
+            OnClick = function(self, button)
+                if button == "LeftButton" then
+                    if SfuiMinimapMenu:IsShown() then
+                        SfuiMinimapMenu:Hide()
+                    else
+                        SfuiMinimapMenu.anchor = self
+                        SfuiMinimapMenu.throttle = 0
+                        SfuiMinimapMenu.hideTimer = 0
+                        SfuiMinimapMenu:ClearAllPoints()
+                        SfuiMinimapMenu:SetPoint("TOPRIGHT", self, "BOTTOMRIGHT", 0, -5)
+                        SfuiMinimapMenu:Show()
                     end
-                end,
-                OnTooltipShow = function(tooltip)
-                    tooltip:AddLine("sfui")
-                    tooltip:AddLine("left-click for menu", 0.2, 1, 0.2)
-                    tooltip:AddLine("right-click for alts", 0.4, 0.7, 1)
-                    tooltip:AddLine("shift+right-click to reload ui", 1, 0.2, 0.2)
-                end,
-            })
-            icon:Register("sfui", broker, SfuiDB.minimap_icon)
-        end
+                elseif button == "RightButton" then
+                    if IsShiftKeyDown() then
+                        C_UI.Reload()
+                    elseif sfui.alts and sfui.alts.Toggle then
+                        sfui.alts.Toggle()
+                    end
+                end
+            end,
+            OnTooltipShow = function(tooltip)
+                tooltip:AddLine("sfui")
+                tooltip:AddLine("left-click for menu", 0.2, 1, 0.2)
+                tooltip:AddLine("right-click for alts", 0.4, 0.7, 1)
+                tooltip:AddLine("shift+right-click to reload ui", 1, 0.2, 0.2)
+            end,
+        })
+        icon:Register("sfui", broker, SfuiDB.minimap_icon)
+    end
 end)

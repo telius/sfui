@@ -1090,20 +1090,41 @@ local function AcquireIconBtn(parent)
         b.bonusRollIcon:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
         b.bonusRollIcon:Hide()
 
+        b.targetIcon = b:CreateTexture(nil, "OVERLAY", nil, 7)
+        b.targetIcon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_3")
+        b.targetIcon:SetSize(12, 12)
+        b.targetIcon:SetPoint("TOPRIGHT", b, "TOPRIGHT", -1, -1)
+        b.targetIcon:Hide()
+
+        b.crossTex = b:CreateTexture(nil, "OVERLAY", nil, 6)
+        b.crossTex:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
+        b.crossTex:SetSize(22, 22)
+        b.crossTex:SetPoint("CENTER", b, "CENTER", 0, 0)
+        b.crossTex:SetAlpha(0.9)
+        b.crossTex:Hide()
+
         iconPool[iconPoolCount] = b
     else
         CreateButtonBorders(b)
         b.tex:ClearAllPoints()
         b.tex:SetPoint("TOPLEFT", 0, 0)
         b.tex:SetPoint("BOTTOMRIGHT", 0, 0)
+        b.tex:SetAlpha(1.0)
         if b.bonusRollIcon then
             b.bonusRollIcon:Hide()
+        end
+        if b.targetIcon then
+            b.targetIcon:Hide()
+        end
+        if b.crossTex then
+            b.crossTex:Hide()
         end
         if b.badge then
             b.badge:SetFont("Fonts\\FRIZQT__.TTF", 8, "")
             b.badge:SetShadowOffset(0, 0)
             b.badge:SetShadowColor(0, 0, 0, 0)
             b.badge:SetTextColor(1, 1, 1, 1)
+            b.badge:SetAlpha(1.0)
         end
     end
     b:SetParent(parent)
@@ -1126,6 +1147,16 @@ local function ReleaseIconPool()
             end
             if b.bonusRollIcon then
                 b.bonusRollIcon:Hide()
+            end
+            if b.targetIcon then
+                b.targetIcon:Hide()
+            end
+            if b.crossTex then
+                b.crossTex:Hide()
+            end
+            b.tex:SetAlpha(1.0)
+            if b.badge then
+                b.badge:SetAlpha(1.0)
             end
             if b.borders then
                 for _, border in ipairs(b.borders) do
@@ -1153,9 +1184,12 @@ local function AcquireCard(parent)
 
         c = CreateFrame("Frame", nil, parent, "BackdropTemplate")
         c:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8x8",
+            bgFile   = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
         })
         c:SetBackdropColor(0.05, 0.05, 0.06, 0.95)
+        c:SetBackdropBorderColor(0.12, 0.12, 0.12, 0.8)
 
         c.portrait = c:CreateTexture(nil, "ARTWORK")
         c.portrait:SetSize(BOSS_ICO, BOSS_ICO)
@@ -1171,7 +1205,7 @@ local function AcquireCard(parent)
 
         -- Spec badge button
         local specBtn = CreateFrame("Button", nil, c, "BackdropTemplate")
-        specBtn:SetSize(130, 18)
+        specBtn:SetSize(108, 18)
         specBtn:SetPoint("BOTTOMLEFT", c.portrait, "BOTTOMRIGHT", 6, 3)
         specBtn:SetBackdrop({
             bgFile = "Interface\\Buttons\\WHITE8x8",
@@ -1247,6 +1281,114 @@ local function AcquireCard(parent)
         end)
         c.specBtn = specBtn
 
+        -- Bonus roll target button
+        local targetBtn = CreateFrame("Button", nil, c, "BackdropTemplate")
+        targetBtn:SetSize(18, 18)
+        targetBtn:SetPoint("LEFT", specBtn, "RIGHT", 4, 0)
+        targetBtn:SetBackdrop({
+            bgFile   = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        targetBtn:SetBackdropColor(0.07, 0.07, 0.07, 1)
+        targetBtn:SetBackdropBorderColor(0.2, 0.2, 0.2, 0.6)
+
+        local tIcon = targetBtn:CreateTexture(nil, "ARTWORK")
+        tIcon:SetSize(14, 14)
+        tIcon:SetPoint("CENTER", 0, 0)
+        tIcon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_3")
+        targetBtn.iconTex = tIcon
+
+        local tBadge = targetBtn:CreateFontString(nil, "OVERLAY")
+        tBadge:SetFont("Fonts\\FRIZQT__.TTF", 8, "OUTLINE")
+        tBadge:SetPoint("BOTTOMRIGHT", targetBtn, "BOTTOMRIGHT", 2, -1)
+        tBadge:SetTextColor(1, 0.85, 0.2, 1)
+        targetBtn.badge = tBadge
+
+        targetBtn.Refresh = function(self)
+            if not self.keyID then return end
+            local isTargeted, itemCount, items = false, 0, {}
+            if sfui.bonusroll and sfui.bonusroll.GetTargetStatus then
+                isTargeted, itemCount, items = sfui.bonusroll.GetTargetStatus(self.keyID, self.isBoss)
+            end
+            self.isTargeted = isTargeted
+            self.itemCount = itemCount
+            self.targetItems = items
+
+            if isTargeted then
+                tIcon:SetAlpha(1.0)
+                tIcon:SetDesaturated(false)
+                self:SetBackdropBorderColor(0.8, 0.27, 1.0, 0.9)
+                c:SetBackdropColor(0.07, 0.04, 0.09, 0.95)
+                c:SetBackdropBorderColor(0.8, 0.27, 1.0, 0.45)
+                if itemCount > 0 then
+                    tBadge:SetText(itemCount)
+                    tBadge:Show()
+                else
+                    tBadge:Hide()
+                end
+            else
+                tIcon:SetAlpha(0.25)
+                tIcon:SetDesaturated(true)
+                self:SetBackdropBorderColor(0.2, 0.2, 0.2, 0.6)
+                c:SetBackdropColor(0.05, 0.05, 0.06, 0.95)
+                c:SetBackdropBorderColor(0.12, 0.12, 0.12, 0.8)
+                tBadge:Hide()
+            end
+        end
+
+        targetBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        targetBtn:SetScript("OnClick", function(self, btn)
+            if not self.keyID then return end
+            if btn == "RightButton" and self.itemCount and self.itemCount > 0 then
+                if sfui.bonusroll and sfui.bonusroll.ClearTarget then
+                    sfui.bonusroll.ClearTarget(self.keyID, self.isBoss)
+                end
+            else
+                if sfui.bonusroll and sfui.bonusroll.ToggleTarget then
+                    sfui.bonusroll.ToggleTarget(self.keyID, self.isBoss)
+                end
+            end
+            self:Refresh()
+            if GameTooltip:IsOwned(self) then
+                self:GetScript("OnEnter")(self)
+            end
+        end)
+        targetBtn:SetScript("OnEnter", function(self)
+            if not self.keyID or not GameTooltip then return end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(self.isBoss and "Bonus Roll Reminder — Boss" or "Bonus Roll Reminder — Dungeon")
+            if self.isTargeted then
+                GameTooltip:AddLine("Status: |cffcc44ffTargeted for Bonus Roll|r", 1, 1, 1)
+            else
+                GameTooltip:AddLine("Status: |cff888888Not Targeted|r", 1, 1, 1)
+            end
+            if self.itemCount and self.itemCount > 0 and self.targetItems then
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine("|cffffcc00Targeted Item(s):|r", 1, 1, 1)
+                for itemID in pairs(self.targetItems) do
+                    local itemLink = select(2, C_Item.GetItemInfo(itemID))
+                    if not itemLink then
+                        local name = select(1, C_Item.GetItemInfo(itemID))
+                        itemLink = name and ("[" .. name .. "]") or ("Item " .. itemID)
+                    end
+                    GameTooltip:AddLine("  • " .. itemLink, 0.85, 0.85, 0.85)
+                end
+            end
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("|cffaaaaaaLeft-Click|r to toggle reminder", 1, 1, 1)
+            if self.itemCount and self.itemCount > 0 then
+                GameTooltip:AddLine("|cffaaaaaaRight-Click|r to clear all targeted items", 1, 1, 1)
+            end
+            GameTooltip:Show()
+        end)
+        targetBtn:SetScript("OnLeave", function(self)
+            if GameTooltip then
+                GameTooltip:Hide()
+            end
+        end)
+        c.targetBtn = targetBtn
+
         c.iconStrip = CreateFrame("Frame", nil, c)
 
         c.noLootFS = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1319,14 +1461,33 @@ local function AddSpecLinesToTooltip(item)
     GameTooltip:AddLine("|A:quest-important-available:18:18:0:0|a " .. line, nil, nil, nil, true)
 end
 
+-- ─── Mythic link transformer helper ──────────────────────────────────────────
+local function MakeMythicLink(baseLink, itemID)
+    if not itemID then return baseLink end
+    local link = baseLink
+    if link and type(link) == "string" and link:find("item:") then
+        -- Replace Champion (12833..12838) or Hero (12841..12846) track bonus with Mythic (12849)
+        local newLink, count = link:gsub(":(128[34]%d)([:|])", ":12849%2")
+        if count > 0 then
+            -- Replace level difference bonus (e.g. 1472 for 292 ilvl) with 1498 (318 ilvl, Myth 1/6)
+            link = newLink:gsub(":(14%d%d)([:|])", ":1498%2")
+            return link
+        end
+    end
+
+    local playerLevel = (UnitLevel and UnitLevel("player")) or 80
+    local specID = (GetSpecialization and GetSpecializationInfo and GetSpecializationInfo(GetSpecialization())) or 0
+    return string.format("item:%d::::::::%d:%d:::3:1498:12849:1674", itemID, playerLevel, specID)
+end
+
 -- ─── Highest item level link helper ───────────────────────────────────────────
 local function GetHighestItemLink(item, isDungeon)
     if not item then return nil end
     local itemID = item.id
 
     -- 1. If KeystoneLoot is loaded, use its Upgrade module to get the highest upgrade track link.
-    -- For dungeons, select M+10 as default (Hero track, rank 3 = Hero 3/6 / hc 3/6).
-    -- For raids, select Mythic raid tier (Mythic difficulty, rank 1).
+    -- For dungeons, select Great Vault track (Mythic track, rank 1 = Myth 1/6, ilvl 318).
+    -- For raids, select Mythic raid tier (Mythic difficulty, rank 1 = Myth 1/6, ilvl 318).
     if _G.KeystoneLoot and _G.KeystoneLoot.Upgrade and _G.KeystoneLoot.Upgrade.BuildItemLink then
         local kl = _G.KeystoneLoot
         local oldTab, oldTrack, oldRank
@@ -1336,14 +1497,14 @@ local function GetHighestItemLink(item, isDungeon)
                 oldTrack = kl.DB:Get("filters.dungeon.track")
                 oldRank  = kl.DB:Get("filters.dungeon.rank")
                 kl.DB:Set("ui.selectedTab", "dungeons")
-                kl.DB:Set("filters.dungeon.track", "hero")
-                kl.DB:Set("filters.dungeon.rank", 3) -- M+10 = Hero 3/6 (hc 3/6)
+                kl.DB:Set("filters.dungeon.track", "greatvault")
+                kl.DB:Set("filters.dungeon.rank", 1) -- Great Vault = Mythic item version (Myth 1/6)
             else
                 oldTrack = kl.DB:Get("filters.raid.difficulty")
                 oldRank  = kl.DB:Get("filters.raid.rank")
                 kl.DB:Set("ui.selectedTab", "raids")
                 kl.DB:Set("filters.raid.difficulty", "mythic")
-                kl.DB:Set("filters.raid.rank", 1) -- Mythic raid tier
+                kl.DB:Set("filters.raid.rank", 1) -- Mythic raid tier (Myth 1/6)
             end
         end
 
@@ -1365,7 +1526,12 @@ local function GetHighestItemLink(item, isDungeon)
         end
     end
 
-    -- 2. Use the item link fetched from EJ (configured with difficulty 8 + M+10 preview for dungeons, or 16 for raids)
+    -- 2. If dungeon item, transform Encounter Journal / base link into Mythic item version (Myth 1/6)
+    if isDungeon then
+        return MakeMythicLink(item.link, itemID)
+    end
+
+    -- 3. Use the item link fetched from EJ (configured with difficulty 16 for raids)
     if item.link then
         return item.link
     end
@@ -1511,13 +1677,42 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
     b.badge:SetText(badgeText)
     b.badge:SetTextColor(1, 1, 1, 1)
 
+    local isUsed = sfui.bonusroll and sfui.bonusroll.IsUsed and sfui.bonusroll.IsUsed(itemID)
+    local isOwned = (C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID, true) or 0) > 0
+
+    if b.crossTex then
+        if isUsed then
+            b.crossTex:Show()
+            b.tex:SetAlpha(0.35)
+            if b.badge then b.badge:SetAlpha(0.5) end
+        else
+            b.crossTex:Hide()
+            b.tex:SetAlpha(1.0)
+            if b.badge then b.badge:SetAlpha(1.0) end
+        end
+    end
+
     if b.bonusRollIcon then
         local isEligible = sfui.bonusroll and sfui.bonusroll.IsEligible and sfui.bonusroll.IsEligible(itemID)
-        local isUsed = isEligible and sfui.bonusroll.IsUsed and sfui.bonusroll.IsUsed(itemID)
-        if isUsed then
+        if isEligible and not isUsed then
             b.bonusRollIcon:Show()
         else
             b.bonusRollIcon:Hide()
+        end
+    end
+
+    local isItemTargeted = sfui.bonusroll and sfui.bonusroll.IsItemTargeted and sfui.bonusroll.IsItemTargeted(itemID)
+    if b.targetIcon then
+        if isItemTargeted then
+            b.targetIcon:Show()
+        else
+            b.targetIcon:Hide()
+        end
+    end
+    if isItemTargeted and b.borders then
+        for _, border in ipairs(b.borders) do
+            border:SetColorTexture(0.8, 0.27, 1.0, 1.0)
+            border:Show()
         end
     end
 
@@ -1537,16 +1732,28 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
         end
         AddSpecLinesToTooltip(curItem)
 
-        if sfui.bonusroll and sfui.bonusroll.IsEligible and sfui.bonusroll.IsEligible(itemID) then
-            local isUsed = sfui.bonusroll.IsUsed and sfui.bonusroll.IsUsed(itemID)
+        if isUsed then
             GameTooltip:AddLine(" ")
-            if isUsed then
-                GameTooltip:AddLine("|cffff2020[Bonus Roll Used]|r", 1, 0.2, 0.2)
-            else
+            GameTooltip:AddLine("|cffff2020[Bonus Roll Used]|r", 1, 0.2, 0.2)
+            GameTooltip:AddLine("|cff888888<Alt + Right-Click to toggle used state>|r", 0.6, 0.6, 0.6)
+        else
+            if sfui.bonusroll and sfui.bonusroll.IsEligible and sfui.bonusroll.IsEligible(itemID) then
+                GameTooltip:AddLine(" ")
                 GameTooltip:AddLine("|cff00ff00[Bonus Roll Available]|r", 0, 1, 0)
+                GameTooltip:AddLine("|cff888888<Alt + Right-Click to toggle used state>|r", 0.6, 0.6, 0.6)
             end
-            GameTooltip:AddLine("|cff888888<Alt + Right-Click to toggle>|r", 0.6, 0.6, 0.6)
+            if isOwned then
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine("|cff00ccff[Item in Inventory / Bank]|r", 0, 0.8, 1)
+            end
         end
+
+        local isTargeted = sfui.bonusroll and sfui.bonusroll.IsItemTargeted and sfui.bonusroll.IsItemTargeted(itemID)
+        if isTargeted then
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("|cffcc44ff◆ Targeted for Bonus Roll Reminder|r", 0.8, 0.4, 0.8)
+        end
+        GameTooltip:AddLine("|cff888888<Shift + Right-Click to toggle bonus roll target>|r", 0.6, 0.6, 0.6)
 
         GameTooltip:Show()
     end)
@@ -1569,6 +1776,18 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
                 return
             end
         elseif mouseBtn == "RightButton" then
+            if IsShiftKeyDown() and sfui.bonusroll and sfui.bonusroll.ToggleItemTarget then
+                sfui.bonusroll.ToggleItemTarget(keyID, isBoss, itemID)
+                SetupItemButton(b, curItem, keyID, isBoss, card)
+                if card and card.targetBtn and card.targetBtn.Refresh then
+                    card.targetBtn:Refresh()
+                end
+                if GameTooltip:IsOwned(b) then
+                    b:GetScript("OnEnter")(b)
+                end
+                return
+            end
+
             if IsAltKeyDown() and sfui.bonusroll and sfui.bonusroll.IsEligible and sfui.bonusroll.IsEligible(itemID) then
                 local curUsed = sfui.bonusroll.IsUsed(itemID)
                 sfui.bonusroll.SetUsed(itemID, not curUsed)
@@ -1586,7 +1805,8 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
                 local e = db.bosses[keyID]
                 cur = (type(e) == "table" and e.spec) or (type(e) == "number" and e) or 0
             else
-                cur = (db.dungeons and db.dungeons[keyID]) or 0
+                local curDung = db.dungeons and db.dungeons[keyID]
+                cur = (type(curDung) == "table" and curDung.spec) or (type(curDung) == "number" and curDung) or 0
             end
             local nxt = CycleSpec(cur)
             if isBoss then
@@ -1598,7 +1818,11 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
                 e.spec = nxt
             else
                 db.dungeons = db.dungeons or {}
-                db.dungeons[keyID] = nxt
+                if type(db.dungeons[keyID]) == "table" then
+                    db.dungeons[keyID].spec = nxt
+                else
+                    db.dungeons[keyID] = nxt
+                end
             end
             card.specBtn:Refresh()
         end
@@ -1625,6 +1849,13 @@ local function PopulateCard(card, entry, keyID, isBoss, parentName)
     card.specBtn.isBoss = isBoss
     card.specBtn:Refresh()
     card.specBtn:Show()
+
+    if card.targetBtn then
+        card.targetBtn.keyID  = keyID
+        card.targetBtn.isBoss = isBoss
+        card.targetBtn:Refresh()
+        card.targetBtn:Show()
+    end
 
     local strip  = card.iconStrip
     local stripW = SCROLL_W - STRIP_LEFT - PAD * 2 - 6
@@ -2279,6 +2510,20 @@ sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", function(_, itemID, success)
         if not itemDataTimer then
             itemDataTimer = C_Timer.NewTimer(0.15, function()
                 itemDataTimer = nil
+                if frame and frame:IsShown() then
+                    DoRebuild()
+                end
+            end)
+        end
+    end
+end)
+
+local bagUpdateTimer = nil
+sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", function()
+    if frame and frame:IsShown() then
+        if not bagUpdateTimer then
+            bagUpdateTimer = C_Timer.NewTimer(0.2, function()
+                bagUpdateTimer = nil
                 if frame and frame:IsShown() then
                     DoRebuild()
                 end

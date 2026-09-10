@@ -1561,11 +1561,14 @@ function sfui.alts.UpdateUI(force)
                 end
 
                 cell.OnRightClick = function(self)
-                    altSnap.data.voidcoreTargets = altSnap.data.voidcoreTargets or {}
-                    altSnap.data.voidcoreTargets[mapID] = not altSnap.data.voidcoreTargets[mapID]
-                    sfui.alts.UpdateUI(true)
-                    -- Sync lootspec panel if visible
-                    if sfui.lootspec and sfui.lootspec.Rebuild then sfui.lootspec.Rebuild() end
+                    if altSnap.guid == GetCurrentCharacterGUID() and sfui.bonusroll and sfui.bonusroll.ToggleTarget then
+                        sfui.bonusroll.ToggleTarget(mapID, false)
+                    else
+                        altSnap.data.voidcoreTargets = altSnap.data.voidcoreTargets or {}
+                        altSnap.data.voidcoreTargets[mapID] = not altSnap.data.voidcoreTargets[mapID]
+                        sfui.alts.UpdateUI(true)
+                        if sfui.lootviewer and sfui.lootviewer.Rebuild then sfui.lootviewer.Rebuild() end
+                    end
                 end
 
                 if best and best.level > 0 then
@@ -2456,13 +2459,15 @@ function sfui.alts.initialize()
         if C_WeeklyRewards and C_WeeklyRewards.OnUIInteract then C_WeeklyRewards.OnUIInteract() end
 
         -- Check if this dungeon is marked as a Nebulous Voidcore bonus roll target
-        local guid = GetCurrentCharacterGUID()
-        local altData = guid and SfuiDB.alts and SfuiDB.alts[guid]
-        if altData and altData.voidcoreTargets then
-            local info = C_ChallengeMode.GetChallengeCompletionInfo()
-            if info and info.mapChallengeModeID then
-                if altData.voidcoreTargets[info.mapChallengeModeID] then
-                    local dungeonName = C_ChallengeMode.GetMapUIInfo(info.mapChallengeModeID) or "this dungeon"
+        local info = C_ChallengeMode.GetChallengeCompletionInfo()
+        if info and info.mapChallengeModeID then
+            local dungeonName = C_ChallengeMode.GetMapUIInfo(info.mapChallengeModeID) or "this dungeon"
+            if sfui.bonusroll and sfui.bonusroll.NotifyTarget then
+                sfui.bonusroll.NotifyTarget(info.mapChallengeModeID, false, dungeonName)
+            else
+                local guid = GetCurrentCharacterGUID()
+                local altData = guid and SfuiDB.alts and SfuiDB.alts[guid]
+                if altData and altData.voidcoreTargets and altData.voidcoreTargets[info.mapChallengeModeID] then
                     sfui.common.print(string.format(
                         "|cffcc44ff◆ Bonus Roll Reminder:|r Use a |cffffcc00Nebulous Voidcore|r on %s!",
                         dungeonName

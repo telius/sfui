@@ -243,20 +243,25 @@ end)
 
 sfui.events.RegisterEvent("ENCOUNTER_END", function(_, encounterID, encounterName, _, _, success)
     if success == 0 then return end -- wipe, don't warn
-    local db = DB()
-    local entry = GetBossEntry(encounterID, db, encounterName)
 
-    if type(entry) == "table" and entry.warn then
-        local bossName = encounterName
-        if not bossName or bossName == "" then
-            local jID = _dungeonToJournalEncounter[encounterID] or encounterID
-            if EJ_GetEncounterInfo then
-                bossName = EJ_GetEncounterInfo(jID)
-            end
+    local bossName = encounterName
+    if not bossName or bossName == "" then
+        local jID = _dungeonToJournalEncounter[encounterID] or encounterID
+        if EJ_GetEncounterInfo then
+            bossName = EJ_GetEncounterInfo(jID)
         end
-        bossName = bossName or ("Boss " .. encounterID)
-        sfui.common.print(string.format(
-            "|cffcc44ff◆ Bonus Roll Reminder:|r %s — use your bonus roll item!", bossName))
+    end
+    bossName = bossName or ("Boss " .. encounterID)
+
+    if sfui.bonusroll and sfui.bonusroll.NotifyTarget then
+        sfui.bonusroll.NotifyTarget(encounterID, true, bossName)
+    else
+        local db = DB()
+        local entry = GetBossEntry(encounterID, db, encounterName)
+        if type(entry) == "table" and entry.warn then
+            sfui.common.print(string.format(
+                "|cffcc44ff◆ Bonus Roll Reminder:|r %s — use your bonus roll item!", bossName))
+        end
     end
 end)
 

@@ -105,9 +105,253 @@ local function DB()
         SfuiDB.bonusroll[key] = {
             used    = {},
             checked = false,
+            targets = {
+                dungeons = {},
+                bosses   = {},
+                items    = {},
+            },
         }
     end
-    return SfuiDB.bonusroll[key]
+    local db = SfuiDB.bonusroll[key]
+    db.targets = db.targets or {}
+    db.targets.dungeons = db.targets.dungeons or {}
+    db.targets.bosses   = db.targets.bosses or {}
+    db.targets.items    = db.targets.items or {}
+    return db
+end
+
+local function SyncExternalTargets(keyID, isBoss, isTargeted)
+    if isBoss then
+        local _, engClass = UnitClass("player")
+        if engClass and SfuiDB and SfuiDB.lootspec and SfuiDB.lootspec.classes and SfuiDB.lootspec.classes[engClass] then
+            local bDb = SfuiDB.lootspec.classes[engClass].bosses
+            if bDb then
+                if bDb[keyID] then
+                    if type(bDb[keyID]) == "table" then
+                        bDb[keyID].warn = isTargeted or nil
+                    elseif type(bDb[keyID]) == "number" then
+                        bDb[keyID] = { spec = bDb[keyID], warn = isTargeted or nil }
+                    end
+                elseif isTargeted then
+                    bDb[keyID] = { spec = 0, warn = true }
+                end
+            end
+        end
+    else
+        local guid = UnitGUID("player")
+        if guid and SfuiDB and SfuiDB.alts and SfuiDB.alts[guid] then
+            SfuiDB.alts[guid].voidcoreTargets = SfuiDB.alts[guid].voidcoreTargets or {}
+            SfuiDB.alts[guid].voidcoreTargets[keyID] = isTargeted or nil
+        end
+    end
+end
+
+-- ─── Target Management API ────────────────────────────────────────────────────
+
+function sfui.bonusroll.GetTargetStatus(keyID, isBoss)
+    if not keyID then return false, 0, {} end
+    local db = DB()
+    local group = isBoss and "bosses" or "dungeons"
+    local entry = db.targets[group] and db.targets[group][keyID]
+
+    local isEnabled = entry and entry.enabled or false
+    local items = entry and entry.items or {}
+    local itemCount = 0
+    for _ in pairs(items) do
+        itemCount = itemCount + 1
+    end
+
+    -- Fallback compatibility: check alts/lootspec if not explicitly targeted in bonusroll
+    if not isEnabled and itemCount == 0 then
+        if isBoss then
+            local _, engClass = UnitClass("player")
+            local bEntry = engClass and SfuiDB and SfuiDB.lootspec and SfuiDB.lootspec.classes
+                and SfuiDB.lootspec.classes[engClass] and SfuiDB.lootspec.classes[engClass].bosses
+                and SfuiDB.lootspec.classes[engClass].bosses[keyID]
+            if type(bEntry) == "table" and bEntry.warn then
+                isEnabled = true
+            end
+        else
+            local guid = UnitGUID("player")
+            local altData = guid and SfuiDB and SfuiDB.alts and SfuiDB.alts[guid]
+            if altData and altData.voidcoreTargets and altData.voidcoreTargets[keyID] then
+                isEnabled = true
+            end
+        end
+    end
+
+    local isTargeted = isEnabled or (itemCount > 0)
+    return isTargeted, itemCount, items
+end
+
+function sfui.bonusroll.IsTarget(keyID, isBoss)
+    local isTargeted = sfui.bonusroll.GetTargetStatus(keyID, isBoss)
+    return isTargeted
+end
+
+function sfui.bonusroll.IsItemTargeted(itemID)
+    if not itemID or itemID <= 0 then return false end
+    local db = DB()
+    return db.targets.items[itemID] ~= nil
+end
+
+function sfui.bonusroll.ToggleTarget(keyID, isBoss)
+    if not keyID then return end
+    local db = DB()
+    local group = isBoss and "bosses" or "dungeons"
+    local entry = db.targets[group][keyID]
+    local isTargeted, itemCount, items = sfui.bonusroll.GetTargetStatus(keyID, isBoss)
+
+    if isTargeted then
+        -- Clear card target and any targeted items for this card
+        if entry then
+            entry.enabled = false
+            for itemID in pairs(entry.items or {}) do
+                db.targets.items[itemID] = nil
+            end
+            entry.items = {}
+        end
+        SyncExternalTargets(keyID, isBoss, nil)
+    else
+        -- Enable card target
+        db.targets[group][keyID] = db.targets[group][keyID] or { enabled = false, items = {} }
+        db.targets[group][keyID].enabled = true
+        SyncExternalTargets(keyID, isBoss, true)
+    end
+
+    if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
+        sfui.lootviewer.Rebuild()
+    end
+    if sfui.alts and sfui.alts.UpdateUI then
+        sfui.alts.UpdateUI(true)
+    end
+end
+
+function sfui.bonusroll.ToggleItemTarget(keyID, isBoss, itemID)
+    if not keyID or not itemID then return end
+    local db = DB()
+    local group = isBoss and "bosses" or "dungeons"
+    db.targets[group][keyID] = db.targets[group][keyID] or { enabled = false, items = {} }
+    local entry = db.targets[group][keyID]
+
+    if db.targets.items[itemID] then
+        -- Untarget item
+        db.targets.items[itemID] = nil
+        entry.items[itemID] = nil
+        local remaining = 0
+        for _ in pairs(entry.items) do remaining = remaining + 1 end
+        if remaining == 0 and not entry.enabled then
+            SyncExternalTargets(keyID, isBoss, nil)
+        end
+    else
+        -- Target item
+        db.targets.items[itemID] = { keyID = keyID, isBoss = isBoss }
+        entry.items[itemID] = true
+        entry.enabled = true
+        SyncExternalTargets(keyID, isBoss, true)
+    end
+
+    if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
+        sfui.lootviewer.Rebuild()
+    end
+    if sfui.alts and sfui.alts.UpdateUI then
+        sfui.alts.UpdateUI(true)
+    end
+end
+
+function sfui.bonusroll.ClearTarget(keyID, isBoss)
+    if not keyID then return end
+    local db = DB()
+    local group = isBoss and "bosses" or "dungeons"
+    local entry = db.targets[group][keyID]
+    if entry then
+        entry.enabled = false
+        for itemID in pairs(entry.items or {}) do
+            db.targets.items[itemID] = nil
+        end
+        entry.items = {}
+    end
+    SyncExternalTargets(keyID, isBoss, nil)
+end
+
+function sfui.bonusroll.AutoclearItemTarget(itemID, itemLink)
+    if not itemID or itemID <= 0 then return end
+    local db = DB()
+    local info = db.targets.items and db.targets.items[itemID]
+    if not info then return end
+
+    local keyID = info.keyID
+    local isBoss = info.isBoss
+    local group = isBoss and "bosses" or "dungeons"
+
+    -- Remove item target
+    db.targets.items[itemID] = nil
+    if db.targets[group] and db.targets[group][keyID] and db.targets[group][keyID].items then
+        db.targets[group][keyID].items[itemID] = nil
+    end
+
+    -- Check if any targeted items remain for this card
+    local remaining = 0
+    if db.targets[group] and db.targets[group][keyID] and db.targets[group][keyID].items then
+        for _ in pairs(db.targets[group][keyID].items) do
+            remaining = remaining + 1
+        end
+    end
+
+    if remaining == 0 then
+        if db.targets[group] and db.targets[group][keyID] then
+            db.targets[group][keyID].enabled = false
+        end
+        SyncExternalTargets(keyID, isBoss, nil)
+    end
+
+    local link = itemLink or select(2, C_Item.GetItemInfo(itemID)) or ("Item " .. itemID)
+    sfui.common.print(string.format("|cff00ff00◆ Bonus Roll Target Acquired:|r %s obtained! Target cleared.", link))
+    PlaySound(SOUNDKIT.UI_EPICLOOT_TOAST or 51570, "Master")
+
+    if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
+        sfui.lootviewer.Rebuild()
+    end
+    if sfui.alts and sfui.alts.UpdateUI then
+        sfui.alts.UpdateUI(true)
+    end
+end
+
+function sfui.bonusroll.NotifyTarget(keyID, isBoss, defaultName)
+    local isTargeted, itemCount, itemsMap = sfui.bonusroll.GetTargetStatus(keyID, isBoss)
+    if not isTargeted then return end
+
+    local itemLinks = {}
+    for id in pairs(itemsMap) do
+        local link = select(2, C_Item.GetItemInfo(id))
+        if not link then
+            if C_Item and C_Item.RequestLoadItemDataByID then
+                C_Item.RequestLoadItemDataByID(id)
+            end
+            local name = select(1, C_Item.GetItemInfo(id))
+            link = name and ("[" .. name .. "]") or ("Item " .. id)
+        end
+        itemLinks[#itemLinks + 1] = link
+    end
+
+    local prefix = "|cffcc44ff◆ Bonus Roll Reminder:|r "
+    local name = defaultName or (isBoss and ("Boss " .. keyID) or ("Dungeon " .. keyID))
+
+    if #itemLinks > 0 then
+        if isBoss then
+            sfui.common.print(string.format("%s%s — target: %s! Use your bonus roll item!", prefix, name, table.concat(itemLinks, ", ")))
+        else
+            sfui.common.print(string.format("%sUse a |cffffcc00Nebulous Voidcore|r on %s for %s!", prefix, name, table.concat(itemLinks, ", ")))
+        end
+    else
+        if isBoss then
+            sfui.common.print(string.format("%s%s — use your bonus roll item!", prefix, name))
+        else
+            sfui.common.print(string.format("%sUse a |cffffcc00Nebulous Voidcore|r on %s!", prefix, name))
+        end
+    end
+
+    PlaySound(SOUNDKIT.UI_BONUS_LOOT_ROLL_START or 39516, "Master")
 end
 
 -- ─── Item & Spec Eligibility ──────────────────────────────────────────────────
@@ -152,12 +396,13 @@ function sfui.bonusroll.IsUsed(itemID)
     return false
 end
 
-function sfui.bonusroll.SetUsed(itemID, value)
+function sfui.bonusroll.SetUsed(itemID, value, itemLink)
     if not itemID or itemID <= 0 then return end
     local db = DB()
     db.used = db.used or {}
     if value then
         db.used[itemID] = true
+        sfui.bonusroll.AutoclearItemTarget(itemID, itemLink)
     else
         db.used[itemID] = nil
     end
@@ -425,10 +670,10 @@ function sfui.bonusroll.CheckAll(rescan)
 end
 
 -- ─── Real-Time Bonus Roll Event Handler ───────────────────────────────────────
-function sfui.bonusroll.OnBonusRoll(itemID)
+function sfui.bonusroll.OnBonusRoll(itemID, rewardLink)
     if not sfui.bonusroll.IsEligible(itemID) then return end
 
-    sfui.bonusroll.SetUsed(itemID, true)
+    sfui.bonusroll.SetUsed(itemID, true, rewardLink)
 
     -- Look up chest item ID for this item
     local chestItemId = nil
@@ -464,7 +709,7 @@ sfui.events.RegisterEvent("BONUS_ROLL_RESULT", function(_, rewardType, rewardLin
     if rewardType ~= "item" or not rewardLink then return end
     local itemID = tonumber(string.match(rewardLink, "item:(%d+)"))
     if itemID then
-        sfui.bonusroll.OnBonusRoll(itemID)
+        sfui.bonusroll.OnBonusRoll(itemID, rewardLink)
     end
 end)
 

@@ -207,11 +207,40 @@ SlashCmdList["SFUI"] = function(msg)
                 sfui.common.print("sfui: mythic/delve tracker not available.")
             end
         end
+    elseif cmd == "hammer" or cmd == "repair" then
+        local hammer = sfui.hammer or sfui.automation
+        if arg == "test" or arg == "preview" then
+            if hammer and hammer.toggle_test_popup then
+                hammer.toggle_test_popup()
+            end
+        elseif arg == "lock" then
+            SfuiDB.lockRepairIcon = not SfuiDB.lockRepairIcon
+            if sfui.common and sfui.common.print then
+                sfui.common.print("sfui: repair icon " .. (SfuiDB.lockRepairIcon and "locked" or "unlocked") .. ".")
+            end
+        elseif arg == "reset" then
+            local def = sfui.config.masterHammer.defaultPosition
+            SfuiDB.repairIconX = def.x
+            SfuiDB.repairIconY = def.y
+            if hammer and hammer.update_popup_style then
+                hammer.update_popup_style()
+            end
+            if sfui.options and sfui.options.sync_hammer_sliders then
+                sfui.options.sync_hammer_sliders(def.x, def.y)
+            end
+            if sfui.common and sfui.common.print then
+                sfui.common.print("sfui: repair button position reset to center (" .. def.x .. ", " .. def.y .. ").")
+            end
+        else
+            if hammer and hammer.print_hammer_status then
+                hammer.print_hammer_status(arg == "debug")
+            end
+        end
     elseif cmd == "rl" or cmd == "reload" then
         C_UI.Reload()
     elseif cmd == "help" or cmd == "?" then
         if sfui.common and sfui.common.print then
-            sfui.common.print("Commands: /sfui [options | alts | ql | portals | cv | gear | highest | lootspec | loot | research | mythic | mem | rl]")
+            sfui.common.print("Commands: /sfui [options | hammer [test|lock|reset|debug] | alts | ql | portals | cv | gear | highest | lootspec | loot | research | mythic | mem | rl]")
         end
     else
         if sfui.common and sfui.common.print then

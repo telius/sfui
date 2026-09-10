@@ -1,7 +1,7 @@
 ## Interface: 120100
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v12.1.0-34
+## Version: v12.1.0-35
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -57,6 +57,7 @@ frames/gear/highest.lua
 frames/gear/lootspec.lua
 frames/gear/lootviewer.lua
 frames/gear/bonusroll.lua
+frames/gear/hammer.lua
 
 frames/quests/worldevents.lua
 frames/quests/scenarios.lua
