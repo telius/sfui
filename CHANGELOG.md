@@ -2,6 +2,22 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-37 (2026-09-11)
+
+### Features & Gear Improvements
+- **Native Trinket Role & Spec Policy (`common.lua`, `highest.lua`, `lootviewer.lua`)**:
+  - Consolidated all `C_Item.GetItemSpecInfo` queries into `sfui.common.get_item_spec_info` with zero external dependencies (no KeystoneLoot needed).
+  - **Tank Trinket Policy**: Tanks can equip and view DPS trinkets matching their primary stat (Strength or Agility) at full score (`1.0x`). Pure healing trinkets remain strictly excluded.
+  - **Healer Trinket Policy**: Healers can equip and view Intellect-based DPS trinkets at half value (`0.5x` score / effective item level in `highest.lua`). Pure tanking trinkets remain strictly excluded.
+  - **DPS Trinket Policy**: DPS specs are strictly prohibited from equipping or recommending tanking or healing trinkets.
+  - Clean API architecture: relies directly on `C_Item.GetItemSpecInfo`, `C_Item.GetItemStats`, and `GetSpecializationInfoByID` with zero tooltip regex scraping.
+- **Frost DK Frostbane Weapon Policy (`common.lua`, `highest.lua`, `lootviewer.lua`)**:
+  - Implemented `sfui.common.is_talent_known(spellID)` natively inspecting passive talent tree traits via `C_Traits` and `C_ClassTalents` (handling "Not In Spellbook" passives).
+  - Dynamically invalidates 2-handed weapons in both `highest.lua` and `lootviewer.lua` whenever Frostbane (Spell 455993) is active, enforcing dual-wield.
+  - Added live cache invalidation on `PLAYER_TALENT_UPDATE` and `TRAIT_CONFIG_UPDATED`.
+
+---
+
 ## v12.1.0-36 (2026-09-11)
 
 ### Features & Architecture

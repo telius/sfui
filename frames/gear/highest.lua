@@ -311,6 +311,7 @@ function sfui.highest.ClearCache()
     _G.wipe(embellishCache)
     embellishCacheCount = 0
 end
+sfui.highest.ClearValidationCache = sfui.highest.ClearCache
 
 -- Returns true, itemLevel, statVal, itemEquipLoc if the item is valid for the spec rules
 local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, ignoreTalents)
@@ -319,8 +320,9 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
 
     -- Dynamic Frost DK Talent Overrides (ignored for general loot eligibility)
     if not ignoreTalents and specID == 251 then
-        local frostbane = IsPlayerSpell(455993)
-        rule = { armor = rule.armor, stat = rule.stat, weaps = { ["1H_Dual"] = frostbane, ["2H"] = not frostbane }, allowedWeapons = rule.allowedWeapons }
+        if common.is_talent_known(455993) then
+            rule = { armor = rule.armor, stat = rule.stat, weaps = { ["1H_Dual"] = true, ["2H"] = false }, allowedWeapons = rule.allowedWeapons }
+        end
     end
 
     local primaryStatName = common.get_stat_key(rule.stat)
@@ -381,6 +383,13 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
         if not HasPrimaryStat(itemLink, primaryStatName) then return false end
     end
 
+    -- Role and spec eligibility check for trinkets (prevents tank trinkets on DPS/Healers, healer trinkets on DPS/Tanks)
+    if itemEquipLoc == "INVTYPE_TRINKET" then
+        if not common.is_trinket_valid_for_spec(itemLink, specID) then
+            return false
+        end
+    end
+
     local statVal = GetPrimaryStatValue(itemLink, primaryStatName)
     return true, itemLevel, statVal, itemEquipLoc
 end
@@ -432,6 +441,14 @@ function sfui.highest.EvaluateItemUpgrade(itemLink, overrideIlvl, currentEquippe
             end
         end
 
+        local _, _, _, itemEquipLoc = common.get_item_instant_info(itemLink)
+        if itemEquipLoc == "INVTYPE_TRINKET" then
+            local mult = common.get_trinket_value_multiplier(itemLink, specID)
+            if mult and mult < 1.0 then
+                itemLevel = itemLevel * mult
+            end
+        end
+
         if itemLevel and itemLevel > currentEquippedIlvl then
             return true
         end
@@ -462,10 +479,9 @@ function sfui.highest.GetBestItems(isPvP)
 
     -- Dynamic Frost DK Talent Overrides
     if specID == 251 then
-        local frostbane = IsPlayerSpell(455993) or
-            (IsSpellKnownOrOverridesKnown and IsSpellKnownOrOverridesKnown(455993)) or
-            (IsSpellKnown and IsSpellKnown(455993))
-        rule = { armor = rule.armor, stat = rule.stat, weaps = { ["1H_Dual"] = frostbane, ["2H"] = not frostbane }, allowedWeapons = rule.allowedWeapons }
+        if common.is_talent_known(455993) then
+            rule = { armor = rule.armor, stat = rule.stat, weaps = { ["1H_Dual"] = true, ["2H"] = false }, allowedWeapons = rule.allowedWeapons }
+        end
     end
 
     local primaryStatName = common.get_stat_key(rule.stat)
@@ -795,6 +811,12 @@ function sfui.highest.GetBestItems(isPvP)
                                 end
                             end
                         end
+                    end
+                end
+                if itm.itemEquipLoc == "INVTYPE_TRINKET" then
+                    local mult = common.get_trinket_value_multiplier(itm.link, specID)
+                    if mult and mult ~= 1.0 then
+                        score = score * mult
                     end
                 end
                 itm.score = score

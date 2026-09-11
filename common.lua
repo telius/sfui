@@ -543,6 +543,91 @@ function sfui.common.get_spec_color(specID)
 end
 
 -- ────────────────────────────────────────────────────────────────────────────
+-- Talent & Trait Inspection Engine
+-- ────────────────────────────────────────────────────────────────────────────
+local _talentCache = {}
+local _talentCacheConfigID = nil
+
+local function invalidate_talent_cache()
+    table.wipe(_talentCache)
+    _talentCacheConfigID = nil
+    if sfui.highest and sfui.highest.ClearValidationCache then
+        sfui.highest.ClearValidationCache()
+    end
+end
+
+sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", invalidate_talent_cache)
+sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", invalidate_talent_cache)
+sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", invalidate_talent_cache)
+sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", invalidate_talent_cache)
+sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", invalidate_talent_cache)
+
+--- Checks if a talent or spell is active/known by the player.
+--- Handles active spells, passives in the spellbook, and talent tree passives (Not In Spellbook) via C_Traits.
+--- @param targetSpellID number
+--- @return boolean
+function sfui.common.is_talent_known(targetSpellID)
+    if not targetSpellID or targetSpellID <= 0 then return false end
+
+    -- 1. Direct spellbook / known checks
+    if IsPlayerSpell and IsPlayerSpell(targetSpellID) then return true end
+    if IsSpellKnownOrOverridesKnown and IsSpellKnownOrOverridesKnown(targetSpellID) then return true end
+    if IsSpellKnown and IsSpellKnown(targetSpellID) then return true end
+    if C_Spell and C_Spell.IsSpellLearned and C_Spell.IsSpellLearned(targetSpellID) then return true end
+
+    -- 2. Trait / Class Talent tree inspection for passive talents
+    local C_ClassTalents = _G.C_ClassTalents
+    local C_Traits = _G.C_Traits
+    if not C_ClassTalents or not C_ClassTalents.GetActiveConfigID or not C_Traits or not C_Traits.GetConfigInfo then
+        return false
+    end
+
+    local configID = C_ClassTalents.GetActiveConfigID()
+    if not configID or configID <= 0 then return false end
+
+    if _talentCacheConfigID ~= configID then
+        table.wipe(_talentCache)
+        _talentCacheConfigID = configID
+
+        local configInfo = C_Traits.GetConfigInfo(configID)
+        if configInfo and configInfo.treeIDs then
+            for _, treeID in ipairs(configInfo.treeIDs) do
+                local nodes = C_Traits.GetTreeNodes and C_Traits.GetTreeNodes(treeID)
+                if nodes then
+                    for _, nodeID in ipairs(nodes) do
+                        local nodeInfo = C_Traits.GetNodeInfo(configID, nodeID)
+                        if nodeInfo and ((nodeInfo.activeRank and nodeInfo.activeRank > 0) or (nodeInfo.currentRank and nodeInfo.currentRank > 0)) then
+                            if nodeInfo.activeEntry then
+                                local entryInfo = C_Traits.GetEntryInfo(configID, nodeInfo.activeEntry.entryID)
+                                if entryInfo and entryInfo.definitionID then
+                                    local defInfo = C_Traits.GetDefinitionInfo(entryInfo.definitionID)
+                                    if defInfo and defInfo.spellID and defInfo.spellID > 0 then
+                                        _talentCache[defInfo.spellID] = true
+                                    end
+                                end
+                            end
+                            if nodeInfo.entryIDsWithCommittedRanks then
+                                for _, entryID in ipairs(nodeInfo.entryIDsWithCommittedRanks) do
+                                    local entry = C_Traits.GetEntryInfo(configID, entryID)
+                                    if entry and entry.definitionID then
+                                        local defInfo = C_Traits.GetDefinitionInfo(entry.definitionID)
+                                        if defInfo and defInfo.spellID and defInfo.spellID > 0 then
+                                            _talentCache[defInfo.spellID] = true
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return _talentCache[targetSpellID] == true
+end
+
+-- ────────────────────────────────────────────────────────────────────────────
 -- Item & Slot Engine (C_Item Modernization & Unified Constants)
 -- ────────────────────────────────────────────────────────────────────────────
 local C_Item                          = _G.C_Item or {}
@@ -554,6 +639,7 @@ local C_Item_GetItemQualityColor      = C_Item.GetItemQualityColor or _G.GetItem
 local C_Item_GetItemQualityByID       = C_Item.GetItemQualityByID
 local C_Item_RequestLoadItemDataByID  = C_Item.RequestLoadItemDataByID
 local C_Item_GetItemCount             = C_Item.GetItemCount or _G.GetItemCount
+local C_Item_GetItemSpecInfo          = C_Item.GetItemSpecInfo
 
 local INVENTORY_SLOT_NAMES = {
     [1]  = "Head",
@@ -748,6 +834,196 @@ function sfui.common.get_item_count(item, includeBank)
         return C_Item_GetItemCount(item, includeBank) or 0
     end
     return 0
+end
+
+-- Safe wrapper for C_Item.GetItemSpecInfo (consolidated native query)
+-- Accepts itemLink, string itemID, or numeric itemID
+function sfui.common.get_item_spec_info(itemLinkOrID)
+    if not itemLinkOrID then return nil end
+    if not C_Item_GetItemSpecInfo then return nil end
+
+    local specList = C_Item_GetItemSpecInfo(itemLinkOrID)
+    if (not specList or #specList == 0) and type(itemLinkOrID) ~= "number" then
+        local itemID = sfui.common.get_item_id(itemLinkOrID)
+        if itemID and itemID > 0 then
+            specList = C_Item_GetItemSpecInfo(itemID)
+        end
+    end
+    return (specList and #specList > 0) and specList or nil
+end
+
+--- Classifies a trinket's intended combat role ("TANK", "HEALER", "DAMAGER", or "GENERIC")
+--- based on Blizzard's C_Item.GetItemStats and consolidated C_Item.GetItemSpecInfo.
+--- @param itemLinkOrID any
+--- @return string roleType ("TANK", "HEALER", "DAMAGER", or "GENERIC")
+function sfui.common.get_trinket_role_type(itemLinkOrID)
+    if not itemLinkOrID then return "GENERIC" end
+
+    -- 1. Explicit clean stat signatures
+    local stats = sfui.common.get_item_stats(itemLinkOrID)
+    if stats then
+        if stats["ITEM_MOD_EXTRA_ARMOR_SHORT"] or stats["ITEM_MOD_ARMOR_SHORT"]
+            or stats["ITEM_MOD_PARRY_RATING_SHORT"] or stats["ITEM_MOD_DODGE_RATING_SHORT"]
+            or stats["ITEM_MOD_BLOCK_RATING_SHORT"] then
+            return "TANK"
+        end
+        if stats["ITEM_MOD_MANA_REGENERATION_SHORT"] or stats["ITEM_MOD_SPIRIT_SHORT"] then
+            return "HEALER"
+        end
+    end
+
+    -- 2. Blizzard native spec list inspection
+    local specList = sfui.common.get_item_spec_info(itemLinkOrID)
+    if specList and #specList > 0 then
+        local hasTank, hasHealer, hasDamager = false, false, false
+        for _, sID in ipairs(specList) do
+            local role = sfui.common.get_spec_role(sID)
+            if role == "TANK" then
+                hasTank = true
+            elseif role == "HEALER" then
+                hasHealer = true
+            elseif role == "DAMAGER" then
+                hasDamager = true
+            end
+        end
+
+        if hasTank and not hasHealer and not hasDamager then
+            return "TANK"
+        elseif hasHealer and not hasTank and not hasDamager then
+            return "HEALER"
+        elseif hasDamager and not hasTank and not hasHealer then
+            return "DAMAGER"
+        end
+    end
+
+    return "GENERIC"
+end
+
+--- Returns the scoring multiplier for a trinket on a given spec.
+--- Healers use DPS int-based trinkets at half value (0.5).
+--- All other eligible trinket configurations use full value (1.0).
+--- @param itemLinkOrID any
+--- @param specID number
+--- @return number multiplier
+function sfui.common.get_trinket_value_multiplier(itemLinkOrID, specID)
+    if not itemLinkOrID or not specID then return 1.0 end
+    local role = sfui.common.get_spec_role(specID)
+    if role == "HEALER" then
+        local tRole = sfui.common.get_trinket_role_type(itemLinkOrID)
+        if tRole == "DAMAGER" or tRole == "GENERIC" then
+            -- Healers evaluate DPS int-based trinkets at half value
+            return 0.5
+        end
+    end
+    return 1.0
+end
+
+--- Checks if a trinket is eligible for the specified specID based on native clean APIs:
+--- - Tanks can use DPS trinkets (matching their primary stat); cannot use healing trinkets.
+--- - Healers can use DPS Int-based trinkets at half value; cannot use tanking trinkets.
+--- - DPS cannot use tanking or healing trinkets.
+--- Completely self-contained with zero external addon dependencies.
+--- @param itemLinkOrID any
+--- @param specID number
+--- @return boolean
+function sfui.common.is_trinket_valid_for_spec(itemLinkOrID, specID)
+    if not itemLinkOrID or not specID or specID <= 0 then return true end
+
+    local targetRole = sfui.common.get_spec_role(specID)
+    local trinketRole = sfui.common.get_trinket_role_type(itemLinkOrID)
+    local specList = sfui.common.get_item_spec_info(itemLinkOrID)
+
+    -- Case 1: Target spec is DPS (DAMAGER)
+    -- Rule: DPS cannot use tanking or healing trinkets
+    if targetRole == "DAMAGER" then
+        if trinketRole == "TANK" or trinketRole == "HEALER" then
+            return false
+        end
+        -- If Blizzard tagged with a specific spec list, check if spec is included
+        if specList then
+            for _, sID in ipairs(specList) do
+                if sID == specID then return true end
+            end
+            return false
+        end
+        return true
+    end
+
+    -- Case 2: Target spec is TANK
+    -- Rule: Tanks can use DPS trinkets; Tanks CANNOT use healing trinkets
+    if targetRole == "TANK" then
+        if trinketRole == "HEALER" then
+            return false
+        end
+        -- If it's a dedicated Tank trinket, check if Blizzard specList contains specID
+        if trinketRole == "TANK" then
+            if specList then
+                for _, sID in ipairs(specList) do
+                    if sID == specID then return true end
+                end
+                return false
+            end
+            return true
+        end
+        -- If it's a DPS or GENERIC trinket: Tanks CAN use DPS trinkets!
+        -- Verify primary stat alignment (reject pure Intellect trinkets for Tanks)
+        local stats = sfui.common.get_item_stats(itemLinkOrID)
+        if stats and (stats["ITEM_MOD_INTELLECT_SHORT"] or 0) > 0
+            and not stats["ITEM_MOD_STRENGTH_SHORT"] and not stats["ITEM_MOD_AGILITY_SHORT"] then
+            return false
+        end
+        return true
+    end
+
+    -- Case 3: Target spec is HEALER
+    -- Rule: Healers can use DPS int-based trinkets at half value; Healers CANNOT use tanking trinkets
+    if targetRole == "HEALER" then
+        if trinketRole == "TANK" then
+            return false
+        end
+        -- Genuine healing trinket
+        if trinketRole == "HEALER" then
+            if specList then
+                for _, sID in ipairs(specList) do
+                    if sID == specID then return true end
+                end
+                return false
+            end
+            return true
+        end
+
+        -- DPS or GENERIC trinket: Healers can use DPS int-based trinkets
+        local stats = sfui.common.get_item_stats(itemLinkOrID)
+        local hasInt = stats and (stats["ITEM_MOD_INTELLECT_SHORT"] or 0) > 0
+        local hasStr = stats and (stats["ITEM_MOD_STRENGTH_SHORT"] or 0) > 0
+        local hasAgi = stats and (stats["ITEM_MOD_AGILITY_SHORT"] or 0) > 0
+        if hasStr or hasAgi then
+            return false -- Strength or Agility DPS trinkets cannot be used by Healers
+        end
+
+        if hasInt then
+            return true
+        end
+
+        -- If statless or dynamic, check if specList contains any Intellect caster spec
+        if specList then
+            for _, sID in ipairs(specList) do
+                if sID == specID then return true end
+                local r = sfui.common.get_spec_role(sID)
+                if r == "DAMAGER" then
+                    local sRule = sfui.highest and sfui.highest.rules and sfui.highest.rules[sID]
+                    if sRule and sRule.stat == 4 then -- 4 = Intellect
+                        return true
+                    end
+                end
+            end
+            return false
+        end
+
+        return true
+    end
+
+    return true
 end
 
 -- ────────────────────────────────────────────────────────────────────────────

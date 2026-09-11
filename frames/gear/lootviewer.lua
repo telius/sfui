@@ -206,22 +206,32 @@ local function IsItemForPlayerClass(itemID, itemLink)
     local isToken = IsSetItemToken(itemID, link)
     sfui.common.get_item_instant_info(link or itemID)
 
-    -- 1. Check C_Item.GetItemSpecInfo if available
-    if C_Item and C_Item.GetItemSpecInfo then
-        local specList = C_Item.GetItemSpecInfo(link)
-        if specList and #specList > 0 then
-            InitPlayerSpecs()
-            local foundMySpec = false
-            for _, sID in ipairs(specList) do
-                if playerSpecs[sID] then
-                    foundMySpec = true
-                    break
+    -- 1. Check consolidated C_Item.GetItemSpecInfo if available
+    local specList = sfui.common.get_item_spec_info(link or itemID)
+    if specList and #specList > 0 then
+        InitPlayerSpecs()
+        local foundMySpec = false
+        for _, sID in ipairs(specList) do
+            if playerSpecs[sID] then
+                foundMySpec = true
+                break
+            end
+        end
+        -- Cross-role trinket check: Tanks can use DPS trinkets, and Healers can use Int-based DPS trinkets
+        if not foundMySpec then
+            local _, _, _, equipLoc = sfui.common.get_item_instant_info(link or itemID)
+            if equipLoc == "INVTYPE_TRINKET" then
+                for sID in pairs(playerSpecs) do
+                    if sfui.common.is_trinket_valid_for_spec(link or itemID, sID) then
+                        foundMySpec = true
+                        break
+                    end
                 end
             end
-            if not foundMySpec then
-                itemClassCache[itemID] = false
-                return false
-            end
+        end
+        if not foundMySpec then
+            itemClassCache[itemID] = false
+            return false
         end
     end
 
@@ -354,56 +364,43 @@ local function GetValidPlayerSpecsForItem(itemID, link)
         return nil
     end
 
-    -- 1. Check KeystoneLoot (official KeystoneLootAPI or global table)
-    local klSpecs = nil
-    local classId = GetPlayerClassID()
-    if _G.KeystoneLootAPI and _G.KeystoneLootAPI.GetItemInfo then
-        local ok, klInfo = pcall(_G.KeystoneLootAPI.GetItemInfo, _G.KeystoneLootAPI, itemID)
-        if ok and klInfo and klInfo.classes then
-            klSpecs = klInfo.classes[classId]
-            if not klSpecs or #klSpecs == 0 then
-                return nil -- KeystoneLoot curated database confirms: item does not drop for this class!
-            end
-        end
-    elseif _G.KeystoneLoot and _G.KeystoneLoot.ItemDatabase then
-        local klItem = _G.KeystoneLoot.ItemDatabase[itemID]
-        if klItem and klItem.classes then
-            klSpecs = klItem.classes[classId]
-            if not klSpecs or #klSpecs == 0 then
-                return nil
-            end
-        end
-    end
+    -- 1. Consolidated C_Item.GetItemSpecInfo: clean, direct API call
+    local specList = sfui.common.get_item_spec_info(itemLink) or sfui.common.get_item_spec_info(itemID)
 
-    if klSpecs then
+    if specList and #specList > 0 then
         local validSpecs = {}
-        for _, sID in ipairs(klSpecs) do
+        local _, _, _, equipLoc = sfui.common.get_item_instant_info(itemLink)
+        for _, sID in ipairs(specList) do
             if playerSpecs[sID] then
-                validSpecs[sID] = true
-            end
-        end
-        return next(validSpecs) and validSpecs or nil
-    end
-
-    -- 2. Check Blizzard native spec info API
-    if C_Item and C_Item.GetItemSpecInfo then
-        local specList = C_Item.GetItemSpecInfo(itemLink)
-        if specList and #specList > 0 then
-            local validSpecs = {}
-            for _, sID in ipairs(specList) do
-                if playerSpecs[sID] then
+                local allow = true
+                if equipLoc == "INVTYPE_TRINKET" then
+                    if not sfui.common.is_trinket_valid_for_spec(itemLink, sID) then
+                        allow = false
+                    end
+                elseif sID == 251 and equipLoc == "INVTYPE_2HWEAPON" then
+                    if sfui.common.is_talent_known(455993) then
+                        allow = false
+                    end
+                end
+                if allow then
                     validSpecs[sID] = true
                 end
             end
-            if next(validSpecs) then
-                return validSpecs
-            else
-                return nil
+        end
+
+        -- Cross-role trinkets: Tanks can use DPS trinkets, and Healers can use Int-based DPS trinkets
+        if equipLoc == "INVTYPE_TRINKET" then
+            for sID in pairs(playerSpecs) do
+                if not validSpecs[sID] and sfui.common.is_trinket_valid_for_spec(itemLink, sID) then
+                    validSpecs[sID] = true
+                end
             end
         end
+
+        return next(validSpecs) and validSpecs or nil
     end
 
-    -- Set tokens, curios, or explicit non-equipment items can be shared across all specs
+    -- 2. Set tokens, curios, or explicit non-equipment items can be shared across all specs
     local isToken = IsSetItemToken(itemID, itemLink)
     if isToken then
         local allSpecs = {}
@@ -411,6 +408,28 @@ local function GetValidPlayerSpecsForItem(itemID, link)
             allSpecs[sID] = true
         end
         return allSpecs
+    end
+
+    -- 3. For equippable gear without explicit specList, validate against player specs via highest rules
+    if sfui.highest and sfui.highest.IsItemValidForSpec then
+        local validSpecs = {}
+        local _, _, _, equipLoc = sfui.common.get_item_instant_info(itemLink)
+        for _, sID in ipairs(playerSpecIDs) do
+            if sfui.highest.IsItemValidForSpec(itemLink, sID, true, false) then
+                if equipLoc == "INVTYPE_TRINKET" then
+                    if sfui.common.is_trinket_valid_for_spec(itemLink, sID) then
+                        validSpecs[sID] = true
+                    end
+                elseif sID == 251 and equipLoc == "INVTYPE_2HWEAPON" then
+                    if not sfui.common.is_talent_known(455993) then
+                        validSpecs[sID] = true
+                    end
+                else
+                    validSpecs[sID] = true
+                end
+            end
+        end
+        return next(validSpecs) and validSpecs or nil
     end
 
     -- Equippable gear must NEVER fall back to all specs!
@@ -493,7 +512,20 @@ local function FetchEncounterLoot(bossID)
                                 entry.specs[sID] = true
                             end
                         else
-                            entry.specs[specID] = true
+                            local allowSpec = true
+                            local _, _, _, equipLoc = sfui.common.get_item_instant_info(info.link or itemID)
+                            if equipLoc == "INVTYPE_TRINKET" then
+                                if not sfui.common.is_trinket_valid_for_spec(info.link or itemID, specID) then
+                                    allowSpec = false
+                                end
+                            elseif specID == 251 and equipLoc == "INVTYPE_2HWEAPON" then
+                                if sfui.common.is_talent_known(455993) then
+                                    allowSpec = false
+                                end
+                            end
+                            if allowSpec then
+                                entry.specs[specID] = true
+                            end
                         end
                     end
                 end
@@ -533,8 +565,8 @@ local function FetchEncounterLoot(bossID)
                         entry.specs[sID] = true
                     end
                 else
-                    -- For non-tokens appearing only under spec 0: ONLY add if KeystoneLoot
-                    -- or C_Item.GetItemSpecInfo explicitly verifies valid player specs!
+                    -- For non-tokens appearing only under spec 0: ONLY add if native
+                    -- C_Item.GetItemSpecInfo explicitly verifies valid player specs!
                     local specificSpecs = GetValidPlayerSpecsForItem(itemID, info.link)
                     if specificSpecs and next(specificSpecs) then
                         local resolvedSlot = ResolveItemSlot(itemID, info.link, info.filterType)
@@ -847,6 +879,17 @@ sfui.events.RegisterEvent("EJ_LOOT_DATA_RECIEVED", function()
     end
 end)
 
+local function InvalidateTalentLootCache()
+    raidDataCache    = nil
+    dungeonDataCache = nil
+    if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
+        sfui.lootviewer.Rebuild()
+    end
+end
+
+sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", InvalidateTalentLootCache)
+sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", InvalidateTalentLootCache)
+
 -- ─── Filter state ─────────────────────────────────────────────────────────────
 local filterSlot   = "all"
 local filterSpec   = 0
@@ -944,6 +987,17 @@ local function MatchesFilter(item, bossName, instanceName)
     end
     if filterSpec ~= 0 and item.specs and next(item.specs) then
         if not item.specs[filterSpec] then
+            return false
+        end
+    end
+
+    if filterSpec ~= 0 then
+        local _, _, _, equipLoc = sfui.common.get_item_instant_info(item.link or item.id)
+        if equipLoc == "INVTYPE_TRINKET" then
+            if not sfui.common.is_trinket_valid_for_spec(item.link or item.id, filterSpec) then
+                return false
+            end
+        elseif filterSpec == 251 and equipLoc == "INVTYPE_2HWEAPON" and sfui.common.is_talent_known(455993) then
             return false
         end
     end
