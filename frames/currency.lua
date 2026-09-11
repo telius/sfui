@@ -2,7 +2,7 @@ local addonName, addon = ...
 sfui = sfui or {}
 
 local CharacterFrame = _G.CharacterFrame
-local GameTooltip = sfui.tooltip or _G.GameTooltip
+local GameTooltip = _G.GameTooltip
 
 local function UpdateCurrencyAnchors()
     local cFrame = _G.sfui_currency_frame

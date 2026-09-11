@@ -25,8 +25,14 @@ local function issecretvalue(val)
 end
 sfui.common.issecretvalue = issecretvalue
 
--- Standard Tooltip Reference (Dedicated isolated frame to prevent UIWidgetManager taint on global GameTooltip)
-local sfuiTooltip = CreateFrame("GameTooltip", "SfuiGameTooltip", UIParent, "GameTooltipTemplate")
+-- Dedicated Addon Tooltip (Zero global GameTooltip taint, zero UIWidgetManager registration)
+local sfuiTooltip = CreateFrame("GameTooltip", "SfuiGameTooltip", UIParent, "TooltipBackdropTemplate")
+if _G.TooltipDataHandlerMixin then
+    Mixin(sfuiTooltip, _G.TooltipDataHandlerMixin)
+elseif _G.GameTooltipDataMixin then
+    Mixin(sfuiTooltip, _G.GameTooltipDataMixin)
+end
+sfuiTooltip:SetFrameStrata("TOOLTIP")
 sfui.tooltip = sfuiTooltip
 sfui.common.tooltip = sfuiTooltip
 

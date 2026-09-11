@@ -5,7 +5,7 @@ sfui.lootviewer = {}
 
 local CreateFrame               = CreateFrame
 local UIParent                  = UIParent
-local GameTooltip               = sfui.tooltip or _G.GameTooltip
+local GameTooltip               = _G.GameTooltip
 local UnitClass                 = UnitClass
 local string                    = string
 local math                      = math
@@ -190,7 +190,12 @@ local function GetScanTooltip()
     if not scanTip then
         scanDummyParent = CreateFrame("Frame", "SfuiLootClassScanParent", UIParent)
         scanDummyParent:Hide()
-        scanTip = CreateFrame("GameTooltip", "SfuiLootClassScanTooltip", scanDummyParent, "GameTooltipTemplate")
+        scanTip = CreateFrame("GameTooltip", "SfuiLootClassScanTooltip", scanDummyParent, "TooltipBackdropTemplate")
+        if _G.TooltipDataHandlerMixin then
+            Mixin(scanTip, _G.TooltipDataHandlerMixin)
+        elseif _G.GameTooltipDataMixin then
+            Mixin(scanTip, _G.GameTooltipDataMixin)
+        end
         scanTip:SetOwner(scanDummyParent, "ANCHOR_NONE")
     end
     return scanTip
@@ -2426,7 +2431,7 @@ function sfui.lootviewer.CreateFrame()
 
     frame:SetScript("OnShow", function()
         filterSlot   = "all"
-        filterSpec   = GetCurrentSpecID()
+        filterSpec   = 0
         filterSearch = ""
         searchBox:SetText("")
         activeTab    = "raids"
@@ -2496,7 +2501,9 @@ sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function()
     raidDataCache    = nil
     dungeonDataCache = nil
     if frame and frame:IsShown() then
-        filterSpec = GetCurrentSpecID()
+        if filterSpec ~= 0 and not playerSpecs[filterSpec] then
+            filterSpec = 0
+        end
         if sfui.lootviewer.RefreshSpecBtns then sfui.lootviewer.RefreshSpecBtns() end
         DoRebuild()
     end

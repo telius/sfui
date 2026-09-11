@@ -20,7 +20,7 @@ sfui.vehicle = sfui.vehicle or {}
 
 local common = sfui.common
 local g      = sfui.config
-local GameTooltip = sfui.tooltip or _G.GameTooltip
+local GameTooltip = _G.GameTooltip
 
 -- ─── Upvalue Localization ───────────────────────────────────────────────────
 local CreateFrame         = _G.CreateFrame

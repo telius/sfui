@@ -8,10 +8,13 @@ local issecretvalue = common.issecretvalue or _G.issecretvalue
 sfui = sfui or {}
 sfui.merchant = {}
 
-local GameTooltip = sfui.tooltip or _G.GameTooltip
+local GameTooltip = _G.GameTooltip
 local function GameTooltip_Hide()
-    if sfui.tooltip and sfui.tooltip:IsShown() then
-        sfui.tooltip:Hide()
+    if _G.GameTooltip_HideResetCursor then
+        _G.GameTooltip_HideResetCursor()
+    elseif _G.GameTooltip and _G.GameTooltip:IsShown() then
+        _G.GameTooltip:Hide()
+        ResetCursor()
     end
 end
 
@@ -341,22 +344,33 @@ function sfui.merchant.create_item_button(id, parent)
     btn:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
 
     btn:SetScript("OnEnter", function(self)
-        local tip = sfui.tooltip or GameTooltip
-        tip:SetOwner(self, "ANCHOR_RIGHT")
-        if self.link then
-            tip:SetHyperlink(self.link)
-        elseif self.hasItem then
-            tip:SetMerchantItem(self:GetID())
-        end
-        tip:Show()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         if self.hasItem then
+            if sfui.merchant.mode == "buyback" then
+                GameTooltip:SetBuybackItem(self:GetID())
+                if IsModifiedClick and IsModifiedClick("DRESSUP") and self.hasItem then
+                    if ShowInspectCursor then ShowInspectCursor() end
+                elseif ShowBuybackSellCursor then
+                    ShowBuybackSellCursor(self:GetID())
+                end
+            else
+                GameTooltip:SetMerchantItem(self:GetID())
+                if GameTooltip_ShowCompareItem then
+                    GameTooltip_ShowCompareItem(GameTooltip)
+                end
+            end
             frame.itemHover = self:GetID()
+        elseif self.link then
+            GameTooltip:SetHyperlink(self.link)
+            if GameTooltip_ShowCompareItem then
+                GameTooltip_ShowCompareItem(GameTooltip)
+            end
         end
+        GameTooltip:Show()
     end)
     btn:SetScript("OnLeave", function(self)
-        local tip = sfui.tooltip or GameTooltip
-        tip:Hide()
-        ResetCursor()
+        GameTooltip_Hide()
         frame.itemHover = nil
     end)
 
@@ -494,23 +508,24 @@ function sfui.merchant.update_currency_display(frame)
 
             display:EnableMouse(true)
             display:SetScript("OnEnter", function(self)
-                local tip = sfui.tooltip or GameTooltip
-                tip:SetOwner(self, "ANCHOR_RIGHT")
+                if not GameTooltip then return end
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                 if self.type == "item" then
-                    tip:SetItemByID(self.currencyID)
+                    GameTooltip:SetItemByID(self.currencyID)
                 elseif self.currencyID then
-                    tip:SetCurrencyByID(self.currencyID)
+                    GameTooltip:SetCurrencyByID(self.currencyID)
                 elseif self.currencyName == "Gold" then
-                    tip:SetText("Gold")
-                    tip:AddLine("Total money on character", 1, 1, 1)
+                    GameTooltip:SetText("Gold")
+                    GameTooltip:AddLine("Total money on character", 1, 1, 1)
                 else
-                    tip:SetText(self.currencyName or "Currency")
+                    GameTooltip:SetText(self.currencyName or "Currency")
                 end
-                tip:Show()
+                GameTooltip:Show()
             end)
             display:SetScript("OnLeave", function()
-                local tip = sfui.tooltip or GameTooltip
-                tip:Hide()
+                if GameTooltip and GameTooltip:IsShown() then
+                    GameTooltip:Hide()
+                end
             end)
 
             displays[idx] = display
@@ -650,12 +665,12 @@ grIcon:SetAllPoints()
 grIcon:SetTexture("Interface\\Icons\\INV_Misc_Coin_02") -- Coin icon
 grIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 guildRepairBtn:SetScript("OnEnter", function(self)
-    local tip = sfui.tooltip or GameTooltip
-    tip:SetOwner(self, "ANCHOR_RIGHT")
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     local repairAllCost, canRepair = GetRepairAllCost()
 
     if canRepair and (common.issecretvalue(repairAllCost) or common.SafeGT(repairAllCost, 0)) then
-        common.SafeSetTooltipMoney(tip, repairAllCost, "Guild Repair")
+        common.SafeSetTooltipMoney(GameTooltip, repairAllCost, "Guild Repair")
 
         local amount = GetGuildBankMoney()
         local withdrawLimit = GetGuildBankWithdrawMoney()
@@ -665,15 +680,16 @@ guildRepairBtn:SetScript("OnEnter", function(self)
             amount = math.min(amount, withdrawLimit)
         end
 
-        common.SafeAddMoneyLine(tip, "Guild Funds: ", amount)
+        common.SafeAddMoneyLine(GameTooltip, "Guild Funds: ", amount)
     else
-        tip:SetText("No Repair Needed")
+        GameTooltip:SetText("No Repair Needed")
     end
-    tip:Show()
+    GameTooltip:Show()
 end)
 guildRepairBtn:SetScript("OnLeave", function()
-    local tip = sfui.tooltip or GameTooltip
-    tip:Hide()
+    if GameTooltip and GameTooltip:IsShown() then
+        GameTooltip:Hide()
+    end
 end)
 guildRepairBtn:SetScript("OnClick", function()
     if CanMerchantRepair() and CanGuildBankRepair() then
@@ -689,21 +705,22 @@ rIcon:SetAllPoints()
 rIcon:SetTexture("Interface\\Icons\\Trade_BlackSmithing") -- Anvil/Hammer
 rIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 repairBtn:SetScript("OnEnter", function(self)
-    local tip = sfui.tooltip or GameTooltip
-    tip:SetOwner(self, "ANCHOR_RIGHT")
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     local repairAllCost, canRepair = GetRepairAllCost()
     local isSecret = common.issecretvalue(repairAllCost)
 
     if canRepair and (isSecret or common.SafeGT(repairAllCost, 0)) then
-        common.SafeSetTooltipMoney(tip, repairAllCost, "Repair All")
+        common.SafeSetTooltipMoney(GameTooltip, repairAllCost, "Repair All")
     else
-        tip:SetText("No Repair Needed")
+        GameTooltip:SetText("No Repair Needed")
     end
-    tip:Show()
+    GameTooltip:Show()
 end)
 repairBtn:SetScript("OnLeave", function()
-    local tip = sfui.tooltip or GameTooltip
-    tip:Hide()
+    if GameTooltip and GameTooltip:IsShown() then
+        GameTooltip:Hide()
+    end
 end)
 repairBtn:SetScript("OnClick", function()
     if CanMerchantRepair() then
@@ -1163,6 +1180,7 @@ sfui.events.RegisterEvent("MERCHANT_CLOSED", function()
     isSystemClose = true
     frame:Hide()
     isSystemClose = false
+    GameTooltip_Hide()
     if MerchantFrame then
         MerchantFrame:SetAlpha(1)
         MerchantFrame:EnableMouse(true)

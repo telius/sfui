@@ -59,15 +59,16 @@ local ARMOR_SLOTS = {
     [10] = true, -- Hands
 }
 
+local FROSTBANE_TALENT_ID = 455993
 local RAZORICE_SPELL_ID = 53343
 local cachedRazoriceName = nil
 local function HasRazoriceEnchant(itemData)
     if not itemData or not itemData.link then return false end
     local link = itemData.link
 
-    -- 1. Direct enchantID check (3370 = Rune of Razorice, 6241 = scaling rank)
+    -- 1. Direct enchantID check (3370 = Rune of Razorice)
     local enchantID = tonumber(link:match("item:%d+:(%d+):"))
-    if enchantID == 3370 or enchantID == 6241 or enchantID == 3368 then
+    if enchantID == 3370 then
         return true
     end
 
@@ -320,7 +321,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
 
     -- Dynamic Frost DK Talent Overrides (ignored for general loot eligibility)
     if not ignoreTalents and specID == 251 then
-        if common.is_talent_known(455993) then
+        if common.is_talent_known(FROSTBANE_TALENT_ID) then
             rule = { armor = rule.armor, stat = rule.stat, weaps = { ["1H_Dual"] = true, ["2H"] = false }, allowedWeapons = rule.allowedWeapons }
         end
     end
@@ -479,7 +480,7 @@ function sfui.highest.GetBestItems(isPvP)
 
     -- Dynamic Frost DK Talent Overrides
     if specID == 251 then
-        if common.is_talent_known(455993) then
+        if common.is_talent_known(FROSTBANE_TALENT_ID) then
             rule = { armor = rule.armor, stat = rule.stat, weaps = { ["1H_Dual"] = true, ["2H"] = false }, allowedWeapons = rule.allowedWeapons }
         end
     end
@@ -968,6 +969,7 @@ function sfui.highest.GetBestItems(isPvP)
 
     -- Resolve Weapons (combinatorics based on primary stat)
     if not finalPick[16] and not finalPick[17] then
+        local hasFrostbane = (specID == 251) and common.is_talent_known(FROSTBANE_TALENT_ID)
         local best2H = nil
         local best1H = nil
         local bestOH = nil
@@ -983,6 +985,30 @@ function sfui.highest.GetBestItems(isPvP)
                 if not itm.is2H then
                     if not best1H or (best1H.physId ~= itm.physId) then
                         bestOH = itm; break
+                    end
+                end
+            end
+        end
+
+        -- Frost DK with Frostbane: MUST equip the Rune of Razorice weapon in the Main Hand (slot 16)
+        if hasFrostbane and best[16] then
+            local bestRazor1H = nil
+            for _, itm in ipairs(best[16]) do
+                if not itm.is2H and HasRazoriceEnchant(itm) then
+                    bestRazor1H = itm
+                    break
+                end
+            end
+
+            if bestRazor1H then
+                best1H = bestRazor1H
+                bestOH = nil
+                if best[17] then
+                    for _, itm in ipairs(best[17]) do
+                        if not itm.is2H and (bestRazor1H.physId ~= itm.physId) then
+                            bestOH = itm
+                            break
+                        end
                     end
                 end
             end
@@ -1033,23 +1059,44 @@ function sfui.highest.GetBestItems(isPvP)
                 if canOHGoMainHand and can1HGoOffHand then
                     -- Dual Wielding two weapons
                     if specID == 251 then
-                        -- Frost DK: Always put Rune of Razorice in Main Hand
                         local w1Razor = HasRazoriceEnchant(best1H)
                         local w2Razor = HasRazoriceEnchant(bestOH)
-                        if w2Razor and not w1Razor then
-                            finalPick[16] = bestOH
-                            finalPick[17] = best1H
-                        elseif w1Razor and not w2Razor then
-                            finalPick[16] = best1H
-                            finalPick[17] = bestOH
-                        else
-                            -- Both or neither have Razorice: put highest ilvl weapon in Main Hand
-                            if bestOH.ilvl > best1H.ilvl then
+                        if hasFrostbane then
+                            -- Frost DK with Frostbane: ALWAYS put Rune of Razorice in Main Hand
+                            if w2Razor and not w1Razor then
                                 finalPick[16] = bestOH
                                 finalPick[17] = best1H
-                            else
+                            elseif w1Razor and not w2Razor then
                                 finalPick[16] = best1H
                                 finalPick[17] = bestOH
+                            else
+                                -- Both or neither have Razorice: put highest ilvl in Main Hand
+                                if bestOH.ilvl > best1H.ilvl then
+                                    finalPick[16] = bestOH
+                                    finalPick[17] = best1H
+                                else
+                                    finalPick[16] = best1H
+                                    finalPick[17] = bestOH
+                                end
+                            end
+                        else
+                            -- Standard Frost DK without Frostbane:
+                            -- Put Rune of the Fallen Crusader (non-Razorice) in Main Hand,
+                            -- and Rune of Razorice in Off Hand.
+                            if w1Razor and not w2Razor then
+                                finalPick[16] = bestOH
+                                finalPick[17] = best1H
+                            elseif w2Razor and not w1Razor then
+                                finalPick[16] = best1H
+                                finalPick[17] = bestOH
+                            else
+                                if bestOH.ilvl > best1H.ilvl then
+                                    finalPick[16] = bestOH
+                                    finalPick[17] = best1H
+                                else
+                                    finalPick[16] = best1H
+                                    finalPick[17] = bestOH
+                                end
                             end
                         end
                     else
@@ -1092,19 +1139,42 @@ function sfui.highest.GetBestItems(isPvP)
         end
     elseif not finalPick[16] and finalPick[17] then
         -- Offhand is locked; resolve 1H mainhand
+        local hasFrostbane = (specID == 251) and common.is_talent_known(FROSTBANE_TALENT_ID)
         if best[16] then
-            for _, itm in ipairs(best[16]) do
-                if not itm.is2H and (finalPick[17].physId ~= itm.physId) then
-                    local itemID = common.get_item_id(itm.link)
-                    local pickedID = common.get_item_id(finalPick[17].link)
-                    local isUnique = false
-                    if itemID and pickedID and itemID == pickedID then
-                        local _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, unique = GetItemInfo(itm.link)
-                        isUnique = unique or false
+            local pickedItem = nil
+            if hasFrostbane then
+                for _, itm in ipairs(best[16]) do
+                    if not itm.is2H and (finalPick[17].physId ~= itm.physId) and HasRazoriceEnchant(itm) then
+                        local itemID = common.get_item_id(itm.link)
+                        local pickedID = common.get_item_id(finalPick[17].link)
+                        local isUnique = false
+                        if itemID and pickedID and itemID == pickedID then
+                            local _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, unique = GetItemInfo(itm.link)
+                            isUnique = unique or false
+                        end
+                        if not isUnique then
+                            pickedItem = itm
+                            break
+                        end
                     end
-                    if not isUnique then
-                        finalPick[16] = itm
-                        break
+                end
+            end
+            if pickedItem then
+                finalPick[16] = pickedItem
+            else
+                for _, itm in ipairs(best[16]) do
+                    if not itm.is2H and (finalPick[17].physId ~= itm.physId) then
+                        local itemID = common.get_item_id(itm.link)
+                        local pickedID = common.get_item_id(finalPick[17].link)
+                        local isUnique = false
+                        if itemID and pickedID and itemID == pickedID then
+                            local _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, unique = GetItemInfo(itm.link)
+                            isUnique = unique or false
+                        end
+                        if not isUnique then
+                            finalPick[16] = itm
+                            break
+                        end
                     end
                 end
             end
@@ -1399,6 +1469,26 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
             else
                 -- Bag slot contents shifted: equip by item link directly
                 EquipItemByName(item.link, slotID)
+            end
+        elseif item.isEquipped and item.equippedSlot and item.equippedSlot ~= slotID then
+            -- Item is already equipped in another slot (e.g. swapping Main Hand and Off Hand)
+            local currentTargetLink = _G.GetInventoryItemLink("player", slotID)
+            if currentTargetLink ~= item.link then
+                if _G.ClearCursor then _G.ClearCursor() end
+                if _G.PickupInventoryItem then
+                    _G.PickupInventoryItem(item.equippedSlot)
+                    if _G.CursorHasItem and _G.CursorHasItem() then
+                        _G.PickupInventoryItem(slotID)
+                        if _G.CursorHasItem and _G.CursorHasItem() then
+                            _G.PickupInventoryItem(item.equippedSlot)
+                        end
+                        if _G.ClearCursor then _G.ClearCursor() end
+                    else
+                        EquipItemByName(item.link, slotID)
+                    end
+                else
+                    EquipItemByName(item.link, slotID)
+                end
             end
         else
             EquipItemByName(item.link, slotID)

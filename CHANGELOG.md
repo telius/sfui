@@ -2,6 +2,27 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-38 (2026-09-12)
+
+### Features & Delve Improvements
+- **Delve Taint Elimination & LayoutFrame Fix (`scenarios.lua`, `common.lua`, `lootviewer.lua`, `lootspec.lua`)**:
+  - Eliminated `LayoutFrame.lua:491` secret value comparison taint during Delves (`attempt to compare a secret number value`).
+  - Corrected `C_Scenario.GetInfo()` return indices (10 for `scenarioType` and 12 for `textureKit`) to properly detect and skip Delves from world-event scenario widget scans.
+  - Decoupled addon tooltips (`SfuiGameTooltip`, `SfuiLootClassScanTooltip`) from `"GameTooltipTemplate"` to `"TooltipBackdropTemplate"`, avoiding global `UIWidgetManager` registration and taint.
+- **Protected Tooltip Data Restoration across All Addon Frames (`merchant.lua`, `lootviewer.lua`, `currency.lua`, etc.)**:
+  - Re-routed live entity tooltips to `_G.GameTooltip` (required by `C_RestrictedActions.CheckAllowProtectedFunctions` in WoW 11.x/12.x).
+  - Restored vendor item tooltips (including Undercoin/Resonance Crystal costs and Shift-to-compare) at Delve vendors and regular merchants.
+  - Restored live item, spell, and currency tooltips in `merchant.lua`, `lootviewer.lua`, `currency.lua`, `bars/vehicle.lua`, `portals/portals.lua`, `portals/portal_popup.lua`, `tracking/trackedicons.lua`, `tracking/trackedbars.lua`, `tracking/cdm.lua`, `quests/mythic.lua`, and `alts.lua`.
+- **Frost DK Frostbane Weapon Policy (`highest.lua`)**:
+  - Enforced Rune of Razorice weapon in the Main Hand (slot 16) whenever the Frostbane talent (`455993`) is active.
+  - Removed false-positive enchant ID `3368` (Fallen Crusader) from `HasRazoriceEnchant`.
+  - Added direct cursor swapping for already-equipped weapons in `EquipHighestILvl`.
+- **UI & Aesthetic Polish (`gear.lua`, `lootviewer.lua`)**:
+  - Unified secondary stat color indicator system across `gear.lua` and `lootviewer.lua` (Crit, Mastery, Haste, Versatility).
+  - Configured `lootviewer.lua` spec filter to default to "all specs" (`filterSpec = 0`).
+
+---
+
 ## v12.1.0-37 (2026-09-11)
 
 ### Features & Gear Improvements

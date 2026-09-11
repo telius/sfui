@@ -44,7 +44,7 @@ local function show_tooltip(owner, anchor, title, lines)
 end
 
 local function show_item_tooltip(owner, itemID, anchor, extraLines)
-    local tip = sfui.tooltip or _G.GameTooltip
+    local tip = _G.GameTooltip
     if not tip or not owner or not itemID then return end
     tip:SetOwner(owner, anchor or "ANCHOR_RIGHT")
     tip:SetItemByID(itemID)
@@ -63,6 +63,9 @@ end
 local function hide_tooltip()
     if sfui.tooltip and sfui.tooltip:IsShown() then
         sfui.tooltip:Hide()
+    end
+    if _G.GameTooltip and _G.GameTooltip:IsShown() then
+        _G.GameTooltip:Hide()
     end
 end
 
@@ -192,18 +195,32 @@ local pawnScratchList = {
 local function pawnSortDesc(a, b) return a.weight > b.weight end
 
 local statAbbrv    = { Haste = "H", Mastery = "M", Versatility = "V", Crit = "C", H = "H", M = "M", V = "V", C = "C" }
+local statFullName = { H = "Haste", M = "Mastery", V = "Versatility", C = "Crit", Haste = "Haste", Mastery = "Mastery", Versatility = "Versatility", Crit = "Crit" }
 local statPool     = { "H", "M", "V", "C" }
-local statBgColors = {
-    Haste = { 0.05, 0.40, 0.05, 0.9 },
-    H = { 0.05, 0.40, 0.05, 0.9 },
-    Mastery = { 0.45, 0.38, 0.02, 0.9 },
-    M = { 0.45, 0.38, 0.02, 0.9 },
-    Versatility = { 0.03, 0.40, 0.48, 0.9 },
-    V = { 0.03, 0.40, 0.48, 0.9 },
-    Crit = { 0.48, 0.04, 0.04, 0.9 },
-    C = { 0.48, 0.04, 0.04, 0.9 },
-    None = { 0.12, 0.12, 0.12, 0.9 },
+
+local STAT_COLORS = (sfui.config and sfui.config.stat_colors) or {
+    haste       = { 0.2,  0.85, 0.3,  1.0 },
+    crit        = { 1.0,  0.45, 0.1,  1.0 },
+    mastery     = { 0.75, 0.4,  1.0,  1.0 },
+    versatility = { 0.2,  0.65, 1.0,  1.0 },
 }
+
+local statKeyMap = {
+    Haste = "haste", H = "haste",
+    Crit = "crit", C = "crit",
+    Mastery = "mastery", M = "mastery",
+    Versatility = "versatility", V = "versatility",
+}
+
+local statBgColors = setmetatable({
+    None = { 0.12, 0.12, 0.12, 0.9 },
+}, {
+    __index = function(_, k)
+        local colors = sfui.config and sfui.config.stat_colors or STAT_COLORS
+        local statKey = statKeyMap[k]
+        return statKey and colors[statKey]
+    end,
+})
 
 -- Unified PvE / PvP lock colors (used for labels, buttons, tooltips)
 local PVE_COLOR  = { 0.45, 0.65, 1.0 }  -- blue
@@ -491,7 +508,18 @@ function sfui.gear.UpdateStatUI()
                     local st = order[j] or "None"
                     ui.manBtns[j]:SetText(statAbbrv[st] or st:sub(1, 1))
                     local c = statBgColors[st]
-                    if c then ui.manBtns[j]:SetBackdropColor(c[1], c[2], c[3], c[4]) end
+                    if c and st ~= "None" then
+                        ui.manBtns[j]:SetBackdropColor(c[1] * 0.25, c[2] * 0.25, c[3] * 0.25, 0.9)
+                        ui.manBtns[j]:SetBackdropBorderColor(c[1], c[2], c[3], 0.8)
+                        local fs = ui.manBtns[j]:GetFontString()
+                        if fs then fs:SetTextColor(c[1], c[2], c[3], 1.0) end
+                    else
+                        local gray = cfg.colors.gray
+                        ui.manBtns[j]:SetBackdropColor(0.12, 0.12, 0.12, 0.9)
+                        ui.manBtns[j]:SetBackdropBorderColor(gray[1], gray[2], gray[3], 0.6)
+                        local fs = ui.manBtns[j]:GetFontString()
+                        if fs then fs:SetTextColor(1, 1, 1, 1) end
+                    end
                     ui.manBtns[j]:SetAlpha(alpha)
                     if j < 4 then
                         if ui.manTgls[j] and ui.manTgls[j].SetText then
@@ -1363,7 +1391,8 @@ gearFrame:SetScript("OnShow", function(self)
             btn:SetScript("OnEnter", function(b)
                 local order = getCurrentOrder()
                 local st = order[b.idx] or "?"
-                show_tooltip(b, "ANCHOR_TOP", st, {
+                local title = statFullName[st] or st
+                show_tooltip(b, "ANCHOR_TOP", title, {
                     { "Left-click: increase priority", 0.7, 0.7, 0.7 },
                     { "Right-click: decrease priority", 0.7, 0.7, 0.7 }
                 })

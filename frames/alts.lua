@@ -26,7 +26,7 @@ local math_floor = math.floor
 local wipe = wipe
 local C_Timer = C_Timer
 local unpack = unpack or table.unpack
-local GameTooltip = sfui.tooltip or _G.GameTooltip
+local GameTooltip = _G.GameTooltip
 
 -- Frame Pooling
 local columnPool = {}

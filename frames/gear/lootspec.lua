@@ -172,8 +172,21 @@ local function GetActiveDelveSpec()
     local isInst, t = IsInInstance()
     local isDelve = (t == "scenario")
     if not isDelve and C_Scenario and C_Scenario.GetInfo then
-        local _, _, _, _, _, _, _, _, _, _, scenType = C_Scenario.GetInfo()
+        local scenType = select(10, C_Scenario.GetInfo()) or select(11, C_Scenario.GetInfo())
         if scenType == 8 then isDelve = true end
+        if not isDelve then
+            local kit = select(12, C_Scenario.GetInfo())
+            if kit and (kit == "delves-scenario" or kit:find("delve")) then isDelve = true end
+        end
+    end
+    if not isDelve and C_ScenarioInfo and C_ScenarioInfo.GetScenarioInfo then
+        local sInfo = C_ScenarioInfo.GetScenarioInfo()
+        if sInfo then
+            local sType = sInfo.type or sInfo.scenarioType
+            if sType == 8 then isDelve = true end
+            local kit = sInfo.uiTextureKit
+            if kit and (kit == "delves-scenario" or kit:find("delve")) then isDelve = true end
+        end
     end
     if not isDelve and C_DelvesUI and C_DelvesUI.HasActiveDelve then
         if C_DelvesUI.HasActiveDelve() then isDelve = true end

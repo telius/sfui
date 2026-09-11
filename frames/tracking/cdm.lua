@@ -5,7 +5,7 @@ local cfg = sfui.config
 local common = sfui.common
 
 local CreateFrame = CreateFrame
-local GameTooltip = sfui.tooltip or _G.GameTooltip
+local GameTooltip = _G.GameTooltip
 local InCombatLockdown = InCombatLockdown
 local GetCursorPosition = GetCursorPosition
 local GetCursorInfo = GetCursorInfo
@@ -162,7 +162,7 @@ local function OnZoneIconClick(self, button)
 end
 
 local function OnZoneIconEnter(self)
-    local tip = sfui.tooltip
+    local tip = _G.GameTooltip
     if not tip or not self.id then return end
     tip:SetOwner(self, "ANCHOR_RIGHT")
     if self.info then
@@ -228,7 +228,7 @@ local function OnZoneIconEnter(self)
 end
 
 local function OnZoneIconLeave()
-    if sfui.tooltip then sfui.tooltip:Hide() end
+    if _G.GameTooltip then _G.GameTooltip:Hide() end
 end
 
 local function OnPreviewBarUpClick(self)

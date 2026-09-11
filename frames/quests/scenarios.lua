@@ -128,7 +128,7 @@ local function ScanWorldEventScenario(list, AcquireTable, ReleaseTable)
         local resInst, resType = _G.IsInInstance()
         if resInst ~= nil then inInst, instType = resInst, resType end
     end
-    if inInst and instType ~= "none" then return end
+    if inInst or (instType and instType ~= "none") then return end
 
     if C_ChallengeMode and C_ChallengeMode.IsChallengeModeActive and C_ChallengeMode.IsChallengeModeActive() then return end
     if C_DelvesUI and C_DelvesUI.HasActiveDelve and C_DelvesUI.HasActiveDelve() then return end
@@ -136,12 +136,28 @@ local function ScanWorldEventScenario(list, AcquireTable, ReleaseTable)
     local C_Sc = _G.C_Scenario
     if not C_Sc or not C_Sc.IsInScenario or not C_Sc.IsInScenario() then return end
 
-    local name, currentStage, numStages, flags, isComplete, _, _, scenarioType = C_Sc.GetInfo()
-    if not name or name == "" or isComplete then return end
+    if C_ScenarioInfo and C_ScenarioInfo.GetScenarioInfo then
+        local sInfo = C_ScenarioInfo.GetScenarioInfo()
+        if sInfo then
+            if sInfo.isComplete then return end
+            local sType = sInfo.type or sInfo.scenarioType
+            if sType == 8 or sType == 1 or sType == 2 or sType == 5 then return end
+            local kit = sInfo.uiTextureKit
+            if kit and (kit == "delves-scenario" or kit:find("delve")) then return end
+        end
+    end
+
+    local name, currentStage, numStages, flags, _, _, _, _, _, scenarioType, _, textureKit = C_Sc.GetInfo()
+    if not name or name == "" then return end
+
+    if not scenarioType or type(scenarioType) ~= "number" then
+        scenarioType = select(10, C_Sc.GetInfo()) or select(11, C_Sc.GetInfo())
+    end
 
     -- Filter out Delves (8), Dungeons (1), Raids (2), Challenge Mode (5), or instance-flagged scenarios
     if scenarioType == 8 or scenarioType == 1 or scenarioType == 2 or scenarioType == 5 then return end
-    if flags and bit and bit.band and bit.band(flags, 0x01) ~= 0 and inInst then return end
+    if textureKit and (textureKit == "delves-scenario" or textureKit:find("delve")) then return end
+    if flags and bit and bit.band and bit.band(flags, 0x01) ~= 0 then return end
 
     local stepInfo = nil
     if C_ScenarioInfo and C_ScenarioInfo.GetScenarioStepInfo then
