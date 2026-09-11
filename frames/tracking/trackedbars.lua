@@ -84,8 +84,8 @@ function sfui.trackedbars.GetKnownSpells()
             local info = C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
             if info then
                 if info.spellID then
-                    name = C_Spell.GetSpellName(info.spellID)
-                    icon = C_Spell.GetSpellTexture(info.spellID)
+                    name = common.get_spell_name(info.spellID)
+                    icon = common.get_spell_icon(info.spellID)
                 elseif info.itemID then
                     name = C_Item.GetItemNameByID(info.itemID)
                     icon = C_Item.GetItemIconByID(info.itemID)
@@ -93,8 +93,8 @@ function sfui.trackedbars.GetKnownSpells()
             end
         end
         -- Fallback to direct spell lookup if info failed
-        if not name then name = C_Spell.GetSpellName(id) end
-        if not icon then icon = C_Spell.GetSpellTexture(id) end
+        if not name then name = common.get_spell_name(id) end
+        if not icon then icon = common.get_spell_icon(id) end
 
         return name or ("Unknown (" .. id .. ")"), icon or cfg.textures.white
     end
@@ -361,10 +361,9 @@ local function SetupBarState(bar, config, cfg)
         if config.customColor then
             color = config.customColor
         elseif config.useSpecColor then
-            local specID = GetSpecializationInfo(GetSpecialization())
-            local c = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
-                or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
-            if c then color = c end
+            local specID = sfui.common.get_current_spec_id()
+            local r, g, b, a = sfui.common.get_spec_color(specID)
+            color = { r, g, b, a }
         elseif SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars.defaultBarColor then
             color = SfuiDB.trackedBars.defaultBarColor
         elseif config.color then
@@ -413,8 +412,8 @@ local function NormalSort(a, b)
 
     if nA ~= nB then return nA < nB end
 
-    local nA_name = C_Spell.GetSpellName(a.cooldownID) or ""
-    local nB_name = C_Spell.GetSpellName(b.cooldownID) or ""
+    local nA_name = common.get_spell_name(a.cooldownID) or ""
+    local nB_name = common.get_spell_name(b.cooldownID) or ""
     return nA_name < nB_name
 end
 
@@ -428,8 +427,8 @@ local function AttachedSort(a, b)
 
     if aA ~= aB then return aA < aB end
 
-    local nA_name = C_Spell.GetSpellName(a.cooldownID) or ""
-    local nB_name = C_Spell.GetSpellName(b.cooldownID) or ""
+    local nA_name = common.get_spell_name(a.cooldownID) or ""
+    local nB_name = common.get_spell_name(b.cooldownID) or ""
     return nA_name < nB_name
 end
 

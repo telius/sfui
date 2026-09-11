@@ -6,9 +6,6 @@ sfui.lootviewer = {}
 local CreateFrame               = CreateFrame
 local UIParent                  = UIParent
 local GameTooltip               = sfui.tooltip or _G.GameTooltip
-local GetNumSpecializations     = GetNumSpecializations
-local GetSpecializationInfo     = GetSpecializationInfo
-local GetSpecializationInfoByID = GetSpecializationInfoByID
 local UnitClass                 = UnitClass
 local string                    = string
 local math                      = math
@@ -25,62 +22,26 @@ local BOSS_ICO   = 36
 local SCROLL_W       = FRAME_W - 4
 
 -- ─── Class / spec helpers ─────────────────────────────────────────────────────
-local CLASS_NAMES_TO_ID = {
-    WARRIOR = 1, PALADIN = 2, HUNTER = 3, ROGUE = 4, PRIEST = 5,
-    DEATHKNIGHT = 6, SHAMAN = 7, MAGE = 8, WARLOCK = 9, MONK = 10,
-    DRUID = 11, DEMONHUNTER = 12, EVOKER = 13,
-}
-
-local _, ENGLISH_CLASS, PLAYER_CLASS_ID = UnitClass("player")
-if not PLAYER_CLASS_ID or PLAYER_CLASS_ID == 0 then
-    local _, eng, cid = UnitClass("player")
-    if cid and cid > 0 then
-        PLAYER_CLASS_ID = cid
-    elseif eng and CLASS_NAMES_TO_ID[eng] then
-        PLAYER_CLASS_ID = CLASS_NAMES_TO_ID[eng]
-    else
-        PLAYER_CLASS_ID = 0
-    end
-end
+local ENGLISH_CLASS, PLAYER_CLASS_ID = sfui.common.get_player_class()
 
 local function GetPlayerClassID()
-    if PLAYER_CLASS_ID and PLAYER_CLASS_ID > 0 then
-        return PLAYER_CLASS_ID
-    end
-    local _, eng, cid = UnitClass("player")
-    if cid and cid > 0 then
-        PLAYER_CLASS_ID = cid
-        return cid
-    end
-    if eng and CLASS_NAMES_TO_ID[eng] then
-        PLAYER_CLASS_ID = CLASS_NAMES_TO_ID[eng]
-        return PLAYER_CLASS_ID
-    end
-    return 0
+    return sfui.common.get_player_class_id()
 end
 
-
-local playerSpecs   = {}
-local playerSpecIDs = {}
+local playerSpecs, playerSpecIDs
 
 local function InitPlayerSpecs()
-    GetPlayerClassID()
-    if #playerSpecIDs > 0 then return end
-    local n = GetNumSpecializations() or 0
-    for i = 1, n do
-        local specID, name, desc, icon, role, primaryStat = GetSpecializationInfo(i)
-        if specID and specID > 0 then
-            playerSpecs[specID] = {
-                id          = specID,
-                name        = name,
-                icon        = icon,
-                role        = role,
-                primaryStat = primaryStat,
-                index       = i,
-            }
-            playerSpecIDs[#playerSpecIDs + 1] = specID
-        end
+    if playerSpecs and playerSpecIDs and #playerSpecIDs > 0 then
+        return playerSpecs, playerSpecIDs
     end
+    playerSpecs, playerSpecIDs = sfui.common.get_player_specs()
+    return playerSpecs, playerSpecIDs
+end
+
+InitPlayerSpecs()
+
+local function GetCurrentSpecID()
+    return sfui.common.get_current_spec_id()
 end
 
 local function DB()
@@ -101,26 +62,16 @@ end
 
 local function SpecName(specID)
     if specID == 0 then return "— off —" end
-    local _, name = GetSpecializationInfoByID(specID)
-    return name or ("Spec "..specID)
+    return sfui.common.get_spec_name(specID)
 end
 
 local function SpecIcon(specID)
     if specID == 0 then return nil end
-    local _, _, _, icon = GetSpecializationInfoByID(specID)
-    return icon
+    return sfui.common.get_spec_icon(specID)
 end
 
 local function GetSpecColor(specID)
-    if sfui.common and sfui.common.get_spec_color then
-        return sfui.common.get_spec_color(specID)
-    end
-    local c = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
-        or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
-    if c then
-        return c[1], c[2], c[3], c[4] or 1
-    end
-    return 0.0, 0.8, 1.0, 1
+    return sfui.common.get_spec_color(specID)
 end
 
 local function CycleSpec(currentID)
@@ -188,7 +139,7 @@ local function IsSetItemToken(itemID, itemLink, filterType, name)
     if _G.TokenTooltip and _G.TokenTooltip.TokenItems and _G.TokenTooltip.TokenItems[itemID] then
         return true
     end
-    local _, _, _, itemEquipLoc, _, classID, subclassID = GetItemInfoInstant(itemLink or itemID)
+    local _, _, _, itemEquipLoc, _, classID, subclassID = sfui.common.get_item_instant_info(itemLink or itemID)
     if classID == 5 and subclassID == 2 then
         return true
     end
@@ -206,7 +157,7 @@ local function IsSetItemToken(itemID, itemLink, filterType, name)
 end
 
 local function ResolveItemSlot(itemID, itemLink, filterType)
-    local _, _, _, equipLoc = GetItemInfoInstant(itemLink or itemID)
+    local _, _, _, equipLoc = sfui.common.get_item_instant_info(itemLink or itemID)
     if equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_NON_EQUIP_IGNORE" and EQUIP_LOC_TO_SLOT[equipLoc] then
         return EQUIP_LOC_TO_SLOT[equipLoc]
     end
@@ -223,12 +174,7 @@ local SLOT_LABELS = {
     trinket = "trnk", other = "other", token = "other",
 }
 
-local SLOT_NAMES = {
-    head = "Head", neck = "Neck", shoulder = "Shoulder", back = "Back",
-    chest = "Chest", wrist = "Wrist", hands = "Hands", waist = "Waist",
-    legs = "Legs", feet = "Feet", weapon = "Weapon", ring = "Ring",
-    trinket = "Trinket", other = "Other", token = "Other",
-}
+
 
 local function EnsureEJ()
     if EJ_GetInstanceByIndex then return true end
@@ -258,7 +204,7 @@ local function IsItemForPlayerClass(itemID, itemLink)
 
     local link = itemLink or ("item:" .. itemID)
     local isToken = IsSetItemToken(itemID, link)
-    local _, _, _, _, _, _ = GetItemInfoInstant(link or itemID)
+    sfui.common.get_item_instant_info(link or itemID)
 
     -- 1. Check C_Item.GetItemSpecInfo if available
     if C_Item and C_Item.GetItemSpecInfo then
@@ -385,9 +331,7 @@ local function IsItemForPlayerClass(itemID, itemLink)
     -- Don't allow uncached tokens through until tooltip data confirms they match player class.
     local isToken = IsSetItemToken(itemID, link)
     if isToken and not dataReady then
-        if C_Item and C_Item.RequestLoadItemDataByID then
-            C_Item.RequestLoadItemDataByID(itemID)
-        end
+        sfui.common.request_item_load(itemID)
         return false
     end
 
@@ -398,9 +342,7 @@ local function IsItemForPlayerClass(itemID, itemLink)
     end
 
     -- Item data not yet in cache: request load, do not cache boolean yet
-    if C_Item and C_Item.RequestLoadItemDataByID then
-        C_Item.RequestLoadItemDataByID(itemID)
-    end
+    sfui.common.request_item_load(itemID)
     return true
 end
 
@@ -507,7 +449,7 @@ local function FetchEncounterLoot(bossID)
         C_EncounterJournal.ResetSlotFilter()
     end
 
-    local playerClassID = select(3, UnitClass("player")) or GetPlayerClassID()
+    local playerClassID = sfui.common.get_player_class_id()
     if not playerClassID or playerClassID <= 0 then
         if oldSlot and C_EncounterJournal and C_EncounterJournal.SetSlotFilter then
             securecall(C_EncounterJournal.SetSlotFilter, oldSlot)
@@ -537,9 +479,7 @@ local function FetchEncounterLoot(bossID)
                                 name       = info.name,
                                 slot       = resolvedSlot,
                                 icon       = info.icon,
-                                quality    = (C_Item and C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(itemID))
-                                              or (select(3, GetItemInfo(info.link or itemID)))
-                                              or 4,
+                                quality    = sfui.common.get_item_quality(itemID or info.link) or 4,
                                 link       = info.link,
                                 specs      = {},
                                 filterType = info.filterType,
@@ -581,9 +521,7 @@ local function FetchEncounterLoot(bossID)
                         name       = info.name,
                         slot       = resolvedSlot,
                         icon       = info.icon,
-                        quality    = (C_Item and C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(itemID))
-                                      or (select(3, GetItemInfo(info.link or itemID)))
-                                      or 4,
+                        quality    = sfui.common.get_item_quality(itemID or info.link) or 4,
                         link       = info.link,
                         specs      = {},
                         filterType = info.filterType,
@@ -605,9 +543,7 @@ local function FetchEncounterLoot(bossID)
                             name       = info.name,
                             slot       = resolvedSlot,
                             icon       = info.icon,
-                            quality    = (C_Item and C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(itemID))
-                                          or (select(3, GetItemInfo(info.link or itemID)))
-                                          or 4,
+                            quality    = sfui.common.get_item_quality(itemID or info.link) or 4,
                             link       = info.link,
                             specs      = {},
                             filterType = info.filterType,
@@ -635,9 +571,8 @@ local function RestoreDefaultLootFilter(savedClass, savedSpec)
     if savedClass and savedClass > 0 then
         securecall(EJ_SetLootFilter, savedClass, savedSpec or 0)
     else
-        local pClass = select(3, UnitClass("player")) or GetPlayerClassID()
-        local activeSpec = GetSpecialization()
-        local activeSpecID = activeSpec and select(1, GetSpecializationInfo(activeSpec)) or 0
+        local pClass = sfui.common.get_player_class_id()
+        local activeSpecID = sfui.common.get_current_spec_id()
         if pClass and pClass > 0 and activeSpecID and activeSpecID > 0 then
             securecall(EJ_SetLootFilter, pClass, activeSpecID)
         elseif pClass and pClass > 0 then
@@ -936,7 +871,7 @@ local function IsNonEquippableOrCosmetic(item)
     if not item or not item.id then return true end
     local itemID = item.id
 
-    local _, _, _, itemEquipLoc, _, classID, subclassID = GetItemInfoInstant(item.link or itemID)
+    local _, _, _, itemEquipLoc, _, classID, subclassID = sfui.common.get_item_instant_info(item.link or itemID)
 
     -- Tabards and shirts are non-combat cosmetic
     if itemEquipLoc == "INVTYPE_TABARD" or itemEquipLoc == "INVTYPE_BODY" then
@@ -1476,7 +1411,7 @@ local function MakeMythicLink(baseLink, itemID)
     end
 
     local playerLevel = (UnitLevel and UnitLevel("player")) or 80
-    local specID = (GetSpecialization and GetSpecializationInfo and GetSpecializationInfo(GetSpecialization())) or 0
+    local specID = sfui.common.get_current_spec_id()
     return string.format("item:%d::::::::%d:%d:::3:1498:12849:1674", itemID, playerLevel, specID)
 end
 
@@ -1561,7 +1496,7 @@ local function ItemHasStat(item, statKey, isDungeon)
     end
 
     -- 1. Check C_Item.GetItemStats
-    local stats = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats(link)) or (GetItemStats and GetItemStats(link))
+    local stats = sfui.common.get_item_stats(link)
     local modKeys = STAT_KEYS[statKey]
     if stats and modKeys then
         for _, k in ipairs(modKeys) do
@@ -1612,7 +1547,7 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
     b.tex:SetTexture(iconTex and iconTex ~= 0 and iconTex or "Interface\\Icons\\INV_Misc_QuestionMark")
 
     InitPlayerSpecs()
-    local maxSpecs = #playerSpecIDs > 0 and #playerSpecIDs or (GetNumSpecializations and GetNumSpecializations()) or 3
+    local maxSpecs = #playerSpecIDs > 0 and #playerSpecIDs or 3
     local singleSpecID = nil
     local specCount = 0
     if curItem.specs then
@@ -1624,16 +1559,22 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
         end
     end
 
+    local isUsed = sfui.bonusroll and sfui.bonusroll.IsUsed and sfui.bonusroll.IsUsed(itemID)
+
     CreateButtonBorders(b)
-    if specCount == 1 and singleSpecID then
+    if isUsed then
+        for _, border in ipairs(b.borders) do
+            border:Hide()
+        end
+    elseif specCount == 1 and singleSpecID then
         local r, g, bl = GetSpecColor(singleSpecID)
         for _, border in ipairs(b.borders) do
-            border:SetVertexColor(r or 0.64, g or 0.21, bl or 0.93, 1)
+            border:SetColorTexture(r or 0.64, g or 0.21, bl or 0.93, 1)
             border:Show()
         end
     elseif specCount > 1 and specCount < maxSpecs then
         for _, border in ipairs(b.borders) do
-            border:SetVertexColor(1, 1, 1, 1)
+            border:SetColorTexture(1, 1, 1, 1)
             border:Show()
         end
     else
@@ -1658,7 +1599,7 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
         end
     end
 
-    if activeCount > 0 and matchCount == activeCount and sfui.glows and sfui.glows.start_glow then
+    if not isUsed and activeCount > 0 and matchCount == activeCount and sfui.glows and sfui.glows.start_glow then
         local glowColor = (activeCount > 1) and { 1.0, 0.85, 0.2, 1.0 } or (matchedColor or { 1.0, 0.85, 0.2, 1.0 })
         sfui.glows.start_glow(b, {
             glowType      = "pixel",
@@ -1677,7 +1618,6 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
     b.badge:SetText(badgeText)
     b.badge:SetTextColor(1, 1, 1, 1)
 
-    local isUsed = sfui.bonusroll and sfui.bonusroll.IsUsed and sfui.bonusroll.IsUsed(itemID)
     local isOwned = (C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID, true) or 0) > 0
 
     if b.crossTex then
@@ -1709,7 +1649,7 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
             b.targetIcon:Hide()
         end
     end
-    if isItemTargeted and b.borders then
+    if isItemTargeted and not isUsed and b.borders then
         for _, border in ipairs(b.borders) do
             border:SetColorTexture(0.8, 0.27, 1.0, 1.0)
             border:Show()
@@ -1883,13 +1823,13 @@ local function PopulateCard(card, entry, keyID, isBoss, parentName)
         if filterSpec ~= 0 and filterSlot ~= "all" then
             local sInfo = playerSpecs[filterSpec]
             local sName = sInfo and sInfo.name:lower() or "spec"
-            card.noLootFS:SetText("— no " .. sName .. " " .. (SLOT_NAMES[filterSlot] or filterSlot):lower() .. " drops —")
+            card.noLootFS:SetText("— no " .. sName .. " " .. sfui.common.get_slot_name(filterSlot):lower() .. " drops —")
         elseif filterSpec ~= 0 then
             local sInfo = playerSpecs[filterSpec]
             local sName = sInfo and sInfo.name:lower() or "spec"
             card.noLootFS:SetText("— no " .. sName .. " drops —")
         elseif filterSlot ~= "all" then
-            card.noLootFS:SetText("— no " .. (SLOT_NAMES[filterSlot] or filterSlot):lower() .. " drops —")
+            card.noLootFS:SetText("— no " .. sfui.common.get_slot_name(filterSlot):lower() .. " drops —")
         else
             card.noLootFS:SetText("— no loot entries —")
         end
@@ -2051,7 +1991,7 @@ end
 
 -- ─── Main frame ───────────────────────────────────────────────────────────────
 local frame           = nil
-local activeTab       = "dungeons"
+local activeTab       = "raids"
 local scrollChild_ref = nil
 local RefreshDefBtn   = nil
 local enableCB_ref    = nil
@@ -2432,10 +2372,10 @@ function sfui.lootviewer.CreateFrame()
 
     frame:SetScript("OnShow", function()
         filterSlot   = "all"
-        filterSpec   = 0
+        filterSpec   = GetCurrentSpecID()
         filterSearch = ""
         searchBox:SetText("")
-        activeTab = "dungeons"
+        activeTab    = "raids"
         RefreshTabs()
         RefreshSpecBtns()
         RefreshStatBtns()
@@ -2467,6 +2407,11 @@ function sfui.lootviewer.Toggle()
     if frame:IsShown() then frame:Hide() else frame:Show() end
 end
 
+function sfui.lootviewer.Open()
+    if not frame then frame = sfui.lootviewer.CreateFrame() end
+    if not frame:IsShown() then frame:Show() end
+end
+
 function sfui.lootviewer.ClearCache()
     raidDataCache              = nil
     dungeonDataCache           = nil
@@ -2496,7 +2441,11 @@ sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function()
     if RefreshDefBtn then RefreshDefBtn() end
     raidDataCache    = nil
     dungeonDataCache = nil
-    if frame and frame:IsShown() then DoRebuild() end
+    if frame and frame:IsShown() then
+        filterSpec = GetCurrentSpecID()
+        if sfui.lootviewer.RefreshSpecBtns then sfui.lootviewer.RefreshSpecBtns() end
+        DoRebuild()
+    end
 end)
 
 sfui.events.RegisterEvent("CHALLENGE_MODE_MAPS_UPDATE", function()

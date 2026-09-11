@@ -707,4 +707,13 @@ sfui.config = {
         posX    = 0,  -- default horizontal offset (centered at bottom)
         posY    = 50, -- default vertical offset (+50px from bottom)
     },
+
+    -- ─── Dungeon Portal Popup ────────────────────────────
+    -- Settings for the group-filled teleport popup (frames/portals/portal_popup.lua).
+    portalPopup = {
+        enabled      = true,
+        onlyWhenFull = true,  -- true: notify only when group reaches 5/5; false: also on join
+        autoHideSecs = 45,
+        defaultPosition = { x = 0, y = 180 },
+    },
 }

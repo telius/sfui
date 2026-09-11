@@ -81,7 +81,7 @@ local function is_instant_spell(spellID)
         return cached, instant_cache_name[spellID]
     end
 
-    local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(spellID)
+    local info = common.get_spell_info(spellID)
     if info and info.castTime and info.castTime == 0 then
         -- Filter out hidden aura triggers (like Frailty) and passives
         if IsPlayerSpell(spellID) then
@@ -381,8 +381,7 @@ local function Player_OnEvent(event, unit, ...)
 
         local isInstant, name = is_instant_spell(spellID)
         if isInstant then
-            local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(spellID)
-            local texture = info and info.iconID
+            local texture = common.get_spell_icon(spellID)
 
             local onGCD, gcdDuration = common.GetGCDInfo()
             local duration = (onGCD and gcdDuration > 0) and gcdDuration or apply_haste_to_gcd(1.5)

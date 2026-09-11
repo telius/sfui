@@ -31,12 +31,9 @@ function sfui.cursor.initialize()
 
     -- Helper: Update Color
     local function UpdateColor()
-        local spec = GetSpecialization()
-        local specID = spec and GetSpecializationInfo(spec) or 0
-        local color = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
-            or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
-            or { 1, 1, 1, 1 }
-        ring:SetVertexColor(color[1], color[2], color[3], 0.8)
+        local specID = sfui.common.get_current_spec_id()
+        local r, g, b = sfui.common.get_spec_color(specID)
+        ring:SetVertexColor(r, g, b, 0.8)
     end
 
     -- Event Handler (via central dispatcher)

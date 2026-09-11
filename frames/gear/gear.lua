@@ -13,8 +13,6 @@ local C_EquipmentSet = _G.C_EquipmentSet
 local GetInstanceInfo = _G.GetInstanceInfo
 local C_PvP = _G.C_PvP
 local C_Timer = _G.C_Timer
-local GetNumSpecializations = _G.GetNumSpecializations
-local GetSpecializationInfo = _G.GetSpecializationInfo
 local UIParent = _G.UIParent
 local CharacterFrame = _G.CharacterFrame
 local CharacterFrameCloseButton = _G.CharacterFrameCloseButton
@@ -371,11 +369,10 @@ function sfui.gear.UpdateStatUI()
         lbl:SetTextColor(r, g, b)
     end
 
-    local numSpecs = GetNumSpecializations()
-    if numSpecs == 0 then numSpecs = 1 end
+    local _, specIDs = common.get_player_specs()
 
-    for i = 1, numSpecs do
-        local specID = GetSpecializationInfo(i)
+    for _, specID in ipairs(specIDs or {}) do
+        local specID = specID
         if specID and SfuiGearManagerFrame.specUIs and SfuiGearManagerFrame.specUIs[specID] then
             local ui = SfuiGearManagerFrame.specUIs[specID]
             local db = SfuiDB.gear[specID] or {}
@@ -704,8 +701,7 @@ end
 local function handle_spec_change(event, unit)
     if (event == "PLAYER_SPECIALIZATION_CHANGED" or event == "UNIT_SPELLCAST_SUCCEEDED") and unit and unit ~= "player" then return end
     
-    local specIdx = GetSpecialization()
-    local specId = specIdx and GetSpecializationInfo(specIdx)
+    local specId = common.get_current_spec_id()
     if not specId or specId == 0 then return end
 
     -- On initial login or reload, record the current spec and avoid triggering a spec swap
@@ -941,17 +937,15 @@ gearFrame:SetScript("OnShow", function(self)
     if sfui.gear.UpdateStatUI then sfui.gear.UpdateStatUI() end
     if self.initialized then
         if self.SelectSpecTab then
-            local specIdx = GetSpecialization()
-            local specId = specIdx and GetSpecializationInfo(specIdx)
-            if specId then self:SelectSpecTab(specId) end
+            local specId = common.get_current_spec_id()
+            if specId and specId > 0 then self:SelectSpecTab(specId) end
         end
         return
     end
     self.initialized = true
     self.specUIs = {}
 
-    local numSpecs = GetNumSpecializations()
-    if numSpecs == 0 then numSpecs = 1 end
+    local _, specIDs = common.get_player_specs()
 
     local HEADER_H = 42
     local CARD_H   = 142
@@ -972,7 +966,7 @@ gearFrame:SetScript("OnShow", function(self)
     end
 
     self.tabBtns = self.tabBtns or {}
-    local activeSpecId = GetSpecializationInfo(GetSpecialization() or 1)
+    local activeSpecId = common.get_current_spec_id() or (specIDs and specIDs[1])
 
     self.SelectSpecTab = function(f, specID)
         f.activeSpecID = specID
@@ -1034,9 +1028,9 @@ gearFrame:SetScript("OnShow", function(self)
     end
 
     local startX = 10
-    for i = 1, numSpecs do
-        local id, _, _, icon = GetSpecializationInfo(i)
-        if id then
+    for _, id in ipairs(specIDs or {}) do
+        local icon = common.get_spec_icon(id)
+        if id and icon then
             local btn = CreateFrame("Button", nil, self, "BackdropTemplate")
             btn:SetSize(28, 28)
             btn:SetPoint("TOPLEFT", self, "TOPLEFT", startX, -7)
@@ -1051,10 +1045,7 @@ gearFrame:SetScript("OnShow", function(self)
     end
 
     local yOff = -5
-    for i = 1, numSpecs do
-        local id, specName, _, icon = GetSpecializationInfo(i)
-        if not id then return end
-
+    for _, id in ipairs(specIDs or {}) do
         self.specUIs[id] = {}
         local ui = self.specUIs[id]
 
@@ -1583,8 +1574,7 @@ function sfui.gear.initialize()
         end
     end
 
-    local specIdx = GetSpecialization()
-    lastSpecID = specIdx and GetSpecializationInfo(specIdx)
+    lastSpecID = common.get_current_spec_id()
 end
 
 function sfui.gear_debug_info()

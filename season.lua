@@ -47,9 +47,6 @@ sfui.season.CURRENCIES = {
     },
     -- 12.0.5 / 12.1 Currencies and Items
     { id = 3418,   label = "VoidCore", icon = 0 },                         -- Nebulous Voidcore
-    { id = 3405,   label = "Accolade", icon = 0 },                         -- Field Accolade
-    { id = 3373,   label = "Pearl",    icon = 0 },                         -- Angler Pearls
-    { id = 267051, label = "Particle", icon = 0, isItem = true },          -- Dark Particle
 }
 
 -- ─── Weekly Quest Definitions ───────────────────────────────────────────────

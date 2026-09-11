@@ -9,8 +9,6 @@ local CreateFrame = CreateFrame
 local UIParent = UIParent
 local C_Timer = C_Timer
 local GameTooltip = sfui.tooltip or _G.GameTooltip
-local GetNumSpecializations = GetNumSpecializations
-local GetSpecializationInfo = GetSpecializationInfo
 local select = select
 
 local frame
@@ -465,11 +463,13 @@ function sfui.create_options_panel()
     spec_header:SetText("specialization colors:")
 
     local spec_swatches = {}
-    local numSpecs = (GetNumSpecializations and GetNumSpecializations()) or 0
+    local specs, specIDs = common.get_player_specs()
     local prevAnchor = spec_header
 
-    for i = 1, numSpecs do
-        local specID, specName, _, icon = GetSpecializationInfo(i)
+    for i, specID in ipairs(specIDs or {}) do
+        local spec = specs and specs[specID]
+        local specName = spec and spec.name or ("Spec " .. i)
+        local icon = spec and spec.icon
         if specID then
             local iconTex = main_panel:CreateTexture(nil, "ARTWORK")
             iconTex:SetSize(16, 16)
@@ -484,7 +484,7 @@ function sfui.create_options_panel()
             local specText = main_panel:CreateFontString(nil, "OVERLAY", g.font)
             specText:SetPoint("LEFT", iconTex, "RIGHT", 6, 0)
             specText:SetTextColor(1, 1, 1, 1)
-            specText:SetText(specName or ("Spec " .. i))
+            specText:SetText(specName)
 
             local curCol = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
                 or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
@@ -513,8 +513,7 @@ function sfui.create_options_panel()
         reset_spec_btn:SetPoint("TOPLEFT", spec_header, "BOTTOMLEFT", 0, -12)
     end
     reset_spec_btn:SetScript("OnClick", function()
-        for i = 1, numSpecs do
-            local specID = select(1, GetSpecializationInfo(i))
+        for _, specID in ipairs(specIDs or {}) do
             if specID then
                 if SfuiDB.spec_colors then
                     SfuiDB.spec_colors[specID] = nil
@@ -939,10 +938,28 @@ function sfui.create_options_panel()
         "prints the dungeon name and key level to chat when a mythic+ invite is accepted, and again when the group fills.")
     keystone_cb:SetPoint("TOPLEFT", auto_log_cb, "BOTTOMLEFT", 0, -10)
 
+    if SfuiDB.autoDungeonPortalPopup == nil then SfuiDB.autoDungeonPortalPopup = true end
+    local portal_popup_cb = create_checkbox(automation_panel, "dungeon teleport popup", "autoDungeonPortalPopup", nil,
+        "shows a clickable dungeon teleport popup when a mythic+ group is formed.")
+    portal_popup_cb:SetPoint("TOPLEFT", keystone_cb, "BOTTOMLEFT", 0, -10)
+
+    local test_portal_btn = CreateFlatButton(automation_panel, "test preview", 100, 20)
+    test_portal_btn:SetPoint("LEFT", portal_popup_cb.text, "RIGHT", 15, 0)
+    test_portal_btn:SetScript("OnClick", function()
+        if sfui.portals and sfui.portals.TestPortalPopup then
+            sfui.portals.TestPortalPopup()
+        end
+    end)
+
+    if SfuiDB.portalPopupOnlyWhenFull == nil then SfuiDB.portalPopupOnlyWhenFull = true end
+    local portal_full_cb = create_checkbox(automation_panel, "only when group is full (5/5)", "portalPopupOnlyWhenFull", nil,
+        "when enabled, the teleport popup only appears when the 5th member joins; otherwise it also shows immediately upon accepting an invite.")
+    portal_full_cb:SetPoint("TOPLEFT", portal_popup_cb, "BOTTOMLEFT", 15, -6)
+
     if SfuiDB.ahCurrentExpansionFilter == nil then SfuiDB.ahCurrentExpansionFilter = true end
     local ah_expansion_cb = create_checkbox(automation_panel, "AH: filter current expansion only", "ahCurrentExpansionFilter", nil,
         "automatically enables the \"current expansion only\" filter every time you open the auction house.")
-    ah_expansion_cb:SetPoint("TOPLEFT", keystone_cb, "BOTTOMLEFT", 0, -10)
+    ah_expansion_cb:SetPoint("TOPLEFT", portal_full_cb, "BOTTOMLEFT", -15, -10)
 
     if SfuiDB.autoLfgDungeonDefaults == nil then SfuiDB.autoLfgDungeonDefaults = true end
     local lfg_dungeon_cb = create_checkbox(automation_panel, "LFG: auto Mythic+ & Competitive", "autoLfgDungeonDefaults", nil,
@@ -1054,8 +1071,7 @@ function sfui.create_options_panel()
         end
         self.initialized = true
 
-        local numSpecs = GetNumSpecializations()
-        if numSpecs == 0 then numSpecs = 1 end
+        local _, gearSpecIDs = common.get_player_specs()
 
 
         local gear_auto_open_cb = common.create_checkbox(gear_panel, "Auto-show with Character Panel")
@@ -1094,9 +1110,8 @@ function sfui.create_options_panel()
 
         local yOffset = -80
         local rowHeight = 45
-        for i = 1, numSpecs do
-            local id, name, _, icon = GetSpecializationInfo(i)
-            if not id then return end
+        for _, id in ipairs(gearSpecIDs or {}) do
+            local icon = common.get_spec_icon(id)
 
             local iconTex = self:CreateTexture(nil, "ARTWORK")
             iconTex:SetSize(32, 32)

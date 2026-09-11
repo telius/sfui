@@ -2,8 +2,6 @@
 -- Based on ArcUI's pattern with alpha hooks for smooth transitions
 
 local LCG = LibStub and LibStub("LibCustomGlow-1.0", true)
-local GetSpecialization = GetSpecialization
-local GetSpecializationInfo = GetSpecializationInfo
 
 if not LCG then
     -- Fallback: LibCustomGlow not available
@@ -47,16 +45,10 @@ function sfui.glows.resolve_config(entrySettings, panelConfig, targetTable)
 
     local color = GetValue(entrySettings, panelConfig, "glowColor", { 1, 0.85, 0.1, 1 })
     if cfg.useSpecColor then
-        local specIndex = GetSpecialization()
-        if specIndex and specIndex > 0 then
-            local specID = GetSpecializationInfo(specIndex)
-            if specID then
-                local c = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
-                    or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
-                if c then
-                    color = c
-                end
-            end
+        local specID = sfui.common.get_current_spec_id()
+        if specID and specID > 0 then
+            local r, g, b, a = sfui.common.get_spec_color(specID)
+            color = { r, g, b, a }
         end
     end
     cfg.glowColor = color

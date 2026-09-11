@@ -373,8 +373,8 @@ function sfui.mem.GetModuleStats()
         local l = sfui.lootspec_debug_info()
         lootMod.status = l.enabled and "|cff00ff88enabled|r" or "|cff888888disabled|r"
         local defName = "current"
-        if l.defaultSpec and l.defaultSpec ~= 0 and GetSpecializationInfoByID then
-            local _, n = GetSpecializationInfoByID(l.defaultSpec)
+        if l.defaultSpec and l.defaultSpec ~= 0 then
+            local n = sfui.common and sfui.common.get_spec_name and sfui.common.get_spec_name(l.defaultSpec)
             if n then defName = n end
         end
         lootMod.line1 = string_format("auto-swap: %s • default: %s", l.enabled and "|cff00ff88on|r" or "|cff888888off|r", defName)

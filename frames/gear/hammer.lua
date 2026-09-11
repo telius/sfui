@@ -98,7 +98,7 @@ local itemExpansionCache = {}
 
 local function get_item_expansion(itemLink)
     if not itemLink then return nil end
-    local itemID = C_Item.GetItemInfoInstant(itemLink)
+    local itemID = sfui.common.get_item_id(itemLink)
     if itemID and itemExpansionCache[itemID] ~= nil then
         return itemExpansionCache[itemID]
     end
@@ -108,8 +108,8 @@ local function get_item_expansion(itemLink)
         expacID = select(15, _G.GetItemInfo(itemLink))
     end
 
-    if expacID == nil and itemID and C_Item and C_Item.RequestLoadItemDataByID then
-        C_Item.RequestLoadItemDataByID(itemID)
+    if expacID == nil and itemID then
+        sfui.common.request_item_load(itemID)
     end
 
     if expacID ~= nil and itemID then
@@ -151,48 +151,45 @@ end
 local function scan_bags_for_hammers()
     recycle_hammer_entries()
 
-    for bag = 0, 5 do
-        for slot = 1, C_Container.GetContainerNumSlots(bag) do
-            local info = C_Container.GetContainerItemInfo(bag, slot)
-            if info then
-                local itemID = info.itemID or (info.hyperlink and C_Item.GetItemInfoInstant(info.hyperlink))
-                if itemID and not seenBagItemIDs[itemID] then
-                    local hammerCfg = sfui.config.masterHammer and sfui.config.masterHammer[itemID]
-                    if hammerCfg then
-                        seenBagItemIDs[itemID] = true
-                        local name, _, _, _, _, _, _, _, _, icon = info.hyperlink and C_Item.GetItemInfo and C_Item.GetItemInfo(info.hyperlink)
-                        name = name or (itemID and C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID)) or "Master's Hammer"
-                        icon = icon or (itemID and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID)) or info.iconFileID or 134376
-                        local expac = hammerCfg.expansion
-                        local expacName = hammerCfg.expansionName or (expac and EXPANSION_NAMES[expac]) or "Unknown"
+    sfui.common.for_each_bag_item(function(bag, slot, itemID, link, info)
+        if info then
+            local id = itemID or info.itemID or sfui.common.get_item_id(info.hyperlink)
+            if id and not seenBagItemIDs[id] then
+                local hammerCfg = sfui.config.masterHammer and sfui.config.masterHammer[id]
+                if hammerCfg then
+                    seenBagItemIDs[id] = true
+                    local name, _, _, _, _, _, _, _, _, icon = (link or info.hyperlink) and C_Item.GetItemInfo and C_Item.GetItemInfo(link or info.hyperlink)
+                    name = name or (id and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id)) or "Master's Hammer"
+                    icon = icon or (id and C_Item.GetItemIconByID and C_Item.GetItemIconByID(id)) or info.iconFileID or 134376
+                    local expac = hammerCfg.expansion
+                    local expacName = hammerCfg.expansionName or (expac and EXPANSION_NAMES[expac]) or "Unknown"
 
-                        local entry = get_hammer_entry(itemID, name, icon, expac, expacName, hammerCfg)
+                    local entry = get_hammer_entry(id, name, icon, expac, expacName, hammerCfg)
+                    table.insert(carriedHammers, entry)
+                    if expac then
+                        carriedByExpac[expac] = entry
+                    end
+                    -- Prioritize higher expansion hammer as primary
+                    if not primaryHammer or ((expac or 0) > (primaryHammer.expansion or 0)) then
+                        primaryHammer = entry
+                    end
+                elseif info.hyperlink or id then
+                    -- Fallback for generic/older hammers matching name
+                    local name = ((link or info.hyperlink) and C_Item.GetItemInfo and C_Item.GetItemInfo(link or info.hyperlink)) or (id and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id))
+                    if name and (name:find("Master.s Hammer") or name:find("Master Repair Hammer") or name:find("Meisterhammer")) then
+                        seenBagItemIDs[id] = true
+                        local _, _, _, _, _, _, _, _, _, icon = (link or info.hyperlink) and C_Item.GetItemInfo and C_Item.GetItemInfo(link or info.hyperlink)
+                        icon = icon or (id and C_Item.GetItemIconByID and C_Item.GetItemIconByID(id)) or info.iconFileID or 134376
+                        local entry = get_hammer_entry(id, name, icon, nil, "Generic", nil)
                         table.insert(carriedHammers, entry)
-                        if expac then
-                            carriedByExpac[expac] = entry
-                        end
-                        -- Prioritize higher expansion hammer as primary
-                        if not primaryHammer or ((expac or 0) > (primaryHammer.expansion or 0)) then
+                        if not primaryHammer then
                             primaryHammer = entry
-                        end
-                    elseif info.hyperlink or itemID then
-                        -- Fallback for generic/older hammers matching name
-                        local name = (info.hyperlink and C_Item.GetItemInfo and C_Item.GetItemInfo(info.hyperlink)) or (itemID and C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID))
-                        if name and (name:find("Master.s Hammer") or name:find("Master Repair Hammer") or name:find("Meisterhammer")) then
-                            seenBagItemIDs[itemID] = true
-                            local _, _, _, _, _, _, _, _, _, icon = info.hyperlink and C_Item.GetItemInfo and C_Item.GetItemInfo(info.hyperlink)
-                            icon = icon or (itemID and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID)) or info.iconFileID or 134376
-                            local entry = get_hammer_entry(itemID, name, icon, nil, "Generic", nil)
-                            table.insert(carriedHammers, entry)
-                            if not primaryHammer then
-                                primaryHammer = entry
-                            end
                         end
                     end
                 end
             end
         end
-    end
+    end)
 
     hammersChecked = true
     return carriedHammers
@@ -331,7 +328,7 @@ local function check_repair_eligibility_detail(slot, needDetail)
     local itemLink = GetInventoryItemLink("player", slot)
     if not itemLink then return false, needDetail and "No item link" or nil, nil, nil end
 
-    local _, _, _, equipLoc, _, classID, subClassID = C_Item.GetItemInfoInstant(itemLink)
+    local _, _, _, equipLoc, _, classID, subClassID = sfui.common.get_item_instant_info(itemLink)
     if not classID then return false, needDetail and "Cannot determine item type" or nil, nil, nil end
 
     local itemExpac = get_item_expansion(itemLink)
@@ -839,7 +836,7 @@ function sfui.hammer.print_hammer_status(debugMode)
                     end
 
                     if debugMode and cfgs then
-                        local _, _, _, equipLoc, _, classID, subClassID = C_Item.GetItemInfoInstant(link)
+                        local _, _, _, equipLoc, _, classID, subClassID = sfui.common.get_item_instant_info(link)
                         local hammerConfig = itemHammerID and sfui.config.masterHammer and sfui.config.masterHammer[itemHammerID]
                         if not hammerConfig and prim then
                             hammerConfig = prim.config

@@ -724,18 +724,15 @@ end)
 sellJunkBtn:HookScript("OnLeave", GameTooltip_Hide)
 sellJunkBtn:SetScript("OnClick", function()
     local totalPrice = 0
-    for bag = 0, 4 do
-        for slot = 1, C_Container.GetContainerNumSlots(bag) do
-            local info = C_Container.GetContainerItemInfo(bag, slot)
-            if info and info.hyperlink and info.quality == 0 then
-                local price = info.noValue and 0 or (select(11, C_Item.GetItemInfo(info.hyperlink)) or 0)
-                if price > 0 then
-                    totalPrice = totalPrice + (price * info.stackCount)
-                    C_Container.UseContainerItem(bag, slot)
-                end
+    common.for_each_bag_item(function(bag, slot, itemID, link, info)
+        if info and (link or info.hyperlink) and info.quality == 0 then
+            local price = info.noValue and 0 or (select(11, C_Item.GetItemInfo(link or info.hyperlink)) or 0)
+            if price > 0 then
+                totalPrice = totalPrice + (price * (info.stackCount or 1))
+                C_Container.UseContainerItem(bag, slot)
             end
         end
-    end
+    end)
     if totalPrice > 0 then
         common.print("|cff00ff00Sold greys for " .. common.SafeGetCoinTextureString(totalPrice) .. ".|r")
     else
@@ -908,7 +905,7 @@ sfui.merchant.build_item_list = function()
                 end
 
                 if itemInfo.currencyID then
-                    local info = C_CurrencyInfo.GetCurrencyInfo(itemInfo.currencyID)
+                    local info = common.get_currency_info(itemInfo.currencyID)
                     if info then AddToCache(itemInfo.currencyID, info.name, info.iconFileID, info.quantity, "currency") end
                 end
 
@@ -916,14 +913,13 @@ sfui.merchant.build_item_list = function()
                     for j = 1, GetMerchantItemCostInfo(i) do
                         local texture, amount, costLink, currencyName = GetMerchantItemCostItem(i, j)
                         if costLink then
+                            local cID = tonumber(string.match(costLink, "currency:(%d+)"))
                             if not currencyName then
-                                local cID = string.match(costLink, "currency:(%d+)")
-                                currencyName = cID and (C_CurrencyInfo.GetCurrencyInfo(tonumber(cID)) or {}).name or
+                                currencyName = cID and common.get_currency_name(cID) or
                                     C_Item.GetItemInfo(costLink)
                             end
-                            local cID = tonumber(string.match(costLink, "currency:(%d+)"))
-                            local count = cID and (C_CurrencyInfo.GetCurrencyInfo(cID) or {}).quantity or
-                                C_Item.GetItemCount(costLink)
+                            local count = cID and common.get_currency_quantity(cID) or
+                                common.get_item_count(costLink)
                             AddToCache(cID or get_item_id(costLink), currencyName, texture, count,
                                 cID and "currency" or "item")
                         end
@@ -1027,9 +1023,9 @@ sfui.merchant.update_merchant = function()
                         if tex and val then
                             local ok = true
                             if clink then
-                                local cid = string.match(clink, "currency:(%d+)")
-                                ok = cid and (C_CurrencyInfo.GetCurrencyInfo(tonumber(cid)) or {}).quantity >= val or
-                                    C_Item.GetItemCount(clink) >= val
+                                local cid = tonumber(string.match(clink, "currency:(%d+)"))
+                                ok = cid and (common.get_currency_quantity(cid) >= val) or
+                                    (common.get_item_count(clink) >= val)
                             end
                             cost = cost ..
                                 (cost ~= "" and " " or "") ..

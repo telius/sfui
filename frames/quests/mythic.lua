@@ -812,8 +812,7 @@ local function GetNemesisInfo(delveInfo)
             
             local spellName = ""
             if s.spellID then
-                local n = (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(s.spellID)) or
-                    (_G.GetSpellInfo and _G.GetSpellInfo(s.spellID))
+                local n = sfui.common.get_spell_name(s.spellID)
                 if n and not issecretvalue(n) then spellName = n:lower() end
             end
 
@@ -822,8 +821,7 @@ local function GetNemesisInfo(delveInfo)
                 spellName:find("influence") or spellName:find("empowered") then
                 nemesis.hasNemesis = true
                 if s.spellID then
-                    nemesis.icon = (C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(s.spellID)) or
-                        (_G.GetSpellTexture and _G.GetSpellTexture(s.spellID)) or nemesis.icon
+                    nemesis.icon = sfui.common.get_spell_icon(s.spellID) or nemesis.icon
                 end
                 nemesis.tooltip = s.tooltip or nemesis.tooltip
 
@@ -1393,8 +1391,7 @@ local function GetOrCreateDelveBadge(idx)
             if GameTooltip.SetSpellByID then
                 GameTooltip:SetSpellByID(self.spellID)
             else
-                local spellName = (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(self.spellID)) or
-                    (_G.GetSpellInfo and _G.GetSpellInfo(self.spellID))
+                local spellName = sfui.common.get_spell_name(self.spellID)
                 if spellName then GameTooltip:AddLine(spellName, 1, 1, 1) end
             end
         end
@@ -1826,8 +1823,7 @@ local function UpdateInstanceState()
             for _, s in ipairs(delveInfo.spells) do
                 badgeIdx = badgeIdx + 1
                 local b = GetOrCreateDelveBadge(badgeIdx)
-                local tex = (C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(s.spellID)) or
-                    (_G.GetSpellTexture and _G.GetSpellTexture(s.spellID)) or 134400
+                local tex = sfui.common.get_spell_icon(s.spellID) or 134400
                 b.icon:SetTexture(tex)
                 b.icon:SetSize(16, 16)
                 b.stackText:Hide()
@@ -3010,17 +3006,13 @@ local function on_mythic_event(event, ...)
     elseif event == "GROUP_ROSTER_UPDATE" then
         CacheGroupMembers()
     elseif event == "CHALLENGE_MODE_KEYSTONE_RECEPTABLE_OPEN" then
-        if C_Container and C_Container.GetContainerNumSlots and C_Item and C_Item.IsItemKeystoneByID then
-            for bagID = 0, (_G.NUM_BAG_SLOTS or 4) do
-                local numSlots = C_Container.GetContainerNumSlots(bagID) or 0
-                for invID = 1, numSlots do
-                    local itemID = C_Container.GetContainerItemID(bagID, invID)
-                    if itemID and C_Item.IsItemKeystoneByID(itemID) then
-                        C_Container.UseContainerItem(bagID, invID)
-                        break
-                    end
+        if C_Item and C_Item.IsItemKeystoneByID then
+            sfui.common.for_each_bag_item(function(bagID, invID, itemID)
+                if itemID and C_Item.IsItemKeystoneByID(itemID) then
+                    C_Container.UseContainerItem(bagID, invID)
+                    return true
                 end
-            end
+            end)
         end
     elseif event == "PLAYER_ENTERING_WORLD" then
         CacheGroupMembers()

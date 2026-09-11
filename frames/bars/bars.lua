@@ -244,7 +244,10 @@ do
         bar:SetMinMaxValues(0, max)
         bar:SetValue(current)
         local color = common.get_class_or_spec_color()
-        if color then bar:SetStatusBarColor(color[1], color[2], color[3]) end
+        if color then
+            local r, g, b = common.unpack_color(color)
+            bar:SetStatusBarColor(r, g, b)
+        end
 
         -- Marker logic
         if specID == 258 then -- Shadow Priest (55% threshold)
@@ -465,7 +468,8 @@ do
             -- Set Colors
             if info.ready then
                 if specColor then
-                    rune:SetStatusBarColor(specColor[1], specColor[2], specColor[3])
+                    local r, g, b = common.unpack_color(specColor)
+                    rune:SetStatusBarColor(r, g, b)
                 else
                     rune:SetStatusBarColor(1, 0.2, 0.3)
                 end
@@ -534,7 +538,8 @@ do
             color = common.get_resource_color(resource)
         end
         if color then
-            bar:SetStatusBarColor(color[1], color[2], color[3])
+            local r, g, b = common.unpack_color(color)
+            bar:SetStatusBarColor(r, g, b)
         end
     end
 
@@ -544,7 +549,7 @@ do
 
         local texture = frame:CreateTexture(nil, "BACKGROUND")
         texture:SetAllPoints()
-        local spellTexture = C_Spell.GetSpellTexture(spellID)
+        local spellTexture = common.get_spell_icon(spellID)
         texture:SetTexture(spellTexture or "Interface\\Icons\\INV_Misc_QuestionMark")
         texture:SetTexCoord(0.08, 0.92, 0.08, 0.92) -- Zoom in slightly to remove borders
         frame.texture = texture
@@ -602,14 +607,14 @@ do
             function(id) return C_SpellBook and C_SpellBook.IsSpellKnown(id, Enum.SpellBookSpellBank.Player) end
         local surgeSpellID = isPlayerSpell(418592) and 418592 or 361584
 
-        local surgeTexture = C_Spell.GetSpellTexture(surgeSpellID)
+        local surgeTexture = common.get_spell_icon(surgeSpellID)
         bar.whirlingSurgeIcon.texture:SetTexture(surgeTexture or "Interface\\Icons\\INV_Misc_QuestionMark")
         bar.whirlingSurgeIcon.texture:SetDesaturated(false)
         bar.whirlingSurgeIcon.countText:SetText("")
 
-        local wsInfo = C_Spell.GetSpellCooldown(surgeSpellID)
-        if wsInfo and not (issecretvalue and (issecretvalue(wsInfo.startTime) or issecretvalue(wsInfo.duration))) then
-            bar.whirlingSurgeIcon.cooldown:SetCooldown(wsInfo.startTime, wsInfo.duration)
+        local wsStart, wsDur = common.get_spell_cooldown(surgeSpellID)
+        if wsStart > 0 and wsDur > 0 and not (issecretvalue and (issecretvalue(wsStart) or issecretvalue(wsDur))) then
+            bar.whirlingSurgeIcon.cooldown:SetCooldown(wsStart, wsDur)
         else
             bar.whirlingSurgeIcon.cooldown:Clear()
         end
@@ -621,10 +626,10 @@ do
             bar.staticChargeIcon:Hide()
         end
 
-        local swInfo = C_Spell.GetSpellCooldown(425782)
+        local swStart, swDur = common.get_spell_cooldown(425782)
         local swCharges = C_Spell.GetSpellCharges(425782)
-        if swInfo and not (issecretvalue and (issecretvalue(swInfo.startTime) or issecretvalue(swInfo.duration))) then
-            bar.secondWindIcon.cooldown:SetCooldown(swInfo.startTime, swInfo.duration)
+        if swStart > 0 and swDur > 0 and not (issecretvalue and (issecretvalue(swStart) or issecretvalue(swDur))) then
+            bar.secondWindIcon.cooldown:SetCooldown(swStart, swDur)
         else
             bar.secondWindIcon.cooldown:Clear()
         end

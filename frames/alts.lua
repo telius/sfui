@@ -253,8 +253,7 @@ function sfui.alts.RefreshDynamicCategories(force)
                     if itemConfig.isItem then
                         icon = C_Item.GetItemIconByID(itemConfig.id) or 134400
                     else
-                        local info = C_CurrencyInfo.GetCurrencyInfo(itemConfig.id)
-                        icon = (info and info.iconFileID) or 134400
+                        icon = sfui.common.get_currency_icon(itemConfig.id) or 134400
                     end
                 end
                 itemConfig.icon = icon
@@ -270,8 +269,7 @@ function sfui.alts.RefreshDynamicCategories(force)
                 if cc.isItem then
                     icon = C_Item.GetItemIconByID(cc.id) or 134400
                 else
-                    local info = C_CurrencyInfo.GetCurrencyInfo(cc.id)
-                    icon = (info and info.iconFileID) or 134400
+                    icon = sfui.common.get_currency_icon(cc.id) or 134400
                 end
             end
             cc.icon = icon
@@ -370,6 +368,24 @@ function sfui.alts.CheckWeeklyResets()
                         w[2].itemLevel = w[2].itemLevel or s1.itemLevel
                     end
                 end
+            end
+        end
+    end
+
+    -- Clean up retired currencies (Accolade 3405, Pearl 3373, Particle 267051)
+    local retiredCurrencies = { 3405, 3373, 267051 }
+    for _, retID in ipairs(retiredCurrencies) do
+        if SfuiDB.currencyCaps and SfuiDB.currencyCaps[retID] then
+            SfuiDB.currencyCaps[retID] = nil
+        end
+        if SfuiDB.altsHiddenSections and SfuiDB.altsHiddenSections["CURRENCY_" .. retID] ~= nil then
+            SfuiDB.altsHiddenSections["CURRENCY_" .. retID] = nil
+        end
+    end
+    for _, d in pairs(SfuiDB.alts or {}) do
+        if d.currencies then
+            for _, retID in ipairs(retiredCurrencies) do
+                d.currencies[retID] = nil
             end
         end
     end
@@ -590,7 +606,7 @@ function sfui.alts.PerformSync(isLogout)
             if activity.id and C_WeeklyRewards and C_WeeklyRewards.GetExampleRewardItemHyperlinks then
                 local itemLink = C_WeeklyRewards.GetExampleRewardItemHyperlinks(activity.id)
                 if itemLink then
-                    itemLevel = C_Item.GetDetailedItemLevelInfo(itemLink)
+                    itemLevel = sfui.common.get_item_level(itemLink)
                 end
             end
             data.vault[group][activity.index].itemLevel = itemLevel
@@ -682,10 +698,10 @@ function sfui.alts.PerformSync(isLogout)
             local count = C_Item.GetItemCount(cDef.id, true) or 0
             data.currencies[cDef.id] = count
         else
-            local info = C_CurrencyInfo.GetCurrencyInfo(cDef.id)
+            local info = sfui.common.get_currency_info(cDef.id)
             if not info and cDef.fallbackIDs then
                 for _, fallbackID in ipairs(cDef.fallbackIDs) do
-                    info = C_CurrencyInfo.GetCurrencyInfo(fallbackID)
+                    info = sfui.common.get_currency_info(fallbackID)
                     if info then break end
                 end
             end
@@ -939,7 +955,7 @@ function sfui.alts.PerformSync(isLogout)
 
             -- Catchup tracking (Midnight Only)
             if tracking.catchup then
-                local currencyInfo = C_CurrencyInfo.GetCurrencyInfo(tracking.catchup)
+                local currencyInfo = sfui.common.get_currency_info(tracking.catchup)
                 if currencyInfo and currencyInfo.maxQuantity and currencyInfo.quantity then
                     local remaining = currencyInfo.maxQuantity - currencyInfo.quantity
                     if remaining > 0 then
@@ -1765,8 +1781,7 @@ function sfui.alts.UpdateUI(force)
                                 if tLine.itemConfig.isItem then
                                     name = C_Item.GetItemInfo(tLine.itemConfig.id) or "Item"
                                 else
-                                    local info = C_CurrencyInfo.GetCurrencyInfo(tLine.itemConfig.id)
-                                    name = info and info.name or "Currency"
+                                    name = sfui.common.get_currency_name(tLine.itemConfig.id) or "Currency"
                                 end
                             end
 
@@ -1806,8 +1821,7 @@ function sfui.alts.UpdateUI(force)
                             if tLine.itemConfig and tLine.itemConfig.isItem then
                                 name = C_Item.GetItemInfo(tLine.itemConfig.id) or (tLine.itemConfig.id == 274476 and "Spark of Tides" or "Item")
                             elseif tLine.itemConfig then
-                                local info = C_CurrencyInfo.GetCurrencyInfo(tLine.itemConfig.id)
-                                name = info and info.name or (tLine.itemConfig.id == 3509 and "Tidal Spark Dust" or "Currency")
+                                name = sfui.common.get_currency_name(tLine.itemConfig.id) or (tLine.itemConfig.id == 3509 and "Tidal Spark Dust" or "Currency")
                             else
                                 name = "Currency"
                             end
@@ -2129,7 +2143,7 @@ function sfui.alts.UpdateUI(force)
                     if vData and vData.id and C_WeeklyRewards and C_WeeklyRewards.GetExampleRewardItemHyperlinks then
                         local link = C_WeeklyRewards.GetExampleRewardItemHyperlinks(vData.id)
                         if link then
-                            local ilvl = C_Item.GetDetailedItemLevelInfo(link)
+                            local ilvl = sfui.common.get_item_level(link)
                             if ilvl and ilvl > 0 then return ilvl end
                         end
                     end

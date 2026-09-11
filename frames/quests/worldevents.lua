@@ -149,9 +149,8 @@ local function ResolvePoiDetails(areaPoiID, displayInfo)
 
         if not zoneName then
             zoneName = C_EventScheduler and C_EventScheduler.GetEventZoneName and C_EventScheduler.GetEventZoneName(areaPoiID)
-            if not zoneName and uiMapID and C_Map and C_Map.GetMapInfo then
-                local mapInfo = C_Map.GetMapInfo(uiMapID)
-                zoneName = mapInfo and mapInfo.name
+            if not zoneName and uiMapID then
+                zoneName = sfui.common.get_map_name(uiMapID)
             end
         end
 
@@ -259,7 +258,7 @@ function sfui.worldevents.UpdateEventsData()
         superTrackedPOI = pID or 0
     end
 
-    local playerMap = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+    local playerMap = sfui.common.get_player_map_id()
     local showOngoing    = not remindersOnly and (cfg.show_ongoing ~= false)
     local maxUpcomingSec = (cfg.max_upcoming_minutes or 60) * 60
     local maxLimit       = cfg.max_events or 5

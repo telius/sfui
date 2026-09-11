@@ -9,8 +9,6 @@ local UnitClass                 = UnitClass
 local UnitGUID                  = UnitGUID
 local UnitName                  = UnitName
 local GetRealmName              = GetRealmName
-local GetSpecialization         = GetSpecialization
-local GetSpecializationInfo     = GetSpecializationInfo
 local C_TooltipInfo             = C_TooltipInfo
 local C_Timer                   = C_Timer
 local C_Item                    = C_Item
@@ -325,9 +323,7 @@ function sfui.bonusroll.NotifyTarget(keyID, isBoss, defaultName)
     for id in pairs(itemsMap) do
         local link = select(2, C_Item.GetItemInfo(id))
         if not link then
-            if C_Item and C_Item.RequestLoadItemDataByID then
-                C_Item.RequestLoadItemDataByID(id)
-            end
+            sfui.common.request_item_load(id)
             local name = select(1, C_Item.GetItemInfo(id))
             link = name and ("[" .. name .. "]") or ("Item " .. id)
         end
@@ -507,11 +503,7 @@ function sfui.bonusroll.GetSourceItems(chestItemId, specID)
     local lootTable = GetLootTableForChest(chestItemId)
     if not lootTable or #lootTable == 0 then return {} end
 
-    local activeSpec = specID
-    if not activeSpec or activeSpec == 0 then
-        local spec = GetSpecialization()
-        activeSpec = spec and select(1, GetSpecializationInfo(spec)) or 0
-    end
+    local activeSpec = (specID and specID > 0 and specID) or sfui.common.get_current_spec_id()
 
     local results = {}
     for _, itemID in ipairs(lootTable) do
@@ -568,8 +560,7 @@ function sfui.bonusroll.ApplyResults(candidates, remainingNames)
 end
 
 function sfui.bonusroll.CheckSupply(chestItemId, onDone)
-    local spec = GetSpecialization()
-    local activeSpecID = spec and select(1, GetSpecializationInfo(spec)) or 0
+    local activeSpecID = sfui.common.get_current_spec_id()
     local candidates = sfui.bonusroll.GetSourceItems(chestItemId, activeSpecID)
 
     if #candidates == 0 then
@@ -691,8 +682,7 @@ function sfui.bonusroll.OnBonusRoll(itemID, rewardLink)
     if not chestItemId then return end
 
     -- If all candidates for this chest are now used, Blizzard resets the chest pool -> reset source
-    local spec = GetSpecialization()
-    local activeSpecID = spec and select(1, GetSpecializationInfo(spec)) or 0
+    local activeSpecID = sfui.common.get_current_spec_id()
     local candidates = sfui.bonusroll.GetSourceItems(chestItemId, activeSpecID)
 
     for _, candId in ipairs(candidates) do
@@ -707,7 +697,7 @@ end
 -- ─── Event Registrations ──────────────────────────────────────────────────────
 sfui.events.RegisterEvent("BONUS_ROLL_RESULT", function(_, rewardType, rewardLink)
     if rewardType ~= "item" or not rewardLink then return end
-    local itemID = tonumber(string.match(rewardLink, "item:(%d+)"))
+    local itemID = sfui.common.get_item_id(rewardLink)
     if itemID then
         sfui.bonusroll.OnBonusRoll(itemID, rewardLink)
     end

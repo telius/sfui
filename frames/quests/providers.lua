@@ -99,10 +99,10 @@ local function GetQuestZoneName(questID, isWorldQuest)
     if isWorldQuest then
         if C_TaskQuest and C_TaskQuest.GetQuestZoneID then
             local zMapID = C_TaskQuest.GetQuestZoneID(questID)
-            if zMapID and zMapID > 0 and C_Map and C_Map.GetMapInfo then
-                local mInfo = C_Map.GetMapInfo(zMapID)
-                if mInfo and mInfo.name and mInfo.name ~= "" then
-                    name = mInfo.name
+            if zMapID and zMapID > 0 then
+                local mName = sfui.common.get_map_name(zMapID)
+                if mName and mName ~= "" then
+                    name = mName
                 end
             end
         end
@@ -118,10 +118,10 @@ local function GetQuestZoneName(questID, isWorldQuest)
         end
         if not name and C_TaskQuest and C_TaskQuest.GetQuestZoneID then
             local zMapID = C_TaskQuest.GetQuestZoneID(questID)
-            if zMapID and zMapID > 0 and C_Map and C_Map.GetMapInfo then
-                local mInfo = C_Map.GetMapInfo(zMapID)
-                if mInfo and mInfo.name and mInfo.name ~= "" then
-                    name = mInfo.name
+            if zMapID and zMapID > 0 then
+                local mName = sfui.common.get_map_name(zMapID)
+                if mName and mName ~= "" then
+                    name = mName
                 end
             end
         end
@@ -416,8 +416,8 @@ local function ScanTrackedRecipes(intoList, AcquireTable)
                                             rName = _G.GetItemInfo(itemID)
                                         end
                                         rName = rName or ("Item #" .. tostring(itemID))
-                                    elseif currencyID and C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo then
-                                        local cInfo = C_CurrencyInfo.GetCurrencyInfo(currencyID)
+                                    elseif currencyID then
+                                        local cInfo = sfui.common.get_currency_info(currencyID)
                                         if cInfo then
                                             rName = cInfo.name
                                             curCount = cInfo.quantity or 0

@@ -56,18 +56,15 @@ local function auto_sell_greys()
     if not SfuiDB.autoSellGreys then return end
 
     local totalPrice = 0
-    for bag = 0, 5 do
-        for slot = 1, C_Container.GetContainerNumSlots(bag) do
-            local info = C_Container.GetContainerItemInfo(bag, slot)
-            if info and info.hyperlink and info.quality == 0 then
-                local price = info.noValue and 0 or (select(11, C_Item.GetItemInfo(info.hyperlink)) or 0)
-                if price > 0 then
-                    totalPrice = totalPrice + (price * info.stackCount)
-                    C_Container.UseContainerItem(bag, slot)
-                end
+    sfui.common.for_each_bag_item(function(bag, slot, itemID, link, info)
+        if info and (link or info.hyperlink) and info.quality == 0 then
+            local price = info.noValue and 0 or (select(11, C_Item.GetItemInfo(link or info.hyperlink)) or 0)
+            if price > 0 then
+                totalPrice = totalPrice + (price * (info.stackCount or 1))
+                C_Container.UseContainerItem(bag, slot)
             end
         end
-    end
+    end)
     if totalPrice > 0 then
         sfui.common.print("|cff00ff00Auto-sold greys for " .. sfui.common.SafeGetCoinTextureString(totalPrice) .. ".|r")
     end
@@ -157,24 +154,22 @@ end)
 
 local function auto_slot_keystone()
     local ReagentClass, KeystoneClass = Enum.ItemClass.Reagent, Enum.ItemReagentSubclass.Keystone
-    local GetContainerItemID, GetContainerNumSlots, GetItemInfo = C_Container.GetContainerItemID, C_Container.GetContainerNumSlots, C_Item.GetItemInfo
+    local slotted = false
 
-    for bag = 0, 5 do
-        for slot = 1, GetContainerNumSlots(bag) do
-            local ID = GetContainerItemID(bag, slot)
-            if ID then
-                local Class, SubClass = select(12, GetItemInfo(ID))
-                if Class == ReagentClass and SubClass == KeystoneClass then
-                    C_Container.PickupContainerItem(bag, slot)
-                    if C_Cursor.GetCursorItem() then
-                        C_ChallengeMode.SlotKeystone()
-                        return true
-                    end
+    sfui.common.for_each_bag_item(function(bag, slot, ID)
+        if ID then
+            local Class, SubClass = select(12, C_Item.GetItemInfo(ID))
+            if Class == ReagentClass and SubClass == KeystoneClass then
+                C_Container.PickupContainerItem(bag, slot)
+                if C_Cursor.GetCursorItem() then
+                    C_ChallengeMode.SlotKeystone()
+                    slotted = true
+                    return true
                 end
             end
         end
-    end
-    return false
+    end)
+    return slotted
 end
 
 local function init_keystone_automation()

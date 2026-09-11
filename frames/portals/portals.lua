@@ -163,9 +163,9 @@ local function spell_cd_remaining(spellID)
     end
 
     -- Fallback: raw table API (pre-12.0.5)
-    local cd = C_Spell.GetSpellCooldown(spellID)
-    if cd and cd.startTime and cd.startTime > 0 and cd.duration and cd.duration > 1.5 then
-        return cd.startTime + cd.duration - GetTime()
+    local start, dur = sfui.common.get_spell_cooldown(spellID)
+    if start > 0 and dur > 1.5 then
+        return start + dur - GetTime()
     end
     return 0
 end
@@ -334,9 +334,9 @@ local function show_tooltip(owner, spellID, toyID, label, portalID, cdRem)
         GameTooltip:AddLine(label, 0.6, 0.6, 0.6)
         local specID = get_dungeon_spec(label)
         if specID and specID ~= 0 then
-            local _, specName = GetSpecializationInfoByID(specID)
+            local specName = sfui.common.get_spec_name(specID)
             local r, g, b = get_spec_color(specID)
-            GameTooltip:AddDoubleLine("Loot Spec:", specName or ("Spec " .. specID), 0.7, 0.7, 0.7, r, g, b)
+            GameTooltip:AddDoubleLine("Loot Spec:", specName, 0.7, 0.7, 0.7, r, g, b)
         end
     end
     GameTooltip:Show()
@@ -403,14 +403,7 @@ local function make_spell_icon(parent, spellID, label, x, y)
     local tex = frame:CreateTexture(nil, "ARTWORK")
     tex:SetAllPoints()
     local function update_icon()
-        local iconID = nil
-        if C_Spell and C_Spell.GetSpellTexture then
-            iconID = C_Spell.GetSpellTexture(spellID)
-        end
-        if not iconID and C_Spell and C_Spell.GetSpellInfo then
-            local info = C_Spell.GetSpellInfo(spellID)
-            iconID = info and info.iconID
-        end
+        local iconID = sfui.common.get_spell_icon(spellID)
         if iconID then
             tex:SetTexture(iconID)
             tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
@@ -463,9 +456,9 @@ local function make_spell_icon(parent, spellID, label, x, y)
         end
         local rem = spell_cd_remaining(spellID)
         if rem > 0 then
-            local cdInfo = C_Spell.GetSpellCooldown(spellID)
-            if cdInfo and not (issecretvalue and (issecretvalue(cdInfo.startTime) or issecretvalue(cdInfo.duration))) then
-                cd:SetCooldown(cdInfo.startTime, cdInfo.duration)
+            local startTime, duration = sfui.common.get_spell_cooldown(spellID)
+            if startTime > 0 and duration > 0 and not (issecretvalue and (issecretvalue(startTime) or issecretvalue(duration))) then
+                cd:SetCooldown(startTime, duration)
             else
                 cd:Clear()
             end
@@ -479,7 +472,7 @@ local function make_spell_icon(parent, spellID, label, x, y)
 
         local specID = get_dungeon_spec(label)
         if specID and specID ~= 0 then
-            local _, _, _, icon = GetSpecializationInfoByID(specID)
+            local icon = sfui.common.get_spec_icon(specID)
             if icon then
                 specIcon:SetTexture(icon)
                 local r, g, b = get_spec_color(specID)
@@ -543,13 +536,7 @@ local function make_action_row(parent, spellID, portalID, toyID, name, icon, yPo
     local function update_row_icon()
         local iconID = icon
         if not iconID and spellID then
-            if C_Spell and C_Spell.GetSpellTexture then
-                iconID = C_Spell.GetSpellTexture(spellID)
-            end
-            if not iconID and C_Spell and C_Spell.GetSpellInfo then
-                local info = C_Spell.GetSpellInfo(spellID)
-                iconID = info and info.iconID
-            end
+            iconID = sfui.common.get_spell_icon(spellID)
         elseif not iconID and toyID then
             iconID = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(toyID)
         end
@@ -826,8 +813,7 @@ local function build_portals_frame()
 
     if #personalKnown > 0 then
         for _, e in ipairs(personalKnown) do
-            local info   = C_Spell.GetSpellInfo(e.spell)
-            local iconID = info and info.iconID
+            local iconID = sfui.common.get_spell_icon(e.spell)
             -- Pass portal ID (e.portal) for right-click if defined
             local btn    = make_action_row(portalFrame, e.spell, e.portal, nil, e.name, iconID, curY)
             tinsert(portalFrame.refreshable, btn)

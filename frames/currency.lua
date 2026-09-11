@@ -53,7 +53,7 @@ do
     end
 
     local function get_currency_details(currency_id)
-        local info = C_CurrencyInfo.GetCurrencyInfo(currency_id)
+        local info = sfui.common.get_currency_info(currency_id)
         if not info then return nil end
         _currencyDetail.texture = info.iconFileID
         _currencyDetail.quantity = info.quantity

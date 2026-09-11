@@ -3,9 +3,6 @@ local addonName, addon          = ...
 sfui                            = sfui or {}
 sfui.lootspec                   = {}
 
-local GetSpecialization         = GetSpecialization
-local GetSpecializationInfo     = GetSpecializationInfo
-local GetSpecializationInfoByID = GetSpecializationInfoByID
 local GetLootSpecialization     = GetLootSpecialization
 local SetLootSpecialization     = SetLootSpecialization
 local UnitClass                 = UnitClass
@@ -42,8 +39,7 @@ local function DB()
 
     -- Migration from recent per-spec implementation
     if SfuiDB.lootspec.specs then
-        local specIdx = GetSpecialization()
-        local specID = specIdx and GetSpecializationInfo(specIdx) or 0
+        local specID = sfui.common.get_current_spec_id()
         if specID ~= 0 and SfuiDB.lootspec.specs[specID] and not SfuiDB.lootspec.classes[ENGLISH_CLASS] then
             SfuiDB.lootspec.classes[ENGLISH_CLASS] = SfuiDB.lootspec.specs[specID]
         end
@@ -80,9 +76,7 @@ sfui.lootspec.DB = DB
 
 -- ─── Spec Helpers ─────────────────────────────────────────────────────────────
 local function SpecName(specID)
-    if not specID or specID == 0 then return "Current Spec" end
-    local _, name = GetSpecializationInfoByID(specID)
-    return name or ("Spec " .. specID)
+    return sfui.common.get_spec_name(specID)
 end
 
 -- ─── Auto-swap engine ─────────────────────────────────────────────────────────
@@ -155,7 +149,7 @@ local function GetActiveDungeonSpec()
     local inInst, instType = IsInInstance()
     if inInst and (instType == "party" or instType == "scenario") then
         local instName = GetInstanceInfo()
-        local currentMapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+        local currentMapID = sfui.common.get_player_map_id()
 
         local maps = C_ChallengeMode.GetMapTable and C_ChallengeMode.GetMapTable()
         if maps then

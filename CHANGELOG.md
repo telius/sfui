@@ -2,6 +2,28 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-36 (2026-09-11)
+
+### Features & Architecture
+- **Dungeon Portal Auto-Popup (`frames/portals/portal_popup.lua`)**:
+  - Added new automatic dungeon portal popup module that appears when forming or filling a Mythic+ / dungeon group.
+  - Added options panel checkboxes (`autoDungeonPortalPopup` and `portalPopupOnlyWhenFull`) with defaults.
+  - Added support for both LFG group formation events and manual group invitations.
+- **Architectural Centralization & Consolidation (`common.lua`)**:
+  - **Item & Slot Engine**: Centralized `sfui.common.get_item_level`, `get_item_id`, `get_item_instant_info`, `get_item_stats`, `get_item_quality`, `get_item_quality_color`, `request_item_load`, `get_item_count`. Unified table-free inventory slot resolver (`populate_slots_for_invtype`) replacing 45-line `INVTYPE_*` branching trees across gear modules.
+  - **Spell Engine**: Centralized `sfui.common.get_spell_info`, `get_spell_name`, `get_spell_icon`, `get_spell_cooldown`, `request_spell_load`. Replaced deprecated global spell APIs (`GetSpellInfo`, `GetSpellTexture`) and normalized modern Dragonflight/TWW/Midnight table structures versus legacy returns across `portals.lua`, `portal_popup.lua`, `mythic.lua`, `castbar.lua`, `bars.lua`, and `trackedbars.lua`.
+  - **Bag & Container Scanning Engine**: Implemented `sfui.common.for_each_bag_item` iterating safe bag ranges (0 through `NUM_TOTAL_EQUIPPED_BAG_SLOTS`) with early termination support. Migrated bag scanning across `highest.lua`, `hammer.lua`, `automation.lua`, `merchant.lua`, and `mythic.lua`.
+  - **Map & Zone Query Engine**: Centralized `get_player_map_id`, `get_map_info`, `get_player_map_info`, `get_map_name`, `get_player_map_name`. Migrated map queries in `quests.lua`, `providers.lua`, `worldevents.lua`, and `lootspec.lua`.
+  - **Currency Query Engine**: Centralized `get_currency_info`, `get_currency_quantity` (zero-allocation), `get_currency_name`, `get_currency_icon`. Migrated currency lookups in `merchant.lua`, `alts.lua`, `currency.lua`, and `providers.lua`.
+
+### Fixes & Improvements
+- **Resource Bars & Colors (`bars.lua`, `common.lua`)**:
+  - Restored power bar and rune bar resource evaluation (`get_primary_resource`, `get_secondary_resource`, `get_class_or_spec_color`) with safe scoping and class resolution.
+  - Guarded against out-of-order function declarations in `bars.lua`.
+  - Normalized color unpacking with `sfui.common.unpack_color` for both indexed `{ r, g, b }` and keyed `{ r = ..., g = ..., b = ... }` formats.
+
+---
+
 ## v12.1.0-35 (2026-09-10)
 
 ### Features

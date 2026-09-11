@@ -312,14 +312,220 @@ function sfui.common.copy(t)
     return res
 end
 
-local _, playerClass, playerClassID = UnitClass("player")
+local CLASS_NAMES_TO_ID = {
+    WARRIOR      = 1,
+    PALADIN      = 2,
+    HUNTER       = 3,
+    ROGUE        = 4,
+    PRIEST       = 5,
+    DEATHKNIGHT  = 6,
+    SHAMAN       = 7,
+    MAGE         = 8,
+    WARLOCK      = 9,
+    MONK         = 10,
+    DRUID        = 11,
+    DEMONHUNTER  = 12,
+    EVOKER       = 13,
+}
+
+local cachedPlayerClass   = nil
+local cachedPlayerClassID = 0
 
 local wipe = wipe
 local C_Timer = C_Timer
 
--- Returns the cached player class (e.g., "WARRIOR", "MAGE")
+-- Returns the authoritative player class ID (1..13)
+function sfui.common.get_player_class_id()
+    if cachedPlayerClassID > 0 then return cachedPlayerClassID end
+    local _, eng, cid = UnitClass("player")
+    if cid and cid > 0 then
+        cachedPlayerClassID = cid
+        cachedPlayerClass   = eng
+        return cid
+    end
+    if eng and CLASS_NAMES_TO_ID[eng] then
+        cachedPlayerClassID = CLASS_NAMES_TO_ID[eng]
+        cachedPlayerClass   = eng
+        return cachedPlayerClassID
+    end
+    return 0
+end
+
+-- Returns the cached player class filename and ID (e.g., "WARRIOR", 1)
 function sfui.common.get_player_class()
-    return playerClass, playerClassID
+    if not cachedPlayerClass or cachedPlayerClassID == 0 then
+        sfui.common.get_player_class_id()
+    end
+    return cachedPlayerClass, cachedPlayerClassID
+end
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- Specialization & Class Engine (C_SpecializationInfo Modernization)
+-- ────────────────────────────────────────────────────────────────────────────
+local C_Spec                    = _G.C_SpecializationInfo or {}
+local GetSpecialization         = C_Spec.GetSpecialization or _G.GetSpecialization
+local GetSpecializationInfo     = C_Spec.GetSpecializationInfo or _G.GetSpecializationInfo
+local GetSpecializationInfoByID = C_Spec.GetSpecializationInfoByID or _G.GetSpecializationInfoByID
+local GetSpecializationRole     = C_Spec.GetSpecializationRole or _G.GetSpecializationRole
+local GetNumSpecializations     = C_Spec.GetNumSpecializations or _G.GetNumSpecializations
+local GetLootSpecialization     = C_Spec.GetLootSpecialization or _G.GetLootSpecialization
+
+local cachedSpecID        = 0
+local cachedSpecIndex     = 0
+local cachedPlayerSpecs   = nil
+local cachedPlayerSpecIDs = nil
+
+local function build_player_specs_cache()
+    if cachedPlayerSpecs and cachedPlayerSpecIDs and #cachedPlayerSpecIDs > 0 then
+        return cachedPlayerSpecs, cachedPlayerSpecIDs
+    end
+
+    cachedPlayerSpecs   = {}
+    cachedPlayerSpecIDs = {}
+
+    local n = (GetNumSpecializations and GetNumSpecializations()) or 0
+    for i = 1, n do
+        local specID, name, desc, icon, role, primaryStat = GetSpecializationInfo(i)
+        if specID and specID > 0 then
+            cachedPlayerSpecs[specID] = {
+                id          = specID,
+                name        = name or ("Spec " .. specID),
+                icon        = icon or 134400,
+                role        = role or "DAMAGER",
+                primaryStat = primaryStat,
+                index       = i,
+            }
+            cachedPlayerSpecIDs[#cachedPlayerSpecIDs + 1] = specID
+        end
+    end
+    return cachedPlayerSpecs, cachedPlayerSpecIDs
+end
+
+local function update_cached_spec_id()
+    local spec = GetSpecialization and GetSpecialization()
+    cachedSpecIndex = spec or 0
+    if spec and spec > 0 then
+        local specID = select(1, GetSpecializationInfo(spec))
+        if specID and specID > 0 then
+            if specID ~= cachedSpecID then
+                cachedSpecID = specID
+                if sfui.common and sfui.common.invalidate_spec_color_cache then
+                    sfui.common.invalidate_spec_color_cache()
+                end
+            end
+            return
+        end
+    end
+    cachedSpecID = 0
+end
+
+sfui.events.RegisterEvent("PLAYER_LOGIN", function()
+    sfui.common.get_player_class()
+    update_cached_spec_id()
+    build_player_specs_cache()
+    if sfui.common and sfui.common.invalidate_panels_cache then
+        sfui.common.invalidate_panels_cache()
+    end
+end)
+
+sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function()
+    update_cached_spec_id()
+    build_player_specs_cache()
+    if sfui.common and sfui.common.invalidate_panels_cache then
+        sfui.common.invalidate_panels_cache()
+    end
+    if SfuiDB then SfuiDB._populationRetryDone = nil end
+end)
+
+sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", function()
+    update_cached_spec_id()
+    build_player_specs_cache()
+    if sfui.common and sfui.common.invalidate_panels_cache then
+        sfui.common.invalidate_panels_cache()
+    end
+end)
+
+sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", function()
+    update_cached_spec_id()
+    build_player_specs_cache()
+    if sfui.common and sfui.common.invalidate_panels_cache then
+        sfui.common.invalidate_panels_cache()
+    end
+end)
+
+function sfui.common.get_current_spec_id()
+    if cachedSpecID == 0 then update_cached_spec_id() end
+    return cachedSpecID
+end
+
+function sfui.common.get_current_spec_index()
+    if cachedSpecIndex == 0 then update_cached_spec_id() end
+    return cachedSpecIndex
+end
+
+function sfui.common.get_effective_loot_spec_id()
+    local lootSpec = GetLootSpecialization and GetLootSpecialization() or 0
+    if lootSpec and lootSpec > 0 then
+        return lootSpec, false
+    end
+    return sfui.common.get_current_spec_id(), true
+end
+
+function sfui.common.get_player_specs()
+    local specs, specIDs = build_player_specs_cache()
+    return specs, specIDs
+end
+
+function sfui.common.get_spec_info(specID)
+    if not specID or specID == 0 then return nil end
+    local specs = sfui.common.get_player_specs()
+    if specs and specs[specID] then
+        local s = specs[specID]
+        return s.id, s.name, nil, s.icon, s.role, s.primaryStat
+    end
+    return GetSpecializationInfoByID(specID)
+end
+
+function sfui.common.get_spec_name(specID)
+    if not specID or specID == 0 then return "Current Spec" end
+    local specs = sfui.common.get_player_specs()
+    if specs and specs[specID] and specs[specID].name then
+        return specs[specID].name
+    end
+    local _, name = GetSpecializationInfoByID(specID)
+    return name or ("Spec " .. specID)
+end
+
+function sfui.common.get_spec_icon(specID)
+    if not specID or specID == 0 then return nil end
+    local specs = sfui.common.get_player_specs()
+    if specs and specs[specID] and specs[specID].icon then
+        return specs[specID].icon
+    end
+    local _, _, _, icon = GetSpecializationInfoByID(specID)
+    return icon
+end
+
+function sfui.common.get_spec_role(specIDorIndex)
+    if not specIDorIndex or specIDorIndex == 0 or specIDorIndex == "NONE" then
+        return "DAMAGER"
+    end
+    if type(specIDorIndex) == "number" and specIDorIndex <= 4 then
+        if GetSpecializationRole then
+            local role = GetSpecializationRole(specIDorIndex)
+            if role and role ~= "NONE" then return role end
+        end
+        local _, _, _, _, role = GetSpecializationInfo(specIDorIndex)
+        if role and role ~= "NONE" then return role end
+    else
+        local specs = sfui.common.get_player_specs()
+        if specs and specs[specIDorIndex] and specs[specIDorIndex].role then
+            return specs[specIDorIndex].role
+        end
+        local _, _, _, _, role = GetSpecializationInfoByID(specIDorIndex)
+        if role and role ~= "NONE" then return role end
+    end
+    return "DAMAGER"
 end
 
 -- Returns RGB(A) color for a specialization ID, falling back to class color or cyan
@@ -335,6 +541,460 @@ function sfui.common.get_spec_color(specID)
     if cc then return cc.r, cc.g, cc.b, 1 end
     return 0.0, 0.8, 1.0, 1
 end
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- Item & Slot Engine (C_Item Modernization & Unified Constants)
+-- ────────────────────────────────────────────────────────────────────────────
+local C_Item                          = _G.C_Item or {}
+local C_Item_GetItemInfo              = C_Item.GetItemInfo or _G.GetItemInfo
+local C_Item_GetItemInfoInstant       = C_Item.GetItemInfoInstant or _G.GetItemInfoInstant
+local C_Item_GetDetailedItemLevelInfo = C_Item.GetDetailedItemLevelInfo or _G.GetDetailedItemLevelInfo
+local C_Item_GetItemStats             = C_Item.GetItemStats or _G.GetItemStats
+local C_Item_GetItemQualityColor      = C_Item.GetItemQualityColor or _G.GetItemQualityColor
+local C_Item_GetItemQualityByID       = C_Item.GetItemQualityByID
+local C_Item_RequestLoadItemDataByID  = C_Item.RequestLoadItemDataByID
+local C_Item_GetItemCount             = C_Item.GetItemCount or _G.GetItemCount
+
+local INVENTORY_SLOT_NAMES = {
+    [1]  = "Head",
+    [2]  = "Neck",
+    [3]  = "Shoulders",
+    [4]  = "Shirt",
+    [5]  = "Chest",
+    [6]  = "Waist",
+    [7]  = "Legs",
+    [8]  = "Feet",
+    [9]  = "Wrists",
+    [10] = "Hands",
+    [11] = "Ring 1",
+    [12] = "Ring 2",
+    [13] = "Trinket 1",
+    [14] = "Trinket 2",
+    [15] = "Back",
+    [16] = "Main Hand",
+    [17] = "Off Hand",
+    [19] = "Tabard",
+}
+
+local SLOT_KEY_NAMES = {
+    head = "Head", neck = "Neck", shoulder = "Shoulder", back = "Back",
+    chest = "Chest", wrist = "Wrist", hands = "Hands", waist = "Waist",
+    legs = "Legs", feet = "Feet", weapon = "Weapon", ring = "Ring",
+    trinket = "Trinket", other = "Other", token = "Other",
+}
+
+local STAT_NAME_MAP = {
+    [1] = "ITEM_MOD_STRENGTH_SHORT",
+    [2] = "ITEM_MOD_AGILITY_SHORT",
+    [4] = "ITEM_MOD_INTELLECT_SHORT",
+}
+
+-- Returns localized display name or fallback for a numeric slot ID or slot string key
+function sfui.common.get_slot_name(slot)
+    if type(slot) == "number" then
+        return INVENTORY_SLOT_NAMES[slot] or ("Slot " .. slot)
+    elseif type(slot) == "string" then
+        return SLOT_KEY_NAMES[slot:lower()] or slot
+    end
+    return "Unknown"
+end
+
+-- Returns localized short stat name (e.g. "Str", "Agi", "Int")
+function sfui.common.get_stat_name(statID)
+    local key = STAT_NAME_MAP[statID]
+    return key and _G[key] or nil
+end
+
+-- Returns global constant key for a primary stat (e.g. "ITEM_MOD_STRENGTH_SHORT")
+function sfui.common.get_stat_key(statID)
+    return STAT_NAME_MAP[statID]
+end
+
+-- Maps itemEquipLoc (INVTYPE_*) to target inventory slot(s).
+-- Returns: numSlots, slot1, slot2 (zero table allocations)
+function sfui.common.get_slots_for_invtype(equipLoc, canDualWield1H, canDualWield2H)
+    if not equipLoc then return 0 end
+    if equipLoc == "INVTYPE_HEAD" then return 1, 1
+    elseif equipLoc == "INVTYPE_NECK" then return 1, 2
+    elseif equipLoc == "INVTYPE_SHOULDER" then return 1, 3
+    elseif equipLoc == "INVTYPE_BODY" or equipLoc == "INVTYPE_SHIRT" then return 1, 4
+    elseif equipLoc == "INVTYPE_CHEST" or equipLoc == "INVTYPE_ROBE" then return 1, 5
+    elseif equipLoc == "INVTYPE_WAIST" then return 1, 6
+    elseif equipLoc == "INVTYPE_LEGS" then return 1, 7
+    elseif equipLoc == "INVTYPE_FEET" then return 1, 8
+    elseif equipLoc == "INVTYPE_WRIST" then return 1, 9
+    elseif equipLoc == "INVTYPE_HAND" or equipLoc == "INVTYPE_HANDS" then return 1, 10
+    elseif equipLoc == "INVTYPE_FINGER" then return 2, 11, 12
+    elseif equipLoc == "INVTYPE_TRINKET" then return 2, 13, 14
+    elseif equipLoc == "INVTYPE_CLOAK" then return 1, 15
+    elseif equipLoc == "INVTYPE_WEAPON" then
+        if canDualWield1H then return 2, 16, 17 else return 1, 16 end
+    elseif equipLoc == "INVTYPE_SHIELD" or equipLoc == "INVTYPE_HOLDABLE" or equipLoc == "INVTYPE_WEAPONOFFHAND" then
+        return 1, 17
+    elseif equipLoc == "INVTYPE_2HWEAPON" then
+        if canDualWield2H then return 2, 16, 17 else return 1, 16 end
+    elseif equipLoc == "INVTYPE_RANGED" or equipLoc == "INVTYPE_RANGEDRIGHT" or equipLoc == "INVTYPE_THROWN" then
+        return 1, 16
+    elseif equipLoc == "INVTYPE_WEAPONMAINHAND" then
+        return 1, 16
+    elseif equipLoc == "INVTYPE_TABARD" then
+        return 1, 19
+    end
+    return 0
+end
+
+-- Populates a target array with resolved slots (avoiding allocations) and returns numSlots, s1, s2
+function sfui.common.populate_slots_for_invtype(targetTable, equipLoc, canDualWield1H, canDualWield2H)
+    local n, s1, s2 = sfui.common.get_slots_for_invtype(equipLoc, canDualWield1H, canDualWield2H)
+    if targetTable then
+        targetTable[1] = s1
+        targetTable[2] = s2
+    end
+    return n, s1, s2
+end
+
+-- Extracts numeric item ID from item ID, string ID, or hyperlink
+function sfui.common.get_item_id(item)
+    if not item then return nil end
+    if type(item) == "number" then return item end
+    if type(item) == "string" then
+        local id = tonumber(item:match("item:(%d+)"))
+        if id then return id end
+        local numeric = tonumber(item)
+        if numeric then return numeric end
+        if C_Item_GetItemInfoInstant then
+            local instantID = C_Item_GetItemInfoInstant(item)
+            if instantID then return instantID end
+        end
+    end
+    return nil
+end
+sfui.common.get_item_id_from_link = sfui.common.get_item_id
+
+-- Resolves effective item level via C_Item with fallback to GetItemInfo
+function sfui.common.get_item_level(itemLinkOrID)
+    if not itemLinkOrID then return 0 end
+    local ilvl = C_Item_GetDetailedItemLevelInfo and C_Item_GetDetailedItemLevelInfo(itemLinkOrID)
+    if not ilvl or ilvl == 0 then
+        if C_Item_GetItemInfo then
+            ilvl = select(4, C_Item_GetItemInfo(itemLinkOrID))
+        end
+    end
+    return ilvl or 0
+end
+
+-- Safe wrapper for C_Item.GetItemInfoInstant
+function sfui.common.get_item_instant_info(item)
+    if not item then return end
+    if C_Item_GetItemInfoInstant then
+        return C_Item_GetItemInfoInstant(item)
+    end
+end
+
+-- Safe wrapper for C_Item.GetItemInfo
+function sfui.common.get_item_info(item)
+    if not item then return end
+    if C_Item_GetItemInfo then
+        return C_Item_GetItemInfo(item)
+    end
+end
+
+-- Safe wrapper for C_Item.GetItemStats
+function sfui.common.get_item_stats(itemLink)
+    if not itemLink then return nil end
+    if C_Item_GetItemStats then
+        return C_Item_GetItemStats(itemLink)
+    end
+    return nil
+end
+
+-- Returns item quality integer (0..8)
+function sfui.common.get_item_quality(item)
+    if not item then return 1 end
+    local itemID = type(item) == "number" and item or tonumber(type(item) == "string" and item:match("item:(%d+)"))
+    if itemID and C_Item_GetItemQualityByID then
+        local q = C_Item_GetItemQualityByID(itemID)
+        if q then return q end
+    end
+    if C_Item_GetItemInfo then
+        local _, _, quality = C_Item_GetItemInfo(item)
+        if quality then return quality end
+    end
+    return 1
+end
+
+-- Returns r, g, b, hex for an item quality
+function sfui.common.get_item_quality_color(quality)
+    quality = tonumber(quality) or 1
+    if C_Item_GetItemQualityColor then
+        local r, g, b, hex = C_Item_GetItemQualityColor(quality)
+        if r then return r, g, b, hex end
+    end
+    return 1, 1, 1, "ffffffff"
+end
+
+-- Safely preloads item data into client cache
+function sfui.common.request_item_load(item)
+    local itemID = sfui.common.get_item_id(item)
+    if itemID and C_Item_RequestLoadItemDataByID then
+        C_Item_RequestLoadItemDataByID(itemID)
+    end
+end
+
+-- Safe wrapper for C_Item.GetItemCount
+function sfui.common.get_item_count(item, includeBank)
+    if not item then return 0 end
+    if C_Item_GetItemCount then
+        return C_Item_GetItemCount(item, includeBank) or 0
+    end
+    return 0
+end
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- Spell Engine (C_Spell Modernization & Normalization)
+-- ────────────────────────────────────────────────────────────────────────────
+local C_Spell                         = _G.C_Spell or {}
+local C_Spell_GetSpellInfo            = C_Spell.GetSpellInfo
+local C_Spell_GetSpellName            = C_Spell.GetSpellName
+local C_Spell_GetSpellTexture         = C_Spell.GetSpellTexture or _G.GetSpellTexture
+local C_Spell_GetSpellCooldown        = C_Spell.GetSpellCooldown or _G.GetSpellCooldown
+local C_Spell_GetSpellCooldownDuration = C_Spell.GetSpellCooldownDuration
+local C_Spell_RequestLoadSpellData    = C_Spell.RequestLoadSpellData
+
+-- Returns unified spell info table or nil
+-- Compatible with both modern C_Spell.GetSpellInfo (table) and legacy _G.GetSpellInfo (multi-return)
+function sfui.common.get_spell_info(spellID)
+    if not spellID then return nil end
+    if C_Spell_GetSpellInfo then
+        local info = C_Spell_GetSpellInfo(spellID)
+        if info then
+            return {
+                name     = info.name,
+                icon     = info.iconID or info.originalIconID,
+                castTime = info.castTime,
+                minRange = info.minRange,
+                maxRange = info.maxRange,
+                spellID  = info.spellID or spellID,
+            }
+        end
+    end
+    if _G.GetSpellInfo then
+        local name, _, icon, castTime, minRange, maxRange, id = _G.GetSpellInfo(spellID)
+        if name then
+            return {
+                name     = name,
+                icon     = icon,
+                castTime = castTime,
+                minRange = minRange,
+                maxRange = maxRange,
+                spellID  = id or spellID,
+            }
+        end
+    end
+    return nil
+end
+
+-- Returns spell name string or nil
+function sfui.common.get_spell_name(spellID)
+    if not spellID then return nil end
+    if C_Spell_GetSpellName then
+        local name = C_Spell_GetSpellName(spellID)
+        if name and name ~= "" then return name end
+    end
+    if C_Spell_GetSpellInfo then
+        local info = C_Spell_GetSpellInfo(spellID)
+        if info and info.name and info.name ~= "" then return info.name end
+    end
+    if _G.GetSpellInfo then
+        local name = _G.GetSpellInfo(spellID)
+        if name and name ~= "" then return name end
+    end
+    return nil
+end
+
+-- Returns spell icon texture (fileID/path) or nil
+function sfui.common.get_spell_icon(spellID)
+    if not spellID then return nil end
+    if C_Spell_GetSpellTexture then
+        local icon = C_Spell_GetSpellTexture(spellID)
+        if icon then return icon end
+    end
+    if C_Spell_GetSpellInfo then
+        local info = C_Spell_GetSpellInfo(spellID)
+        if info and (info.iconID or info.originalIconID) then
+            return info.iconID or info.originalIconID
+        end
+    end
+    if _G.GetSpellTexture then
+        local icon = _G.GetSpellTexture(spellID)
+        if icon then return icon end
+    end
+    return nil
+end
+
+-- Returns normalized cooldown info: startTime, duration, isEnabled, modRate
+function sfui.common.get_spell_cooldown(spellID)
+    if not spellID then return 0, 0, false, 1 end
+    if C_Spell_GetSpellCooldown then
+        local cd = C_Spell_GetSpellCooldown(spellID)
+        if cd then
+            if type(cd) == "table" then
+                return cd.startTime or 0, cd.duration or 0, cd.isEnabled ~= false, cd.modRate or 1
+            else
+                local start, dur, enabled, modRate = C_Spell_GetSpellCooldown(spellID)
+                return start or 0, dur or 0, enabled ~= 0 and enabled ~= false, modRate or 1
+            end
+        end
+    end
+    if _G.GetSpellCooldown then
+        local start, dur, enabled, modRate = _G.GetSpellCooldown(spellID)
+        return start or 0, dur or 0, enabled ~= 0 and enabled ~= false, modRate or 1
+    end
+    return 0, 0, false, 1
+end
+
+-- Safely requests async spell data loading
+function sfui.common.request_spell_load(spellID)
+    if spellID and C_Spell_RequestLoadSpellData then
+        C_Spell_RequestLoadSpellData(spellID)
+    end
+end
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- Container & Bag Engine (C_Container Modernization)
+-- ────────────────────────────────────────────────────────────────────────────
+local C_Container                      = _G.C_Container or {}
+local C_Container_GetContainerNumSlots = C_Container.GetContainerNumSlots or _G.GetContainerNumSlots
+local C_Container_GetContainerItemInfo = C_Container.GetContainerItemInfo or _G.GetContainerItemInfo
+local C_Container_GetContainerItemLink = C_Container.GetContainerItemLink or _G.GetContainerItemLink
+local C_Container_GetContainerItemID   = C_Container.GetContainerItemID or _G.GetContainerItemID
+
+--- Iterates over the player's equipped bags and invokes callback for each item.
+--- Stops iteration early if callback returns true.
+--- @param callback fun(bag: number, slot: number, itemID: number|nil, itemLink: string|nil, itemInfo: table|nil): boolean|nil
+--- @param includeReagent boolean|nil If true or nil, includes reagent bag (index 5)
+--- @param skipEmpty boolean|nil If true or nil, only calls callback on non-empty slots
+--- @return boolean Returns true if iteration was terminated early by callback
+function sfui.common.for_each_bag_item(callback, includeReagent, skipEmpty)
+    if type(callback) ~= "function" then return false end
+    if not C_Container_GetContainerNumSlots then return false end
+
+    local maxBag = (includeReagent ~= false) and (_G.NUM_TOTAL_EQUIPPED_BAG_SLOTS or 5) or (_G.NUM_BAG_SLOTS or 4)
+    local shouldSkipEmpty = (skipEmpty ~= false)
+
+    for bag = 0, maxBag do
+        local numSlots = C_Container_GetContainerNumSlots(bag) or 0
+        for slot = 1, numSlots do
+            local info = C_Container_GetContainerItemInfo and C_Container_GetContainerItemInfo(bag, slot)
+            local itemID = info and (info.itemID or sfui.common.get_item_id(info.hyperlink))
+            if not itemID and C_Container_GetContainerItemID then
+                itemID = C_Container_GetContainerItemID(bag, slot)
+            end
+            local itemLink = (info and info.hyperlink) or (C_Container_GetContainerItemLink and C_Container_GetContainerItemLink(bag, slot))
+
+            if not shouldSkipEmpty or info or itemID or itemLink then
+                if callback(bag, slot, itemID, itemLink, info) then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- Map & Zone Engine (C_Map Modernization)
+-- ────────────────────────────────────────────────────────────────────────────
+local C_Map                   = _G.C_Map or {}
+local C_Map_GetBestMapForUnit = C_Map.GetBestMapForUnit
+local C_Map_GetMapInfo        = C_Map.GetMapInfo
+
+--- Returns the player's current best uiMapID, or 0
+--- @return number
+function sfui.common.get_player_map_id()
+    if C_Map_GetBestMapForUnit then
+        return C_Map_GetBestMapForUnit("player") or 0
+    end
+    return 0
+end
+
+--- Returns map info table for the given uiMapID or nil
+--- @param mapID number
+--- @return table|nil
+function sfui.common.get_map_info(mapID)
+    if not mapID or mapID <= 0 then return nil end
+    if C_Map_GetMapInfo then
+        return C_Map_GetMapInfo(mapID)
+    end
+    return nil
+end
+
+--- Returns map info table for the player's current best map or nil
+--- @return table|nil
+function sfui.common.get_player_map_info()
+    local mapID = sfui.common.get_player_map_id()
+    return sfui.common.get_map_info(mapID)
+end
+
+--- Returns the localized name of the specified uiMapID or nil
+--- @param mapID number
+--- @return string|nil
+function sfui.common.get_map_name(mapID)
+    local info = sfui.common.get_map_info(mapID)
+    return info and info.name or nil
+end
+
+--- Returns the localized name of the player's current zone/map or nil
+--- @return string|nil
+function sfui.common.get_player_map_name()
+    local info = sfui.common.get_player_map_info()
+    return info and info.name or nil
+end
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- Currency Engine (C_CurrencyInfo Modernization)
+-- ────────────────────────────────────────────────────────────────────────────
+local C_CurrencyInfo                 = _G.C_CurrencyInfo or {}
+local C_CurrencyInfo_GetCurrencyInfo = C_CurrencyInfo.GetCurrencyInfo or _G.GetCurrencyInfo
+
+--- Returns currency info table or nil
+--- @param currencyID number
+--- @return table|nil
+function sfui.common.get_currency_info(currencyID)
+    if not currencyID then return nil end
+    local cID = tonumber(currencyID)
+    if not cID or cID <= 0 then return nil end
+    if C_CurrencyInfo_GetCurrencyInfo then
+        return C_CurrencyInfo_GetCurrencyInfo(cID)
+    end
+    return nil
+end
+
+--- Returns current quantity of the specified currency, or 0
+--- Zero garbage allocation (no fallback table allocation).
+--- @param currencyID number
+--- @return number
+function sfui.common.get_currency_quantity(currencyID)
+    local info = sfui.common.get_currency_info(currencyID)
+    return (info and info.quantity) or 0
+end
+
+--- Returns localized name of the specified currency, or nil
+--- @param currencyID number
+--- @return string|nil
+function sfui.common.get_currency_name(currencyID)
+    local info = sfui.common.get_currency_info(currencyID)
+    return info and info.name or nil
+end
+
+--- Returns icon fileID/path for the specified currency, or nil
+--- @param currencyID number
+--- @return number|string|nil
+function sfui.common.get_currency_icon(currencyID)
+    local info = sfui.common.get_currency_info(currencyID)
+    return info and (info.iconFileID or info.icon) or nil
+end
+
 
 -- Helper to safely ensure tracked bar DB structure exists
 -- Returns the tracked bar entry for the given cooldownID, or the trackedBarsBySpec table if no ID provided
@@ -920,49 +1580,6 @@ local resourceColorsCache = {
     ["ARCANE_CHARGES"] = { r = 0.6, g = 0.8, b = 1.0 },
 }
 
-local cachedSpecID = 0
--- sfui.events is defined in dispatcher.lua (loaded before common.lua)
-
-local function update_cached_spec_id()
-    local spec = (C_SpecializationInfo and C_SpecializationInfo.GetSpecialization and C_SpecializationInfo.GetSpecialization()) or (GetSpecialization and GetSpecialization())
-    if spec then
-        local specID = (C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo and select(1, C_SpecializationInfo.GetSpecializationInfo(spec))) or (GetSpecializationInfo and select(1, GetSpecializationInfo(spec)))
-        if specID and specID > 0 and specID ~= cachedSpecID then
-            cachedSpecID = specID
-            sfui.common.invalidate_spec_color_cache()
-        end
-    end
-end
-
-sfui.events.RegisterEvent("PLAYER_LOGIN", function()
-    update_cached_spec_id()
-    sfui.common.invalidate_panels_cache()
-end)
-
-sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function()
-    update_cached_spec_id()
-    sfui.common.invalidate_panels_cache()
-    if SfuiDB then SfuiDB._populationRetryDone = nil end
-end)
-
--- 12.0.5+: fires when the system forces a spec change (arena PvP loadout lock,
--- talent reset, etc.) — distinct from PLAYER_SPECIALIZATION_CHANGED which only
--- fires for player-initiated changes.
-sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", function()
-    update_cached_spec_id()
-    sfui.common.invalidate_panels_cache()
-end)
-
-sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", function()
-    update_cached_spec_id()
-    sfui.common.invalidate_panels_cache()
-end)
-
-function sfui.common.get_current_spec_id()
-    if cachedSpecID == 0 then update_cached_spec_id() end
-    return cachedSpecID
-end
-
 -- ────────────────────────────────────────────────────────────────────────────
 -- Central Out-of-Combat Action Queue
 -- ────────────────────────────────────────────────────────────────────────────
@@ -1119,19 +1736,35 @@ function sfui.common.update_widget_bar(widget_frame, icons_pool, labels_pool, so
 end
 
 function sfui.common.get_primary_resource()
-    if playerClass == "DRUID" then return primaryResourcesCache[playerClass][GetShapeshiftFormID() or 0] end
-    local cache = primaryResourcesCache[playerClass]
-    if type(cache) == "table" then return cache[cachedSpecID] else return cache end
+    local pClass = sfui.common.get_player_class()
+    if not pClass then return nil end
+    if pClass == "DRUID" then
+        local form = GetShapeshiftFormID and GetShapeshiftFormID() or 0
+        local druidCache = primaryResourcesCache[pClass]
+        return (druidCache and druidCache[form]) or Enum.PowerType.Mana
+    end
+    local cache = primaryResourcesCache[pClass]
+    if type(cache) == "table" then
+        local specID = sfui.common.get_current_spec_id()
+        return cache[specID]
+    else
+        return cache
+    end
 end
 
 function sfui.common.get_secondary_resource()
+    local pClass = sfui.common.get_player_class()
+    if not pClass then return nil end
     local res
-    if playerClass == "DRUID" then
-        res = secondaryResourcesCache[playerClass][GetShapeshiftFormID() or 0]
+    if pClass == "DRUID" then
+        local form = GetShapeshiftFormID and GetShapeshiftFormID() or 0
+        local druidCache = secondaryResourcesCache[pClass]
+        res = druidCache and druidCache[form]
     else
-        local cache = secondaryResourcesCache[playerClass]
+        local cache = secondaryResourcesCache[pClass]
         if type(cache) == "table" then
-            res = cache[cachedSpecID]
+            local specID = sfui.common.get_current_spec_id()
+            res = cache[specID]
         else
             res = cache
         end
@@ -1164,14 +1797,21 @@ function sfui.common.get_class_or_spec_color()
 
     -- Rebuild the cached table in-place (no new allocation)
     _specColorCache[1], _specColorCache[2], _specColorCache[3], _specColorCache[4] = 1, 1, 1, 1
-    local specColor = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[cachedSpecID])
-        or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[cachedSpecID])
-    if cachedSpecID and specColor then
+    local specID = sfui.common.get_current_spec_id()
+    local pClass = sfui.common.get_player_class()
+
+    local specColor = (specID and specID > 0) and ((SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
+        or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID]))
+
+    if specColor then
         _specColorCache[1], _specColorCache[2], _specColorCache[3], _specColorCache[4] =
-            specColor[1], specColor[2], specColor[3], specColor[4] or 1
-    elseif playerClass then
-        local classColor = C_ClassColor and C_ClassColor.GetClassColor(playerClass) or
-            (RAID_CLASS_COLORS and RAID_CLASS_COLORS[playerClass])
+            specColor[1] or specColor.r or 1,
+            specColor[2] or specColor.g or 1,
+            specColor[3] or specColor.b or 1,
+            specColor[4] or specColor.a or 1
+    elseif pClass then
+        local classColor = C_ClassColor and C_ClassColor.GetClassColor(pClass) or
+            (RAID_CLASS_COLORS and RAID_CLASS_COLORS[pClass])
         if classColor then
             _specColorCache[1], _specColorCache[2], _specColorCache[3], _specColorCache[4] =
                 classColor.r, classColor.g, classColor.b, 1
@@ -1924,16 +2564,11 @@ function sfui.common.is_housing_zone()
     end
 
     -- 4. Map Name check via C_Map
-    if C_Map and C_Map.GetBestMapForUnit then
-        local uiMapID = C_Map.GetBestMapForUnit("player")
-        if uiMapID and C_Map.GetMapInfo then
-            local mapInfo = C_Map.GetMapInfo(uiMapID)
-            if mapInfo and mapInfo.name then
-                local lower = mapInfo.name:lower()
-                if lower:find("razorwind") or lower:find("founder") or lower:find("housing") or lower:find("neighborhood") then
-                    return true
-                end
-            end
+    local mapName = sfui.common.get_player_map_name()
+    if mapName then
+        local lower = mapName:lower()
+        if lower:find("razorwind") or lower:find("founder") or lower:find("housing") or lower:find("neighborhood") then
+            return true
         end
     end
 
@@ -2053,6 +2688,8 @@ function sfui.initialize_database()
     -- automation settings
     if SfuiDB.auto_role_check == nil then SfuiDB.auto_role_check = true end
     if SfuiDB.auto_sign_lfg == nil then SfuiDB.auto_sign_lfg = true end
+    if SfuiDB.autoDungeonPortalPopup == nil then SfuiDB.autoDungeonPortalPopup = true end
+    if SfuiDB.portalPopupOnlyWhenFull == nil then SfuiDB.portalPopupOnlyWhenFull = true end
 
     -- Tracked Bars
     SfuiDB.trackedBars = SfuiDB.trackedBars or {}

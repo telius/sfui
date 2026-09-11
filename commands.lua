@@ -151,8 +151,12 @@ SlashCmdList["SFUI"] = function(msg)
                 sfui.common.print("sfui: cooldown viewer not available.")
             end
         end
-    elseif cmd == "portals" or cmd == "portal" then
-        if sfui.portals and sfui.portals.Toggle then
+    elseif cmd == "portals" or cmd == "portal" or cmd == "portalpopup" or cmd == "teleport" then
+        if arg == "test" or arg == "preview" or arg == "popup" or cmd == "portalpopup" then
+            if sfui.portals and sfui.portals.TestPortalPopup then
+                sfui.portals.TestPortalPopup()
+            end
+        elseif sfui.portals and sfui.portals.Toggle then
             sfui.portals.Toggle()
         else
             if sfui.common and sfui.common.print then
@@ -240,7 +244,7 @@ SlashCmdList["SFUI"] = function(msg)
         C_UI.Reload()
     elseif cmd == "help" or cmd == "?" then
         if sfui.common and sfui.common.print then
-            sfui.common.print("Commands: /sfui [options | hammer [test|lock|reset|debug] | alts | ql | portals | cv | gear | highest | lootspec | loot | research | mythic | mem | rl]")
+            sfui.common.print("Commands: /sfui [options | hammer [test|lock|reset|debug] | alts | ql | portals [test] | cv | gear | highest | lootspec | loot | research | mythic | mem | rl]")
         end
     else
         if sfui.common and sfui.common.print then

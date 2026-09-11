@@ -182,7 +182,7 @@ local function IsRaidQuest(questID, info)
         end
     end
 
-    local mapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+    local mapID = sfui.common.get_player_map_id()
     if mapID then
         if C_QuestLog and C_QuestLog.GetQuestsOnMap then
             local qOnMap = C_QuestLog.GetQuestsOnMap(mapID)
@@ -206,7 +206,7 @@ local function IsRaidQuest(questID, info)
 end
 
 local function HasRaidQuest()
-    local mapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+    local mapID = sfui.common.get_player_map_id()
     if mapID then
         if C_QuestLog and C_QuestLog.GetQuestsOnMap then
             local qOnMap = C_QuestLog.GetQuestsOnMap(mapID)
@@ -358,14 +358,13 @@ local cachedParentMapID     = nil
 local cachedCurrentZoneName = nil
 
 local function UpdateMapCache()
-    if not C_Map or not C_Map.GetBestMapForUnit then return end
-    local curMap = C_Map.GetBestMapForUnit("player")
+    local curMap = sfui.common.get_player_map_id()
     if curMap ~= cachedCurrentMapID then
         cachedCurrentMapID = curMap
         cachedParentMapID = nil
         cachedCurrentZoneName = nil
-        if curMap and C_Map.GetMapInfo then
-            local info = C_Map.GetMapInfo(curMap)
+        if curMap then
+            local info = sfui.common.get_map_info(curMap)
             if info then
                 cachedCurrentZoneName = info.name
                 if info.parentMapID and info.parentMapID > 0 and info.parentMapID ~= curMap then
