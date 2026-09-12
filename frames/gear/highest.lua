@@ -654,7 +654,7 @@ function sfui.highest.GetBestItems(isPvP)
     -- 2. Scan bags
     sfui.common.for_each_bag_item(function(bag, slot, itemID, link)
         if link then evaluate(link, false, nil, bag, slot) end
-    end)
+    end, true, true, false)
 
     -- Quad-Tier Engine: Hero Spec -> Pawn Math -> Manual Priority -> Default DB Priority
     local specDB = SfuiDB and SfuiDB.gear and SfuiDB.gear[specID]

@@ -2,6 +2,27 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-39 (2026-09-12)
+
+### Performance & Memory Optimizations
+- **Spec Color Caching (`common.lua`, `trackedbars.lua`, `glows.lua`)**:
+  - Centralized `sfui.common.get_spec_color_table(specID)` with internal caching (`_specColorTableCache`) and automatic invalidation on spec changes.
+  - Eliminated hot-loop table allocations `{ r, g, b, a }` inside `TrackedBars` (20Hz) and `TrackedIcons` glow evaluation (10Hz).
+- **Consolidated LFG Tracking & Portal Popups (`location.lua`, `portal_popup.lua`)**:
+  - Removed duplicate `ShowGroupPortalPopup` invocations and redundant LFG state tracking from `location.lua`.
+  - Reused static persistent `currentGroup` table in `portal_popup.lua` to prevent allocation churn on LFG events.
+- **Container Iteration Optimization (`common.lua`, `highest.lua`, `automation.lua`, `mythic.lua`)**:
+  - Added fast-path numeric `C_Container.GetContainerItemID` check in `for_each_bag_item` to bypass empty slots without table allocation.
+  - Introduced `needInfo = false` mode, eliminating heavy `C_Container.GetContainerItemInfo` queries for bag gear evaluations and keystone checks.
+
+### Bug Fixes & World Events Improvements
+- **World Events Progress Bars & In-Combat Secret Value Safety (`worldevents.lua`)**:
+  - Fixed progress bar reporting 41% as 4% caused by unhandled 1000-range fixed-point scaling and missing override text extraction.
+  - Added zero-arithmetic handling for secret/protected numbers under combat lockdown.
+  - Added `GetTopCenterWidgetSetID` and `GetBelowMinimapWidgetSetID` candidate set coverage.
+
+---
+
 ## v12.1.0-38 (2026-09-12)
 
 ### Features & Delve Improvements

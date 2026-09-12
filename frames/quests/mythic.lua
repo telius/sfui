@@ -3012,7 +3012,7 @@ local function on_mythic_event(event, ...)
                     C_Container.UseContainerItem(bagID, invID)
                     return true
                 end
-            end)
+            end, true, true, false)
         end
     elseif event == "PLAYER_ENTERING_WORLD" then
         CacheGroupMembers()

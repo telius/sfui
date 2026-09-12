@@ -168,7 +168,7 @@ local function auto_slot_keystone()
                 end
             end
         end
-    end)
+    end, true, true, false)
     return slotted
 end
 

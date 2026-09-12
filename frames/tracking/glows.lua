@@ -35,6 +35,8 @@ local function GetValue(entrySettings, panelConfig, key, default)
     return default
 end
 
+local DEFAULT_GLOW_COLOR = { 1, 0.85, 0.1, 1 }
+
 -- Shared resolver to ensure consistent visuals across active icons and global preview
 function sfui.glows.resolve_config(entrySettings, panelConfig, targetTable)
     local cfg = targetTable or {}
@@ -43,13 +45,9 @@ function sfui.glows.resolve_config(entrySettings, panelConfig, targetTable)
     cfg.glowType = GetValue(entrySettings, panelConfig, "glowType", "pixel")
     cfg.useSpecColor = GetValue(entrySettings, panelConfig, "useSpecColor", true)
 
-    local color = GetValue(entrySettings, panelConfig, "glowColor", { 1, 0.85, 0.1, 1 })
+    local color = GetValue(entrySettings, panelConfig, "glowColor", DEFAULT_GLOW_COLOR)
     if cfg.useSpecColor then
-        local specID = sfui.common.get_current_spec_id()
-        if specID and specID > 0 then
-            local r, g, b, a = sfui.common.get_spec_color(specID)
-            color = { r, g, b, a }
-        end
+        color = sfui.common.get_spec_color_table()
     end
     cfg.glowColor = color
 

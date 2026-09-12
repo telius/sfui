@@ -15,31 +15,20 @@ sfui_config.location   = sfui_config.location or {
 -- -------------------------------------------------------
 -- Module state
 -- -------------------------------------------------------
-local pendingDungeon    = nil
-local pendingLeader     = nil
-local pendingInstanceID = nil
-local pendingBaseName   = nil
-local pendingRole       = nil
-local watchingRoster    = false
+local pendingDungeon = nil
+local pendingLeader  = nil
+local watchingRoster = false
 
 local function is_enabled()
-    local reminder = (SfuiDB and SfuiDB.keystoneReminder ~= false)
-    local popup    = (SfuiDB and SfuiDB.autoDungeonPortalPopup ~= false)
-    return reminder or popup
+    return SfuiDB and SfuiDB.keystoneReminder ~= false
 end
 
-local function reset_state(hidePopup)
-    pendingDungeon    = nil
-    pendingLeader     = nil
-    pendingInstanceID = nil
-    pendingBaseName   = nil
-    pendingRole       = nil
+local function reset_state()
+    pendingDungeon = nil
+    pendingLeader  = nil
     if watchingRoster then
         sfui_events.UnregisterEvent("GROUP_ROSTER_UPDATE", sfui.location.on_roster_update)
         watchingRoster = false
-    end
-    if hidePopup and sfui.portals and sfui.portals.HideGroupPortalPopup then
-        sfui.portals.HideGroupPortalPopup()
     end
 end
 
@@ -66,14 +55,7 @@ function sfui.location.on_roster_update()
             )
         end
 
-        local showPopup = (SfuiDB and SfuiDB.autoDungeonPortalPopup ~= false)
-        if showPopup and sfui.portals and sfui.portals.ShowGroupPortalPopup then
-            local instID = pendingInstanceID or pendingBaseName or pendingDungeon
-            local dName  = pendingBaseName or pendingDungeon
-            sfui.portals.ShowGroupPortalPopup(instID, dName, pendingRole, true)
-        end
-
-        reset_state(false)
+        reset_state()
     end
 end
 
@@ -114,7 +96,7 @@ local function on_application_status(event, searchResultID, newStatus)
 
     local activityInfo = C_LFGList.GetActivityInfoTable(activityID, nil, resultData.isWarMode)
     if not is_valid_dungeon_activity(activityInfo) then
-        if newStatus == "inviteaccepted" then reset_state(true) end
+        if newStatus == "inviteaccepted" then reset_state() end
         return
     end
 
@@ -136,16 +118,8 @@ local function on_application_status(event, searchResultID, newStatus)
     end
 
     -- Fall-through: newStatus == "inviteaccepted"
-    pendingDungeon    = pendingDgn
-    pendingLeader     = leader
-    pendingInstanceID = activityInfo.mapID
-    pendingBaseName   = dungeonName
-    local appliedRole = nil
-    if C_LFGList.GetApplicationInfo then
-        local _, _, _, _, role = C_LFGList.GetApplicationInfo(searchResultID)
-        appliedRole = role
-    end
-    pendingRole       = appliedRole
+    pendingDungeon = pendingDgn
+    pendingLeader  = leader
 
     if sfui_config.location.printOnInvite and (SfuiDB and SfuiDB.keystoneReminder ~= false) then
         sfui_common.print(
@@ -154,14 +128,6 @@ local function on_application_status(event, searchResultID, newStatus)
             .. " | leader: " .. tostring(pendingLeader)
             .. " (waiting for group to fill...)"
         )
-    end
-
-    -- If user opted into showing portal popup on join (onlyWhenFull == false)
-    local popupEnabled = (SfuiDB and SfuiDB.autoDungeonPortalPopup ~= false)
-    local onlyWhenFull = (SfuiDB and SfuiDB.portalPopupOnlyWhenFull ~= nil and SfuiDB.portalPopupOnlyWhenFull)
-        or (SfuiDB and SfuiDB.portalPopupOnlyWhenFull == nil and true)
-    if popupEnabled and not onlyWhenFull and sfui.portals and sfui.portals.ShowGroupPortalPopup then
-        sfui.portals.ShowGroupPortalPopup(pendingInstanceID or pendingBaseName, pendingBaseName, pendingRole, false)
     end
 
     -- Register roster watcher only now (transient; unregistered on fill or reset)
@@ -178,7 +144,7 @@ end
 -- Cleanup: leaving a party mid-queue cancels the reminder
 -- -------------------------------------------------------
 local function on_party_leave()
-    reset_state(true)
+    reset_state()
 end
 
 local function on_active_entry_update()
@@ -206,11 +172,8 @@ local function on_active_entry_update()
     local leader      = UnitName("player")
     local pendingDgn  = dungeonName .. " " .. tostring(keyLevel)
 
-    pendingDungeon    = pendingDgn
-    pendingLeader     = leader
-    pendingInstanceID = activityInfo.mapID
-    pendingBaseName   = dungeonName
-    pendingRole       = UnitGroupRolesAssigned("player")
+    pendingDungeon = pendingDgn
+    pendingLeader  = leader
 
     if not watchingRoster then
         sfui_events.RegisterEvent("GROUP_ROSTER_UPDATE", sfui.location.on_roster_update)

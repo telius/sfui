@@ -534,18 +534,50 @@ function sfui.common.get_spec_role(specIDorIndex)
     return "DAMAGER"
 end
 
+-- ────────────────────────────────────────────────────────────────────────────
+-- Spec Color Cache (Zero table allocation in high-frequency update loops)
+-- ────────────────────────────────────────────────────────────────────────────
+local _specColorTableCache = {}
+
+function sfui.common.invalidate_spec_color_cache()
+    table.wipe(_specColorTableCache)
+end
+
+sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", sfui.common.invalidate_spec_color_cache)
+sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", sfui.common.invalidate_spec_color_cache)
+
+-- Returns cached { r, g, b, a } table for a specialization ID (zero allocations)
+function sfui.common.get_spec_color_table(specID)
+    specID = (specID and specID > 0 and specID) or sfui.common.get_current_spec_id() or 0
+    local cached = _specColorTableCache[specID]
+    if cached then return cached end
+
+    local r, g, b, a = 0.0, 0.8, 1.0, 1.0
+    if not specID or specID == 0 then
+        r, g, b, a = 0.35, 0.35, 0.35, 1.0
+    else
+        local specColor = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
+            or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
+        if specColor then
+            r, g, b, a = specColor[1], specColor[2], specColor[3], specColor[4] or 1.0
+        else
+            local _, _, _, _, _, classFile = GetSpecializationInfoByID(specID)
+            local cc = classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
+            if cc then
+                r, g, b, a = cc.r, cc.g, cc.b, 1.0
+            end
+        end
+    end
+
+    local t = { r, g, b, a }
+    _specColorTableCache[specID] = t
+    return t
+end
+
 -- Returns RGB(A) color for a specialization ID, falling back to class color or cyan
 function sfui.common.get_spec_color(specID)
-    if not specID or specID == 0 then return 0.35, 0.35, 0.35, 1 end
-    local specColor = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
-        or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
-    if specColor then
-        return specColor[1], specColor[2], specColor[3], specColor[4] or 1
-    end
-    local _, _, _, _, _, classFile = GetSpecializationInfoByID(specID)
-    local cc = classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
-    if cc then return cc.r, cc.g, cc.b, 1 end
-    return 0.0, 0.8, 1.0, 1
+    local t = sfui.common.get_spec_color_table(specID)
+    return t[1], t[2], t[3], t[4]
 end
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -1156,8 +1188,9 @@ local C_Container_GetContainerItemID   = C_Container.GetContainerItemID or _G.Ge
 --- @param callback fun(bag: number, slot: number, itemID: number|nil, itemLink: string|nil, itemInfo: table|nil): boolean|nil
 --- @param includeReagent boolean|nil If true or nil, includes reagent bag (index 5)
 --- @param skipEmpty boolean|nil If true or nil, only calls callback on non-empty slots
+--- @param needInfo boolean|nil If false, avoids calling C_Container.GetContainerItemInfo (zero table allocations)
 --- @return boolean Returns true if iteration was terminated early by callback
-function sfui.common.for_each_bag_item(callback, includeReagent, skipEmpty)
+function sfui.common.for_each_bag_item(callback, includeReagent, skipEmpty, needInfo)
     if type(callback) ~= "function" then return false end
     if not C_Container_GetContainerNumSlots then return false end
 
@@ -1167,16 +1200,29 @@ function sfui.common.for_each_bag_item(callback, includeReagent, skipEmpty)
     for bag = 0, maxBag do
         local numSlots = C_Container_GetContainerNumSlots(bag) or 0
         for slot = 1, numSlots do
-            local info = C_Container_GetContainerItemInfo and C_Container_GetContainerItemInfo(bag, slot)
-            local itemID = info and (info.itemID or sfui.common.get_item_id(info.hyperlink))
-            if not itemID and C_Container_GetContainerItemID then
-                itemID = C_Container_GetContainerItemID(bag, slot)
-            end
-            local itemLink = (info and info.hyperlink) or (C_Container_GetContainerItemLink and C_Container_GetContainerItemLink(bag, slot))
+            -- Fast path: Query numeric itemID first (zero table allocation)
+            local itemID = C_Container_GetContainerItemID and C_Container_GetContainerItemID(bag, slot)
+            local itemLink = nil
+            local info = nil
 
-            if not shouldSkipEmpty or info or itemID or itemLink then
-                if callback(bag, slot, itemID, itemLink, info) then
-                    return true
+            if itemID or not shouldSkipEmpty then
+                itemLink = C_Container_GetContainerItemLink and C_Container_GetContainerItemLink(bag, slot)
+
+                -- Only query heavy itemInfo table if caller needs it or didn't explicitly opt out
+                if needInfo ~= false then
+                    info = C_Container_GetContainerItemInfo and C_Container_GetContainerItemInfo(bag, slot)
+                    if not itemID and info then
+                        itemID = info.itemID or sfui.common.get_item_id(info.hyperlink)
+                    end
+                    if not itemLink and info then
+                        itemLink = info.hyperlink
+                    end
+                end
+
+                if not shouldSkipEmpty or itemID or itemLink or info then
+                    if callback(bag, slot, itemID, itemLink, info) then
+                        return true
+                    end
                 end
             end
         end

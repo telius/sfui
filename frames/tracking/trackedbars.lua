@@ -361,9 +361,7 @@ local function SetupBarState(bar, config, cfg)
         if config.customColor then
             color = config.customColor
         elseif config.useSpecColor then
-            local specID = sfui.common.get_current_spec_id()
-            local r, g, b, a = sfui.common.get_spec_color(specID)
-            color = { r, g, b, a }
+            color = sfui.common.get_spec_color_table()
         elseif SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars.defaultBarColor then
             color = SfuiDB.trackedBars.defaultBarColor
         elseif config.color then

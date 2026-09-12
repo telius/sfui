@@ -352,7 +352,14 @@ function sfui.portals.TestPortalPopup()
 end
 
 -- ─── LFG & Group Complete Detection State Machine ─────────────────────────
-local currentGroup = nil
+local currentGroup = {
+    active       = false,
+    instanceId   = nil,
+    activityName = nil,
+    appliedRole  = nil,
+    notifiedFull = false,
+    notifiedJoin = false,
+}
 
 local function get_activity_id(data)
     if not data then return nil end
@@ -378,7 +385,7 @@ end
 
 local function check_group_full()
     if not is_enabled() then return end
-    if not currentGroup or currentGroup.notifiedFull then return end
+    if not currentGroup.active or currentGroup.notifiedFull then return end
     if IsInRaid and IsInRaid() then return end
 
     local count = GetNumGroupMembers()
@@ -394,11 +401,11 @@ end
 
 local function check_active_entry()
     if not is_enabled() then return end
-    if currentGroup and currentGroup.notifiedFull then return end
+    if currentGroup.active and currentGroup.notifiedFull then return end
 
     local hasActive = C_LFGList and C_LFGList.HasActiveEntryInfo and C_LFGList.HasActiveEntryInfo()
     if not hasActive then
-        -- NOTE: Do NOT nil currentGroup here!
+        -- NOTE: Do NOT deactivate currentGroup here!
         -- When the 5th member joins, Blizzard automatically delists the group from LFG.
         -- We preserve currentGroup so check_group_full() can fire from GROUP_ROSTER_UPDATE.
         return
@@ -411,14 +418,13 @@ local function check_active_entry()
     local actInfo = actID and C_LFGList.GetActivityInfoTable(actID)
     if not is_valid_dungeon_activity(actInfo) then return end
 
-    if not currentGroup or currentGroup.instanceId ~= actInfo.mapID then
-        currentGroup = {
-            instanceId   = actInfo.mapID,
-            activityName = actInfo.fullName,
-            appliedRole  = UnitGroupRolesAssigned("player"),
-            notifiedFull = false,
-            notifiedJoin = false,
-        }
+    if not currentGroup.active or currentGroup.instanceId ~= actInfo.mapID then
+        currentGroup.active       = true
+        currentGroup.instanceId   = actInfo.mapID
+        currentGroup.activityName = actInfo.fullName
+        currentGroup.appliedRole  = UnitGroupRolesAssigned("player")
+        currentGroup.notifiedFull = false
+        currentGroup.notifiedJoin = false
     end
 
     check_group_full()
@@ -441,13 +447,12 @@ local function on_application_status(event, searchResultID, newStatus)
         appliedRole = role
     end
 
-    currentGroup = {
-        instanceId   = actInfo.mapID,
-        activityName = actInfo.fullName,
-        appliedRole  = appliedRole,
-        notifiedFull = false,
-        notifiedJoin = false,
-    }
+    currentGroup.active       = true
+    currentGroup.instanceId   = actInfo.mapID
+    currentGroup.activityName = actInfo.fullName
+    currentGroup.appliedRole  = appliedRole
+    currentGroup.notifiedFull = false
+    currentGroup.notifiedJoin = false
 
     local onlyWhenFull = (SfuiDB and SfuiDB.portalPopupOnlyWhenFull ~= nil and SfuiDB.portalPopupOnlyWhenFull)
         or (sfui_config and sfui_config.portalPopup and sfui_config.portalPopup.onlyWhenFull)
@@ -475,20 +480,29 @@ sfui_events.RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE", check_active_entry)
 sfui_events.RegisterEvent("LFG_LIST_APPLICATION_STATUS_UPDATED", on_application_status)
 sfui_events.RegisterEvent("GROUP_ROSTER_UPDATE", check_group_full)
 
+local function clear_current_group()
+    currentGroup.active       = false
+    currentGroup.instanceId   = nil
+    currentGroup.activityName = nil
+    currentGroup.appliedRole  = nil
+    currentGroup.notifiedFull = false
+    currentGroup.notifiedJoin = false
+end
+
 sfui_events.RegisterEvent("GROUP_LEFT", function()
-    currentGroup = nil
+    clear_current_group()
     sfui.portals.HideGroupPortalPopup()
 end)
 
 sfui_events.RegisterEvent("CHALLENGE_MODE_START", function()
-    currentGroup = nil
+    clear_current_group()
     sfui.portals.HideGroupPortalPopup()
 end)
 
 sfui_events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
     local inInstance, instanceType = IsInInstance()
     if inInstance and (instanceType == "party" or instanceType == "raid") then
-        currentGroup = nil
+        clear_current_group()
         sfui.portals.HideGroupPortalPopup()
     else
         sfui.portals.HideGroupPortalPopup()
@@ -510,13 +524,13 @@ function sfui.portals.popup_debug()
     print("  onlyWhenFull:", (SfuiDB and SfuiDB.portalPopupOnlyWhenFull))
     print("  numGroupMembers:", GetNumGroupMembers())
     print("  hasActiveEntry:", C_LFGList and C_LFGList.HasActiveEntryInfo and C_LFGList.HasActiveEntryInfo())
-    if currentGroup then
+    if currentGroup.active then
         print("  currentGroup.instanceId:", currentGroup.instanceId)
         print("  currentGroup.activityName:", currentGroup.activityName)
         print("  currentGroup.appliedRole:", currentGroup.appliedRole)
         print("  currentGroup.notifiedFull:", currentGroup.notifiedFull)
     else
-        print("  currentGroup: nil")
+        print("  currentGroup: inactive")
     end
 end
 
