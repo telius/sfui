@@ -291,6 +291,18 @@ function sfui.events.RegisterUpdate(arg1, arg2, arg3)
         interval, callback = arg1, arg2
     end
     interval = math.max(interval or 0, MIN_UPDATE_INTERVAL)
+
+    if name then
+        for i = 1, #updateCallbacks do
+            local d = updateCallbacks[i]
+            if d.name == name then
+                d.interval = interval
+                d.callback = callback
+                return
+            end
+        end
+    end
+
     updateCallbacks[#updateCallbacks + 1] = {
         name     = name,
         interval = interval,
@@ -322,8 +334,8 @@ end
 --- Returns the wrapper function so the caller can pass it to UnregisterEvent.
 ---
 --- Usage:
----   local handle = sfui.events.RegisterThrottledEvent("UNIT_AURA", 0.1, myFn)
----   sfui.events.UnregisterEvent("UNIT_AURA", handle)  -- to remove
+---   local handle = sfui.events.RegisterThrottledEvent("CURRENCY_DISPLAY_UPDATE", 0.2, myFn)
+---   sfui.events.UnregisterEvent("CURRENCY_DISPLAY_UPDATE", handle)  -- to remove
 function sfui.events.RegisterThrottledEvent(event, interval, callback)
     local lastFired = 0
     local wrapper = function(ev, ...)
@@ -335,6 +347,32 @@ function sfui.events.RegisterThrottledEvent(event, interval, callback)
     end
     sfui.events.RegisterEvent(event, wrapper)
     return wrapper
+end
+
+--- Register a unit event callback that fires at most once every `interval` seconds for that unit.
+--- If the event bursts within the window, intermediate fires are dropped.
+--- Returns the wrapper function so the caller can pass it to UnregisterUnitEvent or UnregisterThrottledUnitEvent.
+---
+--- Usage:
+---   local handle = sfui.events.RegisterThrottledUnitEvent("UNIT_AURA", "player", 0.1, myFn)
+---   sfui.events.UnregisterUnitEvent("UNIT_AURA", "player", handle)  -- to remove
+function sfui.events.RegisterThrottledUnitEvent(event, unit, interval, callback)
+    if not unit or not event or not callback then return end
+    local lastFired = 0
+    local wrapper = function(ev, u, ...)
+        local now = GetTime()
+        if now - lastFired >= interval then
+            lastFired = now
+            callback(ev, u, ...)
+        end
+    end
+    sfui.events.RegisterUnitEvent(event, unit, wrapper)
+    return wrapper
+end
+
+--- Unregister a throttled unit event callback.
+function sfui.events.UnregisterThrottledUnitEvent(event, unit, handle)
+    sfui.events.UnregisterUnitEvent(event, unit, handle)
 end
 
 --- Called by sfui.mem when its watcher starts or stops, to update the hot-path flag.

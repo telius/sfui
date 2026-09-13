@@ -688,7 +688,35 @@ end
 -- Main Render Loop
 -- ------------------------------------------------------------
 local function UpdateDisplay()
+    local spec = common.get_current_spec_id and common.get_current_spec_id() or 0
+    currentSpecConfig = SPEC_CONFIGS[spec]
+    if not currentSpecConfig then
+        if container and container:IsShown() then
+            container:Hide()
+            if auraContainer then auraContainer:Hide() end
+            if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+                sfui.trackedbars.ForceLayoutUpdate()
+            end
+        end
+        UpdateVoidMetaDisplay(false)
+        return
+    end
+
     if not container or not bar then return end
+
+    local cfg     = sfui.config.soulFragments or {}
+    local enabled = (cfg.enabled ~= false) and (SfuiDB == nil or SfuiDB.enableSoulFragments ~= false)
+    if not enabled then
+        if container:IsShown() then
+            container:Hide()
+            if auraContainer then auraContainer:Hide() end
+            if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+                sfui.trackedbars.ForceLayoutUpdate()
+            end
+        end
+        UpdateVoidMetaDisplay(false)
+        return
+    end
 
     -- Exact same visibility conditions as bars.lua health bar (bar0)
     local isDragonflying = is_dragonflying()
@@ -697,13 +725,7 @@ local function UpdateDisplay()
     local hasEnemyTarget = UnitCanAttack("player", "target")
     local showCoreBars   = (not inVehicle) and (not isDragonflying) and (inCombat or hasEnemyTarget)
 
-    local cfg     = sfui.config.soulFragments or {}
-    local enabled = (cfg.enabled ~= false) and (SfuiDB == nil or SfuiDB.enableSoulFragments ~= false)
-
-    local spec = common.get_current_spec_id and common.get_current_spec_id() or 0
-    currentSpecConfig = SPEC_CONFIGS[spec]
-
-    local shouldShow = enabled and showCoreBars and (currentSpecConfig ~= nil)
+    local shouldShow = showCoreBars
     local wasShown   = container:IsShown()
 
     if not shouldShow then
@@ -909,25 +931,30 @@ function sfui.soulfragments:Initialize()
     BuildAuraContainer(currentSpecConfig.cap)
 
     if _initialized then
-        sfui.events.RegisterUpdate("SoulFragments", 0.05, function()
-            UpdateDisplay()
-        end)
         UpdateDisplay()
         return
     end
     _initialized = true
 
     -- Unit events: player-only via the central unit-event frame.
-    local function onUnitEvent() UpdateDisplay() end
+    local function onUnitEvent()
+        if not currentSpecConfig then return end
+        if not container or not container:IsShown() then return end
+        UpdateDisplay()
+    end
     sfui.events.RegisterUnitEvents(
         {"UNIT_AURA", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_POWER_UPDATE"},
         "player", onUnitEvent
     )
 
     -- 20 FPS update loop — registered once via the shared dispatcher.
-    sfui.events.RegisterUpdate("SoulFragments", 0.05, function()
+    -- Skips execution when container is not shown to eliminate background churn.
+    local function onSoulFragmentsTick()
+        if not currentSpecConfig then return end
+        if not container or not container:IsShown() then return end
         UpdateDisplay()
-    end)
+    end
+    sfui.events.RegisterUpdate("SoulFragments", 0.05, onSoulFragmentsTick)
 
     UpdateDisplay()
 end
@@ -949,9 +976,6 @@ local function onSpecChanged()
             BuildAuraContainer(currentSpecConfig.cap)
         end
         if container then sfui.soulfragments:UpdatePosition() end
-        sfui.events.RegisterUpdate("SoulFragments", 0.05, function()
-            UpdateDisplay()
-        end)
     else
         DropAuraContainer()
         if container then container:Hide() end
@@ -964,7 +988,10 @@ local function onSpecChanged()
     UpdateDisplay()
 end
 
-local function onCombatOrTarget() UpdateDisplay() end
+local function onCombatOrTarget()
+    if not currentSpecConfig then return end
+    UpdateDisplay()
+end
 
 local function onEncounterBoundary()
     -- Aura instance IDs re-randomize between pulls; drop the cached CDM

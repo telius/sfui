@@ -13,6 +13,11 @@ do
     local mount_speed_bar
     local rune_bar
     local update_mount_speed_bar_internal
+    local update_bar_minus_1
+    local update_bar0
+    local update_bar1
+    local update_rune_bar
+    local update_vigor_bar
 
     -- Throttling system for high-frequency events
     local tCfg = cfg.throttle
@@ -194,8 +199,21 @@ do
                 local isRune = (secResource == Enum.PowerType.Runes)
                 if rune_bar and isRune and SfuiDB.enableSecondaryPowerBar then
                     rune_bar:Show()
+                    update_rune_bar()
                 elseif rune_bar then
                     rune_bar:Hide()
+                end
+
+                -- Refresh shown bars so values are immediately accurate
+                if bar0 and bar0.backdrop and bar0.backdrop:IsShown() then
+                    local max, current = UnitHealthMax("player"), UnitHealth("player")
+                    update_bar0(current, max)
+                end
+                if bar_minus_1 and bar_minus_1.backdrop and bar_minus_1.backdrop:IsShown() then
+                    update_bar_minus_1()
+                end
+                if bar1 and bar1.backdrop and bar1.backdrop:IsShown() then
+                    update_bar1()
                 end
             else
                 if bar0 then bar0.backdrop:Hide() end
@@ -224,7 +242,7 @@ do
         return bar
     end
 
-    local function update_bar_minus_1()
+    function update_bar_minus_1()
         local cfg = sfui.config.powerBar
         local specID = common.get_current_spec_id()
         local hide = cfg.hiddenSpecs and cfg.hiddenSpecs[specID]
@@ -304,7 +322,7 @@ do
         return bar
     end
 
-    local function update_bar0(current, maxVal)
+    function update_bar0(current, maxVal)
         local cfg = sfui.config.healthBar
         if not cfg.enabled then return end
         local bar = get_bar0()
@@ -395,7 +413,7 @@ do
         return a.id < b.id
     end
 
-    local function update_rune_bar()
+    function update_rune_bar()
         local secResource = common.get_secondary_resource()
         if secResource ~= Enum.PowerType.Runes then
             if rune_bar then rune_bar:Hide() end
@@ -496,7 +514,7 @@ do
         return bar
     end
 
-    local function update_bar1()
+    function update_bar1()
         local cfg = sfui.config.secondaryPowerBar
         local specID = common.get_current_spec_id()
         local hide = cfg.hiddenSpecs and cfg.hiddenSpecs[specID]
@@ -583,7 +601,7 @@ do
         return bar
     end
 
-    local function update_vigor_bar()
+    function update_vigor_bar()
         local cfg = sfui.config.vigorBar
         if not cfg.enabled or not is_dragonflying() then
             if vigor_bar then
@@ -765,23 +783,34 @@ do
 
     -- Unit events: player-only via the central unit-event frame.
     local function on_unit_power()
+        local pShown = bar_minus_1 and bar_minus_1.backdrop and bar_minus_1.backdrop:IsShown()
+        local sShown = bar1 and bar1.backdrop and bar1.backdrop:IsShown()
+        if not pShown and not sShown then return end
+
         if not should_throttle("bar_minus_1") then
-            update_bar_minus_1()
-            update_bar1()
+            if pShown then update_bar_minus_1() end
+            if sShown then update_bar1() end
         end
     end
+
     local function on_unit_health()
+        if not bar0 or not bar0.backdrop or not bar0.backdrop:IsShown() then return end
+
         if not should_throttle("bar0") then
             local max, current = UnitHealthMax("player"), UnitHealth("player")
             update_bar0(current, max)
         end
     end
-    -- UNIT_HEALTH and UNIT_ABSORB_AMOUNT_CHANGED share the same handler.
+
+    -- UNIT_HEALTH, UNIT_MAXHEALTH, and UNIT_ABSORB_AMOUNT_CHANGED share the same handler.
     sfui.events.RegisterUnitEvents(
-        {"UNIT_HEALTH", "UNIT_ABSORB_AMOUNT_CHANGED"},
+        {"UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_ABSORB_AMOUNT_CHANGED"},
         "player", on_unit_health
     )
-    sfui.events.RegisterUnitEvent("UNIT_POWER_UPDATE", "player", on_unit_power)
+    sfui.events.RegisterUnitEvents(
+        {"UNIT_POWER_UPDATE", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER"},
+        "player", on_unit_power
+    )
 
     sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", on_event)
     sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORM", on_event)

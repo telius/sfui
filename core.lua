@@ -60,6 +60,7 @@ sfui.events.RegisterEvent("ADDON_LOADED", function(_, name)
         SfuiDB.bonusroll = SfuiDB.bonusroll or {}
         SfuiDB.worldevents = SfuiDB.worldevents or {}
         SfuiDB.spec_colors = SfuiDB.spec_colors or {}
+        SfuiDB.hearthstone = SfuiDB.hearthstone or {}
 
 
         SfuiDecorDB = SfuiDecorDB or {}

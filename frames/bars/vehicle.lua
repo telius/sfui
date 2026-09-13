@@ -723,8 +723,7 @@ local function on_vehicle_global(event)
 end
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD",    on_vehicle_global)
 sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED",     on_vehicle_global)
-sfui.events.RegisterEvent("UNIT_ENTERED_VEHICLE",     on_vehicle_global)
-sfui.events.RegisterEvent("UNIT_EXITED_VEHICLE",      on_vehicle_global)
+sfui.events.RegisterUnitEvents({"UNIT_ENTERED_VEHICLE", "UNIT_EXITED_VEHICLE"}, "player", on_vehicle_global)
 sfui.events.RegisterEvent("VEHICLE_UPDATE",           on_vehicle_global)
 sfui.events.RegisterEvent("UPDATE_VEHICLE_ACTIONBAR", on_vehicle_global)
 sfui.events.RegisterEvent("UPDATE_OVERRIDE_ACTIONBAR",on_vehicle_global)
@@ -735,10 +734,15 @@ sfui.events.RegisterEvent("ACTIONBAR_UPDATE_USABLE",  UpdateUsable)
 sfui.events.RegisterEvent("UPDATE_BINDINGS",          on_vehicle_global)
 
 -- Unit-filtered health/power: only fire for player or vehicle unit, never for
--- Unit-filtered health/power: only fire for player or vehicle unit, never for
--- every friendly unit in a raid.
+-- every friendly unit in a raid. Throttled to 20fps (0.05s).
+local _lastVehicleHealthTime = 0
+local _lastVehiclePowerTime = 0
+
 local function on_unit_health(_, unit)
     if not frame:IsShown() then return end
+    local now = GetTime()
+    if now - _lastVehicleHealthTime < 0.05 then return end
+    _lastVehicleHealthTime = now
     local vUnit = GetVehicleUnit()
     if unit == "player" or unit == "vehicle" or unit == "pet" or unit == vUnit then
         UpdateVehicleHealth()
@@ -746,21 +750,18 @@ local function on_unit_health(_, unit)
 end
 local function on_unit_power(_, unit)
     if not frame:IsShown() then return end
+    local now = GetTime()
+    if now - _lastVehiclePowerTime < 0.05 then return end
+    _lastVehiclePowerTime = now
     local vUnit = GetVehicleUnit()
     if unit == "player" or unit == "vehicle" or unit == "pet" or unit == vUnit then
         UpdateVehiclePower()
     end
 end
-sfui.events.RegisterUnitEvent("UNIT_HEALTH",       "player",  on_unit_health)
-sfui.events.RegisterUnitEvent("UNIT_HEALTH",       "vehicle", on_unit_health)
-sfui.events.RegisterUnitEvent("UNIT_MAXHEALTH",    "player",  on_unit_health)
-sfui.events.RegisterUnitEvent("UNIT_MAXHEALTH",    "vehicle", on_unit_health)
-sfui.events.RegisterUnitEvent("UNIT_POWER_UPDATE", "player",  on_unit_power)
-sfui.events.RegisterUnitEvent("UNIT_POWER_UPDATE", "vehicle", on_unit_power)
-sfui.events.RegisterUnitEvent("UNIT_MAXPOWER",     "player",  on_unit_power)
-sfui.events.RegisterUnitEvent("UNIT_MAXPOWER",     "vehicle", on_unit_power)
-sfui.events.RegisterUnitEvent("UNIT_DISPLAYPOWER", "player",  on_unit_power)
-sfui.events.RegisterUnitEvent("UNIT_DISPLAYPOWER", "vehicle", on_unit_power)
+sfui.events.RegisterUnitEvents({"UNIT_HEALTH", "UNIT_MAXHEALTH"}, "player",  on_unit_health)
+sfui.events.RegisterUnitEvents({"UNIT_HEALTH", "UNIT_MAXHEALTH"}, "vehicle", on_unit_health)
+sfui.events.RegisterUnitEvents({"UNIT_POWER_UPDATE", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER"}, "player",  on_unit_power)
+sfui.events.RegisterUnitEvents({"UNIT_POWER_UPDATE", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER"}, "vehicle", on_unit_power)
 
 -- Unit-filtered spellcast events
 local CAST_STOP_EVENTS = {
@@ -781,28 +782,21 @@ local function on_unit_cast(event, unit)
         end
     end
 end
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_START",          "player",  on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_START",          "vehicle", on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_STOP",           "player",  on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_STOP",           "vehicle", on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_FAILED",         "player",  on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_FAILED",         "vehicle", on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED",    "player",  on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED",    "vehicle", on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_DELAYED",        "player",  on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_DELAYED",        "vehicle", on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START",  "player",  on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START",  "vehicle", on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_UPDATE", "player",  on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_UPDATE", "vehicle", on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP",   "player",  on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP",   "vehicle", on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_START",  "player",  on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_START",  "vehicle", on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_UPDATE", "player",  on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_UPDATE", "vehicle", on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_STOP",   "player",  on_unit_cast)
-sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_STOP",   "vehicle", on_unit_cast)
+local VEHICLE_CAST_EVENTS = {
+    "UNIT_SPELLCAST_START",
+    "UNIT_SPELLCAST_STOP",
+    "UNIT_SPELLCAST_FAILED",
+    "UNIT_SPELLCAST_INTERRUPTED",
+    "UNIT_SPELLCAST_DELAYED",
+    "UNIT_SPELLCAST_CHANNEL_START",
+    "UNIT_SPELLCAST_CHANNEL_UPDATE",
+    "UNIT_SPELLCAST_CHANNEL_STOP",
+    "UNIT_SPELLCAST_EMPOWER_START",
+    "UNIT_SPELLCAST_EMPOWER_UPDATE",
+    "UNIT_SPELLCAST_EMPOWER_STOP",
+}
+sfui.events.RegisterUnitEvents(VEHICLE_CAST_EVENTS, "player",  on_unit_cast)
+sfui.events.RegisterUnitEvents(VEHICLE_CAST_EVENTS, "vehicle", on_unit_cast)
 
 function sfui.vehicle_debug_info()
     return {

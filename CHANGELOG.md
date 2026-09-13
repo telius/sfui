@@ -2,6 +2,28 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-40 (2026-09-13)
+
+### Features & Portal Hub Enhancements
+- **Travel Toys & Hearthstone Skins Widget (`portals.lua`, `portals_db.lua`, `core.lua`)**:
+  - Added dedicated compact icon grid (32x32) displaying accessible travel toys (Dalaran Hearthstone, Garrison Hearthstone, Delver's Mana-Bound Ethergate, Delve-O-Bot 7001, Fractured Necrolyte Skull, etc.) dynamically filtered by owned and character usability status.
+  - Added interactive cosmetic Hearthstone widget cycling through all collected hearthstone toy skins via mouse wheel scroll, persisting chosen skin per-character in `SfuiDB.hearthstone`.
+  - Added lootspec indicators directly on dungeon portal buttons matching current specialization configurations.
+  - Added expansion metadata tags across legacy portal groups and short string labels for travel toys.
+
+### Performance & Event Dispatch Optimizations
+- **Dispatcher Enhancements (`dispatcher.lua`, `soulfragments.lua`, `vehicle.lua`, `bars.lua`)**:
+  - Implemented `sfui.events.RegisterThrottledUnitEvent` and `sfui.events.UnregisterThrottledUnitEvent` for high-frequency unit event management.
+  - Prevented redundant ticker registrations in `RegisterUpdate` by updating existing named entries in place.
+  - Added visibility and spec config checks to `soulfragments.lua` 20Hz update loop to eliminate background processing when hidden.
+  - Throttled vehicle health and power updates to 20fps and consolidated vehicle spellcast event subscriptions into unified unit-event arrays.
+  - Added `UNIT_MAXHEALTH`, `UNIT_MAXPOWER`, and `UNIT_DISPLAYPOWER` unit event coverage in `bars.lua` with immediate value refresh on bar display.
+- **Event Dispatch Cleanup (`mythic.lua`, `common.lua`)**:
+  - Removed redundant `UNIT_DIED` event registration from `mythic.lua`.
+  - Converted global vehicle events in `common.lua` to unit-filtered `player` events.
+
+---
+
 ## v12.1.0-39 (2026-09-12)
 
 ### Performance & Memory Optimizations

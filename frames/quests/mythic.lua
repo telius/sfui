@@ -2947,18 +2947,12 @@ local function on_mythic_event(event, ...)
         wipe(_playerDeaths)
         CacheGroupMembers()
         SyncBlizzardRunHistory()
-        -- Register UNIT_DIED dynamically: only needed during an active M+ run
-        -- to count player deaths per name. Avoids open-world / raid / Delve
-        -- UNIT_DIED traffic being dispatched outside active runs.
-        sfui.events.RegisterEvent("UNIT_DIED", on_mythic_event)
         if sfui.questlog and sfui.questlog.on_mythic_start then
             sfui.questlog.on_mythic_start()
         end
         ShowHUD()
     elseif event == "CHALLENGE_MODE_COMPLETED" then
         StopTicker()
-        -- UNIT_DIED no longer needed once the run ends.
-        sfui.events.UnregisterEvent("UNIT_DIED", on_mythic_event)
         if _mode == "mythic" then
             _runCompleted = true
             UpdateTimer()
@@ -2969,8 +2963,6 @@ local function on_mythic_event(event, ...)
     elseif event == "CHALLENGE_MODE_RESET" then
         _runCompleted = false
         _mode = nil
-        -- Unregister UNIT_DIED: no active run to track deaths for.
-        sfui.events.UnregisterEvent("UNIT_DIED", on_mythic_event)
         HideHUD()
         if sfui.questlog and sfui.questlog.on_mythic_end then
             sfui.questlog.on_mythic_end()
@@ -2990,19 +2982,6 @@ local function on_mythic_event(event, ...)
         RequestStateUpdate(0.4)
     elseif event == "CHALLENGE_MODE_DEATH_COUNT_UPDATED" then
         if _mode == "mythic" then UpdateTimer() end
-    elseif event == "UNIT_DIED" and _mode == "mythic" then
-        local destGUID = select(1, ...)
-        if destGUID then
-            if issecretvalue and issecretvalue(destGUID) then return end
-            for _, p in ipairs(_playerList) do
-                if p.guid == destGUID then
-                    if not (UnitIsFeignDeath and UnitIsFeignDeath(p.unit)) then
-                        _playerDeaths[p.name] = (_playerDeaths[p.name] or 0) + 1
-                    end
-                    break
-                end
-            end
-        end
     elseif event == "GROUP_ROSTER_UPDATE" then
         CacheGroupMembers()
     elseif event == "CHALLENGE_MODE_KEYSTONE_RECEPTABLE_OPEN" then
@@ -3037,7 +3016,6 @@ Reg("CHALLENGE_MODE_COMPLETED")
 Reg("CHALLENGE_MODE_RESET")
 Reg("CHALLENGE_MODE_DEATH_COUNT_UPDATED")
 Reg("CHALLENGE_MODE_KEYSTONE_RECEPTABLE_OPEN")
--- UNIT_DIED is registered dynamically inside CHALLENGE_MODE_START and unregistered on COMPLETED/RESET.
 Reg("GROUP_ROSTER_UPDATE")
 Reg("SCENARIO_UPDATE")
 Reg("SCENARIO_CRITERIA_UPDATE")
