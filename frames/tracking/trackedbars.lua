@@ -815,7 +815,7 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
         myBar._auraStackCache = currentStacks
         myBar._auraStackTimer = GetTime()
     elseif myBar._auraStackCache and myBar._auraStackTimer then
-        if GetTime() - myBar._auraStackTimer < 0.2 then
+        if GetTime() - myBar._auraStackTimer < 0.05 then
             currentStacks = myBar._auraStackCache
         else
             myBar._auraStackCache = nil
@@ -903,7 +903,7 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
             myBar._stackPeakVal   = tempVal
             myBar._stackPeakTimer = GetTime()
         elseif tempVal == 0 and myBar._stackPeakVal and myBar._stackPeakTimer then
-            if GetTime() - myBar._stackPeakTimer < 0.2 then
+            if GetTime() - myBar._stackPeakTimer < 0.05 then
                 currentStacks = myBar._stackPeakVal  -- sustain through transient zero
                 skipSetValue = true                  -- freeze physical bar width
             else
@@ -1160,13 +1160,13 @@ local function ProcessBlizzardSync()
     end
     processBlizzardFramesInternal()
 
-    -- Cleanup with 0.25s graceful death to absorb Blizzard UI frame recreation blinking
+    -- Cleanup with 0.08s graceful death to absorb Blizzard UI frame recreation blinking
     for id, bar in pairs(bars) do
         if not activeCooldownIDs[id] then
             if not bar._missingTime then
                 bar._missingTime = GetTime()
             end
-            if GetTime() - bar._missingTime > 0.25 then
+            if GetTime() - bar._missingTime > 0.08 then
                 sfui.trackedbars.RemoveBar(id, true)
                 layoutNeeded = true
             end
@@ -1195,6 +1195,9 @@ local function HookBlizzardFrame(frame)
     if not frame or hookedFrames[frame] then return end
     hookedFrames[frame] = true
 
+    if frame.Update then
+        hooksecurefunc(frame, "Update", function() SyncWithBlizzard() end)
+    end
     if frame.RefreshData then
         hooksecurefunc(frame, "RefreshData", function() SyncWithBlizzard() end)
     end
@@ -1247,6 +1250,19 @@ local function UpdateBarsState()
                     end
                 else
                     -- Stack mode continuous update: sync stacks if cached on frame
+                    local ad = blizzFrame.auraDataCached
+                    if ad and ad.applications and ad.applications ~= myBar.currentStacks then
+                        myBar.currentStacks = ad.applications
+                        if issecretvalue and issecretvalue(myBar.currentStacks) then
+                            myBar.count:SetText(myBar.currentStacks)
+                        else
+                            myBar.count:SetText(tostring(myBar.currentStacks))
+                        end
+                        if config and config.showStacksText then
+                            myBar.time:SetText(tostring(myBar.currentStacks))
+                        end
+                    end
+
                     if myBar.currentStacks ~= nil then
                         local maxVal = myBar._maxStacks or GetMaxStacksForBar(blizzFrame.cooldownID, config, myBar.spellID) or 10
                         myBar.status:SetMinMaxValues(0, maxVal)
@@ -1267,23 +1283,22 @@ local function UpdateBarsState()
     end
 end
 
--- Event-driven stack count updates using new UNIT_AURA updateInfo (12.0.1.65867+)
-
-
-local _syncThrottle = 0
+local _heartbeatTimer = 0
 local function _OnTrackedBarsUpdate(elapsed)
     -- 1. Visual Updates (Smooth, higher frequency based on config)
     if _numShownBars > 0 and BuffBarCooldownViewer and BuffBarCooldownViewer.itemFramePool then
         UpdateBarsState()
     end
 
-    -- 2. Structure/Visibility Sync (Throttled, lower frequency)
+    -- 2. Structure/Visibility Sync (Immediate on dirty, plus periodic heartbeat safety net)
     if sfui.trackedbars.isDirty then
-        _syncThrottle = _syncThrottle + elapsed
-        -- 0.05s delay allows grouping multiple events (e.g. entering world/combat) into one redraw
-        if _syncThrottle > 0.05 then
-            sfui.trackedbars.isDirty = false
-            _syncThrottle = 0
+        sfui.trackedbars.isDirty = false
+        _heartbeatTimer = 0
+        ProcessBlizzardSync()
+    else
+        _heartbeatTimer = _heartbeatTimer + elapsed
+        if _heartbeatTimer >= 0.15 then
+            _heartbeatTimer = 0
             ProcessBlizzardSync()
         end
     end
@@ -1349,18 +1364,73 @@ function sfui.trackedbars.initialize()
     sfui.events.RegisterUpdate("TrackedBars", cfg.updateThrottle or 0.05, _OnTrackedBarsUpdate)
 
     -- Event-driven updates
-    -- Hook into Blizzard's frames for instant updates (ArcUI approach)
-    if BuffBarCooldownViewer and BuffBarCooldownViewer.itemFramePool then
-        hooksecurefunc(BuffBarCooldownViewer.itemFramePool, "Acquire", function(_, frame)
-            HookBlizzardFrame(frame)
-        end)
-        -- Hook existing frames
-        for frame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
-            HookBlizzardFrame(frame)
+    -- Hook into Blizzard's viewer and frame pool for instant reactions
+    if BuffBarCooldownViewer then
+        if BuffBarCooldownViewer.RefreshData then
+            hooksecurefunc(BuffBarCooldownViewer, "RefreshData", SyncWithBlizzard)
+        end
+        if BuffBarCooldownViewer.RefreshApplications then
+            hooksecurefunc(BuffBarCooldownViewer, "RefreshApplications", SyncWithBlizzard)
+        end
+        if BuffBarCooldownViewer.SetAuraInstanceInfo then
+            hooksecurefunc(BuffBarCooldownViewer, "SetAuraInstanceInfo", SyncWithBlizzard)
+        end
+        if BuffBarCooldownViewer.UpdateShownState then
+            hooksecurefunc(BuffBarCooldownViewer, "UpdateShownState", SyncWithBlizzard)
+        end
+
+        if BuffBarCooldownViewer.itemFramePool then
+            hooksecurefunc(BuffBarCooldownViewer.itemFramePool, "Acquire", function(_, frame)
+                HookBlizzardFrame(frame)
+                SyncWithBlizzard()
+            end)
+            if BuffBarCooldownViewer.itemFramePool.Release then
+                hooksecurefunc(BuffBarCooldownViewer.itemFramePool, "Release", function()
+                    SyncWithBlizzard()
+                end)
+            end
+            if BuffBarCooldownViewer.itemFramePool.ReleaseAll then
+                hooksecurefunc(BuffBarCooldownViewer.itemFramePool, "ReleaseAll", function()
+                    SyncWithBlizzard()
+                end)
+            end
+            -- Hook existing frames
+            for frame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
+                HookBlizzardFrame(frame)
+            end
         end
     end
 
-    -- Register UNIT_AURA event for instant stack updates (12.0.1.65867+)
+    -- Real-time events for instant reaction
+    local _lastOOCAuraTime = 0
+    sfui.events.RegisterUnitEvent("UNIT_AURA", "player", function()
+        if InCombatLockdown() then
+            SyncWithBlizzard()
+        else
+            local now = GetTime()
+            if (now - _lastOOCAuraTime) >= 1.0 then
+                _lastOOCAuraTime = now
+                SyncWithBlizzard()
+            end
+        end
+    end)
+
+    sfui.events.RegisterEvent("SPELL_UPDATE_COOLDOWN", SyncWithBlizzard)
+    sfui.events.RegisterEvent("SPELL_UPDATE_CHARGES", SyncWithBlizzard)
+    sfui.events.RegisterEvent("BAG_UPDATE_COOLDOWN", SyncWithBlizzard)
+
+    sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function()
+        sfui.trackedbars.InvalidateConfigCache()
+        SyncWithBlizzard()
+    end)
+    sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", function()
+        sfui.trackedbars.InvalidateConfigCache()
+        SyncWithBlizzard()
+    end)
+    sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", function()
+        sfui.trackedbars.InvalidateConfigCache()
+        SyncWithBlizzard()
+    end)
 
     ---------------------------------------------------------------------------
     -- Cast mirror for cooldown-tracking bars.
@@ -1384,6 +1454,7 @@ function sfui.trackedbars.initialize()
 
     sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", function(_, _, _, _, castSid)
         if not castSid then return end
+        SyncWithBlizzard()
         -- spellID arg is always plain — safe to use directly.
         local dur = _cdDurCache[castSid]
         if not dur then

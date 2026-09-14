@@ -2,6 +2,19 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-41 (2026-09-14)
+
+### Performance & Responsiveness Improvements
+- **Tracked Bars Latency Elimination (`trackedbars.lua`)**:
+  - Registered real-time game event listeners (`UNIT_AURA`, `SPELL_UPDATE_COOLDOWN`, `SPELL_UPDATE_CHARGES`, `BAG_UPDATE_COOLDOWN`) to eliminate input and state lag on buff/debuff/cooldown changes.
+  - Wired `UNIT_SPELLCAST_SUCCEEDED` (player) to immediately trigger structure and state synchronization upon spellcast.
+  - Added direct hooks to `BuffBarCooldownViewer` methods (`RefreshData`, `RefreshApplications`, `SetAuraInstanceInfo`, `UpdateShownState`) and pool management (`Acquire`, `Release`, `ReleaseAll`).
+  - Removed artificial double-throttling delay on `isDirty` state synchronization, executing immediately on the 20 FPS tick with a 0.15s safety heartbeat.
+  - Implemented live stack synchronization inside `UpdateBarsState()` directly from `auraDataCached.applications`.
+  - Reduced stack debounce timer from 0.20s to 0.05s and bar expiration grace period from 0.25s to 0.08s, making bar transitions and removals snappy and responsive.
+
+---
+
 ## v12.1.0-40 (2026-09-13)
 
 ### Features & Portal Hub Enhancements
