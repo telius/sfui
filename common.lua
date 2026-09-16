@@ -110,6 +110,20 @@ function sfui.common.SafeFormatDuration(value, decimals)
     return string.format(fmt, num)
 end
 
+--- Formats seconds into digital clock format: "H:MM:SS" or "M:SS".
+function sfui.common.format_timer_clock(secs)
+    if not secs or secs <= 0 then return nil end
+    secs = math.floor(secs)
+    local h = math.floor(secs / 3600)
+    local m = math.floor((secs % 3600) / 60)
+    local s = secs % 60
+    if h > 0 then
+        return string.format("%d:%02d:%02d", h, m, s)
+    else
+        return string.format("%d:%02d", m, s)
+    end
+end
+
 -- Helper: Check if Mounted OR in Druid Travel Form (Spell 783)
 function sfui.common.is_mounted_or_travel_form()
     if IsMounted() then return true end
@@ -190,8 +204,8 @@ end
 
 -- Safe comparison helpers (Crash-proof against Secret Values in M+)
 function sfui.common.SafeGT(val, target)
+    if issecretvalue and (issecretvalue(val) or issecretvalue(target)) then return false end
     if val == nil or target == nil then return false end
-    if issecretvalue(val) or issecretvalue(target) then return false end
     if type(val) == "number" and type(target) == "number" then
         return val > target
     end
@@ -200,8 +214,8 @@ end
 
 -- Safe comparison helpers (Crash-proof against Secret Values in M+)
 function sfui.common.SafeLT(val, target)
+    if issecretvalue and (issecretvalue(val) or issecretvalue(target)) then return false end
     if val == nil or target == nil then return false end
-    if issecretvalue(val) or issecretvalue(target) then return false end
     if type(val) == "number" and type(target) == "number" then
         return val < target
     end
@@ -210,8 +224,8 @@ end
 
 -- Safe arithmetic to bypass "arithmetic on secret number" errors when tainted.
 function sfui.common.SafeArithmetic(op, v1, v2)
+    if issecretvalue and (issecretvalue(v1) or issecretvalue(v2)) then return 0 end
     if v1 == nil or v2 == nil then return 0 end
-    if issecretvalue(v1) or issecretvalue(v2) then return 0 end
     if op == "+" then return v1 + v2 end
     if op == "-" then return v1 - v2 end
     if op == "*" then return v1 * v2 end
@@ -220,14 +234,14 @@ function sfui.common.SafeArithmetic(op, v1, v2)
 end
 
 function sfui.common.SafeValue(val, fallback)
+    if issecretvalue and issecretvalue(val) then return val end
     if val == nil then return fallback end
-    if issecretvalue(val) then return val end
     return val
 end
 
 function sfui.common.SafeNotFalse(val)
+    if issecretvalue and issecretvalue(val) then return true end
     if val == nil then return true end
-    if issecretvalue(val) then return true end
     return val ~= false
 end
 
@@ -245,7 +259,31 @@ end
 -- Safely set value on a statusbar (SetValue accepts secret values)
 function sfui.common.SafeSetValue(bar, value)
     if not bar or not bar.SetValue then return end
-    bar:SetValue(value or 0)
+    if issecretvalue and issecretvalue(value) then
+        bar:SetValue(value)
+        return
+    end
+    local num = type(value) == "number" and value or tonumber(value)
+    if num and num == num and num >= -3.4e38 and num <= 3.4e38 then
+        bar:SetValue(num)
+    else
+        bar:SetValue(0)
+    end
+end
+
+-- Safely set min/max values on a statusbar
+function sfui.common.SafeSetMinMaxValues(bar, minVal, maxVal)
+    if not bar or not bar.SetMinMaxValues then return end
+    if issecretvalue and (issecretvalue(minVal) or issecretvalue(maxVal)) then
+        bar:SetMinMaxValues(minVal, maxVal)
+        return
+    end
+    local nMin = type(minVal) == "number" and minVal or tonumber(minVal) or 0
+    local nMax = type(maxVal) == "number" and maxVal or tonumber(maxVal) or 1
+    if nMin ~= nMin or nMin < -3.4e38 or nMin > 3.4e38 then nMin = 0 end
+    if nMax ~= nMax or nMax < -3.4e38 or nMax > 3.4e38 then nMax = 1 end
+    if nMin > nMax then nMax = nMin end
+    bar:SetMinMaxValues(nMin, nMax)
 end
 
 -- Safely set money display in a tooltip using securecall to avoid arithmetic taint.

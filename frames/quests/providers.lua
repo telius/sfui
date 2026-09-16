@@ -50,6 +50,8 @@ local QR_Weekly = (QR and QR.Weekly) or 2
 local TRACKING_TYPE_ACHIEVEMENT = (Enum and Enum.ContentTrackingType and Enum.ContentTrackingType.Achievement) or 2
 local TRACKING_STOP_TYPE_MANUAL = (Enum and Enum.ContentTrackingStopType and Enum.ContentTrackingStopType.Manual) or 0
 
+local RECRAFT_MODES = { false, true }
+
 -- State Helper
 local function GetQLState()
     if sfui.questlog and sfui.questlog.GetState then
@@ -181,7 +183,7 @@ local function UntrackAllActivities()
         end
     end
     if C_TradeSkillUI and C_TradeSkillUI.SetRecipeTracked then
-        for _, isRecraft in ipairs({ false, true }) do
+        for _, isRecraft in ipairs(RECRAFT_MODES) do
             local recipes = C_TradeSkillUI.GetRecipesTracked(isRecraft)
             if recipes then
                 for _, rID in ipairs(recipes) do
@@ -389,7 +391,7 @@ end
 
 local function ScanTrackedRecipes(intoList, AcquireTable)
     if not C_TradeSkillUI or not C_TradeSkillUI.GetRecipesTracked or not C_TradeSkillUI.GetRecipeSchematic then return end
-    for _, isRecraft in ipairs({ false, true }) do
+    for _, isRecraft in ipairs(RECRAFT_MODES) do
         local recipes = C_TradeSkillUI.GetRecipesTracked(isRecraft)
         if recipes and #recipes > 0 then
             for _, recipeID in ipairs(recipes) do

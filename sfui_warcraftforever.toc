@@ -1,0 +1,89 @@
+## Interface: 10000
+## Title: |cff6600ffsf|rui
+## Author: teli
+## Version: v12.1.0-42
+## Notes: modular and dynamic uistuffs for world of warcraft.
+## X-Category: Interface
+## X-Website: https://github.com/telius/sfui
+## X-GitHub-Repository: https://github.com/telius/sfui
+## X-Project-Name: sfui
+## SavedVariables: SfuiDB
+## OptionalDeps: LibStub, CallbackHandler-1.0, LibCustomGlow-1.0, AceDB-3.0, LibDataBroker-1.1, LibDBIcon-1.0
+
+## NOTE: Interface number (10000) is a placeholder.
+## Update with the real TOC version once the Warcraft Forever API is published.
+## TOC suffix (_warcraftforever) may also need updating to match the game's
+## expected filename — Blizzard determines this based on client flavor.
+
+Libs/LibStub/LibStub.lua
+Libs/CallbackHandler-1.0/CallbackHandler-1.0.xml
+Libs/LibCustomGlow-1.0/LibCustomGlow-1.0.xml
+Libs/AceDB-3.0/AceDB-3.0.xml
+Libs/LibDataBroker-1.1/LibDataBroker-1.1.lua
+Libs/LibDBIcon-1.0/LibDBIcon-1.0.lua
+
+## ── Core (shared across all clients) ────────────────────────────────────────
+config.lua
+compat.lua
+dispatcher.lua
+common.lua
+core.lua
+
+## ── Bars (health/power/castbar) ─────────────────────────────────────────────
+## These use only universal WoW APIs (UnitHealth, UnitPower, UnitCastingInfo)
+frames/bars/bars.lua
+frames/bars/castbar.lua
+
+## ── Aura/Cooldown Tracking ──────────────────────────────────────────────────
+## trackedicons uses sfui.api.GetAuraData — works via UnitAura fallback.
+## trackedbars depends on BuffBarCooldownViewer which may not exist on Forever.
+## Enable trackedbars only after confirming Forever has a cooldown viewer API.
+frames/tracking/cdm.lua
+frames/tracking/glows.lua
+frames/tracking/trackedoptions.lua
+frames/tracking/trackedicons.lua
+## frames/tracking/trackedbars.lua   -- DISABLED: requires BuffBarCooldownViewer
+
+## ── Quality-of-life (universally safe) ─────────────────────────────────────
+frames/alts.lua
+frames/merchant.lua
+frames/location.lua
+frames/minimap.lua
+frames/currency.lua
+
+## ── Memory / diagnostics ────────────────────────────────────────────────────
+frames/mem.lua
+commands.lua
+
+## ── DISABLED (Retail-only features) ─────────────────────────────────────────
+## Enable each block after confirming the API exists on Warcraft Forever.
+##
+## frames/bars/vehicle.lua          -- requires vehicle/possession APIs
+## frames/bars/soulfragments.lua    -- Retail-only class resource
+## frames/options.lua               -- uses some Retail settings panel APIs
+## frames/research.lua              -- Trait Tree APIs (Retail 10.x+)
+## frames/automation.lua            -- may reference Retail-only APIs; audit needed
+## frames/transfer.lua              -- audit needed
+## frames/logs.lua                  -- audit needed
+## frames/cursor.lua                -- likely safe; audit needed
+##
+## frames/portals/portals_db.lua    -- toybox + retail teleport APIs
+## frames/portals/portals.lua
+## frames/portals/portal_popup.lua
+##
+## stats.lua                        -- M+ stats (Retail-only)
+## season.lua                       -- Retail season / expansion data
+##
+## frames/gear/compare.lua          -- Retail gear APIs
+## frames/gear/gear.lua
+## frames/gear/highest.lua
+## frames/gear/lootspec.lua
+## frames/gear/lootviewer.lua
+## frames/gear/bonusroll.lua
+## frames/gear/hammer.lua
+##
+## frames/quests/worldevents.lua    -- World Quests (Retail-only)
+## frames/quests/scenarios.lua      -- C_ScenarioInfo (Retail-only)
+## frames/quests/providers.lua      -- C_QuestLog Retail APIs
+## frames/quests/quests.lua         -- partially portable; audit needed
+## frames/quests/mythic.lua         -- M+ (Retail-only)

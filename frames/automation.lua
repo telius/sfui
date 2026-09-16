@@ -263,13 +263,18 @@ local function apply_lfg_dungeon_defaults(force)
     end
 
     -- 1. Automatically enable Competitive (Playstyle)
+    -- TAINT WARNING: Do NOT call LFGListEntryCreation_OnPlayStyleSelectedInternal() directly.
+    -- That function internally calls SetEntryTitle() (a protected C function). Invoking it
+    -- from addon code taints the Lua thread, causing ADDON_ACTION_BLOCKED on any subsequent
+    -- secure call in the same frame — even from Blizzard's own LFG code.
+    --
+    -- Safe approach: write the playstyle state directly, then refresh only the dropdown
+    -- widget. The title update that SetEntryTitle performs happens inside Blizzard's own
+    -- secure execution when the user next interacts with the panel, which carries no taint.
     local playstyleEnum = Enum and Enum.LFGEntryGeneralPlaystyle and Enum.LFGEntryGeneralPlaystyle.FunSerious
     if playstyleEnum and entryCreation.generalPlaystyle ~= playstyleEnum then
-        if _G.LFGListEntryCreation_OnPlayStyleSelectedInternal then
-            _G.LFGListEntryCreation_OnPlayStyleSelectedInternal(entryCreation, playstyleEnum)
-        else
-            entryCreation.generalPlaystyle = playstyleEnum
-        end
+        entryCreation.generalPlaystyle = playstyleEnum
+        -- Only refresh the dropdown widget — never call the full OnPlayStyleSelected handler.
         if entryCreation.PlayStyleDropdown and entryCreation.PlayStyleDropdown.GenerateMenu then
             entryCreation.PlayStyleDropdown:GenerateMenu()
         end

@@ -1444,7 +1444,7 @@ gearFrame:SetScript("OnShow", function(self)
                 weights[stat:gsub("Rating", "")] = tonumber(val)
             end
             SfuiDB.gear[id].pawn_weights = next(weights) and weights or nil
-            SfuiDB.gear[id].pawn_string  = text ~= "" and text or nil
+            local specName = (common and common.get_spec_name and common.get_spec_name(id)) or ("Spec " .. tostring(id))
             if common and common.print then common.print("Pawn saved for " .. specName) end
             sfui.gear.UpdateStatUI()
         end)

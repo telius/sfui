@@ -83,6 +83,9 @@ local function GetScenarioCriteriaSafe(criteriaIndex, stepID)
 end
 
 local function FormatTimerSeconds(sec)
+    if common and common.format_timer_clock then
+        return common.format_timer_clock(sec)
+    end
     if not sec or sec <= 0 then return nil end
     sec = math_floor(sec)
     if sec >= 3600 then
@@ -116,6 +119,116 @@ local function CollectWidgetsFromSet(setID)
             if wID then AddWidgetIDToScan(wID) end
         end
     end
+end
+
+local function AppendCriteriaObjective(info, objs, AcquireTable, timeTag, isGlobalWeighted)
+    local desc = info and (info.description or info.criteriaString or info.string)
+    if not desc or desc == "" or issecretvalue(desc) then return false end
+
+    local sObj = AcquireTable()
+    local isComp = (info.completed == true)
+    sObj.finished = isComp
+
+    -- Fallback quantity extraction if Blizzard didn't populate raw numeric fields
+    if (not info.quantity or info.quantity == 0) and info.quantityString and not issecretvalue(info.quantityString) then
+        local q, t = info.quantityString:match("(%d+)%s*/%s*(%d+)")
+        if q and t then
+            info.quantity = tonumber(q)
+            info.totalQuantity = tonumber(t)
+        else
+            local p = info.quantityString:match("(%d+)%%")
+            if p then
+                info.quantity = tonumber(p)
+                info.totalQuantity = 100
+                info.isWeightedProgress = true
+            end
+        end
+    end
+    if (not info.quantity or info.quantity == 0) and desc and not issecretvalue(desc) then
+        local q, t = desc:match("%((%d+)%s*/%s*(%d+)%)")
+        if q and t then
+            info.quantity = tonumber(q)
+            info.totalQuantity = tonumber(t)
+        else
+            local p = desc:match("%((%d+)%%%)")
+            if p then
+                info.quantity = tonumber(p)
+                info.totalQuantity = 100
+                info.isWeightedProgress = true
+            end
+        end
+    end
+
+    local isWeighted = info.isWeightedProgress
+        or info.weightedProgress
+        or (info.criteriaType == 8)
+        or (isGlobalWeighted == true)
+        or (info.totalQuantity == 100)
+        or (info.totalQuantity == 1000)
+        or (info.quantityString and not issecretvalue(info.quantityString) and info.quantityString:find("%%"))
+        or (desc and not issecretvalue(desc) and desc:find("%%"))
+
+    if isWeighted then
+        local cleanDesc = desc
+        if not issecretvalue(desc) then
+            cleanDesc = desc:gsub("%s*%(?%d+%%%)?", ""):gsub("%s*%(?%d+/%d+%)?", ""):gsub("%s*:%s*$", "")
+        end
+        sObj.text = timeTag and (cleanDesc .. " " .. timeTag) or cleanDesc
+        sObj.type = "progressbar"
+
+        local cur = info.quantity or 0
+        local totalQ = (info.totalQuantity and not issecretvalue(info.totalQuantity) and info.totalQuantity > 0) and info.totalQuantity or 100
+        local pct = 0
+
+        local explicitPct = (info.quantityString and not issecretvalue(info.quantityString) and info.quantityString:match("(%d+)%%"))
+                         or (desc and not issecretvalue(desc) and desc:match("(%d+)%%"))
+
+        if explicitPct then
+            pct = math_min(100, math_max(0, tonumber(explicitPct) or 0))
+        elseif totalQ == 1000 then
+            if cur > 100 then
+                pct = math_min(100, math_max(0, math_floor(cur / 10)))
+            else
+                pct = math_min(100, math_max(0, math_floor(cur)))
+            end
+        elseif totalQ == 10000 then
+            if cur > 100 then
+                pct = math_min(100, math_max(0, math_floor(cur / 100)))
+            else
+                pct = math_min(100, math_max(0, math_floor(cur)))
+            end
+        elseif totalQ > 0 then
+            pct = math_min(100, math_max(0, math_floor((cur / totalQ) * 100)))
+        end
+
+        sObj.numFulfilled = pct
+        sObj.numRequired = 100
+
+        local barTxt = (info.quantityString and not issecretvalue(info.quantityString) and not info.quantityString:find("%d%d%d%d%%") and not info.quantityString:find("1000%%") and info.quantityString)
+        if not barTxt or barTxt == "" then
+            barTxt = tostring(pct) .. "%"
+        end
+        sObj.barText = barTxt
+        sObj.finished = isComp
+    elseif info.quantity and info.totalQuantity and not issecretvalue(info.totalQuantity) and info.totalQuantity > 1 then
+        local cleanDesc = desc
+        if not issecretvalue(desc) then
+            cleanDesc = desc:gsub("%s*%(?%d+/%d+%)?", ""):gsub("%s*:%s*$", "")
+        end
+        local baseText = cleanDesc
+        if not issecretvalue(info.quantity) then
+            baseText = string_format("%s (%s/%s)", cleanDesc, tostring(info.quantity), tostring(info.totalQuantity))
+        end
+        sObj.text = timeTag and (baseText .. " " .. timeTag) or baseText
+        sObj.numFulfilled = info.quantity
+        sObj.numRequired = info.totalQuantity
+        sObj.finished = isComp
+    else
+        sObj.text = timeTag and (desc .. " " .. timeTag) or desc
+        sObj.finished = isComp
+    end
+    table_insert(objs, sObj)
+    return true, isComp
 end
 
 local function ScanWorldEventScenario(list, AcquireTable, ReleaseTable)
@@ -197,111 +310,21 @@ local function ScanWorldEventScenario(list, AcquireTable, ReleaseTable)
     if numCriteria and numCriteria > 0 then
         for i = 1, numCriteria do
             local info = GetScenarioCriteriaSafe(i, stepInfo and stepInfo.stepID)
-            local desc = info and (info.description or info.criteriaString or info.string)
-            if desc and desc ~= "" and not issecretvalue(desc) then
-                local sObj = AcquireTable()
-                local isComp = info.completed == true
-                sObj.finished = isComp
-                if isComp then done = done + 1 end
+            local timeTag = nil
+            if info and info.duration and info.duration > 0 then
+                local rem = math_max(0, info.duration - (info.elapsed or 0))
+                if rem > 0 then
+                    local tStr = FormatTimerSeconds(rem)
+                    if tStr then
+                        timeTag = "[" .. tStr .. "]"
+                        if not scTimeLeft then scTimeLeft = tStr end
+                    end
+                end
+            end
+            local added, isComp = AppendCriteriaObjective(info, objs, AcquireTable, timeTag, weightedProgress)
+            if added then
                 total = total + 1
-
-                local timeTag = nil
-                if info.duration and info.duration > 0 then
-                    local rem = math_max(0, info.duration - (info.elapsed or 0))
-                    if rem > 0 then
-                        local tStr = FormatTimerSeconds(rem)
-                        if tStr then
-                            timeTag = "[" .. tStr .. "]"
-                            if not scTimeLeft then scTimeLeft = tStr end
-                        end
-                    end
-                end
-
-                -- Fallback quantity extraction if Blizzard didn't populate raw numeric fields
-                if (not info.quantity or info.quantity == 0) and info.quantityString and not issecretvalue(info.quantityString) then
-                    local q, t = info.quantityString:match("(%d+)%s*/%s*(%d+)")
-                    if q and t then
-                        info.quantity = tonumber(q)
-                        info.totalQuantity = tonumber(t)
-                    else
-                        local p = info.quantityString:match("(%d+)%%")
-                        if p then
-                            info.quantity = tonumber(p)
-                            info.totalQuantity = 100
-                            info.isWeightedProgress = true
-                        end
-                    end
-                end
-                if (not info.quantity or info.quantity == 0) and desc and not issecretvalue(desc) then
-                    local q, t = desc:match("%((%d+)%s*/%s*(%d+)%)")
-                    if q and t then
-                        info.quantity = tonumber(q)
-                        info.totalQuantity = tonumber(t)
-                    else
-                        local p = desc:match("%((%d+)%%%)")
-                        if p then
-                            info.quantity = tonumber(p)
-                            info.totalQuantity = 100
-                            info.isWeightedProgress = true
-                        end
-                    end
-                end
-
-                local isWeighted = info.isWeightedProgress
-                    or info.weightedProgress
-                    or (info.criteriaType == 8)
-                    or (weightedProgress == true)
-                    or (info.totalQuantity == 100)
-                    or (info.totalQuantity == 1000)
-                    or (info.quantityString and not issecretvalue(info.quantityString) and info.quantityString:find("%%"))
-                    or (desc and not issecretvalue(desc) and desc:find("%%"))
-
-                if isWeighted then
-                    local cleanDesc = desc
-                    if not issecretvalue(desc) then
-                        cleanDesc = desc:gsub("%s*%(?%d+%%%)?", ""):gsub("%s*%(?%d+/%d+%)?", ""):gsub("%s*:%s*$", "")
-                    end
-                    sObj.text = timeTag and (cleanDesc .. " " .. timeTag) or cleanDesc
-                    sObj.type = "progressbar"
-
-                    local cur = info.quantity or 0
-                    local totalQ = (info.totalQuantity and not issecretvalue(info.totalQuantity) and info.totalQuantity > 0) and info.totalQuantity or 100
-                    local pct = 0
-                    if totalQ == 1000 then
-                        pct = math_min(100, math_max(0, math_floor(cur / 10)))
-                    elseif totalQ == 10000 then
-                        pct = math_min(100, math_max(0, math_floor(cur / 100)))
-                    elseif totalQ > 0 then
-                        pct = math_min(100, math_max(0, math_floor((cur / totalQ) * 100)))
-                    end
-
-                    sObj.numFulfilled = pct
-                    sObj.numRequired = 100
-
-                    local barTxt = (info.quantityString and not issecretvalue(info.quantityString) and not info.quantityString:find("%d%d%d%d%%") and not info.quantityString:find("1000%%") and info.quantityString)
-                    if not barTxt or barTxt == "" then
-                        barTxt = tostring(pct) .. "%"
-                    end
-                    sObj.barText = barTxt
-                    sObj.finished = isComp
-                elseif info.quantity and info.totalQuantity and not issecretvalue(info.totalQuantity) and info.totalQuantity > 1 then
-                    local cleanDesc = desc
-                    if not issecretvalue(desc) then
-                        cleanDesc = desc:gsub("%s*%(?%d+/%d+%)?", ""):gsub("%s*:%s*$", "")
-                    end
-                    local baseText = cleanDesc
-                    if not issecretvalue(info.quantity) then
-                        baseText = string_format("%s (%s/%s)", cleanDesc, tostring(info.quantity), tostring(info.totalQuantity))
-                    end
-                    sObj.text = timeTag and (baseText .. " " .. timeTag) or baseText
-                    sObj.numFulfilled = info.quantity
-                    sObj.numRequired = info.totalQuantity
-                    sObj.finished = isComp
-                else
-                    sObj.text = timeTag and (desc .. " " .. timeTag) or desc
-                    sObj.finished = isComp
-                end
-                table_insert(objs, sObj)
+                if isComp then done = done + 1 end
             end
         end
     end
@@ -402,7 +425,7 @@ local function ScanWorldEventScenario(list, AcquireTable, ReleaseTable)
                     sObj.type = "progressbar"
                     sObj.numFulfilled = pct
                     sObj.numRequired = 100
-                    sObj.finished = (pct >= 100)
+                    sObj.finished = false
                     table_insert(objs, sObj)
                     total = total + 1
                 end
@@ -429,7 +452,7 @@ local function ScanWorldEventScenario(list, AcquireTable, ReleaseTable)
                     sObj.type = "progressbar"
                     sObj.numFulfilled = pct
                     sObj.numRequired = 100
-                    sObj.finished = (pct >= 100)
+                    sObj.finished = false
                     table_insert(objs, sObj)
                     total = total + 1
                 end
@@ -453,7 +476,7 @@ local function ScanWorldEventScenario(list, AcquireTable, ReleaseTable)
                     sObj.type = "progressbar"
                     sObj.numFulfilled = pct
                     sObj.numRequired = 100
-                    sObj.finished = (pct >= 100)
+                    sObj.finished = false
                     table_insert(objs, sObj)
                     total = total + 1
                 end
@@ -475,7 +498,7 @@ local function ScanWorldEventScenario(list, AcquireTable, ReleaseTable)
                     sObj.type = "progressbar"
                     sObj.numFulfilled = pct
                     sObj.numRequired = 100
-                    sObj.finished = (pct >= 100)
+                    sObj.finished = false
                     table_insert(objs, sObj)
                     total = total + 1
                 end
@@ -585,7 +608,7 @@ local function ScanWorldEventScenario(list, AcquireTable, ReleaseTable)
                     sObj.type = "progressbar"
                     sObj.numFulfilled = pct
                     sObj.numRequired = 100
-                    sObj.finished = (pct >= 100)
+                    sObj.finished = false
                     table_insert(objs, sObj)
                     total = total + 1
                 end
@@ -723,66 +746,10 @@ local function ScanWorldEventScenario(list, AcquireTable, ReleaseTable)
                     if bNumCrit and bNumCrit > 0 then
                         for c = 1, bNumCrit do
                             local cInfo = GetScenarioCriteriaSafe(c, bIdx)
-                            local cDesc = cInfo and (cInfo.description or cInfo.criteriaString or cInfo.string)
-                            if cDesc and cDesc ~= "" and not issecretvalue(cDesc) then
-                                local bObj = AcquireTable()
-                                local isComp = cInfo.completed == true
-                                bObj.finished = isComp
-                                if isComp then done = done + 1 end
+                            local added, isComp = AppendCriteriaObjective(cInfo, objs, AcquireTable, nil, false)
+                            if added then
                                 total = total + 1
-
-                                local isWeighted = cInfo.isWeightedProgress
-                                    or (cInfo.criteriaType == 8)
-                                    or (cInfo.totalQuantity == 100)
-                                    or (cInfo.totalQuantity == 1000)
-                                    or (cInfo.quantityString and not issecretvalue(cInfo.quantityString) and cInfo.quantityString:find("%%"))
-
-                                if isWeighted then
-                                    local cleanDesc = cDesc
-                                    if not issecretvalue(cDesc) then
-                                        cleanDesc = cDesc:gsub("%s*%(?%d+%%%)?", ""):gsub("%s*%(?%d+/%d+%)?", ""):gsub("%s*:%s*$", "")
-                                    end
-                                    bObj.text = cleanDesc
-                                    bObj.type = "progressbar"
-
-                                    local cur = cInfo.quantity or 0
-                                    local totalQ = (cInfo.totalQuantity and not issecretvalue(cInfo.totalQuantity) and info.totalQuantity > 0) and info.totalQuantity or 100
-                                    local pct = 0
-                                    if totalQ == 1000 then
-                                        pct = math_min(100, math_max(0, math_floor(cur / 10)))
-                                    elseif totalQ == 10000 then
-                                        pct = math_min(100, math_max(0, math_floor(cur / 100)))
-                                    elseif totalQ > 0 then
-                                        pct = math_min(100, math_max(0, math_floor((cur / totalQ) * 100)))
-                                    end
-
-                                    bObj.numFulfilled = pct
-                                    bObj.numRequired = 100
-
-                                    local barTxt = (cInfo.quantityString and not issecretvalue(cInfo.quantityString) and not cInfo.quantityString:find("%d%d%d%d%%") and not cInfo.quantityString:find("1000%%") and cInfo.quantityString)
-                                    if not barTxt or barTxt == "" then
-                                        barTxt = tostring(pct) .. "%"
-                                    end
-                                    bObj.barText = barTxt
-                                    bObj.finished = isComp
-                                elseif cInfo.quantity and cInfo.totalQuantity and not issecretvalue(cInfo.totalQuantity) and cInfo.totalQuantity > 1 then
-                                    local cleanDesc = cDesc
-                                    if not issecretvalue(cDesc) then
-                                        cleanDesc = cDesc:gsub("%s*%(?%d+/%d+%)?", ""):gsub("%s*:%s*$", "")
-                                    end
-                                    local baseText = cleanDesc
-                                    if not issecretvalue(cInfo.quantity) then
-                                        baseText = string_format("%s (%s/%s)", cleanDesc, tostring(cInfo.quantity), tostring(cInfo.totalQuantity))
-                                    end
-                                    bObj.text = baseText
-                                    bObj.numFulfilled = cInfo.quantity
-                                    bObj.numRequired = cInfo.totalQuantity
-                                    bObj.finished = isComp
-                                else
-                                    bObj.text = cDesc
-                                    bObj.finished = isComp
-                                end
-                                table_insert(objs, bObj)
+                                if isComp then done = done + 1 end
                             end
                         end
                     end

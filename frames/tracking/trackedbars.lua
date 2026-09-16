@@ -699,9 +699,13 @@ end
 local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     local cfg = sfui.config.trackedBars
 
-    myBar.spellID = blizzFrame.spellID or (blizzFrame.info and blizzFrame.info.spellID)
-    
-    if not myBar.spellID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
+    if config and config.spellID then
+        myBar.spellID = config.spellID
+    elseif cfg and cfg.specialCases and cfg.specialCases[id] and cfg.specialCases[id].spellID then
+        myBar.spellID = cfg.specialCases[id].spellID
+    elseif blizzFrame.spellID or (blizzFrame.info and blizzFrame.info.spellID) then
+        myBar.spellID = blizzFrame.spellID or (blizzFrame.info and blizzFrame.info.spellID)
+    elseif C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
         local ok, info = pcall(C_CooldownViewer.GetCooldownViewerCooldownInfo, id)
         if ok and info and info.spellID then
             myBar.spellID = info.spellID
@@ -750,21 +754,27 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     -- Stack data gathering (EllesmereUI ReadStackApplications pattern)
     local currentStacks = nil
     local maxStacks = GetMaxStacksForBar(id, config, myBar.spellID)
+    myBar._maxStacks = maxStacks
 
-    -- Primary: Read cached aura data directly off the Blizzard frame (EUI primary source)
-    -- blizzFrame.auraDataCached reads cleanly without API calls or erroring; applications is plain on live/secret in 12.1.
-    local ad = blizzFrame.auraDataCached
-    if ad and ad.applications then
-        currentStacks = ad.applications
-        if ad.name then myBar.name:SetText(ad.name) end
-    end
-
-    -- Fallback 1: Direct Unrestricted Player Aura query
-    if not currentStacks and myBar.spellID and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
+    -- Primary: Direct Unrestricted Player Aura query (clean number when out of combat)
+    if myBar.spellID and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
         local auraData = C_UnitAuras.GetPlayerAuraBySpellID(myBar.spellID)
         if auraData and auraData.applications then
             currentStacks = auraData.applications
-            if auraData.name then myBar.name:SetText(auraData.name) end
+            if auraData.name and not (issecretvalue and issecretvalue(auraData.name)) then
+                myBar.name:SetText(auraData.name)
+            end
+        end
+    end
+
+    -- Secondary: Read cached aura data directly off the Blizzard frame
+    if not currentStacks then
+        local ad = blizzFrame.auraDataCached
+        if ad and ad.applications then
+            currentStacks = ad.applications
+            if ad.name and not (issecretvalue and issecretvalue(ad.name)) then
+                myBar.name:SetText(ad.name)
+            end
         end
     end
 
@@ -918,15 +928,18 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     local barText = ""
     if isStackMode then
         -- STACK MODE: Bar represents Stack Count
-        local maxVal = type(maxStacks) == "number" and maxStacks or 10
+        local maxVal = type(maxStacks) == "number" and maxStacks or 12
         myBar.status:SetMinMaxValues(0, maxVal)
 
         if not skipSetValue then
             if issecretvalue and issecretvalue(currentStacks) then
-                pcall(myBar.status.SetValue, myBar.status, currentStacks)
+                local interp = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate
+                pcall(myBar.status.SetValue, myBar.status, currentStacks, interp)
             else
                 local num = type(currentStacks) == "number" and currentStacks or tonumber(currentStacks)
                 if num and num == num and num >= -3.4e38 and num <= 3.4e38 then
+                    if num < 0 then num = 0 end
+                    if num > maxVal then num = maxVal end
                     myBar.status:SetValue(num)
                 else
                     myBar.status:SetValue(0)
@@ -1232,8 +1245,8 @@ local function UpdateBarsState()
                 if not isStackMode then
                     -- Direct mirror from Blizzard's StatusBar (EllesmereUI lines 4576-4581).
                     -- Passes values directly into widget setters without storing or modifying them in Lua context.
-                    pcall(myBar.status.SetMinMaxValues, myBar.status, blizzFrame.Bar:GetMinMaxValues())
-                    pcall(myBar.status.SetValue, myBar.status, blizzFrame.Bar:GetValue())
+                    myBar.status:SetMinMaxValues(blizzFrame.Bar:GetMinMaxValues())
+                    myBar.status:SetValue(blizzFrame.Bar:GetValue())
 
                     if blizzFrame.Bar.Duration then
                         local durText = blizzFrame.Bar.Duration:GetText()
@@ -1251,26 +1264,64 @@ local function UpdateBarsState()
                 else
                     -- Stack mode continuous update: sync stacks if cached on frame
                     local ad = blizzFrame.auraDataCached
-                    if ad and ad.applications and ad.applications ~= myBar.currentStacks then
-                        myBar.currentStacks = ad.applications
-                        if issecretvalue and issecretvalue(myBar.currentStacks) then
-                            myBar.count:SetText(myBar.currentStacks)
+                    local apps = ad and ad.applications
+                    if apps then
+                        if issecretvalue and issecretvalue(apps) then
+                            myBar.currentStacks = apps
+                            myBar.count:SetText(apps)
                         else
-                            myBar.count:SetText(tostring(myBar.currentStacks))
+                            if apps ~= myBar.currentStacks then
+                                myBar.currentStacks = apps
+                                myBar.count:SetText(tostring(apps))
+                            end
                         end
-                        if config and config.showStacksText then
+                    end
+
+                    -- Continuous duration text update for myBar.time (never overwrite with stacks)
+                    if blizzFrame.Bar and blizzFrame.Bar.Duration then
+                        local durText = blizzFrame.Bar.Duration:GetText()
+                        if issecretvalue and issecretvalue(durText) then
+                            myBar.time:SetText(durText)
+                        elseif durText then
+                            if durText ~= myBar._lastDurationText then
+                                myBar._lastDurationText = durText
+                                myBar.time:SetText(durText)
+                            end
+                        else
+                            myBar.time:SetText("")
+                        end
+                    end
+
+                    local db = SfuiDB and SfuiDB.trackedBars or {}
+                    local showDurationEnabled = not (db.showDuration == false or (config and config.showDuration == false))
+                    local wantCenteredStacks = isStackMode or (config and config.showStacksText)
+                    local isTimerAndStacks = wantCenteredStacks and showDurationEnabled
+
+                    if isTimerAndStacks and myBar.currentStacks then
+                        if issecretvalue and issecretvalue(myBar.currentStacks) then
+                            myBar.name:SetText(myBar.currentStacks)
+                        else
+                            myBar.name:SetText(tostring(myBar.currentStacks))
+                        end
+                    elseif config and config.showStacksText and not isTimerAndStacks and myBar.currentStacks then
+                        if issecretvalue and issecretvalue(myBar.currentStacks) then
+                            myBar.time:SetText(myBar.currentStacks)
+                        else
                             myBar.time:SetText(tostring(myBar.currentStacks))
                         end
                     end
 
-                    if myBar.currentStacks ~= nil then
-                        local maxVal = myBar._maxStacks or GetMaxStacksForBar(blizzFrame.cooldownID, config, myBar.spellID) or 10
+                    if myBar.currentStacks then
+                        local maxVal = myBar._maxStacks or GetMaxStacksForBar(blizzFrame.cooldownID, config, myBar.spellID) or 12
                         myBar.status:SetMinMaxValues(0, maxVal)
                         if issecretvalue and issecretvalue(myBar.currentStacks) then
-                            pcall(myBar.status.SetValue, myBar.status, myBar.currentStacks)
+                            local interp = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate
+                            pcall(myBar.status.SetValue, myBar.status, myBar.currentStacks, interp)
                         else
                             local num = type(myBar.currentStacks) == "number" and myBar.currentStacks or tonumber(myBar.currentStacks)
                             if num and num == num and num >= -3.4e38 and num <= 3.4e38 then
+                                if num < 0 then num = 0 end
+                                if num > maxVal then num = maxVal end
                                 myBar.status:SetValue(num)
                             else
                                 myBar.status:SetValue(0)

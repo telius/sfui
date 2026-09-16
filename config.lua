@@ -548,6 +548,8 @@ sfui.config = {
             },
             [9039] = {                        -- Bone Shield (Death Knight)
                 specID = 250,                 -- Blood DK
+                spellID = 195181,
+                maxStacks = 12,
                 stackAboveHealth = true,      -- Attach to healthbar
                 stackMode = true,             -- Use stack count as bar value
                 color = { 0, 0.8, 0.067, 1 }, -- Green

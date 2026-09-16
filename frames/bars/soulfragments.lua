@@ -350,7 +350,7 @@ local function GetSFApplications(specCfg)
     local frame = GetSFCacheFrame()
     if frame then
         local cache = rawget(frame, "auraDataCached") or frame.auraDataCached
-        if type(cache) == "table" and cache.applications ~= nil then
+        if type(cache) == "table" and cache.applications then
             return cache.applications
         end
     end

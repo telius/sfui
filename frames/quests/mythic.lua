@@ -65,9 +65,16 @@ local EMPTY_TABLE                                    = {}
 
 -- ─── Helpers ──────────────────────────────────────────────
 local function DeathSortComparator(a, b)
-    return a.count > b.count
+    if a.count ~= b.count then
+        return a.count > b.count
+    end
+    return (a.name or "") < (b.name or "")
 end
+
 local function FormatTime(secs)
+    if common and common.format_timer_clock then
+        return common.format_timer_clock(secs) or "0:00"
+    end
     if not secs or secs < 0 then secs = 0 end
     secs        = math_floor(secs)
     local hours = math_floor(secs / 3600)
@@ -696,6 +703,8 @@ local function GetDelveCompanionInfo()
     return c
 end
 
+local _criteriaReuseTable = {}
+
 local function GetCriteriaInfoSafe(criteriaIndex, stepID)
     if stepID and C_ScenarioInfo and C_ScenarioInfo.GetCriteriaInfoByStep then
         local info = C_ScenarioInfo.GetCriteriaInfoByStep(stepID, criteriaIndex)
@@ -714,39 +723,39 @@ local function GetCriteriaInfoSafe(criteriaIndex, stepID)
     if C_Scenario and C_Scenario.GetCriteriaInfo then
         local desc, cType, comp, quant, totQuant, flags, assetID, quantStr, critID, dur, el, isWeight = C_Scenario.GetCriteriaInfo(criteriaIndex)
         if desc and desc ~= "" then
-            return {
-                description = desc,
-                criteriaType = cType,
-                completed = comp,
-                quantity = quant,
-                totalQuantity = totQuant,
-                flags = flags,
-                assetID = assetID,
-                quantityString = quantStr,
-                criteriaID = critID,
-                duration = dur,
-                elapsed = el,
-                isWeightedProgress = isWeight,
-            }
+            local t = _criteriaReuseTable
+            t.description        = desc
+            t.criteriaType       = cType
+            t.completed          = comp
+            t.quantity           = quant
+            t.totalQuantity      = totQuant
+            t.flags              = flags
+            t.assetID            = assetID
+            t.quantityString     = quantStr
+            t.criteriaID         = critID
+            t.duration           = dur
+            t.elapsed            = el
+            t.isWeightedProgress = isWeight
+            return t
         end
     end
     if stepID and C_Scenario and C_Scenario.GetCriteriaInfoByStep then
         local desc, cType, comp, quant, totQuant, flags, assetID, quantStr, critID, dur, el, isWeight = C_Scenario.GetCriteriaInfoByStep(stepID, criteriaIndex)
         if desc and desc ~= "" then
-            return {
-                description = desc,
-                criteriaType = cType,
-                completed = comp,
-                quantity = quant,
-                totalQuantity = totQuant,
-                flags = flags,
-                assetID = assetID,
-                quantityString = quantStr,
-                criteriaID = critID,
-                duration = dur,
-                elapsed = el,
-                isWeightedProgress = isWeight,
-            }
+            local t = _criteriaReuseTable
+            t.description        = desc
+            t.criteriaType       = cType
+            t.completed          = comp
+            t.quantity           = quant
+            t.totalQuantity      = totQuant
+            t.flags              = flags
+            t.assetID            = assetID
+            t.quantityString     = quantStr
+            t.criteriaID         = critID
+            t.duration           = dur
+            t.elapsed            = el
+            t.isWeightedProgress = isWeight
+            return t
         end
     end
     return nil
@@ -898,9 +907,9 @@ local function GetNemesisInfo(delveInfo)
                 if not nemesis.current and s.spellID and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
                     local aura = C_UnitAuras.GetPlayerAuraBySpellID(s.spellID)
                     if aura then
-                        if aura.applications and aura.applications > 0 then
+                        if aura.applications and (issecretvalue and issecretvalue(aura.applications) or aura.applications > 0) then
                             nemesis.current = aura.applications
-                        elseif aura.points and aura.points[1] and aura.points[1] > 0 then
+                        elseif aura.points and aura.points[1] and (issecretvalue and issecretvalue(aura.points[1]) or aura.points[1] > 0) then
                             nemesis.current = aura.points[1]
                         end
                     end
@@ -2098,8 +2107,19 @@ local function UpdateInstanceState()
                     if not isComplete and info.quantity and info.totalQuantity and info.totalQuantity > 1 then
                         if IsProgressCriteria(info) then
                             local raw = info.quantityString and info.quantityString:gsub("%%", "") or info.quantity
+                            local explicitPct = info.quantityString and info.quantityString:match("(%d+)%%")
                             local cur = tonumber(raw) or 0
-                            local pct = (info.totalQuantity > 0) and math_floor((cur / info.totalQuantity) * 100) or cur
+                            local total = (info.totalQuantity and info.totalQuantity > 0) and info.totalQuantity or 100
+                            local pct = 0
+                            if explicitPct then
+                                pct = tonumber(explicitPct) or 0
+                            elseif total == 1000 then
+                                pct = (cur > 100) and math_floor(cur / 10) or math_floor(cur)
+                            elseif total > 0 then
+                                pct = math_floor((cur / total) * 100)
+                            else
+                                pct = cur
+                            end
                             nameStr = nameStr .. " " .. string_format("|cff777777(%d%%)|r", pct)
                         else
                             nameStr = nameStr .. " " .. string_format("|cff777777(%s/%s)|r", tostring(info.quantity), tostring(info.totalQuantity))
@@ -2148,8 +2168,19 @@ local function UpdateInstanceState()
                             if not isComplete and bInfo.quantity and bInfo.totalQuantity and bInfo.totalQuantity > 1 then
                                 if IsProgressCriteria(bInfo) then
                                     local raw = bInfo.quantityString and bInfo.quantityString:gsub("%%", "") or bInfo.quantity
+                                    local explicitPct = bInfo.quantityString and bInfo.quantityString:match("(%d+)%%")
                                     local cur = tonumber(raw) or 0
-                                    local pct = (bInfo.totalQuantity > 0) and math_floor((cur / bInfo.totalQuantity) * 100) or cur
+                                    local total = (bInfo.totalQuantity and bInfo.totalQuantity > 0) and bInfo.totalQuantity or 100
+                                    local pct = 0
+                                    if explicitPct then
+                                        pct = tonumber(explicitPct) or 0
+                                    elseif total == 1000 then
+                                        pct = (cur > 100) and math_floor(cur / 10) or math_floor(cur)
+                                    elseif total > 0 then
+                                        pct = math_floor((cur / total) * 100)
+                                    else
+                                        pct = cur
+                                    end
                                     nameStr = nameStr .. " " .. string_format("|cff777777(%d%%)|r", pct)
                                 else
                                     nameStr = nameStr .. " " .. string_format("|cff777777(%s/%s)|r", tostring(bInfo.quantity), tostring(bInfo.totalQuantity))
@@ -2243,10 +2274,35 @@ local function UpdateInstanceState()
 
     -- Forces bar (Direct API info forwarding matching MPlusTimer)
     if forcesInfo then
-        local total = forcesInfo.totalQuantity or 100
+        local total = (forcesInfo.totalQuantity and forcesInfo.totalQuantity > 0) and forcesInfo.totalQuantity or 100
         local rawCurrent = forcesInfo.quantityString and forcesInfo.quantityString:gsub("%%", "") or forcesInfo.quantity
         local current = tonumber(rawCurrent) or 0
-        local percent = (total and total > 0) and (current / total) * 100 or current
+
+        local percent = 0
+        local explicitPct = forcesInfo.quantityString and forcesInfo.quantityString:match("(%d+%.?%d*)%%")
+        if explicitPct then
+            percent = tonumber(explicitPct) or 0
+        elseif total == 1000 then
+            if current > 100 then
+                percent = current / 10
+                current = math_floor(percent)
+            else
+                percent = current
+            end
+            total = 100
+        elseif total == 10000 then
+            if current > 100 then
+                percent = current / 100
+                current = math_floor(percent)
+            else
+                percent = current
+            end
+            total = 100
+        elseif total > 0 then
+            percent = (current / total) * 100
+        else
+            percent = current
+        end
 
         local isCompleted = (forcesInfo.completed == true) or (percent >= 100)
         MF.forcesBar:SetMinMaxValues(0, total)

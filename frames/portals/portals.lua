@@ -264,6 +264,9 @@ local currentHoverFrame = nil
 -- arm_spell: left-click = spellID, right-click = portalID (optional, e.g. mage group portals)
 local function arm_spell(spellID, portalID, frame)
     if InCombatLockdown() then return end
+    if currentHoverFrame and currentHoverFrame ~= frame and currentHoverFrame.resetHover then
+        currentHoverFrame.resetHover()
+    end
     currentHoverFrame = frame
     set_attr(actionBtn, "pressAndHoldAction", 1)
     set_attr(actionBtn, "type", "spell")
@@ -290,6 +293,9 @@ end
 
 local function arm_toy(toyID, frame)
     if InCombatLockdown() then return end
+    if currentHoverFrame and currentHoverFrame ~= frame and currentHoverFrame.resetHover then
+        currentHoverFrame.resetHover()
+    end
     currentHoverFrame = frame
     set_attr(actionBtn, "pressAndHoldAction", 1)
     set_attr(actionBtn, "type", "toy")
@@ -540,7 +546,9 @@ local function make_spell_icon(parent, spellID, label, x, y)
             if not frame._isOnCD then
                 frame._isOnCD = true
                 grey:Show()
-                frame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+                if not frame._isHovered then
+                    frame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+                end
             end
         else
             if frame._isOnCD or frame._isOnCD == nil then
@@ -549,7 +557,9 @@ local function make_spell_icon(parent, spellID, label, x, y)
                 frame._lastCDStart = nil
                 frame._lastCDDur   = nil
                 grey:Hide()
-                frame:SetBackdropBorderColor(unpack(cfg.colors.black))
+                if not frame._isHovered then
+                    frame:SetBackdropBorderColor(unpack(cfg.colors.black))
+                end
             end
         end
 
@@ -574,9 +584,19 @@ local function make_spell_icon(parent, spellID, label, x, y)
     frame.refresh = refresh
     refresh()
 
-    frame.resetHover = refresh -- direct ref, no wrapper closure
+    local function reset_hover()
+        frame._isHovered = false
+        local rem = spell_cd_remaining(spellID)
+        if rem > 0 then
+            frame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+        else
+            frame:SetBackdropBorderColor(unpack(cfg.colors.black))
+        end
+    end
+    frame.resetHover = reset_hover
 
     frame:SetScript("OnEnter", function(self)
+        self._isHovered = true
         self:SetBackdropBorderColor(unpack(cfg.colors.cyan))
         arm_spell(spellID, nil, self) -- no portal for M+ icons
         local rem = spell_cd_remaining(spellID)
@@ -585,7 +605,7 @@ local function make_spell_icon(parent, spellID, label, x, y)
     frame:SetScript("OnLeave", function(self)
         if currentlyClicking then return end
         if not actionBtn:IsShown() or actionBtn:GetParent() ~= self then
-            refresh()
+            reset_hover()
             disarm()
             hide_tooltip()
         end
@@ -657,22 +677,37 @@ local function make_action_row(parent, spellID, portalID, toyID, name, icon, yPo
             frame._isOnCD = true
             grey:Show()
             cdLabel:SetText("[" .. fmt_cd(rem) .. "]")
-            label:SetTextColor(0.6, 0.6, 0.6, 1)
+            if not frame._isHovered then
+                label:SetTextColor(0.6, 0.6, 0.6, 1)
+                frame:SetBackdropBorderColor(unpack(cfg.colors.black))
+            end
         else
-            if frame._isOnCD or frame._isOnCD == nil then
-                frame._isOnCD = false
-                grey:Hide()
-                cdLabel:SetText("")
+            frame._isOnCD = false
+            grey:Hide()
+            cdLabel:SetText("")
+            if not frame._isHovered then
                 label:SetTextColor(unpack(cfg.colors.white))
+                frame:SetBackdropBorderColor(unpack(cfg.colors.black))
             end
         end
     end
     frame.refresh = refresh
     refresh()
 
-    frame.resetHover = refresh -- direct ref, no wrapper closure
+    local function reset_hover()
+        frame._isHovered = false
+        frame:SetBackdropBorderColor(unpack(cfg.colors.black))
+        local rem = spellID and spell_cd_remaining(spellID) or toy_cd_remaining(toyID)
+        if rem > 0 then
+            label:SetTextColor(0.6, 0.6, 0.6, 1)
+        else
+            label:SetTextColor(unpack(cfg.colors.white))
+        end
+    end
+    frame.resetHover = reset_hover
 
     frame:SetScript("OnEnter", function(self)
+        self._isHovered = true
         self:SetBackdropBorderColor(unpack(cfg.colors.cyan))
         label:SetTextColor(unpack(cfg.colors.cyan))
         if spellID then arm_spell(spellID, portalID, self) end
@@ -683,7 +718,7 @@ local function make_action_row(parent, spellID, portalID, toyID, name, icon, yPo
     frame:SetScript("OnLeave", function(self)
         if currentlyClicking then return end
         if not actionBtn:IsShown() or actionBtn:GetParent() ~= self then
-            refresh()
+            reset_hover()
             disarm()
             hide_tooltip()
         end
@@ -766,7 +801,9 @@ local function make_toy_icon(parent, toyID, label, x, y)
             if not frame._isOnCD then
                 frame._isOnCD = true
                 grey:Show()
-                frame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+                if not frame._isHovered then
+                    frame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+                end
             end
         else
             if frame._isOnCD or frame._isOnCD == nil then
@@ -775,16 +812,28 @@ local function make_toy_icon(parent, toyID, label, x, y)
                 frame._lastStart = nil
                 frame._lastDur   = nil
                 grey:Hide()
-                frame:SetBackdropBorderColor(unpack(cfg.colors.black))
+                if not frame._isHovered then
+                    frame:SetBackdropBorderColor(unpack(cfg.colors.black))
+                end
             end
         end
     end
     frame.refresh = refresh
     refresh()
 
-    frame.resetHover = refresh
+    local function reset_hover()
+        frame._isHovered = false
+        local rem = toy_cd_remaining(toyID)
+        if rem > 0 then
+            frame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+        else
+            frame:SetBackdropBorderColor(unpack(cfg.colors.black))
+        end
+    end
+    frame.resetHover = reset_hover
 
     frame:SetScript("OnEnter", function(self)
+        self._isHovered = true
         self:SetBackdropBorderColor(unpack(cfg.colors.cyan))
         arm_toy(toyID, self)
         local rem = toy_cd_remaining(toyID)
@@ -793,7 +842,7 @@ local function make_toy_icon(parent, toyID, label, x, y)
     frame:SetScript("OnLeave", function(self)
         if currentlyClicking then return end
         if not actionBtn:IsShown() or actionBtn:GetParent() ~= self then
-            refresh()
+            reset_hover()
             disarm()
             hide_tooltip()
         end
@@ -905,7 +954,9 @@ local function make_hearthstone_scroll_icon(parent, skinList, x, y)
             if not frame._isOnCD then
                 frame._isOnCD = true
                 grey:Show()
-                frame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+                if not frame._isHovered then
+                    frame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+                end
             end
         else
             if frame._isOnCD or frame._isOnCD == nil then
@@ -914,14 +965,26 @@ local function make_hearthstone_scroll_icon(parent, skinList, x, y)
                 frame._lastStart = nil
                 frame._lastDur   = nil
                 grey:Hide()
-                frame:SetBackdropBorderColor(unpack(cfg.colors.black))
+                if not frame._isHovered then
+                    frame:SetBackdropBorderColor(unpack(cfg.colors.black))
+                end
             end
         end
     end
     frame.refresh = refresh
     refresh()
 
-    frame.resetHover = refresh
+    local function reset_hover()
+        frame._isHovered = false
+        local toyID = current()
+        local rem = toyID and toy_cd_remaining(toyID) or 0
+        if rem > 0 then
+            frame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+        else
+            frame:SetBackdropBorderColor(unpack(cfg.colors.black))
+        end
+    end
+    frame.resetHover = reset_hover
 
     frame:SetScript("OnMouseWheel", function(self, delta)
         if #skinList < 2 then return end
@@ -939,11 +1002,13 @@ local function make_hearthstone_scroll_icon(parent, skinList, x, y)
             arm_toy(toyID, self)
             local rem = toy_cd_remaining(toyID)
             show_tooltip(self, nil, toyID, nil, nil, rem)
+            self._isHovered = true
             self:SetBackdropBorderColor(unpack(cfg.colors.cyan))
         end
     end)
 
     frame:SetScript("OnEnter", function(self)
+        self._isHovered = true
         self:SetBackdropBorderColor(unpack(cfg.colors.cyan))
         local toyID = current()
         if toyID then
@@ -955,7 +1020,7 @@ local function make_hearthstone_scroll_icon(parent, skinList, x, y)
     frame:SetScript("OnLeave", function(self)
         if currentlyClicking then return end
         if not actionBtn:IsShown() or actionBtn:GetParent() ~= self then
-            refresh()
+            reset_hover()
             disarm()
             hide_tooltip()
         end
@@ -1014,27 +1079,39 @@ local function make_legacy_dropdown(parent, group, yPos)
         cdFs:SetPoint("RIGHT", -2, 0)
         cdFs:SetTextColor(1, 0.55, 0.1, 1)
 
+        local function reset_hover()
+            row._isHovered = false
+            local rem = spell_cd_remaining(spellID)
+            if rem > 0 then
+                fs:SetTextColor(0.6, 0.6, 0.6, 1)
+            else
+                fs:SetTextColor(unpack(cfg.colors.white))
+            end
+        end
+        row.resetHover = reset_hover
+
         local function refresh_row()
             local rem = spell_cd_remaining(spellID)
             local onCD = rem > 0
             if onCD then
                 row._isOnCD = true
-                fs:SetTextColor(0.6, 0.6, 0.6, 1)
                 cdFs:SetText("[" .. fmt_cd(rem) .. "]")
+                if not row._isHovered then
+                    fs:SetTextColor(0.6, 0.6, 0.6, 1)
+                end
             else
-                if row._isOnCD or row._isOnCD == nil then
-                    row._isOnCD = false
+                row._isOnCD = false
+                cdFs:SetText("")
+                if not row._isHovered then
                     fs:SetTextColor(unpack(cfg.colors.white))
-                    cdFs:SetText("")
                 end
             end
         end
         row.refresh = refresh_row
         refresh_row()
 
-        row.resetHover = refresh_row
-
         row:SetScript("OnEnter", function(self)
+            self._isHovered = true
             fs:SetTextColor(unpack(cfg.colors.cyan))
             arm_spell(spellID, nil, self) -- no portal for legacy dropdown rows
             local rem = spell_cd_remaining(spellID)
@@ -1043,7 +1120,7 @@ local function make_legacy_dropdown(parent, group, yPos)
         row:SetScript("OnLeave", function(self)
             if currentlyClicking then return end
             if not actionBtn:IsShown() or actionBtn:GetParent() ~= self then
-                refresh_row()
+                reset_hover()
                 disarm()
                 hide_tooltip()
             end
@@ -1319,6 +1396,8 @@ local function build_portals_frame()
 
     -- Cancel ticker and close legacy dropdown when portal window is dismissed
     portalFrame:SetScript("OnHide", function()
+        disarm()
+        hide_tooltip()
         if refreshTicker then
             refreshTicker:Cancel()
             refreshTicker = nil

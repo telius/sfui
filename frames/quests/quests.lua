@@ -570,25 +570,29 @@ local function QuestSortComparator(a, b)
     if aTrack ~= bTrack then return aTrack end
 
     -- 2. Completed quests on top (ready for turn-in)
-    if a.isComplete ~= b.isComplete then
-        return a.isComplete
+    local aComp = (a.isComplete == true)
+    local bComp = (b.isComplete == true)
+    if aComp ~= bComp then
+        return aComp
     end
 
     -- 3. Failed quests placed at bottom
-    if a.isFailed ~= b.isFailed then
-        return not a.isFailed
+    local aFailed = (a.isFailed == true)
+    local bFailed = (b.isFailed == true)
+    if aFailed ~= bFailed then
+        return bFailed
     end
 
     -- 4. Immediate area tasks first (world quests/tasks where player is in the area)
-    local aInArea = a.isInArea or false
-    local bInArea = b.isInArea or false
+    local aInArea = (a.isInArea == true)
+    local bInArea = (b.isInArea == true)
     if aInArea ~= bInArea then
         return aInArea
     end
 
     -- 5. Current Map / Zone quests float above remote zone quests
-    local aOnMap = a.isOnMap or false
-    local bOnMap = b.isOnMap or false
+    local aOnMap = (a.isOnMap == true)
+    local bOnMap = (b.isOnMap == true)
     if aOnMap ~= bOnMap then
         return aOnMap
     end
@@ -600,8 +604,11 @@ local function QuestSortComparator(a, b)
         end
     end
 
-    -- 7. Alphabetical by quest title
-    return (a.title or "") < (b.title or "")
+    -- 7. Alphabetical by quest title, then stable questID tie-breaker
+    if a.title and b.title and a.title ~= b.title then
+        return a.title < b.title
+    end
+    return (a.questID or 0) < (b.questID or 0)
 end
 
 -- ─────────────────────────────────────────────────────────
@@ -2129,10 +2136,14 @@ local function RenderSections(state, superTracked)
 
                                     -- Handle fixed-point 1000 (tenths of a %) or 10000 (hundredths of a %)
                                     if maxVal == 1000 then
-                                        curVal = math_floor(curVal / 10)
+                                        if curVal > 100 then
+                                            curVal = math_floor(curVal / 10)
+                                        end
                                         maxVal = 100
                                     elseif maxVal == 10000 then
-                                        curVal = math_floor(curVal / 100)
+                                        if curVal > 100 then
+                                            curVal = math_floor(curVal / 100)
+                                        end
                                         maxVal = 100
                                     elseif obj.type == "progressbar" or isBar then
                                         if maxVal == 100 and curVal > 100 then
@@ -2166,6 +2177,20 @@ local function RenderSections(state, superTracked)
                                         local pctNum = barTxt:match("(%d+)%%")
                                         if pctNum and tonumber(pctNum) > 100 then
                                             isHighPct = true
+                                        end
+                                    end
+
+                                    if not barTxt or barTxt == "" or isHighPct then
+                                        local textPct = obj.text and type(obj.text) == "string" and not issecretvalue(obj.text) and obj.text:match("(%d+)%%")
+                                        if textPct then
+                                            local p = tonumber(textPct)
+                                            if p and p >= 0 and p <= 100 then
+                                                barTxt = tostring(p) .. "%"
+                                                if maxVal == 100 then
+                                                    curVal = p
+                                                    orow.Bar:SetValue(curVal)
+                                                end
+                                            end
                                         end
                                     end
 

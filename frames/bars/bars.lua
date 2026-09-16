@@ -702,17 +702,25 @@ do
         local _, _, forwardSpeed = C_PlayerInfo.GetGlidingInfo()
         if not forwardSpeed then return end
 
-        if issecretvalue(forwardSpeed) then
+        if issecretvalue and issecretvalue(forwardSpeed) then
             bar:SetValue(forwardSpeed)
             return
         end
 
-        local speed = forwardSpeed * 14.286
-        bar:SetValue(speed)
-
-        if math.abs(speed - (bar.lastSpeed or 0)) > 5 then
-            bar.TextValue:SetFormattedText("%d", speed)
-            bar.lastSpeed = speed
+        local num = tonumber(forwardSpeed)
+        if num and num == num and num >= -3.4e38 and num <= 3.4e38 then
+            local speed = num * 14.286
+            if speed == speed and speed >= -3.4e38 and speed <= 3.4e38 then
+                bar:SetValue(speed)
+                if math.abs(speed - (bar.lastSpeed or 0)) > 5 then
+                    bar.TextValue:SetFormattedText("%d", speed)
+                    bar.lastSpeed = speed
+                end
+            else
+                bar:SetValue(0)
+            end
+        else
+            bar:SetValue(0)
         end
 
         local aura = C_UnitAuras.GetPlayerAuraBySpellID(377234)

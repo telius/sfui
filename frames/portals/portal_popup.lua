@@ -10,16 +10,19 @@ local sfui_events      = sfui.events
 local math_floor       = math.floor
 local CreateFrame      = _G.CreateFrame
 local UIParent         = _G.UIParent
-local InCombatLockdown = _G.InCombatLockdown
-local PlaySound        = _G.PlaySound
-local GameTooltip      = _G.GameTooltip
-local C_Spell          = _G.C_Spell
-local C_Timer          = _G.C_Timer
-local C_LFGList        = _G.C_LFGList
+local InCombatLockdown       = _G.InCombatLockdown
+local PlaySound              = _G.PlaySound
+-- NOTE: Do NOT capture _G.GameTooltip here — it is a protected secure frame.
+-- Using it directly from addon code taints the Lua execution environment and
+-- propagates into Blizzard's LFG stack (SetEntryTitle ADDON_ACTION_BLOCKED).
+-- All tooltip calls go through sfui.tooltip (private frame, common.lua §3.7).
+local C_Spell                = _G.C_Spell
+local C_Timer                = _G.C_Timer
+local C_LFGList              = _G.C_LFGList
 local UnitGroupRolesAssigned = _G.UnitGroupRolesAssigned
-local GetNumGroupMembers = _G.GetNumGroupMembers
-local IsInInstance     = _G.IsInInstance
-local IsInRaid         = _G.IsInRaid
+local GetNumGroupMembers     = _G.GetNumGroupMembers
+local IsInInstance           = _G.IsInInstance
+local IsInRaid               = _G.IsInRaid
 
 local FRAME_W = 270
 local FRAME_H = 74
@@ -111,20 +114,21 @@ local function get_or_create_popup()
 
     card:HookScript("OnEnter", function(self)
         card:SetBackdropBorderColor(0.0, 1.0, 1.0, 0.9)
-        if self.spellID and GameTooltip then
-            GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            GameTooltip:SetSpellByID(self.spellID)
+        local tip = sfui.tooltip
+        if self.spellID and tip then
+            tip:SetOwner(self, "ANCHOR_TOP")
+            tip:SetSpellByID(self.spellID)
             if not self.isKnown then
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("|cffff2020[Portal not in spellbook]|r", 1, 0.2, 0.2)
+                tip:AddLine(" ")
+                tip:AddLine("|cffff2020[Portal not in spellbook]|r", 1, 0.2, 0.2)
             end
-            GameTooltip:Show()
+            tip:Show()
         end
     end)
 
     card:HookScript("OnLeave", function()
         card:SetBackdropBorderColor(0.22, 0.22, 0.22, 1)
-        if GameTooltip then GameTooltip:Hide() end
+        if sfui.tooltip then sfui.tooltip:Hide() end
     end)
 
     card:HookScript("OnClick", function(self)
