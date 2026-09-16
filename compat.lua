@@ -267,6 +267,87 @@ function sfui.api.GetActiveKeystoneInfo()
     return nil
 end
 
+--- Returns current M+ death count and time lost.
+--- @return number, number
+function sfui.api.GetDeathCount()
+    if IS_RETAIL and _G.C_ChallengeMode and _G.C_ChallengeMode.GetDeathCount then
+        local count, timeLost = _G.C_ChallengeMode.GetDeathCount()
+        return count or 0, timeLost or 0
+    end
+    return 0, 0
+end
+
+--- Returns whether challenge mode is currently active.
+--- @return boolean
+function sfui.api.IsChallengeModeActive()
+    if IS_RETAIL and _G.C_ChallengeMode and _G.C_ChallengeMode.IsChallengeModeActive then
+        return _G.C_ChallengeMode.IsChallengeModeActive() or false
+    end
+    return false
+end
+
+-- Canonical Combat Resurrection spell IDs (Rebirth, Raise Ally, Soulstone, Intercession)
+local BRES_SPELLS = { 20484, 61999, 20707, 391054 }
+local _cachedBresSpellID = 20484
+local _staticResInfo = {
+    currentCharges    = 0,
+    maxCharges        = 0,
+    cooldownStartTime = 0,
+    cooldownDuration  = 0,
+    timeRemaining     = 0,
+}
+
+--- Returns combat resurrection charge info for group in encounters/M+.
+--- Zero-allocation: reuses an internal static table on every call.
+--- @return table|nil { currentCharges, maxCharges, cooldownStartTime, cooldownDuration, timeRemaining }
+function sfui.api.GetCombatResInfo()
+    if not IS_RETAIL or not _G.C_Spell or not _G.C_Spell.GetSpellCharges then return nil end
+    local ok, chargeInfo = pcall(_G.C_Spell.GetSpellCharges, _cachedBresSpellID)
+    if not (ok and chargeInfo and (chargeInfo.currentCharges or chargeInfo.maxCharges)) then
+        chargeInfo = nil
+        for i = 1, #BRES_SPELLS do
+            local sid = BRES_SPELLS[i]
+            if sid ~= _cachedBresSpellID then
+                local ok2, info = pcall(_G.C_Spell.GetSpellCharges, sid)
+                if ok2 and info and (info.currentCharges or info.maxCharges) then
+                    chargeInfo = info
+                    _cachedBresSpellID = sid
+                    break
+                end
+            end
+        end
+    end
+    if not chargeInfo then return nil end
+
+    local cur = chargeInfo.currentCharges
+    local max = chargeInfo.maxCharges
+    local start = chargeInfo.cooldownStartTime
+    local dur = chargeInfo.cooldownDuration
+
+    local timeRem = 0
+    if start and dur and dur > 0 then
+        local isSecret = false
+        if _G.issecretvalue then
+            isSecret = _G.issecretvalue(start) or _G.issecretvalue(dur)
+        end
+        if not isSecret then
+            local now = _G.GetTime()
+            local finish = start + dur
+            if finish > now then
+                timeRem = finish - now
+            end
+        end
+    end
+
+    _staticResInfo.currentCharges    = cur
+    _staticResInfo.maxCharges        = max
+    _staticResInfo.cooldownStartTime = start
+    _staticResInfo.cooldownDuration  = dur
+    _staticResInfo.timeRemaining     = timeRem
+    return _staticResInfo
+end
+
+
 -- ══════════════════════════════════════════════════════════════════════════════
 --  WARCRAFT FOREVER EXTENSION POINT
 --  ─────────────────────────────────────────────────────────────────────────────

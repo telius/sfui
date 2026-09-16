@@ -21,7 +21,8 @@ local C_Reputation                                   = _G.C_Reputation
 local C_MajorFactions                                = _G.C_MajorFactions
 local BreakUpLargeNumbers                            = _G.BreakUpLargeNumbers or function(n) return tostring(n) end
 local GetWorldElapsedTime                            = _G.GetWorldElapsedTime
-local GameTooltip                                    = _G.GameTooltip
+local GameTooltip                                    = sfui.tooltip or _G.GameTooltip
+local sfui_api                                       = sfui.api
 local issecretvalue                                  = _G.issecretvalue or function() return false end
 local math_max, math_min, math_floor, math_ceil, math_abs = math.max, math.min, math.floor, math.ceil, math.abs
 local string_format                                  = string.format
@@ -264,6 +265,9 @@ local _lastChestText  = "" -- skip SetText when string unchanged
 local _lastDeathText  = "" -- skip SetText when string unchanged
 local _lastDeaths     = -1
 local _lastTimeLost   = -1
+local _lastResText    = ""
+local _lastResCharges = -1
+local _lastResSec     = -1
 
 local _playerList     = {} -- list of { unit = ..., guid = ..., name = ..., class = ... }
 local _playerClasses  = {} -- Name -> Class
@@ -706,16 +710,16 @@ end
 local _criteriaReuseTable = {}
 
 local function GetCriteriaInfoSafe(criteriaIndex, stepID)
-    if stepID and C_ScenarioInfo and C_ScenarioInfo.GetCriteriaInfoByStep then
-        local info = C_ScenarioInfo.GetCriteriaInfoByStep(stepID, criteriaIndex)
-        if info then
+    if C_ScenarioInfo and C_ScenarioInfo.GetCriteriaInfo then
+        local info = C_ScenarioInfo.GetCriteriaInfo(criteriaIndex)
+        if info and (info.description or info.quantity or info.totalQuantity) then
             info.description = info.description or info.criteriaString or info.string
             return info
         end
     end
-    if C_ScenarioInfo and C_ScenarioInfo.GetCriteriaInfo then
-        local info = C_ScenarioInfo.GetCriteriaInfo(criteriaIndex)
-        if info then
+    if stepID and C_ScenarioInfo and C_ScenarioInfo.GetCriteriaInfoByStep then
+        local info = C_ScenarioInfo.GetCriteriaInfoByStep(stepID, criteriaIndex)
+        if info and (info.description or info.quantity or info.totalQuantity) then
             info.description = info.description or info.criteriaString or info.string
             return info
         end
@@ -759,6 +763,72 @@ local function GetCriteriaInfoSafe(criteriaIndex, stepID)
         end
     end
     return nil
+end
+
+local function GetCriteriaProgress(info)
+    if not info then return 0, nil, nil end
+
+    local qStr = info.quantityString
+    local q = tonumber(info.quantity) or 0
+    local tot = tonumber(info.totalQuantity) or 0
+
+    local percent = nil
+    local curCount = nil
+    local maxCount = nil
+
+    -- 1. Check for fraction in quantityString: e.g. "108/240", "108 / 240", "108/240 (45%)"
+    if qStr and not issecretvalue(qStr) then
+        local cMatch, tMatch = qStr:match("(%d+)%s*/%s*(%d+)")
+        if cMatch and tMatch then
+            curCount = tonumber(cMatch)
+            maxCount = tonumber(tMatch)
+            if maxCount and maxCount > 0 and curCount then
+                percent = (curCount / maxCount) * 100
+            end
+        end
+        -- 2. Check for explicit percentage in quantityString: e.g. "45%", "45.2%"
+        local pMatch = qStr:match("(%d+%.?%d*)%%")
+        if pMatch then
+            percent = tonumber(pMatch)
+        end
+    end
+
+    -- 3. If percent not determined from quantityString, inspect quantity and totalQuantity
+    if not percent then
+        if info.isWeightedProgress or info.weightedProgress then
+            -- In modern WoW retail, weighted progress criteria report current percent (0-100) in quantity
+            if tot == 1000 and q > 100 then
+                percent = q / 10
+            elseif tot == 10000 and q > 100 then
+                percent = q / 100
+            else
+                percent = q
+            end
+        elseif tot > 0 then
+            percent = (q / tot) * 100
+        else
+            percent = q
+        end
+    end
+
+    percent = math_min(100, math_max(0, percent or 0))
+
+    -- 4. Determine counts if totalQuantity indicates a raw mob count (> 100, excluding 1000/10000 scaling)
+    if not maxCount and tot > 100 and tot ~= 1000 and tot ~= 10000 then
+        maxCount = tot
+    end
+    if maxCount and maxCount > 0 then
+        if not curCount then
+            if q > 100 and q <= maxCount then
+                curCount = q
+            else
+                curCount = math_floor((percent / 100) * maxCount + 0.5)
+            end
+        end
+        curCount = math_min(maxCount, math_max(0, curCount or 0))
+    end
+
+    return percent, curCount, maxCount
 end
 
 -- ─── Nemesis Info Extraction ──────────────────────────────
@@ -998,15 +1068,15 @@ local function GetNemesisInfo(delveInfo)
         local tot = nemesis.total or 4
         local cur = nemesis.current
 
-        if nemesis.isDone or (cur and cur >= tot and tot > 0) then
+        if nemesis.isDone or (cur and not issecretvalue(cur) and cur >= tot and tot > 0) then
             nemesis.isDone  = true
             nemesis.current = tot
             nemesis.total   = tot
             nemesis.text    = string_format("%d/%d", tot, tot)
-        elseif cur and cur >= 0 then
+        elseif cur and (issecretvalue(cur) or cur >= 0) then
             nemesis.current = cur
             nemesis.total   = tot
-            nemesis.text    = string_format("%d/%d", cur, tot)
+            nemesis.text    = issecretvalue(cur) and cur or string_format("%d/%d", cur, tot)
         else
             nemesis.current = 0
             nemesis.total   = tot
@@ -1130,6 +1200,109 @@ local function BuildHUDFrame()
     MF.affixRow:SetHeight(22)
     MF.affixes = {} -- pooled affix entries: { frame, icon, stackText }
 
+    -- Death counter frame (anchored to the far right of affixRow)
+    local deathFrame = CreateFrame("Frame", nil, MF.affixRow)
+    deathFrame:SetPoint("RIGHT", MF.affixRow, "RIGHT", 0, 0)
+    deathFrame:SetHeight(20)
+    deathFrame:EnableMouse(true)
+    deathFrame:SetFrameLevel(MF.affixRow:GetFrameLevel() + 2)
+    MF.deathFrame = deathFrame
+
+    MF.deathText = MakeText(deathFrame, "GameFontHighlightSmall", 1, 0.25, 0.25, 1, "RIGHT")
+    MF.deathText:SetPoint("RIGHT", deathFrame, "RIGHT", 0, 0)
+    MF.deathText:SetJustifyH("RIGHT")
+    MF.deathText:SetText("")
+
+    deathFrame:SetScript("OnEnter", function(self)
+        local tip = sfui.tooltip or _G.GameTooltip
+        if not tip then return end
+        tip:SetOwner(self, "ANCHOR_TOPRIGHT")
+        tip:ClearLines()
+        local deaths, timeLostSec = sfui_api.GetDeathCount()
+        if deaths and deaths > 0 then
+            local tl = timeLostSec or (deaths * 5)
+            tip:AddLine(string_format("Deaths: %d", deaths), 1, 0.3, 0.3)
+            tip:AddLine(string_format("Time lost: %s", FormatTime(tl)), 0.8, 0.8, 0.8)
+
+            if _playerDeaths and next(_playerDeaths) then
+                tip:AddLine(" ")
+                tip:AddLine("Player Breakdown:", 1, 0.82, 0)
+                for i = #staticDeathBreakdown, 1, -1 do
+                    local obj = table.remove(staticDeathBreakdown, i)
+                    wipe(obj)
+                    if #deathBreakdownPool < 20 then
+                        table.insert(deathBreakdownPool, obj)
+                    end
+                end
+                for name, count in pairs(_playerDeaths) do
+                    local obj = table.remove(deathBreakdownPool) or {}
+                    obj.name = name
+                    obj.count = count
+                    obj.class = _playerClasses[name]
+                    table.insert(staticDeathBreakdown, obj)
+                end
+                table.sort(staticDeathBreakdown, DeathSortComparator)
+                for _, p in ipairs(staticDeathBreakdown) do
+                    local colorCode = "ffffffff"
+                    if p.class and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[p.class] then
+                        colorCode = _G.RAID_CLASS_COLORS[p.class].colorStr or "ffffffff"
+                    end
+                    tip:AddDoubleLine(string_format("|c%s%s|r", colorCode, p.name),
+                        string_format("%d death%s", p.count, p.count > 1 and "s" or ""), 1, 1, 1, 0.7, 0.7, 0.7)
+                end
+            end
+        else
+            tip:AddLine("Deaths: 0", 0.3, 1, 0.3)
+            tip:AddLine("No time lost to player deaths.", 0.7, 0.7, 0.7)
+        end
+        tip:Show()
+    end)
+    deathFrame:SetScript("OnLeave", function()
+        local tip = sfui.tooltip or _G.GameTooltip
+        if tip then tip:Hide() end
+    end)
+
+    -- Combat Resurrection frame (anchored to the left of deathFrame)
+    local resFrame = CreateFrame("Frame", nil, MF.affixRow)
+    resFrame:SetPoint("RIGHT", deathFrame, "LEFT", -8, 0)
+    resFrame:SetHeight(20)
+    resFrame:EnableMouse(true)
+    resFrame:SetFrameLevel(MF.affixRow:GetFrameLevel() + 2)
+    MF.resFrame = resFrame
+
+    MF.resText = MakeText(resFrame, "GameFontHighlightSmall", 0.20, 1.00, 0.40, 1, "RIGHT")
+    MF.resText:SetPoint("RIGHT", resFrame, "RIGHT", 0, 0)
+    MF.resText:SetJustifyH("RIGHT")
+    MF.resText:SetText("")
+
+    resFrame:SetScript("OnEnter", function(self)
+        local tip = sfui.tooltip or _G.GameTooltip
+        if not tip then return end
+        tip:SetOwner(self, "ANCHOR_TOPRIGHT")
+        tip:ClearLines()
+        tip:AddLine("Combat Resurrections", 0.00, 1.00, 1.00)
+        local info = sfui_api.GetCombatResInfo()
+        if info and (info.currentCharges or info.maxCharges) then
+            local cur = info.currentCharges or 0
+            local max = info.maxCharges or 0
+            local color = cur > 0 and "|cff00ff88" or "|cffff4444"
+            tip:AddLine(string_format("Available Charges: %s%s|r / %s", color, tostring(cur), tostring(max)), 1, 1, 1)
+            if info.timeRemaining and info.timeRemaining > 0 then
+                tip:AddLine(string_format("Next Charge in: |cffffffff%s|r", FormatTime(info.timeRemaining)), 0.8, 0.8, 0.8)
+            elseif max > 0 and cur >= max then
+                tip:AddLine("Maximum charges reached.", 0.6, 0.6, 0.6)
+            end
+        else
+            tip:AddLine("No combat resurrection charges active.", 0.6, 0.6, 0.6)
+        end
+        tip:AddLine("Shared group combat resurrection pool.", 0.5, 0.5, 0.5)
+        tip:Show()
+    end)
+    resFrame:SetScript("OnLeave", function()
+        local tip = sfui.tooltip or _G.GameTooltip
+        if tip then tip:Hide() end
+    end)
+
     -- Timer bar (M+ only)
     local timerSection = CreateFrame("Frame", nil, MF)
     timerSection:SetPoint("TOPLEFT", MF.affixRow, "BOTTOMLEFT", 0, -6)
@@ -1154,9 +1327,9 @@ local function BuildHUDFrame()
     MF.timerText:SetJustifyH("LEFT")
     MF.timerText:SetText("--:-- / --:--")
 
-    MF.chestText = MakeText(timerOverlay, "GameFontHighlightSmall", 0.20, 1.00, 0.40, 1, "CENTER")
-    MF.chestText:SetPoint("CENTER", timerOverlay, "CENTER", 0, 0)
-    MF.chestText:SetJustifyH("CENTER")
+    MF.chestText = MakeText(timerOverlay, "GameFontHighlightSmall", 0.20, 1.00, 0.40, 1, "RIGHT")
+    MF.chestText:SetPoint("RIGHT", timerOverlay, "RIGHT", -4, 0)
+    MF.chestText:SetJustifyH("RIGHT")
     MF.chestText:SetText("+3 --:--")
 
     -- Chest tick marks (+3 green, +2 yellow)
@@ -1171,67 +1344,6 @@ local function BuildHUDFrame()
     MF.tick2:SetVertexColor(0.80, 0.80, 0.00, 1)
     MF.tick2:SetSize(2, 16)
     MF.tick2:Hide()
-
-    -- Death counter frame with tooltip
-    local deathFrame = CreateFrame("Frame", nil, timerOverlay)
-    deathFrame:SetPoint("RIGHT", timerOverlay, "RIGHT", -4, 0)
-    deathFrame:SetHeight(16)
-    deathFrame:EnableMouse(true)
-    deathFrame:SetFrameLevel(timerOverlay:GetFrameLevel() + 2)
-    MF.deathFrame = deathFrame
-
-    MF.deathText = MakeText(deathFrame, "GameFontHighlightSmall", 1, 0.25, 0.25, 1, "RIGHT")
-    MF.deathText:SetPoint("RIGHT", deathFrame, "RIGHT", 0, 0)
-    MF.deathText:SetJustifyH("RIGHT")
-    MF.deathText:SetText("")
-
-    deathFrame:SetScript("OnEnter", function(self)
-        local deaths, timeLostSec
-        if C_ChallengeMode and C_ChallengeMode.GetDeathCount then
-            deaths, timeLostSec = C_ChallengeMode.GetDeathCount()
-        end
-        if deaths and deaths > 0 then
-            local tl = timeLostSec or (deaths * 5)
-            if GameTooltip then
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:ClearLines()
-                GameTooltip:AddLine(string_format("Deaths: %d", deaths), 1, 0.3, 0.3)
-                GameTooltip:AddLine(string_format("Time lost: %s", FormatTime(tl)), 0.8, 0.8, 0.8)
-
-                if _playerDeaths and next(_playerDeaths) then
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("Player Breakdown:", 1, 0.82, 0)
-                    for i = #staticDeathBreakdown, 1, -1 do
-                        local obj = table.remove(staticDeathBreakdown, i)
-                        wipe(obj)
-                        if #deathBreakdownPool < 20 then
-                            table.insert(deathBreakdownPool, obj)
-                        end
-                    end
-                    for name, count in pairs(_playerDeaths) do
-                        local obj = table.remove(deathBreakdownPool) or {}
-                        obj.name = name
-                        obj.count = count
-                        obj.class = _playerClasses[name]
-                        table.insert(staticDeathBreakdown, obj)
-                    end
-                    table.sort(staticDeathBreakdown, DeathSortComparator)
-                    for _, p in ipairs(staticDeathBreakdown) do
-                        local colorCode = "ffffffff"
-                        if p.class and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[p.class] then
-                            colorCode = _G.RAID_CLASS_COLORS[p.class].colorStr or "ffffffff"
-                        end
-                        GameTooltip:AddDoubleLine(string_format("|c%s%s|r", colorCode, p.name),
-                            string_format("%d death%s", p.count, p.count > 1 and "s" or ""), 1, 1, 1, 0.7, 0.7, 0.7)
-                    end
-                end
-                GameTooltip:Show()
-            end
-        end
-    end)
-    deathFrame:SetScript("OnLeave", function()
-        if GameTooltip then GameTooltip:Hide() end
-    end)
 
 
     -- Separator 1 (between header/delve/timer and bosses)
@@ -1479,8 +1591,13 @@ local function BuildAffixRow(affixes)
     end
 
     if n == 0 then
-        MF.affixRow:Hide()
-        MF.affixRow:SetHeight(0)
+        if _mode ~= "mythic" then
+            MF.affixRow:Hide()
+            MF.affixRow:SetHeight(0)
+        else
+            MF.affixRow:Show()
+            MF.affixRow:SetHeight(22)
+        end
         return
     end
 
@@ -1496,9 +1613,15 @@ local function BuildAffixRow(affixes)
             frame:EnableMouse(true)
             local icon = frame:CreateTexture(nil, "ARTWORK")
             icon:SetAllPoints(frame)
-            frame:SetScript("OnLeave", function()
-                if GameTooltip then GameTooltip:Hide() end
-            end)
+            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+            local border = frame:CreateTexture(nil, "OVERLAY")
+            border:SetTexture("Interface/Buttons/WHITE8X8")
+            border:SetVertexColor(0, 0, 0, 0.8)
+            border:SetPoint("TOPLEFT", frame, "TOPLEFT", -1, 1)
+            border:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 1, -1)
+            icon:SetDrawLayer("ARTWORK", 1)
+
             frame:SetScript("OnEnter", function(self)
                 if GameTooltip then
                     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -1506,6 +1629,9 @@ local function BuildAffixRow(affixes)
                     if self.affixDesc then GameTooltip:AddLine(self.affixDesc, nil, nil, nil, true) end
                     GameTooltip:Show()
                 end
+            end)
+            frame:SetScript("OnLeave", function()
+                if GameTooltip then GameTooltip:Hide() end
             end)
             af = { frame = frame, icon = icon }
             MF.affixes[i] = af
@@ -1527,7 +1653,7 @@ local function BuildAffixRow(affixes)
         xOff = xOff + size + gap
     end
 
-    MF.affixRow:SetHeight(n > 0 and (size + 2) or 0)
+    MF.affixRow:SetHeight(22)
 end
 
 -- ─── Chest Tick Placement ─────────────────────────────────
@@ -1569,12 +1695,14 @@ local function RelayoutHUD(numBoss, isDelve, delveRowH, hasForces, hasCompanion)
         MF.affixRow:ClearAllPoints()
         MF.affixRow:SetPoint("TOPLEFT", MF.header, "BOTTOMLEFT", 0, -4)
         MF.affixRow:SetPoint("TOPRIGHT", MF.header, "BOTTOMRIGHT", 0, -4)
-        MF.affixRow:SetShown(#MF.affixes > 0)
+        MF.affixRow:Show()
+        MF.affixRow:SetHeight(22)
 
         MF.timerSection:Show()
         MF.timerSection:SetHeight(16)
         PlaceChestTicks()
-        MF.deathText:Show()
+        if MF.deathFrame then MF.deathFrame:Show() end
+        if MF.resFrame then MF.resFrame:Show() end
         MF.sep1:SetShown(bossH > 0)
         MF.sep1:ClearAllPoints()
         MF.sep1:SetPoint("TOPLEFT", MF.timerSection, "BOTTOMLEFT", 0, -4)
@@ -1594,7 +1722,7 @@ local function RelayoutHUD(numBoss, isDelve, delveRowH, hasForces, hasCompanion)
         MF.companionSection:Hide()
 
         local hdrH = (MF.header and MF.header:GetHeight()) or 24
-        local affixH = MF.affixRow:IsShown() and (4 + MF.affixRow:GetHeight()) or 0
+        local affixH = 4 + 22
         local totalH = HUD_PAD + hdrH + affixH + (6 + 16) + (bossH > 0 and (4 + 1 + 4 + bossH) or 0) + (4 + 1 + 4 + 14) +
             HUD_PAD
         MF:SetHeight(math_max(60, totalH))
@@ -1605,7 +1733,8 @@ local function RelayoutHUD(numBoss, isDelve, delveRowH, hasForces, hasCompanion)
         MF.timerSection:SetHeight(0)
         MF.tick2:Hide()
         MF.tick3:Hide()
-        MF.deathText:Hide()
+        if MF.deathFrame then MF.deathFrame:Hide() end
+        if MF.resFrame then MF.resFrame:Hide() end
 
         local topAnchor = (delveRowH > 0) and MF.delveRow or MF.header
 
@@ -1660,7 +1789,8 @@ local function RelayoutHUD(numBoss, isDelve, delveRowH, hasForces, hasCompanion)
         MF.timerSection:SetHeight(0)
         MF.tick2:Hide()
         MF.tick3:Hide()
-        MF.deathText:Hide()
+        if MF.deathFrame then MF.deathFrame:Hide() end
+        if MF.resFrame then MF.resFrame:Hide() end
 
         MF.sep1:SetShown(bossH > 0)
         MF.sep1:ClearAllPoints()
@@ -1695,21 +1825,27 @@ end
 
 -- ─── Core Update: merged boss + forces in one GetStepInfo call ───
 local function UpdateInstanceState()
-    if not (C_Scenario and C_ScenarioInfo) then return end
+    if not (C_Scenario or C_ScenarioInfo) then return end
     local stepName, stepDesc, numCriteria, stepID, stepWidgetSetID, isWorldEvent, _
-    if C_Scenario.GetStepInfo then
-        stepName, stepDesc, numCriteria, _, _, _, _, _, _, _, stepID, stepWidgetSetID, _, isWorldEvent = C_Scenario.GetStepInfo()
-    end
-    if (not numCriteria or numCriteria == 0) and C_ScenarioInfo.GetScenarioStepInfo then
+    if C_ScenarioInfo and C_ScenarioInfo.GetScenarioStepInfo then
         local sInfo = C_ScenarioInfo.GetScenarioStepInfo()
         if sInfo then
-            numCriteria = (sInfo.numCriteria and sInfo.numCriteria > 0) and sInfo.numCriteria or (numCriteria or 0)
-            stepID = stepID or sInfo.stepID
-            stepName = stepName or sInfo.title
-            stepDesc = stepDesc or sInfo.description
-            stepWidgetSetID = stepWidgetSetID or sInfo.stepWidgetSetID
+            numCriteria = (sInfo.numCriteria and sInfo.numCriteria > 0) and sInfo.numCriteria or 0
+            stepID = sInfo.stepID
+            stepName = sInfo.title
+            stepDesc = sInfo.description
+            stepWidgetSetID = sInfo.widgetSetID or sInfo.stepWidgetSetID
             if sInfo.isWorldEvent ~= nil then isWorldEvent = sInfo.isWorldEvent end
         end
+    end
+    if (not numCriteria or numCriteria == 0) and C_Scenario and C_Scenario.GetStepInfo then
+        local n, d, num, _, _, _, _, _, _, _, sID, wSetID, _, isWE = C_Scenario.GetStepInfo()
+        numCriteria = num or numCriteria or 0
+        stepName = stepName or n
+        stepDesc = stepDesc or d
+        stepID = stepID or sID
+        stepWidgetSetID = stepWidgetSetID or wSetID
+        if isWorldEvent == nil then isWorldEvent = isWE end
     end
     numCriteria = numCriteria or 0
 
@@ -1980,7 +2116,9 @@ local function UpdateInstanceState()
             local info = GetCriteriaInfoSafe(i, stepID)
             if info and IsProgressCriteria(info) and not info.completed then
                 forcesIdx  = i
-                forcesInfo = info
+                wipe(staticForcesInfo)
+                for k, v in pairs(info) do staticForcesInfo[k] = v end
+                forcesInfo = staticForcesInfo
                 break
             end
         end
@@ -1990,7 +2128,9 @@ local function UpdateInstanceState()
                 local info = GetCriteriaInfoSafe(i, stepID)
                 if info and IsProgressCriteria(info) then
                     forcesIdx  = i
-                    forcesInfo = info
+                    wipe(staticForcesInfo)
+                    for k, v in pairs(info) do staticForcesInfo[k] = v end
+                    forcesInfo = staticForcesInfo
                     break
                 end
             end
@@ -2106,21 +2246,8 @@ local function UpdateInstanceState()
                     local nameStr = CleanObjectiveName(rawDesc)
                     if not isComplete and info.quantity and info.totalQuantity and info.totalQuantity > 1 then
                         if IsProgressCriteria(info) then
-                            local raw = info.quantityString and info.quantityString:gsub("%%", "") or info.quantity
-                            local explicitPct = info.quantityString and info.quantityString:match("(%d+)%%")
-                            local cur = tonumber(raw) or 0
-                            local total = (info.totalQuantity and info.totalQuantity > 0) and info.totalQuantity or 100
-                            local pct = 0
-                            if explicitPct then
-                                pct = tonumber(explicitPct) or 0
-                            elseif total == 1000 then
-                                pct = (cur > 100) and math_floor(cur / 10) or math_floor(cur)
-                            elseif total > 0 then
-                                pct = math_floor((cur / total) * 100)
-                            else
-                                pct = cur
-                            end
-                            nameStr = nameStr .. " " .. string_format("|cff777777(%d%%)|r", pct)
+                            local pct = GetCriteriaProgress(info)
+                            nameStr = nameStr .. " " .. string_format("|cff777777(%d%%)|r", math_floor(pct))
                         else
                             nameStr = nameStr .. " " .. string_format("|cff777777(%s/%s)|r", tostring(info.quantity), tostring(info.totalQuantity))
                         end
@@ -2167,21 +2294,8 @@ local function UpdateInstanceState()
                             local nameStr = CleanObjectiveName(bDesc)
                             if not isComplete and bInfo.quantity and bInfo.totalQuantity and bInfo.totalQuantity > 1 then
                                 if IsProgressCriteria(bInfo) then
-                                    local raw = bInfo.quantityString and bInfo.quantityString:gsub("%%", "") or bInfo.quantity
-                                    local explicitPct = bInfo.quantityString and bInfo.quantityString:match("(%d+)%%")
-                                    local cur = tonumber(raw) or 0
-                                    local total = (bInfo.totalQuantity and bInfo.totalQuantity > 0) and bInfo.totalQuantity or 100
-                                    local pct = 0
-                                    if explicitPct then
-                                        pct = tonumber(explicitPct) or 0
-                                    elseif total == 1000 then
-                                        pct = (cur > 100) and math_floor(cur / 10) or math_floor(cur)
-                                    elseif total > 0 then
-                                        pct = math_floor((cur / total) * 100)
-                                    else
-                                        pct = cur
-                                    end
-                                    nameStr = nameStr .. " " .. string_format("|cff777777(%d%%)|r", pct)
+                                    local pct = GetCriteriaProgress(bInfo)
+                                    nameStr = nameStr .. " " .. string_format("|cff777777(%d%%)|r", math_floor(pct))
                                 else
                                     nameStr = nameStr .. " " .. string_format("|cff777777(%s/%s)|r", tostring(bInfo.quantity), tostring(bInfo.totalQuantity))
                                 end
@@ -2272,41 +2386,13 @@ local function UpdateInstanceState()
 
     HideExtraBossRows(bossCount)
 
-    -- Forces bar (Direct API info forwarding matching MPlusTimer)
+    -- Forces bar (Accurate progress and mob count derivation)
     if forcesInfo then
-        local total = (forcesInfo.totalQuantity and forcesInfo.totalQuantity > 0) and forcesInfo.totalQuantity or 100
-        local rawCurrent = forcesInfo.quantityString and forcesInfo.quantityString:gsub("%%", "") or forcesInfo.quantity
-        local current = tonumber(rawCurrent) or 0
-
-        local percent = 0
-        local explicitPct = forcesInfo.quantityString and forcesInfo.quantityString:match("(%d+%.?%d*)%%")
-        if explicitPct then
-            percent = tonumber(explicitPct) or 0
-        elseif total == 1000 then
-            if current > 100 then
-                percent = current / 10
-                current = math_floor(percent)
-            else
-                percent = current
-            end
-            total = 100
-        elseif total == 10000 then
-            if current > 100 then
-                percent = current / 100
-                current = math_floor(percent)
-            else
-                percent = current
-            end
-            total = 100
-        elseif total > 0 then
-            percent = (current / total) * 100
-        else
-            percent = current
-        end
-
+        local percent, curCount, maxCount = GetCriteriaProgress(forcesInfo)
         local isCompleted = (forcesInfo.completed == true) or (percent >= 100)
-        MF.forcesBar:SetMinMaxValues(0, total)
-        MF.forcesBar:SetValue(isCompleted and total or current)
+
+        MF.forcesBar:SetMinMaxValues(0, 100)
+        MF.forcesBar:SetValue(isCompleted and 100 or percent)
 
         if isCompleted then
             MF.forcesBar:SetStatusBarColor(0.20, 1.00, 0.40, 0.90)
@@ -2348,8 +2434,8 @@ local function UpdateInstanceState()
         else
             MF.forcesBar:SetStatusBarColor(0.40, 0.00, 1.00, 0.85)
             MF.forcesText:SetText(string_format("%.2f%% / 100%%", percent))
-            if total > 100 then
-                MF.forcesCountText:SetText(string_format("%s/%s", current, total))
+            if maxCount and maxCount > 100 and curCount then
+                MF.forcesCountText:SetText(string_format("%d/%d", curCount, maxCount))
             else
                 MF.forcesCountText:SetText("")
             end
@@ -2376,6 +2462,58 @@ local function UpdateInstanceState()
     end
 
     RelayoutHUD(bossCount, delveInfo ~= nil, delveRowH, forcesInfo ~= nil, compInfo ~= nil)
+end
+
+-- ─── Combat Resurrection Tracker ──────────────────────────
+local function UpdateCombatRes()
+    if not MF or not MF.resFrame or not MF.resText then return end
+    if _mode ~= "mythic" and not _isPreview then
+        MF.resFrame:Hide()
+        return
+    end
+
+    local info = sfui_api.GetCombatResInfo()
+    if not info or (not info.currentCharges and not info.maxCharges) then
+        if _lastResText ~= "" then
+            _lastResCharges = -1
+            _lastResSec = -1
+            _lastResText = ""
+            MF.resText:SetText("")
+            MF.resFrame:Hide()
+        end
+        return
+    end
+
+    local charges = info.currentCharges or 0
+    local timeRem = math_floor(info.timeRemaining or 0)
+
+    if charges ~= _lastResCharges or timeRem ~= _lastResSec then
+        _lastResCharges = charges
+        _lastResSec = timeRem
+
+        local resIcon = sfui_api.GetSpellTexture(20484) or 136080
+        local iconStr = string_format("|T%s:13:13:0:0:64:64:4:60:4:60|t", tostring(resIcon))
+        local textStr
+
+        if charges > 0 then
+            if timeRem > 0 then
+                textStr = string_format("%s |cff00ff88%d|r |cff888888(%s)|r", iconStr, charges, FormatTime(timeRem))
+            else
+                textStr = string_format("%s |cff00ff88%d|r", iconStr, charges)
+            end
+        else
+            if timeRem > 0 then
+                textStr = string_format("%s |cffff44440|r |cffffaa00(%s)|r", iconStr, FormatTime(timeRem))
+            else
+                textStr = string_format("%s |cffff44440|r", iconStr)
+            end
+        end
+
+        _lastResText = textStr
+        MF.resText:SetText(textStr)
+        MF.resFrame:SetWidth(MF.resText:GetStringWidth() + 4)
+        MF.resFrame:Show()
+    end
 end
 
 -- ─── Timer Update (10 Hz ticker — optimized) ──────────────
@@ -2486,38 +2624,33 @@ local function UpdateTimer()
         end
     end
 
-    -- Death counter (only format and resize when count or time lost changes)
-    local deaths, timeLost
-    if C_ChallengeMode and C_ChallengeMode.GetDeathCount then
-        deaths, timeLost = C_ChallengeMode.GetDeathCount()
-    end
-    if deaths and deaths > 0 then
-        local tl = timeLost or (deaths * 5)
-        if deaths ~= _lastDeaths or tl ~= _lastTimeLost then
-            _lastDeaths = deaths
-            _lastTimeLost = tl
+    -- Death counter (always clear and legible during M+)
+    local deaths, timeLost = sfui_api.GetDeathCount()
+    if deaths ~= _lastDeaths or timeLost ~= _lastTimeLost then
+        _lastDeaths = deaths
+        _lastTimeLost = timeLost
+        local newDeathStr
+        if deaths > 0 then
+            local tl = timeLost or (deaths * 5)
             local lostMin = math_floor(tl / 60)
             local lostSec = tl % 60
             local lostStr = (lostMin > 0 and (lostSec > 0 and string_format("+%dm %ds", lostMin, lostSec) or string_format("+%dm", lostMin))) or
                 string_format("+%ds", lostSec)
-            local newDeathStr = string_format(
-                "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:12:12:0:0|t |cffff4444%d (%s)|r", deaths, lostStr)
-            _lastDeathText = newDeathStr
-            MF.deathText:SetText(newDeathStr)
-            if MF.deathFrame then
-                MF.deathFrame:SetWidth(MF.deathText:GetStringWidth() + 16)
-                MF.deathFrame:Show()
-            end
+            newDeathStr = string_format(
+                "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:13:13:0:0|t |cffff4444%d|r |cffff8888(%s)|r", deaths, lostStr)
+        else
+            newDeathStr = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:13:13:0:0|t |cff8888880|r"
         end
-    else
-        if _lastDeaths ~= 0 then
-            _lastDeaths = 0
-            _lastTimeLost = 0
-            _lastDeathText = ""
-            MF.deathText:SetText("")
-            if MF.deathFrame then MF.deathFrame:Hide() end
+        _lastDeathText = newDeathStr
+        MF.deathText:SetText(newDeathStr)
+        if MF.deathFrame then
+            MF.deathFrame:SetWidth(MF.deathText:GetStringWidth() + 4)
+            MF.deathFrame:Show()
         end
     end
+
+    -- Combat resurrection charges and recharge countdown
+    UpdateCombatRes()
 end
 
 -- ─── ReinitTimer ──────────────────────────────────────────
@@ -2737,6 +2870,12 @@ end
 local function HideHUD()
     StopTicker()
     _mode = nil
+    _lastDeathText = ""
+    _lastDeaths = -1
+    _lastTimeLost = -1
+    _lastResText = ""
+    _lastResCharges = -1
+    _lastResSec = -1
     if MF then MF:Hide() end
 end
 
@@ -2912,9 +3051,17 @@ function sfui.mythic.ShowPreview()
         MF.chestText:Show()
     end
     if MF.deathFrame then
-        MF.deathText:SetText("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:12:12:0:0|t |cffff44441 (+5s)|r")
-        MF.deathFrame:SetWidth(MF.deathText:GetStringWidth() + 16)
+        local deathStr = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:13:13:0:0|t |cffff44441|r |cffff8888(+5s)|r"
+        MF.deathText:SetText(deathStr)
+        MF.deathFrame:SetWidth(MF.deathText:GetStringWidth() + 4)
         MF.deathFrame:Show()
+    end
+    if MF.resFrame then
+        local resIcon = sfui_api.GetSpellTexture(20484) or 136080
+        local resStr = string_format("|T%s:13:13:0:0:64:64:4:60:4:60|t |cff00ff881|r |cff888888(1:20)|r", tostring(resIcon))
+        MF.resText:SetText(resStr)
+        MF.resFrame:SetWidth(MF.resText:GetStringWidth() + 4)
+        MF.resFrame:Show()
     end
 
     PlaceChestTicks()
@@ -3038,6 +3185,8 @@ local function on_mythic_event(event, ...)
         RequestStateUpdate(0.4)
     elseif event == "CHALLENGE_MODE_DEATH_COUNT_UPDATED" then
         if _mode == "mythic" then UpdateTimer() end
+    elseif event == "SPELL_UPDATE_CHARGES" then
+        if _mode == "mythic" then UpdateCombatRes() end
     elseif event == "GROUP_ROSTER_UPDATE" then
         CacheGroupMembers()
     elseif event == "CHALLENGE_MODE_KEYSTONE_RECEPTABLE_OPEN" then
@@ -3072,6 +3221,7 @@ Reg("CHALLENGE_MODE_COMPLETED")
 Reg("CHALLENGE_MODE_RESET")
 Reg("CHALLENGE_MODE_DEATH_COUNT_UPDATED")
 Reg("CHALLENGE_MODE_KEYSTONE_RECEPTABLE_OPEN")
+Reg("SPELL_UPDATE_CHARGES")
 Reg("GROUP_ROSTER_UPDATE")
 Reg("SCENARIO_UPDATE")
 Reg("SCENARIO_CRITERIA_UPDATE")

@@ -2,6 +2,24 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-43 (2026-09-16)
+
+### Mythic+ HUD & Dungeon Tracking Enhancements
+- **Combat Resurrection Tracker (`mythic.lua`, `compat.lua`)**:
+  - Implemented live group combat resurrection (CR / Battle Res) tracker integrated into the Mythic+ affix header row.
+  - Displays Rebirth icon with current charges and dynamic recharge countdown timer (`Ready: green charges`, `Empty: red zero + amber recharge timer`).
+  - Added interactive tooltip via `sfui.tooltip` showing detailed charge status and shared group pool information.
+  - Engineered zero-allocation static table reuse in `sfui.api.GetCombatResInfo()` and event throttling (avoiding `SPELL_UPDATE_COOLDOWN` combat flooding) for near-zero CPU overhead (~6 µs/sec).
+- **M+ Death Counter Overhaul (`mythic.lua`, `compat.lua`)**:
+  - Repositioned death counter to the affix bar adjacent to the CR tracker against a dark backdrop, preventing overlap with chest timers.
+  - Made death counter permanently visible throughout M+ runs (`💀 0` in muted gray when clean; `💀 <count> (+<timeLost>)` in high-contrast red upon death).
+  - Routed M+ death queries through `sfui.api.GetDeathCount()`.
+- **Enemy Forces Calculation Fix (`mythic.lua`)**:
+  - Fixed criteria progress parsing in `GetCriteriaProgress()` to accurately detect `cur/max` counts from `C_ScenarioInfo.GetCriteriaInfo` and `C_Scenario.GetCriteriaInfo` without relying on localized string parsing.
+  - Enemy forces progress bar now scales correctly to 100% with exact raw counts (`cur/total`) when total criteria exceed 100.
+
+---
+
 ## v12.1.0-41 (2026-09-14)
 
 ### Performance & Responsiveness Improvements
