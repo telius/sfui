@@ -18,21 +18,18 @@ sfui = sfui or {}
 
 -- ── Raw client detection ──────────────────────────────────────────────────────
 -- WOW_PROJECT_ID is set by the game engine before any Lua runs.
---   WOW_PROJECT_MAINLINE (1) -> Retail
+--   WOW_PROJECT_MAINLINE (1) -> Retail & Classic Forever Beta
 --   WOW_PROJECT_CLASSIC  (2) -> Classic Era / Season of Discovery
---   Warcraft Forever     (?) -> TBD — placeholder updated once API lands
 local PROJECT_ID = _G.WOW_PROJECT_ID or 1
 
-local IS_RETAIL      = PROJECT_ID == (_G.WOW_PROJECT_MAINLINE or 1)
-local IS_CLASSIC_ERA = PROJECT_ID == (_G.WOW_PROJECT_CLASSIC  or 2)
+-- Inspect client version from GetBuildInfo() to accurately distinguish Classic Forever from Retail
+local versionStr, buildStr, dateStr, tocVersionNum = _G.GetBuildInfo()
+tocVersionNum = tonumber(tocVersionNum) or 0
 
--- ┌─────────────────────────────────────────────────────────────────────────┐
--- │  WARCRAFT FOREVER — API PENDING                                         │
--- │  WOW_PROJECT_ID value and TOC interface number are not yet published.   │
--- │  This flag will be refined when the API drops.                          │
--- │  Current assumption: any project that is not Retail and not Era.        │
--- └─────────────────────────────────────────────────────────────────────────┘
-local IS_WOW_FOREVER = (not IS_RETAIL) and (not IS_CLASSIC_ERA)
+-- Classic Forever uses WOW_PROJECT_MAINLINE (1), but has tocVersion 16001 (build 1.60.x)
+local IS_WOW_FOREVER = (tocVersionNum >= 16000 and tocVersionNum < 20000) or (versionStr and versionStr:match("^1%.60"))
+local IS_CLASSIC_ERA = (PROJECT_ID == (_G.WOW_PROJECT_CLASSIC or 2)) and not IS_WOW_FOREVER
+local IS_RETAIL      = (PROJECT_ID == (_G.WOW_PROJECT_MAINLINE or 1)) and not IS_WOW_FOREVER
 
 -- Expose on sfui.version so any module can read client context at runtime.
 sfui.version = {
@@ -40,6 +37,9 @@ sfui.version = {
     classic_era = IS_CLASSIC_ERA,
     wow_forever = IS_WOW_FOREVER,
     project_id  = PROJECT_ID,
+    toc_version = tocVersionNum,
+    build       = buildStr,
+    version     = versionStr,
 }
 
 -- ── Feature capability flags ──────────────────────────────────────────────────
@@ -49,9 +49,9 @@ sfui.version = {
 sfui.compat = {
     has = {
         -- Blizzard's C_UnitAuras namespace (retail aura instance IDs)
-        unit_auras      = IS_RETAIL,
+        unit_auras      = (_G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex ~= nil),
         -- BuffBarCooldownViewer Blizzard frame (trackedbars.lua depends on this)
-        cooldown_viewer = IS_RETAIL,
+        cooldown_viewer = (_G.BuffBarCooldownViewer ~= nil or _G.C_CooldownViewer ~= nil or IS_RETAIL or IS_WOW_FOREVER),
         -- Toybox / toy APIs (portals.lua travel toys)
         toybox          = IS_RETAIL,
         -- Mythic+ / Challenge Mode APIs
@@ -63,13 +63,13 @@ sfui.compat = {
         -- Gear / loot spec APIs (C_Item.DoesItemContainSpec etc.)
         gear_spec       = IS_RETAIL,
         -- C_Spell namespace
-        c_spell         = IS_RETAIL,
+        c_spell         = (_G.C_Spell ~= nil),
         -- C_Item namespace
-        c_item          = IS_RETAIL,
+        c_item          = (_G.C_Item ~= nil),
         -- Specialisations (talent trees, specs)
         specializations = IS_RETAIL,
-        -- ── Warcraft Forever capabilities (fill in when API lands) ──────────
-        -- wow_forever_foo = IS_WOW_FOREVER and ???,
+        -- Warcraft Forever specific capability flag
+        wow_forever     = IS_WOW_FOREVER,
     },
 }
 

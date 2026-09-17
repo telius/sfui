@@ -70,10 +70,12 @@ local function GetQLState()
 end
 
 -- Internal Caches
-local worldQuestCache      = {}
-local warbandCompleteCache = {}
-local questProgressCache   = {}
-local questZoneCache       = {}
+local worldQuestCache          = {}
+local warbandCompleteCache     = {}
+local questProgressCache       = {}
+local questZoneCache           = {}
+local metaQuestCache           = {}
+local questClassificationCache = {}
 
 -- Zone and Map State
 local currentMapID         = nil
@@ -198,7 +200,7 @@ end
 local staticAchMap = {}
 local staticAchList = {}
 
-local function GetAchievementCriteriaList(achievementID, AcquireTable)
+local function GetAchievementCriteriaList(achievementID, AcquireTable, isExpanded)
     local numCriteria = 0
     if GetAchievementNumCriteria then
         local n = GetAchievementNumCriteria(achievementID)
@@ -207,27 +209,31 @@ local function GetAchievementCriteriaList(achievementID, AcquireTable)
 
     if numCriteria > 0 and GetAchievementCriteriaInfo then
         local objectives = nil
+        local doneCount = 0
         for i = 1, numCriteria do
             local cString, cType, completed, qty, reqQty, _, _, _, qtyString = GetAchievementCriteriaInfo(achievementID, i)
             local finished = (completed == true) or (completed == 1)
-            local txt = cString
-            if not txt or txt == "" then txt = qtyString end
-            if txt and txt ~= "" then
-                qty = tonumber(qty)
-                reqQty = tonumber(reqQty)
-                if qty and reqQty and reqQty > 1 then
-                    txt = txt .. " (" .. tostring(qty) .. "/" .. tostring(reqQty) .. ")"
+            if finished then doneCount = doneCount + 1 end
+            if isExpanded then
+                local txt = cString
+                if not txt or txt == "" then txt = qtyString end
+                if txt and txt ~= "" then
+                    qty = tonumber(qty)
+                    reqQty = tonumber(reqQty)
+                    if qty and reqQty and reqQty > 1 then
+                        txt = txt .. " (" .. tostring(qty) .. "/" .. tostring(reqQty) .. ")"
+                    end
+                    if not objectives then objectives = AcquireTable() end
+                    local sObj = AcquireTable()
+                    sObj.text = txt
+                    sObj.finished = finished
+                    objectives[#objectives + 1] = sObj
                 end
-                if not objectives then objectives = AcquireTable() end
-                local sObj = AcquireTable()
-                sObj.text = txt
-                sObj.finished = finished
-                objectives[#objectives + 1] = sObj
             end
         end
-        return objectives
+        return objectives, doneCount, numCriteria
     end
-    return nil
+    return nil, 0, 0
 end
 
 local function ScanTrackedAchievements(intoList, AcquireTable)
@@ -242,9 +248,10 @@ local function ScanTrackedAchievements(intoList, AcquireTable)
     end
 
     if GetTrackedAchievements then
-        local nTracked = select("#", GetTrackedAchievements())
-        for i = 1, nTracked do
-            local id = select(i, GetTrackedAchievements())
+        -- Cache the full result table; calling GetTrackedAchievements() inside the loop
+        -- would invoke it N+1 times (once for count, once per element).
+        local tracked = { GetTrackedAchievements() }
+        for _, id in ipairs(tracked) do
             if id then addID(id) end
         end
     end
@@ -260,26 +267,26 @@ local function ScanTrackedAchievements(intoList, AcquireTable)
 
     if #staticAchList == 0 then return end
 
+    local state = GetQLState()
+    local expandedQuests = state and state.expandedQuests
+
     for _, achievementID in ipairs(staticAchList) do
         if type(achievementID) == "number" and achievementID > 0 then
             local id, name, points, completed, month, day, year, description, flags, icon = GetAchievementInfo(achievementID)
             if name and name ~= "" then
                 local isComplete = (completed == true) or (completed == 1)
-                local objs = GetAchievementCriteriaList(achievementID, AcquireTable)
-                if (not objs or #objs == 0) and description and description ~= "" then
-                    if not objs then objs = AcquireTable() end
+                local isExpanded = (expandedQuests and expandedQuests["ach_" .. tostring(achievementID)]) == true
+                local objs, doneCount, totalCount = GetAchievementCriteriaList(achievementID, AcquireTable, isExpanded)
+                if (not objs or #objs == 0) and description and description ~= "" and isExpanded then
+                    objs = AcquireTable()
                     local sObj = AcquireTable()
                     sObj.text = description
                     sObj.finished = isComplete
                     objs[#objs + 1] = sObj
                 end
 
-                local done, total = 0, (objs and #objs or 0)
-                if objs then
-                    for _, obj in ipairs(objs) do
-                        if obj.finished then done = done + 1 end
-                    end
-                end
+                local done = doneCount
+                local total = totalCount
 
                 local entry = AcquireTable()
                 entry.achievementID      = achievementID
@@ -295,7 +302,7 @@ local function ScanTrackedAchievements(intoList, AcquireTable)
                 entry.done               = done
                 entry.total              = total
                 entry.singleCountStr     = (total > 0) and (done .. "/" .. total) or nil
-                intoList[#intoList + 1] = entry
+                intoList[#intoList + 1]  = entry
             end
         end
     end
@@ -536,70 +543,89 @@ end
 
 local function IsMetaQuest(questID, defaultInfo)
     if not questID or questID <= 0 then return false end
-    if defaultInfo and (defaultInfo.isMeta or defaultInfo.questClassification == QC_Meta) then return true end
-
-    if C_QuestLog.IsMetaQuest then
-        local v = C_QuestLog.IsMetaQuest(questID)
-        if v then return true end
+    if defaultInfo and (defaultInfo.isMeta or defaultInfo.questClassification == QC_Meta) then
+        metaQuestCache[questID] = true
+        return true
     end
 
-    if C_QuestInfoSystem and C_QuestInfoSystem.GetQuestClassification then
+    local cached = metaQuestCache[questID]
+    if cached ~= nil then return cached end
+
+    local isMeta = false
+    if C_QuestLog.IsMetaQuest then
+        local v = C_QuestLog.IsMetaQuest(questID)
+        if v then isMeta = true end
+    end
+
+    if not isMeta and C_QuestInfoSystem and C_QuestInfoSystem.GetQuestClassification then
         local cls = C_QuestInfoSystem.GetQuestClassification(questID)
         if cls and (cls == QC_Meta or (QC and QC.Meta and cls == QC.Meta)) then
-            return true
+            isMeta = true
         end
     end
 
-    if C_QuestLog.GetQuestTagInfo then
+    if not isMeta and C_QuestLog.GetQuestTagInfo then
         local tag = C_QuestLog.GetQuestTagInfo(questID)
         if tag then
             if type(tag) == "table" then
                 if tag.isMeta or tag.tagName == "Meta" or tag.tagID == (Enum.QuestTag and Enum.QuestTag.Meta) or tag.tagID == 128 then
-                    return true
+                    isMeta = true
                 end
             elseif tag == (Enum.QuestTag and Enum.QuestTag.Meta) or tag == 128 then
-                return true
+                isMeta = true
             end
         end
     end
 
-    if C_QuestLog.GetInfo then
+    if not isMeta and C_QuestLog.GetInfo then
         local lIndex = C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetLogIndexForQuestID(questID)
         if lIndex then
             local info = C_QuestLog.GetInfo(lIndex)
             if info and (info.isMeta or info.questClassification == QC_Meta) then
-                return true
+                isMeta = true
             end
         end
     end
 
-    return false
+    metaQuestCache[questID] = isMeta
+    return isMeta
 end
 
 local function ClassifyQuest(info, questID)
-    if info.isTask or info.isBounty or IsWorldQuest(questID) then
-        return "world"
+    if questID and questClassificationCache[questID] then
+        return questClassificationCache[questID]
     end
-    if C_QuestInfoSystem and C_QuestInfoSystem.GetQuestClassification then
+
+    local sid
+    if info.isTask or info.isBounty or IsWorldQuest(questID) then
+        sid = "world"
+    elseif C_QuestInfoSystem and C_QuestInfoSystem.GetQuestClassification then
         local cls = C_QuestInfoSystem.GetQuestClassification(questID)
         if cls then
-            if cls == QC_Campaign or cls == QC_Calling    then return "campaign"   end
-            if cls == QC_Meta                             then return "meta"       end
-            if cls == QC_Important or cls == QC_Legendary then return "important"  end
-            if cls == QC_Recurring                        then return "activities" end
+            if cls == QC_Campaign or cls == QC_Calling    then sid = "campaign"
+            elseif cls == QC_Meta                         then sid = "meta"
+            elseif cls == QC_Important or cls == QC_Legendary then sid = "important"
+            elseif cls == QC_Recurring                    then sid = "activities"
+            end
         end
     end
-    if info.campaignID and info.campaignID > 0 then return "campaign" end
-    if IsMetaQuest(questID, info) then return "meta" end
-    if C_QuestLog.IsImportantQuest then
+    if not sid and info.campaignID and info.campaignID > 0 then sid = "campaign" end
+    if not sid and IsMetaQuest(questID, info) then sid = "meta" end
+    if not sid and C_QuestLog.IsImportantQuest then
         local v = C_QuestLog.IsImportantQuest(questID)
-        if v then return "important" end
+        if v then sid = "important" end
     end
-    local freq = info.frequency
-    if freq == QR_Daily or freq == QR_Weekly or (freq and freq > 0) then
-        return "activities"
+    if not sid then
+        local freq = info.frequency
+        if freq == QR_Daily or freq == QR_Weekly or (freq and freq > 0) then
+            sid = "activities"
+        end
     end
-    return "zone"
+    sid = sid or "zone"
+    if questID and questID > 0 then
+        questClassificationCache[questID] = sid
+    end
+    return sid
 end
 
 -- ─── Build Quest Entry ────────────────────────────────────
@@ -620,26 +646,47 @@ local function BuildQuestEntry(questID, forcedSectionID, defaultInfo, AcquireTab
         if v and #v > 0 then objs = v end
     end
 
+    local isWorld = (forcedSectionID == "world" or IsWorldQuest(questID))
+
+    local function CheckPct(val)
+        if val and not issecretvalue(val) and type(val) == "number" and val >= 0 and val <= 100 then
+            return val
+        end
+        return nil
+    end
+
     local isSynthetic = false
     local qProgressBarPct = nil
-    if GetQuestProgressBarPercent then
-        local p = GetQuestProgressBarPercent(questID)
-        if p and p > 0 then qProgressBarPct = p end
+
+    local needsProgressBar = isWorld or (not objs or #objs == 0)
+    if not needsProgressBar and objs then
+        for _, obj in ipairs(objs) do
+            if obj.type == "progressbar" or obj.type == 8 or (obj.objectiveType and (obj.objectiveType == 8 or obj.objectiveType == "progressbar")) then
+                needsProgressBar = true
+                break
+            end
+        end
     end
-    if not qProgressBarPct and C_TaskQuest and C_TaskQuest.GetQuestProgressBarInfo then
-        local val = C_TaskQuest.GetQuestProgressBarInfo(questID)
-        if val and val > 0 then qProgressBarPct = val end
-    end
-    if not qProgressBarPct and _G.GetQuestProgressBarInfo then
-        local val = _G.GetQuestProgressBarInfo(questID)
-        if val and val > 0 then qProgressBarPct = val end
+
+    if needsProgressBar then
+        if GetQuestProgressBarPercent then
+            qProgressBarPct = CheckPct(GetQuestProgressBarPercent(questID))
+        end
+        if not qProgressBarPct and C_TaskQuest and C_TaskQuest.GetQuestProgressBarInfo then
+            qProgressBarPct = CheckPct(C_TaskQuest.GetQuestProgressBarInfo(questID))
+        end
+        if not qProgressBarPct and _G.GetQuestProgressBarInfo then
+            qProgressBarPct = CheckPct(_G.GetQuestProgressBarInfo(questID))
+        end
     end
 
     if not objs or #objs == 0 then
-        if qProgressBarPct and qProgressBarPct > 0 then
+        if qProgressBarPct then
+            local pVal = math_floor(qProgressBarPct + 0.5)
             local sObj = AcquireTable()
-            sObj.text = tostring(qProgressBarPct) .. "%"
-            sObj.barText = tostring(qProgressBarPct) .. "%"
+            sObj.text = tostring(pVal) .. "%"
+            sObj.cleanText = sObj.text
+            sObj.barText = tostring(pVal) .. "%"
             sObj.finished = (qProgressBarPct >= 100)
             sObj.numFulfilled = qProgressBarPct
             sObj.numRequired = 100
@@ -655,15 +702,28 @@ local function BuildQuestEntry(questID, forcedSectionID, defaultInfo, AcquireTab
 
             if isBarType then
                 obj.type = "progressbar"
-                if (not obj.numFulfilled or obj.numFulfilled == 0) and qProgressBarPct then
+                if qProgressBarPct then
                     obj.numFulfilled = qProgressBarPct
-                end
-                if not obj.numRequired or obj.numRequired <= 1 then
                     obj.numRequired = 100
+                elseif not obj.numRequired or obj.numRequired <= 1 then
+                    obj.numRequired = 100
+                end
+                if not obj.cleanText and obj.text and not issecretvalue(obj.text) then
+                    if obj.text:find("[%(%%:]") or obj.text:find("^%s*-") then
+                        obj.cleanText = obj.text:gsub("%s*%(?%d+%%%)?", ""):gsub("%s*%(?%d+/%d+%)?", ""):gsub("%s*:%s*$", ""):gsub("^%s*-%s*", "")
+                    else
+                        obj.cleanText = obj.text
+                    end
                 end
                 if not obj.barText or obj.barText == "" then
                     if obj.numFulfilled and not issecretvalue(obj.numFulfilled) then
-                        obj.barText = tostring(obj.numFulfilled) .. "%"
+                        local req = obj.numRequired or 100
+                        if req == 100 then
+                            obj.barText = tostring(math_floor(obj.numFulfilled + 0.5)) .. "%"
+                        elseif req > 0 then
+                            local pct = math_floor((obj.numFulfilled / req) * 100 + 0.5)
+                            obj.barText = tostring(pct) .. "%"
+                        end
                     end
                 end
             end
@@ -672,7 +732,7 @@ local function BuildQuestEntry(questID, forcedSectionID, defaultInfo, AcquireTab
 
     local done, total = 0, 0
     local singleCountStr = nil
-    local progressHash = (isComplete and "1" or "0")
+    local progressHash = isComplete and 1 or 0
 
     if objs and #objs == 1 then
         local obj = objs[1]
@@ -681,9 +741,13 @@ local function BuildQuestEntry(questID, forcedSectionID, defaultInfo, AcquireTab
 
         local cur = obj.numFulfilled or 0
         local req = obj.numRequired or 0
-        local curStr = issecretvalue(cur) and "S" or tostring(cur)
-        local reqStr = issecretvalue(req) and "S" or tostring(req)
-        progressHash = progressHash .. "_" .. curStr .. "/" .. reqStr .. (obj.finished and "D" or "U")
+        if not issecretvalue(cur) and not issecretvalue(req) then
+            progressHash = (progressHash * 100003 + cur * 1009 + req * 31 + (obj.finished and 7 or 0)) % 2147483647
+        else
+            local curStr = issecretvalue(cur) and "S" or tostring(cur)
+            local reqStr = issecretvalue(req) and "S" or tostring(req)
+            progressHash = tostring(progressHash) .. "_" .. curStr .. "/" .. reqStr .. (obj.finished and "D" or "U")
+        end
 
         if not issecretvalue(cur) and not issecretvalue(req) and req > 1 then
             singleCountStr = tostring(cur) .. "/" .. tostring(req)
@@ -699,18 +763,32 @@ local function BuildQuestEntry(questID, forcedSectionID, defaultInfo, AcquireTab
             end
         end
     elseif objs and #objs > 1 then
+        local hasSecret = false
         for idx, obj in ipairs(objs) do
             total = total + 1
             if obj.finished then done = done + 1 end
             local cur = obj.numFulfilled or 0
             local req = obj.numRequired or 0
-            local curStr = issecretvalue(cur) and "S" or tostring(cur)
-            local reqStr = issecretvalue(req) and "S" or tostring(req)
-            progressHash = progressHash .. "_" .. tostring(idx) .. ":" .. curStr .. "/" .. reqStr .. (obj.finished and "D" or "U")
+            if issecretvalue(cur) or issecretvalue(req) then
+                hasSecret = true
+                break
+            else
+                progressHash = (progressHash * 33 + idx * 1009 + cur * 31 + req + (obj.finished and 7 or 0)) % 2147483647
+            end
+        end
+        if hasSecret then
+            progressHash = isComplete and "1" or "0"
+            for idx, obj in ipairs(objs) do
+                local cur = obj.numFulfilled or 0
+                local req = obj.numRequired or 0
+                local curStr = issecretvalue(cur) and "S" or tostring(cur)
+                local reqStr = issecretvalue(req) and "S" or tostring(req)
+                progressHash = progressHash .. "_" .. tostring(idx) .. ":" .. curStr .. "/" .. reqStr .. (obj.finished and "D" or "U")
+            end
         end
     end
 
-    -- Fast numeric change detection
+    -- Fast change detection
     if questProgressCache[questID] and questProgressCache[questID] ~= progressHash then
         local st = state or GetQLState()
         st.expandedQuests = st.expandedQuests or {}
@@ -748,7 +826,6 @@ local function BuildQuestEntry(questID, forcedSectionID, defaultInfo, AcquireTab
 
     local timeLeftText = nil
     local isCriticalTime = false
-    local isWorld = (forcedSectionID == "world" or IsWorldQuest(questID))
     local zoneName = GetQuestZoneName(questID, isWorld)
 
     local isInArea, isOnMap = false, false
@@ -902,15 +979,19 @@ end
 -- ─── Cache Management ────────────────────────────────────
 local function ClearQuestCache(questID)
     if not questID then return end
-    questProgressCache[questID]   = nil
-    warbandCompleteCache[questID] = nil
-    worldQuestCache[questID]      = nil
-    questZoneCache[questID]       = nil
+    questProgressCache[questID]       = nil
+    warbandCompleteCache[questID]     = nil
+    worldQuestCache[questID]          = nil
+    questZoneCache[questID]           = nil
+    metaQuestCache[questID]           = nil
+    questClassificationCache[questID] = nil
 end
 
 local function ClearWorldQuestCache()
     wipe(worldQuestCache)
     wipe(questZoneCache)
+    wipe(metaQuestCache)
+    wipe(questClassificationCache)
 end
 
 local function ClearWarbandCache()
@@ -921,17 +1002,21 @@ local function PruneProgressCacheForWorldQuests()
     for qID in pairs(questProgressCache) do
         if IsWorldQuest(qID) or (C_QuestLog and C_QuestLog.IsQuestTask and C_QuestLog.IsQuestTask(qID)) then
             questProgressCache[qID] = nil
+            metaQuestCache[qID] = nil
+            questClassificationCache[qID] = nil
         end
     end
 end
 
 local function GetCacheCounts()
-    local pCount, wCount, wqCount, zCount = 0, 0, 0, 0
+    local pCount, wCount, wqCount, zCount, mCount, cCount = 0, 0, 0, 0, 0, 0
     for _ in pairs(questProgressCache) do pCount = pCount + 1 end
     for _ in pairs(warbandCompleteCache) do wCount = wCount + 1 end
     for _ in pairs(worldQuestCache) do wqCount = wqCount + 1 end
     for _ in pairs(questZoneCache) do zCount = zCount + 1 end
-    return pCount, wCount, wqCount, zCount
+    for _ in pairs(metaQuestCache) do mCount = mCount + 1 end
+    for _ in pairs(questClassificationCache) do cCount = cCount + 1 end
+    return pCount, wCount, wqCount, zCount, mCount, cCount
 end
 
 -- ─── Public Module Exports ───────────────────────────────

@@ -122,19 +122,13 @@ local function CheckStringProgress(str)
 end
 
 local function ExtractProgressValues(curVal, minVal, maxVal, overrideText, text, tooltip)
-    -- Check string texts for explicit patterns (zero-allocation)
+    -- Check explicit override text first (Blizzard's overrideBarText)
     local pct, c, m, customText = CheckStringProgress(overrideText)
-    if not pct then
-        pct, c, m, customText = CheckStringProgress(text)
-    end
-    if not pct then
-        pct, c, m, customText = CheckStringProgress(tooltip)
-    end
     if pct then
         return pct, c, m, customText
     end
 
-    -- Numeric fallback & sanitization
+    -- Numeric sanitization & calculation (matching Blizzard UIWidgetBaseStatusBarTemplateMixin)
     minVal = (minVal and not issecretvalue(minVal)) and minVal or 0
     maxVal = (maxVal and not issecretvalue(maxVal) and maxVal > 0) and maxVal or nil
     curVal = (curVal and not issecretvalue(curVal)) and curVal or 0
@@ -143,30 +137,23 @@ local function ExtractProgressValues(curVal, minVal, maxVal, overrideText, text,
         minVal, maxVal, curVal = 0, 1, 1
     end
 
-    if maxVal == 1000 then
-        if curVal > 100 then
-            curVal = math_floor(curVal / 10)
-        end
-        maxVal = 100
-    elseif maxVal == 10000 then
-        if curVal > 100 then
-            curVal = math_floor(curVal / 100)
-        end
-        maxVal = 100
+    if maxVal and maxVal > minVal then
+        local range = maxVal - minVal
+        local calcPct = math_min(100, math_max(0, math_floor(((curVal - minVal) / range) * 100 + 0.5)))
+        return calcPct, curVal, maxVal, nil
     end
 
-    if not maxVal or maxVal <= 0 then
-        maxVal = 100
+    -- Fallback to string matching on text / tooltip only if numeric maxVal was absent or zero
+    pct, c, m, customText = CheckStringProgress(text)
+    if not pct then
+        pct, c, m, customText = CheckStringProgress(tooltip)
+    end
+    if pct then
+        return pct, c, m, customText
     end
 
-    local range = maxVal - minVal
-    local calcPct = 0
-    if range > 0 then
-        calcPct = math_min(100, math_max(0, math_floor(((curVal - minVal) / range) * 100 + 0.5)))
-    elseif curVal > 0 then
-        calcPct = math_min(100, math_max(0, math_floor(curVal)))
-    end
-
+    maxVal = maxVal or 100
+    local calcPct = math_min(100, math_max(0, math_floor(curVal)))
     return calcPct, curVal, maxVal, nil
 end
 
@@ -213,8 +200,12 @@ local function ResolvePoiDetails(areaPoiID, displayInfo)
     local uiMapID  = poiMapCache[areaPoiID]
     local wSet     = (displayInfo and displayInfo.overrideTooltipWidgetSetID and not issecretvalue(displayInfo.overrideTooltipWidgetSetID) and displayInfo.overrideTooltipWidgetSetID) or poiWidgetSetCache[areaPoiID]
 
-    -- If name, zoneName, or wSet are missing or unresolved, query C_AreaPoiInfo fresh
-    if not name or not zoneName or not wSet or wSet <= 0 then
+    -- If name, zoneName, or wSet are missing or unresolved, query C_AreaPoiInfo fresh.
+    -- wSet == false means "already queried, no widget set exists" (sentinel): skip re-query.
+    -- wSet == nil means "never queried yet": enter the block.
+    -- wSet is a positive number means "resolved": skip re-query for wSet.
+    local wSetResolved = (wSet ~= nil)  -- nil=never queried; false=queried+absent; number=queried+found
+    if not name or not zoneName or not wSetResolved then
         if not uiMapID and C_EventScheduler and C_EventScheduler.GetEventUiMapID then
             uiMapID = C_EventScheduler.GetEventUiMapID(areaPoiID)
         end
@@ -257,9 +248,9 @@ local function ResolvePoiDetails(areaPoiID, displayInfo)
         poiAtlasCache[areaPoiID] = atlas
         poiZoneCache[areaPoiID]  = zoneName
         poiMapCache[areaPoiID]   = uiMapID
-        if wSet and wSet > 0 then
-            poiWidgetSetCache[areaPoiID] = wSet
-        end
+        -- Cache the result either way: 'false' is a sentinel meaning "no widget set" so
+        -- we don't re-query C_AreaPoiInfo on every subsequent ScanEvents call.
+        poiWidgetSetCache[areaPoiID] = (wSet and wSet > 0) and wSet or false
     end
 
     return name, atlas, zoneName, uiMapID, wSet
@@ -544,6 +535,7 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
 
         local locObj = Alloc()
         locObj.text = ev.zoneName or "World Event"
+        locObj.cleanText = locObj.text
         locObj.finished = false
         table_insert(objs, locObj)
 
@@ -551,6 +543,7 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
         local timeCol = ev.isOngoing and "|cff00ff88" or "|cff33d9f2"
         local remStr  = ev.remText or "now"
         timeObj.text = string_format("%sTime remaining: %s|r", timeCol, remStr)
+        timeObj.cleanText = timeObj.text
         timeObj.finished = false
         table_insert(objs, timeObj)
 
@@ -591,9 +584,12 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
             end
         end
 
-        local seenWidgets = AcquireTable()
+        if #widgetCandidates > 0 then
+            local seenWidgets = AcquireTable()
+            -- Hoist InCombatLockdown: calling it per-widget inside a triple-nested loop is wasteful.
+            local inCombat = InCombatLockdown and InCombatLockdown()
 
-        for _, wSetID in ipairs(widgetCandidates) do
+            for _, wSetID in ipairs(widgetCandidates) do
             if C_UIWidgetManager and C_UIWidgetManager.GetAllWidgetsBySetID then
                 local widgets = C_UIWidgetManager.GetAllWidgetsBySetID(wSetID)
                 if widgets and type(widgets) == "table" then
@@ -602,12 +598,18 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                         local wType = (type(w) == "table" and w.widgetType)
                         if wID and not seenWidgets[wID] then
                             seenWidgets[wID] = true
-                            local inCombat = InCombatLockdown and InCombatLockdown()
+
+                            -- Dispatch by widget type.
+                            -- IMPORTANT: when wType==nil (untyped / plain number widget IDs), we must
+                            -- query ALL types — not use elseif — because the first matching branch
+                            -- would swallow the widget and every other type would be silently skipped.
+                            -- When wType is known we use elseif for efficiency.
+                            local wTypeHandled = false
 
                             -- 1. Single StatusBar & UnitPowerBar
-                            if (wType == nil or wType == TYPE_STATUS_BAR or wType == TYPE_UNIT_POWER_BAR) then
+                            if wType == nil or wType == TYPE_STATUS_BAR or wType == TYPE_UNIT_POWER_BAR then
                                 local sInfo = nil
-                                if (wType == TYPE_UNIT_POWER_BAR) and C_UIWidgetManager.GetUnitPowerBarWidgetVisualizationInfo then
+                                if wType == TYPE_UNIT_POWER_BAR and C_UIWidgetManager.GetUnitPowerBarWidgetVisualizationInfo then
                                     sInfo = C_UIWidgetManager.GetUnitPowerBarWidgetVisualizationInfo(wID)
                                 elseif C_UIWidgetManager.GetStatusBarWidgetVisualizationInfo then
                                     sInfo = C_UIWidgetManager.GetStatusBarWidgetVisualizationInfo(wID)
@@ -636,9 +638,6 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                                         pObj.text = barLabel
                                         pObj.numFulfilled = sInfo.barValue
                                         local maxVal = (sInfo.barMax and not issecretvalue(sInfo.barMax) and sInfo.barMax > 0) and sInfo.barMax or 100
-                                        if maxVal == 1000 and sInfo.barValue and not issecretvalue(sInfo.barValue) and sInfo.barValue <= 100 then
-                                            maxVal = 100
-                                        end
                                         pObj.numRequired = maxVal
                                         pObj.finished = false
                                         pObj.barText = overrideText or ""
@@ -659,6 +658,8 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                                             valText = string_format("%d/%d", curVal - minVal, maxVal - minVal)
                                         elseif sInfo.barValueTextType == Enum.StatusBarValueTextType.Value then
                                             valText = tostring(curVal)
+                                        elseif sInfo.barValueTextType == Enum.StatusBarValueTextType.Time or sInfo.barValueTextType == Enum.StatusBarValueTextType.TimeShowOneLevelOnly then
+                                            valText = FormatTimerSeconds(curVal)
                                         elseif sInfo.barValueTextType == Enum.StatusBarValueTextType.Hidden then
                                             valText = ""
                                         end
@@ -680,10 +681,13 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                                     end
 
                                     table_insert(objs, pObj)
+                                    wTypeHandled = true
                                 end
+                            end
 
                             -- 2. Double StatusBar
-                            elseif (wType == nil or wType == TYPE_DOUBLE_STATUS_BAR) and C_UIWidgetManager.GetDoubleStatusBarWidgetVisualizationInfo then
+                            if (not wTypeHandled or wType == nil) and wType ~= TYPE_STATUS_BAR and wType ~= TYPE_UNIT_POWER_BAR
+                            and (wType == nil or wType == TYPE_DOUBLE_STATUS_BAR) and C_UIWidgetManager.GetDoubleStatusBarWidgetVisualizationInfo then
                                 local dInfo = C_UIWidgetManager.GetDoubleStatusBarWidgetVisualizationInfo(wID)
                                 if dInfo and dInfo.shownState ~= 0 and dInfo.shownState ~= Enum.WidgetShownState.Hidden then
                                     local rawText = (dInfo.text and dInfo.text ~= "" and not issecretvalue(dInfo.text)) and dInfo.text or nil
@@ -719,10 +723,12 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                                         pObj.finished = false
                                     end
                                     table_insert(objs, pObj)
+                                    wTypeHandled = true
                                 end
+                            end
 
                             -- 3. CaptureBar
-                            elseif (wType == nil or wType == TYPE_CAPTURE_BAR) and C_UIWidgetManager.GetCaptureBarWidgetVisualizationInfo then
+                            if (not wTypeHandled or wType == nil) and (wType == nil or wType == TYPE_CAPTURE_BAR) and C_UIWidgetManager.GetCaptureBarWidgetVisualizationInfo then
                                 local cbInfo = C_UIWidgetManager.GetCaptureBarWidgetVisualizationInfo(wID)
                                 if cbInfo and cbInfo.shownState ~= 0 and cbInfo.shownState ~= Enum.WidgetShownState.Hidden then
                                     local rawTooltip = (cbInfo.tooltip and cbInfo.tooltip ~= "" and not issecretvalue(cbInfo.tooltip)) and cbInfo.tooltip:match("^[^\n]+") or nil
@@ -744,10 +750,12 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                                         pObj.finished = false
                                     end
                                     table_insert(objs, pObj)
+                                    wTypeHandled = true
                                 end
+                            end
 
                             -- 4. FillUpFrames
-                            elseif (wType == nil or wType == TYPE_FILL_UP_FRAMES) and C_UIWidgetManager.GetFillUpFramesWidgetVisualizationInfo then
+                            if (not wTypeHandled or wType == nil) and (wType == nil or wType == TYPE_FILL_UP_FRAMES) and C_UIWidgetManager.GetFillUpFramesWidgetVisualizationInfo then
                                 local fInfo = C_UIWidgetManager.GetFillUpFramesWidgetVisualizationInfo(wID)
                                 if fInfo and fInfo.shownState ~= 0 and fInfo.shownState ~= Enum.WidgetShownState.Hidden then
                                     local rawTooltip = (fInfo.tooltip and not issecretvalue(fInfo.tooltip)) and fInfo.tooltip:match("^[^\n]+") or nil
@@ -804,10 +812,12 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                                         pObj.finished = false
                                     end
                                     table_insert(objs, pObj)
+                                    wTypeHandled = true
                                 end
+                            end
 
                             -- 5. DiscreteProgressSteps
-                            elseif (wType == nil or wType == TYPE_DISCRETE_STEPS) and C_UIWidgetManager.GetDiscreteProgressStepsVisualizationInfo then
+                            if (not wTypeHandled or wType == nil) and (wType == nil or wType == TYPE_DISCRETE_STEPS) and C_UIWidgetManager.GetDiscreteProgressStepsVisualizationInfo then
                                 local dpInfo = C_UIWidgetManager.GetDiscreteProgressStepsVisualizationInfo(wID)
                                 if dpInfo and dpInfo.shownState ~= 0 and dpInfo.shownState ~= Enum.WidgetShownState.Hidden then
                                     local rawTooltip = (dpInfo.tooltip and not issecretvalue(dpInfo.tooltip)) and dpInfo.tooltip:match("^[^\n]+") or nil
@@ -843,10 +853,12 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                                         pObj.finished = false
                                     end
                                     table_insert(objs, pObj)
+                                    wTypeHandled = true
                                 end
+                            end
 
                             -- 6. TugOfWar
-                            elseif (wType == nil or wType == TYPE_TUG_OF_WAR) and C_UIWidgetManager.GetTugOfWarWidgetVisualizationInfo then
+                            if (not wTypeHandled or wType == nil) and (wType == nil or wType == TYPE_TUG_OF_WAR) and C_UIWidgetManager.GetTugOfWarWidgetVisualizationInfo then
                                 local towInfo = C_UIWidgetManager.GetTugOfWarWidgetVisualizationInfo(wID)
                                 if towInfo and towInfo.shownState ~= 0 and towInfo.shownState ~= Enum.WidgetShownState.Hidden then
                                     local rawTooltip = (towInfo.tooltip and towInfo.tooltip ~= "" and not issecretvalue(towInfo.tooltip)) and towInfo.tooltip:match("^[^\n]+") or nil
@@ -869,10 +881,12 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                                         pObj.finished = false
                                     end
                                     table_insert(objs, pObj)
+                                    wTypeHandled = true
                                 end
+                            end
 
                             -- 7. ScenarioHeaderTimer (Stage Countdown Timers)
-                            elseif (wType == nil or wType == TYPE_SCENARIO_TIMER) and C_UIWidgetManager.GetScenarioHeaderTimerWidgetVisualizationInfo then
+                            if (not wTypeHandled or wType == nil) and (wType == nil or wType == TYPE_SCENARIO_TIMER) and C_UIWidgetManager.GetScenarioHeaderTimerWidgetVisualizationInfo then
                                 local tInfo = C_UIWidgetManager.GetScenarioHeaderTimerWidgetVisualizationInfo(wID)
                                 if tInfo and tInfo.shownState ~= 0 and tInfo.shownState ~= Enum.WidgetShownState.Hidden then
                                     local lbl = (tInfo.headerText and tInfo.headerText ~= "" and not issecretvalue(tInfo.headerText) and tInfo.headerText)
@@ -899,10 +913,12 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                                         sObj.finished = (rem <= 0)
                                     end
                                     table_insert(objs, sObj)
+                                    wTypeHandled = true
                                 end
+                            end
 
                             -- 8. TextWithState / TextWithSubtext / BulletTextList
-                            elseif (wType == nil or wType == TYPE_TEXT_WITH_STATE or wType == TYPE_TEXT_WITH_SUBTEXT or wType == TYPE_BULLET_TEXT_LIST) then
+                            if (not wTypeHandled or wType == nil) and (wType == nil or wType == TYPE_TEXT_WITH_STATE or wType == TYPE_TEXT_WITH_SUBTEXT or wType == TYPE_BULLET_TEXT_LIST) then
                                 local textHandled = false
                                 if (wType == TYPE_TEXT_WITH_SUBTEXT or wType == nil) and C_UIWidgetManager.GetTextWithSubtextWidgetVisualizationInfo then
                                     local twsInfo = C_UIWidgetManager.GetTextWithSubtextWidgetVisualizationInfo(wID)
@@ -950,9 +966,10 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                                         end
                                     end
                                 end
+                            end
 
                             -- 9. IconAndText / TextureAndText
-                            elseif (wType == nil or wType == TYPE_ICON_AND_TEXT or wType == TYPE_TEXTURE_AND_TEXT) then
+                            if (not wTypeHandled or wType == nil) and (wType == nil or wType == TYPE_ICON_AND_TEXT or wType == TYPE_TEXTURE_AND_TEXT) then
                                 local txt = nil
                                 if (wType == TYPE_TEXTURE_AND_TEXT or wType == nil) and C_UIWidgetManager.GetTextureAndTextVisualizationInfo then
                                     local ttInfo = C_UIWidgetManager.GetTextureAndTextVisualizationInfo(wID)
@@ -972,15 +989,16 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                                     iObj.finished = false
                                     table_insert(objs, iObj)
                                 end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-
-        ReleaseTable(widgetCandidates)
+                            end -- wType dispatch
+                        end -- seenWidgets check
+                    end -- for w
+                end -- if widgets
+            end -- if GetAllWidgetsBySetID
+        end -- for wSetID
         ReleaseTable(seenWidgets)
+    end -- if #widgetCandidates > 0
+
+    ReleaseTable(widgetCandidates)
 
         entry.objectives = objs
         entry._syntheticObjs = true
@@ -1026,28 +1044,11 @@ if sfui.events then
     end)
 
     local function HasActiveWidgetSet(setID)
-        if not setID then return false end
-        if issecretvalue(setID) then return true end
-        if setID <= 0 then return false end
+        if not setID or issecretvalue(setID) or type(setID) ~= "number" or setID <= 0 then return false end
         for _, ev in ipairs(cachedEvents) do
-            if ev.widgetSetID and not issecretvalue(ev.widgetSetID) and ev.widgetSetID == setID then return true end
-        end
-        if C_UIWidgetManager then
-            if C_UIWidgetManager.GetObjectiveTrackerWidgetSetID then
-                local s = C_UIWidgetManager.GetObjectiveTrackerWidgetSetID()
-                if s and not issecretvalue(s) and s == setID then return true end
-            end
-            if C_UIWidgetManager.GetTopCenterWidgetSetID then
-                local s = C_UIWidgetManager.GetTopCenterWidgetSetID()
-                if s and not issecretvalue(s) and s == setID then return true end
-            end
-            if C_UIWidgetManager.GetBelowMinimapWidgetSetID then
-                local s = C_UIWidgetManager.GetBelowMinimapWidgetSetID()
-                if s and not issecretvalue(s) and s == setID then return true end
-            end
-            if C_UIWidgetManager.GetPowerBarWidgetSetID then
-                local s = C_UIWidgetManager.GetPowerBarWidgetSetID()
-                if s and not issecretvalue(s) and s == setID then return true end
+            -- Guard against secretvalue widgetSetID before numeric comparison
+            if ev.widgetSetID and not issecretvalue(ev.widgetSetID) and type(ev.widgetSetID) == "number" and ev.widgetSetID == setID then
+                return true
             end
         end
         return false
@@ -1055,19 +1056,28 @@ if sfui.events then
 
     -- Decoupled widget updates: do NOT re-query C_EventScheduler.
     -- Simply refresh the quest log so ScanEvents reads updated values from C_UIWidgetManager.
-    sfui.events.RegisterEvent("UPDATE_UI_WIDGET", function(event, widgetInfo)
+    -- Strictly ignore unassociated city widgets (setID == nil or not in active world events)
+    -- to prevent rapid GC churn while standing in city hubs (Dornogal, Valdrakken).
+    sfui.events.RegisterThrottledEvent("UPDATE_UI_WIDGET", 0.5, function(event, widgetInfo)
         if not sfui.worldevents.is_enabled() or #cachedEvents == 0 then return end
         local setID = widgetInfo and widgetInfo.widgetSetID
-        if not setID or HasActiveWidgetSet(setID) then
+        if setID and HasActiveWidgetSet(setID) then
             if sfui.questlog and sfui.questlog.RequestRefresh then
                 sfui.questlog.RequestRefresh()
             end
         end
     end)
 
-    sfui.events.RegisterEvent("UPDATE_ALL_UI_WIDGETS", function()
+    sfui.events.RegisterThrottledEvent("UPDATE_ALL_UI_WIDGETS", 0.5, function()
         if not sfui.worldevents.is_enabled() or #cachedEvents == 0 then return end
-        if sfui.questlog and sfui.questlog.RequestRefresh then
+        local hasActiveEventWidgets = false
+        for _, ev in ipairs(cachedEvents) do
+            if ev.isOngoing and ev.widgetSetID and not issecretvalue(ev.widgetSetID) and ev.widgetSetID > 0 then
+                hasActiveEventWidgets = true
+                break
+            end
+        end
+        if hasActiveEventWidgets and sfui.questlog and sfui.questlog.RequestRefresh then
             sfui.questlog.RequestRefresh()
         end
     end)

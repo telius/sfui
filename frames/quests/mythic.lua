@@ -359,44 +359,58 @@ local staticForcesInfo     = {}
 local MAX_DELVE_POOL_SIZE  = 30
 
 local function ReleaseDelveSubTables(info)
-    for i = #info.currencies, 1, -1 do
-        local c = table.remove(info.currencies, i)
+    local currs = info.currencies
+    for i = 1, #currs do
+        local c = currs[i]
         wipe(c)
         if #currencyPool < MAX_DELVE_POOL_SIZE then
-            table.insert(currencyPool, c)
+            currencyPool[#currencyPool + 1] = c
         end
     end
-    for i = #info.spells, 1, -1 do
-        local s = table.remove(info.spells, i)
+    wipe(currs)
+
+    local spells = info.spells
+    for i = 1, #spells do
+        local s = spells[i]
         wipe(s)
         if #spellPool < MAX_DELVE_POOL_SIZE then
-            table.insert(spellPool, s)
+            spellPool[#spellPool + 1] = s
         end
     end
+    wipe(spells)
 end
 
 -- ─── Delve Info Extraction ────────────────────────────────
+local spellTooltipCache = {}
+
 local function GetSpellTooltipText(spellID)
     if not spellID then return "" end
+    local cached = spellTooltipCache[spellID]
+    if cached ~= nil then return cached end
+
+    local result = ""
     if C_TooltipInfo and C_TooltipInfo.GetSpellByID then
         local data = C_TooltipInfo.GetSpellByID(spellID)
         if data and data.lines then
             local textParts = {}
             for _, line in ipairs(data.lines) do
                 if line.leftText and not issecretvalue(line.leftText) and line.leftText ~= "" then
-                    table.insert(textParts, line.leftText)
+                    textParts[#textParts + 1] = line.leftText
                 end
             end
             if #textParts > 0 then
-                return table.concat(textParts, " ")
+                result = table.concat(textParts, " ")
             end
         end
     end
-    if C_Spell and C_Spell.GetSpellDescription then
+    if result == "" and C_Spell and C_Spell.GetSpellDescription then
         local desc = C_Spell.GetSpellDescription(spellID)
-        if desc and not issecretvalue(desc) and desc ~= "" then return desc end
+        if desc and not issecretvalue(desc) and desc ~= "" then
+            result = desc
+        end
     end
-    return ""
+    spellTooltipCache[spellID] = result
+    return result
 end
 
 local function GetDelveInfo()
@@ -776,7 +790,7 @@ local function GetCriteriaProgress(info)
     local curCount = nil
     local maxCount = nil
 
-    -- 1. Check for fraction in quantityString: e.g. "108/240", "108 / 240", "108/240 (45%)"
+    -- 1. Check for fraction in quantityString: e.g. "108/240", "108 / 240"
     if qStr and not issecretvalue(qStr) then
         local cMatch, tMatch = qStr:match("(%d+)%s*/%s*(%d+)")
         if cMatch and tMatch then
@@ -786,47 +800,59 @@ local function GetCriteriaProgress(info)
                 percent = (curCount / maxCount) * 100
             end
         end
-        -- 2. Check for explicit percentage in quantityString: e.g. "45%", "45.2%"
-        local pMatch = qStr:match("(%d+%.?%d*)%%")
-        if pMatch then
-            percent = tonumber(pMatch)
+    end
+
+    -- 2. Extract numeric current count from quantityString (strip %) or info.quantity
+    local rawCurrent = nil
+    if qStr and not issecretvalue(qStr) and not curCount then
+        local cleaned = qStr:gsub("%%", "")
+        rawCurrent = tonumber(cleaned:match("(%d+%.?%d*)"))
+    end
+    if not rawCurrent or rawCurrent == 0 then
+        if q and q > 0 then
+            rawCurrent = q
+        else
+            rawCurrent = rawCurrent or 0
         end
     end
 
-    -- 3. If percent not determined from quantityString, inspect quantity and totalQuantity
+    -- 3. Calculate percent and counts based on totalQuantity
     if not percent then
-        if info.isWeightedProgress or info.weightedProgress then
-            -- In modern WoW retail, weighted progress criteria report current percent (0-100) in quantity
-            if tot == 1000 and q > 100 then
-                percent = q / 10
-            elseif tot == 10000 and q > 100 then
-                percent = q / 100
-            else
-                percent = q
-            end
+        if tot == 1000 and rawCurrent > 0 then
+            -- 0.1% widget precision (0 - 1000)
+            percent = rawCurrent / 10
+        elseif tot == 10000 and rawCurrent > 0 then
+            -- 0.01% widget precision (0 - 10000)
+            percent = rawCurrent / 100
         elseif tot > 0 then
-            percent = (q / tot) * 100
+            -- Standard total: in M+ this is total enemy forces count (e.g. 240, 320, 550)
+            -- Or in Delves / Scenarios this is 100.
+            maxCount = tot
+            curCount = math_min(maxCount, math_max(0, rawCurrent))
+            percent = (curCount / maxCount) * 100
         else
-            percent = q
+            -- No totalQuantity provided: check for % in quantityString
+            if qStr and not issecretvalue(qStr) then
+                local pMatch = qStr:match("(%d+%.?%d*)%%")
+                if pMatch then
+                    percent = tonumber(pMatch)
+                end
+            end
+            if not percent then
+                percent = rawCurrent
+            end
+        end
+    end
+
+    -- If criteria is completed or reached 100%, lock to 100% and max count
+    if info.completed or (percent and percent >= 100) then
+        percent = 100
+        if maxCount and maxCount > 0 then
+            curCount = maxCount
         end
     end
 
     percent = math_min(100, math_max(0, percent or 0))
-
-    -- 4. Determine counts if totalQuantity indicates a raw mob count (> 100, excluding 1000/10000 scaling)
-    if not maxCount and tot > 100 and tot ~= 1000 and tot ~= 10000 then
-        maxCount = tot
-    end
-    if maxCount and maxCount > 0 then
-        if not curCount then
-            if q > 100 and q <= maxCount then
-                curCount = q
-            else
-                curCount = math_floor((percent / 100) * maxCount + 0.5)
-            end
-        end
-        curCount = math_min(maxCount, math_max(0, curCount or 0))
-    end
 
     return percent, curCount, maxCount
 end
@@ -1227,13 +1253,14 @@ local function BuildHUDFrame()
             if _playerDeaths and next(_playerDeaths) then
                 tip:AddLine(" ")
                 tip:AddLine("Player Breakdown:", 1, 0.82, 0)
-                for i = #staticDeathBreakdown, 1, -1 do
-                    local obj = table.remove(staticDeathBreakdown, i)
+                for i = 1, #staticDeathBreakdown do
+                    local obj = staticDeathBreakdown[i]
                     wipe(obj)
                     if #deathBreakdownPool < 20 then
-                        table.insert(deathBreakdownPool, obj)
+                        deathBreakdownPool[#deathBreakdownPool + 1] = obj
                     end
                 end
+                wipe(staticDeathBreakdown)
                 for name, count in pairs(_playerDeaths) do
                     local obj = table.remove(deathBreakdownPool) or {}
                     obj.name = name
@@ -2087,14 +2114,24 @@ local function UpdateInstanceState()
         end
     end
 
-    -- Helper to test if a criteria is a progress/percentage bar objective
-    local function IsProgressCriteria(info)
+    local isMythic = (_mode == "mythic")
+
+    -- Helper to test if a criteria is a progress/percentage bar objective.
+    -- In M+, enemy forces is always the LAST criteria and has isWeightedProgress=true.
+    -- We must NOT use (isMythic and total > 0) because boss criteria also have totalQuantity=1.
+    local function IsProgressCriteria(info, idx, numCrit)
         if not info then return false end
+        -- M+: last index is always forces (matches MPlusTimer's approach)
+        if isMythic and idx and numCrit and idx == numCrit then return true end
+        -- Weighted progress flag (most reliable)
         if info.isWeightedProgress or info.weightedProgress then return true end
+        -- CriteriaType 8 = scenario progress bar
         if info.criteriaType == 8 then return true end
         local total = info.totalQuantity
-        if total and not issecretvalue(total) and (total == 100 or total == 1000) then return true end
+        -- Standard progress scales (but NOT generic > 0 in M+ — that hits boss criteria)
+        if total and not issecretvalue(total) and (total == 100 or total == 1000 or total == 10000) then return true end
         local qStr = info.quantityString
+        -- quantityString containing '%' is a strong indicator of percentage progress
         if qStr and not issecretvalue(qStr) and qStr:find("%%") then return true end
         local desc = info.description or info.criteriaString or info.string
         if desc and not issecretvalue(desc) then
@@ -2108,30 +2145,45 @@ local function UpdateInstanceState()
         return false
     end
 
-    -- Find forces / progress bar criteria: prioritize active (uncompleted) progress criteria first.
+    -- Find forces / progress bar criteria.
+    -- In M+: directly read the last criteria first (same as MPlusTimer's `C_ScenarioInfo.GetCriteriaInfo(steps)`).
+    -- This avoids scanning boss criteria first and accidentally matching them.
     local forcesIdx  = nil
     local forcesInfo = nil
     if numCriteria and numCriteria > 0 then
-        for i = 1, numCriteria do
-            local info = GetCriteriaInfoSafe(i, stepID)
-            if info and IsProgressCriteria(info) and not info.completed then
-                forcesIdx  = i
+        if isMythic then
+            -- Fast path: in M+ the last criteria IS always enemy forces
+            local info = GetCriteriaInfoSafe(numCriteria, stepID)
+            if info then
+                forcesIdx = numCriteria
                 wipe(staticForcesInfo)
                 for k, v in pairs(info) do staticForcesInfo[k] = v end
                 forcesInfo = staticForcesInfo
-                break
             end
         end
-        -- Fallback 1: if all progress criteria are completed, pick the last progress criteria (e.g. M+ 100% forces)
+        -- Generic path (non-M+ modes): scan for isWeightedProgress / % / forces keyword
         if not forcesInfo then
-            for i = numCriteria, 1, -1 do
+            for i = 1, numCriteria do
                 local info = GetCriteriaInfoSafe(i, stepID)
-                if info and IsProgressCriteria(info) then
+                if info and IsProgressCriteria(info, i, numCriteria) and not info.completed then
                     forcesIdx  = i
                     wipe(staticForcesInfo)
                     for k, v in pairs(info) do staticForcesInfo[k] = v end
                     forcesInfo = staticForcesInfo
                     break
+                end
+            end
+            -- Fallback: if all progress criteria are completed, pick the last progress criteria
+            if not forcesInfo then
+                for i = numCriteria, 1, -1 do
+                    local info = GetCriteriaInfoSafe(i, stepID)
+                    if info and IsProgressCriteria(info, i, numCriteria) then
+                        forcesIdx  = i
+                        wipe(staticForcesInfo)
+                        for k, v in pairs(info) do staticForcesInfo[k] = v end
+                        forcesInfo = staticForcesInfo
+                        break
+                    end
                 end
             end
         end
@@ -2151,7 +2203,6 @@ local function UpdateInstanceState()
     end
 
     -- Forward scan: populate boss rows (skip forces index).
-    local isMythic = (_mode == "mythic")
     local bossCount = 0
     if numCriteria and numCriteria > 0 then
         for i = 1, numCriteria do
@@ -2429,12 +2480,16 @@ local function UpdateInstanceState()
                 end
             end
 
-            MF.forcesText:SetText("100% / 100%" .. splitStr)
-            MF.forcesCountText:SetText("")
+            MF.forcesText:SetText("100.00%" .. splitStr)
+            if maxCount and maxCount > 0 and maxCount ~= 100 then
+                MF.forcesCountText:SetText(string_format("%d/%d", maxCount, maxCount))
+            else
+                MF.forcesCountText:SetText("")
+            end
         else
             MF.forcesBar:SetStatusBarColor(0.40, 0.00, 1.00, 0.85)
-            MF.forcesText:SetText(string_format("%.2f%% / 100%%", percent))
-            if maxCount and maxCount > 100 and curCount then
+            MF.forcesText:SetText(string_format("%.2f%%", percent))
+            if maxCount and maxCount > 0 and maxCount ~= 100 and curCount then
                 MF.forcesCountText:SetText(string_format("%d/%d", curCount, maxCount))
             else
                 MF.forcesCountText:SetText("")
@@ -3100,8 +3155,8 @@ function sfui.mythic.ShowPreview()
     MF.forcesBar:SetMinMaxValues(0, 100)
     MF.forcesBar:SetValue(61.79)
     MF.forcesBar:SetStatusBarColor(0.40, 0.00, 1.00, 0.85)
-    MF.forcesText:SetText("61.79% / 100%")
-    MF.forcesCountText:SetText("")
+    MF.forcesText:SetText("61.79%")
+    MF.forcesCountText:SetText("148/240")
 
     local isLocked = not (SfuiDB and SfuiDB.mythicHudUnlocked)
     MF.dragBar:SetShown(not isLocked)
@@ -3170,7 +3225,21 @@ local function on_mythic_event(event, ...)
         if sfui.questlog and sfui.questlog.on_mythic_end then
             sfui.questlog.on_mythic_end()
         end
-    elseif event == "SCENARIO_CRITERIA_UPDATE" or event == "SCENARIO_UPDATE" or
+    elseif event == "SCENARIO_CRITERIA_UPDATE" or event == "SCENARIO_POI_UPDATE" then
+        if sfui.SuppressBlizzardTracker then
+            sfui.SuppressBlizzardTracker()
+        end
+        if _mode == "mythic" then
+            UpdateInstanceState()
+        else
+            if _mode == nil then
+                local inInst = _G.IsInInstance and _G.IsInInstance()
+                if not inInst then return end
+                CheckScenarioState()
+            end
+            RequestStateUpdate(0.1)
+        end
+    elseif event == "SCENARIO_UPDATE" or
         event == "ACTIVE_DELVE_DATA_UPDATE" or
         event == "SCENARIO_COMPLETED" or
         event == "SCENARIO_SPELL_UPDATE" then
@@ -3225,6 +3294,7 @@ Reg("SPELL_UPDATE_CHARGES")
 Reg("GROUP_ROSTER_UPDATE")
 Reg("SCENARIO_UPDATE")
 Reg("SCENARIO_CRITERIA_UPDATE")
+Reg("SCENARIO_POI_UPDATE")
 Reg("SCENARIO_COMPLETED")
 Reg("SCENARIO_SPELL_UPDATE")
 Reg("ACTIVE_DELVE_DATA_UPDATE")
@@ -3254,14 +3324,17 @@ end
 function sfui.mythic_debug_info()
     local deathCount = 0
     for _ in pairs(_playerDeaths) do deathCount = deathCount + 1 end
+    local tooltipCount = 0
+    for _ in pairs(spellTooltipCache) do tooltipCount = tooltipCount + 1 end
 
     return {
-        spellPool    = #spellPool,
-        currencyPool = #currencyPool,
-        deathPool    = #deathBreakdownPool,
-        playerList   = #_playerList,
-        playerDeaths = deathCount,
-        badgePool    = (MF and MF.delveBadges and #MF.delveBadges) or 0,
-        bossRowPool  = (MF and MF.bossRows and #MF.bossRows) or 0,
+        spellPool     = #spellPool,
+        currencyPool  = #currencyPool,
+        deathPool     = #deathBreakdownPool,
+        playerList    = #_playerList,
+        playerDeaths  = deathCount,
+        spellTooltips = tooltipCount,
+        badgePool     = (MF and MF.delveBadges and #MF.delveBadges) or 0,
+        bossRowPool   = (MF and MF.bossRows and #MF.bossRows) or 0,
     }
 end

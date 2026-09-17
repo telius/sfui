@@ -2,6 +2,40 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-44 (2026-09-17)
+
+### Quest Module Architecture & Performance Overhaul
+- **Classification & Meta Memoization (`providers.lua`)**:
+  - Implemented session memoization caches (`metaQuestCache`, `questClassificationCache`) for static quest IDs to eliminate redundant Blizzard C-API queries (`C_QuestInfoSystem.GetQuestClassification`, `C_QuestLog.IsQuestCriteriaForAchievement`).
+  - Prunes caches automatically on quest and world quest cache resets.
+- **Collapsed Achievement Optimization (`providers.lua`)**:
+  - Bypassed sub-criteria table allocation (`AcquireTable()`) when achievements are collapsed in the tracker, calculating `done` and `total` via a direct loop.
+- **Zero-String Integer Progress Hashing (`providers.lua`)**:
+  - Replaced string concatenation in hot objective comparison loops with a fast 31-bit integer hash signature, eliminating garbage collection heap pressure.
+- **Pre-computed Objective Clean Text (`providers.lua`, `scenarios.lua`, `worldevents.lua`, `quests.lua`)**:
+  - Pre-cached clean objective titles directly on recycled objective tables, bypassing repeated regular expression parsing (`find` + `gsub`) in the render loop.
+- **Zero-Shift Pool Recycling (`quests.lua`, `mythic.lua`)**:
+  - Replaced backward `table.remove` loops in `ClearRows()`, `ReleaseTable()`, `ClearSectionLists()`, `ReleaseDelveSubTables()`, and death breakdown tooltip pooling with direct array indexing and a single `wipe()`, eliminating $O(N^2)$ memory copying.
+- **Heavy C-API Bypass on Quest Log Iteration (`quests.lua`)**:
+  - Checks lightweight integer `C_QuestLog.GetQuestIDForLogIndex(i)` first, skipping heavy multi-field table allocations (`C_QuestLog.GetInfo(i)`) for headers and already-processed quests.
+- **UIWidget Type-Dispatched Querying (`scenarios.lua`)**:
+  - Captures widget visualization type from `GetAllWidgetsBySetID()` and directly dispatches to the matching C-API branch, eliminating up to 16 redundant Blizzard C-API calls per widget on every frame.
+- **Conditional Table Pool Acquisition (`worldevents.lua`)**:
+  - In `ScanEvents()`, only acquires `seenWidgets` from the table pool when `widgetCandidates` exist, eliminating table churn for distant or inactive world events.
+- **Spell Tooltip Memoization (`mythic.lua`)**:
+  - Added `spellTooltipCache` to `GetSpellTooltipText(spellID)`, eliminating temporary table allocations and tooltip parsing on delve ticks.
+- **Profiler Integration (`mem.lua`, `quests.lua`, `mythic.lua`)**:
+  - Updated the `/sfui mem` card to display quest cache metrics (`caches: p=prog, w=wq, m=meta`) and delve spell tooltip cache counts.
+
+### Multi-Client Compatibility & Classic Forever Beta Support
+- **Classic Forever Beta Support (`sfui.toc`, `compat.lua`, `core.lua`)**:
+  - Added interface version `16001` to `sfui.toc` for WoW Classic Forever Beta (v1.60.1 build 69893).
+  - Updated client detection in `compat.lua` using `GetBuildInfo()` to accurately distinguish Classic Forever (`IS_WOW_FOREVER`) on `WOW_PROJECT_MAINLINE` from modern Retail (`IS_RETAIL`).
+  - Added dynamic feature capability flags (`unit_auras`, `c_spell`, `c_item`, `wow_forever`) to prevent Retail-specific features (Delves, Mythic+, Dragonriding) from running on Classic Forever.
+  - Added safe fallbacks for `C_AddOns.GetAddOnMetadata`, `C_CVar.SetCVar`, and `C_UI.Reload` in `core.lua`.
+
+---
+
 ## v12.1.0-43 (2026-09-16)
 
 ### Mythic+ HUD & Dungeon Tracking Enhancements

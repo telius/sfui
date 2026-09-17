@@ -83,7 +83,19 @@ local print = _G.print
 local string_format = string.format  -- localize alias (avoids global table lookup on every call)
 
 -- Isolated Tooltip Frame (Zero global GameTooltip taint, zero UIWidgetManager registration)
-local SfuiQuestTooltip = sfui.tooltip
+local function GetTooltip()
+    return sfui.tooltip or _G.GameTooltip
+end
+local SfuiQuestTooltip = sfui.tooltip or _G.GameTooltip
+
+local function PickAnchor(owner)
+    if not owner then return "ANCHOR_LEFT" end
+    local cx = owner:GetCenter()
+    if not cx or not UIParent then return "ANCHOR_LEFT" end
+    local ownerPx = cx * (owner:GetEffectiveScale() or 1)
+    local screenMid = (UIParent:GetWidth() * (UIParent:GetEffectiveScale() or 1)) / 2
+    return ownerPx > screenMid and "ANCHOR_LEFT" or "ANCHOR_RIGHT"
+end
 
 -- Layout constants from config
 local FRAME_W    = qcfg.width or 280
@@ -340,7 +352,11 @@ local function QueueOutOfCombatAction(key, fn)
 end
 
 local function FlushOutOfCombatQueue()
-    for key, fn in pairs(outOfCombatQueue) do
+    -- Collect keys first to avoid mutating the table during pairs() iteration.
+    local keys = {}
+    for key in pairs(outOfCombatQueue) do keys[#keys + 1] = key end
+    for _, key in ipairs(keys) do
+        local fn = outOfCombatQueue[key]
         outOfCombatQueue[key] = nil
         if fn then
             if sfui.common and sfui.common.safecall then
@@ -391,21 +407,20 @@ end
 
 local function ReleaseTable(t)
     if type(t) ~= "table" then return end
-    if t.objectives then
-        if type(t.objectives) == "table" then
-            for i = #t.objectives, 1, -1 do
-                local obj = table.remove(t.objectives, i)
-                if type(obj) == "table" then
-                    wipe(obj)
-                    if #tablePool < MAX_TABLE_POOL then
-                        tablePool[#tablePool + 1] = obj
-                    end
+    local objs = t.objectives
+    if objs and type(objs) == "table" then
+        for i = 1, #objs do
+            local obj = objs[i]
+            if type(obj) == "table" then
+                wipe(obj)
+                if #tablePool < MAX_TABLE_POOL then
+                    tablePool[#tablePool + 1] = obj
                 end
             end
-            wipe(t.objectives)
-            if #tablePool < MAX_TABLE_POOL then
-                tablePool[#tablePool + 1] = t.objectives
-            end
+        end
+        wipe(objs)
+        if #tablePool < MAX_TABLE_POOL then
+            tablePool[#tablePool + 1] = objs
         end
         t.objectives = nil
     end
@@ -446,10 +461,11 @@ local function ClearSectionLists()
     for _, def in ipairs(SECTION_DEFS) do
         local list = sectionLists[def.id]
         if list then
-            for i = #list, 1, -1 do
-                local entry = table.remove(list, i)
+            for i = 1, #list do
+                local entry = list[i]
                 ReleaseTable(entry)
             end
+            wipe(list)
         else
             sectionLists[def.id] = {}
         end
@@ -759,7 +775,8 @@ for _, def in ipairs(SECTION_DEFS) do
     hdr:SetScript("OnDragStart", function()
         if QL_IsUnlocked() then
             QL:StartMoving()
-            SfuiQuestTooltip:Hide()
+            local tip = GetTooltip()
+            if tip then tip:Hide() end
         end
     end)
     hdr:SetScript("OnDragStop", function()
@@ -769,19 +786,22 @@ for _, def in ipairs(SECTION_DEFS) do
 
     hdr:SetScript("OnEnter", function(s)
         s:SetBackdropColor(0.08, 0.08, 0.08, 0.65)
-        SfuiQuestTooltip:SetOwner(s, "ANCHOR_LEFT")
-        SfuiQuestTooltip:ClearLines()
-        SfuiQuestTooltip:AddLine(defLabel, def.color[1], def.color[2], def.color[3])
-        SfuiQuestTooltip:AddLine("|cff888888Left-click: Collapse/Expand section|r", 1, 1, 1)
-        SfuiQuestTooltip:AddLine("|cff888888Shift-click: Untrack all quests in category|r", 1, 1, 1)
+        local tip = GetTooltip()
+        if not tip then return end
+        tip:SetOwner(s, PickAnchor(s))
+        tip:ClearLines()
+        tip:AddLine(defLabel, def.color[1], def.color[2], def.color[3])
+        tip:AddLine("|cff888888Left-click: Collapse/Expand section|r", 1, 1, 1)
+        tip:AddLine("|cff888888Shift-click: Untrack all quests in category|r", 1, 1, 1)
         if QL_IsUnlocked() then
-            SfuiQuestTooltip:AddLine("|cff6600ffDrag: Move the tracker|r", 1, 1, 1)
+            tip:AddLine("|cff6600ffDrag: Move the tracker|r", 1, 1, 1)
         end
-        SfuiQuestTooltip:Show()
+        tip:Show()
     end)
     hdr:SetScript("OnLeave", function(s)
         s:SetBackdropColor(0, 0, 0, 0.50)
-        SfuiQuestTooltip:Hide()
+        local tip = GetTooltip()
+        if tip then tip:Hide() end
     end)
 
     sectionHdrs[def.id] = hdr
@@ -917,18 +937,21 @@ local function AcquireRow()
 
             findGroupBtn:SetScript("OnEnter", function(btn)
                 eyeIcon:SetVertexColor(1, 1, 1, 1)
-                SfuiQuestTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-                SfuiQuestTooltip:ClearLines()
-                SfuiQuestTooltip:AddLine(TOOLTIP_TRACKER_FIND_GROUP_BUTTON or "Find Group", 1, 1, 1)
-                if row.questTitle then
-                    SfuiQuestTooltip:AddLine(row.questTitle, 0.20, 0.85, 0.95)
+                local tip = GetTooltip()
+                if not tip then return end
+                tip:SetOwner(btn, "ANCHOR_RIGHT")
+                tip:ClearLines()
+                tip:AddLine(TOOLTIP_TRACKER_FIND_GROUP_BUTTON or "Find Group", 1, 1, 1)
+                if row.questTitle and not issecretvalue(row.questTitle) then
+                    tip:AddLine(row.questTitle, 0.20, 0.85, 0.95)
                 end
-                SfuiQuestTooltip:AddLine("Click to search for or create a group in Group Finder.", 0.7, 0.7, 0.7, true)
-                SfuiQuestTooltip:Show()
+                tip:AddLine("Click to search for or create a group in Group Finder.", 0.7, 0.7, 0.7, true)
+                tip:Show()
             end)
             findGroupBtn:SetScript("OnLeave", function(btn)
                 eyeIcon:SetVertexColor(0.85, 0.85, 0.85, 0.85)
-                SfuiQuestTooltip:Hide()
+                local tip = GetTooltip()
+                if tip then tip:Hide() end
             end)
             findGroupBtn:SetScript("OnClick", function(btn)
                 if InCombat() then return end
@@ -965,204 +988,211 @@ local function AcquireRow()
 
         row:SetScript("OnEnter", function(s)
             s.HLTex:SetColorTexture(1, 1, 1, 0.10)
+            local tip = GetTooltip()
+            if not tip then return end
+            local anchor = PickAnchor(s)
+
             if s.isAchievement and s.achievementID then
-                SfuiQuestTooltip:SetOwner(s, "ANCHOR_LEFT")
-                SfuiQuestTooltip:ClearLines()
-                SfuiQuestTooltip:AddLine(s.questTitle or "Achievement", 0.95, 0.75, 0.3)
-                if s.description and s.description ~= "" then
-                    SfuiQuestTooltip:AddLine(s.description, 0.85, 0.85, 0.85, true)
+                tip:SetOwner(s, anchor)
+                tip:ClearLines()
+                tip:AddLine(s.questTitle or "Achievement", 0.95, 0.75, 0.3)
+                if s.description and s.description ~= "" and not issecretvalue(s.description) then
+                    tip:AddLine(s.description, 0.85, 0.85, 0.85, true)
                 end
-                if s.points and s.points > 0 then
-                    SfuiQuestTooltip:AddLine(tostring(s.points) .. " Achievement Points", 0.3, 0.9, 0.4)
+                if s.points and s.points > 0 and not issecretvalue(s.points) then
+                    tip:AddLine(tostring(s.points) .. " Achievement Points", 0.3, 0.9, 0.4)
                 end
                 if s.objectives and #s.objectives > 0 then
-                    SfuiQuestTooltip:AddLine(" ")
+                    tip:AddLine(" ")
                     for _, obj in ipairs(s.objectives) do
-                        if obj.text and obj.text ~= "" then
+                        if obj.text and obj.text ~= "" and not issecretvalue(obj.text) then
                             local r, g, b = 0.75, 0.75, 0.75
                             if obj.finished then r, g, b = 0.30, 0.80, 0.30 end
-                            SfuiQuestTooltip:AddLine("  - " .. obj.text, r, g, b, true)
+                            tip:AddLine("  - " .. tostring(obj.text), r, g, b, true)
                         end
                     end
                 end
-                SfuiQuestTooltip:AddLine(" ")
-                SfuiQuestTooltip:AddLine("|cff888888Left-click: Open Achievement Panel|r", 1, 1, 1)
-                SfuiQuestTooltip:AddLine("|cff888888Right-click / Arrow: Collapse/Expand criteria|r", 1, 1, 1)
-                SfuiQuestTooltip:AddLine("|cff888888Shift-click: Untrack Achievement|r", 1, 1, 1)
-                SfuiQuestTooltip:Show()
+                tip:AddLine(" ")
+                tip:AddLine("|cff888888Left-click: Open Achievement Panel|r", 1, 1, 1)
+                tip:AddLine("|cff888888Right-click / Arrow: Collapse/Expand criteria|r", 1, 1, 1)
+                tip:AddLine("|cff888888Shift-click: Untrack Achievement|r", 1, 1, 1)
+                tip:Show()
                 return
             end
 
             if s.isAutoQuestOffer and s.questID then
-                SfuiQuestTooltip:SetOwner(s, "ANCHOR_LEFT")
-                SfuiQuestTooltip:ClearLines()
-                SfuiQuestTooltip:AddLine(s.questTitle or "Quest Offer", 0.00, 1.00, 0.50)
-                SfuiQuestTooltip:AddLine("Incoming Remote Quest Offer", 0.85, 0.85, 0.85)
-                SfuiQuestTooltip:AddLine(" ")
-                SfuiQuestTooltip:AddLine("|cff888888Left-click: Accept Quest Offer|r", 1, 1, 1)
-                SfuiQuestTooltip:AddLine("|cff888888Shift-click: Dismiss Offer|r", 1, 1, 1)
-                SfuiQuestTooltip:Show()
+                tip:SetOwner(s, anchor)
+                tip:ClearLines()
+                tip:AddLine(s.questTitle or "Quest Offer", 0.00, 1.00, 0.50)
+                tip:AddLine("Incoming Remote Quest Offer", 0.85, 0.85, 0.85)
+                tip:AddLine(" ")
+                tip:AddLine("|cff888888Left-click: Accept Quest Offer|r", 1, 1, 1)
+                tip:AddLine("|cff888888Shift-click: Dismiss Offer|r", 1, 1, 1)
+                tip:Show()
                 return
             end
 
             if s.isPerksActivity and s.activityID then
-                SfuiQuestTooltip:SetOwner(s, "ANCHOR_LEFT")
-                SfuiQuestTooltip:ClearLines()
-                SfuiQuestTooltip:AddLine(s.questTitle or "Traveler's Log", 0.20, 0.85, 0.95)
-                if s.description and s.description ~= "" then
-                    SfuiQuestTooltip:AddLine(s.description, 0.85, 0.85, 0.85, true)
+                tip:SetOwner(s, anchor)
+                tip:ClearLines()
+                tip:AddLine(s.questTitle or "Traveler's Log", 0.20, 0.85, 0.95)
+                if s.description and s.description ~= "" and not issecretvalue(s.description) then
+                    tip:AddLine(s.description, 0.85, 0.85, 0.85, true)
                 end
                 if s.objectives and #s.objectives > 0 then
-                    SfuiQuestTooltip:AddLine(" ")
+                    tip:AddLine(" ")
                     for _, obj in ipairs(s.objectives) do
-                        if obj.text and obj.text ~= "" then
+                        if obj.text and obj.text ~= "" and not issecretvalue(obj.text) then
                             local r, g, b = 0.75, 0.75, 0.75
                             if obj.finished then r, g, b = 0.30, 0.80, 0.30 end
-                            SfuiQuestTooltip:AddLine("  - " .. obj.text, r, g, b, true)
+                            tip:AddLine("  - " .. tostring(obj.text), r, g, b, true)
                         end
                     end
                 end
-                SfuiQuestTooltip:AddLine(" ")
-                SfuiQuestTooltip:AddLine("|cff888888Left-click: Open Traveler's Log|r", 1, 1, 1)
-                SfuiQuestTooltip:AddLine("|cff888888Right-click / Arrow: Collapse/Expand requirements|r", 1, 1, 1)
-                SfuiQuestTooltip:AddLine("|cff888888Shift-click: Untrack Activity|r", 1, 1, 1)
-                SfuiQuestTooltip:Show()
+                tip:AddLine(" ")
+                tip:AddLine("|cff888888Left-click: Open Traveler's Log|r", 1, 1, 1)
+                tip:AddLine("|cff888888Right-click / Arrow: Collapse/Expand requirements|r", 1, 1, 1)
+                tip:AddLine("|cff888888Shift-click: Untrack Activity|r", 1, 1, 1)
+                tip:Show()
                 return
             end
 
             if s.isHousingTask and s.housingTaskID then
-                SfuiQuestTooltip:SetOwner(s, "ANCHOR_LEFT")
-                SfuiQuestTooltip:ClearLines()
-                SfuiQuestTooltip:AddLine(s.questTitle or "Housing Endeavor", 0.55, 0.85, 0.35)
-                SfuiQuestTooltip:AddLine("Player Housing Neighborhood Initiative", 0.85, 0.85, 0.85)
+                tip:SetOwner(s, anchor)
+                tip:ClearLines()
+                tip:AddLine(s.questTitle or "Housing Endeavor", 0.55, 0.85, 0.35)
+                tip:AddLine("Player Housing Neighborhood Initiative", 0.85, 0.85, 0.85)
                 if s.objectives and #s.objectives > 0 then
-                    SfuiQuestTooltip:AddLine(" ")
+                    tip:AddLine(" ")
                     for _, obj in ipairs(s.objectives) do
-                        if obj.text and obj.text ~= "" then
+                        if obj.text and obj.text ~= "" and not issecretvalue(obj.text) then
                             local r, g, b = 0.75, 0.75, 0.75
                             if obj.finished then r, g, b = 0.30, 0.80, 0.30 end
-                            SfuiQuestTooltip:AddLine("  - " .. obj.text, r, g, b, true)
+                            tip:AddLine("  - " .. tostring(obj.text), r, g, b, true)
                         end
                     end
                 end
-                SfuiQuestTooltip:AddLine(" ")
-                SfuiQuestTooltip:AddLine("|cff888888Left-click: Open Endeavors Tab|r", 1, 1, 1)
-                SfuiQuestTooltip:AddLine("|cff888888Right-click / Arrow: Collapse/Expand requirements|r", 1, 1, 1)
-                SfuiQuestTooltip:AddLine("|cff888888Shift-click: Untrack Task|r", 1, 1, 1)
-                SfuiQuestTooltip:Show()
+                tip:AddLine(" ")
+                tip:AddLine("|cff888888Left-click: Open Endeavors Tab|r", 1, 1, 1)
+                tip:AddLine("|cff888888Right-click / Arrow: Collapse/Expand requirements|r", 1, 1, 1)
+                tip:AddLine("|cff888888Shift-click: Untrack Task|r", 1, 1, 1)
+                tip:Show()
                 return
             end
 
             if s.isRecipe and s.recipeID then
-                SfuiQuestTooltip:SetOwner(s, "ANCHOR_LEFT")
-                SfuiQuestTooltip:ClearLines()
-                SfuiQuestTooltip:AddLine(s.questTitle or "Tracked Recipe", 0.90, 0.65, 0.30)
-                SfuiQuestTooltip:AddLine(s.isRecraft and "Recrafting Recipe" or "Crafting Recipe", 0.85, 0.85, 0.85)
+                tip:SetOwner(s, anchor)
+                tip:ClearLines()
+                tip:AddLine(s.questTitle or "Tracked Recipe", 0.90, 0.65, 0.30)
+                tip:AddLine(s.isRecraft and "Recrafting Recipe" or "Crafting Recipe", 0.85, 0.85, 0.85)
                 if s.objectives and #s.objectives > 0 then
-                    SfuiQuestTooltip:AddLine(" ")
+                    tip:AddLine(" ")
                     for _, obj in ipairs(s.objectives) do
-                        if obj.text and obj.text ~= "" then
+                        if obj.text and obj.text ~= "" and not issecretvalue(obj.text) then
                             local r, g, b = 0.75, 0.75, 0.75
                             if obj.finished then r, g, b = 0.30, 0.80, 0.30 end
-                            SfuiQuestTooltip:AddLine("  - " .. obj.text, r, g, b, true)
+                            tip:AddLine("  - " .. tostring(obj.text), r, g, b, true)
                         end
                     end
                 end
-                SfuiQuestTooltip:AddLine(" ")
-                SfuiQuestTooltip:AddLine("|cff888888Left-click: Open Recipe in Profession Window|r", 1, 1, 1)
-                SfuiQuestTooltip:AddLine("|cff888888Right-click / Arrow: Collapse/Expand reagents|r", 1, 1, 1)
-                SfuiQuestTooltip:AddLine("|cff888888Shift-click: Untrack Recipe|r", 1, 1, 1)
-                SfuiQuestTooltip:Show()
+                tip:AddLine(" ")
+                tip:AddLine("|cff888888Left-click: Open Recipe in Profession Window|r", 1, 1, 1)
+                tip:AddLine("|cff888888Right-click / Arrow: Collapse/Expand reagents|r", 1, 1, 1)
+                tip:AddLine("|cff888888Shift-click: Untrack Recipe|r", 1, 1, 1)
+                tip:Show()
                 return
             end
 
             if s.questID then
-                SfuiQuestTooltip:SetOwner(s, "ANCHOR_LEFT")
-                SfuiQuestTooltip:ClearLines()
+                tip:SetOwner(s, anchor)
+                tip:ClearLines()
 
                 if s.isWorldEvent then
                     local r, g, b = 0.90, 0.45, 0.90
                     if s.isOngoing then r, g, b = 1.00, 0.75, 0.10 end
-                    SfuiQuestTooltip:AddLine(s.questTitle or "World Event", r, g, b)
-                    if s.zoneName and s.zoneName ~= "" then
-                        SfuiQuestTooltip:AddLine(s.zoneName, 0.85, 0.85, 0.85)
+                    tip:AddLine(s.questTitle or "World Event", r, g, b)
+                    if s.zoneName and s.zoneName ~= "" and not issecretvalue(s.zoneName) then
+                        tip:AddLine(s.zoneName, 0.85, 0.85, 0.85)
                     end
-                    if s.timeLeftText then
-                        SfuiQuestTooltip:AddLine(s.timeLeftText, 0.20, 0.85, 0.95)
+                    if s.timeLeftText and not issecretvalue(s.timeLeftText) then
+                        tip:AddLine(s.timeLeftText, 0.20, 0.85, 0.95)
                     end
                     if s.hasReminder then
-                        SfuiQuestTooltip:AddLine("Event Reminder: ACTIVE", 0.0, 1.0, 0.8)
+                        tip:AddLine("Event Reminder: ACTIVE", 0.0, 1.0, 0.8)
                     end
-                    SfuiQuestTooltip:AddLine(" ")
-                    SfuiQuestTooltip:AddLine("|cff888888Left-click: Track & Show on Map|r", 1, 1, 1)
-                    SfuiQuestTooltip:AddLine("|cff888888Right-click: Toggle Reminder|r", 1, 1, 1)
-                    SfuiQuestTooltip:Show()
+                    tip:AddLine(" ")
+                    tip:AddLine("|cff888888Left-click: Track & Show on Map|r", 1, 1, 1)
+                    tip:AddLine("|cff888888Right-click: Toggle Reminder|r", 1, 1, 1)
+                    tip:Show()
                     return
                 end
 
                 if s.isScenario or s.questID == -1 then
-                    SfuiQuestTooltip:AddLine(s.questTitle or "World Event", 1.00, 0.60, 0.10)
-                    SfuiQuestTooltip:AddLine("Active World Event / Scenario", 0.85, 0.85, 0.85)
-                    SfuiQuestTooltip:AddLine(" ")
-                    SfuiQuestTooltip:AddLine("|cff888888Right-click / Arrow: Collapse/Expand objectives|r", 1, 1, 1)
-                    SfuiQuestTooltip:Show()
+                    tip:AddLine(s.questTitle or "World Event", 1.00, 0.60, 0.10)
+                    tip:AddLine("Active World Event / Scenario", 0.85, 0.85, 0.85)
+                    tip:AddLine(" ")
+                    tip:AddLine("|cff888888Right-click / Arrow: Collapse/Expand objectives|r", 1, 1, 1)
+                    tip:Show()
                     return
                 end
 
-                SfuiQuestTooltip:AddLine(s.questTitle or "Quest", 1, 1, 1)
+                tip:AddLine(s.questTitle or "Quest", 1, 1, 1)
 
-                if s.zoneName and s.zoneName ~= "" then
-                    SfuiQuestTooltip:AddLine(s.zoneName, 0.70, 0.70, 0.70)
+                if s.zoneName and s.zoneName ~= "" and not issecretvalue(s.zoneName) then
+                    tip:AddLine(s.zoneName, 0.70, 0.70, 0.70)
                 end
 
-                if s.timeLeftText then
+                if s.timeLeftText and not issecretvalue(s.timeLeftText) then
                     if s.isCriticalTime then
-                        SfuiQuestTooltip:AddLine(s.timeLeftText .. " (Expiring Soon!)", 1.0, 0.35, 0.2)
+                        tip:AddLine(tostring(s.timeLeftText) .. " (Expiring Soon!)", 1.0, 0.35, 0.2)
                     else
-                        SfuiQuestTooltip:AddLine(s.timeLeftText, 0.20, 0.85, 0.95)
+                        tip:AddLine(s.timeLeftText, 0.20, 0.85, 0.95)
                     end
                 end
 
                 if s.isWarbandCompleted then
-                    SfuiQuestTooltip:AddLine("Warband Completed", 0.65, 0.25, 0.25)
+                    tip:AddLine("Warband Completed", 0.65, 0.25, 0.25)
                 end
 
                 if C_QuestLog.GetQuestObjectives then
                     local objs = C_QuestLog.GetQuestObjectives(s.questID)
                     if objs and #objs > 0 then
-                        SfuiQuestTooltip:AddLine(" ")
+                        tip:AddLine(" ")
                         for _, obj in ipairs(objs) do
-                            if obj.text and obj.text ~= "" then
+                            if obj.text and obj.text ~= "" and not issecretvalue(obj.text) then
                                 local r, g, b = 0.75, 0.75, 0.75
                                 if obj.finished then r, g, b = 0.30, 0.80, 0.30 end
-                                SfuiQuestTooltip:AddLine("  - " .. obj.text, r, g, b, true)
+                                tip:AddLine("  - " .. tostring(obj.text), r, g, b, true)
                             end
                         end
                     end
                 end
 
-                if IsInGroup and IsInGroup() and s.questID and s.questID > 0 and SfuiQuestTooltip.SetQuestPartyProgress then
-                    SfuiQuestTooltip:AddLine(" ")
-                    SfuiQuestTooltip:SetQuestPartyProgress(s.questID)
+                if IsInGroup and IsInGroup() and s.questID and s.questID > 0 and tip.SetQuestPartyProgress then
+                    pcall(function()
+                        tip:AddLine(" ")
+                        tip:SetQuestPartyProgress(s.questID)
+                    end)
                 end
 
-                SfuiQuestTooltip:AddLine(" ")
-                SfuiQuestTooltip:AddLine("|cff888888Left-click: Track & Show on Map|r", 1, 1, 1)
-                SfuiQuestTooltip:AddLine("|cff888888Right-click / Arrow: Collapse/Expand objectives|r", 1, 1, 1)
-                SfuiQuestTooltip:AddLine("|cff888888Shift-click: Link Quest to Chat / Untrack|r", 1, 1, 1)
+                tip:AddLine(" ")
+                tip:AddLine("|cff888888Left-click: Track & Show on Map|r", 1, 1, 1)
+                tip:AddLine("|cff888888Right-click / Arrow: Collapse/Expand objectives|r", 1, 1, 1)
+                tip:AddLine("|cff888888Shift-click: Link Quest to Chat / Untrack|r", 1, 1, 1)
                 if s.canFindGroup then
-                    SfuiQuestTooltip:AddLine("|cff00ff88Eye Button: Find Group in Group Finder|r", 1, 1, 1)
+                    tip:AddLine("|cff00ff88Eye Button: Find Group in Group Finder|r", 1, 1, 1)
                 end
                 if not s.isWorldQuest then
-                    SfuiQuestTooltip:AddLine("|cff888888Alt-click: Share Quest with Party|r", 1, 1, 1)
-                    SfuiQuestTooltip:AddLine("|cff888888Ctrl-Right-click: Abandon Quest|r", 1, 1, 1)
+                    tip:AddLine("|cff888888Alt-click: Share Quest with Party|r", 1, 1, 1)
+                    tip:AddLine("|cff888888Ctrl-Right-click: Abandon Quest|r", 1, 1, 1)
                 end
-                SfuiQuestTooltip:Show()
+                tip:Show()
             end
         end)
         row:SetScript("OnLeave", function(s)
             s.HLTex:SetColorTexture(1, 1, 1, 0)
-            SfuiQuestTooltip:Hide()
+            local tip = GetTooltip()
+            if tip then tip:Hide() end
         end)
         row:SetScript("OnClick", function(s, btn)
             if s.isWorldEvent and s.areaPoiID then
@@ -1615,16 +1645,18 @@ local function AcquireObjRow()
 end
 
 local function ClearRows()
-    for i = #activeRows, 1, -1 do
-        local r = table.remove(activeRows, i)
+    for i = 1, #activeRows do
+        local r = activeRows[i]
         r:Hide()
-        table.insert(rowPool, r)
+        rowPool[#rowPool + 1] = r
     end
-    for i = #activeObjs, 1, -1 do
-        local r = table.remove(activeObjs, i)
+    wipe(activeRows)
+    for i = 1, #activeObjs do
+        local r = activeObjs[i]
         r:Hide()
-        table.insert(objPool, r)
+        objPool[#objPool + 1] = r
     end
+    wipe(activeObjs)
 end
 
 -- ─── Panel Anchor ────────────────────────────────────────
@@ -1769,10 +1801,11 @@ local function CollectTrackedQuests(superTracked)
     local numEntries = C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetNumQuestLogEntries() or 0
     for i = 1, numEntries do
         if not C_QuestLog.GetInfo then break end
-        local info = C_QuestLog.GetInfo(i)
-        if info and not info.isHeader and not info.isHidden then
-            local questID = info.questID
-            if questID and questID > 0 and not processedQuests[questID] then
+        local qID = C_QuestLog.GetQuestIDForLogIndex and C_QuestLog.GetQuestIDForLogIndex(i)
+        if qID and qID > 0 and not processedQuests[qID] then
+            local info = C_QuestLog.GetInfo(i)
+            if info and not info.isHeader and not info.isHidden then
+                local questID = info.questID or qID
                 local isTask = info.isTask or info.isBounty or IsWorldQuest(questID) or (C_QuestLog.IsQuestTask and C_QuestLog.IsQuestTask(questID))
                 if isTask then
                     if not inRaid or IsRaidQuest(questID, info) then
@@ -2115,9 +2148,15 @@ local function RenderSections(state, superTracked)
                                     orow:SetHeight(totalH)
 
                                     orow.FS:Show()
-                                    local cleanText = obj.text
-                                    if cleanText and not issecretvalue(cleanText) then
-                                        cleanText = cleanText:gsub("%s*%(?%d+%%%)?", ""):gsub("%s*%(?%d+/%d+%)?", ""):gsub("%s*:%s*$", ""):gsub("^%s*-%s*", "")
+                                    local cleanText = obj.cleanText
+                                    if not cleanText then
+                                        cleanText = obj.text
+                                        if cleanText and not issecretvalue(cleanText) then
+                                            if cleanText:find("[%(%%:]") or cleanText:find("^%s*-") then
+                                                cleanText = cleanText:gsub("%s*%(?%d+%%%)?", ""):gsub("%s*%(?%d+/%d+%)?", ""):gsub("%s*:%s*$", ""):gsub("^%s*-%s*", "")
+                                            end
+                                        end
+                                        obj.cleanText = cleanText
                                     end
                                     if not cleanText or cleanText == "" then cleanText = rawTitle end
                                     local objStr = "- " .. cleanText
@@ -2134,32 +2173,40 @@ local function RenderSections(state, superTracked)
                                     local curVal = obj.numFulfilled or 0
                                     if issecretvalue(curVal) or curVal < 0 then curVal = 0 end
 
-                                    -- Handle fixed-point 1000 (tenths of a %) or 10000 (hundredths of a %)
-                                    if maxVal == 1000 then
-                                        if curVal > 100 then
-                                            curVal = math_floor(curVal / 10)
-                                        end
+                                    -- If this is a progress bar objective and maxVal is 1 or less, normalize max to 100
+                                    if (obj.type == "progressbar" or isBar) and maxVal <= 1 then
                                         maxVal = 100
-                                    elseif maxVal == 10000 then
-                                        if curVal > 100 then
-                                            curVal = math_floor(curVal / 100)
-                                        end
-                                        maxVal = 100
-                                    elseif obj.type == "progressbar" or isBar then
-                                        if maxVal == 100 and curVal > 100 then
-                                            if curVal <= 1000 then
-                                                curVal = math_floor(curVal / 10)
-                                            elseif curVal <= 10000 then
-                                                curVal = math_floor(curVal / 100)
-                                            else
-                                                curVal = 100
-                                            end
-                                        end
                                     end
-                                    curVal = math_min(maxVal, math_max(0, curVal))
 
-                                    orow.Bar:SetMinMaxValues(0, maxVal)
-                                    orow.Bar:SetValue(curVal)
+                                    -- Calculate normalized percentage (0..100) for visual bar fill
+                                    local barPct = 0
+                                    if issecretvalue(curVal) then
+                                        barPct = curVal
+                                    elseif maxVal == 1000 then
+                                        barPct = curVal / 10
+                                    elseif maxVal == 10000 then
+                                        barPct = curVal / 100
+                                    elseif maxVal == 100 and curVal > 100 then
+                                        if curVal <= 1000 then
+                                            barPct = curVal / 10
+                                        elseif curVal <= 10000 then
+                                            barPct = curVal / 100
+                                        else
+                                            barPct = 100
+                                        end
+                                    elseif maxVal == 100 then
+                                        barPct = curVal
+                                    elseif maxVal > 0 then
+                                        barPct = (curVal / maxVal) * 100
+                                    else
+                                        barPct = curVal
+                                    end
+                                    if not issecretvalue(barPct) then
+                                        barPct = math_min(100, math_max(0, barPct))
+                                    end
+
+                                    orow.Bar:SetMinMaxValues(0, 100)
+                                    orow.Bar:SetValue(barPct)
 
                                     local r, g, b = def.color[1], def.color[2], def.color[3]
                                     if entry.isMeta then
@@ -2170,7 +2217,9 @@ local function RenderSections(state, superTracked)
                                     local barTxt = obj.barText
                                     local isHighPct = false
                                     if barTxt and type(barTxt) == "string" then
-                                        local duplicatePct = barTxt:match("^(%d+%%)%s*%(%d+%%%)$")
+                                        -- Collapse "55% (55%)" → "55%" (dedup when label and pct are the same)
+                                        -- Lua pattern: %(  = literal (, %)  = literal ), %% = literal %
+                                        local duplicatePct = barTxt:match("^(%d+%%)%s*%(%d+%%%)") 
                                         if duplicatePct then
                                             barTxt = duplicatePct
                                         end
@@ -2186,10 +2235,6 @@ local function RenderSections(state, superTracked)
                                             local p = tonumber(textPct)
                                             if p and p >= 0 and p <= 100 then
                                                 barTxt = tostring(p) .. "%"
-                                                if maxVal == 100 then
-                                                    curVal = p
-                                                    orow.Bar:SetValue(curVal)
-                                                end
                                             end
                                         end
                                     end
@@ -2723,17 +2768,21 @@ end
 
 
 function sfui.questlog_debug_info()
-    local pCount, wCount, wqCount = providers.GetCacheCounts()
+    local pCount, wCount, wqCount, zCount, mCount, cCount = providers.GetCacheCounts()
 
     return {
-        tablePool  = #tablePool,
-        rowPool    = #rowPool,
-        objPool    = #objPool,
-        activeRows = #activeRows,
-        activeObjs = #activeObjs,
-        progCache  = pCount,
-        wbCache    = wCount,
-        wqCache    = wqCount,
+        tablePool     = #tablePool,
+        maxTablePool  = MAX_TABLE_POOL,
+        rowPool       = #rowPool,
+        objPool       = #objPool,
+        activeRows    = #activeRows,
+        activeObjs    = #activeObjs,
+        progCache     = pCount,
+        wbCache       = wCount,
+        wqCache       = wqCount,
+        zoneCache     = zCount,
+        metaCache     = mCount,
+        classCache    = cCount,
     }
 end
 

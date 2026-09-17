@@ -26,11 +26,12 @@ end
 sfui.common.issecretvalue = issecretvalue
 
 -- Dedicated Addon Tooltip (Zero global GameTooltip taint, zero UIWidgetManager registration)
-local sfuiTooltip = CreateFrame("GameTooltip", "SfuiGameTooltip", UIParent, "TooltipBackdropTemplate")
-if _G.TooltipDataHandlerMixin then
-    Mixin(sfuiTooltip, _G.TooltipDataHandlerMixin)
-elseif _G.GameTooltipDataMixin then
-    Mixin(sfuiTooltip, _G.GameTooltipDataMixin)
+local sfuiTooltip = CreateFrame("GameTooltip", "SfuiGameTooltip", UIParent, "GameTooltipTemplate")
+if not sfuiTooltip.sfuiBG then
+    local bg = sfuiTooltip:CreateTexture(nil, "BACKGROUND", nil, -8)
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.04, 0.04, 0.06, 0.94)
+    sfuiTooltip.sfuiBG = bg
 end
 sfuiTooltip:SetFrameStrata("TOOLTIP")
 sfui.tooltip = sfuiTooltip

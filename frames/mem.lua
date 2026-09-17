@@ -47,12 +47,13 @@ function sfui.mem.GetModuleStats()
     local stats = {}
 
     -- Quests Module
-    local qlTablePool, qlRowPool, qlObjPool = 0, 0, 0
+    local qlTablePool, qlMaxTablePool, qlRowPool, qlObjPool = 0, 300, 0, 0
     local qlActiveRows, qlActiveObjs = 0, 0
-    local qlProgCache, qlWbCache, qlWqCache = 0, 0, 0
+    local qlProgCache, qlWbCache, qlWqCache, qlMetaCache = 0, 0, 0, 0
     if sfui.questlog_debug_info then
         local q = sfui.questlog_debug_info()
         qlTablePool = q.tablePool or 0
+        qlMaxTablePool = q.maxTablePool or 300
         qlRowPool = q.rowPool or 0
         qlObjPool = q.objPool or 0
         qlActiveRows = q.activeRows or 0
@@ -60,12 +61,13 @@ function sfui.mem.GetModuleStats()
         qlProgCache = q.progCache or 0
         qlWbCache = q.wbCache or 0
         qlWqCache = q.wqCache or 0
+        qlMetaCache = q.metaCache or 0
     end
     stats["quests"] = {
         name = "quests tracker",
         status = qlActiveRows > 0 and "|cff00ff88active|r" or "|cff888888idle|r",
         line1 = string_format("rows: %d act / %d pool • objs: %d act / %d pool", qlActiveRows, qlRowPool, qlActiveObjs, qlObjPool),
-        line2 = string_format("tables: %d/100 pool • caches: p=%d, w=%d", qlTablePool, qlProgCache, qlWbCache),
+        line2 = string_format("tables: %d/%d • caches: p=%d, w=%d, m=%d", qlTablePool, qlMaxTablePool, qlProgCache, qlWbCache, qlMetaCache),
     }
 
     -- Mythic & Delves Module
@@ -80,7 +82,7 @@ function sfui.mem.GetModuleStats()
         local inDungeon = (m.playerList or 0) > 0
         mythicStats.status = inDungeon and "|cff00ff88in instance|r" or "|cff888888idle|r"
         mythicStats.line1 = string_format("pools: spell=%d, curr=%d, death=%d", m.spellPool or 0, m.currencyPool or 0, m.deathPool or 0)
-        mythicStats.line2 = string_format("roster: %d players • badges: %d pool", m.playerList or 0, m.badgePool or 0)
+        mythicStats.line2 = string_format("roster: %d • badges: %d • spells: %d", m.playerList or 0, m.badgePool or 0, m.spellTooltips or 0)
     end
     stats["mythic"] = mythicStats
 

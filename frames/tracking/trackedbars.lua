@@ -29,6 +29,7 @@ local activeCooldownIDs = {}
 
 -- Helper to get tracking config for a specific ID
 local configCache = {}
+local _cdViewerInfoCache = {}
 -- Pool of wiped config tables recycled from InvalidateConfigCache, avoiding
 -- per-spec-change allocations when the same ~N bars are re-resolved.
 local configPool = {}
@@ -132,6 +133,7 @@ function sfui.trackedbars.InvalidateConfigCache()
         configPool[#configPool + 1] = v
     end
     wipe(configCache)
+    wipe(_cdViewerInfoCache)
     if sfui.trackedbars._cdMirror then wipe(sfui.trackedbars._cdMirror) end
     if sfui.trackedbars._cdDurCache then wipe(sfui.trackedbars._cdDurCache) end
 end
@@ -166,7 +168,10 @@ sfui.trackedbars.GetMaxStacks = GetMaxStacksForBar
 
 -- Helper for Masque Sync
 local function SyncBarMasque(bar)
-    common.sync_masque(bar.iconFrame, { Icon = bar.icon })
+    if not bar._masqueSubElements then
+        bar._masqueSubElements = { Icon = bar.icon }
+    end
+    common.sync_masque(bar.iconFrame, bar._masqueSubElements)
 end
 
 
@@ -546,6 +551,18 @@ local function RecycleBar(bar)
     bar:ClearAllPoints()
     bar:SetParent(nil)
     bar.cooldownID = nil
+    bar.spellID = nil
+    bar.currentStacks = nil
+    bar._missingTime = nil
+    bar._lastDurationText = nil
+    bar._lastStackNameText = nil
+    bar._lastStackTimeText = nil
+    bar._maxStacks = nil
+    bar._inPandemic = false
+    bar._auraStackCache = nil
+    bar._auraStackTimer = nil
+    bar._stackPeakVal = nil
+    bar._stackPeakTimer = nil
     table.insert(barPool, bar)
 end
 
@@ -762,7 +779,10 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
         if auraData and auraData.applications then
             currentStacks = auraData.applications
             if auraData.name and not (issecretvalue and issecretvalue(auraData.name)) then
-                myBar.name:SetText(auraData.name)
+                if myBar._lastAuraName ~= auraData.name then
+                    myBar._lastAuraName = auraData.name
+                    myBar.name:SetText(auraData.name)
+                end
             end
         end
     end
@@ -1011,7 +1031,7 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     end
 
     -- Pandemic recolor: entirely pcall-wrapped so any error is safely swallowed.
-    if config and config.pandemicEnabled then
+    if config and config.pandemicEnabled and myBar:IsShown() then
         -- Reset to false BEFORE the pcall: if detection errors, we never leave stale
         -- "true" state that would permanently color the bar with the pandemic color.
         myBar._inPandemic = false
@@ -1024,6 +1044,30 @@ end
 
 local function SyncWithBlizzard()
     sfui.trackedbars.isDirty = true
+end
+
+-- Hook-based updates
+local hookedFrames = setmetatable({}, { __mode = "k" }) -- weak keys: stale frame userdata auto-collected
+local function _OnBlizzFrameSync()
+    SyncWithBlizzard()
+end
+
+local function HookBlizzardFrame(frame)
+    if not frame or hookedFrames[frame] then return end
+    hookedFrames[frame] = true
+
+    if frame.Update then
+        hooksecurefunc(frame, "Update", _OnBlizzFrameSync)
+    end
+    if frame.RefreshData then
+        hooksecurefunc(frame, "RefreshData", _OnBlizzFrameSync)
+    end
+    if frame.RefreshApplications then
+        hooksecurefunc(frame, "RefreshApplications", _OnBlizzFrameSync)
+    end
+    if frame.SetAuraInstanceInfo then
+        hooksecurefunc(frame, "SetAuraInstanceInfo", _OnBlizzFrameSync)
+    end
 end
 
 local function ProcessBlizzardSync()
@@ -1062,116 +1106,120 @@ local function ProcessBlizzardSync()
     end
 
     -- Process Blizzard Frames
-    local function processBlizzardFramesInternal()
-        for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
-            if blizzFrame.cooldownID then
-                blizzFrame:SetAlpha(0) -- Hide Blizzard frame regardless
-                -- Mark as active in the pool so ShouldBarBeVisible can trust it for
-                -- cooldown bars that have no auraInstanceID.
-                blizzFrame._sfui_active = true
+    for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
+        if not hookedFrames[blizzFrame] then
+            HookBlizzardFrame(blizzFrame)
+        end
+        if blizzFrame.cooldownID then
+            blizzFrame:SetAlpha(0) -- Hide Blizzard frame regardless
+            -- Mark as active in the pool so ShouldBarBeVisible can trust it for
+            -- cooldown bars that have no auraInstanceID.
+            blizzFrame._sfui_active = true
 
-                local id = blizzFrame.cooldownID
-                local info = C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
+            local id = blizzFrame.cooldownID
+            local info = _cdViewerInfoCache[id]
+            if not info and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
+                info = C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
+                if info then _cdViewerInfoCache[id] = info end
+            end
 
-                -- ONLY sync Native Blizzard Tracked Bars (Category 3)
-                -- We manage this category directly in cdm.lua via CooldownViewerSettings
-                local specBars = common.get_tracked_bars()
-                local isManuallyTracked = specBars and specBars[id]
+            -- ONLY sync Native Blizzard Tracked Bars (Category 3)
+            -- We manage this category directly in cdm.lua via CooldownViewerSettings
+            local specBars = common.get_tracked_bars()
+            local isManuallyTracked = specBars and specBars[id]
 
-                local isValidTrackedBar = false
-                if isManuallyTracked then
+            local isValidTrackedBar = false
+            if isManuallyTracked then
+                isValidTrackedBar = true
+            elseif info and info.category == 3 then
+                isValidTrackedBar = true
+            elseif info and Enum and Enum.CooldownViewerCategory and info.category == Enum.CooldownViewerCategory.TrackedBar then
+                isValidTrackedBar = true
+            elseif CooldownViewerSettings and CooldownViewerSettings.GetDataProvider then
+                local dp = CooldownViewerSettings:GetDataProvider()
+                local dpInfo = dp and dp:GetCooldownInfoForID(id)
+                if dpInfo and (dpInfo.category == 3 or (Enum and Enum.CooldownViewerCategory and dpInfo.category == Enum.CooldownViewerCategory.TrackedBar)) then
                     isValidTrackedBar = true
-                elseif info and info.category == 3 then
-                    isValidTrackedBar = true
-                elseif info and Enum and Enum.CooldownViewerCategory and info.category == Enum.CooldownViewerCategory.TrackedBar then
-                    isValidTrackedBar = true
-                elseif CooldownViewerSettings and CooldownViewerSettings.GetDataProvider then
-                    local dp = CooldownViewerSettings:GetDataProvider()
-                    local dpInfo = dp and dp:GetCooldownInfoForID(id)
-                    if dpInfo and (dpInfo.category == 3 or (Enum and Enum.CooldownViewerCategory and dpInfo.category == Enum.CooldownViewerCategory.TrackedBar)) then
-                        isValidTrackedBar = true
+                end
+            end
+
+            if isValidTrackedBar then
+                local isSpecRestricted = false
+
+                if info and info.isKnown == false then
+                    isSpecRestricted = true
+                end
+
+                if not isSpecRestricted and not isManuallyTracked and cfg.trackedBars and cfg.trackedBars.defaults then
+                    local def = cfg.trackedBars.defaults[id]
+                    if def and def.specID then
+                        local currentSpec = common.get_current_spec_id and common.get_current_spec_id()
+                        if currentSpec and def.specID ~= currentSpec then
+                            isSpecRestricted = true
+                        end
                     end
                 end
 
-                if isValidTrackedBar then
-                    local isSpecRestricted = false
+                if not isSpecRestricted then
+                    activeCooldownIDs[id] = true
 
-                    if info and info.isKnown == false then
-                        isSpecRestricted = true
+                    if not bars[id] then
+                        local pooledBar = GetBarFromPool(id)
+                        if pooledBar then
+                            bars[id] = pooledBar
+                        else
+                            bars[id] = CreateBar(id)
+                        end
+                        layoutNeeded = true
                     end
 
-                    if not isSpecRestricted and not isManuallyTracked and cfg.trackedBars and cfg.trackedBars.defaults then
-                        local def = cfg.trackedBars.defaults[id]
-                        if def and def.specID then
-                            local currentSpec = common.get_current_spec_id and common.get_current_spec_id()
-                            if currentSpec and def.specID ~= currentSpec then
-                                isSpecRestricted = true
+                    local myBar = bars[id]
+
+                    local config = GetTrackedBarConfig(id) -- Cache config lookup once
+                    local isStackMode = config and config.stackMode or false
+
+                    -- IMPORTANT: Sync bar data BEFORE the visibility check so that
+                    -- stack count text is always fresh. If we check isStackModeWithStacks
+                    -- on stale count text (from the previous tick) we get a Hide→SyncData→Show
+                    -- sequence on every aura refresh, which is exactly the Bone Shield flash.
+                    SyncBarData(myBar, blizzFrame, config, isStackMode, id)
+
+                    -- Sync Visibility
+                    local db = SfuiDB and SfuiDB.trackedBars or {}
+                    local hideInactive = db.hideInactive ~= false -- Default to True if nil
+
+                    -- Check if this is a stack mode bar with active stacks
+                    -- (count state is now populated by SyncBarData above)
+                    local isStackModeWithStacks = false
+                    if isStackMode then
+                        local cStacks = myBar.currentStacks
+                        if issecretvalue(cStacks) then
+                            isStackModeWithStacks = true
+                        else
+                            local nStacks = tonumber(cStacks) or 0
+                            if nStacks > 0 then
+                                isStackModeWithStacks = true
                             end
                         end
                     end
 
-                    if not isSpecRestricted then
-                        activeCooldownIDs[id] = true
+                    local shouldShow = ShouldBarBeVisible(config, blizzFrame, isStackModeWithStacks, hideInactive, myBar.spellID)
 
-                        if not bars[id] then
-                            local pooledBar = GetBarFromPool(id)
-                            if pooledBar then
-                                bars[id] = pooledBar
-                            else
-                                bars[id] = CreateBar(id)
-                            end
+                    if shouldShow then
+                        if not myBar:IsShown() then
+                            myBar:Show()
                             layoutNeeded = true
                         end
-
-                        local myBar = bars[id]
-
-                        local config = GetTrackedBarConfig(id) -- Cache config lookup once
-                        local isStackMode = config and config.stackMode or false
-
-                        -- IMPORTANT: Sync bar data BEFORE the visibility check so that
-                        -- stack count text is always fresh. If we check isStackModeWithStacks
-                        -- on stale count text (from the previous tick) we get a Hide→SyncData→Show
-                        -- sequence on every aura refresh, which is exactly the Bone Shield flash.
-                        SyncBarData(myBar, blizzFrame, config, isStackMode, id)
-
-                        -- Sync Visibility
-                        local db = SfuiDB and SfuiDB.trackedBars or {}
-                        local hideInactive = db.hideInactive ~= false -- Default to True if nil
-
-                        -- Check if this is a stack mode bar with active stacks
-                        -- (count state is now populated by SyncBarData above)
-                        local isStackModeWithStacks = false
-                        if isStackMode then
-                            local cStacks = myBar.currentStacks
-                            if issecretvalue(cStacks) then
-                                isStackModeWithStacks = true
-                            else
-                                local nStacks = tonumber(cStacks) or 0
-                                if nStacks > 0 then
-                                    isStackModeWithStacks = true
-                                end
-                            end
-                        end
-
-                        local shouldShow = ShouldBarBeVisible(config, blizzFrame, isStackModeWithStacks, hideInactive, myBar.spellID)
-
-                        if shouldShow then
-                            if not myBar:IsShown() then
-                                myBar:Show()
-                                layoutNeeded = true
-                            end
-                        else
-                            if myBar:IsShown() then
-                                myBar:Hide()
-                                layoutNeeded = true
-                            end
+                    else
+                        if myBar:IsShown() then
+                            myBar:Hide()
+                            layoutNeeded = true
                         end
                     end
                 end
             end
         end
     end
-    processBlizzardFramesInternal()
 
     -- Cleanup with 0.08s graceful death to absorb Blizzard UI frame recreation blinking
     for id, bar in pairs(bars) do
@@ -1202,25 +1250,6 @@ function sfui.trackedbars.UpdateVisibility()
     end
 end
 
--- Hook-based updates
-local hookedFrames = setmetatable({}, { __mode = "k" }) -- weak keys: stale frame userdata auto-collected
-local function HookBlizzardFrame(frame)
-    if not frame or hookedFrames[frame] then return end
-    hookedFrames[frame] = true
-
-    if frame.Update then
-        hooksecurefunc(frame, "Update", function() SyncWithBlizzard() end)
-    end
-    if frame.RefreshData then
-        hooksecurefunc(frame, "RefreshData", function() SyncWithBlizzard() end)
-    end
-    if frame.RefreshApplications then
-        hooksecurefunc(frame, "RefreshApplications", function() SyncWithBlizzard() end)
-    end
-    if frame.SetAuraInstanceInfo then
-        hooksecurefunc(frame, "SetAuraInstanceInfo", function() SyncWithBlizzard() end)
-    end
-end
 
 -- Public function to force layout update (e.g., when settings change)
 function sfui.trackedbars.ForceLayoutUpdate()
@@ -1301,13 +1330,21 @@ local function UpdateBarsState()
                         if issecretvalue and issecretvalue(myBar.currentStacks) then
                             myBar.name:SetText(myBar.currentStacks)
                         else
-                            myBar.name:SetText(tostring(myBar.currentStacks))
+                            local stackStr = tostring(myBar.currentStacks)
+                            if myBar._lastStackNameText ~= stackStr then
+                                myBar._lastStackNameText = stackStr
+                                myBar.name:SetText(stackStr)
+                            end
                         end
                     elseif config and config.showStacksText and not isTimerAndStacks and myBar.currentStacks then
                         if issecretvalue and issecretvalue(myBar.currentStacks) then
                             myBar.time:SetText(myBar.currentStacks)
                         else
-                            myBar.time:SetText(tostring(myBar.currentStacks))
+                            local stackStr = tostring(myBar.currentStacks)
+                            if myBar._lastStackTimeText ~= stackStr then
+                                myBar._lastStackTimeText = stackStr
+                                myBar.time:SetText(stackStr)
+                            end
                         end
                     end
 
@@ -1348,7 +1385,7 @@ local function _OnTrackedBarsUpdate(elapsed)
         ProcessBlizzardSync()
     else
         _heartbeatTimer = _heartbeatTimer + elapsed
-        if _heartbeatTimer >= 0.15 then
+        if _heartbeatTimer >= 2.0 then
             _heartbeatTimer = 0
             ProcessBlizzardSync()
         end

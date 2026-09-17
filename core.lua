@@ -75,14 +75,18 @@ sfui.events.RegisterEvent("ADDON_LOADED", function(_, name)
             sfui.common.migrate_cooldown_panels_to_spec()
         end
 
-        local tocVersion = C_AddOns.GetAddOnMetadata("sfui", "Version")
+        local getMeta = (C_AddOns and C_AddOns.GetAddOnMetadata) or _G.GetAddOnMetadata
+        local tocVersion = getMeta and getMeta("sfui", "Version")
         if tocVersion then
             sfui.config.version = tocVersion
         end
 
         if sfui.config and sfui.config.cvars_on_load then
-            for _, cvar_data in ipairs(sfui.config.cvars_on_load) do
-                C_CVar.SetCVar(cvar_data.name, cvar_data.value)
+            local setCVar = (C_CVar and C_CVar.SetCVar) or _G.SetCVar
+            if setCVar then
+                for _, cvar_data in ipairs(sfui.config.cvars_on_load) do
+                    setCVar(cvar_data.name, cvar_data.value)
+                end
             end
         end
 
@@ -291,7 +295,7 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
                     end
                 elseif button == "RightButton" then
                     if IsShiftKeyDown() then
-                        C_UI.Reload()
+                        if C_UI and C_UI.Reload then C_UI.Reload() elseif _G.ReloadUI then _G.ReloadUI() end
                     elseif sfui.alts and sfui.alts.Toggle then
                         sfui.alts.Toggle()
                     end
