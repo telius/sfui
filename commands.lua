@@ -212,7 +212,13 @@ SlashCmdList["SFUI"] = function(msg)
             end
         end
     elseif cmd == "hammer" or cmd == "repair" then
-        local hammer = sfui.hammer or sfui.automation
+        if not sfui.hammer then
+            if sfui.common and sfui.common.print then
+                sfui.common.print("sfui: master's hammer is retail only.")
+            end
+            return
+        end
+        local hammer = sfui.hammer
         if arg == "test" or arg == "preview" then
             if hammer and hammer.toggle_test_popup then
                 hammer.toggle_test_popup()

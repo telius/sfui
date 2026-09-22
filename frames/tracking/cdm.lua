@@ -88,6 +88,41 @@ local OnZoneReceiveDrag
 local HandleExternalDrop
 local cursor
 
+local function CanSaveBlizzardCDM()
+    local isClassic = (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        or (sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail))
+        or not (sfui.compat and sfui.compat.has and sfui.compat.has.specializations)
+    if isClassic then
+        return false
+    end
+    if CooldownViewerUtil and CooldownViewerUtil.GetCurrentClassAndSpecTag then
+        local tag = CooldownViewerUtil.GetCurrentClassAndSpecTag()
+        if not tag then
+            return false
+        end
+    end
+    return true
+end
+
+local function SafeSaveBlizzardLayout()
+    if not CanSaveBlizzardCDM() then return end
+    local layoutManager = CooldownViewerSettings and CooldownViewerSettings.GetLayoutManager and
+        CooldownViewerSettings:GetLayoutManager()
+    if layoutManager and layoutManager.SaveLayouts then
+        pcall(function() layoutManager:SaveLayouts() end)
+    end
+    if ShowReloadPrompt then ShowReloadPrompt() end
+end
+
+local function SafeSetBlizzardCooldownCategory(cdID, category)
+    if not CanSaveBlizzardCDM() then return end
+    local dp = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and
+        CooldownViewerSettings:GetDataProvider()
+    if dp and dp.SetCooldownToCategory then
+        pcall(function() dp:SetCooldownToCategory(cdID, category) end)
+    end
+end
+
 local function OnZoneIconDragStart(self)
     if OnIconDragStart then
         OnIconDragStart(self, self.isFromTrackedBars)
@@ -100,26 +135,15 @@ local function OnZoneIconClick(self, button)
 
     if self.isRightSidePool then
         local entries = self.entries
-        local dataProvider = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and
-            CooldownViewerSettings:GetDataProvider()
-        local EnumCats = Enum and Enum.CooldownViewerCategory
 
         if entries[cdID] then
             entries[cdID] = nil
         else
             entries[cdID] = { id = cdID, type = "cooldown", cooldownID = cdID }
-            if dataProvider then
-                dataProvider:SetCooldownToCategory(cdID, 3)
-            end
+            SafeSetBlizzardCooldownCategory(cdID, 3)
         end
 
-        -- Force save Blizzard CooldownViewer settings
-        local layoutManager = CooldownViewerSettings and CooldownViewerSettings.GetLayoutManager and
-            CooldownViewerSettings:GetLayoutManager()
-        if layoutManager and layoutManager.SaveLayouts then
-            layoutManager:SaveLayouts()
-        end
-        if ShowReloadPrompt then ShowReloadPrompt() end
+        SafeSaveBlizzardLayout()
 
         if not next(entries) then SfuiDB.trackedBars = {} end
         if sfui.trackedbars and sfui.trackedbars.UpdateVisibility then sfui.trackedbars.UpdateVisibility() end
@@ -146,6 +170,8 @@ local function OnZoneIconClick(self, button)
                         local entryId = (type(val) == "table" and (val.cooldownID or val.id)) or val
                         if entryId == targetId then
                             table.remove(entries, i)
+                            if common.invalidate_panels_cache then common.invalidate_panels_cache() end
+                            if sfui.trackedicons and sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
                             break
                         end
                     end
@@ -1351,6 +1377,8 @@ local function RenderAssignmentsIconPool(parent, width, entries)
                     table.insert(entries, { id = cdID, type = "cooldown", cooldownID = cdID })
                 end
             end
+            if common.invalidate_panels_cache then common.invalidate_panels_cache() end
+            if sfui.trackedicons and sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
             if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
             if sfui.trackedoptions and sfui.trackedoptions.UpdateSettings then sfui.trackedoptions.UpdateSettings() end -- NEW
             if RefreshZones then RefreshZones() end
@@ -1363,16 +1391,29 @@ local function RenderAssignmentsIconPool(parent, width, entries)
         end
     end
 
+    local isClassic = (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        or (sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail))
+        or not (sfui.compat and sfui.compat.has and sfui.compat.has.specializations)
+
     if not parent._assignNoIconsLabel then
         parent._assignNoIconsLabel = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     end
     if #list == 0 then
-        parent._assignNoIconsLabel:SetText("No icons found in groups 0 or 1.")
+        if isClassic then
+            parent._assignPoolTitle:SetText("Spellbook Drag & Drop")
+            parent._assignNoIconsLabel:SetText("Drag spells directly from your Spellbook into any panel on the left.")
+            parent._assignNoIconsLabel:SetTextColor(0.8, 0.8, 0.8, 0.9)
+        else
+            parent._assignPoolTitle:SetText("Assignments Pool (0, 1)")
+            parent._assignNoIconsLabel:SetText("No icons found in groups 0 or 1.")
+            parent._assignNoIconsLabel:SetTextColor(0.6, 0.6, 0.6, 1)
+        end
         parent._assignNoIconsLabel:ClearAllPoints()
         parent._assignNoIconsLabel:SetPoint("TOPLEFT", 0, yPos)
         parent._assignNoIconsLabel:Show()
         yPos = yPos - 20
     else
+        parent._assignPoolTitle:SetText("Assignments Pool (0, 1)")
         parent._assignNoIconsLabel:Hide()
     end
 
@@ -1408,11 +1449,27 @@ RefreshZones = function()
     local ROW_GAP  = 8
     local ZONE_W   = PANEL_LIST_W - 22 -- leave room for scroll bar
 
+    local panels = common.get_cooldown_panels()
+    if type(selectedPanelIndex) == "number" then
+        if not panels or not panels[selectedPanelIndex] then
+            selectedPanelIndex = nil
+            selectedPanelData = nil
+        else
+            selectedPanelData = panels[selectedPanelIndex]
+        end
+    end
+    if not selectedPanelIndex then
+        if panels and #panels > 0 then
+            selectedPanelIndex = 1
+            selectedPanelData = panels[1]
+        else
+            selectedPanelIndex = "TRACKED_BARS"
+        end
+    end
+
     local function MakeZone(panelData, isTrackedBars, panelIndex)
         local zone = AcquireZoneFrame(leftContainer, isTrackedBars and "Tracked Bars" or (panelData and panelData.name),
             currentY, 0, ZONE_W, panelData, isTrackedBars, panelIndex)
-
-
 
         if not selectedPanelIndex then
             selectedPanelIndex = panelIndex
@@ -1440,7 +1497,6 @@ RefreshZones = function()
     MakeZone(nil, true, "TRACKED_BARS")
 
     -- 2. All Panels
-    local panels = common.get_cooldown_panels()
     if panels then
         for i, panel in ipairs(panels) do
             MakeZone(panel, false, i)
@@ -1525,17 +1581,8 @@ local function PurgeIconFromEverywhere(targetId)
         SfuiDB.trackedBars[targetId] = nil
 
         -- Update Blizzard backend and save
-        local dp = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and
-            CooldownViewerSettings:GetDataProvider()
-        if dp then
-            dp:SetCooldownToCategory(targetId, -1) -- HiddenSpell
-            local layoutManager = CooldownViewerSettings and CooldownViewerSettings.GetLayoutManager and
-                CooldownViewerSettings:GetLayoutManager()
-            if layoutManager and layoutManager.SaveLayouts then
-                layoutManager:SaveLayouts()
-            end
-            ShowReloadPrompt()
-        end
+        SafeSetBlizzardCooldownCategory(targetId, -1) -- HiddenSpell
+        SafeSaveBlizzardLayout()
     end
 
     -- 2. Purge from Custom Panels
@@ -1548,6 +1595,8 @@ local function PurgeIconFromEverywhere(targetId)
                     local entryId = (type(val) == "table" and (val.cooldownID or val.id)) or val
                     if entryId == targetId then
                         table.remove(panel.entries, i)
+                        if common.invalidate_panels_cache then common.invalidate_panels_cache() end
+                        if sfui.trackedicons and sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
                     end
                 end
             end
@@ -1636,6 +1685,8 @@ OnZoneReceiveDrag = function(zoneFrame, panelData, isTrackedBars)
             local entryId = (type(val) == "table" and (val.cooldownID or val.id)) or val
             if entryId == incomingId then
                 table.remove(source, i)
+                if common.invalidate_panels_cache then common.invalidate_panels_cache() end
+                if sfui.trackedicons and sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
                 break -- Only remove the dragged instance
             end
         end
@@ -1644,30 +1695,16 @@ OnZoneReceiveDrag = function(zoneFrame, panelData, isTrackedBars)
         common.get_tracked_bars()[incomingId] = nil
 
         -- Move to a hidden category and save
-        local dp = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and
-            CooldownViewerSettings:GetDataProvider()
-        if dp then
-            local hiddenCategory = -1 -- HiddenSpell
-            dp:SetCooldownToCategory(incomingId, hiddenCategory)
-
-            local layoutManager = CooldownViewerSettings and CooldownViewerSettings.GetLayoutManager and
-                CooldownViewerSettings:GetLayoutManager()
-            if layoutManager and layoutManager.SaveLayouts then
-                layoutManager:SaveLayouts()
-            end
-            ShowReloadPrompt()
-        end
+        SafeSetBlizzardCooldownCategory(incomingId, -1) -- HiddenSpell
+        SafeSaveBlizzardLayout()
     end
 
     if isTrackedBars then
         -- Add to tracked bars
         common.ensure_tracked_bar_db(incomingId)
 
-        local dp = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and
-            CooldownViewerSettings:GetDataProvider()
-        if dp and Enum and Enum.CooldownViewerCategory then
-            dp:SetCooldownToCategory(incomingId, 3)
-        end
+        SafeSetBlizzardCooldownCategory(incomingId, 3)
+        SafeSaveBlizzardLayout()
 
         -- Update immediate
         if sfui.trackedbars and sfui.trackedbars.UpdateVisibility then sfui.trackedbars.UpdateVisibility() end
@@ -1697,6 +1734,8 @@ OnZoneReceiveDrag = function(zoneFrame, panelData, isTrackedBars)
             table.insert(panelData.entries, entry)
         end
 
+        if common.invalidate_panels_cache then common.invalidate_panels_cache() end
+        if sfui.trackedicons and sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
         common.print("Added to " .. (panelData.name or "panel"))
     end
@@ -1718,11 +1757,23 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
     local draggedItemID = nil
 
     if cursorType == "spell" then
-        -- cursorType, slot, bookType, spellID
+        -- cursorType, slot/spellID, bookType, spellID
         local spellID = arg3
-        if not spellID and type(arg1) == "number" then spellID = arg1 end
+        if (not spellID or spellID == 0) and type(arg1) == "number" then
+            -- In Classic/Vanilla, arg1 is the spellbook slot index, not spellID!
+            if sfui.api and sfui.api.GetSpellBookItemSpellID then
+                spellID = sfui.api.GetSpellBookItemSpellID(arg1, arg2)
+            end
+            if not spellID then spellID = arg1 end
+        end
         draggedSpellID = spellID
-        entry = { id = spellID, type = "spell" }
+        local isAura = common.is_known_aura_spell and common.is_known_aura_spell(spellID)
+        entry = {
+            id = spellID,
+            type = isAura and "buff" or "spell",
+            trackAsAura = isAura or nil,
+            settings = isAura and { glowWhenMissing = true } or nil,
+        }
     elseif cursorType == "item" then
         -- cursorType, itemID, itemLink
         draggedItemID = arg1
@@ -1751,8 +1802,8 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
         return
     end
 
-    -- Reverse lookup cooldownID from spellID or itemID
-    if not entry.cooldownID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
+    -- Reverse lookup cooldownID from spellID or itemID (skip if configured as aura)
+    if not entry.trackAsAura and not entry.cooldownID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
         local foundCooldownID = nil
         local cats = { 0, 1, 2, 3 }
         if Enum and Enum.CooldownViewerCategory then
@@ -1795,12 +1846,15 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
 
     -- Debug print to help user verify ID
     if entry.type == "spell" then
-        local link = C_Spell.GetSpellLink(incomingId)
+        local getLink = (sfui.api and sfui.api.GetSpellLink) or C_Spell.GetSpellLink
+        local link = getLink and getLink(incomingId)
         common.print("Imported Spell: " .. (link or incomingId) .. " (ID: " .. incomingId .. ")")
     elseif entry.type == "item" then
-        local link = (GetItemInfo and select(2, GetItemInfo(incomingId))) or C_Item.GetItemNameByID(incomingId) or
+        local link = (sfui.api and sfui.api.GetItemInfo and sfui.api.GetItemInfo(incomingId) and sfui.api.GetItemInfo(incomingId).itemLink) or
+            (GetItemInfo and select(2, GetItemInfo(incomingId))) or
+            (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(incomingId)) or
             incomingId
-        common.print("Imported Item: " .. link .. " (ID: " .. incomingId .. ")")
+        common.print("Imported Item: " .. tostring(link) .. " (ID: " .. incomingId .. ")")
     elseif entry.type == "cooldown" then
         local link = GetCooldownName(incomingId, "spell") or incomingId
         common.print("Imported Cooldown: " .. link .. " (ID: " .. incomingId .. ")")
@@ -1809,19 +1863,8 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
     if isTrackedBars then
         common.ensure_tracked_bar_db(incomingId)
 
-        local dp = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and
-            CooldownViewerSettings:GetDataProvider()
-        if dp and Enum and Enum.CooldownViewerCategory then
-            dp:SetCooldownToCategory(incomingId, 3)
-
-            -- Force save Blizzard CooldownViewer settings
-            local layoutManager = CooldownViewerSettings and CooldownViewerSettings.GetLayoutManager and
-                CooldownViewerSettings:GetLayoutManager()
-            if layoutManager and layoutManager.SaveLayouts then
-                layoutManager:SaveLayouts()
-            end
-            ShowReloadPrompt()
-        end
+        SafeSetBlizzardCooldownCategory(incomingId, 3)
+        SafeSaveBlizzardLayout()
 
         if sfui.trackedbars and sfui.trackedbars.UpdateVisibility then sfui.trackedbars.UpdateVisibility() end
         if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then sfui.trackedbars.ForceLayoutUpdate() end
@@ -1830,6 +1873,8 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
         if not panelData.entries then panelData.entries = {} end
 
         table.insert(panelData.entries, entry)
+        if common.invalidate_panels_cache then common.invalidate_panels_cache() end
+        if sfui.trackedicons and sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
         if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
         common.print("Added to " .. (panelData.name or "panel"))
     end
@@ -1875,27 +1920,9 @@ OnIconDragStop = function(self)
                     source[targetId] = nil
 
                     -- Move to a hidden category in Blizzard backend and force save
-                    local dp = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and
-                        CooldownViewerSettings:GetDataProvider()
-                    if dp then
-                        -- Hidden categories are defined as: HiddenSpell = -1, HiddenAura = -2
-                        -- We try to determine if it's a spell or aura
-                        local hiddenCategory = -1 -- Default to HiddenSpell
-                        local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(targetId)
-                        if cdInfo and cdInfo.itemID and cdInfo.itemID > 0 then
-                            -- Items are usually handled as spells/cooldowns, but if it's specifically an aura tracker
-                            -- we might want HiddenAura. For now, HiddenSpell is the safest catch-all for bars.
-                        end
-
-                        dp:SetCooldownToCategory(targetId, hiddenCategory)
-
-                        local layoutManager = CooldownViewerSettings and CooldownViewerSettings.GetLayoutManager and
-                            CooldownViewerSettings:GetLayoutManager()
-                        if layoutManager and layoutManager.SaveLayouts then
-                            layoutManager:SaveLayouts()
-                        end
-                        ShowReloadPrompt()
-                    end
+                    local hiddenCategory = -1 -- Default to HiddenSpell
+                    SafeSetBlizzardCooldownCategory(targetId, hiddenCategory)
+                    SafeSaveBlizzardLayout()
                 else
                     local entries = source -- Assuming 'entries' refers to 'source' in this context
                     local cdID = targetId  -- Assuming 'cdID' refers to 'targetId' in this context
@@ -1904,6 +1931,8 @@ OnIconDragStop = function(self)
                         local existingId = (type(val) == "table" and (val.cooldownID or val.id)) or val
                         if existingId == cdID then
                             table.remove(entries, i)
+                            if common.invalidate_panels_cache then common.invalidate_panels_cache() end
+                            if sfui.trackedicons and sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
                             break -- Only remove one instance
                         end
                     end

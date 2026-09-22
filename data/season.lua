@@ -21,7 +21,7 @@ sfui.season.season    = 2
 sfui.season.CURRENCIES = {
     {
         isGroup = true,
-        label = "Mistcrests",
+        label = "mistcrests",
         items = {
             { id = 3445, icon = 0 }, -- Hero Mistcrest
             { id = 3446, icon = 0 }, -- Myth Mistcrest
@@ -29,24 +29,24 @@ sfui.season.CURRENCIES = {
     },
     {
         isGroup = true,
-        label = "Spark",
+        label = "spark",
         items = {
             { id = 274476, icon = 0, isItem = true },                           -- Spark of Tides
             { id = 3509,   icon = 0, showSeasonEarned = true, isSparkDust = true }, -- Tidal Spark Dust
         }
     },
-    { id = 3465,   label = "Catalyst",       icon = 0 },                         -- Venomblight Manaflux
-    { id = 3448,   label = "Corrosive Coin", icon = 0, fallbackIDs = { 3110 } }, -- Corrosive Coin
+    { id = 3465,   label = "catalyst",       icon = 0 },                         -- Venomblight Manaflux
+    { id = 3448,   label = "corrosive coin", icon = 0, fallbackIDs = { 3110 } }, -- Corrosive Coin
     {
         isGroup = true,
-        label = "Keys",
+        label = "keys",
         items = {
             { id = 3028, icon = 4622270 }, -- Restored Coffer Key
             { id = 3310, icon = 133016 },  -- Coffer Key Shard
         }
     },
     -- 12.0.5 / 12.1 Currencies and Items
-    { id = 3418,   label = "VoidCore", icon = 0 },                         -- Nebulous Voidcore
+    { id = 3418,   label = "voidcore", icon = 0 },                         -- Nebulous Voidcore
 }
 
 -- ─── Weekly Quest Definitions ───────────────────────────────────────────────
@@ -67,7 +67,7 @@ sfui.season.WEEKLY_QUESTS = {
     -- Core Pinnacle Weeklies (Champion track gear)
     {
         key       = "unity",
-        label     = "Unity",
+        label     = "unity",
         group     = "core",
         wrapperID = 93744,
         pool      = {
@@ -77,13 +77,13 @@ sfui.season.WEEKLY_QUESTS = {
     },
     {
         key     = "abundance",
-        label   = "Abundance",
+        label   = "abundance",
         group   = "core",
         questID = 89507,
     },
     {
         key               = "legends",
-        label             = "Legends",
+        label             = "legends",
         group             = "core",
         wrapperID         = 92713,
         skipFlagCheck     = true,
@@ -96,26 +96,26 @@ sfui.season.WEEKLY_QUESTS = {
     },
     {
         key       = "runestones",
-        label     = "Runestones",
+        label     = "runestones",
         group     = "core",
         wrapperID = 91966,
         pool      = { 90573, 90574, 90575, 90576 },
     },
     {
         key     = "stormarion",
-        label   = "Stormarion",
+        label   = "stormarion",
         group   = "core",
         questID = 90962,
     },
     {
         key   = "surges",
-        label = "Surges",
+        label = "surges",
         group = "core",
         pool  = { 96995, 98172 },
     },
     {
         key         = "specialAssignment",
-        label       = "Special",
+        label       = "special",
         group       = "core",
         isCount     = true,
         targetTotal = 2,
@@ -123,7 +123,7 @@ sfui.season.WEEKLY_QUESTS = {
     },
     {
         key   = "worldBoss",
-        label = "World Boss",
+        label = "world boss",
         group = "core",
         pool  = { 92123, 92560, 92636, 92034, 97128 },
     },
@@ -131,13 +131,13 @@ sfui.season.WEEKLY_QUESTS = {
     -- High-Tier Delve / Prey / Event Weeklies (Champion / Hero track gear)
     {
         key     = "bounty",
-        label   = "Bounty Map",
+        label   = "bounty map",
         group   = "bonus",
         questID = 86371,
     },
     {
         key         = "gildedStash",
-        label       = "Stash (T11)",
+        label       = "stash (t11)",
         group       = "bonus",
         isCount     = true,
         widgetID    = 7591,
@@ -145,25 +145,25 @@ sfui.season.WEEKLY_QUESTS = {
     },
     {
         key   = "prey",
-        label = "Prey",
+        label = "prey",
         group = "bonus",
         pool  = { 94446, 91277, 96528 },
     },
     {
         key   = "voidAssaults",
-        label = "Void",
+        label = "void",
         group = "bonus",
         pool  = { 94386, 94385 },
     },
     {
         key   = "bonusEvent",
-        label = "Event",
+        label = "event",
         group = "bonus",
         pool  = { 93598, 93595, 93605, 93593, 93600 },
     },
     {
         key   = "twRaid",
-        label = "TW Raid",
+        label = "tw raid",
         group = "bonus",
         isAny = true,
         pool  = { 82817, 47523, 50316, 57637 },

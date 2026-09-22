@@ -1,4 +1,7 @@
 local _, ns = ...
+local isRetail = (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic)
+if not isRetail then return end
+
 -- Use the richer issecretvalue from common (includes C_Secrets.HasSecretRestrictions short-circuit)
 local common = sfui.common
 local issecretvalue = common.issecretvalue

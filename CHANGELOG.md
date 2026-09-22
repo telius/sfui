@@ -2,7 +2,37 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-45 (2026-09-22)
+
+### Architectural Modernization & Decoupling Overhaul
+- **Dedicated Domain Services Architecture (`core/`)**:
+  - Decomposed monolithic `common.lua` into dedicated domain services with strict load ordering:
+    - `core/safety.lua`: Taint boundaries, secret-value guards, safe arithmetic/comparisons, money formatters, and zero-allocation pre-computed duration/integer string LUTs.
+    - `core/colors.lua`: Normalization unpackers, hex/RGB converters, and class/specialization color caching with Classic dominant-tree resolution.
+    - `core/talents.lua`: Specialization and player class inspection, Classic/Camelot dominant talent tree analyzer, and trait query cache.
+    - `core/items.lua`: Inventory slot resolvers, weapon DPS scanners, item quality/stats caching, trinket evaluation, and private `sfui.tooltip` frame.
+    - `core/widgets.lua`: Standardized UI widget factories (`create_panel`, `create_border`, `create_bar`, `create_button`, `create_flat_button`, `create_styled_button`, `create_dropdown`, `create_slider_input`, `style_scrollbar`).
+  - Pruned over 2,600 lines of duplicate code from `common.lua` while preserving 100% backward-compatible facade routing on `sfui.common.*`.
+- **Lightweight Internal Event Bus (`dispatcher.lua`)**:
+  - Added internal pub/sub messaging (`RegisterMessage`, `UnregisterMessage`, `SendMessage`) with pcall isolation and telemetry tracking.
+  - Decoupled options window from direct module manipulation via `SFUI_SETTING_CHANGED` notifications.
+- **Unified Module Lifecycle Protocol (`core/module.lua`)**:
+  - Implemented `sfui.RegisterModule` with standard `:OnInit()`, `:OnEnable()`, `:OnSettingsChanged()`, and `:OnSpecChanged()` hooks and automatic late-binding.
+  - Standardized core modules: `bars`, `castbar`, `trackedbars`, `trackedicons`, `gear`, `alts`.
+- **Gear Suite & Stat Engine Consolidation (`frames/gear/engine.lua`, `data/stats.lua`)**:
+  - Unified role resolution (`GetClassicRole`), tank checks (`IsTankSpec`), healer checks (`IsHealerSpec`), and stat pools across `gear.lua` and `highest.lua`.
+  - Moved `sfui.classic_default_stats` to `data/stats.lua` for early global availability.
+- **Persistence & Character State Flush Guard (`core/db.lua`)**:
+  - Centralized `SfuiDB` access and installed a safe `PLAYER_LOGOUT` and `PLAYER_LEAVING_WORLD` persistence flush guard to protect alt and quest data on client termination.
+- **Code Hygiene & 100% Dispatcher Compliance**:
+  - Purged unused `Libs/AceDB-3.0/` (~800 lines) and `.toc` dependencies.
+  - Migrated `swing.lua` from a standalone event frame to `sfui.events.RegisterEvent` / `RegisterUnitEvent`, achieving 100% dispatcher compliance (0 frames with private `OnEvent` handlers).
+  - Cleaned up client detection with canonical booleans (`sfui.isRetail`, `sfui.isClassic`, `sfui.isForever`, `sfui.isEra`).
+
+---
+
 ## v12.1.0-44 (2026-09-17)
+
 
 ### Quest Module Architecture & Performance Overhaul
 - **Classification & Meta Memoization (`providers.lua`)**:

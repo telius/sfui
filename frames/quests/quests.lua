@@ -14,6 +14,8 @@ local BuildQuestEntry         = providers.BuildQuestEntry
 local QuestHasProgress        = providers.QuestHasProgress
 local UntrackAchievement      = providers.UntrackAchievement
 
+local isRetail = (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic)
+
 local g = sfui.config
 local common = sfui.common
 local qcfg = g.questlog or {
@@ -458,18 +460,15 @@ local renderedSectionQuests = {
 local processedQuests = {}
 
 local function ClearSectionLists()
-    for _, def in ipairs(SECTION_DEFS) do
-        local list = sectionLists[def.id]
+    for sID, list in pairs(sectionLists) do
         if list then
             for i = 1, #list do
                 local entry = list[i]
                 ReleaseTable(entry)
             end
             wipe(list)
-        else
-            sectionLists[def.id] = {}
         end
-        if not renderedSectionQuests[def.id] then renderedSectionQuests[def.id] = {} end
+        if not renderedSectionQuests[sID] then renderedSectionQuests[sID] = {} end
     end
 end
 
@@ -502,22 +501,30 @@ local function UntrackQuest(questID)
 
     -- Remove from Blizzard's watch list (source of truth).
     -- DoRefresh will see IsQuestWatched = false and drop it from the panel.
-    if InCombat() then
-        QueueOutOfCombatAction("untrack_" .. tostring(questID), function()
-            if C_QuestLog.RemoveQuestWatch then
-                C_QuestLog.RemoveQuestWatch(questID)
-            end
-            if C_QuestLog.RemoveWorldQuestWatch then
-                C_QuestLog.RemoveWorldQuestWatch(questID)
-            end
-        end)
-    else
+    local function DoRemove()
         if C_QuestLog.RemoveQuestWatch then
             C_QuestLog.RemoveQuestWatch(questID)
         end
         if C_QuestLog.RemoveWorldQuestWatch then
             C_QuestLog.RemoveWorldQuestWatch(questID)
         end
+        if _G.RemoveQuestWatch then
+            local idx = nil
+            if C_QuestLog.GetLogIndexForQuestID then
+                idx = C_QuestLog.GetLogIndexForQuestID(questID)
+            elseif _G.GetQuestLogIndexByID then
+                idx = _G.GetQuestLogIndexByID(questID)
+            end
+            if idx and idx > 0 then
+                _G.RemoveQuestWatch(idx)
+            end
+        end
+    end
+
+    if InCombat() then
+        QueueOutOfCombatAction("untrack_" .. tostring(questID), DoRemove)
+    else
+        DoRemove()
     end
 end
 
@@ -641,6 +648,7 @@ QL:SetClampedToScreen(true)
 QL:EnableMouse(true)
 QL:SetFrameStrata("MEDIUM")
 QL:SetFrameLevel(10)
+QL:RegisterForDrag("LeftButton")
 
 -- Fully transparent outer backdrop
 QL:SetBackdrop({ bgFile = [[Interface\ChatFrame\ChatFrameBackground]] })
@@ -654,27 +662,60 @@ end
 
 -- Persist current anchor to SfuiDB.
 local function QL_SavePosition()
-    local _, _, _, x, y = QL:GetPoint()
-    SfuiDB.questlogX  = x
-    SfuiDB.questlogY  = y
-    SfuiDB.mythicHudX = x
-    SfuiDB.mythicHudY = y
-    if SfuiMythicHUD then
-        SfuiMythicHUD:ClearAllPoints()
-        SfuiMythicHUD:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", x, y)
+    local point, _, relativePoint, x, y = QL:GetPoint()
+    if point then
+        SfuiDB.questlogPoint = point
+        SfuiDB.questlogRelativePoint = relativePoint
+        SfuiDB.questlogX  = x
+        SfuiDB.questlogY  = y
+        SfuiDB.mythicHudPoint = point
+        SfuiDB.mythicHudRelativePoint = relativePoint
+        SfuiDB.mythicHudX = x
+        SfuiDB.mythicHudY = y
+        if SfuiMythicHUD then
+            SfuiMythicHUD:ClearAllPoints()
+            SfuiMythicHUD:SetPoint(point, UIParent, relativePoint, x, y)
+        end
     end
 end
 
 -- Restore saved position, or keep default TOPRIGHT anchor.
 local function QL_RestorePosition()
+    local point = SfuiDB and (SfuiDB.questlogPoint or SfuiDB.mythicHudPoint)
+    local relPoint = SfuiDB and (SfuiDB.questlogRelativePoint or SfuiDB.mythicHudRelativePoint)
     local posX = SfuiDB and (SfuiDB.questlogX or SfuiDB.mythicHudX)
     local posY = SfuiDB and (SfuiDB.questlogY or SfuiDB.mythicHudY)
+
+    if not point and posX and posX > 0 then
+        -- Handle legacy position saved from StopMovingOrSizing (which sets BOTTOMLEFT)
+        point = "BOTTOMLEFT"
+        relPoint = "BOTTOMLEFT"
+    end
+
+    QL:ClearAllPoints()
     if posX and posY then
-        QL:ClearAllPoints()
-        QL:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", posX, posY)
+        QL:SetPoint(point or "TOPRIGHT", UIParent, relPoint or "TOPRIGHT", posX, posY)
+        if SfuiMythicHUD then
+            SfuiMythicHUD:ClearAllPoints()
+            SfuiMythicHUD:SetPoint(point or "TOPRIGHT", UIParent, relPoint or "TOPRIGHT", posX, posY)
+        end
+    else
+        QL:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -10, -10)
     end
 end
 QL._RestorePosition = QL_RestorePosition
+
+QL:SetScript("OnDragStart", function(self)
+    if QL_IsUnlocked() then
+        self:StartMoving()
+        local tip = GetTooltip and GetTooltip()
+        if tip then tip:Hide() end
+    end
+end)
+QL:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    QL_SavePosition()
+end)
 
 -- ─── Scrollbar ───────────────────────────────────────────
 local scrollBar = CreateFrame("Slider", nil, QL, "BackdropTemplate")
@@ -715,9 +756,10 @@ scrollBar:SetScript("OnValueChanged", function(_, val)
     content:SetPoint("TOPLEFT", scrollClip, "TOPLEFT", 0, val)
 end)
 
--- ─── Section Headers (Lowercase, 50% transparent, colored text) ─
+-- ─── Section Headers Factory (Lowercase, 50% transparent, colored text) ─
 local sectionHdrs = {}
-for _, def in ipairs(SECTION_DEFS) do
+
+local function CreateSectionHeader(def)
     local hdr = CreateFrame("Button", nil, content, "BackdropTemplate")
     hdr:SetHeight(SECT_H)
     hdr:SetPoint("TOPLEFT",  content, "TOPLEFT",  0, 0)
@@ -739,6 +781,7 @@ for _, def in ipairs(SECTION_DEFS) do
     accent:SetPoint("TOPLEFT",    hdr, "TOPLEFT",    0, 0)
     accent:SetPoint("BOTTOMLEFT", hdr, "BOTTOMLEFT", 0, 0)
     accent:SetColorTexture(def.color[1], def.color[2], def.color[3], 1)
+    hdr.Accent = accent
 
     -- Label (lowercase, anchored directly from left)
     local lbl = hdr:CreateFontString(nil, "OVERLAY")
@@ -746,6 +789,7 @@ for _, def in ipairs(SECTION_DEFS) do
     lbl:SetPoint("LEFT", hdr, "LEFT", PAD_X, 0)
     lbl:SetTextColor(def.color[1], def.color[2], def.color[3])
     lbl:SetText(def.label)
+    hdr.Label = lbl
 
     -- Count badge
     local badge = hdr:CreateFontString(nil, "OVERLAY")
@@ -754,20 +798,21 @@ for _, def in ipairs(SECTION_DEFS) do
     badge:SetTextColor(def.color[1]*0.50, def.color[2]*0.50, def.color[3]*0.50)
     hdr.Badge = badge
 
-    local defID = def.id
-    local defLabel = def.label
+    hdr.defID = def.id
+    hdr.defLabel = def.label
+    hdr.defColor = def.color
     hdr:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     hdr:RegisterForDrag("LeftButton")
 
-    hdr:SetScript("OnClick", function()
+    hdr:SetScript("OnClick", function(self)
         local IsShiftKeyDown = _G.IsShiftKeyDown
         if IsShiftKeyDown and IsShiftKeyDown() then
-            UntrackSectionQuests(defID)
+            UntrackSectionQuests(self.defID)
             Refresh:Request()
             return
         end
         local state = GetQLState()
-        state.collapsed[defID] = not state.collapsed[defID]
+        state.collapsed[self.defID] = not state.collapsed[self.defID]
         Refresh:Request()
     end)
 
@@ -790,7 +835,11 @@ for _, def in ipairs(SECTION_DEFS) do
         if not tip then return end
         tip:SetOwner(s, PickAnchor(s))
         tip:ClearLines()
-        tip:AddLine(defLabel, def.color[1], def.color[2], def.color[3])
+        tip:AddLine(s.defLabel, s.defColor[1], s.defColor[2], s.defColor[3])
+        if sfui.classicqs and sfui.classicqs.GetCapacityInfo then
+            local _, _, capFormatted = sfui.classicqs.GetCapacityInfo()
+            tip:AddLine("quest log: " .. capFormatted, 1, 1, 1)
+        end
         tip:AddLine("|cff888888Left-click: Collapse/Expand section|r", 1, 1, 1)
         tip:AddLine("|cff888888Shift-click: Untrack all quests in category|r", 1, 1, 1)
         if QL_IsUnlocked() then
@@ -804,7 +853,28 @@ for _, def in ipairs(SECTION_DEFS) do
         if tip then tip:Hide() end
     end)
 
-    sectionHdrs[def.id] = hdr
+    return hdr
+end
+
+local function GetOrCreateSectionHeader(def)
+    local hdr = sectionHdrs[def.id]
+    if not hdr then
+        hdr = CreateSectionHeader(def)
+        sectionHdrs[def.id] = hdr
+    else
+        hdr.defID = def.id
+        hdr.defLabel = def.label
+        hdr.defColor = def.color
+        hdr.Accent:SetColorTexture(def.color[1], def.color[2], def.color[3], 1)
+        hdr.Label:SetTextColor(def.color[1], def.color[2], def.color[3])
+        hdr.Label:SetText(def.label)
+        hdr.Badge:SetTextColor(def.color[1]*0.50, def.color[2]*0.50, def.color[3]*0.50)
+    end
+    return hdr
+end
+
+for _, def in ipairs(SECTION_DEFS) do
+    GetOrCreateSectionHeader(def)
 end
 
 -- ─── Quest Row Factory (no background) ───────────────────
@@ -985,6 +1055,44 @@ local function AcquireRow()
         findGroupBtn:SetPoint("RIGHT", row, "RIGHT", -2, 0)
         findGroupBtn:Hide()
         row.FindGroupBtn = findGroupBtn
+
+        -- Quest Item Button (Right side, before FindGroupBtn or right edge)
+        local itemBtn = CreateFrame("Button", nil, row)
+        itemBtn:SetSize(16, 16)
+        itemBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+        local itemIcon = itemBtn:CreateTexture(nil, "ARTWORK")
+        itemIcon:SetAllPoints()
+        itemIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        itemBtn.Icon = itemIcon
+
+        local itemCd = CreateFrame("Cooldown", nil, itemBtn, "CooldownFrameTemplate")
+        itemCd:SetAllPoints()
+        itemBtn.Cooldown = itemCd
+
+        itemBtn:SetScript("OnClick", function(btn)
+            local qlIndex = btn.questLogIndex
+            if qlIndex and _G.UseQuestLogSpecialItem then
+                _G.UseQuestLogSpecialItem(qlIndex)
+            end
+        end)
+        itemBtn:SetScript("OnEnter", function(btn)
+            local qlIndex = btn.questLogIndex
+            local tip = GetTooltip and GetTooltip() or _G.GameTooltip
+            if tip and qlIndex then
+                tip:SetOwner(btn, "ANCHOR_RIGHT")
+                if tip.SetQuestLogSpecialItem then
+                    tip:SetQuestLogSpecialItem(qlIndex)
+                end
+                tip:Show()
+            end
+        end)
+        itemBtn:SetScript("OnLeave", function()
+            local tip = GetTooltip and GetTooltip() or _G.GameTooltip
+            if tip then tip:Hide() end
+        end)
+        itemBtn:Hide()
+        row.ItemBtn = itemBtn
 
         row:SetScript("OnEnter", function(s)
             s.HLTex:SetColorTexture(1, 1, 1, 0.10)
@@ -1667,14 +1775,7 @@ local function UpdateQuestLogAnchor()
     if InCombat() or State:IsActive() then return QL.lastTop or 758 end
 
     local parentTop = (UIParent and UIParent:GetTop()) or 768
-    QL:ClearAllPoints()
-    local posX = SfuiDB and (SfuiDB.questlogX or SfuiDB.mythicHudX)
-    local posY = SfuiDB and (SfuiDB.questlogY or SfuiDB.mythicHudY)
-    if posX and posY then
-        QL:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", posX, posY)
-    else
-        QL:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -10, -10)
-    end
+    QL_RestorePosition()
     local qlTop = parentTop - 10
     QL.lastTop = qlTop
     return qlTop
@@ -1747,8 +1848,9 @@ local function CollectTrackedQuests(superTracked)
     end
 
     -- 0. Active Outdoor World Event / Scenario (skipped in raids)
-    if not inRaid and sectionLists["scenario"] then
-        scenarios.Scan(sectionLists["scenario"], AcquireTable, ReleaseTable)
+    local sc = sfui.questlog.scenarios or scenarios
+    if not inRaid and sectionLists["scenario"] and sc and sc.Scan then
+        sc.Scan(sectionLists["scenario"], AcquireTable, ReleaseTable)
     end
 
     -- 0b. Scheduled & Ongoing World Events (Event Scheduler)
@@ -1789,6 +1891,7 @@ local function CollectTrackedQuests(superTracked)
                     if info and not info.isHeader and not info.isHidden then
                         processedQuests[qID] = true
                         local sid = ClassifyQuest(info, qID)
+                        if not sectionLists[sid] then sectionLists[sid] = {} end
                         local entry = BuildQuestEntry(qID, sid, info, AcquireTable)
                         table.insert(sectionLists[sid], entry)
                     end
@@ -1821,6 +1924,7 @@ local function CollectTrackedQuests(superTracked)
                     if shouldShow then
                         processedQuests[questID] = true
                         local sid = ClassifyQuest(info, questID)
+                        if not sectionLists[sid] then sectionLists[sid] = {} end
                         local entry = BuildQuestEntry(questID, sid, info, AcquireTable)
                         table.insert(sectionLists[sid], entry)
                     end
@@ -1847,9 +1951,14 @@ local function CollectTrackedQuests(superTracked)
     end
 
     -- Smart Priority Sort within each active section
-    for _, def in ipairs(SECTION_DEFS) do
+    local activeDefs = SECTION_DEFS
+    if sfui.classicqs and sfui.classicqs.GetZoneSectionDefs then
+        activeDefs = sfui.classicqs.GetZoneSectionDefs(sectionLists)
+    end
+
+    for _, def in ipairs(activeDefs) do
         local list = sectionLists[def.id]
-        if #list > 1 then
+        if list and #list > 1 then
             table.sort(list, QuestSortComparator)
         end
     end
@@ -1866,10 +1975,22 @@ local function RenderSections(state, superTracked)
         superTrackedPOI = pID or 0
     end
 
-    for _, def in ipairs(SECTION_DEFS) do
-        local hdr  = sectionHdrs[def.id]
+    local activeDefs = SECTION_DEFS
+    if sfui.classicqs and sfui.classicqs.GetZoneSectionDefs then
+        activeDefs = sfui.classicqs.GetZoneSectionDefs(sectionLists)
+    end
+
+    for _, h in pairs(sectionHdrs) do
+        h:Hide()
+    end
+
+    for _, def in ipairs(activeDefs) do
+        local hdr  = GetOrCreateSectionHeader(def)
         local list = sectionLists[def.id]
-        local n    = #list
+        local n    = list and #list or 0
+        if not renderedSectionQuests[def.id] then
+            renderedSectionQuests[def.id] = {}
+        end
         local rendered = renderedSectionQuests[def.id]
         wipe(rendered)
 
@@ -1936,6 +2057,18 @@ local function RenderSections(state, superTracked)
                     row.hasReminder        = entry.hasReminder
                     row.isOngoing          = entry.isOngoing
 
+                    -- Usable quest item check
+                    local itemInfo = nil
+                    if entry.questLogIndex and _G.GetQuestLogSpecialItemInfo then
+                        local link, itemTex, charges, showItemWhenComplete = _G.GetQuestLogSpecialItemInfo(entry.questLogIndex)
+                        if itemTex and (not entry.isComplete or showItemWhenComplete) then
+                            itemInfo = { texture = itemTex, charges = charges }
+                        end
+                    end
+
+                    local rightAnchor = row
+                    local rightOffset = -PAD_X
+
                     if entry.canFindGroup then
                         if row.FindGroupBtn.SetUp then
                             row.FindGroupBtn:SetUp(entry.questID)
@@ -1946,10 +2079,40 @@ local function RenderSections(state, superTracked)
                         row.FindGroupBtn:ClearAllPoints()
                         row.FindGroupBtn:SetPoint("RIGHT", row, "RIGHT", -2, 0)
                         row.FindGroupBtn:Show()
-                        row.TitleFS:SetPoint("RIGHT", row.FindGroupBtn, "LEFT", -2, 0)
+                        rightAnchor = row.FindGroupBtn
+                        rightOffset = -2
                     else
                         row.FindGroupBtn:Hide()
+                    end
+
+                    if itemInfo and row.ItemBtn then
+                        row.ItemBtn.questLogIndex = entry.questLogIndex
+                        row.ItemBtn.Icon:SetTexture(itemInfo.texture)
+                        row.ItemBtn:ClearAllPoints()
+                        if rightAnchor == row then
+                            row.ItemBtn:SetPoint("RIGHT", row, "RIGHT", -2, 0)
+                        else
+                            row.ItemBtn:SetPoint("RIGHT", rightAnchor, "LEFT", -3, 0)
+                        end
+                        if _G.GetQuestLogSpecialItemCooldown then
+                            local start, duration, enable = _G.GetQuestLogSpecialItemCooldown(entry.questLogIndex)
+                            if start and duration and duration > 0 then
+                                row.ItemBtn.Cooldown:SetCooldown(start, duration)
+                            else
+                                row.ItemBtn.Cooldown:Clear()
+                            end
+                        end
+                        row.ItemBtn:Show()
+                        rightAnchor = row.ItemBtn
+                        rightOffset = -2
+                    elseif row.ItemBtn then
+                        row.ItemBtn:Hide()
+                    end
+
+                    if rightAnchor == row then
                         row.TitleFS:SetPoint("RIGHT", row, "RIGHT", -PAD_X, 0)
+                    else
+                        row.TitleFS:SetPoint("RIGHT", rightAnchor, "LEFT", rightOffset, 0)
                     end
 
                     local isSuperTracked = (superTracked == entry.questID)
@@ -1979,6 +2142,9 @@ local function RenderSections(state, superTracked)
                     end
 
                     local rawTitle = entry.title or "Unknown"
+                    if sfui.classicqs and sfui.classicqs.FormatTitle and entry.questID and not entry.isAchievement and not entry.isPerksActivity and not entry.isHousingTask and not entry.isRecipe and not entry.isScenario and not entry.isWorldEvent then
+                        rawTitle = sfui.classicqs.FormatTitle(entry, rawTitle)
+                    end
                     local timeCol = entry.isCriticalTime and C.TIME_CRITICAL or C.TIME
                     local timeTag = (entry.isWorldQuest and entry.timeLeftText) and (" " .. timeCol .. "[" .. entry.timeLeftText .. "]" .. C.RESET) or ""
                     local partyTag = (entry.partyCount and entry.partyCount > 0) and (" " .. C.PARTY_COUNT .. "[P:" .. entry.partyCount .. "]" .. C.RESET) or ""
@@ -1988,12 +2154,14 @@ local function RenderSections(state, superTracked)
                     local isStandardOrWorldQuest = entry.questID and not entry.isAchievement and not entry.isPerksActivity and not entry.isHousingTask and not entry.isRecipe and not entry.isScenario and not entry.isWorldEvent
                     local zoneTag = ""
                     if isStandardOrWorldQuest and entry.zoneName and entry.zoneName ~= "" then
-                        local isRemote = not entry.isOnMap
-                        if isRemote and cachedCurrentZoneName and entry.zoneName == cachedCurrentZoneName then
-                            isRemote = false
-                        end
-                        if isRemote then
-                            zoneTag = " |cff777777[" .. entry.zoneName .. "]|r"
+                        if not (sfui.classicqs and sfui.classicqs.GetZoneSectionDefs) then
+                            local isRemote = not entry.isOnMap
+                            if isRemote and cachedCurrentZoneName and entry.zoneName == cachedCurrentZoneName then
+                                isRemote = false
+                            end
+                            if isRemote then
+                                zoneTag = " |cff777777[" .. entry.zoneName .. "]|r"
+                            end
                         end
                     end
 
@@ -2073,7 +2241,7 @@ local function RenderSections(state, superTracked)
                             titleColor = C.SUPERTRACK
                         elseif entry.isMeta then
                             titleColor = C.META
-                        elseif entry.isWarbandCompleted then
+                        elseif isRetail and entry.isWarbandCompleted then
                             titleColor = C.WARBAND
                         end
                         local titleText = titleColor and (titleColor .. rawTitle .. C.RESET) or rawTitle
@@ -2425,8 +2593,12 @@ end
 function sfui.questlog.reset_position()
     if InCombat() then return end
     if SfuiDB then
+        SfuiDB.questlogPoint = nil
+        SfuiDB.questlogRelativePoint = nil
         SfuiDB.questlogX  = nil
         SfuiDB.questlogY  = nil
+        SfuiDB.mythicHudPoint = nil
+        SfuiDB.mythicHudRelativePoint = nil
         SfuiDB.mythicHudX = nil
         SfuiDB.mythicHudY = nil
     end
@@ -2461,16 +2633,8 @@ function sfui.questlog.initialize()
         return
     end
 
-
     -- Restore saved drag position (default: TOPRIGHT -10, -10 from UIParent).
-    local posX = SfuiDB and (SfuiDB.questlogX or SfuiDB.mythicHudX)
-    local posY = SfuiDB and (SfuiDB.questlogY or SfuiDB.mythicHudY)
-    QL:ClearAllPoints()
-    if posX and posY then
-        QL:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", posX, posY)
-    else
-        QL:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -10, -10)
-    end
+    QL_RestorePosition()
 
     State:Update()
     local state = GetQLState()

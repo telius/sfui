@@ -1,4 +1,5 @@
--- portals_db.lua
+-- data/portals.lua
+-- SFUI Portals & Hearthstones Database
 -- All portal/wormhole spell and toy IDs. Edit here to add new portals.
 -- Availability is checked at runtime in portals.lua:
 --   Spells: C_SpellBook.IsSpellInSpellBook(spellID)
@@ -6,6 +7,9 @@
 --
 -- Names use GetRealZoneText(instance) automatically when instance is set.
 -- Set name="" to force instance-based name lookup.
+
+local isRetail = (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic)
+if not isRetail then return end
 
 sfui = sfui or {}
 sfui.portals_db = {}

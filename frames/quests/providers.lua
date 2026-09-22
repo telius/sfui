@@ -120,6 +120,31 @@ local function GetQuestZoneName(questID, isWorldQuest)
                 end
             end
         end
+        if not name and C_QuestLog and C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetInfo then
+            local lIndex = C_QuestLog.GetLogIndexForQuestID(questID)
+            if lIndex and lIndex > 1 then
+                for i = lIndex - 1, 1, -1 do
+                    local info = C_QuestLog.GetInfo(i)
+                    if info and info.isHeader then
+                        name = info.title
+                        break
+                    end
+                end
+            end
+        end
+        if not name and _G.GetNumQuestLogEntries and _G.GetQuestLogTitle then
+            local numEntries = _G.GetNumQuestLogEntries()
+            local currentHeader = nil
+            for i = 1, numEntries do
+                local titleText, _, _, isHeader, _, _, _, qID = _G.GetQuestLogTitle(i)
+                if isHeader then
+                    currentHeader = titleText
+                elseif qID == questID then
+                    name = currentHeader
+                    break
+                end
+            end
+        end
         if not name and C_TaskQuest and C_TaskQuest.GetQuestZoneID then
             local zMapID = C_TaskQuest.GetQuestZoneID(questID)
             if zMapID and zMapID > 0 then
@@ -526,6 +551,22 @@ local function IsQuestWatched(questID)
             end
         end
     end
+    if _G.IsQuestWatched then
+        if C_QuestLog and C_QuestLog.GetLogIndexForQuestID then
+            local lIndex = C_QuestLog.GetLogIndexForQuestID(questID)
+            if lIndex and _G.IsQuestWatched(lIndex) then return true end
+        end
+        if _G.GetNumQuestLogEntries and _G.GetQuestLogTitle then
+            local numEntries = _G.GetNumQuestLogEntries()
+            for i = 1, numEntries do
+                local _, _, _, _, _, _, _, qID = _G.GetQuestLogTitle(i)
+                if qID == questID then
+                    if _G.IsQuestWatched(i) then return true end
+                    break
+                end
+            end
+        end
+    end
     return false
 end
 
@@ -592,6 +633,11 @@ local function IsMetaQuest(questID, defaultInfo)
 end
 
 local function ClassifyQuest(info, questID)
+    if sfui.classicqs and sfui.classicqs.GetQuestSectionID then
+        local zoneName = GetQuestZoneName(questID, false)
+        return sfui.classicqs.GetQuestSectionID(info, questID, zoneName)
+    end
+
     if questID and questClassificationCache[questID] then
         return questClassificationCache[questID]
     end
@@ -929,6 +975,12 @@ local function BuildQuestEntry(questID, forcedSectionID, defaultInfo, AcquireTab
     entry.questID            = questID
     entry.questLogIndex      = lIndex
     entry.title              = title
+    entry.level              = (defaultInfo and (defaultInfo.difficultyLevel or defaultInfo.level))
+        or (C_QuestLog and C_QuestLog.GetQuestDifficultyLevel and C_QuestLog.GetQuestDifficultyLevel(questID))
+    entry.suggestedGroup     = defaultInfo and defaultInfo.suggestedGroup
+    entry.isDungeon          = defaultInfo and (defaultInfo.frequency == 2 or (defaultInfo.tagInfo and defaultInfo.tagInfo.tagID == 81))
+    entry.isRaid             = defaultInfo and (defaultInfo.tagInfo and (defaultInfo.tagInfo.tagID == 62 or defaultInfo.tagInfo.tagID == 85))
+    entry.isElite            = defaultInfo and (defaultInfo.tagInfo and defaultInfo.tagInfo.tagID == 1)
     entry.isComplete         = isComplete
     entry.isFailed           = isFailed
     entry.isAutoComplete     = isAutoComplete

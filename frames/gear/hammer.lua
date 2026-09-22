@@ -1,4 +1,7 @@
 local addonName, addon = ...
+local isRetail = (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic)
+if not isRetail then return end
+
 sfui = sfui or {}
 sfui.hammer = sfui.hammer or {}
 

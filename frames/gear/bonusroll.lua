@@ -3,6 +3,11 @@ local addonName, addon = ...
 sfui = sfui or {}
 sfui.bonusroll = {}
 
+-- Guard: Retail-only bonus roll & vault reward chest system
+if not (sfui.compat and sfui.compat.has and sfui.compat.has.gear_spec) then
+    return
+end
+
 local CreateFrame               = CreateFrame
 local UIParent                  = UIParent
 local UnitClass                 = UnitClass
@@ -85,14 +90,10 @@ local EXCLUDED_ITEMS = {
 
 -- ─── Database Access Helpers ──────────────────────────────────────────────────
 local function GetPlayerKey()
-    local guid = UnitGUID("player")
-    if guid and guid ~= "" then return guid end
-    local name = UnitName("player")
-    local realm = GetRealmName()
-    if name and realm and name ~= "" and realm ~= "" then
-        return name .. "-" .. realm
+    if sfui.common and sfui.common.get_player_unique_key then
+        return sfui.common.get_player_unique_key()
     end
-    return "player"
+    return (UnitGUID and UnitGUID("player")) or "player"
 end
 
 local function DB()

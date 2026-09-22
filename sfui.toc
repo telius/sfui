@@ -1,27 +1,37 @@
 ## Interface: 120100, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v12.1.0-44
+## Version: v12.1.0-45
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
 ## X-Website-Source: https://github.com/telius/sfui
 ## X-GitHub-Repository: https://github.com/telius/sfui
 ## X-Project-Name: sfui
-## SavedVariables: SfuiDB
-## OptionalDeps: Blizzard_ObjectiveTracker, Masque, LibStub, CallbackHandler-1.0, LibCustomGlow-1.0, AceDB-3.0, LibSharedMedia-3.0, LibDataBroker-1.1, LibDBIcon-1.0
+## LoadSavedVariablesFirst: 1
+## SavedVariables: SfuiDB, SfuiDecorDB
+## OptionalDeps: Blizzard_ObjectiveTracker, Masque, LibStub, CallbackHandler-1.0, LibCustomGlow-1.0, LibSharedMedia-3.0, LibDataBroker-1.1, LibDBIcon-1.0
 ## IconTexture: Interface/AddOns/sfui/icon.png
 
 Libs/LibStub/LibStub.lua
 Libs/CallbackHandler-1.0/CallbackHandler-1.0.xml
 Libs/LibCustomGlow-1.0/LibCustomGlow-1.0.xml
-Libs/AceDB-3.0/AceDB-3.0.xml
 Libs/LibDataBroker-1.1/LibDataBroker-1.1.lua
 Libs/LibDBIcon-1.0/LibDBIcon-1.0.lua
 config.lua
+data/spells.lua
+data/stats.lua
+data/rules.lua
+data/season.lua
 compat.lua
-season.lua
 dispatcher.lua
+core/safety.lua
+core/colors.lua
+core/talents.lua
+core/items.lua
+core/widgets.lua
+core/db.lua
+core/module.lua
 common.lua
 core.lua
 
@@ -30,17 +40,20 @@ frames/currency.lua
 frames/minimap.lua
 frames/location.lua
 frames/cursor.lua
-frames/research.lua
+frames/research.lua [AllowLoadGameType standard]
 frames/merchant.lua
 frames/alts.lua
+frames/alts_standard.lua [AllowLoadGameType standard]
+frames/alts_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/automation.lua
-frames/transfer.lua
+frames/transfer.lua [AllowLoadGameType standard]
 frames/logs.lua
 
 frames/bars/bars.lua
+frames/bars/swing.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/bars/castbar.lua
 frames/bars/vehicle.lua
-frames/bars/soulfragments.lua
+frames/bars/soulfragments.lua [AllowLoadGameType standard]
 
 frames/tracking/cdm.lua
 frames/tracking/glows.lua
@@ -48,26 +61,25 @@ frames/tracking/trackedoptions.lua
 frames/tracking/trackedbars.lua
 frames/tracking/trackedicons.lua
 
-frames/portals/portals_db.lua
-frames/portals/portals.lua
-frames/portals/portal_popup.lua
+data/portals.lua [AllowLoadGameType standard]
+frames/portals/portals.lua [AllowLoadGameType standard]
+frames/portals/portal_popup.lua [AllowLoadGameType standard]
 
-stats.lua
+frames/gear/engine.lua
 frames/gear/compare.lua
 frames/gear/gear.lua
 frames/gear/highest.lua
-frames/gear/lootspec.lua
-frames/gear/lootviewer.lua
-frames/gear/bonusroll.lua
-frames/gear/hammer.lua
+frames/gear/lootspec.lua [AllowLoadGameType standard]
+frames/gear/lootviewer.lua [AllowLoadGameType standard]
+frames/gear/bonusroll.lua [AllowLoadGameType standard]
+frames/gear/hammer.lua [AllowLoadGameType standard]
 
-frames/quests/worldevents.lua
-frames/quests/scenarios.lua
+frames/quests/worldevents.lua [AllowLoadGameType standard]
+frames/quests/scenarios.lua [AllowLoadGameType standard]
 frames/quests/providers.lua
+frames/quests/classicqs.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/quests/quests.lua
-frames/quests/mythic.lua
+frames/quests/mythic.lua [AllowLoadGameType standard]
 
 frames/mem.lua
 commands.lua
-
-

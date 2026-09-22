@@ -1,6 +1,12 @@
+local isRetail = (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic)
+if not isRetail then return end
+
 local scanQueue = {}
 local processingTicker
 local targetExpac = -1
+
+local GetItemInfoInstant = (_G.C_Item and _G.C_Item.GetItemInfoInstant) or _G.GetItemInfoInstant or (sfui.common and sfui.common.get_item_id)
+local GetItemInfo = (_G.C_Item and _G.C_Item.GetItemInfo) or _G.GetItemInfo
 
 local function Process()
     local processed = false

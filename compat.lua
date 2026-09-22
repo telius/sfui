@@ -31,7 +31,13 @@ local IS_WOW_FOREVER = (tocVersionNum >= 16000 and tocVersionNum < 20000) or (ve
 local IS_CLASSIC_ERA = (PROJECT_ID == (_G.WOW_PROJECT_CLASSIC or 2)) and not IS_WOW_FOREVER
 local IS_RETAIL      = (PROJECT_ID == (_G.WOW_PROJECT_MAINLINE or 1)) and not IS_WOW_FOREVER
 
--- Expose on sfui.version so any module can read client context at runtime.
+-- Expose on sfui.version and top-level sfui canonical booleans so any module
+-- can read client context cleanly (e.g. `if sfui.isClassic then ... end`).
+sfui.isRetail   = IS_RETAIL
+sfui.isClassic  = not IS_RETAIL
+sfui.isForever  = IS_WOW_FOREVER
+sfui.isEra      = IS_CLASSIC_ERA
+
 sfui.version = {
     retail      = IS_RETAIL,
     classic_era = IS_CLASSIC_ERA,
@@ -47,6 +53,9 @@ sfui.version = {
 -- more than the client name (e.g. Warcraft Forever might support some things
 -- Classic Era doesn't).
 sfui.compat = {
+    is_classic     = not IS_RETAIL,
+    is_classic_era = IS_CLASSIC_ERA,
+    is_wow_forever = IS_WOW_FOREVER,
     has = {
         -- Blizzard's C_UnitAuras namespace (retail aura instance IDs)
         unit_auras      = (_G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex ~= nil),
@@ -72,6 +81,7 @@ sfui.compat = {
         wow_forever     = IS_WOW_FOREVER,
     },
 }
+sfui.has = sfui.compat.has
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui.api  — Unified API namespace
@@ -89,164 +99,470 @@ sfui.api = {}
 --- Classic/Forever: synthesises a compatible table from UnitAura().
 --- @return table|nil { name, icon, applications, duration, expirationTime, sourceUnit, spellId, isHarmful, auraInstanceID }
 function sfui.api.GetAuraData(unit, index, filter)
-    if IS_RETAIL then
+    if _G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex then
         return _G.C_UnitAuras.GetAuraDataByIndex(unit, index, filter)
     end
-    local name, icon, count, _, duration, expires, source, _, _, spellID =
-        _G.UnitAura(unit, index, filter)
-    if not name then return nil end
-    return {
-        name           = name,
-        icon           = icon,
-        applications   = count,
-        duration       = duration,
-        expirationTime = expires,
-        sourceUnit     = source,
-        spellId        = spellID,
-        auraInstanceID = nil,   -- not available pre-Retail; callers must guard
-        isHarmful      = (filter == "HARMFUL"),
-    }
+    if _G.UnitAura then
+        local name, icon, count, _, duration, expires, source, _, _, spellID =
+            _G.UnitAura(unit, index, filter)
+        if not name then return nil end
+        return {
+            name           = name,
+            icon           = icon,
+            applications   = count,
+            duration       = duration,
+            expirationTime = expires,
+            sourceUnit     = source,
+            spellId        = spellID,
+            auraInstanceID = nil,
+            isHarmful      = (filter == "HARMFUL"),
+        }
+    end
+    return nil
 end
 
---- Searches the player's aura list for a specific spellID.
---- Retail: C_UnitAuras.GetPlayerAuraBySpellID (O(1) hash lookup).
---- Classic/Forever: linear scan via UnitAura loop (capped at 64 auras).
---- @return table|nil same shape as GetAuraData
-function sfui.api.GetPlayerAuraBySpellID(spellID)
-    if IS_RETAIL then
-        return _G.C_UnitAuras.GetPlayerAuraBySpellID(spellID)
+--- Returns spell name or nil.
+--- Cascades C_Spell.GetSpellName -> C_Spell.GetSpellInfo -> legacy GetSpellInfo.
+function sfui.api.GetSpellName(spellID)
+    if not spellID then return nil end
+    if _G.C_Spell and _G.C_Spell.GetSpellName then
+        local name = _G.C_Spell.GetSpellName(spellID)
+        if name and name ~= "" then return name end
     end
-    local function scan(filter)
-        for i = 1, 64 do
-            local name, icon, count, _, duration, expires, source, _, _, sid =
-                _G.UnitAura("player", i, filter)
-            if not name then break end
-            if sid == spellID then
-                return {
-                    name = name, icon = icon, applications = count,
-                    duration = duration, expirationTime = expires,
-                    sourceUnit = source, spellId = sid,
-                    auraInstanceID = nil,
-                    isHarmful = (filter == "HARMFUL"),
-                }
+    if _G.C_Spell and _G.C_Spell.GetSpellInfo then
+        local info = _G.C_Spell.GetSpellInfo(spellID)
+        if info and info.name and info.name ~= "" then return info.name end
+    end
+    if _G.GetSpellInfo then
+        local name = _G.GetSpellInfo(spellID)
+        if name and name ~= "" then return name end
+    end
+    return nil
+end
+
+--- Fast query to test if a spell ID is part of a registered aura/rank group
+--- @param spellID number
+--- @return boolean
+function sfui.api.IsKnownAuraSpellID(spellID)
+    if not spellID then return false end
+    if sfui.spells_db and sfui.spells_db.IsKnownAuraSpellID then
+        return sfui.spells_db.IsKnownAuraSpellID(spellID)
+    end
+    return false
+end
+
+--- Searches a unit's aura list for a specific spellID or spell name.
+--- Handles Vanilla spell ranks, Seals, Blessings, and Greater blessing equivalence.
+--- When in combat: relies strictly on C_UnitAuras.GetPlayerAuraBySpellID with rank group lookup
+--- to avoid "Auras cannot be accessed when secret while tainted" errors.
+--- When out of combat: allowed to iterate auras by name and dynamically learn new rank mappings.
+--- @param unit string UnitId (defaults to "player")
+--- @param spellIDOrName number|string Spell ID or Spell Name
+--- @param filter string|nil "HELPFUL", "HARMFUL", or nil to check both
+--- @return table|nil Normalized aura data table
+function sfui.api.GetUnitAuraByNameOrID(unit, spellIDOrName, filter)
+    if not spellIDOrName then return nil end
+    unit = unit or "player"
+
+    local targetID = tonumber(spellIDOrName)
+    local targetName = type(spellIDOrName) == "string" and spellIDOrName or sfui.api.GetSpellName(targetID)
+    local targetGreaterName = nil
+    if targetName then
+        if targetName:find("^Blessing of ") then
+            targetGreaterName = "Greater " .. targetName
+        elseif targetName:find("^Greater Blessing of ") then
+            targetGreaterName = targetName:gsub("^Greater ", "")
+        end
+    end
+
+    -- 1. Direct O(1) SpellID lookup on player via C_UnitAuras (100% legal in combat/secrecy)
+    if unit == "player" and _G.C_UnitAuras and _G.C_UnitAuras.GetPlayerAuraBySpellID then
+        if targetID then
+            local aura = _G.C_UnitAuras.GetPlayerAuraBySpellID(targetID)
+            if aura then return aura end
+        end
+
+        -- Sibling rank check (e.g. Blessing of Might Ranks 1-8 / Greater, Seals, Class Buffs)
+        local ranks = nil
+        if sfui.spells_db then
+            if targetID then
+                ranks = sfui.spells_db.GetRanksByID(targetID)
+            end
+            if not ranks and targetName then
+                ranks = sfui.spells_db.GetRanksByName(targetName)
+                if not ranks and targetGreaterName then
+                    ranks = sfui.spells_db.GetRanksByName(targetGreaterName)
+                end
+            end
+        end
+
+        if ranks then
+            for _, rankID in ipairs(ranks) do
+                if rankID ~= targetID then
+                    local aura = _G.C_UnitAuras.GetPlayerAuraBySpellID(rankID)
+                    if aura then return aura end
+                end
             end
         end
     end
-    return scan("HELPFUL") or scan("HARMFUL")
+
+    -- 2. Index-based full scan (ONLY PERMITTED OUT OF COMBAT)
+    -- In combat, Blizzard restricts GetAuraDataByIndex with "Auras cannot be accessed when secret while tainted"
+    local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
+    local areAurasSecret = inCombat or (_G.C_Secrets and _G.C_Secrets.ShouldAurasBeSecret and _G.C_Secrets.ShouldAurasBeSecret())
+
+    if not areAurasSecret then
+        local function MatchesAura(sid, name)
+            if targetID and sid and sid == targetID then return true end
+            if targetName and name and (name == targetName or name:lower() == targetName:lower()) then return true end
+            if targetGreaterName and name and (name == targetGreaterName or name:lower() == targetGreaterName:lower()) then return true end
+            return false
+        end
+
+        local function LearnAuraMapping(aura)
+            if not aura or not aura.spellId then return end
+            if sfui.spells_db and sfui.spells_db.LearnAuraMapping then
+                sfui.spells_db.LearnAuraMapping(targetID, aura.spellId, aura.name or targetName)
+            end
+        end
+
+        if _G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex then
+            local function scanRetail(f)
+                for i = 1, 64 do
+                    local ok, aura = pcall(_G.C_UnitAuras.GetAuraDataByIndex, unit, i, f)
+                    if not ok or not aura then break end
+                    if MatchesAura(aura.spellId, aura.name) then
+                        LearnAuraMapping(aura)
+                        return aura
+                    end
+                end
+            end
+            local result = filter and scanRetail(filter) or (scanRetail("HELPFUL") or scanRetail("HARMFUL"))
+            if result then return result end
+        end
+
+        -- Legacy UnitAura
+        if _G.UnitAura then
+            local function scanClassic(f)
+                for i = 1, 64 do
+                    local ok, name, icon, count, _, duration, expires, source, _, _, sid =
+                        pcall(_G.UnitAura, unit, i, f)
+                    if not ok or not name then break end
+                    if MatchesAura(sid, name) then
+                        local aura = {
+                            name           = name,
+                            icon           = icon,
+                            applications   = count,
+                            duration       = duration,
+                            expirationTime = expires,
+                            sourceUnit     = source,
+                            spellId        = sid or targetID,
+                            auraInstanceID = nil,
+                            isHarmful      = (f == "HARMFUL"),
+                        }
+                        LearnAuraMapping(aura)
+                        return aura
+                    end
+                end
+                return nil
+            end
+            local result = filter and scanClassic(filter) or (scanClassic("HELPFUL") or scanClassic("HARMFUL"))
+            if result then return result end
+        end
+    end
+
+    return nil
+end
+
+--- Searches the player's aura list for a specific spellID or spell name.
+--- @param spellID number|string
+--- @return table|nil same shape as GetAuraData
+function sfui.api.GetPlayerAuraBySpellID(spellID)
+    return sfui.api.GetUnitAuraByNameOrID("player", spellID)
 end
 
 -- ── Spell queries ─────────────────────────────────────────────────────────────
 
 --- Returns a normalised spell info table.
---- Retail: C_Spell.GetSpellInfo(spellID) -> table.
---- Classic/Forever: GetSpellInfo(spellID) -> 9-tuple, mapped to table.
+--- Cascades C_Spell.GetSpellInfo -> legacy GetSpellInfo.
 --- @return table|nil { name, iconID, castTime, minRange, maxRange, spellID }
 function sfui.api.GetSpellInfo(spellID)
-    if IS_RETAIL then
-        return _G.C_Spell.GetSpellInfo(spellID)
+    if not spellID then return nil end
+    if _G.C_Spell and _G.C_Spell.GetSpellInfo then
+        local info = _G.C_Spell.GetSpellInfo(spellID)
+        if info then return info end
     end
-    local name, _, icon, castTime, minRange, maxRange, id = _G.GetSpellInfo(spellID)
-    if not name then return nil end
-    return {
-        name     = name,
-        iconID   = icon,
-        castTime = castTime,
-        minRange = minRange,
-        maxRange = maxRange,
-        spellID  = id or spellID,
-    }
+    if _G.GetSpellInfo then
+        local name, _, icon, castTime, minRange, maxRange, id = _G.GetSpellInfo(spellID)
+        if name then
+            return {
+                name     = name,
+                iconID   = icon,
+                castTime = castTime,
+                minRange = minRange,
+                maxRange = maxRange,
+                spellID  = id or spellID,
+            }
+        end
+    end
+    return nil
 end
 
 --- Returns spell name or nil.
+--- Cascades C_Spell.GetSpellName -> C_Spell.GetSpellInfo -> legacy GetSpellInfo.
 function sfui.api.GetSpellName(spellID)
-    if IS_RETAIL then return _G.C_Spell.GetSpellName(spellID) end
-    local name = _G.GetSpellInfo(spellID)
-    return name
+    if not spellID then return nil end
+    if _G.C_Spell and _G.C_Spell.GetSpellName then
+        local name = _G.C_Spell.GetSpellName(spellID)
+        if name and name ~= "" then return name end
+    end
+    if _G.C_Spell and _G.C_Spell.GetSpellInfo then
+        local info = _G.C_Spell.GetSpellInfo(spellID)
+        if info and info.name and info.name ~= "" then return info.name end
+    end
+    if _G.GetSpellInfo then
+        local name = _G.GetSpellInfo(spellID)
+        if name and name ~= "" then return name end
+    end
+    return nil
+end
+
+--- Returns clickable spell link string or nil.
+--- Cascades C_Spell.GetSpellLink -> legacy GetSpellLink.
+function sfui.api.GetSpellLink(spellID)
+    if not spellID then return nil end
+    if _G.C_Spell and _G.C_Spell.GetSpellLink then
+        local link = _G.C_Spell.GetSpellLink(spellID)
+        if link and link ~= "" then return link end
+    end
+    if _G.GetSpellLink then
+        local link = _G.GetSpellLink(spellID)
+        if link and link ~= "" then return link end
+    end
+    return nil
 end
 
 --- Returns spell texture path or nil.
+--- Cascades C_Spell.GetSpellTexture -> C_Spell.GetSpellInfo -> legacy GetSpellTexture -> legacy GetSpellInfo.
 function sfui.api.GetSpellTexture(spellID)
-    if IS_RETAIL then return _G.C_Spell.GetSpellTexture(spellID) end
-    local _, _, icon = _G.GetSpellInfo(spellID)
-    return icon
+    if not spellID then return nil end
+    if _G.C_Spell and _G.C_Spell.GetSpellTexture then
+        local tex = _G.C_Spell.GetSpellTexture(spellID)
+        if tex then return tex end
+    end
+    if _G.C_Spell and _G.C_Spell.GetSpellInfo then
+        local info = _G.C_Spell.GetSpellInfo(spellID)
+        if info and (info.iconID or info.originalIconID) then
+            return info.iconID or info.originalIconID
+        end
+    end
+    if _G.GetSpellTexture then
+        local tex = _G.GetSpellTexture(spellID)
+        if tex then return tex end
+    end
+    if _G.GetSpellInfo then
+        local _, _, icon = _G.GetSpellInfo(spellID)
+        if icon then return icon end
+    end
+    return nil
 end
 
 --- Returns spell cooldown info.
+--- Cascades C_Spell.GetSpellCooldown -> legacy GetSpellCooldown.
 --- @return table|nil { startTime, duration, isEnabled, modRate }
 function sfui.api.GetSpellCooldown(spellID)
-    if IS_RETAIL then return _G.C_Spell.GetSpellCooldown(spellID) end
-    local start, dur, enabled, modRate = _G.GetSpellCooldown(spellID)
-    if start == nil then return nil end
-    return {
-        startTime = start,
-        duration  = dur,
-        isEnabled = (enabled == 1),
-        modRate   = modRate or 1,
-    }
+    if not spellID then return nil end
+    if _G.C_Spell and _G.C_Spell.GetSpellCooldown then
+        local cd = _G.C_Spell.GetSpellCooldown(spellID)
+        if cd then
+            if type(cd) == "table" then
+                return cd
+            else
+                local start, dur, enabled, modRate = _G.C_Spell.GetSpellCooldown(spellID)
+                return {
+                    startTime = start,
+                    duration  = dur,
+                    isEnabled = (enabled ~= 0 and enabled ~= false),
+                    modRate   = modRate or 1,
+                }
+            end
+        end
+    end
+    if _G.GetSpellCooldown then
+        local start, dur, enabled, modRate = _G.GetSpellCooldown(spellID)
+        if start ~= nil then
+            return {
+                startTime = start,
+                duration  = dur,
+                isEnabled = (enabled == 1 or enabled == true),
+                modRate   = modRate or 1,
+            }
+        end
+    end
+    return nil
 end
 
 --- Returns spell charge info or nil if spell has no charges.
+--- Cascades C_Spell.GetSpellCharges -> legacy GetSpellCharges.
 --- @return table|nil { currentCharges, maxCharges, cooldownStartTime, cooldownDuration }
 function sfui.api.GetSpellCharges(spellID)
-    if IS_RETAIL then return _G.C_Spell.GetSpellCharges(spellID) end
-    if not _G.GetSpellCharges then return nil end
-    local cur, max, start, dur = _G.GetSpellCharges(spellID)
-    if not cur then return nil end
-    return {
-        currentCharges    = cur,
-        maxCharges        = max,
-        cooldownStartTime = start,
-        cooldownDuration  = dur,
-    }
+    if not spellID then return nil end
+    if _G.C_Spell and _G.C_Spell.GetSpellCharges then
+        return _G.C_Spell.GetSpellCharges(spellID)
+    end
+    if _G.GetSpellCharges then
+        local cur, max, start, dur = _G.GetSpellCharges(spellID)
+        if cur then
+            return {
+                currentCharges    = cur,
+                maxCharges        = max,
+                cooldownStartTime = start,
+                cooldownDuration  = dur,
+            }
+        end
+    end
+    return nil
 end
 
 --- Returns true if the player knows the spell.
 function sfui.api.IsSpellKnown(spellID)
-    if IS_RETAIL then return _G.C_Spell.IsSpellKnown(spellID) end
-    return _G.IsSpellKnown and _G.IsSpellKnown(spellID) or false
+    if not spellID then return false end
+    if _G.C_Spell and _G.C_Spell.IsSpellKnown then
+        return _G.C_Spell.IsSpellKnown(spellID)
+    end
+    if _G.IsSpellKnown then
+        return _G.IsSpellKnown(spellID)
+    end
+    return false
+end
+
+--- Resolves a spellbook slot index to an actual spellID across Retail and Classic/Vanilla.
+--- @param slot number Spellbook slot index (from GetCursorInfo arg1)
+--- @param bankOrBookType any Spell bank enum (Retail) or bookType string (Classic)
+--- @return number|nil
+function sfui.api.GetSpellBookItemSpellID(slot, bankOrBookType)
+    if not slot or type(slot) ~= "number" then return nil end
+
+    -- 1. Try C_SpellBook.GetSpellBookItemType (Classic Beta / Retail 11+)
+    if _G.C_SpellBook and _G.C_SpellBook.GetSpellBookItemType then
+        local bank = bankOrBookType
+        if type(bank) ~= "number" and _G.Enum and _G.Enum.SpellBookSpellBank then
+            bank = _G.Enum.SpellBookSpellBank.Player
+        end
+        local ok, _, actionID, spellID = pcall(_G.C_SpellBook.GetSpellBookItemType, slot, bank or 1)
+        if ok then
+            local resolved = (spellID and spellID > 0 and spellID) or (actionID and actionID > 0 and actionID)
+            if resolved then return resolved end
+        end
+    end
+
+    -- 2. Try C_SpellBook.GetSpellBookItemInfo
+    if _G.C_SpellBook and _G.C_SpellBook.GetSpellBookItemInfo then
+        local bank = bankOrBookType
+        if type(bank) ~= "number" and _G.Enum and _G.Enum.SpellBookSpellBank then
+            bank = _G.Enum.SpellBookSpellBank.Player
+        end
+        local ok, info = pcall(_G.C_SpellBook.GetSpellBookItemInfo, slot, bank or 1)
+        if ok and info then
+            local resolved = (info.spellID and info.spellID > 0 and info.spellID) or (info.actionID and info.actionID > 0 and info.actionID)
+            if resolved then return resolved end
+        end
+    end
+
+    -- 3. Try legacy GetSpellBookItemName (returns name, subtext, spellID in Classic)
+    if _G.GetSpellBookItemName then
+        local bookType = (type(bankOrBookType) == "string" and bankOrBookType) or "spell"
+        local ok, _, _, spellID = pcall(_G.GetSpellBookItemName, slot, bookType)
+        if ok and spellID and spellID > 0 then
+            return spellID
+        end
+    end
+
+    -- 4. Try legacy GetSpellBookItemInfo (returns slotType, slotID in Classic)
+    if _G.GetSpellBookItemInfo then
+        local bookType = (type(bankOrBookType) == "string" and bankOrBookType) or "spell"
+        local ok, slotType, slotID = pcall(_G.GetSpellBookItemInfo, slot, bookType)
+        if ok and slotID and slotID > 0 then
+            return slotID
+        end
+    end
+
+    return nil
 end
 
 -- ── Item queries ──────────────────────────────────────────────────────────────
 
 --- Returns item info table.
+--- Cascades C_Item.GetItemInfo -> legacy GetItemInfo.
 --- @return table|nil { itemID, itemName, itemLink, itemQuality, itemLevel, itemTexture, sellPrice }
 function sfui.api.GetItemInfo(itemID)
-    if IS_RETAIL then return _G.C_Item.GetItemInfo(itemID) end
-    local name, link, quality, iLevel, _, iType, iSub, _, _, tex, price =
-        _G.GetItemInfo(itemID)
-    if not name then return nil end
-    return {
-        itemID      = itemID,
-        itemName    = name,
-        itemLink    = link,
-        itemQuality = quality,
-        itemLevel   = iLevel,
-        itemType    = iType,
-        itemSubType = iSub,
-        itemTexture = tex,
-        sellPrice   = price,
-    }
+    if not itemID then return nil end
+    if _G.C_Item and _G.C_Item.GetItemInfo then
+        local info = _G.C_Item.GetItemInfo(itemID)
+        if info then return info end
+    end
+    if _G.GetItemInfo then
+        local name, link, quality, iLevel, _, iType, iSub, _, _, tex, price =
+            _G.GetItemInfo(itemID)
+        if name then
+            return {
+                itemID      = itemID,
+                itemName    = name,
+                itemLink    = link,
+                itemQuality = quality,
+                itemLevel   = iLevel,
+                itemType    = iType,
+                itemSubType = iSub,
+                itemTexture = tex,
+                sellPrice   = price,
+            }
+        end
+    end
+    return nil
 end
 
 --- Returns item cooldown: startTime, duration, enable.
+--- Cascades C_Item.GetItemCooldown -> legacy GetItemCooldown.
 --- @return number, number, number
 function sfui.api.GetItemCooldown(itemID)
-    if IS_RETAIL then return _G.C_Item.GetItemCooldown(itemID) end
-    return _G.GetItemCooldown(itemID)
+    if not itemID then return 0, 0, 0 end
+    if _G.C_Item and _G.C_Item.GetItemCooldown then
+        return _G.C_Item.GetItemCooldown(itemID)
+    end
+    if _G.GetItemCooldown then
+        return _G.GetItemCooldown(itemID)
+    end
+    return 0, 0, 0
 end
 
 --- Returns item stack count in player bags.
+--- Cascades C_Item.GetItemCount -> legacy GetItemCount.
 function sfui.api.GetItemCount(itemID, includeBank, includeCharges)
-    if IS_RETAIL then return _G.C_Item.GetItemCount(itemID, includeBank, includeCharges) end
-    return _G.GetItemCount(itemID, includeBank, includeCharges)
+    if not itemID then return 0 end
+    if _G.C_Item and _G.C_Item.GetItemCount then
+        return _G.C_Item.GetItemCount(itemID, includeBank, includeCharges)
+    end
+    if _G.GetItemCount then
+        return _G.GetItemCount(itemID, includeBank, includeCharges)
+    end
+    return 0
 end
 
 --- Returns item icon texture path.
+--- Cascades C_Item.GetItemIconByID -> legacy GetItemInfo.
 function sfui.api.GetItemIconByID(itemID)
-    if IS_RETAIL then return _G.C_Item.GetItemIconByID(itemID) end
-    local _, _, _, _, _, _, _, _, _, tex = _G.GetItemInfo(itemID)
-    return tex
+    if not itemID then return nil end
+    if _G.C_Item and _G.C_Item.GetItemIconByID then
+        local icon = _G.C_Item.GetItemIconByID(itemID)
+        if icon then return icon end
+    end
+    if _G.GetItemInfo then
+        local _, _, _, _, _, _, _, _, _, tex = _G.GetItemInfo(itemID)
+        return tex
+    end
+    return nil
 end
+
 
 -- ── Map queries ───────────────────────────────────────────────────────────────
 
@@ -347,6 +663,50 @@ function sfui.api.GetCombatResInfo()
     return _staticResInfo
 end
 
+-- ── Currency & Money compatibility ────────────────────────────────────────────
+
+-- On Classic Forever / Vanilla, GetCoinTextureString is not in _G.
+-- Alias it to C_CurrencyInfo.GetCoinTextureString or GetMoneyString.
+if not _G.GetCoinTextureString then
+    if _G.C_CurrencyInfo and _G.C_CurrencyInfo.GetCoinTextureString then
+        _G.GetCoinTextureString = _G.C_CurrencyInfo.GetCoinTextureString
+    elseif _G.GetMoneyString then
+        _G.GetCoinTextureString = _G.GetMoneyString
+    end
+end
+
+-- ── Merchant queries ──────────────────────────────────────────────────────────
+
+--- Returns normalized merchant item info table across Retail and Classic/Vanilla.
+--- Cascades C_MerchantFrame.GetItemInfo -> legacy GetMerchantItemInfo.
+--- @param index number
+--- @return table|nil { name, texture, price, stackCount, numAvailable, isPurchasable, isUsable, hasExtendedCost, currencyID, hyperlink }
+function sfui.api.GetMerchantItemInfo(index)
+    if not index then return nil end
+    if _G.C_MerchantFrame and _G.C_MerchantFrame.GetItemInfo then
+        local info = _G.C_MerchantFrame.GetItemInfo(index)
+        if info and info.name then return info end
+    end
+    if _G.GetMerchantItemInfo then
+        local name, texture, price, stackCount, numAvailable, isPurchasable, isUsable, hasExtendedCost, currencyID =
+            _G.GetMerchantItemInfo(index)
+        if name then
+            return {
+                name            = name,
+                texture         = texture,
+                price           = price or 0,
+                stackCount      = stackCount or 1,
+                numAvailable    = numAvailable,
+                isPurchasable   = isPurchasable,
+                isUsable        = isUsable,
+                hasExtendedCost = hasExtendedCost,
+                currencyID      = currencyID,
+                hyperlink       = _G.GetMerchantItemLink and _G.GetMerchantItemLink(index),
+            }
+        end
+    end
+    return nil
+end
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  WARCRAFT FOREVER EXTENSION POINT

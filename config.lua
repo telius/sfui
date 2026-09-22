@@ -1,7 +1,5 @@
 local addonName, addon = ...
 sfui = sfui or {}
-SfuiDB = SfuiDB or {}
-SfuiDecorDB = SfuiDecorDB or {}
 
 sfui.config = {
     -- addon metadata
@@ -296,7 +294,6 @@ sfui.config = {
             [267] = true,  -- Destruction Warlock
             [63] = true,   -- Fire Mage
             [64] = true,   -- Frost Mage
-            [269] = true,  -- Windwalker Monk
             [70] = true,   -- Retribution Paladin
         },
     },
@@ -367,6 +364,22 @@ sfui.config = {
         backdrop = {
             padding = 2,
             color = { 0, 0, 0, 0.5 }, -- Black/Transparent
+        },
+    },
+
+    swingBar = {
+        enabled = true,
+        width = 300,
+        height = 8,
+        spacing = 2,
+        colors = {
+            mainHand = { 1, 1, 1, 1 },          -- Light Cyan/Blue
+            offHand  = { 1.0, 0.65, 0.2, 1.0 }, -- Amber/Orange
+            ranged   = { 0.3, 0.9, 0.4, 1.0 },  -- Green
+        },
+        backdrop = {
+            padding = 1,
+            color = { 0, 0, 0, 0.6 },
         },
     },
 
@@ -540,14 +553,14 @@ sfui.config = {
         hideInactive = true,  -- Hide bars when cooldowns are inactive
         -- Default bar configuration per cooldown ID
         defaults = {
-            [18469] = {                       -- Ignore Pain (Warrior)
-                specID = 73,                  -- Protection Warrior
-                stackAboveHealth = true,      -- Attach to healthbar (secondary position)
-                color = { 1, 0.533, 0, 1 },   -- Orange
-                showStacksText = true,        -- Show stack count as duration text
+            [18469] = {                     -- Ignore Pain (Warrior)
+                specID = 73,                -- Protection Warrior
+                stackAboveHealth = true,    -- Attach to healthbar (secondary position)
+                color = { 1, 0.533, 0, 1 }, -- Orange
+                showStacksText = true,      -- Show stack count as duration text
             },
-            [9039] = {                        -- Bone Shield (Death Knight)
-                specID = 250,                 -- Blood DK
+            [9039] = {                      -- Bone Shield (Death Knight)
+                specID = 250,               -- Blood DK
                 spellID = 195181,
                 maxStacks = 12,
                 stackAboveHealth = true,      -- Attach to healthbar
@@ -605,7 +618,7 @@ sfui.config = {
                 [13] = 99451 -- Short Blades
             }
         },
-        [198254] = {   -- Master's Hammer (Dragonflight)
+        [198254] = { -- Master's Hammer (Dragonflight)
             expansion = 9,
             expansionName = "Dragonflight",
             universalNode = 82244,
@@ -713,9 +726,9 @@ sfui.config = {
     -- ─── Dungeon Portal Popup ────────────────────────────
     -- Settings for the group-filled teleport popup (frames/portals/portal_popup.lua).
     portalPopup = {
-        enabled      = true,
-        onlyWhenFull = true,  -- true: notify only when group reaches 5/5; false: also on join
-        autoHideSecs = 45,
+        enabled         = true,
+        onlyWhenFull    = true, -- true: notify only when group reaches 5/5; false: also on join
+        autoHideSecs    = 45,
         defaultPosition = { x = 0, y = 180 },
     },
 }

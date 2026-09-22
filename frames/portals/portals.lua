@@ -1,7 +1,10 @@
 -- frames/portals.lua
--- Portal panel. Data lives in portals_db.lua.
+-- Portal panel. Data lives in data/portals.lua.
 -- Clicking uses Scotty's InsecureActionButtonTemplate overlay pattern:
 --   one shared action button moves onto each icon/row on hover.
+local isRetail = (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic)
+if not isRetail then return end
+
 local cfg = sfui.config
 local addonName, addon  = ...
 sfui                    = sfui or {}
@@ -857,21 +860,11 @@ end
 -- all collected hearthstone skins. Left-click uses the displayed toy.
 -- Selection is saved per character in SfuiDB.hearthstone across reloads.
 -- ========================
-local cachedPlayerKey = nil
 local function get_player_key()
-    if cachedPlayerKey then return cachedPlayerKey end
-    local guid = UnitGUID("player")
-    if guid and guid ~= "" then
-        cachedPlayerKey = guid
-        return guid
+    if sfui.common and sfui.common.get_player_unique_key then
+        return sfui.common.get_player_unique_key()
     end
-    local name = UnitName("player")
-    local realm = GetRealmName()
-    if name and realm and name ~= "" and realm ~= "" then
-        cachedPlayerKey = name .. "-" .. realm
-        return cachedPlayerKey
-    end
-    return "player"
+    return (UnitGUID and UnitGUID("player")) or "player"
 end
 
 local function make_hearthstone_scroll_icon(parent, skinList, x, y)

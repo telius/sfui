@@ -962,16 +962,35 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
     local targetPoint = "BOTTOM"
     local anchorPoint = panelConfig.anchorPoint or "BOTTOM"
 
-    if anchorTo == "Health Bar" and _G["sfui_bar0_Backdrop"] then
-        targetFrame = _G["sfui_bar0_Backdrop"]
-        targetPoint = "BOTTOM"
-        anchorPoint = "TOP"
+    local isCenter = (panelConfig.name == "CENTER")
+    local isHealthBarAnchor = (anchorTo == "Health Bar")
+    local isSwingBarAnchor = (anchorTo == "Swing Bar")
 
-        -- Smart Anchoring: Check if Power Bar (bar_minus_1) EXISTS and IS SHOWN
-        local powerBar = _G["sfui_bar-1_Backdrop"] or _G["sfui_bar_minus_1_Backdrop"]
-        if powerBar and powerBar:IsShown() then
-            targetFrame = powerBar
+    if isCenter or isHealthBarAnchor or isSwingBarAnchor then
+        local bar0 = _G["sfui_bar0_Backdrop"] or (sfui.bars and sfui.bars.get_bar0 and sfui.bars.get_bar0().backdrop)
+        if bar0 then
+            targetFrame = bar0
             targetPoint = "BOTTOM"
+            anchorPoint = "TOP"
+
+            -- Smart Anchoring: Check if Power Bar (bar_minus_1) EXISTS and IS SHOWN
+            local powerBar = _G["sfui_bar_minus_1_Backdrop"] or _G["sfui_bar-1_Backdrop"]
+                or (sfui.bars and sfui.bars.get_bar_minus_1 and sfui.bars.get_bar_minus_1().backdrop)
+            if powerBar and (powerBar:IsShown() or (SfuiDB == nil or SfuiDB.enablePowerBar ~= false)) then
+                targetFrame = powerBar
+                targetPoint = "BOTTOM"
+            end
+
+            -- Swing Bar Anchoring: In Classic/Vanilla/Camelot, always position below the swing bar if present/possible
+            if sfui.swing and sfui.swing.IsPossible and sfui.swing.IsPossible() then
+                local swingBar = (sfui.swing.GetLowestPossibleBar and sfui.swing.GetLowestPossibleBar())
+                    or (sfui.swing.GetLowestBar and sfui.swing.GetLowestBar(true))
+                if swingBar then
+                    targetFrame = swingBar
+                    targetPoint = "BOTTOM"
+                    anchorPoint = "TOP"
+                end
+            end
         end
     elseif anchorTo == "Tracked Bars" and _G["SfuiTrackedBarsContainer"] then
         targetFrame = _G["SfuiTrackedBarsContainer"]
@@ -1333,6 +1352,14 @@ local function SanitizePanelConfig(panelConfig)
     end
 end
 
+function sfui.trackedicons.ForceLayoutUpdate()
+    _layoutCooldown = 0
+    _needsLayoutUpdate = false
+    _needsStateUpdate = false
+    wipe(_cdInfoCache)
+    sfui.trackedicons.Update()
+end
+
 function sfui.trackedicons.Update()
     sfui.trackedicons.InvalidateConfigCache()
     local panelConfigs = sfui.common.get_cooldown_panels()
@@ -1662,3 +1689,13 @@ function sfui.trackedicons_debug_info()
         needsLayout = _needsLayoutUpdate,
     }
 end
+
+if sfui.RegisterModule then
+    sfui.trackedicons.OnEnable = function(self) self.initialize() end
+    sfui.trackedicons.OnSettingsChanged = function(self, k, v)
+        if self.Update then self.Update() end
+    end
+    sfui.trackedicons.GetDebugInfo = sfui.trackedicons_debug_info
+    sfui.RegisterModule("trackedicons", sfui.trackedicons)
+end
+

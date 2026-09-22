@@ -4,17 +4,24 @@ sfui.compare = {}
 
 local active = false
 
+local setCVar = (C_CVar and C_CVar.SetCVar) or _G.SetCVar
+local function safe_set_cvar(cvar, val)
+    if setCVar then
+        pcall(setCVar, cvar, val)
+    end
+end
+
 local function update_cvar()
-    if not SfuiDB.enableAutoCompare then
+    if not SfuiDB or not SfuiDB.enableAutoCompare then
         if active then
-            C_CVar.SetCVar("alwaysCompareItems", "0")
+            safe_set_cvar("alwaysCompareItems", "0")
             active = false
         end
         return
     end
 
     if not active then
-        C_CVar.SetCVar("alwaysCompareItems", "1")
+        safe_set_cvar("alwaysCompareItems", "1")
         active = true
     end
 end

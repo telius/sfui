@@ -3,6 +3,11 @@ local addonName, addon          = ...
 sfui                            = sfui or {}
 sfui.lootspec                   = {}
 
+-- Guard: Retail-only loot specialization system
+if not (sfui.compat and sfui.compat.has and sfui.compat.has.specializations) then
+    return
+end
+
 local GetLootSpecialization     = GetLootSpecialization
 local SetLootSpecialization     = SetLootSpecialization
 local UnitClass                 = UnitClass

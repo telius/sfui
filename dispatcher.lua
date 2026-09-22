@@ -375,6 +375,63 @@ function sfui.events.UnregisterThrottledUnitEvent(event, unit, handle)
     sfui.events.UnregisterUnitEvent(event, unit, handle)
 end
 
+-- ─── Internal Pub/Sub Messaging ───────────────────────────────────────────
+local messageCallbacks = {}   -- [messageName] = { cb1, cb2, ... }
+
+--- Register a callback for an internal addon message.
+--- Callback signature: function(message, ...)
+function sfui.events.RegisterMessage(message, callback)
+    if not message or not callback then return end
+    if not messageCallbacks[message] then
+        messageCallbacks[message] = {}
+    end
+    local cbs = messageCallbacks[message]
+    for i = 1, #cbs do
+        if cbs[i] == callback then return end
+    end
+    cbs[#cbs + 1] = callback
+end
+
+--- Unregister a previously-registered message callback.
+function sfui.events.UnregisterMessage(message, callback)
+    local cbs = messageCallbacks[message]
+    if not cbs then return end
+    for i = #cbs, 1, -1 do
+        if cbs[i] == callback then
+            table.remove(cbs, i)
+        end
+    end
+    if #cbs == 0 then
+        messageCallbacks[message] = nil
+    end
+end
+
+--- Send an internal addon message to all registered listeners.
+--- Uses snapshotting and pcall isolation.
+function sfui.events.SendMessage(message, ...)
+    local cbs = messageCallbacks[message]
+    if not cbs or #cbs == 0 then return end
+
+    local n = #cbs
+    for i = 1, n do _snap[i] = cbs[i] end
+
+    if _memActive then
+        local before = collectgarbage("count")
+        for i = 1, n do
+            local ok, err = pcall(_snap[i], message, ...)
+            if not ok then _err("Msg:" .. tostring(message), err) end
+            _snap[i] = nil
+        end
+        _mem_after("Msg:" .. tostring(message), before)
+    else
+        for i = 1, n do
+            local ok, err = pcall(_snap[i], message, ...)
+            if not ok then _err("Msg:" .. tostring(message), err) end
+            _snap[i] = nil
+        end
+    end
+end
+
 --- Called by sfui.mem when its watcher starts or stops, to update the hot-path flag.
 function sfui.events.SetMemProfiling(active)
     _memActive = active and true or false
@@ -403,11 +460,20 @@ function sfui.dispatcher_debug_info()
         end
     end
 
+    local totalMessages = 0
+    local totalMsgCbs = 0
+    for _, cbs in pairs(messageCallbacks) do
+        totalMessages = totalMessages + 1
+        totalMsgCbs = totalMsgCbs + #cbs
+    end
+
     _dispDebug.globalEvents = totalGlobalEvents
     _dispDebug.globalCallbacks = totalGlobalCbs
     _dispDebug.units = totalUnits
     _dispDebug.unitEvents = totalUnitEvents
     _dispDebug.unitCallbacks = totalUnitCbs
+    _dispDebug.messages = totalMessages
+    _dispDebug.messageCallbacks = totalMsgCbs
     _dispDebug.updateLoops = #updateCallbacks
     _dispDebug.memProfiling = _memActive
     return _dispDebug

@@ -28,8 +28,10 @@ local ITEMS_PER_PAGE = NUM_ROWS * NUM_COLS
 sfui.merchant.lootFilterState = 0 -- 0=All, 1=Class, 2=Spec
 
 -- Cache player data for filtering (Performance optimization)
-local playerClass, playerClassID = common.get_player_class()
-local playerSpecID = common.get_current_spec_id() -- Cache spec ID
+local playerClass, playerClassID = nil, nil
+local playerSpecID = nil
+local preferredArmor = nil
+
 local classArmor = {
     ["WARRIOR"] = 4,
     ["PALADIN"] = 4,
@@ -45,12 +47,18 @@ local classArmor = {
     ["PRIEST"] = 1,
     ["WARLOCK"] = 1,
 }
-local preferredArmor = classArmor[playerClass]
 
--- Update spec cache when spec changes (via central dispatcher)
-sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function()
+local function UpdatePlayerFilterData()
+    playerClass, playerClassID = common.get_player_class()
     playerSpecID = common.get_current_spec_id()
-end)
+    if playerClass then
+        preferredArmor = classArmor[playerClass]
+    end
+end
+
+-- Update player filter data when entering world or spec changes
+sfui.events.RegisterEvent("PLAYER_LOGIN", UpdatePlayerFilterData)
+sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", UpdatePlayerFilterData)
 
 -- Memory optimization: Table pooling and scratch tables
 local tablePool = {}
@@ -262,7 +270,8 @@ local function open_stack_split(index)
     f.index = index
     f.editBox:SetText("1")
 
-    local info = C_MerchantFrame.GetItemInfo(index)
+    local info = (sfui.api and sfui.api.GetMerchantItemInfo and sfui.api.GetMerchantItemInfo(index))
+        or (C_MerchantFrame and C_MerchantFrame.GetItemInfo and C_MerchantFrame.GetItemInfo(index))
     local name, price, stackCount, link
     if info then
         name = info.name
@@ -885,15 +894,28 @@ sfui.merchant.build_item_list = function()
 
         if include and mode == "merchant" and sfui.merchant.lootFilterState > 0 and link then
             local isClassMatch = true
-            local info = C_MerchantFrame.GetItemInfo(i)
+            local info = (sfui.api and sfui.api.GetMerchantItemInfo and sfui.api.GetMerchantItemInfo(i))
+                or (C_MerchantFrame and C_MerchantFrame.GetItemInfo and C_MerchantFrame.GetItemInfo(i))
             if not info or not info.isUsable then
                 isClassMatch = false
             else
                 local _, _, _, _, _, classID, subclassID = C_Item.GetItemInfoInstant(link)
+                if not preferredArmor then UpdatePlayerFilterData() end
                 -- If it's armor, check preferred armor type
                 if classID == 4 and preferredArmor then
                     -- Subclasses: 0=Generic, 1=Cloth, 2=Leather, 3=Mail, 4=Plate, 5=Cosmetic, 6=Shield
-                    if subclassID >= 1 and subclassID <= 4 and subclassID ~= preferredArmor then
+                    local isClassic = (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
+                        or (sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail))
+                    local playerLvl = UnitLevel("player") or 1
+                    local match = (subclassID == preferredArmor)
+                    if isClassic then
+                        if preferredArmor == 4 and playerLvl <= 50 and (subclassID == 3 or (playerLvl < 40 and subclassID == 2)) then
+                            match = true
+                        elseif preferredArmor == 3 and playerLvl <= 50 and subclassID == 2 then
+                            match = true
+                        end
+                    end
+                    if subclassID >= 1 and subclassID <= 4 and not match then
                         isClassMatch = false
                     end
                 end
@@ -911,7 +933,8 @@ sfui.merchant.build_item_list = function()
 
         if include then table.insert(sfui.merchant.filteredIndices, i) end
         if mode == "merchant" then
-            local itemInfo = C_MerchantFrame.GetItemInfo(i)
+            local itemInfo = (sfui.api and sfui.api.GetMerchantItemInfo and sfui.api.GetMerchantItemInfo(i))
+                or (C_MerchantFrame and C_MerchantFrame.GetItemInfo and C_MerchantFrame.GetItemInfo(i))
             if itemInfo then
                 if itemInfo.price and itemInfo.price > 0 and not sfui.merchant.currencyCache["Gold"] then
                     local t = getTable()
@@ -982,7 +1005,8 @@ local function get_merchant_item_data(index, mode)
         d.name, d.texture, d.price, d.stackCount, d.isUsable = name, texture, price, qty, usable
         d.link = GetBuybackItemLink(index)
     else
-        local info = C_MerchantFrame.GetItemInfo(index)
+        local info = (sfui.api and sfui.api.GetMerchantItemInfo and sfui.api.GetMerchantItemInfo(index))
+            or (C_MerchantFrame and C_MerchantFrame.GetItemInfo and C_MerchantFrame.GetItemInfo(index))
         if not info or not info.name then return nil end
         -- Copy values from C_MerchantFrame result to avoid returning the internal table if it's protected or shared
         for k, v in pairs(info) do d[k] = v end
@@ -1031,7 +1055,7 @@ sfui.merchant.update_merchant = function()
                 local r, g, b = C_Item.GetItemQualityColor(data.quality or 1)
                 btn.nameStub:SetTextColor(r, g, b); btn.nameStub:SetText(common.shorten_name(data.name, 22))
 
-                local cost = (data.price > 0) and
+                local cost = (data.price and data.price > 0) and
                     ((GetMoney() < data.price and "|cffff0000" or "|cffffffff") .. common.SafeGetCoinTextureString(data.price) .. "|r") or
                     ""
                 if data.hasExtendedCost then
@@ -1061,7 +1085,7 @@ sfui.merchant.update_merchant = function()
                     locked, reason = cachedLock.locked, cachedLock.reason
                 else
                     locked, reason = not data.isUsable, "Unusable"
-                    local tip = C_TooltipInfo.GetMerchantItem(index)
+                    local tip = C_TooltipInfo and C_TooltipInfo.GetMerchantItem and C_TooltipInfo.GetMerchantItem(index)
                     if tip and tip.lines then
                         local reasons = getTable()
                         for _, line in ipairs(tip.lines) do

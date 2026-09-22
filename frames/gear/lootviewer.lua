@@ -3,6 +3,11 @@ local addonName, addon = ...
 sfui            = sfui or {}
 sfui.lootviewer = {}
 
+-- Guard: Retail-only dungeon & raid loot viewer
+if not (sfui.compat and sfui.compat.has and sfui.compat.has.gear_spec) then
+    return
+end
+
 local CreateFrame               = CreateFrame
 local UIParent                  = UIParent
 local GameTooltip               = _G.GameTooltip

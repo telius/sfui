@@ -2,6 +2,26 @@ local addonName, addon                               = ...
 sfui                                                 = sfui or {}
 sfui.mythic                                          = sfui.mythic or {}
 
+-- ─── Non-Retail Hibernation Guard ────────────────────────────
+if not (sfui.compat and sfui.compat.has and sfui.compat.has.mythic_plus) then
+    function sfui.mythic.IsActive() return false end
+    function sfui.mythic.IsMythicMode() return false end
+    function sfui.mythic.IsDungeonMode() return false end
+    function sfui.mythic.IsEnabled() return false end
+    function sfui.mythic.SetEnabled() end
+    function sfui.mythic.SetLocked() end
+    function sfui.mythic.ResetPosition() end
+    function sfui.mythic.ShowPreview() end
+    function sfui.mythic.HidePreview() end
+    function sfui.mythic_debug_info()
+        return {
+            spellPool = 0, currencyPool = 0, deathPool = 0,
+            playerList = 0, badgePool = 0, spellTooltips = 0,
+        }
+    end
+    return
+end
+
 -- ─── Config ────────────────────────────────────────────────
 local g                                              = sfui.config
 local mcfg                                           = g.mythic or {}
@@ -1487,11 +1507,17 @@ local function BuildHUDFrame()
     MF.dragBar:SetScript("OnMouseUp", function()
         MF:StopMovingOrSizing()
         if SfuiDB then
-            local _, _, _, x, y = MF:GetPoint()
-            SfuiDB.mythicHudX   = x
-            SfuiDB.mythicHudY   = y
-            SfuiDB.questlogX    = x
-            SfuiDB.questlogY    = y
+            local point, _, relativePoint, x, y = MF:GetPoint()
+            if point then
+                SfuiDB.mythicHudPoint = point
+                SfuiDB.mythicHudRelativePoint = relativePoint
+                SfuiDB.mythicHudX   = x
+                SfuiDB.mythicHudY   = y
+                SfuiDB.questlogPoint = point
+                SfuiDB.questlogRelativePoint = relativePoint
+                SfuiDB.questlogX    = x
+                SfuiDB.questlogY    = y
+            end
         end
         if sfui.questlog and sfui.questlog.UpdateAnchor then
             sfui.questlog.UpdateAnchor()

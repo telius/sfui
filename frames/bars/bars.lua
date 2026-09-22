@@ -12,6 +12,9 @@ do
     local vigor_bar
     local mount_speed_bar
     local rune_bar
+    local get_bar0
+    local get_bar_minus_1
+    local get_bar1
     local update_mount_speed_bar_internal
     local update_bar_minus_1
     local update_bar0
@@ -119,6 +122,12 @@ do
                 rune_bar:ClearAllPoints()
                 rune_bar:SetPoint("BOTTOM", bar0.backdrop, "TOP", 0, spacing)
             end
+
+            -- Swing Timer Bars (slotting below power bar at -2, or below health at -1 if no power bar)
+            if sfui.swing and sfui.swing.UpdatePositions then
+                local anchor = (bar_minus_1 and bar_minus_1.backdrop and (bar_minus_1.backdrop:IsShown() or (SfuiDB == nil or SfuiDB.enablePowerBar ~= false))) and bar_minus_1.backdrop or (bar0 and bar0.backdrop)
+                sfui.swing.UpdatePositions(anchor, spacing)
+            end
         end
         if sfui.soulfragments and sfui.soulfragments.UpdatePosition then
             sfui.soulfragments:UpdatePosition()
@@ -126,8 +135,10 @@ do
         if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
             sfui.trackedbars.ForceLayoutUpdate()
         end
-        if sfui.trackedicons and sfui.trackedicons.MarkDirty then
-            sfui.trackedicons.MarkDirty(0.5, true)
+        if sfui.trackedicons and sfui.trackedicons.ForceLayoutUpdate then
+            sfui.trackedicons.ForceLayoutUpdate()
+        elseif sfui.trackedicons and sfui.trackedicons.MarkDirty then
+            sfui.trackedicons.MarkDirty(true)
         end
     end
 
@@ -178,8 +189,10 @@ do
 
                 -- Primary Power Bar (bar_minus_1)
                 local hidePower = cfg.powerBar.hiddenSpecs and cfg.powerBar.hiddenSpecs[specID]
-                if bar_minus_1 and SfuiDB.enablePowerBar and not hidePower then
-                    bar_minus_1.backdrop:Show()
+                local showPower = (SfuiDB == nil or SfuiDB.enablePowerBar ~= false) and not hidePower
+                if showPower then
+                    local bar = get_bar_minus_1()
+                    bar.backdrop:Show()
                 elseif bar_minus_1 then
                     bar_minus_1.backdrop:Hide()
                 end
@@ -188,9 +201,11 @@ do
                 local hideSecondary = cfg.secondaryPowerBar.hiddenSpecs and
                     cfg.secondaryPowerBar.hiddenSpecs[specID]
                 local secResource = common.get_secondary_resource()
+                local showSecondary = (SfuiDB == nil or SfuiDB.enableSecondaryPowerBar ~= false) and not hideSecondary and secResource and secResource ~= Enum.PowerType.Runes
 
-                if bar1 and SfuiDB.enableSecondaryPowerBar and not hideSecondary and secResource and secResource ~= Enum.PowerType.Runes then
-                    bar1.backdrop:Show()
+                if showSecondary then
+                    local bar = get_bar1()
+                    bar.backdrop:Show()
                 elseif bar1 then
                     bar1.backdrop:Hide()
                 end
@@ -223,10 +238,14 @@ do
             end
         end
 
+        if sfui.swing and sfui.swing.UpdateVisibility then
+            sfui.swing.UpdateVisibility(inCombat, hasEnemyTarget, isDragonflying, inVehicle)
+        end
+
         update_bar_positions()
     end
 
-    local function get_bar_minus_1()
+    function get_bar_minus_1()
         if bar_minus_1 then return bar_minus_1 end
         local bar = common.create_bar("bar_minus_1", "StatusBar", UIParent, nil, "powerBar")
 
@@ -253,7 +272,10 @@ do
         end
         local bar = get_bar_minus_1()
         local resource = common.get_primary_resource()
-        if not resource then return end
+        if resource == nil and UnitPowerType then
+            resource = UnitPowerType("player")
+        end
+        resource = resource or 0
         local max, current = UnitPowerMax("player", resource), UnitPower("player", resource)
         if not max or max <= 0 then return end
         -- Note: UnitPower/UnitPowerMax return secret values in vehicle/M+ contexts.
@@ -261,7 +283,12 @@ do
         -- internally in the C engine, so we always pass them through unconditionally.
         bar:SetMinMaxValues(0, max)
         bar:SetValue(current)
-        local color = common.get_class_or_spec_color()
+        local color
+        if cfg.useClassColor then
+            color = common.get_class_or_spec_color()
+        else
+            color = common.get_resource_color(resource)
+        end
         if color then
             local r, g, b = common.unpack_color(color)
             bar:SetStatusBarColor(r, g, b)
@@ -288,7 +315,7 @@ do
     -- UpdateFillPosition removed (Secret Values cannot be used in arithmetic).
     -- We rely on StatusBar:SetValue() to handle secure values internally.
 
-    local function get_bar0()
+    function get_bar0()
         if bar0 then return bar0 end
         local bar = common.create_bar("bar0", "StatusBar", UIParent, nil, "healthBar")
         bar0 = bar
@@ -503,7 +530,7 @@ do
         end
     end
 
-    local function get_bar1()
+    function get_bar1()
         if bar1 then return bar1 end
         local bar = common.create_bar("bar1", "StatusBar", UIParent, nil, "secondaryPowerBar")
         bar.TextValue = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -740,6 +767,10 @@ do
     sfui.bars.get_bar0 = get_bar0
     sfui.bars.get_bar_minus_1 = get_bar_minus_1
     sfui.bars.get_bar1 = get_bar1
+    sfui.bars.update_bar_positions = update_bar_positions
+    sfui.bars.UpdatePositions = update_bar_positions
+    sfui.bars.update_bar_visibility = update_bar_visibility
+    sfui.bars.UpdateVisibility = update_bar_visibility
 
     function sfui.bars.set_bar_texture(arg1, arg2)
         local texturePath = (type(arg1) == "string") and arg1 or arg2
@@ -755,6 +786,9 @@ do
         if bar1 then bar1:SetStatusBarTexture(texturePath) end
         if vigor_bar then vigor_bar:SetStatusBarTexture(texturePath) end
         if mount_speed_bar then mount_speed_bar:SetStatusBarTexture(texturePath) end
+        if sfui.swing and sfui.swing.SetBarTexture then
+            sfui.swing.SetBarTexture(texturePath)
+        end
     end
 
     function sfui.bars:on_state_changed()
@@ -768,12 +802,16 @@ do
         update_bar_visibility()
     end
 
+    function sfui.bars.update_settings()
+        sfui.bars:on_state_changed()
+    end
+
     function sfui.bars:update_health_bar_position()
         update_bar_positions()
     end
 
     local function on_event(event, unit, ...)
-        if event == "PLAYER_SPECIALIZATION_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" or event == "PLAYER_CAN_GLIDE_CHANGED" or event == "PLAYER_IS_GLIDING_CHANGED" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" or event == "VEHICLE_UPDATE" or event == "UPDATE_VEHICLE_ACTIONBAR" or event == "UPDATE_OVERRIDE_ACTIONBAR" or event == "UPDATE_POSSESS_BAR" or event == "UPDATE_BONUS_ACTIONBAR" then
+        if event == "PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_TALENT_UPDATE" or event == "CHARACTER_POINTS_CHANGED" or event == "TRAIT_CONFIG_UPDATED" or event == "TRAIT_TREE_CURRENCY_INFO_UPDATED" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" or event == "PLAYER_CAN_GLIDE_CHANGED" or event == "PLAYER_IS_GLIDING_CHANGED" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" or event == "VEHICLE_UPDATE" or event == "UPDATE_VEHICLE_ACTIONBAR" or event == "UPDATE_OVERRIDE_ACTIONBAR" or event == "UPDATE_POSSESS_BAR" or event == "UPDATE_BONUS_ACTIONBAR" then
             invalidate_dragonflying_cache()
             sfui.bars:on_state_changed()
         elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_TARGET_CHANGED" then
@@ -816,11 +854,15 @@ do
         "player", on_unit_health
     )
     sfui.events.RegisterUnitEvents(
-        {"UNIT_POWER_UPDATE", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER"},
+        {"UNIT_POWER_UPDATE", "UNIT_POWER_FREQUENT", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER"},
         "player", on_unit_power
     )
 
     sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", on_event)
+    sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", on_event)
+    sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", on_event)
+    sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", on_event)
+    sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", on_event)
     sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORM", on_event)
     sfui.events.RegisterEvent("PLAYER_CAN_GLIDE_CHANGED", on_event)
     sfui.events.RegisterEvent("PLAYER_IS_GLIDING_CHANGED", on_event)
@@ -851,4 +893,13 @@ do
             runeBarCreated = rune_bar ~= nil,
         }
     end
+
+    if sfui.RegisterModule then
+        sfui.bars.OnEnable = function(self) self:on_state_changed() end
+        sfui.bars.OnSettingsChanged = function(self, k, v) self:on_state_changed() end
+        sfui.bars.OnSpecChanged = function(self, specID) self:on_state_changed() end
+        sfui.bars.GetDebugInfo = sfui.bars_debug_info
+        sfui.RegisterModule("bars", sfui.bars)
+    end
 end
+

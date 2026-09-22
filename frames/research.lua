@@ -1,4 +1,7 @@
 local addonName, addon = ...
+local isRetail = (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic)
+if not isRetail then return end
+
 local _G = _G
 local select, unpack, ipairs, pairs, type, tostring, table, print = _G.select, _G.unpack, _G.ipairs, _G.pairs, _G.type,
     _G.tostring, _G.table, _G.print

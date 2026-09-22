@@ -1610,3 +1610,15 @@ function sfui.trackedbars_debug_info()
         isDirty = sfui.trackedbars.isDirty or false,
     }
 end
+
+if sfui.RegisterModule then
+    sfui.trackedbars.OnEnable = function(self) self.initialize() end
+    sfui.trackedbars.OnSettingsChanged = function(self, k, v)
+        if self.UpdatePosition then self.UpdatePosition() end
+        if self.UpdateAppearance then self.UpdateAppearance() end
+        if self.ForceLayoutUpdate then self.ForceLayoutUpdate() end
+    end
+    sfui.trackedbars.GetDebugInfo = sfui.trackedbars_debug_info
+    sfui.RegisterModule("trackedbars", sfui.trackedbars)
+end
+

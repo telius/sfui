@@ -27,8 +27,7 @@ local C_AddOns = C_AddOns
 
 -- Main Options Frame
 local frame = CreateFrame("Frame", "SfuiCooldownsViewer", UIParent, "BackdropTemplate")
-frame:SetSize(SfuiDB.trackedOptionsWindow and SfuiDB.trackedOptionsWindow.width or 800,
-    SfuiDB.trackedOptionsWindow and SfuiDB.trackedOptionsWindow.height or 500)
+frame:SetSize(800, 500)
 frame:SetPoint("CENTER")
 frame:SetFrameStrata("HIGH")
 frame:SetToplevel(true)
@@ -40,6 +39,7 @@ frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
 frame:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
     -- Save Size
+    if not SfuiDB then SfuiDB = {} end
     if not SfuiDB.trackedOptionsWindow then SfuiDB.trackedOptionsWindow = {} end
     SfuiDB.trackedOptionsWindow.width = self:GetWidth()
     SfuiDB.trackedOptionsWindow.height = self:GetHeight()
@@ -67,6 +67,7 @@ resizeBtn:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
 resizeBtn:SetScript("OnMouseDown", function() frame:StartSizing("BOTTOMRIGHT") end)
 resizeBtn:SetScript("OnMouseUp", function()
     frame:StopMovingOrSizing()
+    if not SfuiDB then SfuiDB = {} end
     if not SfuiDB.trackedOptionsWindow then SfuiDB.trackedOptionsWindow = {} end
     SfuiDB.trackedOptionsWindow.width = frame:GetWidth()
     SfuiDB.trackedOptionsWindow.height = frame:GetHeight()
@@ -1531,14 +1532,14 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     -- SECTION 4: INDIVIDUAL ICON OVERRIDES
     -- ═══════════════════════════════════
     if panel.entries and #(panel.entries) > 0 then
-        local sec4, s4c, h4 = sfui.trackedoptions.CreateSection(parent, "Hero Talent Overrides",
-            "Show these assigned icons ONLY when a specific Hero Talent is active.", yPos, SEC_W)
-        if xOffset then sec4:SetPoint("TOPLEFT", xOffset, yPos) end
-        local s4y = 0
-
         local _, _, classID = UnitClass("player")
         -- Per Blizzard source, calling without args defaults to player config/spec
         local heroSpecs = C_ClassTalents and C_ClassTalents.GetHeroTalentSpecsForClassSpec() or {}
+        local secTitle = (#heroSpecs > 0) and "Hero Talent Overrides" or "Assigned Spell Overrides"
+        local secSub = (#heroSpecs > 0) and "Show these assigned icons ONLY when a specific Hero Talent is active." or "Configure aura tracking and missing alert options for assigned spells."
+        local sec4, s4c, h4 = sfui.trackedoptions.CreateSection(parent, secTitle, secSub, yPos, SEC_W)
+        if xOffset then sec4:SetPoint("TOPLEFT", xOffset, yPos) end
+        local s4y = 0
 
         -- Draw Header
         local hIcon = s4c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1546,8 +1547,8 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
             "Assigned Spell")
 
         local hFilter = s4c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        hFilter:SetPoint("TOPLEFT", 170, s4y); hFilter:SetWidth(150); hFilter:SetJustifyH("LEFT"); hFilter:SetText(
-            "Filter")
+        hFilter:SetPoint("TOPLEFT", 160, s4y); hFilter:SetWidth(180); hFilter:SetJustifyH("LEFT"); hFilter:SetText(
+            (#heroSpecs > 0) and "Filter / Aura" or "Aura / Alert")
         s4y = s4y - 25
 
         for i, entry in ipairs(panel.entries) do
@@ -1704,6 +1705,39 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
             for _, hID in ipairs(heroSpecs) do
                 CreateHeroBtn(hID, bx)
                 bx = bx + 30
+            end
+
+            -- Aura & Alert toggles
+            local auraCb = common.create_checkbox(row, "Aura", function()
+                return entry.type == "buff" or entry.type == "debuff" or entry.trackAsAura
+            end, function(val)
+                entry.trackAsAura = val
+                entry.type = val and "buff" or "spell"
+                common.invalidate_panels_cache()
+                if sfui.trackedicons then
+                    if sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
+                    if sfui.trackedicons.Update then sfui.trackedicons.Update() end
+                end
+            end, "Track this spell as an active Aura/Buff (swipes duration, dims when missing).")
+
+            local alertCb = common.create_checkbox(row, "Alert", function()
+                return entry.settings and entry.settings.glowWhenMissing == true
+            end, function(val)
+                if not entry.settings then entry.settings = {} end
+                entry.settings.glowWhenMissing = val
+                common.invalidate_panels_cache()
+                if sfui.trackedicons then
+                    if sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
+                    if sfui.trackedicons.Update then sfui.trackedicons.Update() end
+                end
+            end, "Glow alert when this buff is missing.")
+
+            if #heroSpecs == 0 then
+                auraCb:SetPoint("LEFT", 160, 0)
+                alertCb:SetPoint("LEFT", 230, 0)
+            else
+                auraCb:SetPoint("LEFT", bx + 5, 0)
+                alertCb:SetPoint("LEFT", bx + 65, 0)
             end
 
             s4y = s4y - 38
