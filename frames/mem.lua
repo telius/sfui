@@ -27,6 +27,7 @@ local CreateFrame = CreateFrame
 local UIParent = UIParent
 local UISpecialFrames = UISpecialFrames
 local C_Timer = C_Timer
+local wipe = table.wipe or _G.wipe or function(t) for k in pairs(t) do t[k] = nil end end
 
 local PREFIX = "|cff6600ff[sfui memory]|r "
 
@@ -43,6 +44,16 @@ end
 -- ---------------------------------------------------------------------------
 -- 1. COMPREHENSIVE MODULE POOL & CACHE INSPECTOR (All Lowercase)
 -- ---------------------------------------------------------------------------
+local function GetDebug(globalName, modName)
+    if sfui[globalName] and type(sfui[globalName]) == "function" then
+        return sfui[globalName]()
+    end
+    if sfui.modules and modName and sfui.modules[modName] and sfui.modules[modName].GetDebugInfo then
+        return sfui.modules[modName]:GetDebugInfo()
+    end
+    return nil
+end
+
 function sfui.mem.GetModuleStats()
     local stats = {}
 
@@ -50,8 +61,8 @@ function sfui.mem.GetModuleStats()
     local qlTablePool, qlMaxTablePool, qlRowPool, qlObjPool = 0, 300, 0, 0
     local qlActiveRows, qlActiveObjs = 0, 0
     local qlProgCache, qlWbCache, qlWqCache, qlMetaCache = 0, 0, 0, 0
-    if sfui.questlog_debug_info then
-        local q = sfui.questlog_debug_info()
+    local q = GetDebug("questlog_debug_info", "quests")
+    if q then
         qlTablePool = q.tablePool or 0
         qlMaxTablePool = q.maxTablePool or 300
         qlRowPool = q.rowPool or 0
@@ -77,8 +88,8 @@ function sfui.mem.GetModuleStats()
         line1 = "pools: spell=0, curr=0, death=0",
         line2 = "roster: 0 tracked • badges: 0 pool",
     }
-    if sfui.mythic_debug_info then
-        local m = sfui.mythic_debug_info()
+    local m = GetDebug("mythic_debug_info", "mythic")
+    if m then
         local inDungeon = (m.playerList or 0) > 0
         mythicStats.status = inDungeon and "|cff00ff88in instance|r" or "|cff888888idle|r"
         mythicStats.line1 = string_format("pools: spell=%d, curr=%d, death=%d", m.spellPool or 0, m.currencyPool or 0, m.deathPool or 0)
@@ -93,8 +104,8 @@ function sfui.mem.GetModuleStats()
         line1 = "bars: 0 active / 0 shown",
         line2 = "pools: 0 frames, 0 configs",
     }
-    if sfui.trackedbars_debug_info then
-        local tb = sfui.trackedbars_debug_info()
+    local tb = GetDebug("trackedbars_debug_info", "trackedbars")
+    if tb then
         tbStats.status = (tb.shownBars or 0) > 0 and "|cff00ff88active|r" or "|cff8888880 shown|r"
         tbStats.line1 = string_format("bars: %d active / %d shown", tb.activeBars or 0, tb.shownBars or 0)
         tbStats.line2 = string_format("pools: frames=%d, cfg=%d • dirty=%s", tb.barPool or 0, tb.configPool or 0, tb.isDirty and "yes" or "no")
@@ -108,8 +119,8 @@ function sfui.mem.GetModuleStats()
         line1 = "panels: 0 • icons: 0",
         line2 = "glows: 0 • cd cache: 0",
     }
-    if sfui.trackedicons_debug_info then
-        local ti = sfui.trackedicons_debug_info()
+    local ti = GetDebug("trackedicons_debug_info", "trackedicons")
+    if ti then
         tiStats.status = (ti.icons or 0) > 0 and "|cff00ff88active|r" or "|cff888888idle|r"
         tiStats.line1 = string_format("panels: %d • total icons: %d", ti.panels or 0, ti.icons or 0)
         tiStats.line2 = string_format("glows: %d • cd cache: %d • dirty=%s", ti.activeGlows or 0, ti.cdCache or 0, (ti.needsState or ti.needsLayout) and "yes" or "no")
@@ -123,8 +134,8 @@ function sfui.mem.GetModuleStats()
         line1 = "events: 0 active • reminders: 0",
         line2 = "pools: 0 tables • caches: 0",
     }
-    if sfui.worldevents_debug_info then
-        local w = sfui.worldevents_debug_info()
+    local w = GetDebug("worldevents_debug_info", "worldevents")
+    if w then
         weStats.status = (w.activeEvents or 0) > 0 and "|cff00ff88active|r" or "|cff888888idle|r"
         weStats.line1 = string_format("events: %d active • reminders: %d", w.activeEvents or 0, w.reminders or 0)
         weStats.line2 = string_format("pools: %d tables • dirty=%s", w.tablePool or 0, w.isDirty and "yes" or "no")
@@ -138,8 +149,8 @@ function sfui.mem.GetModuleStats()
         line1 = "health: shown • power: shown",
         line2 = "mount ticker: idle • events: filtered",
     }
-    if sfui.bars_debug_info then
-        local b = sfui.bars_debug_info()
+    local b = GetDebug("bars_debug_info", "bars")
+    if b then
         barsStats.line1 = string_format("bar0: %s • bar1: %s • runes: %s", b.bar0Shown and "shown" or "off", b.bar1Shown and "shown" or "off", b.runeBarCreated and "ready" or "off")
         barsStats.line2 = string_format("mount ticker: %s • unit filtered", b.mountSpeedActive and "|cff00ff88gliding|r" or "sleeping")
     end
@@ -153,8 +164,8 @@ function sfui.mem.GetModuleStats()
         line1 = "equipped cache: 18 slots",
         line2 = "tracked items: 18 • zero churn",
     }
-    if sfui.gear_debug_info then
-        local gInfo = sfui.gear_debug_info()
+    local gInfo = GetDebug("gear_debug_info", "gear")
+    if gInfo then
         gearStats.line1 = string_format("equipped cache: %d slots", gInfo.equippedCache or 0)
         gearStats.line2 = string_format("tracked items: %d • static closures", gInfo.lastEquipped or 0)
     end
@@ -167,8 +178,8 @@ function sfui.mem.GetModuleStats()
         line1 = "spec priority caches: 0",
         line2 = "pawn stat strings: 0",
     }
-    if sfui.stats_debug_info then
-        local s = sfui.stats_debug_info()
+    local s = GetDebug("stats_debug_info", "stats")
+    if s then
         statsMod.line1 = string_format("spec priority caches: %d", s.cachedSpecOrders or 0)
         statsMod.line2 = string_format("pawn stat strings: %d", s.pawnOrders or 0)
     end
@@ -181,8 +192,8 @@ function sfui.mem.GetModuleStats()
         line1 = "tracked characters: 0",
         line2 = "pools: col=0, cell=0, tab=0",
     }
-    if sfui.alts_debug_info then
-        local a = sfui.alts_debug_info()
+    local a = GetDebug("alts_debug_info", "alts")
+    if a then
         altsMod.status = a.frameShown and "|cff00ff88open|r" or "|cff888888closed|r"
         altsMod.line1 = string_format("tracked characters: %d", a.trackedAlts or 0)
         altsMod.line2 = string_format("pools: col=%d, cell=%d, tab=%d", a.columnPool or 0, a.cellPool or 0, a.tablePool or 0)
@@ -196,8 +207,8 @@ function sfui.mem.GetModuleStats()
         line1 = "frame: ready",
         line2 = "table pool: 0",
     }
-    if sfui.merchant_debug_info then
-        local m = sfui.merchant_debug_info()
+    local m = GetDebug("merchant_debug_info", "merchant")
+    if m then
         merchMod.status = m.frameShown and "|cff00ff88open|r" or "|cff888888closed|r"
         merchMod.line1 = string_format("frame: %s", m.frameCreated and "ready" or "none")
         merchMod.line2 = string_format("table pool: %d tables", m.tablePool or 0)
@@ -211,8 +222,8 @@ function sfui.mem.GetModuleStats()
         line1 = "panel: ready",
         line2 = "action overlays: static",
     }
-    if sfui.portals_debug_info then
-        local p = sfui.portals_debug_info()
+    local p = GetDebug("portals_debug_info", "portals")
+    if p then
         portMod.status = p.frameShown and "|cff00ff88open|r" or "|cff888888closed|r"
         portMod.line1 = string_format("panel: %s", p.frameCreated and "ready" or "none")
         portMod.line2 = "overlays: static shared frame"
@@ -226,8 +237,8 @@ function sfui.mem.GetModuleStats()
         line1 = "player: idle • target: idle",
         line2 = "engine: curve animation",
     }
-    if sfui.castbar_debug_info then
-        local cb = sfui.castbar_debug_info()
+    local cb = GetDebug("castbar_debug_info", "castbar")
+    if cb then
         cbMod.line1 = string_format("player: %s • target: %s", cb.playerBarShown and "|cff00ff88casting|r" or "idle", cb.targetBarShown and "|cff00ff88casting|r" or "idle")
         cbMod.line2 = "haste cache: secret-safe"
     end
@@ -240,8 +251,8 @@ function sfui.mem.GetModuleStats()
         line1 = "buttons collected: 0",
         line2 = "auto-zoom: idle",
     }
-    if sfui.minimap_debug_info then
-        local mm = sfui.minimap_debug_info()
+    local mm = GetDebug("minimap_debug_info", "minimap")
+    if mm then
         miniMod.line1 = string_format("buttons collected: %d", mm.buttonCount or 0)
         miniMod.line2 = string_format("auto-zoom: %s", mm.autoZoomActive and "|cff00ff88running|r" or "idle")
     end
@@ -254,8 +265,8 @@ function sfui.mem.GetModuleStats()
         line1 = "libcustomglow: ready",
         line2 = "active glow tracker: gated",
     }
-    if sfui.glows_debug_info then
-        local gInfo = sfui.glows_debug_info()
+    local gInfo = GetDebug("glows_debug_info", "glows")
+    if gInfo then
         glowMod.line1 = string_format("libcustomglow-1.0: %s", gInfo.lcgAvailable and "|cff00ff88ok|r" or "|cffff0000missing|r")
         glowMod.line2 = "idle loop gating: enabled"
     end
@@ -268,8 +279,8 @@ function sfui.mem.GetModuleStats()
         line1 = "auto-release: off • auto-role: off",
         line2 = "auto-sign: off • skip cine: off",
     }
-    if sfui.automation_debug_info then
-        local a = sfui.automation_debug_info()
+    local a = GetDebug("automation_debug_info", "automation")
+    if a then
         autoMod.line1 = string_format("auto-release: %s • auto-role: %s", a.autoRelease and "|cff00ff88on|r" or "off", a.autoRoleCheck and "|cff00ff88on|r" or "off")
         autoMod.line2 = string_format("auto-sign: %s • skip cine: %s", a.autoSignLfg and "|cff00ff88on|r" or "off", a.skipCinematics and "|cff00ff88on|r" or "off")
     end
@@ -282,8 +293,8 @@ function sfui.mem.GetModuleStats()
         line1 = "frame: none",
         line2 = "scale: 1.0",
     }
-    if sfui.cursor_debug_info then
-        local cur = sfui.cursor_debug_info()
+    local cur = GetDebug("cursor_debug_info", "cursor")
+    if cur then
         curMod.status = cur.enabled and "|cff00ff88enabled|r" or "|cff888888disabled|r"
         curMod.line1 = string_format("frame: %s (shown: %s)", cur.frameCreated and "ready" or "none", cur.frameShown and "yes" or "no")
         curMod.line2 = "scale cache: cached uiparent"
@@ -297,8 +308,8 @@ function sfui.mem.GetModuleStats()
         line1 = "frame: ready • btns: 0",
         line2 = "health: off • power: off • cast: off",
     }
-    if sfui.vehicle_debug_info then
-        local v = sfui.vehicle_debug_info()
+    local v = GetDebug("vehicle_debug_info", "vehicle")
+    if v then
         vehMod.status = v.frameShown and "|cff00ff88active|r" or "|cff888888idle|r"
         vehMod.line1 = string_format("frame: %s • btns: %d • unit: %s", v.frameCreated and "ready" or "none", v.visibleButtons or 0, v.currentUnit or "none")
         vehMod.line2 = string_format("health: %s • power: %s • cast: %s", v.healthShown and "|cff00ff88on|r" or "off", v.powerShown and "|cff00ff88on|r" or "off", v.castShown and "|cff00ff88on|r" or "off")
@@ -312,8 +323,8 @@ function sfui.mem.GetModuleStats()
         line1 = "queue: 0 tasks",
         line2 = "ticker: inactive",
     }
-    if sfui.transfer_debug_info then
-        local t = sfui.transfer_debug_info()
+    local t = GetDebug("transfer_debug_info", "transfer")
+    if t then
         transMod.status = t.active and "|cff00ff88active|r" or "|cff888888idle|r"
         transMod.line1 = string_format("scan queue: %d tasks", t.queueSize or 0)
         transMod.line2 = string_format("ticker: %s", t.active and "|cff00ff88processing|r" or "inactive")
@@ -327,8 +338,8 @@ function sfui.mem.GetModuleStats()
         line1 = "bar: none • binder: none",
         line2 = "stacks: 0 • cap: 0",
     }
-    if sfui.soulfragments_debug_info then
-        local sf = sfui.soulfragments_debug_info()
+    local sf = GetDebug("soulfragments_debug_info", "soulfragments")
+    if sf then
         sfStats.status = sf.frameShown and "|cff00ff88active|r" or (sf.frameCreated and "|cff888888hidden|r" or "|cff888888disabled|r")
         sfStats.line1 = string_format("bar: %s • binder: %s", sf.frameShown and "shown" or (sf.frameCreated and "ready" or "off"), sf.engineBound and "|cff00ff88c++ engine|r" or (sf.cdmCached and "cdm cached" or "lua multi-tier"))
         sfStats.line2 = string_format("stacks: %s • cap: %d • dividers: %d", tostring(sf.lastStacks or 0), sf.maxCap or 0, sf.dividers or 0)
@@ -342,8 +353,8 @@ function sfui.mem.GetModuleStats()
         line1 = "events: 0 global • 0 unit",
         line2 = "update tickers: 0 loops • zero churn",
     }
-    if sfui.dispatcher_debug_info then
-        local d = sfui.dispatcher_debug_info()
+    local d = GetDebug("dispatcher_debug_info", "dispatcher")
+    if d then
         dispMod.line1 = string_format("events: %d global (%d cbs) • %d unit (%d cbs)", d.globalEvents or 0, d.globalCallbacks or 0, d.unitEvents or 0, d.unitCallbacks or 0)
         dispMod.line2 = string_format("update tickers: %d loops • unit frames: %d", d.updateLoops or 0, d.units or 0)
     end
@@ -356,8 +367,8 @@ function sfui.mem.GetModuleStats()
         line1 = "currency: none • item: none",
         line2 = "backpack anchor: character frame",
     }
-    if sfui.currency_debug_info then
-        local cInfo = sfui.currency_debug_info()
+    local cInfo = GetDebug("currency_debug_info", "currency")
+    if cInfo then
         local ready = cInfo.currencyFrameCreated or cInfo.itemFrameCreated
         currMod.status = ready and "|cff00ff88ready|r" or "|cff888888idle|r"
         currMod.line1 = string_format("currency bar: %s • item bar: %s", cInfo.currencyFrameCreated and "ready" or "none", cInfo.itemFrameCreated and "ready" or "none")
@@ -371,8 +382,8 @@ function sfui.mem.GetModuleStats()
         line1 = "auto-swap: off • default: current",
         line2 = "browser: none • cards: 0 • icons: 0",
     }
-    if sfui.lootspec_debug_info then
-        local l = sfui.lootspec_debug_info()
+    local l = GetDebug("lootspec_debug_info", "lootspec")
+    if l then
         lootMod.status = l.enabled and "|cff00ff88enabled|r" or "|cff888888disabled|r"
         local defName = "current"
         if l.defaultSpec and l.defaultSpec ~= 0 then
@@ -391,8 +402,8 @@ function sfui.mem.GetModuleStats()
         line1 = "roster watcher: idle",
         line2 = "dungeon status: ready",
     }
-    if sfui.location_debug_info then
-        local loc = sfui.location_debug_info()
+    local loc = GetDebug("location_debug_info", "location")
+    if loc then
         locMod.status = loc.enabled and (loc.watchingRoster and "|cff00ff88watching|r" or "|cff888888idle|r") or "|cff888888disabled|r"
         locMod.line1 = string_format("roster watcher: %s", loc.watchingRoster and "|cff00ff88active|r" or "idle")
         locMod.line2 = string_format("pending group: %s • reminder: %s", loc.pendingDungeon and "yes" or "none", loc.enabled and "on" or "off")
@@ -406,8 +417,8 @@ function sfui.mem.GetModuleStats()
         line1 = "editor: closed",
         line2 = "active drop zones: 0",
     }
-    if sfui.cdm_debug_info then
-        local cdm = sfui.cdm_debug_info()
+    local cdm = GetDebug("cdm_debug_info", "cdm")
+    if cdm then
         cdmMod.status = cdm.frameShown and "|cff00ff88editor open|r" or (cdm.frameCreated and "|cff888888ready|r" or "|cff888888idle|r")
         cdmMod.line1 = string_format("editor frame: %s (shown: %s)", cdm.frameCreated and "ready" or "none", cdm.frameShown and "yes" or "no")
         local blizzHidden = sfui.common and sfui.common.are_blizzard_cooldown_viewers_hidden and sfui.common.are_blizzard_cooldown_viewers_hidden()
@@ -422,8 +433,8 @@ function sfui.mem.GetModuleStats()
         line1 = "side frame: none",
         line2 = "trees: 4 expansions",
     }
-    if sfui.research_debug_info then
-        local r = sfui.research_debug_info()
+    local r = GetDebug("research_debug_info", "research")
+    if r then
         resMod.status = r.frameShown and "|cff00ff88open|r" or "|cff888888closed|r"
         resMod.line1 = string_format("side frame: %s", r.frameCreated and "ready" or "none")
     end
@@ -616,7 +627,7 @@ local activeTab = "modules"
 
 local MODULE_ORDER = {
     "dispatcher", "quests", "mythic", "trackedbars", "trackedicons", "bars",
-    "soulfragments", "gear", "stats", "alts", "merchant", "portals",
+    "soulfragments", "gear", "worldevents", "alts", "merchant", "portals",
     "castbars", "minimap", "glows", "automation",
     "cursor", "vehicle", "currency", "lootspec", "location", "cdm", "research", "transfer"
 }
@@ -1032,5 +1043,14 @@ function sfui.mem.HandleSlash(msg)
     else
         sfui.mem.ToggleGUI()
     end
+end
+
+if sfui.RegisterModule then
+    sfui.mem.OnSettingsChanged = function(self, k, v)
+        if sfui.mem.gui and sfui.mem.gui:IsShown() then
+            sfui.mem.UpdateGUI()
+        end
+    end
+    sfui.RegisterModule("mem", sfui.mem)
 end
 

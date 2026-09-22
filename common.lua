@@ -572,9 +572,9 @@ end
 -- Ensure panels exist and are populated (Called once on load/spec/talent change)
 function sfui.common.ensure_panels_initialized()
     local specID = sfui.common.get_current_spec_id() or 0
-    if specID == 0 then
-        update_cached_spec_id()
-        specID = cachedSpecID or 0
+    if specID == 0 and sfui.common.update_cached_spec_id then
+        sfui.common.update_cached_spec_id()
+        specID = sfui.common.get_current_spec_id() or 0
     end
     if specID == 0 then
         -- Spec not yet determined (early load before player entity exists), return empty without corrupting

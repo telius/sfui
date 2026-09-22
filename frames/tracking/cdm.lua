@@ -836,11 +836,18 @@ function sfui.cdm.create_panel(parent)
         leftContent:SetHeight(math.max(maxBottom + 50, 200))
     end
 
-    sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function()
+    local function on_cdm_spec_changed()
         selectedPanelIndex = nil
         selectedPanelData = nil
+        if common and common.invalidate_panels_cache then
+            common.invalidate_panels_cache()
+        end
         sfui.cdm.RefreshLayout()
-    end)
+    end
+
+    sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", on_cdm_spec_changed)
+    sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", on_cdm_spec_changed)
+    sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", on_cdm_spec_changed)
 
     cdmFrame:SetScript("OnShow", sfui.cdm.RefreshLayout)
     cdmFrame:SetScript("OnHide", function()

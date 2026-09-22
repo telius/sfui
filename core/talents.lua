@@ -371,6 +371,9 @@ local function update_cached_spec_id()
                 elseif sfui.common and sfui.common.invalidate_spec_color_cache then
                     sfui.common.invalidate_spec_color_cache()
                 end
+                if sfui.common and sfui.common.invalidate_panels_cache then
+                    sfui.common.invalidate_panels_cache()
+                end
             end
             return
         end
@@ -387,6 +390,9 @@ local function update_cached_spec_id()
                     sfui.colors.invalidate_spec_color_cache()
                 elseif sfui.common and sfui.common.invalidate_spec_color_cache then
                     sfui.common.invalidate_spec_color_cache()
+                end
+                if sfui.common and sfui.common.invalidate_panels_cache then
+                    sfui.common.invalidate_panels_cache()
                 end
             end
             return
@@ -410,21 +416,52 @@ local function update_cached_spec_id()
             elseif sfui.common and sfui.common.invalidate_spec_color_cache then
                 sfui.common.invalidate_spec_color_cache()
             end
+            if sfui.common and sfui.common.invalidate_panels_cache then
+                sfui.common.invalidate_panels_cache()
+            end
         end
         return
     end
 
     cachedSpecID = 0
 end
+sfui.talents.update_cached_spec_id = update_cached_spec_id
+sfui.common.update_cached_spec_id = update_cached_spec_id
+
+function sfui.talents.invalidate_spec_cache()
+    cachedSpecID = 0
+    cachedSpecIndex = 0
+    if sfui.common and sfui.common.invalidate_panels_cache then
+        sfui.common.invalidate_panels_cache()
+    end
+    update_cached_spec_id()
+end
+sfui.common.invalidate_spec_cache = sfui.talents.invalidate_spec_cache
 
 function sfui.talents.get_current_spec_id()
-    if cachedSpecID == 0 then update_cached_spec_id() end
+    local isClassic = sfui.isClassic or not (sfui.has and sfui.has.specializations)
+    if not isClassic then
+        local spec = (GetSpecialization and GetSpecialization()) or 0
+        if (spec > 0 and spec ~= cachedSpecIndex) or cachedSpecID == 0 then
+            update_cached_spec_id()
+        end
+    elseif cachedSpecID == 0 then
+        update_cached_spec_id()
+    end
     return cachedSpecID
 end
 sfui.common.get_current_spec_id = sfui.talents.get_current_spec_id
 
 function sfui.talents.get_current_spec_index()
-    if cachedSpecIndex == 0 then update_cached_spec_id() end
+    local isClassic = sfui.isClassic or not (sfui.has and sfui.has.specializations)
+    if not isClassic then
+        local spec = (GetSpecialization and GetSpecialization()) or 0
+        if (spec > 0 and spec ~= cachedSpecIndex) or cachedSpecIndex == 0 then
+            update_cached_spec_id()
+        end
+    elseif cachedSpecIndex == 0 then
+        update_cached_spec_id()
+    end
     return cachedSpecIndex
 end
 sfui.common.get_current_spec_index = sfui.talents.get_current_spec_index
@@ -587,16 +624,25 @@ local _talentCacheConfigID = nil
 local function invalidate_talent_cache()
     table.wipe(_talentCache)
     _talentCacheConfigID = nil
+
+    cachedSpecID = 0
+    cachedSpecIndex = 0
+    update_cached_spec_id()
+
     if sfui.highest and sfui.highest.ClearValidationCache then
         sfui.highest.ClearValidationCache()
     end
+    if sfui.common and sfui.common.invalidate_panels_cache then
+        sfui.common.invalidate_panels_cache()
+    end
+    if sfui.colors and sfui.colors.invalidate_spec_color_cache then
+        sfui.colors.invalidate_spec_color_cache()
+    elseif sfui.common and sfui.common.invalidate_spec_color_cache then
+        sfui.common.invalidate_spec_color_cache()
+    end
+
     if sfui.isClassic then
         sfui.talents.invalidate_player_specs_cache()
-        if sfui.colors and sfui.colors.invalidate_spec_color_cache then
-            sfui.colors.invalidate_spec_color_cache()
-        elseif sfui.common and sfui.common.invalidate_spec_color_cache then
-            sfui.common.invalidate_spec_color_cache()
-        end
         sfui.talents.get_player_specs()
         if sfui.gear and sfui.gear.UpdateStatUI then
             sfui.gear.UpdateStatUI()
@@ -686,8 +732,12 @@ function sfui.talents.is_talent_known(targetSpellID)
 end
 sfui.common.is_talent_known = sfui.talents.is_talent_known
 
-sfui.events.RegisterEvent("PLAYER_LOGIN", function()
+local function on_login_or_enter()
     sfui.talents.get_player_class()
+    cachedSpecID = 0
+    cachedSpecIndex = 0
     update_cached_spec_id()
     build_player_specs_cache()
-end)
+end
+sfui.events.RegisterEvent("PLAYER_LOGIN", on_login_or_enter)
+sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_login_or_enter)

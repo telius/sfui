@@ -1507,32 +1507,19 @@ function sfui.trackedicons.initialize()
         sfui.trackedicons.Update()
         MarkDirty(true)
     end)
-    sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function()
+    local function on_tracked_icons_spec_changed()
         sfui.common.ensure_panels_initialized()
         if sfui.common.SyncTrackedSpells then
             sfui.common.SyncTrackedSpells()
         end
         sfui.trackedicons.Update()
         MarkDirty(true)
-    end)
-    sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", function()
-        sfui.common.ensure_panels_initialized()
-        if sfui.common.SyncTrackedSpells then
-            sfui.common.SyncTrackedSpells()
-        end
-        sfui.trackedicons.Update()
-        MarkDirty(true)
-    end)
-    -- 12.0.5+: fires when the system forces a spec change (arena PvP loadout lock,
-    -- talent reset, etc.) — treat identically to PLAYER_SPECIALIZATION_CHANGED.
-    sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", function()
-        sfui.common.ensure_panels_initialized()
-        if sfui.common.SyncTrackedSpells then
-            sfui.common.SyncTrackedSpells()
-        end
-        sfui.trackedicons.Update()
-        MarkDirty(true)
-    end)
+    end
+    sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", on_tracked_icons_spec_changed)
+    sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", on_tracked_icons_spec_changed)
+    sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", on_tracked_icons_spec_changed)
+    sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", on_tracked_icons_spec_changed)
+    sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", on_tracked_icons_spec_changed)
     sfui.events.RegisterEvent("SPELLS_CHANGED", function() MarkDirty(true) end)
 
     -- Soul fragments, charges, resource-gated display counts.
