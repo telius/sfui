@@ -947,6 +947,15 @@ local function AcquireRow()
                 return
             end
 
+            if row.isContentTracking and row.contentTrackingID then
+                local state = GetQLState()
+                state.expandedQuests = state.expandedQuests or {}
+                local key = "ct_" .. tostring(row.contentTrackingType) .. "_" .. tostring(row.contentTrackingID)
+                state.expandedQuests[key] = not state.expandedQuests[key]
+                Refresh:Request()
+                return
+            end
+
             local qID = row.questID
             if qID then
                 local state = GetQLState()
@@ -1126,6 +1135,12 @@ local function AcquireRow()
                 tip:AddLine("|cff888888Shift-click: Untrack Achievement|r", 1, 1, 1)
                 tip:Show()
                 return
+            end
+
+            if s.isContentTracking and s.contentTrackingID then
+                if sfui.questlog and sfui.questlog.collectables and sfui.questlog.collectables.OnEnter then
+                    if sfui.questlog.collectables.OnEnter(s, tip, anchor) then return end
+                end
             end
 
             if s.isAutoQuestOffer and s.questID then
@@ -1390,6 +1405,13 @@ local function AcquireRow()
                     end
                 end
                 return
+            end
+
+            if s.isContentTracking and s.contentTrackingID then
+                if sfui.questlog and sfui.questlog.collectables and sfui.questlog.collectables.OnClick then
+                    local refreshFn = function() Refresh:Request() end
+                    if sfui.questlog.collectables.OnClick(s, btn, refreshFn, GetQLState) then return end
+                end
             end
 
             if s.isAutoQuestOffer and s.questID then
@@ -1943,11 +1965,14 @@ local function CollectTrackedQuests(superTracked)
         providers.ScanAutoQuestPopUps(sectionLists["important"], AcquireTable, processedQuests)
     end
 
-    -- 7. Modern Trackables (Traveler's Log, Housing Endeavors, Recipes)
+    -- 7. Modern Trackables (Traveler's Log, Housing Endeavors, Recipes, Collectables)
     if not inRaid and sectionLists["activities"] then
         providers.ScanPerksActivities(sectionLists["activities"], AcquireTable)
         providers.ScanHousingInitiatives(sectionLists["activities"], AcquireTable)
         providers.ScanRecipes(sectionLists["activities"], AcquireTable)
+        if sfui.questlog and sfui.questlog.collectables and sfui.questlog.collectables.Scan then
+            sfui.questlog.collectables.Scan(sectionLists["activities"], AcquireTable)
+        end
     end
 
     -- Smart Priority Sort within each active section
@@ -2035,6 +2060,11 @@ local function RenderSections(state, superTracked)
                     row.recipeID           = entry.recipeID
                     row.isRecraft          = entry.isRecraft
                     row.isRecipe           = entry.isRecipe
+                    row.isContentTracking   = entry.isContentTracking
+                    row.contentTrackingType = entry.contentTrackingType
+                    row.contentTrackingID   = entry.contentTrackingID
+                    row.targetType          = entry.targetType
+                    row.targetID            = entry.targetID
                     row.isAutoQuestOffer   = entry.isAutoQuestOffer
                     row.questTitle         = entry.title
                     row.description        = entry.description
@@ -2115,7 +2145,7 @@ local function RenderSections(state, superTracked)
                         row.TitleFS:SetPoint("RIGHT", rightAnchor, "LEFT", rightOffset, 0)
                     end
 
-                    local isSuperTracked = (superTracked == entry.questID)
+                    local isSuperTracked = (superTracked == entry.questID) or (entry.isContentTracking and entry.isSuperTracked)
                     if isSuperTracked then
                         row.Dot:Show()
                     else
@@ -2205,6 +2235,12 @@ local function RenderSections(state, superTracked)
                         else
                             titleStr = baseText
                         end
+                    elseif entry.isContentTracking then
+                        if sfui.questlog and sfui.questlog.collectables and sfui.questlog.collectables.FormatTitle then
+                            titleStr = sfui.questlog.collectables.FormatTitle(entry)
+                        else
+                            titleStr = rawTitle
+                        end
                     elseif entry.isAchievement then
                         local achCol = entry.isComplete and "|cff44cc44" or "|cffe0a050"
                         local baseText = achCol .. strlower(rawTitle) .. C.RESET
@@ -2279,6 +2315,10 @@ local function RenderSections(state, superTracked)
                         if isQuestExpanded == nil then isQuestExpanded = true end
                     elseif entry.isRecipe then
                         local key = "rec_" .. tostring(entry.recipeID) .. (entry.isRecraft and "_r" or "")
+                        isQuestExpanded = state.expandedQuests and state.expandedQuests[key]
+                        if isQuestExpanded == nil then isQuestExpanded = true end
+                    elseif entry.isContentTracking then
+                        local key = "ct_" .. tostring(entry.contentTrackingType) .. "_" .. tostring(entry.contentTrackingID)
                         isQuestExpanded = state.expandedQuests and state.expandedQuests[key]
                         if isQuestExpanded == nil then isQuestExpanded = true end
                     elseif entry.isWorldEvent then
@@ -2873,6 +2913,13 @@ Reg("INITIATIVE_TASKS_TRACKED_UPDATED")
 Reg("INITIATIVE_TASKS_TRACKED_LIST_CHANGED")
 Reg("NEIGHBORHOOD_INITIATIVE_UPDATED")
 Reg("TRACKED_RECIPE_UPDATE")
+Reg("CONTENT_TRACKING_UPDATE")
+Reg("CONTENT_TRACKING_LIST_UPDATE")
+Reg("CONTENT_TRACKING_IS_ENABLED_UPDATE")
+Reg("TRACKING_TARGET_INFO_UPDATE")
+Reg("TRACKABLE_INFO_UPDATE")
+Reg("HOUSE_DECOR_ADDED_TO_CHEST")
+Reg("TRANSMOG_COLLECTION_SOURCE_ADDED")
 Reg("BAG_UPDATE_DELAYED")
 Reg("TRACKED_ACHIEVEMENT_LIST_CHANGED")
 Reg("TRACKED_ACHIEVEMENT_UPDATE")

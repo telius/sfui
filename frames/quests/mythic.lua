@@ -2769,6 +2769,14 @@ local function InitRun()
     if C_ChallengeMode and C_ChallengeMode.GetActiveKeystoneInfo then
         level, affixes = C_ChallengeMode.GetActiveKeystoneInfo()
     end
+    if (not level or level <= 0) and C_ChallengeMode and C_ChallengeMode.GetSlottedKeystoneInfo then
+        local sMapID, sAffixes, sLevel = C_ChallengeMode.GetSlottedKeystoneInfo()
+        if sLevel and sLevel > 0 then
+            level = sLevel
+            affixes = affixes or sAffixes
+            mapID = (mapID and mapID > 0) and mapID or sMapID
+        end
+    end
 
     if mapID and mapID > 0 and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
         local name, _, timeLimit = C_ChallengeMode.GetMapUIInfo(mapID)
@@ -3293,6 +3301,10 @@ local function on_mythic_event(event, ...)
                 end
             end, true, true, false)
         end
+    elseif event == "CHALLENGE_MODE_KEYSTONE_SLOTTED" then
+        if _mode == "mythic" then
+            InitRun()
+        end
     elseif event == "PLAYER_ENTERING_WORLD" then
         CacheGroupMembers()
         SyncBlizzardRunHistory()
@@ -3316,6 +3328,7 @@ Reg("CHALLENGE_MODE_COMPLETED")
 Reg("CHALLENGE_MODE_RESET")
 Reg("CHALLENGE_MODE_DEATH_COUNT_UPDATED")
 Reg("CHALLENGE_MODE_KEYSTONE_RECEPTABLE_OPEN")
+Reg("CHALLENGE_MODE_KEYSTONE_SLOTTED")
 Reg("SPELL_UPDATE_CHARGES")
 Reg("GROUP_ROSTER_UPDATE")
 Reg("SCENARIO_UPDATE")

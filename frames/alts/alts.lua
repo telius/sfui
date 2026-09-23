@@ -595,7 +595,7 @@ function sfui.alts.UpdateUI(force)
                             GameTooltip:AddDoubleLine("total gold:", _G.GetMoneyString(totalGold, true),
                                 NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, 1, 0.82, 0)
                         end
-                        if totalPlayed > 0 then
+                        if totalPlayed > 0 and (not sfui.alts.provider or sfui.alts.provider.showTimePlayedTooltip ~= false) then
                             local hours = math.floor(totalPlayed / 3600)
                             GameTooltip:AddDoubleLine("total time played:", string.format("%d hours", hours),
                                 NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, 1, 1, 1)
@@ -709,7 +709,7 @@ function sfui.alts.UpdateUI(force)
                                 GameTooltip:AddLine(" ")
                                 GameTooltip:AddLine(_G.GetMoneyString(d.money, true), 1, 0.82, 0)
                             end
-                            if d.timeplayed and d.timeplayed > 0 then
+                            if sfui.alts.provider and sfui.alts.provider.showTimePlayedTooltip ~= false and d.timeplayed and d.timeplayed > 0 then
                                 local hours = math.floor(d.timeplayed / 3600)
                                 GameTooltip:AddLine(string.format("time played: %d hours", hours), 0.7, 0.7, 0.7)
                             end
@@ -844,7 +844,7 @@ function sfui.alts.initialize()
         end
     end)
 
-    if RequestTimePlayed then
+    if RequestTimePlayed and (not sfui.alts.provider or sfui.alts.provider.showTimePlayedTooltip ~= false) then
         RequestTimePlayed()
     end
 

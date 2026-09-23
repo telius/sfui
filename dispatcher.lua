@@ -43,7 +43,7 @@ sfui = sfui or {}
 --     • frames/gear/lootspec.lua       - Dynamic loot spec management.
 --     • frames/gear/lootviewer.lua     - Encounter journal & mythic+ loot browser, spec/stat filters.
 --   Utilities & Automation:
---     • frames/alts.lua                - Warband alt sync, profession KP, trade skill updates.
+--     • frames/alts/alts.lua           - Warband alt sync, profession KP, recipes, trade skills.
 --     • frames/automation.lua          - Master's Hammer repair popup, role checks, LFG auto-confirm.
 --     • frames/merchant.lua            - Auto-junk selling & auto-repair vendor triggers.
 --     • frames/transfer.lua            - Warband bank transfer helper window.

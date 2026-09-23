@@ -257,9 +257,21 @@ function sfui.create_options_panel()
     end)
     player_y_slider:SetPoint("LEFT", player_x_slider, "RIGHT", 10, 0)
 
+    local reset_player_cast_btn = CreateFlatButton(castbar_panel, "reset position", 120, 20)
+    reset_player_cast_btn:SetPoint("TOPLEFT", player_x_slider, "BOTTOMLEFT", 0, -10)
+    reset_player_cast_btn:SetScript("OnClick", function()
+        local def = sfui.config.castBar.pos
+        SfuiDB.castBarX = def.x
+        SfuiDB.castBarY = def.y
+        player_x_slider:SetSliderValue(def.x)
+        player_y_slider:SetSliderValue(def.y)
+        notify_setting_changed("castbar", "castBarX", def.x)
+        notify_setting_changed("castbar", "castBarY", def.y)
+    end)
+
     -- Target Castbar --
     local target_header = castbar_panel:CreateFontString(nil, "OVERLAY", g.font)
-    target_header:SetPoint("TOPLEFT", player_x_slider, "BOTTOMLEFT", 0, -30)
+    target_header:SetPoint("TOPLEFT", reset_player_cast_btn, "BOTTOMLEFT", 0, -20)
     target_header:SetText("target castbar")
 
     local enable_target_cb = create_checkbox(castbar_panel, "enable", "targetCastBarEnabled", function(checked)
@@ -276,6 +288,18 @@ function sfui.create_options_panel()
         notify_setting_changed("castbar", "targetCastBarY", val)
     end)
     target_y_slider:SetPoint("LEFT", target_x_slider, "RIGHT", 10, 0)
+
+    local reset_target_cast_btn = CreateFlatButton(castbar_panel, "reset position", 120, 20)
+    reset_target_cast_btn:SetPoint("TOPLEFT", target_x_slider, "BOTTOMLEFT", 0, -10)
+    reset_target_cast_btn:SetScript("OnClick", function()
+        local def = sfui.config.targetCastBar.pos
+        SfuiDB.targetCastBarX = def.x
+        SfuiDB.targetCastBarY = def.y
+        target_x_slider:SetSliderValue(def.x)
+        target_y_slider:SetSliderValue(def.y)
+        notify_setting_changed("castbar", "targetCastBarX", def.x)
+        notify_setting_changed("castbar", "targetCastBarY", def.y)
+    end)
 
     -- Extra Power Bars Settings
     local sct_panel, sct_tab_button = create_tab("combat text")
@@ -323,7 +347,13 @@ function sfui.create_options_panel()
 
     local reload_button = CreateFlatButton(main_panel, "reload ui", 100, 22)
     reload_button:SetPoint("TOPLEFT", main_text, "BOTTOMLEFT", 0, -20)
-    reload_button:SetScript("OnClick", function() C_UI.Reload() end)
+    reload_button:SetScript("OnClick", function()
+        if C_UI and C_UI.Reload then
+            C_UI.Reload()
+        elseif _G.ReloadUI then
+            _G.ReloadUI()
+        end
+    end)
 
     local open_cv_main = CreateFlatButton(main_panel, "tracking manager", 140, 22)
     open_cv_main:SetPoint("LEFT", reload_button, "RIGHT", 10, 0)
@@ -331,17 +361,17 @@ function sfui.create_options_panel()
         if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
             sfui.trackedoptions.toggle_viewer()
 
-            if SfuiCooldownsViewer and SfuiCooldownsViewer:IsShown() and sfui_options_frame then
-                local p, rel, rp, x, y = sfui_options_frame:GetPoint()
+            if SfuiCooldownsViewer and SfuiCooldownsViewer:IsShown() and frame then
+                local _, rel = frame:GetPoint()
                 if rel == SfuiCooldownsViewer then
-                    local left = sfui_options_frame:GetLeft()
-                    local top = sfui_options_frame:GetTop()
-                    sfui_options_frame:ClearAllPoints()
-                    sfui_options_frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+                    local left = frame:GetLeft()
+                    local top = frame:GetTop()
+                    frame:ClearAllPoints()
+                    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
                 end
 
                 SfuiCooldownsViewer:ClearAllPoints()
-                SfuiCooldownsViewer:SetPoint("TOPLEFT", sfui_options_frame, "TOPRIGHT", 5, 0)
+                SfuiCooldownsViewer:SetPoint("TOPLEFT", frame, "TOPRIGHT", 5, 0)
             end
         end
     end)
@@ -364,8 +394,36 @@ function sfui.create_options_panel()
         open_cv_main:Disable()
     end
 
-    local hide_minimap_icon_cb = create_checkbox(main_panel, "hide minimap icon", "minimap_icon.hide", function(checked)
-        local icon = LibStub:GetLibrary("LibDBIcon-1.0", true)
+    local open_gear_main = CreateFlatButton(main_panel, "gear manager", 110, 22)
+    open_gear_main:SetPoint("TOPLEFT", reload_button, "BOTTOMLEFT", 0, -10)
+    open_gear_main:SetScript("OnClick", function()
+        if sfui.gear and sfui.gear.toggle then
+            sfui.gear.toggle()
+        end
+    end)
+
+    local open_alts_main = CreateFlatButton(main_panel, "alts viewer", 100, 22)
+    open_alts_main:SetPoint("LEFT", open_gear_main, "RIGHT", 10, 0)
+    open_alts_main:SetScript("OnClick", function()
+        if sfui.alts and sfui.alts.Toggle then
+            sfui.alts.Toggle()
+        end
+    end)
+
+    local open_loot_main = CreateFlatButton(main_panel, "loot viewer", 100, 22)
+    open_loot_main:SetPoint("LEFT", open_alts_main, "RIGHT", 10, 0)
+    open_loot_main:SetScript("OnClick", function()
+        if sfui.lootviewer and sfui.lootviewer.Toggle then
+            sfui.lootviewer.Toggle()
+        end
+    end)
+
+    local hide_minimap_icon_cb = create_checkbox(main_panel, "hide minimap icon", function()
+        return (SfuiDB.minimap_icon and SfuiDB.minimap_icon.hide) or false
+    end, function(checked)
+        SfuiDB.minimap_icon = SfuiDB.minimap_icon or {}
+        SfuiDB.minimap_icon.hide = checked
+        local icon = LibStub and LibStub:GetLibrary("LibDBIcon-1.0", true)
         if icon then
             if checked then
                 icon:Hide("sfui")
@@ -374,7 +432,7 @@ function sfui.create_options_panel()
             end
         end
     end, "hides the sfui minimap icon.")
-    hide_minimap_icon_cb:SetPoint("TOPLEFT", reload_button, "BOTTOMLEFT", 0, -20)
+    hide_minimap_icon_cb:SetPoint("TOPLEFT", open_gear_main, "BOTTOMLEFT", 0, -15)
 
     local enable_questlog_cb = create_checkbox(main_panel, "enable quest log", function()
         if sfui.questlog and sfui.questlog.is_enabled then
@@ -424,8 +482,8 @@ function sfui.create_options_panel()
     fallback_label:SetText("fallback:")
 
     local fallback_swatch = common.create_color_swatch(main_panel, SfuiDB.specColorFallback or { 1, 1, 1, 1 },
-        function(r, g, b)
-            SfuiDB.specColorFallback = { r, g, b, 1 }
+        function(r, green, b)
+            SfuiDB.specColorFallback = { r, green, b, 1 }
             notify_spec_colors_updated()
         end)
     fallback_swatch:SetPoint("LEFT", fallback_label, "RIGHT", 5, 0)
@@ -483,7 +541,12 @@ function sfui.create_options_panel()
     spec_header:SetText("specialization colors:")
 
     local spec_swatches = {}
-    local specs, specIDs = (common.get_spec_color_options and common.get_spec_color_options()) or common.get_player_specs()
+    local specs, specIDs
+    if common.get_spec_color_options then
+        specs, specIDs = common.get_spec_color_options()
+    elseif common.get_player_specs then
+        specs, specIDs = common.get_player_specs()
+    end
     local prevAnchor = spec_header
 
     for i, specID in ipairs(specIDs or {}) do
@@ -509,9 +572,9 @@ function sfui.create_options_panel()
             local curCol = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
                 or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
                 or { 1, 1, 1, 1 }
-            local swatch = common.create_color_swatch(main_panel, curCol, function(r, g, b)
+            local swatch = common.create_color_swatch(main_panel, curCol, function(r, green, b)
                 SfuiDB.spec_colors = SfuiDB.spec_colors or {}
-                SfuiDB.spec_colors[specID] = { r, g, b, 1 }
+                SfuiDB.spec_colors[specID] = { r, green, b, 1 }
                 notify_spec_colors_updated()
             end)
             swatch:SetPoint("LEFT", iconTex, "LEFT", 150, 0)
@@ -534,12 +597,12 @@ function sfui.create_options_panel()
                     SfuiDB.spec_colors[specID] = nil
                 end
                 local baseColor = sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID]
-                local r, g, b = 1, 1, 1
+                local r, green, b = 1, 1, 1
                 if baseColor then
-                    r, g, b = baseColor[1], baseColor[2], baseColor[3]
+                    r, green, b = baseColor[1], baseColor[2], baseColor[3]
                 end
                 if spec_swatches[specID] then
-                    spec_swatches[specID]:SetBackdropColor(r, g, b, 1)
+                    spec_swatches[specID]:SetBackdropColor(r, green, b, 1)
                 end
             end
         end
@@ -586,8 +649,8 @@ function sfui.create_options_panel()
     mount_speed_cb:SetPoint("TOPLEFT", vigor_bar_cb, "BOTTOMLEFT", 0, -10)
 
     local last_toggle_cb = mount_speed_cb
-    local isClassic = (sfui.compat and sfui.compat.is_classic) and (sfui.swing ~= nil)
-    if isClassic then
+    local isClassicBars = (sfui.compat and sfui.compat.is_classic) and (sfui.swing ~= nil)
+    if isClassicBars then
         local swing_bar_cb = create_checkbox(bars_panel, "enable swing timer bars", "enableSwingBars", function(checked)
             if sfui.bars and sfui.bars.update_bar_visibility then
                 sfui.bars.update_bar_visibility()
@@ -646,8 +709,8 @@ function sfui.create_options_panel()
 
     local fg_color_swatch
     fg_color_swatch = common.create_color_swatch(bars_panel, SfuiDB.healthBarColor or sfui.config.healthBar.color,
-        function(r, g, b)
-            SfuiDB.healthBarColor = { r, g, b, 1 }
+        function(r, green, b)
+            SfuiDB.healthBarColor = { r, green, b, 1 }
             if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
         end)
     fg_color_swatch:SetPoint("LEFT", fg_color_label, "RIGHT", 5, 0)
@@ -659,8 +722,8 @@ function sfui.create_options_panel()
 
     local bg_color_swatch
     bg_color_swatch = common.create_color_swatch(bars_panel,
-        SfuiDB.healthBarBackdropColor or sfui.config.healthBar.backdrop.color, function(r, g, b)
-            SfuiDB.healthBarBackdropColor = { r, g, b, 0.5 }
+        SfuiDB.healthBarBackdropColor or sfui.config.healthBar.backdrop.color, function(r, green, b)
+            SfuiDB.healthBarBackdropColor = { r, green, b, 0.5 }
             if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
         end)
     bg_color_swatch:SetPoint("LEFT", bg_color_label, "RIGHT", 5, 0)
@@ -774,15 +837,18 @@ function sfui.create_options_panel()
 
     drop_frame:EnableMouse(true)
     drop_frame:RegisterForDrag("LeftButton")
-    drop_frame:SetScript("OnReceiveDrag", function(self)
-        local type, id, link = GetCursorInfo()
-        if type == "item" and link then
+    local function handle_item_drop()
+        local cType, _, link = GetCursorInfo()
+        if cType == "item" and link then
             local itemID = GetItemInfoFromHyperlink(link)
             if itemID and sfui.add_item then
                 sfui.add_item(itemID)
+                if ClearCursor then ClearCursor() end
             end
         end
-    end)
+    end
+    drop_frame:SetScript("OnReceiveDrag", handle_item_drop)
+    drop_frame:SetScript("OnMouseUp", handle_item_drop)
 
     -- 5. Merchant Panel
     local merchant_header = merchant_panel:CreateFontString(nil, "OVERLAY", g.font)
@@ -797,7 +863,7 @@ function sfui.create_options_panel()
     local enable_decor_cb = create_checkbox(merchant_panel, "enable decor filter", "enableDecor", function(checked)
         if not checked and SfuiDecorDB then
             wipe(SfuiDecorDB)
-            common.common.print("Decor cache cleared.")
+            common.print("Decor cache cleared.")
         end
         if sfui.merchant and sfui.merchant.reset_scroll_and_rebuild then
             sfui.merchant.reset_scroll_and_rebuild()
@@ -823,79 +889,161 @@ function sfui.create_options_panel()
     end)
 
     -- 6. automation panel
-    local automation_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
-    automation_header:SetPoint("TOPLEFT", 15, -15)
-    automation_header:SetTextColor(white[1], white[2], white[3])
-    automation_header:SetText("automation settings")
+    local COL_OFFSET_X = 265
+    local SECTION_GAP = 22
+
+    -- ── 6.1 General Automation ───────────────────────────────────────────────
+    local general_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
+    general_header:SetPoint("TOPLEFT", 15, -15)
+    general_header:SetTextColor(white[1], white[2], white[3])
+    general_header:SetText("general automation")
 
     local auto_role_cb = create_checkbox(automation_panel, "auto confirm role checks", "auto_role_check", nil,
         "automatically selects and accepts the role check when a group leader signs up.")
-    auto_role_cb:SetPoint("TOPLEFT", automation_header, "BOTTOMLEFT", 0, -10)
+    auto_role_cb:SetPoint("TOPLEFT", general_header, "BOTTOMLEFT", 0, -10)
+
+    local auto_sell_cb = create_checkbox(automation_panel, "auto-sell greys", "autoSellGreys", nil,
+        "automatically sells all grey items when opening a merchant.")
+    auto_sell_cb:SetPoint("LEFT", auto_role_cb, "LEFT", COL_OFFSET_X, 0)
 
     local auto_sign_cb = create_checkbox(automation_panel, "auto sign lfg", "auto_sign_lfg", nil,
         "enables double-click signing for premade groups in the lfg tool. hold shift to bypass.")
     auto_sign_cb:SetPoint("TOPLEFT", auto_role_cb, "BOTTOMLEFT", 0, -10)
 
-    local auto_sell_cb = create_checkbox(automation_panel, "auto-sell greys", "autoSellGreys", nil,
-        "Automatically sells all grey items when opening a merchant.")
-    auto_sell_cb:SetPoint("TOPLEFT", auto_sign_cb, "BOTTOMLEFT", 0, -10)
-
     local auto_repair_cb = create_checkbox(automation_panel, "auto-repair", "autoRepair", nil,
-        "Automatically repairs gear (guild first, skips if blacksmith hammer available).")
-    auto_repair_cb:SetPoint("TOPLEFT", auto_sell_cb, "BOTTOMLEFT", 0, -10)
+        "automatically repairs gear (guild first, skips if blacksmith hammer available).")
+    auto_repair_cb:SetPoint("LEFT", auto_sign_cb, "LEFT", COL_OFFSET_X, 0)
 
-    local auto_log_cb
+    -- ── 6.2 Dungeons, Raids & Grouping ───────────────────────────────────────
+    local dungeon_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
+    dungeon_header:SetPoint("TOPLEFT", auto_sign_cb, "BOTTOMLEFT", 0, -SECTION_GAP)
+    dungeon_header:SetTextColor(white[1], white[2], white[3])
+    dungeon_header:SetText("dungeons, raids & grouping")
+
+    local auto_log_cb = create_checkbox(automation_panel, "auto combat log", "autoCombatLog", function(checked)
+        if sfui.logs and sfui.logs.set_enabled then
+            sfui.logs.set_enabled(checked)
+        end
+    end, isClassic and "automatically start/stop combat logging when entering raids." or "automatically start/stop combat logging when entering mythic+ and raids.")
+    auto_log_cb:SetPoint("TOPLEFT", dungeon_header, "BOTTOMLEFT", 0, -10)
+
+    local last_dungeon_anchor = auto_log_cb
+
     if not isClassic then
-        -- Master's Hammer Settings
-        local aesthetic_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
-        aesthetic_header:SetPoint("TOPLEFT", auto_repair_cb, "BOTTOMLEFT", 0, -20)
-        aesthetic_header:SetTextColor(white[1], white[2], white[3])
-        aesthetic_header:SetText("master's hammer settings")
+        if SfuiDB.keystoneReminder == nil then SfuiDB.keystoneReminder = true end
+        local keystone_cb = create_checkbox(automation_panel, "keystone location reminder", "keystoneReminder", nil,
+            "prints the dungeon name and key level to chat when a mythic+ invite is accepted, and again when the group fills.")
+        keystone_cb:SetPoint("LEFT", auto_log_cb, "LEFT", COL_OFFSET_X, 0)
 
-        -- Enable Toggle
-        local enable_hammer_cb = create_checkbox(automation_panel, "master's hammer", "enableMasterHammer", function(checked)
+        if SfuiDB.autoLfgDungeonDefaults == nil then SfuiDB.autoLfgDungeonDefaults = true end
+        local lfg_dungeon_cb = create_checkbox(automation_panel, "LFG: auto M+ & Competitive", "autoLfgDungeonDefaults", nil,
+            "automatically selects Mythic+ Keystone difficulty and Competitive playstyle when creating a dungeon group in Group Finder.")
+        lfg_dungeon_cb:SetPoint("TOPLEFT", auto_log_cb, "BOTTOMLEFT", 0, -10)
+
+        if SfuiDB.ahCurrentExpansionFilter == nil then SfuiDB.ahCurrentExpansionFilter = true end
+        local ah_expansion_cb = create_checkbox(automation_panel, "AH: current expansion only", "ahCurrentExpansionFilter", nil,
+            "automatically enables the \"current expansion only\" filter every time you open the auction house.")
+        ah_expansion_cb:SetPoint("LEFT", lfg_dungeon_cb, "LEFT", COL_OFFSET_X, 0)
+
+        if SfuiDB.autoDungeonPortalPopup == nil then SfuiDB.autoDungeonPortalPopup = true end
+        local portal_popup_cb = create_checkbox(automation_panel, "dungeon teleport popup", "autoDungeonPortalPopup", nil,
+            "shows a clickable dungeon teleport popup when a mythic+ group is formed.")
+        portal_popup_cb:SetPoint("TOPLEFT", lfg_dungeon_cb, "BOTTOMLEFT", 0, -10)
+
+        local test_portal_btn = CreateFlatButton(automation_panel, "test preview", 100, 20)
+        test_portal_btn:SetPoint("LEFT", portal_popup_cb, "LEFT", COL_OFFSET_X, 0)
+        test_portal_btn:SetScript("OnClick", function()
+            if sfui.portals and sfui.portals.TestPortalPopup then
+                sfui.portals.TestPortalPopup()
+            end
+        end)
+
+        if SfuiDB.portalPopupOnlyWhenFull == nil then SfuiDB.portalPopupOnlyWhenFull = true end
+        local portal_full_cb = create_checkbox(automation_panel, "only when group is full (5/5)", "portalPopupOnlyWhenFull", nil,
+            "when enabled, the teleport popup only appears when the 5th member joins; otherwise it also shows immediately upon accepting an invite.")
+        portal_full_cb:SetPoint("TOPLEFT", portal_popup_cb, "BOTTOMLEFT", 16, -8)
+
+        last_dungeon_anchor = portal_full_cb
+    end
+
+    -- ── 6.3 Recipes & Professions ────────────────────────────────────────────
+    local recipe_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
+    local recipe_x_offset = (last_dungeon_anchor == auto_log_cb) and 0 or -16
+    recipe_header:SetPoint("TOPLEFT", last_dungeon_anchor, "BOTTOMLEFT", recipe_x_offset, -SECTION_GAP)
+    recipe_header:SetTextColor(white[1], white[2], white[3])
+    recipe_header:SetText("recipes & professions")
+
+    if SfuiDB.recipesShowKnown == nil then SfuiDB.recipesShowKnown = true end
+    local recipes_known_cb = create_checkbox(automation_panel, "recipes: show known alts", "recipesShowKnown", nil,
+        "shows which alts already know a recipe on its tooltip.")
+    recipes_known_cb:SetPoint("TOPLEFT", recipe_header, "BOTTOMLEFT", 0, -10)
+
+    if SfuiDB.recipesShowCanLearn == nil then SfuiDB.recipesShowCanLearn = true end
+    local recipes_can_learn_cb = create_checkbox(automation_panel, "recipes: show who can learn", "recipesShowCanLearn", nil,
+        "shows which alts have the profession and skill rank to learn a recipe on its tooltip.")
+    recipes_can_learn_cb:SetPoint("LEFT", recipes_known_cb, "LEFT", COL_OFFSET_X, 0)
+
+    if SfuiDB.recipesTintIcons == nil then SfuiDB.recipesTintIcons = true end
+    local recipes_tint_cb = create_checkbox(automation_panel, "recipes: tint icons (merchant & bags)", "recipesTintIcons", nil,
+        "color-tints recipe icons in merchants and bags based on known or learnable status.")
+    recipes_tint_cb:SetPoint("TOPLEFT", recipes_known_cb, "BOTTOMLEFT", 0, -10)
+
+    if SfuiDB.recipesShowCraftable == nil then SfuiDB.recipesShowCraftable = true end
+    local recipes_craftable_cb = create_checkbox(automation_panel, "recipes: show who can craft on items", "recipesShowCraftable", nil,
+        "shows which alts can craft an item on that item's tooltip.")
+    recipes_craftable_cb:SetPoint("LEFT", recipes_tint_cb, "LEFT", COL_OFFSET_X, 0)
+
+    -- ── 6.4 Master's Hammer Settings (Retail Only) ───────────────────────────
+    if not isClassic then
+        local hammer_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
+        hammer_header:SetPoint("TOPLEFT", recipes_tint_cb, "BOTTOMLEFT", 0, -SECTION_GAP)
+        hammer_header:SetTextColor(white[1], white[2], white[3])
+        hammer_header:SetText("master's hammer settings")
+
+        local enable_hammer_cb = create_checkbox(automation_panel, "enable master's hammer", "enableMasterHammer", function(checked)
             local hammer = sfui.hammer or sfui.automation
             if hammer and hammer.update_hammer_popup then
                 hammer.update_hammer_popup()
             end
-        end, "Enables the automated Master's Hammer repair popup.")
-        enable_hammer_cb:SetPoint("TOPLEFT", aesthetic_header, "BOTTOMLEFT", 0, -10)
+        end, "enables the automated Master's Hammer repair popup.")
+        enable_hammer_cb:SetPoint("TOPLEFT", hammer_header, "BOTTOMLEFT", 0, -10)
 
         local lock_hammer_cb = create_checkbox(automation_panel, "lock repair icon", "lockRepairIcon", nil,
-            "Locks the repair icon in place so it cannot be dragged.")
-        lock_hammer_cb:SetPoint("LEFT", enable_hammer_cb, "RIGHT", 150, 0)
+            "locks the repair icon in place so it cannot be dragged.")
+        lock_hammer_cb:SetPoint("LEFT", enable_hammer_cb, "LEFT", COL_OFFSET_X, 0)
 
-        -- Threshold
+        -- Threshold Slider (Width 220)
         local threshold_slider = create_slider_input(automation_panel, "repair threshold (%):", "repairThreshold", 0, 100, 1,
             function(val)
                 local hammer = sfui.hammer or sfui.automation
                 if hammer and hammer.update_hammer_popup then
                     hammer.update_hammer_popup()
                 end
-            end)
-        threshold_slider:SetPoint("TOPLEFT", enable_hammer_cb, "BOTTOMLEFT", 0, -10)
+            end, "durability percentage that triggers the repair popup", 220)
+        threshold_slider:SetPoint("TOPLEFT", enable_hammer_cb, "BOTTOMLEFT", 0, -12)
 
-        -- Aesthetics Inputs
+        -- Coordinates Sliders (Side-by-side, Width 220)
         local icon_x_slider = create_slider_input(automation_panel, "icon x:", "repairIconX", -1000, 1000, 1, function(val)
             local hammer = sfui.hammer or sfui.automation
             if hammer and hammer.update_popup_style then
                 hammer.update_popup_style()
             end
-        end)
-        icon_x_slider:SetPoint("TOPLEFT", threshold_slider, "BOTTOMLEFT", 0, -15)
+        end, "horizontal offset of the repair icon", 220)
+        icon_x_slider:SetPoint("TOPLEFT", threshold_slider, "BOTTOMLEFT", 0, -12)
 
         local icon_y_slider = create_slider_input(automation_panel, "icon y:", "repairIconY", -1000, 1000, 1, function(val)
             local hammer = sfui.hammer or sfui.automation
             if hammer and hammer.update_popup_style then
                 hammer.update_popup_style()
             end
-        end)
-        icon_y_slider:SetPoint("LEFT", icon_x_slider, "RIGHT", 10, 0)
+        end, "vertical offset of the repair icon", 220)
+        icon_y_slider:SetPoint("LEFT", icon_x_slider, "LEFT", COL_OFFSET_X, 0)
 
+        -- Action Buttons (Side-by-side)
         local reset_hammer_pos_btn = CreateFlatButton(automation_panel, "reset position", 120, 22)
-        reset_hammer_pos_btn:SetPoint("TOPLEFT", icon_x_slider, "BOTTOMLEFT", 0, -10)
+        reset_hammer_pos_btn:SetPoint("TOPLEFT", icon_x_slider, "BOTTOMLEFT", 0, -12)
         reset_hammer_pos_btn:SetScript("OnClick", function()
-            local def = sfui.config.masterHammer.defaultPosition
+            local def = (sfui.config.masterHammer and sfui.config.masterHammer.defaultPosition) or { x = 0, y = 0 }
             SfuiDB.repairIconX = def.x
             SfuiDB.repairIconY = def.y
             icon_x_slider:SetSliderValue(def.x)
@@ -934,70 +1082,26 @@ function sfui.create_options_panel()
             end
         end
 
+        -- Hex Color Customization Row
         local color_label = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
-        color_label:SetPoint("TOPLEFT", reset_hammer_pos_btn, "BOTTOMLEFT", 0, -15)
+        color_label:SetPoint("TOPLEFT", reset_hammer_pos_btn, "BOTTOMLEFT", 0, -14)
+        color_label:SetTextColor(white[1], white[2], white[3])
         color_label:SetText("color (#hex):")
 
         local color_input = CreateFrame("EditBox", nil, automation_panel, "InputBoxTemplate")
-        color_input:SetPoint("LEFT", color_label, "RIGHT", 5, 0)
-        color_input:SetSize(70, 20)
+        color_input:SetPoint("LEFT", color_label, "RIGHT", 8, 0)
+        color_input:SetSize(75, 20)
         color_input:SetAutoFocus(false)
         color_input:SetScript("OnShow", function(self) self:SetText(SfuiDB.repairIconColor or "00FFFF") end)
         color_input:SetScript("OnEnterPressed", function(self)
             local val = self:GetText()
             SfuiDB.repairIconColor = val
-            if sfui.automation and sfui.automation.update_popup_style then
-                sfui.automation.update_popup_style()
+            local hammer = sfui.hammer or sfui.automation
+            if hammer and hammer.update_popup_style then
+                hammer.update_popup_style()
             end
             self:ClearFocus()
         end)
-
-        auto_log_cb = create_checkbox(automation_panel, "auto combat log", "autoCombatLog", function(checked)
-            if sfui.logs and sfui.logs.set_enabled then
-                sfui.logs.set_enabled(checked)
-            end
-        end, "automatically start/stop combat logging when entering mythic+ and raids.")
-        auto_log_cb:SetPoint("TOPLEFT", color_label, "BOTTOMLEFT", 0, -25)
-
-        if SfuiDB.keystoneReminder == nil then SfuiDB.keystoneReminder = true end
-        local keystone_cb = create_checkbox(automation_panel, "keystone location reminder", "keystoneReminder", nil,
-            "prints the dungeon name and key level to chat when a mythic+ invite is accepted, and again when the group fills.")
-        keystone_cb:SetPoint("TOPLEFT", auto_log_cb, "BOTTOMLEFT", 0, -10)
-
-        if SfuiDB.autoDungeonPortalPopup == nil then SfuiDB.autoDungeonPortalPopup = true end
-        local portal_popup_cb = create_checkbox(automation_panel, "dungeon teleport popup", "autoDungeonPortalPopup", nil,
-            "shows a clickable dungeon teleport popup when a mythic+ group is formed.")
-        portal_popup_cb:SetPoint("TOPLEFT", keystone_cb, "BOTTOMLEFT", 0, -10)
-
-        local test_portal_btn = CreateFlatButton(automation_panel, "test preview", 100, 20)
-        test_portal_btn:SetPoint("LEFT", portal_popup_cb.text, "RIGHT", 15, 0)
-        test_portal_btn:SetScript("OnClick", function()
-            if sfui.portals and sfui.portals.TestPortalPopup then
-                sfui.portals.TestPortalPopup()
-            end
-        end)
-
-        if SfuiDB.portalPopupOnlyWhenFull == nil then SfuiDB.portalPopupOnlyWhenFull = true end
-        local portal_full_cb = create_checkbox(automation_panel, "only when group is full (5/5)", "portalPopupOnlyWhenFull", nil,
-            "when enabled, the teleport popup only appears when the 5th member joins; otherwise it also shows immediately upon accepting an invite.")
-        portal_full_cb:SetPoint("TOPLEFT", portal_popup_cb, "BOTTOMLEFT", 15, -6)
-
-        if SfuiDB.ahCurrentExpansionFilter == nil then SfuiDB.ahCurrentExpansionFilter = true end
-        local ah_expansion_cb = create_checkbox(automation_panel, "AH: filter current expansion only", "ahCurrentExpansionFilter", nil,
-            "automatically enables the \"current expansion only\" filter every time you open the auction house.")
-        ah_expansion_cb:SetPoint("TOPLEFT", portal_full_cb, "BOTTOMLEFT", -15, -10)
-
-        if SfuiDB.autoLfgDungeonDefaults == nil then SfuiDB.autoLfgDungeonDefaults = true end
-        local lfg_dungeon_cb = create_checkbox(automation_panel, "LFG: auto Mythic+ & Competitive", "autoLfgDungeonDefaults", nil,
-            "automatically selects Mythic+ Keystone difficulty and Competitive playstyle when creating a dungeon group in Group Finder.")
-        lfg_dungeon_cb:SetPoint("TOPLEFT", ah_expansion_cb, "BOTTOMLEFT", 0, -10)
-    else
-        auto_log_cb = create_checkbox(automation_panel, "auto combat log", "autoCombatLog", function(checked)
-            if sfui.logs and sfui.logs.set_enabled then
-                sfui.logs.set_enabled(checked)
-            end
-        end, "automatically start/stop combat logging when entering raids.")
-        auto_log_cb:SetPoint("TOPLEFT", auto_repair_cb, "BOTTOMLEFT", 0, -20)
     end
 
 
@@ -1086,11 +1190,13 @@ function sfui.create_options_panel()
 
     local function GetEquipmentSetOptions()
         local options = { { text = "None", value = "" } }
-        local setIDs = C_EquipmentSet.GetEquipmentSetIDs()
-        if setIDs then
-            for _, id in ipairs(setIDs) do
-                local name = C_EquipmentSet.GetEquipmentSetInfo(id)
-                if name then table.insert(options, { text = name, value = name }) end
+        if C_EquipmentSet and C_EquipmentSet.GetEquipmentSetIDs then
+            local setIDs = C_EquipmentSet.GetEquipmentSetIDs()
+            if setIDs then
+                for _, id in ipairs(setIDs) do
+                    local name = C_EquipmentSet.GetEquipmentSetInfo(id)
+                    if name then table.insert(options, { text = name, value = name }) end
+                end
             end
         end
         return options
@@ -1107,49 +1213,58 @@ function sfui.create_options_panel()
 
         local _, gearSpecIDs = common.get_player_specs()
 
-
-        local gear_auto_open_cb = common.create_checkbox(gear_panel, "Auto-show with Character Panel")
-        gear_auto_open_cb:SetPoint("TOPLEFT", gear_info, "BOTTOMLEFT", 0, -10)
-        local isAutoOpen = SfuiDB.gear.auto_open
-        if isAutoOpen == nil then isAutoOpen = true end
-        gear_auto_open_cb:SetChecked(isAutoOpen)
-        gear_auto_open_cb:SetScript("OnClick", function(self)
-            SfuiDB.gear.auto_open = self:GetChecked()
+        local open_gear_btn = CreateFlatButton(gear_panel, "open gear manager", 140, 22)
+        open_gear_btn:SetPoint("TOPLEFT", gear_info, "BOTTOMLEFT", 0, -10)
+        open_gear_btn:SetScript("OnClick", function()
+            if sfui.gear and sfui.gear.toggle then
+                sfui.gear.toggle()
+            end
         end)
 
+        local gear_auto_open_cb = common.create_checkbox(gear_panel, "Auto-show with Character Panel", function()
+            if SfuiDB.gear and SfuiDB.gear.auto_open ~= nil then return SfuiDB.gear.auto_open end
+            return true
+        end, function(checked)
+            SfuiDB.gear = SfuiDB.gear or {}
+            SfuiDB.gear.auto_open = checked
+        end)
+        gear_auto_open_cb:SetPoint("TOPLEFT", open_gear_btn, "BOTTOMLEFT", 0, -10)
+
         local auto_equip_highest_cb = common.create_checkbox(gear_panel,
-            "auto-equip best gear (while not max level)")
-        auto_equip_highest_cb:SetPoint("TOPLEFT", gear_auto_open_cb, "BOTTOMLEFT", 0, -10)
-        local isAutoEquip = SfuiDB.gear.auto_equip_highest
-        if isAutoEquip == nil then isAutoEquip = true end
-        auto_equip_highest_cb:SetChecked(isAutoEquip)
-        auto_equip_highest_cb:SetScript("OnClick", function(self)
-            SfuiDB.gear.auto_equip_highest = self:GetChecked()
-            -- Sync gear manager frame checkbox if visible
+            "auto-equip best gear (while not max level)", function()
+            if SfuiDB.gear and SfuiDB.gear.auto_equip_highest ~= nil then return SfuiDB.gear.auto_equip_highest end
+            return true
+        end, function(checked)
+            SfuiDB.gear = SfuiDB.gear or {}
+            SfuiDB.gear.auto_equip_highest = checked
             if SfuiGearManagerFrame and SfuiGearManagerFrame.maxLvlChk then
-                SfuiGearManagerFrame.maxLvlChk:SetChecked(self:GetChecked())
+                SfuiGearManagerFrame.maxLvlChk:SetChecked(checked)
             end
-            if self:GetChecked() and sfui.gear and sfui.gear.Update then
+            if checked and sfui.gear and sfui.gear.Update then
                 sfui.gear.Update()
             end
         end)
+        auto_equip_highest_cb:SetPoint("TOPLEFT", gear_auto_open_cb, "BOTTOMLEFT", 0, -10)
 
         local pveHeader = self:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        pveHeader:SetPoint("TOPLEFT", auto_equip_highest_cb, "BOTTOMLEFT", 65, -10)
+        pveHeader:SetPoint("TOPLEFT", auto_equip_highest_cb, "BOTTOMLEFT", 45, -12)
         pveHeader:SetText("PvE Target")
 
         local pvpHeader = self:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        pvpHeader:SetPoint("TOPLEFT", auto_equip_highest_cb, "BOTTOMLEFT", 190, -10)
+        pvpHeader:SetPoint("LEFT", pveHeader, "RIGHT", 80, 0)
         pvpHeader:SetText("PvP Target")
 
-        local yOffset = -80
-        local rowHeight = 45
-        for _, id in ipairs(gearSpecIDs or {}) do
+        local prevRowAnchor
+        for i, id in ipairs(gearSpecIDs or {}) do
             local icon = common.get_spec_icon(id)
 
             local iconTex = self:CreateTexture(nil, "ARTWORK")
             iconTex:SetSize(32, 32)
-            iconTex:SetPoint("TOPLEFT", gear_info, "BOTTOMLEFT", 0, yOffset)
+            if i == 1 then
+                iconTex:SetPoint("TOPLEFT", auto_equip_highest_cb, "BOTTOMLEFT", 0, -32)
+            else
+                iconTex:SetPoint("TOPLEFT", prevRowAnchor, "BOTTOMLEFT", 0, -12)
+            end
             iconTex:SetTexture(icon)
 
             local pveDrop = common.create_dropdown(gear_panel, 120, GetEquipmentSetOptions, function(val)
@@ -1175,8 +1290,7 @@ function sfui.create_options_panel()
             end)
 
             updateFuncs[#updateFuncs]()
-
-            yOffset = yOffset - rowHeight
+            prevRowAnchor = iconTex
         end
     end)
 
@@ -1304,7 +1418,7 @@ function sfui.create_options_panel()
 
         local lock_ql_cb = create_checkbox(p, "lock quest log position",
             function()
-                return not (SfuiDB.questlogUnlocked == true)
+                return SfuiDB.questlogUnlocked ~= true
             end,
             function(checked)
                 SfuiDB.questlogUnlocked = not checked
@@ -1333,91 +1447,93 @@ function sfui.create_options_panel()
         yOff = yOff - 36
 
         -- ────────────────────────────────────────────────────────────────────
-        --  SECTION: Mythic+ HUD
+        --  SECTION: Mythic+ HUD (Retail only)
         -- ────────────────────────────────────────────────────────────────────
-        local mplus_section = p:CreateFontString(nil, "OVERLAY", g.font)
-        mplus_section:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
-        mplus_section:SetTextColor(0, 1, 1, 1)   -- cyan accent
-        mplus_section:SetText("mythic+ timer hud")
-        yOff = yOff - 22
+        if not isClassic then
+            local mplus_section = p:CreateFontString(nil, "OVERLAY", g.font)
+            mplus_section:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+            mplus_section:SetTextColor(0, 1, 1, 1)   -- cyan accent
+            mplus_section:SetText("mythic+ timer hud")
+            yOff = yOff - 22
 
-        local enable_mhud_cb = create_checkbox(p, "enable mythic+ hud",
-            function()
-                if sfui.mythic and sfui.mythic.IsEnabled then return sfui.mythic.IsEnabled() end
-                return SfuiDB.mythicHudEnabled ~= false
-            end,
-            function(checked)
-                if sfui.mythic and sfui.mythic.SetEnabled then
-                    sfui.mythic.SetEnabled(checked)
+            local enable_mhud_cb = create_checkbox(p, "enable mythic+ hud",
+                function()
+                    if sfui.mythic and sfui.mythic.IsEnabled then return sfui.mythic.IsEnabled() end
+                    return SfuiDB.mythicHudEnabled ~= false
+                end,
+                function(checked)
+                    if sfui.mythic and sfui.mythic.SetEnabled then
+                        sfui.mythic.SetEnabled(checked)
+                    else
+                        SfuiDB.mythicHudEnabled = checked
+                    end
+                end,
+                "When enabled, SFUI displays a native Mythic+ HUD with the dungeon timer, " ..
+                "death count, boss checkmarks, and enemy forces bar. " ..
+                "Disable this if you use an external M+ timer addon.")
+            enable_mhud_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+            yOff = yOff - 28
+
+            local lock_mhud_cb = create_checkbox(p, "lock mythic+ hud position",
+                function()
+                    return SfuiDB.mythicHudUnlocked ~= true
+                end,
+                function(checked)
+                    SfuiDB.mythicHudUnlocked = not checked
+                    if sfui.mythic and sfui.mythic.SetLocked then
+                        sfui.mythic.SetLocked(checked)
+                    end
+                end,
+                "When unlocked you can drag the Mythic+ HUD to any position on screen. " ..
+                "The position is saved automatically between sessions.")
+            lock_mhud_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+            yOff = yOff - 30
+
+            local reset_mhud_pos_btn = CreateFlatButton(p, "reset position", 120, 22)
+            reset_mhud_pos_btn:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+            reset_mhud_pos_btn:SetScript("OnClick", function()
+                if sfui.mythic and sfui.mythic.ResetPosition then
+                    sfui.mythic.ResetPosition()
                 else
-                    SfuiDB.mythicHudEnabled = checked
+                    if SfuiDB then
+                        SfuiDB.mythicHudX = nil
+                        SfuiDB.mythicHudY = nil
+                    end
                 end
-            end,
-            "When enabled, SFUI displays a native Mythic+ HUD with the dungeon timer, " ..
-            "death count, boss checkmarks, and enemy forces bar. " ..
-            "Disable this if you use an external M+ timer addon.")
-        enable_mhud_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
-        yOff = yOff - 28
+            end)
+            yOff = yOff - 34
 
-        local lock_mhud_cb = create_checkbox(p, "lock mythic+ hud position",
-            function()
-                return not (SfuiDB.mythicHudUnlocked == true)
-            end,
-            function(checked)
-                SfuiDB.mythicHudUnlocked = not checked
-                if sfui.mythic and sfui.mythic.SetLocked then
-                    sfui.mythic.SetLocked(checked)
+            -- Preview button row
+            local preview_hint = p:CreateFontString(nil, "OVERLAY", g.font_small)
+            preview_hint:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+            preview_hint:SetTextColor(0.6, 0.6, 0.6, 1)
+            preview_hint:SetText("preview m+ hud with sample data:")
+            yOff = yOff - 20
+
+            local preview_btn = CreateFlatButton(p, "show preview", 110, 22)
+            preview_btn:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+
+            local hide_preview_btn = CreateFlatButton(p, "hide preview", 110, 22)
+            hide_preview_btn:SetPoint("LEFT", preview_btn, "RIGHT", 10, 0)
+
+            preview_btn:SetScript("OnClick", function()
+                if sfui.mythic and sfui.mythic.ShowPreview then
+                    sfui.mythic.ShowPreview()
                 end
-            end,
-            "When unlocked you can drag the Mythic+ HUD to any position on screen. " ..
-            "The position is saved automatically between sessions.")
-        lock_mhud_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
-        yOff = yOff - 30
-
-        local reset_mhud_pos_btn = CreateFlatButton(p, "reset position", 120, 22)
-        reset_mhud_pos_btn:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
-        reset_mhud_pos_btn:SetScript("OnClick", function()
-            if sfui.mythic and sfui.mythic.ResetPosition then
-                sfui.mythic.ResetPosition()
-            else
-                if SfuiDB then
-                    SfuiDB.mythicHudX = nil
-                    SfuiDB.mythicHudY = nil
+            end)
+            hide_preview_btn:SetScript("OnClick", function()
+                if sfui.mythic and sfui.mythic.HidePreview then
+                    sfui.mythic.HidePreview()
                 end
-            end
-        end)
-        yOff = yOff - 34
+            end)
+            yOff = yOff - 34
 
-        -- Preview button row
-        local preview_hint = p:CreateFontString(nil, "OVERLAY", g.font_small)
-        preview_hint:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
-        preview_hint:SetTextColor(0.6, 0.6, 0.6, 1)
-        preview_hint:SetText("preview m+ hud with sample data:")
-        yOff = yOff - 20
-
-        local preview_btn = CreateFlatButton(p, "show preview", 110, 22)
-        preview_btn:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
-
-        local hide_preview_btn = CreateFlatButton(p, "hide preview", 110, 22)
-        hide_preview_btn:SetPoint("LEFT", preview_btn, "RIGHT", 10, 0)
-
-        preview_btn:SetScript("OnClick", function()
-            if sfui.mythic and sfui.mythic.ShowPreview then
-                sfui.mythic.ShowPreview()
-            end
-        end)
-        hide_preview_btn:SetScript("OnClick", function()
-            if sfui.mythic and sfui.mythic.HidePreview then
-                sfui.mythic.HidePreview()
-            end
-        end)
-        yOff = yOff - 34
-
-        -- Resize hint
-        local resize_hint = p:CreateFontString(nil, "OVERLAY", g.font_small)
-        resize_hint:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
-        resize_hint:SetTextColor(0.45, 0.45, 0.45, 1)
-        resize_hint:SetText("unlock the hud above, then drag the purple handle to reposition it.")
+            -- Resize hint
+            local resize_hint = p:CreateFontString(nil, "OVERLAY", g.font_small)
+            resize_hint:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+            resize_hint:SetTextColor(0.45, 0.45, 0.45, 1)
+            resize_hint:SetText("unlock the hud above, then drag the purple handle to reposition it.")
+        end
     end
 
     -- ─────────────────────────────────────────────────────────────────────────
@@ -1426,10 +1542,12 @@ function sfui.create_options_panel()
     local function get_power_type_name(power_enum)
         if not power_enum then return "None" end
         if type(power_enum) ~= "number" then return tostring(power_enum) end
-        for name, value in pairs(Enum.PowerType) do
-            if value == power_enum then return name end
+        if Enum and Enum.PowerType then
+            for name, value in pairs(Enum.PowerType) do
+                if value == power_enum then return name end
+            end
         end
-        return "Unknown"
+        return tostring(power_enum)
     end
 
     local debug_header = debug_panel:CreateFontString(nil, "OVERLAY", g.font_large)
@@ -1529,7 +1647,7 @@ function sfui.create_options_panel()
 
         local hammer = sfui.hammer or sfui.automation
         if hammer and hammer.has_repair_hammer then
-            local found, name, icon, itemID = hammer.has_repair_hammer(true)
+            local found, name, _, itemID = hammer.has_repair_hammer(true)
             if found then
                 hammer_value:SetText("|cff00ff00Found|r (" .. (name or "Unknown") .. ")")
                 hammer_id_value:SetText(tostring(itemID))
@@ -1542,9 +1660,9 @@ function sfui.create_options_panel()
             hammer_id_value:SetText("N/A")
         end
 
-        local formID = GetShapeshiftFormID()
-        local isStealthed = IsStealthed()
-        form_id_value:SetText((formID or "0") .. (isStealthed and " |cff00ffff(Stealthed)|r" or ""))
+        local formID = (GetShapeshiftFormID and GetShapeshiftFormID()) or (GetShapeshiftForm and GetShapeshiftForm()) or 0
+        local isStealthed = (IsStealthed and IsStealthed()) or false
+        form_id_value:SetText(tostring(formID) .. (isStealthed and " |cff00ffff(Stealthed)|r" or ""))
     end
 
     debug_refresh_button:SetScript("OnClick", update_debug_info)

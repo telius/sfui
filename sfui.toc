@@ -1,7 +1,7 @@
 ## Interface: 120100, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v12.1.0-46
+## Version: v12.1.0-47
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -42,9 +42,10 @@ frames/location.lua
 frames/cursor.lua
 frames/research.lua [AllowLoadGameType standard]
 frames/merchant.lua
-frames/alts.lua
-frames/alts_standard.lua [AllowLoadGameType standard]
-frames/alts_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/alts/alts.lua
+frames/alts/alts_standard.lua [AllowLoadGameType standard]
+frames/alts/alts_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/alts/recipes.lua
 frames/automation.lua
 frames/transfer.lua [AllowLoadGameType standard]
 frames/logs.lua
@@ -78,6 +79,7 @@ frames/quests/worldevents.lua [AllowLoadGameType standard]
 frames/quests/scenarios.lua [AllowLoadGameType standard]
 frames/quests/providers.lua
 frames/quests/classicqs.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/quests/collectables.lua [AllowLoadGameType standard]
 frames/quests/quests.lua
 frames/quests/mythic.lua [AllowLoadGameType standard]
 

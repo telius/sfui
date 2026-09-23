@@ -219,6 +219,9 @@ local function UntrackAllActivities()
             end
         end
     end
+    if sfui.questlog and sfui.questlog.collectables and sfui.questlog.collectables.UntrackAll then
+        sfui.questlog.collectables.UntrackAll()
+    end
 end
 
 -- ─── Achievements Scanner ────────────────────────────────

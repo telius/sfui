@@ -582,7 +582,7 @@ function sfui.merchant.update_currency_display(frame)
 end
 
 sfui.merchant.mode = "merchant" -- "merchant" or "buyback"
-sfui.merchant.filterKnown = true
+sfui.merchant.filterKnown = 1 -- 0=show all, 1=hide known (char), 2=hide known (warband)
 
 local utilityBar = CreateFrame("Frame", nil, frame)
 utilityBar:SetHeight(cfg.utility_bar.height)
@@ -603,36 +603,62 @@ sfui.merchant.buybackBtn:SetScript("OnClick", function(self)
     sfui.merchant.reset_scroll_and_rebuild()
 end)
 
-sfui.merchant.filterBtn = CreateFlatButton(utilityBar, "hide known", cfg.utility_bar.button_small,
+sfui.merchant.filterBtn = CreateFlatButton(utilityBar, "known: char", cfg.utility_bar.button_large,
     cfg.utility_bar.button_height)
 sfui.merchant.filterBtn:SetPoint("LEFT", sfui.merchant.buybackBtn, "RIGHT", 5, 0)
 
 local function update_filter_button_style(self)
-    if sfui.merchant.filterKnown then
-        self:SetText("hiding known")
+    if sfui.merchant.filterKnown == 2 then
+        self:SetText("known: warband")
+        common.set_color(self, cfg.button_colors.filter_active)
+    elseif sfui.merchant.filterKnown == 1 or sfui.merchant.filterKnown == true then
+        self:SetText("known: char")
         common.set_color(self, cfg.button_colors.filter_active)
     else
-        self:SetText("showing known")
+        self:SetText("known: show all")
         common.set_color(self, cfg.button_colors.filter_inactive)
     end
 end
 update_filter_button_style(sfui.merchant.filterBtn)
 
 sfui.merchant.filterBtn:SetScript("OnClick", function(self)
-    sfui.merchant.filterKnown = not sfui.merchant.filterKnown
+    if sfui.merchant.filterKnown == 1 or sfui.merchant.filterKnown == true then
+        sfui.merchant.filterKnown = 2
+    elseif sfui.merchant.filterKnown == 2 then
+        sfui.merchant.filterKnown = 0
+    else
+        sfui.merchant.filterKnown = 1
+    end
     update_filter_button_style(self)
     sfui.merchant.reset_scroll_and_rebuild()
 end)
 
 sfui.merchant.filterBtn:SetScript("OnEnter", function(self)
-    if not sfui.merchant.filterKnown then
+    if not sfui.merchant.filterKnown or sfui.merchant.filterKnown == 0 then
         common.set_color(self, cfg.button_colors.filter_hover)
+    end
+    if GameTooltip then
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine("Known Items Filter", 1, 1, 1)
+        if sfui.merchant.filterKnown == 2 then
+            GameTooltip:AddLine("Currently hiding all recipes and items known by any alt.", 0.2, 0.8, 1, true)
+            GameTooltip:AddLine("Click to show all items.", 0.7, 0.7, 0.7)
+        elseif sfui.merchant.filterKnown == 1 or sfui.merchant.filterKnown == true then
+            GameTooltip:AddLine("Currently hiding recipes and items known by this character.", 0.2, 1, 0.4, true)
+            GameTooltip:AddLine("Click to hide recipes known across your warband.", 0.7, 0.7, 0.7)
+        else
+            GameTooltip:AddLine("Currently showing all items.", 1, 1, 1, true)
+            GameTooltip:AddLine("Click to hide recipes and items known by this character.", 0.7, 0.7, 0.7)
+        end
+        GameTooltip:Show()
     end
 end)
 
-
 sfui.merchant.filterBtn:SetScript("OnLeave", function(self)
     update_filter_button_style(self) -- Revert to state color
+    if GameTooltip and GameTooltip:IsShown() then
+        GameTooltip:Hide()
+    end
 end)
 
 sfui.merchant.housingFilterBtn = CreateFlatButton(utilityBar, "decor: all", cfg.utility_bar.button_large,
@@ -873,14 +899,30 @@ sfui.merchant.build_item_list = function()
         end
 
         local itemID = get_item_id(link)
-        if include and mode == "merchant" and sfui.merchant.filterKnown and link then
-            if common.is_item_known(link) then
-                include = false
-            elseif itemID then
-                local _, _, _, _, _, _, _, _, _, _, _, _, speciesID = C_PetJournal.GetPetInfoByItemID(itemID)
-                if speciesID and (C_PetJournal.GetNumCollectedInfo(speciesID) or 0) > 0 then
-                    include = false
+        if include and mode == "merchant" and sfui.merchant.filterKnown and sfui.merchant.filterKnown ~= 0 and link then
+            local isKnown = false
+            local isRecipe = itemID and sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID)
+
+            if isRecipe then
+                local status = sfui.recipes.GetRecipeStatus(itemID)
+                if status == "KNOWN_CURRENT" then
+                    isKnown = true
+                elseif (sfui.merchant.filterKnown == 2) and (status == "KNOWN_ALT") then
+                    isKnown = true
                 end
+            else
+                if common.is_item_known(link) then
+                    isKnown = true
+                elseif itemID and C_PetJournal and C_PetJournal.GetPetInfoByItemID then
+                    local _, _, _, _, _, _, _, _, _, _, _, _, speciesID = C_PetJournal.GetPetInfoByItemID(itemID)
+                    if speciesID and (C_PetJournal.GetNumCollectedInfo and C_PetJournal.GetNumCollectedInfo(speciesID) or 0) > 0 then
+                        isKnown = true
+                    end
+                end
+            end
+
+            if isKnown then
+                include = false
             end
         end
         if include and mode == "merchant" and (SfuiDB and SfuiDB.enableDecor) and sfui.merchant.housingDecorFilter > 0 and common.is_housing_decor(link) then
@@ -1115,7 +1157,18 @@ sfui.merchant.update_merchant = function()
                     btn.icon:SetVertexColor(1, 0.1, 0.1); btn.icon:SetDesaturated(true)
                 else
                     btn.lockBackground:Hide(); btn.lockReason:Hide(); btn.subName:Show()
-                    btn.icon:SetVertexColor(1, 1, 1); btn.icon:SetDesaturated(false)
+                    local tinted = false
+                    if (SfuiDB and SfuiDB.recipesTintIcons ~= false) and id and sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(id) then
+                        local _, color = sfui.recipes.GetRecipeStatus(id)
+                        if color then
+                            btn.icon:SetVertexColor(color.r, color.g, color.b)
+                            btn.icon:SetDesaturated(false)
+                            tinted = true
+                        end
+                    end
+                    if not tinted then
+                        btn.icon:SetVertexColor(1, 1, 1); btn.icon:SetDesaturated(false)
+                    end
                 end
                 btn:Show()
             else

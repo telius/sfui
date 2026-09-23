@@ -399,6 +399,7 @@ local function CheckWeeklyResets()
             end
             if d.m0 then wipe(d.m0) end
             if d.raids then wipe(d.raids) end
+            d.keystone = nil
 
             if currentNextReset then
                 d.nextWeeklyReset = currentNextReset
@@ -709,23 +710,22 @@ local function PerformSync(data, isLogout)
     end
 
     -- 2. Keystone
-    if C_MythicPlus and C_MythicPlus.GetOwnedKeystoneChallengeMapID then
+    local ks = nil
+    if sfui.common and sfui.common.get_owned_keystone_info then
+        ks = sfui.common.get_owned_keystone_info()
+    end
+    if (not ks or not ks.level or ks.level <= 0) and C_MythicPlus and C_MythicPlus.GetOwnedKeystoneChallengeMapID then
         local mapID = C_MythicPlus.GetOwnedKeystoneChallengeMapID()
         local level = C_MythicPlus.GetOwnedKeystoneLevel and C_MythicPlus.GetOwnedKeystoneLevel()
         if mapID and level and level > 0 then
-            local link = C_MythicPlus.GetOwnedKeystoneLink and C_MythicPlus.GetOwnedKeystoneLink()
-            if not link and sfui.common and sfui.common.for_each_bag_item then
-                sfui.common.for_each_bag_item(function(bag, slot, itemID, itemLink)
-                    if itemLink and string.find(itemLink, "keystone") then
-                        link = itemLink
-                        return true
-                    end
-                end, true, true, false)
-            end
-            data.keystone = { mapID = mapID, level = level, link = link }
-        else
-            data.keystone = nil
+            local mapName = C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and C_ChallengeMode.GetMapUIInfo(mapID)
+            ks = { mapID = mapID, level = level, name = mapName }
         end
+    end
+    if ks and ks.level and ks.level > 0 then
+        data.keystone = ks
+    elseif isLogout or (C_MythicPlus and C_MythicPlus.GetOwnedKeystoneLevel and (C_MythicPlus.GetOwnedKeystoneLevel() or 0) == 0) then
+        data.keystone = nil
     end
 
     -- 3. Great Vault
@@ -934,7 +934,41 @@ local function PerformSync(data, isLogout)
 
     -- 8. Professions
     data.profKP = data.profKP or {}
-    local prof1, prof2 = GetProfessions and GetProfessions()
+    data.professions = data.professions or {}
+    wipe(data.professions)
+    data.professions.primaries = {}
+
+    local prof1, prof2, arch, fish, cook = GetProfessions and GetProfessions()
+    local allProfs = {
+        { idx = prof1, isPrimary = true },
+        { idx = prof2, isPrimary = true },
+        { idx = cook,  secKey = "cooking" },
+        { idx = fish,  secKey = "fishing" },
+        { idx = arch,  secKey = "archaeology" },
+    }
+
+    for _, p in ipairs(allProfs) do
+        if p.idx then
+            local pName, pIcon, pSkill, pMaxSkill, _, _, pSkillLine = GetProfessionInfo(p.idx)
+            if pName and pName ~= "" then
+                local entry = {
+                    name = pName,
+                    rank = pSkill or 0,
+                    maxRank = pMaxSkill or 0,
+                    icon = pIcon,
+                    skillID = pSkillLine,
+                    isPrimary = p.isPrimary or false,
+                }
+                data.professions[pName] = entry
+                if p.secKey then
+                    data.professions[p.secKey] = entry
+                elseif p.isPrimary then
+                    table.insert(data.professions.primaries, entry)
+                end
+            end
+        end
+    end
+
     local profsToCheck = {}
     if prof1 then table.insert(profsToCheck, prof1) end
     if prof2 then table.insert(profsToCheck, prof2) end
@@ -1024,6 +1058,10 @@ local function PerformSync(data, isLogout)
                 end
             end
         end
+    end
+
+    if sfui.recipes and sfui.recipes.InvalidateCache then
+        sfui.recipes.InvalidateCache()
     end
 end
 
@@ -1172,9 +1210,12 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         return true
 
     elseif cat.type == "keystone" then
-        if altData.keystone then
+        if altData.keystone and altData.keystone.level and altData.keystone.level > 0 then
             local ks   = altData.keystone
-            local name = sfui.common and sfui.common.get_short_map_name and sfui.common.get_short_map_name(ks.mapID)
+            local name = ks.mapID and sfui.common and sfui.common.get_short_map_name and sfui.common.get_short_map_name(ks.mapID)
+            if not name and ks.name then
+                name = sfui.common and sfui.common.get_short_string and sfui.common.get_short_string(ks.name)
+            end
             if name then
                 text:SetText(string.format("%s +%d", name, ks.level))
             else
@@ -1199,8 +1240,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                     GameTooltip:AddLine(" ")
                     GameTooltip:AddLine("<shift-click to link>", GREEN_FONT_COLOR.r, GREEN_FONT_COLOR.g, GREEN_FONT_COLOR.b)
                 else
-                    local fullName = C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and C_ChallengeMode.GetMapUIInfo(ksSnap.mapID)
-                    GameTooltip:SetText(fullName or "Keystone")
+                    local fullName = ksSnap.mapID and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and C_ChallengeMode.GetMapUIInfo(ksSnap.mapID)
+                    GameTooltip:SetText(fullName or ksSnap.name or "Keystone")
                     GameTooltip:AddLine("+" .. ksSnap.level, 1, 1, 1)
                 end
                 GameTooltip:Show()
@@ -2006,6 +2047,7 @@ end
 
 local function ResetWeeklies()
     for _, d in pairs(SfuiDB.alts or {}) do
+        d.keystone = nil
         if d.quests then wipe(d.quests) end
         if d.profKP then
             for _, pData in pairs(d.profKP) do
@@ -2034,6 +2076,7 @@ end
 -- Register Retail Provider
 sfui.alts.RegisterProvider({
     name = "standard",
+    showTimePlayedTooltip = false,
     GetCategories = function() return CATEGORIES end,
     RefreshDynamicCategories = RefreshDynamicCategories,
     PerformSync = PerformSync,
@@ -2044,7 +2087,6 @@ sfui.alts.RegisterProvider({
         { text = "Name (A-Z)",  value = "name" },
         { text = "Item Level",  value = "ilvl" },
         { text = "M+ Rating",   value = "rating" },
-        { text = "Time Played", value = "timeplayed" },
     },
     SortAlts = function(a, b, sortKey)
         if sortKey == "rating" then
@@ -2056,6 +2098,7 @@ sfui.alts.RegisterProvider({
         if C_MythicPlus and C_MythicPlus.RequestRewards then C_MythicPlus.RequestRewards() end
         if C_WeeklyRewards and C_WeeklyRewards.OnUIInteract then C_WeeklyRewards.OnUIInteract() end
         if RequestRaidInfo then RequestRaidInfo() end
+        if sfui.alts and sfui.alts.PerformSync then sfui.alts.PerformSync() end
     end,
     RegisterEvents = function()
         local function on_sync()
@@ -2066,12 +2109,17 @@ sfui.alts.RegisterProvider({
         end
         sfui.events.RegisterEvent("CHALLENGE_MODE_MAPS_UPDATE",       on_sync)
         sfui.events.RegisterEvent("CHALLENGE_MODE_LEADERS_UPDATE",    on_sync)
+        sfui.events.RegisterEvent("CHALLENGE_MODE_KEYSTONE_RECEPTABLE_OPEN", on_sync)
+        sfui.events.RegisterEvent("CHALLENGE_MODE_COMPLETED",         on_sync)
         sfui.events.RegisterEvent("MYTHIC_PLUS_NEW_WEEKLY_RECORD",    on_sync)
         sfui.events.RegisterEvent("MYTHIC_PLUS_CURRENT_AFFIX_UPDATE", on_sync)
         sfui.events.RegisterEvent("WEEKLY_REWARDS_UPDATE",            on_sync)
         sfui.events.RegisterEvent("UPDATE_INSTANCE_INFO",            on_sync)
         sfui.events.RegisterEvent("PLAYER_AVG_ITEM_LEVEL_UPDATE",     on_sync)
         sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED",          on_sync)
+        sfui.events.RegisterEvent("ITEM_CHANGED",                     on_sync)
+        sfui.events.RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE", on_sync)
+        sfui.events.RegisterThrottledEvent("BAG_UPDATE_DELAYED",      1.0, on_sync)
         sfui.events.RegisterThrottledEvent("CURRENCY_DISPLAY_UPDATE", 0.5, on_sync)
         sfui.events.RegisterEvent("QUEST_TURNED_IN", function(_, questID)
             OnQuestTurnedIn(questID)

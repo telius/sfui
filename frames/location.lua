@@ -81,6 +81,55 @@ local function is_valid_dungeon_activity(actInfo)
     return false
 end
 
+local function parse_keystone_level(str)
+    if sfui_common and sfui_common.parse_keystone_level then
+        return sfui_common.parse_keystone_level(str)
+    end
+    if not str then return nil end
+    if type(str) == "number" then return (str >= 2 and str <= 40) and str or nil end
+    if type(str) ~= "string" or str == "" then return nil end
+    local plusLevel = str:match("[+]%s*(%d+)")
+    if plusLevel then
+        local num = tonumber(plusLevel)
+        if num and num >= 2 and num <= 40 then return num end
+    end
+    local tagLevel = str:match("[Kk][Ee][Yy]%s*(%d+)") or str:match("%((%d+)%)")
+    if tagLevel then
+        local num = tonumber(tagLevel)
+        if num and num >= 2 and num <= 40 then return num end
+    end
+    for numStr in str:gmatch("%f[%d](%d+)%f[%D]") do
+        local num = tonumber(numStr)
+        if num and num >= 2 and num <= 40 then return num end
+    end
+    return nil
+end
+
+local function get_group_leader_name()
+    if UnitIsGroupLeader("player") or not IsInGroup() then
+        return UnitName("player")
+    end
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do
+            local unit = "raid" .. i
+            if UnitIsGroupLeader(unit) then
+                local name = UnitName(unit)
+                if name and name ~= "" then return name end
+            end
+        end
+    else
+        local num = GetNumGroupMembers()
+        for i = 1, (num > 0 and num - 1 or 4) do
+            local unit = "party" .. i
+            if UnitIsGroupLeader(unit) then
+                local name = UnitName(unit)
+                if name and name ~= "" then return name end
+            end
+        end
+    end
+    return pendingLeader or "leader"
+end
+
 local function on_application_status(event, searchResultID, newStatus)
     if not is_enabled() then return end
     if newStatus ~= "invited" and newStatus ~= "inviteaccepted" then return end
@@ -100,10 +149,16 @@ local function on_application_status(event, searchResultID, newStatus)
         return
     end
 
-    local dungeonName = activityInfo.fullName or "?"
-    local keyLevel    = resultData.name or ""
-    local leader      = resultData.leaderName or ""
-    local pendingDgn  = dungeonName .. " " .. tostring(keyLevel)
+    local dungeonName = activityInfo.shortName or activityInfo.fullName or "?"
+    local title       = resultData.name or ""
+    local keyLevel    = parse_keystone_level(title)
+
+    local pendingDgn  = (keyLevel and keyLevel > 0) and (dungeonName .. " +" .. tostring(keyLevel)) or dungeonName
+    if title ~= "" and not title:find(dungeonName, 1, true) and not title:match("^%s*%+?%s*[0-9]+%s*$") then
+        pendingDgn = pendingDgn .. " (" .. title .. ")"
+    end
+
+    local leader = resultData.leaderName or ""
 
     -- Handle initial invite pop-up
     if newStatus == "invited" then
@@ -167,11 +222,39 @@ local function on_active_entry_update()
     local activityInfo = C_LFGList.GetActivityInfoTable(activityID)
     if not is_valid_dungeon_activity(activityInfo) then return end
 
-    local dungeonName = activityInfo.fullName or "?"
-    local keyLevel    = entryInfo.name or ""
-    local leader      = UnitName("player")
-    local pendingDgn  = dungeonName .. " " .. tostring(keyLevel)
+    local isLeader = UnitIsGroupLeader("player") or not IsInGroup()
 
+    -- 1. Extract keystone level from the active listing title (highest priority)
+    local keyLevel = parse_keystone_level(entryInfo.name)
+
+    -- 2. Fallback: ONLY if the local player is the group leader and no level was in the title,
+    -- check if the leader has a keystone in their bags for this specific activity.
+    -- (Never inspect bags for a non-leader, and never use a keystone from an unrelated dungeon!)
+    if not keyLevel and isLeader then
+        if C_LFGList and C_LFGList.GetKeystoneForActivity then
+            local actKey = C_LFGList.GetKeystoneForActivity(activityID)
+            if actKey and actKey > 0 then
+                keyLevel = actKey
+            end
+        end
+    end
+
+    -- 3. Fallback: if we already have a pending keystone level from on_application_status, preserve it
+    if not keyLevel and pendingDungeon then
+        local prevLevel = parse_keystone_level(pendingDungeon)
+        if prevLevel then
+            keyLevel = prevLevel
+        end
+    end
+
+    local dungeonName = activityInfo.shortName or activityInfo.fullName or "?"
+    local pendingDgn  = (keyLevel and keyLevel > 0) and (dungeonName .. " +" .. tostring(keyLevel)) or dungeonName
+    local customTitle = entryInfo.name or ""
+    if customTitle ~= "" and not customTitle:find(dungeonName, 1, true) and not customTitle:match("^%s*%+?%s*[0-9]+%s*$") then
+        pendingDgn = pendingDgn .. " (" .. customTitle .. ")"
+    end
+
+    local leader   = get_group_leader_name()
     pendingDungeon = pendingDgn
     pendingLeader  = leader
 
@@ -180,9 +263,11 @@ local function on_active_entry_update()
         watchingRoster = true
         
         if sfui_config.location.printOnInvite and (SfuiDB and SfuiDB.keystoneReminder ~= false) then
+            local leaderSuffix = (not isLeader and pendingLeader) and (" | leader: " .. tostring(pendingLeader)) or ""
             sfui_common.print(
                 pc .. "Keystone group listed" .. reset_c
                 .. " -> " .. cc .. pendingDungeon .. reset_c
+                .. leaderSuffix
                 .. " (waiting for group to fill...)"
             )
         end
@@ -213,6 +298,11 @@ local function print_instance_status()
     local activeKey = C_ChallengeMode and C_ChallengeMode.GetActiveKeystoneInfo and C_ChallengeMode.GetActiveKeystoneInfo()
     if activeKey and activeKey > 0 then
         diffText = "Mythic +" .. tostring(activeKey)
+    elseif C_ChallengeMode and C_ChallengeMode.GetSlottedKeystoneInfo then
+        local _, _, slottedLevel = C_ChallengeMode.GetSlottedKeystoneInfo()
+        if slottedLevel and slottedLevel > 0 then
+            diffText = "Mythic +" .. tostring(slottedLevel)
+        end
     end
 
     local specID, isDefault = sfui.common.get_effective_loot_spec_id()
@@ -251,6 +341,10 @@ sfui_events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
 end)
 sfui_events.RegisterEvent("ZONE_CHANGED_NEW_AREA", print_instance_status)
 sfui_events.RegisterEvent("CHALLENGE_MODE_START", function()
+    lastInstancePrint = nil
+    C_Timer.After(0.2, print_instance_status)
+end)
+sfui_events.RegisterEvent("CHALLENGE_MODE_KEYSTONE_SLOTTED", function()
     lastInstancePrint = nil
     C_Timer.After(0.2, print_instance_status)
 end)

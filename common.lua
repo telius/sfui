@@ -1531,16 +1531,7 @@ function sfui.common.hide_blizzard_cooldown_viewers()
         if viewer then
             viewer:SetAlpha(0)
             viewer:EnableMouse(false)
-
-            -- Suppress UNIT_AURA on hidden cooldown viewers (Essential & Utility).
-            -- Blizzard's CooldownViewer items invoke ActionButtonSpellAlertManager:ShowAlert
-            -- in their OnUnitAura glow-check. Masque's global hooksecurefunc on ShowAlert runs,
-            -- tainting the execution context with 'Masque'. When Blizzard then attempts to
-            -- inspect unitAuraUpdateInfo.addedAuras (a restricted C SecretTable in combat)
-            -- at line 1865 (CheckAuraAddedAlertTriggers), the game errors with:
-            -- "attempted to index a table that cannot be accessed while tainted (execution tainted by 'Masque')".
-            -- Since SFUI handles action cooldown tracking independently, suppressing UNIT_AURA here
-            -- eliminates this taint vector completely and saves CPU cycles in combat.
+            
             if viewerName == "EssentialCooldownViewer" or viewerName == "UtilityCooldownViewer" then
                 if viewer.UnregisterEvent then
                     viewer:UnregisterEvent("UNIT_AURA")
@@ -1675,7 +1666,179 @@ end
 
 function sfui.common.get_short_map_name(mapID)
     if not mapID then return nil end
-    local name = C_ChallengeMode.GetMapUIInfo(mapID)
+    local ccm = _G.C_ChallengeMode
+    local name = ccm and ccm.GetMapUIInfo and ccm.GetMapUIInfo(mapID)
     if not name then return nil end
     return sfui.common.get_short_string(name)
 end
+
+--- Parse a Mythic+ keystone level from a string (e.g. LFG title, comment, or chat message).
+--- Prioritizes explicit "+" notation ("+12", "M+12"), then tagged notation ("key 12", "(12)"),
+--- and finally bounded standalone integers (2-40) via frontier pattern.
+--- @param str string|number|nil
+--- @return number|nil
+function sfui.common.parse_keystone_level(str)
+    if not str then return nil end
+    if type(str) == "number" then
+        return (str >= 2 and str <= 40) and str or nil
+    end
+    if type(str) ~= "string" or str == "" then return nil end
+
+    -- 1. Explicit "+" notation: "+12", "+ 12", "M+12", "m+ 12"
+    local plusLevel = str:match("[+]%s*(%d+)")
+    if plusLevel then
+        local num = tonumber(plusLevel)
+        if num and num >= 2 and num <= 40 then
+            return num
+        end
+    end
+
+    -- 2. Explicit keyword notation: "key 12", "keystone 12", "(12)"
+    local tagLevel = str:match("[Kk][Ee][Yy]%s*(%d+)") or str:match("%((%d+)%)")
+    if tagLevel then
+        local num = tonumber(tagLevel)
+        if num and num >= 2 and num <= 40 then
+            return num
+        end
+    end
+
+    -- 3. Standalone number between 2 and 40 (keystone levels)
+    -- Using frontier patterns %f[%d] and %f[%D] so it doesn't match ilvl (e.g. 615) or score (e.g. 2500)
+    for numStr in str:gmatch("%f[%d](%d+)%f[%D]") do
+        local num = tonumber(numStr)
+        if num and num >= 2 and num <= 40 then
+            return num
+        end
+    end
+    return nil
+end
+
+--- Authoritative M+ keystone query across bags, C_MythicPlus, and C_LFGList.
+--- Prioritizes physical bags for instant reflection of downgrades/rerolls/upgrades.
+--- @return table|nil { mapID = number|nil, level = number, link = string|nil, name = string|nil, itemID = number|nil }
+function sfui.common.get_owned_keystone_info()
+    local C_Item          = _G.C_Item
+    local C_MythicPlus    = _G.C_MythicPlus
+    local C_LFGList       = _G.C_LFGList
+    local C_ChallengeMode = _G.C_ChallengeMode
+
+    -- 1. Scan physical bags first (authoritative real-time state for inventory / downgrades / rerolls / trades)
+    local bagMapID, bagLevel, bagLink, bagItemID, linkDungeonName
+    if sfui.common.for_each_bag_item then
+        sfui.common.for_each_bag_item(function(_bag, _slot, itemID, itemLink)
+            if itemLink then
+                local isKeystone = (itemID and (itemID == 180653 or itemID == 187786 or itemID == 151086 or (C_Item and C_Item.IsItemKeystoneByID and C_Item.IsItemKeystoneByID(itemID))))
+                    or string.find(itemLink, "keystone", 1, true)
+                    or string.find(itemLink, "item:180653", 1, true)
+                    or string.find(itemLink, "item:187786", 1, true)
+                    or string.find(itemLink, "item:151086", 1, true)
+
+                if isKeystone then
+                    bagItemID = itemID or bagItemID
+                    bagLink   = itemLink
+
+                    -- A. Chat hyperlink format: keystone:itemID:challengeMapID:level:affix1:affix2:affix3:affix4
+                    local kItem, kMap, kLvl = string.match(itemLink, "keystone:(%d+):(%d+):(%d+)")
+                    if kMap and kLvl then
+                        bagItemID = tonumber(kItem) or bagItemID
+                        bagMapID  = tonumber(kMap)
+                        bagLevel  = tonumber(kLvl)
+                    end
+
+                    -- B. Item hyperlink format: item:180653:... (modifiers 17 = mapID, 18 = level)
+                    if not bagMapID or not bagLevel then
+                        local raw = string.match(itemLink, "item:%d+:([^|]+)")
+                        if raw then
+                            local temp = { strsplit(":", itemLink) }
+                            for i = 1, #temp - 1 do
+                                if temp[i] == "17" and not bagMapID then
+                                    bagMapID = tonumber(temp[i + 1])
+                                elseif temp[i] == "18" and not bagLevel then
+                                    bagLevel = tonumber(temp[i + 1])
+                                end
+                            end
+                        end
+                    end
+
+                    -- C. Link text bracket notation fallback: [Keystone: Dungeon Name (10)]
+                    local rawBracket = string.match(itemLink, "%[(.-)%s*%((%d+)%)%]")
+                    if rawBracket then
+                        local cleanName = string.match(rawBracket, ":%s*(.+)") or rawBracket
+                        linkDungeonName = cleanName:match("^%s*(.-)%s*$")
+                    end
+
+                    if not bagLevel then
+                        local nameLevel = string.match(itemLink, "%((%d+)%)")
+                        if nameLevel then
+                            bagLevel = tonumber(nameLevel)
+                        end
+                    end
+
+                    -- Validate bagMapID against C_ChallengeMode: if invalid mapID, clear it
+                    if bagMapID and bagMapID > 0 and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
+                        local testName = C_ChallengeMode.GetMapUIInfo(bagMapID)
+                        if not testName then
+                            bagMapID = nil
+                        end
+                    end
+
+                    if bagMapID and bagLevel and bagLevel > 0 then
+                        return true
+                    end
+                end
+            end
+        end, true, true, false)
+    end
+
+    -- 2. Fill missing mapID or level from C_MythicPlus if bags didn't provide both
+    if not bagMapID and C_MythicPlus and C_MythicPlus.GetOwnedKeystoneChallengeMapID then
+        local mpMap = C_MythicPlus.GetOwnedKeystoneChallengeMapID()
+        if mpMap and mpMap > 0 then
+            bagMapID = mpMap
+        end
+    end
+    if not bagLevel and C_MythicPlus and C_MythicPlus.GetOwnedKeystoneLevel then
+        local mpLvl = C_MythicPlus.GetOwnedKeystoneLevel()
+        if mpLvl and mpLvl > 0 then
+            bagLevel = mpLvl
+        end
+    end
+
+    -- 3. Fall back to C_LFGList if still missing
+    if (not bagMapID or not bagLevel) and C_LFGList and C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel then
+        local activityID, groupID, lfgLevel = C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel()
+        if not activityID then
+            activityID, groupID, lfgLevel = C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel(true)
+        end
+        if lfgLevel and lfgLevel > 0 then
+            if not bagLevel then bagLevel = lfgLevel end
+            if not bagMapID and activityID then
+                local actInfo = C_LFGList.GetActivityInfoTable and C_LFGList.GetActivityInfoTable(activityID)
+                if actInfo and actInfo.mapID then
+                    bagMapID = actInfo.mapID
+                end
+            end
+        end
+    end
+
+    -- 4. If we have a valid keystone level, resolve name and return full keystone record
+    if bagLevel and bagLevel > 0 then
+        local mapName = nil
+        if bagMapID and bagMapID > 0 and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
+            mapName = C_ChallengeMode.GetMapUIInfo(bagMapID)
+        end
+        if not mapName and linkDungeonName and linkDungeonName ~= "" then
+            mapName = linkDungeonName
+        end
+        return {
+            mapID   = bagMapID,
+            level   = bagLevel,
+            link    = bagLink,
+            name    = mapName,
+            itemID  = bagItemID or 180653,
+        }
+    end
+
+    return nil
+end
+

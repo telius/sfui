@@ -2,6 +2,31 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-47 (2026-09-23)
+
+### Features & Additions
+- **Collectables & Housing Decor Tracking (`frames/quests/collectables.lua`)**:
+  - Integrated Blizzard's modern Content Tracking system into the SFUI Quest Tracker.
+  - Full tracking support for player housing decor blueprints (`Enum.ContentTrackingType.Decor`), transmog collection sources (`Enum.ContentTrackingType.Appearance`), and custom trackables.
+  - Interactive row actions: click to toggle objective expansion, `Alt-Click` to untrack, and `Left-Click` to directly open the associated housing decor chest or transmog collection window.
+  - Added dedicated event listeners (`CONTENT_TRACKING_UPDATE`, `CONTENT_TRACKING_LIST_UPDATE`, `CONTENT_TRACKING_IS_ENABLED_UPDATE`, `HOUSE_DECOR_ADDED_TO_CHEST`, `TRANSMOG_COLLECTION_SOURCE_ADDED`).
+- **Profession & Recipe Hub (`frames/alts/recipes.lua`)**:
+  - Added dedicated recipes and crafting hub module in the alts framework.
+  - Synchronizes primary and secondary profession ranks, specializations, and weekly knowledge points across alts.
+- **Alts Module Directory Reorganization**:
+  - Reorganized `frames/alts.lua`, `frames/alts_standard.lua`, and `frames/alts_camelot.lua` into the modular `frames/alts/` directory.
+
+### Improvements & Bugfixes
+- **M+ Keystone Engine & Bag Hyperlink Fixes (`common.lua`, `frames/alts/alts_standard.lua`)**:
+  - Resolved an issue where high-level keystones (such as Den of Nalorakk +13) displayed as `EK 9` due to a field offset in chat hyperlink parsing.
+  - Corrected keystone hyperlink pattern to properly bind challenge map ID and keystone level.
+  - Added support for retail bag item link modifier tags (`:17:<mapID>:` and `:18:<level>:`) and bracket notation fallback (`[Keystone: <Name> (<Level>)]`).
+  - Guarded against resolving Challenge Mode IDs as world zone maps via `C_Map.GetMapInfo`.
+  - Added real-time keystone lifecycle events to `alts_standard.lua` (`CHALLENGE_MODE_KEYSTONE_RECEPTABLE_OPEN`, `CHALLENGE_MODE_COMPLETED`, `ITEM_CHANGED`, `PLAYER_INTERACTION_MANAGER_FRAME_HIDE`) to keep keystone states synchronized across rerolls and downgrades.
+  - Properly clears expired or completed keystones to `nil` when characters possess no active keystone.
+
+---
+
 ## v12.1.0-45 (2026-09-22)
 
 ### Architectural Modernization & Decoupling Overhaul

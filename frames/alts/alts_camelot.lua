@@ -406,6 +406,10 @@ local function PerformSync(data, isLogout)
 
         data.currencies[cDef.id] = curr
     end
+
+    if sfui.recipes and sfui.recipes.InvalidateCache then
+        sfui.recipes.InvalidateCache()
+    end
 end
 
 local function RenderCell(cell, cat, altData, classColor, col)

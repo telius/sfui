@@ -2083,6 +2083,15 @@ end)
 
 sfui.gear.Frame = gearFrame
 
+function sfui.gear.toggle()
+    if not SfuiGearManagerFrame then return end
+    if SfuiGearManagerFrame:IsShown() then
+        SfuiGearManagerFrame:Hide()
+    else
+        SfuiGearManagerFrame:Show()
+    end
+end
+
 -- -------------------------------------------------------------------------
 -- CHARACTER FRAME TOGGLE BUTTON
 -- -------------------------------------------------------------------------
@@ -2105,11 +2114,7 @@ local function InitToggleHook()
     end)
     toggleBtn:SetScript("OnLeave", function() hide_tooltip() end)
     toggleBtn:SetScript("OnClick", function()
-        if SfuiGearManagerFrame:IsShown() then
-            SfuiGearManagerFrame:Hide()
-        else
-            SfuiGearManagerFrame:Show()
-        end
+        sfui.gear.toggle()
     end)
 
     toggleBtn:SetScript("OnShow", function()
