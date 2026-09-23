@@ -72,6 +72,7 @@ sfui.config = {
         [103] = { 1.00, 0.49, 0.04, 1 },     -- Feral
         [104] = { 1.00, 0.49, 0.04, 1 },     -- Guardian
         [105] = { 0.2, 0.8, 0.2, 1 },        -- Restoration
+        [1484] = { 1.00, 0.49, 0.04, 1 },    -- Classic / Vanilla Base Druid
         -- Evoker
         [1467] = { 0.20, 0.58, 0.50, 1 },    -- Devastation
         [1468] = { 0.20, 0.58, 0.50, 1 },    -- Preservation
@@ -80,10 +81,12 @@ sfui.config = {
         [253] = { 0.67, 0.83, 0.45, 1 },     -- Beast Mastery
         [254] = { 0.67, 0.83, 0.45, 1 },     -- Marksmanship
         [255] = { 0.67, 0.83, 0.45, 1 },     -- Survival
+        [1485] = { 0.67, 0.83, 0.45, 1 },    -- Classic / Vanilla Base Hunter
         -- Mage
         [62] = { 0.25, 0.78, 0.92, 1 },      -- Arcane
         [63] = { 0.25, 0.78, 0.92, 1 },      -- Fire
         [64] = { 0.25, 0.78, 0.92, 1 },      -- Frost
+        [1482] = { 0.25, 0.78, 0.92, 1 },    -- Classic / Vanilla Base Mage
         -- Monk
         [268] = { 0.90, 0.60, 0.15, 1 },     -- Brewmaster
         [269] = { 0.40, 0.80, 1.00, 1 },     -- Windwalker
@@ -92,26 +95,32 @@ sfui.config = {
         [65] = { 0.96, 0.55, 0.73, 1 },      -- Holy
         [66] = { 1.00, 0.75, 0.20, 1 },      -- Protection
         [70] = { 0.96, 0.55, 0.73, 1 },      -- Retribution
+        [1486] = { 0.96, 0.55, 0.73, 1 },    -- Classic / Vanilla Base Paladin
         -- Priest
         [256] = { 1.00, 1.00, 1.00, 1 },     -- Discipline
         [257] = { 1.00, 1.00, 1.00, 1 },     -- Holy
         [258] = { 0.40, 0.00, 1.00, 1 },     -- Shadow
+        [1487] = { 1.00, 1.00, 1.00, 1 },    -- Classic / Vanilla Base Priest
         -- Rogue
         [259] = { 1.00, 0.96, 0.41, 1 },     -- Assassination
         [260] = { 1.00, 0.96, 0.41, 1 },     -- Outlaw
         [261] = { 1.00, 0.96, 0.41, 1 },     -- Subtlety
+        [1488] = { 1.00, 0.96, 0.41, 1 },    -- Classic / Vanilla Base Rogue
         -- Shaman
         [262] = { 0.00, 0.44, 0.87, 1 },     -- Elemental
         [263] = { 0.00, 0.44, 0.87, 1 },     -- Enhancement
         [264] = { 0.00, 0.44, 0.87, 1 },     -- Restoration
+        [1489] = { 0.00, 0.44, 0.87, 1 },    -- Classic / Vanilla Base Shaman
         -- Warlock
         [265] = { 0.53, 0.53, 0.93, 1 },     -- Affliction
         [266] = { 0.71, 0.26, 0.93, 1 },     -- Demonology
         [267] = { 0.635, 1.0, 0.0, 1 },      -- Destruction
+        [1490] = { 0.53, 0.53, 0.93, 1 },    -- Classic / Vanilla Base Warlock
         -- Warrior
         [71] = { 1.00, 0.00, 0.00, 1 },      -- Arms
         [72] = { 1.00, 0.00, 0.00, 1 },      -- Fury
         [73] = { 1.00, 0.00, 0.00, 1 },      -- Protection
+        [1491] = { 1.00, 0.00, 0.00, 1 },    -- Classic / Vanilla Base Warrior
     },
 
     -- Secondary stat palette for loot & gear highlighting
@@ -686,12 +695,15 @@ sfui.config = {
     questlog = {
         enabled = true,
         width = 280,
+        posX = -4,
+        posY = -4,
         sectionHeight = 20,
         questHeight = 20,
         objectiveHeight = 13,
         itemSize = 32,
         throttle = 0.35,
         defaultHidden = false,
+        maxScreenHeight = 0.45,
         sections = {
             { id = "scenario",     label = "world event",  color = { 1.00, 0.60, 0.10 } },
             { id = "events",       label = "events",       color = { 0.90, 0.45, 0.90 } },
@@ -711,8 +723,8 @@ sfui.config = {
     mythic = {
         enabled = true, -- master toggle (user can opt-out in Options > objectives)
         width   = 280,  -- HUD frame width in pixels
-        posX    = -10,  -- default TOPRIGHT x-offset from UIParent (matches quest log tracker)
-        posY    = -10,  -- default TOPRIGHT y-offset from UIParent (matches quest log tracker)
+        posX    = -4,   -- default TOPRIGHT x-offset from UIParent (matches quest log tracker)
+        posY    = -4,   -- default TOPRIGHT y-offset from UIParent (matches quest log tracker)
     },
 
     -- ─── Vehicle Bar ──────────────────────────────────────

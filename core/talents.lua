@@ -92,16 +92,61 @@ local CLASS_ICON_FILEIDS = {
 }
 
 local CLASSIC_TREE_SPECS = {
-    [1491] = { [1] = { role = "DPS",  specID = 71 },  [2] = { role = "DPS",  specID = 72 },  [3] = { role = "TANK", specID = 73 } },  -- Warrior: Arms, Fury, Prot
-    [1486] = { [1] = { role = "HEAL", specID = 65 },  [2] = { role = "TANK", specID = 66 },  [3] = { role = "DPS",  specID = 70 } },  -- Paladin: Holy, Prot, Ret
-    [1485] = { [1] = { role = "DPS",  specID = 253 }, [2] = { role = "DPS",  specID = 254 }, [3] = { role = "DPS",  specID = 255 } }, -- Hunter: BM, MM, Surv
-    [1488] = { [1] = { role = "DPS",  specID = 259 }, [2] = { role = "DPS",  specID = 260 }, [3] = { role = "DPS",  specID = 261 } }, -- Rogue: Assas, Combat, Sub
-    [1487] = { [1] = { role = "HEAL", specID = 256 }, [2] = { role = "HEAL", specID = 257 }, [3] = { role = "DPS",  specID = 258 } }, -- Priest: Disc, Holy, Shadow
-    [1489] = { [1] = { role = "DPS",  specID = 262 }, [2] = { role = "DPS",  specID = 263 }, [3] = { role = "HEAL", specID = 264 } }, -- Shaman: Ele, Enh, Resto
-    [1482] = { [1] = { role = "DPS",  specID = 62 },  [2] = { role = "DPS",  specID = 63 },  [3] = { role = "DPS",  specID = 64 } },  -- Mage: Arcane, Fire, Frost
-    [1490] = { [1] = { role = "DPS",  specID = 265 }, [2] = { role = "DPS",  specID = 266 }, [3] = { role = "DPS",  specID = 267 } }, -- Warlock: Aff, Demo, Destro
-    [1484] = { [1] = { role = "DPS",  specID = 102 }, [2] = { role = "DPS",  specID = 103 }, [3] = { role = "HEAL", specID = 105 } }, -- Druid: Balance, Feral, Resto
+    [1491] = { -- Warrior
+        [1] = { name = "arms",         icon = 132355, role = "DPS",  specID = 71 },
+        [2] = { name = "fury",         icon = 132347, role = "DPS",  specID = 72 },
+        [3] = { name = "protection",   icon = 132341, role = "TANK", specID = 73 },
+    },
+    [1486] = { -- Paladin
+        [1] = { name = "holy",         icon = 135920, role = "HEAL", specID = 65 },
+        [2] = { name = "protection",   icon = 236264, role = "TANK", specID = 66 },
+        [3] = { name = "retribution",  icon = 135873, role = "DPS",  specID = 70 },
+    },
+    [1485] = { -- Hunter
+        [1] = { name = "beast mastery", icon = 132222, role = "DPS", specID = 253 },
+        [2] = { name = "marksmanship",  icon = 132218, role = "DPS", specID = 254 },
+        [3] = { name = "survival",      icon = 132215, role = "DPS", specID = 255 },
+    },
+    [1488] = { -- Rogue
+        [1] = { name = "assassination", icon = 132292, role = "DPS", specID = 259 },
+        [2] = { name = "combat",        icon = 132309, role = "DPS", specID = 260 },
+        [3] = { name = "subtlety",      icon = 132320, role = "DPS", specID = 261 },
+    },
+    [1487] = { -- Priest
+        [1] = { name = "discipline",   icon = 135940, role = "HEAL", specID = 256 },
+        [2] = { name = "holy",         icon = 237542, role = "HEAL", specID = 257 },
+        [3] = { name = "shadow",       icon = 136207, role = "DPS",  specID = 258 },
+    },
+    [1489] = { -- Shaman
+        [1] = { name = "elemental",    icon = 136048, role = "DPS",  specID = 262 },
+        [2] = { name = "enhancement",  icon = 136051, role = "DPS",  specID = 263 },
+        [3] = { name = "restoration",  icon = 136052, role = "HEAL", specID = 264 },
+    },
+    [1482] = { -- Mage
+        [1] = { name = "arcane",       icon = 135932, role = "DPS",  specID = 62 },
+        [2] = { name = "fire",         icon = 135810, role = "DPS",  specID = 63 },
+        [3] = { name = "frost",        icon = 135846, role = "DPS",  specID = 64 },
+    },
+    [1490] = { -- Warlock
+        [1] = { name = "affliction",   icon = 136145, role = "DPS",  specID = 265 },
+        [2] = { name = "demonology",   icon = 136172, role = "DPS",  specID = 266 },
+        [3] = { name = "destruction",  icon = 136186, role = "DPS",  specID = 267 },
+    },
+    [1484] = { -- Druid
+        [1] = { name = "balance",      icon = 136096, role = "DPS",  specID = 102 },
+        [2] = { name = "feral",        icon = 132242, role = "DPS",  specID = 103 },
+        [3] = { name = "restoration",  icon = 136041, role = "HEAL", specID = 105 },
+    },
 }
+
+local CLASSIC_SPEC_LOOKUP = {}
+for _, trees in pairs(CLASSIC_TREE_SPECS) do
+    for _, info in ipairs(trees) do
+        if info.specID then
+            CLASSIC_SPEC_LOOKUP[info.specID] = info
+        end
+    end
+end
 
 local _classicTreeScratch = {
     [1] = { name = nil, icon = nil, points = 0 },
@@ -118,11 +163,16 @@ function sfui.talents.get_classic_talent_spec_info(vSpecID, classFilename)
         return nil
     end
 
-    if not classFilename or classFilename == "" then
-        local _, eng = sfui.talents.get_player_class()
-        classFilename = eng
+    if not classFilename or classFilename == "" or type(classFilename) ~= "string" then
+        local pClass = sfui.talents.get_player_class()
+        if type(pClass) == "string" and pClass ~= "" then
+            classFilename = pClass
+        elseif UnitClass then
+            local _, eng = UnitClass("player")
+            classFilename = eng
+        end
     end
-    classFilename = classFilename and classFilename:upper() or ""
+    classFilename = classFilename and tostring(classFilename):upper() or ""
 
     local playerLevel = (UnitLevel and UnitLevel("player")) or 1
 
@@ -508,30 +558,22 @@ function sfui.talents.get_spec_color_options()
         local entry = treeSpecs[treeIdx]
         if entry and entry.specID then
             local sID = entry.specID
-            local name, icon
-            if C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo then
-                local _, tName, _, tIcon = C_SpecializationInfo.GetSpecializationInfo(treeIdx)
-                name = tName
-                icon = tIcon
-            end
-            if (not name or not icon) and GetTalentTabInfo then
+            local name = entry.name
+            local icon = entry.icon
+
+            if GetTalentTabInfo then
                 local r1, r2, r3, r4 = GetTalentTabInfo(treeIdx)
-                if type(r1) == "string" then
-                    name = name or r1
-                    icon = icon or r2
-                elseif type(r1) == "number" then
-                    name = name or r2
-                    icon = icon or r4
-                end
+                local tabName = (type(r1) == "string" and r1) or (type(r2) == "string" and r2)
+                local tabIcon = (type(r2) == "number" and r2) or (type(r4) == "number" and r4)
+                if tabName and tabName ~= "" then name = tabName end
+                if tabIcon and tabIcon > 0 then icon = tabIcon end
             end
-            if (not name or not icon) and GetSpecializationInfoByID then
-                local _, sName, _, sIcon = GetSpecializationInfoByID(sID)
-                name = name or sName
-                icon = icon or sIcon
-            end
+
+            name = name and string.lower(name) or ("tree " .. treeIdx)
+
             resultSpecs[sID] = {
                 id          = sID,
-                name        = name or ("Tree " .. treeIdx),
+                name        = name,
                 icon        = icon or 134400,
                 role        = (entry.role == "TANK" and "TANK") or (entry.role == "HEAL" and "HEALER") or "DAMAGER",
                 classicRole = entry.role,
@@ -551,6 +593,10 @@ function sfui.talents.get_spec_info(specID)
         local s = specs[specID]
         return s.id, s.name, nil, s.icon, s.role, s.primaryStat
     end
+    if CLASSIC_SPEC_LOOKUP[specID] then
+        local c = CLASSIC_SPEC_LOOKUP[specID]
+        return c.specID, c.name, nil, c.icon, (c.role == "TANK" and "TANK") or (c.role == "HEAL" and "HEALER") or "DAMAGER", 1
+    end
     return GetSpecializationInfoByID(specID)
 end
 sfui.common.get_spec_info = sfui.talents.get_spec_info
@@ -560,6 +606,9 @@ function sfui.talents.get_spec_name(specID)
     local specs = sfui.talents.get_player_specs()
     if specs and specs[specID] and specs[specID].name then
         return specs[specID].name
+    end
+    if CLASSIC_SPEC_LOOKUP[specID] then
+        return CLASSIC_SPEC_LOOKUP[specID].name
     end
     local _, name = GetSpecializationInfoByID(specID)
     return name or ("Spec " .. specID)
@@ -571,6 +620,9 @@ function sfui.talents.get_spec_icon(specID)
     local specs = sfui.talents.get_player_specs()
     if specs and specs[specID] and specs[specID].icon then
         return specs[specID].icon
+    end
+    if CLASSIC_SPEC_LOOKUP[specID] then
+        return CLASSIC_SPEC_LOOKUP[specID].icon
     end
     local _, _, _, icon = GetSpecializationInfoByID(specID)
     return icon

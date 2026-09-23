@@ -95,24 +95,15 @@ function sfui.db.Initialize()
 end
 
 -- ─── Safe Logout Persistence Guard ──────────────────────────────────────────
--- On client shutdown or reload, ensure volatile caches and alt data are committed cleanly
+-- On client shutdown or reload, broadcast flush intent to modules.
+-- Alt data and other character state are continuously saved into SfuiDB
+-- in real-time as events occur during gameplay. We intentionally do NOT
+-- trigger an API re-scan here because WoW C-APIs are in a teardown state
+-- during logout and will return nil/empty, risking data corruption.
 local function OnLogoutPersistenceFlush()
-    -- Broadcast flush intent to all modules
     sfui.events.SendMessage("SFUI_PERSISTENCE_FLUSH")
-
-    -- Ensure alts data provider writes current character before engine kills Lua state
-    if sfui.alts and sfui.alts.SaveCurrentCharacter then
-        pcall(sfui.alts.SaveCurrentCharacter)
-    end
-    if sfui.questlog and sfui.questlog.FlushCache then
-        pcall(sfui.questlog.FlushCache)
-    end
 end
 
+-- PLAYER_LOGOUT fires on clean /quit or /logout.
 sfui.events.RegisterEvent("PLAYER_LOGOUT", OnLogoutPersistenceFlush)
-sfui.events.RegisterEvent("PLAYER_LEAVING_WORLD", function()
-    -- Secondary safety guard for instances / disconnects
-    if sfui.alts and sfui.alts.SaveCurrentCharacter then
-        pcall(sfui.alts.SaveCurrentCharacter)
-    end
-end)
+

@@ -2,14 +2,45 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-48 (2026-09-24)
+
+### Features & Additions
+- **Unified Objective Tracker Engine Architecture (`frames/quests/`)**:
+  - Re-engineered the quest tracker from legacy monolithic scripts into a modular, zero-allocation engine (`sfui.tracker`).
+  - **Engine Core (`frames/quests/engine/`)**: Implemented `module.lua` (pluggable module lifecycle, priority ordering, and dirty batching), `blocks.lua` (zero-allocation recycling pools for headers, blocks, objective lines, and status bars), `layout.lua` (vertical stack layout with 55% screen budget cutoff and collapse states), and `tracker.lua` (container positioning, auto-hide during raid bosses/pet battles, and backward-compatible `sfui.questlog` API).
+  - **Modular Content Architecture (`frames/quests/modules/`)**: Split tracking domains into independent, pluggable modules: `quests.lua` (Retail classification & Camelot zone grouping), `scenarios.lua` (Delves, Dungeons, Scenarios), `worldevents.lua` (Scheduled events & POIs), `worldquests.lua` (World Quests & Bonus Objectives), `achievements.lua` (Tracked Achievements), `activities.lua` (Traveler's Log & Neighborhood Initiatives), `collectables.lua` (Transmog, Mounts, Decor), and `recipes.lua` (Profession recipes & reagents).
+  - **Group Finder (LFG) Integration (`frames/quests/helpers/findgroup.lua`)**: Added native, untainted LFG eye buttons to quests and world quests allowing 1-click group creation and searching.
+  - **Dynamic Progression Focus & Auto-Expand**: Quests and world quests automatically expand and focus via `C_SuperTrack.SetSuperTrackedQuestID` when criteria or progress changes during gameplay.
+  - **Click-to-Complete Styling (`#FF00FF`)**: Auto-complete quests and completion popups render in vivid `#FF00FF` with direct turn-in via `ShowQuestComplete(questID)` on Left-Click.
+  - **Visual Hierarchy & Signature Aesthetics**: Standardized progress bars with SFUI's signature purple `#6600ff` and a 1px black border. Repeatable/daily quests and activities headers styled in `#00FFFF`. Events section re-ranked above campaign quests.
+
+### Improvements & Bugfixes
+- **Tracked Achievements Overhaul (`frames/quests/modules/achievements.lua`)**:
+  - Added support for modern Retail `C_ContentTracking` events (`CONTENT_TRACKING_UPDATE`, `CONTENT_TRACKING_LIST_UPDATE`) and secure API hooks (`StartTracking`, `StopTracking`) for instant reaction when Shift-clicking achievements in the Achievement UI.
+  - Fixed account-wide/Warband achievements completed on alts being filtered out; now properly checks `wasEarnedByMe`.
+  - Added support for meta-achievement sub-titles (`CRITERIA_TYPE_ACHIEVEMENT`), criteria progress bars (`EVAL_FLAG_PROGRESS_BAR`), and countdown timer bars.
+- **World Events & Scenarios Collapse Support (`frames/quests/modules/worldevents.lua`, `frames/quests/modules/scenarios.lua`)**:
+  - Implemented block-level collapse/expand for world events and delve/scenario objectives via Right-Click.
+  - Shift-Click toggles `C_EventScheduler` event reminders without blocking criteria collapse.
+  - Added visual collapse feedback (`+`) to section headers in `layout.lua`.
+- **M+ Keystone Level Accuracy & Auto-Heal (`common.lua`, `frames/alts/alts_standard.lua`)**:
+  - Direct live querying from `C_MythicPlus` API with fallback to bag item links.
+  - Added auto-healing for stored alts with corrupted legacy keystone level data.
+- **Alts Framework Lexical Scoping Fix (`frames/alts/alts.lua`, `frames/alts/alts_standard.lua`)**:
+  - Resolved `attempt to call a nil value` in `OnQuestTurnedIn` caused by `GetCurrentCharacterGUID` defined below its export.
+  - Added safe fallback resolver to `alts_standard.lua`.
+
 ## v12.1.0-47 (2026-09-23)
 
 ### Features & Additions
-- **Collectables & Housing Decor Tracking (`frames/quests/collectables.lua`)**:
-  - Integrated Blizzard's modern Content Tracking system into the SFUI Quest Tracker.
-  - Full tracking support for player housing decor blueprints (`Enum.ContentTrackingType.Decor`), transmog collection sources (`Enum.ContentTrackingType.Appearance`), and custom trackables.
-  - Interactive row actions: click to toggle objective expansion, `Alt-Click` to untrack, and `Left-Click` to directly open the associated housing decor chest or transmog collection window.
-  - Added dedicated event listeners (`CONTENT_TRACKING_UPDATE`, `CONTENT_TRACKING_LIST_UPDATE`, `CONTENT_TRACKING_IS_ENABLED_UPDATE`, `HOUSE_DECOR_ADDED_TO_CHEST`, `TRANSMOG_COLLECTION_SOURCE_ADDED`).
+- **Classic & Camelot Quest Tracker Modernization (`frames/quests/`)**:
+  - Aligned SFUI Quest Tracker with Blizzard's authoritative Retail & Classic Beta (`_classic_beta_/BlizzardInterfaceCode`) objective tracker architecture.
+  - **Modular Usable Items Engine (`frames/quests/items.lua`)**: Created dedicated quest item button controller with cropped square icons, charge counts, blob highlight pulses (`PLAYER_INSIDE_QUEST_BLOB_STATE_CHANGED`), event-driven cooldown updates (`BAG_UPDATE_COOLDOWN`), Shift-Click chat linking, and throttled 5Hz range checking (`sfui.events.RegisterUpdate`) that unregisters with zero CPU overhead when inactive.
+  - **Modular Quest Timer Bars (`frames/quests/timerbars.lua`)**: Added dedicated quest countdown status bar engine running on a throttled 4Hz update loop with smooth color grading (cyan -> yellow -> red), and strict adherence to Blizzard's Camelot override (`CanShowTimerBar() == false`) suppressing timer bars on WoW: Forever.
+  - **Modular Waypoints & Turn-In Text (`frames/quests/waypoints.lua`)**: Added dedicated helper for directional waypoint navigation (`C_QuestLog.GetNextWaypointText`), rich NPC turn-in instructions (`GetQuestLogCompletionText`), and required quest money calculations.
+  - **Classic / Camelot Section Drop Fix (`frames/quests/classicqs.lua`)**: Fixed dynamic zone section assembly to preserve standard non-zone sections (`important`, `campaign`, `activities`, `meta`, `world`, `achievements`) alongside dynamic zone headers so tracked achievements, recipes, auto-quest popups, and housing endeavors render on Classic / Camelot.
+  - Modernized Classic quest title formatting with content/player difficulty colors (`C_PlayerInfo.GetContentDifficultyQuestForPlayer`, `GetDifficultyColor`) and compact bracket tags (`[60D]`, `[60+]`, `[60R]`).
+  - **TOC & Module Load Permissions (`sfui.toc`)**: Registered new modular helpers and enabled `camelot` game type for `collectables.lua`, `scenarios.lua`, and `worldevents.lua`.
 - **Profession & Recipe Hub (`frames/alts/recipes.lua`)**:
   - Added dedicated recipes and crafting hub module in the alts framework.
   - Synchronizes primary and secondary profession ranks, specializations, and weekly knowledge points across alts.
@@ -17,6 +48,15 @@
   - Reorganized `frames/alts.lua`, `frames/alts_standard.lua`, and `frames/alts_camelot.lua` into the modular `frames/alts/` directory.
 
 ### Improvements & Bugfixes
+- **Quest, Scenario & World Event Progress Bar Engine Overhaul (`common.lua`, `frames/quests/worldevents.lua`, `frames/quests/scenarios.lua`, `frames/quests/quests.lua`)**:
+  - Replaced ad-hoc calculations and regex heuristics with Blizzard's authoritative Retail 12.1.0 engine (`Blizzard_ObjectiveTracker` & `Blizzard_UIWidgets`).
+  - Added Blizzard 12.1.0 UIWidget processing engine to `sfui.common` (`process_status_bar_widget`, `process_double_status_bar_widget`, `process_capture_bar_widget`, `process_tug_of_war_widget`, `process_discrete_steps_widget`).
+  - Faithfully replicated Blizzard's `UIWidgetBaseStatusBarTemplateMixin` sanitization and label rules: respects `barValueTextType` and only displays `overrideBarText` when `overrideBarTextShownType == Always`, preventing stage text (e.g. "Stage 1/1") from clobbering bar progress as 100%.
+  - Fixed scenario weighted progress criteria (`criteriaInfo.quantity` or `select(10, C_Scenario.GetStepInfo())`), eliminating division by `totalQuantity == 1` that previously forced 1% and 57% to show as 100% on Coiled Isle and other world events.
+  - Objective titles and progress bar labels are now cleanly separated without artificial `(%d%%)` string appending in headers.
+- **Minimap Button Collection Square Icon Styling (`frames/minimap.lua`)**:
+  - Enforced consistent SFUI square styling across all collected addon buttons in the minimap collection frame.
+  - Dynamically strips circular alpha mask textures (`RemoveMaskTexture`) and crops baked circular coin borders (e.g. BugJar) into cleanly beveled square icons.
 - **M+ Keystone Engine & Bag Hyperlink Fixes (`common.lua`, `frames/alts/alts_standard.lua`)**:
   - Resolved an issue where high-level keystones (such as Den of Nalorakk +13) displayed as `EK 9` due to a field offset in chat hyperlink parsing.
   - Corrected keystone hyperlink pattern to properly bind challenge map ID and keystone level.

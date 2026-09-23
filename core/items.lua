@@ -138,6 +138,7 @@ function sfui.items.get_item_id(item)
     if type(item) == "string" then
         local id = tonumber(item:match("item:(%d+)"))
         if id then return id end
+        if item:find("keystone:", 1, true) then return 180653 end
         local numeric = tonumber(item)
         if numeric then return numeric end
         if C_Item_GetItemInfoInstant then

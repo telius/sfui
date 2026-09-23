@@ -1094,3 +1094,193 @@ if sfui.events then
     end)
 end
 
+
+
+-- ─── Tracker Content Module Protocol ────────────────────────────────────────
+local WorldEventsModule = {
+    id       = "worldevents",
+    priority = 15,
+    events   = {
+        "PLAYER_ENTERING_WORLD",
+        "EVENT_SCHEDULER_UPDATE",
+        "SUPER_TRACKING_CHANGED",
+        "AREA_POIS_UPDATED",
+        "QUEST_LOG_UPDATE",
+    },
+}
+
+function WorldEventsModule:Init(engine)
+    self.engine = engine
+end
+
+function WorldEventsModule:IsEnabled()
+    return sfui.worldevents.is_enabled()
+end
+
+local function GetQLState()
+    if not SfuiDB then SfuiDB = {} end
+    if not SfuiDB.questlog then
+        SfuiDB.questlog = {
+            collapsed      = {},
+            expandedQuests = {},
+            hiddenQuests   = {},
+            hidden         = false,
+        }
+    end
+    return SfuiDB.questlog
+end
+
+function WorldEventsModule:BuildBlocks(container)
+    if not self:IsEnabled() then return {} end
+
+    local entries = AcquireTable()
+    sfui.worldevents.ScanEvents(entries, AcquireTable)
+
+    if #entries == 0 then
+        ReleaseTable(entries)
+        return {}
+    end
+
+    local superTrackedPOI = 0
+    if C_SuperTrack and C_SuperTrack.GetSuperTrackedMapPin and Enum and Enum.SuperTrackingMapPinType and Enum.SuperTrackingMapPinType.AreaPOI then
+        local _, pID = C_SuperTrack.GetSuperTrackedMapPin(Enum.SuperTrackingMapPinType.AreaPOI)
+        superTrackedPOI = pID or 0
+    end
+
+    local state = GetQLState()
+    local expandedQuests = state.expandedQuests or {}
+
+    local blocks = {}
+    for _, entry in ipairs(entries) do
+        local isSuper = (superTrackedPOI > 0 and entry.areaPoiID == superTrackedPOI)
+        local titleColor = entry.isOngoing and { 1.00, 0.75, 0.10, 1 } or { 0.95, 0.70, 0.95, 1 }
+
+        local curEventKey = entry.eventKey
+        local curPoiID    = entry.areaPoiID
+        local hasReminder = entry.hasReminder
+        local expandKey   = "wevent_" .. tostring(curEventKey or curPoiID or entry.title or "event")
+        local isExpanded  = (expandedQuests[expandKey] ~= false) -- Default expanded
+
+        local lines = {}
+        local progressBar = nil
+
+        if isExpanded and entry.objectives and #entry.objectives > 0 then
+            for _, obj in ipairs(entry.objectives) do
+                if obj.type == "progressbar" and not progressBar then
+                    local maxV = (obj.numRequired and not issecretvalue(obj.numRequired) and obj.numRequired > 0) and obj.numRequired or 100
+                    local curV = (obj.numFulfilled and not issecretvalue(obj.numFulfilled)) and obj.numFulfilled or 0
+                    local barTxt = obj.barText
+                    if not barTxt or barTxt == "" then
+                        barTxt = string_format("%d%%", math_floor((curV / maxV) * 100 + 0.5))
+                    end
+                    progressBar = {
+                        min   = 0,
+                        max   = maxV,
+                        value = curV,
+                        text  = barTxt,
+                        color = { 0.90, 0.45, 0.90, 0.90 },
+                    }
+                elseif obj.text and obj.text ~= "" and not issecretvalue(obj.text) then
+                    table_insert(lines, {
+                        text      = obj.text,
+                        completed = (obj.finished == true),
+                    })
+                end
+            end
+        end
+
+        local block = {
+            title          = entry.title,
+            rawTitle       = entry.title,
+            titleColor     = titleColor,
+            isSuperTracked = isSuper,
+            isWorldEvent   = true,
+            isExpanded     = isExpanded,
+            eventKey       = curEventKey,
+            areaPoiID      = curPoiID,
+            uiMapID        = entry.uiMapID,
+            zoneName       = entry.zoneName,
+            atlasName      = entry.atlasName,
+            hasReminder    = hasReminder,
+            isOngoing      = entry.isOngoing,
+            timeLeftText   = entry.timeLeftText,
+            lines          = lines,
+            progressBar    = progressBar,
+            OnClick        = function(self, btn)
+                -- 1. Shift-Click: Toggle Reminder in Event Scheduler
+                local IsShiftKeyDown = _G.IsShiftKeyDown
+                if IsShiftKeyDown and IsShiftKeyDown() then
+                    if curEventKey and C_EventScheduler then
+                        if hasReminder then
+                            if C_EventScheduler.ClearReminder then
+                                C_EventScheduler.ClearReminder(curEventKey)
+                            end
+                        else
+                            if C_EventScheduler.SetReminder then
+                                C_EventScheduler.SetReminder(curEventKey)
+                            end
+                        end
+                    end
+                    sfui.worldevents.RequestUpdate()
+                    return
+                end
+
+                -- 2. Right-Click: Toggle Collapse/Expand Objectives
+                if btn == "RightButton" then
+                    local st = GetQLState()
+                    st.expandedQuests = st.expandedQuests or {}
+                    st.expandedQuests[expandKey] = not isExpanded
+                    if sfui.tracker and sfui.tracker.RequestRefresh then
+                        sfui.tracker.RequestRefresh(0.01)
+                    end
+                    return
+                end
+
+                -- 3. Left-Click: Track & Show on Map
+                if C_SuperTrack and C_SuperTrack.SetSuperTrackedMapPin and Enum and Enum.SuperTrackingMapPinType and Enum.SuperTrackingMapPinType.AreaPOI then
+                    local _, pinID = C_SuperTrack.GetSuperTrackedMapPin(Enum.SuperTrackingMapPinType.AreaPOI)
+                    if pinID == curPoiID then
+                        C_SuperTrack.ClearSuperTrackedMapPin(Enum.SuperTrackingMapPinType.AreaPOI)
+                    else
+                        C_SuperTrack.SetSuperTrackedMapPin(Enum.SuperTrackingMapPinType.AreaPOI, curPoiID)
+                        if _G.OpenMapToEventPoi then
+                            _G.OpenMapToEventPoi(curPoiID)
+                        elseif _G.ToggleWorldMap then
+                            _G.ToggleWorldMap()
+                        end
+                    end
+                end
+            end,
+        }
+
+        table_insert(blocks, block)
+    end
+
+    -- Recycle raw entries back to table pool
+    for i = #entries, 1, -1 do
+        local entry = table_remove(entries, i)
+        if entry.objectives then
+            for j = #entry.objectives, 1, -1 do
+                ReleaseTable(table_remove(entry.objectives, j))
+            end
+            ReleaseTable(entry.objectives)
+        end
+        ReleaseTable(entry)
+    end
+    ReleaseTable(entries)
+
+    return {
+        {
+            id     = "events",
+            title  = "events",
+            color  = { 0.90, 0.45, 0.90 },
+            blocks = blocks,
+        }
+    }
+end
+
+if sfui.tracker and sfui.tracker.RegisterModule then
+    sfui.tracker.RegisterModule(WorldEventsModule)
+end
+
+return WorldEventsModule

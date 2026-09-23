@@ -2995,7 +2995,7 @@ function sfui.mythic.ResetPosition()
     end
     if MF then
         MF:ClearAllPoints()
-        MF:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", mcfg.posX or -10, mcfg.posY or -10)
+        MF:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", mcfg.posX or -4, mcfg.posY or -4)
     end
     if sfui.questlog and sfui.questlog.reset_position then
         sfui.questlog.reset_position()

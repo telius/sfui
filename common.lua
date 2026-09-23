@@ -1188,8 +1188,12 @@ end
 -- ────────────────────────────────────────────────────────────────────────────
 
 function sfui.common.set_color(element, colorName, alpha)
-    local color = sfui.config.colors[colorName]
-    if not color then return end
+    if sfui.colors and sfui.colors.set_color then
+        return sfui.colors.set_color(element, colorName, alpha)
+    end
+    local cfg = sfui.config
+    local color = cfg and cfg.colors and cfg.colors[colorName]
+    if not color or not element then return end
     alpha = alpha or 1
 
     if element.SetTextColor then
@@ -1202,6 +1206,9 @@ function sfui.common.set_color(element, colorName, alpha)
 end
 
 function sfui.common.create_font_string(parent, font, point, x, y, colorName)
+    if sfui.widgets and sfui.widgets.create_font_string then
+        return sfui.widgets.create_font_string(parent, font, point, x, y, colorName)
+    end
     local fs = parent:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
     if point then
         fs:SetPoint(point, x or 0, y or 0)
@@ -1383,6 +1390,9 @@ end
 -- @param link: Item link string (e.g., "|cff0070dd|Hitem:12345:0:0:0|h[Item Name]|h|r")
 -- @return: Item ID as a number, or nil if not found
 function sfui.common.get_item_id_from_link(link)
+    if sfui.items and sfui.items.get_item_id then
+        return sfui.items.get_item_id(link)
+    end
     if not link then return nil end
     return tonumber(link:match("item:(%d+)"))
 end
@@ -1722,10 +1732,24 @@ function sfui.common.get_owned_keystone_info()
     local C_LFGList       = _G.C_LFGList
     local C_ChallengeMode = _G.C_ChallengeMode
 
-    -- 1. Scan physical bags first (authoritative real-time state for inventory / downgrades / rerolls / trades)
+    -- 1. Query the C_MythicPlus API directly (the exact Blizzard API that powers the in-game M+ Challenges panel)
+    local mpMap = C_MythicPlus and C_MythicPlus.GetOwnedKeystoneChallengeMapID and C_MythicPlus.GetOwnedKeystoneChallengeMapID()
+    local mpLvl = C_MythicPlus and C_MythicPlus.GetOwnedKeystoneLevel and C_MythicPlus.GetOwnedKeystoneLevel()
+
     local bagMapID, bagLevel, bagLink, bagItemID, linkDungeonName
+    if mpLvl and mpLvl > 0 and mpLvl < 100 then
+        bagLevel = mpLvl
+    end
+    if mpMap and mpMap > 0 then
+        bagMapID = mpMap
+    end
+
+    -- 2. Scan physical bags to retrieve clickable item link (for chat linking & tooltips) or as fallback
     if sfui.common.for_each_bag_item then
-        sfui.common.for_each_bag_item(function(_bag, _slot, itemID, itemLink)
+        sfui.common.for_each_bag_item(function(bag, slot, itemID, itemLink)
+            if not itemLink and _G.C_Container and _G.C_Container.GetContainerItemLink then
+                itemLink = _G.C_Container.GetContainerItemLink(bag, slot)
+            end
             if itemLink then
                 local isKeystone = (itemID and (itemID == 180653 or itemID == 187786 or itemID == 151086 or (C_Item and C_Item.IsItemKeystoneByID and C_Item.IsItemKeystoneByID(itemID))))
                     or string.find(itemLink, "keystone", 1, true)
@@ -1734,43 +1758,68 @@ function sfui.common.get_owned_keystone_info()
                     or string.find(itemLink, "item:151086", 1, true)
 
                 if isKeystone then
-                    bagItemID = itemID or bagItemID
+                    bagItemID = itemID or bagItemID or 180653
                     bagLink   = itemLink
 
-                    -- A. Chat hyperlink format: keystone:itemID:challengeMapID:level:affix1:affix2:affix3:affix4
-                    local kItem, kMap, kLvl = string.match(itemLink, "keystone:(%d+):(%d+):(%d+)")
-                    if kMap and kLvl then
-                        bagItemID = tonumber(kItem) or bagItemID
-                        bagMapID  = tonumber(kMap)
-                        bagLevel  = tonumber(kLvl)
+                    -- A. Bracket notation from display link text: [Keystone: Dungeon Name (12)]
+                    local rawBracket, bracketLvl = string.match(itemLink, "%[(.-)%s*%((%d+)%)%]")
+                    if not bagLevel and bracketLvl then
+                        local bl = tonumber(bracketLvl)
+                        if bl and bl > 0 and bl < 100 then
+                            bagLevel = bl
+                        end
+                    end
+                    if rawBracket then
+                        local cleanName = string.match(rawBracket, ":%s*(.+)") or rawBracket
+                        linkDungeonName = cleanName:match("^%s*(.-)%s*$")
                     end
 
-                    -- B. Item hyperlink format: item:180653:... (modifiers 17 = mapID, 18 = level)
+                    -- B. Hyperlink payload:
+                    -- Modern Retail: keystone:itemID:mapID:level:... (e.g. keystone:180653:587:12:...)
+                    -- Legacy:        keystone:mapID:level:... (e.g. keystone:587:12:...)
                     if not bagMapID or not bagLevel then
+                        local p1, p2, p3 = string.match(itemLink, "keystone:(%d+):(%d+):?(%d*)")
+                        if p1 then
+                            local n1 = tonumber(p1)
+                            local n2 = tonumber(p2)
+                            local n3 = tonumber(p3)
+                            if n1 and n1 > 10000 and n2 and n3 then
+                                bagItemID = n1
+                                if not bagMapID then bagMapID = n2 end
+                                if not bagLevel or bagLevel >= 100 then bagLevel = n3 end
+                            elseif n1 and n2 then
+                                if not bagMapID then bagMapID = n1 end
+                                if not bagLevel or bagLevel >= 100 then bagLevel = n2 end
+                            end
+                        end
+                    end
+
+                    -- C. Item hyperlink format: item:180653:... (modifiers 17 = mapID, 18 = level)
+                    if (not bagMapID or not bagLevel or bagLevel >= 100) and string.find(itemLink, "item:", 1, true) then
                         local raw = string.match(itemLink, "item:%d+:([^|]+)")
                         if raw then
                             local temp = { strsplit(":", itemLink) }
                             for i = 1, #temp - 1 do
                                 if temp[i] == "17" and not bagMapID then
                                     bagMapID = tonumber(temp[i + 1])
-                                elseif temp[i] == "18" and not bagLevel then
-                                    bagLevel = tonumber(temp[i + 1])
+                                elseif temp[i] == "18" and (not bagLevel or bagLevel >= 100) then
+                                    local l = tonumber(temp[i + 1])
+                                    if l and l > 0 and l < 100 then
+                                        bagLevel = l
+                                    end
                                 end
                             end
                         end
                     end
 
-                    -- C. Link text bracket notation fallback: [Keystone: Dungeon Name (10)]
-                    local rawBracket = string.match(itemLink, "%[(.-)%s*%((%d+)%)%]")
-                    if rawBracket then
-                        local cleanName = string.match(rawBracket, ":%s*(.+)") or rawBracket
-                        linkDungeonName = cleanName:match("^%s*(.-)%s*$")
-                    end
-
-                    if not bagLevel then
+                    -- D. Parenthesized fallback: %(%d+%)
+                    if not bagLevel or bagLevel >= 100 then
                         local nameLevel = string.match(itemLink, "%((%d+)%)")
                         if nameLevel then
-                            bagLevel = tonumber(nameLevel)
+                            local nl = tonumber(nameLevel)
+                            if nl and nl > 0 and nl < 100 then
+                                bagLevel = nl
+                            end
                         end
                     end
 
@@ -1782,36 +1831,36 @@ function sfui.common.get_owned_keystone_info()
                         end
                     end
 
-                    if bagMapID and bagLevel and bagLevel > 0 then
+                    -- Fallback: resolve mapID from dungeon name against current season maps
+                    if not bagMapID and linkDungeonName and C_ChallengeMode and C_ChallengeMode.GetMapTable then
+                        local maps = C_ChallengeMode.GetMapTable()
+                        if maps then
+                            for _, mID in ipairs(maps) do
+                                local mName = C_ChallengeMode.GetMapUIInfo(mID)
+                                if mName and (mName == linkDungeonName or string.find(mName, linkDungeonName, 1, true) or string.find(linkDungeonName, mName, 1, true)) then
+                                    bagMapID = mID
+                                    break
+                                end
+                            end
+                        end
+                    end
+
+                    if bagLevel and bagLevel > 0 and bagMapID and bagMapID > 0 then
                         return true
                     end
                 end
             end
-        end, true, true, false)
+        end, true, true, true)
     end
 
-    -- 2. Fill missing mapID or level from C_MythicPlus if bags didn't provide both
-    if not bagMapID and C_MythicPlus and C_MythicPlus.GetOwnedKeystoneChallengeMapID then
-        local mpMap = C_MythicPlus.GetOwnedKeystoneChallengeMapID()
-        if mpMap and mpMap > 0 then
-            bagMapID = mpMap
-        end
-    end
-    if not bagLevel and C_MythicPlus and C_MythicPlus.GetOwnedKeystoneLevel then
-        local mpLvl = C_MythicPlus.GetOwnedKeystoneLevel()
-        if mpLvl and mpLvl > 0 then
-            bagLevel = mpLvl
-        end
-    end
-
-    -- 3. Fall back to C_LFGList if still missing
-    if (not bagMapID or not bagLevel) and C_LFGList and C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel then
+    -- 3. Fall back to C_LFGList if still missing or out of bounds
+    if (not bagMapID or not bagLevel or bagLevel >= 100) and C_LFGList and C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel then
         local activityID, groupID, lfgLevel = C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel()
         if not activityID then
             activityID, groupID, lfgLevel = C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel(true)
         end
-        if lfgLevel and lfgLevel > 0 then
-            if not bagLevel then bagLevel = lfgLevel end
+        if lfgLevel and lfgLevel > 0 and lfgLevel < 100 then
+            if not bagLevel or bagLevel >= 100 then bagLevel = lfgLevel end
             if not bagMapID and activityID then
                 local actInfo = C_LFGList.GetActivityInfoTable and C_LFGList.GetActivityInfoTable(activityID)
                 if actInfo and actInfo.mapID then
@@ -1821,8 +1870,8 @@ function sfui.common.get_owned_keystone_info()
         end
     end
 
-    -- 4. If we have a valid keystone level, resolve name and return full keystone record
-    if bagLevel and bagLevel > 0 then
+    -- 4. If we have a valid keystone level (< 100), resolve name and return full keystone record
+    if bagLevel and bagLevel > 0 and bagLevel < 100 then
         local mapName = nil
         if bagMapID and bagMapID > 0 and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
             mapName = C_ChallengeMode.GetMapUIInfo(bagMapID)
@@ -1841,4 +1890,162 @@ function sfui.common.get_owned_keystone_info()
 
     return nil
 end
+sfui.items = sfui.items or {}
+sfui.items.get_owned_keystone_info = sfui.common.get_owned_keystone_info
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- Blizzard 12.1.0 StatusBar & UIWidget Progress Calculation Engine
+-- Exact replication of UIWidgetBaseStatusBarTemplateMixin & MathUtil
+-- ────────────────────────────────────────────────────────────────────────────
+local StatusBarValueTextType = (_G.Enum and _G.Enum.StatusBarValueTextType) or {
+    Hidden = 0,
+    Percentage = 1,
+    Value = 2,
+    Time = 3,
+    TimeShowOneLevelOnly = 4,
+    ValueOverMax = 5,
+    ValueOverMaxNormalized = 6,
+}
+
+local StatusBarOverrideBarTextShownType = (_G.Enum and _G.Enum.StatusBarOverrideBarTextShownType) or {
+    Never = 0,
+    Always = 1,
+    OnlyOnMouseover = 2,
+    OnlyNotOnMouseover = 3,
+}
+
+function sfui.common.percentage_between(value, startValue, endValue)
+    if not value or not startValue or not endValue then return 0.0 end
+    if startValue == endValue then
+        return 0.0
+    end
+    return (value - startValue) / (endValue - startValue)
+end
+
+function sfui.common.clamped_percentage_between(value, startValue, endValue)
+    local pct = sfui.common.percentage_between(value, startValue, endValue)
+    if pct < 0 then return 0.0 elseif pct > 1 then return 1.0 end
+    return pct
+end
+
+function sfui.common.process_status_bar_widget(barInfo, mouseOver)
+    if not barInfo then return 0, "", "Progress", 0, 100 end
+
+    local isSec = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+    local val = (barInfo.barValue and not isSec(barInfo.barValue)) and barInfo.barValue or 0
+    local minVal = (barInfo.barMin and not isSec(barInfo.barMin)) and barInfo.barMin or 0
+    local maxVal = (barInfo.barMax and not isSec(barInfo.barMax)) and barInfo.barMax or 100
+
+    -- Blizzard UIWidgetBaseStatusBarTemplateMixin:SanitizeAndSetStatusBarValues:
+    -- If all 3 values are the same and greater than 0, show the bar as full
+    if minVal > 0 and minVal == maxVal and val == maxVal then
+        minVal, maxVal, val = 0, 1, 1
+    end
+
+    if maxVal > minVal then
+        val = math.min(maxVal, math.max(minVal, val))
+    end
+
+    -- Percentage calculation
+    local barPercent = sfui.common.clamped_percentage_between(val, minVal, maxVal)
+    local barPct = math.floor(barPercent * 100 + 0.5)
+
+    -- Blizzard UIWidgetBaseStatusBarTemplateMixin:SetBarText
+    local barText = ""
+    local txtType = barInfo.barValueTextType
+    if txtType == StatusBarValueTextType.Time or txtType == StatusBarValueTextType.TimeShowOneLevelOnly then
+        local maxTime = (txtType == StatusBarValueTextType.TimeShowOneLevelOnly) and 1 or 2
+        barText = (_G.SecondsToTime and _G.SecondsToTime(val, false, true, maxTime, true)) or tostring(val)
+    elseif txtType == StatusBarValueTextType.Value then
+        barText = tostring(val)
+    elseif txtType == StatusBarValueTextType.ValueOverMax then
+        barText = string.format("%d/%d", val, maxVal)
+    elseif txtType == StatusBarValueTextType.ValueOverMaxNormalized then
+        barText = string.format("%d/%d", val - minVal, maxVal - minVal)
+    elseif txtType == StatusBarValueTextType.Percentage then
+        barText = string.format("%d%%", barPct)
+    elseif txtType == StatusBarValueTextType.Hidden then
+        barText = ""
+    else
+        barText = string.format("%d%%", barPct)
+    end
+
+    -- Blizzard UIWidgetBaseStatusBarTemplateMixin:UpdateLabel
+    local showOverride = (barInfo.overrideBarTextShownType == StatusBarOverrideBarTextShownType.Always)
+    if not showOverride then
+        if mouseOver then
+            showOverride = (barInfo.overrideBarTextShownType == StatusBarOverrideBarTextShownType.OnlyOnMouseover)
+        else
+            showOverride = (barInfo.overrideBarTextShownType == StatusBarOverrideBarTextShownType.OnlyNotOnMouseover)
+        end
+    end
+
+    local shownText = (showOverride and barInfo.overrideBarText and barInfo.overrideBarText ~= "" and not isSec(barInfo.overrideBarText)) and barInfo.overrideBarText or barText
+    if (not shownText or shownText == "") and txtType ~= StatusBarValueTextType.Hidden then
+        shownText = string.format("%d%%", barPct)
+    end
+
+    local label = (barInfo.text and barInfo.text ~= "" and not isSec(barInfo.text) and barInfo.text)
+               or (barInfo.tooltip and barInfo.tooltip ~= "" and not isSec(barInfo.tooltip) and barInfo.tooltip:match("^[^\n]+"))
+               or "Progress"
+
+    return barPct, shownText, label, val, maxVal
+end
+
+function sfui.common.process_double_status_bar_widget(dInfo, mouseOver)
+    if not dInfo then return 0, "", "Progress", 0, 100 end
+    local leftBarInfo = {
+        barValue = dInfo.leftBarValue,
+        barMin = dInfo.leftBarMin,
+        barMax = dInfo.leftBarMax,
+        barValueTextType = dInfo.barValueTextType,
+        overrideBarText = dInfo.overrideBarText,
+        overrideBarTextShownType = dInfo.overrideBarTextShownType,
+        text = dInfo.text,
+        tooltip = dInfo.leftBarTooltip,
+    }
+    return sfui.common.process_status_bar_widget(leftBarInfo, mouseOver)
+end
+
+function sfui.common.process_capture_bar_widget(cbInfo)
+    if not cbInfo then return 50, "50%", "Control Point" end
+    local isSec = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+    local val = (cbInfo.barValue and not isSec(cbInfo.barValue)) and cbInfo.barValue or 0
+    local minVal = (cbInfo.barMinValue and not isSec(cbInfo.barMinValue)) and cbInfo.barMinValue or 0
+    local maxVal = (cbInfo.barMaxValue and not isSec(cbInfo.barMaxValue)) and cbInfo.barMaxValue or 100
+    local barPercent = sfui.common.clamped_percentage_between(val, minVal, maxVal)
+    local barPct = math.floor(barPercent * 100 + 0.5)
+    local shownText = string.format("%d%%", barPct)
+    local label = (cbInfo.tooltip and cbInfo.tooltip ~= "" and not isSec(cbInfo.tooltip) and cbInfo.tooltip:match("^[^\n]+")) or "Control Point"
+    return barPct, shownText, label
+end
+
+function sfui.common.process_tug_of_war_widget(towInfo)
+    if not towInfo then return 50, "50%", "Tug of War" end
+    local isSec = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+    local val = (towInfo.currentValue and not isSec(towInfo.currentValue)) and towInfo.currentValue or 0
+    local minVal = (towInfo.minValue and not isSec(towInfo.minValue)) and towInfo.minValue or 0
+    local maxVal = (towInfo.maxValue and not isSec(towInfo.maxValue)) and towInfo.maxValue or 100
+    local barPercent = sfui.common.clamped_percentage_between(val, minVal, maxVal)
+    local barPct = math.floor(barPercent * 100 + 0.5)
+    local shownText = string.format("%d%%", barPct)
+    local label = (towInfo.tooltip and towInfo.tooltip ~= "" and not isSec(towInfo.tooltip) and towInfo.tooltip:match("^[^\n]+")) or "Tug of War"
+    return barPct, shownText, label
+end
+
+function sfui.common.process_discrete_steps_widget(dpInfo)
+    if not dpInfo then return 0, "0/1", "Progress" end
+    local isSec = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+    local minVal = (dpInfo.progressMin and not isSec(dpInfo.progressMin)) and dpInfo.progressMin or 0
+    local maxVal = (dpInfo.progressMax and not isSec(dpInfo.progressMax) and dpInfo.progressMax > 0 and dpInfo.progressMax)
+                or (dpInfo.numSteps and not isSec(dpInfo.numSteps) and dpInfo.numSteps > 0 and dpInfo.numSteps)
+                or 100
+    local val = (dpInfo.progressVal and not isSec(dpInfo.progressVal)) and dpInfo.progressVal or minVal
+    local barPercent = sfui.common.clamped_percentage_between(val, minVal, maxVal)
+    local barPct = math.floor(barPercent * 100 + 0.5)
+    local shownText = string.format("%d/%d", val, maxVal)
+    local label = (dpInfo.tooltip and dpInfo.tooltip ~= "" and not isSec(dpInfo.tooltip) and dpInfo.tooltip:match("^[^\n]+")) or "Progress"
+    return barPct, shownText, label
+end
+
 

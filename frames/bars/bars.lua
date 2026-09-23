@@ -22,6 +22,11 @@ do
     local update_rune_bar
     local update_vigor_bar
 
+    -- 5-Second Rule (MP5 Regen Timer) for Vanilla / Classic / Camelot
+    local fsrEndTime = 0
+    local start_fsr_timer
+    local stop_fsr_timer
+
     -- Throttling system for high-frequency events
     local tCfg = cfg.throttle
     local throttle = {
@@ -147,7 +152,8 @@ do
         local inVehicle = is_in_vehicle()
         local inCombat = UnitAffectingCombat("player")
         local hasEnemyTarget = UnitCanAttack("player", "target")
-        local showCoreBars = (not inVehicle) and (inCombat or hasEnemyTarget)
+        local isFsrActive = sfui.isClassic and (fsrEndTime and fsrEndTime > GetTime()) or false
+        local showCoreBars = (not inVehicle) and (inCombat or hasEnemyTarget or isFsrActive)
 
         if isDragonflying then
             if vigor_bar and SfuiDB.enableVigorBar then
@@ -257,8 +263,119 @@ do
         marker:Hide()
         bar.marker = marker
 
+        -- Vanilla / Camelot: 5-Second Rule (MP5 regen) countdown timer (no outline, no shadow, 1 decimal)
+        if sfui.isClassic then
+            local fsrText = bar:CreateFontString(nil, "OVERLAY")
+            local fontSize = (cfg.powerBar and cfg.powerBar.fontSize) or 10
+            fsrText:SetFont("Fonts\\FRIZQT__.TTF", fontSize, "")
+            fsrText:SetShadowOffset(0, 0)
+            fsrText:SetPoint("CENTER", bar, "CENTER", 0, 0)
+            fsrText:SetTextColor(1, 1, 1, 0.9)
+            fsrText:Hide()
+            bar.fsrTimerText = fsrText
+        end
+
         bar_minus_1 = bar
         return bar
+    end
+
+    local function spell_costs_mana(spellID)
+        if not spellID then return false end
+        local getCost = (C_Spell and C_Spell.GetSpellPowerCost) or _G.GetSpellPowerCost
+        if not getCost then return false end
+
+        local costTable = getCost(spellID)
+        if not costTable or type(costTable) ~= "table" then return false end
+
+        for _, costInfo in pairs(costTable) do
+            local costType = costInfo.type or costInfo.powerType
+            local isMana = (costType == 0 or costType == Enum.PowerType.Mana or costInfo.name == "MANA")
+            if isMana then
+                local reqAura = costInfo.requiredAuraID
+                local hasAura = costInfo.hasRequiredAura
+                if not (reqAura and reqAura > 0 and hasAura == false) then
+                    local cost = costInfo.cost or costInfo.minCost or costInfo.costPercent or costInfo.costPerSec or 0
+                    if (type(cost) == "number" and cost > 0) or (common.SafeGT and common.SafeGT(cost, 0)) then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
+
+    function stop_fsr_timer()
+        local wasActive = fsrEndTime > 0
+        fsrEndTime = 0
+        if bar_minus_1 then
+            if bar_minus_1._fsrOnUpdateActive then
+                bar_minus_1:SetScript("OnUpdate", nil)
+                bar_minus_1._fsrOnUpdateActive = false
+            end
+            if bar_minus_1.fsrTimerText then
+                bar_minus_1.fsrTimerText:SetText("")
+                bar_minus_1.fsrTimerText:Hide()
+            end
+        end
+        if wasActive then
+            update_bar_visibility()
+        end
+    end
+
+    local function on_fsr_update(self, elapsed)
+        self._fsrThrottle = (self._fsrThrottle or 0) + elapsed
+        if self._fsrThrottle < 0.05 then return end
+        self._fsrThrottle = 0
+
+        local now = GetTime()
+        local remaining = fsrEndTime - now
+
+        local isClassic = sfui.isClassic or (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        local resource = common.get_primary_resource()
+        if resource == nil and UnitPowerType then
+            resource = UnitPowerType("player")
+        end
+
+        local isMana = (resource == 0 or resource == Enum.PowerType.Mana)
+
+        if not isClassic or not isMana or remaining <= 0 then
+            stop_fsr_timer()
+            return
+        end
+
+        if self.fsrTimerText then
+            self.fsrTimerText:SetFormattedText("%.1f", remaining)
+            if not self.fsrTimerText:IsShown() then
+                self.fsrTimerText:Show()
+            end
+        end
+    end
+
+    function start_fsr_timer()
+        local isClassic = sfui.isClassic or (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        if not isClassic then return end
+
+        local resource = common.get_primary_resource()
+        if resource == nil and UnitPowerType then
+            resource = UnitPowerType("player")
+        end
+        local isMana = (resource == 0 or resource == Enum.PowerType.Mana)
+        if not isMana then return end
+
+        fsrEndTime = GetTime() + 5.0
+        local bar = get_bar_minus_1()
+        if bar then
+            bar._fsrThrottle = 0
+            if bar.fsrTimerText then
+                bar.fsrTimerText:SetFormattedText("%.1f", 5.0)
+                bar.fsrTimerText:Show()
+            end
+            if not bar._fsrOnUpdateActive then
+                bar:SetScript("OnUpdate", on_fsr_update)
+                bar._fsrOnUpdateActive = true
+            end
+            update_bar_visibility()
+        end
     end
 
     function update_bar_minus_1()
@@ -268,6 +385,7 @@ do
 
         if not cfg.enabled or is_dragonflying() or hide then
             if bar_minus_1 and bar_minus_1.backdrop then bar_minus_1.backdrop:Hide() end
+            stop_fsr_timer()
             return
         end
         local bar = get_bar_minus_1()
@@ -276,8 +394,11 @@ do
             resource = UnitPowerType("player")
         end
         resource = resource or 0
+        if resource ~= 0 and resource ~= Enum.PowerType.Mana then
+            stop_fsr_timer()
+        end
         local max, current = UnitPowerMax("player", resource), UnitPower("player", resource)
-        if not max or max <= 0 then return end
+        if not max or (not (common.issecretvalue and common.issecretvalue(max)) and max <= 0) then return end
         -- Note: UnitPower/UnitPowerMax return secret values in vehicle/M+ contexts.
         -- Comparing them with == taints execution. SetValue handles secret values
         -- internally in the C engine, so we always pass them through unconditionally.
@@ -300,7 +421,7 @@ do
             bar.marker:SetPoint("LEFT", bar, "LEFT", bar:GetWidth() * 0.55, 0)
             bar.marker:SetHeight(bar:GetHeight())
             bar.marker:Show()
-        elseif specID == 1480 and max >= 100 then -- Devourer Demon Hunter (100 value)
+        elseif specID == 1480 and common.SafeGT(max, 99) then -- Devourer Demon Hunter (100 value)
             bar.marker:ClearAllPoints()
             local width = bar:GetWidth()
             local pct = 100 / max
@@ -839,6 +960,31 @@ do
         end
     end
 
+    local function on_spellcast(event, unit, castGUID, spellID)
+        if unit ~= "player" then return end
+        local isClassic = sfui.isClassic or (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        if not isClassic then return end
+
+        local resource = common.get_primary_resource()
+        if resource == nil and UnitPowerType then
+            resource = UnitPowerType("player")
+        end
+        if resource ~= 0 and resource ~= Enum.PowerType.Mana then return end
+
+        if not spellID then
+            if UnitCastingInfo then
+                spellID = select(9, UnitCastingInfo("player"))
+            end
+            if not spellID and UnitChannelInfo then
+                spellID = select(8, UnitChannelInfo("player"))
+            end
+        end
+
+        if spellID and spell_costs_mana(spellID) then
+            start_fsr_timer()
+        end
+    end
+
     local function on_unit_health()
         if not bar0 or not bar0.backdrop or not bar0.backdrop:IsShown() then return end
 
@@ -857,6 +1003,15 @@ do
         {"UNIT_POWER_UPDATE", "UNIT_POWER_FREQUENT", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER"},
         "player", on_unit_power
     )
+
+    -- 5-Second Rule (MP5 Regen) events: strictly registered on Classic / Camelot only
+    if sfui.isClassic then
+        sfui.events.RegisterUnitEvents(
+            {"UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_CHANNEL_START"},
+            "player", on_spellcast
+        )
+        sfui.events.RegisterEvent("PLAYER_DEAD", function() stop_fsr_timer() end)
+    end
 
     sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", on_event)
     sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", on_event)

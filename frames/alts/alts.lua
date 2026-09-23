@@ -168,6 +168,20 @@ sfui.alts.ReleaseCell = ReleaseCell
 sfui.alts.AcquireColumn = AcquireColumn
 sfui.alts.ReleaseColumn = ReleaseColumn
 
+local function GetCurrentCharacterGUID()
+    local guid = UnitGUID("player")
+    if guid then return guid end
+    local name, realm = UnitName("player")
+    realm = (realm and realm ~= "") and realm or (GetRealmName and GetRealmName())
+    if name and realm then
+        return string.format("Player-%s-%s", realm, name)
+    end
+    return nil
+end
+
+-- Expose canonical GUID resolver so providers don't duplicate the logic
+sfui.alts.GetCurrentCharacterGUID = GetCurrentCharacterGUID
+
 -- Provider Architecture
 sfui.alts.provider = nil
 function sfui.alts.RegisterProvider(provider)
@@ -193,17 +207,6 @@ function sfui.alts.RefreshDynamicCategories(force)
     if sfui.alts.provider and sfui.alts.provider.RefreshDynamicCategories then
         sfui.alts.provider.RefreshDynamicCategories(force)
     end
-end
-
-local function GetCurrentCharacterGUID()
-    local guid = UnitGUID("player")
-    if guid then return guid end
-    local name, realm = UnitName("player")
-    realm = (realm and realm ~= "") and realm or (GetRealmName and GetRealmName())
-    if name and realm then
-        return string.format("Player-%s-%s", realm, name)
-    end
-    return nil
 end
 
 local syncTimer = nil
@@ -830,8 +833,15 @@ function sfui.alts.initialize()
 
     sfui.events.RegisterEvent("PLAYER_LEAVING_WORLD", function()
         leavingWorld = true
-        sfui.alts.PerformSync(true)
+        local guid = GetCurrentCharacterGUID()
+        if guid and SfuiDB.alts and SfuiDB.alts[guid] then
+            SfuiDB.alts[guid].lastSeen = GetServerTime()
+            if GetMoney then
+                SfuiDB.alts[guid].money = GetMoney()
+            end
+        end
     end)
+
 
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
         sfui.alts.SyncCurrentCharacter()
@@ -877,6 +887,13 @@ function sfui.alts_debug_info()
         provider = sfui.alts.provider and sfui.alts.provider.name or "none",
     }
 end
+
+-- Stable alias: external code (db.lua, slash commands) may call SaveCurrentCharacter
+-- to request a forced logout-safe flush without knowing the internal API.
+sfui.alts.SaveCurrentCharacter = function()
+    sfui.alts.PerformSync(false)
+end
+
 
 if sfui.RegisterModule then
     sfui.alts.OnEnable = function(self) self.initialize() end

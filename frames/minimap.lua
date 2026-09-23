@@ -271,38 +271,15 @@ end
 function ButtonManager:skin_button(button)
     if button.sfuiSkinned then return end
 
-    if not SfuiDB.minimap_masque then
-        -- Standard square styling if Masque is disabled
-        local regions = { button:GetRegions() }
-        local icon
-        for _, region in ipairs(regions) do
-            if region:IsObjectType("Texture") then
-                local texture = region:GetTexture()
-                if texture and type(texture) == "string" and texture:lower():find("icon") then
-                    icon = region
-                    break
-                end
-            end
-        end
-        if icon then
-            sfui.common.apply_square_icon_style(button, icon)
-        end
-        button.sfuiSkinned = true
-        return
-    end
-
-    if button.SetBackdrop then button:SetBackdrop(nil) end
-
-    local Masque = LibStub("Masque", true)
-    if not Masque then return end
-
-    -- Based on HidingBar's Masque integration
+    local btnName = (button.GetName and button:GetName()) or ""
     local isButton = button:IsObjectType("Button")
     local normal, isNormalIcon = isButton and button:GetNormalTexture()
     local icon, highlight, pushed, border, background, iconMask
 
     local regions = { button:GetRegions() }
 
+    -- 1. Identify icon: check button.icon first (standard in LibDBIcon), then regions
+    icon = button.icon
     for _, region in ipairs(regions) do
         if region:IsObjectType("Texture") then
             local name = region:GetDebugName()
@@ -315,21 +292,82 @@ function ButtonManager:skin_button(button)
             local tIsString = type(texture) == "string"
             if tIsString then texture = texture:lower() end
             local layer = region:GetDrawLayer()
-            if texture == 136430 or tIsString and texture:find("minimap-trackingborder", 1, true) then
+            if texture == 136430 or (tIsString and texture:find("minimap-trackingborder", 1, true)) then
                 border = region
             end
-            if texture == 136467 or tIsString and texture:find("ui-minimap-background", 1, true) or name:find("background", 1, true) then
+            if texture == 136467 or (tIsString and texture:find("ui-minimap-background", 1, true)) or name:find("background", 1, true) then
                 background = region
             end
-            if name:find("icon", 1, true) or not icon and tIsString and texture:find("icon", 1, true) then
+            if not icon and (name:find("icon", 1, true) or (tIsString and texture:find("icon", 1, true))) then
                 icon = region
             end
-            if layer == "HIGHLIGHT" or not highlight and name:find("highlight", 1, true) then
+            if layer == "HIGHLIGHT" or (not highlight and name:find("highlight", 1, true)) then
                 highlight = region
             end
         end
     end
 
+    -- 2. Normalize and force all collected icons into SFUI square style
+    if icon then
+        -- Strip any circular mask textures (e.g. TempPortraitAlphaMask or custom masks)
+        if icon.GetNumMaskTextures and icon.RemoveMaskTexture then
+            for i = icon:GetNumMaskTextures(), 1, -1 do
+                local mask = icon:GetMaskTexture(i)
+                if mask then
+                    icon:RemoveMaskTexture(mask)
+                end
+            end
+        end
+
+        -- Determine crop coordinates:
+        -- Baked circular coin icons (like BugJar) need a deeper 22% crop to eliminate
+        -- their outer ring, while standard WoW icons get the standard 7% square bevel crop.
+        local isBakedCircle = btnName:find("BugJar", 1, true)
+            or (icon:GetTexture() and tostring(icon:GetTexture()):lower():find("bugjar", 1, true))
+            or btnName:find("HousingDecorGuide", 1, true)
+
+        local cropL, cropR, cropT, cropB = 0.07, 0.93, 0.07, 0.93
+        if isBakedCircle then
+            cropL, cropR, cropT, cropB = 0.22, 0.78, 0.22, 0.78
+        end
+
+        -- Lock coordinates & override UpdateCoord so LibDBIcon or external code cannot revert it
+        icon.UpdateCoord = function(self)
+            self:SetTexCoord(cropL, cropR, cropT, cropB)
+        end
+        if not icon._sfuiCoordHooked then
+            icon._sfuiCoordHooked = true
+            local origSetTexCoord = icon.SetTexCoord
+            icon.SetTexCoord = function(self, left, right, top, bottom)
+                origSetTexCoord(self, cropL, cropR, cropT, cropB)
+            end
+        end
+        icon:SetTexCoord(cropL, cropR, cropT, cropB)
+
+        -- Re-anchor icon to fill the square frame cleanly with a 2px margin
+        icon:ClearAllPoints()
+        icon:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -2)
+        icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)
+    end
+
+    local Masque = SfuiDB.minimap_masque and LibStub("Masque", true)
+    if not Masque then
+        -- Standard square styling if Masque is disabled or unavailable
+        if icon then
+            sfui.common.apply_square_icon_style(button, icon)
+        end
+        for _, region in ipairs(regions) do
+            if region:IsObjectType("Texture") and region ~= icon then
+                region:SetTexture(nil)
+            end
+        end
+        button.sfuiSkinned = true
+        return
+    end
+
+    if button.SetBackdrop then button:SetBackdrop(nil) end
+
+    -- Based on HidingBar's Masque integration
     if normal and (not icon or icon ~= button.icon or icon == normal) then
         isNormalIcon = true
         icon = button:CreateTexture(nil, "BACKGROUND")
@@ -352,19 +390,6 @@ function ButtonManager:skin_button(button)
         highlight = button:CreateTexture(nil, "HIGHLIGHT")
     end
 
-    if icon then
-        for i = 1, icon:GetNumMaskTextures() do
-            local mask = icon:GetMaskTexture(i)
-            local texture = mask:GetTexture()
-            if texture == 130924 or type(texture) == "string" and texture:lower():find("tempportraitalphamask", 1, true) then
-                iconMask = mask
-                break
-            end
-        end
-    else
-        background = nil
-    end
-
     sfui.common.sync_masque(button, { Icon = icon, Highlight = highlight, Border = border })
 
     for _, region in ipairs(regions) do
@@ -374,9 +399,6 @@ function ButtonManager:skin_button(button)
     pushed = isButton and button:GetPushedTexture()
     if background then background:Hide() end
     if pushed then pushed:SetAlpha(0) end
-    if iconMask and icon and icon.RemoveMaskTexture then
-        icon:RemoveMaskTexture(iconMask)
-    end
 
     button.sfuiSkinned = true
 end

@@ -26,7 +26,7 @@ function sfui.widgets.create_panel(parent, width, height)
 end
 sfui.common.create_panel = sfui.widgets.create_panel
 
-function sfui.widgets.create_border(frame, thickness, color)
+function sfui.widgets.create_border(frame, thickness, color, g, b, a)
     local mult = sfui.pixelScale or 1
     thickness = (thickness or 1) * mult
 
@@ -39,11 +39,21 @@ function sfui.widgets.create_border(frame, thickness, color)
     end
 
     local top, bottom, left, right = unpack(frame.borders)
-    local r, g, b, a = 0, 0, 0, 1
-    if color then r, g, b, a = unpack(color) end
+    local r_val, g_val, b_val, a_val = 0, 0, 0, 1
+    if type(color) == "table" then
+        r_val = color[1] or color.r or 0
+        g_val = color[2] or color.g or 0
+        b_val = color[3] or color.b or 0
+        a_val = color[4] or color.a or 1
+    elseif type(color) == "number" then
+        r_val = color
+        g_val = g or 0
+        b_val = b or 0
+        a_val = (a ~= nil and a) or 1
+    end
 
     for _, border in ipairs(frame.borders) do
-        border:SetVertexColor(r, g, b, a)
+        border:SetVertexColor(r_val, g_val, b_val, a_val)
     end
 
     top:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
@@ -129,22 +139,27 @@ function sfui.widgets.create_bar(name, frameType, parent, template, configName)
     bar:SetSize(cfg.width, cfg.height)
     bar:SetPoint("CENTER")
     if bar.SetStatusBarTexture then
-        local textureName = SfuiDB and SfuiDB.barTexture
-        local LSM = LibStub("LibSharedMedia-3.0", true)
-        local texturePath
-        if LSM and textureName then
-            texturePath = LSM:Fetch("statusbar", textureName)
-        end
-        if not texturePath or texturePath == "" then
-            texturePath = sfui.config.barTexture
-        end
-        bar:SetStatusBarTexture(texturePath)
+        bar:SetStatusBarTexture(sfui.widgets.get_bar_texture())
     end
     bar.backdrop = backdrop
     bar.fadeInAnim, bar.fadeOutAnim = sfui.widgets.create_fade_animations(backdrop)
     return bar
 end
 sfui.common.create_bar = sfui.widgets.create_bar
+
+function sfui.widgets.get_bar_texture()
+    local textureName = SfuiDB and SfuiDB.barTexture
+    local LSM = _G.LibStub and _G.LibStub("LibSharedMedia-3.0", true)
+    local texturePath
+    if LSM and textureName then
+        texturePath = LSM:Fetch("statusbar", textureName)
+    end
+    if not texturePath or texturePath == "" then
+        texturePath = (sfui.config and sfui.config.barTexture) or "Interface/Buttons/WHITE8X8"
+    end
+    return texturePath
+end
+sfui.common.get_bar_texture = sfui.widgets.get_bar_texture
 
 function sfui.widgets.style_text(fs, fontObj, size, flags)
     if not fs then return end

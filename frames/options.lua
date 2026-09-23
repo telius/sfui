@@ -531,6 +531,12 @@ function sfui.create_options_panel()
         if sfui.vehicle and sfui.vehicle.set_bar_texture then
             sfui.vehicle.set_bar_texture(texturePath)
         end
+        if sfui.tracker and sfui.tracker.blocks and sfui.tracker.blocks.SetBarTexture then
+            sfui.tracker.blocks.SetBarTexture(texturePath)
+        end
+        if sfui.tracker and sfui.tracker.RequestRefresh then
+            sfui.tracker.RequestRefresh()
+        end
     end, SfuiDB.barTexture or "Flat")
     texture_dropdown:SetPoint("LEFT", texture_label, "RIGHT", 10, 0)
 
@@ -551,7 +557,7 @@ function sfui.create_options_panel()
 
     for i, specID in ipairs(specIDs or {}) do
         local spec = specs and specs[specID]
-        local specName = spec and spec.name or ("Spec " .. i)
+        local specName = spec and spec.name or ("spec " .. i)
         local icon = spec and spec.icon
         if specID then
             local iconTex = main_panel:CreateTexture(nil, "ARTWORK")
@@ -567,7 +573,7 @@ function sfui.create_options_panel()
             local specText = main_panel:CreateFontString(nil, "OVERLAY", g.font)
             specText:SetPoint("LEFT", iconTex, "RIGHT", 6, 0)
             specText:SetTextColor(1, 1, 1, 1)
-            specText:SetText(specName)
+            specText:SetText(specName and string.lower(specName) or "")
 
             local curCol = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
                 or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
@@ -575,6 +581,14 @@ function sfui.create_options_panel()
             local swatch = common.create_color_swatch(main_panel, curCol, function(r, green, b)
                 SfuiDB.spec_colors = SfuiDB.spec_colors or {}
                 SfuiDB.spec_colors[specID] = { r, green, b, 1 }
+                -- Also sync base Classic spec ID if this is tree 1 (e.g. untalented at level < 10)
+                if sfui.isClassic and i == 1 then
+                    local pClass = common.get_player_class and common.get_player_class()
+                    local baseID = pClass and common.CLASS_VANILLA_SPEC_MAP and common.CLASS_VANILLA_SPEC_MAP[pClass]
+                    if baseID then
+                        SfuiDB.spec_colors[baseID] = { r, green, b, 1 }
+                    end
+                end
                 notify_spec_colors_updated()
             end)
             swatch:SetPoint("LEFT", iconTex, "LEFT", 150, 0)
@@ -604,6 +618,13 @@ function sfui.create_options_panel()
                 if spec_swatches[specID] then
                     spec_swatches[specID]:SetBackdropColor(r, green, b, 1)
                 end
+            end
+        end
+        if sfui.isClassic and SfuiDB.spec_colors then
+            local pClass = common.get_player_class and common.get_player_class()
+            local baseID = pClass and common.CLASS_VANILLA_SPEC_MAP and common.CLASS_VANILLA_SPEC_MAP[pClass]
+            if baseID then
+                SfuiDB.spec_colors[baseID] = nil
             end
         end
         notify_spec_colors_updated()

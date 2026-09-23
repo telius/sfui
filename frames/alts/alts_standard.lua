@@ -302,7 +302,20 @@ local function CheckWeeklyResets()
         C_DateAndTime.GetSecondsUntilWeeklyReset() or 0
     local currentNextReset = secondsToReset > 0 and (now + secondsToReset) or nil
 
+    -- Migrate legacy currency records: older saves stored totalEarned as curr.earned only.
+    -- The renderer reads cData.totalEarned, so back-fill it from curr.earned where missing.
+    for _, d in pairs(SfuiDB.alts or {}) do
+        if d.currencies then
+            for id, cData in pairs(d.currencies) do
+                if type(cData) == "table" and cData.earned and cData.totalEarned == nil then
+                    cData.totalEarned = cData.earned
+                end
+            end
+        end
+    end
+
     -- Repair any legacy corrupted World/Delve slot 2 that was overwritten by PvP activity 229
+
     for _, d in pairs(SfuiDB.alts or {}) do
         if d.vault and d.vault.world then
             local w = d.vault.world
@@ -487,10 +500,11 @@ local function SyncCurrency(d, cDef)
         local info = C_CurrencyInfo.GetCurrencyInfo(cDef.id)
         if info then
             local curr = d.currencies[cDef.id] or {}
-            curr.val = info.quantity or 0
-            curr.earned = info.totalEarned or 0
-            curr.max = info.maxWeeklyQuantity or 0
-            curr.maxQuantity = info.maxQuantity or 0
+            curr.val          = info.quantity or 0
+            curr.earned       = info.totalEarned or 0    -- season total (used for season-earned display)
+            curr.totalEarned  = info.totalEarned or 0    -- same value, stored under the name the renderer reads
+            curr.max          = info.maxWeeklyQuantity or 0
+            curr.maxQuantity  = info.maxQuantity or 0
             curr.useTotalEarned = info.useTotalEarnedForMaxQty or false
 
             if info.maxQuantity and info.maxQuantity > 0 then
@@ -505,8 +519,14 @@ local function SyncCurrency(d, cDef)
     end
 end
 
+
+-- Delegate to the canonical resolver shared across all alts providers (defined in alts.lua)
 local function GetCurrentCharacterGUID()
-    local guid = UnitGUID and UnitGUID("player")
+    if sfui.alts and sfui.alts.GetCurrentCharacterGUID then
+        local g = sfui.alts.GetCurrentCharacterGUID()
+        if g then return g end
+    end
+    local guid = UnitGUID("player")
     if guid then return guid end
     local name, realm = UnitName("player")
     realm = (realm and realm ~= "") and realm or (GetRealmName and GetRealmName())
@@ -706,26 +726,31 @@ local function PerformSync(data, isLogout)
 
     -- 1. Mythic+ Rating
     if C_ChallengeMode and C_ChallengeMode.GetOverallDungeonScore then
-        data.rating = C_ChallengeMode.GetOverallDungeonScore() or 0
+        local score = C_ChallengeMode.GetOverallDungeonScore()
+        if score and score > 0 then
+            data.rating = score
+        elseif data.rating == nil then
+            data.rating = 0
+        end
     end
 
     -- 2. Keystone
     local ks = nil
     if sfui.common and sfui.common.get_owned_keystone_info then
         ks = sfui.common.get_owned_keystone_info()
+    elseif sfui.items and sfui.items.get_owned_keystone_info then
+        ks = sfui.items.get_owned_keystone_info()
     end
-    if (not ks or not ks.level or ks.level <= 0) and C_MythicPlus and C_MythicPlus.GetOwnedKeystoneChallengeMapID then
+    if (not ks or not ks.level or ks.level <= 0 or ks.level >= 100) and C_MythicPlus and C_MythicPlus.GetOwnedKeystoneChallengeMapID then
         local mapID = C_MythicPlus.GetOwnedKeystoneChallengeMapID()
         local level = C_MythicPlus.GetOwnedKeystoneLevel and C_MythicPlus.GetOwnedKeystoneLevel()
-        if mapID and level and level > 0 then
+        if mapID and level and level > 0 and level < 100 then
             local mapName = C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and C_ChallengeMode.GetMapUIInfo(mapID)
             ks = { mapID = mapID, level = level, name = mapName }
         end
     end
-    if ks and ks.level and ks.level > 0 then
+    if ks and ks.level and ks.level > 0 and ks.level < 100 then
         data.keystone = ks
-    elseif isLogout or (C_MythicPlus and C_MythicPlus.GetOwnedKeystoneLevel and (C_MythicPlus.GetOwnedKeystoneLevel() or 0) == 0) then
-        data.keystone = nil
     end
 
     -- 3. Great Vault
@@ -821,8 +846,12 @@ local function PerformSync(data, isLogout)
                 end
 
                 local cur = data.dungeons[mapID] or {}
-                cur.level = bestLevel
-                cur.timed = bestTimed
+                if bestLevel > (cur.level or 0) then
+                    cur.level = bestLevel
+                end
+                if bestTimed > (cur.timed or 0) then
+                    cur.timed = bestTimed
+                end
                 data.dungeons[mapID] = cur
             end
         end
@@ -844,22 +873,30 @@ local function PerformSync(data, isLogout)
 
     -- 5b. Raid Boss Lockouts
     data.raids = data.raids or {}
-    for diff = 14, 16 do
-        data.raids[diff] = {}
-    end
-    for i = 1, numSaved do
-        local _, _, reset, difficulty, locked, _, _, isRaid, _, _, numEncounters = GetSavedInstanceInfo(i)
-        if isRaid and locked and reset and reset > 0 and (difficulty == 14 or difficulty == 15 or difficulty == 16) then
-            data.raids[difficulty] = data.raids[difficulty] or {}
-            local encounters = numEncounters or 8
-            for enc = 1, encounters do
-                if GetSavedInstanceEncounterInfo then
-                    local _, _, isKilled = GetSavedInstanceEncounterInfo(i, enc)
-                    if isKilled then
-                        data.raids[difficulty][enc] = true
+    if numSaved and numSaved > 0 then
+        local newRaids = {}
+        for diff = 14, 16 do
+            newRaids[diff] = {}
+        end
+        local hasRaidData = false
+        for i = 1, numSaved do
+            local _, _, reset, difficulty, locked, _, _, isRaid, _, _, numEncounters = GetSavedInstanceInfo(i)
+            if isRaid and locked and reset and reset > 0 and (difficulty == 14 or difficulty == 15 or difficulty == 16) then
+                hasRaidData = true
+                newRaids[difficulty] = newRaids[difficulty] or {}
+                local encounters = numEncounters or 8
+                for enc = 1, encounters do
+                    if GetSavedInstanceEncounterInfo then
+                        local _, _, isKilled = GetSavedInstanceEncounterInfo(i, enc)
+                        if isKilled then
+                            newRaids[difficulty][enc] = true
+                        end
                     end
                 end
             end
+        end
+        if hasRaidData then
+            data.raids = newRaids
         end
     end
 
@@ -912,7 +949,7 @@ local function PerformSync(data, isLogout)
                     active = existing.active
                     progressText = existing.progressText
                     progressNum = existing.progress
-                elseif existing.active and isLogout then
+                elseif existing.active then
                     active = existing.active
                     progressText = existing.progressText
                     progressNum = existing.progress
@@ -935,35 +972,38 @@ local function PerformSync(data, isLogout)
     -- 8. Professions
     data.profKP = data.profKP or {}
     data.professions = data.professions or {}
-    wipe(data.professions)
-    data.professions.primaries = {}
 
     local prof1, prof2, arch, fish, cook = GetProfessions and GetProfessions()
-    local allProfs = {
-        { idx = prof1, isPrimary = true },
-        { idx = prof2, isPrimary = true },
-        { idx = cook,  secKey = "cooking" },
-        { idx = fish,  secKey = "fishing" },
-        { idx = arch,  secKey = "archaeology" },
-    }
+    if prof1 or prof2 or arch or fish or cook then
+        wipe(data.professions)
+        data.professions.primaries = {}
 
-    for _, p in ipairs(allProfs) do
-        if p.idx then
-            local pName, pIcon, pSkill, pMaxSkill, _, _, pSkillLine = GetProfessionInfo(p.idx)
-            if pName and pName ~= "" then
-                local entry = {
-                    name = pName,
-                    rank = pSkill or 0,
-                    maxRank = pMaxSkill or 0,
-                    icon = pIcon,
-                    skillID = pSkillLine,
-                    isPrimary = p.isPrimary or false,
-                }
-                data.professions[pName] = entry
-                if p.secKey then
-                    data.professions[p.secKey] = entry
-                elseif p.isPrimary then
-                    table.insert(data.professions.primaries, entry)
+        local allProfs = {
+            { idx = prof1, isPrimary = true },
+            { idx = prof2, isPrimary = true },
+            { idx = cook,  secKey = "cooking" },
+            { idx = fish,  secKey = "fishing" },
+            { idx = arch,  secKey = "archaeology" },
+        }
+
+        for _, p in ipairs(allProfs) do
+            if p.idx then
+                local pName, pIcon, pSkill, pMaxSkill, _, _, pSkillLine = GetProfessionInfo(p.idx)
+                if pName and pName ~= "" then
+                    local entry = {
+                        name = pName,
+                        rank = pSkill or 0,
+                        maxRank = pMaxSkill or 0,
+                        icon = pIcon,
+                        skillID = pSkillLine,
+                        isPrimary = p.isPrimary or false,
+                    }
+                    data.professions[pName] = entry
+                    if p.secKey then
+                        data.professions[p.secKey] = entry
+                    elseif p.isPrimary then
+                        table.insert(data.professions.primaries, entry)
+                    end
                 end
             end
         end
@@ -979,22 +1019,25 @@ local function PerformSync(data, isLogout)
             if skillLine then
                 local tracking = PROF_KP_SOURCES[skillLine]
                 local pData = data.profKP[skillLine] or {}
+                -- Always update identity fields from the live API
                 pData.name = name
                 pData.icon = icon
                 pData.skill = skillLevel
-                pData.done = 0
-                pData.total = 0
-                pData.catchUp = 0
                 pData.details = pData.details or {}
-                local d = pData.details
-                d.treatise = false
-                d.quest = false
-                d.treasures = 0
-                d.treasuresMax = 0
 
                 local charLevel = data.level or 90
                 local minLevel = (_G.GetMaxPlayerLevel and _G.GetMaxPlayerLevel() - 10) or 70
                 if tracking and charLevel >= minLevel then
+                    -- Only zero the computed counters when we're about to recompute them.
+                    -- If there's no tracking entry for this skill we must NOT wipe existing
+                    -- data — the character's KP progress from a prior session would be lost.
+                    pData.done = 0
+                    pData.total = 0
+                    pData.catchUp = 0
+                    local d = pData.details
+                    d.treatise = false
+                    d.quest = false
+                    d.treasures = 0
                     d.treasuresMax = tracking.treasures and #tracking.treasures or 0
 
                     if tracking.treatise then
@@ -1043,6 +1086,7 @@ local function PerformSync(data, isLogout)
                     end
                 end
                 data.profKP[skillLine] = pData
+
             end
         end
     elseif C_TradeSkillUI and C_TradeSkillUI.GetChildProfessionInfos then
@@ -1212,6 +1256,26 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
     elseif cat.type == "keystone" then
         if altData.keystone and altData.keystone.level and altData.keystone.level > 0 then
             local ks   = altData.keystone
+
+            -- Auto-heal corrupted keystone level from legacy saved variables (e.g. if level was saved as mapID 587)
+            if ks.level >= 100 or (ks.mapID and ks.level == ks.mapID) then
+                local repairedLevel = nil
+                if ks.link then
+                    local bLvl = string.match(ks.link, "%((%d+)%)")
+                    if bLvl then
+                        repairedLevel = tonumber(bLvl)
+                    else
+                        local p1, p2, p3 = string.match(ks.link, "keystone:(%d+):(%d+):?(%d*)")
+                        if p1 and tonumber(p1) > 10000 and p3 and tonumber(p3) then
+                            repairedLevel = tonumber(p3)
+                        end
+                    end
+                end
+                if repairedLevel and repairedLevel > 0 and repairedLevel < 100 then
+                    ks.level = repairedLevel
+                end
+            end
+
             local name = ks.mapID and sfui.common and sfui.common.get_short_map_name and sfui.common.get_short_map_name(ks.mapID)
             if not name and ks.name then
                 name = sfui.common and sfui.common.get_short_string and sfui.common.get_short_string(ks.name)
@@ -2098,6 +2162,24 @@ sfui.alts.RegisterProvider({
         if C_MythicPlus and C_MythicPlus.RequestRewards then C_MythicPlus.RequestRewards() end
         if C_WeeklyRewards and C_WeeklyRewards.OnUIInteract then C_WeeklyRewards.OnUIInteract() end
         if RequestRaidInfo then RequestRaidInfo() end
+        if SfuiDB and SfuiDB.alts then
+            for _, d in pairs(SfuiDB.alts) do
+                local ks = d.keystone
+                if ks and ks.level and (ks.level >= 100 or (ks.mapID and ks.level == ks.mapID)) and ks.link then
+                    local bLvl = string.match(ks.link, "%((%d+)%)")
+                    local repaired = tonumber(bLvl)
+                    if not repaired then
+                        local p1, p2, p3 = string.match(ks.link, "keystone:(%d+):(%d+):?(%d*)")
+                        if p1 and tonumber(p1) > 10000 and p3 and tonumber(p3) then
+                            repaired = tonumber(p3)
+                        end
+                    end
+                    if repaired and repaired > 0 and repaired < 100 then
+                        ks.level = repaired
+                    end
+                end
+            end
+        end
         if sfui.alts and sfui.alts.PerformSync then sfui.alts.PerformSync() end
     end,
     RegisterEvents = function()
@@ -2110,6 +2192,9 @@ sfui.alts.RegisterProvider({
         sfui.events.RegisterEvent("CHALLENGE_MODE_MAPS_UPDATE",       on_sync)
         sfui.events.RegisterEvent("CHALLENGE_MODE_LEADERS_UPDATE",    on_sync)
         sfui.events.RegisterEvent("CHALLENGE_MODE_KEYSTONE_RECEPTABLE_OPEN", on_sync)
+        sfui.events.RegisterEvent("CHALLENGE_MODE_KEYSTONE_SLOTTED",  on_sync)
+        sfui.events.RegisterEvent("CHALLENGE_MODE_START",             on_sync)
+        sfui.events.RegisterEvent("CHALLENGE_MODE_RESET",             on_sync)
         sfui.events.RegisterEvent("CHALLENGE_MODE_COMPLETED",         on_sync)
         sfui.events.RegisterEvent("MYTHIC_PLUS_NEW_WEEKLY_RECORD",    on_sync)
         sfui.events.RegisterEvent("MYTHIC_PLUS_CURRENT_AFFIX_UPDATE", on_sync)

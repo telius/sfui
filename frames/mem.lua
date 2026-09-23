@@ -57,29 +57,38 @@ end
 function sfui.mem.GetModuleStats()
     local stats = {}
 
-    -- Quests Module
-    local qlTablePool, qlMaxTablePool, qlRowPool, qlObjPool = 0, 300, 0, 0
-    local qlActiveRows, qlActiveObjs = 0, 0
-    local qlProgCache, qlWbCache, qlWqCache, qlMetaCache = 0, 0, 0, 0
-    local q = GetDebug("questlog_debug_info", "quests")
-    if q then
-        qlTablePool = q.tablePool or 0
-        qlMaxTablePool = q.maxTablePool or 300
-        qlRowPool = q.rowPool or 0
-        qlObjPool = q.objPool or 0
-        qlActiveRows = q.activeRows or 0
-        qlActiveObjs = q.activeObjs or 0
-        qlProgCache = q.progCache or 0
-        qlWbCache = q.wbCache or 0
-        qlWqCache = q.wqCache or 0
-        qlMetaCache = q.metaCache or 0
-    end
-    stats["quests"] = {
+    -- Quests Module (Unified Tracker Engine)
+    local qStats = {
         name = "quests tracker",
-        status = qlActiveRows > 0 and "|cff00ff88active|r" or "|cff888888idle|r",
-        line1 = string_format("rows: %d act / %d pool • objs: %d act / %d pool", qlActiveRows, qlRowPool, qlActiveObjs, qlObjPool),
-        line2 = string_format("tables: %d/%d • caches: p=%d, w=%d, m=%d", qlTablePool, qlMaxTablePool, qlProgCache, qlWbCache, qlMetaCache),
+        status = "|cff888888idle|r",
+        line1 = "blocks: 0 act / 0 pool • lines: 0 act / 0 pool",
+        line2 = "headers: 0 act / 0 pool • bars: 0 act • 0 mods",
     }
+    local q = GetDebug("questlog_debug_info", "quests") or GetDebug("questlog_debug_info", "questlog")
+    if q then
+        local bAct   = q.blocksActive  or q.activeRows or 0
+        local bPool  = q.blocksPooled  or q.rowPool or 0
+        local lAct   = q.linesActive   or q.activeObjs or 0
+        local lPool  = q.linesPooled   or q.objPool or 0
+        local hAct   = q.headersActive or 0
+        local hPool  = q.headersPooled or 0
+        local barAct = q.barsActive or 0
+        local barPool= q.barsPooled or 0
+        local items  = q.itemsActive or 0
+        local numMods= q.activeModules or q.modules or 0
+
+        if q.isSuppressed then
+            qStats.status = "|cffff9900suppressed|r"
+        elseif bAct > 0 then
+            qStats.status = "|cff00ff88active|r"
+        else
+            qStats.status = "|cff888888idle|r"
+        end
+
+        qStats.line1 = string_format("blocks: %d act / %d pool • lines: %d act / %d pool", bAct, bPool, lAct, lPool)
+        qStats.line2 = string_format("headers: %d/%d • bars: %d/%d • items: %d • %d mods", hAct, hPool, barAct, barPool, items, numMods)
+    end
+    stats["quests"] = qStats
 
     -- Mythic & Delves Module
     local mythicStats = {
@@ -132,13 +141,13 @@ function sfui.mem.GetModuleStats()
         name = "world events",
         status = "|cff888888idle|r",
         line1 = "events: 0 active • reminders: 0",
-        line2 = "pools: 0 tables • caches: 0",
+        line2 = "pois: 0 on map • engine: unified",
     }
     local w = GetDebug("worldevents_debug_info", "worldevents")
     if w then
         weStats.status = (w.activeEvents or 0) > 0 and "|cff00ff88active|r" or "|cff888888idle|r"
         weStats.line1 = string_format("events: %d active • reminders: %d", w.activeEvents or 0, w.reminders or 0)
-        weStats.line2 = string_format("pools: %d tables • dirty=%s", w.tablePool or 0, w.isDirty and "yes" or "no")
+        weStats.line2 = string_format("pois: %d on map • engine: unified", w.poiCount or 0)
     end
     stats["worldevents"] = weStats
 

@@ -1,7 +1,7 @@
 ## Interface: 120100, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v12.1.0-47
+## Version: v12.1.0-48
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -75,12 +75,29 @@ frames/gear/lootviewer.lua [AllowLoadGameType standard]
 frames/gear/bonusroll.lua [AllowLoadGameType standard]
 frames/gear/hammer.lua [AllowLoadGameType standard]
 
-frames/quests/worldevents.lua [AllowLoadGameType standard]
-frames/quests/scenarios.lua [AllowLoadGameType standard]
-frames/quests/providers.lua
-frames/quests/classicqs.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/quests/collectables.lua [AllowLoadGameType standard]
-frames/quests/quests.lua
+# Quests & Objective Tracker Engine
+frames/quests/engine/module.lua
+frames/quests/engine/blocks.lua
+frames/quests/engine/layout.lua
+frames/quests/engine/tracker.lua
+
+# Tracker Helpers
+frames/quests/helpers/difficulty.lua
+frames/quests/helpers/waypoints.lua
+frames/quests/helpers/timerbars.lua
+frames/quests/helpers/items.lua
+frames/quests/helpers/findgroup.lua
+frames/quests/helpers/tooltip.lua
+
+# Tracker Content Modules
+frames/quests/modules/scenarios.lua [AllowLoadGameType standard, camelot]
+frames/quests/modules/worldevents.lua [AllowLoadGameType standard]
+frames/quests/modules/worldquests.lua [AllowLoadGameType standard, camelot]
+frames/quests/modules/quests.lua
+frames/quests/modules/achievements.lua [AllowLoadGameType standard, camelot]
+frames/quests/modules/activities.lua [AllowLoadGameType standard, camelot]
+frames/quests/modules/collectables.lua [AllowLoadGameType standard, camelot]
+frames/quests/modules/recipes.lua [AllowLoadGameType standard, camelot]
 frames/quests/mythic.lua [AllowLoadGameType standard]
 
 frames/mem.lua

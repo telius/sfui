@@ -48,14 +48,6 @@ local function SetOutOfRange(bar, isOutOfRange)
 
     local alpha = isOutOfRange and OUT_OF_RANGE_ALPHA or 1.0
     bar.backdrop:SetAlpha(alpha)
-
-    if isOutOfRange then
-        if bar.typeLabel then bar.typeLabel:SetTextColor(1, 0.25, 0.25, 1) end
-        bar.timeLabel:SetTextColor(1, 0.25, 0.25, 1)
-    else
-        if bar.typeLabel then bar.typeLabel:SetTextColor(1, 1, 1, 0.9) end
-        bar.timeLabel:SetTextColor(1, 1, 1, 0.9)
-    end
 end
 
 local function UpdateRangeCheckRegistration(bar)
@@ -82,7 +74,6 @@ local function ClearSwingTimer(bar)
     bar.endTime = nil
     bar.statusBar:SetValue(0)
     bar.pip:Hide()
-    bar.timeLabel:SetText("")
     bar:SetScript("OnUpdate", nil)
 end
 
@@ -106,7 +97,6 @@ local function OnUpdateBar(bar, elapsed)
         bar.pip:ClearAllPoints()
         bar.pip:SetPoint("CENTER", bar.statusBar, "LEFT", barW * progress, 0)
     end
-    bar.timeLabel:SetFormattedText("%.1fs", remaining)
 end
 
 local function ResetSwingTimer(bar, duration)
@@ -115,7 +105,6 @@ local function ResetSwingTimer(bar, duration)
     bar.endTime = GetTime() + duration
     bar.statusBar:SetValue(0)
     bar.pip:Show()
-    bar.timeLabel:SetFormattedText("%.1fs", duration)
     bar:SetScript("OnUpdate", OnUpdateBar)
 end
 
@@ -173,17 +162,10 @@ local function CreateSwingBar(name, swingType, colorKey)
     pip:SetSize(2, barCfg.height + 2)
     pip:Hide()
 
-    -- Time Label
-    local timeLabel = statusBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    timeLabel:SetPoint("RIGHT", -4, 0)
-    timeLabel:SetText("")
-    timeLabel:SetTextColor(1, 1, 1, 0.9)
-
     local bar = statusBar
     bar.backdrop = backdrop
     bar.statusBar = statusBar
     bar.pip = pip
-    bar.timeLabel = timeLabel
     bar.swingType = swingType
     bar.colorKey = colorKey
 
