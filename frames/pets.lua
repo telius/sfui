@@ -548,3 +548,11 @@ sfui.pets.RebuildPools = rebuild_pet_pools
 sfui.pets.update_settings = rebuild_pet_pools
 
 _G["SFUI_PET_SUMMON"] = function() sfui.pets.SummonNext(true) end
+
+function sfui.pets_debug_info()
+    if PetsModule and PetsModule.GetDebugInfo then
+        return PetsModule:GetDebugInfo()
+    end
+    return nil
+end
+sfui.pets.GetDebugInfo = sfui.pets_debug_info

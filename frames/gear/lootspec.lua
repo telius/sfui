@@ -385,3 +385,9 @@ function sfui.lootspec_debug_info()
     _lootDebug.iconPoolCount   = lv and lv.iconPoolTotal or 0
     return _lootDebug
 end
+
+if sfui.RegisterModule then
+    sfui.lootspec = sfui.lootspec or {}
+    sfui.lootspec.GetDebugInfo = sfui.lootspec_debug_info
+    sfui.RegisterModule("lootspec", sfui.lootspec)
+end

@@ -159,3 +159,9 @@ function sfui.transfer_debug_info()
         active = processingTicker ~= nil,
     }
 end
+
+if sfui.RegisterModule then
+    sfui.transfer = sfui.transfer or {}
+    sfui.transfer.GetDebugInfo = sfui.transfer_debug_info
+    sfui.RegisterModule("transfer", sfui.transfer)
+end

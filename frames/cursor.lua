@@ -51,19 +51,24 @@ function sfui.cursor.initialize()
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD",         on_cursor_event)
     sfui.events.RegisterEvent("UI_SCALE_CHANGED",              on_cursor_event)
 
-    -- Optimized Update Loop - uses SetPoint offset instead of ClearAllPoints
-    f.OnUpdate = function(self, elapsed)
+    local function update_cursor_pos()
+        if not f or not f:IsShown() then return end
         local x, y = GetCursorPosition()
         local cx = x / cachedScale
         local cy = y / cachedScale
 
-        -- Only update if position changed (already doing this optimization)
         if cx ~= lastX or cy ~= lastY then
             lastX, lastY = cx, cy
-            -- SetPoint with changed offset is faster than ClearAllPoints + SetPoint
-            self:SetPoint("CENTER", uiparent, "BOTTOMLEFT", cx, cy)
+            f:SetPoint("CENTER", uiparent, "BOTTOMLEFT", cx, cy)
         end
     end
+    f.OnUpdate = update_cursor_pos
+
+    f:SetScript("OnHide", function()
+        if sfui.events and sfui.events.UnregisterUpdate then
+            sfui.events.UnregisterUpdate("CursorRing")
+        end
+    end)
 
     -- Initialize Color
     UpdateColor()
@@ -85,9 +90,16 @@ function sfui.cursor.toggle(enabled)
     if enabled then
         f:Show()
         sfui.cursor.update_scale() -- Ensure scale is correct when shown
-        f:SetScript("OnUpdate", f.OnUpdate)
+        if sfui.events and sfui.events.RegisterUpdate then
+            sfui.events.RegisterUpdate("CursorRing", 0.016, f.OnUpdate)
+        else
+            f:SetScript("OnUpdate", f.OnUpdate)
+        end
     else
         f:Hide()
+        if sfui.events and sfui.events.UnregisterUpdate then
+            sfui.events.UnregisterUpdate("CursorRing")
+        end
         f:SetScript("OnUpdate", nil)
     end
 end
@@ -98,4 +110,10 @@ function sfui.cursor_debug_info()
         frameCreated = f ~= nil,
         frameShown = f and f:IsShown() or false,
     }
+end
+
+if sfui.RegisterModule then
+    sfui.cursor = sfui.cursor or {}
+    sfui.cursor.GetDebugInfo = sfui.cursor_debug_info
+    sfui.RegisterModule("cursor", sfui.cursor)
 end

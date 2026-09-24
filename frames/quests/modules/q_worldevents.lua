@@ -1016,9 +1016,16 @@ function sfui.worldevents_debug_info()
         tablePool    = #tablePool,
         reminders    = reminderCount,
         cachedPois   = poiCount,
+        poiCount     = poiCount,
         isDirty      = isDirty,
         lastUpdate   = lastUpdateTime,
     }
+end
+
+if sfui.RegisterModule then
+    sfui.worldevents = sfui.worldevents or {}
+    sfui.worldevents.GetDebugInfo = sfui.worldevents_debug_info
+    sfui.RegisterModule("worldevents", sfui.worldevents)
 end
 
 -- ─── Central Dispatcher Registration ────────────────────────────────────────

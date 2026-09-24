@@ -761,3 +761,9 @@ function sfui.minimap_debug_info()
         autoZoomActive = zoom_timer ~= nil,
     }
 end
+
+if sfui.RegisterModule then
+    sfui.minimap = sfui.minimap or {}
+    sfui.minimap.GetDebugInfo = sfui.minimap_debug_info
+    sfui.RegisterModule("minimap", sfui.minimap)
+end

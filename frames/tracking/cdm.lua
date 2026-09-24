@@ -2016,3 +2016,9 @@ function sfui.cdm_debug_info()
     _cdmDebug.activeZones = sfui.cdm.activeZones and #sfui.cdm.activeZones or 0
     return _cdmDebug
 end
+
+if sfui.RegisterModule then
+    sfui.cdm = sfui.cdm or {}
+    sfui.cdm.GetDebugInfo = sfui.cdm_debug_info
+    sfui.RegisterModule("cdm", sfui.cdm)
+end

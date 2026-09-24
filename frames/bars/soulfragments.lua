@@ -1045,3 +1045,9 @@ end
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
     sfui.soulfragments:Initialize()
 end)
+
+if sfui.RegisterModule then
+    sfui.soulfragments = sfui.soulfragments or {}
+    sfui.soulfragments.GetDebugInfo = sfui.soulfragments_debug_info
+    sfui.RegisterModule("soulfragments", sfui.soulfragments)
+end

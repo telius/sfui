@@ -192,4 +192,10 @@ do
             itemFrameCreated = _G.sfui_item_frame ~= nil,
         }
     end
+
+    if sfui.RegisterModule then
+        sfui.currency = sfui.currency or {}
+        sfui.currency.GetDebugInfo = sfui.currency_debug_info
+        sfui.RegisterModule("currency", sfui.currency)
+    end
 end

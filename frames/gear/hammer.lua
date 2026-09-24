@@ -967,3 +967,19 @@ sfui.automation.register_transient_listeners = sfui.hammer.register_transient_li
 sfui.automation.unregister_transient_listeners = sfui.hammer.unregister_transient_listeners
 sfui.automation.can_repair_any_damaged = sfui.hammer.can_repair_any_damaged
 sfui.automation.reset_caches = sfui.hammer.reset_caches
+
+local _hamDebug = {}
+function sfui.hammer_debug_info()
+    local found, _, _, itemID = sfui.hammer.has_repair_hammer(true)
+    local carried = sfui.hammer.get_carried_hammers()
+    _hamDebug.hasHammer = found
+    _hamDebug.hammerItemID = itemID
+    _hamDebug.carriedCount = carried and #carried or 0
+    _hamDebug.popupShown = (hammerPopup and hammerPopup:IsShown()) and true or false
+    return _hamDebug
+end
+
+if sfui.RegisterModule then
+    sfui.hammer.GetDebugInfo = sfui.hammer_debug_info
+    sfui.RegisterModule("hammer", sfui.hammer)
+end

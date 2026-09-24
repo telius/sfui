@@ -811,3 +811,11 @@ local FishingModule = sfui.RegisterModule("fishing", {
 })
 
 _G["SFUI_FISHING_RUN"] = sfui.fishing.RunKeybind
+
+function sfui.fishing_debug_info()
+    if FishingModule and FishingModule.GetDebugInfo then
+        return FishingModule:GetDebugInfo()
+    end
+    return nil
+end
+sfui.fishing.GetDebugInfo = sfui.fishing_debug_info

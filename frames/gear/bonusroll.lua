@@ -714,3 +714,21 @@ sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function(_, isLogin, isReload
         end)
     end
 end)
+
+local _brDebug = {}
+function sfui.bonusroll_debug_info()
+    local db = DB and DB()
+    local pending = 0
+    if db and db.pendingRolls then
+        for _ in pairs(db.pendingRolls) do pending = pending + 1 end
+    end
+    _brDebug.enabled = true
+    _brDebug.pendingRolls = pending
+    _brDebug.checked = db and db.checked or false
+    return _brDebug
+end
+
+if sfui.RegisterModule then
+    sfui.bonusroll.GetDebugInfo = sfui.bonusroll_debug_info
+    sfui.RegisterModule("bonusroll", sfui.bonusroll)
+end

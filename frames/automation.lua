@@ -399,3 +399,9 @@ function sfui.automation_debug_info()
         autoLfgDungeonDefaults = SfuiDB and SfuiDB.autoLfgDungeonDefaults ~= false,
     }
 end
+
+if sfui.RegisterModule then
+    sfui.automation = sfui.automation or {}
+    sfui.automation.GetDebugInfo = sfui.automation_debug_info
+    sfui.RegisterModule("automation", sfui.automation)
+end

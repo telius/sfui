@@ -687,7 +687,7 @@ end
 
 -- ─── OnUpdate Ticker (non-secure) ────────────────────────────────────────────
 local ticker = 0
-frame:SetScript("OnUpdate", function(_, elapsed)
+local function on_vehicle_update(elapsed)
     UpdateCastProgress()
     ticker = ticker + elapsed
     if ticker >= TICK_RATE then
@@ -697,14 +697,23 @@ frame:SetScript("OnUpdate", function(_, elapsed)
         UpdateVehicleHealth()
         UpdateVehiclePower()
     end
-end)
+end
 
 -- ─── OnShow / OnHide ─────────────────────────────────────────────────────────
 frame:SetScript("OnShow", function()
     UpdateBar()
+    if sfui.events and sfui.events.RegisterUpdate then
+        sfui.events.RegisterUpdate("VehicleBar", 0.016, on_vehicle_update)
+    else
+        frame:SetScript("OnUpdate", on_vehicle_update)
+    end
 end)
 frame:SetScript("OnHide", function()
     StopCastBar()
+    if sfui.events and sfui.events.UnregisterUpdate then
+        sfui.events.UnregisterUpdate("VehicleBar")
+    end
+    frame:SetScript("OnUpdate", nil)
 end)
 
 -- ─── Events (via sfui.events — global + unit-filtered) ───────────────────────
@@ -808,4 +817,10 @@ function sfui.vehicle_debug_info()
         visibleButtons = _lastVisibleButtons or 0,
         currentUnit = _lastUnit or "none",
     }
+end
+
+if sfui.RegisterModule then
+    sfui.vehicle = sfui.vehicle or {}
+    sfui.vehicle.GetDebugInfo = sfui.vehicle_debug_info
+    sfui.RegisterModule("vehicle", sfui.vehicle)
 end

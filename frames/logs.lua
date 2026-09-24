@@ -80,3 +80,18 @@ end)
 sfui.events.RegisterEvent("ZONE_CHANGED_NEW_AREA", function()
     C_Timer.After(0.5, check_logging)
 end)
+
+local _logsDebug = {}
+function sfui.logs_debug_info()
+    local _, instanceType = IsInInstance()
+    _logsDebug.enabled = sfui.logs.is_enabled()
+    _logsDebug.isLogging = (LoggingCombat and LoggingCombat()) and true or false
+    _logsDebug.instanceType = instanceType or "none"
+    _logsDebug.sfuiStarted = sfui_started_log
+    return _logsDebug
+end
+
+if sfui.RegisterModule then
+    sfui.logs.GetDebugInfo = sfui.logs_debug_info
+    sfui.RegisterModule("logs", sfui.logs)
+end

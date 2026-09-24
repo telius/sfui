@@ -1324,3 +1324,9 @@ function sfui.merchant_debug_info()
         frameShown = frame and frame:IsShown() or false,
     }
 end
+
+if sfui.RegisterModule then
+    sfui.merchant = sfui.merchant or {}
+    sfui.merchant.GetDebugInfo = sfui.merchant_debug_info
+    sfui.RegisterModule("merchant", sfui.merchant)
+end

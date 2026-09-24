@@ -833,6 +833,9 @@ do
             if mount_speed_bar then
                 mount_speed_bar.backdrop:Hide()
                 if mount_speed_bar._onUpdateActive then
+                    if sfui.events and sfui.events.UnregisterUpdate then
+                        sfui.events.UnregisterUpdate("MountSpeedBar")
+                    end
                     mount_speed_bar:SetScript("OnUpdate", nil)
                     mount_speed_bar._onUpdateActive = false
                 end
@@ -841,9 +844,13 @@ do
         end
         local bar = mount_speed_bar or get_mount_speed_bar()
 
-        -- Install OnUpdate only when actually dragonflying
+        -- Install update loop only when actually dragonflying
         if not bar._onUpdateActive then
-            bar:SetScript("OnUpdate", bar._onUpdate)
+            if sfui.events and sfui.events.RegisterUpdate then
+                sfui.events.RegisterUpdate("MountSpeedBar", 0.05, update_mount_speed_bar_internal)
+            else
+                bar:SetScript("OnUpdate", bar._onUpdate)
+            end
             bar._onUpdateActive = true
         end
 

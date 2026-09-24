@@ -1602,3 +1602,9 @@ function sfui.portals_debug_info()
         frameShown = portalFrame and portalFrame:IsShown() or false,
     }
 end
+
+if sfui.RegisterModule then
+    sfui.portals = sfui.portals or {}
+    sfui.portals.GetDebugInfo = sfui.portals_debug_info
+    sfui.RegisterModule("portals", sfui.portals)
+end

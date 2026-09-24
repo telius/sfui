@@ -138,3 +138,28 @@ sfui.classic_default_stats = sfui.classic_default_stats or {
     },
 }
 
+local _statsDebug = {}
+function sfui.stats_debug_info()
+    local cachedSpecs = 0
+    for k in pairs(sfui.default_stats) do
+        if type(k) == "number" then cachedSpecs = cachedSpecs + 1 end
+    end
+    local pawnCount = 0
+    if SfuiDB and SfuiDB.gear and SfuiDB.gear.specs then
+        for _, sdb in pairs(SfuiDB.gear.specs) do
+            if sdb.pawn_string or sdb.pawn_weights then
+                pawnCount = pawnCount + 1
+            end
+        end
+    end
+    _statsDebug.cachedSpecOrders = cachedSpecs
+    _statsDebug.pawnOrders = pawnCount
+    return _statsDebug
+end
+
+if sfui.RegisterModule then
+    sfui.stats = sfui.stats or {}
+    sfui.stats.GetDebugInfo = sfui.stats_debug_info
+    sfui.RegisterModule("stats", sfui.stats)
+end
+

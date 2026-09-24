@@ -449,6 +449,81 @@ function sfui.mem.GetModuleStats()
     end
     stats["research"] = resMod
 
+    -- Fishing Automation Module
+    local fishStats = {
+        name = "fishing automation",
+        status = "|cff888888idle|r",
+        line1 = "keys: unarm • skill: none",
+        line2 = "audio boost: off • soft target: off",
+    }
+    local f = GetDebug("fishing_debug_info", "fishing")
+    if f then
+        fishStats.status = f.isFishing and "|cff00ff88casting / reeling|r" or (f.enabled and "|cff00ff88armed|r" or "|cff888888disabled|r")
+        local keysStr = (f.boundKeys and #f.boundKeys > 0) and table.concat(f.boundKeys, ",") or "none"
+        fishStats.line1 = string_format("skill: %s (id: %s) • keys: %s", f.hasSkill and "known" or "none", tostring(f.knownSpellID or "none"), keysStr)
+        fishStats.line2 = string_format("audio: %s • soft: %s • 2x: %s", f.enhanceSounds and (f.soundsEnhanced and "|cff00ff88active|r" or "on") or "off", f.softTarget and "on" or "off", f.doubleClick and "on" or "off")
+    end
+    stats["fishing"] = fishStats
+
+    -- Companion Pet Manager Module
+    local petStats = {
+        name = "companion pet manager",
+        status = "|cff888888idle|r",
+        line1 = "pools: all=0, favs=0",
+        line2 = "mode: favs • rot: 720s",
+    }
+    local p = GetDebug("pets_debug_info", "pets")
+    if p then
+        petStats.status = p.enabled and "|cff00ff88active|r" or "|cff888888disabled|r"
+        petStats.line1 = string_format("pools: all=%d, favs=%d • hist: %d", p.poolAllCount or 0, p.poolFavsCount or 0, p.historyCount or 0)
+        petStats.line2 = string_format("mode: %s • timer: %ds • summoned: %s", tostring(p.mode or "favs"), p.rotationTimer or 720, p.currentPet and "|cff00ff88yes|r" or "none")
+    end
+    stats["pets"] = petStats
+
+    -- Auto Combat Log Module
+    local logStats = {
+        name = "combat logging",
+        status = "|cff888888idle|r",
+        line1 = "auto log: off • current: no",
+        line2 = "instance: none • engine: loggingcombat",
+    }
+    local l = GetDebug("logs_debug_info", "logs")
+    if l then
+        logStats.status = l.isLogging and "|cff00ff88logging active|r" or (l.enabled and "|cff00ff88monitoring|r" or "|cff888888disabled|r")
+        logStats.line1 = string_format("auto log: %s • current: %s", l.enabled and "on" or "off", l.isLogging and "|cff00ff88yes|r" or "no")
+        logStats.line2 = string_format("instance: %s • sfui started: %s", l.instanceType or "none", l.sfuiStarted and "yes" or "no")
+    end
+    stats["logs"] = logStats
+
+    -- Master's Hammer Module
+    local hamStats = {
+        name = "master's hammer",
+        status = "|cff888888idle|r",
+        line1 = "hammer: none",
+        line2 = "carried: 0 hammers",
+    }
+    local h = GetDebug("hammer_debug_info", "hammer")
+    if h then
+        hamStats.status = h.hasHammer and "|cff00ff88ready|r" or "|cff888888not found|r"
+        hamStats.line1 = string_format("hammer: %s (id: %s)", h.hasHammer and "|cff00ff88found|r" or "none", tostring(h.hammerItemID or "none"))
+        hamStats.line2 = string_format("carried: %d • popup: %s", h.carriedCount or 0, h.popupShown and "|cff00ff88open|r" or "closed")
+    end
+    stats["hammer"] = hamStats
+
+    -- Bonus Roll & Vault Module
+    local brStats = {
+        name = "bonus roll & vault",
+        status = "|cff888888idle|r",
+        line1 = "pending rolls: 0",
+        line2 = "engine: keystone/loot mappings",
+    }
+    local br = GetDebug("bonusroll_debug_info", "bonusroll")
+    if br then
+        brStats.status = "|cff00ff88ready|r"
+        brStats.line1 = string_format("pending rolls: %d • checked: %s", br.pendingRolls or 0, br.checked and "yes" or "no")
+    end
+    stats["bonusroll"] = brStats
+
     return stats
 end
 
@@ -637,8 +712,9 @@ local activeTab = "modules"
 local MODULE_ORDER = {
     "dispatcher", "quests", "mythic", "trackedbars", "trackedicons", "bars",
     "soulfragments", "gear", "worldevents", "alts", "merchant", "portals",
-    "castbars", "minimap", "glows", "automation",
-    "cursor", "vehicle", "currency", "lootspec", "location", "cdm", "research", "transfer"
+    "castbars", "minimap", "glows", "automation", "fishing", "pets",
+    "cursor", "vehicle", "currency", "lootspec", "location", "cdm",
+    "research", "transfer", "logs", "hammer", "bonusroll", "stats"
 }
 
 function sfui.mem.create_mem_panel()
@@ -918,18 +994,17 @@ function sfui.mem.create_mem_panel()
     tab_profiler:SetScript("OnClick", function() SelectTab("profiler") end)
     SelectTab("modules")
 
-    -- Periodic Refresh (1Hz)
-    local refreshTimer = 0
-    frame:SetScript("OnUpdate", function(self, elapsed)
-        refreshTimer = refreshTimer + elapsed
-        if refreshTimer >= 1.0 then
-            refreshTimer = 0
-            sfui.mem.UpdateGUI()
+    frame:SetScript("OnShow", function()
+        sfui.mem.UpdateGUI()
+        if sfui.events and sfui.events.RegisterUpdate then
+            sfui.events.RegisterUpdate("MemGUI", 1.0, sfui.mem.UpdateGUI)
         end
     end)
 
-    frame:SetScript("OnShow", function()
-        sfui.mem.UpdateGUI()
+    frame:SetScript("OnHide", function()
+        if sfui.events and sfui.events.UnregisterUpdate then
+            sfui.events.UnregisterUpdate("MemGUI")
+        end
     end)
 
     sfui.mem.gui = frame

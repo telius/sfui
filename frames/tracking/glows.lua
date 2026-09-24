@@ -285,3 +285,9 @@ function sfui.glows_debug_info()
         lcgAvailable = LCG ~= nil,
     }
 end
+
+if sfui.RegisterModule then
+    sfui.glows = sfui.glows or {}
+    sfui.glows.GetDebugInfo = sfui.glows_debug_info
+    sfui.RegisterModule("glows", sfui.glows)
+end

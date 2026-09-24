@@ -358,3 +358,9 @@ function sfui.research_debug_info()
     _resDebug.frameShown = side and side:IsShown() or false
     return _resDebug
 end
+
+if sfui.RegisterModule then
+    sfui.research = sfui.research or {}
+    sfui.research.GetDebugInfo = sfui.research_debug_info
+    sfui.RegisterModule("research", sfui.research)
+end

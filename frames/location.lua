@@ -356,3 +356,9 @@ function sfui.location_debug_info()
     _locDebug.enabled = is_enabled()
     return _locDebug
 end
+
+if sfui.RegisterModule then
+    sfui.location = sfui.location or {}
+    sfui.location.GetDebugInfo = sfui.location_debug_info
+    sfui.RegisterModule("location", sfui.location)
+end

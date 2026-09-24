@@ -120,3 +120,9 @@ end
 
 sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", _on_spec_changed)
 sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", _on_spec_changed)
+
+if sfui.dispatcher_debug_info then
+    sfui.events = sfui.events or {}
+    sfui.events.GetDebugInfo = sfui.dispatcher_debug_info
+    sfui.RegisterModule("dispatcher", sfui.events)
+end

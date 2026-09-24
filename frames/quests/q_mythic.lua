@@ -3377,3 +3377,9 @@ function sfui.mythic_debug_info()
         bossRowPool   = (MF and MF.bossRows and #MF.bossRows) or 0,
     }
 end
+
+if sfui.RegisterModule then
+    sfui.mythic = sfui.mythic or {}
+    sfui.mythic.GetDebugInfo = sfui.mythic_debug_info
+    sfui.RegisterModule("mythic", sfui.mythic)
+end
