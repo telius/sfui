@@ -15,6 +15,9 @@
     <Binding name="SFUI_FISHING" category="SFUI">
         if sfui and sfui.fishing and sfui.fishing.RunKeybind then sfui.fishing.RunKeybind() end
     </Binding>
+    <Binding name="BETTERFISHINGKEY" category="SFUI">
+        if sfui and sfui.fishing and sfui.fishing.RunKeybind then sfui.fishing.RunKeybind() end
+    </Binding>
     <Binding name="SFUI_PET_SUMMON" category="SFUI">
         if sfui and sfui.pets and sfui.pets.SummonNext then sfui.pets.SummonNext(true) end
     </Binding>

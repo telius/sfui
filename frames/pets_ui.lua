@@ -29,6 +29,7 @@ function sfui.pets.CreateFrame()
     if _petsFrame then return _petsFrame end
 
     local f = CreateFrame("Frame", "SfuiPetsFrame", UIParent, "BackdropTemplate")
+    f:Hide()
     table.insert(_G.UISpecialFrames, "SfuiPetsFrame")
     f:SetFrameStrata("DIALOG")
     f:SetSize(540, 600)
@@ -470,7 +471,19 @@ function sfui.pets.CreateFrame()
     end
 
     _petsFrame = f
+    f:Hide()
     return f
+end
+
+function sfui.pets.Show()
+    local f = sfui.pets.CreateFrame()
+    f:Show()
+end
+
+function sfui.pets.Hide()
+    if _petsFrame then
+        _petsFrame:Hide()
+    end
 end
 
 function sfui.pets.Toggle()
@@ -481,5 +494,14 @@ function sfui.pets.Toggle()
         f:Show()
     end
 end
+
+sfui.pets.Open = sfui.pets.Show
+
+sfui.pets_ui = sfui.pets_ui or {}
+sfui.pets_ui.CreateFrame = sfui.pets.CreateFrame
+sfui.pets_ui.Toggle      = sfui.pets.Toggle
+sfui.pets_ui.Show        = sfui.pets.Show
+sfui.pets_ui.Hide        = sfui.pets.Hide
+sfui.pets_ui.Open        = sfui.pets.Show
 
 _G["SFUI_PET_MANAGER"] = function() sfui.pets.Toggle() end

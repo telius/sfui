@@ -511,8 +511,8 @@ local function UpdateIconState(icon, panelConfig)
     local resolvedType = icon._resolvedType or icon.type
     local linkedSpellIDs = icon._linkedSpellIDs
 
-    -- If not resolved yet (e.g. fresh icon), resolve once
-    if not icon._lastActiveID then
+    -- If not resolved yet (e.g. fresh icon), resolve once (or retry if texture was missing)
+    if not icon._lastActiveID or not icon._currentTexture then
         local iconTexture, aID, rType, lIDs = sfui.trackedicons.GetIconTexture(icon.id, icon.type, icon.entry)
         activeID = aID or icon.id
         resolvedType = rType or icon.type
@@ -631,10 +631,24 @@ function sfui.trackedicons.GetIconTexture(id, type, entry)
                 resolvedType = "item"
             end
         else
-            -- Fallback if cooldown no longer exists
-            activeID = entry.spellID or id
-            iconTexture = C_Spell.GetSpellTexture(activeID)
-            resolvedType = "spell"
+            -- Fallback if cooldown info is not yet available or failed
+            if entry.spellID and entry.spellID > 0 then
+                activeID = entry.spellID
+                iconTexture = C_Spell.GetSpellTexture(activeID)
+                resolvedType = "spell"
+            elseif entry.itemID and entry.itemID > 0 then
+                activeID = entry.itemID
+                iconTexture = C_Item.GetItemIconByID(activeID)
+                resolvedType = "item"
+            else
+                activeID = entry.spellID or id
+                iconTexture = C_Spell.GetSpellTexture(activeID)
+                resolvedType = "spell"
+                if not iconTexture then
+                    iconTexture = C_Item.GetItemIconByID(activeID)
+                    if iconTexture then resolvedType = "item" end
+                end
+            end
         end
     elseif type == "item" then
         iconTexture = C_Item.GetItemIconByID(activeID)
@@ -660,6 +674,10 @@ function sfui.trackedicons.GetIconTexture(id, type, entry)
                 resolvedType = "item"
             end
         end
+    end
+
+    if not iconTexture and activeID then
+        iconTexture = C_Spell.GetSpellTexture(activeID) or C_Item.GetItemIconByID(activeID) or 134400
     end
 
     return iconTexture, activeID, resolvedType, linkedSpellIDs
@@ -815,11 +833,7 @@ local function CreateIconFrame(parent, id, entry, panelConfig)
     -- Non-protected frames can be shown/hidden freely even during combat
     f:SetScript("OnUpdate", nil)
 
-    local msq = sfui.common.get_masque_group()
-    if msq then
-        msq:AddButton(f, { Icon = tex, Cooldown = cd })
-        f._isMasqued = true
-    end
+    SyncIconMasque(f)
 
     return f
 end

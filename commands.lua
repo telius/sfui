@@ -23,6 +23,7 @@ _G["BINDING_NAME_SFUI_PORTALS"] = "portals"
 _G["BINDING_NAME_SFUI_ALTS"] = "alts / warband"
 _G["BINDING_NAME_SFUI_LOOTVIEWER"] = "loot browser"
 _G["BINDING_NAME_SFUI_FISHING"] = "cast & catch fishing"
+_G["BINDING_NAME_BETTERFISHINGKEY"] = "cast & catch fishing (better fishing compat)"
 _G["BINDING_NAME_SFUI_PET_SUMMON"] = "summon / rotate companion pet"
 _G["BINDING_NAME_SFUI_PET_MANAGER"] = "toggle pet manager"
 
@@ -68,9 +69,16 @@ end
 
 -- Fishing Cast & Catch
 SLASH_SFFISH1 = "/sffish"
-SlashCmdList["SFFISH"] = function()
+SlashCmdList["SFFISH"] = function(msg)
+    local clean = msg and _G.strtrim and _G.strtrim(msg):lower() or (msg and msg:lower() or "")
+    if clean == "sound" or clean == "soundreset" or clean == "reset" then
+        if sfui.fishing and sfui.fishing.RestoreSoundDefaults then
+            sfui.fishing.RestoreSoundDefaults()
+        end
+        return
+    end
     if sfui.fishing and sfui.fishing.RunKeybind then
-        sfui.fishing.RunKeybind()
+        sfui.fishing.RunKeybind(true)
     end
 end
 
@@ -282,8 +290,12 @@ SlashCmdList["SFUI"] = function(msg)
             end
         end
     elseif cmd == "fish" or cmd == "fishing" then
-        if sfui.fishing and sfui.fishing.RunKeybind then
-            sfui.fishing.RunKeybind()
+        if arg == "sound" or arg == "soundreset" or arg == "reset" then
+            if sfui.fishing and sfui.fishing.RestoreSoundDefaults then
+                sfui.fishing.RestoreSoundDefaults()
+            end
+        elseif sfui.fishing and sfui.fishing.RunKeybind then
+            sfui.fishing.RunKeybind(true)
         end
     elseif cmd == "pet" or cmd == "pets" or cmd == "petwalker" then
         if arg == "add" then

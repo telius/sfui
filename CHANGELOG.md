@@ -2,6 +2,34 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-50 (2026-09-24)
+
+### Features & Additions
+- **Dedicated Fishing Configuration Tab (`frames/options.lua`)**:
+  - Separated fishing options into a clean, dedicated `fishing` tab in the SFUI configuration panel.
+  - Added an in-game **[restore sound defaults]** action button for immediate audio recovery.
+- **Companion Pet Manager Minimap Integration (`core.lua`, `frames/pets_ui.lua`)**:
+  - Added quick 1-click shortcut to the Minimap right-click context menu.
+  - Fixed initial frame visibility state ensuring the Pet Manager window opens reliably on the first activation.
+- **Controller & BetterFishing Keybind Parity (`Bindings.xml`, `commands.lua`)**:
+  - Added native `BETTERFISHINGKEY` binding alias ensuring full compatibility with existing console/gamepad configurations.
+  - Implemented `/sffish soundreset` and `/sfui fish soundreset` commands for rapid audio troubleshooting.
+- **Instant 1-Key Cast & Reel-In Auto-Arming (`frames/fishing.lua`)**:
+  - Implemented automatic out-of-combat key binding (`arm_fishing_keys`) on pole equip/first interaction, eliminating BetterFishing's legacy 2-press requirement.
+
+### Improvements & Bugfixes
+- **Fishing Audio Restoration & State Guard (`frames/fishing.lua`)**:
+  - Fixed a critical bug where `CVAR_UPDATE` events fired during fishing audio enhancement would overwrite cached volume levels with muted values (`Sound_EnableAmbience=0`, `Sound_MusicVolume=0`), permanently muting audio after fishing ended.
+  - Added `_state.isRestoringSounds` and enhanced-sound guards preventing temporary fishing volume levels from poisoning persistent user settings.
+  - Added auto-healing on initialization that detects and restores normal volume if settings were persisted while muted.
+- **Cooldown Tracker Icon & Masque Stability (`frames/tracking/cdm.lua`, `frames/tracking/trackedicons.lua`)**:
+  - Resolved sporadic icon spawn failures by preserving `spellID` and `itemID` across CDM drag-and-drop operations.
+  - Enhanced texture resolution fallbacks in `trackedicons.lua` with asynchronous retry logic for pending spell/item textures.
+  - Cleaned up redundant Masque skinning calls to prevent API hook collisions.
+- **UI Header Case & Version Display (`config.lua`, `frames/options.lua`)**:
+  - Standardized options frame title and subtitle typography to lowercase.
+  - Fixed redundant "v" prefix in header version string (`vv12.1.0-xx` -> `v12.1.0-50`).
+
 ## v12.1.0-49 (2026-09-24)
 
 ### Features & Additions

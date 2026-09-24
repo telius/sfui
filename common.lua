@@ -522,9 +522,16 @@ function sfui.common.get_active_panel_entries(panelConfig, outTable)
         -- NEVER pass a raw spellID to GetCooldownViewerCooldownInfo!
         if (typeHint == "cooldown" or (type(entry) == "table" and entry.cooldownID)) and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
             local cdID = (type(entry) == "table" and entry.cooldownID) or (type(entry) == "table" and entry.id) or entry
-            local cdInfo = C_CooldownViewer.GetCooldownViewerCooldownInfo(cdID)
-            if cdInfo and cdInfo.isKnown == false then
-                isKnown = false
+            local ok, cdInfo = pcall(C_CooldownViewer.GetCooldownViewerCooldownInfo, cdID)
+            if ok and cdInfo and cdInfo.isKnown == false then
+                local spellKnown = false
+                local sID = (type(entry) == "table" and entry.spellID) or (cdInfo.spellID and cdInfo.spellID > 0 and cdInfo.spellID)
+                if sID then
+                    spellKnown = (_G.IsPlayerSpell and _G.IsPlayerSpell(sID)) or (_G.C_SpellBook and _G.C_SpellBook.HasSpell and _G.C_SpellBook.HasSpell(sID)) or false
+                end
+                if not spellKnown then
+                    isKnown = false
+                end
             end
         end
 
@@ -1294,6 +1301,7 @@ end
 -- Centralized Helper to Sync Frame with Masque State
 function sfui.common.sync_masque(frame, subElements)
     if not frame then return end
+    if InCombatLockdown() then return end
     local Masque = LibStub and LibStub("Masque", true)
     if not Masque then return end
     local group = Masque:Group("sfui")

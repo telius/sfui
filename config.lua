@@ -3,7 +3,7 @@ sfui = sfui or {}
 
 sfui.config = {
     -- addon metadata
-    title = "|cff6600FFSF|rui |cff6600FFGFY|r edition",
+    title = "|cff6600ffsf|rui |cff6600ffgfy|r edition",
     version = "0.0.0", -- Set dynamically from TOC during ADDON_LOADED
     prefix = "|cff6600ffsfui:|r",
 

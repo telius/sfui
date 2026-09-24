@@ -294,6 +294,19 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
             })
         end
 
+        if _G.C_PetJournal and _G.C_PetJournal.GetNumPets then
+            table.insert(menuButtons, {
+                text = "|cffff99ccpet manager|r",
+                func = function()
+                    if sfui.pets and sfui.pets.Toggle then
+                        sfui.pets.Toggle()
+                    elseif sfui.pets_ui and sfui.pets_ui.Toggle then
+                        sfui.pets_ui.Toggle()
+                    end
+                end,
+            })
+        end
+
         table.insert(menuButtons, {
             text = "|cff6600ffmemory profiler|r",
             func = function()

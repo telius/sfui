@@ -104,6 +104,7 @@ local _state = {
     isInteractBinding = false,
     cvarsChanged = false,
     soundsEnhanced = false,
+    isRestoringSounds = false,
     soundCache = {},
     interactCVarCache = {},
     pendingTasks = {},
@@ -169,10 +170,20 @@ end
 
 -- ─── Skill & Spell Detection (Cross-Client) ──────────────────────────────────
 
+local isClassicEra = (WOW_PROJECT_ID == WOW_PROJECT_CLASSIC)
+
 local function is_spell_known(spellID)
     if not spellID then return false end
+    if C_SpellBook and C_SpellBook.IsSpellKnownOrInSpellBook then
+        local ok, known = pcall(C_SpellBook.IsSpellKnownOrInSpellBook, spellID)
+        if ok and known then return true end
+    end
     if C_SpellBook and C_SpellBook.IsSpellKnown then
         local ok, known = pcall(C_SpellBook.IsSpellKnown, spellID)
+        if ok and known then return true end
+    end
+    if C_SpellBook and C_SpellBook.HasSpell then
+        local ok, known = pcall(C_SpellBook.HasSpell, spellID)
         if ok and known then return true end
     end
     if _G.IsSpellKnown then
@@ -187,39 +198,50 @@ local function is_spell_known(spellID)
 end
 
 local function get_known_fishing_id()
+    if isClassicEra then
+        for id in pairs(FishingIDs) do
+            if is_spell_known(id) then
+                return id
+            end
+        end
+        return 7620
+    end
+
+    -- Retail / Mainline: check known IDs, default safely to 131474
     for id in pairs(FishingIDs) do
         if is_spell_known(id) then
             return id
         end
     end
-    return nil
+    return 131474
 end
+sfui.fishing.get_known_fishing_id = get_known_fishing_id
 
 local function get_fishing_spell_name()
     local id = get_known_fishing_id()
-    if id then
-        if C_Spell and C_Spell.GetSpellName then
-            local ok, name = pcall(C_Spell.GetSpellName, id)
-            if ok and name then return name end
-        end
-        if _G.GetSpellInfo then
-            local ok, name = pcall(_G.GetSpellInfo, id)
-            if ok and name then return name end
-        end
+    if id and C_Spell and C_Spell.GetSpellName then
+        local ok, name = pcall(C_Spell.GetSpellName, id)
+        if ok and name and name ~= "" then return name end
     end
-    -- Fallbacks
-    if _G.GetSpellInfo then
-        local ok, name = pcall(_G.GetSpellInfo, 7620)
-        if ok and name then return name end
+    if id and _G.GetSpellInfo then
+        local ok, name = pcall(_G.GetSpellInfo, id)
+        if ok and name and name ~= "" then return name end
     end
     if C_Spell and C_Spell.GetSpellName then
-        local ok, name = pcall(C_Spell.GetSpellName, 7620)
-        if ok and name then return name end
-        ok, name = pcall(C_Spell.GetSpellName, 131474)
-        if ok and name then return name end
+        local ok, name = pcall(C_Spell.GetSpellName, 131474)
+        if ok and name and name ~= "" then return name end
+        ok, name = pcall(C_Spell.GetSpellName, 7620)
+        if ok and name and name ~= "" then return name end
+    end
+    if _G.GetSpellInfo then
+        local ok, name = pcall(_G.GetSpellInfo, 131474)
+        if ok and name and name ~= "" then return name end
+        ok, name = pcall(_G.GetSpellInfo, 7620)
+        if ok and name and name ~= "" then return name end
     end
     return "Fishing"
 end
+sfui.fishing.get_fishing_spell_name = get_fishing_spell_name
 
 local function is_flying_safe()
     if C_Secrets and C_Secrets.ShouldSpellAuraBeSecret and C_Secrets.ShouldSpellAuraBeSecret(125883) then
@@ -233,8 +255,8 @@ end
 
 local function is_fishing_channel()
     if UnitChannelInfo then
-        local ok, _, _, _, _, _, _, _, spellID = pcall(UnitChannelInfo, "player")
-        if ok and spellID and FishingIDs[spellID] then
+        local ok, name, _, _, _, _, _, _, spellID = pcall(UnitChannelInfo, "player")
+        if ok and name and (name == get_fishing_spell_name() or (spellID and FishingIDs[spellID])) then
             return true
         end
     end
@@ -258,14 +280,13 @@ end
 local function allow_fishing()
     if not get_setting("enabled", true) then return false end
 
-    -- Verify player actually knows fishing
-    local fishingID = get_known_fishing_id()
-    if not fishingID then
+    -- Verify player actually knows fishing on Classic Era
+    if isClassicEra and not is_spell_known(get_known_fishing_id()) then
         return false
     end
 
     if (IsPlayerMoving and IsPlayerMoving())
-        or (IsMounted and IsMounted() and not (get_setting("doubleClick", true) and get_setting("doubleClickForce", false)))
+        or (IsMounted and IsMounted() and not get_setting("doubleClickForce", false))
         or is_flying_safe()
         or (IsFalling and IsFalling())
         or (IsStealthed and IsStealthed())
@@ -320,7 +341,7 @@ local function update_button_attributes()
         end
         _state.secureButton:SetAttribute("useKeyDowns", useKeyDowns)
 
-        local spellID = get_known_fishing_id() or 7620
+        local spellID = get_known_fishing_id() or (isClassicEra and 7620 or 131474)
         _state.secureButton:SetAttribute("spell", spellID)
     end
 end
@@ -330,7 +351,7 @@ local function get_secure_button()
         local button = CreateFrame("Button", SECURE_BUTTON_NAME, nil, "SecureActionButtonTemplate")
         button:RegisterForClicks("AnyDown", "AnyUp")
         button:SetAttribute("type", "spell")
-        button:SetAttribute("spell", get_known_fishing_id() or 7620)
+        button:SetAttribute("spell", get_known_fishing_id() or (isClassicEra and 7620 or 131474))
         button:SetScript("PostClick", function(self, mouse_button, down)
             if MouselookStart then MouselookStart() end
             if down then return end
@@ -357,6 +378,7 @@ local function get_secure_button()
     end
     return _state.secureButton
 end
+sfui.fishing.get_secure_button = get_secure_button
 
 -- ─── Sound Enhancement ───────────────────────────────────────────────────────
 
@@ -366,21 +388,47 @@ local function enhance_sounds(enable)
     if not enable then
         if not _state.soundsEnhanced then return end
         _state.soundsEnhanced = false
+        _state.isRestoringSounds = true
+        _state.cvarsChanged = true
+
         for _, cvar in ipairs(SoundCVars) do
-            if _state.soundCache[cvar] ~= nil then
-                safe_set_cvar(cvar, _state.soundCache[cvar])
+            local savedVal = _state.soundCache[cvar]
+            if savedVal ~= nil then
+                safe_set_cvar(cvar, savedVal)
             end
+        end
+
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0.5, function()
+                _state.isRestoringSounds = false
+                _state.cvarsChanged = false
+            end)
+        else
+            _state.isRestoringSounds = false
+            _state.cvarsChanged = false
         end
     else
         if _state.soundsEnhanced then return end
-        _state.soundsEnhanced = true
+
+        -- Step 1: Snapshot baseline sound CVars BEFORE altering any of them
         for _, cvar in ipairs(SoundCVars) do
             local cur = safe_get_cvar(cvar)
             if cur ~= nil then
                 _state.soundCache[cvar] = cur
-                safe_set_cvar(cvar, 0)
             end
         end
+
+        if SfuiDB then
+            SfuiDB.soundBaseline = SfuiDB.soundBaseline or {}
+            for k, v in pairs(_state.soundCache) do
+                SfuiDB.soundBaseline[k] = v
+            end
+        end
+
+        _state.soundsEnhanced = true
+        _state.cvarsChanged = true
+
+        -- Step 2: Apply fishing sound enhancements (boost SFX, mute distractions)
         safe_set_cvar("Sound_EnableAmbience", 0)
         safe_set_cvar("Sound_MusicVolume", 0)
         safe_set_cvar("Sound_EnablePetSounds", 0)
@@ -392,21 +440,28 @@ local function enhance_sounds(enable)
         local scale = get_setting("enhanceSoundsScale", 1.0) or 1.0
         safe_set_cvar("Sound_SFXVolume", scale)
         safe_set_cvar("Sound_MasterVolume", scale)
+
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0.5, function()
+                _state.cvarsChanged = false
+            end)
+        end
     end
 end
 
 -- ─── Soft-Targeting & Binding Management ─────────────────────────────────────
 
 local function set_fishing_cvars()
-    if not get_setting("softTarget", true) then return end
     _state.cvarsChanged = true
     enhance_sounds(true)
 
-    safe_set_cvar("SoftTargetInteract", 3)
-    safe_set_cvar("SoftTargetInteractArc", 2)
-    safe_set_cvar("SoftTargetInteractRange", 60)
-    safe_set_cvar("SoftTargetIconGameObject", 1)
-    safe_set_cvar("SoftTargetIconInteract", 1)
+    if get_setting("softTarget", true) then
+        safe_set_cvar("SoftTargetInteract", 3)
+        safe_set_cvar("SoftTargetInteractArc", 2)
+        safe_set_cvar("SoftTargetInteractRange", 60)
+        safe_set_cvar("SoftTargetIconGameObject", 1)
+        safe_set_cvar("SoftTargetIconInteract", 1)
+    end
 
     if C_Timer and C_Timer.After then
         C_Timer.After(0.2, function()
@@ -441,30 +496,69 @@ local function clear_fishing_binds()
     end
 end
 
+local function get_all_bound_keys()
+    local keys = {}
+    local seen = {}
+    local function add_keys(binding)
+        if not GetBindingKey then return end
+        local k1, k2 = GetBindingKey(binding)
+        if k1 and not seen[k1] then seen[k1] = true; keys[#keys + 1] = k1 end
+        if k2 and not seen[k2] then seen[k2] = true; keys[#keys + 1] = k2 end
+    end
+    add_keys("SFUI_FISHING")
+    add_keys("BETTERFISHINGKEY")
+    return keys
+end
+sfui.fishing.get_all_bound_keys = get_all_bound_keys
+
+-- Pre-arms all bound keys with SetOverrideBindingSpell so the very first keypress casts immediately
+local function arm_fishing_keys()
+    if InCombatLockdown and InCombatLockdown() then return end
+    if not get_setting("enabled", true) then return end
+    if is_fishing_channel() then return end
+
+    local keys = get_all_bound_keys()
+    if #keys == 0 then return end
+
+    local btn = get_secure_button()
+    if not btn then return end
+
+    local spellName = get_fishing_spell_name()
+    if SetOverrideBindingSpell and spellName then
+        for i = 1, #keys do
+            SetOverrideBindingSpell(btn, true, keys[i], spellName)
+        end
+    end
+end
+sfui.fishing.arm_fishing_keys = arm_fishing_keys
+
 -- Keybind runner: Can be bound to a key or invoked via /sffish or /sfui fish
-function sfui.fishing.RunKeybind()
-    if (InCombatLockdown and InCombatLockdown()) or is_flying_safe() or is_fishing_channel() then return end
+function sfui.fishing.RunKeybind(fromSlash)
+    if (InCombatLockdown and InCombatLockdown()) or is_flying_safe() then return end
     if GetNumLootItems and GetNumLootItems() ~= 0 then return end
     if not get_setting("overrideLunker", false) and is_lunker_active() then return end
 
-    -- Verify player actually knows fishing
-    if not get_known_fishing_id() then return end
-
-    local key1, key2 = nil, nil
-    if GetBindingKey then
-        key1, key2 = GetBindingKey("SFUI_FISHING")
-        if not key1 and not key2 then
-            key1, key2 = GetBindingKey("BETTERFISHINGKEY")
-        end
-    end
-
-    local spellName = get_fishing_spell_name()
+    local keys = get_all_bound_keys()
     local btn = get_secure_button()
-    if key1 and SetOverrideBindingSpell then
-        SetOverrideBindingSpell(btn, 1, key1, spellName)
+
+    if is_fishing_channel() then
+        -- Already fishing: ensure keys are bound to INTERACTTARGET so pressing reels in
+        if SetOverrideBinding then
+            for i = 1, #keys do
+                SetOverrideBinding(btn, true, keys[i], "INTERACTTARGET")
+            end
+        end
+        return
     end
-    if key2 and SetOverrideBindingSpell then
-        SetOverrideBindingSpell(btn, 2, key2, spellName)
+
+    arm_fishing_keys()
+
+    if fromSlash and sfui.common and sfui.common.print then
+        if #keys > 0 then
+            sfui.common.print("fishing: armed on |cff00ffff" .. table.concat(keys, ", ") .. "|r. Press your key to cast & catch.")
+        else
+            sfui.common.print("fishing: no key bound. Use double-right-click in world, or bind a key under Keybindings > SFUI.")
+        end
     end
 end
 
@@ -513,34 +607,48 @@ local function on_mouse_up(event, button)
     end
 end
 
-local function on_channel_start(event, unit, spellID)
-    if unit ~= "player" or not (spellID and FishingIDs[spellID]) then return end
+local function on_channel_start(event, unit, castGUID, spellID)
+    if unit ~= "player" then return end
+    if not (spellID and FishingIDs[spellID]) and not is_fishing_channel() then return end
     if InCombatLockdown and InCombatLockdown() then return end
 
     set_fishing_cvars()
 
-    local key1, key2 = nil, nil
-    if GetBindingKey then
-        key1, key2 = GetBindingKey("SFUI_FISHING")
-        if not key1 and not key2 then
-            key1, key2 = GetBindingKey("BETTERFISHINGKEY")
-        end
-    end
-
     local btn = get_secure_button()
     if SetOverrideBinding then
-        if key1 then
-            SetOverrideBinding(btn, true, key1, "INTERACTTARGET")
-        end
-        if key2 then
-            SetOverrideBinding(btn, true, key2, "INTERACTTARGET")
+        local keys = get_all_bound_keys()
+        for i = 1, #keys do
+            SetOverrideBinding(btn, true, keys[i], "INTERACTTARGET")
         end
     end
 end
 
-local function on_channel_stop(event, unit, spellID)
-    if unit ~= "player" or not (spellID and FishingIDs[spellID]) then return end
-    defer_action(clear_fishing_binds)
+local function on_channel_stop(event, unit, castGUID, spellID)
+    if unit ~= "player" then return end
+    if (spellID and FishingIDs[spellID]) or _state.soundsEnhanced or _state.isInteractBinding or is_fishing_channel() then
+        defer_action(function()
+            clear_fishing_binds()
+            arm_fishing_keys()
+        end)
+    end
+end
+
+local function on_enter_combat()
+    clear_fishing_binds()
+end
+
+local function on_leave_combat()
+    run_deferred_tasks()
+    arm_fishing_keys()
+end
+
+local function on_bindings_updated()
+    if InCombatLockdown and InCombatLockdown() then
+        defer_action(arm_fishing_keys)
+    else
+        clear_fishing_binds()
+        arm_fishing_keys()
+    end
 end
 
 local function on_cvar_update(event, cvarName)
@@ -549,10 +657,17 @@ local function on_cvar_update(event, cvarName)
         return
     end
 
-    if is_fishing_channel() then return end
+    -- Critical protection: never overwrite soundCache while sounds are enhanced or being restored
+    if _state.soundsEnhanced or _state.isRestoringSounds or _state.cvarsChanged or is_fishing_channel() then
+        return
+    end
+
     for _, soundCVar in ipairs(SoundCVars) do
         if soundCVar == cvarName then
             _state.soundCache[soundCVar] = safe_get_cvar(cvarName)
+            if SfuiDB and SfuiDB.soundBaseline then
+                SfuiDB.soundBaseline[soundCVar] = _state.soundCache[soundCVar]
+            end
             break
         end
     end
@@ -565,14 +680,86 @@ local function on_cvar_update(event, cvarName)
     end
 end
 
+-- Dedicated manual or auto recovery function to restore normal audio CVars
+local function restore_sound_defaults()
+    _state.soundsEnhanced = false
+    _state.isRestoringSounds = true
+    _state.cvarsChanged = true
+
+    local master = safe_get_cvar("Sound_MasterVolume")
+    local mus = safe_get_cvar("Sound_MusicVolume")
+
+    local defaults = {
+        Sound_MasterVolume = (master == "1" or master == 1) and "0.6" or (master or "0.6"),
+        Sound_SFXVolume = "1",
+        Sound_EnableAmbience = "1",
+        Sound_MusicVolume = (mus == "0" or mus == 0) and "0.5" or (mus or "0.5"),
+        Sound_EnableAllSound = "1",
+        Sound_EnablePetSounds = "1",
+        Sound_EnableSoundWhenGameIsInBG = "1",
+        Sound_EnableSFX = "1",
+    }
+
+    for cvar, val in pairs(defaults) do
+        _state.soundCache[cvar] = tostring(val)
+        if SfuiDB then
+            SfuiDB.soundBaseline = SfuiDB.soundBaseline or {}
+            SfuiDB.soundBaseline[cvar] = tostring(val)
+        end
+        safe_set_cvar(cvar, val)
+    end
+
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.5, function()
+            _state.isRestoringSounds = false
+            _state.cvarsChanged = false
+        end)
+    else
+        _state.isRestoringSounds = false
+        _state.cvarsChanged = false
+    end
+
+    if sfui.common and sfui.common.print then
+        sfui.common.print("fishing: sound settings restored to normal (ambience on, music 50%, master 60%).")
+    end
+end
+sfui.fishing.RestoreSoundDefaults = restore_sound_defaults
+
 -- ─── Module Lifecycle Registration ──────────────────────────────────────────
 
 local FishingModule = sfui.RegisterModule("fishing", {
     OnInit = function(self)
+        local savedBaseline = SfuiDB and SfuiDB.soundBaseline
+
         for _, cvar in ipairs(SoundCVars) do
-            local val = safe_get_cvar(cvar)
+            local val = (savedBaseline and savedBaseline[cvar]) or safe_get_cvar(cvar)
             if val ~= nil then
-                _state.soundCache[cvar] = val
+                _state.soundCache[cvar] = tostring(val)
+            end
+        end
+
+        -- Auto-healing: If Ambience and Music are 0 and Master is 1, they were corrupted by previous fishing sessions
+        local amb = _state.soundCache["Sound_EnableAmbience"]
+        local mus = _state.soundCache["Sound_MusicVolume"]
+        local master = _state.soundCache["Sound_MasterVolume"]
+        if (amb == "0" or amb == 0) and (mus == "0" or mus == 0) and (master == "1" or master == 1) then
+            _state.soundCache["Sound_EnableAmbience"] = "1"
+            _state.soundCache["Sound_MusicVolume"] = "0.5"
+            _state.soundCache["Sound_EnablePetSounds"] = "1"
+            _state.soundCache["Sound_MasterVolume"] = "0.6"
+            _state.soundCache["Sound_SFXVolume"] = "1"
+            _state.soundCache["Sound_EnableAllSound"] = "1"
+            _state.soundCache["Sound_EnableSFX"] = "1"
+            _state.soundCache["Sound_EnableSoundWhenGameIsInBG"] = "1"
+            if SfuiDB then
+                SfuiDB.soundBaseline = SfuiDB.soundBaseline or {}
+                for k, v in pairs(_state.soundCache) do
+                    SfuiDB.soundBaseline[k] = v
+                end
+            end
+            -- Apply healed sound settings right now so user doesn't stay muted
+            for cvar, val in pairs(_state.soundCache) do
+                safe_set_cvar(cvar, val)
             end
         end
     end,
@@ -584,9 +771,13 @@ local FishingModule = sfui.RegisterModule("fishing", {
         sfui.events.RegisterEvent("GLOBAL_MOUSE_UP", on_mouse_up)
         sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player", on_channel_start)
         sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", on_channel_stop)
-        sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", run_deferred_tasks)
+        sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", on_enter_combat)
+        sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", on_leave_combat)
+        sfui.events.RegisterEvent("UPDATE_BINDINGS", on_bindings_updated)
         sfui.events.RegisterEvent("CVAR_UPDATE", on_cvar_update)
         sfui.events.RegisterEvent("PLAYER_LOGOUT", function() reset_fishing_cvars(true) end)
+
+        defer_action(arm_fishing_keys)
     end,
 
     OnDisable = function(self)
@@ -594,8 +785,12 @@ local FishingModule = sfui.RegisterModule("fishing", {
     end,
 
     OnSettingsChanged = function(self, key, value)
-        if key == "enabled" and not value then
-            clear_fishing_binds()
+        if key == "enabled" then
+            if not value then
+                clear_fishing_binds()
+            else
+                arm_fishing_keys()
+            end
         end
     end,
 
@@ -604,6 +799,7 @@ local FishingModule = sfui.RegisterModule("fishing", {
             enabled = get_setting("enabled", true),
             hasSkill = get_known_fishing_id() ~= nil,
             knownSpellID = get_known_fishing_id(),
+            boundKeys = get_all_bound_keys(),
             doubleClick = get_setting("doubleClick", true),
             enhanceSounds = get_setting("enhanceSounds", true),
             softTarget = get_setting("softTarget", true),

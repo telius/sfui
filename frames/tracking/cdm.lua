@@ -89,6 +89,9 @@ local HandleExternalDrop
 local cursor
 
 local function CanSaveBlizzardCDM()
+    if InCombatLockdown() then
+        return false
+    end
     local isClassic = (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
         or (sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail))
         or not (sfui.compat and sfui.compat.has and sfui.compat.has.specializations)
@@ -105,7 +108,7 @@ local function CanSaveBlizzardCDM()
 end
 
 local function SafeSaveBlizzardLayout()
-    if not CanSaveBlizzardCDM() then return end
+    if not CanSaveBlizzardCDM() or InCombatLockdown() then return end
     local layoutManager = CooldownViewerSettings and CooldownViewerSettings.GetLayoutManager and
         CooldownViewerSettings:GetLayoutManager()
     if layoutManager and layoutManager.SaveLayouts then
@@ -115,7 +118,7 @@ local function SafeSaveBlizzardLayout()
 end
 
 local function SafeSetBlizzardCooldownCategory(cdID, category)
-    if not CanSaveBlizzardCDM() then return end
+    if not CanSaveBlizzardCDM() or InCombatLockdown() then return end
     local dp = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and
         CooldownViewerSettings:GetDataProvider()
     if dp and dp.SetCooldownToCategory then
@@ -139,7 +142,9 @@ local function OnZoneIconClick(self, button)
         if entries[cdID] then
             entries[cdID] = nil
         else
-            entries[cdID] = { id = cdID, type = "cooldown", cooldownID = cdID }
+            local spellID = (self.info and self.info.spellID and self.info.spellID > 0) and self.info.spellID or nil
+            local itemID = (self.info and self.info.itemID and self.info.itemID > 0) and self.info.itemID or nil
+            entries[cdID] = { id = cdID, type = "cooldown", cooldownID = cdID, spellID = spellID, itemID = itemID }
             SafeSetBlizzardCooldownCategory(cdID, 3)
         end
 
@@ -322,8 +327,6 @@ local function AcquirePreviewBar(parent)
         bar.iconFrame = iconFrame
         bar.icon = icon
 
-        common.sync_masque(iconFrame, { Icon = icon })
-
         local label = bar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         label:SetPoint("LEFT", iconFrame, "RIGHT", 5, 0)
         bar.label = label
@@ -401,8 +404,6 @@ local function AcquireZoneIcon(parent)
         sfui.trackedicons.ApplyIconBorderStyle(icon, SfuiDB.iconGlobalSettings)
     end
     -- Enforce borderless logic removed to respect user settings
-
-    common.sync_masque(icon, { Icon = icon.texture })
 
     icon:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     icon:SetScript("OnClick", OnZoneIconClick)
@@ -949,7 +950,10 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
                             common.print("|cffff0000SFUI CDM Error:|r Skipping invalid ID " ..
                                 tostring(cooldownID) .. " (outside 32-bit range)")
                         else
-                            local entry = { id = cooldownID, type = "cooldown", cooldownID = cooldownID }
+                            local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID)
+                            local spellID = (cdInfo and cdInfo.spellID and cdInfo.spellID > 0) and cdInfo.spellID or nil
+                            local itemID = (cdInfo and cdInfo.itemID and cdInfo.itemID > 0) and cdInfo.itemID or nil
+                            local entry = { id = cooldownID, type = "cooldown", cooldownID = cooldownID, spellID = spellID, itemID = itemID }
                             if zone.isTrackedBars then
                                 entries[cooldownID] = entry
                             else
@@ -1381,7 +1385,9 @@ local function RenderAssignmentsIconPool(parent, width, entries)
                 table.remove(entries, existingIndex)
             else
                 if type(entries) == "table" then
-                    table.insert(entries, { id = cdID, type = "cooldown", cooldownID = cdID })
+                    local spellID = (icon.info and icon.info.spellID and icon.info.spellID > 0) and icon.info.spellID or nil
+                    local itemID = (icon.info and icon.info.itemID and icon.info.itemID > 0) and icon.info.itemID or nil
+                    table.insert(entries, { id = cdID, type = "cooldown", cooldownID = cdID, spellID = spellID, itemID = itemID })
                 end
             end
             if common.invalidate_panels_cache then common.invalidate_panels_cache() end
@@ -1729,11 +1735,22 @@ OnZoneReceiveDrag = function(zoneFrame, panelData, isTrackedBars)
             entryType = "item"
         end
 
+        local sID = (draggedInfo.info and draggedInfo.info.spellID and draggedInfo.info.spellID > 0 and draggedInfo.info.spellID)
+            or (entryType == "spell" and type(incomingId) == "number" and incomingId) or nil
+        local itID = (draggedInfo.info and draggedInfo.info.itemID and draggedInfo.info.itemID > 0 and draggedInfo.info.itemID)
+            or (entryType == "item" and type(incomingId) == "number" and incomingId) or nil
+
         local entry = draggedInfo.entry or {
             id = incomingId,
             type = entryType,
-            cooldownID = draggedInfo.cooldownID
+            cooldownID = draggedInfo.cooldownID,
+            spellID = sID,
+            itemID = itID,
         }
+        if entry then
+            if not entry.spellID and sID then entry.spellID = sID end
+            if not entry.itemID and itID then entry.itemID = itID end
+        end
 
         if zoneFrame.dropInsertIndex and zoneFrame.dropInsertIndex <= #panelData.entries then
             table.insert(panelData.entries, zoneFrame.dropInsertIndex, entry)
@@ -1846,6 +1863,8 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
             entry.cooldownID = foundCooldownID
             entry.type = "cooldown"
             entry.id = foundCooldownID -- Normalize ID to cooldownID for sfui backend
+            entry.spellID = draggedSpellID
+            entry.itemID = draggedItemID
         end
     end
 
