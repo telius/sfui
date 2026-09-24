@@ -26,6 +26,19 @@ local string_format = string.format
 
 local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
 
+local function GetQLState()
+    if not SfuiDB then SfuiDB = {} end
+    if not SfuiDB.questlog then
+        SfuiDB.questlog = {
+            collapsed      = {},
+            expandedQuests = {},
+            hiddenQuests   = {},
+            hidden         = false,
+        }
+    end
+    return SfuiDB.questlog
+end
+
 local function FormatTimeLeft(minutes)
     if not minutes or minutes <= 0 then return nil end
     if minutes >= 1440 then
@@ -60,6 +73,9 @@ function WorldQuestsModule:IsEnabled()
 end
 
 function WorldQuestsModule:BuildBlocks(container)
+    local state = GetQLState()
+    local expandedQuests = state.expandedQuests or {}
+    local activeWQs = {}
     local numEntries = (C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetNumQuestLogEntries())
         or (GetNumQuestLogEntries and GetNumQuestLogEntries())
         or 0
@@ -103,6 +119,7 @@ function WorldQuestsModule:BuildBlocks(container)
         end
 
         if isWQ and isWatched then
+            activeWQs[questID] = true
             local displayTitle = title or "World Quest"
 
             -- Time left indicator
@@ -111,6 +128,9 @@ function WorldQuestsModule:BuildBlocks(container)
             if timeStr then
                 displayTitle = displayTitle .. " |cffbbbbbb(" .. timeStr .. ")|r"
             end
+
+            local expandKey = "wq_" .. tostring(questID)
+            local isExpanded = (expandedQuests[expandKey] ~= false)
 
             -- Objectives & Progress Bar
             local lines = {}
@@ -133,7 +153,7 @@ function WorldQuestsModule:BuildBlocks(container)
             end
 
             local objs = C_QuestLog and C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(questID)
-            if objs and #objs > 0 then
+            if isExpanded and objs and #objs > 0 then
                 for _, obj in ipairs(objs) do
                     local isBar = (obj.type == "progressbar" or obj.type == 8)
                     if not isBar and obj.text and obj.text ~= "" and not issecretvalue(obj.text) then
@@ -144,6 +164,19 @@ function WorldQuestsModule:BuildBlocks(container)
                         })
                     end
                 end
+            end
+
+            local isSuper = (superTrackedQuestID == questID)
+
+            -- Waypoint direction text
+            local waypointsHelper = sfui.tracker.helpers and sfui.tracker.helpers.waypoints
+            local wpText = waypointsHelper and waypointsHelper.GetWaypointText and waypointsHelper.GetWaypointText(questID, isSuper)
+            if isExpanded and wpText and wpText ~= "" then
+                table_insert(lines, {
+                    text      = wpText,
+                    completed = false,
+                    color     = { 0.0, 1.0, 0.8, 1 },
+                })
             end
 
             -- Focus World Quest when its progress changes
@@ -162,8 +195,6 @@ function WorldQuestsModule:BuildBlocks(container)
             end
             lastWQProgress[questID] = currentSig
 
-            local isSuper = (superTrackedQuestID == questID)
-
             local findGroupHelper = sfui.tracker.helpers and sfui.tracker.helpers.findgroup
             local canFindGroup = findGroupHelper and findGroupHelper.CanFindGroup and findGroupHelper.CanFindGroup(questID) or false
 
@@ -176,9 +207,11 @@ function WorldQuestsModule:BuildBlocks(container)
                 isWorldQuest   = true,
                 timeLeftText   = timeStr,
                 canFindGroup   = canFindGroup,
+                isExpanded     = isExpanded,
                 lines          = lines,
                 progressBar    = progressBar,
                 OnClick        = function(block, btn)
+                    -- Shift-Click: Untrack
                     if IsShiftKeyDown and IsShiftKeyDown() then
                         if C_QuestLog and C_QuestLog.RemoveQuestWatch then
                             C_QuestLog.RemoveQuestWatch(questID)
@@ -189,6 +222,18 @@ function WorldQuestsModule:BuildBlocks(container)
                         return
                     end
 
+                    -- Right-Click: Toggle Objectives Collapse/Expand
+                    if btn == "RightButton" then
+                        local st = GetQLState()
+                        st.expandedQuests = st.expandedQuests or {}
+                        st.expandedQuests[expandKey] = not isExpanded
+                        if sfui.tracker and sfui.tracker.RequestRefresh then
+                            sfui.tracker.RequestRefresh(0.01)
+                        end
+                        return
+                    end
+
+                    -- Left-Click: Open details or map
                     if QuestMapFrame_OpenToQuestDetails then
                         QuestMapFrame_OpenToQuestDetails(questID)
                     elseif _G.ToggleWorldMap then
@@ -200,6 +245,13 @@ function WorldQuestsModule:BuildBlocks(container)
                     end
                 end,
             })
+        end
+    end
+
+    -- Clean up untracked or expired world quests from snapshot cache
+    for qID in pairs(lastWQProgress) do
+        if not activeWQs[qID] then
+            lastWQProgress[qID] = nil
         end
     end
 

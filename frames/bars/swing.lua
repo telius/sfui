@@ -14,7 +14,7 @@ local common = sfui.common
 local CreateFrame = CreateFrame
 local UIParent = UIParent
 local GetTime = GetTime
-local UnitAttackSpeed = UnitAttackSpeed
+local GetInventoryItemID = GetInventoryItemID
 local UnitAffectingCombat = UnitAffectingCombat
 local UnitCanAttack = UnitCanAttack
 local C_SwingTimer = C_SwingTimer
@@ -30,13 +30,12 @@ local swingBars = {}
 
 -- ─── Helper: Can player swing this weapon type? ─────────────────────────────
 local function CanSwing(swingType)
-    local mainSpeed, offSpeed, rangedSpeed = UnitAttackSpeed("player")
     if swingType == SWING_MAIN_HAND then
         return true
     elseif swingType == SWING_OFF_HAND then
-        return offSpeed ~= nil and offSpeed > 0
+        return GetInventoryItemID("player", 17) ~= nil
     elseif swingType == SWING_RANGED then
-        return rangedSpeed ~= nil and rangedSpeed > 0
+        return GetInventoryItemID("player", 18) ~= nil
     end
     return false
 end

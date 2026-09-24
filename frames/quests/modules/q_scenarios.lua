@@ -20,9 +20,6 @@ local _G = _G
 local C_Scenario = _G.C_Scenario
 local C_ScenarioInfo = _G.C_ScenarioInfo
 local C_DelvesUI = _G.C_DelvesUI
-local C_UIWidgetManager = _G.C_UIWidgetManager
-local C_AreaPoiInfo = _G.C_AreaPoiInfo
-local C_Map = _G.C_Map
 local Enum = _G.Enum
 local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
 local math_floor, math_max = _G.math.floor, _G.math.max
@@ -30,23 +27,6 @@ local table_insert = _G.table.insert
 local string_format = string.format
 
 local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
-
--- ─────────────────────────────────────────────────────────
---  FORMATTERS
--- ─────────────────────────────────────────────────────────
-local function FormatTimerSeconds(sec)
-    if not sec or issecretvalue(sec) or sec <= 0 then return "now" end
-    sec = math_floor(sec)
-    if sec >= 3600 then
-        local h = math_floor(sec / 3600)
-        local m = math_floor((sec % 3600) / 60)
-        return (m > 0) and string_format("%dh %dm", h, m) or string_format("%dh", h)
-    elseif sec >= 60 then
-        return string_format("%dm", math_floor(sec / 60))
-    else
-        return string_format("%ds", sec)
-    end
-end
 
 -- ─────────────────────────────────────────────────────────
 --  CRITERIA EXTRACTOR

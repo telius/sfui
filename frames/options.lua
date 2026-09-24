@@ -418,6 +418,14 @@ function sfui.create_options_panel()
         end
     end)
 
+    local open_pets_main = CreateFlatButton(main_panel, "pet manager", 100, 22)
+    open_pets_main:SetPoint("LEFT", open_loot_main, "RIGHT", 10, 0)
+    open_pets_main:SetScript("OnClick", function()
+        if sfui.pets and sfui.pets.Toggle then
+            sfui.pets.Toggle()
+        end
+    end)
+
     local hide_minimap_icon_cb = create_checkbox(main_panel, "hide minimap icon", function()
         return (SfuiDB.minimap_icon and SfuiDB.minimap_icon.hide) or false
     end, function(checked)
@@ -1124,6 +1132,69 @@ function sfui.create_options_panel()
             self:ClearFocus()
         end)
     end
+
+    local last_auto_anchor = (not isClassic and color_label) or recipes_tint_cb
+
+    -- ── 6.5 Fishing Automation ───────────────────────────────────────────────
+    local fishing_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
+    fishing_header:SetPoint("TOPLEFT", last_auto_anchor, "BOTTOMLEFT", 0, -SECTION_GAP)
+    fishing_header:SetTextColor(white[1], white[2], white[3])
+    fishing_header:SetText("fishing automation")
+
+    if SfuiDB.fishingEnabled == nil then SfuiDB.fishingEnabled = true end
+    local fishing_enable_cb = create_checkbox(automation_panel, "enable fishing automation", "fishingEnabled", function(checked)
+        notify_setting_changed("fishing", "enabled", checked)
+    end, "enables 1-key and double-right-click fishing automation.")
+    fishing_enable_cb:SetPoint("TOPLEFT", fishing_header, "BOTTOMLEFT", 0, -10)
+
+    if SfuiDB.fishingDoubleClick == nil then SfuiDB.fishingDoubleClick = true end
+    local fishing_double_cb = create_checkbox(automation_panel, "double-click fishing", "fishingDoubleClick", function(checked)
+        notify_setting_changed("fishing", "doubleClick", checked)
+    end, "double right-click to cast fishing and catch the bobber.")
+    fishing_double_cb:SetPoint("LEFT", fishing_enable_cb, "LEFT", COL_OFFSET_X, 0)
+
+    if SfuiDB.fishingSoftTarget == nil then SfuiDB.fishingSoftTarget = true end
+    local fishing_soft_cb = create_checkbox(automation_panel, "soft-target bobber interact", "fishingSoftTarget", function(checked)
+        notify_setting_changed("fishing", "softTarget", checked)
+    end, "automatically highlights and interacts with the bobber using soft-targeting CVars.")
+    fishing_soft_cb:SetPoint("TOPLEFT", fishing_enable_cb, "BOTTOMLEFT", 0, -10)
+
+    if SfuiDB.fishingEnhanceSounds == nil then SfuiDB.fishingEnhanceSounds = true end
+    local fishing_sound_cb = create_checkbox(automation_panel, "enhance fishing audio", "fishingEnhanceSounds", function(checked)
+        notify_setting_changed("fishing", "enhanceSounds", checked)
+    end, "boosts splash effects and mutes ambience/music during cast.")
+    fishing_sound_cb:SetPoint("LEFT", fishing_soft_cb, "LEFT", COL_OFFSET_X, 0)
+
+    local fishing_recast_cb = create_checkbox(automation_panel, "recast on double-click", "fishingRecast", function(checked)
+        notify_setting_changed("fishing", "recastOnDoubleClick", checked)
+    end, "double right-click while casting will recast instead of reeling in.")
+    fishing_recast_cb:SetPoint("TOPLEFT", fishing_soft_cb, "BOTTOMLEFT", 0, -10)
+
+    if SfuiDB.fishingSoundScale == nil then SfuiDB.fishingSoundScale = 1.0 end
+    local fishing_vol_slider = create_slider_input(automation_panel, "sound volume:", "fishingSoundScale", 0.1, 1.0, 0.05, function(val)
+        notify_setting_changed("fishing", "enhanceSoundsScale", val)
+    end, "volume multiplier for fishing splash sound effects.")
+    fishing_vol_slider:SetPoint("LEFT", fishing_recast_cb, "LEFT", COL_OFFSET_X, 0)
+
+    -- ── 6.6 Companion Pet Manager ─────────────────────────────────────────────
+    local pets_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
+    pets_header:SetPoint("TOPLEFT", fishing_recast_cb, "BOTTOMLEFT", 0, -SECTION_GAP)
+    pets_header:SetTextColor(white[1], white[2], white[3])
+    pets_header:SetText("companion pet manager")
+
+    local pets_open_btn = CreateFlatButton(automation_panel, "open pet manager", 140, 22)
+    pets_open_btn:SetPoint("TOPLEFT", pets_header, "BOTTOMLEFT", 0, -10)
+    pets_open_btn:SetScript("OnClick", function()
+        if sfui.pets and sfui.pets.Toggle then
+            sfui.pets.Toggle()
+        end
+    end)
+
+    if SfuiDB.petsEnabled == nil then SfuiDB.petsEnabled = true end
+    local pets_enable_cb = create_checkbox(automation_panel, "enable auto-summon", "petsEnabled", function(checked)
+        notify_setting_changed("pets", "enabled", checked)
+    end, "automatically summons your companion pet when lost after dismounting, taxi, or zoning.")
+    pets_enable_cb:SetPoint("LEFT", pets_open_btn, "RIGHT", 15, 0)
 
 
     local minimap_header = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)

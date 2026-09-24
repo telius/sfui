@@ -115,7 +115,7 @@ function sfui.mem.GetModuleStats()
     }
     local tb = GetDebug("trackedbars_debug_info", "trackedbars")
     if tb then
-        tbStats.status = (tb.shownBars or 0) > 0 and "|cff00ff88active|r" or "|cff8888880 shown|r"
+        tbStats.status = tb.loopActive and "|cff00ff88combat loop|r" or "|cff888888paused (ooc)|r"
         tbStats.line1 = string_format("bars: %d active / %d shown", tb.activeBars or 0, tb.shownBars or 0)
         tbStats.line2 = string_format("pools: frames=%d, cfg=%d • dirty=%s", tb.barPool or 0, tb.configPool or 0, tb.isDirty and "yes" or "no")
     end

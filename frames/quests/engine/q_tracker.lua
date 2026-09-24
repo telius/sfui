@@ -107,9 +107,20 @@ local function ExecuteLayout()
 end
 
 function Tracker.RequestRefresh(delay)
-    if refreshTimer then return end
     local cfg = (sfui.config and sfui.config.questlog) or {}
     local throttle = delay or cfg.throttle or 0.25
+
+    if refreshTimer then
+        if delay and delay <= 0.05 then
+            if refreshTimer.Cancel then
+                refreshTimer:Cancel()
+            end
+            refreshTimer = nil
+        else
+            return
+        end
+    end
+
     refreshTimer = C_Timer.NewTimer(throttle, ExecuteLayout)
 end
 
@@ -548,6 +559,7 @@ function sfui.questlog.GetState()
 end
 
 function sfui.questlog.UpdateAnchor()
+    Tracker.RestorePosition()
     Tracker.RequestRefresh(0.05)
 end
 

@@ -53,71 +53,29 @@ local TimerBars  = sfui.tracker.helpers and sfui.tracker.helpers.timerbars
 local Items      = sfui.tracker.helpers and sfui.tracker.helpers.items
 local FindGroup  = sfui.tracker.helpers and sfui.tracker.helpers.findgroup
 
-local function QuestHasProgress(questID, questLogIndex, isComplete, objs)
-    if isComplete then return true end
-
-    -- Check progress bar percent if available
-    if GetQuestProgressBarPercent then
-        local pct = GetQuestProgressBarPercent(questID)
-        if pct and pct > 0 then return true end
-    end
-
-    if objs and #objs > 0 then
-        for _, obj in ipairs(objs) do
-            if obj.finished == true then return true end
-            local text = obj.text
-            if text then
-                local cur = text:match("(%d+)%s*/%s*(%d+)")
-                if cur and tonumber(cur) and tonumber(cur) > 0 then
-                    return true
-                end
-                local pctTxt = text:match("(%d+)%%")
-                if pctTxt and tonumber(pctTxt) and tonumber(pctTxt) > 0 then
-                    return true
-                end
-            end
-        end
-    elseif questLogIndex and _G.GetNumQuestLeaderBoards and _G.GetQuestLogLeaderBoard then
-        local numLeaderBoards = _G.GetNumQuestLeaderBoards(questLogIndex) or 0
-        for objIndex = 1, numLeaderBoards do
-            local desc, _, isFinished = _G.GetQuestLogLeaderBoard(objIndex, questLogIndex)
-            if isFinished then return true end
-            if desc then
-                local cur = desc:match("(%d+)%s*/%s*(%d+)")
-                if cur and tonumber(cur) and tonumber(cur) > 0 then
-                    return true
-                end
-                local pctTxt = desc:match("(%d+)%%")
-                if pctTxt and tonumber(pctTxt) and tonumber(pctTxt) > 0 then
-                    return true
-                end
-            end
-        end
-    end
-
-    return false
-end
+local wipe = _G.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
 
 -- ─────────────────────────────────────────────────────────
 --  PROGRESS SNAPSHOT (Used to detect progress changes)
 -- ─────────────────────────────────────────────────────────
 local lastQuestProgress = {}
 local initialScanDone = false
+local snapshotParts = {}
 
 local function GetQuestProgressSnapshot(questID, questLogIndex, isComplete, objs)
-    local parts = {}
-    table_insert(parts, isComplete and "1" or "0")
+    wipe(snapshotParts)
+    table_insert(snapshotParts, isComplete and "1" or "0")
 
     if GetQuestProgressBarPercent then
         local pct = GetQuestProgressBarPercent(questID)
-        table_insert(parts, "P:" .. tostring(pct or 0))
+        table_insert(snapshotParts, "P:" .. tostring(pct or 0))
     end
 
     if objs and #objs > 0 then
         for idx, obj in ipairs(objs) do
             local fin = obj.finished and "1" or "0"
             local txt = obj.text or ""
-            table_insert(parts, idx .. ":" .. fin .. ":" .. txt)
+            table_insert(snapshotParts, idx .. ":" .. fin .. ":" .. txt)
         end
     elseif questLogIndex and _G.GetNumQuestLeaderBoards and _G.GetQuestLogLeaderBoard then
         local numLeaderBoards = _G.GetNumQuestLeaderBoards(questLogIndex) or 0
@@ -125,11 +83,11 @@ local function GetQuestProgressSnapshot(questID, questLogIndex, isComplete, objs
             local desc, _, isFinished = _G.GetQuestLogLeaderBoard(objIndex, questLogIndex)
             local fin = isFinished and "1" or "0"
             local txt = desc or ""
-            table_insert(parts, objIndex .. ":" .. fin .. ":" .. txt)
+            table_insert(snapshotParts, objIndex .. ":" .. fin .. ":" .. txt)
         end
     end
 
-    return table.concat(parts, ";")
+    return table.concat(snapshotParts, ";")
 end
 
 local function IsCamelotClient()
@@ -302,10 +260,14 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
     -- 2. Click to Complete Quest (Auto-Complete / Turn-in by clicking)
     if isClickToComplete and mouseButton ~= "RightButton" and not (IsControlKeyDown and IsControlKeyDown()) and not (IsAltKeyDown and IsAltKeyDown()) and not (IsShiftKeyDown and IsShiftKeyDown()) then
         if _G.RemoveAutoQuestPopUp then
-            _G.RemoveAutoQuestPopUp(questID)
+            pcall(_G.RemoveAutoQuestPopUp, questID)
         end
         if _G.ShowQuestComplete then
-            _G.ShowQuestComplete(questID)
+            local param = (IsCamelotClient() and questLogIndex) or questID
+            local ok = pcall(_G.ShowQuestComplete, param)
+            if not ok and questLogIndex and param ~= questLogIndex then
+                pcall(_G.ShowQuestComplete, questLogIndex)
+            end
             return
         end
     end
@@ -651,7 +613,7 @@ function QuestsModule:BuildBlocks(container)
 
         if isHeader then
             currentHeaderTitle = title or "Miscellaneous"
-        elseif questID and questID > 0 and not IsWorldQuest(questID) and IsQuestWatched(questID, i) then
+        elseif questID and questID > 0 and not IsWorldQuest(questID) and IsQuestWatched(questID, i) and not autoCompletePopups[questID] then
             if C_QuestLog and C_QuestLog.IsComplete then
                 isComplete = C_QuestLog.IsComplete(questID) or isComplete
             end
@@ -706,7 +668,6 @@ function QuestsModule:BuildBlocks(container)
             local section = GetOrCreateSection(secID, secTitle, secColor)
 
             local objs = C_QuestLog and C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(questID)
-            local hasProgress = QuestHasProgress(questID, i, isComplete, objs)
 
             local isExpanded
             if expandedQuests[questID] ~= nil then

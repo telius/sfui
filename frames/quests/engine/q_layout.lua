@@ -144,7 +144,7 @@ function Layout.BuildLayout(container, sections)
                         local itemsHelper = sfui.tracker.helpers and sfui.tracker.helpers.items
                         if itemsHelper then
                             if not block.itemButton then
-                                block.itemButton = itemsHelper.CreateItemButton(block)
+                                block.itemButton = (itemsHelper.AcquireItemButton and itemsHelper.AcquireItemButton(block)) or itemsHelper.CreateItemButton(block)
                             end
                             itemsHelper.SetupItemButton(block.itemButton, bData.questLogIndex, bData.questID, bData.itemInfo)
                             block.itemButton:ClearAllPoints()
@@ -162,6 +162,7 @@ function Layout.BuildLayout(container, sections)
                         else
                             block.itemButton:Hide()
                         end
+                        block.itemButton = nil
                     end
 
                     -- 4. Find Group (LFG) button (placed on the right edge of the title row)
@@ -366,7 +367,7 @@ function Layout.BuildLayout(container, sections)
                         local timerHelper = sfui.tracker.helpers and sfui.tracker.helpers.timerbars
                         if timerHelper and timerHelper.CanShowTimerBar() then
                             if not block.timerBarFrame then
-                                block.timerBarFrame = timerHelper.CreateTimerBar(content)
+                                block.timerBarFrame = (timerHelper.AcquireTimerBar and timerHelper.AcquireTimerBar(content)) or timerHelper.CreateTimerBar(content)
                             else
                                 block.timerBarFrame:SetParent(content)
                             end

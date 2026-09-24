@@ -22,6 +22,9 @@ _G["BINDING_NAME_SFUI_MATCHMOUNT"] = "match target mount"
 _G["BINDING_NAME_SFUI_PORTALS"] = "portals"
 _G["BINDING_NAME_SFUI_ALTS"] = "alts / warband"
 _G["BINDING_NAME_SFUI_LOOTVIEWER"] = "loot browser"
+_G["BINDING_NAME_SFUI_FISHING"] = "cast & catch fishing"
+_G["BINDING_NAME_SFUI_PET_SUMMON"] = "summon / rotate companion pet"
+_G["BINDING_NAME_SFUI_PET_MANAGER"] = "toggle pet manager"
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- 2. KEYBIND RESOLUTION & FORMATTING HELPERS
@@ -61,6 +64,38 @@ sfui.common.get_binding_text = sfui.keybinds.get_action_key
 SLASH_RL1 = "/rl"
 SlashCmdList["RL"] = function()
     C_UI.Reload()
+end
+
+-- Fishing Cast & Catch
+SLASH_SFFISH1 = "/sffish"
+SlashCmdList["SFFISH"] = function()
+    if sfui.fishing and sfui.fishing.RunKeybind then
+        sfui.fishing.RunKeybind()
+    end
+end
+
+-- Companion Pet Summon / Rotate
+SLASH_SFPET1 = "/sfpet"
+SlashCmdList["SFPET"] = function(msg)
+    local clean = msg and _G.strtrim and _G.strtrim(msg):lower() or (msg and msg:lower() or "")
+    local cmd = clean:match("^(%S+)") or clean
+    if cmd == "add" then
+        if sfui.pets and sfui.pets.AddCurrentPetToCharFavs then sfui.pets.AddCurrentPetToCharFavs() end
+    elseif cmd == "remove" or cmd == "del" then
+        if sfui.pets and sfui.pets.RemoveCurrentPetFromCharFavs then sfui.pets.RemoveCurrentPetFromCharFavs() end
+    elseif cmd == "list" then
+        if sfui.pets and sfui.pets.ListCharFavs then sfui.pets.ListCharFavs() end
+    elseif cmd == "clear" then
+        if sfui.pets and sfui.pets.ClearCharFavs then sfui.pets.ClearCharFavs() end
+    elseif cmd == "summon" or cmd == "next" then
+        if sfui.pets and sfui.pets.SummonNext then sfui.pets.SummonNext(true) end
+    else
+        if sfui.pets and sfui.pets.Toggle then
+            sfui.pets.Toggle()
+        elseif sfui.pets and sfui.pets.SummonNext then
+            sfui.pets.SummonNext(true)
+        end
+    end
 end
 
 -- Memory Profiler & Garbage Collection
@@ -246,11 +281,33 @@ SlashCmdList["SFUI"] = function(msg)
                 hammer.print_hammer_status(arg == "debug")
             end
         end
+    elseif cmd == "fish" or cmd == "fishing" then
+        if sfui.fishing and sfui.fishing.RunKeybind then
+            sfui.fishing.RunKeybind()
+        end
+    elseif cmd == "pet" or cmd == "pets" or cmd == "petwalker" then
+        if arg == "add" then
+            if sfui.pets and sfui.pets.AddCurrentPetToCharFavs then sfui.pets.AddCurrentPetToCharFavs() end
+        elseif arg == "remove" or arg == "del" then
+            if sfui.pets and sfui.pets.RemoveCurrentPetFromCharFavs then sfui.pets.RemoveCurrentPetFromCharFavs() end
+        elseif arg == "list" then
+            if sfui.pets and sfui.pets.ListCharFavs then sfui.pets.ListCharFavs() end
+        elseif arg == "clear" then
+            if sfui.pets and sfui.pets.ClearCharFavs then sfui.pets.ClearCharFavs() end
+        elseif arg == "summon" or arg == "next" then
+            if sfui.pets and sfui.pets.SummonNext then sfui.pets.SummonNext(true) end
+        else
+            if sfui.pets and sfui.pets.Toggle then
+                sfui.pets.Toggle()
+            elseif sfui.pets and sfui.pets.SummonNext then
+                sfui.pets.SummonNext(true)
+            end
+        end
     elseif cmd == "rl" or cmd == "reload" then
         C_UI.Reload()
     elseif cmd == "help" or cmd == "?" then
         if sfui.common and sfui.common.print then
-            sfui.common.print("Commands: /sfui [options | hammer [test|lock|reset|debug] | alts | ql | portals [test] | cv | gear | highest | lootspec | loot | research | mythic | mem | rl]")
+            sfui.common.print("Commands: /sfui [options | fish | pet | hammer [test|lock|reset|debug] | alts | ql | portals [test] | cv | gear | highest | lootspec | loot | research | mythic | mem | rl]")
         end
     else
         if sfui.common and sfui.common.print then

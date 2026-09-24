@@ -1042,8 +1042,12 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     end
 end
 
+local ProcessBlizzardSync
 local function SyncWithBlizzard()
     sfui.trackedbars.isDirty = true
+    if not InCombatLockdown() and ProcessBlizzardSync then
+        ProcessBlizzardSync()
+    end
 end
 
 -- Hook-based updates
@@ -1095,13 +1099,15 @@ local function ProcessBlizzardSync()
     end
 
     if mustHide then
-        for id, bar in pairs(bars) do
-            if bar:IsShown() then
-                bar:Hide()
-                layoutNeeded = true
+        if _numShownBars > 0 then
+            for id, bar in pairs(bars) do
+                if bar:IsShown() then
+                    bar:Hide()
+                    layoutNeeded = true
+                end
             end
+            if layoutNeeded then UpdateLayout() end
         end
-        if layoutNeeded then UpdateLayout() end
         return -- Skip processing updates if everything is hidden globally
     end
 
@@ -1372,7 +1378,21 @@ local function UpdateBarsState()
 end
 
 local _heartbeatTimer = 0
+local _loopActive = false
+
+local function StopLoop()
+    if not _loopActive then return end
+    _loopActive = false
+    sfui.events.UnregisterUpdate("TrackedBars")
+end
+
 local function _OnTrackedBarsUpdate(elapsed)
+    -- Guard: Only run in combat
+    if not InCombatLockdown() then
+        StopLoop()
+        return
+    end
+
     -- 1. Visual Updates (Smooth, higher frequency based on config)
     if _numShownBars > 0 and BuffBarCooldownViewer and BuffBarCooldownViewer.itemFramePool then
         UpdateBarsState()
@@ -1391,6 +1411,17 @@ local function _OnTrackedBarsUpdate(elapsed)
         end
     end
 end
+
+local function StartLoop()
+    if _loopActive then return end
+    _loopActive = true
+    local cfg = sfui.config.trackedBars
+    sfui.events.RegisterUpdate("TrackedBars", cfg and cfg.updateThrottle or 0.05, _OnTrackedBarsUpdate)
+end
+
+sfui.trackedbars.StartLoop = StartLoop
+sfui.trackedbars.StopLoop = StopLoop
+sfui.trackedbars.IsLoopActive = function() return _loopActive end
 
 function sfui.trackedbars.initialize()
     if container then return end
@@ -1417,10 +1448,12 @@ function sfui.trackedbars.initialize()
 
     -- Event listener for visibility updates
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
-        if SyncWithBlizzard then SyncWithBlizzard() end
+        StartLoop()
+        SyncWithBlizzard()
     end)
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
-        if SyncWithBlizzard then SyncWithBlizzard() end
+        StopLoop()
+        SyncWithBlizzard()
     end)
     sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", function()
         if SyncWithBlizzard then SyncWithBlizzard() end
@@ -1448,8 +1481,11 @@ function sfui.trackedbars.initialize()
         sfui.trackedbars.isDirty = true
     end)
 
-    -- Throttled OnUpdate for smooth bar progress AND structure updates
-    sfui.events.RegisterUpdate("TrackedBars", cfg.updateThrottle or 0.05, _OnTrackedBarsUpdate)
+    -- Initial structure sync & start loop only if currently in combat
+    ProcessBlizzardSync()
+    if InCombatLockdown() then
+        StartLoop()
+    end
 
     -- Event-driven updates
     -- Hook into Blizzard's viewer and frame pool for instant reactions
@@ -1607,6 +1643,7 @@ function sfui.trackedbars_debug_info()
         barPool = #barPool,
         configPool = #configPool,
         configCache = cacheCount,
+        loopActive = _loopActive,
         isDirty = sfui.trackedbars.isDirty or false,
     }
 end

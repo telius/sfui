@@ -12,4 +12,13 @@
     <Binding name="SFUI_LOOTVIEWER" category="SFUI">
         if sfui and sfui.lootviewer and sfui.lootviewer.Toggle then sfui.lootviewer.Toggle() end
     </Binding>
+    <Binding name="SFUI_FISHING" category="SFUI">
+        if sfui and sfui.fishing and sfui.fishing.RunKeybind then sfui.fishing.RunKeybind() end
+    </Binding>
+    <Binding name="SFUI_PET_SUMMON" category="SFUI">
+        if sfui and sfui.pets and sfui.pets.SummonNext then sfui.pets.SummonNext(true) end
+    </Binding>
+    <Binding name="SFUI_PET_MANAGER" category="SFUI">
+        if sfui and sfui.pets and sfui.pets.Toggle then sfui.pets.Toggle() end
+    </Binding>
 </Bindings>

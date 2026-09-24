@@ -2,6 +2,37 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-49 (2026-09-24)
+
+### Features & Additions
+- **Native Fishing Automation Module (`frames/fishing.lua`)**:
+  - Fully absorbed standalone fishing utilities (BetterFishing) into a lightweight, zero-taint native module (`sfui.fishing`).
+  - **Single-Key & Double-Right-Click Automation**: Seamlessly casts fishing when idle and reels in/interacts with the bobber while casting, with built-in mouselook protection and deferred combat lockdown execution.
+  - **Dynamic Soft-Targeting Interact**: Automatically enables and restores CVars (`SoftTargetInteract`, `SoftTargetInteractArc`, `SoftTargetInteractRange`) for effortless bobber targeting without manual mouse aiming.
+  - **Acoustic Audio Enhancement**: Dynamically boosts SFX/Master volume while casting to highlight bobber splash audio, while temporarily muting ambient sound, background music, and pet sounds.
+  - **Keybinds & Options**: Exposed keybinds (`SFUI_FISHING`, `/sffish`) and integrated settings toggles within SFUI's Options panel under `Automation`.
+- **Native Companion Pet Manager Module (`frames/pets.lua`)**:
+  - Integrated comprehensive companion pet management (PetWalker) into a zero-allocation, high-performance module (`sfui.pets`).
+  - **Auto-Summon & Restoration**: Automatically detects and re-summons missing companion pets after dismounting (standard/skyriding flight), flight paths, vehicles, deaths, delves, and instance transitions.
+  - **Periodic Timed Rotation**: Automatically rotates active companions on a customizable timer (default 12 minutes) using pooled, non-allocating candidate tables.
+  - **Intelligent Environmental & Competitive Suppression**: Suppresses summoning in Mythic+ dungeons, Mythic/Heroic raids, and Arenas. Automatically blocks summoning while flying, gliding, stealthed, invisible, or channeling spells (e.g. eating, fishing).
+  - **Exclusion & Aura Safety Matrix**: Safely ignores vendor pets on cooldown, seasonal temporary pets, and respects special companion auras (Daisy backpack, shoulder birds, Brewfest rams).
+  - **Dedicated Companion Pet Manager UI (`frames/pets_ui.lua`)**:
+  - Independent, draggable manager window (`SfuiPetsFrame`, 540x600) with ESC key dismissal (`UISpecialFrames`) and zero OnUpdate idle overhead.
+  - Interactive **Drag & Drop** slot accepting companion pets directly from Blizzard's Pet Journal (`Shift+P`) or spellbook.
+  - Virtualized, pooled scroll frame displaying character-specific favorites with active summon badges, one-click summon actions, and remove controls.
+  - Configurable automation panel for auto-summon toggles, rotation timer slider, restore behavior, and competitive suppression.
+  - Keybinds (`SFUI_PET_MANAGER`, `SFUI_PET_SUMMON`) and dedicated slash commands (`/sfpet`, `/sfui pet`).
+
+### Improvements & Bugfixes
+- **Combat Swing Timer Taint Resolution (`frames/bars/swing.lua`)**:
+  - Resolved fatal Lua error (`attempt to compare local 'rangedSpeed' (a secret number value, while execution tainted by 'sfui')`) when using wands in combat on 11.x/12.x/Camelot engines.
+  - Switched from restricted `UnitAttackSpeed` comparisons to clean inventory slot checks (`GetInventoryItemID("player", 18)`).
+  - Streamlined ranged swing duration to use Blizzard's raw `PLAYER_SWING` event payload directly.
+- **Quest Tracker Modular File Standardization (`frames/quests/`)**:
+  - Standardized engine, helper, and module filenames with `q_` prefixes (`q_blocks`, `q_layout`, `q_tracker`, `q_items`, etc.) ensuring consistent loading hierarchy and preventing potential namespace collisions.
+
+
 ## v12.1.0-48 (2026-09-24)
 
 ### Features & Additions

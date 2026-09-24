@@ -35,11 +35,13 @@ local ChatEdit_GetActiveWindow = _G.ChatEdit_GetActiveWindow
 local ChatEdit_InsertLink = _G.ChatEdit_InsertLink
 local ChatFrameUtil = _G.ChatFrameUtil
 local pairs, next, tostring = _G.pairs, _G.next, _G.tostring
+local table_insert, table_remove = _G.table.insert, _G.table.remove
 
 local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
 
 -- Active tracked item buttons for throttled range checking
 local activeButtons = {}
+local itemButtonPool = {}
 local isRangeWatcherActive = false
 
 -- ─────────────────────────────────────────────────────────
@@ -259,6 +261,17 @@ function Items.CreateItemButton(parent)
     return btn
 end
 
+function Items.AcquireItemButton(parent)
+    local btn = table_remove(itemButtonPool)
+    if not btn then
+        btn = Items.CreateItemButton(parent)
+    else
+        btn:SetParent(parent)
+        btn:ClearAllPoints()
+    end
+    return btn
+end
+
 -- ─────────────────────────────────────────────────────────
 --  BUTTON SETUP & RELEASE
 -- ─────────────────────────────────────────────────────────
@@ -297,6 +310,8 @@ function Items.ReleaseItemButton(btn)
     if btn.GlowTex then btn.GlowTex:Hide() end
     if btn.RangeDot then btn.RangeDot:Hide() end
     btn:Hide()
+    btn:ClearAllPoints()
+    table_insert(itemButtonPool, btn)
 
     if not next(activeButtons) and isRangeWatcherActive then
         sfui.events.UnregisterUpdate("QuestItemRange")
@@ -313,6 +328,7 @@ function Items.GetPoolStats()
     end
     return {
         activeButtons   = act,
+        pooledButtons   = #itemButtonPool,
         isWatcherActive = isRangeWatcherActive,
     }
 end

@@ -743,4 +743,30 @@ sfui.config = {
         autoHideSecs    = 45,
         defaultPosition = { x = 0, y = 180 },
     },
+
+    -- ─── Fishing Automation ──────────────────────────────
+    -- Settings for single-key & double-click fishing (frames/fishing.lua).
+    fishing = {
+        enabled             = true,
+        doubleClick         = true,
+        doubleClickSpeed    = 0.4,
+        doubleClickForce    = false, -- allow when mounted
+        enhanceSounds       = true,
+        enhanceSoundsScale  = 1.0,
+        softTarget          = true,
+        recastOnDoubleClick = false,
+        overrideLunker      = false,
+    },
+
+    -- ─── Companion Pet Manager ────────────────────────────
+    -- Settings for companion pet auto-summon & rotation (frames/pets.lua).
+    pets = {
+        enabled             = true,
+        autoResummon        = true,
+        rotationTimer       = 720, -- Seconds (12 mins, 0 to disable)
+        mode                = "favs", -- "favs", "all", "weighted"
+        favProbability      = 0.5,
+        historySize         = 4,
+        suppressInInstances = true,
+    },
 }

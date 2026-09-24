@@ -221,6 +221,9 @@ function Blocks.AcquireBlock(parent)
     end
     b._onEnter = nil
     b._onLeave = nil
+    b.itemButton = nil
+    b.timerBarFrame = nil
+    b.findGroupBtn = nil
     b:SetScript("OnClick", nil)
     b:Show()
     table_insert(activeBlocks, b)
@@ -410,6 +413,7 @@ function Blocks.ResetAll()
             else
                 b.itemButton:Hide()
             end
+            b.itemButton = nil
         end
         if b.timerBarFrame then
             local timerHelper = sfui.tracker.helpers and sfui.tracker.helpers.timerbars
@@ -418,6 +422,7 @@ function Blocks.ResetAll()
             else
                 b.timerBarFrame:Hide()
             end
+            b.timerBarFrame = nil
         end
         if b.findGroupBtn then
             local findGroupHelper = sfui.tracker.helpers and sfui.tracker.helpers.findgroup

@@ -1,7 +1,7 @@
 ## Interface: 120100, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v12.1.0-48
+## Version: v12.1.0-49
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -47,6 +47,9 @@ frames/alts/alts_standard.lua [AllowLoadGameType standard]
 frames/alts/alts_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/alts/recipes.lua
 frames/automation.lua
+frames/fishing.lua
+frames/pets.lua
+frames/pets_ui.lua
 frames/transfer.lua [AllowLoadGameType standard]
 frames/logs.lua
 
@@ -76,29 +79,29 @@ frames/gear/bonusroll.lua [AllowLoadGameType standard]
 frames/gear/hammer.lua [AllowLoadGameType standard]
 
 # Quests & Objective Tracker Engine
-frames/quests/engine/module.lua
-frames/quests/engine/blocks.lua
-frames/quests/engine/layout.lua
-frames/quests/engine/tracker.lua
+frames/quests/engine/q_module.lua
+frames/quests/engine/q_blocks.lua
+frames/quests/engine/q_layout.lua
+frames/quests/engine/q_tracker.lua
 
 # Tracker Helpers
-frames/quests/helpers/difficulty.lua
-frames/quests/helpers/waypoints.lua
-frames/quests/helpers/timerbars.lua
-frames/quests/helpers/items.lua
-frames/quests/helpers/findgroup.lua
-frames/quests/helpers/tooltip.lua
+frames/quests/helpers/q_difficulty.lua
+frames/quests/helpers/q_waypoints.lua
+frames/quests/helpers/q_timerbars.lua
+frames/quests/helpers/q_items.lua
+frames/quests/helpers/q_findgroup.lua
+frames/quests/helpers/q_tooltip.lua
 
 # Tracker Content Modules
-frames/quests/modules/scenarios.lua [AllowLoadGameType standard, camelot]
-frames/quests/modules/worldevents.lua [AllowLoadGameType standard]
-frames/quests/modules/worldquests.lua [AllowLoadGameType standard, camelot]
-frames/quests/modules/quests.lua
-frames/quests/modules/achievements.lua [AllowLoadGameType standard, camelot]
-frames/quests/modules/activities.lua [AllowLoadGameType standard, camelot]
-frames/quests/modules/collectables.lua [AllowLoadGameType standard, camelot]
-frames/quests/modules/recipes.lua [AllowLoadGameType standard, camelot]
-frames/quests/mythic.lua [AllowLoadGameType standard]
+frames/quests/modules/q_scenarios.lua [AllowLoadGameType standard, camelot]
+frames/quests/modules/q_worldevents.lua [AllowLoadGameType standard]
+frames/quests/modules/q_worldquests.lua [AllowLoadGameType standard, camelot]
+frames/quests/modules/q_quests.lua
+frames/quests/modules/q_achievements.lua [AllowLoadGameType standard, camelot]
+frames/quests/modules/q_activities.lua [AllowLoadGameType standard, camelot]
+frames/quests/modules/q_collectables.lua [AllowLoadGameType standard, camelot]
+frames/quests/modules/q_recipes.lua [AllowLoadGameType standard, camelot]
+frames/quests/q_mythic.lua [AllowLoadGameType standard]
 
 frames/mem.lua
 commands.lua

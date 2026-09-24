@@ -295,10 +295,10 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
         end
 
         table.insert(menuButtons, {
-            text = "|cffee8833quest log|r",
+            text = "|cff6600ffmemory profiler|r",
             func = function()
-                if sfui.questlog and sfui.questlog.toggle then
-                    sfui.questlog.toggle()
+                if sfui.mem and sfui.mem.ToggleGUI then
+                    sfui.mem.ToggleGUI()
                 end
             end,
         })

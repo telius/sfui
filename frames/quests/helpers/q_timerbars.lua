@@ -32,8 +32,10 @@ local SecondsToClock = _G.SecondsToClock or function(s)
     return string.format("%d:%02d", m, sec)
 end
 local pairs, next, math_max = _G.pairs, _G.next, math.max
+local table_insert, table_remove = _G.table.insert, _G.table.remove
 
 local activeTimerBars = {}
+local timerBarPool = {}
 local isTimerWatcherActive = false
 
 -- ─────────────────────────────────────────────────────────
@@ -166,6 +168,17 @@ function TimerBars.CreateTimerBar(parent)
     return bar
 end
 
+function TimerBars.AcquireTimerBar(parent)
+    local bar = table_remove(timerBarPool)
+    if not bar then
+        bar = TimerBars.CreateTimerBar(parent)
+    else
+        bar:SetParent(parent)
+        bar:ClearAllPoints()
+    end
+    return bar
+end
+
 -- ─────────────────────────────────────────────────────────
 --  SETUP & RELEASE
 -- ─────────────────────────────────────────────────────────
@@ -204,6 +217,8 @@ function TimerBars.ReleaseTimerBar(bar)
     bar.startTime = nil
     bar.hasExpired = nil
     bar:Hide()
+    bar:ClearAllPoints()
+    table_insert(timerBarPool, bar)
 
     if not next(activeTimerBars) and isTimerWatcherActive then
         sfui.events.UnregisterUpdate("QuestTimerBars")
@@ -220,6 +235,7 @@ function TimerBars.GetPoolStats()
     end
     return {
         activeBars      = act,
+        pooledBars      = #timerBarPool,
         isWatcherActive = isTimerWatcherActive,
     }
 end

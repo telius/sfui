@@ -15,10 +15,10 @@ local ipairs, pairs, type = _G.ipairs, _G.pairs, _G.type
 --- Base Module Mixin defining the lifecycle and contract for tracker modules
 local ModuleMixin = {}
 
-function ModuleMixin:MarkDirty()
+function ModuleMixin:MarkDirty(delay)
     self.isDirty = true
     if sfui.tracker and sfui.tracker.RequestRefresh then
-        sfui.tracker.RequestRefresh()
+        sfui.tracker.RequestRefresh(delay)
     end
 end
 
@@ -93,7 +93,8 @@ function sfui.tracker.RegisterModule(moduleDef)
     end
 
     -- One-time initialization if tracker is already live
-    if sfui.tracker.isInitialized and moduleDef.Init then
+    if sfui.tracker.isInitialized and moduleDef.Init and not moduleDef._initialized then
+        moduleDef._initialized = true
         moduleDef:Init(sfui.tracker)
     end
 
