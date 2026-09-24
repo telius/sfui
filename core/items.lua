@@ -194,9 +194,6 @@ local weaponStatsCacheCount = 0
 local WEAPON_STATS_CACHE_MAX = 300
 
 function sfui.items.get_weapon_stats(itemLink)
-    if sfui.isRetail then
-        return 0, 0, 0, 0
-    end
     if not itemLink then return 0, 0, 0, 0 end
     if weaponStatsCache[itemLink] then
         local c = weaponStatsCache[itemLink]
@@ -236,7 +233,18 @@ function sfui.items.get_weapon_stats(itemLink)
                                 or cleanLeft:match("([%d%.,]+)%s+[Dd][Pp][Ss]")
                         end
                         if m then
-                            local val = tonumber((m:gsub(",", ".")))
+                            local val = 0
+                            if m:find(",") and m:find("%.") then
+                                if m:find(",") < m:find("%.") then
+                                    val = tonumber((m:gsub(",", ""))) or 0
+                                else
+                                    val = tonumber((m:gsub("%.", ""):gsub(",", "."))) or 0
+                                end
+                            elseif m:find(",") then
+                                val = tonumber((m:gsub(",", "."))) or 0
+                            else
+                                val = tonumber(m) or 0
+                            end
                             if val and val > 0 then dps = val end
                         end
                     end

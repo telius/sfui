@@ -255,7 +255,40 @@ end
 
 -- ─── Blizzard Tracker Suppression (Vanilla, Camelot, Classic, Retail) ───────
 local hookedTrackers = {}
+local hookedMouseTrackers = {}
 local questWatchUpdateHooked = false
+local suppressingTrackers = false
+local suppressingMouse = false
+
+local function HookAlphaSuppression(frame)
+    if not frame or not frame.SetAlpha or hookedTrackers[frame] then return end
+    hookedTrackers[frame] = true
+    hooksecurefunc(frame, "SetAlpha", function(self, alpha)
+        if suppressingTrackers then return end
+        if sfui.questlog and sfui.questlog.is_enabled and sfui.questlog.is_enabled() then
+            if alpha > 0 then
+                suppressingTrackers = true
+                self:SetAlpha(0)
+                suppressingTrackers = false
+            end
+        end
+    end)
+end
+
+local function HookMouseSuppression(frame)
+    if not frame or not frame.EnableMouse or hookedMouseTrackers[frame] then return end
+    hookedMouseTrackers[frame] = true
+    hooksecurefunc(frame, "EnableMouse", function(self, enabled)
+        if suppressingMouse then return end
+        if sfui.questlog and sfui.questlog.is_enabled and sfui.questlog.is_enabled() then
+            if enabled then
+                suppressingMouse = true
+                self:EnableMouse(false)
+                suppressingMouse = false
+            end
+        end
+    end)
+end
 
 local function EnsureQuestWatchHook()
     if questWatchUpdateHooked then return end
@@ -287,6 +320,8 @@ local function SuppressBlizzardTrackers()
         if qwf.SetAlpha then qwf:SetAlpha(0) end
         if qwf.EnableMouse then qwf:EnableMouse(false) end
         if qwf.Hide then qwf:Hide() end
+        HookAlphaSuppression(qwf)
+        HookMouseSuppression(qwf)
         if not hookedTrackers[qwf] and qwf.HookScript then
             hookedTrackers[qwf] = true
             qwf:HookScript("OnShow", function(self)
@@ -305,6 +340,8 @@ local function SuppressBlizzardTrackers()
         if wf.SetAlpha then wf:SetAlpha(0) end
         if wf.EnableMouse then wf:EnableMouse(false) end
         if wf.Hide then wf:Hide() end
+        HookAlphaSuppression(wf)
+        HookMouseSuppression(wf)
         if not hookedTrackers[wf] and wf.HookScript then
             hookedTrackers[wf] = true
             wf:HookScript("OnShow", function(self)
@@ -317,18 +354,72 @@ local function SuppressBlizzardTrackers()
         end
     end
 
-    -- 3. Modern / Retail / Camelot (ObjectiveTrackerFrame & BlocksFrame)
+    -- 3. Modern / Retail / Camelot (ObjectiveTrackerFrame & BlocksFrame & Modules)
     local otf = _G.ObjectiveTrackerFrame
     if otf then
         if otf.SetAlpha then otf:SetAlpha(0) end
         if otf.EnableMouse then otf:EnableMouse(false) end
-        if otf.Header and otf.Header.SetAlpha then otf.Header:SetAlpha(0) end
+        HookAlphaSuppression(otf)
+        HookMouseSuppression(otf)
+
+        if otf.Header then
+            if otf.Header.SetAlpha then otf.Header:SetAlpha(0) end
+            if otf.Header.EnableMouse then otf.Header:EnableMouse(false) end
+            HookAlphaSuppression(otf.Header)
+            HookMouseSuppression(otf.Header)
+        end
+
+        -- Suppress existing modules & hook dynamic addition
+        if otf.modules then
+            for _, mod in ipairs(otf.modules) do
+                if mod.SetAlpha then mod:SetAlpha(0) end
+                if mod.EnableMouse then mod:EnableMouse(false) end
+                HookAlphaSuppression(mod)
+                HookMouseSuppression(mod)
+                if mod.Header then
+                    if mod.Header.SetAlpha then mod.Header:SetAlpha(0) end
+                    if mod.Header.EnableMouse then mod.Header:EnableMouse(false) end
+                    HookAlphaSuppression(mod.Header)
+                    HookMouseSuppression(mod.Header)
+                end
+            end
+        end
+
+        if otf.AddModule and not hookedTrackers["otf_AddModule"] then
+            hookedTrackers["otf_AddModule"] = true
+            hooksecurefunc(otf, "AddModule", function(self, module)
+                if sfui.questlog and sfui.questlog.is_enabled and sfui.questlog.is_enabled() then
+                    if module then
+                        if module.SetAlpha then module:SetAlpha(0) end
+                        if module.EnableMouse then module:EnableMouse(false) end
+                        HookAlphaSuppression(module)
+                        HookMouseSuppression(module)
+                        if module.Header then
+                            if module.Header.SetAlpha then module.Header:SetAlpha(0) end
+                            if module.Header.EnableMouse then module.Header:EnableMouse(false) end
+                            HookAlphaSuppression(module.Header)
+                            HookMouseSuppression(module.Header)
+                        end
+                    end
+                end
+            end)
+        end
     end
 
     local otbf = _G.ObjectiveTrackerBlocksFrame
     if otbf then
         if otbf.SetAlpha then otbf:SetAlpha(0) end
         if otbf.EnableMouse then otbf:EnableMouse(false) end
+        HookAlphaSuppression(otbf)
+        HookMouseSuppression(otbf)
+    end
+
+    local otwc = _G.ObjectiveTrackerUIWidgetContainer
+    if otwc then
+        if otwc.SetAlpha then otwc:SetAlpha(0) end
+        if otwc.EnableMouse then otwc:EnableMouse(false) end
+        HookAlphaSuppression(otwc)
+        HookMouseSuppression(otwc)
     end
 end
 
@@ -351,13 +442,30 @@ local function RestoreBlizzardTrackers()
     if otf then
         if otf.SetAlpha then otf:SetAlpha(1) end
         if otf.EnableMouse then otf:EnableMouse(true) end
-        if otf.Header and otf.Header.SetAlpha then otf.Header:SetAlpha(1) end
+        if otf.Header then
+            if otf.Header.SetAlpha then otf.Header:SetAlpha(1) end
+            if otf.Header.EnableMouse then otf.Header:EnableMouse(true) end
+        end
+        if otf.modules then
+            for _, mod in ipairs(otf.modules) do
+                if mod.SetAlpha then mod:SetAlpha(1) end
+                if mod.EnableMouse then mod:EnableMouse(true) end
+                if mod.Header and mod.Header.SetAlpha then mod.Header:SetAlpha(1) end
+                if mod.Header and mod.Header.EnableMouse then mod.Header:EnableMouse(true) end
+            end
+        end
     end
 
     local otbf = _G.ObjectiveTrackerBlocksFrame
     if otbf then
         if otbf.SetAlpha then otbf:SetAlpha(1) end
         if otbf.EnableMouse then otbf:EnableMouse(true) end
+    end
+
+    local otwc = _G.ObjectiveTrackerUIWidgetContainer
+    if otwc then
+        if otwc.SetAlpha then otwc:SetAlpha(1) end
+        if otwc.EnableMouse then otwc:EnableMouse(true) end
     end
 end
 
@@ -372,6 +480,7 @@ local function SetupEventRouting()
             isRaidSuppressed = true
             if container then container:SetAlpha(0) end
         end
+        SuppressBlizzardTrackers()
     end)
 
     sfui.events.RegisterEvent("ENCOUNTER_END", function()
@@ -380,12 +489,30 @@ local function SetupEventRouting()
             container:SetAlpha(1)
             Tracker.RequestRefresh(0.1)
         end
+        SuppressBlizzardTrackers()
+    end)
+
+    -- Encounter / Boss updates in raids & dungeons
+    sfui.events.RegisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT", function()
+        SuppressBlizzardTrackers()
+    end)
+    sfui.events.RegisterEvent("BOSS_KILL", function()
+        SuppressBlizzardTrackers()
+    end)
+
+    -- Scenario & Delve updates
+    sfui.events.RegisterEvent("SCENARIO_UPDATE", function()
+        SuppressBlizzardTrackers()
+    end)
+    sfui.events.RegisterEvent("SCENARIO_CRITERIA_UPDATE", function()
+        SuppressBlizzardTrackers()
     end)
 
     -- Auto-hide in Pet Battles
     sfui.events.RegisterEvent("PET_BATTLE_OPENING_START", function()
         isPetBattleSuppressed = true
         if container then container:SetAlpha(0) end
+        SuppressBlizzardTrackers()
     end)
 
     sfui.events.RegisterEvent("PET_BATTLE_CLOSE", function()
@@ -394,12 +521,22 @@ local function SetupEventRouting()
             container:SetAlpha(1)
             Tracker.RequestRefresh(0.1)
         end
+        SuppressBlizzardTrackers()
     end)
 
     -- Zone & Map changes
     sfui.events.RegisterEvent("ZONE_CHANGED_NEW_AREA", function()
         SuppressBlizzardTrackers()
         Tracker.RequestRefresh(0.2)
+    end)
+    sfui.events.RegisterEvent("ZONE_CHANGED", function()
+        SuppressBlizzardTrackers()
+    end)
+    sfui.events.RegisterEvent("ZONE_CHANGED_INDOORS", function()
+        SuppressBlizzardTrackers()
+    end)
+    sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+        SuppressBlizzardTrackers()
     end)
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
         EnsureQuestWatchHook()

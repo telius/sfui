@@ -2,6 +2,21 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-52 (2026-09-24)
+
+### Improvements & Bugfixes
+- **Tracked Bars Out-of-Combat Animation & Dynamic Sleep (`frames/tracking/trackedbars.lua`)**:
+  - Fixed an issue where combat-triggered tracking bars remained frozen when leaving combat. Bars now continue updating their animations, durations, and values out of combat until all bars naturally expire.
+  - Implemented dynamic idle sleeping: when all active bars expire and no pending sync remains, the update loop sleeps and consumes zero CPU.
+  - Eliminated the arbitrary 2-second heartbeat probe and 1-second out-of-combat aura throttle, allowing instantaneous and smooth reactions.
+- **Blizzard Objective Tracker Raid & Encounter Suppression (`frames/quests/engine/q_tracker.lua`)**:
+  - Resolved an issue where the default Blizzard Objective Tracker unexpectedly reappeared during raid boss encounters when Blizzard layout containers (e.g. `BossTargetFrameContainer`, `AnimInManagedFrames`) restored alphas.
+  - Implemented zero-taint `hooksecurefunc` guards on `SetAlpha` and `EnableMouse` across `ObjectiveTrackerFrame`, `ObjectiveTrackerBlocksFrame`, and child tracker modules.
+  - Added proactive suppression hooks across encounter events (`ENCOUNTER_START`, `ENCOUNTER_END`, `INSTANCE_ENCOUNTER_ENGAGE_UNIT`, `BOSS_KILL`, `SCENARIO_UPDATE`, `PLAYER_REGEN_ENABLED`).
+- **Frost Death Knight Dual-Wield Heuristics & Weapon Prioritization (`frames/gear/highest.lua`, `core/items.lua`)**:
+  - Implemented an 80% score threshold favoring dual-wielding over two-handed weapons for Frost DK, accounting for two Runeforges, dual strikes, and Killing Machine proc rates.
+  - Added weapon DPS parser and scoring heuristic ensuring the higher-DPS one-handed weapon is always equipped in the Main Hand (slot 16), falling back to item level and Runeforge compatibility when DPS is identical.
+
 ## v12.1.0-51 (2026-09-24)
 
 ### Features & Architecture

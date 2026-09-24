@@ -108,6 +108,54 @@ local function HasRazoriceEnchant(itemData)
     return false
 end
 
+local function GetWeaponDPS(itemData)
+    if not itemData or not itemData.link then return 0 end
+    if common and common.get_weapon_stats then
+        local dps = common.get_weapon_stats(itemData.link)
+        if dps and dps > 0 then
+            return dps
+        end
+    end
+    if C_TooltipInfo then
+        local data
+        if itemData.bag and itemData.slot then
+            data = C_TooltipInfo.GetBagItem(itemData.bag, itemData.slot)
+        elseif itemData.equippedSlot then
+            data = C_TooltipInfo.GetInventoryItem("player", itemData.equippedSlot)
+        else
+            data = C_TooltipInfo.GetHyperlink(itemData.link)
+        end
+        if data and data.lines then
+            for _, line in ipairs(data.lines) do
+                local left = line.leftText
+                if left and type(left) == "string" then
+                    local clean = left:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
+                    local m = clean:match("%(([%d%.,]+)%s+[Dd][Aa][Mm][Aa][Gg][Ee]%s+[Pp][Ee][Rr]%s+[Ss][Ee][Cc][Oo][Nn][Dd]%)")
+                        or clean:match("([%d%.,]+)%s+[Dd][Aa][Mm][Aa][Gg][Ee]%s+[Pp][Ee][Rr]%s+[Ss][Ee][Cc][Oo][Nn][Dd]")
+                        or clean:match("%(([%d%.,]+)%s+[Dd][Pp][Ss]%)")
+                        or clean:match("([%d%.,]+)%s+[Dd][Pp][Ss]")
+                    if m then
+                        local dpsVal = 0
+                        if m:find(",") and m:find("%.") then
+                            if m:find(",") < m:find("%.") then
+                                dpsVal = tonumber((m:gsub(",", ""))) or 0
+                            else
+                                dpsVal = tonumber((m:gsub("%.", ""):gsub(",", "."))) or 0
+                            end
+                        elseif m:find(",") then
+                            dpsVal = tonumber((m:gsub(",", "."))) or 0
+                        else
+                            dpsVal = tonumber(m) or 0
+                        end
+                        if dpsVal > 0 then return dpsVal end
+                    end
+                end
+            end
+        end
+    end
+    return itemData.effectiveIlvl or itemData.ilvl or (common and common.get_item_level and common.get_item_level(itemData.link)) or 0
+end
+
 local embellishCache = {}
 local embellishCacheCount = 0
 local EMBELLISH_CACHE_MAX = 300
@@ -1519,6 +1567,14 @@ function sfui.highest.GetBestItems(isPvP)
                 else
                     choose2H = false
                 end
+            elseif specID == 251 then
+                -- Frost DK: dual wield is heavily favored (2 Runeforges, KM proc rate, dual strikes).
+                -- When the dualwield score is at least 80% of the 2h, still go DW
+                if scoreDual >= (score2H * 0.80) then
+                    choose2H = false
+                else
+                    choose2H = true
+                end
             else
                 if score2H > scoreDual then
                     choose2H = true
@@ -1545,57 +1601,46 @@ function sfui.highest.GetBestItems(isPvP)
                 local can1HGoOffHand = (best1H.itemEquipLoc == "INVTYPE_WEAPON" or best1H.itemEquipLoc == "INVTYPE_WEAPONOFFHAND" or (best1H.itemEquipLoc == "INVTYPE_2HWEAPON" and rule.weaps["2H_Dual"]))
 
                 if canOHGoMainHand and can1HGoOffHand then
-                    -- Dual Wielding two weapons
-                    if specID == 251 then
-                        local w1Razor = HasRazoriceEnchant(best1H)
-                        local w2Razor = HasRazoriceEnchant(bestOH)
-                        if hasFrostbane then
-                            -- Frost DK with Frostbane: ALWAYS put Rune of Razorice in Main Hand
-                            if w2Razor and not w1Razor then
-                                finalPick[16] = bestOH
-                                finalPick[17] = best1H
-                            elseif w1Razor and not w2Razor then
-                                finalPick[16] = best1H
-                                finalPick[17] = bestOH
-                            else
-                                -- Both or neither have Razorice: put highest ilvl in Main Hand
-                                if bestOH.ilvl > best1H.ilvl then
-                                    finalPick[16] = bestOH
-                                    finalPick[17] = best1H
-                                else
-                                    finalPick[16] = best1H
-                                    finalPick[17] = bestOH
-                                end
-                            end
-                        else
-                            -- Standard Frost DK without Frostbane:
-                            -- Put Rune of the Fallen Crusader (non-Razorice) in Main Hand,
-                            -- and Rune of Razorice in Off Hand.
-                            if w1Razor and not w2Razor then
-                                finalPick[16] = bestOH
-                                finalPick[17] = best1H
-                            elseif w2Razor and not w1Razor then
-                                finalPick[16] = best1H
-                                finalPick[17] = bestOH
-                            else
-                                if bestOH.ilvl > best1H.ilvl then
-                                    finalPick[16] = bestOH
-                                    finalPick[17] = best1H
-                                else
-                                    finalPick[16] = best1H
-                                    finalPick[17] = bestOH
-                                end
-                            end
-                        end
+                    -- Dual Wielding two weapons:
+                    -- Rule: Always equip the higher DPS 1H in the Main Hand (slot 16)!
+                    local dps1 = GetWeaponDPS(best1H)
+                    local dps2 = GetWeaponDPS(bestOH)
+                    local preferOHinMH = false
+                    local isDpsEqual = (math.abs(dps1 - dps2) < 0.05)
+
+                    if not isDpsEqual then
+                        preferOHinMH = (dps2 > dps1)
                     else
-                        -- General Dual Wield: Always put highest scoring weapon in Main Hand
-                        if (bestOH.score or bestOH.ilvl) > (best1H.score or best1H.ilvl) then
-                            finalPick[16] = bestOH
-                            finalPick[17] = best1H
+                        -- DPS is equal: compare item level
+                        local ilvl1 = best1H.ilvl or 0
+                        local ilvl2 = bestOH.ilvl or 0
+                        if ilvl2 ~= ilvl1 then
+                            preferOHinMH = (ilvl2 > ilvl1)
                         else
-                            finalPick[16] = best1H
-                            finalPick[17] = bestOH
+                            -- DPS and ilvl are identical: evaluate enchant / runeforge preferences
+                            if specID == 251 then
+                                local w1Razor = HasRazoriceEnchant(best1H)
+                                local w2Razor = HasRazoriceEnchant(bestOH)
+                                if hasFrostbane then
+                                    -- Frost DK with Frostbane: Put Razorice in Main Hand
+                                    preferOHinMH = (w2Razor and not w1Razor)
+                                else
+                                    -- Standard Frost DK without Frostbane:
+                                    -- Put Fallen Crusader (non-Razorice) in Main Hand, Razorice in Off Hand
+                                    preferOHinMH = (w1Razor and not w2Razor)
+                                end
+                            else
+                                preferOHinMH = ((bestOH.score or 0) > (best1H.score or 0))
+                            end
                         end
+                    end
+
+                    if preferOHinMH then
+                        finalPick[16] = bestOH
+                        finalPick[17] = best1H
+                    else
+                        finalPick[16] = best1H
+                        finalPick[17] = bestOH
                     end
                 else
                     finalPick[16] = best1H

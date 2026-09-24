@@ -1043,10 +1043,11 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
 end
 
 local ProcessBlizzardSync
+local StartLoop
 local function SyncWithBlizzard()
     sfui.trackedbars.isDirty = true
-    if not InCombatLockdown() and ProcessBlizzardSync then
-        ProcessBlizzardSync()
+    if StartLoop then
+        StartLoop()
     end
 end
 
@@ -1377,7 +1378,7 @@ local function UpdateBarsState()
     end
 end
 
-local _heartbeatTimer = 0
+local _syncTimer = 0
 local _loopActive = false
 
 local function StopLoop()
@@ -1387,32 +1388,34 @@ local function StopLoop()
 end
 
 local function _OnTrackedBarsUpdate(elapsed)
-    -- Guard: Only run in combat
-    if not InCombatLockdown() then
-        StopLoop()
-        return
+    -- 1. Structure / Visibility Sync
+    -- Process immediately if dirty, or periodically while bars are visible or in combat
+    if sfui.trackedbars.isDirty then
+        sfui.trackedbars.isDirty = false
+        _syncTimer = 0
+        ProcessBlizzardSync()
+    elseif _numShownBars > 0 or InCombatLockdown() then
+        _syncTimer = _syncTimer + elapsed
+        local syncInterval = InCombatLockdown() and 0.5 or 0.25
+        if _syncTimer >= syncInterval then
+            _syncTimer = 0
+            ProcessBlizzardSync()
+        end
     end
 
-    -- 1. Visual Updates (Smooth, higher frequency based on config)
+    -- 2. Visual Updates (Smooth status bar progression and duration text)
     if _numShownBars > 0 and BuffBarCooldownViewer and BuffBarCooldownViewer.itemFramePool then
         UpdateBarsState()
     end
 
-    -- 2. Structure/Visibility Sync (Immediate on dirty, plus periodic heartbeat safety net)
-    if sfui.trackedbars.isDirty then
-        sfui.trackedbars.isDirty = false
-        _heartbeatTimer = 0
-        ProcessBlizzardSync()
-    else
-        _heartbeatTimer = _heartbeatTimer + elapsed
-        if _heartbeatTimer >= 2.0 then
-            _heartbeatTimer = 0
-            ProcessBlizzardSync()
-        end
+    -- 3. Dynamic Idle Sleep
+    -- When out of combat, if no bars are visible and no sync is pending, sleep to consume zero CPU
+    if _numShownBars == 0 and not sfui.trackedbars.isDirty and not InCombatLockdown() then
+        StopLoop()
     end
 end
 
-local function StartLoop()
+StartLoop = function()
     if _loopActive then return end
     _loopActive = true
     local cfg = sfui.config.trackedBars
@@ -1448,11 +1451,9 @@ function sfui.trackedbars.initialize()
 
     -- Event listener for visibility updates
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
-        StartLoop()
         SyncWithBlizzard()
     end)
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
-        StopLoop()
         SyncWithBlizzard()
     end)
     sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", function()
@@ -1481,9 +1482,9 @@ function sfui.trackedbars.initialize()
         sfui.trackedbars.isDirty = true
     end)
 
-    -- Initial structure sync & start loop only if currently in combat
+    -- Initial structure sync & start loop if in combat or bars are active
     ProcessBlizzardSync()
-    if InCombatLockdown() then
+    if InCombatLockdown() or _numShownBars > 0 or sfui.trackedbars.isDirty then
         StartLoop()
     end
 
@@ -1526,17 +1527,8 @@ function sfui.trackedbars.initialize()
     end
 
     -- Real-time events for instant reaction
-    local _lastOOCAuraTime = 0
     sfui.events.RegisterUnitEvent("UNIT_AURA", "player", function()
-        if InCombatLockdown() then
-            SyncWithBlizzard()
-        else
-            local now = GetTime()
-            if (now - _lastOOCAuraTime) >= 1.0 then
-                _lastOOCAuraTime = now
-                SyncWithBlizzard()
-            end
-        end
+        SyncWithBlizzard()
     end)
 
     sfui.events.RegisterEvent("SPELL_UPDATE_COOLDOWN", SyncWithBlizzard)
