@@ -269,14 +269,6 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
 
         if isRetail then
             table.insert(menuButtons, {
-                text = "|cff99ccffresearch viewer|r",
-                func = function()
-                    if sfui.research and sfui.research.toggle_selection then
-                        sfui.research.toggle_selection()
-                    end
-                end,
-            })
-            table.insert(menuButtons, {
                 text = "|cffff9900portals|r",
                 func = function()
                     if sfui.portals and sfui.portals.Toggle then

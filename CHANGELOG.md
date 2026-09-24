@@ -2,6 +2,26 @@
 
 > **Note**: This changelog documents **releases, architectural milestones, features**.
 
+## v12.1.0-51 (2026-09-24)
+
+### Features & Architecture
+- **Modular Options Framework Refactor (`frames/options/`)**:
+  - Deconstructed the monolithic `frames/options.lua` (1,850+ lines) into an extensible registry-driven shell (`frames/options/options.lua`) paired with 14 isolated tab modules in `frames/options/tabs/`.
+  - Added clean module registration via `sfui.options.RegisterTab` with lifecycle hooks (`build`, `onShow`, `onHide`).
+  - Standardized tab layout ordering: `main` pinned at the top, `debug` pinned at the bottom, and all intermediate tabs sorted strictly alphabetically (`automation`, `bars`, `castbars`, `combat text`, `currency/items`, `fishing`, `gear swapper`, `merchant`, `minimap`, `objectives`, `pets`, `research`).
+- **Integrated Pet Manager Options Tab (`frames/options/tabs/tab_pets.lua`)**:
+  - Replaced the standalone floating `pets_ui.lua` frame with a native, integrated `pets` tab in the central options window.
+  - Retained full manager functionality: real-time search, favorite/summon actions, mode toggles, blacklist management, and pagination.
+  - Linked keybinding (`SFUI_PET_MANAGER`), slash commands (`/sfpet`, `/sfui pet`), and minimap context menu directly to the options panel `pets` tab.
+- **ESC Key Window Dismissal (`frames/options/options.lua`)**:
+  - Registered `sfui_options_frame` into `_G.UISpecialFrames` with lifecycle cleanup hooks (`OnHide`), enabling smooth `ESC` key closing without opening the game menu.
+
+### Improvements & Cleanup
+- **Automation Tab Streamlining (`frames/options/tabs/tab_automation.lua`)**:
+  - Removed vestigial quest/world automation options and unlinked recipe/profession tracker toggles.
+- **Minimap Context Menu Cleanup (`core.lua`)**:
+  - Removed redundant research viewer entry from the minimap right-click menu.
+
 ## v12.1.0-50 (2026-09-24)
 
 ### Features & Additions

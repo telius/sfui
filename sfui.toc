@@ -1,7 +1,7 @@
 ## Interface: 120100, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v12.1.0-50
+## Version: v12.1.0-51
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -35,7 +35,23 @@ core/module.lua
 common.lua
 core.lua
 
-frames/options.lua
+# Options System
+frames/options/options.lua
+frames/options/tabs/tab_main.lua
+frames/options/tabs/tab_automation.lua
+frames/options/tabs/tab_bars.lua
+frames/options/tabs/tab_castbars.lua
+frames/options/tabs/tab_combattext.lua
+frames/options/tabs/tab_currency.lua
+frames/options/tabs/tab_fishing.lua
+frames/options/tabs/tab_gear.lua
+frames/options/tabs/tab_merchant.lua
+frames/options/tabs/tab_minimap.lua
+frames/options/tabs/tab_objectives.lua
+frames/options/tabs/tab_pets.lua
+frames/options/tabs/tab_research.lua [AllowLoadGameType standard]
+frames/options/tabs/tab_debug.lua
+
 frames/currency.lua
 frames/minimap.lua
 frames/location.lua
@@ -49,7 +65,6 @@ frames/alts/recipes.lua
 frames/automation.lua
 frames/fishing.lua
 frames/pets.lua
-frames/pets_ui.lua
 frames/transfer.lua [AllowLoadGameType standard]
 frames/logs.lua
 
