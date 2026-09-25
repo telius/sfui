@@ -974,13 +974,13 @@ local function OnItemInfoReceived(_, itemID)
 end
 
 if sfui.events and sfui.events.RegisterEvent then
-    sfui.events:RegisterEvent("PLAYER_ENTERING_WORLD", OnLogin)
-    sfui.events:RegisterEvent("NEW_RECIPE_LEARNED", OnRecipeLearned)
-    sfui.events:RegisterEvent("TRADE_SKILL_SHOW", RequestTradeSkillScan)
-    sfui.events:RegisterEvent("TRADE_SKILL_LIST_UPDATE", RequestTradeSkillScan)
-    sfui.events:RegisterEvent("CRAFT_SHOW", RequestTradeSkillScan)
-    sfui.events:RegisterEvent("CRAFT_UPDATE", RequestTradeSkillScan)
-    sfui.events:RegisterEvent("GET_ITEM_INFO_RECEIVED", OnItemInfoReceived)
+    sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", OnLogin)
+    sfui.events.RegisterEvent("NEW_RECIPE_LEARNED", OnRecipeLearned)
+    sfui.events.RegisterEvent("TRADE_SKILL_SHOW", RequestTradeSkillScan)
+    sfui.events.RegisterEvent("TRADE_SKILL_LIST_UPDATE", RequestTradeSkillScan)
+    sfui.events.RegisterEvent("CRAFT_SHOW", RequestTradeSkillScan)
+    sfui.events.RegisterEvent("CRAFT_UPDATE", RequestTradeSkillScan)
+    sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", OnItemInfoReceived)
 end
 
 -- Attempt early hook if container mixin is already available

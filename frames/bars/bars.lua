@@ -15,6 +15,8 @@ do
     local get_bar0
     local get_bar_minus_1
     local get_bar1
+    local get_vigor_bar
+    local get_mount_speed_bar
     local update_mount_speed_bar_internal
     local update_bar_minus_1
     local update_bar0
@@ -45,6 +47,11 @@ do
             return false
         end
         return true
+    end
+
+    local function is_player_spell(id)
+        if IsPlayerSpell then return IsPlayerSpell(id) end
+        return (C_SpellBook and C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(id, Enum.SpellBookSpellBank.Player)) or false
     end
 
     local function get_secondary_resource_value(resource)
@@ -156,19 +163,20 @@ do
         local showCoreBars = (not inVehicle) and (inCombat or hasEnemyTarget or isFsrActive)
 
         if isDragonflying then
-            if vigor_bar and SfuiDB.enableVigorBar then
-                vigor_bar.backdrop:Show()
-            else
-                if vigor_bar then
-                    vigor_bar.backdrop:Hide()
-                end
+            local showVigor = (SfuiDB == nil or SfuiDB.enableVigorBar ~= false)
+            if showVigor then
+                local bar = get_vigor_bar()
+                bar.backdrop:Show()
+            elseif vigor_bar then
+                vigor_bar.backdrop:Hide()
             end
-            if mount_speed_bar and SfuiDB.enableMountSpeedBar then
-                mount_speed_bar.backdrop:Show()
-            else
-                if mount_speed_bar then
-                    mount_speed_bar.backdrop:Hide()
-                end
+
+            local showSpeed = (SfuiDB == nil or SfuiDB.enableMountSpeedBar ~= false)
+            if showSpeed then
+                local bar = get_mount_speed_bar()
+                bar.backdrop:Show()
+            elseif mount_speed_bar then
+                mount_speed_bar.backdrop:Hide()
             end
             if bar0 then bar0.backdrop:Hide() end
             if bar_minus_1 then bar_minus_1.backdrop:Hide() end
@@ -732,7 +740,7 @@ do
         return frame
     end
 
-    local function get_vigor_bar()
+    get_vigor_bar = function()
         if vigor_bar then return vigor_bar end
         local bar = common.create_bar("vigorBar", "StatusBar", UIParent)
         bar.TextValue = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -762,16 +770,17 @@ do
         if chargesInfo then
             bar:SetMinMaxValues(0, chargesInfo.maxCharges)
             bar:SetValue(chargesInfo.currentCharges)
-            bar.TextValue:SetText(chargesInfo.currentCharges)
+            if bar._lastCharges ~= chargesInfo.currentCharges then
+                bar._lastCharges = chargesInfo.currentCharges
+                bar.TextValue:SetFormattedText("%d", chargesInfo.currentCharges)
+            end
         end
 
         if cfg.color then
             bar:SetStatusBarColor(cfg.color[1], cfg.color[2], cfg.color[3])
         end
 
-        local isPlayerSpell = IsPlayerSpell or
-            function(id) return C_SpellBook and C_SpellBook.IsSpellKnown(id, Enum.SpellBookSpellBank.Player) end
-        local surgeSpellID = isPlayerSpell(418592) and 418592 or 361584
+        local surgeSpellID = is_player_spell(418592) and 418592 or 361584
 
         local surgeTexture = common.get_spell_icon(surgeSpellID)
         bar.whirlingSurgeIcon.texture:SetTexture(surgeTexture or "Interface\\Icons\\INV_Misc_QuestionMark")
@@ -802,7 +811,7 @@ do
         bar.secondWindIcon.countText:SetText(swCharges and swCharges.currentCharges or "")
     end
 
-    local function get_mount_speed_bar()
+    get_mount_speed_bar = function()
         if mount_speed_bar then return mount_speed_bar end
         local bar = common.create_bar("mountSpeedBar", "StatusBar", UIParent)
         bar.TextValue = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -811,6 +820,7 @@ do
         bar.TextValue:SetPoint("CENTER")
         bar.lastSpeed = 0 -- Cache for change detection
         bar:SetMinMaxValues(0, 1200)
+        bar:SetValue(0)
 
         -- Speed requires polling as there is no gliding speed event.
         -- OnUpdate is installed/removed dynamically by update_mount_speed_bar_internal
@@ -854,8 +864,20 @@ do
             bar._onUpdateActive = true
         end
 
-        local _, _, forwardSpeed = C_PlayerInfo.GetGlidingInfo()
-        if not forwardSpeed then return end
+        local forwardSpeed
+        if C_PlayerInfo and C_PlayerInfo.GetGlidingInfo then
+            local _, _, fs = C_PlayerInfo.GetGlidingInfo()
+            forwardSpeed = fs
+        end
+
+        if not forwardSpeed then
+            bar:SetValue(0)
+            if bar.lastSpeed ~= 0 then
+                bar.TextValue:SetText("0")
+                bar.lastSpeed = 0
+            end
+            return
+        end
 
         if issecretvalue and issecretvalue(forwardSpeed) then
             bar:SetValue(forwardSpeed)
@@ -878,7 +900,7 @@ do
             bar:SetValue(0)
         end
 
-        local aura = C_UnitAuras.GetPlayerAuraBySpellID(377234)
+        local aura = C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID and C_UnitAuras.GetPlayerAuraBySpellID(377234)
         if aura then
             bar:SetStatusBarColor(1, 0, 1)
         else
@@ -939,9 +961,14 @@ do
     end
 
     local function on_event(event, unit, ...)
-        if event == "PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_TALENT_UPDATE" or event == "CHARACTER_POINTS_CHANGED" or event == "TRAIT_CONFIG_UPDATED" or event == "TRAIT_TREE_CURRENCY_INFO_UPDATED" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" or event == "PLAYER_CAN_GLIDE_CHANGED" or event == "PLAYER_IS_GLIDING_CHANGED" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" or event == "VEHICLE_UPDATE" or event == "UPDATE_VEHICLE_ACTIONBAR" or event == "UPDATE_OVERRIDE_ACTIONBAR" or event == "UPDATE_POSSESS_BAR" or event == "UPDATE_BONUS_ACTIONBAR" then
+        if event == "PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_TALENT_UPDATE" or event == "CHARACTER_POINTS_CHANGED" or event == "TRAIT_CONFIG_UPDATED" or event == "TRAIT_TREE_CURRENCY_INFO_UPDATED" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" or event == "VEHICLE_UPDATE" or event == "UPDATE_VEHICLE_ACTIONBAR" or event == "UPDATE_OVERRIDE_ACTIONBAR" or event == "UPDATE_POSSESS_BAR" or event == "UPDATE_BONUS_ACTIONBAR" then
             invalidate_dragonflying_cache()
             sfui.bars:on_state_changed()
+        elseif event == "PLAYER_CAN_GLIDE_CHANGED" or event == "PLAYER_IS_GLIDING_CHANGED" then
+            invalidate_dragonflying_cache()
+            update_vigor_bar()
+            update_mount_speed_bar_internal()
+            update_bar_visibility()
         elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_TARGET_CHANGED" then
             if not should_throttle("visibility") then
                 update_bar_visibility()

@@ -1046,10 +1046,6 @@ if sfui.events then
         sfui.worldevents.RequestUpdate()
     end)
 
-    sfui.events.RegisterEvent("AREA_POIS_UPDATED", function()
-        sfui.worldevents.RequestUpdate()
-    end)
-
     local function HasActiveWidgetSet(setID)
         if not setID or issecretvalue(setID) or type(setID) ~= "number" or setID <= 0 then return false end
         for _, ev in ipairs(cachedEvents) do
@@ -1111,7 +1107,6 @@ local WorldEventsModule = {
         "PLAYER_ENTERING_WORLD",
         "EVENT_SCHEDULER_UPDATE",
         "SUPER_TRACKING_CHANGED",
-        "AREA_POIS_UPDATED",
         "QUEST_LOG_UPDATE",
     },
 }

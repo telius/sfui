@@ -838,18 +838,13 @@ function sfui.alts.initialize()
 
     sfui.events.RegisterEvent("PLAYER_LEAVING_WORLD", function()
         leavingWorld = true
-        local guid = GetCurrentCharacterGUID()
-        if guid and SfuiDB.alts and SfuiDB.alts[guid] then
-            SfuiDB.alts[guid].lastSeen = GetServerTime()
-            if GetMoney then
-                SfuiDB.alts[guid].money = GetMoney()
-            end
-        end
+        sfui.alts.PerformSync(true)
     end)
 
-
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
-        sfui.alts.SyncCurrentCharacter()
+        if frame and frame:IsShown() then
+            sfui.alts.SyncCurrentCharacter()
+        end
     end)
 
     sfui.events.RegisterEvent("TIME_PLAYED_MSG", function(_, totalTime, currentLevelTime)

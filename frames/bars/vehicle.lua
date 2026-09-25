@@ -35,8 +35,14 @@ local math_min            = _G.math.min
 local math_max            = _G.math.max
 local math_floor          = _G.math.floor
 local string_format       = _G.string.format
-local issecretvalue       = common.issecretvalue
+local issecretvalue       = (common and common.issecretvalue) or _G.issecretvalue or function() return false end
 local PowerBarColor       = _G.PowerBarColor
+
+local DEFAULT_HEALTH_COLOR   = { 0, 0.8, 0.067, 1 }
+local DEFAULT_POWER_COLOR    = { r = 0, g = 0.5, b = 1, a = 1 }
+local DEFAULT_BACKDROP_COLOR = { 0, 0, 0, 0.7 }
+local DEFAULT_CAST_COLOR     = { 1, 1, 1, 1 }
+local DEFAULT_CHANNEL_COLOR  = { 0, 1, 0, 1 }
 
 local UnitHealth          = _G.UnitHealth
 local UnitHealthMax       = _G.UnitHealthMax
@@ -134,6 +140,7 @@ for i = 1, MAX_BUTTONS do
     btn:SetID(i)
     btn:SetAttribute("type",   "action")
     btn:SetAttribute("action", i) -- initial; real value set in UpdateBar()
+    btn._isOnCooldown = false
 
     -- Black border: plain BACKGROUND texture (matches trackedicons CreateIconFrame)
     btn.borderBackdrop = btn:CreateTexture(nil, "BACKGROUND")
@@ -204,8 +211,6 @@ local function GetVehicleUnit()
         return "vehicle"
     elseif UnitExists("pet") and (UnitInVehicle("player") or UnitHasVehicleUI("player") or (HasOverrideActionBar and HasOverrideActionBar()) or (HasVehicleActionBar and HasVehicleActionBar())) then
         return "pet"
-    elseif UnitExists("pet") and not UnitIsUnit("pet", "player") then
-        return "pet"
     end
     return "player"
 end
@@ -263,14 +268,20 @@ local function UpdateVehicleHealth(force)
     healthStatusBar:SetMinMaxValues(0, maxVal)
     healthStatusBar:SetValue(cur)
 
-    local fgColor = SfuiDB and SfuiDB.healthBarColor or (sfui.config and sfui.config.healthBar and sfui.config.healthBar.color) or { 0, 0.8, 0.067, 1 }
-    if SfuiDB and SfuiDB.useSpecColor and common.get_class_or_spec_color then
+    local fgColor = (SfuiDB and SfuiDB.healthBarColor)
+        or (sfui.config and sfui.config.healthBar and sfui.config.healthBar.color)
+        or DEFAULT_HEALTH_COLOR
+    if SfuiDB and SfuiDB.useSpecColor and common and common.get_class_or_spec_color then
         fgColor = common.get_class_or_spec_color() or fgColor
     end
-    healthStatusBar:SetStatusBarColor(common.unpack_color(fgColor, 0, 0.8, 0.067, 1))
+    local r, g, b, a = common.unpack_color(fgColor, 0, 0.8, 0.067, 1)
+    healthStatusBar:SetStatusBarColor(r, g, b, a)
 
-    local bgColor = SfuiDB and SfuiDB.healthBarBackdropColor or (sfui.config and sfui.config.healthBar and sfui.config.healthBar.backdrop and sfui.config.healthBar.backdrop.color) or { 0, 0, 0, 0.7 }
-    healthBackdrop:SetBackdropColor(common.unpack_color(bgColor, 0, 0, 0, 0.7))
+    local bgColor = (SfuiDB and SfuiDB.healthBarBackdropColor)
+        or (sfui.config and sfui.config.healthBar and sfui.config.healthBar.backdrop and sfui.config.healthBar.backdrop.color)
+        or DEFAULT_BACKDROP_COLOR
+    local br, bg, bb, ba = common.unpack_color(bgColor, 0, 0, 0, 0.7)
+    healthBackdrop:SetBackdropColor(br, bg, bb, ba)
 end
 
 -- ─── Vehicle Power Bar ───────────────────────────────────────────────────────
@@ -318,17 +329,21 @@ local function UpdateVehiclePower(force)
     if powerToken and PowerBarColor and PowerBarColor[powerToken] then
         pColor = PowerBarColor[powerToken]
     end
-    if not pColor and common.get_resource_color then
+    if not pColor and common and common.get_resource_color then
         pColor = common.get_resource_color(powerType)
     end
     if not pColor then
-        pColor = { r = 0, g = 0.5, b = 1 }
+        pColor = DEFAULT_POWER_COLOR
     end
 
-    powerStatusBar:SetStatusBarColor(pColor.r or pColor[1], pColor.g or pColor[2], pColor.b or pColor[3], pColor.a or pColor[4] or 1)
+    local pr, pg, pb, pa = common.unpack_color(pColor, 0, 0.5, 1, 1)
+    powerStatusBar:SetStatusBarColor(pr, pg, pb, pa)
 
-    local bgColor = SfuiDB and SfuiDB.healthBarBackdropColor or (sfui.config and sfui.config.healthBar and sfui.config.healthBar.backdrop and sfui.config.healthBar.backdrop.color) or { 0, 0, 0, 0.7 }
-    powerBackdrop:SetBackdropColor(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 0.7)
+    local bgColor = (SfuiDB and SfuiDB.healthBarBackdropColor)
+        or (sfui.config and sfui.config.healthBar and sfui.config.healthBar.backdrop and sfui.config.healthBar.backdrop.color)
+        or DEFAULT_BACKDROP_COLOR
+    local br, bg, bb, ba = common.unpack_color(bgColor, 0, 0, 0, 0.7)
+    powerBackdrop:SetBackdropColor(br, bg, bb, ba)
 end
 
 -- ─── Vehicle Cast Bar ────────────────────────────────────────────────────────
@@ -378,6 +393,8 @@ castSpark:SetBlendMode("ADD")
 castSpark:SetSize(16, 32)
 castSpark:Hide()
 
+local _castBarWidth = 0
+
 local function StopCastBar()
     _casting = false
     _channeling = false
@@ -401,16 +418,19 @@ local function StartCast(unit)
         _castEnd = endTimeMS / 1000
         _castDuration = _castEnd - _castStart
         if _castDuration <= 0 then _castDuration = 0.001 end
+        _castBarWidth = castStatusBar:GetWidth()
 
         castStatusBar:SetMinMaxValues(0, _castDuration)
         castStatusBar:SetValue(0)
         castNameText:SetText(name or "")
 
-        local cbColor = (sfui.config and sfui.config.castBar and sfui.config.castBar.color) or { 1, 1, 1 }
-        castStatusBar:SetStatusBarColor(cbColor[1], cbColor[2], cbColor[3], 1)
+        local cbColor = (sfui.config and sfui.config.castBar and sfui.config.castBar.color) or DEFAULT_CAST_COLOR
+        local cr, cg, cb, ca = common.unpack_color(cbColor, 1, 1, 1, 1)
+        castStatusBar:SetStatusBarColor(cr, cg, cb, ca)
 
-        local bgColor = (sfui.config and sfui.config.castBar and sfui.config.castBar.backdrop and sfui.config.castBar.backdrop.color) or { 0, 0, 0, 0.7 }
-        castBackdrop:SetBackdropColor(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 0.7)
+        local bgColor = (sfui.config and sfui.config.castBar and sfui.config.castBar.backdrop and sfui.config.castBar.backdrop.color) or DEFAULT_BACKDROP_COLOR
+        local br, bg, bb, ba = common.unpack_color(bgColor, 0, 0, 0, 0.7)
+        castBackdrop:SetBackdropColor(br, bg, bb, ba)
 
         if texture then
             castIcon:SetTexture(texture)
@@ -432,16 +452,19 @@ local function StartCast(unit)
         _castEnd = cEndMS / 1000
         _castDuration = _castEnd - _castStart
         if _castDuration <= 0 then _castDuration = 0.001 end
+        _castBarWidth = castStatusBar:GetWidth()
 
         castStatusBar:SetMinMaxValues(0, _castDuration)
         castStatusBar:SetValue(_castDuration)
         castNameText:SetText(cName or "")
 
-        local chColor = (sfui.config and sfui.config.castBar and sfui.config.castBar.channelColor) or { 0, 1, 0 }
-        castStatusBar:SetStatusBarColor(chColor[1], chColor[2], chColor[3], 1)
+        local chColor = (sfui.config and sfui.config.castBar and sfui.config.castBar.channelColor) or DEFAULT_CHANNEL_COLOR
+        local cr, cg, cb, ca = common.unpack_color(chColor, 0, 1, 0, 1)
+        castStatusBar:SetStatusBarColor(cr, cg, cb, ca)
 
-        local bgColor = (sfui.config and sfui.config.castBar and sfui.config.castBar.backdrop and sfui.config.castBar.backdrop.color) or { 0, 0, 0, 0.7 }
-        castBackdrop:SetBackdropColor(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 0.7)
+        local bgColor = (sfui.config and sfui.config.castBar and sfui.config.castBar.backdrop and sfui.config.castBar.backdrop.color) or DEFAULT_BACKDROP_COLOR
+        local br, bg, bb, ba = common.unpack_color(bgColor, 0, 0, 0, 0.7)
+        castBackdrop:SetBackdropColor(br, bg, bb, ba)
 
         if cTexture then
             castIcon:SetTexture(cTexture)
@@ -470,7 +493,7 @@ local function UpdateCastProgress()
             local remaining = math_max(0, _castEnd - now)
             castTimerText:SetText(string_format("%.1f", remaining))
             if _castDuration > 0 then
-                local w = castStatusBar:GetWidth()
+                local w = _castBarWidth > 0 and _castBarWidth or castStatusBar:GetWidth()
                 local prog = math_min(1, math_max(0, elapsed / _castDuration))
                 castSpark:ClearAllPoints()
                 castSpark:SetPoint("CENTER", castStatusBar, "LEFT", w * prog, 0)
@@ -484,7 +507,7 @@ local function UpdateCastProgress()
             castStatusBar:SetValue(remaining)
             castTimerText:SetText(string_format("%.1f", remaining))
             if _castDuration > 0 then
-                local w = castStatusBar:GetWidth()
+                local w = _castBarWidth > 0 and _castBarWidth or castStatusBar:GetWidth()
                 local prog = math_min(1, math_max(0, remaining / _castDuration))
                 castSpark:ClearAllPoints()
                 castSpark:SetPoint("CENTER", castStatusBar, "LEFT", w * prog, 0)
@@ -516,6 +539,14 @@ local function GetResolvedVehicleBarIndex()
     if HasVehicleActionBar and HasVehicleActionBar()        then return GetVehicleBarIndex()          end
     if HasOverrideActionBar and HasOverrideActionBar()       then return GetOverrideBarIndex()         end
     if HasTempShapeshiftActionBar and HasTempShapeshiftActionBar() then return GetTempShapeshiftBarIndex()   end
+    if HasBonusActionBar and HasBonusActionBar()            then return GetBonusBarIndex()            end
+    -- Fallback for vehicle UI or possess transitions
+    if (UnitHasVehicleUI and UnitHasVehicleUI("player")) or (UnitInVehicle and UnitInVehicle("player")) then
+        return (GetVehicleBarIndex and GetVehicleBarIndex()) or 12
+    end
+    if C_ActionBar and C_ActionBar.IsPossessBarVisible and C_ActionBar.IsPossessBarVisible() then
+        return (GetVehicleBarIndex and GetVehicleBarIndex()) or 12
+    end
     return nil
 end
 
@@ -530,6 +561,7 @@ local function UpdateBar()
     if not barIndex or barIndex == 0 then
         for i = 1, MAX_BUTTONS do
             buttons[i].currentActionID = nil
+            buttons[i]._isOnCooldown = false
             buttons[i]:SetAlpha(0)
         end
         healthBackdrop:Hide()
@@ -564,6 +596,8 @@ local function UpdateBar()
             btn:SetAlpha(1)
             lastVisible = i
         else
+            btn.icon:SetTexture(nil)
+            btn._isOnCooldown = false
             btn:SetAlpha(0)
         end
 
@@ -616,19 +650,26 @@ UpdateCooldowns = function()
 
                         if durationObj then
                             cd:SetCooldownFromDurationObject(durationObj)
-                        else
+                            btn._isOnCooldown = true
+                        elseif btn._isOnCooldown then
                             cd:Clear()
+                            btn._isOnCooldown = false
                         end
                     else
                         -- Pre-12.0.1 Fallback with strict secret checks
                         local start, duration, enable = GetActionCooldown(actionID)
                         local isSecret = issecretvalue and (issecretvalue(start) or issecretvalue(duration) or issecretvalue(enable))
                         if isSecret then
-                            cd:Clear()
+                            if btn._isOnCooldown then
+                                cd:Clear()
+                                btn._isOnCooldown = false
+                            end
                         elseif enable and enable ~= 0 and start and start > 0 and duration and duration > 0 then
                             cd:SetCooldown(start, duration)
-                        else
+                            btn._isOnCooldown = true
+                        elseif btn._isOnCooldown then
                             cd:Clear()
+                            btn._isOnCooldown = false
                         end
                     end
                 end
@@ -699,80 +740,7 @@ local function on_vehicle_update(elapsed)
     end
 end
 
--- ─── OnShow / OnHide ─────────────────────────────────────────────────────────
-frame:SetScript("OnShow", function()
-    UpdateBar()
-    if sfui.events and sfui.events.RegisterUpdate then
-        sfui.events.RegisterUpdate("VehicleBar", 0.016, on_vehicle_update)
-    else
-        frame:SetScript("OnUpdate", on_vehicle_update)
-    end
-end)
-frame:SetScript("OnHide", function()
-    StopCastBar()
-    if sfui.events and sfui.events.UnregisterUpdate then
-        sfui.events.UnregisterUpdate("VehicleBar")
-    end
-    frame:SetScript("OnUpdate", nil)
-end)
-
--- ─── Events (via sfui.events — global + unit-filtered) ───────────────────────
--- Global lifecycle events
-local function on_vehicle_global(event)
-    if event == "PLAYER_REGEN_ENABLED" then
-        if pendingUpdate then UpdateBar() end
-    elseif event == "ACTIONBAR_UPDATE_STATE" then
-        -- Only update when the vehicle bar is actually active or shown
-        if frame:IsShown() or GetResolvedVehicleBarIndex() then
-            UpdateBar()
-        end
-    else
-        UpdateBar()
-    end
-end
-sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD",    on_vehicle_global)
-sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED",     on_vehicle_global)
-sfui.events.RegisterUnitEvents({"UNIT_ENTERED_VEHICLE", "UNIT_EXITED_VEHICLE"}, "player", on_vehicle_global)
-sfui.events.RegisterEvent("VEHICLE_UPDATE",           on_vehicle_global)
-sfui.events.RegisterEvent("UPDATE_VEHICLE_ACTIONBAR", on_vehicle_global)
-sfui.events.RegisterEvent("UPDATE_OVERRIDE_ACTIONBAR",on_vehicle_global)
-sfui.events.RegisterEvent("UPDATE_POSSESS_BAR",       on_vehicle_global)
-sfui.events.RegisterEvent("ACTIONBAR_UPDATE_STATE",   on_vehicle_global)
-sfui.events.RegisterEvent("ACTIONBAR_UPDATE_COOLDOWN",UpdateCooldowns)
-sfui.events.RegisterEvent("ACTIONBAR_UPDATE_USABLE",  UpdateUsable)
-sfui.events.RegisterEvent("UPDATE_BINDINGS",          on_vehicle_global)
-
--- Unit-filtered health/power: only fire for player or vehicle unit, never for
--- every friendly unit in a raid. Throttled to 20fps (0.05s).
-local _lastVehicleHealthTime = 0
-local _lastVehiclePowerTime = 0
-
-local function on_unit_health(_, unit)
-    if not frame:IsShown() then return end
-    local now = GetTime()
-    if now - _lastVehicleHealthTime < 0.05 then return end
-    _lastVehicleHealthTime = now
-    local vUnit = GetVehicleUnit()
-    if unit == "player" or unit == "vehicle" or unit == "pet" or unit == vUnit then
-        UpdateVehicleHealth()
-    end
-end
-local function on_unit_power(_, unit)
-    if not frame:IsShown() then return end
-    local now = GetTime()
-    if now - _lastVehiclePowerTime < 0.05 then return end
-    _lastVehiclePowerTime = now
-    local vUnit = GetVehicleUnit()
-    if unit == "player" or unit == "vehicle" or unit == "pet" or unit == vUnit then
-        UpdateVehiclePower()
-    end
-end
-sfui.events.RegisterUnitEvents({"UNIT_HEALTH", "UNIT_MAXHEALTH"}, "player",  on_unit_health)
-sfui.events.RegisterUnitEvents({"UNIT_HEALTH", "UNIT_MAXHEALTH"}, "vehicle", on_unit_health)
-sfui.events.RegisterUnitEvents({"UNIT_POWER_UPDATE", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER"}, "player",  on_unit_power)
-sfui.events.RegisterUnitEvents({"UNIT_POWER_UPDATE", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER"}, "vehicle", on_unit_power)
-
--- Unit-filtered spellcast events
+-- ─── Unit-filtered spellcast events ──────────────────────────────────────────
 local CAST_STOP_EVENTS = {
     UNIT_SPELLCAST_STOP        = true,
     UNIT_SPELLCAST_FAILED      = true,
@@ -791,6 +759,7 @@ local function on_unit_cast(event, unit)
         end
     end
 end
+
 local VEHICLE_CAST_EVENTS = {
     "UNIT_SPELLCAST_START",
     "UNIT_SPELLCAST_STOP",
@@ -804,8 +773,99 @@ local VEHICLE_CAST_EVENTS = {
     "UNIT_SPELLCAST_EMPOWER_UPDATE",
     "UNIT_SPELLCAST_EMPOWER_STOP",
 }
-sfui.events.RegisterUnitEvents(VEHICLE_CAST_EVENTS, "player",  on_unit_cast)
-sfui.events.RegisterUnitEvents(VEHICLE_CAST_EVENTS, "vehicle", on_unit_cast)
+
+-- ─── Dynamic Combat & Spellcast Event Registration ───────────────────────────
+-- Only registered while the vehicle frame is actually visible (OnShow).
+-- When hidden (normal gameplay / out of vehicle), these unregister completely,
+-- ensuring zero event handling and zero overhead during combat or idling.
+local _combatEventsRegistered = false
+
+local function register_vehicle_active_events()
+    if _combatEventsRegistered then return end
+    _combatEventsRegistered = true
+    sfui.events.RegisterEvent("ACTIONBAR_UPDATE_COOLDOWN", UpdateCooldowns)
+    sfui.events.RegisterEvent("ACTIONBAR_UPDATE_USABLE",   UpdateUsable)
+    if sfui.events.RegisterUnitEvents then
+        sfui.events.RegisterUnitEvents(VEHICLE_CAST_EVENTS, "player",  on_unit_cast)
+        sfui.events.RegisterUnitEvents(VEHICLE_CAST_EVENTS, "vehicle", on_unit_cast)
+    else
+        for i = 1, #VEHICLE_CAST_EVENTS do
+            sfui.events.RegisterUnitEvent(VEHICLE_CAST_EVENTS[i], "player",  on_unit_cast)
+            sfui.events.RegisterUnitEvent(VEHICLE_CAST_EVENTS[i], "vehicle", on_unit_cast)
+        end
+    end
+end
+
+local function unregister_vehicle_active_events()
+    if not _combatEventsRegistered then return end
+    _combatEventsRegistered = false
+    sfui.events.UnregisterEvent("ACTIONBAR_UPDATE_COOLDOWN", UpdateCooldowns)
+    sfui.events.UnregisterEvent("ACTIONBAR_UPDATE_USABLE",   UpdateUsable)
+    if sfui.events.UnregisterUnitEvents then
+        sfui.events.UnregisterUnitEvents(VEHICLE_CAST_EVENTS, "player",  on_unit_cast)
+        sfui.events.UnregisterUnitEvents(VEHICLE_CAST_EVENTS, "vehicle", on_unit_cast)
+    else
+        for i = 1, #VEHICLE_CAST_EVENTS do
+            sfui.events.UnregisterUnitEvent(VEHICLE_CAST_EVENTS[i], "player",  on_unit_cast)
+            sfui.events.UnregisterUnitEvent(VEHICLE_CAST_EVENTS[i], "vehicle", on_unit_cast)
+        end
+    end
+end
+
+-- ─── OnShow / OnHide ─────────────────────────────────────────────────────────
+frame:SetScript("OnShow", function()
+    UpdateBar()
+    register_vehicle_active_events()
+    if sfui.events and sfui.events.RegisterUpdate then
+        sfui.events.RegisterUpdate("VehicleBar", 0.033, on_vehicle_update)
+    else
+        frame:SetScript("OnUpdate", on_vehicle_update)
+    end
+end)
+
+frame:SetScript("OnHide", function()
+    StopCastBar()
+    unregister_vehicle_active_events()
+    for i = 1, MAX_BUTTONS do
+        buttons[i]._isOnCooldown = false
+    end
+    if sfui.events and sfui.events.UnregisterUpdate then
+        sfui.events.UnregisterUpdate("VehicleBar")
+    end
+    frame:SetScript("OnUpdate", nil)
+end)
+
+-- ─── Global Lifecycle Events ─────────────────────────────────────────────────
+local function on_vehicle_global(event)
+    if event == "PLAYER_REGEN_ENABLED" then
+        if pendingUpdate then UpdateBar() end
+    elseif event == "ACTIONBAR_UPDATE_STATE" then
+        -- Only update when the vehicle bar is actually active or shown
+        if frame:IsShown() or GetResolvedVehicleBarIndex() then
+            UpdateBar()
+        end
+    elseif event == "UPDATE_BINDINGS" then
+        if frame:IsShown() then
+            for i = 1, MAX_BUTTONS do
+                local keyText = sfui.keybinds and sfui.keybinds.get_action_key and sfui.keybinds.get_action_key(BINDING_NAMES[i])
+                    or (GetBindingKey and GetBindingKey(BINDING_NAMES[i])) or ""
+                buttons[i].kb:SetText(keyText)
+            end
+        end
+    else
+        UpdateBar()
+    end
+end
+
+sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD",    on_vehicle_global)
+sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED",     on_vehicle_global)
+sfui.events.RegisterUnitEvents({"UNIT_ENTERED_VEHICLE", "UNIT_EXITED_VEHICLE"}, "player", on_vehicle_global)
+sfui.events.RegisterEvent("VEHICLE_UPDATE",           on_vehicle_global)
+sfui.events.RegisterEvent("UPDATE_VEHICLE_ACTIONBAR", on_vehicle_global)
+sfui.events.RegisterEvent("UPDATE_OVERRIDE_ACTIONBAR",on_vehicle_global)
+sfui.events.RegisterEvent("UPDATE_POSSESS_BAR",       on_vehicle_global)
+sfui.events.RegisterEvent("ACTIONBAR_UPDATE_STATE",   on_vehicle_global)
+sfui.events.RegisterEvent("UPDATE_BINDINGS",          on_vehicle_global)
 
 function sfui.vehicle_debug_info()
     return {

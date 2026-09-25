@@ -2,9 +2,11 @@ local addonName, addon = ...
 sfui = sfui or {}
 sfui.pets = sfui.pets or {}
 
-local g      = sfui.config
-local common = sfui.common
-local cfg    = g.pets or {}
+local function print_message(msg)
+    if sfui.common and sfui.common.print then
+        sfui.common.print(msg)
+    end
+end
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/pets.lua
@@ -14,43 +16,35 @@ local cfg    = g.pets or {}
 -- ══════════════════════════════════════════════════════════════════════════════
 
 -- Guard against game clients without Pet Journal API (e.g. Classic Era / Vanilla / older Camelot)
-if not _G.C_PetJournal or not _G.C_PetJournal.GetNumPets then
+local C_PetJournal = _G.C_PetJournal
+if not C_PetJournal or not C_PetJournal.GetNumPets then
     sfui.pets.disabled = true
     return
 end
 
--- Localize frequently-called globals for execution performance
-local C_PetJournal_PetIsFavorite         = _G.C_PetJournal.PetIsFavorite
-local C_PetJournal_GetPetInfoByIndex     = _G.C_PetJournal.GetPetInfoByIndex
-local C_PetJournal_GetNumPets            = _G.C_PetJournal.GetNumPets
-local C_PetJournal_SummonPetByGUID       = _G.C_PetJournal.SummonPetByGUID
-local C_PetJournal_GetSummonedPetGUID    = _G.C_PetJournal.GetSummonedPetGUID
-local C_PetJournal_GetPetInfoByPetID     = _G.C_PetJournal.GetPetInfoByPetID
-local C_PetJournal_GetPetSummonInfo      = _G.C_PetJournal.GetPetSummonInfo
-local C_PetBattles_IsInBattle            = _G.C_PetBattles and _G.C_PetBattles.IsInBattle
-local C_UnitAuras_GetPlayerAuraBySpellID = _G.C_UnitAuras and _G.C_UnitAuras.GetPlayerAuraBySpellID
-local C_PlayerInfo_GetGlidingInfo        = _G.C_PlayerInfo and _G.C_PlayerInfo.GetGlidingInfo
-local C_Map_GetBestMapForUnit            = _G.C_Map and _G.C_Map.GetBestMapForUnit
-local InCombatLockdown                   = _G.InCombatLockdown
-local IsFlying                           = _G.IsFlying
-local IsFalling                          = _G.IsFalling
-local UnitOnTaxi                         = _G.UnitOnTaxi
-local UnitHasVehicleUI                   = _G.UnitHasVehicleUI
-local IsPossessBarVisible                = _G.IsPossessBarVisible
-local HasVehicleActionBar                = _G.HasVehicleActionBar
-local UnitIsGhost                        = _G.UnitIsGhost
-local UnitIsDead                         = _G.UnitIsDead
-local UnitChannelInfo                    = _G.UnitChannelInfo
-local IsStealthed                        = _G.IsStealthed
-local GetInstanceInfo                    = _G.GetInstanceInfo
-local UnitFactionGroup                   = _G.UnitFactionGroup
-local GetTime                            = _G.GetTime
-local C_Timer                            = _G.C_Timer
-local math_random                        = math.random
-local table_insert                       = table.insert
-local table_remove                       = table.remove
-local wipe                               = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
-local pcall, ipairs, pairs, type         = _G.pcall, _G.ipairs, _G.pairs, _G.type
+local C_UnitAuras             = _G.C_UnitAuras
+local C_PlayerInfo            = _G.C_PlayerInfo
+local C_PetBattles            = _G.C_PetBattles
+local InCombatLockdown        = _G.InCombatLockdown
+local IsFlying                = _G.IsFlying
+local IsFalling               = _G.IsFalling
+local IsMounted               = _G.IsMounted
+local UnitOnTaxi              = _G.UnitOnTaxi
+local UnitHasVehicleUI        = _G.UnitHasVehicleUI
+local IsPossessBarVisible     = _G.IsPossessBarVisible
+local HasVehicleActionBar     = _G.HasVehicleActionBar
+local UnitIsGhost             = _G.UnitIsGhost
+local UnitIsDead              = _G.UnitIsDead
+local UnitChannelInfo         = _G.UnitChannelInfo
+local UnitCastingInfo         = _G.UnitCastingInfo
+local IsStealthed             = _G.IsStealthed
+local GetTime                 = _G.GetTime
+local C_Timer                 = _G.C_Timer
+local math_random             = math.random
+local table_insert            = table.insert
+local table_remove            = table.remove
+local wipe                    = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
+local pairs                   = _G.pairs
 
 -- ─── Configuration & Defaults ───────────────────────────────────────────────
 
@@ -58,10 +52,7 @@ local defaults = {
     enabled = true,
     autoResummon = true,
     rotationTimer = 720, -- Seconds (12 mins, 0 to disable)
-    mode = "favs",       -- "favs", "all", "weighted"
-    favProbability = 0.5,
     historySize = 4,
-    suppressInInstances = true,
 }
 sfui.db.RegisterDefaults("pets", defaults)
 
@@ -69,10 +60,7 @@ local optionsKeyMap = {
     enabled             = "petsEnabled",
     autoResummon        = "petsAutoResummon",
     rotationTimer       = "petsRotationTimer",
-    mode                = "petsMode",
-    favProbability      = "petsFavProbability",
     historySize         = "petsHistorySize",
-    suppressInInstances = "petsSuppressInInstances",
 }
 
 local function get_setting(key, fallback)
@@ -94,40 +82,70 @@ local ExcludedSpecies = {
     [117]  = true, -- Tiny Snowman
     [119]  = true, -- Father Winter's Helper
     [120]  = true, -- Winter's Little Helper
-    [3247] = true, -- Pocopoc (handled zone-conditionally)
+    [3247] = true, -- Pocopoc
 }
 
-local NoPetDifficulties = {
-    [8]  = true, -- Mythic Keystone
-    [16] = true, -- Mythic Raid
-    [15] = true, -- Heroic Raid
-}
+local SpecialAuras = { 311796, 302954, 232871, 286268, 43880, 43883, 312993 }
 
 -- ─── Zero-Allocation Memory Pools ────────────────────────────────────────────
 
-local _poolAll = {}
 local _poolFavs = {}
+local _poolDirty = true
 local _recentHistory = {}
 local _lastSummonTime = 0
 local _lastRotationTime = 0
 local _isDebouncePending = false
 
+local _charDB = nil
+local _charKey = nil
+
 local function get_character_key()
     local name, realm = _G.UnitFullName("player")
-    if not name or name == "" then return "default" end
-    return name .. "-" .. (realm or _G.GetNormalizedRealmName() or "")
+    local getRealm = _G.GetNormalizedRealmName or _G.GetRealmName
+    local r = realm or (getRealm and getRealm())
+    if (not r or r == "") and _G.GetCVar then
+        r = _G.GetCVar("realmName")
+    end
+    if name and name ~= "" and r and r ~= "" then
+        _charKey = name .. "-" .. r
+        return _charKey
+    end
+    if _charKey and not _charKey:find("%-$") and not _charKey:find("%-unknown$") then
+        return _charKey
+    end
+    return (name and name ~= "") and (name .. "-unknown") or "default"
 end
 
 local function get_char_db()
+    local key = get_character_key()
     SfuiDB = SfuiDB or {}
     SfuiDB.pets_per_char = SfuiDB.pets_per_char or {}
-    local key = get_character_key()
+
+    local isValidKey = key and key ~= "default" and not key:find("%-unknown$") and not key:find("%-$")
+    if isValidKey then
+        -- Clean up/migrate any bogus "Name-" entry if the real "Name-Realm" entry exists
+        local prefix = key:match("^(.-)%-")
+        if prefix and SfuiDB.pets_per_char[prefix .. "-"] then
+            local badEntry = SfuiDB.pets_per_char[prefix .. "-"]
+            if not SfuiDB.pets_per_char[key] then
+                if badEntry.charFavs and next(badEntry.charFavs) then
+                    SfuiDB.pets_per_char[key] = badEntry
+                end
+            end
+            SfuiDB.pets_per_char[prefix .. "-"] = nil
+        end
+
+        if not SfuiDB.pets_per_char[key] then
+            SfuiDB.pets_per_char[key] = { charFavsEnabled = false, charFavs = {} }
+        end
+        _charDB = SfuiDB.pets_per_char[key]
+        _charDB.charFavs = _charDB.charFavs or {}
+        return _charDB
+    end
+
+    if _charDB then return _charDB end
     if not SfuiDB.pets_per_char[key] then
-        SfuiDB.pets_per_char[key] = {
-            charFavsEnabled = false,
-            charFavs = {},
-            recentPets = {},
-        }
+        SfuiDB.pets_per_char[key] = { charFavsEnabled = false, charFavs = {} }
     end
     return SfuiDB.pets_per_char[key]
 end
@@ -135,61 +153,40 @@ end
 -- ─── Environmental & Safety Heuristics ──────────────────────────────────────
 
 local function is_in_air()
-    if IsFlying and IsFlying() then return true end
-    if IsFalling and IsFalling() then return true end
-    if UnitOnTaxi and UnitOnTaxi("player") then return true end
-    if C_PlayerInfo_GetGlidingInfo then
-        local _, isGliding = C_PlayerInfo_GetGlidingInfo()
-        if isGliding then return true end
-    end
-    return false
-end
-
-local function is_instance_forbidden()
-    if not get_setting("suppressInInstances", true) then return false end
-    local _, instanceType, difficultyID = GetInstanceInfo()
-    if instanceType == "arena" then return true end
-    if NoPetDifficulties[difficultyID] then return true end
-    return false
+    return (IsFlying and IsFlying())
+        or (IsFalling and IsFalling())
+        or (UnitOnTaxi and UnitOnTaxi("player"))
+        or (C_PlayerInfo and C_PlayerInfo.GetGlidingInfo and C_PlayerInfo.GetGlidingInfo())
 end
 
 local function has_special_companion_aura()
-    -- Daisy backpack aura
-    if C_UnitAuras_GetPlayerAuraBySpellID(311796) then return true end
-    -- Shoulder parrots: Feathers, Crackers, Cap'n Crackers
-    if C_UnitAuras_GetPlayerAuraBySpellID(302954)
-        or C_UnitAuras_GetPlayerAuraBySpellID(232871)
-        or C_UnitAuras_GetPlayerAuraBySpellID(286268)
-    then
-        return true
-    end
-    -- Event mounts/auras (Brewfest rams, forbidden tomes)
-    if C_UnitAuras_GetPlayerAuraBySpellID(43880)
-        or C_UnitAuras_GetPlayerAuraBySpellID(43883)
-        or C_UnitAuras_GetPlayerAuraBySpellID(312993)
-    then
-        return true
+    if not C_UnitAuras or not C_UnitAuras.GetPlayerAuraBySpellID then return false end
+    for i = 1, #SpecialAuras do
+        if C_UnitAuras.GetPlayerAuraBySpellID(SpecialAuras[i]) then return true end
     end
     return false
 end
 
 local function can_summon_pet(isAuto)
-    if not get_setting("enabled", true) then return false end
-    if InCombatLockdown and InCombatLockdown() then return false end
-    if is_in_air() then return false end
-    if UnitIsGhost and UnitIsGhost("player") then return false end
-    if UnitIsDead and UnitIsDead("player") then return false end
-    if UnitChannelInfo and UnitChannelInfo("player") then return false end
-    if IsStealthed and IsStealthed() then return false end
-    if C_UnitAuras_GetPlayerAuraBySpellID(32612) or C_UnitAuras_GetPlayerAuraBySpellID(110960) then return false end -- Mage Invis
-    if UnitHasVehicleUI and UnitHasVehicleUI("player") then return false end
-    if IsPossessBarVisible and IsPossessBarVisible() then return false end
-    if HasVehicleActionBar and HasVehicleActionBar() then return false end
-    if C_PetBattles_IsInBattle and C_PetBattles_IsInBattle() then return false end
-    if is_instance_forbidden() then return false end
-    if has_special_companion_aura() then return false end
+    if not get_setting("enabled", true)
+        or (InCombatLockdown and InCombatLockdown())
+        or (IsMounted and IsMounted())
+        or (UnitIsDead and UnitIsDead("player"))
+        or (UnitIsGhost and UnitIsGhost("player"))
+        or (UnitChannelInfo and UnitChannelInfo("player"))
+        or (UnitCastingInfo and UnitCastingInfo("player"))
+        or (IsStealthed and IsStealthed())
+        or is_in_air()
+        or (C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID and (C_UnitAuras.GetPlayerAuraBySpellID(32612) or C_UnitAuras.GetPlayerAuraBySpellID(110960)))
+        or (UnitHasVehicleUI and UnitHasVehicleUI("player"))
+        or (IsPossessBarVisible and IsPossessBarVisible())
+        or (HasVehicleActionBar and HasVehicleActionBar())
+        or (C_PetBattles and C_PetBattles.IsInBattle and C_PetBattles.IsInBattle())
+        or has_special_companion_aura()
+    then
+        return false
+    end
 
-    -- Throttle auto-summon triggers by 4 seconds
     if isAuto and (GetTime() - _lastSummonTime < 4.0) then
         return false
     end
@@ -200,54 +197,52 @@ end
 -- ─── Pet Pool Building (Zero GC Churn) ───────────────────────────────────────
 
 local function is_species_excluded(speciesID)
-    if not speciesID then return true end
-    if ExcludedSpecies[speciesID] then
-        if speciesID == 3247 then -- Pocopoc
-            local mapID = C_Map_GetBestMapForUnit and C_Map_GetBestMapForUnit("player")
-            if mapID == 1970 then return true end -- Only excluded in Zereth Mortis
+    return (speciesID and ExcludedSpecies[speciesID]) and true or false
+end
+
+local function is_pet_usable(petID, speciesID)
+    if not petID then return false end
+    if is_species_excluded(speciesID) then return false end
+    if C_PetJournal and C_PetJournal.GetPetSummonInfo then
+        local _, err = C_PetJournal.GetPetSummonInfo(petID)
+        if err and Enum and Enum.PetJournalError and err == Enum.PetJournalError.InvalidFaction then
             return false
         end
-        return true
     end
-    return false
+    return true
 end
 
 local function rebuild_pet_pools()
-    wipe(_poolAll)
     wipe(_poolFavs)
-
-    if not C_PetJournal_GetNumPets then return end
-    local numPets = C_PetJournal_GetNumPets()
-    if not numPets or numPets == 0 then return end
+    _poolDirty = false
 
     local charDB = get_char_db()
-    local useCharFavs = charDB.charFavsEnabled and charDB.charFavs
+    if charDB.charFavsEnabled and charDB.charFavs and next(charDB.charFavs) then
+        for petID in pairs(charDB.charFavs) do
+            local speciesID = C_PetJournal.GetPetInfoByPetID and C_PetJournal.GetPetInfoByPetID(petID)
+            if is_pet_usable(petID, speciesID) then
+                _poolFavs[#_poolFavs + 1] = petID
+            end
+        end
+        return
+    end
+
+    local numPets = C_PetJournal.GetNumPets and C_PetJournal.GetNumPets()
+    if not numPets or numPets == 0 then return end
 
     for i = 1, numPets do
-        local petID, speciesID, isOwned, _, _, _, isFav = C_PetJournal_GetPetInfoByIndex(i)
-        if petID and isOwned and not is_species_excluded(speciesID) then
-            local isSummonable = C_PetJournal_GetPetSummonInfo and C_PetJournal_GetPetSummonInfo(petID)
-            if isSummonable ~= false then
-                table_insert(_poolAll, petID)
-
-                local isFavorite = false
-                if useCharFavs then
-                    isFavorite = (charDB.charFavs[petID] == true)
-                else
-                    isFavorite = isFav or (C_PetJournal_PetIsFavorite and C_PetJournal_PetIsFavorite(petID))
-                end
-
-                if isFavorite then
-                    table_insert(_poolFavs, petID)
-                end
+        local petID, speciesID, isOwned, _, _, _, isFav = C_PetJournal.GetPetInfoByIndex(i)
+        if petID and isOwned and is_pet_usable(petID, speciesID) then
+            if isFav or (C_PetJournal.PetIsFavorite and C_PetJournal.PetIsFavorite(petID)) then
+                _poolFavs[#_poolFavs + 1] = petID
             end
         end
     end
 end
 
 local function is_in_recent_history(petID)
-    for _, id in ipairs(_recentHistory) do
-        if id == petID then return true end
+    for i = 1, #_recentHistory do
+        if _recentHistory[i] == petID then return true end
     end
     return false
 end
@@ -264,50 +259,37 @@ end
 -- ─── Summon Execution ────────────────────────────────────────────────────────
 
 local function select_candidate_pet()
-    rebuild_pet_pools()
-
-    local mode = get_setting("mode", "favs")
-    local favProb = get_setting("favProbability", 0.5) or 0.5
-    if favProb > 1 then favProb = favProb / 100 end
-    local pool = _poolFavs
-
-    if mode == "all" or (#_poolFavs == 0) then
-        pool = _poolAll
-    elseif mode == "weighted" then
-        if math_random() > favProb and #_poolAll > 0 then
-            pool = _poolAll
-        end
+    if _poolDirty or #_poolFavs == 0 then
+        rebuild_pet_pools()
     end
-
-    if #pool == 0 then
-        pool = _poolAll
-    end
-    if #pool == 0 then return nil end
+    local count = #_poolFavs
+    if count == 0 then return nil end
+    if count == 1 then return _poolFavs[1] end
 
     -- Try to pick a pet not recently summoned
     local candidate = nil
     local attempts = 0
     while attempts < 10 do
         attempts = attempts + 1
-        local idx = math_random(1, #pool)
-        local picked = pool[idx]
+        local idx = math_random(1, count)
+        local picked = _poolFavs[idx]
         if not is_in_recent_history(picked) or attempts >= 8 then
             candidate = picked
             break
         end
     end
 
-    return candidate or pool[1]
+    return candidate or _poolFavs[1]
 end
 
 local function summon_pet(petID)
     if not petID or not can_summon_pet(false) then return false end
-    if not C_PetJournal_SummonPetByGUID then return false end
+    if not (C_PetJournal and C_PetJournal.SummonPetByGUID) then return false end
 
     _lastSummonTime = GetTime()
     _lastRotationTime = _lastSummonTime
     record_recent_pet(petID)
-    C_PetJournal_SummonPetByGUID(petID)
+    C_PetJournal.SummonPetByGUID(petID)
     return true
 end
 
@@ -323,11 +305,11 @@ function sfui.pets.RestoreIfMissing()
     if not get_setting("autoResummon", true) then return end
     if not can_summon_pet(true) then return end
 
-    local current = C_PetJournal_GetSummonedPetGUID and C_PetJournal_GetSummonedPetGUID()
+    local current = C_PetJournal and C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
     if not current then
         -- Prefer last summoned pet if still summonable, otherwise pick candidate
         local lastPet = _recentHistory[1]
-        local isSummonable = lastPet and C_PetJournal_GetPetSummonInfo and C_PetJournal_GetPetSummonInfo(lastPet)
+        local isSummonable = lastPet and is_pet_usable(lastPet)
         if isSummonable then
             summon_pet(lastPet)
         else
@@ -336,19 +318,35 @@ function sfui.pets.RestoreIfMissing()
     end
 end
 
+local function on_deferred_restore()
+    _isDebouncePending = false
+    sfui.pets.RestoreIfMissing()
+end
+
 local function request_deferred_restore(delay)
     if _isDebouncePending then return end
     _isDebouncePending = true
-    C_Timer.After(delay or 2.0, function()
-        _isDebouncePending = false
-        sfui.pets.RestoreIfMissing()
-    end)
+    C_Timer.After(delay or 2.0, on_deferred_restore)
 end
 
 -- ─── Periodic Rotation Loop ──────────────────────────────────────────────────
 
 local function on_update_tick(elapsed)
     if not get_setting("enabled", true) then return end
+
+    -- Keep companion summoned when missing (e.g. standing still in town or after dismiss)
+    if get_setting("autoResummon", true) then
+        local current = C_PetJournal and C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
+        if not current then
+            if can_summon_pet(true) then
+                sfui.pets.RestoreIfMissing()
+            end
+            return
+        end
+    end
+
+    if #_poolFavs <= 1 then return end
+
     local rotSecs = get_setting("rotationTimer", 720) or 720
     if rotSecs <= 0 then return end
 
@@ -371,17 +369,15 @@ local function hook_collections_journal()
     cb:SetSize(22, 22)
     cb:SetPoint("BOTTOMLEFT", _G.CollectionsJournal, "BOTTOMLEFT", 20, 14)
     if cb.text then
-        cb.text:SetFontObject(g.font_small or "GameFontNormalSmall")
-        cb.text:SetText("Char Favs (SFUI)")
+        cb.text:SetFontObject("GameFontNormalSmall")
+        cb.text:SetText("char favs (sfui)")
     end
 
     cb:SetScript("OnClick", function(self)
         local checked = self:GetChecked()
         local charDB = get_char_db()
         charDB.charFavsEnabled = checked
-        if sfui.common and sfui.common.print then
-            sfui.common.print("Character-specific companion favorites " .. (checked and "|cff00ff00enabled|r." or "|cffff0000disabled|r."))
-        end
+        print_message("character-specific companion favorites " .. (checked and "|cff00ff00enabled|r." or "|cffff0000disabled|r."))
         rebuild_pet_pools()
     end)
 
@@ -407,31 +403,53 @@ end
 
 -- ─── Module Lifecycle Registration ──────────────────────────────────────────
 
+local function on_mount_changed() request_deferred_restore(0.5) end
+local function on_zone_changed() request_deferred_restore(2.0) end
+local function on_combat_leave() request_deferred_restore(1.5) end
+
+local function on_companion_update(event, what)
+    if what == "CRITTER" then
+        local act = C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
+        if act then
+            record_recent_pet(act)
+        end
+    end
+end
+
+local function on_journal_update()
+    _poolDirty = true
+end
+
 local PetsModule = sfui.RegisterModule("pets", {
     OnInit = function(self)
         _lastRotationTime = GetTime()
+        _poolDirty = true
+        _charDB = nil
+        _charKey = nil
     end,
 
     OnEnable = function(self)
-        -- Movement & Transition Listeners
-        sfui.events.RegisterEvent("PLAYER_STARTED_MOVING", function() request_deferred_restore(1.0) end)
-        sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", function() request_deferred_restore(0.5) end)
-        sfui.events.RegisterEvent("PLAYER_MAP_CHANGED", function() request_deferred_restore(3.0) end)
-        sfui.events.RegisterEvent("LOADING_SCREEN_DISABLED", function() request_deferred_restore(2.0) end)
+        _poolDirty = true
+        _charDB = nil
+        _charKey = nil
+        rebuild_pet_pools()
+
+        -- Transition & Life Event Listeners
+        sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
+            _poolDirty = true
+            _charDB = nil
+            _charKey = nil
+            rebuild_pet_pools()
+            request_deferred_restore(2.0)
+        end)
+        sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", on_mount_changed)
+        sfui.events.RegisterEvent("PLAYER_MAP_CHANGED", on_zone_changed)
+        sfui.events.RegisterEvent("LOADING_SCREEN_DISABLED", on_zone_changed)
+        sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", on_combat_leave)
 
         -- Pet Status & Journal Updates
-        sfui.events.RegisterEvent("COMPANION_UPDATE", function(event, what)
-            if what == "CRITTER" then
-                local act = C_PetJournal_GetSummonedPetGUID and C_PetJournal_GetSummonedPetGUID()
-                if act then
-                    record_recent_pet(act)
-                end
-            end
-        end)
-
-        sfui.events.RegisterEvent("PET_JOURNAL_LIST_UPDATE", function()
-            rebuild_pet_pools()
-        end)
+        sfui.events.RegisterEvent("COMPANION_UPDATE", on_companion_update)
+        sfui.events.RegisterEvent("PET_JOURNAL_LIST_UPDATE", on_journal_update)
 
         -- Collections UI Integration
         if _G.CollectionsJournal then
@@ -444,17 +462,24 @@ local PetsModule = sfui.RegisterModule("pets", {
             end)
         end
 
-        -- Periodic 1.0s update loop for rotation checking
-        sfui.events.RegisterUpdate("sfui.pets", 1.0, on_update_tick)
+        -- Periodic 5.0s update loop for rotation checking and missing pet restoration
+        sfui.events.RegisterUpdate("sfui.pets", 5.0, on_update_tick)
+
+        -- Initial restore on startup
+        request_deferred_restore(1.0)
     end,
 
     OnDisable = function(self)
-        -- No permanent bindings to release
+        sfui.events.UnregisterUpdate("sfui.pets")
     end,
 
     OnSettingsChanged = function(self, key, value)
-        if key == "mode" or key == "favProbability" then
+        if key == "charFavsEnabled" or key == "enabled" or key == "autoResummon" then
+            _poolDirty = true
             rebuild_pet_pools()
+            if value then
+                request_deferred_restore(0.5)
+            end
         end
     end,
 
@@ -463,49 +488,42 @@ local PetsModule = sfui.RegisterModule("pets", {
     end,
 })
 
+local function get_pet_name(petID)
+    return (petID and C_PetJournal.GetPetInfoByPetID and select(8, C_PetJournal.GetPetInfoByPetID(petID))) or "companion"
+end
+
 function sfui.pets.AddCurrentPetToCharFavs()
-    local current = C_PetJournal_GetSummonedPetGUID and C_PetJournal_GetSummonedPetGUID()
+    local current = C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
     if not current then
-        if sfui.common and sfui.common.print then
-            sfui.common.print("sfui: No companion pet currently summoned. Summon a pet first, then type /sfpet add.")
-        end
+        print_message("sfui: no companion pet currently summoned. summon a pet first, then type /sfpet add.")
         return
     end
     local charDB = get_char_db()
     charDB.charFavs[current] = true
     charDB.charFavsEnabled = true
     rebuild_pet_pools()
-    local name = (C_PetJournal_GetPetInfoByPetID and select(8, C_PetJournal_GetPetInfoByPetID(current))) or "Companion"
-    if sfui.common and sfui.common.print then
-        sfui.common.print(string.format("sfui: Added |cff00ffff%s|r to character favorites (total: %d).", name, #_poolFavs))
-    end
+    print_message(string.format("sfui: added |cff00ffff%s|r to character favorites (total: %d).", get_pet_name(current), #_poolFavs))
 end
 
 function sfui.pets.RemoveCurrentPetFromCharFavs()
-    local current = C_PetJournal_GetSummonedPetGUID and C_PetJournal_GetSummonedPetGUID()
+    local current = C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
     if not current then return end
     local charDB = get_char_db()
     charDB.charFavs[current] = nil
     rebuild_pet_pools()
-    local name = (C_PetJournal_GetPetInfoByPetID and select(8, C_PetJournal_GetPetInfoByPetID(current))) or "Companion"
-    if sfui.common and sfui.common.print then
-        sfui.common.print(string.format("sfui: Removed |cff00ffff%s|r from character favorites.", name))
-    end
+    print_message(string.format("sfui: removed |cff00ffff%s|r from character favorites.", get_pet_name(current)))
 end
 
 function sfui.pets.ListCharFavs()
     local charDB = get_char_db()
     local count = 0
-    if sfui.common and sfui.common.print then
-        sfui.common.print("sfui: Character favorites for " .. get_character_key() .. ":")
-        for guid in pairs(charDB.charFavs) do
-            local name = (C_PetJournal_GetPetInfoByPetID and select(8, C_PetJournal_GetPetInfoByPetID(guid))) or guid
-            sfui.common.print(" - |cff00ffff" .. tostring(name) .. "|r")
-            count = count + 1
-        end
-        if count == 0 then
-            sfui.common.print(" (No character favorites set. Using account Pet Journal favorites.)")
-        end
+    print_message("sfui: character favorites for " .. get_character_key() .. ":")
+    for guid in pairs(charDB.charFavs) do
+        print_message(" - |cff00ffff" .. tostring(get_pet_name(guid)) .. "|r")
+        count = count + 1
+    end
+    if count == 0 then
+        print_message(" (no character favorites set. using account pet journal favorites.)")
     end
 end
 
@@ -514,10 +532,7 @@ function sfui.pets.RemovePetFromCharFavs(petID)
     local charDB = get_char_db()
     charDB.charFavs[petID] = nil
     rebuild_pet_pools()
-    local name = (C_PetJournal_GetPetInfoByPetID and select(8, C_PetJournal_GetPetInfoByPetID(petID))) or "Companion"
-    if sfui.common and sfui.common.print then
-        sfui.common.print(string.format("sfui: Removed |cff00ffff%s|r from character favorites.", name))
-    end
+    print_message(string.format("sfui: removed |cff00ffff%s|r from character favorites.", get_pet_name(petID)))
 end
 
 function sfui.pets.SummonPetByGUID(petID)
@@ -529,9 +544,7 @@ function sfui.pets.ClearCharFavs()
     local charDB = get_char_db()
     wipe(charDB.charFavs)
     rebuild_pet_pools()
-    if sfui.common and sfui.common.print then
-        sfui.common.print("sfui: Cleared all character favorites.")
-    end
+    print_message("sfui: cleared all character favorites.")
 end
 
 sfui.pets.GetCharDB = get_char_db
@@ -542,14 +555,20 @@ sfui.pets.update_settings = rebuild_pet_pools
 _G["SFUI_PET_SUMMON"] = function() sfui.pets.SummonNext(true) end
 
 function sfui.pets_debug_info()
+    local charDB = get_char_db()
+    local charCount = 0
+    if charDB.charFavs then
+        for _ in pairs(charDB.charFavs) do charCount = charCount + 1 end
+    end
+    local useCharFavs = charDB.charFavsEnabled and charCount > 0
     return {
         enabled = get_setting("enabled", true),
-        mode = get_setting("mode", "favs"),
         rotationTimer = get_setting("rotationTimer", 720),
-        poolAllCount = #_poolAll,
         poolFavsCount = #_poolFavs,
         historyCount = #_recentHistory,
-        currentPet = C_PetJournal_GetSummonedPetGUID and C_PetJournal_GetSummonedPetGUID(),
+        charFavsCount = charCount,
+        isCharFavs = useCharFavs and true or false,
+        currentPet = C_PetJournal and C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID(),
     }
 end
 sfui.pets.GetDebugInfo = sfui.pets_debug_info

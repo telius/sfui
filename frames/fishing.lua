@@ -25,8 +25,7 @@ local IsSpellKnown            = _G.IsSpellKnown
 local IsPlayerSpell           = _G.IsPlayerSpell
 local C_Spell                 = _G.C_Spell
 local C_SpellBook             = _G.C_SpellBook
-local C_Timer                 = _G.C_Timer
-local ipairs, pairs          = _G.ipairs, _G.pairs
+local ipairs, pairs           = _G.ipairs, _G.pairs
 local wipe                    = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
 
 -- Global keybind identifiers
@@ -77,9 +76,7 @@ local _state = {
     isFishing = false,
     wasFishing = false,
     lastChannelStopTime = 0,
-    cvarsChanged = false,
     soundsEnhanced = false,
-    isRestoringSounds = false,
     soundCache = {},
     interactCVarCache = {},
     pendingTasks = {},
@@ -128,7 +125,7 @@ end
 for _, cvar in ipairs(SoftTargetCVars) do
     local val = safe_get_cvar(cvar)
     if val ~= nil then
-        _state.interactCVarCache[cvar:lower()] = val
+        _state.interactCVarCache[cvar] = val
     end
 end
 
@@ -141,64 +138,37 @@ local cachedSpellName
 
 local function is_spell_known(spellID)
     if not spellID then return false end
-    if C_SpellBook then
-        if C_SpellBook.IsSpellKnownOrInSpellBook then
-            return C_SpellBook.IsSpellKnownOrInSpellBook(spellID) or false
-        elseif C_SpellBook.IsSpellKnown then
-            return C_SpellBook.IsSpellKnown(spellID) or false
-        elseif C_SpellBook.HasSpell then
-            return C_SpellBook.HasSpell(spellID) or false
-        end
+    if C_SpellBook and C_SpellBook.IsSpellKnownOrInSpellBook then
+        return C_SpellBook.IsSpellKnownOrInSpellBook(spellID) or false
     end
     if IsPlayerSpell then
         return IsPlayerSpell(spellID) or false
-    elseif IsSpellKnown then
-        return IsSpellKnown(spellID) or false
     end
-    return false
+    return (IsSpellKnown and IsSpellKnown(spellID)) or false
 end
 
 local function get_known_fishing_id()
     if cachedFishingID then return cachedFishingID end
-
-    if isClassicEra then
-        for id in pairs(FishingIDs) do
-            if is_spell_known(id) then
-                cachedFishingID = id
-                return id
-            end
-        end
-        return 7620
-    end
-
-    -- Retail / Mainline: check known IDs, default safely to 131474
     for id in pairs(FishingIDs) do
         if is_spell_known(id) then
             cachedFishingID = id
             return id
         end
     end
-    return 131474
+    cachedFishingID = isClassicEra and 7620 or 131474
+    return cachedFishingID
 end
 sfui.fishing.get_known_fishing_id = get_known_fishing_id
 
 local function get_fishing_spell_name()
     if cachedSpellName then return cachedSpellName end
-
     local id = get_known_fishing_id()
     if id then
-        if C_Spell and C_Spell.GetSpellName then
-            local name = C_Spell.GetSpellName(id)
-            if name and name ~= "" then
-                cachedSpellName = name
-                return name
-            end
-        elseif _G.GetSpellInfo then
-            local name = _G.GetSpellInfo(id)
-            if name and name ~= "" then
-                cachedSpellName = name
-                return name
-            end
+        local name = (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(id))
+            or (_G.GetSpellInfo and _G.GetSpellInfo(id))
+        if name and name ~= "" then
+            cachedSpellName = name
+            return name
         end
     end
     cachedSpellName = "Fishing"
@@ -251,24 +221,12 @@ local function enhance_sounds(enable)
     if not enable then
         if not _state.soundsEnhanced then return end
         _state.soundsEnhanced = false
-        _state.isRestoringSounds = true
-        _state.cvarsChanged = true
 
         for _, cvar in ipairs(SoundCVars) do
             local savedVal = _state.soundCache[cvar]
             if savedVal ~= nil then
                 safe_set_cvar(cvar, savedVal)
             end
-        end
-
-        if C_Timer and C_Timer.After then
-            C_Timer.After(0.5, function()
-                _state.isRestoringSounds = false
-                _state.cvarsChanged = false
-            end)
-        else
-            _state.isRestoringSounds = false
-            _state.cvarsChanged = false
         end
     else
         if _state.soundsEnhanced then return end
@@ -289,7 +247,6 @@ local function enhance_sounds(enable)
         end
 
         _state.soundsEnhanced = true
-        _state.cvarsChanged = true
 
         -- Step 2: Apply fishing sound enhancements (boost SFX, mute distractions)
         safe_set_cvar("Sound_EnableAmbience", 0)
@@ -303,19 +260,12 @@ local function enhance_sounds(enable)
         local scale = get_setting("enhanceSoundsScale", 1.0) or 1.0
         safe_set_cvar("Sound_SFXVolume", scale)
         safe_set_cvar("Sound_MasterVolume", scale)
-
-        if C_Timer and C_Timer.After then
-            C_Timer.After(0.5, function()
-                _state.cvarsChanged = false
-            end)
-        end
     end
 end
 
 -- ─── Soft-Targeting & Binding Management ─────────────────────────────────────
 
 local function set_fishing_cvars()
-    _state.cvarsChanged = true
     enhance_sounds(true)
 
     if get_setting("softTarget", true) then
@@ -325,30 +275,15 @@ local function set_fishing_cvars()
         safe_set_cvar("SoftTargetIconGameObject", 1)
         safe_set_cvar("SoftTargetIconInteract", 1)
     end
-
-    if C_Timer and C_Timer.After then
-        C_Timer.After(0.2, function()
-            _state.cvarsChanged = false
-        end)
-    end
 end
 
 local function reset_fishing_cvars(isLogout)
-    if not isLogout then
-        _state.cvarsChanged = true
-    end
     enhance_sounds(false)
 
     if get_setting("softTarget", true) then
         for cvar, val in pairs(_state.interactCVarCache) do
             safe_set_cvar(cvar, val)
         end
-    end
-
-    if not isLogout and C_Timer and C_Timer.After then
-        C_Timer.After(0.2, function()
-            _state.cvarsChanged = false
-        end)
     end
 end
 
@@ -359,18 +294,23 @@ local function clear_fishing_binds()
     end
 end
 
-local function get_all_bound_keys()
-    local keys = {}
+local _boundKeys = {}
+
+local function update_bound_keys()
+    wipe(_boundKeys)
     local seen = {}
     local function add_keys(binding)
         if not GetBindingKey then return end
         local k1, k2 = GetBindingKey(binding)
-        if k1 and not seen[k1] then seen[k1] = true; keys[#keys + 1] = k1 end
-        if k2 and not seen[k2] then seen[k2] = true; keys[#keys + 1] = k2 end
+        if k1 and not seen[k1] then seen[k1] = true; _boundKeys[#_boundKeys + 1] = k1 end
+        if k2 and not seen[k2] then seen[k2] = true; _boundKeys[#_boundKeys + 1] = k2 end
     end
     add_keys("SFUI_FISHING")
     add_keys("BETTERFISHINGKEY")
-    return keys
+end
+
+local function get_all_bound_keys()
+    return _boundKeys
 end
 sfui.fishing.get_all_bound_keys = get_all_bound_keys
 
@@ -476,18 +416,20 @@ local function on_channel_start(event, unit, castGUID, spellID)
     end
 end
 
+local function finish_channel_stop()
+    clear_fishing_binds()
+    if get_setting("autoLoot", true) then
+        loot_all_items()
+    end
+    arm_fishing_keys()
+end
+
 local function on_channel_stop(event, unit, castGUID, spellID)
     if unit ~= "player" then return end
     if (spellID and FishingIDs[spellID]) or _state.isFishing or _state.wasFishing or _state.soundsEnhanced then
         _state.isFishing = false
         _state.lastChannelStopTime = GetTime()
-        defer_action(function()
-            clear_fishing_binds()
-            if get_setting("autoLoot", true) then
-                loot_all_items()
-            end
-            arm_fishing_keys()
-        end)
+        defer_action(finish_channel_stop)
     end
 end
 
@@ -523,6 +465,7 @@ local function on_leave_combat()
 end
 
 local function on_bindings_updated()
+    update_bound_keys()
     if InCombatLockdown and InCombatLockdown() then
         defer_action(arm_fishing_keys)
     else
@@ -531,35 +474,9 @@ local function on_bindings_updated()
     end
 end
 
-local function on_cvar_update(event, cvarName)
-    -- Critical protection: never overwrite soundCache while sounds are enhanced or being restored
-    if _state.soundsEnhanced or _state.isRestoringSounds or _state.cvarsChanged or _state.isFishing then
-        return
-    end
-
-    for _, soundCVar in ipairs(SoundCVars) do
-        if soundCVar == cvarName then
-            _state.soundCache[soundCVar] = safe_get_cvar(cvarName)
-            if SfuiDB and SfuiDB.soundBaseline then
-                SfuiDB.soundBaseline[soundCVar] = _state.soundCache[soundCVar]
-            end
-            break
-        end
-    end
-
-    if not _state.cvarsChanged then
-        local lower = cvarName:lower()
-        if _state.interactCVarCache[lower] ~= nil then
-            _state.interactCVarCache[lower] = safe_get_cvar(cvarName)
-        end
-    end
-end
-
 -- Dedicated manual or auto recovery function to restore normal audio CVars
 local function restore_sound_defaults()
     _state.soundsEnhanced = false
-    _state.isRestoringSounds = true
-    _state.cvarsChanged = true
 
     local master = safe_get_cvar("Sound_MasterVolume")
     local mus = safe_get_cvar("Sound_MusicVolume")
@@ -584,16 +501,6 @@ local function restore_sound_defaults()
         safe_set_cvar(cvar, val)
     end
 
-    if C_Timer and C_Timer.After then
-        C_Timer.After(0.5, function()
-            _state.isRestoringSounds = false
-            _state.cvarsChanged = false
-        end)
-    else
-        _state.isRestoringSounds = false
-        _state.cvarsChanged = false
-    end
-
     print_message("fishing: sound settings restored to normal (ambience on, music 50%, master 60%).")
 end
 sfui.fishing.RestoreSoundDefaults = restore_sound_defaults
@@ -616,28 +523,12 @@ sfui.RegisterModule("fishing", {
         local mus = _state.soundCache["Sound_MusicVolume"]
         local master = _state.soundCache["Sound_MasterVolume"]
         if (amb == "0" or amb == 0) and (mus == "0" or mus == 0) and (master == "1" or master == 1) then
-            _state.soundCache["Sound_EnableAmbience"] = "1"
-            _state.soundCache["Sound_MusicVolume"] = "0.5"
-            _state.soundCache["Sound_EnablePetSounds"] = "1"
-            _state.soundCache["Sound_MasterVolume"] = "0.6"
-            _state.soundCache["Sound_SFXVolume"] = "1"
-            _state.soundCache["Sound_EnableAllSound"] = "1"
-            _state.soundCache["Sound_EnableSFX"] = "1"
-            _state.soundCache["Sound_EnableSoundWhenGameIsInBG"] = "1"
-            if SfuiDB then
-                SfuiDB.soundBaseline = SfuiDB.soundBaseline or {}
-                for k, v in pairs(_state.soundCache) do
-                    SfuiDB.soundBaseline[k] = v
-                end
-            end
-            -- Apply healed sound settings right now so user doesn't stay muted
-            for cvar, val in pairs(_state.soundCache) do
-                safe_set_cvar(cvar, val)
-            end
+            restore_sound_defaults()
         end
     end,
 
     OnEnable = function(self)
+        update_bound_keys()
         get_secure_button()
 
         sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player", on_channel_start)
@@ -648,8 +539,7 @@ sfui.RegisterModule("fishing", {
         sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", on_enter_combat)
         sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", on_leave_combat)
         sfui.events.RegisterEvent("UPDATE_BINDINGS", on_bindings_updated)
-        sfui.events.RegisterEvent("CVAR_UPDATE", on_cvar_update)
-        sfui.events.RegisterEvent("PLAYER_LOGOUT", function() reset_fishing_cvars(true) end)
+        sfui.events.RegisterEvent("PLAYER_LOGOUT", reset_fishing_cvars)
 
         defer_action(arm_fishing_keys)
     end,

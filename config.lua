@@ -764,9 +764,6 @@ sfui.config = {
         enabled             = true,
         autoResummon        = true,
         rotationTimer       = 720, -- Seconds (12 mins, 0 to disable)
-        mode                = "favs", -- "favs", "all", "weighted"
-        favProbability      = 0.5,
         historySize         = 4,
-        suppressInInstances = true,
     },
 }

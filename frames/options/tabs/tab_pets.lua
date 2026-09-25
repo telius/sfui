@@ -62,10 +62,6 @@ sfui.options.RegisterTab({
             "re-summons your last active companion if dismissed.")
         pets_resummon_cb:SetPoint("LEFT", pets_enable_cb, "LEFT", COL_OFFSET_X, 0)
 
-        local pets_suppress_cb = create_checkbox(p, "suppress in M+ & raids", "petsSuppressInInstances", nil,
-            "prevents companion summoning inside Mythic+, Raids, and Arenas.")
-        pets_suppress_cb:SetPoint("TOPLEFT", pets_enable_cb, "BOTTOMLEFT", 0, -10)
-
         local pets_char_favs_cb = create_checkbox(p, "use character favorites", function()
             local charDB = sfui.pets.GetCharDB and sfui.pets.GetCharDB()
             return (charDB and charDB.charFavsEnabled) or false
@@ -77,47 +73,19 @@ sfui.options.RegisterTab({
             end
             if p.refresh_list then p.refresh_list() end
         end, "use this character's custom favorite list instead of account-wide Pet Journal favorites.")
-        pets_char_favs_cb:SetPoint("LEFT", pets_suppress_cb, "LEFT", COL_OFFSET_X, 0)
+        pets_char_favs_cb:SetPoint("TOPLEFT", pets_enable_cb, "BOTTOMLEFT", 0, -10)
         p.char_favs_cb = pets_char_favs_cb
 
         if SfuiDB.petsRotationTimer == nil then SfuiDB.petsRotationTimer = 720 end
         local pets_rot_slider = create_slider_input(p, "rotation timer (secs):", "petsRotationTimer", 0, 3600, 60, nil,
             "periodic timer in seconds to rotate to a new pet (0 to disable).", 220)
-        pets_rot_slider:SetPoint("TOPLEFT", pets_suppress_cb, "BOTTOMLEFT", 0, -12)
-
-        if SfuiDB.petsFavProbability == nil then SfuiDB.petsFavProbability = 50 end
-        if SfuiDB.petsFavProbability <= 1 and SfuiDB.petsFavProbability > 0 then
-            SfuiDB.petsFavProbability = math_floor(SfuiDB.petsFavProbability * 100)
-        end
-        local pets_prob_slider = create_slider_input(p, "favorite chance (%):", "petsFavProbability", 0, 100, 5, nil,
-            "chance to pick a favorite pet over a random pet when in weighted mode.", 220)
-        pets_prob_slider:SetPoint("LEFT", pets_rot_slider, "LEFT", COL_OFFSET_X, 0)
-
-        local function GetPetModeOptions()
-            return {
-                { text = "Favorites Only", value = "favs" },
-                { text = "All Collected Pets", value = "all" },
-                { text = "Weighted (Favs + All)", value = "weighted" },
-            }
-        end
-
-        local mode_label = p:CreateFontString(nil, "OVERLAY", g.font_small or "GameFontNormalSmall")
-        mode_label:SetPoint("TOPLEFT", pets_rot_slider, "BOTTOMLEFT", 0, -14)
-        mode_label:SetTextColor(1, 1, 1, 0.8)
-        mode_label:SetText("summon pool mode:")
-
-        if SfuiDB.petsMode == nil then SfuiDB.petsMode = "favs" end
-        local mode_dropdown = common.create_dropdown(p, 180, GetPetModeOptions, function(val)
-            SfuiDB.petsMode = val
-            if sfui.pets.RebuildPools then sfui.pets.RebuildPools() end
-        end, SfuiDB.petsMode)
-        mode_dropdown:SetPoint("LEFT", mode_label, "RIGHT", 10, 0)
+        pets_rot_slider:SetPoint("TOPLEFT", pets_char_favs_cb, "BOTTOMLEFT", 0, -12)
 
         -- ── Section 2: Character Favorites List ───────────────────────────────
         local favs_sep = p:CreateTexture(nil, "ARTWORK")
         favs_sep:SetHeight(1)
-        favs_sep:SetPoint("TOPLEFT", 15, -200)
-        favs_sep:SetPoint("TOPRIGHT", -15, -200)
+        favs_sep:SetPoint("TOPLEFT", pets_rot_slider, "BOTTOMLEFT", 0, -18)
+        favs_sep:SetPoint("RIGHT", p, "RIGHT", -15, 0)
         favs_sep:SetColorTexture(0.2, 0.2, 0.2, 1)
 
         local favs_header = p:CreateFontString(nil, "OVERLAY", g.font or "GameFontNormal")

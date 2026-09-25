@@ -2286,8 +2286,8 @@ sfui.alts.RegisterProvider({
     end,
     RegisterEvents = function()
         local function on_sync()
-            sfui.alts.PerformSync()
             if SfuiAltsFrame and SfuiAltsFrame:IsShown() then
+                sfui.alts.PerformSync()
                 sfui.alts.UpdateUI(true)
             end
         end
@@ -2321,16 +2321,23 @@ sfui.alts.RegisterProvider({
         sfui.events.RegisterEvent("CHALLENGE_MODE_START", on_sync)
         sfui.events.RegisterEvent("CHALLENGE_MODE_RESET", on_sync)
         sfui.events.RegisterEvent("CHALLENGE_MODE_COMPLETED", function()
+            challengeModeValidGUID = UnitGUID("player")
             if C_MythicPlus and C_MythicPlus.RequestMapInfo then
                 C_MythicPlus.RequestMapInfo()
             end
-            on_sync()
+            sfui.alts.PerformSync()
+            if SfuiAltsFrame and SfuiAltsFrame:IsShown() then
+                sfui.alts.UpdateUI(true)
+            end
         end)
         sfui.events.RegisterEvent("MYTHIC_PLUS_NEW_WEEKLY_RECORD", function()
             if C_MythicPlus and C_MythicPlus.RequestMapInfo then
                 C_MythicPlus.RequestMapInfo()
             end
-            on_sync()
+            sfui.alts.PerformSync()
+            if SfuiAltsFrame and SfuiAltsFrame:IsShown() then
+                sfui.alts.UpdateUI(true)
+            end
         end)
         sfui.events.RegisterEvent("MYTHIC_PLUS_CURRENT_AFFIX_UPDATE", on_sync)
         sfui.events.RegisterEvent("WEEKLY_REWARDS_UPDATE", on_sync)
@@ -2343,11 +2350,10 @@ sfui.alts.RegisterProvider({
         sfui.events.RegisterThrottledEvent("CURRENCY_DISPLAY_UPDATE", 0.5, on_sync)
         sfui.events.RegisterEvent("QUEST_TURNED_IN", function(_, questID)
             OnQuestTurnedIn(questID)
-            on_sync()
+            if SfuiAltsFrame and SfuiAltsFrame:IsShown() then
+                sfui.alts.UpdateUI(true)
+            end
         end)
-        sfui.events.RegisterEvent("QUEST_ACCEPTED", on_sync)
-        sfui.events.RegisterEvent("QUEST_REMOVED", on_sync)
-        sfui.events.RegisterThrottledEvent("QUEST_LOG_UPDATE", 1.0, on_sync)
 
         if IsLoggedIn and IsLoggedIn() then
             local playerLevel = UnitLevel("player")

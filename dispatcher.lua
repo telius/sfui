@@ -296,6 +296,16 @@ function sfui.events.UnregisterUnitEvent(event, unit, callback)
     end
 end
 
+--- Unregister multiple unit events for a given unit and callback.
+--- @param events   table      e.g. {"UNIT_AURA", "UNIT_SPELLCAST_SUCCEEDED"}
+--- @param unit     string     e.g. "player"
+--- @param callback function(event, unit, ...)
+function sfui.events.UnregisterUnitEvents(events, unit, callback)
+    for i = 1, #events do
+        sfui.events.UnregisterUnitEvent(events[i], unit, callback)
+    end
+end
+
 --- Register a throttled OnUpdate callback.
 --- sfui.events.RegisterUpdate([name,] interval, callback)
 --- Intervals below MIN_UPDATE_INTERVAL (0.016s ≈ 60fps) are clamped up.

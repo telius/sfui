@@ -1,20 +1,26 @@
 # Changelog
 
-## v12.1.0-54 (2026-09-25)
+## v12.1.0-55 (2026-09-25)
 
-### Features & Automation
-- **Continuous 1-Key Fishing Automation & Auto-Loot (`frames/fishing.lua`, `frames/options/tabs/tab_fishing.lua`)**:
-  - Implemented continuous 1-key fishing cycle: single keybind casts, interacts with soft-target bobber to reel in, and loots fish automatically without keybind disarming delays or wasted keypresses.
-  - Eliminated full-time mouse intercept listeners (`GLOBAL_MOUSE_DOWN`, `GLOBAL_MOUSE_UP`) and removed legacy double-click tracking, reducing idle CPU consumption to strictly 0.000%.
-  - Added dedicated auto-loot configuration toggle and clean sound volume slider layout in options panel.
+### Companion Pets Automation & Performance
+- **Lean Pet Cycling & Management (`frames/pets.lua`, `frames/options/tabs/tab_pets.lua`)**:
+  - Eliminated full 1,500+ pet journal indexing scans; focused rotation and pool construction exclusively on account favorites and character-specific assigned pets.
+  - Fixed premature realm caching: `get_character_key()` now safely falls back to CVars and post-login realm names (e.g. `Silverlaine-Draenor`), preventing character favorites from being isolated in an empty profile.
+  - Fixed direct Blizzard `C_PetJournal` API calls (`SummonPetByGUID`, `GetSummonedPetGUID`).
+  - Added proactive pet presence verification to the 5.0s background loop and `PLAYER_ENTERING_WORLD`, guaranteeing companions are automatically summoned even while standing still in town.
+  - Removed unnecessary instance and zone gating restrictions.
 
-### Major Code Cleanup & Optimization
-- **Pruned Legacy Defensive APIs & Bloat (`frames/fishing.lua`)**:
-  - Removed obsolete 3rd-party legacy checks: eliminated `C_Secrets`, `C_UnitAuras`, `IsFlying`, `is_flying_safe()`, Dragonflight lunker checks, and 15 redundant `pcall` wrappers in favor of direct Blizzard API calls.
-  - Replaced polling `ChannelInfo()` and `UnitChannelInfo()` with low-overhead reactive event tracking via `UNIT_SPELLCAST_CHANNEL_START` and `UNIT_SPELLCAST_CHANNEL_STOP`.
-  - Cleaned up unused and redundant locals and frame references across the module.
-- **Memory Profiler Observer Isolation (`frames/mem.lua`)**:
-  - Gated live GUI ticker updates during active profiling runs to prevent self-profiling observer table churn.
-  - Restored and streamlined live fishing telemetry in `/sfui mem` diagnostic view.
-- **Quest & Alt Frame Polish (`frames/quests/`, `frames/alts/`)**:
-  - Refined layout, block rendering, and quest tracker sizing heuristics.
+### Skyriding & Mount Speed Bar Fixes
+- **Dynamic Mount Speed Bar Restoration (`frames/bars/bars.lua`)**:
+  - Fixed Lua return-value truncation bug where `GetGlidingInfo()` was wrapped in parentheses, causing `forwardSpeed` to evaluate to `nil` and locking the speed bar at 100% white fill.
+  - Added explicit zero-value initialization on status bar creation.
+  - Restored real-time speed percentage updates, Thrill of the Skies magenta coloration, and 0-idle dispatcher unregistration when dismounted.
+
+### City Flight & Zone Transition Optimization
+- **Eliminated Subzone Memory Churn (`frames/quests/`, `frames/alts/`)**:
+  - Unregistered `AREA_POIS_UPDATED` from World Events tracker, eliminating ~350 KB of garbage collection churn on every city subzone border crossing.
+  - Gated background Alts synchronization behind frame visibility: deep multi-alt lockout, vault, and currency scans are skipped completely while the Alts panel is hidden.
+
+### Vehicle UI & Module Polish
+- **Streamlined Vehicle Bar (`frames/bars/vehicle.lua`)**:
+  - Modernized vehicle detection, power tracking, and action bar transition logic.

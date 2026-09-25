@@ -486,14 +486,15 @@ function sfui.mem.GetModuleStats()
     local petStats = {
         name = "companion pet manager",
         status = "|cff888888idle|r",
-        line1 = "pools: all=0, favs=0",
-        line2 = "mode: favs • rot: 720s",
+        line1 = "favs: 0 • hist: 0",
+        line2 = "rot: 720s • summoned: none",
     }
     local p = GetDebug("pets_debug_info", "pets")
     if p then
         petStats.status = p.enabled and "|cff00ff88active|r" or "|cff888888disabled|r"
-        petStats.line1 = string_format("pools: all=%d, favs=%d • hist: %d", tonumber(p.poolAllCount) or 0, tonumber(p.poolFavsCount) or 0, tonumber(p.historyCount) or 0)
-        petStats.line2 = string_format("mode: %s • timer: %ds • summoned: %s", tostring(p.mode or "favs"), tonumber(p.rotationTimer) or 720, p.currentPet and "|cff00ff88yes|r" or "none")
+        local poolType = p.isCharFavs and "char (" .. (p.charFavsCount or 0) .. ")" or "account"
+        petStats.line1 = string_format("favs: %d [%s] • hist: %d", tonumber(p.poolFavsCount) or 0, poolType, tonumber(p.historyCount) or 0)
+        petStats.line2 = string_format("rot: %ds • summoned: %s", tonumber(p.rotationTimer) or 720, p.currentPet and "|cff00ff88yes|r" or "none")
     end
     stats["pets"] = petStats
 

@@ -72,19 +72,19 @@ local function initialize_sfui()
     SfuiDecorDB.items = SfuiDecorDB.items or {}
 
     if sfui.db and sfui.db.Initialize then
-        pcall(sfui.db.Initialize)
+        sfui.db.Initialize()
     end
     if sfui.InitModules then
-        pcall(sfui.InitModules)
+        sfui.InitModules()
     end
 
     if sfui.initialize_database then
-        pcall(sfui.initialize_database)
+        sfui.initialize_database()
     end
 
     -- Migrate cooldown panels to per-spec structure
     if sfui.common and sfui.common.migrate_cooldown_panels_to_spec then
-        pcall(sfui.common.migrate_cooldown_panels_to_spec)
+        sfui.common.migrate_cooldown_panels_to_spec()
     end
 
     local getMeta = (C_AddOns and C_AddOns.GetAddOnMetadata) or _G.GetAddOnMetadata
@@ -95,9 +95,12 @@ local function initialize_sfui()
 
     if sfui.config and sfui.config.cvars_on_load then
         local setCVar = (C_CVar and C_CVar.SetCVar) or _G.SetCVar
+        local getCVar = (C_CVar and C_CVar.GetCVar) or _G.GetCVar
         if setCVar then
             for _, cvar_data in ipairs(sfui.config.cvars_on_load) do
-                pcall(setCVar, cvar_data.name, cvar_data.value)
+                if not getCVar or getCVar(cvar_data.name) ~= nil then
+                    setCVar(cvar_data.name, cvar_data.value)
+                end
             end
         end
     end
@@ -132,10 +135,11 @@ local function initialize_sfui()
         "floatingCombatTextCombatState_v2"
     }
     local setCVar = (C_CVar and C_CVar.SetCVar) or _G.SetCVar
+    local getCVar = (C_CVar and C_CVar.GetCVar) or _G.GetCVar
     if setCVar then
         for _, cvar in ipairs(combatTextCVars) do
-            if SfuiDB[cvar] ~= nil then
-                pcall(setCVar, cvar, SfuiDB[cvar] and "1" or "0")
+            if SfuiDB[cvar] ~= nil and (not getCVar or getCVar(cvar) ~= nil) then
+                setCVar(cvar, SfuiDB[cvar] and "1" or "0")
             end
         end
     end
@@ -158,7 +162,7 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
     if sfui.update_pixel_scale then sfui.update_pixel_scale() end
 
     if sfui.EnableModules then
-        pcall(sfui.EnableModules)
+        sfui.EnableModules()
     end
 
     if sfui.common and sfui.common.hide_blizzard_cooldown_viewers then

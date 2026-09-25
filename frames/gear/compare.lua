@@ -5,9 +5,10 @@ sfui.compare = {}
 local active = false
 
 local setCVar = (C_CVar and C_CVar.SetCVar) or _G.SetCVar
+local getCVar = (C_CVar and C_CVar.GetCVar) or _G.GetCVar
 local function safe_set_cvar(cvar, val)
-    if setCVar then
-        pcall(setCVar, cvar, val)
+    if setCVar and (not getCVar or getCVar(cvar) ~= nil) then
+        setCVar(cvar, val)
     end
 end
 
