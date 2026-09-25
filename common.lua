@@ -1332,9 +1332,46 @@ end
 -- Checks if an item link corresponds to a housing decor item
 function sfui.common.is_housing_decor(link)
     local itemID = sfui.common.get_item_id_from_link(link)
-    if itemID and C_HousingCatalog and C_HousingCatalog.GetCatalogEntryInfoByItem then
-        local info = C_HousingCatalog.GetCatalogEntryInfoByItem(itemID, false)
-        return info and info.entryID and info.entryID.entryType == 1
+    if not itemID then return false end
+    if C_HousingCatalog and C_HousingCatalog.GetCatalogEntryInfoByItem then
+        local ok, info = pcall(C_HousingCatalog.GetCatalogEntryInfoByItem, itemID)
+        if ok and info then
+            local entryType = info.entryType or (info.entryID and info.entryID.entryType)
+            if entryType == 1 or (Enum and Enum.HousingCatalogEntryType and entryType == Enum.HousingCatalogEntryType.Decor) then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Checks if a decor item grants House XP (e.g. uncollected first-time bonus)
+function sfui.common.decor_grants_xp(link)
+    if not link then return false end
+    local itemID = sfui.common.get_item_id_from_link(link)
+    if not itemID then return false end
+
+    if C_HousingCatalog and C_HousingCatalog.GetCatalogEntryInfoByItem then
+        local ok, info = pcall(C_HousingCatalog.GetCatalogEntryInfoByItem, itemID)
+        if ok and info then
+            if info.firstAcquisitionBonus and info.firstAcquisitionBonus > 0 then
+                return true, info.firstAcquisitionBonus
+            end
+            return false
+        end
+    end
+
+    if C_TooltipInfo and C_TooltipInfo.GetHyperlink then
+        local ok, data = pcall(C_TooltipInfo.GetHyperlink, link)
+        if ok and data and data.lines then
+            for i = 1, #data.lines do
+                local line = data.lines[i]
+                local text = line and (line.leftText or (line.args and line.args[2] and line.args[2].stringVal))
+                if text and (text:find("House XP", 1, true) or text:find("First%-Time Collection Bonus", 1, true)) then
+                    return true
+                end
+            end
+        end
     end
     return false
 end
@@ -1413,8 +1450,6 @@ end
 
 function sfui.initialize_database()
     if type(SfuiDB) ~= "table" then SfuiDB = {} end
-    if type(SfuiDecorDB) ~= "table" then SfuiDecorDB = {} end
-    SfuiDecorDB.items = SfuiDecorDB.items or {}
     SfuiDB.iconGlobalSettings = SfuiDB.iconGlobalSettings or {}
     local igs = SfuiDB.iconGlobalSettings
     local g = sfui.config.icon_panel_global_defaults
@@ -1440,7 +1475,6 @@ function sfui.initialize_database()
     if SfuiDB.repairThreshold == nil then SfuiDB.repairThreshold = 90 end
     if SfuiDB.enableMasterHammer == nil then SfuiDB.enableMasterHammer = true end
     if SfuiDB.enableMerchant == nil then SfuiDB.enableMerchant = true end
-    if SfuiDB.enableDecor == nil then SfuiDB.enableDecor = false end -- Opt-in feature
     if SfuiDB.repairIconColor == nil then SfuiDB.repairIconColor = sfui.config.masterHammer.defaultColor end
     if SfuiDB.enableCursorRing == nil then SfuiDB.enableCursorRing = true end
     if SfuiDB.cursorRingScale == nil then SfuiDB.cursorRingScale = 1.0 end

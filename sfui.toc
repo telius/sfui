@@ -9,7 +9,7 @@
 ## X-GitHub-Repository: https://github.com/telius/sfui
 ## X-Project-Name: sfui
 ## LoadSavedVariablesFirst: 1
-## SavedVariables: SfuiDB, SfuiDecorDB
+## SavedVariables: SfuiDB
 ## OptionalDeps: Blizzard_ObjectiveTracker, Masque, LibStub, CallbackHandler-1.0, LibCustomGlow-1.0, LibSharedMedia-3.0, LibDataBroker-1.1, LibDBIcon-1.0
 ## IconTexture: Interface/AddOns/sfui/icon.png
 

@@ -172,9 +172,12 @@ end)
 sfui.merchant.scrollOffset = 0
 sfui.merchant.totalMerchantItems = 0
 
+local decorXpCache = {}
+
 function sfui.merchant.reset_scroll_and_rebuild()
     sfui.merchant.scrollOffset = 0
     wipe(sfui.merchant.lockCache)
+    wipe(decorXpCache)
     if frame.scrollBar then
         frame.scrollBar:SetValue(0)
     end
@@ -185,9 +188,6 @@ end
 local buttons = {}
 
 local get_item_id = common.get_item_id_from_link
-
-
-sfui.merchant.housingDecorFilter = sfui.merchant.housingDecorFilter or 0
 
 function sfui.merchant.create_stack_split_frame(parent)
     local f = CreateFrame("Frame", nil, parent, "BackdropTemplate")
@@ -661,37 +661,6 @@ sfui.merchant.filterBtn:SetScript("OnLeave", function(self)
     end
 end)
 
-sfui.merchant.housingFilterBtn = CreateFlatButton(utilityBar, "decor: all", cfg.utility_bar.button_large,
-    cfg.utility_bar.button_height)
-sfui.merchant.housingFilterBtn:SetPoint("LEFT", sfui.merchant.filterBtn, "RIGHT", 5, 0)
-
-local function update_housing_filter_button_style(self)
-    if sfui.merchant.housingDecorFilter == 1 then
-        self:SetText("decor: hide known")
-        common.set_color(self, cfg.button_colors.decor_hide_owned)
-    else
-        self:SetText("decor: show all")
-        common.set_color(self, cfg.button_colors.decor_show_all)
-    end
-end
-update_housing_filter_button_style(sfui.merchant.housingFilterBtn)
-
-sfui.merchant.housingFilterBtn:SetScript("OnClick", function(self)
-    -- Cycle through states: 0 -> 1 -> 0
-    sfui.merchant.housingDecorFilter = (sfui.merchant.housingDecorFilter + 1) % 2
-    update_housing_filter_button_style(self)
-    sfui.merchant.reset_scroll_and_rebuild()
-end)
-
-sfui.merchant.housingFilterBtn:SetScript("OnEnter", function(self)
-    if sfui.merchant.housingDecorFilter == 0 then
-        common.set_color(self, cfg.button_colors.filter_hover)
-    end
-end)
-
-sfui.merchant.housingFilterBtn:SetScript("OnLeave", function(self)
-    update_housing_filter_button_style(self) -- Revert to state color
-end)
 
 local guildRepairBtn = CreateFrame("Button", nil, utilityBar, "BackdropTemplate")
 guildRepairBtn:SetSize(22, 22); guildRepairBtn:SetPoint("RIGHT", 0, 0)
@@ -816,54 +785,6 @@ sfui.merchant.filteredIndices = {}
 
 sfui.merchant.currencyCache = {}
 sfui.merchant.lockCache = {} -- Persistent cache for lock reasons
-sfui.merchant.decorCachePopulated = false
-
-sfui.merchant.populate_decor_cache = function()
-    if SfuiDB and not SfuiDB.enableDecor then return end
-    if sfui.merchant.decorCachePopulated then return end
-    if not (C_HousingCatalog and C_HousingCatalog.CreateCatalogSearcher) then return end
-
-    local searcher = C_HousingCatalog.CreateCatalogSearcher()
-
-    searcher:SetOwnedOnly(true)
-    searcher:SetCollected(true)
-    searcher:SetUncollected(false)
-    searcher:SetAutoUpdateOnParamChanges(false)
-
-    local function OnResults()
-        local results = searcher:GetAllSearchItems()
-        SfuiDecorDB.items = {}
-
-        if results then
-            for _, entryID in ipairs(results) do
-                local info = C_HousingCatalog.GetCatalogEntryInfo(entryID)
-                if info and info.itemID then
-                    local subtype = info.entryID and info.entryID.entrySubtype or 0
-                    if subtype ~= 1 then
-                        local qty = (info.quantity or 0)
-                        local redeem = (info.remainingRedeemable or 0)
-                        local totalOwned = qty + redeem
-                        local placed = info.numPlaced or 0
-                        local storage = qty
-
-                        if totalOwned > 0 or placed > 0 then
-                            SfuiDecorDB.items[info.itemID] = {
-                                o = totalOwned,
-                                p = placed,
-                                s = storage
-                            }
-                        end
-                    end
-                end
-            end
-        end
-        sfui.merchant.decorCachePopulated = true
-        sfui.merchant.decorCacheStatus = "Populated with " .. (results and #results or 0) .. " entries."
-    end
-
-    searcher:SetResultsUpdatedCallback(OnResults)
-    searcher:RunSearch()
-end
 
 
 
@@ -884,16 +805,12 @@ sfui.merchant.build_item_list = function()
 
     wipe(sfui.merchant.filteredIndices)
     releaseCache(sfui.merchant.currencyCache)
-    local hasHousingItems = false
     local specID = common.get_current_spec_id() -- Optimization: Hoist out of loop
 
     for i = 1, numItemsRaw do
         local include, link = true, nil
         if mode == "merchant" then
             link = GetMerchantItemLink(i)
-            if link and not hasHousingItems and common.is_housing_decor(link) then
-                hasHousingItems = true
-            end
         else
             link = GetBuybackItemLink(i)
         end
@@ -923,14 +840,6 @@ sfui.merchant.build_item_list = function()
 
             if isKnown then
                 include = false
-            end
-        end
-        if include and mode == "merchant" and (SfuiDB and SfuiDB.enableDecor) and sfui.merchant.housingDecorFilter > 0 and common.is_housing_decor(link) then
-            if SfuiDecorDB and SfuiDecorDB.items and SfuiDecorDB.items[itemID] then
-                local cached = SfuiDecorDB.items[itemID]
-                if sfui.merchant.housingDecorFilter == 1 and ((cached.o or 0) + (cached.p or 0) + (cached.s or 0)) > 0 then
-                    include = false
-                end
             end
         end
 
@@ -1013,14 +922,6 @@ sfui.merchant.build_item_list = function()
 
 
 
-    if sfui.merchant.housingFilterBtn then
-        if SfuiDB and not SfuiDB.enableDecor then
-            sfui.merchant.housingFilterBtn:Hide()
-        else
-            sfui.merchant.housingFilterBtn:Show()
-        end
-    end
-
     sfui.merchant.totalMerchantItems = #sfui.merchant.filteredIndices
 
     local totalRows = math.ceil(sfui.merchant.totalMerchantItems / NUM_COLS)
@@ -1074,25 +975,28 @@ sfui.merchant.update_merchant = function()
                 -- Sync Masque state
                 common.sync_masque(btn.iconWrap, { Icon = btn.icon })
 
-                local typeText, isDecor = "", common.is_housing_decor(data.link)
-                if isDecor then
-                    local id = get_item_id(data.link)
-                    local cached = id and SfuiDecorDB and SfuiDecorDB.items and SfuiDecorDB.items[id]
-                    local count = cached and ((cached.o or 0) + (cached.p or 0)) or 0
-                    if count > 0 then
-                        btn.check:Show(); btn.unknownDecor:Hide()
-                    else
-                        btn.check:Hide(); btn.unknownDecor:Show()
-                    end
-                else
-                    btn.check:Hide(); btn.unknownDecor:Hide()
-                    local slot = (data.equipLoc and data.equipLoc ~= "" and _G[data.equipLoc]) or ""
-                    typeText = (slot ~= "" and slot) or data.subType or ""
-                    if data.classID == 4 and data.subClassID and data.subClassID <= 4 and data.subType ~= slot then
-                        typeText = slot .. (data.subType ~= "" and " - " .. data.subType or "")
-                    end
+                local slot = (data.equipLoc and data.equipLoc ~= "" and _G[data.equipLoc]) or ""
+                local typeText = (slot ~= "" and slot) or data.subType or ""
+                if data.classID == 4 and data.subClassID and data.subClassID <= 4 and data.subType ~= slot then
+                    typeText = slot .. (data.subType ~= "" and " - " .. data.subType or "")
                 end
                 btn.subName:SetText(typeText == "Other" and "" or typeText)
+
+                local itemID = data.link and get_item_id(data.link)
+                local grantsXp = false
+                if itemID then
+                    if decorXpCache[itemID] == nil then
+                        decorXpCache[itemID] = common.decor_grants_xp(data.link) and true or false
+                    end
+                    grantsXp = decorXpCache[itemID]
+                end
+
+                if grantsXp then
+                    btn.unknownDecor:Show()
+                else
+                    btn.unknownDecor:Hide()
+                end
+                btn.check:Hide()
 
                 local r, g, b = C_Item.GetItemQualityColor(data.quality or 1)
                 btn.nameStub:SetTextColor(r, g, b); btn.nameStub:SetText(common.shorten_name(data.name, 22))
@@ -1227,10 +1131,6 @@ end
 local isSystemClose = false
 
 -- Events (via central dispatcher — frame is a visual-only container now)
-sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
-    C_Timer.After(2, function() sfui.merchant.populate_decor_cache() end)
-end)
-
 sfui.events.RegisterEvent("MERCHANT_SHOW", function()
     wipe(sfui.merchant.lockCache)
     update_header()
@@ -1254,6 +1154,7 @@ end)
 
 sfui.events.RegisterEvent("MERCHANT_CLOSED", function()
     wipe(sfui.merchant.lockCache)
+    wipe(decorXpCache)
     isSystemClose = true
     frame:Hide()
     isSystemClose = false
@@ -1270,6 +1171,8 @@ local function on_merchant_update(event, ...)
     if event == "GET_ITEM_INFO_RECEIVED" then
         local itemID, success = ...
         if not success or not itemID then return end
+
+        decorXpCache[itemID] = nil
 
         -- Only rebuild if the item is actually in the merchant's current stock
         local found = false
@@ -1292,25 +1195,9 @@ local function on_merchant_update(event, ...)
             end)
         end
     end
-
-    if event == "HOUSING_STORAGE_ENTRY_UPDATED" then
-        local entryID = ...
-        if entryID and C_HousingCatalog.GetCatalogEntryInfo then
-            local info = C_HousingCatalog.GetCatalogEntryInfo(entryID)
-            if info and info.itemID and SfuiDecorDB and SfuiDecorDB.items then
-                SfuiDecorDB.items[info.itemID] = {
-                    o = (info.quantity or 0) + (info.remainingRedeemable or 0),
-                    p = info.numPlaced or 0,
-                    s = info.quantity or 0
-                }
-            end
-        end
-    end
 end
-sfui.events.RegisterEvent("MERCHANT_UPDATE",             on_merchant_update)
-sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED",       on_merchant_update)
-sfui.events.RegisterEvent("HOUSING_STORAGE_UPDATED",      on_merchant_update)
-sfui.events.RegisterEvent("HOUSING_STORAGE_ENTRY_UPDATED",on_merchant_update)
+sfui.events.RegisterEvent("MERCHANT_UPDATE",       on_merchant_update)
+sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", on_merchant_update)
 
 tinsert(UISpecialFrames, "SfuiMerchantFrame")
 frame:Hide()

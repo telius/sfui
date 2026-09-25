@@ -68,9 +68,6 @@ local function initialize_sfui()
     SfuiDB.spec_colors = SfuiDB.spec_colors or {}
     SfuiDB.hearthstone = SfuiDB.hearthstone or {}
 
-    SfuiDecorDB = SfuiDecorDB or {}
-    SfuiDecorDB.items = SfuiDecorDB.items or {}
-
     if sfui.db and sfui.db.Initialize then
         sfui.db.Initialize()
     end

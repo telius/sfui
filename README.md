@@ -148,7 +148,7 @@ Redesigned merchant interface with currency display and automated convenience fe
 - `Shift + RightClick` to buy full stacks or max affordable quantity
 - 1-click auto-selling of grey trash items
 - Automated gear repair (prioritizing guild bank repairs)
-- Housing decor item filtering
+- First-time House XP bonus indicator on housing decor items
 
 ![Merchant UI](.previews/merchant.png)
 
