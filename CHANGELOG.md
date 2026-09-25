@@ -1,21 +1,20 @@
 # Changelog
 
-## v12.1.0-53 (2026-09-24)
+## v12.1.0-54 (2026-09-25)
 
-### Architectural Features & Telemetry
-- **Universal Module Registry & Diagnostic Telemetry Across All 30 Subsystems (`frames/mem.lua`, `core/module.lua`)**:
-  - Integrated `sfui.RegisterModule` lifecycle tracking and standardized `_debug_info` telemetry providers across all 30 addon subsystem modules (including `fishing`, `pets`, `logs`, `hammer`, `bonusroll`, `stats`, `gear`, `automation`, `currency`, `minimap`, `location`, `cursor`, `research`, `merchant`, `transfer`, `bars/vehicle`, `bars/soulfragments`, `tracking/cdm`, `tracking/glows`, `portals`, `gear/lootspec`, `quests/modules/q_worldevents`, `quests/q_mythic`).
-  - Expanded `/sfui mem` diagnostic profiler to display live memory metrics, frame pools, table pools, and cache counts across the entire interface.
-- **Centralized Dispatcher Update Loops & Zero-CPU Idle (`frames/mem.lua`, `frames/cursor.lua`, `frames/bars/bars.lua`, `frames/bars/vehicle.lua`)**:
-  - Migrated legacy private frame `OnUpdate` loops to `sfui.events.RegisterUpdate`.
-  - Memory Profiler GUI loop (1.0s) registers on `OnShow` and unregisters on `OnHide` (0 CPU when hidden).
-  - Cursor ring position tracking loop registers on enable and cleanly unregisters when disabled.
-  - Mount speed bar loop runs only while airborne during dragonriding / skyriding and sleeps when grounded.
-  - Vehicle bar update loop hooks strictly to vehicle frame `OnShow` and unregisters on `OnHide`.
+### Features & Automation
+- **Continuous 1-Key Fishing Automation & Auto-Loot (`frames/fishing.lua`, `frames/options/tabs/tab_fishing.lua`)**:
+  - Implemented continuous 1-key fishing cycle: single keybind casts, interacts with soft-target bobber to reel in, and loots fish automatically without keybind disarming delays or wasted keypresses.
+  - Eliminated full-time mouse intercept listeners (`GLOBAL_MOUSE_DOWN`, `GLOBAL_MOUSE_UP`) and removed legacy double-click tracking, reducing idle CPU consumption to strictly 0.000%.
+  - Added dedicated auto-loot configuration toggle and clean sound volume slider layout in options panel.
 
-### Improvements & Documentation
-- **Comprehensive Documentation & Feature Reference Overhaul (`README.md`)**:
-  - Overhauled user documentation with detailed sections for the modular 14-tab options panel, companion pet manager, fishing automation, loot browser, objective tracker engine, and gear heuristics.
-  - Added a full slash commands reference table and Blizzard keybindings mapping.
-- **Single-Release Changelog Architecture (`CHANGELOG.md`, `version-bump.md`)**:
-  - Streamlined `CHANGELOG.md` to retain only current active release patch notes, delegating historical version archives to Git releases.
+### Major Code Cleanup & Optimization
+- **Pruned Legacy Defensive APIs & Bloat (`frames/fishing.lua`)**:
+  - Removed obsolete 3rd-party legacy checks: eliminated `C_Secrets`, `C_UnitAuras`, `IsFlying`, `is_flying_safe()`, Dragonflight lunker checks, and 15 redundant `pcall` wrappers in favor of direct Blizzard API calls.
+  - Replaced polling `ChannelInfo()` and `UnitChannelInfo()` with low-overhead reactive event tracking via `UNIT_SPELLCAST_CHANNEL_START` and `UNIT_SPELLCAST_CHANNEL_STOP`.
+  - Cleaned up unused and redundant locals and frame references across the module.
+- **Memory Profiler Observer Isolation (`frames/mem.lua`)**:
+  - Gated live GUI ticker updates during active profiling runs to prevent self-profiling observer table churn.
+  - Restored and streamlined live fishing telemetry in `/sfui mem` diagnostic view.
+- **Quest & Alt Frame Polish (`frames/quests/`, `frames/alts/`)**:
+  - Refined layout, block rendering, and quest tracker sizing heuristics.

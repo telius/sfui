@@ -970,7 +970,7 @@ sfui.automation.reset_caches = sfui.hammer.reset_caches
 
 local _hamDebug = {}
 function sfui.hammer_debug_info()
-    local found, _, _, itemID = sfui.hammer.has_repair_hammer(true)
+    local found, _, _, itemID = sfui.hammer.has_repair_hammer(false)
     local carried = sfui.hammer.get_carried_hammers()
     _hamDebug.hasHammer = found
     _hamDebug.hammerItemID = itemID

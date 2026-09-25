@@ -101,9 +101,11 @@ local function ExecuteLayout()
     end
 
     -- Run vertical stack layout
-    Layout.BuildLayout(container, allSections)
-
+    local ok, err = pcall(Layout.BuildLayout, container, allSections)
     isRefreshing = false
+    if not ok and _G.geterrorhandler then
+        _G.geterrorhandler()(err)
+    end
 end
 
 function Tracker.RequestRefresh(delay)
@@ -551,6 +553,15 @@ local function SetupEventRouting()
         SuppressBlizzardTrackers()
     end)
     sfui.events.RegisterEvent("QUEST_WATCH_LIST_CHANGED", function()
+        SuppressBlizzardTrackers()
+    end)
+    sfui.events.RegisterEvent("QUEST_WATCH_UPDATE", function()
+        SuppressBlizzardTrackers()
+    end)
+    sfui.events.RegisterEvent("QUEST_LOG_CRITERIA_UPDATE", function()
+        SuppressBlizzardTrackers()
+    end)
+    sfui.events.RegisterEvent("QUEST_CRITERIA_UPDATE", function()
         SuppressBlizzardTrackers()
     end)
     sfui.events.RegisterEvent("ADDON_LOADED", function(event, loadedAddon)

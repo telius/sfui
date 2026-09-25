@@ -375,6 +375,19 @@ local function CheckWeeklyResets()
         end
     end
 
+    -- Sanitize copied / corrupted Mythic+ data for alts below max level
+    local maxPlayerLevel = (_G.GetMaxPlayerLevel and _G.GetMaxPlayerLevel())
+    for _, d in pairs(SfuiDB.alts or {}) do
+        if d.level and d.level < maxPlayerLevel then
+            if d.rating and d.rating > 0 then d.rating = 0 end
+            if d.dungeons and next(d.dungeons) then d.dungeons = {} end
+            if d.vault and d.vault.dungeonRuns and #d.vault.dungeonRuns > 0 then
+                d.vault.dungeonRuns = {}
+            end
+            d.keystone = nil
+        end
+    end
+
     for g, d in pairs(SfuiDB.alts or {}) do
         if d.lastUpdate and (now - d.lastUpdate > thirtyDaysSecs) then
             SfuiDB.alts[g] = nil
@@ -499,12 +512,12 @@ local function SyncCurrency(d, cDef)
     elseif C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo then
         local info = C_CurrencyInfo.GetCurrencyInfo(cDef.id)
         if info then
-            local curr = d.currencies[cDef.id] or {}
-            curr.val          = info.quantity or 0
-            curr.earned       = info.totalEarned or 0    -- season total (used for season-earned display)
-            curr.totalEarned  = info.totalEarned or 0    -- same value, stored under the name the renderer reads
-            curr.max          = info.maxWeeklyQuantity or 0
-            curr.maxQuantity  = info.maxQuantity or 0
+            local curr          = d.currencies[cDef.id] or {}
+            curr.val            = info.quantity or 0
+            curr.earned         = info.totalEarned or 0 -- season total (used for season-earned display)
+            curr.totalEarned    = info.totalEarned or 0 -- same value, stored under the name the renderer reads
+            curr.max            = info.maxWeeklyQuantity or 0
+            curr.maxQuantity    = info.maxQuantity or 0
             curr.useTotalEarned = info.useTotalEarnedForMaxQty or false
 
             if info.maxQuantity and info.maxQuantity > 0 then
@@ -547,9 +560,12 @@ local function GetQuestStatus(def)
     -- 1. UI Widget Tracker (e.g. Delve Gilded Stash)
     if def.widgetID and C_UIWidgetManager then
         local wID = def.widgetID
-        local itInfo = C_UIWidgetManager.GetIconAndTextWidgetVisualizationInfo and C_UIWidgetManager.GetIconAndTextWidgetVisualizationInfo(wID)
-        local sbInfo = C_UIWidgetManager.GetStatusBarWidgetVisualizationInfo and C_UIWidgetManager.GetStatusBarWidgetVisualizationInfo(wID)
-        local twInfo = C_UIWidgetManager.GetTextWithStateWidgetVisualizationInfo and C_UIWidgetManager.GetTextWithStateWidgetVisualizationInfo(wID)
+        local itInfo = C_UIWidgetManager.GetIconAndTextWidgetVisualizationInfo and
+        C_UIWidgetManager.GetIconAndTextWidgetVisualizationInfo(wID)
+        local sbInfo = C_UIWidgetManager.GetStatusBarWidgetVisualizationInfo and
+        C_UIWidgetManager.GetStatusBarWidgetVisualizationInfo(wID)
+        local twInfo = C_UIWidgetManager.GetTextWithStateWidgetVisualizationInfo and
+        C_UIWidgetManager.GetTextWithStateWidgetVisualizationInfo(wID)
 
         local text = (itInfo and itInfo.text) or (twInfo and twInfo.text)
         if text then
@@ -718,43 +734,167 @@ local function OnQuestTurnedIn(questID)
     end
 end
 
+local challengeModeValidGUID = nil
+
+local function RunBelongsToPlayer(runInfo)
+    if not runInfo then return false end
+    if not runInfo.members or #runInfo.members == 0 then
+        return true
+    end
+    local playerName, playerRealm = UnitName("player")
+    playerRealm = (playerRealm and playerRealm ~= "") and playerRealm or (GetRealmName and GetRealmName())
+    if not playerName then return true end
+    if playerRealm then
+        playerRealm = string.gsub(playerRealm, "%s+", "")
+    end
+
+    for _, m in ipairs(runInfo.members) do
+        if m.name then
+            local rawName, rawRealm = string.match(m.name, "^([^-]+)%-?(.*)$")
+            if rawName == playerName then
+                if not rawRealm or rawRealm == "" or not playerRealm or playerRealm == "" then
+                    return true
+                end
+                rawRealm = string.gsub(rawRealm, "%s+", "")
+                if rawRealm == playerRealm then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
 local function PerformSync(data, isLogout)
     local currentNextReset = CheckWeeklyResets()
     if currentNextReset then
         data.nextWeeklyReset = currentNextReset
     end
 
-    -- 1. Mythic+ Rating
-    if C_ChallengeMode and C_ChallengeMode.GetOverallDungeonScore then
-        local score = C_ChallengeMode.GetOverallDungeonScore()
-        if score and score > 0 then
-            data.rating = score
-        elseif data.rating == nil then
-            data.rating = 0
+    local playerLevel = UnitLevel("player")
+    local maxLevel = (_G.GetMaxPlayerLevel and _G.GetMaxPlayerLevel()) or 80
+    local isMaxLevel = (playerLevel and playerLevel >= maxLevel)
+    local playerGUID = UnitGUID("player")
+
+    -- 1. Mythic+ Rating & Dungeons (requires verified server map data)
+    if not isMaxLevel then
+        data.rating = 0
+        data.dungeons = {}
+        if data.vault then
+            data.vault.dungeonRuns = {}
+        end
+        data.keystone = nil
+    elseif challengeModeValidGUID and challengeModeValidGUID == playerGUID then
+        local hasAnyValidRun = false
+
+        -- 1a. Mythic+ Season Dungeons
+        if C_ChallengeMode and C_ChallengeMode.GetMapTable then
+            local maps = C_ChallengeMode.GetMapTable()
+            if maps and #maps > 0 then
+                data.dungeons = data.dungeons or {}
+                local currentRuns = (C_MythicPlus and C_MythicPlus.GetRunHistory and C_MythicPlus.GetRunHistory(true, true, true)) or
+                {}
+                for _, mapID in ipairs(maps) do
+                    local bestLevel = 0
+                    local bestTimed = 0
+                    if C_MythicPlus and C_MythicPlus.GetSeasonBestForMap then
+                        local intimeInfo, overtimeInfo = C_MythicPlus.GetSeasonBestForMap(mapID)
+                        if intimeInfo and RunBelongsToPlayer(intimeInfo) and intimeInfo.level then
+                            bestLevel = intimeInfo.level
+                            bestTimed = intimeInfo.level
+                            hasAnyValidRun = true
+                        end
+                        if overtimeInfo and RunBelongsToPlayer(overtimeInfo) and overtimeInfo.level and overtimeInfo.level > bestLevel then
+                            bestLevel = overtimeInfo.level
+                            hasAnyValidRun = true
+                        end
+                    end
+
+                    for _, run in ipairs(currentRuns) do
+                        if run.mapChallengeModeID == mapID then
+                            if run.level and run.level > bestLevel then
+                                bestLevel = run.level
+                                hasAnyValidRun = true
+                            end
+                            if run.completed and run.level and run.level > bestTimed then
+                                bestTimed = run.level
+                                hasAnyValidRun = true
+                            end
+                        end
+                    end
+
+                    local cur = data.dungeons[mapID] or {}
+                    cur.level = bestLevel
+                    cur.timed = bestTimed
+                    data.dungeons[mapID] = cur
+                end
+            end
+        end
+
+        -- 1b. Mythic+ Rating
+        if C_ChallengeMode and C_ChallengeMode.GetOverallDungeonScore then
+            local score = C_ChallengeMode.GetOverallDungeonScore()
+            if score and score > 0 and hasAnyValidRun then
+                data.rating = score
+            else
+                data.rating = 0
+            end
+        else
+            data.rating = data.rating or 0
+        end
+
+        -- 1c. Dungeon History for Vault
+        if C_MythicPlus and C_MythicPlus.GetRunHistory then
+            local weeklyRuns = C_MythicPlus.GetRunHistory(false, true)
+            data.vault = data.vault or {}
+            data.vault.dungeonRuns = {}
+            if weeklyRuns and #weeklyRuns > 0 then
+                for _, r in ipairs(weeklyRuns) do
+                    local dName = (C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and C_ChallengeMode.GetMapUIInfo(r.mapChallengeModeID)) or
+                    ("Map " .. tostring(r.mapChallengeModeID))
+                    table.insert(data.vault.dungeonRuns, {
+                        mapID = r.mapChallengeModeID,
+                        level = r.level,
+                        name = dName,
+                        completed = r.completed,
+                        durationSec = r.durationSec or 0,
+                    })
+                end
+                table.sort(data.vault.dungeonRuns, function(a, b)
+                    if a.level ~= b.level then return a.level > b.level end
+                    return (a.durationSec or 0) < (b.durationSec or 0)
+                end)
+            end
         end
     end
 
     -- 2. Keystone
     local ks = nil
-    if sfui.common and sfui.common.get_owned_keystone_info then
-        ks = sfui.common.get_owned_keystone_info()
-    elseif sfui.items and sfui.items.get_owned_keystone_info then
-        ks = sfui.items.get_owned_keystone_info()
-    end
-    if (not ks or not ks.level or ks.level <= 0 or ks.level >= 100) and C_MythicPlus and C_MythicPlus.GetOwnedKeystoneChallengeMapID then
-        local mapID = C_MythicPlus.GetOwnedKeystoneChallengeMapID()
-        local level = C_MythicPlus.GetOwnedKeystoneLevel and C_MythicPlus.GetOwnedKeystoneLevel()
-        if mapID and level and level > 0 and level < 100 then
-            local mapName = C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and C_ChallengeMode.GetMapUIInfo(mapID)
-            ks = { mapID = mapID, level = level, name = mapName }
+    if isMaxLevel then
+        if sfui.common and sfui.common.get_owned_keystone_info then
+            ks = sfui.common.get_owned_keystone_info()
+        elseif sfui.items and sfui.items.get_owned_keystone_info then
+            ks = sfui.items.get_owned_keystone_info()
         end
-    end
-    if ks and ks.level and ks.level > 0 and ks.level < 100 then
-        data.keystone = ks
+        if (not ks or not ks.level or ks.level <= 0 or ks.level >= 100) and challengeModeValidGUID == playerGUID and C_MythicPlus and C_MythicPlus.GetOwnedKeystoneChallengeMapID then
+            local mapID = C_MythicPlus.GetOwnedKeystoneChallengeMapID()
+            local level = C_MythicPlus.GetOwnedKeystoneLevel and C_MythicPlus.GetOwnedKeystoneLevel()
+            if mapID and level and level > 0 and level < 100 then
+                local mapName = C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and C_ChallengeMode.GetMapUIInfo(mapID)
+                ks = { mapID = mapID, level = level, name = mapName }
+            end
+        end
+        if ks and ks.level and ks.level > 0 and ks.level < 100 then
+            data.keystone = ks
+        elseif challengeModeValidGUID == playerGUID then
+            data.keystone = nil
+        end
+    else
+        data.keystone = nil
     end
 
     -- 3. Great Vault
-    if C_WeeklyRewards and C_WeeklyRewards.GetActivities then
+    if isMaxLevel and C_WeeklyRewards and C_WeeklyRewards.GetActivities then
         data.vault = data.vault or {}
         local activities = C_WeeklyRewards.GetActivities()
         if (not activities or #activities == 0) and Enum and Enum.WeeklyRewardChestThresholdType then
@@ -791,85 +931,22 @@ local function PerformSync(data, isLogout)
         end
     end
 
-    -- 3b. Dungeon History for Vault
-    if C_MythicPlus and C_MythicPlus.GetRunHistory then
-        local weeklyRuns = C_MythicPlus.GetRunHistory(false, true)
-        if weeklyRuns and #weeklyRuns > 0 then
-            data.vault = data.vault or {}
-            data.vault.dungeonRuns = {}
-            for _, r in ipairs(weeklyRuns) do
-                local dName = (C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and C_ChallengeMode.GetMapUIInfo(r.mapChallengeModeID)) or ("Map " .. tostring(r.mapChallengeModeID))
-                table.insert(data.vault.dungeonRuns, {
-                    mapID = r.mapChallengeModeID,
-                    level = r.level,
-                    name = dName,
-                    completed = r.completed,
-                    durationSec = r.durationSec or 0,
-                })
-            end
-            table.sort(data.vault.dungeonRuns, function(a, b)
-                if a.level ~= b.level then return a.level > b.level end
-                return (a.durationSec or 0) < (b.durationSec or 0)
-            end)
-        end
-    end
-
-    -- 4. Mythic+ Season Dungeons
-    if C_ChallengeMode and C_ChallengeMode.GetMapTable then
-        local maps = C_ChallengeMode.GetMapTable()
-        if maps and #maps > 0 then
-            data.dungeons = data.dungeons or {}
-            local currentRuns = (C_MythicPlus and C_MythicPlus.GetRunHistory and C_MythicPlus.GetRunHistory(true, true)) or {}
-            for _, mapID in ipairs(maps) do
-                local bestLevel = 0
-                local bestTimed = 0
-                if C_MythicPlus and C_MythicPlus.GetSeasonBestForMap then
-                    local intimeInfo, overtimeInfo = C_MythicPlus.GetSeasonBestForMap(mapID)
-                    if intimeInfo and intimeInfo.level then
-                        bestLevel = intimeInfo.level
-                        bestTimed = intimeInfo.level
-                    end
-                    if overtimeInfo and overtimeInfo.level and overtimeInfo.level > bestLevel then
-                        bestLevel = overtimeInfo.level
-                    end
-                end
-
-                for _, run in ipairs(currentRuns) do
-                    if run.mapChallengeModeID == mapID then
-                        if run.level and run.level > bestLevel then
-                            bestLevel = run.level
-                        end
-                        if run.completed and run.level and run.level > bestTimed then
-                            bestTimed = run.level
-                        end
-                    end
-                end
-
-                local cur = data.dungeons[mapID] or {}
-                if bestLevel > (cur.level or 0) then
-                    cur.level = bestLevel
-                end
-                if bestTimed > (cur.timed or 0) then
-                    cur.timed = bestTimed
-                end
-                data.dungeons[mapID] = cur
-            end
-        end
-    end
-
     -- 5. Mythic 0 Lockouts
-    data.m0 = data.m0 or {}
-    local numSaved = GetNumSavedInstances and GetNumSavedInstances() or 0
-    for i = 1, numSaved do
-        local name, _, reset, difficulty, locked, _, _, isRaid = GetSavedInstanceInfo(i)
-        if not isRaid and locked and reset and reset > 0 and (difficulty == 23 or difficulty == 174) then
-            local instanceCache = GetEJInstanceCache()
-            local id = instanceCache[name]
-            if id then
-                data.m0[id] = true
+    local newM0 = {}
+    if isMaxLevel then
+        local numSaved = GetNumSavedInstances and GetNumSavedInstances() or 0
+        for i = 1, numSaved do
+            local name, _, reset, difficulty, locked, _, _, isRaid = GetSavedInstanceInfo(i)
+            if not isRaid and locked and reset and reset > 0 and (difficulty == 23 or difficulty == 174) then
+                local instanceCache = GetEJInstanceCache()
+                local id = instanceCache[name]
+                if id then
+                    newM0[id] = true
+                end
             end
         end
     end
+    data.m0 = newM0
 
     -- 5b. Raid Boss Lockouts
     data.raids = data.raids or {}
@@ -1086,7 +1163,6 @@ local function PerformSync(data, isLogout)
                     end
                 end
                 data.profKP[skillLine] = pData
-
             end
         end
     elseif C_TradeSkillUI and C_TradeSkillUI.GetChildProfessionInfos then
@@ -1111,19 +1187,19 @@ end
 
 local function GetVaultColor(g, l, ilvl)
     if g == "raid" then
-        if l == 16 or (ilvl and ilvl >= 318) then return { 1.0, 0.5, 0.0, 0.8 } end     -- Mythic (Orange)
-        if l == 15 or (ilvl and ilvl >= 305) then return { 0.64, 0.21, 0.93, 0.8 } end  -- Heroic (Purple)
-        if l == 14 or (ilvl and ilvl >= 292) then return { 0.0, 0.44, 0.87, 0.8 } end   -- Normal (Blue)
-        return { 0.12, 1.0, 0.0, 0.8 }                                                  -- LFR (Green)
+        if l == 16 or (ilvl and ilvl >= 318) then return { 1.0, 0.5, 0.0, 0.8 } end            -- Mythic (Orange)
+        if l == 15 or (ilvl and ilvl >= 305) then return { 0.64, 0.21, 0.93, 0.8 } end         -- Heroic (Purple)
+        if l == 14 or (ilvl and ilvl >= 292) then return { 0.0, 0.44, 0.87, 0.8 } end          -- Normal (Blue)
+        return { 0.12, 1.0, 0.0, 0.8 }                                                         -- LFR (Green)
     elseif g == "world" then
-        if (l and l >= 7) or (ilvl and ilvl >= 305) then return { 0.64, 0.21, 0.93, 0.8 } end   -- Hero (Tier 7-8+ Delves, Purple)
-        if (l and l >= 4) or (ilvl and ilvl >= 292) then return { 0.0, 0.44, 0.87, 0.8 } end    -- Champion (Tier 4-6 Delves, Blue)
-        return { 0.12, 1.0, 0.0, 0.8 }                                                           -- Veteran (Tier 1-3 Delves, Green)
-    else -- dungeon
-        if (l and l >= 10) or (ilvl and ilvl >= 318) then return { 1.0, 0.5, 0.0, 0.8 } end     -- Myth (+10+, Orange)
-        if (l and l >= 2)  or (ilvl and ilvl >= 305) then return { 0.64, 0.21, 0.93, 0.8 } end  -- Hero (+2 to +9, Purple)
-        if (l and l >= 0)  or (ilvl and ilvl >= 292) then return { 0.0, 0.44, 0.87, 0.8 } end   -- Champion (M0, Blue)
-        return { 0.12, 1.0, 0.0, 0.8 }                                                           -- Veteran (Heroic Dungeon, Green)
+        if (l and l >= 7) or (ilvl and ilvl >= 305) then return { 0.64, 0.21, 0.93, 0.8 } end  -- Hero (Tier 7-8+ Delves, Purple)
+        if (l and l >= 4) or (ilvl and ilvl >= 292) then return { 0.0, 0.44, 0.87, 0.8 } end   -- Champion (Tier 4-6 Delves, Blue)
+        return { 0.12, 1.0, 0.0, 0.8 }                                                         -- Veteran (Tier 1-3 Delves, Green)
+    else                                                                                       -- dungeon
+        if (l and l >= 10) or (ilvl and ilvl >= 318) then return { 1.0, 0.5, 0.0, 0.8 } end    -- Myth (+10+, Orange)
+        if (l and l >= 2) or (ilvl and ilvl >= 305) then return { 0.64, 0.21, 0.93, 0.8 } end  -- Hero (+2 to +9, Purple)
+        if (l and l >= 0) or (ilvl and ilvl >= 292) then return { 0.0, 0.44, 0.87, 0.8 } end   -- Champion (M0, Blue)
+        return { 0.12, 1.0, 0.0, 0.8 }                                                         -- Veteran (Heroic Dungeon, Green)
     end
 end
 
@@ -1185,7 +1261,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 cell:SetScript("OnEnter", function(self)
                     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                     GameTooltip:AddLine(string.format("Level %d", altData.level or 0), 1, 1, 1)
-                    GameTooltip:AddDoubleLine("item level:", string.format("%.1f", val), NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, 1, 1, 1)
+                    GameTooltip:AddDoubleLine("item level:", string.format("%.1f", val), NORMAL_FONT_COLOR.r,
+                        NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, 1, 1, 1)
                     GameTooltip:Show()
                 end)
                 cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -1194,14 +1271,18 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 cell:SetScript("OnLeave", nil)
             end
         else
-            if cat.key == "iLvl" and (val == 0 or not val) then
+            if cat.key == "rating" and (val == 0 or not val) then
+                text:SetText("-")
+                text:SetTextColor(0.5, 0.5, 0.5)
+            elseif cat.key == "iLvl" and (val == 0 or not val) then
                 text:SetText("-")
                 text:SetTextColor(0.5, 0.5, 0.5)
             else
                 text:SetText(cat.format and string.format(cat.format, val) or val)
             end
             if cat.key == "rating" and val > 0 then
-                local color = C_ChallengeMode and C_ChallengeMode.GetDungeonScoreRarityColor and C_ChallengeMode.GetDungeonScoreRarityColor(val)
+                local color = C_ChallengeMode and C_ChallengeMode.GetDungeonScoreRarityColor and
+                C_ChallengeMode.GetDungeonScoreRarityColor(val)
                 if color then
                     text:SetTextColor(color.r, color.g, color.b)
                 end
@@ -1209,13 +1290,16 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 cell:SetScript("OnEnter", function(self)
                     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                     GameTooltip:AddLine("mythic+ rating", 1, 1, 1)
-                    local rColor = C_ChallengeMode and C_ChallengeMode.GetDungeonScoreRarityColor and C_ChallengeMode.GetDungeonScoreRarityColor(val)
+                    local rColor = C_ChallengeMode and C_ChallengeMode.GetDungeonScoreRarityColor and
+                    C_ChallengeMode.GetDungeonScoreRarityColor(val)
                     local rr, rg, rb = 1, 1, 1
                     if rColor then rr, rg, rb = rColor.r, rColor.g, rColor.b end
                     GameTooltip:AddDoubleLine("overall:", tostring(val), 1, 1, 1, rr, rg, rb)
                     GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("best keys this season:", NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
-                    local maps = (C_ChallengeMode and C_ChallengeMode.GetMapTable and C_ChallengeMode.GetMapTable()) or {}
+                    GameTooltip:AddLine("best keys this season:", NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g,
+                        NORMAL_FONT_COLOR.b)
+                    local maps = (C_ChallengeMode and C_ChallengeMode.GetMapTable and C_ChallengeMode.GetMapTable()) or
+                    {}
                     for _, mID in ipairs(maps) do
                         local mName = C_ChallengeMode.GetMapUIInfo(mID)
                         local dData = altData.dungeons and altData.dungeons[mID]
@@ -1252,10 +1336,9 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             end
         end
         return true
-
     elseif cat.type == "keystone" then
         if altData.keystone and altData.keystone.level and altData.keystone.level > 0 then
-            local ks   = altData.keystone
+            local ks = altData.keystone
 
             -- Auto-heal corrupted keystone level from legacy saved variables (e.g. if level was saved as mapID 587)
             if ks.level >= 100 or (ks.mapID and ks.level == ks.mapID) then
@@ -1276,7 +1359,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 end
             end
 
-            local name = ks.mapID and sfui.common and sfui.common.get_short_map_name and sfui.common.get_short_map_name(ks.mapID)
+            local name = ks.mapID and sfui.common and sfui.common.get_short_map_name and
+            sfui.common.get_short_map_name(ks.mapID)
             if not name and ks.name then
                 name = sfui.common and sfui.common.get_short_string and sfui.common.get_short_string(ks.name)
             end
@@ -1286,7 +1370,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 text:SetText(string.format("+%d", ks.level))
             end
 
-            local color = C_ChallengeMode and C_ChallengeMode.GetKeystoneLevelRarityColor and C_ChallengeMode.GetKeystoneLevelRarityColor(ks.level)
+            local color = C_ChallengeMode and C_ChallengeMode.GetKeystoneLevelRarityColor and
+            C_ChallengeMode.GetKeystoneLevelRarityColor(ks.level)
             if ks.level >= 12 then
                 text:SetTextColor(1, 0.5, 0)
             elseif color then
@@ -1302,9 +1387,11 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 if ksSnap.link then
                     GameTooltip:SetHyperlink(ksSnap.link)
                     GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("<shift-click to link>", GREEN_FONT_COLOR.r, GREEN_FONT_COLOR.g, GREEN_FONT_COLOR.b)
+                    GameTooltip:AddLine("<shift-click to link>", GREEN_FONT_COLOR.r, GREEN_FONT_COLOR.g,
+                        GREEN_FONT_COLOR.b)
                 else
-                    local fullName = ksSnap.mapID and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and C_ChallengeMode.GetMapUIInfo(ksSnap.mapID)
+                    local fullName = ksSnap.mapID and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and
+                    C_ChallengeMode.GetMapUIInfo(ksSnap.mapID)
                     GameTooltip:SetText(fullName or ksSnap.name or "Keystone")
                     GameTooltip:AddLine("+" .. ksSnap.level, 1, 1, 1)
                 end
@@ -1326,7 +1413,6 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             cell:SetScript("OnMouseUp", nil)
         end
         return true
-
     elseif cat.type == "dungeon" then
         local best = altData.dungeons and altData.dungeons[cat.mapID]
         local isTargeted = altData.voidcoreTargets and altData.voidcoreTargets[cat.mapID]
@@ -1339,6 +1425,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 cell.diamondIcon:SetPoint("RIGHT", cell, "RIGHT", -4, 0)
             end
             cell.diamondIcon:Show()
+        elseif cell.diamondIcon then
+            cell.diamondIcon:Hide()
         end
 
         local mapID = cat.mapID
@@ -1357,7 +1445,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 text:SetTextColor(0.5, 0.5, 0.5)
             else
                 text:SetText(tostring(timed))
-                local color = C_ChallengeMode and C_ChallengeMode.GetKeystoneLevelRarityColor and C_ChallengeMode.GetKeystoneLevelRarityColor(timed)
+                local color = C_ChallengeMode and C_ChallengeMode.GetKeystoneLevelRarityColor and
+                C_ChallengeMode.GetKeystoneLevelRarityColor(timed)
                 if timed >= 12 then
                     text:SetTextColor(1, 0.5, 0)
                 elseif color then
@@ -1379,10 +1468,14 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             if best and best.level > 0 then
                 local timed = best.timed or 0
                 if timed > 0 then
-                    local timedColor = C_ChallengeMode and C_ChallengeMode.GetKeystoneLevelRarityColor and C_ChallengeMode.GetKeystoneLevelRarityColor(timed)
+                    local timedColor = C_ChallengeMode and C_ChallengeMode.GetKeystoneLevelRarityColor and
+                    C_ChallengeMode.GetKeystoneLevelRarityColor(timed)
                     local tr, tg, tb = 1, 1, 1
-                    if timed >= 12 then tr, tg, tb = 1, 0.5, 0
-                    elseif timedColor then tr, tg, tb = timedColor.r, timedColor.g, timedColor.b end
+                    if timed >= 12 then
+                        tr, tg, tb = 1, 0.5, 0
+                    elseif timedColor then
+                        tr, tg, tb = timedColor.r, timedColor.g, timedColor.b
+                    end
                     GameTooltip:AddDoubleLine("timed:", "+" .. timed, 1, 1, 1, tr, tg, tb)
                 end
                 if best.level > timed then
@@ -1407,7 +1500,6 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             GameTooltip:Hide()
         end)
         return true
-
     elseif cat.type == "currency" or cat.type == "currency_group" then
         local isGroup = (cat.type == "currency_group")
         local items = isGroup and cat.items or { cat }
@@ -1437,7 +1529,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             end
 
             local val = cData and (type(cData) == "table" and cData.val or cData) or 0
-            local currentEarned = cData and type(cData) == "table" and (cData.useTotalEarned and cData.totalEarned or cData.val) or val
+            local currentEarned = cData and type(cData) == "table" and
+            (cData.useTotalEarned and cData.totalEarned or cData.val) or val
             local displayVal
             if itemConfig.showSeasonEarned and displayMaxQuantity > 0 then
                 displayVal = string.format("%d/%d", currentEarned, displayMaxQuantity)
@@ -1463,7 +1556,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 displayText = displayText ..
                     string.format("|T%d:12:12:0:0|t %s%s|r", itemConfig.icon or 134400, colorCode, displayVal)
             elseif isCapped then
-                local errCol = (sfui.config and sfui.config.appearance and sfui.config.appearance.errorColor) or { 1, 0.2, 0.2 }
+                local errCol = (sfui.config and sfui.config.appearance and sfui.config.appearance.errorColor) or
+                { 1, 0.2, 0.2 }
                 local r, g, b = unpack(errCol)
                 local colorCode = string.format("|cff%02x%02x%02x", r * 255, g * 255, b * 255)
                 displayText = displayText ..
@@ -1498,7 +1592,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                         if tLine.itemConfig.isItem then
                             name = (C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(tLine.itemConfig.id)) or "Item"
                         else
-                            name = (sfui.common and sfui.common.get_currency_name and sfui.common.get_currency_name(tLine.itemConfig.id)) or "Currency"
+                            name = (sfui.common and sfui.common.get_currency_name and sfui.common.get_currency_name(tLine.itemConfig.id)) or
+                            "Currency"
                         end
                     end
 
@@ -1536,9 +1631,11 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 local icon = tLine.itemConfig and tLine.itemConfig.icon
                 if not name then
                     if tLine.itemConfig and tLine.itemConfig.isItem then
-                        name = (C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(tLine.itemConfig.id)) or (tLine.itemConfig.id == 274476 and "Spark of Tides" or "Item")
+                        name = (C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(tLine.itemConfig.id)) or
+                        (tLine.itemConfig.id == 274476 and "Spark of Tides" or "Item")
                     elseif tLine.itemConfig then
-                        name = (sfui.common and sfui.common.get_currency_name and sfui.common.get_currency_name(tLine.itemConfig.id)) or (tLine.itemConfig.id == 3509 and "Tidal Spark Dust" or "Currency")
+                        name = (sfui.common and sfui.common.get_currency_name and sfui.common.get_currency_name(tLine.itemConfig.id)) or
+                        (tLine.itemConfig.id == 3509 and "Tidal Spark Dust" or "Currency")
                     else
                         name = "Currency"
                     end
@@ -1553,7 +1650,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                     GameTooltip:AddDoubleLine(iconPrefix .. name .. ":",
                         string.format("%d in bags", val), 1, 1, 1, 1, 1, 1)
                     if maxQty > 0 then
-                        local statusColor = earned >= maxQty and "|cff00ff88" or (earned > 0 and "|cffffaa00" or "|cffff4444")
+                        local statusColor = earned >= maxQty and "|cff00ff88" or
+                        (earned > 0 and "|cffffaa00" or "|cffff4444")
                         GameTooltip:AddDoubleLine("season earned / cap:",
                             string.format("%s%d / %d|r", statusColor, earned, maxQty), 1, 1, 1, 1, 1, 1)
                     end
@@ -1578,7 +1676,6 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         end)
         cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
         return true
-
     elseif cat.type == "quests_grid" then
         local minLevel = (_G.GetMaxPlayerLevel and _G.GetMaxPlayerLevel() - 10) or 70
         local hasQuestData = altData.quests and next(altData.quests)
@@ -1597,10 +1694,10 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             cell:SetScript("OnLeave", nil)
         else
             text:Hide()
-            local q = altData.quests
+            local q           = altData.quests
 
             -- Block definitions sourced from sfui.season.WEEKLY_QUESTS
-            local BLOCKS = sfui.season and sfui.season.WEEKLY_QUESTS or {}
+            local BLOCKS      = sfui.season and sfui.season.WEEKLY_QUESTS or {}
             -- Colours: completed / inProgress / available — per group
             local CORE_DONE   = { 0.40, 0.00, 1.00, 0.85 } -- #6600ff vivid purple
             local CORE_PROG   = { 0.18, 0.00, 0.45, 0.85 } -- dark purple
@@ -1612,7 +1709,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             local BONUS_TEXT  = "|cffffaa44"               -- light amber for tooltip
 
             local numBlocks   = #BLOCKS
-            local GAP         = 6                          -- px gap between core and bonus group
+            local GAP         = 6 -- px gap between core and bonus group
             local totalW      = cfg.columnWidth - 10
             local blockW      = (totalW - GAP) / math_max(1, numBlocks)
 
@@ -1626,7 +1723,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
 
                 local status   = q and q[block.key]
                 local isDone   = status and status.completed
-                local isActive = status and (status.active or (status.progress and status.progress > 0) or (status.done and status.done > 0 and not isDone))
+                local isActive = status and
+                (status.active or (status.progress and status.progress > 0) or (status.done and status.done > 0 and not isDone))
 
                 if block.group == "core" then
                     if isDone then
@@ -1748,7 +1846,6 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
         end
         return true
-
     elseif cat.type == "prof_slot" then
         local pData
         local profs = {}
@@ -1811,7 +1908,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
 
                 if pData.total and pData.total > 0 then
                     GameTooltip:AddLine("weekly progress", 1, 1, 1)
-                    local tStr = (pData.details and pData.details.treatise) and "|cff00ff00Done|r" or "|cffff0000Missing|r"
+                    local tStr = (pData.details and pData.details.treatise) and "|cff00ff00Done|r" or
+                    "|cffff0000Missing|r"
                     GameTooltip:AddDoubleLine("treatise:", tStr, 1, 1, 1, 1, 1, 1)
                     local qStr = (pData.details and pData.details.quest) and "|cff00ff00Done|r" or "|cffff0000Missing|r"
                     GameTooltip:AddDoubleLine("weekly quest/patron:", qStr, 1, 1, 1, 1, 1, 1)
@@ -1838,7 +1936,6 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             cell:SetScript("OnLeave", nil)
         end
         return true
-
     elseif cat.type == "vault_row" then
         text:Hide()
         local group = cat.group
@@ -1950,13 +2047,15 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             -- Dungeon Great Vault: list the 10 runs that populate the vault with 1, 4, 10 highlighted
             if group == "dungeon" then
                 local runs = altData.vault and altData.vault.dungeonRuns
-                local isPlayer = (altGuid and altGuid == UnitGUID("player")) or (altGuid and altGuid == GetCurrentCharacterGUID())
+                local isPlayer = (altGuid and altGuid == UnitGUID("player")) or
+                (altGuid and altGuid == GetCurrentCharacterGUID())
                 if (not runs or #runs == 0) and isPlayer and C_MythicPlus and C_MythicPlus.GetRunHistory then
                     local weeklyRuns = C_MythicPlus.GetRunHistory(false, true)
                     if weeklyRuns and #weeklyRuns > 0 then
                         runs = {}
                         for _, r in ipairs(weeklyRuns) do
-                            local dName = (C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and C_ChallengeMode.GetMapUIInfo(r.mapChallengeModeID)) or ("Map " .. tostring(r.mapChallengeModeID))
+                            local dName = (C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and C_ChallengeMode.GetMapUIInfo(r.mapChallengeModeID)) or
+                            ("Map " .. tostring(r.mapChallengeModeID))
                             table.insert(runs, {
                                 mapID = r.mapChallengeModeID,
                                 level = r.level,
@@ -2010,7 +2109,6 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         end)
         cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
         return true
-
     elseif cat.type == "m0_grid" then
         text:Hide()
         local m0Data = altData.m0
@@ -2056,7 +2154,6 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         end)
         cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
         return true
-
     elseif cat.type == "raid_grid" then
         text:Hide()
         local difficulty = cat.difficulty
@@ -2148,9 +2245,9 @@ sfui.alts.RegisterProvider({
     ResetWeeklies = ResetWeeklies,
     RenderCell = RenderCell,
     sortOptions = {
-        { text = "Name (A-Z)",  value = "name" },
-        { text = "Item Level",  value = "ilvl" },
-        { text = "M+ Rating",   value = "rating" },
+        { text = "Name (A-Z)", value = "name" },
+        { text = "Item Level", value = "ilvl" },
+        { text = "M+ Rating",  value = "rating" },
     },
     SortAlts = function(a, b, sortKey)
         if sortKey == "rating" then
@@ -2158,8 +2255,13 @@ sfui.alts.RegisterProvider({
         end
     end,
     OnFrameShow = function()
-        if C_MythicPlus and C_MythicPlus.RequestMapInfo then C_MythicPlus.RequestMapInfo() end
-        if C_MythicPlus and C_MythicPlus.RequestRewards then C_MythicPlus.RequestRewards() end
+        local playerLevel = UnitLevel("player")
+        local maxLevel = (_G.GetMaxPlayerLevel and _G.GetMaxPlayerLevel()) or 80
+        if playerLevel and playerLevel >= maxLevel then
+            if C_MythicPlus and C_MythicPlus.RequestMapInfo then C_MythicPlus.RequestMapInfo() end
+            if C_MythicPlus and C_MythicPlus.RequestRewards then C_MythicPlus.RequestRewards() end
+            if C_MythicPlus and C_MythicPlus.RequestCurrentAffixes then C_MythicPlus.RequestCurrentAffixes() end
+        end
         if C_WeeklyRewards and C_WeeklyRewards.OnUIInteract then C_WeeklyRewards.OnUIInteract() end
         if RequestRaidInfo then RequestRaidInfo() end
         if SfuiDB and SfuiDB.alts then
@@ -2189,29 +2291,72 @@ sfui.alts.RegisterProvider({
                 sfui.alts.UpdateUI(true)
             end
         end
-        sfui.events.RegisterEvent("CHALLENGE_MODE_MAPS_UPDATE",       on_sync)
-        sfui.events.RegisterEvent("CHALLENGE_MODE_LEADERS_UPDATE",    on_sync)
+
+        sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
+            challengeModeValidGUID = nil
+            local playerLevel = UnitLevel("player")
+            local maxLevel = (_G.GetMaxPlayerLevel and _G.GetMaxPlayerLevel()) or 80
+            if playerLevel and playerLevel >= maxLevel then
+                if C_MythicPlus and C_MythicPlus.RequestMapInfo then
+                    C_MythicPlus.RequestMapInfo()
+                end
+                if C_MythicPlus and C_MythicPlus.RequestCurrentAffixes then
+                    C_MythicPlus.RequestCurrentAffixes()
+                end
+                if C_MythicPlus and C_MythicPlus.RequestRewards then
+                    C_MythicPlus.RequestRewards()
+                end
+            end
+        end)
+        sfui.events.RegisterEvent("PLAYER_LEAVING_WORLD", function()
+            challengeModeValidGUID = nil
+        end)
+        sfui.events.RegisterEvent("CHALLENGE_MODE_MAPS_UPDATE", function()
+            challengeModeValidGUID = UnitGUID("player")
+            on_sync()
+        end)
+        sfui.events.RegisterEvent("CHALLENGE_MODE_LEADERS_UPDATE", on_sync)
         sfui.events.RegisterEvent("CHALLENGE_MODE_KEYSTONE_RECEPTABLE_OPEN", on_sync)
-        sfui.events.RegisterEvent("CHALLENGE_MODE_KEYSTONE_SLOTTED",  on_sync)
-        sfui.events.RegisterEvent("CHALLENGE_MODE_START",             on_sync)
-        sfui.events.RegisterEvent("CHALLENGE_MODE_RESET",             on_sync)
-        sfui.events.RegisterEvent("CHALLENGE_MODE_COMPLETED",         on_sync)
-        sfui.events.RegisterEvent("MYTHIC_PLUS_NEW_WEEKLY_RECORD",    on_sync)
+        sfui.events.RegisterEvent("CHALLENGE_MODE_KEYSTONE_SLOTTED", on_sync)
+        sfui.events.RegisterEvent("CHALLENGE_MODE_START", on_sync)
+        sfui.events.RegisterEvent("CHALLENGE_MODE_RESET", on_sync)
+        sfui.events.RegisterEvent("CHALLENGE_MODE_COMPLETED", function()
+            if C_MythicPlus and C_MythicPlus.RequestMapInfo then
+                C_MythicPlus.RequestMapInfo()
+            end
+            on_sync()
+        end)
+        sfui.events.RegisterEvent("MYTHIC_PLUS_NEW_WEEKLY_RECORD", function()
+            if C_MythicPlus and C_MythicPlus.RequestMapInfo then
+                C_MythicPlus.RequestMapInfo()
+            end
+            on_sync()
+        end)
         sfui.events.RegisterEvent("MYTHIC_PLUS_CURRENT_AFFIX_UPDATE", on_sync)
-        sfui.events.RegisterEvent("WEEKLY_REWARDS_UPDATE",            on_sync)
-        sfui.events.RegisterEvent("UPDATE_INSTANCE_INFO",            on_sync)
-        sfui.events.RegisterEvent("PLAYER_AVG_ITEM_LEVEL_UPDATE",     on_sync)
-        sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED",          on_sync)
-        sfui.events.RegisterEvent("ITEM_CHANGED",                     on_sync)
+        sfui.events.RegisterEvent("WEEKLY_REWARDS_UPDATE", on_sync)
+        sfui.events.RegisterEvent("UPDATE_INSTANCE_INFO", on_sync)
+        sfui.events.RegisterEvent("PLAYER_AVG_ITEM_LEVEL_UPDATE", on_sync)
+        sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", on_sync)
+        sfui.events.RegisterEvent("ITEM_CHANGED", on_sync)
         sfui.events.RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE", on_sync)
-        sfui.events.RegisterThrottledEvent("BAG_UPDATE_DELAYED",      1.0, on_sync)
+        sfui.events.RegisterThrottledEvent("BAG_UPDATE_DELAYED", 1.0, on_sync)
         sfui.events.RegisterThrottledEvent("CURRENCY_DISPLAY_UPDATE", 0.5, on_sync)
         sfui.events.RegisterEvent("QUEST_TURNED_IN", function(_, questID)
             OnQuestTurnedIn(questID)
             on_sync()
         end)
         sfui.events.RegisterEvent("QUEST_ACCEPTED", on_sync)
-        sfui.events.RegisterEvent("QUEST_REMOVED",  on_sync)
+        sfui.events.RegisterEvent("QUEST_REMOVED", on_sync)
         sfui.events.RegisterThrottledEvent("QUEST_LOG_UPDATE", 1.0, on_sync)
+
+        if IsLoggedIn and IsLoggedIn() then
+            local playerLevel = UnitLevel("player")
+            local maxLevel = (_G.GetMaxPlayerLevel and _G.GetMaxPlayerLevel()) or 80
+            if playerLevel and playerLevel >= maxLevel then
+                if C_MythicPlus and C_MythicPlus.RequestMapInfo then
+                    C_MythicPlus.RequestMapInfo()
+                end
+            end
+        end
     end,
 })

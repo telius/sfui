@@ -39,36 +39,18 @@ sfui.options.RegisterTab({
         if SfuiDB.fishingEnabled == nil then SfuiDB.fishingEnabled = true end
         local fishing_enable_cb = create_checkbox(p, "enable fishing automation", "fishingEnabled", function(checked)
             notify_setting_changed("fishing", "enabled", checked)
-        end, "enables 1-key and double-right-click fishing automation.")
+        end, "enables 1-key fishing cast, reel-in, and auto-loot.")
         fishing_enable_cb:SetPoint("TOPLEFT", cast_header, "BOTTOMLEFT", 0, -10)
 
-        if SfuiDB.fishingDoubleClick == nil then SfuiDB.fishingDoubleClick = true end
-        local fishing_double_cb = create_checkbox(p, "double-click fishing", "fishingDoubleClick", function(checked)
-            notify_setting_changed("fishing", "doubleClick", checked)
-        end, "double right-click anywhere in the world to cast fishing and catch the bobber.")
-        fishing_double_cb:SetPoint("LEFT", fishing_enable_cb, "LEFT", COL_OFFSET_X, 0)
-
-        if SfuiDB.fishingMounted == nil then SfuiDB.fishingMounted = false end
-        local fishing_mounted_cb = create_checkbox(p, "allow while mounted", "fishingMounted", function(checked)
-            notify_setting_changed("fishing", "doubleClickForce", checked)
-        end, "allows double-click fishing attempts while mounted.")
-        fishing_mounted_cb:SetPoint("TOPLEFT", fishing_enable_cb, "BOTTOMLEFT", 0, -10)
-
-        if SfuiDB.fishingRecast == nil then SfuiDB.fishingRecast = false end
-        local fishing_recast_cb = create_checkbox(p, "recast on double-click", "fishingRecast", function(checked)
-            notify_setting_changed("fishing", "recastOnDoubleClick", checked)
-        end, "double right-click while casting will recast immediately instead of reeling in.")
-        fishing_recast_cb:SetPoint("LEFT", fishing_mounted_cb, "LEFT", COL_OFFSET_X, 0)
-
-        if SfuiDB.fishingDoubleClickSpeed == nil then SfuiDB.fishingDoubleClickSpeed = 0.4 end
-        local fishing_speed_slider = create_slider_input(p, "double-click speed (sec):", "fishingDoubleClickSpeed", 0.1, 1.0, 0.05, function(val)
-            notify_setting_changed("fishing", "doubleClickSpeed", val)
-        end, "maximum delay in seconds between right-clicks to trigger fishing.", 220)
-        fishing_speed_slider:SetPoint("TOPLEFT", fishing_mounted_cb, "BOTTOMLEFT", 0, -12)
+        if SfuiDB.fishingAutoLoot == nil then SfuiDB.fishingAutoLoot = true end
+        local fishing_autoloot_cb = create_checkbox(p, "auto-loot caught fish", "fishingAutoLoot", function(checked)
+            notify_setting_changed("fishing", "autoLoot", checked)
+        end, "automatically loots all caught fish and items immediately upon reeling in.")
+        fishing_autoloot_cb:SetPoint("LEFT", fishing_enable_cb, "LEFT", COL_OFFSET_X, 0)
 
         -- ── Section 2: Bobber & Audio Enhancements ───────────────────────────
         local bobber_header = p:CreateFontString(nil, "OVERLAY", g.font)
-        bobber_header:SetPoint("TOPLEFT", fishing_speed_slider, "BOTTOMLEFT", 0, -SECTION_GAP)
+        bobber_header:SetPoint("TOPLEFT", fishing_enable_cb, "BOTTOMLEFT", 0, -SECTION_GAP)
         bobber_header:SetTextColor(0, 1, 1, 1)
         bobber_header:SetText("bobber & audio enhancements")
 
@@ -84,20 +66,14 @@ sfui.options.RegisterTab({
         end, "boosts splash effects and mutes ambience/music during cast.")
         fishing_sound_cb:SetPoint("LEFT", fishing_soft_cb, "LEFT", COL_OFFSET_X, 0)
 
-        if SfuiDB.fishingOverrideLunker == nil then SfuiDB.fishingOverrideLunker = false end
-        local fishing_lunker_cb = create_checkbox(p, "override lunker fishing", "fishingOverrideLunker", function(checked)
-            notify_setting_changed("fishing", "overrideLunker", checked)
-        end, "always use standard fishing cast even when in a lunker fishing pool.")
-        fishing_lunker_cb:SetPoint("TOPLEFT", fishing_soft_cb, "BOTTOMLEFT", 0, -10)
-
         if SfuiDB.fishingSoundScale == nil then SfuiDB.fishingSoundScale = 1.0 end
         local fishing_vol_slider = create_slider_input(p, "sound volume:", "fishingSoundScale", 0.1, 1.0, 0.05, function(val)
             notify_setting_changed("fishing", "enhanceSoundsScale", val)
         end, "volume multiplier for fishing splash sound effects.", 220)
-        fishing_vol_slider:SetPoint("LEFT", fishing_lunker_cb, "LEFT", COL_OFFSET_X, 0)
+        fishing_vol_slider:SetPoint("TOPLEFT", fishing_soft_cb, "BOTTOMLEFT", 0, -14)
 
         local sound_reset_btn = CreateFlatButton(p, "restore sound defaults", 150, 20)
-        sound_reset_btn:SetPoint("TOPLEFT", fishing_lunker_cb, "BOTTOMLEFT", 0, -10)
+        sound_reset_btn:SetPoint("LEFT", fishing_vol_slider, "LEFT", COL_OFFSET_X, 0)
         sound_reset_btn:SetScript("OnClick", function()
             if sfui.fishing and sfui.fishing.RestoreSoundDefaults then
                 sfui.fishing.RestoreSoundDefaults()
@@ -106,7 +82,7 @@ sfui.options.RegisterTab({
 
         -- ── Section 3: Keybinds & Instructions ───────────────────────────────
         local tips_header = p:CreateFontString(nil, "OVERLAY", g.font)
-        tips_header:SetPoint("TOPLEFT", sound_reset_btn, "BOTTOMLEFT", 0, -SECTION_GAP)
+        tips_header:SetPoint("TOPLEFT", fishing_vol_slider, "BOTTOMLEFT", 0, -SECTION_GAP)
         tips_header:SetTextColor(0, 1, 1, 1)
         tips_header:SetText("keybinds & instructions")
 
@@ -116,9 +92,9 @@ sfui.options.RegisterTab({
         local function update_keybind_display()
             local keys = sfui.fishing and sfui.fishing.get_all_bound_keys and sfui.fishing.get_all_bound_keys() or {}
             if #keys > 0 then
-                keybind_status:SetText("Active Keybind: |cff00ff00" .. table_concat(keys, ", ") .. "|r")
+                keybind_status:SetText("active keybind: |cff00ff00" .. table_concat(keys, ", ") .. "|r")
             else
-                keybind_status:SetText("Active Keybind: |cffff5555None|r |cff888888(bind 'Cast & Catch Fishing' in Keybindings)|r")
+                keybind_status:SetText("active keybind: |cffff5555none|r |cff888888(bind 'cast & catch fishing' in keybindings)|r")
             end
         end
         update_keybind_display()
@@ -140,10 +116,9 @@ sfui.options.RegisterTab({
         tips_text:SetWidth(480)
         tips_text:SetJustifyH("LEFT")
         tips_text:SetText(
-            "• |cffffffff1-Key Cast & Reel|r: Press your bound key once to cast. When the bobber splashes, press the exact same key to reel in.\n\n" ..
-            "• |cffffffffGamepad Fishing|r: Enable controller support via |cff00ffff/console GamePadEnable 1|r. In Keybindings > SFUI, bind your trigger or button (e.g. Right Trigger). You can then fish with just that one controller button!\n\n" ..
-            "• |cffffffffDouble-Click Fishing|r: Double right-click anywhere in the world to cast. When the bobber splashes, click again to reel in.\n\n" ..
-            "• |cffffffffMacro & Slash|r: Use |cff00ffff/sffish|r or |cff00ffff/click SfuiFishingButton|r in macros or chat."
+            "• |cffffffff1-key cast, catch & loot|r: press your bound key once to cast. when the bobber splashes, press the exact same key to reel in. caught fish are looted automatically (or on your next keypress if loot remains).\n\n" ..
+            "• |cffffffffgamepad fishing|r: enable controller support via |cff00ffff/console GamePadEnable 1|r. in keybindings > sfui, bind your trigger or button (e.g. right trigger) to fish with one button.\n\n" ..
+            "• |cffffffffmacro & slash|r: use |cff00ffff/sffish|r or |cff00ffff/click SfuiFishingButton|r in macros or chat."
         )
 
         p:HookScript("OnShow", function()

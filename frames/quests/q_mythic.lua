@@ -704,6 +704,9 @@ local function GetDelveCompanionInfo()
                 currentXP = 1
                 nextLevelXP = 1
             end
+            if maxLevel > 0 and currentLevel >= maxLevel then
+                isMaxLevel = true
+            end
             local fData = C_Reputation and C_Reputation.GetFactionDataByID and C_Reputation.GetFactionDataByID(companionFactionID)
             name = fData and fData.name or (rankInfo and rankInfo.name) or repInfo.name or name
             description = fData and fData.description or nil
@@ -719,7 +722,7 @@ local function GetDelveCompanionInfo()
             maxLevel = mData.maxLevel or 0
             currentXP = mData.renownReputationEarned or 0
             nextLevelXP = mData.renownLevelThreshold or 2500
-            isMaxLevel = mData.renownLevel >= mData.maxLevel
+            isMaxLevel = (maxLevel > 0 and currentLevel >= maxLevel) or (mData.renownLevel >= mData.maxLevel)
         end
     end
 
@@ -2526,23 +2529,20 @@ local function UpdateInstanceState()
         MF.forcesCountText:SetText("")
     end
 
-    -- Companion Bar update (Delve only)
+    -- Companion Bar update (Delve only: hide when max level)
     local compInfo = (delveInfo ~= nil) and GetDelveCompanionInfo() or nil
-    if compInfo then
+    local showCompanion = compInfo ~= nil and not compInfo.isMaxLevel
+    if showCompanion then
         MF.companionBar:SetMinMaxValues(0, 100)
         MF.companionBar:SetValue(compInfo.pct)
         MF.companionLeftText:SetText(string_format("lvl %d", compInfo.level))
-        if compInfo.isMaxLevel then
-            MF.companionRightText:SetText("|cff44ff44max level|r")
-        else
-            MF.companionRightText:SetText(string_format("%.1f%%", compInfo.pct))
-        end
+        MF.companionRightText:SetText(string_format("%.1f%%", compInfo.pct))
     else
         MF.companionLeftText:SetText("")
         MF.companionRightText:SetText("")
     end
 
-    RelayoutHUD(bossCount, delveInfo ~= nil, delveRowH, forcesInfo ~= nil, compInfo ~= nil)
+    RelayoutHUD(bossCount, delveInfo ~= nil, delveRowH, forcesInfo ~= nil, showCompanion)
 end
 
 -- ─── Combat Resurrection Tracker ──────────────────────────

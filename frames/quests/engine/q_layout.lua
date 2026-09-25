@@ -11,7 +11,16 @@ sfui.tracker.layout = sfui.tracker.layout or {}
 local _G = _G
 local UIParent = _G.UIParent
 local GetScreenHeight = _G.GetScreenHeight
-local ipairs, pairs, math_max = _G.ipairs, _G.pairs, math.max
+local type, tostring = _G.type, _G.tostring
+local math_max, math_min, math_abs, math_floor = _G.math.max, _G.math.min, _G.math.abs, _G.math.floor
+local C_QuestLog = _G.C_QuestLog
+local C_ContentTracking = _G.C_ContentTracking
+local C_PerksActivities = _G.C_PerksActivities
+local C_NeighborhoodInitiative = _G.C_NeighborhoodInitiative
+local C_TradeSkillUI = _G.C_TradeSkillUI
+local C_EventScheduler = _G.C_EventScheduler
+local C_SuperTrack = _G.C_SuperTrack
+local Enum = _G.Enum
 
 local Layout = sfui.tracker.layout
 local Blocks = sfui.tracker.blocks
@@ -19,6 +28,274 @@ local Blocks = sfui.tracker.blocks
 local SPACING_SECTION = 10
 local SPACING_BLOCK   = 6
 local SPACING_LINE    = 2
+
+--- Untrack all items in a given section
+--- @param sec table Section table containing id and blocks
+local function UntrackSection(sec)
+    if not sec then return end
+
+    if sec.OnShiftClick then
+        sec.OnShiftClick()
+        return
+    end
+
+    local st = SfuiDB and SfuiDB.questlog
+    local expandedQuests = st and st.expandedQuests
+
+    -- 1. Untrack all blocks currently listed in this section
+    if sec.blocks then
+        for _, b in ipairs(sec.blocks) do
+            -- Quests & World Quests
+            if b.questID and b.questID > 0 then
+                local qID = b.questID
+                if C_QuestLog and C_QuestLog.RemoveQuestWatch then
+                    C_QuestLog.RemoveQuestWatch(qID)
+                end
+                if C_QuestLog and C_QuestLog.RemoveWorldQuestWatch then
+                    C_QuestLog.RemoveWorldQuestWatch(qID)
+                end
+                if _G.RemoveQuestWatch then
+                    local idx = b.questLogIndex
+                    if not idx or idx <= 0 then
+                        if C_QuestLog and C_QuestLog.GetLogIndexForQuestID then
+                            idx = C_QuestLog.GetLogIndexForQuestID(qID)
+                        elseif _G.GetQuestLogIndexByID then
+                            idx = _G.GetQuestLogIndexByID(qID)
+                        end
+                    end
+                    if idx and idx > 0 then
+                        _G.RemoveQuestWatch(idx)
+                    end
+                end
+                if C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.SetSuperTrackedQuestID then
+                    local curSuper = C_SuperTrack.GetSuperTrackedQuestID()
+                    if curSuper and curSuper == qID then
+                        pcall(C_SuperTrack.SetSuperTrackedQuestID, 0)
+                    end
+                end
+                if expandedQuests then
+                    expandedQuests[qID] = nil
+                    expandedQuests["wq_" .. tostring(qID)] = nil
+                end
+            end
+
+            -- Achievements
+            if b.achievementID and b.achievementID > 0 then
+                local achID = b.achievementID
+                if C_ContentTracking and C_ContentTracking.StopTracking then
+                    local trackType = (Enum and Enum.ContentTrackingType and Enum.ContentTrackingType.Achievement) or 2
+                    local stopType = (Enum and Enum.ContentTrackingStopType and Enum.ContentTrackingStopType.Manual) or 2
+                    C_ContentTracking.StopTracking(trackType, achID, stopType)
+                end
+                if _G.RemoveTrackedAchievement then
+                    _G.RemoveTrackedAchievement(achID)
+                end
+                if expandedQuests then
+                    expandedQuests["ach_" .. tostring(achID)] = nil
+                end
+            end
+
+            -- Perks Activities
+            if b.isPerksActivity or b.activityID then
+                local actID = b.activityID
+                if actID and C_PerksActivities and C_PerksActivities.RemoveTrackedPerksActivity then
+                    C_PerksActivities.RemoveTrackedPerksActivity(actID)
+                end
+            end
+
+            -- Housing Tasks / Initiatives
+            if b.isHousingTask or b.housingTaskID then
+                local taskID = b.housingTaskID
+                if taskID and C_NeighborhoodInitiative and C_NeighborhoodInitiative.RemoveTrackedInitiativeTask then
+                    C_NeighborhoodInitiative.RemoveTrackedInitiativeTask(taskID)
+                end
+                if expandedQuests and taskID then
+                    expandedQuests["house_" .. tostring(taskID)] = nil
+                end
+            end
+
+            -- Trade Skill Recipes
+            if b.isRecipe or b.recipeID then
+                local recID = b.recipeID
+                if recID and C_TradeSkillUI and C_TradeSkillUI.SetRecipeTracked then
+                    C_TradeSkillUI.SetRecipeTracked(recID, false, b.isRecraft or false)
+                end
+                if expandedQuests and recID then
+                    expandedQuests["rec_" .. tostring(recID)] = nil
+                end
+            end
+
+            -- Collectables (Decor, Appearances)
+            if b.isCollectable or (b.trackableType and b.trackableID) then
+                local tType = b.trackableType
+                local tID = b.trackableID
+                if tType and tID and C_ContentTracking and C_ContentTracking.StopTracking then
+                    local stopType = (Enum and Enum.ContentTrackingStopType and Enum.ContentTrackingStopType.Manual) or 2
+                    C_ContentTracking.StopTracking(tType, tID, stopType)
+                end
+                if expandedQuests and tID then
+                    expandedQuests["coll_" .. tostring(tType) .. "_" .. tostring(tID)] = nil
+                end
+            end
+
+            -- World Events
+            if b.curEventKey and C_EventScheduler and C_EventScheduler.ClearReminder then
+                C_EventScheduler.ClearReminder(b.curEventKey)
+            end
+        end
+    end
+
+    -- 2. Category-level bulk untracking fallback
+    local secID = sec.id
+    if secID == "achievements" then
+        if _G.RemoveTrackedAchievement and _G.GetTrackedAchievements then
+            local tracked = { _G.GetTrackedAchievements() }
+            for _, id in ipairs(tracked) do
+                if id and type(id) == "number" and id > 0 then
+                    _G.RemoveTrackedAchievement(id)
+                end
+            end
+        end
+        if C_ContentTracking and C_ContentTracking.GetTrackedIDs and C_ContentTracking.StopTracking then
+            local trackType = (Enum and Enum.ContentTrackingType and Enum.ContentTrackingType.Achievement) or 2
+            local stopType = (Enum and Enum.ContentTrackingStopType and Enum.ContentTrackingStopType.Manual) or 2
+            local ids = C_ContentTracking.GetTrackedIDs(trackType)
+            if ids and type(ids) == "table" then
+                for _, id in ipairs(ids) do
+                    C_ContentTracking.StopTracking(trackType, id, stopType)
+                end
+            end
+        end
+        if _G.AchievementFrameAchievements_ForceUpdate then
+            _G.AchievementFrameAchievements_ForceUpdate()
+        end
+    elseif secID == "activities" then
+        if C_PerksActivities and C_PerksActivities.RemoveTrackedPerksActivity and C_PerksActivities.GetTrackedPerksActivities then
+            local tracked = C_PerksActivities.GetTrackedPerksActivities()
+            if tracked and tracked.trackedIDs then
+                for _, id in ipairs(tracked.trackedIDs) do
+                    C_PerksActivities.RemoveTrackedPerksActivity(id)
+                end
+            end
+        end
+        if C_NeighborhoodInitiative and C_NeighborhoodInitiative.RemoveTrackedInitiativeTask and C_NeighborhoodInitiative.GetTrackedInitiativeTasks then
+            local tracked = C_NeighborhoodInitiative.GetTrackedInitiativeTasks()
+            if tracked and tracked.trackedIDs then
+                for _, id in ipairs(tracked.trackedIDs) do
+                    C_NeighborhoodInitiative.RemoveTrackedInitiativeTask(id)
+                end
+            end
+        end
+    elseif secID == "recipes" then
+        if C_TradeSkillUI and C_TradeSkillUI.SetRecipeTracked and C_TradeSkillUI.GetRecipesTracked then
+            for _, isRecraft in ipairs({ false, true }) do
+                local recipes = C_TradeSkillUI.GetRecipesTracked(isRecraft)
+                if recipes then
+                    for _, rID in ipairs(recipes) do
+                        C_TradeSkillUI.SetRecipeTracked(rID, false, isRecraft)
+                    end
+                end
+            end
+        end
+    elseif secID == "collectables" then
+        if C_ContentTracking and C_ContentTracking.GetTrackedIDs and C_ContentTracking.StopTracking then
+            local stopType = (Enum and Enum.ContentTrackingStopType and Enum.ContentTrackingStopType.Manual) or 2
+            local decorType = (Enum and Enum.ContentTrackingType and Enum.ContentTrackingType.Decor) or 3
+            local appType = (Enum and Enum.ContentTrackingType and Enum.ContentTrackingType.Appearance) or 1
+            for _, tType in ipairs({ decorType, appType }) do
+                local ids = C_ContentTracking.GetTrackedIDs(tType)
+                if ids and type(ids) == "table" then
+                    for _, id in ipairs(ids) do
+                        C_ContentTracking.StopTracking(tType, id, stopType)
+                    end
+                end
+            end
+        end
+    elseif secID == "world" or secID == "worldquests" then
+        if C_QuestLog and C_QuestLog.GetNumWorldQuestWatches and C_QuestLog.GetQuestIDForWorldQuestWatchIndex then
+            local numW = C_QuestLog.GetNumWorldQuestWatches() or 0
+            for w = numW, 1, -1 do
+                local qID = C_QuestLog.GetQuestIDForWorldQuestWatchIndex(w)
+                if qID and qID > 0 then
+                    if C_QuestLog.RemoveWorldQuestWatch then
+                        C_QuestLog.RemoveWorldQuestWatch(qID)
+                    end
+                    if C_QuestLog.RemoveQuestWatch then
+                        C_QuestLog.RemoveQuestWatch(qID)
+                    end
+                end
+            end
+        end
+    end
+
+    -- 3. Quest Log scan for category match (fallback for quests)
+    if secID == "campaign" or secID == "important" or secID == "meta" or secID == "zone" or secID == "quests" or (type(secID) == "string" and secID:find("^zone")) then
+        local numEntries = (C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetNumQuestLogEntries())
+            or (_G.GetNumQuestLogEntries and _G.GetNumQuestLogEntries())
+            or 0
+        local currentHeader = "Miscellaneous"
+        for i = 1, numEntries do
+            local qID, isH, isWatched = nil, false, false
+            local info = C_QuestLog and C_QuestLog.GetInfo and C_QuestLog.GetInfo(i)
+            if info then
+                isH = info.isHeader
+                qID = info.questID
+                if isH then
+                    currentHeader = info.title or "Miscellaneous"
+                end
+            elseif _G.GetQuestLogTitle then
+                local qTitle, _, _, qHeader, _, _, _, questID = _G.GetQuestLogTitle(i)
+                isH = qHeader
+                qID = questID
+                if isH then
+                    currentHeader = qTitle or "Miscellaneous"
+                end
+            end
+
+            if not isH and qID and qID > 0 then
+                if C_QuestLog and C_QuestLog.IsQuestWatched then
+                    isWatched = C_QuestLog.IsQuestWatched(qID)
+                elseif _G.IsQuestWatched then
+                    isWatched = _G.IsQuestWatched(i)
+                end
+                if isWatched then
+                    local match = false
+                    local QC = Enum and Enum.QuestClassification
+                    if secID == "campaign" and info and (info.campaignID and info.campaignID > 0 or info.questClassification == (QC and QC.Campaign)) then
+                        match = true
+                    elseif secID == "meta" and info and (info.questClassification == (QC and QC.Meta) or (C_QuestLog.IsMetaQuest and C_QuestLog.IsMetaQuest(qID))) then
+                        match = true
+                    elseif secID == "important" and info and (info.questClassification == (QC and QC.Important) or (C_QuestLog.IsImportantQuest and C_QuestLog.IsImportantQuest(qID))) then
+                        match = true
+                    elseif (secID == "zone" or secID == "quests") and (not info or (
+                           not (info.campaignID and info.campaignID > 0) and
+                           not (info.questClassification == (QC and QC.Campaign)) and
+                           not (info.questClassification == (QC and QC.Meta)) and
+                           not (info.questClassification == (QC and QC.Important)))) then
+                        match = true
+                    elseif type(secID) == "string" and secID:find("^zone_") then
+                        local targetZone = secID:sub(6):lower()
+                        if currentHeader:lower() == targetZone then
+                            match = true
+                        end
+                    end
+                    if match then
+                        if C_QuestLog and C_QuestLog.RemoveQuestWatch then C_QuestLog.RemoveQuestWatch(qID) end
+                        if _G.RemoveQuestWatch then _G.RemoveQuestWatch(i) end
+                        if C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.SetSuperTrackedQuestID then
+                            local curSuper = C_SuperTrack.GetSuperTrackedQuestID()
+                            if curSuper and curSuper == qID then
+                                pcall(C_SuperTrack.SetSuperTrackedQuestID, 0)
+                            end
+                        end
+                        if expandedQuests then expandedQuests[qID] = nil end
+                    end
+                end
+            end
+        end
+    end
+end
+Layout.UntrackSection = UntrackSection
 
 --- Build the visual layout for a list of sections and their blocks
 --- @param container Frame The tracker container frame
@@ -81,10 +358,17 @@ function Layout.BuildLayout(container, sections)
             header.count:SetTextColor(r * 0.50, g * 0.50, b * 0.50, 1)
 
             local secID = sec.id
+            header.secID = secID
+            local currentSec = sec
             header:SetScript("OnClick", function(self, button)
                 local IsShiftKeyDown = _G.IsShiftKeyDown
-                if IsShiftKeyDown and IsShiftKeyDown() and sec.OnShiftClick then
-                    sec.OnShiftClick()
+                if IsShiftKeyDown and IsShiftKeyDown() then
+                    UntrackSection(currentSec)
+                    if sfui.tracker and sfui.tracker.modules then
+                        for _, mod in ipairs(sfui.tracker.modules) do
+                            if mod.MarkDirty then mod:MarkDirty() end
+                        end
+                    end
                     if sfui.tracker and sfui.tracker.RequestRefresh then
                         sfui.tracker.RequestRefresh(0.01)
                     end

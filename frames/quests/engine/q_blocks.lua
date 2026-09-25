@@ -95,7 +95,22 @@ local function CreateHeader(parent)
             tip:AddLine("quest log: " .. self.capFormatted, 1, 1, 1)
         end
         tip:AddLine("|cff888888Left-click: Collapse/Expand section|r", 1, 1, 1)
-        tip:AddLine("|cff888888Shift-click: Untrack all quests in category|r", 1, 1, 1)
+        local secID = self.secID
+        local itemWord = "items"
+        if secID == "achievements" then
+            itemWord = "achievements"
+        elseif secID == "recipes" then
+            itemWord = "recipes"
+        elseif secID == "activities" then
+            itemWord = "activities"
+        elseif secID == "collectables" then
+            itemWord = "collectables"
+        elseif secID == "world" or secID == "worldquests" then
+            itemWord = "world quests"
+        elseif secID == "campaign" or secID == "important" or secID == "meta" or secID == "zone" or secID == "quests" or (type(secID) == "string" and secID:find("^zone")) then
+            itemWord = "quests"
+        end
+        tip:AddLine("|cff888888Shift-click: Untrack all " .. itemWord .. " in category|r", 1, 1, 1)
         tip:Show()
     end)
 
@@ -124,6 +139,7 @@ function Blocks.AcquireHeader(parent)
         h:ClearAllPoints()
         h:SetBackdropColor(0, 0, 0, 0.50)
         h:SetBackdropBorderColor(0, 0, 0, 0.50)
+        h.secID = nil
         if h.accent then
             h.accent:SetColorTexture(1, 1, 1, 1)
         end

@@ -20,6 +20,7 @@ local C_TaskQuest = _G.C_TaskQuest
 local C_SuperTrack = _G.C_SuperTrack
 local C_PlayerInfo = _G.C_PlayerInfo
 local Enum = _G.Enum
+local Constants = _G.Constants
 local GetNumAutoQuestPopUps = _G.GetNumAutoQuestPopUps
 local GetAutoQuestPopUp = _G.GetAutoQuestPopUp
 local GetQuestLogTitle = _G.GetQuestLogTitle
@@ -62,6 +63,8 @@ local lastQuestProgress = {}
 local initialScanDone = false
 local snapshotParts = {}
 
+local recentlyWatched = {}
+
 local function GetQuestProgressSnapshot(questID, questLogIndex, isComplete, objs)
     wipe(snapshotParts)
     table_insert(snapshotParts, isComplete and "1" or "0")
@@ -74,8 +77,10 @@ local function GetQuestProgressSnapshot(questID, questLogIndex, isComplete, objs
     if objs and #objs > 0 then
         for idx, obj in ipairs(objs) do
             local fin = obj.finished and "1" or "0"
+            local cur = obj.numFulfilled or ""
+            local req = obj.numRequired or ""
             local txt = obj.text or ""
-            table_insert(snapshotParts, idx .. ":" .. fin .. ":" .. txt)
+            table_insert(snapshotParts, idx .. ":" .. fin .. ":" .. cur .. "/" .. req .. ":" .. txt)
         end
     elseif questLogIndex and _G.GetNumQuestLeaderBoards and _G.GetQuestLogLeaderBoard then
         local numLeaderBoards = _G.GetNumQuestLeaderBoards(questLogIndex) or 0
@@ -109,6 +114,7 @@ end
 
 local function IsQuestWatched(questID, questLogIndex)
     if not questID or questID <= 0 then return false end
+    if recentlyWatched[questID] then return true end
     if C_QuestLog and C_QuestLog.GetQuestWatchType then
         local wt = C_QuestLog.GetQuestWatchType(questID)
         if wt ~= nil then return true end
@@ -132,6 +138,60 @@ local function IsWorldQuest(questID)
         return true
     end
     return false
+end
+
+--- Automatically track a quest when objectives update or progress occurs
+--- @param questID number Quest ID to track
+--- @param questLogIndex number|nil Optional quest log index for classic clients
+local function AutoTrackQuest(questID, questLogIndex)
+    if not questID or questID <= 0 then return false end
+    if IsWorldQuest(questID) then return false end
+
+    -- Avoid tracking task quests or bounties as persistent watches
+    if C_QuestLog and ((C_QuestLog.IsQuestBounty and C_QuestLog.IsQuestBounty(questID))
+        or (C_QuestLog.IsQuestTask and C_QuestLog.IsQuestTask(questID))) then
+        return false
+    end
+
+    local alreadyWatched = IsQuestWatched(questID, questLogIndex)
+
+    if not alreadyWatched then
+        local maxWatches = (Constants and Constants.QuestWatchConsts and Constants.QuestWatchConsts.MAX_QUEST_WATCHES)
+            or _G.MAX_WATCHABLE_QUESTS
+            or 25
+
+        local canWatch = true
+        if C_QuestLog and C_QuestLog.GetNumQuestWatches then
+            canWatch = (C_QuestLog.GetNumQuestWatches() < maxWatches)
+        elseif _G.GetNumQuestWatches then
+            canWatch = (_G.GetNumQuestWatches() < maxWatches)
+        end
+
+        if canWatch then
+            recentlyWatched[questID] = true
+            if C_QuestLog and C_QuestLog.AddQuestWatch then
+                pcall(C_QuestLog.AddQuestWatch, questID)
+            elseif _G.AddQuestWatch then
+                local idx = questLogIndex
+                if not idx or idx <= 0 then
+                    if C_QuestLog and C_QuestLog.GetLogIndexForQuestID then
+                        idx = C_QuestLog.GetLogIndexForQuestID(questID)
+                    elseif _G.GetQuestLogIndexByID then
+                        idx = _G.GetQuestLogIndexByID(questID)
+                    end
+                end
+                if idx and idx > 0 then
+                    pcall(_G.AddQuestWatch, idx)
+                end
+            end
+        end
+    end
+
+    local state = GetQLState()
+    state.expandedQuests = state.expandedQuests or {}
+    state.expandedQuests[questID] = true
+
+    return true
 end
 
 local seasonalWeeklySet = nil
@@ -327,6 +387,7 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
         end
 
         -- Untrack quest
+        recentlyWatched[questID] = nil
         if C_QuestLog and C_QuestLog.RemoveQuestWatch then
             C_QuestLog.RemoveQuestWatch(questID)
         elseif _G.RemoveQuestWatch and questLogIndex then
@@ -374,6 +435,9 @@ local QuestsModule = {
     events   = {
         "QUEST_LOG_UPDATE",
         "QUEST_WATCH_LIST_CHANGED",
+        "QUEST_WATCH_UPDATE",
+        "QUEST_LOG_CRITERIA_UPDATE",
+        "QUEST_CRITERIA_UPDATE",
         "QUEST_AUTOCOMPLETE",
         "QUEST_ACCEPTED",
         "QUEST_TURNED_IN",
@@ -382,7 +446,6 @@ local QuestsModule = {
         "WAYPOINT_RECIEVED",
         "QUEST_POI_UPDATE",
         "ZONE_CHANGED_NEW_AREA",
-        "QUEST_CRITERIA_UPDATE",
         "UNIT_QUEST_LOG_CHANGED",
     },
 }
@@ -402,18 +465,28 @@ function QuestsModule:OnEvent(event, ...)
 
     if event == "QUEST_ACCEPTED" then
         if questID and questID > 0 then
-            local state = GetQLState()
-            state.expandedQuests = state.expandedQuests or {}
-            state.expandedQuests[questID] = true
+            AutoTrackQuest(questID)
+        end
+    elseif event == "QUEST_WATCH_UPDATE" or event == "QUEST_LOG_CRITERIA_UPDATE" or event == "QUEST_CRITERIA_UPDATE" or event == "QUEST_AUTOCOMPLETE" then
+        if questID and questID > 0 then
+            AutoTrackQuest(questID)
+            if C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
+                pcall(C_SuperTrack.SetSuperTrackedQuestID, questID)
+            end
         end
     elseif event == "QUEST_WATCH_LIST_CHANGED" then
-        if questID and questID > 0 and (added == nil or added == true) then
-            local state = GetQLState()
-            state.expandedQuests = state.expandedQuests or {}
-            state.expandedQuests[questID] = true
+        if questID and questID > 0 then
+            if added == false then
+                recentlyWatched[questID] = nil
+            elseif added == true or added == nil then
+                local state = GetQLState()
+                state.expandedQuests = state.expandedQuests or {}
+                state.expandedQuests[questID] = true
+            end
         end
     elseif event == "QUEST_TURNED_IN" or event == "QUEST_REMOVED" then
         if questID and questID > 0 then
+            recentlyWatched[questID] = nil
             local state = GetQLState()
             if state and state.expandedQuests then
                 state.expandedQuests[questID] = nil
@@ -421,7 +494,12 @@ function QuestsModule:OnEvent(event, ...)
             lastQuestProgress[questID] = nil
         end
     end
-    self:MarkDirty()
+
+    if event == "QUEST_WATCH_LIST_CHANGED" or event == "QUEST_WATCH_UPDATE" or event == "QUEST_LOG_CRITERIA_UPDATE" or event == "QUEST_CRITERIA_UPDATE" or event == "QUEST_ACCEPTED" then
+        self:MarkDirty(0.01)
+    else
+        self:MarkDirty()
+    end
 end
 
 function QuestsModule:IsEnabled()
@@ -450,7 +528,7 @@ function QuestsModule:BuildBlocks(container)
     --  PROGRESS MONITOR: Pre-pass to detect quest progress change
     -- ─────────────────────────────────────────────────────────
     local currentActiveQuests = {}
-    local changedQuestID = nil
+    local changedQuests = {}
 
     for i = 1, numEntries do
         local qID = nil
@@ -478,7 +556,7 @@ function QuestsModule:BuildBlocks(container)
             local prevSig = lastQuestProgress[qID]
 
             if initialScanDone and prevSig and prevSig ~= currentSig then
-                changedQuestID = qID
+                changedQuests[qID] = i
             end
             lastQuestProgress[qID] = currentSig
         end
@@ -491,16 +569,12 @@ function QuestsModule:BuildBlocks(container)
         end
     end
 
-    -- When a quest's progress has changed, expand the quest and focus it
-    if changedQuestID then
-        state.expandedQuests = state.expandedQuests or {}
-        state.expandedQuests[changedQuestID] = true
-        if C_QuestLog and C_QuestLog.AddQuestWatch then
-            pcall(C_QuestLog.AddQuestWatch, changedQuestID)
-        end
+    -- When any quest's progress has changed, automatically track it and super-track it
+    for cQID, cIdx in pairs(changedQuests) do
+        AutoTrackQuest(cQID, cIdx)
         if C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
-            pcall(C_SuperTrack.SetSuperTrackedQuestID, changedQuestID)
-            superTrackedQuestID = changedQuestID
+            pcall(C_SuperTrack.SetSuperTrackedQuestID, cQID)
+            superTrackedQuestID = cQID
         end
     end
 

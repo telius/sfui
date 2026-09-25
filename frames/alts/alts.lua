@@ -156,6 +156,9 @@ local function ReleaseCell(f)
         f.del:SetScript("OnLeave", nil)
         f.del:Hide()
     end
+    if f.diamondIcon then
+        f.diamondIcon:Hide()
+    end
     cellPool[#cellPool + 1] = f
 end
 
@@ -243,10 +246,12 @@ function sfui.alts.PerformSync(isLogout)
     local guid = GetCurrentCharacterGUID()
     if not guid then return end
 
+    local name, realm = UnitName("player")
+    if not name or name == "Unknown" then return end
+
     SfuiDB.alts = SfuiDB.alts or {}
     local d = SfuiDB.alts[guid] or {}
 
-    local name, realm = UnitName("player")
     d.name = name
     d.realm = (realm and realm ~= "") and realm or (GetRealmName and GetRealmName())
     local _, englishClass = UnitClass("player")

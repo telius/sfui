@@ -1735,6 +1735,12 @@ end
 --- Prioritizes physical bags for instant reflection of downgrades/rerolls/upgrades.
 --- @return table|nil { mapID = number|nil, level = number, link = string|nil, name = string|nil, itemID = number|nil }
 function sfui.common.get_owned_keystone_info()
+    local playerLevel = _G.UnitLevel and _G.UnitLevel("player")
+    local maxLevel = (_G.GetMaxPlayerLevel and _G.GetMaxPlayerLevel()) or 80
+    if playerLevel and playerLevel < maxLevel then
+        return nil
+    end
+
     local C_Item          = _G.C_Item
     local C_MythicPlus    = _G.C_MythicPlus
     local C_LFGList       = _G.C_LFGList

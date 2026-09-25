@@ -1,14 +1,9 @@
-local addonName, addon = ...
 sfui = sfui or {}
 sfui.fishing = sfui.fishing or {}
 
-local g      = sfui.config
-local common = sfui.common
-local cfg    = g.fishing or {}
-
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/fishing.lua
---  Integrated One-Key & Double-Click Fishing Automation
+--  Integrated One-Key Fishing Automation & Auto-Loot
 --  Zero-taint secure action handling, soft-targeting bobber interact, and
 --  dynamic acoustic enhancement during casts.
 --  Cross-version compatible: Retail, Camelot, Classic Era.
@@ -18,46 +13,26 @@ local cfg    = g.fishing or {}
 local CreateFrame             = _G.CreateFrame
 local InCombatLockdown        = _G.InCombatLockdown
 local SetOverrideBinding      = _G.SetOverrideBinding
-local SetOverrideBindingClick = _G.SetOverrideBindingClick
 local SetOverrideBindingSpell = _G.SetOverrideBindingSpell
 local ClearOverrideBindings   = _G.ClearOverrideBindings
 local GetBindingKey           = _G.GetBindingKey
 local GetTime                 = _G.GetTime
 local SetCVar                 = _G.SetCVar
 local GetCVar                 = _G.GetCVar
-local GetCVarBool             = _G.GetCVarBool
-local UnitChannelInfo         = _G.UnitChannelInfo
-local ChannelInfo             = _G.ChannelInfo
-local IsPlayerMoving          = _G.IsPlayerMoving
-local IsMounted               = _G.IsMounted
-local IsFlying                = _G.IsFlying
-local IsFalling               = _G.IsFalling
-local IsStealthed             = _G.IsStealthed
-local IsSwimming              = _G.IsSwimming
-local IsSubmerged             = _G.IsSubmerged
-local UnitHasVehicleUI        = _G.UnitHasVehicleUI
-local HasFullControl          = _G.HasFullControl
-local IsMouseButtonDown       = _G.IsMouseButtonDown
-local IsModifierKeyDown       = _G.IsModifierKeyDown
 local GetNumLootItems         = _G.GetNumLootItems
-local SecureHandlerWrapScript = _G.SecureHandlerWrapScript
-local MouselookStart          = _G.MouselookStart
-local MouselookStop           = _G.MouselookStop
+local LootSlot                = _G.LootSlot
+local IsSpellKnown            = _G.IsSpellKnown
+local IsPlayerSpell           = _G.IsPlayerSpell
 local C_Spell                 = _G.C_Spell
 local C_SpellBook             = _G.C_SpellBook
 local C_Timer                 = _G.C_Timer
-local C_UnitAuras             = _G.C_UnitAuras
-local C_Secrets               = _G.C_Secrets
-local pcall, type, ipairs, pairs = _G.pcall, _G.type, _G.ipairs, _G.pairs
-local table_insert            = table.insert
-local table_remove            = table.remove
+local ipairs, pairs          = _G.ipairs, _G.pairs
 local wipe                    = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
 
 -- Global keybind identifiers
-_G["BINDING_NAME_SFUI_FISHING"] = "Cast & Catch Fishing"
-_G["BINDING_NAME_BETTERFISHINGKEY"] = "Cast & Catch Fishing" -- Backwards compat with BetterFishing binds
+_G["BINDING_NAME_SFUI_FISHING"] = "cast & catch fishing"
+_G["BINDING_NAME_BETTERFISHINGKEY"] = "cast & catch fishing (better fishing compat)"
 
-local DOUBLECLICK_MIN_SECONDS = 0.04
 local SECURE_BUTTON_NAME = "SfuiFishingButton"
 
 local FishingIDs = {
@@ -99,9 +74,9 @@ local SoftTargetCVars = {
 -- Module State
 local _state = {
     secureButton = nil,
-    previousClickTime = 0,
-    lastCastTime = 0,
-    isInteractBinding = false,
+    isFishing = false,
+    wasFishing = false,
+    lastChannelStopTime = 0,
     cvarsChanged = false,
     soundsEnhanced = false,
     isRestoringSounds = false,
@@ -113,27 +88,19 @@ local _state = {
 -- Register module defaults with sfui.db
 local defaults = {
     enabled = true,
-    doubleClick = true,
-    doubleClickSpeed = 0.4,
-    doubleClickForce = false, -- allow when mounted
+    autoLoot = true,
     enhanceSounds = true,
     enhanceSoundsScale = 1.0,
     softTarget = true,
-    recastOnDoubleClick = false,
-    overrideLunker = false,
 }
 sfui.db.RegisterDefaults("fishing", defaults)
 
 local optionsKeyMap = {
     enabled             = "fishingEnabled",
-    doubleClick         = "fishingDoubleClick",
-    doubleClickSpeed    = "fishingDoubleClickSpeed",
-    doubleClickForce    = "fishingMounted",
+    autoLoot            = "fishingAutoLoot",
     enhanceSounds       = "fishingEnhanceSounds",
     enhanceSoundsScale  = "fishingSoundScale",
     softTarget          = "fishingSoftTarget",
-    recastOnDoubleClick = "fishingRecast",
-    overrideLunker      = "fishingOverrideLunker",
 }
 
 local function get_setting(key, fallback)
@@ -148,15 +115,12 @@ end
 
 local function safe_get_cvar(cvar)
     if not GetCVar then return nil end
-    local ok, val = pcall(GetCVar, cvar)
-    if ok then return val end
-    return nil
+    return GetCVar(cvar)
 end
 
 local function safe_set_cvar(cvar, val)
-    if not SetCVar or not GetCVar then return end
-    if safe_get_cvar(cvar) ~= nil then
-        pcall(SetCVar, cvar, val)
+    if SetCVar and GetCVar and GetCVar(cvar) ~= nil then
+        SetCVar(cvar, val)
     end
 end
 
@@ -170,37 +134,37 @@ end
 
 -- ─── Skill & Spell Detection (Cross-Client) ──────────────────────────────────
 
-local isClassicEra = (WOW_PROJECT_ID == WOW_PROJECT_CLASSIC)
+local isClassicEra = (_G.WOW_PROJECT_ID ~= nil and _G.WOW_PROJECT_CLASSIC ~= nil and _G.WOW_PROJECT_ID == _G.WOW_PROJECT_CLASSIC)
+
+local cachedFishingID
+local cachedSpellName
 
 local function is_spell_known(spellID)
     if not spellID then return false end
-    if C_SpellBook and C_SpellBook.IsSpellKnownOrInSpellBook then
-        local ok, known = pcall(C_SpellBook.IsSpellKnownOrInSpellBook, spellID)
-        if ok and known then return true end
+    if C_SpellBook then
+        if C_SpellBook.IsSpellKnownOrInSpellBook then
+            return C_SpellBook.IsSpellKnownOrInSpellBook(spellID) or false
+        elseif C_SpellBook.IsSpellKnown then
+            return C_SpellBook.IsSpellKnown(spellID) or false
+        elseif C_SpellBook.HasSpell then
+            return C_SpellBook.HasSpell(spellID) or false
+        end
     end
-    if C_SpellBook and C_SpellBook.IsSpellKnown then
-        local ok, known = pcall(C_SpellBook.IsSpellKnown, spellID)
-        if ok and known then return true end
-    end
-    if C_SpellBook and C_SpellBook.HasSpell then
-        local ok, known = pcall(C_SpellBook.HasSpell, spellID)
-        if ok and known then return true end
-    end
-    if _G.IsSpellKnown then
-        local ok, known = pcall(_G.IsSpellKnown, spellID)
-        if ok and known then return true end
-    end
-    if _G.IsPlayerSpell then
-        local ok, known = pcall(_G.IsPlayerSpell, spellID)
-        if ok and known then return true end
+    if IsPlayerSpell then
+        return IsPlayerSpell(spellID) or false
+    elseif IsSpellKnown then
+        return IsSpellKnown(spellID) or false
     end
     return false
 end
 
 local function get_known_fishing_id()
+    if cachedFishingID then return cachedFishingID end
+
     if isClassicEra then
         for id in pairs(FishingIDs) do
             if is_spell_known(id) then
+                cachedFishingID = id
                 return id
             end
         end
@@ -210,6 +174,7 @@ local function get_known_fishing_id()
     -- Retail / Mainline: check known IDs, default safely to 131474
     for id in pairs(FishingIDs) do
         if is_spell_known(id) then
+            cachedFishingID = id
             return id
         end
     end
@@ -218,132 +183,52 @@ end
 sfui.fishing.get_known_fishing_id = get_known_fishing_id
 
 local function get_fishing_spell_name()
+    if cachedSpellName then return cachedSpellName end
+
     local id = get_known_fishing_id()
-    if id and C_Spell and C_Spell.GetSpellName then
-        local ok, name = pcall(C_Spell.GetSpellName, id)
-        if ok and name and name ~= "" then return name end
+    if id then
+        if C_Spell and C_Spell.GetSpellName then
+            local name = C_Spell.GetSpellName(id)
+            if name and name ~= "" then
+                cachedSpellName = name
+                return name
+            end
+        elseif _G.GetSpellInfo then
+            local name = _G.GetSpellInfo(id)
+            if name and name ~= "" then
+                cachedSpellName = name
+                return name
+            end
+        end
     end
-    if id and _G.GetSpellInfo then
-        local ok, name = pcall(_G.GetSpellInfo, id)
-        if ok and name and name ~= "" then return name end
-    end
-    if C_Spell and C_Spell.GetSpellName then
-        local ok, name = pcall(C_Spell.GetSpellName, 131474)
-        if ok and name and name ~= "" then return name end
-        ok, name = pcall(C_Spell.GetSpellName, 7620)
-        if ok and name and name ~= "" then return name end
-    end
-    if _G.GetSpellInfo then
-        local ok, name = pcall(_G.GetSpellInfo, 131474)
-        if ok and name and name ~= "" then return name end
-        ok, name = pcall(_G.GetSpellInfo, 7620)
-        if ok and name and name ~= "" then return name end
-    end
-    return "Fishing"
+    cachedSpellName = "Fishing"
+    return cachedSpellName
 end
 sfui.fishing.get_fishing_spell_name = get_fishing_spell_name
 
-local function is_flying_safe()
-    if C_Secrets and C_Secrets.ShouldSpellAuraBeSecret and C_Secrets.ShouldSpellAuraBeSecret(125883) then
-        return IsFlying and IsFlying()
-    end
-    if C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID and C_UnitAuras.GetPlayerAuraBySpellID(125883) then
-        return false
-    end
-    return IsFlying and IsFlying()
-end
-
-local function is_fishing_channel()
-    if UnitChannelInfo then
-        local ok, name, _, _, _, _, _, _, spellID = pcall(UnitChannelInfo, "player")
-        if ok and name and (name == get_fishing_spell_name() or (spellID and FishingIDs[spellID])) then
-            return true
-        end
-    end
-    if ChannelInfo then
-        local ok, spellName = pcall(ChannelInfo)
-        if ok and spellName and spellName == get_fishing_spell_name() then
-            return true
-        end
-    end
-    return false
-end
-
-local function is_lunker_active()
-    if UnitChannelInfo then
-        local ok, _, _, _, _, _, _, _, spellID = pcall(UnitChannelInfo, "player")
-        if ok and spellID == 392270 then return true end
-    end
-    return false
-end
-
-local function allow_fishing()
-    if not get_setting("enabled", true) then return false end
-
-    -- Verify player actually knows fishing on Classic Era
-    if isClassicEra and not is_spell_known(get_known_fishing_id()) then
-        return false
-    end
-
-    if (IsPlayerMoving and IsPlayerMoving())
-        or (IsMounted and IsMounted() and not get_setting("doubleClickForce", false))
-        or is_flying_safe()
-        or (IsFalling and IsFalling())
-        or (IsStealthed and IsStealthed())
-        or (IsSwimming and IsSwimming())
-        or (IsSubmerged and IsSubmerged())
-        or (UnitHasVehicleUI and UnitHasVehicleUI("player"))
-        or (HasFullControl and not HasFullControl())
-    then
-        return false
-    end
-
-    if not get_setting("overrideLunker", false) and is_lunker_active() then
-        return false
-    end
-
-    if is_fishing_channel() then
-        local recast = get_setting("recastOnDoubleClick", false)
-        local mod = IsModifierKeyDown and IsModifierKeyDown()
-        return (recast and not mod) or (not recast and mod)
-    end
-
-    return true
-end
 
 -- ─── Deferred Execution for Combat Safety ────────────────────────────────────
 
+local function print_message(msg)
+    if sfui.common and sfui.common.print then
+        sfui.common.print(msg)
+    end
+end
+
 local function defer_action(fn)
     if not InCombatLockdown or not InCombatLockdown() then
-        pcall(fn)
+        fn()
     else
-        table_insert(_state.pendingTasks, fn)
+        _state.pendingTasks[#_state.pendingTasks + 1] = fn
     end
 end
 
 local function run_deferred_tasks()
     if InCombatLockdown and InCombatLockdown() then return end
     for _, fn in ipairs(_state.pendingTasks) do
-        pcall(fn)
+        fn()
     end
     wipe(_state.pendingTasks)
-end
-
-local function update_button_attributes()
-    if _state.secureButton and (not InCombatLockdown or not InCombatLockdown()) then
-        local useKeyDowns = false
-        if GetCVarBool then
-            local ok, val = pcall(GetCVarBool, "ActionButtonUseKeyDown")
-            if ok then useKeyDowns = val end
-        elseif GetCVar then
-            local ok, val = pcall(GetCVar, "ActionButtonUseKeyDown")
-            if ok then useKeyDowns = (val == "1") end
-        end
-        _state.secureButton:SetAttribute("useKeyDowns", useKeyDowns)
-
-        local spellID = get_known_fishing_id() or (isClassicEra and 7620 or 131474)
-        _state.secureButton:SetAttribute("spell", spellID)
-    end
 end
 
 local function get_secure_button()
@@ -352,29 +237,7 @@ local function get_secure_button()
         button:RegisterForClicks("AnyDown", "AnyUp")
         button:SetAttribute("type", "spell")
         button:SetAttribute("spell", get_known_fishing_id() or (isClassicEra and 7620 or 131474))
-        button:SetScript("PostClick", function(self, mouse_button, down)
-            if MouselookStart then MouselookStart() end
-            if down then return end
-            if MouselookStop then MouselookStop() end
-        end)
-
-        if SecureHandlerWrapScript then
-            SecureHandlerWrapScript(button, "PostClick", button, [[
-                local useKeyDowns = self:GetAttribute("useKeyDowns")
-                if useKeyDowns then
-                    if down then
-                        self:ClearBindings()
-                    end
-                else
-                    if not down then
-                        self:ClearBindings()
-                    end
-                end
-            ]])
-        end
-
         _state.secureButton = button
-        defer_action(update_button_attributes)
     end
     return _state.secureButton
 end
@@ -511,17 +374,44 @@ local function get_all_bound_keys()
 end
 sfui.fishing.get_all_bound_keys = get_all_bound_keys
 
+local function loot_all_items()
+    if not get_setting("enabled", true) then return false end
+    local num = GetNumLootItems and GetNumLootItems() or 0
+    if num > 0 then
+        for i = num, 1, -1 do
+            if LootSlot then
+                LootSlot(i)
+            end
+        end
+        return true
+    end
+    return false
+end
+sfui.fishing.loot_all_items = loot_all_items
+
 -- Pre-arms all bound keys with SetOverrideBindingSpell so the very first keypress casts immediately
 local function arm_fishing_keys()
     if InCombatLockdown and InCombatLockdown() then return end
     if not get_setting("enabled", true) then return end
-    if is_fishing_channel() then return end
-
-    local keys = get_all_bound_keys()
-    if #keys == 0 then return end
+    if isClassicEra and not is_spell_known(get_known_fishing_id()) then return end
+    if _state.isFishing then return end
 
     local btn = get_secure_button()
     if not btn then return end
+
+    -- If auto-loot is disabled and loot window is open, let keypress loot first
+    if not get_setting("autoLoot", true) then
+        local numLoot = GetNumLootItems and GetNumLootItems() or 0
+        if numLoot > 0 then
+            if ClearOverrideBindings then
+                ClearOverrideBindings(btn)
+            end
+            return
+        end
+    end
+
+    local keys = get_all_bound_keys()
+    if #keys == 0 then return end
 
     local spellName = get_fishing_spell_name()
     if SetOverrideBindingSpell and spellName then
@@ -534,16 +424,19 @@ sfui.fishing.arm_fishing_keys = arm_fishing_keys
 
 -- Keybind runner: Can be bound to a key or invoked via /sffish or /sfui fish
 function sfui.fishing.RunKeybind(fromSlash)
-    if (InCombatLockdown and InCombatLockdown()) or is_flying_safe() then return end
-    if GetNumLootItems and GetNumLootItems() ~= 0 then return end
-    if not get_setting("overrideLunker", false) and is_lunker_active() then return end
+    if InCombatLockdown and InCombatLockdown() then return end
+
+    -- 1. If loot is open, loot it on pressing the keybind
+    if loot_all_items() then
+        return
+    end
 
     local keys = get_all_bound_keys()
     local btn = get_secure_button()
 
-    if is_fishing_channel() then
-        -- Already fishing: ensure keys are bound to INTERACTTARGET so pressing reels in
-        if SetOverrideBinding then
+    -- 2. If actively channeling fishing, ensure keys are bound to INTERACTTARGET to reel in
+    if _state.isFishing then
+        if SetOverrideBinding and btn then
             for i = 1, #keys do
                 SetOverrideBinding(btn, true, keys[i], "INTERACTTARGET")
             end
@@ -551,71 +444,31 @@ function sfui.fishing.RunKeybind(fromSlash)
         return
     end
 
+    -- 3. Otherwise pre-arm fishing keys to cast
     arm_fishing_keys()
 
-    if fromSlash and sfui.common and sfui.common.print then
+    if fromSlash then
         if #keys > 0 then
-            sfui.common.print("fishing: armed on |cff00ffff" .. table.concat(keys, ", ") .. "|r. Press your key to cast & catch.")
+            print_message("fishing: armed on |cff00ffff" .. table.concat(keys, ", ") .. "|r. press your key to cast, reel in, and loot.")
         else
-            sfui.common.print("fishing: no key bound. Use double-right-click in world, or bind a key under Keybindings > SFUI.")
+            print_message("fishing: no key bound. bind a key under options > keybindings > sfui.")
         end
     end
 end
 
 -- ─── Event Listeners via sfui.events ──────────────────────────────────────────
 
-local function on_mouse_down(event, button)
-    if not get_setting("enabled", true) or not get_setting("doubleClick", true) then return end
-    if button ~= "RightButton" or (IsMouseButtonDown and IsMouseButtonDown("LeftButton")) or (InCombatLockdown and InCombatLockdown()) then return end
-
-    if (not GetNumLootItems or GetNumLootItems() == 0) then
-        local now = GetTime()
-        local lastClick = _state.previousClickTime or 0
-        local delta = now - lastClick
-
-        -- 0.5s cast debounce
-        if (now - (_state.lastCastTime or 0)) < 0.5 then
-            return
-        end
-
-        local speed = get_setting("doubleClickSpeed", 0.4) or 0.4
-        if delta >= DOUBLECLICK_MIN_SECONDS and delta <= speed then
-            if allow_fishing() then
-                if SetOverrideBindingClick then
-                    SetOverrideBindingClick(get_secure_button(), true, "BUTTON2", SECURE_BUTTON_NAME)
-                end
-                _state.lastCastTime = now
-            elseif is_fishing_channel() then
-                _state.isInteractBinding = true
-                if SetOverrideBinding then
-                    SetOverrideBinding(get_secure_button(), true, "BUTTON2", "INTERACTTARGET")
-                end
-            end
-            _state.previousClickTime = 0
-            return
-        end
-    end
-    _state.previousClickTime = GetTime()
-end
-
-local function on_mouse_up(event, button)
-    if _state.isInteractBinding and button == "RightButton" and (not IsMouseButtonDown or not IsMouseButtonDown("LeftButton")) and (not InCombatLockdown or not InCombatLockdown()) then
-        _state.isInteractBinding = false
-        if _state.secureButton and ClearOverrideBindings then
-            ClearOverrideBindings(_state.secureButton)
-        end
-    end
-end
-
 local function on_channel_start(event, unit, castGUID, spellID)
     if unit ~= "player" then return end
-    if not (spellID and FishingIDs[spellID]) and not is_fishing_channel() then return end
+    if not (spellID and FishingIDs[spellID]) then return end
     if InCombatLockdown and InCombatLockdown() then return end
 
+    _state.isFishing = true
+    _state.wasFishing = true
     set_fishing_cvars()
 
     local btn = get_secure_button()
-    if SetOverrideBinding then
+    if SetOverrideBinding and btn then
         local keys = get_all_bound_keys()
         for i = 1, #keys do
             SetOverrideBinding(btn, true, keys[i], "INTERACTTARGET")
@@ -625,15 +478,42 @@ end
 
 local function on_channel_stop(event, unit, castGUID, spellID)
     if unit ~= "player" then return end
-    if (spellID and FishingIDs[spellID]) or _state.soundsEnhanced or _state.isInteractBinding or is_fishing_channel() then
+    if (spellID and FishingIDs[spellID]) or _state.isFishing or _state.wasFishing or _state.soundsEnhanced then
+        _state.isFishing = false
+        _state.lastChannelStopTime = GetTime()
         defer_action(function()
             clear_fishing_binds()
+            if get_setting("autoLoot", true) then
+                loot_all_items()
+            end
             arm_fishing_keys()
         end)
     end
 end
 
+local function on_loot_ready(event)
+    if not get_setting("enabled", true) then return end
+    local now = GetTime()
+    if _state.wasFishing or _state.isFishing or (now - (_state.lastChannelStopTime or 0)) < 4 then
+        if get_setting("autoLoot", true) then
+            loot_all_items()
+            arm_fishing_keys()
+        else
+            local btn = get_secure_button()
+            if ClearOverrideBindings and btn and (not InCombatLockdown or not InCombatLockdown()) then
+                ClearOverrideBindings(btn)
+            end
+        end
+    end
+end
+
+local function on_loot_closed(event)
+    _state.wasFishing = false
+    defer_action(arm_fishing_keys)
+end
+
 local function on_enter_combat()
+    _state.isFishing = false
     clear_fishing_binds()
 end
 
@@ -652,13 +532,8 @@ local function on_bindings_updated()
 end
 
 local function on_cvar_update(event, cvarName)
-    if cvarName == "ActionButtonUseKeyDown" then
-        defer_action(update_button_attributes)
-        return
-    end
-
     -- Critical protection: never overwrite soundCache while sounds are enhanced or being restored
-    if _state.soundsEnhanced or _state.isRestoringSounds or _state.cvarsChanged or is_fishing_channel() then
+    if _state.soundsEnhanced or _state.isRestoringSounds or _state.cvarsChanged or _state.isFishing then
         return
     end
 
@@ -719,15 +594,13 @@ local function restore_sound_defaults()
         _state.cvarsChanged = false
     end
 
-    if sfui.common and sfui.common.print then
-        sfui.common.print("fishing: sound settings restored to normal (ambience on, music 50%, master 60%).")
-    end
+    print_message("fishing: sound settings restored to normal (ambience on, music 50%, master 60%).")
 end
 sfui.fishing.RestoreSoundDefaults = restore_sound_defaults
 
 -- ─── Module Lifecycle Registration ──────────────────────────────────────────
 
-local FishingModule = sfui.RegisterModule("fishing", {
+sfui.RegisterModule("fishing", {
     OnInit = function(self)
         local savedBaseline = SfuiDB and SfuiDB.soundBaseline
 
@@ -767,10 +640,11 @@ local FishingModule = sfui.RegisterModule("fishing", {
     OnEnable = function(self)
         get_secure_button()
 
-        sfui.events.RegisterEvent("GLOBAL_MOUSE_DOWN", on_mouse_down)
-        sfui.events.RegisterEvent("GLOBAL_MOUSE_UP", on_mouse_up)
         sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player", on_channel_start)
         sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", on_channel_stop)
+        sfui.events.RegisterEvent("LOOT_READY", on_loot_ready)
+        sfui.events.RegisterEvent("LOOT_OPENED", on_loot_ready)
+        sfui.events.RegisterEvent("LOOT_CLOSED", on_loot_closed)
         sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", on_enter_combat)
         sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", on_leave_combat)
         sfui.events.RegisterEvent("UPDATE_BINDINGS", on_bindings_updated)
@@ -795,27 +669,24 @@ local FishingModule = sfui.RegisterModule("fishing", {
     end,
 
     GetDebugInfo = function(self)
-        return {
-            enabled = get_setting("enabled", true),
-            hasSkill = get_known_fishing_id() ~= nil,
-            knownSpellID = get_known_fishing_id(),
-            boundKeys = get_all_bound_keys(),
-            doubleClick = get_setting("doubleClick", true),
-            enhanceSounds = get_setting("enhanceSounds", true),
-            softTarget = get_setting("softTarget", true),
-            isFishing = is_fishing_channel(),
-            soundsEnhanced = _state.soundsEnhanced,
-            pendingCount = #_state.pendingTasks,
-        }
+        return sfui.fishing_debug_info()
     end,
 })
 
 _G["SFUI_FISHING_RUN"] = sfui.fishing.RunKeybind
 
 function sfui.fishing_debug_info()
-    if FishingModule and FishingModule.GetDebugInfo then
-        return FishingModule:GetDebugInfo()
-    end
-    return nil
+    return {
+        enabled = get_setting("enabled", true),
+        hasSkill = get_known_fishing_id() ~= nil,
+        knownSpellID = get_known_fishing_id(),
+        boundKeys = get_all_bound_keys(),
+        autoLoot = get_setting("autoLoot", true),
+        enhanceSounds = get_setting("enhanceSounds", true),
+        softTarget = get_setting("softTarget", true),
+        isFishing = _state.isFishing or false,
+        soundsEnhanced = _state.soundsEnhanced,
+        pendingCount = #_state.pendingTasks,
+    }
 end
 sfui.fishing.GetDebugInfo = sfui.fishing_debug_info

@@ -42,14 +42,22 @@ local function FormatKB(kb)
 end
 
 -- ---------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
 -- 1. COMPREHENSIVE MODULE POOL & CACHE INSPECTOR (All Lowercase)
 -- ---------------------------------------------------------------------------
 local function GetDebug(globalName, modName)
-    if sfui[globalName] and type(sfui[globalName]) == "function" then
-        return sfui[globalName]()
+    local fn = sfui[globalName]
+    if fn and type(fn) == "function" then
+        local ok, res = pcall(fn)
+        if ok and type(res) == "table" then
+            return res
+        end
     end
     if sfui.modules and modName and sfui.modules[modName] and sfui.modules[modName].GetDebugInfo then
-        return sfui.modules[modName]:GetDebugInfo()
+        local ok, res = pcall(function() return sfui.modules[modName]:GetDebugInfo() end)
+        if ok and type(res) == "table" then
+            return res
+        end
     end
     return nil
 end
@@ -66,16 +74,16 @@ function sfui.mem.GetModuleStats()
     }
     local q = GetDebug("questlog_debug_info", "quests") or GetDebug("questlog_debug_info", "questlog")
     if q then
-        local bAct   = q.blocksActive  or q.activeRows or 0
-        local bPool  = q.blocksPooled  or q.rowPool or 0
-        local lAct   = q.linesActive   or q.activeObjs or 0
-        local lPool  = q.linesPooled   or q.objPool or 0
-        local hAct   = q.headersActive or 0
-        local hPool  = q.headersPooled or 0
-        local barAct = q.barsActive or 0
-        local barPool= q.barsPooled or 0
-        local items  = q.itemsActive or 0
-        local numMods= q.activeModules or q.modules or 0
+        local bAct   = tonumber(q.blocksActive  or q.activeRows) or 0
+        local bPool  = tonumber(q.blocksPooled  or q.rowPool) or 0
+        local lAct   = tonumber(q.linesActive   or q.activeObjs) or 0
+        local lPool  = tonumber(q.linesPooled   or q.objPool) or 0
+        local hAct   = tonumber(q.headersActive) or 0
+        local hPool  = tonumber(q.headersPooled) or 0
+        local barAct = tonumber(q.barsActive) or 0
+        local barPool= tonumber(q.barsPooled) or 0
+        local items  = tonumber(q.itemsActive) or 0
+        local numMods= tonumber(q.activeModules or q.modules) or 0
 
         if q.isSuppressed then
             qStats.status = "|cffff9900suppressed|r"
@@ -99,10 +107,10 @@ function sfui.mem.GetModuleStats()
     }
     local m = GetDebug("mythic_debug_info", "mythic")
     if m then
-        local inDungeon = (m.playerList or 0) > 0
+        local inDungeon = (tonumber(m.playerList) or 0) > 0
         mythicStats.status = inDungeon and "|cff00ff88in instance|r" or "|cff888888idle|r"
-        mythicStats.line1 = string_format("pools: spell=%d, curr=%d, death=%d", m.spellPool or 0, m.currencyPool or 0, m.deathPool or 0)
-        mythicStats.line2 = string_format("roster: %d • badges: %d • spells: %d", m.playerList or 0, m.badgePool or 0, m.spellTooltips or 0)
+        mythicStats.line1 = string_format("pools: spell=%d, curr=%d, death=%d", tonumber(m.spellPool) or 0, tonumber(m.currencyPool) or 0, tonumber(m.deathPool) or 0)
+        mythicStats.line2 = string_format("roster: %d • badges: %d • spells: %d", tonumber(m.playerList) or 0, tonumber(m.badgePool) or 0, tonumber(m.spellTooltips) or 0)
     end
     stats["mythic"] = mythicStats
 
@@ -116,8 +124,8 @@ function sfui.mem.GetModuleStats()
     local tb = GetDebug("trackedbars_debug_info", "trackedbars")
     if tb then
         tbStats.status = tb.loopActive and "|cff00ff88combat loop|r" or "|cff888888paused (ooc)|r"
-        tbStats.line1 = string_format("bars: %d active / %d shown", tb.activeBars or 0, tb.shownBars or 0)
-        tbStats.line2 = string_format("pools: frames=%d, cfg=%d • dirty=%s", tb.barPool or 0, tb.configPool or 0, tb.isDirty and "yes" or "no")
+        tbStats.line1 = string_format("bars: %d active / %d shown", tonumber(tb.activeBars) or 0, tonumber(tb.shownBars) or 0)
+        tbStats.line2 = string_format("pools: frames=%d, cfg=%d • dirty=%s", tonumber(tb.barPool) or 0, tonumber(tb.configPool) or 0, tb.isDirty and "yes" or "no")
     end
     stats["trackedbars"] = tbStats
 
@@ -130,11 +138,12 @@ function sfui.mem.GetModuleStats()
     }
     local ti = GetDebug("trackedicons_debug_info", "trackedicons")
     if ti then
-        tiStats.status = (ti.icons or 0) > 0 and "|cff00ff88active|r" or "|cff888888idle|r"
-        tiStats.line1 = string_format("panels: %d • total icons: %d", ti.panels or 0, ti.icons or 0)
-        tiStats.line2 = string_format("glows: %d • cd cache: %d • dirty=%s", ti.activeGlows or 0, ti.cdCache or 0, (ti.needsState or ti.needsLayout) and "yes" or "no")
+        tiStats.status = (tonumber(ti.icons) or 0) > 0 and "|cff00ff88active|r" or "|cff888888idle|r"
+        tiStats.line1 = string_format("panels: %d • total icons: %d", tonumber(ti.panels) or 0, tonumber(ti.icons) or 0)
+        tiStats.line2 = string_format("glows: %d • cd cache: %d • dirty=%s", tonumber(ti.activeGlows) or 0, tonumber(ti.cdCache) or 0, (ti.needsState or ti.needsLayout) and "yes" or "no")
     end
     stats["trackedicons"] = tiStats
+
 
     -- World Events Module
     local weStats = {
@@ -175,8 +184,8 @@ function sfui.mem.GetModuleStats()
     }
     local gInfo = GetDebug("gear_debug_info", "gear")
     if gInfo then
-        gearStats.line1 = string_format("equipped cache: %d slots", gInfo.equippedCache or 0)
-        gearStats.line2 = string_format("tracked items: %d • static closures", gInfo.lastEquipped or 0)
+        gearStats.line1 = string_format("equipped cache: %d slots", tonumber(gInfo.equippedCache) or 0)
+        gearStats.line2 = string_format("tracked items: %d • static closures", tonumber(gInfo.lastEquipped) or 0)
     end
     stats["gear"] = gearStats
 
@@ -189,8 +198,8 @@ function sfui.mem.GetModuleStats()
     }
     local s = GetDebug("stats_debug_info", "stats")
     if s then
-        statsMod.line1 = string_format("spec priority caches: %d", s.cachedSpecOrders or 0)
-        statsMod.line2 = string_format("pawn stat strings: %d", s.pawnOrders or 0)
+        statsMod.line1 = string_format("spec priority caches: %d", tonumber(s.cachedSpecOrders) or 0)
+        statsMod.line2 = string_format("pawn stat strings: %d", tonumber(s.pawnOrders) or 0)
     end
     stats["stats"] = statsMod
 
@@ -204,8 +213,8 @@ function sfui.mem.GetModuleStats()
     local a = GetDebug("alts_debug_info", "alts")
     if a then
         altsMod.status = a.frameShown and "|cff00ff88open|r" or "|cff888888closed|r"
-        altsMod.line1 = string_format("tracked characters: %d", a.trackedAlts or 0)
-        altsMod.line2 = string_format("pools: col=%d, cell=%d, tab=%d", a.columnPool or 0, a.cellPool or 0, a.tablePool or 0)
+        altsMod.line1 = string_format("tracked characters: %d", tonumber(a.trackedAlts) or 0)
+        altsMod.line2 = string_format("pools: col=%d, cell=%d, tab=%d", tonumber(a.columnPool) or 0, tonumber(a.cellPool) or 0, tonumber(a.tablePool) or 0)
     end
     stats["alts"] = altsMod
 
@@ -220,7 +229,7 @@ function sfui.mem.GetModuleStats()
     if m then
         merchMod.status = m.frameShown and "|cff00ff88open|r" or "|cff888888closed|r"
         merchMod.line1 = string_format("frame: %s", m.frameCreated and "ready" or "none")
-        merchMod.line2 = string_format("table pool: %d tables", m.tablePool or 0)
+        merchMod.line2 = string_format("table pool: %d tables", tonumber(m.tablePool) or 0)
     end
     stats["merchant"] = merchMod
 
@@ -262,7 +271,7 @@ function sfui.mem.GetModuleStats()
     }
     local mm = GetDebug("minimap_debug_info", "minimap")
     if mm then
-        miniMod.line1 = string_format("buttons collected: %d", mm.buttonCount or 0)
+        miniMod.line1 = string_format("buttons collected: %d", tonumber(mm.buttonCount) or 0)
         miniMod.line2 = string_format("auto-zoom: %s", mm.autoZoomActive and "|cff00ff88running|r" or "idle")
     end
     stats["minimap"] = miniMod
@@ -320,7 +329,7 @@ function sfui.mem.GetModuleStats()
     local v = GetDebug("vehicle_debug_info", "vehicle")
     if v then
         vehMod.status = v.frameShown and "|cff00ff88active|r" or "|cff888888idle|r"
-        vehMod.line1 = string_format("frame: %s • btns: %d • unit: %s", v.frameCreated and "ready" or "none", v.visibleButtons or 0, v.currentUnit or "none")
+        vehMod.line1 = string_format("frame: %s • btns: %d • unit: %s", v.frameCreated and "ready" or "none", tonumber(v.visibleButtons) or 0, tostring(v.currentUnit or "none"))
         vehMod.line2 = string_format("health: %s • power: %s • cast: %s", v.healthShown and "|cff00ff88on|r" or "off", v.powerShown and "|cff00ff88on|r" or "off", v.castShown and "|cff00ff88on|r" or "off")
     end
     stats["vehicle"] = vehMod
@@ -335,7 +344,7 @@ function sfui.mem.GetModuleStats()
     local t = GetDebug("transfer_debug_info", "transfer")
     if t then
         transMod.status = t.active and "|cff00ff88active|r" or "|cff888888idle|r"
-        transMod.line1 = string_format("scan queue: %d tasks", t.queueSize or 0)
+        transMod.line1 = string_format("scan queue: %d tasks", tonumber(t.queueSize) or 0)
         transMod.line2 = string_format("ticker: %s", t.active and "|cff00ff88processing|r" or "inactive")
     end
     stats["transfer"] = transMod
@@ -351,7 +360,7 @@ function sfui.mem.GetModuleStats()
     if sf then
         sfStats.status = sf.frameShown and "|cff00ff88active|r" or (sf.frameCreated and "|cff888888hidden|r" or "|cff888888disabled|r")
         sfStats.line1 = string_format("bar: %s • binder: %s", sf.frameShown and "shown" or (sf.frameCreated and "ready" or "off"), sf.engineBound and "|cff00ff88c++ engine|r" or (sf.cdmCached and "cdm cached" or "lua multi-tier"))
-        sfStats.line2 = string_format("stacks: %s • cap: %d • dividers: %d", tostring(sf.lastStacks or 0), sf.maxCap or 0, sf.dividers or 0)
+        sfStats.line2 = string_format("stacks: %s • cap: %d • dividers: %d", tostring(sf.lastStacks or 0), tonumber(sf.maxCap) or 0, tonumber(sf.dividers) or 0)
     end
     stats["soulfragments"] = sfStats
 
@@ -364,8 +373,8 @@ function sfui.mem.GetModuleStats()
     }
     local d = GetDebug("dispatcher_debug_info", "dispatcher")
     if d then
-        dispMod.line1 = string_format("events: %d global (%d cbs) • %d unit (%d cbs)", d.globalEvents or 0, d.globalCallbacks or 0, d.unitEvents or 0, d.unitCallbacks or 0)
-        dispMod.line2 = string_format("update tickers: %d loops • unit frames: %d", d.updateLoops or 0, d.units or 0)
+        dispMod.line1 = string_format("events: %d global (%d cbs) • %d unit (%d cbs)", tonumber(d.globalEvents) or 0, tonumber(d.globalCallbacks) or 0, tonumber(d.unitEvents) or 0, tonumber(d.unitCallbacks) or 0)
+        dispMod.line2 = string_format("update tickers: %d loops • unit frames: %d", tonumber(d.updateLoops) or 0, tonumber(d.units) or 0)
     end
     stats["dispatcher"] = dispMod
 
@@ -400,7 +409,7 @@ function sfui.mem.GetModuleStats()
             if n then defName = n end
         end
         lootMod.line1 = string_format("auto-swap: %s • default: %s", l.enabled and "|cff00ff88on|r" or "|cff888888off|r", defName)
-        lootMod.line2 = string_format("browser: %s • cards: %d • icons: %d", l.frameShown and "|cff00ff88open|r" or (l.frameCreated and "ready" or "none"), l.cardPoolCount or 0, l.iconPoolCount or 0)
+        lootMod.line2 = string_format("browser: %s • cards: %d • icons: %d", l.frameShown and "|cff00ff88open|r" or (l.frameCreated and "ready" or "none"), tonumber(l.cardPoolCount) or 0, tonumber(l.iconPoolCount) or 0)
     end
     stats["lootspec"] = lootMod
 
@@ -431,7 +440,7 @@ function sfui.mem.GetModuleStats()
         cdmMod.status = cdm.frameShown and "|cff00ff88editor open|r" or (cdm.frameCreated and "|cff888888ready|r" or "|cff888888idle|r")
         cdmMod.line1 = string_format("editor frame: %s (shown: %s)", cdm.frameCreated and "ready" or "none", cdm.frameShown and "yes" or "no")
         local blizzHidden = sfui.common and sfui.common.are_blizzard_cooldown_viewers_hidden and sfui.common.are_blizzard_cooldown_viewers_hidden()
-        cdmMod.line2 = string_format("active zones: %d • blizz hidden: %s", cdm.activeZones or 0, blizzHidden and "|cff00ff88yes|r" or "|cffff4444no|r")
+        cdmMod.line2 = string_format("active zones: %d • blizz hidden: %s", tonumber(cdm.activeZones) or 0, blizzHidden and "|cff00ff88yes|r" or "|cffff4444no|r")
     end
     stats["cdm"] = cdmMod
 
@@ -459,9 +468,17 @@ function sfui.mem.GetModuleStats()
     local f = GetDebug("fishing_debug_info", "fishing")
     if f then
         fishStats.status = f.isFishing and "|cff00ff88casting / reeling|r" or (f.enabled and "|cff00ff88armed|r" or "|cff888888disabled|r")
-        local keysStr = (f.boundKeys and #f.boundKeys > 0) and table.concat(f.boundKeys, ",") or "none"
-        fishStats.line1 = string_format("skill: %s (id: %s) • keys: %s", f.hasSkill and "known" or "none", tostring(f.knownSpellID or "none"), keysStr)
-        fishStats.line2 = string_format("audio: %s • soft: %s • 2x: %s", f.enhanceSounds and (f.soundsEnhanced and "|cff00ff88active|r" or "on") or "off", f.softTarget and "on" or "off", f.doubleClick and "on" or "off")
+        local keyList = {}
+        if type(f.boundKeys) == "table" then
+            for _, k in ipairs(f.boundKeys) do
+                if type(k) == "string" or type(k) == "number" then
+                    keyList[#keyList + 1] = tostring(k)
+                end
+            end
+        end
+        local keysStr = #keyList > 0 and table.concat(keyList, ",") or "none"
+        fishStats.line1 = string_format("skill: %s (id: %s) • keys: %s", f.hasSkill and "|cff00ff88learned|r" or "|cff888888unlearned|r", tostring(f.knownSpellID or "none"), keysStr)
+        fishStats.line2 = string_format("audio: %s • soft: %s • auto-loot: %s", f.enhanceSounds and (f.soundsEnhanced and "|cff00ff88active|r" or "on") or "off", f.softTarget and "on" or "off", f.autoLoot and "on" or "off")
     end
     stats["fishing"] = fishStats
 
@@ -475,8 +492,8 @@ function sfui.mem.GetModuleStats()
     local p = GetDebug("pets_debug_info", "pets")
     if p then
         petStats.status = p.enabled and "|cff00ff88active|r" or "|cff888888disabled|r"
-        petStats.line1 = string_format("pools: all=%d, favs=%d • hist: %d", p.poolAllCount or 0, p.poolFavsCount or 0, p.historyCount or 0)
-        petStats.line2 = string_format("mode: %s • timer: %ds • summoned: %s", tostring(p.mode or "favs"), p.rotationTimer or 720, p.currentPet and "|cff00ff88yes|r" or "none")
+        petStats.line1 = string_format("pools: all=%d, favs=%d • hist: %d", tonumber(p.poolAllCount) or 0, tonumber(p.poolFavsCount) or 0, tonumber(p.historyCount) or 0)
+        petStats.line2 = string_format("mode: %s • timer: %ds • summoned: %s", tostring(p.mode or "favs"), tonumber(p.rotationTimer) or 720, p.currentPet and "|cff00ff88yes|r" or "none")
     end
     stats["pets"] = petStats
 
@@ -491,7 +508,7 @@ function sfui.mem.GetModuleStats()
     if l then
         logStats.status = l.isLogging and "|cff00ff88logging active|r" or (l.enabled and "|cff00ff88monitoring|r" or "|cff888888disabled|r")
         logStats.line1 = string_format("auto log: %s • current: %s", l.enabled and "on" or "off", l.isLogging and "|cff00ff88yes|r" or "no")
-        logStats.line2 = string_format("instance: %s • sfui started: %s", l.instanceType or "none", l.sfuiStarted and "yes" or "no")
+        logStats.line2 = string_format("instance: %s • sfui started: %s", tostring(l.instanceType or "none"), l.sfuiStarted and "yes" or "no")
     end
     stats["logs"] = logStats
 
@@ -506,7 +523,7 @@ function sfui.mem.GetModuleStats()
     if h then
         hamStats.status = h.hasHammer and "|cff00ff88ready|r" or "|cff888888not found|r"
         hamStats.line1 = string_format("hammer: %s (id: %s)", h.hasHammer and "|cff00ff88found|r" or "none", tostring(h.hammerItemID or "none"))
-        hamStats.line2 = string_format("carried: %d • popup: %s", h.carriedCount or 0, h.popupShown and "|cff00ff88open|r" or "closed")
+        hamStats.line2 = string_format("carried: %d • popup: %s", tonumber(h.carriedCount) or 0, h.popupShown and "|cff00ff88open|r" or "closed")
     end
     stats["hammer"] = hamStats
 
@@ -520,7 +537,7 @@ function sfui.mem.GetModuleStats()
     local br = GetDebug("bonusroll_debug_info", "bonusroll")
     if br then
         brStats.status = "|cff00ff88ready|r"
-        brStats.line1 = string_format("pending rolls: %d • checked: %s", br.pendingRolls or 0, br.checked and "yes" or "no")
+        brStats.line1 = string_format("pending rolls: %d • checked: %s", tonumber(br.pendingRolls) or 0, br.checked and "yes" or "no")
     end
     stats["bonusroll"] = brStats
 
@@ -528,7 +545,7 @@ function sfui.mem.GetModuleStats()
 end
 
 -- ---------------------------------------------------------------------------
--- 2. REAL-TIME ALLOCATION WATCHER BACKEND
+-- 2. REAL-TIME ALLOCATION WATCHER BACKEND & MEMORY SCAN THROTTLER
 -- ---------------------------------------------------------------------------
 local watcherActive = false
 local watcherTimer = nil
@@ -539,15 +556,36 @@ local watcherStartAddonMem = 0
 local watcherStartLuaMem = 0
 local watcherLastReport = nil
 
+local lastMemoryScanTime = 0
+local cachedAddonMem = 0
+
+local function RefreshAddonMemory(force)
+    local now = GetTime()
+    -- Only trigger Blizzard's synchronous heap traversal if explicitly requested by manual refresh
+    -- AND throttled to at least 10s between scans.
+    if force and (now - lastMemoryScanTime >= 10 or cachedAddonMem == 0) then
+        if UpdateAddOnMemoryUsage then
+            UpdateAddOnMemoryUsage()
+        end
+        lastMemoryScanTime = now
+    end
+    if GetAddOnMemoryUsage then
+        cachedAddonMem = GetAddOnMemoryUsage("sfui") or cachedAddonMem or 0
+    end
+    return cachedAddonMem
+end
+sfui.mem.RefreshAddonMemory = RefreshAddonMemory
+
 local function RecordAllocation(sourceName, kbDelta)
     if not watcherActive then return end
+    if not sourceName or sourceName == "MemGUI" or sourceName == "memgui" then return end
     local rec = watcherData[sourceName]
     if not rec then
         rec = { count = 0, totalKB = 0, maxKB = 0 }
         watcherData[sourceName] = rec
     end
     rec.count = rec.count + 1
-    if kbDelta > 0 then
+    if kbDelta and kbDelta > 0 then
         rec.totalKB = rec.totalKB + kbDelta
         if kbDelta > rec.maxKB then
             rec.maxKB = kbDelta
@@ -568,8 +606,7 @@ local function StopWatcher()
     end
 
     local duration = GetTime() - watcherStartTime
-    UpdateAddOnMemoryUsage()
-    local endAddonMem = GetAddOnMemoryUsage("sfui")
+    local endAddonMem = GetAddOnMemoryUsage and (GetAddOnMemoryUsage("sfui") or watcherStartAddonMem) or watcherStartAddonMem
     local endLuaMem = collectgarbage("count")
 
     local addonDelta = endAddonMem - watcherStartAddonMem
@@ -598,7 +635,7 @@ local function StopWatcher()
     }
 
     if sfui.mem.gui and sfui.mem.gui:IsShown() then
-        sfui.mem.UpdateGUI()
+        sfui.mem.UpdateGUI(false)
         if sfui.mem.SelectTab then
             sfui.mem.SelectTab("profiler")
         end
@@ -651,8 +688,8 @@ function sfui.mem.StartWatcher(duration)
     watcherDuration = duration
 
     wipe(watcherData)
-    UpdateAddOnMemoryUsage()
-    watcherStartAddonMem = GetAddOnMemoryUsage("sfui")
+    local startMem = GetAddOnMemoryUsage and (GetAddOnMemoryUsage("sfui") or cachedAddonMem or 0) or 0
+    watcherStartAddonMem = startMem
     watcherStartLuaMem = collectgarbage("count")
     watcherStartTime = GetTime()
     watcherActive = true
@@ -665,7 +702,7 @@ function sfui.mem.StartWatcher(duration)
     watcherTimer = C_Timer.NewTimer(duration, StopWatcher)
 
     if sfui.mem.gui and sfui.mem.gui:IsShown() then
-        sfui.mem.UpdateGUI()
+        sfui.mem.UpdateGUI(false)
     end
 end
 
@@ -677,27 +714,25 @@ end
 -- 3. FORCED GARBAGE COLLECTION
 -- ---------------------------------------------------------------------------
 function sfui.mem.RunGC()
-    UpdateAddOnMemoryUsage()
-    local beforeAddon = GetAddOnMemoryUsage("sfui")
+    local beforeAddon = GetAddOnMemoryUsage and (GetAddOnMemoryUsage("sfui") or cachedAddonMem or 0) or 0
     local beforeLua = collectgarbage("count")
 
     collectgarbage("collect")
 
-    UpdateAddOnMemoryUsage()
-    local afterAddon = GetAddOnMemoryUsage("sfui")
     local afterLua = collectgarbage("count")
+    local afterAddon = GetAddOnMemoryUsage and (GetAddOnMemoryUsage("sfui") or beforeAddon) or beforeAddon
 
-    local freedAddon = math_max(0, beforeAddon - afterAddon)
     local freedLua = math_max(0, beforeLua - afterLua)
+    local freedAddon = math_max(0, beforeAddon - afterAddon)
 
-    local msg = string_format("freed %s (addon: %s -> %s)", FormatKB(freedAddon), FormatKB(beforeAddon), FormatKB(afterAddon))
+    local msg = string_format("gc collected: freed %s lua memory", FormatKB(freedLua))
     print(PREFIX .. "|cff00ff88" .. msg .. "|r")
 
     if sfui.mem.gui and sfui.mem.gui:IsShown() then
         if sfui.mem.gui.actionStatusText then
             sfui.mem.gui.actionStatusText:SetText("|cff00ff88" .. msg .. "|r")
         end
-        sfui.mem.UpdateGUI()
+        sfui.mem.UpdateGUI(false)
     end
 end
 
@@ -802,7 +837,8 @@ function sfui.mem.create_mem_panel()
 
     local btn_refresh = CreateFlatButton(frame, "refresh", 60, 22)
     btn_refresh:SetPoint("TOPRIGHT", -10, -78)
-    btn_refresh:SetScript("OnClick", function() sfui.mem.UpdateGUI() end)
+    btn_refresh:SetScript("OnClick", function() sfui.mem.UpdateGUI(true) end)
+
 
     local btn_gc = CreateFlatButton(frame, "collect gc", 76, 22)
     btn_gc:SetPoint("RIGHT", btn_refresh, "LEFT", -4, 0)
@@ -863,10 +899,25 @@ function sfui.mem.create_mem_panel()
     local modScroll = CreateFrame("ScrollFrame", "SfuiMemScroll", contentBox, "UIPanelScrollFrameTemplate")
     modScroll:SetPoint("TOPLEFT", 4, -4)
     modScroll:SetPoint("BOTTOMRIGHT", -22, 4)
+    modScroll:EnableMouseWheel(true)
+    if common and common.style_scrollbar and modScroll.ScrollBar then
+        common.style_scrollbar(modScroll.ScrollBar)
+    end
+    modScroll:SetScript("OnMouseWheel", function(self, delta)
+        local sb = self.ScrollBar
+        if sb then
+            local minVal, maxVal = sb:GetMinMaxValues()
+            if maxVal and maxVal > (minVal or 0) then
+                local cur = sb:GetValue()
+                sb:SetValue(math_max(minVal, math_min(maxVal, cur - delta * 30)))
+            end
+        end
+    end)
 
     local modChild = CreateFrame("Frame", nil, modScroll)
     local cardGridW = FRAME_W - 48
     modChild:SetSize(cardGridW, 600)
+    modChild:SetPoint("TOPLEFT", 0, 0)
     modScroll:SetScrollChild(modChild)
     contentBox.modView = modScroll
 
@@ -887,20 +938,32 @@ function sfui.mem.create_mem_panel()
         card:SetBackdropColor(0.09, 0.09, 0.12, 0.7)
         card:SetBackdropBorderColor(0.18, 0.18, 0.22, 0.6)
 
-        card.title = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        card.title:SetPoint("TOPLEFT", 6, -4)
-
         card.status = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         card.status:SetPoint("TOPRIGHT", -6, -4)
+        card.status:SetJustifyH("RIGHT")
+        card.status:SetText("|cff888888idle|r")
+
+        card.title = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        card.title:SetPoint("TOPLEFT", 6, -4)
+        card.title:SetPoint("RIGHT", card.status, "LEFT", -4)
+        card.title:SetJustifyH("LEFT")
+        card.title:SetText("|cff00ffff" .. key .. "|r")
 
         card.line1 = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         card.line1:SetPoint("TOPLEFT", 6, -20)
+        card.line1:SetPoint("RIGHT", -6, 0)
+        card.line1:SetJustifyH("LEFT")
         card.line1:SetTextColor(0.8, 0.8, 0.85, 1)
+        card.line1:SetText("telemetry active")
 
         card.line2 = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         card.line2:SetPoint("TOPLEFT", 6, -36)
+        card.line2:SetPoint("RIGHT", -6, 0)
+        card.line2:SetJustifyH("LEFT")
         card.line2:SetTextColor(0.55, 0.55, 0.6, 1)
+        card.line2:SetText("pools: ready")
 
+        card:Show()
         moduleCards[key] = card
     end
     modChild:SetHeight(math_ceil(#MODULE_ORDER / 2) * (cardH + 4) + 10)
@@ -969,8 +1032,16 @@ function sfui.mem.create_mem_panel()
         row.max = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         row.max:SetPoint("LEFT", 510, 0)
 
+        row:Hide()
         leaderboardRows[i] = row
     end
+
+    local emptyHint = lbFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    emptyHint:SetPoint("CENTER", 0, 0)
+    emptyHint:SetTextColor(0.55, 0.55, 0.62, 1)
+    emptyHint:SetText("click 'watch 10s' or 'watch 30s' above to profile memory allocations")
+    lbFrame.emptyHint = emptyHint
+    frame.emptyHint = emptyHint
 
     -- Tab Switching
     local function SelectTab(tabName)
@@ -986,7 +1057,9 @@ function sfui.mem.create_mem_panel()
             tab_profiler:SetBackdropColor(0.4, 0.0, 1.0, 0.9)
             tab_modules:SetBackdropColor(0.12, 0.12, 0.16, 0.8)
         end
-        sfui.mem.UpdateGUI()
+        if frame and frame:IsShown() then
+            sfui.mem.UpdateGUI(false)
+        end
     end
     sfui.mem.SelectTab = SelectTab
 
@@ -995,9 +1068,18 @@ function sfui.mem.create_mem_panel()
     SelectTab("modules")
 
     frame:SetScript("OnShow", function()
-        sfui.mem.UpdateGUI()
+        -- Ensure modules tab is active unless profiler is currently watching
+        if not watcherActive and sfui.mem.SelectTab then
+            sfui.mem.SelectTab("modules")
+        else
+            sfui.mem.UpdateGUI(false)
+        end
+
+        -- Register lightweight 1.0s periodic update (non-blocking, force=false)
         if sfui.events and sfui.events.RegisterUpdate then
-            sfui.events.RegisterUpdate("MemGUI", 1.0, sfui.mem.UpdateGUI)
+            sfui.events.RegisterUpdate("MemGUI", 1.0, function()
+                sfui.mem.UpdateGUI(false)
+            end)
         end
     end)
 
@@ -1011,11 +1093,10 @@ function sfui.mem.create_mem_panel()
     return frame
 end
 
-function sfui.mem.UpdateGUI()
+function sfui.mem.UpdateGUI(force)
     if not frame or not frame:IsShown() then return end
 
-    UpdateAddOnMemoryUsage()
-    local addonMem = GetAddOnMemoryUsage("sfui")
+    local addonMem = RefreshAddonMemory(force)
     local totalLua = collectgarbage("count")
 
     local memColor = addonMem < 10240 and "|cff00ff88" or (addonMem <= 15360 and "|cffffaa00" or "|cffff4444")
@@ -1031,6 +1112,8 @@ function sfui.mem.UpdateGUI()
         local remain = math_max(0, watcherDuration - elapsed)
         if frame.val_rate then frame.val_rate:SetText(string_format("|cff00ffffprofiling (%ds)...|r", math_ceil(remain))) end
         if frame.actionStatusText then frame.actionStatusText:SetText(string_format("|cff00ffffprofiling in progress (%ds left)...|r", math_ceil(remain))) end
+        -- While actively profiling, return early to avoid observer effect table allocations
+        return
     elseif watcherLastReport then
         local rate = watcherLastReport.addonRate
         local rateColor = rate > 10 and "ff4444" or (rate > 1 and "ffaa00" or "00ff88")
@@ -1040,42 +1123,61 @@ function sfui.mem.UpdateGUI()
         if frame.val_rate then frame.val_rate:SetText("|cff00ff880.00 kb/s|r") end
     end
 
-    -- Update Modules Grid (Lowercase)
-    local modStats = sfui.mem.GetModuleStats()
-    for _, key in ipairs(MODULE_ORDER) do
-        local card = moduleCards[key]
-        local data = modStats[key]
-        if card and data then
-            card.title:SetText("|cff00ffff" .. key .. "|r " .. (data.name and data.name:lower() or ""))
-            card.status:SetText(data.status or "")
-            card.line1:SetText(data.line1 or "")
-            card.line2:SetText(data.line2 or "")
+    -- Update Modules Grid only when modules tab is active
+    if activeTab == "modules" then
+        local ok, modStats = pcall(sfui.mem.GetModuleStats)
+        if ok and type(modStats) == "table" then
+            for _, key in ipairs(MODULE_ORDER) do
+                local card = moduleCards[key]
+                local data = modStats[key]
+                if card and data then
+                    card.title:SetText("|cff00ffff" .. key .. "|r " .. (data.name and data.name:lower() or ""))
+                    card.status:SetText(data.status or "")
+                    card.line1:SetText(data.line1 or "")
+                    card.line2:SetText(data.line2 or "")
+                end
+            end
         end
     end
 
-    -- Update Leaderboard (Lowercase)
-    local list = watcherLastReport and watcherLastReport.list or {}
-    for i = 1, 12 do
-        local row = leaderboardRows[i]
-        local item = list[i]
-        if item then
-            row.rank:SetText("#" .. i)
-            row.name:SetText(item.name and item.name:lower() or "")
-            row.calls:SetText(string_format("%d", item.count))
+    -- Update Leaderboard only when profiler tab is active
+    if activeTab == "profiler" then
+        local list = watcherLastReport and watcherLastReport.list or {}
+        local hasItems = #list > 0
+        if frame and frame.emptyHint then
+            local hint = frame.emptyHint
+            if hasItems then
+                hint:SetText("")
+                if hint.Hide then hint:Hide() end
+            else
+                hint:SetText(watcherLastReport and "|cff00ff88zero allocations recorded during sample (system idle)|r" or "click 'watch 10s' or 'watch 30s' above to profile memory allocations")
+                if hint.Show then hint:Show() end
+            end
+        end
 
-            local color = "00ff88"
-            if item.totalKB > 50 then color = "ff4444"
-            elseif item.totalKB > 5 then color = "ffaa00"
-            elseif item.totalKB > 0 then color = "ffffaa" end
+        for i = 1, 12 do
+            local row = leaderboardRows[i]
+            local item = list[i]
+            if item then
+                row.rank:SetText("#" .. i)
+                row.name:SetText(item.name and item.name:lower() or "")
+                row.calls:SetText(string_format("%d", item.count))
 
-            row.total:SetText(string_format("|cff%s%s|r", color, FormatKB(item.totalKB)))
-            row.max:SetText(string_format("%.1f kb", item.maxKB))
-            row:Show()
-        else
-            row:Hide()
+                local color = "00ff88"
+                if item.totalKB > 50 then color = "ff4444"
+                elseif item.totalKB > 5 then color = "ffaa00"
+                elseif item.totalKB > 0 then color = "ffffaa" end
+
+                row.total:SetText(string_format("|cff%s%s|r", color, FormatKB(item.totalKB)))
+                row.max:SetText(string_format("%.1f kb", item.maxKB))
+                row:Show()
+            else
+                row:Hide()
+            end
         end
     end
 end
+
 
 function sfui.mem.ToggleGUI()
     local f = sfui.mem.create_mem_panel()

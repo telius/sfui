@@ -35,11 +35,11 @@ A companion pet manager designed for collectors and immersion.
 ---
 
 ### Fishing Automation (`/sffish`, `/sfui fish`)
-Lightweight fishing automation.
-- **Single-Key & Double-Right-Click Automation**: Casts when idle and reels in/interacts with the bobber when a bite occurs, with built-in mouselook protection and deferred combat lockdown handling.
-- **Dynamic Soft-Targeting**: Automatically manages interact CVars for effortless bobber interaction without precise mouse targeting.
+Lightweight zero-overhead fishing automation.
+- **Continuous Single-Key Rhythm**: One keybind does it all. Press to cast, press on splash to reel in (and auto-loot), and press again to cast the next line immediately.
+- **Zero Full-Time Listeners**: Completely eliminates background mouse listeners and update tickers for true 0% CPU consumption while idle.
+- **Dynamic Soft-Targeting**: Automatically manages interact CVars for effortless bobber interaction without mouse targeting.
 - **Acoustic Audio Enhancement**: Dynamically boosts SFX volume during casts to amplify bobber splash audio, while temporarily muting ambient sound and background music.
-- **Auto-Arming**: Arms casting bindings automatically on fishing pole equip.
 
 ---
 

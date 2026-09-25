@@ -72,7 +72,9 @@ local function _mem_tick()
 end
 local function _mem_after(key, before)
     local delta = collectgarbage("count") - before
-    if delta > 0 then sfui.mem.RecordAllocation(key, delta) end
+    if sfui.mem and sfui.mem.RecordAllocation then
+        sfui.mem.RecordAllocation(key, delta > 0 and delta or 0)
+    end
 end
 
 -- ─── Snapshot scratch table ─────────────────────────────────────────────────
@@ -81,6 +83,7 @@ end
 -- `cbs` array; dispatching from a snapshot prevents nil-slot errors.
 -- We nil-out slots after use so the table stays small (no strong references).
 local _snap = {}
+local _snapUpdates = {}
 
 -- Minimum interval (seconds) enforced on all RegisterUpdate callbacks.
 -- Prevents any update loop from running faster than ~60fps regardless of
@@ -115,27 +118,40 @@ ev_frame:SetScript("OnEvent", function(_, event, ...)
 end)
 
 local function _OnDispatcherUpdate(_, elapsed)
+    local n = #updateCallbacks
+    if n == 0 then return end
+
+    for i = 1, n do
+        _snapUpdates[i] = updateCallbacks[i]
+    end
+
     if _memActive then
-        for i = 1, #updateCallbacks do
-            local d = updateCallbacks[i]
-            d.elapsed = d.elapsed + elapsed
-            if d.elapsed >= d.interval then
-                local label = d.name or "UpdateLoop"
-                local before = collectgarbage("count")
-                local ok, err = pcall(d.callback, d.elapsed)
-                if not ok then _err(label, err) end
-                _mem_after(label, before)
-                d.elapsed = 0
+        for i = 1, n do
+            local d = _snapUpdates[i]
+            _snapUpdates[i] = nil
+            if d and not d.removed then
+                d.elapsed = d.elapsed + elapsed
+                if d.elapsed >= d.interval then
+                    local label = d.name or "UpdateLoop"
+                    local before = collectgarbage("count")
+                    local ok, err = pcall(d.callback, d.elapsed)
+                    if not ok then _err(label, err) end
+                    _mem_after(label, before)
+                    d.elapsed = 0
+                end
             end
         end
     else
-        for i = 1, #updateCallbacks do
-            local d = updateCallbacks[i]
-            d.elapsed = d.elapsed + elapsed
-            if d.elapsed >= d.interval then
-                local ok, err = pcall(d.callback, d.elapsed)
-                if not ok then _err(d.name or "UpdateLoop", err) end
-                d.elapsed = 0
+        for i = 1, n do
+            local d = _snapUpdates[i]
+            _snapUpdates[i] = nil
+            if d and not d.removed then
+                d.elapsed = d.elapsed + elapsed
+                if d.elapsed >= d.interval then
+                    local ok, err = pcall(d.callback, d.elapsed)
+                    if not ok then _err(d.name or "UpdateLoop", err) end
+                    d.elapsed = 0
+                end
             end
         end
     end
@@ -295,9 +311,10 @@ function sfui.events.RegisterUpdate(arg1, arg2, arg3)
     if name then
         for i = 1, #updateCallbacks do
             local d = updateCallbacks[i]
-            if d.name == name then
+            if d and d.name == name then
                 d.interval = interval
                 d.callback = callback
+                d.removed = nil
                 return
             end
         end
@@ -319,7 +336,8 @@ function sfui.events.UnregisterUpdate(target)
     if not target then return end
     for i = #updateCallbacks, 1, -1 do
         local d = updateCallbacks[i]
-        if d.name == target or d.callback == target then
+        if d and (d.name == target or d.callback == target) then
+            d.removed = true
             table.remove(updateCallbacks, i)
         end
     end

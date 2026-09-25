@@ -459,15 +459,7 @@ local PetsModule = sfui.RegisterModule("pets", {
     end,
 
     GetDebugInfo = function(self)
-        return {
-            enabled = get_setting("enabled", true),
-            mode = get_setting("mode", "favs"),
-            rotationTimer = get_setting("rotationTimer", 720),
-            poolAllCount = #_poolAll,
-            poolFavsCount = #_poolFavs,
-            historyCount = #_recentHistory,
-            currentPet = C_PetJournal_GetSummonedPetGUID and C_PetJournal_GetSummonedPetGUID(),
-        }
+        return sfui.pets_debug_info()
     end,
 })
 
@@ -550,9 +542,14 @@ sfui.pets.update_settings = rebuild_pet_pools
 _G["SFUI_PET_SUMMON"] = function() sfui.pets.SummonNext(true) end
 
 function sfui.pets_debug_info()
-    if PetsModule and PetsModule.GetDebugInfo then
-        return PetsModule:GetDebugInfo()
-    end
-    return nil
+    return {
+        enabled = get_setting("enabled", true),
+        mode = get_setting("mode", "favs"),
+        rotationTimer = get_setting("rotationTimer", 720),
+        poolAllCount = #_poolAll,
+        poolFavsCount = #_poolFavs,
+        historyCount = #_recentHistory,
+        currentPet = C_PetJournal_GetSummonedPetGUID and C_PetJournal_GetSummonedPetGUID(),
+    }
 end
 sfui.pets.GetDebugInfo = sfui.pets_debug_info
