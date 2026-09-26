@@ -1356,21 +1356,29 @@ local function UpdateBarsState()
 end
 
 local _syncTimer = 0
+local _lastOOCSyncTime = 0
 local function _OnTrackedBarsUpdate(elapsed)
+    local inCombat = InCombatLockdown()
+    local syncInterval = inCombat and 0.5 or (_numShownBars > 0 and 1.0 or 2.0)
+
+    _syncTimer = _syncTimer + elapsed
+
     -- 1. Structure / Visibility Sync
-    -- Process immediately if dirty, or periodically (every 0.25s OOC, 0.5s in combat)
-    -- so newly activated auras are caught even when 0 bars are currently shown.
     if sfui.trackedbars.isDirty then
-        sfui.trackedbars.isDirty = false
-        _syncTimer = 0
-        ProcessBlizzardSync()
-    else
-        _syncTimer = _syncTimer + elapsed
-        local syncInterval = InCombatLockdown() and 0.5 or 0.25
-        if _syncTimer >= syncInterval then
+        local now = GetTime()
+        -- In combat: process immediately.
+        -- Out of combat: process immediately on first bar activation (_numShownBars == 0),
+        -- otherwise relax subsequent sync calls to at least 1.0s apart.
+        if inCombat or _numShownBars == 0 or (now - _lastOOCSyncTime) >= 1.0 then
+            sfui.trackedbars.isDirty = false
+            _lastOOCSyncTime = now
             _syncTimer = 0
             ProcessBlizzardSync()
         end
+    elseif _syncTimer >= syncInterval then
+        _syncTimer = 0
+        _lastOOCSyncTime = GetTime()
+        ProcessBlizzardSync()
     end
 
     -- 2. Visual Updates (Smooth status bar progression and duration text)
@@ -1438,14 +1446,40 @@ function sfui.trackedbars.initialize()
     -- Throttled OnUpdate for smooth bar progress AND structure updates
     sfui.events.RegisterUpdate("TrackedBars", cfg.updateThrottle or 0.05, _OnTrackedBarsUpdate)
 
-    -- Real-time events for instant reaction
+    -- Real-time events for instant reaction with relaxed OOC pacing
+    local _lastOOCAuraEvent = 0
     sfui.events.RegisterUnitEvent("UNIT_AURA", "player", function()
-        SyncWithBlizzard()
+        if InCombatLockdown() then
+            SyncWithBlizzard()
+        else
+            local now = GetTime()
+            if (now - _lastOOCAuraEvent) >= 1.0 then
+                _lastOOCAuraEvent = now
+                SyncWithBlizzard()
+            else
+                sfui.trackedbars.isDirty = true
+            end
+        end
     end)
 
-    sfui.events.RegisterEvent("SPELL_UPDATE_COOLDOWN", SyncWithBlizzard)
-    sfui.events.RegisterEvent("SPELL_UPDATE_CHARGES", SyncWithBlizzard)
-    sfui.events.RegisterEvent("BAG_UPDATE_COOLDOWN", SyncWithBlizzard)
+    local _lastOOCCdEvent = 0
+    local function ThrottledCooldownSync()
+        if InCombatLockdown() then
+            SyncWithBlizzard()
+        else
+            local now = GetTime()
+            if (now - _lastOOCCdEvent) >= 1.0 then
+                _lastOOCCdEvent = now
+                SyncWithBlizzard()
+            else
+                sfui.trackedbars.isDirty = true
+            end
+        end
+    end
+
+    sfui.events.RegisterEvent("SPELL_UPDATE_COOLDOWN", ThrottledCooldownSync)
+    sfui.events.RegisterEvent("SPELL_UPDATE_CHARGES", ThrottledCooldownSync)
+    sfui.events.RegisterEvent("BAG_UPDATE_COOLDOWN", ThrottledCooldownSync)
 
     sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function()
         sfui.trackedbars.InvalidateConfigCache()
