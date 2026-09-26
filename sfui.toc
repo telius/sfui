@@ -1,7 +1,7 @@
 ## Interface: 120100, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v12.1.0-56
+## Version: v12.1.0-57
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui

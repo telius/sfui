@@ -1189,9 +1189,7 @@ gearFrame:SetBackdropColor(0.055, 0.055, 0.055, 0.97)
 gearFrame:Hide()
 gearFrame:SetFrameStrata("DIALOG")
 
-local closeBtn = common.create_flat_button(gearFrame, "x", 20, 20)
-closeBtn:SetPoint("TOPRIGHT", gearFrame, "TOPRIGHT", -5, -5)
-closeBtn:SetScript("OnClick", function() gearFrame:Hide() end)
+local closeBtn = common.create_close_button(gearFrame, function() gearFrame:Hide() end, 20)
 
 local collapseBtn = common.create_flat_button(gearFrame, "-", 20, 20)
 collapseBtn:SetPoint("TOPRIGHT", gearFrame, "TOPRIGHT", -30, -5)

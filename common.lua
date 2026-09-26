@@ -1656,7 +1656,6 @@ function sfui.common.are_blizzard_cooldown_viewers_hidden()
     return true
 end
 
--- Standard SFUI Close Button ("✕" icon with hover highlight)
 function sfui.common.get_short_string(name)
     if not name then return "" end
 

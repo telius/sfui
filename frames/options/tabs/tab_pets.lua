@@ -116,7 +116,18 @@ sfui.options.RegisterTab({
         local summon_next_btn = CreateFlatButton(p, "summon next", 95, 22)
         summon_next_btn:SetPoint("LEFT", add_current_btn, "RIGHT", 8, 0)
         summon_next_btn:SetScript("OnClick", function()
-            if sfui.pets.SummonNext then sfui.pets.SummonNext(true) end
+            if InCombatLockdown and InCombatLockdown() then
+                if sfui.common and sfui.common.print then
+                    sfui.common.print("sfui: Cannot summon pets in combat.")
+                end
+                return
+            end
+            if sfui.pets.SummonNext then
+                sfui.pets.SummonNext(true)
+            end
+            if p.refresh_list then
+                C_Timer.After(0.15, p.refresh_list)
+            end
         end)
 
         local clear_all_btn = CreateFlatButton(p, "clear all", 75, 22)
@@ -244,28 +255,13 @@ sfui.options.RegisterTab({
             type_text:SetTextColor(0.65, 0.65, 0.65, 1)
             row.type_text = type_text
 
-            local remove_btn = CreateFlatButton(row, "✕", 22, 20)
-            remove_btn:SetPoint("RIGHT", row, "RIGHT", -4, 0)
-            remove_btn:SetScript("OnClick", function()
+            local remove_btn = (common.create_remove_button or CreateFlatButton)(row, function()
                 if row.petGUID and sfui.pets.RemovePetFromCharFavs then
                     sfui.pets.RemovePetFromCharFavs(row.petGUID)
                     p.refresh_list()
                 end
-            end)
-            remove_btn:SetScript("OnEnter", function(self)
-                self:SetBackdropBorderColor(1, 0.2, 0.2, 1)
-                local tip = sfui.tooltip or _G.GameTooltip
-                if tip then
-                    tip:SetOwner(self, "ANCHOR_RIGHT")
-                    tip:SetText("remove from character favorites", 1, 0.3, 0.3)
-                    tip:Show()
-                end
-            end)
-            remove_btn:SetScript("OnLeave", function(self)
-                self:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
-                local tip = sfui.tooltip or _G.GameTooltip
-                if tip then tip:Hide() end
-            end)
+            end, 22, 20, "remove from character favorites")
+            remove_btn:SetPoint("RIGHT", row, "RIGHT", -4, 0)
             row.remove_btn = remove_btn
 
             local summon_btn = CreateFlatButton(row, "summon", 55, 20)
@@ -363,7 +359,7 @@ sfui.options.RegisterTab({
                     local typeName = (petType and _G["BATTLE_PET_NAME_" .. petType]) or ""
                     local lvlStr = level and ("Lv " .. level) or ""
                     if lvlStr ~= "" and typeName ~= "" then
-                        row.type_text:SetText(lvlStr .. " · " .. typeName)
+                        row.type_text:SetText(lvlStr .. " - " .. typeName)
                     elseif lvlStr ~= "" then
                         row.type_text:SetText(lvlStr)
                     else

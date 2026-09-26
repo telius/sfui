@@ -689,7 +689,8 @@ local function _pcall_sync_bar_values(blizzFrame, status, timeString, config, cu
     -- handles them natively without Lua ever seeing the raw number.
     -- (This is exactly what EllesmereUI does: sb:SetMinMaxValues(blizzBar:GetMinMaxValues()))
     status:SetMinMaxValues(blizzFrame.Bar:GetMinMaxValues())
-    status:SetValue(blizzFrame.Bar:GetValue())
+    local ok = pcall(status.SetValue, status, blizzFrame.Bar:GetValue())
+    if not ok then status:SetValue(0) end
 
     -- Timer text: GetText() returns a secret string in M+, but SetText accepts secrets.
     -- Never compare, format, or length-check the string.
@@ -837,8 +838,13 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
     if not currentStacks and myBar.spellID and not (issecretvalue and issecretvalue(myBar.spellID)) and C_Spell and C_Spell.GetSpellDisplayCount then
         local ok, dc = pcall(C_Spell.GetSpellDisplayCount, myBar.spellID)
         if ok and dc ~= nil then
-            if issecretvalue(dc) or (type(dc) == "number" and dc > 0) then
+            if issecretvalue and issecretvalue(dc) then
                 currentStacks = dc
+            else
+                local num = tonumber(dc)
+                if num and num > 0 then
+                    currentStacks = num
+                end
             end
         end
     end
@@ -846,7 +852,7 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
     -- Fallback 4: Try Spell Charges (for charge-based spells missing auraInstanceID)
     if not currentStacks and myBar.spellID and not (issecretvalue and issecretvalue(myBar.spellID)) then
         local ok, chargeInfo = pcall(C_Spell.GetSpellCharges, myBar.spellID)
-        if ok and chargeInfo and chargeInfo.currentCharges and common.SafeGT(chargeInfo.maxCharges, 1) then
+        if ok and chargeInfo and chargeInfo.currentCharges and chargeInfo.maxCharges and chargeInfo.maxCharges > 1 then
             local cc = chargeInfo.currentCharges
             if type(cc) == "number" or issecretvalue(cc) then
                 currentStacks = cc
@@ -920,7 +926,7 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
 
     -- Default to 0 and Ensure Safety
     -- Allow strings to pass through natively (e.g. "150k" absorbs)
-    if currentStacks == nil then
+    if not currentStacks then
         currentStacks = 0
     end
 
@@ -968,12 +974,13 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
         if not skipSetValue then
             if issecretvalue and issecretvalue(currentStacks) then
                 local interp = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate
-                pcall(myBar.status.SetValue, myBar.status, currentStacks, interp)
+                local ok = pcall(myBar.status.SetValue, myBar.status, currentStacks, interp)
+                if not ok then
+                    myBar.status:SetValue(0)
+                end
             else
-                local num = type(currentStacks) == "number" and currentStacks or tonumber(currentStacks)
-                if num and num == num and num >= -3.4e38 and num <= 3.4e38 then
-                    if num < 0 then num = 0 end
-                    if num > maxVal then num = maxVal end
+                local num = tonumber(currentStacks)
+                if num and num >= 0 and num <= maxVal then
                     myBar.status:SetValue(num)
                 else
                     myBar.status:SetValue(0)
@@ -1259,7 +1266,10 @@ local function UpdateBarsState()
                     -- Direct mirror from Blizzard's StatusBar (EllesmereUI lines 4576-4581).
                     -- Passes values directly into widget setters without storing or modifying them in Lua context.
                     myBar.status:SetMinMaxValues(blizzFrame.Bar:GetMinMaxValues())
-                    myBar.status:SetValue(blizzFrame.Bar:GetValue())
+                    local ok = pcall(myBar.status.SetValue, myBar.status, blizzFrame.Bar:GetValue())
+                    if not ok then
+                        myBar.status:SetValue(0)
+                    end
 
                     if blizzFrame.Bar.Duration then
                         local durText = blizzFrame.Bar.Duration:GetText()
@@ -1283,7 +1293,8 @@ local function UpdateBarsState()
                             myBar.currentStacks = apps
                             myBar.count:SetText(apps)
                         else
-                            if apps ~= myBar.currentStacks then
+                            if apps ~= myBar._lastCount then
+                                myBar._lastCount = apps
                                 myBar.currentStacks = apps
                                 myBar.count:SetText(tostring(apps))
                             end
@@ -1337,12 +1348,13 @@ local function UpdateBarsState()
                         myBar.status:SetMinMaxValues(0, maxVal)
                         if issecretvalue and issecretvalue(myBar.currentStacks) then
                             local interp = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate
-                            pcall(myBar.status.SetValue, myBar.status, myBar.currentStacks, interp)
+                            local ok = pcall(myBar.status.SetValue, myBar.status, myBar.currentStacks, interp)
+                            if not ok then
+                                myBar.status:SetValue(0)
+                            end
                         else
-                            local num = type(myBar.currentStacks) == "number" and myBar.currentStacks or tonumber(myBar.currentStacks)
-                            if num and num == num and num >= -3.4e38 and num <= 3.4e38 then
-                                if num < 0 then num = 0 end
-                                if num > maxVal then num = maxVal end
+                            local num = tonumber(myBar.currentStacks)
+                            if num and num >= 0 and num <= maxVal then
                                 myBar.status:SetValue(num)
                             else
                                 myBar.status:SetValue(0)

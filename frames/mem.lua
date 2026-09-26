@@ -785,9 +785,7 @@ function sfui.mem.create_mem_panel()
     title:SetText("|cff6600ffsfui|r  |cffffffffmemory & diagnostics|r")
 
     -- Close Button
-    local close_btn = CreateFlatButton(frame, "✕", 20, 20)
-    close_btn:SetPoint("TOPRIGHT", -6, -6)
-    close_btn:SetScript("OnClick", function() frame:Hide() end)
+    local close_btn = (common and common.create_close_button and common.create_close_button(frame, function() frame:Hide() end, 20)) or CreateFlatButton(frame, "X", 20, 20)
 
     -- -----------------------------------------------------------------------
     -- Row 1: 3 Flat Metric KPI Cards (Lowercase)

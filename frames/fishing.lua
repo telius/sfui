@@ -15,8 +15,13 @@ local InCombatLockdown        = _G.InCombatLockdown
 local SetOverrideBinding      = _G.SetOverrideBinding
 local SetOverrideBindingSpell = _G.SetOverrideBindingSpell
 local ClearOverrideBindings   = _G.ClearOverrideBindings
+local SetBinding              = _G.SetBinding
+local SaveBindings            = _G.SaveBindings
+local GetCurrentBindingSet    = _G.GetCurrentBindingSet
+local C_KeyBindings           = _G.C_KeyBindings
 local GetBindingKey           = _G.GetBindingKey
 local GetTime                 = _G.GetTime
+local tostring                = _G.tostring
 local SetCVar                 = _G.SetCVar
 local GetCVar                 = _G.GetCVar
 local GetNumLootItems         = _G.GetNumLootItems
@@ -313,6 +318,73 @@ local function get_all_bound_keys()
     return _boundKeys
 end
 sfui.fishing.get_all_bound_keys = get_all_bound_keys
+
+local function unbind_keybinds()
+    if InCombatLockdown and InCombatLockdown() then
+        print_message("cannot modify bindings in combat.")
+        return false
+    end
+
+    local bindingContext = C_KeyBindings and C_KeyBindings.GetBindingContextForAction and C_KeyBindings.GetBindingContextForAction("SFUI_FISHING") or nil
+
+    if GetBindingKey and SetBinding then
+        for _, action in ipairs({ "SFUI_FISHING", "BETTERFISHINGKEY" }) do
+            local k1, k2 = GetBindingKey(action)
+            if k1 then SetBinding(k1, nil, bindingContext) end
+            if k2 then SetBinding(k2, nil, bindingContext) end
+        end
+    end
+
+    local bindingSet = (GetCurrentBindingSet and GetCurrentBindingSet()) or 1
+    if SaveBindings then
+        SaveBindings(bindingSet)
+    end
+
+    update_bound_keys()
+    clear_fishing_binds()
+    print_message("fishing: keybinds cleared.")
+    return true
+end
+sfui.fishing.unbind_keybinds = unbind_keybinds
+
+local function set_keybind(newKey)
+    if InCombatLockdown and InCombatLockdown() then
+        print_message("cannot modify bindings in combat.")
+        return false
+    end
+    if not newKey or newKey == "" then return false end
+
+    newKey = tostring(newKey):upper()
+    local bindingContext = C_KeyBindings and C_KeyBindings.GetBindingContextForAction and C_KeyBindings.GetBindingContextForAction("SFUI_FISHING") or nil
+
+    -- Unbind previous keys for fishing action to avoid duplicate / conflicting binds
+    if GetBindingKey and SetBinding then
+        for _, action in ipairs({ "SFUI_FISHING", "BETTERFISHINGKEY" }) do
+            local k1, k2 = GetBindingKey(action)
+            if k1 then SetBinding(k1, nil, bindingContext) end
+            if k2 then SetBinding(k2, nil, bindingContext) end
+        end
+    end
+
+    if SetBinding then
+        SetBinding(newKey, "SFUI_FISHING", bindingContext)
+    end
+
+    local bindingSet = (GetCurrentBindingSet and GetCurrentBindingSet()) or 1
+    if SaveBindings then
+        SaveBindings(bindingSet)
+    end
+
+    update_bound_keys()
+    if not (InCombatLockdown and InCombatLockdown()) then
+        clear_fishing_binds()
+        arm_fishing_keys()
+    end
+
+    print_message("fishing: bound to |cff00ffff" .. newKey .. "|r.")
+    return true
+end
+sfui.fishing.set_keybind = set_keybind
 
 local function loot_all_items()
     if not get_setting("enabled", true) then return false end

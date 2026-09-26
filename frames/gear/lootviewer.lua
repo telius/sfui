@@ -2116,9 +2116,7 @@ function sfui.lootviewer.CreateFrame()
     title:SetPoint("TOPLEFT", 10, -10)
     title:SetText("|cff6600ffsfui|r loot & spec browser")
 
-    local closeBtn = sfui.common.create_flat_button(frame, "✕", 20, 20)
-    closeBtn:SetPoint("TOPRIGHT", -6, -6)
-    closeBtn:SetScript("OnClick", function() frame:Hide() end)
+    local closeBtn = sfui.common.create_close_button(frame, function() frame:Hide() end, 24)
 
     -- ── Slot filter row ───────────────────────────────────────────────────────
     local filterY = -32
@@ -2419,6 +2417,9 @@ function sfui.lootviewer.CreateFrame()
     sf:SetPoint("TOPLEFT",     4, CONTENT_Y)
     sf:SetPoint("BOTTOMRIGHT", -24, 4)
     sf:EnableMouseWheel(true)
+    if sf.ScrollBar and sfui.common.style_scrollbar then
+        sfui.common.style_scrollbar(sf.ScrollBar)
+    end
 
     local sc = CreateFrame("Frame", nil, sf)
     sc:SetWidth(SCROLL_W - 4)

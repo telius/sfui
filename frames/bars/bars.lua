@@ -303,7 +303,7 @@ do
                 local hasAura = costInfo.hasRequiredAura
                 if not (reqAura and reqAura > 0 and hasAura == false) then
                     local cost = costInfo.cost or costInfo.minCost or costInfo.costPercent or costInfo.costPerSec or 0
-                    if (type(cost) == "number" and cost > 0) or (common.SafeGT and common.SafeGT(cost, 0)) then
+                    if (type(cost) == "number" and cost > 0) or (common.issecretvalue and common.issecretvalue(cost)) then
                         return true
                     end
                 end
@@ -429,7 +429,7 @@ do
             bar.marker:SetPoint("LEFT", bar, "LEFT", bar:GetWidth() * 0.55, 0)
             bar.marker:SetHeight(bar:GetHeight())
             bar.marker:Show()
-        elseif specID == 1480 and common.SafeGT(max, 99) then -- Devourer Demon Hunter (100 value)
+        elseif specID == 1480 and max and max > 99 then -- Devourer Demon Hunter (100 value)
             bar.marker:ClearAllPoints()
             local width = bar:GetWidth()
             local pct = 100 / max

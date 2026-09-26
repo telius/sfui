@@ -97,6 +97,8 @@ SlashCmdList["SFPET"] = function(msg)
         if sfui.pets and sfui.pets.ClearCharFavs then sfui.pets.ClearCharFavs() end
     elseif cmd == "summon" or cmd == "next" then
         if sfui.pets and sfui.pets.SummonNext then sfui.pets.SummonNext(true) end
+    elseif cmd == "dismiss" then
+        if sfui.pets and sfui.pets.Dismiss then sfui.pets.Dismiss() end
     else
         if sfui.pets and sfui.pets.Toggle then
             sfui.pets.Toggle()

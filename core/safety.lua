@@ -199,39 +199,6 @@ function sfui.safety.IsCooldownFrameActive(cooldownFrame)
 end
 sfui.common.IsCooldownFrameActive = sfui.safety.IsCooldownFrameActive
 
--- Safe comparison helpers (Crash-proof against Secret Values in M+)
-function sfui.safety.SafeGT(val, target)
-    if issecretvalue and (issecretvalue(val) or issecretvalue(target)) then return false end
-    if val == nil or target == nil then return false end
-    if type(val) == "number" and type(target) == "number" then
-        return val > target
-    end
-    return false
-end
-sfui.common.SafeGT = sfui.safety.SafeGT
-
-function sfui.safety.SafeLT(val, target)
-    if issecretvalue and (issecretvalue(val) or issecretvalue(target)) then return false end
-    if val == nil or target == nil then return false end
-    if type(val) == "number" and type(target) == "number" then
-        return val < target
-    end
-    return false
-end
-sfui.common.SafeLT = sfui.safety.SafeLT
-
--- Safe arithmetic to bypass "arithmetic on secret number" errors when tainted.
-function sfui.safety.SafeArithmetic(op, v1, v2)
-    if issecretvalue and (issecretvalue(v1) or issecretvalue(v2)) then return 0 end
-    if v1 == nil or v2 == nil then return 0 end
-    if op == "+" then return v1 + v2 end
-    if op == "-" then return v1 - v2 end
-    if op == "*" then return v1 * v2 end
-    if op == "/" then return (v2 ~= 0) and (v1 / v2) or 0 end
-    return 0
-end
-sfui.common.SafeArithmetic = sfui.safety.SafeArithmetic
-
 function sfui.safety.SafeValue(val, fallback)
     if issecretvalue and issecretvalue(val) then return val end
     if val == nil then return fallback end
@@ -239,12 +206,6 @@ function sfui.safety.SafeValue(val, fallback)
 end
 sfui.common.SafeValue = sfui.safety.SafeValue
 
-function sfui.safety.SafeNotFalse(val)
-    if issecretvalue and issecretvalue(val) then return true end
-    if val == nil then return true end
-    return val ~= false
-end
-sfui.common.SafeNotFalse = sfui.safety.SafeNotFalse
 
 -- Safely set text on a fontstring (SetText accepts secret values)
 function sfui.safety.SafeSetText(fontString, text, decimals)
@@ -261,7 +222,8 @@ sfui.common.SafeSetText = sfui.safety.SafeSetText
 function sfui.safety.SafeSetValue(bar, value)
     if not bar or not bar.SetValue then return end
     if issecretvalue and issecretvalue(value) then
-        bar:SetValue(value)
+        local ok = pcall(bar.SetValue, bar, value)
+        if not ok then bar:SetValue(0) end
         return
     end
     local num = type(value) == "number" and value or tonumber(value)

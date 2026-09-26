@@ -192,7 +192,11 @@ function sfui.widgets.create_flat_button(parent, text, width, height)
     btn:SetText(text)
     local fs = btn:GetFontString()
     local white = (sfui.config and sfui.config.colors and sfui.config.colors.white) or { 1, 1, 1 }
-    if fs then fs:SetTextColor(white[1], white[2], white[3], 1) end
+    if fs then
+        local fontFile = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+        fs:SetFont(fontFile, 11, "")
+        fs:SetTextColor(white[1], white[2], white[3], 1)
+    end
 
     btn:SetScript("OnEnter", function(self)
         local purple = (sfui.config and sfui.config.colors and sfui.config.colors.purple) or { 0.4, 0, 1 }
@@ -236,15 +240,68 @@ end
 sfui.common.create_styled_button = sfui.widgets.create_styled_button
 
 function sfui.widgets.create_close_button(parent, onClickFunc, size)
-    size = size or 20
-    local btn = sfui.widgets.create_flat_button(parent, "✕", size, size)
-    btn:SetPoint("TOPRIGHT", -6, -6)
+    size = size or 24
+    local btn = sfui.widgets.create_flat_button(parent, "X", size, size)
+    btn:SetPoint("TOPRIGHT", -5, -5)
+    local fs = btn:GetFontString()
+    if fs then
+        local fontFile = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+        fs:SetFont(fontFile, math.max(10, math.floor(size * 0.5)), "")
+        fs:SetTextColor(1, 1, 1, 1)
+    end
     btn:SetScript("OnClick", onClickFunc or function()
         if parent and parent.Hide then parent:Hide() end
+    end)
+    btn:SetScript("OnEnter", function(self)
+        self:SetBackdropBorderColor(1, 0.2, 0.2, 1)
+        local fString = self:GetFontString()
+        if fString then fString:SetTextColor(1, 0.3, 0.3, 1) end
+    end)
+    btn:SetScript("OnLeave", function(self)
+        local gray = (sfui.config and sfui.config.colors and sfui.config.colors.gray) or { 0.5, 0.5, 0.5 }
+        self:SetBackdropBorderColor(gray[1], gray[2], gray[3], 1)
+        local fString = self:GetFontString()
+        if fString then fString:SetTextColor(1, 1, 1, 1) end
     end)
     return btn
 end
 sfui.common.create_close_button = sfui.widgets.create_close_button
+
+function sfui.widgets.create_remove_button(parent, onClickFunc, width, height, tooltip)
+    local btn = sfui.widgets.create_flat_button(parent, "X", width or 20, height or 20)
+    local fs = btn:GetFontString()
+    if fs then
+        local fontFile = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+        fs:SetFont(fontFile, math.max(9, math.floor((height or 20) * 0.5)), "")
+        fs:SetTextColor(1, 1, 1, 1)
+    end
+    if onClickFunc then
+        btn:SetScript("OnClick", onClickFunc)
+    end
+    btn:SetScript("OnEnter", function(self)
+        self:SetBackdropBorderColor(1, 0.2, 0.2, 1)
+        local fString = self:GetFontString()
+        if fString then fString:SetTextColor(1, 0.3, 0.3, 1) end
+        if tooltip then
+            local tip = sfui.tooltip or _G.GameTooltip
+            if tip then
+                tip:SetOwner(self, "ANCHOR_RIGHT")
+                tip:SetText(tooltip, 1, 0.3, 0.3)
+                tip:Show()
+            end
+        end
+    end)
+    btn:SetScript("OnLeave", function(self)
+        local gray = (sfui.config and sfui.config.colors and sfui.config.colors.gray) or { 0.5, 0.5, 0.5 }
+        self:SetBackdropBorderColor(gray[1], gray[2], gray[3], 1)
+        local fString = self:GetFontString()
+        if fString then fString:SetTextColor(1, 1, 1, 1) end
+        local tip = sfui.tooltip or _G.GameTooltip
+        if tip then tip:Hide() end
+    end)
+    return btn
+end
+sfui.common.create_remove_button = sfui.widgets.create_remove_button
 
 function sfui.widgets.create_checkbox(parent, label, dbKeyOrGetter, onClickFunc, tooltip)
     local cb = CreateFrame("CheckButton", nil, parent, "BackdropTemplate")
@@ -570,75 +627,219 @@ function sfui.widgets.style_scrollbar(scrollBar)
 end
 sfui.common.style_scrollbar = sfui.widgets.style_scrollbar
 
+function sfui.widgets.create_scroll_frame(parent, name, childWidth, childHeight)
+    local sf = CreateFrame("ScrollFrame", name, parent, "UIPanelScrollFrameTemplate")
+    sf:EnableMouseWheel(true)
+    if sf.ScrollBar and sfui.widgets.style_scrollbar then
+        sfui.widgets.style_scrollbar(sf.ScrollBar)
+    end
+
+    local sc = CreateFrame("Frame", nil, sf)
+    sc:SetSize(childWidth or 1, childHeight or 1)
+    sf:SetScrollChild(sc)
+    sf.scrollChild = sc
+
+    return sf, sc
+end
+sfui.common.create_scroll_frame = sfui.widgets.create_scroll_frame
+
 local activeDropdown = nil
+
+-- Global hook on CloseDropDownMenus to dismiss custom dropdown menus
+if not sfui._dropdownCloseHooked and hooksecurefunc then
+    sfui._dropdownCloseHooked = true
+    hooksecurefunc("CloseDropDownMenus", function()
+        if activeDropdown then
+            activeDropdown:Hide()
+            activeDropdown = nil
+        end
+    end)
+end
+
 function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, initialValue, fixedText, menuWidth)
-    local actualOptions = (type(options) == "function") and options() or options
+    local actualOptions = (type(options) == "function") and options() or options or {}
     local initialText = fixedText or "Select..."
-    if not fixedText and initialValue ~= nil then
-        for _, opt in ipairs(actualOptions) do
-            if opt.value == initialValue then
-                initialText = opt.text
-                break
+    local currentValue = initialValue
+    if not fixedText then
+        if initialValue ~= nil then
+            for _, opt in ipairs(actualOptions) do
+                if opt.value == initialValue then
+                    initialText = opt.text or opt.label or tostring(initialValue)
+                    break
+                end
             end
+        elseif #actualOptions > 0 and actualOptions[1].text then
+            initialText = actualOptions[1].text
         end
     end
 
     local btn = sfui.widgets.create_flat_button(parent, initialText, width or 120, 20)
-    local menu = CreateFrame("Frame", nil, btn, "BackdropTemplate")
-    menu:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2)
-    menu:SetWidth(menuWidth or width or 120)
-    menu:SetFrameStrata("DIALOG")
+
+    -- Float on UIParent with high strata so it is never clipped by parent dialogs/scrollframes
+    local menu = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    menu:SetFrameStrata("TOOLTIP")
+    menu:SetFrameLevel(100)
+    menu:SetClampedToScreen(true)
     menu:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
         edgeSize = 1,
     })
-    menu:SetBackdropColor(0.1, 0.1, 0.1, 0.95)
+    menu:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
     menu:SetBackdropBorderColor(0, 0, 0, 1)
     menu:Hide()
 
-    local optionButtons = {}
-    local function updateMenuSize()
-        local opts = (type(options) == "function") and options() or options
-        menu:SetHeight(#opts * 20 + 4)
+    btn.menu = menu
+    menu.dropdownButton = btn
+    menu.buttons = {}
+
+    if hooksecurefunc then
+        hooksecurefunc(menu, "SetPoint", function(self)
+            if not self._internalSettingPoint then
+                self._customPoint = true
+            end
+        end)
+    end
+
+    local function updateMenuSizeAndPosition()
+        local currentOptions = (type(options) == "function") and options() or options or {}
+        local maxW = menuWidth or (width and width > 40 and width) or 120
+
+        if not menuWidth then
+            for _, opt in ipairs(currentOptions) do
+                local txt = opt.text or opt.label
+                if txt then
+                    local textWidth = #txt * 8 + 24
+                    if textWidth > maxW then maxW = textWidth end
+                end
+            end
+        end
+
+        local totalH = 4 + (#currentOptions * 20) + 4
+        menu:SetSize(maxW, totalH)
+
+        if not menu._customPoint then
+            menu._internalSettingPoint = true
+            menu:ClearAllPoints()
+            local screenW = UIParent:GetWidth() or 1000
+            local btnRight = btn:GetRight() or 0
+            if (width and width <= 40) or (btnRight + maxW > screenW - 20) or (btnRight > screenW * 0.6) then
+                menu:SetPoint("TOPRIGHT", btn, "BOTTOMRIGHT", 0, -2)
+            else
+                menu:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2)
+            end
+            menu._internalSettingPoint = false
+        end
     end
 
     local function fillOptions()
-        local opts = (type(options) == "function") and options() or options
-        for _, b in ipairs(optionButtons) do b:Hide() end
-        local y = -2
-        for i, opt in ipairs(opts) do
-            local optBtn = optionButtons[i]
+        local currentOptions = (type(options) == "function") and options() or options or {}
+
+        -- Hide all existing buttons and clear sub-button states
+        for _, b in ipairs(menu.buttons) do
+            b:Hide()
+            if b.xBtn then
+                b.xBtn:Hide()
+                b.xBtn:ClearAllPoints()
+            end
+            if b.hBtn then
+                b.hBtn:Hide()
+                b.hBtn:ClearAllPoints()
+            end
+        end
+
+        local y = -4
+        for i, opt in ipairs(currentOptions) do
+            local optBtn = menu.buttons[i]
             if not optBtn then
                 optBtn = CreateFrame("Button", nil, menu)
                 optBtn:SetHeight(20)
-                optBtn:SetPoint("LEFT", menu, "LEFT", 2, 0)
-                optBtn:SetPoint("RIGHT", menu, "RIGHT", -2, 0)
                 optBtn:SetNormalFontObject("GameFontHighlightSmall")
-                local fs = optBtn:GetFontString()
-                if fs then
-                    fs:ClearAllPoints()
-                    fs:SetPoint("LEFT", optBtn, "LEFT", 4, 0)
-                    fs:SetPoint("RIGHT", optBtn, "RIGHT", -4, 0)
-                    fs:SetJustifyH("LEFT")
-                end
+
+                local ts = optBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                ts:SetPoint("LEFT", optBtn, "LEFT", 4, 0)
+                ts:SetPoint("RIGHT", optBtn, "RIGHT", -4, 0)
+                ts:SetJustifyH("LEFT")
+                optBtn.textString = ts
+
                 optBtn:SetHighlightTexture("Interface\\Buttons\\WHITE8x8")
                 optBtn:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.1)
-                optionButtons[i] = optBtn
-            end
-            optBtn:SetPoint("TOP", menu, "TOP", 0, y)
-            optBtn:SetText(opt.text)
 
-            optBtn:SetScript("OnClick", function()
-                if not fixedText then
-                    btn:GetFontString():SetText(opt.text)
+                menu.buttons[i] = optBtn
+            end
+
+            optBtn:ClearAllPoints()
+            optBtn:SetPoint("TOPLEFT", menu, "TOPLEFT", 4, y)
+            optBtn:SetPoint("RIGHT", menu, "RIGHT", -4, 0)
+
+            if opt.onRender then
+                optBtn.textString:ClearAllPoints()
+                optBtn.textString:SetPoint("LEFT", optBtn, "LEFT", 4, 0)
+                optBtn.textString:SetPoint("RIGHT", optBtn, "RIGHT", -46, 0)
+                optBtn.textString:SetJustifyH("LEFT")
+                optBtn.textString:Show()
+
+                optBtn:SetScript("OnEnter", nil)
+                optBtn:SetScript("OnLeave", nil)
+                optBtn:SetScript("OnClick", function()
+                    if opt.onClick then
+                        opt.onClick(opt)
+                    end
+                    if onSelectFunc and opt.value ~= nil then
+                        currentValue = opt.value
+                        onSelectFunc(opt.value)
+                    end
+                    if not opt.keepOpen then
+                        menu:Hide()
+                        activeDropdown = nil
+                    end
+                end)
+
+                opt.onRender(optBtn, opt)
+            else
+                optBtn.textString:ClearAllPoints()
+                optBtn.textString:SetPoint("LEFT", optBtn, "LEFT", 4, 0)
+                optBtn.textString:SetPoint("RIGHT", optBtn, "RIGHT", -4, 0)
+                optBtn.textString:SetJustifyH("LEFT")
+
+                local displayText = opt.text or opt.label or ""
+                optBtn.textString:SetText(displayText)
+
+                local isSelected = (currentValue ~= nil and opt.value ~= nil and opt.value == currentValue)
+                if isSelected then
+                    optBtn.textString:SetTextColor(0.3, 0.8, 1)
+                else
+                    optBtn.textString:SetTextColor(1, 1, 1)
                 end
-                if onSelectFunc then onSelectFunc(opt.value) end
-                if not opt.keepOpen then
-                    menu:Hide()
-                    activeDropdown = nil
-                end
-            end)
+                optBtn.textString:Show()
+
+                optBtn:SetScript("OnEnter", function(self)
+                    if self.textString then self.textString:SetTextColor(1, 0.82, 0) end
+                end)
+                optBtn:SetScript("OnLeave", function(self)
+                    if self.textString then
+                        if isSelected then
+                            self.textString:SetTextColor(0.3, 0.8, 1)
+                        else
+                            self.textString:SetTextColor(1, 1, 1)
+                        end
+                    end
+                end)
+
+                optBtn:SetScript("OnClick", function()
+                    currentValue = opt.value
+                    if not fixedText then
+                        local btnFs = btn:GetFontString()
+                        if btnFs then btnFs:SetText(displayText) end
+                    end
+                    if onSelectFunc then onSelectFunc(opt.value) end
+                    if not opt.keepOpen then
+                        menu:Hide()
+                        activeDropdown = nil
+                    end
+                end)
+            end
+
             optBtn:Show()
             y = y - 20
         end
@@ -649,13 +850,46 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
             menu:Hide()
             activeDropdown = nil
         else
-            if activeDropdown then activeDropdown:Hide() end
-            updateMenuSize()
+            if activeDropdown and activeDropdown ~= menu then
+                activeDropdown:Hide()
+            end
+            updateMenuSizeAndPosition()
             fillOptions()
             menu:Show()
             activeDropdown = menu
         end
     end)
+
+    function btn:SetSelectedValue(val)
+        currentValue = val
+        local opts = (type(options) == "function") and options() or options or {}
+        for _, opt in ipairs(opts) do
+            if opt.value == val then
+                if not fixedText then
+                    local fs = btn:GetFontString()
+                    if fs then fs:SetText(opt.text or opt.label or tostring(val)) end
+                end
+                break
+            end
+        end
+    end
+
+    -- Auto-dismiss floating menu when button or parent frame hides
+    btn:HookScript("OnHide", function()
+        if menu:IsShown() then
+            menu:Hide()
+            if activeDropdown == menu then activeDropdown = nil end
+        end
+    end)
+
+    if parent and parent.HookScript then
+        parent:HookScript("OnHide", function()
+            if menu:IsShown() then
+                menu:Hide()
+                if activeDropdown == menu then activeDropdown = nil end
+            end
+        end)
+    end
 
     return btn
 end

@@ -150,6 +150,10 @@ local function get_char_db()
     return SfuiDB.pets_per_char[key]
 end
 
+local function get_pet_name(petID)
+    return (petID and C_PetJournal and C_PetJournal.GetPetInfoByPetID and select(8, C_PetJournal.GetPetInfoByPetID(petID))) or "companion"
+end
+
 -- ─── Environmental & Safety Heuristics ──────────────────────────────────────
 
 local function is_in_air()
@@ -168,8 +172,10 @@ local function has_special_companion_aura()
 end
 
 local function can_summon_pet(isAuto)
-    if not get_setting("enabled", true)
-        or (InCombatLockdown and InCombatLockdown())
+    if isAuto and not get_setting("enabled", true) then
+        return false
+    end
+    if (InCombatLockdown and InCombatLockdown())
         or (IsMounted and IsMounted())
         or (UnitIsDead and UnitIsDead("player"))
         or (UnitIsGhost and UnitIsGhost("player"))
@@ -204,7 +210,10 @@ local function is_pet_usable(petID, speciesID)
     if not petID then return false end
     if is_species_excluded(speciesID) then return false end
     if C_PetJournal and C_PetJournal.GetPetSummonInfo then
-        local _, err = C_PetJournal.GetPetSummonInfo(petID)
+        local isSummonable, err = C_PetJournal.GetPetSummonInfo(petID)
+        if isSummonable == false then
+            return false
+        end
         if err and Enum and Enum.PetJournalError and err == Enum.PetJournalError.InvalidFaction then
             return false
         end
@@ -231,7 +240,7 @@ local function rebuild_pet_pools()
     if not numPets or numPets == 0 then return end
 
     for i = 1, numPets do
-        local petID, speciesID, isOwned, _, _, _, isFav = C_PetJournal.GetPetInfoByIndex(i)
+        local petID, speciesID, isOwned, _, _, isFav = C_PetJournal.GetPetInfoByIndex(i)
         if petID and isOwned and is_pet_usable(petID, speciesID) then
             if isFav or (C_PetJournal.PetIsFavorite and C_PetJournal.PetIsFavorite(petID)) then
                 _poolFavs[#_poolFavs + 1] = petID
@@ -264,18 +273,46 @@ local function select_candidate_pet()
     end
     local count = #_poolFavs
     if count == 0 then return nil end
-    if count == 1 then return _poolFavs[1] end
 
-    -- Try to pick a pet not recently summoned
+    local currentGUID = C_PetJournal and C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
+
+    if count == 1 then
+        if currentGUID and currentGUID == _poolFavs[1] then
+            return nil, true -- already active; do not re-summon or dismiss
+        end
+        return _poolFavs[1]
+    end
+
+    -- Sequential cycle: if a companion is currently active, cycle to the NEXT pet in the pool!
+    if currentGUID then
+        for i = 1, count do
+            if _poolFavs[i] == currentGUID then
+                local nextIdx = (i % count) + 1
+                return _poolFavs[nextIdx]
+            end
+        end
+    end
+
+    -- If current pet isn't in pool or no pet is summoned, pick one not in recent history
     local candidate = nil
     local attempts = 0
     while attempts < 10 do
         attempts = attempts + 1
         local idx = math_random(1, count)
         local picked = _poolFavs[idx]
-        if not is_in_recent_history(picked) or attempts >= 8 then
+        if picked ~= currentGUID and (not is_in_recent_history(picked) or attempts >= 8) then
             candidate = picked
             break
+        end
+    end
+
+    -- Guarantee candidate is never currentGUID if count > 1
+    if not candidate or candidate == currentGUID then
+        for i = 1, count do
+            if _poolFavs[i] ~= currentGUID then
+                candidate = _poolFavs[i]
+                break
+            end
         end
     end
 
@@ -286,6 +323,12 @@ local function summon_pet(petID)
     if not petID or not can_summon_pet(false) then return false end
     if not (C_PetJournal and C_PetJournal.SummonPetByGUID) then return false end
 
+    local current = C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
+    if current and current == petID then
+        -- Already summoned; calling SummonPetByGUID would dismiss it!
+        return false
+    end
+
     _lastSummonTime = GetTime()
     _lastRotationTime = _lastSummonTime
     record_recent_pet(petID)
@@ -295,9 +338,21 @@ end
 
 function sfui.pets.SummonNext(force)
     if not can_summon_pet(not force) then return end
-    local pet = select_candidate_pet()
+    local pet, alreadyActive = select_candidate_pet()
+    if alreadyActive then
+        local current = C_PetJournal and C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
+        print_message(string.format("sfui: |cff00ffff%s|r is already active (only 1 favorite companion available).", get_pet_name(current)))
+        return
+    end
     if pet then
         summon_pet(pet)
+        print_message(string.format("sfui: summoned companion |cff00ffff%s|r.", get_pet_name(pet)))
+    elseif #_poolFavs == 0 then
+        if C_PetJournal and C_PetJournal.SummonRandomPet then
+            C_PetJournal.SummonRandomPet(true)
+        else
+            print_message("sfui: no favorite companion pets available to summon.")
+        end
     end
 end
 
@@ -488,10 +543,6 @@ local PetsModule = sfui.RegisterModule("pets", {
     end,
 })
 
-local function get_pet_name(petID)
-    return (petID and C_PetJournal.GetPetInfoByPetID and select(8, C_PetJournal.GetPetInfoByPetID(petID))) or "companion"
-end
-
 function sfui.pets.AddCurrentPetToCharFavs()
     local current = C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
     if not current then
@@ -547,10 +598,21 @@ function sfui.pets.ClearCharFavs()
     print_message("sfui: cleared all character favorites.")
 end
 
+function sfui.pets.Dismiss()
+    local current = C_PetJournal and C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
+    if current and C_PetJournal and C_PetJournal.SummonPetByGUID then
+        C_PetJournal.SummonPetByGUID(current)
+        print_message(string.format("sfui: dismissed companion |cff00ffff%s|r.", get_pet_name(current)))
+        return true
+    end
+    return false
+end
+
 sfui.pets.GetCharDB = get_char_db
 sfui.pets.GetCharacterKey = get_character_key
 sfui.pets.RebuildPools = rebuild_pet_pools
 sfui.pets.update_settings = rebuild_pet_pools
+sfui.pets.Dismiss = sfui.pets.Dismiss
 
 _G["SFUI_PET_SUMMON"] = function() sfui.pets.SummonNext(true) end
 

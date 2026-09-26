@@ -124,9 +124,7 @@ frame.merchantTitle:SetJustifyH("LEFT")
 
 local CreateFlatButton = common.create_flat_button
 
-local closeBtn = CreateFlatButton(frame, "X", 20, 20)
-closeBtn:SetPoint("TOPRIGHT", -5, -5)
-closeBtn:SetScript("OnClick", function() frame:Hide() end)
+local closeBtn = common.create_close_button(frame, function() frame:Hide() end, 20)
 
 local filterDropdownBtn = CreateFlatButton(frame, "showing all", 100, 20)
 filterDropdownBtn:SetPoint("RIGHT", closeBtn, "LEFT", -5, 0)
@@ -673,7 +671,7 @@ guildRepairBtn:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     local repairAllCost, canRepair = GetRepairAllCost()
 
-    if canRepair and (common.issecretvalue(repairAllCost) or common.SafeGT(repairAllCost, 0)) then
+    if canRepair and (common.issecretvalue(repairAllCost) or (repairAllCost and repairAllCost > 0)) then
         common.SafeSetTooltipMoney(GameTooltip, repairAllCost, "Guild Repair")
 
         local amount = GetGuildBankMoney()
@@ -714,7 +712,7 @@ repairBtn:SetScript("OnEnter", function(self)
     local repairAllCost, canRepair = GetRepairAllCost()
     local isSecret = common.issecretvalue(repairAllCost)
 
-    if canRepair and (isSecret or common.SafeGT(repairAllCost, 0)) then
+    if canRepair and (isSecret or (repairAllCost and repairAllCost > 0)) then
         common.SafeSetTooltipMoney(GameTooltip, repairAllCost, "Repair All")
     else
         GameTooltip:SetText("No Repair Needed")

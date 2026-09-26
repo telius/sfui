@@ -345,17 +345,13 @@ function sfui.alts.CreateFrame()
     frame:SetBackdropColor(unpack(cfg.backdropColor or { 0.05, 0.05, 0.05, 0.9 }))
     frame:SetBackdropBorderColor(unpack(cfg.borderColor or { 0, 0, 0, 1 }))
 
-    local CreateFlatButton = sfui.common.create_flat_button
-
-    local close = CreateFlatButton(frame, "X", 24, 24)
-    close:SetPoint("TOPRIGHT", -5, -5)
-    close:SetScript("OnClick", function() frame:Hide() end)
+    local close = (sfui.common.create_close_button or CreateFlatButton)(frame, function() frame:Hide() end, 24)
 
     -- Sort Dropdown
     sortDropdown = sfui.common.create_dropdown(frame, 24, GetSortOptions, function(val)
         SfuiDB.altsSort = val
         sfui.alts.UpdateUI()
-    end, SfuiDB.altsSort or "name", "≣")
+    end, SfuiDB.altsSort or "name", "S")
     sortDropdown:SetPoint("TOPRIGHT", close, "TOPLEFT", -5, 0)
 
     -- Character Manager Dropdown (=)
@@ -377,8 +373,9 @@ function sfui.alts.CreateFrame()
                     -- Remove button [X]
                     parent.xBtn = parent.xBtn or sfui.common.create_flat_button(parent, "X", 18, 16)
                     local xBtn = parent.xBtn
-                    xBtn:Show()
+                    xBtn:ClearAllPoints()
                     xBtn:SetPoint("RIGHT", -5, 0)
+                    xBtn:Show()
                     xBtn:SetScript("OnClick", function()
                         if StaticPopup_Show then
                             StaticPopup_Show("SFUI_ALTS_REMOVE_CHARACTER", name, nil, { guid = opt.guid })
@@ -388,10 +385,11 @@ function sfui.alts.CreateFrame()
                     -- Hide button [H]
                     parent.hBtn = parent.hBtn or sfui.common.create_flat_button(parent, "", 18, 16)
                     local hBtn = parent.hBtn
-                    hBtn:Show()
                     local hStatus = opt.data.isHidden and "|cff00ff00H|r" or "|cffccccccH|r"
                     hBtn:SetText(hStatus)
+                    hBtn:ClearAllPoints()
                     hBtn:SetPoint("RIGHT", xBtn, "LEFT", -2, 0)
+                    hBtn:Show()
                     hBtn:SetScript("OnClick", function()
                         opt.data.isHidden = not opt.data.isHidden
                         sfui.alts.UpdateUI()
@@ -426,9 +424,10 @@ function sfui.alts.CreateFrame()
                         local hStatus = isHidden and "|cffff0000H|r" or "|cff00ff00V|r"
                         parent.hBtn = parent.hBtn or sfui.common.create_flat_button(parent, "", 18, 16)
                         local hBtn = parent.hBtn
+                        hBtn:ClearAllPoints()
+                        hBtn:SetPoint("RIGHT", -5, 0)
                         hBtn:Show()
                         hBtn:SetText(hStatus)
-                        hBtn:SetPoint("RIGHT", -5, 0)
                         hBtn:SetScript("OnClick", function()
                             SfuiDB.altsHiddenSections = SfuiDB.altsHiddenSections or {}
                             SfuiDB.altsHiddenSections[opt.catName] = not SfuiDB.altsHiddenSections[opt.catName]
@@ -454,9 +453,10 @@ function sfui.alts.CreateFrame()
                     local hStatus = isHidden and "|cffff0000H|r" or "|cff00ff00V|r"
                     parent.hBtn = parent.hBtn or sfui.common.create_flat_button(parent, "", 18, 16)
                     local hBtn = parent.hBtn
+                    hBtn:ClearAllPoints()
+                    hBtn:SetPoint("RIGHT", -5, 0)
                     hBtn:Show()
                     hBtn:SetText(hStatus)
-                    hBtn:SetPoint("RIGHT", -5, 0)
                     hBtn:SetScript("OnClick", function()
                         SfuiDB.showM0Dungeons = not (SfuiDB.showM0Dungeons ~= false)
                         sfui.alts.RefreshDynamicCategories(true)
@@ -470,7 +470,7 @@ function sfui.alts.CreateFrame()
         return options
     end
 
-    local sectionsDropdown = sfui.common.create_dropdown(frame, 24, populateSectionsOptions, nil, nil, "⚙", 150)
+    local sectionsDropdown = sfui.common.create_dropdown(frame, 24, populateSectionsOptions, nil, nil, "*", 150)
     sectionsDropdown:SetPoint("TOPRIGHT", managerDropdown, "TOPLEFT", -5, 0)
 
     -- Sidebar (Category labels)
@@ -724,10 +724,9 @@ function sfui.alts.UpdateUI(force)
 
                             GameTooltip:Show()
 
-                            -- Show delete button for non-current characters on hover
                             if altSnap.guid ~= curGUID then
                                 if not cell.del then
-                                    local del = sfui.common.create_flat_button(cell, "×", 14, 14)
+                                    local del = sfui.common.create_flat_button(cell, "X", 14, 14)
                                     del:SetPoint("TOPRIGHT", cell, "TOPRIGHT", -2, -2)
                                     cell.del = del
                                 end
