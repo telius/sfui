@@ -189,7 +189,7 @@ function WorldQuestsModule:BuildBlocks(container)
             local prevSig = lastWQProgress[questID]
             if initialWQScanDone and prevSig and prevSig ~= currentSig then
                 if C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
-                    pcall(C_SuperTrack.SetSuperTrackedQuestID, questID)
+                    C_SuperTrack.SetSuperTrackedQuestID(questID)
                     superTrackedQuestID = questID
                 end
             end

@@ -602,7 +602,7 @@ local function ShouldBarBeVisible(config, blizzFrame, isStackModeWithStacks, hid
         -- Fallback: Blizzard's isActive may have been flipped to false by the
         -- IsExpired() secret crash in M+. Confirm via GetPlayerAuraBySpellID
         -- (works for player's own spells even in restricted combat).
-        if spellID and spellID > 0 and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
+        if spellID and not (issecretvalue and issecretvalue(spellID)) and type(spellID) == "number" and spellID > 0 and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
             local fbAura = C_UnitAuras.GetPlayerAuraBySpellID(spellID)
             if fbAura then return true end
         end
@@ -713,28 +713,42 @@ local function _pcall_sync_bar_values(blizzFrame, status, timeString, config, cu
 end
 
 -- Helper: Sync bar data from Blizzard frame
-local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
+local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
     local cfg = sfui.config.trackedBars
 
     if config and config.spellID then
         myBar.spellID = config.spellID
     elseif cfg and cfg.specialCases and cfg.specialCases[id] and cfg.specialCases[id].spellID then
         myBar.spellID = cfg.specialCases[id].spellID
-    elseif blizzFrame.spellID or (blizzFrame.info and blizzFrame.info.spellID) then
-        myBar.spellID = blizzFrame.spellID or (blizzFrame.info and blizzFrame.info.spellID)
+    elseif info and info.spellID and not (issecretvalue and issecretvalue(info.spellID)) and type(info.spellID) == "number" and info.spellID > 0 then
+        myBar.spellID = info.spellID
     elseif C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
-        local ok, info = pcall(C_CooldownViewer.GetCooldownViewerCooldownInfo, id)
-        if ok and info and info.spellID then
-            myBar.spellID = info.spellID
+        local ok, cdInfo = pcall(C_CooldownViewer.GetCooldownViewerCooldownInfo, id)
+        if ok and cdInfo and cdInfo.spellID and not (issecretvalue and issecretvalue(cdInfo.spellID)) and type(cdInfo.spellID) == "number" and cdInfo.spellID > 0 then
+            myBar.spellID = cdInfo.spellID
         end
     end
 
-
+    if not myBar.spellID and blizzFrame.GetSpellID then
+        local ok, bSpell = pcall(blizzFrame.GetSpellID, blizzFrame)
+        if ok and bSpell and not (issecretvalue and issecretvalue(bSpell)) and type(bSpell) == "number" and bSpell > 0 then
+            myBar.spellID = bSpell
+        end
+    end
+    if not myBar.spellID and blizzFrame.auraSpellID and not (issecretvalue and issecretvalue(blizzFrame.auraSpellID)) and type(blizzFrame.auraSpellID) == "number" and blizzFrame.auraSpellID > 0 then
+        myBar.spellID = blizzFrame.auraSpellID
+    end
+    if not myBar.spellID and (blizzFrame.spellID or (blizzFrame.info and blizzFrame.info.spellID)) then
+        local candidate = blizzFrame.spellID or (blizzFrame.info and blizzFrame.info.spellID)
+        if candidate and not (issecretvalue and issecretvalue(candidate)) and type(candidate) == "number" and candidate > 0 then
+            myBar.spellID = candidate
+        end
+    end
 
     -- Seed the cast-mirror duration cache from a clean cooldown read.
     -- This runs every SyncBarData tick so the mirror stays accurate with haste/CDR changes.
     -- When reads are secret (M+ combat), the probe pcall fails and we preserve the last good value.
-    if myBar.spellID then
+    if myBar.spellID and not (issecretvalue and issecretvalue(myBar.spellID)) then
         local cdMirrorCache = sfui.trackedbars._cdDurCache
         if cdMirrorCache then
             local ok, cd = pcall(C_Spell.GetSpellCooldown, myBar.spellID)
@@ -748,7 +762,7 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
                 local ok2, ci = pcall(C_Spell.GetSpellCharges, myBar.spellID)
                 if ok2 and ci and ci.cooldownDuration then
                     local probe2 = pcall(function() return ci.cooldownDuration + 0 end)
-                    if probe2 and ci.cooldownDuration > 0 then
+                    if probe2 and not (issecretvalue and issecretvalue(ci.cooldownDuration)) and ci.cooldownDuration > 0 then
                         cdMirrorCache[myBar.spellID] = ci.cooldownDuration
                     end
                 end
@@ -774,7 +788,7 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     myBar._maxStacks = maxStacks
 
     -- Primary: Direct Unrestricted Player Aura query (clean number when out of combat)
-    if myBar.spellID and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
+    if myBar.spellID and not (issecretvalue and issecretvalue(myBar.spellID)) and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
         local auraData = C_UnitAuras.GetPlayerAuraBySpellID(myBar.spellID)
         if auraData and auraData.applications then
             currentStacks = auraData.applications
@@ -820,7 +834,7 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     end
 
     -- Fallback 3: Try Spell Display Count (native action bar representation)
-    if not currentStacks and myBar.spellID and C_Spell and C_Spell.GetSpellDisplayCount then
+    if not currentStacks and myBar.spellID and not (issecretvalue and issecretvalue(myBar.spellID)) and C_Spell and C_Spell.GetSpellDisplayCount then
         local ok, dc = pcall(C_Spell.GetSpellDisplayCount, myBar.spellID)
         if ok and dc ~= nil then
             if issecretvalue(dc) or (type(dc) == "number" and dc > 0) then
@@ -830,7 +844,7 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     end
 
     -- Fallback 4: Try Spell Charges (for charge-based spells missing auraInstanceID)
-    if not currentStacks and myBar.spellID then
+    if not currentStacks and myBar.spellID and not (issecretvalue and issecretvalue(myBar.spellID)) then
         local ok, chargeInfo = pcall(C_Spell.GetSpellCharges, myBar.spellID)
         if ok and chargeInfo and chargeInfo.currentCharges and common.SafeGT(chargeInfo.maxCharges, 1) then
             local cc = chargeInfo.currentCharges
@@ -973,8 +987,7 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
             myBar.count:SetText(currentStacks and tostring(currentStacks) or "0")
         end
 
-        -- FORCE HIDE BLIZZ BAR COMPONENTS if strict
-        if blizzFrame.Bar then blizzFrame.Bar:SetAlpha(0) end
+
 
         -- Sync Time Text
         if blizzFrame.Bar then
@@ -1042,38 +1055,11 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id)
     end
 end
 
-local ProcessBlizzardSync
-local StartLoop
 local function SyncWithBlizzard()
     sfui.trackedbars.isDirty = true
-    if StartLoop then
-        StartLoop()
-    end
 end
 
--- Hook-based updates
-local hookedFrames = setmetatable({}, { __mode = "k" }) -- weak keys: stale frame userdata auto-collected
-local function _OnBlizzFrameSync()
-    SyncWithBlizzard()
-end
 
-local function HookBlizzardFrame(frame)
-    if not frame or hookedFrames[frame] then return end
-    hookedFrames[frame] = true
-
-    if frame.Update then
-        hooksecurefunc(frame, "Update", _OnBlizzFrameSync)
-    end
-    if frame.RefreshData then
-        hooksecurefunc(frame, "RefreshData", _OnBlizzFrameSync)
-    end
-    if frame.RefreshApplications then
-        hooksecurefunc(frame, "RefreshApplications", _OnBlizzFrameSync)
-    end
-    if frame.SetAuraInstanceInfo then
-        hooksecurefunc(frame, "SetAuraInstanceInfo", _OnBlizzFrameSync)
-    end
-end
 
 local function ProcessBlizzardSync()
     if not BuffBarCooldownViewer or not BuffBarCooldownViewer.itemFramePool then return end
@@ -1100,28 +1086,19 @@ local function ProcessBlizzardSync()
     end
 
     if mustHide then
-        if _numShownBars > 0 then
-            for id, bar in pairs(bars) do
-                if bar:IsShown() then
-                    bar:Hide()
-                    layoutNeeded = true
-                end
+        for id, bar in pairs(bars) do
+            if bar:IsShown() then
+                bar:Hide()
+                layoutNeeded = true
             end
-            if layoutNeeded then UpdateLayout() end
         end
+        if layoutNeeded then UpdateLayout() end
         return -- Skip processing updates if everything is hidden globally
     end
 
     -- Process Blizzard Frames
     for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
-        if not hookedFrames[blizzFrame] then
-            HookBlizzardFrame(blizzFrame)
-        end
         if blizzFrame.cooldownID then
-            blizzFrame:SetAlpha(0) -- Hide Blizzard frame regardless
-            -- Mark as active in the pool so ShouldBarBeVisible can trust it for
-            -- cooldown bars that have no auraInstanceID.
-            blizzFrame._sfui_active = true
 
             local id = blizzFrame.cooldownID
             local info = _cdViewerInfoCache[id]
@@ -1189,7 +1166,7 @@ local function ProcessBlizzardSync()
                     -- stack count text is always fresh. If we check isStackModeWithStacks
                     -- on stale count text (from the previous tick) we get a Hide→SyncData→Show
                     -- sequence on every aura refresh, which is exactly the Bone Shield flash.
-                    SyncBarData(myBar, blizzFrame, config, isStackMode, id)
+                    SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
 
                     -- Sync Visibility
                     local db = SfuiDB and SfuiDB.trackedBars or {}
@@ -1379,22 +1356,15 @@ local function UpdateBarsState()
 end
 
 local _syncTimer = 0
-local _loopActive = false
-
-local function StopLoop()
-    if not _loopActive then return end
-    _loopActive = false
-    sfui.events.UnregisterUpdate("TrackedBars")
-end
-
 local function _OnTrackedBarsUpdate(elapsed)
     -- 1. Structure / Visibility Sync
-    -- Process immediately if dirty, or periodically while bars are visible or in combat
+    -- Process immediately if dirty, or periodically (every 0.25s OOC, 0.5s in combat)
+    -- so newly activated auras are caught even when 0 bars are currently shown.
     if sfui.trackedbars.isDirty then
         sfui.trackedbars.isDirty = false
         _syncTimer = 0
         ProcessBlizzardSync()
-    elseif _numShownBars > 0 or InCombatLockdown() then
+    else
         _syncTimer = _syncTimer + elapsed
         local syncInterval = InCombatLockdown() and 0.5 or 0.25
         if _syncTimer >= syncInterval then
@@ -1407,24 +1377,7 @@ local function _OnTrackedBarsUpdate(elapsed)
     if _numShownBars > 0 and BuffBarCooldownViewer and BuffBarCooldownViewer.itemFramePool then
         UpdateBarsState()
     end
-
-    -- 3. Dynamic Idle Sleep
-    -- When out of combat, if no bars are visible and no sync is pending, sleep to consume zero CPU
-    if _numShownBars == 0 and not sfui.trackedbars.isDirty and not InCombatLockdown() then
-        StopLoop()
-    end
 end
-
-StartLoop = function()
-    if _loopActive then return end
-    _loopActive = true
-    local cfg = sfui.config.trackedBars
-    sfui.events.RegisterUpdate("TrackedBars", cfg and cfg.updateThrottle or 0.05, _OnTrackedBarsUpdate)
-end
-
-sfui.trackedbars.StartLoop = StartLoop
-sfui.trackedbars.StopLoop = StopLoop
-sfui.trackedbars.IsLoopActive = function() return _loopActive end
 
 function sfui.trackedbars.initialize()
     if container then return end
@@ -1451,10 +1404,10 @@ function sfui.trackedbars.initialize()
 
     -- Event listener for visibility updates
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
-        SyncWithBlizzard()
+        if SyncWithBlizzard then SyncWithBlizzard() end
     end)
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
-        SyncWithBlizzard()
+        if SyncWithBlizzard then SyncWithBlizzard() end
     end)
     sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", function()
         if SyncWithBlizzard then SyncWithBlizzard() end
@@ -1482,49 +1435,8 @@ function sfui.trackedbars.initialize()
         sfui.trackedbars.isDirty = true
     end)
 
-    -- Initial structure sync & start loop if in combat or bars are active
-    ProcessBlizzardSync()
-    if InCombatLockdown() or _numShownBars > 0 or sfui.trackedbars.isDirty then
-        StartLoop()
-    end
-
-    -- Event-driven updates
-    -- Hook into Blizzard's viewer and frame pool for instant reactions
-    if BuffBarCooldownViewer then
-        if BuffBarCooldownViewer.RefreshData then
-            hooksecurefunc(BuffBarCooldownViewer, "RefreshData", SyncWithBlizzard)
-        end
-        if BuffBarCooldownViewer.RefreshApplications then
-            hooksecurefunc(BuffBarCooldownViewer, "RefreshApplications", SyncWithBlizzard)
-        end
-        if BuffBarCooldownViewer.SetAuraInstanceInfo then
-            hooksecurefunc(BuffBarCooldownViewer, "SetAuraInstanceInfo", SyncWithBlizzard)
-        end
-        if BuffBarCooldownViewer.UpdateShownState then
-            hooksecurefunc(BuffBarCooldownViewer, "UpdateShownState", SyncWithBlizzard)
-        end
-
-        if BuffBarCooldownViewer.itemFramePool then
-            hooksecurefunc(BuffBarCooldownViewer.itemFramePool, "Acquire", function(_, frame)
-                HookBlizzardFrame(frame)
-                SyncWithBlizzard()
-            end)
-            if BuffBarCooldownViewer.itemFramePool.Release then
-                hooksecurefunc(BuffBarCooldownViewer.itemFramePool, "Release", function()
-                    SyncWithBlizzard()
-                end)
-            end
-            if BuffBarCooldownViewer.itemFramePool.ReleaseAll then
-                hooksecurefunc(BuffBarCooldownViewer.itemFramePool, "ReleaseAll", function()
-                    SyncWithBlizzard()
-                end)
-            end
-            -- Hook existing frames
-            for frame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
-                HookBlizzardFrame(frame)
-            end
-        end
-    end
+    -- Throttled OnUpdate for smooth bar progress AND structure updates
+    sfui.events.RegisterUpdate("TrackedBars", cfg.updateThrottle or 0.05, _OnTrackedBarsUpdate)
 
     -- Real-time events for instant reaction
     sfui.events.RegisterUnitEvent("UNIT_AURA", "player", function()
@@ -1635,7 +1547,6 @@ function sfui.trackedbars_debug_info()
         barPool = #barPool,
         configPool = #configPool,
         configCache = cacheCount,
-        loopActive = _loopActive,
         isDirty = sfui.trackedbars.isDirty or false,
     }
 end

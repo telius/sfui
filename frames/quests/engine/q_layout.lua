@@ -70,7 +70,7 @@ local function UntrackSection(sec)
                 if C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.SetSuperTrackedQuestID then
                     local curSuper = C_SuperTrack.GetSuperTrackedQuestID()
                     if curSuper and curSuper == qID then
-                        pcall(C_SuperTrack.SetSuperTrackedQuestID, 0)
+                        C_SuperTrack.SetSuperTrackedQuestID(0)
                     end
                 end
                 if expandedQuests then
@@ -285,7 +285,7 @@ local function UntrackSection(sec)
                         if C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.SetSuperTrackedQuestID then
                             local curSuper = C_SuperTrack.GetSuperTrackedQuestID()
                             if curSuper and curSuper == qID then
-                                pcall(C_SuperTrack.SetSuperTrackedQuestID, 0)
+                                C_SuperTrack.SetSuperTrackedQuestID(0)
                             end
                         end
                         if expandedQuests then expandedQuests[qID] = nil end

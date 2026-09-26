@@ -1572,9 +1572,7 @@ function sfui.common.hide_blizzard_cooldown_viewers()
     -- Ensure BuffIconCooldownViewer (Blizzard Tracked Buffs stack) remains visible and interactive
     local buffViewer = _G["BuffIconCooldownViewer"]
     if buffViewer then
-        buffViewer._sfui_setting_alpha = true
         buffViewer:SetAlpha(1)
-        buffViewer._sfui_setting_alpha = false
         buffViewer:EnableMouse(true)
     end
 
@@ -1583,42 +1581,6 @@ function sfui.common.hide_blizzard_cooldown_viewers()
         if viewer then
             viewer:SetAlpha(0)
             viewer:EnableMouse(false)
-            
-            if viewerName == "EssentialCooldownViewer" or viewerName == "UtilityCooldownViewer" then
-                if viewer.UnregisterEvent then
-                    viewer:UnregisterEvent("UNIT_AURA")
-                end
-            end
-
-            if not viewer._sfui_alpha_hooked then
-                viewer._sfui_alpha_hooked = true
-                hooksecurefunc(viewer, "SetAlpha", function(self, alpha)
-                    if self == _G["BuffIconCooldownViewer"] then return end
-                    if alpha > 0 and not self._sfui_setting_alpha then
-                        self._sfui_setting_alpha = true
-                        self:SetAlpha(0)
-                        self._sfui_setting_alpha = false
-                    end
-                end)
-            end
-
-            if not viewer._sfui_show_hooked then
-                viewer._sfui_show_hooked = true
-                viewer:HookScript("OnShow", function(self)
-                    self:SetAlpha(0)
-                    self:EnableMouse(false)
-                    if (viewerName == "EssentialCooldownViewer" or viewerName == "UtilityCooldownViewer") and self.UnregisterEvent then
-                        self:UnregisterEvent("UNIT_AURA")
-                    end
-                end)
-            end
-
-            if not viewer._sfui_opacity_hooked and viewer.UpdateSystemSettingOpacity then
-                viewer._sfui_opacity_hooked = true
-                hooksecurefunc(viewer, "UpdateSystemSettingOpacity", function(self)
-                    self:SetAlpha(0)
-                end)
-            end
         end
     end
 

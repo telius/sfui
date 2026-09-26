@@ -302,9 +302,7 @@ function Tooltip.ShowBlockTooltip(owner, bData)
 
         -- Group Party Progress
         if _G.IsInGroup and _G.IsInGroup() and tip.SetQuestPartyProgress then
-            pcall(function()
-                tip:SetQuestPartyProgress(bData.questID)
-            end)
+            pcall(tip.SetQuestPartyProgress, tip, bData.questID)
         end
 
         -- Click hints

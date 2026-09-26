@@ -102,22 +102,6 @@ function sfui.api.GetAuraData(unit, index, filter)
     if _G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex then
         return _G.C_UnitAuras.GetAuraDataByIndex(unit, index, filter)
     end
-    if _G.UnitAura then
-        local name, icon, count, _, duration, expires, source, _, _, spellID =
-            _G.UnitAura(unit, index, filter)
-        if not name then return nil end
-        return {
-            name           = name,
-            icon           = icon,
-            applications   = count,
-            duration       = duration,
-            expirationTime = expires,
-            sourceUnit     = source,
-            spellId        = spellID,
-            auraInstanceID = nil,
-            isHarmful      = (filter == "HARMFUL"),
-        }
-    end
     return nil
 end
 
@@ -227,46 +211,17 @@ function sfui.api.GetUnitAuraByNameOrID(unit, spellIDOrName, filter)
         end
 
         if _G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex then
-            local function scanRetail(f)
+            local function scanAuras(f)
                 for i = 1, 64 do
-                    local ok, aura = pcall(_G.C_UnitAuras.GetAuraDataByIndex, unit, i, f)
-                    if not ok or not aura then break end
+                    local aura = _G.C_UnitAuras.GetAuraDataByIndex(unit, i, f)
+                    if not aura then break end
                     if MatchesAura(aura.spellId, aura.name) then
                         LearnAuraMapping(aura)
                         return aura
                     end
                 end
             end
-            local result = filter and scanRetail(filter) or (scanRetail("HELPFUL") or scanRetail("HARMFUL"))
-            if result then return result end
-        end
-
-        -- Legacy UnitAura
-        if _G.UnitAura then
-            local function scanClassic(f)
-                for i = 1, 64 do
-                    local ok, name, icon, count, _, duration, expires, source, _, _, sid =
-                        pcall(_G.UnitAura, unit, i, f)
-                    if not ok or not name then break end
-                    if MatchesAura(sid, name) then
-                        local aura = {
-                            name           = name,
-                            icon           = icon,
-                            applications   = count,
-                            duration       = duration,
-                            expirationTime = expires,
-                            sourceUnit     = source,
-                            spellId        = sid or targetID,
-                            auraInstanceID = nil,
-                            isHarmful      = (f == "HARMFUL"),
-                        }
-                        LearnAuraMapping(aura)
-                        return aura
-                    end
-                end
-                return nil
-            end
-            local result = filter and scanClassic(filter) or (scanClassic("HELPFUL") or scanClassic("HARMFUL"))
+            local result = filter and scanAuras(filter) or (scanAuras("HELPFUL") or scanAuras("HARMFUL"))
             if result then return result end
         end
     end
@@ -309,7 +264,7 @@ function sfui.api.GetSpellInfo(spellID)
 end
 
 --- Returns spell name or nil.
---- Cascades C_Spell.GetSpellName -> C_Spell.GetSpellInfo -> legacy GetSpellInfo.
+--- Cascades C_Spell.GetSpellName -> C_Spell.GetSpellInfo.
 function sfui.api.GetSpellName(spellID)
     if not spellID then return nil end
     if _G.C_Spell and _G.C_Spell.GetSpellName then
@@ -320,30 +275,20 @@ function sfui.api.GetSpellName(spellID)
         local info = _G.C_Spell.GetSpellInfo(spellID)
         if info and info.name and info.name ~= "" then return info.name end
     end
-    if _G.GetSpellInfo then
-        local name = _G.GetSpellInfo(spellID)
-        if name and name ~= "" then return name end
-    end
     return nil
 end
 
 --- Returns clickable spell link string or nil.
---- Cascades C_Spell.GetSpellLink -> legacy GetSpellLink.
 function sfui.api.GetSpellLink(spellID)
     if not spellID then return nil end
     if _G.C_Spell and _G.C_Spell.GetSpellLink then
-        local link = _G.C_Spell.GetSpellLink(spellID)
-        if link and link ~= "" then return link end
-    end
-    if _G.GetSpellLink then
-        local link = _G.GetSpellLink(spellID)
-        if link and link ~= "" then return link end
+        return _G.C_Spell.GetSpellLink(spellID) or nil
     end
     return nil
 end
 
 --- Returns spell texture path or nil.
---- Cascades C_Spell.GetSpellTexture -> C_Spell.GetSpellInfo -> legacy GetSpellTexture -> legacy GetSpellInfo.
+--- Cascades C_Spell.GetSpellTexture -> C_Spell.GetSpellInfo.
 function sfui.api.GetSpellTexture(spellID)
     if not spellID then return nil end
     if _G.C_Spell and _G.C_Spell.GetSpellTexture then
@@ -352,23 +297,12 @@ function sfui.api.GetSpellTexture(spellID)
     end
     if _G.C_Spell and _G.C_Spell.GetSpellInfo then
         local info = _G.C_Spell.GetSpellInfo(spellID)
-        if info and (info.iconID or info.originalIconID) then
-            return info.iconID or info.originalIconID
-        end
-    end
-    if _G.GetSpellTexture then
-        local tex = _G.GetSpellTexture(spellID)
-        if tex then return tex end
-    end
-    if _G.GetSpellInfo then
-        local _, _, icon = _G.GetSpellInfo(spellID)
-        if icon then return icon end
+        if info then return info.iconID or info.originalIconID or nil end
     end
     return nil
 end
 
 --- Returns spell cooldown info.
---- Cascades C_Spell.GetSpellCooldown -> legacy GetSpellCooldown.
 --- @return table|nil { startTime, duration, isEnabled, modRate }
 function sfui.api.GetSpellCooldown(spellID)
     if not spellID then return nil end
@@ -388,38 +322,15 @@ function sfui.api.GetSpellCooldown(spellID)
             end
         end
     end
-    if _G.GetSpellCooldown then
-        local start, dur, enabled, modRate = _G.GetSpellCooldown(spellID)
-        if start ~= nil then
-            return {
-                startTime = start,
-                duration  = dur,
-                isEnabled = (enabled == 1 or enabled == true),
-                modRate   = modRate or 1,
-            }
-        end
-    end
     return nil
 end
 
 --- Returns spell charge info or nil if spell has no charges.
---- Cascades C_Spell.GetSpellCharges -> legacy GetSpellCharges.
 --- @return table|nil { currentCharges, maxCharges, cooldownStartTime, cooldownDuration }
 function sfui.api.GetSpellCharges(spellID)
     if not spellID then return nil end
     if _G.C_Spell and _G.C_Spell.GetSpellCharges then
         return _G.C_Spell.GetSpellCharges(spellID)
-    end
-    if _G.GetSpellCharges then
-        local cur, max, start, dur = _G.GetSpellCharges(spellID)
-        if cur then
-            return {
-                currentCharges    = cur,
-                maxCharges        = max,
-                cooldownStartTime = start,
-                cooldownDuration  = dur,
-            }
-        end
     end
     return nil
 end
@@ -443,17 +354,15 @@ end
 function sfui.api.GetSpellBookItemSpellID(slot, bankOrBookType)
     if not slot or type(slot) ~= "number" then return nil end
 
-    -- 1. Try C_SpellBook.GetSpellBookItemType (Classic Beta / Retail 11+)
+    -- 1. Try C_SpellBook.GetSpellBookItemType (Retail 11+ / Camelot)
     if _G.C_SpellBook and _G.C_SpellBook.GetSpellBookItemType then
         local bank = bankOrBookType
         if type(bank) ~= "number" and _G.Enum and _G.Enum.SpellBookSpellBank then
             bank = _G.Enum.SpellBookSpellBank.Player
         end
-        local ok, _, actionID, spellID = pcall(_G.C_SpellBook.GetSpellBookItemType, slot, bank or 1)
-        if ok then
-            local resolved = (spellID and spellID > 0 and spellID) or (actionID and actionID > 0 and actionID)
-            if resolved then return resolved end
-        end
+        local _, actionID, spellID = _G.C_SpellBook.GetSpellBookItemType(slot, bank or 1)
+        local resolved = (spellID and spellID > 0 and spellID) or (actionID and actionID > 0 and actionID)
+        if resolved then return resolved end
     end
 
     -- 2. Try C_SpellBook.GetSpellBookItemInfo
@@ -462,28 +371,10 @@ function sfui.api.GetSpellBookItemSpellID(slot, bankOrBookType)
         if type(bank) ~= "number" and _G.Enum and _G.Enum.SpellBookSpellBank then
             bank = _G.Enum.SpellBookSpellBank.Player
         end
-        local ok, info = pcall(_G.C_SpellBook.GetSpellBookItemInfo, slot, bank or 1)
-        if ok and info then
+        local info = _G.C_SpellBook.GetSpellBookItemInfo(slot, bank or 1)
+        if info then
             local resolved = (info.spellID and info.spellID > 0 and info.spellID) or (info.actionID and info.actionID > 0 and info.actionID)
             if resolved then return resolved end
-        end
-    end
-
-    -- 3. Try legacy GetSpellBookItemName (returns name, subtext, spellID in Classic)
-    if _G.GetSpellBookItemName then
-        local bookType = (type(bankOrBookType) == "string" and bankOrBookType) or "spell"
-        local ok, _, _, spellID = pcall(_G.GetSpellBookItemName, slot, bookType)
-        if ok and spellID and spellID > 0 then
-            return spellID
-        end
-    end
-
-    -- 4. Try legacy GetSpellBookItemInfo (returns slotType, slotID in Classic)
-    if _G.GetSpellBookItemInfo then
-        local bookType = (type(bankOrBookType) == "string" and bankOrBookType) or "spell"
-        local ok, slotType, slotID = pcall(_G.GetSpellBookItemInfo, slot, bookType)
-        if ok and slotID and slotID > 0 then
-            return slotID
         end
     end
 
@@ -493,72 +384,39 @@ end
 -- ── Item queries ──────────────────────────────────────────────────────────────
 
 --- Returns item info table.
---- Cascades C_Item.GetItemInfo -> legacy GetItemInfo.
 --- @return table|nil { itemID, itemName, itemLink, itemQuality, itemLevel, itemTexture, sellPrice }
 function sfui.api.GetItemInfo(itemID)
     if not itemID then return nil end
     if _G.C_Item and _G.C_Item.GetItemInfo then
-        local info = _G.C_Item.GetItemInfo(itemID)
-        if info then return info end
-    end
-    if _G.GetItemInfo then
-        local name, link, quality, iLevel, _, iType, iSub, _, _, tex, price =
-            _G.GetItemInfo(itemID)
-        if name then
-            return {
-                itemID      = itemID,
-                itemName    = name,
-                itemLink    = link,
-                itemQuality = quality,
-                itemLevel   = iLevel,
-                itemType    = iType,
-                itemSubType = iSub,
-                itemTexture = tex,
-                sellPrice   = price,
-            }
-        end
+        return _G.C_Item.GetItemInfo(itemID) or nil
     end
     return nil
 end
 
 --- Returns item cooldown: startTime, duration, enable.
---- Cascades C_Item.GetItemCooldown -> legacy GetItemCooldown.
 --- @return number, number, number
 function sfui.api.GetItemCooldown(itemID)
     if not itemID then return 0, 0, 0 end
     if _G.C_Item and _G.C_Item.GetItemCooldown then
         return _G.C_Item.GetItemCooldown(itemID)
     end
-    if _G.GetItemCooldown then
-        return _G.GetItemCooldown(itemID)
-    end
     return 0, 0, 0
 end
 
 --- Returns item stack count in player bags.
---- Cascades C_Item.GetItemCount -> legacy GetItemCount.
 function sfui.api.GetItemCount(itemID, includeBank, includeCharges)
     if not itemID then return 0 end
     if _G.C_Item and _G.C_Item.GetItemCount then
         return _G.C_Item.GetItemCount(itemID, includeBank, includeCharges)
     end
-    if _G.GetItemCount then
-        return _G.GetItemCount(itemID, includeBank, includeCharges)
-    end
     return 0
 end
 
 --- Returns item icon texture path.
---- Cascades C_Item.GetItemIconByID -> legacy GetItemInfo.
 function sfui.api.GetItemIconByID(itemID)
     if not itemID then return nil end
     if _G.C_Item and _G.C_Item.GetItemIconByID then
-        local icon = _G.C_Item.GetItemIconByID(itemID)
-        if icon then return icon end
-    end
-    if _G.GetItemInfo then
-        local _, _, _, _, _, _, _, _, _, tex = _G.GetItemInfo(itemID)
-        return tex
+        return _G.C_Item.GetItemIconByID(itemID) or nil
     end
     return nil
 end
@@ -618,14 +476,15 @@ local _staticResInfo = {
 --- @return table|nil { currentCharges, maxCharges, cooldownStartTime, cooldownDuration, timeRemaining }
 function sfui.api.GetCombatResInfo()
     if not IS_RETAIL or not _G.C_Spell or not _G.C_Spell.GetSpellCharges then return nil end
-    local ok, chargeInfo = pcall(_G.C_Spell.GetSpellCharges, _cachedBresSpellID)
-    if not (ok and chargeInfo and (chargeInfo.currentCharges or chargeInfo.maxCharges)) then
+    -- C_Spell.GetSpellCharges returns nil for unowned/invalid spells, it does not throw.
+    local chargeInfo = _G.C_Spell.GetSpellCharges(_cachedBresSpellID)
+    if not (chargeInfo and (chargeInfo.currentCharges or chargeInfo.maxCharges)) then
         chargeInfo = nil
         for i = 1, #BRES_SPELLS do
             local sid = BRES_SPELLS[i]
             if sid ~= _cachedBresSpellID then
-                local ok2, info = pcall(_G.C_Spell.GetSpellCharges, sid)
-                if ok2 and info and (info.currentCharges or info.maxCharges) then
+                local info = _G.C_Spell.GetSpellCharges(sid)
+                if info and (info.currentCharges or info.maxCharges) then
                     chargeInfo = info
                     _cachedBresSpellID = sid
                     break

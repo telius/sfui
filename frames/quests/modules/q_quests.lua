@@ -170,19 +170,7 @@ local function AutoTrackQuest(questID, questLogIndex)
         if canWatch then
             recentlyWatched[questID] = true
             if C_QuestLog and C_QuestLog.AddQuestWatch then
-                pcall(C_QuestLog.AddQuestWatch, questID)
-            elseif _G.AddQuestWatch then
-                local idx = questLogIndex
-                if not idx or idx <= 0 then
-                    if C_QuestLog and C_QuestLog.GetLogIndexForQuestID then
-                        idx = C_QuestLog.GetLogIndexForQuestID(questID)
-                    elseif _G.GetQuestLogIndexByID then
-                        idx = _G.GetQuestLogIndexByID(questID)
-                    end
-                end
-                if idx and idx > 0 then
-                    pcall(_G.AddQuestWatch, idx)
-                end
+                C_QuestLog.AddQuestWatch(questID)
             end
         end
     end
@@ -320,14 +308,11 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
     -- 2. Click to Complete Quest (Auto-Complete / Turn-in by clicking)
     if isClickToComplete and mouseButton ~= "RightButton" and not (IsControlKeyDown and IsControlKeyDown()) and not (IsAltKeyDown and IsAltKeyDown()) and not (IsShiftKeyDown and IsShiftKeyDown()) then
         if _G.RemoveAutoQuestPopUp then
-            pcall(_G.RemoveAutoQuestPopUp, questID)
+            _G.RemoveAutoQuestPopUp(questID)
         end
         if _G.ShowQuestComplete then
-            local param = (IsCamelotClient() and questLogIndex) or questID
-            local ok = pcall(_G.ShowQuestComplete, param)
-            if not ok and questLogIndex and param ~= questLogIndex then
-                pcall(_G.ShowQuestComplete, questLogIndex)
-            end
+            -- Both Retail and Camelot accept questID directly.
+            _G.ShowQuestComplete(questID)
             return
         end
     end
@@ -471,7 +456,7 @@ function QuestsModule:OnEvent(event, ...)
         if questID and questID > 0 then
             AutoTrackQuest(questID)
             if C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
-                pcall(C_SuperTrack.SetSuperTrackedQuestID, questID)
+                C_SuperTrack.SetSuperTrackedQuestID(questID)
             end
         end
     elseif event == "QUEST_WATCH_LIST_CHANGED" then
@@ -573,7 +558,7 @@ function QuestsModule:BuildBlocks(container)
     for cQID, cIdx in pairs(changedQuests) do
         AutoTrackQuest(cQID, cIdx)
         if C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
-            pcall(C_SuperTrack.SetSuperTrackedQuestID, cQID)
+            C_SuperTrack.SetSuperTrackedQuestID(cQID)
             superTrackedQuestID = cQID
         end
     end

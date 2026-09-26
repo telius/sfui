@@ -295,17 +295,11 @@ local function FormatCoinString(amount)
     local num = type(amount) == "number" and amount or tonumber(amount)
     if not num then return "" end
 
+    -- Both Retail and Camelot support C_CurrencyInfo.GetCoinTextureString.
+    -- It does not throw; it returns nil or "" for bad input.
     if _G.C_CurrencyInfo and _G.C_CurrencyInfo.GetCoinTextureString then
-        local ok, str = pcall(_G.C_CurrencyInfo.GetCoinTextureString, num)
-        if ok and str and str ~= "" then return str end
-    end
-    if _G.GetCoinTextureString then
-        local ok, str = pcall(_G.GetCoinTextureString, num)
-        if ok and str and str ~= "" then return str end
-    end
-    if _G.GetMoneyString then
-        local ok, str = pcall(_G.GetMoneyString, num)
-        if ok and str and str ~= "" then return str end
+        local str = _G.C_CurrencyInfo.GetCoinTextureString(num)
+        if str and str ~= "" then return str end
     end
 
     local gold = math.floor(num / 10000)

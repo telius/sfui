@@ -231,7 +231,7 @@ function sfui.events.UnregisterEvent(event, callback)
         if cbs[i] == callback then table.remove(cbs, i) end
     end
     if #cbs == 0 then
-        pcall(ev_frame.UnregisterEvent, ev_frame, event)
+        ev_frame:UnregisterEvent(event)
         eventCallbacks[event] = nil
     end
 end
@@ -290,7 +290,7 @@ function sfui.events.UnregisterUnitEvent(event, unit, callback)
     end
     if #cbs == 0 then
         if unitFrames[unit] then
-            pcall(unitFrames[unit].UnregisterEvent, unitFrames[unit], event)
+            unitFrames[unit]:UnregisterEvent(event)
         end
         unitEventCallbacks[unit][event] = nil
     end

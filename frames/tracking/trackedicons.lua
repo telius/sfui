@@ -1402,60 +1402,9 @@ function sfui.trackedicons.Update()
     end
 end
 
-local function VisibilitySyncHelper()
-    for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
-        if blizzFrame.cooldownID then
-            local shouldHide = false
-            -- Check category via C_CooldownViewer (if available)
-            if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
-                local info = C_CooldownViewer.GetCooldownViewerCooldownInfo(blizzFrame.cooldownID)
-                if info then
-                    -- Category 0 = Essential, 1 = Utility
-                    -- Hide these as we track them with icons
-                    if info.category == 0 or info.category == 1 then
-                        shouldHide = true
-                    end
-                end
-            end
-
-            if shouldHide then
-                blizzFrame:SetAlpha(0)
-                if blizzFrame.SetAlpha then -- Ensure interaction is disabled too?
-                    blizzFrame:EnableMouse(false)
-                end
-            end
-        end
-    end
-end
-
--- Hook to hide specific categories from Blizzard's CooldownViewer
-local function ProcessBlizzardVisibilitySync()
-    if not BuffBarCooldownViewer or not BuffBarCooldownViewer.itemFramePool then return end
-    VisibilitySyncHelper()
-end
-
-local function SyncBlizzardVisibility()
-    sfui.trackedicons.blizzSyncDirty = true
-end
-
 function sfui.trackedicons.initialize()
-    -- Ensure Blizzard addon is loaded so we can hook it
+    -- Ensure Blizzard addon is loaded
     local loaded, reason = C_AddOns.LoadAddOn("Blizzard_CooldownViewer")
-
-    -- Register hooks if available
-    if BuffBarCooldownViewer then
-        if BuffBarCooldownViewer.RefreshData then
-            hooksecurefunc(BuffBarCooldownViewer, "RefreshData", SyncBlizzardVisibility)
-        end
-        if BuffBarCooldownViewer.RefreshApplications then
-            hooksecurefunc(BuffBarCooldownViewer, "RefreshApplications", SyncBlizzardVisibility)
-        end
-        if BuffBarCooldownViewer.SetAuraInstanceInfo then
-            hooksecurefunc(BuffBarCooldownViewer, "SetAuraInstanceInfo", SyncBlizzardVisibility)
-        end
-        -- Initial sync
-        SyncBlizzardVisibility()
-    end
 
     -- Hide Blizzard Cooldown Frames
     if sfui.common.hide_blizzard_cooldown_viewers then
@@ -1611,16 +1560,7 @@ function sfui.trackedicons.initialize()
     end)
 
     -- OnUpdate: Only process when dirty (zero CPU/allocations when idle)
-    local blizzSyncTimer = 0
     local function _OnTrackedIconsUpdate(elapsed)
-        if sfui.trackedicons.blizzSyncDirty then
-            blizzSyncTimer = blizzSyncTimer + elapsed
-            if blizzSyncTimer > 0.1 then
-                blizzSyncTimer = 0
-                sfui.trackedicons.blizzSyncDirty = false
-                ProcessBlizzardVisibilitySync()
-            end
-        end
 
         if _layoutCooldown > 0 then
             _layoutCooldown = _layoutCooldown - elapsed
