@@ -215,8 +215,8 @@ local function PerformSync(data, isLogout)
     -- 1. Level & Rested XP
     local lvl = UnitLevel("player") or 1
     data.level = lvl
-    data.xp = UnitXP("player") or 0
-    data.xpMax = UnitXPMax("player") or 1
+    local rawXpMax = UnitXPMax and UnitXPMax("player")
+    data.xpMax = (rawXpMax and rawXpMax > 0) and rawXpMax or 0
     data.restedXP = (GetXPExhaustion and GetXPExhaustion()) or 0
     data.isResting = (IsResting and IsResting()) and true or false
 
@@ -420,22 +420,23 @@ local function RenderCell(cell, cat, altData, classColor, col)
 
     if cat.type == "classic_level_xp" then
         local lvl = altData.level or 1
-        if lvl >= 60 then
-            text:SetText("60")
+        local xpMax = altData.xpMax
+        if lvl >= 60 or (xpMax and xpMax == 0) then
+            text:SetText(tostring(lvl))
             text:SetTextColor(1, 0.82, 0) -- Gold
             cell:EnableMouse(true)
             cell:SetScript("OnEnter", function(self)
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:AddLine("level 60 (max level)", 1, 0.82, 0)
+                GameTooltip:AddLine(string.format("level %d (max level)", lvl), 1, 0.82, 0)
                 GameTooltip:Show()
             end)
             cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
         else
             local xp = altData.xp or 0
-            local xpMax = altData.xpMax or 1
-            local pct = math_floor((xp / xpMax) * 100)
+            local validXpMax = (xpMax and xpMax > 0) and xpMax or 1
+            local pct = (validXpMax > 0) and math_floor((xp / validXpMax) * 100) or 0
             local restedXP = altData.restedXP or 0
-            local restedPct = math_floor((restedXP / xpMax) * 100)
+            local restedPct = (validXpMax > 0) and math_floor((restedXP / validXpMax) * 100) or 0
 
             if restedXP > 0 then
                 text:SetText(string.format("%d (%d%%) |cff00ffff+%d%%|r", lvl, pct, restedPct))
@@ -448,10 +449,10 @@ local function RenderCell(cell, cat, altData, classColor, col)
             cell:SetScript("OnEnter", function(self)
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                 GameTooltip:AddLine(string.format("level %d progress", lvl), 1, 1, 1)
-                GameTooltip:AddDoubleLine("current xp:", string.format("%d / %d (%d%%)", xp, xpMax, pct), 1, 1, 1, 1, 0.82, 0)
-                GameTooltip:AddDoubleLine("remaining xp:", string.format("%d", xpMax - xp), 1, 1, 1, 1, 1, 1)
-                if restedXP > 0 then
-                    local bars = (restedXP / xpMax) * 20
+                GameTooltip:AddDoubleLine("current xp:", string.format("%d / %d (%d%%)", xp, validXpMax, pct), 1, 1, 1, 1, 0.82, 0)
+                GameTooltip:AddDoubleLine("remaining xp:", string.format("%d", math_max(0, validXpMax - xp)), 1, 1, 1, 1, 1, 1)
+                if restedXP > 0 and validXpMax > 0 then
+                    local bars = (restedXP / validXpMax) * 20
                     GameTooltip:AddDoubleLine("rested xp:", string.format("%d (%.1f bars / %d%%)", restedXP, bars, restedPct), 1, 1, 1, 0, 1, 1)
                 else
                     GameTooltip:AddDoubleLine("rested xp:", "none", 1, 1, 1, 0.6, 0.6, 0.6)

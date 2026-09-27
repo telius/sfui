@@ -267,6 +267,7 @@ local function HookAlphaSuppression(frame)
     hookedTrackers[frame] = true
     hooksecurefunc(frame, "SetAlpha", function(self, alpha)
         if suppressingTrackers then return end
+        if InCombatLockdown and InCombatLockdown() then return end
         if sfui.questlog and sfui.questlog.is_enabled and sfui.questlog.is_enabled() then
             if alpha > 0 then
                 suppressingTrackers = true
@@ -282,6 +283,7 @@ local function HookMouseSuppression(frame)
     hookedMouseTrackers[frame] = true
     hooksecurefunc(frame, "EnableMouse", function(self, enabled)
         if suppressingMouse then return end
+        if InCombatLockdown and InCombatLockdown() then return end
         if sfui.questlog and sfui.questlog.is_enabled and sfui.questlog.is_enabled() then
             if enabled then
                 suppressingMouse = true
@@ -369,42 +371,6 @@ local function SuppressBlizzardTrackers()
             if otf.Header.EnableMouse then otf.Header:EnableMouse(false) end
             HookAlphaSuppression(otf.Header)
             HookMouseSuppression(otf.Header)
-        end
-
-        -- Suppress existing modules & hook dynamic addition
-        if otf.modules then
-            for _, mod in ipairs(otf.modules) do
-                if mod.SetAlpha then mod:SetAlpha(0) end
-                if mod.EnableMouse then mod:EnableMouse(false) end
-                HookAlphaSuppression(mod)
-                HookMouseSuppression(mod)
-                if mod.Header then
-                    if mod.Header.SetAlpha then mod.Header:SetAlpha(0) end
-                    if mod.Header.EnableMouse then mod.Header:EnableMouse(false) end
-                    HookAlphaSuppression(mod.Header)
-                    HookMouseSuppression(mod.Header)
-                end
-            end
-        end
-
-        if otf.AddModule and not hookedTrackers["otf_AddModule"] then
-            hookedTrackers["otf_AddModule"] = true
-            hooksecurefunc(otf, "AddModule", function(self, module)
-                if sfui.questlog and sfui.questlog.is_enabled and sfui.questlog.is_enabled() then
-                    if module then
-                        if module.SetAlpha then module:SetAlpha(0) end
-                        if module.EnableMouse then module:EnableMouse(false) end
-                        HookAlphaSuppression(module)
-                        HookMouseSuppression(module)
-                        if module.Header then
-                            if module.Header.SetAlpha then module.Header:SetAlpha(0) end
-                            if module.Header.EnableMouse then module.Header:EnableMouse(false) end
-                            HookAlphaSuppression(module.Header)
-                            HookMouseSuppression(module.Header)
-                        end
-                    end
-                end
-            end)
         end
     end
 
@@ -697,12 +663,13 @@ function sfui.questlog.GetState()
     if not SfuiDB then SfuiDB = {} end
     if not SfuiDB.questlog then
         SfuiDB.questlog = {
-            collapsed      = {},
-            expandedQuests = {},
-            hiddenQuests   = {},
-            hidden         = false,
+            collapsed    = {},
+            hiddenQuests = {},
+            hidden       = false,
         }
     end
+    if SfuiDB.questlog.expandedQuests then SfuiDB.questlog.expandedQuests = nil end
+    if SfuiDB.questlog.manualExpandedQuests then SfuiDB.questlog.manualExpandedQuests = nil end
     return SfuiDB.questlog
 end
 
@@ -767,6 +734,11 @@ end
 -- Register module with sfui central module system
 if sfui.RegisterModule then
     sfui.questlog.OnEnable = function(self) Tracker.Initialize() end
+    sfui.questlog.OnSpecChanged = function(self, specID)
+        if sfui.tracker and sfui.tracker.RequestRefresh then
+            sfui.tracker.RequestRefresh(0.01)
+        end
+    end
     sfui.questlog.GetDebugInfo = sfui.questlog_debug_info
     sfui.RegisterModule("questlog", sfui.questlog)
 end

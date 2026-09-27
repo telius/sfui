@@ -270,6 +270,9 @@ end
 
 -- ─── Soft-Targeting & Binding Management ─────────────────────────────────────
 
+local clear_fishing_binds
+local arm_fishing_keys
+
 local function set_fishing_cvars()
     enhance_sounds(true)
 
@@ -292,7 +295,7 @@ local function reset_fishing_cvars(isLogout)
     end
 end
 
-local function clear_fishing_binds()
+clear_fishing_binds = function()
     reset_fishing_cvars(false)
     if (not InCombatLockdown or not InCombatLockdown()) and _state.secureButton and ClearOverrideBindings then
         ClearOverrideBindings(_state.secureButton)
@@ -319,73 +322,6 @@ local function get_all_bound_keys()
 end
 sfui.fishing.get_all_bound_keys = get_all_bound_keys
 
-local function unbind_keybinds()
-    if InCombatLockdown and InCombatLockdown() then
-        print_message("cannot modify bindings in combat.")
-        return false
-    end
-
-    local bindingContext = C_KeyBindings and C_KeyBindings.GetBindingContextForAction and C_KeyBindings.GetBindingContextForAction("SFUI_FISHING") or nil
-
-    if GetBindingKey and SetBinding then
-        for _, action in ipairs({ "SFUI_FISHING", "BETTERFISHINGKEY" }) do
-            local k1, k2 = GetBindingKey(action)
-            if k1 then SetBinding(k1, nil, bindingContext) end
-            if k2 then SetBinding(k2, nil, bindingContext) end
-        end
-    end
-
-    local bindingSet = (GetCurrentBindingSet and GetCurrentBindingSet()) or 1
-    if SaveBindings then
-        SaveBindings(bindingSet)
-    end
-
-    update_bound_keys()
-    clear_fishing_binds()
-    print_message("fishing: keybinds cleared.")
-    return true
-end
-sfui.fishing.unbind_keybinds = unbind_keybinds
-
-local function set_keybind(newKey)
-    if InCombatLockdown and InCombatLockdown() then
-        print_message("cannot modify bindings in combat.")
-        return false
-    end
-    if not newKey or newKey == "" then return false end
-
-    newKey = tostring(newKey):upper()
-    local bindingContext = C_KeyBindings and C_KeyBindings.GetBindingContextForAction and C_KeyBindings.GetBindingContextForAction("SFUI_FISHING") or nil
-
-    -- Unbind previous keys for fishing action to avoid duplicate / conflicting binds
-    if GetBindingKey and SetBinding then
-        for _, action in ipairs({ "SFUI_FISHING", "BETTERFISHINGKEY" }) do
-            local k1, k2 = GetBindingKey(action)
-            if k1 then SetBinding(k1, nil, bindingContext) end
-            if k2 then SetBinding(k2, nil, bindingContext) end
-        end
-    end
-
-    if SetBinding then
-        SetBinding(newKey, "SFUI_FISHING", bindingContext)
-    end
-
-    local bindingSet = (GetCurrentBindingSet and GetCurrentBindingSet()) or 1
-    if SaveBindings then
-        SaveBindings(bindingSet)
-    end
-
-    update_bound_keys()
-    if not (InCombatLockdown and InCombatLockdown()) then
-        clear_fishing_binds()
-        arm_fishing_keys()
-    end
-
-    print_message("fishing: bound to |cff00ffff" .. newKey .. "|r.")
-    return true
-end
-sfui.fishing.set_keybind = set_keybind
-
 local function loot_all_items()
     if not get_setting("enabled", true) then return false end
     local num = GetNumLootItems and GetNumLootItems() or 0
@@ -402,7 +338,7 @@ end
 sfui.fishing.loot_all_items = loot_all_items
 
 -- Pre-arms all bound keys with SetOverrideBindingSpell so the very first keypress casts immediately
-local function arm_fishing_keys()
+arm_fishing_keys = function()
     if InCombatLockdown and InCombatLockdown() then return end
     if not get_setting("enabled", true) then return end
     if isClassicEra and not is_spell_known(get_known_fishing_id()) then return end
@@ -433,6 +369,91 @@ local function arm_fishing_keys()
     end
 end
 sfui.fishing.arm_fishing_keys = arm_fishing_keys
+
+local function unbind_keybinds()
+    if InCombatLockdown and InCombatLockdown() then
+        print_message("cannot modify bindings in combat.")
+        return false
+    end
+
+    local bindingContext = C_KeyBindings and C_KeyBindings.GetBindingContextForAction and C_KeyBindings.GetBindingContextForAction("SFUI_FISHING") or nil
+
+    if GetBindingKey and SetBinding then
+        for _, action in ipairs({ "SFUI_FISHING", "BETTERFISHINGKEY" }) do
+            local k1, k2 = GetBindingKey(action)
+            if k1 then
+                if bindingContext then SetBinding(k1, nil, bindingContext) else SetBinding(k1, nil) end
+            end
+            if k2 then
+                if bindingContext then SetBinding(k2, nil, bindingContext) else SetBinding(k2, nil) end
+            end
+        end
+    end
+
+    local bindingSet = (GetCurrentBindingSet and GetCurrentBindingSet()) or 1
+    if SaveBindings then
+        SaveBindings(bindingSet)
+    end
+
+    update_bound_keys()
+    if clear_fishing_binds then
+        clear_fishing_binds()
+    end
+    print_message("fishing: keybinds cleared.")
+    return true
+end
+sfui.fishing.unbind_keybinds = unbind_keybinds
+
+local function set_keybind(newKey)
+    if InCombatLockdown and InCombatLockdown() then
+        print_message("cannot modify bindings in combat.")
+        return false
+    end
+    if not newKey or newKey == "" then return false end
+
+    newKey = tostring(newKey):upper()
+    local bindingContext = C_KeyBindings and C_KeyBindings.GetBindingContextForAction and C_KeyBindings.GetBindingContextForAction("SFUI_FISHING") or nil
+
+    -- Unbind previous keys for fishing action to avoid duplicate / conflicting binds
+    if GetBindingKey and SetBinding then
+        for _, action in ipairs({ "SFUI_FISHING", "BETTERFISHINGKEY" }) do
+            local k1, k2 = GetBindingKey(action)
+            if k1 then
+                if bindingContext then SetBinding(k1, nil, bindingContext) else SetBinding(k1, nil) end
+            end
+            if k2 then
+                if bindingContext then SetBinding(k2, nil, bindingContext) else SetBinding(k2, nil) end
+            end
+        end
+    end
+
+    if SetBinding then
+        if bindingContext then
+            SetBinding(newKey, "SFUI_FISHING", bindingContext)
+        else
+            SetBinding(newKey, "SFUI_FISHING")
+        end
+    end
+
+    local bindingSet = (GetCurrentBindingSet and GetCurrentBindingSet()) or 1
+    if SaveBindings then
+        SaveBindings(bindingSet)
+    end
+
+    update_bound_keys()
+    if not (InCombatLockdown and InCombatLockdown()) then
+        if clear_fishing_binds then
+            clear_fishing_binds()
+        end
+        if arm_fishing_keys then
+            arm_fishing_keys()
+        end
+    end
+
+    print_message("fishing: bound to |cff00ffff" .. newKey .. "|r.")
+    return true
+end
+sfui.fishing.set_keybind = set_keybind
 
 -- Keybind runner: Can be bound to a key or invoked via /sffish or /sfui fish
 function sfui.fishing.RunKeybind(fromSlash)

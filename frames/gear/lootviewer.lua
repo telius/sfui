@@ -2565,4 +2565,12 @@ function sfui.lootviewer_debug_info()
     return _lvDebug
 end
 sfui.lootviewer.debug_info = sfui.lootviewer_debug_info
+sfui.lootviewer.GetDebugInfo = sfui.lootviewer_debug_info
+
+if sfui.RegisterModule then
+    sfui.lootviewer.OnSpecChanged = function(self, specID)
+        if self.Rebuild then self.Rebuild() end
+    end
+    sfui.RegisterModule("lootviewer", sfui.lootviewer)
+end
 

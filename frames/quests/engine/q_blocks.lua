@@ -1,29 +1,29 @@
-local addonName, addon = ...
-sfui = sfui or {}
-sfui.tracker = sfui.tracker or {}
-sfui.tracker.blocks = sfui.tracker.blocks or {}
+local addonName, addon           = ...
+sfui                             = sfui or {}
+sfui.tracker                     = sfui.tracker or {}
+sfui.tracker.blocks              = sfui.tracker.blocks or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/quests/engine/blocks.lua
 --  High-Performance Zero-Allocation Frame Pools for Tracker UI
 -- ══════════════════════════════════════════════════════════════════════════════
 
-local _G = _G
-local CreateFrame, UIParent = _G.CreateFrame, _G.UIParent
-local GameTooltip = _G.GameTooltip
+local _G                         = _G
+local CreateFrame, UIParent      = _G.CreateFrame, _G.UIParent
+local GameTooltip                = _G.GameTooltip
 local table_insert, table_remove = _G.table.insert, _G.table.remove
-local ipairs, pairs, unpack = _G.ipairs, _G.pairs, _G.unpack
+local ipairs, pairs, unpack      = _G.ipairs, _G.pairs, _G.unpack
 
-local Blocks = sfui.tracker.blocks
+local Blocks                     = sfui.tracker.blocks
 
 -- ─── Frame Pools ────────────────────────────────────────────────────────────
-local headerPool, activeHeaders = {}, {}
-local blockPool,  activeBlocks  = {}, {}
-local linePool,   activeLines   = {}, {}
-local barPool,    activeBars    = {}, {}
+local headerPool, activeHeaders  = {}, {}
+local blockPool, activeBlocks    = {}, {}
+local linePool, activeLines      = {}, {}
+local barPool, activeBars        = {}, {}
 
 -- ─── UI Markers & Glyphs (Font-safe ASCII & Blizzard Textures) ─────────────
-Blocks.ICONS = {
+Blocks.ICONS                     = {
     COLLAPSED = "+",
     EXPANDED  = "-",
     BULLET    = "-",
@@ -59,7 +59,7 @@ local function CreateHeader(parent)
     -- Left 3px color accent bar
     local accent = h:CreateTexture(nil, "ARTWORK")
     accent:SetWidth(3)
-    accent:SetPoint("TOPLEFT",    h, "TOPLEFT",    0, 0)
+    accent:SetPoint("TOPLEFT", h, "TOPLEFT", 0, 0)
     accent:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 0, 0)
     accent:SetColorTexture(1, 1, 1, 1)
     h.accent = accent
@@ -90,7 +90,8 @@ local function CreateHeader(parent)
         tip:SetOwner(self, "ANCHOR_RIGHT")
         tip:ClearLines()
         local col = self.defColor or { 1, 1, 1 }
-        tip:AddLine(self.defLabel or (self.title and self.title:GetText()) or "Section", col[1] or 1, col[2] or 1, col[3] or 1)
+        tip:AddLine(self.defLabel or (self.title and self.title:GetText()) or "Section", col[1] or 1, col[2] or 1,
+            col[3] or 1)
         if self.capFormatted then
             tip:AddLine("quest log: " .. self.capFormatted, 1, 1, 1)
         end
@@ -107,7 +108,7 @@ local function CreateHeader(parent)
             itemWord = "collectables"
         elseif secID == "world" or secID == "worldquests" then
             itemWord = "world quests"
-        elseif secID == "campaign" or secID == "important" or secID == "meta" or secID == "zone" or secID == "quests" or (type(secID) == "string" and secID:find("^zone")) then
+        elseif secID == "campaign" or secID == "important" or secID == "meta" or secID == "zone" or secID == "quests" or secID == "class" or secID == "dungeons" or secID == "professions" or (type(secID) == "string" and secID:find("^zone")) then
             itemWord = "quests"
         end
         tip:AddLine("|cff888888Shift-click: Untrack all " .. itemWord .. " in category|r", 1, 1, 1)

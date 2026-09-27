@@ -202,7 +202,7 @@ do
                 end
 
                 -- Primary Power Bar (bar_minus_1)
-                local hidePower = cfg.powerBar.hiddenSpecs and cfg.powerBar.hiddenSpecs[specID]
+                local hidePower = sfui.isRetail and cfg.powerBar.hiddenSpecs and cfg.powerBar.hiddenSpecs[specID]
                 local showPower = (SfuiDB == nil or SfuiDB.enablePowerBar ~= false) and not hidePower
                 if showPower then
                     local bar = get_bar_minus_1()
@@ -212,7 +212,7 @@ do
                 end
 
                 -- Secondary Power Bar (bar1)
-                local hideSecondary = cfg.secondaryPowerBar.hiddenSpecs and
+                local hideSecondary = sfui.isRetail and cfg.secondaryPowerBar.hiddenSpecs and
                     cfg.secondaryPowerBar.hiddenSpecs[specID]
                 local secResource = common.get_secondary_resource()
                 local showSecondary = (SfuiDB == nil or SfuiDB.enableSecondaryPowerBar ~= false) and not hideSecondary and secResource and secResource ~= Enum.PowerType.Runes
@@ -389,7 +389,7 @@ do
     function update_bar_minus_1()
         local cfg = sfui.config.powerBar
         local specID = common.get_current_spec_id()
-        local hide = cfg.hiddenSpecs and cfg.hiddenSpecs[specID]
+        local hide = sfui.isRetail and cfg.hiddenSpecs and cfg.hiddenSpecs[specID]
 
         if not cfg.enabled or is_dragonflying() or hide then
             if bar_minus_1 and bar_minus_1.backdrop then bar_minus_1.backdrop:Hide() end
@@ -673,7 +673,7 @@ do
     function update_bar1()
         local cfg = sfui.config.secondaryPowerBar
         local specID = common.get_current_spec_id()
-        local hide = cfg.hiddenSpecs and cfg.hiddenSpecs[specID]
+        local hide = sfui.isRetail and cfg.hiddenSpecs and cfg.hiddenSpecs[specID]
 
         if not cfg.enabled or is_dragonflying() or hide then
             if bar1 and bar1.backdrop then bar1.backdrop:Hide() end

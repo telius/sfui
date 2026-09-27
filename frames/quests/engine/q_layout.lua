@@ -1,46 +1,44 @@
-local addonName, addon = ...
-sfui = sfui or {}
-sfui.tracker = sfui.tracker or {}
-sfui.tracker.layout = sfui.tracker.layout or {}
+local addonName, addon                         = ...
+sfui                                           = sfui or {}
+sfui.tracker                                   = sfui.tracker or {}
+sfui.tracker.layout                            = sfui.tracker.layout or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/quests/engine/layout.lua
 --  Vertical Stack Layout, Height Budgeting & Priority Stacking Engine
 -- ══════════════════════════════════════════════════════════════════════════════
 
-local _G = _G
-local UIParent = _G.UIParent
-local GetScreenHeight = _G.GetScreenHeight
-local type, tostring = _G.type, _G.tostring
+local _G                                       = _G
+local UIParent                                 = _G.UIParent
+local GetScreenHeight                          = _G.GetScreenHeight
+local type, tostring                           = _G.type, _G.tostring
 local math_max, math_min, math_abs, math_floor = _G.math.max, _G.math.min, _G.math.abs, _G.math.floor
-local C_QuestLog = _G.C_QuestLog
-local C_ContentTracking = _G.C_ContentTracking
-local C_PerksActivities = _G.C_PerksActivities
-local C_NeighborhoodInitiative = _G.C_NeighborhoodInitiative
-local C_TradeSkillUI = _G.C_TradeSkillUI
-local C_EventScheduler = _G.C_EventScheduler
-local C_SuperTrack = _G.C_SuperTrack
-local Enum = _G.Enum
+local C_QuestLog                               = _G.C_QuestLog
+local C_ContentTracking                        = _G.C_ContentTracking
+local C_PerksActivities                        = _G.C_PerksActivities
+local C_NeighborhoodInitiative                 = _G.C_NeighborhoodInitiative
+local C_TradeSkillUI                           = _G.C_TradeSkillUI
+local C_EventScheduler                         = _G.C_EventScheduler
+local C_SuperTrack                             = _G.C_SuperTrack
+local Enum                                     = _G.Enum
 
-local Layout = sfui.tracker.layout
-local Blocks = sfui.tracker.blocks
+local Layout                                   = sfui.tracker.layout
+local Blocks                                   = sfui.tracker.blocks
 
-local SPACING_SECTION = 10
-local SPACING_BLOCK   = 6
-local SPACING_LINE    = 2
+local SPACING_SECTION                          = 10
+local SPACING_BLOCK                            = 6
+local SPACING_LINE                             = 2
 
 --- Untrack all items in a given section
 --- @param sec table Section table containing id and blocks
 local function UntrackSection(sec)
     if not sec then return end
+    if InCombatLockdown and InCombatLockdown() then return end
 
     if sec.OnShiftClick then
         sec.OnShiftClick()
         return
     end
-
-    local st = SfuiDB and SfuiDB.questlog
-    local expandedQuests = st and st.expandedQuests
 
     -- 1. Untrack all blocks currently listed in this section
     if sec.blocks then
@@ -73,10 +71,6 @@ local function UntrackSection(sec)
                         C_SuperTrack.SetSuperTrackedQuestID(0)
                     end
                 end
-                if expandedQuests then
-                    expandedQuests[qID] = nil
-                    expandedQuests["wq_" .. tostring(qID)] = nil
-                end
             end
 
             -- Achievements
@@ -89,9 +83,6 @@ local function UntrackSection(sec)
                 end
                 if _G.RemoveTrackedAchievement then
                     _G.RemoveTrackedAchievement(achID)
-                end
-                if expandedQuests then
-                    expandedQuests["ach_" .. tostring(achID)] = nil
                 end
             end
 
@@ -109,9 +100,6 @@ local function UntrackSection(sec)
                 if taskID and C_NeighborhoodInitiative and C_NeighborhoodInitiative.RemoveTrackedInitiativeTask then
                     C_NeighborhoodInitiative.RemoveTrackedInitiativeTask(taskID)
                 end
-                if expandedQuests and taskID then
-                    expandedQuests["house_" .. tostring(taskID)] = nil
-                end
             end
 
             -- Trade Skill Recipes
@@ -119,9 +107,6 @@ local function UntrackSection(sec)
                 local recID = b.recipeID
                 if recID and C_TradeSkillUI and C_TradeSkillUI.SetRecipeTracked then
                     C_TradeSkillUI.SetRecipeTracked(recID, false, b.isRecraft or false)
-                end
-                if expandedQuests and recID then
-                    expandedQuests["rec_" .. tostring(recID)] = nil
                 end
             end
 
@@ -132,9 +117,6 @@ local function UntrackSection(sec)
                 if tType and tID and C_ContentTracking and C_ContentTracking.StopTracking then
                     local stopType = (Enum and Enum.ContentTrackingStopType and Enum.ContentTrackingStopType.Manual) or 2
                     C_ContentTracking.StopTracking(tType, tID, stopType)
-                end
-                if expandedQuests and tID then
-                    expandedQuests["coll_" .. tostring(tType) .. "_" .. tostring(tID)] = nil
                 end
             end
 
@@ -229,7 +211,7 @@ local function UntrackSection(sec)
     end
 
     -- 3. Quest Log scan for category match (fallback for quests)
-    if secID == "campaign" or secID == "important" or secID == "meta" or secID == "zone" or secID == "quests" or (type(secID) == "string" and secID:find("^zone")) then
+    if secID == "campaign" or secID == "important" or secID == "meta" or secID == "zone" or secID == "quests" or secID == "class" or secID == "dungeons" or secID == "professions" or (type(secID) == "string" and secID:find("^zone")) then
         local numEntries = (C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetNumQuestLogEntries())
             or (_G.GetNumQuestLogEntries and _G.GetNumQuestLogEntries())
             or 0
@@ -267,11 +249,17 @@ local function UntrackSection(sec)
                         match = true
                     elseif secID == "important" and info and (info.questClassification == (QC and QC.Important) or (C_QuestLog.IsImportantQuest and C_QuestLog.IsImportantQuest(qID))) then
                         match = true
+                    elseif secID == "class" and sfui.questlog and sfui.questlog.IsClassQuest and sfui.questlog.IsClassQuest(qID, i, currentHeader) then
+                        match = true
+                    elseif secID == "dungeons" and sfui.questlog and sfui.questlog.IsDungeonQuest and sfui.questlog.IsDungeonQuest(qID, i, currentHeader) then
+                        match = true
+                    elseif secID == "professions" and sfui.questlog and sfui.questlog.IsProfessionQuest and sfui.questlog.IsProfessionQuest(qID, i, currentHeader) then
+                        match = true
                     elseif (secID == "zone" or secID == "quests") and (not info or (
-                           not (info.campaignID and info.campaignID > 0) and
-                           not (info.questClassification == (QC and QC.Campaign)) and
-                           not (info.questClassification == (QC and QC.Meta)) and
-                           not (info.questClassification == (QC and QC.Important)))) then
+                            not (info.campaignID and info.campaignID > 0) and
+                            not (info.questClassification == (QC and QC.Campaign)) and
+                            not (info.questClassification == (QC and QC.Meta)) and
+                            not (info.questClassification == (QC and QC.Important)))) then
                         match = true
                     elseif type(secID) == "string" and secID:find("^zone_") then
                         local targetZone = secID:sub(6):lower()
@@ -288,7 +276,6 @@ local function UntrackSection(sec)
                                 C_SuperTrack.SetSuperTrackedQuestID(0)
                             end
                         end
-                        if expandedQuests then expandedQuests[qID] = nil end
                     end
                 end
             end
@@ -326,7 +313,18 @@ function Layout.BuildLayout(container, sections)
 
     for _, sec in ipairs(sections) do
         if sec.blocks and #sec.blocks > 0 then
-            local isCollapsed = collapsedMap[sec.id] or false
+            local isZoneSec = sec.isZoneSection or (type(sec.id) == "string" and sec.id:find("^zone_") ~= nil)
+            local userCollapsed = collapsedMap[sec.id]
+            local isCollapsed
+            if isZoneSec then
+                if sec.isCurrentZone then
+                    isCollapsed = (userCollapsed == true)  -- Current zone defaults to expanded
+                else
+                    isCollapsed = (userCollapsed ~= false) -- Out-of-zone defaults to collapsed
+                end
+            else
+                isCollapsed = (userCollapsed == true)
+            end
 
             -- 1. Acquire Section Header
             local header = Blocks.AcquireHeader(content)
@@ -375,7 +373,17 @@ function Layout.BuildLayout(container, sections)
                     return
                 end
                 SfuiDB.questlogSectionsCollapsed = SfuiDB.questlogSectionsCollapsed or {}
-                SfuiDB.questlogSectionsCollapsed[secID] = not SfuiDB.questlogSectionsCollapsed[secID]
+                local curCollapsed
+                if isZoneSec then
+                    if currentSec.isCurrentZone then
+                        curCollapsed = (SfuiDB.questlogSectionsCollapsed[secID] == true)
+                    else
+                        curCollapsed = (SfuiDB.questlogSectionsCollapsed[secID] ~= false)
+                    end
+                else
+                    curCollapsed = (SfuiDB.questlogSectionsCollapsed[secID] == true)
+                end
+                SfuiDB.questlogSectionsCollapsed[secID] = not curCollapsed
                 if sfui.tracker and sfui.tracker.RequestRefresh then
                     sfui.tracker.RequestRefresh(0.01)
                 end
@@ -428,9 +436,11 @@ function Layout.BuildLayout(container, sections)
                         local itemsHelper = sfui.tracker.helpers and sfui.tracker.helpers.items
                         if itemsHelper then
                             if not block.itemButton then
-                                block.itemButton = (itemsHelper.AcquireItemButton and itemsHelper.AcquireItemButton(block)) or itemsHelper.CreateItemButton(block)
+                                block.itemButton = (itemsHelper.AcquireItemButton and itemsHelper.AcquireItemButton(block)) or
+                                itemsHelper.CreateItemButton(block)
                             end
-                            itemsHelper.SetupItemButton(block.itemButton, bData.questLogIndex, bData.questID, bData.itemInfo)
+                            itemsHelper.SetupItemButton(block.itemButton, bData.questLogIndex, bData.questID,
+                                bData.itemInfo)
                             block.itemButton:ClearAllPoints()
                             block.itemButton:SetPoint("LEFT", block, "LEFT", leftOffset, 0)
                             block.itemButton:Show()
@@ -457,7 +467,8 @@ function Layout.BuildLayout(container, sections)
                             if not block.findGroupBtn then
                                 block.findGroupBtn = findGroupHelper.CreateFindGroupButton(block)
                             end
-                            findGroupHelper.SetupFindGroupButton(block.findGroupBtn, bData.questID, bData.rawTitle or bData.title)
+                            findGroupHelper.SetupFindGroupButton(block.findGroupBtn, bData.questID,
+                                bData.rawTitle or bData.title)
                             block.findGroupBtn:ClearAllPoints()
                             block.findGroupBtn:SetPoint("RIGHT", block, "RIGHT", -2, 0)
                             block.findGroupBtn:Show()
@@ -651,11 +662,13 @@ function Layout.BuildLayout(container, sections)
                         local timerHelper = sfui.tracker.helpers and sfui.tracker.helpers.timerbars
                         if timerHelper and timerHelper.CanShowTimerBar() then
                             if not block.timerBarFrame then
-                                block.timerBarFrame = (timerHelper.AcquireTimerBar and timerHelper.AcquireTimerBar(content)) or timerHelper.CreateTimerBar(content)
+                                block.timerBarFrame = (timerHelper.AcquireTimerBar and timerHelper.AcquireTimerBar(content)) or
+                                timerHelper.CreateTimerBar(content)
                             else
                                 block.timerBarFrame:SetParent(content)
                             end
-                            timerHelper.SetupTimerBar(block.timerBarFrame, bData.timerBar.timeTotal, bData.timerBar.timeElapsed)
+                            timerHelper.SetupTimerBar(block.timerBarFrame, bData.timerBar.timeTotal,
+                                bData.timerBar.timeElapsed)
                             block.timerBarFrame:ClearAllPoints()
                             block.timerBarFrame:SetPoint("TOPLEFT", content, "TOPLEFT", 12, yOffset - 2)
                             block.timerBarFrame:SetPoint("TOPRIGHT", content, "TOPRIGHT", -4, yOffset - 2)

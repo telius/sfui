@@ -2248,6 +2248,9 @@ end
 
 if sfui.RegisterModule then
     sfui.gear.OnEnable = function(self) self.initialize() end
+    sfui.gear.OnSpecChanged = function(self, specID)
+        if self.Update then self.Update() end
+    end
     sfui.gear.GetDebugInfo = sfui.gear_debug_info
     sfui.RegisterModule("gear", sfui.gear)
 end

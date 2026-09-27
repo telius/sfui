@@ -109,8 +109,8 @@ sfui.events.RegisterMessage("SFUI_SETTING_CHANGED", function(_, moduleName, key,
 end)
 
 -- Listen for spec changes and forward to modules implementing OnSpecChanged
-local function _on_spec_changed()
-    local specID = sfui.common and sfui.common.get_current_spec_id and sfui.common.get_current_spec_id()
+local function _on_spec_changed(specID)
+    specID = specID or (sfui.common and sfui.common.get_current_spec_id and sfui.common.get_current_spec_id())
     for _, mod in pairs(modules) do
         if type(mod.OnSpecChanged) == "function" then
             _safe_call(mod, "OnSpecChanged", specID)
@@ -118,8 +118,15 @@ local function _on_spec_changed()
     end
 end
 
-sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", _on_spec_changed)
-sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", _on_spec_changed)
+function sfui.BroadcastSpecChanged(specID)
+    _on_spec_changed(specID)
+end
+
+sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function() _on_spec_changed() end)
+sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", function() _on_spec_changed() end)
+sfui.events.RegisterMessage("SFUI_SPEC_COLORS_UPDATED", function(_, specID)
+    _on_spec_changed(specID)
+end)
 
 if sfui.dispatcher_debug_info then
     sfui.events = sfui.events or {}

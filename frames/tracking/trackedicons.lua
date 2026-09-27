@@ -1636,6 +1636,9 @@ if sfui.RegisterModule then
     sfui.trackedicons.OnSettingsChanged = function(self, k, v)
         if self.Update then self.Update() end
     end
+    sfui.trackedicons.OnSpecChanged = function(self, specID)
+        if self.Update then self.Update() end
+    end
     sfui.trackedicons.GetDebugInfo = sfui.trackedicons_debug_info
     sfui.RegisterModule("trackedicons", sfui.trackedicons)
 end

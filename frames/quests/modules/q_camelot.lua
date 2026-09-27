@@ -1,16 +1,17 @@
 --[[
-    SFUI Tracker Module: Retail Quests Engine
-    frames/quests/modules/q_quests.lua
+    SFUI Tracker Module: Classic Forever / Camelot Quests Engine
+    frames/quests/modules/q_camelot.lua
 
-    Pluggable quest log scanner for sfui.tracker on World of Warcraft (Retail).
-    Grouped by Classification:
-      - Important (orange/red)
-      - Campaign (gold)
-      - Meta (cyan)
-      - Activities (cyan)
-      - Quests / Zone (white)
-    Supports Warband completion badges, auto-quest popups, progress bar objectives,
-    and timer countdown bars.
+    Pluggable quest log scanner for sfui.tracker on Warcraft Forever (Camelot) & Classic Era.
+    - Grouped by Zone sections with Current Zone floating to top
+    - Class Quests (spec color header, top rank)
+    - Dungeon Quests (blue header, rank 2)
+    - Profession Quests (orange header, rank 3)
+    - Current Zone (cyan header `[Zone]`, capacity badge `[16/20]`)
+    - Other Zones (alphabetical)
+    - Level brackets [14], [18D] via Difficulty.FormatTitle
+    - Suppressed timer bars
+    - Progress-driven smart expansion with diminishing finished objectives
 ]]
 
 local addonName, addon                        = ...
@@ -18,8 +19,17 @@ sfui                                          = sfui or {}
 sfui.tracker                                  = sfui.tracker or {}
 sfui.questlog                                 = sfui.questlog or {}
 
--- Guard: Retail only
-if not sfui.isRetail then
+-- Guard: Classic / Camelot only (Exclude Retail)
+local isRetail = sfui.isRetail
+if isRetail == nil then
+    local projectID = _G.WOW_PROJECT_ID or 1
+    local _, _, _, tocVersionNum = _G.GetBuildInfo()
+    tocVersionNum = tonumber(tocVersionNum) or 0
+    local isForever = (tocVersionNum >= 16000 and tocVersionNum < 20000)
+    isRetail = (projectID == 1) and not isForever
+end
+
+if isRetail then
     return
 end
 
@@ -27,11 +37,10 @@ local _G                                      = _G
 local C_QuestLog                              = _G.C_QuestLog
 local C_TaskQuest                             = _G.C_TaskQuest
 local C_SuperTrack                            = _G.C_SuperTrack
-local C_PlayerInfo                            = _G.C_PlayerInfo
+local C_ClassColor                            = _G.C_ClassColor
+local C_TradeSkillUI                          = _G.C_TradeSkillUI
 local Enum                                    = _G.Enum
 local Constants                               = _G.Constants
-local GetNumAutoQuestPopUps                   = _G.GetNumAutoQuestPopUps
-local GetAutoQuestPopUp                       = _G.GetAutoQuestPopUp
 local GetQuestLogTitle                        = _G.GetQuestLogTitle
 local GetNumQuestLogEntries                   = _G.GetNumQuestLogEntries
 local GetQuestProgressBarPercent              = _G.GetQuestProgressBarPercent
@@ -46,6 +55,7 @@ local ChatEdit_GetActiveWindow                = _G.ChatEdit_GetActiveWindow
 local ChatEdit_InsertLink                     = _G.ChatEdit_InsertLink
 local ChatFrameUtil                           = _G.ChatFrameUtil
 local QuestMapFrame_OpenToQuestDetails        = _G.QuestMapFrame_OpenToQuestDetails
+local UnitClass                               = _G.UnitClass
 
 local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
 local math_floor                              = math.floor
@@ -60,7 +70,6 @@ function() return false end
 -- ─────────────────────────────────────────────────────────
 local Difficulty                              = sfui.tracker.helpers and sfui.tracker.helpers.difficulty
 local Waypoints                               = sfui.tracker.helpers and sfui.tracker.helpers.waypoints
-local TimerBars                               = sfui.tracker.helpers and sfui.tracker.helpers.timerbars
 local Items                                   = sfui.tracker.helpers and sfui.tracker.helpers.items
 local FindGroup                               = sfui.tracker.helpers and sfui.tracker.helpers.findgroup
 
@@ -68,11 +77,6 @@ local wipe                                    = _G.wipe or function(t)
     for k in pairs(t) do t[k] = nil end
     return t
 end
-
--- Fallback stubs for legacy references
-sfui.questlog.IsClassQuest                    = sfui.questlog.IsClassQuest or function() return false end
-sfui.questlog.IsDungeonQuest                  = sfui.questlog.IsDungeonQuest or function() return false end
-sfui.questlog.IsProfessionQuest               = sfui.questlog.IsProfessionQuest or function() return false end
 
 -- ─────────────────────────────────────────────────────────
 --  EXPANSION & WATCH CACHE
@@ -89,7 +93,7 @@ local function GetQuestProgressDetails(questID, questLogIndex, isComplete, objs,
     local hasProgress = false
     local inlineTag = ""
 
-    -- 1. Progress bar percent (modern quests / bonus objectives)
+    -- 1. Progress bar percent (if supported on modern quest formats)
     if GetQuestProgressBarPercent then
         local pct = GetQuestProgressBarPercent(questID)
         if pct and pct > 0 then
@@ -99,7 +103,7 @@ local function GetQuestProgressDetails(questID, questLogIndex, isComplete, objs,
         end
     end
 
-    -- 2. Modern C_QuestLog objectives
+    -- 2. Modern C_QuestLog objectives (if available on Camelot)
     if objs and #objs > 0 then
         local total = #objs
         local finished = 0
@@ -142,8 +146,180 @@ local function GetQuestProgressDetails(questID, questLogIndex, isComplete, objs,
         return hasProgress, inlineTag
     end
 
+    -- 3. Classic / Classic Era leaderboards
+    if questLogIndex and _G.GetNumQuestLeaderBoards and _G.GetQuestLogLeaderBoard then
+        local num = _G.GetNumQuestLeaderBoards(questLogIndex) or 0
+        if num > 0 then
+            local finished = 0
+            local anyFulfilled = false
+            local singleProg = nil
+
+            for objIndex = 1, num do
+                local desc, _, isFinished = _G.GetQuestLogLeaderBoard(objIndex, questLogIndex)
+                if isFinished then
+                    finished = finished + 1
+                    anyFulfilled = true
+                elseif desc then
+                    local cur, req = desc:match("(%d+)%s*/%s*(%d+)")
+                    if cur and tonumber(cur) and tonumber(cur) > 0 then
+                        anyFulfilled = true
+                        if num == 1 and req then
+                            singleProg = string_format(" |cffa0a0a0(%s/%s)|r", cur, req)
+                        end
+                    end
+                end
+            end
+
+            hasProgress = anyFulfilled
+            if num == 1 then
+                if finished == 1 then
+                    inlineTag = " |cff33ff33(1/1)|r"
+                elseif singleProg then
+                    inlineTag = singleProg
+                else
+                    inlineTag = " |cffa0a0a0(0/1)|r"
+                end
+            else
+                inlineTag = string_format(" |cffa0a0a0(%d/%d)|r", finished, num)
+            end
+
+            return hasProgress, inlineTag
+        end
+    end
+
     return false, ""
 end
+
+-- ─────────────────────────────────────────────────────────
+--  LEAN API-DRIVEN QUEST CLASSIFICATION
+-- ─────────────────────────────────────────────────────────
+local playerClass = nil
+local function GetPlayerClass()
+    if not playerClass and UnitClass then
+        playerClass = UnitClass("player")
+    end
+    return playerClass
+end
+
+
+local function IsClassQuest(questID, questLogIndex, headerTitle)
+    if type(questLogIndex) == "string" and not headerTitle then
+        headerTitle = questLogIndex
+        questLogIndex = nil
+    end
+
+    local pClass = GetPlayerClass()
+    if not pClass then return false end
+
+    if headerTitle and headerTitle:lower() == pClass:lower() then
+        return true
+    end
+
+    if questID and C_QuestLog and C_QuestLog.GetHeaderIndexForQuest then
+        local hIdx = C_QuestLog.GetHeaderIndexForQuest(questID)
+        if hIdx then
+            local hInfo = C_QuestLog.GetInfo(hIdx)
+            if hInfo and hInfo.title and hInfo.title:lower() == pClass:lower() then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+local function IsDungeonQuest(questID, questLogIndex, headerTitle)
+    if _G.QuestUtils_IsQuestDungeonQuest and questID and _G.QuestUtils_IsQuestDungeonQuest(questID) then
+        return true
+    end
+
+    if C_QuestLog and C_QuestLog.GetQuestTagInfo and questID then
+        local tagInfo = C_QuestLog.GetQuestTagInfo(questID)
+        if tagInfo then
+            local QT = Enum and Enum.QuestTag
+            local QTT = Enum and Enum.QuestTagType
+            if (QT and (tagInfo.tagID == QT.Dungeon or tagInfo.tagID == QT.Raid or tagInfo.tagID == QT.Raid10 or tagInfo.tagID == QT.Raid25))
+               or (QTT and (tagInfo.worldQuestType == QTT.Dungeon or tagInfo.worldQuestType == QTT.Raid)) then
+                return true
+            end
+        end
+    end
+
+    if questLogIndex and type(questLogIndex) == "number" and GetQuestLogTitle then
+        local _, _, questTag = GetQuestLogTitle(questLogIndex)
+        if questTag and (questTag == _G.DUNGEON or questTag == _G.RAID or questTag == "Dungeon" or questTag == "Raid") then
+            return true
+        end
+    end
+
+    return false
+end
+
+local professionHeaders = nil
+local function IsProfessionQuest(questID, questLogIndex, headerTitle)
+    if type(questLogIndex) == "string" and not headerTitle then
+        headerTitle = questLogIndex
+        questLogIndex = nil
+    end
+
+    -- 1. Native Quest Tag Info
+    if C_QuestLog and C_QuestLog.GetQuestTagInfo and questID then
+        local tagInfo = C_QuestLog.GetQuestTagInfo(questID)
+        if tagInfo then
+            if (tagInfo.tradeskillLineID and tagInfo.tradeskillLineID > 0)
+               or (Enum and Enum.QuestTagType and tagInfo.worldQuestType == Enum.QuestTagType.Profession) then
+                return true
+            end
+        end
+    end
+
+    -- 2. Header match against native profession names
+    if headerTitle then
+        if not professionHeaders then
+            professionHeaders = {}
+            if _G.WORLD_QUEST_ICONS_BY_PROFESSION and C_TradeSkillUI and C_TradeSkillUI.GetProfessionInfoBySkillLineID then
+                for lineID in pairs(_G.WORLD_QUEST_ICONS_BY_PROFESSION) do
+                    local pInfo = C_TradeSkillUI.GetProfessionInfoBySkillLineID(lineID)
+                    if pInfo and pInfo.professionName then
+                        professionHeaders[pInfo.professionName:lower()] = true
+                    end
+                end
+            elseif Enum and Enum.Profession and C_TradeSkillUI and C_TradeSkillUI.GetProfessionSkillLineID and C_TradeSkillUI.GetProfessionInfoBySkillLineID then
+                for _, profEnum in pairs(Enum.Profession) do
+                    local lineID = C_TradeSkillUI.GetProfessionSkillLineID(profEnum)
+                    if lineID and lineID > 0 then
+                        local pInfo = C_TradeSkillUI.GetProfessionInfoBySkillLineID(lineID)
+                        if pInfo and pInfo.professionName then
+                            professionHeaders[pInfo.professionName:lower()] = true
+                        end
+                    end
+                end
+            end
+        end
+
+        local hLower = headerTitle:lower()
+        if professionHeaders[hLower] then
+            return true
+        end
+
+        -- Player's learned professions fallback (Classic / Era)
+        if _G.GetProfessions and _G.GetProfessionInfo then
+            for _, pIdx in ipairs({ _G.GetProfessions() }) do
+                local name = _G.GetProfessionInfo(pIdx)
+                if name and name:lower() == hLower then
+                    professionHeaders[hLower] = true
+                    return true
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+sfui.questlog.IsClassQuest = IsClassQuest
+sfui.questlog.IsDungeonQuest = IsDungeonQuest
+sfui.questlog.IsProfessionQuest = IsProfessionQuest
 
 local function GetQLState()
     if not SfuiDB then SfuiDB = {} end
@@ -154,7 +330,6 @@ local function GetQLState()
             hidden       = false,
         }
     end
-    -- Clean out legacy bloat tables if present
     if SfuiDB.questlog.expandedQuests then SfuiDB.questlog.expandedQuests = nil end
     if SfuiDB.questlog.manualExpandedQuests then SfuiDB.questlog.manualExpandedQuests = nil end
     return SfuiDB.questlog
@@ -188,11 +363,8 @@ local function IsWorldQuest(questID)
     return false
 end
 
---- Automatically track a quest when objectives update or progress occurs
 local pendingChangedQuests = {}
 
---- @param questID number Quest ID to track
---- @param questLogIndex number|nil Optional quest log index for classic clients
 local function AutoTrackQuest(questID, questLogIndex)
     if not questID or questID <= 0 then return false end
     if InCombatLockdown and InCombatLockdown() then
@@ -201,7 +373,6 @@ local function AutoTrackQuest(questID, questLogIndex)
     end
     if IsWorldQuest(questID) then return false end
 
-    -- Avoid tracking task quests or bounties as persistent watches
     if C_QuestLog and ((C_QuestLog.IsQuestBounty and C_QuestLog.IsQuestBounty(questID))
             or (C_QuestLog.IsQuestTask and C_QuestLog.IsQuestTask(questID))) then
         return false
@@ -232,72 +403,29 @@ local function AutoTrackQuest(questID, questLogIndex)
     return true
 end
 
-local seasonalWeeklySet = nil
-local function BuildSeasonalWeeklySet()
-    seasonalWeeklySet = {}
-    if sfui.season then
-        if sfui.season.WEEKLY_QUESTS then
-            for _, def in ipairs(sfui.season.WEEKLY_QUESTS) do
-                if def.questID then seasonalWeeklySet[def.questID] = true end
-                if def.wrapperID then seasonalWeeklySet[def.wrapperID] = true end
-                if def.pool then
-                    for _, pid in ipairs(def.pool) do
-                        seasonalWeeklySet[pid] = true
-                    end
-                end
-            end
-        end
-        if sfui.season.PROF_KP_SOURCES then
-            for _, src in pairs(sfui.season.PROF_KP_SOURCES) do
-                if src.quest then
-                    for _, qid in ipairs(src.quest) do
-                        seasonalWeeklySet[qid] = true
-                    end
-                end
-            end
-        end
+local function GetQuestCapacityInfo()
+    local numEntries, numQuests = 0, 0
+    if C_QuestLog and C_QuestLog.GetNumQuestLogEntries then
+        numEntries, numQuests = C_QuestLog.GetNumQuestLogEntries()
+    elseif GetNumQuestLogEntries then
+        numEntries, numQuests = GetNumQuestLogEntries()
     end
-end
+    numQuests = numQuests or 0
 
-local function IsWeeklyQuest(questID, frequency)
-    if frequency == 2 then return true end
-    if Enum and Enum.QuestFrequency and frequency == Enum.QuestFrequency.Weekly then
-        return true
-    end
-    if C_QuestLog then
-        if C_QuestLog.IsQuestWeekly and C_QuestLog.IsQuestWeekly(questID) then
-            return true
-        end
-        if C_QuestLog.IsWeeklyQuest and C_QuestLog.IsWeeklyQuest(questID) then
-            return true
-        end
-    end
-    if not seasonalWeeklySet then
-        BuildSeasonalWeeklySet()
-    end
-    if questID and seasonalWeeklySet and seasonalWeeklySet[questID] then
-        return true
-    end
-    return false
-end
+    local maxQuests = (Constants and Constants.QuestLogConsts and Constants.QuestLogConsts.MAXIMUM_NUM_QUESTS_LOG_CAN_ACCEPT)
+        or (C_QuestLog and C_QuestLog.GetMaxNumQuestsCanAccept and C_QuestLog.GetMaxNumQuestsCanAccept())
+        or (C_QuestLog and C_QuestLog.GetMaxNumQuests and C_QuestLog.GetMaxNumQuests())
+        or 20
 
-local function IsRepeatableQuest(questID, frequency)
-    if not questID then return false end
-    if C_QuestLog and C_QuestLog.IsRepeatableQuest and C_QuestLog.IsRepeatableQuest(questID) then
-        return true
+    local color = "|cffffffff"
+    if numQuests >= maxQuests then
+        color = "|cffff2020" -- Full!
+    elseif numQuests >= (maxQuests - 2) then
+        color = "|cffff9900" -- Near cap
     end
-    if frequency and frequency > 0 then
-        return true
-    end
-    if C_QuestLog then
-        if C_QuestLog.IsQuestDaily and C_QuestLog.IsQuestDaily(questID) then
-            return true
-        end
-        if C_QuestLog.IsDailyQuest and C_QuestLog.IsDailyQuest(questID) then
-            return true
-        end
-    end
-    return false
+
+    local formatted = string_format("%s[%d/%d]|r", color, numQuests, maxQuests)
+    return numQuests, maxQuests, formatted
 end
 
 -- ─────────────────────────────────────────────────────────
@@ -350,8 +478,7 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
                 return
             end
 
-            local title = questTitle or (C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID)) or
-            "Quest"
+            local title = questTitle or (C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID)) or "Quest"
             local items = (C_QuestLog.GetAbandonQuestItems and C_QuestLog.GetAbandonQuestItems()) or nil
             if items and _G.StaticPopup_Show then
                 _G.StaticPopup_Show("ABANDON_QUEST_WITH_ITEMS", title, items)
@@ -430,7 +557,7 @@ end
 -- ─────────────────────────────────────────────────────────
 --  SCANNER IMPLEMENTATION
 -- ─────────────────────────────────────────────────────────
-local QuestsModule = {
+local CamelotQuestsModule = {
     id       = "quests",
     priority = 20,
     events   = {
@@ -446,16 +573,23 @@ local QuestsModule = {
         "SUPER_TRACKING_CHANGED",
         "WAYPOINT_RECIEVED",
         "QUEST_POI_UPDATE",
+        "ZONE_CHANGED_NEW_AREA",
+        "ZONE_CHANGED",
+        "ZONE_CHANGED_INDOORS",
         "UNIT_QUEST_LOG_CHANGED",
         "PLAYER_REGEN_ENABLED",
+        "PLAYER_TALENT_UPDATE",
+        "CHARACTER_POINTS_CHANGED",
+        "TRAIT_CONFIG_UPDATED",
+        "ACTIVE_TALENT_GROUP_CHANGED",
     },
 }
 
-function QuestsModule:Init(engine)
+function CamelotQuestsModule:Init(engine)
     self.engine = engine
 end
 
-function QuestsModule:OnEvent(event, ...)
+function CamelotQuestsModule:OnEvent(event, ...)
     local arg1, arg2 = ...
     local questID = tonumber(arg1)
     local added = arg2
@@ -520,11 +654,11 @@ function QuestsModule:OnEvent(event, ...)
     end
 end
 
-function QuestsModule:IsEnabled()
+function CamelotQuestsModule:IsEnabled()
     return true
 end
 
-function QuestsModule:BuildBlocks(container)
+function CamelotQuestsModule:BuildBlocks(container)
     local state = GetQLState()
 
     local superTrackedQuestID = nil
@@ -535,6 +669,10 @@ function QuestsModule:BuildBlocks(container)
     local numEntries = (C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetNumQuestLogEntries())
         or (GetNumQuestLogEntries and GetNumQuestLogEntries())
         or 0
+
+    local currentZoneName = (GetRealZoneText and GetRealZoneText())
+        or (GetZoneText and GetZoneText())
+        or ""
 
     -- Sections accumulator
     local sectionMap = {}
@@ -554,46 +692,7 @@ function QuestsModule:BuildBlocks(container)
         return sectionMap[secID]
     end
 
-    -- 1. Scan Auto-Quest Popups (Retail Mode)
-    local autoCompletePopups = {}
-    if GetNumAutoQuestPopUps and GetAutoQuestPopUp then
-        local numPopups = GetNumAutoQuestPopUps() or 0
-        for i = 1, numPopups do
-            local qID, popUpType = GetAutoQuestPopUp(i)
-            if qID and qID > 0 then
-                local popTitle = (C_QuestLog and C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(qID)) or
-                "Quest"
-                if popUpType == "OFFER" then
-                    local sec = GetOrCreateSection("important", "Important", { 1.0, 0.4, 0.2 })
-                    table_insert(sec.blocks, {
-                        title      = "[Offer] " .. popTitle,
-                        titleColor = { 1.0, 0.75, 0.2, 1 },
-                        lines      = {
-                            { text = "Click to view quest offer", completed = false, color = { 0.7, 0.8, 1, 1 } }
-                        },
-                        OnClick    = function(block, btn)
-                            OnQuestBlockClick(block, btn, qID, nil, popTitle, true, false, false)
-                        end,
-                    })
-                elseif popUpType == "COMPLETE" then
-                    autoCompletePopups[qID] = true
-                    local sec = GetOrCreateSection("important", "Important", { 1.0, 0.0, 1.0 })
-                    table_insert(sec.blocks, {
-                        title      = "[Complete] " .. popTitle,
-                        titleColor = { 1.0, 0.0, 1.0, 1 }, -- #FF00FF
-                        lines      = {
-                            { text = (QUEST_WATCH_QUEST_COMPLETE or "Click to complete quest"), completed = true, color = { 1.0, 0.0, 1.0, 1 } }
-                        },
-                        OnClick    = function(block, btn)
-                            OnQuestBlockClick(block, btn, qID, nil, popTitle, false, false, true)
-                        end,
-                    })
-                end
-            end
-        end
-    end
-
-    -- 2. Scan Quest Log Entries
+    -- Scan Quest Log Entries
     local currentHeaderTitle = "Miscellaneous"
 
     for i = 1, numEntries do
@@ -604,8 +703,6 @@ function QuestsModule:BuildBlocks(container)
         local isComplete = false
         local isAutoComplete = false
         local frequency = nil
-        local questClassification = nil
-        local campaignID = nil
         local suggestedGroup = 1
         local level = 0
 
@@ -617,8 +714,6 @@ function QuestsModule:BuildBlocks(container)
                 title = info.title
                 isCollapsed = info.isCollapsed
                 frequency = info.frequency
-                questClassification = info.questClassification
-                campaignID = info.campaignID
                 suggestedGroup = info.suggestedGroup or 1
                 level = info.level or 0
                 isAutoComplete = (info.isAutoComplete == true)
@@ -646,39 +741,61 @@ function QuestsModule:BuildBlocks(container)
 
         if isHeader then
             currentHeaderTitle = title or "Miscellaneous"
-        elseif questID and questID > 0 and not IsWorldQuest(questID) and IsQuestWatched(questID, i) and not autoCompletePopups[questID] then
+        elseif questID and questID > 0 and not IsWorldQuest(questID) and IsQuestWatched(questID, i) then
             if C_QuestLog and C_QuestLog.IsComplete then
                 isComplete = C_QuestLog.IsComplete(questID) or isComplete
             end
             local isFailed = (C_QuestLog and C_QuestLog.IsFailed and C_QuestLog.IsFailed(questID)) or false
-            local canClickToComplete = (isComplete and isAutoComplete) or (autoCompletePopups[questID] == true)
+            local canClickToComplete = isComplete and isAutoComplete
 
-            -- Format Title: Warband Tag
-            local isWarband = false
-            if C_QuestLog and C_QuestLog.IsQuestFlaggedCompletedOnAccount then
-                isWarband = (C_QuestLog.IsQuestFlaggedCompletedOnAccount(questID) == true)
-            end
+            -- Format Title: Difficulty Bracket [14], [18D]
+            local entryStub = {
+                level          = level,
+                questID        = questID,
+                questLogIndex  = i,
+                suggestedGroup = suggestedGroup,
+            }
 
             local displayTitle = title or "Quest"
-            local isWeekly = IsWeeklyQuest(questID, frequency)
-            local isRepeatable = isWeekly or IsRepeatableQuest(questID, frequency)
+            if Difficulty and Difficulty.FormatTitle then
+                displayTitle = Difficulty.FormatTitle(entryStub, displayTitle)
+            end
 
-            -- Determine Section ID (Retail Classification)
+            -- Determine Section ID
             local secID, secTitle, secColor
-            local QC = Enum and Enum.QuestClassification
-            if isWeekly then
-                secID, secTitle, secColor = "activities", "activities", { 0.00, 1.00, 1.00 }
-            elseif campaignID and campaignID > 0 or (questClassification == (QC and QC.Campaign)) then
-                secID, secTitle, secColor = "campaign", "campaign", { 0.90, 0.75, 0.10 }
-            elseif questClassification == (QC and QC.Meta) or (C_QuestLog and C_QuestLog.IsMetaQuest and C_QuestLog.IsMetaQuest(questID)) then
-                secID, secTitle, secColor = "meta", "meta", { 0.00, 1.00, 1.00 }
-            elseif questClassification == (QC and QC.Important) or (C_QuestLog and C_QuestLog.IsImportantQuest and C_QuestLog.IsImportantQuest(questID)) then
-                secID, secTitle, secColor = "important", "important", { 1.00, 0.40, 0.35 }
+            local isZoneSec = false
+            local isCurZone = false
+
+            if IsClassQuest(questID, i, currentHeaderTitle) then
+                secID = "class"
+                secTitle = "class"
+                secColor = sfui.common.get_class_or_spec_color()
+            elseif IsDungeonQuest(questID, i, currentHeaderTitle) then
+                secID = "dungeons"
+                secTitle = "dungeons"
+                secColor = { 0.25, 0.65, 1.00 }
+            elseif IsProfessionQuest(questID, i, currentHeaderTitle) then
+                secID = "professions"
+                secTitle = "professions"
+                secColor = { 0.90, 0.65, 0.25 }
             else
-                secID, secTitle, secColor = "zone", "quests", { 1.00, 1.00, 1.00 }
+                local zName = currentHeaderTitle or "Miscellaneous"
+                local isCur = (currentZoneName ~= "" and zName:lower() == currentZoneName:lower())
+                secID       = "zone_" .. zName
+                secTitle    = zName:lower() .. (isCur and " [Zone]" or "")
+                secColor    = isCur and { 0.00, 1.00, 1.00 } or { 1.00, 1.00, 1.00 }
+                isZoneSec   = true
+                isCurZone   = isCur
             end
 
             local section = GetOrCreateSection(secID, secTitle, secColor)
+            if isZoneSec then
+                section.isZoneSection = true
+                if isCurZone then
+                    section.isCurrentZone = true
+                end
+            end
+
             local objs = C_QuestLog and C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(questID)
 
             -- If quest is complete, reset manual expansion override so it defaults to collapsed
@@ -696,7 +813,7 @@ function QuestsModule:BuildBlocks(container)
                 isExpanded = defaultExpanded
             end
 
-            -- Inline progress on collapsed titles
+            -- Solution 1: Inline progress on collapsed titles
             if not isExpanded and inlineTag ~= "" then
                 displayTitle = displayTitle .. inlineTag
             end
@@ -731,9 +848,24 @@ function QuestsModule:BuildBlocks(container)
                                     text  = string_format("%d%%", math_floor(pct + 0.5)),
                                 }
                             else
-                                -- Diminishing objectives (hide completed sub-objectives)
+                                -- Solution 2: Diminishing objectives (hide completed sub-objectives)
                                 if not obj.finished then
                                     local cleanTxt = (obj.text or ""):gsub(" / ", "/")
+                                    table_insert(lines, {
+                                        text      = cleanTxt,
+                                        completed = false,
+                                    })
+                                end
+                            end
+                        end
+                    elseif _G.GetNumQuestLeaderBoards and _G.GetQuestLogLeaderBoard then
+                        local numLeaderBoards = _G.GetNumQuestLeaderBoards(i) or 0
+                        for objIndex = 1, numLeaderBoards do
+                            local desc, _, isFinished = _G.GetQuestLogLeaderBoard(objIndex, i)
+                            if desc and desc ~= "" then
+                                -- Solution 2: Diminishing objectives (hide completed sub-objectives)
+                                if not isFinished then
+                                    local cleanTxt = desc:gsub(" / ", "/")
                                     table_insert(lines, {
                                         text      = cleanTxt,
                                         completed = false,
@@ -770,19 +902,7 @@ function QuestsModule:BuildBlocks(container)
             -- Usable Quest Item
             local itemInfo = Items and Items.GetQuestItemInfo(i, isComplete)
 
-            -- Countdown Timer Bar
-            local timerBar = nil
-            if TimerBars and TimerBars.CanShowTimerBar() then
-                local total, elapsed = TimerBars.GetQuestTimeAllowed(questID)
-                if total and total > 0 then
-                    timerBar = {
-                        timeTotal   = total,
-                        timeElapsed = elapsed or 0,
-                    }
-                end
-            end
-
-            -- Group Finder (LFG) support through API
+            -- Group Finder (LFG) support through API (disabled on Classic/Forever)
             local findGroupHelper = FindGroup or (sfui.tracker.helpers and sfui.tracker.helpers.findgroup)
             local canFindGroup = findGroupHelper and findGroupHelper.CanFindGroup and
             findGroupHelper.CanFindGroup(questID) or false
@@ -792,15 +912,11 @@ function QuestsModule:BuildBlocks(container)
 
             local titleColor = { 1, 1, 1, 1 }
             if canClickToComplete then
-                titleColor = { 1.0, 0.0, 1.0, 1 } -- #FF00FF for click-to-complete quests
+                titleColor = { 1.0, 0.0, 1.0, 1 } -- #FF00FF
             elseif isComplete then
                 titleColor = { 0.2, 1.0, 0.2, 1 }
             elseif isFailed then
                 titleColor = { 1.0, 0.2, 0.2, 1 }
-            elseif isRepeatable then
-                titleColor = { 0.00, 1.00, 1.00, 1 } -- #00FFFF for repeatable / daily quests
-            elseif isWarband then
-                titleColor = { 0.75, 0.15, 0.15, 1 } -- Dark red
             end
 
             table_insert(section.blocks, {
@@ -816,10 +932,10 @@ function QuestsModule:BuildBlocks(container)
                 isComplete         = isComplete,
                 canClickToComplete = canClickToComplete,
                 isFailed           = isFailed,
-                isRepeatable       = isRepeatable,
-                isWarbandCompleted = isWarband,
+                isRepeatable       = false,
+                isWarbandCompleted = false,
                 itemInfo           = itemInfo,
-                timerBar           = timerBar,
+                timerBar           = nil, -- Suppressed on Camelot
                 canFindGroup       = canFindGroup,
                 isExpanded         = isExpanded,
                 lines              = lines,
@@ -831,22 +947,43 @@ function QuestsModule:BuildBlocks(container)
         end
     end
 
-    -- Retail sorting: Important -> Campaign -> Meta -> Activities -> Zone
+    -- Camelot sorting: Class -> Dungeons -> Professions -> Current Zone -> Other Zones (alphabetical)
+    local numQ, maxQ, capBadge = GetQuestCapacityInfo()
     local sectionRanks = {
-        important  = 1,
-        campaign   = 2,
-        meta       = 3,
-        activities = 4,
-        zone       = 5,
+        class       = 1,
+        dungeons    = 2,
+        professions = 3,
     }
     table_sort(sectionOrder, function(a, b)
         local rA = sectionRanks[a.id] or 99
         local rB = sectionRanks[b.id] or 99
-        return rA < rB
+        if rA ~= rB then
+            return rA < rB
+        end
+        local aIsCur = a.isCurrentZone or (a.title and a.title:find("%[Zone%]") ~= nil)
+        local bIsCur = b.isCurrentZone or (b.title and b.title:find("%[Zone%]") ~= nil)
+        if aIsCur ~= bIsCur then
+            return aIsCur
+        end
+        return (a.title or "") < (b.title or "")
     end)
+
+    if #sectionOrder > 0 and capBadge then
+        local targetSec = nil
+        for _, sec in ipairs(sectionOrder) do
+            if sec.isCurrentZone then
+                targetSec = sec
+                break
+            end
+        end
+        targetSec = targetSec or sectionOrder[1]
+        if targetSec then
+            targetSec.capFormatted = capBadge
+        end
+    end
 
     return sectionOrder
 end
 
-sfui.tracker.RegisterModule(QuestsModule)
-return QuestsModule
+sfui.tracker.RegisterModule(CamelotQuestsModule)
+return CamelotQuestsModule

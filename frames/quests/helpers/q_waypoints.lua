@@ -48,7 +48,7 @@ function Waypoints.GetWaypointText(questID, isSuperTracked)
     if not shouldShow and C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID then
         shouldShow = (C_SuperTrack.GetSuperTrackedQuestID() == questID)
     end
-    if not shouldShow and QuestMapFrame_GetFocusedQuestID then
+    if not shouldShow and _G.QuestMapFrame and _G.QuestMapFrame.DetailsFrame and QuestMapFrame_GetFocusedQuestID then
         shouldShow = (QuestMapFrame_GetFocusedQuestID() == questID)
     end
 

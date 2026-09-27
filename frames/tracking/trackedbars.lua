@@ -1604,6 +1604,11 @@ if sfui.RegisterModule then
         if self.UpdateAppearance then self.UpdateAppearance() end
         if self.ForceLayoutUpdate then self.ForceLayoutUpdate() end
     end
+    sfui.trackedbars.OnSpecChanged = function(self, specID)
+        if self.InvalidateConfigCache then self.InvalidateConfigCache() end
+        if self.UpdateAppearance then self.UpdateAppearance() end
+        if self.ForceLayoutUpdate then self.ForceLayoutUpdate() end
+    end
     sfui.trackedbars.GetDebugInfo = sfui.trackedbars_debug_info
     sfui.RegisterModule("trackedbars", sfui.trackedbars)
 end

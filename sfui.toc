@@ -1,7 +1,7 @@
 ## Interface: 120100, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v12.1.0-57
+## Version: v12.1.0-58
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -26,8 +26,10 @@ data/season.lua
 compat.lua
 dispatcher.lua
 core/safety.lua
-core/colors.lua
 core/talents.lua
+core/talents_standard.lua [AllowLoadGameType standard]
+core/talents_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+core/colors.lua
 core/items.lua
 core/widgets.lua
 core/db.lua
@@ -111,7 +113,8 @@ frames/quests/helpers/q_tooltip.lua
 frames/quests/modules/q_scenarios.lua [AllowLoadGameType standard, camelot]
 frames/quests/modules/q_worldevents.lua [AllowLoadGameType standard]
 frames/quests/modules/q_worldquests.lua [AllowLoadGameType standard, camelot]
-frames/quests/modules/q_quests.lua
+frames/quests/modules/q_quests.lua [AllowLoadGameType standard]
+frames/quests/modules/q_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/quests/modules/q_achievements.lua [AllowLoadGameType standard, camelot]
 frames/quests/modules/q_activities.lua [AllowLoadGameType standard, camelot]
 frames/quests/modules/q_collectables.lua [AllowLoadGameType standard, camelot]

@@ -188,9 +188,11 @@ function WorldQuestsModule:BuildBlocks(container)
             end
             local prevSig = lastWQProgress[questID]
             if initialWQScanDone and prevSig and prevSig ~= currentSig then
-                if C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
-                    C_SuperTrack.SetSuperTrackedQuestID(questID)
-                    superTrackedQuestID = questID
+                if not InCombatLockdown or not InCombatLockdown() then
+                    if C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
+                        C_SuperTrack.SetSuperTrackedQuestID(questID)
+                        superTrackedQuestID = questID
+                    end
                 end
             end
             lastWQProgress[questID] = currentSig
@@ -213,6 +215,7 @@ function WorldQuestsModule:BuildBlocks(container)
                 OnClick        = function(block, btn)
                     -- Shift-Click: Untrack
                     if IsShiftKeyDown and IsShiftKeyDown() then
+                        if InCombatLockdown and InCombatLockdown() then return end
                         if C_QuestLog and C_QuestLog.RemoveQuestWatch then
                             C_QuestLog.RemoveQuestWatch(questID)
                         end
@@ -234,6 +237,7 @@ function WorldQuestsModule:BuildBlocks(container)
                     end
 
                     -- Left-Click: Open details or map
+                    if InCombatLockdown and InCombatLockdown() then return end
                     if QuestMapFrame_OpenToQuestDetails then
                         QuestMapFrame_OpenToQuestDetails(questID)
                     elseif _G.ToggleWorldMap then

@@ -21,6 +21,9 @@ local issecretvalue = (sfui.safety and sfui.safety.issecretvalue)
     or _G.issecretvalue
     or function() return false end
 
+local ICON_CHECK = "|TInterface\\RaidFrame\\ReadyCheck-Ready:12:12:0:0|t "
+local ICON_BULLET = "|cff888888-|r "
+
 local function PickAnchor(owner)
     if not owner then return "ANCHOR_LEFT" end
     local cx = owner:GetCenter()
@@ -66,7 +69,7 @@ function Tooltip.ShowBlockTooltip(owner, bData)
                 if line.text and line.text ~= "" and not issecretvalue(line.text) then
                     local r, g, b = 0.75, 0.75, 0.75
                     if line.completed then r, g, b = 0.30, 0.80, 0.30 end
-                    tip:AddLine("  " .. (line.completed and "|cff33cc33✓|r " or "|cff888888-|r ") .. tostring(line.text), r, g, b, true)
+                    tip:AddLine("  " .. (line.completed and ICON_CHECK or ICON_BULLET) .. tostring(line.text), r, g, b, true)
                 end
             end
         end
@@ -91,7 +94,7 @@ function Tooltip.ShowBlockTooltip(owner, bData)
                 if line.text and line.text ~= "" and not issecretvalue(line.text) then
                     local r, g, b = 0.75, 0.75, 0.75
                     if line.completed then r, g, b = 0.30, 0.80, 0.30 end
-                    tip:AddLine("  " .. (line.completed and "|cff33cc33✓|r " or "|cff888888-|r ") .. tostring(line.text), r, g, b, true)
+                    tip:AddLine("  " .. (line.completed and ICON_CHECK or ICON_BULLET) .. tostring(line.text), r, g, b, true)
                 end
             end
         end
@@ -113,7 +116,7 @@ function Tooltip.ShowBlockTooltip(owner, bData)
                 if line.text and line.text ~= "" and not issecretvalue(line.text) then
                     local r, g, b = 0.75, 0.75, 0.75
                     if line.completed then r, g, b = 0.30, 0.80, 0.30 end
-                    tip:AddLine("  " .. (line.completed and "|cff33cc33✓|r " or "|cff888888-|r ") .. tostring(line.text), r, g, b, true)
+                    tip:AddLine("  " .. (line.completed and ICON_CHECK or ICON_BULLET) .. tostring(line.text), r, g, b, true)
                 end
             end
         end
@@ -135,7 +138,7 @@ function Tooltip.ShowBlockTooltip(owner, bData)
                 if line.text and line.text ~= "" and not issecretvalue(line.text) then
                     local r, g, b = 0.75, 0.75, 0.75
                     if line.completed then r, g, b = 0.30, 0.80, 0.30 end
-                    tip:AddLine("  " .. (line.completed and "|cff33cc33✓|r " or "|cff888888-|r ") .. tostring(line.text), r, g, b, true)
+                    tip:AddLine("  " .. (line.completed and ICON_CHECK or ICON_BULLET) .. tostring(line.text), r, g, b, true)
                 end
             end
         end
@@ -191,7 +194,7 @@ function Tooltip.ShowBlockTooltip(owner, bData)
                 if line.text and line.text ~= "" and not issecretvalue(line.text) then
                     local lr, lg, lb = 0.75, 0.75, 0.75
                     if line.completed then lr, lg, lb = 0.30, 0.80, 0.30 end
-                    tip:AddLine("  " .. (line.completed and "|cff33cc33✓|r " or "|cff888888-|r ") .. tostring(line.text), lr, lg, lb, true)
+                    tip:AddLine("  " .. (line.completed and ICON_CHECK or ICON_BULLET) .. tostring(line.text), lr, lg, lb, true)
                 end
             end
         end
@@ -283,7 +286,7 @@ function Tooltip.ShowBlockTooltip(owner, bData)
                 if line.text and line.text ~= "" and not issecretvalue(line.text) then
                     local r, g, b = 0.75, 0.75, 0.75
                     if line.completed then r, g, b = 0.30, 0.80, 0.30 end
-                    tip:AddLine("  " .. (line.completed and "|cff33cc33✓|r " or "|cff888888-|r ") .. tostring(line.text), r, g, b, true)
+                    tip:AddLine("  " .. (line.completed and ICON_CHECK or ICON_BULLET) .. tostring(line.text), r, g, b, true)
                 end
             end
         elseif _G.C_QuestLog and _G.C_QuestLog.GetQuestObjectives then
@@ -294,7 +297,7 @@ function Tooltip.ShowBlockTooltip(owner, bData)
                     if obj.text and obj.text ~= "" and not issecretvalue(obj.text) then
                         local r, g, b = 0.75, 0.75, 0.75
                         if obj.finished then r, g, b = 0.30, 0.80, 0.30 end
-                        tip:AddLine("  " .. (obj.finished and "|cff33cc33✓|r " or "|cff888888-|r ") .. tostring(obj.text), r, g, b, true)
+                        tip:AddLine("  " .. (obj.finished and ICON_CHECK or ICON_BULLET) .. tostring(obj.text), r, g, b, true)
                     end
                 end
             end

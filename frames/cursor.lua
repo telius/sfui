@@ -35,6 +35,7 @@ function sfui.cursor.initialize()
         local r, g, b = sfui.common.get_spec_color(specID)
         ring:SetVertexColor(r, g, b, 0.8)
     end
+    sfui.cursor.UpdateColor = UpdateColor
 
     -- Event Handler (via central dispatcher)
     local cachedScale = GetEffectiveScale(uiparent)
@@ -48,6 +49,8 @@ function sfui.cursor.initialize()
         end
     end
     sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", on_cursor_event)
+    sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE",         on_cursor_event)
+    sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED",     on_cursor_event)
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD",         on_cursor_event)
     sfui.events.RegisterEvent("UI_SCALE_CHANGED",              on_cursor_event)
 
@@ -114,6 +117,9 @@ end
 
 if sfui.RegisterModule then
     sfui.cursor = sfui.cursor or {}
+    sfui.cursor.OnSpecChanged = function(self, specID)
+        if self.UpdateColor then self.UpdateColor() end
+    end
     sfui.cursor.GetDebugInfo = sfui.cursor_debug_info
     sfui.RegisterModule("cursor", sfui.cursor)
 end
