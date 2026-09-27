@@ -470,12 +470,42 @@ local function find_fishing_pole_in_bags()
     return nil
 end
 
-local SESSION_TIMEOUT = 30
+local CHANNEL_CHECK_INTERVAL = 5
 
 local function is_session_active()
     return _state.sessionActive == true
 end
 sfui.fishing.IsSessionActive = is_session_active
+
+local function cancel_session_timer()
+    if _state.sessionTimer then
+        if _state.sessionTimer.Cancel then
+            _state.sessionTimer:Cancel()
+        end
+        _state.sessionTimer = nil
+    end
+end
+
+local function is_channeling_fishing()
+    if not _G.UnitChannelInfo then
+        return _state.isFishing == true
+    end
+    local name, _, _, _, _, _, _, spellID = _G.UnitChannelInfo("player")
+    if not name then
+        _state.isFishing = false
+        return false
+    end
+    if spellID and FishingIDs[spellID] then
+        _state.isFishing = true
+        return true
+    end
+    local fName = get_fishing_spell_name()
+    if (fName and name == fName) or (name:lower()):find("fishing") then
+        _state.isFishing = true
+        return true
+    end
+    return _state.isFishing == true
+end
 
 local function end_session(equipWeapons)
     if not _state.sessionActive and not _state.isFishing and not is_fishing_pole_equipped() then return end
@@ -483,7 +513,7 @@ local function end_session(equipWeapons)
     _state.sessionActive = false
     _state.isFishing = false
     _state.wasFishing = false
-    _state.sessionTimer = nil
+    cancel_session_timer()
 
     clear_fishing_binds()
     arm_fishing_keys()
@@ -517,29 +547,52 @@ local function end_session(equipWeapons)
 end
 sfui.fishing.EndSession = end_session
 
-local function check_session_timeout()
+local function start_session_timer(delay, callback)
+    cancel_session_timer()
+    if _G.C_Timer and _G.C_Timer.NewTimer then
+        _state.sessionTimer = _G.C_Timer.NewTimer(delay, callback)
+    elseif _G.C_Timer and _G.C_Timer.After then
+        local cancelled = false
+        _G.C_Timer.After(delay, function()
+            if not cancelled then
+                callback()
+            end
+        end)
+        _state.sessionTimer = {
+            Cancel = function() cancelled = true end
+        }
+    end
+end
+
+local function check_session_tick()
+    _state.sessionTimer = nil
     if not _state.sessionActive then return end
-    if _state.isFishing then
-        -- Actively channeling fishing: postpone timeout check so it never cancels an active cast
-        _state.sessionTimer = _G.C_Timer.After(SESSION_TIMEOUT, check_session_timeout)
+
+    if is_channeling_fishing() then
+        -- Actively channeling fishing: keep session alive and check again in 5s
+        _state.lastActionTime = GetTime()
+        start_session_timer(CHANNEL_CHECK_INTERVAL, check_session_tick)
         return
     end
+
+    -- Not channeling fishing: check if we should end the session
     local now = GetTime()
     local elapsed = now - (_state.lastActionTime or 0)
-    if elapsed >= SESSION_TIMEOUT then
+    if elapsed >= (CHANNEL_CHECK_INTERVAL - 0.2) then
+        -- We are not channeling and at least 5s have elapsed since last action/channeling:
+        -- End the session and equip highest combat gear immediately
         end_session(true)
     else
-        local remaining = SESSION_TIMEOUT - elapsed
-        _state.sessionTimer = _G.C_Timer.After(remaining > 0.5 and remaining or 0.5, check_session_timeout)
+        -- Within the 5s grace window (e.g. keybind pressed or channel stopped <5s ago)
+        local remaining = CHANNEL_CHECK_INTERVAL - elapsed
+        start_session_timer(remaining > 0.5 and remaining or 0.5, check_session_tick)
     end
 end
 
 local function refresh_session()
     _state.sessionActive = true
     _state.lastActionTime = GetTime()
-    if not _state.sessionTimer then
-        _state.sessionTimer = _G.C_Timer.After(SESSION_TIMEOUT, check_session_timeout)
-    end
+    start_session_timer(CHANNEL_CHECK_INTERVAL, check_session_tick)
 end
 sfui.fishing.RefreshSession = refresh_session
 sfui.fishing.StartSession = refresh_session
@@ -722,9 +775,11 @@ function sfui.fishing.RunKeybind(fromSlash)
         return
     end
 
+    -- Always reset session timer on pressing the keybind
+    refresh_session()
+
     -- 1. If loot is open, loot it on pressing the keybind
     if loot_all_items() then
-        refresh_session()
         return
     end
 
@@ -848,7 +903,7 @@ end
 local function on_enter_combat()
     _state.isFishing = false
     _state.sessionActive = false
-    _state.sessionTimer = nil
+    cancel_session_timer()
     clear_fishing_binds()
 end
 
