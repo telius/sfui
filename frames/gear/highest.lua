@@ -1833,11 +1833,104 @@ function sfui.highest.GetBestItems(isPvP)
     return finalPick
 end
 
+local function isClassicOrVanilla()
+    if sfui.gear and sfui.gear.isClassicOrVanilla then return sfui.gear.isClassicOrVanilla() end
+    if sfui.isForever or sfui.isClassic or sfui.isEra then return true end
+    if sfui.compat and (sfui.compat.is_classic or sfui.compat.is_wow_forever or sfui.compat.is_classic_era) then return true end
+    if sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail) then return true end
+    local spec = (common and common.get_specialization and common.get_specialization()) or (_G.GetSpecialization and _G.GetSpecialization())
+    local numSpec = tonumber(spec)
+    if numSpec and numSpec >= 1482 and numSpec <= 1491 then return true end
+    return false
+end
+sfui.highest.isClassicOrVanilla = isClassicOrVanilla
+
+--- Detects if player has a fishing pole currently equipped in slot 16 (Main Hand)
+--- Authoritatively uses Item Class (Weapon = 2, Profession = 19) and Item Subclass (Fishingpole = 20, Fishing = 9).
+--- Determines if a given item (by ID or link) is a fishing pole.
+--- @return boolean
+function sfui.highest.IsFishingPoleItem(itemID, itemLink)
+    if sfui.fishing and sfui.fishing.IsFishingPoleItem then
+        return sfui.fishing.IsFishingPoleItem(itemID, itemLink)
+    end
+    if not itemID and itemLink then
+        itemID = tonumber(itemLink:match("item:(%d+)"))
+    end
+    if not itemID and not itemLink then return false end
+
+    -- Authoritative helper: match distinct item class & subclass for fishing poles
+    local function is_pole_class(classID, subclassID)
+        if not classID or not subclassID then return false end
+        -- Weapon -> Fishingpole (Class 2, Subclass 20)
+        if classID == 2 and (subclassID == 20 or (Enum and Enum.ItemWeaponSubclass and subclassID == Enum.ItemWeaponSubclass.Fishingpole)) then
+            return true
+        end
+        -- Profession -> Fishing (Class 19, Subclass 9)
+        if classID == 19 and (subclassID == 9 or (Enum and Enum.ItemProfessionSubclass and subclassID == Enum.ItemProfessionSubclass.Fishing)) then
+            return true
+        end
+        return false
+    end
+
+    if _G.C_Item and _G.C_Item.GetItemInfoInstant then
+        local _, _, _, _, _, cID, scID = _G.C_Item.GetItemInfoInstant(itemID or itemLink)
+        if is_pole_class(cID, scID) then return true end
+    end
+
+    if _G.GetItemInfoInstant then
+        local _, _, _, _, _, cID, scID = _G.GetItemInfoInstant(itemID or itemLink)
+        if is_pole_class(cID, scID) then return true end
+    end
+
+    if _G.GetItemInfo then
+        local _, _, _, _, _, _, subType, _, _, _, _, cID, scID = _G.GetItemInfo(itemLink or itemID)
+        if is_pole_class(cID, scID) then return true end
+        if subType then
+            local sLower = subType:lower()
+            if sLower:find("fishing") or sLower:find("angel") or sLower:find("peche") or sLower:find("pesca") then
+                return true
+            end
+        end
+    end
+
+    if common and common.get_item_instant_info then
+        local _, _, _, _, _, cID, scID = common.get_item_instant_info(itemID or itemLink)
+        if is_pole_class(cID, scID) then return true end
+    end
+
+    if itemLink then
+        local bracketName = itemLink:match("%[(.-)%]")
+        if bracketName then
+            local bLower = bracketName:lower()
+            if bLower:find("fishing") or bLower:find("angel") or bLower:find("peche") or bLower:find("pesca") or bLower:find("angler") then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+sfui.gear = sfui.gear or {}
+sfui.gear.IsFishingPoleItem = sfui.highest.IsFishingPoleItem
+
+--- Detects if player has a fishing pole currently equipped in slot 16 (Main Hand)
+--- @return boolean
+function sfui.highest.IsFishingPoleEquipped()
+    if sfui.fishing and sfui.fishing.IsFishingPoleEquipped then
+        return sfui.fishing.IsFishingPoleEquipped()
+    end
+    local itemID = _G.GetInventoryItemID and _G.GetInventoryItemID("player", 16)
+    local itemLink = _G.GetInventoryItemLink and _G.GetInventoryItemLink("player", 16)
+    return sfui.highest.IsFishingPoleItem(itemID, itemLink)
+end
+sfui.gear.IsFishingPoleEquipped = sfui.highest.IsFishingPoleEquipped
+
 local isEquippingInProgress = false
 local pendingEquipRequest   = nil
 
 function sfui.highest.EquipHighestILvl(isPvP, silent)
-    if _G.InCombatLockdown and _G.InCombatLockdown() then
+    local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
+    if inCombat then
         if not silent then sfprint("Cannot equip gear while in combat.") end
         return
     end
@@ -1851,28 +1944,37 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
     local best = sfui.highest.GetBestItems(isPvP)
     if not best then return end
 
+    local isFishingPole = sfui.highest.IsFishingPoleEquipped()
+    local isFishingSession = (sfui.fishing and sfui.fishing.IsSessionActive and sfui.fishing.IsSessionActive())
+    -- Out of combat, while a fishing session is active, a fishing pole is NEVER replaced by auto gear
+    local skipWeaponsForFishing = isFishingPole and isFishingSession
+
     local equipQueue = {}
     for slotID, item in pairs(best) do
-        local isAlreadyEquippedHere = (item.isEquipped and item.equippedSlot == slotID)
-        if not isAlreadyEquippedHere then
-            local oldLink = _G.GetInventoryItemLink("player", slotID)
-            local oldIlvl = oldLink and common.get_item_level(oldLink) or 0
-            local oldScore = 0
-            if sfui.highest.pooledBest and sfui.highest.pooledBest[slotID] then
-                for _, itm in ipairs(sfui.highest.pooledBest[slotID]) do
-                    if itm.isEquipped and itm.equippedSlot == slotID then
-                        oldScore = itm.score or 0
-                        break
+        if skipWeaponsForFishing and (slotID == 16 or slotID == 17) then
+            -- Pause auto gear for weapon slots while fishing pole is equipped
+        else
+            local isAlreadyEquippedHere = (item.isEquipped and item.equippedSlot == slotID)
+            if not isAlreadyEquippedHere then
+                local oldLink = _G.GetInventoryItemLink("player", slotID)
+                local oldIlvl = oldLink and common.get_item_level(oldLink) or 0
+                local oldScore = 0
+                if sfui.highest.pooledBest and sfui.highest.pooledBest[slotID] then
+                    for _, itm in ipairs(sfui.highest.pooledBest[slotID]) do
+                        if itm.isEquipped and itm.equippedSlot == slotID then
+                            oldScore = itm.score or 0
+                            break
+                        end
                     end
                 end
+                table.insert(equipQueue, {
+                    slotID   = slotID,
+                    item     = item,
+                    oldLink  = oldLink,
+                    oldIlvl  = oldIlvl,
+                    oldScore = oldScore,
+                })
             end
-            table.insert(equipQueue, {
-                slotID   = slotID,
-                item     = item,
-                oldLink  = oldLink,
-                oldIlvl  = oldIlvl,
-                oldScore = oldScore,
-            })
         end
     end
 
@@ -1881,7 +1983,9 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
 
     local totalToEquip = #equipQueue
     if totalToEquip == 0 then
-        if not silent then sfprint("Already wearing your best gear.") end
+        if not silent then
+            sfprint("Already wearing your best gear.")
+        end
         return
     end
 
@@ -1900,13 +2004,16 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
     local function equipNext(index, retryCount)
         if index > #equipQueue then
             if totalToEquip > 0 then
-                if not silent then sfprint("Equipped " .. totalToEquip .. " upgrade(s)!") end
+                if not silent then
+                    sfprint("Equipped " .. totalToEquip .. " upgrade(s)!")
+                end
             end
             onEquipFinished()
             return
         end
 
-        if InCombatLockdown() then
+        local currentInCombat = _G.InCombatLockdown and _G.InCombatLockdown()
+        if currentInCombat then
             if not silent then sfprint("Equip canceled: cannot change equipment in combat.") end
             onEquipFinished()
             return
@@ -2049,3 +2156,4 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
 
     equipNext(1)
 end
+

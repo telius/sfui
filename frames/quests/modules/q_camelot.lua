@@ -90,16 +90,11 @@ local function GetQuestProgressDetails(questID, questLogIndex, isComplete, objs,
         return true, tag
     end
 
-    local hasProgress = false
-    local inlineTag = ""
-
     -- 1. Progress bar percent (if supported on modern quest formats)
     if GetQuestProgressBarPercent then
         local pct = GetQuestProgressBarPercent(questID)
         if pct and pct > 0 then
-            hasProgress = true
-            inlineTag = string_format(" |cffa0a0a0(%d%%)|r", math_floor(pct + 0.5))
-            return hasProgress, inlineTag
+            return true, string_format(" |cffa0a0a0(%d%%)|r", math_floor(pct + 0.5))
         end
     end
 
@@ -107,39 +102,19 @@ local function GetQuestProgressDetails(questID, questLogIndex, isComplete, objs,
     if objs and #objs > 0 then
         local total = #objs
         local finished = 0
-        local anyFulfilled = false
-        local singleProg = nil
+        local hasProgress = false
 
         for _, obj in ipairs(objs) do
             if obj.finished then
                 finished = finished + 1
-                anyFulfilled = true
+                hasProgress = true
             elseif obj.numFulfilled and obj.numFulfilled > 0 then
-                anyFulfilled = true
-                if total == 1 and obj.numRequired and obj.numRequired > 0 then
-                    singleProg = string_format(" |cffa0a0a0(%d/%d)|r", obj.numFulfilled, obj.numRequired)
-                end
-            elseif obj.text then
-                local cur, req = obj.text:match("(%d+)%s*/%s*(%d+)")
-                if cur and tonumber(cur) and tonumber(cur) > 0 then
-                    anyFulfilled = true
-                    if total == 1 and req then
-                        singleProg = string_format(" |cffa0a0a0(%s/%s)|r", cur, req)
-                    end
-                end
+                hasProgress = true
             end
         end
 
-        hasProgress = anyFulfilled
-        if total == 1 then
-            if finished == 1 then
-                inlineTag = " |cff33ff33(1/1)|r"
-            elseif singleProg then
-                inlineTag = singleProg
-            else
-                inlineTag = " |cffa0a0a0(0/1)|r"
-            end
-        else
+        local inlineTag = ""
+        if total > 1 and finished < total then
             inlineTag = string_format(" |cffa0a0a0(%d/%d)|r", finished, total)
         end
 
@@ -151,39 +126,19 @@ local function GetQuestProgressDetails(questID, questLogIndex, isComplete, objs,
         local num = _G.GetNumQuestLeaderBoards(questLogIndex) or 0
         if num > 0 then
             local finished = 0
-            local anyFulfilled = false
-            local singleProg = nil
-
             for objIndex = 1, num do
-                local desc, _, isFinished = _G.GetQuestLogLeaderBoard(objIndex, questLogIndex)
+                local _, _, isFinished = _G.GetQuestLogLeaderBoard(objIndex, questLogIndex)
                 if isFinished then
                     finished = finished + 1
-                    anyFulfilled = true
-                elseif desc then
-                    local cur, req = desc:match("(%d+)%s*/%s*(%d+)")
-                    if cur and tonumber(cur) and tonumber(cur) > 0 then
-                        anyFulfilled = true
-                        if num == 1 and req then
-                            singleProg = string_format(" |cffa0a0a0(%s/%s)|r", cur, req)
-                        end
-                    end
                 end
             end
 
-            hasProgress = anyFulfilled
-            if num == 1 then
-                if finished == 1 then
-                    inlineTag = " |cff33ff33(1/1)|r"
-                elseif singleProg then
-                    inlineTag = singleProg
-                else
-                    inlineTag = " |cffa0a0a0(0/1)|r"
-                end
-            else
+            local inlineTag = ""
+            if num > 1 and finished < num then
                 inlineTag = string_format(" |cffa0a0a0(%d/%d)|r", finished, num)
             end
 
-            return hasProgress, inlineTag
+            return (finished > 0), inlineTag
         end
     end
 

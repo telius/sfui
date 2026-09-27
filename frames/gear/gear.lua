@@ -108,6 +108,17 @@ local function isCurrentlyPvP()
         or (instanceType == "none" and isWarMode)
 end
 
+local function isClassicOrVanilla()
+    if sfui.isForever or sfui.isClassic or sfui.isEra then return true end
+    if sfui.compat and (sfui.compat.is_classic or sfui.compat.is_wow_forever or sfui.compat.is_classic_era) then return true end
+    if sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail) then return true end
+    local spec = (common and common.get_specialization and common.get_specialization()) or (_G.GetSpecialization and _G.GetSpecialization())
+    local numSpec = tonumber(spec)
+    if numSpec and numSpec >= 1482 and numSpec <= 1491 then return true end
+    return false
+end
+sfui.gear.isClassicOrVanilla = isClassicOrVanilla
+
 -- Returns true if the correct gear set for the current zone/spec is already equipped,
 -- meaning EquipHighestILvl must NOT override it.
 local function isGearSetEquipped()
@@ -163,6 +174,11 @@ end
 local function TryEquipSet(setName)
     if not setName or setName == "" then return false end
     if not C_EquipmentSet or not C_EquipmentSet.GetEquipmentSetID then return false end
+    local isPole = (sfui.highest and sfui.highest.IsFishingPoleEquipped and sfui.highest.IsFishingPoleEquipped())
+        or (sfui.gear and sfui.gear.IsFishingPoleEquipped and sfui.gear.IsFishingPoleEquipped())
+        or (sfui.fishing and sfui.fishing.IsFishingPoleEquipped and sfui.fishing.IsFishingPoleEquipped())
+    local isSession = (sfui.fishing and sfui.fishing.IsSessionActive and sfui.fishing.IsSessionActive())
+    if isPole and isSession then return false end
     local setID = C_EquipmentSet.GetEquipmentSetID(setName)
     if setID then
         local name, icon, _, isEquipped = C_EquipmentSet.GetEquipmentSetInfo(setID)
@@ -633,8 +649,11 @@ end
 function sfui.gear.UpdateStatUI()
     if not SfuiGearManagerFrame or not SfuiGearManagerFrame:IsShown() then return end
 
-    if SfuiGearManagerFrame.maxLvlChk then
-        SfuiGearManagerFrame.maxLvlChk:SetChecked(isAutoEquipEnabled())
+    local autoEnabled = isAutoEquipEnabled()
+    if SfuiGearManagerFrame.enableChk then
+        SfuiGearManagerFrame.enableChk:SetChecked(autoEnabled)
+    elseif SfuiGearManagerFrame.maxLvlChk then
+        SfuiGearManagerFrame.maxLvlChk:SetChecked(autoEnabled)
     end
 
     -- Status label: shows what gear mode is currently active
@@ -889,6 +908,7 @@ end
 -- GEAR UPDATE (AUTO EQUIP)
 -- -------------------------------------------------------------------------
 function sfui.gear.Update(force)
+    if not isAutoEquipEnabled() and not force then return end
     if not SfuiDB.gear then return end
     local spec = common.get_current_spec_id()
     if spec == 0 then return end
@@ -913,7 +933,7 @@ function sfui.gear.Update(force)
         targetSet = isPvP and (pvpSet ~= "" and pvpSet or nil) or (pveSet ~= "" and pveSet or nil)
     end
 
-    -- PvE/PvP set swap: ALWAYS active regardless of the max-level auto-equip toggle.
+    -- PvE/PvP set swap: equip configured named set for the current zone/spec.
     -- TryEquipSet returns true when it actually triggered an equip.
     local setEquipped = false
     if targetSet then
@@ -941,7 +961,7 @@ function sfui.gear.Update(force)
         and not InCombatLockdown()
         and not UnitIsDeadOrGhost("player") then
         local shouldEquip = isAutoEquipEnabled()
-        if shouldEquip or force then
+        if shouldEquip then
             sfui.highest.EquipHighestILvl(isPvP, true)
         end
     end
@@ -1128,6 +1148,12 @@ sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", function()
     if sfui.highest and sfui.highest.ClearCache then
         sfui.highest.ClearCache()
     end
+    if sfui.gear and sfui.gear.Update then
+        sfui.gear.Update(true)
+    end
+    if sfui.gear and sfui.gear.UpdateStatUI then
+        sfui.gear.UpdateStatUI()
+    end
 end)
 
 local function _OnZoneChangeTimer()
@@ -1153,6 +1179,35 @@ sfui.events.RegisterEvent("PLAYER_LEVEL_UP", function()
     end
     sfui.gear.Update(true)
 end)
+
+-- Weapon specialization & skill updates (e.g. learning Staves, Polearms, Bows at Weapon Master)
+local skillUpdatePending = false
+local function _OnSkillChangeTimer()
+    skillUpdatePending = false
+    if sfui.highest and sfui.highest.ClearValidationCache then
+        sfui.highest.ClearValidationCache()
+    end
+    if sfui.gear and sfui.gear.Update then
+        sfui.gear.Update(true)
+    end
+    if sfui.gear and sfui.gear.UpdateStatUI then
+        sfui.gear.UpdateStatUI()
+    end
+end
+
+local function handle_skill_change()
+    if not skillUpdatePending then
+        skillUpdatePending = true
+        C_Timer.After(0.3, _OnSkillChangeTimer)
+    end
+end
+
+sfui.events.RegisterEvent("SKILL_LINES_CHANGED", handle_skill_change)
+sfui.events.RegisterEvent("SPELLS_CHANGED", handle_skill_change)
+sfui.events.RegisterEvent("LEARNED_SPELL_IN_TAB", handle_skill_change)
+sfui.events.RegisterEvent("TRAINER_UPDATE", handle_skill_change)
+sfui.events.RegisterEvent("TRAINER_CLOSED", handle_skill_change)
+sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", handle_skill_change)
 
 
 -- B2: ADDON_LOADED registration removed (InitToggleHook called at login via PLAYER_LOGIN)
@@ -1293,14 +1348,18 @@ gearFrame.statusLabel:SetJustifyH("LEFT")
 gearFrame.statusLabel:SetShadowOffset(0, 0)
 gearFrame.statusLabel:SetText("")
 
-gearFrame.maxLvlChk = common.create_checkbox(gearFrame, "enable",
+gearFrame.enableChk = common.create_checkbox(gearFrame, "enable",
     function() return isAutoEquipEnabled() end,
     function(c)
         setAutoEquipEnabled(c)
+        if sfui.gearOptionsCheckbox and sfui.gearOptionsCheckbox.SetChecked then
+            sfui.gearOptionsCheckbox:SetChecked(c)
+        end
         if c then sfui.gear.Update() end
     end)
-gearFrame.maxLvlChk:SetPoint("TOPLEFT", gearFrame, "TOPLEFT", 360, -9)
-gearFrame.maxLvlChk.text:SetShadowOffset(0, 0)
+gearFrame.enableChk:SetPoint("TOPLEFT", gearFrame, "TOPLEFT", 360, -9)
+gearFrame.enableChk.text:SetShadowOffset(0, 0)
+gearFrame.maxLvlChk = gearFrame.enableChk
 
 -- -------------------------------------------------------------------------
 -- ON SHOW: build per-spec cards

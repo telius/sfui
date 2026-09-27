@@ -275,6 +275,32 @@ sfui.config = {
         maxScaledILvl = 1000,
     },
 
+    lootfeed = {
+        enabled = true,
+        width = 320,
+        rowHeight = 34,
+        maxRows = 10,
+        displayDuration = 8.0,
+        fadeDuration = 0.5,
+        growDirection = "DOWN", -- "DOWN" or "UP"
+        minItemQuality = 0,     -- 0 = Poor, 1 = Common, 2 = Uncommon, 3 = Rare, 4 = Epic
+        trackMoney = true,
+        trackCurrency = true,
+        trackXP = true,
+        trackReputation = true,
+        trackSkills = true,
+        trackPartyLoot = true,
+        showTotalCurrency = true,
+        showTotalMoney = true,
+        showSellPrice = true,
+        pos = {
+            point = "TOPRIGHT",
+            relativePoint = "TOPRIGHT",
+            x = -320,
+            y = -200,
+        },
+    },
+
     item_frame = {
         width = 200,
         height = 70,

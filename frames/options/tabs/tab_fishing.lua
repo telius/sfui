@@ -131,6 +131,9 @@ sfui.options.RegisterTab({
             if not is_listening then return end
             is_listening = false
             catcher:EnableKeyboard(false)
+            if catcher.EnableGamePadButton then
+                catcher:EnableGamePadButton(false)
+            end
             catcher:Hide()
 
             local gray = (sfui.config and sfui.config.colors and sfui.config.colors.gray) or { 0.5, 0.5, 0.5 }
@@ -144,10 +147,13 @@ sfui.options.RegisterTab({
             bind_btn:SetText("|cffffff00press a key...|r")
             local cyan = { 0, 1, 1 }
             bind_btn:SetBackdropBorderColor(cyan[1], cyan[2], cyan[3], 1)
-            keybind_status:SetText("active keybind: |cffffff00press key to bind (ESC to cancel)|r")
+            keybind_status:SetText("active keybind: |cffffff00press key or gamepad button to bind (ESC to cancel)|r")
 
             catcher:Show()
             catcher:EnableKeyboard(true)
+            if catcher.EnableGamePadButton then
+                catcher:EnableGamePadButton(true)
+            end
             if catcher.SetPropagateKeyboardInput then
                 catcher:SetPropagateKeyboardInput(false)
             end

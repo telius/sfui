@@ -62,7 +62,7 @@ sfui.options.RegisterTab({
                 end
             end)
 
-            local gear_auto_open_cb = common.create_checkbox(gear_panel, "Auto-show with Character Panel", function()
+            local gear_auto_open_cb = common.create_checkbox(gear_panel, "auto-show with character panel", function()
                 if SfuiDB.gear and SfuiDB.gear.auto_open ~= nil then return SfuiDB.gear.auto_open end
                 return true
             end, function(checked)
@@ -72,20 +72,32 @@ sfui.options.RegisterTab({
             gear_auto_open_cb:SetPoint("TOPLEFT", open_gear_btn, "BOTTOMLEFT", 0, -10)
 
             local auto_equip_highest_cb = common.create_checkbox(gear_panel,
-                "auto-equip best gear (while not max level)", function()
+                "enable auto-equip best gear", function()
                 if SfuiDB.gear and SfuiDB.gear.auto_equip_highest ~= nil then return SfuiDB.gear.auto_equip_highest end
                 return true
             end, function(checked)
                 SfuiDB.gear = SfuiDB.gear or {}
                 SfuiDB.gear.auto_equip_highest = checked
-                if SfuiGearManagerFrame and SfuiGearManagerFrame.maxLvlChk then
-                    SfuiGearManagerFrame.maxLvlChk:SetChecked(checked)
+                if SfuiGearManagerFrame then
+                    if SfuiGearManagerFrame.enableChk then
+                        SfuiGearManagerFrame.enableChk:SetChecked(checked)
+                    elseif SfuiGearManagerFrame.maxLvlChk then
+                        SfuiGearManagerFrame.maxLvlChk:SetChecked(checked)
+                    end
                 end
                 if checked and sfui.gear and sfui.gear.Update then
                     sfui.gear.Update()
                 end
             end)
             auto_equip_highest_cb:SetPoint("TOPLEFT", gear_auto_open_cb, "BOTTOMLEFT", 0, -10)
+            sfui.gearOptionsCheckbox = auto_equip_highest_cb
+
+            table_insert(updateFuncs, function()
+                if auto_equip_highest_cb and auto_equip_highest_cb.SetChecked then
+                    local enabled = (SfuiDB.gear and SfuiDB.gear.auto_equip_highest ~= nil) and SfuiDB.gear.auto_equip_highest or true
+                    auto_equip_highest_cb:SetChecked(enabled)
+                end
+            end)
 
             local pveHeader = self:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             pveHeader:SetPoint("TOPLEFT", auto_equip_highest_cb, "BOTTOMLEFT", 45, -12)

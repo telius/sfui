@@ -234,84 +234,6 @@ function sfui.create_options_panel()
         end
     end
 
-    -- Search / Filter Box for tabs
-    local search_box = CreateFrame("EditBox", "sfui_options_search", frame, "BackdropTemplate")
-    search_box:SetSize(c.tabs.width, 22)
-    search_box:SetPoint("TOPLEFT", frame, "TOPLEFT", 5, -40)
-    search_box:SetAutoFocus(false)
-    search_box:SetFontObject(g.font)
-    search_box:SetTextInsets(6, 6, 0, 0)
-    search_box:SetBackdrop({
-        bgFile = g.textures.white,
-        edgeFile = g.textures.white,
-        edgeSize = 1,
-    })
-    search_box:SetBackdropColor(0.08, 0.08, 0.08, 0.9)
-    search_box:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
-
-    local placeholder = search_box:CreateFontString(nil, "OVERLAY", g.font)
-    placeholder:SetPoint("LEFT", search_box, "LEFT", 6, 0)
-    placeholder:SetTextColor(0.4, 0.4, 0.4, 0.8)
-    placeholder:SetText("filter tabs...")
-
-    local function layout_tabs(filterText)
-        if not frame or not frame.tabs then return end
-        local filter = (filterText and filterText:match("^%s*(.-)%s*$") or ""):lower()
-        local prevButton = nil
-        for _, tab_data in ipairs(frame.tabs) do
-            local btn = tab_data.button
-            local tabDef = btn.tabDef
-            local tabName = (tabDef and (tabDef.name or tabDef.id) or btn:GetText() or ""):lower()
-            local matches = (filter == "") or (tabName:find(filter, 1, true) ~= nil)
-            if matches then
-                btn:Show()
-                btn:ClearAllPoints()
-                if not prevButton then
-                    btn:SetPoint("TOPLEFT", search_box, "BOTTOMLEFT", 0, -8)
-                elseif tabDef and tabDef.id == "debug" and filter == "" then
-                    btn:SetPoint("TOPLEFT", prevButton, "BOTTOMLEFT", 0, -10)
-                elseif prevButton.tabDef and prevButton.tabDef.id == "main" and filter == "" then
-                    btn:SetPoint("TOPLEFT", prevButton, "BOTTOMLEFT", 0, -10)
-                else
-                    btn:SetPoint("TOPLEFT", prevButton, "BOTTOMLEFT", 0, 4)
-                end
-                prevButton = btn
-            else
-                btn:Hide()
-            end
-        end
-    end
-
-    search_box:SetScript("OnTextChanged", function(self)
-        local txt = self:GetText()
-        if txt == "" then
-            placeholder:Show()
-        else
-            placeholder:Hide()
-        end
-        layout_tabs(txt)
-    end)
-    search_box:SetScript("OnEscapePressed", function(self)
-        if self:GetText() ~= "" then
-            self:SetText("")
-            self:ClearFocus()
-        else
-            self:ClearFocus()
-            frame:Hide()
-        end
-    end)
-    search_box:SetScript("OnEnterPressed", function(self)
-        self:ClearFocus()
-        if frame.selected_tab and not frame.selected_tab:IsShown() then
-            for _, tab_data in ipairs(frame.tabs) do
-                if tab_data.button:IsShown() then
-                    select_tab(tab_data.button)
-                    break
-                end
-            end
-        end
-    end)
-
     local function create_tab(id, displayName)
         local tab_button = CreateFrame("Button", "sfui_options_tab_" .. id, frame)
         tab_button:SetSize(c.tabs.width, c.tabs.height)
@@ -482,13 +404,26 @@ function sfui.create_options_panel()
         return nameA < nameB
     end)
 
-    for _, tabDef in ipairs(tabs_to_show) do
+    local last_tab_button = nil
+    for i, tabDef in ipairs(tabs_to_show) do
         local content_panel, tab_button = create_tab(tabDef.id, tabDef.name or tabDef.id)
         tab_button.tabDef = tabDef
         tab_button.content_panel = content_panel
-    end
 
-    layout_tabs("")
+        if i == 1 then
+            tab_button:SetPoint("TOPLEFT", frame, "TOPLEFT", 5, -40)
+        elseif tabDef.id == "debug" then
+            -- Distinct gap before debug at the bottom
+            tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, -10)
+        elseif last_tab_button and last_tab_button.tabDef and last_tab_button.tabDef.id == "main" then
+            -- Distinct gap after main
+            tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, -10)
+        else
+            -- Standard gap
+            tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
+        end
+        last_tab_button = tab_button
+    end
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────

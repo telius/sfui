@@ -457,12 +457,18 @@ function sfui.widgets.create_slider_input(parent, label, dbKeyOrGetter, minVal, 
     slider:SetValueStep(step)
     slider:SetObeyStepOnDrag(true)
 
+    slider:SetBackdrop({
+        bgFile = "Interface/Buttons/WHITE8X8",
+        edgeFile = "Interface/Buttons/WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    })
     local app = sfui.config.appearance
     slider:SetBackdropColor(app.sliderBackdropColor[1], app.sliderBackdropColor[2], app.sliderBackdropColor[3], app.sliderBackdropColor[4])
     slider:SetBackdropBorderColor(0, 0, 0, 1)
 
     local thumb = slider:CreateTexture(nil, "OVERLAY")
-    thumb:SetSize(6, 10)
+    thumb:SetSize(6, 12)
     thumb:SetColorTexture(app.highlightColor[1], app.highlightColor[2], app.highlightColor[3], 1)
     slider:SetThumbTexture(thumb)
 
@@ -539,6 +545,16 @@ function sfui.widgets.create_slider_input(parent, label, dbKeyOrGetter, minVal, 
         self:SetValue(val)
         editbox:SetText(tostring(math.floor(val * 100) / 100))
     end)
+
+    local initVal
+    if type(dbKeyOrGetter) == "string" and SfuiDB then
+        initVal = SfuiDB[dbKeyOrGetter]
+    elseif type(dbKeyOrGetter) == "function" then
+        initVal = dbKeyOrGetter()
+    end
+    if initVal == nil then initVal = minVal end
+    slider:SetValue(initVal)
+    editbox:SetText(tostring(math.floor(initVal * 100) / 100))
 
     function container:SetSliderValue(val)
         slider:SetValue(val)
