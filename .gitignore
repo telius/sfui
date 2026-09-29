@@ -25,3 +25,7 @@ PERF*
 OPT*
 Libs/
 scratch/
+
+# Secrets and tokens
+*token*
+*.token
