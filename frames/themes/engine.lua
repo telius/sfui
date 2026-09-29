@@ -96,12 +96,19 @@ function sfui.theme.GetCornerBracketAtlas(corner, themeDef)
 end
 
 function sfui.theme.IsCamelotSupported()
-    return true
+    if sfui.isForever or (sfui.compat and sfui.compat.is_wow_forever) then
+        return true
+    end
+    -- Fallback: check if the client actually has the native bronze frame atlas
+    return sfui.theme.HasAtlas("heavybronze-frame-basic")
 end
 
 -- ─── Active Theme Resolution & Setting ────────────────────────────────────────
 function sfui.theme.GetActiveThemeID()
     if sfui.theme.forcedMode then
+        if sfui.theme.forcedMode == "camelot" and not sfui.theme.IsCamelotSupported() then
+            return "modern"
+        end
         return sfui.theme.forcedMode
     end
 
@@ -119,13 +126,21 @@ function sfui.theme.GetActiveThemeID()
         for _, id in ipairs(themeOrder) do
             local def = registeredThemes[id]
             if def and def.autoDetect and def.autoDetect() then
-                return def.id
+                if id == "camelot" and not sfui.theme.IsCamelotSupported() then
+                    -- Cannot use camelot if bronze assets are not present
+                else
+                    return def.id
+                end
             end
         end
         -- Default fallbacks if no autoDetect claims it
-        if sfui.isForever or (sfui.compat and sfui.compat.is_wow_forever) then
+        if sfui.theme.IsCamelotSupported() then
             return "camelot"
         end
+        return "modern"
+    end
+
+    if mode == "camelot" and not sfui.theme.IsCamelotSupported() then
         return "modern"
     end
 
@@ -137,6 +152,10 @@ end
 
 function sfui.theme.SetTheme(mode)
     mode = mode and mode:lower()
+    if mode == "camelot" and not sfui.theme.IsCamelotSupported() then
+        return false, "Camelot Heavy Bronze theme is exclusive to Camelot (bronze assets are not in Retail)."
+    end
+
     if mode ~= "auto" and not registeredThemes[mode] then
         return false, "Unknown theme mode: " .. tostring(mode)
     end
@@ -155,7 +174,7 @@ function sfui.theme.SetTheme(mode)
 end
 
 function sfui.theme.IsCamelotActive()
-    return sfui.theme.GetActiveThemeID() == "camelot"
+    return sfui.theme.IsCamelotSupported() and (sfui.theme.GetActiveThemeID() == "camelot")
 end
 
 function sfui.theme.GetPalette()
@@ -185,7 +204,7 @@ function sfui.theme.ApplyWindowStyle(frame, options)
     end
 
     local style = theme.window and theme.window.style
-    local isSculptedWindow = (style == "bronze" or style == "heavy_bronze" or style == "metal_pieces")
+    local isSculptedWindow = (style == "bronze" or style == "heavy_bronze" or style == "metal_pieces") and sfui.theme.IsCamelotSupported()
     local showBrackets = (options.cornerBrackets ~= false)
     if SfuiDB and SfuiDB.themeCornerBrackets == false then
         showBrackets = false
@@ -721,7 +740,7 @@ end
 
 -- 4. Button Styling
 function sfui.theme.ApplyButtonStyle(btn, isStyled)
-    if not btn or btn.isCloseButton then return end
+    if not btn or btn.isCloseButton or btn.isSubmenuButton or btn.isDropdownButton or btn.isDropdownOption then return end
     local activeID = sfui.theme.GetActiveThemeID()
     local theme = registeredThemes[activeID] or registeredThemes.modern or {}
     local pal = theme.colors or sfui.theme.GetPalette()
@@ -775,7 +794,7 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
     if not btn.sfuiThemeHooksInstalled then
         btn.sfuiThemeHooksInstalled = true
         btn:HookScript("OnEnter", function(self)
-            if self.isCloseButton then return end
+            if self.isCloseButton or self.isSubmenuButton or self.isDropdownButton or self.isDropdownOption then return end
             local p = sfui.theme.GetPalette()
             if sfui.theme.IsCamelotActive() then
                 self:SetBackdropColor(0.22, 0.18, 0.12, 0.98)
@@ -788,7 +807,8 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
             end
         end)
         btn:HookScript("OnLeave", function(self)
-            if self.isCloseButton or self.isSelected or self.lockColor or self.customOnLeave then return end
+            if self.isCloseButton or self.isSubmenuButton or self.isDropdownButton or self.isDropdownOption or self.isSelected or self.lockColor or self.customOnLeave then return end
+            if self.menu and self.menu:IsShown() then return end
             local p = sfui.theme.GetPalette()
             if sfui.theme.IsCamelotActive() then
                 self:SetBackdropColor(0.12, 0.10, 0.08, 0.95)
@@ -805,7 +825,7 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
 end
 
 function sfui.theme.RegisterButton(btn, isStyled)
-    if not btn then return end
+    if not btn or btn.isCloseButton or btn.isSubmenuButton or btn.isDropdownButton or btn.isDropdownOption then return end
     btn.isStyledButton = isStyled or false
     registered_buttons[btn] = isStyled or false
 end

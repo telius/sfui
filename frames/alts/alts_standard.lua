@@ -2271,7 +2271,12 @@ sfui.alts.RegisterProvider({
     },
     SortAlts = function(a, b, sortKey)
         if sortKey == "rating" then
-            return (a.data.rating or 0) > (b.data.rating or 0)
+            local rA = tonumber(a.data and a.data.rating) or 0
+            local rB = tonumber(b.data and b.data.rating) or 0
+            if rA ~= rB then
+                return rA > rB
+            end
+            return tostring(a.data and a.data.name or "") < tostring(b.data and b.data.name or "")
         end
     end,
     OnFrameShow = function()

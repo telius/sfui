@@ -1200,7 +1200,9 @@ sfui.events.RegisterEvent("SPELLS_CHANGED", handle_skill_change)
 sfui.events.RegisterEvent("LEARNED_SPELL_IN_TAB", handle_skill_change)
 sfui.events.RegisterEvent("TRAINER_UPDATE", handle_skill_change)
 sfui.events.RegisterEvent("TRAINER_CLOSED", handle_skill_change)
-sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", handle_skill_change)
+if sfui.isClassic then
+    sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", handle_skill_change)
+end
 
 
 -- B2: ADDON_LOADED registration removed (InitToggleHook called at login via PLAYER_LOGIN)

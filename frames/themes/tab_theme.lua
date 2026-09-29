@@ -40,11 +40,21 @@ sfui.options.RegisterTab({
             local activeID = sfui.theme.GetActiveThemeID()
             local mode = (SfuiDB and (SfuiDB.themeMode or (SfuiDB.theme and SfuiDB.theme.mode))) or "auto"
             local pal = sfui.theme.GetPalette()
-            local clientName = sfui.isForever and "Classic Beta / Camelot" or (sfui.isClassic and "Classic Era" or "Retail")
-            local supported = sfui.theme.IsCamelotSupported() and "|cff00ff00Available|r" or "|cffff8800Fallback Only|r"
+            local isCamelotSupported = sfui.theme.IsCamelotSupported()
+            local clientName = isCamelotSupported and "Classic Forever / Camelot" or (sfui.isClassic and "Classic Era" or "Retail")
+            local supported = isCamelotSupported and "|cff00ff00Available|r" or "|cffff3333Restricted to Camelot|r"
 
-            if mode == "auto" then
-                status_text:SetText(string.format("Current Style: |cff%02x%02x%02x%s|r  •  Auto-detected: |cffffffff%s|r  •  Camelot Atlases: %s",
+            if not isCamelotSupported then
+                status_text:SetText(string.format("Current Style: |cff%02x%02x%02x%s|r  •  Client: |cffffffff%s|r  •  Camelot Bronze: %s",
+                    math.floor(pal.headerColor[1] * 255),
+                    math.floor(pal.headerColor[2] * 255),
+                    math.floor(pal.headerColor[3] * 255),
+                    pal.name,
+                    clientName,
+                    supported
+                ))
+            elseif mode == "auto" then
+                status_text:SetText(string.format("Current Style: |cff%02x%02x%02x%s|r  •  Auto-detected: |cffffffff%s|r  •  Camelot Bronze: %s",
                     math.floor(pal.headerColor[1] * 255),
                     math.floor(pal.headerColor[2] * 255),
                     math.floor(pal.headerColor[3] * 255),
@@ -99,6 +109,12 @@ sfui.options.RegisterTab({
 
         for _, btn in ipairs(toggleButtons) do
             btn:SetScript("OnClick", function()
+                if btn.themeMode == "camelot" and not sfui.theme.IsCamelotSupported() then
+                    if sfui.common and sfui.common.print then
+                        sfui.common.print("|cffff3333sfui: The bronze Camelot theme is exclusive to Camelot/Forever (bronze assets are not present in Retail).|r")
+                    end
+                    return
+                end
                 sfui.theme.SetTheme(btn.themeMode)
                 theme_panel:RefreshThemeControls()
                 if sfui.common and sfui.common.print then
@@ -127,19 +143,9 @@ sfui.options.RegisterTab({
         end, "Enables rich textured dark parchment and slate background art on windows instead of flat dark fills.")
         textured_bg_cb:SetPoint("TOPLEFT", brackets_cb, "BOTTOMLEFT", 0, -8)
 
-        local minimap_art_cb = create_checkbox(theme_panel, "preserve camelot minimap brass compass & day/night dial", function()
-            return SfuiDB.themeMinimapArt ~= false
-        end, function(checked)
-            SfuiDB.themeMinimapArt = checked
-            if sfui.minimap and sfui.minimap.UpdateMinimapTheme then
-                sfui.minimap.UpdateMinimapTheme()
-            end
-        end, "Preserves Blizzard's circular brass compass frame and astronomical day/night dial in Camelot (modern theme does not touch the minimap).")
-        minimap_art_cb:SetPoint("TOPLEFT", textured_bg_cb, "BOTTOMLEFT", 0, -8)
-
         -- ─── Color Palette Swatches ───────────────────────────────────────────
         local palette_header = theme_panel:CreateFontString(nil, "OVERLAY", g.font)
-        palette_header:SetPoint("TOPLEFT", minimap_art_cb, "BOTTOMLEFT", 0, -20)
+        palette_header:SetPoint("TOPLEFT", textured_bg_cb, "BOTTOMLEFT", 0, -20)
         palette_header:SetTextColor(white[1], white[2], white[3])
         palette_header:SetText("accent & highlight colors")
 
@@ -245,9 +251,19 @@ sfui.options.RegisterTab({
             local savedMode = (SfuiDB and (SfuiDB.themeMode or (SfuiDB.theme and SfuiDB.theme.mode))) or "auto"
             local pal = sfui.theme.GetPalette()
             local isCamelot = sfui.theme.IsCamelotActive()
+            local isCamelotSupported = sfui.theme.IsCamelotSupported()
 
             -- Update Status Text
             update_status_text()
+
+            -- Hide Camelot-specific checkboxes on Retail
+            if isCamelotSupported then
+                brackets_cb:Show()
+                textured_bg_cb:Show()
+            else
+                brackets_cb:Hide()
+                textured_bg_cb:Hide()
+            end
 
             -- Update Dynamically Created Toggle Buttons
             local hexAccent = string.format("%02x%02x%02x",
@@ -261,7 +277,24 @@ sfui.options.RegisterTab({
                 btn.isSelected = isSelected
                 local fs = btn:GetFontString()
 
-                if isSelected then
+                if btn.themeMode == "camelot" and not isCamelotSupported then
+                    btn:Disable()
+                    if btn.SetBackdrop then
+                        btn:SetBackdrop({
+                            bgFile   = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
+                            edgeFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
+                            edgeSize = 1,
+                            insets   = { left = 0, right = 0, top = 0, bottom = 0 }
+                        })
+                        btn:SetBackdropColor(0.04, 0.04, 0.04, 0.40)
+                        btn:SetBackdropBorderColor(0.12, 0.12, 0.12, 0.6)
+                    end
+                    if fs then
+                        fs:SetText(btn.baseLabel .. " |cffff5555(Camelot Only)|r")
+                        fs:SetTextColor(0.40, 0.40, 0.40, 1)
+                    end
+                elseif isSelected then
+                    btn:Enable()
                     if btn.SetBackdrop then
                         btn:SetBackdrop({
                             bgFile   = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
@@ -282,6 +315,7 @@ sfui.options.RegisterTab({
                         fs:SetTextColor(1, 1, 1, 1)
                     end
                 else
+                    btn:Enable()
                     if btn.SetBackdrop then
                         btn:SetBackdrop({
                             bgFile   = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",

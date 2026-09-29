@@ -317,6 +317,10 @@ function sfui.talents.invalidate_spec_cache()
         sfui.highest.ClearValidationCache()
     end
 
+    if sfui.talents.invalidate_talent_cache then
+        sfui.talents.invalidate_talent_cache()
+    end
+
     if sfui.isClassic then
         sfui.talents.get_player_specs()
         if sfui.gear and sfui.gear.UpdateStatUI then
@@ -342,12 +346,18 @@ end
 
 sfui.events.RegisterEvent("PLAYER_LOGIN", on_login_or_enter)
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_login_or_enter)
-sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", sfui.talents.invalidate_spec_cache)
-sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", sfui.talents.invalidate_spec_cache)
-sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", sfui.talents.invalidate_spec_cache)
 sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", sfui.talents.invalidate_spec_cache)
-sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", sfui.talents.invalidate_spec_cache)
-sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", sfui.talents.invalidate_spec_cache)
-sfui.events.RegisterEvent("TRAIT_TREE_CURRENCY_INFO_UPDATED", sfui.talents.invalidate_spec_cache)
 sfui.events.RegisterEvent("ACTIVE_COMBAT_CONFIG_CHANGED", sfui.talents.invalidate_spec_cache)
-sfui.events.RegisterEvent("PLAYER_LEVEL_UP", sfui.talents.invalidate_spec_cache)
+sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", sfui.talents.invalidate_spec_cache)
+sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", sfui.talents.invalidate_spec_cache)
+
+-- Talent point & trait currency events: strictly restricted to Classic / Camelot.
+-- In Classic / Camelot, specialization is derived dynamically from spent talent tree points.
+-- In Retail, specialization is explicitly chosen and never checks or relies on talent points.
+if sfui.isClassic then
+    sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", sfui.talents.invalidate_spec_cache)
+    sfui.events.RegisterEvent("TRAIT_TREE_CURRENCY_INFO_UPDATED", sfui.talents.invalidate_spec_cache)
+    sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", sfui.talents.invalidate_spec_cache)
+    sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", sfui.talents.invalidate_spec_cache)
+    sfui.events.RegisterEvent("PLAYER_LEVEL_UP", sfui.talents.invalidate_spec_cache)
+end

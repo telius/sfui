@@ -997,6 +997,9 @@ do
     end
 
     local function on_event(event, unit, ...)
+        if (event == "CHARACTER_POINTS_CHANGED" or event == "TRAIT_TREE_CURRENCY_INFO_UPDATED") and sfui.isRetail then
+            return
+        end
         if event == "PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_TALENT_UPDATE" or event == "CHARACTER_POINTS_CHANGED" or event == "TRAIT_CONFIG_UPDATED" or event == "TRAIT_TREE_CURRENCY_INFO_UPDATED" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" or event == "VEHICLE_UPDATE" or event == "UPDATE_VEHICLE_ACTIONBAR" or event == "UPDATE_OVERRIDE_ACTIONBAR" or event == "UPDATE_POSSESS_BAR" or event == "UPDATE_BONUS_ACTIONBAR" then
             invalidate_dragonflying_cache()
             sfui.bars:on_state_changed()
@@ -1085,7 +1088,9 @@ do
 
     sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", on_event)
     sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", on_event)
-    sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", on_event)
+    if sfui.isClassic then
+        sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", on_event)
+    end
     sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", on_event)
     sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", on_event)
     sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORM", on_event)

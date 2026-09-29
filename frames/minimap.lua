@@ -554,15 +554,6 @@ function sfui.minimap.enable_button_manager(enabled)
 
         -- Mouseover logic
         if not button_bar.sfuiMouseoverHooked then
-            -- Create an invisible detector frame over the Minimap to avoid HookScript on a secure frame
-            if not sfui.minimap.detector then
-                -- Parent to MinimapCluster instead of Minimap
-                sfui.minimap.detector = CreateFrame("Frame", nil, MinimapCluster)
-                sfui.minimap.detector:SetAllPoints(Minimap)
-                sfui.minimap.detector:SetFrameLevel(Minimap:GetFrameLevel() + 1)
-                sfui.minimap.detector:EnableMouse(false) -- Pass through by default
-            end
-
             local function update_alpha()
                 if SfuiDB.minimap_buttons_mouseover then
                     local isHovering = button_bar:IsMouseOver() or Minimap:IsMouseOver()
@@ -696,47 +687,6 @@ function sfui.minimap.update_button_bar_position()
 end
 
 function sfui.minimap.UpdateMinimapTheme()
-    local isCamelot = (sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()) or false
-
-    if not isCamelot then
-        -- Modern Minimalist: Do NOT touch the minimap at all!
-        -- Restore any textures/frames that might have been hidden/altered when in Camelot
-        if _G.MinimapCompassTexture then
-            _G.MinimapCompassTexture:Show()
-            _G.MinimapCompassTexture:SetAlpha(1)
-        end
-        if MinimapCluster then
-            if MinimapCluster.DielFrame then
-                MinimapCluster.DielFrame:Show()
-                MinimapCluster.DielFrame:SetAlpha(1)
-            end
-            if MinimapCluster.IndicatorFrame then
-                MinimapCluster.IndicatorFrame:Show()
-                MinimapCluster.IndicatorFrame:SetAlpha(1)
-            end
-            if MinimapCluster.BorderTop then
-                MinimapCluster.BorderTop:Show()
-                MinimapCluster.BorderTop:SetAlpha(1)
-            end
-        end
-    else
-        local preserveArt = (SfuiDB and SfuiDB.themeMinimapArt ~= false)
-        if preserveArt then
-            -- Preserve Camelot's distinct brass compass and astronomical day/night dial!
-            if _G.MinimapCompassTexture then
-                _G.MinimapCompassTexture:Show()
-                _G.MinimapCompassTexture:SetAlpha(1)
-            end
-            if MinimapCluster and MinimapCluster.DielFrame then
-                MinimapCluster.DielFrame:Show()
-                MinimapCluster.DielFrame:SetAlpha(1)
-            end
-            if MinimapCluster and MinimapCluster.BorderTop then
-                MinimapCluster.BorderTop:Hide()
-                MinimapCluster.BorderTop:SetAlpha(0)
-            end
-        end
-    end
 
     if button_bar and sfui.theme and sfui.theme.ApplyMinimapButtonBarStyle then
         sfui.theme.ApplyMinimapButtonBarStyle(button_bar)

@@ -147,38 +147,47 @@ function sfui.widgets.create_bar(name, frameType, parent, template, configName)
     return bar
 end
 sfui.common.create_bar = sfui.widgets.create_bar
-
-function sfui.widgets.get_bar_texture()
-    local textureName = SfuiDB and SfuiDB.barTexture
-    local LSM = _G.LibStub and _G.LibStub("LibSharedMedia-3.0", true)
-    local texturePath
-    if LSM and textureName then
-        texturePath = LSM:Fetch("statusbar", textureName)
+function sfui.widgets.resolve_statusbar_texture(name)
+    if not name or name == "" then
+        return (sfui.config and sfui.config.barTexture) or "Interface/Buttons/WHITE8X8"
     end
-    if not texturePath and sfui.config and sfui.config.blizzard_bar_textures and textureName then
-        texturePath = sfui.config.blizzard_bar_textures[textureName]
-        if not texturePath and type(textureName) == "string" then
-            local normName = textureName:gsub("\\", "/"):lower()
-            for name, path in pairs(sfui.config.blizzard_bar_textures) do
-                if name:lower() == normName or path:gsub("\\", "/"):lower() == normName then
-                    texturePath = path
+    if type(name) == "number" then
+        return name
+    end
+    local LSM = _G.LibStub and _G.LibStub("LibSharedMedia-3.0", true)
+    local path
+    if LSM then
+        path = LSM:Fetch("statusbar", name, true)
+    end
+    if not path and sfui.config and sfui.config.blizzard_bar_textures then
+        path = sfui.config.blizzard_bar_textures[name]
+        if not path and type(name) == "string" then
+            local norm = name:gsub("\\", "/"):lower()
+            for k, v in pairs(sfui.config.blizzard_bar_textures) do
+                if k:lower() == norm or v:gsub("\\", "/"):lower() == norm then
+                    path = v
                     break
                 end
             end
         end
     end
-    if not texturePath and type(textureName) == "string" and textureName:find("^[iI]nterface[/\\]") then
-        texturePath = textureName
+    if not path and type(name) == "string" and name:find("^[iI]nterface[/\\]") then
+        path = name
     end
-    if not texturePath or texturePath == "" then
-        texturePath = (sfui.config and sfui.config.barTexture) or "Interface/Buttons/WHITE8X8"
-    end
+    return path or (sfui.config and sfui.config.barTexture) or "Interface/Buttons/WHITE8X8"
+end
+sfui.common.resolve_statusbar_texture = sfui.widgets.resolve_statusbar_texture
+
+function sfui.widgets.get_bar_texture(textureName)
+    local name = textureName or (SfuiDB and SfuiDB.barTexture)
+    local path = sfui.widgets.resolve_statusbar_texture(name)
     if sfui.config then
-        sfui.config.barTexture = texturePath
+        sfui.config.barTexture = path
     end
-    return texturePath
+    return path
 end
 sfui.common.get_bar_texture = sfui.widgets.get_bar_texture
+
 
 function sfui.widgets.style_text(fs, fontObj, size, flags)
     if not fs then return end
@@ -231,6 +240,21 @@ function sfui.widgets.create_flat_button(parent, text, width, height)
     return btn
 end
 sfui.common.create_flat_button = sfui.widgets.create_flat_button
+
+function sfui.widgets.create_submenu_button(parent, text, width, height)
+    local btn = sfui.widgets.create_flat_button(parent, text or "", width or 18, height or 16)
+    btn.isSubmenuButton = true
+    btn.lockColor = true
+    btn:SetFrameLevel((parent:GetFrameLevel() or 1) + 10)
+    btn:RegisterForClicks("AnyUp")
+    local fs = btn:GetFontString()
+    if fs then
+        local fontFile = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+        fs:SetFont(fontFile, 10, "")
+    end
+    return btn
+end
+sfui.common.create_submenu_button = sfui.widgets.create_submenu_button
 
 function sfui.widgets.create_styled_button(parent, text, width, height)
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
@@ -572,27 +596,24 @@ function sfui.widgets.create_slider_input(parent, label, dbKeyOrGetter, minVal, 
     container.editbox = editbox
     container.label = title
 
-    slider:SetScript("OnShow", function(self)
+    local function readValue()
         local val
         if type(dbKeyOrGetter) == "string" and SfuiDB then
             val = SfuiDB[dbKeyOrGetter]
         elseif type(dbKeyOrGetter) == "function" then
             val = dbKeyOrGetter()
         end
-        if val == nil then val = minVal end
-        self:SetValue(val)
-        editbox:SetText(tostring(math.floor(val * 100) / 100))
-    end)
-
-    local initVal
-    if type(dbKeyOrGetter) == "string" and SfuiDB then
-        initVal = SfuiDB[dbKeyOrGetter]
-    elseif type(dbKeyOrGetter) == "function" then
-        initVal = dbKeyOrGetter()
+        return (val ~= nil) and val or minVal
     end
-    if initVal == nil then initVal = minVal end
-    slider:SetValue(initVal)
-    editbox:SetText(tostring(math.floor(initVal * 100) / 100))
+
+    local function syncValue()
+        local val = readValue()
+        slider:SetValue(val)
+        editbox:SetText(tostring(math.floor(val * 100) / 100))
+    end
+
+    slider:SetScript("OnShow", syncValue)
+    syncValue()
 
     function container:SetSliderValue(val)
         slider:SetValue(val)
@@ -697,9 +718,19 @@ function sfui.widgets.create_scroll_frame(parent, name, childWidth, childHeight)
 end
 sfui.common.create_scroll_frame = sfui.widgets.create_scroll_frame
 
+-- ─────────────────────────────────────────────────────────────────────────────
+--  Dropdown System (Clean & Modern Rebuild)
+-- ─────────────────────────────────────────────────────────────────────────────
 local activeDropdown = nil
 
--- Global hook on CloseDropDownMenus to dismiss custom dropdown menus
+-- Clean up any legacy blocking catcher frames from prior versions
+if sfui._dropdownCatcher then
+    sfui._dropdownCatcher:Hide()
+    sfui._dropdownCatcher:EnableMouse(false)
+    sfui._dropdownCatcher = nil
+end
+
+-- Hook CloseDropDownMenus so ESC / Blizzard UI closes active dropdown
 if not sfui._dropdownCloseHooked and hooksecurefunc then
     sfui._dropdownCloseHooked = true
     hooksecurefunc("CloseDropDownMenus", function()
@@ -717,82 +748,146 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
     if not fixedText then
         if initialValue ~= nil then
             for _, opt in ipairs(actualOptions) do
-                if opt.value == initialValue or opt.text == initialValue then
+                if opt.value == initialValue or opt.text == initialValue or opt.label == initialValue then
                     initialText = opt.text or opt.label or tostring(initialValue)
                     currentValue = opt.value
                     break
                 end
             end
-        elseif #actualOptions > 0 and actualOptions[1].text then
-            initialText = actualOptions[1].text
+        elseif #actualOptions > 0 and (actualOptions[1].text or actualOptions[1].label) then
+            initialText = actualOptions[1].text or actualOptions[1].label
             currentValue = actualOptions[1].value
         end
     end
 
-    local btn = sfui.widgets.create_flat_button(parent, initialText, width or 120, 20)
+    local mult = sfui.pixelScale or 1
+    local btnH = (width and width <= 24) and width or 20
+    local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    btn.isDropdownButton = true
+    btn:SetSize(width or 120, btnH)
+    btn:SetNormalFontObject("GameFontHighlightSmall")
+    btn:SetText(initialText)
 
-    -- Fullscreen catcher to dismiss dropdown on any click outside
-    if not sfui._dropdownCatcher then
-        local catcher = CreateFrame("Button", "sfui_DropdownCatcher", UIParent)
-        catcher:SetFrameStrata("TOOLTIP")
-        catcher:SetFrameLevel(90)
-        catcher:SetAllPoints(UIParent)
-        catcher:EnableMouse(true)
-        catcher:RegisterForClicks("AnyUp", "AnyDown")
-        catcher:SetScript("OnClick", function()
-            if activeDropdown then
-                activeDropdown:Hide()
-                activeDropdown = nil
-            end
-            catcher:Hide()
-        end)
-        catcher:Hide()
-        sfui._dropdownCatcher = catcher
+    local fontFile = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+    local fs = btn:GetFontString()
+    if fs then
+        fs:SetFont(fontFile, (width and width <= 24) and 12 or 11, "")
+        fs:SetTextColor(1, 1, 1, 1)
     end
 
-    -- Float on UIParent with high strata so it is never clipped by parent dialogs/scrollframes
-    local menu = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    btn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = mult,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    })
+    btn:SetBackdropColor(0, 0, 0, 1)
+    btn:SetBackdropBorderColor(0, 0, 0, 1)
+
+    btn:SetScript("OnEnter", function(self)
+        local purple = (sfui.config and sfui.config.colors and sfui.config.colors.purple) or { 0.4, 0, 1 }
+        self:SetBackdropBorderColor(purple[1], purple[2], purple[3], 1)
+        if self.tooltip then
+            local tip = sfui.tooltip or _G.GameTooltip
+            if tip then
+                tip:SetOwner(self, "ANCHOR_TOP")
+                tip:SetText(self.tooltip, 1, 1, 1)
+                tip:Show()
+            end
+        end
+    end)
+    btn:SetScript("OnLeave", function(self)
+        if not (self.menu and self.menu:IsShown()) then
+            self:SetBackdropBorderColor(0, 0, 0, 1)
+        end
+        local tip = sfui.tooltip or _G.GameTooltip
+        if tip then tip:Hide() end
+    end)
+
+    if parent and parent.GetFrameLevel then
+        btn:SetFrameLevel(parent:GetFrameLevel() + 20)
+    end
+
+    -- Menu Frame: child of btn so it automatically follows parent dragging
+    local menu = CreateFrame("Frame", nil, btn, "BackdropTemplate")
     menu:SetFrameStrata("TOOLTIP")
-    menu:SetFrameLevel(100)
+    menu:SetFrameLevel(200)
     menu:EnableMouse(true)
     menu:SetClampedToScreen(true)
     menu:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
+        edgeSize = mult,
     })
-    menu:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
-    menu:SetBackdropBorderColor(0, 0, 0, 1)
+    menu:SetBackdropColor(0.06, 0.06, 0.06, 0.98)
+    menu:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
     menu:Hide()
-
-    menu:SetScript("OnHide", function()
-        if activeDropdown == menu then
-            activeDropdown = nil
-        end
-        if sfui._dropdownCatcher and sfui._dropdownCatcher:IsShown() then
-            sfui._dropdownCatcher:Hide()
-        end
-    end)
 
     btn.menu = menu
     menu.dropdownButton = btn
-    menu.buttons = {}
+    menu.rows = {}
     menu.scrollOffset = 0
 
     local MAX_VISIBLE_ROWS = 14
     local ROW_HEIGHT = 20
     local PADDING = 4
 
-    local function updateMenuSizeAndPosition()
-        local currentOptions = (type(options) == "function") and options() or options or {}
-        local numOptions = #currentOptions
-        local maxW = menuWidth or (width and width > 40 and width) or 120
+    menu:SetScript("OnEvent", function(self, event, mouseButton)
+        if event == "GLOBAL_MOUSE_DOWN" and (mouseButton == "LeftButton" or mouseButton == "RightButton") then
+            if not self:IsShown() then return end
+            C_Timer.After(0.01, function()
+                if not self:IsShown() then return end
+                if self:IsMouseOver() then return end
+                if btn and btn:IsMouseOver() then return end
+                if DoesAncestryIncludeAny and GetMouseFoci then
+                    local foci = GetMouseFoci()
+                    if DoesAncestryIncludeAny(self, foci) then return end
+                    if btn and DoesAncestryIncludeAny(btn, foci) then return end
+                end
+                self:Hide()
+                if activeDropdown == self then
+                    activeDropdown = nil
+                end
+            end)
+        end
+    end)
+
+    menu:SetScript("OnShow", function(self)
+        self:RegisterEvent("GLOBAL_MOUSE_DOWN")
+        local purple = (sfui.config and sfui.config.colors and sfui.config.colors.purple) or { 0.4, 0, 1 }
+        btn:SetBackdropBorderColor(purple[1], purple[2], purple[3], 1)
+    end)
+
+    menu:SetScript("OnHide", function(self)
+        self:UnregisterEvent("GLOBAL_MOUSE_DOWN")
+        if activeDropdown == self then
+            activeDropdown = nil
+        end
+        if btn and btn.SetBackdropBorderColor then
+            btn:SetBackdropBorderColor(0, 0, 0, 1)
+        end
+    end)
+
+    local function getOptionList()
+        if type(options) == "function" then
+            return options() or {}
+        end
+        return options or {}
+    end
+
+    local function updateMenuLayout()
+        local curOptions = getOptionList()
+        local numOptions = #curOptions
+        local maxW = menuWidth or (width and width > 40 and width) or 140
 
         if not menuWidth then
-            for _, opt in ipairs(currentOptions) do
+            for _, opt in ipairs(curOptions) do
                 local txt = opt.text or opt.label
                 if txt then
-                    local textWidth = #txt * 8 + 24
+                    local clean = txt:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+                    local textWidth = #clean * 7 + 28
+                    if opt.hasDelete then textWidth = textWidth + 24 end
+                    if opt.isToggle or opt.checked ~= nil then textWidth = textWidth + 28 end
                     if textWidth > maxW then maxW = textWidth end
                 end
             end
@@ -803,15 +898,15 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
         menu:SetSize(maxW, math.max(totalH, 24))
 
         menu:ClearAllPoints()
-        local screenW = UIParent:GetWidth() or 1000
         local btnRight = btn:GetRight() or 0
         local btnBottom = btn:GetBottom() or 0
+        local screenW = UIParent:GetWidth() or 1000
 
         local point = "TOPLEFT"
         local relPoint = "BOTTOMLEFT"
         local yOffset = -2
 
-        if btnBottom < (totalH + 10) then
+        if btnBottom < (totalH + 20) then
             point = "BOTTOMLEFT"
             relPoint = "TOPLEFT"
             yOffset = 2
@@ -831,178 +926,288 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
         menu:SetPoint(point, btn, relPoint, xOffset, yOffset)
     end
 
-    local function fillOptions()
-        local currentOptions = (type(options) == "function") and options() or options or {}
-        local numOptions = #currentOptions
+    local fillOptions -- forward declaration
+
+    -- Single shared onWheel handler across all rows, buttons, and scrollbar
+    local function onWheel(self, delta)
+        local curOpts = getOptionList()
+        local num = #curOpts
+        local vis = math.min(num, MAX_VISIBLE_ROWS)
+        local maxOff = math.max(0, num - vis)
+        if maxOff <= 0 then return end
+        if delta > 0 then
+            menu.scrollOffset = math.max(0, menu.scrollOffset - 2)
+        else
+            menu.scrollOffset = math.min(maxOff, menu.scrollOffset + 2)
+        end
+        fillOptions()
+    end
+
+    local function createRow(index)
+        local row = CreateFrame("Frame", nil, menu)
+        row:SetHeight(ROW_HEIGHT)
+
+        -- 1. Main row button (Label / Click Area)
+        local rowBtn = CreateFrame("Button", nil, row)
+        rowBtn:RegisterForClicks("AnyUp")
+        rowBtn:SetHighlightTexture("Interface\\Buttons\\WHITE8x8")
+        rowBtn:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.08)
+
+        local check = rowBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        check:SetPoint("LEFT", rowBtn, "LEFT", 4, 0)
+        check:SetFont(fontFile, 11, "")
+        check:SetText("|cffffcc00✓|r")
+        check:Hide()
+
+        local label = rowBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        label:SetPoint("LEFT", rowBtn, "LEFT", 4, 0)
+        label:SetPoint("RIGHT", rowBtn, "RIGHT", -4, 0)
+        label:SetFont(fontFile, 11, "")
+        label:SetJustifyH("LEFT")
+        label:SetWordWrap(false)
+
+        row.rowBtn = rowBtn
+        row.check = check
+        row.label = label
+        row.textString = label -- backward compatibility
+
+        -- 2. Delete button [X]
+        local delBtn = CreateFrame("Button", nil, row, "BackdropTemplate")
+        delBtn:SetSize(18, 16)
+        delBtn:RegisterForClicks("AnyUp")
+        delBtn:SetNormalFontObject("GameFontHighlightSmall")
+        delBtn:SetText("|cffff4444X|r")
+        local delFs = delBtn:GetFontString()
+        if delFs then delFs:SetFont(fontFile, 10, "") end
+        delBtn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        delBtn:SetBackdropColor(0.12, 0.12, 0.12, 0.95)
+        delBtn:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+        delBtn:SetScript("OnEnter", function(self)
+            self:SetBackdropBorderColor(1, 0.3, 0.3, 1)
+            if GameTooltip then
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:SetText("Delete from list", 1, 0.3, 0.3)
+                GameTooltip:Show()
+            end
+        end)
+        delBtn:SetScript("OnLeave", function(self)
+            self:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+        delBtn:Hide()
+        row.delBtn = delBtn
+        row.xBtn = delBtn -- backward compatibility
+
+        -- 3. Toggle button [V] / [H]
+        local tglBtn = CreateFrame("Button", nil, row, "BackdropTemplate")
+        tglBtn:SetSize(22, 16)
+        tglBtn:RegisterForClicks("AnyUp")
+        tglBtn:SetNormalFontObject("GameFontHighlightSmall")
+        local tglFs = tglBtn:GetFontString()
+        if tglFs then tglFs:SetFont(fontFile, 10, "") end
+        tglBtn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        tglBtn:SetBackdropColor(0.12, 0.12, 0.12, 0.95)
+        tglBtn:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+        tglBtn:SetScript("OnEnter", function(self)
+            self:SetBackdropBorderColor(0.8, 0.8, 0.8, 1)
+            if GameTooltip then
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:SetText("Toggle Visibility", 1, 1, 1)
+                GameTooltip:Show()
+            end
+        end)
+        tglBtn:SetScript("OnLeave", function(self)
+            self:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+        tglBtn:Hide()
+        row.tglBtn = tglBtn
+        row.hBtn = tglBtn -- backward compatibility
+
+        row:EnableMouseWheel(true)
+        row:SetScript("OnMouseWheel", onWheel)
+        rowBtn:EnableMouseWheel(true)
+        rowBtn:SetScript("OnMouseWheel", onWheel)
+        delBtn:EnableMouseWheel(true)
+        delBtn:SetScript("OnMouseWheel", onWheel)
+        tglBtn:EnableMouseWheel(true)
+        tglBtn:SetScript("OnMouseWheel", onWheel)
+
+        menu.rows[index] = row
+        return row
+    end
+
+    fillOptions = function()
+        local curOptions = getOptionList()
+        local numOptions = #curOptions
         local visibleCount = math.min(numOptions, MAX_VISIBLE_ROWS)
         local maxOffset = math.max(0, numOptions - visibleCount)
 
-        if menu.scrollOffset > maxOffset then
-            menu.scrollOffset = maxOffset
-        end
-        if menu.scrollOffset < 0 then
-            menu.scrollOffset = 0
-        end
+        if menu.scrollOffset > maxOffset then menu.scrollOffset = maxOffset end
+        if menu.scrollOffset < 0 then menu.scrollOffset = 0 end
 
         local hasScroll = numOptions > visibleCount
         local menuW = menu:GetWidth()
         if not menuW or menuW < 20 then
-            menuW = menuWidth or (width and width > 40 and width) or 120
+            menuW = menuWidth or (width and width > 40 and width) or 140
         end
-        local btnWidth = menuW - (hasScroll and 12 or 8)
 
-        -- Hide all existing buttons and clear sub-button states
-        for _, b in ipairs(menu.buttons) do
-            b:Hide()
-            if b.xBtn then
-                b.xBtn:Hide()
-                b.xBtn:ClearAllPoints()
-            end
-            if b.hBtn then
-                b.hBtn:Hide()
-                b.hBtn:ClearAllPoints()
-            end
+        for _, r in ipairs(menu.rows) do
+            r:Hide()
+            r.delBtn:Hide()
+            r.delBtn:SetScript("OnClick", nil)
+            r.tglBtn:Hide()
+            r.tglBtn:SetScript("OnClick", nil)
+            r.check:Hide()
+            r.rowBtn:SetScript("OnClick", nil)
         end
 
         local y = -PADDING
         for i = 1, visibleCount do
             local optIndex = menu.scrollOffset + i
-            local opt = currentOptions[optIndex]
+            local opt = curOptions[optIndex]
             if not opt then break end
 
-            local optBtn = menu.buttons[i]
-            if not optBtn then
-                optBtn = CreateFrame("Button", nil, menu)
-                optBtn:SetNormalFontObject("GameFontHighlightSmall")
+            local row = menu.rows[i] or createRow(i)
+            local rowW = menuW - (hasScroll and 16 or 8)
 
-                local ts = optBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-                ts:SetPoint("LEFT", optBtn, "LEFT", 4, 0)
-                ts:SetPoint("RIGHT", optBtn, "RIGHT", -4, 0)
-                ts:SetJustifyH("LEFT")
-                optBtn.textString = ts
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", menu, "TOPLEFT", 4, y)
+            row:SetSize(rowW, ROW_HEIGHT)
+            row:SetFrameLevel(menu:GetFrameLevel() + 5)
+            row.rowBtn:SetFrameLevel(row:GetFrameLevel() + 2)
+            row.tglBtn:SetFrameLevel(row:GetFrameLevel() + 4)
+            row.delBtn:SetFrameLevel(row:GetFrameLevel() + 4)
+            row.fillOptions = fillOptions
 
-                optBtn:SetHighlightTexture("Interface\\Buttons\\WHITE8x8")
-                optBtn:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.1)
+            local displayText = opt.text or opt.label or tostring(opt.value ~= nil and opt.value or "")
 
-                menu.buttons[i] = optBtn
+            -- Layout hitboxes with ZERO overlap
+            local rightOffset = 0
+            if opt.hasDelete then
+                row.delBtn:ClearAllPoints()
+                row.delBtn:SetPoint("RIGHT", row, "RIGHT", -2, 0)
+                row.delBtn:Show()
+                row.delBtn:SetScript("OnClick", function()
+                    menu:Hide()
+                    if opt.onDelete then
+                        opt.onDelete(opt)
+                    end
+                end)
+                rightOffset = rightOffset + 22
+            else
+                row.delBtn:Hide()
             end
 
-            optBtn:SetSize(btnWidth, ROW_HEIGHT)
-            optBtn:ClearAllPoints()
-            optBtn:SetPoint("TOPLEFT", menu, "TOPLEFT", 4, y)
-            optBtn:SetFrameLevel(menu:GetFrameLevel() + 5)
-            optBtn:RegisterForClicks("LeftButtonUp", "LeftButtonDown")
-
-            local displayText = opt.text or opt.label or tostring(opt.value or "")
-
-            if opt.onRender then
-                optBtn.textString:ClearAllPoints()
-                optBtn.textString:SetPoint("LEFT", optBtn, "LEFT", 4, 0)
-                optBtn.textString:SetPoint("RIGHT", optBtn, "RIGHT", -46, 0)
-                optBtn.textString:SetJustifyH("LEFT")
-                optBtn.textString:SetText(displayText)
-                optBtn.textString:Show()
-
-                optBtn:SetScript("OnEnter", nil)
-                optBtn:SetScript("OnLeave", nil)
-                optBtn:SetScript("OnClick", function(self, button, down)
-                    if button and button ~= "LeftButton" then return end
-                    if down then return end
-
-                    if opt.onClick then
-                        pcall(opt.onClick, opt)
-                    end
-                    if onSelectFunc and opt.value ~= nil then
-                        currentValue = opt.value
-                        if not fixedText then
-                            btn:SetText(displayText)
-                            local btnFs = btn:GetFontString()
-                            if btnFs then btnFs:SetText(displayText) end
-                        end
-                        local ok, err = pcall(onSelectFunc, opt.value)
-                        if not ok then
-                            print("|cffff0000[SFUI Dropdown Error]|r", err)
-                        end
-                    end
-                    if not opt.keepOpen then
-                        menu:Hide()
-                        activeDropdown = nil
-                    else
-                        fillOptions()
-                    end
-                end)
-
-                opt.onRender(optBtn, opt)
-            else
-                optBtn.textString:ClearAllPoints()
-                optBtn.textString:SetPoint("LEFT", optBtn, "LEFT", 4, 0)
-                optBtn.textString:SetPoint("RIGHT", optBtn, "RIGHT", -4, 0)
-                optBtn.textString:SetJustifyH("LEFT")
-                optBtn.textString:SetText(displayText)
-
-                local isSelected = (currentValue ~= nil and opt.value ~= nil and opt.value == currentValue)
-                if isSelected then
-                    optBtn.textString:SetTextColor(0.3, 0.8, 1)
+            local isToggle = (opt.isToggle or opt.checked ~= nil)
+            if isToggle then
+                row.tglBtn:ClearAllPoints()
+                if opt.hasDelete then
+                    row.tglBtn:SetPoint("RIGHT", row.delBtn, "LEFT", -3, 0)
                 else
-                    optBtn.textString:SetTextColor(1, 1, 1)
+                    row.tglBtn:SetPoint("RIGHT", row, "RIGHT", -2, 0)
                 end
-                optBtn.textString:Show()
+                row.tglBtn:Show()
+                if opt.checked then
+                    row.tglBtn:SetText("|cff00ff00V|r")
+                else
+                    row.tglBtn:SetText("|cffff4444H|r")
+                end
+                rightOffset = rightOffset + 26
+            else
+                row.tglBtn:Hide()
+            end
 
-                optBtn:SetScript("OnEnter", function(self)
-                    if self.textString then self.textString:SetTextColor(1, 0.82, 0) end
-                end)
-                optBtn:SetScript("OnLeave", function(self)
-                    if self.textString then
-                        if isSelected then
-                            self.textString:SetTextColor(0.3, 0.8, 1)
-                        else
-                            self.textString:SetTextColor(1, 1, 1)
-                        end
+            -- rowBtn covers remaining width
+            row.rowBtn:ClearAllPoints()
+            row.rowBtn:SetPoint("TOPLEFT", row, 0, 0)
+            row.rowBtn:SetPoint("BOTTOMRIGHT", row, -rightOffset, 0)
+
+            local isSelected = (currentValue ~= nil and (opt.value == currentValue or opt.text == currentValue or opt.label == currentValue))
+
+            row.label:ClearAllPoints()
+            if isSelected and not isToggle then
+                row.check:Show()
+                row.label:SetPoint("LEFT", row.rowBtn, "LEFT", 16, 0)
+                row.label:SetPoint("RIGHT", row.rowBtn, "RIGHT", -4, 0)
+                row.label:SetTextColor(1, 0.82, 0)
+            else
+                row.check:Hide()
+                row.label:SetPoint("LEFT", row.rowBtn, "LEFT", 4, 0)
+                row.label:SetPoint("RIGHT", row.rowBtn, "RIGHT", -4, 0)
+                row.label:SetTextColor(1, 1, 1)
+            end
+            row.label:SetText(displayText)
+
+            row.rowBtn:SetScript("OnEnter", function()
+                if row.label then row.label:SetTextColor(1, 0.82, 0) end
+            end)
+            row.rowBtn:SetScript("OnLeave", function()
+                if row.label then
+                    if isSelected and not isToggle then
+                        row.label:SetTextColor(1, 0.82, 0)
+                    else
+                        row.label:SetTextColor(1, 1, 1)
                     end
-                end)
+                end
+            end)
 
-                optBtn:SetScript("OnClick", function(self, button, down)
-                    if button and button ~= "LeftButton" then return end
-                    if down then return end
-
-                    currentValue = opt.value
+            -- Click behavior
+            if isToggle then
+                local function doToggle()
+                    if opt.onToggle then
+                        opt.onToggle(opt)
+                    elseif opt.onClick then
+                        opt.onClick(opt)
+                    end
+                    fillOptions()
+                end
+                row.rowBtn:SetScript("OnClick", doToggle)
+                row.tglBtn:SetScript("OnClick", doToggle)
+            else
+                row.rowBtn:SetScript("OnClick", function()
+                    local val = opt.value ~= nil and opt.value or (opt.text or opt.label)
+                    currentValue = val
                     if not fixedText then
                         btn:SetText(displayText)
                         local btnFs = btn:GetFontString()
                         if btnFs then btnFs:SetText(displayText) end
                     end
+                    if opt.onClick then
+                        opt.onClick(opt)
+                    end
                     if onSelectFunc then
-                        local ok, err = pcall(onSelectFunc, opt.value)
+                        local ok, err = pcall(onSelectFunc, val)
                         if not ok then
                             print("|cffff0000[SFUI Dropdown Error]|r", err)
                         end
                     end
                     if not opt.keepOpen then
                         menu:Hide()
-                        activeDropdown = nil
                     else
                         fillOptions()
                     end
                 end)
             end
 
-            -- Forward mouse wheel on buttons so scrolling while hovering over items works smoothly
-            optBtn:EnableMouseWheel(true)
-            optBtn:SetScript("OnMouseWheel", function(self, delta)
-                if not hasScroll then return end
-                if delta > 0 then
-                    menu.scrollOffset = math.max(0, menu.scrollOffset - 2)
-                else
-                    menu.scrollOffset = math.min(maxOffset, menu.scrollOffset + 2)
-                end
-                fillOptions()
-            end)
+            -- Legacy hook for onRender if defined
+            if opt.onRender then
+                opt.onRender(row, opt)
+            end
 
-            optBtn:Show()
+            row:Show()
             y = y - ROW_HEIGHT
         end
 
-        -- Update scrollbar track & thumb
+        -- Scrollbar
         if hasScroll then
             if not menu.scrollBar then
                 local bar = CreateFrame("Frame", nil, menu, "BackdropTemplate")
@@ -1015,6 +1220,10 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
                 local thumb = bar:CreateTexture(nil, "OVERLAY")
                 thumb:SetColorTexture(0.5, 0.5, 0.5, 0.8)
                 bar.thumb = thumb
+
+                bar:EnableMouseWheel(true)
+                bar:SetScript("OnMouseWheel", onWheel)
+
                 menu.scrollBar = bar
             end
 
@@ -1033,38 +1242,28 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
     end
 
     menu:EnableMouseWheel(true)
-    menu:SetScript("OnMouseWheel", function(self, delta)
-        local curOpts = (type(options) == "function") and options() or options or {}
-        local num = #curOpts
-        local vis = math.min(num, MAX_VISIBLE_ROWS)
-        local maxOff = math.max(0, num - vis)
-        if maxOff <= 0 then return end
-
-        if delta > 0 then
-            menu.scrollOffset = math.max(0, (menu.scrollOffset or 0) - 2)
-        else
-            menu.scrollOffset = math.min(maxOff, (menu.scrollOffset or 0) + 2)
-        end
-        fillOptions()
-    end)
+    menu:SetScript("OnMouseWheel", onWheel)
 
     btn:SetScript("OnClick", function()
         if menu:IsShown() then
             menu:Hide()
             activeDropdown = nil
-            if sfui._dropdownCatcher then sfui._dropdownCatcher:Hide() end
         else
             if activeDropdown and activeDropdown ~= menu then
                 activeDropdown:Hide()
             end
-            local curOpts = (type(options) == "function") and options() or options or {}
+            if activeTextureMenu and activeTextureMenu:IsShown() then
+                activeTextureMenu:Hide()
+            end
+
+            local curOpts = getOptionList()
             local num = #curOpts
             local vis = math.min(num, MAX_VISIBLE_ROWS)
             local maxOff = math.max(0, num - vis)
-            -- Position scroll so current value is in view
+
             local selIdx = nil
             for idx, opt in ipairs(curOpts) do
-                if opt.value == currentValue or (currentValue and (opt.text == currentValue or opt.label == currentValue)) then
+                if opt.value == currentValue or (currentValue ~= nil and (opt.text == currentValue or opt.label == currentValue)) then
                     selIdx = idx
                     break
                 end
@@ -1075,12 +1274,8 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
                 menu.scrollOffset = 0
             end
 
-            updateMenuSizeAndPosition()
+            updateMenuLayout()
             menu:Show()
-            if sfui._dropdownCatcher then
-                sfui._dropdownCatcher:SetFrameLevel(math.max(1, menu:GetFrameLevel() - 1))
-                sfui._dropdownCatcher:Show()
-            end
             fillOptions()
             activeDropdown = menu
         end
@@ -1088,7 +1283,7 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
 
     function btn:SetSelectedValue(val)
         currentValue = val
-        local opts = (type(options) == "function") and options() or options or {}
+        local opts = getOptionList()
         local found = false
         for _, opt in ipairs(opts) do
             if opt.value == val or opt.text == val or opt.label == val then
@@ -1096,8 +1291,8 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
                 if not fixedText then
                     local text = opt.text or opt.label or tostring(val)
                     btn:SetText(text)
-                    local fs = btn:GetFontString()
-                    if fs then fs:SetText(text) end
+                    local btnFs = btn:GetFontString()
+                    if btnFs then btnFs:SetText(text) end
                 end
                 found = true
                 break
@@ -1105,12 +1300,15 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
         end
         if not found and not fixedText and val ~= nil then
             btn:SetText(tostring(val))
-            local fs = btn:GetFontString()
-            if fs then fs:SetText(tostring(val)) end
+            local btnFs = btn:GetFontString()
+            if btnFs then btnFs:SetText(tostring(val)) end
         end
     end
 
-    -- Auto-dismiss floating menu when button or parent frame hides
+    function btn:GetSelectedValue()
+        return currentValue
+    end
+
     btn:HookScript("OnHide", function()
         if menu:IsShown() then
             menu:Hide()
@@ -1130,3 +1328,452 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
     return btn
 end
 sfui.common.create_dropdown = sfui.widgets.create_dropdown
+
+-- ─────────────────────────────────────────────────────────────────────────────
+--  Texture Selection Dropdown (ElvUI / SharedMedia Style)
+-- ─────────────────────────────────────────────────────────────────────────────
+local activeTextureMenu = nil
+local resolve_statusbar_texture = sfui.widgets.resolve_statusbar_texture
+
+
+local function get_all_statusbar_textures()
+    local list = {}
+    local seen = {}
+    local LSM = _G.LibStub and _G.LibStub("LibSharedMedia-3.0", true)
+
+    if LSM then
+        local lsmList = LSM:List("statusbar")
+        if lsmList then
+            for _, name in ipairs(lsmList) do
+                if not seen[name] then
+                    seen[name] = true
+                    table.insert(list, name)
+                end
+            end
+        else
+            local hash = LSM:HashTable("statusbar")
+            if hash then
+                for name, _ in pairs(hash) do
+                    if not seen[name] then
+                        seen[name] = true
+                        table.insert(list, name)
+                    end
+                end
+            end
+        end
+    end
+
+    if sfui.config and sfui.config.blizzard_bar_textures then
+        for name, _ in pairs(sfui.config.blizzard_bar_textures) do
+            if not seen[name] then
+                seen[name] = true
+                table.insert(list, name)
+            end
+        end
+    end
+
+    table.sort(list, function(a, b)
+        return string.upper(a) < string.upper(b)
+    end)
+
+    return list
+end
+
+function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initialValue, labelText)
+    width = width or 200
+    local ROW_HEIGHT = 20
+    local MAX_VISIBLE = 12
+    local PADDING = 4
+    local SCROLL_WIDTH = 8
+    local currentValue = initialValue or "Flat"
+
+    -- Container frame (holds label + dropdown button)
+    local container = CreateFrame("Frame", nil, parent)
+    local hasLabel = (labelText and labelText ~= "")
+    container:SetSize(width, hasLabel and 44 or 22)
+
+    local btn = CreateFrame("Button", nil, container, "BackdropTemplate")
+    btn:SetSize(width, 22)
+    btn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    btn:SetBackdropColor(0.12, 0.12, 0.12, 0.95)
+    btn:SetBackdropBorderColor(0, 0, 0, 1)
+
+    if hasLabel then
+        local label = container:CreateFontString(nil, "OVERLAY")
+        label:SetFontObject(sfui.config and sfui.config.font or "GameFontNormal")
+        label:SetTextColor(1, 0.82, 0, 1) -- Golden yellow matching ElvUI
+        label:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
+        label:SetText(labelText)
+        container.label = label
+        btn:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -4)
+    else
+        btn:SetAllPoints(container)
+    end
+    container.btn = btn
+
+    -- Texture preview bar on the closed button
+    local btnBar = btn:CreateTexture(nil, "BACKGROUND")
+    btnBar:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
+    btnBar:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
+    btnBar:SetAlpha(0.35)
+    btn.bar = btnBar
+
+    -- Selected texture text
+    local btnText = btn:CreateFontString(nil, "OVERLAY")
+    btnText:SetFontObject("GameFontHighlightSmall")
+    local fontPath, fontSize = btnText:GetFont()
+    if fontPath then btnText:SetFont(fontPath, fontSize, "OUTLINE") end
+    btnText:SetShadowColor(0, 0, 0, 1)
+    btnText:SetShadowOffset(1, -1)
+    btnText:SetPoint("LEFT", btn, "LEFT", 8, 0)
+    btnText:SetPoint("RIGHT", btn, "RIGHT", -22, 0)
+    btnText:SetJustifyH("LEFT")
+    btnText:SetTextColor(1, 1, 1, 1)
+    btn.text = btnText
+
+    -- Down-arrow indicator
+    local arrow = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    arrow:SetPoint("RIGHT", btn, "RIGHT", -8, 0)
+    arrow:SetText("|cffffcc00▼|r")
+    btn.arrow = arrow
+
+    -- Highlight on hover
+    btn:SetHighlightTexture("Interface\\Buttons\\WHITE8x8")
+    local btnHl = btn:GetHighlightTexture()
+    btnHl:SetVertexColor(1, 1, 1, 0.15)
+
+    local function updateButtonDisplay(val)
+        currentValue = val
+        btnText:SetText(tostring(val or "Flat"))
+        local path = resolve_statusbar_texture(val)
+        btnBar:SetTexture(path)
+    end
+    updateButtonDisplay(currentValue)
+
+    -- Floating dropdown menu frame
+    local menu = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    menu:SetFrameStrata("TOOLTIP")
+    menu:SetFrameLevel(250)
+    menu:SetClampedToScreen(true)
+    menu:EnableMouse(true)
+    menu:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    menu:SetBackdropColor(0.10, 0.10, 0.10, 0.98)
+    menu:SetBackdropBorderColor(0, 0, 0, 1)
+    menu:Hide()
+
+    menu:SetScript("OnEvent", function(self, event, mouseButton)
+        if event == "GLOBAL_MOUSE_DOWN" then
+            if mouseButton == "LeftButton" or mouseButton == "RightButton" then
+                if not self:IsShown() then return end
+                C_Timer.After(0.01, function()
+                    if not self:IsShown() then return end
+                    if self:IsMouseOver() then return end
+                    if btn and btn:IsMouseOver() then return end
+                    if DoesAncestryIncludeAny and GetMouseFoci then
+                        local foci = GetMouseFoci()
+                        if DoesAncestryIncludeAny(self, foci) then return end
+                        if btn and DoesAncestryIncludeAny(btn, foci) then return end
+                    end
+                    self:Hide()
+                    if activeTextureMenu == self then
+                        activeTextureMenu = nil
+                    end
+                end)
+            end
+        end
+    end)
+
+    menu:SetScript("OnShow", function(self)
+        self:RegisterEvent("GLOBAL_MOUSE_DOWN")
+    end)
+
+    menu.scrollOffset = 0
+    menu.rows = {}
+
+    -- Scrollbar track
+    local scrollbar = CreateFrame("Frame", nil, menu, "BackdropTemplate")
+    scrollbar:SetWidth(SCROLL_WIDTH)
+    scrollbar:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -3, -PADDING)
+    scrollbar:SetPoint("BOTTOMRIGHT", menu, "BOTTOMRIGHT", -3, PADDING)
+    scrollbar:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    scrollbar:SetBackdropColor(0.06, 0.06, 0.06, 0.9)
+    scrollbar:SetBackdropBorderColor(0, 0, 0, 1)
+    scrollbar:EnableMouse(true)
+    menu.scrollbar = scrollbar
+
+    -- Scrollbar thumb (bright yellow/gold, matching ElvUI)
+    local thumb = CreateFrame("Frame", nil, scrollbar)
+    thumb:SetWidth(SCROLL_WIDTH - 2)
+    local thumbTex = thumb:CreateTexture(nil, "OVERLAY")
+    thumbTex:SetAllPoints(thumb)
+    thumbTex:SetColorTexture(1, 0.82, 0, 1) -- Golden yellow
+    thumb:EnableMouse(true)
+    scrollbar.thumb = thumb
+
+    local allTextures = {}
+
+    local function updateList()
+        local numTextures = #allTextures
+        local visibleCount = math.min(numTextures, MAX_VISIBLE)
+        local maxOffset = math.max(0, numTextures - visibleCount)
+
+        if menu.scrollOffset > maxOffset then menu.scrollOffset = maxOffset end
+        if menu.scrollOffset < 0 then menu.scrollOffset = 0 end
+
+        local hasScroll = numTextures > visibleCount
+        if hasScroll then
+            scrollbar:Show()
+            local trackH = scrollbar:GetHeight()
+            if trackH and trackH > 10 then
+                local thumbH = math.max(14, math.floor(trackH * (visibleCount / numTextures)))
+                local thumbY = -(trackH - thumbH) * (maxOffset > 0 and (menu.scrollOffset / maxOffset) or 0)
+                thumb:ClearAllPoints()
+                thumb:SetPoint("TOPLEFT", scrollbar, "TOPLEFT", 1, thumbY)
+                thumb:SetSize(SCROLL_WIDTH - 2, thumbH)
+            end
+        else
+            scrollbar:Hide()
+        end
+
+        local rowWidth = (menu:GetWidth() or width or 200) - (hasScroll and (SCROLL_WIDTH + 8) or 6)
+
+        for i = 1, MAX_VISIBLE do
+            local row = menu.rows[i]
+            local idx = menu.scrollOffset + i
+            local name = allTextures[idx]
+
+            if name and i <= visibleCount then
+                row.textureName = name
+                row:SetWidth(rowWidth)
+
+                local isSelected = (name == currentValue)
+                if isSelected then
+                    row.check:Show()
+                else
+                    row.check:Hide()
+                end
+
+                local path = resolve_statusbar_texture(name)
+                row.bar:SetTexture(path)
+                row.text:SetText(name)
+
+                row:ClearAllPoints()
+                row:SetPoint("TOPLEFT", menu, "TOPLEFT", 3, -PADDING - ((i - 1) * ROW_HEIGHT))
+                row:Show()
+            else
+                row.textureName = nil
+                row:Hide()
+            end
+        end
+    end
+
+    local function onTextureWheel(_, delta)
+        local maxOffset = math.max(0, #allTextures - MAX_VISIBLE)
+        if maxOffset <= 0 then return end
+        if delta > 0 then
+            menu.scrollOffset = math.max(0, menu.scrollOffset - 3)
+        else
+            menu.scrollOffset = math.min(maxOffset, menu.scrollOffset + 3)
+        end
+        updateList()
+    end
+
+    -- Create reusable row frames
+    for i = 1, MAX_VISIBLE do
+        local row = CreateFrame("Button", nil, menu)
+        row:SetHeight(ROW_HEIGHT)
+        row:SetFrameLevel(menu:GetFrameLevel() + 2)
+        row:RegisterForClicks("LeftButtonUp")
+
+        local check = row:CreateFontString(nil, "OVERLAY")
+        check:SetFontObject("GameFontHighlightSmall")
+        check:SetText("|cffffcc00✓|r")
+        check:SetSize(14, 14)
+        check:SetPoint("LEFT", row, "LEFT", 2, 0)
+        check:SetJustifyH("CENTER")
+        check:Hide()
+        row.check = check
+
+        local bar = row:CreateTexture(nil, "ARTWORK")
+        bar:SetHeight(16)
+        bar:SetPoint("LEFT", check, "RIGHT", 2, 0)
+        bar:SetPoint("RIGHT", row, "RIGHT", -2, 0)
+        row.bar = bar
+
+        local text = row:CreateFontString(nil, "OVERLAY")
+        text:SetFontObject("GameFontHighlightSmall")
+        local fPath, fSize = text:GetFont()
+        if fPath then text:SetFont(fPath, fSize, "OUTLINE") end
+        text:SetShadowColor(0, 0, 0, 1)
+        text:SetShadowOffset(1, -1)
+        text:SetWordWrap(false)
+        text:SetPoint("LEFT", bar, "LEFT", 4, 0)
+        text:SetPoint("RIGHT", bar, "RIGHT", -4, 0)
+        text:SetJustifyH("LEFT")
+        text:SetTextColor(1, 1, 1, 1)
+        row.text = text
+
+        row:SetHighlightTexture("Interface\\Buttons\\WHITE8x8")
+        local rowHl = row:GetHighlightTexture()
+        rowHl:SetVertexColor(1, 1, 1, 0.2)
+
+        row:SetScript("OnClick", function()
+            if row.textureName then
+                local chosen = row.textureName
+                updateButtonDisplay(chosen)
+                menu:Hide()
+                if onSelectFunc then
+                    local path = resolve_statusbar_texture(chosen)
+                    pcall(onSelectFunc, chosen, path)
+                end
+            end
+        end)
+
+        row:EnableMouseWheel(true)
+        row:SetScript("OnMouseWheel", onTextureWheel)
+
+        menu.rows[i] = row
+    end
+
+    -- Mousewheel on menu container
+    menu:EnableMouseWheel(true)
+    menu:SetScript("OnMouseWheel", onTextureWheel)
+
+    -- Thumb dragging logic
+    local isDragging = false
+    local dragStartY = 0
+    local dragStartOffset = 0
+
+    thumb:SetScript("OnMouseDown", function(_, mouseBtn)
+        if mouseBtn == "LeftButton" then
+            isDragging = true
+            dragStartY = select(2, _G.GetCursorPosition()) / (_G.UIParent:GetEffectiveScale() or 1)
+            dragStartOffset = menu.scrollOffset
+        end
+    end)
+    thumb:SetScript("OnMouseUp", function()
+        isDragging = false
+    end)
+    menu:SetScript("OnUpdate", function()
+        if not isDragging then return end
+        local numTextures = #allTextures
+        local maxOffset = math.max(0, numTextures - MAX_VISIBLE)
+        if maxOffset <= 0 then return end
+
+        local curY = select(2, _G.GetCursorPosition()) / (_G.UIParent:GetEffectiveScale() or 1)
+        local dy = dragStartY - curY
+        local trackH = scrollbar:GetHeight() - thumb:GetHeight()
+        if trackH > 0 then
+            local offsetDelta = (dy / trackH) * maxOffset
+            local newOffset = math.floor(dragStartOffset + offsetDelta + 0.5)
+            menu.scrollOffset = math.max(0, math.min(maxOffset, newOffset))
+            updateList()
+        end
+    end)
+
+    -- Scrollbar track clicking
+    scrollbar:SetScript("OnMouseDown", function(_, mouseBtn)
+        if mouseBtn ~= "LeftButton" then return end
+        local curY = select(2, _G.GetCursorPosition()) / (_G.UIParent:GetEffectiveScale() or 1)
+        local thumbTop = thumb:GetTop() or 0
+        local thumbBottom = thumb:GetBottom() or 0
+        local maxOffset = math.max(0, #allTextures - MAX_VISIBLE)
+        if maxOffset <= 0 then return end
+
+        if curY > thumbTop then
+            menu.scrollOffset = math.max(0, menu.scrollOffset - MAX_VISIBLE)
+        elseif curY < thumbBottom then
+            menu.scrollOffset = math.min(maxOffset, menu.scrollOffset + MAX_VISIBLE)
+        end
+        updateList()
+    end)
+
+    menu:SetScript("OnHide", function(self)
+        isDragging = false
+        self:UnregisterEvent("GLOBAL_MOUSE_DOWN")
+        if activeTextureMenu == self then
+            activeTextureMenu = nil
+        end
+    end)
+
+    -- Button toggle
+    btn:SetScript("OnClick", function()
+        if menu:IsShown() then
+            menu:Hide()
+            activeTextureMenu = nil
+        else
+            if activeTextureMenu and activeTextureMenu ~= menu then
+                activeTextureMenu:Hide()
+            end
+            if activeDropdown then
+                activeDropdown:Hide()
+            end
+
+            allTextures = get_all_statusbar_textures()
+            local numTextures = #allTextures
+            local visibleCount = math.min(numTextures, MAX_VISIBLE)
+            local totalH = PADDING * 2 + (visibleCount * ROW_HEIGHT)
+            local menuW = math.max(width or 200, 200)
+
+            menu:SetSize(menuW, totalH)
+
+            -- Scroll to selected item so it is immediately in view
+            local selIdx = nil
+            for idx, name in ipairs(allTextures) do
+                if name == currentValue then
+                    selIdx = idx
+                    break
+                end
+            end
+            local maxOffset = math.max(0, numTextures - visibleCount)
+            if selIdx and selIdx > visibleCount then
+                menu.scrollOffset = math.min(maxOffset, selIdx - math.floor(visibleCount / 2))
+            else
+                menu.scrollOffset = 0
+            end
+
+            menu:ClearAllPoints()
+            local btnBottom = btn:GetBottom() or 0
+            if btnBottom < (totalH + 20) then
+                -- Open above
+                menu:SetPoint("BOTTOMLEFT", btn, "TOPLEFT", 0, 2)
+            else
+                -- Open below
+                menu:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2)
+            end
+
+            menu:Show()
+            updateList()
+            activeTextureMenu = menu
+        end
+    end)
+
+    function container:SetSelectedTexture(val)
+        updateButtonDisplay(val)
+    end
+
+    if parent and parent.HookScript then
+        parent:HookScript("OnHide", function()
+            if menu:IsShown() then
+                menu:Hide()
+            end
+        end)
+    end
+
+    return container
+end
+
+sfui.common.create_texture_dropdown = sfui.widgets.create_texture_dropdown
+

@@ -50,7 +50,9 @@ function sfui.cursor.initialize()
     end
     sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", on_cursor_event)
     sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE",         on_cursor_event)
-    sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED",     on_cursor_event)
+    if sfui.isClassic then
+        sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", on_cursor_event)
+    end
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD",         on_cursor_event)
     sfui.events.RegisterEvent("UI_SCALE_CHANGED",              on_cursor_event)
 

@@ -14,7 +14,10 @@ sfui.theme.RegisterTheme({
     clientTag      = "classic",
     autoDetect     = function()
         -- Auto-detect selects Camelot on Classic Forever / Camelot beta
-        return sfui.isForever or (sfui.compat and sfui.compat.is_wow_forever)
+        return (sfui.isForever or (sfui.compat and sfui.compat.is_wow_forever)) and sfui.theme.IsCamelotSupported()
+    end,
+    isSupported    = function()
+        return sfui.theme.IsCamelotSupported()
     end,
     colors         = {
         id             = "camelot",

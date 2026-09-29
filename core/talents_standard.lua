@@ -31,6 +31,9 @@ local GetLootSpecialization     = C_SpecializationInfo.GetLootSpecialization or 
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- Retail Spec Discovery
+-- Note: Unlike Classic / Camelot, Retail specialization is authoritatively
+-- retrieved via GetSpecialization() / GetSpecializationInfo(). We never inspect,
+-- count, or evaluate spent talent points or tree currencies to determine spec.
 -- ────────────────────────────────────────────────────────────────────────────
 local function RetailSpecResolver()
     local specIndex = (GetSpecialization and GetSpecialization()) or 0
@@ -150,3 +153,12 @@ local function RetailTalentKnownResolver(targetSpellID)
     return _talentCache[targetSpellID] == true
 end
 sfui.talents._talentKnownResolver = RetailTalentKnownResolver
+
+local function InvalidateTalentCache()
+    _talentCacheConfigID = nil
+    table.wipe(_talentCache)
+end
+sfui.talents.invalidate_talent_cache = InvalidateTalentCache
+
+sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", InvalidateTalentCache)
+sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", InvalidateTalentCache)

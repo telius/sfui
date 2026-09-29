@@ -18,7 +18,6 @@ local GetServerTime = _G.GetServerTime
 local GetMoney = _G.GetMoney
 local table = _G.table
 local math = _G.math
-local math_max = math.max
 local wipe = _G.wipe
 local C_Timer = _G.C_Timer
 local unpack = _G.unpack or table.unpack
@@ -31,8 +30,6 @@ local type = _G.type
 local GameTooltip = _G.GameTooltip
 local RAID_CLASS_COLORS = _G.RAID_CLASS_COLORS
 local NORMAL_FONT_COLOR = _G.NORMAL_FONT_COLOR
-local GREEN_FONT_COLOR = _G.GREEN_FONT_COLOR
-local RED_FONT_COLOR = _G.RED_FONT_COLOR
 local CloseDropDownMenus = _G.CloseDropDownMenus
 local GetGuildInfo = _G.GetGuildInfo
 local RequestTimePlayed = _G.RequestTimePlayed
@@ -149,12 +146,6 @@ local function ReleaseCell(f)
         f.rightText:ClearAllPoints()
         f.rightText:SetWidth(0)
         f.rightText:SetText("")
-    end
-    if f.del then
-        f.del:SetScript("OnClick", nil)
-        f.del:SetScript("OnEnter", nil)
-        f.del:SetScript("OnLeave", nil)
-        f.del:Hide()
     end
     if f.diamondIcon then
         f.diamondIcon:Hide()
@@ -285,14 +276,278 @@ end
 
 -- UI Implementation
 local frame = nil
-local sortDropdown = nil
+local settingsPanel = nil
+local sortButtons = {}
+local sectionCheckboxes = {}
+local charRows = {}
 
-local function GetSortOptions()
-    return (sfui.alts.provider and sfui.alts.provider.sortOptions) or {
-        { text = "Name (A-Z)",  value = "name" },
-        { text = "Item Level",  value = "ilvl" },
-        { text = "Time Played", value = "timeplayed" },
+local function updateSettingsPosition()
+    if not settingsPanel or not frame then return end
+    settingsPanel:ClearAllPoints()
+    local frameRight = frame:GetRight() or 0
+    local screenWidth = UIParent:GetWidth() or 1920
+    if (frameRight + 260) > screenWidth then
+        settingsPanel:SetPoint("TOPRIGHT", frame, "TOPLEFT", -4, 0)
+        settingsPanel:SetPoint("BOTTOMRIGHT", frame, "BOTTOMLEFT", -4, 0)
+    else
+        settingsPanel:SetPoint("TOPLEFT", frame, "TOPRIGHT", 4, 0)
+        settingsPanel:SetPoint("BOTTOMLEFT", frame, "BOTTOMRIGHT", 4, 0)
+    end
+end
+sfui.alts.UpdateSettingsPosition = updateSettingsPosition
+
+local function RefreshSettingsPanel()
+    if not settingsPanel or not settingsPanel:IsShown() then return end
+
+    -- 1. Refresh Sort button highlights
+    local curSort = SfuiDB.altsSort or "name"
+    local hl = (sfui.config and sfui.config.appearance and sfui.config.appearance.highlightColor) or { 0.4, 0, 1, 1 }
+    for _, sBtn in ipairs(sortButtons) do
+        if sBtn.sortKey == curSort then
+            sBtn:SetBackdropColor(hl[1], hl[2], hl[3], 0.8)
+            if sBtn.SetBackdropBorderColor then sBtn:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1) end
+        else
+            sBtn:SetBackdropColor(0.12, 0.12, 0.12, 0.9)
+            if sBtn.SetBackdropBorderColor then sBtn:SetBackdropBorderColor(0.25, 0.25, 0.25, 1) end
+        end
+    end
+
+    -- 2. Refresh Sections checkboxes
+    local cats = GetCategories()
+    local secY = 0
+    local secIdx = 1
+
+    local function setupSecCb(label, isChecked, onToggle)
+        local cb = sectionCheckboxes[secIdx]
+        if not cb then
+            cb = sfui.common.create_checkbox(settingsPanel.sectionsContainer, label, nil, nil)
+            sectionCheckboxes[secIdx] = cb
+        end
+        cb:ClearAllPoints()
+        cb:SetPoint("TOPLEFT", 0, -secY)
+        if cb.text then cb.text:SetText(label) end
+        cb:SetChecked(isChecked)
+        cb:SetScript("OnClick", function(self)
+            onToggle(self:GetChecked())
+        end)
+        cb:Show()
+        secY = secY + 22
+        secIdx = secIdx + 1
+    end
+
+    for _, cat in ipairs(cats) do
+        if cat.type == "header" and cat.name ~= "GENERAL" then
+            local isHidden = SfuiDB.altsHiddenSections and (SfuiDB.altsHiddenSections[cat.name] == true)
+            local catName = cat.name
+            setupSecCb(cat.label, not isHidden, function(checked)
+                SfuiDB.altsHiddenSections = SfuiDB.altsHiddenSections or {}
+                SfuiDB.altsHiddenSections[catName] = not checked
+                sfui.alts.UpdateUI(true)
+            end)
+        end
+    end
+
+    if sfui.alts.provider and sfui.alts.provider.name == "standard" then
+        local isM0Hidden = (SfuiDB.showM0Dungeons == false)
+        setupSecCb("m0 dungeons", not isM0Hidden, function(checked)
+            SfuiDB.showM0Dungeons = checked
+            sfui.alts.RefreshDynamicCategories(true)
+            sfui.alts.UpdateUI(true)
+        end)
+    end
+
+    for i = secIdx, #sectionCheckboxes do
+        sectionCheckboxes[i]:Hide()
+    end
+
+    settingsPanel.sectionsContainer:SetHeight(math.max(1, secY))
+
+    -- 3. Position and layout Characters
+    settingsPanel.charHeader:ClearAllPoints()
+    settingsPanel.charHeader:SetPoint("TOPLEFT", settingsPanel.sectionsContainer, "BOTTOMLEFT", 0, -14)
+
+    settingsPanel.charScroll:ClearAllPoints()
+    settingsPanel.charScroll:SetPoint("TOPLEFT", settingsPanel.charHeader, "BOTTOMLEFT", 0, -6)
+    settingsPanel.charScroll:SetPoint("BOTTOMRIGHT", -10, 10)
+
+    local chars = {}
+    for guid, data in pairs(SfuiDB.alts or {}) do
+        chars[#chars + 1] = { guid = guid, data = data }
+    end
+    table.sort(chars, function(a, b)
+        return (a.data.name or "") < (b.data.name or "")
+    end)
+
+    local charY = 0
+    for i, cInfo in ipairs(chars) do
+        local row = charRows[i]
+        if not row then
+            row = CreateFrame("Frame", nil, settingsPanel.charContent)
+            row:SetHeight(22)
+
+            local del = sfui.common.create_flat_button(row, "X", 18, 16)
+            del:SetPoint("RIGHT", row, "RIGHT", -2, 0)
+            local delFs = del:GetFontString()
+            if delFs then delFs:SetTextColor(1, 0.3, 0.3, 1) end
+            del.tooltip = "Remove Character"
+            row.del = del
+
+            local cb = sfui.common.create_checkbox(row, "", nil, nil)
+            cb:SetPoint("LEFT", 0, 0)
+            if cb.text then
+                cb.text:SetPoint("RIGHT", del, "LEFT", -4, 0)
+                cb.text:SetWordWrap(false)
+                cb.text:SetJustifyH("LEFT")
+            end
+            row.cb = cb
+
+            charRows[i] = row
+        end
+
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, -charY)
+        row:SetPoint("RIGHT", settingsPanel.charContent, "RIGHT", 0, 0)
+
+        local d = cInfo.data
+        local classColor = RAID_CLASS_COLORS[d.class] or NORMAL_FONT_COLOR
+        local colorStr = classColor and classColor.colorStr or "ffffffff"
+        local name = d.name or "Unknown"
+
+        if row.cb.text then
+            row.cb.text:SetText(string.format("|c%s%s|r", colorStr, name))
+        end
+        row.cb:SetChecked(not d.isHidden)
+        row.cb:SetScript("OnClick", function(self)
+            d.isHidden = not self:GetChecked()
+            sfui.alts.UpdateUI(true)
+        end)
+
+        local capturedGuid = cInfo.guid
+        local capturedName = name
+        row.del:SetScript("OnClick", function()
+            if StaticPopup_Show then
+                StaticPopup_Show("SFUI_ALTS_REMOVE_CHARACTER", capturedName, nil, { guid = capturedGuid })
+            else
+                if SfuiDB.alts then
+                    SfuiDB.alts[capturedGuid] = nil
+                end
+                sfui.alts.UpdateUI(true)
+                RefreshSettingsPanel()
+            end
+        end)
+
+        row:Show()
+        charY = charY + 22
+    end
+
+    for i = #chars + 1, #charRows do
+        charRows[i]:Hide()
+    end
+
+    settingsPanel.charContent:SetHeight(math.max(1, charY))
+end
+sfui.alts.RefreshSettingsPanel = RefreshSettingsPanel
+
+local function CreateSettingsPanel()
+    if settingsPanel then return settingsPanel end
+
+    settingsPanel = CreateFrame("Frame", "SfuiAltsSettingsPanel", frame, "BackdropTemplate")
+    settingsPanel:SetFrameStrata("DIALOG")
+    settingsPanel:SetFrameLevel((frame:GetFrameLevel() or 1) + 10)
+    settingsPanel:SetWidth(260)
+    settingsPanel:EnableMouse(true)
+
+    if sfui.theme and sfui.theme.ApplyWindowStyle then
+        sfui.theme.ApplyWindowStyle(settingsPanel)
+        sfui.theme.RegisterWindow(settingsPanel)
+    else
+        settingsPanel:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        settingsPanel:SetBackdropColor(unpack(cfg.backdropColor or { 0.05, 0.05, 0.05, 0.95 }))
+        settingsPanel:SetBackdropBorderColor(unpack(cfg.borderColor or { 0, 0, 0, 1 }))
+    end
+
+    local pClose = (sfui.common.create_close_button or sfui.common.create_flat_button)(settingsPanel, function()
+        settingsPanel:Hide()
+    end, 20)
+    pClose:ClearAllPoints()
+    pClose:SetPoint("TOPRIGHT", -6, -6)
+    pClose.tooltip = "Close Settings"
+
+    -- Title
+    local title = settingsPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    title:SetPoint("TOPLEFT", 12, -10)
+    title:SetText("Configuration")
+    title:SetTextColor(unpack((sfui.config and sfui.config.appearance and sfui.config.appearance.highlightColor) or { 0.4, 0, 1, 1 }))
+
+    -- 1. SORT BY
+    local sortHeader = settingsPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    sortHeader:SetPoint("TOPLEFT", 12, -36)
+    sortHeader:SetText("SORT BY")
+    sortHeader:SetTextColor(1, 0.82, 0)
+
+    local sortDefs = {
+        { label = "Name", key = "name", width = 74 },
+        { label = "iLvl", key = "ilvl", width = 74 },
+        { label = "Time", key = "timeplayed", width = 80 },
     }
+    local prevSortBtn = nil
+    for _, sDef in ipairs(sortDefs) do
+        local sBtn = sfui.common.create_flat_button(settingsPanel, sDef.label, sDef.width, 20)
+        sBtn.sortKey = sDef.key
+        if not prevSortBtn then
+            sBtn:SetPoint("TOPLEFT", 12, -54)
+        else
+            sBtn:SetPoint("LEFT", prevSortBtn, "RIGHT", 4, 0)
+        end
+        sBtn:SetScript("OnClick", function()
+            SfuiDB.altsSort = sDef.key
+            sfui.alts.UpdateUI(true)
+            if sfui.alts.RefreshSettingsPanel then
+                sfui.alts.RefreshSettingsPanel()
+            end
+        end)
+        sortButtons[#sortButtons + 1] = sBtn
+        prevSortBtn = sBtn
+    end
+
+    -- 2. SECTIONS
+    local secHeader = settingsPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    secHeader:SetPoint("TOPLEFT", 12, -84)
+    secHeader:SetText("SECTIONS")
+    secHeader:SetTextColor(1, 0.82, 0)
+
+    local sectionsContainer = CreateFrame("Frame", nil, settingsPanel)
+    sectionsContainer:SetPoint("TOPLEFT", 12, -102)
+    sectionsContainer:SetPoint("RIGHT", -12, 0)
+    sectionsContainer:SetHeight(1)
+    settingsPanel.sectionsContainer = sectionsContainer
+
+    -- 3. CHARACTERS
+    local charHeader = settingsPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    charHeader:SetText("CHARACTERS")
+    charHeader:SetTextColor(1, 0.82, 0)
+    settingsPanel.charHeader = charHeader
+
+    local charScroll = CreateFrame("ScrollFrame", nil, settingsPanel)
+    charScroll:EnableMouseWheel(true)
+    charScroll:SetScript("OnMouseWheel", function(self, delta)
+        local cur = self:GetVerticalScroll()
+        local maxScroll = self:GetVerticalScrollRange()
+        self:SetVerticalScroll(math.max(0, math.min(maxScroll, cur - (delta * 22))))
+    end)
+    settingsPanel.charScroll = charScroll
+
+    local charContent = CreateFrame("Frame", nil, charScroll)
+    charContent:SetSize(236, 1)
+    charScroll:SetScrollChild(charContent)
+    settingsPanel.charContent = charContent
+
+    settingsPanel:Hide()
+    return settingsPanel
 end
 
 -- Confirmation Dialog for Removing Characters
@@ -304,7 +559,10 @@ if StaticPopupDialogs then
         OnAccept = function(self, data)
             if SfuiDB.alts and data and data.guid then
                 SfuiDB.alts[data.guid] = nil
-                sfui.alts.UpdateUI()
+                sfui.alts.UpdateUI(true)
+                if sfui.alts.RefreshSettingsPanel then
+                    sfui.alts.RefreshSettingsPanel()
+                end
             end
         end,
         timeout = 0,
@@ -326,8 +584,18 @@ function sfui.alts.CreateFrame()
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
-    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-    frame:SetScript("OnHide", function() CloseDropDownMenus() end)
+    frame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        if sfui.alts.UpdateSettingsPosition then
+            sfui.alts.UpdateSettingsPosition()
+        end
+    end)
+    frame:SetScript("OnHide", function()
+        CloseDropDownMenus()
+        if settingsPanel and settingsPanel:IsShown() then
+            settingsPanel:Hide()
+        end
+    end)
     frame:SetScript("OnShow", function()
         if sfui.alts.provider and sfui.alts.provider.OnFrameShow then
             sfui.alts.provider.OnFrameShow()
@@ -335,6 +603,10 @@ function sfui.alts.CreateFrame()
         sfui.alts.RefreshDynamicCategories()
         sfui.alts.PerformSync()
         sfui.alts.UpdateUI(true)
+        if settingsPanel and settingsPanel:IsShown() and sfui.alts.RefreshSettingsPanel then
+            sfui.alts.UpdateSettingsPosition()
+            sfui.alts.RefreshSettingsPanel()
+        end
     end)
 
     if sfui.theme and sfui.theme.ApplyWindowStyle then
@@ -350,133 +622,23 @@ function sfui.alts.CreateFrame()
         frame:SetBackdropBorderColor(unpack(cfg.borderColor or { 0, 0, 0, 1 }))
     end
 
-    local close = (sfui.common.create_close_button or CreateFlatButton)(frame, function() frame:Hide() end, 24)
+    local close = (sfui.common.create_close_button or sfui.common.create_flat_button)(frame, function() frame:Hide() end, 24)
+    close.tooltip = "Close"
 
-    -- Sort Dropdown
-    sortDropdown = sfui.common.create_dropdown(frame, 24, GetSortOptions, function(val)
-        SfuiDB.altsSort = val
-        sfui.alts.UpdateUI()
-    end, SfuiDB.altsSort or "name", "S")
-    sortDropdown:SetPoint("TOPRIGHT", close, "TOPLEFT", -5, 0)
-
-    -- Character Manager Dropdown (=)
-    local function populateManagerOptions()
-        local options = {}
-        for guid, data in pairs(SfuiDB.alts or {}) do
-            table.insert(options, {
-                guid = guid,
-                data = data,
-                keepOpen = true,
-                onRender = function(parent, opt)
-                    local name = opt.data.name or "Unknown"
-                    local classColor = RAID_CLASS_COLORS[opt.data.class] or NORMAL_FONT_COLOR
-                    local colorStr = classColor and classColor.colorStr or "ffffffff"
-
-                    local t = parent.textString
-                    t:SetText(string.format("|c%s%s|r", colorStr, name))
-
-                    -- Remove button [X]
-                    parent.xBtn = parent.xBtn or sfui.common.create_flat_button(parent, "X", 18, 16)
-                    local xBtn = parent.xBtn
-                    xBtn:ClearAllPoints()
-                    xBtn:SetPoint("RIGHT", -5, 0)
-                    xBtn:Show()
-                    xBtn:SetScript("OnClick", function()
-                        if StaticPopup_Show then
-                            StaticPopup_Show("SFUI_ALTS_REMOVE_CHARACTER", name, nil, { guid = opt.guid })
-                        end
-                    end)
-
-                    -- Hide button [H]
-                    parent.hBtn = parent.hBtn or sfui.common.create_flat_button(parent, "", 18, 16)
-                    local hBtn = parent.hBtn
-                    local hStatus = opt.data.isHidden and "|cff00ff00H|r" or "|cffccccccH|r"
-                    hBtn:SetText(hStatus)
-                    hBtn:ClearAllPoints()
-                    hBtn:SetPoint("RIGHT", xBtn, "LEFT", -2, 0)
-                    hBtn:Show()
-                    hBtn:SetScript("OnClick", function()
-                        opt.data.isHidden = not opt.data.isHidden
-                        sfui.alts.UpdateUI()
-                        hBtn:SetText(opt.data.isHidden and "|cff00ff00H|r" or "|cffccccccH|r")
-                    end)
-                end
-            })
+    -- Settings Button (⚙)
+    local settingsBtn = sfui.common.create_flat_button(frame, "⚙", 24, 24)
+    settingsBtn:SetPoint("TOPRIGHT", close, "TOPLEFT", -5, 0)
+    settingsBtn.tooltip = "Alts Configuration (Sort, Sections, Characters)"
+    settingsBtn:SetScript("OnClick", function()
+        local panel = CreateSettingsPanel()
+        if panel:IsShown() then
+            panel:Hide()
+        else
+            updateSettingsPosition()
+            panel:Show()
+            RefreshSettingsPanel()
         end
-        return options
-    end
-
-    local managerDropdown = sfui.common.create_dropdown(frame, 24, populateManagerOptions, nil, nil, "=", 200)
-    managerDropdown:SetPoint("TOPRIGHT", sortDropdown, "TOPLEFT", -5, 0)
-
-    -- Section Manager Dropdown (⚙)
-    local function populateSectionsOptions()
-        local options = {}
-        local cats = GetCategories()
-        for _, cat in ipairs(cats) do
-            if cat.type == "header" and cat.name ~= "GENERAL" then
-                table.insert(options, {
-                    catName = cat.name,
-                    label = cat.label,
-                    keepOpen = true,
-                    onRender = function(parent, opt)
-                        local t = parent.textString
-                        t:SetText(opt.label)
-
-                        if parent.xBtn then parent.xBtn:Hide() end
-
-                        local isHidden = SfuiDB.altsHiddenSections and SfuiDB.altsHiddenSections[opt.catName]
-                        local hStatus = isHidden and "|cffff0000H|r" or "|cff00ff00V|r"
-                        parent.hBtn = parent.hBtn or sfui.common.create_flat_button(parent, "", 18, 16)
-                        local hBtn = parent.hBtn
-                        hBtn:ClearAllPoints()
-                        hBtn:SetPoint("RIGHT", -5, 0)
-                        hBtn:Show()
-                        hBtn:SetText(hStatus)
-                        hBtn:SetScript("OnClick", function()
-                            SfuiDB.altsHiddenSections = SfuiDB.altsHiddenSections or {}
-                            SfuiDB.altsHiddenSections[opt.catName] = not SfuiDB.altsHiddenSections[opt.catName]
-                            sfui.alts.UpdateUI()
-                            hBtn:SetText(SfuiDB.altsHiddenSections[opt.catName] and "|cffff0000H|r" or "|cff00ff00V|r")
-                        end)
-                    end
-                })
-            end
-        end
-
-        -- Add M0 Toggle manually if retail/standard provider
-        if sfui.alts.provider and sfui.alts.provider.name == "standard" then
-            table.insert(options, {
-                label = "M0 Dungeons",
-                keepOpen = true,
-                onRender = function(parent, opt)
-                    local t = parent.textString
-                    t:SetText(opt.label)
-                    if parent.xBtn then parent.xBtn:Hide() end
-
-                    local isHidden = SfuiDB.showM0Dungeons == false
-                    local hStatus = isHidden and "|cffff0000H|r" or "|cff00ff00V|r"
-                    parent.hBtn = parent.hBtn or sfui.common.create_flat_button(parent, "", 18, 16)
-                    local hBtn = parent.hBtn
-                    hBtn:ClearAllPoints()
-                    hBtn:SetPoint("RIGHT", -5, 0)
-                    hBtn:Show()
-                    hBtn:SetText(hStatus)
-                    hBtn:SetScript("OnClick", function()
-                        SfuiDB.showM0Dungeons = not (SfuiDB.showM0Dungeons ~= false)
-                        sfui.alts.RefreshDynamicCategories(true)
-                        sfui.alts.UpdateUI()
-                        hBtn:SetText(SfuiDB.showM0Dungeons == false and "|cffff0000H|r" or "|cff00ff00V|r")
-                    end)
-                end
-            })
-        end
-
-        return options
-    end
-
-    local sectionsDropdown = sfui.common.create_dropdown(frame, 24, populateSectionsOptions, nil, nil, "*", 150)
-    sectionsDropdown:SetPoint("TOPRIGHT", managerDropdown, "TOPLEFT", -5, 0)
+    end)
 
     -- Sidebar (Category labels)
     local sidebar = CreateFrame("Frame", nil, frame)
@@ -518,24 +680,27 @@ local function SortAlts(a, b)
     end
 
     if sortKey == "ilvl" then
-        return (a.data.iLvl or 0) > (b.data.iLvl or 0)
+        local iA = tonumber(a.data and a.data.iLvl) or 0
+        local iB = tonumber(b.data and b.data.iLvl) or 0
+        if iA ~= iB then return iA > iB end
     elseif sortKey == "timeplayed" then
-        return (a.data.timeplayed or 0) > (b.data.timeplayed or 0)
-    else
-        return (a.data.name or "") < (b.data.name or "")
+        local tA = tonumber(a.data and a.data.timeplayed) or 0
+        local tB = tonumber(b.data and b.data.timeplayed) or 0
+        if tA ~= tB then return tA > tB end
     end
+    return tostring(a.data and a.data.name or "") < tostring(b.data and b.data.name or "")
 end
 
 local updateRequested = false
 function sfui.alts.UpdateUI(force)
-    if not frame or (not force and not frame:IsVisible()) then return end
+    if not frame or (not force and not frame:IsShown()) then return end
 
     if not force then
         if updateRequested then return end
         updateRequested = true
         C_Timer.After(0, function()
             updateRequested = false
-            if frame and frame:IsVisible() then
+            if frame and frame:IsShown() then
                 sfui.alts.UpdateUI(true)
             end
         end)
@@ -665,7 +830,6 @@ function sfui.alts.UpdateUI(force)
     table.sort(altsList, SortAlts)
 
     local xOffset = 0
-    local curGUID = GetCurrentCharacterGUID()
     local colW = cfg.columnWidth or 140
     local rowH = cfg.rowHeight or 25
 
@@ -703,8 +867,6 @@ function sfui.alts.UpdateUI(force)
                         text:SetText(alt.data.name or "Unknown")
                         text:SetTextColor(classColor.r, classColor.g, classColor.b)
 
-                        if cell.del then cell.del:Hide() end
-
                         local altSnap = alt
                         cell:EnableMouse(true)
                         cell:SetScript("OnEnter", function(self)
@@ -728,36 +890,9 @@ function sfui.alts.UpdateUI(force)
                             end
 
                             GameTooltip:Show()
-
-                            if altSnap.guid ~= curGUID then
-                                if not cell.del then
-                                    local del = sfui.common.create_flat_button(cell, "X", 14, 14)
-                                    del:SetPoint("TOPRIGHT", cell, "TOPRIGHT", -2, -2)
-                                    cell.del = del
-                                end
-                                cell.del:Show()
-                                cell.del:SetScript("OnClick", function()
-                                    local charName = altSnap.data.name or "Character"
-                                    if StaticPopup_Show then
-                                        StaticPopup_Show("SFUI_ALTS_REMOVE_CHARACTER", charName, nil, { guid = altSnap.guid })
-                                    else
-                                        SfuiDB.alts[altSnap.guid] = nil
-                                        sfui.alts.UpdateUI(true)
-                                    end
-                                end)
-                                cell.del:SetScript("OnEnter", function(dSelf)
-                                    GameTooltip:SetOwner(dSelf, "ANCHOR_TOP")
-                                    GameTooltip:SetText("delete character data", RED_FONT_COLOR.r, RED_FONT_COLOR.g, RED_FONT_COLOR.b)
-                                    GameTooltip:Show()
-                                end)
-                                cell.del:SetScript("OnLeave", function() GameTooltip:Hide() end)
-                            end
                         end)
                         cell:SetScript("OnLeave", function()
                             GameTooltip:Hide()
-                            if cell.del and not cell.del:IsMouseOver() then
-                                cell.del:Hide()
-                            end
                         end)
                     else
                         text:Hide()

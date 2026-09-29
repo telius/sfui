@@ -178,85 +178,7 @@ sfui.options.RegisterTab({
             end)
         fallback_swatch:SetPoint("LEFT", fallback_label, "RIGHT", 5, 0)
 
-        local texture_label = main_panel:CreateFontString(nil, "OVERLAY", g.font)
-        texture_label:SetPoint("TOPLEFT", use_spec_color_cb, "BOTTOMLEFT", 0, -30)
-        texture_label:SetText("bar texture:")
-
-        local BLIZZARD_BAR_ORDER = {
-            "Flat",
-            "Blizzard",
-            "Blizzard Target Bar",
-            "Blizzard Character Skills Bar",
-            "Blizzard Raid Bar",
-            "Blizzard Raid Resource",
-            "Blizzard Raid Health",
-            "Blizzard Shield Fill",
-            "Blizzard Absorb Fill",
-            "Blizzard Professions",
-            "Blizzard Archaeology",
-        }
-
-        local function resolve_bar_texture(val)
-            if not val or val == "" then
-                return "Interface/Buttons/WHITE8X8"
-            end
-            local LSM = _G.LibStub and _G.LibStub("LibSharedMedia-3.0", true)
-            local texturePath
-            if LSM then
-                texturePath = LSM:Fetch("statusbar", val)
-            end
-            if not texturePath and sfui.config and sfui.config.blizzard_bar_textures then
-                texturePath = sfui.config.blizzard_bar_textures[val]
-                if not texturePath and type(val) == "string" then
-                    local normVal = val:gsub("\\", "/"):lower()
-                    for name, path in pairs(sfui.config.blizzard_bar_textures) do
-                        if name:lower() == normVal or path:gsub("\\", "/"):lower() == normVal then
-                            texturePath = path
-                            break
-                        end
-                    end
-                end
-            end
-            if not texturePath and type(val) == "string" and val:find("^[iI]nterface[/\\]") then
-                texturePath = val
-            end
-            return texturePath or (sfui.config and sfui.config.barTexture) or "Interface/Buttons/WHITE8X8"
-        end
-
-        local function GetTextureOptions()
-            local LSM = _G.LibStub and _G.LibStub("LibSharedMedia-3.0", true)
-            local sortedTextures = {}
-            local seen = {}
-
-            -- 1. Insert authentic Blizzard bar textures in curated priority order
-            for _, name in ipairs(BLIZZARD_BAR_ORDER) do
-                if not seen[name] then
-                    table.insert(sortedTextures, { text = name, value = name })
-                    seen[name] = true
-                end
-            end
-
-            -- 2. Append any additional textures registered in LibSharedMedia-3.0
-            if LSM then
-                local textures = LSM:HashTable("statusbar")
-                if textures then
-                    local externalNames = {}
-                    for name, _ in pairs(textures) do
-                        if not seen[name] then
-                            table.insert(externalNames, name)
-                            seen[name] = true
-                        end
-                    end
-                    table.sort(externalNames)
-                    for _, name in ipairs(externalNames) do
-                        table.insert(sortedTextures, { text = name, value = name })
-                    end
-                end
-            end
-            return sortedTextures
-        end
-
-        -- Normalize legacy path if stored in SfuiDB.barTexture
+        -- ─── Primary Texture Dropdown (ElvUI / SharedMedia Style) ───────────────
         local initialTexture = SfuiDB.barTexture or "Flat"
         if sfui.config and sfui.config.blizzard_bar_textures then
             local normInit = type(initialTexture) == "string" and initialTexture:gsub("\\", "/"):lower() or ""
@@ -278,9 +200,8 @@ sfui.options.RegisterTab({
             end
         end
 
-        local texture_dropdown = common.create_dropdown(main_panel, 180, GetTextureOptions, function(val)
+        local function on_texture_selected(val, texturePath)
             SfuiDB.barTexture = val
-            local texturePath = resolve_bar_texture(val)
 
             if sfui.config then
                 sfui.config.barTexture = texturePath
@@ -305,12 +226,20 @@ sfui.options.RegisterTab({
                 safeCall(sfui.options, "notify_setting_changed", "castbar", "barTexture", val)
                 safeCall(sfui.options, "notify_setting_changed", "trackedbars", "barTexture", val)
             end
-        end, initialTexture, nil, 240)
-        texture_dropdown:SetPoint("LEFT", texture_label, "RIGHT", 10, 0)
+        end
+
+        local texture_dropdown = common.create_texture_dropdown(
+            main_panel,
+            200,
+            on_texture_selected,
+            initialTexture,
+            "Primary Texture"
+        )
+        texture_dropdown:SetPoint("TOPLEFT", use_spec_color_cb, "BOTTOMLEFT", 0, -20)
 
         -- Spec Colors Customization
         local spec_header = main_panel:CreateFontString(nil, "OVERLAY", g.font)
-        spec_header:SetPoint("TOPLEFT", texture_label, "BOTTOMLEFT", 0, -25)
+        spec_header:SetPoint("TOPLEFT", texture_dropdown, "BOTTOMLEFT", 0, -25)
         spec_header:SetTextColor(white[1], white[2], white[3])
         spec_header:SetText("specialization colors:")
 
