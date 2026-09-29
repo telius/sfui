@@ -33,15 +33,19 @@ local IS_RETAIL      = (PROJECT_ID == (_G.WOW_PROJECT_MAINLINE or 1)) and not IS
 
 -- Expose on sfui.version and top-level sfui canonical booleans so any module
 -- can read client context cleanly (e.g. `if sfui.isClassic then ... end`).
+local IS_CAMELOT     = IS_WOW_FOREVER or not IS_RETAIL
+
 sfui.isRetail   = IS_RETAIL
 sfui.isClassic  = not IS_RETAIL
 sfui.isForever  = IS_WOW_FOREVER
 sfui.isEra      = IS_CLASSIC_ERA
+sfui.isCamelot  = IS_CAMELOT
 
 sfui.version = {
     retail      = IS_RETAIL,
     classic_era = IS_CLASSIC_ERA,
     wow_forever = IS_WOW_FOREVER,
+    camelot     = IS_CAMELOT,
     project_id  = PROJECT_ID,
     toc_version = tocVersionNum,
     build       = buildStr,
@@ -56,6 +60,7 @@ sfui.compat = {
     is_classic     = not IS_RETAIL,
     is_classic_era = IS_CLASSIC_ERA,
     is_wow_forever = IS_WOW_FOREVER,
+    is_camelot     = IS_CAMELOT,
     has = {
         -- Blizzard's C_UnitAuras namespace (retail aura instance IDs)
         unit_auras      = (_G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex ~= nil),

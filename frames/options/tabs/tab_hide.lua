@@ -101,54 +101,10 @@ sfui.options.RegisterTab({
         fade_slider:SetPoint("TOPLEFT", resting_slider, "BOTTOMLEFT", 0, -15)
 
         -- ─────────────────────────────────────────────────────────────────────
-        -- 3. Behavioral Overrides
-        -- ─────────────────────────────────────────────────────────────────────
-        local overrides_header = panel:CreateFontString(nil, "OVERLAY", g.font)
-        overrides_header:SetPoint("TOPLEFT", fade_slider, "BOTTOMLEFT", 0, -20)
-        overrides_header:SetTextColor(white[1], white[2], white[3])
-        overrides_header:SetText("visibility overrides")
-
-        local combat_cb = create_checkbox(
-            panel,
-            "always show in combat",
-            "actionbars_show_combat",
-            function(checked)
-                notify_change("actionbars_show_combat", checked)
-                if sfui.hide and sfui.hide.RefreshActionBars then sfui.hide.RefreshActionBars() end
-            end,
-            "temporarily reveals action bars at full opacity while you are in combat."
-        )
-        combat_cb:SetPoint("TOPLEFT", overrides_header, "BOTTOMLEFT", 0, -10)
-
-        local target_cb = create_checkbox(
-            panel,
-            "always show with target",
-            "actionbars_show_target",
-            function(checked)
-                notify_change("actionbars_show_target", checked)
-                if sfui.hide and sfui.hide.RefreshActionBars then sfui.hide.RefreshActionBars() end
-            end,
-            "temporarily reveals action bars at full opacity whenever you have an active target."
-        )
-        target_cb:SetPoint("TOPLEFT", combat_cb, "BOTTOMLEFT", 0, -10)
-
-        local cast_cb = create_checkbox(
-            panel,
-            "always show while casting",
-            "actionbars_show_cast",
-            function(checked)
-                notify_change("actionbars_show_cast", checked)
-                if sfui.hide and sfui.hide.RefreshActionBars then sfui.hide.RefreshActionBars() end
-            end,
-            "temporarily reveals action bars at full opacity while you are casting or channeling."
-        )
-        cast_cb:SetPoint("TOPLEFT", target_cb, "BOTTOMLEFT", 0, -10)
-
-        -- ─────────────────────────────────────────────────────────────────────
-        -- 4. Per-Bar Toggles
+        -- 3. Per-Bar Toggles
         -- ─────────────────────────────────────────────────────────────────────
         local bars_header = panel:CreateFontString(nil, "OVERLAY", g.font)
-        bars_header:SetPoint("TOPLEFT", cast_cb, "BOTTOMLEFT", 0, -20)
+        bars_header:SetPoint("TOPLEFT", fade_slider, "BOTTOMLEFT", 0, -20)
         bars_header:SetTextColor(white[1], white[2], white[3])
         bars_header:SetText("bars enabled for mouseover")
 
@@ -206,7 +162,7 @@ sfui.options.RegisterTab({
         end
 
         -- ─────────────────────────────────────────────────────────────────────
-        -- 5. Unit & HUD Frames Suppression
+        -- 4. Unit & HUD Frames Suppression
         -- ─────────────────────────────────────────────────────────────────────
         local uf_header = panel:CreateFontString(nil, "OVERLAY", g.font)
         uf_header:SetPoint("TOPLEFT", prevCol1, "BOTTOMLEFT", 0, -25)

@@ -1,36 +1,40 @@
 local addonName, addon = ...
+local _addonName, _addon = addonName, addon
+
 sfui = sfui or {}
 sfui.hide = sfui.hide or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/hide.lua
---  Action Bars & Menus Mouseover Fading & Blizzard Unit/HUD Suppression
+--  Action Bars Mouseover Fading & Blizzard Unit/HUD Suppression
 --
 --  Supports: Retail (Midnight 12.x / TWW 11.x), Camelot (Classic Forever),
 --  and Classic Era.
 --
 --  Features:
---  - Action Bars & Menus (MainActionBar, MultiBars, PetBar, StanceBar,
---    PossessBar, Game Menu / MicroMenu, BagsBar) mouseover fading.
+--  - Action Bars (MainActionBar, MultiBars, PetBar, StanceBar, PossessBar)
+--    pure mouseover fading.
 --  - Option to hide Player, Target, Pet, Focus unitframes, Game Menu, and Bags Bar.
---  - 100% Taint-Free: Action bar and menu fading is performed via SetAlpha().
+--  - 100% Taint-Free: Action bar fading is performed via SetAlpha().
 --  - Zero Action Button Hooking: Hover detection uses non-secure boundary checks.
 --  - Safe Frame Suppression: Uses SetAlpha(0), EnableMouse(false), and
 --    out-of-combat :Hide() with synchronous OnShow guards (§3.4 & §3.5).
+--  - Ultra-Low CPU Architecture:
+--    * Cursor position caching (GetCursorPosition): immediate early exit when
+--      mouse is stationary and no animation is active.
+--    * Adaptive tick rate: 12.5 FPS (0.08s) idle polling, switching to 50 FPS
+--      (0.02s) only during active alpha transitions (~0.2s).
+--    * Unregisters update loop completely when mouseover fading is disabled.
+--    * Direct bar frame boundary check :IsMouseOver(6, -6, -6, 6) avoiding
+--      redundant iterations across hundreds of action buttons.
+--    * Zero global spellcast or combat event flooding.
 -- ══════════════════════════════════════════════════════════════════════════════
-
-local g      = sfui.config
-local common = sfui.common
 
 -- Localized APIs
 local _G                 = _G
-local CreateFrame        = _G.CreateFrame
 local InCombatLockdown   = _G.InCombatLockdown
 local UnitExists         = _G.UnitExists
-local UnitCastingInfo    = _G.UnitCastingInfo or (_G.C_Spell and _G.C_Spell.GetSpellCastInfo)
-local UnitChannelInfo    = _G.UnitChannelInfo or (_G.C_Spell and _G.C_Spell.GetSpellChannelInfo)
-local GetCursorInfo      = _G.GetCursorInfo
-local select             = _G.select
+local GetCursorPosition  = _G.GetCursorPosition
 local tonumber           = _G.tonumber
 local pairs              = _G.pairs
 local ipairs             = _G.ipairs
@@ -42,17 +46,17 @@ local math_abs           = math.abs
 
 -- Action Bar Configurations (Mouseover Fading)
 local BARS = {
-    { key = "main",      label = "Main Action Bar",         frames = { "MainActionBar", "MainMenuBar" } },
-    { key = "bar2",      label = "Action Bar 2 (Bottom L)", frames = { "MultiBarBottomLeft" } },
-    { key = "bar3",      label = "Action Bar 3 (Bottom R)", frames = { "MultiBarBottomRight" } },
-    { key = "bar4",      label = "Action Bar 4 (Right 1)",  frames = { "MultiBarRight" } },
-    { key = "bar5",      label = "Action Bar 5 (Right 2)",  frames = { "MultiBarLeft" } },
-    { key = "bar6",      label = "Action Bar 6",            frames = { "MultiBar5" } },
-    { key = "bar7",      label = "Action Bar 7",            frames = { "MultiBar6" } },
-    { key = "bar8",      label = "Action Bar 8",            frames = { "MultiBar7" } },
-    { key = "pet",       label = "Pet Action Bar",          frames = { "PetActionBar", "PetActionBarFrame" } },
-    { key = "stance",    label = "Stance / Shapeshift Bar", frames = { "StanceBar", "StanceBarFrame", "ShapeshiftBarFrame" } },
-    { key = "possess",   label = "Possess Bar",             frames = { "PossessActionBar", "PossessBarFrame" } },
+    { key = "main",    dbKey = "actionbars_bar_main",    label = "Main Action Bar",         frames = { "MainActionBar", "MainMenuBar" } },
+    { key = "bar2",    dbKey = "actionbars_bar_bar2",    label = "Action Bar 2 (Bottom L)", frames = { "MultiBarBottomLeft" } },
+    { key = "bar3",    dbKey = "actionbars_bar_bar3",    label = "Action Bar 3 (Bottom R)", frames = { "MultiBarBottomRight" } },
+    { key = "bar4",    dbKey = "actionbars_bar_bar4",    label = "Action Bar 4 (Right 1)",  frames = { "MultiBarRight" } },
+    { key = "bar5",    dbKey = "actionbars_bar_bar5",    label = "Action Bar 5 (Right 2)",  frames = { "MultiBarLeft" } },
+    { key = "bar6",    dbKey = "actionbars_bar_bar6",    label = "Action Bar 6",            frames = { "MultiBar5" } },
+    { key = "bar7",    dbKey = "actionbars_bar_bar7",    label = "Action Bar 7",            frames = { "MultiBar6" } },
+    { key = "bar8",    dbKey = "actionbars_bar_bar8",    label = "Action Bar 8",            frames = { "MultiBar7" } },
+    { key = "pet",     dbKey = "actionbars_bar_pet",     label = "Pet Action Bar",          frames = { "PetActionBar", "PetActionBarFrame" } },
+    { key = "stance",  dbKey = "actionbars_bar_stance",  label = "Stance / Shapeshift Bar", frames = { "StanceBar", "StanceBarFrame", "ShapeshiftBarFrame" } },
+    { key = "possess", dbKey = "actionbars_bar_possess", label = "Possess Bar",             frames = { "PossessActionBar", "PossessBarFrame" } },
 }
 
 -- Unit & HUD Frame Permanent Suppression Configurations
@@ -65,15 +69,11 @@ local HIDE_FRAMES = {
     { key = "hide_bagsbar",      name = "BagsBar",            altNames = { "MainMenuBarBagButtons" }, label = "Bags Bar" },
 }
 
-local resolvedBars = {}
 local defaults = {
     actionbars_mouseover_enabled = true,
     actionbars_resting_alpha     = 0.0,
     actionbars_active_alpha      = 1.0,
     actionbars_fade_duration     = 0.2,
-    actionbars_show_combat       = true,
-    actionbars_show_target       = false,
-    actionbars_show_cast         = false,
 
     actionbars_bar_main          = true,
     actionbars_bar_bar2          = true,
@@ -105,65 +105,82 @@ local function InitDB()
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
---  Action Bar Resolution & Boundary Detection
+--  Action Bar Resolution
 -- ─────────────────────────────────────────────────────────────────────────────
 local function GetBarFrame(barDef)
-    local cached = resolvedBars[barDef.key]
-    if cached and cached.GetName and _G[cached:GetName()] then
-        return cached
+    if barDef.frame then
+        return barDef.frame
     end
 
     for _, name in ipairs(barDef.frames) do
         local f = _G[name]
         if f and type(f) == "table" and f.GetObjectType and f.IsShown then
-            resolvedBars[barDef.key] = f
+            barDef.frame = f
             return f
         end
     end
     return nil
 end
 
-local function IsMouseOverBar(bar)
-    if not bar or not bar:IsShown() then return false end
-
-    -- 6px margin to bridge gaps cleanly without flicker
-    if bar:IsMouseOver(6, -6, -6, 6) then
-        return true
+local function InitBars()
+    for i = 1, #BARS do
+        GetBarFrame(BARS[i])
     end
-
-    -- Direct button check if bar buttons are managed in an array
-    if bar.actionButtons and type(bar.actionButtons) == "table" then
-        for i = 1, #bar.actionButtons do
-            local btn = bar.actionButtons[i]
-            if btn and btn.IsShown and btn:IsShown() and btn.IsMouseOver and btn:IsMouseOver() then
-                return true
-            end
-        end
-    end
-
-    return false
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
---  Action Bar & Menu Mouseover Fading Engine
+--  Action Bar Mouseover Fading Engine
 -- ─────────────────────────────────────────────────────────────────────────────
-local pendingRestores = false
+local INTERVAL_IDLE   = 0.08   -- ~12.5 fps when idle (polling cursor hover)
+local INTERVAL_FADING = 0.02   -- ~50 fps during active fade animation
+local currentInterval = nil
+local isLoopActive    = false
+local isFading        = false
+local lastCursorX     = -1
+local lastCursorY     = -1
 
-local function UpdateActionBars(elapsed)
-    if not SfuiDB or not SfuiDB.actionbars_mouseover_enabled then
-        if pendingRestores then
-            pendingRestores = false
-            for _, barDef in ipairs(BARS) do
-                local bar = GetBarFrame(barDef)
-                if bar and bar.SetAlpha then
-                    bar:SetAlpha(1.0)
-                end
-            end
+local UpdateActionBars
+
+local function StartUpdateLoop(interval)
+    if not isLoopActive or currentInterval ~= interval then
+        sfui.events.RegisterUpdate("HideActionBars", interval, UpdateActionBars)
+        currentInterval = interval
+        isLoopActive = true
+    end
+end
+
+local function StopUpdateLoop()
+    if isLoopActive then
+        sfui.events.UnregisterUpdate("HideActionBars")
+        currentInterval = nil
+        isLoopActive = false
+    end
+end
+
+local function RestoreAllBarsAlpha()
+    for i = 1, #BARS do
+        local barDef = BARS[i]
+        local bar = barDef.frame or GetBarFrame(barDef)
+        if bar and bar.SetAlpha and bar.GetAlpha and bar:GetAlpha() ~= 1.0 then
+            bar:SetAlpha(1.0)
         end
+    end
+end
+
+UpdateActionBars = function(elapsed)
+    if not SfuiDB or not SfuiDB.actionbars_mouseover_enabled then
+        RestoreAllBarsAlpha()
+        StopUpdateLoop()
         return
     end
 
-    pendingRestores = true
+    local curX, curY = GetCursorPosition()
+
+    -- Early exit: if cursor has not moved and no fade transition is in progress, skip all work
+    if curX == lastCursorX and curY == lastCursorY and not isFading then
+        return
+    end
+    lastCursorX, lastCursorY = curX, curY
 
     local restingAlpha = tonumber(SfuiDB.actionbars_resting_alpha) or 0.0
     local activeAlpha  = tonumber(SfuiDB.actionbars_active_alpha) or 1.0
@@ -171,38 +188,33 @@ local function UpdateActionBars(elapsed)
     if duration <= 0 then duration = 0.01 end
     local fadeSpeed    = (math_max(activeAlpha, restingAlpha) - math_min(activeAlpha, restingAlpha)) / duration
     if fadeSpeed <= 0 then fadeSpeed = 10 end
+    local step         = fadeSpeed * (elapsed or 0.02)
 
-    local inCombat     = InCombatLockdown()
-    local hasTarget    = UnitExists("target")
-    local isCasting    = false
-    if UnitCastingInfo and UnitCastingInfo("player") then
-        isCasting = true
-    elseif UnitChannelInfo and UnitChannelInfo("player") then
-        isCasting = true
-    end
-    local isCursorHolding = (GetCursorInfo and GetCursorInfo() ~= nil)
+    local stillFading = false
 
-    local globalShow = (inCombat and SfuiDB.actionbars_show_combat)
-                    or (hasTarget and SfuiDB.actionbars_show_target)
-                    or (isCasting and SfuiDB.actionbars_show_cast)
-                    or isCursorHolding
+    for i = 1, #BARS do
+        local barDef = BARS[i]
+        local isEnabled = SfuiDB[barDef.dbKey] ~= false
+        local bar = barDef.frame or GetBarFrame(barDef)
 
-    for _, barDef in ipairs(BARS) do
-        local bar = GetBarFrame(barDef)
         if bar and bar.IsShown and bar.SetAlpha and bar.GetAlpha then
-            local isEnabled = SfuiDB["actionbars_bar_" .. barDef.key] ~= false
-
             if isEnabled and bar:IsShown() then
-                local isHovered = IsMouseOverBar(bar)
-                local targetAlpha = (isHovered or globalShow) and activeAlpha or restingAlpha
+                local isHovered = bar:IsMouseOver(6, -6, -6, 6)
+                local targetAlpha = isHovered and activeAlpha or restingAlpha
                 local curAlpha = bar:GetAlpha()
+                local diff = targetAlpha - curAlpha
+                local absDiff = math_abs(diff)
 
-                if math_abs(curAlpha - targetAlpha) > 0.01 then
-                    local step = fadeSpeed * (elapsed or 0.02)
-                    if curAlpha < targetAlpha then
-                        bar:SetAlpha(math_min(targetAlpha, curAlpha + step))
+                if absDiff > 0.005 then
+                    if step >= absDiff then
+                        bar:SetAlpha(targetAlpha)
                     else
-                        bar:SetAlpha(math_max(targetAlpha, curAlpha - step))
+                        stillFading = true
+                        if diff > 0 then
+                            bar:SetAlpha(curAlpha + step)
+                        else
+                            bar:SetAlpha(curAlpha - step)
+                        end
                     end
                 elseif curAlpha ~= targetAlpha then
                     bar:SetAlpha(targetAlpha)
@@ -214,10 +226,27 @@ local function UpdateActionBars(elapsed)
             end
         end
     end
+
+    -- Throttle dispatcher interval dynamically: 50 fps while fading, 12.5 fps when idle
+    if stillFading ~= isFading then
+        isFading = stillFading
+        local neededInterval = isFading and INTERVAL_FADING or INTERVAL_IDLE
+        if currentInterval ~= neededInterval then
+            StartUpdateLoop(neededInterval)
+        end
+    end
 end
 
 function sfui.hide.RefreshActionBars()
-    UpdateActionBars(0.5)
+    lastCursorX, lastCursorY = -1, -1
+    isFading = true
+    if SfuiDB and SfuiDB.actionbars_mouseover_enabled then
+        StartUpdateLoop(INTERVAL_FADING)
+        UpdateActionBars(0.5)
+    else
+        RestoreAllBarsAlpha()
+        StopUpdateLoop()
+    end
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -314,36 +343,30 @@ end
 
 local function on_player_entering_world()
     InitDB()
+    InitBars()
     HookUnitFrames()
     sfui.hide.ApplyAllUnitFrames()
-    sfui.hide.RefreshActionBars()
-end
-
-local function on_combat_state()
     sfui.hide.RefreshActionBars()
 end
 
 local function init_module(self)
+    local _ = self
     InitDB()
+    InitBars()
     HookUnitFrames()
     sfui.hide.ApplyAllUnitFrames()
 
-    -- Register throttled action bar & menu mouseover updater (~50fps)
-    sfui.events.RegisterUpdate("HideActionBars", 0.02, UpdateActionBars)
+    if SfuiDB and SfuiDB.actionbars_mouseover_enabled then
+        StartUpdateLoop(INTERVAL_IDLE)
+        sfui.hide.RefreshActionBars()
+    end
 
-    -- Register combat and state change listeners
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED",  on_regen_enabled)
-    sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", on_combat_state)
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_player_entering_world)
-    sfui.events.RegisterEvent("PLAYER_TARGET_CHANGED", on_combat_state)
-    sfui.events.RegisterEvent("UNIT_SPELLCAST_START",  on_combat_state)
-    sfui.events.RegisterEvent("UNIT_SPELLCAST_STOP",   on_combat_state)
-    sfui.events.RegisterEvent("UNIT_SPELLCAST_CHANNEL_START", on_combat_state)
-    sfui.events.RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP",  on_combat_state)
-    sfui.events.RegisterEvent("CURSOR_CHANGED",        on_combat_state)
 end
 
 sfui.hide.OnInit = function(self)
+    local _ = self
     InitDB()
 end
 
@@ -352,11 +375,13 @@ sfui.hide.OnEnable = function(self)
 end
 
 sfui.hide.OnSettingsChanged = function(self, key, value)
+    local _s, _k, _v = self, key, value
     sfui.hide.ApplyAllUnitFrames()
     sfui.hide.RefreshActionBars()
 end
 
 sfui.hide.GetDebugInfo = function(self)
+    local _ = self
     local hiddenUnits = 0
     for _, u in ipairs(HIDE_FRAMES) do
         if SfuiDB and SfuiDB[u.key] then hiddenUnits = hiddenUnits + 1 end
@@ -364,6 +389,9 @@ sfui.hide.GetDebugInfo = function(self)
     return {
         mouseoverEnabled = SfuiDB and SfuiDB.actionbars_mouseover_enabled or false,
         hiddenUnitFrames = hiddenUnits,
+        isLoopActive     = isLoopActive,
+        currentInterval  = currentInterval,
+        isFading         = isFading,
     }
 end
 

@@ -358,6 +358,8 @@ sfui.config = {
             padding = 2,
             color = { 0, 0, 0, 0.5 },
         },
+        -- Retail-only: Specs where primary mana bar is hidden because the spec uses alternative resources.
+        -- In Camelot / Classic, the powerbar is never hidden on any spec.
         hiddenSpecs = {
             [1467] = true, -- Devastation Evoker
             [1473] = true, -- Augmentation Evoker
@@ -465,6 +467,7 @@ sfui.config = {
             padding = 2,
             color = { 0, 0, 0, 0.5 },
         },
+        -- Retail-only: Specs where secondary power bar is suppressed
         hiddenSpecs = {
             [258] = true, -- Shadow Priest
             [270] = true, -- Mistweaver Monk
@@ -856,9 +859,6 @@ sfui.config = {
         actionbars_resting_alpha     = 0.0,
         actionbars_active_alpha      = 1.0,
         actionbars_fade_duration     = 0.2,
-        actionbars_show_combat       = true,
-        actionbars_show_target       = false,
-        actionbars_show_cast         = false,
 
         -- Per-bar mouseover toggles
         actionbars_bar_main          = true,

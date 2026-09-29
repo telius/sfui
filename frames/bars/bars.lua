@@ -49,6 +49,15 @@ do
         return true
     end
 
+    local function is_camelot_or_classic()
+        return not sfui.isRetail
+            or sfui.isForever
+            or sfui.isClassic
+            or sfui.isCamelot
+            or (sfui.compat and (sfui.compat.is_wow_forever or sfui.compat.is_classic or sfui.compat.is_classic_era or sfui.compat.is_camelot))
+            or (sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive())
+    end
+
     local function is_player_spell(id)
         if IsPlayerSpell then return IsPlayerSpell(id) end
         return (C_SpellBook and C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(id, Enum.SpellBookSpellBank.Player)) or false
@@ -202,7 +211,9 @@ do
                 end
 
                 -- Primary Power Bar (bar_minus_1)
-                local hidePower = common.is_spec_in_list(cfg.powerBar.hiddenSpecs, specID)
+                -- In Camelot / Classic, powerbar should never be hidden; hiddenSpecs is strictly a Retail feature.
+                local isCamelotSpec = is_camelot_or_classic() or (specID and specID >= 1482 and specID <= 14913)
+                local hidePower = sfui.isRetail and not isCamelotSpec and common.is_spec_in_list(cfg.powerBar.hiddenSpecs, specID)
                 local showPower = (SfuiDB == nil or SfuiDB.enablePowerBar ~= false) and not hidePower
                 if showPower then
                     local bar = get_bar_minus_1()
@@ -212,7 +223,7 @@ do
                 end
 
                 -- Secondary Power Bar (bar1)
-                local hideSecondary = common.is_spec_in_list(cfg.secondaryPowerBar.hiddenSpecs, specID)
+                local hideSecondary = sfui.isRetail and not isCamelotSpec and common.is_spec_in_list(cfg.secondaryPowerBar.hiddenSpecs, specID)
                 local secResource = common.get_secondary_resource()
                 local showSecondary = (SfuiDB == nil or SfuiDB.enableSecondaryPowerBar ~= false) and not hideSecondary and secResource and secResource ~= Enum.PowerType.Runes
 
@@ -388,7 +399,8 @@ do
     function update_bar_minus_1()
         local cfg = sfui.config.powerBar
         local specID = common.get_current_spec_id()
-        local hide = common.is_spec_in_list(cfg.hiddenSpecs, specID)
+        local isCamelotSpec = is_camelot_or_classic() or (specID and specID >= 1482 and specID <= 14913)
+        local hide = sfui.isRetail and not isCamelotSpec and common.is_spec_in_list(cfg.hiddenSpecs, specID)
 
         if not cfg.enabled or is_dragonflying() or hide then
             if bar_minus_1 and bar_minus_1.backdrop then bar_minus_1.backdrop:Hide() end
@@ -676,7 +688,8 @@ do
     function update_bar1()
         local cfg = sfui.config.secondaryPowerBar
         local specID = common.get_current_spec_id()
-        local hide = common.is_spec_in_list(cfg.hiddenSpecs, specID)
+        local isCamelotSpec = is_camelot_or_classic() or (specID and specID >= 1482 and specID <= 14913)
+        local hide = sfui.isRetail and not isCamelotSpec and common.is_spec_in_list(cfg.hiddenSpecs, specID)
 
         if not cfg.enabled or is_dragonflying() or hide then
             if bar1 and bar1.backdrop then bar1.backdrop:Hide() end
