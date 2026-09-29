@@ -162,7 +162,8 @@ local function BuildAuraContainer(specCap)
             local engineBar = CreateFrame("StatusBar", "SfuiSoulFragmentsStatusBar", b)
             engineBar:SetPoint("TOPLEFT", container, "TOPLEFT", pad, -pad)
             engineBar:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -pad, pad)
-            engineBar:SetStatusBarTexture(sfui.config.textures.white)
+            local barTex = (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()) or sfui.config.textures.white
+            engineBar:SetStatusBarTexture(barTex)
             local specCfg = SPEC_CONFIGS[common.get_current_spec_id() or 0] or SPEC_CONFIGS[SPEC_VENGEANCE]
             local cfg = sfui.config.soulFragments or {}
             local fillColor = cfg.color or (specCfg and specCfg.color) or { 0.4, 0.0, 1.0, 1.0 }
@@ -491,7 +492,8 @@ local function CreateSoulFragmentsFrame()
     bar = CreateFrame("StatusBar", "SfuiSoulFragmentsStatusBar", container)
     bar:SetPoint("TOPLEFT",     container, "TOPLEFT",     pad, -pad)
     bar:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -pad, pad)
-    bar:SetStatusBarTexture(sfui.config.textures.white)
+    local barTex = (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()) or sfui.config.textures.white
+    bar:SetStatusBarTexture(barTex)
     bar:SetMinMaxValues(0, 6)
     bar:SetValue(0)
     bar:SetFrameLevel(container:GetFrameLevel() + 1)
@@ -540,7 +542,8 @@ local function CreateVoidMetaFrame()
     metaBar = CreateFrame("StatusBar", "SfuiVoidMetaStatusBar", metaContainer)
     metaBar:SetPoint("TOPLEFT",     metaContainer, "TOPLEFT",     pad, -pad)
     metaBar:SetPoint("BOTTOMRIGHT", metaContainer, "BOTTOMRIGHT", -pad, pad)
-    metaBar:SetStatusBarTexture(sfui.config.textures.white)
+    local barTex = (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()) or sfui.config.textures.white
+    metaBar:SetStatusBarTexture(barTex)
     metaBar:SetMinMaxValues(0, 50)
     metaBar:SetValue(0)
     metaBar:SetStatusBarColor(0.000, 0.553, 0.745, 1.0) -- ReapMeter Devourer Build Azure (#008dbe)
@@ -1038,6 +1041,17 @@ function sfui.soulfragments_debug_info()
         maxCap       = currentSpecConfig and currentSpecConfig.cap or 0,
         active       = currentSpecConfig ~= nil,
     }
+end
+
+function sfui.soulfragments.SetBarTexture(texturePath)
+    local tex = texturePath or (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture())
+    if not tex then return end
+    if bar and bar.SetStatusBarTexture then
+        bar:SetStatusBarTexture(tex)
+    end
+    if metaBar and metaBar.SetStatusBarTexture then
+        metaBar:SetStatusBarTexture(tex)
+    end
 end
 
 -- PLAYER_ENTERING_WORLD triggers Initialize on every login/reload.

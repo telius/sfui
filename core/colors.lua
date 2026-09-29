@@ -63,8 +63,9 @@ sfui.common.hex_to_rgb = sfui.colors.hex_to_rgb
 -- Spec Color Cache (Zero table allocation in high-frequency hot-path update loops)
 -- ────────────────────────────────────────────────────────────────────────────
 local _specColorTableCache = {}
-local _specColorCache = { 1, 1, 1, 1 }
-local _specColorDirty = true
+local _defaultFallbackColor = { 1, 1, 1, 1, r = 1, g = 1, b = 1, a = 1 }
+local _specColorCache       = { 1, 1, 1, 1, r = 1, g = 1, b = 1, a = 1 }
+local _specColorDirty       = true
 
 function sfui.colors.invalidate_spec_color_cache()
     table.wipe(_specColorTableCache)
@@ -72,15 +73,13 @@ function sfui.colors.invalidate_spec_color_cache()
 end
 sfui.common.invalidate_spec_color_cache = sfui.colors.invalidate_spec_color_cache
 
-sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", sfui.colors.invalidate_spec_color_cache)
-sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", sfui.colors.invalidate_spec_color_cache)
-sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", sfui.colors.invalidate_spec_color_cache)
-sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", sfui.colors.invalidate_spec_color_cache)
-sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", sfui.colors.invalidate_spec_color_cache)
-sfui.events.RegisterEvent("TRAIT_TREE_CURRENCY_INFO_UPDATED", sfui.colors.invalidate_spec_color_cache)
+-- PLAYER_ENTERING_WORLD initializes cache; talent/spec changes are routed canonically via sfui.talents.invalidate_spec_cache
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", sfui.colors.invalidate_spec_color_cache)
+if sfui.RegisterCallback then
+    sfui.RegisterCallback("SFUI_SPEC_CHANGED", sfui.colors.invalidate_spec_color_cache)
+end
 
---- Returns cached { r, g, b, a } table for a specialization ID (zero allocations on hot path)
+--- Returns cached { r, g, b, a, r=..., g=..., b=..., a=... } table for a specialization ID (zero allocations on hot path)
 function sfui.colors.get_spec_color_table(specID)
     specID = (specID and specID > 0 and specID)
         or (sfui.talents and sfui.talents.get_current_spec_id and sfui.talents.get_current_spec_id())
@@ -94,25 +93,30 @@ function sfui.colors.get_spec_color_table(specID)
     if not specID or specID == 0 then
         r, g, b, a = 0.35, 0.35, 0.35, 1.0
     else
-        local specColor = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
-            or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
+        local bridge = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
+        local retailID = bridge and bridge.retailID or (specID < 1482 and specID)
+        local camelotID = bridge and bridge.camelotID or (specID >= 14821 and specID <= 14913 and specID)
+        local classID = bridge and bridge.classID or (specID >= 1482 and specID <= 1491 and specID)
+        local classFile = bridge and (bridge.classFile or bridge.class)
+
+        -- Bidirectional lookup: Checks exact specID -> camelotID -> retailID -> baseClassID
+        local userColors = SfuiDB and SfuiDB.spec_colors
+        local cfgColors  = sfui.config and sfui.config.spec_colors
+        local specColor  = (userColors and (userColors[specID] or (camelotID and userColors[camelotID]) or (retailID and userColors[retailID]) or (classID and userColors[classID])))
+            or (cfgColors and (cfgColors[specID] or (camelotID and cfgColors[camelotID]) or (retailID and cfgColors[retailID]) or (classID and cfgColors[classID])))
 
         if specColor then
-            r, g, b, a = specColor[1] or specColor.r or 1, specColor[2] or specColor.g or 1, specColor[3] or specColor.b or 1, specColor[4] or specColor.a or 1.0
+            r = specColor[1] or specColor.r or 1
+            g = specColor[2] or specColor.g or 1
+            b = specColor[3] or specColor.b or 1
+            a = specColor[4] or specColor.a or 1.0
         else
-            local classFile
-            if GetSpecializationInfoByID and specID > 0 and specID < 1482 then
-                classFile = select(6, GetSpecializationInfoByID(specID))
+            if not classFile and GetSpecializationInfoByID and retailID and retailID > 0 and retailID < 1482 then
+                classFile = select(6, GetSpecializationInfoByID(retailID))
             end
             if not classFile then
-                local pClass = (sfui.talents and sfui.talents.get_player_class and sfui.talents.get_player_class())
+                classFile = (sfui.talents and sfui.talents.get_player_class and sfui.talents.get_player_class())
                     or (sfui.common and sfui.common.get_player_class and sfui.common.get_player_class())
-                if type(pClass) == "string" and pClass ~= "" then
-                    classFile = pClass
-                elseif _G.UnitClass then
-                    local _, eng = _G.UnitClass("player")
-                    classFile = eng
-                end
             end
             local cc = classFile and (C_ClassColor and C_ClassColor.GetClassColor(classFile) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]))
             if cc then
@@ -123,6 +127,11 @@ function sfui.colors.get_spec_color_table(specID)
 
     local t = { r, g, b, a, r = r, g = g, b = b, a = a }
     _specColorTableCache[specID] = t
+    -- Pre-cache cross-flavor aliases so subsequent calls hit cache in O(1)
+    if bridge then
+        if bridge.retailID then _specColorTableCache[bridge.retailID] = t end
+        if bridge.camelotID then _specColorTableCache[bridge.camelotID] = t end
+    end
     return t
 end
 sfui.common.get_spec_color_table = sfui.colors.get_spec_color_table
@@ -134,11 +143,11 @@ function sfui.colors.get_spec_color(specID)
 end
 sfui.common.get_spec_color = sfui.colors.get_spec_color
 
---- Returns cached { r, g, b, a } table for the player's active specialization / class color.
+--- Returns cached { r, g, b, a, r=..., g=..., b=..., a=... } table for the player's active specialization / class color.
 --- Respects global SfuiDB.useSpecColor setting and rebuilds in-place via get_spec_color_table().
 function sfui.colors.get_class_or_spec_color()
     if SfuiDB and SfuiDB.useSpecColor == false then
-        return SfuiDB.specColorFallback or { 1, 1, 1, 1 }
+        return SfuiDB.specColorFallback or _defaultFallbackColor
     end
 
     if not _specColorDirty then
@@ -146,8 +155,9 @@ function sfui.colors.get_class_or_spec_color()
     end
 
     local t = sfui.colors.get_spec_color_table()
-    _specColorCache[1], _specColorCache[2], _specColorCache[3], _specColorCache[4] =
-        t[1] or 1, t[2] or 1, t[3] or 1, t[4] or 1
+    local r, g, b, a = t[1] or 1, t[2] or 1, t[3] or 1, t[4] or 1
+    _specColorCache[1], _specColorCache[2], _specColorCache[3], _specColorCache[4] = r, g, b, a
+    _specColorCache.r, _specColorCache.g, _specColorCache.b, _specColorCache.a = r, g, b, a
 
     _specColorDirty = false
     return _specColorCache
@@ -183,6 +193,8 @@ local powerTypeToName = {
     [18] = "PAIN",
 }
 
+local STATIC_MANA_COLOR = { r = 0, g = 0.5, b = 1 }
+
 function sfui.colors.get_resource_color(resource)
     local colorInfo = _G.GetPowerBarColor and _G.GetPowerBarColor(resource)
     if colorInfo then return colorInfo end
@@ -192,7 +204,7 @@ function sfui.colors.get_resource_color(resource)
     end
     local cfg = sfui.config
     local resColors = cfg and cfg.colors and cfg.colors.resources
-    return (resColors and resColors[powerName]) or (_G.GetPowerBarColor and _G.GetPowerBarColor("MANA")) or { r = 0, g = 0.5, b = 1 }
+    return (resColors and resColors[powerName]) or (_G.GetPowerBarColor and _G.GetPowerBarColor("MANA")) or STATIC_MANA_COLOR
 end
 sfui.common.get_resource_color = sfui.colors.get_resource_color
 

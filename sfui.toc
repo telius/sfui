@@ -1,7 +1,7 @@
 ## Interface: 120100, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v12.1.0-59
+## Version: v12.1.0-60
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -15,6 +15,7 @@
 
 Libs/LibStub/LibStub.lua
 Libs/CallbackHandler-1.0/CallbackHandler-1.0.xml
+Libs/LibSharedMedia-3.0/LibSharedMedia-3.0.lua
 Libs/LibCustomGlow-1.0/LibCustomGlow-1.0.xml
 Libs/LibDataBroker-1.1/LibDataBroker-1.1.lua
 Libs/LibDBIcon-1.0/LibDBIcon-1.0.lua
@@ -26,11 +27,15 @@ data/season.lua
 compat.lua
 dispatcher.lua
 core/safety.lua
+core/bridge.lua
 core/talents.lua
 core/talents_standard.lua [AllowLoadGameType standard]
 core/talents_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 core/colors.lua
 core/items.lua
+frames/themes/engine.lua
+frames/themes/modern.lua
+frames/themes/camelot.lua
 core/widgets.lua
 core/db.lua
 core/module.lua
@@ -40,6 +45,7 @@ core.lua
 # Options System
 frames/options/options.lua
 frames/options/tabs/tab_main.lua
+frames/themes/tab_theme.lua
 frames/options/tabs/tab_automation.lua
 frames/options/tabs/tab_bars.lua
 frames/options/tabs/tab_castbars.lua
@@ -53,12 +59,14 @@ frames/options/tabs/tab_minimap.lua
 frames/options/tabs/tab_objectives.lua
 frames/options/tabs/tab_pets.lua
 frames/options/tabs/tab_research.lua [AllowLoadGameType standard]
+frames/options/tabs/tab_hide.lua
 frames/options/tabs/tab_debug.lua
 
 frames/currency.lua
 frames/minimap.lua
 frames/location.lua
 frames/cursor.lua
+frames/hide.lua
 frames/research.lua [AllowLoadGameType standard]
 frames/merchant.lua
 frames/alts/alts.lua

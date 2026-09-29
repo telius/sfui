@@ -67,8 +67,7 @@ local function get_or_create_popup()
         insets   = { left = 0, right = 0, top = 0, bottom = 0 },
     })
     f:SetBackdropColor(0.06, 0.06, 0.06, 0.96)
-    local gray = (sfui_config and sfui_config.colors and sfui_config.colors.gray) or { 0.2, 0.2, 0.2, 1 }
-    f:SetBackdropBorderColor(gray[1], gray[2], gray[3], 1)
+    f:SetBackdropBorderColor(0, 0, 0, 1)
 
     -- Draggable placement
     f:SetScript("OnDragStart", function(self)
@@ -81,8 +80,13 @@ local function get_or_create_popup()
         local cx, cy = self:GetCenter()
         local ux, uy = UIParent:GetCenter()
         if cx and cy and ux and uy then
-            SfuiDB.portalPopupX = math_floor(cx - ux)
-            SfuiDB.portalPopupY = math_floor(cy - uy)
+            local x = math_floor(cx - ux)
+            local y = math_floor(cy - uy)
+            SfuiDB.portalPopupX = x
+            SfuiDB.portalPopupY = y
+            if sfui.options and sfui.options.sync_portal_sliders then
+                sfui.options.sync_portal_sliders(x, y)
+            end
         end
     end)
 
@@ -113,7 +117,7 @@ local function get_or_create_popup()
         insets   = { left = 0, right = 0, top = 0, bottom = 0 },
     })
     card:SetBackdropColor(0.12, 0.12, 0.12, 0.95)
-    card:SetBackdropBorderColor(0.22, 0.22, 0.22, 1)
+    card:SetBackdropBorderColor(0, 0, 0, 1)
 
     card:HookScript("OnEnter", function(self)
         card:SetBackdropBorderColor(0.0, 1.0, 1.0, 0.9)
@@ -130,7 +134,7 @@ local function get_or_create_popup()
     end)
 
     card:HookScript("OnLeave", function()
-        card:SetBackdropBorderColor(0.22, 0.22, 0.22, 1)
+        card:SetBackdropBorderColor(0, 0, 0, 1)
         if sfui.tooltip then sfui.tooltip:Hide() end
     end)
 
@@ -543,7 +547,18 @@ end
 
 -- Backward compatibility & automation aliases
 sfui.automation = sfui.automation or {}
-sfui.automation.ShowGroupPortalPopup = sfui.portals.ShowGroupPortalPopup
-sfui.automation.HideGroupPortalPopup = sfui.portals.HideGroupPortalPopup
-sfui.automation.TestPortalPopup      = sfui.portals.TestPortalPopup
+sfui.automation.ShowGroupPortalPopup    = sfui.portals.ShowGroupPortalPopup
+sfui.automation.HideGroupPortalPopup    = sfui.portals.HideGroupPortalPopup
+sfui.automation.TestPortalPopup         = sfui.portals.TestPortalPopup
+sfui.automation.UpdatePortalPopupPosition = sfui.portals.UpdatePortalPopupPosition
+
+function sfui.portals.UpdatePortalPopupPosition()
+    if not popupFrame then return end
+    local defPos = (sfui_config and sfui_config.portalPopup and sfui_config.portalPopup.defaultPosition) or { x = 0, y = 180 }
+    local x = (SfuiDB and SfuiDB.portalPopupX) or defPos.x
+    local y = (SfuiDB and SfuiDB.portalPopupY) or defPos.y
+    popupFrame:ClearAllPoints()
+    popupFrame:SetPoint("CENTER", UIParent, "CENTER", x, y)
+end
+sfui.automation.UpdatePortalPopupPosition = sfui.portals.UpdatePortalPopupPosition
 

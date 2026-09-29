@@ -444,8 +444,9 @@ function ButtonManager:arrange_buttons()
 
     local lastButton = nil
     local cfg = sfui.config.minimap.button_bar
-    local size = cfg.button_size
-    local spacing = cfg.spacing
+    local size = cfg.button_size or 20
+    local spacing = cfg.spacing or 8
+    local padX = cfg.pad_x or 24
 
     for i, button in ipairs(self.collectedButtons) do
         button:SetParent(button_bar)
@@ -510,7 +511,7 @@ function ButtonManager:arrange_buttons()
         if not button.isMoving then
             if button:IsShown() then
                 if not lastButton then
-                    button:SetPoint("LEFT", button_bar, "LEFT", 5, 0)
+                    button:SetPoint("LEFT", button_bar, "LEFT", padX, 0)
                     lastButton = button
                 elseif button ~= lastButton then
                     button:SetPoint("LEFT", lastButton, "RIGHT", spacing, 0)
@@ -521,6 +522,8 @@ function ButtonManager:arrange_buttons()
             end
         end
     end
+
+    button_bar:SetWidth(sfui.config.minimap.default_size)
 end
 
 function sfui.minimap.enable_button_manager(enabled)
@@ -528,13 +531,17 @@ function sfui.minimap.enable_button_manager(enabled)
         if not button_bar then
             -- Parent to MinimapCluster instead of Minimap to avoid protected frame taint
             button_bar = CreateFrame("Frame", "sfui_minimap_button_bar", MinimapCluster, "BackdropTemplate")
-            button_bar:SetSize(sfui.config.minimap.default_size, 30)
-            button_bar:SetBackdrop({
-                bgFile = "Interface/Buttons/WHITE8X8",
-                tile = true,
-                tileSize = 16,
-            })
-            button_bar:SetBackdropColor(0, 0, 0, 0.5) -- Semi-transparent black
+            button_bar:SetSize(sfui.config.minimap.default_size, 36)
+            if sfui.theme and sfui.theme.ApplyMinimapButtonBarStyle then
+                sfui.theme.ApplyMinimapButtonBarStyle(button_bar)
+            else
+                button_bar:SetBackdrop({
+                    bgFile = "Interface/Buttons/WHITE8X8",
+                    tile = true,
+                    tileSize = 16,
+                })
+                button_bar:SetBackdropColor(0, 0, 0, 0.5) -- Semi-transparent black
+            end
         end
 
         -- Update position from saved coordinates
@@ -688,6 +695,60 @@ function sfui.minimap.update_button_bar_position()
     end
 end
 
+function sfui.minimap.UpdateMinimapTheme()
+    local isCamelot = (sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()) or false
+
+    if not isCamelot then
+        -- Modern Minimalist: Do NOT touch the minimap at all!
+        -- Restore any textures/frames that might have been hidden/altered when in Camelot
+        if _G.MinimapCompassTexture then
+            _G.MinimapCompassTexture:Show()
+            _G.MinimapCompassTexture:SetAlpha(1)
+        end
+        if MinimapCluster then
+            if MinimapCluster.DielFrame then
+                MinimapCluster.DielFrame:Show()
+                MinimapCluster.DielFrame:SetAlpha(1)
+            end
+            if MinimapCluster.IndicatorFrame then
+                MinimapCluster.IndicatorFrame:Show()
+                MinimapCluster.IndicatorFrame:SetAlpha(1)
+            end
+            if MinimapCluster.BorderTop then
+                MinimapCluster.BorderTop:Show()
+                MinimapCluster.BorderTop:SetAlpha(1)
+            end
+        end
+    else
+        local preserveArt = (SfuiDB and SfuiDB.themeMinimapArt ~= false)
+        if preserveArt then
+            -- Preserve Camelot's distinct brass compass and astronomical day/night dial!
+            if _G.MinimapCompassTexture then
+                _G.MinimapCompassTexture:Show()
+                _G.MinimapCompassTexture:SetAlpha(1)
+            end
+            if MinimapCluster and MinimapCluster.DielFrame then
+                MinimapCluster.DielFrame:Show()
+                MinimapCluster.DielFrame:SetAlpha(1)
+            end
+            if MinimapCluster and MinimapCluster.BorderTop then
+                MinimapCluster.BorderTop:Hide()
+                MinimapCluster.BorderTop:SetAlpha(0)
+            end
+        end
+    end
+
+    if button_bar and sfui.theme and sfui.theme.ApplyMinimapButtonBarStyle then
+        sfui.theme.ApplyMinimapButtonBarStyle(button_bar)
+    end
+    if ButtonManager and ButtonManager.collectedButtons then
+        for _, btn in ipairs(ButtonManager.collectedButtons) do
+            ButtonManager:skin_button(btn)
+        end
+        ButtonManager:arrange_buttons()
+    end
+end
+
 local startup_scans = 0
 
 -- One-shot: runs once on first PLAYER_ENTERING_WORLD then unregisters itself
@@ -698,13 +759,7 @@ local function on_minimap_entering_world(event)
     end
     sfui.minimap.enable_button_manager(SfuiDB.minimap_collect_buttons)
     sfui.minimap.update_clock_position()
-
-    if MinimapCluster and MinimapCluster.IndicatorFrame then
-        MinimapCluster.IndicatorFrame:Hide(); MinimapCluster.IndicatorFrame:SetAlpha(0)
-    end
-    if MinimapCluster and MinimapCluster.BorderTop then
-        MinimapCluster.BorderTop:Hide(); MinimapCluster.BorderTop:SetAlpha(0)
-    end
+    sfui.minimap.UpdateMinimapTheme()
 
     -- Startup timer to catch late-loading buttons and clock
     if SfuiDB.minimap_collect_buttons then

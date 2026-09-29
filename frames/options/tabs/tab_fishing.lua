@@ -136,8 +136,7 @@ sfui.options.RegisterTab({
             end
             catcher:Hide()
 
-            local gray = (sfui.config and sfui.config.colors and sfui.config.colors.gray) or { 0.5, 0.5, 0.5 }
-            bind_btn:SetBackdropBorderColor(gray[1], gray[2], gray[3], 1)
+            bind_btn:SetBackdropBorderColor(0, 0, 0, 1)
             update_keybind_display()
         end
 

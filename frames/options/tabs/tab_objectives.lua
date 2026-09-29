@@ -34,14 +34,15 @@ sfui.options.RegisterTab({
                 if sfui.questlog and sfui.questlog.is_enabled then
                     return sfui.questlog.is_enabled()
                 end
+                if SfuiDB.questlogEnabled ~= nil then return SfuiDB.questlogEnabled end
                 if SfuiDB.enableQuestLog ~= nil then return SfuiDB.enableQuestLog end
                 return true
             end,
             function(checked)
+                SfuiDB.questlogEnabled = checked
+                SfuiDB.enableQuestLog = checked
                 if sfui.questlog and sfui.questlog.set_enabled then
                     sfui.questlog.set_enabled(checked)
-                else
-                    SfuiDB.enableQuestLog = checked
                 end
             end,
             "Enables or disables the SFUI custom quest log and objective tracker. " ..
@@ -51,9 +52,13 @@ sfui.options.RegisterTab({
 
         local lock_ql_cb = create_checkbox(p, "lock quest log position",
             function()
+                if SfuiDB.questlogLocked ~= nil then
+                    return SfuiDB.questlogLocked
+                end
                 return SfuiDB.questlogUnlocked ~= true
             end,
             function(checked)
+                SfuiDB.questlogLocked = checked
                 SfuiDB.questlogUnlocked = not checked
                 if sfui.questlog and sfui.questlog.set_locked then
                     sfui.questlog.set_locked(checked)

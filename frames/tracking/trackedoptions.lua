@@ -651,11 +651,11 @@ function sfui.trackedoptions.RenderBarsTab(parent)
     -- Texture
     local lTex = sec2c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     lTex:SetPoint("TOPLEFT", 0, s2y); lTex:SetText("Bar Texture:")
-    local barTextures = bar_cfg.barTextures or { { text = "Flat", value = "Interface/Buttons/WHITE8X8" } }
+    local barTextures = bar_cfg.barTextures or sfui.config.barTextures or { { text = "Flat", value = "Interface/Buttons/WHITE8X8" } }
     local texDropDown = common.create_dropdown(sec2c, 160, barTextures,
         function(val)
             db.barTexture = val; Refresh()
-        end, db.barTexture or bar_cfg.barTexture)
+        end, db.barTexture or bar_cfg.barTexture or (sfui.config and sfui.config.barTexture))
     texDropDown:SetPoint("LEFT", lTex, "RIGHT", 5, 0)
 
     -- Backdrop Alpha

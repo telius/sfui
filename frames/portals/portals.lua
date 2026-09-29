@@ -1050,7 +1050,7 @@ local function make_legacy_dropdown(parent, group, yPos)
     menu:SetFrameStrata("TOOLTIP")
     menu:SetBackdrop(BACKDROP_MENU)
     menu:SetBackdropColor(0, 0, 0, 0.92)
-    menu:SetBackdropBorderColor(unpack(cfg.colors.gray))
+    menu:SetBackdropBorderColor(unpack(cfg.colors.black))
     menu:Hide()
     menu:EnableMouse(true)
 

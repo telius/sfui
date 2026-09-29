@@ -146,9 +146,12 @@ local function CreateSwingBar(name, swingType, colorKey)
     statusBar:SetValue(0)
 
     -- Status bar texture
-    local textureName = SfuiDB and SfuiDB.barTexture
-    local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
-    local texturePath = (LSM and textureName and LSM:Fetch("statusbar", textureName)) or cfg.barTexture
+    local texturePath = (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture())
+    if not texturePath or texturePath == "" then
+        local textureName = SfuiDB and SfuiDB.barTexture
+        local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+        texturePath = (LSM and textureName and LSM:Fetch("statusbar", textureName)) or cfg.barTexture
+    end
     statusBar:SetStatusBarTexture(texturePath)
 
     -- Bar color

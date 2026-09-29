@@ -351,3 +351,37 @@ function sfui.safety.copy(t)
     return res
 end
 sfui.common.copy = sfui.safety.copy
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- Blizzard 1.60.1 / Camelot Engine Hotfixes
+-- ────────────────────────────────────────────────────────────────────────────
+-- Fix Blizzard_GamepadActionBars/PageUnit.lua:322 crash on WoW 1.60.1:
+-- GamepadActionBarPageUnitMixin:OnLoad registers a CVar callback for "GamepadUseCompactActionBar"
+-- to RefreshCompactLayout, but self.anchorPoints is only initialized in InitializeGamepad().
+-- During character login / CVAR sync without an active controller, self.anchorPoints is nil,
+-- which throws 'attempt to index field anchorPoints (a nil value)' in RefreshCompactLayout.
+local function patch_gamepad_compact_layout()
+    local mixin = _G.GamepadActionBarPageUnitMixin
+    if mixin and mixin.RefreshCompactLayout and not mixin._sfui_compact_layout_patched then
+        mixin._sfui_compact_layout_patched = true
+        local origRefresh = mixin.RefreshCompactLayout
+        mixin.RefreshCompactLayout = function(self, ...)
+            if not self.anchorPoints and self.InitializeCompactLayout then
+                self:InitializeCompactLayout()
+            end
+            if self.anchorPoints or (self.ShouldUseCompactLayout and self:ShouldUseCompactLayout()) then
+                return origRefresh(self, ...)
+            end
+        end
+    end
+end
+
+patch_gamepad_compact_layout()
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("ADDON_LOADED", function(_, loadedAddon)
+        if loadedAddon == "Blizzard_GamepadActionBars" then
+            patch_gamepad_compact_layout()
+        end
+    end)
+end
+

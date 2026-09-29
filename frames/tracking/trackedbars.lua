@@ -51,7 +51,7 @@ local function GetTrackedBarConfig(cooldownID)
             local match = true
             if entry.specID then
                 local currentSpec = common.get_current_spec_id and common.get_current_spec_id()
-                if currentSpec and entry.specID ~= currentSpec then
+                if currentSpec and not (common.is_spec_match and common.is_spec_match(entry.specID, currentSpec) or entry.specID == currentSpec) then
                     match = false
                 end
             end
@@ -199,7 +199,8 @@ local function CreateBar(cooldownID)
     local pad = cfg.backdrop.padding
     bar.status:SetPoint("TOPLEFT", bar, "TOPLEFT", pad, -pad)
     bar.status:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -pad, pad)
-    bar.status:SetStatusBarTexture(sfui.config.textures.white)
+    local statusTex = (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()) or sfui.config.textures.white
+    bar.status:SetStatusBarTexture(statusTex)
     bar.status:SetStatusBarColor(unpack(sfui.config.colors.purple))
 
     -- Icon
@@ -546,6 +547,26 @@ end
 
 local barPool = {}
 
+function sfui.trackedbars.SetBarTexture(texturePath)
+    if not texturePath or texturePath == "" then
+        texturePath = sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()
+    end
+    if not texturePath then return end
+    if bars then
+        for _, bar in pairs(bars) do
+            if bar.status then
+                bar.status:SetStatusBarTexture(texturePath)
+            end
+        end
+    end
+    for _, bar in ipairs(barPool) do
+        if bar.status then
+            bar.status:SetStatusBarTexture(texturePath)
+        end
+    end
+end
+sfui.trackedbars.UpdateAppearance = function() sfui.trackedbars.SetBarTexture() end
+
 local function RecycleBar(bar)
     bar:Hide()
     bar:ClearAllPoints()
@@ -571,6 +592,10 @@ local function GetBarFromPool(cooldownID)
     if bar then
         bar:SetParent(container)
         bar.cooldownID = cooldownID
+        local tex = (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()) or sfui.config.textures.white
+        if bar.status and tex then
+            bar.status:SetStatusBarTexture(tex)
+        end
         return bar
     end
     return nil
@@ -1145,7 +1170,7 @@ local function ProcessBlizzardSync()
                     local def = cfg.trackedBars.defaults[id]
                     if def and def.specID then
                         local currentSpec = common.get_current_spec_id and common.get_current_spec_id()
-                        if currentSpec and def.specID ~= currentSpec then
+                        if currentSpec and not (common.is_spec_match and common.is_spec_match(def.specID, currentSpec) or def.specID == currentSpec) then
                             isSpecRestricted = true
                         end
                     end

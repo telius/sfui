@@ -127,13 +127,14 @@ sfui.options.RegisterTab({
             if sfui.questlog and sfui.questlog.is_enabled then
                 return sfui.questlog.is_enabled()
             end
+            if SfuiDB.questlogEnabled ~= nil then return SfuiDB.questlogEnabled end
             if SfuiDB.enableQuestLog ~= nil then return SfuiDB.enableQuestLog end
             return true
         end, function(checked)
+            SfuiDB.questlogEnabled = checked
+            SfuiDB.enableQuestLog = checked
             if sfui.questlog and sfui.questlog.set_enabled then
                 sfui.questlog.set_enabled(checked)
-            else
-                SfuiDB.enableQuestLog = checked
             end
         end, "toggles the sfui custom quest log and objectives tracker (enabled by default).")
         enable_questlog_cb:SetPoint("LEFT", hide_minimap_icon_cb, "RIGHT", 150, 0)
@@ -181,24 +182,73 @@ sfui.options.RegisterTab({
         texture_label:SetPoint("TOPLEFT", use_spec_color_cb, "BOTTOMLEFT", 0, -30)
         texture_label:SetText("bar texture:")
 
-        local function GetTextureOptions()
-            local LSM = LibStub("LibSharedMedia-3.0", true)
-            local sortedTextures = {}
-            local seen = { ["Flat"] = true }
-            table.insert(sortedTextures, { text = "Flat", value = "Flat" })
+        local BLIZZARD_BAR_ORDER = {
+            "Flat",
+            "Blizzard",
+            "Blizzard Target Bar",
+            "Blizzard Character Skills Bar",
+            "Blizzard Raid Bar",
+            "Blizzard Raid Resource",
+            "Blizzard Raid Health",
+            "Blizzard Shield Fill",
+            "Blizzard Absorb Fill",
+            "Blizzard Professions",
+            "Blizzard Archaeology",
+        }
 
+        local function resolve_bar_texture(val)
+            if not val or val == "" then
+                return "Interface/Buttons/WHITE8X8"
+            end
+            local LSM = _G.LibStub and _G.LibStub("LibSharedMedia-3.0", true)
+            local texturePath
+            if LSM then
+                texturePath = LSM:Fetch("statusbar", val)
+            end
+            if not texturePath and sfui.config and sfui.config.blizzard_bar_textures then
+                texturePath = sfui.config.blizzard_bar_textures[val]
+                if not texturePath and type(val) == "string" then
+                    local normVal = val:gsub("\\", "/"):lower()
+                    for name, path in pairs(sfui.config.blizzard_bar_textures) do
+                        if name:lower() == normVal or path:gsub("\\", "/"):lower() == normVal then
+                            texturePath = path
+                            break
+                        end
+                    end
+                end
+            end
+            if not texturePath and type(val) == "string" and val:find("^[iI]nterface[/\\]") then
+                texturePath = val
+            end
+            return texturePath or (sfui.config and sfui.config.barTexture) or "Interface/Buttons/WHITE8X8"
+        end
+
+        local function GetTextureOptions()
+            local LSM = _G.LibStub and _G.LibStub("LibSharedMedia-3.0", true)
+            local sortedTextures = {}
+            local seen = {}
+
+            -- 1. Insert authentic Blizzard bar textures in curated priority order
+            for _, name in ipairs(BLIZZARD_BAR_ORDER) do
+                if not seen[name] then
+                    table.insert(sortedTextures, { text = name, value = name })
+                    seen[name] = true
+                end
+            end
+
+            -- 2. Append any additional textures registered in LibSharedMedia-3.0
             if LSM then
                 local textures = LSM:HashTable("statusbar")
                 if textures then
-                    local rawNames = {}
+                    local externalNames = {}
                     for name, _ in pairs(textures) do
                         if not seen[name] then
-                            table.insert(rawNames, name)
+                            table.insert(externalNames, name)
                             seen[name] = true
                         end
                     end
-                    table.sort(rawNames)
-                    for _, name in ipairs(rawNames) do
+                    table.sort(externalNames)
+                    for _, name in ipairs(externalNames) do
                         table.insert(sortedTextures, { text = name, value = name })
                     end
                 end
@@ -206,27 +256,56 @@ sfui.options.RegisterTab({
             return sortedTextures
         end
 
-        local texture_dropdown = common.create_dropdown(main_panel, 140, GetTextureOptions, function(val)
-            SfuiDB.barTexture = val
-            local LSM = LibStub("LibSharedMedia-3.0", true)
-            local texturePath = LSM and LSM:Fetch("statusbar", val) or "Interface/Buttons/WHITE8X8"
+        -- Normalize legacy path if stored in SfuiDB.barTexture
+        local initialTexture = SfuiDB.barTexture or "Flat"
+        if sfui.config and sfui.config.blizzard_bar_textures then
+            local normInit = type(initialTexture) == "string" and initialTexture:gsub("\\", "/"):lower() or ""
+            for name, path in pairs(sfui.config.blizzard_bar_textures) do
+                if initialTexture == name or normInit == path:gsub("\\", "/"):lower() then
+                    initialTexture = name
+                    SfuiDB.barTexture = name
+                    break
+                end
+            end
+        end
 
-            if sfui.bars and sfui.bars.set_bar_texture then
-                sfui.bars.set_bar_texture(texturePath)
+        local function safeCall(tbl, funcName, ...)
+            if tbl and type(tbl[funcName]) == "function" then
+                local ok, err = pcall(tbl[funcName], ...)
+                if not ok then
+                    print("|cffff0000[sfui barTexture error]|r", funcName, err)
+                end
             end
-            if sfui.castbar and sfui.castbar.set_bar_texture then
-                sfui.castbar.set_bar_texture(texturePath)
+        end
+
+        local texture_dropdown = common.create_dropdown(main_panel, 180, GetTextureOptions, function(val)
+            SfuiDB.barTexture = val
+            local texturePath = resolve_bar_texture(val)
+
+            if sfui.config then
+                sfui.config.barTexture = texturePath
             end
-            if sfui.vehicle and sfui.vehicle.set_bar_texture then
-                sfui.vehicle.set_bar_texture(texturePath)
+
+            safeCall(sfui.bars, "set_bar_texture", texturePath)
+            safeCall(sfui.castbar, "set_bar_texture", texturePath)
+            safeCall(sfui.vehicle, "set_bar_texture", texturePath)
+            safeCall(sfui.swing, "SetBarTexture", texturePath)
+            safeCall(sfui.trackedbars, "SetBarTexture", texturePath)
+            if sfui.tracker and sfui.tracker.blocks then
+                safeCall(sfui.tracker.blocks, "SetBarTexture", texturePath)
             end
-            if sfui.tracker and sfui.tracker.blocks and sfui.tracker.blocks.SetBarTexture then
-                sfui.tracker.blocks.SetBarTexture(texturePath)
+            if sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.timerbars then
+                safeCall(sfui.tracker.helpers.timerbars, "SetBarTexture", texturePath)
             end
-            if sfui.tracker and sfui.tracker.RequestRefresh then
-                sfui.tracker.RequestRefresh()
+            safeCall(sfui.soulfragments, "SetBarTexture", texturePath)
+            safeCall(sfui.tracker, "RequestRefresh")
+
+            if sfui.options and sfui.options.notify_setting_changed then
+                safeCall(sfui.options, "notify_setting_changed", "bars", "barTexture", val)
+                safeCall(sfui.options, "notify_setting_changed", "castbar", "barTexture", val)
+                safeCall(sfui.options, "notify_setting_changed", "trackedbars", "barTexture", val)
             end
-        end, SfuiDB.barTexture or "Flat")
+        end, initialTexture, nil, 240)
         texture_dropdown:SetPoint("LEFT", texture_label, "RIGHT", 10, 0)
 
         -- Spec Colors Customization
@@ -266,16 +345,18 @@ sfui.options.RegisterTab({
 
                 local curCol = (SfuiDB and SfuiDB.spec_colors and SfuiDB.spec_colors[specID])
                     or (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
+                    or (common.get_spec_color_table and common.get_spec_color_table(specID))
                     or { 1, 1, 1, 1 }
                 local swatch = common.create_color_swatch(main_panel, curCol, function(r, green, b)
                     SfuiDB.spec_colors = SfuiDB.spec_colors or {}
                     SfuiDB.spec_colors[specID] = { r, green, b, 1 }
-                    if sfui.isClassic and i == 1 then
-                        local pClass = common.get_player_class and common.get_player_class()
-                        local baseID = pClass and common.CLASS_VANILLA_SPEC_MAP and common.CLASS_VANILLA_SPEC_MAP[pClass]
-                        if baseID then
-                            SfuiDB.spec_colors[baseID] = { r, green, b, 1 }
-                        end
+                    local equivSpecID = (common.to_retail_spec_id and common.to_retail_spec_id(specID)) or (spec and spec.retailSpecID)
+                    if equivSpecID and equivSpecID ~= specID then
+                        SfuiDB.spec_colors[equivSpecID] = { r, green, b, 1 }
+                    end
+                    local camelotID = common.to_camelot_spec_id and common.to_camelot_spec_id(specID)
+                    if camelotID and camelotID ~= specID then
+                        SfuiDB.spec_colors[camelotID] = { r, green, b, 1 }
                     end
                     notify_spec_colors_updated()
                 end)
@@ -295,24 +376,22 @@ sfui.options.RegisterTab({
         reset_spec_btn:SetScript("OnClick", function()
             for _, specID in ipairs(specIDs or {}) do
                 if specID then
+                    local equivSpecID = common.to_retail_spec_id and common.to_retail_spec_id(specID)
+                    local camelotID   = common.to_camelot_spec_id and common.to_camelot_spec_id(specID)
                     if SfuiDB.spec_colors then
                         SfuiDB.spec_colors[specID] = nil
+                        if equivSpecID then SfuiDB.spec_colors[equivSpecID] = nil end
+                        if camelotID then SfuiDB.spec_colors[camelotID] = nil end
                     end
-                    local baseColor = sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID]
+                    local baseColor = (sfui.config and sfui.config.spec_colors and sfui.config.spec_colors[specID])
+                        or (common.get_spec_color_table and common.get_spec_color_table(specID))
                     local r, green, b = 1, 1, 1
                     if baseColor then
-                        r, green, b = baseColor[1], baseColor[2], baseColor[3]
+                        r, green, b = baseColor[1] or baseColor.r or 1, baseColor[2] or baseColor.g or 1, baseColor[3] or baseColor.b or 1
                     end
                     if spec_swatches[specID] then
                         spec_swatches[specID]:SetBackdropColor(r, green, b, 1)
                     end
-                end
-            end
-            if sfui.isClassic and SfuiDB.spec_colors then
-                local pClass = common.get_player_class and common.get_player_class()
-                local baseID = pClass and common.CLASS_VANILLA_SPEC_MAP and common.CLASS_VANILLA_SPEC_MAP[pClass]
-                if baseID then
-                    SfuiDB.spec_colors[baseID] = nil
                 end
             end
             notify_spec_colors_updated()

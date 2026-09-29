@@ -1,165 +1,392 @@
 local addonName, addon = ...
 sfui = sfui or {}
-sfui.default_stats = {}
+sfui.data = sfui.data or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- SFUI Spec Secondary Stat Priorities
+-- SFUI Spec Secondary Stat Priorities & Spec Definitions Database
 --
--- Default stat weights used by gear comparison and stat tracking across
--- Retail and Classic Forever / Camelot specializations.
+-- Plain data definitions for specs, stat weights, roles, and Retail / Camelot IDs.
+-- Easily adjustable entries.
 -- ══════════════════════════════════════════════════════════════════════════════
 
--- DEATH KNIGHT
-sfui.default_stats[250] = { "H", "C", "M", "V" } -- Blood
-sfui.default_stats[251] = { "M", "C", "H", "V" } -- Frost
-sfui.default_stats[252] = { "M", "C", "H", "V" } -- Unholy
-
--- DEMON HUNTER
-sfui.default_stats[577] = { "C", "M", "H", "V" }  -- Havoc
-sfui.default_stats[581] = { "H", "C", "V", "M" }  -- Vengeance
-sfui.default_stats[1480] = { "H", "M", "C", "V" } -- Devourer
-
--- DRUID
-sfui.default_stats[102] = { "M", "H", "C", "V" } -- Balance
-sfui.default_stats[103] = { "M", "H", "C", "V" } -- Feral
-sfui.default_stats[104] = { "H", "V", "C", "M" } -- Guardian
-sfui.default_stats[105] = { "H", "M", "V", "C" } -- Restoration
-
--- EVOKER
-sfui.default_stats[1467] = { "C", "H", "M", "V" } -- Devastation
-sfui.default_stats[1468] = { "M", "H", "C", "V" } -- Preservation
-sfui.default_stats[1473] = { "C", "H", "M", "V" } -- Augmentation
-
--- HUNTER
-sfui.default_stats[253] = { "M", "C", "V", "H" } -- Beast Mastery
-sfui.default_stats[254] = { "C", "M", "H", "V" } -- Marksmanship
-sfui.default_stats[255] = { "M", "C", "H", "V" } -- Survival
-
--- MAGE
-sfui.default_stats[62] = { "M", "H", "C", "V" } -- Arcane
-sfui.default_stats[63] = { "H", "M", "V", "C" } -- Fire
-sfui.default_stats[64] = { "M", "C", "H", "V" } -- Frost
-
--- MONK
-sfui.default_stats[268] = { "C", "M", "V", "H" } -- Brewmaster
-sfui.default_stats[269] = { "H", "C", "M", "V" } -- Windwalker
-sfui.default_stats[270] = { "H", "C", "V", "M" } -- Mistweaver
-
--- PALADIN
-sfui.default_stats[65] = { "M", "C", "H", "V" } -- Holy
-sfui.default_stats[66] = { "H", "V", "C", "M" } -- Protection
-sfui.default_stats[70] = { "M", "H", "C", "V" } -- Retribution
-
--- PRIEST
-sfui.default_stats[256] = { "H", "C", "V", "M" } -- Discipline
-sfui.default_stats[257] = { "V", "C", "H", "M" } -- Holy
-sfui.default_stats[258] = { "H", "M", "C", "V" } -- Shadow
-
--- ROGUE
-sfui.default_stats[259] = { "C", "H", "M", "V" } -- Assassination
-sfui.default_stats[260] = { "H", "C", "V", "M" } -- Outlaw
-sfui.default_stats[261] = { "M", "H", "C", "V" } -- Subtlety
-
--- SHAMAN
-sfui.default_stats[262] = { "H", "M", "C", "V" } -- Elemental
-sfui.default_stats[263] = { "M", "H", "C", "V" } -- Enhancement
-sfui.default_stats[264] = { "C", "V", "M", "H" } -- Restoration
-
--- WARLOCK
-sfui.default_stats[265] = { "M", "C", "H", "V" } -- Affliction
-sfui.default_stats[266] = { "H", "C", "M", "V" } -- Demonology
-sfui.default_stats[267] = { "H", "M", "C", "V" } -- Destruction
-
--- WARRIOR
-sfui.default_stats[71] = { "C", "H", "M", "V" } -- Arms
-sfui.default_stats[72] = { "M", "H", "C", "V" } -- Fury
-sfui.default_stats[73] = { "H", "C", "V", "M" } -- Protection
-
--- CLASSIC FOREVER / CAMELOT (Single class spec IDs - Pure DPS / Healer defaults, zero defense/dodge)
-sfui.default_stats[1482] = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "H" }       -- Mage (Caster DPS)
-sfui.default_stats[1484] = { "Str", "Agi", "AP", "Crit", "Hit", "Stam", "Int", "Arm" }      -- Druid (Feral DPS / Hybrid)
-sfui.default_stats[1485] = { "Agi", "RAP", "Hit", "Crit", "AP", "Stam", "Int", "H" }       -- Hunter (Physical Ranged DPS)
-sfui.default_stats[1486] = { "Str", "AP", "Hit", "Crit", "Stam", "SP", "Heal", "MP5", "Int" } -- Paladin (Ret DPS / Holy)
-sfui.default_stats[1487] = { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Hit", "Stam" }   -- Priest (Healer / Caster)
-sfui.default_stats[1488] = { "Agi", "AP", "Hit", "Crit", "Str", "Stam", "H", "Arm" }       -- Rogue (Physical Melee DPS)
-sfui.default_stats[1489] = { "SP", "Heal", "Hit", "Crit", "MP5", "AP", "Str", "Agi" }      -- Shaman (Caster / Healer)
-sfui.default_stats[1490] = { "SP", "Hit", "Crit", "Stam", "Int", "Spi", "H", "Arm" }       -- Warlock (Caster DPS)
-sfui.default_stats[1491] = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "H", "Arm" }       -- Warrior (Physical Melee DPS)
-
--- Static fallback so __index never allocates a new table
-local _defaultStatOrder = { "H", "M", "C", "V" }
-local _defaultClassicStatOrder = { "AP", "SP", "Hit", "Crit", "Str", "Agi", "Int", "Stam" }
-
-setmetatable(sfui.default_stats, {
-    __index = function(t, k)
-        local nk = tonumber(k)
-        if nk and rawget(t, nk) then return rawget(t, nk) end
-        if nk and nk >= 1482 and nk <= 1491 then
-            return _defaultClassicStatOrder
-        end
-        return _defaultStatOrder
-    end
-})
-
-sfui.classic_default_stats = sfui.classic_default_stats or {
-    [1482] = { -- Mage
-        ["DPS"]  = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "H" },
+sfui.data.SPEC_DEFINITIONS = {
+    -- WARRIOR (1491)
+    {
+        camelotID = 14911, retailID = 71, classID = 1491, class = "WARRIOR", classFile = "WARRIOR",
+        treeIndex = 1, name = "arms", icon = 132355, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "C", "H", "M", "V" },
+        classicStats = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "H", "Arm" },
+        roleStats = {
+            ["DPS"]  = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "H", "Arm" },
+            ["TANK"] = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "Hit", "Str" },
+        },
     },
-    [1484] = { -- Druid
-        ["DPS"]  = { "Str", "Agi", "AP", "Crit", "Hit", "Stam", "Int", "Arm" },
-        ["HEAL"] = { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Stam", "H" },
-        ["TANK"] = { "Arm", "Stam", "Def", "Dodge", "Agi", "Str", "Hit", "AP" },
+    {
+        camelotID = 14912, retailID = 72, classID = 1491, class = "WARRIOR", classFile = "WARRIOR",
+        treeIndex = 2, name = "fury", icon = 132347, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "M", "H", "C", "V" },
+        classicStats = { "AP", "Hit", "Crit", "Str", "Agi", "Stam", "H", "Arm" },
+        roleStats = {
+            ["DPS"]  = { "AP", "Hit", "Crit", "Str", "Agi", "Stam", "H", "Arm" },
+            ["TANK"] = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "Hit", "Str" },
+        },
     },
-    [1485] = { -- Hunter
-        ["DPS"]  = { "Agi", "RAP", "Hit", "Crit", "AP", "Stam", "Int", "H" },
+    {
+        camelotID = 14913, retailID = 73, classID = 1491, class = "WARRIOR", classFile = "WARRIOR",
+        treeIndex = 3, name = "protection", icon = 132341, role = "TANK", isTank = true, isHealer = false, isClassic = true,
+        retailStats  = { "H", "C", "V", "M" },
+        classicStats = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "Hit", "Str" },
+        roleStats = {
+            ["TANK"] = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "Hit", "Str" },
+            ["DPS"]  = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "H", "Arm" },
+        },
     },
-    [1486] = { -- Paladin
-        ["DPS"]  = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "SP", "H" },
-        ["HEAL"] = { "Heal", "SP", "MP5", "Int", "Crit", "Spi", "Stam", "H" },
-        ["TANK"] = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "SP", "Hit" },
+    -- PALADIN (1486)
+    {
+        camelotID = 14861, retailID = 65, classID = 1486, class = "PALADIN", classFile = "PALADIN",
+        treeIndex = 1, name = "holy", icon = 135920, role = "HEAL", isTank = false, isHealer = true, isClassic = true,
+        retailStats  = { "M", "C", "H", "V" },
+        classicStats = { "Heal", "SP", "MP5", "Int", "Crit", "Spi", "Stam", "H" },
+        roleStats = {
+            ["HEAL"] = { "Heal", "SP", "MP5", "Int", "Crit", "Spi", "Stam", "H" },
+            ["DPS"]  = { "SP", "Int", "Crit", "Hit", "MP5", "Stam" },
+        },
     },
-    [1487] = { -- Priest
-        ["DPS"]  = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "H" },
-        ["HEAL"] = { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Hit", "Stam" },
+    {
+        camelotID = 14862, retailID = 66, classID = 1486, class = "PALADIN", classFile = "PALADIN",
+        treeIndex = 2, name = "protection", icon = 236264, role = "TANK", isTank = true, isHealer = false, isClassic = true,
+        retailStats  = { "H", "V", "C", "M" },
+        classicStats = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "SP", "Hit" },
+        roleStats = {
+            ["TANK"] = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "SP", "Hit" },
+            ["DPS"]  = { "Str", "AP", "Hit", "Crit", "SP" },
+        },
     },
-    [1488] = { -- Rogue
-        ["DPS"]  = { "Agi", "AP", "Hit", "Crit", "Str", "Stam", "H", "Arm" },
+    {
+        camelotID = 14863, retailID = 70, classID = 1486, class = "PALADIN", classFile = "PALADIN",
+        treeIndex = 3, name = "retribution", icon = 135873, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "M", "H", "C", "V" },
+        classicStats = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "SP", "H" },
+        roleStats = {
+            ["DPS"]  = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "SP", "H" },
+            ["HEAL"] = { "Heal", "SP", "MP5", "Int", "Crit", "Spi", "Stam", "H" },
+            ["TANK"] = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "SP", "Hit" },
+        },
     },
-    [1489] = { -- Shaman
-        ["DPS"]  = { "SP", "Hit", "Crit", "MP5", "AP", "Str", "Agi", "Int" },
-        ["HEAL"] = { "Heal", "SP", "MP5", "Int", "Crit", "Spi", "Stam", "H" },
+    -- HUNTER (1485)
+    {
+        camelotID = 14851, retailID = 253, classID = 1485, class = "HUNTER", classFile = "HUNTER",
+        treeIndex = 1, name = "beast mastery", icon = 132222, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "M", "C", "V", "H" },
+        classicStats = { "Agi", "RAP", "Hit", "Crit", "AP", "Stam", "Int", "H" },
     },
-    [1490] = { -- Warlock
-        ["DPS"]  = { "SP", "Hit", "Crit", "Stam", "Int", "Spi", "H", "Arm" },
+    {
+        camelotID = 14852, retailID = 254, classID = 1485, class = "HUNTER", classFile = "HUNTER",
+        treeIndex = 2, name = "marksmanship", icon = 132218, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "C", "M", "H", "V" },
+        classicStats = { "Agi", "RAP", "Hit", "Crit", "AP", "Stam", "Int", "H" },
     },
-    [1491] = { -- Warrior
-        ["DPS"]  = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "H", "Arm" },
-        ["TANK"] = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "Hit", "Str" },
+    {
+        camelotID = 14853, retailID = 255, classID = 1485, class = "HUNTER", classFile = "HUNTER",
+        treeIndex = 3, name = "survival", icon = 132215, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "M", "C", "H", "V" },
+        classicStats = { "Agi", "RAP", "Hit", "Crit", "AP", "Stam", "Int", "H" },
+    },
+    -- ROGUE (1488)
+    {
+        camelotID = 14881, retailID = 259, classID = 1488, class = "ROGUE", classFile = "ROGUE",
+        treeIndex = 1, name = "assassination", icon = 132292, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "C", "H", "M", "V" },
+        classicStats = { "Agi", "AP", "Hit", "Crit", "Str", "Stam", "H", "Arm" },
+    },
+    {
+        camelotID = 14882, retailID = 260, classID = 1488, class = "ROGUE", classFile = "ROGUE",
+        treeIndex = 2, name = "combat", icon = 132309, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "H", "C", "V", "M" },
+        classicStats = { "Hit", "Agi", "AP", "Crit", "Str", "Stam", "H", "Arm" },
+    },
+    {
+        camelotID = 14883, retailID = 261, classID = 1488, class = "ROGUE", classFile = "ROGUE",
+        treeIndex = 3, name = "subtlety", icon = 132320, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "M", "H", "C", "V" },
+        classicStats = { "Agi", "AP", "Crit", "Hit", "Str", "Stam", "H", "Arm" },
+    },
+    -- PRIEST (1487)
+    {
+        camelotID = 14871, retailID = 256, classID = 1487, class = "PRIEST", classFile = "PRIEST",
+        treeIndex = 1, name = "discipline", icon = 135940, role = "HEAL", isTank = false, isHealer = true, isClassic = true,
+        retailStats  = { "H", "C", "V", "M" },
+        classicStats = { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Hit", "Stam" },
+        roleStats = {
+            ["HEAL"] = { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Hit", "Stam" },
+            ["DPS"]  = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam" },
+        },
+    },
+    {
+        camelotID = 14872, retailID = 257, classID = 1487, class = "PRIEST", classFile = "PRIEST",
+        treeIndex = 2, name = "holy", icon = 237542, role = "HEAL", isTank = false, isHealer = true, isClassic = true,
+        retailStats  = { "V", "C", "H", "M" },
+        classicStats = { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Hit", "Stam" },
+        roleStats = {
+            ["HEAL"] = { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Hit", "Stam" },
+            ["DPS"]  = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam" },
+        },
+    },
+    {
+        camelotID = 14873, retailID = 258, classID = 1487, class = "PRIEST", classFile = "PRIEST",
+        treeIndex = 3, name = "shadow", icon = 136207, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "H", "M", "C", "V" },
+        classicStats = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "H" },
+        roleStats = {
+            ["DPS"]  = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "H" },
+            ["HEAL"] = { "Heal", "SP", "MP5", "Spi", "Int", "Crit" },
+        },
+    },
+    -- SHAMAN (1489)
+    {
+        camelotID = 14891, retailID = 262, classID = 1489, class = "SHAMAN", classFile = "SHAMAN",
+        treeIndex = 1, name = "elemental", icon = 136048, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "H", "M", "C", "V" },
+        classicStats = { "SP", "Hit", "Crit", "Int", "MP5", "Spi", "Stam", "H" },
+        roleStats = {
+            ["DPS"]  = { "SP", "Hit", "Crit", "Int", "MP5", "Spi", "Stam", "H" },
+            ["HEAL"] = { "Heal", "SP", "MP5", "Int", "Crit" },
+        },
+    },
+    {
+        camelotID = 14892, retailID = 263, classID = 1489, class = "SHAMAN", classFile = "SHAMAN",
+        treeIndex = 2, name = "enhancement", icon = 136051, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "M", "H", "C", "V" },
+        classicStats = { "AP", "Str", "Agi", "Hit", "Crit", "SP", "Int", "Stam" },
+        roleStats = {
+            ["DPS"]  = { "AP", "Str", "Agi", "Hit", "Crit", "SP", "Int", "Stam" },
+            ["HEAL"] = { "Heal", "SP", "MP5", "Int" },
+        },
+    },
+    {
+        camelotID = 14893, retailID = 264, classID = 1489, class = "SHAMAN", classFile = "SHAMAN",
+        treeIndex = 3, name = "restoration", icon = 136052, role = "HEAL", isTank = false, isHealer = true, isClassic = true,
+        retailStats  = { "C", "V", "M", "H" },
+        classicStats = { "Heal", "SP", "MP5", "Int", "Crit", "Spi", "Stam", "H" },
+        roleStats = {
+            ["HEAL"] = { "Heal", "SP", "MP5", "Int", "Crit", "Spi", "Stam", "H" },
+            ["DPS"]  = { "SP", "Hit", "Crit", "MP5", "AP" },
+        },
+    },
+    -- MAGE (1482)
+    {
+        camelotID = 14821, retailID = 62, classID = 1482, class = "MAGE", classFile = "MAGE",
+        treeIndex = 1, name = "arcane", icon = 135932, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "M", "H", "C", "V" },
+        classicStats = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "H" },
+    },
+    {
+        camelotID = 14822, retailID = 63, classID = 1482, class = "MAGE", classFile = "MAGE",
+        treeIndex = 2, name = "fire", icon = 135810, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "H", "M", "V", "C" },
+        classicStats = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "H" },
+    },
+    {
+        camelotID = 14823, retailID = 64, classID = 1482, class = "MAGE", classFile = "MAGE",
+        treeIndex = 3, name = "frost", icon = 135846, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "M", "C", "H", "V" },
+        classicStats = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "H" },
+    },
+    -- WARLOCK (1490)
+    {
+        camelotID = 14901, retailID = 265, classID = 1490, class = "WARLOCK", classFile = "WARLOCK",
+        treeIndex = 1, name = "affliction", icon = 136145, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "M", "C", "H", "V" },
+        classicStats = { "SP", "Hit", "Crit", "Stam", "Int", "Spi", "H", "Arm" },
+    },
+    {
+        camelotID = 14902, retailID = 266, classID = 1490, class = "WARLOCK", classFile = "WARLOCK",
+        treeIndex = 2, name = "demonology", icon = 136172, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "H", "C", "M", "V" },
+        classicStats = { "SP", "Hit", "Crit", "Stam", "Int", "Spi", "H", "Arm" },
+    },
+    {
+        camelotID = 14903, retailID = 267, classID = 1490, class = "WARLOCK", classFile = "WARLOCK",
+        treeIndex = 3, name = "destruction", icon = 136186, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "H", "M", "C", "V" },
+        classicStats = { "SP", "Hit", "Crit", "Int", "Stam", "Spi", "H", "Arm" },
+    },
+    -- DRUID (1484)
+    {
+        camelotID = 14841, retailID = 102, classID = 1484, class = "DRUID", classFile = "DRUID",
+        treeIndex = 1, name = "balance", icon = 136096, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "M", "H", "C", "V" },
+        classicStats = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "H" },
+        roleStats = {
+            ["DPS"]  = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "H" },
+            ["HEAL"] = { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Stam", "H" },
+        },
+    },
+    {
+        camelotID = 14842, retailID = 103, classID = 1484, class = "DRUID", classFile = "DRUID",
+        treeIndex = 2, name = "feral", icon = 132242, role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        retailStats  = { "M", "H", "C", "V" },
+        classicStats = { "Str", "Agi", "AP", "Crit", "Hit", "Stam", "Int", "Arm" },
+        roleStats = {
+            ["DPS"]  = { "Str", "Agi", "AP", "Crit", "Hit", "Stam", "Int", "Arm" },
+            ["TANK"] = { "Arm", "Stam", "Def", "Dodge", "Agi", "Str", "Hit", "AP" },
+        },
+    },
+    {
+        camelotID = 14843, retailID = 105, classID = 1484, class = "DRUID", classFile = "DRUID",
+        treeIndex = 3, name = "restoration", icon = 136041, role = "HEAL", isTank = false, isHealer = true, isClassic = true,
+        retailStats  = { "H", "M", "V", "C" },
+        classicStats = { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Stam", "H" },
+        roleStats = {
+            ["HEAL"] = { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Stam", "H" },
+            ["DPS"]  = { "SP", "Int", "Crit", "Hit", "Str", "Agi" },
+        },
+    },
+    -- RETAIL ONLY CLASSES / SPECS
+    {
+        retailID = 250, classID = 6, class = "DEATHKNIGHT", classFile = "DEATHKNIGHT",
+        name = "blood", role = "TANK", isTank = true, isHealer = false, isClassic = false,
+        retailStats = { "H", "C", "M", "V" },
+    },
+    {
+        retailID = 251, classID = 6, class = "DEATHKNIGHT", classFile = "DEATHKNIGHT",
+        name = "frost", role = "DPS", isTank = false, isHealer = false, isClassic = false,
+        retailStats = { "M", "C", "H", "V" },
+    },
+    {
+        retailID = 252, classID = 6, class = "DEATHKNIGHT", classFile = "DEATHKNIGHT",
+        name = "unholy", role = "DPS", isTank = false, isHealer = false, isClassic = false,
+        retailStats = { "M", "C", "H", "V" },
+    },
+    {
+        retailID = 577, classID = 12, class = "DEMONHUNTER", classFile = "DEMONHUNTER",
+        name = "havoc", role = "DPS", isTank = false, isHealer = false, isClassic = false,
+        retailStats = { "C", "M", "H", "V" },
+    },
+    {
+        retailID = 581, classID = 12, class = "DEMONHUNTER", classFile = "DEMONHUNTER",
+        name = "vengeance", role = "TANK", isTank = true, isHealer = false, isClassic = false,
+        retailStats = { "H", "C", "V", "M" },
+    },
+    {
+        retailID = 1480, classID = 12, class = "DEMONHUNTER", classFile = "DEMONHUNTER",
+        name = "devourer", role = "DPS", isTank = false, isHealer = false, isClassic = false,
+        retailStats = { "H", "M", "C", "V" },
+    },
+    {
+        retailID = 104, classID = 11, class = "DRUID", classFile = "DRUID",
+        name = "guardian", role = "TANK", isTank = true, isHealer = false, isClassic = false,
+        retailStats = { "H", "V", "C", "M" },
+        classicStats = { "Arm", "Stam", "Def", "Dodge", "Agi", "Str", "Hit", "AP" },
+        roleStats = {
+            ["TANK"] = { "Arm", "Stam", "Def", "Dodge", "Agi", "Str", "Hit", "AP" },
+        },
+    },
+    {
+        retailID = 1467, classID = 13, class = "EVOKER", classFile = "EVOKER",
+        name = "devastation", role = "DPS", isTank = false, isHealer = false, isClassic = false,
+        retailStats = { "C", "H", "M", "V" },
+    },
+    {
+        retailID = 1468, classID = 13, class = "EVOKER", classFile = "EVOKER",
+        name = "preservation", role = "HEAL", isTank = false, isHealer = true, isClassic = false,
+        retailStats = { "M", "H", "C", "V" },
+    },
+    {
+        retailID = 1473, classID = 13, class = "EVOKER", classFile = "EVOKER",
+        name = "augmentation", role = "DPS", isTank = false, isHealer = false, isClassic = false,
+        retailStats = { "C", "H", "M", "V" },
+    },
+    {
+        retailID = 268, classID = 10, class = "MONK", classFile = "MONK",
+        name = "brewmaster", role = "TANK", isTank = true, isHealer = false, isClassic = false,
+        retailStats = { "C", "M", "V", "H" },
+    },
+    {
+        retailID = 269, classID = 10, class = "MONK", classFile = "MONK",
+        name = "windwalker", role = "DPS", isTank = false, isHealer = false, isClassic = false,
+        retailStats = { "H", "C", "M", "V" },
+    },
+    {
+        retailID = 270, classID = 10, class = "MONK", classFile = "MONK",
+        name = "mistweaver", role = "HEAL", isTank = false, isHealer = true, isClassic = false,
+        retailStats = { "H", "C", "V", "M" },
     },
 }
 
-local _statsDebug = {}
-function sfui.stats_debug_info()
-    local cachedSpecs = 0
-    for k in pairs(sfui.default_stats) do
-        if type(k) == "number" then cachedSpecs = cachedSpecs + 1 end
-    end
-    local pawnCount = 0
-    if SfuiDB and SfuiDB.gear and SfuiDB.gear.specs then
-        for _, sdb in pairs(SfuiDB.gear.specs) do
-            if sdb.pawn_string or sdb.pawn_weights then
-                pawnCount = pawnCount + 1
-            end
-        end
-    end
-    _statsDebug.cachedSpecOrders = cachedSpecs
-    _statsDebug.pawnOrders = pawnCount
-    return _statsDebug
-end
+sfui.data.BASE_CLASS_DEFINITIONS = {
+    [1491] = {
+        classID = 1491, class = "WARRIOR", classFile = "WARRIOR", name = "warrior", role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        classicStats = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "H", "Arm" },
+        roleStats = {
+            ["DPS"]  = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "H", "Arm" },
+            ["TANK"] = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "Hit", "Str" },
+        },
+    },
+    [1486] = {
+        classID = 1486, class = "PALADIN", classFile = "PALADIN", name = "paladin", role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        classicStats = { "Str", "AP", "Hit", "Crit", "Stam", "SP", "Heal", "MP5", "Int" },
+        roleStats = {
+            ["DPS"]  = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "SP", "H" },
+            ["HEAL"] = { "Heal", "SP", "MP5", "Int", "Crit", "Spi", "Stam", "H" },
+            ["TANK"] = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "SP", "Hit" },
+        },
+    },
+    [1485] = {
+        classID = 1485, class = "HUNTER", classFile = "HUNTER", name = "hunter", role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        classicStats = { "Agi", "RAP", "Hit", "Crit", "AP", "Stam", "Int", "H" },
+        roleStats = {
+            ["DPS"]  = { "Agi", "RAP", "Hit", "Crit", "AP", "Stam", "Int", "H" },
+        },
+    },
+    [1488] = {
+        classID = 1488, class = "ROGUE", classFile = "ROGUE", name = "rogue", role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        classicStats = { "Agi", "AP", "Hit", "Crit", "Str", "Stam", "H", "Arm" },
+        roleStats = {
+            ["DPS"]  = { "Agi", "AP", "Hit", "Crit", "Str", "Stam", "H", "Arm" },
+        },
+    },
+    [1487] = {
+        classID = 1487, class = "PRIEST", classFile = "PRIEST", name = "priest", role = "HEAL", isTank = false, isHealer = true, isClassic = true,
+        classicStats = { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Hit", "Stam" },
+        roleStats = {
+            ["HEAL"] = { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Hit", "Stam" },
+            ["DPS"]  = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "H" },
+        },
+    },
+    [1489] = {
+        classID = 1489, class = "SHAMAN", classFile = "SHAMAN", name = "shaman", role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        classicStats = { "SP", "Heal", "Hit", "Crit", "MP5", "AP", "Str", "Agi" },
+        roleStats = {
+            ["DPS"]  = { "SP", "Hit", "Crit", "MP5", "AP", "Str", "Agi", "Int" },
+            ["HEAL"] = { "Heal", "SP", "MP5", "Int", "Crit", "Spi", "Stam", "H" },
+        },
+    },
+    [1482] = {
+        classID = 1482, class = "MAGE", classFile = "MAGE", name = "mage", role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        classicStats = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "H" },
+        roleStats = {
+            ["DPS"]  = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "H" },
+        },
+    },
+    [1490] = {
+        classID = 1490, class = "WARLOCK", classFile = "WARLOCK", name = "warlock", role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        classicStats = { "SP", "Hit", "Crit", "Stam", "Int", "Spi", "H", "Arm" },
+        roleStats = {
+            ["DPS"]  = { "SP", "Hit", "Crit", "Stam", "Int", "Spi", "H", "Arm" },
+        },
+    },
+    [1484] = {
+        classID = 1484, class = "DRUID", classFile = "DRUID", name = "druid", role = "DPS", isTank = false, isHealer = false, isClassic = true,
+        classicStats = { "Str", "Agi", "AP", "Crit", "Hit", "Stam", "Int", "Arm" },
+        roleStats = {
+            ["DPS"]  = { "Str", "Agi", "AP", "Crit", "Hit", "Stam", "Int", "Arm" },
+            ["HEAL"] = { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Stam", "H" },
+            ["TANK"] = { "Arm", "Stam", "Def", "Dodge", "Agi", "Str", "Hit", "AP" },
+        },
+    },
+}
 
-if sfui.RegisterModule then
-    sfui.stats = sfui.stats or {}
-    sfui.stats.GetDebugInfo = sfui.stats_debug_info
-    sfui.RegisterModule("stats", sfui.stats)
-end
-
+-- Aliases for convenience
+sfui.spec_definitions       = sfui.data.SPEC_DEFINITIONS
+sfui.base_class_definitions = sfui.data.BASE_CLASS_DEFINITIONS

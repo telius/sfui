@@ -315,9 +315,11 @@ function sfui.common.ensure_tracked_bar_db(cooldownID)
 
     local specID = sfui.common.get_current_spec_id() or 0
     SfuiDB.trackedBarsBySpec = SfuiDB.trackedBarsBySpec or {}
-    SfuiDB.trackedBarsBySpec[specID] = SfuiDB.trackedBarsBySpec[specID] or {}
-
     local specBars = SfuiDB.trackedBarsBySpec[specID]
+    if not specBars then
+        specBars = {}
+        SfuiDB.trackedBarsBySpec[specID] = specBars
+    end
 
     if cooldownID then
         specBars[cooldownID] = specBars[cooldownID] or {}
@@ -327,11 +329,7 @@ function sfui.common.ensure_tracked_bar_db(cooldownID)
 end
 
 function sfui.common.get_tracked_bars()
-    local specID = sfui.common.get_current_spec_id() or 0
-    SfuiDB = SfuiDB or {}
-    SfuiDB.trackedBarsBySpec = SfuiDB.trackedBarsBySpec or {}
-    SfuiDB.trackedBarsBySpec[specID] = SfuiDB.trackedBarsBySpec[specID] or {}
-    return SfuiDB.trackedBarsBySpec[specID]
+    return sfui.common.ensure_tracked_bar_db()
 end
 
 -- ========================================
@@ -1458,6 +1456,9 @@ function sfui.initialize_database()
     if igs.glowType == nil then igs.glowType = g.glowType or "pixel" end
 
     if type(SfuiDB.barTexture) ~= "string" or SfuiDB.barTexture == "" then SfuiDB.barTexture = "Flat" end
+    if sfui.widgets and sfui.widgets.get_bar_texture then
+        sfui.config.barTexture = sfui.widgets.get_bar_texture()
+    end
     SfuiDB.absorbBarColor = SfuiDB.absorbBarColor or sfui.config.absorbBarColor
 
     SfuiDB.minimap_icon = SfuiDB.minimap_icon or { hide = false }

@@ -155,6 +155,11 @@ end
 
 local isClassicEra = (_G.WOW_PROJECT_ID ~= nil and _G.WOW_PROJECT_CLASSIC ~= nil and _G.WOW_PROJECT_ID == _G.WOW_PROJECT_CLASSIC)
 
+local function is_classic_client()
+    return sfui.isClassic or sfui.isForever or isClassicEra or
+        (sfui.gear and sfui.gear.isClassicOrVanilla and sfui.gear.isClassicOrVanilla()) or false
+end
+
 local cachedFishingID
 local cachedSpellName
 
@@ -516,7 +521,9 @@ local function end_session(equipWeapons)
     cancel_session_timer()
 
     clear_fishing_binds()
-    arm_fishing_keys()
+    if not equipWeapons then
+        arm_fishing_keys()
+    end
 
     if equipWeapons and not (_G.InCombatLockdown and _G.InCombatLockdown()) then
         -- Restore previous weapons if saved
@@ -635,13 +642,13 @@ sfui.fishing.EquipFishingPole = equip_fishing_pole_from_bags
 arm_fishing_keys = function()
     if InCombatLockdown and InCombatLockdown() then return end
     if not get_setting("enabled", true) then return end
-    if isClassicEra and not is_spell_known(get_known_fishing_id()) then return end
+    if is_classic_client() and not is_spell_known(get_known_fishing_id()) then return end
     if _state.isFishing then return end
 
     local btn = get_secure_button()
     if not btn then return end
 
-    local isClassic = sfui.isClassic or (sfui.gear and sfui.gear.isClassicOrVanilla and sfui.gear.isClassicOrVanilla()) or isClassicEra
+    local isClassic = is_classic_client()
     -- In Classic/Vanilla, if no fishing pole is equipped, clear overrides so pressing the key triggers RunKeybind to auto-equip!
     if isClassic and not is_fishing_pole_equipped() then
         if ClearOverrideBindings then
@@ -802,7 +809,7 @@ function sfui.fishing.RunKeybind(fromSlash)
     end
 
     -- 3. In Classic/Vanilla, if no fishing pole is equipped, auto-equip it from bags!
-    local isClassic = sfui.isClassic or (sfui.gear and sfui.gear.isClassicOrVanilla and sfui.gear.isClassicOrVanilla()) or isClassicEra
+    local isClassic = is_classic_client()
     if isClassic and not is_fishing_pole_equipped() then
         local equipped = equip_fishing_pole_from_bags()
         if equipped then
@@ -931,14 +938,18 @@ end
 local function on_equipment_changed(event, slotID)
     if slotID == 16 or not slotID then
         local isEquipped = is_fishing_pole_equipped()
-        if isEquipped and not _state.poleWasEquipped then
-            _state.poleWasEquipped = true
-            refresh_session()
-            defer_action(arm_fishing_keys)
-        elseif not isEquipped and _state.poleWasEquipped then
-            _state.poleWasEquipped = false
-            if _state.sessionActive then
-                end_session(false)
+        if isEquipped ~= _state.poleWasEquipped then
+            _state.poleWasEquipped = isEquipped
+            if isEquipped then
+                refresh_session()
+                defer_action(arm_fishing_keys)
+            else
+                if _state.sessionActive then
+                    end_session(false)
+                else
+                    clear_fishing_binds()
+                    defer_action(arm_fishing_keys)
+                end
             end
         end
     end
@@ -1010,6 +1021,7 @@ sfui.RegisterModule("fishing", {
     OnEnable = function(self)
         update_bound_keys()
         get_secure_button()
+        _state.poleWasEquipped = is_fishing_pole_equipped()
 
         sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player", on_channel_start)
         sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", on_channel_stop)

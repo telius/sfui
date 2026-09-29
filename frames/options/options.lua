@@ -99,7 +99,10 @@ local function ensure_tab_built(tabDef, content_panel, tab_button)
     if not tabDef or tabDef._built then return end
     tabDef._built = true
     if tabDef.build and content_panel then
-        pcall(tabDef.build, content_panel, tab_button, frame)
+        local ok, err = pcall(tabDef.build, content_panel, tab_button, frame)
+        if not ok then
+            print("|cffff0000[sfui options tab build error]|r", tabDef.id or "tab", err)
+        end
         if content_panel.update_scroll_height then
             C_Timer.After(0.01, content_panel.update_scroll_height)
         end
@@ -114,8 +117,12 @@ local function select_tab(selected_tab_button)
         ensure_tab_built(tabDef, selected_tab_button.content_panel, selected_tab_button)
     end
 
+    local pal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()) or sfui.config.appearance
+    local normalCol = pal.tabNormal or c.tabs.color
+    local selectedCol = pal.tabSelected or c.tabs.selected_color
+
     for _, tab_data in ipairs(frame.tabs) do
-        tab_data.button:GetFontString():SetTextColor(c.tabs.color[1], c.tabs.color[2], c.tabs.color[3])
+        tab_data.button:GetFontString():SetTextColor(normalCol[1], normalCol[2], normalCol[3])
         if tab_data.button.indicator then tab_data.button.indicator:Hide() end
         tab_data.panel:Hide()
         if tab_data.button.tabDef and tab_data.button.tabDef.onHide then
@@ -124,8 +131,7 @@ local function select_tab(selected_tab_button)
     end
 
     selected_tab_button.panel:Show()
-    selected_tab_button:GetFontString():SetTextColor(c.tabs.selected_color[1], c.tabs.selected_color[2],
-        c.tabs.selected_color[3])
+    selected_tab_button:GetFontString():SetTextColor(selectedCol[1], selectedCol[2], selectedCol[3])
     if selected_tab_button.indicator then selected_tab_button.indicator:Show() end
     frame.selected_tab = selected_tab_button
 
@@ -177,8 +183,12 @@ function sfui.create_options_panel()
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-    frame:SetBackdrop({ bgFile = g.textures.white, tile = true, tileSize = 32 })
-    frame:SetBackdropColor(c.backdrop_color[1], c.backdrop_color[2], c.backdrop_color[3], c.backdrop_color[4])
+    if sfui.theme and sfui.theme.ApplyWindowStyle then
+        sfui.theme.ApplyWindowStyle(frame)
+    else
+        frame:SetBackdrop({ bgFile = g.textures.white, tile = true, tileSize = 32 })
+        frame:SetBackdropColor(c.backdrop_color[1], c.backdrop_color[2], c.backdrop_color[3], c.backdrop_color[4])
+    end
     frame:SetScript("OnHide", function(self)
         if self.selected_tab and self.selected_tab.tabDef and self.selected_tab.tabDef.onHide then
             pcall(self.selected_tab.tabDef.onHide, self.selected_tab.panel, self.selected_tab, self)
@@ -200,9 +210,12 @@ function sfui.create_options_panel()
         end
     end
 
+    local pal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()) or sfui.config.appearance
+    local headerCol = pal.headerColor or g.header_color
+
     local header_text = frame:CreateFontString(nil, "OVERLAY", g.font_large)
     header_text:SetPoint("TOP", frame, "TOP", 0, -10)
-    header_text:SetTextColor(g.header_color[1], g.header_color[2], g.header_color[3])
+    header_text:SetTextColor(headerCol[1], headerCol[2], headerCol[3])
     local ver = g.version or ""
     if not ver:find("^[vV]") and ver ~= "" then
         ver = "v" .. ver
@@ -221,16 +234,18 @@ function sfui.create_options_panel()
     end
 
     local function on_tab_enter(self)
-        local accent = sfui.config.appearance.accentColor
-        self:GetFontString():SetTextColor(accent[1], accent[2], accent[3])
+        local curPal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()) or sfui.config.appearance
+        self:GetFontString():SetTextColor(curPal.accentColor[1], curPal.accentColor[2], curPal.accentColor[3])
     end
 
     local function on_tab_leave(self)
+        local curPal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()) or sfui.config.appearance
+        local normalCol = curPal.tabNormal or c.tabs.color
+        local selectedCol = curPal.tabSelected or c.tabs.selected_color
         if self == frame.selected_tab then
-            self:GetFontString():SetTextColor(c.tabs.selected_color[1], c.tabs.selected_color[2],
-                c.tabs.selected_color[3])
+            self:GetFontString():SetTextColor(selectedCol[1], selectedCol[2], selectedCol[3])
         else
-            self:GetFontString():SetTextColor(c.tabs.color[1], c.tabs.color[2], c.tabs.color[3])
+            self:GetFontString():SetTextColor(normalCol[1], normalCol[2], normalCol[3])
         end
     end
 
@@ -240,11 +255,14 @@ function sfui.create_options_panel()
         tab_button:SetText(displayName or id)
         tab_button.tabID = id
 
+        local curPal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()) or sfui.config.appearance
+        local accentCol = curPal.accentColor or { 0, 1, 1, 1 }
+        local normalCol = curPal.tabNormal or c.tabs.color
+
         local indicator = tab_button:CreateTexture(nil, "OVERLAY")
         indicator:SetSize(2, c.tabs.height - 8)
         indicator:SetPoint("LEFT", tab_button, "LEFT", 0, 0)
-        local accent = (sfui.config.appearance and sfui.config.appearance.accentColor) or { 0, 1, 1, 1 }
-        indicator:SetColorTexture(accent[1], accent[2], accent[3], 1)
+        indicator:SetColorTexture(accentCol[1], accentCol[2], accentCol[3], 1)
         indicator:Hide()
         tab_button.indicator = indicator
 
@@ -253,13 +271,17 @@ function sfui.create_options_panel()
         font_string:SetJustifyH("LEFT")
         font_string:SetJustifyV("MIDDLE")
         font_string:SetPoint("LEFT", tab_button, "LEFT", 8, 0)
-        font_string:SetTextColor(c.tabs.color[1], c.tabs.color[2], c.tabs.color[3])
+        font_string:SetTextColor(normalCol[1], normalCol[2], normalCol[3])
 
         local container_panel = CreateFrame("Frame", "sfui_options_container_" .. id, frame, "BackdropTemplate")
         container_panel:SetPoint("TOPLEFT", frame, "TOPLEFT", c.tabs.width + 20, -40)
         container_panel:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 5)
-        container_panel:SetBackdrop({ bgFile = g.textures.white, tile = true, tileSize = 32 })
-        container_panel:SetBackdropColor(unpack(sfui.config.appearance.backdropColor))
+        if sfui.theme and sfui.theme.ApplyContainerStyle then
+            sfui.theme.ApplyContainerStyle(container_panel)
+        else
+            container_panel:SetBackdrop({ bgFile = g.textures.white, tile = true, tileSize = 32 })
+            container_panel:SetBackdropColor(unpack(sfui.config.appearance.backdropColor))
+        end
         container_panel:Hide()
 
         local scroll_frame = CreateFrame("ScrollFrame", "sfui_options_scroll_" .. id, container_panel, "UIPanelScrollFrameTemplate")
@@ -423,6 +445,32 @@ function sfui.create_options_panel()
             tab_button:SetPoint("TOPLEFT", last_tab_button, "BOTTOMLEFT", 0, 5)
         end
         last_tab_button = tab_button
+    end
+
+    if sfui.theme and sfui.theme.RegisterWindow then
+        sfui.theme.RegisterWindow(frame, function(f, curPal)
+            if header_text then
+                header_text:SetTextColor(curPal.headerColor[1], curPal.headerColor[2], curPal.headerColor[3])
+            end
+            if f.tabs then
+                for _, tab_data in ipairs(f.tabs) do
+                    local btn = tab_data.button
+                    if btn and btn.indicator then
+                        btn.indicator:SetColorTexture(curPal.accentColor[1], curPal.accentColor[2], curPal.accentColor[3], 1)
+                    end
+                    if tab_data.panel and sfui.theme.ApplyContainerStyle then
+                        sfui.theme.ApplyContainerStyle(tab_data.panel)
+                    end
+                    if btn and btn:GetFontString() then
+                        if btn == f.selected_tab then
+                            btn:GetFontString():SetTextColor(curPal.tabSelected[1], curPal.tabSelected[2], curPal.tabSelected[3])
+                        else
+                            btn:GetFontString():SetTextColor(curPal.tabNormal[1], curPal.tabNormal[2], curPal.tabNormal[3])
+                        end
+                    end
+                end
+            end
+        end)
     end
 end
 

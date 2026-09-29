@@ -226,6 +226,21 @@ function TimerBars.ReleaseTimerBar(bar)
     end
 end
 
+function TimerBars.SetBarTexture(texturePath)
+    local tex = texturePath or (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture())
+    if not tex then return end
+    for bar in pairs(activeTimerBars) do
+        if bar.SetStatusBarTexture then
+            bar:SetStatusBarTexture(tex)
+        end
+    end
+    for _, bar in ipairs(timerBarPool) do
+        if bar.SetStatusBarTexture then
+            bar:SetStatusBarTexture(tex)
+        end
+    end
+end
+
 function TimerBars.GetPoolStats()
     local act = 0
     for bar in pairs(activeTimerBars) do

@@ -91,7 +91,7 @@ sfui.options.RegisterTab({
                 "when enabled, the teleport popup only appears when the 5th member joins; otherwise it also shows immediately upon accepting an invite.")
             portal_full_cb:SetPoint("TOPLEFT", portal_popup_cb, "BOTTOMLEFT", 0, -10)
 
-            local portal_x_slider = create_slider_input(automation_panel, "teleport popup x:", "dungeonPortalPopupX", -1000, 1000, 1, function(val)
+            local portal_x_slider = create_slider_input(automation_panel, "teleport popup x:", "portalPopupX", -1000, 1000, 1, function(val)
                 local portals = sfui.portals
                 if portals and portals.UpdatePortalPopupPosition then
                     portals.UpdatePortalPopupPosition()
@@ -99,7 +99,7 @@ sfui.options.RegisterTab({
             end, "horizontal offset from screen center", 220)
             portal_x_slider:SetPoint("TOPLEFT", portal_full_cb, "BOTTOMLEFT", 0, -12)
 
-            local portal_y_slider = create_slider_input(automation_panel, "teleport popup y:", "dungeonPortalPopupY", -1000, 1000, 1, function(val)
+            local portal_y_slider = create_slider_input(automation_panel, "teleport popup y:", "portalPopupY", -1000, 1000, 1, function(val)
                 local portals = sfui.portals
                 if portals and portals.UpdatePortalPopupPosition then
                     portals.UpdatePortalPopupPosition()
@@ -110,9 +110,9 @@ sfui.options.RegisterTab({
             local reset_portal_pos_btn = CreateFlatButton(automation_panel, "reset position", 120, 22)
             reset_portal_pos_btn:SetPoint("TOPLEFT", portal_x_slider, "BOTTOMLEFT", 0, -12)
             reset_portal_pos_btn:SetScript("OnClick", function()
-                local def = (sfui.config.portals and sfui.config.portals.defaultPopupPosition) or { x = 0, y = 200 }
-                SfuiDB.dungeonPortalPopupX = def.x
-                SfuiDB.dungeonPortalPopupY = def.y
+                local def = (sfui.config.portalPopup and sfui.config.portalPopup.defaultPosition) or { x = 0, y = 180 }
+                SfuiDB.portalPopupX = def.x
+                SfuiDB.portalPopupY = def.y
                 portal_x_slider:SetSliderValue(def.x)
                 portal_y_slider:SetSliderValue(def.y)
                 local portals = sfui.portals
@@ -120,6 +120,16 @@ sfui.options.RegisterTab({
                     portals.UpdatePortalPopupPosition()
                 end
             end)
+
+            sfui.options = sfui.options or {}
+            sfui.options.sync_portal_sliders = function(x, y)
+                if portal_x_slider and portal_x_slider.SetSliderValue then
+                    portal_x_slider:SetSliderValue(x)
+                end
+                if portal_y_slider and portal_y_slider.SetSliderValue then
+                    portal_y_slider:SetSliderValue(y)
+                end
+            end
 
             last_dungeon_anchor = reset_portal_pos_btn
         end

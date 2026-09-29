@@ -32,7 +32,8 @@ sfui.config = {
         magenta = { 1, 0, 1 },  -- #FF00FF
         white = { 1, 1, 1 },
         black = { 0, 0, 0 },
-        gray = { 0.2, 0.2, 0.2 }, -- Dark gray for borders
+        gray = { 0.2, 0.2, 0.2 }, -- Dark gray
+        border = { 0, 0, 0 },     -- Black for borders
     },
 
     appearance = {
@@ -40,6 +41,7 @@ sfui.config = {
         accentColor = { 0, 1, 1, 1 },          -- #00FFFF
         white = { 1, 1, 1, 1 },
         backdropColor = { 0.05, 0.05, 0.05, 0.8 },
+        borderColor = { 0, 0, 0, 1 },
         widgetBackdropColor = { 0.2, 0.2, 0.2, 1 }, -- For checkboxes/buttons
         editBoxColor = { 0.15, 0.15, 0.15, 1 },
         sliderBackdropColor = { 0.1, 0.1, 0.1, 1 },
@@ -48,6 +50,14 @@ sfui.config = {
         goldColor = { 1, 0.82, 0, 1 },
         dimTextColor = { 0.6, 0.6, 0.6, 1 },
         addonIcon = "Interface/AddOns/sfui/icon.png",
+    },
+
+    -- theme configuration
+    theme = {
+        mode = "auto", -- "auto" (detects Camelot on Forever/Classic, Modern on Retail), "camelot", "modern"
+        cornerBrackets = true,
+        texturedBackdrop = true,
+        minimapArt = true,       -- Camelot only: preserve brass compass & day/night dial (modern theme does not touch minimap)
     },
 
     -- shared settings for icon bars
@@ -73,6 +83,9 @@ sfui.config = {
         [104] = { 1.00, 0.49, 0.04, 1 },     -- Guardian
         [105] = { 0.2, 0.8, 0.2, 1 },        -- Restoration
         [1484] = { 1.00, 0.49, 0.04, 1 },    -- Classic / Vanilla Base Druid
+        [14841] = { 0.2, 0.0, 0.8, 1 },      -- Camelot Balance
+        [14842] = { 1.00, 0.49, 0.04, 1 },   -- Camelot Feral
+        [14843] = { 0.2, 0.8, 0.2, 1 },      -- Camelot Restoration
         -- Evoker
         [1467] = { 0.20, 0.58, 0.50, 1 },    -- Devastation
         [1468] = { 0.20, 0.58, 0.50, 1 },    -- Preservation
@@ -82,11 +95,17 @@ sfui.config = {
         [254] = { 0.67, 0.83, 0.45, 1 },     -- Marksmanship
         [255] = { 0.67, 0.83, 0.45, 1 },     -- Survival
         [1485] = { 0.67, 0.83, 0.45, 1 },    -- Classic / Vanilla Base Hunter
+        [14851] = { 0.67, 0.83, 0.45, 1 },   -- Camelot Beast Mastery
+        [14852] = { 0.67, 0.83, 0.45, 1 },   -- Camelot Marksmanship
+        [14853] = { 0.67, 0.83, 0.45, 1 },   -- Camelot Survival
         -- Mage
         [62] = { 0.25, 0.78, 0.92, 1 },      -- Arcane
         [63] = { 0.25, 0.78, 0.92, 1 },      -- Fire
         [64] = { 0.25, 0.78, 0.92, 1 },      -- Frost
         [1482] = { 0.25, 0.78, 0.92, 1 },    -- Classic / Vanilla Base Mage
+        [14821] = { 0.25, 0.78, 0.92, 1 },   -- Camelot Arcane
+        [14822] = { 0.25, 0.78, 0.92, 1 },   -- Camelot Fire
+        [14823] = { 0.25, 0.78, 0.92, 1 },   -- Camelot Frost
         -- Monk
         [268] = { 0.90, 0.60, 0.15, 1 },     -- Brewmaster
         [269] = { 0.40, 0.80, 1.00, 1 },     -- Windwalker
@@ -96,31 +115,49 @@ sfui.config = {
         [66] = { 1.00, 0.75, 0.20, 1 },      -- Protection
         [70] = { 0.96, 0.55, 0.73, 1 },      -- Retribution
         [1486] = { 0.96, 0.55, 0.73, 1 },    -- Classic / Vanilla Base Paladin
+        [14861] = { 0.96, 0.55, 0.73, 1 },   -- Camelot Holy
+        [14862] = { 1.00, 0.75, 0.20, 1 },   -- Camelot Protection
+        [14863] = { 0.96, 0.55, 0.73, 1 },   -- Camelot Retribution
         -- Priest
         [256] = { 1.00, 1.00, 1.00, 1 },     -- Discipline
         [257] = { 1.00, 1.00, 1.00, 1 },     -- Holy
         [258] = { 0.40, 0.00, 1.00, 1 },     -- Shadow
         [1487] = { 1.00, 1.00, 1.00, 1 },    -- Classic / Vanilla Base Priest
+        [14871] = { 1.00, 1.00, 1.00, 1 },   -- Camelot Discipline
+        [14872] = { 1.00, 1.00, 1.00, 1 },   -- Camelot Holy
+        [14873] = { 0.40, 0.00, 1.00, 1 },   -- Camelot Shadow
         -- Rogue
         [259] = { 1.00, 0.96, 0.41, 1 },     -- Assassination
         [260] = { 1.00, 0.96, 0.41, 1 },     -- Outlaw
         [261] = { 1.00, 0.96, 0.41, 1 },     -- Subtlety
         [1488] = { 1.00, 0.96, 0.41, 1 },    -- Classic / Vanilla Base Rogue
+        [14881] = { 1.00, 0.96, 0.41, 1 },   -- Camelot Assassination
+        [14882] = { 1.00, 0.96, 0.41, 1 },   -- Camelot Combat
+        [14883] = { 1.00, 0.96, 0.41, 1 },   -- Camelot Subtlety
         -- Shaman
         [262] = { 0.00, 0.44, 0.87, 1 },     -- Elemental
         [263] = { 0.00, 0.44, 0.87, 1 },     -- Enhancement
         [264] = { 0.00, 0.44, 0.87, 1 },     -- Restoration
         [1489] = { 0.00, 0.44, 0.87, 1 },    -- Classic / Vanilla Base Shaman
+        [14891] = { 0.00, 0.44, 0.87, 1 },   -- Camelot Elemental
+        [14892] = { 0.00, 0.44, 0.87, 1 },   -- Camelot Enhancement
+        [14893] = { 0.00, 0.44, 0.87, 1 },   -- Camelot Restoration
         -- Warlock
         [265] = { 0.53, 0.53, 0.93, 1 },     -- Affliction
         [266] = { 0.71, 0.26, 0.93, 1 },     -- Demonology
         [267] = { 0.635, 1.0, 0.0, 1 },      -- Destruction
         [1490] = { 0.53, 0.53, 0.93, 1 },    -- Classic / Vanilla Base Warlock
+        [14901] = { 0.53, 0.53, 0.93, 1 },   -- Camelot Affliction
+        [14902] = { 0.71, 0.26, 0.93, 1 },   -- Camelot Demonology
+        [14903] = { 0.635, 1.0, 0.0, 1 },    -- Camelot Destruction
         -- Warrior
         [71] = { 1.00, 0.00, 0.00, 1 },      -- Arms
         [72] = { 1.00, 0.00, 0.00, 1 },      -- Fury
         [73] = { 1.00, 0.00, 0.00, 1 },      -- Protection
         [1491] = { 1.00, 0.00, 0.00, 1 },    -- Classic / Vanilla Base Warrior
+        [14911] = { 1.00, 0.00, 0.00, 1 },   -- Camelot Arms
+        [14912] = { 1.00, 0.00, 0.00, 1 },   -- Camelot Fury
+        [14913] = { 1.00, 0.00, 0.00, 1 },   -- Camelot Protection
     },
 
     -- Secondary stat palette for loot & gear highlighting
@@ -255,7 +292,7 @@ sfui.config = {
             selected_color = { 0, 1, 1, 1 },        -- #00FFFF for selected tab
             highlight_color = { 0.6, 0.6, 0.6, 1 }, -- Medium gray for hover
         },
-        icon_border_color = { 0.4, 0.4, 0.4, 1 },
+        icon_border_color = { 0, 0, 0, 1 },
     },
 
     tracked_options_layout = {
@@ -468,11 +505,32 @@ sfui.config = {
 
     barTexture = "Interface/Buttons/WHITE8X8",
 
+    blizzard_bar_textures = {
+        ["Flat"]                          = "Interface/Buttons/WHITE8X8",
+        ["Blizzard"]                      = "Interface/TargetingFrame/UI-StatusBar",
+        ["Blizzard Target Bar"]           = "Interface/TargetingFrame/UI-TargetingFrame-BarFill",
+        ["Blizzard Character Skills Bar"] = "Interface/PaperDollInfoFrame/UI-Character-Skills-Bar",
+        ["Blizzard Raid Bar"]             = "Interface/RaidFrame/Raid-Bar-Hp-Fill",
+        ["Blizzard Raid Resource"]        = "Interface/RaidFrame/Raid-Bar-Resource-Fill",
+        ["Blizzard Raid Health"]          = "Interface/RaidFrame/UI-RaidFrame-HealthBar",
+        ["Blizzard Shield Fill"]          = "Interface/RaidFrame/Shield-Fill",
+        ["Blizzard Absorb Fill"]          = "Interface/RaidFrame/Absorb-Fill",
+        ["Blizzard Professions"]          = "Interface/Spellbook/Professions-Progress-Fill",
+        ["Blizzard Archaeology"]          = "Interface/Archeology/Arch-Progress-Fill",
+    },
+
     barTextures = {
-        { text = "Default",           value = "Interface/TargetingFrame/UI-StatusBar" },
-        { text = "Raid Bar",          value = "Interface/RaidFrame/Raid-Bar-Hp-Fill" },
-        { text = "Casting Bar Spark", value = "Interface/CastingBar/UI-CastingBar-Spark" },
-        { text = "Flat",              value = "Interface/Buttons/WHITE8X8" },
+        { text = "Flat",                          value = "Interface/Buttons/WHITE8X8" },
+        { text = "Blizzard",                      value = "Interface/TargetingFrame/UI-StatusBar" },
+        { text = "Blizzard Target Bar",           value = "Interface/TargetingFrame/UI-TargetingFrame-BarFill" },
+        { text = "Blizzard Character Skills Bar", value = "Interface/PaperDollInfoFrame/UI-Character-Skills-Bar" },
+        { text = "Blizzard Raid Bar",             value = "Interface/RaidFrame/Raid-Bar-Hp-Fill" },
+        { text = "Blizzard Raid Resource",        value = "Interface/RaidFrame/Raid-Bar-Resource-Fill" },
+        { text = "Blizzard Raid Health",          value = "Interface/RaidFrame/UI-RaidFrame-HealthBar" },
+        { text = "Blizzard Shield Fill",          value = "Interface/RaidFrame/Shield-Fill" },
+        { text = "Blizzard Absorb Fill",          value = "Interface/RaidFrame/Absorb-Fill" },
+        { text = "Blizzard Professions",          value = "Interface/Spellbook/Professions-Progress-Fill" },
+        { text = "Blizzard Archaeology",          value = "Interface/Archeology/Arch-Progress-Fill" },
     },
 
     absorbBarColor = { 0.4, 0.0, 1.0, 0.75 },
@@ -481,7 +539,8 @@ sfui.config = {
         default_size = 220,
         defaultZoom = 0,
         button_bar = {
-            spacing = 5,
+            spacing = 8,
+            pad_x = 24,
             button_size = 20,
             defaultX = 0,
             defaultY = -25,
@@ -788,5 +847,38 @@ sfui.config = {
         autoResummon        = true,
         rotationTimer       = 720, -- Seconds (12 mins, 0 to disable)
         historySize         = 4,
+    },
+
+    -- ─── Hide & Mouseover Settings ────────────────────────
+    -- Settings for action bars mouseover fading and Blizzard unitframe hiding (frames/hide.lua).
+    hide = {
+        actionbars_mouseover_enabled = true,
+        actionbars_resting_alpha     = 0.0,
+        actionbars_active_alpha      = 1.0,
+        actionbars_fade_duration     = 0.2,
+        actionbars_show_combat       = true,
+        actionbars_show_target       = false,
+        actionbars_show_cast         = false,
+
+        -- Per-bar mouseover toggles
+        actionbars_bar_main          = true,
+        actionbars_bar_bar2          = true,
+        actionbars_bar_bar3          = true,
+        actionbars_bar_bar4          = true,
+        actionbars_bar_bar5          = true,
+        actionbars_bar_bar6          = true,
+        actionbars_bar_bar7          = true,
+        actionbars_bar_bar8          = true,
+        actionbars_bar_pet           = true,
+        actionbars_bar_stance        = true,
+        actionbars_bar_possess       = true,
+
+        -- Unit and HUD frame permanent hiding
+        hide_player_frame            = false,
+        hide_target_frame            = false,
+        hide_pet_frame               = false,
+        hide_focus_frame             = false,
+        hide_micromenu               = false,
+        hide_bagsbar                 = false,
     },
 }

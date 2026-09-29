@@ -769,13 +769,18 @@ function sfui.mem.create_mem_panel()
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 
-    -- Flat minimalist backdrop without outer border
-    frame:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        tile = true,
-        tileSize = 32,
-    })
-    frame:SetBackdropColor(0.04, 0.04, 0.06, 0.94)
+    -- Apply theme styling (Camelot Heavy Bronze or Modern Minimalist)
+    if sfui.theme and sfui.theme.ApplyWindowStyle then
+        sfui.theme.ApplyWindowStyle(frame)
+        sfui.theme.RegisterWindow(frame)
+    else
+        frame:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            tile = true,
+            tileSize = 32,
+        })
+        frame:SetBackdropColor(0.04, 0.04, 0.06, 0.94)
+    end
     frame:Hide()
     table_insert(UISpecialFrames, "sfui_mem_frame")
 
@@ -803,7 +808,7 @@ function sfui.mem.create_mem_panel()
             edgeSize = 1,
         })
         card:SetBackdropColor(0.08, 0.08, 0.11, 0.8)
-        card:SetBackdropBorderColor(0.18, 0.18, 0.24, 0.7)
+        card:SetBackdropBorderColor(0, 0, 0, 1)
 
         local lbl = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         lbl:SetPoint("TOPLEFT", 8, -5)
@@ -864,7 +869,7 @@ function sfui.mem.create_mem_panel()
         edgeSize = 1,
     })
     statusBar:SetBackdropColor(0.06, 0.06, 0.09, 0.85)
-    statusBar:SetBackdropBorderColor(0.16, 0.16, 0.22, 0.6)
+    statusBar:SetBackdropBorderColor(0, 0, 0, 1)
 
     local statusPrefix = statusBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     statusPrefix:SetPoint("LEFT", 8, 0)
@@ -890,7 +895,7 @@ function sfui.mem.create_mem_panel()
         edgeSize = 1,
     })
     contentBox:SetBackdropColor(0.06, 0.06, 0.08, 0.85)
-    contentBox:SetBackdropBorderColor(0.14, 0.14, 0.18, 0.7)
+    contentBox:SetBackdropBorderColor(0, 0, 0, 1)
 
     -- -----------------------------------------------------------------------
     -- View 1: Modules Grid (2 Columns, Clean Compact Cards)
@@ -935,7 +940,7 @@ function sfui.mem.create_mem_panel()
             edgeSize = 1,
         })
         card:SetBackdropColor(0.09, 0.09, 0.12, 0.7)
-        card:SetBackdropBorderColor(0.18, 0.18, 0.22, 0.6)
+        card:SetBackdropBorderColor(0, 0, 0, 1)
 
         card.status = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         card.status:SetPoint("TOPRIGHT", -6, -4)

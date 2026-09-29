@@ -337,13 +337,18 @@ function sfui.alts.CreateFrame()
         sfui.alts.UpdateUI(true)
     end)
 
-    frame:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    frame:SetBackdropColor(unpack(cfg.backdropColor or { 0.05, 0.05, 0.05, 0.9 }))
-    frame:SetBackdropBorderColor(unpack(cfg.borderColor or { 0, 0, 0, 1 }))
+    if sfui.theme and sfui.theme.ApplyWindowStyle then
+        sfui.theme.ApplyWindowStyle(frame)
+        sfui.theme.RegisterWindow(frame)
+    else
+        frame:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        frame:SetBackdropColor(unpack(cfg.backdropColor or { 0.05, 0.05, 0.05, 0.9 }))
+        frame:SetBackdropBorderColor(unpack(cfg.borderColor or { 0, 0, 0, 1 }))
+    end
 
     local close = (sfui.common.create_close_button or CreateFlatButton)(frame, function() frame:Hide() end, 24)
 
@@ -832,11 +837,13 @@ function sfui.alts.initialize()
     -- Central Event Dispatcher
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
         leavingWorld = false
+        sfui.alts.leavingWorld = false
         sfui.alts.SyncCurrentCharacter()
     end)
 
     sfui.events.RegisterEvent("PLAYER_LEAVING_WORLD", function()
         leavingWorld = true
+        sfui.alts.leavingWorld = true
         sfui.alts.PerformSync(true)
     end)
 
@@ -861,6 +868,8 @@ function sfui.alts.initialize()
         sfui.alts.SyncCurrentCharacter()
     end
     sfui.events.RegisterEvent("PLAYER_LEVEL_UP",              on_sync_event)
+    sfui.events.RegisterEvent("PLAYER_XP_UPDATE",             on_sync_event)
+    sfui.events.RegisterEvent("PLAYER_UPDATE_RESTING",        on_sync_event)
     sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED",     on_sync_event)
     sfui.events.RegisterEvent("PLAYER_AVG_ITEM_LEVEL_UPDATE", on_sync_event)
     sfui.events.RegisterEvent("PLAYER_MONEY",                 on_sync_event)

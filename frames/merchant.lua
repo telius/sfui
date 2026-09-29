@@ -91,15 +91,24 @@ local sortedCurrencyItems = {}
 local frame = CreateFrame("Frame", "SfuiMerchantFrame", UIParent, "BackdropTemplate")
 frame:SetSize(cfg.frame.width, cfg.frame.height)
 frame:SetPoint("CENTER")
-frame:SetBackdrop({
-    bgFile = "Interface\\Buttons\\WHITE8x8",
-    edgeFile = nil,
-    tile = true,
-    tileSize = 32,
-    edgeSize = 0,
-    insets = { left = 0, right = 0, top = 0, bottom = 0 }
-})
-frame:SetBackdropColor(unpack(sfui.config.appearance.backdropColor))
+if sfui.theme and sfui.theme.ApplyWindowStyle then
+    sfui.theme.ApplyWindowStyle(frame)
+    sfui.theme.RegisterWindow(frame, function(f, pal)
+        if f.merchantName then
+            f.merchantName:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3])
+        end
+    end)
+else
+    frame:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = nil,
+        tile = true,
+        tileSize = 32,
+        edgeSize = 0,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    })
+    frame:SetBackdropColor(unpack(sfui.config.appearance.backdropColor))
+end
 frame:Hide()
 frame:EnableMouse(true)
 frame:SetMovable(true)
@@ -873,8 +882,9 @@ sfui.merchant.build_item_list = function()
             if not isClassMatch then
                 include = false
             elseif sfui.merchant.lootFilterState == 2 then
-                -- Spec Filter (specID already fetched)
-                if specID > 0 and not C_Item.DoesItemContainSpec(link, playerClassID, specID) then
+                -- Spec Filter (normalize specID to DB2 retail equivalent)
+                local db2SpecID = (common.to_retail_spec_id and common.to_retail_spec_id(specID)) or specID
+                if db2SpecID > 0 and not C_Item.DoesItemContainSpec(link, playerClassID, db2SpecID) then
                     include = false
                 end
             end

@@ -146,7 +146,7 @@ sfui.options.RegisterTab({
             edgeSize = 1,
         })
         drop_box:SetBackdropColor(0.12, 0.12, 0.12, 0.8)
-        drop_box:SetBackdropBorderColor(0.35, 0.35, 0.35, 1)
+        drop_box:SetBackdropBorderColor(0, 0, 0, 1)
 
         local drop_text = drop_box:CreateFontString(nil, "OVERLAY", g.font_small or "GameFontNormalSmall")
         drop_text:SetPoint("CENTER")
@@ -189,7 +189,7 @@ sfui.options.RegisterTab({
             end
         end)
         drop_box:SetScript("OnLeave", function(self)
-            self:SetBackdropBorderColor(0.35, 0.35, 0.35, 1)
+            self:SetBackdropBorderColor(0, 0, 0, 1)
             local tip = sfui.tooltip or _G.GameTooltip
             if tip then tip:Hide() end
         end)
@@ -205,7 +205,7 @@ sfui.options.RegisterTab({
             edgeSize = 1,
         })
         list_container:SetBackdropColor(0.03, 0.03, 0.03, 0.8)
-        list_container:SetBackdropBorderColor(0.15, 0.15, 0.15, 1)
+        list_container:SetBackdropBorderColor(0, 0, 0, 1)
 
         local empty_text = list_container:CreateFontString(nil, "OVERLAY", g.font or "GameFontNormal")
         empty_text:SetPoint("CENTER", list_container, "CENTER", 0, 0)
@@ -228,7 +228,7 @@ sfui.options.RegisterTab({
                 edgeSize = 1,
             })
             row:SetBackdropColor(0.08, 0.08, 0.08, 0.6)
-            row:SetBackdropBorderColor(0.16, 0.16, 0.16, 0.9)
+            row:SetBackdropBorderColor(0, 0, 0, 1)
 
             local icon = row:CreateTexture(nil, "ARTWORK")
             icon:SetSize(20, 20)
@@ -374,7 +374,7 @@ sfui.options.RegisterTab({
                             row.summon_btn.text:SetTextColor(0, 1, 0, 1)
                         end
                     else
-                        row:SetBackdropBorderColor(0.16, 0.16, 0.16, 0.9)
+                        row:SetBackdropBorderColor(0, 0, 0, 1)
                         if row.summon_btn and row.summon_btn.text then
                             row.summon_btn.text:SetText("summon")
                             row.summon_btn.text:SetTextColor(1, 1, 1, 1)

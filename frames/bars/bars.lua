@@ -202,7 +202,7 @@ do
                 end
 
                 -- Primary Power Bar (bar_minus_1)
-                local hidePower = sfui.isRetail and cfg.powerBar.hiddenSpecs and cfg.powerBar.hiddenSpecs[specID]
+                local hidePower = common.is_spec_in_list(cfg.powerBar.hiddenSpecs, specID)
                 local showPower = (SfuiDB == nil or SfuiDB.enablePowerBar ~= false) and not hidePower
                 if showPower then
                     local bar = get_bar_minus_1()
@@ -212,8 +212,7 @@ do
                 end
 
                 -- Secondary Power Bar (bar1)
-                local hideSecondary = sfui.isRetail and cfg.secondaryPowerBar.hiddenSpecs and
-                    cfg.secondaryPowerBar.hiddenSpecs[specID]
+                local hideSecondary = common.is_spec_in_list(cfg.secondaryPowerBar.hiddenSpecs, specID)
                 local secResource = common.get_secondary_resource()
                 local showSecondary = (SfuiDB == nil or SfuiDB.enableSecondaryPowerBar ~= false) and not hideSecondary and secResource and secResource ~= Enum.PowerType.Runes
 
@@ -389,7 +388,7 @@ do
     function update_bar_minus_1()
         local cfg = sfui.config.powerBar
         local specID = common.get_current_spec_id()
-        local hide = sfui.isRetail and cfg.hiddenSpecs and cfg.hiddenSpecs[specID]
+        local hide = common.is_spec_in_list(cfg.hiddenSpecs, specID)
 
         if not cfg.enabled or is_dragonflying() or hide then
             if bar_minus_1 and bar_minus_1.backdrop then bar_minus_1.backdrop:Hide() end
@@ -449,11 +448,13 @@ do
         local bar = common.create_bar("bar0", "StatusBar", UIParent, nil, "healthBar")
         bar0 = bar
 
-        local textureName = SfuiDB and SfuiDB.barTexture
-        local LSM = LibStub("LibSharedMedia-3.0", true)
-        local texturePath
-        if LSM and textureName then
-            texturePath = LSM:Fetch("statusbar", textureName)
+        local texturePath = sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()
+        if not texturePath or texturePath == "" then
+            local textureName = SfuiDB and SfuiDB.barTexture
+            local LSM = LibStub("LibSharedMedia-3.0", true)
+            if LSM and textureName then
+                texturePath = LSM:Fetch("statusbar", textureName)
+            end
         end
         if not texturePath or texturePath == "" then
             texturePath = cfg.barTexture
@@ -525,11 +526,13 @@ do
         container.runes = {}
 
         -- Resolve texture once
-        local textureName = SfuiDB.barTexture
-        local LSM = LibStub("LibSharedMedia-3.0", true)
-        local texturePath
-        if LSM then
-            texturePath = LSM:Fetch("statusbar", textureName)
+        local texturePath = sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()
+        if not texturePath or texturePath == "" then
+            local textureName = SfuiDB and SfuiDB.barTexture
+            local LSM = LibStub("LibSharedMedia-3.0", true)
+            if LSM and textureName then
+                texturePath = LSM:Fetch("statusbar", textureName)
+            end
         end
         if not texturePath or texturePath == "" then
             texturePath = cfg.barTexture
@@ -673,7 +676,7 @@ do
     function update_bar1()
         local cfg = sfui.config.secondaryPowerBar
         local specID = common.get_current_spec_id()
-        local hide = sfui.isRetail and cfg.hiddenSpecs and cfg.hiddenSpecs[specID]
+        local hide = common.is_spec_in_list(cfg.hiddenSpecs, specID)
 
         if not cfg.enabled or is_dragonflying() or hide then
             if bar1 and bar1.backdrop then bar1.backdrop:Hide() end
@@ -924,20 +927,40 @@ do
 
     function sfui.bars.set_bar_texture(arg1, arg2)
         local texturePath = (type(arg1) == "string") and arg1 or arg2
-        if not texturePath then return end
+        if not texturePath or texturePath == "" then return end
 
-        if bar_minus_1 then bar_minus_1:SetStatusBarTexture(texturePath) end
-        if bar0 then
-            bar0:SetStatusBarTexture(texturePath)
-            if bar0.healPredBar then bar0.healPredBar:SetStatusBarTexture(texturePath) end
-            if bar0.absorbBar then bar0.absorbBar:SetStatusBarTexture(texturePath) end
-            if bar0.lossBar then bar0.lossBar:SetStatusBarTexture(texturePath) end
+        cfg.barTexture = texturePath
+        if sfui.config then sfui.config.barTexture = texturePath end
+
+        local function applyTexture(b)
+            if not b then return end
+            if b.SetStatusBarTexture then b:SetStatusBarTexture(texturePath) end
         end
-        if bar1 then bar1:SetStatusBarTexture(texturePath) end
-        if vigor_bar then vigor_bar:SetStatusBarTexture(texturePath) end
-        if mount_speed_bar then mount_speed_bar:SetStatusBarTexture(texturePath) end
+
+        applyTexture(bar_minus_1)
+        if bar0 then
+            applyTexture(bar0)
+            applyTexture(bar0.healPredBar)
+            applyTexture(bar0.absorbBar)
+            applyTexture(bar0.lossBar)
+        end
+        applyTexture(bar1)
+        applyTexture(vigor_bar)
+        applyTexture(mount_speed_bar)
+        if rune_bar and rune_bar.runes then
+            for _, rune in ipairs(rune_bar.runes) do
+                applyTexture(rune)
+            end
+        end
         if sfui.swing and sfui.swing.SetBarTexture then
             sfui.swing.SetBarTexture(texturePath)
+        end
+        if sfui.soulfragments and sfui.soulfragments.SetBarTexture then
+            sfui.soulfragments.SetBarTexture(texturePath)
+        end
+
+        if sfui.bars.on_state_changed then
+            sfui.bars:on_state_changed()
         end
     end
 

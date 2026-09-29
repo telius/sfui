@@ -341,11 +341,25 @@ function Layout.BuildLayout(container, sections)
             header.capFormatted = sec.capFormatted
 
             if header.accent then
-                header.accent:SetColorTexture(r, g, b, 1)
+                if header.isCamelotHeader then
+                    header.accent:Hide()
+                else
+                    header.accent:Show()
+                    header.accent:SetColorTexture(r, g, b, 1)
+                end
             end
 
             header.title:SetText(titleText)
-            header.title:SetTextColor(r, g, b, 1)
+            if header.isCamelotHeader then
+                local pal = sfui.theme and sfui.theme.GetPalette()
+                if pal and pal.headerColor then
+                    header.title:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3], 1)
+                else
+                    header.title:SetTextColor(1.0, 0.90, 0.62, 1)
+                end
+            else
+                header.title:SetTextColor(r, g, b, 1)
+            end
 
             local countVal = sec.count or (sec.blocks and #sec.blocks) or 0
             if isCollapsed then
@@ -353,7 +367,16 @@ function Layout.BuildLayout(container, sections)
             else
                 header.count:SetText(tostring(countVal))
             end
-            header.count:SetTextColor(r * 0.50, g * 0.50, b * 0.50, 1)
+            if header.isCamelotHeader then
+                local pal = sfui.theme and sfui.theme.GetPalette()
+                if pal and pal.dimTextColor then
+                    header.count:SetTextColor(pal.dimTextColor[1], pal.dimTextColor[2], pal.dimTextColor[3], 1)
+                else
+                    header.count:SetTextColor(0.65, 0.58, 0.45, 1)
+                end
+            else
+                header.count:SetTextColor(r * 0.50, g * 0.50, b * 0.50, 1)
+            end
 
             local secID = sec.id
             header.secID = secID

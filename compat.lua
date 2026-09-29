@@ -124,15 +124,111 @@ function sfui.api.GetSpellName(spellID)
     return nil
 end
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- SFUI Spell & Aura Engine: Fast Rank & Pattern Lookups
+-- ══════════════════════════════════════════════════════════════════════════════
+local _spellIDToGroup = {}
+local _nameToGroup    = {}
+
+local function RegisterGroup(names, ids)
+    local group = {}
+    for _, id in ipairs(ids) do
+        table.insert(group, id)
+    end
+    for _, id in ipairs(group) do
+        _spellIDToGroup[id] = group
+    end
+    if type(names) == "string" then
+        names = { names }
+    end
+    if type(names) == "table" then
+        for _, name in ipairs(names) do
+            _nameToGroup[name] = group
+            _nameToGroup[name:lower()] = group
+        end
+    end
+end
+
+if sfui.spells_db and sfui.spells_db.RANK_GROUPS then
+    for _, def in ipairs(sfui.spells_db.RANK_GROUPS) do
+        RegisterGroup(def.names, def.ids)
+    end
+end
+
+sfui.spells_db = sfui.spells_db or {}
+
+function sfui.spells_db.GetRanksByID(spellID)
+    if not spellID then return nil end
+    return _spellIDToGroup[spellID]
+end
+
+function sfui.spells_db.GetRanksByName(spellName)
+    if not spellName or spellName == "" then return nil end
+    return _nameToGroup[spellName] or _nameToGroup[spellName:lower()]
+end
+
+function sfui.spells_db.IsKnownAuraSpellID(spellID)
+    if not spellID then return false end
+    return _spellIDToGroup[spellID] ~= nil
+end
+
+function sfui.spells_db.MatchesAuraPattern(spellName)
+    if not spellName or spellName == "" then return false end
+    if not sfui.spells_db.AURA_PATTERNS then return false end
+    for _, pat in ipairs(sfui.spells_db.AURA_PATTERNS) do
+        if spellName:find(pat) then
+            return true
+        end
+    end
+    return false
+end
+
+function sfui.spells_db.LearnAuraMapping(targetID, auraSpellID, name)
+    if not auraSpellID then return end
+    local aName = name
+    if aName then
+        local group = _nameToGroup[aName] or _nameToGroup[aName:lower()]
+        if not group then
+            group = {}
+            _nameToGroup[aName] = group
+            _nameToGroup[aName:lower()] = group
+        end
+        local foundAura = false
+        for _, id in ipairs(group) do
+            if id == auraSpellID then foundAura = true; break end
+        end
+        if not foundAura then table.insert(group, auraSpellID) end
+        _spellIDToGroup[auraSpellID] = group
+
+        if targetID then
+            local foundTarget = false
+            for _, id in ipairs(group) do
+                if id == targetID then foundTarget = true; break end
+            end
+            if not foundTarget then table.insert(group, targetID) end
+            _spellIDToGroup[targetID] = group
+        end
+    elseif targetID then
+        local group = _spellIDToGroup[targetID]
+        if not group then
+            group = { targetID }
+            _spellIDToGroup[targetID] = group
+        end
+        local foundAura = false
+        for _, id in ipairs(group) do
+            if id == auraSpellID then foundAura = true; break end
+        end
+        if not foundAura then table.insert(group, auraSpellID) end
+        _spellIDToGroup[auraSpellID] = group
+    end
+end
+
 --- Fast query to test if a spell ID is part of a registered aura/rank group
 --- @param spellID number
 --- @return boolean
 function sfui.api.IsKnownAuraSpellID(spellID)
     if not spellID then return false end
-    if sfui.spells_db and sfui.spells_db.IsKnownAuraSpellID then
-        return sfui.spells_db.IsKnownAuraSpellID(spellID)
-    end
-    return false
+    return _spellIDToGroup[spellID] ~= nil
 end
 
 --- Searches a unit's aura list for a specific spellID or spell name.

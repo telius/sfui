@@ -124,12 +124,22 @@ end
 
 sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function() _on_spec_changed() end)
 sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", function() _on_spec_changed() end)
+sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", function() _on_spec_changed() end)
+sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", function() _on_spec_changed() end)
+sfui.events.RegisterEvent("ACTIVE_COMBAT_CONFIG_CHANGED", function() _on_spec_changed() end)
+sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", function() _on_spec_changed() end)
+sfui.events.RegisterEvent("TRAIT_TREE_CURRENCY_INFO_UPDATED", function() _on_spec_changed() end)
 sfui.events.RegisterMessage("SFUI_SPEC_COLORS_UPDATED", function(_, specID)
     _on_spec_changed(specID)
 end)
+
 
 if sfui.dispatcher_debug_info then
     sfui.events = sfui.events or {}
     sfui.events.GetDebugInfo = sfui.dispatcher_debug_info
     sfui.RegisterModule("dispatcher", sfui.events)
+end
+
+if sfui.stats then
+    sfui.RegisterModule("stats", sfui.stats)
 end

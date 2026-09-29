@@ -217,11 +217,17 @@ end
 
 -- ─── Texture Helper ─────────────────────────────────────────────────────────
 local function GetBarTexture()
+    if sfui.widgets and sfui.widgets.get_bar_texture then
+        return sfui.widgets.get_bar_texture()
+    end
     local textureName = SfuiDB and SfuiDB.barTexture
     local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
     local texturePath
     if LSM and textureName then
         texturePath = LSM:Fetch("statusbar", textureName)
+    end
+    if not texturePath and sfui.config and sfui.config.blizzard_bar_textures and textureName then
+        texturePath = sfui.config.blizzard_bar_textures[textureName]
     end
     if not texturePath or texturePath == "" then
         texturePath = (sfui.config and sfui.config.barTexture) or "Interface\\Buttons\\WHITE8X8"

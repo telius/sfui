@@ -42,10 +42,23 @@ local function initialize_sfui()
     end
     local LSM = LibStub("LibSharedMedia-3.0", true)
     if LSM then
-        LSM:Register("statusbar", "Flat", "Interface/Buttons/WHITE8X8")
-        LSM:Register("statusbar", "Blizzard", "Interface/TargetingFrame/UI-StatusBar")
-        LSM:Register("statusbar", "Raid", "Interface/RaidFrame/Raid-Bar-Hp-Fill")
-        LSM:Register("statusbar", "Spark", "Interface/CastingBar/UI-CastingBar-Spark")
+        if sfui.config and sfui.config.blizzard_bar_textures then
+            for name, path in pairs(sfui.config.blizzard_bar_textures) do
+                LSM:Register("statusbar", name, path)
+            end
+        else
+            LSM:Register("statusbar", "Flat", "Interface/Buttons/WHITE8X8")
+            LSM:Register("statusbar", "Blizzard", "Interface/TargetingFrame/UI-StatusBar")
+            LSM:Register("statusbar", "Blizzard Target Bar", "Interface/TargetingFrame/UI-TargetingFrame-BarFill")
+            LSM:Register("statusbar", "Blizzard Character Skills Bar", "Interface/PaperDollInfoFrame/UI-Character-Skills-Bar")
+            LSM:Register("statusbar", "Blizzard Raid Bar", "Interface/RaidFrame/Raid-Bar-Hp-Fill")
+            LSM:Register("statusbar", "Blizzard Raid Resource", "Interface/RaidFrame/Raid-Bar-Resource-Fill")
+            LSM:Register("statusbar", "Blizzard Raid Health", "Interface/RaidFrame/UI-RaidFrame-HealthBar")
+            LSM:Register("statusbar", "Blizzard Shield Fill", "Interface/RaidFrame/Shield-Fill")
+            LSM:Register("statusbar", "Blizzard Absorb Fill", "Interface/RaidFrame/Absorb-Fill")
+            LSM:Register("statusbar", "Blizzard Professions", "Interface/Spellbook/Professions-Progress-Fill")
+            LSM:Register("statusbar", "Blizzard Archaeology", "Interface/Archeology/Arch-Progress-Fill")
+        end
     end
 
     -- Database & Config Sync
@@ -77,6 +90,10 @@ local function initialize_sfui()
 
     if sfui.initialize_database then
         sfui.initialize_database()
+    end
+
+    if sfui.theme and sfui.theme.ApplyCurrentTheme then
+        sfui.theme.ApplyCurrentTheme()
     end
 
     -- Migrate cooldown panels to per-spec structure
@@ -179,7 +196,7 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
     if is_unregistered("bars") and sfui.bars and sfui.bars.on_state_changed then
         sfui.bars:on_state_changed()
     end
-    if is_unregistered("castbar") and sfui.castbar and sfui.castbar.initialize then
+    if (is_unregistered("castbar") or not (sfui.castbar and sfui.castbar.bars)) and sfui.castbar and sfui.castbar.initialize then
         sfui.castbar.initialize()
     end
     if is_unregistered("compare") and sfui.compare and sfui.compare.init then

@@ -1211,6 +1211,26 @@ local function GetDifficultyName(l)
     return tostring(l)
 end
 
+if sfui.season and not sfui.season.GetVaultBaseline then
+    function sfui.season.GetVaultBaseline(group, level)
+        local vb = sfui.season.VAULT_BASELINES
+        if not vb or not group or not level then return nil, nil end
+        if group == "raid" and vb.raid then
+            local r = vb.raid[level]
+            if r then return r.ilvl, r.track end
+        elseif group == "dungeon" and vb.dungeon then
+            for _, tier in ipairs(vb.dungeon) do
+                if level >= tier.minLevel then return tier.ilvl, tier.track end
+            end
+        elseif group == "world" and vb.world then
+            for _, tier in ipairs(vb.world) do
+                if level >= tier.minLevel then return tier.ilvl, tier.track end
+            end
+        end
+        return nil, nil
+    end
+end
+
 local function GetVaultItemLevel(g, l, vData)
     if vData and vData.itemLevel and vData.itemLevel > 0 then
         return vData.itemLevel

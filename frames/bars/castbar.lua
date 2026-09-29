@@ -109,6 +109,11 @@ local function CreateCastBar(configName, unit)
     bar.configName = configName
     bar.cfg        = g[configName] or {}
 
+    local curTex = sfui.castbar._currentTexture or (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture())
+    if curTex and curTex ~= "" and bar.SetStatusBarTexture then
+        bar:SetStatusBarTexture(curTex)
+    end
+
     bar.backdrop:SetScript("OnShow", on_backdrop_show)
 
     local fontObject = g.font_highlight or "GameFontHighlight"
@@ -723,10 +728,14 @@ function sfui.castbar.update_settings()
 
     -- Apply to active bars
     if sfui.castbar.bars then
+        local curTex = sfui.castbar._currentTexture or (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture())
         local playerBar = sfui.castbar.bars["player"]
         if playerBar then
             local pCfg = g.castBar
             playerBar.cfg = pCfg
+            if curTex and curTex ~= "" and playerBar.SetStatusBarTexture then
+                playerBar:SetStatusBarTexture(curTex)
+            end
             if not pCfg.enabled then
                 playerBar.backdrop:Hide()
                 ResetBar(playerBar)
@@ -740,6 +749,9 @@ function sfui.castbar.update_settings()
         if targetBar then
             local tCfg = g.targetCastBar
             targetBar.cfg = tCfg
+            if curTex and curTex ~= "" and targetBar.SetStatusBarTexture then
+                targetBar:SetStatusBarTexture(curTex)
+            end
             if not tCfg.enabled then
                 targetBar.backdrop:Hide()
                 targetBar.casting = nil
@@ -753,10 +765,102 @@ function sfui.castbar.update_settings()
 end
 
 function sfui.castbar.set_bar_texture(texturePath)
+    if not texturePath or texturePath == "" then
+        texturePath = sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()
+    end
+    if sfui.config and sfui.config.blizzard_bar_textures and sfui.config.blizzard_bar_textures[texturePath] then
+        texturePath = sfui.config.blizzard_bar_textures[texturePath]
+    end
+    sfui.castbar._currentTexture = texturePath
+
+    if not sfui.castbar.bars and sfui.castbar.initialize then
+        sfui.castbar.initialize()
+    end
+
     if sfui.castbar.bars and texturePath and texturePath ~= "" then
         for _, bar in pairs(sfui.castbar.bars) do
-            bar:SetStatusBarTexture(texturePath)
+            if bar.SetStatusBarTexture then
+                bar:SetStatusBarTexture(texturePath)
+            end
         end
+    end
+end
+
+function sfui.castbar.show_test_preview(duration)
+    duration = duration or 6
+    if not sfui.castbar.bars and sfui.castbar.initialize then
+        sfui.castbar.initialize()
+    end
+    if not sfui.castbar.bars then return end
+
+    local tex = sfui.castbar._currentTexture or (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture())
+
+    -- 1. Player Preview
+    local playerBar = sfui.castbar.bars["player"]
+    if playerBar then
+        playerBar.channeling   = nil
+        playerBar.empowering   = nil
+        playerBar.instant      = nil
+        playerBar.casting      = true
+        playerBar.value        = 0
+        playerBar.maxValue     = duration
+        playerBar.throttle     = 0
+
+        playerBar:SetMinMaxValues(0, duration)
+        playerBar:SetValue(0)
+        if tex and tex ~= "" and playerBar.SetStatusBarTexture then
+            playerBar:SetStatusBarTexture(tex)
+        end
+
+        playerBar.Text:SetText("Test Cast (Player)")
+        playerBar.TimerText:SetFormattedText("%.1f", duration)
+        playerBar.Icon:SetTexture(136075) -- Fireball icon
+
+        UpdateCastBarColor(playerBar, "CAST")
+
+        local pCfg = g.castBar or {}
+        local px = (SfuiDB and SfuiDB.castBarX) or (pCfg.pos and pCfg.pos.x) or 0
+        local py = (SfuiDB and SfuiDB.castBarY) or (pCfg.pos and pCfg.pos.y) or 0
+        playerBar.backdrop:ClearAllPoints()
+        playerBar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", px, py)
+        playerBar.backdrop:Show()
+        playerBar.backdrop:SetAlpha(1)
+
+        playerBar:SetScript("OnUpdate", Player_OnUpdate)
+    end
+
+    -- 2. Target Preview
+    local targetBar = sfui.castbar.bars["target"]
+    if targetBar then
+        targetBar.channeling   = nil
+        targetBar.empowering   = nil
+        targetBar.instant      = nil
+        targetBar.casting      = true
+        targetBar.value        = 0
+        targetBar.maxValue     = duration
+        targetBar.throttle     = 0
+
+        targetBar:SetMinMaxValues(0, duration)
+        targetBar:SetValue(0)
+        if tex and tex ~= "" and targetBar.SetStatusBarTexture then
+            targetBar:SetStatusBarTexture(tex)
+        end
+
+        targetBar.Text:SetText("Test Cast (Target)")
+        targetBar.TimerText:SetFormattedText("%.1f", duration)
+        targetBar.Icon:SetTexture(136121) -- Frostbolt icon
+
+        UpdateTargetCastBarColor(targetBar, false)
+
+        local tCfg = g.targetCastBar or {}
+        local tx = (SfuiDB and SfuiDB.targetCastBarX) or (tCfg.pos and tCfg.pos.x) or 0
+        local ty = (SfuiDB and SfuiDB.targetCastBarY) or (tCfg.pos and tCfg.pos.y) or 0
+        targetBar.backdrop:ClearAllPoints()
+        targetBar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", tx, ty)
+        targetBar.backdrop:Show()
+        targetBar.backdrop:SetAlpha(1)
+
+        targetBar:SetScript("OnUpdate", Player_OnUpdate)
     end
 end
 
@@ -836,7 +940,13 @@ sfui.castbar.get_debug_info = sfui.castbar_debug_info
 
 if sfui.RegisterModule then
     sfui.castbar.OnEnable = function(self) self.initialize() end
-    sfui.castbar.OnSettingsChanged = function(self, k, v) self.update_settings() end
+    sfui.castbar.OnSettingsChanged = function(self, k, v)
+        if k == "barTexture" then
+            self.set_bar_texture(v)
+        else
+            self.update_settings()
+        end
+    end
     sfui.castbar.OnSpecChanged = function(self, specID) self.update_settings() end
     sfui.castbar.GetDebugInfo = sfui.castbar_debug_info
     sfui.RegisterModule("castbar", sfui.castbar)

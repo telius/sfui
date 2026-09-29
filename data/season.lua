@@ -199,29 +199,29 @@ sfui.season.PROF_KP_SOURCES[2903] = sfui.season.PROF_KP_SOURCES[393] -- Skinning
 sfui.season.PROF_KP_SOURCES[2913] = sfui.season.PROF_KP_SOURCES[197] -- Tailoring
 
 -- ─── Great Vault Item Level Baselines & Upgrade Tracks (Midnight Season 2) ──
--- Returns: ilvl, trackString
-function sfui.season.GetVaultBaseline(group, level)
-    if group == "raid" then
-        if level == 16 then return 318, "|cffff8000Myth 1/6|r" end
-        if level == 15 then return 305, "|cffa335eeHero 1/6|r" end
-        if level == 14 then return 292, "|cff0070ddChampion 1/6|r" end
-        if level == 17 then return 279, "|cff1eff00Veteran 1/6|r" end
-    elseif group == "dungeon" then
-        if level >= 10 then return 318, "|cffff8000Myth 1/6|r" end
-        if level >= 7  then return 315, "|cffa335eeHero 4/6|r" end
-        if level == 6  then return 311, "|cffa335eeHero 3/6|r" end
-        if level >= 4  then return 308, "|cffa335eeHero 2/6|r" end
-        if level >= 2  then return 305, "|cffa335eeHero 1/6|r" end
-        if level >= 0  then return 292, "|cff0070ddChampion 1/6|r" end
-    elseif group == "world" then
-        if level >= 8 then return 308, "|cffa335eeHero 2/6|r" end
-        if level == 7 then return 305, "|cffa335eeHero 1/6|r" end
-        if level == 6 then return 298, "|cff0070ddChampion 3/6|r" end
-        if level == 5 then return 295, "|cff0070ddChampion 2/6|r" end
-        if level == 4 then return 292, "|cff0070ddChampion 1/6|r" end
-        if level == 3 then return 285, "|cff1eff00Veteran 3/6|r" end
-        if level == 2 then return 282, "|cff1eff00Veteran 2/6|r" end
-        if level >= 1 then return 279, "|cff1eff00Veteran 1/6|r" end
-    end
-    return nil, nil
-end
+sfui.season.VAULT_BASELINES = {
+    raid = {
+        [16] = { ilvl = 318, track = "|cffff8000Myth 1/6|r" },
+        [15] = { ilvl = 305, track = "|cffa335eeHero 1/6|r" },
+        [14] = { ilvl = 292, track = "|cff0070ddChampion 1/6|r" },
+        [17] = { ilvl = 279, track = "|cff1eff00Veteran 1/6|r" },
+    },
+    dungeon = {
+        { minLevel = 10, ilvl = 318, track = "|cffff8000Myth 1/6|r" },
+        { minLevel = 7,  ilvl = 315, track = "|cffa335eeHero 4/6|r" },
+        { minLevel = 6,  ilvl = 311, track = "|cffa335eeHero 3/6|r" },
+        { minLevel = 4,  ilvl = 308, track = "|cffa335eeHero 2/6|r" },
+        { minLevel = 2,  ilvl = 305, track = "|cffa335eeHero 1/6|r" },
+        { minLevel = 0,  ilvl = 292, track = "|cff0070ddChampion 1/6|r" },
+    },
+    world = {
+        { minLevel = 8, ilvl = 308, track = "|cffa335eeHero 2/6|r" },
+        { minLevel = 7, ilvl = 305, track = "|cffa335eeHero 1/6|r" },
+        { minLevel = 6, ilvl = 298, track = "|cff0070ddChampion 3/6|r" },
+        { minLevel = 5, ilvl = 295, track = "|cff0070ddChampion 2/6|r" },
+        { minLevel = 4, ilvl = 292, track = "|cff0070ddChampion 1/6|r" },
+        { minLevel = 3, ilvl = 285, track = "|cff1eff00Veteran 3/6|r" },
+        { minLevel = 2, ilvl = 282, track = "|cff1eff00Veteran 2/6|r" },
+        { minLevel = 1, ilvl = 279, track = "|cff1eff00Veteran 1/6|r" },
+    },
+}

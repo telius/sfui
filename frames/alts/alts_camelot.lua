@@ -24,6 +24,7 @@ local table = table
 local math = math
 local math_floor = math.floor
 local math_max = math.max
+local math_min = math.min
 local wipe = _G.wipe or table.wipe
 local unpack = _G.unpack or table.unpack
 local tostring = tostring
@@ -33,7 +34,11 @@ local ipairs = ipairs
 local pairs = pairs
 local next = next
 local type = type
+local time = _G.time
 local GameTooltip = _G.GameTooltip
+local UnitGUID = _G.UnitGUID
+local UnitName = _G.UnitName
+local GetRealmName = _G.GetRealmName
 local UnitLevel = _G.UnitLevel
 local UnitXP = _G.UnitXP
 local UnitXPMax = _G.UnitXPMax
@@ -111,6 +116,14 @@ local SECONDARY_PROF_IDS = {
     [129] = "firstAid",
     [185] = "cooking",
     [356] = "fishing",
+    [794] = "archaeology",
+}
+
+local SECONDARY_PROF_NAMES = {
+    [129] = "First Aid",
+    [185] = "Cooking",
+    [356] = "Fishing",
+    [794] = "Archaeology",
 }
 
 local PRIMARY_PROFS = {
@@ -198,8 +211,10 @@ local function FormatTimeLeft(seconds)
         return string.format("%dd %dh", d, h)
     elseif h > 0 then
         return string.format("%dh %dm", h, m)
-    else
+    elseif m > 0 then
         return string.format("%dm", m)
+    else
+        return "< 1m"
     end
 end
 
@@ -209,16 +224,103 @@ local function GetPVPRankName(rankNum, isHorde)
     return ranks[rankNum] or ("Rank " .. rankNum)
 end
 
+local function IsCurrentCharacter(altData, altGuid)
+    if altGuid and UnitGUID and altGuid == UnitGUID("player") then
+        return true
+    end
+    if altData and altData.name and UnitName then
+        local myName, myRealm = UnitName("player")
+        if altData.name == myName then
+            local r = altData.realm
+            if not r or r == "" or r == (GetRealmName and GetRealmName()) then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+--- Calculate live or simulated offline rested XP for a character.
+--- In WoW Classic/Vanilla:
+---   * Max rested XP is capped at 150% of the level's maximum XP (1.5 levels / 30 bubbles).
+---   * In a Rest Area (Inn or Capital City): gains 1 bubble (5%) every 8 hours (10 days / 240h to 150%).
+---     Rate = xpMax / 576,000 XP/sec.
+---   * In the Wilderness / Normal zones: gains 1 bubble (5%) every 32 hours (40 days / 960h to 150%).
+---     Rate = xpMax / 2,304,000 XP/sec (4x slower).
+--- @param altData table Character saved data table
+--- @param altGuid string|nil Character GUID
+--- @return number currentRested Total calculated rested XP
+--- @return number pct Rested percentage (0-150)
+--- @return number bars Rested bubbles/bars (0.0 - 30.0)
+--- @return boolean isMaxed True if rested XP is at the 150% cap
+--- @return number timeToMax Estimated seconds until 150% cap is reached (0 if maxed or not accumulating)
+--- @return boolean isResting True if character is/was in a rest area
+--- @return number offlineGained XP accumulated since last seen
+--- @return boolean isCurrent True if this is the currently logged in character
+local function GetRestedXPInfo(altData, altGuid)
+    if not altData then
+        return 0, 0, 0, false, 0, false, 0, false
+    end
+
+    local lvl = altData.level or 1
+    local xpMax = altData.xpMax or 0
+    if lvl >= 60 or xpMax <= 0 then
+        return 0, 0, 0, false, 0, false, 0, false
+    end
+
+    local maxRested = xpMax * 1.5
+    local isCurrent = IsCurrentCharacter(altData, altGuid)
+    local now = (GetServerTime and GetServerTime()) or time()
+
+    if isCurrent then
+        local currentRested = (GetXPExhaustion and GetXPExhaustion()) or 0
+        local isResting = (IsResting and IsResting()) and true or false
+        local isMaxed = (currentRested >= maxRested)
+        local timeToMax = 0
+        if not isMaxed and isResting then
+            local rate = xpMax / 576000
+            timeToMax = (maxRested - currentRested) / rate
+        end
+        local pct = math_floor((currentRested / xpMax) * 100)
+        local bars = (currentRested / xpMax) * 20
+        return currentRested, pct, bars, isMaxed, timeToMax, isResting, 0, true
+    end
+
+    -- Offline character calculation
+    local savedRested = altData.restedXP or 0
+    local isResting = altData.isResting and true or false
+    local rate = isResting and (xpMax / 576000) or (xpMax / 2304000)
+
+    local lastSeen = altData.lastSeen or altData.lastUpdate or now
+    local elapsed = math_max(0, now - lastSeen)
+    local gained = elapsed * rate
+
+    local currentRested = math_min(maxRested, savedRested + gained)
+    local isMaxed = (currentRested >= maxRested)
+    local timeToMax = 0
+    if not isMaxed and rate > 0 then
+        timeToMax = (maxRested - currentRested) / rate
+    end
+    local pct = math_floor((currentRested / xpMax) * 100)
+    local bars = (currentRested / xpMax) * 20
+
+    return currentRested, pct, bars, isMaxed, timeToMax, isResting, gained, false
+end
+sfui.alts.GetRestedXPInfo = GetRestedXPInfo
+
 local function PerformSync(data, isLogout)
-    local now = GetServerTime()
+    local now = (GetServerTime and GetServerTime()) or time()
 
     -- 1. Level & Rested XP
     local lvl = UnitLevel("player") or 1
     data.level = lvl
+    local rawXp = UnitXP and UnitXP("player")
+    data.xp = (rawXp and rawXp > 0) and rawXp or 0
     local rawXpMax = UnitXPMax and UnitXPMax("player")
     data.xpMax = (rawXpMax and rawXpMax > 0) and rawXpMax or 0
     data.restedXP = (GetXPExhaustion and GetXPExhaustion()) or 0
     data.isResting = (IsResting and IsResting()) and true or false
+    data.lastSeen = now
 
     -- 2. PvP Stats
     data.pvp = data.pvp or {}
@@ -253,131 +355,191 @@ local function PerformSync(data, isLogout)
 
     -- 4. Raid Lockouts
     data.lockouts = data.lockouts or {}
-    wipe(data.lockouts)
     local numSaved = GetNumSavedInstances and GetNumSavedInstances() or 0
-    for i = 1, numSaved do
-        local name, id, reset, difficulty, locked, extended, isRaid, maxPlayers, difficultyName, numEncounters, encounterProgress = GetSavedInstanceInfo(i)
-        if locked and reset and reset > 0 then
-            for _, rDef in ipairs(CLASSIC_RAIDS) do
-                if name and string.find(name, rDef.match) then
-                    data.lockouts[rDef.key] = {
-                        resetTime = now + reset,
-                        progress = encounterProgress or 0,
-                        total = numEncounters or 0,
-                        name = name,
-                    }
-                    break
+    if numSaved > 0 then
+        local newLockouts = {}
+        for i = 1, numSaved do
+            local name, id, reset, difficulty, locked, extended, isRaid, maxPlayers, difficultyName, numEncounters, encounterProgress = GetSavedInstanceInfo(i)
+            if locked and reset and reset > 0 then
+                for _, rDef in ipairs(CLASSIC_RAIDS) do
+                    if name and string.find(name, rDef.match) then
+                        newLockouts[rDef.key] = {
+                            resetTime = now + reset,
+                            progress = encounterProgress or 0,
+                            total = numEncounters or 0,
+                            name = name,
+                        }
+                        break
+                    end
                 end
             end
         end
+        data.lockouts = newLockouts
+    elseif not isLogout and not (sfui.alts and sfui.alts.leavingWorld) then
+        wipe(data.lockouts)
     end
 
     -- 5. Attunements & Keys
     data.attunements = data.attunements or {}
     -- Molten Core: Quest 7848 (Attunement to the Core)
     if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted then
-        data.attunements.mc = C_QuestLog.IsQuestFlaggedCompleted(7848)
-        data.attunements.bwl = C_QuestLog.IsQuestFlaggedCompleted(7761)
-        data.attunements.naxx = C_QuestLog.IsQuestFlaggedCompleted(9121) or C_QuestLog.IsQuestFlaggedCompleted(9122) or C_QuestLog.IsQuestFlaggedCompleted(9123)
+        local mcDone = C_QuestLog.IsQuestFlaggedCompleted(7848)
+        if mcDone then data.attunements.mc = true end
+        local bwlDone = C_QuestLog.IsQuestFlaggedCompleted(7761)
+        if bwlDone then data.attunements.bwl = true end
+        local naxxDone = C_QuestLog.IsQuestFlaggedCompleted(9121) or C_QuestLog.IsQuestFlaggedCompleted(9122) or C_QuestLog.IsQuestFlaggedCompleted(9123)
+        if naxxDone then data.attunements.naxx = true end
+        local onyDone
         if not isHorde then
-            data.attunements.ony = C_QuestLog.IsQuestFlaggedCompleted(6502) or (GetItemCount and GetItemCount(16309, true) > 0)
+            onyDone = C_QuestLog.IsQuestFlaggedCompleted(6502) or (GetItemCount and GetItemCount(16309, true) > 0)
         else
-            data.attunements.ony = C_QuestLog.IsQuestFlaggedCompleted(6602) or C_QuestLog.IsQuestFlaggedCompleted(6584) or (GetItemCount and GetItemCount(16309, true) > 0) or false
+            onyDone = C_QuestLog.IsQuestFlaggedCompleted(6602) or C_QuestLog.IsQuestFlaggedCompleted(6584) or (GetItemCount and GetItemCount(16309, true) > 0)
         end
-    else
-        data.attunements.ony = (GetItemCount and GetItemCount(16309, true) > 0) or false
+        if onyDone then data.attunements.ony = true end
+    elseif GetItemCount and GetItemCount(16309, true) > 0 then
+        data.attunements.ony = true
     end
 
     -- Keys (check bags/bank/keyring)
     if GetItemCount then
-        data.attunements.skeleton = GetItemCount(13704, true) > 0    -- Skeleton Key (Scholomance)
-        data.attunements.city = GetItemCount(12382, true) > 0        -- Key to the City (Stratholme)
-        data.attunements.shadowforge = GetItemCount(11000, true) > 0 -- Shadowforge Key (BRD)
-        data.attunements.crescent = GetItemCount(18249, true) > 0    -- Crescent Key (Dire Maul)
+        if GetItemCount(13704, true) > 0 then data.attunements.skeleton = true end
+        if GetItemCount(12382, true) > 0 then data.attunements.city = true end
+        if GetItemCount(11000, true) > 0 then data.attunements.shadowforge = true end
+        if GetItemCount(18249, true) > 0 then data.attunements.crescent = true end
     end
 
     -- 6. Classic Professions
-    data.professions = data.professions or {}
-    wipe(data.professions)
-    data.professions.primaries = {}
+    data.professions = data.professions or { primaries = {} }
+    data.professions.primaries = data.professions.primaries or {}
 
-    local function recordSkill(name, rank, maxRank, modifier, isPrimary, skillID)
+    local scanned = {
+        primaries = {},
+    }
+    local foundCount = 0
+
+    local function recordSkill(name, rank, maxRank, modifier, isPrimary, skillID, icon)
         if not name or name == "" then return end
 
-        -- Dedup: if we already recorded this profession by name, update it instead of adding again
-        if data.professions[name] then
-            local existing = data.professions[name]
-            existing.rank = rank or existing.rank
-            existing.maxRank = maxRank or existing.maxRank
-            existing.modifier = modifier or existing.modifier
+        local secKey = (skillID and SECONDARY_PROF_IDS[skillID]) or SECONDARY_PROFS[name]
+        local engPrimary = (skillID and PRIMARY_PROF_IDS[skillID])
+        local isActuallyPrimary = (isPrimary and not secKey) or (engPrimary and not secKey)
+
+        -- Only accept primary or secondary professions; discard weapon skills, defense, languages, etc.
+        if not isActuallyPrimary and not secKey then
+            return
+        end
+
+        -- Check for existing entry in scanned
+        local existing = scanned[name] or (engPrimary and scanned[engPrimary]) or (secKey and scanned[secKey])
+        if existing then
+            if rank and rank > 0 then existing.rank = rank end
+            if maxRank and maxRank > 0 then existing.maxRank = maxRank end
+            if modifier then existing.modifier = modifier end
             if skillID then existing.skillID = skillID end
+            if icon then existing.icon = icon end
             return
         end
 
         local entry = {
             name = name,
             rank = rank or 0,
-            maxRank = maxRank or 300,
+            maxRank = (maxRank and maxRank > 0) and maxRank or 300,
             modifier = modifier or 0,
             skillID = skillID,
-            isPrimary = isPrimary,
+            icon = icon,
+            isPrimary = isActuallyPrimary and not secKey,
         }
 
-        local secKey = (skillID and SECONDARY_PROF_IDS[skillID]) or SECONDARY_PROFS[name]
         if secKey then
-            data.professions[secKey] = entry
-            data.professions[name] = entry
-        elseif isPrimary then
-            table.insert(data.professions.primaries, entry)
-            data.professions[name] = entry
-        else
-            data.professions[name] = entry
+            scanned[secKey] = entry
+            scanned[name] = entry
+            local engSec = (skillID and SECONDARY_PROF_NAMES and SECONDARY_PROF_NAMES[skillID])
+            if engSec then scanned[engSec] = entry end
+        elseif entry.isPrimary then
+            table.insert(scanned.primaries, entry)
+            scanned[name] = entry
+            if engPrimary then scanned[engPrimary] = entry end
+        end
+
+        foundCount = foundCount + 1
+    end
+
+    -- Source 1: Standard / Camelot GetProfessions API (used in Blizzard_ProfessionsBook for Camelot)
+    if GetProfessions and GetProfessionInfo then
+        local profIndices = { GetProfessions() }
+        for idx, profIndex in ipairs(profIndices) do
+            if profIndex then
+                local pName, pIcon, pSkill, pMaxSkill, _, _, pSkillLine, pModifier = GetProfessionInfo(profIndex)
+                if pName and pName ~= "" then
+                    local secKey = (pSkillLine and SECONDARY_PROF_IDS[pSkillLine]) or SECONDARY_PROFS[pName]
+                    local isPrimary = (idx <= 2) and (not secKey)
+                    recordSkill(pName, pSkill, pMaxSkill, pModifier, isPrimary, pSkillLine, pIcon)
+                end
+            end
         end
     end
 
+    -- Source 2: Modern C_SkillInfo API
     if C_SkillInfo and C_SkillInfo.GetNumSkillLines and C_SkillInfo.GetSkillLineInfo then
-        local numSkills = C_SkillInfo.GetNumSkillLines()
+        local numSkills = C_SkillInfo.GetNumSkillLines() or 0
         for i = 1, numSkills do
             local info = C_SkillInfo.GetSkillLineInfo(i)
             if info and not info.isHeader and info.name then
-                local isPrimary = (info.isAbandonable == true) or (PRIMARY_PROF_IDS[info.skillID] ~= nil) or (PRIMARY_PROFS[info.name] == true)
-                recordSkill(info.name, info.rank, info.maxRank, info.modifier, isPrimary, info.skillID)
+                local secKey = (info.skillID and SECONDARY_PROF_IDS[info.skillID]) or SECONDARY_PROFS[info.name]
+                local isPrimary = (not secKey) and ((info.isAbandonable == true) or (info.skillID and PRIMARY_PROF_IDS[info.skillID] ~= nil) or (PRIMARY_PROFS[info.name] == true))
+                if isPrimary or secKey then
+                    recordSkill(info.name, info.rank, info.maxRank, info.modifier, isPrimary, info.skillID, nil)
+                end
             end
         end
+    -- Source 3: Legacy GetNumSkillLines / GetSkillLineInfo
     elseif GetNumSkillLines and GetSkillLineInfo then
-        local numSkills = GetNumSkillLines()
+        local numSkills = GetNumSkillLines() or 0
         for i = 1, numSkills do
             local skillName, isHeader, _, skillRank, _, skillModifier, skillMaxRank, isAbandonable = GetSkillLineInfo(i)
             if not isHeader and skillName then
-                local isPrimary = (isAbandonable == true) or (PRIMARY_PROFS[skillName] == true)
-                recordSkill(skillName, skillRank, skillMaxRank, skillModifier, isPrimary, nil)
+                local secKey = SECONDARY_PROFS[skillName]
+                local isPrimary = (not secKey) and ((isAbandonable == true) or (PRIMARY_PROFS[skillName] == true))
+                if isPrimary or secKey then
+                    recordSkill(skillName, skillRank, skillMaxRank, skillModifier, isPrimary, nil, nil)
+                end
             end
         end
     end
 
     -- Direct ID lookup fallback for secondary skills in Camelot
     if C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID then
-        if not data.professions.firstAid then
-            local info = C_SkillInfo.GetSkillLineInfoByID(129)
-            if info and info.rank and info.rank > 0 then
-                recordSkill(info.name or "First Aid", info.rank, info.maxRank, info.modifier, false, 129)
-            end
-        end
-        if not data.professions.cooking then
-            local info = C_SkillInfo.GetSkillLineInfoByID(185)
-            if info and info.rank and info.rank > 0 then
-                recordSkill(info.name or "Cooking", info.rank, info.maxRank, info.modifier, false, 185)
-            end
-        end
-        if not data.professions.fishing then
-            local info = C_SkillInfo.GetSkillLineInfoByID(356)
-            if info and info.rank and info.rank > 0 then
-                recordSkill(info.name or "Fishing", info.rank, info.maxRank, info.modifier, false, 356)
+        local secIDs = { [129] = "First Aid", [185] = "Cooking", [356] = "Fishing" }
+        for sID, defaultName in pairs(secIDs) do
+            local secKey = SECONDARY_PROF_IDS[sID]
+            if secKey and not scanned[secKey] then
+                local info = C_SkillInfo.GetSkillLineInfoByID(sID)
+                if info and info.rank and info.rank > 0 then
+                    recordSkill(info.name or defaultName, info.rank, info.maxRank, info.modifier, false, sID, nil)
+                end
             end
         end
     end
 
-    table.sort(data.professions.primaries, function(a, b) return (a.name or "") < (b.name or "") end)
+    -- Commit scan results safely to prevent data loss on character swap or early login
+    if foundCount > 0 then
+        table.sort(scanned.primaries, function(a, b) return (a.name or "") < (b.name or "") end)
+        data.professions = scanned
+    elseif not isLogout and not (sfui.alts and sfui.alts.leavingWorld) then
+        -- Only clear existing data during active gameplay if skills system is verified ready
+        local skillsReady = false
+        if C_SkillInfo and C_SkillInfo.GetNumSkillLines then
+            local n = C_SkillInfo.GetNumSkillLines()
+            if n and n > 0 then skillsReady = true end
+        elseif GetNumSkillLines then
+            local n = GetNumSkillLines()
+            if n and n > 0 then skillsReady = true end
+        end
+
+        if skillsReady then
+            data.professions = scanned
+        end
+    end
 
     -- 7. Currencies
     data.currencies = data.currencies or {}
@@ -412,11 +574,11 @@ local function PerformSync(data, isLogout)
     end
 end
 
-local function RenderCell(cell, cat, altData, classColor, col)
+local function RenderCell(cell, cat, altData, classColor, col, altGuid)
     local text = cell.text
     if not text then return false end
 
-    local now = GetServerTime()
+    local now = (GetServerTime and GetServerTime()) or time()
 
     if cat.type == "classic_level_xp" then
         local lvl = altData.level or 1
@@ -435,10 +597,11 @@ local function RenderCell(cell, cat, altData, classColor, col)
             local xp = altData.xp or 0
             local validXpMax = (xpMax and xpMax > 0) and xpMax or 1
             local pct = (validXpMax > 0) and math_floor((xp / validXpMax) * 100) or 0
-            local restedXP = altData.restedXP or 0
-            local restedPct = (validXpMax > 0) and math_floor((restedXP / validXpMax) * 100) or 0
+            local currentRested, restedPct, bars, isMaxed, timeToMax, isResting, offlineGained, isCurrent = GetRestedXPInfo(altData, altGuid)
 
-            if restedXP > 0 then
+            if isMaxed then
+                text:SetText(string.format("%d (%d%%) |cff00ff00+150%% (max)|r", lvl, pct))
+            elseif restedPct > 0 then
                 text:SetText(string.format("%d (%d%%) |cff00ffff+%d%%|r", lvl, pct, restedPct))
             else
                 text:SetText(string.format("%d (%d%%)", lvl, pct))
@@ -447,18 +610,35 @@ local function RenderCell(cell, cat, altData, classColor, col)
 
             cell:EnableMouse(true)
             cell:SetScript("OnEnter", function(self)
+                local curRested, curPct, curBars, curMaxed, curTimeToMax, curIsResting, curOfflineGained, curIsCurrent = GetRestedXPInfo(altData, altGuid)
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                 GameTooltip:AddLine(string.format("level %d progress", lvl), 1, 1, 1)
                 GameTooltip:AddDoubleLine("current xp:", string.format("%d / %d (%d%%)", xp, validXpMax, pct), 1, 1, 1, 1, 0.82, 0)
                 GameTooltip:AddDoubleLine("remaining xp:", string.format("%d", math_max(0, validXpMax - xp)), 1, 1, 1, 1, 1, 1)
-                if restedXP > 0 and validXpMax > 0 then
-                    local bars = (restedXP / validXpMax) * 20
-                    GameTooltip:AddDoubleLine("rested xp:", string.format("%d (%.1f bars / %d%%)", restedXP, bars, restedPct), 1, 1, 1, 0, 1, 1)
+
+                if curRested > 0 then
+                    GameTooltip:AddDoubleLine("rested xp:", string.format("%d (%.1f bars / %d%%)", math_floor(curRested), curBars, curPct), 1, 1, 1, 0, 1, 1)
+                    if curMaxed then
+                        GameTooltip:AddDoubleLine("rested status:", "|cff00ff00Fully Rested (Max 150% / 30 bars)|r", 1, 1, 1)
+                    elseif curTimeToMax > 0 then
+                        GameTooltip:AddDoubleLine("time until max:", string.format("|cffffffff%s|r", FormatTimeLeft(curTimeToMax)), 1, 1, 1)
+                    end
                 else
                     GameTooltip:AddDoubleLine("rested xp:", "none", 1, 1, 1, 0.6, 0.6, 0.6)
+                    if curTimeToMax > 0 then
+                        GameTooltip:AddDoubleLine("time until max:", string.format("|cffffffff%s|r", FormatTimeLeft(curTimeToMax)), 1, 1, 1)
+                    end
                 end
-                if altData.isResting then
-                    GameTooltip:AddLine("currently in a rest area (gaining 4x rested xp)", 0.2, 1.0, 0.4)
+
+                if not curIsCurrent and curOfflineGained and curOfflineGained > 0 then
+                    local gainedBars = (curOfflineGained / validXpMax) * 20
+                    GameTooltip:AddDoubleLine("offline gained:", string.format("+%d xp (+%.1f bars)", math_floor(curOfflineGained), gainedBars), 1, 1, 1, 0.4, 0.8, 1)
+                end
+
+                if curIsResting then
+                    GameTooltip:AddLine("resting in inn/city (full speed: 1 bar / 8h)", 0.2, 1.0, 0.4)
+                else
+                    GameTooltip:AddLine("logged off in wilderness (slow speed: 1 bar / 32h)", 1.0, 0.6, 0.2)
                 end
                 GameTooltip:Show()
             end)
@@ -664,7 +844,8 @@ local function RenderCell(cell, cat, altData, classColor, col)
         end
 
         if p and p.rank then
-            local shortName = PROF_SHORT_NAMES[p.name] or p.name:lower()
+            local engName = (p.skillID and PRIMARY_PROF_IDS[p.skillID]) or p.name
+            local shortName = PROF_SHORT_NAMES[engName] or PROF_SHORT_NAMES[p.name] or p.name:lower()
             local isMax = p.rank >= (p.maxRank or 300)
             local rankColor = isMax and "|cff00ff00" or "|cffffffff"
             text:ClearAllPoints()
@@ -844,6 +1025,7 @@ sfui.alts.RegisterProvider({
     sortOptions = {
         { text = "Name (A-Z)",  value = "name" },
         { text = "Level / XP",  value = "level" },
+        { text = "Rested XP",   value = "rested" },
         { text = "Item Level",  value = "ilvl" },
         { text = "PvP Rank",    value = "pvp_rank" },
         { text = "Time Played", value = "timeplayed" },
@@ -854,6 +1036,14 @@ sfui.alts.RegisterProvider({
             local lB = b.data.level or 0
             if lA ~= lB then return lA > lB end
             return (a.data.xp or 0) > (b.data.xp or 0)
+        elseif sortKey == "rested" then
+            local _, pctA = GetRestedXPInfo(a.data, a.guid)
+            local _, pctB = GetRestedXPInfo(b.data, b.guid)
+            if pctA ~= pctB then return pctA > pctB end
+            local lA = a.data.level or 0
+            local lB = b.data.level or 0
+            if lA ~= lB then return lA > lB end
+            return (a.data.name or "") < (b.data.name or "")
         elseif sortKey == "pvp_rank" then
             local rA = (a.data.pvp and a.data.pvp.rank) or 0
             local rB = (b.data.pvp and b.data.pvp.rank) or 0
@@ -873,8 +1063,12 @@ sfui.alts.RegisterProvider({
         end
         sfui.events.RegisterEvent("UPDATE_INSTANCE_INFO",          on_sync)
         sfui.events.RegisterEvent("SKILL_LINES_CHANGED",           on_sync)
+        sfui.events.RegisterEvent("CHAT_MSG_SKILL",                on_sync)
+        sfui.events.RegisterEvent("TRAINER_CLOSED",                on_sync)
+        sfui.events.RegisterEvent("TRADE_SKILL_SHOW",              on_sync)
         sfui.events.RegisterEvent("PLAYER_LEVEL_UP",               on_sync)
         sfui.events.RegisterEvent("PLAYER_XP_UPDATE",              on_sync)
+        sfui.events.RegisterEvent("PLAYER_UPDATE_RESTING",         on_sync)
         sfui.events.RegisterEvent("PLAYER_AVG_ITEM_LEVEL_UPDATE",  on_sync)
         sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED",     on_sync)
         sfui.events.RegisterEvent("CURRENCY_DISPLAY_UPDATE",       on_sync)

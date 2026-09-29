@@ -181,6 +181,44 @@ SlashCmdList["SFUI"] = function(msg)
                 sfui.common.print("sfui: options panel not available.")
             end
         end
+    elseif cmd == "theme" or cmd == "style" then
+        local sub = arg and _G.strtrim and _G.strtrim(arg):lower() or (arg and arg:lower() or "")
+        if sub == "auto" or sub == "detect" or sub == "reset" then
+            if sfui.theme and sfui.theme.SetTheme then sfui.theme.SetTheme("auto") end
+            local active = (sfui.theme and sfui.theme.GetActiveThemeID and sfui.theme.GetActiveThemeID()) or "modern"
+            if sfui.common and sfui.common.print then
+                sfui.common.print("sfui: theme set to Auto-Detect (active: " .. active .. ").")
+            end
+        elseif sfui.theme and sfui.theme.GetTheme and sfui.theme.GetTheme(sub) then
+            sfui.theme.SetTheme(sub)
+            local themeDef = sfui.theme.GetTheme(sub)
+            if sfui.common and sfui.common.print then
+                sfui.common.print("sfui: theme set to " .. (themeDef.name or sub) .. ".")
+            end
+        elseif sub == "camelot" or sub == "bronze" then
+            if sfui.theme and sfui.theme.SetTheme then sfui.theme.SetTheme("camelot") end
+            if sfui.common and sfui.common.print then
+                sfui.common.print("sfui: theme set to Camelot Heavy Bronze.")
+            end
+        elseif sub == "modern" or sub == "retail" or sub == "minimal" or sub == "slate" then
+            if sfui.theme and sfui.theme.SetTheme then sfui.theme.SetTheme("modern") end
+            if sfui.common and sfui.common.print then
+                sfui.common.print("sfui: theme set to Modern Minimalist.")
+            end
+        else
+            local curMode = (SfuiDB and (SfuiDB.themeMode or (SfuiDB.theme and SfuiDB.theme.mode))) or "auto"
+            local active = (sfui.theme and sfui.theme.GetActiveThemeID and sfui.theme.GetActiveThemeID()) or "modern"
+            local regThemes, regOrder = sfui.theme and sfui.theme.GetRegisteredThemes and sfui.theme.GetRegisteredThemes()
+            local list = "auto"
+            if regOrder then
+                for _, id in ipairs(regOrder) do list = list .. " | " .. id end
+            else
+                list = "auto | camelot | modern"
+            end
+            if sfui.common and sfui.common.print then
+                sfui.common.print("sfui theme: mode is '" .. curMode .. "' (currently rendering " .. active .. "). Usage: /sfui theme [" .. list .. "]")
+            end
+        end
     elseif cmd == "alts" or cmd == "warband" then
         SlashCmdList["SFUIALTS"](arg)
     elseif cmd == "ql" or cmd == "quests" or cmd == "questlog" then
@@ -321,11 +359,17 @@ SlashCmdList["SFUI"] = function(msg)
         C_UI.Reload()
     elseif cmd == "help" or cmd == "?" then
         if sfui.common and sfui.common.print then
-            sfui.common.print("Commands: /sfui [options | fish | pet | hammer [test|lock|reset|debug] | alts | ql | portals [test] | cv | gear | highest | lootspec | loot | research | mythic | mem | rl]")
+            sfui.common.print("Commands: /sfui [options | theme [camelot|modern|auto] | fish | pet | hammer [test|lock|reset|debug] | alts | ql | portals [test] | cv | gear | highest | lootspec | loot | research | mythic | mem | rl]")
         end
     else
         if sfui.common and sfui.common.print then
             sfui.common.print("Unknown command: /sfui " .. cmd .. ". Type /sfui help for a list of commands.")
         end
     end
+end
+
+-- Quick Theme Switcher Shortcut
+SLASH_SFTHEME1 = "/sftheme"
+SlashCmdList["SFTHEME"] = function(msg)
+    SlashCmdList["SFUI"]("theme " .. (msg or ""))
 end

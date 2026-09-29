@@ -165,7 +165,7 @@ function Items.CreateItemButton(parent)
 
     -- 1px Border
     if sfui.common and sfui.common.create_border then
-        sfui.common.create_border(btn, 1, { 0.25, 0.25, 0.25, 0.9 })
+        sfui.common.create_border(btn, 1, { 0, 0, 0, 1 })
     end
 
     -- Cooldown frame

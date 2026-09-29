@@ -83,8 +83,14 @@ local function CreateHeader(parent)
 
     title:SetPoint("RIGHT", count, "LEFT", -4, 0)
 
+    if sfui.theme and sfui.theme.ApplyQuestHeaderStyle then
+        sfui.theme.ApplyQuestHeaderStyle(h)
+    end
+
     h:SetScript("OnEnter", function(self)
-        self:SetBackdropColor(0.08, 0.08, 0.08, 0.65)
+        if not self.isCamelotHeader then
+            self:SetBackdropColor(0.08, 0.08, 0.08, 0.65)
+        end
         local tip = _G.GameTooltip
         if not tip then return end
         tip:SetOwner(self, "ANCHOR_RIGHT")
@@ -116,7 +122,9 @@ local function CreateHeader(parent)
     end)
 
     h:SetScript("OnLeave", function(self)
-        self:SetBackdropColor(0, 0, 0, 0.50)
+        if not self.isCamelotHeader then
+            self:SetBackdropColor(0, 0, 0, 0.50)
+        end
         local tip = _G.GameTooltip
         if tip then tip:Hide() end
     end)
@@ -138,11 +146,15 @@ function Blocks.AcquireHeader(parent)
     else
         h:SetParent(parent)
         h:ClearAllPoints()
-        h:SetBackdropColor(0, 0, 0, 0.50)
-        h:SetBackdropBorderColor(0, 0, 0, 0.50)
         h.secID = nil
-        if h.accent then
-            h.accent:SetColorTexture(1, 1, 1, 1)
+        if sfui.theme and sfui.theme.ApplyQuestHeaderStyle then
+            sfui.theme.ApplyQuestHeaderStyle(h)
+        else
+            h:SetBackdropColor(0, 0, 0, 0.50)
+            h:SetBackdropBorderColor(0, 0, 0, 0.50)
+            if h.accent then
+                h.accent:SetColorTexture(1, 1, 1, 1)
+            end
         end
     end
     h:Show()

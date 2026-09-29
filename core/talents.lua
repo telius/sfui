@@ -78,6 +78,7 @@ sfui.talents._specColorOptionsBuilder = nil
 sfui.talents._lootSpecResolver       = nil
 
 function sfui.talents.set_cached_spec(specID, specIndex, specRole)
+    local oldID = cachedSpecID
     local changed = (cachedSpecID ~= specID) or (cachedSpecIndex ~= specIndex) or (cachedSpecRole ~= specRole)
     cachedSpecID    = specID or 0
     cachedSpecIndex = specIndex or 0
@@ -93,6 +94,12 @@ function sfui.talents.set_cached_spec(specID, specIndex, specRole)
         end
         if sfui.highest and sfui.highest.ClearValidationCache then
             sfui.highest.ClearValidationCache()
+        end
+        if sfui.events and sfui.events.SendMessage then
+            sfui.events.SendMessage("SFUI_SPEC_CHANGED", cachedSpecID, oldID)
+        end
+        if sfui.BroadcastSpecChanged then
+            sfui.BroadcastSpecChanged(cachedSpecID)
         end
     end
     return changed
@@ -173,6 +180,10 @@ local GetSpecializationInfoByID = C_Spec.GetSpecializationInfoByID or _G.GetSpec
 
 function sfui.talents.get_spec_info(specID)
     if not specID or specID == 0 then return nil end
+    local bridge = sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
+    if bridge then
+        return bridge.retailID or bridge.specID, bridge.name, nil, bridge.icon, (bridge.isTank and "TANK") or (bridge.isHealer and "HEALER") or "DAMAGER", 1
+    end
     local specs = sfui.talents.get_player_specs()
     if specs and specs[specID] then
         local s = specs[specID]
@@ -191,6 +202,8 @@ sfui.common.get_spec_info = sfui.talents.get_spec_info
 
 function sfui.talents.get_spec_name(specID)
     if not specID or specID == 0 then return "Current Spec" end
+    local bridge = sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
+    if bridge and bridge.name then return bridge.name end
     local specs = sfui.talents.get_player_specs()
     if specs and specs[specID] and specs[specID].name then
         return specs[specID].name
@@ -208,6 +221,8 @@ sfui.common.get_spec_name = sfui.talents.get_spec_name
 
 function sfui.talents.get_spec_icon(specID)
     if not specID or specID == 0 then return nil end
+    local bridge = sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
+    if bridge and bridge.icon then return bridge.icon end
     local specs = sfui.talents.get_player_specs()
     if specs and specs[specID] and specs[specID].icon then
         return specs[specID].icon
@@ -334,4 +349,5 @@ sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", sfui.talents.invalida
 sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", sfui.talents.invalidate_spec_cache)
 sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", sfui.talents.invalidate_spec_cache)
 sfui.events.RegisterEvent("TRAIT_TREE_CURRENCY_INFO_UPDATED", sfui.talents.invalidate_spec_cache)
+sfui.events.RegisterEvent("ACTIVE_COMBAT_CONFIG_CHANGED", sfui.talents.invalidate_spec_cache)
 sfui.events.RegisterEvent("PLAYER_LEVEL_UP", sfui.talents.invalidate_spec_cache)

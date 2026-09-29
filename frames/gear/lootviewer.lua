@@ -1188,7 +1188,7 @@ local function AcquireCard(parent)
             edgeSize = 1,
         })
         c:SetBackdropColor(0.05, 0.05, 0.06, 0.95)
-        c:SetBackdropBorderColor(0.12, 0.12, 0.12, 0.8)
+        c:SetBackdropBorderColor(0, 0, 0, 1)
 
         c.portrait = c:CreateTexture(nil, "ARTWORK")
         c.portrait:SetSize(BOSS_ICO, BOSS_ICO)
@@ -1290,7 +1290,7 @@ local function AcquireCard(parent)
             edgeSize = 1,
         })
         targetBtn:SetBackdropColor(0.07, 0.07, 0.07, 1)
-        targetBtn:SetBackdropBorderColor(0.2, 0.2, 0.2, 0.6)
+        targetBtn:SetBackdropBorderColor(0, 0, 0, 1)
 
         local tIcon = targetBtn:CreateTexture(nil, "ARTWORK")
         tIcon:SetSize(14, 14)
@@ -1329,9 +1329,9 @@ local function AcquireCard(parent)
             else
                 tIcon:SetAlpha(0.25)
                 tIcon:SetDesaturated(true)
-                self:SetBackdropBorderColor(0.2, 0.2, 0.2, 0.6)
+                self:SetBackdropBorderColor(0, 0, 0, 1)
                 c:SetBackdropColor(0.05, 0.05, 0.06, 0.95)
-                c:SetBackdropBorderColor(0.12, 0.12, 0.12, 0.8)
+                c:SetBackdropBorderColor(0, 0, 0, 1)
                 tBadge:Hide()
             end
         end
