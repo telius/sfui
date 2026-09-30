@@ -1,28 +1,22 @@
 # Changelog
 
-## v12.1.0-60 (2026-09-29)
+## v12.1.0-61 (2026-09-30)
 
-### Features & Major Improvements
-- **Spec Resolution & Authoritative Spec Bridge (`data/stats.lua`, `core/bridge.lua`, `core/talents.lua`, `core/talents_camelot.lua`)**:
-  - Precomputed bidirectional mapping (`sfui.talents.SPEC_BRIDGE`) across all 27 Camelot talent tree specs (`14821`–`14913`) and Retail DB2 spec IDs (`62`–`1480`).
-  - Added zero-allocation $O(1)$ translation helpers: `to_retail_spec_id`, `to_camelot_spec_id`, `is_spec_match`, and `is_spec_in_list`.
-  - Unified role detection and `TANK_SPECS` registration, ensuring instant resolution for both Retail and Camelot tanks.
+### Fixes & Major Improvements
+- **Alt Persistence & Teardown Guard Overhaul (`frames/alts/alts.lua`, `frames/alts/alts_camelot.lua`)**:
+  - Eliminated data corruption caused by world teardown API queries on `PLAYER_LEAVING_WORLD` during logout, quit, or zoning.
+  - Added robust guards to prevent `level`, `xp`, `xpMax`, `restedXP`, `isResting`, `money`, and PvP statistics from being overwritten with zero or nil.
+  - Added authentic Classic XP-per-level fallback table (`CLASSIC_XP_PER_LEVEL`) to self-heal uninitialized or corrupted alt entries.
+  - Fixed false-positive max-level detection in the Classic/Camelot alts sheet (`RenderCell`), ensuring non-level-60 characters always display XP and rested XP bars.
+  - Registered `UPDATE_EXHAUSTION` to keep rested XP synchronized in real time while resting in inns or capital cities.
 
-- **High-Performance Color Pipeline Overhaul (`core/colors.lua`)**:
-  - Hot paths for castbars, power bars, and UI elements now operate with zero table allocations via symmetric cross-caching (`specID`, `retailID`, `camelotID`, and `classID`).
-  - Added immutable static fallback color table (`_defaultFallbackColor`).
-  - Streamlined event architecture to eliminate redundant cache wipes, centralizing talent/spec updates to `SFUI_SPEC_CHANGED`.
+- **Lootfeed & Taint Protection (`frames/gear/lootfeed.lua`, `frames/options/tabs/tab_lootfeed.lua`)**:
+  - Protected loot link formatting and string conversion against tainted secret values in WoW 1.60.1 / Camelot.
+  - Added Camelot-specific lootfeed theme selection option directly in the Lootfeed options tab.
 
-- **Gear Comparison & Stat Engine De-duplication (`data/stats.lua`, `frames/gear/`)**:
-  - Eliminated ~350 lines of duplicate stat table definitions by dynamically populating `sfui.default_stats` and `sfui.classic_default_stats` from single-source spec metadata.
-  - Removed duplicate `TANK_SPECS` definitions and redundant trampoline functions across `gear.lua`, `highest.lua`, and `engine.lua`.
-  - Replaced inline fallback tables in gear scoring loops with immutable static constants (`STATIC_CLASSIC_FALLBACK_ORDER`, `STATIC_RETAIL_FALLBACK_ORDER`, `STATIC_DEFAULT_EQUALS`).
+- **UI Themes & Visual Styling (`frames/themes/`, `core/widgets.lua`)**:
+  - Expanded theme engine infrastructure for Modern and Camelot aesthetic profiles, including statusbar textures and borders.
+  - Refined theme switcher logic and option visibility based on active game client flavor.
 
-- **Classic / Camelot Offline Rested XP Engine (`frames/alts/alts_camelot.lua`)**:
-  - Implemented authentic Vanilla/Classic rested XP accumulation simulation (1 bubble/8h in rest areas vs 1 bubble/32h in the wild), capped at 150%.
-  - Added interactive tooltip breakdown with live calculation, time-to-max, and offline gained XP.
-  - Added "Rested XP" sorting option and instant sync via `PLAYER_UPDATE_RESTING`.
-
-- **Modular Frame Management & UI Themes (`frames/hide.lua`, `frames/options/tabs/tab_hide.lua`, `frames/themes/`)**:
-  - Added dedicated frame hiding controls and options tab (`tab_hide.lua`).
-  - Added theme switching infrastructure supporting Modern and Camelot aesthetic profiles.
+- **Tracker & Minimap Refinements (`frames/minimap.lua`, `frames/quests/`)**:
+  - Exposed Blizzard objective tracker helper functions and improved minimap coordinate formatting and frame handling.
