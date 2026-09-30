@@ -6,7 +6,7 @@ local c = sfui.config.options_panel
 local g = sfui.config
 local common = sfui.common
 
-local wipe = _G.wipe or table.wipe
+local wipe = _G.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
 local LibStub = _G.LibStub
 local CreateFrame = _G.CreateFrame
 local UIParent = _G.UIParent
@@ -491,6 +491,44 @@ function sfui.open_options_panel(tabName)
             select_tab(frame.tabs[1].button)
         end
     end
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+--  Blizzard Modern Settings Panel Category Registration
+-- ─────────────────────────────────────────────────────────────────────────────
+local function register_blizzard_settings()
+    if _G.Settings and _G.Settings.RegisterCanvasLayoutCategory and _G.Settings.RegisterAddOnCategory then
+        local canvas = CreateFrame("Frame", "SFUIOptionsBlizzardCanvas", UIParent)
+        canvas:Hide()
+
+        local title = canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+        title:SetPoint("TOPLEFT", 16, -16)
+        title:SetText("|cff6600ffsf|rui")
+
+        local desc = canvas:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
+        desc:SetText("Modular and dynamic UI for World of Warcraft.")
+
+        local openBtn = CreateFrame("Button", nil, canvas, "UIPanelButtonTemplate")
+        openBtn:SetSize(180, 26)
+        openBtn:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -20)
+        openBtn:SetText("Open SFUI Options")
+        openBtn:SetScript("OnClick", function()
+            if _G.SettingsPanel and _G.SettingsPanel:IsShown() then
+                _G.SettingsPanel:Hide()
+            end
+            sfui.open_options_panel()
+        end)
+
+        local category = Settings.RegisterCanvasLayoutCategory(canvas, "SFUI")
+        Settings.RegisterAddOnCategory(category)
+    end
+end
+
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("PLAYER_LOGIN", register_blizzard_settings)
+else
+    register_blizzard_settings()
 end
 
 function sfui.toggle_options_panel(tabName)

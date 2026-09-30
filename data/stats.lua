@@ -387,6 +387,53 @@ sfui.data.BASE_CLASS_DEFINITIONS = {
     },
 }
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- Stat Token to GlobalString Key Mappings
+-- ══════════════════════════════════════════════════════════════════════════════
+
+sfui.data.STAT_KEYS = {
+    -- Retail
+    ["Crit"]        = "ITEM_MOD_CRIT_RATING_SHORT",
+    ["C"]           = "ITEM_MOD_CRIT_RATING_SHORT",
+    ["Haste"]       = "ITEM_MOD_HASTE_RATING_SHORT",
+    ["H"]           = "ITEM_MOD_HASTE_RATING_SHORT",
+    ["Mastery"]     = "ITEM_MOD_MASTERY_RATING_SHORT",
+    ["M"]           = "ITEM_MOD_MASTERY_RATING_SHORT",
+    ["Versatility"] = "ITEM_MOD_VERSATILITY",
+    ["V"]           = "ITEM_MOD_VERSATILITY",
+    -- Classic / General
+    ["SP"]          = "ITEM_MOD_SPELL_POWER_SHORT",
+    ["SpellPower"]  = "ITEM_MOD_SPELL_POWER_SHORT",
+    ["Heal"]        = "ITEM_MOD_SPELL_HEALING_DONE_SHORT",
+    ["Healing"]     = "ITEM_MOD_SPELL_HEALING_DONE_SHORT",
+    ["Hit"]         = "ITEM_MOD_HIT_RATING_SHORT",
+    ["AP"]          = "ITEM_MOD_ATTACK_POWER_SHORT",
+    ["AttackPower"] = "ITEM_MOD_ATTACK_POWER_SHORT",
+    ["RAP"]         = "ITEM_MOD_RANGED_ATTACK_POWER_SHORT",
+    ["RangedAP"]    = "ITEM_MOD_RANGED_ATTACK_POWER_SHORT",
+    ["MP5"]         = "ITEM_MOD_MANA_REGENERATION_SHORT",
+    ["ManaRegen"]   = "ITEM_MOD_MANA_REGENERATION_SHORT",
+    ["Str"]         = "ITEM_MOD_STRENGTH_SHORT",
+    ["Strength"]    = "ITEM_MOD_STRENGTH_SHORT",
+    ["Agi"]         = "ITEM_MOD_AGILITY_SHORT",
+    ["Agility"]     = "ITEM_MOD_AGILITY_SHORT",
+    ["Int"]         = "ITEM_MOD_INTELLECT_SHORT",
+    ["Intellect"]   = "ITEM_MOD_INTELLECT_SHORT",
+    ["Spi"]         = "ITEM_MOD_SPIRIT_SHORT",
+    ["Spirit"]      = "ITEM_MOD_SPIRIT_SHORT",
+    ["Stam"]        = "ITEM_MOD_STAMINA_SHORT",
+    ["Stamina"]     = "ITEM_MOD_STAMINA_SHORT",
+    -- Tank Only
+    ["Def"]         = "ITEM_MOD_DEFENSE_SKILL_RATING_SHORT",
+    ["Defense"]     = "ITEM_MOD_DEFENSE_SKILL_RATING_SHORT",
+    ["Dodge"]       = "ITEM_MOD_DODGE_RATING_SHORT",
+    ["Parry"]       = "ITEM_MOD_PARRY_RATING_SHORT",
+    ["Block"]       = "ITEM_MOD_BLOCK_RATING_SHORT",
+    ["Arm"]         = "ITEM_MOD_ARMOR_SHORT",
+    ["Armor"]       = "ITEM_MOD_ARMOR_SHORT",
+}
+
 -- Aliases for convenience
 sfui.spec_definitions       = sfui.data.SPEC_DEFINITIONS
 sfui.base_class_definitions = sfui.data.BASE_CLASS_DEFINITIONS
+sfui.stat_keys              = sfui.data.STAT_KEYS

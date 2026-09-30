@@ -238,9 +238,6 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
     if is_unregistered("lootviewer") and sfui.lootviewer and sfui.lootviewer.initialize then
         sfui.lootviewer.initialize()
     end
-    if is_unregistered("lfg") and sfui.lfg and sfui.lfg.initialize then
-        sfui.lfg.initialize()
-    end
     if is_unregistered("questlog") and sfui.questlog and sfui.questlog.initialize then
         sfui.questlog.initialize()
     end

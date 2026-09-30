@@ -1,7 +1,7 @@
 ## Interface: 120100, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v12.1.0-61
+## Version: v12.1.0-62
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -85,6 +85,7 @@ frames/bars/castbar.lua
 frames/bars/vehicle.lua
 frames/bars/soulfragments.lua [AllowLoadGameType standard]
 
+frames/tracking/panels.lua
 frames/tracking/cdm.lua
 frames/tracking/glows.lua
 frames/tracking/trackedoptions.lua
@@ -95,7 +96,6 @@ data/portals.lua [AllowLoadGameType standard]
 frames/portals/portals.lua [AllowLoadGameType standard]
 frames/portals/portal_popup.lua [AllowLoadGameType standard]
 
-frames/gear/engine.lua
 frames/gear/compare.lua
 frames/gear/gear.lua
 frames/gear/highest.lua

@@ -1244,95 +1244,110 @@ local M = sfui.RegisterModule("lootfeed", {
             pendingHeader:Hide()
         end
 
-        -- 3. Register Event Listeners
-        local eventFrame = CreateFrame("Frame")
-        eventFrame:RegisterEvent("CHAT_MSG_LOOT")
-        eventFrame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
-        eventFrame:RegisterEvent("PLAYER_MONEY")
-        eventFrame:RegisterEvent("PLAYER_XP_UPDATE")
-        eventFrame:RegisterEvent("CURRENCY_DISPLAY_UPDATE")
-        eventFrame:RegisterEvent("CHAT_MSG_COMBAT_FACTION_CHANGE")
-        eventFrame:RegisterEvent("CHAT_MSG_SKILL")
-        eventFrame:RegisterEvent("SKILL_LINES_CHANGED")
-        eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+        -- 3. Register Event Listeners via central dispatcher
+        local function on_chat_msg_loot(event, msg, looter, _, _, looter2, _, _, _, _, _, _, guid)
+            if not msg or IsSecret(msg) or msg:find("HlootHistory:") then return end
 
-        eventFrame:SetScript("OnEvent", function(f, event, ...)
-            if event == "CHAT_MSG_LOOT" then
-                local msg, looter, _, _, looter2, _, _, _, _, _, _, guid = ...
-                if not msg or IsSecret(msg) or msg:find("HlootHistory:") then return end
+            local myName = UnitName("player")
+            local myGUID = UnitGUID("player")
 
-                local myName = UnitName("player")
-                local myGUID = UnitGUID("player")
+            -- In WoW CHAT_MSG_LOOT, self-loot events have empty sender/guid or match player name/guid
+            local shortLooter = (looter and not IsSecret(looter)) and string_match(looter, "^([^-]+)") or looter
+            local isMe = false
+            if not looter or looter == "" or looter == myName or shortLooter == myName then
+                isMe = true
+            elseif guid and myGUID and not IsSecret(guid) and guid == myGUID then
+                isMe = true
+            end
 
-                -- In WoW CHAT_MSG_LOOT, self-loot events have empty sender/guid or match player name/guid
-                local shortLooter = (looter and not IsSecret(looter)) and string_match(looter, "^([^-]+)") or looter
-                local isMe = false
-                if not looter or looter == "" or looter == myName or shortLooter == myName then
-                    isMe = true
-                elseif guid and myGUID and not IsSecret(guid) and guid == myGUID then
-                    isMe = true
-                end
-
-                local targetLooter = nil
-                if not isMe then
-                    local currentCfg = GetConfig()
-                    if currentCfg.trackPartyLoot == false then return end
-                    targetLooter = (looter and not IsSecret(looter) and looter ~= "" and looter)
-                        or (looter2 and not IsSecret(looter2) and looter2 ~= "" and looter2)
-                    if not targetLooter or targetLooter == "" then
-                        local parsedLooter = string_match(msg, "^([^%s]+)%s+receives")
-                        if parsedLooter and parsedLooter ~= myName and parsedLooter ~= "You" then
-                            targetLooter = parsedLooter
-                        else
-                            targetLooter = "Party"
-                        end
+            local targetLooter = nil
+            if not isMe then
+                local currentCfg = GetConfig()
+                if currentCfg.trackPartyLoot == false then return end
+                targetLooter = (looter and not IsSecret(looter) and looter ~= "" and looter)
+                    or (looter2 and not IsSecret(looter2) and looter2 ~= "" and looter2)
+                if not targetLooter or targetLooter == "" then
+                    local parsedLooter = string_match(msg, "^([^%s]+)%s+receives")
+                    if parsedLooter and parsedLooter ~= myName and parsedLooter ~= "You" then
+                        targetLooter = parsedLooter
+                    else
+                        targetLooter = "Party"
                     end
                 end
-
-                OnItemLoot(msg, targetLooter)
-            elseif event == "GET_ITEM_INFO_RECEIVED" then
-                local itemID, success = ...
-                if success and itemID and not IsSecret(itemID) and waitingItemCache[itemID] then
-                    local cached = waitingItemCache[itemID]
-                    waitingItemCache[itemID] = nil
-                    OnItemLoot(cached.link, cached.looter)
-                end
-            elseif event == "PLAYER_MONEY" then
-                OnMoneyUpdate()
-            elseif event == "PLAYER_XP_UPDATE" then
-                OnXPUpdate()
-            elseif event == "CURRENCY_DISPLAY_UPDATE" then
-                local cType, _, delta = ...
-                if delta and not IsSecret(delta) and delta > 0 and not IsSecret(cType) then
-                    OnCurrencyUpdate(cType, delta)
-                end
-            elseif event == "CHAT_MSG_COMBAT_FACTION_CHANGE" then
-                local msg = ...
-                if msg and not IsSecret(msg) then
-                    OnFactionCombatMsg(msg)
-                end
-            elseif event == "CHAT_MSG_SKILL" then
-                local msg = ...
-                if msg and not IsSecret(msg) then
-                    OnSkillMsg(msg)
-                end
-            elseif event == "SKILL_LINES_CHANGED" then
-                OnSkillLinesChanged()
-            elseif event == "PLAYER_ENTERING_WORLD" then
-                local m = GetMoney()
-                if m and not IsSecret(m) then lastMoney = m else lastMoney = 0 end
-                local xp = UnitXP("player")
-                if xp and not IsSecret(xp) then lastXP = xp else lastXP = 0 end
-                OnSkillLinesChanged()
             end
-        end)
 
-        self.eventFrame = eventFrame
+            OnItemLoot(msg, targetLooter)
+        end
+
+        local function on_get_item_info_received(event, itemID, success)
+            if success and itemID and not IsSecret(itemID) and waitingItemCache[itemID] then
+                local cached = waitingItemCache[itemID]
+                waitingItemCache[itemID] = nil
+                OnItemLoot(cached.link, cached.looter)
+            end
+        end
+
+        local function on_player_money()
+            OnMoneyUpdate()
+        end
+
+        local function on_player_xp_update()
+            OnXPUpdate()
+        end
+
+        local function on_currency_display_update(event, cType, _, delta)
+            if delta and not IsSecret(delta) and delta > 0 and not IsSecret(cType) then
+                OnCurrencyUpdate(cType, delta)
+            end
+        end
+
+        local function on_chat_msg_combat_faction_change(event, msg)
+            if msg and not IsSecret(msg) then
+                OnFactionCombatMsg(msg)
+            end
+        end
+
+        local function on_chat_msg_skill(event, msg)
+            if msg and not IsSecret(msg) then
+                OnSkillMsg(msg)
+            end
+        end
+
+        local function on_skill_lines_changed()
+            OnSkillLinesChanged()
+        end
+
+        local function on_player_entering_world()
+            local m = GetMoney()
+            if m and not IsSecret(m) then lastMoney = m else lastMoney = 0 end
+            local xp = UnitXP("player")
+            if xp and not IsSecret(xp) then lastXP = xp else lastXP = 0 end
+            OnSkillLinesChanged()
+        end
+
+        self.eventCallbacks = {
+            ["CHAT_MSG_LOOT"] = on_chat_msg_loot,
+            ["GET_ITEM_INFO_RECEIVED"] = on_get_item_info_received,
+            ["PLAYER_MONEY"] = on_player_money,
+            ["PLAYER_XP_UPDATE"] = on_player_xp_update,
+            ["CURRENCY_DISPLAY_UPDATE"] = on_currency_display_update,
+            ["CHAT_MSG_COMBAT_FACTION_CHANGE"] = on_chat_msg_combat_faction_change,
+            ["CHAT_MSG_SKILL"] = on_chat_msg_skill,
+            ["SKILL_LINES_CHANGED"] = on_skill_lines_changed,
+            ["PLAYER_ENTERING_WORLD"] = on_player_entering_world,
+        }
+
+        for ev, cb in pairs(self.eventCallbacks) do
+            sfui.events.RegisterEvent(ev, cb)
+        end
     end,
 
     OnDisable = function(self)
-        if self.eventFrame then
-            self.eventFrame:UnregisterAllEvents()
+        if self.eventCallbacks then
+            for ev, cb in pairs(self.eventCallbacks) do
+                sfui.events.UnregisterEvent(ev, cb)
+            end
+            self.eventCallbacks = nil
         end
         if container then
             container:SetScript("OnUpdate", nil)

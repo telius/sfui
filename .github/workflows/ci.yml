@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  validate:
+    name: Lua Syntax & Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Lua and Luacheck
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y lua5.1 luarocks
+          sudo luarocks install luacheck
+
+      - name: Syntax Check (luac)
+        run: |
+          echo "=== Running luac syntax validation ==="
+          find . -name "*.lua" -not -path "./Libs/*" -not -path "./scratch/*" -exec luac5.1 -p {} +
+          echo "All Lua files passed syntax validation!"
+
+      - name: Static Analysis (luacheck)
+        run: |
+          echo "=== Running luacheck ==="
+          luacheck .

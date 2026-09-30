@@ -294,12 +294,12 @@ function sfui.mem.GetModuleStats()
     local autoMod = {
         name = "automation",
         status = "|cff00ff88active|r",
-        line1 = "auto-release: off • auto-role: off",
+        line1 = "auto-role: off • auto-fill: off",
         line2 = "auto-sign: off • skip cine: off",
     }
     local a = GetDebug("automation_debug_info", "automation")
     if a then
-        autoMod.line1 = string_format("auto-release: %s • auto-role: %s", a.autoRelease and "|cff00ff88on|r" or "off", a.autoRoleCheck and "|cff00ff88on|r" or "off")
+        autoMod.line1 = string_format("auto-role: %s • auto-fill: %s", a.autoRoleCheck and "|cff00ff88on|r" or "off", a.autoFillRole and "|cff00ff88on|r" or "off")
         autoMod.line2 = string_format("auto-sign: %s • skip cine: %s", a.autoSignLfg and "|cff00ff88on|r" or "off", a.skipCinematics and "|cff00ff88on|r" or "off")
     end
     stats["automation"] = autoMod

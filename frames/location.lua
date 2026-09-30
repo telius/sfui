@@ -82,27 +82,7 @@ local function is_valid_dungeon_activity(actInfo)
 end
 
 local function parse_keystone_level(str)
-    if sfui_common and sfui_common.parse_keystone_level then
-        return sfui_common.parse_keystone_level(str)
-    end
-    if not str then return nil end
-    if type(str) == "number" then return (str >= 2 and str <= 40) and str or nil end
-    if type(str) ~= "string" or str == "" then return nil end
-    local plusLevel = str:match("[+]%s*(%d+)")
-    if plusLevel then
-        local num = tonumber(plusLevel)
-        if num and num >= 2 and num <= 40 then return num end
-    end
-    local tagLevel = str:match("[Kk][Ee][Yy]%s*(%d+)") or str:match("%((%d+)%)")
-    if tagLevel then
-        local num = tonumber(tagLevel)
-        if num and num >= 2 and num <= 40 then return num end
-    end
-    for numStr in str:gmatch("%f[%d](%d+)%f[%D]") do
-        local num = tonumber(numStr)
-        if num and num >= 2 and num <= 40 then return num end
-    end
-    return nil
+    return sfui_common and sfui_common.parse_keystone_level and sfui_common.parse_keystone_level(str)
 end
 
 local function get_group_leader_name()

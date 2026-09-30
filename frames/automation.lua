@@ -2,29 +2,143 @@ local addonName, addon = ...
 sfui = sfui or {}
 sfui.automation = {}
 
+local function get_dungeon_finder_roles()
+    -- 1. Read what is filled in on Dungeon Finder role checkbuttons
+    if _G.LFDQueueFrameRoleButtonTank and _G.LFDQueueFrame_GetRoles then
+        local ok, l, t, h, d = pcall(_G.LFDQueueFrame_GetRoles)
+        if ok and (t or h or d) then
+            return l or false, t or false, h or false, d or false
+        end
+    end
+
+    -- 2. Fallback to saved LFG roles
+    if _G.GetLFGRoles then
+        local l, t, h, d = _G.GetLFGRoles()
+        if t or h or d then
+            return l or false, t or false, h or false, d or false
+        end
+    end
+
+    -- 3. Fallback to player's active specialization role
+    local spec = _G.GetSpecialization and _G.GetSpecialization()
+    local specRole = spec and _G.GetSpecializationRole and _G.GetSpecializationRole(spec) or "DAMAGER"
+    return false, specRole == "TANK", specRole == "HEALER", specRole == "DAMAGER"
+end
+
 local function on_role_check_show()
-    if not SfuiDB.auto_role_check then return end
+    if not SfuiDB or not SfuiDB.auto_role_check then return end
+    local leader, isTank, isHealer, isDPS = get_dungeon_finder_roles()
+    if _G.SetLFGRoles then
+        _G.SetLFGRoles(leader, isTank, isHealer, isDPS)
+    end
     if CompleteLFGRoleCheck then
         CompleteLFGRoleCheck(true)
     end
 end
 
-local function on_lfg_double_click(self)
-    if not SfuiDB.auto_sign_lfg then return end
+local _lfg_dialog_handled = false
+local _lfg_dialog_hooked = false
+
+local function handle_lfg_dialog(dialog)
+    dialog = dialog or _G.LFGListApplicationDialog
+    if not dialog or not dialog:IsShown() then return end
+    if not SfuiDB or not SfuiDB.auto_sign_lfg then return end
     if IsShiftKeyDown() then return end
 
-    local result_exists = not LFGListFrame.SearchPanel.SignUpButton.tooltip
-    if result_exists then
-        LFGListSearchPanel_SignUp(self:GetParent():GetParent():GetParent())
+    if _lfg_dialog_handled then return end
+    _lfg_dialog_handled = true
+    C_Timer.After(0.5, function() _lfg_dialog_handled = false end)
+
+    local leader, isTank, isHealer, isDPS = get_dungeon_finder_roles()
+    if _G.SetLFGRoles then
+        _G.SetLFGRoles(leader, isTank, isHealer, isDPS)
+    end
+
+    if dialog.TankButton and dialog.TankButton:IsShown() and dialog.TankButton.CheckButton then
+        dialog.TankButton.CheckButton:SetChecked(isTank)
+    end
+    if dialog.HealerButton and dialog.HealerButton:IsShown() and dialog.HealerButton.CheckButton then
+        dialog.HealerButton.CheckButton:SetChecked(isHealer)
+    end
+    if dialog.DamagerButton and dialog.DamagerButton:IsShown() and dialog.DamagerButton.CheckButton then
+        dialog.DamagerButton.CheckButton:SetChecked(isDPS)
+    end
+
+    -- Ensure at least one shown role is checked so SignUpButton becomes valid
+    local anyChecked = (dialog.TankButton and dialog.TankButton:IsShown() and dialog.TankButton.CheckButton and dialog.TankButton.CheckButton:GetChecked())
+                    or (dialog.HealerButton and dialog.HealerButton:IsShown() and dialog.HealerButton.CheckButton and dialog.HealerButton.CheckButton:GetChecked())
+                    or (dialog.DamagerButton and dialog.DamagerButton:IsShown() and dialog.DamagerButton.CheckButton and dialog.DamagerButton.CheckButton:GetChecked())
+
+    if not anyChecked then
+        if dialog.DamagerButton and dialog.DamagerButton:IsShown() and dialog.DamagerButton.CheckButton then
+            dialog.DamagerButton.CheckButton:SetChecked(true)
+        elseif dialog.HealerButton and dialog.HealerButton:IsShown() and dialog.HealerButton.CheckButton then
+            dialog.HealerButton.CheckButton:SetChecked(true)
+        elseif dialog.TankButton and dialog.TankButton:IsShown() and dialog.TankButton.CheckButton then
+            dialog.TankButton.CheckButton:SetChecked(true)
+        end
+    end
+
+    if _G.LFGListApplicationDialog_UpdateValidState then
+        _G.LFGListApplicationDialog_UpdateValidState(dialog)
+    end
+
+    if dialog.SignUpButton and dialog.SignUpButton:IsEnabled() then
+        dialog.SignUpButton:Click()
+    end
+
+    -- Fallback for next frame tick if still shown
+    C_Timer.After(0, function()
+        if dialog and dialog:IsShown() and dialog.SignUpButton and dialog.SignUpButton:IsEnabled() then
+            dialog.SignUpButton:Click()
+        end
+    end)
+end
+
+local function setup_lfg_dialog()
+    local dialog = _G.LFGListApplicationDialog
+    if dialog and not _lfg_dialog_hooked then
+        _lfg_dialog_hooked = true
+        dialog:HookScript("OnShow", function(self)
+            handle_lfg_dialog(self)
+        end)
+    end
+
+    if _G.LFGListApplicationDialog_Show and not _G.LFGListApplicationDialog_Show_sfui_hooked then
+        _G.LFGListApplicationDialog_Show_sfui_hooked = true
+        hooksecurefunc("LFGListApplicationDialog_Show", function(d)
+            setup_lfg_dialog()
+            handle_lfg_dialog(d)
+        end)
+    end
+
+    if dialog and dialog:IsShown() then
+        handle_lfg_dialog(dialog)
+    end
+end
+
+local function on_lfg_double_click(self)
+    if not SfuiDB or not SfuiDB.auto_sign_lfg then return end
+    if IsShiftKeyDown() then return end
+
+    setup_lfg_dialog()
+    local searchPanel = _G.LFGListFrame and _G.LFGListFrame.SearchPanel
+    local signUpBtn = searchPanel and searchPanel.SignUpButton
+    if signUpBtn and not signUpBtn.tooltip then
+        if _G.LFGListSearchPanel_SignUp then
+            _G.LFGListSearchPanel_SignUp(searchPanel)
+        end
     end
 end
 
 local function initialize_lfg_buttons()
-    if not LFGListFrame or not LFGListFrame.SearchPanel or not LFGListFrame.SearchPanel.ScrollBox then
+    setup_lfg_dialog()
+    local lf = _G.LFGListFrame
+    if not lf or not lf.SearchPanel or not lf.SearchPanel.ScrollBox then
         return
     end
 
-    local scroll_target = LFGListFrame.SearchPanel.ScrollBox:GetScrollTarget()
+    local scroll_target = lf.SearchPanel.ScrollBox:GetScrollTarget()
     if not scroll_target then return end
 
     local buttons = { scroll_target:GetChildren() }
@@ -33,21 +147,6 @@ local function initialize_lfg_buttons()
             child:SetScript("OnDoubleClick", on_lfg_double_click)
             child:RegisterForClicks("AnyUp")
             child.sfui_automation_init = true
-        end
-    end
-end
-
-local function setup_lfg_dialog()
-    if LFGListApplicationDialog then
-        if LFGListApplicationDialog.Show then
-            hooksecurefunc(LFGListApplicationDialog, "Show", function(self)
-                if not SfuiDB.auto_sign_lfg then return end
-                if IsShiftKeyDown() then return end
-
-                if self.SignUpButton and self.SignUpButton:IsEnabled() then
-                    self.SignUpButton:Click()
-                end
-            end)
         end
     end
 end
@@ -357,14 +456,21 @@ local function init_lfg_dungeon_automation()
     end
 end
 
+local _automation_initialized = false
 function sfui.automation.initialize()
+    if _automation_initialized then return end
+    _automation_initialized = true
+
     setup_lfg_dialog()
     init_keystone_automation()
     init_auction_house_automation()
     init_lfg_dungeon_automation()
     if _G.PVEFrame and not _G.PVEFrame._sfui_lfg_hooked then
         _G.PVEFrame._sfui_lfg_hooked = true
-        _G.PVEFrame:HookScript("OnShow", init_lfg_dungeon_automation)
+        _G.PVEFrame:HookScript("OnShow", function()
+            setup_lfg_dialog()
+            init_lfg_dungeon_automation()
+        end)
     end
     if sfui.hammer and sfui.hammer.update_hammer_popup then
         sfui.hammer.update_hammer_popup()
@@ -376,16 +482,21 @@ sfui.events.RegisterEvent("AUCTION_HOUSE_SHOW", function()
     apply_ah_current_expansion_filter()
 end)
 
-sfui.events.RegisterEvent("ADDON_LOADED", function(event, addon)
-    if addon == "Blizzard_ChallengesUI" then
+sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
+    setup_lfg_dialog()
+end)
+
+sfui.events.RegisterEvent("ADDON_LOADED", function(event, loadedAddon)
+    if loadedAddon == "Blizzard_ChallengesUI" then
         init_keystone_automation()
     end
 
-    if addon == "Blizzard_AuctionHouseUI" then
+    if loadedAddon == "Blizzard_AuctionHouseUI" then
         init_auction_house_automation()
     end
 
-    if addon == "Blizzard_GroupFinder" then
+    if loadedAddon == "Blizzard_GroupFinder" or loadedAddon == "Blizzard_PVEFrame" then
+        setup_lfg_dialog()
         init_lfg_dungeon_automation()
     end
 end)
@@ -402,6 +513,8 @@ end
 
 if sfui.RegisterModule then
     sfui.automation = sfui.automation or {}
+    sfui.automation.OnInit = sfui.automation.initialize
+    sfui.automation.OnEnable = sfui.automation.initialize
     sfui.automation.GetDebugInfo = sfui.automation_debug_info
     sfui.RegisterModule("automation", sfui.automation)
 end
