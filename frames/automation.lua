@@ -503,10 +503,10 @@ end)
 
 function sfui.automation_debug_info()
     return {
-        autoRelease = SfuiDB and SfuiDB.auto_release or false,
         autoRoleCheck = SfuiDB and SfuiDB.auto_role_check or false,
         autoSignLfg = SfuiDB and SfuiDB.auto_sign_lfg or false,
-        skipCinematics = SfuiDB and SfuiDB.skipCinematics or false,
+        autoRepair = SfuiDB and SfuiDB.autoRepair or false,
+        autoSellGreys = SfuiDB and SfuiDB.autoSellGreys or false,
         autoLfgDungeonDefaults = SfuiDB and SfuiDB.autoLfgDungeonDefaults ~= false,
     }
 end

@@ -678,7 +678,6 @@ function sfui.gear.UpdateStatUI()
     end
 
     for _, specID in ipairs(specIDs or {}) do
-        local specID = specID
         if specID and SfuiGearManagerFrame.specUIs and SfuiGearManagerFrame.specUIs[specID] then
             local ui = SfuiGearManagerFrame.specUIs[specID]
             local db = SfuiDB.gear[specID] or {}
