@@ -257,9 +257,9 @@ local function UntrackSection(sec)
                         match = true
                     elseif (secID == "zone" or secID == "quests") and (not info or (
                             not (info.campaignID and info.campaignID > 0) and
-                            not (info.questClassification == (QC and QC.Campaign)) and
-                            not (info.questClassification == (QC and QC.Meta)) and
-                            not (info.questClassification == (QC and QC.Important)))) then
+                            not (QC and QC.Campaign and info.questClassification == QC.Campaign) and
+                            not (QC and QC.Meta and info.questClassification == QC.Meta) and
+                            not (QC and QC.Important and info.questClassification == QC.Important))) then
                         match = true
                     elseif type(secID) == "string" and secID:find("^zone_") then
                         local targetZone = secID:sub(6):lower()

@@ -20,6 +20,7 @@ local string_match = _G.string.match
 local string_gsub = _G.string.gsub
 local tostring = _G.tostring
 local math_floor = _G.math.floor
+local math_max = _G.math.max
 
 local C_Timer = _G.C_Timer
 local C_ActionBar = _G.C_ActionBar
@@ -273,7 +274,7 @@ function ButtonManager:skin_button(button)
 
     local btnName = (button.GetName and button:GetName()) or ""
     local isButton = button:IsObjectType("Button")
-    local normal, isNormalIcon = isButton and button:GetNormalTexture()
+    local normal = isButton and button:GetNormalTexture()
     local icon, highlight, pushed, border, background, iconMask
 
     local regions = { button:GetRegions() }
@@ -369,7 +370,6 @@ function ButtonManager:skin_button(button)
 
     -- Based on HidingBar's Masque integration
     if normal and (not icon or icon ~= button.icon or icon == normal) then
-        isNormalIcon = true
         icon = button:CreateTexture(nil, "BACKGROUND")
         local atlas = normal:GetAtlas()
         if atlas then
@@ -523,7 +523,22 @@ function ButtonManager:arrange_buttons()
         end
     end
 
-    button_bar:SetWidth(sfui.config.minimap.default_size)
+    local clock = _G.TimeManagerClockButton
+    local isClockInside = clock and clock:IsShown() and clock:GetParent() == button_bar
+    local clockWidth = isClockInside and (clock:GetWidth() > 0 and clock:GetWidth() or 48) or 0
+    local rightReserved = isClockInside and (clockWidth + 14) or padX
+
+    local defaultWidth = (sfui.config and sfui.config.minimap and sfui.config.minimap.default_size) or 220
+    local shownCount = 0
+    for _, btn in ipairs(self.collectedButtons) do
+        if btn:IsShown() then
+            shownCount = shownCount + 1
+        end
+    end
+
+    local buttonsEnd = (shownCount > 0) and (padX + (shownCount * size) + ((shownCount - 1) * spacing)) or padX
+    local neededWidth = buttonsEnd + rightReserved
+    button_bar:SetWidth(math_max(defaultWidth, neededWidth))
 end
 
 function sfui.minimap.enable_button_manager(enabled)
@@ -608,6 +623,7 @@ function sfui.minimap.enable_button_manager(enabled)
             clock:SetParent(MinimapCluster or Minimap)
             clock:SetPoint("TOPRIGHT", Minimap, "BOTTOMRIGHT", 0, -2)
             clock.sfuiRepositioning = nil
+            clock.sfuiAnchored = nil
         end
     end
 end
@@ -636,11 +652,11 @@ function sfui.minimap.update_clock_position()
         return
     end
 
-    if not clock.sfuiAnchored then
-        clock:SetParent(button_bar)
-        clock:SetFrameStrata(button_bar:GetFrameStrata())
-        clock:SetFrameLevel(button_bar:GetFrameLevel() + 5)
+    clock:SetParent(button_bar)
+    clock:SetFrameStrata(button_bar:GetFrameStrata())
+    clock:SetFrameLevel(button_bar:GetFrameLevel() + 5)
 
+    if not clock.sfuiAnchored then
         -- Strip default background textures for clean text appearance
         local regions = { clock:GetRegions() }
         for _, region in ipairs(regions) do
@@ -662,16 +678,23 @@ function sfui.minimap.update_clock_position()
             if self.sfuiRepositioning or not button_bar or not button_bar:IsShown() then return end
             self.sfuiRepositioning = true
             self:ClearAllPoints()
-            self:SetPoint("LEFT", button_bar, "RIGHT", 5, 0)
+            self:SetPoint("RIGHT", button_bar, "RIGHT", -8, 0)
             self.sfuiRepositioning = nil
         end)
 
         clock.sfuiAnchored = true
     end
 
+    if _G.TimeManagerClockTicker then
+        _G.TimeManagerClockTicker:ClearAllPoints()
+        _G.TimeManagerClockTicker:SetPoint("CENTER", clock, "CENTER", 0, 0)
+        local tickerW = (_G.TimeManagerClockTicker.GetStringWidth and _G.TimeManagerClockTicker:GetStringWidth()) or 40
+        clock:SetSize(math_max(44, tickerW + 8), 20)
+    end
+
     clock.sfuiRepositioning = true
     clock:ClearAllPoints()
-    clock:SetPoint("LEFT", button_bar, "RIGHT", 5, 0)
+    clock:SetPoint("RIGHT", button_bar, "RIGHT", -8, 0)
     clock.sfuiRepositioning = nil
     clock:Show()
 end

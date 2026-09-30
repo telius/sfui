@@ -52,6 +52,14 @@ local wipe                                    = _G.wipe or function(t)
     return t
 end
 
+local function IsSecret(v)
+    if v == nil then return false end
+    if _G.issecretvalue and _G.issecretvalue(v) then return true end
+    if sfui.common and sfui.common.issecretvalue and sfui.common.issecretvalue(v) then return true end
+    return false
+end
+
+
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Constants & Pre-Cached Assets
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -183,7 +191,12 @@ local function CreateRowFrame(parent)
     row:SetBackdropColor(0, 0, 0, 0.50)
     row:SetBackdropBorderColor(0, 0, 0, 0.50)
 
-    -- 1. Left 3px Quality / Type Accent Bar
+    -- Option A: Camelot Sculpted Bronze Card Background (UI-Character-Info-OutfitCard)
+    local cardBg = row:CreateTexture(nil, "BACKGROUND", nil, 1)
+    cardBg:Hide()
+    row.cardBg = cardBg
+
+    -- 1. Left 3px Quality / Type Accent Bar (Modern flat mode)
     local accent = row:CreateTexture(nil, "ARTWORK")
     accent:SetWidth(3)
     accent:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
@@ -191,14 +204,30 @@ local function CreateRowFrame(parent)
     accent:SetColorTexture(1, 1, 1, 1)
     row.accent = accent
 
-    -- 2. Icon Texture (Square cropped 0.08 - 0.92)
-    local icon = row:CreateTexture(nil, "ARTWORK")
+    -- 2. Sunken Icon Socket (Background, fallback/modern)
+    local iconSlot = row:CreateTexture(nil, "BACKGROUND", nil, 2)
+    iconSlot:Hide()
+    row.iconSlot = iconSlot
+
+    -- 3. Icon Texture (Square cropped 0.08 - 0.92)
+    local icon = row:CreateTexture(nil, "ARTWORK", nil, 1)
     icon:SetSize(iconSize, iconSize)
     icon:SetPoint("LEFT", row, "LEFT", 5, 0)
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     row.icon = icon
 
-    -- 3. Right Status Badge (Quantity, Currency Total, XP %, etc.)
+    -- 4. Icon Quality Border / Bezel Overlay (Option A: UI-Character-Info-OutfitIcon-Frame)
+    local iconBorder = row:CreateTexture(nil, "OVERLAY", nil, 1)
+    iconBorder:Hide()
+    row.iconBorder = iconBorder
+
+    -- 5. Hover Overlay Texture (UI-Character-Info-OutfitCard-Hover)
+    local hoverOverlay = row:CreateTexture(nil, "OVERLAY", nil, 2)
+    hoverOverlay:SetAllPoints(row)
+    hoverOverlay:Hide()
+    row.hoverOverlay = hoverOverlay
+
+    -- 6. Right Status Badge FontString (Quantity / Gold / Info)
     local badge = row:CreateFontString(nil, "OVERLAY")
     local bFont, bSize = GetFont(12)
     badge:SetFont(bFont, bSize, "")
@@ -207,7 +236,7 @@ local function CreateRowFrame(parent)
     badge:SetWordWrap(false)
     row.badge = badge
 
-    -- 4. Title / Item Name FontString
+    -- 7. Title / Item Name FontString
     local title = row:CreateFontString(nil, "OVERLAY")
     local tFont, tSize = GetFont(12)
     title:SetFont(tFont, tSize, "")
@@ -219,8 +248,22 @@ local function CreateRowFrame(parent)
 
     -- Hover Interaction: pause fade timer and display tooltip
     row:SetScript("OnEnter", function(self)
-        self:SetBackdropColor(0.08, 0.08, 0.08, 0.70)
         self.isPaused = true
+
+        if self.isCamelotRow then
+            if self.lootfeedStyle == "architectural" then
+                self:SetBackdropColor(0.14, 0.11, 0.08, 0.95)
+                if self.SetBackdropBorderColor then
+                    self:SetBackdropBorderColor(0.85, 0.70, 0.35, 1.0)
+                end
+            else
+                if self.hoverOverlay then
+                    self.hoverOverlay:Show()
+                end
+            end
+        else
+            self:SetBackdropColor(0.08, 0.08, 0.08, 0.70)
+        end
 
         local anchor = (self:GetRight() and self:GetRight() > (UIParent:GetWidth() or 1000) / 2) and "ANCHOR_LEFT" or "ANCHOR_RIGHT"
         GameTooltip:SetOwner(self, anchor)
@@ -245,8 +288,26 @@ local function CreateRowFrame(parent)
     end)
 
     row:SetScript("OnLeave", function(self)
-        self:SetBackdropColor(0, 0, 0, 0.50)
         self.isPaused = false
+
+        if self.isCamelotRow then
+            if self.lootfeedStyle == "architectural" then
+                local pal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()) or sfui.config.appearance
+                self:SetBackdropColor(pal.backdropColor[1], pal.backdropColor[2], pal.backdropColor[3], 0.94)
+                if self.SetBackdropBorderColor then
+                    self:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.90)
+                end
+            else
+                if self.hoverOverlay then
+                    self.hoverOverlay:Hide()
+                end
+            end
+        else
+            self:SetBackdropColor(0, 0, 0, 0.50)
+            if self.SetBackdropBorderColor then
+                self:SetBackdropBorderColor(0, 0, 0, 0.50)
+            end
+        end
         GameTooltip:Hide()
     end)
 
@@ -303,13 +364,18 @@ local function AcquireRowFrame()
     row:SetParent(container)
     row:ClearAllPoints()
     row:SetAlpha(1)
-    row:SetBackdropColor(0, 0, 0, 0.50)
-    row:SetBackdropBorderColor(0, 0, 0, 0.50)
+    if not row.isCamelotRow then
+        row:SetBackdropColor(0, 0, 0, 0.50)
+        if row.SetBackdropBorderColor then
+            row:SetBackdropBorderColor(0, 0, 0, 0.50)
+        end
+    end
     row.isPaused = false
     row.itemLink = nil
     row.currencyID = nil
     row.tooltipTitle = nil
     row.tooltipDesc = nil
+    if row.hoverOverlay then row.hoverOverlay:Hide() end
     row:Show()
     return row
 end
@@ -325,6 +391,16 @@ local function ReleaseRowFrame(row)
     row.currencyID = nil
     row.tooltipTitle = nil
     row.tooltipDesc = nil
+    if row.cardBg then row.cardBg:Hide() end
+    if row.hoverOverlay then row.hoverOverlay:Hide() end
+    if row.iconSlot then row.iconSlot:Hide() end
+    if row.iconBorder then row.iconBorder:Hide() end
+    if row.cornerTL then
+        row.cornerTL:Hide()
+        row.cornerTR:Hide()
+        row.cornerBL:Hide()
+        row.cornerBR:Hide()
+    end
     table_insert(rowPool, row)
 end
 
@@ -367,6 +443,12 @@ local function UpdateLayout()
     for i, row in ipairs(activeRows) do
         row:SetSize(rowW, rowHeight)
         row.icon:SetSize(iconSize, iconSize)
+        if row.iconSlot and row.iconSlot:IsShown() then
+            row.iconSlot:SetSize(iconSize + 4, iconSize + 4)
+        end
+        if row.iconBorder and row.iconBorder:IsShown() then
+            row.iconBorder:SetSize(iconSize + 8, iconSize + 8)
+        end
         row:ClearAllPoints()
         if i == 1 then
             if growDown then
@@ -469,12 +551,15 @@ function sfui.lootfeed.DismissRow(row)
 end
 
 --- Displays or queues a loot entry.
---- @param data table Contains { key, title, icon, color, quantity, badgeText, itemLink, looter, sellPrice, tooltipTitle, tooltipDesc }
+--- @param data table Contains { key, title, icon, color, quality, quantity, badgeText, itemLink, looter, sellPrice, tooltipTitle, tooltipDesc }
 --- @param fromQueue boolean True if called while draining the FIFO queue
 function sfui.lootfeed.DisplayLoot(data, fromQueue)
-    if not data or not data.key then return end
+    if not data or not data.key or IsSecret(data.key) then return end
     local cfg = GetConfig()
     if not cfg.enabled then return end
+
+    if data.quantity and IsSecret(data.quantity) then data.quantity = 1 end
+    if data.title and IsSecret(data.title) then data.title = "[Protected]" end
 
     local key = data.key
 
@@ -502,7 +587,9 @@ function sfui.lootfeed.DisplayLoot(data, fromQueue)
         existingRow:SetAlpha(1)
 
         -- Quick visual refresh pulse
-        if existingRow.accent then
+        if sfui.theme and sfui.theme.ApplyLootfeedRowStyle then
+            sfui.theme.ApplyLootfeedRowStyle(existingRow, data.color, data.quality)
+        elseif existingRow.accent then
             local c = data.color or { 1, 1, 1 }
             existingRow.accent:SetColorTexture(c[1], c[2], c[3], 1)
         end
@@ -539,7 +626,6 @@ function sfui.lootfeed.DisplayLoot(data, fromQueue)
 
     -- Colors & Accent
     local col = data.color or { 1, 1, 1 }
-    row.accent:SetColorTexture(col[1] or 1, col[2] or 1, col[3] or 1, 1)
 
     -- Icon
     if data.icon then
@@ -568,6 +654,13 @@ function sfui.lootfeed.DisplayLoot(data, fromQueue)
         row.badge:SetText("")
     end
 
+    -- Theme Styling (Option D: Sunken Bronze Slot & Loot Toast Glow in Camelot)
+    if sfui.theme and sfui.theme.ApplyLootfeedRowStyle then
+        sfui.theme.ApplyLootfeedRowStyle(row, col, data.quality)
+    else
+        row.accent:SetColorTexture(col[1] or 1, col[2] or 1, col[3] or 1, 1)
+    end
+
     row.timeRemaining = cfg.displayDuration or 5.0
     row.fadeRemaining = cfg.fadeDuration or 0.35
     row.state = "DISPLAY"
@@ -585,6 +678,7 @@ end
 
 -- 1. Money Formatter Helpers
 local function FormatCopperString(copper)
+    if not copper or IsSecret(copper) then return "0" .. COIN_COPPER end
     local g = math_floor(copper / 10000)
     local s = math_floor((copper % 10000) / 100)
     local c = copper % 100
@@ -600,6 +694,7 @@ local function FormatCopperString(copper)
 end
 
 local function FormatAbbreviatedGold(copper)
+    if not copper or IsSecret(copper) then return "0" .. COIN_GOLD end
     local g = math_floor(copper / 10000)
     if g >= 1000000 then
         return string_format("%.2fM", g / 1000000) .. COIN_GOLD
@@ -612,8 +707,18 @@ end
 -- 2. Item Loot
 local function OnItemLoot(msg, looterName)
     local cfg = GetConfig()
+    if not msg or IsSecret(msg) then return end
+    if looterName and IsSecret(looterName) then looterName = nil end
+
     local itemLink = string_match(msg, "(|c.-|Hitem:.-|h%[.-%]|h|r)")
-    if not itemLink then return end
+    if not itemLink or IsSecret(itemLink) then return end
+
+    local isPartyLoot = (looterName and looterName ~= "")
+
+    -- Drop party loot if party tracking is disabled
+    if isPartyLoot and cfg.trackPartyLoot == false then
+        return
+    end
 
     -- Quantity
     local qty = tonumber(string_match(msg, "r ?x(%d+)")) or 1
@@ -632,7 +737,16 @@ local function OnItemLoot(msg, looterName)
     end
 
     -- Quality Filter (0 = Poor, 1 = Common, etc.)
-    if itemQuality and itemQuality < (cfg.minItemQuality or 0) then
+    local minQual
+    if isPartyLoot then
+        minQual = cfg.partyMinItemQuality
+        if minQual == nil then minQual = cfg.minPartyItemQuality end
+        if minQual == nil then minQual = 2 end
+    else
+        minQual = cfg.minItemQuality or 0
+    end
+
+    if itemQuality and itemQuality < minQual then
         return
     end
 
@@ -662,6 +776,7 @@ local function OnItemLoot(msg, looterName)
         title = displayTitle,
         icon = itemTexture,
         color = col,
+        quality = itemQuality,
         quantity = qty,
         badgeText = badge,
         itemLink = itemLink,
@@ -674,12 +789,13 @@ local function OnCurrencyUpdate(currencyType, quantityChange)
     if not cfg.trackCurrency or not currencyType or not quantityChange or quantityChange <= 0 then
         return
     end
+    if IsSecret(currencyType) or IsSecret(quantityChange) then return end
 
     local info = C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo and C_CurrencyInfo.GetCurrencyInfo(currencyType)
-    if not info or not info.name then return end
+    if not info or not info.name or IsSecret(info.name) then return end
 
     local col = (info.quality and QUALITY_COLORS[info.quality]) or COLOR_REP
-    local total = info.quantity or 0
+    local total = (info.quantity and not IsSecret(info.quantity)) and info.quantity or 0
 
     local badge = string_format("x%d (%d)", quantityChange, total)
     local key = "CURRENCY_" .. tostring(currencyType)
@@ -687,13 +803,14 @@ local function OnCurrencyUpdate(currencyType, quantityChange)
     sfui.lootfeed.DisplayLoot({
         key = key,
         title = info.name,
-        icon = info.iconFileID,
+        icon = not IsSecret(info.iconFileID) and info.iconFileID or nil,
         color = col,
+        quality = not IsSecret(info.quality) and info.quality or nil,
         quantity = quantityChange,
         badgeText = badge,
         currencyID = currencyType,
         tooltipTitle = info.name,
-        tooltipDesc = info.description,
+        tooltipDesc = not IsSecret(info.description) and info.description or nil,
     })
 end
 
@@ -703,6 +820,7 @@ local function OnMoneyUpdate()
     if not cfg.trackMoney then return end
 
     local cur = GetMoney()
+    if not cur or IsSecret(cur) then return end
     local delta = cur - lastMoney
     lastMoney = cur
 
@@ -731,6 +849,7 @@ local function OnXPUpdate()
 
     local curXP = UnitXP("player") or 0
     local maxXP = UnitXPMax("player") or 1
+    if IsSecret(curXP) or IsSecret(maxXP) then return end
     local delta = curXP - lastXP
     lastXP = curXP
 
@@ -755,7 +874,7 @@ end
 -- 6. Reputation Update
 local function OnFactionCombatMsg(msg)
     local cfg = GetConfig()
-    if not cfg.trackReputation or not msg then return end
+    if not cfg.trackReputation or not msg or IsSecret(msg) then return end
 
     -- Extract faction name and reputation increase
     local faction, amount = string_match(msg, "Reputation with (.+) increased by (%d+)")
@@ -763,7 +882,7 @@ local function OnFactionCombatMsg(msg)
         faction, amount = string_match(msg, "(.+) reputation increased by (%d+)")
     end
 
-    if faction and amount then
+    if faction and amount and not IsSecret(faction) and not IsSecret(amount) then
         local delta = tonumber(amount) or 0
         local key = "REP_" .. faction
         local titleStr = string_format("+%d %s", delta, faction)
@@ -785,28 +904,36 @@ end
 local function ResolveSkillData(skillName)
     local icon = nil
     local curRank, maxRank = nil, nil
+    if not skillName or IsSecret(skillName) then
+        return "Interface\\Icons\\Spell_Holy_BlessingOfStrength", nil, nil
+    end
+
     local cleanName = skillName:lower():gsub("^%s*(.-)%s*$", "%1")
 
     -- 1. Try C_SkillInfo (Camelot / Modern API)
     if C_SkillInfo and C_SkillInfo.GetNumSkillLines and C_SkillInfo.GetSkillLineInfo then
         local num = C_SkillInfo.GetNumSkillLines() or 0
-        for i = 1, num do
-            local info = C_SkillInfo.GetSkillLineInfo(i)
-            if info and not info.isHeader and info.name and info.name:lower() == cleanName then
-                curRank = info.rank
-                maxRank = info.maxRank
-                break
+        if not IsSecret(num) then
+            for i = 1, num do
+                local info = C_SkillInfo.GetSkillLineInfo(i)
+                if info and not info.isHeader and info.name and not IsSecret(info.name) and info.name:lower() == cleanName then
+                    curRank = not IsSecret(info.rank) and info.rank or nil
+                    maxRank = not IsSecret(info.maxRank) and info.maxRank or nil
+                    break
+                end
             end
         end
     -- 2. Try classic GetSkillLineInfo (Classic Era)
     elseif _G.GetNumSkillLines and _G.GetSkillLineInfo then
         local num = _G.GetNumSkillLines() or 0
-        for i = 1, num do
-            local name, isHeader, _, rank, _, _, mRank = _G.GetSkillLineInfo(i)
-            if not isHeader and name and name:lower() == cleanName then
-                curRank = rank
-                maxRank = mRank
-                break
+        if not IsSecret(num) then
+            for i = 1, num do
+                local name, isHeader, _, rank, _, _, mRank = _G.GetSkillLineInfo(i)
+                if not isHeader and name and not IsSecret(name) and name:lower() == cleanName then
+                    curRank = not IsSecret(rank) and rank or nil
+                    maxRank = not IsSecret(mRank) and mRank or nil
+                    break
+                end
             end
         end
     end
@@ -815,12 +942,12 @@ local function ResolveSkillData(skillName)
     if not maxRank and _G.GetProfessions and _G.GetProfessionInfo then
         local profs = { _G.GetProfessions() }
         for _, pIdx in ipairs(profs) do
-            if pIdx then
+            if pIdx and not IsSecret(pIdx) then
                 local pName, pIcon, pRank, pMaxRank = _G.GetProfessionInfo(pIdx)
-                if pName and pName:lower() == cleanName then
-                    curRank = pRank
-                    maxRank = pMaxRank
-                    icon = pIcon
+                if pName and not IsSecret(pName) and pName:lower() == cleanName then
+                    curRank = not IsSecret(pRank) and pRank or nil
+                    maxRank = not IsSecret(pMaxRank) and pMaxRank or nil
+                    icon = not IsSecret(pIcon) and pIcon or nil
                     break
                 end
             end
@@ -834,6 +961,7 @@ local function ResolveSkillData(skillName)
         elseif _G.GetSpellTexture then
             icon = _G.GetSpellTexture(skillName)
         end
+        if IsSecret(icon) then icon = nil end
     end
 
     -- 5. Match against curated SKILL_ICONS dictionary
@@ -859,13 +987,13 @@ end
 
 local function OnSkillMsg(msg)
     local cfg = GetConfig()
-    if not cfg.trackSkills or not msg then return end
+    if not cfg.trackSkills or not msg or IsSecret(msg) then return end
 
     local skillName, rankStr = nil, nil
 
     -- 1. Try localized string ERR_SKILL_UP_SI / SKILL_RANK_UP
     local globalFmt = _G.ERR_SKILL_UP_SI or _G.SKILL_RANK_UP
-    if globalFmt then
+    if globalFmt and not IsSecret(globalFmt) then
         local pat = globalFmt:gsub("([%(%)%[%]%-%+%*%?%^%$%.])", "%%%1")
                              :gsub("%%%d?$?s", "(.+)")
                              :gsub("%%%d?$?d", "(%%d+)")
@@ -893,7 +1021,7 @@ local function OnSkillMsg(msg)
     local isLearned = false
     if not skillName then
         local gainedFmt = _G.ERR_SKILL_GAINED_S
-        if gainedFmt then
+        if gainedFmt and not IsSecret(gainedFmt) then
             local patG = gainedFmt:gsub("([%(%)%[%]%-%+%*%?%^%$%.])", "%%%1")
                                  :gsub("%%%d?$?s", "(.+)")
             skillName = string_match(msg, patG)
@@ -907,12 +1035,12 @@ local function OnSkillMsg(msg)
         end
     end
 
-    if not skillName then return end
+    if not skillName or IsSecret(skillName) then return end
 
     -- Clean up trailing punctuation and whitespace
     skillName = string_gsub(skillName, "%.$", "")
     skillName = string_gsub(skillName, "^%s*(.-)%s*$", "%1")
-    local newRank = tonumber(rankStr) or 1
+    local newRank = (rankStr and not IsSecret(rankStr) and tonumber(rankStr)) or 1
 
     local oldData = skillCache[skillName]
     local oldRank = oldData and oldData.rank or (newRank - 1)
@@ -969,7 +1097,7 @@ local function OnSkillLinesChanged()
     local now = GetTime()
 
     local function checkSkill(name, rank, maxRank)
-        if not name or name == "" or not rank or rank <= 0 then return end
+        if not name or name == "" or not rank or rank <= 0 or IsSecret(name) or IsSecret(rank) or IsSecret(maxRank) then return end
         local cached = skillCache[name]
         if cached then
             local oldRank = cached.rank or 0
@@ -1014,18 +1142,22 @@ local function OnSkillLinesChanged()
 
     if C_SkillInfo and C_SkillInfo.GetNumSkillLines and C_SkillInfo.GetSkillLineInfo then
         local num = C_SkillInfo.GetNumSkillLines() or 0
-        for i = 1, num do
-            local info = C_SkillInfo.GetSkillLineInfo(i)
-            if info and not info.isHeader and info.name then
-                checkSkill(info.name, info.rank, info.maxRank)
+        if not IsSecret(num) then
+            for i = 1, num do
+                local info = C_SkillInfo.GetSkillLineInfo(i)
+                if info and not info.isHeader and info.name and not IsSecret(info.name) then
+                    checkSkill(info.name, info.rank, info.maxRank)
+                end
             end
         end
     elseif _G.GetNumSkillLines and _G.GetSkillLineInfo then
         local num = _G.GetNumSkillLines() or 0
-        for i = 1, num do
-            local name, isHeader, _, rank, _, _, mRank = _G.GetSkillLineInfo(i)
-            if not isHeader and name then
-                checkSkill(name, rank, mRank)
+        if not IsSecret(num) then
+            for i = 1, num do
+                local name, isHeader, _, rank, _, _, mRank = _G.GetSkillLineInfo(i)
+                if not isHeader and name and not IsSecret(name) then
+                    checkSkill(name, rank, mRank)
+                end
             end
         end
     end
@@ -1098,14 +1230,17 @@ local M = sfui.RegisterModule("lootfeed", {
             end)
 
             -- 2. Pending Items Header (Formatted like the screenshot: ○ %d pending items)
-            pendingHeader = CreateFrame("Frame", nil, container)
-            pendingHeader:SetSize(cfg.width or 280, 16)
+            pendingHeader = CreateFrame("Frame", nil, container, "BackdropTemplate")
+            pendingHeader:SetSize(cfg.width or 280, 18)
             local pText = pendingHeader:CreateFontString(nil, "OVERLAY")
             local pf, ps = GetFont(11)
             pText:SetFont(pf, ps, "")
-            pText:SetPoint("LEFT", pendingHeader, "LEFT", 2, 0)
+            pText:SetPoint("CENTER", pendingHeader, "CENTER", 0, 0)
             pText:SetTextColor(0.85, 0.85, 0.90, 0.90)
             pendingHeader.text = pText
+            if sfui.theme and sfui.theme.ApplyLootfeedPendingHeaderStyle then
+                sfui.theme.ApplyLootfeedPendingHeaderStyle(pendingHeader)
+            end
             pendingHeader:Hide()
         end
 
@@ -1124,29 +1259,40 @@ local M = sfui.RegisterModule("lootfeed", {
         eventFrame:SetScript("OnEvent", function(f, event, ...)
             if event == "CHAT_MSG_LOOT" then
                 local msg, looter, _, _, looter2, _, _, _, _, _, _, guid = ...
-                if not msg or msg:find("HlootHistory:") then return end
+                if not msg or IsSecret(msg) or msg:find("HlootHistory:") then return end
 
                 local myName = UnitName("player")
                 local myGUID = UnitGUID("player")
 
-                -- In WoW CHAT_MSG_LOOT, self-loot events have empty sender/guid
+                -- In WoW CHAT_MSG_LOOT, self-loot events have empty sender/guid or match player name/guid
+                local shortLooter = (looter and not IsSecret(looter)) and string_match(looter, "^([^-]+)") or looter
                 local isMe = false
-                if not looter or looter == "" or looter == myName then
+                if not looter or looter == "" or looter == myName or shortLooter == myName then
                     isMe = true
-                elseif guid and myGUID and guid == myGUID then
+                elseif guid and myGUID and not IsSecret(guid) and guid == myGUID then
                     isMe = true
                 end
 
                 local targetLooter = nil
                 if not isMe then
-                    if not cfg.trackPartyLoot then return end
-                    targetLooter = (looter and looter ~= "" and looter) or (looter2 and looter2 ~= "" and looter2)
+                    local currentCfg = GetConfig()
+                    if currentCfg.trackPartyLoot == false then return end
+                    targetLooter = (looter and not IsSecret(looter) and looter ~= "" and looter)
+                        or (looter2 and not IsSecret(looter2) and looter2 ~= "" and looter2)
+                    if not targetLooter or targetLooter == "" then
+                        local parsedLooter = string_match(msg, "^([^%s]+)%s+receives")
+                        if parsedLooter and parsedLooter ~= myName and parsedLooter ~= "You" then
+                            targetLooter = parsedLooter
+                        else
+                            targetLooter = "Party"
+                        end
+                    end
                 end
 
                 OnItemLoot(msg, targetLooter)
             elseif event == "GET_ITEM_INFO_RECEIVED" then
                 local itemID, success = ...
-                if success and waitingItemCache[itemID] then
+                if success and itemID and not IsSecret(itemID) and waitingItemCache[itemID] then
                     local cached = waitingItemCache[itemID]
                     waitingItemCache[itemID] = nil
                     OnItemLoot(cached.link, cached.looter)
@@ -1157,20 +1303,26 @@ local M = sfui.RegisterModule("lootfeed", {
                 OnXPUpdate()
             elseif event == "CURRENCY_DISPLAY_UPDATE" then
                 local cType, _, delta = ...
-                if delta and delta > 0 then
+                if delta and not IsSecret(delta) and delta > 0 and not IsSecret(cType) then
                     OnCurrencyUpdate(cType, delta)
                 end
             elseif event == "CHAT_MSG_COMBAT_FACTION_CHANGE" then
                 local msg = ...
-                OnFactionCombatMsg(msg)
+                if msg and not IsSecret(msg) then
+                    OnFactionCombatMsg(msg)
+                end
             elseif event == "CHAT_MSG_SKILL" then
                 local msg = ...
-                OnSkillMsg(msg)
+                if msg and not IsSecret(msg) then
+                    OnSkillMsg(msg)
+                end
             elseif event == "SKILL_LINES_CHANGED" then
                 OnSkillLinesChanged()
             elseif event == "PLAYER_ENTERING_WORLD" then
-                lastMoney = GetMoney() or 0
-                lastXP = UnitXP("player") or 0
+                local m = GetMoney()
+                if m and not IsSecret(m) then lastMoney = m else lastMoney = 0 end
+                local xp = UnitXP("player")
+                if xp and not IsSecret(xp) then lastXP = xp else lastXP = 0 end
                 OnSkillLinesChanged()
             end
         end)
@@ -1199,21 +1351,41 @@ local M = sfui.RegisterModule("lootfeed", {
 })
 
 -- ─────────────────────────────────────────────────────────────────────────────
+--  Theme Engine Integration
+-- ─────────────────────────────────────────────────────────────────────────────
+function sfui.lootfeed.UpdateTheme()
+    for _, row in ipairs(activeRows) do
+        if sfui.theme and sfui.theme.ApplyLootfeedRowStyle then
+            sfui.theme.ApplyLootfeedRowStyle(row, row.lastColor, row.lastQuality)
+        end
+    end
+    for _, row in ipairs(rowPool) do
+        if sfui.theme and sfui.theme.ApplyLootfeedRowStyle then
+            sfui.theme.ApplyLootfeedRowStyle(row, nil, nil)
+        end
+    end
+    if pendingHeader and sfui.theme and sfui.theme.ApplyLootfeedPendingHeaderStyle then
+        sfui.theme.ApplyLootfeedPendingHeaderStyle(pendingHeader)
+    end
+    UpdateLayout()
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
 --  Test Preview Trigger for Options Panel
 -- ─────────────────────────────────────────────────────────────────────────────
 function sfui.lootfeed.TriggerTestFeed()
     local testItems = {
-        { key = "TEST_ITEM_1", title = "|cffffffff[Rough Wooden Staff]|r (|cff69ccf0MageMate|r)",           icon = "Interface\\Icons\\INV_Staff_08",                       color = QUALITY_COLORS[1], quantity = 7,         badgeText = "x7",                                        itemLink = "item:4560" },
-        { key = "TEST_CURR_1", title = "|cff0070dd[Timewarped Badge]|r",                                     icon = "Interface\\Icons\\pvecurrency-justice",                color = QUALITY_COLORS[3], quantity = 100,       badgeText = "x100 (200)",                                currencyID = 1166,        tooltipTitle = "Timewarped Badge",   tooltipDesc = "Used to purchase rewards from Timewalking vendors." },
-        { key = "TEST_ITEM_2", title = "|cffffffff[Paper Zeppelin]|r",                                       icon = "Interface\\Icons\\INV_Misc_Toy_02",                    color = QUALITY_COLORS[1], quantity = 9,         badgeText = "x9",                                        itemLink = "item:44606" },
-        { key = "TEST_ITEM_3", title = "|cffa335ee[Xal'atath, Blade of the Black Empire]|r (|cffff7c0aDruidMate|r)", icon = "Interface\\Icons\\INV_Knife_1H_ArtifactXalatath_D_01", color = QUALITY_COLORS[4], quantity = 7, badgeText = "x7",                               itemLink = "item:128827" },
+        { key = "TEST_ITEM_1", title = "|cffffffff[Rough Wooden Staff]|r (|cff69ccf0MageMate|r)",           icon = "Interface\\Icons\\INV_Staff_08",                       color = QUALITY_COLORS[1], quality = 1, quantity = 7,         badgeText = "x7",                                        itemLink = "item:4560" },
+        { key = "TEST_CURR_1", title = "|cff0070dd[Timewarped Badge]|r",                                     icon = "Interface\\Icons\\pvecurrency-justice",                color = QUALITY_COLORS[3], quality = 3, quantity = 100,       badgeText = "x100 (200)",                                currencyID = 1166,        tooltipTitle = "Timewarped Badge",   tooltipDesc = "Used to purchase rewards from Timewalking vendors." },
+        { key = "TEST_ITEM_2", title = "|cffffffff[Paper Zeppelin]|r",                                       icon = "Interface\\Icons\\INV_Misc_Toy_02",                    color = QUALITY_COLORS[1], quality = 1, quantity = 9,         badgeText = "x9",                                        itemLink = "item:44606" },
+        { key = "TEST_ITEM_3", title = "|cffa335ee[Xal'atath, Blade of the Black Empire]|r (|cffff7c0aDruidMate|r)", icon = "Interface\\Icons\\INV_Knife_1H_ArtifactXalatath_D_01", color = QUALITY_COLORS[4], quality = 4, quantity = 7, badgeText = "x7",                               itemLink = "item:128827" },
         { key = "TEST_XP_1",   title = "39727 XP",                                                           icon = "Interface\\Icons\\Spell_Holy_SurgeOfLight",            color = COLOR_XP,          quantity = 39727,     badgeText = "<90%>",                                     tooltipTitle = "Experience Gained", tooltipDesc = "Current: 39,727 / 44,140 (90%)" },
         { key = "TEST_SKILL_1", title = "+1 Fishing",                                                         icon = "Interface\\Icons\\Trade_Fishing",                      color = COLOR_SKILL,       quantity = 1,         badgeText = "75/150",                                    tooltipTitle = "Fishing: 75",       tooltipDesc = "Skill level increased to 75 of 150 (+1)." },
-        { key = "TEST_ITEM_4", title = "|cffa335ee[Invincible's Reins]|r",                                   icon = "Interface\\Icons\\Ability_Mount_CelestialHorse",       color = QUALITY_COLORS[4], quantity = 1,         badgeText = "x1",                                        itemLink = "item:50818" },
+        { key = "TEST_ITEM_4", title = "|cffa335ee[Invincible's Reins]|r",                                   icon = "Interface\\Icons\\Ability_Mount_CelestialHorse",       color = QUALITY_COLORS[4], quality = 4, quantity = 1,         badgeText = "x1",                                        itemLink = "item:50818" },
         { key = "TEST_MONEY",  title = "39467" .. COIN_GOLD .. " 59" .. COIN_SILVER .. " 49" .. COIN_COPPER, icon = "Interface\\Icons\\INV_Misc_Coin_01",                   color = COLOR_GOLD,        quantity = 394675949, badgeText = "208.97K" .. COIN_GOLD,                     tooltipTitle = "Gold Earned",       tooltipDesc = "Total Wealth: 208,970 Gold 59 Silver" },
-        { key = "TEST_ITEM_5", title = "|cffffffff[Linen Cloth]|r",                                          icon = "Interface\\Icons\\INV_Fabric_Linen_01",                color = QUALITY_COLORS[1], quantity = 4,         badgeText = "x4 " .. VENDOR_ICON .. " 52" .. COIN_COPPER, itemLink = "item:2589" },
-        { key = "TEST_ITEM_6", title = "|cff9d9d9d[Wool Cloth]|r",                                           icon = "Interface\\Icons\\INV_Fabric_Wool_01",                 color = QUALITY_COLORS[0], quantity = 3,         badgeText = "x3 " .. VENDOR_ICON .. " 99" .. COIN_COPPER, itemLink = "item:2592" },
-        { key = "TEST_ITEM_7", title = "|cff0070dd[Torn Journal Entry]|r",                                   icon = "Interface\\Icons\\INV_Misc_Note_01",                   color = QUALITY_COLORS[3], quantity = 1,         badgeText = "x1",                                        itemLink = "item:33009" },
+        { key = "TEST_ITEM_5", title = "|cffffffff[Linen Cloth]|r",                                          icon = "Interface\\Icons\\INV_Fabric_Linen_01",                color = QUALITY_COLORS[1], quality = 1, quantity = 4,         badgeText = "x4 " .. VENDOR_ICON .. " 52" .. COIN_COPPER, itemLink = "item:2589" },
+        { key = "TEST_ITEM_6", title = "|cff9d9d9d[Wool Cloth]|r",                                           icon = "Interface\\Icons\\INV_Fabric_Wool_01",                 color = QUALITY_COLORS[0], quality = 0, quantity = 3,         badgeText = "x3 " .. VENDOR_ICON .. " 99" .. COIN_COPPER, itemLink = "item:2592" },
+        { key = "TEST_ITEM_7", title = "|cff0070dd[Torn Journal Entry]|r",                                   icon = "Interface\\Icons\\INV_Misc_Note_01",                   color = QUALITY_COLORS[3], quality = 3, quantity = 1,         badgeText = "x1",                                        itemLink = "item:33009" },
     }
 
     for _, item in ipairs(testItems) do

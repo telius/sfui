@@ -58,6 +58,7 @@ sfui.config = {
         cornerBrackets = true,
         texturedBackdrop = true,
         minimapArt = true,       -- Camelot only: preserve brass compass & day/night dial (modern theme does not touch minimap)
+        lootfeedStyle = "outfit_card", -- Camelot only: "outfit_card" (Option A: sculpted plate) or "architectural" (Option B: charcoal slate & corner brackets)
     },
 
     -- shared settings for icon bars
@@ -320,7 +321,8 @@ sfui.config = {
         displayDuration = 8.0,
         fadeDuration = 0.5,
         growDirection = "DOWN", -- "DOWN" or "UP"
-        minItemQuality = 0,     -- 0 = Poor, 1 = Common, 2 = Uncommon, 3 = Rare, 4 = Epic
+        minItemQuality = 0,     -- 0 = Poor, 1 = Common, 2 = Uncommon, 3 = Rare, 4 = Epic (Player)
+        partyMinItemQuality = 2, -- 0 = Poor, 1 = Common, 2 = Uncommon, 3 = Rare, 4 = Epic (Party Members)
         trackMoney = true,
         trackCurrency = true,
         trackXP = true,

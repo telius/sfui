@@ -1050,7 +1050,10 @@ local function PerformSync(data, isLogout)
     data.profKP = data.profKP or {}
     data.professions = data.professions or {}
 
-    local prof1, prof2, arch, fish, cook = GetProfessions and GetProfessions()
+    local prof1, prof2, arch, fish, cook
+    if GetProfessions then
+        prof1, prof2, arch, fish, cook = GetProfessions()
+    end
     if prof1 or prof2 or arch or fish or cook then
         wipe(data.professions)
         data.professions.primaries = {}
@@ -1450,9 +1453,9 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         end
 
         local mapID = cat.mapID
-        local portalSpell, portalName, isKnown = nil, nil, false
+        local isKnown = false
         if sfui.portals and sfui.portals.GetDungeonPortal then
-            portalSpell, portalName, isKnown = sfui.portals.GetDungeonPortal(mapID)
+            _, _, isKnown = sfui.portals.GetDungeonPortal(mapID)
         end
 
         if best and best.level > 0 then

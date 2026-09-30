@@ -208,7 +208,10 @@ SlashCmdList["SFUI"] = function(msg)
         else
             local curMode = (SfuiDB and (SfuiDB.themeMode or (SfuiDB.theme and SfuiDB.theme.mode))) or "auto"
             local active = (sfui.theme and sfui.theme.GetActiveThemeID and sfui.theme.GetActiveThemeID()) or "modern"
-            local regThemes, regOrder = sfui.theme and sfui.theme.GetRegisteredThemes and sfui.theme.GetRegisteredThemes()
+            local regOrder
+            if sfui.theme and sfui.theme.GetRegisteredThemes then
+                _, regOrder = sfui.theme.GetRegisteredThemes()
+            end
             local list = "auto"
             if regOrder then
                 for _, id in ipairs(regOrder) do list = list .. " | " .. id end

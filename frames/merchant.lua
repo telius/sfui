@@ -883,8 +883,9 @@ sfui.merchant.build_item_list = function()
                 include = false
             elseif sfui.merchant.lootFilterState == 2 then
                 -- Spec Filter (normalize specID to DB2 retail equivalent)
-                local db2SpecID = (common.to_retail_spec_id and common.to_retail_spec_id(specID)) or specID
-                if db2SpecID > 0 and not C_Item.DoesItemContainSpec(link, playerClassID, db2SpecID) then
+                local curSpec = playerSpecID or common.get_current_spec_id()
+                local db2SpecID = (common.to_retail_spec_id and common.to_retail_spec_id(curSpec)) or curSpec
+                if db2SpecID and db2SpecID > 0 and not C_Item.DoesItemContainSpec(link, playerClassID, db2SpecID) then
                     include = false
                 end
             end
@@ -1136,8 +1137,6 @@ local function update_header()
     frame.merchantTitle:SetText(titleText)
 end
 
-local isSystemClose = false
-
 -- Events (via central dispatcher — frame is a visual-only container now)
 sfui.events.RegisterEvent("MERCHANT_SHOW", function()
     wipe(sfui.merchant.lockCache)
@@ -1151,7 +1150,9 @@ sfui.events.RegisterEvent("MERCHANT_SHOW", function()
         MerchantFrame:SetAlpha(0)
         C_Timer.After(0.01, function()
             MerchantFrame:SetAlpha(0)
-            MerchantFrame:EnableMouse(false)
+            if not (MerchantFrame.IsProtected and MerchantFrame:IsProtected()) and MerchantFrame.EnableMouse then
+                pcall(MerchantFrame.EnableMouse, MerchantFrame, false)
+            end
             MerchantFrame:SetFrameStrata("BACKGROUND")
             MerchantFrame:SetScale(0.001)
             MerchantFrame:ClearAllPoints()
@@ -1169,7 +1170,9 @@ sfui.events.RegisterEvent("MERCHANT_CLOSED", function()
     GameTooltip_Hide()
     if MerchantFrame then
         MerchantFrame:SetAlpha(1)
-        MerchantFrame:EnableMouse(true)
+        if not (MerchantFrame.IsProtected and MerchantFrame:IsProtected()) and MerchantFrame.EnableMouse then
+            pcall(MerchantFrame.EnableMouse, MerchantFrame, true)
+        end
         MerchantFrame:SetFrameStrata("HIGH")
         MerchantFrame:SetScale(1)
     end

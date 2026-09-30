@@ -41,4 +41,7 @@ sfui.theme.RegisterTheme({
     closeButton    = {
         style       = "flat_cross",
     },
+    lootfeed       = {
+        style       = "minimal_flat",
+    },
 })

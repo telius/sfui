@@ -841,14 +841,6 @@ end
 local function CheckPanelVisibility(panelConfig, event)
     if not panelConfig or not panelConfig.enabled then return false end
 
-    -- Helper: Robust Combat Status
-    local inCombat = InCombatLockdown()
-    if event == "PLAYER_REGEN_DISABLED" then
-        inCombat = true
-    elseif event == "PLAYER_REGEN_ENABLED" then
-        inCombat = false
-    end
-
     -- OVERRIDE: Always show if Options Panel is open on relevant tabs
     if _G["SfuiCooldownsViewer"] and _G["SfuiCooldownsViewer"]:IsShown() then
         local tabId = _G["SfuiCooldownsViewer"].selectedTabId
@@ -857,7 +849,53 @@ local function CheckPanelVisibility(panelConfig, event)
         end
     end
 
-    -- 1. Per-Panel Conditionals (Using GetIconValue for nested/global inheritance)
+    -- 1. Check Form Specificity (Druid CENTER panels mostly)
+    local isStealthed = IsStealthed()
+    local currentForm = GetShapeshiftFormID() or 0
+    local playerClass = sfui.common.get_player_class()
+
+    if panelConfig.requiredForm ~= nil then
+        if panelConfig.requiredForm == "stealth" then
+            if not isStealthed then return false end
+
+            -- If we are a Druid in Bear or Moonkin form, we prioritize the form-specific bar over Stealth.
+            if playerClass == "DRUID" and currentForm ~= 0 and currentForm ~= 1 then
+                return false
+            end
+        else
+            -- Non-stealth form panel logic
+            local matchesForm = false
+            if type(panelConfig.requiredForm) == "table" then
+                for _, id in ipairs(panelConfig.requiredForm) do
+                    if currentForm == id then
+                        matchesForm = true; break
+                    end
+                end
+            elseif currentForm == panelConfig.requiredForm then
+                matchesForm = true
+            end
+
+            if not matchesForm then return false end
+        end
+    end
+
+    -- If we are stealthed, we usually want the STEALTH bar to take priority for Human and Cat.
+    -- This hides ALL base bars to prevent overlap, even if requiredForm matches.
+    if isStealthed and (currentForm == 0 or currentForm == 1) then
+        if panelConfig.requiredForm ~= "stealth" then
+            return false
+        end
+    end
+
+    -- 2. Robust Combat Status
+    local inCombat = InCombatLockdown()
+    if event == "PLAYER_REGEN_DISABLED" then
+        inCombat = true
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        inCombat = false
+    end
+
+    -- 3. Per-Panel Conditionals (Using GetIconValue for nested/global inheritance)
     -- Hide if Out of Combat enabled
     if GetIconValue(nil, panelConfig, "hideOOC", false) and not inCombat then return false end
 
@@ -867,18 +905,20 @@ local function CheckPanelVisibility(panelConfig, event)
         if GetIconValue(nil, panelConfig, "hideMounted", false) and sfui.common.is_mounted_or_travel_form() then return false end
         -- Hide while in Vehicle UI enabled
         if GetIconValue(nil, panelConfig, "hideInVehicle", true) and (UnitHasVehicleUI("player") or UnitInVehicle("player")) then return false end
+        -- Hide while in Dragonriding
+        if panelConfig.hideDragonriding and sfui.common.is_dragonflying and sfui.common.is_dragonflying() then return false end
     end
 
-    -- 2. Global Visibility Settings
+    -- 4. Global Visibility Settings
     local globalVis = SfuiDB and SfuiDB.iconGlobalSettings
     if globalVis then
         -- Legacy Global Hide OOC
         if globalVis.hideOOC and not inCombat then return false end
         -- Dragonriding
-        if globalVis.hideDragonriding and sfui.common.IsDragonriding() and not inCombat then return false end
+        if globalVis.hideDragonriding and sfui.common.is_dragonflying and sfui.common.is_dragonflying() and not inCombat then return false end
     end
 
-    -- 3. Visibility Mode (Dropdown Toggle: Always, Combat, NoCombat)
+    -- 5. Visibility Mode (Dropdown Toggle: Always, Combat, NoCombat)
     local visMode = panelConfig.visibility
     if not visMode and globalVis then visMode = globalVis.visibility end
     visMode = visMode or "always"
@@ -887,6 +927,14 @@ local function CheckPanelVisibility(panelConfig, event)
         if not inCombat then return false end
     elseif visMode == "noCombat" then
         if inCombat then return false end
+    end
+
+    -- 6. Hide if no active icons
+    if panelConfig.hideIfEmpty then
+        local activeEntries = sfui.common.get_active_panel_entries(panelConfig, _staticActiveEntries)
+        if #activeEntries == 0 then
+            return false
+        end
     end
 
     return true
@@ -1257,79 +1305,6 @@ function sfui.trackedicons.ForceRefreshGlows()
     end
 end
 
--- Visibility Logic check per panel
-local function CheckPanelVisibility(panelConfig)
-    if not panelConfig then return false end
-
-    -- Check Form Specificity (Druid CENTER panels mostly)
-    local isStealthed = IsStealthed()
-    local currentForm = GetShapeshiftFormID() or 0
-    local playerClass = sfui.common.get_player_class()
-
-    if panelConfig.requiredForm ~= nil then
-        if panelConfig.requiredForm == "stealth" then
-            if not isStealthed then return false end
-
-            -- If we are a Druid in Bear or Moonkin form, we prioritize the form-specific bar over Stealth.
-            if playerClass == "DRUID" and currentForm ~= 0 and currentForm ~= 1 then
-                return false
-            end
-        else
-            -- Non-stealth form panel logic
-            local matchesForm = false
-            if type(panelConfig.requiredForm) == "table" then
-                for _, id in ipairs(panelConfig.requiredForm) do
-                    if currentForm == id then
-                        matchesForm = true; break
-                    end
-                end
-            elseif currentForm == panelConfig.requiredForm then
-                matchesForm = true
-            end
-
-            if not matchesForm then return false end
-        end
-    end
-
-    -- If we are stealthed, we usually want the STEALTH bar to take priority for Human and Cat.
-    -- This hides ALL base bars to prevent overlap, even if requiredForm matches.
-    if isStealthed and (currentForm == 0 or currentForm == 1) then
-        if panelConfig.requiredForm ~= "stealth" then
-            return false
-        end
-    end
-
-    -- Removed legacy always/combat visibility override checks
-
-    -- Hide OOC (Out of Combat)
-    if panelConfig.hideOOC and not InCombatLockdown() then
-        return false
-    end
-
-    -- Priority: Combat status always overrides mount/vehicle hide conditions
-    if not InCombatLockdown() then
-        -- Hide Mounted
-        if panelConfig.hideMounted and IsMounted() then
-            return false
-        end
-
-        -- Hide in Dragonriding
-        if panelConfig.hideDragonriding and C_MountJournal.IsDragonRidingActive() then
-            return false
-        end
-    end
-
-    -- Hide if no active icons
-    if panelConfig.hideIfEmpty then
-        local activeEntries = sfui.common.get_active_panel_entries(panelConfig, _staticActiveEntries)
-        if #activeEntries == 0 then
-            return false
-        end
-    end
-
-    return true
-end
-
 -- Helper to remove legacy defaults from panels so they use global settings
 local function SanitizePanelConfig(panelConfig)
     if not panelConfig then return end
@@ -1418,20 +1393,6 @@ function sfui.trackedicons.initialize()
             if panel.icons and config then
                 for _, icon in pairs(panel.icons) do
                     UpdateIconState(icon, config)
-                end
-            end
-        end
-    end
-
-    -- Helper: Update only cooldown-type icon states
-    local function UpdateCooldownIconStates()
-        for _, panel in pairs(panels) do
-            local config = panel.config
-            if panel.icons and config then
-                for _, icon in pairs(panel.icons) do
-                    if icon.entry and icon.entry.type == "cooldown" then
-                        UpdateIconState(icon, config)
-                    end
                 end
             end
         end

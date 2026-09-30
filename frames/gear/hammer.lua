@@ -161,7 +161,11 @@ local function scan_bags_for_hammers()
                 local hammerCfg = sfui.config.masterHammer and sfui.config.masterHammer[id]
                 if hammerCfg then
                     seenBagItemIDs[id] = true
-                    local name, _, _, _, _, _, _, _, _, icon = (link or info.hyperlink) and C_Item.GetItemInfo and C_Item.GetItemInfo(link or info.hyperlink)
+                    local itemLnk = link or info.hyperlink
+                    local name, icon
+                    if itemLnk and C_Item.GetItemInfo then
+                        name, _, _, _, _, _, _, _, _, icon = C_Item.GetItemInfo(itemLnk)
+                    end
                     name = name or (id and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id)) or "Master's Hammer"
                     icon = icon or (id and C_Item.GetItemIconByID and C_Item.GetItemIconByID(id)) or info.iconFileID or 134376
                     local expac = hammerCfg.expansion
@@ -178,10 +182,14 @@ local function scan_bags_for_hammers()
                     end
                 elseif info.hyperlink or id then
                     -- Fallback for generic/older hammers matching name
-                    local name = ((link or info.hyperlink) and C_Item.GetItemInfo and C_Item.GetItemInfo(link or info.hyperlink)) or (id and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id))
+                    local itemLnk = link or info.hyperlink
+                    local name, icon
+                    if itemLnk and C_Item.GetItemInfo then
+                        name, _, _, _, _, _, _, _, _, icon = C_Item.GetItemInfo(itemLnk)
+                    end
+                    name = name or (id and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id))
                     if name and (name:find("Master.s Hammer") or name:find("Master Repair Hammer") or name:find("Meisterhammer")) then
                         seenBagItemIDs[id] = true
-                        local _, _, _, _, _, _, _, _, _, icon = (link or info.hyperlink) and C_Item.GetItemInfo and C_Item.GetItemInfo(link or info.hyperlink)
                         icon = icon or (id and C_Item.GetItemIconByID and C_Item.GetItemIconByID(id)) or info.iconFileID or 134376
                         local entry = get_hammer_entry(id, name, icon, nil, "Generic", nil)
                         table.insert(carriedHammers, entry)
@@ -338,9 +346,9 @@ local function check_repair_eligibility_detail(slot, needDetail)
     local itemExpacName = needDetail and ((itemExpac and EXPANSION_NAMES[itemExpac]) or (itemExpac and ("Expac " .. itemExpac)) or nil)
 
     -- Find matching hammer for this item's expansion
-    local hasMatchingHammer, hammerName, hammerIcon, hammerItemID
+    local hasMatchingHammer, hammerItemID
     if itemExpac then
-        hasMatchingHammer, hammerName, hammerIcon, hammerItemID = sfui.hammer.has_repair_hammer(false, itemExpac)
+        hasMatchingHammer, _, _, hammerItemID = sfui.hammer.has_repair_hammer(false, itemExpac)
     end
 
     -- If no expansion-specific hammer found, check if player carries ANY hammer
@@ -882,8 +890,11 @@ end
 local function on_hammer_cast_finished(event, unit, _, spellID)
     if unit == "player" then
         local _, _, _, hammerItemID = sfui.hammer.has_repair_hammer()
-        local _, hammerSpellID = hammerItemID and C_Item.GetItemSpell(hammerItemID)
-        if (hammerSpellID and spellID == hammerSpellID) or spellID == 382404 or spellID == 382403 or not hammerSpellID then
+        local hammerSpellID
+        if hammerItemID and C_Item.GetItemSpell then
+            _, hammerSpellID = C_Item.GetItemSpell(hammerItemID)
+        end
+        if (hammerSpellID and spellID == hammerSpellID) or spellID == 382404 or spellID == 382403 or (not hammerSpellID and (spellID == 382404 or spellID == 382403)) then
             currentTargetSlot = nil
             sfui.hammer.update_hammer_popup()
             sfui.hammer.unregister_transient_listeners()
@@ -894,8 +905,11 @@ end
 local function on_hammer_cast_interrupted(event, unit, _, spellID)
     if unit == "player" then
         local _, _, _, hammerItemID = sfui.hammer.has_repair_hammer()
-        local _, hammerSpellID = hammerItemID and C_Item.GetItemSpell(hammerItemID)
-        if (hammerSpellID and spellID == hammerSpellID) or spellID == 382404 or spellID == 382403 or not hammerSpellID then
+        local hammerSpellID
+        if hammerItemID and C_Item.GetItemSpell then
+            _, hammerSpellID = C_Item.GetItemSpell(hammerItemID)
+        end
+        if (hammerSpellID and spellID == hammerSpellID) or spellID == 382404 or spellID == 382403 or (not hammerSpellID and (spellID == 382404 or spellID == 382403)) then
             currentTargetSlot = nil
             sfui.hammer.update_hammer_popup()
             sfui.hammer.unregister_transient_listeners()

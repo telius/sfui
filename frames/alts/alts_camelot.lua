@@ -65,6 +65,22 @@ local ChatEdit_InsertLink = _G.ChatEdit_InsertLink
 local AcquireTable = sfui.alts.AcquireTable
 local ReleaseTable = sfui.alts.ReleaseTable
 
+-- Classic / Vanilla XP required per level (Levels 1 to 59)
+local CLASSIC_XP_PER_LEVEL = {
+    [1] = 400,    [2] = 900,    [3] = 1400,   [4] = 2100,   [5] = 2800,
+    [6] = 3600,   [7] = 4500,   [8] = 5400,   [9] = 6500,   [10] = 7600,
+    [11] = 8800,  [12] = 10100, [13] = 11400, [14] = 12900, [15] = 14400,
+    [16] = 16000, [17] = 17700, [18] = 19400, [19] = 21300, [20] = 23200,
+    [21] = 25200, [22] = 27300, [23] = 29400, [24] = 31700, [25] = 34000,
+    [26] = 36400, [27] = 38900, [28] = 41400, [29] = 44300, [30] = 47400,
+    [31] = 50800, [32] = 54500, [33] = 58600, [34] = 62800, [35] = 67100,
+    [36] = 71600, [37] = 76300, [38] = 81200, [39] = 86300, [40] = 91600,
+    [41] = 97100, [42] = 102800, [43] = 108700, [44] = 114800, [45] = 120900,
+    [46] = 127200, [47] = 133700, [48] = 140300, [49] = 147100, [50] = 154100,
+    [51] = 161300, [52] = 168600, [53] = 176100, [54] = 183800, [55] = 191700,
+    [56] = 199800, [57] = 208000, [58] = 216400, [59] = 225000,
+}
+
 -- PvP Rank Data for Classic
 local ALLIANCE_RANKS = {
     [1] = "Private",
@@ -263,13 +279,25 @@ local function GetRestedXPInfo(altData, altGuid)
     end
 
     local lvl = altData.level or 1
-    local xpMax = altData.xpMax or 0
-    if lvl >= 60 or xpMax <= 0 then
+    if lvl >= 60 then
         return 0, 0, 0, false, 0, false, 0, false
     end
 
-    local maxRested = xpMax * 1.5
     local isCurrent = IsCurrentCharacter(altData, altGuid)
+    local xpMax = altData.xpMax or 0
+    if isCurrent and UnitXPMax then
+        local liveMax = UnitXPMax("player")
+        if liveMax and liveMax > 0 then
+            xpMax = liveMax
+            altData.xpMax = liveMax
+        end
+    end
+    if xpMax <= 0 then
+        xpMax = CLASSIC_XP_PER_LEVEL[lvl] or 1000
+        altData.xpMax = xpMax
+    end
+
+    local maxRested = xpMax * 1.5
     local now = (GetServerTime and GetServerTime()) or time()
 
     if isCurrent then
@@ -310,44 +338,87 @@ sfui.alts.GetRestedXPInfo = GetRestedXPInfo
 
 local function PerformSync(data, isLogout)
     local now = (GetServerTime and GetServerTime()) or time()
+    local isLeaving = isLogout or (sfui.alts and sfui.alts.leavingWorld)
 
     -- 1. Level & Rested XP
-    local lvl = UnitLevel("player") or 1
-    data.level = lvl
+    local lvl = UnitLevel("player")
+    if lvl and lvl > 0 then
+        data.level = lvl
+    end
+    lvl = data.level or 1
+
     local rawXp = UnitXP and UnitXP("player")
-    data.xp = (rawXp and rawXp > 0) and rawXp or 0
     local rawXpMax = UnitXPMax and UnitXPMax("player")
-    data.xpMax = (rawXpMax and rawXpMax > 0) and rawXpMax or 0
-    data.restedXP = (GetXPExhaustion and GetXPExhaustion()) or 0
-    data.isResting = (IsResting and IsResting()) and true or false
+    local rawRested = GetXPExhaustion and GetXPExhaustion()
+
+    if lvl >= 60 then
+        data.xp = 0
+        data.xpMax = 0
+        data.restedXP = 0
+    else
+        -- Only update xpMax if the API returned a valid positive number
+        if rawXpMax and rawXpMax > 0 then
+            data.xpMax = rawXpMax
+        elseif not data.xpMax or data.xpMax <= 0 then
+            data.xpMax = CLASSIC_XP_PER_LEVEL[lvl] or 1000
+        end
+
+        -- Only update xp if rawXp is a valid non-negative number and rawXpMax is valid
+        if rawXp and rawXp >= 0 and rawXpMax and rawXpMax > 0 then
+            data.xp = rawXp
+        end
+
+        -- GetXPExhaustion() returns nil when rested XP is 0 OR during teardown.
+        if rawRested and rawRested >= 0 then
+            data.restedXP = rawRested
+        elseif not isLeaving and rawXpMax and rawXpMax > 0 then
+            -- Live active gameplay and API is healthy: rawRested being nil means 0 rested XP.
+            data.restedXP = 0
+        end
+    end
+
+    local resting = IsResting and IsResting()
+    if resting then
+        data.isResting = true
+    elseif not isLeaving then
+        data.isResting = false
+    end
     data.lastSeen = now
 
     -- 2. PvP Stats
     data.pvp = data.pvp or {}
     local rawRank = UnitPVPRank and UnitPVPRank("player") or 0
-    -- In Classic UnitPVPRank returns 0 for unranked, internal 1-4 for sub-ranks, 5-18 for visual ranks 1-14
-    local rankNumber = (rawRank and rawRank > 4) and (rawRank - 4) or 0
-    data.pvp.rank = rankNumber
-    data.pvp.rankProgress = (GetPVPRankProgress and GetPVPRankProgress()) or 0
+    if rawRank and rawRank > 0 then
+        local rankNumber = (rawRank > 4) and (rawRank - 4) or 0
+        data.pvp.rank = rankNumber
+        data.pvp.rankProgress = (GetPVPRankProgress and GetPVPRankProgress()) or 0
 
-    local isHorde = (data.race == "Orc" or data.race == "Troll" or data.race == "Tauren" or data.race == "Scourge" or data.race == "Undead")
-    data.pvp.rankName = GetPVPRankName(rankNumber, isHorde)
+        local isHorde = (data.race == "Orc" or data.race == "Troll" or data.race == "Tauren" or data.race == "Scourge" or data.race == "Undead")
+        data.pvp.rankName = GetPVPRankName(rankNumber, isHorde)
+    elseif not isLeaving then
+        local rankNumber = 0
+        data.pvp.rank = rankNumber
+        data.pvp.rankProgress = (GetPVPRankProgress and GetPVPRankProgress()) or 0
+
+        local isHorde = (data.race == "Orc" or data.race == "Troll" or data.race == "Tauren" or data.race == "Scourge" or data.race == "Undead")
+        data.pvp.rankName = GetPVPRankName(rankNumber, isHorde)
+    end
 
     if GetPVPLifetimeStats then
         local hk, highestRank = GetPVPLifetimeStats()
-        data.pvp.lifetimeHK = hk or 0
-        data.pvp.highestRank = highestRank or 0
+        if hk and hk > 0 then data.pvp.lifetimeHK = hk end
+        if highestRank and highestRank > 0 then data.pvp.highestRank = highestRank end
     end
 
-    if GetPVPThisWeekStats then
+    if GetPVPThisWeekStats and not isLeaving then
         local hk, honor = GetPVPThisWeekStats()
-        data.pvp.thisWeekHK = hk or 0
-        data.pvp.thisWeekHonor = honor or 0
+        if hk and hk >= 0 then data.pvp.thisWeekHK = hk end
+        if honor and honor >= 0 then data.pvp.thisWeekHonor = honor end
     end
 
     -- BG Marks
     data.pvp.marks = data.pvp.marks or {}
-    if GetItemCount then
+    if GetItemCount and not isLeaving then
         data.pvp.marks.wsg = GetItemCount(20558, true) or 0 -- Warsong Gulch Mark of Honor
         data.pvp.marks.ab  = GetItemCount(20559, true) or 0 -- Arathi Basin Mark of Honor
         data.pvp.marks.av  = GetItemCount(20560, true) or 0 -- Alterac Valley Mark of Honor
@@ -582,8 +653,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
 
     if cat.type == "classic_level_xp" then
         local lvl = altData.level or 1
-        local xpMax = altData.xpMax
-        if lvl >= 60 or (xpMax and xpMax == 0) then
+        if lvl >= 60 then
             text:SetText(tostring(lvl))
             text:SetTextColor(1, 0.82, 0) -- Gold
             cell:EnableMouse(true)
@@ -594,10 +664,19 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             end)
             cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
         else
-            local xp = altData.xp or 0
-            local validXpMax = (xpMax and xpMax > 0) and xpMax or 1
-            local pct = (validXpMax > 0) and math_floor((xp / validXpMax) * 100) or 0
-            local currentRested, restedPct, bars, isMaxed, timeToMax, isResting, offlineGained, isCurrent = GetRestedXPInfo(altData, altGuid)
+            local isCurrent = IsCurrentCharacter(altData, altGuid)
+            local xpMax = (altData.xpMax and altData.xpMax > 0) and altData.xpMax or (CLASSIC_XP_PER_LEVEL[lvl] or 1000)
+            if isCurrent and UnitXPMax then
+                local liveMax = UnitXPMax("player")
+                if liveMax and liveMax > 0 then
+                    xpMax = liveMax
+                    altData.xpMax = liveMax
+                end
+            end
+            local xp = (isCurrent and UnitXP and UnitXP("player")) or altData.xp or 0
+            local validXpMax = (xpMax > 0) and xpMax or 1
+            local pct = math_floor((xp / validXpMax) * 100)
+            local currentRested, restedPct, bars, isMaxed, timeToMax, isResting, offlineGained = GetRestedXPInfo(altData, altGuid)
 
             if isMaxed then
                 text:SetText(string.format("%d (%d%%) |cff00ff00+150%% (max)|r", lvl, pct))
@@ -1068,6 +1147,7 @@ sfui.alts.RegisterProvider({
         sfui.events.RegisterEvent("TRADE_SKILL_SHOW",              on_sync)
         sfui.events.RegisterEvent("PLAYER_LEVEL_UP",               on_sync)
         sfui.events.RegisterEvent("PLAYER_XP_UPDATE",              on_sync)
+        sfui.events.RegisterEvent("UPDATE_EXHAUSTION",             on_sync)
         sfui.events.RegisterEvent("PLAYER_UPDATE_RESTING",         on_sync)
         sfui.events.RegisterEvent("PLAYER_AVG_ITEM_LEVEL_UPDATE",  on_sync)
         sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED",     on_sync)

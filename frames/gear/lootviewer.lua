@@ -349,7 +349,6 @@ local function IsItemForPlayerClass(itemID, itemLink)
 
     -- If the item is a set token and data isn't ready yet:
     -- Don't allow uncached tokens through until tooltip data confirms they match player class.
-    local isToken = IsSetItemToken(itemID, link)
     if isToken and not dataReady then
         sfui.common.request_item_load(itemID)
         return false
@@ -632,7 +631,10 @@ local function GetRaidData()
     InitPlayerSpecs()
 
     local oldInstance = EJ_GetCurrentInstance and EJ_GetCurrentInstance()
-    local oldClass, oldSpec = EJ_GetLootFilter and EJ_GetLootFilter()
+    local oldClass, oldSpec
+    if EJ_GetLootFilter then
+        oldClass, oldSpec = EJ_GetLootFilter()
+    end
     local oldDiff = EJ_GetDifficulty and EJ_GetDifficulty()
     local oldTier = EJ_GetCurrentTier and EJ_GetCurrentTier()
     local oldSlot = C_EncounterJournal and C_EncounterJournal.GetSlotFilter and C_EncounterJournal.GetSlotFilter()
@@ -742,7 +744,10 @@ local function GetDungeonData()
     InitPlayerSpecs()
 
     local oldInstance = EJ_GetCurrentInstance and EJ_GetCurrentInstance()
-    local oldClass, oldSpec = EJ_GetLootFilter and EJ_GetLootFilter()
+    local oldClass, oldSpec
+    if EJ_GetLootFilter then
+        oldClass, oldSpec = EJ_GetLootFilter()
+    end
     local oldDiff = EJ_GetDifficulty and EJ_GetDifficulty()
     local oldTier = EJ_GetCurrentTier and EJ_GetCurrentTier()
     local oldSlot = C_EncounterJournal and C_EncounterJournal.GetSlotFilter and C_EncounterJournal.GetSlotFilter()
@@ -2494,7 +2499,10 @@ function sfui.lootviewer.initialize()
     C_Timer.After(2.0, function()
         EnsureEJ()
         -- Ensure the default Blizzard EJ filter is set to the player's current class and active spec
-        local curClass, curSpec = EJ_GetLootFilter and EJ_GetLootFilter()
+        local curClass, curSpec
+        if EJ_GetLootFilter then
+            curClass, curSpec = EJ_GetLootFilter()
+        end
         if not curClass or curClass == 0 or not curSpec or curSpec == 0 then
             RestoreDefaultLootFilter()
         end

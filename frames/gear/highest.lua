@@ -471,8 +471,8 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
     local rule = (sfui.highest.GetRule and sfui.highest.GetRule(specID)) or sfui.highest.rules[specID]
     if not rule then return false end
 
-    local classID = (sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)
-    local isClassic = sfui.isClassic or sfui.isForever or (classID ~= nil)
+    local playerClassID = (sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)
+    local isClassic = sfui.isClassic or sfui.isForever or (playerClassID ~= nil)
         or (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
         or (sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail))
 
@@ -2016,7 +2016,8 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
             -- Pause auto gear for weapon slots while fishing pole is equipped
         else
             local isAlreadyEquippedHere = (item.isEquipped and item.equippedSlot == slotID)
-            if not isAlreadyEquippedHere then
+            local isRecentlyAttempted = item.link and boeAttemptedAt[item.link] and (_G.GetTime() < (boeAttemptedAt[item.link] + BOE_RETRY_DELAY))
+            if not isAlreadyEquippedHere and not isRecentlyAttempted then
                 local oldLink = _G.GetInventoryItemLink("player", slotID)
                 local oldIlvl = oldLink and common.get_item_level(oldLink) or 0
                 local oldScore = 0

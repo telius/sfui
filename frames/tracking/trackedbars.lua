@@ -481,17 +481,13 @@ local function UpdateLayout()
 
         local spacing = sfui.config.barLayout.spacing or 1
         local anchor = _G["sfui_bar0_Backdrop"]
-        local isBar1 = false
 
         if _G["SfuiSoulFragmentsBar"] and _G["SfuiSoulFragmentsBar"]:IsShown() then
             anchor = _G["SfuiSoulFragmentsBar"]
-            isBar1 = true
         elseif _G["sfui_bar1_Backdrop"] and _G["sfui_bar1_Backdrop"]:IsShown() then
             anchor = _G["sfui_bar1_Backdrop"]
-            isBar1 = true
         elseif _G["sfui_runeBar"] and _G["sfui_runeBar"]:IsShown() then
             anchor = _G["sfui_runeBar"]
-            isBar1 = true
         end
 
         if anchor and anchor:IsShown() then

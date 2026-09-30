@@ -692,7 +692,10 @@ UpdateUsable = function()
         if btn:GetAlpha() > 0 then
             local actionID = btn.currentActionID or btn:GetAttribute("action")
             if actionID then
-                local usable, noMana = IsUsableAction and IsUsableAction(actionID)
+                local usable, noMana
+                if IsUsableAction then
+                    usable, noMana = IsUsableAction(actionID)
+                end
                 local inRange = IsActionInRange and IsActionInRange(actionID)
                 local state = 1
 

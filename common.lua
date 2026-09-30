@@ -899,10 +899,6 @@ function sfui.common.ensure_tracked_icon_db()
     return sfui.common.get_cooldown_panels()
 end
 
-local powerTypeToName = {}
-for name, value in pairs(Enum.PowerType) do
-    powerTypeToName[value] = name
-end
 
 local primaryResourcesCache = {
     DEATHKNIGHT = Enum.PowerType.RunicPower,
@@ -934,17 +930,6 @@ local secondaryResourcesCache = {
     SHAMAN = { [262] = Enum.PowerType.Mana },
     WARLOCK = Enum.PowerType.SoulShards,
     WARRIOR = nil
-}
-
-local resourceColorsCache = {
-    ["STAGGER"] = { r = 1, g = 0.5, b = 0 },
-    ["SOUL_SHARDS"] = { r = 0.58, g = 0.51, b = 0.79 },
-    ["RUNES"] = { r = 0.77, g = 0.12, b = 0.23 },
-    ["ESSENCE"] = { r = 0.20, g = 0.58, b = 0.50 },
-    ["COMBO_POINTS"] = { r = 1.00, g = 0.96, b = 0.41 },
-    ["CHI"] = { r = 0.00, g = 1.00, b = 0.59 },
-    ["HOLY_POWER"] = { r = 0.96, g = 0.91, b = 0.55 },
-    ["ARCANE_CHARGES"] = { r = 0.6, g = 0.8, b = 1.0 },
 }
 
 -- ────────────────────────────────────────────────────────────────────────────

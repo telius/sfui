@@ -52,6 +52,11 @@ sfui.theme.RegisterTheme({
         closeMini           = "RedButton-MiniCondense",
         closeMiniPress      = "RedButton-MiniCondense-pressed",
         closeMiniDis        = "RedButton-MiniCondense-disabled",
+        lootCard            = "UI-Character-Info-OutfitCard",
+        lootCardHover       = "UI-Character-Info-OutfitCard-Hover",
+        lootIconFrame       = "UI-Character-Info-OutfitIcon-Frame",
+        lootGearSlot        = "UI-Character-Info-GearSlot",
+        lootBankSlot        = "bank-frame-item-slotframe",
     },
     window         = {
         style       = "bronze",
@@ -64,5 +69,8 @@ sfui.theme.RegisterTheme({
     closeButton    = {
         style       = "atlas",
         atlas       = "RedButton-Exit",
+    },
+    lootfeed       = {
+        style       = "outfit_card",
     },
 })

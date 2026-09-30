@@ -311,7 +311,7 @@ local function EnsureQuestWatchHook()
     end
 end
 
-local function SuppressBlizzardTrackers()
+function SuppressBlizzardTrackers()
     if not (sfui.questlog and sfui.questlog.is_enabled and sfui.questlog.is_enabled()) then
         return
     end
@@ -391,7 +391,7 @@ local function SuppressBlizzardTrackers()
     end
 end
 
-local function RestoreBlizzardTrackers()
+function RestoreBlizzardTrackers()
     local qwf = _G.QuestWatchFrame
     if qwf then
         if qwf.SetAlpha then qwf:SetAlpha(1) end

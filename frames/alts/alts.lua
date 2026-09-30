@@ -244,18 +244,37 @@ function sfui.alts.PerformSync(isLogout)
     local d = SfuiDB.alts[guid] or {}
 
     d.name = name
-    d.realm = (realm and realm ~= "") and realm or (GetRealmName and GetRealmName())
+    local r = (realm and realm ~= "") and realm or (GetRealmName and GetRealmName())
+    if r and r ~= "" then
+        d.realm = r
+    end
     local _, englishClass = UnitClass("player")
-    d.class = englishClass
+    if englishClass and englishClass ~= "" then
+        d.class = englishClass
+    end
     local _, englishRace = UnitRace("player")
-    d.race = englishRace
-    d.level = UnitLevel("player")
-    d.money = GetMoney()
-    d.lastUpdate = GetServerTime()
-    d.lastSeen = GetServerTime()
+    if englishRace and englishRace ~= "" then
+        d.race = englishRace
+    end
+    local curLevel = UnitLevel("player")
+    if curLevel and curLevel > 0 then
+        d.level = curLevel
+    end
+    local curMoney = GetMoney and GetMoney()
+    if curMoney and curMoney >= 0 then
+        if not ((isLogout or leavingWorld) and curMoney == 0 and (d.money or 0) > 0) then
+            d.money = curMoney
+        end
+    end
+    local now = (GetServerTime and GetServerTime()) or time()
+    d.lastUpdate = now
+    d.lastSeen = now
 
     if GetGuildInfo then
-        d.guild = GetGuildInfo("player")
+        local g = GetGuildInfo("player")
+        if g and g ~= "" then
+            d.guild = g
+        end
     end
 
     if GetAverageItemLevel then
@@ -979,7 +998,16 @@ function sfui.alts.initialize()
     sfui.events.RegisterEvent("PLAYER_LEAVING_WORLD", function()
         leavingWorld = true
         sfui.alts.leavingWorld = true
-        sfui.alts.PerformSync(true)
+        if syncTimer then
+            syncTimer:Cancel()
+            syncTimer = nil
+        end
+        local guid = GetCurrentCharacterGUID()
+        if guid and SfuiDB.alts and SfuiDB.alts[guid] then
+            local now = (GetServerTime and GetServerTime()) or time()
+            SfuiDB.alts[guid].lastSeen = now
+            SfuiDB.alts[guid].lastUpdate = now
+        end
     end)
 
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
@@ -1004,6 +1032,7 @@ function sfui.alts.initialize()
     end
     sfui.events.RegisterEvent("PLAYER_LEVEL_UP",              on_sync_event)
     sfui.events.RegisterEvent("PLAYER_XP_UPDATE",             on_sync_event)
+    sfui.events.RegisterEvent("UPDATE_EXHAUSTION",             on_sync_event)
     sfui.events.RegisterEvent("PLAYER_UPDATE_RESTING",        on_sync_event)
     sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED",     on_sync_event)
     sfui.events.RegisterEvent("PLAYER_AVG_ITEM_LEVEL_UPDATE", on_sync_event)

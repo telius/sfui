@@ -1027,6 +1027,336 @@ function sfui.theme.ApplyMinimapButtonBarStyle(bar)
     end
 end
 
+-- 9. Loot Feed Row Styling (Option A: OutfitCard vs Option B: Architectural Slate vs Modern)
+function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
+    if not row then return end
+    local isCamelot = sfui.theme.IsCamelotActive()
+    local pal = sfui.theme.GetPalette()
+    local col = color or { 1, 1, 1 }
+
+    row.lastColor = col
+    row.lastQuality = quality
+
+    local camelotStyle = (SfuiDB and (SfuiDB.camelotLootfeedStyle or (SfuiDB.theme and SfuiDB.theme.lootfeedStyle)))
+        or (sfui.config and sfui.config.theme and sfui.config.theme.lootfeedStyle)
+        or "outfit_card"
+    local canUseOutfitCard = isCamelot and sfui.theme.HasAtlas("UI-Character-Info-OutfitCard")
+
+    if isCamelot and canUseOutfitCard and camelotStyle ~= "architectural" then
+        -- ═════════════════════════════════════════════════════════════════════
+        -- OPTION A: Sculpted Bronze Inset Card (UI-Character-Info-OutfitCard)
+        -- ═════════════════════════════════════════════════════════════════════
+        if row.SetBackdrop then
+            row:SetBackdrop(nil)
+        end
+
+        if row.cardBg then
+            row.cardBg:SetAtlas("UI-Character-Info-OutfitCard")
+            row.cardBg:ClearAllPoints()
+            row.cardBg:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 2)
+            row.cardBg:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, -2)
+            row.cardBg:Show()
+        end
+
+        if row.hoverOverlay then
+            if sfui.theme.HasAtlas("UI-Character-Info-OutfitCard-Hover") then
+                row.hoverOverlay:SetAtlas("UI-Character-Info-OutfitCard-Hover")
+                row.hoverOverlay:ClearAllPoints()
+                row.hoverOverlay:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 2)
+                row.hoverOverlay:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, -2)
+                row.hoverOverlay:SetBlendMode("ADD")
+                row.hoverOverlay:SetAlpha(0.45)
+            end
+        end
+
+        if row.accent then row.accent:Hide() end
+        if row.iconSlot then row.iconSlot:Hide() end
+        if row.badgeBox then row.badgeBox:Hide() end
+
+        -- Hide corner brackets if present
+        if row.cornerTL then
+            row.cornerTL:Hide()
+            row.cornerTR:Hide()
+            row.cornerBL:Hide()
+            row.cornerBR:Hide()
+        end
+
+        if row.icon then
+            row.icon:ClearAllPoints()
+            row.icon:SetPoint("LEFT", row, "LEFT", 7, 0)
+            row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        end
+
+        if row.iconBorder then
+            if sfui.theme.HasAtlas("UI-Character-Info-OutfitIcon-Frame") then
+                row.iconBorder:SetAtlas("UI-Character-Info-OutfitIcon-Frame")
+                row.iconBorder:ClearAllPoints()
+                row.iconBorder:SetPoint("CENTER", row.icon, "CENTER", 0, 0)
+                local iW, iH = row.icon:GetSize()
+                if not iW or iW == 0 then iW = 28 end
+                if not iH or iH == 0 then iH = 28 end
+                row.iconBorder:SetSize(iW + 8, iH + 8)
+                row.iconBorder:SetVertexColor(1, 1, 1, 1)
+                row.iconBorder:Show()
+            else
+                row.iconBorder:Hide()
+            end
+        end
+
+        if row.badge then
+            row.badge:ClearAllPoints()
+            row.badge:SetPoint("RIGHT", row, "RIGHT", -12, 0)
+            row.badge:SetJustifyH("RIGHT")
+            row.badge:SetTextColor(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 1)
+        end
+
+        if row.title then
+            row.title:ClearAllPoints()
+            row.title:SetPoint("LEFT", row.icon, "RIGHT", 8, 0)
+            local bText = row.badge and row.badge:GetText()
+            if bText and bText ~= "" then
+                row.title:SetPoint("RIGHT", row.badge, "LEFT", -8, 0)
+            else
+                row.title:SetPoint("RIGHT", row, "RIGHT", -12, 0)
+            end
+            if col then
+                row.title:SetTextColor(col[1] or 1, col[2] or 1, col[3] or 1, 1)
+            else
+                row.title:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3], 1)
+            end
+        end
+
+        row.lootfeedStyle = "outfit_card"
+        row.isCamelotRow = true
+
+    elseif isCamelot and camelotStyle == "architectural" then
+        -- ═════════════════════════════════════════════════════════════════════
+        -- OPTION B: Architectural Slate & Corner Brackets
+        -- ═════════════════════════════════════════════════════════════════════
+        if row.cardBg then row.cardBg:Hide() end
+        if row.hoverOverlay then row.hoverOverlay:Hide() end
+        if row.iconBorder then row.iconBorder:Hide() end
+        if row.badgeBox then row.badgeBox:Hide() end
+
+        local mult = sfui.pixelScale or 1
+        if row.SetBackdrop then
+            row:SetBackdrop({
+                bgFile   = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = mult,
+                insets   = { left = 0, right = 0, top = 0, bottom = 0 }
+            })
+            row:SetBackdropColor(pal.backdropColor[1], pal.backdropColor[2], pal.backdropColor[3], 0.94)
+            if row.SetBackdropBorderColor then
+                row:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.90)
+            end
+        end
+
+        -- Miniature Sculpted Corner Brackets
+        local showBrackets = (SfuiDB and SfuiDB.themeCornerBrackets ~= false)
+        if showBrackets then
+            if not row.cornerTL then
+                row.cornerTL = row:CreateTexture(nil, "OVERLAY", nil, 6)
+                row.cornerTR = row:CreateTexture(nil, "OVERLAY", nil, 6)
+                row.cornerBL = row:CreateTexture(nil, "OVERLAY", nil, 6)
+                row.cornerBR = row:CreateTexture(nil, "OVERLAY", nil, 6)
+            end
+
+            local tlAtlas = sfui.theme.GetCornerBracketAtlas("TL") or "heavybronze-horz-cornerbracket-TL"
+            local trAtlas = sfui.theme.GetCornerBracketAtlas("TR") or "heavybronze-horz-cornerbracket-TR"
+            local blAtlas = sfui.theme.GetCornerBracketAtlas("BL") or "heavybronze-horz-cornerbracket-BL"
+            local brAtlas = sfui.theme.GetCornerBracketAtlas("BR") or "heavybronze-horz-cornerbracket-BR"
+            local bSize = 9
+
+            if sfui.theme.HasAtlas(tlAtlas) then
+                row.cornerTL:SetAtlas(tlAtlas, false)
+                row.cornerTL:ClearAllPoints()
+                row.cornerTL:SetPoint("TOPLEFT", row, "TOPLEFT", -1, 1)
+                row.cornerTL:SetSize(bSize, bSize)
+                row.cornerTL:Show()
+            else row.cornerTL:Hide() end
+
+            if sfui.theme.HasAtlas(trAtlas) then
+                row.cornerTR:SetAtlas(trAtlas, false)
+                row.cornerTR:ClearAllPoints()
+                row.cornerTR:SetPoint("TOPRIGHT", row, "TOPRIGHT", 1, 1)
+                row.cornerTR:SetSize(bSize, bSize)
+                row.cornerTR:Show()
+            else row.cornerTR:Hide() end
+
+            if sfui.theme.HasAtlas(blAtlas) then
+                row.cornerBL:SetAtlas(blAtlas, false)
+                row.cornerBL:ClearAllPoints()
+                row.cornerBL:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", -1, -1)
+                row.cornerBL:SetSize(bSize, bSize)
+                row.cornerBL:Show()
+            else row.cornerBL:Hide() end
+
+            if sfui.theme.HasAtlas(brAtlas) then
+                row.cornerBR:SetAtlas(brAtlas, false)
+                row.cornerBR:ClearAllPoints()
+                row.cornerBR:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 1, -1)
+                row.cornerBR:SetSize(bSize, bSize)
+                row.cornerBR:Show()
+            else row.cornerBR:Hide() end
+        elseif row.cornerTL then
+            row.cornerTL:Hide()
+            row.cornerTR:Hide()
+            row.cornerBL:Hide()
+            row.cornerBR:Hide()
+        end
+
+        -- Inlaid Enamel Quality Strip
+        if row.accent then
+            row.accent:ClearAllPoints()
+            row.accent:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -1)
+            row.accent:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 1, 1)
+            row.accent:SetWidth(3)
+            row.accent:SetColorTexture(col[1] or 1, col[2] or 1, col[3] or 1, 1)
+            row.accent:Show()
+        end
+
+        -- Sunken GearSlot Icon Socket
+        if row.icon then
+            row.icon:ClearAllPoints()
+            row.icon:SetPoint("LEFT", row, "LEFT", 7, 0)
+            row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        end
+
+        if row.iconSlot then
+            if sfui.theme.HasAtlas("UI-Character-Info-GearSlot") then
+                row.iconSlot:SetAtlas("UI-Character-Info-GearSlot")
+                row.iconSlot:ClearAllPoints()
+                row.iconSlot:SetPoint("CENTER", row.icon, "CENTER", 0, 0)
+                local iW, iH = row.icon:GetSize()
+                if not iW or iW == 0 then iW = 28 end
+                if not iH or iH == 0 then iH = 28 end
+                row.iconSlot:SetSize(iW + 4, iH + 4)
+                row.iconSlot:Show()
+            else
+                row.iconSlot:Hide()
+            end
+        end
+
+        -- Clean Right-Aligned Badge
+        if row.badge then
+            row.badge:ClearAllPoints()
+            row.badge:SetPoint("RIGHT", row, "RIGHT", -10, 0)
+            row.badge:SetJustifyH("RIGHT")
+            row.badge:SetTextColor(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 1)
+        end
+
+        -- Title FontString
+        if row.title then
+            row.title:ClearAllPoints()
+            row.title:SetPoint("LEFT", row.icon, "RIGHT", 7, 0)
+            local bText = row.badge and row.badge:GetText()
+            if bText and bText ~= "" then
+                row.title:SetPoint("RIGHT", row.badge, "LEFT", -6, 0)
+            else
+                row.title:SetPoint("RIGHT", row, "RIGHT", -10, 0)
+            end
+            if col then
+                row.title:SetTextColor(col[1] or 1, col[2] or 1, col[3] or 1, 1)
+            else
+                row.title:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3], 1)
+            end
+        end
+
+        row.lootfeedStyle = "architectural"
+        row.isCamelotRow = true
+    else
+        -- Modern Minimalist
+        if row.cardBg then row.cardBg:Hide() end
+        if row.hoverOverlay then row.hoverOverlay:Hide() end
+        if row.iconSlot then row.iconSlot:Hide() end
+        if row.iconBorder then row.iconBorder:Hide() end
+        if row.badgeBox then row.badgeBox:Hide() end
+        if row.cornerTL then
+            row.cornerTL:Hide()
+            row.cornerTR:Hide()
+            row.cornerBL:Hide()
+            row.cornerBR:Hide()
+        end
+
+        local mult = sfui.pixelScale or 1
+        if row.SetBackdrop then
+            row:SetBackdrop({
+                bgFile   = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = mult,
+                insets   = { left = 0, right = 0, top = 0, bottom = 0 }
+            })
+            row:SetBackdropColor(0, 0, 0, 0.50)
+            if row.SetBackdropBorderColor then
+                row:SetBackdropBorderColor(0, 0, 0, 0.50)
+            end
+        end
+
+        if row.accent then
+            row.accent:ClearAllPoints()
+            row.accent:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+            row.accent:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
+            row.accent:SetWidth(3)
+            row.accent:SetColorTexture(col[1] or 1, col[2] or 1, col[3] or 1, 1)
+            row.accent:Show()
+        end
+
+        if row.icon then
+            row.icon:ClearAllPoints()
+            row.icon:SetPoint("LEFT", row, "LEFT", 5, 0)
+            row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        end
+
+        if row.badge then
+            row.badge:ClearAllPoints()
+            row.badge:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+            row.badge:SetJustifyH("RIGHT")
+            row.badge:SetTextColor(1, 1, 1, 1)
+        end
+
+        if row.title then
+            row.title:ClearAllPoints()
+            row.title:SetPoint("LEFT", row.icon, "RIGHT", 4, 0)
+            local bText = row.badge and row.badge:GetText()
+            if bText and bText ~= "" then
+                row.title:SetPoint("RIGHT", row.badge, "LEFT", -4, 0)
+            else
+                row.title:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+            end
+            if col then
+                row.title:SetTextColor(col[1] or 1, col[2] or 1, col[3] or 1, 1)
+            else
+                row.title:SetTextColor(1, 1, 1, 1)
+            end
+        end
+
+        row.isCamelotRow = false
+    end
+end
+
+function sfui.theme.ApplyLootfeedPendingHeaderStyle(pendingHeader)
+    if not pendingHeader then return end
+    local isCamelot = sfui.theme.IsCamelotActive()
+    local pal = sfui.theme.GetPalette()
+
+    if isCamelot then
+        if pendingHeader.SetBackdrop then
+            pendingHeader:SetBackdrop(nil)
+        end
+        if pendingHeader.text then
+            pendingHeader.text:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3], 1)
+        end
+    else
+        if pendingHeader.SetBackdrop then
+            pendingHeader:SetBackdrop(nil)
+        end
+        if pendingHeader.text then
+            pendingHeader.text:SetTextColor(0.85, 0.85, 0.85, 1)
+        end
+    end
+end
+
 -- ─── Window Registration API ──────────────────────────────────────────────────
 function sfui.theme.RegisterWindow(frame, callback, options)
     if not frame then return end
@@ -1146,7 +1476,12 @@ function sfui.theme.ApplyCurrentTheme()
         sfui.questlog.RequestRefresh()
     end
 
-    -- 10. Broadcast message to any listening modules
+    -- 10. Refresh loot feed theme if loaded
+    if sfui.lootfeed and sfui.lootfeed.UpdateTheme then
+        pcall(sfui.lootfeed.UpdateTheme)
+    end
+
+    -- 11. Broadcast message to any listening modules
     if sfui.events and sfui.events.SendMessage then
         sfui.events.SendMessage("SFUI_THEME_CHANGED", pal.id, pal, theme)
     end

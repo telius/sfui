@@ -39,6 +39,7 @@ local tonumber           = _G.tonumber
 local pairs              = _G.pairs
 local ipairs             = _G.ipairs
 local type               = _G.type
+local pcall              = _G.pcall
 local table_insert       = table.insert
 local math_min           = math.min
 local math_max           = math.max
@@ -277,10 +278,11 @@ local function ApplyUnitFrame(entry)
     local shouldHide = SfuiDB and (SfuiDB[entry.key] == true)
 
     for _, frame in ipairs(frames) do
+        local isProtected = frame.IsProtected and frame:IsProtected()
         if shouldHide then
             frame:SetAlpha(0)
-            if frame.EnableMouse then
-                frame:EnableMouse(false)
+            if not isProtected and frame.EnableMouse then
+                pcall(frame.EnableMouse, frame, false)
             end
 
             if not InCombatLockdown() and frame:IsShown() then
@@ -289,8 +291,8 @@ local function ApplyUnitFrame(entry)
         else
             frame:SetAlpha(1)
 
-            if frame.EnableMouse then
-                frame:EnableMouse(true)
+            if not isProtected and frame.EnableMouse then
+                pcall(frame.EnableMouse, frame, true)
             end
 
             if not InCombatLockdown() and not frame:IsShown() then
@@ -317,8 +319,8 @@ local function HookUnitFrames()
                 frame:HookScript("OnShow", function(self)
                     if SfuiDB and SfuiDB[entry.key] == true then
                         self:SetAlpha(0)
-                        if self.EnableMouse then
-                            self:EnableMouse(false)
+                        if not (self.IsProtected and self:IsProtected()) and self.EnableMouse then
+                            pcall(self.EnableMouse, self, false)
                         end
                         if not InCombatLockdown() then
                             self:Hide()
