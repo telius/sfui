@@ -358,11 +358,44 @@ SlashCmdList["SFUI"] = function(msg)
                 sfui.pets.SummonNext(true)
             end
         end
+    elseif cmd == "target" or cmd == "targetbar" then
+        if sfui.target then
+            if arg == "reset" then
+                if sfui.target.ResetPosition then sfui.target.ResetPosition() end
+                if sfui.common and sfui.common.print then
+                    sfui.common.print("sfui target bar: position reset to the right of the player healthbar.")
+                end
+            else
+                sfui.target.ToggleLock()
+                local status = sfui.target.unlocked and "|cff00ff00unlocked (Shift+Drag to move)|r" or "|cffff3333locked|r"
+                if sfui.common and sfui.common.print then
+                    sfui.common.print("sfui target bar: " .. status)
+                end
+            end
+        else
+            if sfui.common and sfui.common.print then
+                sfui.common.print("sfui: target bar is only available on Camelot / Classic.")
+            end
+        end
+    elseif cmd == "threat" or cmd == "threatbar" then
+        if sfui.threat then
+            SfuiDB = SfuiDB or {}
+            SfuiDB.enableThreatBar = (SfuiDB.enableThreatBar == false)
+            if sfui.threat.UpdateVisibility then sfui.threat.UpdateVisibility() end
+            local status = SfuiDB.enableThreatBar and "|cff00ff00enabled|r" or "|cffff3333disabled|r"
+            if sfui.common and sfui.common.print then
+                sfui.common.print("sfui threat bar: " .. status)
+            end
+        else
+            if sfui.common and sfui.common.print then
+                sfui.common.print("sfui: threat bar is only available on Camelot / Classic.")
+            end
+        end
     elseif cmd == "rl" or cmd == "reload" then
         C_UI.Reload()
     elseif cmd == "help" or cmd == "?" then
         if sfui.common and sfui.common.print then
-            sfui.common.print("Commands: /sfui [options | theme [camelot|modern|auto] | fish | pet | hammer [test|lock|reset|debug] | alts | ql | portals [test] | cv | gear | highest | lootspec | loot | research | mythic | mem | rl]")
+            sfui.common.print("Commands: /sfui [options | target | threat | theme [camelot|modern|auto] | fish | pet | hammer [test|lock|reset|debug] | alts | ql | portals [test] | cv | gear | highest | lootspec | loot | research | mythic | mem | rl]")
         end
     else
         if sfui.common and sfui.common.print then

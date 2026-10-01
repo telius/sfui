@@ -24,6 +24,7 @@ local IsModifiedClick = _G.IsModifiedClick
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local ChatEdit_GetActiveWindow = _G.ChatEdit_GetActiveWindow
 local ChatEdit_InsertLink = _G.ChatEdit_InsertLink
+local ChatFrameUtil = _G.ChatFrameUtil
 local DressUpVisual = _G.DressUpVisual
 local ShowAchievementFrameForAchievement = _G.ShowAchievementFrameForAchievement
 local table_insert = _G.table.insert
@@ -169,8 +170,14 @@ function CollectablesModule:BuildBlocks(container)
                     OnClick        = function(block, btn)
                         -- 1. Shift-Click: Chat link or stop tracking
                         if IsShiftKeyDown and IsShiftKeyDown() then
-                            local activeChat = ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()
-                            if activeChat and activeChat:IsShown() and activeChat:HasFocus() and ChatEdit_InsertLink then
+                            local activeChat = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
+                                or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
+                                or _G.ACTIVE_CHAT_EDIT_BOX
+                            local isChatOpen = (activeChat and (activeChat:IsShown() or activeChat:IsVisible()))
+                                or (_G.MacroFrameText and _G.MacroFrameText:IsShown())
+                                or (_G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown())
+
+                            if isChatOpen then
                                 local link = nil
                                 if trackableType == TYPE_DECOR and C_HousingDecor and C_HousingDecor.GetDecorHyperlink then
                                     link = C_HousingDecor.GetDecorHyperlink(trackableID)
@@ -180,7 +187,17 @@ function CollectablesModule:BuildBlocks(container)
                                         link = select(2, C_Item.GetItemInfo(sInfo.itemID))
                                     end
                                 end
-                                if link and ChatEdit_InsertLink(link) then return end
+                                if link then
+                                    if ChatFrameUtil and ChatFrameUtil.InsertLink and ChatFrameUtil.InsertLink(link) then return end
+                                    if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then return end
+                                    if activeChat and activeChat.Insert then
+                                        activeChat:Insert(link)
+                                        if activeChat.SetFocus then
+                                            activeChat:SetFocus()
+                                        end
+                                        return
+                                    end
+                                end
                             end
 
                             if C_ContentTracking.StopTracking then

@@ -186,19 +186,33 @@ function sfui.gear.GetClassicClassID(specID)
     return nil
 end
 
+local function isClassicGameClient()
+    if sfui.isRetail == true or (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic) then
+        return false
+    end
+    return (sfui.isClassic == true or sfui.isForever == true or sfui.isEra == true or sfui.isCamelot == true)
+end
+
 function sfui.gear.IsClassicSpec(specID)
+    if not isClassicGameClient() then return false end
     if not specID then return false end
-    local b = SPEC_BRIDGE[specID]
-    if b then return b.isClassic or (b.classID and b.classID >= 1482 and b.classID <= 1491) or false end
     local num = tonumber(specID)
     if num then
         if num >= 1482 and num <= 1491 then return true end
         if num >= 14821 and num <= 14913 then return true end
     end
+    local b = SPEC_BRIDGE[specID]
+    if b and b.camelotID and (b.camelotID == specID or b.camelotID == num) then
+        return true
+    end
     return false
 end
 
 function sfui.gear.GetClassicRole(specID, db)
+    if not isClassicGameClient() then
+        local b = SPEC_BRIDGE[specID]
+        return (b and b.role) or "DPS"
+    end
     if db and db.user_selected_role and db.classic_role then
         return db.classic_role
     end
@@ -224,10 +238,29 @@ function sfui.gear.GetClassicRole(specID, db)
 end
 
 function sfui.gear.IsTankSpec(specID, db)
+    if not isClassicGameClient() then
+        if sfui.gear.TANK_SPECS and sfui.gear.TANK_SPECS[specID] then
+            return true
+        end
+        local b = SPEC_BRIDGE[specID]
+        if b then return b.isTank or false end
+        local num = tonumber(specID)
+        if num and num ~= specID then
+            if sfui.gear.TANK_SPECS and sfui.gear.TANK_SPECS[num] then return true end
+            b = SPEC_BRIDGE[num]
+            if b then return b.isTank or false end
+        end
+        return false
+    end
+
+    if not db and specID and _G.SfuiDB and _G.SfuiDB.gear then
+        local b = SPEC_BRIDGE[specID]
+        db = _G.SfuiDB.gear[specID] or (b and b.camelotID and _G.SfuiDB.gear[b.camelotID]) or (b and b.classID and _G.SfuiDB.gear[b.classID])
+    end
     if db and db.classic_role then
         return db.classic_role == "TANK"
     end
-    if db and (db.is_tank or db.armor_ilvl_prio) then
+    if db and (db.is_tank or db.armor_ilvl_prio or db.role == "TANK") then
         return true
     end
     if sfui.gear.TANK_SPECS and sfui.gear.TANK_SPECS[specID] then
@@ -245,10 +278,25 @@ function sfui.gear.IsTankSpec(specID, db)
 end
 
 function sfui.gear.IsHealerSpec(specID, db)
+    if not isClassicGameClient() then
+        local b = SPEC_BRIDGE[specID]
+        if b then return b.isHealer or false end
+        local num = tonumber(specID)
+        if num and num ~= specID then
+            b = SPEC_BRIDGE[num]
+            if b then return b.isHealer or false end
+        end
+        return false
+    end
+
+    if not db and specID and _G.SfuiDB and _G.SfuiDB.gear then
+        local b = SPEC_BRIDGE[specID]
+        db = _G.SfuiDB.gear[specID] or (b and b.camelotID and _G.SfuiDB.gear[b.camelotID]) or (b and b.classID and _G.SfuiDB.gear[b.classID])
+    end
     if db and db.classic_role then
         return db.classic_role == "HEAL"
     end
-    if db and db.is_healer then
+    if db and (db.is_healer or db.role == "HEALER") then
         return true
     end
     local b = SPEC_BRIDGE[specID]

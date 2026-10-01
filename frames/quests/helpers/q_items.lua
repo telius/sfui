@@ -215,14 +215,25 @@ function Items.CreateItemButton(parent)
         if not qlIndex then return end
 
         if IsShiftKeyDown and IsShiftKeyDown() then
-            local activeChat = ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()
-            if activeChat and activeChat:IsShown() and activeChat:HasFocus() then
+            local activeChat = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
+                or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
+                or _G.ACTIVE_CHAT_EDIT_BOX
+            local isChatOpen = (activeChat and (activeChat:IsShown() or activeChat:IsVisible()))
+                or (_G.MacroFrameText and _G.MacroFrameText:IsShown())
+                or (_G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown())
+
+            if isChatOpen then
                 local link = self.itemLink or (GetQuestLogSpecialItemInfo and GetQuestLogSpecialItemInfo(qlIndex))
-                if link and ChatFrameUtil and ChatFrameUtil.InsertLink then
-                    if ChatFrameUtil.InsertLink(link) then return end
-                end
-                if link and ChatEdit_InsertLink then
-                    if ChatEdit_InsertLink(link) then return end
+                if link then
+                    if ChatFrameUtil and ChatFrameUtil.InsertLink and ChatFrameUtil.InsertLink(link) then return end
+                    if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then return end
+                    if activeChat and activeChat.Insert then
+                        activeChat:Insert(link)
+                        if activeChat.SetFocus then
+                            activeChat:SetFocus()
+                        end
+                        return
+                    end
                 end
             end
         end

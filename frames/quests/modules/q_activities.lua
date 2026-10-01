@@ -19,6 +19,7 @@ local InCombatLockdown = _G.InCombatLockdown
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local ChatEdit_GetActiveWindow = _G.ChatEdit_GetActiveWindow
 local ChatEdit_InsertLink = _G.ChatEdit_InsertLink
+local ChatFrameUtil = _G.ChatFrameUtil
 local MonthlyActivitiesFrame_OpenFrameToActivity = _G.MonthlyActivitiesFrame_OpenFrameToActivity
 
 local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
@@ -95,11 +96,25 @@ function ActivitiesModule:BuildBlocks(container)
                             lines           = lines,
                             OnClick    = function(block, btn)
                                 if IsShiftKeyDown and IsShiftKeyDown() then
-                                    local activeChat = ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()
-                                    if activeChat and activeChat:IsShown() and activeChat:HasFocus() then
-                                        if C_PerksActivities.GetPerksActivityChatLink and ChatEdit_InsertLink then
-                                            local link = C_PerksActivities.GetPerksActivityChatLink(actID)
-                                            if link and ChatEdit_InsertLink(link) then return end
+                                    local activeChat = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
+                                        or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
+                                        or _G.ACTIVE_CHAT_EDIT_BOX
+                                    local isChatOpen = (activeChat and (activeChat:IsShown() or activeChat:IsVisible()))
+                                        or (_G.MacroFrameText and _G.MacroFrameText:IsShown())
+                                        or (_G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown())
+
+                                    if isChatOpen and C_PerksActivities.GetPerksActivityChatLink then
+                                        local link = C_PerksActivities.GetPerksActivityChatLink(actID)
+                                        if link then
+                                            if ChatFrameUtil and ChatFrameUtil.InsertLink and ChatFrameUtil.InsertLink(link) then return end
+                                            if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then return end
+                                            if activeChat and activeChat.Insert then
+                                                activeChat:Insert(link)
+                                                if activeChat.SetFocus then
+                                                    activeChat:SetFocus()
+                                                end
+                                                return
+                                            end
                                         end
                                     end
 
@@ -171,11 +186,25 @@ function ActivitiesModule:BuildBlocks(container)
                             lines         = lines,
                             OnClick    = function(block, btn)
                                 if IsShiftKeyDown and IsShiftKeyDown() then
-                                    local activeChat = ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()
-                                    if activeChat and activeChat:IsShown() and activeChat:HasFocus() then
-                                        if C_NeighborhoodInitiative.GetInitiativeTaskChatLink and ChatEdit_InsertLink then
-                                            local link = C_NeighborhoodInitiative.GetInitiativeTaskChatLink(taskID)
-                                            if link and ChatEdit_InsertLink(link) then return end
+                                    local activeChat = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
+                                        or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
+                                        or _G.ACTIVE_CHAT_EDIT_BOX
+                                    local isChatOpen = (activeChat and (activeChat:IsShown() or activeChat:IsVisible()))
+                                        or (_G.MacroFrameText and _G.MacroFrameText:IsShown())
+                                        or (_G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown())
+
+                                    if isChatOpen and C_NeighborhoodInitiative.GetInitiativeTaskChatLink then
+                                        local link = C_NeighborhoodInitiative.GetInitiativeTaskChatLink(taskID)
+                                        if link then
+                                            if ChatFrameUtil and ChatFrameUtil.InsertLink and ChatFrameUtil.InsertLink(link) then return end
+                                            if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then return end
+                                            if activeChat and activeChat.Insert then
+                                                activeChat:Insert(link)
+                                                if activeChat.SetFocus then
+                                                    activeChat:SetFocus()
+                                                end
+                                                return
+                                            end
                                         end
                                     end
 

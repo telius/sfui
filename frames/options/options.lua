@@ -213,21 +213,55 @@ function sfui.create_options_panel()
     local pal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()) or sfui.config.appearance
     local headerCol = pal.headerColor or g.header_color
 
-    local header_text = frame:CreateFontString(nil, "OVERLAY", g.font_large)
-    header_text:SetPoint("TOP", frame, "TOP", 0, -10)
+    local headerFrame = CreateFrame("Frame", "sfui_options_header", frame)
+    headerFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+    headerFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+    headerFrame:SetHeight(40)
+    headerFrame:SetFrameLevel((frame:GetFrameLevel() or 1) + 15)
+    headerFrame:EnableMouse(false)
+    frame.headerFrame = headerFrame
+
+    local header_text = headerFrame:CreateFontString(nil, "OVERLAY", g.font_large)
+    header_text:SetPoint("TOP", headerFrame, "TOP", 0, -10)
     header_text:SetTextColor(headerCol[1], headerCol[2], headerCol[3])
     local ver = g.version or ""
     if not ver:find("^[vV]") and ver ~= "" then
         ver = "v" .. ver
     end
     header_text:SetText(g.title .. " " .. ver:lower())
+    headerFrame.text = header_text
 
-    local addon_icon = frame:CreateTexture(nil, "ARTWORK")
+    local addon_icon = headerFrame:CreateTexture(nil, "ARTWORK")
     addon_icon:SetSize(32, 32)
-    addon_icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 5, -5)
+    addon_icon:SetPoint("TOPLEFT", headerFrame, "TOPLEFT", 5, -5)
     addon_icon:SetTexture("Interface\\Icons\\Spell_shadow_deathcoil")
+    headerFrame.icon = addon_icon
 
     local close_button = common.create_close_button(frame)
+    close_button:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+
+    local function refresh_frame_levels()
+        local base = frame:GetFrameLevel() or 1
+        if frame.sfuiThemeLayers and frame.sfuiThemeLayers.borderFrame then
+            frame.sfuiThemeLayers.borderFrame:SetFrameLevel(base + 1)
+        end
+        if frame.tabs then
+            for _, tab_data in ipairs(frame.tabs) do
+                if tab_data.panel then
+                    tab_data.panel:SetFrameLevel(base + 5)
+                end
+                if tab_data.button then
+                    tab_data.button:SetFrameLevel(base + 10)
+                end
+            end
+        end
+        if headerFrame then
+            headerFrame:SetFrameLevel(base + 15)
+        end
+        if close_button then
+            close_button:SetFrameLevel(base + 20)
+        end
+    end
 
     local function on_tab_click(self)
         select_tab(self)
@@ -254,6 +288,7 @@ function sfui.create_options_panel()
         tab_button:SetSize(c.tabs.width, c.tabs.height)
         tab_button:SetText(displayName or id)
         tab_button.tabID = id
+        tab_button:SetFrameLevel((frame:GetFrameLevel() or 1) + 10)
 
         local curPal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()) or sfui.config.appearance
         local accentCol = curPal.accentColor or { 0, 1, 1, 1 }
@@ -276,6 +311,7 @@ function sfui.create_options_panel()
         local container_panel = CreateFrame("Frame", "sfui_options_container_" .. id, frame, "BackdropTemplate")
         container_panel:SetPoint("TOPLEFT", frame, "TOPLEFT", c.tabs.width + 20, -40)
         container_panel:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 5)
+        container_panel:SetFrameLevel((frame:GetFrameLevel() or 1) + 5)
         if sfui.theme and sfui.theme.ApplyContainerStyle then
             sfui.theme.ApplyContainerStyle(container_panel)
         else
@@ -447,8 +483,12 @@ function sfui.create_options_panel()
         last_tab_button = tab_button
     end
 
+    refresh_frame_levels()
+    frame:HookScript("OnShow", refresh_frame_levels)
+
     if sfui.theme and sfui.theme.RegisterWindow then
         sfui.theme.RegisterWindow(frame, function(f, curPal)
+            refresh_frame_levels()
             if header_text then
                 header_text:SetTextColor(curPal.headerColor[1], curPal.headerColor[2], curPal.headerColor[3])
             end

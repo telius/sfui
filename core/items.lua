@@ -180,12 +180,287 @@ function sfui.items.get_item_info(item)
 end
 sfui.common.get_item_info = sfui.items.get_item_info
 
+local itemStatsCache = {}
+local itemStatsCacheCount = 0
+local ITEM_STATS_CACHE_MAX = 500
+
+function sfui.items.clear_item_stats_cache()
+    _G.wipe(itemStatsCache)
+    itemStatsCacheCount = 0
+end
+sfui.common.clear_item_stats_cache = sfui.items.clear_item_stats_cache
+
+function sfui.items.parse_tooltip_stat_line(lineText, stats)
+    if not lineText or type(lineText) ~= "string" or not stats then return end
+    local clean = lineText:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
+    if not clean or clean == "" then return end
+
+    -- 1. Classic Spell Power / Spell Damage and Healing (e.g. Scepter of the Abandoned)
+    local sp = clean:match("[Ii]ncreases damage and healing .-by up to (%d+)")
+        or clean:match("[Ii]ncreases damage and healing .-by (%d+)")
+        or clean:match("%+(%d+)%s+[Ss]pell%s+[Dd]amage%s+and%s+[Hh]ealing")
+        or clean:match("%+(%d+)%s+[Dd]amage%s+and%s+[Hh]ealing%s+[Ss]pells")
+        or clean:match("%+(%d+)%s+[Ss]pell%s+[Pp]ower")
+    if sp then
+        local v = tonumber(sp)
+        if v and v > 0 then
+            stats["ITEM_MOD_SPELL_POWER_SHORT"] = math.max(stats["ITEM_MOD_SPELL_POWER_SHORT"] or 0, v)
+        end
+    end
+
+    -- 2. Pure healing done
+    if not sp then
+        local heal = clean:match("[Ii]ncreases healing .-by up to (%d+)")
+            or clean:match("[Ii]ncreases healing .-by (%d+)")
+            or clean:match("%+(%d+)%s+[Hh]ealing%s+[Ss]pells")
+            or clean:match("%+(%d+)%s+[Hh]ealing$")
+        if heal then
+            local v = tonumber(heal)
+            if v and v > 0 then
+                stats["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] = math.max(stats["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] or 0, v)
+            end
+        end
+    end
+
+    -- 3. TBC hybrid style (healing X and damage Y)
+    local tbcHeal, tbcDmg = clean:match("[Ii]ncreases healing .-by up to (%d+).-and damage .-by up to (%d+)")
+    if tbcHeal and tbcDmg then
+        local vH = tonumber(tbcHeal)
+        local vD = tonumber(tbcDmg)
+        if vH and vH > 0 then
+            stats["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] = math.max(stats["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] or 0, vH)
+        end
+        if vD and vD > 0 then
+            stats["ITEM_MOD_SPELL_DAMAGE_DONE_SHORT"] = math.max(stats["ITEM_MOD_SPELL_DAMAGE_DONE_SHORT"] or 0, vD)
+        end
+    end
+
+    -- 4. MP5 (Restores X mana per 5 sec)
+    local mp5 = clean:match("[Rr]estores (%d+) mana")
+        or clean:match("%+(%d+)%s+[Mm]ana%s+[Pp]er%s+5")
+        or clean:match("%+(%d+)%s+[Mm]ana%s+[Ee]very%s+5")
+    if mp5 then
+        local v = tonumber(mp5)
+        if v and v > 0 then
+            stats["ITEM_MOD_MANA_REGENERATION_SHORT"] = math.max(stats["ITEM_MOD_MANA_REGENERATION_SHORT"] or 0, v)
+        end
+    end
+
+    -- 5. School-specific spell damage (Shadow, Fire, Frost, Holy, Nature, Arcane)
+    local schoolDmg = clean:match("[Ii]ncreases damage done by (%a+) spells .-by up to (%d+)")
+        or clean:match("[Ii]ncreases damage done by (%a+) spells .-by (%d+)")
+        or clean:match("%+(%d+)%s+(%a+)%s+[Ss]pell%s+[Dd]amage")
+    if schoolDmg then
+        local v = tonumber(schoolDmg)
+        if v and v > 0 then
+            stats["ITEM_MOD_SPELL_DAMAGE_DONE_SHORT"] = math.max(stats["ITEM_MOD_SPELL_DAMAGE_DONE_SHORT"] or 0, v)
+        end
+    end
+
+    -- 6. Spell Critical Strike
+    local spellCrit = clean:match("[Ii]mproves your chance to get a critical strike with spells by (%d+)%%")
+        or clean:match("[Ii]mproves your chance to get a critical strike with spells by up to (%d+)%%")
+        or clean:match("%+(%d+)%%?%s+[Ss]pell%s+[Cc]rit")
+    if spellCrit then
+        local v = tonumber(spellCrit)
+        if v and v > 0 then
+            stats["ITEM_MOD_CRIT_SPELL_RATING_SHORT"] = math.max(stats["ITEM_MOD_CRIT_SPELL_RATING_SHORT"] or 0, v)
+        end
+    end
+
+    -- 7. Spell Hit
+    local spellHit = clean:match("[Ii]mproves your chance to hit with spells by (%d+)%%")
+        or clean:match("[Ii]mproves your chance to hit with spells by up to (%d+)%%")
+        or clean:match("%+(%d+)%%?%s+[Ss]pell%s+[Hh]it")
+    if spellHit then
+        local v = tonumber(spellHit)
+        if v and v > 0 then
+            stats["ITEM_MOD_HIT_SPELL_RATING_SHORT"] = math.max(stats["ITEM_MOD_HIT_SPELL_RATING_SHORT"] or 0, v)
+        end
+    end
+
+    -- 8. Armor Penetration
+    local arp = clean:match("[Yy]our attacks ignore (%d+) of your opponent's armor")
+        or clean:match("[Ii]ncreases armor penetration by (%d+)")
+        or clean:match("%+(%d+)%s+[Aa]rmor%s+[Pp]enetration")
+    if arp then
+        local v = tonumber(arp)
+        if v and v > 0 then
+            stats["ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT"] = math.max(stats["ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT"] or 0, v)
+        end
+    end
+
+    -- 9. Haste
+    local haste = clean:match("[Ii]ncreases attack speed by (%d+)%%")
+        or clean:match("[Ii]ncreases your attack speed by (%d+)%%")
+        or clean:match("[Ii]ncreases haste by (%d+)")
+        or clean:match("%+(%d+)%s+[Hh]aste%s+[Rr]ating")
+        or clean:match("%+(%d+)%s+[Hh]aste")
+    if haste then
+        local v = tonumber(haste)
+        if v and v > 0 then
+            stats["ITEM_MOD_HASTE_RATING_SHORT"] = math.max(stats["ITEM_MOD_HASTE_RATING_SHORT"] or 0, v)
+        end
+    end
+
+    -- 10. Expertise
+    local exp = clean:match("[Ii]ncreases your expertise by (%d+)")
+        or clean:match("[Ii]ncreases expertise by (%d+)")
+        or clean:match("%+(%d+)%s+[Ee]xpertise%s+[Rr]ating")
+        or clean:match("%+(%d+)%s+[Ee]xpertise")
+    if exp then
+        local v = tonumber(exp)
+        if v and v > 0 then
+            stats["ITEM_MOD_EXPERTISE_RATING_SHORT"] = math.max(stats["ITEM_MOD_EXPERTISE_RATING_SHORT"] or 0, v)
+        end
+    end
+
+    -- 11. Defense
+    local def = clean:match("[Ii]ncreased [Dd]efense %+(%d+)")
+        or clean:match("[Ii]ncreases defense rating by (%d+)")
+        or clean:match("%+(%d+)%s+[Dd]efense%s+[Rr]ating")
+        or clean:match("%+(%d+)%s+[Dd]efense$")
+    if def then
+        local v = tonumber(def)
+        if v and v > 0 then
+            stats["ITEM_MOD_DEFENSE_SKILL_RATING_SHORT"] = math.max(stats["ITEM_MOD_DEFENSE_SKILL_RATING_SHORT"] or 0, v)
+        end
+    end
+
+    -- 12. Shield Block Value
+    local bval = clean:match("[Ii]ncreases the block value of your shield by (%d+)")
+        or clean:match("%+(%d+)%s+[Bb]lock%s+[Vv]alue")
+    if bval then
+        local v = tonumber(bval)
+        if v and v > 0 then
+            stats["ITEM_MOD_BLOCK_VALUE_SHORT"] = math.max(stats["ITEM_MOD_BLOCK_VALUE_SHORT"] or 0, v)
+        end
+    end
+
+    -- 13. Block Rating / Chance
+    local block = clean:match("[Ii]ncreases your chance to block attacks by (%d+)%%")
+        or clean:match("%+(%d+)%%?%s+[Bb]lock%s+[Rr]ating")
+        or clean:match("%+(%d+)%%?%s+[Bb]lock$")
+    if block then
+        local v = tonumber(block)
+        if v and v > 0 then
+            stats["ITEM_MOD_BLOCK_RATING_SHORT"] = math.max(stats["ITEM_MOD_BLOCK_RATING_SHORT"] or 0, v)
+        end
+    end
+
+    -- 14. Physical / General Hit
+    if not spellHit then
+        local hit = clean:match("[Ii]mproves your chance to hit by (%d+)%%")
+            or clean:match("%+(%d+)%%?%s+[Hh]it%s+[Rr]ating")
+            or clean:match("%+(%d+)%%?%s+[Hh]it$")
+        if hit then
+            local v = tonumber(hit)
+            if v and v > 0 then
+                stats["ITEM_MOD_HIT_RATING_SHORT"] = math.max(stats["ITEM_MOD_HIT_RATING_SHORT"] or 0, v)
+            end
+        end
+    end
+
+    -- 15. Physical / General Crit
+    if not spellCrit then
+        local crit = clean:match("[Ii]mproves your chance to get a critical strike by (%d+)%%")
+            or clean:match("%+(%d+)%%?%s+[Cc]rit%s+[Rr]ating")
+            or clean:match("%+(%d+)%%?%s+[Cc]ritical%s+[Ss]trike")
+            or clean:match("%+(%d+)%%?%s+[Cc]rit$")
+        if crit then
+            local v = tonumber(crit)
+            if v and v > 0 then
+                stats["ITEM_MOD_CRIT_RATING_SHORT"] = math.max(stats["ITEM_MOD_CRIT_RATING_SHORT"] or 0, v)
+            end
+        end
+    end
+
+    -- 16. Attack Power / Ranged Attack Power
+    local rap = clean:match("%+(%d+)%s+[Rr]anged%s+[Aa]ttack%s+[Pp]ower")
+        or clean:match("[Ii]ncreases ranged attack power by (%d+)")
+    if rap then
+        local v = tonumber(rap)
+        if v and v > 0 then
+            stats["ITEM_MOD_RANGED_ATTACK_POWER_SHORT"] = math.max(stats["ITEM_MOD_RANGED_ATTACK_POWER_SHORT"] or 0, v)
+        end
+    else
+        local ap = clean:match("%+(%d+)%s+[Aa]ttack%s+[Pp]ower")
+            or clean:match("[Ii]ncreases attack power by (%d+)")
+        if ap then
+            local v = tonumber(ap)
+            if v and v > 0 then
+                stats["ITEM_MOD_ATTACK_POWER_SHORT"] = math.max(stats["ITEM_MOD_ATTACK_POWER_SHORT"] or 0, v)
+            end
+        end
+    end
+end
+sfui.common.parse_tooltip_stat_line = sfui.items.parse_tooltip_stat_line
+
 function sfui.items.get_item_stats(itemLink)
     if not itemLink then return nil end
-    if C_Item_GetItemStats then
-        return C_Item_GetItemStats(itemLink)
+    if itemStatsCache[itemLink] then
+        return itemStatsCache[itemLink]
     end
-    return nil
+
+    local raw = C_Item_GetItemStats and C_Item_GetItemStats(itemLink)
+    local stats = {}
+    if raw then
+        for k, v in pairs(raw) do stats[k] = v end
+    end
+
+    local isRetail = (sfui.isRetail == true) or (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic)
+    if isRetail then
+        itemStatsCache[itemLink] = raw or {}
+        return raw or {}
+    end
+
+    local isClassic = sfui.isClassic or sfui.isForever
+        or (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        or (sfui.version and not sfui.version.retail)
+
+    if isClassic then
+        local foundTooltip = false
+        local C_TooltipInfo = _G.C_TooltipInfo
+        if C_TooltipInfo and C_TooltipInfo.GetHyperlink then
+            local tData = C_TooltipInfo.GetHyperlink(itemLink)
+            if tData and tData.lines then
+                foundTooltip = true
+                for _, line in ipairs(tData.lines) do
+                    local left = line.leftText
+                    if left and type(left) == "string" then
+                        sfui.items.parse_tooltip_stat_line(left, stats)
+                    end
+                end
+            end
+        end
+
+        if not foundTooltip then
+            local tip = sfuiTooltip
+            if tip then
+                tip:ClearLines()
+                tip:SetHyperlink(itemLink)
+                local numLines = tip:NumLines() or 0
+                for i = 1, numLines do
+                    local fsL = _G["SfuiGameTooltipTextLeft" .. i]
+                    if fsL then
+                        local txt = fsL:GetText()
+                        if txt then
+                            sfui.items.parse_tooltip_stat_line(txt, stats)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if itemStatsCacheCount >= ITEM_STATS_CACHE_MAX then
+        _G.wipe(itemStatsCache)
+        itemStatsCacheCount = 0
+    end
+    itemStatsCacheCount = itemStatsCacheCount + 1
+    itemStatsCache[itemLink] = stats
+
+    return stats
 end
 sfui.common.get_item_stats = sfui.items.get_item_stats
 

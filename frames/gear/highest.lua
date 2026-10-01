@@ -42,11 +42,23 @@ end
 
 
 
+local function isClassicOrVanilla()
+    if sfui.isRetail == true or (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic) then
+        return false
+    end
+    if sfui.gear and sfui.gear.isClassicOrVanilla then return sfui.gear.isClassicOrVanilla() end
+    if sfui.isForever or sfui.isClassic or sfui.isEra or sfui.isCamelot then return true end
+    if sfui.compat and (sfui.compat.is_classic or sfui.compat.is_wow_forever or sfui.compat.is_classic_era or sfui.compat.is_camelot) then return true end
+    if sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or sfui.version.camelot or not sfui.version.retail) then return true end
+    return false
+end
+sfui.highest.isClassicOrVanilla = isClassicOrVanilla
+
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Authoritative Spec Equipment Scoring Rules & Engine Initialization
 -- ══════════════════════════════════════════════════════════════════════════════
 if sfui.highest.rules then
-    if sfui.isClassic or sfui.isForever then
+    if isClassicOrVanilla() then
         if sfui.highest.classic_rules then
             for sID, cRule in pairs(sfui.highest.classic_rules) do
                 sfui.highest.rules[sID] = cRule
@@ -56,11 +68,13 @@ if sfui.highest.rules then
 
     setmetatable(sfui.highest.rules, {
         __index = function(t, k)
-            local b = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[k]
-            if b and sfui.highest.classic_rules then
-                if b.camelotID and sfui.highest.classic_rules[b.camelotID] then return sfui.highest.classic_rules[b.camelotID] end
-                if b.retailID and sfui.highest.classic_rules[b.retailID] then return sfui.highest.classic_rules[b.retailID] end
-                if b.classID and sfui.highest.classic_rules[b.classID] then return sfui.highest.classic_rules[b.classID] end
+            if isClassicOrVanilla() then
+                local b = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[k]
+                if b and sfui.highest.classic_rules then
+                    if b.camelotID and sfui.highest.classic_rules[b.camelotID] then return sfui.highest.classic_rules[b.camelotID] end
+                    if b.retailID and sfui.highest.classic_rules[b.retailID] then return sfui.highest.classic_rules[b.retailID] end
+                    if b.classID and sfui.highest.classic_rules[b.classID] then return sfui.highest.classic_rules[b.classID] end
+                end
             end
             local nk = tonumber(k)
             if nk and rawget(t, nk) then return rawget(t, nk) end
@@ -76,11 +90,13 @@ function sfui.highest.GetRule(specID)
     if not specID or not sfui.highest.rules then return nil end
     local r = sfui.highest.rules[specID]
     if r then return r end
-    local b = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
-    if b then
-        if b.camelotID and sfui.highest.rules[b.camelotID] then return sfui.highest.rules[b.camelotID] end
-        if b.retailID and sfui.highest.rules[b.retailID] then return sfui.highest.rules[b.retailID] end
-        if b.classID and sfui.highest.rules[b.classID] then return sfui.highest.rules[b.classID] end
+    if isClassicOrVanilla() then
+        local b = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
+        if b then
+            if b.camelotID and sfui.highest.rules[b.camelotID] then return sfui.highest.rules[b.camelotID] end
+            if b.retailID and sfui.highest.rules[b.retailID] then return sfui.highest.rules[b.retailID] end
+            if b.classID and sfui.highest.rules[b.classID] then return sfui.highest.rules[b.classID] end
+        end
     end
     local num = tonumber(specID)
     if num and num ~= specID then return sfui.highest.rules[num] end
@@ -272,14 +288,25 @@ local function HasPrimaryStat(itemLink, primaryStatName, specID)
     -- Fast-path mathematically sound API match
     if stats and stats[primaryStatName] then return true end
 
-    local classID = (sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)
-    local isClassic = sfui.isClassic or sfui.isForever or (classID ~= nil)
-    if not isClassic and (specID == nil or specID == 0) then
+    local isClassic = isClassicOrVanilla()
+
+    -- Caster / Healer spell stat allowance (Classic / Camelot only):
+    -- If Intellect is the primary stat, items with Spell Power, Healing, or MP5 satisfy the primary stat check
+    if isClassic and primaryStatName == "ITEM_MOD_INTELLECT_SHORT" and stats then
+        if (stats["ITEM_MOD_SPELL_POWER_SHORT"] or 0) > 0 or
+           (stats["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] or 0) > 0 or
+           (stats["ITEM_MOD_SPELL_DAMAGE_DONE_SHORT"] or 0) > 0 or
+           (stats["ITEM_MOD_MANA_REGENERATION_SHORT"] or 0) > 0 then
+            return true
+        end
+    end
+
+    local classID = isClassic and ((sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)) or nil
+    if isClassic and (specID == nil or specID == 0) then
         local curSpecID = sfui.common and sfui.common.get_current_spec_id and sfui.common.get_current_spec_id()
         if curSpecID then
             local curClassID = (sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(curSpecID)) or (curSpecID >= 1482 and curSpecID <= 1491 and curSpecID)
             if curClassID then
-                isClassic = true
                 specID = curSpecID
                 classID = curClassID
             end
@@ -287,12 +314,22 @@ local function HasPrimaryStat(itemLink, primaryStatName, specID)
     end
 
     if isClassic and classID then
+        local b = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
+        local specDB = SfuiDB and SfuiDB.gear and (SfuiDB.gear[specID] or (b and b.camelotID and SfuiDB.gear[b.camelotID]) or (b and b.classID and SfuiDB.gear[b.classID]))
+        local isHeal = (specDB and (specDB.classic_role == "HEAL" or specDB.is_healer))
+            or (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
+
         if classID == 1488 or classID == 1491 or classID == 1485 then -- Rogue, Warrior, Hunter
             if stats and (stats["ITEM_MOD_INTELLECT_SHORT"] or 0) > 0 and (stats["ITEM_MOD_STRENGTH_SHORT"] or 0) == 0 and (stats["ITEM_MOD_AGILITY_SHORT"] or 0) == 0 and (stats["ITEM_MOD_ATTACK_POWER_SHORT"] or 0) == 0 and (stats["ITEM_MOD_RANGED_ATTACK_POWER_SHORT"] or 0) == 0 then
                 return false
             end
         elseif classID == 1482 or classID == 1487 or classID == 1490 then -- Mage, Priest, Warlock
             if stats and ((stats["ITEM_MOD_STRENGTH_SHORT"] or 0) > 0 or (stats["ITEM_MOD_AGILITY_SHORT"] or 0) > 0) and (stats["ITEM_MOD_INTELLECT_SHORT"] or 0) == 0 and (stats["ITEM_MOD_SPELL_POWER_SHORT"] or 0) == 0 and (stats["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] or 0) == 0 then
+                return false
+            end
+        elseif isHeal and (classID == 1486 or classID == 1489 or classID == 1484) then -- Paladin, Shaman, Druid in heal mode
+            -- Pure melee items without any spell/healing/intellect/spirit stats should not be valid for heal mode
+            if stats and ((stats["ITEM_MOD_STRENGTH_SHORT"] or 0) > 0 or (stats["ITEM_MOD_AGILITY_SHORT"] or 0) > 0) and (stats["ITEM_MOD_INTELLECT_SHORT"] or 0) == 0 and (stats["ITEM_MOD_SPELL_POWER_SHORT"] or 0) == 0 and (stats["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] or 0) == 0 and (stats["ITEM_MOD_MANA_REGENERATION_SHORT"] or 0) == 0 and (stats["ITEM_MOD_SPIRIT_SHORT"] or 0) == 0 then
                 return false
             end
         end
@@ -369,6 +406,9 @@ function sfui.highest.ClearCache()
     validationCacheCount = 0
     _G.wipe(embellishCache)
     embellishCacheCount = 0
+    if sfui.common and sfui.common.clear_item_stats_cache then
+        sfui.common.clear_item_stats_cache()
+    end
 end
 sfui.highest.ClearValidationCache = sfui.highest.ClearCache
 
@@ -471,10 +511,8 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
     local rule = (sfui.highest.GetRule and sfui.highest.GetRule(specID)) or sfui.highest.rules[specID]
     if not rule then return false end
 
-    local playerClassID = (sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)
-    local isClassic = sfui.isClassic or sfui.isForever or (playerClassID ~= nil)
-        or (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
-        or (sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail))
+    local isClassic = isClassicOrVanilla()
+    local playerClassID = isClassic and ((sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)) or nil
 
     -- Dynamic Frost DK Talent Overrides (ignored for general loot eligibility)
     if not ignoreTalents and specID == 251 and not isClassic then
@@ -487,32 +525,42 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
     local isTank = false
     local isHeal = false
     if isClassic then
-        local specDB = SfuiDB and SfuiDB.gear and SfuiDB.gear[specID]
-        isTank = (sfui.gear and sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, specDB)) or false
-        isHeal = (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
-        if isTank and (classID == 1491 or classID == 1486) then
+        local b = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
+        local specDB = SfuiDB and SfuiDB.gear and (SfuiDB.gear[specID] or (b and b.camelotID and SfuiDB.gear[b.camelotID]) or (b and b.classID and SfuiDB.gear[b.classID]))
+        isTank = (specDB and (specDB.classic_role == "TANK" or specDB.is_tank or specDB.armor_ilvl_prio))
+            or (sfui.gear and sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, specDB)) or false
+        isHeal = (specDB and (specDB.classic_role == "HEAL" or specDB.is_healer))
+            or (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
+
+        local isPaladin = (playerClassID == 1486 or specID == 1486 or (specID and specID >= 14861 and specID <= 14863))
+        local isWarrior = (playerClassID == 1491 or specID == 1491 or (specID and specID >= 14911 and specID <= 14913))
+        local isShaman  = (playerClassID == 1489 or specID == 1489 or (specID and specID >= 14891 and specID <= 14893))
+        local isDruid   = (playerClassID == 1484 or specID == 1484 or (specID and specID >= 14841 and specID <= 14843))
+        local isPriest  = (playerClassID == 1487 or specID == 1487 or (specID and specID >= 14871 and specID <= 14873))
+
+        if isTank and (isWarrior or isPaladin) then
             rule = {
                 armor = rule.armor,
                 stat = rule.stat,
-                weaps = { ["1H_Shield"] = true, ["Ranged"] = (classID == 1491) },
+                weaps = { ["1H_Shield"] = true, ["Ranged"] = isWarrior },
                 allowedWeapons = rule.allowedWeapons,
             }
         elseif isHeal then
-            if classID == 1486 or classID == 1489 then -- Paladin, Shaman (Healer: 1H + Shield/Offhand or 2H, Intellect)
+            if isPaladin or isShaman then -- Paladin, Shaman (Healer: 1H + Shield/Offhand or 2H, Intellect)
                 rule = {
                     armor = rule.armor,
                     stat = 4, -- Intellect / Spell
                     weaps = { ["1H_Shield"] = true, ["1H_Off"] = true, ["2H"] = true },
                     allowedWeapons = rule.allowedWeapons,
                 }
-            elseif classID == 1484 then -- Druid (Healer: 1H + Offhand or 2H Mace/Staff, Intellect)
+            elseif isDruid then -- Druid (Healer: 1H + Offhand or 2H Mace/Staff, Intellect)
                 rule = {
                     armor = rule.armor,
                     stat = 4,
                     weaps = { ["1H_Off"] = true, ["2H"] = true },
                     allowedWeapons = rule.allowedWeapons,
                 }
-            elseif classID == 1487 then -- Priest (Healer: 1H + Offhand or 2H Staff, Wand, Intellect)
+            elseif isPriest then -- Priest (Healer: 1H + Offhand or 2H Staff, Wand, Intellect)
                 rule = {
                     armor = rule.armor,
                     stat = 4,
@@ -648,7 +696,14 @@ end
 
 function sfui.highest.IsItemValidForSpec(itemLink, specID, ignorePlayerLevel, ignoreTalents)
     local playerLvlKey = ignorePlayerLevel and "ign" or tostring(UnitLevel("player") or 1)
-    local cacheKey = itemLink .. ":" .. tostring(specID) .. ":" .. playerLvlKey .. (ignoreTalents and ":igntal" or "")
+    local isClassic = isClassicOrVanilla()
+    local roleKey = ""
+    if isClassic then
+        local b = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
+        local specDB = SfuiDB and SfuiDB.gear and (SfuiDB.gear[specID] or (b and b.camelotID and SfuiDB.gear[b.camelotID]) or (b and b.classID and SfuiDB.gear[b.classID]))
+        roleKey = (specDB and (specDB.classic_role or specDB.role)) or ""
+    end
+    local cacheKey = itemLink .. ":" .. tostring(specID) .. ":" .. playerLvlKey .. ":" .. roleKey .. (ignoreTalents and ":igntal" or "")
     if validationCache[cacheKey] ~= nil then
         local c = validationCache[cacheKey]
         return c[1], c[2], c[3], c[4], c[5]
@@ -731,10 +786,8 @@ function sfui.highest.GetBestItems(isPvP)
     if not rule then return nil end
     local best2H = nil
 
-    local classID = (sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)
-    local isClassicSpec = sfui.isClassic or sfui.isForever or (classID ~= nil)
-        or (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
-        or (sfui.version and not sfui.version.retail)
+    local isClassicSpec = isClassicOrVanilla()
+    local classID = isClassicSpec and ((sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)) or nil
 
     -- Dynamic Frost DK Talent Overrides
     if not isClassicSpec and specID == 251 then
@@ -743,35 +796,47 @@ function sfui.highest.GetBestItems(isPvP)
         end
     end
 
-    local specDB = SfuiDB and SfuiDB.gear and SfuiDB.gear[specID]
+    local b = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
+    local specDB = nil
+    if isClassicSpec then
+        specDB = SfuiDB and SfuiDB.gear and (SfuiDB.gear[specID] or (b and b.camelotID and SfuiDB.gear[b.camelotID]) or (b and b.classID and SfuiDB.gear[b.classID]))
+    else
+        specDB = SfuiDB and SfuiDB.gear and SfuiDB.gear[specID]
+    end
     local isTank = (sfui.gear and sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, specDB)) or false
     local isHeal = (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
 
     -- Classic Role Weapon & Stat Override: Warrior/Paladin tanks & Paladin/Shaman/Druid/Priest healers
     if isClassicSpec then
-        if isTank and (classID == 1491 or classID == 1486) then
+        local isPaladin = (classID == 1486 or specID == 1486 or (specID and specID >= 14861 and specID <= 14863))
+        local isWarrior = (classID == 1491 or specID == 1491 or (specID and specID >= 14911 and specID <= 14913))
+        local isShaman  = (classID == 1489 or specID == 1489 or (specID and specID >= 14891 and specID <= 14893))
+        local isDruid   = (classID == 1484 or specID == 1484 or (specID and specID >= 14841 and specID <= 14843))
+        local isPriest  = (classID == 1487 or specID == 1487 or (specID and specID >= 14871 and specID <= 14873))
+
+        if isTank and (isWarrior or isPaladin) then
             rule = {
                 armor = rule.armor,
                 stat = rule.stat,
-                weaps = { ["1H_Shield"] = true, ["Ranged"] = (classID == 1491) },
+                weaps = { ["1H_Shield"] = true, ["Ranged"] = isWarrior },
                 allowedWeapons = rule.allowedWeapons,
             }
         elseif isHeal then
-            if classID == 1486 or classID == 1489 then -- Paladin, Shaman (Healer: 1H + Shield/Offhand or 2H, Intellect)
+            if isPaladin or isShaman then -- Paladin, Shaman (Healer: 1H + Shield/Offhand or 2H, Intellect)
                 rule = {
                     armor = rule.armor,
                     stat = 4, -- Intellect / Spell
                     weaps = { ["1H_Shield"] = true, ["1H_Off"] = true, ["2H"] = true },
                     allowedWeapons = rule.allowedWeapons,
                 }
-            elseif classID == 1484 then -- Druid (Healer: 1H + Offhand or 2H Mace/Staff, Intellect)
+            elseif isDruid then -- Druid (Healer: 1H + Offhand or 2H Mace/Staff, Intellect)
                 rule = {
                     armor = rule.armor,
                     stat = 4,
                     weaps = { ["1H_Off"] = true, ["2H"] = true },
                     allowedWeapons = rule.allowedWeapons,
                 }
-            elseif classID == 1487 then -- Priest (Healer: 1H + Offhand or 2H Staff, Wand, Intellect)
+            elseif isPriest then -- Priest (Healer: 1H + Offhand or 2H Staff, Wand, Intellect)
                 rule = {
                     armor = rule.armor,
                     stat = 4,
@@ -988,12 +1053,9 @@ function sfui.highest.GetBestItems(isPvP)
         end
     else
         -- P1 fallback hierarchy: pawn weights > explicitly saved manual stats > stats.lua default dictionary stats > hardcoded generic fallback failover
-        local isClassicSpec = (specID and specID >= 1482 and specID <= 1491)
-            or (sfui.gear and sfui.gear.IsClassicSpec and sfui.gear.IsClassicSpec(specID))
-            or (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
-            or (sfui.version and not sfui.version.retail)
-        local classicRole = (specDB and (specDB.classic_role or (specDB.role == "HEALER" and "HEAL") or (specDB.role == "TANK" and "TANK") or (specDB.is_tank and "TANK") or (specDB.is_healer and "HEAL")))
-            or (isClassicSpec and sfui.gear and sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(specID, specDB))
+        local isClassicSpec = isClassicOrVanilla()
+        local classicRole = isClassicSpec and ((specDB and (specDB.classic_role or (specDB.role == "HEALER" and "HEAL") or (specDB.role == "TANK" and "TANK") or (specDB.is_tank and "TANK") or (specDB.is_healer and "HEAL")))
+            or (sfui.gear and sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(specID, specDB))) or nil
         local order = (hd and hd.stat_order) or (specDB and specDB.stat_order) or
             (sfui.gear and sfui.gear.GetDefaultStats and sfui.gear.GetDefaultStats(specID, classicRole)) or
             (sfui.default_stats and sfui.default_stats[specID]) or
@@ -1087,12 +1149,8 @@ function sfui.highest.GetBestItems(isPvP)
         end
     end
 
-    local classID = (sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)
-    local isClassicSpec = (sfui.gear and sfui.gear.IsClassicSpec and sfui.gear.IsClassicSpec(specID))
-        or (specID and specID >= 1482 and specID <= 1491)
-        or (classID ~= nil)
-        or (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
-        or (sfui.version and not sfui.version.retail)
+    local isClassicSpec = isClassicOrVanilla()
+    local classID = isClassicSpec and ((sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)) or nil
     local isTank = (sfui.gear and sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, specDB)) or false
     local isHeal = (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
     if isClassicSpec then
@@ -1259,6 +1317,10 @@ function sfui.highest.GetBestItems(isPvP)
                                 simName = isTank and "Block" or "None"
                             elseif statName == "ITEM_MOD_BLOCK_VALUE_SHORT" then
                                 simName = isTank and "BlockValue" or "None"
+                            elseif statName == "ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT" then
+                                simName = "ArmorPenetration"
+                            elseif statName == "ITEM_MOD_EXPERTISE_RATING_SHORT" then
+                                simName = "Expertise"
                             elseif statName == "ITEM_MOD_ARMOR_SHORT" or statName == "ITEM_MOD_EXTRA_ARMOR_SHORT" then
                                 simName = isTank and "Armor" or "None"
                             elseif statName == "ITEM_MOD_INTELLECT_SHORT" or statName == "ITEM_MOD_AGILITY_SHORT" or statName == "ITEM_MOD_STRENGTH_SHORT" then
@@ -1315,6 +1377,10 @@ function sfui.highest.GetBestItems(isPvP)
                                     mappedStatName = "ITEM_MOD_HIT_RATING_SHORT"
                                 elseif statName == "ITEM_MOD_EXTRA_ARMOR_SHORT" then
                                     mappedStatName = "ITEM_MOD_ARMOR_SHORT"
+                                elseif statName == "ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT" then
+                                    mappedStatName = "ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT"
+                                elseif statName == "ITEM_MOD_EXPERTISE_RATING_SHORT" then
+                                    mappedStatName = "ITEM_MOD_EXPERTISE_RATING_SHORT"
                                 elseif not isClassicSpec and (statName == "ITEM_MOD_INTELLECT_SHORT" or statName == "ITEM_MOD_AGILITY_SHORT" or statName == "ITEM_MOD_STRENGTH_SHORT") then
                                     mappedStatName = common.get_stat_key(rule.stat) or statName
                                 end
@@ -1571,14 +1637,14 @@ function sfui.highest.GetBestItems(isPvP)
             scoreDual = (best1H and best1H.score or 0) + (bestOH and bestOH.score or 0)
         end
 
-        local prioMH_OH = (specID == 62 or specID == 63 or specID == 64 or specID == 265 or specID == 266 or specID == 267 or specID == 258)
+        local prioMH_OH = (specID == 62 or specID == 63 or specID == 64 or specID == 265 or specID == 266 or specID == 267 or specID == 258) or (isClassicSpec and isHeal)
         local choose2H = false
 
         if best2H and (not best1H or not bestOH) then
             choose2H = true
         elseif best2H and best1H and bestOH then
             if prioMH_OH then
-                -- For Mage, Warlock & Shadow Priest: prioritize MH + OH if stats/score are equal or better
+                -- For Mage, Warlock & Shadow Priest or Classic Healers: prioritize MH + OH if stats/score are equal or better
                 -- 2H is only chosen if it genuinely beats the combined dual set beyond rounding margin
                 if score2H > (scoreDual + 1.0) then
                     choose2H = true
@@ -1602,8 +1668,17 @@ function sfui.highest.GetBestItems(isPvP)
             end
         end
 
+        local isPaladinWeap = isClassicSpec and (classID == 1486 or specID == 1486 or (specID and specID >= 14861 and specID <= 14863))
+        local isWarriorWeap = isClassicSpec and (classID == 1491 or specID == 1491 or (specID and specID >= 14911 and specID <= 14913))
+        local isShamanWeap  = isClassicSpec and (classID == 1489 or specID == 1489 or (specID and specID >= 14891 and specID <= 14893))
+
         -- Classic Tank Override: Classic Warrior (1491) and Paladin (1486) tanks NEVER use 2H weapons!
-        if isClassicSpec and isTank and (classID == 1491 or classID == 1486) then
+        if isClassicSpec and isTank and (isWarriorWeap or isPaladinWeap) then
+            choose2H = false
+        end
+
+        -- Classic Healer Override: Classic Paladin and Shaman healers use 1H + Shield / Offhand when both are available!
+        if isClassicSpec and isHeal and (isPaladinWeap or isShamanWeap) and best1H and bestOH then
             choose2H = false
         end
 
@@ -1851,17 +1926,7 @@ function sfui.highest.GetBestItems(isPvP)
     return finalPick
 end
 
-local function isClassicOrVanilla()
-    if sfui.gear and sfui.gear.isClassicOrVanilla then return sfui.gear.isClassicOrVanilla() end
-    if sfui.isForever or sfui.isClassic or sfui.isEra then return true end
-    if sfui.compat and (sfui.compat.is_classic or sfui.compat.is_wow_forever or sfui.compat.is_classic_era) then return true end
-    if sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail) then return true end
-    local spec = (common and common.get_specialization and common.get_specialization()) or (_G.GetSpecialization and _G.GetSpecialization())
-    local numSpec = tonumber(spec)
-    if numSpec and numSpec >= 1482 and numSpec <= 1491 then return true end
-    return false
-end
-sfui.highest.isClassicOrVanilla = isClassicOrVanilla
+-- isClassicOrVanilla is declared at top of file
 
 --- Detects if player has a fishing pole currently equipped in slot 16 (Main Hand)
 --- Authoritatively uses Item Class (Weapon = 2, Profession = 19) and Item Subclass (Fishingpole = 20, Fishing = 9).
@@ -2131,6 +2196,16 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                 C_Container_PickupContainerItem(item.bag, item.slot)
                 if _G.CursorHasItem and _G.CursorHasItem() then
                     if _G.EquipCursorItem then _G.EquipCursorItem(slotID) end
+                    if _G.CursorHasItem and _G.CursorHasItem() then
+                        -- Swapped item is now on cursor: place it in the newly emptied bag slot
+                        C_Container_PickupContainerItem(item.bag, item.slot)
+                        if _G.CursorHasItem and _G.CursorHasItem() then
+                            if _G.PutItemInBackpack then _G.PutItemInBackpack() end
+                            if _G.CursorHasItem and _G.CursorHasItem() and _G.ClearCursor then
+                                _G.ClearCursor()
+                            end
+                        end
+                    end
                 else
                     EquipItemByName(item.link, slotID)
                 end

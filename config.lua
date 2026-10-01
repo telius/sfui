@@ -79,12 +79,12 @@ sfui.config = {
         [581] = { 0.635, 1.0, 0.0, 1 },      -- Vengeance
         [1480] = { 0.788, 0.259, 0.992, 1 }, -- Devourer
         -- Druid
-        [102] = { 0.2, 0.0, 0.8, 1 },        -- Balance
+        [102] = { 0.40, 0.75, 1.00, 1 },     -- Balance (Moonfire)
         [103] = { 1.00, 0.49, 0.04, 1 },     -- Feral
         [104] = { 1.00, 0.49, 0.04, 1 },     -- Guardian
         [105] = { 0.2, 0.8, 0.2, 1 },        -- Restoration
         [1484] = { 1.00, 0.49, 0.04, 1 },    -- Classic / Vanilla Base Druid
-        [14841] = { 0.2, 0.0, 0.8, 1 },      -- Camelot Balance
+        [14841] = { 0.40, 0.75, 1.00, 1 },   -- Camelot Balance (Moonfire)
         [14842] = { 1.00, 0.49, 0.04, 1 },   -- Camelot Feral
         [14843] = { 0.2, 0.8, 0.2, 1 },      -- Camelot Restoration
         -- Evoker
@@ -427,6 +427,33 @@ sfui.config = {
         iconSize = 19,
         backdrop = {
             padding = 2,
+            color = { 0, 0, 0, 0.5 },
+        },
+    },
+
+    targetBar = {
+        enabled = true,
+        width = 200,
+        height = 20,
+        powerHeight = 5,
+        pos = { point = "TOPLEFT", relativeTo = "playerHealthBar", relativePoint = "TOPRIGHT", x = 8, y = 18 },
+        backdrop = {
+            padding = 2,
+            color = { 0, 0, 0, 0.5 },
+        },
+        auras = {
+            size = 18,
+            spacing = 2,
+            maxBuffs = 6,
+            maxDebuffs = 6,
+        },
+    },
+
+    threatBar = {
+        enabled = true,
+        height = 4,
+        backdrop = {
+            padding = 1,
             color = { 0, 0, 0, 0.5 },
         },
     },

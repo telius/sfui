@@ -15,30 +15,30 @@ sfui.data.SPEC_DEFINITIONS = {
         camelotID = 14911, retailID = 71, classID = 1491, class = "WARRIOR", classFile = "WARRIOR",
         treeIndex = 1, name = "arms", icon = 132355, role = "DPS", isTank = false, isHealer = false, isClassic = true,
         retailStats  = { "C", "H", "M", "V" },
-        classicStats = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "H", "Arm" },
+        classicStats = { "Str", "AP", "Hit", "Crit", "ArP", "Exp", "Agi", "Stam", "H", "Arm" },
         roleStats = {
-            ["DPS"]  = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "H", "Arm" },
-            ["TANK"] = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "Hit", "Str" },
+            ["DPS"]  = { "Str", "AP", "Hit", "Crit", "ArP", "Exp", "Agi", "Stam", "H", "Arm" },
+            ["TANK"] = { "Def", "Stam", "Arm", "BlockVal", "Block", "Dodge", "Parry", "Hit" },
         },
     },
     {
         camelotID = 14912, retailID = 72, classID = 1491, class = "WARRIOR", classFile = "WARRIOR",
         treeIndex = 2, name = "fury", icon = 132347, role = "DPS", isTank = false, isHealer = false, isClassic = true,
         retailStats  = { "M", "H", "C", "V" },
-        classicStats = { "AP", "Hit", "Crit", "Str", "Agi", "Stam", "H", "Arm" },
+        classicStats = { "AP", "Hit", "Crit", "ArP", "Exp", "Str", "Agi", "Stam", "H", "Arm" },
         roleStats = {
-            ["DPS"]  = { "AP", "Hit", "Crit", "Str", "Agi", "Stam", "H", "Arm" },
-            ["TANK"] = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "Hit", "Str" },
+            ["DPS"]  = { "AP", "Hit", "Crit", "ArP", "Exp", "Str", "Agi", "Stam", "H", "Arm" },
+            ["TANK"] = { "Def", "Stam", "Arm", "BlockVal", "Block", "Dodge", "Parry", "Hit" },
         },
     },
     {
         camelotID = 14913, retailID = 73, classID = 1491, class = "WARRIOR", classFile = "WARRIOR",
         treeIndex = 3, name = "protection", icon = 132341, role = "TANK", isTank = true, isHealer = false, isClassic = true,
         retailStats  = { "H", "C", "V", "M" },
-        classicStats = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "Hit", "Str" },
+        classicStats = { "Def", "Stam", "Arm", "BlockVal", "Block", "Dodge", "Parry", "Hit", "Str" },
         roleStats = {
-            ["TANK"] = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "Hit", "Str" },
-            ["DPS"]  = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "H", "Arm" },
+            ["TANK"] = { "Def", "Stam", "Arm", "BlockVal", "Block", "Dodge", "Parry", "Hit", "Str" },
+            ["DPS"]  = { "Str", "AP", "Hit", "Crit", "ArP", "Exp", "Agi", "Stam", "H", "Arm" },
         },
     },
     -- PALADIN (1486)
@@ -56,9 +56,9 @@ sfui.data.SPEC_DEFINITIONS = {
         camelotID = 14862, retailID = 66, classID = 1486, class = "PALADIN", classFile = "PALADIN",
         treeIndex = 2, name = "protection", icon = 236264, role = "TANK", isTank = true, isHealer = false, isClassic = true,
         retailStats  = { "H", "V", "C", "M" },
-        classicStats = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "SP", "Hit" },
+        classicStats = { "Def", "Stam", "Arm", "BlockVal", "Block", "Dodge", "Parry", "SP", "Hit" },
         roleStats = {
-            ["TANK"] = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "SP", "Hit" },
+            ["TANK"] = { "Def", "Stam", "Arm", "BlockVal", "Block", "Dodge", "Parry", "SP", "Hit" },
             ["DPS"]  = { "Str", "AP", "Hit", "Crit", "SP" },
         },
     },
@@ -66,11 +66,11 @@ sfui.data.SPEC_DEFINITIONS = {
         camelotID = 14863, retailID = 70, classID = 1486, class = "PALADIN", classFile = "PALADIN",
         treeIndex = 3, name = "retribution", icon = 135873, role = "DPS", isTank = false, isHealer = false, isClassic = true,
         retailStats  = { "M", "H", "C", "V" },
-        classicStats = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "SP", "H" },
+        classicStats = { "Str", "AP", "Hit", "Crit", "ArP", "Exp", "Agi", "Stam", "SP", "H" },
         roleStats = {
-            ["DPS"]  = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "SP", "H" },
+            ["DPS"]  = { "Str", "AP", "Hit", "Crit", "ArP", "Exp", "Agi", "Stam", "SP", "H" },
             ["HEAL"] = { "Heal", "SP", "MP5", "Int", "Crit", "Spi", "Stam", "H" },
-            ["TANK"] = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "SP", "Hit" },
+            ["TANK"] = { "Def", "Stam", "Arm", "BlockVal", "Block", "Dodge", "Parry", "SP", "Hit" },
         },
     },
     -- HUNTER (1485)
@@ -78,38 +78,38 @@ sfui.data.SPEC_DEFINITIONS = {
         camelotID = 14851, retailID = 253, classID = 1485, class = "HUNTER", classFile = "HUNTER",
         treeIndex = 1, name = "beast mastery", icon = 132222, role = "DPS", isTank = false, isHealer = false, isClassic = true,
         retailStats  = { "M", "C", "V", "H" },
-        classicStats = { "Agi", "RAP", "Hit", "Crit", "AP", "Stam", "Int", "H" },
+        classicStats = { "Agi", "RAP", "Hit", "Crit", "ArP", "AP", "Stam", "Int", "H" },
     },
     {
         camelotID = 14852, retailID = 254, classID = 1485, class = "HUNTER", classFile = "HUNTER",
         treeIndex = 2, name = "marksmanship", icon = 132218, role = "DPS", isTank = false, isHealer = false, isClassic = true,
         retailStats  = { "C", "M", "H", "V" },
-        classicStats = { "Agi", "RAP", "Hit", "Crit", "AP", "Stam", "Int", "H" },
+        classicStats = { "Agi", "RAP", "Hit", "Crit", "ArP", "AP", "Stam", "Int", "H" },
     },
     {
         camelotID = 14853, retailID = 255, classID = 1485, class = "HUNTER", classFile = "HUNTER",
         treeIndex = 3, name = "survival", icon = 132215, role = "DPS", isTank = false, isHealer = false, isClassic = true,
         retailStats  = { "M", "C", "H", "V" },
-        classicStats = { "Agi", "RAP", "Hit", "Crit", "AP", "Stam", "Int", "H" },
+        classicStats = { "Agi", "RAP", "Hit", "Crit", "ArP", "AP", "Stam", "Int", "H" },
     },
     -- ROGUE (1488)
     {
         camelotID = 14881, retailID = 259, classID = 1488, class = "ROGUE", classFile = "ROGUE",
         treeIndex = 1, name = "assassination", icon = 132292, role = "DPS", isTank = false, isHealer = false, isClassic = true,
         retailStats  = { "C", "H", "M", "V" },
-        classicStats = { "Agi", "AP", "Hit", "Crit", "Str", "Stam", "H", "Arm" },
+        classicStats = { "Agi", "AP", "Hit", "Crit", "ArP", "Exp", "Str", "Stam", "H", "Arm" },
     },
     {
         camelotID = 14882, retailID = 260, classID = 1488, class = "ROGUE", classFile = "ROGUE",
         treeIndex = 2, name = "combat", icon = 132309, role = "DPS", isTank = false, isHealer = false, isClassic = true,
         retailStats  = { "H", "C", "V", "M" },
-        classicStats = { "Hit", "Agi", "AP", "Crit", "Str", "Stam", "H", "Arm" },
+        classicStats = { "Hit", "Exp", "Agi", "AP", "Crit", "ArP", "Str", "Stam", "H", "Arm" },
     },
     {
         camelotID = 14883, retailID = 261, classID = 1488, class = "ROGUE", classFile = "ROGUE",
         treeIndex = 3, name = "subtlety", icon = 132320, role = "DPS", isTank = false, isHealer = false, isClassic = true,
         retailStats  = { "M", "H", "C", "V" },
-        classicStats = { "Agi", "AP", "Crit", "Hit", "Str", "Stam", "H", "Arm" },
+        classicStats = { "Agi", "AP", "Crit", "Hit", "ArP", "Exp", "Str", "Stam", "H", "Arm" },
     },
     -- PRIEST (1487)
     {
@@ -226,9 +226,9 @@ sfui.data.SPEC_DEFINITIONS = {
         camelotID = 14842, retailID = 103, classID = 1484, class = "DRUID", classFile = "DRUID",
         treeIndex = 2, name = "feral", icon = 132242, role = "DPS", isTank = false, isHealer = false, isClassic = true,
         retailStats  = { "M", "H", "C", "V" },
-        classicStats = { "Str", "Agi", "AP", "Crit", "Hit", "Stam", "Int", "Arm" },
+        classicStats = { "Str", "Agi", "AP", "Crit", "Hit", "ArP", "Exp", "Stam", "Int", "Arm" },
         roleStats = {
-            ["DPS"]  = { "Str", "Agi", "AP", "Crit", "Hit", "Stam", "Int", "Arm" },
+            ["DPS"]  = { "Str", "Agi", "AP", "Crit", "Hit", "ArP", "Exp", "Stam", "Int", "Arm" },
             ["TANK"] = { "Arm", "Stam", "Def", "Dodge", "Agi", "Str", "Hit", "AP" },
         },
     },
@@ -317,33 +317,33 @@ sfui.data.SPEC_DEFINITIONS = {
 sfui.data.BASE_CLASS_DEFINITIONS = {
     [1491] = {
         classID = 1491, class = "WARRIOR", classFile = "WARRIOR", name = "warrior", role = "DPS", isTank = false, isHealer = false, isClassic = true,
-        classicStats = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "H", "Arm" },
+        classicStats = { "Str", "AP", "Hit", "Crit", "ArP", "Exp", "Agi", "Stam", "H", "Arm" },
         roleStats = {
-            ["DPS"]  = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "H", "Arm" },
-            ["TANK"] = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "Hit", "Str" },
+            ["DPS"]  = { "Str", "AP", "Hit", "Crit", "ArP", "Exp", "Agi", "Stam", "H", "Arm" },
+            ["TANK"] = { "Def", "Stam", "Arm", "BlockVal", "Block", "Dodge", "Parry", "Hit", "Str" },
         },
     },
     [1486] = {
         classID = 1486, class = "PALADIN", classFile = "PALADIN", name = "paladin", role = "DPS", isTank = false, isHealer = false, isClassic = true,
         classicStats = { "Str", "AP", "Hit", "Crit", "Stam", "SP", "Heal", "MP5", "Int" },
         roleStats = {
-            ["DPS"]  = { "Str", "AP", "Hit", "Crit", "Agi", "Stam", "SP", "H" },
+            ["DPS"]  = { "Str", "AP", "Hit", "Crit", "ArP", "Exp", "Agi", "Stam", "SP", "H" },
             ["HEAL"] = { "Heal", "SP", "MP5", "Int", "Crit", "Spi", "Stam", "H" },
-            ["TANK"] = { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "SP", "Hit" },
+            ["TANK"] = { "Def", "Stam", "Arm", "BlockVal", "Block", "Dodge", "Parry", "SP", "Hit" },
         },
     },
     [1485] = {
         classID = 1485, class = "HUNTER", classFile = "HUNTER", name = "hunter", role = "DPS", isTank = false, isHealer = false, isClassic = true,
-        classicStats = { "Agi", "RAP", "Hit", "Crit", "AP", "Stam", "Int", "H" },
+        classicStats = { "Agi", "RAP", "Hit", "Crit", "ArP", "AP", "Stam", "Int", "H" },
         roleStats = {
-            ["DPS"]  = { "Agi", "RAP", "Hit", "Crit", "AP", "Stam", "Int", "H" },
+            ["DPS"]  = { "Agi", "RAP", "Hit", "Crit", "ArP", "AP", "Stam", "Int", "H" },
         },
     },
     [1488] = {
         classID = 1488, class = "ROGUE", classFile = "ROGUE", name = "rogue", role = "DPS", isTank = false, isHealer = false, isClassic = true,
-        classicStats = { "Agi", "AP", "Hit", "Crit", "Str", "Stam", "H", "Arm" },
+        classicStats = { "Agi", "AP", "Hit", "Crit", "ArP", "Exp", "Str", "Stam", "H", "Arm" },
         roleStats = {
-            ["DPS"]  = { "Agi", "AP", "Hit", "Crit", "Str", "Stam", "H", "Arm" },
+            ["DPS"]  = { "Agi", "AP", "Hit", "Crit", "ArP", "Exp", "Str", "Stam", "H", "Arm" },
         },
     },
     [1487] = {
@@ -378,9 +378,9 @@ sfui.data.BASE_CLASS_DEFINITIONS = {
     },
     [1484] = {
         classID = 1484, class = "DRUID", classFile = "DRUID", name = "druid", role = "DPS", isTank = false, isHealer = false, isClassic = true,
-        classicStats = { "Str", "Agi", "AP", "Crit", "Hit", "Stam", "Int", "Arm" },
+        classicStats = { "Str", "Agi", "AP", "Crit", "Hit", "ArP", "Exp", "Stam", "Int", "Arm" },
         roleStats = {
-            ["DPS"]  = { "Str", "Agi", "AP", "Crit", "Hit", "Stam", "Int", "Arm" },
+            ["DPS"]  = { "Str", "Agi", "AP", "Crit", "Hit", "ArP", "Exp", "Stam", "Int", "Arm" },
             ["HEAL"] = { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Stam", "H" },
             ["TANK"] = { "Arm", "Stam", "Def", "Dodge", "Agi", "Str", "Hit", "AP" },
         },
@@ -431,9 +431,154 @@ sfui.data.STAT_KEYS = {
     ["Block"]       = "ITEM_MOD_BLOCK_RATING_SHORT",
     ["Arm"]         = "ITEM_MOD_ARMOR_SHORT",
     ["Armor"]       = "ITEM_MOD_ARMOR_SHORT",
+    -- Camelot / Modernized Secondary Stats
+    ["ArP"]              = "ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT",
+    ["ArmorPenetration"] = "ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT",
+    ["Exp"]              = "ITEM_MOD_EXPERTISE_RATING_SHORT",
+    ["Expertise"]        = "ITEM_MOD_EXPERTISE_RATING_SHORT",
+    ["BlockVal"]         = "ITEM_MOD_BLOCK_VALUE_SHORT",
+    ["BlockValue"]       = "ITEM_MOD_BLOCK_VALUE_SHORT",
 }
 
 -- Aliases for convenience
 sfui.spec_definitions       = sfui.data.SPEC_DEFINITIONS
 sfui.base_class_definitions = sfui.data.BASE_CLASS_DEFINITIONS
 sfui.stat_keys              = sfui.data.STAT_KEYS
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- Camelot / Classic Secondary Stat Formulas & Calculations
+-- Authoritatively grounded in Blizzard_UIPanels_Game/Camelot/PaperDollFrameStats.lua
+-- ══════════════════════════════════════════════════════════════════════════════
+
+sfui.stats = sfui.stats or {}
+
+local math_max = math.max
+local math_min = math.min
+
+--- Returns effective defense skill and breakdown (effective, base, modifier, maxDefense, excess)
+function sfui.stats.GetEffectiveDefense(unit)
+    unit = unit or "player"
+    if not _G.UnitDefenseSkill then return 0, 0, 0, 0, 0 end
+    local base, mod = _G.UnitDefenseSkill(unit)
+    base = base or 0
+    mod = mod or 0
+    local effective = math_max(0, base + mod)
+    local lvl = (_G.UnitLevel and _G.UnitLevel(unit)) or 60
+    local maxDef = lvl * 5
+    local excess = math_max(0, effective - maxDef)
+    return effective, base, mod, maxDef, excess
+end
+
+--- Computes enemy combat table chances against the player based on level offset (e.g. 3 for boss)
+--- and player's defense skill. Also provides glancing blow damage penalties.
+function sfui.stats.GetEnemyCombatTable(levelOffset, defenseSkill)
+    local playerLevel = (_G.UnitLevel and _G.UnitLevel("player")) or 60
+    levelOffset = levelOffset or 3
+    if not defenseSkill then
+        local eff = sfui.stats.GetEffectiveDefense("player")
+        defenseSkill = eff
+    end
+    local enemyWeaponSkill = (playerLevel + levelOffset) * 5
+    local skillDiff = enemyWeaponSkill - defenseSkill
+    local missChance = math_max(0.0, math_min(100.0, 5.0 - (skillDiff * 0.04)))
+    local critChance = math_max(0.0, math_min(100.0, 5.0 + (skillDiff * 0.04)))
+    local crushingChance = 0.0
+    local crushingSkillDiff = enemyWeaponSkill - math_min(defenseSkill, playerLevel * 5)
+    if crushingSkillDiff >= 15 then
+        crushingChance = math_max(0.0, math_min(100.0, (crushingSkillDiff * 2.0) - 15.0))
+    end
+    -- Glancing blow damage penalty for melee attacks against higher level targets:
+    -- Low penalty: low = 1.30 - 0.05 * skillDiff, capped between 0.01 and 1.2
+    -- High penalty: high = 1.20 - 0.03 * skillDiff, capped at 0.99
+    local glancingLow = math_max(0.01, math_min(1.2, 1.30 - (skillDiff * 0.05)))
+    local glancingHigh = math_max(0.01, math_min(0.99, 1.20 - (skillDiff * 0.03)))
+
+    return {
+        enemyWeaponSkill = enemyWeaponSkill,
+        skillDiff = skillDiff,
+        missChance = missChance,
+        critChance = critChance,
+        crushingChance = crushingChance,
+        glancingLow = glancingLow,
+        glancingHigh = glancingHigh,
+    }
+end
+
+--- Calculates Hit Chance across Melee, Ranged, and Spell
+function sfui.stats.GetHitChance(unit)
+    unit = unit or "player"
+    local meleeHit, rangedHit, spellHit = 0, 0, 0
+    if unit == "player" then
+        local crMelee = (_G.GetCombatRatingBonus and _G.CR_HIT_MELEE and _G.GetCombatRatingBonus(_G.CR_HIT_MELEE)) or 0
+        local modHit = (_G.GetHitModifier and _G.GetHitModifier()) or 0
+        meleeHit = crMelee + modHit
+
+        local crRanged = (_G.GetCombatRatingBonus and _G.CR_HIT_RANGED and _G.GetCombatRatingBonus(_G.CR_HIT_RANGED)) or 0
+        local modRanged = (_G.GetRangedHitModifier and _G.GetRangedHitModifier()) or 0
+        rangedHit = crRanged + modRanged
+
+        local crSpell = (_G.GetCombatRatingBonus and _G.CR_HIT_SPELL and _G.GetCombatRatingBonus(_G.CR_HIT_SPELL)) or 0
+        local modSpell = (_G.GetSpellHitModifier and _G.GetSpellHitModifier()) or 0
+        spellHit = crSpell + modSpell
+    elseif unit == "pet" then
+        meleeHit = (_G.GetPetHitChanceModifier and _G.GetPetHitChanceModifier()) or 0
+        rangedHit = meleeHit
+        spellHit = (_G.GetPetSpellHitChanceModifier and _G.GetPetSpellHitChanceModifier()) or 0
+    end
+    local maxHit = math_max(meleeHit, rangedHit, spellHit)
+    return maxHit, meleeHit, rangedHit, spellHit
+end
+
+--- Calculates Critical Strike Chance across Melee, Ranged, and Spell
+function sfui.stats.GetCritChance(unit)
+    unit = unit or "player"
+    local meleeCrit = (_G.GetCritChance and _G.GetCritChance()) or 0
+    local rangedCrit = (_G.GetRangedCritChance and _G.GetRangedCritChance()) or 0
+    local spellCrit = (_G.GetSpellCritChance and _G.GetSpellCritChance()) or 0
+    local maxCrit = math_max(meleeCrit, rangedCrit, spellCrit)
+    return maxCrit, meleeCrit, rangedCrit, spellCrit
+end
+
+--- Calculates Haste percentage across Melee, Ranged, and Spell
+function sfui.stats.GetHaste(unit)
+    unit = unit or "player"
+    local meleeHaste = 0
+    local rangedHaste = 0
+    local spellHaste = (_G.UnitSpellHaste and _G.UnitSpellHaste(unit)) or 0
+    if unit == "player" then
+        meleeHaste = (_G.GetMeleeHaste and _G.GetMeleeHaste()) or 0
+        if _G.GetRangedHaste then
+            local baseRanged, ammoHaste = _G.GetRangedHaste()
+            rangedHaste = (baseRanged or 0) + (ammoHaste or 0)
+        end
+    elseif unit == "pet" then
+        meleeHaste = (_G.GetPetMeleeHaste and _G.GetPetMeleeHaste()) or 0
+    end
+    local maxHaste = math_max(meleeHaste, rangedHaste, spellHaste)
+    return maxHaste, meleeHaste, rangedHaste, spellHaste
+end
+
+--- Returns Armor Penetration
+function sfui.stats.GetArmorPenetration(unit)
+    if unit and unit ~= "player" then return 0 end
+    return (_G.GetArmorPenetration and _G.GetArmorPenetration()) or 0
+end
+
+--- Returns Expertise breakdown (maxExpertise, mainHand, offHand, ranged)
+function sfui.stats.GetExpertise(unit)
+    if (unit and unit ~= "player") or not _G.GetExpertise then return 0, 0, 0, 0 end
+    local exp, ohExp, rangedExp = _G.GetExpertise()
+    exp = exp or 0
+    ohExp = ohExp or 0
+    rangedExp = rangedExp or 0
+    local maxExp = math_max(exp, ohExp, rangedExp)
+    return maxExp, exp, ohExp, rangedExp
+end
+
+--- Returns Shield Block chance and Block value
+function sfui.stats.GetBlockInfo(unit)
+    if unit and unit ~= "player" then return 0, 0 end
+    local chance = (_G.GetBlockChance and _G.GetBlockChance()) or 0
+    local val = (_G.GetShieldBlock and _G.GetShieldBlock()) or 0
+    return chance, val
+end

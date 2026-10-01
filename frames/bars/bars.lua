@@ -137,11 +137,13 @@ do
             end
             if bar1 and bar1.backdrop and bar0 and bar0.backdrop then
                 bar1.backdrop:ClearAllPoints()
-                bar1.backdrop:SetPoint("BOTTOM", bar0.backdrop, "TOP", 0, spacing)
+                local topAnchor = (sfui.threat and sfui.threat.IsShown and sfui.threat.IsShown() and sfui.threat.GetAnchorFrame and sfui.threat.GetAnchorFrame()) or bar0.backdrop
+                bar1.backdrop:SetPoint("BOTTOM", topAnchor, "TOP", 0, spacing)
             end
             if rune_bar and bar0 and bar0.backdrop then
                 rune_bar:ClearAllPoints()
-                rune_bar:SetPoint("BOTTOM", bar0.backdrop, "TOP", 0, spacing)
+                local topAnchor = (sfui.threat and sfui.threat.IsShown and sfui.threat.IsShown() and sfui.threat.GetAnchorFrame and sfui.threat.GetAnchorFrame()) or bar0.backdrop
+                rune_bar:SetPoint("BOTTOM", topAnchor, "TOP", 0, spacing)
             end
 
             -- Swing Timer Bars (slotting below power bar at -2, or below health at -1 if no power bar)
@@ -152,6 +154,9 @@ do
         end
         if sfui.soulfragments and sfui.soulfragments.UpdatePosition then
             sfui.soulfragments:UpdatePosition()
+        end
+        if sfui.threat and sfui.threat.UpdatePosition then
+            sfui.threat.UpdatePosition()
         end
         if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
             sfui.trackedbars.ForceLayoutUpdate()
@@ -495,8 +500,8 @@ do
         local cfg = sfui.config.healthBar
         if not cfg.enabled then return end
         local bar = get_bar0()
-        -- current and max are passed in now
-        if not maxVal or maxVal <= 0 then return end
+        local isSecret = issecretvalue and (issecretvalue(current) or issecretvalue(maxVal))
+        if not maxVal or (not isSecret and type(maxVal) == "number" and maxVal <= 0) then return end
         bar:SetMinMaxValues(0, maxVal)
         bar:SetValue(current)
 
@@ -517,14 +522,14 @@ do
         healPred:ClearAllPoints()
         healPred:SetPoint("TOPLEFT", bar:GetStatusBarTexture(), "TOPRIGHT", 0, 0)
 
-        local incomingHeals = UnitGetIncomingHeals("player") or 0
+        local incomingHeals = (UnitGetIncomingHeals and UnitGetIncomingHeals("player")) or 0
         healPred:SetValue(incomingHeals)
 
         local absorbBar = bar.absorbBar
         absorbBar:SetSize(width, height); absorbBar:SetMinMaxValues(0, maxVal)
         absorbBar:ClearAllPoints()
         absorbBar:SetPoint("TOPLEFT", healPred:GetStatusBarTexture(), "TOPRIGHT", 0, 0)
-        local absorbAmount = UnitGetTotalAbsorbs("player") or 0
+        local absorbAmount = (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs("player")) or 0
         absorbBar:SetValue(absorbAmount)
         local color = SfuiDB.absorbBarColor or (cfg and cfg.absorbBarColor)
         absorbBar:SetStatusBarColor(common.unpack_color(color))
@@ -968,8 +973,14 @@ do
         if sfui.swing and sfui.swing.SetBarTexture then
             sfui.swing.SetBarTexture(texturePath)
         end
+        if sfui.threat and sfui.threat.SetBarTexture then
+            sfui.threat.SetBarTexture(texturePath)
+        end
         if sfui.soulfragments and sfui.soulfragments.SetBarTexture then
             sfui.soulfragments.SetBarTexture(texturePath)
+        end
+        if sfui.target and sfui.target.SetBarTexture then
+            sfui.target.SetBarTexture(texturePath)
         end
 
         if sfui.bars.on_state_changed then
@@ -1067,9 +1078,9 @@ do
         end
     end
 
-    -- UNIT_HEALTH, UNIT_MAXHEALTH, and UNIT_ABSORB_AMOUNT_CHANGED share the same handler.
+    -- UNIT_HEALTH, UNIT_MAXHEALTH, UNIT_HEAL_PREDICTION, and UNIT_ABSORB_AMOUNT_CHANGED share the same handler.
     sfui.events.RegisterUnitEvents(
-        {"UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_ABSORB_AMOUNT_CHANGED"},
+        {"UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_HEAL_PREDICTION", "UNIT_ABSORB_AMOUNT_CHANGED"},
         "player", on_unit_health
     )
     sfui.events.RegisterUnitEvents(

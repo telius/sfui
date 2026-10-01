@@ -219,12 +219,15 @@ sfui.options.RegisterTab({
                 safeCall(sfui.tracker.helpers.timerbars, "SetBarTexture", texturePath)
             end
             safeCall(sfui.soulfragments, "SetBarTexture", texturePath)
+            safeCall(sfui.target, "SetBarTexture", texturePath)
+            safeCall(sfui.threat, "SetBarTexture", texturePath)
             safeCall(sfui.tracker, "RequestRefresh")
 
             if sfui.options and sfui.options.notify_setting_changed then
                 safeCall(sfui.options, "notify_setting_changed", "bars", "barTexture", val)
                 safeCall(sfui.options, "notify_setting_changed", "castbar", "barTexture", val)
                 safeCall(sfui.options, "notify_setting_changed", "trackedbars", "barTexture", val)
+                safeCall(sfui.options, "notify_setting_changed", "target", "barTexture", val)
             end
         end
 

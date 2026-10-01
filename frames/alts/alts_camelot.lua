@@ -59,6 +59,9 @@ local GetPVPThisWeekStats = _G.GetPVPThisWeekStats
 local C_QuestLog = _G.C_QuestLog
 local C_CurrencyInfo = _G.C_CurrencyInfo
 local GetCurrencyInfo = _G.GetCurrencyInfo
+local C_MajorFactions = _G.C_MajorFactions
+local C_SeasonInfo = _G.C_SeasonInfo
+local BreakUpLargeNumbers = _G.BreakUpLargeNumbers or tostring
 local IsModifiedClick = _G.IsModifiedClick
 local ChatEdit_InsertLink = _G.ChatEdit_InsertLink
 
@@ -234,8 +237,17 @@ local function FormatTimeLeft(seconds)
     end
 end
 
-local function GetPVPRankName(rankNum, isHorde)
-    if not rankNum or rankNum < 1 then return "Unranked" end
+local function GetPVPRankName(rankNum, isHorde, gender)
+    if not rankNum or rankNum < 1 then return _G.PVP_RANK_0_NAME or "Unranked" end
+    local faction01 = isHorde and 0 or 1
+    local rank1 = (_G.Enum and _G.Enum.PvPRanks and _G.Enum.PvPRanks.Rank_1) or 1
+    local rankTitleKey = "PVP_RANK_" .. tostring(rank1 + rankNum - 1) .. "_" .. tostring(faction01)
+    if _G.GetText then
+        local title = _G.GetText(rankTitleKey, gender)
+        if title and title ~= "" and title ~= rankTitleKey then
+            return title
+        end
+    end
     local ranks = isHorde and HORDE_RANKS or ALLIANCE_RANKS
     return ranks[rankNum] or ("Rank " .. rankNum)
 end
@@ -387,21 +399,51 @@ local function PerformSync(data, isLogout)
 
     -- 2. PvP Stats
     data.pvp = data.pvp or {}
-    local rawRank = UnitPVPRank and UnitPVPRank("player") or 0
-    if rawRank and rawRank > 0 then
-        local rankNumber = (rawRank > 4) and (rawRank - 4) or 0
-        data.pvp.rank = rankNumber
-        data.pvp.rankProgress = (GetPVPRankProgress and GetPVPRankProgress()) or 0
+    local isHorde = (data.race == "Orc" or data.race == "Troll" or data.race == "Tauren" or data.race == "Scourge" or data.race == "Undead")
+    local playerGender = _G.UnitSex and _G.UnitSex("player")
+    if playerGender then data.gender = playerGender end
 
-        local isHorde = (data.race == "Orc" or data.race == "Troll" or data.race == "Tauren" or data.race == "Scourge" or data.race == "Undead")
-        data.pvp.rankName = GetPVPRankName(rankNumber, isHorde)
-    elseif not isLeaving then
-        local rankNumber = 0
-        data.pvp.rank = rankNumber
-        data.pvp.rankProgress = (GetPVPRankProgress and GetPVPRankProgress()) or 0
+    -- Authoritative Camelot PvP Ranking via C_MajorFactions (Faction ID 2800)
+    local pvpFactionID = 2800
+    local progressionInfo = C_MajorFactions and C_MajorFactions.GetMajorFactionProgressionInfo and C_MajorFactions.GetMajorFactionProgressionInfo(pvpFactionID)
 
-        local isHorde = (data.race == "Orc" or data.race == "Troll" or data.race == "Tauren" or data.race == "Scourge" or data.race == "Undead")
-        data.pvp.rankName = GetPVPRankName(rankNumber, isHorde)
+    if progressionInfo and progressionInfo.renownLevel then
+        local rankLevel = progressionInfo.renownLevel or 0
+        local rankPoints = progressionInfo.renownReputationEarned or 0
+        local threshold = progressionInfo.renownLevelThreshold or 0
+        data.pvp.rank = rankLevel
+        data.pvp.rankPoints = rankPoints
+        data.pvp.rankThreshold = threshold
+        data.pvp.maxRank = progressionInfo.maxLevel or 14
+        data.pvp.currentWeekMax = progressionInfo.currentWeekProgressiveMaxLevel
+        data.pvp.previousWeekMax = progressionInfo.previousWeekProgressiveMaxLevel
+        if threshold > 0 then
+            data.pvp.rankProgress = rankPoints / threshold
+        else
+            data.pvp.rankProgress = 0
+        end
+        data.pvp.rankName = GetPVPRankName(rankLevel, isHorde, playerGender)
+    else
+        local rawRank = UnitPVPRank and UnitPVPRank("player") or 0
+        if rawRank and rawRank > 0 then
+            local rankNumber = (rawRank > 4) and (rawRank - 4) or 0
+            data.pvp.rank = rankNumber
+            data.pvp.rankProgress = (GetPVPRankProgress and GetPVPRankProgress()) or 0
+            data.pvp.rankName = GetPVPRankName(rankNumber, isHorde, playerGender)
+        elseif not isLeaving then
+            local rankNumber = 0
+            data.pvp.rank = rankNumber
+            data.pvp.rankProgress = (GetPVPRankProgress and GetPVPRankProgress()) or 0
+            data.pvp.rankName = GetPVPRankName(rankNumber, isHorde, playerGender)
+        end
+    end
+
+    if C_SeasonInfo and C_SeasonInfo.GetTimeUntilCurrentPVPSeasonEnd then
+        local sEnd = C_SeasonInfo.GetTimeUntilCurrentPVPSeasonEnd()
+        if sEnd and sEnd > 0 then
+            data.pvp.seasonTimeLeft = sEnd
+            data.pvp.seasonTimeUpdated = now
+        end
     end
 
     if GetPVPLifetimeStats then
@@ -535,15 +577,22 @@ local function PerformSync(data, isLogout)
         foundCount = foundCount + 1
     end
 
-    -- Source 1: Standard / Camelot GetProfessions API (used in Blizzard_ProfessionsBook for Camelot)
+    -- Source 1: Camelot Native 5-Slot GetProfessions API (prof1, prof2, faid, fish, cook)
     if GetProfessions and GetProfessionInfo then
-        local profIndices = { GetProfessions() }
-        for idx, profIndex in ipairs(profIndices) do
-            if profIndex then
-                local pName, pIcon, pSkill, pMaxSkill, _, _, pSkillLine, pModifier = GetProfessionInfo(profIndex)
+        local p1, p2, faid, fish, cook = GetProfessions()
+        local profSlots = {
+            { idx = p1,   isPrimary = true,  slot = 1 },
+            { idx = p2,   isPrimary = true,  slot = 2 },
+            { idx = cook, isPrimary = false, key = "cooking",  defName = "Cooking" },
+            { idx = fish, isPrimary = false, key = "fishing",  defName = "Fishing" },
+            { idx = faid, isPrimary = false, key = "firstAid", defName = "First Aid" },
+        }
+        for _, s in ipairs(profSlots) do
+            if s.idx then
+                local pName, pIcon, pSkill, pMaxSkill, _, _, pSkillLine, pModifier = GetProfessionInfo(s.idx)
                 if pName and pName ~= "" then
-                    local secKey = (pSkillLine and SECONDARY_PROF_IDS[pSkillLine]) or SECONDARY_PROFS[pName]
-                    local isPrimary = (idx <= 2) and (not secKey)
+                    local secKey = s.key or (pSkillLine and SECONDARY_PROF_IDS[pSkillLine]) or SECONDARY_PROFS[pName]
+                    local isPrimary = s.isPrimary and (not secKey)
                     recordSkill(pName, pSkill, pMaxSkill, pModifier, isPrimary, pSkillLine, pIcon)
                 end
             end
@@ -729,7 +778,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         local pvp = altData.pvp
         if pvp and pvp.rank and pvp.rank > 0 then
             local rankNum = pvp.rank
-            local rankTitle = pvp.rankName or ("Rank " .. rankNum)
+            local isHorde = (altData.race == "Orc" or altData.race == "Troll" or altData.race == "Tauren" or altData.race == "Scourge" or altData.race == "Undead")
+            local rankTitle = pvp.rankName or GetPVPRankName(rankNum, isHorde, altData.gender)
             local progress = math_floor((pvp.rankProgress or 0) * 100)
 
             -- Color rank by bracket
@@ -747,9 +797,22 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             cell:SetScript("OnEnter", function(self)
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                 GameTooltip:AddLine(string.format("Rank %d: %s", rankNum, rankTitle), 1, 1, 1)
-                GameTooltip:AddDoubleLine("Rank Progress:", string.format("%d%% to Rank %d", progress, rankNum + 1), 1, 1, 1, 1, 0.82, 0)
+                if pvp.rankPoints and pvp.rankThreshold and pvp.rankThreshold > 0 then
+                    GameTooltip:AddDoubleLine("Rank Progress:", string.format("%s / %s (%d%%)", BreakUpLargeNumbers(pvp.rankPoints), BreakUpLargeNumbers(pvp.rankThreshold), progress), 1, 1, 1, 1, 0.82, 0)
+                else
+                    GameTooltip:AddDoubleLine("Rank Progress:", string.format("%d%% to Rank %d", progress, rankNum + 1), 1, 1, 1, 1, 0.82, 0)
+                end
+                if pvp.currentWeekMax and pvp.currentWeekMax > 0 then
+                    GameTooltip:AddDoubleLine("Weekly Cap:", string.format("Rank %d", pvp.currentWeekMax), 1, 1, 1, 0.8, 0.8, 1)
+                end
+                if pvp.seasonTimeLeft and pvp.seasonTimeUpdated then
+                    local sLeft = math_max(0, pvp.seasonTimeLeft - (now - pvp.seasonTimeUpdated))
+                    if sLeft > 0 then
+                        GameTooltip:AddDoubleLine("Weekly Reset in:", FormatTimeLeft(sLeft), 1, 1, 1, 1, 0.82, 0)
+                    end
+                end
                 if pvp.lifetimeHK then
-                    GameTooltip:AddDoubleLine("Lifetime HKs:", tostring(pvp.lifetimeHK), 1, 1, 1, 1, 1, 1)
+                    GameTooltip:AddDoubleLine("Lifetime HKs:", BreakUpLargeNumbers(pvp.lifetimeHK), 1, 1, 1, 1, 1, 1)
                 end
                 if pvp.highestRank and pvp.highestRank > 0 then
                     GameTooltip:AddDoubleLine("Highest Rank Attained:", "Rank " .. pvp.highestRank, 1, 1, 1, 0.8, 0.8, 0.8)
@@ -776,8 +839,14 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             cell:SetScript("OnEnter", function(self)
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                 GameTooltip:AddLine("this week's pvp standing", 1, 1, 1)
-                GameTooltip:AddDoubleLine("estimated honor:", tostring(pvp.thisWeekHonor or 0), 1, 1, 1, 1, 0.82, 0)
-                GameTooltip:AddDoubleLine("honorable kills:", tostring(pvp.thisWeekHK or 0), 1, 1, 1, 1, 1, 1)
+                GameTooltip:AddDoubleLine("estimated honor:", BreakUpLargeNumbers(pvp.thisWeekHonor or 0), 1, 1, 1, 1, 0.82, 0)
+                GameTooltip:AddDoubleLine("honorable kills:", BreakUpLargeNumbers(pvp.thisWeekHK or 0), 1, 1, 1, 1, 1, 1)
+                if pvp.seasonTimeLeft and pvp.seasonTimeUpdated then
+                    local sLeft = math_max(0, pvp.seasonTimeLeft - (now - pvp.seasonTimeUpdated))
+                    if sLeft > 0 then
+                        GameTooltip:AddDoubleLine("weekly reset in:", FormatTimeLeft(sLeft), 1, 1, 1, 1, 0.82, 0)
+                    end
+                end
                 GameTooltip:Show()
             end)
             cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -1096,6 +1165,7 @@ end
 -- Register Classic / Camelot Provider
 sfui.alts.RegisterProvider({
     name = "camelot",
+    showTimePlayedTooltip = false,
     GetCategories = function() return CATEGORIES end,
     RefreshDynamicCategories = function() end,
     PerformSync = PerformSync,
@@ -1107,7 +1177,6 @@ sfui.alts.RegisterProvider({
         { text = "Rested XP",   value = "rested" },
         { text = "Item Level",  value = "ilvl" },
         { text = "PvP Rank",    value = "pvp_rank" },
-        { text = "Time Played", value = "timeplayed" },
     },
     SortAlts = function(a, b, sortKey)
         if sortKey == "level" then
@@ -1152,6 +1221,8 @@ sfui.alts.RegisterProvider({
         sfui.events.RegisterEvent("PLAYER_AVG_ITEM_LEVEL_UPDATE",  on_sync)
         sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED",     on_sync)
         sfui.events.RegisterEvent("CURRENCY_DISPLAY_UPDATE",       on_sync)
-        sfui.events.RegisterEvent("BAG_UPDATE",                     on_sync)
+        sfui.events.RegisterEvent("MAJOR_FACTION_RENOWN_LEVEL_CHANGED", on_sync)
+        sfui.events.RegisterEvent("UPDATE_FACTION",                     on_sync)
+        sfui.events.RegisterEvent("BAG_UPDATE",                         on_sync)
     end,
 })

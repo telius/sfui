@@ -383,6 +383,62 @@ local function GetQuestCapacityInfo()
     return numQuests, maxQuests, formatted
 end
 
+local function TryInsertQuestLink(questID, questLogIndex, questTitle)
+    if not questID then return false end
+
+    -- 1. Try Blizzard modern API
+    if ChatFrameUtil and ChatFrameUtil.TryInsertQuestLinkForQuestID then
+        if ChatFrameUtil.TryInsertQuestLinkForQuestID(questID) then
+            return true
+        end
+    end
+
+    -- 2. Detect if an active chat edit box or input box is open
+    local activeChat = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
+        or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
+        or _G.ACTIVE_CHAT_EDIT_BOX
+    local isChatOpen = (activeChat and (activeChat:IsShown() or activeChat:IsVisible()))
+        or (_G.MacroFrameText and _G.MacroFrameText:IsShown())
+        or (_G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown())
+
+    if not isChatOpen then
+        return false
+    end
+
+    -- 3. Resolve quest link
+    local link = (_G.GetQuestLink and _G.GetQuestLink(questID))
+        or (questLogIndex and _G.GetQuestLink and _G.GetQuestLink(questLogIndex))
+
+    if not link then
+        local title = questTitle or (C_QuestLog and C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID))
+        if title and title ~= "" then
+            local level = (C_QuestLog and C_QuestLog.GetQuestDifficultyLevel and C_QuestLog.GetQuestDifficultyLevel(questID)) or 0
+            link = string_format("|cffffff00|Hquest:%d:%d|h[%s]|h|r", questID, level, title)
+        end
+    end
+
+    if not link then
+        return false
+    end
+
+    -- 4. Insert link into active chat / edit box
+    if ChatFrameUtil and ChatFrameUtil.InsertLink and ChatFrameUtil.InsertLink(link) then
+        return true
+    end
+    if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then
+        return true
+    end
+    if activeChat and activeChat.Insert then
+        activeChat:Insert(link)
+        if activeChat.SetFocus then
+            activeChat:SetFocus()
+        end
+        return true
+    end
+
+    return false
+end
+
 -- ─────────────────────────────────────────────────────────
 --  QUEST CLICK HANDLER
 -- ─────────────────────────────────────────────────────────
@@ -462,14 +518,8 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
 
     -- 5. Shift-Click: Untrack or Insert Link into Chat
     if IsShiftKeyDown and IsShiftKeyDown() then
-        local activeChat = ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()
-        if activeChat and activeChat:IsShown() and activeChat:HasFocus() then
-            local link = (C_QuestLog and C_QuestLog.GetQuestLink and C_QuestLog.GetQuestLink(questID))
-                or (_G.GetQuestLink and _G.GetQuestLink(questLogIndex or questID))
-            if link then
-                if ChatFrameUtil and ChatFrameUtil.InsertLink and ChatFrameUtil.InsertLink(link) then return end
-                if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then return end
-            end
+        if TryInsertQuestLink(questID, questLogIndex, questTitle) then
+            return
         end
 
         -- Untrack quest

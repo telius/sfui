@@ -28,6 +28,8 @@ local GetNumLootItems               = _G.GetNumLootItems
 local LootSlot                      = _G.LootSlot
 local IsSpellKnown                  = _G.IsSpellKnown
 local IsPlayerSpell                 = _G.IsPlayerSpell
+local GetProfessions                = _G.GetProfessions
+local GetProfessionInfo             = _G.GetProfessionInfo
 local C_Spell                       = _G.C_Spell
 local C_SpellBook                   = _G.C_SpellBook
 local ipairs, pairs                 = _G.ipairs, _G.pairs
@@ -56,7 +58,12 @@ local FishingIDs                    = {
     [88868]   = true, -- Illustrious
     [110410]  = true, -- MoP fishing
     [158743]  = true, -- WoD Fishing
+    [195126]  = true, -- Legion Fishing
+    [271990]  = true, -- BfA Fishing
+    [341292]  = true, -- Shadowlands Fishing
     [377895]  = true, -- Ice Fishing
+    [382342]  = true, -- Dragonflight Fishing
+    [434868]  = true, -- War Within Fishing
     [1224771] = true, -- Void Fishing
 }
 
@@ -156,7 +163,8 @@ end
 local isClassicEra = (_G.WOW_PROJECT_ID ~= nil and _G.WOW_PROJECT_CLASSIC ~= nil and _G.WOW_PROJECT_ID == _G.WOW_PROJECT_CLASSIC)
 
 local function is_classic_client()
-    return sfui.isClassic or sfui.isForever or isClassicEra or
+    return sfui.isClassic or sfui.isForever or sfui.isCamelot or sfui.isEra or isClassicEra or
+        (sfui.compat and (sfui.compat.is_classic or sfui.compat.is_camelot or sfui.compat.is_wow_forever)) or
         (sfui.gear and sfui.gear.isClassicOrVanilla and sfui.gear.isClassicOrVanilla()) or false
 end
 
@@ -165,41 +173,131 @@ local cachedSpellName
 
 local function is_spell_known(spellID)
     if not spellID then return false end
-    if C_SpellBook and C_SpellBook.IsSpellKnownOrInSpellBook then
-        return C_SpellBook.IsSpellKnownOrInSpellBook(spellID) or false
+    if C_SpellBook then
+        if C_SpellBook.IsSpellKnownOrInSpellBook and C_SpellBook.IsSpellKnownOrInSpellBook(spellID) then
+            return true
+        end
+        if C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(spellID) then
+            return true
+        end
+        if C_SpellBook.IsSpellInSpellBook and C_SpellBook.IsSpellInSpellBook(spellID) then
+            return true
+        end
+        if C_SpellBook.FindSpellBookSlotForSpell and C_SpellBook.FindSpellBookSlotForSpell(spellID) then
+            return true
+        end
     end
-    if IsPlayerSpell then
-        return IsPlayerSpell(spellID) or false
+    if IsSpellKnown and IsSpellKnown(spellID) then
+        return true
     end
-    return (IsSpellKnown and IsSpellKnown(spellID)) or false
+    if IsPlayerSpell and IsPlayerSpell(spellID) then
+        return true
+    end
+    return false
 end
 
-local function get_known_fishing_id()
-    if cachedFishingID then return cachedFishingID end
+local function find_fishing_spell_in_spellbook()
+    if C_SpellBook and C_SpellBook.GetSpellBookItemType and C_SpellBook.GetSpellBookItemName then
+        local maxSpells = 200
+        for slot = 1, maxSpells do
+            local itemType, actionID, spellID = C_SpellBook.GetSpellBookItemType(slot, Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 1)
+            if not itemType then break end
+            local name = C_SpellBook.GetSpellBookItemName(slot, Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 1)
+            if name and (name == "Fishing" or name:lower():find("fishing")) then
+                return spellID or actionID
+            end
+        end
+    end
+    if _G.GetSpellBookItemName and _G.GetNumSpellTabs then
+        local numTabs = _G.GetNumSpellTabs() or 0
+        local totalSpells = 0
+        for t = 1, numTabs do
+            local _, _, offset, numSlots = _G.GetSpellTabInfo(t)
+            if offset and numSlots then
+                totalSpells = math.max(totalSpells, offset + numSlots)
+            end
+        end
+        if totalSpells > 0 then
+            for slot = 1, totalSpells do
+                local name = _G.GetSpellBookItemName(slot, "spell")
+                if name and (name == "Fishing" or name:lower():find("fishing")) then
+                    local link = _G.GetSpellBookItemLink and _G.GetSpellBookItemLink(slot, "spell")
+                    local id = link and tonumber(link:match("spell:(%d+)"))
+                    return id
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function get_known_fishing_id(forceRefresh)
+    if cachedFishingID and not forceRefresh then return cachedFishingID end
+
+    -- Direct Check: Camelot / Modern 5-Slot GetProfessions (Slot 4 is Fishing)
+    if GetProfessions and GetProfessionInfo then
+        local _, _, _, fishIdx = GetProfessions()
+        if fishIdx then
+            local pName, _, _, _, numSpells, spellOffset = GetProfessionInfo(fishIdx)
+            if numSpells and numSpells >= 1 and spellOffset then
+                if C_SpellBook and C_SpellBook.GetSpellBookItemType then
+                    local _, actionID, spellID = C_SpellBook.GetSpellBookItemType(spellOffset + 1, Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 1)
+                    local id = spellID or actionID
+                    if id and id > 0 then
+                        cachedFishingID = id
+                        if pName and pName ~= "" then cachedSpellName = pName end
+                        return id
+                    end
+                elseif _G.GetSpellBookItemLink then
+                    local link = _G.GetSpellBookItemLink(spellOffset + 1, "spell")
+                    local id = link and tonumber(link:match("spell:(%d+)"))
+                    if id and id > 0 then
+                        cachedFishingID = id
+                        if pName and pName ~= "" then cachedSpellName = pName end
+                        return id
+                    end
+                end
+            end
+            if pName and pName ~= "" then
+                cachedSpellName = pName
+            end
+        end
+    end
+
     for id in pairs(FishingIDs) do
         if is_spell_known(id) then
             cachedFishingID = id
             return id
         end
     end
-    cachedFishingID = isClassicEra and 7620 or 131474
-    return cachedFishingID
+    local bookID = find_fishing_spell_in_spellbook()
+    if bookID then
+        cachedFishingID = bookID
+        return bookID
+    end
+    -- Do not cache fallback if skill is not yet learned!
+    return nil
 end
 sfui.fishing.get_known_fishing_id = get_known_fishing_id
 
+local function get_default_fishing_id()
+    return is_classic_client() and 7620 or 131474
+end
+
 local function get_fishing_spell_name()
     if cachedSpellName then return cachedSpellName end
-    local id = get_known_fishing_id()
+    local id = get_known_fishing_id() or get_default_fishing_id()
     if id then
         local name = (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(id))
             or (_G.GetSpellInfo and _G.GetSpellInfo(id))
         if name and name ~= "" then
-            cachedSpellName = name
+            if get_known_fishing_id() then
+                cachedSpellName = name
+            end
             return name
         end
     end
-    cachedSpellName = "Fishing"
-    return cachedSpellName
+    return "Fishing"
 end
 sfui.fishing.get_fishing_spell_name = get_fishing_spell_name
 
@@ -233,7 +331,7 @@ local function get_secure_button()
         local button = CreateFrame("Button", SECURE_BUTTON_NAME, nil, "SecureActionButtonTemplate")
         button:RegisterForClicks("AnyDown", "AnyUp")
         button:SetAttribute("type", "spell")
-        button:SetAttribute("spell", get_known_fishing_id() or (isClassicEra and 7620 or 131474))
+        button:SetAttribute("spell", get_known_fishing_id() or get_default_fishing_id())
 
         _state.secureButton = button
     end
@@ -642,11 +740,16 @@ sfui.fishing.EquipFishingPole = equip_fishing_pole_from_bags
 arm_fishing_keys = function()
     if InCombatLockdown and InCombatLockdown() then return end
     if not get_setting("enabled", true) then return end
-    if is_classic_client() and not is_spell_known(get_known_fishing_id()) then return end
+    local knownID = get_known_fishing_id()
+    if is_classic_client() and not knownID then return end
     if _state.isFishing then return end
 
     local btn = get_secure_button()
     if not btn then return end
+
+    if knownID then
+        btn:SetAttribute("spell", knownID)
+    end
 
     local isClassic = is_classic_client()
     -- In Classic/Vanilla, if no fishing pole is equipped, clear overrides so pressing the key triggers RunKeybind to auto-equip!
@@ -782,6 +885,27 @@ function sfui.fishing.RunKeybind(fromSlash)
         return
     end
 
+    -- Force refresh fishing skill detection if not yet known
+    if not cachedFishingID or not is_spell_known(cachedFishingID) then
+        cachedFishingID = nil
+        cachedSpellName = nil
+        get_known_fishing_id(true)
+    end
+
+    local isClassic = is_classic_client()
+    local knownID = get_known_fishing_id()
+    if isClassic and not knownID then
+        if fromSlash then
+            print_message("fishing: you haven't learned the fishing skill yet.")
+        end
+        return
+    end
+
+    local btn = get_secure_button()
+    if btn and knownID then
+        btn:SetAttribute("spell", knownID)
+    end
+
     -- Always reset session timer on pressing the keybind
     refresh_session()
 
@@ -791,7 +915,6 @@ function sfui.fishing.RunKeybind(fromSlash)
     end
 
     local keys = get_all_bound_keys()
-    local btn = get_secure_button()
 
     -- 2. If actively channeling fishing, ensure keys are bound to INTERACTTARGET to reel in
     if _state.isFishing then
@@ -965,6 +1088,27 @@ local function on_bindings_updated()
     end
 end
 
+local function on_spells_or_skills_changed(event)
+    cachedFishingID = nil
+    cachedSpellName = nil
+
+    local newID = get_known_fishing_id(true)
+    if InCombatLockdown and InCombatLockdown() then
+        defer_action(function()
+            on_spells_or_skills_changed(event)
+        end)
+        return
+    end
+
+    local btn = _state.secureButton
+    if btn then
+        local id = newID or get_default_fishing_id()
+        btn:SetAttribute("spell", id)
+    end
+
+    arm_fishing_keys()
+end
+
 -- Dedicated manual or auto recovery function to restore normal audio CVars
 local function restore_sound_defaults()
     _state.soundsEnhanced = false
@@ -1031,6 +1175,11 @@ sfui.RegisterModule("fishing", {
         sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", on_enter_combat)
         sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", on_leave_combat)
         sfui.events.RegisterEvent("UPDATE_BINDINGS", on_bindings_updated)
+        sfui.events.RegisterEvent("SPELLS_CHANGED", on_spells_or_skills_changed)
+        sfui.events.RegisterEvent("LEARNED_SPELL_IN_TAB", on_spells_or_skills_changed)
+        sfui.events.RegisterEvent("SKILL_LINES_CHANGED", on_spells_or_skills_changed)
+        sfui.events.RegisterEvent("TRAINER_UPDATE", on_spells_or_skills_changed)
+        sfui.events.RegisterEvent("TRAINER_CLOSED", on_spells_or_skills_changed)
         sfui.events.RegisterEvent("PLAYER_LOGOUT", reset_fishing_cvars)
         sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", on_equipment_changed)
         sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", check_mount_or_taxi)

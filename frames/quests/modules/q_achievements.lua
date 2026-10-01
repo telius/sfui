@@ -26,6 +26,7 @@ local IsShiftKeyDown = _G.IsShiftKeyDown
 local ChatEdit_GetActiveWindow = _G.ChatEdit_GetActiveWindow
 local ChatEdit_InsertLink = _G.ChatEdit_InsertLink
 local GetAchievementLink = _G.GetAchievementLink
+local ChatFrameUtil = _G.ChatFrameUtil
 local hooksecurefunc = _G.hooksecurefunc
 
 local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
@@ -374,13 +375,31 @@ function AchievementsModule:BuildBlocks(container)
                 progressBar    = progressBar,
                 timerBar       = timerBar,
                 OnClick        = function(block, btn)
-                    -- Shift-Click: insert link if chat focused, otherwise untrack
+                    -- Shift-Click: insert link if chat open, otherwise untrack
                     if IsShiftKeyDown and IsShiftKeyDown() then
-                        local activeChat = ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()
-                        if activeChat and activeChat:IsShown() and activeChat:HasFocus() then
+                        local activeChat = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
+                            or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
+                            or _G.ACTIVE_CHAT_EDIT_BOX
+                        local isChatOpen = (activeChat and (activeChat:IsShown() or activeChat:IsVisible()))
+                            or (_G.MacroFrameText and _G.MacroFrameText:IsShown())
+                            or (_G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown())
+
+                        if isChatOpen then
                             local link = GetAchievementLink and GetAchievementLink(achID)
-                            if link and ChatEdit_InsertLink and ChatEdit_InsertLink(link) then
-                                return
+                            if link then
+                                if ChatFrameUtil and ChatFrameUtil.InsertLink and ChatFrameUtil.InsertLink(link) then
+                                    return
+                                end
+                                if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then
+                                    return
+                                end
+                                if activeChat and activeChat.Insert then
+                                    activeChat:Insert(link)
+                                    if activeChat.SetFocus then
+                                        activeChat:SetFocus()
+                                    end
+                                    return
+                                end
                             end
                         end
 

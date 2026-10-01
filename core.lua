@@ -79,6 +79,18 @@ local function initialize_sfui()
     SfuiDB.bonusroll = SfuiDB.bonusroll or {}
     SfuiDB.worldevents = SfuiDB.worldevents or {}
     SfuiDB.spec_colors = SfuiDB.spec_colors or {}
+    -- Migration: Purge legacy blue or interim orange for Balance Druid (102 and 14841) so it defaults to Moonfire
+    for _, sID in ipairs({ 102, 14841 }) do
+        local c = SfuiDB.spec_colors[sID]
+        if c then
+            local r, g, b = c[1] or c.r or 0, c[2] or c.g or 0, c[3] or c.b or 0
+            local isLegacyBlue = (r >= 0.18 and r <= 0.22) and (g <= 0.05) and (b >= 0.78 and b <= 0.82)
+            local isInterimOrange = (r >= 0.98) and (g >= 0.45 and g <= 0.53) and (b <= 0.06)
+            if isLegacyBlue or isInterimOrange then
+                SfuiDB.spec_colors[sID] = nil
+            end
+        end
+    end
     SfuiDB.hearthstone = SfuiDB.hearthstone or {}
 
     if sfui.db and sfui.db.Initialize then

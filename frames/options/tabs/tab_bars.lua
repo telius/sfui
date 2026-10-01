@@ -65,6 +65,25 @@ sfui.options.RegisterTab({
             last_toggle_cb = swing_bar_cb
         end
 
+        local isCamelot = sfui.isCamelot or sfui.isForever or sfui.isClassic or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_wow_forever or sfui.compat.is_classic))
+        if isCamelot then
+            local target_bar_cb = create_checkbox(bars_panel, "enable target bar", "enableTargetBar", function(checked)
+                if sfui.target and sfui.target.UpdateVisibility then
+                    sfui.target.UpdateVisibility()
+                end
+            end, "toggles the target bar.")
+            target_bar_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -10)
+            last_toggle_cb = target_bar_cb
+
+            local threat_bar_cb = create_checkbox(bars_panel, "enable threat bar", "enableThreatBar", function(checked)
+                if sfui.threat and sfui.threat.UpdateVisibility then
+                    sfui.threat.UpdateVisibility()
+                end
+            end, "toggles the threat bar above the player health bar.")
+            threat_bar_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -10)
+            last_toggle_cb = threat_bar_cb
+        end
+
         -- Health Bar Position
         local position_header = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
         position_header:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -20)

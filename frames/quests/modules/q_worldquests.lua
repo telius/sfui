@@ -18,6 +18,9 @@ local GetNumQuestLogEntries = _G.GetNumQuestLogEntries
 local GetQuestProgressBarPercent = _G.GetQuestProgressBarPercent
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local QuestMapFrame_OpenToQuestDetails = _G.QuestMapFrame_OpenToQuestDetails
+local ChatEdit_GetActiveWindow = _G.ChatEdit_GetActiveWindow
+local ChatEdit_InsertLink = _G.ChatEdit_InsertLink
+local ChatFrameUtil = _G.ChatFrameUtil
 
 local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
 local math_floor = math.floor
@@ -52,6 +55,62 @@ end
 
 local lastWQProgress = {}
 local initialWQScanDone = false
+
+local function TryInsertQuestLink(questID, questLogIndex, questTitle)
+    if not questID then return false end
+
+    -- 1. Try Blizzard modern API
+    if ChatFrameUtil and ChatFrameUtil.TryInsertQuestLinkForQuestID then
+        if ChatFrameUtil.TryInsertQuestLinkForQuestID(questID) then
+            return true
+        end
+    end
+
+    -- 2. Detect if an active chat edit box or input box is open
+    local activeChat = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
+        or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
+        or _G.ACTIVE_CHAT_EDIT_BOX
+    local isChatOpen = (activeChat and (activeChat:IsShown() or activeChat:IsVisible()))
+        or (_G.MacroFrameText and _G.MacroFrameText:IsShown())
+        or (_G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown())
+
+    if not isChatOpen then
+        return false
+    end
+
+    -- 3. Resolve quest link
+    local link = (_G.GetQuestLink and _G.GetQuestLink(questID))
+        or (questLogIndex and _G.GetQuestLink and _G.GetQuestLink(questLogIndex))
+
+    if not link then
+        local title = questTitle or (C_QuestLog and C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID))
+        if title and title ~= "" then
+            local level = (C_QuestLog and C_QuestLog.GetQuestDifficultyLevel and C_QuestLog.GetQuestDifficultyLevel(questID)) or 0
+            link = string_format("|cffffff00|Hquest:%d:%d|h[%s]|h|r", questID, level, title)
+        end
+    end
+
+    if not link then
+        return false
+    end
+
+    -- 4. Insert link into active chat / edit box
+    if ChatFrameUtil and ChatFrameUtil.InsertLink and ChatFrameUtil.InsertLink(link) then
+        return true
+    end
+    if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then
+        return true
+    end
+    if activeChat and activeChat.Insert then
+        activeChat:Insert(link)
+        if activeChat.SetFocus then
+            activeChat:SetFocus()
+        end
+        return true
+    end
+
+    return false
+end
 
 local WorldQuestsModule = {
     id       = "worldquests",
@@ -213,9 +272,12 @@ function WorldQuestsModule:BuildBlocks(container)
                 lines          = lines,
                 progressBar    = progressBar,
                 OnClick        = function(block, btn)
-                    -- Shift-Click: Untrack
+                    -- Shift-Click: Untrack or Insert Link into Chat
                     if IsShiftKeyDown and IsShiftKeyDown() then
                         if InCombatLockdown and InCombatLockdown() then return end
+                        if TryInsertQuestLink(questID, nil, title) then
+                            return
+                        end
                         if C_QuestLog and C_QuestLog.RemoveQuestWatch then
                             C_QuestLog.RemoveQuestWatch(questID)
                         end

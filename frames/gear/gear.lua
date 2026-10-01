@@ -123,9 +123,12 @@ local function isCurrentlyPvP()
 end
 
 local function isClassicOrVanilla()
-    if sfui.isForever or sfui.isClassic or sfui.isEra then return true end
-    if sfui.compat and (sfui.compat.is_classic or sfui.compat.is_wow_forever or sfui.compat.is_classic_era) then return true end
-    if sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail) then return true end
+    if sfui.isRetail == true or (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic) then
+        return false
+    end
+    if sfui.isForever or sfui.isClassic or sfui.isEra or sfui.isCamelot then return true end
+    if sfui.compat and (sfui.compat.is_classic or sfui.compat.is_wow_forever or sfui.compat.is_classic_era or sfui.compat.is_camelot) then return true end
+    if sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or sfui.version.camelot or not sfui.version.retail) then return true end
     local spec = (common and common.get_specialization and common.get_specialization()) or
     (_G.GetSpecialization and _G.GetSpecialization())
     local numSpec = tonumber(spec)
@@ -249,6 +252,9 @@ local DEFENSIVE_STATS           = {
     Dodge = true,
     Parry = true,
     Block = true,
+    BlockVal = true,
+    BlockValue = true,
+    blockval = true,
     Arm = true,
     Armor = true,
 }
@@ -315,9 +321,19 @@ local statAbbrv                 = {
     parry = "parry",
     Block = "block",
     block = "block",
+    BlockVal = "blockval",
+    BlockValue = "blockval",
+    blockval = "blockval",
     Arm = "arm",
     Armor = "arm",
     arm = "arm",
+    -- Camelot Secondary Stats
+    ArP = "arp",
+    ArmorPenetration = "arp",
+    arp = "arp",
+    Exp = "exp",
+    Expertise = "exp",
+    exp = "exp",
 }
 
 local statFullName              = {
@@ -379,9 +395,19 @@ local statFullName              = {
     parry = "parry",
     Block = "block",
     block = "block",
+    BlockVal = "block value",
+    BlockValue = "block value",
+    blockval = "block value",
     Arm = "armor",
     Armor = "armor",
     arm = "armor",
+    -- Camelot Secondary Stats
+    ArP = "armor penetration",
+    ArmorPenetration = "armor penetration",
+    arp = "armor penetration",
+    Exp = "expertise",
+    Expertise = "expertise",
+    exp = "expertise",
 }
 
 local STAT_COLORS               = (sfui.config and sfui.config.stat_colors) or {
@@ -405,7 +431,10 @@ local STAT_COLORS               = (sfui.config and sfui.config.stat_colors) or {
     dodge       = { 0.35, 0.75, 0.8, 1.0 },
     parry       = { 0.75, 0.55, 0.35, 1.0 },
     block       = { 0.85, 0.75, 0.3, 1.0 },
+    blockval    = { 0.75, 0.8, 0.4, 1.0 },
     armor       = { 0.55, 0.55, 0.55, 1.0 },
+    arp         = { 0.85, 0.25, 0.45, 1.0 },
+    exp         = { 0.95, 0.65, 0.2, 1.0 },
 }
 
 local statKeyMap                = {
@@ -444,8 +473,14 @@ local statKeyMap                = {
     Dodge = "dodge",
     Parry = "parry",
     Block = "block",
+    BlockVal = "blockval",
+    BlockValue = "blockval",
     Arm = "armor",
     Armor = "armor",
+    ArP = "arp",
+    ArmorPenetration = "arp",
+    Exp = "exp",
+    Expertise = "exp",
 }
 
 local statBgColors              = setmetatable({
@@ -1955,6 +1990,29 @@ gearFrame:SetScript("OnShow", function(self)
                         sdb.armor_ilvl_prio = false
                         sdb.is_healer = false
                     end
+                    local bridge = sfui.talents and sfui.talents.SPEC_BRIDGE and (sfui.talents.SPEC_BRIDGE[id] or sfui.talents.SPEC_BRIDGE[numID])
+                    if bridge then
+                        if bridge.camelotID and bridge.camelotID ~= id then
+                            SfuiDB.gear[bridge.camelotID] = SfuiDB.gear[bridge.camelotID] or {}
+                            local cb = SfuiDB.gear[bridge.camelotID]
+                            cb.user_selected_role = true
+                            cb.classic_role = rKey
+                            cb.role = sdb.role
+                            cb.is_tank = sdb.is_tank
+                            cb.armor_ilvl_prio = sdb.armor_ilvl_prio
+                            cb.is_healer = sdb.is_healer
+                        end
+                        if bridge.classID and bridge.classID ~= id then
+                            SfuiDB.gear[bridge.classID] = SfuiDB.gear[bridge.classID] or {}
+                            local clb = SfuiDB.gear[bridge.classID]
+                            clb.user_selected_role = true
+                            clb.classic_role = rKey
+                            clb.role = sdb.role
+                            clb.is_tank = sdb.is_tank
+                            clb.armor_ilvl_prio = sdb.armor_ilvl_prio
+                            clb.is_healer = sdb.is_healer
+                        end
+                    end
                     local defOrder = sfui.gear.GetDefaultStats(numID, rKey)
                     if defOrder then
                         sdb.stat_order = {}
@@ -1962,9 +2020,19 @@ gearFrame:SetScript("OnShow", function(self)
                         sdb.stat_equals = nil
                         sdb.pawn_weights = nil
                     end
+                    if sfui.highest and sfui.highest.ClearValidationCache then
+                        sfui.highest.ClearValidationCache()
+                    end
+                    if sfui.highest and sfui.highest.ClearCache then
+                        sfui.highest.ClearCache()
+                    end
                     sfui.gear.UpdateStatUI()
                     sfui.gear.Update()
-                    if not common.get_current_spec_id or common.get_current_spec_id() == id then
+                    local curSpec = common and common.get_current_spec_id and common.get_current_spec_id()
+                    local isMatch = (not curSpec) or (curSpec == id)
+                        or (tonumber(curSpec) and tonumber(id) and tonumber(curSpec) == tonumber(id))
+                        or (sfui.gear and sfui.gear.is_spec_match and sfui.gear.is_spec_match(curSpec, id))
+                    if isMatch then
                         if sfui.highest and sfui.highest.EquipHighestILvl then
                             sfui.highest.EquipHighestILvl(isCurrentlyPvP())
                         end
