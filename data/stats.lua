@@ -549,7 +549,8 @@ function sfui.stats.GetHaste(unit)
         meleeHaste = (_G.GetMeleeHaste and _G.GetMeleeHaste()) or 0
         if _G.GetRangedHaste then
             local baseRanged, ammoHaste = _G.GetRangedHaste()
-            rangedHaste = (baseRanged or 0) + (ammoHaste or 0)
+            local usesAmmo = sfui.api.UnitUsesAmmo and sfui.api.UnitUsesAmmo(unit)
+            rangedHaste = (baseRanged or 0) + ((usesAmmo and ammoHaste) or ammoHaste or 0)
         end
     elseif unit == "pet" then
         meleeHaste = (_G.GetPetMeleeHaste and _G.GetPetMeleeHaste()) or 0

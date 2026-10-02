@@ -12,6 +12,7 @@ sfui.theme.RegisterTheme({
     name           = "Camelot Heavy Bronze",
     desc           = "Sculpted cast-bronze metalwork, ornate corner brackets, warm charcoal slate, and cream gold.",
     clientTag      = "classic",
+    barTexture     = "Blizzard Nameplate",
     autoDetect     = function()
         -- Auto-detect selects Camelot on Classic Forever / Camelot beta
         return (sfui.isForever or (sfui.compat and sfui.compat.is_wow_forever)) and sfui.theme.IsCamelotSupported()
@@ -72,5 +73,76 @@ sfui.theme.RegisterTheme({
     },
     lootfeed       = {
         style       = "outfit_card",
+    },
+    -- ─── Bar / StatusBar Theming ───────────────────────────────────────────────
+    -- Each key matches a "barType" string used by sfui.theme.RegisterBar / ApplyStatusBarStyle.
+    -- Colors follow the Camelot Heavy Bronze palette:
+    --   • backdropColor  : deep warm charcoal (near-black, slight amber warmth)
+    --   • borderColor    : burnished bronze, 1-pixel edge
+    bars           = {
+        style      = "heavy", -- default bar style for Camelot: "thin" (Option A) | "glow" (Option B) | "heavy" (Option C)
+        texture    = "Blizzard Nameplate",
+        health     = {
+            backdropColor = { 0.05, 0.04, 0.03, 0.90 }, -- Near-black charcoal, very slight amber
+            borderColor   = { 0.42, 0.32, 0.14, 0.85 }, -- Burnished bronze
+            borderSize    = 1,
+            cornerSize    = 8,
+        },
+        power      = {
+            backdropColor = { 0.05, 0.04, 0.03, 0.88 },
+            borderColor   = { 0.38, 0.28, 0.12, 0.82 },
+            borderSize    = 1,
+            cornerSize    = 6,
+        },
+        secondary  = {
+            backdropColor = { 0.05, 0.04, 0.03, 0.88 },
+            borderColor   = { 0.38, 0.28, 0.12, 0.82 },
+            borderSize    = 1,
+            cornerSize    = 6,
+        },
+        rune       = {
+            backdropColor = { 0.08, 0.06, 0.04, 0.85 },
+            borderColor   = { 0.35, 0.26, 0.10, 0.80 },
+            borderSize    = 1,
+            cornerSize    = 5,
+        },
+        vigor      = {
+            backdropColor = { 0.05, 0.04, 0.03, 0.88 },
+            borderColor   = { 0.42, 0.32, 0.14, 0.85 },
+            borderSize    = 1,
+            cornerSize    = 6,
+        },
+        mountspeed = {
+            backdropColor = { 0.05, 0.04, 0.03, 0.88 },
+            borderColor   = { 0.42, 0.32, 0.14, 0.85 },
+            borderSize    = 1,
+            cornerSize    = 6,
+        },
+        threat     = {
+            backdropColor = { 0.06, 0.04, 0.03, 0.90 },
+            borderColor   = { 0.45, 0.30, 0.10, 0.88 }, -- Slightly deeper bronze
+            borderSize    = 1,
+            cornerSize    = 4,
+        },
+        castbar    = {
+            backdropColor    = { 0.05, 0.04, 0.03, 0.92 },
+            borderColor      = { 0.50, 0.38, 0.16, 0.90 }, -- Warmer gold-bronze cast bar border
+            borderSize       = 1,
+            cornerSize       = 8,
+            iconBorderColor  = { 0.50, 0.38, 0.18, 1.0 },
+            sparkColor       = { 1.0,  0.85, 0.55, 1.0  }, -- Radiant gold spark
+        },
+        swing      = {
+            backdropColor = { 0.05, 0.04, 0.03, 0.88 },
+            borderColor   = { 0.38, 0.28, 0.12, 0.82 },
+            borderSize    = 1,
+            cornerSize    = 5,
+        },
+        target     = {
+            backdropColor = { 0.05, 0.04, 0.03, 0.90 },
+            borderColor   = { 0.42, 0.32, 0.14, 0.85 },
+            borderSize    = 1,
+            cornerSize    = 6,
+        },
     },
 })

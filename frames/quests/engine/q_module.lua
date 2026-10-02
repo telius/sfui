@@ -17,9 +17,7 @@ local ModuleMixin = {}
 
 function ModuleMixin:MarkDirty(delay)
     self.isDirty = true
-    if sfui.tracker and sfui.tracker.RequestRefresh then
-        sfui.tracker.RequestRefresh(delay)
-    end
+    sfui.tracker.RequestRefresh(delay)
 end
 
 function ModuleMixin:IsDirty()

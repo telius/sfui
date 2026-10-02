@@ -4,24 +4,24 @@
         sfui.automation.match_mount()
     </Binding>
     <Binding name="SFUI_PORTALS" category="SFUI">
-        if sfui and sfui.portals and sfui.portals.Toggle then sfui.portals.Toggle() end
+        sfui.portals.Toggle()
     </Binding>
     <Binding name="SFUI_ALTS" category="SFUI">
-        if sfui and sfui.alts and sfui.alts.Toggle then sfui.alts.Toggle() end
+        sfui.alts.Toggle()
     </Binding>
     <Binding name="SFUI_LOOTVIEWER" category="SFUI">
-        if sfui and sfui.lootviewer and sfui.lootviewer.Toggle then sfui.lootviewer.Toggle() end
+        if sfui.ToggleLootViewer then sfui.ToggleLootViewer() elseif sfui.lootviewer and sfui.lootviewer.Toggle then sfui.lootviewer.Toggle() elseif sfui.lootviewer_camelot and sfui.lootviewer_camelot.Toggle then sfui.lootviewer_camelot.Toggle() end
     </Binding>
     <Binding name="SFUI_FISHING" category="SFUI">
-        if sfui and sfui.fishing and sfui.fishing.RunKeybind then sfui.fishing.RunKeybind() end
+        sfui.fishing.RunKeybind()
     </Binding>
     <Binding name="BETTERFISHINGKEY" category="SFUI">
-        if sfui and sfui.fishing and sfui.fishing.RunKeybind then sfui.fishing.RunKeybind() end
+        sfui.fishing.RunKeybind()
     </Binding>
     <Binding name="SFUI_PET_SUMMON" category="SFUI">
-        if sfui and sfui.pets and sfui.pets.SummonNext then sfui.pets.SummonNext(true) end
+        sfui.pets.SummonNext(true)
     </Binding>
     <Binding name="SFUI_PET_MANAGER" category="SFUI">
-        if sfui and sfui.pets and sfui.pets.Toggle then sfui.pets.Toggle() end
+        sfui.pets.Toggle()
     </Binding>
 </Bindings>

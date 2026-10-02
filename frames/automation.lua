@@ -173,14 +173,12 @@ local function auto_repair()
     if not SfuiDB.autoRepair then return end
     if not CanMerchantRepair() then return end
 
-    if SfuiDB.enableMasterHammer ~= false and sfui.hammer and sfui.hammer.has_repair_hammer then
+    if sfui.isRetail and sfui.hammer and SfuiDB.enableMasterHammer ~= false then
         local hasHammer, hammerName, _, hammerItemID = sfui.hammer.has_repair_hammer()
-        if hasHammer and sfui.hammer.can_repair_any_damaged and sfui.hammer.can_repair_any_damaged() then
+        if hasHammer and sfui.hammer.can_repair_any_damaged() then
             local displayName = hammerName or (hammerItemID and C_Item.GetItemNameByID(hammerItemID)) or "Master's Hammer"
             sfui.common.print(string.format("|cffff9900Auto-repair skipped: %s detected.|r", displayName))
-            if sfui.hammer.update_hammer_popup then
-                sfui.hammer.update_hammer_popup()
-            end
+            sfui.hammer.update_hammer_popup()
             return
         end
     end
@@ -246,7 +244,7 @@ end)
 sfui.events.RegisterEvent("MERCHANT_SHOW", function()
     auto_sell_greys()
     auto_repair()
-    if sfui.hammer and sfui.hammer.update_hammer_popup then
+    if sfui.isRetail and sfui.hammer then
         sfui.hammer.update_hammer_popup()
     end
 end)
@@ -472,7 +470,7 @@ function sfui.automation.initialize()
             init_lfg_dungeon_automation()
         end)
     end
-    if sfui.hammer and sfui.hammer.update_hammer_popup then
+    if sfui.isRetail and sfui.hammer then
         sfui.hammer.update_hammer_popup()
     end
 end
@@ -511,10 +509,7 @@ function sfui.automation_debug_info()
     }
 end
 
-if sfui.RegisterModule then
-    sfui.automation = sfui.automation or {}
-    sfui.automation.OnInit = sfui.automation.initialize
-    sfui.automation.OnEnable = sfui.automation.initialize
-    sfui.automation.GetDebugInfo = sfui.automation_debug_info
-    sfui.RegisterModule("automation", sfui.automation)
-end
+sfui.automation.OnInit = sfui.automation.initialize
+sfui.automation.OnEnable = sfui.automation.initialize
+sfui.automation.GetDebugInfo = sfui.automation_debug_info
+sfui.RegisterModule("automation", sfui.automation)

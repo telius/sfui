@@ -56,8 +56,8 @@ local AcquireTable = sfui.alts.AcquireTable
 local ReleaseTable = sfui.alts.ReleaseTable
 local ReleaseTableRecursive = sfui.alts.ReleaseTableRecursive
 
-local PROF_KP_SOURCES = sfui.season and sfui.season.PROF_KP_SOURCES or {}
-local CURRENCIES = sfui.season and sfui.season.CURRENCIES or {}
+local PROF_KP_SOURCES = sfui.season.PROF_KP_SOURCES
+local CURRENCIES = sfui.season.CURRENCIES
 
 local PROF_SHORT_NAMES = {
     ["Blacksmithing"] = "bs",
@@ -205,10 +205,8 @@ local function RefreshDynamicCategories(force)
                 if not icon or icon == 0 then
                     if itemConfig.isItem and C_Item and C_Item.GetItemIconByID then
                         icon = C_Item.GetItemIconByID(itemConfig.id) or 134400
-                    elseif sfui.common and sfui.common.get_currency_icon then
-                        icon = sfui.common.get_currency_icon(itemConfig.id) or 134400
                     else
-                        icon = 134400
+                        icon = sfui.common.get_currency_icon(itemConfig.id) or 134400
                     end
                 end
                 itemConfig.icon = icon
@@ -223,10 +221,8 @@ local function RefreshDynamicCategories(force)
             if not icon or icon == 0 then
                 if cc.isItem and C_Item and C_Item.GetItemIconByID then
                     icon = C_Item.GetItemIconByID(cc.id) or 134400
-                elseif sfui.common and sfui.common.get_currency_icon then
-                    icon = sfui.common.get_currency_icon(cc.id) or 134400
                 else
-                    icon = 134400
+                    icon = sfui.common.get_currency_icon(cc.id) or 134400
                 end
             end
             cc.icon = icon
@@ -486,13 +482,11 @@ local function recordVaultActivity(d, activity, defaultGroup)
             local ilvl = activity.itemLevel
             if (not ilvl or ilvl == 0) and activity.id and C_WeeklyRewards and C_WeeklyRewards.GetExampleRewardItemHyperlinks then
                 local link = C_WeeklyRewards.GetExampleRewardItemHyperlinks(activity.id)
-                if link and sfui.common and sfui.common.get_item_level then
+                if link then
                     ilvl = sfui.common.get_item_level(link)
-                elseif link and C_Item and C_Item.GetDetailedItemLevelInfo then
-                    ilvl = C_Item.GetDetailedItemLevelInfo(link)
                 end
             end
-            if (not ilvl or ilvl == 0) and activity.exampleItemHyperlink and sfui.common and sfui.common.get_item_level then
+            if (not ilvl or ilvl == 0) and activity.exampleItemHyperlink then
                 ilvl = sfui.common.get_item_level(activity.exampleItemHyperlink)
             end
             targetSlot.itemLevel = ilvl or 0
@@ -535,10 +529,8 @@ end
 
 -- Delegate to the canonical resolver shared across all alts providers (defined in alts.lua)
 local function GetCurrentCharacterGUID()
-    if sfui.alts and sfui.alts.GetCurrentCharacterGUID then
-        local g = sfui.alts.GetCurrentCharacterGUID()
-        if g then return g end
-    end
+    local g = sfui.alts.GetCurrentCharacterGUID()
+    if g then return g end
     local guid = UnitGUID("player")
     if guid then return guid end
     local name, realm = UnitName("player")
@@ -681,7 +673,7 @@ local function GetQuestStatus(def)
 end
 
 local function OnQuestTurnedIn(questID)
-    if not questID or not sfui.season or not sfui.season.WEEKLY_QUESTS then return end
+    if not questID then return end
 
     local guid = GetCurrentCharacterGUID()
     if not guid or not SfuiDB or not SfuiDB.alts then return end
@@ -871,11 +863,7 @@ local function PerformSync(data, isLogout)
     -- 2. Keystone
     local ks = nil
     if isMaxLevel then
-        if sfui.common and sfui.common.get_owned_keystone_info then
-            ks = sfui.common.get_owned_keystone_info()
-        elseif sfui.items and sfui.items.get_owned_keystone_info then
-            ks = sfui.items.get_owned_keystone_info()
-        end
+        ks = sfui.common.get_owned_keystone_info()
         if (not ks or not ks.level or ks.level <= 0 or ks.level >= 100) and challengeModeValidGUID == playerGUID and C_MythicPlus and C_MythicPlus.GetOwnedKeystoneChallengeMapID then
             local mapID = C_MythicPlus.GetOwnedKeystoneChallengeMapID()
             local level = C_MythicPlus.GetOwnedKeystoneLevel and C_MythicPlus.GetOwnedKeystoneLevel()
@@ -990,8 +978,7 @@ local function PerformSync(data, isLogout)
 
     -- 7. Weekly Quests
     data.quests = data.quests or {}
-    if sfui.season and sfui.season.WEEKLY_QUESTS then
-        for _, def in ipairs(sfui.season.WEEKLY_QUESTS) do
+    for _, def in ipairs(sfui.season.WEEKLY_QUESTS) do
             local existing = data.quests[def.key]
             local completed, active, progressText, progressNum, doneCount, targetTotal = GetQuestStatus(def)
 
@@ -1044,7 +1031,6 @@ local function PerformSync(data, isLogout)
                 total = targetTotal,
             }
         end
-    end
 
     -- 8. Professions
     data.profKP = data.profKP or {}
@@ -1155,7 +1141,7 @@ local function PerformSync(data, isLogout)
                         end
                     end
 
-                    if tracking.catchup and sfui.common and sfui.common.get_currency_info then
+                    if tracking.catchup then
                         local currencyInfo = sfui.common.get_currency_info(tracking.catchup)
                         if currencyInfo and currencyInfo.maxQuantity and currencyInfo.quantity then
                             local remaining = currencyInfo.maxQuantity - currencyInfo.quantity
@@ -1183,9 +1169,7 @@ local function PerformSync(data, isLogout)
         end
     end
 
-    if sfui.recipes and sfui.recipes.InvalidateCache then
-        sfui.recipes.InvalidateCache()
-    end
+    sfui.recipes.InvalidateCache()
 end
 
 local function GetVaultColor(g, l, ilvl)
@@ -1214,7 +1198,7 @@ local function GetDifficultyName(l)
     return tostring(l)
 end
 
-if sfui.season and not sfui.season.GetVaultBaseline then
+if not sfui.season.GetVaultBaseline then
     function sfui.season.GetVaultBaseline(group, level)
         local vb = sfui.season.VAULT_BASELINES
         if not vb or not group or not level then return nil, nil end
@@ -1240,26 +1224,19 @@ local function GetVaultItemLevel(g, l, vData)
     end
     if vData and vData.id and C_WeeklyRewards and C_WeeklyRewards.GetExampleRewardItemHyperlinks then
         local link = C_WeeklyRewards.GetExampleRewardItemHyperlinks(vData.id)
-        if link and sfui.common and sfui.common.get_item_level then
+        if link then
             local ilvl = sfui.common.get_item_level(link)
-            if ilvl and ilvl > 0 then return ilvl end
-        elseif link and C_Item and C_Item.GetDetailedItemLevelInfo then
-            local ilvl = C_Item.GetDetailedItemLevelInfo(link)
             if ilvl and ilvl > 0 then return ilvl end
         end
     end
-    if sfui.season and sfui.season.GetVaultBaseline then
-        local bIlvl = sfui.season.GetVaultBaseline(g, l)
-        if bIlvl then return bIlvl end
-    end
+    local bIlvl = sfui.season.GetVaultBaseline(g, l)
+    if bIlvl then return bIlvl end
     return nil
 end
 
 local function GetVaultTrack(g, l, ilvl)
-    if sfui.season and sfui.season.GetVaultBaseline then
-        local _, track = sfui.season.GetVaultBaseline(g, l)
-        if track then return track end
-    end
+    local _, track = sfui.season.GetVaultBaseline(g, l)
+    if track then return track end
     if ilvl then
         if ilvl >= 318 then return "|cffff8000Myth|r" end
         if ilvl >= 305 then return "|cffa335eeHero|r" end
@@ -1382,10 +1359,9 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 end
             end
 
-            local name = ks.mapID and sfui.common and sfui.common.get_short_map_name and
-            sfui.common.get_short_map_name(ks.mapID)
+            local name = ks.mapID and sfui.common.get_short_map_name(ks.mapID)
             if not name and ks.name then
-                name = sfui.common and sfui.common.get_short_string and sfui.common.get_short_string(ks.name)
+                name = sfui.common.get_short_string(ks.name)
             end
             if name then
                 text:SetText(string.format("%s +%d", name, ks.level))
@@ -1453,10 +1429,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         end
 
         local mapID = cat.mapID
-        local isKnown = false
-        if sfui.portals and sfui.portals.GetDungeonPortal then
-            _, _, isKnown = sfui.portals.GetDungeonPortal(mapID)
-        end
+        local _, _, isKnown = sfui.portals.GetDungeonPortal(mapID)
 
         if best and best.level > 0 then
             local timed = best.timed or 0
@@ -1510,16 +1483,12 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             if isKnown and not InCombatLockdown() then
                 GameTooltip:AddLine(" ")
                 GameTooltip:AddLine("<left-click to cast dungeon teleport>", 0.2, 1.0, 0.4)
-                if sfui.portals and sfui.portals.ArmDungeon then
-                    sfui.portals.ArmDungeon(mapID, self)
-                end
+                sfui.portals.ArmDungeon(mapID, self)
             end
             GameTooltip:Show()
         end)
         cell:SetScript("OnLeave", function()
-            if sfui.portals and sfui.portals.Disarm then
-                sfui.portals.Disarm()
-            end
+            sfui.portals.Disarm()
             GameTooltip:Hide()
         end)
         return true
@@ -1579,7 +1548,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 displayText = displayText ..
                     string.format("|T%d:12:12:0:0|t %s%s|r", itemConfig.icon or 134400, colorCode, displayVal)
             elseif isCapped then
-                local errCol = (sfui.config and sfui.config.appearance and sfui.config.appearance.errorColor) or
+                local errCol = (sfui.config.appearance and sfui.config.appearance.errorColor) or
                 { 1, 0.2, 0.2 }
                 local r, g, b = unpack(errCol)
                 local colorCode = string.format("|cff%02x%02x%02x", r * 255, g * 255, b * 255)
@@ -1615,8 +1584,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                         if tLine.itemConfig.isItem then
                             name = (C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(tLine.itemConfig.id)) or "Item"
                         else
-                            name = (sfui.common and sfui.common.get_currency_name and sfui.common.get_currency_name(tLine.itemConfig.id)) or
-                            "Currency"
+                            name = sfui.common.get_currency_name(tLine.itemConfig.id) or "Currency"
                         end
                     end
 
@@ -1657,7 +1625,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                         name = (C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(tLine.itemConfig.id)) or
                         (tLine.itemConfig.id == 274476 and "Spark of Tides" or "Item")
                     elseif tLine.itemConfig then
-                        name = (sfui.common and sfui.common.get_currency_name and sfui.common.get_currency_name(tLine.itemConfig.id)) or
+                        name = sfui.common.get_currency_name(tLine.itemConfig.id) or
                         (tLine.itemConfig.id == 3509 and "Tidal Spark Dust" or "Currency")
                     else
                         name = "Currency"
@@ -1720,7 +1688,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             local q           = altData.quests
 
             -- Block definitions sourced from sfui.season.WEEKLY_QUESTS
-            local BLOCKS      = sfui.season and sfui.season.WEEKLY_QUESTS or {}
+            local BLOCKS      = sfui.season.WEEKLY_QUESTS
             -- Colours: completed / inProgress / available — per group
             local CORE_DONE   = { 0.40, 0.00, 1.00, 0.85 } -- #6600ff vivid purple
             local CORE_PROG   = { 0.18, 0.00, 0.45, 0.85 } -- dark purple
@@ -1908,7 +1876,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
 
                 local sColors = cfg.statusColors
                 if pData.done and pData.done >= pData.total then
-                    local cyan = (sfui.config and sfui.config.colors and sfui.config.colors.cyan) or { 0, 1, 1 }
+                    local cyan = (sfui.config.colors and sfui.config.colors.cyan) or { 0, 1, 1 }
                     rightText:SetTextColor(unpack(cyan))
                 elseif pData.done and pData.done > 0 then
                     local c = sColors and sColors.inProgress or { 0, 0.2, 0.2 }
@@ -2310,7 +2278,7 @@ sfui.alts.RegisterProvider({
                 end
             end
         end
-        if sfui.alts and sfui.alts.PerformSync then sfui.alts.PerformSync() end
+        sfui.alts.PerformSync()
     end,
     RegisterEvents = function()
         local function on_sync()

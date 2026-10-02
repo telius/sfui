@@ -359,8 +359,6 @@ function sfui.research_debug_info()
     return _resDebug
 end
 
-if sfui.RegisterModule then
-    sfui.research = sfui.research or {}
-    sfui.research.GetDebugInfo = sfui.research_debug_info
-    sfui.RegisterModule("research", sfui.research)
-end
+sfui.research = sfui.research or {}
+sfui.research.GetDebugInfo = sfui.research_debug_info
+sfui.RegisterModule("research", sfui.research)

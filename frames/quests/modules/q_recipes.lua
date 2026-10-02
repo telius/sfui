@@ -6,7 +6,7 @@
 ]]
 
 local addonName, addon = ...
-sfui = sfui or {}
+local sfui = _G.sfui or {}
 sfui.tracker = sfui.tracker or {}
 sfui.questlog = sfui.questlog or {}
 
@@ -95,7 +95,7 @@ function RecipesModule:BuildBlocks(container)
                                         end
                                         rName = rName or ("Item #" .. tostring(itemID))
                                     elseif currencyID then
-                                        local cInfo = sfui.common and sfui.common.get_currency_info and sfui.common.get_currency_info(currencyID)
+                                        local cInfo = sfui.common.get_currency_info(currencyID)
                                         if cInfo then
                                             rName = cInfo.name
                                             curCount = cInfo.quantity or 0
@@ -134,9 +134,7 @@ function RecipesModule:BuildBlocks(container)
                                     if C_TradeSkillUI.SetRecipeTracked then
                                         C_TradeSkillUI.SetRecipeTracked(recipeID, false, isRecraft)
                                     end
-                                    if sfui.tracker and sfui.tracker.RequestRefresh then
-                                        sfui.tracker.RequestRefresh(0.05)
-                                    end
+                                    sfui.tracker.RequestRefresh(0.05)
                                     return
                                 end
 
@@ -145,9 +143,7 @@ function RecipesModule:BuildBlocks(container)
                                     local st = GetQLState()
                                     st.expandedQuests = st.expandedQuests or {}
                                     st.expandedQuests[key] = not st.expandedQuests[key]
-                                    if sfui.tracker and sfui.tracker.RequestRefresh then
-                                        sfui.tracker.RequestRefresh(0.05)
-                                    end
+                                    sfui.tracker.RequestRefresh(0.05)
                                     return
                                 end
 

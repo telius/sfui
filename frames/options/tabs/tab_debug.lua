@@ -41,9 +41,7 @@ sfui.options.RegisterTab({
         local memory_button = CreateFlatButton(debug_panel, "memory profiler", 130, 22)
         memory_button:SetPoint("LEFT", debug_refresh_button, "RIGHT", 10, 0)
         memory_button:SetScript("OnClick", function()
-            if sfui.mem and sfui.mem.ToggleGUI then
-                sfui.mem.ToggleGUI()
-            end
+            sfui.mem.ToggleGUI()
         end)
 
         -- Column 1: Character & Spec
@@ -113,22 +111,13 @@ sfui.options.RegisterTab({
             local color = common.get_class_or_spec_color()
             if color then color_swatch:SetColorTexture(color[1], color[2], color[3]) end
 
-            if common.get_primary_resource then
-                primary_power_value:SetText(get_power_type_name(common.get_primary_resource()))
-            end
-            if common.get_secondary_resource then
-                secondary_power_value:SetText(get_power_type_name(common.get_secondary_resource()))
-            end
+            primary_power_value:SetText(get_power_type_name(common.get_primary_resource()))
+            secondary_power_value:SetText(get_power_type_name(common.get_secondary_resource()))
 
-            if sfui.reminders and sfui.reminders.get_status then
-                pet_warning_value:SetText(sfui.reminders.get_status())
-            else
-                pet_warning_value:SetText("N/A (Module Missing)")
-            end
+            pet_warning_value:SetText("N/A")
 
-            local hammer = sfui.hammer or sfui.automation
-            if hammer and hammer.has_repair_hammer then
-                local found, name, _, itemID = hammer.has_repair_hammer(true)
+            if sfui.isRetail and sfui.hammer then
+                local found, name, _, itemID = sfui.hammer.has_repair_hammer(true)
                 if found then
                     hammer_value:SetText("|cff00ff00Found|r (" .. (name or "Unknown") .. ")")
                     hammer_id_value:SetText(tostring(itemID))

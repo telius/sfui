@@ -163,9 +163,7 @@ end
 local isClassicEra = (_G.WOW_PROJECT_ID ~= nil and _G.WOW_PROJECT_CLASSIC ~= nil and _G.WOW_PROJECT_ID == _G.WOW_PROJECT_CLASSIC)
 
 local function is_classic_client()
-    return sfui.isClassic or sfui.isForever or sfui.isCamelot or sfui.isEra or isClassicEra or
-        (sfui.compat and (sfui.compat.is_classic or sfui.compat.is_camelot or sfui.compat.is_wow_forever)) or
-        (sfui.gear and sfui.gear.isClassicOrVanilla and sfui.gear.isClassicOrVanilla()) or false
+    return not sfui.isRetail
 end
 
 local cachedFishingID
@@ -305,9 +303,7 @@ sfui.fishing.get_fishing_spell_name = get_fishing_spell_name
 -- ─── Deferred Execution for Combat Safety ────────────────────────────────────
 
 local function print_message(msg)
-    if sfui.common and sfui.common.print then
-        sfui.common.print(msg)
-    end
+    sfui.common.print(msg)
 end
 
 local function defer_action(fn)
@@ -515,10 +511,8 @@ local function is_fishing_pole_item(itemID, itemLink)
         end
     end
 
-    if sfui.common and sfui.common.get_item_instant_info then
-        local _, _, _, _, _, cID, scID = sfui.common.get_item_instant_info(itemID or itemLink)
-        if is_pole_class(cID, scID) then return true end
-    end
+    local _, _, _, _, _, cID, scID = sfui.common.get_item_instant_info(itemID or itemLink)
+    if is_pole_class(cID, scID) then return true end
 
     if itemLink then
         local bracketName = itemLink:match("%[(.-)%]")
@@ -555,7 +549,7 @@ local function find_fishing_pole_in_bags()
             if link then
                 local itemID = tonumber(link:match("item:(%d+)"))
                 if is_fishing_pole_item(itemID, link) then
-                    local ilvl = (sfui.common and sfui.common.get_item_level and sfui.common.get_item_level(link)) or 0
+                    local ilvl = sfui.common.get_item_level(link) or 0
                     if ilvl > bestIlvl then
                         bestIlvl = ilvl
                         bestBag = bag
@@ -642,12 +636,7 @@ local function end_session(equipWeapons)
         end
 
         -- Trigger auto-gear to equip best combat weapons
-        if sfui.gear and sfui.gear.Update then
-            sfui.gear.Update(true)
-        elseif sfui.highest and sfui.highest.EquipHighestILvl then
-            local isPvP = (sfui.gear and sfui.gear.isCurrentlyPvP and sfui.gear.isCurrentlyPvP()) or false
-            sfui.highest.EquipHighestILvl(isPvP, true)
-        end
+        sfui.gear.Update(true)
     end
 end
 sfui.fishing.EndSession = end_session
@@ -1041,12 +1030,7 @@ local function on_leave_combat()
     run_deferred_tasks()
     arm_fishing_keys()
     if not _state.sessionActive and is_fishing_pole_equipped() then
-        if sfui.gear and sfui.gear.Update then
-            sfui.gear.Update(true)
-        elseif sfui.highest and sfui.highest.EquipHighestILvl then
-            local isPvP = (sfui.gear and sfui.gear.isCurrentlyPvP and sfui.gear.isCurrentlyPvP()) or false
-            sfui.highest.EquipHighestILvl(isPvP, true)
-        end
+        sfui.gear.Update(true)
     end
 end
 

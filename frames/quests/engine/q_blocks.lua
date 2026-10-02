@@ -83,9 +83,7 @@ local function CreateHeader(parent)
 
     title:SetPoint("RIGHT", count, "LEFT", -4, 0)
 
-    if sfui.theme and sfui.theme.ApplyQuestHeaderStyle then
-        sfui.theme.ApplyQuestHeaderStyle(h)
-    end
+    sfui.theme.ApplyQuestHeaderStyle(h)
 
     h:SetScript("OnEnter", function(self)
         if not self.isCamelotHeader then
@@ -131,9 +129,7 @@ local function CreateHeader(parent)
 
     h:EnableMouseWheel(true)
     h:SetScript("OnMouseWheel", function(self, delta)
-        if sfui.tracker and sfui.tracker.OnMouseWheel then
-            sfui.tracker.OnMouseWheel(self, delta)
-        end
+        sfui.tracker.OnMouseWheel(self, delta)
     end)
 
     return h
@@ -147,15 +143,7 @@ function Blocks.AcquireHeader(parent)
         h:SetParent(parent)
         h:ClearAllPoints()
         h.secID = nil
-        if sfui.theme and sfui.theme.ApplyQuestHeaderStyle then
-            sfui.theme.ApplyQuestHeaderStyle(h)
-        else
-            h:SetBackdropColor(0, 0, 0, 0.50)
-            h:SetBackdropBorderColor(0, 0, 0, 0.50)
-            if h.accent then
-                h.accent:SetColorTexture(1, 1, 1, 1)
-            end
-        end
+        sfui.theme.ApplyQuestHeaderStyle(h)
     end
     h:Show()
     table_insert(activeHeaders, h)
@@ -223,9 +211,7 @@ local function CreateBlock(parent)
 
     b:EnableMouseWheel(true)
     b:SetScript("OnMouseWheel", function(self, delta)
-        if sfui.tracker and sfui.tracker.OnMouseWheel then
-            sfui.tracker.OnMouseWheel(self, delta)
-        end
+        sfui.tracker.OnMouseWheel(self, delta)
     end)
 
     return b
@@ -282,9 +268,7 @@ local function CreateLine(parent)
 
     l:EnableMouseWheel(true)
     l:SetScript("OnMouseWheel", function(self, delta)
-        if sfui.tracker and sfui.tracker.OnMouseWheel then
-            sfui.tracker.OnMouseWheel(self, delta)
-        end
+        sfui.tracker.OnMouseWheel(self, delta)
     end)
 
     return l
@@ -312,19 +296,7 @@ function Blocks.AcquireLine(parent)
 end
 
 local function GetBarTexture()
-    if sfui.widgets and sfui.widgets.get_bar_texture then
-        return sfui.widgets.get_bar_texture()
-    end
-    local textureName = SfuiDB and SfuiDB.barTexture
-    local LSM = _G.LibStub and _G.LibStub("LibSharedMedia-3.0", true)
-    local texturePath
-    if LSM and textureName then
-        texturePath = LSM:Fetch("statusbar", textureName)
-    end
-    if not texturePath or texturePath == "" then
-        texturePath = (sfui.config and sfui.config.barTexture) or "Interface/Buttons/WHITE8X8"
-    end
-    return texturePath
+    return sfui.widgets.get_bar_texture()
 end
 
 -- ─── Status Bar Factory & Pool ──────────────────────────────────────────────
@@ -381,9 +353,7 @@ local function CreateBar(parent)
 
     bar:EnableMouseWheel(true)
     bar:SetScript("OnMouseWheel", function(self, delta)
-        if sfui.tracker and sfui.tracker.OnMouseWheel then
-            sfui.tracker.OnMouseWheel(self, delta)
-        end
+        sfui.tracker.OnMouseWheel(self, delta)
     end)
 
     return bar

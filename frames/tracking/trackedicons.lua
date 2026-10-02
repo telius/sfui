@@ -92,7 +92,7 @@ local function GetIconValue(entrySettings, panelConfig, key, default)
 end
 
 local function update_item_cd(icon)
-    local s, d, e = C_Item.GetItemCooldown(icon.id)
+    local s, d, e = sfui.api.GetItemCooldown(icon.id)
     icon._start, icon._duration, icon._isEnabled = s, d, e
     CooldownFrame_Set(icon.cooldown, s, d, e)
     
@@ -103,7 +103,7 @@ local function update_item_cd(icon)
             icon.shadowCooldown:Clear()
         end
     end
-    return C_Item.GetItemCount(icon.id)
+    return sfui.api.GetItemCount(icon.id)
 end
 
 -- pcall_spell_cd and pcall_sync_swipe removed — no longer needed
@@ -1037,14 +1037,14 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
 
             -- Smart Anchoring: Check if Power Bar (bar_minus_1) EXISTS and IS SHOWN
             local powerBar = _G["sfui_bar_minus_1_Backdrop"] or _G["sfui_bar-1_Backdrop"]
-                or (sfui.bars and sfui.bars.get_bar_minus_1 and sfui.bars.get_bar_minus_1().backdrop)
+                or (sfui.bars.get_bar_minus_1 and sfui.bars.get_bar_minus_1().backdrop)
             if powerBar and (powerBar:IsShown() or (SfuiDB == nil or SfuiDB.enablePowerBar ~= false)) then
                 targetFrame = powerBar
                 targetPoint = "BOTTOM"
             end
 
             -- Swing Bar Anchoring: In Classic/Vanilla/Camelot, always position below the swing bar if present/possible
-            if sfui.swing and sfui.swing.IsPossible and sfui.swing.IsPossible() then
+            if not sfui.isRetail and sfui.swing and sfui.swing.IsPossible() then
                 local swingBar = (sfui.swing.GetLowestPossibleBar and sfui.swing.GetLowestPossibleBar())
                     or (sfui.swing.GetLowestBar and sfui.swing.GetLowestBar(true))
                 if swingBar then
@@ -1382,9 +1382,7 @@ function sfui.trackedicons.initialize()
     local loaded, reason = C_AddOns.LoadAddOn("Blizzard_CooldownViewer")
 
     -- Hide Blizzard Cooldown Frames
-    if sfui.common.hide_blizzard_cooldown_viewers then
-        sfui.common.hide_blizzard_cooldown_viewers()
-    end
+    sfui.common.hide_blizzard_cooldown_viewers()
 
     -- Helper: Update only icon states (no layout rebuild) using cached panel.config
     local function UpdateAllIconStates()
@@ -1425,17 +1423,11 @@ function sfui.trackedicons.initialize()
 
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
         sfui.common.ensure_panels_initialized()
-        if sfui.common.SyncTrackedSpells then
-            sfui.common.SyncTrackedSpells()
-        end
         sfui.trackedicons.Update()
         MarkDirty(true)
     end)
     local function on_tracked_icons_spec_changed()
         sfui.common.ensure_panels_initialized()
-        if sfui.common.SyncTrackedSpells then
-            sfui.common.SyncTrackedSpells()
-        end
         sfui.trackedicons.Update()
         MarkDirty(true)
     end
@@ -1592,15 +1584,13 @@ function sfui.trackedicons_debug_info()
     }
 end
 
-if sfui.RegisterModule then
-    sfui.trackedicons.OnEnable = function(self) self.initialize() end
-    sfui.trackedicons.OnSettingsChanged = function(self, k, v)
-        if self.Update then self.Update() end
-    end
-    sfui.trackedicons.OnSpecChanged = function(self, specID)
-        if self.Update then self.Update() end
-    end
-    sfui.trackedicons.GetDebugInfo = sfui.trackedicons_debug_info
-    sfui.RegisterModule("trackedicons", sfui.trackedicons)
+sfui.trackedicons.OnEnable = function(self) self.initialize() end
+sfui.trackedicons.OnSettingsChanged = function(self, k, v)
+    if self.Update then self.Update() end
 end
+sfui.trackedicons.OnSpecChanged = function(self, specID)
+    if self.Update then self.Update() end
+end
+sfui.trackedicons.GetDebugInfo = sfui.trackedicons_debug_info
+sfui.RegisterModule("trackedicons", sfui.trackedicons)
 

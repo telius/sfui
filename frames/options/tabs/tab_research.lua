@@ -13,7 +13,7 @@ sfui.options.RegisterTab({
     id = "research",
     name = "research",
     condition = function()
-        return not (sfui.compat and sfui.compat.is_classic)
+        return sfui.isRetail
     end,
     build = function(research_panel, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
@@ -34,10 +34,8 @@ sfui.options.RegisterTab({
         local toggle_research_button = CreateFlatButton(research_panel, "open research viewer", 160, 22)
         toggle_research_button:SetPoint("TOPLEFT", research_info, "BOTTOMLEFT", 0, -20)
         toggle_research_button:SetScript("OnClick", function()
-            if sfui.research and sfui.research.toggle_selection then
-                sfui.research.toggle_selection()
-                if options_frame then options_frame:Hide() end
-            end
+            sfui.research.toggle_selection()
+            if options_frame then options_frame:Hide() end
         end)
 
         local custom_header = research_panel:CreateFontString(nil, "OVERLAY", g.font)
@@ -58,7 +56,7 @@ sfui.options.RegisterTab({
         add_trait_button:SetPoint("LEFT", custom_id_input, "RIGHT", 5, 0)
         add_trait_button:SetScript("OnClick", function()
             local id = tonumber(custom_id_input:GetText())
-            if id and sfui.research and sfui.research.open_tree then
+            if id then
                 sfui.research.open_tree({ id = id, isTraitTree = true, name = "Custom " .. id })
                 if options_frame then options_frame:Hide() end
             end
@@ -78,7 +76,7 @@ sfui.options.RegisterTab({
         add_garr_button:SetPoint("LEFT", add_trait_button, "RIGHT", 5, 0)
         add_garr_button:SetScript("OnClick", function()
             local id = tonumber(custom_id_input:GetText())
-            if id and sfui.research and sfui.research.open_tree then
+            if id then
                 sfui.research.open_tree({ id = id, isTraitTree = false, type = 111, name = "Custom " .. id })
                 if options_frame then options_frame:Hide() end
             end

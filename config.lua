@@ -57,8 +57,9 @@ sfui.config = {
         mode = "auto", -- "auto" (detects Camelot on Forever/Classic, Modern on Retail), "camelot", "modern"
         cornerBrackets = true,
         texturedBackdrop = true,
-        minimapArt = true,       -- Camelot only: preserve brass compass & day/night dial (modern theme does not touch minimap)
-        lootfeedStyle = "outfit_card", -- Camelot only: "outfit_card" (Option A: sculpted plate) or "architectural" (Option B: charcoal slate & corner brackets)
+        minimapArt = true,             -- Camelot only: preserve brass compass & day/night dial (modern theme does not touch minimap)
+        lootfeedStyle = "architectural", -- Camelot only: "architectural" (Option A: charcoal slate & corner brackets) or "outfit_card" (Option B: sculpted card)
+        barStyle = "heavy",            -- Camelot only: "thin" (Option A: 1px bronze edge), "glow" (Option B: recessed amber glow), or "heavy" (Option C: chiseled bronze frame & corner brackets)
     },
 
     -- shared settings for icon bars
@@ -320,8 +321,8 @@ sfui.config = {
         maxRows = 10,
         displayDuration = 8.0,
         fadeDuration = 0.5,
-        growDirection = "DOWN", -- "DOWN" or "UP"
-        minItemQuality = 0,     -- 0 = Poor, 1 = Common, 2 = Uncommon, 3 = Rare, 4 = Epic (Player)
+        growDirection = "DOWN",  -- "DOWN" or "UP"
+        minItemQuality = 0,      -- 0 = Poor, 1 = Common, 2 = Uncommon, 3 = Rare, 4 = Epic (Player)
         partyMinItemQuality = 2, -- 0 = Poor, 1 = Common, 2 = Uncommon, 3 = Rare, 4 = Epic (Party Members)
         trackMoney = true,
         trackCurrency = true,
@@ -433,10 +434,10 @@ sfui.config = {
 
     targetBar = {
         enabled = true,
-        width = 200,
-        height = 20,
-        powerHeight = 5,
-        pos = { point = "TOPLEFT", relativeTo = "playerHealthBar", relativePoint = "TOPRIGHT", x = 8, y = 18 },
+        width = 300,
+        height = 16,
+        powerHeight = 3,
+        pos = { point = "TOP", x = 0, y = -25 },
         backdrop = {
             padding = 2,
             color = { 0, 0, 0, 0.5 },
@@ -444,8 +445,8 @@ sfui.config = {
         auras = {
             size = 18,
             spacing = 2,
-            maxBuffs = 6,
-            maxDebuffs = 6,
+            maxBuffs = 8,
+            maxDebuffs = 8,
         },
     },
 
@@ -538,31 +539,63 @@ sfui.config = {
     barTexture = "Interface/Buttons/WHITE8X8",
 
     blizzard_bar_textures = {
-        ["Flat"]                          = "Interface/Buttons/WHITE8X8",
-        ["Blizzard"]                      = "Interface/TargetingFrame/UI-StatusBar",
-        ["Blizzard Target Bar"]           = "Interface/TargetingFrame/UI-TargetingFrame-BarFill",
-        ["Blizzard Character Skills Bar"] = "Interface/PaperDollInfoFrame/UI-Character-Skills-Bar",
-        ["Blizzard Raid Bar"]             = "Interface/RaidFrame/Raid-Bar-Hp-Fill",
-        ["Blizzard Raid Resource"]        = "Interface/RaidFrame/Raid-Bar-Resource-Fill",
-        ["Blizzard Raid Health"]          = "Interface/RaidFrame/UI-RaidFrame-HealthBar",
-        ["Blizzard Shield Fill"]          = "Interface/RaidFrame/Shield-Fill",
-        ["Blizzard Absorb Fill"]          = "Interface/RaidFrame/Absorb-Fill",
-        ["Blizzard Professions"]          = "Interface/Spellbook/Professions-Progress-Fill",
-        ["Blizzard Archaeology"]          = "Interface/Archeology/Arch-Progress-Fill",
+        ["Flat"]                             = "Interface/Buttons/WHITE8X8",
+        ["Blizzard"]                         = "Interface/TargetingFrame/UI-StatusBar",
+        ["Blizzard Nameplate"]               = "UI-HUD-CoolDownManager-Bar",
+        ["Blizzard Player Health"]           = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Health",
+        ["Blizzard Player Mana"]             = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Mana",
+        ["Blizzard Target Health"]           = "UI-HUD-UnitFrame-Target-PortraitOn-Bar-Health",
+        ["Blizzard Target Mana"]             = "UI-HUD-UnitFrame-Target-PortraitOn-Bar-Mana",
+        ["Blizzard Party Health"]            = "UI-HUD-UnitFrame-Party-PortraitOn-Bar-Health",
+        ["Blizzard Raid Fill"]               = "RaidFrame-Hp-Fill",
+        ["Blizzard Raid Resource"]           = "_RaidFrame-Resource-Fill",
+        ["Blizzard Casting Bar"]             = "ui-castingbar-filling-standard",
+        ["Blizzard Challenge Mode"]          = "ChallengeMode-TimerFill",
+        ["Blizzard Honor Fill"]              = "_honorsystem-bar-fill",
+        ["Blizzard Conquest Fill"]           = "_pvpqueue-conquestbar-fill-yellow",
+        ["Blizzard Experience Fill"]         = "UI-HUD-ExperienceBar-Fill-Prediction",
+        ["Blizzard Activities"]              = "activities-bar-fill",
+        ["Blizzard Target Bar"]              = "Interface/TargetingFrame/UI-TargetingFrame-BarFill",
+        ["Blizzard Character Skills Bar"]    = "Interface/PaperDollInfoFrame/UI-Character-Skills-Bar",
+        ["Blizzard Raid Bar"]                = "Interface/RaidFrame/Raid-Bar-Hp-Fill",
+        ["Blizzard Raid Resource (Classic)"] = "Interface/RaidFrame/Raid-Bar-Resource-Fill",
+        ["Blizzard Raid Health (Classic)"]   = "Interface/RaidFrame/UI-RaidFrame-HealthBar",
+        ["Blizzard Shield Fill"]             = "Interface/RaidFrame/Shield-Fill",
+        ["Blizzard Absorb Fill"]             = "Interface/RaidFrame/Absorb-Fill",
+        ["Blizzard Professions"]             = "Interface/Spellbook/Professions-Progress-Fill",
+        ["Blizzard Archaeology"]             = "Interface/Archeology/Arch-Progress-Fill",
+        ["Blizzard Reputation"]              = "Interface/PaperDollInfoFrame/UI-Character-ReputationBar",
+        ["Blizzard PVP Honor (Classic)"]     = "Interface/PVPFrame/pvpqueue-sidebar-honorbar-fill",
     },
 
     barTextures = {
-        { text = "Flat",                          value = "Interface/Buttons/WHITE8X8" },
-        { text = "Blizzard",                      value = "Interface/TargetingFrame/UI-StatusBar" },
-        { text = "Blizzard Target Bar",           value = "Interface/TargetingFrame/UI-TargetingFrame-BarFill" },
-        { text = "Blizzard Character Skills Bar", value = "Interface/PaperDollInfoFrame/UI-Character-Skills-Bar" },
-        { text = "Blizzard Raid Bar",             value = "Interface/RaidFrame/Raid-Bar-Hp-Fill" },
-        { text = "Blizzard Raid Resource",        value = "Interface/RaidFrame/Raid-Bar-Resource-Fill" },
-        { text = "Blizzard Raid Health",          value = "Interface/RaidFrame/UI-RaidFrame-HealthBar" },
-        { text = "Blizzard Shield Fill",          value = "Interface/RaidFrame/Shield-Fill" },
-        { text = "Blizzard Absorb Fill",          value = "Interface/RaidFrame/Absorb-Fill" },
-        { text = "Blizzard Professions",          value = "Interface/Spellbook/Professions-Progress-Fill" },
-        { text = "Blizzard Archaeology",          value = "Interface/Archeology/Arch-Progress-Fill" },
+        { text = "Flat",                             value = "Interface/Buttons/WHITE8X8" },
+        { text = "Blizzard Nameplate",               value = "UI-HUD-CoolDownManager-Bar" },
+        { text = "Blizzard Player Health",           value = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Health" },
+        { text = "Blizzard Player Mana",             value = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Mana" },
+        { text = "Blizzard Target Health",           value = "UI-HUD-UnitFrame-Target-PortraitOn-Bar-Health" },
+        { text = "Blizzard Target Mana",             value = "UI-HUD-UnitFrame-Target-PortraitOn-Bar-Mana" },
+        { text = "Blizzard Party Health",            value = "UI-HUD-UnitFrame-Party-PortraitOn-Bar-Health" },
+        { text = "Blizzard Raid Fill",               value = "RaidFrame-Hp-Fill" },
+        { text = "Blizzard Raid Resource",           value = "_RaidFrame-Resource-Fill" },
+        { text = "Blizzard Casting Bar",             value = "ui-castingbar-filling-standard" },
+        { text = "Blizzard Challenge Mode",          value = "ChallengeMode-TimerFill" },
+        { text = "Blizzard Honor Fill",              value = "_honorsystem-bar-fill" },
+        { text = "Blizzard Conquest Fill",           value = "_pvpqueue-conquestbar-fill-yellow" },
+        { text = "Blizzard Experience Fill",         value = "UI-HUD-ExperienceBar-Fill-Prediction" },
+        { text = "Blizzard Activities",              value = "activities-bar-fill" },
+        { text = "Blizzard",                         value = "Interface/TargetingFrame/UI-StatusBar" },
+        { text = "Blizzard Target Bar",              value = "Interface/TargetingFrame/UI-TargetingFrame-BarFill" },
+        { text = "Blizzard Character Skills Bar",    value = "Interface/PaperDollInfoFrame/UI-Character-Skills-Bar" },
+        { text = "Blizzard Raid Bar",                value = "Interface/RaidFrame/Raid-Bar-Hp-Fill" },
+        { text = "Blizzard Raid Resource (Classic)", value = "Interface/RaidFrame/Raid-Bar-Resource-Fill" },
+        { text = "Blizzard Raid Health (Classic)",   value = "Interface/RaidFrame/UI-RaidFrame-HealthBar" },
+        { text = "Blizzard Shield Fill",             value = "Interface/RaidFrame/Shield-Fill" },
+        { text = "Blizzard Absorb Fill",             value = "Interface/RaidFrame/Absorb-Fill" },
+        { text = "Blizzard Professions",             value = "Interface/Spellbook/Professions-Progress-Fill" },
+        { text = "Blizzard Archaeology",             value = "Interface/Archeology/Arch-Progress-Fill" },
+        { text = "Blizzard Reputation",              value = "Interface/PaperDollInfoFrame/UI-Character-ReputationBar" },
+        { text = "Blizzard PVP Honor (Classic)",     value = "Interface/PVPFrame/pvpqueue-sidebar-honorbar-fill" },
     },
 
     absorbBarColor = { 0.4, 0.0, 1.0, 0.75 },
@@ -875,10 +908,10 @@ sfui.config = {
     -- ─── Companion Pet Manager ────────────────────────────
     -- Settings for companion pet auto-summon & rotation (frames/pets.lua).
     pets = {
-        enabled             = true,
-        autoResummon        = true,
-        rotationTimer       = 720, -- Seconds (12 mins, 0 to disable)
-        historySize         = 4,
+        enabled       = true,
+        autoResummon  = true,
+        rotationTimer = 720,       -- Seconds (12 mins, 0 to disable)
+        historySize   = 4,
     },
 
     -- ─── Hide & Mouseover Settings ────────────────────────

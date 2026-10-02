@@ -27,7 +27,7 @@ function sfui.db.RegisterDefaults(moduleName, defaults)
         for k, v in pairs(defaults) do
             if SfuiDB[moduleName][k] == nil then
                 if type(v) == "table" then
-                    SfuiDB[moduleName][k] = CopyTable and CopyTable(v) or (sfui.common and sfui.common.copy and sfui.common.copy(v)) or {}
+                    SfuiDB[moduleName][k] = CopyTable and CopyTable(v) or sfui.common.copy(v)
                 else
                     SfuiDB[moduleName][k] = v
                 end
@@ -49,7 +49,7 @@ function sfui.db.Get(moduleName, key, fallback)
     if moduleDefaults[moduleName] and moduleDefaults[moduleName][key] ~= nil then
         return moduleDefaults[moduleName][key]
     end
-    if sfui.config and sfui.config[moduleName] and sfui.config[moduleName][key] ~= nil then
+    if sfui.config[moduleName] and sfui.config[moduleName][key] ~= nil then
         return sfui.config[moduleName][key]
     end
     return fallback
@@ -85,7 +85,7 @@ function sfui.db.Initialize()
         for k, v in pairs(defs) do
             if SfuiDB[moduleName][k] == nil then
                 if type(v) == "table" then
-                    SfuiDB[moduleName][k] = CopyTable and CopyTable(v) or (sfui.common and sfui.common.copy and sfui.common.copy(v)) or {}
+                    SfuiDB[moduleName][k] = CopyTable and CopyTable(v) or sfui.common.copy(v)
                 else
                     SfuiDB[moduleName][k] = v
                 end

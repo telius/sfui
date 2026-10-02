@@ -7,7 +7,7 @@
 ]]
 
 local addonName, addon = ...
-sfui = sfui or {}
+local sfui = _G.sfui or {}
 sfui.tracker = sfui.tracker or {}
 sfui.questlog = sfui.questlog or {}
 
@@ -35,7 +35,7 @@ local math_floor = math.floor
 local table_insert = _G.table.insert
 local string_format = string.format
 
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.common.issecretvalue
 
 -- Evaluation flag for achievement criteria progress bar (0x1)
 local EVAL_FLAG_PROGRESS_BAR = 1
@@ -97,9 +97,7 @@ function AchievementsModule:OnEvent(event, ...)
         local trackableType, id, added = ...
         if not trackableType or trackableType == GetAchievementTrackingType() then
             self:MarkDirty()
-            if sfui.tracker and sfui.tracker.RequestRefresh then
-                sfui.tracker.RequestRefresh(0.01)
-            end
+            sfui.tracker.RequestRefresh(0.01)
         end
     elseif event == "TRACKED_ACHIEVEMENT_UPDATE" then
         local achievementID, criteriaID, elapsed, duration = ...
@@ -114,14 +112,10 @@ function AchievementsModule:OnEvent(event, ...)
             end
         end
         self:MarkDirty()
-        if sfui.tracker and sfui.tracker.RequestRefresh then
-            sfui.tracker.RequestRefresh(0.05)
-        end
+        sfui.tracker.RequestRefresh(0.05)
     else
         self:MarkDirty()
-        if sfui.tracker and sfui.tracker.RequestRefresh then
-            sfui.tracker.RequestRefresh(0.05)
-        end
+        sfui.tracker.RequestRefresh(0.05)
     end
 end
 
@@ -134,9 +128,7 @@ function AchievementsModule:SetupHooks()
         hooksecurefunc(C_ContentTracking, "StartTracking", function(trackableType, id)
             if not trackableType or trackableType == GetAchievementTrackingType() then
                 self:MarkDirty()
-                if sfui.tracker and sfui.tracker.RequestRefresh then
-                    sfui.tracker.RequestRefresh(0.01)
-                end
+                sfui.tracker.RequestRefresh(0.01)
             end
         end)
     end
@@ -145,9 +137,7 @@ function AchievementsModule:SetupHooks()
         hooksecurefunc(C_ContentTracking, "StopTracking", function(trackableType, id)
             if not trackableType or trackableType == GetAchievementTrackingType() then
                 self:MarkDirty()
-                if sfui.tracker and sfui.tracker.RequestRefresh then
-                    sfui.tracker.RequestRefresh(0.01)
-                end
+                sfui.tracker.RequestRefresh(0.01)
             end
         end)
     end
@@ -156,18 +146,14 @@ function AchievementsModule:SetupHooks()
     if AddTrackedAchievement then
         hooksecurefunc("AddTrackedAchievement", function()
             self:MarkDirty()
-            if sfui.tracker and sfui.tracker.RequestRefresh then
-                sfui.tracker.RequestRefresh(0.01)
-            end
+            sfui.tracker.RequestRefresh(0.01)
         end)
     end
 
     if RemoveTrackedAchievement then
         hooksecurefunc("RemoveTrackedAchievement", function()
             self:MarkDirty()
-            if sfui.tracker and sfui.tracker.RequestRefresh then
-                sfui.tracker.RequestRefresh(0.01)
-            end
+            sfui.tracker.RequestRefresh(0.01)
         end)
     end
 end
@@ -187,9 +173,7 @@ local function UntrackAchievement(achID)
         _G.AchievementFrameAchievements_ForceUpdate()
     end
 
-    if sfui.tracker and sfui.tracker.RequestRefresh then
-        sfui.tracker.RequestRefresh(0.01)
-    end
+    sfui.tracker.RequestRefresh(0.01)
 end
 
 local function OpenAchievementInUI(achID)
@@ -414,9 +398,7 @@ function AchievementsModule:BuildBlocks(container)
                         local key = "ach_" .. tostring(achID)
                         local curExpanded = (st.expandedQuests[key] ~= false)
                         st.expandedQuests[key] = not curExpanded
-                        if sfui.tracker and sfui.tracker.RequestRefresh then
-                            sfui.tracker.RequestRefresh(0.01)
-                        end
+                        sfui.tracker.RequestRefresh(0.01)
                         return
                     end
 

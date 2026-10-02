@@ -8,7 +8,13 @@ local issecretvalue = common.issecretvalue
 
 -- Class Gate: Demon Hunter only
 local _, playerClass = UnitClass("player")
-if playerClass ~= "DEMONHUNTER" then return end
+if playerClass ~= "DEMONHUNTER" then
+    sfui.soulfragments = {
+        UpdatePosition = function() end,
+        SetBarTexture  = function() end,
+    }
+    return
+end
 
 sfui.soulfragments = {}
 
@@ -700,9 +706,7 @@ local function UpdateDisplay()
         if container and container:IsShown() then
             container:Hide()
             if auraContainer then auraContainer:Hide() end
-            if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
-                sfui.trackedbars.ForceLayoutUpdate()
-            end
+            sfui.trackedbars.ForceLayoutUpdate()
         end
         UpdateVoidMetaDisplay(false)
         return
@@ -716,9 +720,7 @@ local function UpdateDisplay()
         if container:IsShown() then
             container:Hide()
             if auraContainer then auraContainer:Hide() end
-            if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
-                sfui.trackedbars.ForceLayoutUpdate()
-            end
+            sfui.trackedbars.ForceLayoutUpdate()
         end
         UpdateVoidMetaDisplay(false)
         return
@@ -738,9 +740,7 @@ local function UpdateDisplay()
         if wasShown then
             container:Hide()
             if auraContainer then auraContainer:Hide() end
-            if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
-                sfui.trackedbars.ForceLayoutUpdate()
-            end
+            sfui.trackedbars.ForceLayoutUpdate()
         end
         UpdateVoidMetaDisplay(false)
         return
@@ -749,9 +749,7 @@ local function UpdateDisplay()
     if not wasShown then
         container:Show()
         if auraContainer then auraContainer:Show() end
-        if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
-            sfui.trackedbars.ForceLayoutUpdate()
-        end
+        sfui.trackedbars.ForceLayoutUpdate()
     end
 
     local cap = currentSpecConfig.cap
@@ -837,20 +835,18 @@ function sfui.soulfragments:UpdatePosition()
     end
     if not container then return end
 
-    local spec = common.get_current_spec_id and common.get_current_spec_id() or 0
+    local spec = common.get_current_spec_id()
     currentSpecConfig = SPEC_CONFIGS[spec]
 
     if not currentSpecConfig then
         if container then container:Hide() end
         if auraContainer then auraContainer:Hide() end
         if metaContainer then metaContainer:Hide() end
-        if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
-            sfui.trackedbars.ForceLayoutUpdate()
-        end
+        sfui.trackedbars.ForceLayoutUpdate()
         return
     end
 
-    local bar0    = (sfui.bars and sfui.bars.get_bar0 and sfui.bars.get_bar0()) or _G["sfui_bar0"]
+    local bar0    = sfui.bars.get_bar0()
     local target  = (bar0 and bar0.backdrop) or bar0 or _G["sfui_bar0_Backdrop"]
 
     local cfg     = sfui.config.soulFragments or {}
@@ -906,9 +902,7 @@ function sfui.soulfragments:UpdatePosition()
     RebuildDividers(currentSpecConfig.cap)
     BuildAuraContainer(currentSpecConfig.cap)
 
-    if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
-        sfui.trackedbars.ForceLayoutUpdate()
-    end
+    sfui.trackedbars.ForceLayoutUpdate()
 end
 
 -- ------------------------------------------------------------
@@ -918,7 +912,7 @@ end
 -- must only run ONCE (RegisterUpdate, hooks) is guarded by _initialized.
 -- ------------------------------------------------------------
 function sfui.soulfragments:Initialize()
-    local spec = common.get_current_spec_id and common.get_current_spec_id() or 0
+    local spec = common.get_current_spec_id()
     currentSpecConfig = SPEC_CONFIGS[spec]
 
     if not currentSpecConfig then
@@ -987,9 +981,7 @@ local function onSpecChanged()
         if container then container:Hide() end
         if metaContainer then metaContainer:Hide() end
         sfui.events.UnregisterUpdate("SoulFragments")
-        if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
-            sfui.trackedbars.ForceLayoutUpdate()
-        end
+        sfui.trackedbars.ForceLayoutUpdate()
     end
     UpdateDisplay()
 end

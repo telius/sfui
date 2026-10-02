@@ -171,8 +171,12 @@ function sfui.widgets.resolve_statusbar_texture(name)
             end
         end
     end
-    if not path and type(name) == "string" and name:find("^[iI]nterface[/\\]") then
-        path = name
+    if not path and type(name) == "string" then
+        if name:find("^[iI]nterface[/\\]") then
+            path = name
+        elseif _G.C_Texture and _G.C_Texture.GetAtlasInfo and _G.C_Texture.GetAtlasInfo(name) then
+            path = name
+        end
     end
     return path or (sfui.config and sfui.config.barTexture) or "Interface/Buttons/WHITE8X8"
 end
@@ -181,9 +185,7 @@ sfui.common.resolve_statusbar_texture = sfui.widgets.resolve_statusbar_texture
 function sfui.widgets.get_bar_texture(textureName)
     local name = textureName or (SfuiDB and SfuiDB.barTexture)
     local path = sfui.widgets.resolve_statusbar_texture(name)
-    if sfui.config then
-        sfui.config.barTexture = path
-    end
+    sfui.config.barTexture = path
     return path
 end
 sfui.common.get_bar_texture = sfui.widgets.get_bar_texture
@@ -214,28 +216,8 @@ function sfui.widgets.create_flat_button(parent, text, width, height)
         fs:SetTextColor(1, 1, 1, 1)
     end
 
-    if sfui.theme and sfui.theme.ApplyButtonStyle then
-        sfui.theme.ApplyButtonStyle(btn, false)
-        sfui.theme.RegisterButton(btn, false)
-    else
-        local mult = sfui.pixelScale or 1
-        btn:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = mult,
-            insets = { left = 0, right = 0, top = 0, bottom = 0 }
-        })
-        btn:SetBackdropColor(0, 0, 0, 1)
-        btn:SetBackdropBorderColor(0, 0, 0, 1)
-
-        btn:SetScript("OnEnter", function(self)
-            local purple = (sfui.config and sfui.config.colors and sfui.config.colors.purple) or { 0.4, 0, 1 }
-            self:SetBackdropBorderColor(purple[1], purple[2], purple[3], 1)
-        end)
-        btn:SetScript("OnLeave", function(self)
-            self:SetBackdropBorderColor(0, 0, 0, 1)
-        end)
-    end
+    sfui.theme.ApplyButtonStyle(btn, false)
+    sfui.theme.RegisterButton(btn, false)
 
     return btn
 end
@@ -265,27 +247,8 @@ function sfui.widgets.create_styled_button(parent, text, width, height)
     btn.text:SetText(text or "")
     sfui.widgets.style_text(btn.text)
 
-    if sfui.theme and sfui.theme.ApplyButtonStyle then
-        sfui.theme.ApplyButtonStyle(btn, true)
-        sfui.theme.RegisterButton(btn, true)
-    else
-        btn:SetBackdrop({
-            bgFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
-            edgeFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-            insets = { left = 0, right = 0, top = 0, bottom = 0 }
-        })
-        btn:SetBackdropColor(0.2, 0.2, 0.2, 1)
-        btn:SetBackdropBorderColor(0, 0, 0, 1)
-
-        btn:SetScript("OnEnter", function(self)
-            local purple = (sfui.config and sfui.config.colors and sfui.config.colors.purple) or { 0.4, 0, 1 }
-            self:SetBackdropBorderColor(purple[1], purple[2], purple[3], 1)
-        end)
-        btn:SetScript("OnLeave", function(self)
-            self:SetBackdropBorderColor(0, 0, 0, 1)
-        end)
-    end
+    sfui.theme.ApplyButtonStyle(btn, true)
+    sfui.theme.RegisterButton(btn, true)
 
     return btn
 end
@@ -307,10 +270,8 @@ function sfui.widgets.create_close_button(parent, onClickFunc, size)
         if parent and parent.Hide then parent:Hide() end
     end)
 
-    if sfui.theme and sfui.theme.ApplyCloseButtonStyle then
-        sfui.theme.ApplyCloseButtonStyle(btn)
-        sfui.theme.RegisterCloseButton(btn)
-    end
+    sfui.theme.ApplyCloseButtonStyle(btn)
+    sfui.theme.RegisterCloseButton(btn)
 
     btn:SetScript("OnEnter", function(self)
         if not self.isThemedClose then
@@ -629,7 +590,7 @@ function sfui.widgets.create_font_string(parent, font, point, x, y, colorName)
     if point then
         fs:SetPoint(point, x or 0, y or 0)
     end
-    if colorName and sfui.common and sfui.common.set_color then
+    if colorName then
         sfui.common.set_color(fs, colorName)
     end
     return fs
@@ -1363,11 +1324,14 @@ local function get_all_statusbar_textures()
         end
     end
 
-    if sfui.config and sfui.config.blizzard_bar_textures then
-        for name, _ in pairs(sfui.config.blizzard_bar_textures) do
+    if sfui.config.blizzard_bar_textures then
+        for name, path in pairs(sfui.config.blizzard_bar_textures) do
             if not seen[name] then
-                seen[name] = true
-                table.insert(list, name)
+                local isAtlas = type(path) == "string" and not path:find("^[iI]nterface[/\\]")
+                if not isAtlas or (_G.C_Texture and _G.C_Texture.GetAtlasInfo and _G.C_Texture.GetAtlasInfo(path)) then
+                    seen[name] = true
+                    table.insert(list, name)
+                end
             end
         end
     end
@@ -1446,11 +1410,21 @@ function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initi
     local btnHl = btn:GetHighlightTexture()
     btnHl:SetVertexColor(1, 1, 1, 0.15)
 
+    local function setTexturePreview(tex, path)
+        if not tex then return end
+        if type(path) == "string" and _G.C_Texture and _G.C_Texture.GetAtlasInfo and _G.C_Texture.GetAtlasInfo(path) then
+            tex:SetAtlas(path, false)
+        else
+            tex:SetTexCoord(0, 1, 0, 1)
+            tex:SetTexture(path)
+        end
+    end
+
     local function updateButtonDisplay(val)
         currentValue = val
         btnText:SetText(tostring(val or "Flat"))
         local path = resolve_statusbar_texture(val)
-        btnBar:SetTexture(path)
+        setTexturePreview(btnBar, path)
     end
     updateButtonDisplay(currentValue)
 
@@ -1566,7 +1540,7 @@ function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initi
                 end
 
                 local path = resolve_statusbar_texture(name)
-                row.bar:SetTexture(path)
+                setTexturePreview(row.bar, path)
                 row.text:SetText(name)
 
                 row:ClearAllPoints()

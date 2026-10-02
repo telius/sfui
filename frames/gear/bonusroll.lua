@@ -1,12 +1,13 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
-sfui = sfui or {}
-sfui.bonusroll = {}
+local sfui = _G.sfui or {}
 
 -- Guard: Retail-only bonus roll & vault reward chest system
-if not (sfui.compat and sfui.compat.has and sfui.compat.has.gear_spec) then
+if not sfui.isRetail then
     return
 end
+
+sfui.bonusroll = {}
 
 local CreateFrame               = CreateFrame
 local UIParent                  = UIParent
@@ -88,12 +89,8 @@ local EXCLUDED_ITEMS = {
     [275938] = true, -- Gaze of the Hexlord
 }
 
--- ─── Database Access Helpers ──────────────────────────────────────────────────
 local function GetPlayerKey()
-    if sfui.common and sfui.common.get_player_unique_key then
-        return sfui.common.get_player_unique_key()
-    end
-    return (UnitGUID and UnitGUID("player")) or "player"
+    return sfui.common.get_player_unique_key()
 end
 
 local function DB()
@@ -218,12 +215,10 @@ function sfui.bonusroll.ToggleTarget(keyID, isBoss)
         SyncExternalTargets(keyID, isBoss, true)
     end
 
-    if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
+    if sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
         sfui.lootviewer.Rebuild()
     end
-    if sfui.alts and sfui.alts.UpdateUI then
-        sfui.alts.UpdateUI(true)
-    end
+    sfui.alts.UpdateUI(true)
 end
 
 function sfui.bonusroll.ToggleItemTarget(keyID, isBoss, itemID)
@@ -250,12 +245,10 @@ function sfui.bonusroll.ToggleItemTarget(keyID, isBoss, itemID)
         SyncExternalTargets(keyID, isBoss, true)
     end
 
-    if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
+    if sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
         sfui.lootviewer.Rebuild()
     end
-    if sfui.alts and sfui.alts.UpdateUI then
-        sfui.alts.UpdateUI(true)
-    end
+    sfui.alts.UpdateUI(true)
 end
 
 function sfui.bonusroll.ClearTarget(keyID, isBoss)
@@ -308,12 +301,10 @@ function sfui.bonusroll.AutoclearItemTarget(itemID, itemLink)
     sfui.common.print(string.format("|cff00ff00◆ Bonus Roll Target Acquired:|r %s obtained! Target cleared.", link))
     PlaySound(SOUNDKIT.UI_EPICLOOT_TOAST or 51570, "Master")
 
-    if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
+    if sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
         sfui.lootviewer.Rebuild()
     end
-    if sfui.alts and sfui.alts.UpdateUI then
-        sfui.alts.UpdateUI(true)
-    end
+    sfui.alts.UpdateUI(true)
 end
 
 function sfui.bonusroll.NotifyTarget(keyID, isBoss, defaultName)
@@ -418,7 +409,7 @@ function sfui.bonusroll.SetUsed(itemID, value, itemLink)
         pcall(_G.KeystoneLoot.Voidcore.SetUsed, _G.KeystoneLoot.Voidcore, itemID, value)
     end
 
-    if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
+    if sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
         sfui.lootviewer.Rebuild()
     end
 end
@@ -436,15 +427,13 @@ local function GetLootTableForChest(chestItemId)
 
     if source.challengeModeId then
         -- Look up dungeon loot in sfui.lootviewer cache or challenge mode table
-        if sfui.lootviewer and sfui.lootviewer.GetDungeonData then
-            local dungeons = sfui.lootviewer.GetDungeonData()
-            for _, d in ipairs(dungeons) do
-                if d.mapID == source.challengeModeId then
-                    for _, it in ipairs(d.loot or {}) do
-                        lootList[#lootList + 1] = it.id
-                    end
-                    break
+        local dungeons = sfui.lootviewer.GetDungeonData()
+        for _, d in ipairs(dungeons) do
+            if d.mapID == source.challengeModeId then
+                for _, it in ipairs(d.loot or {}) do
+                    lootList[#lootList + 1] = it.id
                 end
+                break
             end
         end
         -- Fallback: check KeystoneLoot database if available
@@ -463,16 +452,14 @@ local function GetLootTableForChest(chestItemId)
         end
     elseif source.bossId then
         -- Look up raid boss loot in sfui.lootviewer
-        if sfui.lootviewer and sfui.lootviewer.GetRaidData then
-            local raids = sfui.lootviewer.GetRaidData()
-            for _, r in ipairs(raids) do
-                for _, b in ipairs(r.bosses or {}) do
-                    if b.encounterID == source.bossId or b.dungeonEncounterID == source.bossId then
-                        for _, it in ipairs(b.loot or {}) do
-                            lootList[#lootList + 1] = it.id
-                        end
-                        break
+        local raids = sfui.lootviewer.GetRaidData()
+        for _, r in ipairs(raids) do
+            for _, b in ipairs(r.bosses or {}) do
+                if b.encounterID == source.bossId or b.dungeonEncounterID == source.bossId then
+                    for _, it in ipairs(b.loot or {}) do
+                        lootList[#lootList + 1] = it.id
                     end
+                    break
                 end
             end
         end
@@ -628,11 +615,11 @@ function sfui.bonusroll.CheckAll(rescan)
         chestIds[#chestIds + 1] = chestItemId
     end
 
-    local prefix = "|cff00ccffSFUI|r (Bonus Roll): "
+    local printMsg = sfui.common.print
     if rescan then
-        print(prefix .. "Rescanning server bonus roll history...")
+        printMsg("(Bonus Roll): Rescanning server bonus roll history...")
     else
-        print(prefix .. "Checking past bonus rolls...")
+        printMsg("(Bonus Roll): Checking past bonus rolls...")
     end
 
     local total = 0
@@ -644,12 +631,12 @@ function sfui.bonusroll.CheckAll(rescan)
         local chestItemId = chestIds[index]
         if not chestItemId then
             if total > 0 then
-                print(prefix .. string.format("%d past bonus roll(s) detected and synced.", total))
+                printMsg(string.format("(Bonus Roll): %d past bonus roll(s) detected and synced.", total))
             else
-                print(prefix .. "Bonus roll tracking is up to date.")
+                printMsg("(Bonus Roll): Bonus roll tracking is up to date.")
             end
             DB().checked = true
-            if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
+            if sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
                 sfui.lootviewer.Rebuild()
             end
             return

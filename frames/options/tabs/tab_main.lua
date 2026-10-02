@@ -41,21 +41,19 @@ sfui.options.RegisterTab({
         local open_cv_main = CreateFlatButton(main_panel, "tracking manager", 140, 22)
         open_cv_main:SetPoint("LEFT", reload_button, "RIGHT", 10, 0)
         open_cv_main:SetScript("OnClick", function()
-            if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
-                sfui.trackedoptions.toggle_viewer()
+            sfui.trackedoptions.toggle_viewer()
 
-                if SfuiCooldownsViewer and SfuiCooldownsViewer:IsShown() and options_frame then
-                    local _, rel = options_frame:GetPoint()
-                    if rel == SfuiCooldownsViewer then
-                        local left = options_frame:GetLeft()
-                        local top = options_frame:GetTop()
-                        options_frame:ClearAllPoints()
-                        options_frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
-                    end
-
-                    SfuiCooldownsViewer:ClearAllPoints()
-                    SfuiCooldownsViewer:SetPoint("TOPLEFT", options_frame, "TOPRIGHT", 5, 0)
+            if SfuiCooldownsViewer and SfuiCooldownsViewer:IsShown() and options_frame then
+                local _, rel = options_frame:GetPoint()
+                if rel == SfuiCooldownsViewer then
+                    local left = options_frame:GetLeft()
+                    local top = options_frame:GetTop()
+                    options_frame:ClearAllPoints()
+                    options_frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
                 end
+
+                SfuiCooldownsViewer:ClearAllPoints()
+                SfuiCooldownsViewer:SetPoint("TOPLEFT", options_frame, "TOPRIGHT", 5, 0)
             end
         end)
 
@@ -80,29 +78,27 @@ sfui.options.RegisterTab({
         local open_gear_main = CreateFlatButton(main_panel, "gear manager", 110, 22)
         open_gear_main:SetPoint("TOPLEFT", reload_button, "BOTTOMLEFT", 0, -10)
         open_gear_main:SetScript("OnClick", function()
-            if sfui.gear and sfui.gear.toggle then
-                sfui.gear.toggle()
-            end
+            sfui.gear.toggle()
         end)
 
         local open_alts_main = CreateFlatButton(main_panel, "alts viewer", 100, 22)
         open_alts_main:SetPoint("LEFT", open_gear_main, "RIGHT", 10, 0)
         open_alts_main:SetScript("OnClick", function()
-            if sfui.alts and sfui.alts.Toggle then
-                sfui.alts.Toggle()
-            end
+            sfui.alts.Toggle()
         end)
 
-        local open_loot_main = CreateFlatButton(main_panel, "loot viewer", 100, 22)
-        open_loot_main:SetPoint("LEFT", open_alts_main, "RIGHT", 10, 0)
-        open_loot_main:SetScript("OnClick", function()
-            if sfui.lootviewer and sfui.lootviewer.Toggle then
+        local prevBtn = open_alts_main
+        if sfui.isRetail or sfui.lootviewer then
+            local open_loot_main = CreateFlatButton(main_panel, "loot viewer", 100, 22)
+            open_loot_main:SetPoint("LEFT", prevBtn, "RIGHT", 10, 0)
+            open_loot_main:SetScript("OnClick", function()
                 sfui.lootviewer.Toggle()
-            end
-        end)
+            end)
+            prevBtn = open_loot_main
+        end
 
         local open_pets_main = CreateFlatButton(main_panel, "pet manager", 100, 22)
-        open_pets_main:SetPoint("LEFT", open_loot_main, "RIGHT", 10, 0)
+        open_pets_main:SetPoint("LEFT", prevBtn, "RIGHT", 10, 0)
         open_pets_main:SetScript("OnClick", function()
             sfui.select_options_tab("pets")
         end)
@@ -124,41 +120,28 @@ sfui.options.RegisterTab({
         hide_minimap_icon_cb:SetPoint("TOPLEFT", open_gear_main, "BOTTOMLEFT", 0, -15)
 
         local enable_questlog_cb = create_checkbox(main_panel, "enable quest log", function()
-            if sfui.questlog and sfui.questlog.is_enabled then
-                return sfui.questlog.is_enabled()
-            end
-            if SfuiDB.questlogEnabled ~= nil then return SfuiDB.questlogEnabled end
-            if SfuiDB.enableQuestLog ~= nil then return SfuiDB.enableQuestLog end
-            return true
+            return sfui.questlog.is_enabled()
         end, function(checked)
             SfuiDB.questlogEnabled = checked
             SfuiDB.enableQuestLog = checked
-            if sfui.questlog and sfui.questlog.set_enabled then
-                sfui.questlog.set_enabled(checked)
-            end
+            sfui.questlog.set_enabled(checked)
         end, "toggles the sfui custom quest log and objectives tracker (enabled by default).")
         enable_questlog_cb:SetPoint("LEFT", hide_minimap_icon_cb, "RIGHT", 150, 0)
 
         local enable_ring_cursor_cb = create_checkbox(main_panel, "enable ring cursor", "enableCursorRing", function(checked)
-            if sfui.cursor and sfui.cursor.toggle then
-                sfui.cursor.toggle(checked)
-            end
+            sfui.cursor.toggle(checked)
         end, "toggles the ring cursor around the mouse.")
         enable_ring_cursor_cb:SetPoint("TOPLEFT", hide_minimap_icon_cb, "BOTTOMLEFT", 0, -10)
 
         local cursor_scale_slider = create_slider_input(main_panel, "cursor ring scale:", "cursorRingScale", 0.5, 2.0, 0.05,
             function(val)
-                if sfui.cursor and sfui.cursor.update_scale then
-                    sfui.cursor.update_scale()
-                end
+                sfui.cursor.update_scale()
             end)
         cursor_scale_slider:SetPoint("LEFT", enable_ring_cursor_cb, "RIGHT", 150, 0)
 
         local enable_auto_compare_cb = create_checkbox(main_panel, "enable auto compare", "enableAutoCompare",
             function(checked)
-                if sfui.compare and sfui.compare.init then
-                    sfui.compare.init()
-                end
+                sfui.compare.init()
             end, "automatically sets 'alwaysCompareItems' cvar.")
         enable_auto_compare_cb:SetPoint("TOPLEFT", enable_ring_cursor_cb, "BOTTOMLEFT", 0, -10)
 
@@ -180,7 +163,7 @@ sfui.options.RegisterTab({
 
         -- ─── Primary Texture Dropdown (ElvUI / SharedMedia Style) ───────────────
         local initialTexture = SfuiDB.barTexture or "Flat"
-        if sfui.config and sfui.config.blizzard_bar_textures then
+        if sfui.config.blizzard_bar_textures then
             local normInit = type(initialTexture) == "string" and initialTexture:gsub("\\", "/"):lower() or ""
             for name, path in pairs(sfui.config.blizzard_bar_textures) do
                 if initialTexture == name or normInit == path:gsub("\\", "/"):lower() then
@@ -191,44 +174,9 @@ sfui.options.RegisterTab({
             end
         end
 
-        local function safeCall(tbl, funcName, ...)
-            if tbl and type(tbl[funcName]) == "function" then
-                local ok, err = pcall(tbl[funcName], ...)
-                if not ok then
-                    print("|cffff0000[sfui barTexture error]|r", funcName, err)
-                end
-            end
-        end
-
         local function on_texture_selected(val, texturePath)
-            SfuiDB.barTexture = val
-
-            if sfui.config then
-                sfui.config.barTexture = texturePath
-            end
-
-            safeCall(sfui.bars, "set_bar_texture", texturePath)
-            safeCall(sfui.castbar, "set_bar_texture", texturePath)
-            safeCall(sfui.vehicle, "set_bar_texture", texturePath)
-            safeCall(sfui.swing, "SetBarTexture", texturePath)
-            safeCall(sfui.trackedbars, "SetBarTexture", texturePath)
-            if sfui.tracker and sfui.tracker.blocks then
-                safeCall(sfui.tracker.blocks, "SetBarTexture", texturePath)
-            end
-            if sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.timerbars then
-                safeCall(sfui.tracker.helpers.timerbars, "SetBarTexture", texturePath)
-            end
-            safeCall(sfui.soulfragments, "SetBarTexture", texturePath)
-            safeCall(sfui.target, "SetBarTexture", texturePath)
-            safeCall(sfui.threat, "SetBarTexture", texturePath)
-            safeCall(sfui.tracker, "RequestRefresh")
-
-            if sfui.options and sfui.options.notify_setting_changed then
-                safeCall(sfui.options, "notify_setting_changed", "bars", "barTexture", val)
-                safeCall(sfui.options, "notify_setting_changed", "castbar", "barTexture", val)
-                safeCall(sfui.options, "notify_setting_changed", "trackedbars", "barTexture", val)
-                safeCall(sfui.options, "notify_setting_changed", "target", "barTexture", val)
-            end
+            SfuiDB._barTextureCustomized = true
+            sfui.theme.ApplyThemeBarTexture(val)
         end
 
         local texture_dropdown = common.create_texture_dropdown(
@@ -239,6 +187,15 @@ sfui.options.RegisterTab({
             "Primary Texture"
         )
         texture_dropdown:SetPoint("TOPLEFT", use_spec_color_cb, "BOTTOMLEFT", 0, -20)
+        main_panel.texture_dropdown = texture_dropdown
+        sfui.options.mainTab = sfui.options.mainTab or {}
+        sfui.options.mainTab.texture_dropdown = texture_dropdown
+
+        main_panel:HookScript("OnShow", function()
+            if texture_dropdown and texture_dropdown.SetSelectedTexture then
+                texture_dropdown:SetSelectedTexture(SfuiDB.barTexture or "Flat")
+            end
+        end)
 
         -- Spec Colors Customization
         local spec_header = main_panel:CreateFontString(nil, "OVERLAY", g.font)
@@ -247,12 +204,7 @@ sfui.options.RegisterTab({
         spec_header:SetText("specialization colors:")
 
         local spec_swatches = {}
-        local specs, specIDs
-        if common.get_spec_color_options then
-            specs, specIDs = common.get_spec_color_options()
-        elseif common.get_player_specs then
-            specs, specIDs = common.get_player_specs()
-        end
+        local specs, specIDs = common.get_spec_color_options()
         local prevAnchor = spec_header
 
         for i, specID in ipairs(specIDs or {}) do

@@ -91,24 +91,47 @@ local sortedCurrencyItems = {}
 local frame = CreateFrame("Frame", "SfuiMerchantFrame", UIParent, "BackdropTemplate")
 frame:SetSize(cfg.frame.width, cfg.frame.height)
 frame:SetPoint("CENTER")
-if sfui.theme and sfui.theme.ApplyWindowStyle then
-    sfui.theme.ApplyWindowStyle(frame)
-    sfui.theme.RegisterWindow(frame, function(f, pal)
-        if f.merchantName then
-            f.merchantName:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3])
-        end
-    end)
-else
-    frame:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = nil,
-        tile = true,
-        tileSize = 32,
-        edgeSize = 0,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 }
-    })
-    frame:SetBackdropColor(unpack(sfui.config.appearance.backdropColor))
+local headerFrame = CreateFrame("Frame", "SfuiMerchantHeader", frame)
+headerFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+headerFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+headerFrame:SetHeight(50)
+headerFrame:SetFrameLevel((frame:GetFrameLevel() or 1) + 15)
+headerFrame:EnableMouse(false)
+frame.headerFrame = headerFrame
+
+local closeBtn = common.create_close_button(frame, function() frame:Hide() end, 20)
+closeBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+frame.closeBtn = closeBtn
+
+local CreateFlatButton = common.create_flat_button
+local filterDropdownBtn = CreateFlatButton(frame, "showing all", 100, 20)
+filterDropdownBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+filterDropdownBtn:SetPoint("RIGHT", closeBtn, "LEFT", -5, 0)
+
+local function refresh_frame_levels()
+    local base = frame:GetFrameLevel() or 1
+    if frame.sfuiThemeLayers and frame.sfuiThemeLayers.borderFrame then
+        frame.sfuiThemeLayers.borderFrame:SetFrameLevel(base + 1)
+    end
+    if headerFrame then
+        headerFrame:SetFrameLevel(base + 15)
+    end
+    if filterDropdownBtn then
+        filterDropdownBtn:SetFrameLevel(base + 20)
+    end
+    if closeBtn then
+        closeBtn:SetFrameLevel(base + 20)
+    end
 end
+frame:HookScript("OnShow", refresh_frame_levels)
+
+sfui.theme.ApplyWindowStyle(frame)
+sfui.theme.RegisterWindow(frame, function(f, pal)
+    refresh_frame_levels()
+    if f.merchantName then
+        f.merchantName:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3])
+    end
+end)
 frame:Hide()
 frame:EnableMouse(true)
 frame:SetMovable(true)
@@ -119,24 +142,17 @@ frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 frame.itemHover = nil
 sfui.merchant.frame = frame
 
-frame.portrait = frame:CreateTexture(nil, "OVERLAY")
+frame.portrait = headerFrame:CreateTexture(nil, "OVERLAY", nil, 2)
 frame.portrait:SetSize(60, 60)
-frame.portrait:SetPoint("TOPLEFT", 10, 30)
+frame.portrait:SetPoint("TOPLEFT", headerFrame, "TOPLEFT", 10, 20)
 
-frame.merchantName = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-frame.merchantName:SetPoint("TOPLEFT", frame, "TOPLEFT", 80, -4)
+frame.merchantName = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+frame.merchantName:SetPoint("TOPLEFT", headerFrame, "TOPLEFT", 80, -6)
 frame.merchantName:SetJustifyH("LEFT")
 
-frame.merchantTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+frame.merchantTitle = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 frame.merchantTitle:SetPoint("TOPLEFT", frame.merchantName, "BOTTOMLEFT", 0, -2)
 frame.merchantTitle:SetJustifyH("LEFT")
-
-local CreateFlatButton = common.create_flat_button
-
-local closeBtn = common.create_close_button(frame, function() frame:Hide() end, 20)
-
-local filterDropdownBtn = CreateFlatButton(frame, "showing all", 100, 20)
-filterDropdownBtn:SetPoint("RIGHT", closeBtn, "LEFT", -5, 0)
 filterDropdownBtn:SetScript("OnClick", function(self)
     MenuUtil.CreateContextMenu(self, function(owner, rootDescription)
         rootDescription:SetTag("MENU_MERCHANT_FILTER");
@@ -277,8 +293,7 @@ local function open_stack_split(index)
     f.index = index
     f.editBox:SetText("1")
 
-    local info = (sfui.api and sfui.api.GetMerchantItemInfo and sfui.api.GetMerchantItemInfo(index))
-        or (C_MerchantFrame and C_MerchantFrame.GetItemInfo and C_MerchantFrame.GetItemInfo(index))
+    local info = sfui.api.GetMerchantItemInfo(index)
     local name, price, stackCount, link
     if info then
         name = info.name
@@ -825,7 +840,7 @@ sfui.merchant.build_item_list = function()
         local itemID = get_item_id(link)
         if include and mode == "merchant" and sfui.merchant.filterKnown and sfui.merchant.filterKnown ~= 0 and link then
             local isKnown = false
-            local isRecipe = itemID and sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID)
+            local isRecipe = itemID and sfui.recipes.IsRecipe(itemID)
 
             if isRecipe then
                 local status = sfui.recipes.GetRecipeStatus(itemID)
@@ -852,8 +867,7 @@ sfui.merchant.build_item_list = function()
 
         if include and mode == "merchant" and sfui.merchant.lootFilterState > 0 and link then
             local isClassMatch = true
-            local info = (sfui.api and sfui.api.GetMerchantItemInfo and sfui.api.GetMerchantItemInfo(i))
-                or (C_MerchantFrame and C_MerchantFrame.GetItemInfo and C_MerchantFrame.GetItemInfo(i))
+            local info = sfui.api.GetMerchantItemInfo(i)
             if not info or not info.isUsable then
                 isClassMatch = false
             else
@@ -862,8 +876,7 @@ sfui.merchant.build_item_list = function()
                 -- If it's armor, check preferred armor type
                 if classID == 4 and preferredArmor then
                     -- Subclasses: 0=Generic, 1=Cloth, 2=Leather, 3=Mail, 4=Plate, 5=Cosmetic, 6=Shield
-                    local isClassic = (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
-                        or (sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail))
+                    local isClassic = not sfui.isRetail
                     local playerLvl = UnitLevel("player") or 1
                     local match = (subclassID == preferredArmor)
                     if isClassic then
@@ -884,7 +897,7 @@ sfui.merchant.build_item_list = function()
             elseif sfui.merchant.lootFilterState == 2 then
                 -- Spec Filter (normalize specID to DB2 retail equivalent)
                 local curSpec = playerSpecID or common.get_current_spec_id()
-                local db2SpecID = (common.to_retail_spec_id and common.to_retail_spec_id(curSpec)) or curSpec
+                local db2SpecID = common.to_retail_spec_id(curSpec) or curSpec
                 if db2SpecID and db2SpecID > 0 and not C_Item.DoesItemContainSpec(link, playerClassID, db2SpecID) then
                     include = false
                 end
@@ -893,8 +906,7 @@ sfui.merchant.build_item_list = function()
 
         if include then table.insert(sfui.merchant.filteredIndices, i) end
         if mode == "merchant" then
-            local itemInfo = (sfui.api and sfui.api.GetMerchantItemInfo and sfui.api.GetMerchantItemInfo(i))
-                or (C_MerchantFrame and C_MerchantFrame.GetItemInfo and C_MerchantFrame.GetItemInfo(i))
+            local itemInfo = sfui.api.GetMerchantItemInfo(i)
             if itemInfo then
                 if itemInfo.price and itemInfo.price > 0 and not sfui.merchant.currencyCache["Gold"] then
                     local t = getTable()
@@ -957,8 +969,7 @@ local function get_merchant_item_data(index, mode)
         d.name, d.texture, d.price, d.stackCount, d.isUsable = name, texture, price, qty, usable
         d.link = GetBuybackItemLink(index)
     else
-        local info = (sfui.api and sfui.api.GetMerchantItemInfo and sfui.api.GetMerchantItemInfo(index))
-            or (C_MerchantFrame and C_MerchantFrame.GetItemInfo and C_MerchantFrame.GetItemInfo(index))
+        local info = sfui.api.GetMerchantItemInfo(index)
         if not info or not info.name then return nil end
         -- Copy values from C_MerchantFrame result to avoid returning the internal table if it's protected or shared
         for k, v in pairs(info) do d[k] = v end
@@ -1071,7 +1082,7 @@ sfui.merchant.update_merchant = function()
                 else
                     btn.lockBackground:Hide(); btn.lockReason:Hide(); btn.subName:Show()
                     local tinted = false
-                    if (SfuiDB and SfuiDB.recipesTintIcons ~= false) and id and sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(id) then
+                    if (SfuiDB and SfuiDB.recipesTintIcons ~= false) and id and sfui.recipes.IsRecipe(id) then
                         local _, color = sfui.recipes.GetRecipeStatus(id)
                         if color then
                             btn.icon:SetVertexColor(color.r, color.g, color.b)

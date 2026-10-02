@@ -68,21 +68,37 @@ end
 -- This avoids 3 table lookups + a function call on every single event fire.
 local _memActive = false
 local function _mem_tick()
-    _memActive = sfui.mem and sfui.mem.IsWatcherActive and sfui.mem.IsWatcherActive() or false
+    _memActive = sfui.mem.IsWatcherActive()
 end
 local function _mem_after(key, before)
     local delta = collectgarbage("count") - before
-    if sfui.mem and sfui.mem.RecordAllocation then
-        sfui.mem.RecordAllocation(key, delta > 0 and delta or 0)
-    end
+    sfui.mem.RecordAllocation(key, delta > 0 and delta or 0)
 end
 
--- ─── Snapshot scratch table ─────────────────────────────────────────────────
--- Single pre-allocated table reused across all event dispatches.
--- A one-shot callback calls UnregisterEvent mid-loop, which mutates the live
--- `cbs` array; dispatching from a snapshot prevents nil-slot errors.
--- We nil-out slots after use so the table stays small (no strong references).
-local _snap = {}
+-- ─── Re-entrant snapshot scratch pool ─────────────────────────────────────────
+-- Pre-allocated stack of scratch tables reused across event and message dispatches.
+-- Using a stack guarantees re-entrancy safety: if a callback fires another event,
+-- triggers a unit event, or broadcasts a message via SendMessage mid-loop, each
+-- nested dispatch level operates on its own isolated snapshot without clobbering
+-- the outer dispatch loop.
+-- Slots are nilled out immediately upon consumption so no strong references leak.
+local _snapPool = {}
+local _snapDepth = 0
+
+local function _acquire_snap()
+    _snapDepth = _snapDepth + 1
+    local s = _snapPool[_snapDepth]
+    if not s then
+        s = {}
+        _snapPool[_snapDepth] = s
+    end
+    return s
+end
+
+local function _release_snap()
+    _snapDepth = _snapDepth - 1
+end
+
 local _snapUpdates = {}
 
 -- Minimum interval (seconds) enforced on all RegisterUpdate callbacks.
@@ -95,26 +111,34 @@ local ev_frame = CreateFrame("Frame", "SfuiDispatcherFrame")
 
 ev_frame:SetScript("OnEvent", function(_, event, ...)
     local cbs = eventCallbacks[event]
-    if not cbs then return end
+    if not cbs or #cbs == 0 then return end
 
     local n = #cbs
-    for i = 1, n do _snap[i] = cbs[i] end  -- snapshot into scratch
+    local snap = _acquire_snap()
+    for i = 1, n do snap[i] = cbs[i] end
 
     if _memActive then
         local before = collectgarbage("count")
         for i = 1, n do
-            local ok, err = pcall(_snap[i], event, ...)
-            if not ok then _err(event, err) end
-            _snap[i] = nil
+            local cb = snap[i]
+            snap[i] = nil
+            if type(cb) == "function" then
+                local ok, err = pcall(cb, event, ...)
+                if not ok then _err(event, err) end
+            end
         end
         _mem_after(event, before)
     else
         for i = 1, n do
-            local ok, err = pcall(_snap[i], event, ...)
-            if not ok then _err(event, err) end
-            _snap[i] = nil
+            local cb = snap[i]
+            snap[i] = nil
+            if type(cb) == "function" then
+                local ok, err = pcall(cb, event, ...)
+                if not ok then _err(event, err) end
+            end
         end
     end
+    _release_snap()
 end)
 
 local function _OnDispatcherUpdate(_, elapsed)
@@ -129,7 +153,7 @@ local function _OnDispatcherUpdate(_, elapsed)
         for i = 1, n do
             local d = _snapUpdates[i]
             _snapUpdates[i] = nil
-            if d and not d.removed then
+            if d and not d.removed and type(d.callback) == "function" then
                 d.elapsed = d.elapsed + elapsed
                 if d.elapsed >= d.interval then
                     local label = d.name or "UpdateLoop"
@@ -145,7 +169,7 @@ local function _OnDispatcherUpdate(_, elapsed)
         for i = 1, n do
             local d = _snapUpdates[i]
             _snapUpdates[i] = nil
-            if d and not d.removed then
+            if d and not d.removed and type(d.callback) == "function" then
                 d.elapsed = d.elapsed + elapsed
                 if d.elapsed >= d.interval then
                     local ok, err = pcall(d.callback, d.elapsed)
@@ -173,25 +197,33 @@ local function get_or_create_unit_frame(unit)
         unitFrames[unit] = f
         f:SetScript("OnEvent", function(_, event, u, ...)
             local eventCbs = unitEventCallbacks[unit] and unitEventCallbacks[unit][event]
-            if not eventCbs then return end
+            if not eventCbs or #eventCbs == 0 then return end
             local n = #eventCbs
-            for i = 1, n do _snap[i] = eventCbs[i] end
+            local snap = _acquire_snap()
+            for i = 1, n do snap[i] = eventCbs[i] end
 
             if _memActive then
                 local before = collectgarbage("count")
                 for i = 1, n do
-                    local ok, err = pcall(_snap[i], event, u, ...)
-                    if not ok then _err(event .. "/" .. tostring(u), err) end
-                    _snap[i] = nil
+                    local cb = snap[i]
+                    snap[i] = nil
+                    if type(cb) == "function" then
+                        local ok, err = pcall(cb, event, u, ...)
+                        if not ok then _err(event .. "/" .. tostring(u), err) end
+                    end
                 end
                 _mem_after(event, before)
             else
                 for i = 1, n do
-                    local ok, err = pcall(_snap[i], event, u, ...)
-                    if not ok then _err(event .. "/" .. tostring(u), err) end
-                    _snap[i] = nil
+                    local cb = snap[i]
+                    snap[i] = nil
+                    if type(cb) == "function" then
+                        local ok, err = pcall(cb, event, u, ...)
+                        if not ok then _err(event .. "/" .. tostring(u), err) end
+                    end
                 end
             end
+            _release_snap()
         end)
     end
     return f
@@ -202,6 +234,7 @@ end
 --- Register a callback for a global game event.
 --- If event == "PLAYER_LOGIN" and the player is already logged in, fires immediately.
 function sfui.events.RegisterEvent(event, callback)
+    if not event or type(callback) ~= "function" then return end
     if event == "PLAYER_LOGIN" and IsLoggedIn() then
         local ok, err = pcall(callback, event)
         if not ok then _err("PLAYER_LOGIN immediate", err) end
@@ -409,7 +442,7 @@ local messageCallbacks = {}   -- [messageName] = { cb1, cb2, ... }
 --- Register a callback for an internal addon message.
 --- Callback signature: function(message, ...)
 function sfui.events.RegisterMessage(message, callback)
-    if not message or not callback then return end
+    if not message or type(callback) ~= "function" then return end
     if not messageCallbacks[message] then
         messageCallbacks[message] = {}
     end
@@ -441,29 +474,42 @@ function sfui.events.SendMessage(message, ...)
     if not cbs or #cbs == 0 then return end
 
     local n = #cbs
-    for i = 1, n do _snap[i] = cbs[i] end
+    local snap = _acquire_snap()
+    for i = 1, n do snap[i] = cbs[i] end
 
     if _memActive then
         local before = collectgarbage("count")
         for i = 1, n do
-            local ok, err = pcall(_snap[i], message, ...)
-            if not ok then _err("Msg:" .. tostring(message), err) end
-            _snap[i] = nil
+            local cb = snap[i]
+            snap[i] = nil
+            if type(cb) == "function" then
+                local ok, err = pcall(cb, message, ...)
+                if not ok then _err("Msg:" .. tostring(message), err) end
+            end
         end
         _mem_after("Msg:" .. tostring(message), before)
     else
         for i = 1, n do
-            local ok, err = pcall(_snap[i], message, ...)
-            if not ok then _err("Msg:" .. tostring(message), err) end
-            _snap[i] = nil
+            local cb = snap[i]
+            snap[i] = nil
+            if type(cb) == "function" then
+                local ok, err = pcall(cb, message, ...)
+                if not ok then _err("Msg:" .. tostring(message), err) end
+            end
         end
     end
+    _release_snap()
 end
 
 --- Called by sfui.mem when its watcher starts or stops, to update the hot-path flag.
 function sfui.events.SetMemProfiling(active)
     _memActive = active and true or false
 end
+
+sfui.events.RegisterCallback = sfui.events.RegisterMessage
+sfui.RegisterCallback = sfui.events.RegisterMessage
+sfui.RegisterMessage = sfui.events.RegisterMessage
+sfui.SendMessage = sfui.events.SendMessage
 
 -- Sync flag once on login in case the watcher was enabled during init.
 sfui.events.RegisterEvent("PLAYER_LOGIN", _mem_tick)

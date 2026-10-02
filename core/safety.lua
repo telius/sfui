@@ -120,7 +120,7 @@ sfui.common.format_timer_clock = sfui.safety.format_timer_clock
 -- Helper: Check if Mounted OR in Druid Travel Form (Spell 783)
 function sfui.safety.is_mounted_or_travel_form()
     if IsMounted() then return true end
-    if sfui.common.get_player_class and sfui.common.get_player_class() == "DRUID" and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
+    if sfui.common.get_player_class() == "DRUID" and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
         return C_UnitAuras.GetPlayerAuraBySpellID(783) ~= nil
     end
     return false

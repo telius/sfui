@@ -45,7 +45,7 @@ function TimerBars.CanShowTimerBar()
     -- Blizzard explicitly disables timer bars on Camelot (WoW: Forever)
     -- via Camelot/Blizzard_QuestObjectiveTrackerOverride.lua:
     --   function QuestObjectiveTrackerMixin:CanShowTimerBar() return false; end
-    if sfui.isForever or (sfui.compat and sfui.compat.is_wow_forever) then
+    if sfui.isForever then
         return false
     end
     return true
@@ -106,11 +106,7 @@ local function OnTimerBarsUpdate()
 
             if remaining <= 0 and not bar.hasExpired then
                 bar.hasExpired = true
-                if sfui.tracker and sfui.tracker.RequestRefresh then
-                    sfui.tracker.RequestRefresh()
-                elseif sfui.questlog and sfui.questlog.Refresh and sfui.questlog.Refresh.Request then
-                    sfui.questlog.Refresh:Request()
-                end
+                sfui.tracker.RequestRefresh()
             end
         end
     end
@@ -130,9 +126,7 @@ function TimerBars.CreateTimerBar(parent)
     local bar = CreateFrame("StatusBar", nil, parent)
     bar:SetHeight(4)
 
-    local statusTex = (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture())
-        or (sfui.config and sfui.config.barTexture)
-        or "Interface/Buttons/WHITE8X8"
+    local statusTex = sfui.widgets.get_bar_texture()
     bar:SetStatusBarTexture(statusTex)
     bar:SetStatusBarColor(0.20, 0.80, 1.00, 0.80)
 
@@ -141,9 +135,7 @@ function TimerBars.CreateTimerBar(parent)
     bg:SetColorTexture(0.06, 0.06, 0.06, 0.80)
     bar.BG = bg
 
-    if sfui.common and sfui.common.create_border then
-        sfui.common.create_border(bar, 1, { 0, 0, 0, 1 })
-    end
+    sfui.common.create_border(bar, 1, { 0, 0, 0, 1 })
 
     local fs = bar:CreateFontString(nil, "OVERLAY")
     local fontPath = (sfui.config and sfui.config.fontFile)
@@ -159,9 +151,7 @@ function TimerBars.CreateTimerBar(parent)
 
     bar:EnableMouseWheel(true)
     bar:SetScript("OnMouseWheel", function(self, delta)
-        if sfui.tracker and sfui.tracker.OnMouseWheel then
-            sfui.tracker.OnMouseWheel(self, delta)
-        end
+        sfui.tracker.OnMouseWheel(self, delta)
     end)
 
     bar:Hide()

@@ -26,62 +26,56 @@ sfui.options.RegisterTab({
         toggles_header:SetText("bar visibility")
 
         local health_bar_cb = create_checkbox(bars_panel, "enable health bar", "enableHealthBar", function(checked)
-            if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
+            sfui.bars:on_state_changed()
         end, "toggles the health bar.")
         health_bar_cb:SetPoint("TOPLEFT", toggles_header, "BOTTOMLEFT", 0, -10)
 
         local power_bar_cb = create_checkbox(bars_panel, "enable power bar", "enablePowerBar", function(checked)
-            if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
+            sfui.bars:on_state_changed()
         end, "toggles the primary power bar.")
         power_bar_cb:SetPoint("TOPLEFT", health_bar_cb, "BOTTOMLEFT", 0, -10)
 
         local secondary_power_cb = create_checkbox(bars_panel, "enable secondary power bar", "enableSecondaryPowerBar",
             function(checked)
-                if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
+                sfui.bars:on_state_changed()
             end, "toggles the secondary power bar (e.g., chi, holy power).")
         secondary_power_cb:SetPoint("TOPLEFT", power_bar_cb, "BOTTOMLEFT", 0, -10)
 
         local vigor_bar_cb = create_checkbox(bars_panel, "enable vigor bar", "enableVigorBar", function(checked)
-            if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
+            sfui.bars:on_state_changed()
         end, "toggles the vigor bar (skyriding).")
         vigor_bar_cb:SetPoint("TOPLEFT", secondary_power_cb, "BOTTOMLEFT", 0, -10)
 
         local mount_speed_cb = create_checkbox(bars_panel, "enable mount speed bar", "enableMountSpeedBar", function(checked)
-            if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
+            sfui.bars:on_state_changed()
         end, "toggles the mount speed bar (skyriding).")
         mount_speed_cb:SetPoint("TOPLEFT", vigor_bar_cb, "BOTTOMLEFT", 0, -10)
 
         local last_toggle_cb = mount_speed_cb
-        local isClassicBars = (sfui.compat and sfui.compat.is_classic) and (sfui.swing ~= nil)
-        if isClassicBars then
+        if not sfui.isRetail and sfui.swing then
             local swing_bar_cb = create_checkbox(bars_panel, "enable swing timer bars", "enableSwingBars", function(checked)
-                if sfui.bars and sfui.bars.update_bar_visibility then
-                    sfui.bars.update_bar_visibility()
-                elseif sfui.bars and sfui.bars.on_state_changed then
-                    sfui.bars:on_state_changed()
-                end
+                sfui.bars.update_bar_visibility()
             end, "toggles the 3-weapon swing timer bars (Classic).")
             swing_bar_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -10)
             last_toggle_cb = swing_bar_cb
         end
 
-        local isCamelot = sfui.isCamelot or sfui.isForever or sfui.isClassic or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_wow_forever or sfui.compat.is_classic))
-        if isCamelot then
-            local target_bar_cb = create_checkbox(bars_panel, "enable target bar", "enableTargetBar", function(checked)
-                if sfui.target and sfui.target.UpdateVisibility then
+        if not sfui.isRetail then
+            if sfui.target then
+                local target_bar_cb = create_checkbox(bars_panel, "enable target bar", "enableTargetBar", function(checked)
                     sfui.target.UpdateVisibility()
-                end
-            end, "toggles the target bar.")
-            target_bar_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -10)
-            last_toggle_cb = target_bar_cb
+                end, "toggles the target bar.")
+                target_bar_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -10)
+                last_toggle_cb = target_bar_cb
+            end
 
-            local threat_bar_cb = create_checkbox(bars_panel, "enable threat bar", "enableThreatBar", function(checked)
-                if sfui.threat and sfui.threat.UpdateVisibility then
+            if sfui.threat then
+                local threat_bar_cb = create_checkbox(bars_panel, "enable threat bar", "enableThreatBar", function(checked)
                     sfui.threat.UpdateVisibility()
-                end
-            end, "toggles the threat bar above the player health bar.")
-            threat_bar_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -10)
-            last_toggle_cb = threat_bar_cb
+                end, "toggles the threat bar above the player health bar.")
+                threat_bar_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -10)
+                last_toggle_cb = threat_bar_cb
+            end
         end
 
         -- Health Bar Position
@@ -91,16 +85,12 @@ sfui.options.RegisterTab({
         position_header:SetText("health bar position")
 
         local health_x_slider = create_slider_input(bars_panel, "x:", "healthBarX", -1000, 1000, 1, function(val)
-            if sfui.bars and sfui.bars.update_health_bar_position then
-                sfui.bars:update_health_bar_position()
-            end
+            sfui.bars:update_health_bar_position()
         end)
         health_x_slider:SetPoint("TOPLEFT", position_header, "BOTTOMLEFT", 0, -10)
 
         local health_y_slider = create_slider_input(bars_panel, "y:", "healthBarY", -1000, 1000, 1, function(val)
-            if sfui.bars and sfui.bars.update_health_bar_position then
-                sfui.bars:update_health_bar_position()
-            end
+            sfui.bars:update_health_bar_position()
         end)
         health_y_slider:SetPoint("LEFT", health_x_slider, "RIGHT", 10, 0)
 
@@ -112,9 +102,7 @@ sfui.options.RegisterTab({
             SfuiDB.healthBarY = def.y
             health_x_slider:SetSliderValue(def.x)
             health_y_slider:SetSliderValue(def.y)
-            if sfui.bars and sfui.bars.update_health_bar_position then
-                sfui.bars:update_health_bar_position()
-            end
+            sfui.bars:update_health_bar_position()
         end)
 
         -- Health Bar Colors
@@ -131,7 +119,7 @@ sfui.options.RegisterTab({
         local fg_color_swatch = common.create_color_swatch(bars_panel, SfuiDB.healthBarColor or sfui.config.healthBar.color,
             function(r, green, b)
                 SfuiDB.healthBarColor = { r, green, b, 1 }
-                if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
+                sfui.bars:on_state_changed()
             end)
         fg_color_swatch:SetPoint("LEFT", fg_color_label, "RIGHT", 5, 0)
 
@@ -143,7 +131,7 @@ sfui.options.RegisterTab({
         local bg_color_swatch = common.create_color_swatch(bars_panel,
             SfuiDB.healthBarBackdropColor or sfui.config.healthBar.backdrop.color, function(r, green, b)
                 SfuiDB.healthBarBackdropColor = { r, green, b, 0.5 }
-                if sfui.bars and sfui.bars.on_state_changed then sfui.bars:on_state_changed() end
+                sfui.bars:on_state_changed()
             end)
         bg_color_swatch:SetPoint("LEFT", bg_color_label, "RIGHT", 5, 0)
     end,

@@ -6,7 +6,7 @@
 ]]
 
 local addonName, addon = ...
-sfui = sfui or {}
+local sfui = _G.sfui or {}
 sfui.tracker = sfui.tracker or {}
 sfui.questlog = sfui.questlog or {}
 
@@ -203,9 +203,7 @@ function CollectablesModule:BuildBlocks(container)
                             if C_ContentTracking.StopTracking then
                                 C_ContentTracking.StopTracking(trackableType, trackableID, STOP_MANUAL)
                             end
-                            if sfui.tracker and sfui.tracker.RequestRefresh then
-                                sfui.tracker.RequestRefresh(0.05)
-                            end
+                            sfui.tracker.RequestRefresh(0.05)
                             return
                         end
 
@@ -214,9 +212,7 @@ function CollectablesModule:BuildBlocks(container)
                             local st = GetQLState()
                             st.expandedQuests = st.expandedQuests or {}
                             st.expandedQuests[key] = not st.expandedQuests[key]
-                            if sfui.tracker and sfui.tracker.RequestRefresh then
-                                sfui.tracker.RequestRefresh(0.05)
-                            end
+                            sfui.tracker.RequestRefresh(0.05)
                             return
                         end
 

@@ -15,7 +15,7 @@
 ]]
 
 local addonName, addon                        = ...
-sfui                                          = sfui or {}
+local sfui                                          = _G.sfui or {}
 sfui.tracker                                  = sfui.tracker or {}
 sfui.questlog                                 = sfui.questlog or {}
 
@@ -62,16 +62,15 @@ local math_floor                              = math.floor
 local table_insert, table_sort                = _G.table.insert, _G.table.sort
 local string_format                           = string.format
 
-local issecretvalue                           = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or
-function() return false end
+local issecretvalue                           = sfui.common.issecretvalue
 
 -- ─────────────────────────────────────────────────────────
 --  HELPERS & CACHE
 -- ─────────────────────────────────────────────────────────
-local Difficulty                              = sfui.tracker.helpers and sfui.tracker.helpers.difficulty
-local Waypoints                               = sfui.tracker.helpers and sfui.tracker.helpers.waypoints
-local Items                                   = sfui.tracker.helpers and sfui.tracker.helpers.items
-local FindGroup                               = sfui.tracker.helpers and sfui.tracker.helpers.findgroup
+local Difficulty                              = sfui.tracker.helpers.difficulty
+local Waypoints                               = sfui.tracker.helpers.waypoints
+local Items                                   = sfui.tracker.helpers.items
+local FindGroup                               = sfui.tracker.helpers.findgroup
 
 local wipe                                    = _G.wipe or function(t)
     for k in pairs(t) do t[k] = nil end
@@ -451,9 +450,7 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
         if IsShiftKeyDown and IsShiftKeyDown() then
             if _G.RemoveAutoQuestPopUp then
                 _G.RemoveAutoQuestPopUp(questID)
-                if sfui.tracker and sfui.tracker.RequestRefresh then
-                    sfui.tracker.RequestRefresh(0.05)
-                end
+                sfui.tracker.RequestRefresh(0.05)
             end
             return
         end
@@ -499,7 +496,7 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
                 C_QuestLog.AbandonQuest()
             end
         else
-            print("|cff8888ff[SFUI]|r Quest cannot be abandoned.")
+            sfui.common.print("Quest cannot be abandoned.")
         end
         return
     end
@@ -509,9 +506,9 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
         if InCombatLockdown and InCombatLockdown() then return end
         if C_QuestLog and C_QuestLog.IsPushableQuest and C_QuestLog.IsPushableQuest(questID) then
             C_QuestLog.PushQuestToParty(questID)
-            print("|cff8888ff[SFUI]|r Shared quest: " .. (questTitle or "Quest"))
+            sfui.common.print("Shared quest: " .. (questTitle or "Quest"))
         else
-            print("|cff8888ff[SFUI]|r Quest cannot be shared.")
+            sfui.common.print("Quest cannot be shared.")
         end
         return
     end
@@ -530,9 +527,7 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
         elseif _G.RemoveQuestWatch and questLogIndex then
             _G.RemoveQuestWatch(questLogIndex)
         end
-        if sfui.tracker and sfui.tracker.RequestRefresh then
-            sfui.tracker.RequestRefresh(0.05)
-        end
+        sfui.tracker.RequestRefresh(0.05)
         return
     end
 
@@ -540,9 +535,7 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
     if mouseButton == "RightButton" then
         if InCombatLockdown and InCombatLockdown() then return end
         manualExpanded[questID] = not isCurrentlyExpanded
-        if sfui.tracker and sfui.tracker.RequestRefresh then
-            sfui.tracker.RequestRefresh(0.01)
-        end
+        sfui.tracker.RequestRefresh(0.01)
         return
     end
 
@@ -612,9 +605,7 @@ function CamelotQuestsModule:OnEvent(event, ...)
                 end
             end
             wipe(pendingChangedQuests)
-            if sfui.tracker and sfui.tracker.RequestRefresh then
-                sfui.tracker.RequestRefresh(0.05)
-            end
+            sfui.tracker.RequestRefresh(0.05)
         end
         return
     end
@@ -905,12 +896,11 @@ function CamelotQuestsModule:BuildBlocks(container)
             end
 
             -- Usable Quest Item
-            local itemInfo = Items and Items.GetQuestItemInfo(i, isComplete)
+            local itemInfo = Items.GetQuestItemInfo(i, isComplete)
 
             -- Group Finder (LFG) support through API (disabled on Classic/Forever)
-            local findGroupHelper = FindGroup or (sfui.tracker.helpers and sfui.tracker.helpers.findgroup)
-            local canFindGroup = findGroupHelper and findGroupHelper.CanFindGroup and
-            findGroupHelper.CanFindGroup(questID) or false
+            local canFindGroup = FindGroup and FindGroup.CanFindGroup and
+            FindGroup.CanFindGroup(questID) or false
 
             -- SuperTracked state
             local isSuper = (superTrackedQuestID == questID)

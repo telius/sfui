@@ -16,10 +16,7 @@ local ipairs = ipairs
 local math_floor = math.floor
 local string_format = string.format
 
-local issecretvalue = (sfui.safety and sfui.safety.issecretvalue)
-    or (sfui.common and sfui.common.issecretvalue)
-    or _G.issecretvalue
-    or function() return false end
+local issecretvalue = sfui.common.issecretvalue
 
 local ICON_CHECK = "|TInterface\\RaidFrame\\ReadyCheck-Ready:12:12:0:0|t "
 local ICON_BULLET = "|cff888888-|r "
@@ -241,7 +238,7 @@ function Tooltip.ShowBlockTooltip(owner, bData)
             tip:AddLine(bData.timeLeftText, 0.20, 0.85, 0.95)
         end
 
-        local isCamelot = sfui.isForever or (sfui.compat and (sfui.compat.is_wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        local isCamelot = not sfui.isRetail
         if bData.isRepeatable and not bData.isWarbandCompleted then
             tip:AddLine("Repeatable Quest", 0.00, 1.00, 1.00)
         elseif bData.isWarbandCompleted and not isCamelot then

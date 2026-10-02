@@ -6,7 +6,7 @@
 ]]
 
 local addonName, addon = ...
-sfui = sfui or {}
+local sfui = _G.sfui or {}
 sfui.tracker = sfui.tracker or {}
 sfui.questlog = sfui.questlog or {}
 
@@ -27,7 +27,7 @@ local math_floor = math.floor
 local table_insert = _G.table.insert
 local string_format = string.format
 
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.common.issecretvalue
 
 local function GetQLState()
     if not SfuiDB then SfuiDB = {} end
@@ -228,7 +228,7 @@ function WorldQuestsModule:BuildBlocks(container)
             local isSuper = (superTrackedQuestID == questID)
 
             -- Waypoint direction text
-            local waypointsHelper = sfui.tracker.helpers and sfui.tracker.helpers.waypoints
+            local waypointsHelper = sfui.tracker.helpers.waypoints
             local wpText = waypointsHelper and waypointsHelper.GetWaypointText and waypointsHelper.GetWaypointText(questID, isSuper)
             if isExpanded and wpText and wpText ~= "" then
                 table_insert(lines, {
@@ -256,7 +256,7 @@ function WorldQuestsModule:BuildBlocks(container)
             end
             lastWQProgress[questID] = currentSig
 
-            local findGroupHelper = sfui.tracker.helpers and sfui.tracker.helpers.findgroup
+            local findGroupHelper = sfui.tracker.helpers.findgroup
             local canFindGroup = findGroupHelper and findGroupHelper.CanFindGroup and findGroupHelper.CanFindGroup(questID) or false
 
             table_insert(blocks, {
@@ -281,9 +281,7 @@ function WorldQuestsModule:BuildBlocks(container)
                         if C_QuestLog and C_QuestLog.RemoveQuestWatch then
                             C_QuestLog.RemoveQuestWatch(questID)
                         end
-                        if sfui.tracker and sfui.tracker.RequestRefresh then
-                            sfui.tracker.RequestRefresh(0.05)
-                        end
+                        sfui.tracker.RequestRefresh(0.05)
                         return
                     end
 
@@ -292,9 +290,7 @@ function WorldQuestsModule:BuildBlocks(container)
                         local st = GetQLState()
                         st.expandedQuests = st.expandedQuests or {}
                         st.expandedQuests[expandKey] = not isExpanded
-                        if sfui.tracker and sfui.tracker.RequestRefresh then
-                            sfui.tracker.RequestRefresh(0.01)
-                        end
+                        sfui.tracker.RequestRefresh(0.01)
                         return
                     end
 

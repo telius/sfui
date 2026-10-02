@@ -75,15 +75,12 @@ sfui.common.invalidate_spec_color_cache = sfui.colors.invalidate_spec_color_cach
 
 -- PLAYER_ENTERING_WORLD initializes cache; talent/spec changes are routed canonically via sfui.talents.invalidate_spec_cache
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", sfui.colors.invalidate_spec_color_cache)
-if sfui.RegisterCallback then
-    sfui.RegisterCallback("SFUI_SPEC_CHANGED", sfui.colors.invalidate_spec_color_cache)
-end
+sfui.events.RegisterMessage("SFUI_SPEC_CHANGED", sfui.colors.invalidate_spec_color_cache)
 
 --- Returns cached { r, g, b, a, r=..., g=..., b=..., a=... } table for a specialization ID (zero allocations on hot path)
 function sfui.colors.get_spec_color_table(specID)
     specID = (specID and specID > 0 and specID)
-        or (sfui.talents and sfui.talents.get_current_spec_id and sfui.talents.get_current_spec_id())
-        or (sfui.common and sfui.common.get_current_spec_id and sfui.common.get_current_spec_id())
+        or sfui.talents.get_current_spec_id()
         or 0
 
     local cached = _specColorTableCache[specID]
@@ -93,7 +90,7 @@ function sfui.colors.get_spec_color_table(specID)
     if not specID or specID == 0 then
         r, g, b, a = 0.35, 0.35, 0.35, 1.0
     else
-        local bridge = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
+        local bridge = sfui.talents.SPEC_BRIDGE[specID]
         local retailID = bridge and bridge.retailID or (specID < 1482 and specID)
         local camelotID = bridge and bridge.camelotID or (specID >= 14821 and specID <= 14913 and specID)
         local classID = bridge and bridge.classID or (specID >= 1482 and specID <= 1491 and specID)
@@ -115,8 +112,7 @@ function sfui.colors.get_spec_color_table(specID)
                 classFile = select(6, GetSpecializationInfoByID(retailID))
             end
             if not classFile then
-                classFile = (sfui.talents and sfui.talents.get_player_class and sfui.talents.get_player_class())
-                    or (sfui.common and sfui.common.get_player_class and sfui.common.get_player_class())
+                classFile = sfui.talents.get_player_class()
             end
             local cc = classFile and (C_ClassColor and C_ClassColor.GetClassColor(classFile) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]))
             if cc then
@@ -167,10 +163,7 @@ sfui.common.get_current_spec_color = sfui.colors.get_class_or_spec_color
 sfui.common.get_class_or_spec_color = sfui.colors.get_class_or_spec_color
 
 function sfui.colors.get_spec_color_options()
-    if sfui.talents and sfui.talents.get_spec_color_options then
-        return sfui.talents.get_spec_color_options()
-    end
-    return {}, {}
+    return sfui.talents.get_spec_color_options()
 end
 sfui.common.get_spec_color_options = sfui.colors.get_spec_color_options
 

@@ -1,12 +1,11 @@
-local isRetail = (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic)
-if not isRetail then return end
+if not sfui.isRetail then return end
 
 local scanQueue = {}
 local processingTicker
 local targetExpac = -1
 
-local GetItemInfoInstant = (_G.C_Item and _G.C_Item.GetItemInfoInstant) or _G.GetItemInfoInstant or (sfui.common and sfui.common.get_item_id)
-local GetItemInfo = (_G.C_Item and _G.C_Item.GetItemInfo) or _G.GetItemInfo
+local GetItemInfoInstant = (C_Item and C_Item.GetItemInfoInstant) or sfui.common.get_item_id
+local GetItemInfo = (C_Item and C_Item.GetItemInfo) or _G.GetItemInfo
 
 local function Process()
     local processed = false
@@ -21,8 +20,12 @@ local function Process()
             local exp = select(15, GetItemInfo(l))
 
             if exp == nil then
-                if itemID and C_Item and C_Item.RequestLoadItemData then
-                    C_Item.RequestLoadItemData(ItemLocation:CreateFromBagAndSlot(task.c, task.s))
+                if itemID and C_Item then
+                    if C_Item.RequestLoadItemDataByID then
+                        C_Item.RequestLoadItemDataByID(itemID)
+                    elseif C_Item.RequestLoadItemData and ItemLocation and ItemLocation.CreateFromBagAndSlot then
+                        C_Item.RequestLoadItemData(ItemLocation:CreateFromBagAndSlot(task.c, task.s))
+                    end
                 end
                 processed = true -- yield to wait for server info
             else
@@ -160,8 +163,6 @@ function sfui.transfer_debug_info()
     }
 end
 
-if sfui.RegisterModule then
-    sfui.transfer = sfui.transfer or {}
-    sfui.transfer.GetDebugInfo = sfui.transfer_debug_info
-    sfui.RegisterModule("transfer", sfui.transfer)
-end
+sfui.transfer = sfui.transfer or {}
+sfui.transfer.GetDebugInfo = sfui.transfer_debug_info
+sfui.RegisterModule("transfer", sfui.transfer)

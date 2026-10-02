@@ -17,6 +17,7 @@ do
     local get_bar1
     local get_vigor_bar
     local get_mount_speed_bar
+    local get_rune_bar
     local update_mount_speed_bar_internal
     local update_bar_minus_1
     local update_bar0
@@ -55,7 +56,7 @@ do
             or sfui.isClassic
             or sfui.isCamelot
             or (sfui.compat and (sfui.compat.is_wow_forever or sfui.compat.is_classic or sfui.compat.is_classic_era or sfui.compat.is_camelot))
-            or (sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive())
+            or sfui.theme.IsCamelotActive()
     end
 
     local function is_player_spell(id)
@@ -137,35 +138,32 @@ do
             end
             if bar1 and bar1.backdrop and bar0 and bar0.backdrop then
                 bar1.backdrop:ClearAllPoints()
-                local topAnchor = (sfui.threat and sfui.threat.IsShown and sfui.threat.IsShown() and sfui.threat.GetAnchorFrame and sfui.threat.GetAnchorFrame()) or bar0.backdrop
+                local topAnchor = (not sfui.isRetail and sfui.threat and sfui.threat.IsShown and sfui.threat.IsShown() and sfui.threat.GetAnchorFrame and sfui.threat.GetAnchorFrame()) or bar0.backdrop
                 bar1.backdrop:SetPoint("BOTTOM", topAnchor, "TOP", 0, spacing)
             end
             if rune_bar and bar0 and bar0.backdrop then
                 rune_bar:ClearAllPoints()
-                local topAnchor = (sfui.threat and sfui.threat.IsShown and sfui.threat.IsShown() and sfui.threat.GetAnchorFrame and sfui.threat.GetAnchorFrame()) or bar0.backdrop
+                local topAnchor = (not sfui.isRetail and sfui.threat and sfui.threat.IsShown and sfui.threat.IsShown() and sfui.threat.GetAnchorFrame and sfui.threat.GetAnchorFrame()) or bar0.backdrop
                 rune_bar:SetPoint("BOTTOM", topAnchor, "TOP", 0, spacing)
             end
 
             -- Swing Timer Bars (slotting below power bar at -2, or below health at -1 if no power bar)
-            if sfui.swing and sfui.swing.UpdatePositions then
+            if not sfui.isRetail and sfui.swing and sfui.swing.UpdatePositions then
                 local anchor = (bar_minus_1 and bar_minus_1.backdrop and (bar_minus_1.backdrop:IsShown() or (SfuiDB == nil or SfuiDB.enablePowerBar ~= false))) and bar_minus_1.backdrop or (bar0 and bar0.backdrop)
                 sfui.swing.UpdatePositions(anchor, spacing)
             end
         end
-        if sfui.soulfragments and sfui.soulfragments.UpdatePosition then
-            sfui.soulfragments:UpdatePosition()
+        if sfui.isRetail then
+            if sfui.soulfragments and sfui.soulfragments.UpdatePosition then
+                sfui.soulfragments:UpdatePosition()
+            end
+        else
+            if sfui.threat and sfui.threat.UpdatePosition then
+                sfui.threat.UpdatePosition()
+            end
         end
-        if sfui.threat and sfui.threat.UpdatePosition then
-            sfui.threat.UpdatePosition()
-        end
-        if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
-            sfui.trackedbars.ForceLayoutUpdate()
-        end
-        if sfui.trackedicons and sfui.trackedicons.ForceLayoutUpdate then
-            sfui.trackedicons.ForceLayoutUpdate()
-        elseif sfui.trackedicons and sfui.trackedicons.MarkDirty then
-            sfui.trackedicons.MarkDirty(true)
-        end
+        sfui.trackedbars.ForceLayoutUpdate()
+        sfui.trackedicons.ForceLayoutUpdate()
     end
 
     local function update_bar_visibility()
@@ -241,8 +239,10 @@ do
 
                 -- Rune Bar
                 local isRune = (secResource == Enum.PowerType.Runes)
-                if rune_bar and isRune and SfuiDB.enableSecondaryPowerBar then
-                    rune_bar:Show()
+                local showRune = (SfuiDB == nil or SfuiDB.enableSecondaryPowerBar ~= false) and isRune
+                if showRune then
+                    local bar = get_rune_bar()
+                    bar:Show()
                     update_rune_bar()
                 elseif rune_bar then
                     rune_bar:Hide()
@@ -267,7 +267,7 @@ do
             end
         end
 
-        if sfui.swing and sfui.swing.UpdateVisibility then
+        if not sfui.isRetail and sfui.swing then
             sfui.swing.UpdateVisibility(inCombat, hasEnemyTarget, isDragonflying, inVehicle)
         end
 
@@ -299,6 +299,7 @@ do
         end
 
         bar_minus_1 = bar
+        sfui.theme.RegisterBar(bar, "power")
         return bar
     end
 
@@ -465,7 +466,7 @@ do
         local bar = common.create_bar("bar0", "StatusBar", UIParent, nil, "healthBar")
         bar0 = bar
 
-        local texturePath = sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()
+        local texturePath = sfui.widgets.get_bar_texture()
         if not texturePath or texturePath == "" then
             local textureName = SfuiDB and SfuiDB.barTexture
             local LSM = LibStub("LibSharedMedia-3.0", true)
@@ -493,6 +494,7 @@ do
         absorbBar:GetStatusBarTexture():SetBlendMode("ADD")
         bar.absorbBar = absorbBar
 
+        sfui.theme.RegisterBar(bar, "health")
         return bar
     end
 
@@ -535,7 +537,7 @@ do
         absorbBar:SetStatusBarColor(common.unpack_color(color))
     end
 
-    local function get_rune_bar()
+    function get_rune_bar()
         if rune_bar then return rune_bar end
         local container = CreateFrame("Frame", "sfui_runeBar", UIParent)
         container:SetHeight(20)
@@ -543,7 +545,7 @@ do
         container.runes = {}
 
         -- Resolve texture once
-        local texturePath = sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()
+        local texturePath = sfui.widgets.get_bar_texture()
         if not texturePath or texturePath == "" then
             local textureName = SfuiDB and SfuiDB.barTexture
             local LSM = LibStub("LibSharedMedia-3.0", true)
@@ -560,6 +562,7 @@ do
             rune:SetStatusBarTexture(texturePath)
             rune:SetStatusBarColor(1, 1, 1) -- Set later
 
+            -- Default backdrop; overridden by theme block below if theme engine is loaded
             rune:SetBackdrop({
                 bgFile = "Interface/Buttons/WHITE8X8",
                 edgeFile = "Interface/Buttons/WHITE8X8",
@@ -568,6 +571,10 @@ do
             })
             rune:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
             rune:SetBackdropBorderColor(0, 0, 0, 1)
+
+            -- Theme engine: register rune bar so it automatically follows theme & barStyle
+            rune.backdrop = rune
+            sfui.theme.RegisterBar(rune, "rune")
 
             container.runes[i] = rune
         end
@@ -584,7 +591,9 @@ do
         if a.ready and not b.ready then return true end
         if not a.ready and b.ready then return false end
         if not a.ready and not b.ready then
-            return a.expiration < b.expiration
+            if a.expiration ~= b.expiration then
+                return a.expiration < b.expiration
+            end
         end
         return a.id < b.id
     end
@@ -612,9 +621,7 @@ do
         bar:SetSize(usedWidth, runeHeight)
 
         -- Update tracked bars layout to respect Rune Bar presence
-        if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
-            sfui.trackedbars.ForceLayoutUpdate()
-        end
+        sfui.trackedbars.ForceLayoutUpdate()
 
         -- Sorting Logic — reuse pre-allocated table to avoid GC pressure
         local runeInfo = bar._runeInfo
@@ -630,7 +637,7 @@ do
             entry.ready = ready
             entry.start = start or 0
             entry.duration = duration or 0
-            entry.expiration = (not ready) and (start + duration) or 0
+            entry.expiration = (not ready and start and duration and duration > 0) and (start + duration) or 0
         end
 
         table.sort(runeInfo, runeInfoComparator)
@@ -672,9 +679,10 @@ do
             else
                 -- Charging: #444444 (Lighter Grey)
                 rune:SetStatusBarColor(0.266, 0.266, 0.266)
-                rune:SetMinMaxValues(0, info.duration)
-                local current = GetTime() - info.start
-                rune:SetValue(current)
+                local dur = (info.duration and info.duration > 0) and info.duration or 1
+                rune:SetMinMaxValues(0, dur)
+                local current = (info.start and info.start > 0) and (GetTime() - info.start) or 0
+                rune:SetValue(math.max(0, math.min(current, dur)))
             end
         end
     end
@@ -687,6 +695,7 @@ do
         bar.TextValue:SetShadowOffset(1, -1)
         bar.TextValue:SetPoint("CENTER")
         bar1 = bar
+        sfui.theme.RegisterBar(bar, "secondary")
         return bar
     end
 
@@ -775,6 +784,7 @@ do
         bar.staticChargeIcon.countText:SetPoint("CENTER", bar.staticChargeIcon, "CENTER", 0, 0)
         bar.staticChargeIcon:Hide()
         vigor_bar = bar
+        sfui.theme.RegisterBar(bar, "vigor")
         return bar
     end
 
@@ -855,6 +865,7 @@ do
         end
 
         mount_speed_bar = bar
+        sfui.theme.RegisterBar(bar, "mountspeed")
         return bar
     end
 
@@ -864,9 +875,7 @@ do
             if mount_speed_bar then
                 mount_speed_bar.backdrop:Hide()
                 if mount_speed_bar._onUpdateActive then
-                    if sfui.events and sfui.events.UnregisterUpdate then
-                        sfui.events.UnregisterUpdate("MountSpeedBar")
-                    end
+                    sfui.events.UnregisterUpdate("MountSpeedBar")
                     mount_speed_bar:SetScript("OnUpdate", nil)
                     mount_speed_bar._onUpdateActive = false
                 end
@@ -877,11 +886,7 @@ do
 
         -- Install update loop only when actually dragonflying
         if not bar._onUpdateActive then
-            if sfui.events and sfui.events.RegisterUpdate then
-                sfui.events.RegisterUpdate("MountSpeedBar", 0.05, update_mount_speed_bar_internal)
-            else
-                bar:SetScript("OnUpdate", bar._onUpdate)
-            end
+            sfui.events.RegisterUpdate("MountSpeedBar", 0.05, update_mount_speed_bar_internal)
             bar._onUpdateActive = true
         end
 
@@ -938,6 +943,7 @@ do
     sfui.bars.get_bar0 = get_bar0
     sfui.bars.get_bar_minus_1 = get_bar_minus_1
     sfui.bars.get_bar1 = get_bar1
+    sfui.bars.get_rune_bar = get_rune_bar
     sfui.bars.update_bar_positions = update_bar_positions
     sfui.bars.UpdatePositions = update_bar_positions
     sfui.bars.update_bar_visibility = update_bar_visibility
@@ -970,22 +976,17 @@ do
                 applyTexture(rune)
             end
         end
-        if sfui.swing and sfui.swing.SetBarTexture then
-            sfui.swing.SetBarTexture(texturePath)
-        end
-        if sfui.threat and sfui.threat.SetBarTexture then
-            sfui.threat.SetBarTexture(texturePath)
-        end
-        if sfui.soulfragments and sfui.soulfragments.SetBarTexture then
-            sfui.soulfragments.SetBarTexture(texturePath)
-        end
-        if sfui.target and sfui.target.SetBarTexture then
-            sfui.target.SetBarTexture(texturePath)
+        if not sfui.isRetail then
+            if sfui.swing and sfui.swing.SetBarTexture then sfui.swing.SetBarTexture(texturePath) end
+            if sfui.threat and sfui.threat.SetBarTexture then sfui.threat.SetBarTexture(texturePath) end
+            if sfui.target and sfui.target.SetBarTexture then sfui.target.SetBarTexture(texturePath) end
+        else
+            if sfui.soulfragments and sfui.soulfragments.SetBarTexture then
+                sfui.soulfragments.SetBarTexture(texturePath)
+            end
         end
 
-        if sfui.bars.on_state_changed then
-            sfui.bars:on_state_changed()
-        end
+        sfui.bars:on_state_changed()
     end
 
     function sfui.bars:on_state_changed()
@@ -1135,12 +1136,10 @@ do
         }
     end
 
-    if sfui.RegisterModule then
-        sfui.bars.OnEnable = function(self) self:on_state_changed() end
-        sfui.bars.OnSettingsChanged = function(self, k, v) self:on_state_changed() end
-        sfui.bars.OnSpecChanged = function(self, specID) self:on_state_changed() end
-        sfui.bars.GetDebugInfo = sfui.bars_debug_info
-        sfui.RegisterModule("bars", sfui.bars)
-    end
+    sfui.bars.OnEnable = function(self) self:on_state_changed() end
+    sfui.bars.OnSettingsChanged = function(self, k, v) self:on_state_changed() end
+    sfui.bars.OnSpecChanged = function(self, specID) self:on_state_changed() end
+    sfui.bars.GetDebugInfo = sfui.bars_debug_info
+    sfui.RegisterModule("bars", sfui.bars)
 end
 

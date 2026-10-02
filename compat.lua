@@ -18,16 +18,22 @@ sfui = sfui or {}
 
 -- ── Raw client detection ──────────────────────────────────────────────────────
 -- WOW_PROJECT_ID is set by the game engine before any Lua runs.
---   WOW_PROJECT_MAINLINE (1) -> Retail & Classic Forever Beta
---   WOW_PROJECT_CLASSIC  (2) -> Classic Era / Season of Discovery
+--   WOW_PROJECT_MAINLINE (1)  -> Retail
+--   WOW_PROJECT_CLASSIC  (2)  -> Classic Era / Season of Discovery
+--   WOW_PROJECT_CAMELOT  (18) -> Camelot / Classic Forever
+if not _G.WOW_PROJECT_CAMELOT then
+    _G.WOW_PROJECT_CAMELOT = 18
+end
 local PROJECT_ID = _G.WOW_PROJECT_ID or 1
 
 -- Inspect client version from GetBuildInfo() to accurately distinguish Classic Forever from Retail
 local versionStr, buildStr, dateStr, tocVersionNum = _G.GetBuildInfo()
 tocVersionNum = tonumber(tocVersionNum) or 0
 
--- Classic Forever uses WOW_PROJECT_MAINLINE (1), but has tocVersion 16001 (build 1.60.x)
-local IS_WOW_FOREVER = (tocVersionNum >= 16000 and tocVersionNum < 20000) or (versionStr and versionStr:match("^1%.60"))
+-- Classic Forever / Camelot uses WOW_PROJECT_CAMELOT (18) or WOW_PROJECT_MAINLINE (1) with tocVersion 16001 (build 1.60.x)
+local IS_WOW_FOREVER = (PROJECT_ID == (_G.WOW_PROJECT_CAMELOT or 18))
+    or (tocVersionNum >= 16000 and tocVersionNum < 20000)
+    or (versionStr and versionStr:match("^1%.60") ~= nil)
 local IS_CLASSIC_ERA = (PROJECT_ID == (_G.WOW_PROJECT_CLASSIC or 2)) and not IS_WOW_FOREVER
 local IS_RETAIL      = (PROJECT_ID == (_G.WOW_PROJECT_MAINLINE or 1)) and not IS_WOW_FOREVER
 
@@ -84,6 +90,8 @@ sfui.compat = {
         specializations = IS_RETAIL,
         -- Warcraft Forever specific capability flag
         wow_forever     = IS_WOW_FOREVER,
+        -- UnitUsesAmmo API check (Camelot build 70170+ / Classic Hunter)
+        uses_ammo       = (_G.UnitUsesAmmo ~= nil),
     },
 }
 sfui.has = sfui.compat.has
@@ -154,7 +162,7 @@ local function RegisterGroup(names, ids)
     end
 end
 
-if sfui.spells_db and sfui.spells_db.RANK_GROUPS then
+if sfui.spells_db.RANK_GROUPS then
     for _, def in ipairs(sfui.spells_db.RANK_GROUPS) do
         RegisterGroup(def.names, def.ids)
     end
@@ -306,9 +314,7 @@ function sfui.api.GetUnitAuraByNameOrID(unit, spellIDOrName, filter)
 
         local function LearnAuraMapping(aura)
             if not aura or not aura.spellId then return end
-            if sfui.spells_db and sfui.spells_db.LearnAuraMapping then
-                sfui.spells_db.LearnAuraMapping(targetID, aura.spellId, aura.name or targetName)
-            end
+            sfui.spells_db.LearnAuraMapping(targetID, aura.spellId, aura.name or targetName)
         end
 
         if _G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex then
@@ -482,6 +488,24 @@ function sfui.api.GetSpellBookItemSpellID(slot, bankOrBookType)
     return nil
 end
 
+-- ── Unit queries ──────────────────────────────────────────────────────────────
+
+--- Returns whether a unit uses ammo.
+--- Supported natively on Camelot / Classic Forever build 70170+; falls back safely on older builds or retail.
+--- @param unit string? Default "player"
+--- @return boolean
+function sfui.api.UnitUsesAmmo(unit)
+    unit = unit or "player"
+    if _G.UnitUsesAmmo then
+        return _G.UnitUsesAmmo(unit) == true
+    end
+    if not IS_RETAIL then
+        local _, class = _G.UnitClass(unit)
+        return class == "HUNTER"
+    end
+    return false
+end
+
 -- ── Item queries ──────────────────────────────────────────────────────────────
 
 --- Returns item info table.
@@ -495,11 +519,25 @@ function sfui.api.GetItemInfo(itemID)
 end
 
 --- Returns item cooldown: startTime, duration, enable.
+--- Cascades C_Spell.GetItemCooldown -> C_Item.GetItemCooldown -> C_Container.GetItemCooldown -> legacy GetItemCooldown.
 --- @return number, number, number
 function sfui.api.GetItemCooldown(itemID)
     if not itemID then return 0, 0, 0 end
+    if _G.C_Spell and _G.C_Spell.GetItemCooldown then
+        local cd = _G.C_Spell.GetItemCooldown(itemID)
+        if cd then
+            return cd.startTime or 0, cd.duration or 0, (cd.isEnabled and 1 or 0)
+        end
+        return 0, 0, 0
+    end
     if _G.C_Item and _G.C_Item.GetItemCooldown then
         return _G.C_Item.GetItemCooldown(itemID)
+    end
+    if _G.C_Container and _G.C_Container.GetItemCooldown then
+        return _G.C_Container.GetItemCooldown(itemID)
+    end
+    if _G.GetItemCooldown then
+        return _G.GetItemCooldown(itemID)
     end
     return 0, 0, 0
 end

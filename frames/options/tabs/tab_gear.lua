@@ -57,9 +57,7 @@ sfui.options.RegisterTab({
             local open_gear_btn = CreateFlatButton(gear_panel, "open gear manager", 140, 22)
             open_gear_btn:SetPoint("TOPLEFT", gear_info, "BOTTOMLEFT", 0, -10)
             open_gear_btn:SetScript("OnClick", function()
-                if sfui.gear and sfui.gear.toggle then
-                    sfui.gear.toggle()
-                end
+                sfui.gear.toggle()
             end)
 
             local gear_auto_open_cb = common.create_checkbox(gear_panel, "auto-show with character panel", function()
@@ -85,7 +83,7 @@ sfui.options.RegisterTab({
                         SfuiGearManagerFrame.maxLvlChk:SetChecked(checked)
                     end
                 end
-                if checked and sfui.gear and sfui.gear.Update then
+                if checked then
                     sfui.gear.Update()
                 end
             end)
@@ -123,14 +121,14 @@ sfui.options.RegisterTab({
                 local pveDrop = common.create_dropdown(gear_panel, 120, GetEquipmentSetOptions, function(val)
                     SfuiDB.gear[id] = SfuiDB.gear[id] or { pve_set = "", pvp_set = "" }
                     SfuiDB.gear[id].pve_set = val
-                    if sfui.gear and sfui.gear.Update then sfui.gear.Update() end
+                    sfui.gear.Update()
                 end, "")
                 pveDrop:SetPoint("BOTTOMLEFT", iconTex, "BOTTOMRIGHT", 5, -5)
 
                 local pvpDrop = common.create_dropdown(gear_panel, 120, GetEquipmentSetOptions, function(val)
                     SfuiDB.gear[id] = SfuiDB.gear[id] or { pve_set = "", pvp_set = "" }
                     SfuiDB.gear[id].pvp_set = val
-                    if sfui.gear and sfui.gear.Update then sfui.gear.Update() end
+                    sfui.gear.Update()
                 end, "")
                 pvpDrop:SetPoint("LEFT", pveDrop, "RIGHT", 5, 0)
 

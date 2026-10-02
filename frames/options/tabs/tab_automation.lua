@@ -49,9 +49,7 @@ sfui.options.RegisterTab({
         dungeon_header:SetText("dungeons, raids & grouping")
 
         local auto_log_cb = create_checkbox(automation_panel, "auto combat log", "autoCombatLog", function(checked)
-            if sfui.logs and sfui.logs.set_enabled then
-                sfui.logs.set_enabled(checked)
-            end
+            sfui.logs.set_enabled(checked)
         end, isClassic and "automatically start/stop combat logging when entering raids." or "automatically start/stop combat logging when entering mythic+ and raids.")
         auto_log_cb:SetPoint("TOPLEFT", dungeon_header, "BOTTOMLEFT", 0, -10)
 
@@ -81,7 +79,7 @@ sfui.options.RegisterTab({
             local test_portal_btn = CreateFlatButton(automation_panel, "test preview", 100, 20)
             test_portal_btn:SetPoint("LEFT", portal_popup_cb, "LEFT", COL_OFFSET_X, 0)
             test_portal_btn:SetScript("OnClick", function()
-                if sfui.portals and sfui.portals.TestPortalPopup then
+                if sfui.portals then
                     sfui.portals.TestPortalPopup()
                 end
             end)
@@ -214,9 +212,7 @@ sfui.options.RegisterTab({
                 if hammer and hammer.update_popup_style then
                     hammer.update_popup_style()
                 end
-                if sfui.common and sfui.common.print then
-                    sfui.common.print("sfui: repair button position reset to center (" .. def.x .. ", " .. def.y .. ").")
-                end
+                sfui.common.print("repair button position reset to center (" .. def.x .. ", " .. def.y .. ").")
             end)
 
             local test_hammer_btn = CreateFlatButton(automation_panel, "test preview", 120, 22)

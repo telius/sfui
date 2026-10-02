@@ -23,6 +23,9 @@ local container = nil
 local refreshTimer = nil
 local isRefreshing = false
 local isRaidSuppressed = false
+
+sfui.tracker.OnMouseWheel = function(self, delta) end
+Tracker.OnMouseWheel = sfui.tracker.OnMouseWheel
 local isPetBattleSuppressed = false
 local isMythicSuppressed = false
 
@@ -268,7 +271,7 @@ local function HookAlphaSuppression(frame)
     hooksecurefunc(frame, "SetAlpha", function(self, alpha)
         if suppressingTrackers then return end
         if InCombatLockdown and InCombatLockdown() then return end
-        if sfui.questlog and sfui.questlog.is_enabled and sfui.questlog.is_enabled() then
+        if sfui.questlog.is_enabled() then
             if alpha > 0 then
                 suppressingTrackers = true
                 self:SetAlpha(0)
@@ -284,7 +287,7 @@ local function HookMouseSuppression(frame)
     hooksecurefunc(frame, "EnableMouse", function(self, enabled)
         if suppressingMouse then return end
         if InCombatLockdown and InCombatLockdown() then return end
-        if sfui.questlog and sfui.questlog.is_enabled and sfui.questlog.is_enabled() then
+        if sfui.questlog.is_enabled() then
             if enabled then
                 suppressingMouse = true
                 self:EnableMouse(false)
@@ -299,7 +302,7 @@ local function EnsureQuestWatchHook()
     if _G.hooksecurefunc and _G.QuestWatch_Update then
         questWatchUpdateHooked = true
         _G.hooksecurefunc("QuestWatch_Update", function()
-            if sfui.questlog and sfui.questlog.is_enabled and sfui.questlog.is_enabled() then
+            if sfui.questlog.is_enabled() then
                 local qwf = _G.QuestWatchFrame
                 if qwf then
                     if qwf.SetAlpha then qwf:SetAlpha(0) end
@@ -312,7 +315,7 @@ local function EnsureQuestWatchHook()
 end
 
 function SuppressBlizzardTrackers()
-    if not (sfui.questlog and sfui.questlog.is_enabled and sfui.questlog.is_enabled()) then
+    if not sfui.questlog.is_enabled() then
         return
     end
 
@@ -329,7 +332,7 @@ function SuppressBlizzardTrackers()
         if not hookedTrackers[qwf] and qwf.HookScript then
             hookedTrackers[qwf] = true
             qwf:HookScript("OnShow", function(self)
-                if sfui.questlog and sfui.questlog.is_enabled and sfui.questlog.is_enabled() then
+                if sfui.questlog.is_enabled() then
                     if self.SetAlpha then self:SetAlpha(0) end
                     if self.EnableMouse then self:EnableMouse(false) end
                     if self.Hide then self:Hide() end
@@ -349,7 +352,7 @@ function SuppressBlizzardTrackers()
         if not hookedTrackers[wf] and wf.HookScript then
             hookedTrackers[wf] = true
             wf:HookScript("OnShow", function(self)
-                if sfui.questlog and sfui.questlog.is_enabled and sfui.questlog.is_enabled() then
+                if sfui.questlog.is_enabled() then
                     if self.SetAlpha then self:SetAlpha(0) end
                     if self.EnableMouse then self:EnableMouse(false) end
                     if self.Hide then self:Hide() end
@@ -437,9 +440,11 @@ function RestoreBlizzardTrackers()
     end
 end
 
+sfui.SuppressBlizzardTracker = SuppressBlizzardTrackers
+sfui.questlog.SuppressBlizzardTrackers = SuppressBlizzardTrackers
+
 -- ─── Suppression & Event Routing ────────────────────────────────────────────
 local function SetupEventRouting()
-    if not sfui.events or not sfui.events.RegisterEvent then return end
 
     -- Auto-hide in Raid Boss encounters
     sfui.events.RegisterEvent("ENCOUNTER_START", function()
@@ -731,14 +736,9 @@ function sfui.questlog_debug_info()
     }
 end
 
--- Register module with sfui central module system
-if sfui.RegisterModule then
     sfui.questlog.OnEnable = function(self) Tracker.Initialize() end
     sfui.questlog.OnSpecChanged = function(self, specID)
-        if sfui.tracker and sfui.tracker.RequestRefresh then
-            sfui.tracker.RequestRefresh(0.01)
-        end
+        sfui.tracker.RequestRefresh(0.01)
     end
     sfui.questlog.GetDebugInfo = sfui.questlog_debug_info
     sfui.RegisterModule("questlog", sfui.questlog)
-end

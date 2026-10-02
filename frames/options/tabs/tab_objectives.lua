@@ -31,19 +31,12 @@ sfui.options.RegisterTab({
 
         local enable_ql_cb = create_checkbox(p, "enable sfui quest log",
             function()
-                if sfui.questlog and sfui.questlog.is_enabled then
-                    return sfui.questlog.is_enabled()
-                end
-                if SfuiDB.questlogEnabled ~= nil then return SfuiDB.questlogEnabled end
-                if SfuiDB.enableQuestLog ~= nil then return SfuiDB.enableQuestLog end
-                return true
+                return sfui.questlog.is_enabled()
             end,
             function(checked)
                 SfuiDB.questlogEnabled = checked
                 SfuiDB.enableQuestLog = checked
-                if sfui.questlog and sfui.questlog.set_enabled then
-                    sfui.questlog.set_enabled(checked)
-                end
+                sfui.questlog.set_enabled(checked)
             end,
             "Enables or disables the SFUI custom quest log and objective tracker. " ..
             "When disabled the default Blizzard tracker is shown.")
@@ -60,9 +53,7 @@ sfui.options.RegisterTab({
             function(checked)
                 SfuiDB.questlogLocked = checked
                 SfuiDB.questlogUnlocked = not checked
-                if sfui.questlog and sfui.questlog.set_locked then
-                    sfui.questlog.set_locked(checked)
-                end
+                sfui.questlog.set_locked(checked)
             end,
             "When unlocked you can drag the quest log frame to a new position. " ..
             "The position is saved between sessions.")
@@ -72,19 +63,12 @@ sfui.options.RegisterTab({
         local reset_ql_pos_btn = CreateFlatButton(p, "reset position", 120, 22)
         reset_ql_pos_btn:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
         reset_ql_pos_btn:SetScript("OnClick", function()
-            if sfui.questlog and sfui.questlog.reset_position then
-                sfui.questlog.reset_position()
-            else
-                if SfuiDB then
-                    SfuiDB.questlogX = nil
-                    SfuiDB.questlogY = nil
-                end
-            end
+            sfui.questlog.reset_position()
         end)
         yOff = yOff - 36
 
         -- ── Section: Mythic+ HUD (Retail only) ────────────────────────────────
-        if not isClassic then
+        if sfui.isRetail and sfui.mythic then
             local mplus_section = p:CreateFontString(nil, "OVERLAY", g.font)
             mplus_section:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
             mplus_section:SetTextColor(0, 1, 1, 1)
@@ -93,15 +77,10 @@ sfui.options.RegisterTab({
 
             local enable_mhud_cb = create_checkbox(p, "enable mythic+ hud",
                 function()
-                    if sfui.mythic and sfui.mythic.IsEnabled then return sfui.mythic.IsEnabled() end
-                    return SfuiDB.mythicHudEnabled ~= false
+                    return sfui.mythic.IsEnabled()
                 end,
                 function(checked)
-                    if sfui.mythic and sfui.mythic.SetEnabled then
-                        sfui.mythic.SetEnabled(checked)
-                    else
-                        SfuiDB.mythicHudEnabled = checked
-                    end
+                    sfui.mythic.SetEnabled(checked)
                 end,
                 "When enabled, SFUI displays a native Mythic+ HUD with the dungeon timer, " ..
                 "death count, boss checkmarks, and enemy forces bar. " ..
@@ -115,9 +94,7 @@ sfui.options.RegisterTab({
                 end,
                 function(checked)
                     SfuiDB.mythicHudUnlocked = not checked
-                    if sfui.mythic and sfui.mythic.SetLocked then
-                        sfui.mythic.SetLocked(checked)
-                    end
+                    sfui.mythic.SetLocked(checked)
                 end,
                 "When unlocked you can drag the Mythic+ HUD to any position on screen. " ..
                 "The position is saved automatically between sessions.")
@@ -127,14 +104,7 @@ sfui.options.RegisterTab({
             local reset_mhud_pos_btn = CreateFlatButton(p, "reset position", 120, 22)
             reset_mhud_pos_btn:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
             reset_mhud_pos_btn:SetScript("OnClick", function()
-                if sfui.mythic and sfui.mythic.ResetPosition then
-                    sfui.mythic.ResetPosition()
-                else
-                    if SfuiDB then
-                        SfuiDB.mythicHudX = nil
-                        SfuiDB.mythicHudY = nil
-                    end
-                end
+                sfui.mythic.ResetPosition()
             end)
             yOff = yOff - 34
 
@@ -151,14 +121,10 @@ sfui.options.RegisterTab({
             hide_preview_btn:SetPoint("LEFT", preview_btn, "RIGHT", 10, 0)
 
             preview_btn:SetScript("OnClick", function()
-                if sfui.mythic and sfui.mythic.ShowPreview then
-                    sfui.mythic.ShowPreview()
-                end
+                sfui.mythic.ShowPreview()
             end)
             hide_preview_btn:SetScript("OnClick", function()
-                if sfui.mythic and sfui.mythic.HidePreview then
-                    sfui.mythic.HidePreview()
-                end
+                sfui.mythic.HidePreview()
             end)
             yOff = yOff - 34
 

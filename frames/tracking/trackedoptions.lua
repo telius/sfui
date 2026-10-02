@@ -3,7 +3,8 @@ local CreateFrame = CreateFrame
 sfui = sfui or {}
 local cfg = sfui.config
 local common = sfui.common
-sfui.trackedoptions = {}
+sfui.trackedoptions = sfui.trackedoptions or {}
+sfui.trackedoptions.UpdatePreview = function() end
 local GameTooltip = sfui.tooltip or _G.GameTooltip
 
 local CreateFlatButton = common.create_flat_button
@@ -263,17 +264,15 @@ local headerBtnX = 140
 local optBtn = CreateFlatButton(frame, "Main Options", 100, 20)
 optBtn:SetPoint("TOPLEFT", 10, -5)
 optBtn:SetScript("OnClick", function()
-    if sfui.toggle_options_panel then
-        sfui.toggle_options_panel()
+    sfui.toggle_options_panel()
 
-        -- Attach logic
-        if _G.sfui_options_frame and _G.sfui_options_frame:IsShown() then
-            frame:ClearAllPoints()
-            frame:SetPoint("CENTER") -- Back to center default before re-anchoring if needed
+    -- Attach logic
+    if _G.sfui_options_frame and _G.sfui_options_frame:IsShown() then
+        frame:ClearAllPoints()
+        frame:SetPoint("CENTER") -- Back to center default before re-anchoring if needed
 
-            _G.sfui_options_frame:ClearAllPoints()
-            _G.sfui_options_frame:SetPoint("TOPRIGHT", frame, "TOPLEFT", -5, 0)
-        end
+        _G.sfui_options_frame:ClearAllPoints()
+        _G.sfui_options_frame:SetPoint("TOPRIGHT", frame, "TOPLEFT", -5, 0)
     end
 end)
 
@@ -429,9 +428,7 @@ function sfui.trackedoptions.initialize()
 
 
     -- === TAB 1: ASSIGNMENTS (CDM) ===
-    if sfui.cdm and sfui.cdm.create_panel then
-        sfui.cdm.create_panel(assignPanel)
-    end
+    sfui.cdm.create_panel(assignPanel)
 
     -- === TAB 2: GLOBAL SETTINGS ===
     local globScroll = CreateFrame("ScrollFrame", "SfuiGlobalScroll", globalPanel, "UIPanelScrollFrameTemplate")
@@ -474,8 +471,8 @@ function sfui.trackedoptions.initialize()
             sfui.trackedoptions.barsContent._lastSpec = nil
         end
         sfui.trackedoptions.UpdateSettings() -- Re-init widgets
-        if sfui.trackedicons and sfui.trackedicons.ForceRefreshGlows then sfui.trackedicons.ForceRefreshGlows() end
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        sfui.trackedicons.ForceRefreshGlows()
+        sfui.trackedicons.Update()
     end)
 
     -- === TAB 3: BARS SETTINGS ===
@@ -517,12 +514,7 @@ end
 function sfui.trackedoptions.RenderBarsTab(parent)
     if not parent then return end
 
-    if sfui.trackedoptions.ReleaseSettingsWidgets then
-        sfui.trackedoptions.ReleaseSettingsWidgets(parent)
-    else
-        local kids = { parent:GetChildren() }
-        for _, kid in ipairs(kids) do kid:Hide() end
-    end
+    sfui.trackedoptions.ReleaseSettingsWidgets(parent)
     local regions = { parent:GetRegions() }
     for _, region in ipairs(regions) do region:Hide() end
 
@@ -536,11 +528,9 @@ function sfui.trackedoptions.RenderBarsTab(parent)
     local yPos = -10
 
     local function Refresh()
-        if sfui.trackedbars then
-            if sfui.trackedbars.InvalidateConfigCache then sfui.trackedbars.InvalidateConfigCache() end
-            if sfui.trackedbars.UpdateVisibility then sfui.trackedbars.UpdateVisibility() end
-            if sfui.trackedbars.ForceLayoutUpdate then sfui.trackedbars.ForceLayoutUpdate() end
-        end
+        sfui.trackedbars.InvalidateConfigCache()
+        sfui.trackedbars.UpdateVisibility()
+        sfui.trackedbars.ForceLayoutUpdate()
     end
 
     -- Reuse helpers
@@ -617,13 +607,15 @@ function sfui.trackedoptions.RenderBarsTab(parent)
         1000, 1,
         function(v)
             if not db.anchor then db.anchor = {} end
-            db.anchor.x = v; if sfui.trackedbars.UpdatePosition then sfui.trackedbars.UpdatePosition() end
+            db.anchor.x = v
+            sfui.trackedbars.UpdatePosition()
         end, col2x, s1y - 20, 120)
     BSlider(sec1c, "Y", function() return (db.anchor and db.anchor.y) or (bar_cfg.anchor and bar_cfg.anchor.y) or 0 end, -1000,
         1000, 1,
         function(v)
             if not db.anchor then db.anchor = {} end
-            db.anchor.y = v; if sfui.trackedbars.UpdatePosition then sfui.trackedbars.UpdatePosition() end
+            db.anchor.y = v
+            sfui.trackedbars.UpdatePosition()
         end, col2x + 130, s1y - 20, 120)
 
     BSlider(sec1c, "Width", function() return db.width or bar_cfg.width or 200 end, 50, 600, 1, function(v) db.width = v end,
@@ -1065,12 +1057,7 @@ function sfui.trackedoptions.GenerateGlobalSettingsControls(parent)
     if not parent then return end
 
     -- Clear frames and regions to prevent font string accumulation
-    if sfui.trackedoptions.ReleaseSettingsWidgets then
-        sfui.trackedoptions.ReleaseSettingsWidgets(parent)
-    else
-        local kids = { parent:GetChildren() }
-        for _, kid in ipairs(kids) do kid:Hide() end
-    end
+    sfui.trackedoptions.ReleaseSettingsWidgets(parent)
     local regions = { parent:GetRegions() }
     for _, region in ipairs(regions) do region:Hide() end
 
@@ -1085,9 +1072,7 @@ function sfui.trackedoptions.GenerateGlobalSettingsControls(parent)
         if not pf or not pf.icon then return end
 
         -- Apply square/border style
-        if sfui.trackedicons and sfui.trackedicons.ApplyIconBorderStyle then
-            sfui.trackedicons.ApplyIconBorderStyle(pf.icon, igs)
-        end
+        sfui.trackedicons.ApplyIconBorderStyle(pf.icon, igs)
 
         -- Use shared resolver for perfect parity with active icons
         local config = sfui.glows.resolve_config(nil, igs)
@@ -1104,7 +1089,7 @@ function sfui.trackedoptions.GenerateGlobalSettingsControls(parent)
     end
 
     local function UpdateAll()
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        sfui.trackedicons.Update()
         UpdateGlobalGlowPreview()
     end
 
@@ -1225,7 +1210,7 @@ function sfui.trackedoptions.GenerateGlobalSettingsControls(parent)
     lTC:SetPoint("TOPLEFT", 0, s3y); lTC:SetText("Text Color:")
     local tcSwatch = common.create_color_swatch(s3c, igs.textColor or defaults.textColor, function(r, g, b)
         igs.textColor = { r, g, b, 1 }
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        sfui.trackedicons.Update()
     end)
     tcSwatch:SetPoint("LEFT", lTC, "RIGHT", 5, 0)
     s3y = s3y - 28
@@ -1278,9 +1263,7 @@ function sfui.trackedoptions.GenerateGlobalSettingsControls(parent)
         iconFrame.texture = tex
 
         -- Masque Support for Glow Preview
-        if common.sync_masque then
-            common.sync_masque(iconFrame, { Icon = tex })
-        end
+        common.sync_masque(iconFrame, { Icon = tex })
 
         pf.icon = iconFrame
 
@@ -1305,7 +1288,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
         local cb = common.create_checkbox(secContent, label, function() return panel[key] end, function(val)
             panel[key] = val
             if sfui.trackedoptions.UpdatePreview then sfui.trackedoptions.UpdatePreview() end
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+            sfui.trackedicons.Update()
         end, tooltip)
         cb:SetPoint("TOPLEFT", x or 0, y)
         return cb
@@ -1321,7 +1304,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
         end, minVal, maxVal, step or 1, function(val)
             panel[key] = val
             if sfui.trackedoptions.UpdatePreview then sfui.trackedoptions.UpdatePreview() end
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+            sfui.trackedicons.Update()
         end)
         if w then s:SetWidth(w) end
         s:SetPoint("TOPLEFT", x or 0, y)
@@ -1378,12 +1361,12 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
 
     local growthCross = sfui.trackedoptions.CreateGrowthCross(s2c, panel, function()
         if sfui.trackedoptions.UpdatePreview then sfui.trackedoptions.UpdatePreview() end
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        sfui.trackedicons.Update()
     end)
     growthCross:SetPoint("TOPLEFT", 0, s2y)
 
     local anchorGrid = sfui.trackedoptions.CreateAnchorGrid(s2c, panel, "anchorPoint", function()
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        sfui.trackedicons.Update()
     end)
     anchorGrid:SetPoint("TOPLEFT", 130, s2y)
     s2y = s2y - 85
@@ -1404,7 +1387,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     local anchorTargets = common.get_all_anchor_targets(panel.name)
     local anchorTo = common.create_dropdown(s3c, 130, anchorTargets, function(val)
         panel.anchorTo = val
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        sfui.trackedicons.Update()
     end, panel.anchorTo)
     anchorTo:SetPoint("LEFT", lA, "RIGHT", 5, 0)
 
@@ -1419,7 +1402,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     }
     local rPoint = common.create_dropdown(s3c, 130, points, function(val)
         panel.relativePoint = val
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        sfui.trackedicons.Update()
     end, panel.relativePoint)
     rPoint:SetPoint("LEFT", lRP, "RIGHT", 5, 0)
     s3y = s3y - 65
@@ -1575,7 +1558,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
                 btn:SetScript("OnClick", function()
                     whitelist[heroInfo] = not whitelist[heroInfo]
                     UpdateVisuals()
-                    if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+                    sfui.trackedicons.Update()
                 end)
 
                 btn:SetScript("OnEnter", function(self)
@@ -1597,9 +1580,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
                 end)
 
                 -- Masque sync just to make it square if the user prefers, but left as default works too
-                if common.sync_masque then
-                    common.sync_masque(btn, { Icon = tex, Border = nil })
-                end
+                common.sync_masque(btn, { Icon = tex, Border = nil })
 
                 return btn
             end
@@ -1617,10 +1598,8 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
                 entry.trackAsAura = val
                 entry.type = val and "buff" or "spell"
                 common.invalidate_panels_cache()
-                if sfui.trackedicons then
-                    if sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
-                    if sfui.trackedicons.Update then sfui.trackedicons.Update() end
-                end
+                sfui.trackedicons.MarkDirty(true)
+                sfui.trackedicons.Update()
             end, "Track this spell as an active Aura/Buff (swipes duration, dims when missing).")
 
             local alertCb = common.create_checkbox(row, "Alert", function()
@@ -1629,10 +1608,8 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
                 if not entry.settings then entry.settings = {} end
                 entry.settings.glowWhenMissing = val
                 common.invalidate_panels_cache()
-                if sfui.trackedicons then
-                    if sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
-                    if sfui.trackedicons.Update then sfui.trackedicons.Update() end
-                end
+                sfui.trackedicons.MarkDirty(true)
+                sfui.trackedicons.Update()
             end, "Glow alert when this buff is missing.")
 
             if #heroSpecs == 0 then

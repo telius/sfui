@@ -385,14 +385,10 @@ function Layout.BuildLayout(container, sections)
                 local IsShiftKeyDown = _G.IsShiftKeyDown
                 if IsShiftKeyDown and IsShiftKeyDown() then
                     UntrackSection(currentSec)
-                    if sfui.tracker and sfui.tracker.modules then
-                        for _, mod in ipairs(sfui.tracker.modules) do
-                            if mod.MarkDirty then mod:MarkDirty() end
-                        end
+                    for _, mod in ipairs(sfui.tracker.modules) do
+                        if mod.MarkDirty then mod:MarkDirty() end
                     end
-                    if sfui.tracker and sfui.tracker.RequestRefresh then
-                        sfui.tracker.RequestRefresh(0.01)
-                    end
+                    sfui.tracker.RequestRefresh(0.01)
                     return
                 end
                 SfuiDB.questlogSectionsCollapsed = SfuiDB.questlogSectionsCollapsed or {}
@@ -407,9 +403,7 @@ function Layout.BuildLayout(container, sections)
                     curCollapsed = (SfuiDB.questlogSectionsCollapsed[secID] == true)
                 end
                 SfuiDB.questlogSectionsCollapsed[secID] = not curCollapsed
-                if sfui.tracker and sfui.tracker.RequestRefresh then
-                    sfui.tracker.RequestRefresh(0.01)
-                end
+                sfui.tracker.RequestRefresh(0.01)
             end)
 
             yOffset = yOffset - (header:GetHeight() or 20) - 2
@@ -456,7 +450,7 @@ function Layout.BuildLayout(container, sections)
                     -- 3. Usable Quest Item Button (placed directly to the left of the title)
                     local hasItem = false
                     if bData.itemInfo and bData.questLogIndex then
-                        local itemsHelper = sfui.tracker.helpers and sfui.tracker.helpers.items
+                        local itemsHelper = sfui.tracker.helpers.items
                         if itemsHelper then
                             if not block.itemButton then
                                 block.itemButton = (itemsHelper.AcquireItemButton and itemsHelper.AcquireItemButton(block)) or
@@ -473,7 +467,7 @@ function Layout.BuildLayout(container, sections)
                         end
                     end
                     if not hasItem and block.itemButton then
-                        local itemsHelper = sfui.tracker.helpers and sfui.tracker.helpers.items
+                        local itemsHelper = sfui.tracker.helpers.items
                         if itemsHelper then
                             itemsHelper.ReleaseItemButton(block.itemButton)
                         else
@@ -485,7 +479,7 @@ function Layout.BuildLayout(container, sections)
                     -- 4. Find Group (LFG) button (placed on the right edge of the title row)
                     local hasFindGroup = false
                     if bData.canFindGroup and bData.questID then
-                        local findGroupHelper = sfui.tracker.helpers and sfui.tracker.helpers.findgroup
+                        local findGroupHelper = sfui.tracker.helpers.findgroup
                         if findGroupHelper then
                             if not block.findGroupBtn then
                                 block.findGroupBtn = findGroupHelper.CreateFindGroupButton(block)
@@ -499,7 +493,7 @@ function Layout.BuildLayout(container, sections)
                         end
                     end
                     if not hasFindGroup and block.findGroupBtn then
-                        local findGroupHelper = sfui.tracker.helpers and sfui.tracker.helpers.findgroup
+                        local findGroupHelper = sfui.tracker.helpers.findgroup
                         if findGroupHelper then
                             findGroupHelper.ReleaseFindGroupButton(block.findGroupBtn)
                         else
@@ -530,7 +524,7 @@ function Layout.BuildLayout(container, sections)
                     end)
                     block:SetScript("OnEnter", function(self)
                         if self.hl then self.hl:SetColorTexture(1, 1, 1, 0.05) end
-                        local tooltipHelper = sfui.tracker.helpers and sfui.tracker.helpers.tooltip
+                        local tooltipHelper = sfui.tracker.helpers.tooltip
                         if tooltipHelper and tooltipHelper.ShowBlockTooltip then
                             tooltipHelper.ShowBlockTooltip(self, bData)
                         end
@@ -540,7 +534,7 @@ function Layout.BuildLayout(container, sections)
                     end)
                     block:SetScript("OnLeave", function(self)
                         if self.hl then self.hl:SetColorTexture(1, 1, 1, 0) end
-                        local tooltipHelper = sfui.tracker.helpers and sfui.tracker.helpers.tooltip
+                        local tooltipHelper = sfui.tracker.helpers.tooltip
                         if tooltipHelper and tooltipHelper.HideBlockTooltip then
                             tooltipHelper.HideBlockTooltip(self, bData)
                         else
@@ -584,20 +578,18 @@ function Layout.BuildLayout(container, sections)
                             line:EnableMouse(true)
                             line:EnableMouseWheel(true)
                             line:SetScript("OnMouseWheel", function(self, delta)
-                                if sfui.tracker and sfui.tracker.OnMouseWheel then
-                                    sfui.tracker.OnMouseWheel(self, delta)
-                                end
+                                sfui.tracker.OnMouseWheel(self, delta)
                             end)
                             line:SetScript("OnEnter", function()
                                 if block.hl then block.hl:SetColorTexture(1, 1, 1, 0.05) end
-                                local tooltipHelper = sfui.tracker.helpers and sfui.tracker.helpers.tooltip
+                                local tooltipHelper = sfui.tracker.helpers.tooltip
                                 if tooltipHelper and tooltipHelper.ShowBlockTooltip then
                                     tooltipHelper.ShowBlockTooltip(block, bData)
                                 end
                             end)
                             line:SetScript("OnLeave", function()
                                 if block.hl then block.hl:SetColorTexture(1, 1, 1, 0) end
-                                local tooltipHelper = sfui.tracker.helpers and sfui.tracker.helpers.tooltip
+                                local tooltipHelper = sfui.tracker.helpers.tooltip
                                 if tooltipHelper and tooltipHelper.HideBlockTooltip then
                                     tooltipHelper.HideBlockTooltip(block, bData)
                                 else
@@ -648,20 +640,18 @@ function Layout.BuildLayout(container, sections)
                         pBar:EnableMouse(true)
                         pBar:EnableMouseWheel(true)
                         pBar:SetScript("OnMouseWheel", function(self, delta)
-                            if sfui.tracker and sfui.tracker.OnMouseWheel then
-                                sfui.tracker.OnMouseWheel(self, delta)
-                            end
+                            sfui.tracker.OnMouseWheel(self, delta)
                         end)
                         pBar:SetScript("OnEnter", function()
                             if block.hl then block.hl:SetColorTexture(1, 1, 1, 0.05) end
-                            local tooltipHelper = sfui.tracker.helpers and sfui.tracker.helpers.tooltip
+                            local tooltipHelper = sfui.tracker.helpers.tooltip
                             if tooltipHelper and tooltipHelper.ShowBlockTooltip then
                                 tooltipHelper.ShowBlockTooltip(block, bData)
                             end
                         end)
                         pBar:SetScript("OnLeave", function()
                             if block.hl then block.hl:SetColorTexture(1, 1, 1, 0) end
-                            local tooltipHelper = sfui.tracker.helpers and sfui.tracker.helpers.tooltip
+                            local tooltipHelper = sfui.tracker.helpers.tooltip
                             if tooltipHelper and tooltipHelper.HideBlockTooltip then
                                 tooltipHelper.HideBlockTooltip(block, bData)
                             else
@@ -682,7 +672,7 @@ function Layout.BuildLayout(container, sections)
 
                     -- 5. Countdown Timer Bar (if any)
                     if bData.timerBar and bData.timerBar.timeTotal then
-                        local timerHelper = sfui.tracker.helpers and sfui.tracker.helpers.timerbars
+                        local timerHelper = sfui.tracker.helpers.timerbars
                         if timerHelper and timerHelper.CanShowTimerBar() then
                             if not block.timerBarFrame then
                                 block.timerBarFrame = (timerHelper.AcquireTimerBar and timerHelper.AcquireTimerBar(content)) or
@@ -697,9 +687,7 @@ function Layout.BuildLayout(container, sections)
                             block.timerBarFrame:SetPoint("TOPRIGHT", content, "TOPRIGHT", -4, yOffset - 2)
                             block.timerBarFrame:EnableMouseWheel(true)
                             block.timerBarFrame:SetScript("OnMouseWheel", function(self, delta)
-                                if sfui.tracker and sfui.tracker.OnMouseWheel then
-                                    sfui.tracker.OnMouseWheel(self, delta)
-                                end
+                                sfui.tracker.OnMouseWheel(self, delta)
                             end)
                             local barH = 5
                             block.timerBarFrame:SetHeight(barH)

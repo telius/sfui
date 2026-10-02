@@ -34,7 +34,7 @@ local WAYPOINT_OBJECTIVE_FORMAT_OPTIONAL = _G.WAYPOINT_OBJECTIVE_FORMAT_OPTIONAL
 local QUEST_WATCH_QUEST_READY           = _G.QUEST_WATCH_QUEST_READY or "Ready for turn-in"
 local QUEST_WATCH_QUEST_COMPLETE        = _G.QUEST_WATCH_QUEST_COMPLETE or "Quest Complete"
 
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.common.issecretvalue
 
 -- ─────────────────────────────────────────────────────────
 --  WAYPOINT NAVIGATION TEXT

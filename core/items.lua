@@ -32,6 +32,7 @@ sfui.tooltip = sfuiTooltip
 sfui.common.tooltip = sfuiTooltip
 
 local INVENTORY_SLOT_NAMES = {
+    [0]  = "Ammo",
     [1]  = "Head",
     [2]  = "Neck",
     [3]  = "Shoulders",
@@ -54,7 +55,7 @@ local INVENTORY_SLOT_NAMES = {
 }
 
 local SLOT_KEY_NAMES = {
-    head = "Head", neck = "Neck", shoulder = "Shoulder", back = "Back",
+    ammo = "Ammo", head = "Head", neck = "Neck", shoulder = "Shoulder", back = "Back",
     chest = "Chest", wrist = "Wrist", hands = "Hands", waist = "Waist",
     legs = "Legs", feet = "Feet", weapon = "Weapon", ranged = "Ranged", ring = "Ring",
     trinket = "Trinket", other = "Other", token = "Other",
@@ -117,6 +118,8 @@ function sfui.items.get_slots_for_invtype(equipLoc, canDualWield1H, canDualWield
         return 1, 16
     elseif equipLoc == "INVTYPE_TABARD" then
         return 1, 19
+    elseif equipLoc == "INVTYPE_AMMO" then
+        return 1, 0
     end
     return 0
 end
@@ -688,8 +691,7 @@ function sfui.items.get_trinket_role_type(itemLinkOrID)
     if specList and #specList > 0 then
         local hasTank, hasHealer, hasDamager = false, false, false
         for _, sID in ipairs(specList) do
-            local role = (sfui.talents and sfui.talents.get_spec_role and sfui.talents.get_spec_role(sID))
-                or (sfui.common and sfui.common.get_spec_role and sfui.common.get_spec_role(sID))
+            local role = sfui.talents.get_spec_role(sID)
             if role == "TANK" then
                 hasTank = true
             elseif role == "HEALER" then
@@ -714,8 +716,7 @@ sfui.common.get_trinket_role_type = sfui.items.get_trinket_role_type
 
 function sfui.items.get_trinket_value_multiplier(itemLinkOrID, specID)
     if not itemLinkOrID or not specID then return 1.0 end
-    local role = (sfui.talents and sfui.talents.get_spec_role and sfui.talents.get_spec_role(specID))
-        or (sfui.common and sfui.common.get_spec_role and sfui.common.get_spec_role(specID))
+    local role = sfui.talents.get_spec_role(specID)
     if role == "HEALER" then
         local tRole = sfui.items.get_trinket_role_type(itemLinkOrID)
         if tRole == "DAMAGER" or tRole == "GENERIC" then
@@ -729,8 +730,7 @@ sfui.common.get_trinket_value_multiplier = sfui.items.get_trinket_value_multipli
 function sfui.items.is_trinket_valid_for_spec(itemLinkOrID, specID)
     if not itemLinkOrID or not specID or specID <= 0 then return true end
 
-    local targetRole = (sfui.talents and sfui.talents.get_spec_role and sfui.talents.get_spec_role(specID))
-        or (sfui.common and sfui.common.get_spec_role and sfui.common.get_spec_role(specID))
+    local targetRole = sfui.talents.get_spec_role(specID)
     local trinketRole = sfui.items.get_trinket_role_type(itemLinkOrID)
     local specList = sfui.items.get_item_spec_info(itemLinkOrID)
 
@@ -797,8 +797,7 @@ function sfui.items.is_trinket_valid_for_spec(itemLinkOrID, specID)
         if specList then
             for _, sID in ipairs(specList) do
                 if sID == specID then return true end
-                local r = (sfui.talents and sfui.talents.get_spec_role and sfui.talents.get_spec_role(sID))
-                    or (sfui.common and sfui.common.get_spec_role and sfui.common.get_spec_role(sID))
+                local r = sfui.talents.get_spec_role(sID)
                 if r == "DAMAGER" then
                     local sRule = sfui.highest and sfui.highest.rules and sfui.highest.rules[sID]
                     if sRule and sRule.stat == 4 then

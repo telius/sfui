@@ -8,7 +8,7 @@
 ]]
 
 local addonName, addon = ...
-sfui = sfui or {}
+local sfui = _G.sfui or {}
 sfui.tracker = sfui.tracker or {}
 sfui.questlog = sfui.questlog or {}
 
@@ -26,7 +26,7 @@ local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G
 local table_insert = _G.table.insert
 local string_format = string.format
 
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.common.issecretvalue
 
 local function GetQLState()
     if not SfuiDB then SfuiDB = {} end
@@ -121,9 +121,7 @@ function ActivitiesModule:BuildBlocks(container)
                                     if C_PerksActivities.RemoveTrackedPerksActivity then
                                         C_PerksActivities.RemoveTrackedPerksActivity(actID)
                                     end
-                                    if sfui.tracker and sfui.tracker.RequestRefresh then
-                                        sfui.tracker.RequestRefresh(0.05)
-                                    end
+                                    sfui.tracker.RequestRefresh(0.05)
                                     return
                                 end
 
@@ -132,9 +130,7 @@ function ActivitiesModule:BuildBlocks(container)
                                     st.expandedQuests = st.expandedQuests or {}
                                     local key = "perk_" .. tostring(actID)
                                     st.expandedQuests[key] = not st.expandedQuests[key]
-                                    if sfui.tracker and sfui.tracker.RequestRefresh then
-                                        sfui.tracker.RequestRefresh(0.05)
-                                    end
+                                    sfui.tracker.RequestRefresh(0.05)
                                     return
                                 end
 
@@ -211,9 +207,7 @@ function ActivitiesModule:BuildBlocks(container)
                                     if C_NeighborhoodInitiative.RemoveTrackedInitiativeTask then
                                         C_NeighborhoodInitiative.RemoveTrackedInitiativeTask(taskID)
                                     end
-                                    if sfui.tracker and sfui.tracker.RequestRefresh then
-                                        sfui.tracker.RequestRefresh(0.05)
-                                    end
+                                    sfui.tracker.RequestRefresh(0.05)
                                     return
                                 end
 
@@ -222,9 +216,7 @@ function ActivitiesModule:BuildBlocks(container)
                                     st.expandedQuests = st.expandedQuests or {}
                                     local key = "house_" .. tostring(taskID)
                                     st.expandedQuests[key] = not st.expandedQuests[key]
-                                    if sfui.tracker and sfui.tracker.RequestRefresh then
-                                        sfui.tracker.RequestRefresh(0.05)
-                                    end
+                                    sfui.tracker.RequestRefresh(0.05)
                                     return
                                 end
 

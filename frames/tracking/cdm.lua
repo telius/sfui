@@ -92,10 +92,7 @@ local function CanSaveBlizzardCDM()
     if InCombatLockdown() then
         return false
     end
-    local isClassic = (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
-        or (sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail))
-        or not (sfui.compat and sfui.compat.has and sfui.compat.has.specializations)
-    if isClassic then
+    if not sfui.isRetail then
         return false
     end
     if CooldownViewerUtil and CooldownViewerUtil.GetCurrentClassAndSpecTag then
@@ -151,8 +148,8 @@ local function OnZoneIconClick(self, button)
         SafeSaveBlizzardLayout()
 
         if not next(entries) then SfuiDB.trackedBars = {} end
-        if sfui.trackedbars and sfui.trackedbars.UpdateVisibility then sfui.trackedbars.UpdateVisibility() end
-        if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then sfui.trackedbars.ForceLayoutUpdate() end
+        sfui.trackedbars.UpdateVisibility()
+        sfui.trackedbars.ForceLayoutUpdate()
         if RefreshZones then RefreshZones() end
     else
         -- Left-side zone click: remove on right click or when clicked
@@ -166,8 +163,8 @@ local function OnZoneIconClick(self, button)
                     local specID = common.get_current_spec_id() or 0
                     SfuiDB.trackedBarsBySpec[specID] = {}
                 end
-                if sfui.trackedbars and sfui.trackedbars.UpdateVisibility then sfui.trackedbars.UpdateVisibility() end
-                if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then sfui.trackedbars.ForceLayoutUpdate() end
+                sfui.trackedbars.UpdateVisibility()
+                sfui.trackedbars.ForceLayoutUpdate()
             else
                 if entries then
                     local targetId = (type(cdID) == "table" and (cdID.cooldownID or cdID.id)) or cdID
@@ -175,18 +172,18 @@ local function OnZoneIconClick(self, button)
                         local entryId = (type(val) == "table" and (val.cooldownID or val.id)) or val
                         if entryId == targetId then
                             table.remove(entries, i)
-                            if common.invalidate_panels_cache then common.invalidate_panels_cache() end
-                            if sfui.trackedicons and sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
+                            common.invalidate_panels_cache()
+                            sfui.trackedicons.MarkDirty(true)
                             break
                         end
                     end
                 end
                 -- Update Panels
-                if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+                sfui.trackedicons.Update()
             end
-            if sfui.cdm and sfui.cdm.RefreshLayout then sfui.cdm.RefreshLayout() end
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-            if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then sfui.trackedbars.ForceLayoutUpdate() end
+            sfui.cdm.RefreshLayout()
+            sfui.trackedicons.Update()
+            sfui.trackedbars.ForceLayoutUpdate()
             if RefreshZones then RefreshZones() end
         end
     end
@@ -282,7 +279,7 @@ local function OnPreviewBarUpClick(self)
         pStore.priority = prevP
         prevPStore.priority = currentP
     end
-    if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then sfui.trackedbars.ForceLayoutUpdate() end
+    sfui.trackedbars.ForceLayoutUpdate()
     if RefreshZones then RefreshZones() end
 end
 
@@ -307,7 +304,7 @@ local function OnPreviewBarDownClick(self)
         nextPStore.priority = currentP
     end
 
-    if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then sfui.trackedbars.ForceLayoutUpdate() end
+    sfui.trackedbars.ForceLayoutUpdate()
     if RefreshZones then RefreshZones() end
 end
 
@@ -400,9 +397,7 @@ local function AcquireZoneIcon(parent)
         end
     end
 
-    if sfui.trackedicons and sfui.trackedicons.ApplyIconBorderStyle then
-        sfui.trackedicons.ApplyIconBorderStyle(icon, SfuiDB.iconGlobalSettings)
-    end
+    sfui.trackedicons.ApplyIconBorderStyle(icon, SfuiDB.iconGlobalSettings)
     -- Enforce borderless logic removed to respect user settings
 
     icon:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -446,11 +441,8 @@ local function GetSharedIconTexture(cdID)
         end
     end
 
-    if sfui.trackedicons and sfui.trackedicons.GetIconTexture then
-        local tex, _ = sfui.trackedicons.GetIconTexture(activeEntry.id, activeEntry.type, activeEntry)
-        return tex or 134400
-    end
-    return 134400
+    local tex, _ = sfui.trackedicons.GetIconTexture(activeEntry.id, activeEntry.type, activeEntry)
+    return tex or 134400
 end
 
 local function GetCooldownName(cdID, typeHint)
@@ -670,8 +662,8 @@ local function RenderTrackedBarsRightSide(parent, width)
     end
 
     local function SimpleSort(a, b)
-        local cA = sfui.trackedbars and sfui.trackedbars.GetConfig and sfui.trackedbars.GetConfig(a)
-        local cB = sfui.trackedbars and sfui.trackedbars.GetConfig and sfui.trackedbars.GetConfig(b)
+        local cA = sfui.trackedbars.GetConfig(a)
+        local cB = sfui.trackedbars.GetConfig(b)
         local pA = (cA and cA.priority) or 0
         local pB = (cB and cB.priority) or 0
         if pA ~= pB then return pA < pB end
@@ -840,9 +832,7 @@ function sfui.cdm.create_panel(parent)
     local function on_cdm_spec_changed()
         selectedPanelIndex = nil
         selectedPanelData = nil
-        if common and common.invalidate_panels_cache then
-            common.invalidate_panels_cache()
-        end
+        common.invalidate_panels_cache()
         sfui.cdm.RefreshLayout()
     end
 
@@ -947,7 +937,7 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
                 for _, cooldownID in ipairs(list) do
                     if not common.issecretvalue(cooldownID) then
                         if not IsValidID(cooldownID) then
-                            common.print("|cffff0000SFUI CDM Error:|r Skipping invalid ID " ..
+                            common.print("|cffff0000CDM Error:|r Skipping invalid ID " ..
                                 tostring(cooldownID) .. " (outside 32-bit range)")
                         else
                             local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID)
@@ -964,8 +954,8 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
                 end
             end
             sfui.cdm.RefreshLayout()
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-            if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then sfui.trackedbars.ForceLayoutUpdate() end
+            sfui.trackedicons.Update()
+            sfui.trackedbars.ForceLayoutUpdate()
         end)
         importBtn:SetPoint("TOPRIGHT", -5, -5)
         zone.importBtn = importBtn
@@ -1344,9 +1334,7 @@ local function RenderAssignmentsIconPool(parent, width, entries)
             for _, b in ipairs(icon.borders) do b:Hide() end
         end
         -- Then apply global style, which might show some borders
-        if sfui.trackedicons and sfui.trackedicons.ApplyIconBorderStyle then
-            sfui.trackedicons.ApplyIconBorderStyle(icon, SfuiDB.iconGlobalSettings)
-        end
+        sfui.trackedicons.ApplyIconBorderStyle(icon, SfuiDB.iconGlobalSettings)
 
         -- Check if it's currently assigned to THIS panel
         local isAssigned = false
@@ -1390,10 +1378,10 @@ local function RenderAssignmentsIconPool(parent, width, entries)
                     table.insert(entries, { id = cdID, type = "cooldown", cooldownID = cdID, spellID = spellID, itemID = itemID })
                 end
             end
-            if common.invalidate_panels_cache then common.invalidate_panels_cache() end
-            if sfui.trackedicons and sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
-            if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
-            if sfui.trackedoptions and sfui.trackedoptions.UpdateSettings then sfui.trackedoptions.UpdateSettings() end -- NEW
+            common.invalidate_panels_cache()
+            sfui.trackedicons.MarkDirty(true)
+            sfui.trackedicons.Update()
+            sfui.trackedoptions.UpdateSettings()
             if RefreshZones then RefreshZones() end
         end)
 
@@ -1404,9 +1392,7 @@ local function RenderAssignmentsIconPool(parent, width, entries)
         end
     end
 
-    local isClassic = (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
-        or (sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail))
-        or not (sfui.compat and sfui.compat.has and sfui.compat.has.specializations)
+    local isClassic = not sfui.isRetail
 
     if not parent._assignNoIconsLabel then
         parent._assignNoIconsLabel = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1447,13 +1433,11 @@ RefreshZones = function()
     zoneFrameCount = 0
     zoneIconCount = 0 -- Reset icon pool too
 
-    if sfui.trackedoptions.ReleaseSettingsWidgets then
-        sfui.trackedoptions.ReleaseSettingsWidgets(leftContainer)
-    end
+    sfui.trackedoptions.ReleaseSettingsWidgets(leftContainer)
     leftContainer.zoneChildren = {}
 
     -- ── Clear Right (settings) ────────────────────────────────────────────────
-    if rightContainer and sfui.trackedoptions.ReleaseSettingsWidgets then
+    if rightContainer then
         sfui.trackedoptions.ReleaseSettingsWidgets(rightContainer)
     end
 
@@ -1608,8 +1592,8 @@ local function PurgeIconFromEverywhere(targetId)
                     local entryId = (type(val) == "table" and (val.cooldownID or val.id)) or val
                     if entryId == targetId then
                         table.remove(panel.entries, i)
-                        if common.invalidate_panels_cache then common.invalidate_panels_cache() end
-                        if sfui.trackedicons and sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
+                        common.invalidate_panels_cache()
+                        sfui.trackedicons.MarkDirty(true)
                     end
                 end
             end
@@ -1680,13 +1664,13 @@ OnZoneReceiveDrag = function(zoneFrame, panelData, isTrackedBars)
     end
 
     if not incomingId then
-        common.print("|cffFF0000SFUI Error:|r Invalid Icon ID")
+        common.print("|cffff0000Error:|r Invalid Icon ID")
         return
     end
 
     -- Prevent dragging from Cooldown Panels to Tracked Bars
     if isTrackedBars and draggedInfo.originalPanelEntries and not draggedInfo.isFromTrackedBars then
-        common.print("|cffFF0000SFUI Error:|r Cannot drag icons from Cooldown Panels to Tracked Bars.")
+        common.print("|cffff0000Error:|r Cannot drag icons from Cooldown Panels to Tracked Bars.")
         return
     end
 
@@ -1698,8 +1682,8 @@ OnZoneReceiveDrag = function(zoneFrame, panelData, isTrackedBars)
             local entryId = (type(val) == "table" and (val.cooldownID or val.id)) or val
             if entryId == incomingId then
                 table.remove(source, i)
-                if common.invalidate_panels_cache then common.invalidate_panels_cache() end
-                if sfui.trackedicons and sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
+                common.invalidate_panels_cache()
+                sfui.trackedicons.MarkDirty(true)
                 break -- Only remove the dragged instance
             end
         end
@@ -1720,8 +1704,8 @@ OnZoneReceiveDrag = function(zoneFrame, panelData, isTrackedBars)
         SafeSaveBlizzardLayout()
 
         -- Update immediate
-        if sfui.trackedbars and sfui.trackedbars.UpdateVisibility then sfui.trackedbars.UpdateVisibility() end
-        if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then sfui.trackedbars.ForceLayoutUpdate() end
+        sfui.trackedbars.UpdateVisibility()
+        sfui.trackedbars.ForceLayoutUpdate()
 
         common.print("Added to Tracked Bars")
     else
@@ -1758,9 +1742,9 @@ OnZoneReceiveDrag = function(zoneFrame, panelData, isTrackedBars)
             table.insert(panelData.entries, entry)
         end
 
-        if common.invalidate_panels_cache then common.invalidate_panels_cache() end
-        if sfui.trackedicons and sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        common.invalidate_panels_cache()
+        sfui.trackedicons.MarkDirty(true)
+        sfui.trackedicons.Update()
         common.print("Added to " .. (panelData.name or "panel"))
     end
 
@@ -1785,13 +1769,11 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
         local spellID = arg3
         if (not spellID or spellID == 0) and type(arg1) == "number" then
             -- In Classic/Vanilla, arg1 is the spellbook slot index, not spellID!
-            if sfui.api and sfui.api.GetSpellBookItemSpellID then
-                spellID = sfui.api.GetSpellBookItemSpellID(arg1, arg2)
-            end
+            spellID = sfui.api.GetSpellBookItemSpellID(arg1, arg2)
             if not spellID then spellID = arg1 end
         end
         draggedSpellID = spellID
-        local isAura = common.is_known_aura_spell and common.is_known_aura_spell(spellID)
+        local isAura = common.is_known_aura_spell(spellID)
         entry = {
             id = spellID,
             type = isAura and "buff" or "spell",
@@ -1876,7 +1858,8 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
         local link = getLink and getLink(incomingId)
         common.print("Imported Spell: " .. (link or incomingId) .. " (ID: " .. incomingId .. ")")
     elseif entry.type == "item" then
-        local link = (sfui.api and sfui.api.GetItemInfo and sfui.api.GetItemInfo(incomingId) and sfui.api.GetItemInfo(incomingId).itemLink) or
+        local itemInfo = sfui.api.GetItemInfo and sfui.api.GetItemInfo(incomingId)
+        local link = (itemInfo and itemInfo.itemLink) or
             (GetItemInfo and select(2, GetItemInfo(incomingId))) or
             (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(incomingId)) or
             incomingId
@@ -1892,16 +1875,16 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
         SafeSetBlizzardCooldownCategory(incomingId, 3)
         SafeSaveBlizzardLayout()
 
-        if sfui.trackedbars and sfui.trackedbars.UpdateVisibility then sfui.trackedbars.UpdateVisibility() end
-        if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then sfui.trackedbars.ForceLayoutUpdate() end
+        sfui.trackedbars.UpdateVisibility()
+        sfui.trackedbars.ForceLayoutUpdate()
         common.print("Added to Tracked Bars and Saved")
     else
         if not panelData.entries then panelData.entries = {} end
 
         table.insert(panelData.entries, entry)
-        if common.invalidate_panels_cache then common.invalidate_panels_cache() end
-        if sfui.trackedicons and sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
-        if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+        common.invalidate_panels_cache()
+        sfui.trackedicons.MarkDirty(true)
+        sfui.trackedicons.Update()
         common.print("Added to " .. (panelData.name or "panel"))
     end
 
@@ -1957,14 +1940,14 @@ OnIconDragStop = function(self)
                         local existingId = (type(val) == "table" and (val.cooldownID or val.id)) or val
                         if existingId == cdID then
                             table.remove(entries, i)
-                            if common.invalidate_panels_cache then common.invalidate_panels_cache() end
-                            if sfui.trackedicons and sfui.trackedicons.MarkDirty then sfui.trackedicons.MarkDirty(true) end
+                            common.invalidate_panels_cache()
+                            sfui.trackedicons.MarkDirty(true)
                             break -- Only remove one instance
                         end
                     end
                 end
 
-                if sfui.trackedicons and sfui.trackedicons.Update then sfui.trackedicons.Update() end
+                sfui.trackedicons.Update()
                 common.print("Removed from Zone and Saved")
             end
         end
@@ -2017,8 +2000,6 @@ function sfui.cdm_debug_info()
     return _cdmDebug
 end
 
-if sfui.RegisterModule then
-    sfui.cdm = sfui.cdm or {}
-    sfui.cdm.GetDebugInfo = sfui.cdm_debug_info
-    sfui.RegisterModule("cdm", sfui.cdm)
-end
+sfui.cdm = sfui.cdm or {}
+sfui.cdm.GetDebugInfo = sfui.cdm_debug_info
+sfui.RegisterModule("cdm", sfui.cdm)

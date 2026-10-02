@@ -12,6 +12,7 @@ sfui.theme.RegisterTheme({
     name           = "Modern Minimalist",
     desc           = "Crisp dark slate panels with solid black borders and electric cyan & purple accents.",
     clientTag      = "retail",
+    barTexture     = "Flat",
     autoDetect     = function()
         -- Auto-detect selects Modern on Retail
         return not sfui.isForever and not (sfui.compat and sfui.compat.is_wow_forever)
@@ -43,5 +44,9 @@ sfui.theme.RegisterTheme({
     },
     lootfeed       = {
         style       = "minimal_flat",
+    },
+    bars           = {
+        style   = "thin",
+        texture = "Flat",
     },
 })

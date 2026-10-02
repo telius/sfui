@@ -547,16 +547,7 @@ function sfui.minimap.enable_button_manager(enabled)
             -- Parent to MinimapCluster instead of Minimap to avoid protected frame taint
             button_bar = CreateFrame("Frame", "sfui_minimap_button_bar", MinimapCluster, "BackdropTemplate")
             button_bar:SetSize(sfui.config.minimap.default_size, 36)
-            if sfui.theme and sfui.theme.ApplyMinimapButtonBarStyle then
-                sfui.theme.ApplyMinimapButtonBarStyle(button_bar)
-            else
-                button_bar:SetBackdrop({
-                    bgFile = "Interface/Buttons/WHITE8X8",
-                    tile = true,
-                    tileSize = 16,
-                })
-                button_bar:SetBackdropColor(0, 0, 0, 0.5) -- Semi-transparent black
-            end
+            sfui.theme.ApplyMinimapButtonBarStyle(button_bar)
         end
 
         -- Update position from saved coordinates
@@ -711,7 +702,7 @@ end
 
 function sfui.minimap.UpdateMinimapTheme()
 
-    if button_bar and sfui.theme and sfui.theme.ApplyMinimapButtonBarStyle then
+    if button_bar then
         sfui.theme.ApplyMinimapButtonBarStyle(button_bar)
     end
     if ButtonManager and ButtonManager.collectedButtons then
@@ -790,8 +781,5 @@ function sfui.minimap_debug_info()
     }
 end
 
-if sfui.RegisterModule then
-    sfui.minimap = sfui.minimap or {}
-    sfui.minimap.GetDebugInfo = sfui.minimap_debug_info
-    sfui.RegisterModule("minimap", sfui.minimap)
-end
+sfui.minimap.GetDebugInfo = sfui.minimap_debug_info
+sfui.RegisterModule("minimap", sfui.minimap)

@@ -43,7 +43,7 @@ local BreakUpLargeNumbers                            = _G.BreakUpLargeNumbers or
 local GetWorldElapsedTime                            = _G.GetWorldElapsedTime
 local GameTooltip                                    = sfui.tooltip or _G.GameTooltip
 local sfui_api                                       = sfui.api
-local issecretvalue                                  = _G.issecretvalue or function() return false end
+local issecretvalue                                  = sfui.common.issecretvalue
 local math_max, math_min, math_floor, math_ceil, math_abs = math.max, math.min, math.floor, math.ceil, math.abs
 local string_format                                  = string.format
 local table_insert, table_sort, wipe                 = table.insert, table.sort, wipe
@@ -93,19 +93,7 @@ local function DeathSortComparator(a, b)
 end
 
 local function FormatTime(secs)
-    if common and common.format_timer_clock then
-        return common.format_timer_clock(secs) or "0:00"
-    end
-    if not secs or secs < 0 then secs = 0 end
-    secs        = math_floor(secs)
-    local hours = math_floor(secs / 3600)
-    local mins  = math_floor((secs % 3600) / 60)
-    local s     = secs % 60
-    if hours > 0 then
-        return string_format("%d:%02d:%02d", hours, mins, s)
-    else
-        return string_format("%d:%02d", mins, s)
-    end
+    return common.format_timer_clock(secs) or "0:00"
 end
 
 local function MakeText(parent, fontObj, r, g2, b, a, justify)
@@ -1522,9 +1510,7 @@ local function BuildHUDFrame()
                 SfuiDB.questlogY    = y
             end
         end
-        if sfui.questlog and sfui.questlog.UpdateAnchor then
-            sfui.questlog.UpdateAnchor()
-        end
+        sfui.questlog.UpdateAnchor()
     end)
     MF.dragBar:Hide()
 
@@ -2931,9 +2917,7 @@ local function ShowHUD(forceDungeon)
     MF:ClearAllPoints()
     MF:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", posX, posY)
 
-    if sfui.SuppressBlizzardTracker then
-        sfui.SuppressBlizzardTracker()
-    end
+    sfui.SuppressBlizzardTracker()
 
     -- Apply lock state
     local isLocked = not (SfuiDB and SfuiDB.mythicHudUnlocked)
@@ -2997,9 +2981,7 @@ function sfui.mythic.ResetPosition()
         MF:ClearAllPoints()
         MF:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", mcfg.posX or -4, mcfg.posY or -4)
     end
-    if sfui.questlog and sfui.questlog.reset_position then
-        sfui.questlog.reset_position()
-    end
+    sfui.questlog.reset_position()
 end
 
 local function _OnInitRunDeferred()
@@ -3011,13 +2993,11 @@ end
 local function CheckScenarioState()
     if _isPreview then return end
 
-    if sfui.common and sfui.common.is_housing_zone and sfui.common.is_housing_zone() then
+    if sfui.common.is_housing_zone() then
         if _mode ~= nil then
             _mode = nil
             HideHUD()
-            if sfui.questlog and sfui.questlog.on_mythic_end then
-                sfui.questlog.on_mythic_end()
-            end
+            sfui.questlog.on_mythic_end()
         end
         return
     end
@@ -3038,9 +3018,7 @@ local function CheckScenarioState()
             if C_MythicPlus and C_MythicPlus.RequestMapInfo then
                 C_MythicPlus.RequestMapInfo()
             end
-            if sfui.questlog and sfui.questlog.on_mythic_start then
-                sfui.questlog.on_mythic_start()
-            end
+            sfui.questlog.on_mythic_start()
             ShowHUD()
             C_Timer.After(0.4, _OnInitRunDeferred)
         else
@@ -3054,9 +3032,7 @@ local function CheckScenarioState()
         _runCompleted = false
         _mode = nil
         HideHUD()
-        if sfui.questlog and sfui.questlog.on_mythic_end then
-            sfui.questlog.on_mythic_end()
-        end
+        sfui.questlog.on_mythic_end()
         return
     end
 
@@ -3077,9 +3053,7 @@ local function CheckScenarioState()
     if inScenario then
         if _mode ~= "dungeon" then
             _mode = "dungeon"
-            if sfui.questlog and sfui.questlog.on_mythic_start then
-                sfui.questlog.on_mythic_start()
-            end
+            sfui.questlog.on_mythic_start()
             ShowHUD(true)
         else
             UpdateInstanceState()
@@ -3088,9 +3062,7 @@ local function CheckScenarioState()
         if _mode ~= nil then
             _mode = nil
             HideHUD()
-            if sfui.questlog and sfui.questlog.on_mythic_end then
-                sfui.questlog.on_mythic_end()
-            end
+            sfui.questlog.on_mythic_end()
         end
     end
 end
@@ -3100,9 +3072,7 @@ function sfui.mythic.ShowPreview()
 
     _isPreview = true
 
-    if sfui.questlog and sfui.questlog.on_mythic_start then
-        sfui.questlog.on_mythic_start()
-    end
+    sfui.questlog.on_mythic_start()
 
     -- Restore saved position (matches objective tracker position)
     local posX = (SfuiDB and (SfuiDB.mythicHudX or SfuiDB.questlogX)) or mcfg.posX or -10
@@ -3208,9 +3178,7 @@ function sfui.mythic.HidePreview()
         MF.header:SetHeight(24)
     end
     HideHUD()
-    if sfui.questlog and sfui.questlog.on_mythic_end then
-        sfui.questlog.on_mythic_end()
-    end
+    sfui.questlog.on_mythic_end()
     CheckScenarioState()
 end
 
@@ -3239,9 +3207,7 @@ local function on_mythic_event(event, ...)
         wipe(_playerDeaths)
         CacheGroupMembers()
         SyncBlizzardRunHistory()
-        if sfui.questlog and sfui.questlog.on_mythic_start then
-            sfui.questlog.on_mythic_start()
-        end
+        sfui.questlog.on_mythic_start()
         ShowHUD()
     elseif event == "CHALLENGE_MODE_COMPLETED" then
         StopTicker()
@@ -3256,13 +3222,9 @@ local function on_mythic_event(event, ...)
         _runCompleted = false
         _mode = nil
         HideHUD()
-        if sfui.questlog and sfui.questlog.on_mythic_end then
-            sfui.questlog.on_mythic_end()
-        end
+        sfui.questlog.on_mythic_end()
     elseif event == "SCENARIO_CRITERIA_UPDATE" or event == "SCENARIO_POI_UPDATE" then
-        if sfui.SuppressBlizzardTracker then
-            sfui.SuppressBlizzardTracker()
-        end
+        sfui.SuppressBlizzardTracker()
         if _mode == "mythic" then
             UpdateInstanceState()
         else
@@ -3277,9 +3239,7 @@ local function on_mythic_event(event, ...)
         event == "ACTIVE_DELVE_DATA_UPDATE" or
         event == "SCENARIO_COMPLETED" or
         event == "SCENARIO_SPELL_UPDATE" then
-        if sfui.SuppressBlizzardTracker then
-            sfui.SuppressBlizzardTracker()
-        end
+        sfui.SuppressBlizzardTracker()
         if _mode == nil then
             local inInst = _G.IsInInstance and _G.IsInInstance()
             if not inInst then return end
@@ -3347,9 +3307,7 @@ Reg("WORLD_STATE_TIMER_STOP")
 -- Replaces Reg("UPDATE_UI_WIDGET") which would fire 10-20x/sec in city hubs.
 do
     local function _on_widget_update()
-        if sfui.SuppressBlizzardTracker then
-            sfui.SuppressBlizzardTracker()
-        end
+        sfui.SuppressBlizzardTracker()
         if _mode == nil then
             local inInst = _G.IsInInstance and _G.IsInInstance()
             if not inInst then return end
@@ -3378,8 +3336,6 @@ function sfui.mythic_debug_info()
     }
 end
 
-if sfui.RegisterModule then
-    sfui.mythic = sfui.mythic or {}
-    sfui.mythic.GetDebugInfo = sfui.mythic_debug_info
-    sfui.RegisterModule("mythic", sfui.mythic)
-end
+sfui.mythic = sfui.mythic or {}
+sfui.mythic.GetDebugInfo = sfui.mythic_debug_info
+sfui.RegisterModule("mythic", sfui.mythic)

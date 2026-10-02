@@ -20,11 +20,7 @@ sfui.options.RegisterTab({
         local white = sfui.config.colors.white
 
         local function notify_change(key, val)
-            if sfui.options and sfui.options.notify_setting_changed then
-                sfui.options.notify_setting_changed("hide", key, val)
-            elseif sfui.hide and sfui.hide.OnSettingsChanged then
-                sfui.hide:OnSettingsChanged(key, val)
-            end
+            sfui.options.notify_setting_changed("hide", key, val)
         end
 
         -- ─────────────────────────────────────────────────────────────────────
@@ -49,9 +45,7 @@ sfui.options.RegisterTab({
             "actionbars_mouseover_enabled",
             function(checked)
                 notify_change("actionbars_mouseover_enabled", checked)
-                if sfui.hide and sfui.hide.RefreshActionBars then
-                    sfui.hide.RefreshActionBars()
-                end
+                sfui.hide.RefreshActionBars()
             end,
             "hides action bars by default and smoothly reveals them on mouse hover."
         )
@@ -65,9 +59,7 @@ sfui.options.RegisterTab({
             0.0, 1.0, 0.05,
             function(val)
                 notify_change("actionbars_resting_alpha", val)
-                if sfui.hide and sfui.hide.RefreshActionBars then
-                    sfui.hide.RefreshActionBars()
-                end
+                sfui.hide.RefreshActionBars()
             end,
             "opacity of action bars when the mouse is NOT hovering (0% is completely hidden)."
         )
@@ -80,9 +72,7 @@ sfui.options.RegisterTab({
             0.1, 1.0, 0.05,
             function(val)
                 notify_change("actionbars_active_alpha", val)
-                if sfui.hide and sfui.hide.RefreshActionBars then
-                    sfui.hide.RefreshActionBars()
-                end
+                sfui.hide.RefreshActionBars()
             end,
             "opacity of action bars when hovering over them."
         )
@@ -133,7 +123,7 @@ sfui.options.RegisterTab({
                 b.key,
                 function(checked)
                     notify_change(b.key, checked)
-                    if sfui.hide and sfui.hide.RefreshActionBars then sfui.hide.RefreshActionBars() end
+                    sfui.hide.RefreshActionBars()
                 end,
                 "enables mouseover fading on this bar."
             )
@@ -149,7 +139,7 @@ sfui.options.RegisterTab({
                 b.key,
                 function(checked)
                     notify_change(b.key, checked)
-                    if sfui.hide and sfui.hide.RefreshActionBars then sfui.hide.RefreshActionBars() end
+                    sfui.hide.RefreshActionBars()
                 end,
                 "enables mouseover fading on this bar."
             )
@@ -194,9 +184,7 @@ sfui.options.RegisterTab({
                 u.key,
                 function(checked)
                     notify_change(u.key, checked)
-                    if sfui.hide and sfui.hide.ApplyAllUnitFrames then
-                        sfui.hide.ApplyAllUnitFrames()
-                    end
+                    sfui.hide.ApplyAllUnitFrames()
                 end,
                 u.tooltip
             )
@@ -212,9 +200,7 @@ sfui.options.RegisterTab({
                 u.key,
                 function(checked)
                     notify_change(u.key, checked)
-                    if sfui.hide and sfui.hide.ApplyAllUnitFrames then
-                        sfui.hide.ApplyAllUnitFrames()
-                    end
+                    sfui.hide.ApplyAllUnitFrames()
                 end,
                 u.tooltip
             )

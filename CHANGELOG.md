@@ -1,29 +1,28 @@
 # Changelog
 
-## v12.1.0-64 (2026-10-01)
+## v12.1.0-65 (2026-10-02)
 
 ### Features & Major Improvements
-- **Target Frame (`frames/bars/target.lua`)**:
-  - Implemented dedicated Target Frame for Camelot and Classic with health, power, classification tags (`[Rare]`, `[Boss]`, `+`), level difficulty coloring, and raid target markers.
-  - Added additive incoming heal prediction (`healPredBar`) and total absorbs (`absorbBar`) matching player unit frame architecture.
-  - Implemented zero-allocation action slot and spellbook range checking.
-  - Hardened unit values against engine secret numbers to prevent tainted comparison errors in combat and PvP.
+- **Theme Engine Overhaul (`frames/themes/engine.lua`, `frames/themes/camelot.lua`)**:
+  - Overhauled core theme management with dynamic theme switching, window registration (`RegisterWindow`), custom backdrop styles, border textures, status bar skins, and font presets.
+  - Implemented comprehensive Camelot theme support with classic-authentic parchment textures, ornate stone borders, and retro UI styling.
+  - Added real-time theme propagation across registered addon frames upon active theme profile changes.
 
-- **Threat Bar (`frames/bars/threat.lua`)**:
-  - Added standalone Threat Bar dynamically anchored above the player health bar in Camelot and Classic.
-  - Features real-time threat percentages, status colors (aggro, high threat, insecure), and automatic layout re-anchoring with runes and class power bars.
+- **Target Frame & Threat System Polish (`frames/bars/target.lua`, `frames/bars/threat.lua`, `frames/bars/bars.lua`)**:
+  - Refined layout, buff/debuff display, threat indicators, elite/boss dragon crests, and dynamic class/reaction power bar colors.
+  - Hardened unit values and combat comparisons against secret number comparisons to eliminate UI taint in combat and PvP.
+  - Improved vehicle seat transitions, swing timer responsiveness, and player incoming heal prediction synchronization.
 
-- **Player Health & Heal Prediction (`frames/bars/bars.lua`)**:
-  - Registered `UNIT_HEAL_PREDICTION` for immediate player incoming heal updates on cast start.
-  - Safeguarded `update_bar0` against secret value comparisons.
-  - Added dynamic bar texture synchronization for target and threat frames.
+- **Dispatcher & Event Subsystem (`dispatcher.lua`)**:
+  - Replaced single snapshot table with a re-entrant snapshot pool (`_snapPool`, `_snapDepth`) to eliminate nil-slot errors during nested event dispatching.
+  - Added defensive callback validation and universal messaging aliases (`RegisterCallback`, `RegisterMessage`, `SendMessage`).
 
-- **Fishing Automation (`frames/fishing.lua`)**:
-  - Enhanced bobber detection, audio cue amplification, automated reeling, and one-key cast/reel support.
+- **Gear, Stats & Proficiencies (`frames/gear/`)**:
+  - Enhanced item caching, weapon proficiency checks, stat score calculations, and bonus roll automation.
+  - Restored battle-tested Encounter Journal and Mythic+ loot browser architecture in `frames/gear/`.
 
-- **Gear & Stats Enhancements**:
-  - Upgraded gear comparison, highest item level tracking, and item cache lookups (`core/items.lua`, `frames/gear/highest.lua`).
-  - Added character stats calculation and refined Camelot specialization colorings (`data/stats.lua`, `frames/alts/alts_camelot.lua`).
+- **Quests & Objective Tracker (`frames/quests/`)**:
+  - Optimized quest tracker blocks, layout management, objective item usability, world quests, scenario criteria, and Camelot quest log integration.
 
-- **Options & Interface**:
-  - Added target frame and threat bar configuration toggles to `SFUI` Bars options tab.
+- **Options & Interface Controls**:
+  - Updated theme options tab, bars customization, and automation preferences.

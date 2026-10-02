@@ -12,7 +12,7 @@
 ]]
 
 local addonName, addon = ...
-sfui = sfui or {}
+local sfui = _G.sfui or {}
 sfui.tracker = sfui.tracker or {}
 sfui.questlog = sfui.questlog or {}
 
@@ -26,7 +26,7 @@ local math_floor, math_max = _G.math.floor, _G.math.max
 local table_insert = _G.table.insert
 local string_format = string.format
 
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.common.issecretvalue
 
 -- ─────────────────────────────────────────────────────────
 --  CRITERIA EXTRACTOR
@@ -209,9 +209,7 @@ function ScenariosModule:BuildBlocks(container)
                     local st = GetQLState()
                     st.expandedQuests = st.expandedQuests or {}
                     st.expandedQuests[expandKey] = not isExpanded
-                    if sfui.tracker and sfui.tracker.RequestRefresh then
-                        sfui.tracker.RequestRefresh(0.01)
-                    end
+                    sfui.tracker.RequestRefresh(0.01)
                     return
                 end
 

@@ -70,9 +70,7 @@ function sfui.cursor.initialize()
     f.OnUpdate = update_cursor_pos
 
     f:SetScript("OnHide", function()
-        if sfui.events and sfui.events.UnregisterUpdate then
-            sfui.events.UnregisterUpdate("CursorRing")
-        end
+        sfui.events.UnregisterUpdate("CursorRing")
     end)
 
     -- Initialize Color
@@ -95,16 +93,10 @@ function sfui.cursor.toggle(enabled)
     if enabled then
         f:Show()
         sfui.cursor.update_scale() -- Ensure scale is correct when shown
-        if sfui.events and sfui.events.RegisterUpdate then
-            sfui.events.RegisterUpdate("CursorRing", 0.016, f.OnUpdate)
-        else
-            f:SetScript("OnUpdate", f.OnUpdate)
-        end
+        sfui.events.RegisterUpdate("CursorRing", 0.016, f.OnUpdate)
     else
         f:Hide()
-        if sfui.events and sfui.events.UnregisterUpdate then
-            sfui.events.UnregisterUpdate("CursorRing")
-        end
+        sfui.events.UnregisterUpdate("CursorRing")
         f:SetScript("OnUpdate", nil)
     end
 end
@@ -117,11 +109,8 @@ function sfui.cursor_debug_info()
     }
 end
 
-if sfui.RegisterModule then
-    sfui.cursor = sfui.cursor or {}
-    sfui.cursor.OnSpecChanged = function(self, specID)
-        if self.UpdateColor then self.UpdateColor() end
-    end
-    sfui.cursor.GetDebugInfo = sfui.cursor_debug_info
-    sfui.RegisterModule("cursor", sfui.cursor)
+sfui.cursor.OnSpecChanged = function(self, specID)
+    if self.UpdateColor then self.UpdateColor() end
 end
+sfui.cursor.GetDebugInfo = sfui.cursor_debug_info
+sfui.RegisterModule("cursor", sfui.cursor)

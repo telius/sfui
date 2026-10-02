@@ -227,7 +227,7 @@ end
 local function toy_cd_remaining(toyID)
     if is_restricted_content() then return 0 end
 
-    local start, dur = C_Container.GetItemCooldown(toyID)
+    local start, dur = sfui.api.GetItemCooldown(toyID)
     if start and start > 0 and dur and dur > 0 then
         return start + dur - GetTime()
     end
@@ -342,10 +342,7 @@ local function disarm()
 end
 
 local function get_spec_color(specID)
-    if sfui.common and sfui.common.get_spec_color then
-        return sfui.common.get_spec_color(specID)
-    end
-    return 0.0, 0.8, 1.0, 1
+    return sfui.common.get_spec_color(specID)
 end
 
 local _, playerClass = UnitClass("player")
@@ -789,7 +786,7 @@ local function make_toy_icon(parent, toyID, label, x, y)
         local rem = toy_cd_remaining(toyID)
         local onCD = rem > 0
         if onCD then
-            local start, dur = C_Container.GetItemCooldown(toyID)
+            local start, dur = sfui.api.GetItemCooldown(toyID)
             if start and start > 0 and dur and dur > 0 then
                 if frame._lastStart ~= start or frame._lastDur ~= dur then
                     frame._lastStart = start
@@ -861,10 +858,7 @@ end
 -- Selection is saved per character in SfuiDB.hearthstone across reloads.
 -- ========================
 local function get_player_key()
-    if sfui.common and sfui.common.get_player_unique_key then
-        return sfui.common.get_player_unique_key()
-    end
-    return (UnitGUID and UnitGUID("player")) or "player"
+    return sfui.common.get_player_unique_key()
 end
 
 local function make_hearthstone_scroll_icon(parent, skinList, x, y)
@@ -932,7 +926,7 @@ local function make_hearthstone_scroll_icon(parent, skinList, x, y)
         local rem = toyID and toy_cd_remaining(toyID) or 0
         local onCD = rem > 0
         if onCD then
-            local start, dur = C_Container.GetItemCooldown(toyID)
+            local start, dur = sfui.api.GetItemCooldown(toyID)
             if start and start > 0 and dur and dur > 0 then
                 if frame._lastStart ~= start or frame._lastDur ~= dur then
                     frame._lastStart = start

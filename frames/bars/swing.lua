@@ -178,13 +178,16 @@ end
 -- ─── Initialization ─────────────────────────────────────────────────────────
 local function EnsureBarsCreated()
     if not swingBars[SWING_MAIN_HAND] then
-        CreateSwingBar("MainHandSwingBar", SWING_MAIN_HAND, "mainHand")
+        local bar = CreateSwingBar("MainHandSwingBar", SWING_MAIN_HAND, "mainHand")
+        sfui.theme.RegisterBar(bar, "swing")
     end
     if not swingBars[SWING_OFF_HAND] then
-        CreateSwingBar("OffHandSwingBar", SWING_OFF_HAND, "offHand")
+        local bar = CreateSwingBar("OffHandSwingBar", SWING_OFF_HAND, "offHand")
+        sfui.theme.RegisterBar(bar, "swing")
     end
     if not swingBars[SWING_RANGED] then
-        CreateSwingBar("RangedSwingBar", SWING_RANGED, "ranged")
+        local bar = CreateSwingBar("RangedSwingBar", SWING_RANGED, "ranged")
+        sfui.theme.RegisterBar(bar, "swing")
     end
 end
 
@@ -364,23 +367,11 @@ local function OnSwingEvent(event, ...)
         end
     elseif event == "PLAYER_IN_COMBAT_CHANGED" or event == "PLAYER_ENTER_COMBAT" or event == "PLAYER_LEAVE_COMBAT"
         or event == "START_AUTOREPEAT_SPELL" or event == "STOP_AUTOREPEAT_SPELL" then
-        if sfui.bars and sfui.bars.UpdateVisibility then
-            sfui.bars.UpdateVisibility()
-        else
-            sfui.swing.UpdateVisibility()
-        end
+        sfui.bars.UpdateVisibility()
     elseif event == "WEAPON_SLOT_CHANGED" or event == "UNIT_ATTACK_SPEED" or event == "PLAYER_ENTERING_WORLD" then
         SuppressBlizzardSwingTimer()
-        if sfui.bars and sfui.bars.UpdateVisibility then
-            sfui.bars.UpdateVisibility()
-        else
-            sfui.swing.UpdateVisibility()
-        end
-        if sfui.trackedicons and sfui.trackedicons.ForceLayoutUpdate then
-            sfui.trackedicons.ForceLayoutUpdate()
-        elseif sfui.trackedicons and sfui.trackedicons.MarkDirty then
-            sfui.trackedicons.MarkDirty(true)
-        end
+        sfui.bars.UpdateVisibility()
+        sfui.trackedicons.ForceLayoutUpdate()
     end
 end
 

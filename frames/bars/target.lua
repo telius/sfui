@@ -48,7 +48,7 @@ local UnitClassification           = _G.UnitClassification
 local GetRaidTargetIndex           = _G.GetRaidTargetIndex
 local SetRaidTargetIconTexture     = _G.SetRaidTargetIconTexture
 local GameTooltip                  = _G.GameTooltip
-local issecretvalue                = (common and common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue                = common.issecretvalue
 local GetUnitName                  = _G.GetUnitName
 local NameUtil                     = _G.NameUtil
 local C_Spell                      = _G.C_Spell
@@ -62,7 +62,10 @@ local healPredBar
 local absorbBar
 local powerBar
 local nameText
+local levelFrame
 local levelText
+local skullIcon
+local hpText
 local raidTargetIcon
 local questIcon
 local buffContainer
@@ -71,6 +74,8 @@ local debuffContainer
 -- ─── Forward Declarations ────────────────────────────────────────────────────
 local ApplyTargetPosition
 local InvalidateTargetCaches
+local UpdateTargetLevel
+local ApplyTargetStyle
 
 -- ─── Primary Texture Resolver ────────────────────────────────────────────────
 local function GetBarTexture()
@@ -259,31 +264,193 @@ local function CreateCleanBar(name, parent, width, height, padding, bgColor)
     local backdrop = CreateFrame("Frame", name .. "_Backdrop", parent, "BackdropTemplate")
     backdrop:SetSize(width + padding * 2, height + padding * 2)
     backdrop:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        tile = true,
+        bgFile   = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+        tile     = true,
         tileSize = 32,
+        insets   = { left = 0, right = 0, top = 0, bottom = 0 },
     })
     backdrop:SetBackdropColor(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 0.5)
+    backdrop:SetBackdropBorderColor(0, 0, 0, 1)
 
     local bar = CreateFrame("StatusBar", name, backdrop)
-    bar:SetSize(width, height)
-    bar:SetPoint("CENTER")
+    bar:SetPoint("TOPLEFT", backdrop, "TOPLEFT", padding, -padding)
+    bar:SetPoint("BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", -padding, padding)
     bar:SetStatusBarTexture(GetBarTexture())
     bar.backdrop = backdrop
 
     return bar
 end
 
+-- ─── Target Frame Theming (Camelot Nameplate Bezel vs Modern Minimalist Clean) ─
+ApplyTargetStyle = function(hBar, lFrame)
+    hBar = hBar or healthBar
+    lFrame = lFrame or levelFrame
+    if not hBar or not hBar.backdrop then return end
+
+    local isCamelot = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
+    local hasNameplateAtlas = sfui.theme and sfui.theme.HasAtlas and sfui.theme.HasAtlas("UI-HUD-CoolDownManager-Selected-yellow")
+    local useCamelotArtwork = isCamelot and hasNameplateAtlas
+
+    local bd = hBar.backdrop
+    local pal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()) or (sfui.config and sfui.config.appearance) or {}
+    local bgCol = pal.backdropColor or { 0.05, 0.05, 0.05, 0.85 }
+    local bdCol = pal.borderColor or { 0, 0, 0, 1 }
+
+    if useCamelotArtwork then
+        -- ═════════════════════════════════════════════════════════════════════
+        -- CAMELOT THEME: Authentic Heavy Bronze Nameplate Bezel & Badge
+        -- ═════════════════════════════════════════════════════════════════════
+        -- 1. Nameplate Bevel Background Texture
+        if not bd.nameplateBG then
+            bd.nameplateBG = bd:CreateTexture(nil, "BACKGROUND", nil, -5)
+        end
+        bd.nameplateBG:SetAtlas("UI-HUD-CoolDownManager-Bar-BG", false)
+        bd.nameplateBG:ClearAllPoints()
+        bd.nameplateBG:SetPoint("TOPLEFT", bd, "TOPLEFT", -2, 3)
+        bd.nameplateBG:SetPoint("BOTTOMRIGHT", bd, "BOTTOMRIGHT", 6, -6)
+        bd.nameplateBG:Show()
+
+        -- 2. Nameplate Golden Selected Bezel Border
+        if not bd.nameplateBorder then
+            bd.nameplateBorder = bd:CreateTexture(nil, "OVERLAY", nil, 4)
+        end
+        bd.nameplateBorder:SetAtlas("UI-HUD-CoolDownManager-Selected-yellow", false)
+        bd.nameplateBorder:ClearAllPoints()
+        -- Offsets from Blizzard NamePlateConstants.SELECTED_BORDER_OFFSETS: topLeftX = -3, topLeftY = 2, bottomRightX = 0, bottomRightY = 2
+        bd.nameplateBorder:SetPoint("TOPLEFT", bd.nameplateBG, "TOPLEFT", -3, 2)
+        bd.nameplateBorder:SetPoint("BOTTOMRIGHT", bd.nameplateBG, "BOTTOMRIGHT", 0, 2)
+        bd.nameplateBorder:Show()
+
+        -- Suppress standard flat backdrop border when nameplate border is shown
+        if bd.SetBackdropBorderColor then
+            bd:SetBackdropBorderColor(0, 0, 0, 0)
+        end
+
+        -- 3. Dedicated Level Frame Badge (Top-Right, no borders or backdrop)
+        if lFrame then
+            lFrame:Show()
+            lFrame:ClearAllPoints()
+            lFrame:SetPoint("BOTTOMRIGHT", bd, "TOPRIGHT", 0, 4)
+            lFrame:SetSize(32, 14)
+
+            -- Hide Camelot atlas textures (no borders, no backdrop)
+            if lFrame.bg then lFrame.bg:Hide() end
+            if lFrame.border then lFrame.border:Hide() end
+
+            -- Remove any frame backdrop
+            if lFrame.SetBackdrop then
+                lFrame:SetBackdrop(nil)
+            end
+            if lFrame.SetBackdropColor then
+                lFrame:SetBackdropColor(0, 0, 0, 0)
+            end
+            if lFrame.SetBackdropBorderColor then
+                lFrame:SetBackdropBorderColor(0, 0, 0, 0)
+            end
+
+            -- Align level text & skull to the right
+            if levelText then
+                levelText:ClearAllPoints()
+                levelText:SetPoint("RIGHT", lFrame, "RIGHT", 0, 0)
+                levelText:SetJustifyH("RIGHT")
+            end
+            if skullIcon then
+                skullIcon:ClearAllPoints()
+                skullIcon:SetPoint("RIGHT", lFrame, "RIGHT", 0, 0)
+            end
+        end
+    else
+        -- ═════════════════════════════════════════════════════════════════════
+        -- MODERN MINIMALIST: Clean Flat Bars Matching bars.lua (bar0)
+        -- ═════════════════════════════════════════════════════════════════════
+        -- Hide all Camelot nameplate artwork
+        if bd.nameplateBG then bd.nameplateBG:Hide() end
+        if bd.nameplateBorder then bd.nameplateBorder:Hide() end
+        if lFrame and lFrame.border then lFrame.border:Hide() end
+        if lFrame and lFrame.bg then lFrame.bg:Hide() end
+
+        -- Apply crisp 1px solid black border & dark slate backdrop (identical to bars.lua)
+        if bd.SetBackdrop then
+            bd:SetBackdrop({
+                bgFile   = "Interface\\Buttons\\WHITE8X8",
+                edgeFile = "Interface\\Buttons\\WHITE8X8",
+                edgeSize = 1,
+                insets   = { left = 0, right = 0, top = 0, bottom = 0 },
+            })
+            bd:SetBackdropColor(bgCol[1], bgCol[2], bgCol[3], bgCol[4] or 0.85)
+            bd:SetBackdropBorderColor(bdCol[1], bdCol[2], bdCol[3], bdCol[4] or 1)
+        end
+
+        -- Clean flat level badge matching the healthbar style
+        if lFrame then
+            lFrame:ClearAllPoints()
+            lFrame:SetPoint("LEFT", bd, "RIGHT", 2, 0)
+            local barH = (sfui.config and sfui.config.targetBar and sfui.config.targetBar.height) or 16
+            local pad = (sfui.config and sfui.config.targetBar and sfui.config.targetBar.backdrop and sfui.config.targetBar.backdrop.padding) or 1
+            lFrame:SetSize(24, barH + pad * 2)
+
+            if lFrame.SetBackdrop then
+                lFrame:SetBackdrop({
+                    bgFile   = "Interface\\Buttons\\WHITE8X8",
+                    edgeFile = "Interface\\Buttons\\WHITE8X8",
+                    edgeSize = 1,
+                    insets   = { left = 0, right = 0, top = 0, bottom = 0 },
+                })
+                lFrame:SetBackdropColor(bgCol[1], bgCol[2], bgCol[3], bgCol[4] or 0.85)
+                lFrame:SetBackdropBorderColor(bdCol[1], bdCol[2], bdCol[3], bdCol[4] or 1)
+            end
+
+            if levelText then
+                levelText:ClearAllPoints()
+                levelText:SetPoint("CENTER", lFrame, "CENTER", 0, 0)
+                levelText:SetJustifyH("CENTER")
+            end
+            if skullIcon then
+                skullIcon:ClearAllPoints()
+                skullIcon:SetPoint("CENTER", lFrame, "CENTER", 0, 0)
+            end
+        end
+    end
+
+    -- Style the power bar backdrop to match
+    if powerBar and powerBar.backdrop and powerBar.backdrop.SetBackdrop then
+        powerBar.backdrop:SetBackdrop({
+            bgFile   = "Interface\\Buttons\\WHITE8X8",
+            edgeFile = "Interface\\Buttons\\WHITE8X8",
+            edgeSize = 1,
+            insets   = { left = 0, right = 0, top = 0, bottom = 0 },
+        })
+        powerBar.backdrop:SetBackdropColor(bgCol[1], bgCol[2], bgCol[3], bgCol[4] or 0.85)
+        powerBar.backdrop:SetBackdropBorderColor(bdCol[1], bdCol[2], bdCol[3], bdCol[4] or 1)
+    end
+
+    -- Adjust container width to avoid right overhang when level is on the top-right
+    if targetContainer and not (_G.InCombatLockdown and _G.InCombatLockdown()) then
+        local barW = (sfui.config and sfui.config.targetBar and sfui.config.targetBar.width) or 190
+        local pad = (sfui.config and sfui.config.targetBar and sfui.config.targetBar.backdrop and sfui.config.targetBar.backdrop.padding) or 1
+        local newW = useCamelotArtwork and (barW + pad * 2) or (barW + 28 + 5 + pad * 2)
+        targetContainer:SetWidth(newW)
+    end
+
+    -- Re-apply current bar texture (e.g. Flat for Modern, Blizzard Nameplate for Camelot)
+    sfui.target.SetBarTexture()
+
+    -- Refresh level display so skull icon / text updates
+    if UpdateTargetLevel then
+        UpdateTargetLevel()
+    end
+end
+
 -- ─── Player Health Bar Anchor Helper ─────────────────────────────────────────
 local cachedPlayerHealthBar
 local function GetPlayerHealthBar()
     if cachedPlayerHealthBar then return cachedPlayerHealthBar end
-    if sfui.bars and sfui.bars.get_bar0 then
-        local bar = sfui.bars.get_bar0()
-        if bar and bar.backdrop then
-            cachedPlayerHealthBar = bar.backdrop
-            return bar.backdrop
-        end
+    local bar = sfui.bars.get_bar0()
+    if bar and bar.backdrop then
+        cachedPlayerHealthBar = bar.backdrop
+        return bar.backdrop
     end
     local bar0 = _G.sfui_bar0_Backdrop or _G.sfui_bar0
     cachedPlayerHealthBar = bar0
@@ -294,16 +461,21 @@ ApplyTargetPosition = function()
     if not targetContainer then return end
     targetContainer:ClearAllPoints()
 
-    local playerBar = GetPlayerHealthBar()
     local savedPos = SfuiDB and SfuiDB.targetBar_pos
 
     if savedPos and savedPos.isCustom and savedPos.point and savedPos.x and savedPos.y then
         targetContainer:SetPoint(savedPos.point, UIParent, savedPos.point, savedPos.x, savedPos.y)
-    elseif playerBar then
-        targetContainer:SetPoint("TOPLEFT", playerBar, "TOPRIGHT", 8, 18)
     else
-        local pos = cfg.pos or { point = "CENTER", x = 160, y = 0 }
-        targetContainer:SetPoint(pos.point or "CENTER", UIParent, pos.point or "CENTER", pos.x or 160, pos.y or 0)
+        local tCfg = (sfui.config and sfui.config.targetBar) or cfg
+        local pos = (tCfg and tCfg.pos) or { point = "TOP", x = 0, y = -35 }
+        if pos.relativeTo == "playerHealthBar" then
+            local playerBar = GetPlayerHealthBar()
+            if playerBar then
+                targetContainer:SetPoint(pos.point or "TOPLEFT", playerBar, pos.relativePoint or "TOPRIGHT", pos.x or 8, pos.y or 18)
+                return
+            end
+        end
+        targetContainer:SetPoint(pos.point or "TOP", UIParent, pos.point or "TOP", pos.x or 0, pos.y or -35)
     end
 end
 
@@ -327,11 +499,11 @@ local function UpdateLayoutAnchors(force)
 
     if buffContainer then
         buffContainer:ClearAllPoints()
-        buffContainer:SetPoint("TOPLEFT", lastAnchor, "BOTTOMLEFT", 0, -4)
+        buffContainer:SetPoint("TOPLEFT", lastAnchor, "BOTTOMLEFT", 0, -5)
     end
     if debuffContainer then
         debuffContainer:ClearAllPoints()
-        debuffContainer:SetPoint("TOPRIGHT", lastAnchor, "BOTTOMRIGHT", 0, -4)
+        debuffContainer:SetPoint("TOPRIGHT", lastAnchor, "BOTTOMRIGHT", 0, -5)
     end
 end
 
@@ -432,21 +604,20 @@ local function UpdateTargetHealth()
         local absorbAmount = (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs("target")) or 0
         absorbBar:SetValue(absorbAmount)
         local absorbColor = SfuiDB and SfuiDB.absorbBarColor or (sfui.config and sfui.config.healthBar and sfui.config.healthBar.absorbBarColor)
-        if absorbColor and common and common.unpack_color then
+        if absorbColor then
             absorbBar:SetStatusBarColor(common.unpack_color(absorbColor))
         else
             absorbBar:SetStatusBarColor(0.85, 0.80, 0.65, 0.70)
         end
     end
 
-    -- Target Status, Classification & Health Text
-    if levelText then
+    -- Target Status & Health Text
+    if hpText then
         if UnitIsDeadOrGhost("target") then
-            levelText:SetText("|cffff3333Dead|r")
+            hpText:SetText("|cffff3333Dead|r")
         elseif not UnitIsConnected("target") then
-            levelText:SetText("|cff888888Offline|r")
+            hpText:SetText("|cff888888Offline|r")
         else
-            local prefix = GetTargetLvlPrefix()
             local pctFormatted
             if not isSecret then
                 local cur = type(curHp) == "number" and curHp or tonumber(curHp)
@@ -456,10 +627,51 @@ local function UpdateTargetHealth()
                 end
             end
             if pctFormatted then
-                levelText:SetFormattedText("%s (%d%%)", prefix, pctFormatted)
+                hpText:SetFormattedText("%d%%", pctFormatted)
             else
-                levelText:SetText(prefix)
+                hpText:SetText("")
             end
+        end
+    end
+end
+
+UpdateTargetLevel = function()
+    if not levelFrame or not UnitExists("target") then return end
+
+    local lvl = UnitLevel("target")
+    local isLvlSecret = issecretvalue(lvl)
+    local classification = UnitClassification and UnitClassification("target")
+
+    local isCamelot = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
+    local hasNameplateAtlas = sfui.theme and sfui.theme.HasAtlas and sfui.theme.HasAtlas("ui-hud-nameplates-levelindicator-skull")
+    local useCamelotSkull = isCamelot and hasNameplateAtlas
+
+    if isLvlSecret or not lvl or (type(lvl) == "number" and lvl <= 0) or classification == "worldboss" then
+        if skullIcon then
+            if useCamelotSkull then
+                skullIcon:SetAtlas("ui-hud-nameplates-levelindicator-skull", false)
+            else
+                skullIcon:SetTexture("Interface\\TargetingFrame\\UI-TargetingFrame-Skull")
+            end
+            skullIcon:Show()
+            if levelText then levelText:SetText("") end
+        else
+            if levelText then
+                levelText:SetText("|cffff3333??|r")
+                levelText:SetTextColor(1, 0.2, 0.2)
+            end
+        end
+    else
+        if skullIcon then skullIcon:Hide() end
+        if levelText then
+            local diff = GetCreatureDifficultyColor and GetCreatureDifficultyColor(lvl)
+            local r, g, b = (diff and diff.r) or 1, (diff and diff.g) or 1, (diff and diff.b) or 1
+            local classTag = ""
+            if classification == "elite" or classification == "rareelite" then
+                classTag = "+"
+            end
+            levelText:SetFormattedText("%d%s", lvl, classTag)
+            levelText:SetTextColor(r, g, b)
         end
     end
 end
@@ -554,16 +766,11 @@ local function IsTargetQuestObjective()
 end
 
 local function UpdateQuestIndicator()
-    if not questIcon or not nameText or not healthBar or not healthBar.backdrop then return end
+    if not questIcon then return end
     if not UnitExists("target") or UnitIsPlayer("target") or UnitIsDeadOrGhost("target") then
         if lastQuestState ~= false then
             lastQuestState = false
             questIcon:Hide()
-            nameText:ClearAllPoints()
-            nameText:SetPoint("BOTTOMLEFT", healthBar.backdrop, "TOPLEFT", 0, 3)
-            if levelText then
-                nameText:SetPoint("RIGHT", levelText, "LEFT", -4, 0)
-            end
         end
         return
     end
@@ -573,18 +780,8 @@ local function UpdateQuestIndicator()
         lastQuestState = isQuest
         if isQuest then
             questIcon:Show()
-            nameText:ClearAllPoints()
-            nameText:SetPoint("BOTTOMLEFT", questIcon, "BOTTOMRIGHT", 2, 0)
-            if levelText then
-                nameText:SetPoint("RIGHT", levelText, "LEFT", -4, 0)
-            end
         else
             questIcon:Hide()
-            nameText:ClearAllPoints()
-            nameText:SetPoint("BOTTOMLEFT", healthBar.backdrop, "TOPLEFT", 0, 3)
-            if levelText then
-                nameText:SetPoint("RIGHT", levelText, "LEFT", -4, 0)
-            end
         end
     end
 end
@@ -724,41 +921,47 @@ end
 local function GetTargetDisplayName()
     if not UnitExists("target") then return "" end
 
+    local fullName
     if NameUtil and NameUtil.FormatUnitNameForDisplay then
         local displayName = NameUtil.FormatUnitNameForDisplay("target")
-        if displayName then
-            if issecretvalue(displayName) then
-                return displayName
-            elseif displayName ~= "" then
-                return displayName
-            end
+        if displayName and not issecretvalue(displayName) and displayName ~= "" then
+            fullName = displayName
         end
     end
 
-    if GetUnitName then
+    if not fullName and GetUnitName then
         local displayName = GetUnitName("target", true)
-        if displayName then
-            if issecretvalue(displayName) then
-                return displayName
-            elseif displayName ~= "" then
-                return displayName
-            end
+        if displayName and not issecretvalue(displayName) and displayName ~= "" then
+            fullName = displayName
         end
     end
 
-    local name, surname = UnitName("target")
-    if not name then return "" end
-    if issecretvalue(name) then
-        return name
-    end
-    if name == "" then return "" end
+    if not fullName then
+        local name, surname = UnitName("target")
+        if not name then return "" end
+        if issecretvalue(name) then
+            return name
+        end
+        if name == "" then return "" end
 
-    if surname and not issecretvalue(surname) and surname ~= "" then
-        local sep = (_G.Constants and _G.Constants.CharacterNameSeparatorConsts and _G.Constants.CharacterNameSeparatorConsts.CHARACTERNAME_SURNAME_SEPARATOR) or " "
-        return name .. sep .. surname
+        if surname and not issecretvalue(surname) and surname ~= "" then
+            local sep = (_G.Constants and _G.Constants.CharacterNameSeparatorConsts and _G.Constants.CharacterNameSeparatorConsts.CHARACTERNAME_SURNAME_SEPARATOR) or " "
+            fullName = name .. sep .. surname
+        else
+            fullName = name
+        end
     end
 
-    return name
+    local c = UnitClassification and UnitClassification("target")
+    if c == "rare" then
+        fullName = fullName .. " |cffcccccc[Rare]|r"
+    elseif c == "rareelite" then
+        fullName = fullName .. " |cffffcc00[Rare+]|r"
+    elseif c == "worldboss" then
+        fullName = fullName .. " |cffff2222[Boss]|r"
+    end
+
+    return fullName
 end
 
 local lastDisplayName, lastTapDeniedState
@@ -815,6 +1018,7 @@ local function UpdateAll(isTargetChange)
     end
     UpdateTargetInfo()
     UpdateTargetHealth()
+    UpdateTargetLevel()
     UpdateTargetPower()
     UpdateRaidTargetMarker()
     UpdateQuestIndicator()
@@ -841,6 +1045,7 @@ local function OnTargetUnitEvent(event, unit)
         end
         UpdateTargetInfo()
         UpdateTargetHealth()
+        UpdateTargetLevel()
     end
 end
 
@@ -859,20 +1064,31 @@ end
 local function CreateTargetFrame()
     if targetContainer then return targetContainer end
 
-    local barW = (SfuiDB and SfuiDB.targetBar_width) or cfg.width or 200
-    if barW == 300 then
-        barW = 200
-        if SfuiDB then SfuiDB.targetBar_width = 200 end
+    local tCfg = (sfui.config and sfui.config.targetBar) or cfg
+    local barW = (SfuiDB and SfuiDB.targetBar_width) or tCfg.width or 190
+    if barW == 200 or barW == 300 or barW == 400 then
+        barW = 190
+        if SfuiDB then SfuiDB.targetBar_width = 190 end
     end
-    local barH = (SfuiDB and SfuiDB.targetBar_height) or cfg.height or 20
-    local pwrH = (SfuiDB and SfuiDB.targetBar_powerHeight) or cfg.powerHeight or 5
-    local pad  = (cfg.backdrop and cfg.backdrop.padding) or 2
-    local bgCol = (cfg.backdrop and cfg.backdrop.color) or { 0, 0, 0, 0.5 }
+    local barH = (SfuiDB and SfuiDB.targetBar_height) or tCfg.height or 16
+    if barH == 12 or barH == 20 then
+        barH = 16
+        if SfuiDB then SfuiDB.targetBar_height = 16 end
+    end
+    local pwrH = (SfuiDB and SfuiDB.targetBar_powerHeight) or tCfg.powerHeight or 3
+    if pwrH == 5 then
+        pwrH = 3
+        if SfuiDB then SfuiDB.targetBar_powerHeight = 3 end
+    end
+    local pad  = (tCfg.backdrop and tCfg.backdrop.padding) or 1
+    local bgCol = (tCfg.backdrop and tCfg.backdrop.color) or { 0, 0, 0, 0.5 }
     local barTex = GetBarTexture()
 
     -- 1. Main Secure Action Button Container
+    -- Size accounts for 190px healthBar + 5px gap + 28px level badge + padding
+    local totalW = barW + 28 + 5 + pad * 2
     local f = CreateFrame("Button", "SfuiTargetFrame", UIParent, "SecureActionButtonTemplate")
-    f:SetSize(barW + pad * 2, barH + pwrH + 48)
+    f:SetSize(totalW, barH + pwrH + 54)
     f:SetFrameStrata("MEDIUM")
     f:SetClampedToScreen(true)
 
@@ -898,7 +1114,7 @@ local function CreateTargetFrame()
             local pt, _, _, x, y = self:GetPoint()
             SfuiDB = SfuiDB or {}
             SfuiDB.targetBar_pos = {
-                point = pt or "CENTER",
+                point = pt or "TOP",
                 x = math_floor(x + 0.5),
                 y = math_floor(y + 0.5),
                 isCustom = true,
@@ -908,16 +1124,22 @@ local function CreateTargetFrame()
 
     targetContainer = f
 
-    -- Migrate legacy coordinates from previous defaults
-    if SfuiDB and SfuiDB.targetBar_pos and (SfuiDB.targetBar_pos.y == -200 or SfuiDB.targetBar_pos.y == -100 or not SfuiDB.targetBar_pos.isCustom) then
+    -- Migrate legacy coordinates to new top-of-screen default
+    if SfuiDB and SfuiDB.targetBar_pos and (
+        not SfuiDB.targetBar_pos.isCustom or
+        SfuiDB.targetBar_pos.point == "TOPLEFT" or
+        SfuiDB.targetBar_pos.point == "CENTER" or
+        SfuiDB.targetBar_pos.y == -200 or
+        SfuiDB.targetBar_pos.y == -100
+    ) then
         SfuiDB.targetBar_pos = nil
     end
 
     ApplyTargetPosition()
 
-    -- 2. Clean Health Bar (Matching bar0 in bars.lua)
+    -- 2. Clean Health Bar (Matching Blizzard NamePlate dimensions & positioning)
     healthBar = CreateCleanBar("SfuiTargetHealthBar", f, barW, barH, pad, bgCol)
-    healthBar.backdrop:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -18)
+    healthBar.backdrop:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -22)
 
     -- Heal Prediction Bar (Identical logic to bars.lua)
     healPredBar = CreateFrame("StatusBar", nil, healthBar)
@@ -937,44 +1159,71 @@ local function CreateTargetFrame()
         absorbBar:GetStatusBarTexture():SetBlendMode("ADD")
     end
 
-    -- 3. Level & Status Text (Top Right above bar)
-    levelText = f:CreateFontString(nil, "OVERLAY", nil, 2)
-    levelText:SetFont(GetFontPath(), 11, "")
-    levelText:SetShadowOffset(0, 0)
-    levelText:SetShadowColor(0, 0, 0, 0)
-    levelText:SetPoint("BOTTOMRIGHT", healthBar.backdrop, "TOPRIGHT", 0, 3)
+    -- 3. Dedicated Level Frame Badge (Pill on the right of the health bar)
+    levelFrame = CreateFrame("Frame", "SfuiTargetLevelFrame", f, "BackdropTemplate")
+    levelFrame:SetSize(28, barH)
+    levelFrame:SetPoint("LEFT", healthBar.backdrop, "RIGHT", 5, 0)
+
+    levelText = levelFrame:CreateFontString(nil, "OVERLAY", nil, 5)
+    levelText:SetFont(GetFontPath(), 11, "OUTLINE")
+    levelText:SetShadowOffset(1, -1)
+    levelText:SetShadowColor(0, 0, 0, 0.8)
+    levelText:SetPoint("CENTER", levelFrame, "CENTER", 0, 0)
+    levelText:SetJustifyH("CENTER")
     levelText:SetTextColor(1, 1, 1)
 
-    -- 4. Target Name (Top Left above bar, constrained to avoid overlapping level text)
+    skullIcon = levelFrame:CreateTexture(nil, "OVERLAY", nil, 5)
+    skullIcon:SetSize(14, 14)
+    skullIcon:SetPoint("CENTER", levelFrame, "CENTER", 0, 0)
+    if sfui.theme.HasAtlas("ui-hud-nameplates-levelindicator-skull") then
+        skullIcon:SetAtlas("ui-hud-nameplates-levelindicator-skull", false)
+    else
+        skullIcon:SetTexture("Interface\\TargetingFrame\\UI-TargetingFrame-Skull")
+    end
+    skullIcon:Hide()
+
+    -- 4. Health Percentage Text (Inside Health Bar)
+    hpText = healthBar:CreateFontString(nil, "OVERLAY", nil, 5)
+    hpText:SetFont(GetFontPath(), 10, "OUTLINE")
+    hpText:SetShadowOffset(1, -1)
+    hpText:SetShadowColor(0, 0, 0, 0.8)
+    hpText:SetPoint("CENTER", healthBar, "CENTER", 0, 0)
+    hpText:SetJustifyH("CENTER")
+    hpText:SetTextColor(1, 1, 1)
+
+    -- 5. Target Name (Centered above health bar)
     nameText = f:CreateFontString(nil, "OVERLAY", nil, 2)
-    nameText:SetFont(GetFontPath(), 11, "")
-    nameText:SetShadowOffset(0, 0)
-    nameText:SetShadowColor(0, 0, 0, 0)
-    nameText:SetPoint("BOTTOMLEFT", healthBar.backdrop, "TOPLEFT", 0, 3)
-    nameText:SetPoint("RIGHT", levelText, "LEFT", -4, 0)
-    nameText:SetJustifyH("LEFT")
+    nameText:SetFont(GetFontPath(), 11, "OUTLINE")
+    nameText:SetShadowOffset(1, -1)
+    nameText:SetShadowColor(0, 0, 0, 0.8)
+    nameText:SetPoint("BOTTOM", healthBar.backdrop, "TOP", 0, 4)
+    nameText:SetJustifyH("CENTER")
     nameText:SetWordWrap(false)
     nameText:SetTextColor(1, 1, 1)
 
-    -- 5. Clean Power Bar (Underneath Health Bar)
+    -- 6. Clean Power Bar (Underneath Health Bar)
     powerBar = CreateCleanBar("SfuiTargetPowerBar", f, barW, pwrH, pad, bgCol)
     powerBar.backdrop:SetPoint("TOPLEFT", healthBar.backdrop, "BOTTOMLEFT", 0, -2)
+    powerBar.backdrop:SetPoint("TOPRIGHT", healthBar.backdrop, "BOTTOMRIGHT", 0, -2)
 
-    -- 6. Raid Target Marker (Centered on top of health bar)
-    raidTargetIcon = healthBar:CreateTexture(nil, "OVERLAY", nil, 7)
+    -- 7. Raid Target Marker (Centered above target name)
+    raidTargetIcon = f:CreateTexture(nil, "OVERLAY", nil, 7)
     raidTargetIcon:SetSize(16, 16)
-    raidTargetIcon:SetPoint("CENTER", healthBar, "TOP", 0, 1)
+    raidTargetIcon:SetPoint("BOTTOM", nameText, "TOP", 0, 2)
     raidTargetIcon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
     raidTargetIcon:Hide()
 
-    -- 7. Quest Mob Indicator (Left of target name)
+    -- 8. Quest Mob Indicator (Left of centered target name)
     questIcon = f:CreateTexture(nil, "OVERLAY", nil, 6)
     questIcon:SetSize(14, 14)
     questIcon:SetTexture("Interface\\TargetingFrame\\PortraitQuestBadge")
-    questIcon:SetPoint("BOTTOMLEFT", healthBar.backdrop, "TOPLEFT", 0, 2)
+    questIcon:SetPoint("RIGHT", nameText, "LEFT", -4, 0)
     questIcon:Hide()
 
-    -- 8. Aura Containers (Native AuraContainer - Positive & Negative Buckets)
+    -- Apply theme styling (Clean flat bars for Modern Minimalist, Nameplate bezel for Camelot)
+    ApplyTargetStyle(healthBar, levelFrame)
+
+    -- 9. Aura Containers (Native AuraContainer - Positive & Negative Buckets)
     local auraCfg = cfg.auras or {}
     local spacing = auraCfg.spacing or 2
     local size = auraCfg.size or 18
@@ -1016,7 +1265,7 @@ local function CreateTargetFrame()
     })
     debuffContainer:Show()
 
-    -- 9. Range Ticker (Out-of-range alpha dimming)
+    -- 10. Range Ticker (Out-of-range alpha dimming)
     local rangeElapsed = 0
     f:SetScript("OnUpdate", function(self, elapsed)
         rangeElapsed = rangeElapsed + elapsed
@@ -1031,6 +1280,10 @@ local function CreateTargetFrame()
 
     UpdateLayoutAnchors()
 
+    -- Register health & power bars with the theme engine
+    sfui.theme.RegisterBar(healthBar, "target")
+    sfui.theme.RegisterBar(powerBar, "target")
+
     return f
 end
 
@@ -1039,8 +1292,13 @@ function sfui.target.Unlock()
     sfui.target.unlocked = true
     if targetContainer then
         targetContainer:Show()
-        nameText:SetText("|cff00ff00[Target Bar - Drag to Move]|r")
-        levelText:SetText("|cff00ff00(Shift+Drag)|r")
+        nameText:SetText("|cff00ff00Target Bar (Drag to Move)|r")
+        if hpText then hpText:SetText("70%") end
+        if levelText then
+            levelText:SetText("20")
+            levelText:SetTextColor(1, 0.82, 0)
+        end
+        if skullIcon then skullIcon:Hide() end
         healthBar:SetMinMaxValues(0, 100)
         healthBar:SetValue(70)
         healthBar:SetStatusBarColor(0.85, 0.22, 0.22)
@@ -1070,6 +1328,16 @@ function sfui.target.ResetPosition()
     SfuiDB.targetBar_pos = nil
     ApplyTargetPosition()
 end
+
+function sfui.target.UpdateTheme()
+    if healthBar and healthBar.backdrop then
+        ApplyTargetStyle(healthBar, levelFrame)
+    end
+end
+
+sfui.events.RegisterMessage("SFUI_THEME_CHANGED", function()
+    sfui.target.UpdateTheme()
+end)
 
 function sfui.target.UpdateVisibility()
     if SfuiDB and SfuiDB.enableTargetBar == false then

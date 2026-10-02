@@ -53,7 +53,7 @@ local function GetDebug(globalName, modName)
             return res
         end
     end
-    if sfui.modules and modName and sfui.modules[modName] and sfui.modules[modName].GetDebugInfo then
+    if modName and sfui.modules[modName] and sfui.modules[modName].GetDebugInfo then
         local ok, res = pcall(function() return sfui.modules[modName]:GetDebugInfo() end)
         if ok and type(res) == "table" then
             return res
@@ -393,25 +393,27 @@ function sfui.mem.GetModuleStats()
     end
     stats["currency"] = currMod
 
-    -- Loot Spec & Browser Module
-    local lootMod = {
-        name = "loot spec & browser",
-        status = "|cff888888idle|r",
-        line1 = "auto-swap: off • default: current",
-        line2 = "browser: none • cards: 0 • icons: 0",
-    }
-    local l = GetDebug("lootspec_debug_info", "lootspec")
-    if l then
-        lootMod.status = l.enabled and "|cff00ff88enabled|r" or "|cff888888disabled|r"
-        local defName = "current"
-        if l.defaultSpec and l.defaultSpec ~= 0 then
-            local n = sfui.common and sfui.common.get_spec_name and sfui.common.get_spec_name(l.defaultSpec)
-            if n then defName = n end
+    if sfui.isRetail then
+        -- Loot Spec & Browser Module
+        local lootMod = {
+            name = "loot spec & browser",
+            status = "|cff888888idle|r",
+            line1 = "auto-swap: off • default: current",
+            line2 = "browser: none • cards: 0 • icons: 0",
+        }
+        local l = GetDebug("lootspec_debug_info", "lootspec")
+        if l then
+            lootMod.status = l.enabled and "|cff00ff88enabled|r" or "|cff888888disabled|r"
+            local defName = "current"
+            if l.defaultSpec and l.defaultSpec ~= 0 then
+                local n = sfui.common.get_spec_name(l.defaultSpec)
+                if n then defName = n end
+            end
+            lootMod.line1 = string_format("auto-swap: %s • default: %s", l.enabled and "|cff00ff88on|r" or "|cff888888off|r", defName)
+            lootMod.line2 = string_format("browser: %s • cards: %d • icons: %d", l.frameShown and "|cff00ff88open|r" or (l.frameCreated and "ready" or "none"), tonumber(l.cardPoolCount) or 0, tonumber(l.iconPoolCount) or 0)
         end
-        lootMod.line1 = string_format("auto-swap: %s • default: %s", l.enabled and "|cff00ff88on|r" or "|cff888888off|r", defName)
-        lootMod.line2 = string_format("browser: %s • cards: %d • icons: %d", l.frameShown and "|cff00ff88open|r" or (l.frameCreated and "ready" or "none"), tonumber(l.cardPoolCount) or 0, tonumber(l.iconPoolCount) or 0)
+        stats["lootspec"] = lootMod
     end
-    stats["lootspec"] = lootMod
 
     -- Location & Keystone Reminder Module
     local locMod = {
@@ -439,7 +441,7 @@ function sfui.mem.GetModuleStats()
     if cdm then
         cdmMod.status = cdm.frameShown and "|cff00ff88editor open|r" or (cdm.frameCreated and "|cff888888ready|r" or "|cff888888idle|r")
         cdmMod.line1 = string_format("editor frame: %s (shown: %s)", cdm.frameCreated and "ready" or "none", cdm.frameShown and "yes" or "no")
-        local blizzHidden = sfui.common and sfui.common.are_blizzard_cooldown_viewers_hidden and sfui.common.are_blizzard_cooldown_viewers_hidden()
+        local blizzHidden = sfui.common.are_blizzard_cooldown_viewers_hidden()
         cdmMod.line2 = string_format("active zones: %d • blizz hidden: %s", tonumber(cdm.activeZones) or 0, blizzHidden and "|cff00ff88yes|r" or "|cffff4444no|r")
     end
     stats["cdm"] = cdmMod
@@ -528,19 +530,21 @@ function sfui.mem.GetModuleStats()
     end
     stats["hammer"] = hamStats
 
-    -- Bonus Roll & Vault Module
-    local brStats = {
-        name = "bonus roll & vault",
-        status = "|cff888888idle|r",
-        line1 = "pending rolls: 0",
-        line2 = "engine: keystone/loot mappings",
-    }
-    local br = GetDebug("bonusroll_debug_info", "bonusroll")
-    if br then
-        brStats.status = "|cff00ff88ready|r"
-        brStats.line1 = string_format("pending rolls: %d • checked: %s", tonumber(br.pendingRolls) or 0, br.checked and "yes" or "no")
+    if sfui.isRetail then
+        -- Bonus Roll & Vault Module
+        local brStats = {
+            name = "bonus roll & vault",
+            status = "|cff888888idle|r",
+            line1 = "pending rolls: 0",
+            line2 = "engine: keystone/loot mappings",
+        }
+        local br = GetDebug("bonusroll_debug_info", "bonusroll")
+        if br then
+            brStats.status = "|cff00ff88ready|r"
+            brStats.line1 = string_format("pending rolls: %d • checked: %s", tonumber(br.pendingRolls) or 0, br.checked and "yes" or "no")
+        end
+        stats["bonusroll"] = brStats
     end
-    stats["bonusroll"] = brStats
 
     return stats
 end
@@ -598,9 +602,7 @@ sfui.mem.RecordAllocation = RecordAllocation
 local function StopWatcher()
     if not watcherActive then return end
     watcherActive = false
-    if sfui.events and sfui.events.SetMemProfiling then
-        sfui.events.SetMemProfiling(false)
-    end
+    sfui.events.SetMemProfiling(false)
     if watcherTimer then
         watcherTimer:Cancel()
         watcherTimer = nil
@@ -694,9 +696,7 @@ function sfui.mem.StartWatcher(duration)
     watcherStartLuaMem = collectgarbage("count")
     watcherStartTime = GetTime()
     watcherActive = true
-    if sfui.events and sfui.events.SetMemProfiling then
-        sfui.events.SetMemProfiling(true)
-    end
+    sfui.events.SetMemProfiling(true)
 
     print(PREFIX .. string_format("|cff00ff88starting memory allocation watcher for %d seconds...|r", duration))
 
@@ -746,12 +746,24 @@ local leaderboardRows = {}
 local activeTab = "modules"
 
 local MODULE_ORDER = {
-    "dispatcher", "quests", "mythic", "trackedbars", "trackedicons", "bars",
-    "soulfragments", "gear", "worldevents", "alts", "merchant", "portals",
-    "castbars", "minimap", "glows", "automation", "fishing", "pets",
-    "cursor", "vehicle", "currency", "lootspec", "location", "cdm",
-    "research", "transfer", "logs", "hammer", "bonusroll", "stats"
+    "dispatcher", "quests", "trackedbars", "trackedicons", "bars",
+    "gear", "alts", "merchant", "castbars", "minimap", "glows",
+    "automation", "fishing", "pets", "cursor", "vehicle", "currency",
+    "location", "cdm", "research", "transfer", "logs", "stats"
 }
+if sfui.isRetail then
+    table_insert(MODULE_ORDER, 3, "mythic")
+    table_insert(MODULE_ORDER, 7, "soulfragments")
+    table_insert(MODULE_ORDER, 9, "worldevents")
+    table_insert(MODULE_ORDER, 12, "portals")
+    table_insert(MODULE_ORDER, 22, "lootspec")
+    table_insert(MODULE_ORDER, 28, "hammer")
+    table_insert(MODULE_ORDER, 29, "bonusroll")
+else
+    table_insert(MODULE_ORDER, 6, "swing")
+    table_insert(MODULE_ORDER, 7, "threat")
+    table_insert(MODULE_ORDER, 8, "target")
+end
 
 function sfui.mem.create_mem_panel()
     if frame then return frame end
@@ -770,27 +782,29 @@ function sfui.mem.create_mem_panel()
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 
     -- Apply theme styling (Camelot Heavy Bronze or Modern Minimalist)
-    if sfui.theme and sfui.theme.ApplyWindowStyle then
-        sfui.theme.ApplyWindowStyle(frame)
-        sfui.theme.RegisterWindow(frame)
-    else
-        frame:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8x8",
-            tile = true,
-            tileSize = 32,
-        })
-        frame:SetBackdropColor(0.04, 0.04, 0.06, 0.94)
-    end
+    sfui.theme.ApplyWindowStyle(frame)
+    sfui.theme.RegisterWindow(frame)
     frame:Hide()
     table_insert(UISpecialFrames, "sfui_mem_frame")
 
+    -- Header Frame & Title (Elevated above theme layers)
+    local headerFrame = CreateFrame("Frame", nil, frame)
+    headerFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+    headerFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+    headerFrame:SetHeight(30)
+    headerFrame:SetFrameLevel((frame:GetFrameLevel() or 1) + 15)
+    headerFrame:EnableMouse(false)
+    frame.headerFrame = headerFrame
+
     -- Header Title (Lowercase)
-    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightMedium")
+    local title = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightMedium")
     title:SetPoint("TOPLEFT", 12, -8)
     title:SetText("|cff6600ffsfui|r  |cffffffffmemory & diagnostics|r")
 
     -- Close Button
-    local close_btn = (common and common.create_close_button and common.create_close_button(frame, function() frame:Hide() end, 20)) or CreateFlatButton(frame, "X", 20, 20)
+    local close_btn = common.create_close_button(frame, function() frame:Hide() end, 20)
+    close_btn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+    frame.close_btn = close_btn
 
     -- -----------------------------------------------------------------------
     -- Row 1: 3 Flat Metric KPI Cards (Lowercase)
@@ -904,7 +918,7 @@ function sfui.mem.create_mem_panel()
     modScroll:SetPoint("TOPLEFT", 4, -4)
     modScroll:SetPoint("BOTTOMRIGHT", -22, 4)
     modScroll:EnableMouseWheel(true)
-    if common and common.style_scrollbar and modScroll.ScrollBar then
+    if modScroll.ScrollBar then
         common.style_scrollbar(modScroll.ScrollBar)
     end
     modScroll:SetScript("OnMouseWheel", function(self, delta)
@@ -1080,17 +1094,13 @@ function sfui.mem.create_mem_panel()
         end
 
         -- Register lightweight 1.0s periodic update (non-blocking, force=false)
-        if sfui.events and sfui.events.RegisterUpdate then
-            sfui.events.RegisterUpdate("MemGUI", 1.0, function()
-                sfui.mem.UpdateGUI(false)
-            end)
-        end
+        sfui.events.RegisterUpdate("MemGUI", 1.0, function()
+            sfui.mem.UpdateGUI(false)
+        end)
     end)
 
     frame:SetScript("OnHide", function()
-        if sfui.events and sfui.events.UnregisterUpdate then
-            sfui.events.UnregisterUpdate("MemGUI")
-        end
+        sfui.events.UnregisterUpdate("MemGUI")
     end)
 
     sfui.mem.gui = frame

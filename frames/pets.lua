@@ -3,9 +3,7 @@ sfui = sfui or {}
 sfui.pets = sfui.pets or {}
 
 local function print_message(msg)
-    if sfui.common and sfui.common.print then
-        sfui.common.print(msg)
-    end
+    sfui.common.print(msg)
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -341,17 +339,17 @@ function sfui.pets.SummonNext(force)
     local pet, alreadyActive = select_candidate_pet()
     if alreadyActive then
         local current = C_PetJournal and C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
-        print_message(string.format("sfui: |cff00ffff%s|r is already active (only 1 favorite companion available).", get_pet_name(current)))
+        print_message(string.format("|cff00ffff%s|r is already active (only 1 favorite companion available).", get_pet_name(current)))
         return
     end
     if pet then
         summon_pet(pet)
-        print_message(string.format("sfui: summoned companion |cff00ffff%s|r.", get_pet_name(pet)))
+        print_message(string.format("summoned companion |cff00ffff%s|r.", get_pet_name(pet)))
     elseif #_poolFavs == 0 then
         if C_PetJournal and C_PetJournal.SummonRandomPet then
             C_PetJournal.SummonRandomPet(true)
         else
-            print_message("sfui: no favorite companion pets available to summon.")
+            print_message("no favorite companion pets available to summon.")
         end
     end
 end
@@ -546,14 +544,14 @@ local PetsModule = sfui.RegisterModule("pets", {
 function sfui.pets.AddCurrentPetToCharFavs()
     local current = C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
     if not current then
-        print_message("sfui: no companion pet currently summoned. summon a pet first, then type /sfpet add.")
+        print_message("no companion pet currently summoned. summon a pet first, then type /sfpet add.")
         return
     end
     local charDB = get_char_db()
     charDB.charFavs[current] = true
     charDB.charFavsEnabled = true
     rebuild_pet_pools()
-    print_message(string.format("sfui: added |cff00ffff%s|r to character favorites (total: %d).", get_pet_name(current), #_poolFavs))
+    print_message(string.format("added |cff00ffff%s|r to character favorites (total: %d).", get_pet_name(current), #_poolFavs))
 end
 
 function sfui.pets.RemoveCurrentPetFromCharFavs()
@@ -562,13 +560,13 @@ function sfui.pets.RemoveCurrentPetFromCharFavs()
     local charDB = get_char_db()
     charDB.charFavs[current] = nil
     rebuild_pet_pools()
-    print_message(string.format("sfui: removed |cff00ffff%s|r from character favorites.", get_pet_name(current)))
+    print_message(string.format("removed |cff00ffff%s|r from character favorites.", get_pet_name(current)))
 end
 
 function sfui.pets.ListCharFavs()
     local charDB = get_char_db()
     local count = 0
-    print_message("sfui: character favorites for " .. get_character_key() .. ":")
+    print_message("character favorites for " .. get_character_key() .. ":")
     for guid in pairs(charDB.charFavs) do
         print_message(" - |cff00ffff" .. tostring(get_pet_name(guid)) .. "|r")
         count = count + 1
@@ -583,7 +581,7 @@ function sfui.pets.RemovePetFromCharFavs(petID)
     local charDB = get_char_db()
     charDB.charFavs[petID] = nil
     rebuild_pet_pools()
-    print_message(string.format("sfui: removed |cff00ffff%s|r from character favorites.", get_pet_name(petID)))
+    print_message(string.format("removed |cff00ffff%s|r from character favorites.", get_pet_name(petID)))
 end
 
 function sfui.pets.SummonPetByGUID(petID)
@@ -595,14 +593,14 @@ function sfui.pets.ClearCharFavs()
     local charDB = get_char_db()
     wipe(charDB.charFavs)
     rebuild_pet_pools()
-    print_message("sfui: cleared all character favorites.")
+    print_message("cleared all character favorites.")
 end
 
 function sfui.pets.Dismiss()
     local current = C_PetJournal and C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
     if current and C_PetJournal and C_PetJournal.SummonPetByGUID then
         C_PetJournal.SummonPetByGUID(current)
-        print_message(string.format("sfui: dismissed companion |cff00ffff%s|r.", get_pet_name(current)))
+        print_message(string.format("dismissed companion |cff00ffff%s|r.", get_pet_name(current)))
         return true
     end
     return false

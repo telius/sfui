@@ -26,7 +26,7 @@ function FindGroup.CanFindGroup(questID)
     if not questID or questID <= 0 then return false end
 
     -- Classic / Classic Era / Forever / Camelot do not support Group Finder for quests
-    local isCamelot = sfui.isClassic or sfui.isForever or (sfui.compat and (sfui.compat.is_classic or sfui.compat.is_wow_forever or sfui.compat.is_classic_era))
+    local isCamelot = not sfui.isRetail
     if isCamelot then return false end
 
     -- ZERO INTERACTION RULE (methods.md 3.7.5):
@@ -99,9 +99,7 @@ function FindGroup.CreateFindGroupButton(parent)
     btn:SetSize(18, 18)
     btn:EnableMouseWheel(true)
     btn:SetScript("OnMouseWheel", function(self, delta)
-        if sfui.tracker and sfui.tracker.OnMouseWheel then
-            sfui.tracker.OnMouseWheel(self, delta)
-        end
+        sfui.tracker.OnMouseWheel(self, delta)
     end)
 
     btn:Hide()

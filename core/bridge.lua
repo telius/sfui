@@ -257,8 +257,8 @@ function sfui.gear.IsTankSpec(specID, db)
         local b = SPEC_BRIDGE[specID]
         db = _G.SfuiDB.gear[specID] or (b and b.camelotID and _G.SfuiDB.gear[b.camelotID]) or (b and b.classID and _G.SfuiDB.gear[b.classID])
     end
-    if db and db.classic_role then
-        return db.classic_role == "TANK"
+    if db and (db.classic_role or db.role) then
+        return db.classic_role == "TANK" or db.role == "TANK" or (db.is_tank == true and db.classic_role ~= "DPS" and db.classic_role ~= "HEAL")
     end
     if db and (db.is_tank or db.armor_ilvl_prio or db.role == "TANK") then
         return true
@@ -293,8 +293,8 @@ function sfui.gear.IsHealerSpec(specID, db)
         local b = SPEC_BRIDGE[specID]
         db = _G.SfuiDB.gear[specID] or (b and b.camelotID and _G.SfuiDB.gear[b.camelotID]) or (b and b.classID and _G.SfuiDB.gear[b.classID])
     end
-    if db and db.classic_role then
-        return db.classic_role == "HEAL"
+    if db and (db.classic_role or db.role) then
+        return db.classic_role == "HEAL" or db.role == "HEALER" or (db.is_healer == true and db.classic_role ~= "DPS" and db.classic_role ~= "TANK")
     end
     if db and (db.is_healer or db.role == "HEALER") then
         return true

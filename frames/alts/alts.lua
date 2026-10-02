@@ -476,28 +476,28 @@ local function CreateSettingsPanel()
     settingsPanel:SetWidth(260)
     settingsPanel:EnableMouse(true)
 
-    if sfui.theme and sfui.theme.ApplyWindowStyle then
-        sfui.theme.ApplyWindowStyle(settingsPanel)
-        sfui.theme.RegisterWindow(settingsPanel)
-    else
-        settingsPanel:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
-        settingsPanel:SetBackdropColor(unpack(cfg.backdropColor or { 0.05, 0.05, 0.05, 0.95 }))
-        settingsPanel:SetBackdropBorderColor(unpack(cfg.borderColor or { 0, 0, 0, 1 }))
-    end
+    sfui.theme.ApplyWindowStyle(settingsPanel)
+    sfui.theme.RegisterWindow(settingsPanel)
+
+    local headerFrame = CreateFrame("Frame", nil, settingsPanel)
+    headerFrame:SetPoint("TOPLEFT", settingsPanel, "TOPLEFT", 0, 0)
+    headerFrame:SetPoint("TOPRIGHT", settingsPanel, "TOPRIGHT", 0, 0)
+    headerFrame:SetHeight(30)
+    headerFrame:SetFrameLevel((settingsPanel:GetFrameLevel() or 1) + 15)
+    headerFrame:EnableMouse(false)
+    settingsPanel.headerFrame = headerFrame
 
     local pClose = (sfui.common.create_close_button or sfui.common.create_flat_button)(settingsPanel, function()
         settingsPanel:Hide()
     end, 20)
     pClose:ClearAllPoints()
     pClose:SetPoint("TOPRIGHT", -6, -6)
+    pClose:SetFrameLevel((settingsPanel:GetFrameLevel() or 1) + 20)
     pClose.tooltip = "Close Settings"
+    settingsPanel.closeBtn = pClose
 
     -- Title
-    local title = settingsPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local title = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 12, -10)
     title:SetText("Configuration")
     title:SetTextColor(unpack((sfui.config and sfui.config.appearance and sfui.config.appearance.highlightColor) or { 0.4, 0, 1, 1 }))
@@ -628,24 +628,17 @@ function sfui.alts.CreateFrame()
         end
     end)
 
-    if sfui.theme and sfui.theme.ApplyWindowStyle then
-        sfui.theme.ApplyWindowStyle(frame)
-        sfui.theme.RegisterWindow(frame)
-    else
-        frame:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
-        frame:SetBackdropColor(unpack(cfg.backdropColor or { 0.05, 0.05, 0.05, 0.9 }))
-        frame:SetBackdropBorderColor(unpack(cfg.borderColor or { 0, 0, 0, 1 }))
-    end
+    sfui.theme.ApplyWindowStyle(frame)
+    sfui.theme.RegisterWindow(frame)
 
     local close = (sfui.common.create_close_button or sfui.common.create_flat_button)(frame, function() frame:Hide() end, 24)
+    close:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
     close.tooltip = "Close"
+    frame.close = close
 
     -- Settings Button (⚙)
     local settingsBtn = sfui.common.create_flat_button(frame, "⚙", 24, 24)
+    settingsBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
     settingsBtn:SetPoint("TOPRIGHT", close, "TOPLEFT", -5, 0)
     settingsBtn.tooltip = "Alts Configuration (Sort, Sections, Characters)"
     settingsBtn:SetScript("OnClick", function()

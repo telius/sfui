@@ -110,7 +110,7 @@ end)
 
 -- Listen for spec changes and forward to modules implementing OnSpecChanged
 local function _on_spec_changed(specID)
-    specID = specID or (sfui.common and sfui.common.get_current_spec_id and sfui.common.get_current_spec_id())
+    specID = specID or sfui.common.get_current_spec_id()
     for _, mod in pairs(modules) do
         if type(mod.OnSpecChanged) == "function" then
             _safe_call(mod, "OnSpecChanged", specID)

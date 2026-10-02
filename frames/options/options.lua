@@ -66,30 +66,12 @@ end
 --  Shared Notification Helpers
 -- ─────────────────────────────────────────────────────────────────────────────
 function sfui.options.notify_setting_changed(moduleName, key, value)
-    if sfui.events and sfui.events.SendMessage then
-        sfui.events.SendMessage("SFUI_SETTING_CHANGED", moduleName, key, value)
-    else
-        local mod = sfui.GetModule and sfui.GetModule(moduleName) or sfui[moduleName]
-        if mod then
-            if type(mod.OnSettingsChanged) == "function" then
-                pcall(mod.OnSettingsChanged, mod, key, value)
-            elseif type(mod.update_settings) == "function" then
-                pcall(mod.update_settings)
-            elseif type(mod.UpdateSettings) == "function" then
-                pcall(mod.UpdateSettings)
-            end
-        end
-    end
+    sfui.events.SendMessage("SFUI_SETTING_CHANGED", moduleName, key, value)
 end
 
 function sfui.options.notify_spec_colors_updated()
-    if common and common.invalidate_spec_color_cache then common.invalidate_spec_color_cache() end
-    if sfui.colors and sfui.colors.invalidate_spec_color_cache then sfui.colors.invalidate_spec_color_cache() end
-    if sfui.events and sfui.events.SendMessage then
-        sfui.events.SendMessage("SFUI_SPEC_COLORS_UPDATED")
-    elseif sfui.BroadcastSpecChanged then
-        sfui.BroadcastSpecChanged()
-    end
+    sfui.colors.invalidate_spec_color_cache()
+    sfui.events.SendMessage("SFUI_SPEC_COLORS_UPDATED")
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -183,12 +165,7 @@ function sfui.create_options_panel()
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-    if sfui.theme and sfui.theme.ApplyWindowStyle then
-        sfui.theme.ApplyWindowStyle(frame)
-    else
-        frame:SetBackdrop({ bgFile = g.textures.white, tile = true, tileSize = 32 })
-        frame:SetBackdropColor(c.backdrop_color[1], c.backdrop_color[2], c.backdrop_color[3], c.backdrop_color[4])
-    end
+    sfui.theme.ApplyWindowStyle(frame)
     frame:SetScript("OnHide", function(self)
         if self.selected_tab and self.selected_tab.tabDef and self.selected_tab.tabDef.onHide then
             pcall(self.selected_tab.tabDef.onHide, self.selected_tab.panel, self.selected_tab, self)
@@ -312,12 +289,7 @@ function sfui.create_options_panel()
         container_panel:SetPoint("TOPLEFT", frame, "TOPLEFT", c.tabs.width + 20, -40)
         container_panel:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 5)
         container_panel:SetFrameLevel((frame:GetFrameLevel() or 1) + 5)
-        if sfui.theme and sfui.theme.ApplyContainerStyle then
-            sfui.theme.ApplyContainerStyle(container_panel)
-        else
-            container_panel:SetBackdrop({ bgFile = g.textures.white, tile = true, tileSize = 32 })
-            container_panel:SetBackdropColor(unpack(sfui.config.appearance.backdropColor))
-        end
+        sfui.theme.ApplyContainerStyle(container_panel)
         container_panel:Hide()
 
         local scroll_frame = CreateFrame("ScrollFrame", "sfui_options_scroll_" .. id, container_panel, "UIPanelScrollFrameTemplate")
@@ -486,32 +458,30 @@ function sfui.create_options_panel()
     refresh_frame_levels()
     frame:HookScript("OnShow", refresh_frame_levels)
 
-    if sfui.theme and sfui.theme.RegisterWindow then
-        sfui.theme.RegisterWindow(frame, function(f, curPal)
-            refresh_frame_levels()
-            if header_text then
-                header_text:SetTextColor(curPal.headerColor[1], curPal.headerColor[2], curPal.headerColor[3])
-            end
-            if f.tabs then
-                for _, tab_data in ipairs(f.tabs) do
-                    local btn = tab_data.button
-                    if btn and btn.indicator then
-                        btn.indicator:SetColorTexture(curPal.accentColor[1], curPal.accentColor[2], curPal.accentColor[3], 1)
-                    end
-                    if tab_data.panel and sfui.theme.ApplyContainerStyle then
-                        sfui.theme.ApplyContainerStyle(tab_data.panel)
-                    end
-                    if btn and btn:GetFontString() then
-                        if btn == f.selected_tab then
-                            btn:GetFontString():SetTextColor(curPal.tabSelected[1], curPal.tabSelected[2], curPal.tabSelected[3])
-                        else
-                            btn:GetFontString():SetTextColor(curPal.tabNormal[1], curPal.tabNormal[2], curPal.tabNormal[3])
-                        end
+    sfui.theme.RegisterWindow(frame, function(f, curPal)
+        refresh_frame_levels()
+        if header_text then
+            header_text:SetTextColor(curPal.headerColor[1], curPal.headerColor[2], curPal.headerColor[3])
+        end
+        if f.tabs then
+            for _, tab_data in ipairs(f.tabs) do
+                local btn = tab_data.button
+                if btn and btn.indicator then
+                    btn.indicator:SetColorTexture(curPal.accentColor[1], curPal.accentColor[2], curPal.accentColor[3], 1)
+                end
+                if tab_data.panel then
+                    sfui.theme.ApplyContainerStyle(tab_data.panel)
+                end
+                if btn and btn:GetFontString() then
+                    if btn == f.selected_tab then
+                        btn:GetFontString():SetTextColor(curPal.tabSelected[1], curPal.tabSelected[2], curPal.tabSelected[3])
+                    else
+                        btn:GetFontString():SetTextColor(curPal.tabNormal[1], curPal.tabNormal[2], curPal.tabNormal[3])
                     end
                 end
             end
-        end)
-    end
+        end
+    end)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -565,11 +535,7 @@ local function register_blizzard_settings()
     end
 end
 
-if sfui.events and sfui.events.RegisterEvent then
-    sfui.events.RegisterEvent("PLAYER_LOGIN", register_blizzard_settings)
-else
-    register_blizzard_settings()
-end
+sfui.events.RegisterEvent("PLAYER_LOGIN", register_blizzard_settings)
 
 function sfui.toggle_options_panel(tabName)
     if not frame then sfui.create_options_panel() end

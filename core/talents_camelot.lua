@@ -271,7 +271,7 @@ local function get_classic_talent_spec_info(vSpecID, classFilename)
         or (_G.GetActiveTalentGroup and _G.GetActiveTalentGroup()) or 1
 
     local curSpecIdx = nil
-    local pClassID = sfui.talents and sfui.talents.get_player_class_id and sfui.talents.get_player_class_id()
+    local pClassID = sfui.talents.get_player_class_id()
     local specSelectionEnabled = C_SpecializationInfo and C_SpecializationInfo.IsSpecSelectionEnabled and pClassID and C_SpecializationInfo.IsSpecSelectionEnabled(pClassID)
     if specSelectionEnabled then
         if C_SpecializationInfo and C_SpecializationInfo.GetSpecialization then

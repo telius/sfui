@@ -84,23 +84,11 @@ function sfui.talents.set_cached_spec(specID, specIndex, specRole)
     cachedSpecIndex = specIndex or 0
     cachedSpecRole  = specRole
     if changed then
-        if sfui.colors and sfui.colors.invalidate_spec_color_cache then
-            sfui.colors.invalidate_spec_color_cache()
-        elseif sfui.common and sfui.common.invalidate_spec_color_cache then
-            sfui.common.invalidate_spec_color_cache()
-        end
-        if sfui.common and sfui.common.invalidate_panels_cache then
-            sfui.common.invalidate_panels_cache()
-        end
-        if sfui.highest and sfui.highest.ClearValidationCache then
-            sfui.highest.ClearValidationCache()
-        end
-        if sfui.events and sfui.events.SendMessage then
-            sfui.events.SendMessage("SFUI_SPEC_CHANGED", cachedSpecID, oldID)
-        end
-        if sfui.BroadcastSpecChanged then
-            sfui.BroadcastSpecChanged(cachedSpecID)
-        end
+        sfui.colors.invalidate_spec_color_cache()
+        sfui.common.invalidate_panels_cache()
+        sfui.highest.ClearValidationCache()
+        sfui.events.SendMessage("SFUI_SPEC_CHANGED", cachedSpecID, oldID)
+        sfui.BroadcastSpecChanged(cachedSpecID)
     end
     return changed
 end
@@ -122,6 +110,8 @@ function sfui.talents.get_current_spec_id()
     return cachedSpecID
 end
 sfui.common.get_current_spec_id = sfui.talents.get_current_spec_id
+sfui.common.update_cached_spec_id = sfui.talents.update_cached_spec_id
+sfui.common.invalidate_spec_cache = sfui.talents.invalidate_spec_cache
 
 --- Returns the dominant specialization ID based on spent talent points in Classic/Camelot,
 --- or the active specialization ID in Retail.
@@ -305,28 +295,18 @@ function sfui.talents.invalidate_spec_cache()
     sfui.talents.invalidate_player_specs_cache()
     sfui.talents.update_cached_spec_id()
 
-    if sfui.colors and sfui.colors.invalidate_spec_color_cache then
-        sfui.colors.invalidate_spec_color_cache()
-    elseif sfui.common and sfui.common.invalidate_spec_color_cache then
-        sfui.common.invalidate_spec_color_cache()
-    end
-    if sfui.common and sfui.common.invalidate_panels_cache then
-        sfui.common.invalidate_panels_cache()
-    end
-    if sfui.highest and sfui.highest.ClearValidationCache then
-        sfui.highest.ClearValidationCache()
-    end
+    sfui.colors.invalidate_spec_color_cache()
+    sfui.common.invalidate_panels_cache()
+    sfui.highest.ClearValidationCache()
 
-    if sfui.talents.invalidate_talent_cache then
+    if sfui.isRetail then
         sfui.talents.invalidate_talent_cache()
     end
 
     if sfui.isClassic then
         sfui.talents.get_player_specs()
-        if sfui.gear and sfui.gear.UpdateStatUI then
-            sfui.gear.UpdateStatUI()
-        end
-        if SfuiGearManagerFrame and SfuiGearManagerFrame.tabBtns and sfui.talents.get_spec_icon then
+        sfui.gear.UpdateStatUI()
+        if SfuiGearManagerFrame and SfuiGearManagerFrame.tabBtns then
             for id, btn in pairs(SfuiGearManagerFrame.tabBtns) do
                 if btn.tex then
                     local ic = sfui.talents.get_spec_icon(id)

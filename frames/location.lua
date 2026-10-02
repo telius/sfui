@@ -82,7 +82,7 @@ local function is_valid_dungeon_activity(actInfo)
 end
 
 local function parse_keystone_level(str)
-    return sfui_common and sfui_common.parse_keystone_level and sfui_common.parse_keystone_level(str)
+    return sfui_common.parse_keystone_level(str)
 end
 
 local function get_group_leader_name()
@@ -337,8 +337,6 @@ function sfui.location_debug_info()
     return _locDebug
 end
 
-if sfui.RegisterModule then
-    sfui.location = sfui.location or {}
-    sfui.location.GetDebugInfo = sfui.location_debug_info
-    sfui.RegisterModule("location", sfui.location)
-end
+sfui.location = sfui.location or {}
+sfui.location.GetDebugInfo = sfui.location_debug_info
+sfui.RegisterModule("location", sfui.location)

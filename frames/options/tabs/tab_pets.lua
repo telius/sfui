@@ -117,9 +117,7 @@ sfui.options.RegisterTab({
         summon_next_btn:SetPoint("LEFT", add_current_btn, "RIGHT", 8, 0)
         summon_next_btn:SetScript("OnClick", function()
             if InCombatLockdown and InCombatLockdown() then
-                if sfui.common and sfui.common.print then
-                    sfui.common.print("sfui: Cannot summon pets in combat.")
-                end
+                sfui.common.print("Cannot summon pets in combat.")
                 return
             end
             if sfui.pets.SummonNext then
@@ -169,9 +167,7 @@ sfui.options.RegisterTab({
                     end
                     if p.refresh_list then p.refresh_list() end
                     local name = (C_PetJournal_GetPetInfoByPetID and select(8, C_PetJournal_GetPetInfoByPetID(petGUID))) or "Companion"
-                    if sfui.common and sfui.common.print then
-                        sfui.common.print("sfui: Added |cff00ffff" .. tostring(name) .. "|r to character favorites.")
-                    end
+                    sfui.common.print("Added |cff00ffff" .. tostring(name) .. "|r to character favorites.")
                 end
                 if _G.ClearCursor then _G.ClearCursor() end
             end
@@ -268,9 +264,7 @@ sfui.options.RegisterTab({
             summon_btn:SetPoint("RIGHT", remove_btn, "LEFT", -6, 0)
             summon_btn:SetScript("OnClick", function()
                 if InCombatLockdown and InCombatLockdown() then
-                    if sfui.common and sfui.common.print then
-                        sfui.common.print("sfui: Cannot summon pets in combat.")
-                    end
+                    sfui.common.print("Cannot summon pets in combat.")
                     return
                 end
                 if row.petGUID and sfui.pets.SummonPetByGUID then
@@ -397,14 +391,12 @@ sfui.options.RegisterTab({
         p.refresh_list = refresh_pet_list
         refresh_pet_list()
 
-        if sfui.events and sfui.events.RegisterEvent then
-            sfui.events.RegisterEvent("COMPANION_UPDATE", function()
-                local f = sfui.options.GetFrame()
-                if f and f:IsVisible() and f.selected_tab and f.selected_tab.tabID == "pets" then
-                    refresh_pet_list()
-                end
-            end)
-        end
+        sfui.events.RegisterEvent("COMPANION_UPDATE", function()
+            local f = sfui.options.GetFrame()
+            if f and f:IsVisible() and f.selected_tab and f.selected_tab.tabID == "pets" then
+                refresh_pet_list()
+            end
+        end)
     end,
     onShow = function(p, tab_button, options_frame)
         if p and p.refresh_list then
@@ -421,11 +413,9 @@ function sfui.pets.Show()
 end
 
 function sfui.pets.Hide()
-    if sfui.options and sfui.options.GetFrame then
-        local f = sfui.options.GetFrame()
-        if f and f:IsShown() and f.selected_tab and f.selected_tab.tabID == "pets" then
-            f:Hide()
-        end
+    local f = sfui.options.GetFrame()
+    if f and f:IsShown() and f.selected_tab and f.selected_tab.tabID == "pets" then
+        f:Hide()
     end
 end
 

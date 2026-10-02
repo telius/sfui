@@ -202,9 +202,7 @@ function sfui.tracking.get_active_panel_entries(panelConfig, outTable)
     wipe(activeEntries)
     if not panelConfig or type(panelConfig.entries) ~= "table" then return activeEntries end
 
-    local isClassic = (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
-        or (sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail))
-        or not (sfui.compat and sfui.compat.has and sfui.compat.has.specializations)
+    local isClassic = not sfui.isRetail
 
     for _, entry in ipairs(panelConfig.entries) do
         local isKnown = true
@@ -493,9 +491,7 @@ function sfui.tracking.ensure_panels_initialized()
     else
         -- If no entries were found but population was expected, retry once after a short delay
         -- This handles the race condition on fresh installations/characters on Retail
-        local isClassic = (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
-            or (sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail))
-            or not (sfui.compat and sfui.compat.has and sfui.compat.has.specializations)
+        local isClassic = not sfui.isRetail
 
         if not isClassic and not SfuiDB._populationRetryDone then
             local needsRetry = false
@@ -582,7 +578,7 @@ function sfui.tracking.get_all_anchor_targets(excludeName)
         { text = "Health Bar",        value = "Health Bar" },
         { text = "Tracked Bars",      value = "Tracked Bars" },
     }
-    if sfui.swing and sfui.swing.IsPossible and sfui.swing.IsPossible() then
+    if not sfui.isRetail and sfui.swing and sfui.swing.IsPossible() then
         table.insert(targets, 3, { text = "Swing Bar", value = "Swing Bar" })
     end
 

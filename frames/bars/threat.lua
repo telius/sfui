@@ -22,7 +22,7 @@ local UnitDetailedThreatSituation  = _G.UnitDetailedThreatSituation
 local GetThreatStatusColor         = _G.GetThreatStatusColor
 local math_floor                   = math.floor
 local type                         = _G.type
-local issecretvalue                = (common and common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue                = common.issecretvalue
 
 -- ─── Frame Storage ───────────────────────────────────────────────────────────
 local threatBar
@@ -82,12 +82,10 @@ local function GetPlayerHealthBar()
     if cachedAnchor and cachedBar0 then
         return cachedAnchor, cachedBar0
     end
-    if sfui.bars and sfui.bars.get_bar0 then
-        local bar = sfui.bars.get_bar0()
-        if bar and bar.backdrop then
-            cachedAnchor, cachedBar0 = bar.backdrop, bar
-            return cachedAnchor, cachedBar0
-        end
+    local bar = sfui.bars.get_bar0()
+    if bar and bar.backdrop then
+        cachedAnchor, cachedBar0 = bar.backdrop, bar
+        return cachedAnchor, cachedBar0
     end
     local bar0 = _G.sfui_bar0
     local bd = _G.sfui_bar0_Backdrop or (bar0 and bar0.backdrop) or bar0
@@ -276,8 +274,13 @@ end
 
 -- ─── Initialization ──────────────────────────────────────────────────────────
 local function Initialize()
-    CreateThreatFrame()
+    local bar = CreateThreatFrame()
     UpdateDimensionsAndPosition()
+
+    -- Register with theme engine so the backdrop gets restyled on theme switches
+    if bar and sfui.theme and sfui.theme.RegisterBar then
+        sfui.theme.RegisterBar(bar, "threat")
+    end
 
     -- Register unit threat events
     sfui.events.RegisterUnitEvents(

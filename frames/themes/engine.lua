@@ -30,6 +30,7 @@ local registered_cards         = setmetatable({}, { __mode = "k" })
 local registered_headers       = setmetatable({}, { __mode = "k" })
 local registered_inputs        = setmetatable({}, { __mode = "k" })
 local registered_tabs          = setmetatable({}, { __mode = "k" })
+local registered_bars          = setmetatable({}, { __mode = "k" }) -- { [barObj] = barType }
 
 -- ─── Public Theme Registration API ────────────────────────────────────────────
 --- Register a new theme definition with the engine.
@@ -150,6 +151,55 @@ function sfui.theme.GetActiveThemeID()
     return "modern"
 end
 
+--- Apply a bar texture to all SFUI status bars, saving it to database and updating configs/options.
+--- @param textureName string e.g. "Blizzard Nameplate", "Flat", or an atlas/path
+function sfui.theme.ApplyThemeBarTexture(textureName)
+    if not textureName or textureName == "" then return end
+
+    local val = textureName
+    local texturePath = sfui.widgets.resolve_statusbar_texture(val)
+
+    SfuiDB = SfuiDB or {}
+    SfuiDB.barTexture = val
+    sfui.config.barTexture = texturePath
+
+    sfui.bars.set_bar_texture(texturePath)
+    sfui.castbar.set_bar_texture(texturePath)
+    sfui.vehicle.set_bar_texture(texturePath)
+    sfui.trackedbars.SetBarTexture(texturePath)
+    sfui.tracker.blocks.SetBarTexture(texturePath)
+    sfui.tracker.helpers.timerbars.SetBarTexture(texturePath)
+    sfui.tracker.RequestRefresh()
+
+    if sfui.isRetail then
+        if sfui.soulfragments and sfui.soulfragments.SetBarTexture then
+            sfui.soulfragments.SetBarTexture(texturePath)
+        end
+    else
+        if sfui.swing and sfui.swing.SetBarTexture then
+            sfui.swing.SetBarTexture(texturePath)
+        end
+        if sfui.target and sfui.target.SetBarTexture then
+            sfui.target.SetBarTexture(texturePath)
+        end
+        if sfui.threat and sfui.threat.SetBarTexture then
+            sfui.threat.SetBarTexture(texturePath)
+        end
+    end
+
+    sfui.options.notify_setting_changed("bars", "barTexture", val)
+    sfui.options.notify_setting_changed("castbar", "barTexture", val)
+    sfui.options.notify_setting_changed("trackedbars", "barTexture", val)
+    if not sfui.isRetail then
+        sfui.options.notify_setting_changed("target", "barTexture", val)
+    end
+
+    if sfui.options.mainTab and sfui.options.mainTab.texture_dropdown then
+        sfui.options.mainTab.texture_dropdown.SetSelectedTexture(val)
+    end
+end
+sfui.ApplyThemeBarTexture = sfui.theme.ApplyThemeBarTexture
+
 function sfui.theme.SetTheme(mode)
     mode = mode and mode:lower()
     if mode == "camelot" and not sfui.theme.IsCamelotSupported() then
@@ -165,8 +215,14 @@ function sfui.theme.SetTheme(mode)
     if SfuiDB.theme then
         SfuiDB.theme.mode = mode
     end
-    if sfui.db and sfui.db.Set then
-        sfui.db.Set("theme", "mode", mode)
+    sfui.db.Set("theme", "mode", mode)
+
+    local activeID = sfui.theme.GetActiveThemeID()
+    local themeDef = registeredThemes[activeID]
+    local themeBarTex = themeDef and (themeDef.barTexture or (themeDef.bars and themeDef.bars.texture))
+    if themeBarTex then
+        SfuiDB._barTextureCustomized = nil
+        sfui.theme.ApplyThemeBarTexture(themeBarTex)
     end
 
     sfui.theme.ApplyCurrentTheme()
@@ -187,6 +243,54 @@ function sfui.theme.GetPalette()
 end
 
 -- ─── Component Style Providers ────────────────────────────────────────────────
+
+-- 0. Window Layer Elevation & Header Helpers
+--- Create a dedicated header child frame that is properly elevated above theme layers.
+--- @param parent Frame
+--- @param height number?
+--- @return Frame
+function sfui.theme.CreateHeaderFrame(parent, height)
+    if not parent then return end
+    local base = parent:GetFrameLevel() or 1
+    local headerFrame = CreateFrame("Frame", nil, parent)
+    headerFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+    headerFrame:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
+    headerFrame:SetHeight(height or 40)
+    headerFrame:SetFrameLevel(base + 15)
+    headerFrame:EnableMouse(false)
+    parent.headerFrame = headerFrame
+    return headerFrame
+end
+
+--- Elevate child headers, close buttons, and tab panels above the theme borderFrame layer.
+--- In WoW, any child frame (borderFrame at base + 1) renders after all regions on the parent frame (base).
+--- Elevating headers to base + 15 and close buttons to base + 20 prevents them from being occluded.
+--- @param frame Frame
+function sfui.theme.ElevateWindowContents(frame)
+    if not frame then return end
+    local base = frame:GetFrameLevel() or 1
+    if frame.sfuiThemeLayers and frame.sfuiThemeLayers.borderFrame then
+        frame.sfuiThemeLayers.borderFrame:SetFrameLevel(base + 1)
+    end
+    local h = frame.headerFrame or frame.headerBar or frame.header
+    if h and h.SetFrameLevel then
+        h:SetFrameLevel(base + 15)
+    end
+    local cb = frame.closeBtn or frame.close_button or frame.close or frame.closeButton
+    if cb and cb.SetFrameLevel then
+        cb:SetFrameLevel(base + 20)
+    end
+    if frame.tabs then
+        for _, tab_data in ipairs(frame.tabs) do
+            if tab_data.panel and tab_data.panel.SetFrameLevel then
+                tab_data.panel:SetFrameLevel(base + 5)
+            end
+            if tab_data.button and tab_data.button.SetFrameLevel then
+                tab_data.button:SetFrameLevel(base + 10)
+            end
+        end
+    end
+end
 
 -- 1. Window Styling (Frames / Dialogs / Windows)
 function sfui.theme.ApplyWindowStyle(frame, options)
@@ -567,6 +671,8 @@ function sfui.theme.ApplyWindowStyle(frame, options)
 
         frame.isCamelotThemed = false
     end
+
+    sfui.theme.ElevateWindowContents(frame)
 end
 
 -- 2. Container / Card Styling (Panels, Sections, Insets)
@@ -1027,7 +1133,7 @@ function sfui.theme.ApplyMinimapButtonBarStyle(bar)
     end
 end
 
--- 9. Loot Feed Row Styling (Option A: OutfitCard vs Option B: Architectural Slate vs Modern)
+-- 9. Loot Feed Row Styling (Camelot: Architectural Slate vs Sculpted Bronze Card | Modern: Minimalist)
 function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
     if not row then return end
     local isCamelot = sfui.theme.IsCamelotActive()
@@ -1037,176 +1143,142 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
     row.lastColor = col
     row.lastQuality = quality
 
-    local camelotStyle = (SfuiDB and (SfuiDB.camelotLootfeedStyle or (SfuiDB.theme and SfuiDB.theme.lootfeedStyle)))
-        or (sfui.config and sfui.config.theme and sfui.config.theme.lootfeedStyle)
-        or "outfit_card"
-    local canUseOutfitCard = isCamelot and sfui.theme.HasAtlas("UI-Character-Info-OutfitCard")
+    local mult = sfui.pixelScale or 1
 
-    if isCamelot and canUseOutfitCard and camelotStyle ~= "architectural" then
-        -- ═════════════════════════════════════════════════════════════════════
-        -- OPTION A: Sculpted Bronze Inset Card (UI-Character-Info-OutfitCard)
-        -- ═════════════════════════════════════════════════════════════════════
-        if row.SetBackdrop then
-            row:SetBackdrop(nil)
-        end
-
-        if row.cardBg then
-            row.cardBg:SetAtlas("UI-Character-Info-OutfitCard")
-            row.cardBg:ClearAllPoints()
-            row.cardBg:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 2)
-            row.cardBg:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, -2)
-            row.cardBg:Show()
-        end
-
-        if row.hoverOverlay then
-            if sfui.theme.HasAtlas("UI-Character-Info-OutfitCard-Hover") then
-                row.hoverOverlay:SetAtlas("UI-Character-Info-OutfitCard-Hover")
-                row.hoverOverlay:ClearAllPoints()
-                row.hoverOverlay:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 2)
-                row.hoverOverlay:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, -2)
-                row.hoverOverlay:SetBlendMode("ADD")
-                row.hoverOverlay:SetAlpha(0.45)
-            end
-        end
-
-        if row.accent then row.accent:Hide() end
-        if row.iconSlot then row.iconSlot:Hide() end
-        if row.badgeBox then row.badgeBox:Hide() end
-
-        -- Hide corner brackets if present
-        if row.cornerTL then
-            row.cornerTL:Hide()
-            row.cornerTR:Hide()
-            row.cornerBL:Hide()
-            row.cornerBR:Hide()
-        end
-
-        if row.icon then
-            row.icon:ClearAllPoints()
-            row.icon:SetPoint("LEFT", row, "LEFT", 7, 0)
-            row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-        end
-
-        if row.iconBorder then
-            if sfui.theme.HasAtlas("UI-Character-Info-OutfitIcon-Frame") then
-                row.iconBorder:SetAtlas("UI-Character-Info-OutfitIcon-Frame")
-                row.iconBorder:ClearAllPoints()
-                row.iconBorder:SetPoint("CENTER", row.icon, "CENTER", 0, 0)
-                local iW, iH = row.icon:GetSize()
-                if not iW or iW == 0 then iW = 28 end
-                if not iH or iH == 0 then iH = 28 end
-                row.iconBorder:SetSize(iW + 8, iH + 8)
-                row.iconBorder:SetVertexColor(1, 1, 1, 1)
-                row.iconBorder:Show()
-            else
-                row.iconBorder:Hide()
-            end
-        end
-
-        if row.badge then
-            row.badge:ClearAllPoints()
-            row.badge:SetPoint("RIGHT", row, "RIGHT", -12, 0)
-            row.badge:SetJustifyH("RIGHT")
-            row.badge:SetTextColor(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 1)
-        end
-
-        if row.title then
-            row.title:ClearAllPoints()
-            row.title:SetPoint("LEFT", row.icon, "RIGHT", 8, 0)
-            local bText = row.badge and row.badge:GetText()
-            if bText and bText ~= "" then
-                row.title:SetPoint("RIGHT", row.badge, "LEFT", -8, 0)
-            else
-                row.title:SetPoint("RIGHT", row, "RIGHT", -12, 0)
-            end
-            if col then
-                row.title:SetTextColor(col[1] or 1, col[2] or 1, col[3] or 1, 1)
-            else
-                row.title:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3], 1)
-            end
-        end
-
-        row.lootfeedStyle = "outfit_card"
+    if isCamelot then
         row.isCamelotRow = true
 
-    elseif isCamelot and camelotStyle == "architectural" then
-        -- ═════════════════════════════════════════════════════════════════════
-        -- OPTION B: Architectural Slate & Corner Brackets
-        -- ═════════════════════════════════════════════════════════════════════
-        if row.cardBg then row.cardBg:Hide() end
-        if row.hoverOverlay then row.hoverOverlay:Hide() end
-        if row.iconBorder then row.iconBorder:Hide() end
-        if row.badgeBox then row.badgeBox:Hide() end
+        local camelotStyle = (SfuiDB and (SfuiDB.camelotLootfeedStyle or (SfuiDB.theme and SfuiDB.theme.lootfeedStyle)))
+            or (sfui.config and sfui.config.theme and sfui.config.theme.lootfeedStyle)
+            or "architectural"
 
-        local mult = sfui.pixelScale or 1
-        if row.SetBackdrop then
-            row:SetBackdrop({
-                bgFile   = "Interface\\Buttons\\WHITE8x8",
-                edgeFile = "Interface\\Buttons\\WHITE8x8",
-                edgeSize = mult,
-                insets   = { left = 0, right = 0, top = 0, bottom = 0 }
-            })
-            row:SetBackdropColor(pal.backdropColor[1], pal.backdropColor[2], pal.backdropColor[3], 0.94)
-            if row.SetBackdropBorderColor then
-                row:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.90)
+        local canUseOutfitCard = sfui.theme.HasAtlas("UI-Character-Info-OutfitCard")
+        local useCard = (camelotStyle == "outfit_card" and canUseOutfitCard)
+
+        if useCard then
+            -- ─────────────────────────────────────────────────────────────────
+            -- CAMELOT OPTION A: Sculpted Inset Card
+            -- ─────────────────────────────────────────────────────────────────
+            row.lootfeedStyle = "outfit_card"
+
+            if row.SetBackdrop then
+                row:SetBackdrop({
+                    bgFile   = "Interface\\Buttons\\WHITE8x8",
+                    edgeFile = "Interface\\Buttons\\WHITE8x8",
+                    edgeSize = mult,
+                    insets   = { left = 0, right = 0, top = 0, bottom = 0 }
+                })
+                row:SetBackdropColor(pal.containerColor[1], pal.containerColor[2], pal.containerColor[3], 0.92)
+                if row.SetBackdropBorderColor then
+                    row:SetBackdropBorderColor(0.38, 0.28, 0.12, 0.85)
+                end
+            end
+
+            if row.cardBg then
+                row.cardBg:SetAtlas("UI-Character-Info-OutfitCard")
+                row.cardBg:ClearAllPoints()
+                row.cardBg:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 2)
+                row.cardBg:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, -2)
+                row.cardBg:Show()
+            end
+
+            if row.hoverOverlay then
+                if sfui.theme.HasAtlas("UI-Character-Info-OutfitCard-Hover") then
+                    row.hoverOverlay:SetAtlas("UI-Character-Info-OutfitCard-Hover")
+                    row.hoverOverlay:ClearAllPoints()
+                    row.hoverOverlay:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 2)
+                    row.hoverOverlay:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, -2)
+                    row.hoverOverlay:SetBlendMode("ADD")
+                    row.hoverOverlay:SetAlpha(0.45)
+                end
+            end
+
+            -- Hide corner brackets in card mode
+            if row.cornerTL then
+                row.cornerTL:Hide()
+                row.cornerTR:Hide()
+                row.cornerBL:Hide()
+                row.cornerBR:Hide()
+            end
+        else
+            -- ─────────────────────────────────────────────────────────────────
+            -- CAMELOT OPTION B: Architectural Slate & Sculpted Corner Brackets
+            -- (Also serves as safe authentic fallback if card atlas is missing)
+            -- ─────────────────────────────────────────────────────────────────
+            row.lootfeedStyle = "architectural"
+
+            if row.cardBg then row.cardBg:Hide() end
+            if row.hoverOverlay then row.hoverOverlay:Hide() end
+
+            if row.SetBackdrop then
+                row:SetBackdrop({
+                    bgFile   = "Interface\\Buttons\\WHITE8x8",
+                    edgeFile = "Interface\\Buttons\\WHITE8x8",
+                    edgeSize = mult,
+                    insets   = { left = 0, right = 0, top = 0, bottom = 0 }
+                })
+                row:SetBackdropColor(pal.backdropColor[1], pal.backdropColor[2], pal.backdropColor[3], 0.94)
+                if row.SetBackdropBorderColor then
+                    row:SetBackdropBorderColor(0.38, 0.28, 0.12, 0.90)
+                end
+            end
+
+            -- Sculpted Corner Brackets (Blizzard heavybronze corner brackets)
+            local showBrackets = (SfuiDB and SfuiDB.themeCornerBrackets ~= false)
+            if showBrackets then
+                if not row.cornerTL then
+                    row.cornerTL = row:CreateTexture(nil, "OVERLAY", nil, 6)
+                    row.cornerTR = row:CreateTexture(nil, "OVERLAY", nil, 6)
+                    row.cornerBL = row:CreateTexture(nil, "OVERLAY", nil, 6)
+                    row.cornerBR = row:CreateTexture(nil, "OVERLAY", nil, 6)
+                end
+
+                local tlAtlas = sfui.theme.GetCornerBracketAtlas("TL") or "heavybronze-horz-cornerbracket-TL"
+                local trAtlas = sfui.theme.GetCornerBracketAtlas("TR") or "heavybronze-horz-cornerbracket-TR"
+                local blAtlas = sfui.theme.GetCornerBracketAtlas("BL") or "heavybronze-horz-cornerbracket-BL"
+                local brAtlas = sfui.theme.GetCornerBracketAtlas("BR") or "heavybronze-horz-cornerbracket-BR"
+                local bSize = 10
+
+                if sfui.theme.HasAtlas(tlAtlas) then
+                    row.cornerTL:SetAtlas(tlAtlas, false)
+                    row.cornerTL:ClearAllPoints()
+                    row.cornerTL:SetPoint("TOPLEFT", row, "TOPLEFT", -1, 1)
+                    row.cornerTL:SetSize(bSize, bSize)
+                    row.cornerTL:Show()
+                else row.cornerTL:Hide() end
+
+                if sfui.theme.HasAtlas(trAtlas) then
+                    row.cornerTR:SetAtlas(trAtlas, false)
+                    row.cornerTR:ClearAllPoints()
+                    row.cornerTR:SetPoint("TOPRIGHT", row, "TOPRIGHT", 1, 1)
+                    row.cornerTR:SetSize(bSize, bSize)
+                    row.cornerTR:Show()
+                else row.cornerTR:Hide() end
+
+                if sfui.theme.HasAtlas(blAtlas) then
+                    row.cornerBL:SetAtlas(blAtlas, false)
+                    row.cornerBL:ClearAllPoints()
+                    row.cornerBL:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", -1, -1)
+                    row.cornerBL:SetSize(bSize, bSize)
+                    row.cornerBL:Show()
+                else row.cornerBL:Hide() end
+
+                if sfui.theme.HasAtlas(brAtlas) then
+                    row.cornerBR:SetAtlas(brAtlas, false)
+                    row.cornerBR:ClearAllPoints()
+                    row.cornerBR:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 1, -1)
+                    row.cornerBR:SetSize(bSize, bSize)
+                    row.cornerBR:Show()
+                else row.cornerBR:Hide() end
+            elseif row.cornerTL then
+                row.cornerTL:Hide()
+                row.cornerTR:Hide()
+                row.cornerBL:Hide()
+                row.cornerBR:Hide()
             end
         end
 
-        -- Miniature Sculpted Corner Brackets
-        local showBrackets = (SfuiDB and SfuiDB.themeCornerBrackets ~= false)
-        if showBrackets then
-            if not row.cornerTL then
-                row.cornerTL = row:CreateTexture(nil, "OVERLAY", nil, 6)
-                row.cornerTR = row:CreateTexture(nil, "OVERLAY", nil, 6)
-                row.cornerBL = row:CreateTexture(nil, "OVERLAY", nil, 6)
-                row.cornerBR = row:CreateTexture(nil, "OVERLAY", nil, 6)
-            end
-
-            local tlAtlas = sfui.theme.GetCornerBracketAtlas("TL") or "heavybronze-horz-cornerbracket-TL"
-            local trAtlas = sfui.theme.GetCornerBracketAtlas("TR") or "heavybronze-horz-cornerbracket-TR"
-            local blAtlas = sfui.theme.GetCornerBracketAtlas("BL") or "heavybronze-horz-cornerbracket-BL"
-            local brAtlas = sfui.theme.GetCornerBracketAtlas("BR") or "heavybronze-horz-cornerbracket-BR"
-            local bSize = 9
-
-            if sfui.theme.HasAtlas(tlAtlas) then
-                row.cornerTL:SetAtlas(tlAtlas, false)
-                row.cornerTL:ClearAllPoints()
-                row.cornerTL:SetPoint("TOPLEFT", row, "TOPLEFT", -1, 1)
-                row.cornerTL:SetSize(bSize, bSize)
-                row.cornerTL:Show()
-            else row.cornerTL:Hide() end
-
-            if sfui.theme.HasAtlas(trAtlas) then
-                row.cornerTR:SetAtlas(trAtlas, false)
-                row.cornerTR:ClearAllPoints()
-                row.cornerTR:SetPoint("TOPRIGHT", row, "TOPRIGHT", 1, 1)
-                row.cornerTR:SetSize(bSize, bSize)
-                row.cornerTR:Show()
-            else row.cornerTR:Hide() end
-
-            if sfui.theme.HasAtlas(blAtlas) then
-                row.cornerBL:SetAtlas(blAtlas, false)
-                row.cornerBL:ClearAllPoints()
-                row.cornerBL:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", -1, -1)
-                row.cornerBL:SetSize(bSize, bSize)
-                row.cornerBL:Show()
-            else row.cornerBL:Hide() end
-
-            if sfui.theme.HasAtlas(brAtlas) then
-                row.cornerBR:SetAtlas(brAtlas, false)
-                row.cornerBR:ClearAllPoints()
-                row.cornerBR:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 1, -1)
-                row.cornerBR:SetSize(bSize, bSize)
-                row.cornerBR:Show()
-            else row.cornerBR:Hide() end
-        elseif row.cornerTL then
-            row.cornerTL:Hide()
-            row.cornerTR:Hide()
-            row.cornerBL:Hide()
-            row.cornerBR:Hide()
-        end
-
-        -- Inlaid Enamel Quality Strip
+        -- Inlaid Enamel Quality Strip (Present in BOTH Camelot styles so loot rarity is unmistakable)
         if row.accent then
             row.accent:ClearAllPoints()
             row.accent:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -1)
@@ -1238,7 +1310,11 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
             end
         end
 
-        -- Clean Right-Aligned Badge
+        if row.iconBorder then
+            row.iconBorder:Hide()
+        end
+
+        -- Clean Right-Aligned Radiant Gold Badge
         if row.badge then
             row.badge:ClearAllPoints()
             row.badge:SetPoint("RIGHT", row, "RIGHT", -10, 0)
@@ -1246,7 +1322,7 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
             row.badge:SetTextColor(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 1)
         end
 
-        -- Title FontString
+        -- Title FontString (Colored by Quality / col)
         if row.title then
             row.title:ClearAllPoints()
             row.title:SetPoint("LEFT", row.icon, "RIGHT", 7, 0)
@@ -1263,10 +1339,13 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
             end
         end
 
-        row.lootfeedStyle = "architectural"
-        row.isCamelotRow = true
     else
-        -- Modern Minimalist
+        -- ═════════════════════════════════════════════════════════════════════
+        -- MODERN MINIMALIST (Clean dark flat card)
+        -- ═════════════════════════════════════════════════════════════════════
+        row.isCamelotRow = false
+        row.lootfeedStyle = nil
+
         if row.cardBg then row.cardBg:Hide() end
         if row.hoverOverlay then row.hoverOverlay:Hide() end
         if row.iconSlot then row.iconSlot:Hide() end
@@ -1279,7 +1358,6 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
             row.cornerBR:Hide()
         end
 
-        local mult = sfui.pixelScale or 1
         if row.SetBackdrop then
             row:SetBackdrop({
                 bgFile   = "Interface\\Buttons\\WHITE8x8",
@@ -1330,8 +1408,6 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
                 row.title:SetTextColor(1, 1, 1, 1)
             end
         end
-
-        row.isCamelotRow = false
     end
 end
 
@@ -1339,17 +1415,36 @@ function sfui.theme.ApplyLootfeedPendingHeaderStyle(pendingHeader)
     if not pendingHeader then return end
     local isCamelot = sfui.theme.IsCamelotActive()
     local pal = sfui.theme.GetPalette()
+    local mult = sfui.pixelScale or 1
 
     if isCamelot then
         if pendingHeader.SetBackdrop then
-            pendingHeader:SetBackdrop(nil)
+            pendingHeader:SetBackdrop({
+                bgFile   = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = mult,
+                insets   = { left = 0, right = 0, top = 0, bottom = 0 }
+            })
+            pendingHeader:SetBackdropColor(pal.backdropColor[1], pal.backdropColor[2], pal.backdropColor[3], 0.94)
+            if pendingHeader.SetBackdropBorderColor then
+                pendingHeader:SetBackdropBorderColor(0.38, 0.28, 0.12, 0.90)
+            end
         end
         if pendingHeader.text then
             pendingHeader.text:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3], 1)
         end
     else
         if pendingHeader.SetBackdrop then
-            pendingHeader:SetBackdrop(nil)
+            pendingHeader:SetBackdrop({
+                bgFile   = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = mult,
+                insets   = { left = 0, right = 0, top = 0, bottom = 0 }
+            })
+            pendingHeader:SetBackdropColor(0.12, 0.12, 0.12, 0.85)
+            if pendingHeader.SetBackdropBorderColor then
+                pendingHeader:SetBackdropBorderColor(0.25, 0.25, 0.25, 0.90)
+            end
         end
         if pendingHeader.text then
             pendingHeader.text:SetTextColor(0.85, 0.85, 0.85, 1)
@@ -1357,14 +1452,358 @@ function sfui.theme.ApplyLootfeedPendingHeaderStyle(pendingHeader)
     end
 end
 
+-- ─── Bar / StatusBar Theming API ──────────────────────────────────────────────
+--
+-- bar types passed to ApplyStatusBarStyle / RegisterBar:
+--   "health"       – player health bar (bar0)
+--   "power"        – player primary power (bar_minus_1)
+--   "secondary"    – player secondary resource (bar1: combo points, holy power…)
+--   "rune"         – individual DK rune segment
+--   "vigor"        – dragonriding vigor
+--   "mountspeed"   – dragonriding mount speed
+--   "threat"       – threat status bar
+--   "castbar"      – any cast-bar backdrop/bar
+--   "swing"        – swing timer bar (main-hand, off-hand, ranged)
+--   "target"       – target health / power bar
+--
+
+-- bar styles (set via theme.bars.style, config.theme.barStyle, or SfuiDB.themeBarStyle):
+--   "thin"   – Option A: 1px colored edge only (classic minimal)
+--   "glow"   – Option B: borderless recessed amber inner-glow / vignette
+--   "heavy"  – Option C: chiseled heavy bronze frame with bright gold top highlight,
+--              dark bottom shadow, and authentic corner brackets
+
+--- Resolve active bar style
+--- @param bars_def table
+--- @param barType string
+--- @param isCamelot boolean
+--- @return string
+local function _ResolveBarStyle(bars_def, barType, isCamelot)
+    if bars_def[barType] and bars_def[barType].style then
+        return bars_def[barType].style
+    end
+    local dbStyle = (SfuiDB and (SfuiDB.camelotBarStyle or SfuiDB.themeBarStyle or (SfuiDB.theme and SfuiDB.theme.barStyle)))
+    if dbStyle then
+        return dbStyle
+    end
+    if sfui.config.theme and sfui.config.theme.barStyle then
+        return sfui.config.theme.barStyle
+    end
+    if bars_def.style then
+        return bars_def.style
+    end
+    return isCamelot and "heavy" or "thin"
+end
+
+--- Get the current bar style setting
+--- @return string
+function sfui.theme.GetBarStyle()
+    local dbStyle = (SfuiDB and (SfuiDB.camelotBarStyle or SfuiDB.themeBarStyle or (SfuiDB.theme and SfuiDB.theme.barStyle)))
+    if dbStyle then return dbStyle end
+    if sfui.config.theme and sfui.config.theme.barStyle then
+        return sfui.config.theme.barStyle
+    end
+    local activeID = sfui.theme.GetActiveThemeID()
+    local theme = registeredThemes[activeID] or {}
+    if theme.bars and theme.bars.style then
+        return theme.bars.style
+    end
+    return (activeID == "camelot") and "heavy" or "thin"
+end
+
+--- Set the bar style and refresh all registered bars
+--- @param style string "thin" | "glow" | "heavy"
+--- @return boolean, string?
+function sfui.theme.SetBarStyle(style)
+    if style ~= "thin" and style ~= "glow" and style ~= "heavy" then
+        return false, "Invalid bar style. Valid styles: thin, glow, heavy"
+    end
+    SfuiDB = SfuiDB or {}
+    SfuiDB.camelotBarStyle = style
+    SfuiDB.themeBarStyle = style
+    if SfuiDB.theme then
+        SfuiDB.theme.barStyle = style
+    end
+    if sfui.config.theme then
+        sfui.config.theme.barStyle = style
+    end
+    for bar, barType in pairs(registered_bars) do
+        if bar then
+            sfui.theme.ApplyStatusBarStyle(bar, barType)
+        end
+    end
+    return true
+end
+
+--- Apply theme colors and decorative styling to a status-bar backdrop.
+--- Touches ONLY backdrop color & border — never the bar fill color, which
+--- is managed by each bar's own combat-update logic.
+--- @param bar Frame   the StatusBar (must have a .backdrop child, or be a backdrop frame itself)
+--- @param barType string
+function sfui.theme.ApplyStatusBarStyle(bar, barType)
+    if not bar then return end
+    local backdrop = bar.backdrop or bar
+    if not backdrop then return end
+
+    local activeID = sfui.theme.GetActiveThemeID()
+    local theme    = registeredThemes[activeID] or registeredThemes.modern or {}
+    local pal      = theme.colors or sfui.theme.GetPalette()
+    local bars_def = theme.bars or {}
+    local isCamelot = (activeID == "camelot")
+
+    -- Resolve per-type override from theme definition, fall back to palette
+    local bgCol    = (bars_def[barType] and bars_def[barType].backdropColor) or pal.backdropColor or { 0, 0, 0, 0.55 }
+    local bdCol    = (bars_def[barType] and bars_def[barType].borderColor)   or pal.borderColor   or { 0, 0, 0, 1 }
+    local bdSize   = (bars_def[barType] and bars_def[barType].borderSize)    or 1
+    local style    = _ResolveBarStyle(bars_def, barType, isCamelot)
+
+    if backdrop.SetBackdrop then
+        backdrop:SetBackdrop({
+            bgFile   = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8X8",
+            edgeFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8X8",
+            edgeSize = bdSize,
+            tile     = true,
+            tileSize = 32,
+            insets   = { left = 0, right = 0, top = 0, bottom = 0 },
+        })
+        backdrop:SetBackdropColor(bgCol[1], bgCol[2], bgCol[3], bgCol[4] or 0.55)
+
+        if backdrop.SetBackdropBorderColor then
+            if not isCamelot then
+                backdrop:SetBackdropBorderColor(bdCol[1], bdCol[2], bdCol[3], bdCol[4] or 1)
+            elseif style == "glow" then
+                -- Option B: Borderless recessed amber well
+                backdrop:SetBackdropBorderColor(0, 0, 0, 0)
+            else
+                -- Option A (thin) & Option C (heavy): Warm bronze edge
+                local bc = (bars_def[barType] and bars_def[barType].borderColor) or { 0.40, 0.30, 0.15, 0.90 }
+                backdrop:SetBackdropBorderColor(bc[1], bc[2], bc[3], bc[4] or 0.90)
+            end
+        end
+    end
+
+    -- Target bar with native Nameplate bezel: preserve nameplateBorder & hide generic decor
+    if barType == "target" then
+        if backdrop.nameplateBorder and backdrop.nameplateBorder:IsShown() then
+            if backdrop.SetBackdropBorderColor then
+                backdrop:SetBackdropBorderColor(0, 0, 0, 0)
+            end
+        end
+        if backdrop._sfuiDecorFrame then
+            backdrop._sfuiDecorFrame:Hide()
+        end
+        return
+    end
+
+    -- Apply / update decorative texture layers for Option B (glow) and Option C (heavy)
+    local decorFrame = backdrop._sfuiDecorFrame
+    if not isCamelot or style == "thin" then
+        if decorFrame then
+            decorFrame:Hide()
+        end
+        return
+    end
+
+    if not decorFrame then
+        decorFrame = CreateFrame("Frame", nil, backdrop)
+        decorFrame:SetAllPoints(backdrop)
+        backdrop._sfuiDecorFrame = decorFrame
+    end
+    decorFrame:Show()
+    local targetLevel = (bar.GetFrameLevel and bar:GetFrameLevel() or backdrop:GetFrameLevel()) + 1
+    decorFrame:SetFrameLevel(targetLevel)
+
+    if style == "glow" then
+        -- ═════════════════════════════════════════════════════════════════════
+        -- OPTION B: Recessed Amber Inner Glow & Shadow Vignette
+        -- ═════════════════════════════════════════════════════════════════════
+        if decorFrame.topHL then decorFrame.topHL:Hide() end
+        if decorFrame.cornerTL then decorFrame.cornerTL:Hide() end
+        if decorFrame.cornerTR then decorFrame.cornerTR:Hide() end
+        if decorFrame.cornerBL then decorFrame.cornerBL:Hide() end
+        if decorFrame.cornerBR then decorFrame.cornerBR:Hide() end
+
+        -- 1. Top inner-glow (warm amber)
+        if not decorFrame.topGlow then
+            decorFrame.topGlow = decorFrame:CreateTexture(nil, "OVERLAY", nil, 1)
+        end
+        decorFrame.topGlow:ClearAllPoints()
+        decorFrame.topGlow:SetPoint("TOPLEFT", backdrop, "TOPLEFT", 0, 0)
+        decorFrame.topGlow:SetPoint("TOPRIGHT", backdrop, "TOPRIGHT", 0, 0)
+        decorFrame.topGlow:SetHeight(2)
+        decorFrame.topGlow:SetColorTexture(0.55, 0.38, 0.12, 0.60)
+        decorFrame.topGlow:Show()
+
+        -- 2. Bottom shadow (deep recessed well)
+        if not decorFrame.botShadow then
+            decorFrame.botShadow = decorFrame:CreateTexture(nil, "OVERLAY", nil, 1)
+        end
+        decorFrame.botShadow:ClearAllPoints()
+        decorFrame.botShadow:SetPoint("BOTTOMLEFT", backdrop, "BOTTOMLEFT", 0, 0)
+        decorFrame.botShadow:SetPoint("BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", 0, 0)
+        decorFrame.botShadow:SetHeight(2)
+        decorFrame.botShadow:SetColorTexture(0.04, 0.03, 0.01, 0.70)
+        decorFrame.botShadow:Show()
+
+        -- 3. Left vignette
+        if not decorFrame.leftGlow then
+            decorFrame.leftGlow = decorFrame:CreateTexture(nil, "OVERLAY", nil, 1)
+        end
+        decorFrame.leftGlow:ClearAllPoints()
+        decorFrame.leftGlow:SetPoint("TOPLEFT", backdrop, "TOPLEFT", 0, -2)
+        decorFrame.leftGlow:SetPoint("BOTTOMLEFT", backdrop, "BOTTOMLEFT", 0, 2)
+        decorFrame.leftGlow:SetWidth(2)
+        decorFrame.leftGlow:SetColorTexture(0.45, 0.30, 0.08, 0.45)
+        decorFrame.leftGlow:Show()
+
+        -- 4. Right vignette
+        if not decorFrame.rightGlow then
+            decorFrame.rightGlow = decorFrame:CreateTexture(nil, "OVERLAY", nil, 1)
+        end
+        decorFrame.rightGlow:ClearAllPoints()
+        decorFrame.rightGlow:SetPoint("TOPRIGHT", backdrop, "TOPRIGHT", 0, -2)
+        decorFrame.rightGlow:SetPoint("BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", 0, 2)
+        decorFrame.rightGlow:SetWidth(2)
+        decorFrame.rightGlow:SetColorTexture(0.45, 0.30, 0.08, 0.45)
+        decorFrame.rightGlow:Show()
+
+    elseif style == "heavy" then
+        -- ═════════════════════════════════════════════════════════════════════
+        -- OPTION C: Chiseled Heavy Bronze Frame & Corner Brackets
+        -- ═════════════════════════════════════════════════════════════════════
+        if decorFrame.topGlow then decorFrame.topGlow:Hide() end
+        if decorFrame.leftGlow then decorFrame.leftGlow:Hide() end
+        if decorFrame.rightGlow then decorFrame.rightGlow:Hide() end
+
+        -- 1. Top specular highlight — bright burnished gold (#E8C060)
+        if not decorFrame.topHL then
+            decorFrame.topHL = decorFrame:CreateTexture(nil, "OVERLAY", nil, 2)
+        end
+        decorFrame.topHL:ClearAllPoints()
+        decorFrame.topHL:SetPoint("TOPLEFT", backdrop, "TOPLEFT", 0, 0)
+        decorFrame.topHL:SetPoint("TOPRIGHT", backdrop, "TOPRIGHT", 0, 0)
+        decorFrame.topHL:SetHeight(1)
+        decorFrame.topHL:SetColorTexture(0.91, 0.75, 0.38, 0.95)
+        decorFrame.topHL:Show()
+
+        -- 2. Bottom cast shadow — deep bronze/black (#1E1008)
+        if not decorFrame.botShadow then
+            decorFrame.botShadow = decorFrame:CreateTexture(nil, "OVERLAY", nil, 2)
+        end
+        decorFrame.botShadow:ClearAllPoints()
+        decorFrame.botShadow:SetPoint("BOTTOMLEFT", backdrop, "BOTTOMLEFT", 0, 0)
+        decorFrame.botShadow:SetPoint("BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", 0, 0)
+        decorFrame.botShadow:SetHeight(1)
+        decorFrame.botShadow:SetColorTexture(0.12, 0.08, 0.02, 0.95)
+        decorFrame.botShadow:Show()
+
+        -- 3. Corner brackets
+        local cs = (bars_def[barType] and bars_def[barType].cornerSize) or 7
+        local barHeight = backdrop:GetHeight()
+        if barHeight and barHeight > 4 then
+            cs = math.min(cs, math.floor(barHeight))
+        elseif barHeight and barHeight > 0 and barHeight <= 4 then
+            cs = math.max(3, math.floor(barHeight))
+        end
+
+        local corners = {
+            { key = "cornerTL", atlas = "heavybronze-horz-cornerbracket-TL", point = "TOPLEFT",     x = 0, y = 0 },
+            { key = "cornerTR", atlas = "heavybronze-horz-cornerbracket-TR", point = "TOPRIGHT",    x = 0, y = 0 },
+            { key = "cornerBL", atlas = "heavybronze-horz-cornerbracket-BL", point = "BOTTOMLEFT",  x = 0, y = 0 },
+            { key = "cornerBR", atlas = "heavybronze-horz-cornerbracket-BR", point = "BOTTOMRIGHT", x = 0, y = 0 },
+        }
+
+        local hasBrackets = sfui.theme.HasAtlas and sfui.theme.HasAtlas("heavybronze-horz-cornerbracket-TL")
+        for _, c in ipairs(corners) do
+            if not decorFrame[c.key] then
+                decorFrame[c.key] = decorFrame:CreateTexture(nil, "OVERLAY", nil, 3)
+            end
+            local t = decorFrame[c.key]
+            if hasBrackets and cs >= 4 then
+                t:ClearAllPoints()
+                t:SetPoint(c.point, backdrop, c.point, c.x, c.y)
+                t:SetSize(cs, cs)
+                t:SetAtlas(c.atlas, false)
+                t:Show()
+            else
+                t:Hide()
+            end
+        end
+    end
+end
+
+--- Apply themed decorations to a cast-bar (icon border, spark color).
+--- Safe to call every time the cast bar is shown; only styles static elements.
+--- @param bar Frame   the cast StatusBar (must have .IconFrame and/or .Spark)
+function sfui.theme.ApplyCastBarDecoration(bar)
+    if not bar then return end
+    local activeID = sfui.theme.GetActiveThemeID()
+    local theme    = registeredThemes[activeID] or registeredThemes.modern or {}
+    local pal      = theme.colors or sfui.theme.GetPalette()
+    local bars_def = theme.bars or {}
+    local isCamelot = (activeID == "camelot")
+
+    -- Style the icon frame border
+    local iconFrame = bar.IconFrame
+    if iconFrame and iconFrame.SetBackdrop then
+        if isCamelot then
+            local bc = (bars_def.castbar and bars_def.castbar.iconBorderColor) or { 0.50, 0.38, 0.18, 1.0 }
+            iconFrame:SetBackdrop({
+                bgFile   = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8X8",
+                edgeFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8X8",
+                edgeSize = 1,
+                insets   = { left = 0, right = 0, top = 0, bottom = 0 },
+            })
+            iconFrame:SetBackdropBorderColor(bc[1], bc[2], bc[3], bc[4] or 1)
+        else
+            iconFrame:SetBackdrop({
+                bgFile   = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8X8",
+                edgeFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8X8",
+                edgeSize = 1,
+                insets   = { left = 0, right = 0, top = 0, bottom = 0 },
+            })
+            iconFrame:SetBackdropBorderColor(0, 0, 0, 1)
+        end
+    end
+
+    -- Style the cast spark / leading pip
+    local spark = bar.Spark
+    if spark then
+        if isCamelot then
+            -- Warm gold radiant spark for Camelot
+            local sc = (bars_def.castbar and bars_def.castbar.sparkColor) or { 1.0, 0.85, 0.55, 1.0 }
+            spark:SetVertexColor(sc[1], sc[2], sc[3], sc[4] or 1.0)
+        else
+            spark:SetVertexColor(1, 1, 1, 0.9)
+        end
+    end
+end
+
+--- Register a bar (StatusBar + its .backdrop) with the theme engine.
+--- The engine will call ApplyStatusBarStyle(bar, barType) on every theme switch.
+--- @param bar Frame      the StatusBar that has a .backdrop field
+--- @param barType string one of the bar type strings listed above
+function sfui.theme.RegisterBar(bar, barType)
+    if not bar or not barType then return end
+    registered_bars[bar] = barType
+    sfui.theme.ApplyStatusBarStyle(bar, barType)
+end
+
 -- ─── Window Registration API ──────────────────────────────────────────────────
 function sfui.theme.RegisterWindow(frame, callback, options)
     if not frame then return end
+    if not frame.sfuiLevelHookInstalled and frame.HookScript then
+        frame.sfuiLevelHookInstalled = true
+        frame:HookScript("OnShow", function(self)
+            sfui.theme.ElevateWindowContents(self)
+        end)
+    end
     for _, item in ipairs(registered_windows) do
         if item.frame == frame then
             item.callback = callback or item.callback
             item.options = options or item.options
             sfui.theme.ApplyWindowStyle(frame, item.options)
+            sfui.theme.ElevateWindowContents(frame)
             if item.callback then
                 pcall(item.callback, frame, sfui.theme.GetPalette())
             end
@@ -1373,6 +1812,7 @@ function sfui.theme.RegisterWindow(frame, callback, options)
     end
     table_insert(registered_windows, { frame = frame, callback = callback, options = options })
     sfui.theme.ApplyWindowStyle(frame, options)
+    sfui.theme.ElevateWindowContents(frame)
     if callback then
         pcall(callback, frame, sfui.theme.GetPalette())
     end
@@ -1395,13 +1835,11 @@ function sfui.theme.ApplyCurrentTheme()
     local pal = theme.colors or sfui.theme.GetPalette()
 
     -- Sync global config appearance tokens
-    if sfui.config and sfui.config.appearance then
-        sfui.config.appearance.highlightColor = pal.highlightColor
-        sfui.config.appearance.accentColor    = pal.accentColor
-        sfui.config.appearance.backdropColor  = pal.backdropColor
-        sfui.config.appearance.borderColor    = pal.borderColor
-        sfui.config.header_color              = { pal.headerColor[1], pal.headerColor[2], pal.headerColor[3] }
-    end
+    sfui.config.appearance.highlightColor = pal.highlightColor
+    sfui.config.appearance.accentColor    = pal.accentColor
+    sfui.config.appearance.backdropColor  = pal.backdropColor
+    sfui.config.appearance.borderColor    = pal.borderColor
+    sfui.config.header_color              = { pal.headerColor[1], pal.headerColor[2], pal.headerColor[3] }
 
     -- Theme lifecycle hook if defined
     if theme.OnApply then
@@ -1412,6 +1850,7 @@ function sfui.theme.ApplyCurrentTheme()
     for _, item in ipairs(registered_windows) do
         if item.frame then
             sfui.theme.ApplyWindowStyle(item.frame, item.options)
+            sfui.theme.ElevateWindowContents(item.frame)
             if item.callback then
                 pcall(item.callback, item.frame, pal)
             end
@@ -1464,38 +1903,39 @@ function sfui.theme.ApplyCurrentTheme()
     end
 
     -- 8. Refresh Minimap theme
-    if sfui.minimap and sfui.minimap.UpdateMinimapTheme then
-        pcall(sfui.minimap.UpdateMinimapTheme)
+    sfui.minimap.UpdateMinimapTheme()
+
+    -- 9. Refresh quest trackers
+    sfui.tracker.RequestRefresh(0.01)
+    sfui.questlog.RequestRefresh()
+
+    -- 10. Refresh loot feed theme
+    sfui.lootfeed.UpdateTheme()
+
+    -- 11. Refresh target frame theme (Classic/Camelot)
+    if not sfui.isRetail and sfui.target.UpdateTheme then
+        sfui.target.UpdateTheme()
     end
 
-    -- 9. Refresh quest trackers if loaded
-    if sfui.tracker and sfui.tracker.RequestRefresh then
-        sfui.tracker.RequestRefresh(0.01)
-    end
-    if sfui.questlog and sfui.questlog.RequestRefresh then
-        sfui.questlog.RequestRefresh()
-    end
+    -- 12. Broadcast message to any listening modules
+    sfui.events.SendMessage("SFUI_THEME_CHANGED", pal.id, pal, theme)
 
-    -- 10. Refresh loot feed theme if loaded
-    if sfui.lootfeed and sfui.lootfeed.UpdateTheme then
-        pcall(sfui.lootfeed.UpdateTheme)
-    end
-
-    -- 11. Broadcast message to any listening modules
-    if sfui.events and sfui.events.SendMessage then
-        sfui.events.SendMessage("SFUI_THEME_CHANGED", pal.id, pal, theme)
+    -- 13. Re-style all registered bars
+    for bar, barType in pairs(registered_bars) do
+        if bar then
+            sfui.theme.ApplyStatusBarStyle(bar, barType)
+        end
     end
 end
 
 -- ─── Database Defaults ────────────────────────────────────────────────────────
-if sfui.db and sfui.db.RegisterDefaults then
-    sfui.db.RegisterDefaults("theme", {
-        mode             = "auto",
-        cornerBrackets   = true,
-        texturedBackdrop = true,
-        minimapArt       = true,
-    })
-end
+sfui.db.RegisterDefaults("theme", {
+    mode             = "auto",
+    cornerBrackets   = true,
+    texturedBackdrop = true,
+    minimapArt       = true,
+    barStyle         = "heavy",
+})
 
 -- Export public API alias
 sfui.ApplyTheme = sfui.theme.ApplyCurrentTheme

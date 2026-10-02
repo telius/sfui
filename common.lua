@@ -3,12 +3,49 @@ sfui = sfui or {}
 sfui.common = sfui.common or {}
 
 function sfui.common.print(msg, ...)
-    if sfui.config and sfui.config.prefix then
-        print(sfui.config.prefix .. " " .. tostring(msg), ...)
+    local prefix = (sfui.config and sfui.config.prefix) or "|cff6600ffsfui:|r"
+    if msg == nil then
+        print(prefix, ...)
+        return
+    end
+
+    local text = tostring(msg)
+    -- Defensively strip any repeated sfui: / [sfui] / color-wrapped sfui: prefixes
+    local changed = true
+    while changed do
+        local prev = text
+        -- Strip whole color-wrapped sfui prefix: e.g. |cff6600ffsfui:|r or |cff6600ffsfui|r: or |cff8888ff[SFUI]|r
+        text = text:gsub("^%s*|c%x%x%x%x%x%x%x%x%[?[Ss][Ff][Uu][Ii]%]?%:?|r%:?%s*", "")
+        -- Preserve error color wrapper: e.g. |cffff0000SFUI Error:|r -> |cffff0000Error:|r
+        text = text:gsub("^(%s*|c%x%x%x%x%x%x%x%x)[Ss][Ff][Uu][Ii]%s+([Ee][Rr][Rr][Oo][Rr]:?)", "%1%2")
+        -- Strip any partial color-wrapped sfui if left without closing |r
+        text = text:gsub("^(%s*|c%x%x%x%x%x%x%x%x)%[?[Ss][Ff][Uu][Ii]%]?%:?%s*", "%1")
+
+        -- Strip plain sfui: or [sfui] prefix
+        text = text:gsub("^%s*%[?[Ss][Ff][Uu][Ii]%]?%:?%s*", "")
+        changed = (text ~= prev)
+    end
+
+    if text == "" then
+        print(prefix, ...)
     else
-        print("|cff6600ffsfui:|r " .. tostring(msg), ...)
+        print(prefix .. " " .. text, ...)
     end
 end
+
+function sfui.common.get_tooltip()
+    return sfui.tooltip or _G.GameTooltip
+end
+
+function sfui.common.SyncTrackedSpells()
+    -- No-op stub for backwards compatibility
+end
+
+function sfui.common.get_tracked_bar_db(id)
+    if not id then return {} end
+    return (SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars[id]) or {}
+end
+
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- Domain Services Note:
@@ -113,16 +150,14 @@ function sfui.common.is_known_aura_spell(spellIDOrName)
     local name = type(spellIDOrName) == "string" and spellIDOrName or sfui.common.get_spell_name(spellIDOrName)
     if not name or name == "" then return false end
 
-    if sfui.spells_db and sfui.spells_db.MatchesAuraPattern and sfui.spells_db.MatchesAuraPattern(name) then
+    if sfui.spells_db.MatchesAuraPattern(name) then
         return true, name
     end
 
     -- Dynamic check: is it already active on the player?
-    if sfui.api and sfui.api.GetUnitAuraByNameOrID then
-        local aura = sfui.api.GetUnitAuraByNameOrID("player", name)
-        if aura then
-            return true, name
-        end
+    local aura = sfui.api.GetUnitAuraByNameOrID("player", name)
+    if aura then
+        return true, name
     end
 
     return false, name
@@ -552,13 +587,10 @@ function sfui.common.get_secondary_resource()
     local pClass = sfui.common.get_player_class()
     if not pClass then return nil end
 
-    local isClassic = (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
-        or (sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail))
+    local isClassic = sfui.isClassic
 
     if isClassic and pClass ~= "ROGUE" and pClass ~= "DRUID" then
-        if sfui.bars then
-            sfui.bars.bar1_in_use = false
-        end
+        sfui.bars.bar1_in_use = false
         return nil
     end
 
@@ -577,9 +609,7 @@ function sfui.common.get_secondary_resource()
         end
     end
 
-    if sfui.bars then
-        sfui.bars.bar1_in_use = (res ~= nil)
-    end
+    sfui.bars.bar1_in_use = (res ~= nil)
     return res
 end
 
@@ -797,10 +827,19 @@ function sfui.initialize_database()
     if igs.readyGlow == nil then igs.readyGlow = g.readyGlow end
     if igs.glowType == nil then igs.glowType = g.glowType or "pixel" end
 
-    if type(SfuiDB.barTexture) ~= "string" or SfuiDB.barTexture == "" then SfuiDB.barTexture = "Flat" end
-    if sfui.widgets and sfui.widgets.get_bar_texture then
-        sfui.config.barTexture = sfui.widgets.get_bar_texture()
+    local activeThemeID = (sfui.theme and sfui.theme.GetActiveThemeID and sfui.theme.GetActiveThemeID()) or "modern"
+    local activeTheme = sfui.theme and sfui.theme.GetTheme and sfui.theme.GetTheme(activeThemeID)
+    local defaultBarTexture = (activeTheme and (activeTheme.barTexture or (activeTheme.bars and activeTheme.bars.texture)))
+        or (activeThemeID == "camelot" and "Blizzard Nameplate")
+        or "Flat"
+
+    if type(SfuiDB.barTexture) ~= "string" or SfuiDB.barTexture == "" then
+        SfuiDB.barTexture = defaultBarTexture
+    elseif activeThemeID == "camelot" and SfuiDB.barTexture == "Flat" and not SfuiDB._barTextureCustomized then
+        -- Automatically swap Camelot to Blizzard Nameplate if still using the legacy default "Flat"
+        SfuiDB.barTexture = "Blizzard Nameplate"
     end
+    sfui.config.barTexture = sfui.widgets.get_bar_texture()
     SfuiDB.absorbBarColor = SfuiDB.absorbBarColor or sfui.config.absorbBarColor
 
     SfuiDB.minimap_icon = SfuiDB.minimap_icon or { hide = false }
@@ -953,28 +992,26 @@ function sfui.common.hide_blizzard_cooldown_viewers()
         end
 
         -- Game events for cinematics, movies, challenge mode, and layout updates
-        if sfui.events and sfui.events.RegisterEvent then
-            sfui.events.RegisterEvent("CINEMATIC_STOP", function()
+        sfui.events.RegisterEvent("CINEMATIC_STOP", function()
+            sfui.common.hide_blizzard_cooldown_viewers()
+        end)
+        sfui.events.RegisterEvent("STOP_MOVIE", function()
+            sfui.common.hide_blizzard_cooldown_viewers()
+        end)
+        sfui.events.RegisterEvent("CHALLENGE_MODE_START", function()
+            sfui.common.hide_blizzard_cooldown_viewers()
+        end)
+        sfui.events.RegisterEvent("CHALLENGE_MODE_RESET", function()
+            sfui.common.hide_blizzard_cooldown_viewers()
+        end)
+        sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
+            sfui.common.hide_blizzard_cooldown_viewers()
+        end)
+        sfui.events.RegisterEvent("ADDON_LOADED", function(event, loadedAddon)
+            if loadedAddon == "Blizzard_CooldownViewer" then
                 sfui.common.hide_blizzard_cooldown_viewers()
-            end)
-            sfui.events.RegisterEvent("STOP_MOVIE", function()
-                sfui.common.hide_blizzard_cooldown_viewers()
-            end)
-            sfui.events.RegisterEvent("CHALLENGE_MODE_START", function()
-                sfui.common.hide_blizzard_cooldown_viewers()
-            end)
-            sfui.events.RegisterEvent("CHALLENGE_MODE_RESET", function()
-                sfui.common.hide_blizzard_cooldown_viewers()
-            end)
-            sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
-                sfui.common.hide_blizzard_cooldown_viewers()
-            end)
-            sfui.events.RegisterEvent("ADDON_LOADED", function(event, loadedAddon)
-                if loadedAddon == "Blizzard_CooldownViewer" then
-                    sfui.common.hide_blizzard_cooldown_viewers()
-                end
-            end)
-        end
+            end
+        end)
     end
 
     -- Ensure the CVar is set to 1 so Blizzard's internal data systems are active.
@@ -1097,8 +1134,7 @@ function sfui.common.get_owned_keystone_info()
     end
 
     -- 2. Scan physical bags to retrieve clickable item link (for chat linking & tooltips) or as fallback
-    if sfui.common.for_each_bag_item then
-        sfui.common.for_each_bag_item(function(bag, slot, itemID, itemLink)
+    sfui.common.for_each_bag_item(function(bag, slot, itemID, itemLink)
             if not itemLink and _G.C_Container and _G.C_Container.GetContainerItemLink then
                 itemLink = _G.C_Container.GetContainerItemLink(bag, slot)
             end
@@ -1203,7 +1239,6 @@ function sfui.common.get_owned_keystone_info()
                 end
             end
         end, true, true, true)
-    end
 
     -- 3. Fall back to C_LFGList if still missing or out of bounds
     if (not bagMapID or not bagLevel or bagLevel >= 100) and C_LFGList and C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel then

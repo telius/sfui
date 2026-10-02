@@ -1,6 +1,21 @@
 local addonName, addon = ...
 sfui = sfui or {}
+sfui.lootviewer = sfui.lootviewer or {}
 sfui.is_ready_for_vendor_frame = false
+
+function sfui.ToggleLootViewer()
+    if not sfui.isRetail and sfui.lootviewer_camelot and sfui.lootviewer_camelot.Toggle then
+        sfui.lootviewer_camelot.Toggle()
+    elseif sfui.lootviewer and sfui.lootviewer.Toggle and sfui.lootviewer.Toggle ~= sfui.ToggleLootViewer then
+        sfui.lootviewer.Toggle()
+    end
+end
+
+if not sfui.lootviewer.Toggle then
+    sfui.lootviewer.Toggle = function()
+        sfui.ToggleLootViewer()
+    end
+end
 
 -- Localize Globals
 local _G = _G
@@ -37,14 +52,15 @@ local function initialize_sfui()
     if isInitialized then return end
     isInitialized = true
 
-    if sfui.common and sfui.common.invalidate_panels_cache then
-        sfui.common.invalidate_panels_cache()
-    end
+    sfui.common.invalidate_panels_cache()
     local LSM = LibStub("LibSharedMedia-3.0", true)
     if LSM then
-        if sfui.config and sfui.config.blizzard_bar_textures then
+        if sfui.config.blizzard_bar_textures then
             for name, path in pairs(sfui.config.blizzard_bar_textures) do
-                LSM:Register("statusbar", name, path)
+                local isAtlas = type(path) == "string" and not path:find("^[iI]nterface[/\\]")
+                if not isAtlas or (C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(path)) then
+                    LSM:Register("statusbar", name, path)
+                end
             end
         else
             LSM:Register("statusbar", "Flat", "Interface/Buttons/WHITE8X8")
@@ -74,10 +90,12 @@ local function initialize_sfui()
     SfuiDB.trackedOptionsWindow = SfuiDB.trackedOptionsWindow or {}
     SfuiDB.currencyCaps = SfuiDB.currencyCaps or {}
     SfuiDB.items = SfuiDB.items or {}
-    SfuiDB.mythicBestTimes = SfuiDB.mythicBestTimes or {}
-    SfuiDB.lootspec = SfuiDB.lootspec or {}
-    SfuiDB.bonusroll = SfuiDB.bonusroll or {}
-    SfuiDB.worldevents = SfuiDB.worldevents or {}
+    if sfui.isRetail then
+        SfuiDB.mythicBestTimes = SfuiDB.mythicBestTimes or {}
+        SfuiDB.lootspec = SfuiDB.lootspec or {}
+        SfuiDB.bonusroll = SfuiDB.bonusroll or {}
+        SfuiDB.worldevents = SfuiDB.worldevents or {}
+    end
     SfuiDB.spec_colors = SfuiDB.spec_colors or {}
     -- Migration: Purge legacy blue or interim orange for Balance Druid (102 and 14841) so it defaults to Moonfire
     for _, sID in ipairs({ 102, 14841 }) do
@@ -93,25 +111,14 @@ local function initialize_sfui()
     end
     SfuiDB.hearthstone = SfuiDB.hearthstone or {}
 
-    if sfui.db and sfui.db.Initialize then
-        sfui.db.Initialize()
-    end
-    if sfui.InitModules then
-        sfui.InitModules()
-    end
+    sfui.db.Initialize()
+    sfui.InitModules()
 
-    if sfui.initialize_database then
-        sfui.initialize_database()
-    end
-
-    if sfui.theme and sfui.theme.ApplyCurrentTheme then
-        sfui.theme.ApplyCurrentTheme()
-    end
+    sfui.initialize_database()
+    sfui.theme.ApplyCurrentTheme()
 
     -- Migrate cooldown panels to per-spec structure
-    if sfui.common and sfui.common.migrate_cooldown_panels_to_spec then
-        sfui.common.migrate_cooldown_panels_to_spec()
-    end
+    sfui.common.migrate_cooldown_panels_to_spec()
 
     local getMeta = (C_AddOns and C_AddOns.GetAddOnMetadata) or _G.GetAddOnMetadata
     local tocVersion = getMeta and getMeta("sfui", "Version")
@@ -119,7 +126,7 @@ local function initialize_sfui()
         sfui.config.version = tocVersion
     end
 
-    if sfui.config and sfui.config.cvars_on_load then
+    if sfui.config.cvars_on_load then
         local setCVar = (C_CVar and C_CVar.SetCVar) or _G.SetCVar
         local getCVar = (C_CVar and C_CVar.GetCVar) or _G.GetCVar
         if setCVar then
@@ -185,86 +192,75 @@ if isAddOnLoaded and select(2, isAddOnLoaded(addonName or "sfui")) then
 end
 
 sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
-    if sfui.update_pixel_scale then sfui.update_pixel_scale() end
+    sfui.update_pixel_scale()
 
-    if sfui.EnableModules then
-        sfui.EnableModules()
-    end
+    sfui.EnableModules()
 
-    if sfui.common and sfui.common.hide_blizzard_cooldown_viewers then
-        sfui.common.hide_blizzard_cooldown_viewers()
-    end
+    sfui.common.hide_blizzard_cooldown_viewers()
 
-    if sfui.create_currency_frame then
-        sfui.create_currency_frame()
-    end
-    if sfui.create_item_frame then
-        sfui.create_item_frame()
-    end
+    sfui.create_currency_frame()
+    sfui.create_item_frame()
     local function is_unregistered(modName)
         return not (sfui.modules and sfui.modules[modName])
     end
 
-    if is_unregistered("bars") and sfui.bars and sfui.bars.on_state_changed then
+    local isRetail = sfui.isRetail
+    if is_unregistered("bars") then
         sfui.bars:on_state_changed()
     end
-    if (is_unregistered("castbar") or not (sfui.castbar and sfui.castbar.bars)) and sfui.castbar and sfui.castbar.initialize then
+    if is_unregistered("castbar") or not sfui.castbar.bars then
         sfui.castbar.initialize()
     end
-    if is_unregistered("compare") and sfui.compare and sfui.compare.init then
+    if is_unregistered("compare") then
         sfui.compare.init()
     end
-    if is_unregistered("gear") and sfui.gear and sfui.gear.initialize then
+    if is_unregistered("gear") then
         sfui.gear.initialize()
     end
-    if is_unregistered("hammer") and sfui.hammer and sfui.hammer.initialize then
+    if isRetail and is_unregistered("hammer") then
         sfui.hammer.initialize()
     end
-    if is_unregistered("research") and sfui.research and sfui.research.initialize then
+    if isRetail and is_unregistered("research") then
         sfui.research.initialize()
     end
-    if is_unregistered("automation") and sfui.automation and sfui.automation.initialize then
+    if is_unregistered("automation") then
         sfui.automation.initialize()
     end
-    if is_unregistered("cursor") and sfui.cursor and sfui.cursor.initialize then
+    if is_unregistered("cursor") then
         sfui.cursor.initialize()
     end
-    if is_unregistered("trackedbars") and sfui.trackedbars and sfui.trackedbars.initialize then
+    if is_unregistered("trackedbars") then
         sfui.trackedbars.initialize()
     end
-    if is_unregistered("trackedicons") and sfui.trackedicons and sfui.trackedicons.initialize then
+    if is_unregistered("trackedicons") then
         sfui.trackedicons.initialize()
     end
-    if is_unregistered("trackedoptions") and sfui.trackedoptions and sfui.trackedoptions.initialize then
+    if is_unregistered("trackedoptions") then
         sfui.trackedoptions.initialize()
     end
-    if is_unregistered("alts") and sfui.alts and sfui.alts.initialize then
+    if is_unregistered("alts") then
         sfui.alts.initialize()
     end
-    if is_unregistered("portals") and sfui.portals and sfui.portals.initialize then
+    if isRetail and is_unregistered("portals") then
         sfui.portals.initialize()
     end
-    if is_unregistered("lootspec") and sfui.lootspec and sfui.lootspec.initialize then
+    if isRetail and is_unregistered("lootspec") then
         sfui.lootspec.initialize()
     end
     if is_unregistered("lootviewer") and sfui.lootviewer and sfui.lootviewer.initialize then
         sfui.lootviewer.initialize()
     end
-    if is_unregistered("questlog") and sfui.questlog and sfui.questlog.initialize then
+    if is_unregistered("questlog") then
         sfui.questlog.initialize()
     end
 
-
-
     if not LibStub then
-        sfui.common.print("|cffff0000SFUI Error:|r LibStub global not found!")
+        sfui.common.print("|cffff0000Error:|r LibStub global not found!")
         return
     end
 
     -- Initialize Minimap Menu
     if not SfuiMinimapMenu then
-        local isRetail = (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic)
-
         SfuiMinimapMenu = CreateFrame("Frame", "SfuiMinimapMenu", UIParent, "BackdropTemplate")
         SfuiMinimapMenu:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
         SfuiMinimapMenu:SetBackdropColor(0, 0, 0, 0.5)
@@ -273,42 +269,44 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
 
         local menuButtons = {
             {
-                text = "|cff00ffffoptions|r",
+                text = "|cffffffffoptions|r",
                 func = function() sfui.toggle_options_panel() end,
             },
             {
                 text = "|cff00ff00tracking manager|r",
                 func = function()
-                    if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
-                        sfui.trackedoptions.toggle_viewer()
-                    end
+                    sfui.trackedoptions.toggle_viewer()
                 end,
             },
             {
                 text = "|cff9966ffalts|r",
                 func = function()
-                    if sfui.alts and sfui.alts.Toggle then
-                        sfui.alts.Toggle()
-                    end
+                    sfui.alts.Toggle()
                 end,
             },
         }
 
-        if isRetail then
+        if isRetail and sfui.portals then
             table.insert(menuButtons, {
                 text = "|cffff9900portals|r",
                 func = function()
-                    if sfui.portals and sfui.portals.Toggle then
-                        sfui.portals.Toggle()
-                    end
+                    sfui.portals.Toggle()
                 end,
             })
+        end
+
+        if isRetail and sfui.lootviewer and sfui.lootviewer.Toggle then
             table.insert(menuButtons, {
                 text = "|cff22aaffloot browser|r",
                 func = function()
-                    if sfui.lootviewer and sfui.lootviewer.Toggle then
-                        sfui.lootviewer.Toggle()
-                    end
+                    sfui.lootviewer.Toggle()
+                end,
+            })
+        elseif not isRetail and sfui.lootviewer_camelot and sfui.lootviewer_camelot.Toggle then
+            table.insert(menuButtons, {
+                text = "|cffd1a652dungeon journal|r",
+                func = function()
+                    sfui.lootviewer_camelot.Toggle()
                 end,
             })
         end
@@ -317,11 +315,7 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
             table.insert(menuButtons, {
                 text = "|cffff99ccpet manager|r",
                 func = function()
-                    if sfui.pets and sfui.pets.Toggle then
-                        sfui.pets.Toggle()
-                    elseif sfui.pets_ui and sfui.pets_ui.Toggle then
-                        sfui.pets_ui.Toggle()
-                    end
+                    sfui.pets.Toggle()
                 end,
             })
         end
@@ -329,9 +323,7 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
         table.insert(menuButtons, {
             text = "|cff6600ffmemory profiler|r",
             func = function()
-                if sfui.mem and sfui.mem.ToggleGUI then
-                    sfui.mem.ToggleGUI()
-                end
+                sfui.mem.ToggleGUI()
             end,
         })
 
@@ -394,7 +386,7 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
                 elseif button == "RightButton" then
                     if IsShiftKeyDown() then
                         if C_UI and C_UI.Reload then C_UI.Reload() elseif _G.ReloadUI then _G.ReloadUI() end
-                    elseif sfui.alts and sfui.alts.Toggle then
+                    else
                         sfui.alts.Toggle()
                     end
                 end

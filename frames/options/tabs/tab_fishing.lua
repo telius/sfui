@@ -81,9 +81,7 @@ sfui.options.RegisterTab({
         local sound_reset_btn = CreateFlatButton(p, "restore sound defaults", 150, 20)
         sound_reset_btn:SetPoint("LEFT", fishing_vol_slider, "LEFT", COL_OFFSET_X, 0)
         sound_reset_btn:SetScript("OnClick", function()
-            if sfui.fishing and sfui.fishing.RestoreSoundDefaults then
-                sfui.fishing.RestoreSoundDefaults()
-            end
+            sfui.fishing.RestoreSoundDefaults()
         end)
 
         -- ── Section 3: Keybinds & Instructions ───────────────────────────────
@@ -193,18 +191,14 @@ sfui.options.RegisterTab({
 
             local chord = build_key_chord(key)
             if chord and chord ~= "" then
-                if sfui.fishing and sfui.fishing.set_keybind then
-                    sfui.fishing.set_keybind(chord)
-                end
+                sfui.fishing.set_keybind(chord)
             end
             stop_listening()
         end)
 
         catcher:SetScript("OnGamePadButtonDown", function(self, button)
             if button and button ~= "" then
-                if sfui.fishing and sfui.fishing.set_keybind then
-                    sfui.fishing.set_keybind(button)
-                end
+                sfui.fishing.set_keybind(button)
             end
             stop_listening()
         end)
@@ -213,9 +207,7 @@ sfui.options.RegisterTab({
             local key = delta > 0 and "MOUSEWHEELUP" or "MOUSEWHEELDOWN"
             local chord = build_key_chord(key)
             if chord and chord ~= "" then
-                if sfui.fishing and sfui.fishing.set_keybind then
-                    sfui.fishing.set_keybind(chord)
-                end
+                sfui.fishing.set_keybind(chord)
             end
             stop_listening()
         end)
@@ -238,9 +230,7 @@ sfui.options.RegisterTab({
                 if mapped and mapped ~= "BUTTON1" and mapped ~= "BUTTON2" then
                     local chord = build_key_chord(mapped)
                     if chord and chord ~= "" then
-                        if sfui.fishing and sfui.fishing.set_keybind then
-                            sfui.fishing.set_keybind(chord)
-                        end
+                        sfui.fishing.set_keybind(chord)
                     end
                 end
                 stop_listening()
@@ -253,9 +243,7 @@ sfui.options.RegisterTab({
                 if is_listening then
                     stop_listening()
                 else
-                    if sfui.fishing and sfui.fishing.unbind_keybinds then
-                        sfui.fishing.unbind_keybinds()
-                    end
+                    sfui.fishing.unbind_keybinds()
                     update_keybind_display()
                 end
             elseif button == "LeftButton" then
@@ -272,9 +260,7 @@ sfui.options.RegisterTab({
             if is_listening then
                 stop_listening()
             end
-            if sfui.fishing and sfui.fishing.unbind_keybinds then
-                sfui.fishing.unbind_keybinds()
-            end
+            sfui.fishing.unbind_keybinds()
             update_keybind_display()
         end)
 
@@ -337,15 +323,13 @@ sfui.options.RegisterTab({
             end)
         end
 
-        if sfui.events and sfui.events.RegisterEvent then
-            sfui.events.RegisterEvent("UPDATE_BINDINGS", function()
-                if p:IsVisible() then
-                    update_keybind_display()
-                end
-            end)
-            sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
-                stop_listening()
-            end)
-        end
+        sfui.events.RegisterEvent("UPDATE_BINDINGS", function()
+            if p:IsVisible() then
+                update_keybind_display()
+            end
+        end)
+        sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+            stop_listening()
+        end)
     end,
 })

@@ -84,9 +84,7 @@ local function get_or_create_popup()
             local y = math_floor(cy - uy)
             SfuiDB.portalPopupX = x
             SfuiDB.portalPopupY = y
-            if sfui.options and sfui.options.sync_portal_sliders then
-                sfui.options.sync_portal_sliders(x, y)
-            end
+            sfui.options.sync_portal_sliders(x, y)
         end
     end)
 
@@ -140,9 +138,7 @@ local function get_or_create_popup()
 
     card:HookScript("OnClick", function(self)
         if not self.isKnown then
-            if sfui_common and sfui_common.print then
-                sfui_common.print("|cffff5555[SFUI] You have not learned the teleport for this dungeon.|r")
-            end
+            sfui_common.print("|cffff5555You have not learned the teleport for this dungeon.|r")
         end
         if not InCombatLockdown() then
             f:Hide()
@@ -259,12 +255,12 @@ function sfui.portals.ShowGroupPortalPopup(instanceIdentifier, dungeonName, role
         card:SetAttribute("type", "spell")
         card:SetAttribute("spell", spellID)
 
-        local iconID = (sfui_common and sfui_common.get_spell_icon(spellID)) or sfui.common.get_spell_icon(spellID) or 134400
+        local iconID = sfui_common.get_spell_icon(spellID) or 134400
         card.icon:SetTexture(iconID)
         card.icon:SetDesaturated(false)
         card.warn:Hide()
 
-        local startTime, duration, _, modRate = (sfui_common or sfui.common).get_spell_cooldown(spellID)
+        local startTime, duration, _, modRate = sfui_common.get_spell_cooldown(spellID)
         if startTime > 0 and duration > 0 then
             card.cooldown:SetCooldown(startTime, duration, modRate or 1)
             card.cooldown:Show()
@@ -277,7 +273,7 @@ function sfui.portals.ShowGroupPortalPopup(instanceIdentifier, dungeonName, role
 
         local iconID = 134400
         if spellID then
-            iconID = (sfui_common or sfui.common).get_spell_icon(spellID) or 134400
+            iconID = sfui_common.get_spell_icon(spellID) or 134400
         end
         card.icon:SetTexture(iconID)
         card.icon:SetDesaturated(true)
@@ -350,13 +346,10 @@ function sfui.portals.TestPortalPopup()
         popupFrame._sfui_last_inst = nil
         popupFrame._sfui_last_full = nil
     end
-    local db = sfui.portals_db
-    local testPortal = db and db.SEASON_PORTALS and db.SEASON_PORTALS[1]
+    local testPortal = sfui.portals_db.SEASON_PORTALS[1]
     if testPortal then
         sfui.portals.ShowGroupPortalPopup(testPortal.instance, testPortal.name, UnitGroupRolesAssigned("player"), true)
-        if sfui_common and sfui_common.print then
-            sfui_common.print("|cff00ffff[SFUI] Previewing dungeon portal popup for " .. testPortal.name .. ".|r")
-        end
+        sfui_common.print("|cff00ffffPreviewing dungeon portal popup for " .. testPortal.name .. ".|r")
     else
         sfui.portals.ShowGroupPortalPopup(1762, "Kings' Rest", UnitGroupRolesAssigned("player"), true)
     end

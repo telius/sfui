@@ -37,7 +37,7 @@ local ChatFrameUtil = _G.ChatFrameUtil
 local pairs, next, tostring = _G.pairs, _G.next, _G.tostring
 local table_insert, table_remove = _G.table.insert, _G.table.remove
 
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.common.issecretvalue
 
 -- Active tracked item buttons for throttled range checking
 local activeButtons = {}
@@ -163,10 +163,7 @@ function Items.CreateItemButton(parent)
     icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     btn.Icon = icon
 
-    -- 1px Border
-    if sfui.common and sfui.common.create_border then
-        sfui.common.create_border(btn, 1, { 0, 0, 0, 1 })
-    end
+    sfui.common.create_border(btn, 1, { 0, 0, 0, 1 })
 
     -- Cooldown frame
     local cd = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
@@ -245,9 +242,9 @@ function Items.CreateItemButton(parent)
 
     btn:SetScript("OnEnter", function(self)
         local qlIndex = self.questLogIndex
-        local tip = (sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()) or _G.GameTooltip
+        local tip = sfui.common.get_tooltip() or _G.GameTooltip
         if tip and qlIndex then
-            local anchor = (sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.tooltip and sfui.tracker.helpers.tooltip.PickAnchor and sfui.tracker.helpers.tooltip.PickAnchor(self)) or "ANCHOR_RIGHT"
+            local anchor = (sfui.tracker.helpers.tooltip and sfui.tracker.helpers.tooltip.PickAnchor and sfui.tracker.helpers.tooltip.PickAnchor(self)) or "ANCHOR_RIGHT"
             tip:SetOwner(self, anchor)
             if tip.SetQuestLogSpecialItem then
                 tip:SetQuestLogSpecialItem(qlIndex)
@@ -257,15 +254,13 @@ function Items.CreateItemButton(parent)
     end)
 
     btn:SetScript("OnLeave", function()
-        local tip = (sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()) or _G.GameTooltip
+        local tip = sfui.common.get_tooltip() or _G.GameTooltip
         if tip then tip:Hide() end
     end)
 
     btn:EnableMouseWheel(true)
     btn:SetScript("OnMouseWheel", function(self, delta)
-        if sfui.tracker and sfui.tracker.OnMouseWheel then
-            sfui.tracker.OnMouseWheel(self, delta)
-        end
+        sfui.tracker.OnMouseWheel(self, delta)
     end)
 
     btn:Hide()
@@ -347,20 +342,18 @@ end
 -- ─────────────────────────────────────────────────────────
 --  EVENT LISTENERS
 -- ─────────────────────────────────────────────────────────
-if sfui.events and sfui.events.RegisterEvent then
-    sfui.events.RegisterEvent("BAG_UPDATE_COOLDOWN", UpdateAllCooldowns)
-    sfui.events.RegisterEvent("PLAYER_TARGET_CHANGED", function()
-        if isRangeWatcherActive then
-            OnRangeUpdate()
+sfui.events.RegisterEvent("BAG_UPDATE_COOLDOWN", UpdateAllCooldowns)
+sfui.events.RegisterEvent("PLAYER_TARGET_CHANGED", function()
+    if isRangeWatcherActive then
+        OnRangeUpdate()
+    end
+end)
+sfui.events.RegisterEvent("PLAYER_INSIDE_QUEST_BLOB_STATE_CHANGED", function(event, questID, inside)
+    for btn in pairs(activeButtons) do
+        if btn.questID == questID then
+            UpdateBlobGlow(btn)
         end
-    end)
-    sfui.events.RegisterEvent("PLAYER_INSIDE_QUEST_BLOB_STATE_CHANGED", function(event, questID, inside)
-        for btn in pairs(activeButtons) do
-            if btn.questID == questID then
-                UpdateBlobGlow(btn)
-            end
-        end
-    end)
-end
+    end
+end)
 
 return Items

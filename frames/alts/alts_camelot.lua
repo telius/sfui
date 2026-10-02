@@ -668,7 +668,7 @@ local function PerformSync(data, isLogout)
         local info
         if C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo then
             info = C_CurrencyInfo.GetCurrencyInfo(cDef.id)
-        elseif sfui.common and sfui.common.get_currency_info then
+        else
             info = sfui.common.get_currency_info(cDef.id)
         end
 
@@ -689,9 +689,7 @@ local function PerformSync(data, isLogout)
         data.currencies[cDef.id] = curr
     end
 
-    if sfui.recipes and sfui.recipes.InvalidateCache then
-        sfui.recipes.InvalidateCache()
-    end
+    sfui.recipes.InvalidateCache()
 end
 
 local function RenderCell(cell, cat, altData, classColor, col, altGuid)

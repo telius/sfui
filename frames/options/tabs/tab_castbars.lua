@@ -23,9 +23,7 @@ sfui.options.RegisterTab({
         local test_all_btn = CreateFlatButton(castbar_panel, "test preview (both)", 150, 22)
         test_all_btn:SetPoint("LEFT", castbar_header, "RIGHT", 25, 0)
         test_all_btn:SetScript("OnClick", function()
-            if sfui.castbar and sfui.castbar.show_test_preview then
-                sfui.castbar.show_test_preview(8)
-            end
+            sfui.castbar.show_test_preview(8)
         end)
 
         -- Helper to ensure position update is applied immediately to previewed bar
@@ -77,9 +75,7 @@ sfui.options.RegisterTab({
         local test_player_btn = CreateFlatButton(castbar_panel, "test preview", 100, 20)
         test_player_btn:SetPoint("LEFT", reset_player_cast_btn, "RIGHT", 10, 0)
         test_player_btn:SetScript("OnClick", function()
-            if sfui.castbar and sfui.castbar.show_test_preview then
-                sfui.castbar.show_test_preview(8)
-            end
+            sfui.castbar.show_test_preview(8)
         end)
 
         -- Target Castbar
@@ -118,9 +114,7 @@ sfui.options.RegisterTab({
         local test_target_btn = CreateFlatButton(castbar_panel, "test preview", 100, 20)
         test_target_btn:SetPoint("LEFT", reset_target_cast_btn, "RIGHT", 10, 0)
         test_target_btn:SetScript("OnClick", function()
-            if sfui.castbar and sfui.castbar.show_test_preview then
-                sfui.castbar.show_test_preview(8)
-            end
+            sfui.castbar.show_test_preview(8)
         end)
     end,
 })

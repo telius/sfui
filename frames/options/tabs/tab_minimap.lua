@@ -21,14 +21,12 @@ sfui.options.RegisterTab({
         minimap_header:SetText("minimap settings")
 
         local collect_cb = create_checkbox(minimap_panel, "collect buttons", "minimap_collect_buttons", function(checked)
-            if sfui.minimap and sfui.minimap.enable_button_manager then
-                sfui.minimap.enable_button_manager(checked)
-            end
+            sfui.minimap.enable_button_manager(checked)
         end, "collects minimap buttons into a bar.")
         collect_cb:SetPoint("TOPLEFT", minimap_header, "BOTTOMLEFT", 0, -10)
 
         local mouseover_cb = create_checkbox(minimap_panel, "mouseover only", "minimap_buttons_mouseover", function(checked)
-            if sfui.minimap and sfui.minimap.enable_button_manager and SfuiDB.minimap_collect_buttons then
+            if SfuiDB.minimap_collect_buttons then
                 C_Timer.After(0.1, function()
                     sfui.minimap.enable_button_manager(false)
                     sfui.minimap.enable_button_manager(true)
@@ -38,33 +36,25 @@ sfui.options.RegisterTab({
         mouseover_cb:SetPoint("TOPLEFT", collect_cb, "BOTTOMLEFT", 0, -10)
 
         local autozoom_cb = create_checkbox(minimap_panel, "enable autozoom", "minimap_auto_zoom", function(checked)
-            if sfui.minimap and sfui.minimap.reset_zoom_timer then
-                sfui.minimap.reset_zoom_timer()
-            end
+            sfui.minimap.reset_zoom_timer()
         end, "automatically resets minimap zoom after a delay.")
         autozoom_cb:SetPoint("TOPLEFT", mouseover_cb, "BOTTOMLEFT", 0, -10)
 
         local autozoom_delay = create_slider_input(minimap_panel, "autozoom delay:", "minimap_auto_zoom_delay", 1, 30, 1,
             function(val)
-                if sfui.minimap and sfui.minimap.reset_zoom_timer then
-                    sfui.minimap.reset_zoom_timer()
-                end
+                sfui.minimap.reset_zoom_timer()
             end, "seconds to wait before automatically zooming out.")
         autozoom_delay:SetPoint("TOPLEFT", autozoom_cb, "BOTTOMLEFT", 0, -15)
 
         local pos_x_slider = create_slider_input(minimap_panel, "minimap x:", "minimap_button_x", -1000, 1000, 1,
             function(val)
-                if sfui.minimap and sfui.minimap.update_button_bar_position then
-                    sfui.minimap.update_button_bar_position()
-                end
+                sfui.minimap.update_button_bar_position()
             end)
         pos_x_slider:SetPoint("TOPLEFT", autozoom_delay, "BOTTOMLEFT", 0, -15)
 
         local pos_y_slider = create_slider_input(minimap_panel, "minimap y:", "minimap_button_y", -1000, 1000, 1,
             function(val)
-                if sfui.minimap and sfui.minimap.update_button_bar_position then
-                    sfui.minimap.update_button_bar_position()
-                end
+                sfui.minimap.update_button_bar_position()
             end)
         pos_y_slider:SetPoint("LEFT", pos_x_slider, "RIGHT", 10, 0)
 
@@ -76,9 +66,7 @@ sfui.options.RegisterTab({
             SfuiDB.minimap_button_y = def.defaultY
             pos_x_slider:SetSliderValue(def.defaultX)
             pos_y_slider:SetSliderValue(def.defaultY)
-            if sfui.minimap and sfui.minimap.update_button_bar_position then
-                sfui.minimap.update_button_bar_position()
-            end
+            sfui.minimap.update_button_bar_position()
         end)
     end,
 })

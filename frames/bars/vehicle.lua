@@ -35,7 +35,7 @@ local math_min            = _G.math.min
 local math_max            = _G.math.max
 local math_floor          = _G.math.floor
 local string_format       = _G.string.format
-local issecretvalue       = (common and common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue       = common.issecretvalue
 local PowerBarColor       = _G.PowerBarColor
 
 local DEFAULT_HEALTH_COLOR   = { 0, 0.8, 0.067, 1 }
@@ -217,22 +217,7 @@ end
 
 -- ─── Texture Helper ─────────────────────────────────────────────────────────
 local function GetBarTexture()
-    if sfui.widgets and sfui.widgets.get_bar_texture then
-        return sfui.widgets.get_bar_texture()
-    end
-    local textureName = SfuiDB and SfuiDB.barTexture
-    local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
-    local texturePath
-    if LSM and textureName then
-        texturePath = LSM:Fetch("statusbar", textureName)
-    end
-    if not texturePath and sfui.config and sfui.config.blizzard_bar_textures and textureName then
-        texturePath = sfui.config.blizzard_bar_textures[textureName]
-    end
-    if not texturePath or texturePath == "" then
-        texturePath = (sfui.config and sfui.config.barTexture) or "Interface\\Buttons\\WHITE8X8"
-    end
-    return texturePath
+    return sfui.widgets.get_bar_texture()
 end
 
 -- ─── Vehicle Health Bar ──────────────────────────────────────────────────────
@@ -277,7 +262,7 @@ local function UpdateVehicleHealth(force)
     local fgColor = (SfuiDB and SfuiDB.healthBarColor)
         or (sfui.config and sfui.config.healthBar and sfui.config.healthBar.color)
         or DEFAULT_HEALTH_COLOR
-    if SfuiDB and SfuiDB.useSpecColor and common and common.get_class_or_spec_color then
+    if SfuiDB and SfuiDB.useSpecColor then
         fgColor = common.get_class_or_spec_color() or fgColor
     end
     local r, g, b, a = common.unpack_color(fgColor, 0, 0.8, 0.067, 1)
@@ -335,7 +320,7 @@ local function UpdateVehiclePower(force)
     if powerToken and PowerBarColor and PowerBarColor[powerToken] then
         pColor = PowerBarColor[powerToken]
     end
-    if not pColor and common and common.get_resource_color then
+    if not pColor then
         pColor = common.get_resource_color(powerType)
     end
     if not pColor then
@@ -794,15 +779,8 @@ local function register_vehicle_active_events()
     _combatEventsRegistered = true
     sfui.events.RegisterEvent("ACTIONBAR_UPDATE_COOLDOWN", UpdateCooldowns)
     sfui.events.RegisterEvent("ACTIONBAR_UPDATE_USABLE",   UpdateUsable)
-    if sfui.events.RegisterUnitEvents then
-        sfui.events.RegisterUnitEvents(VEHICLE_CAST_EVENTS, "player",  on_unit_cast)
-        sfui.events.RegisterUnitEvents(VEHICLE_CAST_EVENTS, "vehicle", on_unit_cast)
-    else
-        for i = 1, #VEHICLE_CAST_EVENTS do
-            sfui.events.RegisterUnitEvent(VEHICLE_CAST_EVENTS[i], "player",  on_unit_cast)
-            sfui.events.RegisterUnitEvent(VEHICLE_CAST_EVENTS[i], "vehicle", on_unit_cast)
-        end
-    end
+    sfui.events.RegisterUnitEvents(VEHICLE_CAST_EVENTS, "player",  on_unit_cast)
+    sfui.events.RegisterUnitEvents(VEHICLE_CAST_EVENTS, "vehicle", on_unit_cast)
 end
 
 local function unregister_vehicle_active_events()
@@ -810,26 +788,15 @@ local function unregister_vehicle_active_events()
     _combatEventsRegistered = false
     sfui.events.UnregisterEvent("ACTIONBAR_UPDATE_COOLDOWN", UpdateCooldowns)
     sfui.events.UnregisterEvent("ACTIONBAR_UPDATE_USABLE",   UpdateUsable)
-    if sfui.events.UnregisterUnitEvents then
-        sfui.events.UnregisterUnitEvents(VEHICLE_CAST_EVENTS, "player",  on_unit_cast)
-        sfui.events.UnregisterUnitEvents(VEHICLE_CAST_EVENTS, "vehicle", on_unit_cast)
-    else
-        for i = 1, #VEHICLE_CAST_EVENTS do
-            sfui.events.UnregisterUnitEvent(VEHICLE_CAST_EVENTS[i], "player",  on_unit_cast)
-            sfui.events.UnregisterUnitEvent(VEHICLE_CAST_EVENTS[i], "vehicle", on_unit_cast)
-        end
-    end
+    sfui.events.UnregisterUnitEvents(VEHICLE_CAST_EVENTS, "player",  on_unit_cast)
+    sfui.events.UnregisterUnitEvents(VEHICLE_CAST_EVENTS, "vehicle", on_unit_cast)
 end
 
 -- ─── OnShow / OnHide ─────────────────────────────────────────────────────────
 frame:SetScript("OnShow", function()
     UpdateBar()
     register_vehicle_active_events()
-    if sfui.events and sfui.events.RegisterUpdate then
-        sfui.events.RegisterUpdate("VehicleBar", 0.033, on_vehicle_update)
-    else
-        frame:SetScript("OnUpdate", on_vehicle_update)
-    end
+    sfui.events.RegisterUpdate("VehicleBar", 0.033, on_vehicle_update)
 end)
 
 frame:SetScript("OnHide", function()
@@ -838,9 +805,7 @@ frame:SetScript("OnHide", function()
     for i = 1, MAX_BUTTONS do
         buttons[i]._isOnCooldown = false
     end
-    if sfui.events and sfui.events.UnregisterUpdate then
-        sfui.events.UnregisterUpdate("VehicleBar")
-    end
+    sfui.events.UnregisterUpdate("VehicleBar")
     frame:SetScript("OnUpdate", nil)
 end)
 

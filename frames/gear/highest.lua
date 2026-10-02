@@ -26,31 +26,20 @@ local table = _G.table
 
 -- Cached print helper — avoids repeated nil-checks on sfui.common.print throughout
 local function sfprint(msg)
-    if sfui.common and sfui.common.print then
-        sfui.common.print(msg)
-    else
-        print("|cff6600ffsfui:|r " .. msg)
-    end
+    sfui.common.print(msg)
 end
 
 -- Debug helper: set _G.SFUI_DEBUG_SLOT = <inventory slot number> in-game
 -- to see a full score/validation breakdown for that slot.
 -- Example: /run SFUI_DEBUG_SLOT = 3   (shoulders)
 local function dbgSlotPrint(msg)
-    sfprint("|cffffff00[SFUI DBG]|r " .. tostring(msg))
+    sfprint("|cffffff00[Debug]|r " .. tostring(msg))
 end
 
 
 
 local function isClassicOrVanilla()
-    if sfui.isRetail == true or (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic) then
-        return false
-    end
-    if sfui.gear and sfui.gear.isClassicOrVanilla then return sfui.gear.isClassicOrVanilla() end
-    if sfui.isForever or sfui.isClassic or sfui.isEra or sfui.isCamelot then return true end
-    if sfui.compat and (sfui.compat.is_classic or sfui.compat.is_wow_forever or sfui.compat.is_classic_era or sfui.compat.is_camelot) then return true end
-    if sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or sfui.version.camelot or not sfui.version.retail) then return true end
-    return false
+    return not sfui.isRetail
 end
 sfui.highest.isClassicOrVanilla = isClassicOrVanilla
 
@@ -69,7 +58,7 @@ if sfui.highest.rules then
     setmetatable(sfui.highest.rules, {
         __index = function(t, k)
             if isClassicOrVanilla() then
-                local b = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[k]
+                local b = sfui.talents.SPEC_BRIDGE[k]
                 if b and sfui.highest.classic_rules then
                     if b.camelotID and sfui.highest.classic_rules[b.camelotID] then return sfui.highest.classic_rules[b.camelotID] end
                     if b.retailID and sfui.highest.classic_rules[b.retailID] then return sfui.highest.classic_rules[b.retailID] end
@@ -91,7 +80,7 @@ function sfui.highest.GetRule(specID)
     local r = sfui.highest.rules[specID]
     if r then return r end
     if isClassicOrVanilla() then
-        local b = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
+        local b = sfui.talents.SPEC_BRIDGE[specID]
         if b then
             if b.camelotID and sfui.highest.rules[b.camelotID] then return sfui.highest.rules[b.camelotID] end
             if b.retailID and sfui.highest.rules[b.retailID] then return sfui.highest.rules[b.retailID] end
@@ -175,11 +164,9 @@ end
 
 local function GetWeaponDPS(itemData)
     if not itemData or not itemData.link then return 0 end
-    if common and common.get_weapon_stats then
-        local dps = common.get_weapon_stats(itemData.link)
-        if dps and dps > 0 then
-            return dps
-        end
+    local dps = sfui.common.get_weapon_stats(itemData.link)
+    if dps and dps > 0 then
+        return dps
     end
     if C_TooltipInfo then
         local data
@@ -218,7 +205,7 @@ local function GetWeaponDPS(itemData)
             end
         end
     end
-    return itemData.effectiveIlvl or itemData.ilvl or (common and common.get_item_level and common.get_item_level(itemData.link)) or 0
+    return itemData.effectiveIlvl or itemData.ilvl or common.get_item_level(itemData.link) or 0
 end
 
 local embellishCache = {}
@@ -303,7 +290,7 @@ local function HasPrimaryStat(itemLink, primaryStatName, specID)
 
     local classID = isClassic and ((sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)) or nil
     if isClassic and (specID == nil or specID == 0) then
-        local curSpecID = sfui.common and sfui.common.get_current_spec_id and sfui.common.get_current_spec_id()
+        local curSpecID = sfui.common.get_current_spec_id()
         if curSpecID then
             local curClassID = (sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(curSpecID)) or (curSpecID >= 1482 and curSpecID <= 1491 and curSpecID)
             if curClassID then
@@ -314,7 +301,7 @@ local function HasPrimaryStat(itemLink, primaryStatName, specID)
     end
 
     if isClassic and classID then
-        local b = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
+        local b = sfui.talents.SPEC_BRIDGE[specID]
         local specDB = SfuiDB and SfuiDB.gear and (SfuiDB.gear[specID] or (b and b.camelotID and SfuiDB.gear[b.camelotID]) or (b and b.classID and SfuiDB.gear[b.classID]))
         local isHeal = (specDB and (specDB.classic_role == "HEAL" or specDB.is_healer))
             or (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
@@ -406,9 +393,8 @@ function sfui.highest.ClearCache()
     validationCacheCount = 0
     _G.wipe(embellishCache)
     embellishCacheCount = 0
-    if sfui.common and sfui.common.clear_item_stats_cache then
-        sfui.common.clear_item_stats_cache()
-    end
+    _G.wipe(boeAttemptedAt)
+    sfui.common.clear_item_stats_cache()
 end
 sfui.highest.ClearValidationCache = sfui.highest.ClearCache
 
@@ -525,7 +511,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
     local isTank = false
     local isHeal = false
     if isClassic then
-        local b = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
+        local b = sfui.talents.SPEC_BRIDGE[specID]
         local specDB = SfuiDB and SfuiDB.gear and (SfuiDB.gear[specID] or (b and b.camelotID and SfuiDB.gear[b.camelotID]) or (b and b.classID and SfuiDB.gear[b.classID]))
         isTank = (specDB and (specDB.classic_role == "TANK" or specDB.is_tank or specDB.armor_ilvl_prio))
             or (sfui.gear and sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, specDB)) or false
@@ -565,6 +551,37 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
                     armor = rule.armor,
                     stat = 4,
                     weaps = { ["1H_Off"] = true, ["2H"] = true, ["Ranged"] = true },
+                    allowedWeapons = rule.allowedWeapons,
+                }
+            end
+        else
+            -- Classic / Camelot DPS Role:
+            if isPaladin then
+                rule = {
+                    armor = rule.armor,
+                    stat = 1, -- Strength
+                    weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true },
+                    allowedWeapons = rule.allowedWeapons,
+                }
+            elseif isWarrior then
+                rule = {
+                    armor = rule.armor,
+                    stat = 1, -- Strength
+                    weaps = { ["2H"] = true, ["1H_Dual"] = true, ["1H_Shield"] = true, ["Ranged"] = true },
+                    allowedWeapons = rule.allowedWeapons,
+                }
+            elseif isDruid then
+                rule = {
+                    armor = rule.armor,
+                    stat = 1, -- Strength / Agility (Feral DPS)
+                    weaps = { ["2H"] = true, ["1H_Off"] = true },
+                    allowedWeapons = rule.allowedWeapons,
+                }
+            elseif isShaman then
+                rule = {
+                    armor = rule.armor,
+                    stat = rule.stat,
+                    weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true },
                     allowedWeapons = rule.allowedWeapons,
                 }
             end
@@ -699,7 +716,7 @@ function sfui.highest.IsItemValidForSpec(itemLink, specID, ignorePlayerLevel, ig
     local isClassic = isClassicOrVanilla()
     local roleKey = ""
     if isClassic then
-        local b = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
+        local b = sfui.talents.SPEC_BRIDGE[specID]
         local specDB = SfuiDB and SfuiDB.gear and (SfuiDB.gear[specID] or (b and b.camelotID and SfuiDB.gear[b.camelotID]) or (b and b.classID and SfuiDB.gear[b.classID]))
         roleKey = (specDB and (specDB.classic_role or specDB.role)) or ""
     end
@@ -796,7 +813,7 @@ function sfui.highest.GetBestItems(isPvP)
         end
     end
 
-    local b = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
+    local b = sfui.talents.SPEC_BRIDGE[specID]
     local specDB = nil
     if isClassicSpec then
         specDB = SfuiDB and SfuiDB.gear and (SfuiDB.gear[specID] or (b and b.camelotID and SfuiDB.gear[b.camelotID]) or (b and b.classID and SfuiDB.gear[b.classID]))
@@ -844,6 +861,37 @@ function sfui.highest.GetBestItems(isPvP)
                     allowedWeapons = rule.allowedWeapons,
                 }
             end
+        else
+            -- Classic / Camelot DPS Role:
+            if isPaladin then
+                rule = {
+                    armor = rule.armor,
+                    stat = 1, -- Strength
+                    weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true },
+                    allowedWeapons = rule.allowedWeapons,
+                }
+            elseif isWarrior then
+                rule = {
+                    armor = rule.armor,
+                    stat = 1, -- Strength
+                    weaps = { ["2H"] = true, ["1H_Dual"] = true, ["1H_Shield"] = true, ["Ranged"] = true },
+                    allowedWeapons = rule.allowedWeapons,
+                }
+            elseif isDruid then
+                rule = {
+                    armor = rule.armor,
+                    stat = 1, -- Strength / Agility (Feral DPS)
+                    weaps = { ["2H"] = true, ["1H_Off"] = true },
+                    allowedWeapons = rule.allowedWeapons,
+                }
+            elseif isShaman then
+                rule = {
+                    armor = rule.armor,
+                    stat = rule.stat,
+                    weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true },
+                    allowedWeapons = rule.allowedWeapons,
+                }
+            end
         end
     end
 
@@ -857,7 +905,9 @@ function sfui.highest.GetBestItems(isPvP)
     local poolIndex = 0
 
     local best = sfui.highest.pooledBest
-    for i = 1, 19 do
+    local usesAmmo = sfui.api.UnitUsesAmmo and sfui.api.UnitUsesAmmo("player")
+    local startSlot = (isClassicSpec and usesAmmo) and 0 or 1
+    for i = startSlot, 19 do
         best[i] = best[i] or {}
         wipe(best[i])
     end
@@ -988,6 +1038,8 @@ function sfui.highest.GetBestItems(isPvP)
                 itemData.equipReason = "Locked Ring"
             elseif itemEquipLoc == "INVTYPE_NECK" then
                 itemData.equipReason = "Locked Neck"
+            elseif itemEquipLoc == "INVTYPE_AMMO" then
+                itemData.equipReason = "Locked Ammo"
             elseif itemEquipLoc == "INVTYPE_WEAPON" or itemEquipLoc == "INVTYPE_2HWEAPON" or itemEquipLoc == "INVTYPE_WEAPONMAINHAND" or itemEquipLoc == "INVTYPE_WEAPONOFFHAND" or itemEquipLoc == "INVTYPE_SHIELD" or itemEquipLoc == "INVTYPE_HOLDABLE" or itemEquipLoc == "INVTYPE_RANGED" or itemEquipLoc == "INVTYPE_RANGEDRIGHT" or itemEquipLoc == "INVTYPE_THROWN" or itemEquipLoc == "INVTYPE_RELIC" then
                 itemData.equipReason = "Locked Weapon"
             else
@@ -1009,7 +1061,8 @@ function sfui.highest.GetBestItems(isPvP)
 
     -- 1. Scan equipped
     local maxEquippedSlot = isClassicSpec and 18 or 17
-    for slotID = 1, maxEquippedSlot do
+    local minEquippedSlot = (isClassicSpec and usesAmmo) and 0 or 1
+    for slotID = minEquippedSlot, maxEquippedSlot do
         if slotID ~= 4 then -- skip shirt
             local link = GetInventoryItemLink("player", slotID)
             if link then evaluate(link, true, slotID) end
@@ -1205,7 +1258,7 @@ function sfui.highest.GetBestItems(isPvP)
                     if isWeapon then
                         local wDps, wSpeed = common.get_weapon_stats(itm.link)
                         if wDps and wDps > 0 then
-                            local isHunter = (classID == 1485)
+                            local isHunter = (classID == 1485) or usesAmmo
                             local isPhysical = (rule.stat == 1 or rule.stat == 2)
                             local isCaster = (rule.stat == 4)
 
@@ -1808,7 +1861,7 @@ function sfui.highest.GetBestItems(isPvP)
     end
 
     if _G.SFUI_DEBUG_WEAPONS and best[16] then
-        sfui.common.print("|cffffff00[SFUI Debug] Slot 16 evaluated:|r")
+        sfui.common.print("|cffffff00[Debug] Slot 16 evaluated:|r")
         for i, itm in ipairs(best[16]) do
             sfui.common.print("  [" .. i .. "]", itm.link, "Score:", math.floor(itm.score), "is2H:", tostring(itm.is2H))
         end
@@ -1882,7 +1935,8 @@ function sfui.highest.GetBestItems(isPvP)
     end
 
     local maxNonWeaponSlot = isClassicSpec and 18 or 15
-    for slotID = 1, maxNonWeaponSlot do
+    local minNonWeaponSlot = (isClassicSpec and usesAmmo) and 0 or 1
+    for slotID = minNonWeaponSlot, maxNonWeaponSlot do
         if slotID ~= 16 and slotID ~= 17 then
             if not finalPick[slotID] then -- Skip slots already claimed
             local items = best[slotID]
@@ -1933,65 +1987,7 @@ end
 --- Determines if a given item (by ID or link) is a fishing pole.
 --- @return boolean
 function sfui.highest.IsFishingPoleItem(itemID, itemLink)
-    if sfui.fishing and sfui.fishing.IsFishingPoleItem then
-        return sfui.fishing.IsFishingPoleItem(itemID, itemLink)
-    end
-    if not itemID and itemLink then
-        itemID = tonumber(itemLink:match("item:(%d+)"))
-    end
-    if not itemID and not itemLink then return false end
-
-    -- Authoritative helper: match distinct item class & subclass for fishing poles
-    local function is_pole_class(classID, subclassID)
-        if not classID or not subclassID then return false end
-        -- Weapon -> Fishingpole (Class 2, Subclass 20)
-        if classID == 2 and (subclassID == 20 or (Enum and Enum.ItemWeaponSubclass and subclassID == Enum.ItemWeaponSubclass.Fishingpole)) then
-            return true
-        end
-        -- Profession -> Fishing (Class 19, Subclass 9)
-        if classID == 19 and (subclassID == 9 or (Enum and Enum.ItemProfessionSubclass and subclassID == Enum.ItemProfessionSubclass.Fishing)) then
-            return true
-        end
-        return false
-    end
-
-    if _G.C_Item and _G.C_Item.GetItemInfoInstant then
-        local _, _, _, _, _, cID, scID = _G.C_Item.GetItemInfoInstant(itemID or itemLink)
-        if is_pole_class(cID, scID) then return true end
-    end
-
-    if _G.GetItemInfoInstant then
-        local _, _, _, _, _, cID, scID = _G.GetItemInfoInstant(itemID or itemLink)
-        if is_pole_class(cID, scID) then return true end
-    end
-
-    if _G.GetItemInfo then
-        local _, _, _, _, _, _, subType, _, _, _, _, cID, scID = _G.GetItemInfo(itemLink or itemID)
-        if is_pole_class(cID, scID) then return true end
-        if subType then
-            local sLower = subType:lower()
-            if sLower:find("fishing") or sLower:find("angel") or sLower:find("peche") or sLower:find("pesca") then
-                return true
-            end
-        end
-    end
-
-    if common and common.get_item_instant_info then
-        local _, _, _, _, _, cID, scID = common.get_item_instant_info(itemID or itemLink)
-        if is_pole_class(cID, scID) then return true end
-    end
-
-    if itemLink then
-        local bracketName = itemLink:match("%[(.-)%]")
-        if bracketName then
-            local bLower = bracketName:lower()
-            if bLower:find("fishing") or bLower:find("angel") or bLower:find("peche") or bLower:find("pesca") or bLower:find("angler") then
-                return true
-            end
-        end
-    end
-
-    return false
+    return sfui.fishing.IsFishingPoleItem(itemID, itemLink)
 end
 sfui.gear = sfui.gear or {}
 sfui.gear.IsFishingPoleItem = sfui.highest.IsFishingPoleItem
@@ -1999,12 +1995,7 @@ sfui.gear.IsFishingPoleItem = sfui.highest.IsFishingPoleItem
 --- Detects if player has a fishing pole currently equipped in slot 16 (Main Hand)
 --- @return boolean
 function sfui.highest.IsFishingPoleEquipped()
-    if sfui.fishing and sfui.fishing.IsFishingPoleEquipped then
-        return sfui.fishing.IsFishingPoleEquipped()
-    end
-    local itemID = _G.GetInventoryItemID and _G.GetInventoryItemID("player", 16)
-    local itemLink = _G.GetInventoryItemLink and _G.GetInventoryItemLink("player", 16)
-    return sfui.highest.IsFishingPoleItem(itemID, itemLink)
+    return sfui.fishing.IsFishingPoleEquipped()
 end
 sfui.gear.IsFishingPoleEquipped = sfui.highest.IsFishingPoleEquipped
 
@@ -2080,7 +2071,11 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
         if pendingEquipRequest then
             local req = pendingEquipRequest
             pendingEquipRequest = nil
-            sfui.highest.EquipHighestILvl(req.isPvP, req.silent)
+            _G.C_Timer.After(0.1, function()
+                if not isEquippingInProgress then
+                    sfui.highest.EquipHighestILvl(req.isPvP, req.silent)
+                end
+            end)
         end
     end
 
@@ -2209,14 +2204,31 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                 else
                     EquipItemByName(item.link, slotID)
                 end
-                boeAttemptedAt[item.link] = _G.GetTime()
-                local watchBag, watchSlot, watchLink = item.bag, item.slot, item.link
-                _G.C_Timer.After(2, function()
-                    local stillThere = C_Container_GetContainerItemLink(watchBag, watchSlot)
-                    if stillThere == watchLink then
-                        boeAttemptedAt[watchLink] = _G.GetTime() + 3570
+                -- Only track BoE bind dialog delays for genuinely unbound items; never lock out Soulbound gear
+                local isBound = (info and info.isBound) or false
+                if not isBound and C_TooltipInfo and C_TooltipInfo.GetBagItem then
+                    local tData = C_TooltipInfo.GetBagItem(item.bag, item.slot)
+                    if tData and tData.lines then
+                        for _, line in ipairs(tData.lines) do
+                            local t = line.leftText
+                            if t and type(t) == "string" and (t:find(ITEM_SOULBOUND or "Soulbound") or t:find(ITEM_BNETACCOUNTBOUND or "Account")) then
+                                isBound = true
+                                break
+                            end
+                        end
                     end
-                end)
+                end
+
+                if not isBound then
+                    boeAttemptedAt[item.link] = _G.GetTime()
+                    local watchBag, watchSlot, watchLink = item.bag, item.slot, item.link
+                    _G.C_Timer.After(2, function()
+                        local stillThere = C_Container_GetContainerItemLink(watchBag, watchSlot)
+                        if stillThere == watchLink then
+                            boeAttemptedAt[watchLink] = _G.GetTime()
+                        end
+                    end)
+                end
             else
                 -- Bag slot contents shifted: equip by item link directly
                 EquipItemByName(item.link, slotID)
@@ -2250,4 +2262,5 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
 
     equipNext(1)
 end
+sfui.highest.toggle = sfui.highest.EquipHighestILvl
 

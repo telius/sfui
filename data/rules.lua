@@ -183,7 +183,7 @@ sfui.highest.classic_rules    = {
     [14853] = { armor = 3, stat = 2, weaps = { ["Ranged"] = true, ["2H"] = true, ["1H_Dual"] = true }, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Survival
     -- Paladin (1486)
     [14861] = { armor = 4, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_PALADIN }, -- Holy (stat=4 Int)
-    [14862] = { armor = 4, stat = 1, weaps = { ["1H_Shield"] = true }, allowedWeapons = WEAPONS_PALADIN },                                   -- Protection (stat=1 Str)
+    [14862] = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_PALADIN }, -- Protection (stat=1 Str)
     [14863] = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_PALADIN }, -- Retribution (stat=1 Str)
     -- Priest (1487)
     [14871] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_PRIEST }, -- Discipline
@@ -204,6 +204,6 @@ sfui.highest.classic_rules    = {
     -- Warrior (1491)
     [14911] = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Dual"] = true, ["1H_Shield"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARRIOR_CLASSIC }, -- Arms
     [14912] = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Dual"] = true, ["1H_Shield"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARRIOR_CLASSIC }, -- Fury
-    [14913] = { armor = 4, stat = 1, weaps = { ["1H_Shield"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARRIOR_CLASSIC },                                    -- Protection
+    [14913] = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Dual"] = true, ["1H_Shield"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARRIOR_CLASSIC }, -- Protection
 }
 

@@ -34,8 +34,7 @@ local wipe = _G.wipe or function(t)
 end
 local unpack = _G.unpack or _G.table.unpack
 local GetInventoryItemLink = _G.GetInventoryItemLink
-local GetItemInfoInstant = (_G.C_Item and _G.C_Item.GetItemInfoInstant) or _G.GetItemInfoInstant or
-(sfui.common and sfui.common.get_item_id)
+local GetItemInfoInstant = (_G.C_Item and _G.C_Item.GetItemInfoInstant) or _G.GetItemInfoInstant or sfui.common.get_item_id
 local GetItemInfo = (_G.C_Item and _G.C_Item.GetItemInfo) or _G.GetItemInfo
 local IsShiftKeyDown = _G.IsShiftKeyDown
 
@@ -123,17 +122,8 @@ local function isCurrentlyPvP()
 end
 
 local function isClassicOrVanilla()
-    if sfui.isRetail == true or (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic) then
-        return false
-    end
-    if sfui.isForever or sfui.isClassic or sfui.isEra or sfui.isCamelot then return true end
-    if sfui.compat and (sfui.compat.is_classic or sfui.compat.is_wow_forever or sfui.compat.is_classic_era or sfui.compat.is_camelot) then return true end
-    if sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or sfui.version.camelot or not sfui.version.retail) then return true end
-    local spec = (common and common.get_specialization and common.get_specialization()) or
-    (_G.GetSpecialization and _G.GetSpecialization())
-    local numSpec = tonumber(spec)
-    if numSpec and numSpec >= 1482 and numSpec <= 1491 then return true end
-    return false
+    if sfui.isRetail then return false end
+    return true
 end
 sfui.gear.isClassicOrVanilla = isClassicOrVanilla
 
@@ -142,7 +132,7 @@ sfui.gear.isClassicOrVanilla = isClassicOrVanilla
 local function isGearSetEquipped()
     if not SfuiDB or not SfuiDB.gear then return false end
     if not C_EquipmentSet or not C_EquipmentSet.GetEquipmentSetID then return false end
-    local spec = common and common.get_current_spec_id and common.get_current_spec_id()
+    local spec = common.get_current_spec_id()
     if not spec or spec == 0 then return false end
     local db = SfuiDB.gear[spec]
     if not db then return false end
@@ -184,18 +174,16 @@ end
 
 local function _OnUpdateCastTimer()
     updateScheduled = false
-    if sfui.gear and sfui.gear.Update then
-        sfui.gear.Update()
-    end
+    sfui.gear.Update()
 end
 
 local function TryEquipSet(setName)
     if not setName or setName == "" then return false end
     if not C_EquipmentSet or not C_EquipmentSet.GetEquipmentSetID then return false end
-    local isPole = (sfui.highest and sfui.highest.IsFishingPoleEquipped and sfui.highest.IsFishingPoleEquipped())
-        or (sfui.gear and sfui.gear.IsFishingPoleEquipped and sfui.gear.IsFishingPoleEquipped())
-        or (sfui.fishing and sfui.fishing.IsFishingPoleEquipped and sfui.fishing.IsFishingPoleEquipped())
-    local isSession = (sfui.fishing and sfui.fishing.IsSessionActive and sfui.fishing.IsSessionActive())
+    local isPole = (sfui.highest.IsFishingPoleEquipped and sfui.highest.IsFishingPoleEquipped())
+        or (sfui.gear.IsFishingPoleEquipped and sfui.gear.IsFishingPoleEquipped())
+        or sfui.fishing.IsFishingPoleEquipped()
+    local isSession = sfui.fishing.IsSessionActive()
     if isPole and isSession then return false end
     local setID = C_EquipmentSet.GetEquipmentSetID(setName)
     if setID then
@@ -203,9 +191,7 @@ local function TryEquipSet(setName)
         if isEquipped then return false end
         if InCombatLockdown() then
             gearEquipQueue = setID
-            if common and common.run_after_combat then
-                common.run_after_combat(sfui.gear.handle_player_regen)
-            end
+            common.run_after_combat(sfui.gear.handle_player_regen)
             return false
         end
         if UnitCastingInfo("player") or UnitChannelInfo("player") then
@@ -222,12 +208,7 @@ local function TryEquipSet(setName)
         if C_EquipmentSet.UseEquipmentSet then
             C_EquipmentSet.UseEquipmentSet(setID)
         end
-        if common and common.print then
-            common.print("automatically equipped set: " .. (name and name:lower() or (setName and setName:lower() or "")))
-        else
-            print("|cff6600ffsfui:|r automatically equipped set: " ..
-            (name and name:lower() or (setName and setName:lower() or "")))
-        end
+        sfui.common.print("automatically equipped set: " .. (name and name:lower() or (setName and setName:lower() or "")))
         return true
     end
     return false
@@ -530,12 +511,20 @@ local function updateIconRow(icons, lockTbl, forPvP, specID)
     if not lockTbl then return end
 
     local numSpecID = tonumber(specID or (icons and icons.specID)) or 0
-    local isVanilla = (numSpecID >= 1482 and numSpecID <= 1491)
-        or (sfui.gear and sfui.gear.IsClassicSpec and sfui.gear.IsClassicSpec(numSpecID))
-        or (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
-        or (sfui.version and not sfui.version.retail)
-        or sfui.isClassic or sfui.isForever
-    local slotOrder = isVanilla and { 13, 14, 11, 12, 2, 16, 17, 18 } or { 13, 14, 11, 12, 2, 16, 17 }
+    local isVanilla = not sfui.isRetail
+        or (numSpecID >= 1482 and numSpecID <= 1491)
+        or (sfui.gear.IsClassicSpec and sfui.gear.IsClassicSpec(numSpecID))
+    local usesAmmo = sfui.api.UnitUsesAmmo and sfui.api.UnitUsesAmmo("player")
+    local slotOrder
+    if isVanilla then
+        if usesAmmo then
+            slotOrder = { 13, 14, 11, 12, 2, 16, 17, 18, 0 }
+        else
+            slotOrder = { 13, 14, 11, 12, 2, 16, 17, 18 }
+        end
+    else
+        slotOrder = { 13, 14, 11, 12, 2, 16, 17 }
+    end
 
     -- Step 1: Populate currently equipped locked items in their respective columns
     for colIdx, slotID in ipairs(slotOrder) do
@@ -574,6 +563,8 @@ local function updateIconRow(icons, lockTbl, forPvP, specID)
             return "OFFHAND"
         elseif slotID == 18 then
             return "RANGED"
+        elseif slotID == 0 then
+            return "AMMO"
         end
         return "UNKNOWN"
     end
@@ -595,6 +586,8 @@ local function updateIconRow(icons, lockTbl, forPvP, specID)
         elseif category == "RANGED" then
             return equipLoc == "INVTYPE_RANGED" or equipLoc == "INVTYPE_RANGEDRIGHT" or equipLoc == "INVTYPE_THROWN" or
             equipLoc == "INVTYPE_RELIC"
+        elseif category == "AMMO" then
+            return equipLoc == "INVTYPE_AMMO"
         end
         return false
     end
@@ -650,7 +643,7 @@ function sfui.gear.UpdateStatUI()
     -- Status label: shows what gear mode is currently active
     if SfuiGearManagerFrame.statusLabel then
         local lbl = SfuiGearManagerFrame.statusLabel
-        local spec = common and common.get_current_spec_id and common.get_current_spec_id()
+        local spec = common.get_current_spec_id()
         local db = spec and spec ~= 0 and SfuiDB.gear and SfuiDB.gear[spec]
         local _, instanceType = GetInstanceInfo()
         local isWarMode = C_PvP and C_PvP.IsWarModeDesired and C_PvP.IsWarModeDesired()
@@ -688,11 +681,11 @@ function sfui.gear.UpdateStatUI()
 
     -- Refresh tab button icons and borders
     if SfuiGearManagerFrame and SfuiGearManagerFrame.tabBtns then
-        local p = sfui.theme and sfui.theme.GetPalette()
+        local p = sfui.theme.GetPalette()
         local accent = p and p.accentColor or { 0, 0.8, 1 }
         local curSpec = SfuiGearManagerFrame.activeSpecID or common.get_current_spec_id()
         for id, btn in pairs(SfuiGearManagerFrame.tabBtns) do
-            if btn.tex and common and common.get_spec_icon then
+            if btn.tex then
                 local ic = common.get_spec_icon(id)
                 if ic then btn.tex:SetTexture(ic) end
             end
@@ -706,7 +699,7 @@ function sfui.gear.UpdateStatUI()
         end
     end
 
-    local getSpecs = (common and common.get_player_specs) or (sfui.common and sfui.common.get_player_specs)
+    local getSpecs = common.get_player_specs
     local _, specIDs
     if getSpecs then
         _, specIDs = getSpecs()
@@ -728,7 +721,7 @@ function sfui.gear.UpdateStatUI()
 
             -- update lock button border, backdrop & text color based on PvE/PvP lock state
             if ui.lockBtns then
-                local isCamelot = sfui.theme and sfui.theme.IsCamelotActive()
+                local isCamelot = sfui.theme.IsCamelotActive()
                 for _, entry in ipairs(ui.lockBtns) do
                     local btn, slotID = entry.btn, entry.slotID
                     local link = GetInventoryItemLink("player", slotID)
@@ -769,9 +762,9 @@ function sfui.gear.UpdateStatUI()
             end
 
             -- tier force button coloring (theme-aware accent)
-            local p = sfui.theme and sfui.theme.GetPalette()
+            local p = sfui.theme.GetPalette()
             local activeColor = p and p.accentColor or { 0, 0.8, 1 }
-            local isCamelot = sfui.theme and sfui.theme.IsCamelotActive()
+            local isCamelot = sfui.theme.IsCamelotActive()
             local activeBg = { activeColor[1] * 0.35, activeColor[2] * 0.35, activeColor[3] * 0.35, 0.95 }
             local inactiveBg = isCamelot and { 0.12, 0.10, 0.08, 0.95 } or { 0, 0, 0, 1 }
 
@@ -984,8 +977,7 @@ function sfui.gear.Update(force)
         return
     end
 
-    if sfui.highest and sfui.highest.EquipHighestILvl
-        and not InCombatLockdown()
+    if not InCombatLockdown()
         and not UnitIsDeadOrGhost("player") then
         local shouldEquip = isAutoEquipEnabled()
         if shouldEquip then
@@ -1009,10 +1001,12 @@ local lastEquippedItems = {}
 local function scanEquippedForChanges()
     if not SfuiDB or not SfuiDB.gear then return end
 
-    local spec = common and common.get_current_spec_id and common.get_current_spec_id()
+    local spec = common.get_current_spec_id()
     if not spec or spec == 0 then return end
 
-    for slotID = 1, 18 do
+    local usesAmmo = sfui.api.UnitUsesAmmo and sfui.api.UnitUsesAmmo("player")
+    local startSlot = usesAmmo and 0 or 1
+    for slotID = startSlot, 18 do
         if slotID ~= 4 then
             local link = GetInventoryItemLink("player", slotID)
             local currentID = link and GetItemInfoInstant(link)
@@ -1020,9 +1014,7 @@ local function scanEquippedForChanges()
         end
     end
 
-    if sfui.gear.UpdateStatUI then
-        sfui.gear.UpdateStatUI()
-    end
+    sfui.gear.UpdateStatUI()
 end
 
 sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", function()
@@ -1044,7 +1036,7 @@ function sfui.gear.handle_player_regen()
                 if C_EquipmentSet.UseEquipmentSet then
                     C_EquipmentSet.UseEquipmentSet(gearEquipQueue)
                 end
-                if name and common and common.print then
+                if name then
                     common.print("equipped queued set: " .. name:lower())
                 end
             end
@@ -1070,7 +1062,7 @@ local function _OnBagUpdateTimer()
     if isGearSetEquipped() then return end
 
     local shouldEquip = isAutoEquipEnabled()
-    if shouldEquip and sfui.highest and sfui.highest.EquipHighestILvl
+    if shouldEquip
         and not InCombatLockdown()
         and not UnitCastingInfo("player")
         and not UnitChannelInfo("player")
@@ -1083,7 +1075,7 @@ local function _OnBagUpdateTimer()
         sfui.highest.EquipHighestILvl(isPvP, true)
     end
     -- UpdateStatUI shifted securely into the debounce block
-    if sfui.gear.UpdateStatUI then sfui.gear.UpdateStatUI() end
+    sfui.gear.UpdateStatUI()
 end
 
 sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", function()
@@ -1101,9 +1093,7 @@ sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", function()
 end)
 
 local function _OnPlayerFlagsTimer()
-    if sfui.gear and sfui.gear.Update then
-        sfui.gear.Update()
-    end
+    sfui.gear.Update()
 end
 
 sfui.events.RegisterUnitEvent("PLAYER_FLAGS_CHANGED", "player", function(event, unit)
@@ -1151,9 +1141,7 @@ local function handle_spec_change(event, unit)
     lastSpecID = specId
 
     -- Clear validity cache on true specialization change
-    if sfui.highest and sfui.highest.ClearCache then
-        sfui.highest.ClearCache()
-    end
+    sfui.highest.ClearCache()
 
     -- Force clear manual edit pause
     manualEditUntil = 0
@@ -1172,22 +1160,14 @@ sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", handle_spec_change)
 sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", handle_spec_change)
 sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", handle_spec_change)
 sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", function()
-    if sfui.highest and sfui.highest.ClearCache then
-        sfui.highest.ClearCache()
-    end
-    if sfui.gear and sfui.gear.Update then
-        sfui.gear.Update(true)
-    end
-    if sfui.gear and sfui.gear.UpdateStatUI then
-        sfui.gear.UpdateStatUI()
-    end
+    sfui.highest.ClearCache()
+    sfui.gear.Update(true)
+    sfui.gear.UpdateStatUI()
 end)
 
 local function _OnZoneChangeTimer()
     zoneUpdateQueue = false
-    if sfui.gear and sfui.gear.Update then
-        sfui.gear.Update()
-    end
+    sfui.gear.Update()
 end
 
 local function handle_zone_change(event, isLogin, isReload)
@@ -1201,9 +1181,7 @@ end
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", handle_zone_change)
 sfui.events.RegisterEvent("ZONE_CHANGED_NEW_AREA", handle_zone_change)
 sfui.events.RegisterEvent("PLAYER_LEVEL_UP", function()
-    if sfui.highest and sfui.highest.ClearValidationCache then
-        sfui.highest.ClearValidationCache()
-    end
+    sfui.highest.ClearValidationCache()
     sfui.gear.Update(true)
 end)
 
@@ -1211,15 +1189,9 @@ end)
 local skillUpdatePending = false
 local function _OnSkillChangeTimer()
     skillUpdatePending = false
-    if sfui.highest and sfui.highest.ClearValidationCache then
-        sfui.highest.ClearValidationCache()
-    end
-    if sfui.gear and sfui.gear.Update then
-        sfui.gear.Update(true)
-    end
-    if sfui.gear and sfui.gear.UpdateStatUI then
-        sfui.gear.UpdateStatUI()
-    end
+    sfui.highest.ClearValidationCache()
+    sfui.gear.Update(true)
+    sfui.gear.UpdateStatUI()
 end
 
 local function handle_skill_change()
@@ -1270,46 +1242,39 @@ gearFrame:SetScript("OnDragStop", function(self)
 end)
 local HEADER_H = 56
 
-if sfui.theme and sfui.theme.ApplyWindowStyle then
-    sfui.theme.ApplyWindowStyle(gearFrame)
-    sfui.theme.RegisterWindow(gearFrame, function(frame, pal)
-        if frame.headerBar and sfui.theme.ApplyHeaderStyle then
-            sfui.theme.ApplyHeaderStyle(frame.headerBar, "gear manager")
-        end
-        if frame.closeBtn and sfui.theme.ApplyCloseButtonStyle then
-            sfui.theme.ApplyCloseButtonStyle(frame.closeBtn)
-        end
-        if frame.content and sfui.theme.ApplyContainerStyle then
-            sfui.theme.ApplyContainerStyle(frame.content)
-        end
-        if frame.specUIs then
-            for _, ui in pairs(frame.specUIs) do
-                if ui.card and sfui.theme.ApplyCardStyle then
-                    sfui.theme.ApplyCardStyle(ui.card)
-                end
-                if ui.pawnEdit and sfui.theme.ApplyInputStyle then
-                    sfui.theme.ApplyInputStyle(ui.pawnEdit)
-                end
+sfui.theme.ApplyWindowStyle(gearFrame)
+sfui.theme.RegisterWindow(gearFrame, function(frame, pal)
+    if frame.headerBar then
+        sfui.theme.ApplyHeaderStyle(frame.headerBar, "gear manager")
+    end
+    if frame.closeBtn then
+        sfui.theme.ApplyCloseButtonStyle(frame.closeBtn)
+    end
+    if frame.content then
+        sfui.theme.ApplyContainerStyle(frame.content)
+    end
+    if frame.specUIs then
+        for _, ui in pairs(frame.specUIs) do
+            if ui.card then
+                sfui.theme.ApplyCardStyle(ui.card)
+            end
+            if ui.pawnEdit then
+                sfui.theme.ApplyInputStyle(ui.pawnEdit)
             end
         end
-        if frame.tabBtns and frame.activeSpecID then
-            local accent = pal and pal.accentColor or { 0, 0.8, 1 }
-            for id, btn in pairs(frame.tabBtns) do
-                if id == frame.activeSpecID then
-                    btn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1.0)
-                else
-                    btn:SetBackdropBorderColor(0, 0, 0, 0.8)
-                end
+    end
+    if frame.tabBtns and frame.activeSpecID then
+        local accent = pal and pal.accentColor or { 0, 0.8, 1 }
+        for id, btn in pairs(frame.tabBtns) do
+            if id == frame.activeSpecID then
+                btn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1.0)
+            else
+                btn:SetBackdropBorderColor(0, 0, 0, 0.8)
             end
         end
-        if sfui.gear and sfui.gear.UpdateStatUI then
-            sfui.gear.UpdateStatUI()
-        end
-    end)
-else
-    gearFrame:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8" })
-    gearFrame:SetBackdropColor(0.055, 0.055, 0.055, 0.97)
-end
+    end
+    sfui.gear.UpdateStatUI()
+end)
 gearFrame:Hide()
 gearFrame:SetFrameStrata("DIALOG")
 
@@ -1318,9 +1283,7 @@ gearFrame.headerBar = CreateFrame("Frame", nil, gearFrame, "BackdropTemplate")
 gearFrame.headerBar:SetPoint("TOPLEFT", gearFrame, "TOPLEFT", 6, -6)
 gearFrame.headerBar:SetPoint("TOPRIGHT", gearFrame, "TOPRIGHT", -6, -6)
 gearFrame.headerBar:SetHeight(24)
-if sfui.theme and sfui.theme.ApplyHeaderStyle then
-    sfui.theme.ApplyHeaderStyle(gearFrame.headerBar, "gear manager")
-end
+sfui.theme.ApplyHeaderStyle(gearFrame.headerBar, "gear manager")
 gearFrame.title = gearFrame.headerBar.title
 
 -- Close & Collapse Buttons (Top-Right of Row 1)
@@ -1367,9 +1330,7 @@ gearFrame.content:SetPoint("TOPLEFT", gearFrame, "TOPLEFT", 8, -HEADER_H)
 gearFrame.content:SetPoint("BOTTOMRIGHT", gearFrame, "BOTTOMRIGHT", -8, 8)
 gearFrame.content:SetFrameLevel(gearFrame:GetFrameLevel() + 3)
 gearFrame.content:Show()
-if sfui.theme and sfui.theme.ApplyContainerStyle then
-    sfui.theme.ApplyContainerStyle(gearFrame.content)
-end
+sfui.theme.ApplyContainerStyle(gearFrame.content)
 
 local function GetEquipmentSetOptions()
     if equipSetOptionsCache then return equipSetOptionsCache end
@@ -1397,21 +1358,7 @@ local function makeEditBox(parent, w, h)
     eb:SetNumeric(false)
     eb:SetFontObject("GameFontHighlightSmall")
     eb:SetTextInsets(6, 6, 0, 0)
-    if sfui.theme and sfui.theme.ApplyInputStyle then
-        sfui.theme.ApplyInputStyle(eb)
-    else
-        local app = (cfg and cfg.appearance) or {}
-        local ebCol = app.editBoxColor or { 0.1, 0.1, 0.1, 0.8 }
-        local hlCol = app.highlightColor or (cfg and cfg.colors and cfg.colors.purple) or { 0.4, 0, 1, 0.9 }
-        eb:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8" })
-        eb:SetBackdropColor(ebCol[1], ebCol[2], ebCol[3], ebCol[4] or 0.8)
-        eb:SetScript("OnEditFocusGained", function(s)
-            s:SetBackdropColor(hlCol[1] * 0.3, hlCol[2] * 0.3, hlCol[3] * 0.3, 0.9)
-        end)
-        eb:SetScript("OnEditFocusLost", function(s)
-            s:SetBackdropColor(ebCol[1], ebCol[2], ebCol[3], ebCol[4] or 0.8)
-        end)
-    end
+    sfui.theme.ApplyInputStyle(eb)
     eb:SetScript("OnEscapePressed", function(s) s:ClearFocus() end)
     return eb
 end
@@ -1433,13 +1380,13 @@ autoToggle:SetPoint("TOPRIGHT", gearFrame, "TOPRIGHT", -10, -31)
 function autoToggle:UpdateState(enabled)
     if enabled then
         self:SetText("|cff66ff66auto: on|r")
-        local p = sfui.theme and sfui.theme.GetPalette()
+        local p = sfui.theme.GetPalette()
         local acc = p and p.accentColor or { 0.95, 0.85, 0.55 }
         self:SetBackdropBorderColor(acc[1], acc[2], acc[3], 0.9)
         self:SetBackdropColor(acc[1] * 0.25, acc[2] * 0.25, acc[3] * 0.25, 0.95)
     else
         self:SetText("|cff888888auto: off|r")
-        local isCamelot = sfui.theme and sfui.theme.IsCamelotActive()
+        local isCamelot = sfui.theme.IsCamelotActive()
         if isCamelot then
             self:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
             self:SetBackdropColor(0.12, 0.10, 0.08, 0.95)
@@ -1458,10 +1405,10 @@ autoToggle:SetScript("OnClick", function()
         sfui.gearOptionsCheckbox:SetChecked(newState)
     end
     if newState then sfui.gear.Update() end
-    if sfui.gear.UpdateStatUI then sfui.gear.UpdateStatUI() end
+    sfui.gear.UpdateStatUI()
 end)
 autoToggle:SetScript("OnEnter", function(b)
-    local p = sfui.theme and sfui.theme.GetPalette()
+    local p = sfui.theme.GetPalette()
     local hl = (p and p.highlightColor) or (cfg and cfg.colors and cfg.colors.cyan) or { 0, 1, 1 }
     b:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1)
     show_tooltip(b, "ANCHOR_TOP", "auto-equip gear", {
@@ -1479,7 +1426,7 @@ gearFrame.maxLvlChk = autoToggle
 gearFrame.highPvP = common.create_flat_button(gearFrame, "pvp", 36, 20)
 gearFrame.highPvP:SetPoint("RIGHT", gearFrame.autoToggle, "LEFT", -6, 0)
 gearFrame.highPvP:SetScript("OnClick", function()
-    if sfui.highest and sfui.highest.EquipHighestILvl then sfui.highest.EquipHighestILvl(true) end
+    sfui.highest.EquipHighestILvl(true)
 end)
 gearFrame.highPvP:SetScript("OnEnter", function(b)
     show_tooltip(b, "ANCHOR_TOP", "equip highest ilvl pvp gear")
@@ -1489,7 +1436,7 @@ gearFrame.highPvP:SetScript("OnLeave", function() hide_tooltip() end)
 gearFrame.highPvE = common.create_flat_button(gearFrame, "pve", 36, 20)
 gearFrame.highPvE:SetPoint("RIGHT", gearFrame.highPvP, "LEFT", -4, 0)
 gearFrame.highPvE:SetScript("OnClick", function()
-    if sfui.highest and sfui.highest.EquipHighestILvl then sfui.highest.EquipHighestILvl(false) end
+    sfui.highest.EquipHighestILvl(false)
 end)
 gearFrame.highPvE:SetScript("OnEnter", function(b)
     show_tooltip(b, "ANCHOR_TOP", "equip highest ilvl pve gear")
@@ -1527,31 +1474,22 @@ gearFrame:SetScript("OnShow", function(self)
     end
     if self.initialized then
         if self.SelectSpecTab then
-            local specId = common and common.get_current_spec_id and common.get_current_spec_id()
+            local specId = common.get_current_spec_id()
             if specId and specId > 0 then self:SelectSpecTab(specId) end
         end
-        if sfui.gear.UpdateStatUI then sfui.gear.UpdateStatUI() end
+        sfui.gear.UpdateStatUI()
         return
     end
     self.initialized = true
     self.specUIs = {}
 
-    local getSpecs = (common and common.get_player_specs) or (sfui.common and sfui.common.get_player_specs)
-    local _, specIDs
-    if getSpecs then
-        _, specIDs = getSpecs()
-    end
+    local _, specIDs = common.get_player_specs()
     specIDs               = specIDs or {}
 
-    local isVanilla       = (sfui.version and not sfui.version.retail)
-        or (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
-        or sfui.isClassic or sfui.isForever
+    local isVanilla       = not sfui.isRetail
     local HEADER_H        = 56
-    local activeSpecId    = (common and common.get_current_spec_id and common.get_current_spec_id()) or
-    (specIDs and specIDs[1])
-    local isActiveVanilla = (tonumber(activeSpecId) and tonumber(activeSpecId) >= 1482 and tonumber(activeSpecId) <= 1491)
-        or (sfui.gear and sfui.gear.IsClassicSpec and sfui.gear.IsClassicSpec(activeSpecId))
-        or isVanilla
+    local activeSpecId    = common.get_current_spec_id() or (specIDs and specIDs[1])
+    local isActiveVanilla = not sfui.isRetail
     local CARD_H          = isActiveVanilla and 168 or 140
     self.expandedHeight   = HEADER_H + CARD_H + 8
 
@@ -1573,15 +1511,13 @@ gearFrame:SetScript("OnShow", function(self)
 
     self.SelectSpecTab = function(f, specID)
         f.activeSpecID = specID
-        local isVanillaSpec = (tonumber(specID) and tonumber(specID) >= 1482 and tonumber(specID) <= 1491)
-            or (sfui.gear and sfui.gear.IsClassicSpec and sfui.gear.IsClassicSpec(specID))
-            or isVanilla
+        local isVanillaSpec = not sfui.isRetail
         local cardH = isVanillaSpec and 168 or 140
         f.expandedHeight = HEADER_H + cardH + 8
         if not f.collapsed then
             f:SetHeight(f.expandedHeight)
         end
-        local p = sfui.theme and sfui.theme.GetPalette()
+        local p = sfui.theme.GetPalette()
         local accent = p and p.accentColor or { 0.95, 0.85, 0.55 }
         for id, ui in pairs(f.specUIs) do
             if id == specID then
@@ -1594,7 +1530,7 @@ gearFrame:SetScript("OnShow", function(self)
                 if ui.card then ui.card:Hide() end
                 if f.tabBtns[id] then
                     f.tabBtns[id]:SetAlpha(0.40)
-                    local isCamelot = sfui.theme and sfui.theme.IsCamelotActive()
+                    local isCamelot = sfui.theme.IsCamelotActive()
                     if isCamelot then
                         f.tabBtns[id]:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
                     else
@@ -1603,7 +1539,7 @@ gearFrame:SetScript("OnShow", function(self)
                 end
             end
         end
-        if sfui.gear.UpdateStatUI then sfui.gear.UpdateStatUI() end
+        sfui.gear.UpdateStatUI()
     end
 
     local startX = 12
@@ -1623,13 +1559,13 @@ gearFrame:SetScript("OnShow", function(self)
                 edgeFile = "Interface\\Buttons\\WHITE8x8",
                 edgeSize = 1,
             })
-            local isCamelot = sfui.theme and sfui.theme.IsCamelotActive()
+            local isCamelot = sfui.theme.IsCamelotActive()
             btn:SetBackdropColor(0, 0, 0, 0.7)
             btn:SetBackdropBorderColor(isCamelot and 0.28 or 0, isCamelot and 0.22 or 0, isCamelot and 0.14 or 0, 0.85)
             btn:SetScript("OnClick", function() self:SelectSpecTab(id) end)
             btn:SetScript("OnEnter", function(b)
                 b:SetAlpha(1.0)
-                local specName = common and common.get_spec_name and common.get_spec_name(id)
+                local specName = common.get_spec_name(id)
                 show_tooltip(b, "ANCHOR_TOP", (specName and specName:lower()) or "specialization")
             end)
             btn:SetScript("OnLeave", function(b)
@@ -1693,10 +1629,7 @@ gearFrame:SetScript("OnShow", function(self)
         self.specUIs[id] = {}
         local ui = self.specUIs[id]
 
-        local isVanillaSpec = (tonumber(id) and tonumber(id) >= 1482 and tonumber(id) <= 1491)
-            or (sfui.gear and sfui.gear.IsClassicSpec and sfui.gear.IsClassicSpec(id))
-            or (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
-            or (sfui.version and not sfui.version.retail)
+        local isVanillaSpec = not sfui.isRetail
 
         -- Spec container inside self.content (seamless, no nested border)
         local card = CreateFrame("Frame", nil, self.content)
@@ -1743,6 +1676,10 @@ gearFrame:SetScript("OnShow", function(self)
         }
         if isVanillaSpec then
             table.insert(lockSlots, { label = "rg", slot = 18 })
+            local usesAmmo = sfui.api.UnitUsesAmmo and sfui.api.UnitUsesAmmo("player")
+            if usesAmmo then
+                table.insert(lockSlots, { label = "am", slot = 0 })
+            end
         end
 
         local pveLockLabel = mkLabel(card, "pve:", PVE_COLOR[1] * 0.8, PVE_COLOR[2] * 0.8, PVE_COLOR[3] * 0.8)
@@ -1796,7 +1733,7 @@ gearFrame:SetScript("OnShow", function(self)
             local capturedSlot = def.slot
             btn:SetScript("OnClick", function() lockSlot(capturedSlot, IsShiftKeyDown()) end)
             btn:SetScript("OnEnter", function(b)
-                local p = sfui.theme and sfui.theme.GetPalette()
+                local p = sfui.theme.GetPalette()
                 local hl = p and p.highlightColor or (cfg and cfg.colors and cfg.colors.cyan) or { 0, 1, 1 }
                 b:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1)
                 local link = GetInventoryItemLink("player", capturedSlot)
@@ -1834,7 +1771,7 @@ gearFrame:SetScript("OnShow", function(self)
                     b:SetBackdropBorderColor(c[1], c[2], c[3], 1.0)
                     b:SetBackdropColor(c[1] * 0.28, c[2] * 0.28, c[3] * 0.28, 0.95)
                 else
-                    local isCamelot = sfui.theme and sfui.theme.IsCamelotActive()
+                    local isCamelot = sfui.theme.IsCamelotActive()
                     if isCamelot then
                         b:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
                         b:SetBackdropColor(0.12, 0.10, 0.08, 0.95)
@@ -1918,7 +1855,7 @@ gearFrame:SetScript("OnShow", function(self)
             local newTank = not current
             SfuiDB.gear[id].armor_ilvl_prio = newTank
             local numID = tonumber(id) or 0
-            local classID = (sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(numID)) or numID
+            local classID = sfui.gear.GetClassicClassID(numID) or numID
             if isVanillaSpec or (classID >= 1482 and classID <= 1491) then
                 SfuiDB.gear[id].is_tank = newTank
                 if newTank then
@@ -1943,12 +1880,13 @@ gearFrame:SetScript("OnShow", function(self)
         ui.btnILvl = btnILvl
 
         local numID = tonumber(id) or 0
-        local classID = (sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(numID)) or numID
-        local classicRoles = isVanillaSpec and sfui.gear.CLASSIC_ROLES_BY_SPEC and
+        local classID = sfui.gear.GetClassicClassID(numID) or numID
+        local roleEquipTimer = nil
+        local classicRoles = not sfui.isRetail and sfui.gear.CLASSIC_ROLES_BY_SPEC and
         (sfui.gear.CLASSIC_ROLES_BY_SPEC[numID] or (classID and sfui.gear.CLASSIC_ROLES_BY_SPEC[classID]))
         if classicRoles then
             ui.roleBtns = {}
-            local curX = 274
+            local curX = math.max(274, curLockX + 8)
             local roleColors = {
                 ["TANK"] = { 0.4, 0.7, 1.0 },
                 ["HEAL"] = { 0.3, 1.0, 0.4 },
@@ -1990,7 +1928,7 @@ gearFrame:SetScript("OnShow", function(self)
                         sdb.armor_ilvl_prio = false
                         sdb.is_healer = false
                     end
-                    local bridge = sfui.talents and sfui.talents.SPEC_BRIDGE and (sfui.talents.SPEC_BRIDGE[id] or sfui.talents.SPEC_BRIDGE[numID])
+                    local bridge = sfui.talents.SPEC_BRIDGE[id] or sfui.talents.SPEC_BRIDGE[numID]
                     if bridge then
                         if bridge.camelotID and bridge.camelotID ~= id then
                             SfuiDB.gear[bridge.camelotID] = SfuiDB.gear[bridge.camelotID] or {}
@@ -2020,22 +1958,23 @@ gearFrame:SetScript("OnShow", function(self)
                         sdb.stat_equals = nil
                         sdb.pawn_weights = nil
                     end
-                    if sfui.highest and sfui.highest.ClearValidationCache then
-                        sfui.highest.ClearValidationCache()
-                    end
-                    if sfui.highest and sfui.highest.ClearCache then
-                        sfui.highest.ClearCache()
-                    end
+                    sfui.highest.ClearValidationCache()
+                    sfui.highest.ClearCache()
                     sfui.gear.UpdateStatUI()
                     sfui.gear.Update()
-                    local curSpec = common and common.get_current_spec_id and common.get_current_spec_id()
+                    local curSpec = common.get_current_spec_id()
                     local isMatch = (not curSpec) or (curSpec == id)
                         or (tonumber(curSpec) and tonumber(id) and tonumber(curSpec) == tonumber(id))
-                        or (sfui.gear and sfui.gear.is_spec_match and sfui.gear.is_spec_match(curSpec, id))
+                        or (sfui.gear.is_spec_match(curSpec, id))
                     if isMatch then
-                        if sfui.highest and sfui.highest.EquipHighestILvl then
-                            sfui.highest.EquipHighestILvl(isCurrentlyPvP())
+                        if roleEquipTimer then
+                            roleEquipTimer:Cancel()
+                            roleEquipTimer = nil
                         end
+                        roleEquipTimer = _G.C_Timer.NewTimer(0.18, function()
+                            roleEquipTimer = nil
+                            sfui.highest.EquipHighestILvl(isCurrentlyPvP())
+                        end)
                     end
                 end)
                 rBtn:SetScript("OnEnter", function(b)
@@ -2318,9 +2257,8 @@ gearFrame:SetScript("OnShow", function(self)
                 end
                 SfuiDB.gear[id].pawn_weights = next(weights) and weights or nil
                 SfuiDB.gear[id].pawn_string  = (next(weights) and text ~= "") and text or nil
-                local specName               = (common and common.get_spec_name and common.get_spec_name(id)) or
-                ("spec " .. tostring(id))
-                if common and common.print then common.print("pawn saved for " .. specName:lower()) end
+                local specName = common.get_spec_name(id) or ("spec " .. tostring(id))
+                sfui.common.print("pawn saved for " .. specName:lower())
                 sfui.gear.UpdateStatUI()
             end)
         else
@@ -2354,16 +2292,15 @@ gearFrame:SetScript("OnShow", function(self)
                 end
                 SfuiDB.gear[id].pawn_weights = next(weights) and weights or nil
                 SfuiDB.gear[id].pawn_string  = (next(weights) and text ~= "") and text or nil
-                local specName               = (common and common.get_spec_name and common.get_spec_name(id)) or
-                ("spec " .. tostring(id))
-                if common and common.print then common.print("pawn saved for " .. specName:lower()) end
+                local specName               = common.get_spec_name(id) or ("spec " .. tostring(id))
+                sfui.common.print("pawn saved for " .. specName:lower())
                 sfui.gear.UpdateStatUI()
             end)
         end
     end
     self:SelectSpecTab(activeSpecId)
 
-    if sfui.gear.UpdateStatUI then sfui.gear.UpdateStatUI() end
+    sfui.gear.UpdateStatUI()
 end)
 
 sfui.gear.Frame = gearFrame
@@ -2403,7 +2340,7 @@ local function InitToggleHook()
     end)
 
     toggleBtn:SetScript("OnShow", function()
-        if sfui.gear.pauseAutoEquip then sfui.gear.pauseAutoEquip(10) end
+        sfui.gear.pauseAutoEquip(10)
         if SfuiGearManagerFrame and SfuiDB.gear and SfuiDB.gear.auto_open ~= false then
             SfuiGearManagerFrame:Show()
         end
@@ -2450,18 +2387,16 @@ local function InitPaperDollLockHook()
                         slotName = "off hand"
                     elseif slot == 18 then
                         slotName = "ranged"
+                    elseif slot == 0 then
+                        slotName = "ammo"
                     end
 
                     if SfuiDB.gear[specID][key][itemID] then
                         SfuiDB.gear[specID][key][itemID] = nil
-                        if common and common.print then
-                            common.print(string.format("%s unlocked (%s): %s", slotName, ctxPvP and "pvp" or "pve", link))
-                        end
+                        sfui.common.print(string.format("%s unlocked (%s): %s", slotName, ctxPvP and "pvp" or "pve", link))
                     else
                         SfuiDB.gear[specID][key][itemID] = true
-                        if common and common.print then
-                            common.print(string.format("%s locked (%s): %s", slotName, ctxPvP and "pvp" or "pve", link))
-                        end
+                        sfui.common.print(string.format("%s locked (%s): %s", slotName, ctxPvP and "pvp" or "pve", link))
                     end
                     sfui.gear.UpdateStatUI()
                 end
@@ -2478,6 +2413,7 @@ local function InitPaperDollLockHook()
         "CharacterMainHandSlot",
         "CharacterSecondaryHandSlot",
         "CharacterRangedSlot",
+        "CharacterAmmoSlot",
     }
     for _, slotName in ipairs(slotsToHook) do
         local slotFrame = _G[slotName]
@@ -2519,7 +2455,9 @@ function sfui.gear.initialize()
     InitPaperDollLockHook()
 
     -- Populate initial equipped items to track changes
-    for slotID = 1, 18 do
+    local usesAmmo = sfui.api.UnitUsesAmmo and sfui.api.UnitUsesAmmo("player")
+    local startSlot = usesAmmo and 0 or 1
+    for slotID = startSlot, 18 do
         if slotID ~= 4 then
             local link = GetInventoryItemLink("player", slotID)
             lastEquippedItems[slotID] = link and GetItemInfoInstant(link)
@@ -2539,11 +2477,9 @@ function sfui.gear_debug_info()
     }
 end
 
-if sfui.RegisterModule then
-    sfui.gear.OnEnable = function(self) self.initialize() end
-    sfui.gear.OnSpecChanged = function(self, specID)
-        if self.Update then self.Update() end
-    end
-    sfui.gear.GetDebugInfo = sfui.gear_debug_info
-    sfui.RegisterModule("gear", sfui.gear)
+sfui.gear.OnEnable = function(self) self.initialize() end
+sfui.gear.OnSpecChanged = function(self, specID)
+    self.Update()
 end
+sfui.gear.GetDebugInfo = sfui.gear_debug_info
+sfui.RegisterModule("gear", sfui.gear)

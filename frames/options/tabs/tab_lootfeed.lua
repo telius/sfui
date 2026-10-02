@@ -24,13 +24,9 @@ sfui.options.RegisterTab({
                         SfuiDB.lootfeed[k] = v
                     end
                 end
-                if sfui.lootfeed and sfui.lootfeed.OnSettingsChanged then
-                    sfui.lootfeed:OnSettingsChanged()
-                end
+                sfui.lootfeed:OnSettingsChanged()
             end
-            if sfui.lootfeed and sfui.lootfeed.UpdateTheme then
-                sfui.lootfeed.UpdateTheme()
-            end
+            sfui.lootfeed.UpdateTheme()
             if refreshTabUI then
                 refreshTabUI()
             end
@@ -94,9 +90,7 @@ sfui.options.RegisterTab({
         local test_btn = CreateFlatButton(feed_panel, "trigger test feed (10 items)", 180, 22)
         test_btn:SetPoint("TOPLEFT", tips, "BOTTOMLEFT", 0, -12)
         test_btn:SetScript("OnClick", function()
-            if sfui.lootfeed and sfui.lootfeed.TriggerTestFeed then
-                sfui.lootfeed.TriggerTestFeed()
-            end
+            sfui.lootfeed.TriggerTestFeed()
         end)
 
         local reset_pos_btn = CreateFlatButton(feed_panel, "reset feed position", 140, 22)
@@ -129,31 +123,27 @@ sfui.options.RegisterTab({
 
         local lootfeedStyleButtons = {}
 
-        local btnOptionA = CreateFlatButton(feed_panel, "Outfit Card", 120, 22)
+        local btnOptionA = CreateFlatButton(feed_panel, "Architectural Slate", 150, 22)
         btnOptionA:SetPoint("TOPLEFT", camelot_label, "BOTTOMLEFT", 0, -6)
-        btnOptionA.styleKey = "outfit_card"
-        btnOptionA.baseLabel = "Outfit Card"
+        btnOptionA.styleKey = "architectural"
+        btnOptionA.baseLabel = "Architectural Slate"
         lootfeedStyleButtons[#lootfeedStyleButtons + 1] = btnOptionA
 
-        local btnOptionB = CreateFlatButton(feed_panel, "Architectural Slate", 150, 22)
+        local btnOptionB = CreateFlatButton(feed_panel, "Sculpted Card", 120, 22)
         btnOptionB:SetPoint("LEFT", btnOptionA, "RIGHT", 8, 0)
-        btnOptionB.styleKey = "architectural"
-        btnOptionB.baseLabel = "Architectural Slate"
+        btnOptionB.styleKey = "outfit_card"
+        btnOptionB.baseLabel = "Sculpted Card"
         lootfeedStyleButtons[#lootfeedStyleButtons + 1] = btnOptionB
 
         for _, btn in ipairs(lootfeedStyleButtons) do
             btn:SetScript("OnClick", function()
                 SfuiDB.camelotLootfeedStyle = btn.styleKey
-                if sfui.lootfeed and sfui.lootfeed.UpdateTheme then
-                    sfui.lootfeed.UpdateTheme()
-                end
+                sfui.lootfeed.UpdateTheme()
                 if UpdateCamelotStyleControls then
                     UpdateCamelotStyleControls()
                 end
-                if sfui.common and sfui.common.print then
-                    local name = (btn.styleKey == "architectural") and "Architectural Slate" or "Outfit Card"
-                    sfui.common.print("sfui: Camelot loot feed style set to '" .. name .. "'.")
-                end
+                local name = (btn.styleKey == "architectural") and "Architectural Slate" or "Sculpted Card"
+                sfui.common.print("Camelot loot feed style set to '" .. name .. "'.")
             end)
         end
 
@@ -176,7 +166,7 @@ sfui.options.RegisterTab({
 
                 local curStyle = (SfuiDB and (SfuiDB.camelotLootfeedStyle or (SfuiDB.theme and SfuiDB.theme.lootfeedStyle)))
                     or (sfui.config and sfui.config.theme and sfui.config.theme.lootfeedStyle)
-                    or "outfit_card"
+                    or "architectural"
 
                 local pal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette())
                 local hexAccent = "ffcc00"
@@ -243,12 +233,10 @@ sfui.options.RegisterTab({
         end, function(checked)
             local db = GetDB()
             db.enabled = checked
-            if sfui.lootfeed then
-                if checked and sfui.lootfeed.OnEnable then
-                    sfui.lootfeed:OnEnable()
-                elseif not checked and sfui.lootfeed.OnDisable then
-                    sfui.lootfeed:OnDisable()
-                end
+            if checked then
+                sfui.lootfeed:OnEnable()
+            else
+                sfui.lootfeed:OnDisable()
             end
             if UpdatePartyQualityState then UpdatePartyQualityState() end
         end, "enable or disable the loot feed completely."))
@@ -260,9 +248,7 @@ sfui.options.RegisterTab({
         end, function(checked)
             local db = GetDB()
             db.growDirection = checked and "DOWN" or "UP"
-            if sfui.lootfeed and sfui.lootfeed.OnSettingsChanged then
-                sfui.lootfeed:OnSettingsChanged("growDirection", db.growDirection)
-            end
+            sfui.lootfeed:OnSettingsChanged("growDirection", db.growDirection)
         end, "when checked, new rows stack downwards with pending count on top. when unchecked, rows grow upwards."))
         grow_down_cb:SetPoint("TOPLEFT", enable_cb, "BOTTOMLEFT", 0, -8)
 
@@ -344,9 +330,7 @@ sfui.options.RegisterTab({
         end, 3, 16, 1, function(val)
             local db = GetDB()
             db.maxRows = val
-            if sfui.lootfeed and sfui.lootfeed.OnSettingsChanged then
-                sfui.lootfeed:OnSettingsChanged("maxRows", val)
-            end
+            sfui.lootfeed:OnSettingsChanged("maxRows", val)
         end, "maximum number of loot rows shown at one time. additional items queue up.", 250))
         max_rows_slider:SetPoint("TOPLEFT", sliders_header, "BOTTOMLEFT", 0, -10)
 
@@ -356,9 +340,7 @@ sfui.options.RegisterTab({
         end, 2.0, 20.0, 0.5, function(val)
             local db = GetDB()
             db.displayDuration = val
-            if sfui.lootfeed and sfui.lootfeed.OnSettingsChanged then
-                sfui.lootfeed:OnSettingsChanged("displayDuration", val)
-            end
+            sfui.lootfeed:OnSettingsChanged("displayDuration", val)
         end, "seconds each loot row stays visible on screen before fading out.", 250))
         duration_slider:SetPoint("TOPLEFT", max_rows_slider, "BOTTOMLEFT", 0, -12)
 
@@ -368,9 +350,7 @@ sfui.options.RegisterTab({
         end, 240, 500, 10, function(val)
             local db = GetDB()
             db.width = val
-            if sfui.lootfeed and sfui.lootfeed.OnSettingsChanged then
-                sfui.lootfeed:OnSettingsChanged("width", val)
-            end
+            sfui.lootfeed:OnSettingsChanged("width", val)
         end, "width of each loot feed row in pixels.", 250))
         width_slider:SetPoint("TOPLEFT", duration_slider, "BOTTOMLEFT", 0, -12)
 
@@ -380,9 +360,7 @@ sfui.options.RegisterTab({
         end, 20, 60, 2, function(val)
             local db = GetDB()
             db.rowHeight = val
-            if sfui.lootfeed and sfui.lootfeed.OnSettingsChanged then
-                sfui.lootfeed:OnSettingsChanged("rowHeight", val)
-            end
+            sfui.lootfeed:OnSettingsChanged("rowHeight", val)
         end, "height of each loot row in pixels.", 250))
         height_slider:SetPoint("TOPLEFT", width_slider, "BOTTOMLEFT", 0, -12)
 
@@ -392,9 +370,7 @@ sfui.options.RegisterTab({
             end, 0, 4, 1, function(val)
                 local db = GetDB()
                 db.minItemQuality = val
-                if sfui.lootfeed and sfui.lootfeed.OnSettingsChanged then
-                    sfui.lootfeed:OnSettingsChanged("minItemQuality", val)
-                end
+                sfui.lootfeed:OnSettingsChanged("minItemQuality", val)
             end,
             "filter out items looted by yourself below this quality:\n0 = poor (gray)\n1 = common (white)\n2 = uncommon (green)\n3 = rare (blue)\n4 = epic (purple)",
             250))
@@ -406,9 +382,7 @@ sfui.options.RegisterTab({
             end, 0, 4, 1, function(val)
                 local db = GetDB()
                 db.partyMinItemQuality = val
-                if sfui.lootfeed and sfui.lootfeed.OnSettingsChanged then
-                    sfui.lootfeed:OnSettingsChanged("partyMinItemQuality", val)
-                end
+                sfui.lootfeed:OnSettingsChanged("partyMinItemQuality", val)
             end,
             "filter out items looted by party members below this quality:\n0 = poor (gray)\n1 = common (white)\n2 = uncommon (green)\n3 = rare (blue)\n4 = epic (purple)",
             250))
@@ -452,13 +426,11 @@ sfui.options.RegisterTab({
         end
 
         -- Auto-refresh if theme changes dynamically while lootfeed panel is open
-        if sfui.events and sfui.events.RegisterMessage then
-            sfui.events.RegisterMessage("SFUI_THEME_CHANGED", function()
-                if feed_panel:IsVisible() and UpdateCamelotStyleControls then
-                    UpdateCamelotStyleControls()
-                end
-            end)
-        end
+        sfui.events.RegisterMessage("SFUI_THEME_CHANGED", function()
+            if feed_panel:IsVisible() and UpdateCamelotStyleControls then
+                UpdateCamelotStyleControls()
+            end
+        end)
 
         if feed_panel.SetContentHeight then
             feed_panel:SetContentHeight(560)

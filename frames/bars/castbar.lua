@@ -766,14 +766,14 @@ end
 
 function sfui.castbar.set_bar_texture(texturePath)
     if not texturePath or texturePath == "" then
-        texturePath = sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()
+        texturePath = sfui.widgets.get_bar_texture()
     end
-    if sfui.config and sfui.config.blizzard_bar_textures and sfui.config.blizzard_bar_textures[texturePath] then
+    if sfui.config.blizzard_bar_textures and sfui.config.blizzard_bar_textures[texturePath] then
         texturePath = sfui.config.blizzard_bar_textures[texturePath]
     end
     sfui.castbar._currentTexture = texturePath
 
-    if not sfui.castbar.bars and sfui.castbar.initialize then
+    if not sfui.castbar.bars then
         sfui.castbar.initialize()
     end
 
@@ -873,8 +873,37 @@ function sfui.castbar.initialize()
     SetupBar("castBar", "player")
     SetupTargetBar("targetCastBar", "target")
 
+    -- Register bars with the theme engine for live theme switching
+    if sfui.theme then
+        local bars = sfui.castbar.bars
+        local playerBar = bars and bars["player"]
+        local targetBar = bars and bars["target"]
+        if playerBar and sfui.theme.RegisterBar then
+            sfui.theme.RegisterBar(playerBar, "castbar")
+        end
+        if targetBar and sfui.theme.RegisterBar then
+            sfui.theme.RegisterBar(targetBar, "castbar")
+        end
+        -- Apply cast-specific decorations (spark tint, icon border)
+        if playerBar and sfui.theme.ApplyCastBarDecoration then
+            sfui.theme.ApplyCastBarDecoration(playerBar)
+        end
+        if targetBar and sfui.theme.ApplyCastBarDecoration then
+            sfui.theme.ApplyCastBarDecoration(targetBar)
+        end
+    end
+
     sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", clear_spell_cache)
     sfui.events.RegisterEvent("SPELLS_CHANGED", clear_spell_cache)
+
+    -- Re-apply cast-bar decorations whenever the theme changes
+    sfui.events.RegisterMessage("SFUI_THEME_CHANGED", function()
+        local bars = sfui.castbar.bars
+        local pBar = bars and bars["player"]
+        local tBar = bars and bars["target"]
+        if pBar then sfui.theme.ApplyCastBarDecoration(pBar) end
+        if tBar then sfui.theme.ApplyCastBarDecoration(tBar) end
+    end)
 
     -- Register Player Unit Events via central dispatcher
     sfui.events.RegisterUnitEvents({

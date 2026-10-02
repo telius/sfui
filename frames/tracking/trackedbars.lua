@@ -1582,25 +1582,19 @@ function sfui.trackedbars.initialize()
     end
 
     -- Hide Blizzard Cooldown Frames
-    if common.hide_blizzard_cooldown_viewers then
-        common.hide_blizzard_cooldown_viewers()
-    end
+    common.hide_blizzard_cooldown_viewers()
 
     -- Hook into bars state for attachment updates
-    if sfui.bars then
-        local _pendingLayoutTimer = false
-        hooksecurefunc(sfui.bars, "on_state_changed", function()
-            if _pendingLayoutTimer then return end
-            _pendingLayoutTimer = true
-            -- Delay slightly to ensure bars have hidden/shown
-            C_Timer.After(0.05, function()
-                _pendingLayoutTimer = false
-                if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
-                    sfui.trackedbars.ForceLayoutUpdate()
-                end
-            end)
+    local _pendingLayoutTimer = false
+    hooksecurefunc(sfui.bars, "on_state_changed", function()
+        if _pendingLayoutTimer then return end
+        _pendingLayoutTimer = true
+        -- Delay slightly to ensure bars have hidden/shown
+        C_Timer.After(0.05, function()
+            _pendingLayoutTimer = false
+            sfui.trackedbars.ForceLayoutUpdate()
         end)
-    end
+    end)
 end
 
 function sfui.trackedbars_debug_info()
@@ -1618,9 +1612,8 @@ function sfui.trackedbars_debug_info()
     }
 end
 
-if sfui.RegisterModule then
-    sfui.trackedbars.OnEnable = function(self) self.initialize() end
-    sfui.trackedbars.OnSettingsChanged = function(self, k, v)
+sfui.trackedbars.OnEnable = function(self) self.initialize() end
+sfui.trackedbars.OnSettingsChanged = function(self, k, v)
         if self.UpdatePosition then self.UpdatePosition() end
         if self.UpdateAppearance then self.UpdateAppearance() end
         if self.ForceLayoutUpdate then self.ForceLayoutUpdate() end
@@ -1632,5 +1625,4 @@ if sfui.RegisterModule then
     end
     sfui.trackedbars.GetDebugInfo = sfui.trackedbars_debug_info
     sfui.RegisterModule("trackedbars", sfui.trackedbars)
-end
 

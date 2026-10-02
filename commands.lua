@@ -72,14 +72,10 @@ SLASH_SFFISH1 = "/sffish"
 SlashCmdList["SFFISH"] = function(msg)
     local clean = msg and _G.strtrim and _G.strtrim(msg):lower() or (msg and msg:lower() or "")
     if clean == "sound" or clean == "soundreset" or clean == "reset" then
-        if sfui.fishing and sfui.fishing.RestoreSoundDefaults then
-            sfui.fishing.RestoreSoundDefaults()
-        end
+        sfui.fishing.RestoreSoundDefaults()
         return
     end
-    if sfui.fishing and sfui.fishing.RunKeybind then
-        sfui.fishing.RunKeybind(true)
-    end
+    sfui.fishing.RunKeybind(true)
 end
 
 -- Companion Pet Summon / Rotate
@@ -88,41 +84,26 @@ SlashCmdList["SFPET"] = function(msg)
     local clean = msg and _G.strtrim and _G.strtrim(msg):lower() or (msg and msg:lower() or "")
     local cmd = clean:match("^(%S+)") or clean
     if cmd == "add" then
-        if sfui.pets and sfui.pets.AddCurrentPetToCharFavs then sfui.pets.AddCurrentPetToCharFavs() end
+        sfui.pets.AddCurrentPetToCharFavs()
     elseif cmd == "remove" or cmd == "del" then
-        if sfui.pets and sfui.pets.RemoveCurrentPetFromCharFavs then sfui.pets.RemoveCurrentPetFromCharFavs() end
+        sfui.pets.RemoveCurrentPetFromCharFavs()
     elseif cmd == "list" then
-        if sfui.pets and sfui.pets.ListCharFavs then sfui.pets.ListCharFavs() end
+        sfui.pets.ListCharFavs()
     elseif cmd == "clear" then
-        if sfui.pets and sfui.pets.ClearCharFavs then sfui.pets.ClearCharFavs() end
+        sfui.pets.ClearCharFavs()
     elseif cmd == "summon" or cmd == "next" then
-        if sfui.pets and sfui.pets.SummonNext then sfui.pets.SummonNext(true) end
+        sfui.pets.SummonNext(true)
     elseif cmd == "dismiss" then
-        if sfui.pets and sfui.pets.Dismiss then sfui.pets.Dismiss() end
+        sfui.pets.Dismiss()
     else
-        if sfui.pets and sfui.pets.Toggle then
-            sfui.pets.Toggle()
-        elseif sfui.pets and sfui.pets.SummonNext then
-            sfui.pets.SummonNext(true)
-        end
+        sfui.pets.Toggle()
     end
 end
 
 -- Memory Profiler & Garbage Collection
 SLASH_SFMEM1 = "/sfmem"
 SlashCmdList["SFMEM"] = function(msg)
-    if sfui.mem and sfui.mem.HandleSlash then
-        sfui.mem.HandleSlash(msg)
-    else
-        local clean = msg and _G.strtrim and _G.strtrim(msg):lower() or (msg and msg:lower() or "")
-        local cmd, arg = clean:match("^(%S+)%s*(.*)$")
-        cmd = cmd or clean
-        if cmd == "gc" or cmd == "clean" or cmd == "collect" then
-            if sfui.mem and sfui.mem.RunGC then sfui.mem.RunGC() end
-        else
-            if sfui.mem and sfui.mem.ToggleGUI then sfui.mem.ToggleGUI() end
-        end
-    end
+    sfui.mem.HandleSlash(msg)
 end
 
 -- Quest Log HUD
@@ -131,18 +112,10 @@ SLASH_SFQL2 = "/sfquestlog"
 SlashCmdList["SFQL"] = function(msg)
     local clean = msg and _G.strtrim and _G.strtrim(msg):lower() or (msg and msg:lower() or "")
     if clean == "reset" or clean == "unhide" then
-        if sfui.questlog and sfui.questlog.unhide_all then
-            sfui.questlog.unhide_all()
-        end
+        sfui.questlog.unhide_all()
         return
     end
-    if sfui.questlog and sfui.questlog.toggle then
-        sfui.questlog.toggle()
-    else
-        if sfui.common and sfui.common.print then
-            sfui.common.print("sfui: quest log not available.")
-        end
-    end
+    sfui.questlog.toggle()
 end
 
 -- Alts & Warband Dashboard
@@ -151,18 +124,10 @@ SLASH_SFUIALTS2 = "/sfalts"
 SlashCmdList["SFUIALTS"] = function(msg)
     local clean = msg and _G.strtrim and _G.strtrim(msg):lower() or (msg and msg:lower() or "")
     if clean == "resetweeklies" then
-        if sfui.alts and sfui.alts.ResetWeeklies then
-            sfui.alts.ResetWeeklies()
-        end
+        sfui.alts.ResetWeeklies()
         return
     end
-    if sfui.alts and sfui.alts.Toggle then
-        sfui.alts.Toggle()
-    else
-        if sfui.common and sfui.common.print then
-            sfui.common.print("sfui: alts viewer not available.")
-        end
-    end
+    sfui.alts.Toggle()
 end
 
 -- Master SFUI Slash Command Router
@@ -174,53 +139,54 @@ SlashCmdList["SFUI"] = function(msg)
     cmd = cmd or clean
 
     if cmd == "" then
-        if sfui.toggle_options_panel then
-            sfui.toggle_options_panel()
-        else
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: options panel not available.")
-            end
-        end
+        sfui.toggle_options_panel()
     elseif cmd == "theme" or cmd == "style" then
         local sub = arg and _G.strtrim and _G.strtrim(arg):lower() or (arg and arg:lower() or "")
         if sub == "auto" or sub == "detect" or sub == "reset" then
-            if sfui.theme and sfui.theme.SetTheme then sfui.theme.SetTheme("auto") end
-            local active = (sfui.theme and sfui.theme.GetActiveThemeID and sfui.theme.GetActiveThemeID()) or "modern"
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: theme set to Auto-Detect (active: " .. active .. ").")
-            end
-        elseif sfui.theme and sfui.theme.GetTheme and sfui.theme.GetTheme(sub) then
+            sfui.theme.SetTheme("auto")
+            local active = sfui.theme.GetActiveThemeID() or "modern"
+            sfui.common.print("theme set to Auto-Detect (active: " .. active .. ").")
+        elseif sfui.theme.GetTheme(sub) then
             sfui.theme.SetTheme(sub)
             local themeDef = sfui.theme.GetTheme(sub)
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: theme set to " .. (themeDef.name or sub) .. ".")
-            end
+            sfui.common.print("theme set to " .. (themeDef.name or sub) .. ".")
         elseif sub == "camelot" or sub == "bronze" then
-            if sfui.theme and sfui.theme.SetTheme then sfui.theme.SetTheme("camelot") end
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: theme set to Camelot Heavy Bronze.")
-            end
+            sfui.theme.SetTheme("camelot")
+            sfui.common.print("theme set to Camelot Heavy Bronze.")
         elseif sub == "modern" or sub == "retail" or sub == "minimal" or sub == "slate" then
-            if sfui.theme and sfui.theme.SetTheme then sfui.theme.SetTheme("modern") end
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: theme set to Modern Minimalist.")
-            end
+            sfui.theme.SetTheme("modern")
+            sfui.common.print("theme set to Modern Minimalist.")
         else
             local curMode = (SfuiDB and (SfuiDB.themeMode or (SfuiDB.theme and SfuiDB.theme.mode))) or "auto"
-            local active = (sfui.theme and sfui.theme.GetActiveThemeID and sfui.theme.GetActiveThemeID()) or "modern"
-            local regOrder
-            if sfui.theme and sfui.theme.GetRegisteredThemes then
-                _, regOrder = sfui.theme.GetRegisteredThemes()
-            end
+            local active = sfui.theme.GetActiveThemeID() or "modern"
+            local _, regOrder = sfui.theme.GetRegisteredThemes()
             local list = "auto"
             if regOrder then
                 for _, id in ipairs(regOrder) do list = list .. " | " .. id end
             else
                 list = "auto | camelot | modern"
             end
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui theme: mode is '" .. curMode .. "' (currently rendering " .. active .. "). Usage: /sfui theme [" .. list .. "]")
-            end
+            sfui.common.print("theme mode is '" .. curMode .. "' (currently rendering " .. active .. "). Usage: /sfui theme [" .. list .. "]")
+        end
+    elseif cmd == "barstyle" or cmd == "barborder" or cmd == "barborders" or cmd == "bars" then
+        local sub = arg and _G.strtrim and _G.strtrim(arg):lower() or (arg and arg:lower() or "")
+        if sub == "thin" or sub == "a" or sub == "optiona" then
+            sfui.theme.SetBarStyle("thin")
+            sfui.common.print("bar style set to |cffffd100Thin|r (Option A: 1px bronze edge).")
+        elseif sub == "glow" or sub == "b" or sub == "optionb" or sub == "recessed" then
+            sfui.theme.SetBarStyle("glow")
+            sfui.common.print("bar style set to |cffffd100Glow|r (Option B: recessed amber inner glow).")
+        elseif sub == "heavy" or sub == "c" or sub == "optionc" or sub == "chiseled" or sub == "bronze" then
+            sfui.theme.SetBarStyle("heavy")
+            sfui.common.print("bar style set to |cffffd100Heavy|r (Option C: chiseled heavy bronze frame & corner brackets).")
+        elseif sub == "cycle" or sub == "next" or sub == "" then
+            local cur = sfui.theme.GetBarStyle() or "heavy"
+            local nextStyle = (cur == "thin" and "glow") or (cur == "glow" and "heavy") or "thin"
+            sfui.theme.SetBarStyle(nextStyle)
+            sfui.common.print("bar style cycled to |cffffd100" .. nextStyle:upper() .. "|r. Usage: /sfui barstyle [thin | glow | heavy]")
+        else
+            local cur = sfui.theme.GetBarStyle() or "heavy"
+            sfui.common.print("bar style is currently '|cffffd100" .. cur .. "|r'. Usage: /sfui barstyle [thin | glow | heavy]")
         end
     elseif cmd == "alts" or cmd == "warband" then
         SlashCmdList["SFUIALTS"](arg)
@@ -230,177 +196,119 @@ SlashCmdList["SFUI"] = function(msg)
         local sub = (cmd == "gc" and "gc") or arg
         SlashCmdList["SFMEM"](sub)
     elseif cmd == "cv" or cmd == "cooldowns" then
-        if sfui.trackedoptions and sfui.trackedoptions.toggle_viewer then
-            sfui.trackedoptions.toggle_viewer()
-        else
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: cooldown viewer not available.")
-            end
-        end
+        sfui.trackedoptions.toggle_viewer()
     elseif cmd == "portals" or cmd == "portal" or cmd == "portalpopup" or cmd == "teleport" then
         if arg == "test" or arg == "preview" or arg == "popup" or cmd == "portalpopup" then
-            if sfui.portals and sfui.portals.TestPortalPopup then
-                sfui.portals.TestPortalPopup()
-            end
-        elseif sfui.portals and sfui.portals.Toggle then
-            sfui.portals.Toggle()
+            sfui.portals.TestPortalPopup()
         else
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: portals menu not available.")
-            end
+            sfui.portals.Toggle()
         end
     elseif cmd == "gear" then
-        if sfui.gear and sfui.gear.toggle then
-            sfui.gear.toggle()
-        else
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: gear manager not available.")
-            end
-        end
+        sfui.gear.toggle()
     elseif cmd == "highest" then
-        if sfui.highest and sfui.highest.toggle then
-            sfui.highest.toggle()
-        else
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: highest ilvl viewer not available.")
-            end
-        end
-    elseif cmd == "lootspec" or cmd == "spec" or cmd == "loot" or cmd == "lootviewer" or cmd == "lv" then
-        if sfui.lootviewer and sfui.lootviewer.Toggle then
+        sfui.highest.toggle()
+    elseif cmd == "lootspec" or cmd == "spec" or cmd == "loot" or cmd == "lootviewer" or cmd == "lv" or cmd == "camelot" or cmd == "dj" or cmd == "journal" then
+        if not sfui.isRetail and sfui.lootviewer_camelot and sfui.lootviewer_camelot.Toggle then
+            sfui.lootviewer_camelot.Toggle()
+        elseif sfui.lootviewer and sfui.lootviewer.Toggle then
             sfui.lootviewer.Toggle()
         else
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: loot browser not available.")
-            end
+            sfui.common.print("loot viewer / dungeon journal is not available.")
         end
     elseif cmd == "bonusroll" or cmd == "br" or cmd == "rescan" then
-        if sfui.bonusroll and sfui.bonusroll.CheckAll then
-            sfui.bonusroll.CheckAll(true)
+        if not sfui.isRetail then
+            sfui.common.print("bonus roll is retail only.")
+            return
         end
+        sfui.bonusroll.CheckAll(true)
     elseif cmd == "research" then
-        if sfui.research and sfui.research.toggle_selection then
-            sfui.research.toggle_selection()
-        else
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: research viewer not available.")
-            end
+        if not sfui.isRetail then
+            sfui.common.print("research is retail only.")
+            return
         end
+        sfui.research.toggle_selection()
     elseif cmd == "mythic" or cmd == "m+" or cmd == "delve" or cmd == "dungeon" then
-        if sfui.mythic and sfui.mythic.ShowPreview and sfui.mythic.HidePreview then
-            if sfui.mythic.previewActive then
-                sfui.mythic.HidePreview()
-            else
-                sfui.mythic.ShowPreview()
-            end
+        if not sfui.isRetail then
+            sfui.common.print("mythic tracker is retail only.")
+            return
+        end
+        if sfui.mythic.previewActive then
+            sfui.mythic.HidePreview()
         else
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: mythic/delve tracker not available.")
-            end
+            sfui.mythic.ShowPreview()
         end
     elseif cmd == "hammer" or cmd == "repair" then
-        if not sfui.hammer then
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: master's hammer is retail only.")
-            end
+        if not sfui.isRetail then
+            sfui.common.print("master's hammer is retail only.")
             return
         end
         local hammer = sfui.hammer
         if arg == "test" or arg == "preview" then
-            if hammer and hammer.toggle_test_popup then
-                hammer.toggle_test_popup()
-            end
+            hammer.toggle_test_popup()
         elseif arg == "lock" then
             SfuiDB.lockRepairIcon = not SfuiDB.lockRepairIcon
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: repair icon " .. (SfuiDB.lockRepairIcon and "locked" or "unlocked") .. ".")
-            end
+            sfui.common.print("repair icon " .. (SfuiDB.lockRepairIcon and "locked" or "unlocked") .. ".")
         elseif arg == "reset" then
             local def = sfui.config.masterHammer.defaultPosition
             SfuiDB.repairIconX = def.x
             SfuiDB.repairIconY = def.y
-            if hammer and hammer.update_popup_style then
-                hammer.update_popup_style()
-            end
-            if sfui.options and sfui.options.sync_hammer_sliders then
+            hammer.update_popup_style()
+            if sfui.options.sync_hammer_sliders then
                 sfui.options.sync_hammer_sliders(def.x, def.y)
             end
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: repair button position reset to center (" .. def.x .. ", " .. def.y .. ").")
-            end
+            sfui.common.print("repair button position reset to center (" .. def.x .. ", " .. def.y .. ").")
         else
-            if hammer and hammer.print_hammer_status then
-                hammer.print_hammer_status(arg == "debug")
-            end
+            hammer.print_hammer_status(arg == "debug")
         end
     elseif cmd == "fish" or cmd == "fishing" then
         if arg == "sound" or arg == "soundreset" or arg == "reset" then
-            if sfui.fishing and sfui.fishing.RestoreSoundDefaults then
-                sfui.fishing.RestoreSoundDefaults()
-            end
-        elseif sfui.fishing and sfui.fishing.RunKeybind then
+            sfui.fishing.RestoreSoundDefaults()
+        else
             sfui.fishing.RunKeybind(true)
         end
     elseif cmd == "pet" or cmd == "pets" or cmd == "petwalker" then
         if arg == "add" then
-            if sfui.pets and sfui.pets.AddCurrentPetToCharFavs then sfui.pets.AddCurrentPetToCharFavs() end
+            sfui.pets.AddCurrentPetToCharFavs()
         elseif arg == "remove" or arg == "del" then
-            if sfui.pets and sfui.pets.RemoveCurrentPetFromCharFavs then sfui.pets.RemoveCurrentPetFromCharFavs() end
+            sfui.pets.RemoveCurrentPetFromCharFavs()
         elseif arg == "list" then
-            if sfui.pets and sfui.pets.ListCharFavs then sfui.pets.ListCharFavs() end
+            sfui.pets.ListCharFavs()
         elseif arg == "clear" then
-            if sfui.pets and sfui.pets.ClearCharFavs then sfui.pets.ClearCharFavs() end
+            sfui.pets.ClearCharFavs()
         elseif arg == "summon" or arg == "next" then
-            if sfui.pets and sfui.pets.SummonNext then sfui.pets.SummonNext(true) end
+            sfui.pets.SummonNext(true)
         else
-            if sfui.pets and sfui.pets.Toggle then
-                sfui.pets.Toggle()
-            elseif sfui.pets and sfui.pets.SummonNext then
-                sfui.pets.SummonNext(true)
-            end
+            sfui.pets.Toggle()
         end
     elseif cmd == "target" or cmd == "targetbar" then
-        if sfui.target then
+        if sfui.isRetail then
+            sfui.common.print("target bar is only available on Camelot / Classic.")
+        else
             if arg == "reset" then
-                if sfui.target.ResetPosition then sfui.target.ResetPosition() end
-                if sfui.common and sfui.common.print then
-                    sfui.common.print("sfui target bar: position reset to the right of the player healthbar.")
-                end
+                sfui.target.ResetPosition()
+                sfui.common.print("target bar position reset to top of the screen.")
             else
                 sfui.target.ToggleLock()
                 local status = sfui.target.unlocked and "|cff00ff00unlocked (Shift+Drag to move)|r" or "|cffff3333locked|r"
-                if sfui.common and sfui.common.print then
-                    sfui.common.print("sfui target bar: " .. status)
-                end
-            end
-        else
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: target bar is only available on Camelot / Classic.")
+                sfui.common.print("target bar: " .. status)
             end
         end
     elseif cmd == "threat" or cmd == "threatbar" then
-        if sfui.threat then
+        if sfui.isRetail then
+            sfui.common.print("threat bar is only available on Camelot / Classic.")
+        else
             SfuiDB = SfuiDB or {}
             SfuiDB.enableThreatBar = (SfuiDB.enableThreatBar == false)
-            if sfui.threat.UpdateVisibility then sfui.threat.UpdateVisibility() end
+            sfui.threat.UpdateVisibility()
             local status = SfuiDB.enableThreatBar and "|cff00ff00enabled|r" or "|cffff3333disabled|r"
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui threat bar: " .. status)
-            end
-        else
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: threat bar is only available on Camelot / Classic.")
-            end
+            sfui.common.print("threat bar: " .. status)
         end
     elseif cmd == "rl" or cmd == "reload" then
         C_UI.Reload()
     elseif cmd == "help" or cmd == "?" then
-        if sfui.common and sfui.common.print then
-            sfui.common.print("Commands: /sfui [options | target | threat | theme [camelot|modern|auto] | fish | pet | hammer [test|lock|reset|debug] | alts | ql | portals [test] | cv | gear | highest | lootspec | loot | research | mythic | mem | rl]")
-        end
+        sfui.common.print("Commands: /sfui [options | target | threat | theme [camelot|modern|auto] | barstyle [thin|glow|heavy] | fish | pet | hammer [test|lock|reset|debug] | alts | ql | portals [test] | cv | gear | highest | lootspec | loot | research | mythic | mem | rl]")
     else
-        if sfui.common and sfui.common.print then
-            sfui.common.print("Unknown command: /sfui " .. cmd .. ". Type /sfui help for a list of commands.")
-        end
+        sfui.common.print("Unknown command: /sfui " .. cmd .. ". Type /sfui help for a list of commands.")
     end
 end
 
@@ -408,4 +316,10 @@ end
 SLASH_SFTHEME1 = "/sftheme"
 SlashCmdList["SFTHEME"] = function(msg)
     SlashCmdList["SFUI"]("theme " .. (msg or ""))
+end
+
+-- Quick Bar Style Switcher Shortcut
+SLASH_SFBARSTYLE1 = "/sfbarstyle"
+SlashCmdList["SFBARSTYLE"] = function(msg)
+    SlashCmdList["SFUI"]("barstyle " .. (msg or ""))
 end

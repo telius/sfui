@@ -1,5 +1,4 @@
-local addonName, addon = ...
-sfui = sfui or {}
+local sfui = _G.sfui or {}
 sfui.worldevents = sfui.worldevents or {}
 
 local g      = sfui.config
@@ -27,7 +26,7 @@ local table_insert         = table.insert
 local table_sort           = table.sort
 local table_remove         = table.remove
 local string_format        = string.format
-local issecretvalue        = (common and common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue        = sfui.common.issecretvalue
 
 -- ─── UIWidget Visualization Type Constants (Retail 12.1.0 & Fallbacks) ────────
 local TYPE_ICON_AND_TEXT     = (Enum and Enum.UIWidgetVisualizationType and Enum.UIWidgetVisualizationType.IconAndText) or 0
@@ -464,9 +463,7 @@ end
 function sfui.worldevents.RequestUpdate()
     isDirty = true
     sfui.worldevents.UpdateEventsData()
-    if sfui.questlog and sfui.questlog.RequestRefresh then
-        sfui.questlog.RequestRefresh()
-    end
+    sfui.tracker.RequestRefresh()
 end
 
 -- ─── Throttled Update Loop (5-Second Timer Countdown Ticks) ─────────────────
@@ -495,8 +492,8 @@ function sfui.worldevents.OnTimerTick(elapsed)
 
     if needsRebuild or isDirty then
         sfui.worldevents.RequestUpdate()
-    elseif anyTextChanged and sfui.questlog and sfui.questlog.RequestRefresh then
-        sfui.questlog.RequestRefresh()
+    elseif anyTextChanged then
+        sfui.tracker.RequestRefresh()
     end
 end
 
@@ -1022,80 +1019,74 @@ function sfui.worldevents_debug_info()
     }
 end
 
-if sfui.RegisterModule then
-    sfui.worldevents = sfui.worldevents or {}
-    sfui.worldevents.GetDebugInfo = sfui.worldevents_debug_info
-    sfui.RegisterModule("worldevents", sfui.worldevents)
-end
+sfui.worldevents = sfui.worldevents or {}
+sfui.worldevents.GetDebugInfo = sfui.worldevents_debug_info
+sfui.RegisterModule("worldevents", sfui.worldevents)
 
 -- ─── Central Dispatcher Registration ────────────────────────────────────────
-if sfui.events then
-    sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
-        local inCombat = InCombatLockdown and InCombatLockdown()
-        if not inCombat and C_EventScheduler and C_EventScheduler.RequestEvents then
-            C_EventScheduler.RequestEvents()
-        end
-        C_Timer.After(2.0, sfui.worldevents.RequestUpdate)
-    end)
-
-    sfui.events.RegisterEvent("EVENT_SCHEDULER_UPDATE", function()
-        sfui.worldevents.RequestUpdate()
-    end)
-
-    sfui.events.RegisterEvent("SUPER_TRACKING_CHANGED", function()
-        sfui.worldevents.RequestUpdate()
-    end)
-
-    local function HasActiveWidgetSet(setID)
-        if not setID or issecretvalue(setID) or type(setID) ~= "number" or setID <= 0 then return false end
-        for _, ev in ipairs(cachedEvents) do
-            -- Guard against secretvalue widgetSetID before numeric comparison
-            if ev.widgetSetID and not issecretvalue(ev.widgetSetID) and type(ev.widgetSetID) == "number" and ev.widgetSetID == setID then
-                return true
-            end
-        end
-        return false
+sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
+    local inCombat = InCombatLockdown and InCombatLockdown()
+    if not inCombat and C_EventScheduler and C_EventScheduler.RequestEvents then
+        C_EventScheduler.RequestEvents()
     end
+    C_Timer.After(2.0, sfui.worldevents.RequestUpdate)
+end)
 
-    -- Decoupled widget updates: do NOT re-query C_EventScheduler.
-    -- Simply refresh the quest log so ScanEvents reads updated values from C_UIWidgetManager.
-    -- Strictly ignore unassociated city widgets (setID == nil or not in active world events)
-    -- to prevent rapid GC churn while standing in city hubs (Dornogal, Valdrakken).
-    sfui.events.RegisterThrottledEvent("UPDATE_UI_WIDGET", 0.5, function(event, widgetInfo)
-        if not sfui.worldevents.is_enabled() or #cachedEvents == 0 then return end
-        local setID = widgetInfo and widgetInfo.widgetSetID
-        if setID and HasActiveWidgetSet(setID) then
-            if sfui.questlog and sfui.questlog.RequestRefresh then
-                sfui.questlog.RequestRefresh()
-            end
-        end
-    end)
+sfui.events.RegisterEvent("EVENT_SCHEDULER_UPDATE", function()
+    sfui.worldevents.RequestUpdate()
+end)
 
-    sfui.events.RegisterThrottledEvent("UPDATE_ALL_UI_WIDGETS", 0.5, function()
-        if not sfui.worldevents.is_enabled() or #cachedEvents == 0 then return end
-        local hasActiveEventWidgets = false
-        for _, ev in ipairs(cachedEvents) do
-            if ev.isOngoing and ev.widgetSetID and not issecretvalue(ev.widgetSetID) and ev.widgetSetID > 0 then
-                hasActiveEventWidgets = true
-                break
-            end
-        end
-        if hasActiveEventWidgets and sfui.questlog and sfui.questlog.RequestRefresh then
-            sfui.questlog.RequestRefresh()
-        end
-    end)
+sfui.events.RegisterEvent("SUPER_TRACKING_CHANGED", function()
+    sfui.worldevents.RequestUpdate()
+end)
 
-    sfui.events.RegisterEvent("QUEST_LOG_UPDATE", function()
-        local inCombat = InCombatLockdown and InCombatLockdown()
-        if not inCombat and isDirty then
-            sfui.worldevents.RequestUpdate()
+local function HasActiveWidgetSet(setID)
+    if not setID or issecretvalue(setID) or type(setID) ~= "number" or setID <= 0 then return false end
+    for _, ev in ipairs(cachedEvents) do
+        -- Guard against secretvalue widgetSetID before numeric comparison
+        if ev.widgetSetID and not issecretvalue(ev.widgetSetID) and type(ev.widgetSetID) == "number" and ev.widgetSetID == setID then
+            return true
         end
-    end)
-
-    sfui.events.RegisterUpdate("WorldEvents", 5.0, function(elapsed)
-        sfui.worldevents.OnTimerTick(elapsed)
-    end)
+    end
+    return false
 end
+
+-- Decoupled widget updates: do NOT re-query C_EventScheduler.
+-- Simply refresh the quest log so ScanEvents reads updated values from C_UIWidgetManager.
+-- Strictly ignore unassociated city widgets (setID == nil or not in active world events)
+-- to prevent rapid GC churn while standing in city hubs (Dornogal, Valdrakken).
+sfui.events.RegisterThrottledEvent("UPDATE_UI_WIDGET", 0.5, function(event, widgetInfo)
+    if not sfui.worldevents.is_enabled() or #cachedEvents == 0 then return end
+    local setID = widgetInfo and widgetInfo.widgetSetID
+    if setID and HasActiveWidgetSet(setID) then
+        sfui.tracker.RequestRefresh()
+    end
+end)
+
+sfui.events.RegisterThrottledEvent("UPDATE_ALL_UI_WIDGETS", 0.5, function()
+    if not sfui.worldevents.is_enabled() or #cachedEvents == 0 then return end
+    local hasActiveEventWidgets = false
+    for _, ev in ipairs(cachedEvents) do
+        if ev.isOngoing and ev.widgetSetID and not issecretvalue(ev.widgetSetID) and ev.widgetSetID > 0 then
+            hasActiveEventWidgets = true
+            break
+        end
+    end
+    if hasActiveEventWidgets then
+        sfui.tracker.RequestRefresh()
+    end
+end)
+
+sfui.events.RegisterEvent("QUEST_LOG_UPDATE", function()
+    local inCombat = InCombatLockdown and InCombatLockdown()
+    if not inCombat and isDirty then
+        sfui.worldevents.RequestUpdate()
+    end
+end)
+
+sfui.events.RegisterUpdate("WorldEvents", 5.0, function(elapsed)
+    sfui.worldevents.OnTimerTick(elapsed)
+end)
 
 
 
@@ -1232,9 +1223,7 @@ function WorldEventsModule:BuildBlocks(container)
                     local st = GetQLState()
                     st.expandedQuests = st.expandedQuests or {}
                     st.expandedQuests[expandKey] = not isExpanded
-                    if sfui.tracker and sfui.tracker.RequestRefresh then
-                        sfui.tracker.RequestRefresh(0.01)
-                    end
+                    sfui.tracker.RequestRefresh(0.01)
                     return
                 end
 
@@ -1281,8 +1270,6 @@ function WorldEventsModule:BuildBlocks(container)
     }
 end
 
-if sfui.tracker and sfui.tracker.RegisterModule then
-    sfui.tracker.RegisterModule(WorldEventsModule)
-end
+sfui.tracker.RegisterModule(WorldEventsModule)
 
 return WorldEventsModule

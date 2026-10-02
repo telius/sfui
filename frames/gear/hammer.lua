@@ -573,9 +573,7 @@ local function create_hammer_popup()
         if down then return end
         if InCombatLockdown() then return end
         if testModeActive then
-            if sfui.common and sfui.common.print then
-                sfui.common.print("sfui: repair button test click received.")
-            end
+            sfui.common.print("repair button test click received.")
             return
         end
         -- Move to the next slot in the rotation immediately
@@ -615,7 +613,7 @@ local function create_hammer_popup()
         self:ClearAllPoints()
         self:SetPoint("CENTER", UIParent, "CENTER", x, y)
 
-        if sfui.options and sfui.options.sync_hammer_sliders then
+        if sfui.options.sync_hammer_sliders then
             sfui.options.sync_hammer_sliders(x, y)
         end
     end)
@@ -650,9 +648,7 @@ end
 
 function sfui.hammer.toggle_test_popup(enable)
     if InCombatLockdown() then
-        if sfui.common and sfui.common.print then
-            sfui.common.print("sfui: cannot toggle repair preview during combat.")
-        end
+        sfui.common.print("cannot toggle repair preview during combat.")
         return false
     end
 
@@ -676,14 +672,10 @@ function sfui.hammer.toggle_test_popup(enable)
         popup:SetAlpha(1)
         popup:EnableMouse(true)
         popup:Show()
-        if sfui.common and sfui.common.print then
-            sfui.common.print("sfui: repair button preview shown. Drag with left-click to move.")
-        end
+        sfui.common.print("repair button preview shown. Drag with left-click to move.")
     else
         popup:Hide()
-        if sfui.common and sfui.common.print then
-            sfui.common.print("sfui: repair button preview hidden.")
-        end
+        sfui.common.print("repair button preview hidden.")
         sfui.hammer.update_hammer_popup()
     end
     return testModeActive
@@ -793,8 +785,8 @@ function sfui.hammer.reset_caches()
 end
 
 function sfui.hammer.print_hammer_status(debugMode)
-    local p = (sfui.common and sfui.common.print) or print
-    p("|cff00ffff[SFUI] Master's Hammer Status:|r")
+    local p = sfui.common.print
+    p("|cff00ffffMaster's Hammer Status:|r")
     p(string.format("  Enabled: %s", (SfuiDB.enableMasterHammer ~= false) and "|cff00ff00Yes|r" or "|cffff0000No|r"))
 
     sfui.hammer.reset_caches()

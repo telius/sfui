@@ -110,17 +110,13 @@ sfui.options.RegisterTab({
         for _, btn in ipairs(toggleButtons) do
             btn:SetScript("OnClick", function()
                 if btn.themeMode == "camelot" and not sfui.theme.IsCamelotSupported() then
-                    if sfui.common and sfui.common.print then
-                        sfui.common.print("|cffff3333sfui: The bronze Camelot theme is exclusive to Camelot/Forever (bronze assets are not present in Retail).|r")
-                    end
+                    sfui.common.print("|cffff3333The bronze Camelot theme is exclusive to Camelot/Forever (bronze assets are not present in Retail).|r")
                     return
                 end
                 sfui.theme.SetTheme(btn.themeMode)
                 theme_panel:RefreshThemeControls()
-                if sfui.common and sfui.common.print then
-                    local pal = sfui.theme.GetPalette()
-                    sfui.common.print("sfui: theme mode set to '" .. btn.themeMode .. "' (active: " .. pal.name .. ").")
-                end
+                local pal = sfui.theme.GetPalette()
+                sfui.common.print("theme mode set to '" .. btn.themeMode .. "' (active: " .. pal.name .. ").")
             end)
         end
 
@@ -363,13 +359,11 @@ sfui.options.RegisterTab({
         end)
 
         -- Live sync on external theme change events (e.g. slash commands)
-        if sfui.events and sfui.events.RegisterMessage then
-            sfui.events.RegisterMessage("SFUI_THEME_CHANGED", function()
-                if theme_panel:IsVisible() then
-                    theme_panel:RefreshThemeControls()
-                end
-            end)
-        end
+        sfui.events.RegisterMessage("SFUI_THEME_CHANGED", function()
+            if theme_panel:IsVisible() then
+                theme_panel:RefreshThemeControls()
+            end
+        end)
     end,
     onShow = function(container_panel, tab_button, options_frame)
         local content = tab_button and tab_button.content_panel
