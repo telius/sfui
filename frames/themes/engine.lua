@@ -31,6 +31,7 @@ local registered_headers       = setmetatable({}, { __mode = "k" })
 local registered_inputs        = setmetatable({}, { __mode = "k" })
 local registered_tabs          = setmetatable({}, { __mode = "k" })
 local registered_bars          = setmetatable({}, { __mode = "k" }) -- { [barObj] = barType }
+local registered_scrollbars    = setmetatable({}, { __mode = "k" })
 
 -- ─── Public Theme Registration API ────────────────────────────────────────────
 --- Register a new theme definition with the engine.
@@ -1078,6 +1079,367 @@ function sfui.theme.ApplyInputStyle(editBox)
     end
 end
 
+-- 7.5 ScrollBar Styling (Bronze MinimalScrollBar for Camelot, Flat Bar for Modern)
+local function SetButtonAtlasSafe(btn, normalAtlas, pushedAtlas, hlAtlas, disAtlas)
+    if not btn then return end
+    pcall(function()
+        if btn.SetNormalAtlas then
+            btn:SetNormalAtlas(normalAtlas)
+            btn:SetPushedAtlas(pushedAtlas or normalAtlas)
+            btn:SetHighlightAtlas(hlAtlas or normalAtlas)
+            btn:SetDisabledAtlas(disAtlas or normalAtlas)
+        else
+            local nt = btn:GetNormalTexture()
+            if nt and nt.SetAtlas then nt:SetAtlas(normalAtlas) end
+            local pt = btn:GetPushedTexture()
+            if pt and pt.SetAtlas then pt:SetAtlas(pushedAtlas or normalAtlas) end
+            local ht = btn:GetHighlightTexture()
+            if ht and ht.SetAtlas then ht:SetAtlas(hlAtlas or normalAtlas) end
+            local dt = btn:GetDisabledTexture()
+            if dt and dt.SetAtlas then dt:SetAtlas(disAtlas or normalAtlas) end
+        end
+    end)
+end
+
+function sfui.theme.ApplyScrollBarStyle(scrollBar)
+    if not scrollBar then return end
+    registered_scrollbars[scrollBar] = true
+
+    local parent = scrollBar:GetParent()
+    if parent then
+        parent.scrollBarHideable = 1
+        if not parent._sfuiScrollHooked then
+            parent._sfuiScrollHooked = true
+            parent:HookScript("OnScrollRangeChanged", function()
+                if scrollBar.UpdateVisibility then
+                    scrollBar:UpdateVisibility()
+                end
+            end)
+            parent:HookScript("OnSizeChanged", function()
+                if scrollBar.UpdateVisibility then
+                    scrollBar:UpdateVisibility()
+                end
+            end)
+            parent:HookScript("OnShow", function()
+                if scrollBar.UpdateVisibility then
+                    scrollBar:UpdateVisibility()
+                end
+            end)
+        end
+    end
+
+    local name = scrollBar.GetName and scrollBar:GetName()
+    local upBtn = (name and _G[name .. "ScrollUpButton"]) or scrollBar.ScrollUpButton
+    local downBtn = (name and _G[name .. "ScrollDownButton"]) or scrollBar.ScrollDownButton
+    scrollBar.upBtn = upBtn
+    scrollBar.downBtn = downBtn
+
+    -- Clean up default background textures from UIPanelScrollBarTemplate
+    if scrollBar.GetNumRegions then
+        for i = 1, scrollBar:GetNumRegions() do
+            local region = select(i, scrollBar:GetRegions())
+            if region and region:IsObjectType("Texture") and region ~= scrollBar:GetThumbTexture() then
+                region:SetTexture(nil)
+            end
+        end
+    end
+
+    if not scrollBar.SetBackdrop and BackdropTemplateMixin then
+        Mixin(scrollBar, BackdropTemplateMixin)
+    end
+
+    local thumb = scrollBar:GetThumbTexture()
+    if not thumb and scrollBar.CreateTexture then
+        thumb = scrollBar:CreateTexture(nil, "ARTWORK")
+        scrollBar:SetThumbTexture(thumb)
+    end
+
+    -- Hook stepper buttons to stay hidden in modern mode even if Blizzard's OnScrollRangeChanged shows them
+    if not scrollBar._hookedBtnShow then
+        scrollBar._hookedBtnShow = true
+        if upBtn and upBtn.HookScript then
+            upBtn:HookScript("OnShow", function(btn)
+                if not sfui.theme.IsCamelotActive() then
+                    btn:Hide()
+                end
+            end)
+        end
+        if downBtn and downBtn.HookScript then
+            downBtn:HookScript("OnShow", function(btn)
+                if not sfui.theme.IsCamelotActive() then
+                    btn:Hide()
+                end
+            end)
+        end
+    end
+
+    local isCamelot = sfui.theme.IsCamelotActive()
+
+    -- ── Visibility Updater Function ──
+    scrollBar.UpdateVisibility = function(self)
+        local p = self:GetParent()
+        if not p then return end
+        if p.UpdateScrollChildRect then
+            pcall(p.UpdateScrollChildRect, p)
+        end
+        local range = (p.GetVerticalScrollRange and p:GetVerticalScrollRange()) or 0
+        local minVal, maxVal = self:GetMinMaxValues()
+        local maxRange = maxVal and (maxVal - (minVal or 0)) or 0
+        local child = p.GetScrollChild and p:GetScrollChild()
+        local childH = (child and child.GetHeight and child:GetHeight()) or 0
+        local frameH = (p.GetHeight and p:GetHeight()) or 0
+
+        local isScrollable = (range > 0.5) or (maxRange > 0.5) or (childH > (frameH + 1) and frameH > 0)
+        local camelotActive = sfui.theme.IsCamelotActive()
+
+        if isScrollable then
+            self:Show()
+            if camelotActive then
+                if self.upBtn then self.upBtn:Show() end
+                if self.downBtn then self.downBtn:Show() end
+                if self.trackFrame then self.trackFrame:Show() end
+                if self.thumbSkin then self.thumbSkin:Show() end
+            else
+                if self.upBtn then self.upBtn:Hide() end
+                if self.downBtn then self.downBtn:Hide() end
+                if self.trackFrame then self.trackFrame:Hide() end
+                if self.thumbSkin then self.thumbSkin:Hide() end
+            end
+        else
+            self:Hide()
+            if self.upBtn then self.upBtn:Hide() end
+            if self.downBtn then self.downBtn:Hide() end
+            if self.trackFrame then self.trackFrame:Hide() end
+            if self.thumbSkin then self.thumbSkin:Hide() end
+        end
+    end
+
+    if isCamelot then
+        -- ══════════════════════════════════════════════════════════════════════
+        --  Camelot Bronze Trim ScrollBar (MinimalScrollBar / CharacterStatsPane)
+        -- ══════════════════════════════════════════════════════════════════════
+        scrollBar:SetWidth(10)
+        if parent and scrollBar.ClearAllPoints then
+            scrollBar:ClearAllPoints()
+            scrollBar:SetPoint("TOPLEFT", parent, "TOPRIGHT", 4, -14)
+            scrollBar:SetPoint("BOTTOMLEFT", parent, "BOTTOMRIGHT", 4, 14)
+        end
+
+        if scrollBar.SetBackdrop then
+            scrollBar:SetBackdrop(nil)
+        end
+
+        -- Track Frame (Subtle bronze track behind slider)
+        local trackFrame = scrollBar.trackFrame
+        if not trackFrame then
+            trackFrame = CreateFrame("Frame", nil, scrollBar)
+            scrollBar.trackFrame = trackFrame
+            trackFrame:EnableMouse(false)
+            trackFrame:SetFrameLevel(math.max(1, (scrollBar:GetFrameLevel() or 1) - 1))
+            trackFrame:SetPoint("TOPLEFT", scrollBar, "TOPLEFT", 1, 0)
+            trackFrame:SetPoint("BOTTOMRIGHT", scrollBar, "BOTTOMRIGHT", -1, 0)
+
+            local trackTop = trackFrame:CreateTexture(nil, "BACKGROUND")
+            trackTop:SetPoint("TOPLEFT", trackFrame, "TOPLEFT", 0, 0)
+            trackTop:SetPoint("TOPRIGHT", trackFrame, "TOPRIGHT", 0, 0)
+            trackTop:SetHeight(8)
+            trackFrame.top = trackTop
+
+            local trackBot = trackFrame:CreateTexture(nil, "BACKGROUND")
+            trackBot:SetPoint("BOTTOMLEFT", trackFrame, "BOTTOMLEFT", 0, 0)
+            trackBot:SetPoint("BOTTOMRIGHT", trackFrame, "BOTTOMRIGHT", 0, 0)
+            trackBot:SetHeight(8)
+            trackFrame.bot = trackBot
+
+            local trackMid = trackFrame:CreateTexture(nil, "BACKGROUND")
+            trackMid:SetPoint("TOPLEFT", trackTop, "BOTTOMLEFT", 0, 0)
+            trackMid:SetPoint("BOTTOMRIGHT", trackBot, "TOPRIGHT", 0, 0)
+            trackFrame.mid = trackMid
+        end
+        trackFrame:Show()
+        pcall(function()
+            trackFrame.top:SetAtlas("minimal-scrollbar-track-top", false)
+            trackFrame.bot:SetAtlas("minimal-scrollbar-track-bottom", false)
+            trackFrame.mid:SetAtlas("!minimal-scrollbar-track-middle", false)
+        end)
+
+        -- Thumb Skin (Smooth 3-part rounded bronze pill)
+        if thumb then
+            thumb:SetAlpha(0) -- invisible drag handle
+            thumb:SetSize(8, 26)
+
+            local thumbSkin = scrollBar.thumbSkin
+            if not thumbSkin then
+                thumbSkin = CreateFrame("Frame", nil, scrollBar)
+                scrollBar.thumbSkin = thumbSkin
+                thumbSkin:EnableMouse(false)
+                thumbSkin:SetPoint("TOPLEFT", thumb, "TOPLEFT", 0, 0)
+                thumbSkin:SetPoint("BOTTOMRIGHT", thumb, "BOTTOMRIGHT", 0, 0)
+
+                local tTop = thumbSkin:CreateTexture(nil, "ARTWORK")
+                tTop:SetPoint("TOPLEFT", thumbSkin, "TOPLEFT", 0, 0)
+                tTop:SetPoint("TOPRIGHT", thumbSkin, "TOPRIGHT", 0, 0)
+                tTop:SetHeight(8)
+                thumbSkin.top = tTop
+
+                local tBot = thumbSkin:CreateTexture(nil, "ARTWORK")
+                tBot:SetPoint("BOTTOMLEFT", thumbSkin, "BOTTOMLEFT", 0, 0)
+                tBot:SetPoint("BOTTOMRIGHT", thumbSkin, "BOTTOMRIGHT", 0, 0)
+                tBot:SetHeight(8)
+                thumbSkin.bot = tBot
+
+                local tMid = thumbSkin:CreateTexture(nil, "ARTWORK")
+                tMid:SetPoint("TOPLEFT", tTop, "BOTTOMLEFT", 0, 0)
+                tMid:SetPoint("BOTTOMRIGHT", tBot, "TOPRIGHT", 0, 0)
+                thumbSkin.mid = tMid
+            end
+            thumbSkin:Show()
+            pcall(function()
+                thumbSkin.top:SetAtlas("minimal-scrollbar-small-thumb-top", false)
+                thumbSkin.mid:SetAtlas("minimal-scrollbar-small-thumb-middle", false)
+                thumbSkin.bot:SetAtlas("minimal-scrollbar-small-thumb-bottom", false)
+            end)
+        end
+
+        -- Stepper Buttons
+        if upBtn then
+            upBtn:Show()
+            upBtn:SetAlpha(1)
+            upBtn:EnableMouse(true)
+            upBtn:SetSize(17, 11)
+            upBtn:ClearAllPoints()
+            upBtn:SetPoint("BOTTOM", scrollBar, "TOP", 0, 2)
+            SetButtonAtlasSafe(upBtn,
+                "minimal-scrollbar-arrow-top",
+                "minimal-scrollbar-arrow-top-down",
+                "minimal-scrollbar-arrow-top-over",
+                "minimal-scrollbar-arrow-top"
+            )
+            if not upBtn:GetScript("OnClick") then
+                upBtn:SetScript("OnClick", function()
+                    local cur = scrollBar:GetValue()
+                    local step = scrollBar:GetHeight() / 3
+                    scrollBar:SetValue(math.max(0, cur - step))
+                end)
+            end
+        end
+
+        if downBtn then
+            downBtn:Show()
+            downBtn:SetAlpha(1)
+            downBtn:EnableMouse(true)
+            downBtn:SetSize(17, 11)
+            downBtn:ClearAllPoints()
+            downBtn:SetPoint("TOP", scrollBar, "BOTTOM", 0, -2)
+            SetButtonAtlasSafe(downBtn,
+                "minimal-scrollbar-arrow-bottom",
+                "minimal-scrollbar-arrow-bottom-down",
+                "minimal-scrollbar-arrow-bottom-over",
+                "minimal-scrollbar-arrow-bottom"
+            )
+            if not downBtn:GetScript("OnClick") then
+                downBtn:SetScript("OnClick", function()
+                    local cur = scrollBar:GetValue()
+                    local minV, maxV = scrollBar:GetMinMaxValues()
+                    local step = scrollBar:GetHeight() / 3
+                    scrollBar:SetValue(math.min(maxV or (cur + step), cur + step))
+                end)
+            end
+        end
+
+        -- Interactions: Hover states and value changed button enabling
+        if not scrollBar._hookedInteractions then
+            scrollBar._hookedInteractions = true
+
+            local function setThumbState(state)
+                if not sfui.theme.IsCamelotActive() then return end
+                local skin = scrollBar.thumbSkin
+                if not skin or not skin.top then return end
+                local suffix = (state == "down" and "-down") or (state == "over" and "-over") or ""
+                pcall(function()
+                    skin.top:SetAtlas("minimal-scrollbar-small-thumb-top" .. suffix, false)
+                    skin.mid:SetAtlas("minimal-scrollbar-small-thumb-middle" .. suffix, false)
+                    skin.bot:SetAtlas("minimal-scrollbar-small-thumb-bottom" .. suffix, false)
+                end)
+            end
+
+            scrollBar:HookScript("OnEnter", function() setThumbState("over") end)
+            scrollBar:HookScript("OnLeave", function() setThumbState("normal") end)
+            scrollBar:HookScript("OnMouseDown", function() setThumbState("down") end)
+            scrollBar:HookScript("OnMouseUp", function() setThumbState("over") end)
+
+            scrollBar:HookScript("OnValueChanged", function(bar, val)
+                if sfui.theme.IsCamelotActive() then
+                    local minV, maxV = bar:GetMinMaxValues()
+                    minV = minV or 0
+                    maxV = maxV or 0
+                    if bar.upBtn then
+                        local nt = bar.upBtn:GetNormalTexture()
+                        if val <= minV + 0.1 then
+                            bar.upBtn:Disable()
+                            if nt and nt.SetDesaturated then nt:SetDesaturated(true) end
+                        else
+                            bar.upBtn:Enable()
+                            if nt and nt.SetDesaturated then nt:SetDesaturated(false) end
+                        end
+                    end
+                    if bar.downBtn then
+                        local nt = bar.downBtn:GetNormalTexture()
+                        if val >= maxV - 0.1 then
+                            bar.downBtn:Disable()
+                            if nt and nt.SetDesaturated then nt:SetDesaturated(true) end
+                        else
+                            bar.downBtn:Enable()
+                            if nt and nt.SetDesaturated then nt:SetDesaturated(false) end
+                        end
+                    end
+                end
+            end)
+        end
+    else
+        -- ══════════════════════════════════════════════════════════════════════
+        --  Modern Flat Minimal ScrollBar
+        -- ══════════════════════════════════════════════════════════════════════
+        scrollBar:SetWidth(6)
+        if parent and scrollBar.ClearAllPoints then
+            scrollBar:ClearAllPoints()
+            scrollBar:SetPoint("TOPLEFT", parent, "TOPRIGHT", 8, -2)
+            scrollBar:SetPoint("BOTTOMLEFT", parent, "BOTTOMRIGHT", 8, 2)
+        end
+
+        if upBtn then
+            upBtn:Hide()
+            upBtn:SetAlpha(0)
+            upBtn:EnableMouse(false)
+        end
+        if downBtn then
+            downBtn:Hide()
+            downBtn:SetAlpha(0)
+            downBtn:EnableMouse(false)
+        end
+
+        if scrollBar.trackFrame then
+            scrollBar.trackFrame:Hide()
+        end
+        if scrollBar.thumbSkin then
+            scrollBar.thumbSkin:Hide()
+        end
+
+        if scrollBar.SetBackdrop then
+            scrollBar:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+            scrollBar:SetBackdropColor(0, 0, 0, 0.3)
+        end
+
+        if thumb then
+            thumb:SetAlpha(0.75)
+            thumb:SetSize(6, 30)
+            thumb:SetColorTexture(1, 1, 1, 0.75)
+        end
+    end
+
+    scrollBar:UpdateVisibility()
+end
+
 -- 8. Minimap Bar Styling (Styled like Quest Headers)
 function sfui.theme.ApplyMinimapButtonBarStyle(bar)
     if not bar then return end
@@ -1157,21 +1519,13 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
 
         if useCard then
             -- ─────────────────────────────────────────────────────────────────
-            -- CAMELOT OPTION A: Sculpted Inset Card
+            -- CAMELOT OPTION A: Sculpted Inset Card (UI-Character-Info-OutfitCard)
             -- ─────────────────────────────────────────────────────────────────
             row.lootfeedStyle = "outfit_card"
 
+            -- Remove flat solid backdrop so the carved bronze card is the frame
             if row.SetBackdrop then
-                row:SetBackdrop({
-                    bgFile   = "Interface\\Buttons\\WHITE8x8",
-                    edgeFile = "Interface\\Buttons\\WHITE8x8",
-                    edgeSize = mult,
-                    insets   = { left = 0, right = 0, top = 0, bottom = 0 }
-                })
-                row:SetBackdropColor(pal.containerColor[1], pal.containerColor[2], pal.containerColor[3], 0.92)
-                if row.SetBackdropBorderColor then
-                    row:SetBackdropBorderColor(0.38, 0.28, 0.12, 0.85)
-                end
+                row:SetBackdrop(nil)
             end
 
             if row.cardBg then
@@ -1193,12 +1547,62 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
                 end
             end
 
-            -- Hide corner brackets in card mode
+            -- Hide corner brackets, flat accent strip, and gear slot in card mode
             if row.cornerTL then
                 row.cornerTL:Hide()
                 row.cornerTR:Hide()
                 row.cornerBL:Hide()
                 row.cornerBR:Hide()
+            end
+            if row.accent then row.accent:Hide() end
+            if row.iconSlot then row.iconSlot:Hide() end
+
+            -- Icon and ornate carved bezel
+            if row.icon then
+                row.icon:ClearAllPoints()
+                row.icon:SetPoint("LEFT", row, "LEFT", 7, 0)
+                row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            end
+
+            if row.iconBorder then
+                if sfui.theme.HasAtlas("UI-Character-Info-OutfitIcon-Frame") then
+                    row.iconBorder:SetAtlas("UI-Character-Info-OutfitIcon-Frame")
+                    row.iconBorder:ClearAllPoints()
+                    row.iconBorder:SetPoint("CENTER", row.icon, "CENTER", 0, 0)
+                    local iW, iH = row.icon:GetSize()
+                    if not iW or iW == 0 then iW = 28 end
+                    if not iH or iH == 0 then iH = 28 end
+                    row.iconBorder:SetSize(iW + 8, iH + 8)
+                    row.iconBorder:SetVertexColor(1, 1, 1, 1)
+                    row.iconBorder:Show()
+                else
+                    row.iconBorder:Hide()
+                end
+            end
+
+            -- Clean Right-Aligned Radiant Gold Badge
+            if row.badge then
+                row.badge:ClearAllPoints()
+                row.badge:SetPoint("RIGHT", row, "RIGHT", -12, 0)
+                row.badge:SetJustifyH("RIGHT")
+                row.badge:SetTextColor(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 1)
+            end
+
+            -- Title FontString (Colored by Quality / col)
+            if row.title then
+                row.title:ClearAllPoints()
+                row.title:SetPoint("LEFT", row.icon, "RIGHT", 8, 0)
+                local bText = row.badge and row.badge:GetText()
+                if bText and bText ~= "" then
+                    row.title:SetPoint("RIGHT", row.badge, "LEFT", -8, 0)
+                else
+                    row.title:SetPoint("RIGHT", row, "RIGHT", -12, 0)
+                end
+                if col then
+                    row.title:SetTextColor(col[1] or 1, col[2] or 1, col[3] or 1, 1)
+                else
+                    row.title:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3], 1)
+                end
             end
         else
             -- ─────────────────────────────────────────────────────────────────
@@ -1209,6 +1613,7 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
 
             if row.cardBg then row.cardBg:Hide() end
             if row.hoverOverlay then row.hoverOverlay:Hide() end
+            if row.iconBorder then row.iconBorder:Hide() end
 
             if row.SetBackdrop then
                 row:SetBackdrop({
@@ -1276,66 +1681,62 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
                 row.cornerBL:Hide()
                 row.cornerBR:Hide()
             end
-        end
 
-        -- Inlaid Enamel Quality Strip (Present in BOTH Camelot styles so loot rarity is unmistakable)
-        if row.accent then
-            row.accent:ClearAllPoints()
-            row.accent:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -1)
-            row.accent:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 1, 1)
-            row.accent:SetWidth(3)
-            row.accent:SetColorTexture(col[1] or 1, col[2] or 1, col[3] or 1, 1)
-            row.accent:Show()
-        end
-
-        -- Sunken GearSlot Icon Socket
-        if row.icon then
-            row.icon:ClearAllPoints()
-            row.icon:SetPoint("LEFT", row, "LEFT", 7, 0)
-            row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-        end
-
-        if row.iconSlot then
-            if sfui.theme.HasAtlas("UI-Character-Info-GearSlot") then
-                row.iconSlot:SetAtlas("UI-Character-Info-GearSlot")
-                row.iconSlot:ClearAllPoints()
-                row.iconSlot:SetPoint("CENTER", row.icon, "CENTER", 0, 0)
-                local iW, iH = row.icon:GetSize()
-                if not iW or iW == 0 then iW = 28 end
-                if not iH or iH == 0 then iH = 28 end
-                row.iconSlot:SetSize(iW + 4, iH + 4)
-                row.iconSlot:Show()
-            else
-                row.iconSlot:Hide()
+            -- Inlaid Enamel Quality Strip (Unique to Architectural Slate)
+            if row.accent then
+                row.accent:ClearAllPoints()
+                row.accent:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -1)
+                row.accent:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 1, 1)
+                row.accent:SetWidth(3)
+                row.accent:SetColorTexture(col[1] or 1, col[2] or 1, col[3] or 1, 1)
+                row.accent:Show()
             end
-        end
 
-        if row.iconBorder then
-            row.iconBorder:Hide()
-        end
-
-        -- Clean Right-Aligned Radiant Gold Badge
-        if row.badge then
-            row.badge:ClearAllPoints()
-            row.badge:SetPoint("RIGHT", row, "RIGHT", -10, 0)
-            row.badge:SetJustifyH("RIGHT")
-            row.badge:SetTextColor(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 1)
-        end
-
-        -- Title FontString (Colored by Quality / col)
-        if row.title then
-            row.title:ClearAllPoints()
-            row.title:SetPoint("LEFT", row.icon, "RIGHT", 7, 0)
-            local bText = row.badge and row.badge:GetText()
-            if bText and bText ~= "" then
-                row.title:SetPoint("RIGHT", row.badge, "LEFT", -6, 0)
-            else
-                row.title:SetPoint("RIGHT", row, "RIGHT", -10, 0)
+            -- Sunken GearSlot Icon Socket
+            if row.icon then
+                row.icon:ClearAllPoints()
+                row.icon:SetPoint("LEFT", row, "LEFT", 7, 0)
+                row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
             end
-            if col then
-                row.title:SetTextColor(col[1] or 1, col[2] or 1, col[3] or 1, 1)
-            else
-                row.title:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3], 1)
+
+            if row.iconSlot then
+                if sfui.theme.HasAtlas("UI-Character-Info-GearSlot") then
+                    row.iconSlot:SetAtlas("UI-Character-Info-GearSlot")
+                    row.iconSlot:ClearAllPoints()
+                    row.iconSlot:SetPoint("CENTER", row.icon, "CENTER", 0, 0)
+                    local iW, iH = row.icon:GetSize()
+                    if not iW or iW == 0 then iW = 28 end
+                    if not iH or iH == 0 then iH = 28 end
+                    row.iconSlot:SetSize(iW + 4, iH + 4)
+                    row.iconSlot:Show()
+                else
+                    row.iconSlot:Hide()
+                end
+            end
+
+            -- Clean Right-Aligned Radiant Gold Badge
+            if row.badge then
+                row.badge:ClearAllPoints()
+                row.badge:SetPoint("RIGHT", row, "RIGHT", -10, 0)
+                row.badge:SetJustifyH("RIGHT")
+                row.badge:SetTextColor(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 1)
+            end
+
+            -- Title FontString (Colored by Quality / col)
+            if row.title then
+                row.title:ClearAllPoints()
+                row.title:SetPoint("LEFT", row.icon, "RIGHT", 7, 0)
+                local bText = row.badge and row.badge:GetText()
+                if bText and bText ~= "" then
+                    row.title:SetPoint("RIGHT", row.badge, "LEFT", -6, 0)
+                else
+                    row.title:SetPoint("RIGHT", row, "RIGHT", -10, 0)
+                end
+                if col then
+                    row.title:SetTextColor(col[1] or 1, col[2] or 1, col[3] or 1, 1)
+                else
+                    row.title:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3], 1)
+                end
             end
         end
 
@@ -1924,6 +2325,13 @@ function sfui.theme.ApplyCurrentTheme()
     for bar, barType in pairs(registered_bars) do
         if bar then
             sfui.theme.ApplyStatusBarStyle(bar, barType)
+        end
+    end
+
+    -- 14. Re-style all registered scrollbars
+    for scrollBar in pairs(registered_scrollbars) do
+        if scrollBar then
+            sfui.theme.ApplyScrollBarStyle(scrollBar)
         end
     end
 end

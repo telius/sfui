@@ -107,6 +107,16 @@ frames/gear/bonusroll.lua [AllowLoadGameType standard]
 frames/gear/hammer.lua [AllowLoadGameType standard]
 frames/gear/lootfeed.lua
 
+# Camelot Dungeon Journal
+data/dj_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/dungeonjournal/dungeonjournal.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/dungeonjournal/dj_sidebar.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/dungeonjournal/dj_bosses.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/dungeonjournal/dj_quests.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/dungeonjournal/dj_pins.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/dungeonjournal/dj_tooltips.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+
+
 # Quests & Objective Tracker Engine
 frames/quests/engine/q_module.lua
 frames/quests/engine/q_blocks.lua

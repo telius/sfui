@@ -294,7 +294,7 @@ function sfui.create_options_panel()
 
         local scroll_frame = CreateFrame("ScrollFrame", "sfui_options_scroll_" .. id, container_panel, "UIPanelScrollFrameTemplate")
         scroll_frame:SetPoint("TOPLEFT", container_panel, "TOPLEFT", 4, -4)
-        scroll_frame:SetPoint("BOTTOMRIGHT", container_panel, "BOTTOMRIGHT", -4, 4)
+        scroll_frame:SetPoint("BOTTOMRIGHT", container_panel, "BOTTOMRIGHT", -22, 4)
         scroll_frame:EnableMouseWheel(true)
         common.style_scrollbar(scroll_frame.ScrollBar)
 
@@ -372,11 +372,15 @@ function sfui.create_options_panel()
             scroll_frame:UpdateScrollChildRect()
 
             if scroll_frame.ScrollBar then
-                local minVal, maxVal = scroll_frame.ScrollBar:GetMinMaxValues()
-                if not maxVal or maxVal <= (minVal or 0) or scroll_frame:GetVerticalScrollRange() <= 0 then
-                    scroll_frame.ScrollBar:Hide()
+                if scroll_frame.ScrollBar.UpdateVisibility then
+                    scroll_frame.ScrollBar:UpdateVisibility()
                 else
-                    scroll_frame.ScrollBar:Show()
+                    local minVal, maxVal = scroll_frame.ScrollBar:GetMinMaxValues()
+                    if not maxVal or maxVal <= (minVal or 0) or scroll_frame:GetVerticalScrollRange() <= 0 then
+                        scroll_frame.ScrollBar:Hide()
+                    else
+                        scroll_frame.ScrollBar:Show()
+                    end
                 end
             end
         end

@@ -208,6 +208,14 @@ SlashCmdList["SFUI"] = function(msg)
     elseif cmd == "highest" then
         sfui.highest.toggle()
     elseif cmd == "lootspec" or cmd == "spec" or cmd == "loot" or cmd == "lootviewer" or cmd == "lv" or cmd == "camelot" or cmd == "dj" or cmd == "journal" then
+        if arg == "restore" or arg == "unhide" then
+            if sfui.dungeonjournal and sfui.dungeonjournal.RestoreHiddenDungeons then
+                sfui.dungeonjournal.RestoreHiddenDungeons()
+            else
+                sfui.common.print("dungeon journal restore is not available.")
+            end
+            return
+        end
         if not sfui.isRetail and sfui.lootviewer_camelot and sfui.lootviewer_camelot.Toggle then
             sfui.lootviewer_camelot.Toggle()
         elseif sfui.lootviewer and sfui.lootviewer.Toggle then

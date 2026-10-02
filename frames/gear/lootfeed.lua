@@ -171,12 +171,63 @@ local function ReleaseNode(node)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
+--  Root Container & Frame Factory
+-- ─────────────────────────────────────────────────────────────────────────────
+local function EnsureContainer()
+    if container then return container end
+    local cfg = GetConfig()
+    container = CreateFrame("Frame", "sfui_lootfeed_container", UIParent)
+    local pos = cfg.pos or { point = "TOPRIGHT", relativePoint = "TOPRIGHT", x = -320, y = -200 }
+    container:SetPoint(pos.point or "TOPRIGHT", UIParent, pos.relativePoint or "TOPRIGHT", pos.x or -320,
+        pos.y or -200)
+    container:SetSize(cfg.width or 350, 200)
+    container:SetClampedToScreen(true)
+    container:SetMovable(true)
+
+    -- Drag Support
+    container:EnableMouse(false)
+    container:RegisterForDrag("LeftButton")
+    container:SetScript("OnDragStart", function(f)
+        if not InCombatLockdown or not InCombatLockdown() then
+            f:StartMoving()
+        end
+    end)
+    container:SetScript("OnDragStop", function(f)
+        f:StopMovingOrSizing()
+        local point, _, relPoint, x, y = f:GetPoint()
+        local c = GetConfig()
+        c.pos = c.pos or {}
+        c.pos.point = point
+        c.pos.relativePoint = relPoint
+        c.pos.x = math_floor(x + 0.5)
+        c.pos.y = math_floor(y + 0.5)
+    end)
+
+    -- Pending Items Header
+    pendingHeader = CreateFrame("Frame", nil, container, "BackdropTemplate")
+    pendingHeader:SetSize(cfg.width or 280, 18)
+    local pText = pendingHeader:CreateFontString(nil, "OVERLAY")
+    local pf, ps = GetFont(11)
+    pText:SetFont(pf, ps, "")
+    pText:SetPoint("CENTER", pendingHeader, "CENTER", 0, 0)
+    pText:SetTextColor(0.85, 0.85, 0.90, 0.90)
+    pendingHeader.text = pText
+    if sfui.theme and sfui.theme.ApplyLootfeedPendingHeaderStyle then
+        sfui.theme.ApplyLootfeedPendingHeaderStyle(pendingHeader)
+    end
+    pendingHeader:Hide()
+
+    return container
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
 --  Row Frame Construction (Formatted like sfui quests.lua headers)
 -- ─────────────────────────────────────────────────────────────────────────────
 local function CreateRowFrame(parent)
     local cfg = GetConfig()
     local rowHeight = cfg.rowHeight or 34
     local iconSize = math_max(16, rowHeight - 6)
+    parent = parent or EnsureContainer()
     local row = CreateFrame("Button", nil, parent, "BackdropTemplate")
     row:SetSize(cfg.width or 320, rowHeight)
     row:EnableMouse(true)
@@ -357,6 +408,7 @@ local function CreateRowFrame(parent)
 end
 
 local function AcquireRowFrame()
+    EnsureContainer()
     local row = table_remove(rowPool)
     if not row then
         row = CreateRowFrame(container)
@@ -408,6 +460,8 @@ end
 --  Layout & Stacking Engine
 -- ─────────────────────────────────────────────────────────────────────────────
 local function UpdateLayout()
+    if not container then return end
+
     local cfg = GetConfig()
     local growDown = (cfg.growDirection ~= "UP")
     local rowHeight = cfg.rowHeight or 34
@@ -515,13 +569,15 @@ local function MasterOnUpdate(self, elapsed)
 
     -- Unhook OnUpdate completely if there are no active rows and no pending items (Zero CPU!)
     if #activeRows == 0 and #pendingQueue == 0 then
-        container:SetScript("OnUpdate", nil)
+        if container then
+            container:SetScript("OnUpdate", nil)
+        end
         if pendingHeader then pendingHeader:Hide() end
     end
 end
 
 local function EnsureTickerRunning()
-    if not container:GetScript("OnUpdate") then
+    if container and not container:GetScript("OnUpdate") then
         container:SetScript("OnUpdate", MasterOnUpdate)
     end
 end
@@ -661,6 +717,21 @@ function sfui.lootfeed.DisplayLoot(data, fromQueue)
         row.accent:SetColorTexture(col[1] or 1, col[2] or 1, col[3] or 1, 1)
     end
 
+    -- Dungeon Journal Wishlist Highlight
+    if data.isWishlist then
+        if row.SetBackdropBorderColor then
+            row:SetBackdropBorderColor(0.8, 0.27, 1.0, 1.0)
+        end
+        if data.badgeText and data.badgeText ~= "" then
+            row.badge:SetText(data.badgeText .. " |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t")
+        else
+            row.badge:SetText("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t |cffcc44ffWISHLIST|r")
+        end
+        if _G.PlaySound and _G.SOUNDKIT and _G.SOUNDKIT.UI_EPICLOOT_TOAST then
+            pcall(_G.PlaySound, _G.SOUNDKIT.UI_EPICLOOT_TOAST)
+        end
+    end
+
     row.timeRemaining = cfg.displayDuration or 5.0
     row.fadeRemaining = cfg.fadeDuration or 0.35
     row.state = "DISPLAY"
@@ -771,6 +842,11 @@ local function OnItemLoot(msg, looterName)
         displayTitle = string_format("%s (|cffa0a0a0%s|r)", itemLink, cTag)
     end
 
+    local isWishlist = false
+    if itemID and sfui.dungeonjournal and sfui.dungeonjournal.IsWishlisted then
+        isWishlist = sfui.dungeonjournal.IsWishlisted(itemID)
+    end
+
     sfui.lootfeed.DisplayLoot({
         key = key,
         title = displayTitle,
@@ -780,6 +856,7 @@ local function OnItemLoot(msg, looterName)
         quantity = qty,
         badgeText = badge,
         itemLink = itemLink,
+        isWishlist = isWishlist,
     })
 end
 
@@ -1201,50 +1278,9 @@ local M = sfui.RegisterModule("lootfeed", {
         OnSkillLinesChanged()
 
         -- 1. Create Root Container Frame
-        if not container then
-            container = CreateFrame("Frame", "sfui_lootfeed_container", UIParent)
-            local pos = cfg.pos or { point = "TOPRIGHT", relativePoint = "TOPRIGHT", x = -320, y = -200 }
-            container:SetPoint(pos.point or "TOPRIGHT", UIParent, pos.relativePoint or "TOPRIGHT", pos.x or -320,
-                pos.y or -200)
-            container:SetSize(cfg.width or 350, 200)
-            container:SetClampedToScreen(true)
-            container:SetMovable(true)
+        EnsureContainer()
 
-            -- Drag Support
-            container:EnableMouse(false)
-            container:RegisterForDrag("LeftButton")
-            container:SetScript("OnDragStart", function(f)
-                if not InCombatLockdown or not InCombatLockdown() then
-                    f:StartMoving()
-                end
-            end)
-            container:SetScript("OnDragStop", function(f)
-                f:StopMovingOrSizing()
-                local point, _, relPoint, x, y = f:GetPoint()
-                local c = GetConfig()
-                c.pos = c.pos or {}
-                c.pos.point = point
-                c.pos.relativePoint = relPoint
-                c.pos.x = math_floor(x + 0.5)
-                c.pos.y = math_floor(y + 0.5)
-            end)
-
-            -- 2. Pending Items Header (Formatted like the screenshot: ○ %d pending items)
-            pendingHeader = CreateFrame("Frame", nil, container, "BackdropTemplate")
-            pendingHeader:SetSize(cfg.width or 280, 18)
-            local pText = pendingHeader:CreateFontString(nil, "OVERLAY")
-            local pf, ps = GetFont(11)
-            pText:SetFont(pf, ps, "")
-            pText:SetPoint("CENTER", pendingHeader, "CENTER", 0, 0)
-            pText:SetTextColor(0.85, 0.85, 0.90, 0.90)
-            pendingHeader.text = pText
-            if sfui.theme and sfui.theme.ApplyLootfeedPendingHeaderStyle then
-                sfui.theme.ApplyLootfeedPendingHeaderStyle(pendingHeader)
-            end
-            pendingHeader:Hide()
-        end
-
-        -- 3. Register Event Listeners via central dispatcher
+        -- 2. Register Event Listeners via central dispatcher
         local function on_chat_msg_loot(event, msg, looter, _, _, looter2, _, _, _, _, _, _, guid)
             if not msg or IsSecret(msg) or msg:find("HlootHistory:") then return end
 
@@ -1382,7 +1418,9 @@ function sfui.lootfeed.UpdateTheme()
     if pendingHeader and sfui.theme and sfui.theme.ApplyLootfeedPendingHeaderStyle then
         sfui.theme.ApplyLootfeedPendingHeaderStyle(pendingHeader)
     end
-    UpdateLayout()
+    if container then
+        UpdateLayout()
+    end
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────

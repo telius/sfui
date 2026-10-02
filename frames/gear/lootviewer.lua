@@ -2056,6 +2056,9 @@ local function RebuildContent(scrollChild, tab)
     end
 
     scrollChild:SetHeight(math.max(-y + PAD, 1))
+    if frame and frame.scrollFrame and frame.scrollFrame.ScrollBar and frame.scrollFrame.ScrollBar.UpdateVisibility then
+        frame.scrollFrame.ScrollBar:UpdateVisibility()
+    end
 end
 
 -- ─── Main frame ───────────────────────────────────────────────────────────────

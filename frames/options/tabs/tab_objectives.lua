@@ -67,6 +67,115 @@ sfui.options.RegisterTab({
         end)
         yOff = yOff - 36
 
+        -- ── Section: Dungeon Journal & World Map Pins (Classic & Camelot) ────
+        if not sfui.isRetail then
+            local dj_section = p:CreateFontString(nil, "OVERLAY", g.font)
+            dj_section:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+            dj_section:SetTextColor(0, 1, 1, 1)
+            dj_section:SetText("dungeon journal & map pins")
+            yOff = yOff - 22
+
+            local entrance_cb = create_checkbox(p, "show dungeon entrance icons",
+                function()
+                    if sfui.dungeonjournal and sfui.dungeonjournal.GetOption then
+                        return sfui.dungeonjournal.GetOption("showEntrancePins")
+                    end
+                    SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
+                    return SfuiDB.dungeonjournal.showEntrancePins ~= false
+                end,
+                function(checked)
+                    if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then
+                        sfui.dungeonjournal.SetOption("showEntrancePins", checked)
+                    else
+                        SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
+                        SfuiDB.dungeonjournal.showEntrancePins = checked
+                    end
+                end,
+                "Displays dungeon and raid entrance icons on the World Map. (Default: enabled / opt-out)")
+            entrance_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+            yOff = yOff - 28
+
+            local quest_cb = create_checkbox(p, "show dungeon quest icons",
+                function()
+                    if sfui.dungeonjournal and sfui.dungeonjournal.GetOption then
+                        return sfui.dungeonjournal.GetOption("showQuestPins")
+                    end
+                    SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
+                    return SfuiDB.dungeonjournal.showQuestPins ~= false
+                end,
+                function(checked)
+                    if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then
+                        sfui.dungeonjournal.SetOption("showQuestPins", checked)
+                    else
+                        SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
+                        SfuiDB.dungeonjournal.showQuestPins = checked
+                    end
+                end,
+                "Displays quest pickup locations for dungeons and raids on the World Map. (Default: enabled / opt-out)")
+            quest_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+            yOff = yOff - 28
+
+            local lvl_cb = create_checkbox(p, "only show quest icons when level conditions are met",
+                function()
+                    if sfui.dungeonjournal and sfui.dungeonjournal.GetOption then
+                        return sfui.dungeonjournal.GetOption("questPinsRequireLevel")
+                    end
+                    SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
+                    return SfuiDB.dungeonjournal.questPinsRequireLevel ~= false
+                end,
+                function(checked)
+                    if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then
+                        sfui.dungeonjournal.SetOption("questPinsRequireLevel", checked)
+                    else
+                        SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
+                        SfuiDB.dungeonjournal.questPinsRequireLevel = checked
+                    end
+                end,
+                "When enabled (default), quest icons only appear on the map once your character meets the required level. Uncheck (opt out) to display all quest icons on the map regardless of level.")
+            lvl_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+            yOff = yOff - 28
+
+            local auto_inst_cb = create_checkbox(p, "auto-detect current dungeon on open",
+                function()
+                    if sfui.dungeonjournal and sfui.dungeonjournal.GetOption then
+                        return sfui.dungeonjournal.GetOption("autoDetectInstance")
+                    end
+                    SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
+                    return SfuiDB.dungeonjournal.autoDetectInstance ~= false
+                end,
+                function(checked)
+                    if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then
+                        sfui.dungeonjournal.SetOption("autoDetectInstance", checked)
+                    else
+                        SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
+                        SfuiDB.dungeonjournal.autoDetectInstance = checked
+                    end
+                end,
+                "When inside a dungeon or raid, opening the Dungeon Journal automatically jumps directly to your active instance.")
+            auto_inst_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+            yOff = yOff - 28
+
+            local tooltip_cb = create_checkbox(p, "show item drop sources in tooltips",
+                function()
+                    if sfui.dungeonjournal and sfui.dungeonjournal.GetOption then
+                        return sfui.dungeonjournal.GetOption("showItemTooltips")
+                    end
+                    SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
+                    return SfuiDB.dungeonjournal.showItemTooltips ~= false
+                end,
+                function(checked)
+                    if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then
+                        sfui.dungeonjournal.SetOption("showItemTooltips", checked)
+                    else
+                        SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
+                        SfuiDB.dungeonjournal.showItemTooltips = checked
+                    end
+                end,
+                "Displays the boss encounter and instance name on item tooltips for all recorded loot drops.")
+            tooltip_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+            yOff = yOff - 32
+        end
+
         -- ── Section: Mythic+ HUD (Retail only) ────────────────────────────────
         if sfui.isRetail and sfui.mythic then
             local mplus_section = p:CreateFontString(nil, "OVERLAY", g.font)

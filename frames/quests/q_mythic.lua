@@ -43,7 +43,8 @@ local BreakUpLargeNumbers                            = _G.BreakUpLargeNumbers or
 local GetWorldElapsedTime                            = _G.GetWorldElapsedTime
 local GameTooltip                                    = sfui.tooltip or _G.GameTooltip
 local sfui_api                                       = sfui.api
-local issecretvalue                                  = sfui.common.issecretvalue
+local common                                         = sfui.common
+local issecretvalue                                  = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
 local math_max, math_min, math_floor, math_ceil, math_abs = math.max, math.min, math.floor, math.ceil, math.abs
 local string_format                                  = string.format
 local table_insert, table_sort, wipe                 = table.insert, table.sort, wipe
@@ -93,7 +94,20 @@ local function DeathSortComparator(a, b)
 end
 
 local function FormatTime(secs)
-    return common.format_timer_clock(secs) or "0:00"
+    if common and common.format_timer_clock then
+        local formatted = common.format_timer_clock(secs)
+        if formatted then return formatted end
+    end
+    if not secs or secs < 0 then secs = 0 end
+    secs        = math_floor(secs)
+    local hours = math_floor(secs / 3600)
+    local mins  = math_floor((secs % 3600) / 60)
+    local s     = secs % 60
+    if hours > 0 then
+        return string_format("%d:%02d:%02d", hours, mins, s)
+    else
+        return string_format("%d:%02d", mins, s)
+    end
 end
 
 local function MakeText(parent, fontObj, r, g2, b, a, justify)
@@ -1510,7 +1524,9 @@ local function BuildHUDFrame()
                 SfuiDB.questlogY    = y
             end
         end
-        sfui.questlog.UpdateAnchor()
+        if sfui.questlog and sfui.questlog.UpdateAnchor then
+            sfui.questlog.UpdateAnchor()
+        end
     end)
     MF.dragBar:Hide()
 
@@ -2917,7 +2933,9 @@ local function ShowHUD(forceDungeon)
     MF:ClearAllPoints()
     MF:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", posX, posY)
 
-    sfui.SuppressBlizzardTracker()
+    if sfui.SuppressBlizzardTracker then
+        sfui.SuppressBlizzardTracker()
+    end
 
     -- Apply lock state
     local isLocked = not (SfuiDB and SfuiDB.mythicHudUnlocked)
@@ -2981,7 +2999,9 @@ function sfui.mythic.ResetPosition()
         MF:ClearAllPoints()
         MF:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", mcfg.posX or -4, mcfg.posY or -4)
     end
-    sfui.questlog.reset_position()
+    if sfui.questlog and sfui.questlog.reset_position then
+        sfui.questlog.reset_position()
+    end
 end
 
 local function _OnInitRunDeferred()
@@ -2993,11 +3013,13 @@ end
 local function CheckScenarioState()
     if _isPreview then return end
 
-    if sfui.common.is_housing_zone() then
+    if sfui.common and sfui.common.is_housing_zone and sfui.common.is_housing_zone() then
         if _mode ~= nil then
             _mode = nil
             HideHUD()
-            sfui.questlog.on_mythic_end()
+            if sfui.questlog and sfui.questlog.on_mythic_end then
+                sfui.questlog.on_mythic_end()
+            end
         end
         return
     end
@@ -3018,7 +3040,9 @@ local function CheckScenarioState()
             if C_MythicPlus and C_MythicPlus.RequestMapInfo then
                 C_MythicPlus.RequestMapInfo()
             end
-            sfui.questlog.on_mythic_start()
+            if sfui.questlog and sfui.questlog.on_mythic_start then
+                sfui.questlog.on_mythic_start()
+            end
             ShowHUD()
             C_Timer.After(0.4, _OnInitRunDeferred)
         else
@@ -3032,7 +3056,9 @@ local function CheckScenarioState()
         _runCompleted = false
         _mode = nil
         HideHUD()
-        sfui.questlog.on_mythic_end()
+        if sfui.questlog and sfui.questlog.on_mythic_end then
+            sfui.questlog.on_mythic_end()
+        end
         return
     end
 
@@ -3053,7 +3079,9 @@ local function CheckScenarioState()
     if inScenario then
         if _mode ~= "dungeon" then
             _mode = "dungeon"
-            sfui.questlog.on_mythic_start()
+            if sfui.questlog and sfui.questlog.on_mythic_start then
+                sfui.questlog.on_mythic_start()
+            end
             ShowHUD(true)
         else
             UpdateInstanceState()
@@ -3062,7 +3090,9 @@ local function CheckScenarioState()
         if _mode ~= nil then
             _mode = nil
             HideHUD()
-            sfui.questlog.on_mythic_end()
+            if sfui.questlog and sfui.questlog.on_mythic_end then
+                sfui.questlog.on_mythic_end()
+            end
         end
     end
 end
@@ -3072,7 +3102,9 @@ function sfui.mythic.ShowPreview()
 
     _isPreview = true
 
-    sfui.questlog.on_mythic_start()
+    if sfui.questlog and sfui.questlog.on_mythic_start then
+        sfui.questlog.on_mythic_start()
+    end
 
     -- Restore saved position (matches objective tracker position)
     local posX = (SfuiDB and (SfuiDB.mythicHudX or SfuiDB.questlogX)) or mcfg.posX or -10
@@ -3178,7 +3210,9 @@ function sfui.mythic.HidePreview()
         MF.header:SetHeight(24)
     end
     HideHUD()
-    sfui.questlog.on_mythic_end()
+    if sfui.questlog and sfui.questlog.on_mythic_end then
+        sfui.questlog.on_mythic_end()
+    end
     CheckScenarioState()
 end
 
@@ -3207,7 +3241,9 @@ local function on_mythic_event(event, ...)
         wipe(_playerDeaths)
         CacheGroupMembers()
         SyncBlizzardRunHistory()
-        sfui.questlog.on_mythic_start()
+        if sfui.questlog and sfui.questlog.on_mythic_start then
+            sfui.questlog.on_mythic_start()
+        end
         ShowHUD()
     elseif event == "CHALLENGE_MODE_COMPLETED" then
         StopTicker()
@@ -3222,9 +3258,13 @@ local function on_mythic_event(event, ...)
         _runCompleted = false
         _mode = nil
         HideHUD()
-        sfui.questlog.on_mythic_end()
+        if sfui.questlog and sfui.questlog.on_mythic_end then
+            sfui.questlog.on_mythic_end()
+        end
     elseif event == "SCENARIO_CRITERIA_UPDATE" or event == "SCENARIO_POI_UPDATE" then
-        sfui.SuppressBlizzardTracker()
+        if sfui.SuppressBlizzardTracker then
+            sfui.SuppressBlizzardTracker()
+        end
         if _mode == "mythic" then
             UpdateInstanceState()
         else
@@ -3239,7 +3279,9 @@ local function on_mythic_event(event, ...)
         event == "ACTIVE_DELVE_DATA_UPDATE" or
         event == "SCENARIO_COMPLETED" or
         event == "SCENARIO_SPELL_UPDATE" then
-        sfui.SuppressBlizzardTracker()
+        if sfui.SuppressBlizzardTracker then
+            sfui.SuppressBlizzardTracker()
+        end
         if _mode == nil then
             local inInst = _G.IsInInstance and _G.IsInInstance()
             if not inInst then return end
@@ -3253,8 +3295,8 @@ local function on_mythic_event(event, ...)
     elseif event == "GROUP_ROSTER_UPDATE" then
         CacheGroupMembers()
     elseif event == "CHALLENGE_MODE_KEYSTONE_RECEPTABLE_OPEN" then
-        if C_Item and C_Item.IsItemKeystoneByID then
-            sfui.common.for_each_bag_item(function(bagID, invID, itemID)
+        if C_Item and C_Item.IsItemKeystoneByID and common and common.for_each_bag_item then
+            common.for_each_bag_item(function(bagID, invID, itemID)
                 if itemID and C_Item.IsItemKeystoneByID(itemID) then
                     C_Container.UseContainerItem(bagID, invID)
                     return true
@@ -3307,7 +3349,9 @@ Reg("WORLD_STATE_TIMER_STOP")
 -- Replaces Reg("UPDATE_UI_WIDGET") which would fire 10-20x/sec in city hubs.
 do
     local function _on_widget_update()
-        sfui.SuppressBlizzardTracker()
+        if sfui.SuppressBlizzardTracker then
+            sfui.SuppressBlizzardTracker()
+        end
         if _mode == nil then
             local inInst = _G.IsInInstance and _G.IsInInstance()
             if not inInst then return end
@@ -3336,6 +3380,8 @@ function sfui.mythic_debug_info()
     }
 end
 
-sfui.mythic = sfui.mythic or {}
-sfui.mythic.GetDebugInfo = sfui.mythic_debug_info
-sfui.RegisterModule("mythic", sfui.mythic)
+if sfui.RegisterModule then
+    sfui.mythic = sfui.mythic or {}
+    sfui.mythic.GetDebugInfo = sfui.mythic_debug_info
+    sfui.RegisterModule("mythic", sfui.mythic)
+end

@@ -612,6 +612,11 @@ sfui.common.create_label = sfui.widgets.create_label
 
 function sfui.widgets.style_scrollbar(scrollBar)
     if not scrollBar then return end
+    if sfui.theme and sfui.theme.ApplyScrollBarStyle then
+        sfui.theme.ApplyScrollBarStyle(scrollBar)
+        return
+    end
+
     local name = scrollBar.GetName and scrollBar:GetName()
     local upBtn = (name and _G[name .. "ScrollUpButton"]) or scrollBar.ScrollUpButton
     local downBtn = (name and _G[name .. "ScrollDownButton"]) or scrollBar.ScrollDownButton
@@ -666,6 +671,7 @@ sfui.common.style_scrollbar = sfui.widgets.style_scrollbar
 function sfui.widgets.create_scroll_frame(parent, name, childWidth, childHeight)
     local sf = CreateFrame("ScrollFrame", name, parent, "UIPanelScrollFrameTemplate")
     sf:EnableMouseWheel(true)
+    sf.scrollBarHideable = 1
     if sf.ScrollBar and sfui.widgets.style_scrollbar then
         sfui.widgets.style_scrollbar(sf.ScrollBar)
     end

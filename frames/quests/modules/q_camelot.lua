@@ -183,6 +183,10 @@ local function IsClassQuest(questID, questLogIndex, headerTitle)
 end
 
 local function IsDungeonQuest(questID, questLogIndex, headerTitle)
+    if sfui.dj_camelot and sfui.dj_camelot.IsDungeonQuest and questID and sfui.dj_camelot.IsDungeonQuest(questID) then
+        return true
+    end
+
     if _G.QuestUtils_IsQuestDungeonQuest and questID and _G.QuestUtils_IsQuestDungeonQuest(questID) then
         return true
     end
@@ -444,6 +448,18 @@ end
 local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, questTitle, isAutoOffer, isCurrentlyExpanded,
                                  isClickToComplete)
     if not questID then return end
+
+    -- 0. Middle-Click or Shift-Right-Click: Open in Dungeon Journal for dungeon quests
+    if mouseButton == "MiddleButton" or (mouseButton == "RightButton" and IsShiftKeyDown and IsShiftKeyDown()) then
+        if sfui.dungeonjournal and sfui.dungeonjournal.SelectQuest then
+            local isDJ = (sfui.dj_camelot and sfui.dj_camelot.IsDungeonQuest and sfui.dj_camelot.IsDungeonQuest(questID))
+                         or IsDungeonQuest(questID, questLogIndex)
+            if isDJ then
+                local ok = sfui.dungeonjournal.SelectQuest(nil, questID)
+                if ok then return end
+            end
+        end
+    end
 
     -- 1. Auto-Quest Offer Click
     if isAutoOffer then
