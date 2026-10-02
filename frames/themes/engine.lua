@@ -26,6 +26,7 @@ local themeOrder = {}
 local registered_windows       = {} -- Array of { frame = frame, callback = cb, options = opt }
 local registered_buttons       = setmetatable({}, { __mode = "k" })
 local registered_close_buttons = setmetatable({}, { __mode = "k" })
+local registered_dropdowns     = setmetatable({}, { __mode = "k" })
 local registered_cards         = setmetatable({}, { __mode = "k" })
 local registered_headers       = setmetatable({}, { __mode = "k" })
 local registered_inputs        = setmetatable({}, { __mode = "k" })
@@ -280,6 +281,14 @@ function sfui.theme.ElevateWindowContents(frame)
     local cb = frame.closeBtn or frame.close_button or frame.close or frame.closeButton
     if cb and cb.SetFrameLevel then
         cb:SetFrameLevel(base + 20)
+    end
+    local topButtons = {
+        frame.collapseBtn, frame.mapOptBtn, frame.navWpBtn, frame.showMapBtn,
+    }
+    for _, btn in ipairs(topButtons) do
+        if btn and btn.SetFrameLevel then
+            btn:SetFrameLevel(base + 20)
+        end
     end
     if frame.tabs then
         for _, tab_data in ipairs(frame.tabs) do
@@ -859,25 +868,71 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
     end
 
     local isCamelot = (activeID == "camelot")
+    local atlases = theme.atlases or {}
+    local normalAtlas = atlases.buttonNormal or "common-dropdown-c-button"
+    local useBronzeAtlas = isCamelot and (sfui.theme.HasAtlas(normalAtlas) or (atlases.buttonFallback and sfui.theme.HasAtlas(atlases.buttonFallback)))
 
-    if isCamelot then
-        if btn.SetBackdrop then
-            btn:SetBackdrop({
-                bgFile   = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
-                edgeFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
-                edgeSize = mult,
-                insets   = { left = 0, right = 0, top = 0, bottom = 0 }
-            })
-            btn:SetBackdropColor(0.12, 0.10, 0.08, 0.95)
-            if btn.SetBackdropBorderColor then
-                btn:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
-            end
+    if useBronzeAtlas then
+        local atlasNormal = sfui.theme.HasAtlas(normalAtlas) and normalAtlas or atlases.buttonFallback
+        local atlasHover = atlases.buttonHover or "common-dropdown-c-button-hover-1"
+        if not sfui.theme.HasAtlas(atlasHover) then
+            atlasHover = atlases.buttonHoverFallback or "common-dropdown-c-button-hover-1"
+            if not sfui.theme.HasAtlas(atlasHover) then atlasHover = atlasNormal end
         end
+        local atlasPressed = atlases.buttonPressed or "common-dropdown-c-button-pressed-1"
+        if not sfui.theme.HasAtlas(atlasPressed) then
+            atlasPressed = atlases.buttonPressedFallback or "common-dropdown-c-button-pressed-1"
+            if not sfui.theme.HasAtlas(atlasPressed) then atlasPressed = atlasNormal end
+        end
+        local atlasPressedHover = atlases.buttonPressedHover or "common-dropdown-c-button-pressedhover-1"
+        if not sfui.theme.HasAtlas(atlasPressedHover) then
+            atlasPressedHover = atlasPressed
+        end
+        local atlasDisabled = atlases.buttonDisabled or "common-dropdown-c-button-disabled"
+        if not sfui.theme.HasAtlas(atlasDisabled) then
+            atlasDisabled = atlasNormal
+        end
+
+        if not btn._sfuiCamelotBg then
+            btn._sfuiCamelotBg = btn:CreateTexture(nil, "BACKGROUND", nil, -1)
+        end
+        btn._sfuiCamelotBg:ClearAllPoints()
+        btn._sfuiCamelotBg:SetPoint("TOPLEFT", btn, "TOPLEFT", -7, 7)
+        btn._sfuiCamelotBg:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 7, -7)
+        btn._sfuiCamelotBg:Show()
+        btn._sfuiAtlasNormal = atlasNormal
+        btn._sfuiAtlasHover = atlasHover
+        btn._sfuiAtlasPressed = atlasPressed
+        btn._sfuiAtlasPressedHover = atlasPressedHover
+        btn._sfuiAtlasDisabled = atlasDisabled
+
+        if not btn:IsEnabled() then
+            btn._sfuiCamelotBg:SetAtlas(atlasDisabled)
+        elseif btn:IsMouseOver() then
+            btn._sfuiCamelotBg:SetAtlas(atlasHover)
+        else
+            btn._sfuiCamelotBg:SetAtlas(atlasNormal)
+        end
+
+        if btn.SetBackdropColor then
+            btn:SetBackdropColor(0, 0, 0, 0)
+        end
+        if btn.SetBackdropBorderColor then
+            btn:SetBackdropBorderColor(0, 0, 0, 0)
+        end
+
         local fs = btn:GetFontString() or btn.text
         if fs then
-            fs:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3], 1)
+            local textColor = btn:IsEnabled() and (pal.accentColor or pal.tabNormal or { 0.95, 0.85, 0.55, 1 }) or { 0.55, 0.50, 0.45, 1 }
+            fs:SetTextColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
+            fs:SetShadowOffset(1, -1)
+            fs:SetShadowColor(0, 0, 0, 0.9)
         end
+        btn:SetPushedTextOffset(1, -1)
     else
+        if btn._sfuiCamelotBg then
+            btn._sfuiCamelotBg:Hide()
+        end
         if btn.SetBackdrop then
             btn:SetBackdrop({
                 bgFile   = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
@@ -895,20 +950,27 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
         local fs = btn:GetFontString() or btn.text
         if fs then
             fs:SetTextColor(1, 1, 1, 1)
+            fs:SetShadowOffset(0, 0)
         end
+        btn:SetPushedTextOffset(0, 0)
     end
 
     if not btn.sfuiThemeHooksInstalled then
         btn.sfuiThemeHooksInstalled = true
         btn:HookScript("OnEnter", function(self)
             if self.isCloseButton or self.isSubmenuButton or self.isDropdownButton or self.isDropdownOption then return end
-            local p = sfui.theme.GetPalette()
-            if sfui.theme.IsCamelotActive() then
-                self:SetBackdropColor(0.22, 0.18, 0.12, 0.98)
-                if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.85, 0.70, 0.35, 1.0) end
-                local sfs = self:GetFontString() or self.text
-                if sfs then sfs:SetTextColor(0.98, 0.92, 0.70, 1) end
+            if self._sfuiCamelotBg and self._sfuiCamelotBg:IsShown() then
+                if self:IsEnabled() then
+                    if self._sfuiMouseDown then
+                        self._sfuiCamelotBg:SetAtlas(self._sfuiAtlasPressedHover or self._sfuiAtlasPressed or self._sfuiAtlasHover)
+                    else
+                        self._sfuiCamelotBg:SetAtlas(self._sfuiAtlasHover or self._sfuiAtlasNormal)
+                    end
+                    local sfs = self:GetFontString() or self.text
+                    if sfs then sfs:SetTextColor(1.0, 0.95, 0.70, 1) end
+                end
             else
+                local p = sfui.theme.GetPalette()
                 local hl = p.highlightColor or { 0.4, 0, 1, 1 }
                 self:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1)
             end
@@ -916,18 +978,75 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
         btn:HookScript("OnLeave", function(self)
             if self.isCloseButton or self.isSubmenuButton or self.isDropdownButton or self.isDropdownOption or self.isSelected or self.lockColor or self.customOnLeave then return end
             if self.menu and self.menu:IsShown() then return end
-            local p = sfui.theme.GetPalette()
-            if sfui.theme.IsCamelotActive() then
-                self:SetBackdropColor(0.12, 0.10, 0.08, 0.95)
-                if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85) end
-                local sfs = self:GetFontString() or self.text
-                if sfs then sfs:SetTextColor(p.tabNormal[1], p.tabNormal[2], p.tabNormal[3], 1) end
+            if self._sfuiCamelotBg and self._sfuiCamelotBg:IsShown() then
+                if self:IsEnabled() then
+                    self._sfuiCamelotBg:SetAtlas(self._sfuiAtlasNormal)
+                    local sfs = self:GetFontString() or self.text
+                    if sfs then
+                        local p = sfui.theme.GetPalette()
+                        local col = p.tabNormal or { 0.95, 0.85, 0.55, 1 }
+                        sfs:SetTextColor(col[1], col[2], col[3], 1)
+                    end
+                else
+                    self._sfuiCamelotBg:SetAtlas(self._sfuiAtlasDisabled)
+                    local sfs = self:GetFontString() or self.text
+                    if sfs then sfs:SetTextColor(0.55, 0.50, 0.45, 1) end
+                end
             else
                 self:SetBackdropBorderColor(0, 0, 0, 1)
                 local sfs = self:GetFontString() or self.text
                 if sfs then sfs:SetTextColor(1, 1, 1, 1) end
             end
         end)
+        btn:HookScript("OnMouseDown", function(self)
+            self._sfuiMouseDown = true
+            if self._sfuiCamelotBg and self._sfuiCamelotBg:IsShown() and self:IsEnabled() then
+                self._sfuiCamelotBg:SetAtlas(self._sfuiAtlasPressed or self._sfuiAtlasNormal)
+                local sfs = self:GetFontString() or self.text
+                if sfs then sfs:SetTextColor(0.90, 0.80, 0.50, 1) end
+            end
+        end)
+        btn:HookScript("OnMouseUp", function(self)
+            self._sfuiMouseDown = false
+            if self._sfuiCamelotBg and self._sfuiCamelotBg:IsShown() and self:IsEnabled() then
+                if self:IsMouseOver() then
+                    self._sfuiCamelotBg:SetAtlas(self._sfuiAtlasHover or self._sfuiAtlasNormal)
+                    local sfs = self:GetFontString() or self.text
+                    if sfs then sfs:SetTextColor(1.0, 0.95, 0.70, 1) end
+                else
+                    self._sfuiCamelotBg:SetAtlas(self._sfuiAtlasNormal)
+                    local sfs = self:GetFontString() or self.text
+                    if sfs then
+                        local p = sfui.theme.GetPalette()
+                        local col = p.tabNormal or { 0.95, 0.85, 0.55, 1 }
+                        sfs:SetTextColor(col[1], col[2], col[3], 1)
+                    end
+                end
+            end
+        end)
+        if btn.HasScript and btn:HasScript("OnEnable") then
+            btn:HookScript("OnEnable", function(self)
+                if self._sfuiCamelotBg and self._sfuiCamelotBg:IsShown() then
+                    local atlas = self:IsMouseOver() and self._sfuiAtlasHover or self._sfuiAtlasNormal
+                    self._sfuiCamelotBg:SetAtlas(atlas)
+                    local sfs = self:GetFontString() or self.text
+                    if sfs then
+                        local p = sfui.theme.GetPalette()
+                        local col = self:IsMouseOver() and { 1.0, 0.95, 0.70, 1 } or (p.tabNormal or { 0.95, 0.85, 0.55, 1 })
+                        sfs:SetTextColor(col[1], col[2], col[3], 1)
+                    end
+                end
+            end)
+        end
+        if btn.HasScript and btn:HasScript("OnDisable") then
+            btn:HookScript("OnDisable", function(self)
+                if self._sfuiCamelotBg and self._sfuiCamelotBg:IsShown() then
+                    self._sfuiCamelotBg:SetAtlas(self._sfuiAtlasDisabled or self._sfuiAtlasNormal)
+                    local sfs = self:GetFontString() or self.text
+                    if sfs then sfs:SetTextColor(0.55, 0.50, 0.45, 1) end
+                end
+            end)
+        end
     end
 end
 
@@ -935,6 +1054,102 @@ function sfui.theme.RegisterButton(btn, isStyled)
     if not btn or btn.isCloseButton or btn.isSubmenuButton or btn.isDropdownButton or btn.isDropdownOption then return end
     btn.isStyledButton = isStyled or false
     registered_buttons[btn] = isStyled or false
+end
+
+function sfui.theme.RegisterDropdown(btn)
+    if not btn then return end
+    registered_dropdowns[btn] = true
+end
+
+function sfui.theme.ApplyDropdownStyle(btn)
+    if not btn then return end
+    local activeID = sfui.theme.GetActiveThemeID()
+    local theme = registeredThemes[activeID] or registeredThemes.modern or {}
+    local pal = theme.colors or sfui.theme.GetPalette()
+    local mult = sfui.pixelScale or 1
+    local isCamelot = (activeID == "camelot")
+    local atlases = theme.atlases or {}
+    local normalAtlas = atlases.buttonNormal or "common-dropdown-c-button"
+    local useBronzeAtlas = isCamelot and (sfui.theme.HasAtlas(normalAtlas) or (atlases.buttonFallback and sfui.theme.HasAtlas(atlases.buttonFallback)))
+
+    if useBronzeAtlas then
+        local atlasNormal = sfui.theme.HasAtlas(normalAtlas) and normalAtlas or atlases.buttonFallback
+        local atlasHover = atlases.buttonHover or "common-dropdown-c-button-hover-1"
+        if not sfui.theme.HasAtlas(atlasHover) then
+            atlasHover = atlases.buttonHoverFallback or "common-dropdown-c-button-hover-1"
+            if not sfui.theme.HasAtlas(atlasHover) then atlasHover = atlasNormal end
+        end
+        local atlasPressed = atlases.buttonPressed or "common-dropdown-c-button-pressed-1"
+        if not sfui.theme.HasAtlas(atlasPressed) then
+            atlasPressed = atlases.buttonPressedFallback or "common-dropdown-c-button-pressed-1"
+            if not sfui.theme.HasAtlas(atlasPressed) then atlasPressed = atlasNormal end
+        end
+        local atlasDisabled = atlases.buttonDisabled or "common-dropdown-c-button-disabled"
+        if not sfui.theme.HasAtlas(atlasDisabled) then
+            atlasDisabled = atlasNormal
+        end
+
+        if not btn._sfuiCamelotBg then
+            btn._sfuiCamelotBg = btn:CreateTexture(nil, "BACKGROUND", nil, -1)
+        end
+        btn._sfuiCamelotBg:ClearAllPoints()
+        btn._sfuiCamelotBg:SetPoint("TOPLEFT", btn, "TOPLEFT", -7, 7)
+        btn._sfuiCamelotBg:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 7, -7)
+        btn._sfuiCamelotBg:Show()
+        btn._sfuiAtlasNormal = atlasNormal
+        btn._sfuiAtlasHover = atlasHover
+        btn._sfuiAtlasPressed = atlasPressed
+        btn._sfuiAtlasDisabled = atlasDisabled
+
+        if not btn:IsEnabled() then
+            btn._sfuiCamelotBg:SetAtlas(atlasDisabled)
+        elseif btn.menu and btn.menu:IsShown() then
+            btn._sfuiCamelotBg:SetAtlas(atlasPressed)
+        elseif btn:IsMouseOver() then
+            btn._sfuiCamelotBg:SetAtlas(atlasHover)
+        else
+            btn._sfuiCamelotBg:SetAtlas(atlasNormal)
+        end
+
+        if btn.SetBackdropColor then btn:SetBackdropColor(0, 0, 0, 0) end
+        if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0, 0, 0, 0) end
+
+        local fs = btn:GetFontString()
+        if fs then
+            local textColor = pal.tabNormal or { 0.95, 0.85, 0.55, 1 }
+            fs:SetTextColor(textColor[1], textColor[2], textColor[3], 1)
+            fs:SetShadowOffset(1, -1)
+            fs:SetShadowColor(0, 0, 0, 0.9)
+        end
+        btn:SetPushedTextOffset(1, -1)
+
+        if btn.menu then
+            btn.menu:SetBackdropColor(0.08, 0.07, 0.06, 0.98)
+            btn.menu:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.90)
+        end
+    else
+        if btn._sfuiCamelotBg then btn._sfuiCamelotBg:Hide() end
+        if btn.SetBackdrop then
+            btn:SetBackdrop({
+                bgFile = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = mult,
+                insets = { left = 0, right = 0, top = 0, bottom = 0 }
+            })
+        end
+        if btn.SetBackdropColor then btn:SetBackdropColor(0, 0, 0, 1) end
+        if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0, 0, 0, 1) end
+        local fs = btn:GetFontString()
+        if fs then
+            fs:SetTextColor(1, 1, 1, 1)
+            fs:SetShadowOffset(0, 0)
+        end
+        btn:SetPushedTextOffset(0, 0)
+        if btn.menu then
+            btn.menu:SetBackdropColor(0.06, 0.06, 0.06, 0.98)
+            btn.menu:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
+        end
+    end
 end
 
 -- 5. Close Button Styling
@@ -1015,28 +1230,159 @@ function sfui.theme.RegisterCloseButton(btn)
     registered_close_buttons[btn] = true
 end
 
--- 6. Navigation / Spec Tab Styling
+-- 6. Navigation / Spec / Mode Tab Styling
 function sfui.theme.ApplyTabStyle(btn, isSelected)
     if not btn then return end
-    registered_tabs[btn] = isSelected or false
-    local pal = sfui.theme.GetPalette()
-    local fs = btn:GetFontString()
+    btn.isSelectedTab = (isSelected == true)
+    registered_tabs[btn] = btn.isSelectedTab
+    local activeID = sfui.theme.GetActiveThemeID()
+    local theme = registeredThemes[activeID] or registeredThemes.modern or {}
+    local pal = theme.colors or sfui.theme.GetPalette()
+    local isCamelot = (activeID == "camelot")
+    local atlases = theme.atlases or {}
+    local normalAtlas = atlases.buttonNormal or "common-dropdown-c-button"
+    local useBronzeAtlas = isCamelot and (sfui.theme.HasAtlas(normalAtlas) or (atlases.buttonFallback and sfui.theme.HasAtlas(atlases.buttonFallback)))
 
-    if fs then
-        if isSelected then
-            fs:SetTextColor(pal.tabSelected[1], pal.tabSelected[2], pal.tabSelected[3], 1)
+    local fs = btn:GetFontString() or btn.fs or btn.text
+
+    if useBronzeAtlas then
+        local atlasNormal = sfui.theme.HasAtlas(normalAtlas) and normalAtlas or atlases.buttonFallback
+        local atlasHover = atlases.buttonHover or "common-dropdown-c-button-hover-1"
+        if not sfui.theme.HasAtlas(atlasHover) then
+            atlasHover = atlases.buttonHoverFallback or "common-dropdown-c-button-hover-1"
+            if not sfui.theme.HasAtlas(atlasHover) then atlasHover = atlasNormal end
+        end
+        local atlasPressed = atlases.buttonPressed or "common-dropdown-c-button-pressed-1"
+        if not sfui.theme.HasAtlas(atlasPressed) then
+            atlasPressed = atlases.buttonPressedFallback or "common-dropdown-c-button-pressed-1"
+            if not sfui.theme.HasAtlas(atlasPressed) then atlasPressed = atlasNormal end
+        end
+        local atlasPressedHover = atlases.buttonPressedHover or "common-dropdown-c-button-pressedhover-1"
+        if not sfui.theme.HasAtlas(atlasPressedHover) then
+            atlasPressedHover = atlasPressed
+        end
+
+        if not btn._sfuiCamelotBg then
+            btn._sfuiCamelotBg = btn:CreateTexture(nil, "BACKGROUND", nil, -1)
+        end
+        btn._sfuiCamelotBg:ClearAllPoints()
+        btn._sfuiCamelotBg:SetPoint("TOPLEFT", btn, "TOPLEFT", -7, 7)
+        btn._sfuiCamelotBg:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 7, -7)
+        btn._sfuiCamelotBg:Show()
+        btn._sfuiAtlasNormal = atlasNormal
+        btn._sfuiAtlasHover = atlasHover
+        btn._sfuiAtlasPressed = atlasPressed
+        btn._sfuiAtlasPressedHover = atlasPressedHover
+
+        if btn.isSelectedTab then
+            btn._sfuiCamelotBg:SetAtlas(atlasPressed)
+            if fs then
+                local selColor = pal.tabSelected or pal.accentColor or { 0.95, 0.85, 0.55, 1 }
+                fs:SetTextColor(selColor[1], selColor[2], selColor[3], 1)
+                fs:SetShadowOffset(1, -1)
+                fs:SetShadowColor(0, 0, 0, 0.9)
+            end
         else
-            fs:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3], 1)
+            if btn:IsMouseOver() then
+                btn._sfuiCamelotBg:SetAtlas(atlasHover)
+                if fs then
+                    fs:SetTextColor(1.0, 0.95, 0.70, 1)
+                    fs:SetShadowOffset(1, -1)
+                    fs:SetShadowColor(0, 0, 0, 0.9)
+                end
+            else
+                btn._sfuiCamelotBg:SetAtlas(atlasNormal)
+                if fs then
+                    local normColor = pal.tabNormal or { 0.78, 0.70, 0.55, 1 }
+                    fs:SetTextColor(normColor[1], normColor[2], normColor[3], 1)
+                    fs:SetShadowOffset(1, -1)
+                    fs:SetShadowColor(0, 0, 0, 0.9)
+                end
+            end
+        end
+
+        if btn.SetBackdropColor then btn:SetBackdropColor(0, 0, 0, 0) end
+        if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0, 0, 0, 0) end
+    else
+        if btn._sfuiCamelotBg then btn._sfuiCamelotBg:Hide() end
+        local mult = sfui.pixelScale or 1
+        if btn.SetBackdrop then
+            btn:SetBackdrop({
+                bgFile   = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = mult,
+                insets   = { left = 0, right = 0, top = 0, bottom = 0 }
+            })
+        end
+        if btn.isSelectedTab then
+            if btn.SetBackdropColor then btn:SetBackdropColor(0.12, 0.12, 0.15, 0.95) end
+            if btn.SetBackdropBorderColor then
+                local hl = pal.highlightColor or { 0.4, 0, 1, 1 }
+                btn:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1)
+            end
+            if fs then
+                local selColor = pal.tabSelected or { 1, 1, 1, 1 }
+                fs:SetTextColor(selColor[1], selColor[2], selColor[3], 1)
+                fs:SetShadowOffset(0, 0)
+            end
+        else
+            if btn.SetBackdropColor then btn:SetBackdropColor(0.08, 0.08, 0.10, 0.9) end
+            if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0.18, 0.18, 0.20, 1) end
+            if fs then
+                local normColor = pal.tabNormal or { 0.6, 0.6, 0.6, 1 }
+                fs:SetTextColor(normColor[1], normColor[2], normColor[3], 1)
+                fs:SetShadowOffset(0, 0)
+            end
         end
     end
 
     if btn.indicator then
         btn.indicator:SetColorTexture(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 1)
-        if isSelected then
+        if btn.isSelectedTab then
             btn.indicator:Show()
         else
             btn.indicator:Hide()
         end
+    end
+
+    if not btn.sfuiTabHooksInstalled then
+        btn.sfuiTabHooksInstalled = true
+        btn:HookScript("OnEnter", function(self)
+            if self.isSelectedTab then return end
+            if self._sfuiCamelotBg and self._sfuiCamelotBg:IsShown() then
+                self._sfuiCamelotBg:SetAtlas(self._sfuiAtlasHover or "common-dropdown-c-button-hover-1")
+                local sfs = self:GetFontString() or self.fs or self.text
+                if sfs then sfs:SetTextColor(1.0, 0.95, 0.70, 1) end
+            else
+                local p = sfui.theme.GetPalette()
+                local hl = p.highlightColor or { 0.4, 0, 1, 1 }
+                if self.SetBackdropBorderColor then
+                    self:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1)
+                end
+            end
+        end)
+        btn:HookScript("OnLeave", function(self)
+            if self.isSelectedTab then return end
+            if self._sfuiCamelotBg and self._sfuiCamelotBg:IsShown() then
+                self._sfuiCamelotBg:SetAtlas(self._sfuiAtlasNormal or "common-dropdown-c-button")
+                local sfs = self:GetFontString() or self.fs or self.text
+                if sfs then
+                    local p = sfui.theme.GetPalette()
+                    local col = p.tabNormal or { 0.78, 0.70, 0.55, 1 }
+                    sfs:SetTextColor(col[1], col[2], col[3], 1)
+                end
+            else
+                if self.SetBackdropBorderColor then
+                    self:SetBackdropBorderColor(0.18, 0.18, 0.20, 1)
+                end
+                local sfs = self:GetFontString() or self.fs or self.text
+                if sfs then
+                    local p = sfui.theme.GetPalette()
+                    local col = p.tabNormal or { 0.6, 0.6, 0.6, 1 }
+                    sfs:SetTextColor(col[1], col[2], col[3], 1)
+                end
+            end
+        end)
     end
 end
 
@@ -1496,8 +1842,13 @@ function sfui.theme.ApplyMinimapButtonBarStyle(bar)
 end
 
 -- 9. Loot Feed Row Styling (Camelot: Architectural Slate vs Sculpted Bronze Card | Modern: Minimalist)
-function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
+function sfui.theme.ApplyLootfeedRowStyle(row, color, quality, isOther)
     if not row then return end
+    if isOther ~= nil then
+        row.isOther = (isOther == true)
+    end
+    local otherLoot = (row.isOther == true)
+
     local isCamelot = sfui.theme.IsCamelotActive()
     local pal = sfui.theme.GetPalette()
     local col = color or { 1, 1, 1 }
@@ -1533,6 +1884,13 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
                 row.cardBg:ClearAllPoints()
                 row.cardBg:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 2)
                 row.cardBg:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, -2)
+                if otherLoot then
+                    row.cardBg:SetDesaturated(true)
+                    row.cardBg:SetVertexColor(0.72, 0.74, 0.80, 1.0)
+                else
+                    row.cardBg:SetDesaturated(false)
+                    row.cardBg:SetVertexColor(1, 1, 1, 1)
+                end
                 row.cardBg:Show()
             end
 
@@ -1622,9 +1980,16 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
                     edgeSize = mult,
                     insets   = { left = 0, right = 0, top = 0, bottom = 0 }
                 })
-                row:SetBackdropColor(pal.backdropColor[1], pal.backdropColor[2], pal.backdropColor[3], 0.94)
-                if row.SetBackdropBorderColor then
-                    row:SetBackdropBorderColor(0.38, 0.28, 0.12, 0.90)
+                if otherLoot then
+                    row:SetBackdropColor(0.20, 0.20, 0.23, 0.92)
+                    if row.SetBackdropBorderColor then
+                        row:SetBackdropBorderColor(0.45, 0.45, 0.48, 0.90)
+                    end
+                else
+                    row:SetBackdropColor(pal.backdropColor[1], pal.backdropColor[2], pal.backdropColor[3], 0.94)
+                    if row.SetBackdropBorderColor then
+                        row:SetBackdropBorderColor(0.38, 0.28, 0.12, 0.90)
+                    end
                 end
             end
 
@@ -1644,8 +2009,14 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
                 local brAtlas = sfui.theme.GetCornerBracketAtlas("BR") or "heavybronze-horz-cornerbracket-BR"
                 local bSize = 10
 
+                local bracketR, bracketG, bracketB = 1, 1, 1
+                if otherLoot then
+                    bracketR, bracketG, bracketB = 0.80, 0.80, 0.85
+                end
+
                 if sfui.theme.HasAtlas(tlAtlas) then
                     row.cornerTL:SetAtlas(tlAtlas, false)
+                    row.cornerTL:SetVertexColor(bracketR, bracketG, bracketB, 1)
                     row.cornerTL:ClearAllPoints()
                     row.cornerTL:SetPoint("TOPLEFT", row, "TOPLEFT", -1, 1)
                     row.cornerTL:SetSize(bSize, bSize)
@@ -1654,6 +2025,7 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
 
                 if sfui.theme.HasAtlas(trAtlas) then
                     row.cornerTR:SetAtlas(trAtlas, false)
+                    row.cornerTR:SetVertexColor(bracketR, bracketG, bracketB, 1)
                     row.cornerTR:ClearAllPoints()
                     row.cornerTR:SetPoint("TOPRIGHT", row, "TOPRIGHT", 1, 1)
                     row.cornerTR:SetSize(bSize, bSize)
@@ -1662,6 +2034,7 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
 
                 if sfui.theme.HasAtlas(blAtlas) then
                     row.cornerBL:SetAtlas(blAtlas, false)
+                    row.cornerBL:SetVertexColor(bracketR, bracketG, bracketB, 1)
                     row.cornerBL:ClearAllPoints()
                     row.cornerBL:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", -1, -1)
                     row.cornerBL:SetSize(bSize, bSize)
@@ -1670,6 +2043,7 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
 
                 if sfui.theme.HasAtlas(brAtlas) then
                     row.cornerBR:SetAtlas(brAtlas, false)
+                    row.cornerBR:SetVertexColor(bracketR, bracketG, bracketB, 1)
                     row.cornerBR:ClearAllPoints()
                     row.cornerBR:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 1, -1)
                     row.cornerBR:SetSize(bSize, bSize)
@@ -1766,9 +2140,16 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality)
                 edgeSize = mult,
                 insets   = { left = 0, right = 0, top = 0, bottom = 0 }
             })
-            row:SetBackdropColor(0, 0, 0, 0.50)
-            if row.SetBackdropBorderColor then
-                row:SetBackdropBorderColor(0, 0, 0, 0.50)
+            if otherLoot then
+                row:SetBackdropColor(0.22, 0.22, 0.26, 0.75)
+                if row.SetBackdropBorderColor then
+                    row:SetBackdropBorderColor(0.42, 0.42, 0.48, 0.85)
+                end
+            else
+                row:SetBackdropColor(0, 0, 0, 0.50)
+                if row.SetBackdropBorderColor then
+                    row:SetBackdropBorderColor(0, 0, 0, 0.50)
+                end
             end
         end
 
@@ -2279,6 +2660,13 @@ function sfui.theme.ApplyCurrentTheme()
     for btn, isStyled in pairs(registered_buttons) do
         if btn then
             sfui.theme.ApplyButtonStyle(btn, isStyled)
+        end
+    end
+
+    -- 4b. Re-style all active registered dropdown buttons
+    for ddBtn, _ in pairs(registered_dropdowns) do
+        if ddBtn then
+            sfui.theme.ApplyDropdownStyle(ddBtn)
         end
     end
 

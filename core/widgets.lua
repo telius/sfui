@@ -752,8 +752,14 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
     btn:SetBackdropBorderColor(0, 0, 0, 1)
 
     btn:SetScript("OnEnter", function(self)
-        local purple = (sfui.config and sfui.config.colors and sfui.config.colors.purple) or { 0.4, 0, 1 }
-        self:SetBackdropBorderColor(purple[1], purple[2], purple[3], 1)
+        if self._sfuiCamelotBg and self._sfuiCamelotBg:IsShown() then
+            self._sfuiCamelotBg:SetAtlas(self._sfuiAtlasHover or "common-dropdown-c-button-hover-1")
+            local sfs = self:GetFontString()
+            if sfs then sfs:SetTextColor(1.0, 0.95, 0.70, 1) end
+        else
+            local purple = (sfui.config and sfui.config.colors and sfui.config.colors.purple) or { 0.4, 0, 1 }
+            self:SetBackdropBorderColor(purple[1], purple[2], purple[3], 1)
+        end
         if self.tooltip then
             local tip = sfui.tooltip or _G.GameTooltip
             if tip then
@@ -764,8 +770,20 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
         end
     end)
     btn:SetScript("OnLeave", function(self)
-        if not (self.menu and self.menu:IsShown()) then
-            self:SetBackdropBorderColor(0, 0, 0, 1)
+        if self._sfuiCamelotBg and self._sfuiCamelotBg:IsShown() then
+            if not (self.menu and self.menu:IsShown()) then
+                self._sfuiCamelotBg:SetAtlas(self._sfuiAtlasNormal or "common-dropdown-c-button")
+                local sfs = self:GetFontString()
+                if sfs then
+                    local p = sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()
+                    local col = (p and p.tabNormal) or { 0.95, 0.85, 0.55, 1 }
+                    sfs:SetTextColor(col[1], col[2], col[3], 1)
+                end
+            end
+        else
+            if not (self.menu and self.menu:IsShown()) then
+                self:SetBackdropBorderColor(0, 0, 0, 1)
+            end
         end
         local tip = sfui.tooltip or _G.GameTooltip
         if tip then tip:Hide() end
@@ -795,6 +813,11 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
     menu.rows = {}
     menu.scrollOffset = 0
 
+    if sfui.theme and sfui.theme.ApplyDropdownStyle then
+        sfui.theme.ApplyDropdownStyle(btn)
+        sfui.theme.RegisterDropdown(btn)
+    end
+
     local MAX_VISIBLE_ROWS = 14
     local ROW_HEIGHT = 20
     local PADDING = 4
@@ -821,8 +844,12 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
 
     menu:SetScript("OnShow", function(self)
         self:RegisterEvent("GLOBAL_MOUSE_DOWN")
-        local purple = (sfui.config and sfui.config.colors and sfui.config.colors.purple) or { 0.4, 0, 1 }
-        btn:SetBackdropBorderColor(purple[1], purple[2], purple[3], 1)
+        if btn._sfuiCamelotBg and btn._sfuiCamelotBg:IsShown() then
+            btn._sfuiCamelotBg:SetAtlas(btn._sfuiAtlasPressed or "common-dropdown-c-button-pressed-1")
+        else
+            local purple = (sfui.config and sfui.config.colors and sfui.config.colors.purple) or { 0.4, 0, 1 }
+            btn:SetBackdropBorderColor(purple[1], purple[2], purple[3], 1)
+        end
     end)
 
     menu:SetScript("OnHide", function(self)
@@ -830,8 +857,22 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
         if activeDropdown == self then
             activeDropdown = nil
         end
-        if btn and btn.SetBackdropBorderColor then
-            btn:SetBackdropBorderColor(0, 0, 0, 1)
+        if btn._sfuiCamelotBg and btn._sfuiCamelotBg:IsShown() then
+            btn._sfuiCamelotBg:SetAtlas(btn:IsMouseOver() and (btn._sfuiAtlasHover or "common-dropdown-c-button-hover-1") or (btn._sfuiAtlasNormal or "common-dropdown-c-button"))
+            local sfs = btn:GetFontString()
+            if sfs then
+                if btn:IsMouseOver() then
+                    sfs:SetTextColor(1.0, 0.95, 0.70, 1.0)
+                else
+                    local p = sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()
+                    local col = (p and p.tabNormal) or { 0.95, 0.85, 0.55, 1 }
+                    sfs:SetTextColor(col[1], col[2], col[3], 1)
+                end
+            end
+        else
+            if btn and btn.SetBackdropBorderColor then
+                btn:SetBackdropBorderColor(0, 0, 0, 1)
+            end
         end
     end)
 

@@ -182,25 +182,32 @@ end
 
 local function UpdateTabHighlights()
     if not frame then return end
-    local pal    = theme.GetPalette()
-    local accent = pal and pal.accentColor or { 1, 0.78, 0.2, 1 }
-    local dim    = pal and pal.tabNormal   or { 0.6, 0.6, 0.6, 1 }
+    if theme.ApplyTabStyle then
+        theme.ApplyTabStyle(frame.dungeonTabBtn, selectedTab == "dungeons")
+        theme.ApplyTabStyle(frame.raidTabBtn,    selectedTab == "raids")
+        theme.ApplyTabStyle(frame.bossesTab,     selectedMode == "bosses")
+        theme.ApplyTabStyle(frame.questsTab,     selectedMode == "quests")
+    else
+        local pal    = theme.GetPalette()
+        local accent = pal and pal.accentColor or { 1, 0.78, 0.2, 1 }
+        local dim    = pal and pal.tabNormal   or { 0.6, 0.6, 0.6, 1 }
 
-    if frame.dungeonTabBtn then
-        local da = (selectedTab == "dungeons") and accent or dim
-        SetTabButtonTextColor(frame.dungeonTabBtn, da)
-    end
-    if frame.raidTabBtn then
-        local ra = (selectedTab == "raids") and accent or dim
-        SetTabButtonTextColor(frame.raidTabBtn, ra)
-    end
-    if frame.bossesTab then
-        local ba = (selectedMode == "bosses") and accent or dim
-        SetTabButtonTextColor(frame.bossesTab, ba)
-    end
-    if frame.questsTab then
-        local qa = (selectedMode == "quests") and accent or dim
-        SetTabButtonTextColor(frame.questsTab, qa)
+        if frame.dungeonTabBtn then
+            local da = (selectedTab == "dungeons") and accent or dim
+            SetTabButtonTextColor(frame.dungeonTabBtn, da)
+        end
+        if frame.raidTabBtn then
+            local ra = (selectedTab == "raids") and accent or dim
+            SetTabButtonTextColor(frame.raidTabBtn, ra)
+        end
+        if frame.bossesTab then
+            local ba = (selectedMode == "bosses") and accent or dim
+            SetTabButtonTextColor(frame.bossesTab, ba)
+        end
+        if frame.questsTab then
+            local qa = (selectedMode == "quests") and accent or dim
+            SetTabButtonTextColor(frame.questsTab, qa)
+        end
     end
 end
 
@@ -405,9 +412,8 @@ function sfui.dungeonjournal.CreateFrame()
     -- ── Header bar ────────────────────────────────────────────────────────────
     local headerBar = CreateFrame("Frame", nil, frame)
     frame.headerBar = headerBar
-    headerBar:SetPoint("TOPLEFT",  frame, "TOPLEFT",  0,  0)
-    headerBar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0,  0)
-    headerBar:SetHeight(HEADER_H)
+    headerBar:SetSize(280, 26)
+    headerBar:SetPoint("TOP", frame, "TOP", 0, -8)
     headerBar:EnableMouse(false)
 
     theme.ApplyHeaderStyle(headerBar, "dungeon journal")
@@ -416,6 +422,7 @@ function sfui.dungeonjournal.CreateFrame()
     frame.closeBtn = closeBtn
     closeBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 2, 2)
     closeBtn:SetSize(28, 28)
+    closeBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
     closeBtn:SetScript("OnClick", function() frame:Hide() end)
     theme.ApplyCloseButtonStyle(closeBtn)
 
@@ -424,6 +431,7 @@ function sfui.dungeonjournal.CreateFrame()
     frame.mapOptBtn = mapOptBtn
     mapOptBtn:SetPoint("RIGHT", closeBtn, "LEFT", -4, 0)
     mapOptBtn:SetSize(22, 22)
+    mapOptBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
     mapOptBtn:SetBackdrop({
         bgFile   = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -457,6 +465,7 @@ function sfui.dungeonjournal.CreateFrame()
     frame.navWpBtn = navWpBtn
     navWpBtn:SetPoint("RIGHT", mapOptBtn, "LEFT", -4, 0)
     navWpBtn:SetSize(22, 22)
+    navWpBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
     navWpBtn:SetBackdrop({
         bgFile   = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -508,6 +517,7 @@ function sfui.dungeonjournal.CreateFrame()
     frame.showMapBtn = showMapBtn
     showMapBtn:SetPoint("RIGHT", navWpBtn, "LEFT", -4, 0)
     showMapBtn:SetSize(22, 22)
+    showMapBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
     showMapBtn:SetBackdrop({
         bgFile   = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -691,15 +701,19 @@ function sfui.dungeonjournal.CreateFrame()
         else
             btn:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -(HEADER_H + 4))
         end
-        btn:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-        btn:SetBackdropColor(0.08, 0.08, 0.10, 0.9)
-        btn:SetBackdropBorderColor(0.18, 0.18, 0.20, 1)
         local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         fs:SetPoint("CENTER")
         fs:SetText(text)
-        fs:SetTextColor(0.6, 0.6, 0.6, 1)
         btn.fs = fs
         if btn.SetFontString then btn:SetFontString(fs) end
+        if theme.ApplyTabStyle then
+            theme.ApplyTabStyle(btn, false)
+        else
+            btn:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+            btn:SetBackdropColor(0.08, 0.08, 0.10, 0.9)
+            btn:SetBackdropBorderColor(0.18, 0.18, 0.20, 1)
+            fs:SetTextColor(0.6, 0.6, 0.6, 1)
+        end
         return btn
     end
 
@@ -718,15 +732,19 @@ function sfui.dungeonjournal.CreateFrame()
         else
             btn:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDEBAR_W + 16, -(HEADER_H + 4))
         end
-        btn:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-        btn:SetBackdropColor(0.08, 0.08, 0.10, 0.9)
-        btn:SetBackdropBorderColor(0.18, 0.18, 0.20, 1)
         local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         fs:SetPoint("CENTER")
         fs:SetText(text)
-        fs:SetTextColor(0.6, 0.6, 0.6, 1)
         btn.fs = fs
         if btn.SetFontString then btn:SetFontString(fs) end
+        if theme.ApplyTabStyle then
+            theme.ApplyTabStyle(btn, false)
+        else
+            btn:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+            btn:SetBackdropColor(0.08, 0.08, 0.10, 0.9)
+            btn:SetBackdropBorderColor(0.18, 0.18, 0.20, 1)
+            fs:SetTextColor(0.6, 0.6, 0.6, 1)
+        end
         return btn
     end
 

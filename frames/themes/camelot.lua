@@ -58,6 +58,17 @@ sfui.theme.RegisterTheme({
         lootIconFrame       = "UI-Character-Info-OutfitIcon-Frame",
         lootGearSlot        = "UI-Character-Info-GearSlot",
         lootBankSlot        = "bank-frame-item-slotframe",
+        buttonNormal        = "common-dropdown-c-button",
+        buttonHover         = "common-dropdown-c-button-hover-1",
+        buttonPressed       = "common-dropdown-c-button-pressed-1",
+        buttonPressedHover  = "common-dropdown-c-button-pressedhover-1",
+        buttonDisabled      = "common-dropdown-c-button-disabled",
+        buttonFallback      = "common-dropdown-c-button",
+        buttonHoverFallback = "common-dropdown-c-button-hover-1",
+        buttonPressedFallback = "common-dropdown-c-button-pressed-1",
+    },
+    button         = {
+        style       = "bronze",
     },
     window         = {
         style       = "bronze",

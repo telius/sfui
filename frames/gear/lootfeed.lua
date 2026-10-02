@@ -81,9 +81,15 @@ local QUALITY_COLORS                          = {
 }
 
 local COLOR_GOLD                              = { 1.00, 0.84, 0.00 }
+local COLOR_SILVER                            = { 0.82, 0.85, 0.90 }
+local COLOR_COPPER                            = { 0.85, 0.55, 0.35 }
 local COLOR_XP                                = { 0.70, 0.30, 1.00 }
 local COLOR_REP                               = { 0.00, 0.75, 1.00 }
 local COLOR_SKILL                             = { 1.00, 0.65, 0.15 } -- Warm Amber / Orange (matches WoW skill up)
+
+local ICON_COIN_GOLD                          = "Interface\\Icons\\INV_Misc_Coin_01"
+local ICON_COIN_SILVER                        = "Interface\\Icons\\INV_Misc_Coin_03"
+local ICON_COIN_COPPER                        = "Interface\\Icons\\INV_Misc_Coin_05"
 
 local SKILL_ICONS                             = {
     -- Secondary
@@ -303,9 +309,16 @@ local function CreateRowFrame(parent)
 
         if self.isCamelotRow then
             if self.lootfeedStyle == "architectural" then
-                self:SetBackdropColor(0.14, 0.11, 0.08, 0.95)
-                if self.SetBackdropBorderColor then
-                    self:SetBackdropBorderColor(0.85, 0.70, 0.35, 1.0)
+                if self.isOther then
+                    self:SetBackdropColor(0.26, 0.26, 0.30, 0.95)
+                    if self.SetBackdropBorderColor then
+                        self:SetBackdropBorderColor(0.65, 0.65, 0.70, 1.0)
+                    end
+                else
+                    self:SetBackdropColor(0.14, 0.11, 0.08, 0.95)
+                    if self.SetBackdropBorderColor then
+                        self:SetBackdropBorderColor(0.85, 0.70, 0.35, 1.0)
+                    end
                 end
             else
                 if self.hoverOverlay then
@@ -313,7 +326,14 @@ local function CreateRowFrame(parent)
                 end
             end
         else
-            self:SetBackdropColor(0.08, 0.08, 0.08, 0.70)
+            if self.isOther then
+                self:SetBackdropColor(0.28, 0.28, 0.32, 0.85)
+                if self.SetBackdropBorderColor then
+                    self:SetBackdropBorderColor(0.60, 0.60, 0.68, 1.0)
+                end
+            else
+                self:SetBackdropColor(0.08, 0.08, 0.08, 0.70)
+            end
         end
 
         local anchor = (self:GetRight() and self:GetRight() > (UIParent:GetWidth() or 1000) / 2) and "ANCHOR_LEFT" or "ANCHOR_RIGHT"
@@ -343,10 +363,17 @@ local function CreateRowFrame(parent)
 
         if self.isCamelotRow then
             if self.lootfeedStyle == "architectural" then
-                local pal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()) or sfui.config.appearance
-                self:SetBackdropColor(pal.backdropColor[1], pal.backdropColor[2], pal.backdropColor[3], 0.94)
-                if self.SetBackdropBorderColor then
-                    self:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.90)
+                if self.isOther then
+                    self:SetBackdropColor(0.20, 0.20, 0.23, 0.92)
+                    if self.SetBackdropBorderColor then
+                        self:SetBackdropBorderColor(0.45, 0.45, 0.48, 0.90)
+                    end
+                else
+                    local pal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()) or sfui.config.appearance
+                    self:SetBackdropColor(pal.backdropColor[1], pal.backdropColor[2], pal.backdropColor[3], 0.94)
+                    if self.SetBackdropBorderColor then
+                        self:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.90)
+                    end
                 end
             else
                 if self.hoverOverlay then
@@ -354,9 +381,16 @@ local function CreateRowFrame(parent)
                 end
             end
         else
-            self:SetBackdropColor(0, 0, 0, 0.50)
-            if self.SetBackdropBorderColor then
-                self:SetBackdropBorderColor(0, 0, 0, 0.50)
+            if self.isOther then
+                self:SetBackdropColor(0.22, 0.22, 0.26, 0.75)
+                if self.SetBackdropBorderColor then
+                    self:SetBackdropBorderColor(0.42, 0.42, 0.48, 0.85)
+                end
+            else
+                self:SetBackdropColor(0, 0, 0, 0.50)
+                if self.SetBackdropBorderColor then
+                    self:SetBackdropBorderColor(0, 0, 0, 0.50)
+                end
             end
         end
         GameTooltip:Hide()
@@ -422,6 +456,8 @@ local function AcquireRowFrame()
             row:SetBackdropBorderColor(0, 0, 0, 0.50)
         end
     end
+    row.isOther = false
+    row.looter = nil
     row.isPaused = false
     row.itemLink = nil
     row.currencyID = nil
@@ -443,11 +479,21 @@ local function ReleaseRowFrame(row)
     row.currencyID = nil
     row.tooltipTitle = nil
     row.tooltipDesc = nil
-    if row.cardBg then row.cardBg:Hide() end
+    row.isOther = false
+    row.looter = nil
+    if row.cardBg then
+        row.cardBg:SetDesaturated(false)
+        row.cardBg:SetVertexColor(1, 1, 1, 1)
+        row.cardBg:Hide()
+    end
     if row.hoverOverlay then row.hoverOverlay:Hide() end
     if row.iconSlot then row.iconSlot:Hide() end
     if row.iconBorder then row.iconBorder:Hide() end
     if row.cornerTL then
+        row.cornerTL:SetVertexColor(1, 1, 1, 1)
+        row.cornerTR:SetVertexColor(1, 1, 1, 1)
+        row.cornerBL:SetVertexColor(1, 1, 1, 1)
+        row.cornerBR:SetVertexColor(1, 1, 1, 1)
         row.cornerTL:Hide()
         row.cornerTR:Hide()
         row.cornerBL:Hide()
@@ -642,9 +688,9 @@ function sfui.lootfeed.DisplayLoot(data, fromQueue)
         existingRow.state = "DISPLAY"
         existingRow:SetAlpha(1)
 
-        -- Quick visual refresh pulse
+        existingRow.isOther = (data.isOther == true) or (data.looter ~= nil and data.looter ~= "")
         if sfui.theme and sfui.theme.ApplyLootfeedRowStyle then
-            sfui.theme.ApplyLootfeedRowStyle(existingRow, data.color, data.quality)
+            sfui.theme.ApplyLootfeedRowStyle(existingRow, data.color, data.quality, existingRow.isOther)
         elseif existingRow.accent then
             local c = data.color or { 1, 1, 1 }
             existingRow.accent:SetColorTexture(c[1], c[2], c[3], 1)
@@ -679,6 +725,8 @@ function sfui.lootfeed.DisplayLoot(data, fromQueue)
     row.currencyID = data.currencyID
     row.tooltipTitle = data.tooltipTitle
     row.tooltipDesc = data.tooltipDesc
+    row.isOther = (data.isOther == true) or (data.looter ~= nil and data.looter ~= "")
+    row.looter = data.looter
 
     -- Colors & Accent
     local col = data.color or { 1, 1, 1 }
@@ -712,9 +760,20 @@ function sfui.lootfeed.DisplayLoot(data, fromQueue)
 
     -- Theme Styling (Option D: Sunken Bronze Slot & Loot Toast Glow in Camelot)
     if sfui.theme and sfui.theme.ApplyLootfeedRowStyle then
-        sfui.theme.ApplyLootfeedRowStyle(row, col, data.quality)
+        sfui.theme.ApplyLootfeedRowStyle(row, col, data.quality, row.isOther)
     else
         row.accent:SetColorTexture(col[1] or 1, col[2] or 1, col[3] or 1, 1)
+        if row.isOther then
+            row:SetBackdropColor(0.22, 0.22, 0.26, 0.75)
+            if row.SetBackdropBorderColor then
+                row:SetBackdropBorderColor(0.42, 0.42, 0.48, 0.85)
+            end
+        else
+            row:SetBackdropColor(0, 0, 0, 0.50)
+            if row.SetBackdropBorderColor then
+                row:SetBackdropBorderColor(0, 0, 0, 0.50)
+            end
+        end
     end
 
     -- Dungeon Journal Wishlist Highlight
@@ -765,14 +824,20 @@ local function FormatCopperString(copper)
 end
 
 local function FormatAbbreviatedGold(copper)
-    if not copper or IsSecret(copper) then return "0" .. COIN_GOLD end
+    if not copper or IsSecret(copper) then return "0" .. COIN_COPPER end
     local g = math_floor(copper / 10000)
     if g >= 1000000 then
         return string_format("%.2fM", g / 1000000) .. COIN_GOLD
     elseif g >= 1000 then
         return string_format("%.1fK", g / 1000) .. COIN_GOLD
+    elseif g > 0 then
+        return tostring(g) .. COIN_GOLD
     end
-    return tostring(g) .. COIN_GOLD
+    local s = math_floor((copper % 10000) / 100)
+    if s > 0 then
+        return tostring(s) .. COIN_SILVER
+    end
+    return tostring(copper % 100) .. COIN_COPPER
 end
 
 -- 2. Item Loot
@@ -836,9 +901,13 @@ local function OnItemLoot(msg, looterName)
     local key = "ITEM_" .. (itemID or itemLink) .. (looterName and ("_" .. looterName) or "")
     local displayTitle = itemLink
     if looterName and looterName ~= "" then
+        local cleanLooter = string_match(looterName, "^([^-]+)") or looterName
         local _, classFile = UnitClass(looterName)
+        if not classFile and cleanLooter ~= looterName then
+            _, classFile = UnitClass(cleanLooter)
+        end
         local cColor = classFile and (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[classFile]
-        local cTag = cColor and string_format("|c%s%s|r", cColor.colorStr or "ffffffff", looterName) or looterName
+        local cTag = cColor and string_format("|c%s%s|r", cColor.colorStr or "ffffffff", cleanLooter) or cleanLooter
         displayTitle = string_format("%s (|cffa0a0a0%s|r)", itemLink, cTag)
     end
 
@@ -857,6 +926,8 @@ local function OnItemLoot(msg, looterName)
         badgeText = badge,
         itemLink = itemLink,
         isWishlist = isWishlist,
+        isOther = isPartyLoot,
+        looter = looterName,
     })
 end
 
@@ -907,14 +978,29 @@ local function OnMoneyUpdate()
     local badge = FormatAbbreviatedGold(cur)
     local titleStr = FormatCopperString(delta)
 
+    local icon, col, ttTitle
+    if delta >= 10000 then
+        icon = ICON_COIN_GOLD
+        col = COLOR_GOLD
+        ttTitle = "Gold Earned"
+    elseif delta >= 100 then
+        icon = ICON_COIN_SILVER
+        col = COLOR_SILVER
+        ttTitle = "Silver Earned"
+    else
+        icon = ICON_COIN_COPPER
+        col = COLOR_COPPER
+        ttTitle = "Copper Earned"
+    end
+
     sfui.lootfeed.DisplayLoot({
         key = "MONEY",
         title = titleStr,
-        icon = "Interface\\Icons\\INV_Misc_Coin_01",
-        color = COLOR_GOLD,
+        icon = icon,
+        color = col,
         quantity = delta,
         badgeText = badge,
-        tooltipTitle = "Gold Earned",
+        tooltipTitle = ttTitle,
         tooltipDesc = "Total Wealth: " .. FormatCopperString(cur),
     })
 end
@@ -1428,14 +1514,15 @@ end
 -- ─────────────────────────────────────────────────────────────────────────────
 function sfui.lootfeed.TriggerTestFeed()
     local testItems = {
-        { key = "TEST_ITEM_1", title = "|cffffffff[Rough Wooden Staff]|r (|cff69ccf0MageMate|r)",           icon = "Interface\\Icons\\INV_Staff_08",                       color = QUALITY_COLORS[1], quality = 1, quantity = 7,         badgeText = "x7",                                        itemLink = "item:4560" },
+        { key = "TEST_ITEM_1", title = "|cffffffff[Rough Wooden Staff]|r (|cff69ccf0MageMate|r)",           icon = "Interface\\Icons\\INV_Staff_08",                       color = QUALITY_COLORS[1], quality = 1, quantity = 7,         badgeText = "x7",                                        itemLink = "item:4560", isOther = true, looter = "MageMate" },
         { key = "TEST_CURR_1", title = "|cff0070dd[Timewarped Badge]|r",                                     icon = "Interface\\Icons\\pvecurrency-justice",                color = QUALITY_COLORS[3], quality = 3, quantity = 100,       badgeText = "x100 (200)",                                currencyID = 1166,        tooltipTitle = "Timewarped Badge",   tooltipDesc = "Used to purchase rewards from Timewalking vendors." },
         { key = "TEST_ITEM_2", title = "|cffffffff[Paper Zeppelin]|r",                                       icon = "Interface\\Icons\\INV_Misc_Toy_02",                    color = QUALITY_COLORS[1], quality = 1, quantity = 9,         badgeText = "x9",                                        itemLink = "item:44606" },
-        { key = "TEST_ITEM_3", title = "|cffa335ee[Xal'atath, Blade of the Black Empire]|r (|cffff7c0aDruidMate|r)", icon = "Interface\\Icons\\INV_Knife_1H_ArtifactXalatath_D_01", color = QUALITY_COLORS[4], quality = 4, quantity = 7, badgeText = "x7",                               itemLink = "item:128827" },
+        { key = "TEST_ITEM_3", title = "|cffa335ee[Xal'atath, Blade of the Black Empire]|r (|cffff7c0aDruidMate|r)", icon = "Interface\\Icons\\INV_Knife_1H_ArtifactXalatath_D_01", color = QUALITY_COLORS[4], quality = 4, quantity = 7, badgeText = "x7",                               itemLink = "item:128827", isOther = true, looter = "DruidMate" },
         { key = "TEST_XP_1",   title = "39727 XP",                                                           icon = "Interface\\Icons\\Spell_Holy_SurgeOfLight",            color = COLOR_XP,          quantity = 39727,     badgeText = "<90%>",                                     tooltipTitle = "Experience Gained", tooltipDesc = "Current: 39,727 / 44,140 (90%)" },
         { key = "TEST_SKILL_1", title = "+1 Fishing",                                                         icon = "Interface\\Icons\\Trade_Fishing",                      color = COLOR_SKILL,       quantity = 1,         badgeText = "75/150",                                    tooltipTitle = "Fishing: 75",       tooltipDesc = "Skill level increased to 75 of 150 (+1)." },
         { key = "TEST_ITEM_4", title = "|cffa335ee[Invincible's Reins]|r",                                   icon = "Interface\\Icons\\Ability_Mount_CelestialHorse",       color = QUALITY_COLORS[4], quality = 4, quantity = 1,         badgeText = "x1",                                        itemLink = "item:50818" },
-        { key = "TEST_MONEY",  title = "39467" .. COIN_GOLD .. " 59" .. COIN_SILVER .. " 49" .. COIN_COPPER, icon = "Interface\\Icons\\INV_Misc_Coin_01",                   color = COLOR_GOLD,        quantity = 394675949, badgeText = "208.97K" .. COIN_GOLD,                     tooltipTitle = "Gold Earned",       tooltipDesc = "Total Wealth: 208,970 Gold 59 Silver" },
+        { key = "TEST_MONEY",         title = "39467" .. COIN_GOLD .. " 59" .. COIN_SILVER .. " 49" .. COIN_COPPER, icon = ICON_COIN_GOLD,   color = COLOR_GOLD,   quantity = 394675949, badgeText = "208.97K" .. COIN_GOLD, tooltipTitle = "Gold Earned",   tooltipDesc = "Total Wealth: 208,970 Gold 59 Silver" },
+        { key = "TEST_MONEY_SILVER",  title = "74" .. COIN_SILVER .. " 12" .. COIN_COPPER,                         icon = ICON_COIN_SILVER, color = COLOR_SILVER, quantity = 7412,      badgeText = "208.97K" .. COIN_GOLD, tooltipTitle = "Silver Earned", tooltipDesc = "Total Wealth: 208,970 Gold 59 Silver" },
         { key = "TEST_ITEM_5", title = "|cffffffff[Linen Cloth]|r",                                          icon = "Interface\\Icons\\INV_Fabric_Linen_01",                color = QUALITY_COLORS[1], quality = 1, quantity = 4,         badgeText = "x4 " .. VENDOR_ICON .. " 52" .. COIN_COPPER, itemLink = "item:2589" },
         { key = "TEST_ITEM_6", title = "|cff9d9d9d[Wool Cloth]|r",                                           icon = "Interface\\Icons\\INV_Fabric_Wool_01",                 color = QUALITY_COLORS[0], quality = 0, quantity = 3,         badgeText = "x3 " .. VENDOR_ICON .. " 99" .. COIN_COPPER, itemLink = "item:2592" },
         { key = "TEST_ITEM_7", title = "|cff0070dd[Torn Journal Entry]|r",                                   icon = "Interface\\Icons\\INV_Misc_Note_01",                   color = QUALITY_COLORS[3], quality = 3, quantity = 1,         badgeText = "x1",                                        itemLink = "item:33009" },

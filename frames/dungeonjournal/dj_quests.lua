@@ -555,25 +555,34 @@ local function RenderQuestDetail(quest, dungeon)
         local shareBtn = CreateFrame("Button", nil, info, "BackdropTemplate")
         info.shareBtn = shareBtn
         shareBtn:SetSize(130, 22)
-        shareBtn:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
-        shareBtn:SetBackdropColor(0.10, 0.10, 0.14, 0.9)
-        shareBtn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.6)
-
         local sfs = shareBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         shareBtn.fs = sfs
         sfs:SetPoint("CENTER")
         sfs:SetText("share quest")
-        sfs:SetTextColor(accent[1], accent[2], accent[3], 1)
+
+        if sfui.theme and sfui.theme.ApplyButtonStyle then
+            sfui.theme.ApplyButtonStyle(shareBtn, false)
+            sfui.theme.RegisterButton(shareBtn, false)
+        else
+            shareBtn:SetBackdrop({
+                bgFile   = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = 1,
+            })
+            shareBtn:SetBackdropColor(0.10, 0.10, 0.14, 0.9)
+            shareBtn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.6)
+            sfs:SetTextColor(accent[1], accent[2], accent[3], 1)
+        end
 
         shareBtn:SetScript("OnEnter", function(self)
-            self:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1)
+            if not self._sfuiCamelotBg then
+                self:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1)
+            end
         end)
         shareBtn:SetScript("OnLeave", function(self)
-            self:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.6)
+            if not self._sfuiCamelotBg then
+                self:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.6)
+            end
         end)
 
         shareBtn:SetScript("OnClick", function()
@@ -630,22 +639,29 @@ local function RenderQuestDetail(quest, dungeon)
         local mapBtn = CreateFrame("Button", nil, info, "BackdropTemplate")
         info.mapBtn = mapBtn
         mapBtn:SetSize(130, 22)
-        mapBtn:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
-        mapBtn:SetBackdropColor(0.10, 0.10, 0.14, 0.9)
-        mapBtn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.6)
-
         local mfs = mapBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         mapBtn.fs = mfs
         mfs:SetPoint("CENTER")
         mfs:SetText("show on map")
-        mfs:SetTextColor(accent[1], accent[2], accent[3], 1)
+
+        if sfui.theme and sfui.theme.ApplyButtonStyle then
+            sfui.theme.ApplyButtonStyle(mapBtn, false)
+            sfui.theme.RegisterButton(mapBtn, false)
+        else
+            mapBtn:SetBackdrop({
+                bgFile   = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = 1,
+            })
+            mapBtn:SetBackdropColor(0.10, 0.10, 0.14, 0.9)
+            mapBtn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.6)
+            mfs:SetTextColor(accent[1], accent[2], accent[3], 1)
+        end
 
         mapBtn:SetScript("OnEnter", function(self)
-            self:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1)
+            if not self._sfuiCamelotBg then
+                self:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1)
+            end
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:ClearLines()
             GameTooltip:AddLine("Show on Map", accent[1], accent[2], accent[3])

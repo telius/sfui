@@ -235,7 +235,7 @@ sfui.options.RegisterTab({
             local isC = sfui.theme.IsCamelotActive()
             if isC then
                 preview_body:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3])
-                preview_body:SetText("Tactile cast-bronze window, ornate corner brackets, embossed banners, and red/gold close button.")
+                preview_body:SetText("Tactile cast-bronze window, ornate corner brackets, embossed banners, sculpted bronze panel buttons, and red/gold close button.")
             else
                 preview_body:SetTextColor(0.8, 0.8, 0.8, 1)
                 preview_body:SetText("Clean, flat minimalist black border with electric cyan/purple accents and flat buttons.")
