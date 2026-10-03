@@ -387,7 +387,7 @@ ApplyTargetStyle = function(hBar, lFrame)
         if lFrame then
             lFrame:ClearAllPoints()
             lFrame:SetPoint("LEFT", bd, "RIGHT", 2, 0)
-            local barH = (sfui.config and sfui.config.targetBar and sfui.config.targetBar.height) or 16
+            local barH = (SfuiDB and SfuiDB.targetBar_height) or (sfui.config and sfui.config.targetBar and sfui.config.targetBar.height) or 13
             local pad = (sfui.config and sfui.config.targetBar and sfui.config.targetBar.backdrop and sfui.config.targetBar.backdrop.padding) or 1
             lFrame:SetSize(24, barH + pad * 2)
 
@@ -426,12 +426,17 @@ ApplyTargetStyle = function(hBar, lFrame)
         powerBar.backdrop:SetBackdropBorderColor(bdCol[1], bdCol[2], bdCol[3], bdCol[4] or 1)
     end
 
-    -- Adjust container width to avoid right overhang when level is on the top-right
+    -- Ensure health bar is centered horizontally inside container
+    if hBar and hBar.backdrop and targetContainer then
+        hBar.backdrop:ClearAllPoints()
+        hBar.backdrop:SetPoint("TOP", targetContainer, "TOP", 0, -22)
+    end
+
+    -- Symmetrical container width matching health bar backdrop
     if targetContainer and not (_G.InCombatLockdown and _G.InCombatLockdown()) then
-        local barW = (sfui.config and sfui.config.targetBar and sfui.config.targetBar.width) or 190
+        local barW = (SfuiDB and SfuiDB.targetBar_width) or (sfui.config and sfui.config.targetBar and sfui.config.targetBar.width) or 230
         local pad = (sfui.config and sfui.config.targetBar and sfui.config.targetBar.backdrop and sfui.config.targetBar.backdrop.padding) or 1
-        local newW = useCamelotArtwork and (barW + pad * 2) or (barW + 28 + 5 + pad * 2)
-        targetContainer:SetWidth(newW)
+        targetContainer:SetWidth(barW + pad * 2)
     end
 
     -- Re-apply current bar texture (e.g. Flat for Modern, Blizzard Nameplate for Camelot)
@@ -463,19 +468,12 @@ ApplyTargetPosition = function()
 
     local savedPos = SfuiDB and SfuiDB.targetBar_pos
 
-    if savedPos and savedPos.isCustom and savedPos.point and savedPos.x and savedPos.y then
-        targetContainer:SetPoint(savedPos.point, UIParent, savedPos.point, savedPos.x, savedPos.y)
+    if savedPos and savedPos.isCustom and savedPos.point == "TOP" and savedPos.x and savedPos.y then
+        targetContainer:SetPoint("TOP", UIParent, "TOP", savedPos.x, savedPos.y)
     else
         local tCfg = (sfui.config and sfui.config.targetBar) or cfg
         local pos = (tCfg and tCfg.pos) or { point = "TOP", x = 0, y = -35 }
-        if pos.relativeTo == "playerHealthBar" then
-            local playerBar = GetPlayerHealthBar()
-            if playerBar then
-                targetContainer:SetPoint(pos.point or "TOPLEFT", playerBar, pos.relativePoint or "TOPRIGHT", pos.x or 8, pos.y or 18)
-                return
-            end
-        end
-        targetContainer:SetPoint(pos.point or "TOP", UIParent, pos.point or "TOP", pos.x or 0, pos.y or -35)
+        targetContainer:SetPoint("TOP", UIParent, "TOP", pos.x or 0, pos.y or -35)
     end
 end
 
@@ -1065,15 +1063,15 @@ local function CreateTargetFrame()
     if targetContainer then return targetContainer end
 
     local tCfg = (sfui.config and sfui.config.targetBar) or cfg
-    local barW = (SfuiDB and SfuiDB.targetBar_width) or tCfg.width or 190
-    if barW == 200 or barW == 300 or barW == 400 then
-        barW = 190
-        if SfuiDB then SfuiDB.targetBar_width = 190 end
+    local barW = (SfuiDB and SfuiDB.targetBar_width) or tCfg.width or 230
+    if barW == 190 or barW == 200 or barW == 300 or barW == 400 then
+        barW = 230
+        if SfuiDB then SfuiDB.targetBar_width = 230 end
     end
-    local barH = (SfuiDB and SfuiDB.targetBar_height) or tCfg.height or 16
-    if barH == 12 or barH == 20 then
-        barH = 16
-        if SfuiDB then SfuiDB.targetBar_height = 16 end
+    local barH = (SfuiDB and SfuiDB.targetBar_height) or tCfg.height or 13
+    if barH == 12 or barH == 16 or barH == 20 then
+        barH = 13
+        if SfuiDB then SfuiDB.targetBar_height = 13 end
     end
     local pwrH = (SfuiDB and SfuiDB.targetBar_powerHeight) or tCfg.powerHeight or 3
     if pwrH == 5 then
@@ -1085,8 +1083,8 @@ local function CreateTargetFrame()
     local barTex = GetBarTexture()
 
     -- 1. Main Secure Action Button Container
-    -- Size accounts for 190px healthBar + 5px gap + 28px level badge + padding
-    local totalW = barW + 28 + 5 + pad * 2
+    -- Matches healthBar backdrop width exactly: barW + pad * 2
+    local totalW = barW + pad * 2
     local f = CreateFrame("Button", "SfuiTargetFrame", UIParent, "SecureActionButtonTemplate")
     f:SetSize(totalW, barH + pwrH + 54)
     f:SetFrameStrata("MEDIUM")
@@ -1111,12 +1109,23 @@ local function CreateTargetFrame()
         if self.isMoving then
             self:StopMovingOrSizing()
             self.isMoving = false
-            local pt, _, _, x, y = self:GetPoint()
+            local cx = self:GetCenter()
+            local top = self:GetTop()
+            local uiWidth = UIParent:GetWidth()
+            local uiTop = UIParent:GetTop()
+            local x = (cx and uiWidth) and math_floor(cx - (uiWidth / 2) + 0.5) or 0
+            local y = (top and uiTop) and math_floor(top - uiTop + 0.5) or -35
+            -- Snap to exact center if dragged within 6 pixels of horizontal center
+            if math.abs(x) <= 6 then
+                x = 0
+            end
+            self:ClearAllPoints()
+            self:SetPoint("TOP", UIParent, "TOP", x, y)
             SfuiDB = SfuiDB or {}
             SfuiDB.targetBar_pos = {
-                point = pt or "TOP",
-                x = math_floor(x + 0.5),
-                y = math_floor(y + 0.5),
+                point = "TOP",
+                x = x,
+                y = y,
                 isCustom = true,
             }
         end
@@ -1124,22 +1133,23 @@ local function CreateTargetFrame()
 
     targetContainer = f
 
-    -- Migrate legacy coordinates to new top-of-screen default
-    if SfuiDB and SfuiDB.targetBar_pos and (
-        not SfuiDB.targetBar_pos.isCustom or
-        SfuiDB.targetBar_pos.point == "TOPLEFT" or
-        SfuiDB.targetBar_pos.point == "CENTER" or
-        SfuiDB.targetBar_pos.y == -200 or
-        SfuiDB.targetBar_pos.y == -100
-    ) then
-        SfuiDB.targetBar_pos = nil
+    -- Migrate legacy coordinates to new center-top default
+    if SfuiDB and SfuiDB.targetBar_pos then
+        local p = SfuiDB.targetBar_pos
+        if not p.isCustom or
+           p.point ~= "TOP" or
+           p.y == -200 or
+           p.y == -100 or
+           (p.x and math.abs(p.x) <= 20 and p.x ~= 0) then
+            SfuiDB.targetBar_pos = nil
+        end
     end
 
     ApplyTargetPosition()
 
-    -- 2. Clean Health Bar (Matching Blizzard NamePlate dimensions & positioning)
+    -- 2. Clean Health Bar (Centered horizontally inside container)
     healthBar = CreateCleanBar("SfuiTargetHealthBar", f, barW, barH, pad, bgCol)
-    healthBar.backdrop:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -22)
+    healthBar.backdrop:SetPoint("TOP", f, "TOP", 0, -22)
 
     -- Heal Prediction Bar (Identical logic to bars.lua)
     healPredBar = CreateFrame("StatusBar", nil, healthBar)
@@ -1159,10 +1169,14 @@ local function CreateTargetFrame()
         absorbBar:GetStatusBarTexture():SetBlendMode("ADD")
     end
 
-    -- 3. Dedicated Level Frame Badge (Pill on the right of the health bar)
-    levelFrame = CreateFrame("Frame", "SfuiTargetLevelFrame", f, "BackdropTemplate")
-    levelFrame:SetSize(28, barH)
-    levelFrame:SetPoint("LEFT", healthBar.backdrop, "RIGHT", 5, 0)
+    -- 3. Dedicated Level Frame Badge
+    levelFrame = CreateFrame("Button", "SfuiTargetLevelFrame", f, "SecureActionButtonTemplate,BackdropTemplate")
+    levelFrame:SetSize(24, barH + pad * 2)
+    levelFrame:SetPoint("LEFT", healthBar.backdrop, "RIGHT", 2, 0)
+    levelFrame:SetAttribute("unit", "target")
+    levelFrame:SetAttribute("*type1", "target")
+    levelFrame:SetAttribute("*type2", "togglemenu")
+    levelFrame:RegisterForClicks("AnyUp", "AnyDown")
 
     levelText = levelFrame:CreateFontString(nil, "OVERLAY", nil, 5)
     levelText:SetFont(GetFontPath(), 11, "OUTLINE")

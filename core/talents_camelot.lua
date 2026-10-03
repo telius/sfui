@@ -339,135 +339,8 @@ local function get_classic_talent_spec_info(vSpecID, classFilename)
     local totalPoints = 0
     local foundData = false
 
-    -- Method 1: Camelot C_Traits group display & currency info
-    local C_Traits = _G.C_Traits
-    local C_ClassTalents = _G.C_ClassTalents
-    if C_Traits and C_Traits.GetGroupDisplayInfoByTreeID then
-        local configID = (C_ClassTalents and C_ClassTalents.GetActiveConfigID and C_ClassTalents.GetActiveConfigID())
-            or (C_SpecializationInfo and C_SpecializationInfo.GetCombatConfigIDForSpecGroup and C_SpecializationInfo.GetCombatConfigIDForSpecGroup(activeGroup))
-            or (C_SpecializationInfo and C_SpecializationInfo.GetCombatConfigIDForSpecGroup and C_SpecializationInfo.GetCombatConfigIDForSpecGroup(1))
-            or (C_Traits.GetConfigIDBySystemID and C_Traits.GetConfigIDBySystemID(activeGroup))
-            or (C_Traits.GetConfigIDBySystemID and C_Traits.GetConfigIDBySystemID(1))
-            or (C_Traits.GetConfigsByType and C_Traits.GetConfigsByType(1) and (C_Traits.GetConfigsByType(1)[activeGroup] or C_Traits.GetConfigsByType(1)[1]))
-        if configID then
-            local configInfo = C_Traits.GetConfigInfo(configID)
-            local treeIDs = configInfo and configInfo.treeIDs
-            if treeIDs and #treeIDs > 0 then
-                local traitTotal = 0
-                for _, treeID in ipairs(treeIDs) do
-                    local displayInfos = C_Traits.GetGroupDisplayInfoByTreeID(treeID)
-                    if displayInfos and #displayInfos > 0 then
-                        local groupIDs = {}
-                        for _, di in ipairs(displayInfos) do
-                            local gid = di.groupID or di.traitNodeGroupID
-                            if gid then
-                                table.insert(groupIDs, gid)
-                            end
-                        end
-
-                        local groupInfos = C_Traits.GetGroupCurrencyInfo and C_Traits.GetGroupCurrencyInfo(configID, groupIDs)
-                        local function findGroupInfo(gid)
-                            if not groupInfos or not gid then return nil end
-                            for _, gi in ipairs(groupInfos) do
-                                if (gi.traitNodeGroupID and gi.traitNodeGroupID == gid) or (gi.groupID and gi.groupID == gid) then
-                                    return gi
-                                end
-                            end
-                            return nil
-                        end
-
-                        for i, di in ipairs(displayInfos) do
-                            local gid = di.groupID or di.traitNodeGroupID
-                            local gi = findGroupInfo(gid)
-                            local spent = 0
-                            if gi then
-                                local cInfo = gi.currencyInfos and gi.currencyInfos[1]
-                                spent = (cInfo and cInfo.spent) or gi.spent or 0
-                            end
-                            if spent == 0 then
-                                spent = (di.spent and di.spent > 0 and di.spent)
-                                    or (di.spentInTree and di.spentInTree > 0 and di.spentInTree)
-                                    or (di.currencyInfos and di.currencyInfos[1] and di.currencyInfos[1].spent)
-                                    or 0
-                            end
-
-                            -- Match display group to tree index (1..3)
-                            local dName = di.displayName and di.displayName:lower() or ""
-                            local matchedIdx = nil
-                            if dName ~= "" and CLASSIC_TREE_SPECS[vSpecID] then
-                                for idx = 1, 3 do
-                                    local t = CLASSIC_TREE_SPECS[vSpecID][idx]
-                                    if t and t.name and (dName == t.name:lower() or dName:find(t.name:lower(), 1, true)) then
-                                        matchedIdx = idx
-                                        break
-                                    end
-                                end
-                            end
-                            if not matchedIdx and i >= 1 and i <= 3 then
-                                matchedIdx = i
-                            end
-                            if not matchedIdx and di.orderIndex ~= nil then
-                                matchedIdx = di.orderIndex + 1
-                            end
-
-                            if matchedIdx and _classicTreeScratch[matchedIdx] then
-                                _classicTreeScratch[matchedIdx].name = di.displayName or _classicTreeScratch[matchedIdx].name
-                                _classicTreeScratch[matchedIdx].icon = di.icon or _classicTreeScratch[matchedIdx].icon
-                                _classicTreeScratch[matchedIdx].points = (_classicTreeScratch[matchedIdx].points or 0) + spent
-                                traitTotal = traitTotal + spent
-                            end
-                        end
-                    end
-                end
-
-                -- Fallback: Node-by-node rank counting if traitTotal is still 0
-                if traitTotal == 0 and C_Traits.GetTreeNodes and C_Traits.GetNodeInfo then
-                    for _, treeID in ipairs(treeIDs) do
-                        local displayInfos = C_Traits.GetGroupDisplayInfoByTreeID(treeID)
-                        local nodeIDs = C_Traits.GetTreeNodes(treeID)
-                        if nodeIDs and #nodeIDs > 0 and displayInfos and #displayInfos > 0 then
-                            for _, nodeID in ipairs(nodeIDs) do
-                                local nodeInfo = C_Traits.GetNodeInfo(configID, nodeID)
-                                local ranks = nodeInfo and nodeInfo.ranksPurchased or 0
-                                if ranks > 0 and nodeInfo.groupIDs and #nodeInfo.groupIDs > 0 then
-                                    local nGid = nodeInfo.groupIDs[1]
-                                    for i, di in ipairs(displayInfos) do
-                                        local gid = di.groupID or di.traitNodeGroupID
-                                        if gid == nGid then
-                                            local matchedIdx = i
-                                            local dName = di.displayName and di.displayName:lower() or ""
-                                            if dName ~= "" and CLASSIC_TREE_SPECS[vSpecID] then
-                                                for idx = 1, 3 do
-                                                    local t = CLASSIC_TREE_SPECS[vSpecID][idx]
-                                                    if t and t.name and (dName == t.name:lower() or dName:find(t.name:lower(), 1, true)) then
-                                                        matchedIdx = idx
-                                                        break
-                                                    end
-                                                end
-                                            end
-                                            if matchedIdx and _classicTreeScratch[matchedIdx] then
-                                                _classicTreeScratch[matchedIdx].points = (_classicTreeScratch[matchedIdx].points or 0) + ranks
-                                                traitTotal = traitTotal + ranks
-                                            end
-                                            break
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-
-                if traitTotal > 0 then
-                    totalPoints = traitTotal
-                    foundData = true
-                end
-            end
-        end
-    end
-
-    -- Method 2: Classic Era / Camelot C_SpecializationInfo or GetTalentTabInfo
-    if not foundData or totalPoints == 0 then
+    -- Method 1: Classic Era / Camelot GetTalentTabInfo or C_SpecializationInfo (Instant, native 3-call API)
+    if GetTalentTabInfo or (C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo) then
         for i = 1, 3 do
             local tName, tIcon, tPoints, tRole
             if C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo then
@@ -504,8 +377,97 @@ local function get_classic_talent_spec_info(vSpecID, classFilename)
                 _classicTreeScratch[i].points = pts
                 _classicTreeScratch[i].role = tRole or _classicTreeScratch[i].role
                 totalPoints = totalPoints + pts
-                if pts > 0 then
-                    foundData = true
+                foundData = true
+            end
+        end
+    end
+
+    -- Method 2: Camelot C_Traits group display & currency info (Fallback when native tab API is not populated)
+    if not foundData then
+        local C_Traits = _G.C_Traits
+        local C_ClassTalents = _G.C_ClassTalents
+        if C_Traits and C_Traits.GetGroupDisplayInfoByTreeID then
+            local configID = (C_ClassTalents and C_ClassTalents.GetActiveConfigID and C_ClassTalents.GetActiveConfigID())
+                or (C_SpecializationInfo and C_SpecializationInfo.GetCombatConfigIDForSpecGroup and C_SpecializationInfo.GetCombatConfigIDForSpecGroup(activeGroup))
+                or (C_SpecializationInfo and C_SpecializationInfo.GetCombatConfigIDForSpecGroup and C_SpecializationInfo.GetCombatConfigIDForSpecGroup(1))
+                or (C_Traits.GetConfigIDBySystemID and C_Traits.GetConfigIDBySystemID(activeGroup))
+                or (C_Traits.GetConfigIDBySystemID and C_Traits.GetConfigIDBySystemID(1))
+                or (C_Traits.GetConfigsByType and C_Traits.GetConfigsByType(1) and (C_Traits.GetConfigsByType(1)[activeGroup] or C_Traits.GetConfigsByType(1)[1]))
+            if configID then
+                local configInfo = C_Traits.GetConfigInfo(configID)
+                local treeIDs = configInfo and configInfo.treeIDs
+                if treeIDs and #treeIDs > 0 then
+                    local traitTotal = 0
+                    for _, treeID in ipairs(treeIDs) do
+                        local displayInfos = C_Traits.GetGroupDisplayInfoByTreeID(treeID)
+                        if displayInfos and #displayInfos > 0 then
+                            local groupIDs = {}
+                            for _, di in ipairs(displayInfos) do
+                                local gid = di.groupID or di.traitNodeGroupID
+                                if gid then
+                                    table.insert(groupIDs, gid)
+                                end
+                            end
+
+                            local groupInfos = C_Traits.GetGroupCurrencyInfo and C_Traits.GetGroupCurrencyInfo(configID, groupIDs)
+                            local function findGroupInfo(gid)
+                                if not groupInfos or not gid then return nil end
+                                for _, gi in ipairs(groupInfos) do
+                                    if (gi.traitNodeGroupID and gi.traitNodeGroupID == gid) or (gi.groupID and gi.groupID == gid) then
+                                        return gi
+                                    end
+                                end
+                                return nil
+                            end
+
+                            for i, di in ipairs(displayInfos) do
+                                local gid = di.groupID or di.traitNodeGroupID
+                                local gi = findGroupInfo(gid)
+                                local spent = 0
+                                if gi then
+                                    local cInfo = gi.currencyInfos and gi.currencyInfos[1]
+                                    spent = (cInfo and cInfo.spent) or gi.spent or 0
+                                end
+                                if spent == 0 then
+                                    spent = (di.spent and di.spent > 0 and di.spent)
+                                        or (di.spentInTree and di.spentInTree > 0 and di.spentInTree)
+                                        or (di.currencyInfos and di.currencyInfos[1] and di.currencyInfos[1].spent)
+                                        or 0
+                                end
+
+                                -- Match display group to tree index (1..3)
+                                local dName = di.displayName and di.displayName:lower() or ""
+                                local matchedIdx = nil
+                                if dName ~= "" and CLASSIC_TREE_SPECS[vSpecID] then
+                                    for idx = 1, 3 do
+                                        local t = CLASSIC_TREE_SPECS[vSpecID][idx]
+                                        if t and t.name and (dName == t.name:lower() or dName:find(t.name:lower(), 1, true)) then
+                                            matchedIdx = idx
+                                            break
+                                        end
+                                    end
+                                end
+                                if not matchedIdx and i >= 1 and i <= 3 then
+                                    matchedIdx = i
+                                end
+                                if not matchedIdx and di.orderIndex ~= nil then
+                                    matchedIdx = di.orderIndex + 1
+                                end
+
+                                if matchedIdx and _classicTreeScratch[matchedIdx] then
+                                    _classicTreeScratch[matchedIdx].name = di.displayName or _classicTreeScratch[matchedIdx].name
+                                    _classicTreeScratch[matchedIdx].icon = di.icon or _classicTreeScratch[matchedIdx].icon
+                                    _classicTreeScratch[matchedIdx].points = (_classicTreeScratch[matchedIdx].points or 0) + spent
+                                    traitTotal = traitTotal + spent
+                                    foundData = true
+                                end
+                            end
+                        end
+                    end
+
+                    if traitTotal > 0 then
+                        totalPoints = traitTotal
+                    end
                 end
             end
         end

@@ -110,6 +110,8 @@ local function CreateHeader(parent)
             itemWord = "activities"
         elseif secID == "collectables" then
             itemWord = "collectables"
+        elseif secID == "skills" then
+            itemWord = "skills"
         elseif secID == "world" or secID == "worldquests" then
             itemWord = "world quests"
         elseif secID == "campaign" or secID == "important" or secID == "meta" or secID == "zone" or secID == "quests" or secID == "class" or secID == "dungeons" or secID == "professions" or (type(secID) == "string" and secID:find("^zone")) then

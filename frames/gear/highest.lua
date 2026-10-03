@@ -15,7 +15,28 @@ local C_Container = _G.C_Container
 local C_Container_GetContainerItemInfo = (_G.C_Container and _G.C_Container.GetContainerItemInfo) or _G.GetContainerItemInfo
 local C_Container_GetContainerItemLink = (_G.C_Container and _G.C_Container.GetContainerItemLink) or _G.GetContainerItemLink
 local C_Container_PickupContainerItem  = (_G.C_Container and _G.C_Container.PickupContainerItem) or _G.PickupContainerItem
-local EquipItemByName = _G.EquipItemByName
+local function EquipItemByName(itemInfo, slotID)
+    if not itemInfo then return end
+    if C_Item and C_Item.EquipItemByName then
+        if slotID then
+            C_Item.EquipItemByName(itemInfo, slotID)
+        else
+            C_Item.EquipItemByName(itemInfo)
+        end
+    elseif _G.C_Item and _G.C_Item.EquipItemByName then
+        if slotID then
+            _G.C_Item.EquipItemByName(itemInfo, slotID)
+        else
+            _G.C_Item.EquipItemByName(itemInfo)
+        end
+    elseif _G.EquipItemByName then
+        if slotID then
+            _G.EquipItemByName(itemInfo, slotID)
+        else
+            _G.EquipItemByName(itemInfo)
+        end
+    end
+end
 local tonumber = _G.tonumber
 local UnitLevel = _G.UnitLevel
 local pairs = _G.pairs
@@ -2066,8 +2087,22 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
 
     isEquippingInProgress = true
 
+    local equipWatchdog
+    if _G.C_Timer and _G.C_Timer.NewTimer then
+        equipWatchdog = _G.C_Timer.NewTimer(8, function()
+            if isEquippingInProgress then
+                isEquippingInProgress = false
+                pendingEquipRequest = nil
+            end
+        end)
+    end
+
     local function onEquipFinished()
         isEquippingInProgress = false
+        if equipWatchdog and equipWatchdog.Cancel then
+            equipWatchdog:Cancel()
+            equipWatchdog = nil
+        end
         if pendingEquipRequest then
             local req = pendingEquipRequest
             pendingEquipRequest = nil
@@ -2230,8 +2265,48 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                     end)
                 end
             else
-                -- Bag slot contents shifted: equip by item link directly
-                EquipItemByName(item.link, slotID)
+                -- Bag slot contents shifted: search bags first or equip by item link directly
+                local foundBag, foundSlot = nil, nil
+                for b = 0, 4 do
+                    local numSlots = (C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(b))
+                        or (_G.GetContainerNumSlots and _G.GetContainerNumSlots(b)) or 0
+                    for s = 1, numSlots do
+                        local l = C_Container_GetContainerItemLink(b, s)
+                        if l == item.link then
+                            foundBag, foundSlot = b, s
+                            break
+                        end
+                    end
+                    if foundBag then break end
+                end
+
+                if foundBag and foundSlot then
+                    local shiftedInfo = C_Container_GetContainerItemInfo(foundBag, foundSlot)
+                    if shiftedInfo and shiftedInfo.isLocked and retryCount < 10 then
+                        item.bag = foundBag
+                        item.slot = foundSlot
+                        _G.C_Timer.After(0.05, function() equipNext(index, retryCount + 1) end)
+                        return
+                    end
+                    if _G.ClearCursor then _G.ClearCursor() end
+                    C_Container_PickupContainerItem(foundBag, foundSlot)
+                    if _G.CursorHasItem and _G.CursorHasItem() then
+                        if _G.EquipCursorItem then _G.EquipCursorItem(slotID) end
+                        if _G.CursorHasItem and _G.CursorHasItem() then
+                            C_Container_PickupContainerItem(foundBag, foundSlot)
+                            if _G.CursorHasItem and _G.CursorHasItem() then
+                                if _G.PutItemInBackpack then _G.PutItemInBackpack() end
+                                if _G.CursorHasItem and _G.CursorHasItem() and _G.ClearCursor then
+                                    _G.ClearCursor()
+                                end
+                            end
+                        end
+                    else
+                        EquipItemByName(item.link, slotID)
+                    end
+                else
+                    EquipItemByName(item.link, slotID)
+                end
             end
         elseif item.isEquipped and item.equippedSlot and item.equippedSlot ~= slotID then
             -- Item is already equipped in another slot (e.g. swapping Main Hand and Off Hand)

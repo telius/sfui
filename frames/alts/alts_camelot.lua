@@ -1202,10 +1202,7 @@ sfui.alts.RegisterProvider({
     end,
     RegisterEvents = function()
         local function on_sync()
-            sfui.alts.PerformSync()
-            if SfuiAltsFrame and SfuiAltsFrame:IsShown() then
-                sfui.alts.UpdateUI(true)
-            end
+            sfui.alts.SyncCurrentCharacter()
         end
         sfui.events.RegisterEvent("UPDATE_INSTANCE_INFO",          on_sync)
         sfui.events.RegisterEvent("SKILL_LINES_CHANGED",           on_sync)
@@ -1221,6 +1218,6 @@ sfui.alts.RegisterProvider({
         sfui.events.RegisterEvent("CURRENCY_DISPLAY_UPDATE",       on_sync)
         sfui.events.RegisterEvent("MAJOR_FACTION_RENOWN_LEVEL_CHANGED", on_sync)
         sfui.events.RegisterEvent("UPDATE_FACTION",                     on_sync)
-        sfui.events.RegisterEvent("BAG_UPDATE",                         on_sync)
+        sfui.events.RegisterEvent("BAG_UPDATE_DELAYED",            on_sync)
     end,
 })

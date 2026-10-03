@@ -109,8 +109,14 @@ sfui.events.RegisterMessage("SFUI_SETTING_CHANGED", function(_, moduleName, key,
 end)
 
 -- Listen for spec changes and forward to modules implementing OnSpecChanged
-local function _on_spec_changed(specID)
+local _lastBroadcastSpecID = nil
+local function _on_spec_changed(specID, force)
     specID = specID or sfui.common.get_current_spec_id()
+    if not force and specID == _lastBroadcastSpecID then
+        return
+    end
+    _lastBroadcastSpecID = specID
+
     for _, mod in pairs(modules) do
         if type(mod.OnSpecChanged) == "function" then
             _safe_call(mod, "OnSpecChanged", specID)
@@ -118,25 +124,16 @@ local function _on_spec_changed(specID)
     end
 end
 
-function sfui.BroadcastSpecChanged(specID)
-    _on_spec_changed(specID)
+function sfui.BroadcastSpecChanged(specID, force)
+    _on_spec_changed(specID, force)
 end
 
 sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function() _on_spec_changed() end)
 sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", function() _on_spec_changed() end)
 sfui.events.RegisterEvent("ACTIVE_COMBAT_CONFIG_CHANGED", function() _on_spec_changed() end)
 
--- In Classic / Camelot, talent updates and spent points can alter the dominant specialization.
--- In Retail, talent points do NOT alter specialization and must not trigger OnSpecChanged.
-if sfui.isClassic then
-    sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", function() _on_spec_changed() end)
-    sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", function() _on_spec_changed() end)
-    sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", function() _on_spec_changed() end)
-    sfui.events.RegisterEvent("TRAIT_TREE_CURRENCY_INFO_UPDATED", function() _on_spec_changed() end)
-end
-
 sfui.events.RegisterMessage("SFUI_SPEC_COLORS_UPDATED", function(_, specID)
-    _on_spec_changed(specID)
+    _on_spec_changed(specID, true)
 end)
 
 

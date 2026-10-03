@@ -2580,7 +2580,9 @@ sfui.lootviewer.GetDebugInfo = sfui.lootviewer_debug_info
 
 if sfui.RegisterModule then
     sfui.lootviewer.OnSpecChanged = function(self, specID)
-        if self.Rebuild then self.Rebuild() end
+        if frame and frame:IsShown() and self.Rebuild then
+            self.Rebuild()
+        end
     end
     sfui.RegisterModule("lootviewer", sfui.lootviewer)
 end

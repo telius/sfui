@@ -44,9 +44,10 @@ sfui = sfui or {}
 --     • frames/gear/lootviewer.lua     - Encounter journal & mythic+ loot browser, spec/stat filters.
 --   Utilities & Automation:
 --     • frames/alts/alts.lua           - Warband alt sync, profession KP, recipes, trade skills.
---     • frames/automation.lua          - Master's Hammer repair popup, role checks, LFG auto-confirm.
+--     • frames/automation/automation.lua - Master's Hammer repair popup, role checks, LFG auto-confirm.
 --     • frames/merchant.lua            - Auto-junk selling & auto-repair vendor triggers.
---     • frames/transfer.lua            - Warband bank transfer helper window.
+--     • frames/automation/rankup.lua   - Auto spell rank upgrade on action bars (Camelot / Classic).
+--     • frames/automation/transfer.lua - Warband bank transfer helper window.
 --     • frames/research.lua            - Trait tree & research currency updates.
 --     • frames/portals/portals.lua     - Combat close & portal list synchronization.
 --     • frames/mem.lua                 - Real-time memory allocation profiling & watcher hooks.
@@ -434,6 +435,69 @@ end
 --- Unregister a throttled unit event callback.
 function sfui.events.UnregisterThrottledUnitEvent(event, unit, handle)
     sfui.events.UnregisterUnitEvent(event, unit, handle)
+end
+
+--- Register an event callback that is debounced (trailing-edge):
+--- When bursts of events occur, the timer resets on each event,
+--- and callback(event, ...) executes once after delay seconds of silence.
+--- Returns the wrapper function so the caller can pass it to UnregisterEvent.
+---
+--- Usage:
+---   local handle = sfui.events.RegisterDebouncedEvent("SPELLS_CHANGED", 0.25, myFn)
+---   sfui.events.UnregisterEvent("SPELLS_CHANGED", handle)  -- to remove
+function sfui.events.RegisterDebouncedEvent(event, delay, callback)
+    if not event or not callback then return end
+    delay = (type(delay) == "number" and delay > 0 and delay) or 0.15
+    local timer = nil
+    local lastA1, lastA2, lastA3
+    local wrapper = function(ev, a1, a2, a3)
+        lastA1, lastA2, lastA3 = a1, a2, a3
+        if timer then
+            timer:Cancel()
+            timer = nil
+        end
+        local C_Timer = _G.C_Timer
+        if C_Timer and C_Timer.NewTimer then
+            timer = C_Timer.NewTimer(delay, function()
+                timer = nil
+                local a, b, c = lastA1, lastA2, lastA3
+                lastA1, lastA2, lastA3 = nil, nil, nil
+                callback(ev, a, b, c)
+            end)
+        else
+            callback(ev, a1, a2, a3)
+        end
+    end
+    sfui.events.RegisterEvent(event, wrapper)
+    return wrapper
+end
+
+--- Register a unit event callback that is debounced (trailing-edge) for that unit.
+function sfui.events.RegisterDebouncedUnitEvent(event, unit, delay, callback)
+    if not unit or not event or not callback then return end
+    delay = (type(delay) == "number" and delay > 0 and delay) or 0.15
+    local timer = nil
+    local lastA1, lastA2, lastA3
+    local wrapper = function(ev, u, a1, a2, a3)
+        lastA1, lastA2, lastA3 = a1, a2, a3
+        if timer then
+            timer:Cancel()
+            timer = nil
+        end
+        local C_Timer = _G.C_Timer
+        if C_Timer and C_Timer.NewTimer then
+            timer = C_Timer.NewTimer(delay, function()
+                timer = nil
+                local a, b, c = lastA1, lastA2, lastA3
+                lastA1, lastA2, lastA3 = nil, nil, nil
+                callback(ev, u, a, b, c)
+            end)
+        else
+            callback(ev, u, a1, a2, a3)
+        end
+    end
+    sfui.events.RegisterUnitEvent(event, unit, wrapper)
+    return wrapper
 end
 
 -- ─── Internal Pub/Sub Messaging ───────────────────────────────────────────

@@ -833,7 +833,9 @@ function sfui.cdm.create_panel(parent)
         selectedPanelIndex = nil
         selectedPanelData = nil
         common.invalidate_panels_cache()
-        sfui.cdm.RefreshLayout()
+        if cdmFrame and cdmFrame:IsShown() then
+            sfui.cdm.RefreshLayout()
+        end
     end
 
     sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", on_cdm_spec_changed)

@@ -7,7 +7,7 @@ local function print_message(msg)
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
---  sfui/frames/pets.lua
+--  sfui/frames/automation/pets.lua
 --  Zero-Allocation Companion Pet Automation & Rotation Manager
 --  Auto-resummons lost companions, supports timed rotation, per-character
 --  favorites, and intelligent competitive/combat suppression.

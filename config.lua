@@ -60,6 +60,7 @@ sfui.config = {
         minimapArt = true,             -- Camelot only: preserve brass compass & day/night dial (modern theme does not touch minimap)
         lootfeedStyle = "architectural", -- Camelot only: "architectural" (Option A: charcoal slate & corner brackets) or "outfit_card" (Option B: sculpted card)
         barStyle = "heavy",            -- Camelot only: "thin" (Option A: 1px bronze edge), "glow" (Option B: recessed amber glow), or "heavy" (Option C: chiseled bronze frame & corner brackets)
+        buttonStyle = "auctionhouse",  -- Camelot only: "auctionhouse" (Default: Auction House beveled buttons with blue hover glow & gold selection outline) or "flat" (Option: clean flat dark buttons)
     },
 
     -- shared settings for icon bars
@@ -434,12 +435,12 @@ sfui.config = {
 
     targetBar = {
         enabled = true,
-        width = 300,
-        height = 16,
+        width = 230,
+        height = 13,
         powerHeight = 3,
-        pos = { point = "TOP", x = 0, y = -25 },
+        pos = { point = "TOP", x = 0, y = -35 },
         backdrop = {
-            padding = 2,
+            padding = 1,
             color = { 0, 0, 0, 0.5 },
         },
         auras = {
@@ -850,7 +851,7 @@ sfui.config = {
         itemSize = 32,
         throttle = 0.35,
         defaultHidden = false,
-        maxScreenHeight = 0.45,
+        maxScreenHeight = 0.50,
         sections = {
             { id = "scenario",     label = "world event",  color = { 1.00, 0.60, 0.10 } },
             { id = "events",       label = "events",       color = { 0.90, 0.45, 0.90 } },
@@ -892,7 +893,7 @@ sfui.config = {
     },
 
     -- ─── Fishing Automation ──────────────────────────────
-    -- Settings for single-key & double-click fishing (frames/fishing.lua).
+    -- Settings for single-key & double-click fishing (frames/automation/fishing.lua).
     fishing = {
         enabled             = true,
         doubleClick         = true,
@@ -906,7 +907,7 @@ sfui.config = {
     },
 
     -- ─── Companion Pet Manager ────────────────────────────
-    -- Settings for companion pet auto-summon & rotation (frames/pets.lua).
+    -- Settings for companion pet auto-summon & rotation (frames/automation/pets.lua).
     pets = {
         enabled       = true,
         autoResummon  = true,

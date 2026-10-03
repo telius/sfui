@@ -297,7 +297,7 @@ function Layout.BuildLayout(container, sections)
     local cfg = (sfui.config and sfui.config.questlog) or {}
     local width = cfg.width or 280
     local screenH = (UIParent and UIParent:GetHeight()) or (GetScreenHeight and GetScreenHeight()) or 1080
-    local maxAllowedHeight = screenH * (cfg.maxScreenHeight or 0.45)
+    local maxAllowedHeight = screenH * ((SfuiDB and SfuiDB.questlogMaxScreenHeight) or cfg.maxScreenHeight or 0.50)
 
     local content = container.content or container
     local scrollBar = container.scrollBar

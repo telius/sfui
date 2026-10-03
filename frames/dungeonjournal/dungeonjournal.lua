@@ -1010,7 +1010,9 @@ sfui.dungeonjournal.GetDebugInfo = sfui.dungeonjournal_debug_info
 
 if sfui.RegisterModule then
     sfui.dungeonjournal.OnSpecChanged = function(self)
-        if self.Rebuild then self.Rebuild() end
+        if frame and frame:IsShown() and self.Rebuild then
+            self.Rebuild()
+        end
     end
     sfui.RegisterModule("dungeonjournal", sfui.dungeonjournal)
 end

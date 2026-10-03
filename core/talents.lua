@@ -288,30 +288,36 @@ sfui.common.is_talent_known = sfui.talents.is_talent_known
 -- ────────────────────────────────────────────────────────────────────────────
 -- Global Event Routing & Cache Invalidation
 -- ────────────────────────────────────────────────────────────────────────────
-function sfui.talents.invalidate_spec_cache()
-    cachedSpecID    = 0
-    cachedSpecIndex = 0
-    cachedSpecRole  = nil
-    sfui.talents.invalidate_player_specs_cache()
-    sfui.talents.update_cached_spec_id()
+function sfui.talents.invalidate_spec_cache(force)
+    if force then
+        cachedSpecID    = 0
+        cachedSpecIndex = 0
+        cachedSpecRole  = nil
+    end
 
-    sfui.colors.invalidate_spec_color_cache()
-    sfui.common.invalidate_panels_cache()
-    sfui.highest.ClearValidationCache()
+    sfui.talents.invalidate_player_specs_cache()
 
     if sfui.isRetail then
         sfui.talents.invalidate_talent_cache()
     end
 
+    -- Update cached spec ID; set_cached_spec will compare against the previous spec
+    -- and only broadcast if the specialization actually changed.
+    sfui.talents.update_cached_spec_id()
+
     if sfui.isClassic then
-        sfui.talents.get_player_specs()
-        sfui.gear.UpdateStatUI()
-        if SfuiGearManagerFrame and SfuiGearManagerFrame.tabBtns then
-            for id, btn in pairs(SfuiGearManagerFrame.tabBtns) do
-                if btn.tex then
-                    local ic = sfui.talents.get_spec_icon(id)
-                    if ic then
-                        btn.tex:SetTexture(ic)
+        if SfuiGearManagerFrame and SfuiGearManagerFrame:IsShown() then
+            sfui.talents.get_player_specs()
+            if sfui.gear and sfui.gear.UpdateStatUI then
+                sfui.gear.UpdateStatUI()
+            end
+            if SfuiGearManagerFrame.tabBtns then
+                for id, btn in pairs(SfuiGearManagerFrame.tabBtns) do
+                    if btn.tex then
+                        local ic = sfui.talents.get_spec_icon(id)
+                        if ic then
+                            btn.tex:SetTexture(ic)
+                        end
                     end
                 end
             end
@@ -321,23 +327,40 @@ end
 
 local function on_login_or_enter()
     sfui.talents.get_player_class()
-    sfui.talents.invalidate_spec_cache()
+    sfui.talents.invalidate_spec_cache(true)
 end
 
 sfui.events.RegisterEvent("PLAYER_LOGIN", on_login_or_enter)
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_login_or_enter)
-sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", sfui.talents.invalidate_spec_cache)
-sfui.events.RegisterEvent("ACTIVE_COMBAT_CONFIG_CHANGED", sfui.talents.invalidate_spec_cache)
-sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", sfui.talents.invalidate_spec_cache)
-sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", sfui.talents.invalidate_spec_cache)
+sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function() sfui.talents.invalidate_spec_cache(true) end)
+sfui.events.RegisterEvent("ACTIVE_COMBAT_CONFIG_CHANGED", function() sfui.talents.invalidate_spec_cache(true) end)
+sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", function() sfui.talents.invalidate_spec_cache(true) end)
+sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", function() sfui.talents.invalidate_spec_cache(true) end)
 
 -- Talent point & trait currency events: strictly restricted to Classic / Camelot.
 -- In Classic / Camelot, specialization is derived dynamically from spent talent tree points.
 -- In Retail, specialization is explicitly chosen and never checks or relies on talent points.
 if sfui.isClassic then
-    sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", sfui.talents.invalidate_spec_cache)
-    sfui.events.RegisterEvent("TRAIT_TREE_CURRENCY_INFO_UPDATED", sfui.talents.invalidate_spec_cache)
-    sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", sfui.talents.invalidate_spec_cache)
-    sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", sfui.talents.invalidate_spec_cache)
-    sfui.events.RegisterEvent("PLAYER_LEVEL_UP", sfui.talents.invalidate_spec_cache)
+    local talentDebounceTimer = nil
+    local function on_talent_event()
+        if talentDebounceTimer then
+            talentDebounceTimer:Cancel()
+            talentDebounceTimer = nil
+        end
+        local C_Timer = _G.C_Timer
+        if C_Timer and C_Timer.NewTimer then
+            talentDebounceTimer = C_Timer.NewTimer(0.15, function()
+                talentDebounceTimer = nil
+                sfui.talents.invalidate_spec_cache(false)
+            end)
+        else
+            sfui.talents.invalidate_spec_cache(false)
+        end
+    end
+
+    sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", on_talent_event)
+    sfui.events.RegisterEvent("TRAIT_TREE_CURRENCY_INFO_UPDATED", on_talent_event)
+    sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", on_talent_event)
+    sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", on_talent_event)
+    sfui.events.RegisterEvent("PLAYER_LEVEL_UP", function() sfui.talents.invalidate_spec_cache(false) end)
 end

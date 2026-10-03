@@ -1426,10 +1426,25 @@ function sfui.trackedicons.initialize()
         sfui.trackedicons.Update()
         MarkDirty(true)
     end)
+    local specDebounceTimer = nil
     local function on_tracked_icons_spec_changed()
-        sfui.common.ensure_panels_initialized()
-        sfui.trackedicons.Update()
-        MarkDirty(true)
+        if specDebounceTimer then
+            specDebounceTimer:Cancel()
+            specDebounceTimer = nil
+        end
+        local C_Timer = _G.C_Timer
+        if C_Timer and C_Timer.NewTimer then
+            specDebounceTimer = C_Timer.NewTimer(0.15, function()
+                specDebounceTimer = nil
+                sfui.common.ensure_panels_initialized()
+                sfui.trackedicons.Update()
+                MarkDirty(true)
+            end)
+        else
+            sfui.common.ensure_panels_initialized()
+            sfui.trackedicons.Update()
+            MarkDirty(true)
+        end
     end
     sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", on_tracked_icons_spec_changed)
     sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", on_tracked_icons_spec_changed)

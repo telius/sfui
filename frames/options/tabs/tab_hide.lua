@@ -212,6 +212,31 @@ sfui.options.RegisterTab({
             prevUFCol2 = cb
         end
 
-        panel.customContentHeight = 650
+        -- ─────────────────────────────────────────────────────────────────────
+        -- 5. Error Frame Filtering
+        -- ─────────────────────────────────────────────────────────────────────
+        local err_header = panel:CreateFontString(nil, "OVERLAY", g.font)
+        err_header:SetPoint("TOPLEFT", prevUFCol1, "BOTTOMLEFT", 0, -25)
+        err_header:SetTextColor(white[1], white[2], white[3])
+        err_header:SetText("ui error messages")
+
+        local err_desc = panel:CreateFontString(nil, "OVERLAY", g.font_small or g.font)
+        err_desc:SetPoint("TOPLEFT", err_header, "BOTTOMLEFT", 0, -4)
+        err_desc:SetTextColor(0.7, 0.7, 0.7)
+        err_desc:SetText("filter repetitive combat cooldown spam from the error frame.")
+
+        local err_cb = create_checkbox(
+            panel,
+            "hide 'spell is not ready yet'",
+            "hide_cooldown_errors",
+            function(checked)
+                notify_change("hide_cooldown_errors", checked)
+                sfui.hide.ApplyErrorFilters()
+            end,
+            "filters out 'spell is not ready yet' and ability cooldown errors and alert sounds."
+        )
+        err_cb:SetPoint("TOPLEFT", err_desc, "BOTTOMLEFT", 0, -10)
+
+        panel.customContentHeight = 720
     end,
 })

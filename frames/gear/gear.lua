@@ -743,19 +743,41 @@ function sfui.gear.UpdateStatUI()
                     end
                     btn.lockColor = c
                     local fs = btn:GetFontString()
-                    if c then
-                        btn:SetBackdropBorderColor(c[1], c[2], c[3], 1.0)
-                        btn:SetBackdropColor(c[1] * 0.28, c[2] * 0.28, c[3] * 0.28, 0.95)
-                        if fs then fs:SetTextColor(c[1], c[2], c[3], 1.0) end
-                    else
-                        if isCamelot then
-                            btn:SetBackdropBorderColor(0.24, 0.19, 0.12, 0.8)
-                            btn:SetBackdropColor(0.10, 0.08, 0.06, 0.95)
-                            if fs then fs:SetTextColor(0.82, 0.75, 0.62, 1) end
+                    local useAH = sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive()
+                    if useAH then
+                        sfui.theme.ApplyButtonStyle(btn, false)
+                        btn:SetBackdropBorderColor(0, 0, 0, 0)
+                        btn:SetBackdropColor(0, 0, 0, 0)
+                        if c then
+                            if fs then fs:SetTextColor(c[1], c[2], c[3], 1.0) end
+                            if btn._sfuiAHSelected then
+                                btn._sfuiAHSelected:SetVertexColor(c[1], c[2], c[3], 1.0)
+                                btn._sfuiAHSelected:Show()
+                            end
                         else
-                            btn:SetBackdropBorderColor(0, 0, 0, 1)
-                            btn:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
-                            if fs then fs:SetTextColor(1, 1, 1, 0.85) end
+                            local pal = sfui.theme.GetPalette()
+                            local normColor = pal.tabNormal or { 0.82, 0.75, 0.62, 1.0 }
+                            if fs then fs:SetTextColor(normColor[1], normColor[2], normColor[3], 1.0) end
+                            if btn._sfuiAHSelected then
+                                btn._sfuiAHSelected:Hide()
+                                btn._sfuiAHSelected:SetVertexColor(1.0, 1.0, 1.0, 1.0)
+                            end
+                        end
+                    else
+                        if c then
+                            btn:SetBackdropBorderColor(c[1], c[2], c[3], 1.0)
+                            btn:SetBackdropColor(c[1] * 0.28, c[2] * 0.28, c[3] * 0.28, 0.95)
+                            if fs then fs:SetTextColor(c[1], c[2], c[3], 1.0) end
+                        else
+                            if isCamelot then
+                                btn:SetBackdropBorderColor(0.24, 0.19, 0.12, 0.8)
+                                btn:SetBackdropColor(0.10, 0.08, 0.06, 0.95)
+                                if fs then fs:SetTextColor(0.82, 0.75, 0.62, 1) end
+                            else
+                                btn:SetBackdropBorderColor(0, 0, 0, 1)
+                                btn:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
+                                if fs then fs:SetTextColor(1, 1, 1, 0.85) end
+                            end
                         end
                     end
                 end
@@ -765,62 +787,108 @@ function sfui.gear.UpdateStatUI()
             local p = sfui.theme.GetPalette()
             local activeColor = p and p.accentColor or { 0, 0.8, 1 }
             local isCamelot = sfui.theme.IsCamelotActive()
+            local useAH = sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive()
             local activeBg = { activeColor[1] * 0.35, activeColor[2] * 0.35, activeColor[3] * 0.35, 0.95 }
             local inactiveBg = isCamelot and { 0.12, 0.10, 0.08, 0.95 } or { 0, 0, 0, 1 }
 
             if ui.btn2S then
                 local on = db.force_2set
-                ui.btn2S:SetBackdropColor(unpack(on and activeBg or inactiveBg))
-                if on then
-                    ui.btn2S:SetBackdropBorderColor(activeColor[1], activeColor[2], activeColor[3], 1)
+                if useAH then
+                    sfui.theme.SetButtonSelected(ui.btn2S, on)
+                    ui.btn2S:SetBackdropColor(0, 0, 0, 0)
+                    ui.btn2S:SetBackdropBorderColor(0, 0, 0, 0)
                 else
-                    ui.btn2S:SetBackdropBorderColor(0, 0, 0, isCamelot and 0 or 1)
+                    ui.btn2S:SetBackdropColor(unpack(on and activeBg or inactiveBg))
+                    if on then
+                        ui.btn2S:SetBackdropBorderColor(activeColor[1], activeColor[2], activeColor[3], 1)
+                    else
+                        ui.btn2S:SetBackdropBorderColor(0, 0, 0, isCamelot and 0 or 1)
+                    end
                 end
             end
             if ui.btn4S then
                 local on = (db.force_4set ~= false) and not db.force_2set
-                ui.btn4S:SetBackdropColor(unpack(on and activeBg or inactiveBg))
-                if on then
-                    ui.btn4S:SetBackdropBorderColor(activeColor[1], activeColor[2], activeColor[3], 1)
+                if useAH then
+                    sfui.theme.SetButtonSelected(ui.btn4S, on)
+                    ui.btn4S:SetBackdropColor(0, 0, 0, 0)
+                    ui.btn4S:SetBackdropBorderColor(0, 0, 0, 0)
                 else
-                    ui.btn4S:SetBackdropBorderColor(0, 0, 0, isCamelot and 0 or 1)
+                    ui.btn4S:SetBackdropColor(unpack(on and activeBg or inactiveBg))
+                    if on then
+                        ui.btn4S:SetBackdropBorderColor(activeColor[1], activeColor[2], activeColor[3], 1)
+                    else
+                        ui.btn4S:SetBackdropBorderColor(0, 0, 0, isCamelot and 0 or 1)
+                    end
                 end
             end
             if ui.btn2E then
                 local on = db.force_2emb
-                ui.btn2E:SetBackdropColor(unpack(on and activeBg or inactiveBg))
-                if on then
-                    ui.btn2E:SetBackdropBorderColor(activeColor[1], activeColor[2], activeColor[3], 1)
+                if useAH then
+                    sfui.theme.SetButtonSelected(ui.btn2E, on)
+                    ui.btn2E:SetBackdropColor(0, 0, 0, 0)
+                    ui.btn2E:SetBackdropBorderColor(0, 0, 0, 0)
                 else
-                    ui.btn2E:SetBackdropBorderColor(0, 0, 0, isCamelot and 0 or 1)
+                    ui.btn2E:SetBackdropColor(unpack(on and activeBg or inactiveBg))
+                    if on then
+                        ui.btn2E:SetBackdropBorderColor(activeColor[1], activeColor[2], activeColor[3], 1)
+                    else
+                        ui.btn2E:SetBackdropBorderColor(0, 0, 0, isCamelot and 0 or 1)
+                    end
                 end
             end
             if ui.btnILvl then
                 local isTank = sfui.gear.IsTankSpec(specID, db)
                 local on = db.armor_ilvl_prio
                 if on == nil then on = isTank end
-                ui.btnILvl:SetBackdropColor(unpack(on and activeBg or inactiveBg))
-                if on then
-                    ui.btnILvl:SetBackdropBorderColor(activeColor[1], activeColor[2], activeColor[3], 1)
+                if useAH then
+                    sfui.theme.SetButtonSelected(ui.btnILvl, on)
+                    ui.btnILvl:SetBackdropColor(0, 0, 0, 0)
+                    ui.btnILvl:SetBackdropBorderColor(0, 0, 0, 0)
                 else
-                    ui.btnILvl:SetBackdropBorderColor(0, 0, 0, isCamelot and 0 or 1)
+                    ui.btnILvl:SetBackdropColor(unpack(on and activeBg or inactiveBg))
+                    if on then
+                        ui.btnILvl:SetBackdropBorderColor(activeColor[1], activeColor[2], activeColor[3], 1)
+                    else
+                        ui.btnILvl:SetBackdropBorderColor(0, 0, 0, isCamelot and 0 or 1)
+                    end
                 end
             end
             if ui.roleBtns then
                 local curRole = sfui.gear.GetClassicRole(specID, db)
                 for rKey, rBtn in pairs(ui.roleBtns) do
                     local isSelected = (curRole == rKey)
-                    if isSelected then
-                        local c = rBtn.roleColor or { 0, 0.5, 0.5 }
-                        rBtn:SetBackdropColor(c[1] * 0.35, c[2] * 0.35, c[3] * 0.35, 1)
-                        rBtn:SetBackdropBorderColor(c[1], c[2], c[3], 1)
+                    if useAH then
+                        sfui.theme.SetButtonSelected(rBtn, isSelected)
+                        rBtn:SetBackdropColor(0, 0, 0, 0)
+                        rBtn:SetBackdropBorderColor(0, 0, 0, 0)
                         local fs = rBtn:GetFontString()
-                        if fs then fs:SetTextColor(c[1], c[2], c[3], 1) end
+                        if fs then
+                            if isSelected then
+                                local c = rBtn.roleColor or { 1, 1, 1 }
+                                fs:SetTextColor(c[1], c[2], c[3], 1.0)
+                            else
+                                fs:SetTextColor(0.65, 0.58, 0.45, 1.0)
+                            end
+                        end
+                        if isSelected and rBtn._sfuiAHSelected then
+                            local c = rBtn.roleColor
+                            if c then
+                                rBtn._sfuiAHSelected:SetVertexColor(c[1], c[2], c[3], 1.0)
+                            end
+                        end
                     else
-                        rBtn:SetBackdropColor(unpack(inactiveBg))
-                        rBtn:SetBackdropBorderColor(0, 0, 0, isCamelot and 0 or 1)
-                        local fs = rBtn:GetFontString()
-                        if fs then fs:SetTextColor(0.6, 0.6, 0.6, 1) end
+                        if isSelected then
+                            local c = rBtn.roleColor or { 0, 0.5, 0.5 }
+                            rBtn:SetBackdropColor(c[1] * 0.35, c[2] * 0.35, c[3] * 0.35, 1)
+                            rBtn:SetBackdropBorderColor(c[1], c[2], c[3], 1)
+                            local fs = rBtn:GetFontString()
+                            if fs then fs:SetTextColor(c[1], c[2], c[3], 1) end
+                        else
+                            rBtn:SetBackdropColor(unpack(inactiveBg))
+                            rBtn:SetBackdropBorderColor(0, 0, 0, isCamelot and 0 or 1)
+                            local fs = rBtn:GetFontString()
+                            if fs then fs:SetTextColor(0.6, 0.6, 0.6, 1) end
+                        end
                     end
                 end
             end
@@ -898,16 +966,29 @@ function sfui.gear.UpdateStatUI()
                         local abbr = statAbbrv[st] or st
                         btn:SetText(tostring(abbr):lower())
                         local c = statBgColors[st]
-                        if c and st ~= "none" then
-                            btn:SetBackdropColor(c[1] * 0.25, c[2] * 0.25, c[3] * 0.25, 0.9)
-                            btn:SetBackdropBorderColor(c[1], c[2], c[3], 0.8)
+                        local useAH = sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive()
+                        if useAH then
+                            sfui.theme.ApplyButtonStyle(btn, false)
+                            btn:SetBackdropColor(0, 0, 0, 0)
+                            btn:SetBackdropBorderColor(0, 0, 0, 0)
                             local fs = btn:GetFontString()
-                            if fs then fs:SetTextColor(c[1], c[2], c[3], 1.0) end
+                            if c and st ~= "none" then
+                                if fs then fs:SetTextColor(c[1], c[2], c[3], 1.0) end
+                            else
+                                if fs then fs:SetTextColor(0.82, 0.75, 0.62, 1.0) end
+                            end
                         else
-                            btn:SetBackdropColor(0.12, 0.12, 0.12, 0.9)
-                            btn:SetBackdropBorderColor(0, 0, 0, 1)
-                            local fs = btn:GetFontString()
-                            if fs then fs:SetTextColor(1, 1, 1, 1) end
+                            if c and st ~= "none" then
+                                btn:SetBackdropColor(c[1] * 0.25, c[2] * 0.25, c[3] * 0.25, 0.9)
+                                btn:SetBackdropBorderColor(c[1], c[2], c[3], 0.8)
+                                local fs = btn:GetFontString()
+                                if fs then fs:SetTextColor(c[1], c[2], c[3], 1.0) end
+                            else
+                                btn:SetBackdropColor(0.12, 0.12, 0.12, 0.9)
+                                btn:SetBackdropBorderColor(0, 0, 0, 1)
+                                local fs = btn:GetFontString()
+                                if fs then fs:SetTextColor(1, 1, 1, 1) end
+                            end
                         end
                         btn:SetAlpha(alpha)
                     end
@@ -1131,7 +1212,7 @@ local function handle_spec_change(event, unit)
     end
 
     -- If talents/traits updated but the specialization itself didn't change:
-    if specId == lastSpecID and (event == "TRAIT_CONFIG_UPDATED" or event == "ACTIVE_TALENT_GROUP_CHANGED") then
+    if specId == lastSpecID and (event == "TRAIT_CONFIG_UPDATED" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "PLAYER_TALENT_UPDATE") then
         if SfuiGearManagerFrame and SfuiGearManagerFrame.SelectSpecTab and SfuiGearManagerFrame:IsShown() then
             SfuiGearManagerFrame:SelectSpecTab(specId)
         end
@@ -1159,11 +1240,7 @@ sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", handle_spec_change)
 sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", handle_spec_change)
 sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", handle_spec_change)
 sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", handle_spec_change)
-sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", function()
-    sfui.highest.ClearCache()
-    sfui.gear.Update(true)
-    sfui.gear.UpdateStatUI()
-end)
+sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", handle_spec_change)
 
 local function _OnZoneChangeTimer()
     zoneUpdateQueue = false
@@ -1206,9 +1283,6 @@ sfui.events.RegisterEvent("SPELLS_CHANGED", handle_skill_change)
 sfui.events.RegisterEvent("LEARNED_SPELL_IN_TAB", handle_skill_change)
 sfui.events.RegisterEvent("TRAINER_UPDATE", handle_skill_change)
 sfui.events.RegisterEvent("TRAINER_CLOSED", handle_skill_change)
-if sfui.isClassic then
-    sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", handle_skill_change)
-end
 
 
 -- B2: ADDON_LOADED registration removed (InitToggleHook called at login via PLAYER_LOGIN)
@@ -1378,21 +1452,34 @@ end
 local autoToggle = common.create_flat_button(gearFrame, "auto: off", 72, 20)
 autoToggle:SetPoint("TOPRIGHT", gearFrame, "TOPRIGHT", -10, -31)
 function autoToggle:UpdateState(enabled)
+    local useAH = sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive()
     if enabled then
         self:SetText("|cff66ff66auto: on|r")
-        local p = sfui.theme.GetPalette()
-        local acc = p and p.accentColor or { 0.95, 0.85, 0.55 }
-        self:SetBackdropBorderColor(acc[1], acc[2], acc[3], 0.9)
-        self:SetBackdropColor(acc[1] * 0.25, acc[2] * 0.25, acc[3] * 0.25, 0.95)
+        if useAH then
+            sfui.theme.SetButtonSelected(self, true)
+            self:SetBackdropBorderColor(0, 0, 0, 0)
+            self:SetBackdropColor(0, 0, 0, 0)
+        else
+            local p = sfui.theme.GetPalette()
+            local acc = p and p.accentColor or { 0.95, 0.85, 0.55 }
+            self:SetBackdropBorderColor(acc[1], acc[2], acc[3], 0.9)
+            self:SetBackdropColor(acc[1] * 0.25, acc[2] * 0.25, acc[3] * 0.25, 0.95)
+        end
     else
         self:SetText("|cff888888auto: off|r")
-        local isCamelot = sfui.theme.IsCamelotActive()
-        if isCamelot then
-            self:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
-            self:SetBackdropColor(0.12, 0.10, 0.08, 0.95)
+        if useAH then
+            sfui.theme.SetButtonSelected(self, false)
+            self:SetBackdropBorderColor(0, 0, 0, 0)
+            self:SetBackdropColor(0, 0, 0, 0)
         else
-            self:SetBackdropBorderColor(0, 0, 0, 1)
-            self:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
+            local isCamelot = sfui.theme.IsCamelotActive()
+            if isCamelot then
+                self:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
+                self:SetBackdropColor(0.12, 0.10, 0.08, 0.95)
+            else
+                self:SetBackdropBorderColor(0, 0, 0, 1)
+                self:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
+            end
         end
     end
 end
@@ -1408,15 +1495,24 @@ autoToggle:SetScript("OnClick", function()
     sfui.gear.UpdateStatUI()
 end)
 autoToggle:SetScript("OnEnter", function(b)
-    local p = sfui.theme.GetPalette()
-    local hl = (p and p.highlightColor) or (cfg and cfg.colors and cfg.colors.cyan) or { 0, 1, 1 }
-    b:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1)
+    if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+        if b._sfuiAHHighlight then b._sfuiAHHighlight:Show() end
+        if b.SetBackdropBorderColor then b:SetBackdropBorderColor(0, 0, 0, 0) end
+        if b.SetBackdropColor then b:SetBackdropColor(0, 0, 0, 0) end
+    else
+        local p = sfui.theme.GetPalette()
+        local hl = (p and p.highlightColor) or (cfg and cfg.colors and cfg.colors.cyan) or { 0, 1, 1 }
+        b:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1)
+    end
     show_tooltip(b, "ANCHOR_TOP", "auto-equip gear", {
         { "automatically equips highest ilvl gear or your designated equipment set upon spec / zone changes.", 0.8, 0.8, 0.8, true }
     })
 end)
 autoToggle:SetScript("OnLeave", function(b)
     hide_tooltip()
+    if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+        if b._sfuiAHHighlight then b._sfuiAHHighlight:Hide() end
+    end
     autoToggle:UpdateState(isAutoEquipEnabled())
 end)
 gearFrame.autoToggle = autoToggle
@@ -1733,9 +1829,17 @@ gearFrame:SetScript("OnShow", function(self)
             local capturedSlot = def.slot
             btn:SetScript("OnClick", function() lockSlot(capturedSlot, IsShiftKeyDown()) end)
             btn:SetScript("OnEnter", function(b)
-                local p = sfui.theme.GetPalette()
-                local hl = p and p.highlightColor or (cfg and cfg.colors and cfg.colors.cyan) or { 0, 1, 1 }
-                b:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1)
+                if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+                    if b._sfuiAHHighlight then b._sfuiAHHighlight:Show() end
+                    if b.SetBackdropBorderColor then b:SetBackdropBorderColor(0, 0, 0, 0) end
+                    if b.SetBackdropColor then b:SetBackdropColor(0, 0, 0, 0) end
+                    local fs = b:GetFontString()
+                    if fs and not b.lockColor then fs:SetTextColor(1.0, 1.0, 1.0, 1.0) end
+                else
+                    local p = sfui.theme.GetPalette()
+                    local hl = p and p.highlightColor or (cfg and cfg.colors and cfg.colors.cyan) or { 0, 1, 1 }
+                    b:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1)
+                end
                 local link = GetInventoryItemLink("player", capturedSlot)
                 if link then
                     local itemName, itemLink = GetItemInfo(link)
@@ -1766,7 +1870,17 @@ gearFrame:SetScript("OnShow", function(self)
             end)
             btn:SetScript("OnLeave", function(b)
                 hide_tooltip()
-                if b.lockColor then
+                if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+                    if b._sfuiAHHighlight then b._sfuiAHHighlight:Hide() end
+                    if b.SetBackdropBorderColor then b:SetBackdropBorderColor(0, 0, 0, 0) end
+                    if b.SetBackdropColor then b:SetBackdropColor(0, 0, 0, 0) end
+                    local fs = b:GetFontString()
+                    if fs and not b.lockColor then
+                        local pal = sfui.theme.GetPalette()
+                        local normColor = pal.tabNormal or { 0.82, 0.75, 0.62, 1.0 }
+                        fs:SetTextColor(normColor[1], normColor[2], normColor[3], 1.0)
+                    end
+                elseif b.lockColor then
                     local c = b.lockColor
                     b:SetBackdropBorderColor(c[1], c[2], c[3], 1.0)
                     b:SetBackdropColor(c[1] * 0.28, c[2] * 0.28, c[3] * 0.28, 0.95)
@@ -1803,11 +1917,19 @@ gearFrame:SetScript("OnShow", function(self)
             sfui.gear.Update()
         end)
         btn2S:SetScript("OnEnter", function(b)
+            if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+                if b._sfuiAHHighlight then b._sfuiAHHighlight:Show() end
+            end
             show_tooltip(b, "ANCHOR_TOP", "force 2-piece tier set", {
                 { "drafts 2 set pieces into your highest ilvl build, prioritizing lowest ilvl sacrifice.", 0.8, 0.8, 0.8, true }
             })
         end)
-        btn2S:SetScript("OnLeave", function() hide_tooltip() end)
+        btn2S:SetScript("OnLeave", function(b)
+            if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+                if b._sfuiAHHighlight then b._sfuiAHHighlight:Hide() end
+            end
+            hide_tooltip()
+        end)
         ui.btn2S = btn2S
 
         local btn4S = common.create_flat_button(card, "4s", 26, 20)
@@ -1821,11 +1943,19 @@ gearFrame:SetScript("OnShow", function(self)
             sfui.gear.Update()
         end)
         btn4S:SetScript("OnEnter", function(b)
+            if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+                if b._sfuiAHHighlight then b._sfuiAHHighlight:Show() end
+            end
             show_tooltip(b, "ANCHOR_TOP", "force 4-piece tier set", {
                 { "drafts 4 set pieces into your highest ilvl build, prioritizing lowest ilvl sacrifice.", 0.8, 0.8, 0.8, true }
             })
         end)
-        btn4S:SetScript("OnLeave", function() hide_tooltip() end)
+        btn4S:SetScript("OnLeave", function(b)
+            if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+                if b._sfuiAHHighlight then b._sfuiAHHighlight:Hide() end
+            end
+            hide_tooltip()
+        end)
         ui.btn4S = btn4S
 
         local btn2E = common.create_flat_button(card, "2e", 26, 20)
@@ -1837,12 +1967,20 @@ gearFrame:SetScript("OnShow", function(self)
             sfui.gear.Update()
         end)
         btn2E:SetScript("OnEnter", function(b)
+            if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+                if b._sfuiAHHighlight then b._sfuiAHHighlight:Show() end
+            end
             show_tooltip(b, "ANCHOR_TOP", "force 2 embellishments", {
                 { "drafts up to 2 embellished crafted items into your gear set.", 0.8, 0.8, 0.8, true },
                 { "wow limits active embellishments to a maximum of 2.",          0.6, 0.9, 0.6, true }
             })
         end)
-        btn2E:SetScript("OnLeave", function() hide_tooltip() end)
+        btn2E:SetScript("OnLeave", function(b)
+            if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+                if b._sfuiAHHighlight then b._sfuiAHHighlight:Hide() end
+            end
+            hide_tooltip()
+        end)
         ui.btn2E = btn2E
 
         local btnILvl = common.create_flat_button(card, "ilvl", 36, 20)
@@ -1870,13 +2008,21 @@ gearFrame:SetScript("OnShow", function(self)
             sfui.gear.Update()
         end)
         btnILvl:SetScript("OnEnter", function(b)
+            if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+                if b._sfuiAHHighlight then b._sfuiAHHighlight:Show() end
+            end
             show_tooltip(b, "ANCHOR_TOP", "prioritize armor item level (tanks)", {
                 { "prioritizes highest item level on armor slots for maximum armor, stamina, and primary stat.", 0.8, 0.8, 0.8, true },
                 { "jewelry, cloak, and trinkets continue using your secondary stat priority / pawn weights.",    0.6, 0.9, 0.6, true },
                 { "enabled by default for tank specializations.",                                                0.5, 0.8, 1.0, true },
             })
         end)
-        btnILvl:SetScript("OnLeave", function() hide_tooltip() end)
+        btnILvl:SetScript("OnLeave", function(b)
+            if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+                if b._sfuiAHHighlight then b._sfuiAHHighlight:Hide() end
+            end
+            hide_tooltip()
+        end)
         ui.btnILvl = btnILvl
 
         local numID = tonumber(id) or 0
@@ -1978,6 +2124,9 @@ gearFrame:SetScript("OnShow", function(self)
                     end
                 end)
                 rBtn:SetScript("OnEnter", function(b)
+                    if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+                        if b._sfuiAHHighlight then b._sfuiAHHighlight:Show() end
+                    end
                     local desc = (rKey == "TANK" and "configure stat priority, defensive stats, and armor item level prioritization for tanking.")
                         or (rKey == "HEAL" and "configure stat priority and gear optimization for healing.")
                         or "configure stat priority and gear optimization for damage dealing."
@@ -1985,7 +2134,12 @@ gearFrame:SetScript("OnShow", function(self)
                         { desc, 0.8, 0.8, 0.8, true },
                     })
                 end)
-                rBtn:SetScript("OnLeave", function() hide_tooltip() end)
+                rBtn:SetScript("OnLeave", function(b)
+                    if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+                        if b._sfuiAHHighlight then b._sfuiAHHighlight:Hide() end
+                    end
+                    hide_tooltip()
+                end)
                 ui.roleBtns[rKey] = rBtn
                 curX = curX + rW + 4
             end
@@ -2003,9 +2157,17 @@ gearFrame:SetScript("OnShow", function(self)
         local resetBtn = common.create_flat_button(card, "rst", 26, 20)
         resetBtn:SetPoint("TOPLEFT", card, "TOPLEFT", 10, R3Y)
         resetBtn:SetScript("OnEnter", function(b)
+            if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+                if b._sfuiAHHighlight then b._sfuiAHHighlight:Show() end
+            end
             show_tooltip(b, "ANCHOR_TOP", "reset stat priority & pawn weights")
         end)
-        resetBtn:SetScript("OnLeave", function() hide_tooltip() end)
+        resetBtn:SetScript("OnLeave", function(b)
+            if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+                if b._sfuiAHHighlight then b._sfuiAHHighlight:Hide() end
+            end
+            hide_tooltip()
+        end)
         resetBtn:SetScript("OnClick", function()
             SfuiDB.gear[id] = SfuiDB.gear[id] or {}
             local targetDB = SfuiDB.gear[id]

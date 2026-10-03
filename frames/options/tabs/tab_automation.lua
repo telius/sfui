@@ -42,9 +42,22 @@ sfui.options.RegisterTab({
             "automatically repairs gear (guild first, skips if blacksmith hammer available).")
         auto_repair_cb:SetPoint("LEFT", auto_sign_cb, "LEFT", COL_OFFSET_X, 0)
 
+        local last_general_anchor = auto_sign_cb
+
+        if sfui.isCamelot or sfui.isClassic or isClassic then
+            if SfuiDB.autoRankUp == nil then SfuiDB.autoRankUp = true end
+            local auto_rankup_cb = create_checkbox(automation_panel, "auto spell rank-up", "autoRankUp", function(checked)
+                if checked and sfui.rankup and sfui.rankup.ScanAndUpgrade then
+                    sfui.rankup.ScanAndUpgrade()
+                end
+            end, "automatically replaces lower-rank spells on action bars when learning new ranks from class trainers.")
+            auto_rankup_cb:SetPoint("TOPLEFT", auto_sign_cb, "BOTTOMLEFT", 0, -10)
+            last_general_anchor = auto_rankup_cb
+        end
+
         -- ── 2. Dungeons, Raids & Grouping ─────────────────────────────────────
         local dungeon_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
-        dungeon_header:SetPoint("TOPLEFT", auto_sign_cb, "BOTTOMLEFT", 0, -SECTION_GAP)
+        dungeon_header:SetPoint("TOPLEFT", last_general_anchor, "BOTTOMLEFT", 0, -SECTION_GAP)
         dungeon_header:SetTextColor(white[1], white[2], white[3])
         dungeon_header:SetText("dungeons, raids & grouping")
 

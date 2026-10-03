@@ -1,8 +1,8 @@
-local addonName, addon = ...
+local addonName, addon   = ...
 local _addonName, _addon = addonName, addon
 
-sfui = sfui or {}
-sfui.hide = sfui.hide or {}
+sfui                     = sfui or {}
+sfui.hide                = sfui.hide or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/hide.lua
@@ -46,7 +46,7 @@ local math_max           = math.max
 local math_abs           = math.abs
 
 -- Action Bar Configurations (Mouseover Fading)
-local BARS = {
+local BARS               = {
     { key = "main",    dbKey = "actionbars_bar_main",    label = "Main Action Bar",         frames = { "MainActionBar", "MainMenuBar" } },
     { key = "bar2",    dbKey = "actionbars_bar_bar2",    label = "Action Bar 2 (Bottom L)", frames = { "MultiBarBottomLeft" } },
     { key = "bar3",    dbKey = "actionbars_bar_bar3",    label = "Action Bar 3 (Bottom R)", frames = { "MultiBarBottomRight" } },
@@ -61,16 +61,16 @@ local BARS = {
 }
 
 -- Unit & HUD Frame Permanent Suppression Configurations
-local HIDE_FRAMES = {
-    { key = "hide_player_frame", name = "PlayerFrame",        unit = "player", label = "Player Frame" },
-    { key = "hide_target_frame", name = "TargetFrame",        unit = "target", label = "Target Frame" },
-    { key = "hide_pet_frame",    name = "PetFrame",           unit = "pet",    label = "Pet Frame" },
-    { key = "hide_focus_frame",  name = "FocusFrame",         unit = "focus",  label = "Focus Frame" },
+local HIDE_FRAMES        = {
+    { key = "hide_player_frame", name = "PlayerFrame",        unit = "player",                                       label = "Player Frame" },
+    { key = "hide_target_frame", name = "TargetFrame",        unit = "target",                                       label = "Target Frame" },
+    { key = "hide_pet_frame",    name = "PetFrame",           unit = "pet",                                          label = "Pet Frame" },
+    { key = "hide_focus_frame",  name = "FocusFrame",         unit = "focus",                                        label = "Focus Frame" },
     { key = "hide_micromenu",    name = "MicroMenuContainer", altNames = { "MicroMenu", "MainMenuBarMicroButtons" }, label = "Game Menu (Micro Menu)" },
-    { key = "hide_bagsbar",      name = "BagsBar",            altNames = { "MainMenuBarBagButtons" }, label = "Bags Bar" },
+    { key = "hide_bagsbar",      name = "BagsBar",            altNames = { "MainMenuBarBagButtons" },                label = "Bags Bar" },
 }
 
-local defaults = {
+local defaults           = {
     actionbars_mouseover_enabled = true,
     actionbars_resting_alpha     = 0.0,
     actionbars_active_alpha      = 1.0,
@@ -88,12 +88,13 @@ local defaults = {
     actionbars_bar_stance        = true,
     actionbars_bar_possess       = true,
 
-    hide_player_frame            = false,
-    hide_target_frame            = false,
+    hide_player_frame            = true,
+    hide_target_frame            = true,
     hide_pet_frame               = false,
     hide_focus_frame             = false,
     hide_micromenu               = false,
     hide_bagsbar                 = false,
+    hide_cooldown_errors         = true,
 }
 
 local function InitDB()
@@ -132,8 +133,8 @@ end
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Action Bar Mouseover Fading Engine
 -- ─────────────────────────────────────────────────────────────────────────────
-local INTERVAL_IDLE   = 0.08   -- ~12.5 fps when idle (polling cursor hover)
-local INTERVAL_FADING = 0.02   -- ~50 fps during active fade animation
+local INTERVAL_IDLE   = 0.08 -- ~12.5 fps when idle (polling cursor hover)
+local INTERVAL_FADING = 0.02 -- ~50 fps during active fade animation
 local currentInterval = nil
 local isLoopActive    = false
 local isFading        = false
@@ -183,13 +184,13 @@ UpdateActionBars = function(elapsed)
     end
     lastCursorX, lastCursorY = curX, curY
 
-    local restingAlpha = tonumber(SfuiDB.actionbars_resting_alpha) or 0.0
-    local activeAlpha  = tonumber(SfuiDB.actionbars_active_alpha) or 1.0
-    local duration     = tonumber(SfuiDB.actionbars_fade_duration) or 0.20
+    local restingAlpha       = tonumber(SfuiDB.actionbars_resting_alpha) or 0.0
+    local activeAlpha        = tonumber(SfuiDB.actionbars_active_alpha) or 1.0
+    local duration           = tonumber(SfuiDB.actionbars_fade_duration) or 0.20
     if duration <= 0 then duration = 0.01 end
-    local fadeSpeed    = (math_max(activeAlpha, restingAlpha) - math_min(activeAlpha, restingAlpha)) / duration
+    local fadeSpeed = (math_max(activeAlpha, restingAlpha) - math_min(activeAlpha, restingAlpha)) / duration
     if fadeSpeed <= 0 then fadeSpeed = 10 end
-    local step         = fadeSpeed * (elapsed or 0.02)
+    local step        = fadeSpeed * (elapsed or 0.02)
 
     local stillFading = false
 
@@ -333,6 +334,83 @@ local function HookUnitFrames()
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
+--  UI Errors Frame Filtering (Spell/Ability Cooldown Spam)
+-- ─────────────────────────────────────────────────────────────────────────────
+function sfui.hide.ApplyErrorFilters()
+    local enabled = SfuiDB and (SfuiDB.hide_cooldown_errors ~= false)
+    local bl = _G.BLACK_LISTED_MESSAGE_TYPES
+
+    local types = {
+        _G.LE_GAME_ERR_SPELL_COOLDOWN,
+        _G.LE_GAME_ERR_ABILITY_COOLDOWN,
+        _G.LE_GAME_ERR_ITEM_COOLDOWN,
+    }
+
+    local uie = _G.UIErrorsFrame
+    for _, msgType in ipairs(types) do
+        if msgType then
+            if bl then
+                bl[msgType] = enabled or nil
+            end
+            if uie and uie.SetMessageTypeEnabled then
+                uie:SetMessageTypeEnabled(msgType, not enabled)
+            end
+        end
+    end
+
+    if uie and not uie._sfuiFiltered then
+        uie._sfuiFiltered = true
+        if uie.TryDisplayMessage then
+            local origTryDisplay = uie.TryDisplayMessage
+            uie.TryDisplayMessage = function(self, messageType, message, r, g, b)
+                if SfuiDB and SfuiDB.hide_cooldown_errors then
+                    if messageType and (
+                            (_G.LE_GAME_ERR_SPELL_COOLDOWN and messageType == _G.LE_GAME_ERR_SPELL_COOLDOWN) or
+                            (_G.LE_GAME_ERR_ABILITY_COOLDOWN and messageType == _G.LE_GAME_ERR_ABILITY_COOLDOWN) or
+                            (_G.LE_GAME_ERR_ITEM_COOLDOWN and messageType == _G.LE_GAME_ERR_ITEM_COOLDOWN)
+                        ) then
+                        return
+                    end
+                    if message and type(message) == "string" and (
+                            message == _G.ERR_SPELL_COOLDOWN or
+                            message == _G.ERR_ABILITY_COOLDOWN or
+                            message == _G.ERR_ITEM_COOLDOWN or
+                            message:find("not ready yet", 1, true)
+                        ) then
+                        return
+                    end
+                end
+                return origTryDisplay(self, messageType, message, r, g, b)
+            end
+        end
+
+        if uie.AddMessage then
+            local origAddMessage = uie.AddMessage
+            uie.AddMessage = function(self, msg, r, g, b, a, messageType)
+                if SfuiDB and SfuiDB.hide_cooldown_errors then
+                    if messageType and (
+                            (_G.LE_GAME_ERR_SPELL_COOLDOWN and messageType == _G.LE_GAME_ERR_SPELL_COOLDOWN) or
+                            (_G.LE_GAME_ERR_ABILITY_COOLDOWN and messageType == _G.LE_GAME_ERR_ABILITY_COOLDOWN) or
+                            (_G.LE_GAME_ERR_ITEM_COOLDOWN and messageType == _G.LE_GAME_ERR_ITEM_COOLDOWN)
+                        ) then
+                        return
+                    end
+                    if msg and type(msg) == "string" and (
+                            msg == _G.ERR_SPELL_COOLDOWN or
+                            msg == _G.ERR_ABILITY_COOLDOWN or
+                            msg == _G.ERR_ITEM_COOLDOWN or
+                            msg:find("not ready yet", 1, true)
+                        ) then
+                        return
+                    end
+                end
+                return origAddMessage(self, msg, r, g, b, a, messageType)
+            end
+        end
+    end
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
 --  Module Registration & Lifecycle Protocol
 -- ─────────────────────────────────────────────────────────────────────────────
 sfui.hide.BARS = BARS
@@ -349,6 +427,7 @@ local function on_player_entering_world()
     HookUnitFrames()
     sfui.hide.ApplyAllUnitFrames()
     sfui.hide.RefreshActionBars()
+    sfui.hide.ApplyErrorFilters()
 end
 
 local function init_module(self)
@@ -357,13 +436,14 @@ local function init_module(self)
     InitBars()
     HookUnitFrames()
     sfui.hide.ApplyAllUnitFrames()
+    sfui.hide.ApplyErrorFilters()
 
     if SfuiDB and SfuiDB.actionbars_mouseover_enabled then
         StartUpdateLoop(INTERVAL_IDLE)
         sfui.hide.RefreshActionBars()
     end
 
-    sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED",  on_regen_enabled)
+    sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", on_regen_enabled)
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_player_entering_world)
 end
 
@@ -380,6 +460,7 @@ sfui.hide.OnSettingsChanged = function(self, key, value)
     local _s, _k, _v = self, key, value
     sfui.hide.ApplyAllUnitFrames()
     sfui.hide.RefreshActionBars()
+    sfui.hide.ApplyErrorFilters()
 end
 
 sfui.hide.GetDebugInfo = function(self)

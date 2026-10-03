@@ -81,6 +81,7 @@ local function ExecuteLayout()
     local isCamelot = sfui.isForever or (sfui.compat and (sfui.compat.is_wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
     if not isCamelot then
         local sectionRanks = {
+            skills       = 5,
             scenario     = 10,
             events       = 20,
             worldevents  = 20,

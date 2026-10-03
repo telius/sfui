@@ -1,22 +1,25 @@
 # Changelog
 
-## v12.1.0-66 (2026-10-03)
+## v12.1.0-67 (2026-10-03)
 
 ### Features & Major Improvements
 
-- **Loot Feed Polish & Dynamic Denominations (`frames/gear/lootfeed.lua`)**:
-  - **Dynamic Denomination Tiering**: Automatically adapts the row icon, accent color, and tooltip header to the highest looted denomination:
-    - **Gold Drops ($\ge$ 1g)**: Gold coin pile (`INV_Misc_Coin_01`), radiant gold accent (`#FFD600`), and `"Gold Earned"` header.
-    - **Silver Drops ($\ge$ 1s)**: Silver coin pile (`INV_Misc_Coin_03`), lustrous silver accent (`#D1D9E6`), and `"Silver Earned"` header.
-    - **Copper Drops (< 1s)**: Copper coin pile (`INV_Misc_Coin_05`), warm bronze accent (`#D98C59`), and `"Copper Earned"` header.
-  - **Contextual Wealth Badge**: Total wealth badge now properly formats silver and copper balances when total player gold is below 1g instead of displaying `0 [Gold]`.
-  - **Party Loot Distinction**: Party member loot events now display a distinct desaturated grey backdrop and toned borders to clearly differentiate them from personal loot.
+- **Camelot Skills Objective Tracker Module (`frames/quests/modules/q_camelot_skills.lua`)**:
+  - **Character Panel Shift-Click Tracking**: Added native support to Shift-Click any weapon skill, primary profession, or secondary skill from the Character Panel (`SkillsFrame`) to display as a progress bar in the SFUI objective tracker.
+  - **Dynamic Tracking Indicators**: Displays a crisp gold checkmark icon (`checkmark-minimal`) next to tracked skills in `SkillsFrame`, and dynamically adjusts title indentation.
+  - **Native Detail Pane Toggle**: Integrated a Blizzard-styled **"Track in Objectives"** checkbox in `SkillDetailFrame` and mouse-enabled the large detail `RankBar` for Shift-Click tracking toggling.
+  - **Categorized Progression Bars**: Progress bars dynamically format `rank (+modifier) / maxRank`, color-coding leveling skills with vibrant blue (`#3894fa`) and capped skills with vivid green (`#33d94d`), with gold, cyan, and amber category badges.
+  - **Interactive Navigation & Untracking**: Left-clicking a skill bar opens `SkillsFrame`, selects the skill, and smoothly scrolls to it in the list. Right-clicking or Shift-clicking untracks the skill. Shift-clicking the section header untracks all skills.
+  - **Top-of-Tracker Priority**: Configured `priority = 1` and `sectionRanks.skills = 5` so tracked character skills always render at the very top of the objective tracker.
+  - **Zero-Taint Combat Safety**: Uses pure Lua state toggles with secure hooks; combat guards prevent tainted UI panel calls during combat while skill gains and progress bar updates refresh in real-time mid-combat.
 
-- **Dungeon Journal Interface & Layout Refinements (`frames/dungeonjournal/`, `frames/themes/engine.lua`)**:
-  - **Header Banner Optimization**: Re-anchored and constrained the ornate title plaque (`headerBar`) to `280x26` at `TOP 0, -8`, centering the banner nicely below the frame top edge and providing a ~180px gap from the top-right button group.
-  - **Top-Right Option Buttons Visibility**: Explicitly elevated `mapOptBtn` (Map Pin Options), `navWpBtn` (Set Waypoint), and `showMapBtn` (Show on World Map) to frame level `base + 20` alongside `closeBtn` in both local frame setup and `ElevateWindowContents` to prevent occlusion under the header artwork.
-  - **Quest Breadcrumbs & Encounter Loot Sync**: Refined quest objective tracker navigation, loot drop syncing, and tooltip interaction stability.
+- **Objective Tracker Layout & Usable Screen Area (`config.lua`, `frames/quests/engine/q_layout.lua`)**:
+  - **Expanded Vertical Usable Area**: Increased `questlog.maxScreenHeight` from `0.45` to `0.50` (50% of the screen height), allowing more objectives to display before scrolling.
+  - **Header Tooltip Category Awareness**: Updated header tooltip generation in `frames/quests/engine/q_blocks.lua` to recognize `skills` for category untrack prompts.
 
-- **Theme Engine & Widget Standardization (`frames/themes/engine.lua`, `frames/themes/camelot.lua`, `core/widgets.lua`)**:
-  - **Dropdown & Selection Menus**: Integrated comprehensive theme styling for custom dropdown menus, including toggle button atlases, arrow indicators, hover states, and backdrop borders for both Camelot and Modern profiles.
-  - **Elevated Window Content Hierarchy**: Unified frame level escalation for window headers, close buttons, utility controls, and child tab buttons across all registered frames.
+- **Error Frame Filtering (`frames/hide.lua`, `frames/options/tabs/tab_hide.lua`)**:
+  - **"Spell is not ready yet" Filter**: Added option to filter `ERR_SPELL_NOT_READY` red error messages from `UIErrorsFrame`, configurable under the Hide options tab.
+
+- **Target Bar Layout Tuning (`config.lua`, `frames/bars/target.lua`)**:
+  - **Precise Center Anchoring**: Re-anchored the target bar to the `TOP` of `UIParent` at `(0, -35)`.
+  - **Dimension Refinements**: Adjusted dimensions to `230x13` with 1px backdrop padding and 3px power bar.

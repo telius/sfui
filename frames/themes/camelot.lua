@@ -66,9 +66,17 @@ sfui.theme.RegisterTheme({
         buttonFallback      = "common-dropdown-c-button",
         buttonHoverFallback = "common-dropdown-c-button-hover-1",
         buttonPressedFallback = "common-dropdown-c-button-pressed-1",
+        buttonAHNormal      = "auctionhouse-nav-button",
+        buttonAHSelected    = "auctionhouse-nav-button-select",
+        buttonAHHighlight   = "auctionhouse-nav-button-highlight",
+    },
+    textures       = {
+        buttonAHBgFile      = "Interface\\AuctionFrame\\UI-AuctionFrame-FilterBg",
+        buttonAHHighlightFile = "Interface\\PaperDollInfoFrame\\UI-Character-Tab-Highlight",
     },
     button         = {
-        style       = "flat",
+        style       = "auctionhouse", -- Default Auction House beveled buttons with blue hover glow and gold selection outline
+        options     = { "auctionhouse", "flat" },
     },
     window         = {
         style       = "bronze",

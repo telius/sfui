@@ -1008,11 +1008,32 @@ do
         update_bar_positions()
     end
 
+    local talentStateTimer = nil
+    local function debounced_talent_state_change()
+        if talentStateTimer then
+            talentStateTimer:Cancel()
+            talentStateTimer = nil
+        end
+        local C_Timer = _G.C_Timer
+        if C_Timer and C_Timer.NewTimer then
+            talentStateTimer = C_Timer.NewTimer(0.15, function()
+                talentStateTimer = nil
+                invalidate_dragonflying_cache()
+                sfui.bars:on_state_changed()
+            end)
+        else
+            invalidate_dragonflying_cache()
+            sfui.bars:on_state_changed()
+        end
+    end
+
     local function on_event(event, unit, ...)
         if (event == "CHARACTER_POINTS_CHANGED" or event == "TRAIT_TREE_CURRENCY_INFO_UPDATED") and sfui.isRetail then
             return
         end
-        if event == "PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_TALENT_UPDATE" or event == "CHARACTER_POINTS_CHANGED" or event == "TRAIT_CONFIG_UPDATED" or event == "TRAIT_TREE_CURRENCY_INFO_UPDATED" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" or event == "VEHICLE_UPDATE" or event == "UPDATE_VEHICLE_ACTIONBAR" or event == "UPDATE_OVERRIDE_ACTIONBAR" or event == "UPDATE_POSSESS_BAR" or event == "UPDATE_BONUS_ACTIONBAR" then
+        if event == "PLAYER_TALENT_UPDATE" or event == "CHARACTER_POINTS_CHANGED" or event == "TRAIT_CONFIG_UPDATED" or event == "TRAIT_TREE_CURRENCY_INFO_UPDATED" then
+            debounced_talent_state_change()
+        elseif event == "PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" or event == "VEHICLE_UPDATE" or event == "UPDATE_VEHICLE_ACTIONBAR" or event == "UPDATE_OVERRIDE_ACTIONBAR" or event == "UPDATE_POSSESS_BAR" or event == "UPDATE_BONUS_ACTIONBAR" then
             invalidate_dragonflying_cache()
             sfui.bars:on_state_changed()
         elseif event == "PLAYER_CAN_GLIDE_CHANGED" or event == "PLAYER_IS_GLIDING_CHANGED" then

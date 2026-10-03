@@ -139,18 +139,18 @@ sfui.options.RegisterTab({
         end, "Enables rich textured dark parchment and slate background art on windows instead of flat dark fills.")
         textured_bg_cb:SetPoint("TOPLEFT", brackets_cb, "BOTTOMLEFT", 0, -8)
 
-        local bronze_btn_cb = create_checkbox(theme_panel, "enable sculpted bronze buttons", function()
-            return SfuiDB.themeBronzeButtons == true
+        local flat_btn_cb = create_checkbox(theme_panel, "use flat button styling", function()
+            return sfui.theme.IsFlatButtonActive()
         end, function(checked)
-            SfuiDB.themeBronzeButtons = checked
+            sfui.theme.SetFlatButtons(checked)
             sfui.theme.ApplyCurrentTheme()
             theme_panel:RefreshThemeControls()
-        end, "Enables sculpted bronze button and tab styling in Camelot mode instead of the default flat buttons.")
-        bronze_btn_cb:SetPoint("TOPLEFT", textured_bg_cb, "BOTTOMLEFT", 0, -8)
+        end, "Switches to minimalist flat dark slate buttons instead of the default Auction House beveled buttons.")
+        flat_btn_cb:SetPoint("TOPLEFT", textured_bg_cb, "BOTTOMLEFT", 0, -8)
 
         -- ─── Color Palette Swatches ───────────────────────────────────────────
         local palette_header = theme_panel:CreateFontString(nil, "OVERLAY", g.font)
-        palette_header:SetPoint("TOPLEFT", bronze_btn_cb, "BOTTOMLEFT", 0, -20)
+        palette_header:SetPoint("TOPLEFT", flat_btn_cb, "BOTTOMLEFT", 0, -20)
         palette_header:SetTextColor(white[1], white[2], white[3])
         palette_header:SetText("accent & highlight colors")
 
@@ -228,14 +228,22 @@ sfui.options.RegisterTab({
         preview_body:SetPoint("RIGHT", preview_card, "RIGHT", -20, 0)
         preview_body:SetJustifyH("LEFT")
 
-        local sample_button = CreateFlatButton(preview_card, "sample button", 120, 22)
+        local sample_button = CreateFlatButton(preview_card, "sample button", 110, 22)
         sample_button:SetPoint("BOTTOMLEFT", preview_card, "BOTTOMLEFT", 16, 14)
+
+        local sample_selected = CreateFlatButton(preview_card, "selected button", 110, 22)
+        sample_selected:SetPoint("LEFT", sample_button, "RIGHT", 10, 0)
+        sample_selected.isSelected = true
 
         function preview_card:Refresh()
             sfui.theme.ApplyWindowStyle(preview_card, { cornerBrackets = (SfuiDB.themeCornerBrackets ~= false) })
             sfui.theme.ApplyCloseButtonStyle(sample_close)
             sfui.theme.ApplyQuestHeaderStyle(sample_header)
             sfui.theme.ApplyButtonStyle(sample_button, false)
+            sfui.theme.ApplyButtonStyle(sample_selected, false)
+            if sfui.theme.SetButtonSelected then
+                sfui.theme.SetButtonSelected(sample_selected, true)
+            end
 
             local pal = sfui.theme.GetPalette()
             preview_title:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3])
@@ -244,8 +252,8 @@ sfui.options.RegisterTab({
             local isC = sfui.theme.IsCamelotActive()
             if isC then
                 preview_body:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3])
-                if sfui.theme.IsBronzeButtonActive() then
-                    preview_body:SetText("Tactile cast-bronze window, ornate corner brackets, embossed banners, sculpted bronze panel buttons, and red/gold close button.")
+                if sfui.theme.IsAuctionHouseButtonActive() then
+                    preview_body:SetText("Tactile cast-bronze window, ornate corner brackets, embossed banners, Auction House beveled buttons with blue hover glow and gold selection, and red/gold close button.")
                 else
                     preview_body:SetText("Tactile cast-bronze window, ornate corner brackets, embossed banners, clean flat dark buttons, and red/gold close button.")
                 end
@@ -269,11 +277,11 @@ sfui.options.RegisterTab({
             if isCamelotSupported then
                 brackets_cb:Show()
                 textured_bg_cb:Show()
-                bronze_btn_cb:Show()
+                flat_btn_cb:Show()
             else
                 brackets_cb:Hide()
                 textured_bg_cb:Hide()
-                bronze_btn_cb:Hide()
+                flat_btn_cb:Hide()
             end
 
             -- Update Dynamically Created Toggle Buttons

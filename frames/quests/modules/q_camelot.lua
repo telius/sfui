@@ -592,10 +592,6 @@ local CamelotQuestsModule = {
         "ZONE_CHANGED_INDOORS",
         "UNIT_QUEST_LOG_CHANGED",
         "PLAYER_REGEN_ENABLED",
-        "PLAYER_TALENT_UPDATE",
-        "CHARACTER_POINTS_CHANGED",
-        "TRAIT_CONFIG_UPDATED",
-        "ACTIVE_TALENT_GROUP_CHANGED",
     },
 }
 

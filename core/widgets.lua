@@ -752,7 +752,13 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
     btn:SetBackdropBorderColor(0, 0, 0, 1)
 
     btn:SetScript("OnEnter", function(self)
-        if self._sfuiCamelotBg and self._sfuiCamelotBg:IsShown() then
+        if sfui.theme and sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+            if self._sfuiAHHighlight then self._sfuiAHHighlight:Show() end
+            if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0, 0, 0, 0) end
+            if self.SetBackdropColor then self:SetBackdropColor(0, 0, 0, 0) end
+            local sfs = self:GetFontString()
+            if sfs then sfs:SetTextColor(1.0, 1.0, 1.0, 1) end
+        elseif self._sfuiCamelotBg and self._sfuiCamelotBg:IsShown() then
             self._sfuiCamelotBg:SetAtlas(self._sfuiAtlasHover or "common-dropdown-c-button-hover-1")
             local sfs = self:GetFontString()
             if sfs then sfs:SetTextColor(1.0, 0.95, 0.70, 1) end
@@ -770,7 +776,17 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
         end
     end)
     btn:SetScript("OnLeave", function(self)
-        if self._sfuiCamelotBg and self._sfuiCamelotBg:IsShown() then
+        if sfui.theme and sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+            if self._sfuiAHHighlight then self._sfuiAHHighlight:Hide() end
+            if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0, 0, 0, 0) end
+            if self.SetBackdropColor then self:SetBackdropColor(0, 0, 0, 0) end
+            local sfs = self:GetFontString()
+            if sfs then
+                local p = sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()
+                local col = (p and (p.accentColor or p.tabNormal)) or { 0.95, 0.85, 0.55, 1 }
+                sfs:SetTextColor(col[1], col[2], col[3], 1)
+            end
+        elseif self._sfuiCamelotBg and self._sfuiCamelotBg:IsShown() then
             if not (self.menu and self.menu:IsShown()) then
                 self._sfuiCamelotBg:SetAtlas(self._sfuiAtlasNormal or "common-dropdown-c-button")
                 local sfs = self:GetFontString()
@@ -817,6 +833,17 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
         sfui.theme.ApplyDropdownStyle(btn)
         sfui.theme.RegisterDropdown(btn)
     end
+
+    menu:HookScript("OnShow", function()
+        if sfui.theme and sfui.theme.ApplyDropdownStyle then
+            sfui.theme.ApplyDropdownStyle(btn)
+        end
+    end)
+    menu:HookScript("OnHide", function()
+        if sfui.theme and sfui.theme.ApplyDropdownStyle then
+            sfui.theme.ApplyDropdownStyle(btn)
+        end
+    end)
 
     local MAX_VISIBLE_ROWS = 14
     local ROW_HEIGHT = 20

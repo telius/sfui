@@ -2,7 +2,7 @@ sfui                                = sfui or {}
 sfui.fishing                        = sfui.fishing or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
---  sfui/frames/fishing.lua
+--  sfui/frames/automation/fishing.lua
 --  Integrated One-Key Fishing Automation & Auto-Loot
 --  Zero-taint secure action handling, soft-targeting bobber interact, and
 --  dynamic acoustic enhancement during casts.
@@ -38,6 +38,23 @@ local wipe                          = _G.wipe or table.wipe or
         for k in pairs(t) do t[k] = nil end
         return t
     end
+
+local function EquipItemByName(itemInfo, slotID)
+    if not itemInfo then return end
+    if _G.C_Item and _G.C_Item.EquipItemByName then
+        if slotID then
+            _G.C_Item.EquipItemByName(itemInfo, slotID)
+        else
+            _G.C_Item.EquipItemByName(itemInfo)
+        end
+    elseif _G.EquipItemByName then
+        if slotID then
+            _G.EquipItemByName(itemInfo, slotID)
+        else
+            _G.EquipItemByName(itemInfo)
+        end
+    end
+end
 
 -- Global keybind identifiers
 _G["BINDING_NAME_SFUI_FISHING"]     = "cast & catch fishing"
@@ -623,12 +640,12 @@ local function end_session(equipWeapons)
             local mh = _state.previousWeapons.mainHand
             local oh = _state.previousWeapons.offHand
             _state.previousWeapons = nil
-            if mh and mh ~= "" and _G.EquipItemByName then
-                _G.EquipItemByName(mh, 16)
+            if mh and mh ~= "" then
+                EquipItemByName(mh, 16)
                 if oh and oh ~= "" then
                     _G.C_Timer.After(0.12, function()
-                        if _G.EquipItemByName and not (_G.InCombatLockdown and _G.InCombatLockdown()) then
-                            _G.EquipItemByName(oh, 17)
+                        if not (_G.InCombatLockdown and _G.InCombatLockdown()) then
+                            EquipItemByName(oh, 17)
                         end
                     end)
                 end
@@ -715,8 +732,8 @@ local function equip_fishing_pole_from_bags()
         _G.PickupContainerItem(pole.bag, pole.slot)
         _G.EquipCursorItem(16)
         if _G.ClearCursor then _G.ClearCursor() end
-    elseif _G.EquipItemByName then
-        _G.EquipItemByName(pole.link, 16)
+    else
+        EquipItemByName(pole.link, 16)
     end
 
     refresh_session()
@@ -1035,6 +1052,7 @@ local function on_leave_combat()
 end
 
 local function check_mount_or_taxi()
+    if not (_state.sessionActive or _state.poleWasEquipped) then return end
     if (_G.IsMounted and _G.IsMounted()) or (_G.UnitOnTaxi and _G.UnitOnTaxi("player")) then
         if _state.sessionActive or is_fishing_pole_equipped() then
             end_session(true)
@@ -1072,14 +1090,15 @@ local function on_bindings_updated()
     end
 end
 
-local function on_spells_or_skills_changed(event)
+local spellChangeTimer = nil
+local function _perform_spells_or_skills_changed(event)
     cachedFishingID = nil
     cachedSpellName = nil
 
     local newID = get_known_fishing_id(true)
     if InCombatLockdown and InCombatLockdown() then
         defer_action(function()
-            on_spells_or_skills_changed(event)
+            _perform_spells_or_skills_changed(event)
         end)
         return
     end
@@ -1091,6 +1110,22 @@ local function on_spells_or_skills_changed(event)
     end
 
     arm_fishing_keys()
+end
+
+local function on_spells_or_skills_changed(event)
+    if spellChangeTimer then
+        spellChangeTimer:Cancel()
+        spellChangeTimer = nil
+    end
+    local C_Timer = _G.C_Timer
+    if C_Timer and C_Timer.NewTimer then
+        spellChangeTimer = C_Timer.NewTimer(0.25, function()
+            spellChangeTimer = nil
+            _perform_spells_or_skills_changed(event)
+        end)
+    else
+        _perform_spells_or_skills_changed(event)
+    end
 end
 
 -- Dedicated manual or auto recovery function to restore normal audio CVars

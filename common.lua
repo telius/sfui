@@ -854,6 +854,7 @@ function sfui.initialize_database()
     if SfuiDB.minimap_button_y == nil then SfuiDB.minimap_button_y = sfui.config.minimap.button_bar.defaultY end
     if SfuiDB.autoSellGreys == nil then SfuiDB.autoSellGreys = true end
     if SfuiDB.autoRepair == nil then SfuiDB.autoRepair = true end
+    if SfuiDB.autoRankUp == nil then SfuiDB.autoRankUp = true end
     if SfuiDB.repairThreshold == nil then SfuiDB.repairThreshold = 90 end
     if SfuiDB.enableMasterHammer == nil then SfuiDB.enableMasterHammer = true end
     if SfuiDB.enableMerchant == nil then SfuiDB.enableMerchant = true end
