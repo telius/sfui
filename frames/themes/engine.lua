@@ -235,6 +235,17 @@ function sfui.theme.IsCamelotActive()
     return sfui.theme.IsCamelotSupported() and (sfui.theme.GetActiveThemeID() == "camelot")
 end
 
+function sfui.theme.IsBronzeButtonActive()
+    if not sfui.theme.IsCamelotActive() then return false end
+    if SfuiDB and SfuiDB.themeBronzeButtons ~= nil then
+        return (SfuiDB.themeBronzeButtons == true)
+    end
+    if sfui.config and sfui.config.theme and sfui.config.theme.bronzeButtons ~= nil then
+        return (sfui.config.theme.bronzeButtons == true)
+    end
+    return false
+end
+
 function sfui.theme.GetPalette()
     local themeID = sfui.theme.GetActiveThemeID()
     local theme = registeredThemes[themeID] or registeredThemes.modern
@@ -870,7 +881,7 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
     local isCamelot = (activeID == "camelot")
     local atlases = theme.atlases or {}
     local normalAtlas = atlases.buttonNormal or "common-dropdown-c-button"
-    local useBronzeAtlas = isCamelot and (sfui.theme.HasAtlas(normalAtlas) or (atlases.buttonFallback and sfui.theme.HasAtlas(atlases.buttonFallback)))
+    local useBronzeAtlas = sfui.theme.IsBronzeButtonActive() and (sfui.theme.HasAtlas(normalAtlas) or (atlases.buttonFallback and sfui.theme.HasAtlas(atlases.buttonFallback)))
 
     if useBronzeAtlas then
         local atlasNormal = sfui.theme.HasAtlas(normalAtlas) and normalAtlas or atlases.buttonFallback
@@ -941,16 +952,30 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
                 insets   = { left = 0, right = 0, top = 0, bottom = 0 }
             })
         end
-        if btn.SetBackdropColor then
-            btn:SetBackdropColor(isStyled and 0.2 or 0, isStyled and 0.2 or 0, isStyled and 0.2 or 0, 1)
-        end
-        if btn.SetBackdropBorderColor then
-            btn:SetBackdropBorderColor(0, 0, 0, 1)
-        end
-        local fs = btn:GetFontString() or btn.text
-        if fs then
-            fs:SetTextColor(1, 1, 1, 1)
-            fs:SetShadowOffset(0, 0)
+        if isCamelot then
+            if btn.SetBackdropColor then
+                btn:SetBackdropColor(0.12, 0.10, 0.08, 0.95)
+            end
+            if btn.SetBackdropBorderColor then
+                btn:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
+            end
+            local fs = btn:GetFontString() or btn.text
+            if fs then
+                fs:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3], 1)
+                fs:SetShadowOffset(0, 0)
+            end
+        else
+            if btn.SetBackdropColor then
+                btn:SetBackdropColor(isStyled and 0.2 or 0, isStyled and 0.2 or 0, isStyled and 0.2 or 0, 1)
+            end
+            if btn.SetBackdropBorderColor then
+                btn:SetBackdropBorderColor(0, 0, 0, 1)
+            end
+            local fs = btn:GetFontString() or btn.text
+            if fs then
+                fs:SetTextColor(1, 1, 1, 1)
+                fs:SetShadowOffset(0, 0)
+            end
         end
         btn:SetPushedTextOffset(0, 0)
     end
@@ -1070,7 +1095,7 @@ function sfui.theme.ApplyDropdownStyle(btn)
     local isCamelot = (activeID == "camelot")
     local atlases = theme.atlases or {}
     local normalAtlas = atlases.buttonNormal or "common-dropdown-c-button"
-    local useBronzeAtlas = isCamelot and (sfui.theme.HasAtlas(normalAtlas) or (atlases.buttonFallback and sfui.theme.HasAtlas(atlases.buttonFallback)))
+    local useBronzeAtlas = sfui.theme.IsBronzeButtonActive() and (sfui.theme.HasAtlas(normalAtlas) or (atlases.buttonFallback and sfui.theme.HasAtlas(atlases.buttonFallback)))
 
     if useBronzeAtlas then
         local atlasNormal = sfui.theme.HasAtlas(normalAtlas) and normalAtlas or atlases.buttonFallback
@@ -1137,18 +1162,32 @@ function sfui.theme.ApplyDropdownStyle(btn)
                 insets = { left = 0, right = 0, top = 0, bottom = 0 }
             })
         end
-        if btn.SetBackdropColor then btn:SetBackdropColor(0, 0, 0, 1) end
-        if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0, 0, 0, 1) end
-        local fs = btn:GetFontString()
-        if fs then
-            fs:SetTextColor(1, 1, 1, 1)
-            fs:SetShadowOffset(0, 0)
+        if isCamelot then
+            if btn.SetBackdropColor then btn:SetBackdropColor(0.12, 0.10, 0.08, 0.95) end
+            if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85) end
+            local fs = btn:GetFontString()
+            if fs then
+                fs:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3], 1)
+                fs:SetShadowOffset(0, 0)
+            end
+            if btn.menu then
+                btn.menu:SetBackdropColor(0.08, 0.07, 0.06, 0.98)
+                btn.menu:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.90)
+            end
+        else
+            if btn.SetBackdropColor then btn:SetBackdropColor(0, 0, 0, 1) end
+            if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0, 0, 0, 1) end
+            local fs = btn:GetFontString()
+            if fs then
+                fs:SetTextColor(1, 1, 1, 1)
+                fs:SetShadowOffset(0, 0)
+            end
+            if btn.menu then
+                btn.menu:SetBackdropColor(0.06, 0.06, 0.06, 0.98)
+                btn.menu:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
+            end
         end
         btn:SetPushedTextOffset(0, 0)
-        if btn.menu then
-            btn.menu:SetBackdropColor(0.06, 0.06, 0.06, 0.98)
-            btn.menu:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
-        end
     end
 end
 
@@ -1241,7 +1280,7 @@ function sfui.theme.ApplyTabStyle(btn, isSelected)
     local isCamelot = (activeID == "camelot")
     local atlases = theme.atlases or {}
     local normalAtlas = atlases.buttonNormal or "common-dropdown-c-button"
-    local useBronzeAtlas = isCamelot and (sfui.theme.HasAtlas(normalAtlas) or (atlases.buttonFallback and sfui.theme.HasAtlas(atlases.buttonFallback)))
+    local useBronzeAtlas = sfui.theme.IsBronzeButtonActive() and (sfui.theme.HasAtlas(normalAtlas) or (atlases.buttonFallback and sfui.theme.HasAtlas(atlases.buttonFallback)))
 
     local fs = btn:GetFontString() or btn.fs or btn.text
 
@@ -1314,24 +1353,47 @@ function sfui.theme.ApplyTabStyle(btn, isSelected)
                 insets   = { left = 0, right = 0, top = 0, bottom = 0 }
             })
         end
-        if btn.isSelectedTab then
-            if btn.SetBackdropColor then btn:SetBackdropColor(0.12, 0.12, 0.15, 0.95) end
-            if btn.SetBackdropBorderColor then
-                local hl = pal.highlightColor or { 0.4, 0, 1, 1 }
-                btn:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1)
-            end
-            if fs then
-                local selColor = pal.tabSelected or { 1, 1, 1, 1 }
-                fs:SetTextColor(selColor[1], selColor[2], selColor[3], 1)
-                fs:SetShadowOffset(0, 0)
+        if isCamelot then
+            if btn.isSelectedTab then
+                if btn.SetBackdropColor then btn:SetBackdropColor(0.18, 0.14, 0.10, 0.98) end
+                if btn.SetBackdropBorderColor then
+                    local hl = pal.highlightColor or { 0.82, 0.65, 0.32, 1.0 }
+                    btn:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1)
+                end
+                if fs then
+                    local selColor = pal.tabSelected or pal.accentColor or { 0.95, 0.85, 0.55, 1 }
+                    fs:SetTextColor(selColor[1], selColor[2], selColor[3], 1)
+                    fs:SetShadowOffset(0, 0)
+                end
+            else
+                if btn.SetBackdropColor then btn:SetBackdropColor(0.10, 0.08, 0.06, 0.90) end
+                if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0.22, 0.18, 0.12, 0.85) end
+                if fs then
+                    local normColor = pal.tabNormal or { 0.78, 0.70, 0.55, 1 }
+                    fs:SetTextColor(normColor[1], normColor[2], normColor[3], 1)
+                    fs:SetShadowOffset(0, 0)
+                end
             end
         else
-            if btn.SetBackdropColor then btn:SetBackdropColor(0.08, 0.08, 0.10, 0.9) end
-            if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0.18, 0.18, 0.20, 1) end
-            if fs then
-                local normColor = pal.tabNormal or { 0.6, 0.6, 0.6, 1 }
-                fs:SetTextColor(normColor[1], normColor[2], normColor[3], 1)
-                fs:SetShadowOffset(0, 0)
+            if btn.isSelectedTab then
+                if btn.SetBackdropColor then btn:SetBackdropColor(0.12, 0.12, 0.15, 0.95) end
+                if btn.SetBackdropBorderColor then
+                    local hl = pal.highlightColor or { 0.4, 0, 1, 1 }
+                    btn:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1)
+                end
+                if fs then
+                    local selColor = pal.tabSelected or { 1, 1, 1, 1 }
+                    fs:SetTextColor(selColor[1], selColor[2], selColor[3], 1)
+                    fs:SetShadowOffset(0, 0)
+                end
+            else
+                if btn.SetBackdropColor then btn:SetBackdropColor(0.08, 0.08, 0.10, 0.9) end
+                if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0.18, 0.18, 0.20, 1) end
+                if fs then
+                    local normColor = pal.tabNormal or { 0.6, 0.6, 0.6, 1 }
+                    fs:SetTextColor(normColor[1], normColor[2], normColor[3], 1)
+                    fs:SetShadowOffset(0, 0)
+                end
             end
         end
     end
@@ -1359,6 +1421,10 @@ function sfui.theme.ApplyTabStyle(btn, isSelected)
                 if self.SetBackdropBorderColor then
                     self:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1)
                 end
+                if sfui.theme.IsCamelotActive() then
+                    local sfs = self:GetFontString() or self.fs or self.text
+                    if sfs then sfs:SetTextColor(1.0, 0.95, 0.70, 1) end
+                end
             end
         end)
         btn:HookScript("OnLeave", function(self)
@@ -1372,14 +1438,25 @@ function sfui.theme.ApplyTabStyle(btn, isSelected)
                     sfs:SetTextColor(col[1], col[2], col[3], 1)
                 end
             else
-                if self.SetBackdropBorderColor then
-                    self:SetBackdropBorderColor(0.18, 0.18, 0.20, 1)
-                end
-                local sfs = self:GetFontString() or self.fs or self.text
-                if sfs then
-                    local p = sfui.theme.GetPalette()
-                    local col = p.tabNormal or { 0.6, 0.6, 0.6, 1 }
-                    sfs:SetTextColor(col[1], col[2], col[3], 1)
+                local p = sfui.theme.GetPalette()
+                if sfui.theme.IsCamelotActive() then
+                    if self.SetBackdropBorderColor then
+                        self:SetBackdropBorderColor(0.22, 0.18, 0.12, 0.85)
+                    end
+                    local sfs = self:GetFontString() or self.fs or self.text
+                    if sfs then
+                        local col = p.tabNormal or { 0.78, 0.70, 0.55, 1 }
+                        sfs:SetTextColor(col[1], col[2], col[3], 1)
+                    end
+                else
+                    if self.SetBackdropBorderColor then
+                        self:SetBackdropBorderColor(0.18, 0.18, 0.20, 1)
+                    end
+                    local sfs = self:GetFontString() or self.fs or self.text
+                    if sfs then
+                        local col = p.tabNormal or { 0.6, 0.6, 0.6, 1 }
+                        sfs:SetTextColor(col[1], col[2], col[3], 1)
+                    end
                 end
             end
         end)

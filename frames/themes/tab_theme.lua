@@ -19,7 +19,7 @@ sfui.options.RegisterTab({
         local create_color_swatch = common.create_color_swatch
         local white = sfui.config.colors.white
 
-        theme_panel.customContentHeight = 515
+        theme_panel.customContentHeight = 545
 
         -- ─── Header ─────────────────────────────────────────────────────────
         local header = theme_panel:CreateFontString(nil, "OVERLAY", g.font)
@@ -139,9 +139,18 @@ sfui.options.RegisterTab({
         end, "Enables rich textured dark parchment and slate background art on windows instead of flat dark fills.")
         textured_bg_cb:SetPoint("TOPLEFT", brackets_cb, "BOTTOMLEFT", 0, -8)
 
+        local bronze_btn_cb = create_checkbox(theme_panel, "enable sculpted bronze buttons", function()
+            return SfuiDB.themeBronzeButtons == true
+        end, function(checked)
+            SfuiDB.themeBronzeButtons = checked
+            sfui.theme.ApplyCurrentTheme()
+            theme_panel:RefreshThemeControls()
+        end, "Enables sculpted bronze button and tab styling in Camelot mode instead of the default flat buttons.")
+        bronze_btn_cb:SetPoint("TOPLEFT", textured_bg_cb, "BOTTOMLEFT", 0, -8)
+
         -- ─── Color Palette Swatches ───────────────────────────────────────────
         local palette_header = theme_panel:CreateFontString(nil, "OVERLAY", g.font)
-        palette_header:SetPoint("TOPLEFT", textured_bg_cb, "BOTTOMLEFT", 0, -20)
+        palette_header:SetPoint("TOPLEFT", bronze_btn_cb, "BOTTOMLEFT", 0, -20)
         palette_header:SetTextColor(white[1], white[2], white[3])
         palette_header:SetText("accent & highlight colors")
 
@@ -235,7 +244,11 @@ sfui.options.RegisterTab({
             local isC = sfui.theme.IsCamelotActive()
             if isC then
                 preview_body:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3])
-                preview_body:SetText("Tactile cast-bronze window, ornate corner brackets, embossed banners, sculpted bronze panel buttons, and red/gold close button.")
+                if sfui.theme.IsBronzeButtonActive() then
+                    preview_body:SetText("Tactile cast-bronze window, ornate corner brackets, embossed banners, sculpted bronze panel buttons, and red/gold close button.")
+                else
+                    preview_body:SetText("Tactile cast-bronze window, ornate corner brackets, embossed banners, clean flat dark buttons, and red/gold close button.")
+                end
             else
                 preview_body:SetTextColor(0.8, 0.8, 0.8, 1)
                 preview_body:SetText("Clean, flat minimalist black border with electric cyan/purple accents and flat buttons.")
@@ -256,9 +269,11 @@ sfui.options.RegisterTab({
             if isCamelotSupported then
                 brackets_cb:Show()
                 textured_bg_cb:Show()
+                bronze_btn_cb:Show()
             else
                 brackets_cb:Hide()
                 textured_bg_cb:Hide()
+                bronze_btn_cb:Hide()
             end
 
             -- Update Dynamically Created Toggle Buttons

@@ -68,7 +68,7 @@ sfui.theme.RegisterTheme({
         buttonPressedFallback = "common-dropdown-c-button-pressed-1",
     },
     button         = {
-        style       = "bronze",
+        style       = "flat",
     },
     window         = {
         style       = "bronze",
