@@ -21,9 +21,7 @@ local math_floor           = _G.math.floor
 local string_format        = _G.string.format
 
 local function DJ_DB()
-    SfuiDB = SfuiDB or {}
-    SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
-    return SfuiDB.dungeonjournal
+    return sfui.dungeonjournal.GetDB()
 end
 
 local function OnTooltipSetItem(tooltip)

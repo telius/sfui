@@ -47,65 +47,70 @@ local function ExecuteLayout()
     if isRefreshing then return end
     isRefreshing = true
 
-    -- Collect sections from all enabled modules and merge sections with the same ID
-    local allSections = {}
-    local sectionMap = {}
-    for _, mod in ipairs(Tracker.modules or {}) do
-        if mod:IsEnabled() and mod.BuildBlocks then
-            local modSections = mod:BuildBlocks(container)
-            if modSections then
-                for _, s in ipairs(modSections) do
-                    if s.id and sectionMap[s.id] then
-                        local existing = sectionMap[s.id]
-                        if s.blocks then
-                            for _, b in ipairs(s.blocks) do
-                                table_insert(existing.blocks, b)
+    local ok, err = pcall(function()
+        -- Collect sections from all enabled modules and merge sections with the same ID
+        local allSections = {}
+        local sectionMap = {}
+        for _, mod in ipairs(Tracker.modules or {}) do
+            if mod:IsEnabled() and mod.BuildBlocks then
+                local modOk, modSections = pcall(mod.BuildBlocks, mod, container)
+                if modOk and modSections then
+                    for _, s in ipairs(modSections) do
+                        if s.id and sectionMap[s.id] then
+                            local existing = sectionMap[s.id]
+                            if s.blocks then
+                                for _, b in ipairs(s.blocks) do
+                                    table_insert(existing.blocks, b)
+                                end
+                            end
+                            if s.count then
+                                existing.count = (existing.count or #existing.blocks) + s.count
+                            end
+                        else
+                            table_insert(allSections, s)
+                            if s.id then
+                                sectionMap[s.id] = s
                             end
                         end
-                        if s.count then
-                            existing.count = (existing.count or #existing.blocks) + s.count
-                        end
-                    else
-                        table_insert(allSections, s)
-                        if s.id then
-                            sectionMap[s.id] = s
-                        end
                     end
+                elseif not modOk and _G.geterrorhandler then
+                    _G.geterrorhandler()(modSections)
                 end
+                mod:ClearDirty()
             end
-            mod:ClearDirty()
         end
-    end
 
-    -- In Retail, sort sections by canonical hierarchy (scenario -> events -> important -> campaign -> meta -> world -> activities -> zone -> etc.)
-    local isCamelot = sfui.isForever or (sfui.compat and (sfui.compat.is_wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
-    if not isCamelot then
-        local sectionRanks = {
-            skills       = 5,
-            scenario     = 10,
-            events       = 20,
-            worldevents  = 20,
-            event        = 20,
-            important    = 30,
-            campaign     = 40,
-            meta         = 50,
-            world        = 60,
-            worldquests  = 60,
-            activities   = 70,
-            zone         = 80,
-            achievements = 90,
-            recipes      = 100,
-            collectables = 110,
-        }
-        table_sort(allSections, function(a, b)
-            local rA = sectionRanks[a.id] or 99
-            local rB = sectionRanks[b.id] or 99
-            return rA < rB
-        end)
-    end
+        -- In Retail, sort sections by canonical hierarchy (scenario -> events -> important -> campaign -> meta -> world -> activities -> zone -> etc.)
+        local isCamelot = sfui.isForever or (sfui.compat and (sfui.compat.is_wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        if not isCamelot then
+            local sectionRanks = {
+                skills       = 5,
+                scenario     = 10,
+                events       = 20,
+                worldevents  = 20,
+                event        = 20,
+                important    = 30,
+                campaign     = 40,
+                meta         = 50,
+                world        = 60,
+                worldquests  = 60,
+                activities   = 70,
+                zone         = 80,
+                achievements = 90,
+                recipes      = 100,
+                collectables = 110,
+            }
+            table_sort(allSections, function(a, b)
+                local rA = sectionRanks[a.id] or 99
+                local rB = sectionRanks[b.id] or 99
+                return rA < rB
+            end)
+        end
 
-    -- Run vertical stack layout
-    local ok, err = pcall(Layout.BuildLayout, container, allSections)
+        -- Run vertical stack layout
+        Layout.BuildLayout(container, allSections)
+    end)
+
     isRefreshing = false
     if not ok and _G.geterrorhandler then
         _G.geterrorhandler()(err)
@@ -113,6 +118,15 @@ local function ExecuteLayout()
 end
 
 function Tracker.RequestRefresh(delay)
+    if delay == 0 then
+        if refreshTimer and refreshTimer.Cancel then
+            refreshTimer:Cancel()
+        end
+        refreshTimer = nil
+        ExecuteLayout()
+        return
+    end
+
     local cfg = (sfui.config and sfui.config.questlog) or {}
     local throttle = delay or cfg.throttle or 0.25
 
@@ -130,6 +144,9 @@ function Tracker.RequestRefresh(delay)
     refreshTimer = C_Timer.NewTimer(throttle, ExecuteLayout)
 end
 
+Tracker.ExecuteLayout = ExecuteLayout
+Tracker.RefreshImmediate = ExecuteLayout
+
 -- ─── Container Frame Factory ────────────────────────────────────────────────
 local function CreateTrackerContainer()
     if container then return container end
@@ -143,43 +160,65 @@ local function CreateTrackerContainer()
     f:SetMovable(true)
     f:EnableMouse(false)
 
-    -- Saved position restoration (default: TOPRIGHT -4, -4 from UIParent)
-    local point = SfuiDB and (SfuiDB.questlogPoint or SfuiDB.mythicHudPoint)
-    local relPoint = SfuiDB and (SfuiDB.questlogRelativePoint or SfuiDB.mythicHudRelativePoint)
-    local x = SfuiDB and (SfuiDB.questlogX or SfuiDB.mythicHudX)
-    local y = SfuiDB and (SfuiDB.questlogY or SfuiDB.mythicHudY)
-
-    if not point and x and x > 0 then
-        -- Handle legacy position saved from StopMovingOrSizing (which sets BOTTOMLEFT)
-        point = "BOTTOMLEFT"
-        relPoint = "BOTTOMLEFT"
-    end
-
-    f:ClearAllPoints()
-    if x and y then
-        f:SetPoint(point or "TOPRIGHT", UIParent, relPoint or "TOPRIGHT", x, y)
+    -- Anchor to ObjectiveTrackerFrame when available (Blizzard Edit Mode support)
+    local otf = _G.ObjectiveTrackerFrame
+    if otf then
+        if otf.SetWidth then otf:SetWidth(width) end
+        f:ClearAllPoints()
+        f:SetPoint("TOPLEFT", otf, "TOPLEFT", 0, 0)
+        f:SetPoint("TOPRIGHT", otf, "TOPRIGHT", 0, 0)
     else
-        f:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -4, -4)
+        -- Saved position restoration (default: TOPRIGHT -4, -4 from UIParent)
+        local point = SfuiDB and (SfuiDB.questlogPoint or SfuiDB.mythicHudPoint)
+        local relPoint = SfuiDB and (SfuiDB.questlogRelativePoint or SfuiDB.mythicHudRelativePoint)
+        local x = SfuiDB and (SfuiDB.questlogX or SfuiDB.mythicHudX)
+        local y = SfuiDB and (SfuiDB.questlogY or SfuiDB.mythicHudY)
+
+        if not point and x and x > 0 then
+            -- Handle legacy position saved from StopMovingOrSizing (which sets BOTTOMLEFT)
+            point = "BOTTOMLEFT"
+            relPoint = "BOTTOMLEFT"
+        end
+
+        f:ClearAllPoints()
+        if x and y then
+            f:SetPoint(point or "TOPRIGHT", UIParent, relPoint or "TOPRIGHT", x, y)
+        else
+            f:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -4, -4)
+        end
     end
 
-    -- Drag handling when unlocked
+    -- Drag handling when unlocked (in modern WoW, Blizzard Edit Mode is the primary repositioning tool)
     local function OnTrackerDragStart()
         if not (SfuiDB and SfuiDB.questlogLocked) then
-            f:StartMoving()
+            local activeOtf = _G.ObjectiveTrackerFrame
+            if activeOtf and activeOtf.StartMoving and activeOtf:IsMovable() then
+                activeOtf:StartMoving()
+            else
+                f:StartMoving()
+            end
         end
     end
     local function OnTrackerDragStop()
-        f:StopMovingOrSizing()
-        local p, _, relP, posX, posY = f:GetPoint()
-        if p and SfuiDB then
-            SfuiDB.questlogPoint = p
-            SfuiDB.questlogRelativePoint = relP
-            SfuiDB.questlogX = math.floor(posX + 0.5)
-            SfuiDB.questlogY = math.floor(posY + 0.5)
-            SfuiDB.mythicHudPoint = p
-            SfuiDB.mythicHudRelativePoint = relP
-            SfuiDB.mythicHudX = SfuiDB.questlogX
-            SfuiDB.mythicHudY = SfuiDB.questlogY
+        local activeOtf = _G.ObjectiveTrackerFrame
+        if activeOtf and activeOtf.StopMovingOrSizing and activeOtf:IsMovable() then
+            activeOtf:StopMovingOrSizing()
+            if activeOtf.OnDragStop then
+                pcall(activeOtf.OnDragStop, activeOtf)
+            end
+        else
+            f:StopMovingOrSizing()
+            local p, _, relP, posX, posY = f:GetPoint()
+            if p and SfuiDB then
+                SfuiDB.questlogPoint = p
+                SfuiDB.questlogRelativePoint = relP
+                SfuiDB.questlogX = math.floor(posX + 0.5)
+                SfuiDB.questlogY = math.floor(posY + 0.5)
+                SfuiDB.mythicHudPoint = p
+                SfuiDB.mythicHudRelativePoint = relP
+                SfuiDB.mythicHudX = SfuiDB.questlogX
+                SfuiDB.mythicHudY = SfuiDB.questlogY
+            end
         end
     end
 
@@ -322,7 +361,7 @@ function SuppressBlizzardTrackers()
 
     EnsureQuestWatchHook()
 
-    -- 1. Classic Vanilla / Classic Era / Camelot (QuestWatchFrame)
+    -- 1. Classic Vanilla / Classic Era / Camelot (QuestWatchFrame & QuestTimerFrame)
     local qwf = _G.QuestWatchFrame
     if qwf then
         if qwf.SetAlpha then qwf:SetAlpha(0) end
@@ -333,6 +372,25 @@ function SuppressBlizzardTrackers()
         if not hookedTrackers[qwf] and qwf.HookScript then
             hookedTrackers[qwf] = true
             qwf:HookScript("OnShow", function(self)
+                if sfui.questlog.is_enabled() then
+                    if self.SetAlpha then self:SetAlpha(0) end
+                    if self.EnableMouse then self:EnableMouse(false) end
+                    if self.Hide then self:Hide() end
+                end
+            end)
+        end
+    end
+
+    local qtf = _G.QuestTimerFrame
+    if qtf then
+        if qtf.SetAlpha then qtf:SetAlpha(0) end
+        if qtf.EnableMouse then qtf:EnableMouse(false) end
+        if qtf.Hide then qtf:Hide() end
+        HookAlphaSuppression(qtf)
+        HookMouseSuppression(qtf)
+        if not hookedTrackers[qtf] and qtf.HookScript then
+            hookedTrackers[qtf] = true
+            qtf:HookScript("OnShow", function(self)
                 if sfui.questlog.is_enabled() then
                     if self.SetAlpha then self:SetAlpha(0) end
                     if self.EnableMouse then self:EnableMouse(false) end
@@ -363,18 +421,44 @@ function SuppressBlizzardTrackers()
     end
 
     -- 3. Modern / Retail / Camelot (ObjectiveTrackerFrame & BlocksFrame & Modules)
+    -- NOTE: ObjectiveTrackerFrame ITSELF must stay shown at alpha 1 and interactive so Blizzard Edit Mode
+    -- can highlight, select, and drag the objective tracker. We only suppress default headers, blocks, and modules.
     local otf = _G.ObjectiveTrackerFrame
     if otf then
-        if otf.SetAlpha then otf:SetAlpha(0) end
-        if otf.EnableMouse then otf:EnableMouse(false) end
-        HookAlphaSuppression(otf)
-        HookMouseSuppression(otf)
+        if otf.SetAlpha and otf:GetAlpha() < 1 then
+            otf:SetAlpha(1)
+        end
+        if otf.Show and not otf:IsShown() then
+            otf:Show()
+        end
+
+        local cfg = (sfui.config and sfui.config.questlog) or {}
+        local width = cfg.width or 280
+        if otf.SetWidth then otf:SetWidth(width) end
 
         if otf.Header then
             if otf.Header.SetAlpha then otf.Header:SetAlpha(0) end
             if otf.Header.EnableMouse then otf.Header:EnableMouse(false) end
+            if otf.Header.Hide then otf.Header:Hide() end
             HookAlphaSuppression(otf.Header)
             HookMouseSuppression(otf.Header)
+        end
+
+        if otf.modules then
+            for _, mod in ipairs(otf.modules) do
+                if mod.SetAlpha then mod:SetAlpha(0) end
+                if mod.EnableMouse then mod:EnableMouse(false) end
+                if mod.Hide then mod:Hide() end
+                HookAlphaSuppression(mod)
+                HookMouseSuppression(mod)
+                if mod.Header then
+                    if mod.Header.SetAlpha then mod.Header:SetAlpha(0) end
+                    if mod.Header.EnableMouse then mod.Header:EnableMouse(false) end
+                    if mod.Header.Hide then mod.Header:Hide() end
+                    HookAlphaSuppression(mod.Header)
+                    HookMouseSuppression(mod.Header)
+                end
+            end
         end
     end
 
@@ -382,6 +466,7 @@ function SuppressBlizzardTrackers()
     if otbf then
         if otbf.SetAlpha then otbf:SetAlpha(0) end
         if otbf.EnableMouse then otbf:EnableMouse(false) end
+        if otbf.Hide then otbf:Hide() end
         HookAlphaSuppression(otbf)
         HookMouseSuppression(otbf)
     end
@@ -390,6 +475,7 @@ function SuppressBlizzardTrackers()
     if otwc then
         if otwc.SetAlpha then otwc:SetAlpha(0) end
         if otwc.EnableMouse then otwc:EnableMouse(false) end
+        if otwc.Hide then otwc:Hide() end
         HookAlphaSuppression(otwc)
         HookMouseSuppression(otwc)
     end
@@ -401,6 +487,12 @@ function RestoreBlizzardTrackers()
         if qwf.SetAlpha then qwf:SetAlpha(1) end
         if qwf.EnableMouse then qwf:EnableMouse(true) end
         if qwf.Show then qwf:Show() end
+    end
+
+    local qtf = _G.QuestTimerFrame
+    if qtf then
+        if qtf.SetAlpha then qtf:SetAlpha(1) end
+        if qtf.EnableMouse then qtf:EnableMouse(true) end
     end
 
     local wf = _G.WatchFrame
@@ -536,10 +628,49 @@ local function SetupEventRouting()
     sfui.events.RegisterEvent("QUEST_CRITERIA_UPDATE", function()
         SuppressBlizzardTrackers()
     end)
+
+    -- Blizzard Edit Mode Integration
+    if EventRegistry and EventRegistry.RegisterCallback then
+        EventRegistry:RegisterCallback("EditMode.Enter", function()
+            local otf = _G.ObjectiveTrackerFrame
+            if otf then
+                if otf.SetAlpha then otf:SetAlpha(1) end
+                if otf.Show and not otf:IsShown() then otf:Show() end
+                if otf.Selection and otf.Selection.SetFrameLevel then
+                    otf.Selection:SetFrameLevel(math.max(100, (container and container:GetFrameLevel() or 10) + 20))
+                end
+            end
+            if container then
+                container:EnableMouse(false)
+                if container.scrollClip then
+                    container.scrollClip:EnableMouse(false)
+                end
+            end
+        end)
+
+        EventRegistry:RegisterCallback("EditMode.Exit", function()
+            local otf = _G.ObjectiveTrackerFrame
+            if otf then
+                local cfg = (sfui.config and sfui.config.questlog) or {}
+                local width = cfg.width or 280
+                if otf.SetWidth then otf:SetWidth(width) end
+            end
+            Tracker.RestorePosition()
+            Tracker.RequestRefresh(0.05)
+        end)
+    end
+
+    sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
+        Tracker.RestorePosition()
+        Tracker.RequestRefresh(0.05)
+    end)
+
     sfui.events.RegisterEvent("ADDON_LOADED", function(event, loadedAddon)
-        if loadedAddon == "Blizzard_ObjectiveTracker" or loadedAddon == "Blizzard_UIPanels_Game" then
+        if loadedAddon == "Blizzard_ObjectiveTracker" or loadedAddon == "Blizzard_UIPanels_Game" or loadedAddon == "Blizzard_EditMode" then
             EnsureQuestWatchHook()
             SuppressBlizzardTrackers()
+            Tracker.RestorePosition()
+            Tracker.RequestRefresh(0.05)
         end
     end)
 end
@@ -625,13 +756,38 @@ function sfui.questlog.reset_position()
             SfuiDB.mythicHudX = nil
             SfuiDB.mythicHudY = nil
         end
-        container:ClearAllPoints()
-        container:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -4, -4)
+        local otf = _G.ObjectiveTrackerFrame
+        if otf then
+            if otf.ResetToDefaultPosition then
+                pcall(otf.ResetToDefaultPosition, otf)
+            end
+            local cfg = (sfui.config and sfui.config.questlog) or {}
+            local width = cfg.width or 280
+            if otf.SetWidth then otf:SetWidth(width) end
+            container:ClearAllPoints()
+            container:SetPoint("TOPLEFT", otf, "TOPLEFT", 0, 0)
+            container:SetPoint("TOPRIGHT", otf, "TOPRIGHT", 0, 0)
+        else
+            container:ClearAllPoints()
+            container:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -4, -4)
+        end
     end
 end
 
 function Tracker.RestorePosition()
     if not container then return end
+
+    local otf = _G.ObjectiveTrackerFrame
+    if otf then
+        local cfg = (sfui.config and sfui.config.questlog) or {}
+        local width = cfg.width or 280
+        if otf.SetWidth then otf:SetWidth(width) end
+        container:ClearAllPoints()
+        container:SetPoint("TOPLEFT", otf, "TOPLEFT", 0, 0)
+        container:SetPoint("TOPRIGHT", otf, "TOPRIGHT", 0, 0)
+        return
+    end
+
     local point = SfuiDB and (SfuiDB.questlogPoint or SfuiDB.mythicHudPoint)
     local relPoint = SfuiDB and (SfuiDB.questlogRelativePoint or SfuiDB.mythicHudRelativePoint)
     local x = SfuiDB and (SfuiDB.questlogX or SfuiDB.mythicHudX)

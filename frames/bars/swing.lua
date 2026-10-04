@@ -17,25 +17,68 @@ local GetTime = GetTime
 local GetInventoryItemID = GetInventoryItemID
 local UnitAffectingCombat = UnitAffectingCombat
 local UnitCanAttack = UnitCanAttack
+local UnitClass = UnitClass
 local C_SwingTimer = C_SwingTimer
 local Enum = Enum
+local C_Item = C_Item
+
+local GetItemInfoInstant = (C_Item and C_Item.GetItemInfoInstant) or _G.GetItemInfoInstant
+local INVSLOT_OFFHAND = _G.INVSLOT_OFFHAND or 17
+local INVSLOT_RANGED  = _G.INVSLOT_RANGED or 18
+local ITEM_CLASS_WEAPON = (Enum and Enum.ItemClass and Enum.ItemClass.Weapon) or 2
 
 local SWING_MAIN_HAND = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.MainHand) or 0
 local SWING_OFF_HAND  = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.OffHand)  or 1
 local SWING_RANGED    = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.Ranged)   or 2
+local SWING_TYPES     = { SWING_MAIN_HAND, SWING_OFF_HAND, SWING_RANGED }
 
 local OUT_OF_RANGE_ALPHA = 0.4
 
 local swingBars = {}
+local _, playerClass = UnitClass("player")
+local isHunter = (playerClass == "HUNTER")
+local isAutoRepeating = false
+
+local hasOffHandWeapon = false
+local hasRangedWeapon  = false
+
+-- ─── Helper: Cache equipped weapon states ───────────────────────────────────
+local function UpdateEquippedWeapons()
+    local offHandID = GetInventoryItemID("player", INVSLOT_OFFHAND)
+    if offHandID then
+        local classID = select(6, GetItemInfoInstant(offHandID))
+        hasOffHandWeapon = (classID == ITEM_CLASS_WEAPON)
+    else
+        hasOffHandWeapon = false
+    end
+
+    local rangedID = GetInventoryItemID("player", INVSLOT_RANGED)
+    if rangedID then
+        local classID = select(6, GetItemInfoInstant(rangedID))
+        hasRangedWeapon = (classID == ITEM_CLASS_WEAPON)
+    else
+        hasRangedWeapon = false
+    end
+end
 
 -- ─── Helper: Can player swing this weapon type? ─────────────────────────────
 local function CanSwing(swingType)
     if swingType == SWING_MAIN_HAND then
         return true
     elseif swingType == SWING_OFF_HAND then
-        return GetInventoryItemID("player", 17) ~= nil
+        return hasOffHandWeapon
     elseif swingType == SWING_RANGED then
-        return GetInventoryItemID("player", 18) ~= nil
+        if not hasRangedWeapon then
+            return false
+        end
+        if isHunter then
+            return true
+        end
+        local bar = swingBars[SWING_RANGED]
+        if bar and bar.duration ~= nil then
+            return true
+        end
+        return isAutoRepeating
     end
     return false
 end
@@ -74,28 +117,25 @@ local function ClearSwingTimer(bar)
     bar.statusBar:SetValue(0)
     bar.pip:Hide()
     bar:SetScript("OnUpdate", nil)
+    if bar.swingType == SWING_RANGED and not isHunter and not isAutoRepeating and bar.backdrop and bar.backdrop:IsShown() then
+        bar.backdrop:Hide()
+    end
 end
 
-local function OnUpdateBar(bar, elapsed)
-    if not bar.endTime or not bar.duration then
+local function OnUpdateBar(bar)
+    local endTime = bar.endTime
+    if not endTime then
         ClearSwingTimer(bar)
         return
     end
 
-    local remaining = bar.endTime - GetTime()
+    local remaining = endTime - GetTime()
     if remaining <= 0 then
         ClearSwingTimer(bar)
         return
     end
 
-    local progress = (bar.duration - remaining) / bar.duration
-    bar.statusBar:SetValue(progress)
-
-    local barW = bar.statusBar:GetWidth()
-    if barW and barW > 0 then
-        bar.pip:ClearAllPoints()
-        bar.pip:SetPoint("CENTER", bar.statusBar, "LEFT", barW * progress, 0)
-    end
+    bar.statusBar:SetValue((bar.duration - remaining) / bar.duration)
 end
 
 local function ResetSwingTimer(bar, duration)
@@ -158,10 +198,14 @@ local function CreateSwingBar(name, swingType, colorKey)
     local col = (barCfg.colors and barCfg.colors[colorKey]) or { 0.4, 0.8, 1.0, 1.0 }
     statusBar:SetStatusBarColor(unpack(col))
 
-    -- Leading Pip (spark)
+    -- Leading Pip (spark) anchored directly to the status bar texture
     local pip = statusBar:CreateTexture(nil, "OVERLAY")
     pip:SetColorTexture(1, 1, 1, 0.9)
     pip:SetSize(2, barCfg.height + 2)
+    local barTex = statusBar:GetStatusBarTexture()
+    if barTex then
+        pip:SetPoint("CENTER", barTex, "RIGHT", 0, 0)
+    end
     pip:Hide()
 
     local bar = statusBar
@@ -192,18 +236,44 @@ local function EnsureBarsCreated()
 end
 
 -- ─── Suppression of Blizzard's Native Swing Timer Frames ───────────────────
+local BLIZZARD_FRAME_NAMES = {
+    "SwingTimerMainHandFrame",
+    "SwingTimerOffHandFrame",
+    "SwingTimerRangedFrame",
+}
+
+local blizzardSuppressed = false
 local function SuppressBlizzardSwingTimer()
-    local frames = {
-        _G["SwingTimerMainHandFrame"],
-        _G["SwingTimerOffHandFrame"],
-        _G["SwingTimerRangedFrame"],
-    }
-    for _, f in ipairs(frames) do
+    if blizzardSuppressed then return end
+
+    -- Disable the CVar as a first line of defense
+    local set = (C_CVar and C_CVar.SetCVar) or _G.SetCVar
+    local get = (C_CVar and C_CVar.GetCVar) or _G.GetCVar
+    if get and set and get("showSwingTimer") ~= "0" then
+        set("showSwingTimer", 0)
+    end
+
+    -- Unregister events on the manager frame so it stops processing swings
+    local mgr = _G["SwingTimerManagerFrame"]
+    if mgr then
+        mgr:UnregisterAllEvents()
+    end
+
+    -- Unregister, hide, and lock OnShow on the visual frames
+    local allFound = true
+    for i = 1, 3 do
+        local f = _G[BLIZZARD_FRAME_NAMES[i]]
         if f then
             f:UnregisterAllEvents()
             f:Hide()
-            f:SetScript("OnShow", function(self) self:Hide() end)
+            f:SetScript("OnShow", f.Hide)
+        else
+            allFound = false
         end
+    end
+
+    if allFound and mgr then
+        blizzardSuppressed = true
     end
 end
 
@@ -290,38 +360,49 @@ function sfui.swing.UpdateVisibility(inCombat, hasEnemyTarget, isDragonflying, i
     if inVehicle == nil and common.is_in_vehicle then inVehicle = common.is_in_vehicle() end
 
     if isDragonflying or inVehicle then
-        for _, bar in pairs(swingBars) do
-            bar.backdrop:Hide()
-            ClearSwingTimer(bar)
-            UpdateRangeCheckRegistration(bar)
+        for i = 1, 3 do
+            local bar = swingBars[SWING_TYPES[i]]
+            if bar then
+                bar.backdrop:Hide()
+                ClearSwingTimer(bar)
+                UpdateRangeCheckRegistration(bar)
+            end
         end
         return
     end
 
     local shouldShow = (inCombat or hasEnemyTarget or (SfuiDB and SfuiDB.swingBarVisibility == "always"))
 
-    for sType, bar in pairs(swingBars) do
-        local canSwing = CanSwing(sType)
-        if shouldShow and canSwing then
-            bar.backdrop:Show()
-            UpdateRangeCheckRegistration(bar)
-            UpdateRangeState(bar)
-        else
-            bar.backdrop:Hide()
-            ClearSwingTimer(bar)
-            UpdateRangeCheckRegistration(bar)
+    for i = 1, 3 do
+        local sType = SWING_TYPES[i]
+        local bar = swingBars[sType]
+        if bar then
+            local canSwing = CanSwing(sType)
+            if shouldShow and canSwing then
+                bar.backdrop:Show()
+                UpdateRangeCheckRegistration(bar)
+                UpdateRangeState(bar)
+            else
+                bar.backdrop:Hide()
+                ClearSwingTimer(bar)
+                UpdateRangeCheckRegistration(bar)
+            end
         end
     end
-
-    SuppressBlizzardSwingTimer()
 end
 
 --- Updates status bar textures for all swing bars
 function sfui.swing.SetBarTexture(texturePath)
     if not texturePath then return end
-    for _, bar in pairs(swingBars) do
-        if bar.statusBar then
+    for i = 1, 3 do
+        local bar = swingBars[SWING_TYPES[i]]
+        if bar and bar.statusBar then
             bar.statusBar:SetStatusBarTexture(texturePath)
+            local barTex = bar.statusBar:GetStatusBarTexture()
+            if bar.pip and barTex then
+                bar.pip:ClearAllPoints()
+                bar.pip:SetPoint("CENTER", barTex, "RIGHT", 0, 0)
+            end
         end
     end
 end
@@ -346,11 +427,9 @@ local function OnSwingEvent(event, ...)
         local duration, swingType = ...
         local bar = swingBars[swingType]
         if bar then
+            ResetSwingTimer(bar, duration)
             if not bar.backdrop:IsShown() and sfui.bars and sfui.bars.UpdateVisibility then
                 sfui.bars.UpdateVisibility()
-            end
-            if bar.backdrop:IsShown() then
-                ResetSwingTimer(bar, duration)
             end
         end
     elseif event == "PLAYER_SWING_RANGE_UPDATE" then
@@ -360,15 +439,22 @@ local function OnSwingEvent(event, ...)
             SetOutOfRange(bar, checksRange and not isInRange)
         end
     elseif event == "PLAYER_TARGET_CHANGED" then
-        for _, bar in pairs(swingBars) do
-            if bar.backdrop:IsShown() then
+        for i = 1, 3 do
+            local bar = swingBars[SWING_TYPES[i]]
+            if bar and bar.backdrop:IsShown() then
                 UpdateRangeState(bar)
             end
         end
-    elseif event == "PLAYER_IN_COMBAT_CHANGED" or event == "PLAYER_ENTER_COMBAT" or event == "PLAYER_LEAVE_COMBAT"
-        or event == "START_AUTOREPEAT_SPELL" or event == "STOP_AUTOREPEAT_SPELL" then
+    elseif event == "START_AUTOREPEAT_SPELL" then
+        isAutoRepeating = true
         sfui.bars.UpdateVisibility()
-    elseif event == "WEAPON_SLOT_CHANGED" or event == "UNIT_ATTACK_SPEED" or event == "PLAYER_ENTERING_WORLD" then
+    elseif event == "STOP_AUTOREPEAT_SPELL" then
+        isAutoRepeating = false
+        sfui.bars.UpdateVisibility()
+    elseif event == "PLAYER_IN_COMBAT_CHANGED" then
+        sfui.bars.UpdateVisibility()
+    elseif event == "WEAPON_SLOT_CHANGED" or event == "PLAYER_ENTERING_WORLD" then
+        UpdateEquippedWeapons()
         SuppressBlizzardSwingTimer()
         sfui.bars.UpdateVisibility()
         sfui.trackedicons.ForceLayoutUpdate()
@@ -381,10 +467,8 @@ sfui.events.RegisterEvent("PLAYER_TARGET_CHANGED", OnSwingEvent)
 sfui.events.RegisterEvent("WEAPON_SLOT_CHANGED", OnSwingEvent)
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", OnSwingEvent)
 sfui.events.RegisterEvent("PLAYER_IN_COMBAT_CHANGED", OnSwingEvent)
-sfui.events.RegisterEvent("PLAYER_ENTER_COMBAT", OnSwingEvent)
-sfui.events.RegisterEvent("PLAYER_LEAVE_COMBAT", OnSwingEvent)
 sfui.events.RegisterEvent("START_AUTOREPEAT_SPELL", OnSwingEvent)
 sfui.events.RegisterEvent("STOP_AUTOREPEAT_SPELL", OnSwingEvent)
-sfui.events.RegisterUnitEvent("UNIT_ATTACK_SPEED", "player", function(event, ...)
-    OnSwingEvent(event, ...)
-end)
+
+UpdateEquippedWeapons()
+SuppressBlizzardSwingTimer()

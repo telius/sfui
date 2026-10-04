@@ -2396,6 +2396,28 @@ end
 --   "heavy"  – Option C: chiseled heavy bronze frame with bright gold top highlight,
 --              dark bottom shadow, and authentic corner brackets
 
+--- Hide all decor elements on a bar decorFrame
+local function _HideDecorElements(decorFrame)
+    if not decorFrame then return end
+    if decorFrame.topHL then decorFrame.topHL:Hide() end
+    if decorFrame.botShadow then decorFrame.botShadow:Hide() end
+    if decorFrame.topGlow then decorFrame.topGlow:Hide() end
+    if decorFrame.leftGlow then decorFrame.leftGlow:Hide() end
+    if decorFrame.rightGlow then decorFrame.rightGlow:Hide() end
+    if decorFrame.topInset then decorFrame.topInset:Hide() end
+    if decorFrame.leftInset then decorFrame.leftInset:Hide() end
+    if decorFrame.botRim then decorFrame.botRim:Hide() end
+    if decorFrame.cornerTL then decorFrame.cornerTL:Hide() end
+    if decorFrame.cornerTR then decorFrame.cornerTR:Hide() end
+    if decorFrame.cornerBL then decorFrame.cornerBL:Hide() end
+    if decorFrame.cornerBR then decorFrame.cornerBR:Hide() end
+    if decorFrame.nameplateBG then decorFrame.nameplateBG:Hide() end
+    if decorFrame.cornerCutTL then decorFrame.cornerCutTL:Hide() end
+    if decorFrame.cornerCutTR then decorFrame.cornerCutTR:Hide() end
+    if decorFrame.cornerCutBL then decorFrame.cornerCutBL:Hide() end
+    if decorFrame.cornerCutBR then decorFrame.cornerCutBR:Hide() end
+end
+
 --- Resolve active bar style
 --- @param bars_def table
 --- @param barType string
@@ -2415,7 +2437,7 @@ local function _ResolveBarStyle(bars_def, barType, isCamelot)
     if bars_def.style then
         return bars_def.style
     end
-    return isCamelot and "heavy" or "thin"
+    return isCamelot and "inset" or "thin"
 end
 
 --- Get the current bar style setting
@@ -2431,24 +2453,39 @@ function sfui.theme.GetBarStyle()
     if theme.bars and theme.bars.style then
         return theme.bars.style
     end
-    return (activeID == "camelot") and "heavy" or "thin"
+    return (activeID == "camelot") and "inset" or "thin"
 end
 
 --- Set the bar style and refresh all registered bars
---- @param style string "thin" | "glow" | "heavy"
+--- @param style string "inset" | "bezel" | "darkbronze" | "castbar" | "heavy" | "thin" | "glow"
 --- @return boolean, string?
 function sfui.theme.SetBarStyle(style)
-    if style ~= "thin" and style ~= "glow" and style ~= "heavy" then
-        return false, "Invalid bar style. Valid styles: thin, glow, heavy"
+    local s = style and style:lower() or ""
+    if s == "inset" or s == "darkinset" or s == "dark" then
+        s = "inset"
+    elseif s == "bezel" or s == "nameplate" or s == "hud" or s == "blizzard" then
+        s = "bezel"
+    elseif s == "darkbronze" or s == "bronze" then
+        s = "darkbronze"
+    elseif s == "castbar" or s == "cast" then
+        s = "castbar"
+    elseif s == "heavy" or s == "chiseled" or s == "brackets" then
+        s = "heavy"
+    elseif s == "thin" or s == "flat" or s == "minimal" then
+        s = "thin"
+    elseif s == "glow" or s == "recessed" then
+        s = "glow"
+    else
+        return false, "Invalid bar style. Valid styles: inset, bezel, darkbronze, castbar, heavy, thin, glow"
     end
     SfuiDB = SfuiDB or {}
-    SfuiDB.camelotBarStyle = style
-    SfuiDB.themeBarStyle = style
+    SfuiDB.camelotBarStyle = s
+    SfuiDB.themeBarStyle = s
     if SfuiDB.theme then
-        SfuiDB.theme.barStyle = style
+        SfuiDB.theme.barStyle = s
     end
     if sfui.config.theme then
-        sfui.config.theme.barStyle = style
+        sfui.config.theme.barStyle = s
     end
     for bar, barType in pairs(registered_bars) do
         if bar then
@@ -2494,9 +2531,23 @@ function sfui.theme.ApplyStatusBarStyle(bar, barType)
         if backdrop.SetBackdropBorderColor then
             if not isCamelot then
                 backdrop:SetBackdropBorderColor(bdCol[1], bdCol[2], bdCol[3], bdCol[4] or 1)
-            elseif style == "glow" then
-                -- Option B: Borderless recessed amber well
+            elseif style == "bezel" then
+                -- Native Blizzard bezel manages its own border via atlas
                 backdrop:SetBackdropBorderColor(0, 0, 0, 0)
+            elseif style == "glow" then
+                -- Borderless recessed amber well
+                backdrop:SetBackdropBorderColor(0, 0, 0, 0)
+            elseif style == "castbar" then
+                -- Pure crisp pitch black border matching Screenshot 2 castbar
+                backdrop:SetBackdropBorderColor(0, 0, 0, 1)
+            elseif style == "inset" then
+                -- Dark antique bronze / deep charcoal border
+                local bc = (bars_def[barType] and bars_def[barType].borderColor) or { 0.14, 0.10, 0.06, 0.98 }
+                backdrop:SetBackdropBorderColor(bc[1], bc[2], bc[3], bc[4] or 0.98)
+            elseif style == "darkbronze" then
+                -- Rich muted antique bronze
+                local bc = (bars_def[barType] and bars_def[barType].borderColor) or { 0.24, 0.18, 0.09, 0.90 }
+                backdrop:SetBackdropBorderColor(bc[1], bc[2], bc[3], bc[4] or 0.90)
             else
                 -- Option A (thin) & Option C (heavy): Warm bronze edge
                 local bc = (bars_def[barType] and bars_def[barType].borderColor) or { 0.40, 0.30, 0.15, 0.90 }
@@ -2513,15 +2564,17 @@ function sfui.theme.ApplyStatusBarStyle(bar, barType)
             end
         end
         if backdrop._sfuiDecorFrame then
+            _HideDecorElements(backdrop._sfuiDecorFrame)
             backdrop._sfuiDecorFrame:Hide()
         end
         return
     end
 
-    -- Apply / update decorative texture layers for Option B (glow) and Option C (heavy)
+    -- Apply / update decorative texture layers
     local decorFrame = backdrop._sfuiDecorFrame
-    if not isCamelot or style == "thin" then
+    if not isCamelot or style == "thin" or style == "castbar" then
         if decorFrame then
+            _HideDecorElements(decorFrame)
             decorFrame:Hide()
         end
         return
@@ -2535,17 +2588,130 @@ function sfui.theme.ApplyStatusBarStyle(bar, barType)
     decorFrame:Show()
     local targetLevel = (bar.GetFrameLevel and bar:GetFrameLevel() or backdrop:GetFrameLevel()) + 1
     decorFrame:SetFrameLevel(targetLevel)
+    _HideDecorElements(decorFrame)
 
-    if style == "glow" then
+    if style == "inset" then
+        -- ═════════════════════════════════════════════════════════════════════
+        -- OPTION 1: Dark Inset Well with Softened (Rounded) Corners & Antique Bronze Rim
+        -- Matches the sleek, recessed aesthetic of the castbar in Screenshot 2
+        -- ═════════════════════════════════════════════════════════════════════
+        -- 1. Top dark inset shadow (1px)
+        if not decorFrame.topInset then
+            decorFrame.topInset = decorFrame:CreateTexture(nil, "OVERLAY", nil, 1)
+        end
+        decorFrame.topInset:ClearAllPoints()
+        decorFrame.topInset:SetPoint("TOPLEFT", backdrop, "TOPLEFT", 1, -1)
+        decorFrame.topInset:SetPoint("TOPRIGHT", backdrop, "TOPRIGHT", -1, -1)
+        decorFrame.topInset:SetHeight(1)
+        decorFrame.topInset:SetColorTexture(0.01, 0.01, 0.01, 0.75)
+        decorFrame.topInset:Show()
+
+        -- 2. Left dark inset shadow (1px)
+        if not decorFrame.leftInset then
+            decorFrame.leftInset = decorFrame:CreateTexture(nil, "OVERLAY", nil, 1)
+        end
+        decorFrame.leftInset:ClearAllPoints()
+        decorFrame.leftInset:SetPoint("TOPLEFT", backdrop, "TOPLEFT", 1, -1)
+        decorFrame.leftInset:SetPoint("BOTTOMLEFT", backdrop, "BOTTOMLEFT", 1, 1)
+        decorFrame.leftInset:SetWidth(1)
+        decorFrame.leftInset:SetColorTexture(0.01, 0.01, 0.01, 0.65)
+        decorFrame.leftInset:Show()
+
+        -- 3. Bottom subtle antique bronze metallic reflection (1px)
+        if not decorFrame.botRim then
+            decorFrame.botRim = decorFrame:CreateTexture(nil, "OVERLAY", nil, 1)
+        end
+        decorFrame.botRim:ClearAllPoints()
+        decorFrame.botRim:SetPoint("BOTTOMLEFT", backdrop, "BOTTOMLEFT", 1, 1)
+        decorFrame.botRim:SetPoint("BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", -1, 1)
+        decorFrame.botRim:SetHeight(1)
+        decorFrame.botRim:SetColorTexture(0.30, 0.22, 0.11, 0.45)
+        decorFrame.botRim:Show()
+
+        -- 4. Micro corner softening (rounds off the harsh 90° corner pixels)
+        local cornerCuts = {
+            { key = "cornerCutTL", point = "TOPLEFT",     x = 0, y = 0 },
+            { key = "cornerCutTR", point = "TOPRIGHT",    x = 0, y = 0 },
+            { key = "cornerCutBL", point = "BOTTOMLEFT",  x = 0, y = 0 },
+            { key = "cornerCutBR", point = "BOTTOMRIGHT", x = 0, y = 0 },
+        }
+        for _, cc in ipairs(cornerCuts) do
+            if not decorFrame[cc.key] then
+                decorFrame[cc.key] = decorFrame:CreateTexture(nil, "OVERLAY", nil, 2)
+            end
+            local cut = decorFrame[cc.key]
+            cut:ClearAllPoints()
+            cut:SetPoint(cc.point, backdrop, cc.point, cc.x, cc.y)
+            cut:SetSize(1, 1)
+            cut:SetColorTexture(0, 0, 0, 0.75)
+            cut:Show()
+        end
+
+    elseif style == "bezel" then
+        -- ═════════════════════════════════════════════════════════════════════
+        -- OPTION 2: Blizzard Native Nameplate HUD Inset Atlas
+        -- ═════════════════════════════════════════════════════════════════════
+        local hasNameplateAtlas = sfui.theme.HasAtlas and sfui.theme.HasAtlas("UI-HUD-CoolDownManager-Bar-BG")
+        if hasNameplateAtlas then
+            if not decorFrame.nameplateBG then
+                decorFrame.nameplateBG = decorFrame:CreateTexture(nil, "BACKGROUND", nil, -5)
+            end
+            decorFrame.nameplateBG:SetAtlas("UI-HUD-CoolDownManager-Bar-BG", false)
+            decorFrame.nameplateBG:ClearAllPoints()
+            decorFrame.nameplateBG:SetPoint("TOPLEFT", backdrop, "TOPLEFT", -2, 3)
+            decorFrame.nameplateBG:SetPoint("BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", 6, -6)
+            decorFrame.nameplateBG:Show()
+        end
+
+    elseif style == "darkbronze" then
+        -- ═════════════════════════════════════════════════════════════════════
+        -- OPTION 3: Sculpted Dark Bronze Inset with Muted Sheen
+        -- ═════════════════════════════════════════════════════════════════════
+        -- 1. Top metallic sheen (muted, not bright gold)
+        if not decorFrame.topHL then
+            decorFrame.topHL = decorFrame:CreateTexture(nil, "OVERLAY", nil, 2)
+        end
+        decorFrame.topHL:ClearAllPoints()
+        decorFrame.topHL:SetPoint("TOPLEFT", backdrop, "TOPLEFT", 1, 0)
+        decorFrame.topHL:SetPoint("TOPRIGHT", backdrop, "TOPRIGHT", -1, 0)
+        decorFrame.topHL:SetHeight(1)
+        decorFrame.topHL:SetColorTexture(0.40, 0.30, 0.14, 0.65)
+        decorFrame.topHL:Show()
+
+        -- 2. Bottom shadow
+        if not decorFrame.botShadow then
+            decorFrame.botShadow = decorFrame:CreateTexture(nil, "OVERLAY", nil, 2)
+        end
+        decorFrame.botShadow:ClearAllPoints()
+        decorFrame.botShadow:SetPoint("BOTTOMLEFT", backdrop, "BOTTOMLEFT", 1, 0)
+        decorFrame.botShadow:SetPoint("BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", -1, 0)
+        decorFrame.botShadow:SetHeight(1)
+        decorFrame.botShadow:SetColorTexture(0.04, 0.03, 0.01, 0.90)
+        decorFrame.botShadow:Show()
+
+        -- 3. Micro corner softening
+        local cornerCuts = {
+            { key = "cornerCutTL", point = "TOPLEFT",     x = 0, y = 0 },
+            { key = "cornerCutTR", point = "TOPRIGHT",    x = 0, y = 0 },
+            { key = "cornerCutBL", point = "BOTTOMLEFT",  x = 0, y = 0 },
+            { key = "cornerCutBR", point = "BOTTOMRIGHT", x = 0, y = 0 },
+        }
+        for _, cc in ipairs(cornerCuts) do
+            if not decorFrame[cc.key] then
+                decorFrame[cc.key] = decorFrame:CreateTexture(nil, "OVERLAY", nil, 2)
+            end
+            local cut = decorFrame[cc.key]
+            cut:ClearAllPoints()
+            cut:SetPoint(cc.point, backdrop, cc.point, cc.x, cc.y)
+            cut:SetSize(1, 1)
+            cut:SetColorTexture(0, 0, 0, 0.65)
+            cut:Show()
+        end
+
+    elseif style == "glow" then
         -- ═════════════════════════════════════════════════════════════════════
         -- OPTION B: Recessed Amber Inner Glow & Shadow Vignette
         -- ═════════════════════════════════════════════════════════════════════
-        if decorFrame.topHL then decorFrame.topHL:Hide() end
-        if decorFrame.cornerTL then decorFrame.cornerTL:Hide() end
-        if decorFrame.cornerTR then decorFrame.cornerTR:Hide() end
-        if decorFrame.cornerBL then decorFrame.cornerBL:Hide() end
-        if decorFrame.cornerBR then decorFrame.cornerBR:Hide() end
-
         -- 1. Top inner-glow (warm amber)
         if not decorFrame.topGlow then
             decorFrame.topGlow = decorFrame:CreateTexture(nil, "OVERLAY", nil, 1)
@@ -2594,10 +2760,6 @@ function sfui.theme.ApplyStatusBarStyle(bar, barType)
         -- ═════════════════════════════════════════════════════════════════════
         -- OPTION C: Chiseled Heavy Bronze Frame & Corner Brackets
         -- ═════════════════════════════════════════════════════════════════════
-        if decorFrame.topGlow then decorFrame.topGlow:Hide() end
-        if decorFrame.leftGlow then decorFrame.leftGlow:Hide() end
-        if decorFrame.rightGlow then decorFrame.rightGlow:Hide() end
-
         -- 1. Top specular highlight — bright burnished gold (#E8C060)
         if not decorFrame.topHL then
             decorFrame.topHL = decorFrame:CreateTexture(nil, "OVERLAY", nil, 2)
@@ -2871,7 +3033,7 @@ sfui.db.RegisterDefaults("theme", {
     cornerBrackets   = true,
     texturedBackdrop = true,
     minimapArt       = true,
-    barStyle         = "heavy",
+    barStyle         = "inset",
 })
 
 -- Export public API alias

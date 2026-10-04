@@ -31,9 +31,7 @@ local ticker = nil
 
 -- ─── Helper: DB Access ────────────────────────────────────────────────────────
 local function DJ_DB()
-    SfuiDB = SfuiDB or {}
-    SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
-    return SfuiDB.dungeonjournal
+    return sfui.dungeonjournal.GetDB()
 end
 
 -- ─── Helper: Get Map Canvas ───────────────────────────────────────────────────
@@ -66,11 +64,14 @@ local function AcquireEntrancePin(parent)
     for _, pin in ipairs(entrancePinPool) do
         if not pin:IsShown() then
             pin:SetParent(parent)
+            pin:SetBackdropBorderColor(0, 0, 0, 1)
+            pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
             return pin
         end
     end
 
     local pin = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     pin:SetSize(22, 22)
     pin:SetFrameStrata("HIGH")
     pin:SetBackdrop({
@@ -78,12 +79,13 @@ local function AcquireEntrancePin(parent)
         edgeFile = "Interface\\Buttons\\WHITE8x8",
         edgeSize = 1,
     })
-    pin:SetBackdropColor(0.06, 0.06, 0.08, 0.9)
-    pin:SetBackdropBorderColor(1, 0.82, 0, 0.9)
+    pin:SetBackdropColor(0.04, 0.04, 0.05, 0.95)
+    pin:SetBackdropBorderColor(0, 0, 0, 1)
 
     local icon = pin:CreateTexture(nil, "ARTWORK")
     pin.icon = icon
-    icon:SetAllPoints()
+    icon:SetPoint("TOPLEFT", pin, "TOPLEFT", 1, -1)
+    icon:SetPoint("BOTTOMRIGHT", pin, "BOTTOMRIGHT", -1, 1)
     icon:SetTexture("Interface\\Icons\\INV_Misc_Rune_01")
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
@@ -110,12 +112,14 @@ local function AcquireQuestPin(parent)
             pin:SetParent(parent)
             pin.icon:SetDesaturated(false)
             pin.icon:SetVertexColor(1, 1, 1, 1)
-            pin:SetBackdropBorderColor(1, 0.82, 0, 0.95)
+            pin:SetBackdropBorderColor(0, 0, 0, 1)
+            pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
             return pin
         end
     end
 
     local pin = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     pin:SetSize(20, 20)
     pin:SetFrameStrata("HIGH")
     pin:SetBackdrop({
@@ -123,8 +127,8 @@ local function AcquireQuestPin(parent)
         edgeFile = "Interface\\Buttons\\WHITE8x8",
         edgeSize = 1,
     })
-    pin:SetBackdropColor(0.06, 0.06, 0.08, 0.95)
-    pin:SetBackdropBorderColor(1, 0.82, 0, 0.95)
+    pin:SetBackdropColor(0.04, 0.04, 0.05, 0.95)
+    pin:SetBackdropBorderColor(0, 0, 0, 1)
 
     local icon = pin:CreateTexture(nil, "ARTWORK")
     pin.icon = icon
@@ -136,6 +140,8 @@ local function AcquireQuestPin(parent)
     pin.countText = countText
     countText:SetPoint("BOTTOMRIGHT", pin, "BOTTOMRIGHT", 2, -2)
     countText:SetTextColor(1, 0.82, 0, 1)
+    countText:SetShadowOffset(1, -1)
+    countText:SetShadowColor(0, 0, 0, 1)
 
     local hi = pin:CreateTexture(nil, "HIGHLIGHT")
     hi:SetAllPoints()
@@ -188,6 +194,17 @@ local function AcquireGroupItem(q, d, minLevel)
     return it
 end
 
+local function FindOrCreateGroup(mapID, cx, cy)
+    for _, g in ipairs(activeGroups) do
+        if math.abs(g.x - cx) < 0.008 and math.abs(g.y - cy) < 0.008 then
+            return g
+        end
+    end
+    local targetGroup = AcquireGroup(mapID, cx, cy)
+    activeGroups[#activeGroups + 1] = targetGroup
+    return targetGroup
+end
+
 local function ReleaseQuestPins()
     for _, pin in ipairs(activeQuestPins) do
         pin:Hide()
@@ -235,16 +252,7 @@ local function RebuildActiveQuestCache()
 end
 
 local function IsQuestDone(questID)
-    if not questID then return false end
-    if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted then
-        local ok, done = pcall(C_QuestLog.IsQuestFlaggedCompleted, questID)
-        if ok and done then return true end
-    end
-    if IsQuestFlaggedCompleted then
-        local ok, done = pcall(IsQuestFlaggedCompleted, questID)
-        if ok and done then return true end
-    end
-    return false
+    return sfui.dungeonjournal.IsQuestCompleted(questID)
 end
 
 local function IsQuestActive(questID)
@@ -253,6 +261,22 @@ local function IsQuestActive(questID)
         RebuildActiveQuestCache()
     end
     return activeQuestCache[questID] == true
+end
+
+local function IsQuestPickedUpInDungeon(q)
+    if not q then return false end
+    if q.pickedUpInDungeon == true or q.inDungeon == true then
+        return true
+    end
+    if q.pickup then
+        local lower = q.pickup:lower()
+        if lower:find("inside ") or lower:find("in dungeon") or lower:find("dropped by ") or lower:find("drop from ") or lower:find("found inside") then
+            if not lower:find("outside") then
+                return true
+            end
+        end
+    end
+    return false
 end
 
 -- ─── Update Pins on Canvas ────────────────────────────────────────────────────
@@ -316,77 +340,141 @@ local function UpdatePins(force)
     -- ── 1. Dungeon Entrance Pins ──────────────────────────────────────────────
     if DJ_DB().showEntrancePins ~= false then
         local function ProcessEntrance(d)
-            if not (DJ_DB().hiddenDungeons and DJ_DB().hiddenDungeons[d.id]) then
-                local ent = d.entrance
-                if ent and ent.mapID == mapID and ent.x and ent.y then
-                    local pin = AcquireEntrancePin(canvas)
-                    pin.dungeon = d
+            if sfui.dungeonjournal and sfui.dungeonjournal.AreDungeonPinsHidden and sfui.dungeonjournal.AreDungeonPinsHidden(d.id) then return end
+            if DJ_DB().hiddenDungeons and DJ_DB().hiddenDungeons[d.id] then return end
+            if DJ_DB().hiddenPins and DJ_DB().hiddenPins[d.id] then return end
+            if DJ_DB().autoHideTrivialPins and sfui.dungeonjournal and sfui.dungeonjournal.IsDungeonTrivial and sfui.dungeonjournal.IsDungeonTrivial(d, playerLevel) then
+                return
+            end
+            local ent = d.entrance
+            if ent and ent.mapID == mapID and ent.x and ent.y then
+                local pin = AcquireEntrancePin(canvas)
+                pin.dungeon = d
 
-                    pin:ClearAllPoints()
-                    pin:SetPoint("CENTER", canvas, "TOPLEFT", canvasW * ent.x, -canvasH * ent.y)
+                pin:ClearAllPoints()
+                pin:SetPoint("CENTER", canvas, "TOPLEFT", canvasW * ent.x, -canvasH * ent.y)
 
-                    local textureLoaded = false
-                    if d.iconStr then
-                        pin.icon:SetTexture(d.iconStr)
-                        if pin.icon:GetTexture() then textureLoaded = true end
+                local textureLoaded = false
+                if d.iconStr then
+                    pin.icon:SetTexture(d.iconStr)
+                    if pin.icon:GetTexture() then textureLoaded = true end
+                end
+                if not textureLoaded and d.icon then
+                    pin.icon:SetTexture(d.icon)
+                    if pin.icon:GetTexture() then textureLoaded = true end
+                end
+                if not textureLoaded then
+                    pin.icon:SetTexture("Interface\\Icons\\INV_Misc_Rune_01")
+                end
+
+                pin:SetScript("OnEnter", function(self)
+                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                    GameTooltip:AddLine(d.name or "dungeon entrance", 1, 0.82, 0)
+                    if d.level then
+                        GameTooltip:AddLine("level: " .. d.level, 0.85, 0.85, 0.85)
                     end
-                    if not textureLoaded and d.icon then
-                        pin.icon:SetTexture(d.icon)
-                        if pin.icon:GetTexture() then textureLoaded = true end
-                    end
-                    if not textureLoaded then
-                        pin.icon:SetTexture("Interface\\Icons\\INV_Misc_Rune_01")
+                    if d.zone then
+                        GameTooltip:AddLine("zone: " .. d.zone, 0.65, 0.65, 0.65)
                     end
 
-                    pin:SetScript("OnEnter", function(self)
-                        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                        GameTooltip:AddLine(d.name or "dungeon entrance", 1, 0.82, 0)
-                        if d.level then
-                            GameTooltip:AddLine("level: " .. d.level, 0.85, 0.85, 0.85)
-                        end
-                        if d.zone then
-                            GameTooltip:AddLine("zone: " .. d.zone, 0.65, 0.65, 0.65)
-                        end
-
-                        -- Count quests available for this dungeon
-                        local totalQuests = 0
-                        local available = 0
-                        local inLog = 0
-                        local completed = 0
-                        for _, q in ipairs(d.quests or {}) do
-                            local f = q.faction or "Both"
-                            if f == "Both" or f == playerFaction then
-                                totalQuests = totalQuests + 1
-                                local minLvl = q.minLevel or (db.questMinLevels and db.questMinLevels[q.id]) or 1
-                                if IsQuestDone(q.id) then
-                                    completed = completed + 1
-                                elseif IsQuestActive(q.id) then
-                                    inLog = inLog + 1
-                                elseif playerLevel >= minLvl then
-                                    available = available + 1
-                                end
+                    -- Count quests available for this dungeon
+                    local totalQuests = 0
+                    local available = 0
+                    local inLog = 0
+                    local completed = 0
+                    for _, q in ipairs(d.quests or {}) do
+                        local f = q.faction or "Both"
+                        if f == "Both" or f == playerFaction then
+                            totalQuests = totalQuests + 1
+                            local minLvl = q.minLevel or (db.questMinLevels and db.questMinLevels[q.id]) or 1
+                            if IsQuestDone(q.id) then
+                                completed = completed + 1
+                            elseif IsQuestActive(q.id) then
+                                inLog = inLog + 1
+                            elseif playerLevel >= minLvl then
+                                available = available + 1
                             end
                         end
-                        if totalQuests > 0 then
-                            GameTooltip:AddLine(string.format("quests: %d available · %d in log · %d completed", available, inLog, completed), 0.75, 0.75, 0.75)
+                    end
+                    if totalQuests > 0 then
+                        GameTooltip:AddLine(string.format("quests: %d available · %d in log · %d completed", available, inLog, completed), 0.75, 0.75, 0.75)
+                    end
+
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cff00ff00<click to open dungeon journal>|r", 0, 1, 0)
+                    GameTooltip:AddLine("|cffff4444<right-click for pin options>|r", 1, 0.35, 0.35)
+                    GameTooltip:AddLine("|cff888888<shift-right-click to fast hide>|r", 0.6, 0.6, 0.6)
+                    GameTooltip:Show()
+                end)
+                pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+                local dID = d.id
+                pin:SetScript("OnClick", function(self, button)
+                    if button == "RightButton" then
+                        if IsShiftKeyDown() then
+                            sfui.dungeonjournal.SetDungeonHidden(dID, true)
+                            if sfui.print then
+                                sfui.print(string.format("Hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[Undo]|h|r", d.name or "dungeon", dID))
+                            end
+                            return
+                        else
+                            local items = {
+                                {
+                                    text = "Hide Pins for " .. (d.name or "Dungeon"),
+                                    color = { 1.0, 0.7, 0.4 },
+                                    func = function()
+                                        sfui.dungeonjournal.SetDungeonPinsHidden(dID, true)
+                                        if sfui.print then
+                                            sfui.print(string.format("Hidden map pins for |cffffd100%s|r. |cff00ccff|Hsfui_undo:pins:%s|h[Undo]|h|r", d.name or "dungeon", dID))
+                                        end
+                                    end,
+                                },
+                                {
+                                    text = "Hide " .. (d.name or "Dungeon") .. " & Pins",
+                                    color = { 1.0, 0.4, 0.4 },
+                                    func = function()
+                                        sfui.dungeonjournal.SetDungeonHidden(dID, true)
+                                        if sfui.print then
+                                            sfui.print(string.format("Hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[Undo]|h|r", d.name or "dungeon", dID))
+                                        end
+                                    end,
+                                },
+                                {
+                                    text = "Open in Dungeon Journal",
+                                    color = { 0.4, 1.0, 0.4 },
+                                    func = function()
+                                        if sfui.dungeonjournal and sfui.dungeonjournal.SelectDungeon then
+                                            sfui.dungeonjournal.SelectDungeon(dID)
+                                        end
+                                    end,
+                                },
+                            }
+                            local _, _, _, totalHidden = sfui.dungeonjournal.GetHiddenCounts()
+                            if totalHidden > 0 then
+                                table.insert(items, {
+                                    text = "Manage Hidden Items (" .. totalHidden .. ")...",
+                                    color = { 1.0, 0.82, 0.0 },
+                                    func = function()
+                                        sfui.dungeonjournal.OpenHiddenManager()
+                                    end,
+                                })
+                            end
+                            table.insert(items, {
+                                text = "Cancel",
+                                color = { 0.6, 0.6, 0.6 },
+                                func = function() end,
+                            })
+                            sfui.dungeonjournal.ShowContextMenu(self, d.name or "Dungeon Entrance", items)
+                            return
                         end
+                    end
+                    if sfui.dungeonjournal and sfui.dungeonjournal.SelectDungeon then
+                        sfui.dungeonjournal.SelectDungeon(dID)
+                    end
+                end)
 
-                        GameTooltip:AddLine(" ")
-                        GameTooltip:AddLine("|cff00ff00<click to open dungeon journal>|r", 0, 1, 0)
-                        GameTooltip:Show()
-                    end)
-                    pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
-                    local dID = d.id
-                    pin:SetScript("OnClick", function()
-                        if sfui.dungeonjournal and sfui.dungeonjournal.SelectDungeon then
-                            sfui.dungeonjournal.SelectDungeon(dID)
-                        end
-                    end)
-
-                    pin:Show()
-                    activeEntrancePins[#activeEntrancePins + 1] = pin
-                end
+                pin:Show()
+                activeEntrancePins[#activeEntrancePins + 1] = pin
             end
         end
 
@@ -408,27 +496,87 @@ local function UpdatePins(force)
         local questCoords  = db.questCoords
 
         local function ProcessQuestDungeon(d)
+            if sfui.dungeonjournal and sfui.dungeonjournal.AreDungeonPinsHidden and sfui.dungeonjournal.AreDungeonPinsHidden(d.id) then return end
             if DJ_DB().hiddenDungeons and DJ_DB().hiddenDungeons[d.id] then return end
+            if DJ_DB().hiddenPins and DJ_DB().hiddenPins[d.id] then return end
+
             for _, q in ipairs(d.quests or {}) do
                 local minLevel = q.minLevel or (db.questMinLevels and db.questMinLevels[q.id]) or 1
                 local levelEligible = (not requireLevel) or (playerLevel >= minLevel)
-                if levelEligible and not IsQuestDone(q.id) and not IsQuestActive(q.id) then
-                    local f = q.faction or "Both"
-                    if f == "Both" or f == playerFaction then
-                        local coords = questCoords and questCoords[q.id]
-                        if coords and coords.mapID == mapID then
-                            local targetGroup = nil
-                            for _, g in ipairs(activeGroups) do
-                                if math.abs(g.x - coords.x) < 0.008 and math.abs(g.y - coords.y) < 0.008 then
-                                    targetGroup = g
-                                    break
+                local f = q.faction or "Both"
+                local factionEligible = (f == "Both" or f == playerFaction)
+
+                if factionEligible then
+                    local steps, currentStep, currentStepIndex, allDone = nil, nil, nil, nil
+                    if sfui.dungeonjournal and sfui.dungeonjournal.GetQuestChainInfo then
+                        steps, currentStep, currentStepIndex, allDone = sfui.dungeonjournal.GetQuestChainInfo(q)
+                    end
+
+                    if steps then
+                        -- Quest has a prerequisite chain: place pin for the step the player is currently on
+                        if not allDone and currentStep then
+                            local stepMinLevel = currentStep.minLevel or (currentStepIndex == 1 and q.chainStart and q.chainStart.minLevel) or (db.questMinLevels and currentStep.id and db.questMinLevels[currentStep.id]) or minLevel
+                            local stepLevelEligible = (not requireLevel) or (playerLevel >= stepMinLevel)
+                            local stepActive = currentStep.id and IsQuestActive(currentStep.id)
+                            local insideDungeon = currentStep.isDungeonQuest and IsQuestPickedUpInDungeon(q)
+
+                            local stepID = currentStep.id or q.id
+                            local isStepHidden = sfui.dungeonjournal and sfui.dungeonjournal.IsQuestPinHidden and sfui.dungeonjournal.IsQuestPinHidden(stepID, d.id)
+
+                            if not isStepHidden and stepLevelEligible and not stepActive and not insideDungeon then
+                                local coords = currentStep.coords or (questCoords and currentStep.id and questCoords[currentStep.id])
+                                if coords and coords.mapID == mapID then
+                                    local cx = coords.x or 0
+                                    local cy = coords.y or 0
+                                    if cx > 1 then cx = cx / 100 end
+                                    if cy > 1 then cy = cy / 100 end
+
+                                    local targetGroup = FindOrCreateGroup(coords.mapID, cx, cy)
+                                    local alreadyPresent = false
+                                    for _, it in ipairs(targetGroup.quests) do
+                                        if it.quest and (it.quest.id == currentStep.id or it.quest.name == currentStep.name) then
+                                            alreadyPresent = true
+                                            break
+                                        end
+                                    end
+                                    if not alreadyPresent then
+                                        local chainItem = {
+                                            id = currentStep.id or q.id,
+                                            name = currentStep.name or q.name,
+                                            pickup = currentStep.pickup or q.pickup,
+                                            level = currentStep.level or q.level,
+                                            minLevel = stepMinLevel,
+                                            faction = currentStep.faction or f,
+                                            objective = currentStep.objective or string.format("Step %d of %d in the quest chain for %s.", currentStepIndex, #steps, q.name or "dungeon quest"),
+                                            isChainStep = true,
+                                            chainStep = currentStepIndex,
+                                            chainTotal = #steps,
+                                            parentQuest = q,
+                                        }
+                                        targetGroup.quests[#targetGroup.quests + 1] = AcquireGroupItem(chainItem, d, stepMinLevel)
+                                    end
                                 end
                             end
-                            if not targetGroup then
-                                targetGroup = AcquireGroup(coords.mapID, coords.x, coords.y)
-                                activeGroups[#activeGroups + 1] = targetGroup
+                        end
+                    else
+                        -- Standalone quest (no chain)
+                        local isDone = IsQuestDone(q.id)
+                        local isActive = IsQuestActive(q.id)
+                        local insideDungeon = IsQuestPickedUpInDungeon(q)
+
+                        local isQuestHidden = sfui.dungeonjournal and sfui.dungeonjournal.IsQuestPinHidden and sfui.dungeonjournal.IsQuestPinHidden(q.id, d.id)
+
+                        if not isQuestHidden and levelEligible and not isDone and not isActive and not insideDungeon then
+                            local coords = (questCoords and questCoords[q.id]) or q.coords
+                            if coords and coords.mapID == mapID then
+                                local cx = coords.x or 0
+                                local cy = coords.y or 0
+                                if cx > 1 then cx = cx / 100 end
+                                if cy > 1 then cy = cy / 100 end
+
+                                local targetGroup = FindOrCreateGroup(coords.mapID, cx, cy)
+                                targetGroup.quests[#targetGroup.quests + 1] = AcquireGroupItem(q, d, minLevel)
                             end
-                            targetGroup.quests[#targetGroup.quests + 1] = AcquireGroupItem(q, d, minLevel)
                         end
                     end
                 end
@@ -462,11 +610,11 @@ local function UpdatePins(force)
             if not anyLevelMet then
                 pin.icon:SetDesaturated(true)
                 pin.icon:SetVertexColor(0.85, 0.55, 0.55, 0.85)
-                pin:SetBackdropBorderColor(0.8, 0.35, 0.35, 0.85)
+                pin:SetBackdropBorderColor(0, 0, 0, 1)
             else
                 pin.icon:SetDesaturated(false)
                 pin.icon:SetVertexColor(1, 1, 1, 1)
-                pin:SetBackdropBorderColor(1, 0.82, 0, 0.95)
+                pin:SetBackdropBorderColor(0, 0, 0, 1)
             end
 
             if #g.quests > 1 then
@@ -487,6 +635,10 @@ local function UpdatePins(force)
 
                     GameTooltip:AddLine(q.name or "dungeon quest", 1, 0.82, 0)
                     GameTooltip:AddLine("dungeon: " .. (d.name or ""), 0.85, 0.85, 0.85)
+                    if (q.isChainStep or q.isChainStart) and q.parentQuest then
+                        local stepStr = string.format("step %d of %d in quest chain for: %s", q.chainStep or 1, q.chainTotal or 1, q.parentQuest.name or "dungeon quest")
+                        GameTooltip:AddLine("|cffffaa00" .. stepStr .. "|r", 1, 0.85, 0.3)
+                    end
                     if q.pickup and q.pickup ~= "" then
                         GameTooltip:AddLine("starts from: " .. q.pickup, 0.85, 0.85, 0.85)
                     end
@@ -499,7 +651,11 @@ local function UpdatePins(force)
                         else
                             GameTooltip:AddLine(string.format("requires level: %d", minLvl), 0.65, 0.65, 0.65)
                         end
-                        GameTooltip:AddLine("status: |cffffd100available to pick up|r", 0.65, 0.65, 0.65)
+                        if q.isChainStep or q.isChainStart then
+                            GameTooltip:AddLine(string.format("status: |cffffd100available to pick up (chain step %d/%d)|r", q.chainStep or 1, q.chainTotal or 1), 0.65, 0.65, 0.65)
+                        else
+                            GameTooltip:AddLine("status: |cffffd100available to pick up|r", 0.65, 0.65, 0.65)
+                        end
                     end
                     if q.objective and q.objective ~= "" then
                         GameTooltip:AddLine(" ")
@@ -522,19 +678,134 @@ local function UpdatePins(force)
                         else
                             statusBadge = string.format(" |cff888888[lvl %s]|r", tostring(q.level or minLvl))
                         end
-                        GameTooltip:AddLine(string.format("- [%s] %s%s", d.name or "", q.name or "", statusBadge), 0.9, 0.9, 0.9)
+                        local chainBadge = (q.isChainStep or q.isChainStart) and string.format(" |cffffaa00[step %d/%d]|r", q.chainStep or 1, q.chainTotal or 1) or ""
+                        GameTooltip:AddLine(string.format("- [%s] %s%s%s", d.name or "", q.name or "", chainBadge, statusBadge), 0.9, 0.9, 0.9)
                     end
                 end
 
                 GameTooltip:AddLine(" ")
                 GameTooltip:AddLine("|cff00ff00<click to open dungeon journal>|r", 0, 1, 0)
                 GameTooltip:AddLine("|cff00bfff<shift-click to set map waypoint>|r", 0, 0.75, 1)
+                GameTooltip:AddLine("|cffff4444<right-click for pin options>|r", 1, 0.35, 0.35)
+                GameTooltip:AddLine("|cff888888<shift-right-click to fast hide pin>|r", 0.6, 0.6, 0.6)
                 GameTooltip:Show()
             end)
 
             pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-            pin:SetScript("OnClick", function()
+            pin:SetScript("OnClick", function(self, mouseBtn)
+                local item = g.quests[1]
+                if not item then return end
+                local q = item.quest
+                local d = item.dungeon
+
+                if mouseBtn == "RightButton" then
+                    if IsShiftKeyDown() then
+                        local qID = q.id
+                        sfui.dungeonjournal.SetQuestPinHidden(qID, true)
+                        if sfui.print then
+                            sfui.print(string.format("Hidden quest pin |cffffd100%s|r. |cff00ccff|Hsfui_undo:quest:%s|h[Undo]|h|r", q.name or "quest", tostring(qID)))
+                        end
+                        return
+                    else
+                        local items = {}
+                        if #g.quests == 1 then
+                            table.insert(items, {
+                                text = "Hide this Quest Pin",
+                                color = { 1.0, 0.7, 0.4 },
+                                func = function()
+                                    sfui.dungeonjournal.SetQuestPinHidden(q.id, true)
+                                    if sfui.print then
+                                        sfui.print(string.format("Hidden quest pin |cffffd100%s|r. |cff00ccff|Hsfui_undo:quest:%s|h[Undo]|h|r", q.name or "quest", tostring(q.id)))
+                                    end
+                                end,
+                            })
+                        else
+                            for _, it in ipairs(g.quests) do
+                                local curQ = it.quest
+                                table.insert(items, {
+                                    text = "Hide Pin: " .. (curQ.name or "quest"),
+                                    color = { 1.0, 0.7, 0.4 },
+                                    func = function()
+                                        sfui.dungeonjournal.SetQuestPinHidden(curQ.id, true)
+                                        if sfui.print then
+                                            sfui.print(string.format("Hidden quest pin |cffffd100%s|r. |cff00ccff|Hsfui_undo:quest:%s|h[Undo]|h|r", curQ.name or "quest", tostring(curQ.id)))
+                                        end
+                                    end,
+                                })
+                            end
+                            table.insert(items, {
+                                text = "Hide All " .. #g.quests .. " Pins at Location",
+                                color = { 1.0, 0.5, 0.3 },
+                                func = function()
+                                    for _, it in ipairs(g.quests) do
+                                        sfui.dungeonjournal.SetQuestPinHidden(it.quest.id, true)
+                                    end
+                                    if sfui.print then
+                                        sfui.print(string.format("Hidden %d quest pins at this location.", #g.quests))
+                                    end
+                                end,
+                            })
+                        end
+
+                        table.insert(items, {
+                            text = "Hide All Pins for " .. (d.name or "Dungeon"),
+                            color = { 1.0, 0.5, 0.5 },
+                            func = function()
+                                sfui.dungeonjournal.SetDungeonPinsHidden(d.id, true)
+                                if sfui.print then
+                                    sfui.print(string.format("Hidden map pins for |cffffd100%s|r. |cff00ccff|Hsfui_undo:pins:%s|h[Undo]|h|r", d.name or "dungeon", d.id))
+                                end
+                            end,
+                        })
+
+                        table.insert(items, {
+                            text = "Hide " .. (d.name or "Dungeon") .. " & Pins",
+                            color = { 1.0, 0.3, 0.3 },
+                            func = function()
+                                sfui.dungeonjournal.SetDungeonHidden(d.id, true)
+                                if sfui.print then
+                                    sfui.print(string.format("Hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[Undo]|h|r", d.name or "dungeon", d.id))
+                                end
+                            end,
+                        })
+
+                        table.insert(items, {
+                            text = "Open in Dungeon Journal",
+                            color = { 0.4, 1.0, 0.4 },
+                            func = function()
+                                local targetQuestID = (q.parentQuest and q.parentQuest.id) or q.id
+                                if sfui.dungeonjournal and sfui.dungeonjournal.SelectQuest then
+                                    sfui.dungeonjournal.SelectQuest(d.id, targetQuestID)
+                                elseif sfui.dungeonjournal and sfui.dungeonjournal.SelectDungeon then
+                                    sfui.dungeonjournal.SelectDungeon(d.id)
+                                end
+                            end,
+                        })
+
+                        local _, _, _, totalHidden = sfui.dungeonjournal.GetHiddenCounts()
+                        if totalHidden > 0 then
+                            table.insert(items, {
+                                text = "Manage Hidden Items (" .. totalHidden .. ")...",
+                                color = { 1.0, 0.82, 0.0 },
+                                func = function()
+                                    sfui.dungeonjournal.OpenHiddenManager()
+                                end,
+                            })
+                        end
+
+                        table.insert(items, {
+                            text = "Cancel",
+                            color = { 0.6, 0.6, 0.6 },
+                            func = function() end,
+                        })
+
+                        local menuTitle = (#g.quests == 1) and (q.name or "Quest") or string.format("%d Quests (%s)", #g.quests, d.name or "")
+                        sfui.dungeonjournal.ShowContextMenu(self, menuTitle, items)
+                        return
+                    end
+                end
+
                 if IsShiftKeyDown() then
                     if C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates then
                         pcall(function()
@@ -551,9 +822,10 @@ local function UpdatePins(force)
                     return
                 end
 
-                local item = g.quests[1]
+                local q = item.quest
+                local targetQuestID = (q.parentQuest and q.parentQuest.id) or q.id
                 if sfui.dungeonjournal and sfui.dungeonjournal.SelectQuest then
-                    sfui.dungeonjournal.SelectQuest(item.dungeon.id, item.quest.id)
+                    sfui.dungeonjournal.SelectQuest(item.dungeon.id, targetQuestID)
                 elseif sfui.dungeonjournal and sfui.dungeonjournal.SelectDungeon then
                     sfui.dungeonjournal.SelectDungeon(item.dungeon.id)
                 end
@@ -575,7 +847,7 @@ function sfui.dungeonjournal.HighlightEntrancePin(dungeonID)
             pin:SetSize(28, 28)
             if C_Timer and C_Timer.After then
                 C_Timer.After(0.5, function()
-                    if pin and pin.SetSize then pin:SetSize(20, 20) end
+                    if pin and pin.SetSize then pin:SetSize(22, 22) end
                 end)
             end
             break
@@ -592,53 +864,38 @@ local function HookWorldMapTrackingMenu()
 
             rootDescription:CreateCheckbox("Dungeon Entrances",
                 function()
-                    if sfui.dungeonjournal and sfui.dungeonjournal.GetOption then
-                        return sfui.dungeonjournal.GetOption("showEntrancePins")
-                    end
-                    return DJ_DB().showEntrancePins ~= false
+                    return sfui.dungeonjournal.GetOption("showEntrancePins")
                 end,
                 function()
-                    local cur = (sfui.dungeonjournal and sfui.dungeonjournal.GetOption and sfui.dungeonjournal.GetOption("showEntrancePins")) or (DJ_DB().showEntrancePins ~= false)
-                    if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then
-                        sfui.dungeonjournal.SetOption("showEntrancePins", not cur)
-                    else
-                        DJ_DB().showEntrancePins = not cur
-                        UpdatePins()
-                    end
+                    local cur = sfui.dungeonjournal.GetOption("showEntrancePins")
+                    sfui.dungeonjournal.SetOption("showEntrancePins", not cur)
                 end)
 
             rootDescription:CreateCheckbox("Dungeon Quests",
                 function()
-                    if sfui.dungeonjournal and sfui.dungeonjournal.GetOption then
-                        return sfui.dungeonjournal.GetOption("showQuestPins")
-                    end
-                    return DJ_DB().showQuestPins ~= false
+                    return sfui.dungeonjournal.GetOption("showQuestPins")
                 end,
                 function()
-                    local cur = (sfui.dungeonjournal and sfui.dungeonjournal.GetOption and sfui.dungeonjournal.GetOption("showQuestPins")) or (DJ_DB().showQuestPins ~= false)
-                    if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then
-                        sfui.dungeonjournal.SetOption("showQuestPins", not cur)
-                    else
-                        DJ_DB().showQuestPins = not cur
-                        UpdatePins()
-                    end
+                    local cur = sfui.dungeonjournal.GetOption("showQuestPins")
+                    sfui.dungeonjournal.SetOption("showQuestPins", not cur)
                 end)
 
             rootDescription:CreateCheckbox("Filter Quests by Level",
                 function()
-                    if sfui.dungeonjournal and sfui.dungeonjournal.GetOption then
-                        return sfui.dungeonjournal.GetOption("questPinsRequireLevel")
-                    end
-                    return DJ_DB().questPinsRequireLevel ~= false
+                    return sfui.dungeonjournal.GetOption("questPinsRequireLevel")
                 end,
                 function()
-                    local cur = (sfui.dungeonjournal and sfui.dungeonjournal.GetOption and sfui.dungeonjournal.GetOption("questPinsRequireLevel")) or (DJ_DB().questPinsRequireLevel ~= false)
-                    if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then
-                        sfui.dungeonjournal.SetOption("questPinsRequireLevel", not cur)
-                    else
-                        DJ_DB().questPinsRequireLevel = not cur
-                        UpdatePins()
-                    end
+                    local cur = sfui.dungeonjournal.GetOption("questPinsRequireLevel")
+                    sfui.dungeonjournal.SetOption("questPinsRequireLevel", not cur)
+                end)
+
+            rootDescription:CreateCheckbox("Hide Outleveled Entrances",
+                function()
+                    return sfui.dungeonjournal.GetOption("autoHideTrivialPins")
+                end,
+                function()
+                    local cur = sfui.dungeonjournal.GetOption("autoHideTrivialPins")
+                    sfui.dungeonjournal.SetOption("autoHideTrivialPins", not cur)
                 end)
         end)
     end

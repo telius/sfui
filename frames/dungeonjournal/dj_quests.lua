@@ -48,70 +48,25 @@ end
 
 -- ─── Database & State Access ──────────────────────────────────────────────────
 local function DJ_DB()
-    SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
-    return SfuiDB.dungeonjournal
+    return sfui.dungeonjournal.GetDB()
 end
 
 local function GetCurrentDungeon()
-    local dj = sfui.dungeonjournal
-    if not dj then return nil end
-    local id = dj.GetSelectedDungeonID and dj.GetSelectedDungeonID()
-    local helpers = dj.GetItemHelpers and dj.GetItemHelpers()
-    if helpers and helpers.FindDungeon then
-        if id then
-            return helpers.FindDungeon(id)
-        end
-        local list = helpers.GetList and helpers.GetList()
-        if list and #list > 0 then
-            return list[1]
-        end
-    end
-    return nil
+    return sfui.dungeonjournal.GetCurrentDungeon()
 end
 
 -- ─── Quality Color Helper ─────────────────────────────────────────────────────
 local function GetQualityColor(quality)
-    if common and common.get_item_quality_color then
-        local r, g, b = common.get_item_quality_color(quality)
-        return r, g, b
-    end
-    local q = quality or 1
-    if _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[q] then
-        local c = _G.ITEM_QUALITY_COLORS[q]
-        return c.r, c.g, c.b
-    end
-    if _G.GetItemQualityColor then
-        local r, g, b = _G.GetItemQualityColor(q)
-        if r then return r, g, b end
-    end
-    return 0.8, 0.8, 0.8
+    return sfui.dungeonjournal.GetQualityColor(quality)
 end
 
 -- ─── Quest Status & Live Helpers ──────────────────────────────────────────────
 local function IsQuestCompleted(questID)
-    if not questID then return false end
-    if _G.C_QuestLog and _G.C_QuestLog.IsQuestFlaggedCompleted then
-        local ok, done = pcall(_G.C_QuestLog.IsQuestFlaggedCompleted, questID)
-        if ok and done then return true end
-    end
-    if _G.IsQuestFlaggedCompleted then
-        local ok, done = pcall(_G.IsQuestFlaggedCompleted, questID)
-        if ok and done then return true end
-    end
-    return false
+    return sfui.dungeonjournal.IsQuestCompleted(questID)
 end
 
 local function IsQuestInLog(questID)
-    if not questID then return false end
-    if _G.C_QuestLog and _G.C_QuestLog.GetLogIndexForQuestID then
-        local ok, idx = pcall(_G.C_QuestLog.GetLogIndexForQuestID, questID)
-        if ok and type(idx) == "number" and idx > 0 then return true end
-    end
-    if _G.GetQuestLogIndexByID then
-        local ok, idx = pcall(_G.GetQuestLogIndexByID, questID)
-        if ok and type(idx) == "number" and idx > 0 then return true end
-    end
-    return false
+    return sfui.dungeonjournal.IsQuestActive(questID)
 end
 
 local function IsQuestShareable(questID, quest)
@@ -312,95 +267,15 @@ local function AcquireRewardButton(pool, parent)
 end
 
 local function ReleaseAll(pool)
-    for _, btn in ipairs(pool) do btn:Hide() end
+    sfui.dungeonjournal.ReleaseAll(pool)
 end
 
--- ─── Chat Linking & Item Click Helpers ───────────────────────────────────────
 local function ResolveItemLink(btn, fallbackItemID)
-    local itemID = (btn and btn.itemID) or fallbackItemID
-    local itemLink = btn and btn.link
-
-    if not (itemLink and type(itemLink) == "string" and itemLink:find("|Hitem:")) and itemID then
-        if common and common.get_item_info then
-            local _, l = common.get_item_info(itemID)
-            itemLink = l
-        end
-        if not itemLink and GetItemInfo then
-            local _, l = GetItemInfo(itemID)
-            itemLink = l
-        end
-        if not itemLink and C_Item and C_Item.GetItemInfo then
-            local _, l = C_Item.GetItemInfo(itemID)
-            itemLink = l
-        end
-        if itemLink and btn then
-            btn.link = itemLink
-        end
-    end
-
-    if not (itemLink and type(itemLink) == "string" and itemLink:find("|Hitem:")) and itemID then
-        local rawName = (btn and btn.nameText and btn.nameText.GetText and btn.nameText:GetText()) or ("item #" .. itemID)
-        local cleanName = rawName:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
-        local quality = 1
-        if common and common.get_item_instant_info then
-            local _, _, q = common.get_item_instant_info(itemID)
-            quality = q or 1
-        elseif C_Item and C_Item.GetItemInfoInstant then
-            local _, _, q = C_Item.GetItemInfoInstant(itemID)
-            quality = q or 1
-        end
-        local r, g, b = GetQualityColor(quality)
-        local hex = string.format("ff%02x%02x%02x", math.floor((r or 1) * 255 + 0.5), math.floor((g or 1) * 255 + 0.5), math.floor((b or 1) * 255 + 0.5))
-        itemLink = string.format("|c%s|Hitem:%d:0:0:0:0:0:0:0:0:0:0:0:0|h[%s]|h|r", hex, itemID, cleanName)
-        if btn then
-            btn.link = itemLink
-        end
-    end
-
-    return itemLink
+    return sfui.dungeonjournal.ResolveItemLink(btn, fallbackItemID)
 end
 
 local function InsertItemLinkIntoChat(link)
-    if not link then return false end
-
-    -- 1. Try Blizzard canonical ChatFrameUtil / ChatEdit handlers
-    if ChatFrameUtil and ChatFrameUtil.InsertLink and ChatFrameUtil.InsertLink(link) then
-        return true
-    end
-    if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then
-        return true
-    end
-
-    -- 2. Try HandleModifiedItemClick
-    if HandleModifiedItemClick and HandleModifiedItemClick(link) then
-        return true
-    end
-
-    -- 3. Fallback: Directly locate and insert into the active chat edit box
-    local activeChat = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
-        or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
-        or _G.ACTIVE_CHAT_EDIT_BOX
-        or (_G.LAST_ACTIVE_CHAT_EDIT_BOX and (_G.LAST_ACTIVE_CHAT_EDIT_BOX:IsShown() or _G.LAST_ACTIVE_CHAT_EDIT_BOX:IsVisible()) and _G.LAST_ACTIVE_CHAT_EDIT_BOX)
-
-    if activeChat and (activeChat:IsShown() or activeChat:IsVisible()) and activeChat.Insert then
-        activeChat:Insert(link)
-        if activeChat.SetFocus then
-            activeChat:SetFocus()
-        end
-        return true
-    end
-
-    -- 4. Check Macro editor or Communities chat
-    if _G.MacroFrameText and _G.MacroFrameText:IsShown() and _G.MacroFrameText:HasFocus() then
-        _G.MacroFrameText:Insert(link)
-        return true
-    end
-    if _G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown() and _G.CommunitiesFrame.ChatEditBox:HasFocus() then
-        _G.CommunitiesFrame.ChatEditBox:Insert(link)
-        return true
-    end
-
-    return false
+    return sfui.dungeonjournal.InsertItemLinkIntoChat(link)
 end
 
 -- ─── Render Quest Detail ──────────────────────────────────────────────────────
@@ -597,6 +472,21 @@ local function RenderQuestDetail(quest, dungeon)
             if not quest or not quest.id then return nil end
             local db = sfui.dj_camelot or (sfui.data and sfui.data.dj_camelot)
 
+            -- 0. Prerequisite chain step: point to the current step the player is on
+            if sfui.dungeonjournal and sfui.dungeonjournal.GetQuestChainInfo then
+                local steps, currentStep, currentStepIndex, allDone = sfui.dungeonjournal.GetQuestChainInfo(quest)
+                if steps and currentStep then
+                    local c = currentStep.coords or (db and ((db.GetQuestCoords and db.GetQuestCoords(currentStep.id)) or (db.questCoords and db.questCoords[currentStep.id])))
+                    if c and c.mapID then
+                        local x = c.x
+                        local y = c.y
+                        if x and x > 1 then x = x / 100 end
+                        if y and y > 1 then y = y / 100 end
+                        return c.mapID, x, y, "chain_step", currentStep
+                    end
+                end
+            end
+
             -- 1. Explicit quest coordinates from database
             local c = db and ((db.GetQuestCoords and db.GetQuestCoords(quest.id)) or (db.questCoords and db.questCoords[quest.id]))
             if c and c.mapID then
@@ -666,8 +556,10 @@ local function RenderQuestDetail(quest, dungeon)
             GameTooltip:ClearLines()
             GameTooltip:AddLine("Show on Map", accent[1], accent[2], accent[3])
             local q = detailContent.activeQuest
-            local mapID, x, y, src = ResolveQuestMapCoords(q)
-            if src == "quest" then
+            local mapID, x, y, src, step = ResolveQuestMapCoords(q)
+            if src == "chain_step" and step then
+                GameTooltip:AddLine(string.format("Opens map and places a waypoint at current step: %s (%s).", tostring(step.name or "chain step"), tostring(step.pickup or "")), 1, 1, 1, true)
+            elseif src == "quest" then
                 GameTooltip:AddLine("Opens map and places a waypoint at the quest pickup location.", 1, 1, 1, true)
             elseif src == "entrance" then
                 GameTooltip:AddLine("Opens map and places a waypoint at the dungeon entrance.", 1, 1, 1, true)
@@ -692,7 +584,7 @@ local function RenderQuestDetail(quest, dungeon)
             local q = detailContent.activeQuest
             if not q or not q.id then return end
 
-            local mapID, x, y, src = ResolveQuestMapCoords(q)
+            local mapID, x, y, src, step = ResolveQuestMapCoords(q)
             if not mapID then return end
 
             local waypointSet = false
@@ -720,8 +612,9 @@ local function RenderQuestDetail(quest, dungeon)
 
             -- TomTom integration if present
             if x and y and _G.TomTom and _G.TomTom.AddWaypoint then
+                local wpTitle = (src == "chain_step" and step and step.name) or q.name or "Dungeon Quest"
                 pcall(_G.TomTom.AddWaypoint, _G.TomTom, mapID, x, y, {
-                    title = q.name or "Dungeon Quest",
+                    title = wpTitle,
                     persistent = false,
                     minimap = true,
                     world = true,
@@ -857,23 +750,76 @@ local function RenderQuestDetail(quest, dungeon)
     currY = currY + tH + 10
 
     -- 4. Prerequisite / Chain (if applicable)
+    local steps, currentStep, currentStepIndex, allDone = nil, nil, nil, nil
+    if sfui.dungeonjournal and sfui.dungeonjournal.GetQuestChainInfo then
+        steps, currentStep, currentStepIndex, allDone = sfui.dungeonjournal.GetQuestChainInfo(quest)
+    end
+
     local hasPrereq = quest.hasPrereq or quest.prereq or (quest.prerequisites and #quest.prerequisites > 0)
     local prereqDesc = quest.prereqText or quest.note
-    if hasPrereq or prereqDesc then
+    if (steps and #steps > 0) or hasPrereq or prereqDesc then
         info.cLabel:Show()
         info.cText:Show()
+
+        if steps and #steps > 0 then
+            info.cLabel:SetText(string.format("quest chain (%d steps):", #steps))
+            info.cLabel:SetTextColor(accent[1], accent[2], accent[3], 1)
+
+            local lines = {}
+            if prereqDesc then
+                lines[#lines + 1] = "|cffaaaaaa" .. prereqDesc .. "|r"
+            end
+
+            for i, s in ipairs(steps) do
+                local sDone = s.id and IsQuestCompleted(s.id)
+                local sActive = s.id and IsQuestInLog(s.id)
+                local statusBadge = ""
+                local titleColor = "|cffffffff"
+                local numColor = "|cff888888"
+
+                if sDone then
+                    statusBadge = "  |cff00ff00[completed]|r"
+                    titleColor = "|cff888888"
+                elseif sActive then
+                    statusBadge = "  |cff00e5ff[in progress]|r"
+                    titleColor = "|cff00e5ff"
+                    numColor = "|cff00e5ff"
+                elseif i == currentStepIndex then
+                    statusBadge = "  |cffffd100[current step]|r"
+                    titleColor = "|cffffd100"
+                    numColor = "|cffffd100"
+                else
+                    statusBadge = "  |cff666666[locked]|r"
+                    titleColor = "|cff777777"
+                end
+
+                local dTag = s.isDungeonQuest and " |cff00bfff(dungeon quest)|r" or ""
+                local sName = s.name or ("Quest #" .. tostring(s.id))
+                local stepHeader = string.format("%s%d.|r %s%s|r%s", numColor, i, titleColor, sName, dTag, statusBadge)
+                if s.pickup and s.pickup ~= "" then
+                    local locStr = string.format("     |cff888888starts from: %s|r", s.pickup)
+                    lines[#lines + 1] = stepHeader .. "\n" .. locStr
+                else
+                    lines[#lines + 1] = stepHeader
+                end
+            end
+            info.cText:SetText(table.concat(lines, "\n\n"))
+        else
+            info.cLabel:SetText("prerequisite:")
+            info.cLabel:SetTextColor(accent[1], accent[2], accent[3], 1)
+            info.cText:SetText(prereqDesc or "part of a quest chain (requires prerequisite quests)")
+        end
 
         info.cLabel:ClearAllPoints()
         info.cLabel:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
         local cLabelH = math.max(14, math.ceil(info.cLabel:GetStringHeight() or 14))
-        currY = currY + cLabelH + 3
+        currY = currY + cLabelH + 4
 
         info.cText:ClearAllPoints()
         info.cText:SetPoint("TOPLEFT",  info, "TOPLEFT",  0, -currY)
         info.cText:SetPoint("TOPRIGHT", info, "TOPRIGHT", 0, -currY)
-        info.cText:SetText(prereqDesc or "part of a quest chain (requires prerequisite quests)")
         local cH = math.max(16, math.ceil(info.cText:GetStringHeight() or 16))
-        currY = currY + cH + 10
+        currY = currY + cH + 12
     else
         info.cLabel:Hide()
         info.cText:Hide()
@@ -1017,27 +963,7 @@ local function RenderQuestDetail(quest, dungeon)
             btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
             btn:SetScript("OnClick", function(self, mouseBtn)
-                if mouseBtn == "LeftButton" then
-                    local isChatLink = (IsModifiedClick and IsModifiedClick("CHATLINK")) or (IsShiftKeyDown and IsShiftKeyDown())
-                    local isDressUp  = (IsModifiedClick and IsModifiedClick("DRESSUP")) or (IsControlKeyDown and IsControlKeyDown())
-
-                    if isChatLink or isDressUp then
-                        local itemLink = ResolveItemLink(self, itemID)
-                        if not itemLink then return end
-
-                        if isChatLink then
-                            InsertItemLinkIntoChat(itemLink)
-                        elseif isDressUp then
-                            if not (HandleModifiedItemClick and HandleModifiedItemClick(itemLink)) then
-                                if DressUpItemLink then
-                                    DressUpItemLink(itemLink)
-                                elseif DressUpLink then
-                                    DressUpLink(itemLink)
-                                end
-                            end
-                        end
-                    end
-                end
+                sfui.dungeonjournal.HandleItemClick(self, mouseBtn, itemID)
             end)
 
             btn:Show()

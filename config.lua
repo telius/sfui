@@ -59,7 +59,7 @@ sfui.config = {
         texturedBackdrop = true,
         minimapArt = true,             -- Camelot only: preserve brass compass & day/night dial (modern theme does not touch minimap)
         lootfeedStyle = "architectural", -- Camelot only: "architectural" (Option A: charcoal slate & corner brackets) or "outfit_card" (Option B: sculpted card)
-        barStyle = "heavy",            -- Camelot only: "thin" (Option A: 1px bronze edge), "glow" (Option B: recessed amber glow), or "heavy" (Option C: chiseled bronze frame & corner brackets)
+        barStyle = "inset",            -- Camelot only: "inset" (Dark Inset Well), "bezel", "darkbronze", "castbar", "heavy", "thin", "glow"
         buttonStyle = "auctionhouse",  -- Camelot only: "auctionhouse" (Default: Auction House beveled buttons with blue hover glow & gold selection outline) or "flat" (Option: clean flat dark buttons)
     },
 

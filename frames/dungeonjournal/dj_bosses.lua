@@ -90,26 +90,11 @@ end
 
 -- ─── Database & State Access ──────────────────────────────────────────────────
 local function DJ_DB()
-    SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
-    return SfuiDB.dungeonjournal
+    return sfui.dungeonjournal.GetDB()
 end
 
 local function GetCurrentDungeon()
-    local dj = sfui.dungeonjournal
-    if not dj then return nil end
-    local id = dj.GetSelectedDungeonID and dj.GetSelectedDungeonID()
-    local helpers = dj.GetItemHelpers and dj.GetItemHelpers()
-    if helpers and helpers.FindDungeon then
-        if id then
-            return helpers.FindDungeon(id)
-        end
-        -- Default to the first dungeon in the current tab list if none selected
-        local list = helpers.GetList and helpers.GetList()
-        if list and #list > 0 then
-            return list[1]
-        end
-    end
-    return nil
+    return sfui.dungeonjournal.GetCurrentDungeon()
 end
 
 local function GetEncounterList(dungeon)
@@ -155,20 +140,7 @@ end
 
 -- ─── Quality Color Helper ─────────────────────────────────────────────────────
 local function GetQualityColor(quality)
-    if common and common.get_item_quality_color then
-        local r, g, b = common.get_item_quality_color(quality)
-        return r, g, b
-    end
-    local q = quality or 1
-    if _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[q] then
-        local c = _G.ITEM_QUALITY_COLORS[q]
-        return c.r, c.g, c.b
-    end
-    if _G.GetItemQualityColor then
-        local r, g, b = _G.GetItemQualityColor(q)
-        if r then return r, g, b end
-    end
-    return 0.8, 0.8, 0.8
+    return sfui.dungeonjournal.GetQualityColor(quality)
 end
 
 -- ─── Boss Button Pool ─────────────────────────────────────────────────────────
@@ -363,95 +335,15 @@ local function AcquireLootButton(pool, parent)
 end
 
 local function ReleaseAll(pool)
-    for _, btn in ipairs(pool) do btn:Hide() end
+    sfui.dungeonjournal.ReleaseAll(pool)
 end
 
--- ─── Chat Linking & Item Click Helpers ───────────────────────────────────────
 local function ResolveItemLink(btn, fallbackItemID)
-    local itemID = (btn and btn.itemID) or fallbackItemID
-    local itemLink = btn and btn.link
-
-    if not (itemLink and type(itemLink) == "string" and itemLink:find("|Hitem:")) and itemID then
-        if common and common.get_item_info then
-            local _, l = common.get_item_info(itemID)
-            itemLink = l
-        end
-        if not itemLink and GetItemInfo then
-            local _, l = GetItemInfo(itemID)
-            itemLink = l
-        end
-        if not itemLink and C_Item and C_Item.GetItemInfo then
-            local _, l = C_Item.GetItemInfo(itemID)
-            itemLink = l
-        end
-        if itemLink and btn then
-            btn.link = itemLink
-        end
-    end
-
-    if not (itemLink and type(itemLink) == "string" and itemLink:find("|Hitem:")) and itemID then
-        local rawName = (btn and btn.nameText and btn.nameText.GetText and btn.nameText:GetText()) or ("item #" .. itemID)
-        local cleanName = rawName:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
-        local quality = 1
-        if common and common.get_item_instant_info then
-            local _, _, q = common.get_item_instant_info(itemID)
-            quality = q or 1
-        elseif C_Item and C_Item.GetItemInfoInstant then
-            local _, _, q = C_Item.GetItemInfoInstant(itemID)
-            quality = q or 1
-        end
-        local r, g, b = GetQualityColor(quality)
-        local hex = string.format("ff%02x%02x%02x", math.floor((r or 1) * 255 + 0.5), math.floor((g or 1) * 255 + 0.5), math.floor((b or 1) * 255 + 0.5))
-        itemLink = string.format("|c%s|Hitem:%d:0:0:0:0:0:0:0:0:0:0:0:0|h[%s]|h|r", hex, itemID, cleanName)
-        if btn then
-            btn.link = itemLink
-        end
-    end
-
-    return itemLink
+    return sfui.dungeonjournal.ResolveItemLink(btn, fallbackItemID)
 end
 
 local function InsertItemLinkIntoChat(link)
-    if not link then return false end
-
-    -- 1. Try Blizzard canonical ChatFrameUtil / ChatEdit handlers
-    if ChatFrameUtil and ChatFrameUtil.InsertLink and ChatFrameUtil.InsertLink(link) then
-        return true
-    end
-    if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then
-        return true
-    end
-
-    -- 2. Try HandleModifiedItemClick
-    if HandleModifiedItemClick and HandleModifiedItemClick(link) then
-        return true
-    end
-
-    -- 3. Fallback: Directly locate and insert into the active chat edit box
-    local activeChat = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
-        or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
-        or _G.ACTIVE_CHAT_EDIT_BOX
-        or (_G.LAST_ACTIVE_CHAT_EDIT_BOX and (_G.LAST_ACTIVE_CHAT_EDIT_BOX:IsShown() or _G.LAST_ACTIVE_CHAT_EDIT_BOX:IsVisible()) and _G.LAST_ACTIVE_CHAT_EDIT_BOX)
-
-    if activeChat and (activeChat:IsShown() or activeChat:IsVisible()) and activeChat.Insert then
-        activeChat:Insert(link)
-        if activeChat.SetFocus then
-            activeChat:SetFocus()
-        end
-        return true
-    end
-
-    -- 4. Check Macro editor or Communities chat
-    if _G.MacroFrameText and _G.MacroFrameText:IsShown() and _G.MacroFrameText:HasFocus() then
-        _G.MacroFrameText:Insert(link)
-        return true
-    end
-    if _G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown() and _G.CommunitiesFrame.ChatEditBox:HasFocus() then
-        _G.CommunitiesFrame.ChatEditBox:Insert(link)
-        return true
-    end
-
-    return false
+    return sfui.dungeonjournal.InsertItemLinkIntoChat(link)
 end
 
 -- ─── Render Loot Items ────────────────────────────────────────────────────────
@@ -701,27 +593,7 @@ local function RenderLoot(boss, dungeon)
                 end)
 
                 btn:SetScript("OnClick", function(self, mouseBtn)
-                    if mouseBtn == "LeftButton" then
-                        local isChatLink = (IsModifiedClick and IsModifiedClick("CHATLINK")) or (IsShiftKeyDown and IsShiftKeyDown())
-                        local isDressUp  = (IsModifiedClick and IsModifiedClick("DRESSUP")) or (IsControlKeyDown and IsControlKeyDown())
-
-                        if isChatLink or isDressUp then
-                            local itemLink = ResolveItemLink(self, itemID)
-                            if not itemLink then return end
-
-                            if isChatLink then
-                                InsertItemLinkIntoChat(itemLink)
-                            elseif isDressUp then
-                                if not (HandleModifiedItemClick and HandleModifiedItemClick(itemLink)) then
-                                    if DressUpItemLink then
-                                        DressUpItemLink(itemLink)
-                                    elseif DressUpLink then
-                                        DressUpLink(itemLink)
-                                    end
-                                end
-                            end
-                        end
-                    end
+                    sfui.dungeonjournal.HandleItemClick(self, mouseBtn, itemID)
                 end)
 
                 btn:Show()

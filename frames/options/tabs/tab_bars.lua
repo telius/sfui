@@ -5,6 +5,9 @@ sfui.options = sfui.options or {}
 local g = sfui.config
 local common = sfui.common
 
+local CreateFrame = _G.CreateFrame
+local ipairs = _G.ipairs
+
 sfui.options.RegisterTab({
     id = "bars",
     name = "bars",
@@ -19,9 +22,126 @@ sfui.options.RegisterTab({
         bars_header:SetTextColor(white[1], white[2], white[3])
         bars_header:SetText("bar settings")
 
+        -- Bar Style Dropdown (Camelot & Modern)
+        local barStyleOptions = {
+            { text = "dark inset (castbar match)", value = "inset" },
+            { text = "blizzard hud bezel",          value = "bezel" },
+            { text = "dark bronze sculpted",        value = "darkbronze" },
+            { text = "castbar replica (1:1 black)", value = "castbar" },
+            { text = "chiseled heavy brackets",     value = "heavy" },
+            { text = "minimalist thin (1px)",       value = "thin" },
+            { text = "recessed amber glow",         value = "glow" },
+        }
+
+        local curBarStyle = (sfui.theme and sfui.theme.GetBarStyle and sfui.theme.GetBarStyle()) or "inset"
+
+        local style_label = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
+        style_label:SetPoint("TOPLEFT", bars_header, "BOTTOMLEFT", 0, -14)
+        style_label:SetTextColor(white[1], white[2], white[3])
+        style_label:SetText("theme bar style:")
+
+        local updatePreview
+
+        local style_dropdown = common.create_dropdown(bars_panel, 220, barStyleOptions, function(val)
+            if sfui.theme and sfui.theme.SetBarStyle then
+                sfui.theme.SetBarStyle(val)
+            end
+            if updatePreview then
+                updatePreview()
+            end
+        end, curBarStyle, nil, 220)
+        style_dropdown:SetPoint("TOPLEFT", style_label, "BOTTOMLEFT", 0, -6)
+        style_dropdown.tooltip = "selects the border and container framing style for health, power, and swing bars."
+
+        -- Live Preview Bar placed right next to the style dropdown
+        local preview_label = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
+        preview_label:SetPoint("BOTTOMLEFT", style_dropdown, "TOPRIGHT", 25, 6)
+        preview_label:SetTextColor(0.85, 0.75, 0.55)
+        preview_label:SetText("live example:")
+
+        local previewBackdrop = CreateFrame("Frame", nil, bars_panel, "BackdropTemplate")
+        previewBackdrop:SetSize(210, 20)
+        previewBackdrop:SetPoint("LEFT", style_dropdown, "RIGHT", 25, 0)
+        previewBackdrop:EnableMouse(true)
+
+        local previewBar = CreateFrame("StatusBar", nil, previewBackdrop)
+        previewBar:SetPoint("TOPLEFT", previewBackdrop, "TOPLEFT", 1, -1)
+        previewBar:SetPoint("BOTTOMRIGHT", previewBackdrop, "BOTTOMRIGHT", -1, 1)
+        previewBar:SetMinMaxValues(0, 100)
+        previewBar:SetValue(68)
+        previewBar.backdrop = previewBackdrop
+
+        local previewTextLeft = previewBar:CreateFontString(nil, "OVERLAY", g.font)
+        previewTextLeft:SetPoint("LEFT", previewBar, "LEFT", 8, 0)
+        previewTextLeft:SetTextColor(1, 1, 1, 0.95)
+        previewTextLeft:SetShadowOffset(1, -1)
+        previewTextLeft:SetShadowColor(0, 0, 0, 1)
+        previewTextLeft:SetText("player health")
+
+        local previewTextRight = previewBar:CreateFontString(nil, "OVERLAY", g.font)
+        previewTextRight:SetPoint("RIGHT", previewBar, "RIGHT", -8, 0)
+        previewTextRight:SetTextColor(1, 0.82, 0.20, 0.95)
+        previewTextRight:SetShadowOffset(1, -1)
+        previewTextRight:SetShadowColor(0, 0, 0, 1)
+        previewTextRight:SetText("68%")
+
+        updatePreview = function()
+            local tex = sfui.widgets.get_bar_texture()
+            if tex then previewBar:SetStatusBarTexture(tex) end
+            local col = (sfui.common and sfui.common.get_class_or_spec_color and sfui.common.get_class_or_spec_color()) or { 0.85, 0.40, 0.15 }
+            previewBar:SetStatusBarColor(col[1], col[2], col[3], 1)
+            if sfui.theme and sfui.theme.ApplyStatusBarStyle then
+                sfui.theme.ApplyStatusBarStyle(previewBar, "health")
+            end
+        end
+        updatePreview()
+
+        if sfui.theme and sfui.theme.RegisterBar then
+            sfui.theme.RegisterBar(previewBar, "health")
+        end
+
+        previewBackdrop:SetScript("OnMouseDown", function()
+            local styles = { "inset", "bezel", "darkbronze", "castbar", "heavy", "thin", "glow" }
+            local cur = (sfui.theme and sfui.theme.GetBarStyle and sfui.theme.GetBarStyle()) or "inset"
+            local nextStyle = "inset"
+            for i, st in ipairs(styles) do
+                if st == cur then
+                    nextStyle = styles[(i % #styles) + 1]
+                    break
+                end
+            end
+            if sfui.theme and sfui.theme.SetBarStyle then
+                sfui.theme.SetBarStyle(nextStyle)
+            end
+            if style_dropdown and style_dropdown.SetSelectedValue then
+                style_dropdown:SetSelectedValue(nextStyle)
+            end
+            updatePreview()
+        end)
+        previewBackdrop:SetScript("OnEnter", function(self)
+            local tip = sfui.tooltip or _G.GameTooltip
+            if tip then
+                tip:SetOwner(self, "ANCHOR_TOP")
+                tip:SetText("Click to cycle through bar styles", 1, 1, 1)
+                tip:Show()
+            end
+        end)
+        previewBackdrop:SetScript("OnLeave", function()
+            local tip = sfui.tooltip or _G.GameTooltip
+            if tip then tip:Hide() end
+        end)
+
+        bars_panel:HookScript("OnShow", function()
+            local activeStyle = (sfui.theme and sfui.theme.GetBarStyle and sfui.theme.GetBarStyle()) or "inset"
+            if style_dropdown and style_dropdown.SetSelectedValue then
+                style_dropdown:SetSelectedValue(activeStyle)
+            end
+            updatePreview()
+        end)
+
         -- Bar Toggles
         local toggles_header = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
-        toggles_header:SetPoint("TOPLEFT", bars_header, "BOTTOMLEFT", 0, -20)
+        toggles_header:SetPoint("TOPLEFT", style_dropdown, "BOTTOMLEFT", 0, -22)
         toggles_header:SetTextColor(white[1], white[2], white[3])
         toggles_header:SetText("bar visibility")
 

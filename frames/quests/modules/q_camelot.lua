@@ -10,6 +10,7 @@
     - Current Zone (cyan header `[Zone]`, capacity badge `[16/20]`)
     - Other Zones (alphabetical)
     - Level brackets [14], [18D] via Difficulty.FormatTitle
+    - Inline countdown timers after level bracket (e.g. [14] 0:12 Quest Title)
     - Suppressed timer bars
     - Progress-driven smart expansion with diminishing finished objectives
 ]]
@@ -662,11 +663,82 @@ function CamelotQuestsModule:OnEvent(event, ...)
     end
 end
 
+-- ─────────────────────────────────────────────────────────
+--  QUEST TIMER FORMATTER & WATCHER
+-- ─────────────────────────────────────────────────────────
+local isTimerWatcherActive = false
+
+local function FormatQuestTimer(seconds)
+    if not seconds or seconds <= 0 then return nil, nil end
+    local timeStr
+    local common = sfui.common
+    if common and common.format_timer_clock then
+        timeStr = common.format_timer_clock(seconds)
+    else
+        local m = math_floor(seconds / 60)
+        local s = math_floor(seconds % 60)
+        timeStr = string_format("%d:%02d", m, s)
+    end
+    if not timeStr then return nil, nil end
+
+    local colorCode
+    if seconds <= 60 then
+        colorCode = "|cffff3333" -- Urgent red (< 1 min)
+    elseif seconds <= 180 then
+        colorCode = "|cffffaa00" -- Warning amber (< 3 min)
+    else
+        colorCode = "|cffffffff" -- Clean white
+    end
+
+    return colorCode .. timeStr .. "|r", timeStr
+end
+
+local function OnCamelotTimerTick()
+    if CamelotQuestsModule.MarkDirty then
+        CamelotQuestsModule:MarkDirty()
+    end
+    sfui.tracker.RequestRefresh(0.01)
+end
+
+local function UpdateTimerWatcher(hasAnyTimers)
+    if hasAnyTimers and not isTimerWatcherActive then
+        sfui.events.RegisterUpdate("CamelotQuestTimers", 1.0, OnCamelotTimerTick)
+        isTimerWatcherActive = true
+    elseif not hasAnyTimers and isTimerWatcherActive then
+        sfui.events.UnregisterUpdate("CamelotQuestTimers")
+        isTimerWatcherActive = false
+    end
+end
+
 function CamelotQuestsModule:IsEnabled()
+    local enabled = sfui.questlog and sfui.questlog.is_enabled and sfui.questlog.is_enabled()
+    if enabled == nil then enabled = true end
+    if not enabled then
+        UpdateTimerWatcher(false)
+        return false
+    end
     return true
 end
 
 function CamelotQuestsModule:BuildBlocks(container)
+    if not self:IsEnabled() then
+        UpdateTimerWatcher(false)
+        return nil
+    end
+
+    local activeTimers = {}
+    local hasAnyTimers = false
+    if C_QuestLog and C_QuestLog.GetQuestTimers then
+        local timers = C_QuestLog.GetQuestTimers()
+        if timers then
+            for _, info in ipairs(timers) do
+                if info.questID and info.questTimer and info.questTimer > 0 then
+                    activeTimers[info.questID] = info.questTimer
+                    hasAnyTimers = true
+                end
+            end
+        end
+    end
     local state = GetQLState()
 
     local superTrackedQuestID = nil
@@ -750,23 +822,50 @@ function CamelotQuestsModule:BuildBlocks(container)
         if isHeader then
             currentHeaderTitle = title or "Miscellaneous"
         elseif questID and questID > 0 and not IsWorldQuest(questID) and IsQuestWatched(questID, i) then
-            if C_QuestLog and C_QuestLog.IsComplete then
-                isComplete = C_QuestLog.IsComplete(questID) or isComplete
-            end
-            local isFailed = (C_QuestLog and C_QuestLog.IsFailed and C_QuestLog.IsFailed(questID)) or false
-            local canClickToComplete = isComplete and isAutoComplete
+            if IsClassQuest(questID, i, currentHeaderTitle) then
+                -- Handled by dedicated CamelotClassQuestsModule (frames/quests/modules/q_camelot_class.lua)
+            else
+                if C_QuestLog and C_QuestLog.IsComplete then
+                    isComplete = C_QuestLog.IsComplete(questID) or isComplete
+                end
+                local isFailed = (C_QuestLog and C_QuestLog.IsFailed and C_QuestLog.IsFailed(questID)) or false
+                local canClickToComplete = isComplete and isAutoComplete
 
-            -- Format Title: Difficulty Bracket [14], [18D]
+            local secondsLeft = activeTimers[questID]
+            if not secondsLeft and C_QuestLog and C_QuestLog.GetTimeAllowed and questID then
+                local total, elapsed = C_QuestLog.GetTimeAllowed(questID)
+                if total and elapsed and total > 0 and elapsed < total then
+                    secondsLeft = total - elapsed
+                    hasAnyTimers = true
+                end
+            end
+            if not secondsLeft and _G.GetQuestLogTimeLeft then
+                local rem = _G.GetQuestLogTimeLeft(i)
+                if rem and rem > 0 then
+                    secondsLeft = rem
+                    hasAnyTimers = true
+                end
+            end
+
+            local timerText, rawClock = nil, nil
+            if secondsLeft and secondsLeft > 0 then
+                timerText, rawClock = FormatQuestTimer(secondsLeft)
+            end
+
+            -- Format Title: Difficulty Bracket [14], [18D] and optional timer
             local entryStub = {
                 level          = level,
                 questID        = questID,
                 questLogIndex  = i,
                 suggestedGroup = suggestedGroup,
+                timer          = timerText,
             }
 
             local displayTitle = title or "Quest"
             if Difficulty and Difficulty.FormatTitle then
                 displayTitle = Difficulty.FormatTitle(entryStub, displayTitle)
+            elseif timerText then
+                displayTitle = timerText .. " " .. displayTitle
             end
 
             -- Determine Section ID
@@ -774,11 +873,7 @@ function CamelotQuestsModule:BuildBlocks(container)
             local isZoneSec = false
             local isCurZone = false
 
-            if IsClassQuest(questID, i, currentHeaderTitle) then
-                secID = "class"
-                secTitle = "class"
-                secColor = sfui.common.get_class_or_spec_color()
-            elseif IsDungeonQuest(questID, i, currentHeaderTitle) then
+            if IsDungeonQuest(questID, i, currentHeaderTitle) then
                 secID = "dungeons"
                 secTitle = "dungeons"
                 secColor = { 0.25, 0.65, 1.00 }
@@ -943,6 +1038,7 @@ function CamelotQuestsModule:BuildBlocks(container)
                 isWarbandCompleted = false,
                 itemInfo           = itemInfo,
                 timerBar           = nil, -- Suppressed on Camelot
+                timeLeftText       = rawClock and ("Time Remaining: " .. rawClock) or nil,
                 canFindGroup       = canFindGroup,
                 isExpanded         = isExpanded,
                 lines              = lines,
@@ -951,15 +1047,15 @@ function CamelotQuestsModule:BuildBlocks(container)
                     OnQuestBlockClick(block, btn, questID, i, title, false, isExpanded, canClickToComplete)
                 end,
             })
+            end
         end
     end
 
-    -- Camelot sorting: Class -> Dungeons -> Professions -> Current Zone -> Other Zones (alphabetical)
+    -- Camelot sorting: Dungeons -> Professions -> Current Zone -> Other Zones (alphabetical)
     local numQ, maxQ, capBadge = GetQuestCapacityInfo()
     local sectionRanks = {
-        class       = 1,
-        dungeons    = 2,
-        professions = 3,
+        dungeons    = 1,
+        professions = 2,
     }
     table_sort(sectionOrder, function(a, b)
         local rA = sectionRanks[a.id] or 99
@@ -989,6 +1085,7 @@ function CamelotQuestsModule:BuildBlocks(container)
         end
     end
 
+    UpdateTimerWatcher(hasAnyTimers)
     return sectionOrder
 end
 

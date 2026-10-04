@@ -170,23 +170,43 @@ SlashCmdList["SFUI"] = function(msg)
         end
     elseif cmd == "barstyle" or cmd == "barborder" or cmd == "barborders" or cmd == "bars" then
         local sub = arg and _G.strtrim and _G.strtrim(arg):lower() or (arg and arg:lower() or "")
-        if sub == "thin" or sub == "a" or sub == "optiona" then
-            sfui.theme.SetBarStyle("thin")
-            sfui.common.print("bar style set to |cffffd100Thin|r (Option A: 1px bronze edge).")
-        elseif sub == "glow" or sub == "b" or sub == "optionb" or sub == "recessed" then
-            sfui.theme.SetBarStyle("glow")
-            sfui.common.print("bar style set to |cffffd100Glow|r (Option B: recessed amber inner glow).")
-        elseif sub == "heavy" or sub == "c" or sub == "optionc" or sub == "chiseled" or sub == "bronze" then
+        if sub == "inset" or sub == "darkinset" or sub == "dark" or sub == "1" then
+            sfui.theme.SetBarStyle("inset")
+            sfui.common.print("bar style set to |cffffd100Dark Inset|r (castbar match: dark recessed well, softened corners, antique bronze rim).")
+        elseif sub == "bezel" or sub == "nameplate" or sub == "hud" or sub == "blizzard" or sub == "2" then
+            sfui.theme.SetBarStyle("bezel")
+            sfui.common.print("bar style set to |cffffd100Blizzard Bezel|r (native HUD CoolDownManager/Nameplate atlas).")
+        elseif sub == "darkbronze" or sub == "bronze" or sub == "3" then
+            sfui.theme.SetBarStyle("darkbronze")
+            sfui.common.print("bar style set to |cffffd100Dark Bronze|r (sculpted dark bronze with micro-corners).")
+        elseif sub == "castbar" or sub == "cast" or sub == "4" then
+            sfui.theme.SetBarStyle("castbar")
+            sfui.common.print("bar style set to |cffffd100Castbar Replica|r (pure 1:1 black border, no decor).")
+        elseif sub == "heavy" or sub == "c" or sub == "brackets" or sub == "chiseled" or sub == "5" then
             sfui.theme.SetBarStyle("heavy")
-            sfui.common.print("bar style set to |cffffd100Heavy|r (Option C: chiseled heavy bronze frame & corner brackets).")
+            sfui.common.print("bar style set to |cffffd100Chiseled Heavy|r (square corner brackets & gold highlight).")
+        elseif sub == "thin" or sub == "a" or sub == "flat" or sub == "minimal" or sub == "6" then
+            sfui.theme.SetBarStyle("thin")
+            sfui.common.print("bar style set to |cffffd100Thin|r (1px clean bronze edge).")
+        elseif sub == "glow" or sub == "b" or sub == "recessed" or sub == "7" then
+            sfui.theme.SetBarStyle("glow")
+            sfui.common.print("bar style set to |cffffd100Glow|r (borderless recessed amber inner glow).")
         elseif sub == "cycle" or sub == "next" or sub == "" then
-            local cur = sfui.theme.GetBarStyle() or "heavy"
-            local nextStyle = (cur == "thin" and "glow") or (cur == "glow" and "heavy") or "thin"
+            local order = { "inset", "bezel", "darkbronze", "castbar", "heavy", "thin", "glow" }
+            local cur = sfui.theme.GetBarStyle() or "inset"
+            local nextIdx = 1
+            for idx, st in ipairs(order) do
+                if st == cur then
+                    nextIdx = (idx % #order) + 1
+                    break
+                end
+            end
+            local nextStyle = order[nextIdx]
             sfui.theme.SetBarStyle(nextStyle)
-            sfui.common.print("bar style cycled to |cffffd100" .. nextStyle:upper() .. "|r. Usage: /sfui barstyle [thin | glow | heavy]")
+            sfui.common.print("bar style cycled to |cffffd100" .. nextStyle:upper() .. "|r. Usage: /sfui barstyle [inset | bezel | darkbronze | castbar | heavy | thin | glow]")
         else
-            local cur = sfui.theme.GetBarStyle() or "heavy"
-            sfui.common.print("bar style is currently '|cffffd100" .. cur .. "|r'. Usage: /sfui barstyle [thin | glow | heavy]")
+            local cur = sfui.theme.GetBarStyle() or "inset"
+            sfui.common.print("bar style is currently '|cffffd100" .. cur .. "|r'. Usage: /sfui barstyle [inset | bezel | darkbronze | castbar | heavy | thin | glow]")
         end
     elseif cmd == "alts" or cmd == "warband" then
         SlashCmdList["SFUIALTS"](arg)
@@ -206,7 +226,14 @@ SlashCmdList["SFUI"] = function(msg)
     elseif cmd == "gear" then
         sfui.gear.toggle()
     elseif cmd == "highest" then
+        if sfui.gear and sfui.gear.SetNakedPaused then sfui.gear.SetNakedPaused(false, true) end
         sfui.highest.toggle()
+    elseif cmd == "naked" or cmd == "unequip" then
+        if sfui.gear and sfui.gear.ToggleNaked then
+            sfui.gear.ToggleNaked()
+        elseif sfui.gear and sfui.gear.UnequipDurabilityItems then
+            sfui.gear.UnequipDurabilityItems()
+        end
     elseif cmd == "lootspec" or cmd == "spec" or cmd == "loot" or cmd == "lootviewer" or cmd == "lv" or cmd == "camelot" or cmd == "dj" or cmd == "journal" then
         if arg == "restore" or arg == "unhide" then
             if sfui.dungeonjournal and sfui.dungeonjournal.RestoreHiddenDungeons then

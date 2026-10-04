@@ -37,6 +37,12 @@ local GetInventoryItemLink = _G.GetInventoryItemLink
 local GetItemInfoInstant = (_G.C_Item and _G.C_Item.GetItemInfoInstant) or _G.GetItemInfoInstant or sfui.common.get_item_id
 local GetItemInfo = (_G.C_Item and _G.C_Item.GetItemInfo) or _G.GetItemInfo
 local IsShiftKeyDown = _G.IsShiftKeyDown
+local GetInventoryItemDurability = _G.GetInventoryItemDurability
+local PickupInventoryItem = _G.PickupInventoryItem
+local ClearCursor = _G.ClearCursor
+local CursorHasItem = _G.CursorHasItem
+local IsInventoryItemLocked = _G.IsInventoryItemLocked
+local C_Container = _G.C_Container
 
 local function isWarModeDesired()
     return (C_PvP and C_PvP.IsWarModeDesired and C_PvP.IsWarModeDesired()) or false
@@ -103,6 +109,8 @@ local regenRetries = 0
 -- Manual-edit protection: suppress BAG_UPDATE auto-equip while player is managing gear
 local manualEditUntil = 0
 local GetTime = _G.GetTime
+local nakedPaused = false
+local roleEquipTimer = nil
 
 --- Call this to pause automatic equipping from bag changes for `sec` seconds (default 60).
 --- Opening the CharacterFrame also triggers this automatically.
@@ -110,8 +118,28 @@ sfui.gear.pauseAutoEquip = function(sec)
     manualEditUntil = GetTime() + (sec or 10)
 end
 
+function sfui.gear.isNakedPaused()
+    return nakedPaused
+end
+
+function sfui.gear.SetNakedPaused(paused, silent)
+    nakedPaused = paused and true or false
+    if roleEquipTimer then
+        roleEquipTimer:Cancel()
+        roleEquipTimer = nil
+    end
+    if nakedPaused then
+        gearEquipQueue = nil
+    else
+        if sfui.gear.StopUnequipDurabilityItems then
+            sfui.gear.StopUnequipDurabilityItems()
+        end
+    end
+    sfui.gear.UpdateStatUI()
+end
+
 local function autoEquipPaused()
-    return GetTime() < manualEditUntil or (CharacterFrame and CharacterFrame:IsShown() == true)
+    return nakedPaused or GetTime() < manualEditUntil or (CharacterFrame and CharacterFrame:IsShown() == true)
 end
 
 local function isCurrentlyPvP()
@@ -178,6 +206,7 @@ local function _OnUpdateCastTimer()
 end
 
 local function TryEquipSet(setName)
+    if nakedPaused then return false end
     if not setName or setName == "" then return false end
     if not C_EquipmentSet or not C_EquipmentSet.GetEquipmentSetID then return false end
     local isPole = (sfui.highest.IsFishingPoleEquipped and sfui.highest.IsFishingPoleEquipped())
@@ -643,40 +672,45 @@ function sfui.gear.UpdateStatUI()
     -- Status label: shows what gear mode is currently active
     if SfuiGearManagerFrame.statusLabel then
         local lbl = SfuiGearManagerFrame.statusLabel
-        local spec = common.get_current_spec_id()
-        local db = spec and spec ~= 0 and SfuiDB.gear and SfuiDB.gear[spec]
-        local _, instanceType = GetInstanceInfo()
-        local isWarMode = C_PvP and C_PvP.IsWarModeDesired and C_PvP.IsWarModeDesired()
-
-        local isPvP = (instanceType == "pvp" or instanceType == "arena")
-            or (instanceType == "none" and isWarMode)
-        local targetSet = nil
-        if db then
-            if instanceType == "pvp" or instanceType == "arena" then
-                targetSet = db.pvp_set
-            elseif instanceType == "party" or instanceType == "raid" or instanceType == "scenario" or instanceType == "delve" then
-                targetSet = db.pve_set
-            elseif instanceType == "none" then
-                targetSet = isWarMode and db.pvp_set or db.pve_set
-            end
-        end
-
-        local text, r, g, b
-        if targetSet and targetSet ~= "" and C_EquipmentSet and C_EquipmentSet.GetEquipmentSetID then
-            local setID = C_EquipmentSet.GetEquipmentSetID(targetSet)
-            local isEquipped = setID and select(4, C_EquipmentSet.GetEquipmentSetInfo(setID))
-            local checkmark = isEquipped and " \xE2\x9C\x93" or ""
-            text = (isPvP and "pvp" or "pve") .. ": " .. targetSet:lower() .. checkmark
-            local baseColor = isPvP and PVP_COLOR or PVE_COLOR
-            r, g, b = isEquipped and 0 or baseColor[1], isEquipped and 1 or baseColor[2],
-                isEquipped and 1 or baseColor[3]
+        if nakedPaused then
+            lbl:SetText("naked (auto-equip paused)")
+            lbl:SetTextColor(1.0, 0.65, 0.2)
         else
-            text = isPvP and "pvp" or "pve"
-            r, g, b = 0.55, 0.55, 0.55
-        end
+            local spec = common.get_current_spec_id()
+            local db = spec and spec ~= 0 and SfuiDB.gear and SfuiDB.gear[spec]
+            local _, instanceType = GetInstanceInfo()
+            local isWarMode = C_PvP and C_PvP.IsWarModeDesired and C_PvP.IsWarModeDesired()
 
-        lbl:SetText(text:lower())
-        lbl:SetTextColor(r, g, b)
+            local isPvP = (instanceType == "pvp" or instanceType == "arena")
+                or (instanceType == "none" and isWarMode)
+            local targetSet = nil
+            if db then
+                if instanceType == "pvp" or instanceType == "arena" then
+                    targetSet = db.pvp_set
+                elseif instanceType == "party" or instanceType == "raid" or instanceType == "scenario" or instanceType == "delve" then
+                    targetSet = db.pve_set
+                elseif instanceType == "none" then
+                    targetSet = isWarMode and db.pvp_set or db.pve_set
+                end
+            end
+
+            local text, r, g, b
+            if targetSet and targetSet ~= "" and C_EquipmentSet and C_EquipmentSet.GetEquipmentSetID then
+                local setID = C_EquipmentSet.GetEquipmentSetID(targetSet)
+                local isEquipped = setID and select(4, C_EquipmentSet.GetEquipmentSetInfo(setID))
+                local checkmark = isEquipped and " \xE2\x9C\x93" or ""
+                text = (isPvP and "pvp" or "pve") .. ": " .. targetSet:lower() .. checkmark
+                local baseColor = isPvP and PVP_COLOR or PVE_COLOR
+                r, g, b = isEquipped and 0 or baseColor[1], isEquipped and 1 or baseColor[2],
+                    isEquipped and 1 or baseColor[3]
+            else
+                text = isPvP and "pvp" or "pve"
+                r, g, b = 0.55, 0.55, 0.55
+            end
+
+            lbl:SetText(text:lower())
+            lbl:SetTextColor(r, g, b)
+        end
     end
 
     -- Refresh tab button icons and borders
@@ -892,6 +926,37 @@ function sfui.gear.UpdateStatUI()
                     end
                 end
             end
+            if ui.btnNaked then
+                local isNaked = nakedPaused
+                if useAH then
+                    sfui.theme.SetButtonSelected(ui.btnNaked, isNaked)
+                    ui.btnNaked:SetBackdropColor(0, 0, 0, 0)
+                    ui.btnNaked:SetBackdropBorderColor(0, 0, 0, 0)
+                    local fs = ui.btnNaked:GetFontString()
+                    if fs then
+                        if isNaked then
+                            fs:SetTextColor(1.0, 0.65, 0.2, 1.0)
+                        else
+                            fs:SetTextColor(0.65, 0.58, 0.45, 1.0)
+                        end
+                    end
+                    if isNaked and ui.btnNaked._sfuiAHSelected then
+                        ui.btnNaked._sfuiAHSelected:SetVertexColor(1.0, 0.65, 0.2, 1.0)
+                    end
+                else
+                    if isNaked then
+                        ui.btnNaked:SetBackdropColor(0.35, 0.2, 0.05, 1)
+                        ui.btnNaked:SetBackdropBorderColor(1.0, 0.65, 0.2, 1)
+                        local fs = ui.btnNaked:GetFontString()
+                        if fs then fs:SetTextColor(1.0, 0.65, 0.2, 1) end
+                    else
+                        ui.btnNaked:SetBackdropColor(unpack(inactiveBg))
+                        ui.btnNaked:SetBackdropBorderColor(0, 0, 0, isCamelot and 0 or 1)
+                        local fs = ui.btnNaked:GetFontString()
+                        if fs then fs:SetTextColor(0.6, 0.6, 0.6, 1) end
+                    end
+                end
+            end
 
             -- stat priority
             if ui.manBtns then
@@ -1009,6 +1074,7 @@ end
 -- GEAR UPDATE (AUTO EQUIP)
 -- -------------------------------------------------------------------------
 function sfui.gear.Update(force)
+    if nakedPaused then return end
     if not isAutoEquipEnabled() and not force then return end
     if not SfuiDB.gear then return end
     local spec = common.get_current_spec_id()
@@ -1110,6 +1176,10 @@ local function _OnRegenRetryTimer()
 end
 
 function sfui.gear.handle_player_regen()
+    if nakedPaused then
+        gearEquipQueue = nil
+        return
+    end
     if gearEquipQueue then
         if not UnitCastingInfo("player") and not UnitChannelInfo("player") and not UnitIsDeadOrGhost("player") then
             if C_EquipmentSet and C_EquipmentSet.GetEquipmentSetInfo then
@@ -1261,6 +1331,18 @@ sfui.events.RegisterEvent("PLAYER_LEVEL_UP", function()
     sfui.highest.ClearValidationCache()
     sfui.gear.Update(true)
 end)
+
+local function handle_resurrect()
+    if not nakedPaused and isAutoEquipEnabled() then
+        C_Timer.After(0.5, function()
+            if not nakedPaused and not UnitIsDeadOrGhost("player") then
+                sfui.gear.Update()
+            end
+        end)
+    end
+end
+sfui.events.RegisterEvent("PLAYER_UNGHOST", handle_resurrect)
+sfui.events.RegisterEvent("PLAYER_ALIVE", handle_resurrect)
 
 -- Weapon specialization & skill updates (e.g. learning Staves, Polearms, Bows at Weapon Master)
 local skillUpdatePending = false
@@ -1522,6 +1604,10 @@ gearFrame.maxLvlChk = autoToggle
 gearFrame.highPvP = common.create_flat_button(gearFrame, "pvp", 36, 20)
 gearFrame.highPvP:SetPoint("RIGHT", gearFrame.autoToggle, "LEFT", -6, 0)
 gearFrame.highPvP:SetScript("OnClick", function()
+    if sfui.gear.SetNakedPaused then sfui.gear.SetNakedPaused(false, true) end
+    if sfui.gear.pauseAutoEquip then sfui.gear.pauseAutoEquip(0) end
+    sfui.highest.ClearValidationCache()
+    sfui.highest.ClearCache()
     sfui.highest.EquipHighestILvl(true)
 end)
 gearFrame.highPvP:SetScript("OnEnter", function(b)
@@ -1532,6 +1618,10 @@ gearFrame.highPvP:SetScript("OnLeave", function() hide_tooltip() end)
 gearFrame.highPvE = common.create_flat_button(gearFrame, "pve", 36, 20)
 gearFrame.highPvE:SetPoint("RIGHT", gearFrame.highPvP, "LEFT", -4, 0)
 gearFrame.highPvE:SetScript("OnClick", function()
+    if sfui.gear.SetNakedPaused then sfui.gear.SetNakedPaused(false, true) end
+    if sfui.gear.pauseAutoEquip then sfui.gear.pauseAutoEquip(0) end
+    sfui.highest.ClearValidationCache()
+    sfui.highest.ClearCache()
     sfui.highest.EquipHighestILvl(false)
 end)
 gearFrame.highPvE:SetScript("OnEnter", function(b)
@@ -1545,6 +1635,211 @@ gearFrame.statusLabel:SetPoint("RIGHT", gearFrame.highPvE, "LEFT", -8, 0)
 gearFrame.statusLabel:SetJustifyH("RIGHT")
 gearFrame.statusLabel:SetShadowOffset(0, 0)
 gearFrame.statusLabel:SetText("")
+
+-- -------------------------------------------------------------------------
+-- UNEQUIP DURABILITY ITEMS (CORPSE RUN / DEATH RUN UTILITY)
+-- -------------------------------------------------------------------------
+local unequipRunning = false
+local reservedBagSlots = {}
+
+function sfui.gear.StopUnequipDurabilityItems()
+    if unequipRunning then
+        unequipRunning = false
+        wipe(reservedBagSlots)
+        if CursorHasItem() then ClearCursor() end
+    end
+end
+
+local function getNumBagSlots(bag)
+    if C_Container and C_Container.GetContainerNumSlots then
+        return C_Container.GetContainerNumSlots(bag) or 0
+    elseif _G.GetContainerNumSlots then
+        return _G.GetContainerNumSlots(bag) or 0
+    end
+    return 0
+end
+
+local function getBagNumFreeSlots(bag)
+    if C_Container and C_Container.GetContainerNumFreeSlots then
+        return C_Container.GetContainerNumFreeSlots(bag)
+    elseif _G.GetContainerNumFreeSlots then
+        return _G.GetContainerNumFreeSlots(bag)
+    end
+    return 0, 0
+end
+
+local function getBagItemID(bag, slot)
+    if C_Container and C_Container.GetContainerItemID then
+        return C_Container.GetContainerItemID(bag, slot)
+    elseif _G.GetContainerItemID then
+        return _G.GetContainerItemID(bag, slot)
+    end
+    return nil
+end
+
+local function pickupBagItem(bag, slot)
+    if C_Container and C_Container.PickupContainerItem then
+        C_Container.PickupContainerItem(bag, slot)
+    elseif _G.PickupContainerItem then
+        _G.PickupContainerItem(bag, slot)
+    end
+end
+
+local function findFreeBagSlot()
+    for bag = 0, 4 do
+        local numFree, bagType = getBagNumFreeSlots(bag)
+        -- bagType == 0 or nil indicates a normal backpack or general-purpose bag
+        if (bagType == nil or bagType == 0) and numFree and numFree > 0 then
+            local numSlots = getNumBagSlots(bag)
+            for slot = 1, numSlots do
+                local key = bag .. ":" .. slot
+                if not reservedBagSlots[key] then
+                    local itemID = getBagItemID(bag, slot)
+                    if not itemID then
+                        reservedBagSlots[key] = true
+                        return bag, slot
+                    end
+                end
+            end
+        end
+    end
+    return nil, nil
+end
+
+function sfui.gear.UnequipDurabilityItems()
+    if unequipRunning then return end
+
+    if InCombatLockdown() then
+        local msg = _G.ERR_NOT_IN_COMBAT or "Cannot unequip items in combat."
+        if _G.UIErrorsFrame and _G.UIErrorsFrame.AddMessage then
+            _G.UIErrorsFrame:AddMessage(msg, 1.0, 0.1, 0.1, 1.0)
+        end
+        sfui.common.print(msg:lower())
+        return
+    end
+
+    local slotsToUnequip = {}
+    for slot = 1, 19 do
+        local _, maxDur = GetInventoryItemDurability(slot)
+        if maxDur and maxDur > 0 then
+            table.insert(slotsToUnequip, slot)
+        end
+    end
+
+    if #slotsToUnequip == 0 then
+        sfui.common.print("no durability gear equipped.")
+        return
+    end
+
+    if not nakedPaused then
+        sfui.gear.SetNakedPaused(true, true)
+    end
+
+    unequipRunning = true
+    wipe(reservedBagSlots)
+    local index = 1
+    local retryCount = 0
+
+    local function step()
+        if not unequipRunning then
+            if CursorHasItem() then ClearCursor() end
+            wipe(reservedBagSlots)
+            return
+        end
+
+        if InCombatLockdown() then
+            if CursorHasItem() then ClearCursor() end
+            unequipRunning = false
+            wipe(reservedBagSlots)
+            return
+        end
+
+        if index > #slotsToUnequip then
+            unequipRunning = false
+            wipe(reservedBagSlots)
+            sfui.common.print("durability gear unequipped for corpse run.")
+            return
+        end
+
+        local slotID = slotsToUnequip[index]
+        local _, maxDur = GetInventoryItemDurability(slotID)
+        if not maxDur or maxDur <= 0 then
+            -- Item in this slot is already unequipped or has no durability
+            index = index + 1
+            retryCount = 0
+            C_Timer.After(0.02, step)
+            return
+        end
+
+        if IsInventoryItemLocked(slotID) then
+            retryCount = retryCount + 1
+            if retryCount <= 10 then
+                C_Timer.After(0.05, step)
+                return
+            else
+                -- Timed out waiting for slot to unlock; move to next
+                index = index + 1
+                retryCount = 0
+                C_Timer.After(0.02, step)
+                return
+            end
+        end
+
+        local bag, bagSlot = findFreeBagSlot()
+        if not bag or not bagSlot then
+            local msg = _G.INVENTORY_FULL or "Inventory is full."
+            if _G.UIErrorsFrame and _G.UIErrorsFrame.AddMessage then
+                _G.UIErrorsFrame:AddMessage(msg, 1.0, 0.1, 0.1, 1.0)
+            end
+            sfui.common.print("bags full; stopped unequipping durability gear.")
+            unequipRunning = false
+            wipe(reservedBagSlots)
+            return
+        end
+
+        ClearCursor()
+        PickupInventoryItem(slotID)
+        if CursorHasItem() then
+            pickupBagItem(bag, bagSlot)
+            if CursorHasItem() then
+                if _G.PutItemInBackpack then _G.PutItemInBackpack() end
+                if CursorHasItem() and _G.PutItemInBag then
+                    local offset = _G.CONTAINER_BAG_OFFSET or 30
+                    for b = 1, 4 do
+                        if CursorHasItem() then _G.PutItemInBag(b + offset) end
+                    end
+                end
+                -- If STILL stuck on cursor, return it safely to the equipment slot
+                if CursorHasItem() then
+                    PickupInventoryItem(slotID)
+                    if CursorHasItem() then ClearCursor() end
+                end
+            end
+        end
+
+        index = index + 1
+        retryCount = 0
+        C_Timer.After(0.04, step)
+    end
+
+    step()
+end
+
+function sfui.gear.ToggleNaked()
+    if nakedPaused then
+        sfui.gear.SetNakedPaused(false)
+        sfui.highest.ClearValidationCache()
+        sfui.highest.ClearCache()
+        sfui.gear.UpdateStatUI()
+        sfui.gear.Update(true)
+        sfui.highest.EquipHighestILvl(isCurrentlyPvP())
+        sfui.common.print("naked: auto-equip resumed; equipping gear.")
+    else
+        sfui.gear.SetNakedPaused(true)
+        sfui.gear.UnequipDurabilityItems()
+        sfui.common.print("naked: auto-equip paused.")
+    end
+end
 
 -- -------------------------------------------------------------------------
 -- ON SHOW: build per-spec cards
@@ -2027,12 +2322,12 @@ gearFrame:SetScript("OnShow", function(self)
 
         local numID = tonumber(id) or 0
         local classID = sfui.gear.GetClassicClassID(numID) or numID
-        local roleEquipTimer = nil
+        roleEquipTimer = nil
         local classicRoles = not sfui.isRetail and sfui.gear.CLASSIC_ROLES_BY_SPEC and
         (sfui.gear.CLASSIC_ROLES_BY_SPEC[numID] or (classID and sfui.gear.CLASSIC_ROLES_BY_SPEC[classID]))
+        local curX = math.max(274, curLockX + 8)
         if classicRoles then
             ui.roleBtns = {}
-            local curX = math.max(274, curLockX + 8)
             local roleColors = {
                 ["TANK"] = { 0.4, 0.7, 1.0 },
                 ["HEAL"] = { 0.3, 1.0, 0.4 },
@@ -2056,6 +2351,8 @@ gearFrame:SetScript("OnShow", function(self)
                 rBtn.roleKey = rKey
                 rBtn.roleColor = roleColors[rKey]
                 rBtn:SetScript("OnClick", function()
+                    if sfui.gear.SetNakedPaused then sfui.gear.SetNakedPaused(false, true) end
+                    if sfui.gear.pauseAutoEquip then sfui.gear.pauseAutoEquip(0) end
                     SfuiDB.gear[id] = SfuiDB.gear[id] or {}
                     local sdb = SfuiDB.gear[id]
                     sdb.user_selected_role = true
@@ -2119,7 +2416,9 @@ gearFrame:SetScript("OnShow", function(self)
                         end
                         roleEquipTimer = _G.C_Timer.NewTimer(0.18, function()
                             roleEquipTimer = nil
-                            sfui.highest.EquipHighestILvl(isCurrentlyPvP())
+                            if not nakedPaused then
+                                sfui.highest.EquipHighestILvl(isCurrentlyPvP())
+                            end
                         end)
                     end
                 end)
@@ -2143,6 +2442,39 @@ gearFrame:SetScript("OnShow", function(self)
                 ui.roleBtns[rKey] = rBtn
                 curX = curX + rW + 4
             end
+        end
+
+        local isCamelot = sfui.isCamelot or sfui.isForever or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_wow_forever)) or (sfui.theme and sfui.theme.IsCamelotSupported and sfui.theme.IsCamelotSupported())
+        if isCamelot then
+            local btnNaked = common.create_flat_button(card, "naked", 44, 20)
+            if ui.roleBtns and ui.roleBtns["TANK"] then
+                btnNaked:SetPoint("TOPLEFT", ui.roleBtns["TANK"], "TOPRIGHT", 4, 0)
+            else
+                btnNaked:SetPoint("TOPLEFT", card, "TOPLEFT", curX, -57)
+            end
+            btnNaked:SetScript("OnClick", function()
+                sfui.gear.ToggleNaked()
+            end)
+            btnNaked:SetScript("OnEnter", function(b)
+                if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+                    if b._sfuiAHHighlight then b._sfuiAHHighlight:Show() end
+                end
+                local isNaked = sfui.gear.isNakedPaused and sfui.gear.isNakedPaused()
+                local title = isNaked and "naked (active - auto-equip paused)" or "naked (unequip durability gear)"
+                show_tooltip(b, "ANCHOR_TOP", title, {
+                    { isNaked and "click to resume auto-equip and re-equip your gear." or "unequips all armor and weapons with durability into your bags so you do not lose money on death or corpse runs.", 0.8, 0.8, 0.8, true },
+                    { "leaves non-durability items equipped (rings, trinkets, neck, cloak).", 0.6, 0.9, 0.6, true },
+                    { "pauses gear manager auto-equip until clicked again or dps/heal/tank or pve/pvp is clicked.", 0.4, 0.8, 1.0, true },
+                })
+            end)
+            btnNaked:SetScript("OnLeave", function(b)
+                if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+                    if b._sfuiAHHighlight then b._sfuiAHHighlight:Hide() end
+                end
+                hide_tooltip()
+            end)
+            ui.btnNaked = btnNaked
+            curX = curX + 44 + 4
         end
 
         if isVanillaSpec then

@@ -809,8 +809,8 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
         btn:SetFrameLevel(parent:GetFrameLevel() + 20)
     end
 
-    -- Menu Frame: child of btn so it automatically follows parent dragging
-    local menu = CreateFrame("Frame", nil, btn, "BackdropTemplate")
+    -- Menu Frame: parented to UIParent so it escapes ScrollFrame clipping in option panels
+    local menu = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
     menu:SetFrameStrata("TOOLTIP")
     menu:SetFrameLevel(200)
     menu:EnableMouse(true)
@@ -856,10 +856,22 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
                 if not self:IsShown() then return end
                 if self:IsMouseOver() then return end
                 if btn and btn:IsMouseOver() then return end
+                if self.rows then
+                    for _, r in ipairs(self.rows) do
+                        if r:IsShown() and (r:IsMouseOver() or (r.rowBtn and r.rowBtn:IsMouseOver())) then
+                            return
+                        end
+                    end
+                end
                 if DoesAncestryIncludeAny and GetMouseFoci then
                     local foci = GetMouseFoci()
                     if DoesAncestryIncludeAny(self, foci) then return end
                     if btn and DoesAncestryIncludeAny(btn, foci) then return end
+                elseif GetMouseFocus and not GetMouseFoci then
+                    local focus = GetMouseFocus()
+                    if focus and (focus == self or focus == btn or (focus.IsDescendantOf and (focus:IsDescendantOf(self) or focus:IsDescendantOf(btn)))) then
+                        return
+                    end
                 end
                 self:Hide()
                 if activeDropdown == self then

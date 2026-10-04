@@ -79,11 +79,16 @@ end
 function Difficulty.FormatTitle(entry, rawTitle)
     if not entry then return rawTitle end
 
+    local timerStr = (entry.timer and entry.timer ~= "") and entry.timer or nil
+
     local qLevel = entry.level
     if (not qLevel or qLevel <= 0) and entry.questID and C_QuestLog and C_QuestLog.GetQuestDifficultyLevel then
         qLevel = C_QuestLog.GetQuestDifficultyLevel(entry.questID)
     end
     if not qLevel or qLevel <= 0 then
+        if timerStr then
+            return timerStr .. " " .. rawTitle
+        end
         return rawTitle
     end
 
@@ -126,6 +131,9 @@ function Difficulty.FormatTitle(entry, rawTitle)
 
     local diffColor = Difficulty.GetDifficultyColorCode(qLevel, entry.questID)
     local bracket = string_format("%s[%d%s]|r", diffColor, qLevel, tag)
+    if timerStr then
+        return bracket .. " " .. timerStr .. " " .. rawTitle
+    end
     return bracket .. " " .. rawTitle
 end
 

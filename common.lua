@@ -847,6 +847,7 @@ function sfui.initialize_database()
     if SfuiDB.minimap_rearrange == nil then SfuiDB.minimap_rearrange = true end
     SfuiDB.minimap_buttons_mouseover = (SfuiDB.minimap_buttons_mouseover == nil) and false or
         SfuiDB.minimap_buttons_mouseover
+    if SfuiDB.minimap_show_status == nil then SfuiDB.minimap_show_status = true end
     if SfuiDB.minimap_masque == nil then SfuiDB.minimap_masque = true end
     if SfuiDB.minimap_auto_zoom == nil then SfuiDB.minimap_auto_zoom = true end
     if SfuiDB.minimap_auto_zoom_delay == nil then SfuiDB.minimap_auto_zoom_delay = 5 end

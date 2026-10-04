@@ -53,6 +53,9 @@ local GetUnitName                  = _G.GetUnitName
 local NameUtil                     = _G.NameUtil
 local C_Spell                      = _G.C_Spell
 local GetSpellInfo                 = _G.GetSpellInfo
+local RegisterUnitWatch            = _G.RegisterUnitWatch
+local UnregisterUnitWatch          = _G.UnregisterUnitWatch
+local UnitWatchRegistered          = _G.UnitWatchRegistered
 local CheckInteractDistance        = _G.CheckInteractDistance
 
 -- ─── Module Frame Storage ────────────────────────────────────────────────────
@@ -285,6 +288,7 @@ end
 
 -- ─── Target Frame Theming (Camelot Nameplate Bezel vs Modern Minimalist Clean) ─
 ApplyTargetStyle = function(hBar, lFrame)
+    if InCombatLockdown and InCombatLockdown() then return end
     hBar = hBar or healthBar
     lFrame = lFrame or levelFrame
     if not hBar or not hBar.backdrop then return end
@@ -1001,8 +1005,10 @@ end
 local function UpdateAll(isTargetChange)
     if not targetContainer then return end
     if not UnitExists("target") then
-        if targetContainer:IsShown() then
-            targetContainer:Hide()
+        if not InCombatLockdown() and not (UnitWatchRegistered and UnitWatchRegistered(targetContainer)) then
+            if targetContainer:IsShown() then
+                targetContainer:Hide()
+            end
         end
         return
     end
@@ -1011,8 +1017,10 @@ local function UpdateAll(isTargetChange)
         InvalidateTargetCaches()
     end
 
-    if not targetContainer:IsShown() then
-        targetContainer:Show()
+    if not InCombatLockdown() and not (UnitWatchRegistered and UnitWatchRegistered(targetContainer)) then
+        if not targetContainer:IsShown() then
+            targetContainer:Show()
+        end
     end
     UpdateTargetInfo()
     UpdateTargetHealth()
@@ -1048,14 +1056,23 @@ local function OnTargetUnitEvent(event, unit)
 end
 
 local function OnPlayerTargetChanged()
-    UpdateAll(true)
+    if UnitExists("target") then
+        UpdateAll(true)
+    end
 end
 
 local function OnPlayerEnteringWorld()
     cachedPlayerHealthBar = nil
     HookBlizzardTargetFrame()
     ApplyTargetPosition()
-    UpdateAll(true)
+    if targetContainer and not (SfuiDB and SfuiDB.enableTargetBar == false) then
+        if RegisterUnitWatch and not (UnitWatchRegistered and UnitWatchRegistered(targetContainer)) then
+            RegisterUnitWatch(targetContainer)
+        end
+    end
+    if UnitExists("target") then
+        UpdateAll(true)
+    end
 end
 
 -- ─── Frame Construction ──────────────────────────────────────────────────────
@@ -1290,7 +1307,20 @@ local function CreateTargetFrame()
     end)
 
     targetContainer = f
-    targetContainer:Hide()
+
+    if f.HookScript then
+        f:HookScript("OnShow", function()
+            UpdateAll(false)
+        end)
+    end
+
+    if not (SfuiDB and SfuiDB.enableTargetBar == false) then
+        if RegisterUnitWatch then
+            RegisterUnitWatch(targetContainer)
+        end
+    else
+        targetContainer:Hide()
+    end
 
     UpdateLayoutAnchors()
 
@@ -1303,8 +1333,12 @@ end
 
 -- ─── Public API ──────────────────────────────────────────────────────────────
 function sfui.target.Unlock()
+    if InCombatLockdown() then return end
     sfui.target.unlocked = true
     if targetContainer then
+        if UnregisterUnitWatch then
+            UnregisterUnitWatch(targetContainer)
+        end
         targetContainer:Show()
         nameText:SetText("|cff00ff00Target Bar (Drag to Move)|r")
         if hpText then hpText:SetText("70%") end
@@ -1325,8 +1359,14 @@ function sfui.target.Unlock()
 end
 
 function sfui.target.Lock()
+    if InCombatLockdown() then return end
     sfui.target.unlocked = false
-    UpdateAll()
+    if targetContainer then
+        if RegisterUnitWatch and not (SfuiDB and SfuiDB.enableTargetBar == false) then
+            RegisterUnitWatch(targetContainer)
+        end
+        UpdateAll()
+    end
 end
 
 function sfui.target.ToggleLock()
@@ -1354,8 +1394,14 @@ sfui.events.RegisterMessage("SFUI_THEME_CHANGED", function()
 end)
 
 function sfui.target.UpdateVisibility()
+    if InCombatLockdown() then return end
     if SfuiDB and SfuiDB.enableTargetBar == false then
-        if targetContainer then targetContainer:Hide() end
+        if targetContainer then
+            if UnregisterUnitWatch then
+                UnregisterUnitWatch(targetContainer)
+            end
+            targetContainer:Hide()
+        end
         local tf = _G.TargetFrame
         if tf and not InCombatLockdown() then
             tf:SetAlpha(1)
@@ -1363,8 +1409,13 @@ function sfui.target.UpdateVisibility()
             if UnitExists("target") then tf:Show() end
         end
     else
-        HookBlizzardTargetFrame()
-        UpdateAll()
+        if targetContainer then
+            if RegisterUnitWatch then
+                RegisterUnitWatch(targetContainer)
+            end
+            UpdateAll(true)
+        end
+        SuppressBlizzardTargetFrame()
     end
 end
 

@@ -56,7 +56,7 @@ sfui.options.RegisterTab({
                 sfui.questlog.set_locked(checked)
             end,
             "When unlocked you can drag the quest log frame to a new position. " ..
-            "The position is saved between sessions.")
+            "In modern / Camelot WoW, you can also reposition and configure the objective tracker via Blizzard Edit Mode.")
         lock_ql_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
         yOff = yOff - 30
 
@@ -65,6 +65,16 @@ sfui.options.RegisterTab({
         reset_ql_pos_btn:SetScript("OnClick", function()
             sfui.questlog.reset_position()
         end)
+
+        if _G.EditModeManagerFrame then
+            local open_em_btn = CreateFlatButton(p, "open edit mode", 120, 22)
+            open_em_btn:SetPoint("LEFT", reset_ql_pos_btn, "RIGHT", 10, 0)
+            open_em_btn:SetScript("OnClick", function()
+                if _G.ShowUIPanel and _G.EditModeManagerFrame then
+                    _G.ShowUIPanel(_G.EditModeManagerFrame)
+                end
+            end)
+        end
         yOff = yOff - 36
 
         -- ── Section: Dungeon Journal & World Map Pins (Classic & Camelot) ────
@@ -131,7 +141,7 @@ sfui.options.RegisterTab({
                         SfuiDB.dungeonjournal.questPinsRequireLevel = checked
                     end
                 end,
-                "When enabled (default), quest icons only appear on the map once your character meets the required level. Uncheck (opt out) to display all quest icons on the map regardless of level.")
+                "When enabled (default), shows all quest icons with a lower or equal level requirement (including low-level/gray quests). Only hides quests whose requirement is higher than your current level. Uncheck (opt out) to display all quest icons on the map regardless of level.")
             lvl_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
             yOff = yOff - 28
 

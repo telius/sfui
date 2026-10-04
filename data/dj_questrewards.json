@@ -1,0 +1,871 @@
+{
+  "166": {
+    "name": "The Defias Brotherhood",
+    "rewardItems": [
+      6087,
+      2041,
+      2042
+    ],
+    "rewardSummary": "30s"
+  },
+  "167": {
+    "name": "Oh Brother...",
+    "rewardItems": [
+      1893
+    ],
+    "rewardSummary": "16s"
+  },
+  "168": {
+    "name": "Collecting Memories",
+    "rewardItems": [
+      2037,
+      2036
+    ],
+    "rewardSummary": "20s"
+  },
+  "214": {
+    "name": "Red Silk Bandanas",
+    "rewardItems": [
+      2074,
+      2089,
+      6094
+    ],
+    "rewardSummary": "18s"
+  },
+  "373": {
+    "name": "The Unsent Letter",
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "377": {
+    "name": "Crime and Punishment",
+    "rewardItems": [
+      2033,
+      2906
+    ],
+    "rewardSummary": "28s"
+  },
+  "378": {
+    "name": "The Fury Runs Deep",
+    "rewardItems": [
+      3562,
+      1264
+    ],
+    "rewardSummary": "26s"
+  },
+  "386": {
+    "name": "What Comes Around...",
+    "rewardItems": [
+      3400,
+      1317
+    ],
+    "rewardSummary": "25s"
+  },
+  "387": {
+    "name": "Quell The Uprising",
+    "rewardItems": [],
+    "rewardSummary": "25s"
+  },
+  "388": {
+    "name": "The Color of Blood",
+    "rewardItems": [],
+    "rewardSummary": "22s"
+  },
+  "391": {
+    "name": "The Stockade Riots",
+    "rewardItems": [
+      6875,
+      6876,
+      6877
+    ],
+    "rewardSummary": "30s"
+  },
+  "914": {
+    "name": "Leaders of the Fang",
+    "rewardItems": [
+      6505,
+      6504
+    ],
+    "rewardSummary": "35s"
+  },
+  "959": {
+    "name": "Trouble at the Docks",
+    "rewardItems": [],
+    "rewardSummary": "15s"
+  },
+  "971": {
+    "name": "Knowledge in the Deeps",
+    "rewardItems": [
+      6743
+    ],
+    "rewardSummary": "20s"
+  },
+  "1013": {
+    "name": "The Book of Ur",
+    "rewardItems": [
+      6335,
+      4534
+    ],
+    "rewardSummary": "26s"
+  },
+  "1014": {
+    "name": "Arugal Must Die",
+    "rewardItems": [
+      6414
+    ],
+    "rewardSummary": "35s"
+  },
+  "1048": {
+    "name": "Into The Scarlet Monastery",
+    "rewardItems": [
+      6802,
+      6803,
+      10711
+    ],
+    "rewardSummary": "50s"
+  },
+  "1050": {
+    "name": "Hearts of Zeal",
+    "rewardItems": [
+      7746
+    ],
+    "rewardSummary": "30s"
+  },
+  "1051": {
+    "name": "Vorrel's Revenge",
+    "rewardItems": [
+      7750,
+      4643,
+      7751
+    ],
+    "rewardSummary": "28s"
+  },
+  "1052": {
+    "name": "In the Name of the Light",
+    "rewardItems": [
+      7741,
+      7742,
+      7743
+    ],
+    "rewardSummary": "45s"
+  },
+  "1053": {
+    "name": "Mythology of the Titans",
+    "rewardItems": [
+      6829,
+      6830,
+      6831,
+      11262
+    ],
+    "rewardSummary": "35s"
+  },
+  "1054": {
+    "name": "Compendium of the Fallen",
+    "rewardItems": [
+      1970
+    ],
+    "rewardSummary": "35s"
+  },
+  "1098": {
+    "name": "Deathstalkers in Shadowfang",
+    "rewardItems": [
+      3324
+    ],
+    "rewardSummary": "28s"
+  },
+  "1102": {
+    "name": "A Vengeful Fate",
+    "rewardItems": [
+      4197,
+      6742,
+      6725
+    ],
+    "rewardSummary": "35s"
+  },
+  "1104": {
+    "name": "Bring the End",
+    "rewardItems": [],
+    "rewardSummary": "45s"
+  },
+  "1142": {
+    "name": "Mortality Wanes",
+    "rewardItems": [
+      6751,
+      6752
+    ],
+    "rewardSummary": "30s"
+  },
+  "1144": {
+    "name": "Willix the Importer",
+    "rewardItems": [
+      6748,
+      6750,
+      6749
+    ],
+    "rewardSummary": "28s"
+  },
+  "1199": {
+    "name": "Twilight Falls",
+    "rewardItems": [
+      6998,
+      7000
+    ],
+    "rewardSummary": "26s"
+  },
+  "1200": {
+    "name": "Blackfathom Villainy",
+    "rewardItems": [
+      7001,
+      7002
+    ],
+    "rewardSummary": "35s"
+  },
+  "1275": {
+    "name": "Researching the Corruption",
+    "rewardItems": [
+      7003,
+      7004
+    ],
+    "rewardSummary": "25s"
+  },
+  "1448": {
+    "name": "Jammal'an the Prophet",
+    "rewardItems": [],
+    "rewardSummary": "75s"
+  },
+  "1486": {
+    "name": "Deviate Hides",
+    "rewardItems": [
+      6480,
+      918
+    ],
+    "rewardSummary": "25s"
+  },
+  "1487": {
+    "name": "Deviate Eradication",
+    "rewardItems": [
+      6476,
+      8071,
+      6481
+    ],
+    "rewardSummary": "28s"
+  },
+  "1491": {
+    "name": "Smart Drinks",
+    "rewardItems": [
+      4599,
+      4600
+    ],
+    "rewardSummary": "30s"
+  },
+  "2040": {
+    "name": "Underground Assault",
+    "rewardItems": [
+      7606,
+      7607
+    ],
+    "rewardSummary": "30s"
+  },
+  "2198": {
+    "name": "The Shattered Necklace",
+    "rewardItems": [],
+    "rewardSummary": "30s"
+  },
+  "2240": {
+    "name": "The Hidden Chamber",
+    "rewardItems": [
+      9626,
+      9627
+    ],
+    "rewardSummary": "35s"
+  },
+  "2278": {
+    "name": "The Platinum Discs",
+    "rewardItems": [],
+    "rewardSummary": "60s"
+  },
+  "2768": {
+    "name": "Tiara of the Deep",
+    "rewardItems": [
+      9533,
+      9534
+    ],
+    "rewardSummary": "55s"
+  },
+  "2841": {
+    "name": "Save Techbot's Brain!",
+    "rewardItems": [
+      9623,
+      9624,
+      9625
+    ],
+    "rewardSummary": "30s"
+  },
+  "2862": {
+    "name": "Gahz'rilla",
+    "rewardItems": [
+      11122
+    ],
+    "rewardSummary": "80s"
+  },
+  "2904": {
+    "name": "A Fine Mess",
+    "rewardItems": [
+      9535,
+      9536
+    ],
+    "rewardSummary": "30s"
+  },
+  "2924": {
+    "name": "Rig Wars",
+    "rewardItems": [
+      10443
+    ],
+    "rewardSummary": "40s"
+  },
+  "2945": {
+    "name": "Grime-Encrusted Ring",
+    "rewardItems": [
+      9328
+    ],
+    "rewardSummary": ""
+  },
+  "2951": {
+    "name": "The Sparklematic 5200!",
+    "rewardItems": [],
+    "rewardSummary": "Repeatable"
+  },
+  "3373": {
+    "name": "The Essence of Eranikus",
+    "rewardItems": [
+      10455
+    ],
+    "rewardSummary": "85s"
+  },
+  "3523": {
+    "name": "Scourge of the Downs",
+    "rewardItems": [],
+    "rewardSummary": "25s"
+  },
+  "3525": {
+    "name": "Extinguishing the Idol",
+    "rewardItems": [
+      10710
+    ],
+    "rewardSummary": "40s"
+  },
+  "3527": {
+    "name": "The Prophecy of Mosh'aru",
+    "rewardItems": [],
+    "rewardSummary": "65s"
+  },
+  "3982": {
+    "name": "What Is Going On?",
+    "rewardItems": [],
+    "rewardSummary": "75s"
+  },
+  "4083": {
+    "name": "The Spectral Chalice",
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "4201": {
+    "name": "The Love Potion",
+    "rewardItems": [
+      11962,
+      11866
+    ],
+    "rewardSummary": "65s"
+  },
+  "4322": {
+    "name": "Jail Break!",
+    "rewardItems": [
+      12061,
+      12062,
+      12065
+    ],
+    "rewardSummary": "1g 80s"
+  },
+  "4742": {
+    "name": "Seal of Ascension",
+    "rewardItems": [
+      12344
+    ],
+    "rewardSummary": "Key to UBRS"
+  },
+  "4866": {
+    "name": "Bijou's Belongings",
+    "rewardItems": [
+      15873
+    ],
+    "rewardSummary": "1g 20s"
+  },
+  "4867": {
+    "name": "Urok Doomhowl",
+    "rewardItems": [
+      15867
+    ],
+    "rewardSummary": "1g 50s"
+  },
+  "4875": {
+    "name": "For The Horde!",
+    "rewardItems": [
+      18400
+    ],
+    "rewardSummary": "Key to Onyxia's Lair"
+  },
+  "4974": {
+    "name": "Drakefire Amulet",
+    "rewardItems": [
+      18399
+    ],
+    "rewardSummary": "Key to Onyxia's Lair"
+  },
+  "5088": {
+    "name": "General Drakkisath's Demise",
+    "rewardItems": [
+      15464,
+      15465,
+      15466
+    ],
+    "rewardSummary": "2g"
+  },
+  "5092": {
+    "name": "The Archmage Arugal",
+    "rewardItems": [
+      13395,
+      13396
+    ],
+    "rewardSummary": "2g"
+  },
+  "5212": {
+    "name": "The Medallion of Faith",
+    "rewardItems": [],
+    "rewardSummary": "1g 50s"
+  },
+  "5214": {
+    "name": "Houses of the Holy",
+    "rewardItems": [
+      13171
+    ],
+    "rewardSummary": "1g 40s"
+  },
+  "5263": {
+    "name": "The Flesh Does Not Lie",
+    "rewardItems": [],
+    "rewardSummary": "1g 40s"
+  },
+  "5381": {
+    "name": "Doctor Theolen Krastinov",
+    "rewardItems": [],
+    "rewardSummary": "1g 40s"
+  },
+  "5384": {
+    "name": "Barov Family Fortune",
+    "rewardItems": [
+      15805,
+      15806,
+      13544
+    ],
+    "rewardSummary": "1g 80s"
+  },
+  "5514": {
+    "name": "Dawn's Gambit",
+    "rewardItems": [],
+    "rewardSummary": "1g 50s"
+  },
+  "5722": {
+    "name": "Searching for the Lost Satchel",
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "5723": {
+    "name": "Testing an Enemy's Strength",
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "5724": {
+    "name": "Returning the Lost Satchel",
+    "rewardItems": [
+      15452,
+      15453
+    ],
+    "rewardSummary": ""
+  },
+  "5728": {
+    "name": "Hidden Enemies",
+    "rewardItems": [
+      14112,
+      14113
+    ],
+    "rewardSummary": ""
+  },
+  "5761": {
+    "name": "Slaying the Beast",
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "6522": {
+    "name": "An Unholy Alliance",
+    "rewardItems": [],
+    "rewardSummary": "32s"
+  },
+  "6561": {
+    "name": "Blackfathom Villainy",
+    "rewardItems": [
+      7001,
+      7002
+    ],
+    "rewardSummary": "35s"
+  },
+  "6821": {
+    "name": "A Hero's Reward",
+    "rewardItems": [
+      17333
+    ],
+    "rewardSummary": "Summons Majordomo Executus"
+  },
+  "6922": {
+    "name": "Baron Aquanis",
+    "rewardItems": [
+      16886,
+      16887
+    ],
+    "rewardSummary": "28s"
+  },
+  "6981": {
+    "name": "The Glowing Shard",
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "7041": {
+    "name": "Corruption of Earth and Seed",
+    "rewardItems": [
+      17768,
+      17778,
+      17770
+    ],
+    "rewardSummary": "90s"
+  },
+  "7044": {
+    "name": "Legends of Maraudon",
+    "rewardItems": [
+      17191
+    ],
+    "rewardSummary": "70s"
+  },
+  "7443": {
+    "name": "Pusillin and the Elder Azj'Tordin",
+    "rewardItems": [
+      18249
+    ],
+    "rewardSummary": "Crescent Key"
+  },
+  "7444": {
+    "name": "The Lord of Blackrock",
+    "rewardItems": [
+      19377
+    ],
+    "rewardSummary": "Raid Quest \u00b7 World Buff"
+  },
+  "7461": {
+    "name": "Lethtendris's Web",
+    "rewardItems": [],
+    "rewardSummary": "1g"
+  },
+  "7462": {
+    "name": "The Madness Within",
+    "rewardItems": [
+      18420,
+      18421,
+      18424
+    ],
+    "rewardSummary": "1g 50s"
+  },
+  "7463": {
+    "name": "Unfinished Gordok Business",
+    "rewardItems": [],
+    "rewardSummary": "Gordok Tribute"
+  },
+  "7494": {
+    "name": "Attunement to the Core",
+    "rewardItems": [],
+    "rewardSummary": "Attunement to Molten Core"
+  },
+  "7761": {
+    "name": "Blackhand's Command",
+    "rewardItems": [],
+    "rewardSummary": "Attunement to Blackwing Lair"
+  },
+  "8183": {
+    "name": "The Heart of Hakkar",
+    "rewardItems": [
+      19948,
+      19950,
+      19949
+    ],
+    "rewardSummary": "World Buff"
+  },
+  "9120": {
+    "name": "The Dread Citadel - Naxxramas",
+    "rewardItems": [
+      23206,
+      23207
+    ],
+    "rewardSummary": "Attunement to Naxxramas"
+  },
+  "92401": {
+    "name": "A Frightened Request",
+    "rewardItems": [
+      251485,
+      251486
+    ],
+    "rewardSummary": "8s"
+  },
+  "92415": {
+    "name": "Remember That I Love You",
+    "rewardItems": [
+      279870
+    ],
+    "rewardSummary": "8s"
+  },
+  "92421": {
+    "name": "Light's Justice",
+    "rewardItems": [
+      279874,
+      279875
+    ],
+    "rewardSummary": "9s"
+  },
+  "92422": {
+    "name": "The Wrath of Rath'mael",
+    "rewardItems": [
+      251533,
+      251534
+    ],
+    "rewardSummary": "12s"
+  },
+  "92753": {
+    "name": "Destruction in Deadmines",
+    "rewardItems": [],
+    "rewardSummary": "20s"
+  },
+  "95195": {
+    "name": "Bloodied Insignia",
+    "rewardItems": [
+      279868,
+      279869
+    ],
+    "rewardSummary": "10s"
+  },
+  "95204": {
+    "name": "Crest of Lordaeron",
+    "rewardItems": [
+      280567
+    ],
+    "rewardSummary": "8s"
+  },
+  "95216": {
+    "name": "The New Plague",
+    "rewardItems": [
+      279876,
+      279877
+    ],
+    "rewardSummary": "10s"
+  },
+  "95250": {
+    "name": "Abominable Creatures",
+    "rewardItems": [
+      279867,
+      279865,
+      279864
+    ],
+    "rewardSummary": ""
+  },
+  "96393": {
+    "name": "Old Ironforge Incursion",
+    "rewardItems": [
+      279894,
+      279895,
+      279896
+    ],
+    "rewardSummary": "8s"
+  },
+  "96394": {
+    "name": "The Restless Dead",
+    "rewardItems": [
+      279897,
+      280095
+    ],
+    "rewardSummary": "7s"
+  },
+  "96395": {
+    "name": "An Ancient Grudge",
+    "rewardItems": [
+      279899,
+      279900
+    ],
+    "rewardSummary": "7s"
+  },
+  "96403": {
+    "name": "Important Heirlooms",
+    "rewardItems": [
+      279898,
+      280096
+    ],
+    "rewardSummary": "7s"
+  },
+  "97001": {
+    "name": "Open the Maw",
+    "rewardItems": [
+      271740,
+      271732
+    ],
+    "rewardSummary": ""
+  },
+  "97002": {
+    "name": "Changing Tastes",
+    "rewardItems": [
+      280766,
+      250185
+    ],
+    "rewardSummary": ""
+  },
+  "97288": {
+    "name": "Unending Torment",
+    "rewardItems": [
+      279867,
+      279865,
+      279864
+    ],
+    "rewardSummary": ""
+  },
+  "98101": {
+    "name": "Dalaran's Fall",
+    "rewardItems": [],
+    "rewardSummary": "20s"
+  },
+  "98423": {
+    "name": "The Treaty of Understanding",
+    "rewardItems": [],
+    "rewardSummary": "16s"
+  },
+  "99001": {
+    "name": "Secrets of the Vale",
+    "rewardItems": [],
+    "rewardSummary": "Raid Quest"
+  },
+  "97290": {
+    "rewardItems": [
+      279867,
+      279865,
+      279864
+    ],
+    "rewardSummary": ""
+  },
+  "95189": {
+    "rewardItems": [
+      280567
+    ],
+    "rewardSummary": ""
+  },
+  "95161": {
+    "rewardItems": [
+      279870
+    ],
+    "rewardSummary": ""
+  },
+  "65": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "151": {
+    "rewardItems": [
+      2165,
+      1537
+    ],
+    "rewardSummary": ""
+  },
+  "303": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "389": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "1198": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "3520": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "3981": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "4182": {
+    "rewardItems": [],
+    "rewardSummary": "1s"
+  },
+  "4726": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "4903": {
+    "rewardItems": [
+      13958,
+      13959,
+      13961,
+      13962,
+      13963
+    ],
+    "rewardSummary": "1s"
+  },
+  "5726": {
+    "rewardItems": [],
+    "rewardSummary": "2c"
+  },
+  "6804": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "92749": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "96390": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "886": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "1109": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "870": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "877": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "880": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "1489": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "1490": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  }
+}

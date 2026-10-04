@@ -18,6 +18,7 @@ local string_lower = _G.string.lower
 local string_find = _G.string.find
 local string_match = _G.string.match
 local string_gsub = _G.string.gsub
+local string_format = _G.string.format
 local tostring = _G.tostring
 local math_floor = _G.math.floor
 local math_max = _G.math.max
@@ -35,6 +36,15 @@ local UnitOnTaxi = _G.UnitOnTaxi
 local VehicleExit = _G.VehicleExit
 local TaxiRequestEarlyLanding = _G.TaxiRequestEarlyLanding
 local LibStub = _G.LibStub
+local IsResting = _G.IsResting
+local UnitIsPVP = _G.UnitIsPVP
+local UnitIsPVPFreeForAll = _G.UnitIsPVPFreeForAll
+local UnitFactionGroup = _G.UnitFactionGroup
+local IsPVPTimerRunning = _G.IsPVPTimerRunning
+local GetPVPTimer = _G.GetPVPTimer
+local GameTooltip = _G.GameTooltip
+local FREE_FOR_ALL_TERRITORY = _G.FREE_FOR_ALL_TERRITORY
+local PVP = _G.PVP
 
 -- ========================
 -- Local Variables
@@ -45,6 +55,9 @@ local collectAttempts = 0
 local zoom_timer = nil
 local DEFAULT_ZOOM = sfui.config.minimap.defaultZoom or 0
 local button_bar = nil
+local status_container = nil
+local rest_icon_frame = nil
+local pvp_icon_frame = nil
 
 local function set_default_zoom()
     if zoom_timer then
@@ -526,7 +539,10 @@ function ButtonManager:arrange_buttons()
     local clock = _G.TimeManagerClockButton
     local isClockInside = clock and clock:IsShown() and clock:GetParent() == button_bar
     local clockWidth = isClockInside and (clock:GetWidth() > 0 and clock:GetWidth() or 48) or 0
-    local rightReserved = isClockInside and (clockWidth + 14) or padX
+
+    local isStatusInside = sfui.isCamelot and status_container and status_container:IsShown() and status_container:GetParent() == button_bar
+    local statusWidth = isStatusInside and (status_container:GetWidth() > 0 and (status_container:GetWidth() + 6) or 0) or 0
+    local rightReserved = isClockInside and (clockWidth + 14 + statusWidth) or (padX + statusWidth)
 
     local defaultWidth = (sfui.config and sfui.config.minimap and sfui.config.minimap.default_size) or 220
     local shownCount = 0
@@ -539,6 +555,226 @@ function ButtonManager:arrange_buttons()
     local buttonsEnd = (shownCount > 0) and (padX + (shownCount * size) + ((shownCount - 1) * spacing)) or padX
     local neededWidth = buttonsEnd + rightReserved
     button_bar:SetWidth(math_max(defaultWidth, neededWidth))
+end
+
+local function set_pvp_texture(texture_obj, isFFA, faction)
+    local tex = isFFA and "Interface\\Icons\\ability_dualwield"
+        or (faction == "Horde" and "Interface\\Icons\\PVPCurrency-Honor-Horde")
+        or (faction == "Alliance" and "Interface\\Icons\\PVPCurrency-Honor-Alliance")
+        or "Interface\\Icons\\ability_dualwield"
+
+    texture_obj:SetTexture(tex)
+    texture_obj:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+end
+
+local function skin_status_button(button, icon, highlight)
+    if not button or not icon then return end
+
+    local Masque = SfuiDB.minimap_masque and LibStub("Masque", true)
+    if not Masque then
+        sfui.common.apply_square_icon_style(button, icon)
+        if button.SetBackdrop then
+            button:SetBackdrop({
+                bgFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
+                edgeFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
+                tile = false,
+                tileSize = 0,
+                edgeSize = 1,
+                insets = { left = 0, right = 0, top = 0, bottom = 0 }
+            })
+            button:SetBackdropColor(0, 0, 0, 0.8)
+            button:SetBackdropBorderColor(0, 0, 0, 1)
+        end
+    else
+        sfui.common.sync_masque(button, { Icon = icon, Highlight = highlight })
+    end
+end
+
+local function update_pvp_tooltip(self)
+    if not GameTooltip:IsOwned(self) then return end
+    GameTooltip:ClearLines()
+    if UnitIsPVPFreeForAll and UnitIsPVPFreeForAll("player") then
+        GameTooltip:AddLine(FREE_FOR_ALL_TERRITORY or "Free for All PvP", 1, 0.2, 0.2)
+        GameTooltip:AddLine("You are hostile to all other players.", 0.85, 0.85, 0.85, true)
+    else
+        local faction = UnitFactionGroup and UnitFactionGroup("player")
+        local factionText = faction or "PvP"
+        GameTooltip:AddLine(string_format("%s (%s)", PVP or "PvP", factionText), 1, 0.82, 0)
+        if IsPVPTimerRunning and IsPVPTimerRunning() then
+            local ms = GetPVPTimer and GetPVPTimer() or 0
+            local totalSeconds = math_floor(ms / 1000)
+            if totalSeconds > 0 then
+                local mins = math_floor(totalSeconds / 60)
+                local secs = totalSeconds % 60
+                GameTooltip:AddLine(string_format("PvP will drop in: %d:%02d", mins, secs), 0.85, 0.85, 0.85)
+            else
+                GameTooltip:AddLine("PvP dropping soon...", 0.85, 0.85, 0.85)
+            end
+            GameTooltip:AddLine("Combat will reset this timer.", 0.6, 0.6, 0.6)
+        else
+            GameTooltip:AddLine("PvP Flagged", 0.2, 1, 0.2)
+            GameTooltip:AddLine("Open to hostile player combat.", 0.6, 0.6, 0.6)
+        end
+    end
+    GameTooltip:Show()
+end
+
+local function get_status_container()
+    if status_container then return status_container end
+
+    local cfg = sfui.config.minimap.button_bar
+    local size = cfg.button_size or 20
+
+    local parent = button_bar or MinimapCluster or Minimap
+    status_container = CreateFrame("Frame", "sfui_minimap_status_container", parent)
+    status_container:SetSize((size * 2) + 6, size)
+
+    -- Resting indicator (flat square icon, mouse disabled per user requirements)
+    rest_icon_frame = CreateFrame("Frame", nil, status_container, "BackdropTemplate")
+    rest_icon_frame:SetSize(size, size)
+    rest_icon_frame:EnableMouse(false)
+    local rest_tex = rest_icon_frame:CreateTexture(nil, "ARTWORK")
+    rest_tex:SetTexture("Interface\\Icons\\spell_nature_sleep")
+    rest_tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    rest_icon_frame.texture = rest_tex
+    skin_status_button(rest_icon_frame, rest_tex, nil)
+    rest_icon_frame:Hide()
+
+    -- PvP indicator (flat square icon, mouse enabled for rich tooltip and countdown)
+    pvp_icon_frame = CreateFrame("Frame", nil, status_container, "BackdropTemplate")
+    pvp_icon_frame:SetSize(size, size)
+    pvp_icon_frame:EnableMouse(true)
+    local pvp_tex = pvp_icon_frame:CreateTexture(nil, "ARTWORK")
+    pvp_icon_frame.texture = pvp_tex
+
+    local pvp_hl = pvp_icon_frame:CreateTexture(nil, "HIGHLIGHT")
+    pvp_hl:ClearAllPoints()
+    pvp_hl:SetPoint("TOPLEFT", pvp_icon_frame, "TOPLEFT", 2, -2)
+    pvp_hl:SetPoint("BOTTOMRIGHT", pvp_icon_frame, "BOTTOMRIGHT", -2, 2)
+    pvp_hl:SetColorTexture(1, 1, 1, 0.25)
+    pvp_icon_frame.highlight = pvp_hl
+
+    skin_status_button(pvp_icon_frame, pvp_tex, pvp_hl)
+
+    pvp_icon_frame:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+        update_pvp_tooltip(self)
+        if IsPVPTimerRunning and IsPVPTimerRunning() then
+            self.elapsed = 0
+            self:SetScript("OnUpdate", function(f, dt)
+                f.elapsed = (f.elapsed or 0) + dt
+                if f.elapsed >= 1.0 then
+                    f.elapsed = 0
+                    update_pvp_tooltip(f)
+                end
+            end)
+        end
+    end)
+
+    pvp_icon_frame:SetScript("OnLeave", function(self)
+        self:SetScript("OnUpdate", nil)
+        GameTooltip:Hide()
+    end)
+    pvp_icon_frame:Hide()
+
+    return status_container
+end
+
+function sfui.minimap.update_status()
+    if not sfui.isCamelot or (SfuiDB and SfuiDB.minimap_show_status == false) then
+        if status_container then
+            status_container:Hide()
+            if rest_icon_frame then rest_icon_frame:Hide() end
+            if pvp_icon_frame then
+                pvp_icon_frame:Hide()
+                pvp_icon_frame:SetScript("OnUpdate", nil)
+            end
+        end
+        if button_bar and button_bar:IsShown() then
+            ButtonManager:arrange_buttons()
+        end
+        return
+    end
+
+    local container = get_status_container()
+
+    local targetParent = (button_bar and button_bar:IsShown()) and button_bar or (MinimapCluster or Minimap)
+    if container:GetParent() ~= targetParent then
+        container:SetParent(targetParent)
+        container:SetFrameStrata(targetParent:GetFrameStrata())
+        container:SetFrameLevel(targetParent:GetFrameLevel() + 5)
+    end
+
+    local isResting = IsResting and IsResting()
+    local isFFA = UnitIsPVPFreeForAll and UnitIsPVPFreeForAll("player")
+    local isPVP = (UnitIsPVP and UnitIsPVP("player")) or isFFA
+
+    local showRest = isResting
+    local showPvP = isPVP
+
+    if showRest then
+        rest_icon_frame:Show()
+    else
+        rest_icon_frame:Hide()
+    end
+
+    if showPvP then
+        local faction = UnitFactionGroup and UnitFactionGroup("player")
+        set_pvp_texture(pvp_icon_frame.texture, isFFA, faction)
+        pvp_icon_frame:Show()
+    else
+        pvp_icon_frame:Hide()
+        pvp_icon_frame:SetScript("OnUpdate", nil)
+        if GameTooltip:IsOwned(pvp_icon_frame) then
+            GameTooltip:Hide()
+        end
+    end
+
+    local cfg = sfui.config.minimap.button_bar
+    local iconSize = cfg.button_size or 20
+    local iconSpacing = 6
+
+    if showRest and showPvP then
+        pvp_icon_frame:ClearAllPoints()
+        pvp_icon_frame:SetPoint("RIGHT", container, "RIGHT", 0, 0)
+        rest_icon_frame:ClearAllPoints()
+        rest_icon_frame:SetPoint("RIGHT", pvp_icon_frame, "LEFT", -iconSpacing, 0)
+        container:SetSize((iconSize * 2) + iconSpacing, iconSize)
+        container:Show()
+    elseif showPvP then
+        pvp_icon_frame:ClearAllPoints()
+        pvp_icon_frame:SetPoint("RIGHT", container, "RIGHT", 0, 0)
+        container:SetSize(iconSize, iconSize)
+        container:Show()
+    elseif showRest then
+        rest_icon_frame:ClearAllPoints()
+        rest_icon_frame:SetPoint("RIGHT", container, "RIGHT", 0, 0)
+        container:SetSize(iconSize, iconSize)
+        container:Show()
+    else
+        container:SetSize(0, iconSize)
+        container:Hide()
+    end
+
+    local clock = _G.TimeManagerClockButton
+    local isClockInside = clock and clock:IsShown() and clock:GetParent() == container:GetParent()
+
+    container:ClearAllPoints()
+    if isClockInside then
+        container:SetPoint("RIGHT", clock, "LEFT", -6, -1)
+    elseif container:GetParent() == button_bar then
+        container:SetPoint("RIGHT", button_bar, "RIGHT", -8, 1)
+    else
+        if clock and clock:IsShown() then
+            container:SetPoint("RIGHT", clock, "LEFT", -6, -1)
+        else
+            container:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", -4, 3)
+        end
+    end
+
+    if button_bar and button_bar:IsShown() then
+        ButtonManager:arrange_buttons()
+    end
 end
 
 function sfui.minimap.enable_button_manager(enabled)
@@ -603,6 +839,7 @@ function sfui.minimap.enable_button_manager(enabled)
 
         if AddonCompartmentFrame then AddonCompartmentFrame:Hide() end
         sfui.minimap.update_clock_position()
+        sfui.minimap.update_status()
     else
         ButtonManager:restore_all()
         if button_bar then button_bar:Hide() end
@@ -616,6 +853,7 @@ function sfui.minimap.enable_button_manager(enabled)
             clock.sfuiRepositioning = nil
             clock.sfuiAnchored = nil
         end
+        sfui.minimap.update_status()
     end
 end
 
@@ -669,7 +907,7 @@ function sfui.minimap.update_clock_position()
             if self.sfuiRepositioning or not button_bar or not button_bar:IsShown() then return end
             self.sfuiRepositioning = true
             self:ClearAllPoints()
-            self:SetPoint("RIGHT", button_bar, "RIGHT", -8, 0)
+            self:SetPoint("RIGHT", button_bar, "RIGHT", -8, 2)
             self.sfuiRepositioning = nil
         end)
 
@@ -685,9 +923,10 @@ function sfui.minimap.update_clock_position()
 
     clock.sfuiRepositioning = true
     clock:ClearAllPoints()
-    clock:SetPoint("RIGHT", button_bar, "RIGHT", -8, 0)
+    clock:SetPoint("RIGHT", button_bar, "RIGHT", -8, 2)
     clock.sfuiRepositioning = nil
     clock:Show()
+    sfui.minimap.update_status()
 end
 
 function sfui.minimap.update_button_bar_position()
@@ -711,6 +950,10 @@ function sfui.minimap.UpdateMinimapTheme()
         end
         ButtonManager:arrange_buttons()
     end
+    if sfui.isCamelot and rest_icon_frame and pvp_icon_frame then
+        skin_status_button(rest_icon_frame, rest_icon_frame.texture, nil)
+        skin_status_button(pvp_icon_frame, pvp_icon_frame.texture, pvp_icon_frame.highlight)
+    end
 end
 
 local startup_scans = 0
@@ -723,6 +966,7 @@ local function on_minimap_entering_world(event)
     end
     sfui.minimap.enable_button_manager(SfuiDB.minimap_collect_buttons)
     sfui.minimap.update_clock_position()
+    sfui.minimap.update_status()
     sfui.minimap.UpdateMinimapTheme()
 
     -- Startup timer to catch late-loading buttons and clock
@@ -736,6 +980,7 @@ local function on_minimap_entering_world(event)
                     ButtonManager:arrange_buttons()
                 end
                 sfui.minimap.update_clock_position()
+                sfui.minimap.update_status()
             end
         end)
     end
@@ -772,6 +1017,41 @@ sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
         ButtonManager:arrange_buttons()
     end
 end)
+
+if sfui.isCamelot then
+    -- Status indicator events (Resting and PvP tracking)
+    sfui.events.RegisterEvent("PLAYER_UPDATE_RESTING", function()
+        sfui.minimap.update_status()
+    end)
+
+    sfui.events.RegisterEvent("PLAYER_FLAGS_CHANGED", function(_, unit)
+        if not unit or unit == "player" then
+            sfui.minimap.update_status()
+        end
+    end)
+
+    sfui.events.RegisterEvent("UNIT_FACTION", function(_, unit)
+        if not unit or unit == "player" then
+            sfui.minimap.update_status()
+        end
+    end)
+
+    sfui.events.RegisterEvent("PVP_TIMER_UPDATE", function()
+        sfui.minimap.update_status()
+    end)
+
+    sfui.events.RegisterEvent("ZONE_CHANGED_NEW_AREA", function()
+        sfui.minimap.update_status()
+    end)
+
+    sfui.events.RegisterEvent("ZONE_CHANGED", function()
+        sfui.minimap.update_status()
+    end)
+
+    sfui.events.RegisterEvent("ZONE_CHANGED_INDOORS", function()
+        sfui.minimap.update_status()
+    end)
+end
 
 function sfui.minimap_debug_info()
     return {

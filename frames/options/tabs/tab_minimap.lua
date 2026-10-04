@@ -35,10 +35,19 @@ sfui.options.RegisterTab({
         end, "only show the button bar when hovering the minimap. also moves group finder eye to top left.")
         mouseover_cb:SetPoint("TOPLEFT", collect_cb, "BOTTOMLEFT", 0, -10)
 
+        local last_anchor = mouseover_cb
+        if sfui.isCamelot then
+            local status_cb = create_checkbox(minimap_panel, "show status indicators", "minimap_show_status", function(checked)
+                sfui.minimap.update_status()
+            end, "shows resting and pvp status icons beside the clock.")
+            status_cb:SetPoint("TOPLEFT", mouseover_cb, "BOTTOMLEFT", 0, -10)
+            last_anchor = status_cb
+        end
+
         local autozoom_cb = create_checkbox(minimap_panel, "enable autozoom", "minimap_auto_zoom", function(checked)
             sfui.minimap.reset_zoom_timer()
         end, "automatically resets minimap zoom after a delay.")
-        autozoom_cb:SetPoint("TOPLEFT", mouseover_cb, "BOTTOMLEFT", 0, -10)
+        autozoom_cb:SetPoint("TOPLEFT", last_anchor, "BOTTOMLEFT", 0, -10)
 
         local autozoom_delay = create_slider_input(minimap_panel, "autozoom delay:", "minimap_auto_zoom_delay", 1, 30, 1,
             function(val)

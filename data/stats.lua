@@ -454,17 +454,21 @@ sfui.stats = sfui.stats or {}
 
 local math_max = math.max
 local math_min = math.min
+local InCombatLockdown = _G.InCombatLockdown
 
 --- Returns effective defense skill and breakdown (effective, base, modifier, maxDefense, excess)
 function sfui.stats.GetEffectiveDefense(unit)
     unit = unit or "player"
+    local lvl = (_G.UnitLevel and _G.UnitLevel(unit)) or 60
+    local maxDef = lvl * 5
+    if InCombatLockdown and InCombatLockdown() then
+        return maxDef, maxDef, 0, maxDef, 0
+    end
     if not _G.UnitDefenseSkill then return 0, 0, 0, 0, 0 end
     local base, mod = _G.UnitDefenseSkill(unit)
     base = base or 0
     mod = mod or 0
     local effective = math_max(0, base + mod)
-    local lvl = (_G.UnitLevel and _G.UnitLevel(unit)) or 60
-    local maxDef = lvl * 5
     local excess = math_max(0, effective - maxDef)
     return effective, base, mod, maxDef, excess
 end

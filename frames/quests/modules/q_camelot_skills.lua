@@ -28,7 +28,6 @@ end
 
 local _G = _G
 local C_SkillInfo = _G.C_SkillInfo
-local UnitDefenseSkill = _G.UnitDefenseSkill
 local UnitGUID = _G.UnitGUID
 local UnitName = _G.UnitName
 local GetRealmName = _G.GetRealmName
@@ -39,7 +38,7 @@ local ToggleCharacter = _G.ToggleCharacter
 local hooksecurefunc = _G.hooksecurefunc
 local CreateFrame = _G.CreateFrame
 local EventRegistry = _G.EventRegistry
-local ScrollBoxConstants = _G.ScrollBoxConstants
+local InCombatLockdown = _G.InCombatLockdown
 
 local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
 local table_insert, table_sort = _G.table.insert, _G.table.sort
@@ -49,8 +48,6 @@ local wipe = _G.wipe or function(t) for k in pairs(t) do t[k] = nil end return t
 -- ─────────────────────────────────────────────────────────
 --  SKILL DEFINITIONS & CATEGORIES
 -- ─────────────────────────────────────────────────────────
-local DEFENSE_SKILL_ID = 95
-
 -- Weapon Skill IDs (Matches Blizzard WEAPON_SKILL_LINES)
 local WEAPON_SKILL_IDS = {
     [43]   = true, -- Swords
@@ -109,6 +106,9 @@ end
 --  STORAGE / PERSISTENCE
 -- ─────────────────────────────────────────────────────────
 local function GetPlayerKey()
+    if sfui.common and sfui.common.get_player_unique_key then
+        return sfui.common.get_player_unique_key()
+    end
     if UnitGUID then
         local guid = UnitGUID("player")
         if guid and guid ~= "" then return guid end
@@ -123,76 +123,98 @@ local function GetTrackedSkills()
     SfuiDB.characterSkills = SfuiDB.characterSkills or {}
     local key = GetPlayerKey()
     if not SfuiDB.characterSkills[key] then
-        SfuiDB.characterSkills[key] = {}
+        -- Check fallback name-realm key in case GUID was cached differently earlier
+        local name = UnitName and UnitName("player") or "player"
+        local realm = GetRealmName and GetRealmName() or ""
+        local altKey = name .. "-" .. realm
+        if altKey ~= key and SfuiDB.characterSkills[altKey] then
+            SfuiDB.characterSkills[key] = SfuiDB.characterSkills[altKey]
+        else
+            SfuiDB.characterSkills[key] = {}
+        end
     end
     return SfuiDB.characterSkills[key]
 end
 
 local function IsSkillTracked(skillID)
+    skillID = tonumber(skillID) or skillID
     if not skillID then return false end
     local tracked = GetTrackedSkills()
-    return tracked[skillID] == true
+    if tracked[skillID] ~= nil then
+        return tracked[skillID] == true
+    end
+    if type(skillID) == "number" and tracked[tostring(skillID)] ~= nil then
+        return tracked[tostring(skillID)] == true
+    end
+    return false
 end
 
 -- ─────────────────────────────────────────────────────────
 --  SKILL DATA QUERIES
 -- ─────────────────────────────────────────────────────────
 local function GetSkillInfo(skillID)
+    skillID = tonumber(skillID) or skillID
     if not skillID then return nil end
-    local info = nil
-    if C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID then
-        info = C_SkillInfo.GetSkillLineInfoByID(skillID)
+    if C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID and type(skillID) == "number" then
+        local info = C_SkillInfo.GetSkillLineInfoByID(skillID)
+        if info then return info end
     end
-    if not info and C_SkillInfo and C_SkillInfo.GetNumSkillLines then
+    if C_SkillInfo and C_SkillInfo.GetNumSkillLines then
         for idx = 1, C_SkillInfo.GetNumSkillLines() do
             local line = C_SkillInfo.GetSkillLineInfo(idx)
-            if line and line.skillID == skillID then
-                info = line
-                break
+            if line and tonumber(line.skillID) == skillID then
+                return line
             end
         end
     end
-    if info and info.skillID == DEFENSE_SKILL_ID and UnitDefenseSkill then
-        local _, defModifier = UnitDefenseSkill("player")
-        if defModifier then
-            info.modifier = defModifier
-        end
-    end
-    return info
+    return nil
 end
 
 local function OpenSkillInUI(skillID)
     if InCombatLockdown and InCombatLockdown() then return end
-    if ToggleCharacter then
-        ToggleCharacter("SkillsFrame")
-        if C_SkillInfo and C_SkillInfo.GetNumSkillLines then
-            for idx = 1, C_SkillInfo.GetNumSkillLines() do
-                local info = C_SkillInfo.GetSkillLineInfo(idx)
-                if info and info.skillID == skillID then
-                    C_SkillInfo.SetSelectedSkill(idx)
-                    if EventRegistry and EventRegistry.TriggerEvent then
-                        EventRegistry:TriggerEvent("SkillsFrame.NewSkillLineSelected")
-                    end
-                    local skillsFrame = _G.SkillsFrame
-                    if skillsFrame and skillsFrame.ScrollBox and skillsFrame.ScrollBox.ScrollToElementDataIndex then
-                        skillsFrame.ScrollBox:ScrollToElementDataIndex(idx, ScrollBoxConstants and ScrollBoxConstants.AlignNearest)
-                    end
-                    break
+    skillID = tonumber(skillID) or skillID
+    if not skillID then return end
+
+    local skillsFrame = _G.SkillsFrame
+    if not skillsFrame or not skillsFrame:IsShown() then
+        if ToggleCharacter then
+            ToggleCharacter("SkillsFrame")
+        end
+    end
+
+    if C_SkillInfo and C_SkillInfo.GetNumSkillLines then
+        for idx = 1, C_SkillInfo.GetNumSkillLines() do
+            local info = C_SkillInfo.GetSkillLineInfo(idx)
+            if info and tonumber(info.skillID) == skillID then
+                C_SkillInfo.SetSelectedSkill(idx)
+                if EventRegistry and EventRegistry.TriggerEvent then
+                    EventRegistry:TriggerEvent("SkillsFrame.NewSkillLineSelected")
                 end
+                skillsFrame = _G.SkillsFrame
+                if skillsFrame and skillsFrame.ScrollBox and skillsFrame.ScrollBox.ScrollToElementDataIndex then
+                    skillsFrame.ScrollBox:ScrollToElementDataIndex(idx, ScrollBoxConstants and ScrollBoxConstants.AlignNearest)
+                end
+                break
             end
         end
     end
 end
 
--- Forward declaration
+-- Forward declarations
 local UpdateEntryTrackingVisual
 local UpdateDetailFrameCheckbox
+local UpdateAllSkillsVisuals
+local CamelotSkillsModule
 
 local function ToggleTrackedSkill(skillID)
+    skillID = tonumber(skillID) or skillID
     if not skillID then return end
     local tracked = GetTrackedSkills()
-    local isTracked = not tracked[skillID]
+    local isTracked = not IsSkillTracked(skillID)
     tracked[skillID] = isTracked and true or nil
+    if type(skillID) == "number" then
+        tracked[tostring(skillID)] = nil
+    end
 
     if PlaySound and SOUNDKIT then
         if isTracked then
@@ -202,7 +224,15 @@ local function ToggleTrackedSkill(skillID)
         end
     end
 
-    sfui.tracker.RequestRefresh(0.01)
+    if CamelotSkillsModule and CamelotSkillsModule.MarkDirty then
+        CamelotSkillsModule:MarkDirty(0)
+    end
+    sfui.tracker.RequestRefresh(0)
+
+    if UpdateAllSkillsVisuals then
+        UpdateAllSkillsVisuals()
+    end
+
     return isTracked
 end
 
@@ -289,14 +319,6 @@ UpdateDetailFrameCheckbox = function(detailFrame)
             if curInfo and curInfo.skillID then
                 local tracked = ToggleTrackedSkill(curInfo.skillID)
                 button:SetChecked(tracked)
-                local skillsFrame = _G.SkillsFrame
-                if skillsFrame and skillsFrame.ScrollBox and skillsFrame.ScrollBox.ForEachFrame then
-                    skillsFrame.ScrollBox:ForEachFrame(function(entry)
-                        if entry.elementData and entry.elementData.skillID == curInfo.skillID then
-                            UpdateEntryTrackingVisual(entry)
-                        end
-                    end)
-                end
             end
         end)
 
@@ -322,110 +344,115 @@ UpdateDetailFrameCheckbox = function(detailFrame)
     detailFrame.sfuiTrackCheckbox:SetChecked(IsSkillTracked(skillInfo.skillID))
 end
 
+UpdateAllSkillsVisuals = function()
+    local skillsFrame = _G.SkillsFrame
+    if not skillsFrame or not skillsFrame:IsShown() then return end
+
+    if skillsFrame.SkillDetailFrame then
+        UpdateDetailFrameCheckbox(skillsFrame.SkillDetailFrame)
+    end
+
+    if skillsFrame.ScrollBox and skillsFrame.ScrollBox.ForEachFrame then
+        skillsFrame.ScrollBox:ForEachFrame(function(entry)
+            UpdateEntryTrackingVisual(entry)
+        end)
+    end
+end
+
 local _hooksInstalled = false
 local function SetupSkillsFrameHooks()
-    if _hooksInstalled then return end
-
-    local SkillsEntryMixin = _G.SkillsEntryMixin
-    if SkillsEntryMixin and SkillsEntryMixin.OnClick and SkillsEntryMixin.Initialize then
-        hooksecurefunc(SkillsEntryMixin, "Initialize", function(self, elementData)
-            UpdateEntryTrackingVisual(self)
-        end)
-
-        hooksecurefunc(SkillsEntryMixin, "OnClick", function(self, button)
-            if IsShiftKeyDown and IsShiftKeyDown() then
-                if self.elementData and not self.elementData.isHeader and self.elementData.skillID then
-                    ToggleTrackedSkill(self.elementData.skillID)
-                    UpdateEntryTrackingVisual(self)
-                    local skillsFrame = _G.SkillsFrame
-                    if skillsFrame and skillsFrame.SkillDetailFrame then
-                        UpdateDetailFrameCheckbox(skillsFrame.SkillDetailFrame)
-                    end
-                end
-            end
-        end)
-
-        hooksecurefunc(SkillsEntryMixin, "OnEnter", function(self)
-            if not self.elementData or self.elementData.isHeader then return end
-            local tip = _G.GameTooltip
-            if not tip then return end
-            tip:SetOwner(self, "ANCHOR_RIGHT")
-            tip:ClearLines()
-            local name = self.elementData.name or "Skill"
-            local isTracked = IsSkillTracked(self.elementData.skillID)
-            local catName, _, catColor = GetSkillCategoryInfo(self.elementData.skillID)
-            tip:AddLine(name, catColor[1], catColor[2], catColor[3])
-            if catName then
-                tip:AddLine(catName, 0.70, 0.70, 0.70)
-            end
-            local rankText = string_format("Rank: %d / %d", self.elementData.rank or 0, self.elementData.maxRank or 0)
-            if self.elementData.modifier and self.elementData.modifier ~= 0 then
-                rankText = rankText .. string_format(" (%+d modifier)", self.elementData.modifier)
-            end
-            tip:AddLine(rankText, 1, 1, 1)
-            if self.elementData.description and self.elementData.description ~= "" then
-                tip:AddLine(" ")
-                tip:AddLine(self.elementData.description, 0.85, 0.85, 0.85, true)
-            end
-            tip:AddLine(" ")
-            if isTracked then
-                tip:AddLine("|cffff8800Shift-Click to untrack from Objective Tracker|r", 1, 1, 1)
-            else
-                tip:AddLine("|cff00ff00Shift-Click to track in Objective Tracker|r", 1, 1, 1)
-            end
-            tip:Show()
-        end)
-
-        hooksecurefunc(SkillsEntryMixin, "OnLeave", function(self)
-            local tip = _G.GameTooltip
-            if tip and tip:GetOwner() == self then
-                tip:Hide()
-            end
-        end)
-    end
-
-    local SkillDetailFrameMixin = _G.SkillDetailFrameMixin
-    if SkillDetailFrameMixin and SkillDetailFrameMixin.Refresh then
-        hooksecurefunc(SkillDetailFrameMixin, "Refresh", function(self)
-            UpdateDetailFrameCheckbox(self)
-        end)
-    end
-
     local skillsFrame = _G.SkillsFrame
-    if skillsFrame and skillsFrame.SkillDetailFrame and skillsFrame.SkillDetailFrame.RankBar then
-        local rankBar = skillsFrame.SkillDetailFrame.RankBar
-        if not rankBar._sfuiHooked then
-            rankBar._sfuiHooked = true
-            rankBar:EnableMouse(true)
-            rankBar:HookScript("OnMouseUp", function(bar, btn)
-                if IsShiftKeyDown and IsShiftKeyDown() then
-                    local detail = skillsFrame.SkillDetailFrame
-                    local info = detail and detail.GetSelectedSkillInfo and detail:GetSelectedSkillInfo()
-                    if info and info.skillID then
-                        ToggleTrackedSkill(info.skillID)
-                        UpdateDetailFrameCheckbox(detail)
-                        if skillsFrame.ScrollBox and skillsFrame.ScrollBox.ForEachFrame then
-                            skillsFrame.ScrollBox:ForEachFrame(function(entry)
-                                if entry.elementData and entry.elementData.skillID == info.skillID then
-                                    UpdateEntryTrackingVisual(entry)
-                                end
-                            end)
+    if skillsFrame and not skillsFrame._sfuiHooked then
+        skillsFrame._sfuiHooked = true
+        skillsFrame:HookScript("OnShow", function()
+            UpdateAllSkillsVisuals()
+        end)
+
+        if skillsFrame.SkillDetailFrame and skillsFrame.SkillDetailFrame.RankBar then
+            local rankBar = skillsFrame.SkillDetailFrame.RankBar
+            if not rankBar._sfuiHooked then
+                rankBar._sfuiHooked = true
+                rankBar:EnableMouse(true)
+                rankBar:HookScript("OnMouseUp", function(bar, btn)
+                    if IsShiftKeyDown and IsShiftKeyDown() then
+                        local detail = skillsFrame.SkillDetailFrame
+                        local info = detail and detail.GetSelectedSkillInfo and detail:GetSelectedSkillInfo()
+                        if info and info.skillID then
+                            ToggleTrackedSkill(info.skillID)
                         end
                     end
-                end
-            end)
+                end)
+            end
         end
     end
 
-    if SkillsEntryMixin and SkillDetailFrameMixin then
-        _hooksInstalled = true
+    if _hooksInstalled then return end
+
+    local SkillsEntryMixin = _G.SkillsEntryMixin
+    local SkillDetailFrameMixin = _G.SkillDetailFrameMixin
+
+    if not SkillsEntryMixin or not SkillDetailFrameMixin then
+        return
     end
+
+    hooksecurefunc(SkillsEntryMixin, "Initialize", function(self, elementData)
+        UpdateEntryTrackingVisual(self)
+    end)
+
+    hooksecurefunc(SkillsEntryMixin, "OnClick", function(self, button)
+        if IsShiftKeyDown and IsShiftKeyDown() then
+            if self.elementData and not self.elementData.isHeader and self.elementData.skillID then
+                ToggleTrackedSkill(self.elementData.skillID)
+            end
+        end
+    end)
+
+    hooksecurefunc(SkillsEntryMixin, "OnEnter", function(self)
+        if not self.elementData or self.elementData.isHeader then return end
+        local tip = _G.GameTooltip
+        if not tip then return end
+        tip:SetOwner(self, "ANCHOR_RIGHT")
+        tip:ClearLines()
+        local name = self.elementData.name or "Skill"
+        local isTracked = IsSkillTracked(self.elementData.skillID)
+        local catName, _, catColor = GetSkillCategoryInfo(self.elementData.skillID)
+        tip:AddLine(name, catColor[1], catColor[2], catColor[3])
+        if catName then
+            tip:AddLine(catName, 0.70, 0.70, 0.70)
+        end
+        local rankText = string_format("Rank: %d / %d", self.elementData.rank or 0, self.elementData.maxRank or 0)
+        tip:AddLine(rankText, 1, 1, 1)
+        if self.elementData.description and self.elementData.description ~= "" then
+            tip:AddLine(" ")
+            tip:AddLine(self.elementData.description, 0.85, 0.85, 0.85, true)
+        end
+        tip:AddLine(" ")
+        if isTracked then
+            tip:AddLine("|cffff8800Shift-Click to untrack from Objective Tracker|r", 1, 1, 1)
+        else
+            tip:AddLine("|cff00ff00Shift-Click to track in Objective Tracker|r", 1, 1, 1)
+        end
+        tip:Show()
+    end)
+
+    hooksecurefunc(SkillsEntryMixin, "OnLeave", function(self)
+        local tip = _G.GameTooltip
+        if tip and tip:GetOwner() == self then
+            tip:Hide()
+        end
+    end)
+
+    hooksecurefunc(SkillDetailFrameMixin, "Refresh", function(self)
+        UpdateDetailFrameCheckbox(self)
+    end)
+
+    _hooksInstalled = true
 end
 
 -- ─────────────────────────────────────────────────────────
 --  OBJECTIVE TRACKER MODULE
 -- ─────────────────────────────────────────────────────────
-local CamelotSkillsModule = {
+CamelotSkillsModule = {
     id       = "skills",
     priority = 1,
     events   = {
@@ -498,18 +525,7 @@ function CamelotSkillsModule:BuildBlocks(container)
         local catName, _, catColor = GetSkillCategoryInfo(skillID)
         local rank = skill.rank or 0
         local maxRank = (skill.maxRank and skill.maxRank > 0) and skill.maxRank or 1
-        local modifier = skill.modifier or 0
         local isMaxed = (rank >= maxRank)
-
-        local progressText
-        if modifier > 0 then
-            progressText = string_format("%d (+%d) / %d", rank, modifier, maxRank)
-        elseif modifier < 0 then
-            progressText = string_format("%d (%d) / %d", rank, modifier, maxRank)
-        else
-            progressText = string_format("%d / %d", rank, maxRank)
-        end
-
         local barColor = isMaxed and { 0.20, 0.85, 0.30, 0.90 } or { 0.22, 0.58, 0.98, 0.90 }
 
         table_insert(blocks, {
@@ -520,25 +536,12 @@ function CamelotSkillsModule:BuildBlocks(container)
                 min   = 0,
                 max   = maxRank,
                 value = rank,
-                text  = progressText,
+                text  = string_format("%d / %d", rank, maxRank),
                 color = barColor,
             },
             OnClick = function(block, btn)
                 if btn == "RightButton" or (IsShiftKeyDown and IsShiftKeyDown()) then
                     ToggleTrackedSkill(skillID)
-                    local skillsFrame = _G.SkillsFrame
-                    if skillsFrame and skillsFrame:IsShown() then
-                        if skillsFrame.SkillDetailFrame then
-                            UpdateDetailFrameCheckbox(skillsFrame.SkillDetailFrame)
-                        end
-                        if skillsFrame.ScrollBox and skillsFrame.ScrollBox.ForEachFrame then
-                            skillsFrame.ScrollBox:ForEachFrame(function(entry)
-                                if entry.elementData and entry.elementData.skillID == skillID then
-                                    UpdateEntryTrackingVisual(entry)
-                                end
-                            end)
-                        end
-                    end
                     return
                 end
                 OpenSkillInUI(skillID)
@@ -548,11 +551,7 @@ function CamelotSkillsModule:BuildBlocks(container)
                 if catName then
                     tip:AddLine(catName, 0.70, 0.70, 0.70)
                 end
-                local rankDesc = string_format("Rank: %d / %d", rank, maxRank)
-                if modifier ~= 0 then
-                    rankDesc = rankDesc .. string_format(" (%+d modifier)", modifier)
-                end
-                tip:AddLine(rankDesc, 1, 1, 1)
+                tip:AddLine(string_format("Rank: %d / %d", rank, maxRank), 1, 1, 1)
                 if skill.description and skill.description ~= "" then
                     tip:AddLine(" ")
                     tip:AddLine(skill.description, 0.85, 0.85, 0.85, true)
@@ -567,30 +566,9 @@ function CamelotSkillsModule:BuildBlocks(container)
     if #blocks > 0 then
         return {
             {
-                id           = "skills",
-                title        = "skills",
-                color        = { 1.0, 0.82, 0.35 }, -- Gold/Amber
-                count        = #blocks,
-                blocks       = blocks,
-                OnShiftClick = function()
-                    local t = GetTrackedSkills()
-                    wipe(t)
-                    if PlaySound and SOUNDKIT then
-                        PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF or 857)
-                    end
-                    local skillsFrame = _G.SkillsFrame
-                    if skillsFrame and skillsFrame:IsShown() then
-                        if skillsFrame.SkillDetailFrame then
-                            UpdateDetailFrameCheckbox(skillsFrame.SkillDetailFrame)
-                        end
-                        if skillsFrame.ScrollBox and skillsFrame.ScrollBox.ForEachFrame then
-                            skillsFrame.ScrollBox:ForEachFrame(function(entry)
-                                UpdateEntryTrackingVisual(entry)
-                            end)
-                        end
-                    end
-                    sfui.tracker.RequestRefresh(0.01)
-                end,
+                id       = "skills",
+                noHeader = true,
+                blocks   = blocks,
             }
         }
     end

@@ -299,6 +299,11 @@ function Layout.BuildLayout(container, sections)
     local screenH = (UIParent and UIParent:GetHeight()) or (GetScreenHeight and GetScreenHeight()) or 1080
     local maxAllowedHeight = screenH * ((SfuiDB and SfuiDB.questlogMaxScreenHeight) or cfg.maxScreenHeight or 0.50)
 
+    local otf = _G.ObjectiveTrackerFrame
+    if otf and otf.editModeHeight and otf.editModeHeight > 0 and otf.IsInDefaultPosition and not otf:IsInDefaultPosition() then
+        maxAllowedHeight = otf.editModeHeight
+    end
+
     local content = container.content or container
     local scrollBar = container.scrollBar
     local scrollClip = container.scrollClip
@@ -316,7 +321,9 @@ function Layout.BuildLayout(container, sections)
             local isZoneSec = sec.isZoneSection or (type(sec.id) == "string" and sec.id:find("^zone_") ~= nil)
             local userCollapsed = collapsedMap[sec.id]
             local isCollapsed
-            if isZoneSec then
+            if sec.noHeader then
+                isCollapsed = false
+            elseif isZoneSec then
                 if sec.isCurrentZone then
                     isCollapsed = (userCollapsed == true)  -- Current zone defaults to expanded
                 else
@@ -327,93 +334,98 @@ function Layout.BuildLayout(container, sections)
             end
 
             -- 1. Acquire Section Header
-            local header = Blocks.AcquireHeader(content)
-            header:ClearAllPoints()
-            header:SetPoint("TOPLEFT", content, "TOPLEFT", 0, yOffset)
-            header:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, yOffset)
+            if not sec.noHeader then
+                local header = Blocks.AcquireHeader(content)
+                header:ClearAllPoints()
+                header:SetPoint("TOPLEFT", content, "TOPLEFT", 0, yOffset)
+                header:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, yOffset)
 
-            local col = sec.color or { 1, 1, 1 }
-            local r, g, b = col[1] or 1, col[2] or 1, col[3] or 1
-            local titleText = (sec.title or sec.id or ""):lower()
+                local col = sec.color or { 1, 1, 1 }
+                local r, g, b = col[1] or 1, col[2] or 1, col[3] or 1
+                local titleText = (sec.title or sec.id or ""):lower()
 
-            header.defColor = col
-            header.defLabel = titleText
-            header.capFormatted = sec.capFormatted
+                header.defColor = col
+                header.defLabel = titleText
+                header.capFormatted = sec.capFormatted
 
-            if header.accent then
-                if header.isCamelotHeader then
-                    header.accent:Hide()
-                else
-                    header.accent:Show()
-                    header.accent:SetColorTexture(r, g, b, 1)
-                end
-            end
-
-            header.title:SetText(titleText)
-            if header.isCamelotHeader then
-                local pal = sfui.theme and sfui.theme.GetPalette()
-                if pal and pal.headerColor then
-                    header.title:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3], 1)
-                else
-                    header.title:SetTextColor(1.0, 0.90, 0.62, 1)
-                end
-            else
-                header.title:SetTextColor(r, g, b, 1)
-            end
-
-            local countVal = sec.count or (sec.blocks and #sec.blocks) or 0
-            if isCollapsed then
-                header.count:SetText(tostring(countVal) .. "  +")
-            else
-                header.count:SetText(tostring(countVal))
-            end
-            if header.isCamelotHeader then
-                local pal = sfui.theme and sfui.theme.GetPalette()
-                if pal and pal.dimTextColor then
-                    header.count:SetTextColor(pal.dimTextColor[1], pal.dimTextColor[2], pal.dimTextColor[3], 1)
-                else
-                    header.count:SetTextColor(0.65, 0.58, 0.45, 1)
-                end
-            else
-                header.count:SetTextColor(r * 0.50, g * 0.50, b * 0.50, 1)
-            end
-
-            local secID = sec.id
-            header.secID = secID
-            local currentSec = sec
-            header:SetScript("OnClick", function(self, button)
-                local IsShiftKeyDown = _G.IsShiftKeyDown
-                if IsShiftKeyDown and IsShiftKeyDown() then
-                    UntrackSection(currentSec)
-                    for _, mod in ipairs(sfui.tracker.modules) do
-                        if mod.MarkDirty then mod:MarkDirty() end
-                    end
-                    sfui.tracker.RequestRefresh(0.01)
-                    return
-                end
-                SfuiDB.questlogSectionsCollapsed = SfuiDB.questlogSectionsCollapsed or {}
-                local curCollapsed
-                if isZoneSec then
-                    if currentSec.isCurrentZone then
-                        curCollapsed = (SfuiDB.questlogSectionsCollapsed[secID] == true)
+                if header.accent then
+                    if header.isCamelotHeader then
+                        header.accent:Hide()
                     else
-                        curCollapsed = (SfuiDB.questlogSectionsCollapsed[secID] ~= false)
+                        header.accent:Show()
+                        header.accent:SetColorTexture(r, g, b, 1)
+                    end
+                end
+
+                header.title:SetText(titleText)
+                if header.isCamelotHeader then
+                    local pal = sfui.theme and sfui.theme.GetPalette()
+                    if pal and pal.headerColor then
+                        header.title:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3], 1)
+                    else
+                        header.title:SetTextColor(1.0, 0.90, 0.62, 1)
                     end
                 else
-                    curCollapsed = (SfuiDB.questlogSectionsCollapsed[secID] == true)
+                    header.title:SetTextColor(r, g, b, 1)
                 end
-                SfuiDB.questlogSectionsCollapsed[secID] = not curCollapsed
-                sfui.tracker.RequestRefresh(0.01)
-            end)
 
-            yOffset = yOffset - (header:GetHeight() or 20) - 2
-            hasAnyVisibleContent = true
+                local countVal = sec.count or (sec.blocks and #sec.blocks) or 0
+                if isCollapsed then
+                    header.count:SetText(tostring(countVal) .. "  +")
+                else
+                    header.count:SetText(tostring(countVal))
+                end
+                if header.isCamelotHeader then
+                    local pal = sfui.theme and sfui.theme.GetPalette()
+                    if pal and pal.dimTextColor then
+                        header.count:SetTextColor(pal.dimTextColor[1], pal.dimTextColor[2], pal.dimTextColor[3], 1)
+                    else
+                        header.count:SetTextColor(0.65, 0.58, 0.45, 1)
+                    end
+                else
+                    header.count:SetTextColor(r * 0.50, g * 0.50, b * 0.50, 1)
+                end
+
+                local secID = sec.id
+                header.secID = secID
+                local currentSec = sec
+                header:SetScript("OnClick", function(self, button)
+                    local IsShiftKeyDown = _G.IsShiftKeyDown
+                    if IsShiftKeyDown and IsShiftKeyDown() then
+                        UntrackSection(currentSec)
+                        for _, mod in ipairs(sfui.tracker.modules) do
+                            if mod.MarkDirty then mod:MarkDirty() end
+                        end
+                        sfui.tracker.RequestRefresh(0.01)
+                        return
+                    end
+                    SfuiDB.questlogSectionsCollapsed = SfuiDB.questlogSectionsCollapsed or {}
+                    local curCollapsed
+                    if isZoneSec then
+                        if currentSec.isCurrentZone then
+                            curCollapsed = (SfuiDB.questlogSectionsCollapsed[secID] == true)
+                        else
+                            curCollapsed = (SfuiDB.questlogSectionsCollapsed[secID] ~= false)
+                        end
+                    else
+                        curCollapsed = (SfuiDB.questlogSectionsCollapsed[secID] == true)
+                    end
+                    SfuiDB.questlogSectionsCollapsed[secID] = not curCollapsed
+                    sfui.tracker.RequestRefresh(0.01)
+                end)
+
+                yOffset = yOffset - (header:GetHeight() or 20) - 2
+                hasAnyVisibleContent = true
+            end
 
             -- 2. Layout Blocks inside Section (if not collapsed)
             if not isCollapsed then
-                yOffset = yOffset - 2
+                if not sec.noHeader then
+                    yOffset = yOffset - 2
+                end
 
                 for _, bData in ipairs(sec.blocks) do
+                    hasAnyVisibleContent = true
                     local block = Blocks.AcquireBlock(content)
                     block:ClearAllPoints()
                     block:SetPoint("TOPLEFT", content, "TOPLEFT", 0, yOffset)
@@ -735,6 +747,18 @@ function Layout.BuildLayout(container, sections)
         end
     else
         container:SetSize(width, contentH)
+    end
+
+    if otf and otf.SetWidth then
+        otf:SetWidth(width)
+        if not (otf.IsEditModeDragging and otf:IsEditModeDragging()) then
+            if not (_G.EditModeManagerFrame and _G.EditModeManagerFrame.IsEditModeActive and _G.EditModeManagerFrame:IsEditModeActive()) then
+                if otf.IsInDefaultPosition and otf:IsInDefaultPosition() and otf.SetHeight then
+                    local finalH = (scrollBar and scrollClip) and math.min(contentH, maxAllowedHeight) or contentH
+                    otf:SetHeight(math.max(finalH, 32))
+                end
+            end
+        end
     end
 
     return totalH

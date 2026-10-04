@@ -41,8 +41,8 @@ local INNER_PAD     = 10
 
 -- ─── Locals ───────────────────────────────────────────────────────────────────
 local pairs, ipairs, type, tostring = pairs, ipairs, type, tostring
-local math_max, math_floor          = math.max, math.floor
-local table_insert, table_sort      = table.insert, table.sort
+local math_floor                    = math.floor
+local table_insert                  = table.insert
 
 local common  = sfui.common
 local theme   = sfui.theme
@@ -58,22 +58,32 @@ local selectedTab       = "dungeons" -- "dungeons" | "raids"
 
 -- ─── SavedVariables helpers ───────────────────────────────────────────────────
 sfui.db.RegisterDefaults("dungeonjournal", {
-    lastDungeon        = nil,
-    lastMode           = "bosses",
-    lastTab            = "dungeons",
-    questFaction       = "all",
-    lastBoss           = 1,
-    lastQuest          = 1,
-    autoDetectInstance = true,
-    showItemTooltips   = true,
-    wishlist           = {},
+    lastDungeon         = nil,
+    lastMode            = "bosses",
+    lastTab             = "dungeons",
+    questFaction        = "all",
+    lastBoss            = 1,
+    lastQuest           = 1,
+    autoDetectInstance  = true,
+    showItemTooltips    = true,
+    wishlist            = {},
+    hiddenDungeons      = {},
+    hiddenPins          = {},
+    hiddenQuestPins     = {},
+    showHiddenInSidebar = false,
+    autoHideTrivialPins = false,
 })
 
 local function DJ_DB()
     SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
     SfuiDB.dungeonjournal.wishlist = SfuiDB.dungeonjournal.wishlist or {}
+    SfuiDB.dungeonjournal.hiddenDungeons = SfuiDB.dungeonjournal.hiddenDungeons or {}
+    SfuiDB.dungeonjournal.hiddenPins = SfuiDB.dungeonjournal.hiddenPins or {}
+    SfuiDB.dungeonjournal.hiddenQuestPins = SfuiDB.dungeonjournal.hiddenQuestPins or {}
     return SfuiDB.dungeonjournal
 end
+sfui.dungeonjournal.GetDB = DJ_DB
+sfui.dungeonjournal.DB    = DJ_DB
 
 function sfui.dungeonjournal.IsWishlisted(itemID)
     if not itemID then return false end
@@ -116,22 +126,24 @@ function sfui.dungeonjournal.GetWishlist()
 end
 
 -- ─── Data access ─────────────────────────────────────────────────────────────
-local function GetDB()
+local function GetData()
     return sfui.dj_camelot
         or (sfui.data and sfui.data.dj_camelot)
         or {}
 end
+sfui.dungeonjournal.GetData = GetData
 
 local function GetList()
-    local db = GetDB()
+    local db = GetData()
     if selectedTab == "raids" then
         return db.raids or {}
     end
     return db.dungeons or {}
 end
+sfui.dungeonjournal.GetList = GetList
 
 local function FindDungeon(id)
-    local db = GetDB()
+    local db = GetData()
     for _, d in ipairs(db.dungeons or {}) do
         if d.id == id then return d, "dungeons" end
     end
@@ -140,27 +152,253 @@ local function FindDungeon(id)
     end
     return nil, nil
 end
+sfui.dungeonjournal.FindDungeon = FindDungeon
 
--- ─── Item loading helpers ─────────────────────────────────────────────────────
--- Use the project's compat wrapper — never call _G.GetItemInfo directly.
+local function GetCurrentDungeon()
+    if selectedDungeonID then
+        local d = FindDungeon(selectedDungeonID)
+        if d then return d end
+    end
+    local list = GetList()
+    if list and #list > 0 then
+        return list[1]
+    end
+    return nil
+end
+sfui.dungeonjournal.GetCurrentDungeon = GetCurrentDungeon
+
+-- ─── Item & Quality Helpers ───────────────────────────────────────────────────
 local function GetItemInfo(itemID)
     return common.get_item_info(itemID)
 end
 
-local function GetItemInstantInfo(itemID)
-    return common.get_item_instant_info(itemID)
-end
-
-local function RequestItemLoad(itemID)
-    if common and common.request_item_load then
-        common.request_item_load(itemID)
-    elseif _G.C_Item and _G.C_Item.RequestLoadItemDataByID then
-        pcall(_G.C_Item.RequestLoadItemDataByID, itemID)
-    end
-end
-
 local function GetItemQuality(itemID)
     return common.get_item_quality(itemID) or 3
+end
+
+local function GetQualityColor(quality)
+    if common and common.get_item_quality_color then
+        local r, g, b = common.get_item_quality_color(quality)
+        return r, g, b
+    end
+    local q = quality or 1
+    if _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[q] then
+        local c = _G.ITEM_QUALITY_COLORS[q]
+        return c.r, c.g, c.b
+    end
+    if _G.GetItemQualityColor then
+        local r, g, b = _G.GetItemQualityColor(q)
+        if r then return r, g, b end
+    end
+    return 0.8, 0.8, 0.8
+end
+sfui.dungeonjournal.GetQualityColor = GetQualityColor
+
+local function InsertItemLinkIntoChat(link)
+    if not link then return false end
+
+    if _G.ChatFrameUtil and _G.ChatFrameUtil.InsertLink and _G.ChatFrameUtil.InsertLink(link) then
+        return true
+    end
+    if _G.ChatEdit_InsertLink and _G.ChatEdit_InsertLink(link) then
+        return true
+    end
+
+    if _G.HandleModifiedItemClick and _G.HandleModifiedItemClick(link) then
+        return true
+    end
+
+    local activeChat = (_G.ChatFrameUtil and _G.ChatFrameUtil.GetActiveWindow and _G.ChatFrameUtil.GetActiveWindow())
+        or (_G.ChatEdit_GetActiveWindow and _G.ChatEdit_GetActiveWindow())
+        or _G.ACTIVE_CHAT_EDIT_BOX
+        or (_G.LAST_ACTIVE_CHAT_EDIT_BOX and (_G.LAST_ACTIVE_CHAT_EDIT_BOX:IsShown() or _G.LAST_ACTIVE_CHAT_EDIT_BOX:IsVisible()) and _G.LAST_ACTIVE_CHAT_EDIT_BOX)
+
+    if activeChat and (activeChat:IsShown() or activeChat:IsVisible()) and activeChat.Insert then
+        activeChat:Insert(link)
+        if activeChat.SetFocus then
+            activeChat:SetFocus()
+        end
+        return true
+    end
+
+    if _G.MacroFrameText and _G.MacroFrameText:IsShown() and _G.MacroFrameText:HasFocus() then
+        _G.MacroFrameText:Insert(link)
+        return true
+    end
+    if _G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown() and _G.CommunitiesFrame.ChatEditBox:HasFocus() then
+        _G.CommunitiesFrame.ChatEditBox:Insert(link)
+        return true
+    end
+
+    return false
+end
+sfui.dungeonjournal.InsertItemLinkIntoChat = InsertItemLinkIntoChat
+
+local function ResolveItemLink(btn, fallbackItemID)
+    local itemID = (btn and btn.itemID) or fallbackItemID
+    local itemLink = btn and btn.link
+
+    if not (itemLink and type(itemLink) == "string" and itemLink:find("|Hitem:")) and itemID then
+        if common and common.get_item_info then
+            local _, l = common.get_item_info(itemID)
+            itemLink = l
+        end
+        if not itemLink and _G.GetItemInfo then
+            local _, l = _G.GetItemInfo(itemID)
+            itemLink = l
+        end
+        if not itemLink and _G.C_Item and _G.C_Item.GetItemInfo then
+            local _, l = _G.C_Item.GetItemInfo(itemID)
+            itemLink = l
+        end
+        if itemLink and btn then
+            btn.link = itemLink
+        end
+    end
+
+    if not (itemLink and type(itemLink) == "string" and itemLink:find("|Hitem:")) and itemID then
+        local rawName = (btn and btn.nameText and btn.nameText.GetText and btn.nameText:GetText()) or ("item #" .. itemID)
+        local cleanName = rawName:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+        local quality = 1
+        if common and common.get_item_instant_info then
+            local _, _, q = common.get_item_instant_info(itemID)
+            quality = q or 1
+        elseif _G.C_Item and _G.C_Item.GetItemInfoInstant then
+            local _, _, q = _G.C_Item.GetItemInfoInstant(itemID)
+            quality = q or 1
+        end
+        local r, g, b = GetQualityColor(quality)
+        local hex = string.format("ff%02x%02x%02x", math_floor((r or 1) * 255 + 0.5), math_floor((g or 1) * 255 + 0.5), math_floor((b or 1) * 255 + 0.5))
+        itemLink = string.format("|c%s|Hitem:%d:0:0:0:0:0:0:0:0:0:0:0:0|h[%s]|h|r", hex, itemID, cleanName)
+        if btn then
+            btn.link = itemLink
+        end
+    end
+
+    return itemLink
+end
+sfui.dungeonjournal.ResolveItemLink = ResolveItemLink
+
+local function HandleItemClick(btn, mouseBtn, itemID)
+    if mouseBtn == "LeftButton" then
+        local isChatLink = (_G.IsModifiedClick and _G.IsModifiedClick("CHATLINK")) or (_G.IsShiftKeyDown and _G.IsShiftKeyDown())
+        local isDressUp  = (_G.IsModifiedClick and _G.IsModifiedClick("DRESSUP")) or (_G.IsControlKeyDown and _G.IsControlKeyDown())
+
+        if isChatLink or isDressUp then
+            local itemLink = ResolveItemLink(btn, itemID)
+            if not itemLink then return end
+
+            if isChatLink then
+                InsertItemLinkIntoChat(itemLink)
+            elseif isDressUp then
+                if not (_G.HandleModifiedItemClick and _G.HandleModifiedItemClick(itemLink)) then
+                    if _G.DressUpItemLink then
+                        _G.DressUpItemLink(itemLink)
+                    elseif _G.DressUpLink then
+                        _G.DressUpLink(itemLink)
+                    end
+                end
+            end
+        end
+    end
+end
+sfui.dungeonjournal.HandleItemClick = HandleItemClick
+
+local function IsQuestCompleted(questID)
+    if not questID then return false end
+    if _G.C_QuestLog and _G.C_QuestLog.IsQuestFlaggedCompleted then
+        local ok, done = pcall(_G.C_QuestLog.IsQuestFlaggedCompleted, questID)
+        if ok and done then return true end
+    end
+    if _G.IsQuestFlaggedCompleted then
+        local ok, done = pcall(_G.IsQuestFlaggedCompleted, questID)
+        if ok and done then return true end
+    end
+    return false
+end
+sfui.dungeonjournal.IsQuestCompleted = IsQuestCompleted
+sfui.dungeonjournal.IsQuestDone      = IsQuestCompleted
+
+local function IsQuestActive(questID)
+    if not questID then return false end
+    if _G.C_QuestLog and _G.C_QuestLog.IsOnQuest then
+        local ok, on = pcall(_G.C_QuestLog.IsOnQuest, questID)
+        if ok and on then return true end
+    end
+    if _G.C_QuestLog and _G.C_QuestLog.GetLogIndexForQuestID then
+        local ok, idx = pcall(_G.C_QuestLog.GetLogIndexForQuestID, questID)
+        if ok and type(idx) == "number" and idx > 0 then return true end
+    end
+    if _G.GetQuestLogIndexByID then
+        local ok, idx = pcall(_G.GetQuestLogIndexByID, questID)
+        if ok and type(idx) == "number" and idx > 0 then return true end
+    end
+    return false
+end
+sfui.dungeonjournal.IsQuestActive = IsQuestActive
+sfui.dungeonjournal.IsQuestInLog  = IsQuestActive
+
+local function ReleaseAll(pool)
+    if not pool then return end
+    for _, btn in ipairs(pool) do
+        btn:Hide()
+    end
+end
+sfui.dungeonjournal.ReleaseAll = ReleaseAll
+
+
+function sfui.dungeonjournal.GetQuestChainInfo(quest)
+    if not quest then return nil end
+    local rawChain = quest.chain
+    if not rawChain and quest.chainStart then
+        rawChain = { quest.chainStart }
+    end
+    if not rawChain or #rawChain == 0 then return nil end
+
+    local steps = {}
+    for _, s in ipairs(rawChain) do
+        local coords = s.coords or (sfui.dj_camelot and sfui.dj_camelot.questCoords and sfui.dj_camelot.questCoords[s.id])
+        steps[#steps + 1] = {
+            id = s.id,
+            name = s.name,
+            pickup = s.pickup,
+            coords = coords,
+            level = s.level,
+            minLevel = s.minLevel,
+            faction = s.faction,
+            objective = s.objective,
+            isDungeonQuest = s.isDungeonQuest or (s.id == quest.id),
+        }
+    end
+    if steps[#steps].id ~= quest.id then
+        local qCoords = (sfui.dj_camelot and sfui.dj_camelot.questCoords and sfui.dj_camelot.questCoords[quest.id]) or quest.coords
+        steps[#steps + 1] = {
+            id = quest.id,
+            name = quest.name,
+            pickup = quest.pickup,
+            coords = qCoords,
+            level = quest.level,
+            minLevel = quest.minLevel,
+            faction = quest.faction,
+            objective = quest.objective,
+            isDungeonQuest = true,
+        }
+    end
+
+    local currentStep = nil
+    local currentStepIndex = nil
+
+    for i, s in ipairs(steps) do
+        local isDone = s.id and sfui.dungeonjournal.IsQuestCompleted(s.id)
+        if not isDone then
+            currentStep = s
+            currentStepIndex = i
+            break
+        end
+    end
+
+    local allDone = (currentStep == nil)
+    return steps, currentStep, currentStepIndex, allDone
 end
 
 -- ─── Forwarded submodule functions (set by dj_sidebar, dj_bosses, dj_quests) ─
@@ -171,6 +409,551 @@ local RefreshQuestView = nil
 function sfui.dungeonjournal._registerSidebar(fn)  RefreshSidebar  = fn  end
 function sfui.dungeonjournal._registerBosses(fn)   RefreshBossView  = fn  end
 function sfui.dungeonjournal._registerQuests(fn)   RefreshQuestView = fn  end
+
+-- ─── Hiding System API ────────────────────────────────────────────────────────
+function sfui.dungeonjournal.IsDungeonHidden(dungeonID)
+    if not dungeonID then return false end
+    local db = DJ_DB()
+    return db.hiddenDungeons and db.hiddenDungeons[dungeonID] == true
+end
+
+function sfui.dungeonjournal.AreDungeonPinsHidden(dungeonID)
+    if not dungeonID then return false end
+    local db = DJ_DB()
+    if db.hiddenDungeons and db.hiddenDungeons[dungeonID] == true then return true end
+    if db.hiddenPins and db.hiddenPins[dungeonID] == true then return true end
+    return false
+end
+
+function sfui.dungeonjournal.IsQuestPinHidden(questID, dungeonID)
+    if not questID then return false end
+    local db = DJ_DB()
+    if db.hiddenQuestPins and db.hiddenQuestPins[questID] == true then return true end
+    if dungeonID and sfui.dungeonjournal.AreDungeonPinsHidden(dungeonID) then return true end
+    return false
+end
+
+function sfui.dungeonjournal.SetDungeonHidden(dungeonID, hidden)
+    if not dungeonID then return end
+    local db = DJ_DB()
+    if hidden then
+        db.hiddenDungeons[dungeonID] = true
+    else
+        db.hiddenDungeons[dungeonID] = nil
+    end
+    if RefreshSidebar then RefreshSidebar() end
+    if sfui.dungeonjournal.UpdatePins then sfui.dungeonjournal.UpdatePins(true) end
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_DJ_SETTING_CHANGED", "hiddenDungeons", dungeonID)
+    end
+end
+
+function sfui.dungeonjournal.SetDungeonPinsHidden(dungeonID, hidden)
+    if not dungeonID then return end
+    local db = DJ_DB()
+    if hidden then
+        db.hiddenPins[dungeonID] = true
+    else
+        db.hiddenPins[dungeonID] = nil
+    end
+    if RefreshSidebar then RefreshSidebar() end
+    if sfui.dungeonjournal.UpdatePins then sfui.dungeonjournal.UpdatePins(true) end
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_DJ_SETTING_CHANGED", "hiddenPins", dungeonID)
+    end
+end
+
+function sfui.dungeonjournal.SetQuestPinHidden(questID, hidden)
+    if not questID then return end
+    local db = DJ_DB()
+    if hidden then
+        db.hiddenQuestPins[questID] = true
+    else
+        db.hiddenQuestPins[questID] = nil
+    end
+    if sfui.dungeonjournal.UpdatePins then sfui.dungeonjournal.UpdatePins(true) end
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_DJ_SETTING_CHANGED", "hiddenQuestPins", questID)
+    end
+end
+
+function sfui.dungeonjournal.GetHiddenCounts()
+    local db = DJ_DB()
+    local dCount = 0
+    for _ in pairs(db.hiddenDungeons or {}) do dCount = dCount + 1 end
+    local pCount = 0
+    for _ in pairs(db.hiddenPins or {}) do pCount = pCount + 1 end
+    local qCount = 0
+    for _ in pairs(db.hiddenQuestPins or {}) do qCount = qCount + 1 end
+    return dCount, pCount, qCount, (dCount + pCount + qCount)
+end
+
+function sfui.dungeonjournal.RestoreAllHidden()
+    local db = DJ_DB()
+    local dCount, pCount, qCount, total = sfui.dungeonjournal.GetHiddenCounts()
+    db.hiddenDungeons = {}
+    db.hiddenPins = {}
+    db.hiddenQuestPins = {}
+    if RefreshSidebar then RefreshSidebar() end
+    if sfui.dungeonjournal.UpdatePins then sfui.dungeonjournal.UpdatePins(true) end
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_DJ_SETTING_CHANGED", "restoreAll", total)
+    end
+    if sfui.print and total > 0 then
+        sfui.print(string.format("Restored %d hidden item%s (dungeons and map pins).", total, (total > 1 and "s" or "")))
+    end
+end
+sfui.dungeonjournal.RestoreHiddenDungeons = sfui.dungeonjournal.RestoreAllHidden
+
+function sfui.dungeonjournal.IsDungeonTrivial(dungeon, playerLevel)
+    if not dungeon then return false end
+    local pLvl = playerLevel or (UnitLevel and UnitLevel("player")) or 1
+    local maxLvl = dungeon.maxLevel
+    if not maxLvl and dungeon.level then
+        local _, high = tostring(dungeon.level):match("^(%d+)%s*-%s*(%d+)$")
+        if high then
+            maxLvl = tonumber(high)
+        else
+            maxLvl = tonumber(dungeon.level)
+        end
+    end
+    if not maxLvl then return false end
+    local grayDiff = 0
+    if pLvl <= 5 then
+        grayDiff = 0
+    elseif pLvl <= 39 then
+        grayDiff = 5 + math.floor(pLvl / 10)
+    elseif pLvl <= 59 then
+        grayDiff = 1 + math.floor(pLvl / 5)
+    else
+        grayDiff = 9
+    end
+    return (pLvl - maxLvl) > grayDiff
+end
+
+-- ─── Chat Undo Hyperlink Hook ─────────────────────────────────────────────────
+if _G.hooksecurefunc then
+    pcall(_G.hooksecurefunc, "SetItemRef", function(link, text, button, chatFrame)
+        if not link or type(link) ~= "string" then return end
+        if link:sub(1, 10) == "sfui_undo:" then
+            local tag, kind, idStr = strsplit(":", link)
+            if tag ~= "sfui_undo" or not kind or not idStr then return end
+
+            if kind == "dungeon" then
+                sfui.dungeonjournal.SetDungeonHidden(idStr, false)
+                local d = sfui.dungeonjournal.FindDungeon(idStr)
+                if sfui.print then
+                    sfui.print(string.format("Restored |cffffd100%s|r to dungeon journal and map.", d and d.name or idStr))
+                end
+            elseif kind == "pins" then
+                sfui.dungeonjournal.SetDungeonPinsHidden(idStr, false)
+                local d = sfui.dungeonjournal.FindDungeon(idStr)
+                if sfui.print then
+                    sfui.print(string.format("Restored map pins for |cffffd100%s|r.", d and d.name or idStr))
+                end
+            elseif kind == "quest" then
+                local qid = tonumber(idStr) or idStr
+                sfui.dungeonjournal.SetQuestPinHidden(qid, false)
+                if sfui.print then
+                    sfui.print(string.format("Restored quest pin |cffffd100#%s|r to map.", tostring(qid)))
+                end
+            end
+        end
+    end)
+end
+
+-- ─── Shared Context Menu Helper ───────────────────────────────────────────────
+local sharedContextMenu = nil
+
+function sfui.dungeonjournal.ShowContextMenu(owner, title, items)
+    if not items or #items == 0 then return end
+
+    if MenuUtil and MenuUtil.CreateContextMenu then
+        local ok = pcall(function()
+            MenuUtil.CreateContextMenu(owner, function(ownerFrame, rootDescription)
+                rootDescription:SetTag("MENU_SFUI_DJ")
+                if title then
+                    rootDescription:CreateTitle(title)
+                end
+                for _, it in ipairs(items) do
+                    if it.isDivider then
+                        rootDescription:CreateDivider()
+                    else
+                        rootDescription:CreateButton(it.text, function()
+                            if it.func then it.func() end
+                        end)
+                    end
+                end
+            end)
+        end)
+        if ok then return end
+    end
+
+    if not sharedContextMenu then
+        local f = CreateFrame("Frame", "SFUI_DJ_ContextMenu", UIParent, "BackdropTemplate")
+        sharedContextMenu = f
+        f:SetFrameStrata("TOOLTIP")
+        f:SetFrameLevel(100)
+        f:SetClampedToScreen(true)
+        f:SetBackdrop({
+            bgFile   = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        f:SetBackdropColor(0.08, 0.08, 0.11, 0.98)
+        f:SetBackdropBorderColor(1, 0.78, 0.2, 0.8)
+
+        local t = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        f.title = t
+        t:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -8)
+        t:SetPoint("TOPRIGHT", f, "TOPRIGHT", -10, -8)
+        t:SetJustifyH("LEFT")
+        t:SetTextColor(1, 0.82, 0, 1)
+
+        f.menuButtons = {}
+
+        local dismiss = CreateFrame("Button", nil, UIParent)
+        dismiss:SetFrameStrata("TOOLTIP")
+        dismiss:SetFrameLevel(f:GetFrameLevel() - 1)
+        dismiss:SetAllPoints()
+        dismiss:SetScript("OnClick", function()
+            f:Hide()
+            dismiss:Hide()
+        end)
+        dismiss:Hide()
+        f.dismiss = dismiss
+
+        f:SetScript("OnHide", function()
+            dismiss:Hide()
+        end)
+    end
+
+    local f = sharedContextMenu
+    f.title:SetText(title or "Options")
+
+    local itemY = 26
+    local btnW = 220
+    local btnH = 22
+
+    for idx, it in ipairs(items) do
+        local btn = f.menuButtons[idx]
+        if not btn then
+            btn = CreateFrame("Button", nil, f)
+            btn:SetHeight(btnH)
+            local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            btn.text = fs
+            fs:SetPoint("LEFT", btn, "LEFT", 10, 0)
+            fs:SetPoint("RIGHT", btn, "RIGHT", -10, 0)
+            fs:SetJustifyH("LEFT")
+
+            local hi = btn:CreateTexture(nil, "HIGHLIGHT")
+            hi:SetAllPoints()
+            hi:SetColorTexture(1, 1, 1, 0.12)
+
+            f.menuButtons[idx] = btn
+        end
+
+        btn:ClearAllPoints()
+        btn:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -itemY)
+        btn:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -itemY)
+        btn.text:SetText(it.text)
+        if it.color then
+            btn.text:SetTextColor(it.color[1], it.color[2], it.color[3], 1)
+        else
+            btn.text:SetTextColor(0.9, 0.9, 0.9, 1)
+        end
+
+        btn:SetScript("OnClick", function()
+            f:Hide()
+            if f.dismiss then f.dismiss:Hide() end
+            if it.func then it.func() end
+        end)
+
+        btn:Show()
+        itemY = itemY + btnH + 2
+    end
+
+    for i = #items + 1, #f.menuButtons do
+        f.menuButtons[i]:Hide()
+    end
+
+    f:SetSize(btnW, itemY + 8)
+
+    local cursorX, cursorY = GetCursorPosition()
+    local scale = UIParent:GetEffectiveScale() or 1
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", (cursorX / scale) + 2, (cursorY / scale) + 2)
+
+    if f.dismiss then f.dismiss:Show() end
+    f:Show()
+end
+
+-- ─── Centralized Hidden Manager Frame ─────────────────────────────────────────
+local hiddenManagerFrame = nil
+
+local function OpenHiddenManager()
+    if not hiddenManagerFrame then
+        local dlg = CreateFrame("Frame", "SFUI_DJ_HiddenManager", frame or UIParent, "BackdropTemplate")
+        hiddenManagerFrame = dlg
+        dlg:SetFrameStrata("DIALOG")
+        dlg:SetFrameLevel((frame and frame:GetFrameLevel() or 50) + 30)
+        dlg:SetSize(360, 420)
+        if frame then
+            dlg:SetPoint("CENTER", frame, "CENTER", 0, 0)
+        else
+            dlg:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+        end
+        dlg:SetMovable(true)
+        dlg:EnableMouse(true)
+        dlg:RegisterForDrag("LeftButton")
+        dlg:SetScript("OnDragStart", dlg.StartMoving)
+        dlg:SetScript("OnDragStop", dlg.StopMovingOrSizing)
+
+        dlg:SetBackdrop({
+            bgFile   = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        dlg:SetBackdropColor(0.06, 0.06, 0.08, 0.98)
+        dlg:SetBackdropBorderColor(1, 0.78, 0.2, 0.8)
+
+        local title = dlg:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        title:SetPoint("TOPLEFT", dlg, "TOPLEFT", 14, -12)
+        title:SetText("Hidden Dungeons & Pins")
+        title:SetTextColor(1, 0.82, 0, 1)
+
+        local closeBtn = CreateFrame("Button", nil, dlg, "UIPanelCloseButton")
+        closeBtn:SetPoint("TOPRIGHT", dlg, "TOPRIGHT", -4, -4)
+        closeBtn:SetScript("OnClick", function() dlg:Hide() end)
+
+        local sub = dlg:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
+        sub:SetText("Manage hidden dungeons, entrance pins, and quest pins.")
+        sub:SetTextColor(0.65, 0.65, 0.65, 1)
+
+        local scroll = CreateFrame("ScrollFrame", nil, dlg, "UIPanelScrollFrameTemplate")
+        dlg.scroll = scroll
+        scroll:SetPoint("TOPLEFT", dlg, "TOPLEFT", 12, -48)
+        scroll:SetPoint("BOTTOMRIGHT", dlg, "BOTTOMRIGHT", -30, 44)
+
+        local content = CreateFrame("Frame", nil, scroll)
+        content:SetSize(318, 1)
+        scroll:SetScrollChild(content)
+        dlg.content = content
+
+        dlg.rows = {}
+
+        local restoreBtn = CreateFrame("Button", nil, dlg, "BackdropTemplate")
+        dlg.restoreBtn = restoreBtn
+        restoreBtn:SetSize(130, 24)
+        restoreBtn:SetPoint("BOTTOMLEFT", dlg, "BOTTOMLEFT", 12, 10)
+        restoreBtn:SetBackdrop({
+            bgFile   = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        restoreBtn:SetBackdropColor(0.12, 0.12, 0.16, 0.95)
+        restoreBtn:SetBackdropBorderColor(0.24, 0.24, 0.28, 1)
+        local rText = restoreBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        rText:SetPoint("CENTER")
+        rText:SetText("Restore All")
+        rText:SetTextColor(0.4, 1.0, 0.4, 1)
+        restoreBtn:SetScript("OnClick", function()
+            sfui.dungeonjournal.RestoreAllHidden()
+            dlg.Refresh()
+        end)
+
+        local bClose = CreateFrame("Button", nil, dlg, "BackdropTemplate")
+        bClose:SetSize(80, 24)
+        bClose:SetPoint("BOTTOMRIGHT", dlg, "BOTTOMRIGHT", -12, 10)
+        bClose:SetBackdrop({
+            bgFile   = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        bClose:SetBackdropColor(0.12, 0.12, 0.16, 0.95)
+        bClose:SetBackdropBorderColor(0.24, 0.24, 0.28, 1)
+        local cText = bClose:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        cText:SetPoint("CENTER")
+        cText:SetText("Close")
+        bClose:SetScript("OnClick", function() dlg:Hide() end)
+
+        local emptyMsg = dlg:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        dlg.emptyMsg = emptyMsg
+        emptyMsg:SetPoint("CENTER", scroll, "CENTER", 0, 0)
+        emptyMsg:SetText("No dungeons or pins are currently hidden.")
+
+        local function RefreshDialog()
+            local db = DJ_DB()
+            for _, r in ipairs(dlg.rows) do r:Hide() end
+
+            local y = 0
+            local rowIndex = 0
+
+            local function AddHeader(text)
+                rowIndex = rowIndex + 1
+                local row = dlg.rows[rowIndex]
+                if not row then
+                    row = CreateFrame("Frame", nil, content)
+                    row:SetSize(318, 20)
+                    local fs = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    row.label = fs
+                    fs:SetPoint("LEFT", row, "LEFT", 4, 0)
+                    dlg.rows[rowIndex] = row
+                end
+                row:ClearAllPoints()
+                row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -y)
+                row.label:SetText(text)
+                row.label:SetTextColor(1, 0.82, 0, 1)
+                if row.actionBtn then row.actionBtn:Hide() end
+                row:Show()
+                y = y + 22
+            end
+
+            local function AddItemRow(labelText, subText, onUnhide)
+                rowIndex = rowIndex + 1
+                local row = dlg.rows[rowIndex]
+                if not row then
+                    row = CreateFrame("Frame", nil, content, "BackdropTemplate")
+                    row:SetSize(318, 24)
+                    row:SetBackdrop({
+                        bgFile   = "Interface\\Buttons\\WHITE8x8",
+                        edgeFile = "Interface\\Buttons\\WHITE8x8",
+                        edgeSize = 1,
+                    })
+                    row:SetBackdropColor(0.08, 0.08, 0.10, 0.6)
+                    row:SetBackdropBorderColor(0.2, 0.2, 0.24, 0.6)
+
+                    local fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                    row.label = fs
+                    fs:SetPoint("LEFT", row, "LEFT", 6, 0)
+                    fs:SetPoint("RIGHT", row, "RIGHT", -74, 0)
+                    fs:SetJustifyH("LEFT")
+
+                    local btn = CreateFrame("Button", nil, row, "BackdropTemplate")
+                    row.actionBtn = btn
+                    btn:SetSize(66, 18)
+                    btn:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+                    btn:SetBackdrop({
+                        bgFile   = "Interface\\Buttons\\WHITE8x8",
+                        edgeFile = "Interface\\Buttons\\WHITE8x8",
+                        edgeSize = 1,
+                    })
+                    btn:SetBackdropColor(0.14, 0.14, 0.18, 0.95)
+                    btn:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+                    local bt = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                    btn.text = bt
+                    bt:SetPoint("CENTER")
+                    bt:SetText("Unhide")
+                    bt:SetTextColor(0.4, 1.0, 0.4, 1)
+
+                    local hi = btn:CreateTexture(nil, "HIGHLIGHT")
+                    hi:SetAllPoints()
+                    hi:SetColorTexture(1, 1, 1, 0.15)
+
+                    dlg.rows[rowIndex] = row
+                end
+
+                row:ClearAllPoints()
+                row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -y)
+                local fullText = labelText
+                if subText and subText ~= "" then
+                    fullText = fullText .. "  |cff777777(" .. subText .. ")|r"
+                end
+                row.label:SetText(fullText)
+                row.label:SetTextColor(0.9, 0.9, 0.9, 1)
+
+                row.actionBtn:Show()
+                row.actionBtn:SetScript("OnClick", function()
+                    if onUnhide then onUnhide() end
+                    RefreshDialog()
+                end)
+
+                row:Show()
+                y = y + 26
+            end
+
+            local hasDungeons = false
+            for dID in pairs(db.hiddenDungeons or {}) do
+                if not hasDungeons then
+                    AddHeader("Hidden Dungeons (Journal & Pins):")
+                    hasDungeons = true
+                end
+                local d = sfui.dungeonjournal.FindDungeon(dID)
+                local dName = d and d.name or dID
+                local dLvl = d and d.level or ""
+                AddItemRow(dName, dLvl, function()
+                    sfui.dungeonjournal.SetDungeonHidden(dID, false)
+                end)
+            end
+
+            local hasPins = false
+            for dID in pairs(db.hiddenPins or {}) do
+                if not hasPins then
+                    if y > 0 then y = y + 6 end
+                    AddHeader("Hidden Map Pins (Dungeon visible):")
+                    hasPins = true
+                end
+                local d = sfui.dungeonjournal.FindDungeon(dID)
+                local dName = d and d.name or dID
+                AddItemRow(dName, "Pins Only", function()
+                    sfui.dungeonjournal.SetDungeonPinsHidden(dID, false)
+                end)
+            end
+
+            local hasQuestPins = false
+            for qID in pairs(db.hiddenQuestPins or {}) do
+                if not hasQuestPins then
+                    if y > 0 then y = y + 6 end
+                    AddHeader("Hidden Quest Pins:")
+                    hasQuestPins = true
+                end
+                local qName = "Quest #" .. tostring(qID)
+                local cData = sfui.dj_camelot or (sfui.data and sfui.data.dj_camelot)
+                if cData then
+                    for _, d in ipairs(cData.dungeons or {}) do
+                        for _, q in ipairs(d.quests or {}) do
+                            if q.id == qID or (q.chain and q.chainStart and q.chainStart.id == qID) then
+                                qName = q.name
+                                break
+                            end
+                            if q.chain then
+                                for _, step in ipairs(q.chain) do
+                                    if step.id == qID then
+                                        qName = step.name
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+                AddItemRow(qName, "Quest Pin", function()
+                    sfui.dungeonjournal.SetQuestPinHidden(qID, false)
+                end)
+            end
+
+            content:SetHeight(math.max(1, y))
+            local total = (hasDungeons or hasPins or hasQuestPins) and y > 0
+            if total then
+                dlg.emptyMsg:Hide()
+                dlg.restoreBtn:Enable()
+                dlg.restoreBtn:SetAlpha(1.0)
+            else
+                dlg.emptyMsg:Show()
+                dlg.restoreBtn:Disable()
+                dlg.restoreBtn:SetAlpha(0.4)
+            end
+        end
+
+        dlg.Refresh = RefreshDialog
+        dlg:SetScript("OnShow", RefreshDialog)
+    end
+
+    hiddenManagerFrame.Refresh()
+    hiddenManagerFrame:Show()
+end
+sfui.dungeonjournal.OpenHiddenManager = OpenHiddenManager
 
 local function SetTabButtonTextColor(btn, color)
     if not btn or not color then return end
@@ -365,8 +1148,8 @@ end
 
 local itemHelpers = {
     GetItemInfo        = GetItemInfo,
-    GetItemInstantInfo = GetItemInstantInfo,
-    RequestItemLoad    = RequestItemLoad,
+    GetItemInstantInfo = common.get_item_instant_info,
+    RequestItemLoad    = common.request_item_load,
     GetItemQuality     = GetItemQuality,
     FindDungeon        = FindDungeon,
     GetList            = GetList,
@@ -568,7 +1351,7 @@ function sfui.dungeonjournal.CreateFrame()
     frame.mapMenu = mapMenu
     mapMenu:SetFrameStrata("DIALOG")
     mapMenu:SetFrameLevel(frame:GetFrameLevel() + 20)
-    mapMenu:SetSize(230, 130)
+    mapMenu:SetSize(230, 102)
     mapMenu:SetPoint("TOPRIGHT", mapOptBtn, "BOTTOMRIGHT", 2, -4)
     mapMenu:SetBackdrop({
         bgFile   = "Interface\\Buttons\\WHITE8x8",
@@ -648,35 +1431,100 @@ function sfui.dungeonjournal.CreateFrame()
         return row
     end
 
-    local rowEnt = MakeMenuCheckbox("Dungeon Entrances", "showEntrancePins", "Show dungeon and raid entrance icons on the World Map.", -28)
-    local rowQ   = MakeMenuCheckbox("Dungeon Quests", "showQuestPins", "Show quest pickup icons on the World Map.", -50)
-    local rowLvl = MakeMenuCheckbox("Filter Quests by Level", "questPinsRequireLevel", "When enabled (default), quest icons only appear if your character meets the level requirement. Uncheck (opt out) to show all quest icons on the map.", -72)
+    local rowEnt  = MakeMenuCheckbox("Dungeon Entrances", "showEntrancePins", "Show dungeon and raid entrance icons on the World Map.", -28)
+    local rowQ    = MakeMenuCheckbox("Dungeon Quests", "showQuestPins", "Show quest pickup icons on the World Map.", -50)
+    local rowLvl  = MakeMenuCheckbox("Filter Quests by Level", "questPinsRequireLevel", "When enabled (default), shows all quests with a lower or equal level requirement (including gray/trivial quests), hiding only quests that require a higher level than your character. Uncheck to show higher-level locked quests as well.", -72)
+    local rowTriv = MakeMenuCheckbox("Hide Outleveled Entrances", "autoHideTrivialPins", "Automatically hides map pins for dungeon entrances whose recommended level is gray/trivial for your character. (Quest pins are never hidden by this setting; all quests of lower level requirement remain visible).", -94)
 
-    local btnSettings = CreateFrame("Button", nil, mapMenu, "BackdropTemplate")
-    btnSettings:SetSize(210, 20)
-    btnSettings:SetPoint("TOPLEFT", mapMenu, "TOPLEFT", 10, -96)
-    btnSettings:SetBackdrop({
+    mapMenu:SetSize(230, 180)
+
+    local mDiv = mapMenu:CreateTexture(nil, "ARTWORK")
+    mDiv:SetHeight(1)
+    mDiv:SetPoint("TOPLEFT", mapMenu, "TOPLEFT", 10, -118)
+    mDiv:SetPoint("TOPRIGHT", mapMenu, "TOPRIGHT", -10, -118)
+    mDiv:SetColorTexture(0.24, 0.24, 0.28, 1)
+
+    local manageBtn = CreateFrame("Button", nil, mapMenu, "BackdropTemplate")
+    manageBtn:SetSize(210, 22)
+    manageBtn:SetPoint("TOPLEFT", mapMenu, "TOPLEFT", 10, -124)
+    manageBtn:SetBackdrop({
         bgFile   = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
         edgeSize = 1,
     })
-    btnSettings:SetBackdropColor(0.12, 0.12, 0.15, 0.9)
-    btnSettings:SetBackdropBorderColor(0.24, 0.24, 0.28, 1)
-    local sText = btnSettings:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    sText:SetPoint("CENTER")
-    sText:SetText("Open SFUI Options...")
-    sText:SetTextColor(0.8, 0.8, 0.8, 1)
-    local sHi = btnSettings:CreateTexture(nil, "HIGHLIGHT")
-    sHi:SetAllPoints()
-    sHi:SetColorTexture(1, 1, 1, 0.15)
-    btnSettings:SetScript("OnClick", function()
+    manageBtn:SetBackdropColor(0.10, 0.10, 0.14, 0.9)
+    manageBtn:SetBackdropBorderColor(0.24, 0.24, 0.28, 1)
+
+    local manageText = manageBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    manageText:SetPoint("LEFT", manageBtn, "LEFT", 8, 0)
+    manageText:SetJustifyH("LEFT")
+
+    local manageCount = manageBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    manageCount:SetPoint("RIGHT", manageBtn, "RIGHT", -8, 0)
+    manageCount:SetJustifyH("RIGHT")
+
+    local mHi = manageBtn:CreateTexture(nil, "HIGHLIGHT")
+    mHi:SetAllPoints()
+    mHi:SetColorTexture(1, 1, 1, 0.08)
+
+    local function RefreshManageState()
+        local _, _, _, total = sfui.dungeonjournal.GetHiddenCounts()
+        if total > 0 then
+            manageText:SetText("Manage Hidden Items...")
+            manageText:SetTextColor(1, 0.82, 0, 1)
+            manageCount:SetText(string.format("(%d)", total))
+            manageCount:SetTextColor(0.4, 1.0, 0.4, 1)
+            manageBtn:Enable()
+        else
+            manageText:SetText("No Hidden Items")
+            manageText:SetTextColor(0.5, 0.5, 0.5, 1)
+            manageCount:SetText("")
+            manageBtn:Disable()
+        end
+    end
+    manageBtn.RefreshState = RefreshManageState
+
+    manageBtn:SetScript("OnClick", function()
         mapMenu:Hide()
         menuDismiss:Hide()
-        if sfui.select_options_tab then
-            sfui.select_options_tab("objectives")
-        elseif sfui.open_options_panel then
-            sfui.open_options_panel()
+        sfui.dungeonjournal.OpenHiddenManager()
+    end)
+
+    local restoreBtn = CreateFrame("Button", nil, mapMenu, "BackdropTemplate")
+    restoreBtn:SetSize(210, 22)
+    restoreBtn:SetPoint("TOPLEFT", mapMenu, "TOPLEFT", 10, -150)
+    restoreBtn:SetBackdrop({
+        bgFile   = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    restoreBtn:SetBackdropColor(0.10, 0.10, 0.14, 0.9)
+    restoreBtn:SetBackdropBorderColor(0.24, 0.24, 0.28, 1)
+
+    local rText = restoreBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    rText:SetPoint("CENTER")
+    rText:SetText("Restore All Hidden")
+
+    local rHi = restoreBtn:CreateTexture(nil, "HIGHLIGHT")
+    rHi:SetAllPoints()
+    rHi:SetColorTexture(1, 1, 1, 0.08)
+
+    local function RefreshRestoreState()
+        local _, _, _, total = sfui.dungeonjournal.GetHiddenCounts()
+        if total > 0 then
+            rText:SetTextColor(0.4, 1.0, 0.4, 1)
+            restoreBtn:Enable()
+            restoreBtn:Show()
+        else
+            restoreBtn:Hide()
         end
+    end
+    restoreBtn.RefreshState = RefreshRestoreState
+
+    restoreBtn:SetScript("OnClick", function()
+        mapMenu:Hide()
+        menuDismiss:Hide()
+        sfui.dungeonjournal.RestoreAllHidden()
     end)
 
     mapOptBtn:SetScript("OnClick", function()
@@ -687,6 +1535,9 @@ function sfui.dungeonjournal.CreateFrame()
             rowEnt:RefreshState()
             rowQ:RefreshState()
             rowLvl:RefreshState()
+            rowTriv:RefreshState()
+            manageBtn:RefreshState()
+            restoreBtn:RefreshState()
             mapMenu:Show()
             menuDismiss:Show()
         end
@@ -951,6 +1802,10 @@ function sfui.dungeonjournal.GetOption(key)
         return saved.autoDetectInstance ~= false
     elseif key == "showItemTooltips" then
         return saved.showItemTooltips ~= false
+    elseif key == "showHiddenInSidebar" then
+        return saved.showHiddenInSidebar == true
+    elseif key == "autoHideTrivialPins" then
+        return saved.autoHideTrivialPins == true
     end
     return saved[key]
 end

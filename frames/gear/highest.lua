@@ -2024,9 +2024,18 @@ local isEquippingInProgress = false
 local pendingEquipRequest   = nil
 
 function sfui.highest.EquipHighestILvl(isPvP, silent)
+    if silent and sfui.gear and sfui.gear.isNakedPaused and sfui.gear.isNakedPaused() then
+        return
+    end
+
     local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
     if inCombat then
         if not silent then sfprint("Cannot equip gear while in combat.") end
+        return
+    end
+
+    if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then
+        if not silent then sfprint("Cannot equip gear while dead or ghost.") end
         return
     end
 

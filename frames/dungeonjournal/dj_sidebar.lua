@@ -25,54 +25,16 @@ local common = sfui.common
 
 -- ─── DB & Hidden Dungeons Storage ─────────────────────────────────────────────
 local function DJ_DB()
-    SfuiDB = SfuiDB or {}
-    SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
-    SfuiDB.dungeonjournal.hiddenDungeons = SfuiDB.dungeonjournal.hiddenDungeons or {}
-    return SfuiDB.dungeonjournal
+    return sfui.dungeonjournal.GetDB()
 end
 
 local function IsDungeonHidden(dungeonID)
-    local db = DJ_DB()
-    return db.hiddenDungeons and db.hiddenDungeons[dungeonID] == true
+    return sfui.dungeonjournal.IsDungeonHidden(dungeonID)
 end
 
 -- Forward declaration of RefreshSidebar & search query
 local RefreshSidebar = nil
 local currentSearchFilter = nil
-
-local function SetDungeonHidden(dungeonID, hidden)
-    local db = DJ_DB()
-    if hidden then
-        db.hiddenDungeons[dungeonID] = true
-    else
-        db.hiddenDungeons[dungeonID] = nil
-    end
-    if RefreshSidebar then
-        RefreshSidebar()
-    end
-end
-
-local function RestoreAllHiddenDungeons()
-    local db = DJ_DB()
-    local count = 0
-    for _ in pairs(db.hiddenDungeons or {}) do count = count + 1 end
-    db.hiddenDungeons = {}
-    if RefreshSidebar then
-        RefreshSidebar()
-    end
-    if sfui.print and count > 0 then
-        sfui.print(string.format("restored %d hidden dungeon%s", count, (count > 1 and "s" or "")))
-    end
-end
-sfui.dungeonjournal = sfui.dungeonjournal or {}
-sfui.dungeonjournal.RestoreHiddenDungeons = RestoreAllHiddenDungeons
-
-local function GetHiddenDungeonCount()
-    local db = DJ_DB()
-    local count = 0
-    for _ in pairs(db.hiddenDungeons or {}) do count = count + 1 end
-    return count
-end
 
 -- ─── Difficulty Color Helper ──────────────────────────────────────────────────
 local function GetLevelColorHex(level, playerLevel)
@@ -177,30 +139,12 @@ local function GetDungeonQuestProgress(dungeon)
         local f = q.faction and q.faction:lower() or "both"
         if f == "both" or f == playerFaction then
             total = total + 1
-            local isDone = false
-            if _G.C_QuestLog and _G.C_QuestLog.IsQuestFlaggedCompleted then
-                local ok, done = pcall(_G.C_QuestLog.IsQuestFlaggedCompleted, q.id)
-                isDone = ok and done
-            elseif _G.IsQuestFlaggedCompleted then
-                local ok, done = pcall(_G.IsQuestFlaggedCompleted, q.id)
-                isDone = ok and done
-            end
+            local isDone = sfui.dungeonjournal.IsQuestCompleted(q.id)
 
             if isDone then
                 completed = completed + 1
             else
-                local isInLog = false
-                if _G.C_QuestLog and _G.C_QuestLog.IsOnQuest then
-                    local ok, on = pcall(_G.C_QuestLog.IsOnQuest, q.id)
-                    isInLog = ok and on
-                end
-                if not isInLog and _G.C_QuestLog and _G.C_QuestLog.GetLogIndexForQuestID then
-                    local ok, idx = pcall(_G.C_QuestLog.GetLogIndexForQuestID, q.id)
-                    isInLog = ok and type(idx) == "number" and idx > 0
-                elseif not isInLog and _G.GetQuestLogIndexByID then
-                    local ok, idx = pcall(_G.GetQuestLogIndexByID, q.id)
-                    isInLog = ok and type(idx) == "number" and idx > 0
-                end
+                local isInLog = sfui.dungeonjournal.IsQuestActive(q.id)
 
                 if isInLog then
                     inProg = inProg + 1
@@ -252,155 +196,87 @@ end
 -- ─── Context Menu Frame (Custom Fallback & MenuUtil) ──────────────────────────
 local contextMenuFrame = nil
 
-local function ShowCustomContextMenu(owner, dungeon)
+local function OpenDungeonContextMenu(owner, dungeon)
     if not dungeon then return end
-    if not contextMenuFrame then
-        local f = CreateFrame("Frame", "SfuiDJSidebarContextMenu", UIParent, "BackdropTemplate")
-        contextMenuFrame = f
-        f:SetFrameStrata("DIALOG")
-        f:SetClampedToScreen(true)
-        f:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
-        f:SetBackdropColor(0.08, 0.08, 0.11, 0.98)
-        f:SetBackdropBorderColor(1, 0.78, 0.2, 0.8)
 
-        local title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        f.title = title
-        title:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -8)
-        title:SetPoint("TOPRIGHT", f, "TOPRIGHT", -10, -8)
-        title:SetJustifyH("LEFT")
-        title:SetTextColor(1, 0.82, 0, 1)
+    local isHidden = sfui.dungeonjournal.IsDungeonHidden(dungeon.id)
+    local arePinsHidden = sfui.dungeonjournal.AreDungeonPinsHidden(dungeon.id)
+    local _, _, _, totalHidden = sfui.dungeonjournal.GetHiddenCounts()
 
-        f.menuButtons = {}
+    local items = {}
 
-        local dismiss = CreateFrame("Button", nil, UIParent)
-        dismiss:SetFrameStrata("DIALOG")
-        dismiss:SetFrameLevel(f:GetFrameLevel() - 1)
-        dismiss:SetAllPoints()
-        dismiss:SetScript("OnClick", function()
-            f:Hide()
-            dismiss:Hide()
-        end)
-        dismiss:Hide()
-        f.dismiss = dismiss
-
-        f:SetScript("OnHide", function()
-            dismiss:Hide()
-        end)
-    end
-
-    local f = contextMenuFrame
-    f.title:SetText(dungeon.name or "dungeon")
-
-    local hiddenCount = GetHiddenDungeonCount()
-    local items = {
-        {
-            text = "hide " .. (dungeon.name or "dungeon"),
-            color = { 1, 0.5, 0.5 },
-            func = function()
-                SetDungeonHidden(dungeon.id, true)
-            end,
-        },
-    }
-
-    if hiddenCount > 0 then
+    if isHidden then
         table.insert(items, {
-            text = string.format("restore all hidden (%d)", hiddenCount),
+            text = "Unhide " .. (dungeon.name or "Dungeon"),
             color = { 0.4, 1.0, 0.4 },
             func = function()
-                RestoreAllHiddenDungeons()
+                sfui.dungeonjournal.SetDungeonHidden(dungeon.id, false)
+                if sfui.print then
+                    sfui.print(string.format("Restored |cffffd100%s|r to dungeon journal and map.", dungeon.name or "dungeon"))
+                end
+            end,
+        })
+    else
+        table.insert(items, {
+            text = "Hide " .. (dungeon.name or "Dungeon") .. " & Pins",
+            color = { 1.0, 0.4, 0.4 },
+            func = function()
+                sfui.dungeonjournal.SetDungeonHidden(dungeon.id, true)
+                if sfui.print then
+                    sfui.print(string.format("Hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[Undo]|h|r", dungeon.name or "dungeon", dungeon.id))
+                end
+            end,
+        })
+
+        if arePinsHidden then
+            table.insert(items, {
+                text = "Unhide Map Pins",
+                color = { 0.4, 1.0, 0.4 },
+                func = function()
+                    sfui.dungeonjournal.SetDungeonPinsHidden(dungeon.id, false)
+                    if sfui.print then
+                        sfui.print(string.format("Restored map pins for |cffffd100%s|r.", dungeon.name or "dungeon"))
+                    end
+                end,
+            })
+        else
+            table.insert(items, {
+                text = "Hide Map Pins Only",
+                color = { 1.0, 0.7, 0.4 },
+                func = function()
+                    sfui.dungeonjournal.SetDungeonPinsHidden(dungeon.id, true)
+                    if sfui.print then
+                        sfui.print(string.format("Hidden map pins for |cffffd100%s|r. |cff00ccff|Hsfui_undo:pins:%s|h[Undo]|h|r", dungeon.name or "dungeon", dungeon.id))
+                    end
+                end,
+            })
+        end
+    end
+
+    if totalHidden > 0 then
+        table.insert(items, {
+            text = "Manage Hidden Items (" .. totalHidden .. ")...",
+            color = { 1.0, 0.82, 0.0 },
+            func = function()
+                sfui.dungeonjournal.OpenHiddenManager()
+            end,
+        })
+        table.insert(items, {
+            text = "Restore All Hidden (" .. totalHidden .. ")",
+            color = { 0.5, 0.8, 1.0 },
+            func = function()
+                sfui.dungeonjournal.RestoreAllHidden()
             end,
         })
     end
 
     table.insert(items, {
-        text = "cancel",
-        color = { 0.7, 0.7, 0.7 },
+        text = "Cancel",
+        color = { 0.6, 0.6, 0.6 },
         func = function() end,
     })
 
-    local itemY = 28
-    local btnW = 180
-    local btnH = 22
-
-    for idx, it in ipairs(items) do
-        local btn = f.menuButtons[idx]
-        if not btn then
-            btn = CreateFrame("Button", nil, f)
-            btn:SetHeight(btnH)
-            local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            btn.text = fs
-            fs:SetPoint("LEFT", btn, "LEFT", 10, 0)
-            fs:SetJustifyH("LEFT")
-
-            local hi = btn:CreateTexture(nil, "HIGHLIGHT")
-            hi:SetAllPoints()
-            hi:SetColorTexture(1, 1, 1, 0.12)
-
-            f.menuButtons[idx] = btn
-        end
-
-        btn:ClearAllPoints()
-        btn:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -itemY)
-        btn:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -itemY)
-        btn.text:SetText(it.text)
-        if it.color then
-            btn.text:SetTextColor(it.color[1], it.color[2], it.color[3], 1)
-        else
-            btn.text:SetTextColor(0.9, 0.9, 0.9, 1)
-        end
-
-        btn:SetScript("OnClick", function()
-            f:Hide()
-            if f.dismiss then f.dismiss:Hide() end
-            if it.func then it.func() end
-        end)
-
-        btn:Show()
-        itemY = itemY + btnH + 2
-    end
-
-    for i = #items + 1, #f.menuButtons do
-        f.menuButtons[i]:Hide()
-    end
-
-    f:SetSize(btnW, itemY + 8)
-
-    local cursorX, cursorY = GetCursorPosition()
-    local scale = UIParent:GetEffectiveScale() or 1
-    f:ClearAllPoints()
-    f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", (cursorX / scale) + 2, (cursorY / scale) + 2)
-
-    if f.dismiss then f.dismiss:Show() end
-    f:Show()
-end
-
-local function OpenDungeonContextMenu(owner, dungeon)
-    if not dungeon then return end
-
-    if MenuUtil and MenuUtil.CreateContextMenu then
-        local ok = pcall(function()
-            MenuUtil.CreateContextMenu(owner, function(ownerFrame, rootDescription)
-                rootDescription:SetTag("MENU_SFUI_DJ_SIDEBAR")
-                rootDescription:CreateTitle(dungeon.name or "dungeon")
-                rootDescription:CreateButton("hide " .. (dungeon.name or "dungeon"), function()
-                    SetDungeonHidden(dungeon.id, true)
-                end)
-                local hiddenCount = GetHiddenDungeonCount()
-                if hiddenCount > 0 then
-                    rootDescription:CreateButton(string.format("restore all hidden (%d)", hiddenCount), function()
-                        RestoreAllHiddenDungeons()
-                    end)
-                end
-            end)
-        end)
-        if ok then return end
-    end
-
-    ShowCustomContextMenu(owner, dungeon)
+    sfui.dungeonjournal.ShowContextMenu(owner, dungeon.name or "Dungeon", items)
 end
 
 -- ─── Pool helpers ─────────────────────────────────────────────────────────────
@@ -450,7 +326,7 @@ local function AcquireButton(pool, parent)
 end
 
 local function ReleaseAll(pool)
-    for _, btn in ipairs(pool) do btn:Hide() end
+    sfui.dungeonjournal.ReleaseAll(pool)
 end
 
 -- ─── Main Refresh ─────────────────────────────────────────────────────────────
@@ -534,8 +410,10 @@ RefreshSidebar = function()
         end
     end
 
-    -- If currently selected dungeon is hidden, auto-select first visible dungeon
-    if selectedID and IsDungeonHidden(selectedID) then
+    local showHidden = DJ_DB().showHiddenInSidebar == true
+
+    -- If currently selected dungeon is hidden and we're not showing hidden, auto-select first visible dungeon
+    if selectedID and IsDungeonHidden(selectedID) and not showHidden then
         for _, d in ipairs(displayList) do
             if not IsDungeonHidden(d.id) then
                 if dj and dj.SelectDungeon then
@@ -551,7 +429,8 @@ RefreshSidebar = function()
     local total = 0
 
     for _, dungeon in ipairs(displayList) do
-        if not IsDungeonHidden(dungeon.id) then
+        local isHidden = IsDungeonHidden(dungeon.id)
+        if showHidden or not isHidden then
             local btn = AcquireButton(sidebarButtons, scrollContent)
 
             btn:ClearAllPoints()
@@ -573,17 +452,30 @@ RefreshSidebar = function()
                 btn.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
             end
 
-            -- Name
-            btn.nameText:SetText(dungeon.name or "?")
-            local isSelected = (dungeon.id == selectedID)
-            if isSelected then
-                btn.nameText:SetTextColor(accent[1], accent[2], accent[3], 1)
-                btn:SetBackdropColor(0.14, 0.14, 0.18, 0.95)
-                btn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.6)
+            local arePinsHidden = sfui.dungeonjournal.AreDungeonPinsHidden(dungeon.id)
+
+            if isHidden then
+                btn.icon:SetDesaturated(true)
+                btn.icon:SetAlpha(0.4)
+                btn.nameText:SetText((dungeon.name or "?") .. " |cffff5555[hidden]|r")
+                btn.nameText:SetTextColor(0.65, 0.55, 0.55, 0.9)
+                btn:SetBackdropColor(0.12, 0.05, 0.05, 0.4)
+                btn:SetBackdropBorderColor(0.5, 0.2, 0.2, 0.4)
             else
-                btn.nameText:SetTextColor(0.85, 0.85, 0.85, 1)
-                btn:SetBackdropColor(0.08, 0.08, 0.10, 0.0)
-                btn:SetBackdropBorderColor(0, 0, 0, 0)
+                btn.icon:SetDesaturated(false)
+                btn.icon:SetAlpha(1.0)
+                local pinSuffix = arePinsHidden and " |cff888888[pins hidden]|r" or ""
+                btn.nameText:SetText((dungeon.name or "?") .. pinSuffix)
+                local isSelected = (dungeon.id == selectedID)
+                if isSelected then
+                    btn.nameText:SetTextColor(accent[1], accent[2], accent[3], 1)
+                    btn:SetBackdropColor(0.14, 0.14, 0.18, 0.95)
+                    btn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.6)
+                else
+                    btn.nameText:SetTextColor(0.85, 0.85, 0.85, 1)
+                    btn:SetBackdropColor(0.08, 0.08, 0.10, 0.0)
+                    btn:SetBackdropBorderColor(0, 0, 0, 0)
+                end
             end
 
             -- Colored level range & available quest indicator
@@ -630,8 +522,19 @@ RefreshSidebar = function()
                         GameTooltip:AddLine(string.format("  - locked (requires higher level): %d", prog.locked), 0.7, 0.4, 0.4)
                     end
                 end
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("|cff888888<right-click to hide dungeon>|r", 0.6, 0.6, 0.6)
+
+                if isHidden then
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cffff5555[This dungeon is hidden]|r", 1, 0.35, 0.35)
+                    GameTooltip:AddLine("|cff00ff00<right-click to unhide dungeon>|r", 0, 1, 0)
+                elseif arePinsHidden then
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cffffaa00[Map pins for this dungeon are hidden]|r", 1, 0.7, 0.3)
+                    GameTooltip:AddLine("|cff888888<right-click for hide/unhide options>|r", 0.6, 0.6, 0.6)
+                else
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cff888888<right-click for hide options>|r", 0.6, 0.6, 0.6)
+                end
                 GameTooltip:Show()
             end)
             btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -652,6 +555,89 @@ RefreshSidebar = function()
             btn:Show()
             y     = y + BTN_H + BTN_PAD
             total = total + 1
+        end
+    end
+
+    if total == 0 then
+        if not sidebarFrame.emptyState then
+            local empty = CreateFrame("Frame", nil, scrollContent, "BackdropTemplate")
+            sidebarFrame.emptyState = empty
+            empty:SetPoint("TOPLEFT", scrollContent, "TOPLEFT", 6, -20)
+            empty:SetPoint("TOPRIGHT", scrollContent, "TOPRIGHT", -6, -20)
+            empty:SetHeight(120)
+
+            local msg = empty:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            empty.msg = msg
+            msg:SetPoint("TOP", empty, "TOP", 0, -8)
+            msg:SetWidth(168)
+            msg:SetJustifyH("CENTER")
+
+            local btn = CreateFrame("Button", nil, empty, "BackdropTemplate")
+            empty.btn = btn
+            btn:SetSize(130, 24)
+            btn:SetPoint("TOP", msg, "BOTTOM", 0, -12)
+            btn:SetBackdrop({
+                bgFile   = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = 1,
+            })
+            btn:SetBackdropColor(0.12, 0.12, 0.16, 0.95)
+            btn:SetBackdropBorderColor(1, 0.78, 0.2, 0.6)
+
+            local bText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            btn.text = bText
+            bText:SetPoint("CENTER")
+            bText:SetTextColor(1, 0.82, 0, 1)
+
+            local hi = btn:CreateTexture(nil, "HIGHLIGHT")
+            hi:SetAllPoints()
+            hi:SetColorTexture(1, 1, 1, 0.15)
+        end
+
+        local empty = sidebarFrame.emptyState
+        local db = DJ_DB()
+        local hiddenCount = 0
+        for _, d in ipairs(displayList) do
+            if IsDungeonHidden(d.id) then
+                hiddenCount = hiddenCount + 1
+            end
+        end
+
+        if hiddenCount > 0 then
+            empty.msg:SetText(string.format("All dungeons in this list are hidden (%d hidden).", hiddenCount))
+            empty.btn:Show()
+            if db.showHiddenInSidebar then
+                empty.btn.text:SetText("Restore All")
+                empty.btn:SetScript("OnClick", function()
+                    sfui.dungeonjournal.RestoreAllHidden()
+                end)
+            else
+                empty.btn.text:SetText("Show Hidden")
+                empty.btn:SetScript("OnClick", function()
+                    db.showHiddenInSidebar = true
+                    if sidebarFrame.UpdateEyeState then sidebarFrame.UpdateEyeState() end
+                    RefreshSidebar()
+                end)
+            end
+            empty:Show()
+        elseif isFiltering then
+            empty.msg:SetText("No dungeons found matching search.")
+            empty.btn:Show()
+            empty.btn.text:SetText("Clear Search")
+            empty.btn:SetScript("OnClick", function()
+                if sidebarFrame.searchBox then
+                    sidebarFrame.searchBox:SetText("")
+                end
+            end)
+            empty:Show()
+        else
+            empty.msg:SetText("No dungeons available.")
+            empty.btn:Hide()
+            empty:Show()
+        end
+    else
+        if sidebarFrame.emptyState then
+            sidebarFrame.emptyState:Hide()
         end
     end
 
@@ -676,8 +662,67 @@ local function OnFrameCreated(arg1, arg2)
     local searchContainer = CreateFrame("Frame", nil, sidebarFrame, "BackdropTemplate")
     sidebarFrame.searchContainer = searchContainer
     searchContainer:SetPoint("TOPLEFT",  sidebarFrame, "TOPLEFT",  4, -4)
-    searchContainer:SetPoint("TOPRIGHT", sidebarFrame, "TOPRIGHT", -4, -4)
+    searchContainer:SetPoint("TOPRIGHT", sidebarFrame, "TOPRIGHT", -30, -4)
     searchContainer:SetHeight(22)
+
+    local eyeBtn = CreateFrame("Button", nil, sidebarFrame, "BackdropTemplate")
+    sidebarFrame.eyeBtn = eyeBtn
+    eyeBtn:SetSize(22, 22)
+    eyeBtn:SetPoint("TOPRIGHT", sidebarFrame, "TOPRIGHT", -4, -4)
+    eyeBtn:SetBackdrop({
+        bgFile   = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    eyeBtn:SetBackdropColor(0.04, 0.04, 0.06, 0.9)
+
+    local eyeIcon = eyeBtn:CreateTexture(nil, "ARTWORK")
+    eyeBtn.icon = eyeIcon
+    eyeIcon:SetSize(14, 14)
+    eyeIcon:SetPoint("CENTER")
+    eyeIcon:SetTexture("Interface\\Icons\\INV_Misc_Eye_01")
+    eyeIcon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+
+    local function UpdateEyeState()
+        local db = DJ_DB()
+        local active = db.showHiddenInSidebar == true
+        if active then
+            eyeIcon:SetDesaturated(false)
+            eyeIcon:SetVertexColor(1, 0.82, 0, 1)
+            eyeBtn:SetBackdropBorderColor(1, 0.82, 0, 0.8)
+        else
+            eyeIcon:SetDesaturated(true)
+            eyeIcon:SetVertexColor(0.5, 0.5, 0.5, 0.8)
+            eyeBtn:SetBackdropBorderColor(0.20, 0.20, 0.25, 0.8)
+        end
+    end
+    sidebarFrame.UpdateEyeState = UpdateEyeState
+    UpdateEyeState()
+
+    eyeBtn:SetScript("OnClick", function()
+        local db = DJ_DB()
+        db.showHiddenInSidebar = not db.showHiddenInSidebar
+        UpdateEyeState()
+        RefreshSidebar()
+    end)
+
+    eyeBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        local db = DJ_DB()
+        GameTooltip:AddLine("Show Hidden Dungeons", 1, 0.82, 0)
+        if db.showHiddenInSidebar then
+            GameTooltip:AddLine("Hidden dungeons are currently visible (dimmed with [hidden] badge).\nClick to hide them from the sidebar.", 0.85, 0.85, 0.85, true)
+        else
+            GameTooltip:AddLine("Click to reveal hidden dungeons dimmed in the sidebar so you can review or unhide them.", 0.85, 0.85, 0.85, true)
+        end
+        local _, _, _, total = sfui.dungeonjournal.GetHiddenCounts()
+        if total > 0 then
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine(string.format("|cff00ff00%d hidden item%s currently in database|r", total, total > 1 and "s" or ""), 0, 1, 0)
+        end
+        GameTooltip:Show()
+    end)
+    eyeBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
     searchContainer:SetBackdrop({
         bgFile   = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
