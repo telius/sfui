@@ -951,7 +951,10 @@ sfui.events.RegisterEvent("UPDATE_INVENTORY_DURABILITY", on_durability_or_regen)
 sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", on_durability_or_regen)
 sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", function(event, itemID, success)
     if not success or not itemID then return end
-    request_popup_update()
+    local isHammer = sfui.config.masterHammer and sfui.config.masterHammer[itemID]
+    if isHammer or itemExpansionCache[itemID] == nil then
+        request_popup_update()
+    end
 end)
 
 function sfui.hammer.initialize()

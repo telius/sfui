@@ -38,7 +38,6 @@ function sfui.compare.init()
 
     update_cvar()
 
-    -- Hook into equipment events to ensure the CVar stays set
+    -- Hook into entering world to ensure CVar matches saved state
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", update_cvar)
-    sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", update_cvar)
 end

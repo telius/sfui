@@ -1,8 +1,30 @@
 # Changelog
 
-## v12.1.0-69 (2026-10-05)
+## v12.1.0-70 (2026-10-05)
 
 ### Features & Major Improvements
+
+- **Gear Manager Architectural Modularization & Split (`frames/gear/`)**:
+  - **4-File Modular Separation**: Refactored the monolithic 3,350-line `gear.lua` into four specialized, maintainable components matching the repository's `frames/alts/` architecture standard:
+    - **`frames/gear/engine.lua`**: Pure non-visual auto-equip engine, combat/casting queues, bag debounces, `sfui.events` dispatchers, module registration, and CharacterFrame/Paperdoll shift-click hooks.
+    - **`frames/gear/gear.lua`**: Base UI window framework, title bar, collapse mechanics, consolidated Row 1 controls, shared Row 3 stat drag/drop prioritization, Pawn weights input, and UI orchestration.
+    - **`frames/gear/gear_standard.lua` (`[AllowLoadGameType standard]`)**: Retail spec tabs at `HEADER_H = 56`, `2s`/`4s`/`2e`/`ilvl` tier modifier buttons, and modern secondary stat models.
+    - **`frames/gear/gear_camelot.lua` (`[AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]`)**: Classic shorthand role icon buttons (28x28 with 4px spacing), `naked` button, corpse-run durability unequip engine, ranged/ammo slot handling, and Classic stat cleansing (`ArP`/`Exp`).
+  - **TOC Game-Type Filtering**: Updated `sfui.toc` so Retail and Classic clients exclusively parse their relevant game-type modules with zero runtime overhead or taint.
+
+- **Gear Subsystem CPU Optimizations & Logic Bug Fixes (`frames/gear/`)**:
+  - **Item Level & Tooltip Caching (`highest.lua`)**: Moved Timewalking/Event scaled tooltip parsing inside `IsItemValidForSpec_Internal`, storing the resolved effective item level inside `validationCache`. Completely eliminated 100+ uncached `C_TooltipInfo.GetHyperlink` queries on every bag scan.
+  - **Pre-cached Item IDs & Set IDs (`highest.lua`)**: Pre-populated `itemData.itemID` and `itemData.setID` on candidate evaluation, eliminating repeated string regex matches (`link:match("item:(%d+)")`) and repeated 16-variable `GetItemInfo` queries across unique weapon, embellishment, and tier drafting loops.
+  - **Pawn Scratch List Nil-Indexing Fix (`gear.lua`)**: Resolved a fatal runtime crash where trimming `pawnScratchList` caused future spec switches with larger stat counts to index nil entries. Deduplicated stat resolution logic across the UI into `sfui.gear.GetResolvedStatOrder`.
+  - **Retail Button & Engine Key Sync (`gear_standard.lua` & `highest.lua`)**:
+    - **Embellishments (`2e`)**: Synchronized `force_embellishment` and `force_2emb` so the drafting engine properly activates when clicking the UI button.
+    - **Item Level Override (`ilvl`)**: Wired `specDB.force_ilvl` directly into the scoring multiplier (100,000x ilvl) to strictly enforce raw item level upgrades across all slots.
+    - **Tier Set 4-Set (`4s`)**: Synchronized default state evaluation between UI button highlight and engine drafting.
+  - **Event & Update Throttling (`engine.lua`, `compare.lua`, `hammer.lua`)**:
+    - Removed redundant `BAG_UPDATE` registration in `engine.lua` (relying cleanly on `BAG_UPDATE_DELAYED`).
+    - Short-circuited `scanEquippedForChanges()` when `SfuiGearManagerFrame` is closed to eliminate unneeded inventory lookups.
+    - Removed redundant `PLAYER_EQUIPMENT_CHANGED` CVar checks in `compare.lua`.
+    - Added hammer/expansion item filtering to `GET_ITEM_INFO_RECEIVED` in `hammer.lua`.
 
 - **Gear Manager Row 1 Consolidated Controls (`frames/gear/gear.lua`)**:
   - **Unified Single-Row Layout**: Moved `pve set:` and `pvp set:` dropdowns onto the exact same row (Row 1, `y = -6`) as the quick action buttons (`[pve]`, `[pvp]`, `[auto: on/off]`).
@@ -10,13 +32,14 @@
   - **Header Status Label**: Relocated `statusLabel` into `gearFrame.headerBar` right-aligned before the collapse button, displaying active gear modes cleanly without competing for body space.
   - **Seamless Collapse Parenting**: Parented quick action buttons to `gearFrame.content` so they hide cleanly when collapsing the window to header height (`HEADER_H`).
 
-- **Gear Manager Spec & Naked Icon Buttons in Classic & Camelot (`frames/gear/gear.lua`)**:
+- **Gear Manager Spec & Naked Icon Buttons in Classic & Camelot (`frames/gear/gear_camelot.lua`)**:
+  - **Centered Role & Naked Cluster**: Dynamically calculates the free space between the last lock button and the right frame margin, placing the role icons and naked button cluster exactly in the horizontal center of the available space.
   - **Large 28x28 Icon Buttons with 4px Spacing**: Configured Row 2B role and `naked` buttons as large 28x28 square icons separated by a clean 4px gap, utilizing cropped textures `(0.08, 0.92, 0.08, 0.92)` and crisp 1px borders vertically centered at `y = -56`.
   - **Easily Adjustable Layout Parameters**: Centralized `ROLE_ICON_SIZE` (28), `ROLE_ICON_SPACING` (4), and `ROLE_ICON_Y` (-56) at the head of the role layout section, eliminating hardcoded offsets and enabling effortless manual tuning.
   - **Authentic Form & Spec Icons**:
     - **Druid**: Dedicated form icons for `cat` (`Ability_Druid_CatForm`), `bear` (`Ability_Racial_BearForm`), `moon` (Balance Starfall), and `resto` (Healing Touch).
     - **Other Classes**: Authentic 3-tree spec icons across Paladin, Warrior, Shaman, Priest, Rogue, Mage, Warlock, and Hunter.
-    - **Naked Mode**: Matching 28x28 Blizzard wardrobe chest silhouette icon (`Interface\Icons\inv_chest_cloth_17`) anchored seamlessly after the active role buttons.
+    - **Naked Mode**: Matching 28x28 Blizzard wardrobe chest silhouette icon (`Interface\Icons\inv_chest_cloth_17`) anchored seamlessly after the active role buttons; strictly leaves shirt (slot 4), tabard (slot 19), and non-durability jewelry (neck, rings, trinkets) equipped.
   - **Desaturation & Alpha States**: Inactive buttons are desaturated at `0.40` alpha; active selected spec/role buttons illuminate at full saturation and `1.0` alpha with theme accent or role color border highlights (e.g. amber for active naked mode).
   - **Lowercase Tooltips**: Maintained concise, lowercase tooltip naming convention (`cat`, `bear`, `moon`, `resto`, `prot`, `ret`, `naked (unequip gear)`, etc.) without any appended "role" suffix, providing clean configuration guides on mouseover.
 

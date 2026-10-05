@@ -632,6 +632,23 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
     local itemLevel = common.get_item_level(itemLink)
     if itemLevel == 0 then itemLevel = baseLevel or 1 end
 
+    -- Tooltip override for heavily scaled Event/Timewalking items (cached inside validationCache)
+    if C_TooltipInfo and C_TooltipInfo.GetHyperlink then
+        local tooltipData = C_TooltipInfo.GetHyperlink(itemLink)
+        if tooltipData and tooltipData.lines then
+            for _, line in ipairs(tooltipData.lines) do
+                local text = line.leftText
+                if text and type(text) == "string" then
+                    local tVal = tonumber(text:match("Item Level (%d+)"))
+                    if tVal and tVal > itemLevel then
+                        itemLevel = tVal
+                    end
+                    if tVal then break end
+                end
+            end
+        end
+    end
+
     -- Never auto-equip grey (0) or white (1) quality items in Retail — these are cosmetic,
     -- transmog pieces, or vendor junk and should never beat real gear in scoring.
     -- In Vanilla / Classic Forever, grey and white items are valid starting and leveling equipment.
@@ -781,26 +798,7 @@ function sfui.highest.EvaluateItemUpgrade(itemLink, overrideIlvl, currentEquippe
         local isValid, baseIlvl = sfui.highest.IsItemValidForSpec(itemLink, specID)
         if not isValid then return false end
 
-        local itemLevel = overrideIlvl or baseIlvl
-        local effectiveILvl = common.get_item_level(itemLink)
-        if effectiveILvl and not overrideIlvl then itemLevel = effectiveILvl end
-
-        -- Tooltip override for heavily scaled Event/Timewalking items
-        if not overrideIlvl and C_TooltipInfo and C_TooltipInfo.GetHyperlink then
-            local tooltipData = C_TooltipInfo.GetHyperlink(itemLink)
-            if tooltipData and tooltipData.lines then
-                for _, line in ipairs(tooltipData.lines) do
-                    local text = line.leftText
-                    if text and type(text) == "string" then
-                        local tVal = tonumber(text:match("Item Level (%d+)"))
-                        if tVal and tVal > itemLevel then
-                            itemLevel = tVal
-                        end
-                        if tVal then break end
-                    end
-                end
-            end
-        end
+        local itemLevel = overrideIlvl or baseIlvl or 1
 
         local _, _, _, itemEquipLoc = common.get_item_instant_info(itemLink)
         if itemEquipLoc == "INVTYPE_TRINKET" then
@@ -981,29 +979,7 @@ function sfui.highest.GetBestItems(isPvP)
             end
         end
 
-        local itemLevel = baseIlvl
-
-        -- Use true effective item level from the server
-        local effectiveILvl = common.get_item_level(itemLink)
-        if effectiveILvl and effectiveILvl > 0 then itemLevel = effectiveILvl end
-        if not itemLevel or itemLevel == 0 then itemLevel = 1 end
-
-        -- Tooltip override for heavily scaled Event/Timewalking items
-        if C_TooltipInfo and C_TooltipInfo.GetHyperlink then
-            local tooltipData = C_TooltipInfo.GetHyperlink(itemLink)
-            if tooltipData and tooltipData.lines then
-                for _, line in ipairs(tooltipData.lines) do
-                    local text = line.leftText
-                    if text and type(text) == "string" then
-                        local tVal = tonumber(text:match("Item Level (%d+)"))
-                        if tVal and tVal > itemLevel then
-                            itemLevel = tVal
-                        end
-                        if tVal then break end
-                    end
-                end
-            end
-        end
+        local itemLevel = baseIlvl or 1
 
         -- Locked items retain their true ilvl; sorting priority is handled via itm.score
 
@@ -1059,6 +1035,8 @@ function sfui.highest.GetBestItems(isPvP)
         local itemData          = itemDataPool[poolIndex]
 
         itemData.link           = itemLink
+        itemData.itemID         = itemID
+        itemData.setID          = select(16, GetItemInfo(itemLink))
         itemData.ilvl           = itemLevel
         itemData.quality        = itemQuality or common.get_item_quality(itemLink) or 1
         itemData.statVal        = statVal
@@ -1281,6 +1259,7 @@ function sfui.highest.GetBestItems(isPvP)
     else
         isTank = TANK_SPECS[specID] == true
     end
+    local forceIlvl = specDB and (specDB.force_ilvl == true)
     local armorIlvlPrio = (specDB and specDB.armor_ilvl_prio)
     if armorIlvlPrio == nil then
         armorIlvlPrio = isTank
@@ -1290,7 +1269,7 @@ function sfui.highest.GetBestItems(isPvP)
     for slotID, items in pairs(best) do
         local isArmor = ARMOR_SLOTS[slotID] == true
         local isWeaponSlot = (slotID == 16 or slotID == 17 or (isClassicSpec and slotID == 18))
-        local prioritizeIlvl = (isArmor and armorIlvlPrio) or isWeaponSlot
+        local prioritizeIlvl = forceIlvl or (isArmor and armorIlvlPrio) or isWeaponSlot
 
         for _, itm in ipairs(items) do
             if itm.isLockedItem then
@@ -1300,7 +1279,7 @@ function sfui.highest.GetBestItems(isPvP)
                 if isClassicSpec then
                     baseMultiplier = isPvP and 20 or 10
                 else
-                    baseMultiplier = isPvP and 100 or (prioritizeIlvl and 1000 or 10)
+                    baseMultiplier = forceIlvl and 100000 or (isPvP and 100 or (prioritizeIlvl and 1000 or 10))
                 end
                 local score = itm.ilvl * baseMultiplier
 
@@ -1382,7 +1361,7 @@ function sfui.highest.GetBestItems(isPvP)
 
                 -- Feature 1: Tier Set Protection
                 if itm.isEquipped then
-                    local _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, setID = GetItemInfo(itm.link)
+                    local setID = itm.setID
                     if setID and setID > 0 then
                         score = score + 150 -- +150 score protection for equipped tier sets to dissuade breaking sets
                     end
@@ -1562,6 +1541,8 @@ function sfui.highest.GetBestItems(isPvP)
                 local effectiveILvl = common.get_item_level(link)
                 local itmObj = {
                     link = link,
+                    itemID = itemID,
+                    setID = select(16, GetItemInfo(link)),
                     ilvl = effectiveILvl,
                     statVal = 0,
                     is2H = ((itemEquipLoc == "INVTYPE_2HWEAPON" and not rule.weaps["2H_Dual"]) or ((not isClassicSpec) and (itemEquipLoc == "INVTYPE_RANGED" or itemEquipLoc == "INVTYPE_RANGEDRIGHT"))),
@@ -1597,7 +1578,7 @@ function sfui.highest.GetBestItems(isPvP)
         for _, s in ipairs(tierSlots) do
             if best[s] then
                 for _, itm in ipairs(best[s]) do
-                    local _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, setID = GetItemInfo(itm.link)
+                    local setID = itm.setID
                     if setID and setID > 0 then
                         if not setStats[setID] then setStats[setID] = { setID = setID, count = 0, totalIlvl = 0, pieces = {} } end
                         if not setStats[setID].pieces[s] or itm.score > setStats[setID].pieces[s].score then
@@ -1871,11 +1852,11 @@ function sfui.highest.GetBestItems(isPvP)
         if not finalPick[16].is2H and best[17] then
             for _, itm in ipairs(best[17]) do
                 if not itm.is2H and (finalPick[16].physId ~= itm.physId) then
-                    local itemID = common.get_item_id(itm.link)
-                    local pickedID = common.get_item_id(finalPick[16].link)
+                    local itemID = itm.itemID
+                    local pickedID = finalPick[16].itemID
                     local isUnique = false
                     if itemID and pickedID and itemID == pickedID then
-                        local _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, unique = GetItemInfo(itm.link)
+                        local unique = select(17, GetItemInfo(itm.link))
                         isUnique = unique or false
                     end
                     if not isUnique then
@@ -1893,11 +1874,11 @@ function sfui.highest.GetBestItems(isPvP)
             if hasFrostbane then
                 for _, itm in ipairs(best[16]) do
                     if not itm.is2H and (finalPick[17].physId ~= itm.physId) and HasRazoriceEnchant(itm) then
-                        local itemID = common.get_item_id(itm.link)
-                        local pickedID = common.get_item_id(finalPick[17].link)
+                        local itemID = itm.itemID
+                        local pickedID = finalPick[17].itemID
                         local isUnique = false
                         if itemID and pickedID and itemID == pickedID then
-                            local _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, unique = GetItemInfo(itm.link)
+                            local unique = select(17, GetItemInfo(itm.link))
                             isUnique = unique or false
                         end
                         if not isUnique then
@@ -1912,11 +1893,11 @@ function sfui.highest.GetBestItems(isPvP)
             else
                 for _, itm in ipairs(best[16]) do
                     if not itm.is2H and (finalPick[17].physId ~= itm.physId) then
-                        local itemID = common.get_item_id(itm.link)
-                        local pickedID = common.get_item_id(finalPick[17].link)
+                        local itemID = itm.itemID
+                        local pickedID = finalPick[17].itemID
                         local isUnique = false
                         if itemID and pickedID and itemID == pickedID then
-                            local _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, unique = GetItemInfo(itm.link)
+                            local unique = select(17, GetItemInfo(itm.link))
                             isUnique = unique or false
                         end
                         if not isUnique then
@@ -1940,7 +1921,7 @@ function sfui.highest.GetBestItems(isPvP)
     end
 
     -- Feature: Dynamic Embellishment Drafting (force_2emb)
-    local force_2emb = specDB and (specDB.force_2emb == true or specDB.force_2embellishments == true)
+    local force_2emb = specDB and (specDB.force_2emb == true or specDB.force_2embellishments == true or specDB.force_embellishment == true)
     if force_2emb then
         local currentEmbCount = 0
         for _, itm in pairs(finalPick) do
@@ -1971,13 +1952,13 @@ function sfui.highest.GetBestItems(isPvP)
                 if embAssigned >= embNeeded then break end
                 if not finalPick[cand.slot] then
                     local conflict = false
-                    local itemID = common.get_item_id(cand.itm.link)
+                    local itemID = cand.itm.itemID
                     for _, picked in pairs(finalPick) do
                         if picked.physId == cand.itm.physId then
                             conflict = true; break
                         end
-                        if itemID and picked.link and common.get_item_id(picked.link) == itemID then
-                            local _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, isUnique = GetItemInfo(cand.itm.link)
+                        if itemID and picked.itemID and picked.itemID == itemID then
+                            local isUnique = select(17, GetItemInfo(cand.itm.link))
                             if isUnique then
                                 conflict = true; break
                             end
@@ -2011,7 +1992,7 @@ function sfui.highest.GetBestItems(isPvP)
                 if items then
                     for _, itm in ipairs(items) do
                         local alreadyPicked = false
-                        local itemID = common.get_item_id(itm.link)
+                        local itemID = itm.itemID
 
                         -- Hard game limit: maximum 2 active embellishments allowed
                         if itm.isEmbellished and totalEmbCount >= 2 then
@@ -2023,8 +2004,8 @@ function sfui.highest.GetBestItems(isPvP)
                                 if picked.physId == itm.physId then
                                     alreadyPicked = true; break
                                 end
-                                if itemID and picked.link and common.get_item_id(picked.link) == itemID then
-                                    local _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, isUnique = GetItemInfo(itm.link)
+                                if itemID and picked.itemID and picked.itemID == itemID then
+                                    local isUnique = select(17, GetItemInfo(itm.link))
                                     if isUnique then
                                         alreadyPicked = true; break
                                     end
