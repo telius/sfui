@@ -34,7 +34,6 @@ tocVersionNum = tonumber(tocVersionNum) or 0
 local IS_CAMELOT     = (PROJECT_ID == (_G.WOW_PROJECT_CAMELOT or 18))
     or (tocVersionNum >= 16000 and tocVersionNum < 20000)
     or (versionStr and versionStr:match("^1%.60") ~= nil)
-    or not (PROJECT_ID == (_G.WOW_PROJECT_MAINLINE or 1))
 local IS_CLASSIC_ERA = (PROJECT_ID == (_G.WOW_PROJECT_CLASSIC or 2)) and not IS_CAMELOT
 local IS_RETAIL      = (PROJECT_ID == (_G.WOW_PROJECT_MAINLINE or 1)) and not IS_CAMELOT
 

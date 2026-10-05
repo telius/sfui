@@ -1,8 +1,12 @@
 # Changelog
 
-## v12.1.0-72 (2026-10-05)
+## v12.1.0-73 (2026-10-05)
 
 ### Features & Major Improvements
+
+- **Compatibility Engine & CI Static Analysis (`compat.lua`)**:
+  - **Client Detection Streamlining**: Cleaned up the Camelot and Classic Era client detection definition in `compat.lua` by removing an unneeded mainline negation clause.
+  - **Zero Luacheck Warnings**: Resolved luacheck rule 532, restoring full static analysis validation to 0 warnings and 0 errors across all 117 project files.
 
 - **Merchant Subsystem Modularization (`frames/merchant/`, `sfui.toc`)**:
   - **Modular Architecture**: Split the monolithic merchant implementation into three focused, maintainable modules under `frames/merchant/`:
