@@ -99,7 +99,7 @@ function sfui.theme.GetCornerBracketAtlas(corner, themeDef)
 end
 
 function sfui.theme.IsCamelotSupported()
-    if sfui.isForever or (sfui.compat and sfui.compat.is_wow_forever) then
+    if sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot) then
         return true
     end
     -- Fallback: check if the client actually has the native bronze frame atlas

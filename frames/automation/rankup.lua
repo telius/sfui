@@ -12,7 +12,7 @@ sfui.rankup = {}
 -- ══════════════════════════════════════════════════════════════════════════════
 
 -- Rank-up automation is exclusive to Classic Forever (Camelot) & Classic Era where spell ranks exist.
-if not (sfui.isCamelot or sfui.isClassic or sfui.isForever) then return end
+if not (sfui.isCamelot or sfui.isClassic) then return end
 
 local _G = _G
 local InCombatLockdown = _G.InCombatLockdown

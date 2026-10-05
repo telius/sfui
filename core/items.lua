@@ -417,8 +417,8 @@ function sfui.items.get_item_stats(itemLink)
         return raw or {}
     end
 
-    local isClassic = sfui.isClassic or sfui.isForever
-        or (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
+    local isClassic = sfui.isClassic or sfui.isCamelot
+        or (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
         or (sfui.version and not sfui.version.retail)
 
     if isClassic then

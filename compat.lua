@@ -31,26 +31,23 @@ local versionStr, buildStr, dateStr, tocVersionNum = _G.GetBuildInfo()
 tocVersionNum = tonumber(tocVersionNum) or 0
 
 -- Classic Forever / Camelot uses WOW_PROJECT_CAMELOT (18) or WOW_PROJECT_MAINLINE (1) with tocVersion 16001 (build 1.60.x)
-local IS_WOW_FOREVER = (PROJECT_ID == (_G.WOW_PROJECT_CAMELOT or 18))
+local IS_CAMELOT     = (PROJECT_ID == (_G.WOW_PROJECT_CAMELOT or 18))
     or (tocVersionNum >= 16000 and tocVersionNum < 20000)
     or (versionStr and versionStr:match("^1%.60") ~= nil)
-local IS_CLASSIC_ERA = (PROJECT_ID == (_G.WOW_PROJECT_CLASSIC or 2)) and not IS_WOW_FOREVER
-local IS_RETAIL      = (PROJECT_ID == (_G.WOW_PROJECT_MAINLINE or 1)) and not IS_WOW_FOREVER
+    or not (PROJECT_ID == (_G.WOW_PROJECT_MAINLINE or 1))
+local IS_CLASSIC_ERA = (PROJECT_ID == (_G.WOW_PROJECT_CLASSIC or 2)) and not IS_CAMELOT
+local IS_RETAIL      = (PROJECT_ID == (_G.WOW_PROJECT_MAINLINE or 1)) and not IS_CAMELOT
 
 -- Expose on sfui.version and top-level sfui canonical booleans so any module
 -- can read client context cleanly (e.g. `if sfui.isClassic then ... end`).
-local IS_CAMELOT     = IS_WOW_FOREVER or not IS_RETAIL
-
 sfui.isRetail   = IS_RETAIL
 sfui.isClassic  = not IS_RETAIL
-sfui.isForever  = IS_WOW_FOREVER
 sfui.isEra      = IS_CLASSIC_ERA
 sfui.isCamelot  = IS_CAMELOT
 
 sfui.version = {
     retail      = IS_RETAIL,
     classic_era = IS_CLASSIC_ERA,
-    wow_forever = IS_WOW_FOREVER,
     camelot     = IS_CAMELOT,
     project_id  = PROJECT_ID,
     toc_version = tocVersionNum,
@@ -60,18 +57,16 @@ sfui.version = {
 
 -- ── Feature capability flags ──────────────────────────────────────────────────
 -- Use these in modules instead of raw IS_RETAIL checks — capabilities matter
--- more than the client name (e.g. Warcraft Forever might support some things
--- Classic Era doesn't).
+-- more than the client name.
 sfui.compat = {
     is_classic     = not IS_RETAIL,
     is_classic_era = IS_CLASSIC_ERA,
-    is_wow_forever = IS_WOW_FOREVER,
     is_camelot     = IS_CAMELOT,
     has = {
         -- Blizzard's C_UnitAuras namespace (retail aura instance IDs)
         unit_auras      = (_G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex ~= nil),
         -- BuffBarCooldownViewer Blizzard frame (trackedbars.lua depends on this)
-        cooldown_viewer = (_G.BuffBarCooldownViewer ~= nil or _G.C_CooldownViewer ~= nil or IS_RETAIL or IS_WOW_FOREVER),
+        cooldown_viewer = (_G.BuffBarCooldownViewer ~= nil or _G.C_CooldownViewer ~= nil or IS_RETAIL or IS_CAMELOT),
         -- Toybox / toy APIs (portals.lua travel toys)
         toybox          = IS_RETAIL,
         -- Mythic+ / Challenge Mode APIs
@@ -88,8 +83,8 @@ sfui.compat = {
         c_item          = (_G.C_Item ~= nil),
         -- Specialisations (talent trees, specs)
         specializations = IS_RETAIL,
-        -- Warcraft Forever specific capability flag
-        wow_forever     = IS_WOW_FOREVER,
+        -- Camelot specific capability flag
+        camelot         = IS_CAMELOT,
         -- UnitUsesAmmo API check (Camelot build 70170+ / Classic Hunter)
         uses_ammo       = (_G.UnitUsesAmmo ~= nil),
     },
@@ -707,20 +702,20 @@ function sfui.api.GetMerchantItemInfo(index)
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
---  WARCRAFT FOREVER EXTENSION POINT
+--  CAMELOT EXTENSION POINT
 --  ─────────────────────────────────────────────────────────────────────────────
 --  When the API lands, add capability flags to sfui.compat.has and either:
---    a) add an elseif IS_WOW_FOREVER branch in the relevant sfui.api functions
---    b) create compat_forever.lua for larger divergences and dofile/load it here
+--    a) add an elseif IS_CAMELOT branch in the relevant sfui.api functions
+--    b) create compat_camelot.lua for larger divergences and dofile/load it here
 --
 --  Template:
 --
---  if IS_WOW_FOREVER then
---      sfui.compat.has.cooldown_viewer = (WarcraftForeverCooldownViewer ~= nil)
+--  if IS_CAMELOT then
+--      sfui.compat.has.cooldown_viewer = (CamelotCooldownViewer ~= nil)
 --      sfui.compat.has.toybox          = (C_ToyBox ~= nil)
 --
 --      function sfui.api.GetAuraData(unit, index, filter)
---          -- Warcraft Forever implementation
+--          -- Camelot implementation
 --      end
 --  end
 -- ══════════════════════════════════════════════════════════════════════════════

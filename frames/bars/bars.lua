@@ -52,10 +52,9 @@ do
 
     local function is_camelot_or_classic()
         return not sfui.isRetail
-            or sfui.isForever
             or sfui.isClassic
             or sfui.isCamelot
-            or (sfui.compat and (sfui.compat.is_wow_forever or sfui.compat.is_classic or sfui.compat.is_classic_era or sfui.compat.is_camelot))
+            or (sfui.compat and (sfui.compat.is_classic or sfui.compat.is_classic_era or sfui.compat.is_camelot))
             or sfui.theme.IsCamelotActive()
     end
 
@@ -354,7 +353,7 @@ do
         local now = GetTime()
         local remaining = fsrEndTime - now
 
-        local isClassic = sfui.isClassic or (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        local isClassic = sfui.isClassic or sfui.isCamelot or (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
         local resource = common.get_primary_resource()
         if resource == nil and UnitPowerType then
             resource = UnitPowerType("player")
@@ -376,7 +375,7 @@ do
     end
 
     function start_fsr_timer()
-        local isClassic = sfui.isClassic or (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        local isClassic = sfui.isClassic or sfui.isCamelot or (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
         if not isClassic then return end
 
         local resource = common.get_primary_resource()
@@ -1068,7 +1067,7 @@ do
 
     local function on_spellcast(event, unit, castGUID, spellID)
         if unit ~= "player" then return end
-        local isClassic = sfui.isClassic or (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        local isClassic = sfui.isClassic or sfui.isCamelot or (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
         if not isClassic then return end
 
         local resource = common.get_primary_resource()

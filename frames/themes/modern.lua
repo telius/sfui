@@ -15,7 +15,7 @@ sfui.theme.RegisterTheme({
     barTexture     = "Flat",
     autoDetect     = function()
         -- Auto-detect selects Modern on Retail
-        return not sfui.isForever and not (sfui.compat and sfui.compat.is_wow_forever)
+        return not sfui.isCamelot and not (sfui.compat and sfui.compat.is_camelot)
     end,
     colors         = {
         id             = "modern",

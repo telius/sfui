@@ -1,15 +1,24 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global
 -- frames/merchant/merchant.lua
-local common = sfui.common
-local issecretvalue = common.issecretvalue or _G.issecretvalue
--- Custom 4x7 grid merchant frame for sfui
+-- Custom 4x7 grid merchant frame, item buttons, scrollbar, and event wiring for sfui
 
 sfui = sfui or {}
-sfui.merchant = {}
+sfui.merchant = sfui.merchant or {}
+
+local common = sfui.common
+local issecretvalue = common.issecretvalue or _G.issecretvalue
+local get_item_id = common.get_item_id_from_link
+local cfg = sfui.config.merchant
+local app = sfui.config.appearance
+local NUM_ROWS = cfg.grid.rows
+local NUM_COLS = cfg.grid.cols
+local ITEMS_PER_PAGE = NUM_ROWS * NUM_COLS
+
+local isWarlockCamelot = (sfui.isCamelot or sfui.isClassic) and (select(2, UnitClass("player")) == "WARLOCK")
 
 local GameTooltip = _G.GameTooltip
-local function GameTooltip_Hide()
+local GameTooltip_Hide = sfui.merchant.GameTooltip_Hide or function()
     if _G.GameTooltip_HideResetCursor then
         _G.GameTooltip_HideResetCursor()
     elseif _G.GameTooltip and _G.GameTooltip:IsShown() then
@@ -18,81 +27,18 @@ local function GameTooltip_Hide()
     end
 end
 
-local colors = sfui.config.colors
-
-local cfg = sfui.config.merchant
-local NUM_ROWS = cfg.grid.rows
-local NUM_COLS = cfg.grid.cols
-local ITEMS_PER_PAGE = NUM_ROWS * NUM_COLS
-
-sfui.merchant.lootFilterState = 0 -- 0=All, 1=Class, 2=Spec
-
--- Cache player data for filtering (Performance optimization)
-local playerClass, playerClassID = nil, nil
-local playerSpecID = nil
-local preferredArmor = nil
-
-local classArmor = {
-    ["WARRIOR"] = 4,
-    ["PALADIN"] = 4,
-    ["DEATHKNIGHT"] = 4,
-    ["HUNTER"] = 3,
-    ["SHAMAN"] = 3,
-    ["EVOKER"] = 3,
-    ["DRUID"] = 2,
-    ["MONK"] = 2,
-    ["ROGUE"] = 2,
-    ["DEMONHUNTER"] = 2,
-    ["MAGE"] = 1,
-    ["PRIEST"] = 1,
-    ["WARLOCK"] = 1,
-}
-
-local function UpdatePlayerFilterData()
-    playerClass, playerClassID = common.get_player_class()
-    playerSpecID = common.get_current_spec_id()
-    if playerClass then
-        preferredArmor = classArmor[playerClass]
-    end
-end
-
--- Update player filter data when entering world or spec changes
-sfui.events.RegisterEvent("PLAYER_LOGIN", UpdatePlayerFilterData)
-sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", UpdatePlayerFilterData)
-
--- Memory optimization: Table pooling and scratch tables
-local tablePool = {}
-local function getTable()
-    local t = next(tablePool)
-    if t then
-        tablePool[t] = nil
-        return t
-    end
-    return {}
-end
-
-local function releaseTable(t)
-    if not t then return end
-    wipe(t)
-    tablePool[t] = true
-end
-
-local function releaseCache(cache)
-    if not cache then return end
-    for k, t in pairs(cache) do
-        releaseTable(t)
-        cache[k] = nil
-    end
-end
-
-local scratchItemData = {}
-local sortedCurrencyItems = {}
+--------------------------------------------------------------------------------
+-- Main Merchant Window & Header
+--------------------------------------------------------------------------------
 
 local frame = CreateFrame("Frame", "SfuiMerchantFrame", UIParent, "BackdropTemplate")
 frame:SetSize(cfg.frame.width, cfg.frame.height)
 frame:SetPoint("CENTER")
 frame:SetFrameStrata("HIGH")
 frame:SetToplevel(true)
+frame.itemHover = nil
+sfui.merchant.frame = frame
+
 local headerFrame = CreateFrame("Frame", "SfuiMerchantHeader", frame)
 headerFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
 headerFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
@@ -109,6 +55,7 @@ local CreateFlatButton = common.create_flat_button
 local filterDropdownBtn = CreateFlatButton(frame, "showing all", 100, 20)
 filterDropdownBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
 filterDropdownBtn:SetPoint("RIGHT", closeBtn, "LEFT", -5, 0)
+frame.filterDropdownBtn = filterDropdownBtn
 
 local function refresh_frame_levels()
     local base = frame:GetFrameLevel() or 1
@@ -134,15 +81,13 @@ sfui.theme.RegisterWindow(frame, function(f, pal)
         f.merchantName:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3])
     end
 end)
+
 frame:Hide()
 frame:EnableMouse(true)
 frame:SetMovable(true)
 frame:RegisterForDrag("LeftButton")
 frame:SetScript("OnDragStart", frame.StartMoving)
 frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-
-frame.itemHover = nil
-sfui.merchant.frame = frame
 
 frame.portrait = headerFrame:CreateTexture(nil, "OVERLAY", nil, 2)
 frame.portrait:SetSize(60, 60)
@@ -155,29 +100,30 @@ frame.merchantName:SetJustifyH("LEFT")
 frame.merchantTitle = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 frame.merchantTitle:SetPoint("TOPLEFT", frame.merchantName, "BOTTOMLEFT", 0, -2)
 frame.merchantTitle:SetJustifyH("LEFT")
+
 filterDropdownBtn:SetScript("OnClick", function(self)
     MenuUtil.CreateContextMenu(self, function(owner, rootDescription)
-        rootDescription:SetTag("MENU_MERCHANT_FILTER");
+        rootDescription:SetTag("MENU_MERCHANT_FILTER")
 
         rootDescription:CreateButton("All Items", function()
             sfui.merchant.lootFilterState = 0
             if SfuiDB.merchant then SfuiDB.merchant.lootFilterState = 0 end
             self:SetText("showing all")
             sfui.merchant.reset_scroll_and_rebuild()
-        end);
+        end)
         rootDescription:CreateButton("Current Class", function()
             sfui.merchant.lootFilterState = 1
             if SfuiDB.merchant then SfuiDB.merchant.lootFilterState = 1 end
             self:SetText("current class")
             sfui.merchant.reset_scroll_and_rebuild()
-        end);
+        end)
         rootDescription:CreateButton("Current Specialization", function()
             sfui.merchant.lootFilterState = 2
             if SfuiDB.merchant then SfuiDB.merchant.lootFilterState = 2 end
             self:SetText("current spec")
             sfui.merchant.reset_scroll_and_rebuild()
-        end);
-    end);
+        end)
+    end)
 end)
 
 -- Initialize filter state from DB on load
@@ -194,128 +140,12 @@ frame:HookScript("OnShow", function()
     end
 end)
 
-sfui.merchant.scrollOffset = 0
-sfui.merchant.totalMerchantItems = 0
+--------------------------------------------------------------------------------
+-- Item Grid Buttons (4x7)
+--------------------------------------------------------------------------------
 
-local decorXpCache = {}
-
-function sfui.merchant.reset_scroll_and_rebuild()
-    sfui.merchant.scrollOffset = 0
-    wipe(sfui.merchant.lockCache)
-    wipe(decorXpCache)
-    if frame.scrollBar then
-        frame.scrollBar:SetValue(0)
-    end
-    sfui.merchant.build_item_list()
-end
-
--- (Moved above)
 local buttons = {}
-
-local get_item_id = common.get_item_id_from_link
-
-function sfui.merchant.create_stack_split_frame(parent)
-    local f = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    f:SetSize(180, 110)
-    f:SetPoint("CENTER")
-    f:SetFrameStrata("DIALOG")
-    f:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 }
-    })
-    local app = sfui.config.appearance
-    f:SetBackdropColor(app.backdropColor[1], app.backdropColor[2], app.backdropColor[3], 0.95)
-    f:SetBackdropBorderColor(0, 0, 0, 1)
-
-    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.title:SetPoint("TOP", 0, -8)
-    f.title:SetText("Enter Quantity")
-
-    local eb = CreateFrame("EditBox", nil, f)
-    eb:SetSize(80, 24)
-    eb:SetPoint("TOP", 0, -30)
-    eb:SetFontObject("ChatFontNormal")
-    eb:SetJustifyH("CENTER")
-    eb:SetNumeric(true)
-    eb:SetAutoFocus(true)
-
-    local eb_bg = eb:CreateTexture(nil, "BACKGROUND")
-    eb_bg:SetAllPoints()
-    eb_bg:SetColorTexture(app.widgetBackdropColor[1], app.widgetBackdropColor[2], app.widgetBackdropColor[3], 1)
-
-    eb:SetScript("OnEnterPressed", function() f.buyBtn:Click() end)
-    eb:SetScript("OnEscapePressed", function() f:Hide() end)
-    f.editBox = eb
-
-    f.maxBtn = common.create_flat_button(f, "Max", 40, 24)
-    f.maxBtn:SetPoint("LEFT", eb, "RIGHT", 5, 0)
-    common.set_color(f.maxBtn, "black")
-    f.maxBtn:SetScript("OnClick", function()
-        local maxStack = f.maxStack or 1
-        local price = f.price or 0
-        local money = GetMoney()
-        local affordable = price > 0 and math.floor(money / price) or maxStack
-
-        local stackSize = f.stackCount or 1
-        local maxPurchases = math.floor(maxStack / stackSize)
-        local canBuy = math.min(affordable, maxPurchases)
-        if canBuy < 1 then canBuy = 1 end
-
-        eb:SetText(canBuy)
-        eb:SetFocus()
-    end)
-
-    f.buyBtn = common.create_flat_button(f, "Buy", 70, 24)
-    f.buyBtn:SetPoint("BOTTOMLEFT", 10, 10)
-    common.set_color(f.buyBtn, "black")
-    f.buyBtn:SetScript("OnClick", function()
-        local val = tonumber(eb:GetText()) or 1
-        if val > 0 then
-            BuyMerchantItem(f.index, val)
-        end
-        f:Hide()
-    end)
-
-    f.cancelBtn = common.create_flat_button(f, "Cancel", 70, 24)
-    f.cancelBtn:SetPoint("BOTTOMRIGHT", -10, 10)
-    common.set_color(f.cancelBtn, "black")
-    f.cancelBtn:SetScript("OnClick", function() f:Hide() end)
-
-    return f
-end
-
-local function open_stack_split(index)
-    if not sfui.merchant.stackSplitFrame then
-        sfui.merchant.stackSplitFrame = sfui.merchant.create_stack_split_frame(sfui.merchant.frame)
-    end
-
-    local f = sfui.merchant.stackSplitFrame
-    f.index = index
-    f.editBox:SetText("1")
-
-    local info = sfui.api.GetMerchantItemInfo(index)
-    local name, price, stackCount, link
-    if info then
-        name = info.name
-        price = info.price
-        stackCount = info.stackCount
-        link = info.hyperlink
-    end
-    -- local link = GetMerchantItemLink(index) -- Removed
-    if link then
-        local _, _, _, _, _, _, _, itemStackCount = C_Item.GetItemInfo(link)
-        f.maxStack = itemStackCount
-    else
-        f.maxStack = 9999
-    end
-    f.price = price
-    f.stackCount = stackCount -- Amount received per buy
-
-    f:Show()
-    f.editBox:SetFocus()
-end
+sfui.merchant.buttons = buttons
 
 function sfui.merchant.create_item_button(id, parent)
     local btn = CreateFrame("Button", "SfuiMerchantItem" .. id, parent, "BackdropTemplate")
@@ -335,7 +165,6 @@ function sfui.merchant.create_item_button(id, parent)
     btn.nameStub:SetPoint("TOPLEFT", iconWrap, "TOPRIGHT", 5, 2)
     btn.nameStub:SetJustifyH("LEFT")
 
-    local app = sfui.config.appearance
     btn.subName = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     btn.subName:SetPoint("TOPLEFT", btn.nameStub, "BOTTOMLEFT", 0, -1)
     btn.subName:SetJustifyH("LEFT")
@@ -392,6 +221,26 @@ function sfui.merchant.create_item_button(id, parent)
                 if GameTooltip_ShowCompareItem then
                     GameTooltip_ShowCompareItem(GameTooltip)
                 end
+                if isWarlockCamelot then
+                    local link = GetMerchantItemLink(self:GetID())
+                    if link and link:find("Grimoire", 1, true) and sfui.merchant.is_pet_spell_known and sfui.merchant.is_pet_spell_known(link) then
+                        local alreadyShown = false
+                        if C_TooltipInfo and C_TooltipInfo.GetMerchantItem then
+                            local tip = C_TooltipInfo.GetMerchantItem(self:GetID())
+                            if tip and tip.lines then
+                                for _, line in ipairs(tip.lines) do
+                                    if line.leftText and (line.leftText == ITEM_SPELL_KNOWN or line.leftText == "Already known") then
+                                        alreadyShown = true
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                        if not alreadyShown then
+                            GameTooltip:AddLine(ITEM_SPELL_KNOWN or "Already known", 1, 0.1, 0.1)
+                        end
+                    end
+                end
             end
             frame.itemHover = self:GetID()
         elseif self.link then
@@ -418,7 +267,7 @@ function sfui.merchant.create_item_button(id, parent)
                     if link and HandleModifiedItemClick(link) then return end
 
                     if IsModifiedClick("SPLITSTACK") and button == "RightButton" then
-                        open_stack_split(self:GetID())
+                        sfui.merchant.open_stack_split(self:GetID())
                         return
                     end
                 end
@@ -453,7 +302,10 @@ for i = 1, ITEMS_PER_PAGE do
     buttons[i] = btn
 end
 
-local app = sfui.config.appearance
+--------------------------------------------------------------------------------
+-- ScrollBar & Wheel Navigation
+--------------------------------------------------------------------------------
+
 local scrollBar = CreateFrame("Slider", nil, frame, "BackdropTemplate")
 scrollBar:SetOrientation("VERTICAL")
 scrollBar:SetPoint("TOPRIGHT", -cfg.scrollbar.right_offset, cfg.grid.offset_y)
@@ -476,520 +328,39 @@ end)
 
 local thumb = scrollBar:CreateTexture(nil, "ARTWORK")
 thumb:SetSize(6, 30)
-thumb:SetColorTexture(app.white[1], app.white[2], app.white[3], 1) -- Flat white
+thumb:SetColorTexture(app.white[1], app.white[2], app.white[3], 1)
 scrollBar:SetThumbTexture(thumb)
 frame.scrollBar = scrollBar
 
-
-
--- Update Currency Display
-function sfui.merchant.update_currency_display(frame)
-    frame.currencyDisplays = frame.currencyDisplays or {}
-    local displays = frame.currencyDisplays
-
-    for _, f in pairs(displays) do f:Hide() end
-
-    local cache = sfui.merchant.currencyCache or {}
-
-    -- Memory optimization: Reuse sorted table and pool its entries
-    releaseCache(sortedCurrencyItems)
-    wipe(sortedCurrencyItems)
-
-    for name, data in pairs(cache) do
-        local entry = getTable()
-        entry.name = name
-        entry.data = data
-        table.insert(sortedCurrencyItems, entry)
-    end
-
-    table.sort(sortedCurrencyItems, function(a, b)
-        if a.name == "Gold" then return false end -- Gold always last (greater)
-        if b.name == "Gold" then return true end
-        return a.name < b.name
-    end)
-
-    if #sortedCurrencyItems == 0 then return end
-
-    if not frame.currencyContainer then
-        frame.currencyContainer = CreateFrame("Frame", nil, frame)
-        frame.currencyContainer:SetHeight(cfg.currency.height)
-        frame.currencyContainer:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 10, cfg.currency.bottom_offset)
-    end
-    local container = frame.currencyContainer
-    container:Show()
-
-    frame._activeCurrencyDisplays = frame._activeCurrencyDisplays or {}
-    local activeDisplays = frame._activeCurrencyDisplays
-    wipe(activeDisplays)
-    local totalWidth = 0
-
-    for i, item in ipairs(sortedCurrencyItems) do
-        local idx = i
-        local data = item.data
-
-        local display = displays[idx]
-        if not display then
-            display = CreateFrame("Frame", nil, container)
-            display:SetSize(100, 20)
-
-            display.icon = display:CreateTexture(nil, "ARTWORK")
-            display.icon:SetSize(16, 16)
-            display.icon:SetPoint("LEFT")
-
-            display.text = display:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            display.text:SetPoint("LEFT", display.icon, "RIGHT", 5, 0)
-
-            display:EnableMouse(true)
-            display:SetScript("OnEnter", function(self)
-                if not GameTooltip then return end
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                if self.type == "item" then
-                    GameTooltip:SetItemByID(self.currencyID)
-                elseif self.currencyID then
-                    GameTooltip:SetCurrencyByID(self.currencyID)
-                elseif self.currencyName == "Gold" then
-                    GameTooltip:SetText("Gold")
-                    GameTooltip:AddLine("Total money on character", 1, 1, 1)
-                else
-                    GameTooltip:SetText(self.currencyName or "Currency")
-                end
-                GameTooltip:Show()
-            end)
-            display:SetScript("OnLeave", function()
-                if GameTooltip and GameTooltip:IsShown() then
-                    GameTooltip:Hide()
-                end
-            end)
-
-            displays[idx] = display
-        end
-
-        display.icon:SetTexture(data.texture)
-        display.currencyID = data.id     -- Store ID for tooltip
-        display.currencyName = item.name -- Store Name for fallback
-        display.type = data.type         -- Store Type for tooltip
-
-        local count = data.count
-        local displayText
-        if count >= 1000000 then
-            displayText = string.format("%.1fM", count / 1000000)
-        elseif count >= 1000 then
-            displayText = string.format("%.1fK", count / 1000)
-        else
-            displayText = tostring(count)
-        end
-        display.text:SetText(displayText)
-
-        local textWidth = display.text:GetStringWidth()
-        local width = 16 + 5 + textWidth + 2
-        display:SetWidth(width)
-        display:Show()
-
-        activeDisplays[i] = display
-
-        if totalWidth > 0 then totalWidth = totalWidth + 15 end -- Gap
-        totalWidth = totalWidth + width
-    end
-
-    container:SetWidth(totalWidth)
-
-    local prev
-    for i, display in ipairs(activeDisplays) do
-        display:ClearAllPoints()
-        if i == 1 then
-            display:SetPoint("LEFT", container, "LEFT", 0, 0)
-        else
-            display:SetPoint("LEFT", prev, "RIGHT", 15, 0)
-        end
-        prev = display
-    end
-end
-
-sfui.merchant.mode = "merchant" -- "merchant" or "buyback"
-sfui.merchant.filterKnown = 1 -- 0=show all, 1=hide known (char), 2=hide known (warband)
-
-local utilityBar = CreateFrame("Frame", nil, frame)
-utilityBar:SetHeight(cfg.utility_bar.height)
-utilityBar:SetPoint("BOTTOMLEFT", 10, cfg.utility_bar.bottom_offset)
-utilityBar:SetPoint("BOTTOMRIGHT", -10, cfg.utility_bar.bottom_offset)
-
-sfui.merchant.buybackBtn = CreateFlatButton(utilityBar, "buyback", cfg.utility_bar.button_small,
-    cfg.utility_bar.button_height)
-sfui.merchant.buybackBtn:SetPoint("LEFT", 0, 0)
-sfui.merchant.buybackBtn:SetScript("OnClick", function(self)
-    if sfui.merchant.mode == "merchant" then
-        sfui.merchant.mode = "buyback"
-        self:SetText("merchant")
+frame:SetScript("OnMouseWheel", function(self, delta)
+    local min, max = scrollBar:GetMinMaxValues()
+    local val = scrollBar:GetValue()
+    local step = 1 -- Scroll 1 row
+    if delta > 0 then
+        val = val - step
     else
-        sfui.merchant.mode = "merchant"
-        self:SetText("buyback")
+        val = val + step
     end
-    sfui.merchant.reset_scroll_and_rebuild()
+
+    if val < min then val = min end
+    if val > max then val = max end
+
+    scrollBar:SetValue(val)
 end)
 
-sfui.merchant.filterBtn = CreateFlatButton(utilityBar, "known: char", cfg.utility_bar.button_large,
-    cfg.utility_bar.button_height)
-sfui.merchant.filterBtn:SetPoint("LEFT", sfui.merchant.buybackBtn, "RIGHT", 5, 0)
+-- Initialize bottom utility bar
+frame.utilityBar = sfui.merchant.create_utility_bar(frame)
 
-local function update_filter_button_style(self)
-    if sfui.merchant.filterKnown == 2 then
-        self:SetText("known: warband")
-        common.set_color(self, cfg.button_colors.filter_active)
-    elseif sfui.merchant.filterKnown == 1 or sfui.merchant.filterKnown == true then
-        self:SetText("known: char")
-        common.set_color(self, cfg.button_colors.filter_active)
-    else
-        self:SetText("known: show all")
-        common.set_color(self, cfg.button_colors.filter_inactive)
-    end
-end
-update_filter_button_style(sfui.merchant.filterBtn)
-
-sfui.merchant.filterBtn:SetScript("OnClick", function(self)
-    if sfui.merchant.filterKnown == 1 or sfui.merchant.filterKnown == true then
-        sfui.merchant.filterKnown = 2
-    elseif sfui.merchant.filterKnown == 2 then
-        sfui.merchant.filterKnown = 0
-    else
-        sfui.merchant.filterKnown = 1
-    end
-    update_filter_button_style(self)
-    sfui.merchant.reset_scroll_and_rebuild()
-end)
-
-sfui.merchant.filterBtn:SetScript("OnEnter", function(self)
-    if not sfui.merchant.filterKnown or sfui.merchant.filterKnown == 0 then
-        common.set_color(self, cfg.button_colors.filter_hover)
-    end
-    if GameTooltip then
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:AddLine("Known Items Filter", 1, 1, 1)
-        if sfui.merchant.filterKnown == 2 then
-            GameTooltip:AddLine("Currently hiding all recipes and items known by any alt.", 0.2, 0.8, 1, true)
-            GameTooltip:AddLine("Click to show all items.", 0.7, 0.7, 0.7)
-        elseif sfui.merchant.filterKnown == 1 or sfui.merchant.filterKnown == true then
-            GameTooltip:AddLine("Currently hiding recipes and items known by this character.", 0.2, 1, 0.4, true)
-            GameTooltip:AddLine("Click to hide recipes known across your warband.", 0.7, 0.7, 0.7)
-        else
-            GameTooltip:AddLine("Currently showing all items.", 1, 1, 1, true)
-            GameTooltip:AddLine("Click to hide recipes and items known by this character.", 0.7, 0.7, 0.7)
-        end
-        GameTooltip:Show()
-    end
-end)
-
-sfui.merchant.filterBtn:SetScript("OnLeave", function(self)
-    update_filter_button_style(self) -- Revert to state color
-    if GameTooltip and GameTooltip:IsShown() then
-        GameTooltip:Hide()
-    end
-end)
-
-
-local guildRepairBtn = CreateFrame("Button", nil, utilityBar, "BackdropTemplate")
-guildRepairBtn:SetSize(22, 22); guildRepairBtn:SetPoint("RIGHT", 0, 0)
-local grIcon = guildRepairBtn:CreateTexture(nil, "ARTWORK")
-grIcon:SetAllPoints()
-grIcon:SetTexture("Interface\\Icons\\INV_Misc_Coin_02") -- Coin icon
-grIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-guildRepairBtn:SetScript("OnEnter", function(self)
-    if not GameTooltip then return end
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    local repairAllCost, canRepair = GetRepairAllCost()
-
-    if canRepair and (common.issecretvalue(repairAllCost) or (repairAllCost and repairAllCost > 0)) then
-        common.SafeSetTooltipMoney(GameTooltip, repairAllCost, "Guild Repair")
-
-        local amount = GetGuildBankMoney()
-        local withdrawLimit = GetGuildBankWithdrawMoney()
-        local isSecretAmount = common.issecretvalue(amount)
-
-        if not isSecretAmount and withdrawLimit >= 0 then
-            amount = math.min(amount, withdrawLimit)
-        end
-
-        common.SafeAddMoneyLine(GameTooltip, "Guild Funds: ", amount)
-    else
-        GameTooltip:SetText("No Repair Needed")
-    end
-    GameTooltip:Show()
-end)
-guildRepairBtn:SetScript("OnLeave", function()
-    if GameTooltip and GameTooltip:IsShown() then
-        GameTooltip:Hide()
-    end
-end)
-guildRepairBtn:SetScript("OnClick", function()
-    if CanMerchantRepair() and CanGuildBankRepair() then
-        RepairAllItems(true)
-        grIcon:SetDesaturated(true) -- Temp feedback
-    end
-end)
-
-local repairBtn = CreateFrame("Button", nil, utilityBar, "BackdropTemplate")
-repairBtn:SetSize(22, 22); repairBtn:SetPoint("RIGHT", guildRepairBtn, "LEFT", -5, 0)
-local rIcon = repairBtn:CreateTexture(nil, "ARTWORK")
-rIcon:SetAllPoints()
-rIcon:SetTexture("Interface\\Icons\\Trade_BlackSmithing") -- Anvil/Hammer
-rIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-repairBtn:SetScript("OnEnter", function(self)
-    if not GameTooltip then return end
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    local repairAllCost, canRepair = GetRepairAllCost()
-    local isSecret = common.issecretvalue(repairAllCost)
-
-    if canRepair and (isSecret or (repairAllCost and repairAllCost > 0)) then
-        common.SafeSetTooltipMoney(GameTooltip, repairAllCost, "Repair All")
-    else
-        GameTooltip:SetText("No Repair Needed")
-    end
-    GameTooltip:Show()
-end)
-repairBtn:SetScript("OnLeave", function()
-    if GameTooltip and GameTooltip:IsShown() then
-        GameTooltip:Hide()
-    end
-end)
-repairBtn:SetScript("OnClick", function()
-    if CanMerchantRepair() then
-        RepairAllItems(false)
-        rIcon:SetDesaturated(true)
-    end
-end)
-
-local sellJunkBtn = CreateFlatButton(utilityBar, "sell greys", cfg.utility_bar.button_medium,
-    cfg.utility_bar.button_height)
-sellJunkBtn:SetPoint("RIGHT", repairBtn, "LEFT", -5, 0)
-
-sellJunkBtn:HookScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText("Sell All Greys")
-    GameTooltip:Show()
-end)
-sellJunkBtn:HookScript("OnLeave", GameTooltip_Hide)
-sellJunkBtn:SetScript("OnClick", function()
-    local totalPrice = 0
-    common.for_each_bag_item(function(bag, slot, itemID, link, info)
-        if info and (link or info.hyperlink) and info.quality == 0 then
-            local price = info.noValue and 0 or (select(11, C_Item.GetItemInfo(link or info.hyperlink)) or 0)
-            if price > 0 then
-                totalPrice = totalPrice + (price * (info.stackCount or 1))
-                C_Container.UseContainerItem(bag, slot)
-            end
-        end
-    end)
-    if totalPrice > 0 then
-        common.print("|cff00ff00sold greys for " .. common.SafeGetCoinTextureString(totalPrice) .. ".|r")
-    else
-        common.print("|cffff0000no greys to sell.|r")
-    end
-end)
-
-
-
-local function update_repair_buttons()
-    local canRepair = CanMerchantRepair()
-    local repairAllCost, canRepairItems = GetRepairAllCost()
-    local needsRepair = canRepairItems and repairAllCost > 0
-
-    if canRepair and needsRepair and CanGuildBankRepair() then
-        grIcon:SetDesaturated(false)
-        guildRepairBtn:Enable()
-    else
-        grIcon:SetDesaturated(true)
-        guildRepairBtn:Disable()
-    end
-end
-
-sfui.events.RegisterEvent("UPDATE_INVENTORY_DURABILITY", update_repair_buttons)
-sfui.events.RegisterEvent("MERCHANT_SHOW",               update_repair_buttons)
-
-
-sfui.merchant.filteredIndices = {}
-
-sfui.merchant.currencyCache = {}
-sfui.merchant.lockCache = {} -- Persistent cache for lock reasons
-
-
-
-sfui.merchant.filteredIndices = sfui.merchant.filteredIndices or {}
-sfui.merchant.currencyCache = sfui.merchant.currencyCache or {}
-
-local function AddToCache(id, name, texture, count, type)
-    if name and not sfui.merchant.currencyCache[name] then
-        local t = getTable()
-        t.id = id; t.texture = texture; t.count = count; t.type = type
-        sfui.merchant.currencyCache[name] = t
-    end
-end
-
-sfui.merchant.build_item_list = function()
-    local mode = sfui.merchant.mode
-    local numItemsRaw = (mode == "buyback") and GetNumBuybackItems() or GetMerchantNumItems()
-
-    wipe(sfui.merchant.filteredIndices)
-    releaseCache(sfui.merchant.currencyCache)
-    local specID = common.get_current_spec_id() -- Optimization: Hoist out of loop
-
-    for i = 1, numItemsRaw do
-        local include, link = true, nil
-        if mode == "merchant" then
-            link = GetMerchantItemLink(i)
-        else
-            link = GetBuybackItemLink(i)
-        end
-
-        local itemID = get_item_id(link)
-        if include and mode == "merchant" and sfui.merchant.filterKnown and sfui.merchant.filterKnown ~= 0 and link then
-            local isKnown = false
-            local isRecipe = itemID and sfui.recipes.IsRecipe(itemID)
-
-            if isRecipe then
-                local status = sfui.recipes.GetRecipeStatus(itemID)
-                if status == "KNOWN_CURRENT" then
-                    isKnown = true
-                elseif (sfui.merchant.filterKnown == 2) and (status == "KNOWN_ALT") then
-                    isKnown = true
-                end
-            else
-                if common.is_item_known(link) then
-                    isKnown = true
-                elseif itemID and C_PetJournal and C_PetJournal.GetPetInfoByItemID then
-                    local _, _, _, _, _, _, _, _, _, _, _, _, speciesID = C_PetJournal.GetPetInfoByItemID(itemID)
-                    if speciesID and (C_PetJournal.GetNumCollectedInfo and C_PetJournal.GetNumCollectedInfo(speciesID) or 0) > 0 then
-                        isKnown = true
-                    end
-                end
-            end
-
-            if isKnown then
-                include = false
-            end
-        end
-
-        if include and mode == "merchant" and sfui.merchant.lootFilterState > 0 and link then
-            local isClassMatch = true
-            local info = sfui.api.GetMerchantItemInfo(i)
-            if not info or not info.isUsable then
-                isClassMatch = false
-            else
-                local _, _, _, _, _, classID, subclassID = C_Item.GetItemInfoInstant(link)
-                if not preferredArmor then UpdatePlayerFilterData() end
-                -- If it's armor, check preferred armor type
-                if classID == 4 and preferredArmor then
-                    -- Subclasses: 0=Generic, 1=Cloth, 2=Leather, 3=Mail, 4=Plate, 5=Cosmetic, 6=Shield
-                    local isClassic = not sfui.isRetail
-                    local playerLvl = UnitLevel("player") or 1
-                    local match = (subclassID == preferredArmor)
-                    if isClassic then
-                        if preferredArmor == 4 and playerLvl <= 50 and (subclassID == 3 or (playerLvl < 40 and subclassID == 2)) then
-                            match = true
-                        elseif preferredArmor == 3 and playerLvl <= 50 and subclassID == 2 then
-                            match = true
-                        end
-                    end
-                    if subclassID >= 1 and subclassID <= 4 and not match then
-                        isClassMatch = false
-                    end
-                end
-            end
-
-            if not isClassMatch then
-                include = false
-            elseif sfui.merchant.lootFilterState == 2 then
-                -- Spec Filter (normalize specID to DB2 retail equivalent)
-                local curSpec = playerSpecID or common.get_current_spec_id()
-                local db2SpecID = common.to_retail_spec_id(curSpec) or curSpec
-                if db2SpecID and db2SpecID > 0 and not C_Item.DoesItemContainSpec(link, playerClassID, db2SpecID) then
-                    include = false
-                end
-            end
-        end
-
-        if include then table.insert(sfui.merchant.filteredIndices, i) end
-        if mode == "merchant" then
-            local itemInfo = sfui.api.GetMerchantItemInfo(i)
-            if itemInfo then
-                if itemInfo.price and itemInfo.price > 0 and not sfui.merchant.currencyCache["Gold"] then
-                    local t = getTable()
-                    t.texture = 133784
-                    t.count = math.floor(GetMoney() / 10000)
-                    t.type = "gold"
-                    sfui.merchant.currencyCache["Gold"] = t
-                end
-
-                if itemInfo.currencyID then
-                    local info = common.get_currency_info(itemInfo.currencyID)
-                    if info then AddToCache(itemInfo.currencyID, info.name, info.iconFileID, info.quantity, "currency") end
-                end
-
-                if itemInfo.hasExtendedCost then
-                    for j = 1, GetMerchantItemCostInfo(i) do
-                        local texture, amount, costLink, currencyName = GetMerchantItemCostItem(i, j)
-                        if costLink then
-                            local cID = tonumber(string.match(costLink, "currency:(%d+)"))
-                            if not currencyName then
-                                currencyName = cID and common.get_currency_name(cID) or
-                                    C_Item.GetItemInfo(costLink)
-                            end
-                            local count = cID and common.get_currency_quantity(cID) or
-                                common.get_item_count(costLink)
-                            AddToCache(cID or get_item_id(costLink), currencyName, texture, count,
-                                cID and "currency" or "item")
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-
-
-    sfui.merchant.totalMerchantItems = #sfui.merchant.filteredIndices
-
-    local totalRows = math.ceil(sfui.merchant.totalMerchantItems / NUM_COLS)
-    local maxOffset = math.max(0, totalRows - NUM_ROWS)
-    frame.scrollBar:SetMinMaxValues(0, maxOffset)
-    frame.scrollBar:SetValueStep(1)
-
-    if maxOffset > 0 then
-        frame.scrollBar:Show()
-    else
-        frame.scrollBar:Hide()
-    end
-
-    sfui.merchant.update_merchant()
-    sfui.merchant.update_currency_display(frame)
-end
-
-local function get_merchant_item_data(index, mode)
-    wipe(scratchItemData)
-    local d = scratchItemData
-    if mode == "buyback" then
-        local name, texture, price, qty, _, usable = GetBuybackItemInfo(index)
-        if not name then return nil end
-        d.name, d.texture, d.price, d.stackCount, d.isUsable = name, texture, price, qty, usable
-        d.link = GetBuybackItemLink(index)
-    else
-        local info = sfui.api.GetMerchantItemInfo(index)
-        if not info or not info.name then return nil end
-        -- Copy values from C_MerchantFrame result to avoid returning the internal table if it's protected or shared
-        for k, v in pairs(info) do d[k] = v end
-        d.link = info.hyperlink or GetMerchantItemLink(index)
-    end
-    if d.link then
-        local _, _, q, _, _, _, st, _, el, _, _, ci, sci = C_Item.GetItemInfo(d.link)
-        d.quality, d.subType, d.equipLoc, d.classID, d.subClassID = q, st, el, ci, sci
-    end
-    return d
-end
+--------------------------------------------------------------------------------
+-- Grid Population & Display Update
+--------------------------------------------------------------------------------
 
 sfui.merchant.update_merchant = function()
     local indices = sfui.merchant.filteredIndices or {}
     for i = 1, ITEMS_PER_PAGE do
         local btn, index = buttons[i], indices[sfui.merchant.scrollOffset + i]
         if index then
-            local data = get_merchant_item_data(index, sfui.merchant.mode)
+            local data = sfui.merchant.get_item_data(index, sfui.merchant.mode)
             if data then
                 btn:SetID(index); btn.hasItem, btn.link = true, data.link
                 btn.icon:SetTexture(data.texture or 134400)
@@ -1005,13 +376,7 @@ sfui.merchant.update_merchant = function()
                 btn.subName:SetText(typeText == "Other" and "" or typeText)
 
                 local itemID = data.link and get_item_id(data.link)
-                local grantsXp = false
-                if itemID then
-                    if decorXpCache[itemID] == nil then
-                        decorXpCache[itemID] = common.decor_grants_xp(data.link) and true or false
-                    end
-                    grantsXp = decorXpCache[itemID]
-                end
+                local grantsXp = sfui.merchant.item_grants_decor_xp(itemID, data.link)
 
                 if grantsXp then
                     btn.unknownDecor:Show()
@@ -1046,37 +411,7 @@ sfui.merchant.update_merchant = function()
                 btn.price:SetText(cost); btn.count:SetText(data.stackCount > 1 and data.stackCount or "")
 
                 local id = get_item_id(data.link)
-                local locked, reason
-                local cachedLock = id and sfui.merchant.lockCache[id]
-
-                if cachedLock then
-                    locked, reason = cachedLock.locked, cachedLock.reason
-                else
-                    locked, reason = not data.isUsable, "Unusable"
-                    local tip = C_TooltipInfo and C_TooltipInfo.GetMerchantItem and C_TooltipInfo.GetMerchantItem(index)
-                    if tip and tip.lines then
-                        local reasons = getTable()
-                        for _, line in ipairs(tip.lines) do
-                            local clr = line.leftColor
-                            if clr and clr.r > 0.9 and clr.g < 0.2 and clr.b < 0.2 and line.leftText then
-                                local text = line.leftText
-                                if not text:find("Already known") then
-                                    text = text:gsub("Requires", "R"):gsub("Rank ", ""):gsub("Defeat ", ""):gsub(
-                                        "Reputation ", "");
-                                    table.insert(reasons, text)
-                                    locked = true
-                                end
-                            end
-                        end
-                        if #reasons > 0 then
-                            reason = table.concat(reasons, ", ")
-                        end
-                        releaseTable(reasons)
-                    end
-                    if id then
-                        sfui.merchant.lockCache[id] = { locked = locked, reason = reason }
-                    end
-                end
+                local locked, reason = sfui.merchant.get_item_lock_status(index, id, data.isUsable)
 
                 if locked then
                     btn.lockBackground:Show(); btn.lockReason:SetText(reason); btn.lockReason:Show(); btn.subName:Hide()
@@ -1106,24 +441,9 @@ sfui.merchant.update_merchant = function()
     end
 end
 
-frame:SetScript("OnMouseWheel", function(self, delta)
-    local min, max = scrollBar:GetMinMaxValues()
-    local val = scrollBar:GetValue()
-    local step = 1 -- Scroll 1 row
-    if delta > 0 then
-        val = val - step
-    else
-        val = val + step
-    end
-
-    if val < min then val = min end
-    if val > max then val = max end
-
-    scrollBar:SetValue(val)
-end)
-
--- Cursor tracking is handled by item button OnEnter/OnLeave events (lines 302-309)
--- OnUpdate removed to eliminate 60-144fps polling overhead
+--------------------------------------------------------------------------------
+-- Header Information
+--------------------------------------------------------------------------------
 
 local function update_header()
     local unit = "npc"
@@ -1150,7 +470,12 @@ local function update_header()
     frame.merchantTitle:SetText(titleText)
 end
 
--- Events (via central dispatcher — frame is a visual-only container now)
+--------------------------------------------------------------------------------
+-- Central Event Wiring
+--------------------------------------------------------------------------------
+
+local isSystemClose = false
+
 sfui.events.RegisterEvent("MERCHANT_SHOW", function()
     wipe(sfui.merchant.lockCache)
     update_header()
@@ -1176,7 +501,9 @@ end)
 
 sfui.events.RegisterEvent("MERCHANT_CLOSED", function()
     wipe(sfui.merchant.lockCache)
-    wipe(decorXpCache)
+    if sfui.merchant.decorXpCache then
+        wipe(sfui.merchant.decorXpCache)
+    end
     isSystemClose = true
     frame:Hide()
     isSystemClose = false
@@ -1196,7 +523,9 @@ local function on_merchant_update(event, ...)
         local itemID, success = ...
         if not success or not itemID then return end
 
-        decorXpCache[itemID] = nil
+        if sfui.merchant.decorXpCache then
+            sfui.merchant.decorXpCache[itemID] = nil
+        end
 
         -- Only rebuild if the item is actually in the merchant's current stock
         local found = false
@@ -1228,7 +557,8 @@ frame:Hide()
 
 function sfui.merchant_debug_info()
     local pCount = 0
-    for _ in pairs(tablePool) do pCount = pCount + 1 end
+    local pool = sfui.merchant.tablePool or {}
+    for _ in pairs(pool) do pCount = pCount + 1 end
     return {
         tablePool = pCount,
         frameCreated = frame ~= nil,
@@ -1237,7 +567,6 @@ function sfui.merchant_debug_info()
 end
 
 if sfui.RegisterModule then
-    sfui.merchant = sfui.merchant or {}
     sfui.merchant.GetDebugInfo = sfui.merchant_debug_info
     sfui.RegisterModule("merchant", sfui.merchant)
 end

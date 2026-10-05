@@ -8,7 +8,7 @@ local cfg    = (g and g.threatBar) or {}
 
 -- ─── Client Gate ─────────────────────────────────────────────────────────────
 -- Per requirement: Camelot / Classic only, do not load or execute on Retail
-if not (sfui.isCamelot or sfui.isForever or sfui.isClassic or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_wow_forever or sfui.compat.is_classic))) then
+if not (sfui.isCamelot or sfui.isClassic or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic))) then
     return
 end
 

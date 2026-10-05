@@ -14,8 +14,8 @@ sfui.theme.RegisterTheme({
     clientTag      = "classic",
     barTexture     = "Blizzard Nameplate",
     autoDetect     = function()
-        -- Auto-detect selects Camelot on Classic Forever / Camelot beta
-        return (sfui.isForever or (sfui.compat and sfui.compat.is_wow_forever)) and sfui.theme.IsCamelotSupported()
+        -- Auto-detect selects Camelot on Camelot beta / Classic
+        return (sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot)) and sfui.theme.IsCamelotSupported()
     end,
     isSupported    = function()
         return sfui.theme.IsCamelotSupported()

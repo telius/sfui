@@ -1158,8 +1158,8 @@ function sfui.highest.GetBestItems(isPvP)
         sfui.highest.statWeights = statWeights
         for k in pairs(statWeights) do statWeights[k] = nil end
 
-        local isForever = (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_wow_forever))
-            or (sfui.version and sfui.version.wow_forever)
+        local isCamelot = sfui.isCamelot or (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_camelot))
+            or (sfui.version and sfui.version.camelot)
         if isClassicSpec then
             if isHealRole or (rule.stat == 4 and not isCasterDps and not isMeleeDps and cRoleLower ~= "dps") then
                 statWeights["ITEM_MOD_INTELLECT_SHORT"] = 2.0
@@ -1190,9 +1190,9 @@ function sfui.highest.GetBestItems(isPvP)
             elseif rule.stat == 4 or isCasterDps then -- Intellect / Caster (Mage, Priest, Warlock, Shaman, Moonkin)
                 statWeights["ITEM_MOD_INTELLECT_SHORT"] = 2.0
                 statWeights["ITEM_MOD_SPELL_POWER_SHORT"] = 2.5
-                -- In WoW Forever / Camelot, bonus healing converts 1/3 to spell damage.
+                -- In Camelot, bonus healing converts 1/3 to spell damage.
                 -- In Classic Era (Vanilla), bonus healing gives 0 spell damage.
-                statWeights["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] = isForever and (2.5 / 3) or 0
+                statWeights["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] = isCamelot and (2.5 / 3) or 0
                 statWeights["ITEM_MOD_SPIRIT_SHORT"] = 1.0
                 statWeights["ITEM_MOD_MANA_REGENERATION_SHORT"] = 2.0
                 statWeights["ITEM_MOD_STAMINA_SHORT"] = 1.0
@@ -1240,9 +1240,9 @@ function sfui.highest.GetBestItems(isPvP)
                     statWeights["ITEM_MOD_SPELL_POWER_SHORT"] = healW
                 end
             elseif (rule.stat == 4 or isCasterDps) and not isHealRole then
-                -- Caster DPS: bonus healing converts at 1/3 on Forever/Camelot, or 0 on Classic Era
+                -- Caster DPS: bonus healing converts at 1/3 on Camelot, or 0 on Classic Era
                 local spW = statWeights["ITEM_MOD_SPELL_POWER_SHORT"] or 2.5
-                statWeights["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] = isForever and (spW / 3) or 0
+                statWeights["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] = isCamelot and (spW / 3) or 0
             end
         end
     end
@@ -1438,10 +1438,10 @@ function sfui.highest.GetBestItems(isPvP)
                             if simName ~= "None" then
                                 local weight = pweights[simName]
                                 if not weight and isClassicSpec then
-                                    local isForever = (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_wow_forever))
-                                        or (sfui.version and sfui.version.wow_forever)
-                                    if isForever and simName == "Healing" and not isHeal then
-                                        -- On WoW Forever / Camelot, bonus healing converts 1/3 to spell damage
+                                    local isCamelot = sfui.isCamelot or (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_camelot))
+                                        or (sfui.version and sfui.version.camelot)
+                                    if isCamelot and simName == "Healing" and not isHeal then
+                                        -- On Camelot, bonus healing converts 1/3 to spell damage
                                         weight = (pweights["SpellPower"] or 0) / 3
                                     elseif simName == "SpellPower" and isHeal then
                                         -- Spell Power converts 1:1 to healing for healers

@@ -26,7 +26,7 @@ sfui.default_stats          = sfui.default_stats or {}
 sfui.classic_default_stats  = sfui.classic_default_stats or {}
 sfui.gear.TANK_SPECS        = sfui.gear.TANK_SPECS or {}
 
-local isClassicGame = (sfui.isClassic == true or sfui.isForever == true)
+local isClassicGame = (sfui.isClassic == true or sfui.isCamelot == true)
 
 for _, def in ipairs(specDefinitions) do
     if isClassicGame then
@@ -190,7 +190,7 @@ local function isClassicGameClient()
     if sfui.isRetail == true or (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic) then
         return false
     end
-    return (sfui.isClassic == true or sfui.isForever == true or sfui.isEra == true or sfui.isCamelot == true)
+    return (sfui.isClassic == true or sfui.isEra == true or sfui.isCamelot == true)
 end
 
 function sfui.gear.IsClassicSpec(specID)

@@ -45,7 +45,7 @@ function TimerBars.CanShowTimerBar()
     -- Blizzard explicitly disables timer bars on Camelot (WoW: Forever)
     -- via Camelot/Blizzard_QuestObjectiveTrackerOverride.lua:
     --   function QuestObjectiveTrackerMixin:CanShowTimerBar() return false; end
-    if sfui.isForever then
+    if sfui.isCamelot then
         return false
     end
     return true

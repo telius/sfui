@@ -18,8 +18,8 @@ if isRetail == nil then
     local projectID = _G.WOW_PROJECT_ID or 1
     local _, _, _, tocVersionNum = _G.GetBuildInfo()
     tocVersionNum = tonumber(tocVersionNum) or 0
-    local isForever = (tocVersionNum >= 16000 and tocVersionNum < 20000)
-    isRetail = (projectID == 1) and not isForever
+    local isCamelot = (tocVersionNum >= 16000 and tocVersionNum < 20000) or (projectID == 18)
+    isRetail = (projectID == 1) and not isCamelot
 end
 
 if isRetail then

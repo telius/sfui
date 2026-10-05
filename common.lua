@@ -596,8 +596,8 @@ function sfui.common.get_primary_resource()
     local pClass = sfui.common.get_player_class()
     if not pClass then return nil end
 
-    local isClassic = (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
-        or (sfui.version and (sfui.version.classic_era or sfui.version.wow_forever or not sfui.version.retail))
+    local isClassic = (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        or (sfui.version and (sfui.version.classic_era or sfui.version.camelot or not sfui.version.retail))
 
     if isClassic then
         if pClass == "HUNTER" then

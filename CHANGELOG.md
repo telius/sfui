@@ -1,40 +1,25 @@
 # Changelog
 
-## v12.1.0-71 (2026-10-05)
+## v12.1.0-72 (2026-10-05)
 
 ### Features & Major Improvements
 
-- **Auto-Gear BoE Confirmation Window Handling (`frames/gear/highest.lua`)**:
-  - **Unbound BoE Equip Support**: Detected unbound Bind on Equip (BoE) items prior to pickup and equipped them directly via `EquipItemByName` to trigger the confirmation popup without cursor swapping collisions.
-  - **Queue Watchdog Pause**: Suspended queue progression and paused the watchdog while `StaticPopupDialogs["EQUIP_BIND"]` (or tradeable/refundable popups) is active, cleanly resuming the equip queue once accepted or cancelled.
+- **Merchant Subsystem Modularization (`frames/merchant/`, `sfui.toc`)**:
+  - **Modular Architecture**: Split the monolithic merchant implementation into three focused, maintainable modules under `frames/merchant/`:
+    - `frames/merchant/merchant_filter.lua`: Data modeling, table pooling, filter pipelines (known spells, usable items, class and armor proficiency filters, search queries), and grimoire tracking.
+    - `frames/merchant/merchant_utility.lua`: Stack-split popup dialog, currency footer, and utility action bar (automatic/manual repairs, junk selling, and filter mode toggles).
+    - `frames/merchant/merchant.lua`: High-strata window container, 4x7 grid buttons, scrollbar, header portrait and title, and event dispatcher wiring.
+  - **TOC Sequence**: Sequenced load order in `sfui.toc` to guarantee clean dependency resolution (`merchant_filter.lua` -> `merchant_utility.lua` -> `merchant.lua`).
 
-- **Quest Tracker Camelot Warband Completed Tooltips (`frames/quests/`)**:
-  - **Account Completion Visibility**: Enabled "warband completed" tags in quest block tooltips on Camelot and Classic by querying `C_QuestLog.IsQuestFlaggedCompletedOnAccount(questID)` in `frames/quests/modules/q_camelot.lua` and `frames/quests/modules/q_camelot_class.lua`.
-  - **Universal Fallback**: Removed legacy `and not isCamelot` filter in `frames/quests/helpers/q_tooltip.lua` and added a direct fallback check on `questID` to guarantee account completion displays reliably across all quest modules with strict lowercase styling.
+- **Warlock Pet Grimoire Filtering for Inactive Pets (`frames/merchant/merchant_filter.lua`, `frames/merchant/merchant.lua`)**:
+  - **Cross-Pet Spell Tracking**: Resolved Demon Trainer issue on Camelot where pet grimoires only registered as "Already known" when that specific demon was currently summoned.
+  - **Persistent Pet Spell Cache**: Learned pet spell ranks are cached in `SfuiDB.petSpells[playerGUID][spellName]` to accurately track known spells across all pet summons.
+  - **Zero Merchant Interaction Overhead**: Pet spellbooks are scanned exclusively on `PET_SPELL_UPDATE` and `UNIT_PET` events when a pet is summoned or updated, eliminating redundant rescanning on merchant open, filter changes, and scrolling.
+  - **Strict Class & Client Gating**: Processing is strictly gated behind `sfui.isCamelot` and `playerClass == "WARLOCK"`, bypassing all logic for other classes and retail.
+  - **Fast Grimoire Fast-Path**: Non-grimoire items bypass parsing via a fast substring search (`link:find("Grimoire", 1, true)`), avoiding tooltip extraction overhead.
+  - **Tooltip Indicator**: Rendered red "Already known" status line on merchant item tooltips when hovering over grimoires for inactive pets.
 
-- **Theme Bar Style Castbar Replica Default (`frames/themes/`, `config.lua`, `commands.lua`, `frames/options/tabs/tab_bars.lua`)**:
-  - **Castbar Replica Default**: Updated default theme bar style from `"inset"` to `"castbar"` (`"castbar replica (1:1 black)"`) across `config.lua`, `frames/themes/camelot.lua`, `frames/themes/engine.lua`, `commands.lua`, and `frames/options/tabs/tab_bars.lua`.
-  - **Clean Framing**: Status bars default out of the box to the pure pitch-black border with no decor overlays.
-
-- **Tracking Manager Center Bar Default Settings (`frames/tracking/`, `config.lua`)**:
-  - **Updated Default Profile**: Configured default settings for the center tracking bar (`center_panel`, `CENTER`, and Druid/Rogue forms) to:
-    - **Hide Out of Combat** (`hideOOC = true`)
-    - **Hide in Vehicle UI** (`hideInVehicle = true`)
-    - **Hide While Mounted** (`hideMounted = true`)
-    - **Span Width** (`spanWidth = true`)
-  - **Engine & Options Sync**: Updated `config.lua`, `frames/tracking/panels.lua` (including a migration for existing saved panels), `frames/tracking/trackedicons.lua`, and `frames/tracking/trackedoptions.lua` to ensure consistent fallback resolution and checkbox states.
-
-- **Tracked Bar Default Position & Anchor Restoration (`frames/tracking/`, `common.lua`, `frames/bars/swing.lua`)**:
-  - **Tracked Bars Position Restoration**: Fixed an issue where opening the tracking options initialized `db.anchor` to `{ x = 0, y = 0 }`, causing `sfui.trackedbars.UpdatePosition()` to dock the tracked bars container at the bottom edge of the screen (`SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 0)`) instead of the default `x = -300, y = 300`.
-  - **Automatic SavedVariables Healing**: Added self-healing logic in `common.lua`, `frames/tracking/trackedbars.lua`, and `frames/tracking/trackedoptions.lua` that automatically recovers corrupted `{ x = 0, y = 0 }` coordinates back to `{ x = -300, y = 300 }`.
-  - **Center Panel Anchor Validation**: Added point validation in `frames/tracking/trackedicons.lua` and `frames/bars/swing.lua` so that when panels anchor below swing bars or health bars, they verify that the target frame has valid points (`GetNumPoints() > 0`) before anchoring, preventing center panels from ever collapsing to the bottom edge of the screen when swing bars or health bars are initializing.
-  - **Auto-Span Width Bound Guard**: Guarded `ApplyAutoSpan` so that if `targetFrame` defaults to `UIParent`, target width respects the configured health bar width instead of stretching across the entire monitor display width.
-
-- **Merchant Window Subsystem Organization & Strata Elevation (`frames/merchant/`)**:
-  - **File Reorganization**: Moved `frames/merchant.lua` into its own dedicated directory at `frames/merchant/merchant.lua`, updating `sfui.toc` and `dispatcher.lua` accordingly.
-  - **Elevated to High Strata**: Set `SfuiMerchantFrame` frame strata to `"HIGH"` and enabled `SetToplevel(true)` so the merchant grid window renders cleanly above tracked bars, swing bars, and other medium-strata hud elements when open.
-
-- **Classic Swing Timer Dynamic Attack Visibility (`frames/bars/swing.lua`)**:
-  - **Attack-State Driven Visibility**: Updated melee swing bars (main-hand and off-hand) to mirror the dynamic behavior of ranged swing bars, remaining completely hidden unless actively attacking or mid-swing.
-  - **Combat Event Integration**: Wired `PLAYER_ENTER_COMBAT` and `PLAYER_LEAVE_COMBAT` (alongside `IsCurrentSpell(6603)` fallback and `PLAYER_DEAD` cleanup) to govern melee auto-attack state, eliminating static empty swing bars when merely in combat or targeting enemies without attacking.
-  - **Clean Exits & Stable Anchoring**: Allowed active swing animations to finish before fading out on combat disengagement, while maintaining stable anchor references in `GetLowestPossibleBar()` so HUD modules like the center tracking bar stay firmly positioned.
+- **Project-Wide `isForever` Deprecation & Consolidation (`compat.lua`, `common.lua`, etc.)**:
+  - **Clean Client Standard**: Completely purged deprecated `isForever`, `IS_WOW_FOREVER`, `is_wow_forever`, and `wow_forever` symbols across the entire repository.
+  - **Unified Compatibility API**: Consolidated all client branch detection and compatibility flags onto `sfui.isCamelot`, `sfui.compat.is_camelot`, `sfui.compat.has.camelot`, and `sfui.version.camelot` in `compat.lua`.
+  - **Consumer Alignment**: Updated all references across `core/bridge.lua`, `core/items.lua`, `core/talents_camelot.lua`, `core/talents_standard.lua`, `frames/alts/alts_camelot.lua`, `frames/automation/rankup.lua`, `frames/themes/camelot.lua`, `frames/themes/modern.lua`, `frames/themes/engine.lua`, `frames/bars/threat.lua`, `frames/bars/target.lua`, `frames/bars/bars.lua`, `frames/gear/highest.lua`, `frames/quests/engine/q_tracker.lua`, `frames/quests/helpers/q_timerbars.lua`, `frames/quests/modules/q_camelot_class.lua`, `frames/quests/modules/q_camelot_skills.lua`, and `frames/quests/modules/q_camelot.lua`.

@@ -81,7 +81,7 @@ local function ExecuteLayout()
         end
 
         -- In Retail, sort sections by canonical hierarchy (scenario -> events -> important -> campaign -> meta -> world -> activities -> zone -> etc.)
-        local isCamelot = sfui.isForever or (sfui.compat and (sfui.compat.is_wow_forever or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        local isCamelot = sfui.isCamelot or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
         if not isCamelot then
             local sectionRanks = {
                 skills       = 5,
