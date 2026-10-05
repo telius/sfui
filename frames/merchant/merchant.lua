@@ -1,6 +1,6 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global
--- frames/merchant.lua
+-- frames/merchant/merchant.lua
 local common = sfui.common
 local issecretvalue = common.issecretvalue or _G.issecretvalue
 -- Custom 4x7 grid merchant frame for sfui
@@ -91,6 +91,8 @@ local sortedCurrencyItems = {}
 local frame = CreateFrame("Frame", "SfuiMerchantFrame", UIParent, "BackdropTemplate")
 frame:SetSize(cfg.frame.width, cfg.frame.height)
 frame:SetPoint("CENTER")
+frame:SetFrameStrata("HIGH")
+frame:SetToplevel(true)
 local headerFrame = CreateFrame("Frame", "SfuiMerchantHeader", frame)
 headerFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
 headerFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)

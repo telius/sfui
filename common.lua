@@ -958,6 +958,12 @@ function sfui.initialize_database()
     SfuiDB.trackedBars = SfuiDB.trackedBars or {}
     if SfuiDB.trackedBarsX == nil then SfuiDB.trackedBarsX = -300 end
     if SfuiDB.trackedBarsY == nil then SfuiDB.trackedBarsY = 300 end
+    if not SfuiDB.trackedBars.anchor or (SfuiDB.trackedBars.anchor.x == 0 and SfuiDB.trackedBars.anchor.y == 0) then
+        SfuiDB.trackedBars.anchor = {
+            x = SfuiDB.trackedBarsX or -300,
+            y = SfuiDB.trackedBarsY or 300,
+        }
+    end
 end
 
 -- Robust player key generator resilient to realmless architectures and first+last names

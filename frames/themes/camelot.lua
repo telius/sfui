@@ -99,7 +99,7 @@ sfui.theme.RegisterTheme({
     --   • backdropColor  : deep warm charcoal (near-black, slight amber warmth)
     --   • borderColor    : burnished bronze, 1-pixel edge
     bars           = {
-        style      = "inset", -- default bar style for Camelot: "inset" (Dark Inset Well) | "bezel" | "darkbronze" | "castbar" | "heavy" | "thin" | "glow"
+        style      = "castbar", -- default bar style for Camelot: "inset" (Dark Inset Well) | "bezel" | "darkbronze" | "castbar" | "heavy" | "thin" | "glow"
         texture    = "Blizzard Nameplate",
         health     = {
             backdropColor = { 0.05, 0.04, 0.03, 0.92 }, -- Near-black charcoal, very slight amber

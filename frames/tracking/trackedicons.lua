@@ -70,14 +70,21 @@ local function GetIconValue(entrySettings, panelConfig, key, default)
     elseif panelConfig and panelConfig[key] ~= nil then
         val = panelConfig[key]
     else
-        local globalCfg = SfuiDB and SfuiDB.iconGlobalSettings
-        if globalCfg and globalCfg[key] ~= nil then
-            val = globalCfg[key]
+        local pName = panelConfig and panelConfig.name and string.upper(panelConfig.name)
+        local pDef = (pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH")
+            and sfui.config and sfui.config.cooldown_panel_defaults and sfui.config.cooldown_panel_defaults.center_panel
+        if pDef and pDef[key] ~= nil then
+            val = pDef[key]
         else
-            local g = sfui.config
-            local configDefault = g and g.icon_panel_global_defaults
-            if configDefault and configDefault[key] ~= nil then
-                val = configDefault[key]
+            local globalCfg = SfuiDB and SfuiDB.iconGlobalSettings
+            if globalCfg and globalCfg[key] ~= nil then
+                val = globalCfg[key]
+            else
+                local g = sfui.config
+                local configDefault = g and g.icon_panel_global_defaults
+                if configDefault and configDefault[key] ~= nil then
+                    val = configDefault[key]
+                end
             end
         end
     end
@@ -958,8 +965,8 @@ end
 local function ApplyAutoSpan(panelConfig, activeIcons, size, spacing, numColumns, growthH, targetFrame)
     local spanWidth = GetIconValue(nil, panelConfig, "spanWidth", false)
     if spanWidth and #activeIcons > 0 then
-        local targetWidth = 300
-        if targetFrame and targetFrame.GetWidth then
+        local targetWidth = (sfui.config and sfui.config.healthBar and sfui.config.healthBar.width) or 300
+        if targetFrame and targetFrame ~= UIParent and targetFrame.GetWidth then
             targetWidth = targetFrame:GetWidth()
         elseif _G["sfui_bar0_Backdrop"] then
             targetWidth = _G["sfui_bar0_Backdrop"]:GetWidth()
@@ -1030,6 +1037,10 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
 
     if isCenter or isHealthBarAnchor or isSwingBarAnchor then
         local bar0 = _G["sfui_bar0_Backdrop"] or (sfui.bars and sfui.bars.get_bar0 and sfui.bars.get_bar0().backdrop)
+        if not bar0 and sfui.bars and sfui.bars.get_bar0 then
+            local b0 = sfui.bars.get_bar0()
+            bar0 = b0 and b0.backdrop
+        end
         if bar0 then
             targetFrame = bar0
             targetPoint = "BOTTOM"
@@ -1047,7 +1058,7 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
             if not sfui.isRetail and sfui.swing and sfui.swing.IsPossible() then
                 local swingBar = (sfui.swing.GetLowestPossibleBar and sfui.swing.GetLowestPossibleBar())
                     or (sfui.swing.GetLowestBar and sfui.swing.GetLowestBar(true))
-                if swingBar then
+                if swingBar and swingBar:GetNumPoints() > 0 then
                     targetFrame = swingBar
                     targetPoint = "BOTTOM"
                     anchorPoint = "TOP"
@@ -1112,6 +1123,10 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
     end
 
     -- Default local anchor for icon placement relative to panel
+    if targetFrame == UIParent and (isCenter or isHealthBarAnchor or isSwingBarAnchor) then
+        anchorPoint = "CENTER"
+        targetPoint = "CENTER"
+    end
     local anchor = anchorPoint
     panelFrame:SetPoint(anchorPoint, targetFrame, targetPoint, panelConfig.x or 0, panelConfig.y or 0)
 

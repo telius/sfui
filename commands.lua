@@ -193,7 +193,7 @@ SlashCmdList["SFUI"] = function(msg)
             sfui.common.print("bar style set to |cffffd100glow|r (borderless recessed amber inner glow).")
         elseif sub == "cycle" or sub == "next" or sub == "" then
             local order = { "inset", "bezel", "darkbronze", "castbar", "heavy", "thin", "glow" }
-            local cur = sfui.theme.GetBarStyle() or "inset"
+            local cur = sfui.theme.GetBarStyle() or "castbar"
             local nextIdx = 1
             for idx, st in ipairs(order) do
                 if st == cur then
@@ -205,7 +205,7 @@ SlashCmdList["SFUI"] = function(msg)
             sfui.theme.SetBarStyle(nextStyle)
             sfui.common.print("bar style cycled to |cffffd100" .. nextStyle .. "|r. usage: /sfui barstyle [inset | bezel | darkbronze | castbar | heavy | thin | glow]")
         else
-            local cur = sfui.theme.GetBarStyle() or "inset"
+            local cur = sfui.theme.GetBarStyle() or "castbar"
             sfui.common.print("bar style is currently '|cffffd100" .. tostring(cur) .. "|r'. usage: /sfui barstyle [inset | bezel | darkbronze | castbar | heavy | thin | glow]")
         end
     elseif cmd == "alts" or cmd == "warband" then

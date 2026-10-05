@@ -601,19 +601,24 @@ function sfui.trackedoptions.RenderBarsTab(parent)
     lPos:SetPoint("TOPLEFT", col2x, s1y)
     lPos:SetText("Position & Size")
 
-    if not db.anchor then db.anchor = { x = 0, y = 0 } end
+    local defX = (bar_cfg.anchor and bar_cfg.anchor.x) or (SfuiDB and SfuiDB.trackedBarsX) or -300
+    local defY = (bar_cfg.anchor and bar_cfg.anchor.y) or (SfuiDB and SfuiDB.trackedBarsY) or 300
 
-    BSlider(sec1c, "X", function() return (db.anchor and db.anchor.x) or (bar_cfg.anchor and bar_cfg.anchor.x) or 0 end, -1000,
+    if not db.anchor or (db.anchor.x == 0 and db.anchor.y == 0) then
+        db.anchor = { x = defX, y = defY }
+    end
+
+    BSlider(sec1c, "X", function() return (db.anchor and db.anchor.x) or defX end, -1000,
         1000, 1,
         function(v)
-            if not db.anchor then db.anchor = {} end
+            if not db.anchor then db.anchor = { x = defX, y = defY } end
             db.anchor.x = v
             sfui.trackedbars.UpdatePosition()
         end, col2x, s1y - 20, 120)
-    BSlider(sec1c, "Y", function() return (db.anchor and db.anchor.y) or (bar_cfg.anchor and bar_cfg.anchor.y) or 0 end, -1000,
+    BSlider(sec1c, "Y", function() return (db.anchor and db.anchor.y) or defY end, -1000,
         1000, 1,
         function(v)
-            if not db.anchor then db.anchor = {} end
+            if not db.anchor then db.anchor = { x = defX, y = defY } end
             db.anchor.y = v
             sfui.trackedbars.UpdatePosition()
         end, col2x + 130, s1y - 20, 120)
@@ -1285,7 +1290,18 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
 
     -- Reusable factories for panel-specific controls
     local function PCheck(secContent, label, key, tooltip, x, y)
-        local cb = common.create_checkbox(secContent, label, function() return panel[key] end, function(val)
+        local cb = common.create_checkbox(secContent, label, function()
+            if panel[key] ~= nil then return panel[key] end
+            local pName = panel.name and string.upper(panel.name)
+            local pDef = (pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH")
+                and cfg.cooldown_panel_defaults and cfg.cooldown_panel_defaults.center_panel
+            if pDef and pDef[key] ~= nil then return pDef[key] end
+            local igs = SfuiDB.iconGlobalSettings or {}
+            if igs[key] ~= nil then return igs[key] end
+            local defaults = cfg.icon_panel_global_defaults or {}
+            if defaults[key] ~= nil then return defaults[key] end
+            return false
+        end, function(val)
             panel[key] = val
             if sfui.trackedoptions.UpdatePreview then sfui.trackedoptions.UpdatePreview() end
             sfui.trackedicons.Update()

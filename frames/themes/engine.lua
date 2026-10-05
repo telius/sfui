@@ -2437,7 +2437,7 @@ local function _ResolveBarStyle(bars_def, barType, isCamelot)
     if bars_def.style then
         return bars_def.style
     end
-    return isCamelot and "inset" or "thin"
+    return isCamelot and "castbar" or "thin"
 end
 
 --- Get the current bar style setting
@@ -2453,7 +2453,7 @@ function sfui.theme.GetBarStyle()
     if theme.bars and theme.bars.style then
         return theme.bars.style
     end
-    return (activeID == "camelot") and "inset" or "thin"
+    return (activeID == "camelot") and "castbar" or "thin"
 end
 
 --- Set the bar style and refresh all registered bars
@@ -3033,7 +3033,7 @@ sfui.db.RegisterDefaults("theme", {
     cornerBrackets   = true,
     texturedBackdrop = true,
     minimapArt       = true,
-    barStyle         = "inset",
+    barStyle         = "castbar",
 })
 
 -- Export public API alias

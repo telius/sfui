@@ -45,7 +45,7 @@ sfui = sfui or {}
 --   Utilities & Automation:
 --     • frames/alts/alts.lua           - Warband alt sync, profession KP, recipes, trade skills.
 --     • frames/automation/automation.lua - Master's Hammer repair popup, role checks, LFG auto-confirm.
---     • frames/merchant.lua            - Auto-junk selling & auto-repair vendor triggers.
+--     • frames/merchant/merchant.lua   - Auto-junk selling & auto-repair vendor triggers.
 --     • frames/automation/rankup.lua   - Auto spell rank upgrade on action bars (Camelot / Classic).
 --     • frames/automation/transfer.lua - Warband bank transfer helper window.
 --     • frames/research.lua            - Trait tree & research currency updates.

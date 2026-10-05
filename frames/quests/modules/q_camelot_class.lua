@@ -718,6 +718,11 @@ function CamelotClassQuestsModule:BuildBlocks(container)
                     titleColor = { 1.0, 0.2, 0.2, 1 }
                 end
 
+                local isWarband = false
+                if C_QuestLog and C_QuestLog.IsQuestFlaggedCompletedOnAccount then
+                    isWarband = (C_QuestLog.IsQuestFlaggedCompletedOnAccount(questID) == true)
+                end
+
                 table_insert(blocks, {
                     title              = displayTitle,
                     rawTitle           = title,
@@ -732,7 +737,7 @@ function CamelotClassQuestsModule:BuildBlocks(container)
                     canClickToComplete = canClickToComplete,
                     isFailed           = isFailed,
                     isRepeatable       = false,
-                    isWarbandCompleted = false,
+                    isWarbandCompleted = isWarband,
                     itemInfo           = itemInfo,
                     timerBar           = nil, -- Suppressed on Camelot
                     timeLeftText       = rawClock and ("Time Remaining: " .. rawClock) or nil,

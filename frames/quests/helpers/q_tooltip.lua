@@ -238,11 +238,15 @@ function Tooltip.ShowBlockTooltip(owner, bData)
             tip:AddLine(bData.timeLeftText, 0.20, 0.85, 0.95)
         end
 
-        local isCamelot = not sfui.isRetail
-        if bData.isRepeatable and not bData.isWarbandCompleted then
-            tip:AddLine("Repeatable Quest", 0.00, 1.00, 1.00)
-        elseif bData.isWarbandCompleted and not isCamelot then
-            tip:AddLine("Warband Completed", 0.75, 0.15, 0.15)
+        local isWarband = bData.isWarbandCompleted
+        if (isWarband == nil or isWarband == false) and bData.questID and _G.C_QuestLog and _G.C_QuestLog.IsQuestFlaggedCompletedOnAccount then
+            isWarband = (_G.C_QuestLog.IsQuestFlaggedCompletedOnAccount(bData.questID) == true)
+        end
+
+        if bData.isRepeatable and not isWarband then
+            tip:AddLine("repeatable quest", 0.00, 1.00, 1.00)
+        elseif isWarband then
+            tip:AddLine("warband completed", 0.75, 0.15, 0.15)
         end
 
         -- Quest Description / Summary (Classic/Camelot & Retail)

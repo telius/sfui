@@ -44,6 +44,19 @@ local function IsHunter()
     return playerClass == "HUNTER"
 end
 local isAutoRepeating = false
+local isAttacking = false
+
+local function IsMeleeAttacking()
+    if isAttacking then return true end
+    if C_Spell and C_Spell.IsCurrentSpell then
+        local ok, cur = pcall(C_Spell.IsCurrentSpell, 6603)
+        if ok and cur then return true end
+    elseif _G.IsCurrentSpell then
+        local ok, cur = pcall(_G.IsCurrentSpell, 6603)
+        if ok and cur then return true end
+    end
+    return false
+end
 
 local hasOffHandWeapon = false
 local hasRangedWeapon  = false
@@ -74,15 +87,23 @@ end
 -- ─── Helper: Can player swing this weapon type? ─────────────────────────────
 local function CanSwing(swingType)
     if swingType == SWING_MAIN_HAND then
-        return true
+        local bar = swingBars[SWING_MAIN_HAND]
+        if bar and bar.duration ~= nil then
+            return true
+        end
+        return IsMeleeAttacking()
     elseif swingType == SWING_OFF_HAND then
-        return hasOffHandWeapon
+        if not hasOffHandWeapon then
+            return false
+        end
+        local bar = swingBars[SWING_OFF_HAND]
+        if bar and bar.duration ~= nil then
+            return true
+        end
+        return IsMeleeAttacking()
     elseif swingType == SWING_RANGED then
         if not hasRangedWeapon then
             return false
-        end
-        if IsHunter() then
-            return true
         end
         local bar = swingBars[SWING_RANGED]
         if bar and bar.duration ~= nil then
@@ -127,7 +148,15 @@ local function ClearSwingTimer(bar)
     bar.statusBar:SetValue(0)
     bar.pip:Hide()
     bar:SetScript("OnUpdate", nil)
-    if bar.swingType == SWING_RANGED and not IsHunter() and not isAutoRepeating and bar.backdrop and bar.backdrop:IsShown() then
+
+    local shouldHide = false
+    if bar.swingType == SWING_RANGED then
+        shouldHide = not isAutoRepeating
+    else
+        shouldHide = not IsMeleeAttacking()
+    end
+
+    if shouldHide and bar.backdrop and bar.backdrop:IsShown() then
         bar.backdrop:Hide()
         if sfui.swing.UpdatePositions then
             sfui.swing.UpdatePositions()
@@ -301,34 +330,35 @@ function sfui.swing.IsPossible()
     if sfui.isRetail or not C_SwingTimer then return false end
     if SfuiDB and SfuiDB.enableSwingBars == false then return false end
 
-    return CanSwing(SWING_MAIN_HAND) or CanSwing(SWING_RANGED)
+    return true
 end
 
 --- Returns the lowest swing bar backdrop frame for anchoring (whether shown or hidden)
 function sfui.swing.GetLowestPossibleBar()
     EnsureBarsCreated()
     if not sfui.swing.IsPossible() then return nil end
+    if not lastAnchorFrame then
+        sfui.swing.UpdatePositions()
+    end
 
     -- Ranged/wand is always docked lowest when player has a ranged weapon or wand equipped
-    if CanSwing(SWING_RANGED) then
+    if hasRangedWeapon then
         local rBar = swingBars[SWING_RANGED]
         if rBar and rBar.backdrop then
             return rBar.backdrop
         end
     end
 
-    if CanSwing(SWING_OFF_HAND) then
+    if hasOffHandWeapon then
         local oBar = swingBars[SWING_OFF_HAND]
         if oBar and oBar.backdrop then
             return oBar.backdrop
         end
     end
 
-    if CanSwing(SWING_MAIN_HAND) then
-        local mBar = swingBars[SWING_MAIN_HAND]
-        if mBar and mBar.backdrop then
-            return mBar.backdrop
-        end
+    local mBar = swingBars[SWING_MAIN_HAND]
+    if mBar and mBar.backdrop then
+        return mBar.backdrop
     end
 
     return nil
@@ -351,6 +381,16 @@ function sfui.swing.UpdatePositions(anchorFrame, spacing)
     else
         spacing = lastSpacing
     end
+    if not anchorFrame then
+        local barMinus1 = _G["sfui_bar_minus_1_Backdrop"] or _G["sfui_bar-1_Backdrop"]
+            or (sfui.bars and sfui.bars.get_bar_minus_1 and sfui.bars.get_bar_minus_1().backdrop)
+        local bar0 = _G["sfui_bar0_Backdrop"] or (sfui.bars and sfui.bars.get_bar0 and sfui.bars.get_bar0().backdrop)
+        if not bar0 and sfui.bars and sfui.bars.get_bar0 then
+            local b0 = sfui.bars.get_bar0()
+            bar0 = b0 and b0.backdrop
+        end
+        anchorFrame = (barMinus1 and (barMinus1:IsShown() or (SfuiDB == nil or SfuiDB.enablePowerBar ~= false))) and barMinus1 or bar0
+    end
     if not anchorFrame then return end
 
     local barCfg = cfg.swingBar or {}
@@ -361,7 +401,7 @@ function sfui.swing.UpdatePositions(anchorFrame, spacing)
     local isFirst = true
     for _, sType in ipairs(order) do
         local bar = swingBars[sType]
-        if bar and bar.backdrop and CanSwing(sType) then
+        if bar and bar.backdrop then
             bar.backdrop:ClearAllPoints()
             local currentSpacing = isFirst and (spacing or swingSpacing) or swingSpacing
             bar.backdrop:SetPoint("TOP", currentAnchor, "BOTTOM", 0, -currentSpacing)
@@ -404,7 +444,7 @@ function sfui.swing.UpdateVisibility(inCombat, hasEnemyTarget, isDragonflying, i
         return
     end
 
-    local shouldShow = (inCombat or hasEnemyTarget or (SfuiDB and SfuiDB.swingBarVisibility == "always"))
+    local shouldShow = (IsMeleeAttacking() or isAutoRepeating or (SfuiDB and SfuiDB.swingBarVisibility == "always"))
 
     for i = 1, 3 do
         local sType = SWING_TYPES[i]
@@ -447,7 +487,7 @@ function sfui.swing.GetLowestBar(includeHidden)
     local order = { SWING_RANGED, SWING_OFF_HAND, SWING_MAIN_HAND }
     for _, sType in ipairs(order) do
         local bar = swingBars[sType]
-        if bar and bar.backdrop and CanSwing(sType) and (bar.backdrop:IsShown() or includeHidden) then
+        if bar and bar.backdrop and (bar.backdrop:IsShown() or includeHidden) then
             return bar.backdrop
         end
     end
@@ -462,6 +502,11 @@ local function OnSwingEvent(event, ...)
         local duration, swingType = ...
         local bar = swingBars[swingType]
         if bar then
+            if swingType == SWING_MAIN_HAND or swingType == SWING_OFF_HAND then
+                isAttacking = true
+            elseif swingType == SWING_RANGED then
+                isAutoRepeating = true
+            end
             ResetSwingTimer(bar, duration)
             if not bar.backdrop:IsShown() and sfui.bars and sfui.bars.UpdateVisibility then
                 sfui.bars.UpdateVisibility()
@@ -482,6 +527,27 @@ local function OnSwingEvent(event, ...)
                 UpdateRangeState(bar)
             end
         end
+        if sfui.bars and sfui.bars.UpdateVisibility then
+            sfui.bars.UpdateVisibility()
+        else
+            sfui.swing.UpdateVisibility()
+        end
+    elseif event == "PLAYER_ENTER_COMBAT" then
+        isAttacking = true
+        if sfui.bars and sfui.bars.UpdateVisibility then
+            sfui.bars.UpdateVisibility()
+        else
+            sfui.swing.UpdateVisibility()
+        end
+        sfui.swing.UpdatePositions()
+    elseif event == "PLAYER_LEAVE_COMBAT" then
+        isAttacking = false
+        if sfui.bars and sfui.bars.UpdateVisibility then
+            sfui.bars.UpdateVisibility()
+        else
+            sfui.swing.UpdateVisibility()
+        end
+        sfui.swing.UpdatePositions()
     elseif event == "START_AUTOREPEAT_SPELL" then
         isAutoRepeating = true
         if sfui.bars and sfui.bars.UpdateVisibility then
@@ -498,6 +564,15 @@ local function OnSwingEvent(event, ...)
             sfui.swing.UpdateVisibility()
         end
         sfui.swing.UpdatePositions()
+    elseif event == "PLAYER_DEAD" then
+        isAttacking = false
+        isAutoRepeating = false
+        if sfui.bars and sfui.bars.UpdateVisibility then
+            sfui.bars.UpdateVisibility()
+        else
+            sfui.swing.UpdateVisibility()
+        end
+        sfui.swing.UpdatePositions()
     elseif event == "PLAYER_IN_COMBAT_CHANGED" then
         if sfui.bars and sfui.bars.UpdateVisibility then
             sfui.bars.UpdateVisibility()
@@ -505,6 +580,10 @@ local function OnSwingEvent(event, ...)
             sfui.swing.UpdateVisibility()
         end
     elseif event == "UNIT_ATTACK_SPEED" or event == "WEAPON_SLOT_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_LOGIN" then
+        if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_LOGIN" then
+            isAttacking = false
+            isAutoRepeating = false
+        end
         UpdateEquippedWeapons()
         SuppressBlizzardSwingTimer()
         if sfui.bars and sfui.bars.UpdateVisibility then
@@ -527,8 +606,11 @@ sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", OnSwingEvent)
 sfui.events.RegisterEvent("PLAYER_LOGIN", OnSwingEvent)
 sfui.events.RegisterUnitEvents({ "UNIT_ATTACK_SPEED" }, "player", OnSwingEvent)
 sfui.events.RegisterEvent("PLAYER_IN_COMBAT_CHANGED", OnSwingEvent)
+sfui.events.RegisterEvent("PLAYER_ENTER_COMBAT", OnSwingEvent)
+sfui.events.RegisterEvent("PLAYER_LEAVE_COMBAT", OnSwingEvent)
 sfui.events.RegisterEvent("START_AUTOREPEAT_SPELL", OnSwingEvent)
 sfui.events.RegisterEvent("STOP_AUTOREPEAT_SPELL", OnSwingEvent)
+sfui.events.RegisterEvent("PLAYER_DEAD", OnSwingEvent)
 
 UpdateEquippedWeapons()
 SuppressBlizzardSwingTimer()

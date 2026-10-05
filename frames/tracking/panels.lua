@@ -430,6 +430,26 @@ function sfui.tracking.ensure_panels_initialized()
         SfuiDB.druidMigrationV7 = true
     end
 
+    -- One-time migration for center panel defaults (hideOOC, hideInVehicle, hideMounted, spanWidth)
+    if not SfuiDB.centerDefaultsV2 then
+        if SfuiDB.cooldownPanelsBySpec then
+            for _, specPanels in pairs(SfuiDB.cooldownPanelsBySpec) do
+                if type(specPanels) == "table" then
+                    for _, p in ipairs(specPanels) do
+                        local uname = p.name and string.upper(p.name)
+                        if uname == "CENTER" or uname == "CAT" or uname == "BEAR" or uname == "MOONKIN" or uname == "STEALTH" then
+                            if p.hideOOC == nil then p.hideOOC = true; changed = true end
+                            if p.hideInVehicle == nil then p.hideInVehicle = true; changed = true end
+                            if p.hideMounted == nil then p.hideMounted = true; changed = true end
+                            if p.spanWidth == nil then p.spanWidth = true; changed = true end
+                        end
+                    end
+                end
+            end
+        end
+        SfuiDB.centerDefaultsV2 = true
+    end
+
     -- Cleanup duplicates for the exact target names (case-insensitive)
     -- Crucial: Prefer panels that have user-configured entries, and preserve the first panel
     local seenUpperPanels = {}

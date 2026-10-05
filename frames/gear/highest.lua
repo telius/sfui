@@ -15,7 +15,7 @@ local C_Container = _G.C_Container
 local C_Container_GetContainerItemInfo = (_G.C_Container and _G.C_Container.GetContainerItemInfo) or _G.GetContainerItemInfo
 local C_Container_GetContainerItemLink = (_G.C_Container and _G.C_Container.GetContainerItemLink) or _G.GetContainerItemLink
 local C_Container_PickupContainerItem  = (_G.C_Container and _G.C_Container.PickupContainerItem) or _G.PickupContainerItem
-local function EquipItemByName(itemInfo, slotID)
+local function EquipItemByName(itemInfo, slotID, bag, slot)
     if not itemInfo then return end
     if C_Item and C_Item.EquipItemByName then
         if slotID then
@@ -34,6 +34,12 @@ local function EquipItemByName(itemInfo, slotID)
             _G.EquipItemByName(itemInfo, slotID)
         else
             _G.EquipItemByName(itemInfo)
+        end
+    elseif bag and slot then
+        if C_Container and C_Container.UseContainerItem then
+            C_Container.UseContainerItem(bag, slot)
+        elseif _G.UseContainerItem then
+            _G.UseContainerItem(bag, slot)
         end
     end
 end
@@ -2079,6 +2085,54 @@ function sfui.highest.IsFishingPoleEquipped()
 end
 sfui.gear.IsFishingPoleEquipped = sfui.highest.IsFishingPoleEquipped
 
+local function IsBagItemBound(bag, slot)
+    if not bag or not slot then return true end
+    local info = C_Container_GetContainerItemInfo(bag, slot)
+    if type(info) == "table" then
+        if info.isBound then return true end
+    elseif info ~= nil and _G.GetContainerItemInfo then
+        local isBound = select(11, _G.GetContainerItemInfo(bag, slot))
+        if isBound then return true end
+    end
+    if C_TooltipInfo and C_TooltipInfo.GetBagItem then
+        local tData = C_TooltipInfo.GetBagItem(bag, slot)
+        if tData and tData.lines then
+            for _, line in ipairs(tData.lines) do
+                local t = line.leftText
+                if t and type(t) == "string" then
+                    if t:find(ITEM_SOULBOUND or "Soulbound")
+                        or t:find(ITEM_BNETACCOUNTBOUND or "Account")
+                        or t:find(ITEM_BIND_TO_ACCOUNT or "Binds to account")
+                        or t:find(ITEM_BIND_TO_BNETACCOUNT or "Binds to Battle.net account") then
+                        return true
+                    end
+                end
+            end
+        end
+    else
+        local tip = GetScanTooltip()
+        if tip then
+            tip:ClearLines()
+            if tip.SetBagItem then
+                tip:SetBagItem(bag, slot)
+            end
+            for i = 1, tip:NumLines() do
+                local line = _G["SfuiHighestScanTooltipTextLeft" .. i]
+                local t = line and line:GetText()
+                if t then
+                    if t:find(ITEM_SOULBOUND or "Soulbound")
+                        or t:find(ITEM_BNETACCOUNTBOUND or "Account")
+                        or t:find(ITEM_BIND_TO_ACCOUNT or "Binds to account")
+                        or t:find(ITEM_BIND_TO_BNETACCOUNT or "Binds to Battle.net account") then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+
 local isEquippingInProgress = false
 local pendingEquipRequest   = nil
 
@@ -2298,23 +2352,100 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
         end
 
         if item.bag and item.slot then
-            local info = C_Container_GetContainerItemInfo(item.bag, item.slot)
-            if info and info.isLocked and retryCount < 10 then
-                -- Container slot is locked by a previous item swap in flight: wait 50ms and retry
-                _G.C_Timer.After(0.05, function() equipNext(index, retryCount + 1) end)
-                return
+            local currentLink = C_Container_GetContainerItemLink(item.bag, item.slot)
+            local targetBag, targetSlot = item.bag, item.slot
+            if not (currentLink and currentLink == item.link) then
+                -- Bag slot contents shifted: search bags
+                targetBag, targetSlot = nil, nil
+                for b = 0, 4 do
+                    local numSlots = (C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(b))
+                        or (_G.GetContainerNumSlots and _G.GetContainerNumSlots(b)) or 0
+                    for s = 1, numSlots do
+                        local l = C_Container_GetContainerItemLink(b, s)
+                        if l == item.link then
+                            targetBag, targetSlot = b, s
+                            break
+                        end
+                    end
+                    if targetBag then break end
+                end
             end
 
-            -- Ensure container item still matches what we expect
-            local currentLink = C_Container_GetContainerItemLink(item.bag, item.slot)
-            if currentLink and currentLink == item.link then
+            if targetBag and targetSlot then
+                local bagInfo = C_Container_GetContainerItemInfo(targetBag, targetSlot)
+                local isLocked = (type(bagInfo) == "table" and bagInfo.isLocked)
+                    or (type(bagInfo) ~= "table" and _G.GetContainerItemInfo and select(3, _G.GetContainerItemInfo(targetBag, targetSlot)))
+                if isLocked and retryCount < 10 then
+                    item.bag = targetBag
+                    item.slot = targetSlot
+                    _G.C_Timer.After(0.05, function() equipNext(index, retryCount + 1) end)
+                    return
+                end
+
+                local isBound = IsBagItemBound(targetBag, targetSlot)
+                if not isBound then
+                    boeAttemptedAt[item.link] = _G.GetTime()
+                    if _G.ClearCursor then _G.ClearCursor() end
+                    EquipItemByName(item.link, slotID, targetBag, targetSlot)
+
+                    -- Pause watchdog timer while awaiting player confirmation
+                    if equipWatchdog and equipWatchdog.Cancel then
+                        equipWatchdog:Cancel()
+                        equipWatchdog = nil
+                    end
+
+                    -- Check if bind confirmation dialog is displayed
+                    _G.C_Timer.After(0.06, function()
+                        local isVis = (_G.StaticPopup_Visible and (_G.StaticPopup_Visible("EQUIP_BIND")
+                            or _G.StaticPopup_Visible("EQUIP_BIND_TRADEABLE")
+                            or _G.StaticPopup_Visible("EQUIP_BIND_REFUNDABLE")))
+
+                        -- Fallback to UseContainerItem if dialog didn't show via EquipItemByName
+                        if not isVis and targetBag and targetSlot then
+                            if C_Container and C_Container.UseContainerItem then
+                                C_Container.UseContainerItem(targetBag, targetSlot)
+                            elseif _G.UseContainerItem then
+                                _G.UseContainerItem(targetBag, targetSlot)
+                            end
+                            isVis = (_G.StaticPopup_Visible and (_G.StaticPopup_Visible("EQUIP_BIND")
+                                or _G.StaticPopup_Visible("EQUIP_BIND_TRADEABLE")
+                                or _G.StaticPopup_Visible("EQUIP_BIND_REFUNDABLE")))
+                        end
+
+                        if isVis then
+                            -- Bind confirmation popup is active: wait for player to accept or cancel
+                            local ticks = 0
+                            local watchTicker
+                            watchTicker = _G.C_Timer.NewTicker(0.2, function()
+                                ticks = ticks + 1
+                                local stillVis = (_G.StaticPopup_Visible and (_G.StaticPopup_Visible("EQUIP_BIND")
+                                    or _G.StaticPopup_Visible("EQUIP_BIND_TRADEABLE")
+                                    or _G.StaticPopup_Visible("EQUIP_BIND_REFUNDABLE")))
+                                if not stillVis or ticks > 300 then
+                                    watchTicker:Cancel()
+                                    _G.C_Timer.After(0.15, function()
+                                        equipNext(index + 1)
+                                    end)
+                                end
+                            end)
+                        else
+                            -- Equipped directly without popup (or failed): proceed with next item
+                            _G.C_Timer.After(0.08, function()
+                                equipNext(index + 1)
+                            end)
+                        end
+                    end)
+                    return
+                end
+
+                -- Soulbound gear: use fast container swap into exact vacated slot
                 if _G.ClearCursor then _G.ClearCursor() end
-                C_Container_PickupContainerItem(item.bag, item.slot)
+                C_Container_PickupContainerItem(targetBag, targetSlot)
                 if _G.CursorHasItem and _G.CursorHasItem() then
                     if _G.EquipCursorItem then _G.EquipCursorItem(slotID) end
                     if _G.CursorHasItem and _G.CursorHasItem() then
                         -- Swapped item is now on cursor: place it in the newly emptied bag slot
-                        C_Container_PickupContainerItem(item.bag, item.slot)
+                        C_Container_PickupContainerItem(targetBag, targetSlot)
                         if _G.CursorHasItem and _G.CursorHasItem() then
                             if _G.PutItemInBackpack then _G.PutItemInBackpack() end
                             if _G.CursorHasItem and _G.CursorHasItem() and _G.ClearCursor then
@@ -2323,76 +2454,10 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                         end
                     end
                 else
-                    EquipItemByName(item.link, slotID)
-                end
-                -- Only track BoE bind dialog delays for genuinely unbound items; never lock out Soulbound gear
-                local isBound = (info and info.isBound) or false
-                if not isBound and C_TooltipInfo and C_TooltipInfo.GetBagItem then
-                    local tData = C_TooltipInfo.GetBagItem(item.bag, item.slot)
-                    if tData and tData.lines then
-                        for _, line in ipairs(tData.lines) do
-                            local t = line.leftText
-                            if t and type(t) == "string" and (t:find(ITEM_SOULBOUND or "Soulbound") or t:find(ITEM_BNETACCOUNTBOUND or "Account")) then
-                                isBound = true
-                                break
-                            end
-                        end
-                    end
-                end
-
-                if not isBound then
-                    boeAttemptedAt[item.link] = _G.GetTime()
-                    local watchBag, watchSlot, watchLink = item.bag, item.slot, item.link
-                    _G.C_Timer.After(2, function()
-                        local stillThere = C_Container_GetContainerItemLink(watchBag, watchSlot)
-                        if stillThere == watchLink then
-                            boeAttemptedAt[watchLink] = _G.GetTime()
-                        end
-                    end)
+                    EquipItemByName(item.link, slotID, targetBag, targetSlot)
                 end
             else
-                -- Bag slot contents shifted: search bags first or equip by item link directly
-                local foundBag, foundSlot = nil, nil
-                for b = 0, 4 do
-                    local numSlots = (C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(b))
-                        or (_G.GetContainerNumSlots and _G.GetContainerNumSlots(b)) or 0
-                    for s = 1, numSlots do
-                        local l = C_Container_GetContainerItemLink(b, s)
-                        if l == item.link then
-                            foundBag, foundSlot = b, s
-                            break
-                        end
-                    end
-                    if foundBag then break end
-                end
-
-                if foundBag and foundSlot then
-                    local shiftedInfo = C_Container_GetContainerItemInfo(foundBag, foundSlot)
-                    if shiftedInfo and shiftedInfo.isLocked and retryCount < 10 then
-                        item.bag = foundBag
-                        item.slot = foundSlot
-                        _G.C_Timer.After(0.05, function() equipNext(index, retryCount + 1) end)
-                        return
-                    end
-                    if _G.ClearCursor then _G.ClearCursor() end
-                    C_Container_PickupContainerItem(foundBag, foundSlot)
-                    if _G.CursorHasItem and _G.CursorHasItem() then
-                        if _G.EquipCursorItem then _G.EquipCursorItem(slotID) end
-                        if _G.CursorHasItem and _G.CursorHasItem() then
-                            C_Container_PickupContainerItem(foundBag, foundSlot)
-                            if _G.CursorHasItem and _G.CursorHasItem() then
-                                if _G.PutItemInBackpack then _G.PutItemInBackpack() end
-                                if _G.CursorHasItem and _G.CursorHasItem() and _G.ClearCursor then
-                                    _G.ClearCursor()
-                                end
-                            end
-                        end
-                    else
-                        EquipItemByName(item.link, slotID)
-                    end
-                else
-                    EquipItemByName(item.link, slotID)
-                end
+                EquipItemByName(item.link, slotID)
             end
         elseif item.isEquipped and item.equippedSlot and item.equippedSlot ~= slotID then
             -- Item is already equipped in another slot (e.g. swapping Main Hand and Off Hand)

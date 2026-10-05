@@ -33,7 +33,7 @@ sfui.options.RegisterTab({
             { text = "recessed amber glow",         value = "glow" },
         }
 
-        local curBarStyle = (sfui.theme and sfui.theme.GetBarStyle and sfui.theme.GetBarStyle()) or "inset"
+        local curBarStyle = (sfui.theme and sfui.theme.GetBarStyle and sfui.theme.GetBarStyle()) or "castbar"
 
         local style_label = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
         style_label:SetPoint("TOPLEFT", bars_header, "BOTTOMLEFT", 0, -14)
@@ -102,8 +102,8 @@ sfui.options.RegisterTab({
 
         previewBackdrop:SetScript("OnMouseDown", function()
             local styles = { "inset", "bezel", "darkbronze", "castbar", "heavy", "thin", "glow" }
-            local cur = (sfui.theme and sfui.theme.GetBarStyle and sfui.theme.GetBarStyle()) or "inset"
-            local nextStyle = "inset"
+            local cur = (sfui.theme and sfui.theme.GetBarStyle and sfui.theme.GetBarStyle()) or "castbar"
+            local nextStyle = "castbar"
             for i, st in ipairs(styles) do
                 if st == cur then
                     nextStyle = styles[(i % #styles) + 1]
@@ -122,7 +122,7 @@ sfui.options.RegisterTab({
             local tip = sfui.tooltip or _G.GameTooltip
             if tip then
                 tip:SetOwner(self, "ANCHOR_TOP")
-                tip:SetText("Click to cycle through bar styles", 1, 1, 1)
+                tip:SetText("click to cycle through bar styles", 1, 1, 1)
                 tip:Show()
             end
         end)
@@ -132,7 +132,7 @@ sfui.options.RegisterTab({
         end)
 
         bars_panel:HookScript("OnShow", function()
-            local activeStyle = (sfui.theme and sfui.theme.GetBarStyle and sfui.theme.GetBarStyle()) or "inset"
+            local activeStyle = (sfui.theme and sfui.theme.GetBarStyle and sfui.theme.GetBarStyle()) or "castbar"
             if style_dropdown and style_dropdown.SetSelectedValue then
                 style_dropdown:SetSelectedValue(activeStyle)
             end

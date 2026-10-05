@@ -526,10 +526,24 @@ end
 function sfui.trackedbars.UpdatePosition()
     if not container then return end
     local db = SfuiDB and SfuiDB.trackedBars
-    local x = (db and db.anchor and db.anchor.x) or (SfuiDB and SfuiDB.trackedBarsX) or
-        (cfg.trackedBars.anchor and cfg.trackedBars.anchor.x) or -300
-    local y = (db and db.anchor and db.anchor.y) or (SfuiDB and SfuiDB.trackedBarsY) or
-        (cfg.trackedBars.anchor and cfg.trackedBars.anchor.y) or 300
+    local defX = (cfg.trackedBars and cfg.trackedBars.anchor and cfg.trackedBars.anchor.x) or (SfuiDB and SfuiDB.trackedBarsX) or -300
+    local defY = (cfg.trackedBars and cfg.trackedBars.anchor and cfg.trackedBars.anchor.y) or (SfuiDB and SfuiDB.trackedBarsY) or 300
+
+    local x = db and db.anchor and db.anchor.x
+    local y = db and db.anchor and db.anchor.y
+
+    -- Heal corrupted 0, 0 position from legacy options bug
+    if (x == 0 and y == 0) or (x == nil and y == nil) then
+        x = defX
+        y = defY
+        if db and db.anchor then
+            db.anchor.x = x
+            db.anchor.y = y
+        end
+    end
+
+    x = x or defX
+    y = y or defY
 
     container:ClearAllPoints()
     container:SetPoint("BOTTOM", UIParent, "BOTTOM", x, y)
