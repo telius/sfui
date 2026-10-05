@@ -701,13 +701,40 @@ if sfui._dropdownCatcher then
     sfui._dropdownCatcher = nil
 end
 
--- Hook CloseDropDownMenus so ESC / Blizzard UI closes active dropdown
+local function HandlesGlobalMouseEvent(self, buttonName, event)
+    return true
+end
+
+-- Hook CloseDropDownMenus so ESC / Blizzard UI closes active dropdown,
+-- but NEVER dismiss if the user is clicking inside the active dropdown or its anchor button!
 if not sfui._dropdownCloseHooked and hooksecurefunc then
     sfui._dropdownCloseHooked = true
     hooksecurefunc("CloseDropDownMenus", function()
         if activeDropdown then
+            if activeDropdown:IsMouseOver() or (activeDropdown.dropdownButton and activeDropdown.dropdownButton:IsShown() and activeDropdown.dropdownButton:IsMouseOver()) then
+                return
+            end
+            if DoesAncestryIncludeAny and GetMouseFoci then
+                local foci = GetMouseFoci()
+                if DoesAncestryIncludeAny(activeDropdown, foci) or (activeDropdown.dropdownButton and DoesAncestryIncludeAny(activeDropdown.dropdownButton, foci)) then
+                    return
+                end
+            end
             activeDropdown:Hide()
             activeDropdown = nil
+        end
+        if activeTextureMenu then
+            if activeTextureMenu:IsMouseOver() or (activeTextureMenu.dropdownButton and activeTextureMenu.dropdownButton:IsShown() and activeTextureMenu.dropdownButton:IsMouseOver()) then
+                return
+            end
+            if DoesAncestryIncludeAny and GetMouseFoci then
+                local foci = GetMouseFoci()
+                if DoesAncestryIncludeAny(activeTextureMenu, foci) or (activeTextureMenu.dropdownButton and DoesAncestryIncludeAny(activeTextureMenu.dropdownButton, foci)) then
+                    return
+                end
+            end
+            activeTextureMenu:Hide()
+            activeTextureMenu = nil
         end
     end)
 end
@@ -735,6 +762,8 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
     local btnH = (width and width <= 24) and width or 20
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn.isDropdownButton = true
+    btn.HandlesGlobalMouseEvent = HandlesGlobalMouseEvent
+    btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:SetSize(width or 120, btnH)
     btn:SetNormalFontObject("GameFontHighlightSmall")
     btn:SetText(initialText)
@@ -830,6 +859,8 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
 
     btn.menu = menu
     menu.dropdownButton = btn
+    menu.isDropdownMenu = true
+    menu.HandlesGlobalMouseEvent = HandlesGlobalMouseEvent
     menu.rows = {}
     menu.scrollOffset = 0
 
@@ -838,17 +869,6 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
         sfui.theme.RegisterDropdown(btn)
     end
 
-    menu:HookScript("OnShow", function()
-        if sfui.theme and sfui.theme.ApplyDropdownStyle then
-            sfui.theme.ApplyDropdownStyle(btn)
-        end
-    end)
-    menu:HookScript("OnHide", function()
-        if sfui.theme and sfui.theme.ApplyDropdownStyle then
-            sfui.theme.ApplyDropdownStyle(btn)
-        end
-    end)
-
     local MAX_VISIBLE_ROWS = 14
     local ROW_HEIGHT = 20
     local PADDING = 4
@@ -856,38 +876,33 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
     menu:SetScript("OnEvent", function(self, event, mouseButton)
         if event == "GLOBAL_MOUSE_DOWN" and (mouseButton == "LeftButton" or mouseButton == "RightButton") then
             if not self:IsShown() then return end
-            C_Timer.After(0.01, function()
-                if not self:IsShown() then return end
-                if self:IsMouseOver() then return end
-                if btn and btn:IsMouseOver() then return end
-                if self.rows then
-                    for _, r in ipairs(self.rows) do
-                        if r:IsShown() and (r:IsMouseOver() or (r.rowBtn and r.rowBtn:IsMouseOver())) then
-                            return
-                        end
-                    end
+            if self:IsMouseOver() then return end
+            if btn and btn:IsShown() and btn:IsMouseOver() then return end
+            if DoesAncestryIncludeAny and GetMouseFoci then
+                local foci = GetMouseFoci()
+                if DoesAncestryIncludeAny(self, foci) then return end
+                if btn and DoesAncestryIncludeAny(btn, foci) then return end
+            elseif GetMouseFocus and not GetMouseFoci then
+                local focus = GetMouseFocus()
+                if focus and (focus == self or focus == btn or (focus.IsDescendantOf and (focus:IsDescendantOf(self) or focus:IsDescendantOf(btn)))) then
+                    return
                 end
-                if DoesAncestryIncludeAny and GetMouseFoci then
-                    local foci = GetMouseFoci()
-                    if DoesAncestryIncludeAny(self, foci) then return end
-                    if btn and DoesAncestryIncludeAny(btn, foci) then return end
-                elseif GetMouseFocus and not GetMouseFoci then
-                    local focus = GetMouseFocus()
-                    if focus and (focus == self or focus == btn or (focus.IsDescendantOf and (focus:IsDescendantOf(self) or focus:IsDescendantOf(btn)))) then
-                        return
-                    end
-                end
-                self:Hide()
-                if activeDropdown == self then
-                    activeDropdown = nil
-                end
-            end)
+            end
+            self:Hide()
+            if activeDropdown == self then
+                activeDropdown = nil
+            end
         end
     end)
 
     menu:SetScript("OnShow", function(self)
         self:RegisterEvent("GLOBAL_MOUSE_DOWN")
-        if btn._sfuiCamelotBg and btn._sfuiCamelotBg:IsShown() then
+        if sfui.theme and sfui.theme.ApplyDropdownStyle then
+            sfui.theme.ApplyDropdownStyle(btn)
+        end
+        if sfui.theme and sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+            -- Managed by ApplyDropdownStyle
+        elseif btn._sfuiCamelotBg and btn._sfuiCamelotBg:IsShown() then
             btn._sfuiCamelotBg:SetAtlas(btn._sfuiAtlasPressed or "common-dropdown-c-button-pressed-1")
         else
             local purple = (sfui.config and sfui.config.colors and sfui.config.colors.purple) or { 0.4, 0, 1 }
@@ -900,7 +915,12 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
         if activeDropdown == self then
             activeDropdown = nil
         end
-        if btn._sfuiCamelotBg and btn._sfuiCamelotBg:IsShown() then
+        if sfui.theme and sfui.theme.ApplyDropdownStyle then
+            sfui.theme.ApplyDropdownStyle(btn)
+        end
+        if sfui.theme and sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+            -- Managed by ApplyDropdownStyle
+        elseif btn._sfuiCamelotBg and btn._sfuiCamelotBg:IsShown() then
             btn._sfuiCamelotBg:SetAtlas(btn:IsMouseOver() and (btn._sfuiAtlasHover or "common-dropdown-c-button-hover-1") or (btn._sfuiAtlasNormal or "common-dropdown-c-button"))
             local sfs = btn:GetFontString()
             if sfs then
@@ -997,10 +1017,14 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
     local function createRow(index)
         local row = CreateFrame("Frame", nil, menu)
         row:SetHeight(ROW_HEIGHT)
+        row.isDropdownOption = true
+        row.HandlesGlobalMouseEvent = HandlesGlobalMouseEvent
 
         -- 1. Main row button (Label / Click Area)
         local rowBtn = CreateFrame("Button", nil, row)
-        rowBtn:RegisterForClicks("AnyUp")
+        rowBtn.isDropdownOption = true
+        rowBtn.HandlesGlobalMouseEvent = HandlesGlobalMouseEvent
+        rowBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         rowBtn:SetHighlightTexture("Interface\\Buttons\\WHITE8x8")
         rowBtn:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.08)
 
@@ -1024,8 +1048,10 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
 
         -- 2. Delete button [X]
         local delBtn = CreateFrame("Button", nil, row, "BackdropTemplate")
+        delBtn.isDropdownOption = true
+        delBtn.HandlesGlobalMouseEvent = HandlesGlobalMouseEvent
         delBtn:SetSize(18, 16)
-        delBtn:RegisterForClicks("AnyUp")
+        delBtn:RegisterForClicks("LeftButtonUp")
         delBtn:SetNormalFontObject("GameFontHighlightSmall")
         delBtn:SetText("|cffff4444X|r")
         local delFs = delBtn:GetFontString()
@@ -1055,8 +1081,10 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
 
         -- 3. Toggle button [V] / [H]
         local tglBtn = CreateFrame("Button", nil, row, "BackdropTemplate")
+        tglBtn.isDropdownOption = true
+        tglBtn.HandlesGlobalMouseEvent = HandlesGlobalMouseEvent
         tglBtn:SetSize(22, 16)
-        tglBtn:RegisterForClicks("AnyUp")
+        tglBtn:RegisterForClicks("LeftButtonUp")
         tglBtn:SetNormalFontObject("GameFontHighlightSmall")
         local tglFs = tglBtn:GetFontString()
         if tglFs then tglFs:SetFont(fontFile, 10, "") end
@@ -1262,6 +1290,8 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
         if hasScroll then
             if not menu.scrollBar then
                 local bar = CreateFrame("Frame", nil, menu, "BackdropTemplate")
+                bar.isDropdownOption = true
+                bar.HandlesGlobalMouseEvent = HandlesGlobalMouseEvent
                 bar:SetWidth(4)
                 bar:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -2, -PADDING)
                 bar:SetPoint("BOTTOMRIGHT", menu, "BOTTOMRIGHT", -2, PADDING)
@@ -1447,6 +1477,9 @@ function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initi
     container:SetSize(width, hasLabel and 44 or 22)
 
     local btn = CreateFrame("Button", nil, container, "BackdropTemplate")
+    btn.isDropdownButton = true
+    btn.HandlesGlobalMouseEvent = HandlesGlobalMouseEvent
+    btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:SetSize(width, 22)
     btn:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
@@ -1520,6 +1553,9 @@ function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initi
 
     -- Floating dropdown menu frame
     local menu = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    menu.dropdownButton = btn
+    menu.isDropdownMenu = true
+    menu.HandlesGlobalMouseEvent = HandlesGlobalMouseEvent
     menu:SetFrameStrata("TOOLTIP")
     menu:SetFrameLevel(250)
     menu:SetClampedToScreen(true)
@@ -1534,23 +1570,18 @@ function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initi
     menu:Hide()
 
     menu:SetScript("OnEvent", function(self, event, mouseButton)
-        if event == "GLOBAL_MOUSE_DOWN" then
-            if mouseButton == "LeftButton" or mouseButton == "RightButton" then
-                if not self:IsShown() then return end
-                C_Timer.After(0.01, function()
-                    if not self:IsShown() then return end
-                    if self:IsMouseOver() then return end
-                    if btn and btn:IsMouseOver() then return end
-                    if DoesAncestryIncludeAny and GetMouseFoci then
-                        local foci = GetMouseFoci()
-                        if DoesAncestryIncludeAny(self, foci) then return end
-                        if btn and DoesAncestryIncludeAny(btn, foci) then return end
-                    end
-                    self:Hide()
-                    if activeTextureMenu == self then
-                        activeTextureMenu = nil
-                    end
-                end)
+        if event == "GLOBAL_MOUSE_DOWN" and (mouseButton == "LeftButton" or mouseButton == "RightButton") then
+            if not self:IsShown() then return end
+            if self:IsMouseOver() then return end
+            if btn and btn:IsShown() and btn:IsMouseOver() then return end
+            if DoesAncestryIncludeAny and GetMouseFoci then
+                local foci = GetMouseFoci()
+                if DoesAncestryIncludeAny(self, foci) then return end
+                if btn and DoesAncestryIncludeAny(btn, foci) then return end
+            end
+            self:Hide()
+            if activeTextureMenu == self then
+                activeTextureMenu = nil
             end
         end
     end)
@@ -1564,6 +1595,7 @@ function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initi
 
     -- Scrollbar track
     local scrollbar = CreateFrame("Frame", nil, menu, "BackdropTemplate")
+    scrollbar.HandlesGlobalMouseEvent = HandlesGlobalMouseEvent
     scrollbar:SetWidth(SCROLL_WIDTH)
     scrollbar:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -3, -PADDING)
     scrollbar:SetPoint("BOTTOMRIGHT", menu, "BOTTOMRIGHT", -3, PADDING)
@@ -1579,6 +1611,7 @@ function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initi
 
     -- Scrollbar thumb (bright yellow/gold, matching ElvUI)
     local thumb = CreateFrame("Frame", nil, scrollbar)
+    thumb.HandlesGlobalMouseEvent = HandlesGlobalMouseEvent
     thumb:SetWidth(SCROLL_WIDTH - 2)
     local thumbTex = thumb:CreateTexture(nil, "OVERLAY")
     thumbTex:SetAllPoints(thumb)
@@ -1657,6 +1690,8 @@ function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initi
     -- Create reusable row frames
     for i = 1, MAX_VISIBLE do
         local row = CreateFrame("Button", nil, menu)
+        row.isDropdownOption = true
+        row.HandlesGlobalMouseEvent = HandlesGlobalMouseEvent
         row:SetHeight(ROW_HEIGHT)
         row:SetFrameLevel(menu:GetFrameLevel() + 2)
         row:RegisterForClicks("LeftButtonUp")

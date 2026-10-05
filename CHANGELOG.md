@@ -4,6 +4,49 @@
 
 ### Features & Major Improvements
 
+- **Gear Manager Row 1 Consolidated Controls (`frames/gear/gear.lua`)**:
+  - **Unified Single-Row Layout**: Moved `pve set:` and `pvp set:` dropdowns onto the exact same row (Row 1, `y = -6`) as the quick action buttons (`[pve]`, `[pvp]`, `[auto: on/off]`).
+  - **Balanced Geometry & Spacing**: Left-aligned the PvE and PvP dropdowns (96px width each) with 12px separation, and right-aligned `autoToggle` (72px), `highPvP` (34px), and `highPvE` (34px) with crisp 4-6px spacing, maintaining an open 10px divider between groups.
+  - **Header Status Label**: Relocated `statusLabel` into `gearFrame.headerBar` right-aligned before the collapse button, displaying active gear modes cleanly without competing for body space.
+  - **Seamless Collapse Parenting**: Parented quick action buttons to `gearFrame.content` so they hide cleanly when collapsing the window to header height (`HEADER_H`).
+
+- **Gear Manager Spec & Naked Icon Buttons in Classic & Camelot (`frames/gear/gear.lua`)**:
+  - **Large 28x28 Icon Buttons with 4px Spacing**: Configured Row 2B role and `naked` buttons as large 28x28 square icons separated by a clean 4px gap, utilizing cropped textures `(0.08, 0.92, 0.08, 0.92)` and crisp 1px borders vertically centered at `y = -56`.
+  - **Easily Adjustable Layout Parameters**: Centralized `ROLE_ICON_SIZE` (28), `ROLE_ICON_SPACING` (4), and `ROLE_ICON_Y` (-56) at the head of the role layout section, eliminating hardcoded offsets and enabling effortless manual tuning.
+  - **Authentic Form & Spec Icons**:
+    - **Druid**: Dedicated form icons for `cat` (`Ability_Druid_CatForm`), `bear` (`Ability_Racial_BearForm`), `moon` (Balance Starfall), and `resto` (Healing Touch).
+    - **Other Classes**: Authentic 3-tree spec icons across Paladin, Warrior, Shaman, Priest, Rogue, Mage, Warlock, and Hunter.
+    - **Naked Mode**: Matching 28x28 Blizzard wardrobe chest silhouette icon (`Interface\Icons\inv_chest_cloth_17`) anchored seamlessly after the active role buttons.
+  - **Desaturation & Alpha States**: Inactive buttons are desaturated at `0.40` alpha; active selected spec/role buttons illuminate at full saturation and `1.0` alpha with theme accent or role color border highlights (e.g. amber for active naked mode).
+  - **Lowercase Tooltips**: Maintained concise, lowercase tooltip naming convention (`cat`, `bear`, `moon`, `resto`, `prot`, `ret`, `naked (unequip gear)`, etc.) without any appended "role" suffix, providing clean configuration guides on mouseover.
+
+- **Classic / Camelot Stat Cleanse (`data/stats.lua`, `frames/gear/gear.lua`)**:
+  - **Removed Non-Existent Stats**: Removed Armor Penetration (`ArP`) and Expertise (`Exp`) from all Classic and Camelot stat orders and default role priorities across Warrior, Paladin, Hunter, Rogue, and Druid (cat) definitions, ensuring 100% authentic Vanilla / Camelot stat prioritization.
+  - **SavedVariables Sanitization**: Dynamically scrubs legacy `ArP` and `Exp` tokens from character `stat_order` tables upon load, backfilling with valid secondary/defensive stats from the class stat pool.
+
+- **Gear Manager Spec Icon Tab Suppression in Camelot & Vanilla (`frames/gear/gear.lua`)**:
+  - **Spec Icon Hidden in Classic & Camelot**: Suppressed redundant header spec icon buttons (`tabBtns`) in Camelot and Vanilla since all specializations and roles are now managed and differentiated directly via the row 2B shorthand buttons (`prot`, `ret`, `holy`, `cat`, `bear`, `moon`, `resto`, `naked`, etc.).
+  - **Compact Header Height**: Reduced `HEADER_H` from 56 to 34 in Classic / Vanilla, eliminating empty dead space and cleanly anchoring the content container directly beneath the title bar (collapsed height 34, expanded height 210).
+  - **Class Spec Sync**: Clicking any shorthand role button on row 2B automatically propagates and synchronizes the selected role and default stat orders across all spec entries for that class in Classic.
+
+- **Gear Manager Classic Shorthand Spec Roles (`frames/gear/gear.lua`, `frames/gear/highest.lua`, `core/bridge.lua`, `data/stats.lua`, `core/talents.lua`)**:
+  - **Class-Specific Lowercase Shorthand Buttons**: Added dedicated, strictly lowercase shorthand role/spec buttons across all 9 classes in Classic / Camelot:
+    - **Paladin**: `prot`, `ret`, `holy`, `naked`
+    - **Warrior**: `arms`, `fury`, `prot`, `naked`
+    - **Druid**: `cat`, `bear`, `moon`, `resto`, `naked`
+    - **Shaman**: `ele`, `enh`, `resto`, `naked`
+    - **Priest**: `disc`, `holy`, `shad`, `naked`
+    - **Rogue**: `sin`, `combat`, `sub`, `naked`
+    - **Mage**: `arc`, `fire`, `frost`, `naked`
+    - **Warlock**: `aff`, `demo`, `destro`, `naked`
+    - **Hunter**: `bm`, `mm`, `surv`, `naked`
+  - **Dynamic Naked Button Placement**: Anchored the `naked` button dynamically after the last active role button for all classes across Row 2B.
+  - **Spec & Role Scoring Integration**: Mapped each shorthand role to its tailored stat order, item scoring rules, weapon allowances, and stat pools.
+  - **Case-Insensitive Role Normalization**: Fully backwards-compatible with legacy role storage (`DPS`, `TANK`, `HEAL`, uppercase keys), automatically resolving and mapping to canonical lowercase shorthands.
+
+- **Dropdown Menu Global Interaction Fix (`core/widgets.lua`)**:
+  - **Dropdown Click & Dismissal**: Resolved dropdown menus failing to open or close by updating theme hooks to handle outside clicks synchronously and fixing menu frame level and visibility state.
+
 - **Auto-Gear Engine & Classic Ammo Integration (`frames/gear/highest.lua`, `frames/gear/gear.lua`)**:
   - **Identical Ammo Swap & Loop Prevention**: Fixed an issue where the auto-gear engine repeatedly queued and swapped identical ammo stacks from bags into the ammo slot (slot 0). Added candidate sorting tie-breakers that always favor currently equipped items on equal scores and identical item ID guards in `EquipHighestILvl`.
   - **Ranged Weapon Ammo Compatibility**: Ranged weapons (slot 18) are now resolved prior to the ammo slot, strictly enforcing weapon-matching ammo types (Arrows for Bows/Crossbows, Bullets for Guns, none for Thrown weapons/Wands/Relics, and honoring `C_PaperDollInfo.AmmoNeeded()`).

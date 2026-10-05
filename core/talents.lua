@@ -240,9 +240,10 @@ function sfui.talents.get_spec_role(specIDorIndex)
         if sdb.role and sdb.role ~= "" and sdb.role ~= "NONE" then
             return sdb.role
         elseif sdb.classic_role then
-            if sdb.classic_role == "TANK" then return "TANK"
-            elseif sdb.classic_role == "HEAL" then return "HEALER"
-            elseif sdb.classic_role == "DPS" then return "DAMAGER"
+            local cr = sdb.classic_role:lower()
+            if cr == "tank" or cr == "bear" or cr == "prot" then return "TANK"
+            elseif cr == "heal" or cr == "resto" or cr == "holy" or cr == "disc" then return "HEALER"
+            else return "DAMAGER"
             end
         elseif sdb.is_tank or sdb.armor_ilvl_prio then
             return "TANK"

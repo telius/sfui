@@ -34,7 +34,8 @@ local wipe = _G.wipe or function(t)
 end
 local unpack = _G.unpack or _G.table.unpack
 local GetInventoryItemLink = _G.GetInventoryItemLink
-local GetItemInfoInstant = (_G.C_Item and _G.C_Item.GetItemInfoInstant) or _G.GetItemInfoInstant or sfui.common.get_item_id
+local GetItemInfoInstant = (_G.C_Item and _G.C_Item.GetItemInfoInstant) or _G.GetItemInfoInstant or
+sfui.common.get_item_id
 local GetItemInfo = (_G.C_Item and _G.C_Item.GetItemInfo) or _G.GetItemInfo
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local GetInventoryItemDurability = _G.GetInventoryItemDurability
@@ -506,18 +507,177 @@ local statBgColors              = setmetatable({
 
 -- Unified PvE / PvP lock colors (used for labels, buttons, tooltips)
 local PVE_COLOR                 = { 0.45, 0.65, 1.0 } -- blue
-local PVP_COLOR                 = { 1.0, 0.4, 0.4 } -- red
+local PVP_COLOR                 = { 1.0, 0.4, 0.4 }   -- red
 local BOTH_COLOR                = { 0.72, 0.52, 1.0 } -- purple
 
 sfui.gear.TANK_SPECS            = sfui.gear.TANK_SPECS or {}
 
 sfui.gear.CLASSIC_ROLES_BY_SPEC = {
-    [1484] = { "DPS", "HEAL", "TANK" }, -- Druid
-    [1486] = { "DPS", "HEAL", "TANK" }, -- Paladin
-    [1487] = { "DPS", "HEAL" },         -- Priest
-    [1489] = { "DPS", "HEAL" },         -- Shaman
-    [1491] = { "DPS", "TANK" },         -- Warrior
+    -- Druid
+    [1484]  = { "cat", "bear", "moon", "resto" },
+    [14841] = { "cat", "bear", "moon", "resto" },
+    [14842] = { "cat", "bear", "moon", "resto" },
+    [14843] = { "cat", "bear", "moon", "resto" },
+    -- Paladin
+    [1486]  = { "prot", "ret", "holy" },
+    [14861] = { "prot", "ret", "holy" },
+    [14862] = { "prot", "ret", "holy" },
+    [14863] = { "prot", "ret", "holy" },
+    -- Warrior
+    [1491]  = { "arms", "fury", "prot" },
+    [14911] = { "arms", "fury", "prot" },
+    [14912] = { "arms", "fury", "prot" },
+    [14913] = { "arms", "fury", "prot" },
+    -- Shaman
+    [1489]  = { "ele", "enh", "resto" },
+    [14891] = { "ele", "enh", "resto" },
+    [14892] = { "ele", "enh", "resto" },
+    [14893] = { "ele", "enh", "resto" },
+    -- Priest
+    [1487]  = { "disc", "holy", "shad" },
+    [14871] = { "disc", "holy", "shad" },
+    [14872] = { "disc", "holy", "shad" },
+    [14873] = { "disc", "holy", "shad" },
+    -- Rogue
+    [1488]  = { "sin", "combat", "sub" },
+    [14881] = { "sin", "combat", "sub" },
+    [14882] = { "sin", "combat", "sub" },
+    [14883] = { "sin", "combat", "sub" },
+    -- Mage
+    [1482]  = { "arc", "fire", "frost" },
+    [14821] = { "arc", "fire", "frost" },
+    [14822] = { "arc", "fire", "frost" },
+    [14823] = { "arc", "fire", "frost" },
+    -- Warlock
+    [1490]  = { "aff", "demo", "destro" },
+    [14901] = { "aff", "demo", "destro" },
+    [14902] = { "aff", "demo", "destro" },
+    [14903] = { "aff", "demo", "destro" },
+    -- Hunter
+    [1485]  = { "bm", "mm", "surv" },
+    [14851] = { "bm", "mm", "surv" },
+    [14852] = { "bm", "mm", "surv" },
+    [14853] = { "bm", "mm", "surv" },
 }
+
+sfui.gear.CLASSIC_ROLE_ICONS    = {
+    -- Druid
+    [1484]  = { cat = "Interface\\Icons\\Ability_Druid_CatForm", bear = "Interface\\Icons\\Ability_Racial_BearForm", moon = 136096, resto = 136041 },
+    [14841] = { cat = "Interface\\Icons\\Ability_Druid_CatForm", bear = "Interface\\Icons\\Ability_Racial_BearForm", moon = 136096, resto = 136041 },
+    [14842] = { cat = "Interface\\Icons\\Ability_Druid_CatForm", bear = "Interface\\Icons\\Ability_Racial_BearForm", moon = 136096, resto = 136041 },
+    [14843] = { cat = "Interface\\Icons\\Ability_Druid_CatForm", bear = "Interface\\Icons\\Ability_Racial_BearForm", moon = 136096, resto = 136041 },
+    [11]    = { cat = "Interface\\Icons\\Ability_Druid_CatForm", bear = "Interface\\Icons\\Ability_Racial_BearForm", moon = 136096, resto = 136041 },
+    -- Paladin
+    [1486]  = { prot = 236264, ret = 135873, holy = 135920 },
+    [14861] = { prot = 236264, ret = 135873, holy = 135920 },
+    [14862] = { prot = 236264, ret = 135873, holy = 135920 },
+    [14863] = { prot = 236264, ret = 135873, holy = 135920 },
+    [2]     = { prot = 236264, ret = 135873, holy = 135920 },
+    -- Warrior
+    [1491]  = { arms = 132355, fury = 132347, prot = 132341 },
+    [14911] = { arms = 132355, fury = 132347, prot = 132341 },
+    [14912] = { arms = 132355, fury = 132347, prot = 132341 },
+    [14913] = { arms = 132355, fury = 132347, prot = 132341 },
+    [1]     = { arms = 132355, fury = 132347, prot = 132341 },
+    -- Shaman
+    [1489]  = { ele = 136048, enh = 136051, resto = 136052 },
+    [14891] = { ele = 136048, enh = 136051, resto = 136052 },
+    [14892] = { ele = 136048, enh = 136051, resto = 136052 },
+    [14893] = { ele = 136048, enh = 136051, resto = 136052 },
+    [7]     = { ele = 136048, enh = 136051, resto = 136052 },
+    -- Priest
+    [1487]  = { disc = 135940, holy = 237542, shad = 136207, shadow = 136207 },
+    [14871] = { disc = 135940, holy = 237542, shad = 136207, shadow = 136207 },
+    [14872] = { disc = 135940, holy = 237542, shad = 136207, shadow = 136207 },
+    [14873] = { disc = 135940, holy = 237542, shad = 136207, shadow = 136207 },
+    [5]     = { disc = 135940, holy = 237542, shad = 136207, shadow = 136207 },
+    -- Rogue
+    [1488]  = { sin = 132292, combat = 132309, sub = 132320 },
+    [14881] = { sin = 132292, combat = 132309, sub = 132320 },
+    [14882] = { sin = 132292, combat = 132309, sub = 132320 },
+    [14883] = { sin = 132292, combat = 132309, sub = 132320 },
+    [4]     = { sin = 132292, combat = 132309, sub = 132320 },
+    -- Mage
+    [1482]  = { arc = 135932, fire = 135810, frost = 135846 },
+    [14821] = { arc = 135932, fire = 135810, frost = 135846 },
+    [14822] = { arc = 135932, fire = 135810, frost = 135846 },
+    [14823] = { arc = 135932, fire = 135810, frost = 135846 },
+    [8]     = { arc = 135932, fire = 135810, frost = 135846 },
+    -- Warlock
+    [1490]  = { aff = 136145, demo = 136172, destro = 136186 },
+    [14901] = { aff = 136145, demo = 136172, destro = 136186 },
+    [14902] = { aff = 136145, demo = 136172, destro = 136186 },
+    [14903] = { aff = 136145, demo = 136172, destro = 136186 },
+    [9]     = { aff = 136145, demo = 136172, destro = 136186 },
+    -- Hunter
+    [1485]  = { bm = 132222, mm = 132218, surv = 132215 },
+    [14851] = { bm = 132222, mm = 132218, surv = 132215 },
+    [14852] = { bm = 132222, mm = 132218, surv = 132215 },
+    [14853] = { bm = 132222, mm = 132218, surv = 132215 },
+    [3]     = { bm = 132222, mm = 132218, surv = 132215 },
+}
+
+function sfui.gear.GetClassicRoleIcon(classID, roleKey)
+    local rLow = roleKey and roleKey:lower()
+    local icons = sfui.gear.CLASSIC_ROLE_ICONS
+    if classID and icons[classID] and icons[classID][rLow] then
+        return icons[classID][rLow]
+    end
+    if rLow == "cat" then
+        return "Interface\\Icons\\Ability_Druid_CatForm"
+    elseif rLow == "bear" then
+        return "Interface\\Icons\\Ability_Racial_BearForm"
+    elseif rLow == "moon" then
+        return 136096
+    elseif rLow == "resto" then
+        return 136041
+    elseif rLow == "prot" or rLow == "tank" then
+        return 132341
+    elseif rLow == "holy" or rLow == "heal" then
+        return 135920
+    elseif rLow == "ret" then
+        return 135873
+    elseif rLow == "arms" or rLow == "dps" then
+        return 132355
+    elseif rLow == "fury" then
+        return 132347
+    elseif rLow == "ele" then
+        return 136048
+    elseif rLow == "enh" then
+        return 136051
+    elseif rLow == "disc" then
+        return 135940
+    elseif rLow == "shad" or rLow == "shadow" then
+        return 136207
+    elseif rLow == "sin" then
+        return 132292
+    elseif rLow == "combat" then
+        return 132309
+    elseif rLow == "sub" then
+        return 132320
+    elseif rLow == "arc" then
+        return 135932
+    elseif rLow == "fire" then
+        return 135810
+    elseif rLow == "frost" then
+        return 135846
+    elseif rLow == "aff" then
+        return 136145
+    elseif rLow == "demo" then
+        return 136172
+    elseif rLow == "destro" then
+        return 136186
+    elseif rLow == "bm" then
+        return 132222
+    elseif rLow == "mm" then
+        return 132218
+    elseif rLow == "surv" then
+        return 132215
+    elseif rLow == "naked" then
+        return "Interface\\Icons\\inv_chest_cloth_17"
+    end
+    return 132355
+end
 
 -- Authoritative stat, role, and spec queries are provided directly by data/stats.lua & frames/gear/engine.lua
 
@@ -614,7 +774,7 @@ local function updateIconRow(icons, lockTbl, forPvP, specID)
                 or equipLoc == "INVTYPE_SHIELD" or equipLoc == "INVTYPE_HOLDABLE"
         elseif category == "RANGED" then
             return equipLoc == "INVTYPE_RANGED" or equipLoc == "INVTYPE_RANGEDRIGHT" or equipLoc == "INVTYPE_THROWN" or
-            equipLoc == "INVTYPE_RELIC"
+                equipLoc == "INVTYPE_RELIC"
         elseif category == "AMMO" then
             return equipLoc == "INVTYPE_AMMO"
         end
@@ -713,22 +873,28 @@ function sfui.gear.UpdateStatUI()
         end
     end
 
-    -- Refresh tab button icons and borders
+    -- Refresh tab button icons and borders (Retail only; spec icons hidden in Camelot & Vanilla)
     if SfuiGearManagerFrame and SfuiGearManagerFrame.tabBtns then
-        local p = sfui.theme.GetPalette()
-        local accent = p and p.accentColor or { 0, 0.8, 1 }
-        local curSpec = SfuiGearManagerFrame.activeSpecID or common.get_current_spec_id()
-        for id, btn in pairs(SfuiGearManagerFrame.tabBtns) do
-            if btn.tex then
-                local ic = common.get_spec_icon(id)
-                if ic then btn.tex:SetTexture(ic) end
+        if not sfui.isRetail then
+            for _, btn in pairs(SfuiGearManagerFrame.tabBtns) do
+                btn:Hide()
             end
-            if id == curSpec then
-                btn:SetAlpha(1.0)
-                btn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1.0)
-            else
-                btn:SetAlpha(0.40)
-                btn:SetBackdropBorderColor(0, 0, 0, 0.8)
+        else
+            local p = sfui.theme.GetPalette()
+            local accent = p and p.accentColor or { 0, 0.8, 1 }
+            local curSpec = SfuiGearManagerFrame.activeSpecID or common.get_current_spec_id()
+            for id, btn in pairs(SfuiGearManagerFrame.tabBtns) do
+                if btn.tex then
+                    local ic = common.get_spec_icon(id)
+                    if ic then btn.tex:SetTexture(ic) end
+                end
+                if id == curSpec then
+                    btn:SetAlpha(1.0)
+                    btn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1.0)
+                else
+                    btn:SetAlpha(0.40)
+                    btn:SetBackdropBorderColor(0, 0, 0, 0.8)
+                end
             end
         end
     end
@@ -889,9 +1055,27 @@ function sfui.gear.UpdateStatUI()
             end
             if ui.roleBtns then
                 local curRole = sfui.gear.GetClassicRole(specID, db)
+                local curRoleLower = curRole and curRole:lower()
                 for rKey, rBtn in pairs(ui.roleBtns) do
-                    local isSelected = (curRole == rKey)
-                    if useAH then
+                    local isSelected = (curRoleLower == (rKey and rKey:lower()))
+                    rBtn.isSelected = isSelected
+                    if rBtn.tex then
+                        rBtn.tex:SetDesaturated(not isSelected)
+                        rBtn:SetAlpha(isSelected and 1.0 or 0.40)
+                        if isSelected then
+                            local c = rBtn.roleColor or { 0.95, 0.85, 0.55 }
+                            rBtn:SetBackdropBorderColor(c[1], c[2], c[3], 1.0)
+                            rBtn:SetBackdropColor(c[1] * 0.25, c[2] * 0.25, c[3] * 0.25, 0.9)
+                        else
+                            local isCamelotTheme = sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
+                            if isCamelotTheme then
+                                rBtn:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
+                            else
+                                rBtn:SetBackdropBorderColor(0, 0, 0, 0.8)
+                            end
+                            rBtn:SetBackdropColor(0, 0, 0, 0.7)
+                        end
+                    elseif useAH then
                         sfui.theme.SetButtonSelected(rBtn, isSelected)
                         rBtn:SetBackdropColor(0, 0, 0, 0)
                         rBtn:SetBackdropBorderColor(0, 0, 0, 0)
@@ -928,7 +1112,23 @@ function sfui.gear.UpdateStatUI()
             end
             if ui.btnNaked then
                 local isNaked = nakedPaused
-                if useAH then
+                ui.btnNaked.isSelected = isNaked
+                if ui.btnNaked.tex then
+                    ui.btnNaked.tex:SetDesaturated(not isNaked)
+                    ui.btnNaked:SetAlpha(isNaked and 1.0 or 0.40)
+                    if isNaked then
+                        ui.btnNaked:SetBackdropBorderColor(1.0, 0.65, 0.2, 1.0)
+                        ui.btnNaked:SetBackdropColor(0.35, 0.2, 0.05, 0.9)
+                    else
+                        local isCamelotTheme = sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
+                        if isCamelotTheme then
+                            ui.btnNaked:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
+                        else
+                            ui.btnNaked:SetBackdropBorderColor(0, 0, 0, 0.8)
+                        end
+                        ui.btnNaked:SetBackdropColor(0, 0, 0, 0.7)
+                    end
+                elseif useAH then
                     sfui.theme.SetButtonSelected(ui.btnNaked, isNaked)
                     ui.btnNaked:SetBackdropColor(0, 0, 0, 0)
                     ui.btnNaked:SetBackdropBorderColor(0, 0, 0, 0)
@@ -1011,10 +1211,12 @@ function sfui.gear.UpdateStatUI()
                     if not st or (not isTank and DEFENSIVE_STATS[st]) then
                         for _, cand in ipairs(pool) do
                             local inUse = false
-                            for k = 1, #order do if order[k] == cand then
+                            for k = 1, #order do
+                                if order[k] == cand then
                                     inUse = true
                                     break
-                                end end
+                                end
+                            end
                             if not inUse then
                                 st = cand
                                 break
@@ -1396,7 +1598,7 @@ gearFrame:SetScript("OnDragStop", function(self)
         y = yOfs
     }
 end)
-local HEADER_H = 56
+local HEADER_H = (not sfui.isRetail) and 34 or 56
 
 sfui.theme.ApplyWindowStyle(gearFrame)
 sfui.theme.RegisterWindow(gearFrame, function(frame, pal)
@@ -1419,7 +1621,7 @@ sfui.theme.RegisterWindow(gearFrame, function(frame, pal)
             end
         end
     end
-    if frame.tabBtns and frame.activeSpecID then
+    if sfui.isRetail and frame.tabBtns and frame.activeSpecID then
         local accent = pal and pal.accentColor or { 0, 0.8, 1 }
         for id, btn in pairs(frame.tabBtns) do
             if id == frame.activeSpecID then
@@ -1530,9 +1732,10 @@ local function mkLabel(parent, txt, r, g, b)
     return fs
 end
 
--- Row 2 Quick Controls: Auto-Equip Toggle & Quick Equip Buttons
-local autoToggle = common.create_flat_button(gearFrame, "auto: off", 72, 20)
-autoToggle:SetPoint("TOPRIGHT", gearFrame, "TOPRIGHT", -10, -31)
+-- Quick Controls: Auto-Equip Toggle & Quick Equip Buttons (Row 1 of content)
+local autoToggle = common.create_flat_button(gearFrame.content, "auto: off", 72, 20)
+autoToggle:SetPoint("TOPRIGHT", gearFrame.content, "TOPRIGHT", -10, -6)
+autoToggle:SetFrameLevel(gearFrame.content:GetFrameLevel() + 5)
 function autoToggle:UpdateState(enabled)
     local useAH = sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive()
     if enabled then
@@ -1601,8 +1804,9 @@ gearFrame.autoToggle = autoToggle
 gearFrame.enableChk = autoToggle
 gearFrame.maxLvlChk = autoToggle
 
-gearFrame.highPvP = common.create_flat_button(gearFrame, "pvp", 36, 20)
-gearFrame.highPvP:SetPoint("RIGHT", gearFrame.autoToggle, "LEFT", -6, 0)
+gearFrame.highPvP = common.create_flat_button(gearFrame.content, "pvp", 34, 20)
+gearFrame.highPvP:SetPoint("RIGHT", autoToggle, "LEFT", -6, 0)
+gearFrame.highPvP:SetFrameLevel(gearFrame.content:GetFrameLevel() + 5)
 gearFrame.highPvP:SetScript("OnClick", function()
     if sfui.gear.SetNakedPaused then sfui.gear.SetNakedPaused(false, true) end
     if sfui.gear.pauseAutoEquip then sfui.gear.pauseAutoEquip(0) end
@@ -1615,8 +1819,9 @@ gearFrame.highPvP:SetScript("OnEnter", function(b)
 end)
 gearFrame.highPvP:SetScript("OnLeave", function() hide_tooltip() end)
 
-gearFrame.highPvE = common.create_flat_button(gearFrame, "pve", 36, 20)
+gearFrame.highPvE = common.create_flat_button(gearFrame.content, "pve", 34, 20)
 gearFrame.highPvE:SetPoint("RIGHT", gearFrame.highPvP, "LEFT", -4, 0)
+gearFrame.highPvE:SetFrameLevel(gearFrame.content:GetFrameLevel() + 5)
 gearFrame.highPvE:SetScript("OnClick", function()
     if sfui.gear.SetNakedPaused then sfui.gear.SetNakedPaused(false, true) end
     if sfui.gear.pauseAutoEquip then sfui.gear.pauseAutoEquip(0) end
@@ -1629,9 +1834,9 @@ gearFrame.highPvE:SetScript("OnEnter", function(b)
 end)
 gearFrame.highPvE:SetScript("OnLeave", function() hide_tooltip() end)
 
-gearFrame.statusLabel = gearFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-gearFrame.statusLabel:SetPoint("LEFT", gearFrame, "TOPLEFT", 120, -41)
-gearFrame.statusLabel:SetPoint("RIGHT", gearFrame.highPvE, "LEFT", -8, 0)
+gearFrame.statusLabel = gearFrame.headerBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+gearFrame.statusLabel:SetPoint("LEFT", gearFrame.headerBar, "LEFT", 110, 0)
+gearFrame.statusLabel:SetPoint("RIGHT", gearFrame.collapseBtn, "LEFT", -8, 0)
 gearFrame.statusLabel:SetJustifyH("RIGHT")
 gearFrame.statusLabel:SetShadowOffset(0, 0)
 gearFrame.statusLabel:SetText("")
@@ -1723,7 +1928,7 @@ function sfui.gear.UnequipDurabilityItems()
 
     -- 1. Weapons and clothing / armor slots that constitute "naked"
     local nakedSlots = {
-        16, 17, 18,              -- Weapons: Main Hand, Off Hand, Ranged (always unequipped even if starter/no-durability)
+        16, 17, 18,                         -- Weapons: Main Hand, Off Hand, Ranged (always unequipped even if starter/no-durability)
         1, 3, 4, 5, 6, 7, 8, 9, 10, 15, 19, -- Armor & clothing: Head, Shoulders, Shirt, Chest, Waist, Legs, Feet, Wrists, Hands, Cloak, Tabard
     }
     for _, slot in ipairs(nakedSlots) do
@@ -1888,14 +2093,14 @@ gearFrame:SetScript("OnShow", function(self)
         sfui.gear.UpdateStatUI()
         return
     end
-    self.initialized = true
-    self.specUIs = {}
+    self.initialized      = true
+    self.specUIs          = {}
 
-    local _, specIDs = common.get_player_specs()
+    local _, specIDs      = common.get_player_specs()
     specIDs               = specIDs or {}
 
     local isVanilla       = not sfui.isRetail
-    local HEADER_H        = 56
+    local HEADER_H        = isVanilla and 34 or 56
     local activeSpecId    = common.get_current_spec_id() or (specIDs and specIDs[1])
     local isActiveVanilla = not sfui.isRetail
     local CARD_H          = isActiveVanilla and 168 or 140
@@ -1930,13 +2135,13 @@ gearFrame:SetScript("OnShow", function(self)
         for id, ui in pairs(f.specUIs) do
             if id == specID then
                 if ui.card then ui.card:Show() end
-                if f.tabBtns[id] then
+                if sfui.isRetail and f.tabBtns and f.tabBtns[id] then
                     f.tabBtns[id]:SetAlpha(1.0)
                     f.tabBtns[id]:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1.0)
                 end
             else
                 if ui.card then ui.card:Hide() end
-                if f.tabBtns[id] then
+                if sfui.isRetail and f.tabBtns and f.tabBtns[id] then
                     f.tabBtns[id]:SetAlpha(0.40)
                     local isCamelot = sfui.theme.IsCamelotActive()
                     if isCamelot then
@@ -1950,40 +2155,49 @@ gearFrame:SetScript("OnShow", function(self)
         sfui.gear.UpdateStatUI()
     end
 
-    local startX = 12
-    for _, id in ipairs(specIDs or {}) do
-        local icon = common.get_spec_icon(id)
-        if id and icon then
-            local btn = CreateFrame("Button", nil, self, "BackdropTemplate")
-            btn:SetSize(22, 22)
-            btn:SetPoint("TOPLEFT", self, "TOPLEFT", startX, -30)
-            local t = btn:CreateTexture(nil, "ARTWORK")
-            t:SetAllPoints()
-            t:SetTexture(icon)
-            t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-            btn.tex = t
-            btn:SetBackdrop({
-                bgFile = "Interface\\Buttons\\WHITE8x8",
-                edgeFile = "Interface\\Buttons\\WHITE8x8",
-                edgeSize = 1,
-            })
-            local isCamelot = sfui.theme.IsCamelotActive()
-            btn:SetBackdropColor(0, 0, 0, 0.7)
-            btn:SetBackdropBorderColor(isCamelot and 0.28 or 0, isCamelot and 0.22 or 0, isCamelot and 0.14 or 0, 0.85)
-            btn:SetScript("OnClick", function() self:SelectSpecTab(id) end)
-            btn:SetScript("OnEnter", function(b)
-                b:SetAlpha(1.0)
-                local specName = common.get_spec_name(id)
-                show_tooltip(b, "ANCHOR_TOP", (specName and specName:lower()) or "specialization")
-            end)
-            btn:SetScript("OnLeave", function(b)
-                if self.activeSpecID ~= id then
-                    b:SetAlpha(0.40)
-                end
-                hide_tooltip()
-            end)
-            self.tabBtns[id] = btn
-            startX = startX + 26
+    if sfui.isRetail then
+        local startX = 12
+        for _, id in ipairs(specIDs or {}) do
+            local icon = common.get_spec_icon(id)
+            if id and icon then
+                local btn = CreateFrame("Button", nil, self, "BackdropTemplate")
+                btn:SetSize(22, 22)
+                btn:SetPoint("TOPLEFT", self, "TOPLEFT", startX, -30)
+                local t = btn:CreateTexture(nil, "ARTWORK")
+                t:SetAllPoints()
+                t:SetTexture(icon)
+                t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                btn.tex = t
+                btn:SetBackdrop({
+                    bgFile = "Interface\\Buttons\\WHITE8x8",
+                    edgeFile = "Interface\\Buttons\\WHITE8x8",
+                    edgeSize = 1,
+                })
+                local isCamelot = sfui.theme.IsCamelotActive()
+                btn:SetBackdropColor(0, 0, 0, 0.7)
+                btn:SetBackdropBorderColor(isCamelot and 0.28 or 0, isCamelot and 0.22 or 0, isCamelot and 0.14 or 0,
+                    0.85)
+                btn:SetScript("OnClick", function() self:SelectSpecTab(id) end)
+                btn:SetScript("OnEnter", function(b)
+                    b:SetAlpha(1.0)
+                    local specName = common.get_spec_name(id)
+                    show_tooltip(b, "ANCHOR_TOP", (specName and specName:lower()) or "specialization")
+                end)
+                btn:SetScript("OnLeave", function(b)
+                    if self.activeSpecID ~= id then
+                        b:SetAlpha(0.40)
+                    end
+                    hide_tooltip()
+                end)
+                self.tabBtns[id] = btn
+                startX = startX + 26
+            end
+        end
+    else
+        if self.tabBtns then
+            for _, btn in pairs(self.tabBtns) do
+                btn:Hide()
+            end
         end
     end
 
@@ -2042,31 +2256,32 @@ gearFrame:SetScript("OnShow", function(self)
         -- Spec container inside self.content (seamless, no nested border)
         local card = CreateFrame("Frame", nil, self.content)
         card:SetAllPoints(self.content)
+        card:SetFrameLevel(self.content:GetFrameLevel() + 1)
         ui.card = card
 
-        -- ROW 1 (y = -6, height = 20): pve / pvp sets
+        -- ROW 1 (y = -6, height = 20): pve / pvp sets (dropdowns on left, quick equip & auto buttons on right)
         local pveTag = mkLabel(card, "pve set:", 0.82, 0.72, 0.52)
         pveTag:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -11)
 
-        local pveDrop = common.create_dropdown(card, 140, GetEquipmentSetOptions, function(val)
+        local pveDrop = common.create_dropdown(card, 96, GetEquipmentSetOptions, function(val)
             SfuiDB.gear[id] = SfuiDB.gear[id] or { pve_set = "", pvp_set = "" }
             SfuiDB.gear[id].pve_set = val
             sfui.gear.Update()
             sfui.gear.UpdateStatUI()
         end, "")
-        pveDrop:SetPoint("TOPLEFT", card, "TOPLEFT", 66, -6)
+        pveDrop:SetPoint("TOPLEFT", card, "TOPLEFT", 58, -6)
         ui.pveDrop = pveDrop
 
         local pvpTag = mkLabel(card, "pvp set:", 0.95, 0.55, 0.55)
-        pvpTag:SetPoint("TOPLEFT", card, "TOPLEFT", 236, -11)
+        pvpTag:SetPoint("TOPLEFT", card, "TOPLEFT", 166, -11)
 
-        local pvpDrop = common.create_dropdown(card, 140, GetEquipmentSetOptions, function(val)
+        local pvpDrop = common.create_dropdown(card, 96, GetEquipmentSetOptions, function(val)
             SfuiDB.gear[id] = SfuiDB.gear[id] or { pve_set = "", pvp_set = "" }
             SfuiDB.gear[id].pvp_set = val
             sfui.gear.Update()
             sfui.gear.UpdateStatUI()
         end, "")
-        pvpDrop:SetPoint("TOPLEFT", card, "TOPLEFT", 292, -6)
+        pvpDrop:SetPoint("TOPLEFT", card, "TOPLEFT", 214, -6)
         ui.pvpDrop = pvpDrop
 
         -- ROW 2: Lock Slots & Build Modifiers (3-tier layout)
@@ -2311,7 +2526,7 @@ gearFrame:SetScript("OnShow", function(self)
                 if newTank then
                     local defOrder = sfui.gear.GetDefaultStats(numID, "TANK")
                     SfuiDB.gear[id].stat_order = defOrder and { unpack(defOrder) } or
-                    { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "Hit", "Str" }
+                        { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "Hit", "Str" }
                 else
                     SfuiDB.gear[id].stat_order = nil
                 end
@@ -2341,32 +2556,101 @@ gearFrame:SetScript("OnShow", function(self)
         local classID = sfui.gear.GetClassicClassID(numID) or numID
         roleEquipTimer = nil
         local classicRoles = not sfui.isRetail and sfui.gear.CLASSIC_ROLES_BY_SPEC and
-        (sfui.gear.CLASSIC_ROLES_BY_SPEC[numID] or (classID and sfui.gear.CLASSIC_ROLES_BY_SPEC[classID]))
-        local curX = math.max(274, curLockX + 8)
+            (sfui.gear.CLASSIC_ROLES_BY_SPEC[numID] or (classID and sfui.gear.CLASSIC_ROLES_BY_SPEC[classID]))
+        -- Role and naked icon styling parameters (easily adjustable size & spacing)
+        local ROLE_ICON_SIZE    = 28
+        local ROLE_ICON_SPACING = 4
+        local ROLE_ICON_Y       = -56
+
+        local curX = math.max(268, curLockX + 8)
+        local lastRoleBtn = nil
         if classicRoles then
             ui.roleBtns = {}
             local roleColors = {
-                ["TANK"] = { 0.4, 0.7, 1.0 },
-                ["HEAL"] = { 0.3, 1.0, 0.4 },
-                ["DPS"]  = { 1.0, 0.4, 0.3 },
+                ["tank"]   = { 0.4, 0.7, 1.0 },
+                ["bear"]   = { 0.4, 0.7, 1.0 },
+                ["prot"]   = { 0.4, 0.7, 1.0 },
+                ["heal"]   = { 0.3, 1.0, 0.4 },
+                ["resto"]  = { 0.3, 1.0, 0.4 },
+                ["holy"]   = { 0.3, 1.0, 0.4 },
+                ["disc"]   = { 0.90, 0.90, 0.95 },
+                ["dps"]    = { 1.0, 0.4, 0.3 },
+                ["cat"]    = { 1.0, 0.49, 0.04 },
+                ["moon"]   = { 0.40, 0.75, 1.0 },
+                ["ret"]    = { 0.96, 0.55, 0.73 },
+                ["arms"]   = { 0.78, 0.61, 0.43 },
+                ["fury"]   = { 1.0, 0.45, 0.25 },
+                ["ele"]    = { 0.0, 0.44, 0.87 },
+                ["enh"]    = { 1.0, 0.50, 0.25 },
+                ["shad"]   = { 0.60, 0.40, 0.85 },
+                ["shadow"] = { 0.60, 0.40, 0.85 },
+                ["sin"]    = { 1.0, 0.96, 0.41 },
+                ["combat"] = { 1.0, 0.82, 0.35 },
+                ["sub"]    = { 0.85, 0.70, 0.95 },
+                ["arc"]    = { 0.70, 0.50, 1.0 },
+                ["fire"]   = { 1.0, 0.40, 0.20 },
+                ["frost"]  = { 0.40, 0.75, 1.0 },
+                ["aff"]    = { 0.58, 0.51, 0.79 },
+                ["demo"]   = { 0.80, 0.40, 0.60 },
+                ["destro"] = { 1.0, 0.45, 0.20 },
+                ["bm"]     = { 0.67, 0.83, 0.45 },
+                ["mm"]     = { 0.55, 0.78, 0.40 },
+                ["surv"]   = { 0.80, 0.80, 0.50 },
             }
             local roleLabels = {
-                ["TANK"] = "tank",
-                ["HEAL"] = "heal",
-                ["DPS"]  = "dps",
-            }
-            local roleWidths = {
-                ["TANK"] = 38,
-                ["HEAL"] = 38,
-                ["DPS"]  = 36,
+                ["tank"]   = "tank",
+                ["bear"]   = "bear",
+                ["prot"]   = "prot",
+                ["heal"]   = "heal",
+                ["resto"]  = "resto",
+                ["holy"]   = "holy",
+                ["disc"]   = "disc",
+                ["dps"]    = "dps",
+                ["cat"]    = "cat",
+                ["moon"]   = "moon",
+                ["ret"]    = "ret",
+                ["arms"]   = "arms",
+                ["fury"]   = "fury",
+                ["ele"]    = "ele",
+                ["enh"]    = "enh",
+                ["shad"]   = "shad",
+                ["shadow"] = "shad",
+                ["sin"]    = "sin",
+                ["combat"] = "combat",
+                ["sub"]    = "sub",
+                ["arc"]    = "arc",
+                ["fire"]   = "fire",
+                ["frost"]  = "frost",
+                ["aff"]    = "aff",
+                ["demo"]   = "demo",
+                ["destro"] = "destro",
+                ["bm"]     = "bm",
+                ["mm"]     = "mm",
+                ["surv"]   = "surv",
             }
             for _, rKey in ipairs(classicRoles) do
                 local rLabel = roleLabels[rKey] or rKey:lower()
-                local rW = roleWidths[rKey] or 38
-                local rBtn = common.create_flat_button(card, rLabel, rW, 20)
-                rBtn:SetPoint("TOPLEFT", card, "TOPLEFT", curX, -57)
+                local rIcon = sfui.gear.GetClassicRoleIcon(classID, rKey)
+                local rBtn = CreateFrame("Button", nil, card, "BackdropTemplate")
+                rBtn:SetSize(ROLE_ICON_SIZE, ROLE_ICON_SIZE)
+                rBtn:SetPoint("TOPLEFT", card, "TOPLEFT", curX, ROLE_ICON_Y)
+                local t = rBtn:CreateTexture(nil, "ARTWORK")
+                t:SetAllPoints()
+                t:SetTexture(rIcon)
+                t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                rBtn.tex = t
+                rBtn:SetBackdrop({
+                    bgFile = "Interface\\Buttons\\WHITE8x8",
+                    edgeFile = "Interface\\Buttons\\WHITE8x8",
+                    edgeSize = 1,
+                })
+                local isCamelotTheme = sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
+                rBtn:SetBackdropColor(0, 0, 0, 0.7)
+                rBtn:SetBackdropBorderColor(isCamelotTheme and 0.28 or 0, isCamelotTheme and 0.22 or 0,
+                    isCamelotTheme and 0.14 or 0, 0.85)
+                rBtn:SetAlpha(0.40)
                 rBtn.roleKey = rKey
-                rBtn.roleColor = roleColors[rKey]
+                rBtn.roleColor = roleColors[rKey] or { 0.6, 0.6, 0.6 }
                 rBtn:SetScript("OnClick", function()
                     if sfui.gear.SetNakedPaused then sfui.gear.SetNakedPaused(false, true) end
                     if sfui.gear.pauseAutoEquip then sfui.gear.pauseAutoEquip(0) end
@@ -2374,20 +2658,13 @@ gearFrame:SetScript("OnShow", function(self)
                     local sdb = SfuiDB.gear[id]
                     sdb.user_selected_role = true
                     sdb.classic_role = rKey
-                    sdb.role = (rKey == "DPS" and "DAMAGER") or (rKey == "HEAL" and "HEALER") or "TANK"
-                    if rKey == "TANK" then
-                        sdb.is_tank = true
-                        sdb.armor_ilvl_prio = true
-                        sdb.is_healer = false
-                    elseif rKey == "HEAL" then
-                        sdb.is_tank = false
-                        sdb.armor_ilvl_prio = false
-                        sdb.is_healer = true
-                    else
-                        sdb.is_tank = false
-                        sdb.armor_ilvl_prio = false
-                        sdb.is_healer = false
-                    end
+                    local rLower = rKey:lower()
+                    local isTankRole = (rLower == "tank" or rLower == "bear" or rLower == "prot")
+                    local isHealRole = (rLower == "heal" or rLower == "resto" or rLower == "holy" or rLower == "disc")
+                    sdb.role = isTankRole and "TANK" or (isHealRole and "HEALER" or "DAMAGER")
+                    sdb.is_tank = isTankRole
+                    sdb.armor_ilvl_prio = isTankRole
+                    sdb.is_healer = isHealRole
                     local bridge = sfui.talents.SPEC_BRIDGE[id] or sfui.talents.SPEC_BRIDGE[numID]
                     if bridge then
                         if bridge.camelotID and bridge.camelotID ~= id then
@@ -2418,6 +2695,26 @@ gearFrame:SetScript("OnShow", function(self)
                         sdb.stat_equals = nil
                         sdb.pawn_weights = nil
                     end
+                    if not sfui.isRetail and specIDs then
+                        for _, sID in ipairs(specIDs) do
+                            if sID ~= id then
+                                SfuiDB.gear[sID] = SfuiDB.gear[sID] or {}
+                                local sb = SfuiDB.gear[sID]
+                                sb.user_selected_role = true
+                                sb.classic_role = rKey
+                                sb.role = sdb.role
+                                sb.is_tank = sdb.is_tank
+                                sb.armor_ilvl_prio = sdb.armor_ilvl_prio
+                                sb.is_healer = sdb.is_healer
+                                if defOrder then
+                                    sb.stat_order = {}
+                                    for sIdx, st in ipairs(defOrder) do sb.stat_order[sIdx] = st end
+                                    sb.stat_equals = nil
+                                    sb.pawn_weights = nil
+                                end
+                            end
+                        end
+                    end
                     sfui.highest.ClearValidationCache()
                     sfui.highest.ClearCache()
                     sfui.gear.UpdateStatUI()
@@ -2440,58 +2737,101 @@ gearFrame:SetScript("OnShow", function(self)
                     end
                 end)
                 rBtn:SetScript("OnEnter", function(b)
-                    if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
-                        if b._sfuiAHHighlight then b._sfuiAHHighlight:Show() end
-                    end
-                    local desc = (rKey == "TANK" and "configure stat priority, defensive stats, and armor item level prioritization for tanking.")
-                        or (rKey == "HEAL" and "configure stat priority and gear optimization for healing.")
+                    b:SetAlpha(1.0)
+                    local rLow = rKey:lower()
+                    local desc = (rLow == "tank" and "configure stat priority, defensive stats, and armor item level prioritization for tanking.")
+                        or
+                        (rLow == "prot" and "configure stat priority, defensive stats, and armor item level prioritization for protection tanking.")
+                        or
+                        (rLow == "bear" and "configure stat priority, defensive stats, and armor item level prioritization for bear form tanking.")
+                        or (rLow == "heal" and "configure stat priority and gear optimization for healing.")
+                        or (rLow == "resto" and "configure stat priority and gear optimization for restoration healing.")
+                        or (rLow == "holy" and "configure stat priority and gear optimization for holy healing.")
+                        or (rLow == "disc" and "configure stat priority and gear optimization for discipline healing and shielding.")
+                        or (rLow == "ret" and "configure stat priority and gear optimization for retribution melee damage.")
+                        or (rLow == "arms" and "configure stat priority and gear optimization for arms melee damage.")
+                        or (rLow == "fury" and "configure stat priority and gear optimization for fury melee damage.")
+                        or (rLow == "ele" and "configure stat priority and gear optimization for elemental spell damage.")
+                        or (rLow == "enh" and "configure stat priority and gear optimization for enhancement melee damage.")
+                        or (rLow == "shad" and "configure stat priority and gear optimization for shadow spell damage.")
+                        or (rLow == "cat" and "configure stat priority and gear optimization for cat form melee damage.")
+                        or (rLow == "moon" and "configure stat priority and gear optimization for balance moonkin spell damage.")
+                        or (rLow == "sin" and "configure stat priority and gear optimization for assassination damage.")
+                        or (rLow == "combat" and "configure stat priority and gear optimization for combat damage.")
+                        or (rLow == "sub" and "configure stat priority and gear optimization for subtlety damage.")
+                        or (rLow == "arc" and "configure stat priority and gear optimization for arcane spell damage.")
+                        or (rLow == "fire" and "configure stat priority and gear optimization for fire spell damage.")
+                        or (rLow == "frost" and "configure stat priority and gear optimization for frost spell damage.")
+                        or (rLow == "aff" and "configure stat priority and gear optimization for affliction spell damage.")
+                        or (rLow == "demo" and "configure stat priority and gear optimization for demonology damage.")
+                        or (rLow == "destro" and "configure stat priority and gear optimization for destruction spell damage.")
+                        or (rLow == "bm" and "configure stat priority and gear optimization for beast mastery ranged damage.")
+                        or (rLow == "mm" and "configure stat priority and gear optimization for marksmanship ranged damage.")
+                        or (rLow == "surv" and "configure stat priority and gear optimization for survival ranged damage.")
                         or "configure stat priority and gear optimization for damage dealing."
-                    show_tooltip(b, "ANCHOR_TOP", (rLabel .. " role"), {
+                    show_tooltip(b, "ANCHOR_TOP", rLabel, {
                         { desc, 0.8, 0.8, 0.8, true },
                     })
                 end)
                 rBtn:SetScript("OnLeave", function(b)
-                    if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
-                        if b._sfuiAHHighlight then b._sfuiAHHighlight:Hide() end
+                    if not b.isSelected then
+                        b:SetAlpha(0.40)
                     end
                     hide_tooltip()
                 end)
                 ui.roleBtns[rKey] = rBtn
-                curX = curX + rW + 4
+                lastRoleBtn = rBtn
+                curX = curX + ROLE_ICON_SIZE + ROLE_ICON_SPACING
             end
         end
 
-        local isCamelot = sfui.isCamelot or sfui.isForever or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_wow_forever)) or (sfui.theme and sfui.theme.IsCamelotSupported and sfui.theme.IsCamelotSupported())
+        local isCamelot = sfui.isCamelot or sfui.isForever or
+        (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_wow_forever)) or
+        (sfui.theme and sfui.theme.IsCamelotSupported and sfui.theme.IsCamelotSupported())
         if isCamelot then
-            local btnNaked = common.create_flat_button(card, "naked", 44, 20)
-            if ui.roleBtns and ui.roleBtns["TANK"] then
-                btnNaked:SetPoint("TOPLEFT", ui.roleBtns["TANK"], "TOPRIGHT", 4, 0)
+            local btnNaked = CreateFrame("Button", nil, card, "BackdropTemplate")
+            btnNaked:SetSize(ROLE_ICON_SIZE, ROLE_ICON_SIZE)
+            if lastRoleBtn then
+                btnNaked:SetPoint("TOPLEFT", lastRoleBtn, "TOPRIGHT", ROLE_ICON_SPACING, 0)
             else
-                btnNaked:SetPoint("TOPLEFT", card, "TOPLEFT", curX, -57)
+                btnNaked:SetPoint("TOPLEFT", card, "TOPLEFT", curX, ROLE_ICON_Y)
             end
+            local t = btnNaked:CreateTexture(nil, "ARTWORK")
+            t:SetAllPoints()
+            t:SetTexture("Interface\\Icons\\inv_chest_cloth_17")
+            t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            btnNaked.tex = t
+            btnNaked:SetBackdrop({
+                bgFile = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = 1,
+            })
+            local isCamelotTheme = sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
+            btnNaked:SetBackdropColor(0, 0, 0, 0.7)
+            btnNaked:SetBackdropBorderColor(isCamelotTheme and 0.28 or 0, isCamelotTheme and 0.22 or 0,
+                isCamelotTheme and 0.14 or 0, 0.85)
+            btnNaked:SetAlpha(0.40)
             btnNaked:SetScript("OnClick", function()
                 sfui.gear.ToggleNaked()
             end)
             btnNaked:SetScript("OnEnter", function(b)
-                if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
-                    if b._sfuiAHHighlight then b._sfuiAHHighlight:Show() end
-                end
+                b:SetAlpha(1.0)
                 local isNaked = sfui.gear.isNakedPaused and sfui.gear.isNakedPaused()
                 local title = isNaked and "naked (active - auto-equip paused)" or "naked (unequip gear)"
                 show_tooltip(b, "ANCHOR_TOP", title, {
                     { isNaked and "click to resume auto-equip and re-equip your gear." or "unequips all weapons and armor into your bags.", 0.8, 0.8, 0.8, true },
-                    { "leaves non-durability jewelry equipped (rings, trinkets, neck).", 0.6, 0.9, 0.6, true },
-                    { "pauses gear manager auto-equip until clicked again or dps/heal/tank or pve/pvp is clicked.", 0.4, 0.8, 1.0, true },
+                    { "leaves non-durability jewelry equipped (rings, trinkets, neck).",                                                    0.6, 0.9, 0.6, true },
+                    { "pauses gear manager auto-equip until clicked again or role/pve/pvp is clicked.",                                     0.4, 0.8, 1.0, true },
                 })
             end)
             btnNaked:SetScript("OnLeave", function(b)
-                if sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
-                    if b._sfuiAHHighlight then b._sfuiAHHighlight:Hide() end
+                if not b.isSelected then
+                    b:SetAlpha(0.40)
                 end
                 hide_tooltip()
             end)
             ui.btnNaked = btnNaked
-            curX = curX + 44 + 4
+            curX = curX + ROLE_ICON_SIZE + ROLE_ICON_SPACING
         end
 
         if isVanillaSpec then
@@ -2569,8 +2909,10 @@ gearFrame:SetScript("OnShow", function(self)
                 for i = m + 1, #pawnScratchList do pawnScratchList[i] = nil end
                 table.sort(pawnScratchList, pawnSortDesc)
                 wipe(curOrderScratch)
-                for i = 1, numStats do curOrderScratch[i] = pawnScratchList[i] and pawnScratchList[i].stat or pool[i] or
-                    "none" end
+                for i = 1, numStats do
+                    curOrderScratch[i] = pawnScratchList[i] and pawnScratchList[i].stat or pool[i] or
+                        "none"
+                end
                 return curOrderScratch
             end
             local rawOrder = targetDB.stat_order
@@ -2582,7 +2924,11 @@ gearFrame:SetScript("OnShow", function(self)
             local clean = {}
             for i = 1, numStats do
                 local st = rawOrder[i]
-                if not st or (not isTank and DEFENSIVE_STATS[st]) then
+                local isInvalid = not st or (not isTank and DEFENSIVE_STATS[st])
+                if isVanillaSpec and (st == "ArP" or st == "Exp" or st == "ArmorPenetration" or st == "Expertise" or (statAbbrv[st] == "arp" or statAbbrv[st] == "exp")) then
+                    isInvalid = true
+                end
+                if isInvalid then
                     for _, cand in ipairs(pool) do
                         local inUse = false
                         for k = 1, #clean do
@@ -2598,6 +2944,15 @@ gearFrame:SetScript("OnShow", function(self)
                     end
                 end
                 clean[i] = st or pool[i] or "none"
+            end
+            if isVanillaSpec and targetDB.stat_order then
+                for idx, s in ipairs(targetDB.stat_order) do
+                    if s == "ArP" or s == "Exp" or s == "ArmorPenetration" or s == "Expertise" or (statAbbrv[s] == "arp" or statAbbrv[s] == "exp") then
+                        targetDB.stat_order = {}
+                        for cIdx = 1, numStats do targetDB.stat_order[cIdx] = clean[cIdx] end
+                        break
+                    end
+                end
             end
             return clean
         end
@@ -2718,7 +3073,7 @@ gearFrame:SetScript("OnShow", function(self)
             if j < numStats then
                 local sep = common.create_flat_button(card, ">", sepW, 20)
                 local fs = (sep.text and sep.text.SetTextColor and sep.text) or
-                (sep.GetFontString and sep:GetFontString())
+                    (sep.GetFontString and sep:GetFontString())
                 if fs and fs.SetTextColor then fs:SetTextColor(0.8, 0.8, 0.8) end
                 sep:SetPoint("LEFT", btnAnchor, "RIGHT", sepGap, 0)
                 sep:SetPoint("TOP", card, "TOP", 0, R3Y)
@@ -2768,7 +3123,7 @@ gearFrame:SetScript("OnShow", function(self)
                 end
                 SfuiDB.gear[id].pawn_weights = next(weights) and weights or nil
                 SfuiDB.gear[id].pawn_string  = (next(weights) and text ~= "") and text or nil
-                local specName = common.get_spec_name(id) or ("spec " .. tostring(id))
+                local specName               = common.get_spec_name(id) or ("spec " .. tostring(id))
                 sfui.common.print("pawn saved for " .. specName)
                 sfui.gear.UpdateStatUI()
             end)

@@ -324,7 +324,8 @@ local function HasPrimaryStat(itemLink, primaryStatName, specID)
     if isClassic and classID then
         local b = sfui.talents.SPEC_BRIDGE[specID]
         local specDB = SfuiDB and SfuiDB.gear and (SfuiDB.gear[specID] or (b and b.camelotID and SfuiDB.gear[b.camelotID]) or (b and b.classID and SfuiDB.gear[b.classID]))
-        local isHeal = (specDB and (specDB.classic_role == "HEAL" or specDB.is_healer))
+        local cRole = (specDB and specDB.classic_role and specDB.classic_role:lower())
+        local isHeal = (cRole == "heal" or cRole == "resto" or cRole == "holy" or cRole == "disc" or (specDB and specDB.is_healer))
             or (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
 
         if classID == 1488 or classID == 1491 or classID == 1485 then -- Rogue, Warrior, Hunter
@@ -535,9 +536,13 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
     if isClassic then
         local b = sfui.talents.SPEC_BRIDGE[specID]
         local specDB = SfuiDB and SfuiDB.gear and (SfuiDB.gear[specID] or (b and b.camelotID and SfuiDB.gear[b.camelotID]) or (b and b.classID and SfuiDB.gear[b.classID]))
-        isTank = (specDB and (specDB.classic_role == "TANK" or specDB.is_tank or specDB.armor_ilvl_prio))
+        local classicRole = (specDB and specDB.classic_role) or (sfui.gear and sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(specID, specDB))
+        local cRoleLower = classicRole and classicRole:lower()
+        isTank = (specDB and (specDB.is_tank or specDB.armor_ilvl_prio))
+            or (cRoleLower == "tank" or cRoleLower == "bear" or cRoleLower == "prot")
             or (sfui.gear and sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, specDB)) or false
-        isHeal = (specDB and (specDB.classic_role == "HEAL" or specDB.is_healer))
+        isHeal = (specDB and specDB.is_healer)
+            or (cRoleLower == "heal" or cRoleLower == "resto" or cRoleLower == "holy" or cRoleLower == "disc")
             or (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
 
         local isPaladin = (playerClassID == 1486 or specID == 1486 or (specID and specID >= 14861 and specID <= 14863))
@@ -593,18 +598,20 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
                     allowedWeapons = rule.allowedWeapons,
                 }
             elseif isDruid then
+                local isMoon = (cRoleLower == "moon" or specID == 14841 or specID == 102)
                 rule = {
                     armor = rule.armor,
-                    stat = 1, -- Strength / Agility (Feral DPS)
+                    stat = isMoon and 4 or (cRoleLower == "cat" and 2 or 1),
                     weaps = { ["2H"] = true, ["1H_Off"] = true },
                     allowedWeapons = rule.allowedWeapons,
                 }
             elseif isShaman then
+                local isEle = (cRoleLower == "ele" or specID == 14891 or specID == 262)
                 rule = {
                     armor = rule.armor,
-                    stat = rule.stat,
+                    stat = isEle and 4 or 1,
                     weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true },
-                    allowedWeapons = rule.allowedWeapons,
+                    allowedWeapons = isEle and WEAPONS_SHAMAN_CASTER or WEAPONS_SHAMAN_ENH,
                 }
             end
         end
@@ -849,8 +856,14 @@ function sfui.highest.GetBestItems(isPvP)
     else
         specDB = SfuiDB and SfuiDB.gear and SfuiDB.gear[specID]
     end
-    local isTank = (sfui.gear and sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, specDB)) or false
-    local isHeal = (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
+    local classicRole = (specDB and specDB.classic_role) or (sfui.gear and sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(specID, specDB))
+    local cRoleLower = classicRole and classicRole:lower()
+    local isTank = (specDB and (specDB.is_tank or specDB.armor_ilvl_prio))
+        or (cRoleLower == "tank" or cRoleLower == "bear" or cRoleLower == "prot")
+        or (sfui.gear and sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, specDB)) or false
+    local isHeal = (specDB and specDB.is_healer)
+        or (cRoleLower == "heal" or cRoleLower == "resto" or cRoleLower == "holy" or cRoleLower == "disc")
+        or (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
 
     -- Classic Role Weapon & Stat Override: Warrior/Paladin tanks & Paladin/Shaman/Druid/Priest healers
     if isClassicSpec then
@@ -907,18 +920,20 @@ function sfui.highest.GetBestItems(isPvP)
                     allowedWeapons = rule.allowedWeapons,
                 }
             elseif isDruid then
+                local isMoon = (cRoleLower == "moon" or specID == 14841 or specID == 102)
                 rule = {
                     armor = rule.armor,
-                    stat = 1, -- Strength / Agility (Feral DPS)
+                    stat = isMoon and 4 or (cRoleLower == "cat" and 2 or 1),
                     weaps = { ["2H"] = true, ["1H_Off"] = true },
                     allowedWeapons = rule.allowedWeapons,
                 }
             elseif isShaman then
+                local isEle = (cRoleLower == "ele" or specID == 14891 or specID == 262)
                 rule = {
                     armor = rule.armor,
-                    stat = rule.stat,
+                    stat = isEle and 4 or 1,
                     weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true },
-                    allowedWeapons = rule.allowedWeapons,
+                    allowedWeapons = isEle and WEAPONS_SHAMAN_CASTER or WEAPONS_SHAMAN_ENH,
                 }
             end
         end
@@ -1136,8 +1151,16 @@ function sfui.highest.GetBestItems(isPvP)
     else
         -- P1 fallback hierarchy: pawn weights > explicitly saved manual stats > stats.lua default dictionary stats > hardcoded generic fallback failover
         local isClassicSpec = isClassicOrVanilla()
-        local classicRole = isClassicSpec and ((specDB and (specDB.classic_role or (specDB.role == "HEALER" and "HEAL") or (specDB.role == "TANK" and "TANK") or (specDB.is_tank and "TANK") or (specDB.is_healer and "HEAL")))
+        local classicRole = isClassicSpec and ((specDB and specDB.classic_role)
             or (sfui.gear and sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(specID, specDB))) or nil
+        local cRoleLower = classicRole and classicRole:lower()
+        local isHealRole = (cRoleLower == "heal" or cRoleLower == "resto" or cRoleLower == "holy" or cRoleLower == "disc")
+        local isTankRole = (cRoleLower == "tank" or cRoleLower == "bear" or cRoleLower == "prot")
+        local isCasterDps = (cRoleLower == "moon" or cRoleLower == "ele" or cRoleLower == "shad" or cRoleLower == "shadow"
+            or cRoleLower == "arc" or cRoleLower == "fire" or cRoleLower == "frost"
+            or cRoleLower == "aff" or cRoleLower == "demo" or cRoleLower == "destro")
+        local isMeleeDps = (cRoleLower == "cat" or cRoleLower == "arms" or cRoleLower == "fury" or cRoleLower == "ret" or cRoleLower == "enh")
+
         local order = (hd and hd.stat_order) or (specDB and specDB.stat_order) or
             (sfui.gear and sfui.gear.GetDefaultStats and sfui.gear.GetDefaultStats(specID, classicRole)) or
             (sfui.default_stats and sfui.default_stats[specID]) or
@@ -1154,25 +1177,33 @@ function sfui.highest.GetBestItems(isPvP)
         local isForever = (sfui.compat and (sfui.compat.has.wow_forever or sfui.compat.is_wow_forever))
             or (sfui.version and sfui.version.wow_forever)
         if isClassicSpec then
-            if classicRole == "HEAL" or (rule.stat == 4 and classicRole ~= "DPS") then
+            if isHealRole or (rule.stat == 4 and not isCasterDps and not isMeleeDps and cRoleLower ~= "dps") then
                 statWeights["ITEM_MOD_INTELLECT_SHORT"] = 2.0
                 statWeights["ITEM_MOD_SPELL_POWER_SHORT"] = 2.5
                 statWeights["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] = 2.5
                 statWeights["ITEM_MOD_SPIRIT_SHORT"] = 1.0
                 statWeights["ITEM_MOD_MANA_REGENERATION_SHORT"] = 2.0
                 statWeights["ITEM_MOD_STAMINA_SHORT"] = 1.0
-            elseif rule.stat == 1 or (classicRole == "TANK" and classID == 1484) then -- Strength (Warrior, Paladin, Druid Bear)
-                statWeights["ITEM_MOD_STRENGTH_SHORT"] = 2.0
-                statWeights["ITEM_MOD_ATTACK_POWER_SHORT"] = 1.0
-                statWeights["ITEM_MOD_AGILITY_SHORT"] = 1.5
-                statWeights["ITEM_MOD_STAMINA_SHORT"] = 1.0
-            elseif rule.stat == 2 then -- Agility (Rogue, Hunter, Druid Cat)
+            elseif rule.stat == 1 or (isTankRole and classID == 1484) or isMeleeDps then -- Strength / Melee
+                if rule.stat == 2 or (cRoleLower == "cat" and classID == 1484) then
+                    statWeights["ITEM_MOD_AGILITY_SHORT"] = 2.0
+                    statWeights["ITEM_MOD_ATTACK_POWER_SHORT"] = 1.0
+                    statWeights["ITEM_MOD_RANGED_ATTACK_POWER_SHORT"] = 1.0
+                    statWeights["ITEM_MOD_STRENGTH_SHORT"] = 1.0
+                    statWeights["ITEM_MOD_STAMINA_SHORT"] = 1.0
+                else
+                    statWeights["ITEM_MOD_STRENGTH_SHORT"] = 2.0
+                    statWeights["ITEM_MOD_ATTACK_POWER_SHORT"] = 1.0
+                    statWeights["ITEM_MOD_AGILITY_SHORT"] = 1.5
+                    statWeights["ITEM_MOD_STAMINA_SHORT"] = 1.0
+                end
+            elseif rule.stat == 2 then -- Agility (Rogue, Hunter)
                 statWeights["ITEM_MOD_AGILITY_SHORT"] = 2.0
                 statWeights["ITEM_MOD_ATTACK_POWER_SHORT"] = 1.0
                 statWeights["ITEM_MOD_RANGED_ATTACK_POWER_SHORT"] = 1.0
                 statWeights["ITEM_MOD_STRENGTH_SHORT"] = 1.0
                 statWeights["ITEM_MOD_STAMINA_SHORT"] = 1.0
-            elseif rule.stat == 4 then -- Intellect / Caster (Mage, Priest, Warlock, Shaman)
+            elseif rule.stat == 4 or isCasterDps then -- Intellect / Caster (Mage, Priest, Warlock, Shaman, Moonkin)
                 statWeights["ITEM_MOD_INTELLECT_SHORT"] = 2.0
                 statWeights["ITEM_MOD_SPELL_POWER_SHORT"] = 2.5
                 -- In WoW Forever / Camelot, bonus healing converts 1/3 to spell damage.
@@ -1190,8 +1221,9 @@ function sfui.highest.GetBestItems(isPvP)
 
         local isTankForWeights = false
         if isClassicSpec then
-            isTankForWeights = (sfui.gear and sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, specDB))
-                or ((specDB and (specDB.classic_role == "TANK" or specDB.is_tank or specDB.armor_ilvl_prio)) and true or false)
+            isTankForWeights = isTankRole
+                or (sfui.gear and sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, specDB))
+                or ((specDB and (specDB.is_tank or specDB.armor_ilvl_prio)) and true or false)
         else
             isTankForWeights = TANK_SPECS[specID] == true
         end
@@ -1216,14 +1248,14 @@ function sfui.highest.GetBestItems(isPvP)
 
         -- Spell Power parity & healing conversion reconciliation
         if isClassicSpec then
-            if classicRole == "HEAL" or (rule.stat == 4 and classicRole ~= "DPS") then
+            if isHealRole or (rule.stat == 4 and not isCasterDps and not isMeleeDps and cRoleLower ~= "dps") then
                 -- Healers: 1 Spell Power = 1 Healing (100% 1:1 parity)
                 local healW = statWeights["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] or 0
                 local spW = statWeights["ITEM_MOD_SPELL_POWER_SHORT"] or 0
                 if healW > spW then
                     statWeights["ITEM_MOD_SPELL_POWER_SHORT"] = healW
                 end
-            elseif rule.stat == 4 and classicRole == "DPS" then
+            elseif (rule.stat == 4 or isCasterDps) and not isHealRole then
                 -- Caster DPS: bonus healing converts at 1/3 on Forever/Camelot, or 0 on Classic Era
                 local spW = statWeights["ITEM_MOD_SPELL_POWER_SHORT"] or 2.5
                 statWeights["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] = isForever and (spW / 3) or 0
@@ -1236,12 +1268,15 @@ function sfui.highest.GetBestItems(isPvP)
     local isTank = (sfui.gear and sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, specDB)) or false
     local isHeal = (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
     if isClassicSpec then
+        local cRole = (specDB and specDB.classic_role) or (sfui.gear and sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(specID, specDB))
+        local cRoleLower = cRole and cRole:lower()
         if not isTank then
-            isTank = (specDB and (specDB.classic_role == "TANK" or specDB.is_tank or specDB.armor_ilvl_prio)) and true or false
+            isTank = (cRoleLower == "tank" or cRoleLower == "bear" or cRoleLower == "prot")
+                or (specDB and (specDB.is_tank or specDB.armor_ilvl_prio)) and true or false
         end
         if not isHeal then
-            local classicRole = (specDB and specDB.classic_role) or (sfui.gear and sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(specID, specDB))
-            isHeal = (classicRole == "HEAL") or (specDB and (specDB.is_healer or specDB.role == "HEALER" or specDB.classic_role == "HEAL")) or false
+            isHeal = (cRoleLower == "heal" or cRoleLower == "resto" or cRoleLower == "holy" or cRoleLower == "disc")
+                or (specDB and (specDB.is_healer or specDB.role == "HEALER")) or false
         end
     else
         isTank = TANK_SPECS[specID] == true

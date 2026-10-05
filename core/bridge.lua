@@ -211,30 +211,129 @@ end
 function sfui.gear.GetClassicRole(specID, db)
     if not isClassicGameClient() then
         local b = SPEC_BRIDGE[specID]
-        return (b and b.role) or "DPS"
+        return (b and b.role and b.role:lower()) or "dps"
     end
+
+    local numID = tonumber(specID) or 0
+    local classID = sfui.gear.GetClassicClassID(numID) or numID
+
+    local rawRole = nil
     if db and db.user_selected_role and db.classic_role then
-        return db.classic_role
+        rawRole = db.classic_role
+    elseif db and db.classic_role then
+        rawRole = db.classic_role
+    elseif db and db.role then
+        if db.role == "TANK" then rawRole = "tank"
+        elseif db.role == "HEALER" then rawRole = "heal"
+        elseif db.role == "DAMAGER" then rawRole = "dps"
+        end
+    elseif db and (db.is_tank or db.armor_ilvl_prio) then
+        rawRole = "tank"
+    elseif db and db.is_healer then
+        rawRole = "heal"
+    else
+        local b = SPEC_BRIDGE[specID]
+        if b and b.role then
+            rawRole = b.role:lower()
+        end
     end
-    if db and db.classic_role then
-        return db.classic_role
+
+    local r = rawRole and rawRole:lower()
+
+    if classID == 1484 or (numID >= 14841 and numID <= 14843) then -- Druid: cat bear moon resto
+        if r == "cat" or r == "bear" or r == "moon" or r == "resto" then
+            return r
+        elseif r == "tank" then
+            return "bear"
+        elseif r == "heal" or r == "healer" then
+            return "resto"
+        elseif r == "dps" or r == "damager" then
+            if numID == 14841 or specID == 102 then
+                return "moon"
+            else
+                return "cat"
+            end
+        end
+        return (numID == 14843 and "resto") or (numID == 14841 and "moon") or "cat"
+    elseif classID == 1486 or (numID >= 14861 and numID <= 14863) then -- Paladin: prot ret holy
+        if r == "prot" or r == "ret" or r == "holy" then
+            return r
+        elseif r == "tank" then
+            return "prot"
+        elseif r == "heal" or r == "healer" then
+            return "holy"
+        elseif r == "dps" or r == "damager" then
+            return "ret"
+        end
+        return (numID == 14862 and "prot") or (numID == 14861 and "holy") or "ret"
+    elseif classID == 1491 or (numID >= 14911 and numID <= 14913) then -- Warrior: arms fury prot
+        if r == "arms" or r == "fury" or r == "prot" then
+            return r
+        elseif r == "tank" then
+            return "prot"
+        elseif r == "dps" or r == "damager" then
+            if numID == 14912 or specID == 72 then return "fury" else return "arms" end
+        end
+        return (numID == 14913 and "prot") or (numID == 14912 and "fury") or "arms"
+    elseif classID == 1489 or (numID >= 14891 and numID <= 14893) then -- Shaman: ele enh resto
+        if r == "ele" or r == "enh" or r == "resto" then
+            return r
+        elseif r == "heal" or r == "healer" then
+            return "resto"
+        elseif r == "dps" or r == "damager" then
+            if numID == 14892 or specID == 263 then return "enh" else return "ele" end
+        end
+        return (numID == 14893 and "resto") or (numID == 14892 and "enh") or "ele"
+    elseif classID == 1487 or (numID >= 14871 and numID <= 14873) then -- Priest: disc holy shad
+        if r == "disc" or r == "holy" or r == "shad" or r == "shadow" then
+            return (r == "shadow" and "shad") or r
+        elseif r == "heal" or r == "healer" then
+            return (numID == 14871 and "disc") or "holy"
+        elseif r == "dps" or r == "damager" then
+            return "shad"
+        end
+        return (numID == 14873 and "shad") or (numID == 14871 and "disc") or "holy"
+    elseif classID == 1488 or (numID >= 14881 and numID <= 14883) then -- Rogue: sin combat sub
+        if r == "sin" or r == "combat" or r == "sub" then
+            return r
+        elseif r == "assa" or r == "assassination" then
+            return "sin"
+        elseif r == "subtlety" then
+            return "sub"
+        end
+        return (numID == 14882 and "combat") or (numID == 14883 and "sub") or "sin"
+    elseif classID == 1482 or (numID >= 14821 and numID <= 14823) then -- Mage: arc fire frost
+        if r == "arc" or r == "fire" or r == "frost" then
+            return r
+        elseif r == "arcane" then
+            return "arc"
+        end
+        return (numID == 14822 and "fire") or (numID == 14823 and "frost") or "arc"
+    elseif classID == 1490 or (numID >= 14901 and numID <= 14903) then -- Warlock: aff demo destro
+        if r == "aff" or r == "demo" or r == "destro" then
+            return r
+        elseif r == "affliction" then
+            return "aff"
+        elseif r == "demonology" then
+            return "demo"
+        elseif r == "destruction" then
+            return "destro"
+        end
+        return (numID == 14902 and "demo") or (numID == 14903 and "destro") or "aff"
+    elseif classID == 1485 or (numID >= 14851 and numID <= 14853) then -- Hunter: bm mm surv
+        if r == "bm" or r == "mm" or r == "surv" then
+            return r
+        elseif r == "beastmastery" or r == "beast mastery" then
+            return "bm"
+        elseif r == "marksmanship" then
+            return "mm"
+        elseif r == "survival" then
+            return "surv"
+        end
+        return (numID == 14852 and "mm") or (numID == 14853 and "surv") or "bm"
     end
-    local b = SPEC_BRIDGE[specID]
-    if b and b.role then
-        return b.role
-    end
-    if db and db.role then
-        if db.role == "TANK" then return "TANK" end
-        if db.role == "HEALER" then return "HEAL" end
-        if db.role == "DAMAGER" then return "DPS" end
-    end
-    if db and (db.is_tank or db.armor_ilvl_prio) then
-        return "TANK"
-    end
-    if db and db.is_healer then
-        return "HEAL"
-    end
-    return "DPS"
+
+    return r or "dps"
 end
 
 function sfui.gear.IsTankSpec(specID, db)
@@ -258,7 +357,13 @@ function sfui.gear.IsTankSpec(specID, db)
         db = _G.SfuiDB.gear[specID] or (b and b.camelotID and _G.SfuiDB.gear[b.camelotID]) or (b and b.classID and _G.SfuiDB.gear[b.classID])
     end
     if db and (db.classic_role or db.role) then
-        return db.classic_role == "TANK" or db.role == "TANK" or (db.is_tank == true and db.classic_role ~= "DPS" and db.classic_role ~= "HEAL")
+        local cRole = db.classic_role and db.classic_role:lower()
+        if cRole == "tank" or cRole == "bear" or cRole == "prot" or db.role == "TANK" then
+            return true
+        end
+        if cRole then
+            return false
+        end
     end
     if db and (db.is_tank or db.armor_ilvl_prio or db.role == "TANK") then
         return true
@@ -294,7 +399,13 @@ function sfui.gear.IsHealerSpec(specID, db)
         db = _G.SfuiDB.gear[specID] or (b and b.camelotID and _G.SfuiDB.gear[b.camelotID]) or (b and b.classID and _G.SfuiDB.gear[b.classID])
     end
     if db and (db.classic_role or db.role) then
-        return db.classic_role == "HEAL" or db.role == "HEALER" or (db.is_healer == true and db.classic_role ~= "DPS" and db.classic_role ~= "TANK")
+        local cRole = db.classic_role and db.classic_role:lower()
+        if cRole == "heal" or cRole == "resto" or cRole == "holy" or cRole == "disc" or db.role == "HEALER" then
+            return true
+        end
+        if cRole then
+            return false
+        end
     end
     if db and (db.is_healer or db.role == "HEALER") then
         return true
@@ -313,8 +424,24 @@ function sfui.gear.GetDefaultStats(specID, role)
     if not specID then return _defaultStatOrder end
     local b = SPEC_BRIDGE[specID]
     if b then
-        if role and b.roleStats and b.roleStats[role] then
-            return b.roleStats[role]
+        if role and b.roleStats then
+            local rLower = role:lower()
+            if b.roleStats[role] then return b.roleStats[role] end
+            if b.roleStats[rLower] then return b.roleStats[rLower] end
+            local rUpper = role:upper()
+            if b.roleStats[rUpper] then return b.roleStats[rUpper] end
+            local aliasMap = {
+                ["cat"] = "DPS", ["bear"] = "TANK", ["moon"] = "DPS", ["resto"] = "HEAL",
+                ["prot"] = "TANK", ["ret"] = "DPS", ["holy"] = "HEAL", ["disc"] = "HEAL",
+                ["arms"] = "DPS", ["fury"] = "DPS", ["ele"] = "DPS", ["enh"] = "DPS",
+                ["shad"] = "DPS", ["shadow"] = "DPS",
+                ["sin"] = "DPS", ["combat"] = "DPS", ["sub"] = "DPS",
+                ["arc"] = "DPS", ["fire"] = "DPS", ["frost"] = "DPS",
+                ["aff"] = "DPS", ["demo"] = "DPS", ["destro"] = "DPS",
+                ["bm"] = "DPS", ["mm"] = "DPS", ["surv"] = "DPS",
+            }
+            local mapped = aliasMap[rLower]
+            if mapped and b.roleStats[mapped] then return b.roleStats[mapped] end
         end
         if b.defaultStats then
             return b.defaultStats
@@ -339,12 +466,13 @@ function sfui.gear.GetStatPool(specID, isTank, role)
         return { "H", "M", "V", "C" }
     end
 
-    role = role or (isTank and "TANK" or sfui.gear.GetClassicRole(specID))
+    role = role or (isTank and "prot" or sfui.gear.GetClassicRole(specID))
+    local rLower = role and role:lower() or "dps"
     if isTank == nil then
-        isTank = (role == "TANK")
+        isTank = (rLower == "tank" or rLower == "bear" or rLower == "prot")
     end
 
-    if isTank or role == "TANK" then
+    if isTank or rLower == "tank" or rLower == "bear" or rLower == "prot" then
         if classID == 1484 then -- Druid Bear Tank (cannot block or parry)
             return { "Arm", "Stam", "Def", "Dodge", "Agi", "Str", "Hit", "AP" }
         elseif classID == 1486 then -- Paladin Tank (uses shield & SP/healing)
@@ -354,7 +482,7 @@ function sfui.gear.GetStatPool(specID, isTank, role)
         end
     end
 
-    if role == "HEAL" then
+    if rLower == "heal" or rLower == "resto" or rLower == "holy" or rLower == "disc" then
         if classID == 1484 then -- Resto Druid
             return { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Stam", "Arm", "H" }
         elseif classID == 1486 then -- Holy Paladin
@@ -369,8 +497,8 @@ function sfui.gear.GetStatPool(specID, isTank, role)
     -- Strictly DPS (NO defense, NO dodge, NO parry, NO block)
     if classID == 1482 then -- Mage (Caster DPS)
         return { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "H", "Arm" }
-    elseif classID == 1484 then -- Druid (Feral / Balance DPS)
-        if specID == 102 or specID == 14841 then
+    elseif classID == 1484 then -- Druid (Cat / Moon / Feral / Balance DPS)
+        if rLower == "moon" or specID == 102 or specID == 14841 then
             return { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "Arm", "H" }
         end
         return { "AP", "Hit", "Crit", "Str", "Agi", "SP", "Int", "Stam", "Arm", "H" }
@@ -383,7 +511,7 @@ function sfui.gear.GetStatPool(specID, isTank, role)
     elseif classID == 1488 then -- Rogue (Melee Physical DPS)
         return { "AP", "Hit", "Crit", "Agi", "Str", "Stam", "Arm", "H" }
     elseif classID == 1489 then -- Shaman (Enhancement / Elemental DPS)
-        if specID == 262 or specID == 14891 then
+        if rLower == "ele" or specID == 262 or specID == 14891 then
             return { "SP", "Hit", "Crit", "Int", "MP5", "Spi", "Stam", "Arm", "H" }
         end
         return { "AP", "Hit", "Crit", "Str", "Agi", "SP", "Int", "MP5", "Stam", "Arm", "H" }
