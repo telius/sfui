@@ -37,16 +37,271 @@ local lootButtons       = {}
 local selectedBossIndex = 1
 local debounceTimer     = nil
 local currentBossItemSet = {}
-local currentLootFilter = "all"
-local filterButtons     = {}
+local currentLootFilter      = "all"
+local usableFilterSpecMode   = "spec" -- "spec" = active spec, "all" = all class specs
+local categoryUsableOnly     = {}     -- e.g. categoryUsableOnly["armor"] = true
+local filterButtons         = {}
+local UpdateFilterPills     = nil
 
 local FILTER_BUTTONS = {
-    { key = "all",      label = "All" },
-    { key = "armor",    label = "Armor" },
-    { key = "weapons",  label = "Weapons" },
-    { key = "trinkets", label = "Trinkets" },
-    { key = "wishlist", label = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t Wishlist" },
+    { key = "all",      label = "all" },
+    { key = "usable",   label = "usable" },
+    { key = "armor",    label = "armor" },
+    { key = "weapons",  label = "weapons" },
+    { key = "trinkets", label = "trinkets" },
+    { key = "other",    label = "other" },
+    { key = "wishlist", label = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t wishlist" },
 }
+
+-- ─── Spec & Usability Evaluation (rules.lua / stats.lua) ─────────────────────
+local function GetPlayerSpecsForFilter()
+    local playerSpecs, playerSpecIDs = common.get_player_specs()
+    if playerSpecIDs and #playerSpecIDs > 0 then
+        return playerSpecs, playerSpecIDs
+    end
+
+    local _, englishClass = UnitClass("player")
+    local specIDs = {}
+    local specMap = {}
+    if sfui.data and sfui.data.SPEC_DEFINITIONS then
+        for _, def in ipairs(sfui.data.SPEC_DEFINITIONS) do
+            if def.class == englishClass or def.classFile == englishClass then
+                local sID = def.camelotID or def.retailID
+                if sID then
+                    specIDs[#specIDs + 1] = sID
+                    specMap[sID] = def
+                end
+            end
+        end
+    end
+    return specMap, specIDs
+end
+
+local function GetPlayerActiveSpecID()
+    local sID = common.get_current_spec_id and common.get_current_spec_id()
+    if sID and sID > 0 then
+        return sID
+    end
+    local _, specIDs = GetPlayerSpecsForFilter()
+    return specIDs and specIDs[1]
+end
+
+local function GetSpecDisplayName(specID)
+    if not specID or specID == 0 then return "" end
+    local bridge = sfui.talents and sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
+    if bridge and bridge.name then
+        return tostring(bridge.name):lower()
+    end
+    local infoName = sfui.common.get_spec_name and sfui.common.get_spec_name(specID)
+    if infoName and infoName ~= "" then
+        return tostring(infoName):lower()
+    end
+    return ""
+end
+
+local itemClassScanTooltip = nil
+local function GetItemClassScanTooltip()
+    if not itemClassScanTooltip then
+        local parent = CreateFrame("Frame", "SfuiDJClassScanParent", UIParent)
+        parent:Hide()
+        itemClassScanTooltip = CreateFrame("GameTooltip", "SfuiDJClassScanTooltip", parent, "TooltipBackdropTemplate")
+        if _G.TooltipDataHandlerMixin then
+            Mixin(itemClassScanTooltip, _G.TooltipDataHandlerMixin)
+        elseif _G.GameTooltipDataMixin then
+            Mixin(itemClassScanTooltip, _G.GameTooltipDataMixin)
+        end
+        itemClassScanTooltip:SetOwner(parent, "ANCHOR_NONE")
+    end
+    return itemClassScanTooltip
+end
+
+local itemClassUsableCache = {}
+
+local function ItemMatchesPlayerClass(itemID, itemLink)
+    if not itemID or itemID <= 0 then return true end
+    if itemClassUsableCache[itemID] ~= nil then
+        return itemClassUsableCache[itemID]
+    end
+
+    local link = itemLink or ("item:" .. itemID)
+
+    -- 1. Check C_Item.GetItemSpecInfo if available
+    local specList = common.get_item_spec_info and (common.get_item_spec_info(link) or common.get_item_spec_info(itemID))
+    if specList and #specList > 0 then
+        local playerSpecs = common.get_player_specs()
+        if playerSpecs then
+            local foundMySpec = false
+            for _, sID in ipairs(specList) do
+                if playerSpecs[sID] then
+                    foundMySpec = true
+                    break
+                end
+            end
+            if not foundMySpec then
+                itemClassUsableCache[itemID] = false
+                return false
+            end
+        end
+    end
+
+    -- 2. Tooltip inspection for class restrictions (e.g. "Classes: Paladin, Priest")
+    local locClass = UnitClass("player")
+    local locClassLower = locClass and locClass:lower() or ""
+
+    local classPattern = ITEM_CLASSES_ALLOWED and ITEM_CLASSES_ALLOWED:gsub("%%s", ".*")
+    local classPrefix = ITEM_CLASSES_ALLOWED and ITEM_CLASSES_ALLOWED:match("^([^:%%]+)")
+    classPrefix = classPrefix and classPrefix:trim():lower() or "classes"
+
+    local foundRestriction = nil
+    local dataReady = false
+
+    -- Method A: C_TooltipInfo
+    if C_TooltipInfo then
+        local tData = (link and C_TooltipInfo.GetHyperlink and C_TooltipInfo.GetHyperlink(link))
+                   or (C_TooltipInfo.GetItemByID and C_TooltipInfo.GetItemByID(itemID))
+        if tData and tData.lines and #tData.lines > 1 then
+            dataReady = true
+            if TooltipUtil and TooltipUtil.SurfaceArgs then
+                TooltipUtil.SurfaceArgs(tData)
+            end
+            for _, line in ipairs(tData.lines) do
+                local lineType = line.type
+                local isRestrictedClassType = (lineType and Enum.TooltipDataLineType and lineType == Enum.TooltipDataLineType.RestrictedRaceClass)
+                local txt = line.leftText
+                local txtLower = (txt and type(txt) == "string") and txt:lower() or ""
+
+                local isClassLine = isRestrictedClassType
+                    or (classPattern and txt and txt:match(classPattern))
+                    or (classPrefix and txtLower ~= "" and txtLower:find(classPrefix, 1, true))
+                    or (txtLower ~= "" and (txtLower:find("classes:", 1, true) or txtLower:find("klassen:", 1, true)))
+
+                if isClassLine then
+                    local isRed = false
+                    local clr = line.leftColor
+                    if clr and clr.r and clr.g and clr.b then
+                        if clr.r > 0.85 and clr.g < 0.25 and clr.b < 0.25 then
+                            isRed = true
+                        end
+                    end
+                    local matchesMyClass = locClassLower ~= "" and txtLower ~= "" and txtLower:find(locClassLower, 1, true)
+                    if isRed or (txtLower ~= "" and not matchesMyClass) then
+                        foundRestriction = false
+                        break
+                    else
+                        foundRestriction = true
+                    end
+                end
+            end
+        end
+    end
+
+    -- Method B: Fallback hidden GameTooltip
+    if foundRestriction == nil then
+        local tip = GetItemClassScanTooltip()
+        if tip then
+            tip:ClearLines()
+            tip:SetHyperlink(link)
+            local numLines = tip:NumLines() or 0
+            if numLines and numLines > 1 then
+                dataReady = true
+                for i = 1, numLines do
+                    local fs = _G["SfuiDJClassScanTooltipTextLeft" .. i]
+                    if fs then
+                        local txt = fs:GetText()
+                        local txtLower = (txt and type(txt) == "string") and txt:lower() or ""
+                        local isClassLine = (classPattern and txt and txt:match(classPattern))
+                            or (classPrefix and txtLower ~= "" and txtLower:find(classPrefix, 1, true))
+                            or (txtLower ~= "" and (txtLower:find("classes:", 1, true) or txtLower:find("klassen:", 1, true)))
+
+                        if isClassLine then
+                            local r, g, b = fs:GetTextColor()
+                            local isRed = (r and g and b and r > 0.85 and g < 0.25 and b < 0.25)
+                            local matchesMyClass = locClassLower ~= "" and txtLower ~= "" and txtLower:find(locClassLower, 1, true)
+
+                            if isRed or (txtLower ~= "" and not matchesMyClass) then
+                                foundRestriction = false
+                                break
+                            else
+                                foundRestriction = true
+                            end
+                        end
+                    end
+                end
+            end
+            tip:Hide()
+        end
+    end
+
+    if foundRestriction == false then
+        itemClassUsableCache[itemID] = false
+        return false
+    elseif foundRestriction == true then
+        itemClassUsableCache[itemID] = true
+        return true
+    end
+
+    if dataReady or (C_Item and C_Item.IsItemDataCachedByID and C_Item.IsItemDataCachedByID(itemID)) then
+        itemClassUsableCache[itemID] = true
+        return true
+    end
+
+    if common and common.request_item_load then
+        common.request_item_load(itemID)
+    end
+    return true
+end
+
+local function IsItemUsableGear(itemLink, targetSpecID)
+    if not itemLink then return false end
+    if not sfui.highest or not sfui.highest.IsItemValidForSpec then
+        return true
+    end
+
+    if targetSpecID and targetSpecID > 0 then
+        return sfui.highest.IsItemValidForSpec(itemLink, targetSpecID, true, false)
+    end
+
+    local _, specIDs = GetPlayerSpecsForFilter()
+    if specIDs and #specIDs > 0 then
+        for _, sID in ipairs(specIDs) do
+            if sfui.highest.IsItemValidForSpec(itemLink, sID, true, false) then
+                return true
+            end
+        end
+        return false
+    end
+
+    local curSpec = GetPlayerActiveSpecID()
+    if curSpec and curSpec > 0 then
+        return sfui.highest.IsItemValidForSpec(itemLink, curSpec, true, false)
+    end
+
+    return false
+end
+
+local function IsItemUsableByPlayer(itemID, classID, subclassID, equipSlot, itemLink, targetSpecID)
+    if not itemID or itemID <= 0 then return true end
+    local link = itemLink or ("item:" .. itemID)
+
+    -- 1. Must match player's class (if class restricted)
+    if not ItemMatchesPlayerClass(itemID, link) then
+        return false
+    end
+
+    -- 2. Check equippable gear against spec rules & stats
+    local isEquippable = (classID == 2 or classID == 4)
+        or (equipSlot and equipSlot ~= "" and equipSlot ~= "INVTYPE_NON_EQUIP_IGNORE")
+
+    local isToken = (classID == 5 and subclassID == 2)
+        or (not equipSlot or equipSlot == "" or equipSlot == "INVTYPE_NON_EQUIP_IGNORE")
+
+    if isEquippable and not isToken then
+        return IsItemUsableGear(link, targetSpecID)
+    end
+
+    -- 3. Non-equippable items (tokens, recipes, bags, consumables, misc)
+    return true
+end
 
 local function IsItemMatchingFilter(filterKey, itemID, classID, subclassID, equipSlot, itemLink)
     if filterKey == "all" then
@@ -54,6 +309,9 @@ local function IsItemMatchingFilter(filterKey, itemID, classID, subclassID, equi
     elseif filterKey == "wishlist" then
         local dj = sfui.dungeonjournal
         return dj and dj.IsWishlisted and dj.IsWishlisted(itemID)
+    elseif filterKey == "usable" then
+        local targetSpecID = (usableFilterSpecMode == "spec") and GetPlayerActiveSpecID() or nil
+        return IsItemUsableByPlayer(itemID, classID, subclassID, equipSlot, itemLink, targetSpecID)
     elseif filterKey == "armor" then
         local isArmor = (classID == 4 and equipSlot ~= "INVTYPE_TRINKET" and equipSlot ~= "INVTYPE_FINGER" and equipSlot ~= "INVTYPE_NECK" and equipSlot ~= "INVTYPE_HOLDABLE")
             or equipSlot == "INVTYPE_HEAD"
@@ -67,7 +325,12 @@ local function IsItemMatchingFilter(filterKey, itemID, classID, subclassID, equi
             or equipSlot == "INVTYPE_HAND"
             or equipSlot == "INVTYPE_CLOAK"
             or equipSlot == "INVTYPE_SHIELD"
-        return isArmor == true
+        if not isArmor then return false end
+        if categoryUsableOnly["armor"] then
+            local targetSpecID = (usableFilterSpecMode == "spec") and GetPlayerActiveSpecID() or nil
+            return IsItemUsableByPlayer(itemID, classID, subclassID, equipSlot, itemLink, targetSpecID)
+        end
+        return true
     elseif filterKey == "weapons" then
         local isWeapon = (classID == 2)
             or equipSlot == "INVTYPE_WEAPON"
@@ -77,13 +340,55 @@ local function IsItemMatchingFilter(filterKey, itemID, classID, subclassID, equi
             or equipSlot == "INVTYPE_RANGED"
             or equipSlot == "INVTYPE_RANGEDRIGHT"
             or equipSlot == "INVTYPE_THROWN"
-        return isWeapon == true
+        if not isWeapon then return false end
+        if categoryUsableOnly["weapons"] then
+            local targetSpecID = (usableFilterSpecMode == "spec") and GetPlayerActiveSpecID() or nil
+            return IsItemUsableByPlayer(itemID, classID, subclassID, equipSlot, itemLink, targetSpecID)
+        end
+        return true
     elseif filterKey == "trinkets" then
         local isTrinket = equipSlot == "INVTYPE_TRINKET"
             or equipSlot == "INVTYPE_FINGER"
             or equipSlot == "INVTYPE_NECK"
             or equipSlot == "INVTYPE_HOLDABLE"
-        return isTrinket == true
+        if not isTrinket then return false end
+        if categoryUsableOnly["trinkets"] then
+            local targetSpecID = (usableFilterSpecMode == "spec") and GetPlayerActiveSpecID() or nil
+            return IsItemUsableByPlayer(itemID, classID, subclassID, equipSlot, itemLink, targetSpecID)
+        end
+        return true
+    elseif filterKey == "other" then
+        local isArmor = (classID == 4 and equipSlot ~= "INVTYPE_TRINKET" and equipSlot ~= "INVTYPE_FINGER" and equipSlot ~= "INVTYPE_NECK" and equipSlot ~= "INVTYPE_HOLDABLE")
+            or equipSlot == "INVTYPE_HEAD"
+            or equipSlot == "INVTYPE_SHOULDER"
+            or equipSlot == "INVTYPE_CHEST"
+            or equipSlot == "INVTYPE_ROBE"
+            or equipSlot == "INVTYPE_WAIST"
+            or equipSlot == "INVTYPE_LEGS"
+            or equipSlot == "INVTYPE_FEET"
+            or equipSlot == "INVTYPE_WRIST"
+            or equipSlot == "INVTYPE_HAND"
+            or equipSlot == "INVTYPE_CLOAK"
+            or equipSlot == "INVTYPE_SHIELD"
+        local isWeapon = (classID == 2)
+            or equipSlot == "INVTYPE_WEAPON"
+            or equipSlot == "INVTYPE_2HWEAPON"
+            or equipSlot == "INVTYPE_WEAPONMAINHAND"
+            or equipSlot == "INVTYPE_WEAPONOFFHAND"
+            or equipSlot == "INVTYPE_RANGED"
+            or equipSlot == "INVTYPE_RANGEDRIGHT"
+            or equipSlot == "INVTYPE_THROWN"
+        local isTrinket = equipSlot == "INVTYPE_TRINKET"
+            or equipSlot == "INVTYPE_FINGER"
+            or equipSlot == "INVTYPE_NECK"
+            or equipSlot == "INVTYPE_HOLDABLE"
+        local isOther = not isArmor and not isWeapon and not isTrinket
+        if not isOther then return false end
+        if categoryUsableOnly["other"] then
+            local targetSpecID = (usableFilterSpecMode == "spec") and GetPlayerActiveSpecID() or nil
+            return IsItemUsableByPlayer(itemID, classID, subclassID, equipSlot, itemLink, targetSpecID)
+        end
+        return true
     end
     return true
 end
@@ -143,10 +448,66 @@ local function GetQualityColor(quality)
     return sfui.dungeonjournal.GetQualityColor(quality)
 end
 
+-- ─── Wishlist Detection Helpers ───────────────────────────────────────────────
+local function GetBossWishlistInfo(boss)
+    if not boss or boss.isAll or not boss.items then return false, 0, nil end
+    local isWishlisted = sfui.dungeonjournal and sfui.dungeonjournal.IsWishlisted
+    if not isWishlisted then return false, 0, nil end
+    local count = 0
+    local names = nil
+    for _, it in ipairs(boss.items) do
+        local id = type(it) == "table" and (it.id or it[1]) or it
+        id = tonumber(id)
+        if id and isWishlisted(id) then
+            count = count + 1
+            if not names then names = {} end
+            local name, link = common.get_item_info(id)
+            if not name then
+                local instName = common.get_item_instant_info(id)
+                name = instName or ("item #" .. id)
+            end
+            names[#names + 1] = link or name or ("item #" .. id)
+        end
+    end
+    return count > 0, count, names
+end
+
+local function UpdateBossButtonWishlist(btn)
+    if not btn or not btn:IsShown() or not btn.bossData then return end
+    local hasWish, count, itemNames = GetBossWishlistInfo(btn.bossData)
+    btn.hasWishlist   = hasWish
+    btn.wishItemCount = count
+    btn.wishItemNames = itemNames
+    if btn.wishIcon then
+        if hasWish then
+            btn.wishIcon:Show()
+            btn.nameText:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -26, -4)
+            btn.levelText:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -26, 5)
+        else
+            btn.wishIcon:Hide()
+            btn.nameText:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -6, -4)
+            btn.levelText:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -6, 5)
+        end
+    end
+end
+
+local function UpdateAllBossButtonsWishlistState()
+    if not bossButtons then return end
+    for _, btn in ipairs(bossButtons) do
+        UpdateBossButtonWishlist(btn)
+    end
+end
+
 -- ─── Boss Button Pool ─────────────────────────────────────────────────────────
 local function AcquireBossButton(pool, parent)
     for _, btn in ipairs(pool) do
-        if not btn:IsShown() then return btn end
+        if not btn:IsShown() then
+            if btn.wishIcon then btn.wishIcon:Hide() end
+            btn.hasWishlist   = nil
+            btn.wishItemCount = nil
+            btn.wishItemNames = nil
+            return btn
+        end
     end
 
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
@@ -176,6 +537,14 @@ local function AcquireBossButton(pool, parent)
     btn.icon = ico
     ico:SetAllPoints()
     ico:SetTexture("Interface\\TargetingFrame\\UI-TargetingFrame-Skull")
+
+    -- Wishlist gem icon on the right side of the boss button
+    local wishIcon = btn:CreateTexture(nil, "OVERLAY")
+    btn.wishIcon = wishIcon
+    wishIcon:SetSize(16, 16)
+    wishIcon:SetPoint("RIGHT", btn, "RIGHT", -6, 0)
+    wishIcon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_3")
+    wishIcon:Hide()
 
     -- Name
     local name = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -346,6 +715,30 @@ local function InsertItemLinkIntoChat(link)
     return sfui.dungeonjournal.InsertItemLinkIntoChat(link)
 end
 
+local function GetItemNumericDropRate(itemEntry, itemID, boss)
+    local dropRate = (type(itemEntry) == "table" and (itemEntry.dropRate or itemEntry.rate or itemEntry[2]))
+                     or (boss and boss.dropRates and boss.dropRates[itemID])
+    if not dropRate and boss and boss.isAll then
+        local source = sfui.dj_camelot and sfui.dj_camelot.GetItemSource and sfui.dj_camelot.GetItemSource(itemID)
+        if source and source.boss and source.boss.dropRates then
+            dropRate = source.boss.dropRates[itemID]
+        end
+    end
+    if not dropRate then return 0, nil end
+    local numRate = tonumber(dropRate)
+    local rateStr = nil
+    if numRate and numRate > 0 and numRate < 1 then
+        numRate = numRate * 100
+        rateStr = string.format("%d%%", math.floor(numRate + 0.5))
+    elseif numRate then
+        rateStr = string.format("%g%%", numRate)
+    else
+        rateStr = tostring(dropRate)
+        numRate = 0
+    end
+    return numRate or 0, rateStr
+end
+
 -- ─── Render Loot Items ────────────────────────────────────────────────────────
 local function RenderLoot(boss, dungeon)
     if not lootScroll or not lootContent then return end
@@ -379,7 +772,9 @@ local function RenderLoot(boss, dungeon)
                     bossHeaderFrame.portraitFrame:Show()
                 end
             else
-                bossHeaderFrame.name:SetText(boss.name or "unknown encounter")
+                local hasWish = GetBossWishlistInfo(boss)
+                local wishTag = hasWish and "  |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:16:16:0:0|t" or ""
+                bossHeaderFrame.name:SetText((boss.name or "unknown encounter") .. wishTag)
                 local dungeonName = (dungeon and dungeon.name) or "dungeon"
                 local lvlStr = boss.level and ("level " .. boss.level .. " encounter") or "boss encounter"
                 bossHeaderFrame.sub:SetText(dungeonName .. "  ·  " .. lvlStr)
@@ -442,138 +837,142 @@ local function RenderLoot(boss, dungeon)
         return
     end
 
-    local y = 0
-    local shownCount = 0
-
-    for _, itemEntry in ipairs(boss.items) do
+    -- Build sorted item list (highest drop rate first)
+    local sortedItems = {}
+    for idx, itemEntry in ipairs(boss.items) do
         local itemID = type(itemEntry) == "table" and (itemEntry.id or itemEntry[1]) or itemEntry
         itemID = tonumber(itemID)
         if itemID then
             currentBossItemSet[itemID] = true
+            local numRate, rateStr = GetItemNumericDropRate(itemEntry, itemID, boss)
+            sortedItems[#sortedItems + 1] = {
+                entry   = itemEntry,
+                id      = itemID,
+                rate    = numRate,
+                rateStr = rateStr,
+                index   = idx,
+            }
+        end
+    end
 
-            -- Query item data via project wrapper
-            local name, link, quality, iLevel, reqLevel, class, subclass, _, equipSlot, icon, _, classID, subclassID = common.get_item_info(itemID)
-            if not link and GetItemInfo then
-                local _, l = GetItemInfo(itemID)
-                link = l
+    table.sort(sortedItems, function(a, b)
+        if a.rate ~= b.rate then
+            return a.rate > b.rate
+        end
+        return a.index < b.index
+    end)
+
+    local y = 0
+    local shownCount = 0
+
+    for _, sortedItem in ipairs(sortedItems) do
+        local itemEntry = sortedItem.entry
+        local itemID    = sortedItem.id
+        local rateStr   = sortedItem.rateStr
+
+        -- Query item data via project wrapper
+        local name, link, quality, iLevel, reqLevel, class, subclass, _, equipSlot, icon, _, classID, subclassID = common.get_item_info(itemID)
+        if not link and GetItemInfo then
+            local _, l = GetItemInfo(itemID)
+            link = l
+        end
+
+        if not name or not icon then
+            -- Fallback instant info
+            local instName, _, instQuality, _, _, _, _, _, instEquipLoc, instIcon, _, instClassID, instSubClassID = common.get_item_instant_info(itemID)
+            name       = instName or ("item #" .. itemID)
+            quality    = instQuality or 1
+            icon       = instIcon or 134400
+            equipSlot  = instEquipLoc
+            classID    = classID or instClassID
+            subclassID = subclassID or instSubClassID
+            -- Request async cache population
+            if common and common.request_item_load then
+                common.request_item_load(itemID)
+            elseif _G.C_Item and _G.C_Item.RequestLoadItemDataByID then
+                pcall(_G.C_Item.RequestLoadItemDataByID, itemID)
+            end
+        end
+
+        -- Filter check
+        local itemLink = link or ("item:" .. itemID)
+        if IsItemMatchingFilter(currentLootFilter, itemID, classID, subclassID, equipSlot, itemLink) then
+            shownCount = shownCount + 1
+            local btn = AcquireLootButton(lootButtons, lootContent)
+            btn:ClearAllPoints()
+            btn:SetPoint("TOPLEFT",  lootContent, "TOPLEFT",  0, -y)
+            btn:SetPoint("TOPRIGHT", lootContent, "TOPRIGHT", 0, -y)
+            btn:SetHeight(LOOT_ROW_H)
+
+            btn.itemID = itemID
+            btn.link   = link
+
+            -- Wishlist state
+            local isWish = sfui.dungeonjournal and sfui.dungeonjournal.IsWishlisted and sfui.dungeonjournal.IsWishlisted(itemID)
+            btn.starBtn.isWishlisted = isWish
+            if isWish then
+                if btn.starBtn.starIcon then
+                    btn.starBtn.starIcon:SetDesaturated(false)
+                    btn.starBtn.starIcon:SetAlpha(1.0)
+                end
+                btn:SetBackdropBorderColor(0.8, 0.27, 1.0, 0.7)
+            else
+                if btn.starBtn.starIcon then
+                    btn.starBtn.starIcon:SetDesaturated(true)
+                    btn.starBtn.starIcon:SetAlpha(0.25)
+                end
+                btn:SetBackdropBorderColor(0.15, 0.15, 0.18, 0.8)
             end
 
-            if not name or not icon then
-                -- Fallback instant info
-                local instName, _, instQuality, _, _, _, _, _, instEquipLoc, instIcon, _, instClassID, instSubClassID = common.get_item_instant_info(itemID)
-                name       = instName or ("item #" .. itemID)
-                quality    = instQuality or 1
-                icon       = instIcon or 134400
-                equipSlot  = instEquipLoc
-                classID    = classID or instClassID
-                subclassID = subclassID or instSubClassID
-                -- Request async cache population
-                if common and common.request_item_load then
-                    common.request_item_load(itemID)
-                elseif _G.C_Item and _G.C_Item.RequestLoadItemDataByID then
-                    pcall(_G.C_Item.RequestLoadItemDataByID, itemID)
-                end
+            local r, g, b = GetQualityColor(quality)
+
+            -- Set Icon & Border
+            btn.iconTex:SetTexture(icon or 134400)
+            btn.iconBtn:SetBackdropBorderColor(r, g, b, 0.8)
+
+            -- Name with quality color
+            btn.nameText:SetText(name or ("item #" .. itemID))
+            btn.nameText:SetTextColor(r, g, b, 1)
+
+            -- Type / Subtype text
+            local slotText = equipSlot and _G[equipSlot] or equipSlot
+            local typeLabel = ""
+            if slotText and subclass and subclass ~= "" then
+                typeLabel = tostring(slotText):lower() .. "  ·  " .. tostring(subclass):lower()
+            elseif slotText then
+                typeLabel = tostring(slotText):lower()
+            elseif subclass then
+                typeLabel = tostring(subclass):lower()
+            elseif class then
+                typeLabel = tostring(class):lower()
             end
-
-            -- Filter check
-            local itemLink = link or ("item:" .. itemID)
-            if IsItemMatchingFilter(currentLootFilter, itemID, classID, subclassID, equipSlot, itemLink) then
-                shownCount = shownCount + 1
-                local btn = AcquireLootButton(lootButtons, lootContent)
-                btn:ClearAllPoints()
-                btn:SetPoint("TOPLEFT",  lootContent, "TOPLEFT",  0, -y)
-                btn:SetPoint("TOPRIGHT", lootContent, "TOPRIGHT", 0, -y)
-                btn:SetHeight(LOOT_ROW_H)
-
-                btn.itemID = itemID
-                btn.link   = link
-
-                -- Wishlist state
-                local isWish = sfui.dungeonjournal and sfui.dungeonjournal.IsWishlisted and sfui.dungeonjournal.IsWishlisted(itemID)
-                btn.starBtn.isWishlisted = isWish
-                if isWish then
-                    if btn.starBtn.starIcon then
-                        btn.starBtn.starIcon:SetDesaturated(false)
-                        btn.starBtn.starIcon:SetAlpha(1.0)
-                    end
-                    btn:SetBackdropBorderColor(0.8, 0.27, 1.0, 0.7)
-                else
-                    if btn.starBtn.starIcon then
-                        btn.starBtn.starIcon:SetDesaturated(true)
-                        btn.starBtn.starIcon:SetAlpha(0.25)
-                    end
-                    btn:SetBackdropBorderColor(0.15, 0.15, 0.18, 0.8)
-                end
-
-                local r, g, b = GetQualityColor(quality)
-
-                -- Set Icon & Border
-                btn.iconTex:SetTexture(icon or 134400)
-                btn.iconBtn:SetBackdropBorderColor(r, g, b, 0.8)
-
-                -- Name with quality color
-                btn.nameText:SetText(name or ("item #" .. itemID))
-                btn.nameText:SetTextColor(r, g, b, 1)
-
-                -- Type / Subtype text
-                local slotText = equipSlot and _G[equipSlot] or equipSlot
-                local typeLabel = ""
-                if slotText and subclass and subclass ~= "" then
-                    typeLabel = tostring(slotText):lower() .. "  ·  " .. tostring(subclass):lower()
-                elseif slotText then
-                    typeLabel = tostring(slotText):lower()
-                elseif subclass then
-                    typeLabel = tostring(subclass):lower()
-                elseif class then
-                    typeLabel = tostring(class):lower()
-                end
-                if boss.isAll then
-                    local source = sfui.dj_camelot and sfui.dj_camelot.GetItemSource and sfui.dj_camelot.GetItemSource(itemID)
-                    if source and source.bossName then
-                        if typeLabel ~= "" then
-                            typeLabel = typeLabel .. "  ·  |cff888888" .. tostring(source.bossName):lower() .. "|r"
-                        else
-                            typeLabel = "|cff888888" .. tostring(source.bossName):lower() .. "|r"
-                        end
-                    end
-                end
-                btn.typeText:SetText(typeLabel)
-
-                -- Drop rate & Level info
-                local dropRate = (type(itemEntry) == "table" and (itemEntry.dropRate or itemEntry.rate or itemEntry[2]))
-                                 or (boss.dropRates and boss.dropRates[itemID])
-                if not dropRate and boss.isAll then
-                    local source = sfui.dj_camelot and sfui.dj_camelot.GetItemSource and sfui.dj_camelot.GetItemSource(itemID)
-                    if source and source.boss and source.boss.dropRates then
-                        dropRate = source.boss.dropRates[itemID]
-                    end
-                end
-                local rateStr = nil
-                if dropRate then
-                    local numRate = tonumber(dropRate)
-                    if numRate and numRate > 0 and numRate < 1 then
-                        rateStr = string.format("%d%%", math.floor(numRate * 100 + 0.5))
-                    elseif numRate then
-                        rateStr = string.format("%g%%", numRate)
+            if boss.isAll then
+                local source = sfui.dj_camelot and sfui.dj_camelot.GetItemSource and sfui.dj_camelot.GetItemSource(itemID)
+                if source and source.bossName then
+                    if typeLabel ~= "" then
+                        typeLabel = typeLabel .. "  ·  |cff888888" .. tostring(source.bossName):lower() .. "|r"
                     else
-                        rateStr = tostring(dropRate)
+                        typeLabel = "|cff888888" .. tostring(source.bossName):lower() .. "|r"
                     end
                 end
+            end
+            btn.typeText:SetText(typeLabel)
 
-                local reqStr = ""
-                if reqLevel and reqLevel > 0 then
-                    reqStr = "req " .. reqLevel
-                elseif iLevel and iLevel > 0 then
-                    reqStr = "ilvl " .. iLevel
-                end
+            -- Drop rate & Level info
+            local reqStr = ""
+            if reqLevel and reqLevel > 0 then
+                reqStr = "req " .. reqLevel
+            elseif iLevel and iLevel > 0 then
+                reqStr = "ilvl " .. iLevel
+            end
 
-                if rateStr and reqStr ~= "" then
-                    btn.reqText:SetText(string.format("|cff00e5ff%s|r  ·  %s", rateStr, reqStr))
-                elseif rateStr then
-                    btn.reqText:SetText(string.format("|cff00e5ff%s|r", rateStr))
-                else
-                    btn.reqText:SetText(reqStr)
-                end
+            if rateStr and reqStr ~= "" then
+                btn.reqText:SetText(string.format("|cff00e5ff%s|r  ·  %s", rateStr, reqStr))
+            elseif rateStr then
+                btn.reqText:SetText(string.format("|cff00e5ff%s|r", rateStr))
+            else
+                btn.reqText:SetText(reqStr)
+            end
 
                 -- Tooltips and Click actions
                 btn:SetScript("OnEnter", function(self)
@@ -600,7 +999,6 @@ local function RenderLoot(boss, dungeon)
                 y = y + LOOT_ROW_H + LOOT_ROW_PAD
             end
         end
-    end
 
     -- Update count badge if filtered
     if bossHeaderFrame and bossHeaderFrame.count and boss and boss.items then
@@ -706,6 +1104,28 @@ local function RefreshBossView()
             RefreshBossView()
         end)
 
+        -- Wishlist state on boss button
+        UpdateBossButtonWishlist(btn)
+
+        btn:SetScript("OnEnter", function(self)
+            if self.hasWishlist and self.wishItemCount and self.wishItemCount > 0 then
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:SetText(self.bossName or "boss encounter", 1, 0.82, 0)
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine(string.format("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffcc44ffwishlist drop%s (%d)|r", (self.wishItemCount > 1 and "s" or ""), self.wishItemCount), 1, 1, 1)
+                if self.wishItemNames then
+                    for _, itemName in ipairs(self.wishItemNames) do
+                        GameTooltip:AddLine("  • " .. itemName, 0.85, 0.85, 0.85)
+                    end
+                end
+                GameTooltip:AddLine("click to view encounter loot.", 0.6, 0.6, 0.6, true)
+                GameTooltip:Show()
+            end
+        end)
+        btn:SetScript("OnLeave", function(self)
+            GameTooltip:Hide()
+        end)
+
         btn:Show()
         y = y + BOSS_BTN_H + BOSS_BTN_PAD
     end
@@ -739,6 +1159,7 @@ local function QueueLootRefresh(itemID)
                 if currentBoss then
                     RenderLoot(currentBoss, dungeon)
                 end
+                UpdateAllBossButtonsWishlistState()
             end
         end)
     else
@@ -835,15 +1256,46 @@ local function OnFrameCreated(arg1, arg2)
     filterBar:SetPoint("TOPRIGHT", div, "BOTTOMRIGHT", 0, -4)
     filterBar:SetHeight(22)
 
-    local function UpdateFilterPills()
+    UpdateFilterPills = function()
         local pal    = theme.GetPalette()
         local accent = pal and pal.accentColor or { 1, 0.78, 0.2, 1 }
+        local pillX  = 0
+
         for _, pBtn in ipairs(filterButtons) do
-            local isSel = (pBtn.filterKey == currentLootFilter)
+            local key = pBtn.filterKey
+            local isSel = (key == currentLootFilter)
+            local isUsableOnly = (categoryUsableOnly[key] == true)
+
+            -- Base label
+            local labelText = pBtn.baseLabel or ""
+            if key == "usable" and isSel then
+                if usableFilterSpecMode == "all" then
+                    labelText = "usable (all)"
+                else
+                    labelText = "usable"
+                end
+            elseif isUsableOnly then
+                labelText = labelText .. " *"
+            end
+            pBtn.label:SetText(labelText)
+
+            local textW = pBtn.label:GetStringWidth() or 20
+            local minW = (key == "wishlist") and 70 or 34
+            local extraPad = (key == "wishlist") and 22 or 14
+            local btnW = math.max(minW, math.floor(textW + extraPad))
+            pBtn:SetWidth(btnW)
+            pBtn:ClearAllPoints()
+            pBtn:SetPoint("LEFT", filterBar, "LEFT", pillX, 0)
+            pillX = pillX + btnW + 5
+
             if isSel then
                 pBtn:SetBackdropColor(accent[1], accent[2], accent[3], 0.22)
                 pBtn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.75)
                 pBtn.label:SetTextColor(accent[1], accent[2], accent[3], 1)
+            elseif isUsableOnly then
+                pBtn:SetBackdropColor(0.12, 0.22, 0.14, 0.6)
+                pBtn:SetBackdropBorderColor(0.25, 0.7, 0.35, 0.75)
+                pBtn.label:SetTextColor(0.4, 0.85, 0.5, 1)
             else
                 pBtn:SetBackdropColor(0.08, 0.08, 0.10, 0.6)
                 pBtn:SetBackdropBorderColor(0.18, 0.18, 0.22, 0.6)
@@ -855,7 +1307,9 @@ local function OnFrameCreated(arg1, arg2)
     local pillX = 0
     for _, def in ipairs(FILTER_BUTTONS) do
         local pBtn = CreateFrame("Button", nil, filterBar, "BackdropTemplate")
-        pBtn.filterKey = def.key
+        pBtn.filterKey  = def.key
+        pBtn.baseLabel  = def.label
+        pBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         pBtn:SetHeight(18)
         pBtn:SetBackdrop({
             bgFile   = "Interface\\Buttons\\WHITE8x8",
@@ -869,15 +1323,33 @@ local function OnFrameCreated(arg1, arg2)
         pLbl:SetPoint("CENTER", pBtn, "CENTER", 0, 0)
         pLbl:SetText(def.label)
 
-        local textW = pLbl:GetStringWidth()
-        local minW = (def.key == "wishlist") and 76 or 38
-        local extraPad = (def.key == "wishlist") and 26 or 18
+        local textW = pLbl:GetStringWidth() or 20
+        local minW = (def.key == "wishlist") and 70 or 34
+        local extraPad = (def.key == "wishlist") and 22 or 14
         local btnW = math.max(minW, math.floor(textW + extraPad))
         pBtn:SetWidth(btnW)
-        pillX = pillX + btnW + 6
+        pillX = pillX + btnW + 5
 
-        pBtn:SetScript("OnClick", function()
-            currentLootFilter = def.key
+        pBtn:SetScript("OnClick", function(self, mouseBtn)
+            if def.key == "usable" then
+                if currentLootFilter ~= "usable" then
+                    currentLootFilter = "usable"
+                else
+                    usableFilterSpecMode = (usableFilterSpecMode == "spec") and "all" or "spec"
+                end
+            elseif def.key == "armor" or def.key == "weapons" or def.key == "trinkets" or def.key == "other" then
+                if mouseBtn == "RightButton" then
+                    currentLootFilter = def.key
+                    categoryUsableOnly[def.key] = not categoryUsableOnly[def.key]
+                else
+                    currentLootFilter = def.key
+                    categoryUsableOnly[def.key] = false
+                end
+            else
+                currentLootFilter = def.key
+                categoryUsableOnly = {}
+            end
+
             UpdateFilterPills()
             local dungeon = GetCurrentDungeon()
             local encounters = GetEncounterList(dungeon)
@@ -885,15 +1357,90 @@ local function OnFrameCreated(arg1, arg2)
             if currentBoss then
                 RenderLoot(currentBoss, dungeon)
             end
+
+            if self:IsMouseOver() and self.OnEnterHandler then
+                self.OnEnterHandler(self)
+            end
         end)
 
-        pBtn:SetScript("OnEnter", function(self)
-            if self.filterKey ~= currentLootFilter then
+        pBtn.OnEnterHandler = function(self)
+            if self.filterKey ~= currentLootFilter and not categoryUsableOnly[self.filterKey] then
                 self:SetBackdropBorderColor(0.4, 0.4, 0.48, 0.9)
                 self.label:SetTextColor(0.9, 0.9, 0.95, 1)
             end
-        end)
+
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:ClearLines()
+
+            local key = self.filterKey
+            if key == "all" then
+                GameTooltip:AddLine("all drops", 1, 1, 1)
+                GameTooltip:AddLine("shows all loot from this boss", 0.7, 0.7, 0.7)
+            elseif key == "usable" then
+                GameTooltip:AddLine("usable loot", 1, 1, 1)
+                local curClass = UnitClass("player")
+                local curClassLower = curClass and curClass:lower() or "class"
+                if usableFilterSpecMode == "spec" then
+                    local activeSpec = GetPlayerActiveSpecID()
+                    local sName = GetSpecDisplayName(activeSpec)
+                    local desc = (sName ~= "") and (sName .. " " .. curClassLower) or curClassLower
+                    GameTooltip:AddLine("filtered for: " .. desc .. " (active spec)", 0.3, 0.85, 0.4)
+                    GameTooltip:AddLine("click to show: all " .. curClassLower .. " specs", 0.7, 0.7, 0.7)
+                else
+                    GameTooltip:AddLine("filtered for: all " .. curClassLower .. " specs", 0.3, 0.85, 0.4)
+                    local activeSpec = GetPlayerActiveSpecID()
+                    local sName = GetSpecDisplayName(activeSpec)
+                    if sName ~= "" then
+                        GameTooltip:AddLine("click to show: " .. sName .. " only (active spec)", 0.7, 0.7, 0.7)
+                    end
+                end
+            elseif key == "armor" then
+                GameTooltip:AddLine("armor drops", 1, 1, 1)
+                if categoryUsableOnly["armor"] then
+                    GameTooltip:AddLine("showing: usable armor only", 0.3, 0.85, 0.4)
+                    GameTooltip:AddLine("left-click: show all armor", 0.7, 0.7, 0.7)
+                else
+                    GameTooltip:AddLine("showing: all armor", 0.8, 0.8, 0.8)
+                    GameTooltip:AddLine("right-click: filter usable armor only", 0.7, 0.7, 0.7)
+                end
+            elseif key == "weapons" then
+                GameTooltip:AddLine("weapon drops", 1, 1, 1)
+                if categoryUsableOnly["weapons"] then
+                    GameTooltip:AddLine("showing: usable weapons only", 0.3, 0.85, 0.4)
+                    GameTooltip:AddLine("left-click: show all weapons", 0.7, 0.7, 0.7)
+                else
+                    GameTooltip:AddLine("showing: all weapons", 0.8, 0.8, 0.8)
+                    GameTooltip:AddLine("right-click: filter usable weapons only", 0.7, 0.7, 0.7)
+                end
+            elseif key == "trinkets" then
+                GameTooltip:AddLine("trinket & jewelry drops", 1, 1, 1)
+                if categoryUsableOnly["trinkets"] then
+                    GameTooltip:AddLine("showing: usable trinkets & jewelry only", 0.3, 0.85, 0.4)
+                    GameTooltip:AddLine("left-click: show all trinkets & jewelry", 0.7, 0.7, 0.7)
+                else
+                    GameTooltip:AddLine("showing: all trinkets, rings, and necks", 0.8, 0.8, 0.8)
+                    GameTooltip:AddLine("right-click: filter usable only", 0.7, 0.7, 0.7)
+                end
+            elseif key == "other" then
+                GameTooltip:AddLine("other drops", 1, 1, 1)
+                GameTooltip:AddLine("tokens, relics, recipes, bags, misc", 0.7, 0.7, 0.7)
+                if categoryUsableOnly["other"] then
+                    GameTooltip:AddLine("showing: usable other drops only", 0.3, 0.85, 0.4)
+                    GameTooltip:AddLine("left-click: show all other drops", 0.7, 0.7, 0.7)
+                else
+                    GameTooltip:AddLine("right-click: filter usable only", 0.7, 0.7, 0.7)
+                end
+            elseif key == "wishlist" then
+                GameTooltip:AddLine("wishlisted drops", 1, 1, 1)
+                GameTooltip:AddLine("shows items you marked with a purple gem", 0.7, 0.7, 0.7)
+            end
+
+            GameTooltip:Show()
+        end
+
+        pBtn:SetScript("OnEnter", pBtn.OnEnterHandler)
         pBtn:SetScript("OnLeave", function()
+            GameTooltip:Hide()
             UpdateFilterPills()
         end)
 
@@ -940,9 +1487,14 @@ if sfui.events and sfui.events.RegisterMessage then
             if currentBoss then
                 RenderLoot(currentBoss, dungeon)
             end
+            UpdateAllBossButtonsWishlistState()
         end
     end)
     sfui.events.RegisterMessage("SFUI_SPEC_CHANGED", function()
+        itemClassUsableCache = {}
+        if UpdateFilterPills then
+            UpdateFilterPills()
+        end
         if bossPanel and bossPanel:IsShown() then
             local dungeon = GetCurrentDungeon()
             local encounters = GetEncounterList(dungeon)

@@ -61,7 +61,7 @@ local eventCallbacks     = {}  -- [eventName] = { cb, cb, ... }
 local updateCallbacks    = {}  -- { { name, interval, elapsed, callback }, ... }
 
 local function _err(ctx, msg)
-    print("|cff6600ffsfui|r dispatcher error (" .. ctx .. "): " .. tostring(msg))
+    print("|cff6600ffsfui|r dispatcher error (" .. tostring(ctx) .. "): " .. tostring(msg))
 end
 
 -- ─── Memory profiling ───────────────────────────────────────────────────────

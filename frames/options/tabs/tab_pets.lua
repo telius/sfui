@@ -55,6 +55,9 @@ sfui.options.RegisterTab({
 
         local pets_enable_cb = create_checkbox(p, "enable companion auto-summon", "petsEnabled", function(checked)
             if sfui.pets.RebuildPools then sfui.pets.RebuildPools() end
+            if checked and sfui.pets.RestoreIfMissing then
+                C_Timer.After(0.5, sfui.pets.RestoreIfMissing)
+            end
         end, "automatically summons your companion pet when lost after dismounting, taxi, or zoning.")
         pets_enable_cb:SetPoint("TOPLEFT", opt_header, "BOTTOMLEFT", 0, -10)
 
@@ -117,7 +120,7 @@ sfui.options.RegisterTab({
         summon_next_btn:SetPoint("LEFT", add_current_btn, "RIGHT", 8, 0)
         summon_next_btn:SetScript("OnClick", function()
             if InCombatLockdown and InCombatLockdown() then
-                sfui.common.print("Cannot summon pets in combat.")
+                sfui.common.print("cannot summon pets in combat.")
                 return
             end
             if sfui.pets.SummonNext then
@@ -167,7 +170,7 @@ sfui.options.RegisterTab({
                     end
                     if p.refresh_list then p.refresh_list() end
                     local name = (C_PetJournal_GetPetInfoByPetID and select(8, C_PetJournal_GetPetInfoByPetID(petGUID))) or "Companion"
-                    sfui.common.print("Added |cff00ffff" .. tostring(name) .. "|r to character favorites.")
+                    sfui.common.print("added |cff00ffff" .. tostring(name) .. "|r to character favorites.")
                 end
                 if _G.ClearCursor then _G.ClearCursor() end
             end
@@ -264,7 +267,7 @@ sfui.options.RegisterTab({
             summon_btn:SetPoint("RIGHT", remove_btn, "LEFT", -6, 0)
             summon_btn:SetScript("OnClick", function()
                 if InCombatLockdown and InCombatLockdown() then
-                    sfui.common.print("Cannot summon pets in combat.")
+                    sfui.common.print("cannot summon pets in combat.")
                     return
                 end
                 if row.petGUID and sfui.pets.SummonPetByGUID then

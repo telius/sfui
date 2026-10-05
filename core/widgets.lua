@@ -391,8 +391,12 @@ function sfui.widgets.create_cvar_checkbox(parent, label, cvar, tooltip)
     return sfui.widgets.create_checkbox(parent, label, function()
         return (GetCVar and GetCVar(cvar) == "1") or (C_CVar and C_CVar.GetCVar and C_CVar.GetCVar(cvar) == "1")
     end, function(checked)
-        local setCVar = (C_CVar and C_CVar.SetCVar) or _G.SetCVar
-        if setCVar then setCVar(cvar, checked and "1" or "0") end
+        if sfui.common and sfui.common.set_cvar then
+            sfui.common.set_cvar(cvar, checked and "1" or "0")
+        elseif (not InCombatLockdown or not InCombatLockdown()) then
+            local setCVar = (C_CVar and C_CVar.SetCVar) or _G.SetCVar
+            if setCVar then setCVar(cvar, checked and "1" or "0") end
+        end
         if SfuiDB then SfuiDB[cvar] = checked end
     end, tooltip)
 end
@@ -1234,7 +1238,7 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
                     if onSelectFunc then
                         local ok, err = pcall(onSelectFunc, val)
                         if not ok then
-                            print("|cffff0000[SFUI Dropdown Error]|r", err)
+                            print("|cffff0000[sfui dropdown error]|r", err)
                         end
                     end
                     if not opt.keepOpen then

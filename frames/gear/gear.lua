@@ -237,7 +237,7 @@ local function TryEquipSet(setName)
         if C_EquipmentSet.UseEquipmentSet then
             C_EquipmentSet.UseEquipmentSet(setID)
         end
-        sfui.common.print("automatically equipped set: " .. (name and name:lower() or (setName and setName:lower() or "")))
+        sfui.common.print("automatically equipped set: " .. (name or setName or ""))
         return true
     end
     return false
@@ -1188,7 +1188,7 @@ function sfui.gear.handle_player_regen()
                     C_EquipmentSet.UseEquipmentSet(gearEquipQueue)
                 end
                 if name then
-                    common.print("equipped queued set: " .. name:lower())
+                    common.print("equipped queued set: " .. name)
                 end
             end
             gearEquipQueue = nil
@@ -1714,20 +1714,38 @@ function sfui.gear.UnequipDurabilityItems()
         if _G.UIErrorsFrame and _G.UIErrorsFrame.AddMessage then
             _G.UIErrorsFrame:AddMessage(msg, 1.0, 0.1, 0.1, 1.0)
         end
-        sfui.common.print(msg:lower())
+        sfui.common.print("cannot unequip items in combat.")
         return
     end
 
     local slotsToUnequip = {}
-    for slot = 1, 19 do
-        local _, maxDur = GetInventoryItemDurability(slot)
-        if maxDur and maxDur > 0 then
+    local seen = {}
+
+    -- 1. Weapons and clothing / armor slots that constitute "naked"
+    local nakedSlots = {
+        16, 17, 18,              -- Weapons: Main Hand, Off Hand, Ranged (always unequipped even if starter/no-durability)
+        1, 3, 4, 5, 6, 7, 8, 9, 10, 15, 19, -- Armor & clothing: Head, Shoulders, Shirt, Chest, Waist, Legs, Feet, Wrists, Hands, Cloak, Tabard
+    }
+    for _, slot in ipairs(nakedSlots) do
+        if GetInventoryItemID("player", slot) then
             table.insert(slotsToUnequip, slot)
+            seen[slot] = true
+        end
+    end
+
+    -- 2. Any other slot with durability (e.g. to save repair costs on corpse runs)
+    for slot = 1, 19 do
+        if not seen[slot] and GetInventoryItemID("player", slot) then
+            local _, maxDur = GetInventoryItemDurability(slot)
+            if maxDur and maxDur > 0 then
+                table.insert(slotsToUnequip, slot)
+                seen[slot] = true
+            end
         end
     end
 
     if #slotsToUnequip == 0 then
-        sfui.common.print("no durability gear equipped.")
+        sfui.common.print("no gear equipped to unequip.")
         return
     end
 
@@ -1757,14 +1775,13 @@ function sfui.gear.UnequipDurabilityItems()
         if index > #slotsToUnequip then
             unequipRunning = false
             wipe(reservedBagSlots)
-            sfui.common.print("durability gear unequipped for corpse run.")
+            sfui.common.print("gear unequipped.")
             return
         end
 
         local slotID = slotsToUnequip[index]
-        local _, maxDur = GetInventoryItemDurability(slotID)
-        if not maxDur or maxDur <= 0 then
-            -- Item in this slot is already unequipped or has no durability
+        if not GetInventoryItemID("player", slotID) then
+            -- Item in this slot is already unequipped
             index = index + 1
             retryCount = 0
             C_Timer.After(0.02, step)
@@ -1791,7 +1808,7 @@ function sfui.gear.UnequipDurabilityItems()
             if _G.UIErrorsFrame and _G.UIErrorsFrame.AddMessage then
                 _G.UIErrorsFrame:AddMessage(msg, 1.0, 0.1, 0.1, 1.0)
             end
-            sfui.common.print("bags full; stopped unequipping durability gear.")
+            sfui.common.print("bags full; stopped unequipping gear.")
             unequipRunning = false
             wipe(reservedBagSlots)
             return
@@ -2460,10 +2477,10 @@ gearFrame:SetScript("OnShow", function(self)
                     if b._sfuiAHHighlight then b._sfuiAHHighlight:Show() end
                 end
                 local isNaked = sfui.gear.isNakedPaused and sfui.gear.isNakedPaused()
-                local title = isNaked and "naked (active - auto-equip paused)" or "naked (unequip durability gear)"
+                local title = isNaked and "naked (active - auto-equip paused)" or "naked (unequip gear)"
                 show_tooltip(b, "ANCHOR_TOP", title, {
-                    { isNaked and "click to resume auto-equip and re-equip your gear." or "unequips all armor and weapons with durability into your bags so you do not lose money on death or corpse runs.", 0.8, 0.8, 0.8, true },
-                    { "leaves non-durability items equipped (rings, trinkets, neck, cloak).", 0.6, 0.9, 0.6, true },
+                    { isNaked and "click to resume auto-equip and re-equip your gear." or "unequips all weapons and armor into your bags.", 0.8, 0.8, 0.8, true },
+                    { "leaves non-durability jewelry equipped (rings, trinkets, neck).", 0.6, 0.9, 0.6, true },
                     { "pauses gear manager auto-equip until clicked again or dps/heal/tank or pve/pvp is clicked.", 0.4, 0.8, 1.0, true },
                 })
             end)
@@ -2752,7 +2769,7 @@ gearFrame:SetScript("OnShow", function(self)
                 SfuiDB.gear[id].pawn_weights = next(weights) and weights or nil
                 SfuiDB.gear[id].pawn_string  = (next(weights) and text ~= "") and text or nil
                 local specName = common.get_spec_name(id) or ("spec " .. tostring(id))
-                sfui.common.print("pawn saved for " .. specName:lower())
+                sfui.common.print("pawn saved for " .. specName)
                 sfui.gear.UpdateStatUI()
             end)
         else
@@ -2787,7 +2804,7 @@ gearFrame:SetScript("OnShow", function(self)
                 SfuiDB.gear[id].pawn_weights = next(weights) and weights or nil
                 SfuiDB.gear[id].pawn_string  = (next(weights) and text ~= "") and text or nil
                 local specName               = common.get_spec_name(id) or ("spec " .. tostring(id))
-                sfui.common.print("pawn saved for " .. specName:lower())
+                sfui.common.print("pawn saved for " .. specName)
                 sfui.gear.UpdateStatUI()
             end)
         end

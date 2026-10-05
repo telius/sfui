@@ -138,7 +138,7 @@ local function get_or_create_popup()
 
     card:HookScript("OnClick", function(self)
         if not self.isKnown then
-            sfui_common.print("|cffff5555You have not learned the teleport for this dungeon.|r")
+            sfui_common.print("|cffff5555you have not learned the teleport for this dungeon.|r")
         end
         if not InCombatLockdown() then
             f:Hide()
@@ -349,7 +349,7 @@ function sfui.portals.TestPortalPopup()
     local testPortal = sfui.portals_db.SEASON_PORTALS[1]
     if testPortal then
         sfui.portals.ShowGroupPortalPopup(testPortal.instance, testPortal.name, UnitGroupRolesAssigned("player"), true)
-        sfui_common.print("|cff00ffffPreviewing dungeon portal popup for " .. testPortal.name .. ".|r")
+        sfui_common.print("|cff00ffffpreviewing dungeon portal popup for " .. testPortal.name .. ".|r")
     else
         sfui.portals.ShowGroupPortalPopup(1762, "Kings' Rest", UnitGroupRolesAssigned("player"), true)
     end
@@ -523,18 +523,18 @@ sfui_events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
 end)
 
 function sfui.portals.popup_debug()
-    print("|cff00ffff[SFUI Portal Popup Debug]|r")
+    print("|cff00ffff[sfui portal popup debug]|r")
     print("  enabled:", is_enabled())
-    print("  onlyWhenFull:", (SfuiDB and SfuiDB.portalPopupOnlyWhenFull))
-    print("  numGroupMembers:", GetNumGroupMembers())
-    print("  hasActiveEntry:", C_LFGList and C_LFGList.HasActiveEntryInfo and C_LFGList.HasActiveEntryInfo())
+    print("  onlywhenfull:", (SfuiDB and SfuiDB.portalPopupOnlyWhenFull))
+    print("  numgroupmembers:", GetNumGroupMembers())
+    print("  hasactiveentry:", C_LFGList and C_LFGList.HasActiveEntryInfo and C_LFGList.HasActiveEntryInfo())
     if currentGroup.active then
-        print("  currentGroup.instanceId:", currentGroup.instanceId)
-        print("  currentGroup.activityName:", currentGroup.activityName)
-        print("  currentGroup.appliedRole:", currentGroup.appliedRole)
-        print("  currentGroup.notifiedFull:", currentGroup.notifiedFull)
+        print("  currentgroup.instanceid:", currentGroup.instanceId)
+        print("  currentgroup.activityname:", currentGroup.activityName)
+        print("  currentgroup.appliedrole:", currentGroup.appliedRole)
+        print("  currentgroup.notifiedfull:", currentGroup.notifiedFull)
     else
-        print("  currentGroup: inactive")
+        print("  currentgroup: inactive")
     end
 end
 

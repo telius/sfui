@@ -142,8 +142,8 @@ sfui.options.RegisterTab({
                 if UpdateCamelotStyleControls then
                     UpdateCamelotStyleControls()
                 end
-                local name = (btn.styleKey == "architectural") and "Architectural Slate" or "Sculpted Card"
-                sfui.common.print("Camelot loot feed style set to '" .. name .. "'.")
+                local name = (btn.styleKey == "architectural") and "architectural slate" or "sculpted card"
+                sfui.common.print("camelot loot feed style set to '" .. name .. "'.")
             end)
         end
 

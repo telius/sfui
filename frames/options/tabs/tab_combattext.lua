@@ -31,8 +31,12 @@ local defaultCVars = {
 }
 
 local function set_cvar(cvar, val)
-    local set = (C_CVar and C_CVar.SetCVar) or SetCVar
-    if set then set(cvar, tostring(val)) end
+    if sfui.common and sfui.common.set_cvar then
+        sfui.common.set_cvar(cvar, tostring(val))
+    elseif (not InCombatLockdown or not InCombatLockdown()) then
+        local set = (C_CVar and C_CVar.SetCVar) or SetCVar
+        if set then set(cvar, tostring(val)) end
+    end
     if SfuiDB then
         if val == "1" or val == "0" then
             SfuiDB[cvar] = (val == "1")
@@ -43,6 +47,9 @@ local function set_cvar(cvar, val)
 end
 
 local function get_cvar(cvar)
+    if sfui.common and sfui.common.get_cvar then
+        return sfui.common.get_cvar(cvar)
+    end
     local get = (C_CVar and C_CVar.GetCVar) or GetCVar
     return get and get(cvar)
 end

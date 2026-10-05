@@ -53,10 +53,34 @@ local GetUnitName                  = _G.GetUnitName
 local NameUtil                     = _G.NameUtil
 local C_Spell                      = _G.C_Spell
 local GetSpellInfo                 = _G.GetSpellInfo
-local RegisterUnitWatch            = _G.RegisterUnitWatch
-local UnregisterUnitWatch          = _G.UnregisterUnitWatch
-local UnitWatchRegistered          = _G.UnitWatchRegistered
-local CheckInteractDistance        = _G.CheckInteractDistance
+
+-- ─── Secure Unit Watch Helpers ───────────────────────────────────────────────
+local function SafeRegisterUnitWatch(frame)
+    if not frame then return end
+    if _G.RegisterUnitWatch then
+        _G.RegisterUnitWatch(frame)
+    elseif _G.RegisterStateDriver then
+        _G.RegisterStateDriver(frame, "visibility", "[@target,exists] show; hide")
+    end
+end
+
+local function SafeUnregisterUnitWatch(frame)
+    if not frame then return end
+    if _G.UnregisterUnitWatch then
+        _G.UnregisterUnitWatch(frame)
+    end
+    if _G.UnregisterStateDriver then
+        _G.UnregisterStateDriver(frame, "visibility")
+    end
+end
+
+local function IsUnitWatchRegistered(frame)
+    if not frame then return false end
+    if _G.UnitWatchRegistered then
+        return _G.UnitWatchRegistered(frame)
+    end
+    return false
+end
 
 -- ─── Module Frame Storage ────────────────────────────────────────────────────
 local targetContainer
@@ -467,7 +491,7 @@ local function GetPlayerHealthBar()
 end
 
 ApplyTargetPosition = function()
-    if not targetContainer then return end
+    if not targetContainer or InCombatLockdown() then return end
     targetContainer:ClearAllPoints()
 
     local savedPos = SfuiDB and SfuiDB.targetBar_pos
@@ -819,84 +843,272 @@ local function UpdateRaidTargetMarker()
 end
 
 -- ─── Range & Distance Check ──────────────────────────────────────────────────
-local SPELLS_BY_CLASS = {
-    WARRIOR     = { 100, 3018, 2764, "Charge", "Shoot", "Throw" },
-    PALADIN     = { 20271, 635, 879, "Judgement", "Holy Shock", "Exorcism", "Holy Light" },
-    HUNTER      = { 75, 3044, "Auto Shot", "Arcane Shot" },
-    ROGUE       = { 3018, 2764, 1752, "Shoot", "Throw", "Sinister Strike" },
-    PRIEST      = { 589, 585, 2050, "Shadow Word: Pain", "Smite", "Flash Heal" },
-    DEATHKNIGHT = { 45477, 47541, "Icy Touch", "Death Coil" },
-    SHAMAN      = { 403, 8042, 331, "Lightning Bolt", "Earth Shock", "Healing Wave" },
-    MAGE        = { 133, 116, "Fireball", "Frostbolt" },
-    WARLOCK     = { 686, "Shadow Bolt" },
-    DRUID       = { 8921, 5176, 5185, "Moonfire", "Wrath", "Healing Touch" },
+local HARM_SPELLS_BY_CLASS = {
+    WARRIOR = {
+        57755, -- Heroic Throw (30yd)
+        355,   -- Taunt (30yd / 5yd)
+        3018,  -- Shoot (30yd)
+        2764,  -- Throw (30yd)
+        1715,  -- Hamstring (5yd melee)
+        772,   -- Rend (5yd melee)
+        78,    -- Heroic Strike (5yd melee)
+        "Heroic Throw", "Taunt", "Shoot", "Throw", "Hamstring", "Rend", "Heroic Strike",
+    },
+    PALADIN = {
+        20271,  -- Judgement (10-30yd)
+        62124,  -- Hand of Reckoning (30yd)
+        879,    -- Exorcism (30yd)
+        20473,  -- Holy Shock (20-40yd)
+        24275,  -- Hammer of Wrath (30yd)
+        35395,  -- Crusader Strike (melee)
+        "Judgement", "Hand of Reckoning", "Exorcism", "Holy Shock", "Hammer of Wrath", "Crusader Strike",
+    },
+    HUNTER = {
+        75,     -- Auto Shot (35-40yd)
+        3044,   -- Arcane Shot (35-40yd)
+        1978,   -- Serpent Sting (35-40yd)
+        193455, -- Cobra Shot (40yd)
+        56641,  -- Steady Shot (40yd)
+        2974,   -- Wing Clip (5yd melee)
+        "Auto Shot", "Arcane Shot", "Serpent Sting", "Cobra Shot", "Steady Shot", "Wing Clip",
+    },
+    ROGUE = {
+        3018,   -- Shoot (30yd)
+        2764,   -- Throw (30yd)
+        185763, -- Pistol Shot (20yd)
+        36554,  -- Shadowstep (25yd)
+        2094,   -- Blind (15yd)
+        1752,   -- Sinister Strike (5yd melee)
+        8676,   -- Ambush (5yd melee)
+        1833,   -- Cheap Shot (5yd melee)
+        "Shoot", "Throw", "Pistol Shot", "Shadowstep", "Blind", "Sinister Strike", "Ambush", "Cheap Shot",
+    },
+    PRIEST = {
+        589,    -- Shadow Word: Pain (30-40yd)
+        585,    -- Smite (30-40yd)
+        5019,   -- Shoot (30yd)
+        8092,   -- Mind Blast (30yd)
+        "Shadow Word: Pain", "Smite", "Shoot", "Mind Blast",
+    },
+    DEATHKNIGHT = {
+        45477,  -- Icy Touch (30yd)
+        47541,  -- Death Coil (40yd)
+        49576,  -- Death Grip (30yd)
+        "Icy Touch", "Death Coil", "Death Grip",
+    },
+    SHAMAN = {
+        403,    -- Lightning Bolt (30yd)
+        8042,   -- Earth Shock (20yd)
+        8044,   -- Flame Shock (20yd)
+        188196, -- Lightning Bolt (modern ID)
+        "Lightning Bolt", "Earth Shock", "Flame Shock",
+    },
+    MAGE = {
+        133,    -- Fireball (35yd)
+        116,    -- Frostbolt (30-40yd)
+        5143,   -- Arcane Missiles (30-40yd)
+        5019,   -- Shoot (30yd)
+        "Fireball", "Frostbolt", "Arcane Missiles", "Shoot",
+    },
+    WARLOCK = {
+        686,    -- Shadow Bolt (30-40yd)
+        172,    -- Corruption (30-40yd)
+        348,    -- Immolate (30yd)
+        5019,   -- Shoot (30yd)
+        "Shadow Bolt", "Corruption", "Immolate", "Shoot",
+    },
+    DRUID = {
+        5176,   -- Wrath (30yd)
+        8921,   -- Moonfire (30yd)
+        6795,   -- Growl (30yd / 5-8yd)
+        1822,   -- Rake (5yd melee)
+        1082,   -- Claw (5yd melee)
+        6807,   -- Maul (5yd melee)
+        "Wrath", "Moonfire", "Growl", "Rake", "Claw", "Maul",
+    },
+    MONK = {
+        117952, -- Crackling Jade Lightning (40yd)
+        115546, -- Provoke (30yd)
+        100780, -- Tiger Palm (melee)
+        "Crackling Jade Lightning", "Provoke", "Tiger Palm",
+    },
+    DEMONHUNTER = {
+        185123, -- Throw Glaive (30yd)
+        185245, -- Torment (30yd)
+        "Throw Glaive", "Torment",
+    },
+    EVOKER = {
+        361469, -- Living Flame (25yd)
+        356995, -- Disintegrate (25yd)
+        362969, -- Azure Strike (25yd)
+        "Living Flame", "Disintegrate", "Azure Strike",
+    },
 }
 
-local cachedRangeSpell
+local HELP_SPELLS_BY_CLASS = {
+    PALADIN = {
+        635,    -- Holy Light (40yd)
+        19750,  -- Flash of Light (40yd)
+        19740,  -- Blessing of Might (30yd)
+        20217,  -- Blessing of Kings (30yd)
+        1044,   -- Blessing of Freedom (30yd)
+        "Holy Light", "Flash of Light", "Blessing of Might", "Blessing of Kings", "Blessing of Freedom",
+    },
+    PRIEST = {
+        2050,   -- Lesser Heal (40yd)
+        2061,   -- Flash Heal (40yd)
+        17,     -- Power Word: Shield (40yd)
+        139,    -- Renew (40yd)
+        2054,   -- Heal (40yd)
+        "Lesser Heal", "Flash Heal", "Power Word: Shield", "Renew", "Heal",
+    },
+    DRUID = {
+        5185,   -- Healing Touch (40yd)
+        774,    -- Rejuvenation (40yd)
+        8936,   -- Regrowth (40yd)
+        1126,   -- Mark of the Wild (30yd)
+        "Healing Touch", "Rejuvenation", "Regrowth", "Mark of the Wild",
+    },
+    SHAMAN = {
+        331,    -- Healing Wave (40yd)
+        8004,   -- Lesser Healing Wave (40yd)
+        1064,   -- Chain Heal (40yd)
+        "Healing Wave", "Lesser Healing Wave", "Chain Heal",
+    },
+    MAGE = {
+        1459,   -- Arcane Intellect (30yd)
+        475,    -- Remove Lesser Curse (30yd)
+        130,    -- Slow Fall (40yd)
+        "Arcane Intellect", "Remove Lesser Curse", "Slow Fall",
+    },
+    WARLOCK = {
+        5697,   -- Unending Breath (30yd)
+        20707,  -- Soulstone (40yd)
+        "Unending Breath", "Soulstone",
+    },
+    DEATHKNIGHT = {
+        47541,  -- Death Coil (40yd, friendly undead)
+        61999,  -- Raise Ally (40yd)
+        "Death Coil", "Raise Ally",
+    },
+    MONK = {
+        116670, -- Vivify (40yd)
+        115175, -- Soothing Mist (40yd)
+        115450, -- Detox (40yd)
+        "Vivify", "Soothing Mist", "Detox",
+    },
+    EVOKER = {
+        361469, -- Living Flame (25yd)
+        355913, -- Emerald Blossom (25yd)
+        "Living Flame", "Emerald Blossom",
+    },
+    HUNTER = {
+        34477,  -- Misdirection (100yd)
+        "Misdirection",
+    },
+    ROGUE = {
+        57934,  -- Tricks of the Trade (100yd)
+        "Tricks of the Trade",
+    },
+    WARRIOR = {},
+    DEMONHUNTER = {},
+}
+
+local cachedPlayerClass
+local cachedHarmSpell
+local cachedHelpSpell
+
 local function ResetRangeSpellCache()
-    cachedRangeSpell = nil
+    cachedHarmSpell = nil
+    cachedHelpSpell = nil
 end
 
-local function GetClassRangeSpell()
-    if cachedRangeSpell ~= nil then
-        return cachedRangeSpell or nil
-    end
-    local _, class = UnitClass("player")
-    local list = class and SPELLS_BY_CLASS[class]
-    if list then
-        for i = 1, #list do
-            local spell = list[i]
-            if (C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(spell)) or (GetSpellInfo and GetSpellInfo(spell)) then
-                cachedRangeSpell = spell
-                return spell
+local function SafeIsSpellInRange(spell, unit)
+    if not spell or not unit then return nil end
+    if C_Spell and C_Spell.IsSpellInRange then
+        local ok, inRange = pcall(C_Spell.IsSpellInRange, spell, unit)
+        if ok and inRange ~= nil and not issecretvalue(inRange) then
+            return inRange
+        end
+    elseif _G.IsSpellInRange then
+        local spellName = spell
+        if type(spell) == "number" then
+            if C_Spell and C_Spell.GetSpellName then
+                spellName = C_Spell.GetSpellName(spell) or spell
+            elseif GetSpellInfo then
+                spellName = GetSpellInfo(spell) or spell
             end
         end
+        local ok, inRange = pcall(_G.IsSpellInRange, spellName, unit)
+        if ok and inRange ~= nil and not issecretvalue(inRange) then
+            if inRange == 1 then return true end
+            if inRange == 0 then return false end
+        end
     end
-    cachedRangeSpell = false
     return nil
 end
 
 local function IsTargetInRange()
     if not UnitExists("target") then return true end
     if UnitIsUnit("target", "player") then return true end
+    if UnitIsDeadOrGhost("target") then return true end
 
-    -- Friendly Range
-    if UnitIsFriend("player", "target") then
-        if CheckInteractDistance then
-            local inDist = CheckInteractDistance("target", 4)
-            if not issecretvalue(inDist) then
-                return inDist or false
-            end
-        end
-        return false
+    if not cachedPlayerClass then
+        local _, class = UnitClass("player")
+        cachedPlayerClass = class
     end
 
-    -- Hostile Range via class spell
-    local spell = GetClassRangeSpell()
-    if spell then
-        if C_Spell and C_Spell.IsSpellInRange then
-            local inRange = C_Spell.IsSpellInRange(spell, "target")
-            if inRange ~= nil and not issecretvalue(inRange) then
+    local isFriend = UnitIsFriend("player", "target")
+
+    if isFriend then
+        -- Friendly Range Check
+        if cachedHelpSpell then
+            local inRange = SafeIsSpellInRange(cachedHelpSpell, "target")
+            if inRange ~= nil then
                 return inRange
             end
-        elseif _G.IsSpellInRange then
-            local inRange = _G.IsSpellInRange(spell, "target")
-            if not issecretvalue(inRange) then
-                if inRange == 1 then return true end
-                if inRange == 0 then return false end
+            cachedHelpSpell = nil
+        end
+
+        local helpList = cachedPlayerClass and HELP_SPELLS_BY_CLASS[cachedPlayerClass]
+        if helpList then
+            for i = 1, #helpList do
+                local spell = helpList[i]
+                local inRange = SafeIsSpellInRange(spell, "target")
+                if inRange ~= nil then
+                    cachedHelpSpell = spell
+                    return inRange
+                end
             end
         end
-    end
 
-    -- Fallback: 28yd interact check
-    if CheckInteractDistance then
-        local inDist = CheckInteractDistance("target", 4)
-        if not issecretvalue(inDist) then
-            return inDist or false
+        -- If class has no friendly check spell or friendly target is not healable/buffable (e.g. NPC), default to in-range (no dim)
+        return true
+    else
+        -- Hostile / Neutral Range Check
+        if cachedHarmSpell then
+            local inRange = SafeIsSpellInRange(cachedHarmSpell, "target")
+            if inRange ~= nil then
+                return inRange
+            end
+            cachedHarmSpell = nil
         end
-    end
 
-    return true
+        local harmList = cachedPlayerClass and HARM_SPELLS_BY_CLASS[cachedPlayerClass]
+        if harmList then
+            for i = 1, #harmList do
+                local spell = harmList[i]
+                local inRange = SafeIsSpellInRange(spell, "target")
+                if inRange ~= nil then
+                    cachedHarmSpell = spell
+                    return inRange
+                end
+            end
+        end
+
+        -- If no hostile spell known or available, default to in-range (no dim)
+        return true
+    end
 end
 
 local lastTargetAlpha
@@ -1003,13 +1215,8 @@ InvalidateTargetCaches = function()
 end
 
 local function UpdateAll(isTargetChange)
-    if not targetContainer then return end
+    if not targetContainer or sfui.target.unlocked then return end
     if not UnitExists("target") then
-        if not InCombatLockdown() and not (UnitWatchRegistered and UnitWatchRegistered(targetContainer)) then
-            if targetContainer:IsShown() then
-                targetContainer:Hide()
-            end
-        end
         return
     end
 
@@ -1017,11 +1224,6 @@ local function UpdateAll(isTargetChange)
         InvalidateTargetCaches()
     end
 
-    if not InCombatLockdown() and not (UnitWatchRegistered and UnitWatchRegistered(targetContainer)) then
-        if not targetContainer:IsShown() then
-            targetContainer:Show()
-        end
-    end
     UpdateTargetInfo()
     UpdateTargetHealth()
     UpdateTargetLevel()
@@ -1066,8 +1268,8 @@ local function OnPlayerEnteringWorld()
     HookBlizzardTargetFrame()
     ApplyTargetPosition()
     if targetContainer and not (SfuiDB and SfuiDB.enableTargetBar == false) then
-        if RegisterUnitWatch and not (UnitWatchRegistered and UnitWatchRegistered(targetContainer)) then
-            RegisterUnitWatch(targetContainer)
+        if not IsUnitWatchRegistered(targetContainer) then
+            SafeRegisterUnitWatch(targetContainer)
         end
     end
     if UnitExists("target") then
@@ -1315,11 +1517,11 @@ local function CreateTargetFrame()
     end
 
     if not (SfuiDB and SfuiDB.enableTargetBar == false) then
-        if RegisterUnitWatch then
-            RegisterUnitWatch(targetContainer)
-        end
+        SafeRegisterUnitWatch(targetContainer)
     else
-        targetContainer:Hide()
+        if not InCombatLockdown() then
+            targetContainer:Hide()
+        end
     end
 
     UpdateLayoutAnchors()
@@ -1336,11 +1538,9 @@ function sfui.target.Unlock()
     if InCombatLockdown() then return end
     sfui.target.unlocked = true
     if targetContainer then
-        if UnregisterUnitWatch then
-            UnregisterUnitWatch(targetContainer)
-        end
+        SafeUnregisterUnitWatch(targetContainer)
         targetContainer:Show()
-        nameText:SetText("|cff00ff00Target Bar (Drag to Move)|r")
+        nameText:SetText("|cff00ff00target bar (drag to move)|r")
         if hpText then hpText:SetText("70%") end
         if levelText then
             levelText:SetText("20")
@@ -1362,10 +1562,14 @@ function sfui.target.Lock()
     if InCombatLockdown() then return end
     sfui.target.unlocked = false
     if targetContainer then
-        if RegisterUnitWatch and not (SfuiDB and SfuiDB.enableTargetBar == false) then
-            RegisterUnitWatch(targetContainer)
+        if not (SfuiDB and SfuiDB.enableTargetBar == false) then
+            SafeRegisterUnitWatch(targetContainer)
+        else
+            targetContainer:Hide()
         end
-        UpdateAll()
+        if UnitExists("target") then
+            UpdateAll(true)
+        end
     end
 end
 
@@ -1378,6 +1582,7 @@ function sfui.target.ToggleLock()
 end
 
 function sfui.target.ResetPosition()
+    if InCombatLockdown() then return end
     SfuiDB = SfuiDB or {}
     SfuiDB.targetBar_pos = nil
     ApplyTargetPosition()
@@ -1397,9 +1602,7 @@ function sfui.target.UpdateVisibility()
     if InCombatLockdown() then return end
     if SfuiDB and SfuiDB.enableTargetBar == false then
         if targetContainer then
-            if UnregisterUnitWatch then
-                UnregisterUnitWatch(targetContainer)
-            end
+            SafeUnregisterUnitWatch(targetContainer)
             targetContainer:Hide()
         end
         local tf = _G.TargetFrame
@@ -1410,10 +1613,10 @@ function sfui.target.UpdateVisibility()
         end
     else
         if targetContainer then
-            if RegisterUnitWatch then
-                RegisterUnitWatch(targetContainer)
+            SafeRegisterUnitWatch(targetContainer)
+            if UnitExists("target") then
+                UpdateAll(true)
             end
-            UpdateAll(true)
         end
         SuppressBlizzardTargetFrame()
     end
@@ -1452,7 +1655,9 @@ local function Initialize()
     sfui.events.RegisterEvent("SPELLS_CHANGED", ResetRangeSpellCache)
     sfui.events.RegisterEvent("LEARNED_SPELL_IN_TAB", ResetRangeSpellCache)
 
-    UpdateAll(true)
+    if UnitExists("target") then
+        UpdateAll(true)
+    end
 end
 
 -- Defer initialization until PLAYER_LOGIN

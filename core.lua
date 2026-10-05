@@ -127,11 +127,13 @@ local function initialize_sfui()
     end
 
     if sfui.config.cvars_on_load then
-        local setCVar = (C_CVar and C_CVar.SetCVar) or _G.SetCVar
-        local getCVar = (C_CVar and C_CVar.GetCVar) or _G.GetCVar
-        if setCVar then
-            for _, cvar_data in ipairs(sfui.config.cvars_on_load) do
-                if not getCVar or getCVar(cvar_data.name) ~= nil then
+        for _, cvar_data in ipairs(sfui.config.cvars_on_load) do
+            if sfui.common and sfui.common.set_cvar then
+                sfui.common.set_cvar(cvar_data.name, cvar_data.value)
+            elseif (not InCombatLockdown or not InCombatLockdown()) then
+                local setCVar = (C_CVar and C_CVar.SetCVar) or _G.SetCVar
+                local getCVar = (C_CVar and C_CVar.GetCVar) or _G.GetCVar
+                if setCVar and (not getCVar or getCVar(cvar_data.name) ~= nil) then
                     setCVar(cvar_data.name, cvar_data.value)
                 end
             end
@@ -167,12 +169,16 @@ local function initialize_sfui()
         "floatingCombatTextAuras_v2",
         "floatingCombatTextCombatState_v2"
     }
-    local setCVar = (C_CVar and C_CVar.SetCVar) or _G.SetCVar
-    local getCVar = (C_CVar and C_CVar.GetCVar) or _G.GetCVar
-    if setCVar then
-        for _, cvar in ipairs(combatTextCVars) do
-            if SfuiDB[cvar] ~= nil and (not getCVar or getCVar(cvar) ~= nil) then
-                setCVar(cvar, SfuiDB[cvar] and "1" or "0")
+    for _, cvar in ipairs(combatTextCVars) do
+        if SfuiDB[cvar] ~= nil then
+            if sfui.common and sfui.common.set_cvar then
+                sfui.common.set_cvar(cvar, SfuiDB[cvar] and "1" or "0")
+            elseif (not InCombatLockdown or not InCombatLockdown()) then
+                local setCVar = (C_CVar and C_CVar.SetCVar) or _G.SetCVar
+                local getCVar = (C_CVar and C_CVar.GetCVar) or _G.GetCVar
+                if setCVar and (not getCVar or getCVar(cvar) ~= nil) then
+                    setCVar(cvar, SfuiDB[cvar] and "1" or "0")
+                end
             end
         end
     end
@@ -255,7 +261,7 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
     end
 
     if not LibStub then
-        sfui.common.print("|cffff0000Error:|r LibStub global not found!")
+        sfui.common.print("|cffff0000error:|r libstub global not found!")
         return
     end
 

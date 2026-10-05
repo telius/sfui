@@ -165,7 +165,7 @@ local function auto_sell_greys()
         end
     end)
     if totalPrice > 0 then
-        sfui.common.print("|cff00ff00Auto-sold greys for " .. sfui.common.SafeGetCoinTextureString(totalPrice) .. ".|r")
+        sfui.common.print("|cff00ff00auto-sold greys for " .. sfui.common.SafeGetCoinTextureString(totalPrice) .. ".|r")
     end
 end
 
@@ -177,7 +177,7 @@ local function auto_repair()
         local hasHammer, hammerName, _, hammerItemID = sfui.hammer.has_repair_hammer()
         if hasHammer and sfui.hammer.can_repair_any_damaged() then
             local displayName = hammerName or (hammerItemID and C_Item.GetItemNameByID(hammerItemID)) or "Master's Hammer"
-            sfui.common.print(string.format("|cffff9900Auto-repair skipped: %s detected.|r", displayName))
+            sfui.common.print(string.format("|cffff9900auto-repair skipped: %s detected.|r", displayName))
             sfui.hammer.update_hammer_popup()
             return
         end
@@ -192,14 +192,14 @@ local function auto_repair()
         if withdrawLimit == -1 or withdrawLimit >= repairAllCost then
             RepairAllItems(true)
             guildRepaired = true
-            sfui.common.print("|cff00ff00Auto-repaired using guild funds for " ..
+            sfui.common.print("|cff00ff00auto-repaired using guild funds for " ..
                 sfui.common.SafeGetCoinTextureString(repairAllCost) .. ".|r")
         end
     end
 
     if not guildRepaired then
         RepairAllItems(false)
-        sfui.common.print("|cff00ff00Auto-repaired for " .. sfui.common.SafeGetCoinTextureString(repairAllCost) .. ".|r")
+        sfui.common.print("|cff00ff00auto-repaired for " .. sfui.common.SafeGetCoinTextureString(repairAllCost) .. ".|r")
     end
 end
 

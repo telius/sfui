@@ -40,14 +40,14 @@ local function check_logging()
         if not LoggingCombat() then
             LoggingCombat(true)
             sfui_started_log = true
-            sfui.common.print("Combat logging |cff00ff00started|r (" .. (instanceType or "?") .. ")")
+            sfui.common.print("combat logging |cff00ff00started|r (" .. (instanceType or "?") .. ")")
         end
     else
         -- Only stop if we started it; don't interrupt a manually-started log.
         if LoggingCombat() and sfui_started_log then
             LoggingCombat(false)
             sfui_started_log = false
-            sfui.common.print("Combat logging |cffff4444stopped|r")
+            sfui.common.print("combat logging |cffff4444stopped|r")
         end
     end
 end

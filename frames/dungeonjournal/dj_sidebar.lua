@@ -212,7 +212,7 @@ local function OpenDungeonContextMenu(owner, dungeon)
             func = function()
                 sfui.dungeonjournal.SetDungeonHidden(dungeon.id, false)
                 if sfui.print then
-                    sfui.print(string.format("Restored |cffffd100%s|r to dungeon journal and map.", dungeon.name or "dungeon"))
+                    sfui.print(string.format("restored |cffffd100%s|r to dungeon journal and map.", dungeon.name or "dungeon"))
                 end
             end,
         })
@@ -223,7 +223,7 @@ local function OpenDungeonContextMenu(owner, dungeon)
             func = function()
                 sfui.dungeonjournal.SetDungeonHidden(dungeon.id, true)
                 if sfui.print then
-                    sfui.print(string.format("Hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[Undo]|h|r", dungeon.name or "dungeon", dungeon.id))
+                    sfui.print(string.format("hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[undo]|h|r", dungeon.name or "dungeon", dungeon.id))
                 end
             end,
         })
@@ -235,7 +235,7 @@ local function OpenDungeonContextMenu(owner, dungeon)
                 func = function()
                     sfui.dungeonjournal.SetDungeonPinsHidden(dungeon.id, false)
                     if sfui.print then
-                        sfui.print(string.format("Restored map pins for |cffffd100%s|r.", dungeon.name or "dungeon"))
+                        sfui.print(string.format("restored map pins for |cffffd100%s|r.", dungeon.name or "dungeon"))
                     end
                 end,
             })
@@ -246,7 +246,7 @@ local function OpenDungeonContextMenu(owner, dungeon)
                 func = function()
                     sfui.dungeonjournal.SetDungeonPinsHidden(dungeon.id, true)
                     if sfui.print then
-                        sfui.print(string.format("Hidden map pins for |cffffd100%s|r. |cff00ccff|Hsfui_undo:pins:%s|h[Undo]|h|r", dungeon.name or "dungeon", dungeon.id))
+                        sfui.print(string.format("hidden map pins for |cffffd100%s|r. |cff00ccff|Hsfui_undo:pins:%s|h[undo]|h|r", dungeon.name or "dungeon", dungeon.id))
                     end
                 end,
             })
@@ -282,9 +282,29 @@ end
 -- ─── Pool helpers ─────────────────────────────────────────────────────────────
 local sidebarButtons = {}
 
+local function DungeonHasWishlist(dungeon)
+    if not dungeon or not dungeon.bosses or not (sfui.dungeonjournal and sfui.dungeonjournal.IsWishlisted) then
+        return false, 0
+    end
+    local count = 0
+    for _, b in ipairs(dungeon.bosses) do
+        for _, it in ipairs(b.items or {}) do
+            local id = type(it) == "table" and (it.id or it[1]) or it
+            id = tonumber(id)
+            if id and sfui.dungeonjournal.IsWishlisted(id) then
+                count = count + 1
+            end
+        end
+    end
+    return count > 0, count
+end
+
 local function AcquireButton(pool, parent)
     for _, btn in ipairs(pool) do
-        if not btn:IsShown() then return btn end
+        if not btn:IsShown() then
+            if btn.wishIcon then btn.wishIcon:Hide() end
+            return btn
+        end
     end
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:SetHeight(BTN_H)
@@ -297,6 +317,14 @@ local function AcquireButton(pool, parent)
     ico:SetSize(ICON_SZ, ICON_SZ)
     ico:SetPoint("LEFT", 6, 0)
     ico:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+    -- Wishlist gem icon on the right side of the dungeon button
+    local wishIcon = btn:CreateTexture(nil, "OVERLAY")
+    btn.wishIcon = wishIcon
+    wishIcon:SetSize(14, 14)
+    wishIcon:SetPoint("RIGHT", btn, "RIGHT", -6, 0)
+    wishIcon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_3")
+    wishIcon:Hide()
 
     -- Name
     local name = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -482,6 +510,20 @@ RefreshSidebar = function()
             local lvlStr = FormatColoredLevelRange(dungeon, playerLevel)
             local prog   = GetDungeonQuestProgress(dungeon)
 
+            -- Wishlist indicator
+            local hasWish, wishCount = DungeonHasWishlist(dungeon)
+            if btn.wishIcon then
+                if hasWish then
+                    btn.wishIcon:Show()
+                    btn.nameText:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -22, -6)
+                    btn.levelText:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -22, 6)
+                else
+                    btn.wishIcon:Hide()
+                    btn.nameText:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -6, -6)
+                    btn.levelText:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -4, 6)
+                end
+            end
+
             if prog and prog.noticeText and prog.noticeText ~= "" then
                 if lvlStr ~= "" then
                     btn.levelText:SetText(lvlStr .. "  " .. prog.noticeText)
@@ -521,6 +563,11 @@ RefreshSidebar = function()
                     if prog.locked > 0 then
                         GameTooltip:AddLine(string.format("  - locked (requires higher level): %d", prog.locked), 0.7, 0.4, 0.4)
                     end
+                end
+
+                if hasWish then
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine(string.format("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t |cffcc44ffwishlist drop%s active (%d)|r", (wishCount > 1 and "s" or ""), wishCount), 1, 1, 1)
                 end
 
                 if isHidden then
@@ -821,6 +868,11 @@ if sfui.events and sfui.events.RegisterMessage then
         InvalidateQuestProgressCache()
         sidebarButtons = {}
         RefreshSidebar()
+    end)
+    sfui.events.RegisterMessage("SFUI_DJ_WISHLIST_UPDATED", function()
+        if sidebarFrame and sidebarFrame:IsShown() then
+            RefreshSidebar()
+        end
     end)
 end
 

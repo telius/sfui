@@ -298,7 +298,7 @@ function sfui.bonusroll.AutoclearItemTarget(itemID, itemLink)
     end
 
     local link = itemLink or select(2, C_Item.GetItemInfo(itemID)) or ("Item " .. itemID)
-    sfui.common.print(string.format("|cff00ff00◆ Bonus Roll Target Acquired:|r %s obtained! Target cleared.", link))
+    sfui.common.print(string.format("|cff00ff00◆ bonus roll target acquired:|r %s obtained! target cleared.", link))
     PlaySound(SOUNDKIT.UI_EPICLOOT_TOAST or 51570, "Master")
 
     if sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
@@ -322,20 +322,20 @@ function sfui.bonusroll.NotifyTarget(keyID, isBoss, defaultName)
         itemLinks[#itemLinks + 1] = link
     end
 
-    local prefix = "|cffcc44ff◆ Bonus Roll Reminder:|r "
+    local prefix = "|cffcc44ff◆ bonus roll reminder:|r "
     local name = defaultName or (isBoss and ("Boss " .. keyID) or ("Dungeon " .. keyID))
 
     if #itemLinks > 0 then
         if isBoss then
-            sfui.common.print(string.format("%s%s — target: %s! Use your bonus roll item!", prefix, name, table.concat(itemLinks, ", ")))
+            sfui.common.print(string.format("%s%s — target: %s! use your bonus roll item!", prefix, name, table.concat(itemLinks, ", ")))
         else
-            sfui.common.print(string.format("%sUse a |cffffcc00Nebulous Voidcore|r on %s for %s!", prefix, name, table.concat(itemLinks, ", ")))
+            sfui.common.print(string.format("%suse a |cffffcc00Nebulous Voidcore|r on %s for %s!", prefix, name, table.concat(itemLinks, ", ")))
         end
     else
         if isBoss then
             sfui.common.print(string.format("%s%s — use your bonus roll item!", prefix, name))
         else
-            sfui.common.print(string.format("%sUse a |cffffcc00Nebulous Voidcore|r on %s!", prefix, name))
+            sfui.common.print(string.format("%suse a |cffffcc00Nebulous Voidcore|r on %s!", prefix, name))
         end
     end
 

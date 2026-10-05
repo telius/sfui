@@ -110,13 +110,13 @@ sfui.options.RegisterTab({
         for _, btn in ipairs(toggleButtons) do
             btn:SetScript("OnClick", function()
                 if btn.themeMode == "camelot" and not sfui.theme.IsCamelotSupported() then
-                    sfui.common.print("|cffff3333The bronze Camelot theme is exclusive to Camelot/Forever (bronze assets are not present in Retail).|r")
+                    sfui.common.print("|cffff3333the bronze camelot theme is exclusive to camelot/forever (bronze assets are not present in retail).|r")
                     return
                 end
                 sfui.theme.SetTheme(btn.themeMode)
                 theme_panel:RefreshThemeControls()
                 local pal = sfui.theme.GetPalette()
-                sfui.common.print("theme mode set to '" .. btn.themeMode .. "' (active: " .. pal.name .. ").")
+                sfui.common.print("theme mode set to '" .. btn.themeMode .. "' (active: " .. tostring(pal.name) .. ").")
             end)
         end
 

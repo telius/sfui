@@ -5,8 +5,8 @@ local LCG = LibStub and LibStub("LibCustomGlow-1.0", true)
 
 if not LCG then
     -- Fallback: LibCustomGlow not available
-    sfui.common.print("LibCustomGlow-1.0 not found, glow effects disabled")
-    sfui.common.print("LibStub available:", LibStub and "YES" or "NO")
+    sfui.common.print("libcustomglow-1.0 not found, glow effects disabled")
+    sfui.common.print("libstub available:", LibStub and "yes" or "no")
 
     -- Create stub module to prevent errors
     sfui.glows = {
@@ -142,7 +142,7 @@ function sfui.glows.start_glow(icon, config)
         )
 
         if not success then
-            sfui.common.print("PixelGlow_Start failed:", err)
+            sfui.common.print("pixelglow_start failed:", err)
             return
         end
 
@@ -153,7 +153,7 @@ function sfui.glows.start_glow(icon, config)
                 glow:SetScale(config.glowScale)
             end
         else
-            sfui.common.print("PixelGlow started but frame not found")
+            sfui.common.print("pixelglow started but frame not found")
         end
     elseif glowType == "autocast" then
         success, err = pcall(LCG.AutoCastGlow_Start,
@@ -168,7 +168,7 @@ function sfui.glows.start_glow(icon, config)
         )
 
         if not success then
-            sfui.common.print("AutoCastGlow_Start failed:", err)
+            sfui.common.print("autocastglow_start failed:", err)
             return
         end
 
@@ -176,7 +176,7 @@ function sfui.glows.start_glow(icon, config)
         if glow then
             HookGlowAlpha(glow, icon)
         else
-            sfui.common.print("AutoCastGlow started but frame not found")
+            sfui.common.print("autocastglow started but frame not found")
         end
     elseif glowType == "proc" then
         success, err = pcall(LCG.ProcGlow_Start, icon, {
@@ -188,7 +188,7 @@ function sfui.glows.start_glow(icon, config)
         })
 
         if not success then
-            sfui.common.print("ProcGlow_Start failed:", err)
+            sfui.common.print("procglow_start failed:", err)
             return
         end
 
@@ -205,13 +205,13 @@ function sfui.glows.start_glow(icon, config)
                 glow.ProcLoop:SetAlpha(config.glowIntensity or 1.0)
             end
         else
-            sfui.common.print("ProcGlow started but frame not found")
+            sfui.common.print("procglow started but frame not found")
         end
     else -- "button" (default)
         success, err = pcall(LCG.ButtonGlow_Start, icon, colorArray, config.glowSpeed or 0.25)
 
         if not success then
-            sfui.common.print("ButtonGlow_Start failed:", err)
+            sfui.common.print("buttonglow_start failed:", err)
             return
         end
 
@@ -222,7 +222,7 @@ function sfui.glows.start_glow(icon, config)
                 glow:SetScale(config.glowScale)
             end
         else
-            sfui.common.print("ButtonGlow started but frame not found")
+            sfui.common.print("buttonglow started but frame not found")
         end
     end
 

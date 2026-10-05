@@ -99,7 +99,7 @@ local function ApplyLootSpec(specID, reason)
     pendingSpec = specID
     SetLootSpecialization(specID)
     if reason then
-        local displayName = (specID == 0) and "Current Spec" or SpecName(specID)
+        local displayName = (specID == 0) and "current spec" or SpecName(specID)
         sfui.common.print(string.format(
             "loot spec → |cff00ffff%s|r (%s)", displayName, reason))
     end
@@ -272,7 +272,7 @@ sfui.events.RegisterEvent("ENCOUNTER_END", function(_, encounterID, encounterNam
         local entry = GetBossEntry(encounterID, db, encounterName)
         if type(entry) == "table" and entry.warn then
             sfui.common.print(string.format(
-                "|cffcc44ff◆ Bonus Roll Reminder:|r %s — use your bonus roll item!", bossName))
+                "|cffcc44ff◆ bonus roll reminder:|r %s — use your bonus roll item!", bossName))
         end
     end
 end)

@@ -49,7 +49,7 @@ function sfui.location.on_roster_update()
             end
 
             sfui_common.print(
-                pc .. "{rt3} GROUP FILLED" .. reset_c
+                pc .. "{rt3} group filled" .. reset_c
                 .. " -> " .. cc .. (pendingDungeon or "unknown dungeon") .. reset_c
                 .. " | leader: " .. tostring(pendingLeader)
             )
@@ -144,7 +144,7 @@ local function on_application_status(event, searchResultID, newStatus)
     if newStatus == "invited" then
         if (SfuiDB and SfuiDB.keystoneReminder ~= false) then
             sfui_common.print(
-                pc .. "Keystone invite received" .. reset_c
+                pc .. "keystone invite received" .. reset_c
                 .. " -> " .. cc .. pendingDgn .. reset_c
                 .. " | leader: " .. tostring(leader)
             )
@@ -158,7 +158,7 @@ local function on_application_status(event, searchResultID, newStatus)
 
     if sfui_config.location.printOnInvite and (SfuiDB and SfuiDB.keystoneReminder ~= false) then
         sfui_common.print(
-            pc .. "Keystone accepted" .. reset_c
+            pc .. "keystone accepted" .. reset_c
             .. " -> " .. cc .. pendingDungeon .. reset_c
             .. " | leader: " .. tostring(pendingLeader)
             .. " (waiting for group to fill...)"
@@ -245,7 +245,7 @@ local function on_active_entry_update()
         if sfui_config.location.printOnInvite and (SfuiDB and SfuiDB.keystoneReminder ~= false) then
             local leaderSuffix = (not isLeader and pendingLeader) and (" | leader: " .. tostring(pendingLeader)) or ""
             sfui_common.print(
-                pc .. "Keystone group listed" .. reset_c
+                pc .. "keystone group listed" .. reset_c
                 .. " -> " .. cc .. pendingDungeon .. reset_c
                 .. leaderSuffix
                 .. " (waiting for group to fill...)"
@@ -274,25 +274,25 @@ local function print_instance_status()
     if lastInstancePrint and (now - lastInstancePrint < 3) then return end
     lastInstancePrint = now
 
-    local diffText = difficultyName or "Normal"
+    local diffText = difficultyName or "normal"
     local activeKey = C_ChallengeMode and C_ChallengeMode.GetActiveKeystoneInfo and C_ChallengeMode.GetActiveKeystoneInfo()
     if activeKey and activeKey > 0 then
-        diffText = "Mythic +" .. tostring(activeKey)
+        diffText = "mythic +" .. tostring(activeKey)
     elseif C_ChallengeMode and C_ChallengeMode.GetSlottedKeystoneInfo then
         local _, _, slottedLevel = C_ChallengeMode.GetSlottedKeystoneInfo()
         if slottedLevel and slottedLevel > 0 then
-            diffText = "Mythic +" .. tostring(slottedLevel)
+            diffText = "mythic +" .. tostring(slottedLevel)
         end
     end
 
     local specID, isDefault = sfui.common.get_effective_loot_spec_id()
-    local specName = "Current Spec"
+    local specName = "current spec"
     local specColor = cc
 
     if specID and specID ~= 0 then
         local sName = sfui.common.get_spec_name(specID)
         if sName then
-            specName = isDefault and (sName .. " (Default)") or sName
+            specName = isDefault and (sName .. " (default)") or sName
         end
         local r, g, b = sfui.common.get_spec_color(specID)
         specColor = string.format("|cff%02x%02x%02x", r * 255, g * 255, b * 255)

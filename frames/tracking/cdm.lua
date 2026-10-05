@@ -939,7 +939,7 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
                 for _, cooldownID in ipairs(list) do
                     if not common.issecretvalue(cooldownID) then
                         if not IsValidID(cooldownID) then
-                            common.print("|cffff0000CDM Error:|r Skipping invalid ID " ..
+                            common.print("|cffff0000cdm error:|r skipping invalid id " ..
                                 tostring(cooldownID) .. " (outside 32-bit range)")
                         else
                             local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID)
@@ -1666,13 +1666,13 @@ OnZoneReceiveDrag = function(zoneFrame, panelData, isTrackedBars)
     end
 
     if not incomingId then
-        common.print("|cffff0000Error:|r Invalid Icon ID")
+        common.print("|cffff0000error:|r invalid icon id")
         return
     end
 
     -- Prevent dragging from Cooldown Panels to Tracked Bars
     if isTrackedBars and draggedInfo.originalPanelEntries and not draggedInfo.isFromTrackedBars then
-        common.print("|cffff0000Error:|r Cannot drag icons from Cooldown Panels to Tracked Bars.")
+        common.print("|cffff0000error:|r cannot drag icons from cooldown panels to tracked bars.")
         return
     end
 
@@ -1709,7 +1709,7 @@ OnZoneReceiveDrag = function(zoneFrame, panelData, isTrackedBars)
         sfui.trackedbars.UpdateVisibility()
         sfui.trackedbars.ForceLayoutUpdate()
 
-        common.print("Added to Tracked Bars")
+        common.print("added to tracked bars")
     else
         -- Add to panel
         if not panelData.entries then panelData.entries = {} end
@@ -1747,7 +1747,7 @@ OnZoneReceiveDrag = function(zoneFrame, panelData, isTrackedBars)
         common.invalidate_panels_cache()
         sfui.trackedicons.MarkDirty(true)
         sfui.trackedicons.Update()
-        common.print("Added to " .. (panelData.name or "panel"))
+        common.print("added to " .. (panelData.name or "panel"))
     end
 
     -- We don't call OnIconDragStop here because OnDragStop will trigger on the icon itself
@@ -1797,7 +1797,7 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
             draggedItemID = (cdInfo.itemID and cdInfo.itemID > 0) and cdInfo.itemID or nil
         end
     elseif cursorType == "petaction" or cursorType == "macro" then
-        common.print("Macros and pet actions are not supported.")
+        common.print("macros and pet actions are not supported.")
         ClearCursor()
         return
     else
@@ -1858,17 +1858,17 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
     if entry.type == "spell" then
         local getLink = (sfui.api and sfui.api.GetSpellLink) or C_Spell.GetSpellLink
         local link = getLink and getLink(incomingId)
-        common.print("Imported Spell: " .. (link or incomingId) .. " (ID: " .. incomingId .. ")")
+        common.print("imported spell: " .. (link or incomingId) .. " (id: " .. incomingId .. ")")
     elseif entry.type == "item" then
         local itemInfo = sfui.api.GetItemInfo and sfui.api.GetItemInfo(incomingId)
         local link = (itemInfo and itemInfo.itemLink) or
             (GetItemInfo and select(2, GetItemInfo(incomingId))) or
             (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(incomingId)) or
             incomingId
-        common.print("Imported Item: " .. tostring(link) .. " (ID: " .. incomingId .. ")")
+        common.print("imported item: " .. tostring(link) .. " (id: " .. incomingId .. ")")
     elseif entry.type == "cooldown" then
         local link = GetCooldownName(incomingId, "spell") or incomingId
-        common.print("Imported Cooldown: " .. link .. " (ID: " .. incomingId .. ")")
+        common.print("imported cooldown: " .. link .. " (id: " .. incomingId .. ")")
     end
 
     if isTrackedBars then
@@ -1879,7 +1879,7 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
 
         sfui.trackedbars.UpdateVisibility()
         sfui.trackedbars.ForceLayoutUpdate()
-        common.print("Added to Tracked Bars and Saved")
+        common.print("added to tracked bars and saved")
     else
         if not panelData.entries then panelData.entries = {} end
 
@@ -1887,7 +1887,7 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
         common.invalidate_panels_cache()
         sfui.trackedicons.MarkDirty(true)
         sfui.trackedicons.Update()
-        common.print("Added to " .. (panelData.name or "panel"))
+        common.print("added to " .. (panelData.name or "panel"))
     end
 
     ClearCursor()
@@ -1950,7 +1950,7 @@ OnIconDragStop = function(self)
                 end
 
                 sfui.trackedicons.Update()
-                common.print("Removed from Zone and Saved")
+                common.print("removed from zone and saved")
             end
         end
     end

@@ -41,6 +41,7 @@ local C_Timer                 = _G.C_Timer
 local math_random             = math.random
 local table_insert            = table.insert
 local table_remove            = table.remove
+local table_sort              = table.sort
 local wipe                    = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
 local pairs                   = _G.pairs
 
@@ -93,6 +94,7 @@ local _recentHistory = {}
 local _lastSummonTime = 0
 local _lastRotationTime = 0
 local _isDebouncePending = false
+local _userDismissed = false
 
 local _charDB = nil
 local _charKey = nil
@@ -170,7 +172,7 @@ local function has_special_companion_aura()
 end
 
 local function can_summon_pet(isAuto)
-    if isAuto and not get_setting("enabled", true) then
+    if isAuto and (not get_setting("enabled", true) or _userDismissed) then
         return false
     end
     if (InCombatLockdown and InCombatLockdown())
@@ -206,6 +208,9 @@ end
 
 local function is_pet_usable(petID, speciesID)
     if not petID then return false end
+    if not speciesID and C_PetJournal and C_PetJournal.GetPetInfoByPetID then
+        speciesID = C_PetJournal.GetPetInfoByPetID(petID)
+    end
     if is_species_excluded(speciesID) then return false end
     if C_PetJournal and C_PetJournal.GetPetSummonInfo then
         local isSummonable, err = C_PetJournal.GetPetSummonInfo(petID)
@@ -231,7 +236,30 @@ local function rebuild_pet_pools()
                 _poolFavs[#_poolFavs + 1] = petID
             end
         end
+        if #_poolFavs > 1 then
+            table_sort(_poolFavs)
+        end
         return
+    end
+
+    -- Fast-path: C_PetJournal.GetOwnedPetIDs() is completely immune to UI search/filters
+    if C_PetJournal and C_PetJournal.GetOwnedPetIDs then
+        local owned = C_PetJournal.GetOwnedPetIDs()
+        if owned and #owned > 0 then
+            for i = 1, #owned do
+                local petID = owned[i]
+                if petID and (C_PetJournal.PetIsFavorite and C_PetJournal.PetIsFavorite(petID)) then
+                    local speciesID = C_PetJournal.GetPetInfoByPetID and C_PetJournal.GetPetInfoByPetID(petID)
+                    if is_pet_usable(petID, speciesID) then
+                        _poolFavs[#_poolFavs + 1] = petID
+                    end
+                end
+            end
+            if #_poolFavs > 1 then
+                table_sort(_poolFavs)
+            end
+            return
+        end
     end
 
     local numPets = C_PetJournal.GetNumPets and C_PetJournal.GetNumPets()
@@ -244,6 +272,10 @@ local function rebuild_pet_pools()
                 _poolFavs[#_poolFavs + 1] = petID
             end
         end
+    end
+
+    if #_poolFavs > 1 then
+        table_sort(_poolFavs)
     end
 end
 
@@ -335,6 +367,9 @@ local function summon_pet(petID)
 end
 
 function sfui.pets.SummonNext(force)
+    if force then
+        _userDismissed = false
+    end
     if not can_summon_pet(not force) then return end
     local pet, alreadyActive = select_candidate_pet()
     if alreadyActive then
@@ -347,7 +382,8 @@ function sfui.pets.SummonNext(force)
         print_message(string.format("summoned companion |cff00ffff%s|r.", get_pet_name(pet)))
     elseif #_poolFavs == 0 then
         if C_PetJournal and C_PetJournal.SummonRandomPet then
-            C_PetJournal.SummonRandomPet(true)
+            local hasFavs = C_PetJournal.HasFavoritePets and C_PetJournal.HasFavoritePets()
+            C_PetJournal.SummonRandomPet(hasFavs and true or false)
         else
             print_message("no favorite companion pets available to summon.")
         end
@@ -456,12 +492,22 @@ end
 
 -- ─── Module Lifecycle Registration ──────────────────────────────────────────
 
-local function on_mount_changed() request_deferred_restore(0.5) end
-local function on_zone_changed() request_deferred_restore(2.0) end
-local function on_combat_leave() request_deferred_restore(1.5) end
+local function on_mount_changed()
+    _userDismissed = false
+    request_deferred_restore(0.5)
+end
+
+local function on_zone_changed()
+    _userDismissed = false
+    request_deferred_restore(2.0)
+end
+
+local function on_combat_leave()
+    request_deferred_restore(1.5)
+end
 
 local function on_companion_update(event, what)
-    if what == "CRITTER" then
+    if what == "CRITTER" or not what then
         local act = C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
         if act then
             record_recent_pet(act)
@@ -479,12 +525,14 @@ local PetsModule = sfui.RegisterModule("pets", {
         _poolDirty = true
         _charDB = nil
         _charKey = nil
+        _userDismissed = false
     end,
 
     OnEnable = function(self)
         _poolDirty = true
         _charDB = nil
         _charKey = nil
+        _userDismissed = false
         rebuild_pet_pools()
 
         -- Transition & Life Event Listeners
@@ -492,6 +540,7 @@ local PetsModule = sfui.RegisterModule("pets", {
             _poolDirty = true
             _charDB = nil
             _charKey = nil
+            _userDismissed = false
             rebuild_pet_pools()
             request_deferred_restore(2.0)
         end)
@@ -499,6 +548,17 @@ local PetsModule = sfui.RegisterModule("pets", {
         sfui.events.RegisterEvent("PLAYER_MAP_CHANGED", on_zone_changed)
         sfui.events.RegisterEvent("LOADING_SCREEN_DISABLED", on_zone_changed)
         sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", on_combat_leave)
+        sfui.events.RegisterEvent("UPDATE_STEALTH", function()
+            if not (IsStealthed and IsStealthed()) then
+                request_deferred_restore(0.5)
+            end
+        end)
+        sfui.events.RegisterEvent("PLAYER_UNGHOST", function()
+            request_deferred_restore(1.0)
+        end)
+        sfui.events.RegisterEvent("PLAYER_ALIVE", function()
+            request_deferred_restore(1.0)
+        end)
 
         -- Pet Status & Journal Updates
         sfui.events.RegisterEvent("COMPANION_UPDATE", on_companion_update)
@@ -547,6 +607,7 @@ function sfui.pets.AddCurrentPetToCharFavs()
         print_message("no companion pet currently summoned. summon a pet first, then type /sfpet add.")
         return
     end
+    _userDismissed = false
     local charDB = get_char_db()
     charDB.charFavs[current] = true
     charDB.charFavsEnabled = true
@@ -586,6 +647,7 @@ end
 
 function sfui.pets.SummonPetByGUID(petID)
     if not petID then return end
+    _userDismissed = false
     return summon_pet(petID)
 end
 
@@ -599,6 +661,7 @@ end
 function sfui.pets.Dismiss()
     local current = C_PetJournal and C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
     if current and C_PetJournal and C_PetJournal.SummonPetByGUID then
+        _userDismissed = true
         C_PetJournal.SummonPetByGUID(current)
         print_message(string.format("dismissed companion |cff00ffff%s|r.", get_pet_name(current)))
         return true

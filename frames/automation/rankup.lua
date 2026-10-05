@@ -234,7 +234,7 @@ function sfui.rankup.ScanAndUpgrade()
 
                 local cyan = (sfui.config and sfui.config.colors and sfui.config.colors.cyan) or { 0.2, 0.9, 1.0 }
                 local cc = string_format("|cff%02x%02x%02x", cyan[1] * 255, cyan[2] * 255, cyan[3] * 255)
-                sfui.common.print(string_format("auto rank-up: %s%s|r (Rank %d -> Rank %d) on action slot %d",
+                sfui.common.print(string_format("auto rank-up: %s%s|r (rank %d -> rank %d) on action slot %d",
                     cc, up.name, up.oldRank, up.newRank, up.slot))
             else
                 ClearCursor()

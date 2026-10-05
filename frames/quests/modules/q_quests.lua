@@ -399,7 +399,7 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
                 C_QuestLog.AbandonQuest()
             end
         else
-            sfui.common.print("Quest cannot be abandoned.")
+            sfui.common.print("quest cannot be abandoned.")
         end
         return
     end
@@ -409,9 +409,9 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
         if InCombatLockdown and InCombatLockdown() then return end
         if C_QuestLog and C_QuestLog.IsPushableQuest and C_QuestLog.IsPushableQuest(questID) then
             C_QuestLog.PushQuestToParty(questID)
-            sfui.common.print("Shared quest: " .. (questTitle or "Quest"))
+            sfui.common.print("shared quest: " .. (questTitle or "quest"))
         else
-            sfui.common.print("Quest cannot be shared.")
+            sfui.common.print("quest cannot be shared.")
         end
         return
     end
@@ -436,7 +436,6 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
 
     -- 6. Right-Click: Toggle Criteria Expanded / Collapsed
     if mouseButton == "RightButton" then
-        if InCombatLockdown and InCombatLockdown() then return end
         manualExpanded[questID] = not isCurrentlyExpanded
         sfui.tracker.RequestRefresh(0.01)
         return

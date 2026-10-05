@@ -777,9 +777,9 @@ sellJunkBtn:SetScript("OnClick", function()
         end
     end)
     if totalPrice > 0 then
-        common.print("|cff00ff00Sold greys for " .. common.SafeGetCoinTextureString(totalPrice) .. ".|r")
+        common.print("|cff00ff00sold greys for " .. common.SafeGetCoinTextureString(totalPrice) .. ".|r")
     else
-        common.print("|cffff0000No greys to sell.|r")
+        common.print("|cffff0000no greys to sell.|r")
     end
 end)
 

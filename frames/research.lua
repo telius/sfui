@@ -315,7 +315,7 @@ function sfui.research.apply_side_buttons(parent)
                     if not isAvailable then
                         btn.text:SetTextColor(0.5, 0.5, 0.5)
                         btn:SetScript("OnClick",
-                            function() sfui.common.print("Tree " .. v.id .. " is not available on this character.") end)
+                            function() sfui.common.print("tree " .. v.id .. " is not available on this character.") end)
                     else
                         btn.text:SetTextColor(1, 1, 1)
                         btn:SetScript("OnClick", function()

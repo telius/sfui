@@ -145,17 +145,17 @@ SlashCmdList["SFUI"] = function(msg)
         if sub == "auto" or sub == "detect" or sub == "reset" then
             sfui.theme.SetTheme("auto")
             local active = sfui.theme.GetActiveThemeID() or "modern"
-            sfui.common.print("theme set to Auto-Detect (active: " .. active .. ").")
+            sfui.common.print("theme set to auto-detect (active: " .. tostring(active) .. ").")
         elseif sfui.theme.GetTheme(sub) then
             sfui.theme.SetTheme(sub)
             local themeDef = sfui.theme.GetTheme(sub)
-            sfui.common.print("theme set to " .. (themeDef.name or sub) .. ".")
+            sfui.common.print("theme set to " .. tostring(themeDef.name or sub) .. ".")
         elseif sub == "camelot" or sub == "bronze" then
             sfui.theme.SetTheme("camelot")
-            sfui.common.print("theme set to Camelot Heavy Bronze.")
+            sfui.common.print("theme set to camelot heavy bronze.")
         elseif sub == "modern" or sub == "retail" or sub == "minimal" or sub == "slate" then
             sfui.theme.SetTheme("modern")
-            sfui.common.print("theme set to Modern Minimalist.")
+            sfui.common.print("theme set to modern minimalist.")
         else
             local curMode = (SfuiDB and (SfuiDB.themeMode or (SfuiDB.theme and SfuiDB.theme.mode))) or "auto"
             local active = sfui.theme.GetActiveThemeID() or "modern"
@@ -166,31 +166,31 @@ SlashCmdList["SFUI"] = function(msg)
             else
                 list = "auto | camelot | modern"
             end
-            sfui.common.print("theme mode is '" .. curMode .. "' (currently rendering " .. active .. "). Usage: /sfui theme [" .. list .. "]")
+            sfui.common.print("theme mode is '" .. tostring(curMode) .. "' (currently rendering " .. tostring(active) .. "). usage: /sfui theme [" .. list .. "]")
         end
     elseif cmd == "barstyle" or cmd == "barborder" or cmd == "barborders" or cmd == "bars" then
         local sub = arg and _G.strtrim and _G.strtrim(arg):lower() or (arg and arg:lower() or "")
         if sub == "inset" or sub == "darkinset" or sub == "dark" or sub == "1" then
             sfui.theme.SetBarStyle("inset")
-            sfui.common.print("bar style set to |cffffd100Dark Inset|r (castbar match: dark recessed well, softened corners, antique bronze rim).")
+            sfui.common.print("bar style set to |cffffd100dark inset|r (castbar match: dark recessed well, softened corners, antique bronze rim).")
         elseif sub == "bezel" or sub == "nameplate" or sub == "hud" or sub == "blizzard" or sub == "2" then
             sfui.theme.SetBarStyle("bezel")
-            sfui.common.print("bar style set to |cffffd100Blizzard Bezel|r (native HUD CoolDownManager/Nameplate atlas).")
+            sfui.common.print("bar style set to |cffffd100blizzard bezel|r (native hud cooldownmanager/nameplate atlas).")
         elseif sub == "darkbronze" or sub == "bronze" or sub == "3" then
             sfui.theme.SetBarStyle("darkbronze")
-            sfui.common.print("bar style set to |cffffd100Dark Bronze|r (sculpted dark bronze with micro-corners).")
+            sfui.common.print("bar style set to |cffffd100dark bronze|r (sculpted dark bronze with micro-corners).")
         elseif sub == "castbar" or sub == "cast" or sub == "4" then
             sfui.theme.SetBarStyle("castbar")
-            sfui.common.print("bar style set to |cffffd100Castbar Replica|r (pure 1:1 black border, no decor).")
+            sfui.common.print("bar style set to |cffffd100castbar replica|r (pure 1:1 black border, no decor).")
         elseif sub == "heavy" or sub == "c" or sub == "brackets" or sub == "chiseled" or sub == "5" then
             sfui.theme.SetBarStyle("heavy")
-            sfui.common.print("bar style set to |cffffd100Chiseled Heavy|r (square corner brackets & gold highlight).")
+            sfui.common.print("bar style set to |cffffd100chiseled heavy|r (square corner brackets & gold highlight).")
         elseif sub == "thin" or sub == "a" or sub == "flat" or sub == "minimal" or sub == "6" then
             sfui.theme.SetBarStyle("thin")
-            sfui.common.print("bar style set to |cffffd100Thin|r (1px clean bronze edge).")
+            sfui.common.print("bar style set to |cffffd100thin|r (1px clean bronze edge).")
         elseif sub == "glow" or sub == "b" or sub == "recessed" or sub == "7" then
             sfui.theme.SetBarStyle("glow")
-            sfui.common.print("bar style set to |cffffd100Glow|r (borderless recessed amber inner glow).")
+            sfui.common.print("bar style set to |cffffd100glow|r (borderless recessed amber inner glow).")
         elseif sub == "cycle" or sub == "next" or sub == "" then
             local order = { "inset", "bezel", "darkbronze", "castbar", "heavy", "thin", "glow" }
             local cur = sfui.theme.GetBarStyle() or "inset"
@@ -203,10 +203,10 @@ SlashCmdList["SFUI"] = function(msg)
             end
             local nextStyle = order[nextIdx]
             sfui.theme.SetBarStyle(nextStyle)
-            sfui.common.print("bar style cycled to |cffffd100" .. nextStyle:upper() .. "|r. Usage: /sfui barstyle [inset | bezel | darkbronze | castbar | heavy | thin | glow]")
+            sfui.common.print("bar style cycled to |cffffd100" .. nextStyle .. "|r. usage: /sfui barstyle [inset | bezel | darkbronze | castbar | heavy | thin | glow]")
         else
             local cur = sfui.theme.GetBarStyle() or "inset"
-            sfui.common.print("bar style is currently '|cffffd100" .. cur .. "|r'. Usage: /sfui barstyle [inset | bezel | darkbronze | castbar | heavy | thin | glow]")
+            sfui.common.print("bar style is currently '|cffffd100" .. tostring(cur) .. "|r'. usage: /sfui barstyle [inset | bezel | darkbronze | castbar | heavy | thin | glow]")
         end
     elseif cmd == "alts" or cmd == "warband" then
         SlashCmdList["SFUIALTS"](arg)
@@ -312,25 +312,27 @@ SlashCmdList["SFUI"] = function(msg)
             sfui.pets.ClearCharFavs()
         elseif arg == "summon" or arg == "next" then
             sfui.pets.SummonNext(true)
+        elseif arg == "dismiss" then
+            sfui.pets.Dismiss()
         else
             sfui.pets.Toggle()
         end
     elseif cmd == "target" or cmd == "targetbar" then
         if sfui.isRetail then
-            sfui.common.print("target bar is only available on Camelot / Classic.")
+            sfui.common.print("target bar is only available on camelot / classic.")
         else
             if arg == "reset" then
                 sfui.target.ResetPosition()
                 sfui.common.print("target bar position reset to top of the screen.")
             else
                 sfui.target.ToggleLock()
-                local status = sfui.target.unlocked and "|cff00ff00unlocked (Shift+Drag to move)|r" or "|cffff3333locked|r"
+                local status = sfui.target.unlocked and "|cff00ff00unlocked (shift+drag to move)|r" or "|cffff3333locked|r"
                 sfui.common.print("target bar: " .. status)
             end
         end
     elseif cmd == "threat" or cmd == "threatbar" then
         if sfui.isRetail then
-            sfui.common.print("threat bar is only available on Camelot / Classic.")
+            sfui.common.print("threat bar is only available on camelot / classic.")
         else
             SfuiDB = SfuiDB or {}
             SfuiDB.enableThreatBar = (SfuiDB.enableThreatBar == false)
@@ -341,9 +343,9 @@ SlashCmdList["SFUI"] = function(msg)
     elseif cmd == "rl" or cmd == "reload" then
         C_UI.Reload()
     elseif cmd == "help" or cmd == "?" then
-        sfui.common.print("Commands: /sfui [options | target | threat | theme [camelot|modern|auto] | barstyle [thin|glow|heavy] | fish | pet | hammer [test|lock|reset|debug] | alts | ql | portals [test] | cv | gear | highest | lootspec | loot | research | mythic | mem | rl]")
+        sfui.common.print("commands: /sfui [options | target | threat | theme [camelot|modern|auto] | barstyle [thin|glow|heavy] | fish | pet | hammer [test|lock|reset|debug] | alts | ql | portals [test] | cv | gear | highest | lootspec | loot | research | mythic | mem | rl]")
     else
-        sfui.common.print("Unknown command: /sfui " .. cmd .. ". Type /sfui help for a list of commands.")
+        sfui.common.print("unknown command: /sfui " .. tostring(cmd) .. ". type /sfui help for a list of commands.")
     end
 end
 

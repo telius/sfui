@@ -672,7 +672,7 @@ function sfui.hammer.toggle_test_popup(enable)
         popup:SetAlpha(1)
         popup:EnableMouse(true)
         popup:Show()
-        sfui.common.print("repair button preview shown. Drag with left-click to move.")
+        sfui.common.print("repair button preview shown. drag with left-click to move.")
     else
         popup:Hide()
         sfui.common.print("repair button preview hidden.")
@@ -786,29 +786,29 @@ end
 
 function sfui.hammer.print_hammer_status(debugMode)
     local p = sfui.common.print
-    p("|cff00ffffMaster's Hammer Status:|r")
-    p(string.format("  Enabled: %s", (SfuiDB.enableMasterHammer ~= false) and "|cff00ff00Yes|r" or "|cffff0000No|r"))
+    p("|cff00ffffmaster's hammer status:|r")
+    p(string.format("  enabled: %s", (SfuiDB.enableMasterHammer ~= false) and "|cff00ff00yes|r" or "|cffff0000no|r"))
 
     sfui.hammer.reset_caches()
     local carried, byExpac, prim = sfui.hammer.get_carried_hammers(true)
     if #carried > 0 then
-        p(string.format("  Hammers in Bags (%d found):", #carried))
+        p(string.format("  hammers in bags (%d found):", #carried))
         for _, h in ipairs(carried) do
-            p(string.format("    - |cff00ff00Found|r %s [%s] (ID: %d)", h.name, h.expansionName or "Unknown", h.itemID))
+            p(string.format("    - |cff00ff00found|r %s [%s] (id: %d)", h.name, h.expansionName or "unknown", h.itemID))
         end
     else
-        p("  Hammer in Bags: |cffff0000Not found|r in bags 0-5. (Must carry a Master's Hammer)")
+        p("  hammer in bags: |cffff0000not found|r in bags 0-5. (must carry a master's hammer)")
     end
 
     local threshold = SfuiDB.repairThreshold or 90
-    p(string.format("  Threshold: %d%% durability or lower", threshold))
+    p(string.format("  threshold: %d%% durability or lower", threshold))
     local reqRank = sfui.config.masterHammer and sfui.config.masterHammer.requiredRank or 26
-    p(string.format("  Required Trait Rank: %d", reqRank))
+    p(string.format("  required trait rank: %d", reqRank))
 
     local cfgs = get_all_prof_configs()
     if debugMode then
-        local cfgStr = (cfgs and #cfgs > 0) and table.concat(cfgs, ", ") or "None"
-        p(string.format("  [DEBUG] Profession Config IDs: %s", cfgStr))
+        local cfgStr = (cfgs and #cfgs > 0) and table.concat(cfgs, ", ") or "none"
+        p(string.format("  [debug] profession config ids: %s", cfgStr))
     end
 
     local totalSlots = 0
@@ -826,16 +826,16 @@ function sfui.hammer.print_hammer_status(debugMode)
                     damagedSlots = damagedSlots + 1
                     local eligible, reason, itemExpac, itemHammerID = check_repair_eligibility_detail(slot, true)
                     local isBelow = (pct <= threshold)
-                    local expacName = (itemExpac and EXPANSION_NAMES[itemExpac]) or (itemExpac and ("Expac " .. itemExpac)) or "Unknown"
+                    local expacName = (itemExpac and EXPANSION_NAMES[itemExpac]) or (itemExpac and ("expac " .. itemExpac)) or "unknown"
                     local expacTag = string.format("|cff888888[%s]|r", expacName)
 
                     if eligible and isBelow then
                         eligibleDamaged = eligibleDamaged + 1
-                        p(string.format("    - Slot %d: %s %s at %d%% |cff00ff00[ELIGIBLE]|r (%s)", slot, link, expacTag, pct, reason or "OK"))
+                        p(string.format("    - slot %d: %s %s at %d%% |cff00ff00[eligible]|r (%s)", slot, link, expacTag, pct, reason or "ok"))
                     elseif eligible and not isBelow then
-                        p(string.format("    - Slot %d: %s %s at %d%% (Above threshold %d%%, %s)", slot, link, expacTag, pct, threshold, reason or "OK"))
+                        p(string.format("    - slot %d: %s %s at %d%% (above threshold %d%%, %s)", slot, link, expacTag, pct, threshold, reason or "ok"))
                     else
-                        p(string.format("    - Slot %d: %s %s at %d%% |cffff6666[INELIGIBLE]|r (%s)", slot, link, expacTag, pct, reason or "Perk missing or ineligible"))
+                        p(string.format("    - slot %d: %s %s at %d%% |cffff6666[ineligible]|r (%s)", slot, link, expacTag, pct, reason or "perk missing or ineligible"))
                     end
 
                     if debugMode and cfgs then
@@ -862,21 +862,21 @@ function sfui.hammer.print_hammer_status(debugMode)
     end
 
     if damagedSlots == 0 then
-        p("  Gear Durability: |cff00ff00All equipped items are at 100% durability.|r")
+        p("  gear durability: |cff00ff00all equipped items are at 100% durability.|r")
     end
 
     local isShown = hammerPopup and hammerPopup:IsShown()
-    p(string.format("  Button State: %s", isShown and "|cff00ff00VISIBLE|r" or "|cffff8800HIDDEN|r"))
+    p(string.format("  button state: %s", isShown and "|cff00ff00visible|r" or "|cffff8800hidden|r"))
     if not isShown then
         if #carried == 0 then
-            p("  Reason hidden: No Master's Hammer found in bags.")
+            p("  reason hidden: no master's hammer found in bags.")
         elseif eligibleDamaged == 0 then
-            p("  Reason hidden: No eligible damaged gear <= threshold.")
+            p("  reason hidden: no eligible damaged gear <= threshold.")
         elseif InCombatLockdown() then
-            p("  Reason hidden: In combat lockdown.")
+            p("  reason hidden: in combat lockdown.")
         end
     end
-    p("  Tip: Type |cff00ffff/sfui hammer test|r to preview and reposition the button.")
+    p("  tip: type |cff00ffff/sfui hammer test|r to preview and reposition the button.")
 end
 
 local function on_hammer_cast_finished(event, unit, _, spellID)

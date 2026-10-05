@@ -157,13 +157,19 @@ end
 -- ─── Safe CVar Accessors ─────────────────────────────────────────────────────
 
 local function safe_get_cvar(cvar)
+    if sfui.common and sfui.common.get_cvar then
+        return sfui.common.get_cvar(cvar)
+    end
     if not GetCVar then return nil end
     return GetCVar(cvar)
 end
 
 local function safe_set_cvar(cvar, val)
-    if SetCVar and GetCVar and GetCVar(cvar) ~= nil then
-        SetCVar(cvar, val)
+    if sfui.common and sfui.common.set_cvar then
+        return sfui.common.set_cvar(cvar, val)
+    end
+    if SetCVar and (not InCombatLockdown or not InCombatLockdown()) and GetCVar and GetCVar(cvar) ~= nil then
+        SetCVar(cvar, tostring(val))
     end
 end
 
@@ -411,6 +417,7 @@ local function set_fishing_cvars()
     enhance_sounds(true)
 
     if get_setting("softTarget", true) then
+        _state.softTargetApplied = true
         -- Adopt the gamepad targeting suite so keyboard users never lose the bobber interact icon:
         safe_set_cvar("SoftTargetInteract", 3)            -- 3 = Any (enables soft-target interact for both KBM and Gamepad)
         safe_set_cvar("SoftTargetInteractArc", 2)         -- 2 = Widest arc (anywhere in targeting area, no narrow yaw restriction)
@@ -431,7 +438,8 @@ end
 local function reset_fishing_cvars(isLogout)
     enhance_sounds(false)
 
-    if get_setting("softTarget", true) then
+    if _state.softTargetApplied then
+        _state.softTargetApplied = false
         for cvar, val in pairs(_state.interactCVarCache) do
             safe_set_cvar(cvar, val)
         end

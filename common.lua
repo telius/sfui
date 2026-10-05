@@ -16,7 +16,7 @@ function sfui.common.print(msg, ...)
         local prev = text
         -- Strip whole color-wrapped sfui prefix: e.g. |cff6600ffsfui:|r or |cff6600ffsfui|r: or |cff8888ff[SFUI]|r
         text = text:gsub("^%s*|c%x%x%x%x%x%x%x%x%[?[Ss][Ff][Uu][Ii]%]?%:?|r%:?%s*", "")
-        -- Preserve error color wrapper: e.g. |cffff0000SFUI Error:|r -> |cffff0000Error:|r
+        -- Preserve error color wrapper: e.g. |cffff0000SFUI Error:|r -> |cffff0000error:|r
         text = text:gsub("^(%s*|c%x%x%x%x%x%x%x%x)[Ss][Ff][Uu][Ii]%s+([Ee][Rr][Rr][Oo][Rr]:?)", "%1%2")
         -- Strip any partial color-wrapped sfui if left without closing |r
         text = text:gsub("^(%s*|c%x%x%x%x%x%x%x%x)%[?[Ss][Ff][Uu][Ii]%]?%:?%s*", "%1")
@@ -32,6 +32,7 @@ function sfui.common.print(msg, ...)
         print(prefix .. " " .. text, ...)
     end
 end
+sfui.print = sfui.common.print
 
 function sfui.common.get_tooltip()
     return sfui.tooltip or _G.GameTooltip
@@ -430,6 +431,63 @@ local function flush_ooc_queue()
 end
 
 sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", flush_ooc_queue)
+
+-- ------------------------------------------------------------
+-- Central Safe CVar Accessors (Combat Lockdown Protected)
+-- ------------------------------------------------------------
+local pendingCVars = {}
+
+local function apply_cvar(cvar, strVal)
+    local get = (_G.C_CVar and _G.C_CVar.GetCVar) or _G.GetCVar
+    local set = (_G.C_CVar and _G.C_CVar.SetCVar) or _G.SetCVar
+    if not set then return false end
+    if get and get(cvar) == strVal then return true end
+    local ok = pcall(set, cvar, strVal)
+    return ok
+end
+
+--- Safely sets a CVar without triggering combat lockdown / protected function errors.
+--- If called while in combat lockdown, the change is queued and applied upon leaving combat.
+--- @param cvar string CVar name
+--- @param val any CVar value (coerced to string)
+function sfui.common.set_cvar(cvar, val)
+    if not cvar or val == nil then return false end
+    local strVal = tostring(val)
+    local get = (_G.C_CVar and _G.C_CVar.GetCVar) or _G.GetCVar
+
+    -- Avoid setting if already matching
+    if get and get(cvar) == strVal then
+        pendingCVars[cvar] = nil
+        return true
+    end
+
+    -- If in combat lockdown, SetCVar is protected and will throw a UI error. Defer until combat ends.
+    if _G.InCombatLockdown and _G.InCombatLockdown() then
+        if not pendingCVars[cvar] then
+            sfui.common.run_after_combat(function()
+                local queuedVal = pendingCVars[cvar]
+                pendingCVars[cvar] = nil
+                if queuedVal ~= nil then
+                    apply_cvar(cvar, queuedVal)
+                end
+            end)
+        end
+        pendingCVars[cvar] = strVal
+        return false
+    end
+
+    pendingCVars[cvar] = nil
+    return apply_cvar(cvar, strVal)
+end
+
+--- Safely gets a CVar value
+--- @param cvar string CVar name
+--- @return string|nil
+function sfui.common.get_cvar(cvar)
+    if not cvar then return nil end
+    local get = (_G.C_CVar and _G.C_CVar.GetCVar) or _G.GetCVar
+    return get and get(cvar)
+end
 
 -- ------------------------------------------------------------
 -- Central Vehicle and Dragonflying / Skyriding State Cache
@@ -942,7 +1000,25 @@ end
 local cooldownViewersInitialized = false
 
 function sfui.common.hide_blizzard_cooldown_viewers()
-    -- Ensure the addon is loaded first
+    -- On Classic / Forever, Blizzard_CooldownViewer is an unsupported partial port
+    -- that crashes with secret boolean errors on GetTotemInfo if force-loaded or enabled.
+    if not sfui.isRetail then
+        local viewers = {
+            "EssentialCooldownViewer",
+            "UtilityCooldownViewer",
+            "BuffBarCooldownViewer",
+        }
+        for _, viewerName in ipairs(viewers) do
+            local viewer = _G[viewerName]
+            if viewer then
+                viewer:SetAlpha(0)
+                viewer:EnableMouse(false)
+            end
+        end
+        return
+    end
+
+    -- Ensure the addon is loaded first (Retail only)
     if not C_AddOns.IsAddOnLoaded("Blizzard_CooldownViewer") then
         C_AddOns.LoadAddOn("Blizzard_CooldownViewer")
     end
@@ -1018,8 +1094,8 @@ function sfui.common.hide_blizzard_cooldown_viewers()
 
     -- Ensure the CVar is set to 1 so Blizzard's internal data systems are active.
     -- We hide the frames visually, but we need the data provider to function.
-    if GetCVar("cooldownViewerEnabled") == "0" then
-        SetCVar("cooldownViewerEnabled", 1)
+    if sfui.isRetail then
+        sfui.common.set_cvar("cooldownViewerEnabled", 1)
     end
 end
 

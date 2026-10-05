@@ -414,7 +414,7 @@ local function UpdatePins(force)
                         if IsShiftKeyDown() then
                             sfui.dungeonjournal.SetDungeonHidden(dID, true)
                             if sfui.print then
-                                sfui.print(string.format("Hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[Undo]|h|r", d.name or "dungeon", dID))
+                                sfui.print(string.format("hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[undo]|h|r", d.name or "dungeon", dID))
                             end
                             return
                         else
@@ -425,7 +425,7 @@ local function UpdatePins(force)
                                     func = function()
                                         sfui.dungeonjournal.SetDungeonPinsHidden(dID, true)
                                         if sfui.print then
-                                            sfui.print(string.format("Hidden map pins for |cffffd100%s|r. |cff00ccff|Hsfui_undo:pins:%s|h[Undo]|h|r", d.name or "dungeon", dID))
+                                            sfui.print(string.format("hidden map pins for |cffffd100%s|r. |cff00ccff|Hsfui_undo:pins:%s|h[undo]|h|r", d.name or "dungeon", dID))
                                         end
                                     end,
                                 },
@@ -435,7 +435,7 @@ local function UpdatePins(force)
                                     func = function()
                                         sfui.dungeonjournal.SetDungeonHidden(dID, true)
                                         if sfui.print then
-                                            sfui.print(string.format("Hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[Undo]|h|r", d.name or "dungeon", dID))
+                                            sfui.print(string.format("hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[undo]|h|r", d.name or "dungeon", dID))
                                         end
                                     end,
                                 },
@@ -704,7 +704,7 @@ local function UpdatePins(force)
                         local qID = q.id
                         sfui.dungeonjournal.SetQuestPinHidden(qID, true)
                         if sfui.print then
-                            sfui.print(string.format("Hidden quest pin |cffffd100%s|r. |cff00ccff|Hsfui_undo:quest:%s|h[Undo]|h|r", q.name or "quest", tostring(qID)))
+                            sfui.print(string.format("hidden quest pin |cffffd100%s|r. |cff00ccff|Hsfui_undo:quest:%s|h[undo]|h|r", q.name or "quest", tostring(qID)))
                         end
                         return
                     else
@@ -716,7 +716,7 @@ local function UpdatePins(force)
                                 func = function()
                                     sfui.dungeonjournal.SetQuestPinHidden(q.id, true)
                                     if sfui.print then
-                                        sfui.print(string.format("Hidden quest pin |cffffd100%s|r. |cff00ccff|Hsfui_undo:quest:%s|h[Undo]|h|r", q.name or "quest", tostring(q.id)))
+                                        sfui.print(string.format("hidden quest pin |cffffd100%s|r. |cff00ccff|Hsfui_undo:quest:%s|h[undo]|h|r", q.name or "quest", tostring(q.id)))
                                     end
                                 end,
                             })
@@ -729,7 +729,7 @@ local function UpdatePins(force)
                                     func = function()
                                         sfui.dungeonjournal.SetQuestPinHidden(curQ.id, true)
                                         if sfui.print then
-                                            sfui.print(string.format("Hidden quest pin |cffffd100%s|r. |cff00ccff|Hsfui_undo:quest:%s|h[Undo]|h|r", curQ.name or "quest", tostring(curQ.id)))
+                                            sfui.print(string.format("hidden quest pin |cffffd100%s|r. |cff00ccff|Hsfui_undo:quest:%s|h[undo]|h|r", curQ.name or "quest", tostring(curQ.id)))
                                         end
                                     end,
                                 })
@@ -742,7 +742,7 @@ local function UpdatePins(force)
                                         sfui.dungeonjournal.SetQuestPinHidden(it.quest.id, true)
                                     end
                                     if sfui.print then
-                                        sfui.print(string.format("Hidden %d quest pins at this location.", #g.quests))
+                                        sfui.print(string.format("hidden %d quest pins at this location.", #g.quests))
                                     end
                                 end,
                             })
@@ -754,7 +754,7 @@ local function UpdatePins(force)
                             func = function()
                                 sfui.dungeonjournal.SetDungeonPinsHidden(d.id, true)
                                 if sfui.print then
-                                    sfui.print(string.format("Hidden map pins for |cffffd100%s|r. |cff00ccff|Hsfui_undo:pins:%s|h[Undo]|h|r", d.name or "dungeon", d.id))
+                                    sfui.print(string.format("hidden map pins for |cffffd100%s|r. |cff00ccff|Hsfui_undo:pins:%s|h[undo]|h|r", d.name or "dungeon", d.id))
                                 end
                             end,
                         })
@@ -765,7 +765,7 @@ local function UpdatePins(force)
                             func = function()
                                 sfui.dungeonjournal.SetDungeonHidden(d.id, true)
                                 if sfui.print then
-                                    sfui.print(string.format("Hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[Undo]|h|r", d.name or "dungeon", d.id))
+                                    sfui.print(string.format("hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[undo]|h|r", d.name or "dungeon", d.id))
                                 end
                             end,
                         })

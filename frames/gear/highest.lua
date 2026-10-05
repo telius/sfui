@@ -54,7 +54,7 @@ end
 -- to see a full score/validation breakdown for that slot.
 -- Example: /run SFUI_DEBUG_SLOT = 3   (shoulders)
 local function dbgSlotPrint(msg)
-    sfprint("|cffffff00[Debug]|r " .. tostring(msg))
+    sfprint("|cffffff00[debug]|r " .. tostring(msg))
 end
 
 
@@ -289,8 +289,8 @@ end
 -- Checks if the item matches the primary stat
 local function HasPrimaryStat(itemLink, primaryStatName, specID)
     local _, _, _, equipLoc = common.get_item_instant_info(itemLink)
-    -- Shields and Relics never require primary stats in Classic
-    if equipLoc == "INVTYPE_SHIELD" or equipLoc == "INVTYPE_RELIC" then return true end
+    -- Shields, Relics, and Ammo never require primary stats in Classic
+    if equipLoc == "INVTYPE_SHIELD" or equipLoc == "INVTYPE_RELIC" or equipLoc == "INVTYPE_AMMO" then return true end
 
     local stats = common.get_item_stats(itemLink)
     -- Fast-path mathematically sound API match
@@ -512,6 +512,7 @@ local function CanPlayerUseItem(itemLink, itemID, ignorePlayerLevel)
     end
     return true
 end
+sfui.highest.CanPlayerUseItem = CanPlayerUseItem
 
 -- Returns true, itemLevel, statVal, itemEquipLoc if the item is valid for the spec rules
 local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, ignoreTalents)
@@ -713,9 +714,16 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
                 return false
             end
         end
+    elseif classID == 6 then
+        -- Projectile / Ammo (Vanilla / Classic only)
+        if not isClassic then return false end
+        local usesAmmo = sfui.api.UnitUsesAmmo and sfui.api.UnitUsesAmmo("player")
+        if not usesAmmo then return false end
+        -- Subclass 2 = Arrow, Subclass 3 = Bullet
+        if subclassID ~= 2 and subclassID ~= 3 then return false end
     end
 
-    local isNonDynamicStatPiece = isClassic or (classID == 2 or itemEquipLoc == "INVTYPE_TRINKET" or itemEquipLoc == "INVTYPE_CLOAK" or itemEquipLoc == "INVTYPE_NECK" or itemEquipLoc == "INVTYPE_FINGER" or itemEquipLoc == "INVTYPE_HOLDABLE" or itemEquipLoc == "INVTYPE_SHIELD" or itemEquipLoc == "INVTYPE_RELIC")
+    local isNonDynamicStatPiece = isClassic or (classID == 2 or itemEquipLoc == "INVTYPE_TRINKET" or itemEquipLoc == "INVTYPE_CLOAK" or itemEquipLoc == "INVTYPE_NECK" or itemEquipLoc == "INVTYPE_FINGER" or itemEquipLoc == "INVTYPE_HOLDABLE" or itemEquipLoc == "INVTYPE_SHIELD" or itemEquipLoc == "INVTYPE_RELIC" or itemEquipLoc == "INVTYPE_AMMO")
 
     if isNonDynamicStatPiece then
         if not HasPrimaryStat(itemLink, primaryStatName, specID) then return false end
@@ -1484,7 +1492,11 @@ function sfui.highest.GetBestItems(isPvP)
 
     -- Sort individual slots using the new score system
     for slotID, items in pairs(best) do
-        table.sort(items, function(a, b) return a.score > b.score end)
+        table.sort(items, function(a, b)
+            if a.score ~= b.score then return a.score > b.score end
+            if a.isEquipped ~= b.isEquipped then return a.isEquipped == true end
+            return (a.physId or 0) < (b.physId or 0)
+        end)
         if _G.SFUI_DEBUG_SLOT and slotID == _G.SFUI_DEBUG_SLOT then
             dbgSlotPrint("=== Slot " .. slotID .. " candidates after scoring ===")
             for rank, itm in ipairs(items) do
@@ -1500,8 +1512,8 @@ function sfui.highest.GetBestItems(isPvP)
 
     -- Protect locked slots: retain equipped locked items directly in finalPick so
     -- they are never replaced, and clear them from candidate consideration in best[slotID].
-    -- Covers trinkets (13,14), rings (11,12), neck (2), weapons (16,17).
-    local lockedSlotIDs = isClassicSpec and { 2, 11, 12, 13, 14, 16, 17, 18 } or { 2, 11, 12, 13, 14, 16, 17 }
+    -- Covers trinkets (13,14), rings (11,12), neck (2), weapons (16,17,18), ammo (0).
+    local lockedSlotIDs = isClassicSpec and (usesAmmo and { 2, 11, 12, 13, 14, 16, 17, 18, 0 } or { 2, 11, 12, 13, 14, 16, 17, 18 }) or { 2, 11, 12, 13, 14, 16, 17 }
     for _, slotID in ipairs(lockedSlotIDs) do
         local link = GetInventoryItemLink("player", slotID)
         if link then
@@ -1528,6 +1540,7 @@ function sfui.highest.GetBestItems(isPvP)
                         or (slotID == 11 or slotID == 12) and "Locked Ring"
                         or (slotID == 2) and "Locked Neck"
                         or (slotID == 16 or slotID == 17 or slotID == 18) and "Locked Weapon"
+                        or (slotID == 0) and "Locked Ammo"
                         or "Locked Item",
                 }
                 itmObj.isEmbellished = HasEmbellishment(itmObj)
@@ -1882,12 +1895,12 @@ function sfui.highest.GetBestItems(isPvP)
     end
 
     if _G.SFUI_DEBUG_WEAPONS and best[16] then
-        sfui.common.print("|cffffff00[Debug] Slot 16 evaluated:|r")
+        sfui.common.print("|cffffff00[debug] slot 16 evaluated:|r")
         for i, itm in ipairs(best[16]) do
-            sfui.common.print("  [" .. i .. "]", itm.link, "Score:", math.floor(itm.score), "is2H:", tostring(itm.is2H))
+            sfui.common.print("  [" .. i .. "]", itm.link, "score:", math.floor(itm.score), "is2h:", tostring(itm.is2H))
         end
-        if best2H then sfui.common.print("  best2H:", best2H.link) end
-        if finalPick[16] then sfui.common.print("  WINNER:", finalPick[16].link) else sfui.common.print("  WINNER: None") end
+        if best2H then sfui.common.print("  best2h:", best2H.link) end
+        if finalPick[16] then sfui.common.print("  winner:", finalPick[16].link) else sfui.common.print("  winner: none") end
         _G.SFUI_DEBUG_WEAPONS = false
     end
 
@@ -1956,46 +1969,76 @@ function sfui.highest.GetBestItems(isPvP)
     end
 
     local maxNonWeaponSlot = isClassicSpec and 18 or 15
-    local minNonWeaponSlot = (isClassicSpec and usesAmmo) and 0 or 1
-    for slotID = minNonWeaponSlot, maxNonWeaponSlot do
+    for slotID = 1, maxNonWeaponSlot do
         if slotID ~= 16 and slotID ~= 17 then
             if not finalPick[slotID] then -- Skip slots already claimed
-            local items = best[slotID]
-            if items then
-                for _, itm in ipairs(items) do
-                    local alreadyPicked = false
-                    local itemID = common.get_item_id(itm.link)
+                local items = best[slotID]
+                if items then
+                    for _, itm in ipairs(items) do
+                        local alreadyPicked = false
+                        local itemID = common.get_item_id(itm.link)
 
-                    -- Hard game limit: maximum 2 active embellishments allowed
-                    if itm.isEmbellished and totalEmbCount >= 2 then
-                        alreadyPicked = true
-                    end
+                        -- Hard game limit: maximum 2 active embellishments allowed
+                        if itm.isEmbellished and totalEmbCount >= 2 then
+                            alreadyPicked = true
+                        end
 
-                    if not alreadyPicked then
-                        for _, picked in pairs(finalPick) do
-                            if picked.physId == itm.physId then
-                                alreadyPicked = true; break
-                            end
-                            if itemID and picked.link and common.get_item_id(picked.link) == itemID then
-                                local _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, isUnique = GetItemInfo(itm.link)
-                                if isUnique then
+                        if not alreadyPicked then
+                            for _, picked in pairs(finalPick) do
+                                if picked.physId == itm.physId then
                                     alreadyPicked = true; break
+                                end
+                                if itemID and picked.link and common.get_item_id(picked.link) == itemID then
+                                    local _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, isUnique = GetItemInfo(itm.link)
+                                    if isUnique then
+                                        alreadyPicked = true; break
+                                    end
                                 end
                             end
                         end
-                    end
 
-                    if not alreadyPicked then
-                        finalPick[slotID] = itm
-                        if itm.isEmbellished then
-                            totalEmbCount = totalEmbCount + 1
+                        if not alreadyPicked then
+                            finalPick[slotID] = itm
+                            if itm.isEmbellished then
+                                totalEmbCount = totalEmbCount + 1
+                            end
+                            break
                         end
-                        break
                     end
                 end
             end
         end
     end
+
+    -- Process slot 0 (Ammo) for Classic / Camelot specs that use ammo
+    -- Ranged weapon (slot 18) is now determined, so ammo compatibility can be strictly verified
+    if isClassicSpec and usesAmmo and not finalPick[0] and best[0] then
+        local rangedLink = (finalPick[18] and finalPick[18].link) or GetInventoryItemLink("player", 18)
+        local neededAmmoSubclass = nil
+        if rangedLink then
+            local _, _, _, _, _, rClassID, rSubclassID = common.get_item_instant_info(rangedLink)
+            if rClassID == 2 then -- Weapon
+                if rSubclassID == 2 or rSubclassID == 18 then
+                    neededAmmoSubclass = 2 -- Bows / Crossbows need Arrows
+                elseif rSubclassID == 3 then
+                    neededAmmoSubclass = 3 -- Guns need Bullets
+                end
+            end
+        end
+
+        if C_PaperDollInfo and C_PaperDollInfo.AmmoNeeded and not C_PaperDollInfo.AmmoNeeded() and not (finalPick[18] and neededAmmoSubclass) then
+            neededAmmoSubclass = nil
+        end
+
+        if neededAmmoSubclass then
+            for _, itm in ipairs(best[0]) do
+                local _, _, _, _, _, aClassID, aSubclassID = common.get_item_instant_info(itm.link)
+                if aClassID == 6 and aSubclassID == neededAmmoSubclass then
+                    finalPick[0] = itm
+                    break
+                end
+            end
+        end
     end
 
     return finalPick
@@ -2030,12 +2073,12 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
 
     local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
     if inCombat then
-        if not silent then sfprint("Cannot equip gear while in combat.") end
+        if not silent then sfprint("cannot equip gear while in combat.") end
         return
     end
 
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then
-        if not silent then sfprint("Cannot equip gear while dead or ghost.") end
+        if not silent then sfprint("cannot equip gear while dead or ghost.") end
         return
     end
 
@@ -2072,13 +2115,31 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                         end
                     end
                 end
-                table.insert(equipQueue, {
-                    slotID   = slotID,
-                    item     = item,
-                    oldLink  = oldLink,
-                    oldIlvl  = oldIlvl,
-                    oldScore = oldScore,
-                })
+
+                -- Guard against swapping identical items / stacks:
+                -- If slot already has the exact same item ID equipped:
+                -- For slot 0 (ammo): Hunter bag stacks have the same item ID as the equipped ammo.
+                -- Swapping identical ammo does not upgrade anything and causes infinite bag-update loops.
+                -- For other gear slots: do not replace equipped gear with an identical item unless score improved.
+                if oldLink and item.link then
+                    local oldID = common.get_item_id(oldLink)
+                    local newID = common.get_item_id(item.link)
+                    if oldID and newID and oldID == newID then
+                        if slotID == 0 or (item.score or 0) <= oldScore then
+                            isAlreadyEquippedHere = true
+                        end
+                    end
+                end
+
+                if not isAlreadyEquippedHere then
+                    table.insert(equipQueue, {
+                        slotID   = slotID,
+                        item     = item,
+                        oldLink  = oldLink,
+                        oldIlvl  = oldIlvl,
+                        oldScore = oldScore,
+                    })
+                end
             end
         end
     end
@@ -2089,7 +2150,7 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
     local totalToEquip = #equipQueue
     if totalToEquip == 0 then
         if not silent then
-            sfprint("Already wearing your best gear.")
+            sfprint("already wearing your best gear.")
         end
         return
     end
@@ -2128,7 +2189,7 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
         if index > #equipQueue then
             if totalToEquip > 0 then
                 if not silent then
-                    sfprint("Equipped " .. totalToEquip .. " upgrade(s)!")
+                    sfprint("equipped " .. totalToEquip .. " upgrade(s)!")
                 end
             end
             onEquipFinished()
@@ -2137,7 +2198,7 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
 
         local currentInCombat = _G.InCombatLockdown and _G.InCombatLockdown()
         if currentInCombat then
-            if not silent then sfprint("Equip canceled: cannot change equipment in combat.") end
+            if not silent then sfprint("equip canceled: cannot change equipment in combat.") end
             onEquipFinished()
             return
         end
@@ -2159,8 +2220,8 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
 
         if item.isUnequip then
             if retryCount == 0 and not silent then
-                sfprint(string.format("-> %s (%d) to Empty (2H Weapon)",
-                    oldLink or "Item", oldIlvl))
+                sfprint(string.format("-> %s (%d) to empty (2h weapon)",
+                    oldLink or "item", oldIlvl))
             end
             if _G.ClearCursor then _G.ClearCursor() end
             if _G.PickupInventoryItem then _G.PickupInventoryItem(slotID) end
@@ -2202,9 +2263,9 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                     if diff > 0 then
                         reason = string.format("+%d ilvl", diff)
                     elseif diff < 0 then
-                        reason = string.format("%d ilvl, Stat Weights", diff)
+                        reason = string.format("%d ilvl, stat weights", diff)
                     else
-                        reason = "Stat Weights"
+                        reason = "stat weights"
                     end
                 end
                 sfprint(string.format("-> %s (%d) to %s (%d) (%s)",
@@ -2215,7 +2276,7 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                 else
                     reason = string.format("+%d ilvl", newIlvl)
                 end
-                sfprint(string.format("-> Empty to %s (%d) (%s)",
+                sfprint(string.format("-> empty to %s (%d) (%s)",
                     newLink, newIlvl, reason))
             end
         end

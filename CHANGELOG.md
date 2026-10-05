@@ -1,29 +1,33 @@
 # Changelog
 
-## v12.1.0-68 (2026-10-04)
+## v12.1.0-69 (2026-10-05)
 
 ### Features & Major Improvements
 
-- **Objective Tracker Blizzard Edit Mode Integration (`frames/quests/engine/q_tracker.lua`, `q_layout.lua`)**:
-  - **Native Anchor to ObjectiveTrackerFrame**: The SFUI objective tracker now anchors directly to Blizzard's `ObjectiveTrackerFrame` (`TOPLEFT` & `TOPRIGHT`) instead of static `UIParent` coordinates.
-  - **Full Edit Mode Repositioning**: Reposition, snap, and adjust the objective tracker seamlessly using Blizzard's native Edit Mode (`/editmode` or Game Menu → Edit Mode). Moves in real-time along with layout dragging.
-  - **Unblocked Edit Mode Selection Frame**: Safely unsuppressed `ObjectiveTrackerFrame` itself (keeping default quest blocks, headers, and modules hidden) so Blizzard's Edit Mode selection box and drag handles are fully interactive.
-  - **Edit Mode Height Synchronization**: Honors `editModeHeight` configured via the Edit Mode height slider as the maximum height budget before scrolling kicks in.
-  - **Options Panel Shortcut**: Added an **"open edit mode"** button alongside "reset position" in SFUI Options under Objectives.
+- **Auto-Gear Engine & Classic Ammo Integration (`frames/gear/highest.lua`, `frames/gear/gear.lua`)**:
+  - **Identical Ammo Swap & Loop Prevention**: Fixed an issue where the auto-gear engine repeatedly queued and swapped identical ammo stacks from bags into the ammo slot (slot 0). Added candidate sorting tie-breakers that always favor currently equipped items on equal scores and identical item ID guards in `EquipHighestILvl`.
+  - **Ranged Weapon Ammo Compatibility**: Ranged weapons (slot 18) are now resolved prior to the ammo slot, strictly enforcing weapon-matching ammo types (Arrows for Bows/Crossbows, Bullets for Guns, none for Thrown weapons/Wands/Relics, and honoring `C_PaperDollInfo.AmmoNeeded()`).
+  - **Ammo Slot Locking & Stat Exemption**: Added locked ammo slot support (`Locked Ammo`) and exempted projectiles from requiring primary stats in Classic. Added Item Class 6 (Projectile) validation in spec filtering.
+  - **Naked Mode Starter Weapon Unequipping**: Ensured the `/sf naked` and unequip actions reliably remove weapons for low-level characters even when weapons have 0 durability.
 
-- **Dungeon Journal Quest Chain & Map Pin Tracking (`frames/dungeonjournal/dj_pins.lua`, `dungeonjournal.lua`, `dj_quests.lua`)**:
-  - **Dynamic Chain Step Tracking**: Dungeon quests with prerequisite chains (e.g. *Leaders of the Fang* chain starting with *The Forgotten Pools*) now dynamically place the World Map pin on the exact step the player is currently on.
-  - **Step Progress Badges**: Map pin tooltips and dungeon journal quest views now indicate `step X of Y` in the quest chain.
-  - **Quest Level Filtering Integrity**: Ensured "Filter Quests by Level" strictly displays all quests with a lower or equal level requirement (including low-level / gray quests), only hiding quests that require a higher level than your character.
+- **Swing Timer Hunter Ranged & Layout Improvements (`frames/bars/swing.lua`)**:
+  - **Ranged Swing Detection**: Restored ranged swing tracking for Hunters and ranged weapon wielders by properly checking `UnitAttackSpeed` and ranged slot item info.
+  - **Dynamic Bar Stacking & Positioning**: Improved docking and dynamic vertical spacing when ranged or off-hand swing bars hide or show during combat.
+  - **Blizzard Swing Timer Suppression**: Suppressed default Blizzard swing timer frames cleanly without disabling the client's internal event dispatch.
 
-- **Dungeon Journal Granular Hiding System (`frames/dungeonjournal/dungeonjournal.lua`, `dj_sidebar.lua`, `dj_pins.lua`)**:
-  - **Context Menus for Dungeons & Pins**: Right-click context menus on sidebar dungeons and World Map pins allow hiding specific dungeons, dungeon pins, or individual quest pins.
-  - **Shift-Right-Click Fast Hide**: Instantly hide any map pin with Shift + Right-Click, complete with a clickable chat `[Undo]` link.
-  - **Hidden Items Manager**: Added a dedicated management panel to view, search, unhide individual items, or restore all hidden dungeons and pins.
-  - **Sidebar Visual Feedback**: Added an eye icon button in the search bar to toggle visibility of hidden dungeons (rendered dimmed with `[hidden]` tags) and an empty-state restore button.
+- **Combat Lockdown CVar & Taint Protection (`common.lua`, `frames/quests/modules/`)**:
+  - **Central Safe CVar Accessors**: Implemented `sfui.common.set_cvar` with combat lockdown queuing to eliminate protected function `SetCVar()` errors during combat.
+  - **Secret Boolean & Taint Prevention**: Safely avoided force-loading unsupported Blizzard Cooldown Viewer modules on Classic/Forever that triggered secret boolean errors on totem checks.
+  - **Quest Tracker In-Combat Collapse**: Allowed collapsing and expanding quest objectives freely during combat lockdown without taint or errors.
 
-- **Class Quest Tracking Module (`frames/quests/modules/q_camelot_class.lua`, `sfui.toc`)**:
-  - Added dedicated Camelot class quest tracker module to highlight class-specific quest objectives.
+- **Target Bar Range & Interaction Enhancements (`frames/bars/target.lua`)**:
+  - **Multi-Spell Range Checking**: Dynamic class-specific friendly and hostile range checking with dead-target bypass.
+  - **UnitWatch Combat Hardening**: Protected `RegisterUnitWatch` against combat lockdown collisions.
 
-- **Loot & Guide Sync Automation (`scripts/sync-dj-loot.py`, `data/dj_camelot.lua`)**:
-  - Synchronized boss loot drop rates, quest rewards, and chain configurations against the official Wowhead Forever guide.
+- **Dungeon Journal Boss Loot Usability Filtering (`frames/dungeonjournal/dj_bosses.lua`)**:
+  - **Loot Usability Filters**: Added quick filter pills for "usable", "armor", "weapons", "trinkets", "other", and "wishlist", with active spec vs all class spec evaluation.
+
+- **Pet Automation Refinements (`frames/automation/pets.lua`)**:
+  - **User Dismissal Memory**: Prevents auto-summoning immediately after a player manually dismisses their companion pet.
+  - **Filter-Proof Journal Queries**: Leveraged `C_PetJournal.GetOwnedPetIDs()` to prevent UI search and filter states from clearing the pet pool.
+  - **Stealth & Resurrection Restores**: Added automatic companion restores on exiting stealth and player resurrects.

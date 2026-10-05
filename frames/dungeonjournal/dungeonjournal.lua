@@ -112,9 +112,9 @@ function sfui.dungeonjournal.ToggleWishlist(itemID)
         local _, link = common.get_item_info(id)
         local name = link or ("Item #" .. id)
         if newState then
-            sfui.print("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffcc44ffWishlist Added:|r " .. name)
+            sfui.print("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffcc44ffwishlist added:|r " .. name)
         else
-            sfui.print("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cff888888Wishlist Removed:|r " .. name)
+            sfui.print("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cff888888wishlist removed:|r " .. name)
         end
     end
     return newState
@@ -500,7 +500,7 @@ function sfui.dungeonjournal.RestoreAllHidden()
         sfui.events.SendMessage("SFUI_DJ_SETTING_CHANGED", "restoreAll", total)
     end
     if sfui.print and total > 0 then
-        sfui.print(string.format("Restored %d hidden item%s (dungeons and map pins).", total, (total > 1 and "s" or "")))
+        sfui.print(string.format("restored %d hidden item%s (dungeons and map pins).", total, (total > 1 and "s" or "")))
     end
 end
 sfui.dungeonjournal.RestoreHiddenDungeons = sfui.dungeonjournal.RestoreAllHidden
@@ -543,19 +543,19 @@ if _G.hooksecurefunc then
                 sfui.dungeonjournal.SetDungeonHidden(idStr, false)
                 local d = sfui.dungeonjournal.FindDungeon(idStr)
                 if sfui.print then
-                    sfui.print(string.format("Restored |cffffd100%s|r to dungeon journal and map.", d and d.name or idStr))
+                    sfui.print(string.format("restored |cffffd100%s|r to dungeon journal and map.", d and d.name or idStr))
                 end
             elseif kind == "pins" then
                 sfui.dungeonjournal.SetDungeonPinsHidden(idStr, false)
                 local d = sfui.dungeonjournal.FindDungeon(idStr)
                 if sfui.print then
-                    sfui.print(string.format("Restored map pins for |cffffd100%s|r.", d and d.name or idStr))
+                    sfui.print(string.format("restored map pins for |cffffd100%s|r.", d and d.name or idStr))
                 end
             elseif kind == "quest" then
                 local qid = tonumber(idStr) or idStr
                 sfui.dungeonjournal.SetQuestPinHidden(qid, false)
                 if sfui.print then
-                    sfui.print(string.format("Restored quest pin |cffffd100#%s|r to map.", tostring(qid)))
+                    sfui.print(string.format("restored quest pin |cffffd100#%s|r to map.", tostring(qid)))
                 end
             end
         end
@@ -1279,7 +1279,7 @@ function sfui.dungeonjournal.CreateFrame()
     navWpBtn:SetScript("OnClick", function()
         local dungeon = FindDungeon(selectedDungeonID)
         if not dungeon or not dungeon.entrance or not dungeon.entrance.mapID or not dungeon.entrance.x or not dungeon.entrance.y then
-            if common and common.print then common.print("No waypoint coordinates found for this dungeon.") end
+            if common and common.print then common.print("no waypoint coordinates found for this dungeon.") end
             return
         end
         if C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates then
@@ -1290,7 +1290,7 @@ function sfui.dungeonjournal.CreateFrame()
                 pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
             end
             if common and common.print then
-                common.print("Waypoint set for " .. (dungeon.name or "dungeon entrance"))
+                common.print("waypoint set for " .. (dungeon.name or "dungeon entrance"))
             end
         end
     end)
@@ -1333,7 +1333,7 @@ function sfui.dungeonjournal.CreateFrame()
         local dungeon = FindDungeon(selectedDungeonID)
         local mapID = dungeon and dungeon.entrance and dungeon.entrance.mapID
         if not mapID then
-            if common and common.print then common.print("No map zone registered for this dungeon.") end
+            if common and common.print then common.print("no map zone registered for this dungeon.") end
             return
         end
         if not WorldMapFrame:IsShown() then
