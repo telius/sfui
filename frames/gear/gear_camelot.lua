@@ -24,6 +24,7 @@ local pairs = _G.pairs
 local type = _G.type
 local table = _G.table
 local string = _G.string
+local math = _G.math
 local tonumber = _G.tonumber
 local tostring = _G.tostring
 local wipe = _G.wipe or function(t)
@@ -532,6 +533,245 @@ function sfui.gear.SanitizeStatOrder(specID, rawOrder, pool, isTank)
 end
 
 -- -------------------------------------------------------------------------
+-- CENTRALIZED ROLE DEFINITIONS & STYLING HELPERS
+-- -------------------------------------------------------------------------
+local COLLAPSED_ROLE_SIZE    = 24
+local COLLAPSED_ROLE_SPACING = 4
+
+local ROLE_COLORS = {
+    ["tank"]   = { 0.4, 0.7, 1.0 },
+    ["bear"]   = { 0.4, 0.7, 1.0 },
+    ["prot"]   = { 0.4, 0.7, 1.0 },
+    ["heal"]   = { 0.3, 1.0, 0.4 },
+    ["resto"]  = { 0.3, 1.0, 0.4 },
+    ["holy"]   = { 0.3, 1.0, 0.4 },
+    ["disc"]   = { 0.90, 0.90, 0.95 },
+    ["dps"]    = { 1.0, 0.4, 0.3 },
+    ["cat"]    = { 1.0, 0.49, 0.04 },
+    ["moon"]   = { 0.40, 0.75, 1.0 },
+    ["ret"]    = { 0.96, 0.55, 0.73 },
+    ["arms"]   = { 0.78, 0.61, 0.43 },
+    ["fury"]   = { 1.0, 0.45, 0.25 },
+    ["ele"]    = { 0.0, 0.44, 0.87 },
+    ["enh"]    = { 1.0, 0.50, 0.25 },
+    ["shad"]   = { 0.60, 0.40, 0.85 },
+    ["shadow"] = { 0.60, 0.40, 0.85 },
+    ["sin"]    = { 1.0, 0.96, 0.41 },
+    ["combat"] = { 1.0, 0.82, 0.35 },
+    ["sub"]    = { 0.85, 0.70, 0.95 },
+    ["arc"]    = { 0.70, 0.50, 1.0 },
+    ["fire"]   = { 1.0, 0.40, 0.20 },
+    ["frost"]  = { 0.40, 0.75, 1.0 },
+    ["aff"]    = { 0.58, 0.51, 0.79 },
+    ["demo"]   = { 0.80, 0.40, 0.60 },
+    ["destro"] = { 1.0, 0.45, 0.20 },
+    ["bm"]     = { 0.67, 0.83, 0.45 },
+    ["mm"]     = { 0.55, 0.78, 0.40 },
+    ["surv"]   = { 0.80, 0.80, 0.50 },
+}
+
+local ROLE_LABELS = {
+    ["tank"]   = "tank",
+    ["bear"]   = "bear",
+    ["prot"]   = "prot",
+    ["heal"]   = "heal",
+    ["resto"]  = "resto",
+    ["holy"]   = "holy",
+    ["disc"]   = "disc",
+    ["dps"]    = "dps",
+    ["cat"]    = "cat",
+    ["moon"]   = "moon",
+    ["ret"]    = "ret",
+    ["arms"]   = "arms",
+    ["fury"]   = "fury",
+    ["ele"]    = "ele",
+    ["enh"]    = "enh",
+    ["shad"]   = "shad",
+    ["shadow"] = "shad",
+    ["sin"]    = "sin",
+    ["combat"] = "combat",
+    ["sub"]    = "sub",
+    ["arc"]    = "arc",
+    ["fire"]   = "fire",
+    ["frost"]  = "frost",
+    ["aff"]    = "aff",
+    ["demo"]   = "demo",
+    ["destro"] = "destro",
+    ["bm"]     = "bm",
+    ["mm"]     = "mm",
+    ["surv"]   = "surv",
+}
+
+local function getRoleDescription(rLow)
+    return (rLow == "tank" and "configure stat priority, defensive stats, and armor item level prioritization for tanking.")
+        or (rLow == "prot" and "configure stat priority, defensive stats, and armor item level prioritization for protection tanking.")
+        or (rLow == "bear" and "configure stat priority, defensive stats, and armor item level prioritization for bear form tanking.")
+        or (rLow == "heal" and "configure stat priority and gear optimization for healing.")
+        or (rLow == "resto" and "configure stat priority and gear optimization for restoration healing.")
+        or (rLow == "holy" and "configure stat priority and gear optimization for holy healing.")
+        or (rLow == "disc" and "configure stat priority and gear optimization for discipline healing and shielding.")
+        or (rLow == "ret" and "configure stat priority and gear optimization for retribution melee damage.")
+        or (rLow == "arms" and "configure stat priority and gear optimization for arms melee damage.")
+        or (rLow == "fury" and "configure stat priority and gear optimization for fury melee damage.")
+        or (rLow == "ele" and "configure stat priority and gear optimization for elemental spell damage.")
+        or (rLow == "enh" and "configure stat priority and gear optimization for enhancement melee damage.")
+        or (rLow == "shad" and "configure stat priority and gear optimization for shadow spell damage.")
+        or (rLow == "cat" and "configure stat priority and gear optimization for cat form melee damage.")
+        or (rLow == "moon" and "configure stat priority and gear optimization for balance moonkin spell damage.")
+        or (rLow == "sin" and "configure stat priority and gear optimization for assassination damage.")
+        or (rLow == "combat" and "configure stat priority and gear optimization for combat damage.")
+        or (rLow == "sub" and "configure stat priority and gear optimization for subtlety damage.")
+        or (rLow == "arc" and "configure stat priority and gear optimization for arcane spell damage.")
+        or (rLow == "fire" and "configure stat priority and gear optimization for fire spell damage.")
+        or (rLow == "frost" and "configure stat priority and gear optimization for frost spell damage.")
+        or (rLow == "aff" and "configure stat priority and gear optimization for affliction spell damage.")
+        or (rLow == "demo" and "configure stat priority and gear optimization for demonology damage.")
+        or (rLow == "destro" and "configure stat priority and gear optimization for destruction spell damage.")
+        or (rLow == "bm" and "configure stat priority and gear optimization for beast mastery ranged damage.")
+        or (rLow == "mm" and "configure stat priority and gear optimization for marksmanship ranged damage.")
+        or (rLow == "surv" and "configure stat priority and gear optimization for survival ranged damage.")
+        or "configure stat priority and gear optimization for damage dealing."
+end
+
+local function styleRoleButton(btn, isSelected)
+    if not btn then return end
+    btn.isSelected = isSelected
+    if btn.tex then
+        btn.tex:SetDesaturated(not isSelected)
+        btn:SetAlpha(isSelected and 1.0 or 0.40)
+        if isSelected then
+            local c = btn.roleColor or { 0.95, 0.85, 0.55 }
+            btn:SetBackdropBorderColor(c[1], c[2], c[3], 1.0)
+            btn:SetBackdropColor(c[1] * 0.25, c[2] * 0.25, c[3] * 0.25, 0.9)
+        else
+            local isCamelotTheme = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
+            if isCamelotTheme then
+                btn:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
+            else
+                btn:SetBackdropBorderColor(0, 0, 0, 0.8)
+            end
+            btn:SetBackdropColor(0, 0, 0, 0.7)
+        end
+    end
+end
+
+local function styleNakedButton(btn, isNaked)
+    if not btn then return end
+    btn.isSelected = isNaked
+    if btn.tex then
+        btn.tex:SetDesaturated(not isNaked)
+        btn:SetAlpha(isNaked and 1.0 or 0.40)
+        if isNaked then
+            btn:SetBackdropBorderColor(1.0, 0.65, 0.2, 1.0)
+            btn:SetBackdropColor(0.35, 0.2, 0.05, 0.9)
+        else
+            local isCamelotTheme = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
+            if isCamelotTheme then
+                btn:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
+            else
+                btn:SetBackdropBorderColor(0, 0, 0, 0.8)
+            end
+            btn:SetBackdropColor(0, 0, 0, 0.7)
+        end
+    end
+end
+
+-- -------------------------------------------------------------------------
+-- CENTRALIZED ROLE SELECTION ACTION
+-- -------------------------------------------------------------------------
+function sfui.gear.SelectClassicRole(specID, rKey)
+    local numID = tonumber(specID) or 0
+    if sfui.gear.SetNakedPaused then sfui.gear.SetNakedPaused(false, true) end
+    if sfui.gear.pauseAutoEquip then sfui.gear.pauseAutoEquip(0) end
+    SfuiDB = SfuiDB or {}
+    SfuiDB.gear = SfuiDB.gear or {}
+    SfuiDB.gear[specID] = SfuiDB.gear[specID] or {}
+    local sdb = SfuiDB.gear[specID]
+    sdb.user_selected_role = true
+    sdb.classic_role = rKey
+    local rLower = rKey:lower()
+    local isTankRole = (rLower == "tank" or rLower == "bear" or rLower == "prot")
+    local isHealRole = (rLower == "heal" or rLower == "resto" or rLower == "holy" or rLower == "disc")
+    sdb.role = isTankRole and "TANK" or (isHealRole and "HEALER" or "DAMAGER")
+    sdb.is_tank = isTankRole
+    sdb.armor_ilvl_prio = isTankRole
+    sdb.is_healer = isHealRole
+
+    local bridge = sfui.talents and sfui.talents.SPEC_BRIDGE and (sfui.talents.SPEC_BRIDGE[specID] or sfui.talents.SPEC_BRIDGE[numID])
+    if bridge then
+        if bridge.camelotID and bridge.camelotID ~= specID then
+            SfuiDB.gear[bridge.camelotID] = SfuiDB.gear[bridge.camelotID] or {}
+            local cb = SfuiDB.gear[bridge.camelotID]
+            cb.user_selected_role = true
+            cb.classic_role = rKey
+            cb.role = sdb.role
+            cb.is_tank = sdb.is_tank
+            cb.armor_ilvl_prio = sdb.armor_ilvl_prio
+            cb.is_healer = sdb.is_healer
+        end
+        if bridge.classID and bridge.classID ~= specID then
+            SfuiDB.gear[bridge.classID] = SfuiDB.gear[bridge.classID] or {}
+            local clb = SfuiDB.gear[bridge.classID]
+            clb.user_selected_role = true
+            clb.classic_role = rKey
+            clb.role = sdb.role
+            clb.is_tank = sdb.is_tank
+            clb.armor_ilvl_prio = sdb.armor_ilvl_prio
+            clb.is_healer = sdb.is_healer
+        end
+    end
+
+    local defOrder = sfui.gear.GetDefaultStats and sfui.gear.GetDefaultStats(numID, rKey)
+    if defOrder then
+        sdb.stat_order = {}
+        for sIdx, st in ipairs(defOrder) do sdb.stat_order[sIdx] = st end
+        sdb.stat_equals = nil
+        sdb.pawn_weights = nil
+    end
+
+    local _, allSpecIDs = common.get_player_specs()
+    if allSpecIDs then
+        for _, sID in ipairs(allSpecIDs) do
+            if sID ~= specID then
+                SfuiDB.gear[sID] = SfuiDB.gear[sID] or {}
+                local sb = SfuiDB.gear[sID]
+                sb.user_selected_role = true
+                sb.classic_role = rKey
+                sb.role = sdb.role
+                sb.is_tank = sdb.is_tank
+                sb.armor_ilvl_prio = sdb.armor_ilvl_prio
+                sb.is_healer = sdb.is_healer
+                if defOrder then
+                    sb.stat_order = {}
+                    for sIdx, st in ipairs(defOrder) do sb.stat_order[sIdx] = st end
+                    sb.stat_equals = nil
+                    sb.pawn_weights = nil
+                end
+            end
+        end
+    end
+
+    if sfui.highest then
+        sfui.highest.ClearValidationCache()
+        sfui.highest.ClearCache()
+    end
+    sfui.gear.UpdateStatUI()
+    sfui.gear.Update()
+
+    local curSpec = common.get_current_spec_id()
+    local isMatch = (not curSpec) or (curSpec == specID)
+        or (tonumber(curSpec) and tonumber(specID) and tonumber(curSpec) == tonumber(specID))
+        or (sfui.gear.is_spec_match and sfui.gear.is_spec_match(curSpec, specID))
+    if isMatch then
+        C_Timer.After(0.18, function()
+            if not sfui.gear.isNakedPaused() and sfui.highest and sfui.highest.EquipHighestILvl then
+                sfui.highest.EquipHighestILvl(sfui.gear.isCurrentlyPvP())
+            end
+        end)
+    end
+end
+
+-- -------------------------------------------------------------------------
 -- CARD MODIFIERS BUILDER (Role Buttons & Naked Button on Row 2B)
 -- -------------------------------------------------------------------------
 function sfui.gear.BuildCardModifiers(card, ui, specID, curLockX)
@@ -562,71 +802,9 @@ function sfui.gear.BuildCardModifiers(card, ui, specID, curLockX)
 
     if classicRoles then
         ui.roleBtns = {}
-        local roleColors = {
-            ["tank"]   = { 0.4, 0.7, 1.0 },
-            ["bear"]   = { 0.4, 0.7, 1.0 },
-            ["prot"]   = { 0.4, 0.7, 1.0 },
-            ["heal"]   = { 0.3, 1.0, 0.4 },
-            ["resto"]  = { 0.3, 1.0, 0.4 },
-            ["holy"]   = { 0.3, 1.0, 0.4 },
-            ["disc"]   = { 0.90, 0.90, 0.95 },
-            ["dps"]    = { 1.0, 0.4, 0.3 },
-            ["cat"]    = { 1.0, 0.49, 0.04 },
-            ["moon"]   = { 0.40, 0.75, 1.0 },
-            ["ret"]    = { 0.96, 0.55, 0.73 },
-            ["arms"]   = { 0.78, 0.61, 0.43 },
-            ["fury"]   = { 1.0, 0.45, 0.25 },
-            ["ele"]    = { 0.0, 0.44, 0.87 },
-            ["enh"]    = { 1.0, 0.50, 0.25 },
-            ["shad"]   = { 0.60, 0.40, 0.85 },
-            ["shadow"] = { 0.60, 0.40, 0.85 },
-            ["sin"]    = { 1.0, 0.96, 0.41 },
-            ["combat"] = { 1.0, 0.82, 0.35 },
-            ["sub"]    = { 0.85, 0.70, 0.95 },
-            ["arc"]    = { 0.70, 0.50, 1.0 },
-            ["fire"]   = { 1.0, 0.40, 0.20 },
-            ["frost"]  = { 0.40, 0.75, 1.0 },
-            ["aff"]    = { 0.58, 0.51, 0.79 },
-            ["demo"]   = { 0.80, 0.40, 0.60 },
-            ["destro"] = { 1.0, 0.45, 0.20 },
-            ["bm"]     = { 0.67, 0.83, 0.45 },
-            ["mm"]     = { 0.55, 0.78, 0.40 },
-            ["surv"]   = { 0.80, 0.80, 0.50 },
-        }
-        local roleLabels = {
-            ["tank"]   = "tank",
-            ["bear"]   = "bear",
-            ["prot"]   = "prot",
-            ["heal"]   = "heal",
-            ["resto"]  = "resto",
-            ["holy"]   = "holy",
-            ["disc"]   = "disc",
-            ["dps"]    = "dps",
-            ["cat"]    = "cat",
-            ["moon"]   = "moon",
-            ["ret"]    = "ret",
-            ["arms"]   = "arms",
-            ["fury"]   = "fury",
-            ["ele"]    = "ele",
-            ["enh"]    = "enh",
-            ["shad"]   = "shad",
-            ["shadow"] = "shad",
-            ["sin"]    = "sin",
-            ["combat"] = "combat",
-            ["sub"]    = "sub",
-            ["arc"]    = "arc",
-            ["fire"]   = "fire",
-            ["frost"]  = "frost",
-            ["aff"]    = "aff",
-            ["demo"]   = "demo",
-            ["destro"] = "destro",
-            ["bm"]     = "bm",
-            ["mm"]     = "mm",
-            ["surv"]   = "surv",
-        }
 
         for _, rKey in ipairs(classicRoles) do
-            local rLabel = roleLabels[rKey] or rKey:lower()
+            local rLabel = ROLE_LABELS[rKey] or rKey:lower()
             local rIcon = sfui.gear.GetClassicRoleIcon(classID, rKey)
             local rBtn = CreateFrame("Button", nil, card, "BackdropTemplate")
             rBtn:SetSize(ROLE_ICON_SIZE, ROLE_ICON_SIZE)
@@ -647,127 +825,15 @@ function sfui.gear.BuildCardModifiers(card, ui, specID, curLockX)
                 isCamelotTheme and 0.14 or 0, 0.85)
             rBtn:SetAlpha(0.40)
             rBtn.roleKey = rKey
-            rBtn.roleColor = roleColors[rKey] or { 0.6, 0.6, 0.6 }
+            rBtn.roleColor = ROLE_COLORS[rKey] or { 0.6, 0.6, 0.6 }
+            local capturedRole = rKey
             rBtn:SetScript("OnClick", function()
-                if sfui.gear.SetNakedPaused then sfui.gear.SetNakedPaused(false, true) end
-                if sfui.gear.pauseAutoEquip then sfui.gear.pauseAutoEquip(0) end
-                SfuiDB.gear[specID] = SfuiDB.gear[specID] or {}
-                local sdb = SfuiDB.gear[specID]
-                sdb.user_selected_role = true
-                sdb.classic_role = rKey
-                local rLower = rKey:lower()
-                local isTankRole = (rLower == "tank" or rLower == "bear" or rLower == "prot")
-                local isHealRole = (rLower == "heal" or rLower == "resto" or rLower == "holy" or rLower == "disc")
-                sdb.role = isTankRole and "TANK" or (isHealRole and "HEALER" or "DAMAGER")
-                sdb.is_tank = isTankRole
-                sdb.armor_ilvl_prio = isTankRole
-                sdb.is_healer = isHealRole
-
-                local bridge = sfui.talents and sfui.talents.SPEC_BRIDGE and (sfui.talents.SPEC_BRIDGE[specID] or sfui.talents.SPEC_BRIDGE[numID])
-                if bridge then
-                    if bridge.camelotID and bridge.camelotID ~= specID then
-                        SfuiDB.gear[bridge.camelotID] = SfuiDB.gear[bridge.camelotID] or {}
-                        local cb = SfuiDB.gear[bridge.camelotID]
-                        cb.user_selected_role = true
-                        cb.classic_role = rKey
-                        cb.role = sdb.role
-                        cb.is_tank = sdb.is_tank
-                        cb.armor_ilvl_prio = sdb.armor_ilvl_prio
-                        cb.is_healer = sdb.is_healer
-                    end
-                    if bridge.classID and bridge.classID ~= specID then
-                        SfuiDB.gear[bridge.classID] = SfuiDB.gear[bridge.classID] or {}
-                        local clb = SfuiDB.gear[bridge.classID]
-                        clb.user_selected_role = true
-                        clb.classic_role = rKey
-                        clb.role = sdb.role
-                        clb.is_tank = sdb.is_tank
-                        clb.armor_ilvl_prio = sdb.armor_ilvl_prio
-                        clb.is_healer = sdb.is_healer
-                    end
-                end
-
-                local defOrder = sfui.gear.GetDefaultStats and sfui.gear.GetDefaultStats(numID, rKey)
-                if defOrder then
-                    sdb.stat_order = {}
-                    for sIdx, st in ipairs(defOrder) do sdb.stat_order[sIdx] = st end
-                    sdb.stat_equals = nil
-                    sdb.pawn_weights = nil
-                end
-
-                local _, allSpecIDs = common.get_player_specs()
-                if allSpecIDs then
-                    for _, sID in ipairs(allSpecIDs) do
-                        if sID ~= specID then
-                            SfuiDB.gear[sID] = SfuiDB.gear[sID] or {}
-                            local sb = SfuiDB.gear[sID]
-                            sb.user_selected_role = true
-                            sb.classic_role = rKey
-                            sb.role = sdb.role
-                            sb.is_tank = sdb.is_tank
-                            sb.armor_ilvl_prio = sdb.armor_ilvl_prio
-                            sb.is_healer = sdb.is_healer
-                            if defOrder then
-                                sb.stat_order = {}
-                                for sIdx, st in ipairs(defOrder) do sb.stat_order[sIdx] = st end
-                                sb.stat_equals = nil
-                                sb.pawn_weights = nil
-                            end
-                        end
-                    end
-                end
-
-                if sfui.highest then
-                    sfui.highest.ClearValidationCache()
-                    sfui.highest.ClearCache()
-                end
-                sfui.gear.UpdateStatUI()
-                sfui.gear.Update()
-
-                local curSpec = common.get_current_spec_id()
-                local isMatch = (not curSpec) or (curSpec == specID)
-                    or (tonumber(curSpec) and tonumber(specID) and tonumber(curSpec) == tonumber(specID))
-                    or (sfui.gear.is_spec_match and sfui.gear.is_spec_match(curSpec, specID))
-                if isMatch then
-                    C_Timer.After(0.18, function()
-                        if not sfui.gear.isNakedPaused() and sfui.highest and sfui.highest.EquipHighestILvl then
-                            sfui.highest.EquipHighestILvl(sfui.gear.isCurrentlyPvP())
-                        end
-                    end)
-                end
+                sfui.gear.SelectClassicRole(specID, capturedRole)
             end)
 
             rBtn:SetScript("OnEnter", function(b)
                 b:SetAlpha(1.0)
-                local rLow = rKey:lower()
-                local desc = (rLow == "tank" and "configure stat priority, defensive stats, and armor item level prioritization for tanking.")
-                    or (rLow == "prot" and "configure stat priority, defensive stats, and armor item level prioritization for protection tanking.")
-                    or (rLow == "bear" and "configure stat priority, defensive stats, and armor item level prioritization for bear form tanking.")
-                    or (rLow == "heal" and "configure stat priority and gear optimization for healing.")
-                    or (rLow == "resto" and "configure stat priority and gear optimization for restoration healing.")
-                    or (rLow == "holy" and "configure stat priority and gear optimization for holy healing.")
-                    or (rLow == "disc" and "configure stat priority and gear optimization for discipline healing and shielding.")
-                    or (rLow == "ret" and "configure stat priority and gear optimization for retribution melee damage.")
-                    or (rLow == "arms" and "configure stat priority and gear optimization for arms melee damage.")
-                    or (rLow == "fury" and "configure stat priority and gear optimization for fury melee damage.")
-                    or (rLow == "ele" and "configure stat priority and gear optimization for elemental spell damage.")
-                    or (rLow == "enh" and "configure stat priority and gear optimization for enhancement melee damage.")
-                    or (rLow == "shad" and "configure stat priority and gear optimization for shadow spell damage.")
-                    or (rLow == "cat" and "configure stat priority and gear optimization for cat form melee damage.")
-                    or (rLow == "moon" and "configure stat priority and gear optimization for balance moonkin spell damage.")
-                    or (rLow == "sin" and "configure stat priority and gear optimization for assassination damage.")
-                    or (rLow == "combat" and "configure stat priority and gear optimization for combat damage.")
-                    or (rLow == "sub" and "configure stat priority and gear optimization for subtlety damage.")
-                    or (rLow == "arc" and "configure stat priority and gear optimization for arcane spell damage.")
-                    or (rLow == "fire" and "configure stat priority and gear optimization for fire spell damage.")
-                    or (rLow == "frost" and "configure stat priority and gear optimization for frost spell damage.")
-                    or (rLow == "aff" and "configure stat priority and gear optimization for affliction spell damage.")
-                    or (rLow == "demo" and "configure stat priority and gear optimization for demonology damage.")
-                    or (rLow == "destro" and "configure stat priority and gear optimization for destruction spell damage.")
-                    or (rLow == "bm" and "configure stat priority and gear optimization for beast mastery ranged damage.")
-                    or (rLow == "mm" and "configure stat priority and gear optimization for marksmanship ranged damage.")
-                    or (rLow == "surv" and "configure stat priority and gear optimization for survival ranged damage.")
-                    or "configure stat priority and gear optimization for damage dealing."
+                local desc = getRoleDescription(capturedRole:lower())
                 show_tooltip(b, "ANCHOR_TOP", rLabel, {
                     { desc, 0.8, 0.8, 0.8, true },
                 })
@@ -830,55 +896,159 @@ function sfui.gear.BuildCardModifiers(card, ui, specID, curLockX)
 end
 
 -- -------------------------------------------------------------------------
+-- COLLAPSED ROLE BAR (Role Icons + Naked Button in Header)
+-- -------------------------------------------------------------------------
+function sfui.gear.UpdateCollapsedRoleBar(gearFrame)
+    if not gearFrame then return end
+    local bar = gearFrame.collapsedRoleBar
+    if not bar then return end
+
+    local specID = gearFrame.activeSpecID or common.get_current_spec_id()
+    local numID = tonumber(specID) or 0
+    local classID = (sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(numID)) or numID
+    local classicRoles = sfui.gear.CLASSIC_ROLES_BY_SPEC and
+        (sfui.gear.CLASSIC_ROLES_BY_SPEC[numID] or (classID and sfui.gear.CLASSIC_ROLES_BY_SPEC[classID]))
+
+    if not classicRoles or #classicRoles == 0 then
+        bar:Hide()
+        return
+    end
+
+    local totalButtons = #classicRoles + 1
+    local totalWidth = (totalButtons * COLLAPSED_ROLE_SIZE) + ((totalButtons - 1) * COLLAPSED_ROLE_SPACING)
+
+    bar:SetSize(totalWidth, COLLAPSED_ROLE_SIZE)
+    bar:ClearAllPoints()
+    bar:SetPoint("CENTER", gearFrame, "TOP", 0, -17)
+
+    bar.roleBtns = bar.roleBtns or {}
+
+    local curX = 0
+    for _, rKey in ipairs(classicRoles) do
+        local rBtn = bar.roleBtns[rKey]
+        if not rBtn then
+            rBtn = CreateFrame("Button", nil, bar, "BackdropTemplate")
+            rBtn:SetSize(COLLAPSED_ROLE_SIZE, COLLAPSED_ROLE_SIZE)
+            rBtn:SetFrameLevel(bar:GetFrameLevel() + 2)
+            local t = rBtn:CreateTexture(nil, "ARTWORK")
+            t:SetAllPoints()
+            t:SetTexture(sfui.gear.GetClassicRoleIcon(classID, rKey))
+            t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            rBtn.tex = t
+            rBtn:SetBackdrop({
+                bgFile = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = 1,
+            })
+            rBtn.roleKey = rKey
+            rBtn.roleColor = ROLE_COLORS[rKey] or { 0.6, 0.6, 0.6 }
+            local capturedRole = rKey
+
+            rBtn:SetScript("OnClick", function()
+                local activeSpec = gearFrame.activeSpecID or common.get_current_spec_id()
+                sfui.gear.SelectClassicRole(activeSpec, capturedRole)
+            end)
+            rBtn:SetScript("OnEnter", function(b)
+                b:SetAlpha(1.0)
+                local rLabel = ROLE_LABELS[capturedRole] or capturedRole:lower()
+                local desc = getRoleDescription(capturedRole:lower())
+                show_tooltip(b, "ANCHOR_TOP", rLabel, {
+                    { desc, 0.8, 0.8, 0.8, true },
+                })
+            end)
+            rBtn:SetScript("OnLeave", function(b)
+                if not b.isSelected then b:SetAlpha(0.40) end
+                hide_tooltip()
+            end)
+            bar.roleBtns[rKey] = rBtn
+        else
+            rBtn.tex:SetTexture(sfui.gear.GetClassicRoleIcon(classID, rKey))
+        end
+
+        rBtn:ClearAllPoints()
+        rBtn:SetPoint("LEFT", bar, "LEFT", curX, 0)
+        rBtn:Show()
+        curX = curX + COLLAPSED_ROLE_SIZE + COLLAPSED_ROLE_SPACING
+    end
+
+    for k, b in pairs(bar.roleBtns) do
+        local found = false
+        for _, rKey in ipairs(classicRoles) do
+            if rKey == k then found = true; break end
+        end
+        if not found then b:Hide() end
+    end
+
+    local btnNaked = bar.btnNaked
+    if not btnNaked then
+        btnNaked = CreateFrame("Button", nil, bar, "BackdropTemplate")
+        btnNaked:SetSize(COLLAPSED_ROLE_SIZE, COLLAPSED_ROLE_SIZE)
+        btnNaked:SetFrameLevel(bar:GetFrameLevel() + 2)
+        local t = btnNaked:CreateTexture(nil, "ARTWORK")
+        t:SetAllPoints()
+        t:SetTexture("Interface\\Icons\\inv_chest_cloth_17")
+        t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        btnNaked.tex = t
+        btnNaked:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btnNaked:SetScript("OnClick", function()
+            sfui.gear.ToggleNaked()
+        end)
+        btnNaked:SetScript("OnEnter", function(b)
+            b:SetAlpha(1.0)
+            local isNaked = sfui.gear.isNakedPaused()
+            local title = isNaked and "naked (active - auto-equip paused)" or "naked (unequip gear)"
+            show_tooltip(b, "ANCHOR_TOP", title, {
+                { isNaked and "click to resume auto-equip and re-equip your gear." or "unequips all weapons and armor into your bags.", 0.8, 0.8, 0.8, true },
+                { "leaves jewelry (rings, trinkets, neck), shirt, and tabard equipped.", 0.6, 0.9, 0.6, true },
+                { "pauses gear manager auto-equip until clicked again or role/pve/pvp is clicked.", 0.4, 0.8, 1.0, true },
+            })
+        end)
+        btnNaked:SetScript("OnLeave", function(b)
+            if not b.isSelected then b:SetAlpha(0.40) end
+            hide_tooltip()
+        end)
+        bar.btnNaked = btnNaked
+    end
+    btnNaked:ClearAllPoints()
+    btnNaked:SetPoint("LEFT", bar, "LEFT", curX, 0)
+    btnNaked:Show()
+
+    local db = SfuiDB and SfuiDB.gear and SfuiDB.gear[specID]
+    local curRole = sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(specID, db)
+    local curRoleLower = curRole and curRole:lower()
+    for rKey, rBtn in pairs(bar.roleBtns) do
+        if rBtn:IsShown() then
+            local isSelected = (curRoleLower == (rKey and rKey:lower()))
+            styleRoleButton(rBtn, isSelected)
+        end
+    end
+    styleNakedButton(btnNaked, sfui.gear.isNakedPaused())
+end
+
+-- -------------------------------------------------------------------------
 -- UI FLAVOR REFRESH (Role buttons & naked button state)
 -- -------------------------------------------------------------------------
 function sfui.gear.UpdateFlavorUI(ui, specID, db)
-    if not ui then return end
-
-    if ui.roleBtns then
+    if ui and ui.roleBtns then
         local curRole = sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(specID, db)
         local curRoleLower = curRole and curRole:lower()
         for rKey, rBtn in pairs(ui.roleBtns) do
             local isSelected = (curRoleLower == (rKey and rKey:lower()))
-            rBtn.isSelected = isSelected
-            if rBtn.tex then
-                rBtn.tex:SetDesaturated(not isSelected)
-                rBtn:SetAlpha(isSelected and 1.0 or 0.40)
-                if isSelected then
-                    local c = rBtn.roleColor or { 0.95, 0.85, 0.55 }
-                    rBtn:SetBackdropBorderColor(c[1], c[2], c[3], 1.0)
-                    rBtn:SetBackdropColor(c[1] * 0.25, c[2] * 0.25, c[3] * 0.25, 0.9)
-                else
-                    local isCamelotTheme = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
-                    if isCamelotTheme then
-                        rBtn:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
-                    else
-                        rBtn:SetBackdropBorderColor(0, 0, 0, 0.8)
-                    end
-                    rBtn:SetBackdropColor(0, 0, 0, 0.7)
-                end
-            end
+            styleRoleButton(rBtn, isSelected)
         end
     end
 
-    if ui.btnNaked then
+    if ui and ui.btnNaked then
         local isNaked = sfui.gear.isNakedPaused()
-        ui.btnNaked.isSelected = isNaked
-        if ui.btnNaked.tex then
-            ui.btnNaked.tex:SetDesaturated(not isNaked)
-            ui.btnNaked:SetAlpha(isNaked and 1.0 or 0.40)
-            if isNaked then
-                ui.btnNaked:SetBackdropBorderColor(1.0, 0.65, 0.2, 1.0)
-                ui.btnNaked:SetBackdropColor(0.35, 0.2, 0.05, 0.9)
-            else
-                local isCamelotTheme = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
-                if isCamelotTheme then
-                    ui.btnNaked:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
-                else
-                    ui.btnNaked:SetBackdropBorderColor(0, 0, 0, 0.8)
-                end
-                ui.btnNaked:SetBackdropColor(0, 0, 0, 0.7)
-            end
-        end
+        styleNakedButton(ui.btnNaked, isNaked)
+    end
+
+    local gFrame = sfui.gear.frame or _G.SfuiGearManagerFrame
+    if gFrame and gFrame.collapsedRoleBar and sfui.gear.UpdateCollapsedRoleBar then
+        sfui.gear.UpdateCollapsedRoleBar(gFrame)
     end
 end

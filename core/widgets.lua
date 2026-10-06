@@ -26,6 +26,21 @@ function sfui.widgets.create_panel(parent, width, height)
 end
 sfui.common.create_panel = sfui.widgets.create_panel
 
+function sfui.widgets.create_window_header(parent, titleText)
+    if sfui.theme and sfui.theme.CreateWindowHeader then
+        return sfui.theme.CreateWindowHeader(parent, titleText)
+    end
+    local headerBar = parent.headerBar or CreateFrame("Frame", nil, parent)
+    parent.headerBar = headerBar
+    headerBar.isWindowHeader = true
+    headerBar:SetSize(280, 26)
+    headerBar:ClearAllPoints()
+    headerBar:SetPoint("TOP", parent, "TOP", 0, -8)
+    headerBar:EnableMouse(false)
+    return headerBar
+end
+sfui.common.create_window_header = sfui.widgets.create_window_header
+
 function sfui.widgets.create_border(frame, thickness, color, g, b, a)
     local mult = sfui.pixelScale or 1
     thickness = (thickness or 1) * mult
@@ -96,7 +111,7 @@ function sfui.widgets.apply_square_icon_style(frame, texture)
             insets = { left = 0, right = 0, top = 0, bottom = 0 }
         })
     end
-    frame.borderBackdrop:SetBackdropColor(0, 0, 0, 0)
+    frame.borderBackdrop:SetBackdropColor(0, 0, 0, 1)
     frame.borderBackdrop:SetBackdropBorderColor(0, 0, 0, 1)
     frame.borderBackdrop:Show()
 end

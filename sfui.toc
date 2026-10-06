@@ -1,7 +1,7 @@
 ## Interface: 120100, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v12.1.0-73
+## Version: v12.1.0-74
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -48,6 +48,7 @@ frames/options/tabs/tab_main.lua
 frames/themes/tab_theme.lua
 frames/options/tabs/tab_automation.lua
 frames/options/tabs/tab_bars.lua
+frames/options/tabs/tab_buffs.lua [AllowLoadGameType camelot, classic]
 frames/options/tabs/tab_castbars.lua
 frames/options/tabs/tab_combattext.lua
 frames/options/tabs/tab_currency.lua
@@ -107,7 +108,7 @@ frames/gear/gear.lua
 frames/gear/gear_standard.lua [AllowLoadGameType standard]
 frames/gear/gear_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/gear/highest.lua
-frames/gear/lootspec.lua [AllowLoadGameType standard]
+frames/gear/lootspec.lua [AllowLoadGameType standard][ExcludeLoadGameType camelot, classic]
 frames/gear/lootviewer.lua [AllowLoadGameType standard]
 frames/gear/bonusroll.lua [AllowLoadGameType standard]
 frames/gear/hammer.lua [AllowLoadGameType standard]
@@ -151,5 +152,12 @@ frames/quests/modules/q_collectables.lua [AllowLoadGameType standard, camelot]
 frames/quests/modules/q_recipes.lua [AllowLoadGameType standard, camelot]
 frames/quests/q_mythic.lua [AllowLoadGameType standard]
 
+# Reminders
+frames/reminders/buffs_data.lua [AllowLoadGameType camelot, classic]
+frames/reminders/buffs_consumables.lua [AllowLoadGameType camelot, classic]
+frames/reminders/buffs_scan.lua [AllowLoadGameType camelot, classic]
+frames/reminders/buffs.lua [AllowLoadGameType camelot, classic]
+
 frames/mem.lua
 commands.lua
+

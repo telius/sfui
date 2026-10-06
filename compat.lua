@@ -700,6 +700,106 @@ function sfui.api.GetMerchantItemInfo(index)
     return nil
 end
 
+-- ── Quest operations ──────────────────────────────────────────────────────────
+
+--- Determines whether a quest is pushable/shareable to party or raid members.
+--- Cascades C_QuestLog.IsPushableQuest -> GetQuestLogPushable.
+--- @param questID number Quest ID
+--- @param questLogIndex number|nil Optional quest log index
+--- @return boolean
+function sfui.api.IsQuestPushable(questID, questLogIndex)
+    if not questID then return false end
+
+    if _G.C_QuestLog and _G.C_QuestLog.IsPushableQuest then
+        local ok, pushable = pcall(_G.C_QuestLog.IsPushableQuest, questID)
+        if ok and pushable ~= nil then
+            return not not pushable
+        end
+    end
+
+    local qIndex = questLogIndex
+    if not qIndex then
+        if _G.C_QuestLog and _G.C_QuestLog.GetLogIndexForQuestID then
+            local ok, idx = pcall(_G.C_QuestLog.GetLogIndexForQuestID, questID)
+            if ok and type(idx) == "number" and idx > 0 then qIndex = idx end
+        elseif _G.GetQuestLogIndexByID then
+            local ok, idx = pcall(_G.GetQuestLogIndexByID, questID)
+            if ok and type(idx) == "number" and idx > 0 then qIndex = idx end
+        end
+    end
+
+    if qIndex and _G.SelectQuestLogEntry and _G.GetQuestLogPushable then
+        local okSel = pcall(_G.SelectQuestLogEntry, qIndex)
+        if okSel then
+            local okPush, pushable = pcall(_G.GetQuestLogPushable)
+            if okPush and pushable ~= nil then
+                return not not pushable
+            end
+        end
+    end
+
+    return false
+end
+
+--- Shares a quest with party or raid members across all supported client versions.
+--- Cascades QuestUtil.ShareQuest -> SelectQuestLogEntry + QuestLogPushQuest -> fallback button click.
+--- @param questID number Quest ID
+--- @param questLogIndex number|nil Optional quest log index
+--- @return boolean success
+function sfui.api.ShareQuest(questID, questLogIndex)
+    if not questID then return false end
+
+    -- 1. Try Blizzard's standard QuestUtil.ShareQuest (Modern / Live / Forever)
+    if _G.QuestUtil and _G.QuestUtil.ShareQuest then
+        local ok = pcall(_G.QuestUtil.ShareQuest, questID)
+        if ok then return true end
+    end
+
+    -- 2. Resolve quest log index if missing
+    local qIndex = questLogIndex
+    if not qIndex then
+        if _G.C_QuestLog and _G.C_QuestLog.GetLogIndexForQuestID then
+            local ok, idx = pcall(_G.C_QuestLog.GetLogIndexForQuestID, questID)
+            if ok and type(idx) == "number" and idx > 0 then qIndex = idx end
+        elseif _G.GetQuestLogIndexByID then
+            local ok, idx = pcall(_G.GetQuestLogIndexByID, questID)
+            if ok and type(idx) == "number" and idx > 0 then qIndex = idx end
+        end
+    end
+
+    -- 3. Select entry in quest log if possible
+    if qIndex and _G.SelectQuestLogEntry then
+        pcall(_G.SelectQuestLogEntry, qIndex)
+    end
+    if _G.C_QuestLog and _G.C_QuestLog.SetSelectedQuest then
+        pcall(_G.C_QuestLog.SetSelectedQuest, questID)
+    end
+
+    -- 4. Call engine push API (QuestLogPushQuest)
+    if _G.QuestLogPushQuest then
+        if qIndex then
+            local ok = pcall(_G.QuestLogPushQuest, qIndex)
+            if ok then return true end
+        end
+        local ok = pcall(_G.QuestLogPushQuest)
+        if ok then return true end
+    end
+
+    -- 5. Fallback button click if QuestFramePushQuestButton is available
+    if _G.QuestFramePushQuestButton and _G.QuestFramePushQuestButton.Click then
+        local ok = pcall(_G.QuestFramePushQuestButton.Click, _G.QuestFramePushQuestButton)
+        if ok then return true end
+    end
+
+    -- 6. Last-resort fallback for hypothetical custom environments
+    if _G.C_QuestLog and _G.C_QuestLog.PushQuestToParty then
+        local ok = pcall(_G.C_QuestLog.PushQuestToParty, questID)
+        if ok then return true end
+    end
+
+    return false
+end
+
 -- ══════════════════════════════════════════════════════════════════════════════
 --  CAMELOT EXTENSION POINT
 --  ─────────────────────────────────────────────────────────────────────────────

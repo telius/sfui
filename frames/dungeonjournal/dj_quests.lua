@@ -89,6 +89,10 @@ end
 
 local function ShareQuest(questID)
     if not questID then return end
+    if sfui.api and sfui.api.ShareQuest then
+        sfui.api.ShareQuest(questID)
+        return
+    end
     if _G.C_QuestLog and _G.C_QuestLog.SetSelectedQuest then
         pcall(_G.C_QuestLog.SetSelectedQuest, questID)
     end

@@ -341,8 +341,6 @@ local function UpdatePins(force)
     if DJ_DB().showEntrancePins ~= false then
         local function ProcessEntrance(d)
             if sfui.dungeonjournal and sfui.dungeonjournal.AreDungeonPinsHidden and sfui.dungeonjournal.AreDungeonPinsHidden(d.id) then return end
-            if DJ_DB().hiddenDungeons and DJ_DB().hiddenDungeons[d.id] then return end
-            if DJ_DB().hiddenPins and DJ_DB().hiddenPins[d.id] then return end
             if DJ_DB().autoHideTrivialPins and sfui.dungeonjournal and sfui.dungeonjournal.IsDungeonTrivial and sfui.dungeonjournal.IsDungeonTrivial(d, playerLevel) then
                 return
             end
@@ -497,8 +495,6 @@ local function UpdatePins(force)
 
         local function ProcessQuestDungeon(d)
             if sfui.dungeonjournal and sfui.dungeonjournal.AreDungeonPinsHidden and sfui.dungeonjournal.AreDungeonPinsHidden(d.id) then return end
-            if DJ_DB().hiddenDungeons and DJ_DB().hiddenDungeons[d.id] then return end
-            if DJ_DB().hiddenPins and DJ_DB().hiddenPins[d.id] then return end
 
             for _, q in ipairs(d.quests or {}) do
                 local minLevel = q.minLevel or (db.questMinLevels and db.questMinLevels[q.id]) or 1

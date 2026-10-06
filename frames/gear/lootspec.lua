@@ -1,12 +1,13 @@
 local addonName, addon          = ...
 ---@diagnostic disable: undefined-global, undefined-field
-sfui                            = sfui or {}
-sfui.lootspec                   = {}
+local sfui                      = _G.sfui or {}
 
--- Guard: Retail-only loot specialization system
-if not (sfui.compat and sfui.compat.has and sfui.compat.has.specializations) then
+-- Guard: Retail-only loot specialization system (strictly do not load in Camelot or Classic)
+if not sfui.isRetail or sfui.isCamelot or not (sfui.compat and sfui.compat.has and sfui.compat.has.specializations) then
     return
 end
+
+sfui.lootspec                   = {}
 
 local GetLootSpecialization     = GetLootSpecialization
 local SetLootSpecialization     = SetLootSpecialization

@@ -662,6 +662,10 @@ RefreshSidebar = function()
                 empty.btn.text:SetText("Show Hidden")
                 empty.btn:SetScript("OnClick", function()
                     db.showHiddenInSidebar = true
+                    local charData = sfui.dungeonjournal.GetCharHidden and sfui.dungeonjournal.GetCharHidden()
+                    if charData then
+                        charData.showHiddenInSidebar = true
+                    end
                     if sidebarFrame.UpdateEyeState then sidebarFrame.UpdateEyeState() end
                     RefreshSidebar()
                 end)
@@ -749,6 +753,10 @@ local function OnFrameCreated(arg1, arg2)
     eyeBtn:SetScript("OnClick", function()
         local db = DJ_DB()
         db.showHiddenInSidebar = not db.showHiddenInSidebar
+        local charData = sfui.dungeonjournal.GetCharHidden and sfui.dungeonjournal.GetCharHidden()
+        if charData then
+            charData.showHiddenInSidebar = db.showHiddenInSidebar
+        end
         UpdateEyeState()
         RefreshSidebar()
     end)

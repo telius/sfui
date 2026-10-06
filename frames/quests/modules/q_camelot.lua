@@ -521,8 +521,40 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
     -- 4. Alt-Click: Share Quest with Party
     if IsAltKeyDown and IsAltKeyDown() then
         if InCombatLockdown and InCombatLockdown() then return end
-        if C_QuestLog and C_QuestLog.IsPushableQuest and C_QuestLog.IsPushableQuest(questID) then
-            C_QuestLog.PushQuestToParty(questID)
+        local inGroup = (IsInGroup and IsInGroup())
+            or (_G.GetNumGroupMembers and _G.GetNumGroupMembers() > 0)
+            or (_G.GetNumSubgroupMembers and _G.GetNumSubgroupMembers() > 0)
+        if not inGroup then
+            sfui.common.print("you are not in a group.")
+            return
+        end
+
+        local canPush = true
+        if sfui.api and sfui.api.IsQuestPushable then
+            canPush = sfui.api.IsQuestPushable(questID, questLogIndex)
+        elseif C_QuestLog and C_QuestLog.IsPushableQuest then
+            local ok, res = pcall(C_QuestLog.IsPushableQuest, questID)
+            if ok and res ~= nil then canPush = res end
+        end
+
+        if not canPush then
+            sfui.common.print("quest cannot be shared.")
+            return
+        end
+
+        local shared = false
+        if sfui.api and sfui.api.ShareQuest then
+            shared = sfui.api.ShareQuest(questID, questLogIndex)
+        elseif _G.QuestUtil and _G.QuestUtil.ShareQuest then
+            shared = pcall(_G.QuestUtil.ShareQuest, questID)
+        elseif _G.QuestLogPushQuest then
+            if questLogIndex and _G.SelectQuestLogEntry then
+                pcall(_G.SelectQuestLogEntry, questLogIndex)
+            end
+            shared = pcall(_G.QuestLogPushQuest, questLogIndex) or pcall(_G.QuestLogPushQuest)
+        end
+
+        if shared then
             sfui.common.print("shared quest: " .. (questTitle or "quest"))
         else
             sfui.common.print("quest cannot be shared.")

@@ -1,29 +1,31 @@
 # Changelog
 
-## v12.1.0-73 (2026-10-05)
+## v12.1.0-74 (2026-10-06)
 
 ### Features & Major Improvements
 
-- **Compatibility Engine & CI Static Analysis (`compat.lua`)**:
-  - **Client Detection Streamlining**: Cleaned up the Camelot and Classic Era client detection definition in `compat.lua` by removing an unneeded mainline negation clause.
-  - **Zero Luacheck Warnings**: Resolved luacheck rule 532, restoring full static analysis validation to 0 warnings and 0 errors across all 117 project files.
+- **Buff Reminders Module for Camelot & Classic (`frames/reminders/`, `frames/options/tabs/tab_buffs.lua`, `sfui.toc`)**:
+  - **Dynamic Class & Consumable Tracking**: Introduced dedicated reminder buttons for missing or expiring class auras, stances, paladin seals, shaman shields and weapon imbues, rogue poisons, and warlock/hunter pets.
+  - **Combat & Active Presence Filtering**: Buttons automatically suppress during combat encounters (`InCombatLockdown` and combat callbacks) and stay hidden while buffs are active with sufficient duration remaining.
+  - **Expiration Timers**: Automatically displays live expiration countdown timers when buffs fall below configurable thresholds (short buffs warn slider for fast-expiring spells, long buffs warn slider for standard auras).
+  - **Click-to-Cast Integration**: Secure action buttons bind out of combat to the highest available rank of missing spells for immediate one-click rebuffing.
+  - **High-Performance Architecture**: Aura scanning leverages player-only unit events (`RegisterUnitEvent("UNIT_AURA", "player")`), hash-indexed spell lookups, and reusable table pools to eliminate runtime memory allocation and garbage collection pauses.
+  - **Layout & Options Tab**: Integrated options tab (`tab_buffs.lua`) with unlockable move overlay, interactive test preview mode, per-buff toggles, and size sliders defaulted to 36x36 pixels at bottom screen center (`y = 42`).
 
-- **Merchant Subsystem Modularization (`frames/merchant/`, `sfui.toc`)**:
-  - **Modular Architecture**: Split the monolithic merchant implementation into three focused, maintainable modules under `frames/merchant/`:
-    - `frames/merchant/merchant_filter.lua`: Data modeling, table pooling, filter pipelines (known spells, usable items, class and armor proficiency filters, search queries), and grimoire tracking.
-    - `frames/merchant/merchant_utility.lua`: Stack-split popup dialog, currency footer, and utility action bar (automatic/manual repairs, junk selling, and filter mode toggles).
-    - `frames/merchant/merchant.lua`: High-strata window container, 4x7 grid buttons, scrollbar, header portrait and title, and event dispatcher wiring.
-  - **TOC Sequence**: Sequenced load order in `sfui.toc` to guarantee clean dependency resolution (`merchant_filter.lua` -> `merchant_utility.lua` -> `merchant.lua`).
+- **Dungeon Journal Character-Scoped Hidden State & Persistence (`frames/dungeonjournal/dungeonjournal.lua`)**:
+  - **Character Storage**: Scoped hidden dungeons, pins, and quest pin overrides to character-specific saved variables (`SfuiDB.chars[playerGUID].dungeonjournal`) so exploration preferences do not leak across alts.
+  - **Safe Logout Flush**: Implemented clean persistence handlers on `PLAYER_LOGOUT` and `SFUI_PERSISTENCE_FLUSH` to guarantee integrity of saved states across sessions.
 
-- **Warlock Pet Grimoire Filtering for Inactive Pets (`frames/merchant/merchant_filter.lua`, `frames/merchant/merchant.lua`)**:
-  - **Cross-Pet Spell Tracking**: Resolved Demon Trainer issue on Camelot where pet grimoires only registered as "Already known" when that specific demon was currently summoned.
-  - **Persistent Pet Spell Cache**: Learned pet spell ranks are cached in `SfuiDB.petSpells[playerGUID][spellName]` to accurately track known spells across all pet summons.
-  - **Zero Merchant Interaction Overhead**: Pet spellbooks are scanned exclusively on `PET_SPELL_UPDATE` and `UNIT_PET` events when a pet is summoned or updated, eliminating redundant rescanning on merchant open, filter changes, and scrolling.
-  - **Strict Class & Client Gating**: Processing is strictly gated behind `sfui.isCamelot` and `playerClass == "WARLOCK"`, bypassing all logic for other classes and retail.
-  - **Fast Grimoire Fast-Path**: Non-grimoire items bypass parsing via a fast substring search (`link:find("Grimoire", 1, true)`), avoiding tooltip extraction overhead.
-  - **Tooltip Indicator**: Rendered red "Already known" status line on merchant item tooltips when hovering over grimoires for inactive pets.
+- **Gear Manager Collapsed Role Bar & Naked Mode (`frames/gear/gear_camelot.lua`, `frames/gear/lootspec.lua`, `commands.lua`)**:
+  - **Collapsed Role Bar**: Added quick-switch role buttons to the gear manager frame on Camelot for fast spec/role transitions.
+  - **Naked Mode**: Added one-click naked action to safely unequip armor and weapons while temporarily pausing gear manager auto-equip rules.
+  - **Retail Specialization Gating**: Strictly gated retail loot spec logic in `frames/gear/lootspec.lua` and `/sfui lootspec` to prevent execution on Camelot and Classic.
 
-- **Project-Wide `isForever` Deprecation & Consolidation (`compat.lua`, `common.lua`, etc.)**:
-  - **Clean Client Standard**: Completely purged deprecated `isForever`, `IS_WOW_FOREVER`, `is_wow_forever`, and `wow_forever` symbols across the entire repository.
-  - **Unified Compatibility API**: Consolidated all client branch detection and compatibility flags onto `sfui.isCamelot`, `sfui.compat.is_camelot`, `sfui.compat.has.camelot`, and `sfui.version.camelot` in `compat.lua`.
-  - **Consumer Alignment**: Updated all references across `core/bridge.lua`, `core/items.lua`, `core/talents_camelot.lua`, `core/talents_standard.lua`, `frames/alts/alts_camelot.lua`, `frames/automation/rankup.lua`, `frames/themes/camelot.lua`, `frames/themes/modern.lua`, `frames/themes/engine.lua`, `frames/bars/threat.lua`, `frames/bars/target.lua`, `frames/bars/bars.lua`, `frames/gear/highest.lua`, `frames/quests/engine/q_tracker.lua`, `frames/quests/helpers/q_timerbars.lua`, `frames/quests/modules/q_camelot_class.lua`, `frames/quests/modules/q_camelot_skills.lua`, and `frames/quests/modules/q_camelot.lua`.
+- **Standardized Window Headers & Castbar Decoration (`core/widgets.lua`, `frames/themes/engine.lua`, `frames/themes/camelot.lua`)**:
+  - **Standardized Window Headers**: Unified window banners via `sfui.theme.CreateWindowHeader` and `sfui.widgets.create_window_header` with frame level elevation to ensure clean rendering over backdrop borders.
+  - **Castbar Icon Borders**: Refined icon border backdrops and styling for crisp borders across both modern and Camelot themes.
+
+### Bug Fixes
+
+- **Quest Sharing API Harmonization (`compat.lua`, `frames/quests/modules/q_camelot.lua`, `frames/quests/modules/q_camelot_class.lua`, `frames/quests/modules/q_quests.lua`, `frames/dungeonjournal/dj_quests.lua`)**:
+  - **Multi-Client Quest Sharing**: Standardized quest sharing through `sfui.api.IsQuestPushable` and `sfui.api.ShareQuest`, cascading `QuestUtil.ShareQuest`, `SelectQuestLogEntry` with `QuestLogPushQuest`, and push button handlers across all supported clients.

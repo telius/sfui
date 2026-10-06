@@ -67,19 +67,76 @@ sfui.db.RegisterDefaults("dungeonjournal", {
     autoDetectInstance  = true,
     showItemTooltips    = true,
     wishlist            = {},
-    hiddenDungeons      = {},
-    hiddenPins          = {},
-    hiddenQuestPins     = {},
+    charHidden          = {},
     showHiddenInSidebar = false,
     autoHideTrivialPins = false,
 })
 
+local function GetPlayerKey()
+    if sfui.common and sfui.common.get_player_unique_key then
+        return sfui.common.get_player_unique_key()
+    end
+    local guid = _G.UnitGUID and _G.UnitGUID("player")
+    if guid and guid ~= "" then return guid end
+    local name = _G.UnitName and _G.UnitName("player") or "player"
+    local getRealm = _G.GetNormalizedRealmName or _G.GetRealmName
+    local realm = getRealm and getRealm() or "global"
+    return name .. "-" .. realm
+end
+
+local function GetCharHidden()
+    SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
+    local dj = SfuiDB.dungeonjournal
+    dj.charHidden = dj.charHidden or {}
+
+    local charKey = GetPlayerKey()
+    if not dj.charHidden[charKey] then
+        dj.charHidden[charKey] = {
+            hiddenDungeons      = {},
+            hiddenPins          = {},
+            hiddenQuestPins     = {},
+            showHiddenInSidebar = dj.showHiddenInSidebar or false,
+        }
+        -- Migrate legacy global hidden settings on first load if present
+        if dj.hiddenDungeons and next(dj.hiddenDungeons) then
+            for k, v in pairs(dj.hiddenDungeons) do
+                dj.charHidden[charKey].hiddenDungeons[k] = v
+            end
+        end
+        if dj.hiddenPins and next(dj.hiddenPins) then
+            for k, v in pairs(dj.hiddenPins) do
+                dj.charHidden[charKey].hiddenPins[k] = v
+            end
+        end
+        if dj.hiddenQuestPins and next(dj.hiddenQuestPins) then
+            for k, v in pairs(dj.hiddenQuestPins) do
+                dj.charHidden[charKey].hiddenQuestPins[k] = v
+            end
+        end
+        -- Clear legacy global tables so they don't persist or leak to other characters
+        dj.hiddenDungeons = nil
+        dj.hiddenPins = nil
+        dj.hiddenQuestPins = nil
+    end
+
+    local data = dj.charHidden[charKey]
+    data.hiddenDungeons = data.hiddenDungeons or {}
+    data.hiddenPins = data.hiddenPins or {}
+    data.hiddenQuestPins = data.hiddenQuestPins or {}
+    return data
+end
+sfui.dungeonjournal.GetCharHidden = GetCharHidden
+
 local function DJ_DB()
     SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
     SfuiDB.dungeonjournal.wishlist = SfuiDB.dungeonjournal.wishlist or {}
-    SfuiDB.dungeonjournal.hiddenDungeons = SfuiDB.dungeonjournal.hiddenDungeons or {}
-    SfuiDB.dungeonjournal.hiddenPins = SfuiDB.dungeonjournal.hiddenPins or {}
-    SfuiDB.dungeonjournal.hiddenQuestPins = SfuiDB.dungeonjournal.hiddenQuestPins or {}
+    local charData = GetCharHidden()
+    SfuiDB.dungeonjournal.hiddenDungeons = charData.hiddenDungeons
+    SfuiDB.dungeonjournal.hiddenPins = charData.hiddenPins
+    SfuiDB.dungeonjournal.hiddenQuestPins = charData.hiddenQuestPins
+    if charData.showHiddenInSidebar ~= nil then
+        SfuiDB.dungeonjournal.showHiddenInSidebar = charData.showHiddenInSidebar
+    end
     return SfuiDB.dungeonjournal
 end
 sfui.dungeonjournal.GetDB = DJ_DB
@@ -413,33 +470,33 @@ function sfui.dungeonjournal._registerQuests(fn)   RefreshQuestView = fn  end
 -- ─── Hiding System API ────────────────────────────────────────────────────────
 function sfui.dungeonjournal.IsDungeonHidden(dungeonID)
     if not dungeonID then return false end
-    local db = DJ_DB()
-    return db.hiddenDungeons and db.hiddenDungeons[dungeonID] == true
+    local charData = GetCharHidden()
+    return charData.hiddenDungeons and charData.hiddenDungeons[dungeonID] == true
 end
 
 function sfui.dungeonjournal.AreDungeonPinsHidden(dungeonID)
     if not dungeonID then return false end
-    local db = DJ_DB()
-    if db.hiddenDungeons and db.hiddenDungeons[dungeonID] == true then return true end
-    if db.hiddenPins and db.hiddenPins[dungeonID] == true then return true end
+    local charData = GetCharHidden()
+    if charData.hiddenDungeons and charData.hiddenDungeons[dungeonID] == true then return true end
+    if charData.hiddenPins and charData.hiddenPins[dungeonID] == true then return true end
     return false
 end
 
 function sfui.dungeonjournal.IsQuestPinHidden(questID, dungeonID)
     if not questID then return false end
-    local db = DJ_DB()
-    if db.hiddenQuestPins and db.hiddenQuestPins[questID] == true then return true end
+    local charData = GetCharHidden()
+    if charData.hiddenQuestPins and charData.hiddenQuestPins[questID] == true then return true end
     if dungeonID and sfui.dungeonjournal.AreDungeonPinsHidden(dungeonID) then return true end
     return false
 end
 
 function sfui.dungeonjournal.SetDungeonHidden(dungeonID, hidden)
     if not dungeonID then return end
-    local db = DJ_DB()
+    local charData = GetCharHidden()
     if hidden then
-        db.hiddenDungeons[dungeonID] = true
+        charData.hiddenDungeons[dungeonID] = true
     else
-        db.hiddenDungeons[dungeonID] = nil
+        charData.hiddenDungeons[dungeonID] = nil
     end
     if RefreshSidebar then RefreshSidebar() end
     if sfui.dungeonjournal.UpdatePins then sfui.dungeonjournal.UpdatePins(true) end
@@ -450,11 +507,11 @@ end
 
 function sfui.dungeonjournal.SetDungeonPinsHidden(dungeonID, hidden)
     if not dungeonID then return end
-    local db = DJ_DB()
+    local charData = GetCharHidden()
     if hidden then
-        db.hiddenPins[dungeonID] = true
+        charData.hiddenPins[dungeonID] = true
     else
-        db.hiddenPins[dungeonID] = nil
+        charData.hiddenPins[dungeonID] = nil
     end
     if RefreshSidebar then RefreshSidebar() end
     if sfui.dungeonjournal.UpdatePins then sfui.dungeonjournal.UpdatePins(true) end
@@ -465,11 +522,11 @@ end
 
 function sfui.dungeonjournal.SetQuestPinHidden(questID, hidden)
     if not questID then return end
-    local db = DJ_DB()
+    local charData = GetCharHidden()
     if hidden then
-        db.hiddenQuestPins[questID] = true
+        charData.hiddenQuestPins[questID] = true
     else
-        db.hiddenQuestPins[questID] = nil
+        charData.hiddenQuestPins[questID] = nil
     end
     if sfui.dungeonjournal.UpdatePins then sfui.dungeonjournal.UpdatePins(true) end
     if sfui.events and sfui.events.SendMessage then
@@ -478,22 +535,27 @@ function sfui.dungeonjournal.SetQuestPinHidden(questID, hidden)
 end
 
 function sfui.dungeonjournal.GetHiddenCounts()
-    local db = DJ_DB()
+    local charData = GetCharHidden()
     local dCount = 0
-    for _ in pairs(db.hiddenDungeons or {}) do dCount = dCount + 1 end
+    for _ in pairs(charData.hiddenDungeons or {}) do dCount = dCount + 1 end
     local pCount = 0
-    for _ in pairs(db.hiddenPins or {}) do pCount = pCount + 1 end
+    for _ in pairs(charData.hiddenPins or {}) do pCount = pCount + 1 end
     local qCount = 0
-    for _ in pairs(db.hiddenQuestPins or {}) do qCount = qCount + 1 end
+    for _ in pairs(charData.hiddenQuestPins or {}) do qCount = qCount + 1 end
     return dCount, pCount, qCount, (dCount + pCount + qCount)
 end
 
 function sfui.dungeonjournal.RestoreAllHidden()
-    local db = DJ_DB()
-    local dCount, pCount, qCount, total = sfui.dungeonjournal.GetHiddenCounts()
-    db.hiddenDungeons = {}
-    db.hiddenPins = {}
-    db.hiddenQuestPins = {}
+    local charData = GetCharHidden()
+    local _, _, _, total = sfui.dungeonjournal.GetHiddenCounts()
+    charData.hiddenDungeons = {}
+    charData.hiddenPins = {}
+    charData.hiddenQuestPins = {}
+    if SfuiDB and SfuiDB.dungeonjournal then
+        SfuiDB.dungeonjournal.hiddenDungeons = charData.hiddenDungeons
+        SfuiDB.dungeonjournal.hiddenPins = charData.hiddenPins
+        SfuiDB.dungeonjournal.hiddenQuestPins = charData.hiddenQuestPins
+    end
     if RefreshSidebar then RefreshSidebar() end
     if sfui.dungeonjournal.UpdatePins then sfui.dungeonjournal.UpdatePins(true) end
     if sfui.events and sfui.events.SendMessage then
@@ -784,7 +846,7 @@ local function OpenHiddenManager()
         emptyMsg:SetText("No dungeons or pins are currently hidden.")
 
         local function RefreshDialog()
-            local db = DJ_DB()
+            local charData = GetCharHidden()
             for _, r in ipairs(dlg.rows) do r:Hide() end
 
             local y = 0
@@ -874,7 +936,7 @@ local function OpenHiddenManager()
             end
 
             local hasDungeons = false
-            for dID in pairs(db.hiddenDungeons or {}) do
+            for dID in pairs(charData.hiddenDungeons or {}) do
                 if not hasDungeons then
                     AddHeader("Hidden Dungeons (Journal & Pins):")
                     hasDungeons = true
@@ -888,7 +950,7 @@ local function OpenHiddenManager()
             end
 
             local hasPins = false
-            for dID in pairs(db.hiddenPins or {}) do
+            for dID in pairs(charData.hiddenPins or {}) do
                 if not hasPins then
                     if y > 0 then y = y + 6 end
                     AddHeader("Hidden Map Pins (Dungeon visible):")
@@ -902,7 +964,7 @@ local function OpenHiddenManager()
             end
 
             local hasQuestPins = false
-            for qID in pairs(db.hiddenQuestPins or {}) do
+            for qID in pairs(charData.hiddenQuestPins or {}) do
                 if not hasQuestPins then
                     if y > 0 then y = y + 6 end
                     AddHeader("Hidden Quest Pins:")
@@ -1193,13 +1255,7 @@ function sfui.dungeonjournal.CreateFrame()
     frame:SetBackdropBorderColor(0.12, 0.12, 0.14, 1)
 
     -- ── Header bar ────────────────────────────────────────────────────────────
-    local headerBar = CreateFrame("Frame", nil, frame)
-    frame.headerBar = headerBar
-    headerBar:SetSize(280, 26)
-    headerBar:SetPoint("TOP", frame, "TOP", 0, -8)
-    headerBar:EnableMouse(false)
-
-    theme.ApplyHeaderStyle(headerBar, "dungeon journal")
+    local headerBar = (theme.CreateWindowHeader or sfui.theme.CreateWindowHeader)(frame, "dungeon journal")
 
     local closeBtn = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
     frame.closeBtn = closeBtn
@@ -1888,4 +1944,25 @@ if sfui.events and sfui.events.RegisterMessage then
             end
         end
     end)
+end
+
+-- ─── Safe Logout Persistence Guard ──────────────────────────────────────────
+local function OnLogoutPersistence()
+    if SfuiDB and SfuiDB.dungeonjournal then
+        local charData = GetCharHidden()
+        if SfuiDB.dungeonjournal.showHiddenInSidebar ~= nil then
+            charData.showHiddenInSidebar = SfuiDB.dungeonjournal.showHiddenInSidebar
+        end
+        SfuiDB.dungeonjournal.hiddenDungeons = nil
+        SfuiDB.dungeonjournal.hiddenPins = nil
+        SfuiDB.dungeonjournal.hiddenQuestPins = nil
+    end
+end
+if sfui.events then
+    if sfui.events.RegisterEvent then
+        sfui.events.RegisterEvent("PLAYER_LOGOUT", OnLogoutPersistence)
+    end
+    if sfui.events.RegisterMessage then
+        sfui.events.RegisterMessage("SFUI_PERSISTENCE_FLUSH", OnLogoutPersistence)
+    end
 end

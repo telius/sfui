@@ -148,7 +148,7 @@ sfui.theme.RegisterTheme({
             borderColor      = { 0.14, 0.10, 0.06, 0.98 },
             borderSize       = 1,
             cornerSize       = 8,
-            iconBorderColor  = { 0.28, 0.20, 0.10, 1.0 },
+            iconBorderColor  = { 0.00, 0.00, 0.00, 1.0 },
             sparkColor       = { 1.0,  0.85, 0.55, 1.0  }, -- Radiant gold spark
         },
         swing      = {

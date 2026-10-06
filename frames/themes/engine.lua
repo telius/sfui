@@ -422,6 +422,28 @@ function sfui.theme.CreateHeaderFrame(parent, height)
     return headerFrame
 end
 
+--- Create and register a standardized window title header bar (280x26 centered banner).
+--- @param parent Frame The window frame hosting the header
+--- @param titleText string? Title label displayed in the banner
+--- @return Frame headerBar The configured header frame
+function sfui.theme.CreateWindowHeader(parent, titleText)
+    if not parent then return end
+    local base = parent:GetFrameLevel() or 1
+    local headerBar = parent.headerBar or CreateFrame("Frame", nil, parent)
+    parent.headerBar = headerBar
+
+    headerBar.isWindowHeader = true
+    headerBar:SetSize(280, 26)
+    headerBar:ClearAllPoints()
+    headerBar:SetPoint("TOP", parent, "TOP", 0, -8)
+    headerBar:SetFrameLevel(base + 15)
+    headerBar:EnableMouse(false)
+
+    sfui.theme.ApplyHeaderStyle(headerBar, titleText)
+    parent.title = headerBar.title
+    return headerBar
+end
+
 --- Elevate child headers, close buttons, and tab panels above the theme borderFrame layer.
 --- In WoW, any child frame (borderFrame at base + 1) renders after all regions on the parent frame (base).
 --- Elevating headers to base + 15 and close buttons to base + 20 prevents them from being occluded.
@@ -435,6 +457,9 @@ function sfui.theme.ElevateWindowContents(frame)
     local h = frame.headerFrame or frame.headerBar or frame.header
     if h and h.SetFrameLevel then
         h:SetFrameLevel(base + 15)
+    end
+    if frame.collapsedRoleBar and frame.collapsedRoleBar.SetFrameLevel then
+        frame.collapsedRoleBar:SetFrameLevel(base + 15)
     end
     local cb = frame.closeBtn or frame.close_button or frame.close or frame.closeButton
     if cb and cb.SetFrameLevel then
@@ -922,6 +947,13 @@ function sfui.theme.ApplyQuestHeaderStyle(header)
     if canUseBanner then
         if not header.bgBanner then
             header.bgBanner = header:CreateTexture(nil, "BACKGROUND", nil, 1)
+        end
+        if header.isWindowHeader then
+            header.bgBanner:ClearAllPoints()
+            header.bgBanner:SetSize(280, 24)
+            header.bgBanner:SetPoint("CENTER", header, "CENTER", 0, 0)
+        else
+            header.bgBanner:ClearAllPoints()
             header.bgBanner:SetAllPoints(header)
         end
         header.bgBanner:SetAtlas(atlases.headerBanner)
@@ -957,19 +989,28 @@ function sfui.theme.ApplyQuestHeaderStyle(header)
             header:SetBackdropBorderColor(0, 0, 0, 0.50)
         end
         if header.accent then
-            header.accent:Show()
-            local col = header.defColor or pal.accentColor
-            header.accent:SetColorTexture(col[1] or 1, col[2] or 1, col[3] or 1, 1)
+            if header.isWindowHeader then
+                header.accent:Hide()
+            else
+                header.accent:Show()
+                local col = header.defColor or pal.accentColor
+                header.accent:SetColorTexture(col[1] or 1, col[2] or 1, col[3] or 1, 1)
+            end
         end
 
         header:SetHeight(20)
         if header.title then
             header.title:ClearAllPoints()
-            header.title:SetPoint("LEFT", header, "LEFT", 8, 0)
-            if header.count then
-                header.title:SetPoint("RIGHT", header.count, "LEFT", -4, 0)
+            if header.isWindowHeader then
+                header.title:SetPoint("CENTER", header, "CENTER", 0, 0)
+                header.title:SetJustifyH("CENTER")
+            else
+                header.title:SetPoint("LEFT", header, "LEFT", 8, 0)
+                if header.count then
+                    header.title:SetPoint("RIGHT", header.count, "LEFT", -4, 0)
+                end
+                header.title:SetJustifyH("LEFT")
             end
-            header.title:SetJustifyH("LEFT")
             local col = header.defColor or pal.headerColor
             header.title:SetTextColor(col[1] or 1, col[2] or 1, col[3] or 1, 1)
         end
@@ -2831,23 +2872,18 @@ function sfui.theme.ApplyCastBarDecoration(bar)
     -- Style the icon frame border
     local iconFrame = bar.IconFrame
     if iconFrame and iconFrame.SetBackdrop then
-        if isCamelot then
-            local bc = (bars_def.castbar and bars_def.castbar.iconBorderColor) or { 0.50, 0.38, 0.18, 1.0 }
-            iconFrame:SetBackdrop({
-                bgFile   = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8X8",
-                edgeFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8X8",
-                edgeSize = 1,
-                insets   = { left = 0, right = 0, top = 0, bottom = 0 },
-            })
-            iconFrame:SetBackdropBorderColor(bc[1], bc[2], bc[3], bc[4] or 1)
-        else
-            iconFrame:SetBackdrop({
-                bgFile   = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8X8",
-                edgeFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8X8",
-                edgeSize = 1,
-                insets   = { left = 0, right = 0, top = 0, bottom = 0 },
-            })
-            iconFrame:SetBackdropBorderColor(0, 0, 0, 1)
+        local bc = (bars_def.castbar and bars_def.castbar.iconBorderColor) or { 0, 0, 0, 1 }
+        iconFrame:SetBackdrop({
+            bgFile   = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8X8",
+            edgeFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8X8",
+            edgeSize = 1,
+            insets   = { left = 0, right = 0, top = 0, bottom = 0 },
+        })
+        iconFrame:SetBackdropColor(0, 0, 0, 1)
+        iconFrame:SetBackdropBorderColor(bc[1], bc[2], bc[3], bc[4] or 1)
+        if iconFrame.borderBackdrop then
+            iconFrame.borderBackdrop:SetBackdropColor(0, 0, 0, 1)
+            iconFrame.borderBackdrop:SetBackdropBorderColor(bc[1], bc[2], bc[3], bc[4] or 1)
         end
     end
 

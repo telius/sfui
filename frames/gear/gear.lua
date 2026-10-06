@@ -480,6 +480,10 @@ function sfui.gear.UpdateStatUI()
     SfuiDB = SfuiDB or {}
     SfuiDB.gear = SfuiDB.gear or {}
 
+    if SfuiGearManagerFrame.collapsed and sfui.gear.UpdateCollapsedRoleBar then
+        sfui.gear.UpdateCollapsedRoleBar(SfuiGearManagerFrame)
+    end
+
     local autoEnabled = (sfui.gear.isAutoEquipEnabled and sfui.gear.isAutoEquipEnabled()) or false
     if SfuiGearManagerFrame.autoToggle and SfuiGearManagerFrame.autoToggle.UpdateState then
         SfuiGearManagerFrame.autoToggle:UpdateState(autoEnabled)
@@ -606,6 +610,7 @@ end
 -- GEAR MANAGER MAIN WINDOW
 -- -------------------------------------------------------------------------
 local gearFrame = CreateFrame("Frame", "SfuiGearManagerFrame", UIParent, "BackdropTemplate")
+sfui.gear.frame = gearFrame
 gearFrame:SetPoint("CENTER")
 gearFrame:SetMovable(true)
 gearFrame:EnableMouse(true)
@@ -636,6 +641,10 @@ sfui.theme.RegisterWindow(gearFrame, function(frame, pal)
     if frame.headerBar then
         sfui.theme.ApplyHeaderStyle(frame.headerBar, "gear manager")
     end
+    if frame.collapsed then
+        if frame.headerBar then frame.headerBar:Hide() end
+        if frame.collapsedRoleBar then frame.collapsedRoleBar:Show() end
+    end
     if frame.closeBtn then
         sfui.theme.ApplyCloseButtonStyle(frame.closeBtn)
     end
@@ -661,12 +670,7 @@ gearFrame:Hide()
 gearFrame:SetFrameStrata("DIALOG")
 
 -- Header Bar
-gearFrame.headerBar = CreateFrame("Frame", nil, gearFrame, "BackdropTemplate")
-gearFrame.headerBar:SetPoint("TOPLEFT", gearFrame, "TOPLEFT", 6, -6)
-gearFrame.headerBar:SetPoint("TOPRIGHT", gearFrame, "TOPRIGHT", -6, -6)
-gearFrame.headerBar:SetHeight(24)
-sfui.theme.ApplyHeaderStyle(gearFrame.headerBar, "gear manager")
-gearFrame.title = gearFrame.headerBar.title
+sfui.theme.CreateWindowHeader(gearFrame, "gear manager")
 
 -- Close & Collapse Buttons
 local closeBtn = common.create_close_button(gearFrame, function() gearFrame:Hide() end, 22)
@@ -681,6 +685,56 @@ collapseBtn:SetPoint("RIGHT", closeBtn, "LEFT", -4, 0)
 collapseBtn:SetFrameLevel(closeBtn:GetFrameLevel())
 gearFrame.collapseBtn = collapseBtn
 
+-- Collapsed Quick-Action Role Bar
+local collapsedRoleBar = CreateFrame("Frame", nil, gearFrame)
+collapsedRoleBar:SetSize(160, 24)
+collapsedRoleBar:SetPoint("CENTER", gearFrame, "TOP", 0, -17)
+collapsedRoleBar:SetFrameLevel(gearFrame:GetFrameLevel() + 15)
+collapsedRoleBar:EnableMouse(false)
+collapsedRoleBar:Hide()
+gearFrame.collapsedRoleBar = collapsedRoleBar
+
+local function UpdateCollapseVisuals(frame)
+    if not frame then return end
+    local curHeaderH = GetHeaderHeight()
+    if frame.collapsed then
+        if frame.collapseBtn then frame.collapseBtn:SetText("+") end
+        if frame.content then frame.content:Hide() end
+        if frame.headerBar then frame.headerBar:Hide() end
+        if frame.collapsedRoleBar then
+            frame.collapsedRoleBar:Show()
+            if sfui.gear.UpdateCollapsedRoleBar then
+                sfui.gear.UpdateCollapsedRoleBar(frame)
+            end
+        end
+        frame:SetSize(496, curHeaderH)
+        if frame.statusLabel then
+            frame.statusLabel:ClearAllPoints()
+            frame.statusLabel:SetPoint("LEFT", frame, "LEFT", 12, 0)
+            if frame.collapsedRoleBar and frame.collapsedRoleBar:IsShown() then
+                frame.statusLabel:SetPoint("RIGHT", frame.collapsedRoleBar, "LEFT", -6, 0)
+                frame.statusLabel:SetPoint("CENTER", frame.collapsedRoleBar, "CENTER", 0, 0)
+            else
+                frame.statusLabel:SetPoint("RIGHT", frame, "CENTER", 0, 0)
+                frame.statusLabel:SetPoint("CENTER", frame, "CENTER", 0, 0)
+            end
+        end
+    else
+        if frame.collapseBtn then frame.collapseBtn:SetText("-") end
+        if frame.content then frame.content:Show() end
+        if frame.headerBar then frame.headerBar:Show() end
+        if frame.collapsedRoleBar then frame.collapsedRoleBar:Hide() end
+        frame:SetSize(496, frame.expandedHeight or (curHeaderH + 140))
+        if frame.statusLabel and frame.headerBar then
+            frame.statusLabel:ClearAllPoints()
+            frame.statusLabel:SetPoint("LEFT", frame, "LEFT", 12, 0)
+            frame.statusLabel:SetPoint("RIGHT", frame.headerBar, "LEFT", -6, 0)
+            frame.statusLabel:SetPoint("CENTER", frame.headerBar, "CENTER", 0, 0)
+        end
+    end
+end
+gearFrame.UpdateCollapseVisuals = UpdateCollapseVisuals
+
 collapseBtn:SetScript("OnClick", function()
     local left = gearFrame:GetLeft()
     local top = gearFrame:GetTop()
@@ -693,16 +747,7 @@ collapseBtn:SetScript("OnClick", function()
     SfuiDB = SfuiDB or {}
     SfuiDB.gear_collapsed = gearFrame.collapsed
 
-    local curHeaderH = GetHeaderHeight()
-    if gearFrame.collapsed then
-        collapseBtn:SetText("+")
-        if gearFrame.content then gearFrame.content:Hide() end
-        gearFrame:SetHeight(curHeaderH)
-    else
-        collapseBtn:SetText("-")
-        if gearFrame.content then gearFrame.content:Show() end
-        gearFrame:SetHeight(gearFrame.expandedHeight or (curHeaderH + 140))
-    end
+    UpdateCollapseVisuals(gearFrame)
 end)
 
 -- Main content container
@@ -839,10 +884,12 @@ gearFrame.highPvE:SetScript("OnEnter", function(b)
 end)
 gearFrame.highPvE:SetScript("OnLeave", function() hide_tooltip() end)
 
-gearFrame.statusLabel = gearFrame.headerBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-gearFrame.statusLabel:SetPoint("LEFT", gearFrame.headerBar, "LEFT", 110, 0)
-gearFrame.statusLabel:SetPoint("RIGHT", gearFrame.collapseBtn, "LEFT", -8, 0)
-gearFrame.statusLabel:SetJustifyH("RIGHT")
+gearFrame.statusLabel = gearFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+gearFrame.statusLabel:SetPoint("LEFT", gearFrame, "LEFT", 12, 0)
+gearFrame.statusLabel:SetPoint("RIGHT", gearFrame.headerBar, "LEFT", -6, 0)
+gearFrame.statusLabel:SetPoint("CENTER", gearFrame.headerBar, "CENTER", 0, 0)
+gearFrame.statusLabel:SetJustifyH("LEFT")
+gearFrame.statusLabel:SetWordWrap(false)
 gearFrame.statusLabel:SetShadowOffset(0, 0)
 gearFrame.statusLabel:SetText("")
 
@@ -871,6 +918,7 @@ gearFrame:SetScript("OnShow", function(self)
             if specId and specId > 0 then self:SelectSpecTab(specId) end
         end
         sfui.gear.UpdateStatUI()
+        UpdateCollapseVisuals(self)
         return
     end
     self.initialized = true
@@ -892,22 +940,16 @@ gearFrame:SetScript("OnShow", function(self)
         self.collapsed = SfuiDB.gear_collapsed
     end
 
-    if self.collapsed then
-        collapseBtn:SetText("+")
-        if self.content then self.content:Hide() end
-        self:SetSize(496, curHeaderH)
-    else
-        collapseBtn:SetText("-")
-        if self.content then self.content:Show() end
-        self:SetSize(496, self.expandedHeight)
-    end
+    UpdateCollapseVisuals(self)
 
     self.SelectSpecTab = function(f, specID)
         f.activeSpecID = specID
         local isVan = not sfui.isRetail
         local cardH = isVan and 168 or 140
         f.expandedHeight = GetHeaderHeight() + cardH + 8
-        if not f.collapsed then
+        if f.collapsed then
+            UpdateCollapseVisuals(f)
+        else
             f:SetHeight(f.expandedHeight)
         end
         for id, ui in pairs(f.specUIs) do

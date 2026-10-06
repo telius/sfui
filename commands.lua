@@ -234,7 +234,17 @@ SlashCmdList["SFUI"] = function(msg)
         elseif sfui.gear and sfui.gear.UnequipDurabilityItems then
             sfui.gear.UnequipDurabilityItems()
         end
-    elseif cmd == "lootspec" or cmd == "spec" or cmd == "loot" or cmd == "lootviewer" or cmd == "lv" or cmd == "camelot" or cmd == "dj" or cmd == "journal" then
+    elseif cmd == "lootspec" then
+        if not sfui.isRetail or sfui.isCamelot then
+            sfui.common.print("loot spec is retail only.")
+            return
+        end
+        if sfui.lootviewer and sfui.lootviewer.Toggle then
+            sfui.lootviewer.Toggle()
+        else
+            sfui.common.print("loot viewer is not available.")
+        end
+    elseif cmd == "spec" or cmd == "loot" or cmd == "lootviewer" or cmd == "lv" or cmd == "camelot" or cmd == "dj" or cmd == "journal" then
         if arg == "restore" or arg == "unhide" then
             if sfui.dungeonjournal and sfui.dungeonjournal.RestoreHiddenDungeons then
                 sfui.dungeonjournal.RestoreHiddenDungeons()
