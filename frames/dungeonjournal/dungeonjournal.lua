@@ -70,6 +70,7 @@ sfui.db.RegisterDefaults("dungeonjournal", {
     charHidden          = {},
     showHiddenInSidebar = false,
     autoHideTrivialPins = false,
+    showAllDungeons     = false,
 })
 
 local function GetPlayerKey()
@@ -96,6 +97,7 @@ local function GetCharHidden()
             hiddenPins          = {},
             hiddenQuestPins     = {},
             showHiddenInSidebar = dj.showHiddenInSidebar or false,
+            showAllDungeons     = dj.showAllDungeons or false,
         }
         -- Migrate legacy global hidden settings on first load if present
         if dj.hiddenDungeons and next(dj.hiddenDungeons) then
@@ -136,6 +138,9 @@ local function DJ_DB()
     SfuiDB.dungeonjournal.hiddenQuestPins = charData.hiddenQuestPins
     if charData.showHiddenInSidebar ~= nil then
         SfuiDB.dungeonjournal.showHiddenInSidebar = charData.showHiddenInSidebar
+    end
+    if charData.showAllDungeons ~= nil then
+        SfuiDB.dungeonjournal.showAllDungeons = charData.showAllDungeons
     end
     return SfuiDB.dungeonjournal
 end
@@ -463,9 +468,38 @@ local RefreshSidebar   = nil
 local RefreshBossView  = nil
 local RefreshQuestView = nil
 
-function sfui.dungeonjournal._registerSidebar(fn)  RefreshSidebar  = fn  end
+function sfui.dungeonjournal._registerSidebar(fn)
+    RefreshSidebar = fn
+    sfui.dungeonjournal.RefreshSidebar = fn
+end
 function sfui.dungeonjournal._registerBosses(fn)   RefreshBossView  = fn  end
 function sfui.dungeonjournal._registerQuests(fn)   RefreshQuestView = fn  end
+
+-- ─── Level Range Filter Helper ───────────────────────────────────────────────
+function sfui.dungeonjournal.IsDungeonInLevelRange(dungeon, playerLevel)
+    if not dungeon then return false end
+    local pLvl = playerLevel or (UnitLevel and UnitLevel("player")) or 1
+    local minLvl = dungeon.minLevel
+    local maxLvl = dungeon.maxLevel
+    if not minLvl or not maxLvl then
+        if dungeon.level then
+            local low, high = tostring(dungeon.level):match("^(%d+)%s*-%s*(%d+)$")
+            if low and high then
+                minLvl = minLvl or tonumber(low)
+                maxLvl = maxLvl or tonumber(high)
+            else
+                local single = tonumber(dungeon.level)
+                if single then
+                    minLvl = minLvl or single
+                    maxLvl = maxLvl or single
+                end
+            end
+        end
+    end
+    minLvl = minLvl or 1
+    maxLvl = maxLvl or 60
+    return pLvl >= minLvl and pLvl <= maxLvl
+end
 
 -- ─── Hiding System API ────────────────────────────────────────────────────────
 function sfui.dungeonjournal.IsDungeonHidden(dungeonID)
@@ -1140,6 +1174,15 @@ function sfui.dungeonjournal.SelectDungeon(dungeonID, mode)
     DJ_DB().lastDungeon = dungeonID
     DJ_DB().lastBoss    = 1
     DJ_DB().lastQuest   = 1
+
+    if entry and sfui.dungeonjournal.IsDungeonInLevelRange and not sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
+        DJ_DB().showAllDungeons = true
+        local charData = GetCharHidden()
+        if charData then charData.showAllDungeons = true end
+        if sidebarFrame and sidebarFrame.UpdateFilterState then
+            sidebarFrame.UpdateFilterState()
+        end
+    end
 
     if not frame then sfui.dungeonjournal.CreateFrame() end
     if not frame:IsShown() then frame:Show() end
@@ -1862,6 +1905,8 @@ function sfui.dungeonjournal.GetOption(key)
         return saved.showHiddenInSidebar == true
     elseif key == "autoHideTrivialPins" then
         return saved.autoHideTrivialPins == true
+    elseif key == "showAllDungeons" then
+        return saved.showAllDungeons == true
     end
     return saved[key]
 end
@@ -1869,11 +1914,20 @@ end
 function sfui.dungeonjournal.SetOption(key, val)
     local saved = DJ_DB()
     saved[key] = val
+    local charData = GetCharHidden()
+    if charData and (key == "showHiddenInSidebar" or key == "showAllDungeons") then
+        charData[key] = val
+    end
     if sfui.dungeonjournal.UpdatePins then
         sfui.dungeonjournal.UpdatePins()
     end
     if sfui.events and sfui.events.SendMessage then
         sfui.events.SendMessage("SFUI_DJ_SETTING_CHANGED", key, val)
+    end
+    if key == "showAllDungeons" or key == "showHiddenInSidebar" then
+        if RefreshSidebar then
+            RefreshSidebar()
+        end
     end
 end
 

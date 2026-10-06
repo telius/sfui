@@ -181,8 +181,28 @@ sfui.options.RegisterTab({
                         SfuiDB.dungeonjournal.showItemTooltips = checked
                     end
                 end,
-                "Displays the boss encounter and instance name on item tooltips for all recorded loot drops.")
+                "displays the boss encounter and instance name on item tooltips for all recorded loot drops.")
             tooltip_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+            yOff = yOff - 28
+
+            local show_all_cb = create_checkbox(p, "show all dungeons regardless of level",
+                function()
+                    if sfui.dungeonjournal and sfui.dungeonjournal.GetOption then
+                        return sfui.dungeonjournal.GetOption("showAllDungeons")
+                    end
+                    SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
+                    return SfuiDB.dungeonjournal.showAllDungeons == true
+                end,
+                function(checked)
+                    if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then
+                        sfui.dungeonjournal.SetOption("showAllDungeons", checked)
+                    else
+                        SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
+                        SfuiDB.dungeonjournal.showAllDungeons = checked
+                    end
+                end,
+                "when disabled (default), only dungeons within your current level range are shown in the dungeon journal. enable to show all dungeons regardless of level.")
+            show_all_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
             yOff = yOff - 32
         end
 

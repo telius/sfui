@@ -466,7 +466,7 @@ function sfui.theme.ElevateWindowContents(frame)
         cb:SetFrameLevel(base + 20)
     end
     local topButtons = {
-        frame.collapseBtn, frame.mapOptBtn, frame.navWpBtn, frame.showMapBtn,
+        frame.collapseBtn, frame.mapOptBtn, frame.navWpBtn, frame.showMapBtn, frame.settingsBtn,
     }
     for _, btn in ipairs(topButtons) do
         if btn and btn.SetFrameLevel then

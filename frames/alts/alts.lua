@@ -476,9 +476,6 @@ local function CreateSettingsPanel()
     settingsPanel:SetWidth(260)
     settingsPanel:EnableMouse(true)
 
-    sfui.theme.ApplyWindowStyle(settingsPanel)
-    sfui.theme.RegisterWindow(settingsPanel)
-
     local headerFrame = CreateFrame("Frame", nil, settingsPanel)
     headerFrame:SetPoint("TOPLEFT", settingsPanel, "TOPLEFT", 0, 0)
     headerFrame:SetPoint("TOPRIGHT", settingsPanel, "TOPRIGHT", 0, 0)
@@ -487,19 +484,22 @@ local function CreateSettingsPanel()
     headerFrame:EnableMouse(false)
     settingsPanel.headerFrame = headerFrame
 
+    sfui.theme.ApplyWindowStyle(settingsPanel)
+    sfui.theme.RegisterWindow(settingsPanel)
+
     local pClose = (sfui.common.create_close_button or sfui.common.create_flat_button)(settingsPanel, function()
         settingsPanel:Hide()
     end, 20)
     pClose:ClearAllPoints()
     pClose:SetPoint("TOPRIGHT", -6, -6)
     pClose:SetFrameLevel((settingsPanel:GetFrameLevel() or 1) + 20)
-    pClose.tooltip = "Close Settings"
+    pClose.tooltip = "close settings"
     settingsPanel.closeBtn = pClose
 
     -- Title
     local title = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 12, -10)
-    title:SetText("Configuration")
+    title:SetText("alts configuration")
     title:SetTextColor(unpack((sfui.config and sfui.config.appearance and sfui.config.appearance.highlightColor) or { 0.4, 0, 1, 1 }))
 
     -- 1. SORT BY
@@ -616,6 +616,15 @@ function sfui.alts.CreateFrame()
         end
     end)
     frame:SetScript("OnShow", function()
+        if sfui.theme and sfui.theme.ElevateWindowContents then
+            sfui.theme.ElevateWindowContents(frame)
+        end
+        if frame.close then
+            frame.close:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+        end
+        if frame.settingsBtn then
+            frame.settingsBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+        end
         if sfui.alts.provider and sfui.alts.provider.OnFrameShow then
             sfui.alts.provider.OnFrameShow()
         end
@@ -631,16 +640,23 @@ function sfui.alts.CreateFrame()
     sfui.theme.ApplyWindowStyle(frame)
     sfui.theme.RegisterWindow(frame)
 
+    -- Standardized Window Header (Elevated above theme layers)
+    local headerBar = (sfui.theme and sfui.theme.CreateWindowHeader) and sfui.theme.CreateWindowHeader(frame, "alts manager")
+    frame.headerBar = headerBar
+
     local close = (sfui.common.create_close_button or sfui.common.create_flat_button)(frame, function() frame:Hide() end, 24)
+    close:ClearAllPoints()
+    close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -5, -5)
     close:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
-    close.tooltip = "Close"
+    close.tooltip = "close"
     frame.close = close
 
     -- Settings Button (⚙)
     local settingsBtn = sfui.common.create_flat_button(frame, "⚙", 24, 24)
-    settingsBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+    settingsBtn:ClearAllPoints()
     settingsBtn:SetPoint("TOPRIGHT", close, "TOPLEFT", -5, 0)
-    settingsBtn.tooltip = "Alts Configuration (Sort, Sections, Characters)"
+    settingsBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+    settingsBtn.tooltip = "alts configuration (sort, sections, characters)"
     settingsBtn:SetScript("OnClick", function()
         local panel = CreateSettingsPanel()
         if panel:IsShown() then
@@ -651,6 +667,7 @@ function sfui.alts.CreateFrame()
             RefreshSettingsPanel()
         end
     end)
+    frame.settingsBtn = settingsBtn
 
     -- Sidebar (Category labels)
     local sidebar = CreateFrame("Frame", nil, frame)
