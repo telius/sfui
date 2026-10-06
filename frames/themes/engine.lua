@@ -188,6 +188,10 @@ function sfui.theme.ApplyThemeBarTexture(textureName)
     sfui.tracker.helpers.timerbars.SetBarTexture(texturePath)
     sfui.tracker.RequestRefresh()
 
+    if sfui.experience and sfui.experience.SetBarTexture then
+        sfui.experience.SetBarTexture(texturePath)
+    end
+
     if sfui.isRetail then
         if sfui.soulfragments and sfui.soulfragments.SetBarTexture then
             sfui.soulfragments.SetBarTexture(texturePath)

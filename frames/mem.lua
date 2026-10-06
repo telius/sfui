@@ -13,6 +13,7 @@ local type = type
 local tostring = tostring
 local tonumber = tonumber
 local string_format = string.format
+local string_sub = string.sub
 local table_sort = table.sort
 local table_insert = table.insert
 local math_max = math.max
@@ -375,6 +376,48 @@ function sfui.mem.GetModuleStats()
         sfStats.line2 = string_format("stacks: %s • cap: %d • dividers: %d", tostring(sf.lastStacks or 0), tonumber(sf.maxCap) or 0, tonumber(sf.dividers) or 0)
     end
     stats["soulfragments"] = sfStats
+
+    -- Experience & Reputation Bar Module
+    local expStats = {
+        name = "bar & rep",
+        status = "|cff888888idle|r",
+        line1 = "xp: none • rep: none",
+        line2 = "floating text: 0 act / 0 pool",
+    }
+    local ep = GetDebug("experience_debug_info", "experience")
+    if ep then
+        if not ep.isEnabled then
+            expStats.status = "|cff888888disabled|r"
+        elseif ep.barShown or ep.repBarShown then
+            expStats.status = "|cff00ff88active|r"
+        else
+            expStats.status = "|cff888888hidden|r"
+        end
+
+        local xpText
+        if ep.isMaxLevel then
+            xpText = string_format("lvl %d (max)", tonumber(ep.level) or 0)
+        else
+            xpText = string_format("lvl %d: %.1f%%", tonumber(ep.level) or 0, tonumber(ep.xpPercent) or 0)
+        end
+
+        local repText
+        if ep.hasRep and ep.repName then
+            local repName = ep.repName:lower()
+            if #repName > 14 then
+                repName = string_sub(repName, 1, 12) .. ".."
+            end
+            repText = string_format("%s (%.0f%%)", repName, tonumber(ep.repPercent) or 0)
+        else
+            repText = "none"
+        end
+
+        local barStatus = (ep.barShown and "xp shown") or (ep.repBarShown and "rep shown") or "hidden"
+        expStats.line1 = string_format("%s • %s • rep: %s", xpText, barStatus, repText)
+        local ticksStr = ep.showTicks and string_format("%d ticks", tonumber(ep.tickCount) or 20) or "no ticks"
+        expStats.line2 = string_format("float text: %d act / %d pool • %s", tonumber(ep.floatingActive) or 0, tonumber(ep.floatingPool) or 0, ticksStr)
+    end
+    stats["experience"] = expStats
 
     -- Event Dispatcher Module
     local dispMod = {
@@ -940,8 +983,8 @@ local activeTab = "modules"
 local MODULE_SECTIONS = {
     {
         title = "bars & combat",
-        modules = sfui.isRetail and { "bars", "castbars", "vehicle", "soulfragments" }
-                                 or { "bars", "threat", "target", "swing", "castbars", "vehicle" },
+        modules = sfui.isRetail and { "bars", "castbars", "vehicle", "soulfragments", "experience" }
+                                 or { "bars", "threat", "target", "swing", "castbars", "vehicle", "experience" },
     },
     {
         title = "tracking & cooldowns",

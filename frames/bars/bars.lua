@@ -1019,6 +1019,10 @@ do
             end
         end
 
+        if sfui.experience and sfui.experience.SetBarTexture then
+            sfui.experience.SetBarTexture(texturePath)
+        end
+
         sfui.bars:on_state_changed()
     end
 

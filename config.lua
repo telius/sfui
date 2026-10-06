@@ -318,6 +318,39 @@ sfui.config = {
         maxScaledILvl = 1000,
     },
 
+    experience = {
+        enabled = true,
+        width = 460,
+        height = 14,
+        pos = {
+            point = "BOTTOM",
+            relativePoint = "BOTTOM",
+            x = 0,
+            y = 4,
+        },
+        showRested = true,
+        showQuestPreview = true,
+        showTicks = true,
+        tickCount = 20,
+        showFloatingText = true,
+        useClassColor = false,
+        showDualBars = true,            -- Show both XP and Reputation bars stacked when tracking a faction
+        repHeight = 12,                 -- Height of the stacked reputation bar
+        repOnTop = true,                -- Dock reputation bar above XP bar
+        showText = "ALWAYS",            -- "ALWAYS", "MOUSEOVER", "NEVER"
+        textFormat = "PERCENT_CURRENT", -- "PERCENT_CURRENT", "PERCENT", "REMAINING", "FRACTION"
+        showRate = true,
+        showTTL = true,
+        autoReputation = true,          -- Switch to reputation if max level or tracking faction
+        hideBlizzardBar = true,
+        colors = {
+            xp = { 0.58, 0.0, 0.82, 1.0 },              -- Fallback active xp color (purple)
+            rested = { 0.0, 0.65, 0.90, 0.60 },          -- Rested bonus overlay (cyan/sky blue)
+            questPreview = { 0.96, 0.65, 0.12, 0.70 },    -- Completed quest turn-in preview (amber/gold)
+            reputation = { 0.0, 0.60, 0.35, 1.0 },      -- Fallback reputation green
+        },
+    },
+
     lootfeed = {
         enabled = true,
         width = 320,
