@@ -1467,12 +1467,13 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     -- ═══════════════════════════════════
     -- SECTION 4: INDIVIDUAL ICON OVERRIDES
     -- ═══════════════════════════════════
-    if panel.entries and #(panel.entries) > 0 then
+    -- retail only: hero talent filter + cdm-backed aura/alert options
+    if sfui.isRetail and panel.entries and #(panel.entries) > 0 then
         local classID = sfui.common.get_player_class_id()
         -- Per Blizzard source, calling without args defaults to player config/spec
         local heroSpecs = C_ClassTalents and C_ClassTalents.GetHeroTalentSpecsForClassSpec() or {}
-        local secTitle = (#heroSpecs > 0) and "Hero Talent Overrides" or "Assigned Spell Overrides"
-        local secSub = (#heroSpecs > 0) and "Show these assigned icons ONLY when a specific Hero Talent is active." or "Configure aura tracking and missing alert options for assigned spells."
+        local secTitle = (#heroSpecs > 0) and "hero talent overrides" or "assigned spell overrides"
+        local secSub = (#heroSpecs > 0) and "show these assigned icons only when a specific hero talent is active." or "aura stacks and missing-buff alerts for assigned spells."
         local sec4, s4c, h4 = sfui.trackedoptions.CreateSection(parent, secTitle, secSub, yPos, SEC_W)
         if xOffset then sec4:SetPoint("TOPLEFT", xOffset, yPos) end
         local s4y = 0
@@ -1484,7 +1485,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
 
         local hFilter = s4c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         hFilter:SetPoint("TOPLEFT", 160, s4y); hFilter:SetWidth(180); hFilter:SetJustifyH("LEFT"); hFilter:SetText(
-            (#heroSpecs > 0) and "Filter / Aura" or "Aura / Alert")
+            (#heroSpecs > 0) and "filter / aura / alert" or "aura / alert")
         s4y = s4y - 25
 
         for i, entry in ipairs(panel.entries) do
@@ -1503,22 +1504,22 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
 
             if nid then
                 if typeHint == "item" then
-                    name = C_Item.GetItemNameByID(nid) or ("Item: " .. nid)
+                    name = C_Item.GetItemNameByID(nid) or ("item: " .. nid)
                 elseif typeHint == "spell" then
-                    name = C_Spell.GetSpellName(nid) or ("Spell: " .. nid)
+                    name = C_Spell.GetSpellName(nid) or ("spell: " .. nid)
                 else
                     -- Resolve 'cooldown' type to its underlying name
                     local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(nid)
                     if cdInfo then
                         if cdInfo.spellID and cdInfo.spellID > 0 then
-                            name = C_Spell.GetSpellName(cdInfo.spellID) or ("Spell: " .. cdInfo.spellID)
+                            name = C_Spell.GetSpellName(cdInfo.spellID) or ("spell: " .. cdInfo.spellID)
                         elseif cdInfo.itemID and cdInfo.itemID > 0 then
-                            name = C_Item.GetItemNameByID(cdInfo.itemID) or ("Item: " .. cdInfo.itemID)
+                            name = C_Item.GetItemNameByID(cdInfo.itemID) or ("item: " .. cdInfo.itemID)
                         end
                     end
                 end
             end
-            if not name or name == "" then name = "Unknown (" .. (id or "nil") .. ")" end
+            if not name or name == "" then name = "unknown (" .. (id or "nil") .. ")" end
 
             local row = CreateFrame("Frame", nil, s4c, "BackdropTemplate")
             row:SetSize(SEC_W - 10, 36)
@@ -1616,7 +1617,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
                         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                         local tInfo = configID and C_Traits and C_Traits.GetSubTreeInfo and
                             C_Traits.GetSubTreeInfo(configID, heroInfo)
-                        GameTooltip:SetText(tInfo and tInfo.name or "Unknown Spec")
+                        GameTooltip:SetText(tInfo and tInfo.name or "unknown spec")
                         if whitelist[heroInfo] then
                             GameTooltip:AddLine("filter: enabled (only show in this spec)", 0, 1, 0)
                         else
@@ -1642,7 +1643,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
             end
 
             -- Aura & Alert toggles
-            local auraCb = common.create_checkbox(row, "Aura", function()
+            local auraCb = common.create_checkbox(row, "aura", function()
                 return entry.type == "buff" or entry.type == "debuff" or entry.trackAsAura
             end, function(val)
                 entry.trackAsAura = val
@@ -1650,9 +1651,9 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
                 common.invalidate_panels_cache()
                 sfui.trackedicons.MarkDirty(true)
                 sfui.trackedicons.Update()
-            end, "Track this spell as an active Aura/Buff (swipes duration, dims when missing).")
+            end, "treat this spell as a buff: shows its stack count on the icon.")
 
-            local alertCb = common.create_checkbox(row, "Alert", function()
+            local alertCb = common.create_checkbox(row, "alert", function()
                 return entry.settings and entry.settings.glowWhenMissing == true
             end, function(val)
                 if not entry.settings then entry.settings = {} end
@@ -1660,7 +1661,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
                 common.invalidate_panels_cache()
                 sfui.trackedicons.MarkDirty(true)
                 sfui.trackedicons.Update()
-            end, "Glow alert when this buff is missing.")
+            end, "glow while this buff is missing from you.")
 
             if #heroSpecs == 0 then
                 auraCb:SetPoint("LEFT", 160, 0)

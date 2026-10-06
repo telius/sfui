@@ -56,28 +56,19 @@ function sfui.merchant.create_stack_split_frame(parent)
     eb:SetScript("OnEscapePressed", function() f:Hide() end)
     f.editBox = eb
 
-    f.maxBtn = CreateFlatButton(f, "Max", 40, 24)
+    f.maxBtn = CreateFlatButton(f, "max", 40, 24)
     f.maxBtn:SetPoint("LEFT", eb, "RIGHT", 5, 0)
     common.set_color(f.maxBtn, "black")
     f.maxBtn:SetScript("OnClick", function()
-        local maxStack = f.maxStack or 1
-        local price = f.price or 0
-        local money = GetMoney()
-        local affordable = price > 0 and math.floor(money / price) or maxStack
-
-        local stackSize = f.stackCount or 1
-        local maxPurchases = math.floor(maxStack / stackSize)
-        local canBuy = math.min(affordable, maxPurchases)
-        if canBuy < 1 then canBuy = 1 end
-
-        eb:SetText(canBuy)
+        eb:SetText(sfui.merchant.get_max_one_stack(f.index))
         eb:SetFocus()
     end)
 
-    f.buyBtn = CreateFlatButton(f, "Buy", 70, 24)
+    f.buyBtn = CreateFlatButton(f, "buy", 70, 24)
     f.buyBtn:SetPoint("BOTTOMLEFT", 10, 10)
     common.set_color(f.buyBtn, "black")
     f.buyBtn:SetScript("OnClick", function()
+        -- BuyMerchantItem takes a quantity in items (not purchases), capped per call
         local val = tonumber(eb:GetText()) or 1
         if val > 0 then
             BuyMerchantItem(f.index, val)
@@ -85,12 +76,68 @@ function sfui.merchant.create_stack_split_frame(parent)
         f:Hide()
     end)
 
-    f.cancelBtn = CreateFlatButton(f, "Cancel", 70, 24)
+    f.cancelBtn = CreateFlatButton(f, "cancel", 70, 24)
     f.cancelBtn:SetPoint("BOTTOMRIGHT", -10, 10)
     common.set_color(f.cancelBtn, "black")
     f.cancelBtn:SetScript("OnClick", function() f:Hide() end)
 
     return f
+end
+
+-- Largest quantity (in items) that fits one stack and that the player can afford.
+-- Mirrors blizzard's MerchantItemButton_OnModifiedClick split logic (MerchantFrame.lua).
+function sfui.merchant.get_max_one_stack(index)
+    local info = index and sfui.api.GetMerchantItemInfo(index)
+    if not info then return 1 end
+
+    local bundle = (info.stackCount and info.stackCount > 0) and info.stackCount or 1 -- items per purchase
+
+    -- one stack: the merchant's per-purchase cap, else the item's stack size
+    local maxStack = GetMerchantItemMaxStack and GetMerchantItemMaxStack(index)
+    if not maxStack or maxStack < 1 then
+        local link = GetMerchantItemLink and GetMerchantItemLink(index)
+        local stackSize = link and select(8, sfui.common.get_item_info(link))
+        maxStack = (stackSize and stackSize > 0) and stackSize or bundle
+    end
+    local canBuy = maxStack
+
+    -- gold
+    local price = info.price or 0
+    if price > 0 then
+        canBuy = math.min(canBuy, math.floor(GetMoney() / (price / bundle)))
+    end
+
+    -- extended costs (items / currencies)
+    if info.hasExtendedCost and GetMerchantItemCostInfo and GetMerchantItemCostItem then
+        local numCosts = GetMerchantItemCostInfo(index) or 0
+        for i = 1, numCosts do
+            local _, costValue, costLink, currencyName = GetMerchantItemCostItem(index, i)
+            if costValue and costValue > 0 and costLink then
+                local have
+                if currencyName then
+                    local cInfo = C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfoFromLink
+                        and C_CurrencyInfo.GetCurrencyInfoFromLink(costLink)
+                    have = cInfo and cInfo.quantity
+                else
+                    have = C_Item.GetItemCount(costLink, false, false, true)
+                end
+                if have then
+                    canBuy = math.min(canBuy, math.floor(have / (costValue / bundle)))
+                end
+            end
+        end
+    end
+
+    -- limited stock (numAvailable is in purchases; -1 = unlimited)
+    local avail = info.numAvailable
+    if avail and avail >= 0 then
+        canBuy = math.min(canBuy, avail * bundle)
+    end
+
+    -- whole bundles only
+    canBuy = math.floor(canBuy / bundle) * bundle
+    if canBuy < bundle then canBuy = bundle end
+    return canBuy
 end
 
 function sfui.merchant.open_stack_split(index)
@@ -101,24 +148,10 @@ function sfui.merchant.open_stack_split(index)
 
     local f = sfui.merchant.stackSplitFrame
     f.index = index
-    f.editBox:SetText("1")
 
     local info = sfui.api.GetMerchantItemInfo(index)
-    local name, price, stackCount, link
-    if info then
-        name = info.name
-        price = info.price
-        stackCount = info.stackCount
-        link = info.hyperlink
-    end
-    if link then
-        local _, _, _, _, _, _, _, itemStackCount = sfui.common.get_item_info(link)
-        f.maxStack = itemStackCount
-    else
-        f.maxStack = 9999
-    end
-    f.price = price
-    f.stackCount = stackCount -- Amount received per buy
+    local bundle = (info and info.stackCount and info.stackCount > 0) and info.stackCount or 1
+    f.editBox:SetText(tostring(bundle))
 
     f:Show()
     f.editBox:SetFocus()

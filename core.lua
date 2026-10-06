@@ -97,8 +97,8 @@ local function initialize_sfui()
         SfuiDB.worldevents = SfuiDB.worldevents or {}
     end
     SfuiDB.spec_colors = SfuiDB.spec_colors or {}
-    -- Migration: Purge legacy blue or interim orange for Balance Druid (102 and 14841) so it defaults to Moonfire
-    for _, sID in ipairs({ 102, 14841 }) do
+    -- Migration: Purge legacy blue or interim orange for Balance Druid (102 and 14841) and Base Druid (1484)
+    for _, sID in ipairs({ 102, 14841, 1484 }) do
         local c = SfuiDB.spec_colors[sID]
         if c then
             local r, g, b = c[1] or c.r or 0, c[2] or c.g or 0, c[3] or c.b or 0

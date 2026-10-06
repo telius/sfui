@@ -429,7 +429,24 @@ do
         bar:SetMinMaxValues(0, max)
         bar:SetValue(current)
         local color
-        if cfg.useClassColor then
+        local pClass = common.get_player_class()
+        if pClass == "DRUID" then
+            local form = (GetShapeshiftFormID and GetShapeshiftFormID()) or 0
+            if resource == Enum.PowerType.Rage or form == 5 then
+                color = common.get_spec_color_table(14844)
+            elseif resource == Enum.PowerType.Energy or form == 1 then
+                color = common.get_spec_color_table(14842)
+            elseif resource == 0 or resource == Enum.PowerType.Mana then
+                local sID = common.get_current_spec_id()
+                if sID == 14841 or sID == 102 or sID == 14843 or sID == 105 then
+                    color = common.get_spec_color_table(sID)
+                else
+                    color = common.get_spec_color_table(1484)
+                end
+            else
+                color = common.get_class_or_spec_color()
+            end
+        elseif cfg.useClassColor then
             color = common.get_class_or_spec_color()
         else
             color = common.get_resource_color(resource)
@@ -735,7 +752,24 @@ do
         bar:SetValue(current)
 
         local color
-        if cfg.useClassColor then
+        local pClass = common.get_player_class()
+        if pClass == "DRUID" then
+            local form = (GetShapeshiftFormID and GetShapeshiftFormID()) or 0
+            if resource == Enum.PowerType.ComboPoints or form == 1 then
+                color = common.get_spec_color_table(14842)
+            elseif resource == Enum.PowerType.Rage or form == 5 then
+                color = common.get_spec_color_table(14844)
+            elseif resource == 0 or resource == Enum.PowerType.Mana then
+                local sID = common.get_current_spec_id()
+                if sID == 14841 or sID == 102 or sID == 14843 or sID == 105 then
+                    color = common.get_spec_color_table(sID)
+                else
+                    color = common.get_spec_color_table(1484)
+                end
+            else
+                color = common.get_class_or_spec_color()
+            end
+        elseif cfg.useClassColor then
             color = common.get_class_or_spec_color()
         else
             color = common.get_resource_color(resource)
@@ -1054,7 +1088,12 @@ do
     end
 
     -- Unit events: player-only via the central unit-event frame.
-    local function on_unit_power()
+    local function on_unit_power(event)
+        if event == "UNIT_DISPLAYPOWER" then
+            sfui.bars:on_state_changed()
+            return
+        end
+
         local pShown = bar_minus_1 and bar_minus_1.backdrop and bar_minus_1.backdrop:IsShown()
         local sShown = bar1 and bar1.backdrop and bar1.backdrop:IsShown()
         if not pShown and not sShown then return end

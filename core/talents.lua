@@ -69,6 +69,7 @@ local cachedSpecIndex     = 0
 local cachedSpecRole      = nil
 local cachedPlayerSpecs   = nil
 local cachedPlayerSpecIDs = nil
+local cachedIsBear        = nil
 
 -- Pluggable provider hooks registered by talents_standard.lua and talents_camelot.lua
 sfui.talents._specResolver           = nil
@@ -84,6 +85,7 @@ function sfui.talents.set_cached_spec(specID, specIndex, specRole)
     cachedSpecIndex = specIndex or 0
     cachedSpecRole  = specRole
     if changed then
+        cachedIsBear = nil
         sfui.colors.invalidate_spec_color_cache()
         sfui.common.invalidate_panels_cache()
         sfui.highest.ClearValidationCache()
@@ -94,6 +96,7 @@ function sfui.talents.set_cached_spec(specID, specIndex, specRole)
 end
 
 function sfui.talents.update_cached_spec_id()
+    cachedIsBear = nil
     if sfui.talents._specResolver then
         local sID, sIdx, sRole = sfui.talents._specResolver()
         sfui.talents.set_cached_spec(sID, sIdx, sRole)
@@ -251,6 +254,15 @@ function sfui.talents.get_spec_role(specIDorIndex)
             return "HEALER"
         end
     end
+    if specIDorIndex == 14844 or specIDorIndex == 104 then
+        return "TANK"
+    end
+    if (specIDorIndex == 1484 or specIDorIndex == 14842 or specIDorIndex == cachedSpecID) then
+        local classFilename = sfui.talents.get_player_class()
+        if classFilename == "DRUID" and sfui.talents.is_bear_form_spec() then
+            return "TANK"
+        end
+    end
     if type(specIDorIndex) == "number" and specIDorIndex <= 4 then
         if GetSpecializationRole then
             local role = GetSpecializationRole(specIDorIndex)
@@ -286,10 +298,116 @@ function sfui.talents.is_talent_known(targetSpellID)
 end
 sfui.common.is_talent_known = sfui.talents.is_talent_known
 
+--- Checks whether the current character is in Bear form spec.
+--- Evaluates Thick Hide (16929..16933) and Primal Bite (407995), along with LFG/Dungeon Finder
+--- role checkbuttons or assigned group tank role.
+--- Cached in a local variable and invalidated on talent/spec/group events for extreme hot-track performance.
+function sfui.talents.is_bear_form_spec()
+    if cachedIsBear ~= nil then
+        return cachedIsBear
+    end
+
+    local classFilename = sfui.talents.get_player_class()
+    if classFilename ~= "DRUID" then
+        cachedIsBear = false
+        return false
+    end
+
+    -- 1. Check Bear talent spells: Thick Hide (16929..16933) or Primal Bite (407995)
+    local isPlayerSpell = _G.IsPlayerSpell
+    local isSpellKnown = _G.IsSpellKnown
+    if isPlayerSpell then
+        if isPlayerSpell(16929) or isPlayerSpell(407995)
+            or isPlayerSpell(16930) or isPlayerSpell(16931)
+            or isPlayerSpell(16932) or isPlayerSpell(16933) then
+            cachedIsBear = true
+            return true
+        end
+    end
+    if isSpellKnown then
+        if isSpellKnown(16929) or isSpellKnown(407995)
+            or isSpellKnown(16930) or isSpellKnown(16931)
+            or isSpellKnown(16932) or isSpellKnown(16933) then
+            cachedIsBear = true
+            return true
+        end
+    end
+
+    local resolver = sfui.talents._talentKnownResolver
+    if resolver then
+        if resolver(16929) or resolver(407995)
+            or resolver(16930) or resolver(16931)
+            or resolver(16932) or resolver(16933) then
+            cachedIsBear = true
+            return true
+        end
+    end
+
+    -- 2. Check Auto Signup / Dungeon Finder / LFG roles
+    if _G.GetLFGRoles then
+        local _, isTank = _G.GetLFGRoles()
+        if isTank then
+            cachedIsBear = true
+            return true
+        end
+    end
+    if _G.LFDQueueFrameRoleButtonTank and _G.LFDQueueFrame_GetRoles then
+        local ok, _, isTank = pcall(_G.LFDQueueFrame_GetRoles)
+        if ok and isTank then
+            cachedIsBear = true
+            return true
+        end
+    end
+
+    -- 3. Check group assigned role
+    local assignedRole = _G.UnitGroupRolesAssigned and _G.UnitGroupRolesAssigned("player")
+    if assignedRole == "TANK" then
+        cachedIsBear = true
+        return true
+    end
+
+    cachedIsBear = false
+    return false
+end
+sfui.common.is_bear_form_spec = sfui.talents.is_bear_form_spec
+
+function sfui.talents.invalidate_bear_cache()
+    cachedIsBear = nil
+end
+sfui.common.invalidate_bear_cache = sfui.talents.invalidate_bear_cache
+
+--- Checks whether the specified or current spec represents Feral or Guardian.
+--- @param specID number|nil
+--- @return boolean
+function sfui.talents.is_feral_spec(specID)
+    local pClass = sfui.talents.get_player_class()
+    if pClass ~= "DRUID" then return false end
+
+    specID = specID or sfui.talents.get_current_spec_id()
+    if specID == 14842 or specID == 14844 or specID == 103 or specID == 104 then
+        return true
+    end
+
+    if sfui.talents.is_bear_form_spec and sfui.talents.is_bear_form_spec() then
+        return true
+    end
+
+    if specID == 1484 and sfui.talents.get_classic_talent_spec_info then
+        local info = sfui.talents.get_classic_talent_spec_info()
+        if info and info.dominantTree == 2 then
+            return true
+        end
+    end
+
+    return false
+end
+sfui.common.is_feral_spec = sfui.talents.is_feral_spec
+
 -- ────────────────────────────────────────────────────────────────────────────
 -- Global Event Routing & Cache Invalidation
 -- ────────────────────────────────────────────────────────────────────────────
 function sfui.talents.invalidate_spec_cache(force)
+    cachedIsBear = nil
     if force then
         cachedSpecID    = 0
         cachedSpecIndex = 0
@@ -337,6 +455,9 @@ sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function() sfui.talen
 sfui.events.RegisterEvent("ACTIVE_COMBAT_CONFIG_CHANGED", function() sfui.talents.invalidate_spec_cache(true) end)
 sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", function() sfui.talents.invalidate_spec_cache(true) end)
 sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", function() sfui.talents.invalidate_spec_cache(true) end)
+sfui.events.RegisterEvent("GROUP_ROSTER_UPDATE", sfui.talents.invalidate_bear_cache)
+sfui.events.RegisterEvent("LFG_ROLE_CHECK_SHOW", sfui.talents.invalidate_bear_cache)
+sfui.events.RegisterEvent("LFG_ROLE_CHECK_ROLE_CHOSEN", sfui.talents.invalidate_bear_cache)
 
 -- Talent point & trait currency events: strictly restricted to Classic / Camelot.
 -- In Classic / Camelot, specialization is derived dynamically from spent talent tree points.

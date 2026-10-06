@@ -555,7 +555,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
         local isPaladin = (playerClassID == 1486 or specID == 1486 or (specID and specID >= 14861 and specID <= 14863))
         local isWarrior = (playerClassID == 1491 or specID == 1491 or (specID and specID >= 14911 and specID <= 14913))
         local isShaman  = (playerClassID == 1489 or specID == 1489 or (specID and specID >= 14891 and specID <= 14893))
-        local isDruid   = (playerClassID == 1484 or specID == 1484 or (specID and specID >= 14841 and specID <= 14843))
+        local isDruid   = (playerClassID == 1484 or specID == 1484 or (specID and specID >= 14841 and specID <= 14844))
         local isPriest  = (playerClassID == 1487 or specID == 1487 or (specID and specID >= 14871 and specID <= 14873))
 
         if isTank and (isWarrior or isPaladin) then
@@ -733,7 +733,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
         elseif itemEquipLoc == "INVTYPE_RELIC" then
             -- In Classic / Vanilla / Camelot, Relics occupy slot 18:
             -- Druid: Idols (8/11), Paladin: Librams (7/11), Shaman: Totems (9/11), DK: Sigils (10/11)
-            if classID == 1484 or specID == 1484 or specID == 102 or specID == 103 or specID == 104 or specID == 105 then
+            if classID == 1484 or specID == 1484 or specID == 102 or specID == 103 or specID == 104 or specID == 105 or (specID and specID >= 14841 and specID <= 14844) then
                 if subclassID ~= 8 and subclassID ~= 11 then return false end
             elseif classID == 1486 or specID == 1486 or specID == 65 or specID == 66 or specID == 70 then
                 if subclassID ~= 7 and subclassID ~= 11 then return false end
@@ -875,7 +875,7 @@ function sfui.highest.GetBestItems(isPvP)
         local isPaladin = (classID == 1486 or specID == 1486 or (specID and specID >= 14861 and specID <= 14863))
         local isWarrior = (classID == 1491 or specID == 1491 or (specID and specID >= 14911 and specID <= 14913))
         local isShaman  = (classID == 1489 or specID == 1489 or (specID and specID >= 14891 and specID <= 14893))
-        local isDruid   = (classID == 1484 or specID == 1484 or (specID and specID >= 14841 and specID <= 14843))
+        local isDruid   = (classID == 1484 or specID == 1484 or (specID and specID >= 14841 and specID <= 14844))
         local isPriest  = (classID == 1487 or specID == 1487 or (specID and specID >= 14871 and specID <= 14873))
 
         if isTank and (isWarrior or isPaladin) then

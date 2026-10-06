@@ -409,7 +409,27 @@ local function UpdateIconVisuals(icon, entrySettings, panelConfig, isUsable, isO
 end
 
 -- Helper: Update Glows
-local function UpdateIconGlow(icon, entrySettings, panelConfig, isReady)
+-- missingAlert: entry has the "alert" option and its buff is missing -> glow persistently,
+-- taking priority over the ready glow (no max duration).
+local function UpdateIconGlow(icon, entrySettings, panelConfig, isReady, missingAlert)
+    if missingAlert then
+        sfui.glows.resolve_config(entrySettings, panelConfig, _tempGlowCfg)
+        local prev = icon._lastGlowCfg
+        if not icon._glowActive or not prev or prev.glowType ~= _tempGlowCfg.glowType
+            or prev.glowColor ~= _tempGlowCfg.glowColor then
+            if icon._glowActive then StopGlow(icon) end
+            StartGlow(icon, _tempGlowCfg)
+        end
+        icon._missingGlow = true
+        return
+    elseif icon._missingGlow then
+        -- buff came back: drop the alert glow and let ready-glow logic start fresh
+        icon._missingGlow = false
+        icon._pendingGlow = false
+        icon._glowStartTime = nil
+        if icon._glowActive then StopGlow(icon) end
+    end
+
     local showGlow = GetIconValue(entrySettings, panelConfig, "readyGlow", true)
 
     -- Glow Logic (Permanent while ready)
@@ -509,8 +529,66 @@ local function SafeGetCooldownViewerCooldownInfo(id)
     return nil
 end
 
+-- ─── alert: missing buff detection (retail) ──────────────────────────────────
+-- blizzard's cdm viewers are hidden by sfui (alpha 0) but still updated by secure code,
+-- so their item frames carry a valid auraInstanceID even in combat, where by-spellID
+-- aura lookups return nothing for addons.
+local _blizzViewers = {
+    { name = "BuffIconCooldownViewer", isAura = true },
+    { name = "BuffBarCooldownViewer", isAura = true },
+    { name = "EssentialCooldownViewer", isAura = false },
+    { name = "UtilityCooldownViewer", isAura = false },
+}
+
+local function FindBlizzCooldownItem(cooldownID)
+    if not cooldownID then return nil end
+    for i = 1, #_blizzViewers do
+        local v = _blizzViewers[i]
+        local viewer = _G[v.name]
+        local pool = viewer and viewer.itemFramePool
+        if pool then
+            for itemFrame in pool:EnumerateActive() do
+                if itemFrame.cooldownID == cooldownID then
+                    return itemFrame, v.isAura
+                end
+            end
+        end
+    end
+    return nil
+end
+
+-- returns true (missing), false (present) or nil (unknown)
+local function IsTrackedAuraMissing(icon, activeID, linkedSpellIDs)
+    local entry = icon.entry
+    local blizz, isAuraViewer = FindBlizzCooldownItem(entry and (entry.cooldownID or tonumber(entry.id)))
+    if blizz then
+        if sfui.common.HasAuraInstanceID(blizz.auraInstanceID) and blizz.auraDataUnit ~= "target" then
+            return false
+        end
+        -- buff viewers always track their aura, so no instance means it's gone
+        if isAuraViewer then return true end
+    end
+
+    if C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
+        if activeID and activeID ~= 0 and C_UnitAuras.GetPlayerAuraBySpellID(activeID) then
+            return false
+        end
+        if linkedSpellIDs then
+            for _, linkedID in ipairs(linkedSpellIDs) do
+                if C_UnitAuras.GetPlayerAuraBySpellID(linkedID) then return false end
+            end
+        end
+    end
+
+    -- nothing found: only conclusive while auras are readable
+    if C_Secrets and C_Secrets.ShouldAurasBeSecret and C_Secrets.ShouldAurasBeSecret() then
+        return nil
+    end
+    return true
+end
+
 -- Helper to update icon state (visibility, cooldown, charges)
-local function UpdateIconState(icon, panelConfig)
+local function UpdateIconState(icon, panelConfig, event)
     if not icon.id or not icon.entry then return false end
     local entrySettings = icon.entry.settings or _emptyTable
 
@@ -536,6 +614,11 @@ local function UpdateIconState(icon, panelConfig)
     -- Visibility Decision (Early Exit to skip cooldown/charge C-API calls when hidden)
     local hideOOC = GetIconValue(nil, panelConfig, "hideOOC", false)
     local inCombat = InCombatLockdown()
+    if event == "PLAYER_REGEN_DISABLED" then
+        inCombat = true
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        inCombat = false
+    end
     if hideOOC and not inCombat then
         if icon:IsShown() then icon:Hide() end
         if icon._glowActive then StopGlow(icon) end
@@ -611,8 +694,15 @@ local function UpdateIconState(icon, panelConfig)
         -- 5. Update Visuals
         UpdateIconVisuals(icon, entrySettings, panelConfig, isUsable, isOnCooldown, notEnoughPower)
 
-        -- 6. Update Glows
-        UpdateIconGlow(icon, entrySettings, panelConfig, isReady)
+        -- 6. Update Glows (alert on missing buff takes priority over the ready glow)
+        local missingAlert = false
+        if sfui.isRetail and entrySettings.glowWhenMissing and resolvedType ~= "item" then
+            local missing = IsTrackedAuraMissing(icon, activeID, linkedSpellIDs)
+            if missing == nil then missing = icon._auraMissing or false end
+            icon._auraMissing = missing
+            missingAlert = missing
+        end
+        UpdateIconGlow(icon, entrySettings, panelConfig, isReady, missingAlert)
     return true
 end
 
@@ -954,6 +1044,11 @@ function sfui.trackedicons.OnVisibilityEvent(_, event)
             local shouldShow = CheckPanelVisibility(panelFrame.config, event)
             if shouldShow then
                 if not panelFrame:IsShown() then panelFrame:Show() end
+                if panelFrame.icons then
+                    for _, icon in pairs(panelFrame.icons) do
+                        UpdateIconState(icon, panelFrame.config, event)
+                    end
+                end
             else
                 if panelFrame:IsShown() then panelFrame:Hide() end
             end
@@ -993,25 +1088,9 @@ local function ApplyAutoSpan(panelConfig, activeIcons, size, spacing, numColumns
     return size, spacing
 end
 
-function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
+function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
     if not panelFrame or not panelConfig then return end
     panelFrame.config = panelConfig
-
-
-    -- Register Event-Driven Visibility Handlers (once central hook)
-    if not sfui.trackedicons._eventsRegistered then
-        sfui.trackedicons._eventsRegistered = true
-        sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED",
-            function(...) sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_REGEN_DISABLED", ...) end)
-        sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED",
-            function(...) sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_REGEN_ENABLED", ...) end)
-        sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED",
-            function(...) sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_MOUNT_DISPLAY_CHANGED", ...) end)
-        sfui.events.RegisterUnitEvent("UNIT_POWER_BAR_SHOW", "player",
-            function(...) sfui.trackedicons.OnVisibilityEvent(nil, "UNIT_POWER_BAR_SHOW", ...) end)
-        sfui.events.RegisterUnitEvent("UNIT_POWER_BAR_HIDE", "player",
-            function(...) sfui.trackedicons.OnVisibilityEvent(nil, "UNIT_POWER_BAR_HIDE", ...) end)
-    end
 
 
 
@@ -1180,7 +1259,7 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig)
 
                 -- Sync Masque state
                 SyncIconMasque(icon)
-                UpdateIconState(icon, panelConfig)
+                UpdateIconState(icon, panelConfig, event)
                 table.insert(activeIcons, icon)
             end
         end
@@ -1364,7 +1443,7 @@ function sfui.trackedicons.ForceLayoutUpdate()
     sfui.trackedicons.Update()
 end
 
-function sfui.trackedicons.Update()
+function sfui.trackedicons.Update(event)
     sfui.trackedicons.InvalidateConfigCache()
     local panelConfigs = sfui.common.get_cooldown_panels()
     if not panelConfigs or #panelConfigs == 0 then return end
@@ -1377,10 +1456,12 @@ function sfui.trackedicons.Update()
                 panels[i] = CreateFrame("Frame", "SfuiIconPanel_" .. i, UIParent)
             end
 
-            local shouldShow = CheckPanelVisibility(panelConfig)
+            -- Always build and position icon frames so the panel is never an empty shell
+            sfui.trackedicons.UpdatePanelLayout(panels[i], panelConfig, event)
+
+            local shouldShow = CheckPanelVisibility(panelConfig, event)
             if shouldShow then
                 panels[i]:Show()
-                sfui.trackedicons.UpdatePanelLayout(panels[i], panelConfig)
             else
                 panels[i]:Hide()
             end
@@ -1413,27 +1494,36 @@ function sfui.trackedicons.initialize()
 
     -- Event handling
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
-        sfui.trackedicons.Update()
-        MarkDirty()
+        sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_REGEN_ENABLED")
+        sfui.trackedicons.Update("PLAYER_REGEN_ENABLED")
+        MarkDirty(true)
     end)
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
-        sfui.trackedicons.Update()
-        MarkDirty()
+        sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_REGEN_DISABLED")
+        sfui.trackedicons.Update("PLAYER_REGEN_DISABLED")
+        MarkDirty(true)
     end)
     sfui.events.RegisterEvent("PLAYER_TARGET_CHANGED", function()
         MarkDirty(true)
     end)
     sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", function()
-        sfui.trackedicons.Update()
-        MarkDirty()
+        sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_MOUNT_DISPLAY_CHANGED")
+        sfui.trackedicons.Update("PLAYER_MOUNT_DISPLAY_CHANGED")
+        MarkDirty(true)
+    end)
+    sfui.events.RegisterUnitEvent("UNIT_POWER_BAR_SHOW", "player", function()
+        sfui.trackedicons.OnVisibilityEvent(nil, "UNIT_POWER_BAR_SHOW")
+    end)
+    sfui.events.RegisterUnitEvent("UNIT_POWER_BAR_HIDE", "player", function()
+        sfui.trackedicons.OnVisibilityEvent(nil, "UNIT_POWER_BAR_HIDE")
     end)
     sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORM", function()
-        sfui.trackedicons.Update()
-        MarkDirty()
+        sfui.trackedicons.Update("UPDATE_SHAPESHIFT_FORM")
+        MarkDirty(true)
     end)
     sfui.events.RegisterEvent("UPDATE_STEALTH", function()
-        sfui.trackedicons.Update()
-        MarkDirty()
+        sfui.trackedicons.Update("UPDATE_STEALTH")
+        MarkDirty(true)
     end)
 
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
@@ -1493,14 +1583,14 @@ function sfui.trackedicons.initialize()
         _needsStateUpdate = true
     end)
 
-    -- 11.0+ C_UnitAuras Event Migration (throttled to 5.0s out of combat to eliminate background aura tick churn)
+    -- 11.0+ C_UnitAuras Event Migration (throttled to 0.5s out of combat to eliminate background aura tick churn, secret-safe)
     local _lastOOCAuraTime = 0
-    sfui.events.RegisterUnitEvent("UNIT_AURA", "player", function(event, unit, updateInfo)
+    sfui.events.RegisterUnitEvent("UNIT_AURA", "player", function()
         if InCombatLockdown() then
             _needsStateUpdate = true
         else
             local now = GetTime()
-            if (now - _lastOOCAuraTime) >= 5.0 then
+            if (now - _lastOOCAuraTime) >= 0.5 then
                 _lastOOCAuraTime = now
                 _needsStateUpdate = true
             end

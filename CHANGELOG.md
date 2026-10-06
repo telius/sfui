@@ -1,13 +1,21 @@
 # Changelog
 
-## unreleased
+## v12.1.0-76 (2026-10-06)
 
 ### fixes
 
 - **quest expand state reset**: `sfui.questlog.GetState()` (`frames/quests/engine/q_tracker.lua`) is now the single quest log state source. it no longer deletes the table that achievements, activities and collectables used for expand/collapse (renamed to `expandedBlocks`), so their state survives tracker refreshes.
-- **broken debounces / throttles**: `C_Timer.After` returns nil, so the "timer handles" in `frames/dungeonjournal/dj_sidebar.lua`, `dj_quests.lua`, `dj_pins.lua` and the scan throttle in `frames/reminders/buffs_scan.lua` never debounced anything. they now use `sfui.common.debounce` or a pending flag.
+- **broken debounces / throttles**: `C_Timer.After` returns nil, so the timer handles in `frames/dungeonjournal/dj_sidebar.lua`, `frames/dungeonjournal/dj_quests.lua`, `frames/dungeonjournal/dj_pins.lua` and the scan throttle in `frames/reminders/buffs_scan.lua` never debounced anything. they now use `sfui.common.debounce` or a pending flag.
 - **recipe tooltip hook**: the legacy fallback in `frames/alts/recipes.lua` hooks both the blizzard tooltip and the private addon tooltip again. `frames/dungeonjournal/dj_tooltips.lua` also annotates the private tooltip.
 - **alts manager header**: the header no longer sits below the theme frame (`frames/alts/alts.lua`, `frames/themes/engine.lua`).
+- **merchant max buy**: `max` in the quantity dialog now fills exactly one stack (`frames/merchant/merchant_utility.lua`). it uses the merchant's per-purchase stack cap, counts in items, and limits to what you can afford in gold, items or currency and to limited stock. it rounds down to whole merchant bundles. the dialog now opens with one bundle filled in, and its buttons are lowercase.
+- **assigned spell alert**: the `alert` option in assigned spell overrides now works. the icon glows while its buff is missing from you (`frames/tracking/trackedicons.lua`). in combat it reads blizzard's hidden cooldown manager, and when auras can't be read it keeps the last known state. the section is now retail only, and its labels and tooltips are lowercase and match what the options do (`frames/tracking/trackedoptions.lua`).
+- **camelot spec resolver**: resolved error where `C_SpecializationInfo.GetTalentInfo` required `query.tier` on the camelot client build (`core/talents_camelot.lua`). talent trees and points spent are now evaluated using blizzard's native camelot talent architecture (`C_SpecializationInfo.GetCombatConfigIDForSpecGroup` and `C_Traits.GetGroupCurrencyInfo`), accurately resolving tree dominance, points spent, and canonical spec ids.
+- **camelot bear spec id & role differentiation**: added dedicated camelot spec id `14844` for guardian bear (`core/talents.lua`, `core/talents_camelot.lua`, `core/bridge.lua`, `data/rules.lua`, `data/stats.lua`, `config.lua`, `frames/gear/highest.lua`, `frames/gear/gear_camelot.lua`). druid feral combat now automatically differentiates between cat (`14842`, dps) and bear (`14844`, tank) based on thick hide, primal bite, or auto-signup/dungeon finder tank roles with hot-track caching.
+- **druid powerbars spec colors**: druid primary and secondary powerbars now resolve directly from `spec_colors` across all shapeshift forms (`frames/bars/bars.lua`, `config.lua`, `core.lua`, `core/talents_camelot.lua`). bear rage uses `14844` (crimson), cat energy and combo points use `14842` (amber), and humanoid mana uses `1484` (configurable white default in `spec_colors`).
+- **tracked icons secret aura safety & combat initialization**:
+  - resolved secret boolean crash in `frames/tracking/trackedicons.lua` (`attempt to perform boolean test on field 'isFullUpdate'`) triggered on death/wipes during raid and m+ encounters by removing unsafe `updateInfo` boolean evaluation from `UNIT_AURA` and safely throttling out-of-combat aura ticks to 0.5s.
+  - fixed combat initialization and visibility latency where tracked icons could take multiple combat cycles to show up: `UpdatePanelLayout` now constructs and positions icon child frames during initial setup regardless of visibility, visibility events hook immediately in `initialize()`, and combat transition events pass directly to `CheckPanelVisibility`, `Update`, and `UpdateIconState` for instantaneous combat display.
 
 ### features
 
@@ -23,34 +31,18 @@
 - **new shared helpers**:
   - in `common.lua`: `is_addon_loaded`, `ensure_addon_loaded`, `get_addon_metadata`, `get_player_faction` and `debounce`.
   - in `core/widgets.lua`: `attach_tooltip`, `apply_flat_backdrop`, `create_pool` and `create_icon_toggle`.
-- **shared quest helpers**: the duplicate `IsQuestWatched`, `IsWorldQuest`, `AutoTrackQuest`, `TryInsertQuestLink`, `FormatQuestTimer` and `IsClassQuest` code from `q_quests.lua`, `q_camelot.lua`, `q_camelot_class.lua` and `q_worldquests.lua` now lives in the new `frames/quests/helpers/q_common.lua`.
+- **shared quest helpers**: duplicate `IsQuestWatched`, `IsWorldQuest`, `AutoTrackQuest`, `TryInsertQuestLink`, `FormatQuestTimer` and `IsClassQuest` code from `frames/quests/modules/q_quests.lua`, `frames/quests/modules/q_camelot.lua`, `frames/quests/modules/q_camelot_class.lua` and `frames/quests/modules/q_worldquests.lua` now lives in the new `frames/quests/helpers/q_common.lua`.
 - **api standardization**:
-  - item info goes through `sfui.common.get_item_info` / `get_item_instant_info`.
-  - player class goes through `get_player_class` / `get_player_class_id`.
+  - item info goes through `sfui.common.get_item_info` / `sfui.common.get_item_instant_info`.
+  - player class goes through `sfui.common.get_player_class` / `sfui.common.get_player_class_id`.
   - addon loading goes through the new addon wrappers.
-  - cvars go through `get_cvar` / `set_cvar`.
+  - cvars go through `sfui.common.get_cvar` / `sfui.common.set_cvar`.
   - bar textures go through `sfui.widgets.get_bar_texture`.
   - dead raw-api fallbacks were removed.
 - **dungeon journal cleanup**:
-  - the inline backdrop literals use `apply_flat_backdrop`.
-  - the eye and `all` buttons use `create_icon_toggle`.
+  - inline backdrop literals use `apply_flat_backdrop`.
+  - eye and `all` buttons use `create_icon_toggle`.
   - character-scoped options persist through one `PersistCharOption` path.
 - **portals**: cooldown border and text code is hoisted into `set_cd_border` / `set_cd_text`.
 - **lowercase pass**: about 200 capitalized ui labels and tooltip lines were lowercased.
 - **docs**: `.agent/workflows/methods.md` now settles the tooltip rule and documents the dropdown `GLOBAL_MOUSE_DOWN` exception, the `C_Timer.After` pitfall and a shared-helper reference table.
-
-## v12.1.0-75 (2026-10-06)
-
-### Features & Major Improvements
-
-- **Memory Diagnostic Engine & Heap Reporting (`frames/mem.lua`, `frames/options/tabs/tab_debug.lua`)**:
-  - **Addon Memory Scan Fix**: Resolved issue where addon memory was reporting `0.0 kb` by automatically triggering `UpdateAddOnMemoryUsage()` whenever uninitialized or on panel `OnShow`, supported by a 15-second periodic update cadence while open and a 1-second throttle for manual refreshes.
-  - **Dynamic Multi-Fallback Addon Lookup**: Introduced `GetAddonUsageKB()` with cached index lookup checking chunk `addonName`, `"sfui"`, `"SFUI"`, and iterating `C_AddOns.GetNumAddOns()` / `GetNumAddOns()` to guarantee accurate memory accounting across all environments.
-  - **Configured Memory Color Thresholds**: Updated addon memory thresholds to display `< 15mb` in green (`|cff00ff88`), `15–25mb` in yellow (`|cffffaa00`), and `25mb+` in red (`|cffff4444`) across both the KPI metric cards and `/sfui mem print` / `/sfui mem dump` outputs.
-  - **Categorized Module Sections**: Grouped module cards under sleek, theme-styled divider banners (`bars & combat`, `tracking & cooldowns`, and `general & utilities`), keeping unit bars (`bars`, `threat`, `target`, `swing`, `castbars`, `vehicle`) and tracking modules (`trackedbars`, `trackedicons`, `cdm`, `glows`) tightly clustered.
-  - **Dynamic Scroll Frame Height**: Sized scroll child frame dynamically based on total section row count, eliminating card clipping near the bottom of the list.
-  - **Garbage Collection & Profiler Telemetry**: Synchronized baseline and post-collection measurements in `RunGC()`, `StartWatcher()`, and `StopWatcher()` so memory reclamation and allocation rates reflect true addon heap dynamics.
-
-- **Universal Module Memory Telemetry & Debug Diagnostics (`frames/bars/swing.lua`, `frames/bars/threat.lua`, `frames/bars/target.lua`, `frames/gear/lootfeed.lua`, `frames/hide.lua`, `frames/reminders/buffs.lua`, `frames/automation/rankup.lua`, `frames/options/tabs/tab_debug.lua`)**:
-  - **Module Memory Telemetry**: Added complete `mem.lua` diagnostic and card metrics across `buffs`, `lootfeed`, `dungeonjournal`, `hide`, `rankup`, `swing`, `threat`, and `target` modules.
-  - **Debug Spec & Swing Diagnostics**: Added spec resolver telemetry (`talents_camelot`) and available swing bar diagnostics in `frames/options/tabs/tab_debug.lua` and `frames/bars/swing.lua`.

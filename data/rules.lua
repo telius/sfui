@@ -175,8 +175,9 @@ sfui.highest.classic_rules    = {
     [14823] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_MAGE }, -- Frost
     -- Druid (1484)
     [14841] = { armor = 2, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID }, -- Balance (Caster: stat=4 Int)
-    [14842] = { armor = 2, stat = 2, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID }, -- Feral (stat=2 Agi)
+    [14842] = { armor = 2, stat = 2, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID }, -- Feral Cat (stat=2 Agi)
     [14843] = { armor = 2, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID }, -- Restoration (stat=4 Int)
+    [14844] = { armor = 2, stat = 1, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID }, -- Guardian Bear (Tank: stat=1 Str/Armor)
     -- Hunter (1485)
     [14851] = { armor = 3, stat = 2, weaps = { ["Ranged"] = true, ["2H"] = true, ["1H_Dual"] = true }, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Beast Mastery
     [14852] = { armor = 3, stat = 2, weaps = { ["Ranged"] = true, ["2H"] = true, ["1H_Dual"] = true }, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Marksmanship

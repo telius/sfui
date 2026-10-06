@@ -79,6 +79,7 @@ sfui.gear.CLASSIC_ROLES_BY_SPEC = {
     [14841] = { "cat", "bear", "moon", "resto" },
     [14842] = { "cat", "bear", "moon", "resto" },
     [14843] = { "cat", "bear", "moon", "resto" },
+    [14844] = { "cat", "bear", "moon", "resto" },
     -- Paladin
     [1486]  = { "prot", "ret", "holy" },
     [14861] = { "prot", "ret", "holy" },
@@ -127,6 +128,7 @@ sfui.gear.CLASSIC_ROLE_ICONS = {
     [14841] = { cat = "Interface\\Icons\\Ability_Druid_CatForm", bear = "Interface\\Icons\\Ability_Racial_BearForm", moon = 136096, resto = 136041 },
     [14842] = { cat = "Interface\\Icons\\Ability_Druid_CatForm", bear = "Interface\\Icons\\Ability_Racial_BearForm", moon = 136096, resto = 136041 },
     [14843] = { cat = "Interface\\Icons\\Ability_Druid_CatForm", bear = "Interface\\Icons\\Ability_Racial_BearForm", moon = 136096, resto = 136041 },
+    [14844] = { cat = "Interface\\Icons\\Ability_Druid_CatForm", bear = "Interface\\Icons\\Ability_Racial_BearForm", moon = 136096, resto = 136041 },
     [11]    = { cat = "Interface\\Icons\\Ability_Druid_CatForm", bear = "Interface\\Icons\\Ability_Racial_BearForm", moon = 136096, resto = 136041 },
     -- Paladin
     [1486]  = { prot = 236264, ret = 135873, holy = 135920 },

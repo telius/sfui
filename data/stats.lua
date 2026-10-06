@@ -376,6 +376,24 @@ sfui.data.SPEC_DEFINITIONS = {
             ["BEAR"]  = { "Arm", "Stam", "Def", "Dodge", "Agi", "Str", "Hit", "AP" },
         },
     },
+    {
+        camelotID = 14844, retailID = 104, classID = 1484, class = "DRUID", classFile = "DRUID",
+        treeIndex = 2, name = "guardian", icon = 132276, role = "TANK", isTank = true, isHealer = false, isClassic = true,
+        retailStats  = { "V", "M", "H", "C" },
+        classicStats = { "Arm", "Stam", "Def", "Dodge", "Agi", "Str", "Hit", "AP" },
+        roleStats = {
+            ["bear"]  = { "Arm", "Stam", "Def", "Dodge", "Agi", "Str", "Hit", "AP" },
+            ["cat"]   = { "Str", "Agi", "AP", "Crit", "Hit", "Stam", "Int", "Arm" },
+            ["moon"]  = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "H" },
+            ["resto"] = { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Stam", "H" },
+            ["TANK"]  = { "Arm", "Stam", "Def", "Dodge", "Agi", "Str", "Hit", "AP" },
+            ["DPS"]   = { "Str", "Agi", "AP", "Crit", "Hit", "Stam", "Int", "Arm" },
+            ["BEAR"]  = { "Arm", "Stam", "Def", "Dodge", "Agi", "Str", "Hit", "AP" },
+            ["CAT"]   = { "Str", "Agi", "AP", "Crit", "Hit", "Stam", "Int", "Arm" },
+            ["MOON"]  = { "SP", "Hit", "Crit", "Int", "Spi", "MP5", "Stam", "H" },
+            ["RESTO"] = { "Heal", "SP", "MP5", "Spi", "Int", "Crit", "Stam", "H" },
+        },
+    },
     -- RETAIL ONLY CLASSES / SPECS
     {
         retailID = 250, classID = 6, class = "DEATHKNIGHT", classFile = "DEATHKNIGHT",

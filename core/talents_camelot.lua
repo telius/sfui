@@ -24,12 +24,9 @@ end
 local _G = _G
 local UnitLevel = _G.UnitLevel
 local UnitClass = _G.UnitClass
-local GetTalentTabInfo = _G.GetTalentTabInfo
 local C_SpecializationInfo = _G.C_SpecializationInfo
-local GetSpecializationInfoByID = (_G.C_SpecializationInfo and _G.C_SpecializationInfo.GetSpecializationInfoByID) or _G.GetSpecializationInfoByID
 
-local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
-local math_min = math.min
+local ipairs, pairs, type, tostring = _G.ipairs, _G.pairs, _G.type, _G.tostring
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- Classic Class & Spec Mappings
@@ -125,6 +122,17 @@ for classSpecID, trees in pairs(CLASSIC_TREE_SPECS) do
     end
 end
 
+-- Dedicated 4th pseudo-spec for Druid Guardian Bear (mirrors retail spec 104)
+CLASSIC_SPEC_LOOKUP[14844] = {
+    specID      = 104,
+    camelotID   = 14844,
+    classSpecID = 1484,
+    name        = "guardian",
+    icon        = 132276,
+    role        = "TANK",
+}
+CLASSIC_SPEC_LOOKUP[104] = CLASSIC_SPEC_LOOKUP[14844]
+
 sfui.talents.CLASS_VANILLA_SPEC_MAP = CLASS_VANILLA_SPEC_MAP
 sfui.common.CLASS_VANILLA_SPEC_MAP  = CLASS_VANILLA_SPEC_MAP
 sfui.talents.CLASSIC_TREE_SPECS     = CLASSIC_TREE_SPECS
@@ -152,85 +160,14 @@ local function CamelotTalentKnownResolver(targetSpellID)
 end
 sfui.talents._talentKnownResolver = CamelotTalentKnownResolver
 
--- Key signature talents and iconic spells for Classic talent trees
-local CLASSIC_TREE_SIGNATURE_SPELLS = {
-    [1491] = { -- Warrior
-        [1] = { 12294, 12328, 46924 },               -- Arms: Mortal Strike, Sweeping Strikes, Bladestorm
-        [2] = { 23881, 12292, 46917 },               -- Fury: Bloodthirst, Death Wish, Titan's Grip
-        [3] = { 23922, 12809, 20243, 46968, 12975 }, -- Protection: Shield Slam, Concussion Blow, Devastate, Shockwave, Last Stand
-    },
-    [1486] = { -- Paladin
-        [1] = { 20473, 20216, 53563, 20210, 20257 },                         -- Holy: Holy Shock, Divine Favor, Beacon of Light, Illumination, Divine Intellect
-        [2] = { 20925, 20911, 25899, 31935, 53600, 53595, 20127, 31850, 20468, 20196 }, -- Protection: Holy Shield, Blessing of Sanctuary, Greater Blessing of Sanctuary, Avenger's Shield, Shield of the Righteous, Hammer of the Righteous, Redoubt, Ardent Defender, Imp Righteous Fury, 1H Weapon Spec
-        [3] = { 20066, 20375, 35395, 53385, 20218, 31892, 20049 },          -- Retribution: Repentance, Seal of Command, Crusader Strike, Divine Storm, Sanctity Aura, Seal of Blood, Vengeance
-    },
-    [1485] = { -- Hunter
-        [1] = { 19574, 19577, 34692 },               -- Beast Mastery: Bestial Wrath, Intimidation, The Beast Within
-        [2] = { 19434, 53209, 19506, 34490 },        -- Marksmanship: Aimed Shot, Chimera Shot, Trueshot Aura, Silencing Shot
-        [3] = { 53301, 19386, 3674, 19503 },         -- Survival: Explosive Shot, Wyvern Sting, Black Arrow, Scatter Shot
-    },
-    [1488] = { -- Rogue
-        [1] = { 1329, 14177, 51662 },                -- Assassination: Mutilate, Cold Blood, Hunger For Blood
-        [2] = { 13750, 13877, 51690 },               -- Combat: Adrenaline Rush, Blade Flurry, Killing Spree
-        [3] = { 36554, 14183, 51713, 14278, 16511 }, -- Subtlety: Shadowstep, Premeditation, Shadow Dance, Ghostly Strike, Hemorrhage
-    },
-    [1487] = { -- Priest
-        [1] = { 47540, 10060, 33206, 14751 },        -- Discipline: Penance, Power Infusion, Pain Suppression, Inner Focus
-        [2] = { 34861, 15237, 47788, 20711 },        -- Holy: Circle of Healing, Holy Nova, Guardian Spirit, Spirit of Redemption
-        [3] = { 15473, 34914, 15407, 47585 },        -- Shadow: Shadowform, Vampiric Touch, Mind Flay, Dispersion
-    },
-    [1489] = { -- Shaman
-        [1] = { 16166, 51505, 51490 },               -- Elemental: Elemental Mastery, Lava Burst, Thunderstorm
-        [2] = { 17364, 60103, 30823, 51533 },        -- Enhancement: Stormstrike, Lava Lash, Shamanistic Rage, Feral Spirit
-        [3] = { 16190, 61295, 16188, 974 },          -- Restoration: Mana Tide Totem, Riptide, Nature's Swiftness, Earth Shield
-    },
-    [1482] = { -- Mage
-        [1] = { 12042, 12043, 44425 },               -- Arcane: Arcane Power, Presence of Mind, Arcane Barrage
-        [2] = { 11366, 11129, 44457, 11113 },        -- Fire: Pyroblast, Combustion, Living Bomb, Blast Wave
-        [3] = { 11426, 11958, 44572, 31687 },        -- Frost: Ice Barrier, Cold Snap, Deep Freeze, Summon Water Elemental
-    },
-    [1490] = { -- Warlock
-        [1] = { 30108, 18220, 48181, 18265 },        -- Affliction: Unstable Affliction, Dark Pact, Haunt, Siphon Life
-        [2] = { 59672, 19028, 47193, 30146 },        -- Demonology: Metamorphosis, Soul Link, Demonic Empowerment, Summon Felguard
-        [3] = { 50796, 17962, 17877 },               -- Destruction: Chaos Bolt, Conflagrate, Shadowburn
-    },
-    [1484] = { -- Druid
-        [1] = { 24858, 48505, 5570, 50516 },         -- Balance: Moonkin Form, Starfall, Insect Swarm, Typhoon
-        [2] = { 17007, 33876, 33878, 50334, 61336 }, -- Feral: Leader of the Pack, Mangle, Berserk, Survival Instincts
-        [3] = { 33891, 18562, 48438, 17116 },        -- Restoration: Tree of Life, Swiftmend, Wild Growth, Nature's Swiftness
-    },
-}
-
-local function get_tree_by_signature_spells(vSpecID)
-    local sigTrees = CLASSIC_TREE_SIGNATURE_SPELLS and CLASSIC_TREE_SIGNATURE_SPELLS[vSpecID]
-    if not sigTrees then return nil end
-    local bestTree, maxSpells = nil, 0
-    for treeIdx = 1, 3 do
-        local spells = sigTrees[treeIdx]
-        if spells then
-            local count = 0
-            for _, sID in ipairs(spells) do
-                if CamelotTalentKnownResolver(sID) then
-                    count = count + 1
-                end
-            end
-            if count > maxSpells then
-                maxSpells = count
-                bestTree = treeIdx
-            end
-        end
-    end
-    return bestTree
-end
-
 local _classicTreeScratch = {
-    [1] = { name = nil, icon = nil, points = 0 },
-    [2] = { name = nil, icon = nil, points = 0 },
-    [3] = { name = nil, icon = nil, points = 0 },
+    [1] = { name = nil, icon = nil, points = 0, role = nil, specID = nil },
+    [2] = { name = nil, icon = nil, points = 0, role = nil, specID = nil },
+    [3] = { name = nil, icon = nil, points = 0, role = nil, specID = nil },
 }
 
 --- Predicts specialization, role, and dominant talent tree for Classic / Camelot.
---- Returns Class icon when untalented or level < 10, or dominant tree spec icon when points are spent.
+--- Uses Blizzard's Camelot talent system (C_SpecializationInfo config IDs + C_Traits group currency).
 local function get_classic_talent_spec_info(vSpecID, classFilename)
     if not classFilename or classFilename == "" or type(classFilename) ~= "string" then
         local pClass = sfui.talents.get_player_class()
@@ -265,263 +202,150 @@ local function get_classic_talent_spec_info(vSpecID, classFilename)
         entry.icon = nil
         entry.points = 0
         entry.role = nil
+        entry.specID = nil
     end
 
-    local activeGroup = (C_SpecializationInfo and C_SpecializationInfo.GetActiveSpecGroup and C_SpecializationInfo.GetActiveSpecGroup())
-        or (_G.GetActiveTalentGroup and _G.GetActiveTalentGroup()) or 1
+    local activeGroup = (C_SpecializationInfo and C_SpecializationInfo.GetActiveSpecGroup and C_SpecializationInfo.GetActiveSpecGroup()) or 1
+    local configID = C_SpecializationInfo and C_SpecializationInfo.GetCombatConfigIDForSpecGroup and C_SpecializationInfo.GetCombatConfigIDForSpecGroup(activeGroup)
 
     local curSpecIdx = nil
-    local pClassID = sfui.talents.get_player_class_id()
-    local specSelectionEnabled = C_SpecializationInfo and C_SpecializationInfo.IsSpecSelectionEnabled and pClassID and C_SpecializationInfo.IsSpecSelectionEnabled(pClassID)
-    if specSelectionEnabled then
-        if C_SpecializationInfo and C_SpecializationInfo.GetSpecialization then
-            curSpecIdx = C_SpecializationInfo.GetSpecialization(false, false, activeGroup)
-                or C_SpecializationInfo.GetSpecialization()
-        end
-        if (not curSpecIdx or curSpecIdx == 0) and _G.GetSpecialization then
-            curSpecIdx = _G.GetSpecialization(false, false, activeGroup)
-                or _G.GetSpecialization()
-        end
+    if C_SpecializationInfo and C_SpecializationInfo.GetSpecialization then
+        curSpecIdx = C_SpecializationInfo.GetSpecialization(false, false, activeGroup)
+            or C_SpecializationInfo.GetSpecialization()
         if curSpecIdx and (curSpecIdx < 1 or curSpecIdx > 3) then
             curSpecIdx = nil
         end
     end
 
-    local inspectSpecID
-    if C_SpecializationInfo and C_SpecializationInfo.GetInspectSpecialization then
-        inspectSpecID = C_SpecializationInfo.GetInspectSpecialization("player")
-    end
-    local inspectTreeIdx = nil
-    if inspectSpecID and inspectSpecID > 0 and CLASSIC_TREE_SPECS[vSpecID] then
-        for idx = 1, 3 do
-            if CLASSIC_TREE_SPECS[vSpecID][idx].specID == inspectSpecID then
-                inspectTreeIdx = idx
-                break
+    local totalPoints = 0
+    local maxPoints = 0
+    local dominantTree = curSpecIdx or 1
+
+    -- Query Camelot trait tree & currency info (Blizzard's native implementation on Camelot)
+    local C_Traits = _G.C_Traits
+    if configID and C_Traits and C_Traits.GetConfigInfo and C_Traits.GetGroupDisplayInfoByTreeID then
+        local configInfo = C_Traits.GetConfigInfo(configID)
+        local treeIDs = configInfo and configInfo.treeIDs
+        local treeID = treeIDs and treeIDs[1]
+        if treeID then
+            local displayInfos = C_Traits.GetGroupDisplayInfoByTreeID(treeID)
+            if displayInfos and #displayInfos > 0 then
+                local groupIDs = {}
+                for _, di in ipairs(displayInfos) do
+                    local gid = di.groupID or di.traitNodeGroupID
+                    if gid then
+                        table.insert(groupIDs, gid)
+                    end
+                end
+
+                local groupInfos = C_Traits.GetGroupCurrencyInfo and C_Traits.GetGroupCurrencyInfo(configID, groupIDs)
+                local function findGroupSpent(gid)
+                    if not groupInfos or not gid then return 0 end
+                    for _, gi in ipairs(groupInfos) do
+                        if (gi.traitNodeGroupID and gi.traitNodeGroupID == gid) or (gi.groupID and gi.groupID == gid) then
+                            local cInfo = gi.currencyInfos and gi.currencyInfos[1]
+                            return (cInfo and cInfo.spent) or 0
+                        end
+                    end
+                    return 0
+                end
+
+                for i, di in ipairs(displayInfos) do
+                    local gid = di.groupID or di.traitNodeGroupID
+                    local spent = findGroupSpent(gid)
+                    local treeIdx = i
+                    if di.orderIndex then
+                        if di.orderIndex >= 0 and di.orderIndex <= 2 then
+                            treeIdx = di.orderIndex + 1
+                        elseif di.orderIndex >= 1 and di.orderIndex <= 3 then
+                            treeIdx = di.orderIndex
+                        end
+                    end
+
+                    if treeIdx and _classicTreeScratch[treeIdx] then
+                        local entry = _classicTreeScratch[treeIdx]
+                        entry.name = di.displayName
+                        entry.icon = di.icon
+                        entry.points = spent
+                        totalPoints = totalPoints + spent
+
+                        if spent > maxPoints then
+                            maxPoints = spent
+                            dominantTree = treeIdx
+                        end
+                    end
+                end
             end
         end
     end
 
-    local sigTree = get_tree_by_signature_spells(vSpecID)
-
-    local assignedRole = _G.UnitGroupRolesAssigned and _G.UnitGroupRolesAssigned("player")
-    local roleTreeIdx = nil
-    if assignedRole == "TANK" then
-        if vSpecID == 1486 then roleTreeIdx = 2 -- Paladin Protection
-        elseif vSpecID == 1491 then roleTreeIdx = 3 -- Warrior Protection
-        elseif vSpecID == 1484 then roleTreeIdx = 2 -- Druid Feral
-        end
-    elseif assignedRole == "HEALER" then
-        if vSpecID == 1486 then roleTreeIdx = 1 -- Paladin Holy
-        elseif vSpecID == 1487 then roleTreeIdx = 1 -- Priest Discipline
-        elseif vSpecID == 1489 then roleTreeIdx = 3 -- Shaman Restoration
-        elseif vSpecID == 1484 then roleTreeIdx = 3 -- Druid Restoration
-        end
+    -- Tie-breaking: if multiple trees have the same maxPoints, prefer curSpecIdx if it matches
+    if curSpecIdx and _classicTreeScratch[curSpecIdx] and _classicTreeScratch[curSpecIdx].points == maxPoints and maxPoints > 0 then
+        dominantTree = curSpecIdx
     end
 
-    local activeTree = sigTree or roleTreeIdx or inspectTreeIdx or curSpecIdx or 1
-
-    local selectedTreeMapping = CLASSIC_TREE_SPECS[vSpecID] and CLASSIC_TREE_SPECS[vSpecID][activeTree]
-    local fallbackSpecID = selectedTreeMapping and selectedTreeMapping.specID
-
-    -- Below level 10: Untalented, use class icon and default role
-    if playerLevel < 10 then
+    -- Untalented (level < 10 or 0 talent points spent): return class-level defaults
+    if playerLevel < 10 or totalPoints == 0 then
         return {
             name         = className,
             icon         = classIcon,
             classicRole  = defaultRole,
             role         = (defaultRole == "TANK" and "TANK") or (defaultRole == "HEAL" and "HEALER") or "DAMAGER",
-            equivSpecID  = fallbackSpecID,
-            totalPoints  = 0,
-            dominantTree = activeTree,
-        }
-    end
-
-    local totalPoints = 0
-    local foundData = false
-
-    -- Method 1: Classic Era / Camelot GetTalentTabInfo or C_SpecializationInfo (Instant, native 3-call API)
-    if GetTalentTabInfo or (C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo) then
-        for i = 1, 3 do
-            local tName, tIcon, tPoints, tRole
-            if C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo then
-                local sID, sName, _, sIcon, sRole, _, sPoints = C_SpecializationInfo.GetSpecializationInfo(i, false, false, nil, nil, activeGroup)
-                if not sName and not sPoints then
-                    sID, sName, _, sIcon, sRole, _, sPoints = C_SpecializationInfo.GetSpecializationInfo(i)
-                end
-                if sName or sIcon or (sPoints and sPoints > 0) then
-                    tName = sName
-                    tIcon = sIcon
-                    tPoints = sPoints or 0
-                    tRole = sRole
-                end
-            end
-            if (not tPoints or tPoints == 0) and GetTalentTabInfo then
-                local r1, r2, r3, r4, r5 = GetTalentTabInfo(i, false, false, activeGroup)
-                if not r1 and not r3 then
-                    r1, r2, r3, r4, r5 = GetTalentTabInfo(i)
-                end
-                if type(r1) == "string" then
-                    tName = tName or r1
-                    tIcon = tIcon or r2
-                    tPoints = (tPoints and tPoints > 0) and tPoints or (tonumber(r3) or 0)
-                elseif type(r1) == "number" then
-                    tName = tName or r2
-                    tIcon = tIcon or r4
-                    tPoints = (tPoints and tPoints > 0) and tPoints or (tonumber(r5) or 0)
-                end
-            end
-            if tName or tIcon or (tPoints and tPoints > 0) then
-                local pts = tPoints or 0
-                _classicTreeScratch[i].name = tName or _classicTreeScratch[i].name
-                _classicTreeScratch[i].icon = tIcon or _classicTreeScratch[i].icon
-                _classicTreeScratch[i].points = pts
-                _classicTreeScratch[i].role = tRole or _classicTreeScratch[i].role
-                totalPoints = totalPoints + pts
-                foundData = true
-            end
-        end
-    end
-
-    -- Method 2: Camelot C_Traits group display & currency info (Fallback when native tab API is not populated)
-    if not foundData then
-        local C_Traits = _G.C_Traits
-        local C_ClassTalents = _G.C_ClassTalents
-        if C_Traits and C_Traits.GetGroupDisplayInfoByTreeID then
-            local configID = (C_ClassTalents and C_ClassTalents.GetActiveConfigID and C_ClassTalents.GetActiveConfigID())
-                or (C_SpecializationInfo and C_SpecializationInfo.GetCombatConfigIDForSpecGroup and C_SpecializationInfo.GetCombatConfigIDForSpecGroup(activeGroup))
-                or (C_SpecializationInfo and C_SpecializationInfo.GetCombatConfigIDForSpecGroup and C_SpecializationInfo.GetCombatConfigIDForSpecGroup(1))
-                or (C_Traits.GetConfigIDBySystemID and C_Traits.GetConfigIDBySystemID(activeGroup))
-                or (C_Traits.GetConfigIDBySystemID and C_Traits.GetConfigIDBySystemID(1))
-                or (C_Traits.GetConfigsByType and C_Traits.GetConfigsByType(1) and (C_Traits.GetConfigsByType(1)[activeGroup] or C_Traits.GetConfigsByType(1)[1]))
-            if configID then
-                local configInfo = C_Traits.GetConfigInfo(configID)
-                local treeIDs = configInfo and configInfo.treeIDs
-                if treeIDs and #treeIDs > 0 then
-                    local traitTotal = 0
-                    for _, treeID in ipairs(treeIDs) do
-                        local displayInfos = C_Traits.GetGroupDisplayInfoByTreeID(treeID)
-                        if displayInfos and #displayInfos > 0 then
-                            local groupIDs = {}
-                            for _, di in ipairs(displayInfos) do
-                                local gid = di.groupID or di.traitNodeGroupID
-                                if gid then
-                                    table.insert(groupIDs, gid)
-                                end
-                            end
-
-                            local groupInfos = C_Traits.GetGroupCurrencyInfo and C_Traits.GetGroupCurrencyInfo(configID, groupIDs)
-                            local function findGroupInfo(gid)
-                                if not groupInfos or not gid then return nil end
-                                for _, gi in ipairs(groupInfos) do
-                                    if (gi.traitNodeGroupID and gi.traitNodeGroupID == gid) or (gi.groupID and gi.groupID == gid) then
-                                        return gi
-                                    end
-                                end
-                                return nil
-                            end
-
-                            for i, di in ipairs(displayInfos) do
-                                local gid = di.groupID or di.traitNodeGroupID
-                                local gi = findGroupInfo(gid)
-                                local spent = 0
-                                if gi then
-                                    local cInfo = gi.currencyInfos and gi.currencyInfos[1]
-                                    spent = (cInfo and cInfo.spent) or gi.spent or 0
-                                end
-                                if spent == 0 then
-                                    spent = (di.spent and di.spent > 0 and di.spent)
-                                        or (di.spentInTree and di.spentInTree > 0 and di.spentInTree)
-                                        or (di.currencyInfos and di.currencyInfos[1] and di.currencyInfos[1].spent)
-                                        or 0
-                                end
-
-                                -- Match display group to tree index (1..3)
-                                local dName = di.displayName and di.displayName:lower() or ""
-                                local matchedIdx = nil
-                                if dName ~= "" and CLASSIC_TREE_SPECS[vSpecID] then
-                                    for idx = 1, 3 do
-                                        local t = CLASSIC_TREE_SPECS[vSpecID][idx]
-                                        if t and t.name and (dName == t.name:lower() or dName:find(t.name:lower(), 1, true)) then
-                                            matchedIdx = idx
-                                            break
-                                        end
-                                    end
-                                end
-                                if not matchedIdx and i >= 1 and i <= 3 then
-                                    matchedIdx = i
-                                end
-                                if not matchedIdx and di.orderIndex ~= nil then
-                                    matchedIdx = di.orderIndex + 1
-                                end
-
-                                if matchedIdx and _classicTreeScratch[matchedIdx] then
-                                    _classicTreeScratch[matchedIdx].name = di.displayName or _classicTreeScratch[matchedIdx].name
-                                    _classicTreeScratch[matchedIdx].icon = di.icon or _classicTreeScratch[matchedIdx].icon
-                                    _classicTreeScratch[matchedIdx].points = (_classicTreeScratch[matchedIdx].points or 0) + spent
-                                    traitTotal = traitTotal + spent
-                                    foundData = true
-                                end
-                            end
-                        end
-                    end
-
-                    if traitTotal > 0 then
-                        totalPoints = traitTotal
-                    end
-                end
-            end
-        end
-    end
-
-    local dominantIdx = sigTree or roleTreeIdx or inspectTreeIdx or curSpecIdx or activeTree
-    local maxPoints = 0
-    if foundData and totalPoints > 0 then
-        for i = 1, 3 do
-            local data = _classicTreeScratch[i]
-            if data.points > maxPoints then
-                maxPoints = data.points
-                dominantIdx = i
-            end
-        end
-    end
-
-    if not foundData or totalPoints == 0 or maxPoints == 0 then
-        local chosenTree = sigTree or roleTreeIdx or inspectTreeIdx or curSpecIdx or activeTree
-        local untalentedMapping = CLASSIC_TREE_SPECS[vSpecID] and CLASSIC_TREE_SPECS[vSpecID][chosenTree]
-        local untalentedEquiv = untalentedMapping and untalentedMapping.specID or fallbackSpecID
-        local untalentedRole = untalentedMapping and untalentedMapping.role or defaultRole
-        return {
-            name         = (untalentedMapping and untalentedMapping.name and untalentedMapping.name:gsub("^%l", string.upper)) or className,
-            icon         = (untalentedMapping and untalentedMapping.icon) or classIcon,
-            classicRole  = untalentedRole,
-            role         = (untalentedRole == "TANK" and "TANK") or (untalentedRole == "HEAL" and "HEALER") or "DAMAGER",
-            equivSpecID  = untalentedEquiv,
+            equivSpecID  = nil,
             totalPoints  = totalPoints,
-            dominantTree = chosenTree,
+            dominantTree = curSpecIdx or dominantTree or 1,
         }
     end
 
-    local domData = _classicTreeScratch[dominantIdx]
+    local domData = _classicTreeScratch[dominantTree]
     local treeName = domData and domData.name
     local treeIcon = domData and domData.icon
-    local mapping = CLASSIC_TREE_SPECS[vSpecID] and CLASSIC_TREE_SPECS[vSpecID][dominantIdx]
-    local predictedRole = (mapping and mapping.role) or (domData and domData.role) or defaultRole
-    local equivSpecID = (mapping and mapping.specID) or fallbackSpecID
 
-    if equivSpecID and (not treeName or not treeIcon) and GetSpecializationInfoByID then
-        local _, sName, _, sIcon = GetSpecializationInfoByID(equivSpecID)
-        treeName = treeName or sName
-        treeIcon = treeIcon or sIcon
+    local treeDef = CLASSIC_TREE_SPECS[vSpecID] and CLASSIC_TREE_SPECS[vSpecID][dominantTree]
+    local treeRole = (treeDef and treeDef.role) or defaultRole
+
+    -- Druid Feral (tree 2): differentiate between bear (TANK) and cat (DPS)
+    if vSpecID == 1484 and dominantTree == 2 then
+        local isBear = sfui.talents.is_bear_form_spec and sfui.talents.is_bear_form_spec()
+        if isBear then
+            treeRole = "TANK"
+        else
+            treeRole = "DPS"
+        end
+    end
+
+    local assignedRole = _G.UnitGroupRolesAssigned and _G.UnitGroupRolesAssigned("player")
+    local predictedRole = treeRole
+    if assignedRole and assignedRole ~= "NONE" then
+        if assignedRole == "TANK" then
+            predictedRole = "TANK"
+        elseif assignedRole == "HEALER" then
+            predictedRole = "HEAL"
+        end
+    end
+
+    local finalRole = (predictedRole == "TANK" and "TANK") or (predictedRole == "HEAL" and "HEALER") or "DAMAGER"
+    local classicRole = predictedRole
+    local resolvedEquivID = treeDef and treeDef.specID
+    if vSpecID == 1484 and dominantTree == 2 then
+        if finalRole == "TANK" then
+            classicRole = "bear"
+            treeName = "guardian"
+            treeIcon = 132276
+            resolvedEquivID = 104
+        else
+            classicRole = "cat"
+        end
     end
 
     return {
         name         = treeName or className,
         icon         = treeIcon or classIcon,
-        classicRole  = predictedRole,
-        role         = (predictedRole == "TANK" and "TANK") or (predictedRole == "HEAL" and "HEALER") or "DAMAGER",
-        equivSpecID  = equivSpecID,
+        classicRole  = classicRole,
+        role         = finalRole,
+        equivSpecID  = resolvedEquivID,
         totalPoints  = totalPoints,
-        dominantTree = dominantIdx,
+        dominantTree = dominantTree,
     }
 end
 
@@ -544,7 +368,11 @@ local function CamelotSpecResolver()
     local role = (specInfo and specInfo.role) or "DAMAGER"
 
     -- Camelot canonical ID: classID * 10 + treeIndex (e.g. 14901 = Warlock Affliction)
+    -- For Druid Feral (tree 2): if resolved to Bear Tank, use dedicated 14844 ID
     local camelotID = vSpecID * 10 + dominantTree
+    if vSpecID == 1484 and dominantTree == 2 and role == "TANK" then
+        camelotID = 14844
+    end
     return camelotID, dominantTree, role
 end
 sfui.talents._specResolver = CamelotSpecResolver
@@ -556,57 +384,93 @@ sfui.talents._specResolver = CamelotSpecResolver
 local function CamelotSpecsCacheBuilder()
     local classFilename, _ = sfui.talents.get_player_class()
     local vSpecID = classFilename and CLASS_VANILLA_SPEC_MAP[classFilename]
-    local treeSpecs = vSpecID and CLASSIC_TREE_SPECS[vSpecID]
+    if not vSpecID then return {}, {} end
 
     local specs = {}
     local specIDs = {}
 
-    if treeSpecs then
-        for treeIdx = 1, 3 do
-            local entry = treeSpecs[treeIdx]
-            if entry then
-                -- Canonical Camelot ID: never collides with retail spec IDs or class IDs
-                local sID = vSpecID * 10 + treeIdx
-                local name = entry.name
-                local icon = entry.icon
-                local retailSpecID = entry.specID -- kept for name/icon fallback only
+    local C_Traits = _G.C_Traits
+    local activeGroup = (C_SpecializationInfo and C_SpecializationInfo.GetActiveSpecGroup and C_SpecializationInfo.GetActiveSpecGroup()) or 1
+    local configID = C_SpecializationInfo and C_SpecializationInfo.GetCombatConfigIDForSpecGroup and C_SpecializationInfo.GetCombatConfigIDForSpecGroup(activeGroup)
 
-                if GetTalentTabInfo then
-                    local activeGroup = (_G.GetActiveTalentGroup and _G.GetActiveTalentGroup()) or 1
-                    local r1, r2, r3, r4 = GetTalentTabInfo(treeIdx, false, false, activeGroup)
-                    if not r1 and not r2 then
-                        r1, r2, r3, r4 = GetTalentTabInfo(treeIdx)
+    if configID and C_Traits and C_Traits.GetConfigInfo and C_Traits.GetGroupDisplayInfoByTreeID then
+        local configInfo = C_Traits.GetConfigInfo(configID)
+        local treeID = configInfo and configInfo.treeIDs and configInfo.treeIDs[1]
+        if treeID then
+            local displayInfos = C_Traits.GetGroupDisplayInfoByTreeID(treeID)
+            if displayInfos then
+                for i, di in ipairs(displayInfos) do
+                    local treeIdx = i
+                    if di.orderIndex then
+                        if di.orderIndex >= 0 and di.orderIndex <= 2 then
+                            treeIdx = di.orderIndex + 1
+                        elseif di.orderIndex >= 1 and di.orderIndex <= 3 then
+                            treeIdx = di.orderIndex
+                        end
                     end
-                    local tabName = (type(r1) == "string" and r1) or (type(r2) == "string" and r2)
-                    local tabIcon = (type(r2) == "number" and r2) or (type(r4) == "number" and r4)
-                    if tabName and tabName ~= "" then name = tabName end
-                    if tabIcon and tabIcon > 0 then icon = tabIcon end
+                    local sID = vSpecID * 10 + treeIdx
+                    local name = di.displayName and string.lower(di.displayName) or ("tree " .. treeIdx)
+                    local icon = di.icon or 134400
+                    local treeDef = CLASSIC_TREE_SPECS[vSpecID] and CLASSIC_TREE_SPECS[vSpecID][treeIdx]
+                    local tRole = (treeDef and treeDef.role) or "DPS"
+                    if vSpecID == 1484 and treeIdx == 2 then
+                        local isBear = sfui.talents.is_bear_form_spec and sfui.talents.is_bear_form_spec()
+                        if isBear then
+                            tRole = "TANK"
+                        end
+                    end
+                    local stdRole = (tRole == "TANK" and "TANK") or (tRole == "HEAL" and "HEALER") or "DAMAGER"
+
+                    specs[sID] = {
+                        id           = sID,
+                        name         = name,
+                        description  = "",
+                        icon         = icon,
+                        role         = stdRole,
+                        classicRole  = tRole,
+                        index        = treeIdx,
+                        classID      = vSpecID,
+                        treeIndex    = treeIdx,
+                        retailSpecID = treeDef and treeDef.specID,
+                    }
+                    specIDs[#specIDs + 1] = sID
+
+                    -- Add dedicated 14844 spec profile for Guardian Bear
+                    if vSpecID == 1484 and treeIdx == 2 then
+                        specs[14844] = {
+                            id           = 14844,
+                            name         = "guardian",
+                            description  = "",
+                            icon         = 132276,
+                            role         = "TANK",
+                            classicRole  = "bear",
+                            index        = 2,
+                            classID      = 1484,
+                            treeIndex    = 2,
+                            retailSpecID = 104,
+                        }
+                        specIDs[#specIDs + 1] = 14844
+                    end
                 end
-
-                -- Fallback: pull name/icon from the retail spec ID via game API
-                if retailSpecID and (not name or not icon) and GetSpecializationInfoByID then
-                    local _, sName, _, sIcon = GetSpecializationInfoByID(retailSpecID)
-                    name = name or sName
-                    icon = icon or sIcon
-                end
-
-                name = name and string.lower(name) or ("tree " .. treeIdx)
-
-                specs[sID] = {
-                    id           = sID,
-                    name         = name,
-                    description  = "",
-                    icon         = icon or 134400,
-                    role         = (entry.role == "TANK" and "TANK") or (entry.role == "HEAL" and "HEALER") or "DAMAGER",
-                    classicRole  = entry.role,
-                    index        = treeIdx,
-                    classID      = vSpecID,
-                    treeIndex    = treeIdx,
-                    retailSpecID = retailSpecID, -- for icon/API lookups only
-                }
-                specIDs[#specIDs + 1] = sID
             end
         end
+    end
+
+    -- Add dedicated 1484 spec profile for Druid Humanoid / Mana
+    if vSpecID == 1484 and not specs[1484] then
+        specs[1484] = {
+            id           = 1484,
+            name         = "mana (humanoid)",
+            description  = "",
+            icon         = 136096,
+            role         = "HEALER",
+            classicRole  = "mana",
+            index        = 0,
+            classID      = 1484,
+            treeIndex    = 0,
+            retailSpecID = 1484,
+        }
+        specIDs[#specIDs + 1] = 1484
     end
 
     return specs, specIDs
@@ -615,4 +479,5 @@ sfui.talents._specsCacheBuilder = CamelotSpecsCacheBuilder
 
 -- 3. Spec Color Options Builder (Returns specs and IDs for settings tab)
 sfui.talents._specColorOptionsBuilder = CamelotSpecsCacheBuilder
+
 

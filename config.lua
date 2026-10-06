@@ -82,13 +82,14 @@ sfui.config = {
         [1480] = { 0.788, 0.259, 0.992, 1 }, -- Devourer
         -- Druid
         [102] = { 0.40, 0.75, 1.00, 1 },     -- Balance (Moonfire)
-        [103] = { 1.00, 0.49, 0.04, 1 },     -- Feral
-        [104] = { 1.00, 0.49, 0.04, 1 },     -- Guardian
-        [105] = { 0.2, 0.8, 0.2, 1 },        -- Restoration
-        [1484] = { 1.00, 0.49, 0.04, 1 },    -- Classic / Vanilla Base Druid
+        [103] = { 1.00, 0.80, 0.15, 1 },     -- Feral (Cat Amber)
+        [104] = { 0.85, 0.25, 0.25, 1 },     -- Guardian (Bear Crimson)
+        [105] = { 0.20, 0.80, 0.20, 1 },     -- Restoration (Emerald Green)
+        [1484] = { 1.00, 1.00, 1.00, 1 },    -- Classic / Vanilla Base Druid (Mana / Humanoid)
         [14841] = { 0.40, 0.75, 1.00, 1 },   -- Camelot Balance (Moonfire)
-        [14842] = { 1.00, 0.49, 0.04, 1 },   -- Camelot Feral
-        [14843] = { 0.2, 0.8, 0.2, 1 },      -- Camelot Restoration
+        [14842] = { 1.00, 0.80, 0.15, 1 },   -- Camelot Feral (Cat Amber)
+        [14843] = { 0.20, 0.80, 0.20, 1 },   -- Camelot Restoration (Emerald Green)
+        [14844] = { 0.85, 0.25, 0.25, 1 },   -- Camelot Guardian (Bear Crimson)
         -- Evoker
         [1467] = { 0.20, 0.58, 0.50, 1 },    -- Devastation
         [1468] = { 0.20, 0.58, 0.50, 1 },    -- Preservation

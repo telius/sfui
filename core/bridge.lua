@@ -240,7 +240,7 @@ function sfui.gear.GetClassicRole(specID, db)
 
     local r = rawRole and rawRole:lower()
 
-    if classID == 1484 or (numID >= 14841 and numID <= 14843) then -- Druid: cat bear moon resto
+    if classID == 1484 or (numID >= 14841 and numID <= 14844) then -- Druid: cat bear moon resto
         if r == "cat" or r == "bear" or r == "moon" or r == "resto" then
             return r
         elseif r == "tank" then
@@ -250,11 +250,28 @@ function sfui.gear.GetClassicRole(specID, db)
         elseif r == "dps" or r == "damager" then
             if numID == 14841 or specID == 102 then
                 return "moon"
+            elseif numID == 14843 or specID == 105 then
+                return "resto"
+            elseif numID == 14844 or specID == 104 then
+                return "bear"
             else
+                if sfui.talents and sfui.talents.is_bear_form_spec and sfui.talents.is_bear_form_spec() then
+                    return "bear"
+                end
                 return "cat"
             end
         end
-        return (numID == 14843 and "resto") or (numID == 14841 and "moon") or "cat"
+        if numID == 14844 or specID == 104 then
+            return "bear"
+        elseif numID == 14843 or specID == 105 then
+            return "resto"
+        elseif numID == 14841 or specID == 102 then
+            return "moon"
+        end
+        if sfui.talents and sfui.talents.is_bear_form_spec and sfui.talents.is_bear_form_spec() then
+            return "bear"
+        end
+        return "cat"
     elseif classID == 1486 or (numID >= 14861 and numID <= 14863) then -- Paladin: prot ret holy
         if r == "prot" or r == "ret" or r == "holy" then
             return r
