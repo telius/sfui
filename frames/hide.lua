@@ -477,6 +477,9 @@ sfui.hide.GetDebugInfo = function(self)
         isFading         = isFading,
     }
 end
+function sfui.hide_debug_info()
+    return sfui.hide:GetDebugInfo()
+end
 
 if sfui.RegisterModule then
     sfui.RegisterModule("hide", sfui.hide)

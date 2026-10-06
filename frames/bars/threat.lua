@@ -310,3 +310,18 @@ local function Initialize()
 end
 
 sfui.events.RegisterEvent("PLAYER_LOGIN", Initialize)
+
+-- ─── Diagnostics & Memory Watcher Telemetry ──────────────────────────────────
+local _threatDebug = {}
+function sfui.threat_debug_info()
+    _threatDebug.created = (threatBar ~= nil)
+    _threatDebug.shown = (threatBar ~= nil and threatBar:IsShown() == true)
+    _threatDebug.status = (threatBar and threatBar.status) or 0
+    _threatDebug.pct = (threatBar and threatBar.pct) or 0
+    return _threatDebug
+end
+sfui.threat.GetDebugInfo = sfui.threat_debug_info
+
+if sfui.RegisterModule then
+    sfui.RegisterModule("threat", sfui.threat)
+end

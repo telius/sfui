@@ -613,3 +613,32 @@ end
 if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("PLAYER_LOGIN", InitBuffReminders)
 end
+
+-- ─────────────────────────────────────────────────────────────
+--  DIAGNOSTICS & MEMORY TELEMETRY
+-- ─────────────────────────────────────────────────────────────
+local _buffsDebug = {}
+function sfui.buffs_debug_info()
+    local sInfo = sfui.buffs.scan and sfui.buffs.scan.GetDebugInfo and sfui.buffs.scan.GetDebugInfo()
+    _buffsDebug.enabled = (SfuiDB and SfuiDB.buffReminders and SfuiDB.buffReminders.enabled ~= false) or false
+    _buffsDebug.containerCreated = (container ~= nil)
+    _buffsDebug.containerShown = (container ~= nil and container:IsShown() == true)
+    _buffsDebug.iconPool = #iconPool
+    _buffsDebug.activeIcons = (container and container.activeIconCount) or 0
+    _buffsDebug.activeResults = (sInfo and sInfo.activeResults) or 0
+    _buffsDebug.auraPool = (sInfo and sInfo.auraPoolCount) or 0
+    _buffsDebug.isUnlocked = isUnlocked
+    _buffsDebug.isTestMode = isTestMode
+    return _buffsDebug
+end
+sfui.buffs.GetDebugInfo = sfui.buffs_debug_info
+
+if sfui.RegisterModule then
+    sfui.buffs.OnEnable = function(self)
+        if sfui.buffs.UpdateDisplay then sfui.buffs.UpdateDisplay() end
+    end
+    sfui.buffs.OnSettingsChanged = function(self, k, v)
+        if sfui.buffs.UpdateDisplay then sfui.buffs.UpdateDisplay() end
+    end
+    sfui.RegisterModule("buffs", sfui.buffs)
+end

@@ -1660,5 +1660,18 @@ local function Initialize()
     end
 end
 
--- Defer initialization until PLAYER_LOGIN
 sfui.events.RegisterEvent("PLAYER_LOGIN", Initialize)
+
+-- ─── Diagnostics & Memory Watcher Telemetry ──────────────────────────────────
+local _targetDebug = {}
+function sfui.target_debug_info()
+    _targetDebug.created = (targetContainer ~= nil)
+    _targetDebug.shown = (targetContainer ~= nil and targetContainer:IsShown() == true)
+    _targetDebug.hasTarget = UnitExists("target") == true
+    return _targetDebug
+end
+sfui.target.GetDebugInfo = sfui.target_debug_info
+
+if sfui.RegisterModule then
+    sfui.RegisterModule("target", sfui.target)
+end

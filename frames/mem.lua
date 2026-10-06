@@ -41,6 +41,18 @@ local function FormatKB(kb)
     end
 end
 
+-- Helper: Memory color coding (< 15mb green, 15-25mb yellow, 25mb+ red)
+local function GetMemColor(kb)
+    if not kb or kb < 15360 then
+        return "|cff00ff88"
+    elseif kb <= 25600 then
+        return "|cffffaa00"
+    else
+        return "|cffff4444"
+    end
+end
+sfui.mem.GetMemColor = GetMemColor
+
 -- ---------------------------------------------------------------------------
 -- ---------------------------------------------------------------------------
 -- 1. COMPREHENSIVE MODULE POOL & CACHE INSPECTOR (All Lowercase)
@@ -546,6 +558,129 @@ function sfui.mem.GetModuleStats()
         stats["bonusroll"] = brStats
     end
 
+    -- Loot Feed Module (Zero-GC Toast & Currency Queue)
+    local lfStats = {
+        name = "loot & currency feed",
+        status = "|cff888888idle|r",
+        line1 = "rows: 0 act / 0 pool",
+        line2 = "queue: 0 tasks • node pool: 0",
+    }
+    local lf = GetDebug("lootfeed_debug_info", "lootfeed")
+    if lf then
+        lfStats.status = (tonumber(lf.activeRows) or 0) > 0 and "|cff00ff88active|r" or (lf.enabled and "|cff888888idle|r" or "|cff888888disabled|r")
+        lfStats.line1 = string_format("rows: %d act / %d pool • %s", tonumber(lf.activeRows) or 0, tonumber(lf.rowPool) or 0, lf.containerShown and "shown" or "hidden")
+        lfStats.line2 = string_format("queue: %d tasks • node pool: %d", tonumber(lf.queueSize) or 0, tonumber(lf.nodePool) or 0)
+    end
+    stats["lootfeed"] = lfStats
+
+    -- Frame Hider & Mouseover Engine
+    local hideMod = {
+        name = "frame hider & mouseover",
+        status = "|cff00ff88active|r",
+        line1 = "hidden frames: 0",
+        line2 = "actionbar mouseover: off",
+    }
+    local hd = GetDebug("hide_debug_info", "hide")
+    if hd then
+        hideMod.status = hd.isLoopActive and "|cff00ff88watching|r" or "|cff888888idle|r"
+        hideMod.line1 = string_format("hidden frames: %d • loop: %.2fs", tonumber(hd.hiddenUnitFrames) or 0, tonumber(hd.currentInterval) or 0)
+        hideMod.line2 = string_format("bar mouseover: %s • fading: %s", hd.mouseoverEnabled and "|cff00ff88on|r" or "off", hd.isFading and "yes" or "no")
+    end
+    stats["hide"] = hideMod
+
+    if not sfui.isRetail then
+        -- Buff Reminders Module (Camelot / Classic)
+        local buffsMod = {
+            name = "buff reminders",
+            status = "|cff888888idle|r",
+            line1 = "icons: 0 act / 0 pool",
+            line2 = "results: 0 • aura pool: 0",
+        }
+        local bf = GetDebug("buffs_debug_info", "buffs")
+        if bf then
+            buffsMod.status = bf.isTestMode and "|cffff9900test preview|r" or (bf.containerShown and "|cff00ff88active|r" or (bf.enabled and "|cff888888idle|r" or "|cff888888disabled|r"))
+            buffsMod.line1 = string_format("icons: %d act / %d pool • %s", tonumber(bf.activeIcons) or 0, tonumber(bf.iconPool) or 0, bf.containerShown and "shown" or "hidden")
+            buffsMod.line2 = string_format("results: %d • aura pool: %d • move: %s", tonumber(bf.activeResults) or 0, tonumber(bf.auraPool) or 0, bf.isUnlocked and "unlocked" or "locked")
+        end
+        stats["buffs"] = buffsMod
+
+        -- Dungeon Journal Module (Camelot / Classic)
+        local djStats = {
+            name = "camelot dungeon journal",
+            status = "|cff888888closed|r",
+            line1 = "journal: none",
+            line2 = "selected: none",
+        }
+        local dj = GetDebug("dungeonjournal_debug_info", "dungeonjournal")
+        if dj then
+            djStats.status = dj.isShown and "|cff00ff88open|r" or (dj.isCreated and "|cff888888ready|r" or "|cff888888idle|r")
+            djStats.line1 = string_format("frame: %s • mode: %s", dj.isCreated and "ready" or "none", tostring(dj.selectedMode or "dungeons"))
+            djStats.line2 = string_format("dungeon: %s • tab: %s", tostring(dj.selectedDungeon or "none"), tostring(dj.selectedTab or "loot"))
+        end
+        stats["dungeonjournal"] = djStats
+
+        -- Spell Rank-Up Automation (Camelot / Classic)
+        local rankMod = {
+            name = "spell rankup",
+            status = "|cff888888idle|r",
+            line1 = "auto-upgrade: off",
+            line2 = "scanner: idle",
+        }
+        local rk = GetDebug("rankup_debug_info", "rankup")
+        if rk then
+            rankMod.status = rk.enabled and "|cff00ff88active|r" or "|cff888888disabled|r"
+            rankMod.line1 = string_format("auto-upgrade: %s", rk.enabled and "|cff00ff88on|r" or "off")
+            rankMod.line2 = string_format("scanner: %s", rk.isScanning and "|cff00ff88running|r" or "idle")
+        end
+        stats["rankup"] = rankMod
+
+        -- Swing Timer Module (Camelot / Classic)
+        local swingMod = {
+            name = "swing timer",
+            status = "|cff888888idle|r",
+            line1 = "bars: 0 active",
+            line2 = "weapons: none",
+        }
+        local sw = GetDebug("swing_debug_info", "swing")
+        if sw then
+            swingMod.status = sw.isAttacking and "|cff00ff88swinging|r" or "|cff888888idle|r"
+            swingMod.line1 = string_format("bars: %d active / %d shown", tonumber(sw.barCount) or 0, tonumber(sw.shownCount) or 0)
+            local wepStr = "mh" .. (sw.hasOffHand and "+oh" or "") .. (sw.hasRanged and "+ranged" or "")
+            swingMod.line2 = string_format("equipped: %s • state: %s", wepStr, sw.isAttacking and "attacking" or "idle")
+        end
+        stats["swing"] = swingMod
+
+        -- Threat Bar Module (Camelot / Classic)
+        local threatMod = {
+            name = "threat bar",
+            status = "|cff888888idle|r",
+            line1 = "bar: none",
+            line2 = "threat status: 0",
+        }
+        local th = GetDebug("threat_debug_info", "threat")
+        if th then
+            threatMod.status = th.shown and "|cff00ff88active|r" or (th.created and "|cff888888hidden|r" or "|cff888888none|r")
+            threatMod.line1 = string_format("bar: %s", th.created and (th.shown and "shown" or "ready") or "none")
+            threatMod.line2 = string_format("threat pct: %.0f%% • status: %d", tonumber(th.pct) or 0, tonumber(th.status) or 0)
+        end
+        stats["threat"] = threatMod
+
+        -- Target Bar Module (Camelot / Classic)
+        local targetMod = {
+            name = "target health & power",
+            status = "|cff888888no target|r",
+            line1 = "frame: none",
+            line2 = "target: none",
+        }
+        local tg = GetDebug("target_debug_info", "target")
+        if tg then
+            targetMod.status = tg.hasTarget and "|cff00ff88target active|r" or "|cff888888no target|r"
+            targetMod.line1 = string_format("frame: %s • shown: %s", tg.created and "ready" or "none", tg.shown and "yes" or "no")
+            targetMod.line2 = string_format("target exists: %s", tg.hasTarget and "yes" or "no")
+        end
+        stats["target"] = targetMod
+    end
+
     return stats
 end
 
@@ -563,23 +698,80 @@ local watcherLastReport = nil
 
 local lastMemoryScanTime = 0
 local cachedAddonMem = 0
+local cachedAddonIndex = nil
+
+local function GetAddonUsageKB()
+    local getMem = _G.GetAddOnMemoryUsage or GetAddOnMemoryUsage
+    if not getMem then return 0 end
+
+    if cachedAddonIndex then
+        local mem = getMem(cachedAddonIndex)
+        if mem and mem > 0 then
+            return mem
+        end
+    end
+
+    -- 1. Try folder / addon name from file chunk vararg
+    local mem = (addonName and getMem(addonName)) or 0
+    if mem and mem > 0 then return mem end
+
+    -- 2. Try explicit "sfui"
+    mem = getMem("sfui") or 0
+    if mem and mem > 0 then return mem end
+
+    -- 3. Try uppercase "SFUI"
+    mem = getMem("SFUI") or 0
+    if mem and mem > 0 then return mem end
+
+    -- 4. Search by index across installed addons
+    local cAddOns = _G.C_AddOns
+    local num = (cAddOns and cAddOns.GetNumAddOns and cAddOns.GetNumAddOns())
+        or (_G.GetNumAddOns and _G.GetNumAddOns())
+        or 0
+    for i = 1, num do
+        local name = (cAddOns and cAddOns.GetAddOnInfo and cAddOns.GetAddOnInfo(i))
+            or (_G.GetAddOnInfo and _G.GetAddOnInfo(i))
+        if name and (name:lower() == "sfui" or (addonName and name:lower() == addonName:lower())) then
+            cachedAddonIndex = i
+            mem = getMem(i) or 0
+            if mem and mem > 0 then return mem end
+        end
+    end
+
+    return mem or 0
+end
 
 local function RefreshAddonMemory(force)
     local now = GetTime()
-    -- Only trigger Blizzard's synchronous heap traversal if explicitly requested by manual refresh
-    -- AND throttled to at least 10s between scans.
-    if force and (now - lastMemoryScanTime >= 10 or cachedAddonMem == 0) then
-        if UpdateAddOnMemoryUsage then
-            UpdateAddOnMemoryUsage()
+    local shouldUpdate = false
+
+    if cachedAddonMem <= 0 or lastMemoryScanTime == 0 then
+        -- Initial scan: always run heap traversal so memory is never 0.0 kb
+        shouldUpdate = true
+    elseif force and (now - lastMemoryScanTime >= 1) then
+        -- Explicit user refresh or action (throttled to 1s to prevent UI stutter)
+        shouldUpdate = true
+    elseif (now - lastMemoryScanTime >= 15) then
+        -- Automatic periodic refresh (15s cadence, matching Blizzard's AddonList)
+        shouldUpdate = true
+    end
+
+    if shouldUpdate then
+        local updateMem = _G.UpdateAddOnMemoryUsage or UpdateAddOnMemoryUsage
+        if updateMem then
+            updateMem()
         end
         lastMemoryScanTime = now
     end
-    if GetAddOnMemoryUsage then
-        cachedAddonMem = GetAddOnMemoryUsage("sfui") or cachedAddonMem or 0
+
+    local mem = GetAddonUsageKB()
+    if mem and mem > 0 then
+        cachedAddonMem = mem
     end
     return cachedAddonMem
 end
 sfui.mem.RefreshAddonMemory = RefreshAddonMemory
+sfui.mem.GetAddonUsageKB = GetAddonUsageKB
 
 local function RecordAllocation(sourceName, kbDelta)
     if not watcherActive then return end
@@ -609,7 +801,7 @@ local function StopWatcher()
     end
 
     local duration = GetTime() - watcherStartTime
-    local endAddonMem = GetAddOnMemoryUsage and (GetAddOnMemoryUsage("sfui") or watcherStartAddonMem) or watcherStartAddonMem
+    local endAddonMem = RefreshAddonMemory(true)
     local endLuaMem = collectgarbage("count")
 
     local addonDelta = endAddonMem - watcherStartAddonMem
@@ -691,7 +883,7 @@ function sfui.mem.StartWatcher(duration)
     watcherDuration = duration
 
     wipe(watcherData)
-    local startMem = GetAddOnMemoryUsage and (GetAddOnMemoryUsage("sfui") or cachedAddonMem or 0) or 0
+    local startMem = RefreshAddonMemory(true)
     watcherStartAddonMem = startMem
     watcherStartLuaMem = collectgarbage("count")
     watcherStartTime = GetTime()
@@ -715,13 +907,13 @@ end
 -- 3. FORCED GARBAGE COLLECTION
 -- ---------------------------------------------------------------------------
 function sfui.mem.RunGC()
-    local beforeAddon = GetAddOnMemoryUsage and (GetAddOnMemoryUsage("sfui") or cachedAddonMem or 0) or 0
+    local beforeAddon = RefreshAddonMemory(true)
     local beforeLua = collectgarbage("count")
 
     collectgarbage("collect")
 
     local afterLua = collectgarbage("count")
-    local afterAddon = GetAddOnMemoryUsage and (GetAddOnMemoryUsage("sfui") or beforeAddon) or beforeAddon
+    local afterAddon = RefreshAddonMemory(true)
 
     local freedLua = math_max(0, beforeLua - afterLua)
     local freedAddon = math_max(0, beforeAddon - afterAddon)
@@ -745,25 +937,50 @@ local moduleCards = {}
 local leaderboardRows = {}
 local activeTab = "modules"
 
-local MODULE_ORDER = {
-    "dispatcher", "quests", "trackedbars", "trackedicons", "bars",
-    "gear", "alts", "merchant", "castbars", "minimap", "glows",
-    "automation", "fishing", "pets", "cursor", "vehicle", "currency",
-    "location", "cdm", "research", "transfer", "logs", "stats"
+local MODULE_SECTIONS = {
+    {
+        title = "bars & combat",
+        modules = sfui.isRetail and { "bars", "castbars", "vehicle", "soulfragments" }
+                                 or { "bars", "threat", "target", "swing", "castbars", "vehicle" },
+    },
+    {
+        title = "tracking & cooldowns",
+        modules = { "trackedbars", "trackedicons", "cdm", "glows" },
+    },
+    {
+        title = "general & utilities",
+        modules = (function()
+            local list = {
+                "alts", "automation", "currency", "cursor", "dispatcher", "fishing",
+                "gear", "hide", "location", "logs", "lootfeed", "merchant", "minimap",
+                "pets", "quests", "research", "stats", "transfer"
+            }
+            if sfui.isRetail then
+                table_insert(list, "bonusroll")
+                table_insert(list, "hammer")
+                table_insert(list, "lootspec")
+                table_insert(list, "mythic")
+                table_insert(list, "portals")
+                table_insert(list, "worldevents")
+            else
+                table_insert(list, "buffs")
+                table_insert(list, "dungeonjournal")
+                table_insert(list, "rankup")
+            end
+            table_sort(list)
+            return list
+        end)(),
+    },
 }
-if sfui.isRetail then
-    table_insert(MODULE_ORDER, 3, "mythic")
-    table_insert(MODULE_ORDER, 7, "soulfragments")
-    table_insert(MODULE_ORDER, 9, "worldevents")
-    table_insert(MODULE_ORDER, 12, "portals")
-    table_insert(MODULE_ORDER, 22, "lootspec")
-    table_insert(MODULE_ORDER, 28, "hammer")
-    table_insert(MODULE_ORDER, 29, "bonusroll")
-else
-    table_insert(MODULE_ORDER, 6, "swing")
-    table_insert(MODULE_ORDER, 7, "threat")
-    table_insert(MODULE_ORDER, 8, "target")
+
+local MODULE_ORDER = {}
+for _, sec in ipairs(MODULE_SECTIONS) do
+    for _, modKey in ipairs(sec.modules) do
+        table_insert(MODULE_ORDER, modKey)
+    end
 end
+sfui.mem.MODULE_SECTIONS = MODULE_SECTIONS
+sfui.mem.MODULE_ORDER = MODULE_ORDER
 
 function sfui.mem.create_mem_panel()
     if frame then return frame end
@@ -934,57 +1151,85 @@ function sfui.mem.create_mem_panel()
 
     local modChild = CreateFrame("Frame", nil, modScroll)
     local cardGridW = FRAME_W - 48
-    modChild:SetSize(cardGridW, 600)
-    modChild:SetPoint("TOPLEFT", 0, 0)
-    modScroll:SetScrollChild(modChild)
-    contentBox.modView = modScroll
-
     local cardW = (cardGridW - 6) / 2
     local cardH = 58
+    local currentY = 0
 
-    for idx, key in ipairs(MODULE_ORDER) do
-        local card = CreateFrame("Frame", nil, modChild, "BackdropTemplate")
-        local col = (idx - 1) % 2
-        local row = math_floor((idx - 1) / 2)
-        card:SetSize(cardW, cardH)
-        card:SetPoint("TOPLEFT", col * (cardW + 6), -row * (cardH + 4))
-        card:SetBackdrop({
+    for _, sec in ipairs(MODULE_SECTIONS) do
+        local secHeader = CreateFrame("Frame", nil, modChild, "BackdropTemplate")
+        secHeader:SetSize(cardGridW, 20)
+        secHeader:SetPoint("TOPLEFT", 0, -currentY)
+        secHeader:SetBackdrop({
             bgFile = "Interface\\Buttons\\WHITE8x8",
             edgeFile = "Interface\\Buttons\\WHITE8x8",
             edgeSize = 1,
         })
-        card:SetBackdropColor(0.09, 0.09, 0.12, 0.7)
-        card:SetBackdropBorderColor(0, 0, 0, 1)
+        secHeader:SetBackdropColor(0.06, 0.06, 0.09, 0.75)
+        secHeader:SetBackdropBorderColor(0.18, 0.12, 0.28, 0.8)
 
-        card.status = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        card.status:SetPoint("TOPRIGHT", -6, -4)
-        card.status:SetJustifyH("RIGHT")
-        card.status:SetText("|cff888888idle|r")
+        local secTitle = secHeader:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        secTitle:SetPoint("LEFT", 8, 0)
+        secTitle:SetText("|cff6600ff•|r |cffffffff" .. sec.title:lower() .. "|r")
 
-        card.title = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        card.title:SetPoint("TOPLEFT", 6, -4)
-        card.title:SetPoint("RIGHT", card.status, "LEFT", -4)
-        card.title:SetJustifyH("LEFT")
-        card.title:SetText("|cff00ffff" .. key .. "|r")
+        local secLine = secHeader:CreateTexture(nil, "ARTWORK")
+        secLine:SetHeight(1)
+        secLine:SetPoint("LEFT", secTitle, "RIGHT", 8, 0)
+        secLine:SetPoint("RIGHT", secHeader, "RIGHT", -8, 0)
+        secLine:SetColorTexture(0.3, 0.2, 0.45, 0.4)
 
-        card.line1 = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        card.line1:SetPoint("TOPLEFT", 6, -20)
-        card.line1:SetPoint("RIGHT", -6, 0)
-        card.line1:SetJustifyH("LEFT")
-        card.line1:SetTextColor(0.8, 0.8, 0.85, 1)
-        card.line1:SetText("telemetry active")
+        currentY = currentY + 24
 
-        card.line2 = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        card.line2:SetPoint("TOPLEFT", 6, -36)
-        card.line2:SetPoint("RIGHT", -6, 0)
-        card.line2:SetJustifyH("LEFT")
-        card.line2:SetTextColor(0.55, 0.55, 0.6, 1)
-        card.line2:SetText("pools: ready")
+        for secIdx, key in ipairs(sec.modules) do
+            local card = CreateFrame("Frame", nil, modChild, "BackdropTemplate")
+            local col = (secIdx - 1) % 2
+            local row = math_floor((secIdx - 1) / 2)
+            card:SetSize(cardW, cardH)
+            card:SetPoint("TOPLEFT", col * (cardW + 6), -(currentY + row * (cardH + 4)))
+            card:SetBackdrop({
+                bgFile = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = 1,
+            })
+            card:SetBackdropColor(0.09, 0.09, 0.12, 0.7)
+            card:SetBackdropBorderColor(0, 0, 0, 1)
 
-        card:Show()
-        moduleCards[key] = card
+            card.status = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            card.status:SetPoint("TOPRIGHT", -6, -4)
+            card.status:SetJustifyH("RIGHT")
+            card.status:SetText("|cff888888idle|r")
+
+            card.title = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            card.title:SetPoint("TOPLEFT", 6, -4)
+            card.title:SetPoint("RIGHT", card.status, "LEFT", -4)
+            card.title:SetJustifyH("LEFT")
+            card.title:SetText("|cff00ffff" .. key .. "|r")
+
+            card.line1 = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            card.line1:SetPoint("TOPLEFT", 6, -20)
+            card.line1:SetPoint("RIGHT", -6, 0)
+            card.line1:SetJustifyH("LEFT")
+            card.line1:SetTextColor(0.8, 0.8, 0.85, 1)
+            card.line1:SetText("telemetry active")
+
+            card.line2 = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            card.line2:SetPoint("TOPLEFT", 6, -36)
+            card.line2:SetPoint("RIGHT", -6, 0)
+            card.line2:SetJustifyH("LEFT")
+            card.line2:SetTextColor(0.55, 0.55, 0.6, 1)
+            card.line2:SetText("pools: ready")
+
+            card:Show()
+            moduleCards[key] = card
+        end
+
+        local numSecRows = math_ceil(#sec.modules / 2)
+        currentY = currentY + numSecRows * (cardH + 4) + 6
     end
-    modChild:SetHeight(math_ceil(#MODULE_ORDER / 2) * (cardH + 4) + 10)
+
+    modChild:SetSize(cardGridW, currentY + 10)
+    modChild:SetPoint("TOPLEFT", 0, 0)
+    modScroll:SetScrollChild(modChild)
+    contentBox.modView = modScroll
 
     -- -----------------------------------------------------------------------
     -- View 2: Leaderboard View (Lowercase Headers)
@@ -1089,9 +1334,8 @@ function sfui.mem.create_mem_panel()
         -- Ensure modules tab is active unless profiler is currently watching
         if not watcherActive and sfui.mem.SelectTab then
             sfui.mem.SelectTab("modules")
-        else
-            sfui.mem.UpdateGUI(false)
         end
+        sfui.mem.UpdateGUI(true)
 
         -- Register lightweight 1.0s periodic update (non-blocking, force=false)
         sfui.events.RegisterUpdate("MemGUI", 1.0, function()
@@ -1113,7 +1357,7 @@ function sfui.mem.UpdateGUI(force)
     local addonMem = RefreshAddonMemory(force)
     local totalLua = collectgarbage("count")
 
-    local memColor = addonMem < 10240 and "|cff00ff88" or (addonMem <= 15360 and "|cffffaa00" or "|cffff4444")
+    local memColor = GetMemColor(addonMem)
     if frame.val_addon then
         frame.val_addon:SetText(memColor .. FormatKB(addonMem) .. "|r")
     end
@@ -1220,22 +1464,24 @@ function sfui.mem.HandleSlash(msg)
     elseif cmd == "stop" then
         if watcherActive then StopWatcher() else print(PREFIX .. "watcher is not running.") end
     elseif cmd == "print" or cmd == "dump" then
-        UpdateAddOnMemoryUsage()
-        local addonMem = GetAddOnMemoryUsage("sfui")
+        local addonMem = RefreshAddonMemory(true)
         local totalLuaMem = collectgarbage("count")
-        local memColor = addonMem < 10240 and "|cff00ff88" or (addonMem <= 15360 and "|cffffaa00" or "|cffff4444")
+        local memColor = GetMemColor(addonMem)
         print(" ")
         print(PREFIX .. "|cffffffff========================================|r")
         print(PREFIX .. string_format("|cff00ffffaddon total memory:|r %s%s|r", memColor, FormatKB(addonMem)))
         print(PREFIX .. string_format("|cffaaaaaatotal lua environment:|r |cffffffff%s|r", FormatKB(totalLuaMem)))
         print(PREFIX .. "|cffffffff----------------------------------------|r")
         local modStats = sfui.mem.GetModuleStats()
-        for _, key in ipairs(MODULE_ORDER) do
-            local info = modStats[key]
-            if info then
-                print(string_format("|cff6600ff[%s]|r |cffffffff%s|r (%s)", key, info.name and info.name:lower() or "", info.status or ""))
-                if info.line1 then print("   |cff888888•|r " .. info.line1) end
-                if info.line2 then print("   |cff888888•|r " .. info.line2) end
+        for _, sec in ipairs(MODULE_SECTIONS) do
+            print(string_format(PREFIX .. "|cff6600ff──|r |cffffffff%s|r |cff444455──────────|r", sec.title))
+            for _, key in ipairs(sec.modules) do
+                local info = modStats[key]
+                if info then
+                    print(string_format("|cff6600ff[%s]|r |cffffffff%s|r (%s)", key, info.name and info.name:lower() or "", info.status or ""))
+                    if info.line1 then print("   |cff888888•|r " .. info.line1) end
+                    if info.line2 then print("   |cff888888•|r " .. info.line2) end
+                end
             end
         end
         print(PREFIX .. "|cffffffff========================================|r")

@@ -614,3 +614,39 @@ sfui.events.RegisterEvent("PLAYER_DEAD", OnSwingEvent)
 
 UpdateEquippedWeapons()
 SuppressBlizzardSwingTimer()
+
+-- ─── Diagnostics & Memory Watcher Telemetry ──────────────────────────────────
+local _swingDebug = {}
+function sfui.swing_debug_info()
+    local barCount = 0
+    local shownCount = 0
+    for _, b in pairs(swingBars) do
+        barCount = barCount + 1
+        if b:IsShown() then shownCount = shownCount + 1 end
+    end
+    local mhBar = swingBars[SWING_MAIN_HAND]
+    local ohBar = swingBars[SWING_OFF_HAND]
+    local rBar = swingBars[SWING_RANGED]
+    local mhSpeed, ohSpeed, rSpeed = UnitAttackSpeed("player")
+    _swingDebug.isPossible = (sfui.swing.IsPossible and sfui.swing.IsPossible()) or false
+    _swingDebug.barCount = barCount
+    _swingDebug.shownCount = shownCount
+    _swingDebug.isAttacking = IsMeleeAttacking() or isAutoRepeating
+    _swingDebug.isMelee = IsMeleeAttacking()
+    _swingDebug.isAutoRepeating = isAutoRepeating
+    _swingDebug.hasMainHand = (mhSpeed ~= nil and mhSpeed > 0)
+    _swingDebug.hasOffHand = hasOffHandWeapon
+    _swingDebug.hasRanged = hasRangedWeapon
+    _swingDebug.mainHandSpeed = mhSpeed or 0
+    _swingDebug.offHandSpeed = ohSpeed or 0
+    _swingDebug.rangedSpeed = rSpeed or 0
+    _swingDebug.mainShown = (mhBar and mhBar:IsShown()) or false
+    _swingDebug.offShown = (ohBar and ohBar:IsShown()) or false
+    _swingDebug.rangedShown = (rBar and rBar:IsShown()) or false
+    return _swingDebug
+end
+sfui.swing.GetDebugInfo = sfui.swing_debug_info
+
+if sfui.RegisterModule then
+    sfui.RegisterModule("swing", sfui.swing)
+end

@@ -453,4 +453,11 @@ local function InitScanEvents()
 end
 InitScanEvents()
 
+local _scanDebug = {}
+function sfui.buffs.scan.GetDebugInfo()
+    _scanDebug.activeResults = #activeResults
+    _scanDebug.auraPoolCount = #auraRecordPool
+    return _scanDebug
+end
+
 

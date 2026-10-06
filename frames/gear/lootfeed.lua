@@ -1532,3 +1532,19 @@ function sfui.lootfeed.TriggerTestFeed()
         sfui.lootfeed.DisplayLoot(item)
     end
 end
+
+-- ─── Diagnostics & Memory Watcher Telemetry ──────────────────────────────────
+local _lfDebug = {}
+function sfui.lootfeed_debug_info()
+    local db = GetConfig()
+    _lfDebug.enabled = (db and db.enabled ~= false)
+    _lfDebug.containerCreated = (container ~= nil)
+    _lfDebug.containerShown = (container ~= nil and container:IsShown() == true)
+    _lfDebug.activeRows = #activeRows
+    _lfDebug.rowPool = #rowPool
+    _lfDebug.queueSize = #pendingQueue
+    _lfDebug.nodePool = #nodePool
+    return _lfDebug
+end
+sfui.lootfeed.GetDebugInfo = sfui.lootfeed_debug_info
+M.GetDebugInfo = sfui.lootfeed_debug_info

@@ -295,4 +295,13 @@ sfui.rankup.OnInit = function()
 end
 
 sfui.rankup.OnEnable = sfui.rankup.OnInit
+
+local _rankDebug = {}
+function sfui.rankup_debug_info()
+    _rankDebug.enabled = (SfuiDB and SfuiDB.autoRankUp ~= false) or false
+    _rankDebug.isScanning = (scanTimer ~= nil or retryTimer ~= nil)
+    return _rankDebug
+end
+sfui.rankup.GetDebugInfo = sfui.rankup_debug_info
+
 sfui.RegisterModule("rankup", sfui.rankup)
