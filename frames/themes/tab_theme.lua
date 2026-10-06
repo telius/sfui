@@ -84,33 +84,55 @@ sfui.options.RegisterTab({
         local lastBtn = nil
 
         -- 1. Auto-Detect Button
-        local btnAuto = CreateFlatButton(theme_panel, "Auto-Detect", 115, 26)
+        -- uniform grid sized to the options content width (~540px usable)
+        local THEME_BTN_GAP, THEME_BTN_H, THEME_BTNS_PER_ROW = 6, 26, 4
+        local gridW = math.max(400, (theme_panel:GetWidth() or 0) - 30)
+        if gridW > 540 then gridW = 540 end
+        local THEME_BTN_W = math.floor((gridW - THEME_BTN_GAP * (THEME_BTNS_PER_ROW - 1)) / THEME_BTNS_PER_ROW)
+        local btnAuto = CreateFlatButton(theme_panel, "auto-detect", THEME_BTN_W, THEME_BTN_H)
         btnAuto:SetPoint("TOPLEFT", toggle_label, "BOTTOMLEFT", 0, -8)
         btnAuto.themeMode = "auto"
-        btnAuto.baseLabel = "Auto-Detect"
+        btnAuto.baseLabel = "auto-detect"
         table_insert(toggleButtons, btnAuto)
         lastBtn = btnAuto
+        local rowFirstBtn, countInRow = btnAuto, 1
 
         -- 2. Dynamically instantiate a button for each registered theme
         local registeredThemes, themeOrder = sfui.theme.GetRegisteredThemes()
         for _, themeID in ipairs(themeOrder) do
             local themeDef = registeredThemes[themeID]
             if themeDef then
-                local label = themeDef.name or themeID
-                local btnW = math.max(120, #label * 8 + 20)
-                local btn = CreateFlatButton(theme_panel, label, btnW, 26)
-                btn:SetPoint("LEFT", lastBtn, "RIGHT", 6, 0)
+                local label = (themeDef.name or themeID):lower()
+                local btn = CreateFlatButton(theme_panel, label, THEME_BTN_W, THEME_BTN_H)
+                if countInRow >= THEME_BTNS_PER_ROW then
+                    btn:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -THEME_BTN_GAP)
+                    rowFirstBtn, countInRow = btn, 1
+                else
+                    btn:SetPoint("LEFT", lastBtn, "RIGHT", THEME_BTN_GAP, 0)
+                    countInRow = countInRow + 1
+                end
                 btn.themeMode = themeID
                 btn.baseLabel = label
+                if themeDef.desc then
+                    sfui.common.attach_tooltip(btn, label, themeDef.desc)
+                end
                 table_insert(toggleButtons, btn)
                 lastBtn = btn
             end
         end
 
+        -- grow the scrollable content height by the extra button rows
+        local themeRows = math.ceil(#toggleButtons / THEME_BTNS_PER_ROW)
+        theme_panel.customContentHeight = 545 + (themeRows - 1) * (THEME_BTN_H + THEME_BTN_GAP)
+
         for _, btn in ipairs(toggleButtons) do
             btn:SetScript("OnClick", function()
-                if btn.themeMode == "camelot" and not sfui.theme.IsCamelotSupported() then
-                    sfui.common.print("|cffff3333the bronze camelot theme is exclusive to camelot/forever (bronze assets are not present in retail).|r")
+                if not sfui.theme.IsThemeAvailable(btn.themeMode) then
+                    if btn.themeMode == "camelot" then
+                        sfui.common.print("|cffff3333the bronze camelot theme is exclusive to camelot/forever (bronze assets are not present in retail).|r")
+                    else
+                        sfui.common.print("|cffff3333the art for this theme is not available on this client.|r")
+                    end
                     return
                 end
                 sfui.theme.SetTheme(btn.themeMode)
@@ -128,7 +150,7 @@ sfui.options.RegisterTab({
             sfui.theme.ApplyCurrentTheme()
             theme_panel:RefreshThemeControls()
         end, "Displays sculpted heavy bronze corner brackets clamped onto window frames in Camelot mode.")
-        brackets_cb:SetPoint("TOPLEFT", btnAuto, "BOTTOMLEFT", 0, -18)
+        brackets_cb:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -18)
 
         local textured_bg_cb = create_checkbox(theme_panel, "use textured parchment & metal backgrounds", function()
             return SfuiDB.themeTexturedBackdrop ~= false
@@ -259,7 +281,12 @@ sfui.options.RegisterTab({
                 end
             else
                 preview_body:SetTextColor(0.8, 0.8, 0.8, 1)
-                preview_body:SetText("clean, flat minimalist black border with electric cyan/purple accents and flat buttons.")
+                local activeDef = sfui.theme.GetTheme(sfui.theme.GetActiveThemeID())
+                if activeDef and activeDef.window and activeDef.window.style == "nineslice" and activeDef.desc then
+                    preview_body:SetText(activeDef.desc)
+                else
+                    preview_body:SetText("clean, flat minimalist black border with electric cyan/purple accents and flat buttons.")
+                end
             end
         end
 
@@ -296,7 +323,7 @@ sfui.options.RegisterTab({
                 btn.isSelected = isSelected
                 local fs = btn:GetFontString()
 
-                if btn.themeMode == "camelot" and not isCamelotSupported then
+                if not sfui.theme.IsThemeAvailable(btn.themeMode) then
                     btn:Disable()
                     if btn.SetBackdrop then
                         btn:SetBackdrop({
@@ -309,7 +336,11 @@ sfui.options.RegisterTab({
                         btn:SetBackdropBorderColor(0.12, 0.12, 0.12, 0.6)
                     end
                     if fs then
-                        fs:SetText(btn.baseLabel .. " |cffff5555(Camelot Only)|r")
+                        -- buttons are narrow: grey the label, explain in the tooltip
+                        fs:SetText(btn.baseLabel)
+                        local reason = (btn.themeMode == "camelot") and "only available on camelot / forever."
+                            or "the art for this theme is not available on this client."
+                        sfui.common.attach_tooltip(btn, btn.baseLabel, "|cffff5555" .. reason .. "|r")
                         fs:SetTextColor(0.40, 0.40, 0.40, 1)
                     end
                 elseif isSelected then

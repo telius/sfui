@@ -1966,8 +1966,19 @@ function sfui.widgets.attach_tooltip(frame, title, lines, anchor)
     frame.sfuiTipTitle  = title
     frame.sfuiTipLines  = lines
     frame.sfuiTipAnchor = anchor
-    frame:SetScript("OnEnter", attached_tooltip_on_enter)
-    frame:SetScript("OnLeave", attached_tooltip_on_leave)
+    if frame.sfuiTipAttached then return frame end
+    frame.sfuiTipAttached = true
+    -- hook when a handler already exists (e.g. themed button hover), else set
+    if frame:GetScript("OnEnter") then
+        frame:HookScript("OnEnter", attached_tooltip_on_enter)
+    else
+        frame:SetScript("OnEnter", attached_tooltip_on_enter)
+    end
+    if frame:GetScript("OnLeave") then
+        frame:HookScript("OnLeave", attached_tooltip_on_leave)
+    else
+        frame:SetScript("OnLeave", attached_tooltip_on_leave)
+    end
     return frame
 end
 sfui.common.attach_tooltip = sfui.widgets.attach_tooltip

@@ -106,6 +106,21 @@ function sfui.theme.IsCamelotSupported()
     return sfui.theme.HasAtlas("heavybronze-frame-basic")
 end
 
+--- true when a theme's art exists on this client (themes may define isAvailable()).
+--- @param id string
+--- @return boolean
+function sfui.theme.IsThemeAvailable(id)
+    if id == "auto" then return true end
+    if id == "camelot" then return sfui.theme.IsCamelotSupported() end
+    local def = registeredThemes[id]
+    if not def then return false end
+    if def.isAvailable then
+        local ok, res = pcall(def.isAvailable, def)
+        return ok and res and true or false
+    end
+    return true
+end
+
 -- ─── Active Theme Resolution & Setting ────────────────────────────────────────
 function sfui.theme.GetActiveThemeID()
     if sfui.theme.forcedMode then
@@ -147,7 +162,7 @@ function sfui.theme.GetActiveThemeID()
         return "modern"
     end
 
-    if registeredThemes[mode] then
+    if registeredThemes[mode] and sfui.theme.IsThemeAvailable(mode) then
         return mode
     end
     return "modern"
@@ -210,6 +225,9 @@ function sfui.theme.SetTheme(mode)
 
     if mode ~= "auto" and not registeredThemes[mode] then
         return false, "Unknown theme mode: " .. tostring(mode)
+    end
+    if not sfui.theme.IsThemeAvailable(mode) then
+        return false, "the art for this theme is not available on this client."
     end
 
     SfuiDB = SfuiDB or {}
@@ -478,6 +496,9 @@ function sfui.theme.ElevateWindowContents(frame)
     if frame.sfuiThemeLayers and frame.sfuiThemeLayers.borderFrame then
         frame.sfuiThemeLayers.borderFrame:SetFrameLevel(base + 1)
     end
+    if frame.sfuiActiveNineSlice then
+        frame.sfuiActiveNineSlice:SetFrameLevel(base + 1)
+    end
     local h = frame.headerFrame or frame.headerBar or frame.header
     if h and h.SetFrameLevel then
         h:SetFrameLevel(base + 15)
@@ -510,6 +531,100 @@ function sfui.theme.ElevateWindowContents(frame)
 end
 
 -- 1. Window Styling (Frames / Dialogs / Windows)
+-- ─── Nine-slice window style (blizzard NineSliceLayouts) ──────────────────────
+-- themes with window.style = "nineslice" and window.layout = "<NineSliceLayouts key>"
+-- get a native blizzard frame border on a child container above the flat fill.
+-- one container per layout is cached so switching themes never leaves stale pieces.
+local function hide_sculpted_layers(frame)
+    local layers = frame.sfuiThemeLayers
+    if not layers then return end
+    if layers.borderFrame then layers.borderFrame:Hide() end
+    if layers.nativeBorder then layers.nativeBorder:Hide() end
+    if layers.nativeBackdrop then layers.nativeBackdrop:Hide() end
+    if layers.innerBg then layers.innerBg:Hide() end
+    if layers.metalPieces then
+        for _, p in pairs(layers.metalPieces) do
+            p:SetTexture(nil)
+            p:ClearAllPoints()
+            p:Hide()
+        end
+    end
+    if layers.cornerTL then
+        layers.cornerTL:Hide()
+        layers.cornerTR:Hide()
+        layers.cornerBL:Hide()
+        layers.cornerBR:Hide()
+    end
+end
+
+local function hide_nineslice_layers(frame, keepLayout)
+    local cache = frame.sfuiNineSlices
+    if not cache then return end
+    for layoutName, container in pairs(cache) do
+        if layoutName ~= keepLayout then container:Hide() end
+    end
+end
+
+--- resolves a NineSliceLayouts entry by name (nil when missing on this client)
+function sfui.theme.GetNineSliceLayout(layoutName)
+    local layouts = _G.NineSliceLayouts
+    return layoutName and layouts and layouts[layoutName] or nil
+end
+
+--- true when every atlas referenced by a NineSliceLayouts entry exists on this client
+function sfui.theme.HasNineSliceLayout(layoutName)
+    local layout = sfui.theme.GetNineSliceLayout(layoutName)
+    if not layout or not (_G.NineSliceUtil and _G.NineSliceUtil.ApplyLayout) then return false end
+    local found = false
+    for _, piece in pairs(layout) do
+        if type(piece) == "table" and type(piece.atlas) == "string" then
+            if piece.atlas:find("%%") then return false end -- texture-kit templated, unsupported
+            if not sfui.theme.HasAtlas(piece.atlas) then return false end
+            found = true
+        end
+    end
+    return found
+end
+
+local function apply_nineslice_window(frame, theme, pal)
+    local win = theme.window
+    local layoutName = win and win.layout
+    if not sfui.theme.HasNineSliceLayout(layoutName) then return false end
+
+    hide_sculpted_layers(frame)
+    hide_nineslice_layers(frame, layoutName)
+
+    frame.sfuiNineSlices = frame.sfuiNineSlices or {}
+    local container = frame.sfuiNineSlices[layoutName]
+    if not container then
+        container = CreateFrame("Frame", nil, frame)
+        container:SetAllPoints(frame)
+        container:EnableMouse(false)
+        _G.NineSliceUtil.ApplyLayout(container, sfui.theme.GetNineSliceLayout(layoutName))
+        frame.sfuiNineSlices[layoutName] = container
+    end
+    container:SetFrameLevel(math_max(1, (frame:GetFrameLevel() or 1) + 1))
+    container:Show()
+    frame.sfuiActiveNineSlice = container
+
+    -- flat fill under the border; inset keeps the fill inside thick frame art
+    if frame.SetBackdrop then
+        local inset = win.fillInset or 4
+        frame:SetBackdrop({
+            bgFile   = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
+            tile     = true,
+            tileSize = 32,
+            insets   = { left = inset, right = inset, top = inset, bottom = inset },
+        })
+        local bg = pal.backdropColor or { 0.05, 0.05, 0.05, 0.9 }
+        frame:SetBackdropColor(bg[1], bg[2], bg[3], bg[4] or 0.94)
+    end
+
+    frame.isCamelotThemed = false
+    sfui.theme.ElevateWindowContents(frame)
+    return true
+end
+
 function sfui.theme.ApplyWindowStyle(frame, options)
     if not frame then return end
     options = options or {}
@@ -525,6 +640,12 @@ function sfui.theme.ApplyWindowStyle(frame, options)
     end
 
     local style = theme.window and theme.window.style
+    if style == "nineslice" and apply_nineslice_window(frame, theme, pal) then
+        return
+    end
+    hide_nineslice_layers(frame, nil)
+    frame.sfuiActiveNineSlice = nil
+
     local isSculptedWindow = (style == "bronze" or style == "heavy_bronze" or style == "metal_pieces") and sfui.theme.IsCamelotSupported()
     local showBrackets = (options.cornerBrackets ~= false)
     if SfuiDB and SfuiDB.themeCornerBrackets == false then
@@ -842,33 +963,7 @@ function sfui.theme.ApplyWindowStyle(frame, options)
         frame.isCamelotThemed = true
     else
         -- Flat Border / Minimalist Window Styling
-        if frame.sfuiThemeLayers then
-            if frame.sfuiThemeLayers.borderFrame then
-                frame.sfuiThemeLayers.borderFrame:Hide()
-            end
-            if frame.sfuiThemeLayers.nativeBorder then
-                frame.sfuiThemeLayers.nativeBorder:Hide()
-            end
-            if frame.sfuiThemeLayers.nativeBackdrop then
-                frame.sfuiThemeLayers.nativeBackdrop:Hide()
-            end
-            if frame.sfuiThemeLayers.innerBg then
-                frame.sfuiThemeLayers.innerBg:Hide()
-            end
-            if frame.sfuiThemeLayers.metalPieces then
-                for _, p in pairs(frame.sfuiThemeLayers.metalPieces) do
-                    p:SetTexture(nil)
-                    p:ClearAllPoints()
-                    p:Hide()
-                end
-            end
-            if frame.sfuiThemeLayers.cornerTL then
-                frame.sfuiThemeLayers.cornerTL:Hide()
-                frame.sfuiThemeLayers.cornerTR:Hide()
-                frame.sfuiThemeLayers.cornerBL:Hide()
-                frame.sfuiThemeLayers.cornerBR:Hide()
-            end
-        end
+        hide_sculpted_layers(frame)
 
         if frame.SetBackdrop then
             local edgeCol = (theme.window and theme.window.borderColor) or pal.borderColor or { 0, 0, 0, 1 }

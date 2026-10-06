@@ -12,6 +12,10 @@
 ### features
 
 - **dungeon journal level filter**: the sidebar shows only dungeons in your level range by default. the new `all` toggle (and the context menu) shows every dungeon.
+- **nine-slice theme infrastructure (parked)**: `frames/themes/engine.lua` gains a `nineslice` window style built on blizzard frame layouts, plus `sfui.theme.IsThemeAvailable` / `HasNineSliceLayout` art checks. two sets, maw and corrupted, are kept in `frames/themes/nineslice_themes.lua` but not registered, so the theme picker doesn't offer them yet. the theme picker in `frames/themes/tab_theme.lua` now lays its buttons out in a grid and shows each theme's description on hover.
+- **theme accent colours**: the accent / highlight colour pickers now take effect. `sfui.theme.GetPalette()` lays your colours over the active theme's palette.
+- **tracking manager theming**: the window, tabs, sections, anchor/growth pickers and the assignments panel follow the active theme (`frames/tracking/trackedoptions.lua`, `frames/tracking/cdm.lua`).
+- **minimap resting tooltip**: the resting icon shows a minimal hover tooltip (`frames/automation/minimap.lua`).
 
 ### architecture
 

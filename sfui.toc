@@ -40,6 +40,7 @@ core/widgets.lua
 frames/themes/engine.lua
 frames/themes/modern.lua
 frames/themes/camelot.lua
+frames/themes/nineslice_themes.lua
 core.lua
 
 # Options System
