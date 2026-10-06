@@ -120,8 +120,7 @@ local function initialize_sfui()
     -- Migrate cooldown panels to per-spec structure
     sfui.common.migrate_cooldown_panels_to_spec()
 
-    local getMeta = (C_AddOns and C_AddOns.GetAddOnMetadata) or _G.GetAddOnMetadata
-    local tocVersion = getMeta and getMeta("sfui", "Version")
+    local tocVersion = sfui.common.get_addon_metadata(addonName or "sfui", "Version")
     if tocVersion then
         sfui.config.version = tocVersion
     end

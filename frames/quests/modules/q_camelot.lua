@@ -72,6 +72,7 @@ local Difficulty                              = sfui.tracker.helpers.difficulty
 local Waypoints                               = sfui.tracker.helpers.waypoints
 local Items                                   = sfui.tracker.helpers.items
 local FindGroup                               = sfui.tracker.helpers.findgroup
+local QuestCommon = sfui.tracker.helpers.quest
 
 local wipe                                    = _G.wipe or function(t)
     for k in pairs(t) do t[k] = nil end
@@ -148,40 +149,9 @@ end
 -- ─────────────────────────────────────────────────────────
 --  LEAN API-DRIVEN QUEST CLASSIFICATION
 -- ─────────────────────────────────────────────────────────
-local playerClass = nil
-local function GetPlayerClass()
-    if not playerClass and UnitClass then
-        playerClass = UnitClass("player")
-    end
-    return playerClass
-end
 
 
-local function IsClassQuest(questID, questLogIndex, headerTitle)
-    if type(questLogIndex) == "string" and not headerTitle then
-        headerTitle = questLogIndex
-        questLogIndex = nil
-    end
-
-    local pClass = GetPlayerClass()
-    if not pClass then return false end
-
-    if headerTitle and headerTitle:lower() == pClass:lower() then
-        return true
-    end
-
-    if questID and C_QuestLog and C_QuestLog.GetHeaderIndexForQuest then
-        local hIdx = C_QuestLog.GetHeaderIndexForQuest(questID)
-        if hIdx then
-            local hInfo = C_QuestLog.GetInfo(hIdx)
-            if hInfo and hInfo.title and hInfo.title:lower() == pClass:lower() then
-                return true
-            end
-        end
-    end
-
-    return false
-end
+local IsClassQuest = QuestCommon.IsClassQuest
 
 local function IsDungeonQuest(questID, questLogIndex, headerTitle)
     if sfui.dj_camelot and sfui.dj_camelot.IsDungeonQuest and questID and sfui.dj_camelot.IsDungeonQuest(questID) then
@@ -281,85 +251,19 @@ sfui.questlog.IsDungeonQuest = IsDungeonQuest
 sfui.questlog.IsProfessionQuest = IsProfessionQuest
 
 local function GetQLState()
-    if not SfuiDB then SfuiDB = {} end
-    if not SfuiDB.questlog then
-        SfuiDB.questlog = {
-            collapsed    = {},
-            hiddenQuests = {},
-            hidden       = false,
-        }
-    end
-    if SfuiDB.questlog.expandedQuests then SfuiDB.questlog.expandedQuests = nil end
-    if SfuiDB.questlog.manualExpandedQuests then SfuiDB.questlog.manualExpandedQuests = nil end
-    return SfuiDB.questlog
+    return sfui.questlog.GetState()
 end
 
 local function IsQuestWatched(questID, questLogIndex)
-    if not questID or questID <= 0 then return false end
-    if recentlyWatched[questID] then return true end
-    if C_QuestLog and C_QuestLog.GetQuestWatchType then
-        local wt = C_QuestLog.GetQuestWatchType(questID)
-        if wt ~= nil then return true end
-    end
-    if C_QuestLog and C_QuestLog.IsQuestWatched then
-        if C_QuestLog.IsQuestWatched(questID) then return true end
-        if questLogIndex and C_QuestLog.IsQuestWatched(questLogIndex) then return true end
-    end
-    if _G.IsQuestWatched then
-        if questLogIndex and _G.IsQuestWatched(questLogIndex) then return true end
-    end
-    return false
+    return QuestCommon.IsQuestWatched(questID, questLogIndex, recentlyWatched)
 end
 
-local function IsWorldQuest(questID)
-    if not questID or questID <= 0 then return false end
-    if C_QuestLog and C_QuestLog.IsWorldQuest and C_QuestLog.IsWorldQuest(questID) then
-        return true
-    end
-    if _G.QuestUtils_IsQuestWorldQuest and _G.QuestUtils_IsQuestWorldQuest(questID) then
-        return true
-    end
-    return false
-end
+local IsWorldQuest = QuestCommon.IsWorldQuest
 
 local pendingChangedQuests = {}
 
 local function AutoTrackQuest(questID, questLogIndex)
-    if not questID or questID <= 0 then return false end
-    if InCombatLockdown and InCombatLockdown() then
-        pendingChangedQuests[questID] = questLogIndex or true
-        return false
-    end
-    if IsWorldQuest(questID) then return false end
-
-    if C_QuestLog and ((C_QuestLog.IsQuestBounty and C_QuestLog.IsQuestBounty(questID))
-            or (C_QuestLog.IsQuestTask and C_QuestLog.IsQuestTask(questID))) then
-        return false
-    end
-
-    local alreadyWatched = IsQuestWatched(questID, questLogIndex)
-
-    if not alreadyWatched then
-        local maxWatches = (Constants and Constants.QuestWatchConsts and Constants.QuestWatchConsts.MAX_QUEST_WATCHES)
-            or _G.MAX_WATCHABLE_QUESTS
-            or 25
-
-        local canWatch = true
-        if C_QuestLog and C_QuestLog.GetNumQuestWatches then
-            canWatch = (C_QuestLog.GetNumQuestWatches() < maxWatches)
-        elseif _G.GetNumQuestWatches then
-            canWatch = (_G.GetNumQuestWatches() < maxWatches)
-        end
-
-        if canWatch then
-            recentlyWatched[questID] = true
-            if C_QuestLog and C_QuestLog.AddQuestWatch then
-                C_QuestLog.AddQuestWatch(questID)
-            end
-        end
-    end
-
-    return true
+    return QuestCommon.AutoTrackQuest(questID, questLogIndex, recentlyWatched, pendingChangedQuests)
 end
 
 local function GetQuestCapacityInfo()
@@ -387,61 +291,7 @@ local function GetQuestCapacityInfo()
     return numQuests, maxQuests, formatted
 end
 
-local function TryInsertQuestLink(questID, questLogIndex, questTitle)
-    if not questID then return false end
-
-    -- 1. Try Blizzard modern API
-    if ChatFrameUtil and ChatFrameUtil.TryInsertQuestLinkForQuestID then
-        if ChatFrameUtil.TryInsertQuestLinkForQuestID(questID) then
-            return true
-        end
-    end
-
-    -- 2. Detect if an active chat edit box or input box is open
-    local activeChat = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
-        or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
-        or _G.ACTIVE_CHAT_EDIT_BOX
-    local isChatOpen = (activeChat and (activeChat:IsShown() or activeChat:IsVisible()))
-        or (_G.MacroFrameText and _G.MacroFrameText:IsShown())
-        or (_G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown())
-
-    if not isChatOpen then
-        return false
-    end
-
-    -- 3. Resolve quest link
-    local link = (_G.GetQuestLink and _G.GetQuestLink(questID))
-        or (questLogIndex and _G.GetQuestLink and _G.GetQuestLink(questLogIndex))
-
-    if not link then
-        local title = questTitle or (C_QuestLog and C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID))
-        if title and title ~= "" then
-            local level = (C_QuestLog and C_QuestLog.GetQuestDifficultyLevel and C_QuestLog.GetQuestDifficultyLevel(questID)) or 0
-            link = string_format("|cffffff00|Hquest:%d:%d|h[%s]|h|r", questID, level, title)
-        end
-    end
-
-    if not link then
-        return false
-    end
-
-    -- 4. Insert link into active chat / edit box
-    if ChatFrameUtil and ChatFrameUtil.InsertLink and ChatFrameUtil.InsertLink(link) then
-        return true
-    end
-    if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then
-        return true
-    end
-    if activeChat and activeChat.Insert then
-        activeChat:Insert(link)
-        if activeChat.SetFocus then
-            activeChat:SetFocus()
-        end
-        return true
-    end
-
-    return false
-end
+local TryInsertQuestLink = QuestCommon.TryInsertQuestLink
 
 -- ─────────────────────────────────────────────────────────
 --  QUEST CLICK HANDLER
@@ -699,30 +549,7 @@ end
 -- ─────────────────────────────────────────────────────────
 local isTimerWatcherActive = false
 
-local function FormatQuestTimer(seconds)
-    if not seconds or seconds <= 0 then return nil, nil end
-    local timeStr
-    local common = sfui.common
-    if common and common.format_timer_clock then
-        timeStr = common.format_timer_clock(seconds)
-    else
-        local m = math_floor(seconds / 60)
-        local s = math_floor(seconds % 60)
-        timeStr = string_format("%d:%02d", m, s)
-    end
-    if not timeStr then return nil, nil end
-
-    local colorCode
-    if seconds <= 60 then
-        colorCode = "|cffff3333" -- Urgent red (< 1 min)
-    elseif seconds <= 180 then
-        colorCode = "|cffffaa00" -- Warning amber (< 3 min)
-    else
-        colorCode = "|cffffffff" -- Clean white
-    end
-
-    return colorCode .. timeStr .. "|r", timeStr
-end
+local FormatQuestTimer = QuestCommon.FormatQuestTimer
 
 local function OnCamelotTimerTick()
     if CamelotQuestsModule.MarkDirty then

@@ -10,7 +10,7 @@ sfui.tracker.blocks              = sfui.tracker.blocks or {}
 
 local _G                         = _G
 local CreateFrame, UIParent      = _G.CreateFrame, _G.UIParent
-local GameTooltip                = _G.GameTooltip
+local GameTooltip                = sfui.common.get_tooltip()
 local table_insert, table_remove = _G.table.insert, _G.table.remove
 local ipairs, pairs, unpack      = _G.ipairs, _G.pairs, _G.unpack
 
@@ -89,7 +89,7 @@ local function CreateHeader(parent)
         if not self.isCamelotHeader then
             self:SetBackdropColor(0.08, 0.08, 0.08, 0.65)
         end
-        local tip = _G.GameTooltip
+        local tip = sfui.common.get_tooltip()
         if not tip then return end
         tip:SetOwner(self, "ANCHOR_RIGHT")
         tip:ClearLines()
@@ -99,7 +99,7 @@ local function CreateHeader(parent)
         if self.capFormatted then
             tip:AddLine("quest log: " .. self.capFormatted, 1, 1, 1)
         end
-        tip:AddLine("|cff888888Left-click: Collapse/Expand section|r", 1, 1, 1)
+        tip:AddLine("|cff888888left-click: collapse/expand section|r", 1, 1, 1)
         local secID = self.secID
         local itemWord = "items"
         if secID == "achievements" then
@@ -117,7 +117,7 @@ local function CreateHeader(parent)
         elseif secID == "campaign" or secID == "important" or secID == "meta" or secID == "zone" or secID == "quests" or secID == "class" or secID == "dungeons" or secID == "professions" or (type(secID) == "string" and secID:find("^zone")) then
             itemWord = "quests"
         end
-        tip:AddLine("|cff888888Shift-click: Untrack all " .. itemWord .. " in category|r", 1, 1, 1)
+        tip:AddLine("|cff888888shift-click: untrack all " .. itemWord .. " in category|r", 1, 1, 1)
         tip:Show()
     end)
 
@@ -125,7 +125,7 @@ local function CreateHeader(parent)
         if not self.isCamelotHeader then
             self:SetBackdropColor(0, 0, 0, 0.50)
         end
-        local tip = _G.GameTooltip
+        local tip = sfui.common.get_tooltip()
         if tip then tip:Hide() end
     end)
 

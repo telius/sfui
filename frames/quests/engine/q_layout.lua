@@ -550,7 +550,7 @@ function Layout.BuildLayout(container, sections)
                         if tooltipHelper and tooltipHelper.HideBlockTooltip then
                             tooltipHelper.HideBlockTooltip(self, bData)
                         else
-                            local tip = _G.GameTooltip
+                            local tip = sfui.common.get_tooltip()
                             if tip then tip:Hide() end
                         end
                         if bData.OnLeave then
@@ -605,7 +605,7 @@ function Layout.BuildLayout(container, sections)
                                 if tooltipHelper and tooltipHelper.HideBlockTooltip then
                                     tooltipHelper.HideBlockTooltip(block, bData)
                                 else
-                                    local tip = _G.GameTooltip
+                                    local tip = sfui.common.get_tooltip()
                                     if tip then tip:Hide() end
                                 end
                             end)
@@ -667,7 +667,7 @@ function Layout.BuildLayout(container, sections)
                             if tooltipHelper and tooltipHelper.HideBlockTooltip then
                                 tooltipHelper.HideBlockTooltip(block, bData)
                             else
-                                local tip = _G.GameTooltip
+                                local tip = sfui.common.get_tooltip()
                                 if tip then tip:Hide() end
                             end
                         end)

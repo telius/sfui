@@ -5,7 +5,7 @@ local cfg = sfui.config
 local common = sfui.common
 sfui.trackedoptions = sfui.trackedoptions or {}
 sfui.trackedoptions.UpdatePreview = function() end
-local GameTooltip = sfui.tooltip or _G.GameTooltip
+local GameTooltip = sfui.common.get_tooltip()
 
 local CreateFlatButton = common.create_flat_button
 local g = cfg
@@ -24,6 +24,48 @@ local glowTypes = {
     { text = "Thick",    value = "proc" }
 }
 local ReloadUI = ReloadUI or C_UI.Reload
+
+-- ─── Theme helpers ────────────────────────────────────────────────────────────
+-- palette-driven colours so the tracking manager follows sfui.theme (modern / camelot)
+local function get_palette()
+    local theme = sfui.theme
+    return (theme and theme.GetPalette and theme.GetPalette()) or cfg.appearance
+end
+
+-- weak registries so theme switches can restyle live widgets
+local themedSections = setmetatable({}, { __mode = "k" })
+local themedChoiceBtns = setmetatable({}, { __mode = "k" })
+
+local function style_section(section)
+    local pal = get_palette()
+    local cc = pal.containerColor or { 0.06, 0.06, 0.06, 0.9 }
+    section:SetBackdropColor(cc[1], cc[2], cc[3], cc[4] or 0.9)
+    local hl = pal.highlightColor or cfg.appearance.highlightColor
+    if section.accent then section.accent:SetColorTexture(hl[1], hl[2], hl[3], 1) end
+    if section.titleFS then section.titleFS:SetTextColor(hl[1], hl[2], hl[3], 1) end
+end
+
+-- selection-style buttons (anchor grid, growth cross)
+local function style_choice_btn(btn, active)
+    if not btn then return end
+    btn._sfuiActive = active and true or false
+    themedChoiceBtns[btn] = true
+    local pal = get_palette()
+    if active then
+        local ac = pal.accentColor or cfg.colors.cyan
+        btn:SetBackdropBorderColor(ac[1], ac[2], ac[3], 1)
+        btn:SetBackdropColor(unpack(cfg.colors.gray))
+    else
+        local bc = pal.borderColor or cfg.colors.black
+        btn:SetBackdropBorderColor(bc[1], bc[2], bc[3], bc[4] or 1)
+        btn:SetBackdropColor(0.1, 0.1, 0.1, 1)
+    end
+end
+
+local function restyle_themed_widgets()
+    for section in pairs(themedSections) do style_section(section) end
+    for btn in pairs(themedChoiceBtns) do style_choice_btn(btn, btn._sfuiActive) end
+end
 local C_AddOns = C_AddOns
 
 -- Main Options Frame
@@ -104,20 +146,22 @@ function sfui.trackedoptions.CreateSection(parent, title, subtitle, yOffset, wid
     section:SetBackdrop({
         bgFile = "Interface/Buttons/WHITE8X8",
     })
-    section:SetBackdropColor(0.06, 0.06, 0.06, 0.9)
 
-    -- Purple left accent stripe
+    -- Left accent stripe (theme highlight colour)
     local accent = section:CreateTexture(nil, "ARTWORK")
     accent:SetPoint("TOPLEFT", 0, 0)
     accent:SetPoint("BOTTOMLEFT", 0, 0)
     accent:SetWidth(ACCENT_W)
-    accent:SetColorTexture(unpack(cfg.appearance.highlightColor)) -- #6600FF
+    section.accent = accent
 
     -- Title
     local titleFS = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     titleFS:SetPoint("TOPLEFT", ACCENT_W + PADDING, -PADDING)
-    titleFS:SetTextColor(unpack(cfg.appearance.highlightColor)) -- Purple accent
     titleFS:SetText(title or "")
+    section.titleFS = titleFS
+
+    themedSections[section] = true
+    style_section(section)
 
     -- Subtitle (optional dim description)
     if subtitle then
@@ -160,28 +204,16 @@ function sfui.trackedoptions.CreateAnchorGrid(parent, panel, key, onUpdate)
                 edgeFile = "Interface/Buttons/WHITE8X8",
                 edgeSize = 1,
             })
-            btn:SetBackdropColor(0.1, 0.1, 0.1, 1)
-            btn:SetBackdropBorderColor(unpack(cfg.colors.black))
-
             btn.point = point
             btn:SetScript("OnClick", function()
                 panel[key] = point
                 for _, b in ipairs(container.btns) do
-                    if b.point == panel[key] then
-                        b:SetBackdropBorderColor(unpack(cfg.colors.cyan))
-                        b:SetBackdropColor(unpack(cfg.colors.gray))
-                    else
-                        b:SetBackdropBorderColor(unpack(cfg.colors.black))
-                        b:SetBackdropColor(0.1, 0.1, 0.1, 1)
-                    end
+                    style_choice_btn(b, b.point == panel[key])
                 end
                 if onUpdate then onUpdate() end
             end)
 
-            if panel[key] == point then
-                btn:SetBackdropBorderColor(unpack(cfg.colors.cyan))
-                btn:SetBackdropColor(unpack(cfg.colors.gray))
-            end
+            style_choice_btn(btn, panel[key] == point)
             table.insert(container.btns, btn)
         end
     end
@@ -210,9 +242,6 @@ function sfui.trackedoptions.CreateGrowthCross(parent, panel, onUpdate)
             edgeFile = "Interface/Buttons/WHITE8X8",
             edgeSize = 1,
         })
-        btn:SetBackdropColor(0.1, 0.1, 0.1, 1)
-        btn:SetBackdropBorderColor(unpack(cfg.colors.black))
-
         local text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         text:SetPoint("CENTER")
         text:SetText(info.label)
@@ -233,13 +262,7 @@ function sfui.trackedoptions.CreateGrowthCross(parent, panel, onUpdate)
                     active = (panel.growthH == b.growth)
                 end
 
-                if active then
-                    b:SetBackdropBorderColor(unpack(cfg.colors.cyan))
-                    b:SetBackdropColor(unpack(cfg.colors.gray))
-                else
-                    b:SetBackdropBorderColor(unpack(cfg.colors.black))
-                    b:SetBackdropColor(0.1, 0.1, 0.1, 1)
-                end
+                style_choice_btn(b, active)
             end
             if onUpdate then onUpdate() end
         end)
@@ -250,10 +273,7 @@ function sfui.trackedoptions.CreateGrowthCross(parent, panel, onUpdate)
         else
             active = (panel.growthH == info.point)
         end
-        if active then
-            btn:SetBackdropBorderColor(unpack(cfg.colors.cyan))
-            btn:SetBackdropColor(unpack(cfg.colors.gray))
-        end
+        style_choice_btn(btn, active)
         table.insert(container.btnRefs, btn)
     end
     return container
@@ -261,7 +281,7 @@ end
 
 -- Top Left Buttons (Options & Blizzard)
 local headerBtnX = 140
-local optBtn = CreateFlatButton(frame, "Main Options", 100, 20)
+local optBtn = CreateFlatButton(frame, "main options", 100, 20)
 optBtn:SetPoint("TOPLEFT", 10, -5)
 optBtn:SetScript("OnClick", function()
     sfui.toggle_options_panel()
@@ -276,7 +296,7 @@ optBtn:SetScript("OnClick", function()
     end
 end)
 
-local blizzBtn = CreateFlatButton(frame, "Blizzard Manager", 120, 20)
+local blizzBtn = CreateFlatButton(frame, "blizzard manager", 120, 20)
 blizzBtn:SetPoint("LEFT", optBtn, "RIGHT", 5, 0)
 blizzBtn:SetScript("OnClick", function()
     if _G.CooldownViewerSettings then
@@ -297,7 +317,7 @@ select_tab = function(frame, id)
         if i == id then
             -- Selected state
             tab.panel:Show()
-            btn.text:SetTextColor(g.colors.cyan[1], g.colors.cyan[2], g.colors.cyan[3])
+            sfui.theme.ApplyTabStyle(btn, true)
 
             -- Render Global Settings
             if id == 2 and sfui.trackedoptions.GenerateGlobalSettingsControls and sfui.trackedoptions.globContent then
@@ -320,8 +340,7 @@ select_tab = function(frame, id)
         else
             -- Deselected state
             tab.panel:Hide()
-            btn.text:SetTextColor(g.colors.purple[1], g.colors.purple[2], g.colors.purple[3])
-            -- btn:SetBackdropColor(0, 0, 0, 0)
+            sfui.theme.ApplyTabStyle(btn, false)
         end
     end
     frame.selectedTabId = id
@@ -344,7 +363,7 @@ function sfui.trackedoptions.toggle_viewer()
             -- Default to Assignments tab
             select_tab(frame, 1)
 
-            if not C_AddOns.IsAddOnLoaded("Blizzard_CooldownViewer") then C_AddOns.LoadAddOn("Blizzard_CooldownViewer") end
+            sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
         end)
         frame:Show()
     else
@@ -385,6 +404,9 @@ function sfui.trackedoptions.initialize()
         t:SetPoint("CENTER")
         t:SetText(text)
         btn.text = t
+        btn.fs = t
+        if btn.SetFontString then btn:SetFontString(t) end
+        sfui.theme.ApplyTabStyle(btn, false)
 
         btn:SetScript("OnClick", function() select_tab(frame, id) end)
 
@@ -400,9 +422,9 @@ function sfui.trackedoptions.initialize()
     end
 
     -- Create Tabs
-    local assignBtn = CreateTabButton("Assignments", 1)
-    local globalBtn = CreateTabButton("Global", 2)
-    local barsBtn = CreateTabButton("Bars", 3)
+    local assignBtn = CreateTabButton("assignments", 1)
+    local globalBtn = CreateTabButton("global", 2)
+    local barsBtn = CreateTabButton("bars", 3)
 
 
     -- Content Panels
@@ -425,6 +447,18 @@ function sfui.trackedoptions.initialize()
     table.insert(frame.tabs, { button = assignBtn, panel = assignPanel })
     table.insert(frame.tabs, { button = globalBtn, panel = globalPanel })
     table.insert(frame.tabs, { button = barsBtn, panel = barsPanel })
+
+    -- === THEME REGISTRATION ===
+    -- window chrome follows the active theme; the callback re-runs on every theme switch
+    sfui.theme.RegisterWindow(frame, function(f)
+        for i, tab in ipairs(f.tabs or _emptyTable) do
+            sfui.theme.ApplyTabStyle(tab.button, f.selectedTabId == i)
+        end
+        restyle_themed_widgets()
+        if sfui.cdm and sfui.cdm.ApplyTheme then
+            sfui.cdm.ApplyTheme()
+        end
+    end)
 
 
     -- === TAB 1: ASSIGNMENTS (CDM) ===
@@ -567,7 +601,7 @@ function sfui.trackedoptions.RenderBarsTab(parent)
     -- Col 1: Visibility
     local lVis = sec1c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     lVis:SetPoint("TOPLEFT", 0, s1y)
-    lVis:SetText("Visibility & Behaviour")
+    lVis:SetText("visibility & behaviour")
 
     local function GetB(k, d)
         if db[k] ~= nil then return db[k] end
@@ -599,7 +633,7 @@ function sfui.trackedoptions.RenderBarsTab(parent)
     local col2x = 350
     local lPos = sec1c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     lPos:SetPoint("TOPLEFT", col2x, s1y)
-    lPos:SetText("Position & Size")
+    lPos:SetText("position & size")
 
     local defX = (bar_cfg.anchor and bar_cfg.anchor.x) or (SfuiDB and SfuiDB.trackedBarsX) or -300
     local defY = (bar_cfg.anchor and bar_cfg.anchor.y) or (SfuiDB and SfuiDB.trackedBarsY) or 300
@@ -647,7 +681,7 @@ function sfui.trackedoptions.RenderBarsTab(parent)
 
     -- Texture
     local lTex = sec2c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    lTex:SetPoint("TOPLEFT", 0, s2y); lTex:SetText("Bar Texture:")
+    lTex:SetPoint("TOPLEFT", 0, s2y); lTex:SetText("bar texture:")
     local barTextures = bar_cfg.barTextures or sfui.config.barTextures or { { text = "Flat", value = "Interface/Buttons/WHITE8X8" } }
     local texDropDown = common.create_dropdown(sec2c, 160, barTextures,
         function(val)
@@ -662,7 +696,7 @@ function sfui.trackedoptions.RenderBarsTab(parent)
         end, 350, s2y + 10, 200)
 
     local lCol = sec2c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    lCol:SetPoint("TOPLEFT", 0, s2y - 40); lCol:SetText("Default Bar Color:")
+    lCol:SetPoint("TOPLEFT", 0, s2y - 40); lCol:SetText("default bar color:")
 
     local function CS(l, idx, x)
         return BSlider(sec2c, l, function() return ((db.defaultBarColor or cfg.colors.purple)[idx]) * 255 end, 0,
@@ -1136,7 +1170,7 @@ function sfui.trackedoptions.GenerateGlobalSettingsControls(parent)
 
     -- Glow Type & Color inline
     local lGT = s1c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    lGT:SetPoint("TOPLEFT", 0, s1y); lGT:SetText("Type:")
+    lGT:SetPoint("TOPLEFT", 0, s1y); lGT:SetText("type:")
     local gtDropDown = common.create_dropdown(s1c, 100, glowTypes, function(val)
         igs.glowType = val
         UpdateAll()
@@ -1144,7 +1178,7 @@ function sfui.trackedoptions.GenerateGlobalSettingsControls(parent)
     gtDropDown:SetPoint("LEFT", lGT, "RIGHT", 5, 0)
 
     local lGC = s1c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    lGC:SetPoint("LEFT", gtDropDown, "RIGHT", 15, 0); lGC:SetText("Color:")
+    lGC:SetPoint("LEFT", gtDropDown, "RIGHT", 15, 0); lGC:SetText("color:")
     local gcSwatch = common.create_color_swatch(s1c, igs.glowColor or defaults.glowColor, function(r, g, b)
         igs.glowColor = { r, g, b, 1 }
         UpdateAll()
@@ -1212,7 +1246,7 @@ function sfui.trackedoptions.GenerateGlobalSettingsControls(parent)
     s3y = s3y - 35
 
     local lTC = s3c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    lTC:SetPoint("TOPLEFT", 0, s3y); lTC:SetText("Text Color:")
+    lTC:SetPoint("TOPLEFT", 0, s3y); lTC:SetText("text color:")
     local tcSwatch = common.create_color_swatch(s3c, igs.textColor or defaults.textColor, function(r, g, b)
         igs.textColor = { r, g, b, 1 }
         sfui.trackedicons.Update()
@@ -1274,7 +1308,7 @@ function sfui.trackedoptions.GenerateGlobalSettingsControls(parent)
 
         local label = pf:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         label:SetPoint("BOTTOM", 0, 10)
-        label:SetText("GLOW PREVIEW")
+        label:SetText("glow preview")
 
         parent.glowPreview = pf
     end
@@ -1370,9 +1404,9 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     s2y = s2y - 35
 
     local lG = s2c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    lG:SetPoint("TOPLEFT", 0, s2y); lG:SetText("Growth:")
+    lG:SetPoint("TOPLEFT", 0, s2y); lG:SetText("growth:")
     local lAP = s2c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    lAP:SetPoint("TOPLEFT", 130, s2y); lAP:SetText("Anchor Point:")
+    lAP:SetPoint("TOPLEFT", 130, s2y); lAP:SetText("anchor point:")
     s2y = s2y - 18
 
     local growthCross = sfui.trackedoptions.CreateGrowthCross(s2c, panel, function()
@@ -1399,7 +1433,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     local s3y = 0
 
     local lA = s3c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    lA:SetPoint("TOPLEFT", 0, s3y); lA:SetText("Anchor To:")
+    lA:SetPoint("TOPLEFT", 0, s3y); lA:SetText("anchor to:")
     local anchorTargets = common.get_all_anchor_targets(panel.name)
     local anchorTo = common.create_dropdown(s3c, 130, anchorTargets, function(val)
         panel.anchorTo = val
@@ -1408,7 +1442,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     anchorTo:SetPoint("LEFT", lA, "RIGHT", 5, 0)
 
     local lRP = s3c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    lRP:SetPoint("TOPLEFT", 0, s3y - 30); lRP:SetText("Relative Pt:")
+    lRP:SetPoint("TOPLEFT", 0, s3y - 30); lRP:SetText("relative pt:")
     local points = {
         { text = "Top",  value = "TOP" }, { text = "Bottom", value = "BOTTOM" },
         { text = "Left", value = "LEFT" }, { text = "Right", value = "RIGHT" },
@@ -1434,7 +1468,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     -- SECTION 4: INDIVIDUAL ICON OVERRIDES
     -- ═══════════════════════════════════
     if panel.entries and #(panel.entries) > 0 then
-        local _, _, classID = UnitClass("player")
+        local classID = sfui.common.get_player_class_id()
         -- Per Blizzard source, calling without args defaults to player config/spec
         local heroSpecs = C_ClassTalents and C_ClassTalents.GetHeroTalentSpecsForClassSpec() or {}
         local secTitle = (#heroSpecs > 0) and "Hero Talent Overrides" or "Assigned Spell Overrides"
@@ -1446,7 +1480,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
         -- Draw Header
         local hIcon = s4c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         hIcon:SetPoint("TOPLEFT", 10, s4y); hIcon:SetWidth(150); hIcon:SetJustifyH("LEFT"); hIcon:SetText(
-            "Assigned Spell")
+            "assigned spell")
 
         local hFilter = s4c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         hFilter:SetPoint("TOPLEFT", 160, s4y); hFilter:SetWidth(180); hFilter:SetJustifyH("LEFT"); hFilter:SetText(
@@ -1584,9 +1618,9 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
                             C_Traits.GetSubTreeInfo(configID, heroInfo)
                         GameTooltip:SetText(tInfo and tInfo.name or "Unknown Spec")
                         if whitelist[heroInfo] then
-                            GameTooltip:AddLine("Filter: ENABLED (Only show in this spec)", 0, 1, 0)
+                            GameTooltip:AddLine("filter: enabled (only show in this spec)", 0, 1, 0)
                         else
-                            GameTooltip:AddLine("Filter: DISABLED (Always show)", 0.6, 0.6, 0.6)
+                            GameTooltip:AddLine("filter: disabled (always show)", 0.6, 0.6, 0.6)
                         end
                         GameTooltip:Show()
                     end

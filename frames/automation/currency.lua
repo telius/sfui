@@ -2,14 +2,13 @@ local addonName, addon = ...
 sfui = sfui or {}
 
 local CharacterFrame = _G.CharacterFrame
-local GameTooltip = _G.GameTooltip
-
+local GameTooltip = sfui.common.get_tooltip()
 local function UpdateCurrencyAnchors()
     local cFrame = _G.sfui_currency_frame
     local iFrame = _G.sfui_item_frame
     if not CharacterFrame then return end
 
-    local isChonky = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("ChonkyCharacterSheet")
+    local isChonky = sfui.common.is_addon_loaded("ChonkyCharacterSheet")
     local anchorParent = isChonky and (_G.CharacterFrameBgbg or _G.CharacterFrameBg or CharacterFrame) or CharacterFrame
     local offsetY = isChonky and -54 or -110
 
@@ -136,7 +135,7 @@ do
     end
 
     local function get_item_details(itemID)
-        local _, _, _, _, _, _, _, _, _, texture = C_Item.GetItemInfo(itemID)
+        local _, _, _, _, _, _, _, _, _, texture = sfui.common.get_item_info(itemID)
         if not texture then return nil end
         _itemDetail.texture = texture
         _itemDetail.quantity = C_Item.GetItemCount(itemID)

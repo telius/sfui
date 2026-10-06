@@ -12,7 +12,7 @@ local GetSpellInfo = _G.GetSpellInfo
 local GetSpellTexture = _G.GetSpellTexture
 local C_Spell = _G.C_Spell
 
-local _, playerClass = UnitClass("player")
+local playerClass = sfui.common.get_player_class()
 sfui.buffs.playerClass = playerClass
 
 -- Helper to safely get spell texture

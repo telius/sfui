@@ -83,7 +83,7 @@ local function ensure_tab_built(tabDef, content_panel, tab_button)
     if tabDef.build and content_panel then
         local ok, err = pcall(tabDef.build, content_panel, tab_button, frame)
         if not ok then
-            print("|cffff0000[sfui options tab build error]|r", tabDef.id or "tab", err)
+            sfui.print("|cffff0000options tab build error:|r", tabDef.id or "tab", err)
         end
         if content_panel.update_scroll_height then
             C_Timer.After(0.01, content_panel.update_scroll_height)
@@ -521,12 +521,12 @@ local function register_blizzard_settings()
 
         local desc = canvas:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
         desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
-        desc:SetText("Modular and dynamic UI for World of Warcraft.")
+        desc:SetText("modular and dynamic ui for world of warcraft.")
 
         local openBtn = CreateFrame("Button", nil, canvas, "UIPanelButtonTemplate")
         openBtn:SetSize(180, 26)
         openBtn:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -20)
-        openBtn:SetText("Open SFUI Options")
+        openBtn:SetText("open sfui options")
         openBtn:SetScript("OnClick", function()
             if _G.SettingsPanel and _G.SettingsPanel:IsShown() then
                 _G.SettingsPanel:Hide()

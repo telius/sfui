@@ -156,22 +156,8 @@ end
 
 -- ─── Safe CVar Accessors ─────────────────────────────────────────────────────
 
-local function safe_get_cvar(cvar)
-    if sfui.common and sfui.common.get_cvar then
-        return sfui.common.get_cvar(cvar)
-    end
-    if not GetCVar then return nil end
-    return GetCVar(cvar)
-end
-
-local function safe_set_cvar(cvar, val)
-    if sfui.common and sfui.common.set_cvar then
-        return sfui.common.set_cvar(cvar, val)
-    end
-    if SetCVar and (not InCombatLockdown or not InCombatLockdown()) and GetCVar and GetCVar(cvar) ~= nil then
-        SetCVar(cvar, tostring(val))
-    end
-end
+local safe_get_cvar = sfui.common.get_cvar
+local safe_set_cvar = sfui.common.set_cvar
 
 -- Cache baseline soft target CVars on load (only if client supports them)
 for _, cvar in ipairs(SoftTargetCVars) do
@@ -515,10 +501,8 @@ local function is_fishing_pole_item(itemID, itemLink)
         return false
     end
 
-    if _G.C_Item and _G.C_Item.GetItemInfoInstant then
-        local _, _, _, _, _, cID, scID = _G.C_Item.GetItemInfoInstant(itemID or itemLink)
-        if is_pole_class(cID, scID) then return true end
-    end
+    local _, _, _, _, _, cID, scID = sfui.common.get_item_instant_info(itemID or itemLink)
+    if is_pole_class(cID, scID) then return true end
 
     if _G.GetItemInfoInstant then
         local _, _, _, _, _, cID, scID = _G.GetItemInfoInstant(itemID or itemLink)

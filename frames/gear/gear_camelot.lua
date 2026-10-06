@@ -33,7 +33,7 @@ local wipe = _G.wipe or function(t)
 end
 
 local function show_tooltip(owner, anchor, title, lines)
-    local tip = sfui.tooltip or _G.GameTooltip
+    local tip = sfui.common.get_tooltip()
     if not tip or not owner then return end
     tip:SetOwner(owner, anchor or "ANCHOR_RIGHT")
     if title then
@@ -52,14 +52,7 @@ local function show_tooltip(owner, anchor, title, lines)
     tip:Show()
 end
 
-local function hide_tooltip()
-    if sfui.tooltip and sfui.tooltip:IsShown() then
-        sfui.tooltip:Hide()
-    end
-    if _G.GameTooltip and _G.GameTooltip:IsShown() then
-        _G.GameTooltip:Hide()
-    end
-end
+local hide_tooltip = sfui.common.hide_tooltip
 
 -- -------------------------------------------------------------------------
 -- CENTRALIZED ROLE & NAKED ICON PARAMETERS

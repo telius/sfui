@@ -8,7 +8,7 @@ local Tooltip = {}
 sfui.tracker.helpers.tooltip = Tooltip
 
 local _G = _G
-local GameTooltip = _G.GameTooltip
+local GameTooltip = sfui.common.get_tooltip()
 local UIParent = _G.UIParent
 local type = type
 local tostring = tostring
@@ -32,7 +32,7 @@ end
 Tooltip.PickAnchor = PickAnchor
 
 function Tooltip.ShowBlockTooltip(owner, bData)
-    local tip = _G.GameTooltip
+    local tip = sfui.common.get_tooltip()
     if not tip or not bData then return end
 
     local anchor = PickAnchor(owner)
@@ -71,9 +71,9 @@ function Tooltip.ShowBlockTooltip(owner, bData)
             end
         end
         tip:AddLine(" ")
-        tip:AddLine("|cff888888Left-click: Open Achievement Panel|r", 1, 1, 1)
-        tip:AddLine("|cff888888Right-click: Collapse/Expand criteria|r", 1, 1, 1)
-        tip:AddLine("|cff888888Shift-click: Untrack Achievement|r", 1, 1, 1)
+        tip:AddLine("|cff888888left-click: open achievement panel|r", 1, 1, 1)
+        tip:AddLine("|cff888888right-click: collapse/expand criteria|r", 1, 1, 1)
+        tip:AddLine("|cff888888shift-click: untrack achievement|r", 1, 1, 1)
         tip:Show()
         return
     end
@@ -81,7 +81,7 @@ function Tooltip.ShowBlockTooltip(owner, bData)
     -- 3. Traveler's Log (Activities)
     if bData.isPerksActivity and bData.activityID then
         tip:AddLine(bData.title or "Traveler's Log", 0.20, 0.85, 0.95)
-        tip:AddLine("Trading Post - Traveler's Log", 0.85, 0.85, 0.85)
+        tip:AddLine("trading post - traveler's log", 0.85, 0.85, 0.85)
         if bData.description and bData.description ~= "" and not issecretvalue(bData.description) then
             tip:AddLine(bData.description, 0.85, 0.85, 0.85, true)
         end
@@ -96,9 +96,9 @@ function Tooltip.ShowBlockTooltip(owner, bData)
             end
         end
         tip:AddLine(" ")
-        tip:AddLine("|cff888888Left-click: Open Traveler's Log|r", 1, 1, 1)
-        tip:AddLine("|cff888888Right-click: Collapse/Expand requirements|r", 1, 1, 1)
-        tip:AddLine("|cff888888Shift-click: Untrack Activity|r", 1, 1, 1)
+        tip:AddLine("|cff888888left-click: open traveler's log|r", 1, 1, 1)
+        tip:AddLine("|cff888888right-click: collapse/expand requirements|r", 1, 1, 1)
+        tip:AddLine("|cff888888shift-click: untrack activity|r", 1, 1, 1)
         tip:Show()
         return
     end
@@ -106,7 +106,7 @@ function Tooltip.ShowBlockTooltip(owner, bData)
     -- 4. Housing Endeavor
     if bData.isHousingTask and bData.housingTaskID then
         tip:AddLine(bData.title or "Housing Endeavor", 0.55, 0.85, 0.35)
-        tip:AddLine("Player Housing Neighborhood Initiative", 0.85, 0.85, 0.85)
+        tip:AddLine("player housing neighborhood initiative", 0.85, 0.85, 0.85)
         if bData.lines and #bData.lines > 0 then
             tip:AddLine(" ")
             for _, line in ipairs(bData.lines) do
@@ -118,9 +118,9 @@ function Tooltip.ShowBlockTooltip(owner, bData)
             end
         end
         tip:AddLine(" ")
-        tip:AddLine("|cff888888Left-click: Open Endeavors Tab|r", 1, 1, 1)
-        tip:AddLine("|cff888888Right-click: Collapse/Expand requirements|r", 1, 1, 1)
-        tip:AddLine("|cff888888Shift-click: Untrack Task|r", 1, 1, 1)
+        tip:AddLine("|cff888888left-click: open endeavors tab|r", 1, 1, 1)
+        tip:AddLine("|cff888888right-click: collapse/expand requirements|r", 1, 1, 1)
+        tip:AddLine("|cff888888shift-click: untrack task|r", 1, 1, 1)
         tip:Show()
         return
     end
@@ -140,9 +140,9 @@ function Tooltip.ShowBlockTooltip(owner, bData)
             end
         end
         tip:AddLine(" ")
-        tip:AddLine("|cff888888Left-click: Open Recipe in Profession Window|r", 1, 1, 1)
-        tip:AddLine("|cff888888Right-click: Collapse/Expand reagents|r", 1, 1, 1)
-        tip:AddLine("|cff888888Shift-click: Untrack Recipe|r", 1, 1, 1)
+        tip:AddLine("|cff888888left-click: open recipe in profession window|r", 1, 1, 1)
+        tip:AddLine("|cff888888right-click: collapse/expand reagents|r", 1, 1, 1)
+        tip:AddLine("|cff888888shift-click: untrack recipe|r", 1, 1, 1)
         tip:Show()
         return
     end
@@ -159,8 +159,8 @@ function Tooltip.ShowBlockTooltip(owner, bData)
             end
         end
         tip:AddLine(" ")
-        tip:AddLine("|cff888888Left-click: Preview in Wardrobe / Collections|r", 1, 1, 1)
-        tip:AddLine("|cff888888Shift-click: Stop Tracking|r", 1, 1, 1)
+        tip:AddLine("|cff888888left-click: preview in wardrobe / collections|r", 1, 1, 1)
+        tip:AddLine("|cff888888shift-click: stop tracking|r", 1, 1, 1)
         tip:Show()
         return
     end
@@ -183,7 +183,7 @@ function Tooltip.ShowBlockTooltip(owner, bData)
             tip:AddLine(bData.timeLeftText, 0.20, 0.85, 0.95)
         end
         if bData.hasReminder then
-            tip:AddLine("Event Reminder: ACTIVE", 0.0, 1.0, 0.8)
+            tip:AddLine("event reminder: active", 0.0, 1.0, 0.8)
         end
         if bData.lines and #bData.lines > 0 then
             tip:AddLine(" ")
@@ -197,12 +197,12 @@ function Tooltip.ShowBlockTooltip(owner, bData)
         end
         tip:AddLine(" ")
         if bData.isWorldEvent then
-            tip:AddLine("|cff888888Left-click: Track & Show on Map|r", 1, 1, 1)
-            tip:AddLine("|cff888888Right-click: Collapse/Expand objectives|r", 1, 1, 1)
-            tip:AddLine("|cff888888Shift-click: Toggle Reminder|r", 1, 1, 1)
+            tip:AddLine("|cff888888left-click: track & show on map|r", 1, 1, 1)
+            tip:AddLine("|cff888888right-click: collapse/expand objectives|r", 1, 1, 1)
+            tip:AddLine("|cff888888shift-click: toggle reminder|r", 1, 1, 1)
         else
-            tip:AddLine("|cff888888Left-click: Show on World Map|r", 1, 1, 1)
-            tip:AddLine("|cff888888Right-click: Collapse/Expand objectives|r", 1, 1, 1)
+            tip:AddLine("|cff888888left-click: show on world map|r", 1, 1, 1)
+            tip:AddLine("|cff888888right-click: collapse/expand objectives|r", 1, 1, 1)
         end
         tip:Show()
         return
@@ -218,10 +218,10 @@ function Tooltip.ShowBlockTooltip(owner, bData)
         local titleText = bData.rawTitle or bData.title or (_G.C_QuestLog and _G.C_QuestLog.GetTitleForQuestID and _G.C_QuestLog.GetTitleForQuestID(bData.questID)) or "Quest"
         if isComplete then
             tip:AddLine(titleText, 0.2, 1.0, 0.2)
-            tip:AddLine("|cff33ff33Ready for turn-in|r", 0.2, 1.0, 0.2)
+            tip:AddLine("|cff33ff33ready for turn-in|r", 0.2, 1.0, 0.2)
         elseif bData.isFailed then
             tip:AddLine(titleText, 1.0, 0.2, 0.2)
-            tip:AddLine("|cffff3333Failed|r", 1.0, 0.2, 0.2)
+            tip:AddLine("|cffff3333failed|r", 1.0, 0.2, 0.2)
         else
             tip:AddLine(titleText, 1, 1, 1)
         end
@@ -311,15 +311,15 @@ function Tooltip.ShowBlockTooltip(owner, bData)
 
         -- Click hints
         tip:AddLine(" ")
-        tip:AddLine("|cff888888Left-click: Open Quest Details / Map|r", 1, 1, 1)
-        tip:AddLine("|cff888888Right-click: Collapse/Expand objectives|r", 1, 1, 1)
-        tip:AddLine("|cff888888Shift-click: Untrack Quest|r", 1, 1, 1)
+        tip:AddLine("|cff888888left-click: open quest details / map|r", 1, 1, 1)
+        tip:AddLine("|cff888888right-click: collapse/expand objectives|r", 1, 1, 1)
+        tip:AddLine("|cff888888shift-click: untrack quest|r", 1, 1, 1)
         if not bData.isWorldQuest then
-            tip:AddLine("|cff888888Alt-click: Share Quest|r", 1, 1, 1)
-            tip:AddLine("|cff888888Ctrl-click: Abandon Quest|r", 1, 1, 1)
+            tip:AddLine("|cff888888alt-click: share quest|r", 1, 1, 1)
+            tip:AddLine("|cff888888ctrl-click: abandon quest|r", 1, 1, 1)
         end
         if bData.canFindGroup then
-            tip:AddLine("|cff00ff88Eye Button: Find Group in Group Finder|r", 1, 1, 1)
+            tip:AddLine("|cff00ff88eye button: find group in group finder|r", 1, 1, 1)
         end
 
         tip:Show()
@@ -342,7 +342,7 @@ function Tooltip.ShowBlockTooltip(owner, bData)
 end
 
 function Tooltip.HideBlockTooltip(owner, bData)
-    local tip = _G.GameTooltip
+    local tip = sfui.common.get_tooltip()
     if tip then tip:Hide() end
 end
 

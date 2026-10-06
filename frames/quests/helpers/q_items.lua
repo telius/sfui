@@ -242,7 +242,7 @@ function Items.CreateItemButton(parent)
 
     btn:SetScript("OnEnter", function(self)
         local qlIndex = self.questLogIndex
-        local tip = sfui.common.get_tooltip() or _G.GameTooltip
+        local tip = sfui.common.get_tooltip()
         if tip and qlIndex then
             local anchor = (sfui.tracker.helpers.tooltip and sfui.tracker.helpers.tooltip.PickAnchor and sfui.tracker.helpers.tooltip.PickAnchor(self)) or "ANCHOR_RIGHT"
             tip:SetOwner(self, anchor)
@@ -254,7 +254,7 @@ function Items.CreateItemButton(parent)
     end)
 
     btn:SetScript("OnLeave", function()
-        local tip = sfui.common.get_tooltip() or _G.GameTooltip
+        local tip = sfui.common.get_tooltip()
         if tip then tip:Hide() end
     end)
 

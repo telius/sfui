@@ -1,4 +1,5 @@
 local addonName, addon = ...
+local GameTooltip = sfui.common.get_tooltip()  -- private addon tooltip (methods.md §3.7.2)
 sfui.highest = sfui.highest or {}
 
 -- BoE items: track last attempt time so we don't spam the bind dialog
@@ -7,7 +8,7 @@ local BOE_RETRY_DELAY = 30 -- seconds before re-offering the bind dialog
 
 local _G = _G
 local common = sfui.common
-local GetItemInfo = (_G.C_Item and _G.C_Item.GetItemInfo) or _G.GetItemInfo
+local GetItemInfo = sfui.common.get_item_info
 local C_Item = _G.C_Item
 local C_TooltipInfo = _G.C_TooltipInfo
 local GetInventoryItemLink = _G.GetInventoryItemLink

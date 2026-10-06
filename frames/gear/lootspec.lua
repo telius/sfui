@@ -12,7 +12,7 @@ sfui.lootspec                   = {}
 local GetLootSpecialization     = GetLootSpecialization
 local SetLootSpecialization     = SetLootSpecialization
 local UnitClass                 = UnitClass
-local _, ENGLISH_CLASS          = UnitClass("player")
+local ENGLISH_CLASS          = sfui.common.get_player_class()
 local C_ChallengeMode           = C_ChallengeMode
 local string                    = string
 -- NOTE: EJ_* globals are NOT localized — they live in Blizzard_EncounterJournal

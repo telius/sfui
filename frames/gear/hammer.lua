@@ -106,7 +106,7 @@ local function get_item_expansion(itemLink)
         return itemExpansionCache[itemID]
     end
 
-    local expacID = select(15, C_Item.GetItemInfo(itemLink))
+    local expacID = select(15, sfui.common.get_item_info(itemLink))
     if expacID == nil and _G.GetItemInfo then
         expacID = select(15, _G.GetItemInfo(itemLink))
     end
@@ -163,8 +163,8 @@ local function scan_bags_for_hammers()
                     seenBagItemIDs[id] = true
                     local itemLnk = link or info.hyperlink
                     local name, icon
-                    if itemLnk and C_Item.GetItemInfo then
-                        name, _, _, _, _, _, _, _, _, icon = C_Item.GetItemInfo(itemLnk)
+                    if itemLnk then
+                        name, _, _, _, _, _, _, _, _, icon = sfui.common.get_item_info(itemLnk)
                     end
                     name = name or (id and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id)) or "Master's Hammer"
                     icon = icon or (id and C_Item.GetItemIconByID and C_Item.GetItemIconByID(id)) or info.iconFileID or 134376
@@ -184,8 +184,8 @@ local function scan_bags_for_hammers()
                     -- Fallback for generic/older hammers matching name
                     local itemLnk = link or info.hyperlink
                     local name, icon
-                    if itemLnk and C_Item.GetItemInfo then
-                        name, _, _, _, _, _, _, _, _, icon = C_Item.GetItemInfo(itemLnk)
+                    if itemLnk then
+                        name, _, _, _, _, _, _, _, _, icon = sfui.common.get_item_info(itemLnk)
                     end
                     name = name or (id and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id))
                     if name and (name:find("Master.s Hammer") or name:find("Master Repair Hammer") or name:find("Meisterhammer")) then
@@ -504,16 +504,16 @@ local function create_hammer_popup()
 
     -- Tooltip info
     hammerPopup:SetScript("OnEnter", function(self)
-        local tip = sfui.tooltip or _G.GameTooltip
+        local tip = sfui.common.get_tooltip()
         if not tip then return end
         tip:SetOwner(self, "ANCHOR_TOP")
 
         if testModeActive then
-            tip:AddLine("Master's Hammer (Preview Mode)", 0, 1, 1)
-            tip:AddLine("This is a preview of the automated repair button.", 1, 1, 1)
+            tip:AddLine("master's hammer (preview mode)", 0, 1, 1)
+            tip:AddLine("this is a preview of the automated repair button.", 1, 1, 1)
             tip:AddLine(" ")
-            tip:AddLine("|cff00ff00Left Drag|r: Move button position", 0.7, 0.7, 0.7)
-            tip:AddLine("|cff00ffff/sfui hammer test|r: Toggle preview off", 0.7, 0.7, 0.7)
+            tip:AddLine("|cff00ff00left drag|r: move button position", 0.7, 0.7, 0.7)
+            tip:AddLine("|cff00ffff/sfui hammer test|r: toggle preview off", 0.7, 0.7, 0.7)
             tip:Show()
             return
         end
@@ -528,7 +528,7 @@ local function create_hammer_popup()
             local targetExpac = get_item_expansion(targetLink)
             local targetExpacName = (targetExpac and EXPANSION_NAMES[targetExpac]) or (targetExpac and ("Expac " .. targetExpac))
             local expacSuffix = targetExpacName and (" [" .. targetExpacName .. "]") or ""
-            tip:AddLine("Next Target: " .. (targetLink or ("Slot " .. currentTargetSlot)) .. durStr .. expacSuffix, 1, 1, 1)
+            tip:AddLine("next target: " .. (targetLink or ("Slot " .. currentTargetSlot)) .. durStr .. expacSuffix, 1, 1, 1)
         end
 
         local damagedCount = 0
@@ -543,7 +543,7 @@ local function create_hammer_popup()
                         damagedCount = damagedCount + 1
                         if damagedCount == 1 then
                             tip:AddLine(" ")
-                            tip:AddLine("Eligible Damaged Gear:", 1, 0.82, 0)
+                            tip:AddLine("eligible damaged gear:", 1, 0.82, 0)
                         end
                         local slotExpac = get_item_expansion(link)
                         local slotExpacName = (slotExpac and EXPANSION_NAMES[slotExpac])
@@ -555,14 +555,14 @@ local function create_hammer_popup()
         end
 
         tip:AddLine(" ")
-        tip:AddLine("|cff00ff00Click|r: Repair targeted item", 0.7, 0.7, 0.7)
+        tip:AddLine("|cff00ff00click|r: repair targeted item", 0.7, 0.7, 0.7)
         if not SfuiDB.lockRepairIcon then
-            tip:AddLine("|cff00ff00Drag|r: Move icon", 0.7, 0.7, 0.7)
+            tip:AddLine("|cff00ff00drag|r: move icon", 0.7, 0.7, 0.7)
         end
         tip:Show()
     end)
     hammerPopup:SetScript("OnLeave", function()
-        local tip = sfui.tooltip or _G.GameTooltip
+        local tip = sfui.common.get_tooltip()
         if tip then tip:Hide() end
     end)
 
@@ -666,7 +666,7 @@ function sfui.hammer.toggle_test_popup(enable)
         popup:SetAttribute("type", nil)
         popup:SetAttribute("macrotext", nil)
         if popup.text then
-            popup.text:SetText("TEST (3)")
+            popup.text:SetText("test (3)")
         end
         sfui.hammer.update_popup_style()
         popup:SetAlpha(1)

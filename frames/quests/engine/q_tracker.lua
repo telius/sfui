@@ -823,16 +823,19 @@ sfui.questlog.Refresh = {
 
 function sfui.questlog.GetState()
     if not SfuiDB then SfuiDB = {} end
-    if not SfuiDB.questlog then
-        SfuiDB.questlog = {
-            collapsed    = {},
-            hiddenQuests = {},
-            hidden       = false,
-        }
+    local st = SfuiDB.questlog
+    if not st then
+        st = {}
+        SfuiDB.questlog = st
     end
-    if SfuiDB.questlog.expandedQuests then SfuiDB.questlog.expandedQuests = nil end
-    if SfuiDB.questlog.manualExpandedQuests then SfuiDB.questlog.manualExpandedQuests = nil end
-    return SfuiDB.questlog
+    st.collapsed      = st.collapsed or {}
+    st.hiddenQuests   = st.hiddenQuests or {}
+    st.expandedBlocks = st.expandedBlocks or {}
+    if st.hidden == nil then st.hidden = false end
+    -- legacy bloat tables (per-quest expansion state, no longer used)
+    st.expandedQuests       = nil
+    st.manualExpandedQuests = nil
+    return st
 end
 
 function sfui.questlog.UpdateAnchor()

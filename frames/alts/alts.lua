@@ -27,7 +27,7 @@ local string = _G.string
 local ipairs = _G.ipairs
 local pairs = _G.pairs
 local type = _G.type
-local GameTooltip = _G.GameTooltip
+local GameTooltip = sfui.common.get_tooltip()
 local RAID_CLASS_COLORS = _G.RAID_CLASS_COLORS
 local NORMAL_FONT_COLOR = _G.NORMAL_FONT_COLOR
 local CloseDropDownMenus = _G.CloseDropDownMenus
@@ -248,7 +248,7 @@ function sfui.alts.PerformSync(isLogout)
     if r and r ~= "" then
         d.realm = r
     end
-    local _, englishClass = UnitClass("player")
+    local englishClass = sfui.common.get_player_class()
     if englishClass and englishClass ~= "" then
         d.class = englishClass
     end
@@ -505,7 +505,7 @@ local function CreateSettingsPanel()
     -- 1. SORT BY
     local sortHeader = settingsPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     sortHeader:SetPoint("TOPLEFT", 12, -36)
-    sortHeader:SetText("SORT BY")
+    sortHeader:SetText("sort by")
     sortHeader:SetTextColor(1, 0.82, 0)
 
     local sortDefs = {
@@ -536,7 +536,7 @@ local function CreateSettingsPanel()
     -- 2. SECTIONS
     local secHeader = settingsPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     secHeader:SetPoint("TOPLEFT", 12, -84)
-    secHeader:SetText("SECTIONS")
+    secHeader:SetText("sections")
     secHeader:SetTextColor(1, 0.82, 0)
 
     local sectionsContainer = CreateFrame("Frame", nil, settingsPanel)
@@ -547,7 +547,7 @@ local function CreateSettingsPanel()
 
     -- 3. CHARACTERS
     local charHeader = settingsPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    charHeader:SetText("CHARACTERS")
+    charHeader:SetText("characters")
     charHeader:SetTextColor(1, 0.82, 0)
     settingsPanel.charHeader = charHeader
 

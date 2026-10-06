@@ -1,6 +1,7 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
+local GameTooltip = sfui.common.get_tooltip()  -- private addon tooltip (methods.md §3.7.2)
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/dungeonjournal/dj_pins.lua
@@ -20,6 +21,7 @@ sfui = sfui or {}
 if sfui.isRetail then return end
 
 local theme = sfui.theme
+local common = sfui.common
 
 local entrancePinPool  = {}
 local activeEntrancePins = {}
@@ -74,13 +76,7 @@ local function AcquireEntrancePin(parent)
     pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     pin:SetSize(22, 22)
     pin:SetFrameStrata("HIGH")
-    pin:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    pin:SetBackdropColor(0.04, 0.04, 0.05, 0.95)
-    pin:SetBackdropBorderColor(0, 0, 0, 1)
+    common.apply_flat_backdrop(pin, { 0.04, 0.04, 0.05, 0.95 }, { 0, 0, 0, 1 })
 
     local icon = pin:CreateTexture(nil, "ARTWORK")
     pin.icon = icon
@@ -122,13 +118,7 @@ local function AcquireQuestPin(parent)
     pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     pin:SetSize(20, 20)
     pin:SetFrameStrata("HIGH")
-    pin:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    pin:SetBackdropColor(0.04, 0.04, 0.05, 0.95)
-    pin:SetBackdropBorderColor(0, 0, 0, 1)
+    common.apply_flat_backdrop(pin, { 0.04, 0.04, 0.05, 0.95 }, { 0, 0, 0, 1 })
 
     local icon = pin:CreateTexture(nil, "ARTWORK")
     pin.icon = icon
@@ -314,7 +304,7 @@ local function UpdatePins(force)
     if not canvasW or canvasW <= 0 or not canvasH or canvasH <= 0 then return end
 
     local playerLevel   = UnitLevel("player") or 1
-    local playerFaction = UnitFactionGroup("player") or "Alliance"
+    local playerFaction = sfui.common.get_player_faction() or "Alliance"
 
     -- Zero-CPU early out if map view, scale, and quest status are unchanged
     if not force and not isPinsDirty
@@ -919,23 +909,16 @@ local function InitPins()
     end
 
     if sfui.events and sfui.events.RegisterEvent then
-        local questDebounceTimer = nil
+        local function DebouncedUpdatePins()
+            if WorldMapFrame and WorldMapFrame:IsShown() then
+                UpdatePins(true)
+            end
+        end
         local function OnQuestStateChanged()
             InvalidateQuestCache()
             isPinsDirty = true
             if WorldMapFrame and WorldMapFrame:IsShown() then
-                if not questDebounceTimer then
-                    if _G.C_Timer and _G.C_Timer.After then
-                        questDebounceTimer = _G.C_Timer.After(0.15, function()
-                            questDebounceTimer = nil
-                            if WorldMapFrame and WorldMapFrame:IsShown() then
-                                UpdatePins(true)
-                            end
-                        end)
-                    else
-                        UpdatePins(true)
-                    end
-                end
+                common.debounce("dj_pins_quests", 0.15, DebouncedUpdatePins)
             end
         end
 

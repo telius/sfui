@@ -1,6 +1,7 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
+local GameTooltip = sfui.common.get_tooltip()  -- private addon tooltip (methods.md §3.7.2)
 sfui.dungeonjournal = sfui.dungeonjournal or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -74,15 +75,7 @@ sfui.db.RegisterDefaults("dungeonjournal", {
 })
 
 local function GetPlayerKey()
-    if sfui.common and sfui.common.get_player_unique_key then
-        return sfui.common.get_player_unique_key()
-    end
-    local guid = _G.UnitGUID and _G.UnitGUID("player")
-    if guid and guid ~= "" then return guid end
-    local name = _G.UnitName and _G.UnitName("player") or "player"
-    local getRealm = _G.GetNormalizedRealmName or _G.GetRealmName
-    local realm = getRealm and getRealm() or "global"
-    return name .. "-" .. realm
+    return sfui.common.get_player_unique_key()
 end
 
 local function GetCharHidden()
@@ -146,6 +139,16 @@ local function DJ_DB()
 end
 sfui.dungeonjournal.GetDB = DJ_DB
 sfui.dungeonjournal.DB    = DJ_DB
+
+-- per-character options mirrored into charHidden so alts keep independent filters
+local CHAR_SCOPED_OPTIONS = { showHiddenInSidebar = true, showAllDungeons = true }
+
+local function PersistCharOption(key, val)
+    DJ_DB()[key] = val
+    if CHAR_SCOPED_OPTIONS[key] then
+        GetCharHidden()[key] = val
+    end
+end
 
 function sfui.dungeonjournal.IsWishlisted(itemID)
     if not itemID then return false end
@@ -301,18 +304,8 @@ local function ResolveItemLink(btn, fallbackItemID)
     local itemLink = btn and btn.link
 
     if not (itemLink and type(itemLink) == "string" and itemLink:find("|Hitem:")) and itemID then
-        if common and common.get_item_info then
-            local _, l = common.get_item_info(itemID)
-            itemLink = l
-        end
-        if not itemLink and _G.GetItemInfo then
-            local _, l = _G.GetItemInfo(itemID)
-            itemLink = l
-        end
-        if not itemLink and _G.C_Item and _G.C_Item.GetItemInfo then
-            local _, l = _G.C_Item.GetItemInfo(itemID)
-            itemLink = l
-        end
+        local _, l = common.get_item_info(itemID)
+        itemLink = l
         if itemLink and btn then
             btn.link = itemLink
         end
@@ -321,14 +314,8 @@ local function ResolveItemLink(btn, fallbackItemID)
     if not (itemLink and type(itemLink) == "string" and itemLink:find("|Hitem:")) and itemID then
         local rawName = (btn and btn.nameText and btn.nameText.GetText and btn.nameText:GetText()) or ("item #" .. itemID)
         local cleanName = rawName:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
-        local quality = 1
-        if common and common.get_item_instant_info then
-            local _, _, q = common.get_item_instant_info(itemID)
-            quality = q or 1
-        elseif _G.C_Item and _G.C_Item.GetItemInfoInstant then
-            local _, _, q = _G.C_Item.GetItemInfoInstant(itemID)
-            quality = q or 1
-        end
+        local _, _, q = common.get_item_instant_info(itemID)
+        local quality = q or 1
         local r, g, b = GetQualityColor(quality)
         local hex = string.format("ff%02x%02x%02x", math_floor((r or 1) * 255 + 0.5), math_floor((g or 1) * 255 + 0.5), math_floor((b or 1) * 255 + 0.5))
         itemLink = string.format("|c%s|Hitem:%d:0:0:0:0:0:0:0:0:0:0:0:0|h[%s]|h|r", hex, itemID, cleanName)
@@ -691,13 +678,7 @@ function sfui.dungeonjournal.ShowContextMenu(owner, title, items)
         f:SetFrameStrata("TOOLTIP")
         f:SetFrameLevel(100)
         f:SetClampedToScreen(true)
-        f:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
-        f:SetBackdropColor(0.08, 0.08, 0.11, 0.98)
-        f:SetBackdropBorderColor(1, 0.78, 0.2, 0.8)
+        common.apply_flat_backdrop(f, { 0.08, 0.08, 0.11, 0.98 }, { 1, 0.78, 0.2, 0.8 })
 
         local t = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         f.title = t
@@ -805,17 +786,11 @@ local function OpenHiddenManager()
         dlg:SetScript("OnDragStart", dlg.StartMoving)
         dlg:SetScript("OnDragStop", dlg.StopMovingOrSizing)
 
-        dlg:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
-        dlg:SetBackdropColor(0.06, 0.06, 0.08, 0.98)
-        dlg:SetBackdropBorderColor(1, 0.78, 0.2, 0.8)
+        common.apply_flat_backdrop(dlg, { 0.06, 0.06, 0.08, 0.98 }, { 1, 0.78, 0.2, 0.8 })
 
         local title = dlg:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         title:SetPoint("TOPLEFT", dlg, "TOPLEFT", 14, -12)
-        title:SetText("Hidden Dungeons & Pins")
+        title:SetText("hidden dungeons & pins")
         title:SetTextColor(1, 0.82, 0, 1)
 
         local closeBtn = CreateFrame("Button", nil, dlg, "UIPanelCloseButton")
@@ -824,7 +799,7 @@ local function OpenHiddenManager()
 
         local sub = dlg:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
-        sub:SetText("Manage hidden dungeons, entrance pins, and quest pins.")
+        sub:SetText("manage hidden dungeons, entrance pins, and quest pins.")
         sub:SetTextColor(0.65, 0.65, 0.65, 1)
 
         local scroll = CreateFrame("ScrollFrame", nil, dlg, "UIPanelScrollFrameTemplate")
@@ -843,16 +818,10 @@ local function OpenHiddenManager()
         dlg.restoreBtn = restoreBtn
         restoreBtn:SetSize(130, 24)
         restoreBtn:SetPoint("BOTTOMLEFT", dlg, "BOTTOMLEFT", 12, 10)
-        restoreBtn:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
-        restoreBtn:SetBackdropColor(0.12, 0.12, 0.16, 0.95)
-        restoreBtn:SetBackdropBorderColor(0.24, 0.24, 0.28, 1)
+        common.apply_flat_backdrop(restoreBtn, { 0.12, 0.12, 0.16, 0.95 }, { 0.24, 0.24, 0.28, 1 })
         local rText = restoreBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         rText:SetPoint("CENTER")
-        rText:SetText("Restore All")
+        rText:SetText("restore all")
         rText:SetTextColor(0.4, 1.0, 0.4, 1)
         restoreBtn:SetScript("OnClick", function()
             sfui.dungeonjournal.RestoreAllHidden()
@@ -862,22 +831,16 @@ local function OpenHiddenManager()
         local bClose = CreateFrame("Button", nil, dlg, "BackdropTemplate")
         bClose:SetSize(80, 24)
         bClose:SetPoint("BOTTOMRIGHT", dlg, "BOTTOMRIGHT", -12, 10)
-        bClose:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
-        bClose:SetBackdropColor(0.12, 0.12, 0.16, 0.95)
-        bClose:SetBackdropBorderColor(0.24, 0.24, 0.28, 1)
+        common.apply_flat_backdrop(bClose, { 0.12, 0.12, 0.16, 0.95 }, { 0.24, 0.24, 0.28, 1 })
         local cText = bClose:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         cText:SetPoint("CENTER")
-        cText:SetText("Close")
+        cText:SetText("close")
         bClose:SetScript("OnClick", function() dlg:Hide() end)
 
         local emptyMsg = dlg:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
         dlg.emptyMsg = emptyMsg
         emptyMsg:SetPoint("CENTER", scroll, "CENTER", 0, 0)
-        emptyMsg:SetText("No dungeons or pins are currently hidden.")
+        emptyMsg:SetText("no dungeons or pins are currently hidden.")
 
         local function RefreshDialog()
             local charData = GetCharHidden()
@@ -912,13 +875,7 @@ local function OpenHiddenManager()
                 if not row then
                     row = CreateFrame("Frame", nil, content, "BackdropTemplate")
                     row:SetSize(318, 24)
-                    row:SetBackdrop({
-                        bgFile   = "Interface\\Buttons\\WHITE8x8",
-                        edgeFile = "Interface\\Buttons\\WHITE8x8",
-                        edgeSize = 1,
-                    })
-                    row:SetBackdropColor(0.08, 0.08, 0.10, 0.6)
-                    row:SetBackdropBorderColor(0.2, 0.2, 0.24, 0.6)
+                    common.apply_flat_backdrop(row, { 0.08, 0.08, 0.10, 0.6 }, { 0.2, 0.2, 0.24, 0.6 })
 
                     local fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
                     row.label = fs
@@ -930,17 +887,11 @@ local function OpenHiddenManager()
                     row.actionBtn = btn
                     btn:SetSize(66, 18)
                     btn:SetPoint("RIGHT", row, "RIGHT", -4, 0)
-                    btn:SetBackdrop({
-                        bgFile   = "Interface\\Buttons\\WHITE8x8",
-                        edgeFile = "Interface\\Buttons\\WHITE8x8",
-                        edgeSize = 1,
-                    })
-                    btn:SetBackdropColor(0.14, 0.14, 0.18, 0.95)
-                    btn:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+                    common.apply_flat_backdrop(btn, { 0.14, 0.14, 0.18, 0.95 }, { 0.3, 0.3, 0.35, 1 })
                     local bt = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
                     btn.text = bt
                     bt:SetPoint("CENTER")
-                    bt:SetText("Unhide")
+                    bt:SetText("unhide")
                     bt:SetTextColor(0.4, 1.0, 0.4, 1)
 
                     local hi = btn:CreateTexture(nil, "HIGHLIGHT")
@@ -1176,9 +1127,7 @@ function sfui.dungeonjournal.SelectDungeon(dungeonID, mode)
     DJ_DB().lastQuest   = 1
 
     if entry and sfui.dungeonjournal.IsDungeonInLevelRange and not sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
-        DJ_DB().showAllDungeons = true
-        local charData = GetCharHidden()
-        if charData then charData.showAllDungeons = true end
+        PersistCharOption("showAllDungeons", true)
         if sidebarFrame and sidebarFrame.UpdateFilterState then
             sidebarFrame.UpdateFilterState()
         end
@@ -1289,13 +1238,7 @@ function sfui.dungeonjournal.CreateFrame()
         table.insert(_G.UISpecialFrames, "SfuiDungeonJournalFrame")
     end
 
-    frame:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    frame:SetBackdropColor(0.05, 0.05, 0.07, 0.97)
-    frame:SetBackdropBorderColor(0.12, 0.12, 0.14, 1)
+    common.apply_flat_backdrop(frame, { 0.05, 0.05, 0.07, 0.97 }, { 0.12, 0.12, 0.14, 1 })
 
     -- ── Header bar ────────────────────────────────────────────────────────────
     local headerBar = (theme.CreateWindowHeader or sfui.theme.CreateWindowHeader)(frame, "dungeon journal")
@@ -1314,13 +1257,7 @@ function sfui.dungeonjournal.CreateFrame()
     mapOptBtn:SetPoint("RIGHT", closeBtn, "LEFT", -4, 0)
     mapOptBtn:SetSize(22, 22)
     mapOptBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
-    mapOptBtn:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    mapOptBtn:SetBackdropColor(0.08, 0.08, 0.10, 0.9)
-    mapOptBtn:SetBackdropBorderColor(0.2, 0.2, 0.24, 1)
+    common.apply_flat_backdrop(mapOptBtn, { 0.08, 0.08, 0.10, 0.9 }, { 0.2, 0.2, 0.24, 1 })
 
     local mapIco = mapOptBtn:CreateTexture(nil, "ARTWORK")
     mapIco:SetSize(14, 14)
@@ -1334,8 +1271,8 @@ function sfui.dungeonjournal.CreateFrame()
 
     mapOptBtn:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-        GameTooltip:AddLine("Map Pin Options", 1, 0.82, 0)
-        GameTooltip:AddLine("Configure dungeon entrance and quest icons on the World Map.", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("map pin options", 1, 0.82, 0)
+        GameTooltip:AddLine("configure dungeon entrance and quest icons on the world map.", 0.8, 0.8, 0.8, true)
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine("|cff00ff00<click to toggle pin options>|r", 0, 1, 0)
         GameTooltip:Show()
@@ -1348,13 +1285,7 @@ function sfui.dungeonjournal.CreateFrame()
     navWpBtn:SetPoint("RIGHT", mapOptBtn, "LEFT", -4, 0)
     navWpBtn:SetSize(22, 22)
     navWpBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
-    navWpBtn:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    navWpBtn:SetBackdropColor(0.08, 0.08, 0.10, 0.9)
-    navWpBtn:SetBackdropBorderColor(0.2, 0.2, 0.24, 1)
+    common.apply_flat_backdrop(navWpBtn, { 0.08, 0.08, 0.10, 0.9 }, { 0.2, 0.2, 0.24, 1 })
 
     local navWpIco = navWpBtn:CreateTexture(nil, "ARTWORK")
     navWpIco:SetSize(14, 14)
@@ -1368,8 +1299,8 @@ function sfui.dungeonjournal.CreateFrame()
 
     navWpBtn:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-        GameTooltip:AddLine("Set Waypoint", 1, 0.82, 0)
-        GameTooltip:AddLine("Set an in-game navigation waypoint and supertrack the entrance to this dungeon.", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("set waypoint", 1, 0.82, 0)
+        GameTooltip:AddLine("set an in-game navigation waypoint and supertrack the entrance to this dungeon.", 0.8, 0.8, 0.8, true)
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine("|cff00ff00<click to set navigation waypoint>|r", 0, 1, 0)
         GameTooltip:Show()
@@ -1400,13 +1331,7 @@ function sfui.dungeonjournal.CreateFrame()
     showMapBtn:SetPoint("RIGHT", navWpBtn, "LEFT", -4, 0)
     showMapBtn:SetSize(22, 22)
     showMapBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
-    showMapBtn:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    showMapBtn:SetBackdropColor(0.08, 0.08, 0.10, 0.9)
-    showMapBtn:SetBackdropBorderColor(0.2, 0.2, 0.24, 1)
+    common.apply_flat_backdrop(showMapBtn, { 0.08, 0.08, 0.10, 0.9 }, { 0.2, 0.2, 0.24, 1 })
 
     local showMapIco = showMapBtn:CreateTexture(nil, "ARTWORK")
     showMapIco:SetSize(14, 14)
@@ -1420,8 +1345,8 @@ function sfui.dungeonjournal.CreateFrame()
 
     showMapBtn:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-        GameTooltip:AddLine("Show on World Map", 1, 0.82, 0)
-        GameTooltip:AddLine("Open the World Map centered on this dungeon's entrance pin and zone.", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("show on world map", 1, 0.82, 0)
+        GameTooltip:AddLine("open the world map centered on this dungeon's entrance pin and zone.", 0.8, 0.8, 0.8, true)
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine("|cff00ff00<click to view map>|r", 0, 1, 0)
         GameTooltip:Show()
@@ -1452,13 +1377,7 @@ function sfui.dungeonjournal.CreateFrame()
     mapMenu:SetFrameLevel(frame:GetFrameLevel() + 20)
     mapMenu:SetSize(230, 102)
     mapMenu:SetPoint("TOPRIGHT", mapOptBtn, "BOTTOMRIGHT", 2, -4)
-    mapMenu:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    mapMenu:SetBackdropColor(0.06, 0.06, 0.08, 0.98)
-    mapMenu:SetBackdropBorderColor(0.24, 0.24, 0.28, 1)
+    common.apply_flat_backdrop(mapMenu, { 0.06, 0.06, 0.08, 0.98 }, { 0.24, 0.24, 0.28, 1 })
     mapMenu:Hide()
 
     local menuDismiss = CreateFrame("Button", nil, UIParent)
@@ -1546,13 +1465,7 @@ function sfui.dungeonjournal.CreateFrame()
     local manageBtn = CreateFrame("Button", nil, mapMenu, "BackdropTemplate")
     manageBtn:SetSize(210, 22)
     manageBtn:SetPoint("TOPLEFT", mapMenu, "TOPLEFT", 10, -124)
-    manageBtn:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    manageBtn:SetBackdropColor(0.10, 0.10, 0.14, 0.9)
-    manageBtn:SetBackdropBorderColor(0.24, 0.24, 0.28, 1)
+    common.apply_flat_backdrop(manageBtn, { 0.10, 0.10, 0.14, 0.9 }, { 0.24, 0.24, 0.28, 1 })
 
     local manageText = manageBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     manageText:SetPoint("LEFT", manageBtn, "LEFT", 8, 0)
@@ -1569,13 +1482,13 @@ function sfui.dungeonjournal.CreateFrame()
     local function RefreshManageState()
         local _, _, _, total = sfui.dungeonjournal.GetHiddenCounts()
         if total > 0 then
-            manageText:SetText("Manage Hidden Items...")
+            manageText:SetText("manage hidden items...")
             manageText:SetTextColor(1, 0.82, 0, 1)
             manageCount:SetText(string.format("(%d)", total))
             manageCount:SetTextColor(0.4, 1.0, 0.4, 1)
             manageBtn:Enable()
         else
-            manageText:SetText("No Hidden Items")
+            manageText:SetText("no hidden items")
             manageText:SetTextColor(0.5, 0.5, 0.5, 1)
             manageCount:SetText("")
             manageBtn:Disable()
@@ -1592,17 +1505,11 @@ function sfui.dungeonjournal.CreateFrame()
     local restoreBtn = CreateFrame("Button", nil, mapMenu, "BackdropTemplate")
     restoreBtn:SetSize(210, 22)
     restoreBtn:SetPoint("TOPLEFT", mapMenu, "TOPLEFT", 10, -150)
-    restoreBtn:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    restoreBtn:SetBackdropColor(0.10, 0.10, 0.14, 0.9)
-    restoreBtn:SetBackdropBorderColor(0.24, 0.24, 0.28, 1)
+    common.apply_flat_backdrop(restoreBtn, { 0.10, 0.10, 0.14, 0.9 }, { 0.24, 0.24, 0.28, 1 })
 
     local rText = restoreBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     rText:SetPoint("CENTER")
-    rText:SetText("Restore All Hidden")
+    rText:SetText("restore all hidden")
 
     local rHi = restoreBtn:CreateTexture(nil, "HIGHLIGHT")
     rHi:SetAllPoints()
@@ -1659,9 +1566,7 @@ function sfui.dungeonjournal.CreateFrame()
         if theme.ApplyTabStyle then
             theme.ApplyTabStyle(btn, false)
         else
-            btn:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-            btn:SetBackdropColor(0.08, 0.08, 0.10, 0.9)
-            btn:SetBackdropBorderColor(0.18, 0.18, 0.20, 1)
+            common.apply_flat_backdrop(btn, { 0.08, 0.08, 0.10, 0.9 }, { 0.18, 0.18, 0.20, 1 })
             fs:SetTextColor(0.6, 0.6, 0.6, 1)
         end
         return btn
@@ -1690,9 +1595,7 @@ function sfui.dungeonjournal.CreateFrame()
         if theme.ApplyTabStyle then
             theme.ApplyTabStyle(btn, false)
         else
-            btn:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-            btn:SetBackdropColor(0.08, 0.08, 0.10, 0.9)
-            btn:SetBackdropBorderColor(0.18, 0.18, 0.20, 1)
+            common.apply_flat_backdrop(btn, { 0.08, 0.08, 0.10, 0.9 }, { 0.18, 0.18, 0.20, 1 })
             fs:SetTextColor(0.6, 0.6, 0.6, 1)
         end
         return btn
@@ -1912,22 +1815,12 @@ function sfui.dungeonjournal.GetOption(key)
 end
 
 function sfui.dungeonjournal.SetOption(key, val)
-    local saved = DJ_DB()
-    saved[key] = val
-    local charData = GetCharHidden()
-    if charData and (key == "showHiddenInSidebar" or key == "showAllDungeons") then
-        charData[key] = val
-    end
+    PersistCharOption(key, val)
     if sfui.dungeonjournal.UpdatePins then
         sfui.dungeonjournal.UpdatePins()
     end
     if sfui.events and sfui.events.SendMessage then
         sfui.events.SendMessage("SFUI_DJ_SETTING_CHANGED", key, val)
-    end
-    if key == "showAllDungeons" or key == "showHiddenInSidebar" then
-        if RefreshSidebar then
-            RefreshSidebar()
-        end
     end
 end
 

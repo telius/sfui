@@ -812,7 +812,7 @@ function sfui.castbar.show_test_preview(duration)
             playerBar:SetStatusBarTexture(tex)
         end
 
-        playerBar.Text:SetText("Test Cast (Player)")
+        playerBar.Text:SetText("test cast (player)")
         playerBar.TimerText:SetFormattedText("%.1f", duration)
         playerBar.Icon:SetTexture(136075) -- Fireball icon
 
@@ -846,7 +846,7 @@ function sfui.castbar.show_test_preview(duration)
             targetBar:SetStatusBarTexture(tex)
         end
 
-        targetBar.Text:SetText("Test Cast (Target)")
+        targetBar.Text:SetText("test cast (target)")
         targetBar.TimerText:SetFormattedText("%.1f", duration)
         targetBar.Icon:SetTexture(136121) -- Frostbolt icon
 

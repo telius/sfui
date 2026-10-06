@@ -384,7 +384,9 @@ function sfui.buffs.scan.RequestScan()
     dirty = true
     if throttleTimer then return end
 
-    throttleTimer = C_Timer.After(0.08, function()
+    -- C_Timer.After returns nil, so track the pending state with a flag
+    throttleTimer = true
+    C_Timer.After(0.08, function()
         throttleTimer = nil
         if (_G.InCombatLockdown and _G.InCombatLockdown()) or (_G.UnitAffectingCombat and _G.UnitAffectingCombat("player")) then
             dirty = true

@@ -1,6 +1,7 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
+local GameTooltip = sfui.common.get_tooltip()  -- private addon tooltip (methods.md §3.7.2)
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/dungeonjournal/dj_bosses.lua
@@ -60,7 +61,7 @@ local function GetPlayerSpecsForFilter()
         return playerSpecs, playerSpecIDs
     end
 
-    local _, englishClass = UnitClass("player")
+    local englishClass = sfui.common.get_player_class()
     local specIDs = {}
     local specMap = {}
     if sfui.data and sfui.data.SPEC_DEFINITIONS then
@@ -512,26 +513,14 @@ local function AcquireBossButton(pool, parent)
 
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:SetHeight(BOSS_BTN_H)
-    btn:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    btn:SetBackdropColor(0.08, 0.08, 0.10, 0.0)
-    btn:SetBackdropBorderColor(0, 0, 0, 0)
+    common.apply_flat_backdrop(btn, { 0.08, 0.08, 0.10, 0.0 }, { 0, 0, 0, 0 })
 
     -- Icon (creature portrait or skull in 1px bordered frame)
     local icoFrame = CreateFrame("Frame", nil, btn, "BackdropTemplate")
     btn.icoFrame = icoFrame
     icoFrame:SetSize(30, 30)
     icoFrame:SetPoint("LEFT", 6, 0)
-    icoFrame:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    icoFrame:SetBackdropColor(0.05, 0.05, 0.07, 0.9)
-    icoFrame:SetBackdropBorderColor(0.20, 0.20, 0.25, 0.6)
+    common.apply_flat_backdrop(icoFrame, { 0.05, 0.05, 0.07, 0.9 }, { 0.20, 0.20, 0.25, 0.6 })
 
     local ico = icoFrame:CreateTexture(nil, "ARTWORK")
     btn.icon = ico
@@ -583,13 +572,7 @@ local function AcquireLootButton(pool, parent)
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:SetHeight(LOOT_ROW_H)
-    btn:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    btn:SetBackdropColor(0.06, 0.06, 0.08, 0.7)
-    btn:SetBackdropBorderColor(0.15, 0.15, 0.18, 0.8)
+    common.apply_flat_backdrop(btn, { 0.06, 0.06, 0.08, 0.7 }, { 0.15, 0.15, 0.18, 0.8 })
 
     -- Item icon container
     local iconBtn = CreateFrame("Frame", nil, btn, "BackdropTemplate")
@@ -628,12 +611,12 @@ local function AcquireLootButton(pool, parent)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         if isWish then
             GameTooltip:SetText("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffcc44ffWishlisted Item|r")
-            GameTooltip:AddLine("Click to remove from your loot wishlist.", 0.85, 0.85, 0.85)
-            GameTooltip:AddLine("Wishlisted items trigger special alert banners and sounds when dropped.", 0.6, 0.6, 0.6, true)
+            GameTooltip:AddLine("click to remove from your loot wishlist.", 0.85, 0.85, 0.85)
+            GameTooltip:AddLine("wishlisted items trigger special alert banners and sounds when dropped.", 0.6, 0.6, 0.6, true)
         else
             GameTooltip:SetText("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffffffffAdd to Wishlist|r")
-            GameTooltip:AddLine("Click to track this item on your loot wishlist.", 0.85, 0.85, 0.85)
-            GameTooltip:AddLine("Triggers alerts and highlights whenever this item drops.", 0.6, 0.6, 0.6, true)
+            GameTooltip:AddLine("click to track this item on your loot wishlist.", 0.85, 0.85, 0.85)
+            GameTooltip:AddLine("triggers alerts and highlights whenever this item drops.", 0.6, 0.6, 0.6, true)
         end
         GameTooltip:Show()
     end)
@@ -751,7 +734,7 @@ local function RenderLoot(boss, dungeon)
     if bossHeaderFrame then
         if boss then
             if boss.isAll then
-                bossHeaderFrame.name:SetText("All Bosses")
+                bossHeaderFrame.name:SetText("all bosses")
                 local dungeonName = (dungeon and dungeon.name) or "Dungeon"
                 local numBosses = (dungeon and dungeon.bosses and #dungeon.bosses) or 0
                 bossHeaderFrame.sub:SetText(dungeonName .. "  ·  " .. numBosses .. " boss encounters combined")
@@ -872,10 +855,6 @@ local function RenderLoot(boss, dungeon)
 
         -- Query item data via project wrapper
         local name, link, quality, iLevel, reqLevel, class, subclass, _, equipSlot, icon, _, classID, subclassID = common.get_item_info(itemID)
-        if not link and GetItemInfo then
-            local _, l = GetItemInfo(itemID)
-            link = l
-        end
 
         if not name or not icon then
             -- Fallback instant info
@@ -1211,13 +1190,7 @@ local function OnFrameCreated(arg1, arg2)
     bossHeaderFrame.portraitFrame = portraitFrame
     portraitFrame:SetSize(42, 42)
     portraitFrame:SetPoint("LEFT", bossHeaderFrame, "LEFT", 0, 0)
-    portraitFrame:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    portraitFrame:SetBackdropColor(0.04, 0.04, 0.06, 0.9)
-    portraitFrame:SetBackdropBorderColor(0.20, 0.20, 0.25, 0.6)
+    common.apply_flat_backdrop(portraitFrame, { 0.04, 0.04, 0.06, 0.9 }, { 0.20, 0.20, 0.25, 0.6 })
 
     local portrait = portraitFrame:CreateTexture(nil, "ARTWORK")
     bossHeaderFrame.portrait = portrait
@@ -1311,11 +1284,7 @@ local function OnFrameCreated(arg1, arg2)
         pBtn.baseLabel  = def.label
         pBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         pBtn:SetHeight(18)
-        pBtn:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
+        common.apply_flat_backdrop(pBtn)
         pBtn:SetPoint("LEFT", filterBar, "LEFT", pillX, 0)
 
         local pLbl = pBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")

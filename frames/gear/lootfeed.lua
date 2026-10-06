@@ -17,7 +17,7 @@ sfui.lootfeed                                 = sfui.lootfeed or {}
 
 local _G                                      = _G
 local CreateFrame, UIParent                   = _G.CreateFrame, _G.UIParent
-local GameTooltip                             = _G.GameTooltip
+local GameTooltip                             = sfui.common.get_tooltip()
 local ChatEdit_InsertLink                     = _G.ChatEdit_InsertLink
 local HandleModifiedItemClick                 = _G.HandleModifiedItemClick
 local DressUpLink                             = _G.DressUpLink
@@ -36,7 +36,7 @@ local table_remove                            = table.remove
 local ipairs, pairs, tonumber, tostring, type = ipairs, pairs, tonumber, tostring, type
 
 local C_Item                                  = _G.C_Item
-local GetItemInfo                             = (C_Item and C_Item.GetItemInfo) or _G.GetItemInfo
+local GetItemInfo                             = sfui.common.get_item_info
 local GetItemQualityColor                     = (C_Item and C_Item.GetItemQualityColor) or _G.GetItemQualityColor
 local RequestLoadItemDataByID                 = C_Item and C_Item.RequestLoadItemDataByID
 local C_CurrencyInfo                          = _G.C_CurrencyInfo

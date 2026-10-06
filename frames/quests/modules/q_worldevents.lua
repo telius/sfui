@@ -1111,16 +1111,7 @@ function WorldEventsModule:IsEnabled()
 end
 
 local function GetQLState()
-    if not SfuiDB then SfuiDB = {} end
-    if not SfuiDB.questlog then
-        SfuiDB.questlog = {
-            collapsed      = {},
-            expandedQuests = {},
-            hiddenQuests   = {},
-            hidden         = false,
-        }
-    end
-    return SfuiDB.questlog
+    return sfui.questlog.GetState()
 end
 
 function WorldEventsModule:BuildBlocks(container)
@@ -1141,7 +1132,7 @@ function WorldEventsModule:BuildBlocks(container)
     end
 
     local state = GetQLState()
-    local expandedQuests = state.expandedQuests or {}
+    local expandedBlocks = state.expandedBlocks or {}
 
     local blocks = {}
     for _, entry in ipairs(entries) do
@@ -1152,7 +1143,7 @@ function WorldEventsModule:BuildBlocks(container)
         local curPoiID    = entry.areaPoiID
         local hasReminder = entry.hasReminder
         local expandKey   = "wevent_" .. tostring(curEventKey or curPoiID or entry.title or "event")
-        local isExpanded  = (expandedQuests[expandKey] ~= false) -- Default expanded
+        local isExpanded  = (expandedBlocks[expandKey] ~= false) -- Default expanded
 
         local lines = {}
         local progressBar = nil
@@ -1221,8 +1212,8 @@ function WorldEventsModule:BuildBlocks(container)
                 -- 2. Right-Click: Toggle Collapse/Expand Objectives
                 if btn == "RightButton" then
                     local st = GetQLState()
-                    st.expandedQuests = st.expandedQuests or {}
-                    st.expandedQuests[expandKey] = not isExpanded
+                    st.expandedBlocks = st.expandedBlocks or {}
+                    st.expandedBlocks[expandKey] = not isExpanded
                     sfui.tracker.RequestRefresh(0.01)
                     return
                 end

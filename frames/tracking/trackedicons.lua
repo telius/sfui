@@ -8,7 +8,7 @@ local GetTime = GetTime
 local InCombatLockdown = InCombatLockdown
 local CreateFrame = CreateFrame
 local UIParent = UIParent
-local GameTooltip = _G.GameTooltip
+local GameTooltip = sfui.common.get_tooltip()
 local hooksecurefunc = hooksecurefunc
 local C_Timer = C_Timer
 local IsMounted = IsMounted
@@ -1394,7 +1394,7 @@ end
 
 function sfui.trackedicons.initialize()
     -- Ensure Blizzard addon is loaded
-    local loaded, reason = C_AddOns.LoadAddOn("Blizzard_CooldownViewer")
+    sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
 
     -- Hide Blizzard Cooldown Frames
     sfui.common.hide_blizzard_cooldown_viewers()

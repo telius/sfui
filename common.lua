@@ -38,6 +38,55 @@ function sfui.common.get_tooltip()
     return sfui.tooltip or _G.GameTooltip
 end
 
+-- hides the private addon tooltip and resets the cursor (replaces GameTooltip_Hide/HideResetCursor)
+function sfui.common.hide_tooltip()
+    local tip = sfui.tooltip
+    if tip then
+        if tip:IsShown() then tip:Hide() end
+        local shop = tip.shoppingTooltips
+        if shop then
+            for i = 1, #shop do
+                if shop[i] and shop[i]:IsShown() then shop[i]:Hide() end
+            end
+        end
+    end
+    if ResetCursor then ResetCursor() end
+end
+
+-- ─── AddOn API (C_AddOns on modern clients, legacy globals on older builds) ───
+local C_AddOns_api = _G.C_AddOns or {}
+local _IsAddOnLoaded = C_AddOns_api.IsAddOnLoaded or _G.IsAddOnLoaded
+local _LoadAddOn     = C_AddOns_api.LoadAddOn or _G.LoadAddOn
+local _GetMetadata   = C_AddOns_api.GetAddOnMetadata or _G.GetAddOnMetadata
+
+function sfui.common.is_addon_loaded(name)
+    if not name or not _IsAddOnLoaded then return false end
+    return _IsAddOnLoaded(name) and true or false
+end
+
+-- loads a load-on-demand addon if needed; returns loaded, reason (never throws)
+function sfui.common.ensure_addon_loaded(name)
+    if sfui.common.is_addon_loaded(name) then return true end
+    if not _LoadAddOn then return false, "NO_API" end
+    local ok, loaded, reason = pcall(_LoadAddOn, name)
+    if not ok then return false, loaded end
+    return loaded and true or false, reason
+end
+
+function sfui.common.get_addon_metadata(name, field)
+    if not _GetMetadata then return nil end
+    return _GetMetadata(name, field)
+end
+
+-- ─── Player faction ───────────────────────────────────────────────────────────
+-- returns the english faction token ("Alliance"/"Horde"/"Neutral", may be nil)
+-- and its lowercase form. not cached: pandaren / mercenary mode can change it.
+local _UnitFactionGroup = _G.UnitFactionGroup
+function sfui.common.get_player_faction()
+    local faction = _UnitFactionGroup and _UnitFactionGroup("player")
+    return faction, faction and faction:lower() or nil
+end
+
 function sfui.common.SyncTrackedSpells()
     -- No-op stub for backwards compatibility
 end
@@ -391,6 +440,25 @@ local _oocProcessing = false
 --- If not currently in combat lockdown, the callback executes immediately.
 --- Callbacks are executed inside pcall to prevent errors from breaking the queue.
 --- @param callback function
+-- trailing-edge debounce: only the last call per key within `delay` seconds runs.
+-- uses a generation counter instead of timer handles (C_Timer.After returns nil).
+local _debounceGen = {}
+function sfui.common.debounce(key, delay, fn)
+    if type(fn) ~= "function" then return end
+    local gen = (_debounceGen[key] or 0) + 1
+    _debounceGen[key] = gen
+    if not (C_Timer and C_Timer.After) then
+        _debounceGen[key] = nil
+        fn()
+        return
+    end
+    C_Timer.After(delay or 0, function()
+        if _debounceGen[key] ~= gen then return end
+        _debounceGen[key] = nil
+        fn()
+    end)
+end
+
 function sfui.common.run_after_combat(callback)
     if type(callback) ~= "function" then return end
     if not InCombatLockdown() then
@@ -1025,9 +1093,7 @@ function sfui.common.hide_blizzard_cooldown_viewers()
     end
 
     -- Ensure the addon is loaded first (Retail only)
-    if not C_AddOns.IsAddOnLoaded("Blizzard_CooldownViewer") then
-        C_AddOns.LoadAddOn("Blizzard_CooldownViewer")
-    end
+    sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
 
     local viewers = {
         "EssentialCooldownViewer",

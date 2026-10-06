@@ -25,8 +25,8 @@ local UnitName                      = _G.UnitName
 local UnitClass                     = _G.UnitClass
 local GetRealmName                  = _G.GetNormalizedRealmName or _G.GetRealmName
 local C_Item                        = _G.C_Item or {}
-local C_Item_GetItemInfo            = C_Item.GetItemInfo or _G.GetItemInfo
-local C_Item_GetItemInfoInstant     = C_Item.GetItemInfoInstant or _G.GetItemInfoInstant
+local C_Item_GetItemInfo            = sfui.common.get_item_info
+local C_Item_GetItemInfoInstant     = sfui.common.get_item_instant_info
 local C_Item_GetItemSubClassInfo    = C_Item.GetItemSubClassInfo or _G.GetItemSubClassInfo
 local C_Item_RequestLoadItemDataByID= C_Item.RequestLoadItemDataByID
 local C_TooltipInfo                 = _G.C_TooltipInfo
@@ -47,7 +47,7 @@ local select                        = _G.select
 local tonumber                      = _G.tonumber
 local type                          = _G.type
 local wipe                          = _G.wipe
-local GameTooltip                   = _G.GameTooltip
+local GameTooltip                   = sfui.common.get_tooltip()
 local ItemRefTooltip                = _G.ItemRefTooltip
 
 -- Recipe item class constant (9 = Recipe)
@@ -113,7 +113,7 @@ local function EnsurePlayerContext()
         myName = UnitName("player")
     end
     if not myClass then
-        local _, ec = UnitClass("player")
+        local ec = sfui.common.get_player_class()
         myClass = ec
     end
 end
@@ -734,7 +734,7 @@ local function SetItemTooltip(tooltip)
             if totalCrafters > maxAlts then
                 text = string.format("%s, |cffaaaaaa+%d more|r", text, totalCrafters - maxAlts)
             end
-            tooltip:AddLine("|cffffaa00Craftable by:|r " .. text, 1, 1, 1, true)
+            tooltip:AddLine("|cffffaa00craftable by:|r " .. text, 1, 1, 1, true)
         end
     end
 
@@ -815,7 +815,7 @@ local function SetItemTooltip(tooltip)
         if totalKnown > maxAlts then
             text = string.format("%s, |cffaaaaaa+%d more|r", text, totalKnown - maxAlts)
         end
-        tooltip:AddLine("|cff00ccffKnown alts:|r " .. text, 1, 1, 1, true)
+        tooltip:AddLine("|cff00ccffknown alts:|r " .. text, 1, 1, 1, true)
     end
 
     local totalCanLearn = #scratchCanLearnList
@@ -843,7 +843,7 @@ local function SetItemTooltip(tooltip)
             text = string.format("%s, |cffaaaaaa+%d more|r", text, totalEligible - maxAlts)
         end
 
-        tooltip:AddLine("|cff00ff88Can learn:|r " .. text, 1, 1, 1, true)
+        tooltip:AddLine("|cff00ff88can learn:|r " .. text, 1, 1, 1, true)
     end
 end
 
@@ -852,8 +852,12 @@ if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum.Too
     TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, SetItemTooltip)
 else
     -- Fallback for legacy Classic Era clients without TooltipDataProcessor
-    if GameTooltip then
-        GameTooltip:HookScript("OnTooltipSetItem", SetItemTooltip)
+    -- hook both the blizzard tooltip and our private one
+    if _G.GameTooltip then
+        _G.GameTooltip:HookScript("OnTooltipSetItem", SetItemTooltip)
+    end
+    if sfui.tooltip and sfui.tooltip ~= _G.GameTooltip then
+        sfui.tooltip:HookScript("OnTooltipSetItem", SetItemTooltip)
     end
     if ItemRefTooltip then
         ItemRefTooltip:HookScript("OnTooltipSetItem", SetItemTooltip)

@@ -30,7 +30,7 @@ sfui.options.RegisterTab({
         local desc = theme_panel:CreateFontString(nil, "OVERLAY", g.font_small or "GameFontHighlightSmall")
         desc:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -6)
         desc:SetTextColor(0.7, 0.7, 0.7, 1)
-        desc:SetText("choose between Camelot's heavy bronze fantasy style and Retail's minimalist dark slate.")
+        desc:SetText("choose between camelot's heavy bronze fantasy style and retail's minimalist dark slate.")
 
         -- ─── Status Text Indicator ───────────────────────────────────────────
         local status_text = theme_panel:CreateFontString(nil, "OVERLAY", g.font_small or "GameFontHighlightSmall")
@@ -253,13 +253,13 @@ sfui.options.RegisterTab({
             if isC then
                 preview_body:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3])
                 if sfui.theme.IsAuctionHouseButtonActive() then
-                    preview_body:SetText("Tactile cast-bronze window, ornate corner brackets, embossed banners, Auction House beveled buttons with blue hover glow and gold selection, and red/gold close button.")
+                    preview_body:SetText("tactile cast-bronze window, ornate corner brackets, embossed banners, auction house beveled buttons with blue hover glow and gold selection, and red/gold close button.")
                 else
-                    preview_body:SetText("Tactile cast-bronze window, ornate corner brackets, embossed banners, clean flat dark buttons, and red/gold close button.")
+                    preview_body:SetText("tactile cast-bronze window, ornate corner brackets, embossed banners, clean flat dark buttons, and red/gold close button.")
                 end
             else
                 preview_body:SetTextColor(0.8, 0.8, 0.8, 1)
-                preview_body:SetText("Clean, flat minimalist black border with electric cyan/purple accents and flat buttons.")
+                preview_body:SetText("clean, flat minimalist black border with electric cyan/purple accents and flat buttons.")
             end
         end
 

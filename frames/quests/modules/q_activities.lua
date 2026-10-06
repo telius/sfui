@@ -29,16 +29,7 @@ local string_format = string.format
 local issecretvalue = sfui.common.issecretvalue
 
 local function GetQLState()
-    if not SfuiDB then SfuiDB = {} end
-    if not SfuiDB.questlog then
-        SfuiDB.questlog = {
-            collapsed      = {},
-            expandedQuests = {},
-            hiddenQuests   = {},
-            hidden         = false,
-        }
-    end
-    return SfuiDB.questlog
+    return sfui.questlog.GetState()
 end
 
 local ActivitiesModule = {
@@ -61,7 +52,7 @@ end
 function ActivitiesModule:BuildBlocks(container)
     local blocks = {}
     local state = GetQLState()
-    local expandedQuests = state.expandedQuests or {}
+    local expandedBlocks = state.expandedBlocks or {}
 
     -- 1. Scan Traveler's Log (Perks Activities)
     if C_PerksActivities and C_PerksActivities.GetTrackedPerksActivities and C_PerksActivities.GetPerksActivityInfo then
@@ -73,7 +64,7 @@ function ActivitiesModule:BuildBlocks(container)
                     local info = C_PerksActivities.GetPerksActivityInfo(actID)
                     if info and not info.completed and info.activityName and info.activityName ~= "" then
                         local lines = {}
-                        local isExpanded = (expandedQuests["perk_" .. tostring(actID)] ~= false)
+                        local isExpanded = (expandedBlocks["perk_" .. tostring(actID)] ~= false)
 
                         if isExpanded and info.requirementsList then
                             for _, req in ipairs(info.requirementsList) do
@@ -127,9 +118,9 @@ function ActivitiesModule:BuildBlocks(container)
 
                                 if btn == "RightButton" then
                                     local st = GetQLState()
-                                    st.expandedQuests = st.expandedQuests or {}
+                                    st.expandedBlocks = st.expandedBlocks or {}
                                     local key = "perk_" .. tostring(actID)
-                                    st.expandedQuests[key] = not st.expandedQuests[key]
+                                    st.expandedBlocks[key] = not st.expandedBlocks[key]
                                     sfui.tracker.RequestRefresh(0.05)
                                     return
                                 end
@@ -160,7 +151,7 @@ function ActivitiesModule:BuildBlocks(container)
                     local info = C_NeighborhoodInitiative.GetInitiativeTaskInfo(taskID)
                     if info and not info.completed and info.taskName and info.taskName ~= "" then
                         local lines = {}
-                        local isExpanded = (expandedQuests["house_" .. tostring(taskID)] ~= false)
+                        local isExpanded = (expandedBlocks["house_" .. tostring(taskID)] ~= false)
 
                         if isExpanded and info.requirementsList then
                             for _, req in ipairs(info.requirementsList) do
@@ -213,9 +204,9 @@ function ActivitiesModule:BuildBlocks(container)
 
                                 if btn == "RightButton" then
                                     local st = GetQLState()
-                                    st.expandedQuests = st.expandedQuests or {}
+                                    st.expandedBlocks = st.expandedBlocks or {}
                                     local key = "house_" .. tostring(taskID)
-                                    st.expandedQuests[key] = not st.expandedQuests[key]
+                                    st.expandedBlocks[key] = not st.expandedBlocks[key]
                                     sfui.tracker.RequestRefresh(0.05)
                                     return
                                 end

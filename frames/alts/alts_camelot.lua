@@ -35,7 +35,7 @@ local pairs = pairs
 local next = next
 local type = type
 local time = _G.time
-local GameTooltip = _G.GameTooltip
+local GameTooltip = sfui.common.get_tooltip()
 local UnitGUID = _G.UnitGUID
 local UnitName = _G.UnitName
 local GetRealmName = _G.GetRealmName
@@ -796,24 +796,24 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                 GameTooltip:AddLine(string.format("Rank %d: %s", rankNum, rankTitle), 1, 1, 1)
                 if pvp.rankPoints and pvp.rankThreshold and pvp.rankThreshold > 0 then
-                    GameTooltip:AddDoubleLine("Rank Progress:", string.format("%s / %s (%d%%)", BreakUpLargeNumbers(pvp.rankPoints), BreakUpLargeNumbers(pvp.rankThreshold), progress), 1, 1, 1, 1, 0.82, 0)
+                    GameTooltip:AddDoubleLine("rank progress:", string.format("%s / %s (%d%%)", BreakUpLargeNumbers(pvp.rankPoints), BreakUpLargeNumbers(pvp.rankThreshold), progress), 1, 1, 1, 1, 0.82, 0)
                 else
-                    GameTooltip:AddDoubleLine("Rank Progress:", string.format("%d%% to Rank %d", progress, rankNum + 1), 1, 1, 1, 1, 0.82, 0)
+                    GameTooltip:AddDoubleLine("rank progress:", string.format("%d%% to Rank %d", progress, rankNum + 1), 1, 1, 1, 1, 0.82, 0)
                 end
                 if pvp.currentWeekMax and pvp.currentWeekMax > 0 then
-                    GameTooltip:AddDoubleLine("Weekly Cap:", string.format("Rank %d", pvp.currentWeekMax), 1, 1, 1, 0.8, 0.8, 1)
+                    GameTooltip:AddDoubleLine("weekly cap:", string.format("Rank %d", pvp.currentWeekMax), 1, 1, 1, 0.8, 0.8, 1)
                 end
                 if pvp.seasonTimeLeft and pvp.seasonTimeUpdated then
                     local sLeft = math_max(0, pvp.seasonTimeLeft - (now - pvp.seasonTimeUpdated))
                     if sLeft > 0 then
-                        GameTooltip:AddDoubleLine("Weekly Reset in:", FormatTimeLeft(sLeft), 1, 1, 1, 1, 0.82, 0)
+                        GameTooltip:AddDoubleLine("weekly reset in:", FormatTimeLeft(sLeft), 1, 1, 1, 1, 0.82, 0)
                     end
                 end
                 if pvp.lifetimeHK then
-                    GameTooltip:AddDoubleLine("Lifetime HKs:", BreakUpLargeNumbers(pvp.lifetimeHK), 1, 1, 1, 1, 1, 1)
+                    GameTooltip:AddDoubleLine("lifetime hks:", BreakUpLargeNumbers(pvp.lifetimeHK), 1, 1, 1, 1, 1, 1)
                 end
                 if pvp.highestRank and pvp.highestRank > 0 then
-                    GameTooltip:AddDoubleLine("Highest Rank Attained:", "Rank " .. pvp.highestRank, 1, 1, 1, 0.8, 0.8, 0.8)
+                    GameTooltip:AddDoubleLine("highest rank attained:", "Rank " .. pvp.highestRank, 1, 1, 1, 0.8, 0.8, 0.8)
                 end
                 GameTooltip:Show()
             end)

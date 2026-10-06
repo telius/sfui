@@ -5,7 +5,7 @@ local cfg = sfui.config
 local common = sfui.common
 
 local CreateFrame = CreateFrame
-local GameTooltip = _G.GameTooltip
+local GameTooltip = sfui.common.get_tooltip()
 local InCombatLockdown = InCombatLockdown
 local GetCursorPosition = GetCursorPosition
 local GetCursorInfo = GetCursorInfo
@@ -42,13 +42,43 @@ local issecretvalue = common.issecretvalue
 local g = cfg
 local c = g.options_panel
 
+local PANEL_NAME_PLACEHOLDER = "new panel name"
+
+-- ─── Theme helpers ────────────────────────────────────────────────────────────
+-- colours come from the active sfui.theme palette (modern = purple/cyan, camelot = gold)
+local function get_palette()
+    local theme = sfui.theme
+    return (theme and theme.GetPalette and theme.GetPalette()) or cfg.appearance
+end
+
+local function pal_highlight()
+    return get_palette().highlightColor or cfg.appearance.highlightColor
+end
+
+local function pal_accent()
+    return get_palette().accentColor or cfg.colors.cyan
+end
+
+local function pal_container()
+    return get_palette().containerColor or { 0.06, 0.06, 0.06, 0.9 }
+end
+
+-- accents that should follow the highlight colour; selected ones use the accent colour
+local themedAccents = setmetatable({}, { __mode = "k" })
+
+local function color_accent(accent, isSelected)
+    local col = isSelected and pal_accent() or pal_highlight()
+    accent:SetColorTexture(col[1], col[2], col[3], 1)
+end
+
 local function AddVerticalAccent(frame)
     if not frame then return end
     local accent = frame:CreateTexture(nil, "ARTWORK")
     accent:SetPoint("TOPLEFT", 0, 0)
     accent:SetPoint("BOTTOMLEFT", 0, 0)
     accent:SetWidth(3)
-    accent:SetColorTexture(unpack(cfg.appearance.highlightColor)) -- Purple accent
+    color_accent(accent, false)
+    themedAccents[accent] = frame
     frame.accent = accent
 end
 
@@ -190,7 +220,7 @@ local function OnZoneIconClick(self, button)
 end
 
 local function OnZoneIconEnter(self)
-    local tip = _G.GameTooltip
+    local tip = sfui.common.get_tooltip()
     if not tip or not self.id then return end
     tip:SetOwner(self, "ANCHOR_RIGHT")
     if self.info then
@@ -204,13 +234,13 @@ local function OnZoneIconEnter(self)
 
         tip:AddLine(" ")
         if self.cooldownID then
-            tip:AddDoubleLine("Cooldown ID:", "|cffffffff" .. self.cooldownID .. "|r")
+            tip:AddDoubleLine("cooldown id:", "|cffffffff" .. self.cooldownID .. "|r")
         end
         if self.info.spellID then
-            tip:AddDoubleLine("Spell ID:", "|cffffffff" .. self.info.spellID .. "|r")
+            tip:AddDoubleLine("spell id:", "|cffffffff" .. self.info.spellID .. "|r")
         end
         if self.info.itemID then
-            tip:AddDoubleLine("Item ID:", "|cffffffff" .. self.info.itemID .. "|r")
+            tip:AddDoubleLine("item id:", "|cffffffff" .. self.info.itemID .. "|r")
         end
     elseif self.isRightSidePool then
         local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(self.id)
@@ -219,14 +249,14 @@ local function OnZoneIconEnter(self)
         elseif cdInfo and cdInfo.itemID then
             tip:SetItemByID(cdInfo.itemID)
         else
-            tip:SetText("Cooldown " .. self.id)
+            tip:SetText("cooldown " .. self.id)
         end
         tip:AddLine(" ")
-        tip:AddDoubleLine("Cooldown ID:", "|cffffffff" .. self.id .. "|r")
+        tip:AddDoubleLine("cooldown id:", "|cffffffff" .. self.id .. "|r")
         if cdInfo and cdInfo.spellID then
-            tip:AddDoubleLine("Spell ID:", "|cffffffff" .. cdInfo.spellID .. "|r")
+            tip:AddDoubleLine("spell id:", "|cffffffff" .. cdInfo.spellID .. "|r")
         elseif cdInfo and cdInfo.itemID then
-            tip:AddDoubleLine("Item ID:", "|cffffffff" .. cdInfo.itemID .. "|r")
+            tip:AddDoubleLine("item id:", "|cffffffff" .. cdInfo.itemID .. "|r")
         end
     else
         if self.isTrackedBars then
@@ -250,13 +280,13 @@ local function OnZoneIconEnter(self)
 
     if not self.isRightSidePool then
         tip:AddLine(" ")
-        tip:AddLine("|cffff4444Right-Click to remove from panel|r")
+        tip:AddLine("|cffff4444right-click to remove from panel|r")
     end
     tip:Show()
 end
 
 local function OnZoneIconLeave()
-    if _G.GameTooltip then _G.GameTooltip:Hide() end
+    sfui.common.hide_tooltip()
 end
 
 local function OnPreviewBarUpClick(self)
@@ -475,15 +505,13 @@ local function RenderTrackedBarsRightSide(parent, width)
         parent._poolTitle = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         parent._poolTitle:SetPoint("TOPLEFT", 0, -5)
     end
-    parent._poolTitle:SetText("Tracked Bars Pool")
+    parent._poolTitle:SetText("tracked bars pool")
     parent._poolTitle:Show()
 
     local yPos = -25
 
     -- Ensure Blizzard_CooldownViewer is loaded so CooldownViewerSettings data provider is accessible
-    if not C_AddOns.IsAddOnLoaded("Blizzard_CooldownViewer") and C_AddOns.LoadAddOn then
-        pcall(C_AddOns.LoadAddOn, "Blizzard_CooldownViewer")
-    end
+    sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
 
     local cat = (Enum and Enum.CooldownViewerCategory and Enum.CooldownViewerCategory.TrackedBar) or 3
     local list = {}
@@ -634,7 +662,7 @@ local function RenderTrackedBarsRightSide(parent, width)
 
     if not parent._noIconsLabel then
         parent._noIconsLabel = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        parent._noIconsLabel:SetText("No tracked bars found in Blizzard Cooldown Manager.")
+        parent._noIconsLabel:SetText("no tracked bars found in blizzard cooldown manager.")
     end
     if #list == 0 then
         parent._noIconsLabel:ClearAllPoints()
@@ -647,7 +675,7 @@ local function RenderTrackedBarsRightSide(parent, width)
 
     if not parent._title2 then
         parent._title2 = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        parent._title2:SetText("Tracked Bars Preview (Active)")
+        parent._title2:SetText("tracked bars preview (active)")
     end
     parent._title2:ClearAllPoints()
     parent._title2:SetPoint("TOPLEFT", 0, yPos)
@@ -812,7 +840,9 @@ function sfui.cdm.create_panel(parent)
     divider:SetWidth(1)
     divider:SetPoint("TOPLEFT", 5 + PANEL_LIST_W + 5, -5)
     divider:SetPoint("BOTTOMLEFT", 5 + PANEL_LIST_W + 5, 5)
-    divider:SetColorTexture(0.4, 0, 1, 0.5)
+    local hl = pal_highlight()
+    divider:SetColorTexture(hl[1], hl[2], hl[3], 0.5)
+    cdmFrame.divider = divider
 
     function sfui.cdm.RefreshLayout()
         ResetBucketPool()
@@ -1129,13 +1159,16 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
 
     -- Visual Style
     if isTrackedBars then
-        zone:SetBackdropColor(0.06, 0, 0.12, 0.9) -- Dark Purple tint
+        local hl, cc = pal_highlight(), pal_container()
+        -- container tinted towards the highlight colour to set tracked bars apart
+        zone:SetBackdropColor(cc[1] + hl[1] * 0.06, cc[2] + hl[2] * 0.06, cc[3] + hl[3] * 0.06, 0.9)
         zone:SetBackdropBorderColor(0, 0, 0, 0)
-        zone.label:SetText("Tracked Bars")
-        zone.label:SetTextColor(unpack(cfg.appearance.highlightColor)) -- Purple accent
+        zone.label:SetText("tracked bars")
+        zone.label:SetTextColor(hl[1], hl[2], hl[3], 1)
         zone.deleteBtn:Hide()
     else
-        zone:SetBackdropColor(0.06, 0.06, 0.06, 0.9)
+        local cc = pal_container()
+        zone:SetBackdropColor(cc[1], cc[2], cc[3], 0.9)
         zone:SetBackdropBorderColor(0, 0, 0, 0)
         local isBuiltIn = (name == "CENTER" or name == "UTILITY" or name == "Left" or name == "Right")
         if name and (name == "CAT" or name == "BEAR" or name == "MOONKIN" or name == "STEALTH") then isBuiltIn = true end
@@ -1254,7 +1287,7 @@ local function RenderAssignmentsIconPool(parent, width, entries)
         parent._assignPoolTitle = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         parent._assignPoolTitle:SetPoint("TOPLEFT", 0, -5)
     end
-    parent._assignPoolTitle:SetText("Assignments Pool (0, 1)")
+    parent._assignPoolTitle:SetText("assignments pool (0, 1)")
     parent._assignPoolTitle:Show()
 
     local yPos = -25
@@ -1401,12 +1434,12 @@ local function RenderAssignmentsIconPool(parent, width, entries)
     end
     if #list == 0 then
         if isClassic then
-            parent._assignPoolTitle:SetText("Spellbook Drag & Drop")
-            parent._assignNoIconsLabel:SetText("Drag spells directly from your Spellbook into any panel on the left.")
+            parent._assignPoolTitle:SetText("spellbook drag & drop")
+            parent._assignNoIconsLabel:SetText("drag spells directly from your spellbook into any panel on the left.")
             parent._assignNoIconsLabel:SetTextColor(0.8, 0.8, 0.8, 0.9)
         else
-            parent._assignPoolTitle:SetText("Assignments Pool (0, 1)")
-            parent._assignNoIconsLabel:SetText("No icons found in groups 0 or 1.")
+            parent._assignPoolTitle:SetText("assignments pool (0, 1)")
+            parent._assignNoIconsLabel:SetText("no icons found in groups 0 or 1.")
             parent._assignNoIconsLabel:SetTextColor(0.6, 0.6, 0.6, 1)
         end
         parent._assignNoIconsLabel:ClearAllPoints()
@@ -1414,7 +1447,7 @@ local function RenderAssignmentsIconPool(parent, width, entries)
         parent._assignNoIconsLabel:Show()
         yPos = yPos - 20
     else
-        parent._assignPoolTitle:SetText("Assignments Pool (0, 1)")
+        parent._assignPoolTitle:SetText("assignments pool (0, 1)")
         parent._assignNoIconsLabel:Hide()
     end
 
@@ -1479,11 +1512,8 @@ RefreshZones = function()
         -- ── Accent colour based on selection ─────────────────────────────────
         local isSelected = (selectedPanelIndex == panelIndex)
         if zone.accent then
-            if isSelected then
-                zone.accent:SetColorTexture(unpack(cfg.colors.cyan))   -- Cyan #00FFFF
-            else
-                zone.accent:SetColorTexture(unpack(cfg.appearance.highlightColor)) -- Purple
-            end
+            zone.accent._sfuiSelected = isSelected
+            color_accent(zone.accent, isSelected)
         end
 
         if not leftContainer.zoneChildren then leftContainer.zoneChildren = {} end
@@ -1507,7 +1537,8 @@ RefreshZones = function()
     addFrame:SetSize(ZONE_W, 30)
     addFrame:SetPoint("TOPLEFT", 0, currentY - 8)
     addFrame:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8" })
-    addFrame:SetBackdropColor(0.06, 0.06, 0.06, 0.9)
+    local addCC = pal_container()
+    addFrame:SetBackdropColor(addCC[1], addCC[2], addCC[3], 0.9)
     addFrame:SetBackdropBorderColor(0, 0, 0, 0)
     AddVerticalAccent(addFrame)
 
@@ -1518,11 +1549,11 @@ RefreshZones = function()
     eb:SetTextColor(0.8, 0.8, 0.8)
     eb:SetMultiLine(false)
     eb:SetAutoFocus(false)
-    eb:SetText("New Panel Name")
+    eb:SetText(PANEL_NAME_PLACEHOLDER)
     eb:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
     eb:SetScript("OnEnterPressed", function(self)
         local name = self:GetText()
-        if name and name ~= "" and name ~= "New Panel Name" then
+        if name and name ~= "" and name ~= PANEL_NAME_PLACEHOLDER then
             common.add_custom_panel(name)
             sfui.cdm.RefreshLayout()
         end
@@ -1530,12 +1561,11 @@ RefreshZones = function()
     end)
     eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
-    local addBtn = common.create_flat_button(addFrame, "Add", 55, 20)
+    local addBtn = common.create_flat_button(addFrame, "add", 55, 20)
     addBtn:SetPoint("RIGHT", -5, 0)
-    addBtn:SetBackdropBorderColor(unpack(cfg.appearance.highlightColor))
     addBtn:SetScript("OnClick", function()
         local name = eb:GetText()
-        if name and name ~= "" and name ~= "New Panel Name" then
+        if name and name ~= "" and name ~= PANEL_NAME_PLACEHOLDER then
             common.add_custom_panel(name)
             sfui.cdm.RefreshLayout()
         end
@@ -1560,7 +1590,7 @@ RefreshZones = function()
                 rightContainer._hint:SetPoint("TOP", 0, -30)
                 rightContainer._hint:SetWidth(SETTINGS_W - 40)
                 rightContainer._hint:SetTextColor(0.4, 0.4, 0.4, 1)
-                rightContainer._hint:SetText("← Select a panel to configure it")
+                rightContainer._hint:SetText("← select a panel to configure it")
             end
             rightContainer._hint:Show()
         end
@@ -1862,7 +1892,7 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
     elseif entry.type == "item" then
         local itemInfo = sfui.api.GetItemInfo and sfui.api.GetItemInfo(incomingId)
         local link = (itemInfo and itemInfo.itemLink) or
-            (GetItemInfo and select(2, GetItemInfo(incomingId))) or
+            (select(2, sfui.common.get_item_info(incomingId))) or
             (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(incomingId)) or
             incomingId
         common.print("imported item: " .. tostring(link) .. " (id: " .. incomingId .. ")")
@@ -1963,6 +1993,21 @@ OnIconDragStop = function(self)
     RefreshZones()
 end
 sfui.cdm.activeZones = {}
+
+-- re-colours live widgets after a theme switch (called from the tracking manager window callback)
+function sfui.cdm.ApplyTheme()
+    for accent in pairs(themedAccents) do
+        color_accent(accent, accent._sfuiSelected)
+    end
+    if cdmFrame and cdmFrame.divider then
+        local hl = pal_highlight()
+        cdmFrame.divider:SetColorTexture(hl[1], hl[2], hl[3], 0.5)
+    end
+    -- zones / divider / add row read the palette when laid out, so a relayout restyles them
+    if sfui.cdm.RefreshLayout then
+        sfui.cdm.RefreshLayout()
+    end
+end
 
 function sfui.cdm.UpdateVisibility()
     if not sfui.cdm.activeZones then return end

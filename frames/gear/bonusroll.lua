@@ -118,7 +118,7 @@ end
 
 local function SyncExternalTargets(keyID, isBoss, isTargeted)
     if isBoss then
-        local _, engClass = UnitClass("player")
+        local engClass = sfui.common.get_player_class()
         if engClass and SfuiDB and SfuiDB.lootspec and SfuiDB.lootspec.classes and SfuiDB.lootspec.classes[engClass] then
             local bDb = SfuiDB.lootspec.classes[engClass].bosses
             if bDb then
@@ -160,7 +160,7 @@ function sfui.bonusroll.GetTargetStatus(keyID, isBoss)
     -- Fallback compatibility: check alts/lootspec if not explicitly targeted in bonusroll
     if not isEnabled and itemCount == 0 then
         if isBoss then
-            local _, engClass = UnitClass("player")
+            local engClass = sfui.common.get_player_class()
             local bEntry = engClass and SfuiDB and SfuiDB.lootspec and SfuiDB.lootspec.classes
                 and SfuiDB.lootspec.classes[engClass] and SfuiDB.lootspec.classes[engClass].bosses
                 and SfuiDB.lootspec.classes[engClass].bosses[keyID]
@@ -297,7 +297,7 @@ function sfui.bonusroll.AutoclearItemTarget(itemID, itemLink)
         SyncExternalTargets(keyID, isBoss, nil)
     end
 
-    local link = itemLink or select(2, C_Item.GetItemInfo(itemID)) or ("Item " .. itemID)
+    local link = itemLink or select(2, sfui.common.get_item_info(itemID)) or ("Item " .. itemID)
     sfui.common.print(string.format("|cff00ff00◆ bonus roll target acquired:|r %s obtained! target cleared.", link))
     PlaySound(SOUNDKIT.UI_EPICLOOT_TOAST or 51570, "Master")
 
@@ -313,10 +313,10 @@ function sfui.bonusroll.NotifyTarget(keyID, isBoss, defaultName)
 
     local itemLinks = {}
     for id in pairs(itemsMap) do
-        local link = select(2, C_Item.GetItemInfo(id))
+        local link = select(2, sfui.common.get_item_info(id))
         if not link then
             sfui.common.request_item_load(id)
-            local name = select(1, C_Item.GetItemInfo(id))
+            local name = select(1, sfui.common.get_item_info(id))
             link = name and ("[" .. name .. "]") or ("Item " .. id)
         end
         itemLinks[#itemLinks + 1] = link
@@ -355,7 +355,7 @@ function sfui.bonusroll.IsEligible(itemID)
     if EXCLUDED_ITEMS[itemID] then return false end
 
     -- Check if item is non-equipment / generic "Other" slot
-    local _, _, _, itemEquipLoc, _, classID, subclassID = GetItemInfoInstant(itemID)
+    local _, _, _, itemEquipLoc, _, classID, subclassID = sfui.common.get_item_instant_info(itemID)
     if classID == 5 and subclassID == 2 then return false end
     if not itemEquipLoc or itemEquipLoc == "" or itemEquipLoc == "INVTYPE_NON_EQUIP_IGNORE" then
         return false
@@ -539,7 +539,7 @@ function sfui.bonusroll.ApplyResults(candidates, remainingNames)
                 end
             end)
         else
-            local name = select(1, C_Item.GetItemInfo(itemID)) or select(1, GetItemInfo(itemID))
+            local name = select(1, sfui.common.get_item_info(itemID))
             if name and not remainingNames[name] then
                 sfui.bonusroll.SetUsed(itemID, true)
             end

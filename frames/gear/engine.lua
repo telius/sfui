@@ -33,8 +33,8 @@ local wipe = _G.wipe or function(t)
 end
 local unpack = _G.unpack or _G.table.unpack
 local GetInventoryItemLink = _G.GetInventoryItemLink
-local GetItemInfoInstant = (_G.C_Item and _G.C_Item.GetItemInfoInstant) or _G.GetItemInfoInstant or sfui.common.get_item_id
-local GetItemInfo = (_G.C_Item and _G.C_Item.GetItemInfo) or _G.GetItemInfo
+local GetItemInfoInstant = sfui.common.get_item_instant_info
+local GetItemInfo = sfui.common.get_item_info
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local GetTime = _G.GetTime
 
@@ -43,7 +43,7 @@ local function isWarModeDesired()
 end
 
 local function show_tooltip(owner, anchor, title, lines)
-    local tip = sfui.tooltip or _G.GameTooltip
+    local tip = sfui.common.get_tooltip()
     if not tip or not owner then return end
     tip:SetOwner(owner, anchor or "ANCHOR_RIGHT")
     if title then
@@ -62,14 +62,7 @@ local function show_tooltip(owner, anchor, title, lines)
     tip:Show()
 end
 
-local function hide_tooltip()
-    if sfui.tooltip and sfui.tooltip:IsShown() then
-        sfui.tooltip:Hide()
-    end
-    if _G.GameTooltip and _G.GameTooltip:IsShown() then
-        _G.GameTooltip:Hide()
-    end
-end
+local hide_tooltip = sfui.common.hide_tooltip
 
 -- -------------------------------------------------------------------------
 -- ENGINE STATE

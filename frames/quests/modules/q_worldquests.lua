@@ -26,20 +26,12 @@ local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G
 local math_floor = math.floor
 local table_insert = _G.table.insert
 local string_format = string.format
+local QuestCommon = sfui.tracker.helpers.quest
 
 local issecretvalue = sfui.common.issecretvalue
 
 local function GetQLState()
-    if not SfuiDB then SfuiDB = {} end
-    if not SfuiDB.questlog then
-        SfuiDB.questlog = {
-            collapsed      = {},
-            expandedQuests = {},
-            hiddenQuests   = {},
-            hidden         = false,
-        }
-    end
-    return SfuiDB.questlog
+    return sfui.questlog.GetState()
 end
 
 local function FormatTimeLeft(minutes)
@@ -56,61 +48,7 @@ end
 local lastWQProgress = {}
 local initialWQScanDone = false
 
-local function TryInsertQuestLink(questID, questLogIndex, questTitle)
-    if not questID then return false end
-
-    -- 1. Try Blizzard modern API
-    if ChatFrameUtil and ChatFrameUtil.TryInsertQuestLinkForQuestID then
-        if ChatFrameUtil.TryInsertQuestLinkForQuestID(questID) then
-            return true
-        end
-    end
-
-    -- 2. Detect if an active chat edit box or input box is open
-    local activeChat = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
-        or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
-        or _G.ACTIVE_CHAT_EDIT_BOX
-    local isChatOpen = (activeChat and (activeChat:IsShown() or activeChat:IsVisible()))
-        or (_G.MacroFrameText and _G.MacroFrameText:IsShown())
-        or (_G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown())
-
-    if not isChatOpen then
-        return false
-    end
-
-    -- 3. Resolve quest link
-    local link = (_G.GetQuestLink and _G.GetQuestLink(questID))
-        or (questLogIndex and _G.GetQuestLink and _G.GetQuestLink(questLogIndex))
-
-    if not link then
-        local title = questTitle or (C_QuestLog and C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID))
-        if title and title ~= "" then
-            local level = (C_QuestLog and C_QuestLog.GetQuestDifficultyLevel and C_QuestLog.GetQuestDifficultyLevel(questID)) or 0
-            link = string_format("|cffffff00|Hquest:%d:%d|h[%s]|h|r", questID, level, title)
-        end
-    end
-
-    if not link then
-        return false
-    end
-
-    -- 4. Insert link into active chat / edit box
-    if ChatFrameUtil and ChatFrameUtil.InsertLink and ChatFrameUtil.InsertLink(link) then
-        return true
-    end
-    if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then
-        return true
-    end
-    if activeChat and activeChat.Insert then
-        activeChat:Insert(link)
-        if activeChat.SetFocus then
-            activeChat:SetFocus()
-        end
-        return true
-    end
-
-    return false
-end
+local TryInsertQuestLink = QuestCommon.TryInsertQuestLink
 
 local WorldQuestsModule = {
     id       = "worldquests",
@@ -133,7 +71,7 @@ end
 
 function WorldQuestsModule:BuildBlocks(container)
     local state = GetQLState()
-    local expandedQuests = state.expandedQuests or {}
+    local expandedBlocks = state.expandedBlocks or {}
     local activeWQs = {}
     local numEntries = (C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetNumQuestLogEntries())
         or (GetNumQuestLogEntries and GetNumQuestLogEntries())
@@ -189,7 +127,7 @@ function WorldQuestsModule:BuildBlocks(container)
             end
 
             local expandKey = "wq_" .. tostring(questID)
-            local isExpanded = (expandedQuests[expandKey] ~= false)
+            local isExpanded = (expandedBlocks[expandKey] ~= false)
 
             -- Objectives & Progress Bar
             local lines = {}
@@ -288,8 +226,8 @@ function WorldQuestsModule:BuildBlocks(container)
                     -- Right-Click: Toggle Objectives Collapse/Expand
                     if btn == "RightButton" then
                         local st = GetQLState()
-                        st.expandedQuests = st.expandedQuests or {}
-                        st.expandedQuests[expandKey] = not isExpanded
+                        st.expandedBlocks = st.expandedBlocks or {}
+                        st.expandedBlocks[expandKey] = not isExpanded
                         sfui.tracker.RequestRefresh(0.01)
                         return
                     end

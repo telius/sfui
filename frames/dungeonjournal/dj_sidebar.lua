@@ -1,6 +1,7 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
+local GameTooltip = sfui.common.get_tooltip()  -- private addon tooltip (methods.md §3.7.2)
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/dungeonjournal/dj_sidebar.lua
@@ -37,31 +38,17 @@ local RefreshSidebar = nil
 local currentSearchFilter = nil
 
 local function IsDungeonInLevelRange(dungeon, playerLevel)
-    if sfui.dungeonjournal and sfui.dungeonjournal.IsDungeonInLevelRange then
-        return sfui.dungeonjournal.IsDungeonInLevelRange(dungeon, playerLevel)
-    end
-    if not dungeon then return false end
-    local pLvl = playerLevel or (UnitLevel and UnitLevel("player")) or 1
-    local minLvl = dungeon.minLevel
-    local maxLvl = dungeon.maxLevel
-    if not minLvl or not maxLvl then
-        if dungeon.level then
-            local low, high = tostring(dungeon.level):match("^(%d+)%s*-%s*(%d+)$")
-            if low and high then
-                minLvl = minLvl or tonumber(low)
-                maxLvl = maxLvl or tonumber(high)
-            else
-                local single = tonumber(dungeon.level)
-                if single then
-                    minLvl = minLvl or single
-                    maxLvl = maxLvl or single
-                end
-            end
-        end
-    end
-    minLvl = minLvl or 1
-    maxLvl = maxLvl or 60
-    return pLvl >= minLvl and pLvl <= maxLvl
+    return sfui.dungeonjournal.IsDungeonInLevelRange(dungeon, playerLevel)
+end
+
+-- all sidebar filter toggles route through SetOption; the SFUI_DJ_SETTING_CHANGED
+-- listener at the bottom of this file refreshes button states and the list.
+local function SetShowAll(val)
+    sfui.dungeonjournal.SetOption("showAllDungeons", val and true or false)
+end
+
+local function SetShowHidden(val)
+    sfui.dungeonjournal.SetOption("showHiddenInSidebar", val and true or false)
 end
 
 -- ─── Difficulty Color Helper ──────────────────────────────────────────────────
@@ -129,11 +116,8 @@ end
 
 -- ─── Player Faction & Quest Progress Helpers ─────────────────────────────────
 local function GetPlayerFaction()
-    local englishFaction, _ = UnitFactionGroup("player")
-    if englishFaction and englishFaction:lower() == "horde" then
-        return "horde"
-    end
-    return "alliance"
+    local _, faction = sfui.common.get_player_faction()
+    return faction == "horde" and "horde" or "alliance"
 end
 
 local questProgressCache = {}
@@ -298,32 +282,12 @@ local function OpenDungeonContextMenu(owner, dungeon)
         })
     end
 
-    local db = DJ_DB()
-    if db.showAllDungeons then
-        table.insert(items, {
-            text = "filter to level range",
-            color = { 0.4, 0.8, 1.0 },
-            func = function()
-                sfui.dungeonjournal.SetOption("showAllDungeons", false)
-                if sidebarFrame and sidebarFrame.UpdateFilterState then
-                    sidebarFrame.UpdateFilterState()
-                end
-                RefreshSidebar()
-            end,
-        })
-    else
-        table.insert(items, {
-            text = "show all dungeons",
-            color = { 0.4, 0.8, 1.0 },
-            func = function()
-                sfui.dungeonjournal.SetOption("showAllDungeons", true)
-                if sidebarFrame and sidebarFrame.UpdateFilterState then
-                    sidebarFrame.UpdateFilterState()
-                end
-                RefreshSidebar()
-            end,
-        })
-    end
+    local showingAll = DJ_DB().showAllDungeons == true
+    table.insert(items, {
+        text = showingAll and "filter to level range" or "show all dungeons",
+        color = { 0.4, 0.8, 1.0 },
+        func = function() SetShowAll(not showingAll) end,
+    })
 
     table.insert(items, {
         text = "cancel",
@@ -363,8 +327,7 @@ local function AcquireButton(pool, parent)
     end
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:SetHeight(BTN_H)
-    btn:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-    btn:SetBackdropBorderColor(0, 0, 0, 0)
+    common.apply_flat_backdrop(btn, nil, { 0, 0, 0, 0 })
 
     -- Icon
     local ico = btn:CreateTexture(nil, "ARTWORK")
@@ -639,11 +602,11 @@ RefreshSidebar = function()
 
                 if isHidden then
                     GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("|cffff5555[This dungeon is hidden]|r", 1, 0.35, 0.35)
+                    GameTooltip:AddLine("|cffff5555[this dungeon is hidden]|r", 1, 0.35, 0.35)
                     GameTooltip:AddLine("|cff00ff00<right-click to unhide dungeon>|r", 0, 1, 0)
                 elseif arePinsHidden then
                     GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("|cffffaa00[Map pins for this dungeon are hidden]|r", 1, 0.7, 0.3)
+                    GameTooltip:AddLine("|cffffaa00[map pins for this dungeon are hidden]|r", 1, 0.7, 0.3)
                     GameTooltip:AddLine("|cff888888<right-click for hide/unhide options>|r", 0.6, 0.6, 0.6)
                 else
                     GameTooltip:AddLine(" ")
@@ -690,13 +653,7 @@ RefreshSidebar = function()
             empty.btn = btn
             btn:SetSize(130, 24)
             btn:SetPoint("TOP", msg, "BOTTOM", 0, -12)
-            btn:SetBackdrop({
-                bgFile   = "Interface\\Buttons\\WHITE8x8",
-                edgeFile = "Interface\\Buttons\\WHITE8x8",
-                edgeSize = 1,
-            })
-            btn:SetBackdropColor(0.12, 0.12, 0.16, 0.95)
-            btn:SetBackdropBorderColor(1, 0.78, 0.2, 0.6)
+            common.apply_flat_backdrop(btn, { 0.12, 0.12, 0.16, 0.95 }, { 1, 0.78, 0.2, 0.6 })
 
             local bText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
             btn.text = bText
@@ -727,15 +684,7 @@ RefreshSidebar = function()
                 end)
             else
                 empty.btn.text:SetText("show hidden")
-                empty.btn:SetScript("OnClick", function()
-                    db.showHiddenInSidebar = true
-                    local charData = sfui.dungeonjournal.GetCharHidden and sfui.dungeonjournal.GetCharHidden()
-                    if charData then
-                        charData.showHiddenInSidebar = true
-                    end
-                    if sidebarFrame.UpdateEyeState then sidebarFrame.UpdateEyeState() end
-                    RefreshSidebar()
-                end)
+                empty.btn:SetScript("OnClick", function() SetShowHidden(true) end)
             end
             empty:Show()
         elseif isFiltering then
@@ -743,14 +692,7 @@ RefreshSidebar = function()
                 empty.msg:SetText(string.format("no dungeons matching search in your level range (level %d).", playerLevel))
                 empty.btn:Show()
                 empty.btn.text:SetText("show all dungeons")
-                empty.btn:SetScript("OnClick", function()
-                    local dbObj = DJ_DB()
-                    dbObj.showAllDungeons = true
-                    local charData = sfui.dungeonjournal.GetCharHidden and sfui.dungeonjournal.GetCharHidden()
-                    if charData then charData.showAllDungeons = true end
-                    if sidebarFrame.UpdateFilterState then sidebarFrame.UpdateFilterState() end
-                    RefreshSidebar()
-                end)
+                empty.btn:SetScript("OnClick", function() SetShowAll(true) end)
             else
                 empty.msg:SetText("no dungeons found matching search.")
                 empty.btn:Show()
@@ -766,14 +708,7 @@ RefreshSidebar = function()
             empty.msg:SetText(string.format("no dungeons found in your level range (level %d).", playerLevel))
             empty.btn:Show()
             empty.btn.text:SetText("show all dungeons")
-            empty.btn:SetScript("OnClick", function()
-                local dbObj = DJ_DB()
-                dbObj.showAllDungeons = true
-                local charData = sfui.dungeonjournal.GetCharHidden and sfui.dungeonjournal.GetCharHidden()
-                if charData then charData.showAllDungeons = true end
-                if sidebarFrame.UpdateFilterState then sidebarFrame.UpdateFilterState() end
-                RefreshSidebar()
-            end)
+            empty.btn:SetScript("OnClick", function() SetShowAll(true) end)
             empty:Show()
         else
             empty.msg:SetText("no dungeons available.")
@@ -804,130 +739,47 @@ local function OnFrameCreated(arg1, arg2)
     sidebarFrame = payload.sidebarFrame
 
     -- 1. Eye Button (show/hide hidden dungeons)
-    local eyeBtn = CreateFrame("Button", nil, sidebarFrame, "BackdropTemplate")
-    sidebarFrame.eyeBtn = eyeBtn
-    eyeBtn:SetSize(22, 22)
-    eyeBtn:SetPoint("TOPRIGHT", sidebarFrame, "TOPRIGHT", -4, -4)
-    eyeBtn:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
+    local eyeBtn = common.create_icon_toggle(sidebarFrame, {
+        icon   = "Interface\\Icons\\INV_Misc_Eye_01",
+        getter = function() return DJ_DB().showHiddenInSidebar == true end,
+        setter = function(val) SetShowHidden(val) end,
+        tooltip = function(_, tip)
+            tip:AddLine("show hidden dungeons", 1, 0.82, 0)
+            if DJ_DB().showHiddenInSidebar then
+                tip:AddLine("hidden dungeons are currently visible (dimmed with [hidden] badge).\nclick to hide them from the sidebar.", 0.85, 0.85, 0.85, true)
+            else
+                tip:AddLine("click to reveal hidden dungeons dimmed in the sidebar so you can review or unhide them.", 0.85, 0.85, 0.85, true)
+            end
+            local _, _, _, total = sfui.dungeonjournal.GetHiddenCounts()
+            if total > 0 then
+                tip:AddLine(" ")
+                tip:AddLine(string.format("|cff00ff00%d hidden item%s currently in database|r", total, total > 1 and "s" or ""), 0, 1, 0)
+            end
+        end,
     })
-    eyeBtn:SetBackdropColor(0.04, 0.04, 0.06, 0.9)
-
-    local eyeIcon = eyeBtn:CreateTexture(nil, "ARTWORK")
-    eyeBtn.icon = eyeIcon
-    eyeIcon:SetSize(14, 14)
-    eyeIcon:SetPoint("CENTER")
-    eyeIcon:SetTexture("Interface\\Icons\\INV_Misc_Eye_01")
-    eyeIcon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
-
-    local function UpdateEyeState()
-        local db = DJ_DB()
-        local active = db.showHiddenInSidebar == true
-        if active then
-            eyeIcon:SetDesaturated(false)
-            eyeIcon:SetVertexColor(1, 0.82, 0, 1)
-            eyeBtn:SetBackdropBorderColor(1, 0.82, 0, 0.8)
-        else
-            eyeIcon:SetDesaturated(true)
-            eyeIcon:SetVertexColor(0.5, 0.5, 0.5, 0.8)
-            eyeBtn:SetBackdropBorderColor(0.20, 0.20, 0.25, 0.8)
-        end
-    end
-    sidebarFrame.UpdateEyeState = UpdateEyeState
-    UpdateEyeState()
-
-    eyeBtn:SetScript("OnClick", function()
-        local db = DJ_DB()
-        db.showHiddenInSidebar = not db.showHiddenInSidebar
-        local charData = sfui.dungeonjournal.GetCharHidden and sfui.dungeonjournal.GetCharHidden()
-        if charData then
-            charData.showHiddenInSidebar = db.showHiddenInSidebar
-        end
-        UpdateEyeState()
-        RefreshSidebar()
-    end)
-
-    eyeBtn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        local db = DJ_DB()
-        GameTooltip:AddLine("show hidden dungeons", 1, 0.82, 0)
-        if db.showHiddenInSidebar then
-            GameTooltip:AddLine("hidden dungeons are currently visible (dimmed with [hidden] badge).\nclick to hide them from the sidebar.", 0.85, 0.85, 0.85, true)
-        else
-            GameTooltip:AddLine("click to reveal hidden dungeons dimmed in the sidebar so you can review or unhide them.", 0.85, 0.85, 0.85, true)
-        end
-        local _, _, _, total = sfui.dungeonjournal.GetHiddenCounts()
-        if total > 0 then
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine(string.format("|cff00ff00%d hidden item%s currently in database|r", total, total > 1 and "s" or ""), 0, 1, 0)
-        end
-        GameTooltip:Show()
-    end)
-    eyeBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    sidebarFrame.eyeBtn = eyeBtn
+    eyeBtn:SetPoint("TOPRIGHT", sidebarFrame, "TOPRIGHT", -4, -4)
+    sidebarFrame.UpdateEyeState = function() eyeBtn:UpdateState() end
 
     -- 2. "All" Button (toggle show all dungeons vs level range)
-    local allBtn = CreateFrame("Button", nil, sidebarFrame, "BackdropTemplate")
-    sidebarFrame.allBtn = allBtn
-    allBtn:SetSize(26, 22)
-    allBtn:SetPoint("RIGHT", eyeBtn, "LEFT", -3, 0)
-    allBtn:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
+    local allBtn = common.create_icon_toggle(sidebarFrame, {
+        width  = 26,
+        text   = "all",
+        getter = function() return DJ_DB().showAllDungeons == true end,
+        setter = function(val) SetShowAll(val) end,
+        tooltip = function(_, tip)
+            local pLvl = UnitLevel("player") or 1
+            tip:AddLine("show all dungeons", 1, 0.82, 0)
+            if DJ_DB().showAllDungeons then
+                tip:AddLine(string.format("currently showing all dungeons regardless of level.\nclick to filter by your level range (level %d).", pLvl), 0.85, 0.85, 0.85, true)
+            else
+                tip:AddLine(string.format("currently showing only dungeons within your level range (level %d).\nclick to show all dungeons.", pLvl), 0.85, 0.85, 0.85, true)
+            end
+        end,
     })
-    allBtn:SetBackdropColor(0.04, 0.04, 0.06, 0.9)
-
-    local allText = allBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    allBtn.text = allText
-    allText:SetPoint("CENTER", allBtn, "CENTER", 0, 0)
-    allText:SetText("all")
-
-    local function UpdateFilterState()
-        local db = DJ_DB()
-        local active = db.showAllDungeons == true
-        if active then
-            allText:SetTextColor(1, 0.82, 0, 1)
-            allBtn:SetBackdropColor(0.12, 0.12, 0.16, 0.95)
-            allBtn:SetBackdropBorderColor(1, 0.82, 0, 0.8)
-        else
-            allText:SetTextColor(0.5, 0.5, 0.5, 0.8)
-            allBtn:SetBackdropColor(0.04, 0.04, 0.06, 0.9)
-            allBtn:SetBackdropBorderColor(0.20, 0.20, 0.25, 0.8)
-        end
-    end
-    sidebarFrame.UpdateFilterState = UpdateFilterState
-    UpdateFilterState()
-
-    allBtn:SetScript("OnClick", function()
-        local db = DJ_DB()
-        local newVal = not db.showAllDungeons
-        db.showAllDungeons = newVal
-        local charData = sfui.dungeonjournal.GetCharHidden and sfui.dungeonjournal.GetCharHidden()
-        if charData then
-            charData.showAllDungeons = newVal
-        end
-        if sfui.events and sfui.events.SendMessage then
-            sfui.events.SendMessage("SFUI_DJ_SETTING_CHANGED", "showAllDungeons", newVal)
-        end
-        UpdateFilterState()
-        RefreshSidebar()
-    end)
-
-    allBtn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        local db = DJ_DB()
-        local pLvl = UnitLevel("player") or 1
-        GameTooltip:AddLine("show all dungeons", 1, 0.82, 0)
-        if db.showAllDungeons then
-            GameTooltip:AddLine(string.format("currently showing all dungeons regardless of level.\nclick to filter by your level range (level %d).", pLvl), 0.85, 0.85, 0.85, true)
-        else
-            GameTooltip:AddLine(string.format("currently showing only dungeons within your level range (level %d).\nclick to show all dungeons.", pLvl), 0.85, 0.85, 0.85, true)
-        end
-        GameTooltip:Show()
-    end)
-    allBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    sidebarFrame.allBtn = allBtn
+    allBtn:SetPoint("RIGHT", eyeBtn, "LEFT", -3, 0)
+    sidebarFrame.UpdateFilterState = function() allBtn:UpdateState() end
 
     -- 3. Search Box Container
     local searchContainer = CreateFrame("Frame", nil, sidebarFrame, "BackdropTemplate")
@@ -935,13 +787,7 @@ local function OnFrameCreated(arg1, arg2)
     searchContainer:SetPoint("TOPLEFT",  sidebarFrame, "TOPLEFT",  4, -4)
     searchContainer:SetPoint("TOPRIGHT", allBtn,       "TOPLEFT", -3, 0)
     searchContainer:SetHeight(22)
-    searchContainer:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    searchContainer:SetBackdropColor(0.04, 0.04, 0.06, 0.9)
-    searchContainer:SetBackdropBorderColor(0.20, 0.20, 0.25, 0.8)
+    common.apply_flat_backdrop(searchContainer, { 0.04, 0.04, 0.06, 0.9 }, { 0.20, 0.20, 0.25, 0.8 })
 
     local searchIcon = searchContainer:CreateTexture(nil, "ARTWORK")
     searchIcon:SetSize(12, 12)
@@ -1052,24 +898,15 @@ end
 
 -- Live update when quests are accepted, turned in, or player levels up
 if sfui.events and sfui.events.RegisterEvent then
-    local questDebounceTimer = nil
+    local function DebouncedRefresh()
+        if sidebarFrame and sidebarFrame:IsShown() then
+            RefreshSidebar()
+        end
+    end
     local function OnQuestLogChanged()
         InvalidateQuestProgressCache()
         if sidebarFrame and sidebarFrame:IsShown() then
-            if questDebounceTimer then
-                questDebounceTimer:Cancel()
-                questDebounceTimer = nil
-            end
-            if C_Timer and C_Timer.After then
-                questDebounceTimer = C_Timer.After(0.15, function()
-                    questDebounceTimer = nil
-                    if sidebarFrame and sidebarFrame:IsShown() then
-                        RefreshSidebar()
-                    end
-                end)
-            else
-                RefreshSidebar()
-            end
+            common.debounce("dj_sidebar_quests", 0.15, DebouncedRefresh)
         end
     end
     sfui.events.RegisterEvent("QUEST_LOG_UPDATE", OnQuestLogChanged)

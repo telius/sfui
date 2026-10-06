@@ -7,7 +7,7 @@ local common = sfui.common
 
 local CreateFrame = _G.CreateFrame
 local tonumber = _G.tonumber
-local GameTooltip = sfui.tooltip or _G.GameTooltip
+local GameTooltip = sfui.common.get_tooltip()
 
 sfui.options.RegisterTab({
     id = "research",

@@ -4,8 +4,8 @@ local scanQueue = {}
 local processingTicker
 local targetExpac = -1
 
-local GetItemInfoInstant = (C_Item and C_Item.GetItemInfoInstant) or sfui.common.get_item_id
-local GetItemInfo = (C_Item and C_Item.GetItemInfo) or _G.GetItemInfo
+local GetItemInfoInstant = sfui.common.get_item_instant_info
+local GetItemInfo = sfui.common.get_item_info
 
 local function Process()
     local processed = false

@@ -41,7 +41,7 @@ local C_Reputation                                   = _G.C_Reputation
 local C_MajorFactions                                = _G.C_MajorFactions
 local BreakUpLargeNumbers                            = _G.BreakUpLargeNumbers or function(n) return tostring(n) end
 local GetWorldElapsedTime                            = _G.GetWorldElapsedTime
-local GameTooltip                                    = sfui.tooltip or _G.GameTooltip
+local GameTooltip                                    = sfui.common.get_tooltip()
 local sfui_api                                       = sfui.api
 local common                                         = sfui.common
 local issecretvalue                                  = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
@@ -301,7 +301,7 @@ local function CacheGroupMembers()
 
     local pGUID = UnitGUID("player")
     local pName = UnitName("player")
-    local _, pClass = UnitClass("player")
+    local pClass = sfui.common.get_player_class()
     if pGUID and pName then
         idx = idx + 1
         local entry = _playerList[idx]
@@ -1171,7 +1171,7 @@ local function BuildHUDFrame()
     MF.dungeonText:SetPoint("TOPLEFT", hdr, "TOPLEFT", 0, 0)
     MF.dungeonText:SetPoint("TOPRIGHT", hdr, "TOPRIGHT", -60, 0)
     MF.dungeonText:SetJustifyH("LEFT")
-    MF.dungeonText:SetText("Mythic+")
+    MF.dungeonText:SetText("mythic+")
 
     MF.pbText = MakeText(hdr, "GameFontNormalSmall", CLR_DIM_R, CLR_DIM_G, CLR_DIM_B, 1, "LEFT")
     MF.pbText:SetPoint("BOTTOMLEFT", hdr, "BOTTOMLEFT", 0, 0)
@@ -1208,7 +1208,7 @@ local function BuildHUDFrame()
         if GameTooltip and self.tooltip then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:ClearLines()
-            GameTooltip:AddLine("Delve Lives Remaining", 0.4, 1, 0.4)
+            GameTooltip:AddLine("delve lives remaining", 0.4, 1, 0.4)
             GameTooltip:AddLine(self.tooltip, 1, 1, 1, true)
             GameTooltip:Show()
         end
@@ -1232,7 +1232,7 @@ local function BuildHUDFrame()
         if GameTooltip then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:ClearLines()
-            GameTooltip:AddLine("Nemesis Progress", 0.75, 0.35, 1)
+            GameTooltip:AddLine("nemesis progress", 0.75, 0.35, 1)
             GameTooltip:AddLine(self.tooltip or "Nemesis Influence: Defeat empowered enemies to draw out the Nemesis.", 1,
                 1, 1, true)
             GameTooltip:Show()
@@ -1265,7 +1265,7 @@ local function BuildHUDFrame()
     MF.deathText:SetText("")
 
     deathFrame:SetScript("OnEnter", function(self)
-        local tip = sfui.tooltip or _G.GameTooltip
+        local tip = sfui.common.get_tooltip()
         if not tip then return end
         tip:SetOwner(self, "ANCHOR_TOPRIGHT")
         tip:ClearLines()
@@ -1277,7 +1277,7 @@ local function BuildHUDFrame()
 
             if _playerDeaths and next(_playerDeaths) then
                 tip:AddLine(" ")
-                tip:AddLine("Player Breakdown:", 1, 0.82, 0)
+                tip:AddLine("player breakdown:", 1, 0.82, 0)
                 for i = 1, #staticDeathBreakdown do
                     local obj = staticDeathBreakdown[i]
                     wipe(obj)
@@ -1304,13 +1304,13 @@ local function BuildHUDFrame()
                 end
             end
         else
-            tip:AddLine("Deaths: 0", 0.3, 1, 0.3)
-            tip:AddLine("No time lost to player deaths.", 0.7, 0.7, 0.7)
+            tip:AddLine("deaths: 0", 0.3, 1, 0.3)
+            tip:AddLine("no time lost to player deaths.", 0.7, 0.7, 0.7)
         end
         tip:Show()
     end)
     deathFrame:SetScript("OnLeave", function()
-        local tip = sfui.tooltip or _G.GameTooltip
+        local tip = sfui.common.get_tooltip()
         if tip then tip:Hide() end
     end)
 
@@ -1328,11 +1328,11 @@ local function BuildHUDFrame()
     MF.resText:SetText("")
 
     resFrame:SetScript("OnEnter", function(self)
-        local tip = sfui.tooltip or _G.GameTooltip
+        local tip = sfui.common.get_tooltip()
         if not tip then return end
         tip:SetOwner(self, "ANCHOR_TOPRIGHT")
         tip:ClearLines()
-        tip:AddLine("Combat Resurrections", 0.00, 1.00, 1.00)
+        tip:AddLine("combat resurrections", 0.00, 1.00, 1.00)
         local info = sfui_api.GetCombatResInfo()
         if info and (info.currentCharges or info.maxCharges) then
             local cur = info.currentCharges or 0
@@ -1342,16 +1342,16 @@ local function BuildHUDFrame()
             if info.timeRemaining and info.timeRemaining > 0 then
                 tip:AddLine(string_format("Next Charge in: |cffffffff%s|r", FormatTime(info.timeRemaining)), 0.8, 0.8, 0.8)
             elseif max > 0 and cur >= max then
-                tip:AddLine("Maximum charges reached.", 0.6, 0.6, 0.6)
+                tip:AddLine("maximum charges reached.", 0.6, 0.6, 0.6)
             end
         else
-            tip:AddLine("No combat resurrection charges active.", 0.6, 0.6, 0.6)
+            tip:AddLine("no combat resurrection charges active.", 0.6, 0.6, 0.6)
         end
-        tip:AddLine("Shared group combat resurrection pool.", 0.5, 0.5, 0.5)
+        tip:AddLine("shared group combat resurrection pool.", 0.5, 0.5, 0.5)
         tip:Show()
     end)
     resFrame:SetScript("OnLeave", function()
-        local tip = sfui.tooltip or _G.GameTooltip
+        local tip = sfui.common.get_tooltip()
         if tip then tip:Hide() end
     end)
 
@@ -1922,7 +1922,7 @@ local function UpdateInstanceState()
         local livesW = 0
         if delveInfo.livesText and delveInfo.livesText ~= "" then
             if delveInfo.livesRemaining == 0 then
-                MF.delveLivesText:SetText("|cffff44440 Lives|r")
+                MF.delveLivesText:SetText("|cffff44440 lives|r")
             else
                 MF.delveLivesText:SetText(string_format("|cff44ff44%s Lives|r", delveInfo.livesText))
             end
@@ -1955,7 +1955,7 @@ local function UpdateInstanceState()
             b.icon:SetTexture(413571)
             b.icon:SetSize(16, 16)
             b.stackText:Hide()
-            b.text:SetText("|cffffd100Bountiful|r")
+            b.text:SetText("|cffffd100bountiful|r")
             b.text:Show()
             local w = 16 + 4 + b.text:GetStringWidth()
             b.frame:SetSize(w, 18)
@@ -2785,7 +2785,7 @@ local function InitRun()
         MF.dungeonText:SetText(name or "Mythic+")
         _timeLimit = timeLimit or 0
     else
-        MF.dungeonText:SetText("Mythic+")
+        MF.dungeonText:SetText("mythic+")
         _timeLimit = 0
     end
 
@@ -3115,7 +3115,7 @@ function sfui.mythic.ShowPreview()
     -- Set mode to mythic for preview rendering
     _mode = "mythic"
 
-    MF.dungeonText:SetText("Burial Grounds")
+    MF.dungeonText:SetText("burial grounds")
     MF.levelText:SetText("+12")
     MF.levelText:SetTextColor(1, 0.82, 0, 1)
 

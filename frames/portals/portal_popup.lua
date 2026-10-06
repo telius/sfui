@@ -100,7 +100,7 @@ local function get_or_create_popup()
     title:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -8)
     title:SetPoint("TOPRIGHT", closeBtn, "TOPLEFT", -6, 0)
     title:SetJustifyH("LEFT")
-    title:SetText("|cff00ffffGroup is full!|r")
+    title:SetText("|cff00ffffgroup is full!|r")
     f.title = title
 
     -- Teleport Action Card (InsecureActionButtonTemplate for taint-free spell casting)
@@ -125,7 +125,7 @@ local function get_or_create_popup()
             tip:SetSpellByID(self.spellID)
             if not self.isKnown then
                 tip:AddLine(" ")
-                tip:AddLine("|cffff2020[Portal not in spellbook]|r", 1, 0.2, 0.2)
+                tip:AddLine("|cffff2020[portal not in spellbook]|r", 1, 0.2, 0.2)
             end
             tip:Show()
         end
@@ -243,9 +243,9 @@ function sfui.portals.ShowGroupPortalPopup(instanceIdentifier, dungeonName, role
 
     -- Update title
     if isFull then
-        popup.title:SetText("|cff00ffffGroup is full!|r")
+        popup.title:SetText("|cff00ffffgroup is full!|r")
     else
-        popup.title:SetText("|cff00ff00Mythic+ group joined!|r")
+        popup.title:SetText("|cff00ff00mythic+ group joined!|r")
     end
 
     card.dungeonName:SetText(displayName)
@@ -523,18 +523,18 @@ sfui_events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
 end)
 
 function sfui.portals.popup_debug()
-    print("|cff00ffff[sfui portal popup debug]|r")
-    print("  enabled:", is_enabled())
-    print("  onlywhenfull:", (SfuiDB and SfuiDB.portalPopupOnlyWhenFull))
-    print("  numgroupmembers:", GetNumGroupMembers())
-    print("  hasactiveentry:", C_LFGList and C_LFGList.HasActiveEntryInfo and C_LFGList.HasActiveEntryInfo())
+    sfui.print("|cff00ffffportal popup debug|r")
+    sfui.print("  enabled:", is_enabled())
+    sfui.print("  onlywhenfull:", (SfuiDB and SfuiDB.portalPopupOnlyWhenFull))
+    sfui.print("  numgroupmembers:", GetNumGroupMembers())
+    sfui.print("  hasactiveentry:", C_LFGList and C_LFGList.HasActiveEntryInfo and C_LFGList.HasActiveEntryInfo())
     if currentGroup.active then
-        print("  currentgroup.instanceid:", currentGroup.instanceId)
-        print("  currentgroup.activityname:", currentGroup.activityName)
-        print("  currentgroup.appliedrole:", currentGroup.appliedRole)
-        print("  currentgroup.notifiedfull:", currentGroup.notifiedFull)
+        sfui.print("  currentgroup.instanceid:", currentGroup.instanceId)
+        sfui.print("  currentgroup.activityname:", currentGroup.activityName)
+        sfui.print("  currentgroup.appliedrole:", currentGroup.appliedRole)
+        sfui.print("  currentgroup.notifiedfull:", currentGroup.notifiedFull)
     else
-        print("  currentgroup: inactive")
+        sfui.print("  currentgroup: inactive")
     end
 end
 

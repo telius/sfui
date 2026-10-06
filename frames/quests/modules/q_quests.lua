@@ -62,6 +62,7 @@ local Waypoints                               = sfui.tracker.helpers.waypoints
 local TimerBars                               = sfui.tracker.helpers.timerbars
 local Items                                   = sfui.tracker.helpers.items
 local FindGroup                               = sfui.tracker.helpers.findgroup
+local QuestCommon = sfui.tracker.helpers.quest
 
 local wipe                                    = _G.wipe or function(t)
     for k in pairs(t) do t[k] = nil end
@@ -120,47 +121,14 @@ local function GetQuestProgressDetails(questID, questLogIndex, isComplete, objs,
 end
 
 local function GetQLState()
-    if not SfuiDB then SfuiDB = {} end
-    if not SfuiDB.questlog then
-        SfuiDB.questlog = {
-            collapsed    = {},
-            hiddenQuests = {},
-            hidden       = false,
-        }
-    end
-    -- Clean out legacy bloat tables if present
-    if SfuiDB.questlog.expandedQuests then SfuiDB.questlog.expandedQuests = nil end
-    if SfuiDB.questlog.manualExpandedQuests then SfuiDB.questlog.manualExpandedQuests = nil end
-    return SfuiDB.questlog
+    return sfui.questlog.GetState()
 end
 
 local function IsQuestWatched(questID, questLogIndex)
-    if not questID or questID <= 0 then return false end
-    if recentlyWatched[questID] then return true end
-    if C_QuestLog and C_QuestLog.GetQuestWatchType then
-        local wt = C_QuestLog.GetQuestWatchType(questID)
-        if wt ~= nil then return true end
-    end
-    if C_QuestLog and C_QuestLog.IsQuestWatched then
-        if C_QuestLog.IsQuestWatched(questID) then return true end
-        if questLogIndex and C_QuestLog.IsQuestWatched(questLogIndex) then return true end
-    end
-    if _G.IsQuestWatched then
-        if questLogIndex and _G.IsQuestWatched(questLogIndex) then return true end
-    end
-    return false
+    return QuestCommon.IsQuestWatched(questID, questLogIndex, recentlyWatched)
 end
 
-local function IsWorldQuest(questID)
-    if not questID or questID <= 0 then return false end
-    if C_QuestLog and C_QuestLog.IsWorldQuest and C_QuestLog.IsWorldQuest(questID) then
-        return true
-    end
-    if _G.QuestUtils_IsQuestWorldQuest and _G.QuestUtils_IsQuestWorldQuest(questID) then
-        return true
-    end
-    return false
-end
+local IsWorldQuest = QuestCommon.IsWorldQuest
 
 --- Automatically track a quest when objectives update or progress occurs
 local pendingChangedQuests = {}
@@ -168,42 +136,7 @@ local pendingChangedQuests = {}
 --- @param questID number Quest ID to track
 --- @param questLogIndex number|nil Optional quest log index for classic clients
 local function AutoTrackQuest(questID, questLogIndex)
-    if not questID or questID <= 0 then return false end
-    if InCombatLockdown and InCombatLockdown() then
-        pendingChangedQuests[questID] = questLogIndex or true
-        return false
-    end
-    if IsWorldQuest(questID) then return false end
-
-    -- Avoid tracking task quests or bounties as persistent watches
-    if C_QuestLog and ((C_QuestLog.IsQuestBounty and C_QuestLog.IsQuestBounty(questID))
-            or (C_QuestLog.IsQuestTask and C_QuestLog.IsQuestTask(questID))) then
-        return false
-    end
-
-    local alreadyWatched = IsQuestWatched(questID, questLogIndex)
-
-    if not alreadyWatched then
-        local maxWatches = (Constants and Constants.QuestWatchConsts and Constants.QuestWatchConsts.MAX_QUEST_WATCHES)
-            or _G.MAX_WATCHABLE_QUESTS
-            or 25
-
-        local canWatch = true
-        if C_QuestLog and C_QuestLog.GetNumQuestWatches then
-            canWatch = (C_QuestLog.GetNumQuestWatches() < maxWatches)
-        elseif _G.GetNumQuestWatches then
-            canWatch = (_G.GetNumQuestWatches() < maxWatches)
-        end
-
-        if canWatch then
-            recentlyWatched[questID] = true
-            if C_QuestLog and C_QuestLog.AddQuestWatch then
-                C_QuestLog.AddQuestWatch(questID)
-            end
-        end
-    end
-
-    return true
+    return QuestCommon.AutoTrackQuest(questID, questLogIndex, recentlyWatched, pendingChangedQuests)
 end
 
 local seasonalWeeklySet = nil
@@ -272,61 +205,7 @@ local function IsRepeatableQuest(questID, frequency)
     return false
 end
 
-local function TryInsertQuestLink(questID, questLogIndex, questTitle)
-    if not questID then return false end
-
-    -- 1. Try Blizzard modern API
-    if ChatFrameUtil and ChatFrameUtil.TryInsertQuestLinkForQuestID then
-        if ChatFrameUtil.TryInsertQuestLinkForQuestID(questID) then
-            return true
-        end
-    end
-
-    -- 2. Detect if an active chat edit box or input box is open
-    local activeChat = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
-        or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
-        or _G.ACTIVE_CHAT_EDIT_BOX
-    local isChatOpen = (activeChat and (activeChat:IsShown() or activeChat:IsVisible()))
-        or (_G.MacroFrameText and _G.MacroFrameText:IsShown())
-        or (_G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown())
-
-    if not isChatOpen then
-        return false
-    end
-
-    -- 3. Resolve quest link
-    local link = (_G.GetQuestLink and _G.GetQuestLink(questID))
-        or (questLogIndex and _G.GetQuestLink and _G.GetQuestLink(questLogIndex))
-
-    if not link then
-        local title = questTitle or (C_QuestLog and C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID))
-        if title and title ~= "" then
-            local level = (C_QuestLog and C_QuestLog.GetQuestDifficultyLevel and C_QuestLog.GetQuestDifficultyLevel(questID)) or 0
-            link = string_format("|cffffff00|Hquest:%d:%d|h[%s]|h|r", questID, level, title)
-        end
-    end
-
-    if not link then
-        return false
-    end
-
-    -- 4. Insert link into active chat / edit box
-    if ChatFrameUtil and ChatFrameUtil.InsertLink and ChatFrameUtil.InsertLink(link) then
-        return true
-    end
-    if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then
-        return true
-    end
-    if activeChat and activeChat.Insert then
-        activeChat:Insert(link)
-        if activeChat.SetFocus then
-            activeChat:SetFocus()
-        end
-        return true
-    end
-
-    return false
-end
+local TryInsertQuestLink = QuestCommon.TryInsertQuestLink
 
 -- ─────────────────────────────────────────────────────────
 --  QUEST CLICK HANDLER

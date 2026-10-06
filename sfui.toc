@@ -137,6 +137,7 @@ frames/quests/helpers/q_timerbars.lua
 frames/quests/helpers/q_items.lua
 frames/quests/helpers/q_findgroup.lua
 frames/quests/helpers/q_tooltip.lua
+frames/quests/helpers/q_common.lua
 
 # Tracker Content Modules
 frames/quests/modules/q_scenarios.lua [AllowLoadGameType standard, camelot]

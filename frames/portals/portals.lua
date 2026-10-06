@@ -26,7 +26,7 @@ local C_Item            = _G.C_Item
 local GetProfessions    = _G.GetProfessions
 local GetProfessionInfo = _G.GetProfessionInfo
 local PlayerHasToy      = _G.PlayerHasToy
-local GameTooltip       = _G.GameTooltip
+local GameTooltip       = sfui.common.get_tooltip()
 local GetTime           = _G.GetTime
 local tinsert           = _G.tinsert
 local select            = _G.select
@@ -345,7 +345,7 @@ local function get_spec_color(specID)
     return sfui.common.get_spec_color(specID)
 end
 
-local _, playerClass = UnitClass("player")
+local playerClass = sfui.common.get_player_class()
 local dungeonSpecCache = {}
 
 local function get_dungeon_spec(dungeonName)
@@ -383,16 +383,33 @@ local function get_dungeon_spec(dungeonName)
     return nil
 end
 
+-- shared cooldown visual state (border dims / text greys while on cooldown)
+local function set_cd_border(frame, rem)
+    if rem > 0 then
+        frame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+    else
+        frame:SetBackdropBorderColor(unpack(cfg.colors.black))
+    end
+end
+
+local function set_cd_text(fs, rem)
+    if rem > 0 then
+        fs:SetTextColor(0.6, 0.6, 0.6, 1)
+    else
+        fs:SetTextColor(unpack(cfg.colors.white))
+    end
+end
+
 local function show_tooltip(owner, spellID, toyID, label, portalID, cdRem)
     if not GameTooltip or not owner then return end
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
     if spellID then
         GameTooltip:SetSpellByID(spellID)
         if cdRem and cdRem > 0 then
-            GameTooltip:AddLine("|cffff4444CD: " .. fmt_cd(cdRem) .. "|r")
+            GameTooltip:AddLine("|cffff4444cd: " .. fmt_cd(cdRem) .. "|r")
         end
         if portalID and player_has_spell(portalID) then
-            GameTooltip:AddLine("Right-click: group portal", 0.6, 0.6, 0.6)
+            GameTooltip:AddLine("right-click: group portal", 0.6, 0.6, 0.6)
         end
     elseif toyID then
         if GameTooltip.SetToyByItemID then
@@ -401,7 +418,7 @@ local function show_tooltip(owner, spellID, toyID, label, portalID, cdRem)
             GameTooltip:SetItemByID(toyID)
         end
         if cdRem and cdRem > 0 then
-            GameTooltip:AddLine("|cffff4444CD: " .. fmt_cd(cdRem) .. "|r")
+            GameTooltip:AddLine("|cffff4444cd: " .. fmt_cd(cdRem) .. "|r")
         end
     end
     if label then
@@ -410,7 +427,7 @@ local function show_tooltip(owner, spellID, toyID, label, portalID, cdRem)
         if specID and specID ~= 0 then
             local specName = sfui.common.get_spec_name(specID)
             local r, g, b = get_spec_color(specID)
-            GameTooltip:AddDoubleLine("Loot Spec:", specName, 0.7, 0.7, 0.7, r, g, b)
+            GameTooltip:AddDoubleLine("loot spec:", specName, 0.7, 0.7, 0.7, r, g, b)
         end
     end
     GameTooltip:Show()
@@ -587,11 +604,7 @@ local function make_spell_icon(parent, spellID, label, x, y)
     local function reset_hover()
         frame._isHovered = false
         local rem = spell_cd_remaining(spellID)
-        if rem > 0 then
-            frame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
-        else
-            frame:SetBackdropBorderColor(unpack(cfg.colors.black))
-        end
+        set_cd_border(frame, rem)
     end
     frame.resetHover = reset_hover
 
@@ -698,11 +711,7 @@ local function make_action_row(parent, spellID, portalID, toyID, name, icon, yPo
         frame._isHovered = false
         frame:SetBackdropBorderColor(unpack(cfg.colors.black))
         local rem = spellID and spell_cd_remaining(spellID) or toy_cd_remaining(toyID)
-        if rem > 0 then
-            label:SetTextColor(0.6, 0.6, 0.6, 1)
-        else
-            label:SetTextColor(unpack(cfg.colors.white))
-        end
+        set_cd_text(label, rem)
     end
     frame.resetHover = reset_hover
 
@@ -824,11 +833,7 @@ local function make_toy_icon(parent, toyID, label, x, y)
     local function reset_hover()
         frame._isHovered = false
         local rem = toy_cd_remaining(toyID)
-        if rem > 0 then
-            frame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
-        else
-            frame:SetBackdropBorderColor(unpack(cfg.colors.black))
-        end
+        set_cd_border(frame, rem)
     end
     frame.resetHover = reset_hover
 
@@ -965,11 +970,7 @@ local function make_hearthstone_scroll_icon(parent, skinList, x, y)
         frame._isHovered = false
         local toyID = current()
         local rem = toyID and toy_cd_remaining(toyID) or 0
-        if rem > 0 then
-            frame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
-        else
-            frame:SetBackdropBorderColor(unpack(cfg.colors.black))
-        end
+        set_cd_border(frame, rem)
     end
     frame.resetHover = reset_hover
 
@@ -1069,11 +1070,7 @@ local function make_legacy_dropdown(parent, group, yPos)
         local function reset_hover()
             row._isHovered = false
             local rem = spell_cd_remaining(spellID)
-            if rem > 0 then
-                fs:SetTextColor(0.6, 0.6, 0.6, 1)
-            else
-                fs:SetTextColor(unpack(cfg.colors.white))
-            end
+            set_cd_text(fs, rem)
         end
         row.resetHover = reset_hover
 
@@ -1237,7 +1234,7 @@ local function build_portals_frame()
     -- Hearthstone skins: single scrollable icon cycling through all collected skins.
     -- Travel toys: compact icon grid, no text labels.
     do
-        local playerFaction = _G.UnitFactionGroup and _G.UnitFactionGroup("player")
+        local playerFaction = sfui.common.get_player_faction()
         local toyStartY = curY
         local col, row = 0, 0
         local toyCount = 0

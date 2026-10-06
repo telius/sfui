@@ -23,16 +23,7 @@ local string_format = string.format
 local RECRAFT_MODES = { false, true }
 
 local function GetQLState()
-    if not SfuiDB then SfuiDB = {} end
-    if not SfuiDB.questlog then
-        SfuiDB.questlog = {
-            collapsed      = {},
-            expandedQuests = {},
-            hiddenQuests   = {},
-            hidden         = false,
-        }
-    end
-    return SfuiDB.questlog
+    return sfui.questlog.GetState()
 end
 
 local RecipesModule = {
@@ -60,7 +51,7 @@ function RecipesModule:BuildBlocks(container)
 
     local blocks = {}
     local state = GetQLState()
-    local expandedQuests = state.expandedQuests or {}
+    local expandedBlocks = state.expandedBlocks or {}
 
     for _, isRecraft in ipairs(RECRAFT_MODES) do
         local recipes = C_TradeSkillUI.GetRecipesTracked(isRecraft)
@@ -73,7 +64,7 @@ function RecipesModule:BuildBlocks(container)
                         local allReagentsMet = true
                         local hasAnyReagent = false
                         local key = "rec_" .. tostring(recipeID) .. (isRecraft and "_r" or "")
-                        local isExpanded = (expandedQuests[key] ~= false)
+                        local isExpanded = (expandedBlocks[key] ~= false)
 
                         if schematic.reagentSlotSchematics then
                             for _, slot in ipairs(schematic.reagentSlotSchematics) do
@@ -141,8 +132,8 @@ function RecipesModule:BuildBlocks(container)
                                 -- Right-Click: Toggle Criteria
                                 if btn == "RightButton" then
                                     local st = GetQLState()
-                                    st.expandedQuests = st.expandedQuests or {}
-                                    st.expandedQuests[key] = not st.expandedQuests[key]
+                                    st.expandedBlocks = st.expandedBlocks or {}
+                                    st.expandedBlocks[key] = not st.expandedBlocks[key]
                                     sfui.tracker.RequestRefresh(0.05)
                                     return
                                 end

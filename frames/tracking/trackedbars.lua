@@ -8,7 +8,7 @@ local container
 local issecretvalue = common.issecretvalue
 local CreateFrame = CreateFrame
 local UIParent = UIParent
-local GameTooltip = _G.GameTooltip
+local GameTooltip = sfui.common.get_tooltip()
 local C_Spell = C_Spell
 local InCombatLockdown = InCombatLockdown
 local wipe = table.wipe or wipe
@@ -1436,7 +1436,7 @@ end
 
 function sfui.trackedbars.initialize()
     if container then return end
-    local loaded, reason = C_AddOns.LoadAddOn("Blizzard_CooldownViewer")
+    sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
     container = CreateFrame("Frame", "SfuiTrackedBarsContainer", UIParent)
     local cfg = sfui.config.trackedBars
     container:SetSize(cfg.width, cfg.height)

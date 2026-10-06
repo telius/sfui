@@ -1,5 +1,40 @@
 # Changelog
 
+## unreleased
+
+### fixes
+
+- **quest expand state reset**: `sfui.questlog.GetState()` (`frames/quests/engine/q_tracker.lua`) is now the single quest log state source. it no longer deletes the table that achievements, activities and collectables used for expand/collapse (renamed to `expandedBlocks`), so their state survives tracker refreshes.
+- **broken debounces / throttles**: `C_Timer.After` returns nil, so the "timer handles" in `frames/dungeonjournal/dj_sidebar.lua`, `dj_quests.lua`, `dj_pins.lua` and the scan throttle in `frames/reminders/buffs_scan.lua` never debounced anything. they now use `sfui.common.debounce` or a pending flag.
+- **recipe tooltip hook**: the legacy fallback in `frames/alts/recipes.lua` hooks both the blizzard tooltip and the private addon tooltip again. `frames/dungeonjournal/dj_tooltips.lua` also annotates the private tooltip.
+- **alts manager header**: the header no longer sits below the theme frame (`frames/alts/alts.lua`, `frames/themes/engine.lua`).
+
+### features
+
+- **dungeon journal level filter**: the sidebar shows only dungeons in your level range by default. the new `all` toggle (and the context menu) shows every dungeon.
+
+### architecture
+
+- **private tooltip everywhere**: all addon tooltips now go through `sfui.common.get_tooltip()` (`SfuiGameTooltip`). they're hidden with the new `sfui.common.hide_tooltip()`, and comparison tooltips are wired up in `core/items.lua`.
+- **new shared helpers**:
+  - in `common.lua`: `is_addon_loaded`, `ensure_addon_loaded`, `get_addon_metadata`, `get_player_faction` and `debounce`.
+  - in `core/widgets.lua`: `attach_tooltip`, `apply_flat_backdrop`, `create_pool` and `create_icon_toggle`.
+- **shared quest helpers**: the duplicate `IsQuestWatched`, `IsWorldQuest`, `AutoTrackQuest`, `TryInsertQuestLink`, `FormatQuestTimer` and `IsClassQuest` code from `q_quests.lua`, `q_camelot.lua`, `q_camelot_class.lua` and `q_worldquests.lua` now lives in the new `frames/quests/helpers/q_common.lua`.
+- **api standardization**:
+  - item info goes through `sfui.common.get_item_info` / `get_item_instant_info`.
+  - player class goes through `get_player_class` / `get_player_class_id`.
+  - addon loading goes through the new addon wrappers.
+  - cvars go through `get_cvar` / `set_cvar`.
+  - bar textures go through `sfui.widgets.get_bar_texture`.
+  - dead raw-api fallbacks were removed.
+- **dungeon journal cleanup**:
+  - the inline backdrop literals use `apply_flat_backdrop`.
+  - the eye and `all` buttons use `create_icon_toggle`.
+  - character-scoped options persist through one `PersistCharOption` path.
+- **portals**: cooldown border and text code is hoisted into `set_cd_border` / `set_cd_text`.
+- **lowercase pass**: about 200 capitalized ui labels and tooltip lines were lowercased.
+- **docs**: `.agent/workflows/methods.md` now settles the tooltip rule and documents the dropdown `GLOBAL_MOUSE_DOWN` exception, the `C_Timer.After` pitfall and a shared-helper reference table.
+
 ## v12.1.0-75 (2026-10-06)
 
 ### Features & Major Improvements

@@ -88,6 +88,11 @@ else
         GameTooltip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
         GameTooltip:HookScript("OnTooltipCleared", OnTooltipCleared)
     end
+    local sfuiTip = sfui.tooltip
+    if sfuiTip and sfuiTip ~= GameTooltip then
+        sfuiTip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
+        sfuiTip:HookScript("OnTooltipCleared", OnTooltipCleared)
+    end
     if ItemRefTooltip then
         ItemRefTooltip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
         ItemRefTooltip:HookScript("OnTooltipCleared", OnTooltipCleared)

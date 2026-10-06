@@ -119,7 +119,7 @@ sfui.options.RegisterTab({
             updatePreview()
         end)
         previewBackdrop:SetScript("OnEnter", function(self)
-            local tip = sfui.tooltip or _G.GameTooltip
+            local tip = sfui.common.get_tooltip()
             if tip then
                 tip:SetOwner(self, "ANCHOR_TOP")
                 tip:SetText("click to cycle through bar styles", 1, 1, 1)
@@ -127,7 +127,7 @@ sfui.options.RegisterTab({
             end
         end)
         previewBackdrop:SetScript("OnLeave", function()
-            local tip = sfui.tooltip or _G.GameTooltip
+            local tip = sfui.common.get_tooltip()
             if tip then tip:Hide() end
         end)
 

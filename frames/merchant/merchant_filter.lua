@@ -216,7 +216,7 @@ function sfui.merchant.get_grimoire_spell_info(itemLink)
     end
 
     -- 2. Fallback: Parse item name
-    local itemName = C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(itemLink)
+    local itemName = sfui.common.get_item_info(itemLink)
     if not itemName then
         itemName = itemLink:match("%[(.-)%]")
     end
@@ -358,7 +358,7 @@ function sfui.merchant.build_item_list()
             if not info or not info.isUsable then
                 isClassMatch = false
             else
-                local _, _, _, _, _, classID, subclassID = C_Item.GetItemInfoInstant(link)
+                local _, _, _, _, _, classID, subclassID = sfui.common.get_item_instant_info(link)
                 if not preferredArmor then UpdatePlayerFilterData() end
                 -- If it's armor, check preferred armor type
                 if classID == 4 and preferredArmor then
@@ -415,7 +415,7 @@ function sfui.merchant.build_item_list()
                             local cID = tonumber(string.match(costLink, "currency:(%d+)"))
                             if not currencyName then
                                 currencyName = cID and common.get_currency_name(cID) or
-                                    C_Item.GetItemInfo(costLink)
+                                    sfui.common.get_item_info(costLink)
                             end
                             local count = cID and common.get_currency_quantity(cID) or
                                 common.get_item_count(costLink)
@@ -469,7 +469,7 @@ local function get_merchant_item_data(index, mode)
         d.link = info.hyperlink or GetMerchantItemLink(index)
     end
     if d.link then
-        local _, _, q, _, _, _, st, _, el, _, _, ci, sci = C_Item.GetItemInfo(d.link)
+        local _, _, q, _, _, _, st, _, el, _, _, ci, sci = sfui.common.get_item_info(d.link)
         d.quality, d.subType, d.equipLoc, d.classID, d.subClassID = q, st, el, ci, sci
     end
     return d

@@ -29,18 +29,7 @@ local threatBar
 
 -- ─── Primary Texture Resolver ────────────────────────────────────────────────
 local function GetBarTexture()
-    local tex = sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()
-    if not tex or tex == "" then
-        local textureName = SfuiDB and SfuiDB.barTexture
-        local LSM = _G.LibStub and _G.LibStub("LibSharedMedia-3.0", true)
-        if LSM and textureName then
-            tex = LSM:Fetch("statusbar", textureName, true)
-        end
-    end
-    if not tex or tex == "" then
-        tex = (sfui.config and sfui.config.barTexture) or "Interface\\Buttons\\WHITE8X8"
-    end
-    return tex
+    return sfui.widgets.get_bar_texture()
 end
 
 function sfui.threat.SetBarTexture(texturePath)

@@ -144,7 +144,7 @@ sfui.options.RegisterTab({
             bind_btn:SetText("|cffffff00press a key...|r")
             local cyan = { 0, 1, 1 }
             bind_btn:SetBackdropBorderColor(cyan[1], cyan[2], cyan[3], 1)
-            keybind_status:SetText("active keybind: |cffffff00press key or gamepad button to bind (ESC to cancel)|r")
+            keybind_status:SetText("active keybind: |cffffff00press key or gamepad button to bind (esc to cancel)|r")
 
             catcher:Show()
             catcher:EnableKeyboard(true)
@@ -279,7 +279,7 @@ sfui.options.RegisterTab({
 
         local function attach_tooltip(btn, title, desc)
             btn:HookScript("OnEnter", function(self)
-                local tip = sfui.tooltip or _G.GameTooltip
+                local tip = sfui.common.get_tooltip()
                 if tip then
                     tip:SetOwner(self, "ANCHOR_TOP")
                     tip:SetText(title, 1, 1, 1)
@@ -290,7 +290,7 @@ sfui.options.RegisterTab({
                 end
             end)
             btn:HookScript("OnLeave", function(self)
-                local tip = sfui.tooltip or _G.GameTooltip
+                local tip = sfui.common.get_tooltip()
                 if tip then tip:Hide() end
             end)
         end

@@ -79,16 +79,7 @@ function ScenariosModule:IsEnabled()
 end
 
 local function GetQLState()
-    if not SfuiDB then SfuiDB = {} end
-    if not SfuiDB.questlog then
-        SfuiDB.questlog = {
-            collapsed      = {},
-            expandedQuests = {},
-            hiddenQuests   = {},
-            hidden         = false,
-        }
-    end
-    return SfuiDB.questlog
+    return sfui.questlog.GetState()
 end
 
 function ScenariosModule:BuildBlocks(container)
@@ -155,9 +146,9 @@ function ScenariosModule:BuildBlocks(container)
         end
 
         local state = GetQLState()
-        local expandedQuests = state.expandedQuests or {}
+        local expandedBlocks = state.expandedBlocks or {}
         local expandKey = isDelve and "delve" or "scenario"
-        local isExpanded = (expandedQuests[expandKey] ~= false)
+        local isExpanded = (expandedBlocks[expandKey] ~= false)
 
         local lines = {}
         local progressBar = nil
@@ -207,8 +198,8 @@ function ScenariosModule:BuildBlocks(container)
             OnClick        = function(block, btn)
                 if btn == "RightButton" then
                     local st = GetQLState()
-                    st.expandedQuests = st.expandedQuests or {}
-                    st.expandedQuests[expandKey] = not isExpanded
+                    st.expandedBlocks = st.expandedBlocks or {}
+                    st.expandedBlocks[expandKey] = not isExpanded
                     sfui.tracker.RequestRefresh(0.01)
                     return
                 end

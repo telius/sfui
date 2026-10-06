@@ -393,13 +393,37 @@ function sfui.theme.SetButtonSelected(btn, isSelected)
     end
 end
 
+-- effective palette = active theme colours + user overrides from the theme tab
+-- (SfuiDB.customAccentColor / customHighlightColor). the merged table is cached and
+-- only rebuilt when the theme or an override table changes (zero alloc steady state).
+local effectivePalette = {}
+local effBase, effAccent, effHighlight = nil, nil, nil
+
 function sfui.theme.GetPalette()
     local themeID = sfui.theme.GetActiveThemeID()
     local theme = registeredThemes[themeID] or registeredThemes.modern
-    if theme and theme.colors then
-        return theme.colors
+    local base = (theme and theme.colors) or sfui.config.appearance
+
+    local customAccent    = SfuiDB and SfuiDB.customAccentColor
+    local customHighlight = SfuiDB and SfuiDB.customHighlightColor
+    if not customAccent and not customHighlight then
+        return base
     end
-    return sfui.config.appearance
+
+    if effBase ~= base or effAccent ~= customAccent or effHighlight ~= customHighlight then
+        for k in pairs(effectivePalette) do effectivePalette[k] = nil end
+        for k, v in pairs(base) do effectivePalette[k] = v end
+        if customAccent then
+            effectivePalette.accentColor = customAccent
+            -- selected tab text follows the accent unless the theme has no tab colours at all
+            if base.tabSelected then effectivePalette.tabSelected = customAccent end
+        end
+        if customHighlight then
+            effectivePalette.highlightColor = customHighlight
+        end
+        effBase, effAccent, effHighlight = base, customAccent, customHighlight
+    end
+    return effectivePalette
 end
 
 -- ─── Component Style Providers ────────────────────────────────────────────────
@@ -492,7 +516,7 @@ function sfui.theme.ApplyWindowStyle(frame, options)
 
     local activeID = sfui.theme.GetActiveThemeID()
     local theme = registeredThemes[activeID] or registeredThemes.modern or {}
-    local pal = theme.colors or sfui.theme.GetPalette()
+    local pal = sfui.theme.GetPalette()
 
     -- Allow theme definition to supply custom ApplyWindow hook
     if theme.ApplyWindow then
@@ -873,7 +897,7 @@ function sfui.theme.ApplyContainerStyle(containerPanel)
     if not containerPanel or not containerPanel.SetBackdrop then return end
     local activeID = sfui.theme.GetActiveThemeID()
     local theme = registeredThemes[activeID] or registeredThemes.modern or {}
-    local pal = theme.colors or sfui.theme.GetPalette()
+    local pal = sfui.theme.GetPalette()
 
     if theme.ApplyContainer then
         theme.ApplyContainer(containerPanel, theme)
@@ -933,7 +957,7 @@ function sfui.theme.ApplyQuestHeaderStyle(header)
     if not header then return end
     local activeID = sfui.theme.GetActiveThemeID()
     local theme = registeredThemes[activeID] or registeredThemes.modern or {}
-    local pal = theme.colors or sfui.theme.GetPalette()
+    local pal = sfui.theme.GetPalette()
 
     if theme.ApplyHeader then
         theme.ApplyHeader(header, theme)
@@ -1060,7 +1084,7 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
     if not btn or btn.isCloseButton or btn.isSubmenuButton or btn.isDropdownButton or btn.isDropdownOption then return end
     local activeID = sfui.theme.GetActiveThemeID()
     local theme = registeredThemes[activeID] or registeredThemes.modern or {}
-    local pal = theme.colors or sfui.theme.GetPalette()
+    local pal = sfui.theme.GetPalette()
     local mult = sfui.pixelScale or 1
 
     if theme.ApplyButton then
@@ -1246,7 +1270,7 @@ function sfui.theme.ApplyDropdownStyle(btn)
     if not btn then return end
     local activeID = sfui.theme.GetActiveThemeID()
     local theme = registeredThemes[activeID] or registeredThemes.modern or {}
-    local pal = theme.colors or sfui.theme.GetPalette()
+    local pal = sfui.theme.GetPalette()
     local mult = sfui.pixelScale or 1
     local isCamelot = (activeID == "camelot")
     local useAH = sfui.theme.IsAuctionHouseButtonActive()
@@ -1399,7 +1423,7 @@ function sfui.theme.ApplyTabStyle(btn, isSelected)
     registered_tabs[btn] = btn.isSelectedTab
     local activeID = sfui.theme.GetActiveThemeID()
     local theme = registeredThemes[activeID] or registeredThemes.modern or {}
-    local pal = theme.colors or sfui.theme.GetPalette()
+    local pal = sfui.theme.GetPalette()
     local isCamelot = (activeID == "camelot")
     local useAH = sfui.theme.IsAuctionHouseButtonActive()
 
@@ -1973,7 +1997,7 @@ function sfui.theme.ApplyMinimapButtonBarStyle(bar)
     if not bar then return end
     local activeID = sfui.theme.GetActiveThemeID()
     local theme = registeredThemes[activeID] or registeredThemes.modern or {}
-    local pal = theme.colors or sfui.theme.GetPalette()
+    local pal = sfui.theme.GetPalette()
     local atlases = theme.atlases or {}
     local isCamelot = (activeID == "camelot")
     local canUseBanner = isCamelot and atlases.headerBanner and sfui.theme.HasAtlas(atlases.headerBanner)
@@ -2548,7 +2572,7 @@ function sfui.theme.ApplyStatusBarStyle(bar, barType)
 
     local activeID = sfui.theme.GetActiveThemeID()
     local theme    = registeredThemes[activeID] or registeredThemes.modern or {}
-    local pal      = theme.colors or sfui.theme.GetPalette()
+    local pal      = sfui.theme.GetPalette()
     local bars_def = theme.bars or {}
     local isCamelot = (activeID == "camelot")
 
@@ -2865,7 +2889,7 @@ function sfui.theme.ApplyCastBarDecoration(bar)
     if not bar then return end
     local activeID = sfui.theme.GetActiveThemeID()
     local theme    = registeredThemes[activeID] or registeredThemes.modern or {}
-    local pal      = theme.colors or sfui.theme.GetPalette()
+    local pal      = sfui.theme.GetPalette()
     local bars_def = theme.bars or {}
     local isCamelot = (activeID == "camelot")
 
@@ -2953,7 +2977,7 @@ end
 function sfui.theme.ApplyCurrentTheme()
     local themeID = sfui.theme.GetActiveThemeID()
     local theme = registeredThemes[themeID] or registeredThemes.modern or {}
-    local pal = theme.colors or sfui.theme.GetPalette()
+    local pal = sfui.theme.GetPalette()
 
     -- Sync global config appearance tokens
     sfui.config.appearance.highlightColor = pal.highlightColor

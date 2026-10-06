@@ -20,8 +20,7 @@ local function get_dungeon_finder_roles()
     end
 
     -- 3. Fallback to player's active specialization role
-    local spec = _G.GetSpecialization and _G.GetSpecialization()
-    local specRole = spec and _G.GetSpecializationRole and _G.GetSpecializationRole(spec) or "DAMAGER"
+    local specRole = sfui.common.get_spec_role(sfui.common.get_current_spec_id()) or "DAMAGER"
     return false, specRole == "TANK", specRole == "HEALER", specRole == "DAMAGER"
 end
 
@@ -157,7 +156,7 @@ local function auto_sell_greys()
     local totalPrice = 0
     sfui.common.for_each_bag_item(function(bag, slot, itemID, link, info)
         if info and (link or info.hyperlink) and info.quality == 0 then
-            local price = info.noValue and 0 or (select(11, C_Item.GetItemInfo(link or info.hyperlink)) or 0)
+            local price = info.noValue and 0 or (select(11, sfui.common.get_item_info(link or info.hyperlink)) or 0)
             if price > 0 then
                 totalPrice = totalPrice + (price * (info.stackCount or 1))
                 C_Container.UseContainerItem(bag, slot)
@@ -255,7 +254,7 @@ local function auto_slot_keystone()
 
     sfui.common.for_each_bag_item(function(bag, slot, ID)
         if ID then
-            local Class, SubClass = select(12, C_Item.GetItemInfo(ID))
+            local Class, SubClass = select(12, sfui.common.get_item_info(ID))
             if Class == ReagentClass and SubClass == KeystoneClass then
                 C_Container.PickupContainerItem(bag, slot)
                 if C_Cursor.GetCursorItem() then

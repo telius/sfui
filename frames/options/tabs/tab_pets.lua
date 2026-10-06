@@ -104,7 +104,7 @@ sfui.options.RegisterTab({
         local favs_sub = p:CreateFontString(nil, "OVERLAY", g.font_small or "GameFontNormalSmall")
         favs_sub:SetPoint("TOPLEFT", favs_header, "BOTTOMLEFT", 0, -4)
         favs_sub:SetTextColor(0.65, 0.65, 0.65, 1)
-        favs_sub:SetText("drag pets from your Pet Journal (Shift+P) into the drop box, or use the action buttons.")
+        favs_sub:SetText("drag pets from your pet journal (shift+p) into the drop box, or use the action buttons.")
 
         local add_current_btn = CreateFlatButton(p, "add current pet", 110, 22)
         add_current_btn:SetPoint("TOPLEFT", favs_sub, "BOTTOMLEFT", 0, -10)
@@ -179,17 +179,17 @@ sfui.options.RegisterTab({
         drop_box:SetScript("OnMouseUp", handle_pet_drop)
         drop_box:SetScript("OnEnter", function(self)
             self:SetBackdropBorderColor(0, 1, 1, 1)
-            local tip = sfui.tooltip or _G.GameTooltip
+            local tip = sfui.common.get_tooltip()
             if tip then
                 tip:SetOwner(self, "ANCHOR_RIGHT")
                 tip:SetText("drop pet here", 1, 1, 1)
-                tip:AddLine("Drag any pet from your Pet Journal (Shift+P) and drop it here to add it to this character's favorites.", 0.8, 0.8, 0.8, true)
+                tip:AddLine("drag any pet from your pet journal (shift+p) and drop it here to add it to this character's favorites.", 0.8, 0.8, 0.8, true)
                 tip:Show()
             end
         end)
         drop_box:SetScript("OnLeave", function(self)
             self:SetBackdropBorderColor(0, 0, 0, 1)
-            local tip = sfui.tooltip or _G.GameTooltip
+            local tip = sfui.common.get_tooltip()
             if tip then tip:Hide() end
         end)
 
@@ -210,7 +210,7 @@ sfui.options.RegisterTab({
         empty_text:SetPoint("CENTER", list_container, "CENTER", 0, 0)
         empty_text:SetTextColor(0.5, 0.5, 0.5, 1)
         empty_text:SetJustifyH("CENTER")
-        empty_text:SetText("No character favorites set.\nClick 'Add Current Pet', drag from Pet Journal,\nor type '/sfpet add'.")
+        empty_text:SetText("no character favorites set.\nclick 'add current pet', drag from pet journal,\nor type '/sfpet add'.")
 
         local row_pool = {}
         local active_rows = {}
@@ -280,7 +280,7 @@ sfui.options.RegisterTab({
             row:EnableMouse(true)
             row:SetScript("OnEnter", function(self)
                 self:SetBackdropColor(0.14, 0.14, 0.14, 0.9)
-                local tip = sfui.tooltip or _G.GameTooltip
+                local tip = sfui.common.get_tooltip()
                 if self.petGUID and tip and C_PetJournal_GetPetInfoByPetID then
                     local speciesID, customName, level, _, _, _, _, name, _, petType = C_PetJournal_GetPetInfoByPetID(self.petGUID)
                     if speciesID then
@@ -297,7 +297,7 @@ sfui.options.RegisterTab({
             end)
             row:SetScript("OnLeave", function(self)
                 self:SetBackdropColor(0.08, 0.08, 0.08, 0.6)
-                local tip = sfui.tooltip or _G.GameTooltip
+                local tip = sfui.common.get_tooltip()
                 if tip then tip:Hide() end
             end)
 

@@ -39,10 +39,9 @@ local LibStub = _G.LibStub
 local IsResting = _G.IsResting
 local UnitIsPVP = _G.UnitIsPVP
 local UnitIsPVPFreeForAll = _G.UnitIsPVPFreeForAll
-local UnitFactionGroup = _G.UnitFactionGroup
 local IsPVPTimerRunning = _G.IsPVPTimerRunning
 local GetPVPTimer = _G.GetPVPTimer
-local GameTooltip = _G.GameTooltip
+local GameTooltip = sfui.common.get_tooltip()
 local FREE_FOR_ALL_TERRITORY = _G.FREE_FOR_ALL_TERRITORY
 local PVP = _G.PVP
 
@@ -595,9 +594,9 @@ local function update_pvp_tooltip(self)
     GameTooltip:ClearLines()
     if UnitIsPVPFreeForAll and UnitIsPVPFreeForAll("player") then
         GameTooltip:AddLine(FREE_FOR_ALL_TERRITORY or "Free for All PvP", 1, 0.2, 0.2)
-        GameTooltip:AddLine("You are hostile to all other players.", 0.85, 0.85, 0.85, true)
+        GameTooltip:AddLine("you are hostile to all other players.", 0.85, 0.85, 0.85, true)
     else
-        local faction = UnitFactionGroup and UnitFactionGroup("player")
+        local faction = sfui.common.get_player_faction()
         local factionText = faction or "PvP"
         GameTooltip:AddLine(string_format("%s (%s)", PVP or "PvP", factionText), 1, 0.82, 0)
         if IsPVPTimerRunning and IsPVPTimerRunning() then
@@ -608,12 +607,12 @@ local function update_pvp_tooltip(self)
                 local secs = totalSeconds % 60
                 GameTooltip:AddLine(string_format("PvP will drop in: %d:%02d", mins, secs), 0.85, 0.85, 0.85)
             else
-                GameTooltip:AddLine("PvP dropping soon...", 0.85, 0.85, 0.85)
+                GameTooltip:AddLine("pvp dropping soon...", 0.85, 0.85, 0.85)
             end
-            GameTooltip:AddLine("Combat will reset this timer.", 0.6, 0.6, 0.6)
+            GameTooltip:AddLine("combat will reset this timer.", 0.6, 0.6, 0.6)
         else
-            GameTooltip:AddLine("PvP Flagged", 0.2, 1, 0.2)
-            GameTooltip:AddLine("Open to hostile player combat.", 0.6, 0.6, 0.6)
+            GameTooltip:AddLine("pvp flagged", 0.2, 1, 0.2)
+            GameTooltip:AddLine("open to hostile player combat.", 0.6, 0.6, 0.6)
         end
     end
     GameTooltip:Show()
@@ -629,15 +628,21 @@ local function get_status_container()
     status_container = CreateFrame("Frame", "sfui_minimap_status_container", parent)
     status_container:SetSize((size * 2) + 6, size)
 
-    -- Resting indicator (flat square icon, mouse disabled per user requirements)
+    -- Resting indicator (flat square icon, hover-only tooltip; clicks pass through)
     rest_icon_frame = CreateFrame("Frame", nil, status_container, "BackdropTemplate")
     rest_icon_frame:SetSize(size, size)
-    rest_icon_frame:EnableMouse(false)
+    if rest_icon_frame.SetMouseMotionEnabled and rest_icon_frame.SetMouseClickEnabled then
+        rest_icon_frame:SetMouseMotionEnabled(true)
+        rest_icon_frame:SetMouseClickEnabled(false)
+    else
+        rest_icon_frame:EnableMouse(true)
+    end
     local rest_tex = rest_icon_frame:CreateTexture(nil, "ARTWORK")
     rest_tex:SetTexture("Interface\\Icons\\spell_nature_sleep")
     rest_tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     rest_icon_frame.texture = rest_tex
     skin_status_button(rest_icon_frame, rest_tex, nil)
+    sfui.common.attach_tooltip(rest_icon_frame, "resting", "earning rested experience.", "ANCHOR_BOTTOMLEFT")
     rest_icon_frame:Hide()
 
     -- PvP indicator (flat square icon, mouse enabled for rich tooltip and countdown)
@@ -656,18 +661,21 @@ local function get_status_container()
 
     skin_status_button(pvp_icon_frame, pvp_tex, pvp_hl)
 
+    -- hover-scoped 1s refresh of the pvp timer line (hoisted: no per-hover closure)
+    local function pvp_tooltip_on_update(f, dt)
+        f.elapsed = (f.elapsed or 0) + dt
+        if f.elapsed >= 1.0 then
+            f.elapsed = 0
+            update_pvp_tooltip(f)
+        end
+    end
+
     pvp_icon_frame:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
         update_pvp_tooltip(self)
         if IsPVPTimerRunning and IsPVPTimerRunning() then
             self.elapsed = 0
-            self:SetScript("OnUpdate", function(f, dt)
-                f.elapsed = (f.elapsed or 0) + dt
-                if f.elapsed >= 1.0 then
-                    f.elapsed = 0
-                    update_pvp_tooltip(f)
-                end
-            end)
+            self:SetScript("OnUpdate", pvp_tooltip_on_update)
         end
     end)
 
@@ -719,7 +727,7 @@ function sfui.minimap.update_status()
     end
 
     if showPvP then
-        local faction = UnitFactionGroup and UnitFactionGroup("player")
+        local faction = sfui.common.get_player_faction()
         set_pvp_texture(pvp_icon_frame.texture, isFFA, faction)
         pvp_icon_frame:Show()
     else
@@ -860,8 +868,8 @@ end
 function sfui.minimap.update_clock_position()
     local clock = _G.TimeManagerClockButton
     if not clock then
-        if C_AddOns and C_AddOns.LoadAddOn then
-            C_AddOns.LoadAddOn("Blizzard_TimeManager")
+        if sfui.common.ensure_addon_loaded("Blizzard_TimeManager") then
+            -- loaded via C_AddOns / LoadAddOn
         elseif _G.UIParentLoadAddOn then
             _G.UIParentLoadAddOn("Blizzard_TimeManager")
         end

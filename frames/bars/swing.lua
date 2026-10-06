@@ -22,7 +22,7 @@ local C_SwingTimer = C_SwingTimer
 local Enum = Enum
 local C_Item = C_Item
 
-local GetItemInfoInstant = (C_Item and C_Item.GetItemInfoInstant) or _G.GetItemInfoInstant
+local GetItemInfoInstant = sfui.common.get_item_instant_info
 local INVSLOT_OFFHAND = _G.INVSLOT_OFFHAND or 17
 local INVSLOT_RANGED  = _G.INVSLOT_RANGED or 18
 local ITEM_CLASS_WEAPON = (Enum and Enum.ItemClass and Enum.ItemClass.Weapon) or 2
@@ -38,7 +38,7 @@ local swingBars = {}
 local playerClass
 local function IsHunter()
     if not playerClass then
-        local _, class = UnitClass("player")
+        local class = sfui.common.get_player_class()
         playerClass = class
     end
     return playerClass == "HUNTER"

@@ -1,6 +1,7 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
+local GameTooltip = sfui.common.get_tooltip()  -- private addon tooltip (methods.md §3.7.2)
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/dungeonjournal/dj_quests.lua
@@ -39,11 +40,8 @@ local debounceTimer      = nil
 
 -- ─── Player Faction Helper ────────────────────────────────────────────────────
 local function GetPlayerFaction()
-    local englishFaction, _ = UnitFactionGroup("player")
-    if englishFaction and englishFaction:lower() == "horde" then
-        return "horde"
-    end
-    return "alliance"
+    local _, faction = sfui.common.get_player_faction()
+    return faction == "horde" and "horde" or "alliance"
 end
 
 -- ─── Database & State Access ──────────────────────────────────────────────────
@@ -157,13 +155,7 @@ local function AcquireQuestButton(pool, parent)
 
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:SetHeight(QUEST_BTN_H)
-    btn:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    btn:SetBackdropColor(0.08, 0.08, 0.10, 0.0)
-    btn:SetBackdropBorderColor(0, 0, 0, 0)
+    common.apply_flat_backdrop(btn, { 0.08, 0.08, 0.10, 0.0 }, { 0, 0, 0, 0 })
 
     -- Faction / Status Icon
     local ico = btn:CreateTexture(nil, "ARTWORK")
@@ -217,13 +209,7 @@ local function AcquireRewardButton(pool, parent)
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:SetHeight(REWARD_ROW_H)
-    btn:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    btn:SetBackdropColor(0.06, 0.06, 0.08, 0.7)
-    btn:SetBackdropBorderColor(0.15, 0.15, 0.18, 0.8)
+    common.apply_flat_backdrop(btn, { 0.06, 0.06, 0.08, 0.7 }, { 0.15, 0.15, 0.18, 0.8 })
 
     -- Icon frame
     local iconBtn = CreateFrame("Frame", nil, btn, "BackdropTemplate")
@@ -443,12 +429,7 @@ local function RenderQuestDetail(quest, dungeon)
             sfui.theme.ApplyButtonStyle(shareBtn, false)
             sfui.theme.RegisterButton(shareBtn, false)
         else
-            shareBtn:SetBackdrop({
-                bgFile   = "Interface\\Buttons\\WHITE8x8",
-                edgeFile = "Interface\\Buttons\\WHITE8x8",
-                edgeSize = 1,
-            })
-            shareBtn:SetBackdropColor(0.10, 0.10, 0.14, 0.9)
+            common.apply_flat_backdrop(shareBtn, { 0.10, 0.10, 0.14, 0.9 })
             shareBtn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.6)
             sfs:SetTextColor(accent[1], accent[2], accent[3], 1)
         end
@@ -542,12 +523,7 @@ local function RenderQuestDetail(quest, dungeon)
             sfui.theme.ApplyButtonStyle(mapBtn, false)
             sfui.theme.RegisterButton(mapBtn, false)
         else
-            mapBtn:SetBackdrop({
-                bgFile   = "Interface\\Buttons\\WHITE8x8",
-                edgeFile = "Interface\\Buttons\\WHITE8x8",
-                edgeSize = 1,
-            })
-            mapBtn:SetBackdropColor(0.10, 0.10, 0.14, 0.9)
+            common.apply_flat_backdrop(mapBtn, { 0.10, 0.10, 0.14, 0.9 })
             mapBtn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.6)
             mfs:SetTextColor(accent[1], accent[2], accent[3], 1)
         end
@@ -558,17 +534,17 @@ local function RenderQuestDetail(quest, dungeon)
             end
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:ClearLines()
-            GameTooltip:AddLine("Show on Map", accent[1], accent[2], accent[3])
+            GameTooltip:AddLine("show on map", accent[1], accent[2], accent[3])
             local q = detailContent.activeQuest
             local mapID, x, y, src, step = ResolveQuestMapCoords(q)
             if src == "chain_step" and step then
                 GameTooltip:AddLine(string.format("Opens map and places a waypoint at current step: %s (%s).", tostring(step.name or "chain step"), tostring(step.pickup or "")), 1, 1, 1, true)
             elseif src == "quest" then
-                GameTooltip:AddLine("Opens map and places a waypoint at the quest pickup location.", 1, 1, 1, true)
+                GameTooltip:AddLine("opens map and places a waypoint at the quest pickup location.", 1, 1, 1, true)
             elseif src == "entrance" then
-                GameTooltip:AddLine("Opens map and places a waypoint at the dungeon entrance.", 1, 1, 1, true)
+                GameTooltip:AddLine("opens map and places a waypoint at the dungeon entrance.", 1, 1, 1, true)
             else
-                GameTooltip:AddLine("Opens the World Map for this dungeon's zone.", 1, 1, 1, true)
+                GameTooltip:AddLine("opens the world map for this dungeon's zone.", 1, 1, 1, true)
             end
             if mapID and C_Map and C_Map.GetMapInfo then
                 local minfo = C_Map.GetMapInfo(mapID)
@@ -894,10 +870,6 @@ local function RenderQuestDetail(quest, dungeon)
             btn:SetHeight(REWARD_ROW_H)
 
             local name, link, quality, iLevel, reqLevel, class, subclass, _, equipSlot, icon = common.get_item_info(itemID)
-            if not link and GetItemInfo then
-                local _, l = GetItemInfo(itemID)
-                link = l
-            end
 
             if not name or not icon then
                 local instName, _, instQuality, _, _, _, _, _, instEquipLoc, instIcon = common.get_item_instant_info(itemID)
@@ -1249,13 +1221,7 @@ local function OnFrameCreated(arg1, arg2)
     questSummaryBar:SetPoint("TOPLEFT",  questListContainer, "TOPLEFT",  4, -4)
     questSummaryBar:SetPoint("TOPRIGHT", questListContainer, "TOPRIGHT", -4, -4)
     questSummaryBar:SetHeight(22)
-    questSummaryBar:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    questSummaryBar:SetBackdropColor(0.06, 0.06, 0.08, 0.85)
-    questSummaryBar:SetBackdropBorderColor(0.18, 0.18, 0.22, 0.8)
+    common.apply_flat_backdrop(questSummaryBar, { 0.06, 0.06, 0.08, 0.85 }, { 0.18, 0.18, 0.22, 0.8 })
 
     local sumText = questSummaryBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     questSummaryBar.text = sumText
@@ -1344,23 +1310,14 @@ end
 if sfui.events and sfui.events.RegisterEvent then
 
     -- Live quest updates when completing or picking up quests (debounced)
-    local questDebounceTimer = nil
+    local function DebouncedRefresh()
+        if questPanel and questPanel:IsShown() then
+            RefreshQuestView()
+        end
+    end
     local function OnQuestLogChanged()
         if questPanel and questPanel:IsShown() then
-            if questDebounceTimer then
-                questDebounceTimer:Cancel()
-                questDebounceTimer = nil
-            end
-            if C_Timer and C_Timer.After then
-                questDebounceTimer = C_Timer.After(0.15, function()
-                    questDebounceTimer = nil
-                    if questPanel and questPanel:IsShown() then
-                        RefreshQuestView()
-                    end
-                end)
-            else
-                RefreshQuestView()
-            end
+            common.debounce("dj_quests_log", 0.15, DebouncedRefresh)
         end
     end
     sfui.events.RegisterEvent("QUEST_LOG_UPDATE", OnQuestLogChanged)

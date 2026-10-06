@@ -47,7 +47,7 @@ local UnitIsUnit                   = _G.UnitIsUnit
 local UnitClassification           = _G.UnitClassification
 local GetRaidTargetIndex           = _G.GetRaidTargetIndex
 local SetRaidTargetIconTexture     = _G.SetRaidTargetIconTexture
-local GameTooltip                  = _G.GameTooltip
+local GameTooltip                  = sfui.common.get_tooltip()
 local issecretvalue                = common.issecretvalue
 local GetUnitName                  = _G.GetUnitName
 local NameUtil                     = _G.NameUtil
@@ -106,18 +106,7 @@ local ApplyTargetStyle
 
 -- ─── Primary Texture Resolver ────────────────────────────────────────────────
 local function GetBarTexture()
-    local tex = sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()
-    if not tex or tex == "" then
-        local textureName = SfuiDB and SfuiDB.barTexture
-        local LSM = _G.LibStub and _G.LibStub("LibSharedMedia-3.0", true)
-        if LSM and textureName then
-            tex = LSM:Fetch("statusbar", textureName, true)
-        end
-    end
-    if not tex or tex == "" then
-        tex = (sfui.config and sfui.config.barTexture) or "Interface\\Buttons\\WHITE8X8"
-    end
-    return tex
+    return sfui.widgets.get_bar_texture()
 end
 
 function sfui.target.SetBarTexture(texturePath)
@@ -640,9 +629,9 @@ local function UpdateTargetHealth()
     -- Target Status & Health Text
     if hpText then
         if UnitIsDeadOrGhost("target") then
-            hpText:SetText("|cffff3333Dead|r")
+            hpText:SetText("|cffff3333dead|r")
         elseif not UnitIsConnected("target") then
-            hpText:SetText("|cff888888Offline|r")
+            hpText:SetText("|cff888888offline|r")
         else
             local pctFormatted
             if not isSecret then
@@ -1054,7 +1043,7 @@ local function IsTargetInRange()
     if UnitIsDeadOrGhost("target") then return true end
 
     if not cachedPlayerClass then
-        local _, class = UnitClass("player")
+        local class = sfui.common.get_player_class()
         cachedPlayerClass = class
     end
 

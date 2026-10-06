@@ -99,11 +99,11 @@ sfui.options.RegisterTab({
 
             local pveHeader = self:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             pveHeader:SetPoint("TOPLEFT", auto_equip_highest_cb, "BOTTOMLEFT", 45, -12)
-            pveHeader:SetText("PvE Target")
+            pveHeader:SetText("pve target")
 
             local pvpHeader = self:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             pvpHeader:SetPoint("LEFT", pveHeader, "RIGHT", 80, 0)
-            pvpHeader:SetText("PvP Target")
+            pvpHeader:SetText("pvp target")
 
             local prevRowAnchor
             for i, id in ipairs(gearSpecIDs or {}) do

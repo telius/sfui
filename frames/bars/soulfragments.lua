@@ -7,7 +7,7 @@ local common = sfui.common
 local issecretvalue = common.issecretvalue
 
 -- Class Gate: Demon Hunter only
-local _, playerClass = UnitClass("player")
+local playerClass = sfui.common.get_player_class()
 if playerClass ~= "DEMONHUNTER" then
     sfui.soulfragments = {
         UpdatePosition = function() end,
@@ -670,7 +670,7 @@ local function UpdateVoidMetaDisplay(shouldShow)
         metaBar:SetValue(math.min(darkHeartStacks, maxStacks))
 
         if darkHeartStacks >= maxStacks then
-            metaText:SetText("|cffedcd4eMETA READY|r")
+            metaText:SetText("|cffedcd4emeta ready|r")
             metaBar:SetStatusBarColor(0.929, 0.804, 0.306, 1.0) -- ReapMeter GOLD
             metaHasText = true
         elseif darkHeartStacks > 0 then

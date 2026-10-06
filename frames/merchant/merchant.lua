@@ -15,17 +15,10 @@ local NUM_ROWS = cfg.grid.rows
 local NUM_COLS = cfg.grid.cols
 local ITEMS_PER_PAGE = NUM_ROWS * NUM_COLS
 
-local isWarlockCamelot = (sfui.isCamelot or sfui.isClassic) and (select(2, UnitClass("player")) == "WARLOCK")
+local isWarlockCamelot = (sfui.isCamelot or sfui.isClassic) and (sfui.common.get_player_class() == "WARLOCK")
 
-local GameTooltip = _G.GameTooltip
-local GameTooltip_Hide = sfui.merchant.GameTooltip_Hide or function()
-    if _G.GameTooltip_HideResetCursor then
-        _G.GameTooltip_HideResetCursor()
-    elseif _G.GameTooltip and _G.GameTooltip:IsShown() then
-        _G.GameTooltip:Hide()
-        ResetCursor()
-    end
-end
+local GameTooltip = sfui.common.get_tooltip()
+local GameTooltip_Hide = sfui.common.hide_tooltip
 
 --------------------------------------------------------------------------------
 -- Main Merchant Window & Header

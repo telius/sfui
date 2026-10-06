@@ -56,16 +56,7 @@ local function GetManualStopType()
 end
 
 local function GetQLState()
-    if not SfuiDB then SfuiDB = {} end
-    if not SfuiDB.questlog then
-        SfuiDB.questlog = {
-            collapsed      = {},
-            expandedQuests = {},
-            hiddenQuests   = {},
-            hidden         = false,
-        }
-    end
-    return SfuiDB.questlog
+    return sfui.questlog.GetState()
 end
 
 local AchievementsModule = {
@@ -229,7 +220,7 @@ function AchievementsModule:BuildBlocks(container)
 
     local blocks = {}
     local state = GetQLState()
-    local expandedQuests = state.expandedQuests or {}
+    local expandedBlocks = state.expandedBlocks or {}
 
     local superTrackedType, superTrackedID = nil, nil
     if C_SuperTrack and C_SuperTrack.GetSuperTrackedContent then
@@ -261,7 +252,7 @@ function AchievementsModule:BuildBlocks(container)
                 numCriteria = GetAchievementNumCriteria(achID) or 0
             end
 
-            local isExpanded = (expandedQuests["ach_" .. tostring(achID)] ~= false) -- expanded by default
+            local isExpanded = (expandedBlocks["ach_" .. tostring(achID)] ~= false) -- expanded by default
 
             if numCriteria > 0 and GetAchievementCriteriaInfo then
                 for criteriaIndex = 1, numCriteria do
@@ -394,10 +385,10 @@ function AchievementsModule:BuildBlocks(container)
                     -- Right-Click: Toggle Criteria Collapse/Expand
                     if btn == "RightButton" then
                         local st = GetQLState()
-                        st.expandedQuests = st.expandedQuests or {}
+                        st.expandedBlocks = st.expandedBlocks or {}
                         local key = "ach_" .. tostring(achID)
-                        local curExpanded = (st.expandedQuests[key] ~= false)
-                        st.expandedQuests[key] = not curExpanded
+                        local curExpanded = (st.expandedBlocks[key] ~= false)
+                        st.expandedBlocks[key] = not curExpanded
                         sfui.tracker.RequestRefresh(0.01)
                         return
                     end

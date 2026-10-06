@@ -7,7 +7,7 @@ local select, unpack, ipairs, pairs, type, tostring, table, print = _G.select, _
     _G.tostring, _G.table, _G.print
 local CreateFrame = _G.CreateFrame
 local C_Garrison, C_Traits, C_AddOns, C_Covenants = _G.C_Garrison, _G.C_Traits, _G.C_AddOns, _G.C_Covenants
-local GameTooltip = sfui.tooltip or _G.GameTooltip
+local GameTooltip = sfui.common.get_tooltip()
 local ShowUIPanel, HideUIPanel = _G.ShowUIPanel, _G.HideUIPanel
 local GenericTraitUI_LoadUI, OrderHall_LoadUI = _G.GenericTraitUI_LoadUI, _G.OrderHall_LoadUI
 
@@ -121,10 +121,10 @@ function sfui.research.initialize()
         end
     end)
 
-    if C_AddOns.IsAddOnLoaded("Blizzard_OrderHallUI") then
+    if sfui.common.is_addon_loaded("Blizzard_OrderHallUI") then
         sfui.research.apply_side_buttons(OrderHallTalentFrame)
     end
-    if C_AddOns.IsAddOnLoaded("Blizzard_GenericTraitUI") then
+    if sfui.common.is_addon_loaded("Blizzard_GenericTraitUI") then
         sfui.research.apply_side_buttons(GenericTraitFrame)
     end
 end

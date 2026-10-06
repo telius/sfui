@@ -11,15 +11,8 @@ local issecretvalue = common.issecretvalue or _G.issecretvalue
 local cfg = sfui.config.merchant
 local app = sfui.config.appearance
 
-local GameTooltip = _G.GameTooltip
-local function GameTooltip_Hide()
-    if _G.GameTooltip_HideResetCursor then
-        _G.GameTooltip_HideResetCursor()
-    elseif _G.GameTooltip and _G.GameTooltip:IsShown() then
-        _G.GameTooltip:Hide()
-        ResetCursor()
-    end
-end
+local GameTooltip = sfui.common.get_tooltip()
+local GameTooltip_Hide = sfui.common.hide_tooltip
 sfui.merchant.GameTooltip_Hide = GameTooltip_Hide
 
 local CreateFlatButton = common.create_flat_button
@@ -45,7 +38,7 @@ function sfui.merchant.create_stack_split_frame(parent)
 
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     f.title:SetPoint("TOP", 0, -8)
-    f.title:SetText("Enter Quantity")
+    f.title:SetText("enter quantity")
 
     local eb = CreateFrame("EditBox", nil, f)
     eb:SetSize(80, 24)
@@ -119,7 +112,7 @@ function sfui.merchant.open_stack_split(index)
         link = info.hyperlink
     end
     if link then
-        local _, _, _, _, _, _, _, itemStackCount = C_Item.GetItemInfo(link)
+        local _, _, _, _, _, _, _, itemStackCount = sfui.common.get_item_info(link)
         f.maxStack = itemStackCount
     else
         f.maxStack = 9999
@@ -200,8 +193,8 @@ function sfui.merchant.update_currency_display(frame)
                 elseif self.currencyID then
                     GameTooltip:SetCurrencyByID(self.currencyID)
                 elseif self.currencyName == "Gold" then
-                    GameTooltip:SetText("Gold")
-                    GameTooltip:AddLine("Total money on character", 1, 1, 1)
+                    GameTooltip:SetText("gold")
+                    GameTooltip:AddLine("total money on character", 1, 1, 1)
                 else
                     GameTooltip:SetText(self.currencyName or "Currency")
                 end
@@ -320,16 +313,16 @@ function sfui.merchant.create_utility_bar(frame)
         end
         if GameTooltip then
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            GameTooltip:AddLine("Known Items Filter", 1, 1, 1)
+            GameTooltip:AddLine("known items filter", 1, 1, 1)
             if sfui.merchant.filterKnown == 2 then
-                GameTooltip:AddLine("Currently hiding all recipes and items known by any alt.", 0.2, 0.8, 1, true)
-                GameTooltip:AddLine("Click to show all items.", 0.7, 0.7, 0.7)
+                GameTooltip:AddLine("currently hiding all recipes and items known by any alt.", 0.2, 0.8, 1, true)
+                GameTooltip:AddLine("click to show all items.", 0.7, 0.7, 0.7)
             elseif sfui.merchant.filterKnown == 1 or sfui.merchant.filterKnown == true then
-                GameTooltip:AddLine("Currently hiding recipes and items known by this character.", 0.2, 1, 0.4, true)
-                GameTooltip:AddLine("Click to hide recipes known across your warband.", 0.7, 0.7, 0.7)
+                GameTooltip:AddLine("currently hiding recipes and items known by this character.", 0.2, 1, 0.4, true)
+                GameTooltip:AddLine("click to hide recipes known across your warband.", 0.7, 0.7, 0.7)
             else
-                GameTooltip:AddLine("Currently showing all items.", 1, 1, 1, true)
-                GameTooltip:AddLine("Click to hide recipes and items known by this character.", 0.7, 0.7, 0.7)
+                GameTooltip:AddLine("currently showing all items.", 1, 1, 1, true)
+                GameTooltip:AddLine("click to hide recipes and items known by this character.", 0.7, 0.7, 0.7)
             end
             GameTooltip:Show()
         end
@@ -370,7 +363,7 @@ function sfui.merchant.create_utility_bar(frame)
 
             common.SafeAddMoneyLine(GameTooltip, "Guild Funds: ", amount)
         else
-            GameTooltip:SetText("No Repair Needed")
+            GameTooltip:SetText("no repair needed")
         end
         GameTooltip:Show()
     end)
@@ -404,7 +397,7 @@ function sfui.merchant.create_utility_bar(frame)
         if canRepair and (isSecret or (repairAllCost and repairAllCost > 0)) then
             common.SafeSetTooltipMoney(GameTooltip, repairAllCost, "Repair All")
         else
-            GameTooltip:SetText("No Repair Needed")
+            GameTooltip:SetText("no repair needed")
         end
         GameTooltip:Show()
     end)
@@ -427,7 +420,7 @@ function sfui.merchant.create_utility_bar(frame)
 
     sellJunkBtn:HookScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Sell All Greys")
+        GameTooltip:SetText("sell all greys")
         GameTooltip:Show()
     end)
     sellJunkBtn:HookScript("OnLeave", GameTooltip_Hide)
@@ -435,7 +428,7 @@ function sfui.merchant.create_utility_bar(frame)
         local totalPrice = 0
         common.for_each_bag_item(function(bag, slot, itemID, link, info)
             if info and (link or info.hyperlink) and info.quality == 0 then
-                local price = info.noValue and 0 or (select(11, C_Item.GetItemInfo(link or info.hyperlink)) or 0)
+                local price = info.noValue and 0 or (select(11, sfui.common.get_item_info(link or info.hyperlink)) or 0)
                 if price > 0 then
                     totalPrice = totalPrice + (price * (info.stackCount or 1))
                     C_Container.UseContainerItem(bag, slot)

@@ -1,5 +1,6 @@
 local addonName, addon = ...
 sfui = sfui or {}
+local GameTooltip = sfui.common.get_tooltip()  -- private addon tooltip (methods.md §3.7.2)
 sfui.widgets = sfui.widgets or {}
 sfui.common = sfui.common or {}
 
@@ -322,7 +323,7 @@ function sfui.widgets.create_remove_button(parent, onClickFunc, width, height, t
         local fString = self:GetFontString()
         if fString then fString:SetTextColor(1, 0.3, 0.3, 1) end
         if tooltip then
-            local tip = sfui.tooltip or _G.GameTooltip
+            local tip = sfui.common.get_tooltip()
             if tip then
                 tip:SetOwner(self, "ANCHOR_RIGHT")
                 tip:SetText(tooltip, 1, 0.3, 0.3)
@@ -334,7 +335,7 @@ function sfui.widgets.create_remove_button(parent, onClickFunc, width, height, t
         self:SetBackdropBorderColor(0, 0, 0, 1)
         local fString = self:GetFontString()
         if fString then fString:SetTextColor(1, 1, 1, 1) end
-        local tip = sfui.tooltip or _G.GameTooltip
+        local tip = sfui.common.get_tooltip()
         if tip then tip:Hide() end
     end)
     return btn
@@ -386,7 +387,7 @@ function sfui.widgets.create_checkbox(parent, label, dbKeyOrGetter, onClickFunc,
 
     if tooltip then
         cb:SetScript("OnEnter", function(self)
-            local tip = sfui.tooltip or _G.GameTooltip
+            local tip = sfui.common.get_tooltip()
             if tip then
                 tip:SetOwner(self, "ANCHOR_RIGHT")
                 tip:SetText(tooltip)
@@ -394,7 +395,7 @@ function sfui.widgets.create_checkbox(parent, label, dbKeyOrGetter, onClickFunc,
             end
         end)
         cb:SetScript("OnLeave", function(self)
-            local tip = sfui.tooltip or _G.GameTooltip
+            local tip = sfui.common.get_tooltip()
             if tip then tip:Hide() end
         end)
     end
@@ -473,7 +474,7 @@ function sfui.widgets.create_slider_input(parent, label, dbKeyOrGetter, minVal, 
 
     if tooltip then
         container:SetScript("OnEnter", function(self)
-            local tip = sfui.tooltip or _G.GameTooltip
+            local tip = sfui.common.get_tooltip()
             if tip then
                 tip:SetOwner(self, "ANCHOR_RIGHT")
                 tip:SetText(tooltip)
@@ -481,7 +482,7 @@ function sfui.widgets.create_slider_input(parent, label, dbKeyOrGetter, minVal, 
             end
         end)
         container:SetScript("OnLeave", function(self)
-            local tip = sfui.tooltip or _G.GameTooltip
+            local tip = sfui.common.get_tooltip()
             if tip then tip:Hide() end
         end)
     end
@@ -815,7 +816,7 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
             self:SetBackdropBorderColor(purple[1], purple[2], purple[3], 1)
         end
         if self.tooltip then
-            local tip = sfui.tooltip or _G.GameTooltip
+            local tip = sfui.common.get_tooltip()
             if tip then
                 tip:SetOwner(self, "ANCHOR_TOP")
                 tip:SetText(self.tooltip, 1, 1, 1)
@@ -849,7 +850,7 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
                 self:SetBackdropBorderColor(0, 0, 0, 1)
             end
         end
-        local tip = sfui.tooltip or _G.GameTooltip
+        local tip = sfui.common.get_tooltip()
         if tip then tip:Hide() end
     end)
 
@@ -1068,7 +1069,7 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
         delBtn:SetSize(18, 16)
         delBtn:RegisterForClicks("LeftButtonUp")
         delBtn:SetNormalFontObject("GameFontHighlightSmall")
-        delBtn:SetText("|cffff4444X|r")
+        delBtn:SetText("|cffff4444x|r")
         local delFs = delBtn:GetFontString()
         if delFs then delFs:SetFont(fontFile, 10, "") end
         delBtn:SetBackdrop({
@@ -1082,7 +1083,7 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
             self:SetBackdropBorderColor(1, 0.3, 0.3, 1)
             if GameTooltip then
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:SetText("Delete from list", 1, 0.3, 0.3)
+                GameTooltip:SetText("delete from list", 1, 0.3, 0.3)
                 GameTooltip:Show()
             end
         end)
@@ -1114,7 +1115,7 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
             self:SetBackdropBorderColor(0.8, 0.8, 0.8, 1)
             if GameTooltip then
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:SetText("Toggle Visibility", 1, 1, 1)
+                GameTooltip:SetText("toggle visibility", 1, 1, 1)
                 GameTooltip:Show()
             end
         end)
@@ -1211,9 +1212,9 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
                 end
                 row.tglBtn:Show()
                 if opt.checked then
-                    row.tglBtn:SetText("|cff00ff00V|r")
+                    row.tglBtn:SetText("|cff00ff00v|r")
                 else
-                    row.tglBtn:SetText("|cffff4444H|r")
+                    row.tglBtn:SetText("|cffff4444h|r")
                 end
                 rightOffset = rightOffset + 26
             else
@@ -1891,3 +1892,226 @@ end
 
 sfui.common.create_texture_dropdown = sfui.widgets.create_texture_dropdown
 
+
+--------------------------------------------------------------------------------
+-- Flat backdrop (1px WHITE8x8 bg + edge) — replaces inline SetBackdrop literals
+--------------------------------------------------------------------------------
+-- shared, read-only backdrop table (BackdropTemplateMixin stores it by reference)
+local FLAT_BACKDROP = {
+    bgFile   = "Interface\\Buttons\\WHITE8x8",
+    edgeFile = "Interface\\Buttons\\WHITE8x8",
+    edgeSize = 1,
+}
+sfui.widgets.FLAT_BACKDROP = FLAT_BACKDROP
+
+-- bg / border are optional { r, g, b, a } tables; nil leaves the colour untouched
+function sfui.widgets.apply_flat_backdrop(frame, bg, border)
+    if not frame or not frame.SetBackdrop then return frame end
+    frame:SetBackdrop(FLAT_BACKDROP)
+    if bg then frame:SetBackdropColor(bg[1], bg[2], bg[3], bg[4] or 1) end
+    if border then frame:SetBackdropBorderColor(border[1], border[2], border[3], border[4] or 1) end
+    return frame
+end
+sfui.common.apply_flat_backdrop = sfui.widgets.apply_flat_backdrop
+
+--------------------------------------------------------------------------------
+-- Tooltip wiring — replaces per-button OnEnter/OnLeave boilerplate
+--------------------------------------------------------------------------------
+-- title: string, or function(self, tip) that fills the tooltip itself
+--        (return false from the function to suppress the tooltip)
+-- lines: nil | string | { "line", { "line", r, g, b }, ... } | function(self, tip)
+-- anchor: tooltip anchor (default "ANCHOR_RIGHT")
+-- note: sets (overwrites) the frame's OnEnter / OnLeave scripts.
+local function add_tooltip_lines(tip, self, lines)
+    local t = type(lines)
+    if t == "string" then
+        tip:AddLine(lines, 0.85, 0.85, 0.85, true)
+    elseif t == "function" then
+        lines(self, tip)
+    elseif t == "table" then
+        for i = 1, #lines do
+            local line = lines[i]
+            if type(line) == "table" then
+                tip:AddLine(line[1], line[2] or 0.85, line[3] or 0.85, line[4] or 0.85, true)
+            else
+                tip:AddLine(line, 0.85, 0.85, 0.85, true)
+            end
+        end
+    end
+end
+
+local function attached_tooltip_on_enter(self)
+    local tip = sfui.common.get_tooltip()
+    if not tip then return end
+    tip:SetOwner(self, self.sfuiTipAnchor or "ANCHOR_RIGHT")
+    local title = self.sfuiTipTitle
+    if type(title) == "function" then
+        if title(self, tip) == false then
+            tip:Hide()
+            return
+        end
+    elseif title then
+        tip:SetText(title, 1, 0.82, 0)
+    end
+    add_tooltip_lines(tip, self, self.sfuiTipLines)
+    tip:Show()
+end
+
+local function attached_tooltip_on_leave()
+    sfui.common.hide_tooltip()
+end
+
+function sfui.widgets.attach_tooltip(frame, title, lines, anchor)
+    if not frame or not frame.SetScript then return frame end
+    frame.sfuiTipTitle  = title
+    frame.sfuiTipLines  = lines
+    frame.sfuiTipAnchor = anchor
+    frame:SetScript("OnEnter", attached_tooltip_on_enter)
+    frame:SetScript("OnLeave", attached_tooltip_on_leave)
+    return frame
+end
+sfui.common.attach_tooltip = sfui.widgets.attach_tooltip
+
+--------------------------------------------------------------------------------
+-- Generic object pool (methods.md §3.6) — frames, textures or tables
+--------------------------------------------------------------------------------
+-- factory(...) -> new object; reset(obj) runs on release (default: obj:Hide())
+-- pool:acquire(...) -> obj, isNew
+-- pool:release(obj) / pool:release_all()
+-- pool:active() -> iterator over active objects; pool:num_active()
+local pool_methods = {}
+pool_methods.__index = pool_methods
+
+function pool_methods:acquire(...)
+    local free = self._free
+    local n = #free
+    local obj, isNew
+    if n > 0 then
+        obj = free[n]
+        free[n] = nil
+    else
+        obj = self._factory(...)
+        isNew = true
+    end
+    self._active[obj] = true
+    self._count = self._count + 1
+    return obj, isNew
+end
+
+function pool_methods:release(obj)
+    if not obj or not self._active[obj] then return end
+    self._active[obj] = nil
+    self._count = self._count - 1
+    local reset = self._reset
+    if reset then
+        reset(obj)
+    elseif type(obj) == "table" and obj.Hide then
+        obj:Hide()
+    end
+    self._free[#self._free + 1] = obj
+end
+
+function pool_methods:release_all()
+    -- clearing existing keys during pairs() traversal is allowed in lua
+    for obj in pairs(self._active) do
+        self:release(obj)
+    end
+end
+
+function pool_methods:active()
+    return pairs(self._active)
+end
+
+function pool_methods:num_active()
+    return self._count
+end
+
+function sfui.widgets.create_pool(factory, reset)
+    return setmetatable({
+        _factory = factory,
+        _reset   = reset,
+        _active  = {},
+        _free    = {},
+        _count   = 0,
+    }, pool_methods)
+end
+sfui.common.create_pool = sfui.widgets.create_pool
+
+--------------------------------------------------------------------------------
+-- Icon / text toggle button (eye, "all", map option buttons, …)
+--------------------------------------------------------------------------------
+-- opts = {
+--   width, height       (default 22 x 22)
+--   icon, iconSize      texture path + size (default 14); or
+--   text                short label
+--   getter()            -> boolean active state
+--   setter(newValue)    called on click with the toggled value
+--   tooltip             title string or function(self, tip) (see attach_tooltip)
+--   tooltipLines        lines for attach_tooltip
+-- }
+-- returns btn; btn:UpdateState() re-reads the getter and restyles.
+local TOGGLE_BG_OFF     = { 0.04, 0.04, 0.06, 0.9 }
+local TOGGLE_BG_ON      = { 0.12, 0.12, 0.16, 0.95 }
+local TOGGLE_BORDER_OFF = { 0.20, 0.20, 0.25, 0.8 }
+local TOGGLE_BORDER_ON  = { 1, 0.82, 0, 0.8 }
+
+function sfui.widgets.create_icon_toggle(parent, opts)
+    opts = opts or {}
+    local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    btn:SetSize(opts.width or 22, opts.height or 22)
+    sfui.widgets.apply_flat_backdrop(btn, TOGGLE_BG_OFF, TOGGLE_BORDER_OFF)
+
+    if opts.icon then
+        local icon = btn:CreateTexture(nil, "ARTWORK")
+        local sz = opts.iconSize or 14
+        icon:SetSize(sz, sz)
+        icon:SetPoint("CENTER")
+        icon:SetTexture(opts.icon)
+        icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+        btn.icon = icon
+    end
+    if opts.text then
+        local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        fs:SetPoint("CENTER", btn, "CENTER", 0, 0)
+        fs:SetText(opts.text)
+        btn.text = fs
+    end
+
+    function btn:UpdateState()
+        local active = opts.getter and opts.getter() and true or false
+        local bg     = active and TOGGLE_BG_ON or TOGGLE_BG_OFF
+        local border = active and TOGGLE_BORDER_ON or TOGGLE_BORDER_OFF
+        self:SetBackdropColor(bg[1], bg[2], bg[3], bg[4])
+        self:SetBackdropBorderColor(border[1], border[2], border[3], border[4])
+        if self.icon then
+            self.icon:SetDesaturated(not active)
+            if active then
+                self.icon:SetVertexColor(1, 0.82, 0, 1)
+            else
+                self.icon:SetVertexColor(0.5, 0.5, 0.5, 0.8)
+            end
+        end
+        if self.text then
+            if active then
+                self.text:SetTextColor(1, 0.82, 0, 1)
+            else
+                self.text:SetTextColor(0.5, 0.5, 0.5, 0.8)
+            end
+        end
+        return active
+    end
+
+    btn:SetScript("OnClick", function(self)
+        local active = opts.getter and opts.getter() and true or false
+        if opts.setter then opts.setter(not active) end
+        self:UpdateState()
+    end)
+
+    if opts.tooltip or opts.tooltipLines then
+        sfui.widgets.attach_tooltip(btn, opts.tooltip, opts.tooltipLines, opts.tooltipAnchor)
+    end
+
+    btn:UpdateState()
+    return btn
+end
+sfui.common.create_icon_toggle = sfui.widgets.create_icon_toggle

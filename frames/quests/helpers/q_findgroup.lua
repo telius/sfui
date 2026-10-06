@@ -8,6 +8,7 @@
 
 local addonName, addon = ...
 sfui = sfui or {}
+local GameTooltip = sfui.common.get_tooltip()  -- private addon tooltip (methods.md §3.7.2)
 sfui.tracker = sfui.tracker or {}
 sfui.tracker.helpers = sfui.tracker.helpers or {}
 
@@ -71,7 +72,7 @@ function FindGroup.CreateFindGroupButton(parent)
 
     btn:SetScript("OnEnter", function(self)
         if self.EyeIcon then self.EyeIcon:SetVertexColor(1, 1, 1, 1) end
-        local tip = _G.GameTooltip
+        local tip = sfui.common.get_tooltip()
         if not tip then return end
         tip:SetOwner(self, "ANCHOR_RIGHT")
         tip:ClearLines()
@@ -79,12 +80,12 @@ function FindGroup.CreateFindGroupButton(parent)
         if self.questTitle then
             tip:AddLine(self.questTitle, 0.20, 0.85, 0.95)
         end
-        tip:AddLine("Click to search for or create a group in Group Finder.", 0.7, 0.7, 0.7, true)
+        tip:AddLine("click to search for or create a group in group finder.", 0.7, 0.7, 0.7, true)
         tip:Show()
     end)
     btn:SetScript("OnLeave", function(self)
         if self.EyeIcon then self.EyeIcon:SetVertexColor(0.85, 0.85, 0.85, 0.85) end
-        local tip = _G.GameTooltip
+        local tip = sfui.common.get_tooltip()
         if tip then tip:Hide() end
     end)
     btn:SetScript("OnClick", function(self)

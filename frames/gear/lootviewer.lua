@@ -10,7 +10,7 @@ end
 
 local CreateFrame               = CreateFrame
 local UIParent                  = UIParent
-local GameTooltip               = _G.GameTooltip
+local GameTooltip               = sfui.common.get_tooltip()
 local UnitClass                 = UnitClass
 local string                    = string
 local math                      = math
@@ -183,7 +183,7 @@ local SLOT_LABELS = {
 
 local function EnsureEJ()
     if EJ_GetInstanceByIndex then return true end
-    local loaded = C_AddOns.LoadAddOn("Blizzard_EncounterJournal")
+    sfui.common.ensure_addon_loaded("Blizzard_EncounterJournal")
     return EJ_GetInstanceByIndex ~= nil
 end
 
@@ -1363,26 +1363,26 @@ local function AcquireCard(parent)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText(self.isBoss and "Bonus Roll Reminder — Boss" or "Bonus Roll Reminder — Dungeon")
             if self.isTargeted then
-                GameTooltip:AddLine("Status: |cffcc44ffTargeted for Bonus Roll|r", 1, 1, 1)
+                GameTooltip:AddLine("status: |cffcc44fftargeted for bonus roll|r", 1, 1, 1)
             else
-                GameTooltip:AddLine("Status: |cff888888Not Targeted|r", 1, 1, 1)
+                GameTooltip:AddLine("status: |cff888888not targeted|r", 1, 1, 1)
             end
             if self.itemCount and self.itemCount > 0 and self.targetItems then
                 GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("|cffffcc00Targeted Item(s):|r", 1, 1, 1)
+                GameTooltip:AddLine("|cffffcc00targeted item(s):|r", 1, 1, 1)
                 for itemID in pairs(self.targetItems) do
-                    local itemLink = select(2, C_Item.GetItemInfo(itemID))
+                    local itemLink = select(2, sfui.common.get_item_info(itemID))
                     if not itemLink then
-                        local name = select(1, C_Item.GetItemInfo(itemID))
+                        local name = select(1, sfui.common.get_item_info(itemID))
                         itemLink = name and ("[" .. name .. "]") or ("Item " .. itemID)
                     end
                     GameTooltip:AddLine("  • " .. itemLink, 0.85, 0.85, 0.85)
                 end
             end
             GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("|cffaaaaaaLeft-Click|r to toggle reminder", 1, 1, 1)
+            GameTooltip:AddLine("|cffaaaaaaleft-click|r to toggle reminder", 1, 1, 1)
             if self.itemCount and self.itemCount > 0 then
-                GameTooltip:AddLine("|cffaaaaaaRight-Click|r to clear all targeted items", 1, 1, 1)
+                GameTooltip:AddLine("|cffaaaaaaright-click|r to clear all targeted items", 1, 1, 1)
             end
             GameTooltip:Show()
         end)
@@ -1422,7 +1422,7 @@ local function AddSpecLinesToTooltip(item)
     InitPlayerSpecs()
 
     if item.bossName then
-        GameTooltip:AddLine("|cff888888Boss:|r " .. item.bossName, 0.85, 0.85, 0.85)
+        GameTooltip:AddLine("|cff888888boss:|r " .. item.bossName, 0.85, 0.85, 0.85)
     end
 
     local isWeaponOrTrinket = (item.slot == "weapon" or item.slot == "trinket")
@@ -1743,26 +1743,26 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
 
         if isUsed then
             GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("|cffff2020[Bonus Roll Used]|r", 1, 0.2, 0.2)
-            GameTooltip:AddLine("|cff888888<Alt + Right-Click to toggle used state>|r", 0.6, 0.6, 0.6)
+            GameTooltip:AddLine("|cffff2020[bonus roll used]|r", 1, 0.2, 0.2)
+            GameTooltip:AddLine("|cff888888<alt + right-click to toggle used state>|r", 0.6, 0.6, 0.6)
         else
             if sfui.bonusroll and sfui.bonusroll.IsEligible and sfui.bonusroll.IsEligible(itemID) then
                 GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("|cff00ff00[Bonus Roll Available]|r", 0, 1, 0)
-                GameTooltip:AddLine("|cff888888<Alt + Right-Click to toggle used state>|r", 0.6, 0.6, 0.6)
+                GameTooltip:AddLine("|cff00ff00[bonus roll available]|r", 0, 1, 0)
+                GameTooltip:AddLine("|cff888888<alt + right-click to toggle used state>|r", 0.6, 0.6, 0.6)
             end
             if isOwned then
                 GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("|cff00ccff[Item in Inventory / Bank]|r", 0, 0.8, 1)
+                GameTooltip:AddLine("|cff00ccff[item in inventory / bank]|r", 0, 0.8, 1)
             end
         end
 
         local isTargeted = sfui.bonusroll and sfui.bonusroll.IsItemTargeted and sfui.bonusroll.IsItemTargeted(itemID)
         if isTargeted then
             GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("|cffcc44ff◆ Targeted for Bonus Roll Reminder|r", 0.8, 0.4, 0.8)
+            GameTooltip:AddLine("|cffcc44ff◆ targeted for bonus roll reminder|r", 0.8, 0.4, 0.8)
         end
-        GameTooltip:AddLine("|cff888888<Shift + Right-Click to toggle bonus roll target>|r", 0.6, 0.6, 0.6)
+        GameTooltip:AddLine("|cff888888<shift + right-click to toggle bonus roll target>|r", 0.6, 0.6, 0.6)
 
         GameTooltip:Show()
     end)
@@ -2459,7 +2459,7 @@ function sfui.lootviewer.CreateFrame()
         if slotDropdown and slotDropdown.SetSelectedValue then
             slotDropdown:SetSelectedValue("all")
         elseif slotDropdown and slotDropdown.GetFontString and slotDropdown:GetFontString() then
-            slotDropdown:GetFontString():SetText("All Slots")
+            slotDropdown:GetFontString():SetText("all slots")
         end
         DoRebuild()
     end)

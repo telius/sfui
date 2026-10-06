@@ -106,16 +106,7 @@ end
 --  STORAGE / PERSISTENCE
 -- ─────────────────────────────────────────────────────────
 local function GetPlayerKey()
-    if sfui.common and sfui.common.get_player_unique_key then
-        return sfui.common.get_player_unique_key()
-    end
-    if UnitGUID then
-        local guid = UnitGUID("player")
-        if guid and guid ~= "" then return guid end
-    end
-    local name = UnitName and UnitName("player") or "player"
-    local realm = GetRealmName and GetRealmName() or ""
-    return name .. "-" .. realm
+    return sfui.common.get_player_unique_key()
 end
 
 local function GetTrackedSkills()
@@ -311,7 +302,7 @@ UpdateDetailFrameCheckbox = function(detailFrame)
 
         local label = cb:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         label:SetPoint("RIGHT", cb, "LEFT", -4, 0)
-        label:SetText("Track in Objectives")
+        label:SetText("track in objectives")
         cb.Label = label
 
         cb:SetScript("OnClick", function(button)
@@ -323,17 +314,17 @@ UpdateDetailFrameCheckbox = function(detailFrame)
         end)
 
         cb:SetScript("OnEnter", function(button)
-            local tip = _G.GameTooltip
+            local tip = sfui.common.get_tooltip()
             if tip then
                 tip:SetOwner(button, "ANCHOR_RIGHT")
                 tip:ClearLines()
-                tip:AddLine("Track Skill", 1, 1, 1)
-                tip:AddLine("Displays this skill as a progress bar in the objective tracker.", 0.85, 0.85, 0.85, true)
+                tip:AddLine("track skill", 1, 1, 1)
+                tip:AddLine("displays this skill as a progress bar in the objective tracker.", 0.85, 0.85, 0.85, true)
                 tip:Show()
             end
         end)
         cb:SetScript("OnLeave", function()
-            local tip = _G.GameTooltip
+            local tip = sfui.common.get_tooltip()
             if tip then tip:Hide() end
         end)
 
@@ -409,7 +400,7 @@ local function SetupSkillsFrameHooks()
 
     hooksecurefunc(SkillsEntryMixin, "OnEnter", function(self)
         if not self.elementData or self.elementData.isHeader then return end
-        local tip = _G.GameTooltip
+        local tip = sfui.common.get_tooltip()
         if not tip then return end
         tip:SetOwner(self, "ANCHOR_RIGHT")
         tip:ClearLines()
@@ -428,15 +419,15 @@ local function SetupSkillsFrameHooks()
         end
         tip:AddLine(" ")
         if isTracked then
-            tip:AddLine("|cffff8800Shift-Click to untrack from Objective Tracker|r", 1, 1, 1)
+            tip:AddLine("|cffff8800shift-click to untrack from objective tracker|r", 1, 1, 1)
         else
-            tip:AddLine("|cff00ff00Shift-Click to track in Objective Tracker|r", 1, 1, 1)
+            tip:AddLine("|cff00ff00shift-click to track in objective tracker|r", 1, 1, 1)
         end
         tip:Show()
     end)
 
     hooksecurefunc(SkillsEntryMixin, "OnLeave", function(self)
-        local tip = _G.GameTooltip
+        local tip = sfui.common.get_tooltip()
         if tip and tip:GetOwner() == self then
             tip:Hide()
         end
@@ -557,8 +548,8 @@ function CamelotSkillsModule:BuildBlocks(container)
                     tip:AddLine(skill.description, 0.85, 0.85, 0.85, true)
                 end
                 tip:AddLine(" ")
-                tip:AddLine("|cff888888Left-click: Open Skills panel|r", 1, 1, 1)
-                tip:AddLine("|cff888888Shift-click or Right-click: Untrack skill|r", 1, 1, 1)
+                tip:AddLine("|cff888888left-click: open skills panel|r", 1, 1, 1)
+                tip:AddLine("|cff888888shift-click or right-click: untrack skill|r", 1, 1, 1)
             end,
         })
     end

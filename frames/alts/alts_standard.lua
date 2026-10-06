@@ -23,7 +23,7 @@ local ipairs = ipairs
 local pairs = pairs
 local next = next
 local type = type
-local GameTooltip = _G.GameTooltip
+local GameTooltip = sfui.common.get_tooltip()
 local NORMAL_FONT_COLOR = _G.NORMAL_FONT_COLOR
 local GREEN_FONT_COLOR = _G.GREEN_FONT_COLOR
 local RED_FONT_COLOR = _G.RED_FONT_COLOR
@@ -1582,7 +1582,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                     local name = tLine.name
                     if not name then
                         if tLine.itemConfig.isItem then
-                            name = (C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(tLine.itemConfig.id)) or "Item"
+                            name = (sfui.common.get_item_info(tLine.itemConfig.id)) or "Item"
                         else
                             name = sfui.common.get_currency_name(tLine.itemConfig.id) or "Currency"
                         end
@@ -1609,7 +1609,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                         end
                     else
                         local val = tLine.cData or 0
-                        GameTooltip:AddDoubleLine("Total:", tostring(val), 1, 1, 1, 1, 1, 1)
+                        GameTooltip:AddDoubleLine("total:", tostring(val), 1, 1, 1, 1, 1, 1)
                     end
                 end
                 GameTooltip:Show()
@@ -1622,7 +1622,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 local icon = tLine.itemConfig and tLine.itemConfig.icon
                 if not name then
                     if tLine.itemConfig and tLine.itemConfig.isItem then
-                        name = (C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(tLine.itemConfig.id)) or
+                        name = (sfui.common.get_item_info(tLine.itemConfig.id)) or
                         (tLine.itemConfig.id == 274476 and "Spark of Tides" or "Item")
                     elseif tLine.itemConfig then
                         name = sfui.common.get_currency_name(tLine.itemConfig.id) or
@@ -1657,7 +1657,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                         GameTooltip:AddDoubleLine(iconPrefix .. name .. ":", tostring(val), 1, 1, 1, 1, 1, 1)
                     end
                     if tLine.isCapped then
-                        GameTooltip:AddLine("Season/Weekly cap reached!", 1, 0, 0)
+                        GameTooltip:AddLine("season/weekly cap reached!", 1, 0, 0)
                     end
                 else
                     GameTooltip:AddDoubleLine(iconPrefix .. name .. ":", tostring(val), 1, 1, 1, 1, 1, 1)
@@ -1972,7 +1972,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         cell:EnableMouse(true)
         cell:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText("Great Vault: " .. (cat.label or group))
+            GameTooltip:SetText("great vault: " .. (cat.label or group))
             local vGroup = altData.vault and altData.vault[group]
 
             if altData.vault and altData.vault.hasReward then
@@ -2135,7 +2135,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         cell:EnableMouse(true)
         cell:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText("Mythic 0 Lockouts")
+            GameTooltip:SetText("mythic 0 lockouts")
             for _, inst in ipairs(ejInstances) do
                 local isLocked = m0Data and m0Data[inst.id]
                 local status = isLocked and "|cff00ffffCompleted|r" or "|cff888888Available|r"

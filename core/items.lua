@@ -28,6 +28,10 @@ if not sfuiTooltip.sfuiBG then
     sfuiTooltip.sfuiBG = bg
 end
 sfuiTooltip:SetFrameStrata("TOOLTIP")
+-- comparison tooltips (GameTooltip_ShowCompareItem reads tooltip.shoppingTooltips)
+if not sfuiTooltip.shoppingTooltips and _G.ShoppingTooltip1 and _G.ShoppingTooltip2 then
+    sfuiTooltip.shoppingTooltips = { _G.ShoppingTooltip1, _G.ShoppingTooltip2 }
+end
 sfui.tooltip = sfuiTooltip
 sfui.common.tooltip = sfuiTooltip
 

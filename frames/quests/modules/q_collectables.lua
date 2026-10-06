@@ -43,16 +43,7 @@ local TARGET_QUEST      = (Enum and Enum.ContentTrackingTargetType and Enum.Cont
 local STOP_MANUAL = (Enum and Enum.ContentTrackingStopType and Enum.ContentTrackingStopType.Manual) or 2
 
 local function GetQLState()
-    if not SfuiDB then SfuiDB = {} end
-    if not SfuiDB.questlog then
-        SfuiDB.questlog = {
-            collapsed      = {},
-            expandedQuests = {},
-            hiddenQuests   = {},
-            hidden         = false,
-        }
-    end
-    return SfuiDB.questlog
+    return sfui.questlog.GetState()
 end
 
 local CollectablesModule = {
@@ -91,7 +82,7 @@ function CollectablesModule:BuildBlocks(container)
 
     local blocks = {}
     local state = GetQLState()
-    local expandedQuests = state.expandedQuests or {}
+    local expandedBlocks = state.expandedBlocks or {}
 
     for _, trackableType in ipairs(sourceTypes) do
         local trackedIDs = C_ContentTracking.GetTrackedIDs(trackableType)
@@ -127,7 +118,7 @@ function CollectablesModule:BuildBlocks(container)
 
                 local lines = {}
                 local key = "ct_" .. tostring(trackableType) .. "_" .. tostring(trackableID)
-                local isExpanded = (expandedQuests[key] ~= false)
+                local isExpanded = (expandedBlocks[key] ~= false)
 
                 if isExpanded then
                     if objectiveText and objectiveText ~= "" then
@@ -183,8 +174,8 @@ function CollectablesModule:BuildBlocks(container)
                                     link = C_HousingDecor.GetDecorHyperlink(trackableID)
                                 elseif trackableType == TYPE_APPEARANCE and C_TransmogCollection and C_TransmogCollection.GetSourceInfo then
                                     local sInfo = C_TransmogCollection.GetSourceInfo(trackableID)
-                                    if sInfo and sInfo.itemID and C_Item and C_Item.GetItemInfo then
-                                        link = select(2, C_Item.GetItemInfo(sInfo.itemID))
+                                    if sInfo and sInfo.itemID then
+                                        link = select(2, sfui.common.get_item_info(sInfo.itemID))
                                     end
                                 end
                                 if link then
@@ -210,8 +201,8 @@ function CollectablesModule:BuildBlocks(container)
                         -- 2. Right-Click: Toggle Criteria
                         if btn == "RightButton" then
                             local st = GetQLState()
-                            st.expandedQuests = st.expandedQuests or {}
-                            st.expandedQuests[key] = not st.expandedQuests[key]
+                            st.expandedBlocks = st.expandedBlocks or {}
+                            st.expandedBlocks[key] = not st.expandedBlocks[key]
                             sfui.tracker.RequestRefresh(0.05)
                             return
                         end
