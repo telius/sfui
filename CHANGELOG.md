@@ -1,19 +1,14 @@
 # Changelog
 
-## v12.1.0-79 (2026-10-07)
+## v12.1.0-80 (2026-10-07)
 
 ### features & enhancements
 
-- **stealth tracking bucket for rogues**: added rogue stealth assignment bucket alongside druid stealth bucket in `frames/tracking/cdm.lua` so rogue stealth abilities can be assigned and tracked cleanly.
-- **combo point bar height offset**: added a configurable combo point height offset setting in `config.lua` (`comboPointHeightOffset = -4`) and applied it in `frames/bars/bars.lua` to reduce rogue and druid combo point bars by 4px.
-- **error frame filtering**: added "not enough energy" (`LE_GAME_ERR_OUT_OF_ENERGY`) suppression to the ui errors frame filtering in `frames/hide.lua` and `frames/options/tabs/tab_hide.lua`.
+- **canonical library packaging**: updated `.pkgmeta` and `scripts/update-libs.sh` to pull `CallbackHandler-1.0` (minor 8) and `LibDBIcon-1.0` (minor 56) directly from canonical CurseForge SVN repositories rather than outdated git mirrors.
+- **shield stat evaluation**: added block value and block chance parsing to `core/items.lua` via `sfui.items.get_shield_stats`, ensuring shields with higher block value properly outscore lower block alternatives in `frames/gear/highest.lua`.
+- **rogue weapon weighting**: refined weapon evaluation in `frames/gear/highest.lua` for rogues to prioritize daggers for Backstab, slow high-damage main-hand weapons, and dual wield capability verification (level 10+ passive trainer skill on Camelot/Classic via `core/talents.lua` and `core/talents_camelot.lua`).
 
 ### bug fixes & improvements
 
-- **swing timer combat stat secrecy**: fixed a runtime crash in `frames/bars/swing.lua` where evaluating `rangedSpeed > 0` and `offHandSpeed > 0` directly on secret numbers returned by `UnitAttackSpeed("player")` threw a secret value comparison error when popping haste buffs like "berserking" in combat.
-  - added safe `IsAttackSpeedValid` validation in `core/safety.lua` and `frames/bars/swing.lua`.
-  - guarded `sfui.safety.IsNumericAndPositive` against secret values.
-  - safeguarded swing timer duration, end times, and debug telemetry from secret arithmetic and comparisons.
-- **combat state tracking**: centralized combat state tracking in `common.lua` (`sfui.common.is_in_combat(event)`, `sfui.in_combat`), avoiding polling slow or restricted c-apis on hot execution paths.
-- **tracked icons and bars out-of-combat visibility**: resolved an issue on low-level characters in camelot / classic era where tracked icon panels and bars failed to reliably appear upon entering combat when "hide out of combat" was enabled.
-- **tracked icons fast-track optimization**: streamlined the `UpdateAllIconStates` loop in `frames/tracking/trackedicons.lua` to only iterate active shown panels and reuse cached panel configurations.
+- **minimap icon login crash**: resolved `core.lua:406: attempt to call a nil value` on login caused by an ancient `CallbackHandler-1.0` mirror invoking deprecated `table.getn` during `LibDBIcon-1.0` initialization.
+- **defensive broker registration**: guarded minimap icon registration in `core.lua` to check for callable `icon.Register`, reuse existing broker objects from `LibDataBroker-1.1`, and verify `not icon:IsRegistered("sfui")` before registering.

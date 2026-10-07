@@ -25,11 +25,10 @@ cp "${TMP_DIR}/LibStub/LibStub.lua" "${LIBS_DIR}/LibStub/"
 echo "   LibStub updated."
 
 # 2. CallbackHandler-1.0
-echo "-> [2/6] Fetching CallbackHandler-1.0..."
-git clone --depth 1 https://github.com/zerosnake0/CallbackHandler-1.0.git "${TMP_DIR}/CallbackHandler" >/dev/null 2>&1
+echo "-> [2/6] Fetching CallbackHandler-1.0 (CurseForge SVN)..."
+rm -rf "${LIBS_DIR}/CallbackHandler-1.0"
 mkdir -p "${LIBS_DIR}/CallbackHandler-1.0"
-cp "${TMP_DIR}/CallbackHandler/CallbackHandler-1.0.lua" "${LIBS_DIR}/CallbackHandler-1.0/"
-cp "${TMP_DIR}/CallbackHandler/CallbackHandler-1.0.xml" "${LIBS_DIR}/CallbackHandler-1.0/"
+svn export --force https://repos.curseforge.com/wow/callbackhandler/trunk/CallbackHandler-1.0 "${LIBS_DIR}/CallbackHandler-1.0" >/dev/null
 echo "   CallbackHandler-1.0 updated."
 
 # 3. LibSharedMedia-3.0
@@ -56,11 +55,10 @@ cp "${TMP_DIR}/LibDataBroker/LibDataBroker-1.1.lua" "${LIBS_DIR}/LibDataBroker-1
 echo "   LibDataBroker-1.1 updated."
 
 # 6. LibDBIcon-1.0
-echo "-> [6/6] Fetching LibDBIcon-1.0..."
-git clone --depth 1 https://github.com/zerosnake0/LibDBIcon-1.0.git "${TMP_DIR}/LibDBIcon" >/dev/null 2>&1
+echo "-> [6/6] Fetching LibDBIcon-1.0 (CurseForge SVN)..."
+rm -rf "${LIBS_DIR}/LibDBIcon-1.0"
 mkdir -p "${LIBS_DIR}/LibDBIcon-1.0"
-cp "${TMP_DIR}/LibDBIcon/LibDBIcon-1.0.lua" "${LIBS_DIR}/LibDBIcon-1.0/"
-[ -f "${TMP_DIR}/LibDBIcon/lib.xml" ] && cp "${TMP_DIR}/LibDBIcon/lib.xml" "${LIBS_DIR}/LibDBIcon-1.0/"
+svn export --force https://repos.curseforge.com/wow/libdbicon-1-0/trunk/LibDBIcon-1.0 "${LIBS_DIR}/LibDBIcon-1.0" >/dev/null
 echo "   LibDBIcon-1.0 updated."
 
 echo "=== All libraries successfully updated! ==="

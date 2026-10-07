@@ -191,9 +191,15 @@ local itemStatsCache = {}
 local itemStatsCacheCount = 0
 local ITEM_STATS_CACHE_MAX = 500
 
+local shieldStatsCache = {}
+local shieldStatsCacheCount = 0
+local SHIELD_STATS_CACHE_MAX = 300
+
 function sfui.items.clear_item_stats_cache()
     _G.wipe(itemStatsCache)
     itemStatsCacheCount = 0
+    _G.wipe(shieldStatsCache)
+    shieldStatsCacheCount = 0
 end
 sfui.common.clear_item_stats_cache = sfui.items.clear_item_stats_cache
 
@@ -335,12 +341,24 @@ function sfui.items.parse_tooltip_stat_line(lineText, stats)
     end
 
     -- 12. Shield Block Value
-    local bval = clean:match("[Ii]ncreases the block value of your shield by (%d+)")
+    local bval = clean:match("^(%d+)%s+[Bb]lock")
+        or clean:match("[Ii]ncreases the block value of your shield by (%d+)")
         or clean:match("%+(%d+)%s+[Bb]lock%s+[Vv]alue")
     if bval then
         local v = tonumber(bval)
         if v and v > 0 then
             stats["ITEM_MOD_BLOCK_VALUE_SHORT"] = math.max(stats["ITEM_MOD_BLOCK_VALUE_SHORT"] or 0, v)
+        end
+    end
+
+    -- 12b. Armor (Base Armor & Bonus Armor)
+    local arm = clean:match("^(%d+)%s+[Aa]rmor")
+        or clean:match("%+(%d+)%s+[Aa]rmor")
+        or clean:match("[Ee]quip:%s*Increases armor by (%d+)")
+    if arm then
+        local v = tonumber(arm)
+        if v and v > 0 then
+            stats["ITEM_MOD_ARMOR_SHORT"] = math.max(stats["ITEM_MOD_ARMOR_SHORT"] or 0, v)
         end
     end
 
@@ -619,6 +637,85 @@ function sfui.items.get_weapon_stats(itemLink)
     return dps, speed, minDmg, maxDmg
 end
 sfui.common.get_weapon_stats = sfui.items.get_weapon_stats
+
+function sfui.items.get_shield_stats(itemLink)
+    if not itemLink then return 0, 0 end
+    if shieldStatsCache[itemLink] then
+        local c = shieldStatsCache[itemLink]
+        return c[1], c[2]
+    end
+
+    local armor, block = 0, 0
+
+    local foundTooltip = false
+    local C_TooltipInfo = _G.C_TooltipInfo
+    if C_TooltipInfo and C_TooltipInfo.GetHyperlink then
+        local tData = C_TooltipInfo.GetHyperlink(itemLink)
+        if tData and tData.lines then
+            foundTooltip = true
+            for _, line in ipairs(tData.lines) do
+                local left = line.leftText
+                if left and type(left) == "string" then
+                    local clean = left:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
+                    if clean and clean ~= "" then
+                        if armor == 0 then
+                            local a = clean:match("^(%d+)%s+[Aa]rmor")
+                                or clean:match("%+(%d+)%s+[Aa]rmor")
+                            if a then armor = tonumber(a) or 0 end
+                        end
+                        if block == 0 then
+                            local b = clean:match("^(%d+)%s+[Bb]lock")
+                                or clean:match("[Ii]ncreases the block value of your shield by (%d+)")
+                                or clean:match("%+(%d+)%s+[Bb]lock%s+[Vv]alue")
+                            if b then block = tonumber(b) or 0 end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if not foundTooltip then
+        local tip = sfuiTooltip
+        if tip then
+            tip:ClearLines()
+            tip:SetHyperlink(itemLink)
+            local numLines = tip:NumLines() or 0
+            for i = 1, numLines do
+                local fsL = _G["SfuiGameTooltipTextLeft" .. i]
+                if fsL then
+                    local txt = fsL:GetText()
+                    if txt and type(txt) == "string" then
+                        local clean = txt:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
+                        if clean and clean ~= "" then
+                            if armor == 0 then
+                                local a = clean:match("^(%d+)%s+[Aa]rmor")
+                                    or clean:match("%+(%d+)%s+[Aa]rmor")
+                                if a then armor = tonumber(a) or 0 end
+                            end
+                            if block == 0 then
+                                local b = clean:match("^(%d+)%s+[Bb]lock")
+                                    or clean:match("[Ii]ncreases the block value of your shield by (%d+)")
+                                    or clean:match("%+(%d+)%s+[Bb]lock%s+[Vv]alue")
+                                if b then block = tonumber(b) or 0 end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if shieldStatsCacheCount >= SHIELD_STATS_CACHE_MAX then
+        _G.wipe(shieldStatsCache)
+        shieldStatsCacheCount = 0
+    end
+    shieldStatsCacheCount = shieldStatsCacheCount + 1
+    shieldStatsCache[itemLink] = { armor, block }
+
+    return armor, block
+end
+sfui.common.get_shield_stats = sfui.items.get_shield_stats
 
 function sfui.items.get_item_quality(item)
     if not item then return 1 end

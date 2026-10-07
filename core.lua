@@ -370,39 +370,45 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
         SfuiMinimapMenu:Hide()
     end
 
-    local ldb, icon = LibStub("LibDataBroker-1.1", true), LibStub("LibDBIcon-1.0", true)
-    if ldb and icon then
-        local broker = ldb:NewDataObject("sfui", {
-            type = "launcher",
-            text = "sfui",
-            icon = sfui.config.appearance.addonIcon,
-            OnClick = function(self, button)
-                if button == "LeftButton" then
-                    if SfuiMinimapMenu:IsShown() then
-                        SfuiMinimapMenu:Hide()
-                    else
-                        SfuiMinimapMenu.anchor = self
-                        SfuiMinimapMenu.throttle = 0
-                        SfuiMinimapMenu.hideTimer = 0
-                        SfuiMinimapMenu:ClearAllPoints()
-                        SfuiMinimapMenu:SetPoint("TOPRIGHT", self, "BOTTOMRIGHT", 0, -5)
-                        SfuiMinimapMenu:Show()
+    local ldb = LibStub and LibStub("LibDataBroker-1.1", true)
+    local icon = LibStub and LibStub("LibDBIcon-1.0", true)
+    if ldb and icon and icon.Register then
+        local broker = ldb:GetDataObjectByName("sfui")
+        if not broker then
+            broker = ldb:NewDataObject("sfui", {
+                type = "launcher",
+                text = "sfui",
+                icon = sfui.config.appearance.addonIcon,
+                OnClick = function(self, button)
+                    if button == "LeftButton" then
+                        if SfuiMinimapMenu:IsShown() then
+                            SfuiMinimapMenu:Hide()
+                        else
+                            SfuiMinimapMenu.anchor = self
+                            SfuiMinimapMenu.throttle = 0
+                            SfuiMinimapMenu.hideTimer = 0
+                            SfuiMinimapMenu:ClearAllPoints()
+                            SfuiMinimapMenu:SetPoint("TOPRIGHT", self, "BOTTOMRIGHT", 0, -5)
+                            SfuiMinimapMenu:Show()
+                        end
+                    elseif button == "RightButton" then
+                        if IsShiftKeyDown() then
+                            if C_UI and C_UI.Reload then C_UI.Reload() elseif _G.ReloadUI then _G.ReloadUI() end
+                        else
+                            sfui.alts.Toggle()
+                        end
                     end
-                elseif button == "RightButton" then
-                    if IsShiftKeyDown() then
-                        if C_UI and C_UI.Reload then C_UI.Reload() elseif _G.ReloadUI then _G.ReloadUI() end
-                    else
-                        sfui.alts.Toggle()
-                    end
-                end
-            end,
-            OnTooltipShow = function(tooltip)
-                tooltip:AddLine("sfui")
-                tooltip:AddLine("left-click for menu", 0.2, 1, 0.2)
-                tooltip:AddLine("right-click for alts", 0.4, 0.7, 1)
-                tooltip:AddLine("shift+right-click to reload ui", 1, 0.2, 0.2)
-            end,
-        })
-        icon:Register("sfui", broker, SfuiDB.minimap_icon)
+                end,
+                OnTooltipShow = function(tooltip)
+                    tooltip:AddLine("sfui")
+                    tooltip:AddLine("left-click for menu", 0.2, 1, 0.2)
+                    tooltip:AddLine("right-click for alts", 0.4, 0.7, 1)
+                    tooltip:AddLine("shift+right-click to reload ui", 1, 0.2, 0.2)
+                end,
+            })
+        end
+        if broker and (not icon.IsRegistered or not icon:IsRegistered("sfui")) then
+            icon:Register("sfui", broker, SfuiDB.minimap_icon)
+        end
     end
 end)

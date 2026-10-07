@@ -298,6 +298,20 @@ function sfui.talents.is_talent_known(targetSpellID)
 end
 sfui.common.is_talent_known = sfui.talents.is_talent_known
 
+--- Checks whether the player is a Rogue and has learned the Dual Wield passive ability (spell ID 674).
+function sfui.talents.is_rogue_dual_wield_known()
+    local classFilename = sfui.talents.get_player_class()
+    if classFilename ~= "ROGUE" then return false end
+    if sfui.talents._isRogueDualWieldKnown then
+        return sfui.talents._isRogueDualWieldKnown()
+    end
+    if sfui.isRetail then return true end
+    local level = (UnitLevel and UnitLevel("player")) or 1
+    if level < 10 then return false end
+    return sfui.talents.is_talent_known(674)
+end
+sfui.common.is_rogue_dual_wield_known = sfui.talents.is_rogue_dual_wield_known
+
 --- Checks whether the current character is in Bear form spec.
 --- Evaluates Thick Hide (16929..16933) and Primal Bite (407995), along with LFG/Dungeon Finder
 --- role checkbuttons or assigned group tank role.

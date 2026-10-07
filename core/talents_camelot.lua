@@ -160,6 +160,20 @@ local function CamelotTalentKnownResolver(targetSpellID)
 end
 sfui.talents._talentKnownResolver = CamelotTalentKnownResolver
 
+-- 5. Rogue Dual Wield Ability Resolver
+--- Checks if the player is a Rogue and has learned the Dual Wield passive ability (spell ID 674).
+--- Unlocked at level 10 from the Rogue class trainer.
+local function CamelotIsRogueDualWieldKnown()
+    local classFilename = sfui.talents.get_player_class()
+    if classFilename ~= "ROGUE" then return false end
+    local level = (UnitLevel and UnitLevel("player")) or 1
+    if level < 10 then return false end
+    return CamelotTalentKnownResolver(674)
+end
+sfui.talents._isRogueDualWieldKnown    = CamelotIsRogueDualWieldKnown
+sfui.talents.is_rogue_dual_wield_known = CamelotIsRogueDualWieldKnown
+sfui.common.is_rogue_dual_wield_known  = CamelotIsRogueDualWieldKnown
+
 local _classicTreeScratch = {
     [1] = { name = nil, icon = nil, points = 0, role = nil, specID = nil },
     [2] = { name = nil, icon = nil, points = 0, role = nil, specID = nil },

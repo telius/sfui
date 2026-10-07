@@ -190,6 +190,18 @@ local function HasRazoriceEnchant(itemData)
     return false
 end
 
+--- Assumes Rogues are using Backstab (requiring a Dagger in the Main Hand).
+local function DoesRogueUseBackstab(specID)
+    if specID then
+        local isRogue = (specID == 1488 or (specID >= 14881 and specID <= 14883) or specID == 259 or specID == 260 or specID == 261)
+        if isRogue then return true end
+    end
+    local classFilename = (sfui.talents and sfui.talents.get_player_class and sfui.talents.get_player_class()) or (UnitClass and select(2, UnitClass("player")))
+    return classFilename == "ROGUE"
+end
+sfui.highest.DoesRogueUseBackstab = DoesRogueUseBackstab
+sfui.common.does_rogue_use_backstab = DoesRogueUseBackstab
+
 local function GetWeaponDPS(itemData)
     if not itemData or not itemData.link then return 0 end
     local dps = sfui.common.get_weapon_stats(itemData.link)
@@ -537,6 +549,23 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
         end
     end
 
+    -- Classic Rogue Dual Wield check (requires level 10 + trainer passive ability 674)
+    local isRogue = (playerClassID == 1488 or specID == 1488 or (specID and specID >= 14881 and specID <= 14883))
+    if isClassic and isRogue then
+        local hasDualWield = true
+        if not ignoreTalents then
+            hasDualWield = sfui.common.is_rogue_dual_wield_known and sfui.common.is_rogue_dual_wield_known() or false
+        end
+        if not hasDualWield then
+            rule = {
+                armor = rule.armor,
+                stat = rule.stat,
+                weaps = { ["1H_Main"] = true, ["1H_Dual"] = false, ["Ranged"] = true },
+                allowedWeapons = rule.allowedWeapons,
+            }
+        end
+    end
+
     -- Classic Role Weapon & Stat Override: Warrior/Paladin tanks & Paladin/Shaman/Druid/Priest healers
     local isTank = false
     local isHeal = false
@@ -717,7 +746,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
         elseif itemEquipLoc == "INVTYPE_2HWEAPON" then
             if not rule.weaps["2H"] and not rule.weaps["2H_Dual"] then return false end
         elseif itemEquipLoc == "INVTYPE_WEAPON" or itemEquipLoc == "INVTYPE_WEAPONMAINHAND" then
-            if not rule.weaps["1H_Dual"] and not rule.weaps["1H_Off"] and not rule.weaps["1H_Shield"] then return false end
+            if not rule.weaps["1H_Dual"] and not rule.weaps["1H_Off"] and not rule.weaps["1H_Shield"] and not rule.weaps["1H_Main"] then return false end
         elseif itemEquipLoc == "INVTYPE_WEAPONOFFHAND" then
             if not rule.weaps["1H_Dual"] and not rule.weaps["1H_Off"] then return false end
         else
@@ -877,6 +906,19 @@ function sfui.highest.GetBestItems(isPvP)
         local isShaman  = (classID == 1489 or specID == 1489 or (specID and specID >= 14891 and specID <= 14893))
         local isDruid   = (classID == 1484 or specID == 1484 or (specID and specID >= 14841 and specID <= 14844))
         local isPriest  = (classID == 1487 or specID == 1487 or (specID and specID >= 14871 and specID <= 14873))
+        local isRogue   = (classID == 1488 or specID == 1488 or (specID and specID >= 14881 and specID <= 14883))
+
+        if isRogue then
+            local hasDualWield = sfui.common.is_rogue_dual_wield_known and sfui.common.is_rogue_dual_wield_known() or false
+            if not hasDualWield then
+                rule = {
+                    armor = rule.armor,
+                    stat = rule.stat,
+                    weaps = { ["1H_Main"] = true, ["1H_Dual"] = false, ["Ranged"] = true },
+                    allowedWeapons = rule.allowedWeapons,
+                }
+            end
+        end
 
         if isTank and (isWarrior or isPaladin) then
             rule = {
@@ -1300,7 +1342,7 @@ function sfui.highest.GetBestItems(isPvP)
                         or (q == 4 and 1200)
                         or (q == 3 and 600)
                         or (q == 2 and 250)
-                        or (q == 1 and 50)
+                        or (q == 1 and 20)
                         or 0
                     score = score + qBonus
 
@@ -1343,12 +1385,74 @@ function sfui.highest.GetBestItems(isPvP)
                             if not isHeal and itm.is2H and wSpeed and wSpeed > 2.0 and (classID == 1486 or classID == 1491) then
                                 score = score + (wSpeed * 15)
                             end
+
+                            -- Classic Rogue Weapon Optimization:
+                            -- Main Hand (slot 16): Slowest, highest-damage-per-hit weapon (Sinister Strike / Backstab scaling).
+                            -- If Backstab is used: Main Hand MUST be a Dagger (subclassID == 15).
+                            -- Off Hand (slot 17): Fast one-handed weapon for poison procs (50% reduced base auto-attack damage).
+                            local isRogue = (classID == 1488 or specID == 1488 or (specID and specID >= 14881 and specID <= 14883))
+                            if isClassicSpec and isRogue then
+                                local _, _, _, _, _, _, subclassID = common.get_item_instant_info(itm.link)
+                                local isDagger = (subclassID == 15)
+                                local _, rwSpeed, minDmg, maxDmg = common.get_weapon_stats(itm.link)
+                                local avgDmg = (minDmg > 0 and maxDmg > 0) and ((minDmg + maxDmg) / 2) or (wDps * (rwSpeed or 2.0))
+                                local usesBackstab = DoesRogueUseBackstab(specID)
+
+                                if slotID == 16 then
+                                    if usesBackstab then
+                                        if isDagger then
+                                            score = score + 50000 -- Backstab requires a dagger in Main Hand
+                                        else
+                                            score = score - 50000
+                                        end
+                                    end
+                                    -- Main Hand scales heavily on damage-per-hit & slower speed (Sinister Strike / Backstab)
+                                    if avgDmg and avgDmg > 0 then
+                                        score = score + (avgDmg * 20)
+                                    end
+                                    if rwSpeed and rwSpeed > 0 then
+                                        score = score + (rwSpeed * 80)
+                                    end
+                                elseif slotID == 17 then
+                                    -- Off Hand: Fast secondary weapon generates poison procs faster
+                                    if rwSpeed and rwSpeed > 0 then
+                                        score = score + ((3.5 - rwSpeed) * 40)
+                                    end
+                                end
+                            end
                         end
                     end
 
-                    -- Tank & Shield-Healer shield bonus: Strongly value shields (even grey/white starting shields) for tank spec and classic shield-healers (Paladin/Shaman)
-                    if (isTank or (isHeal and (classID == 1486 or classID == 1489))) and itm.itemEquipLoc == "INVTYPE_SHIELD" then
-                        score = score + 500
+                    -- Shield Evaluation (Armor and Block Value for all shield wearers):
+                    if itm.itemEquipLoc == "INVTYPE_SHIELD" then
+                        local sArmor, sBlock = common.get_shield_stats(itm.link)
+                        if (not sArmor or sArmor == 0) and itemStats then sArmor = itemStats["ITEM_MOD_ARMOR_SHORT"] or 0 end
+                        if (not sBlock or sBlock == 0) and itemStats then sBlock = itemStats["ITEM_MOD_BLOCK_VALUE_SHORT"] or 0 end
+
+                        if isClassicSpec then
+                            -- Armor on shields: In Classic, base armor on shields is a primary defensive attribute
+                            if sArmor and sArmor > 0 then
+                                score = score + (sArmor * 3.0)
+                            end
+                            -- Block on shields: 1 Block absorbs 1 physical damage per blocked attack
+                            if sBlock and sBlock > 0 then
+                                score = score + (sBlock * 25.0)
+                            end
+                            -- Shield baseline bonus: Value shields for tanks and any shield-proficient classes (Warrior, Paladin, Shaman)
+                            if isTank or (classID == 1491 or classID == 1486 or classID == 1489) then
+                                score = score + 500
+                            end
+                        else
+                            if sArmor and sArmor > 0 then
+                                score = score + sArmor
+                            end
+                            if sBlock and sBlock > 0 then
+                                score = score + (sBlock * 10.0)
+                            end
+                            if isTank or isHeal then
+                                score = score + 500
+                            end
+                        end
                     end
 
                     -- Subclass preference for starting/leveling armor (Plate 4 > Mail 3 > Leather 2 > Cloth 1)
@@ -1385,117 +1489,122 @@ function sfui.highest.GetBestItems(isPvP)
                     -- Secondary stat weights derived directly from Pawn string parsing, or fallback to relative Tier weights
                     if pweights then
                         for statName, statAmount in pairs(itemStats) do
-                            local simName = "None"
-                            if statName == "ITEM_MOD_CRIT_RATING_SHORT" or statName == "ITEM_MOD_CRIT_SPELL_RATING_SHORT" or statName == "ITEM_MOD_CRIT_MELEE_RATING_SHORT" or statName == "ITEM_MOD_CRIT_RANGED_RATING_SHORT" then
-                                simName = "Crit"
-                            elseif statName == "ITEM_MOD_HASTE_RATING_SHORT" or statName == "ITEM_MOD_HASTE_SPELL_RATING_SHORT" or statName == "ITEM_MOD_HASTE_MELEE_RATING_SHORT" then
-                                simName = "Haste"
-                            elseif statName == "ITEM_MOD_MASTERY_RATING_SHORT" then
-                                simName = "Mastery"
-                            elseif statName == "ITEM_MOD_VERSATILITY" then
-                                simName = "Versatility"
-                            elseif statName == "ITEM_MOD_SPELL_POWER_SHORT" or statName == "ITEM_MOD_SPELL_DAMAGE_DONE_SHORT" then
-                                simName = "SpellPower"
-                            elseif statName == "ITEM_MOD_SPELL_HEALING_DONE_SHORT" then
-                                simName = "Healing"
-                            elseif statName == "ITEM_MOD_HIT_RATING_SHORT" or statName == "ITEM_MOD_HIT_SPELL_RATING_SHORT" or statName == "ITEM_MOD_HIT_MELEE_RATING_SHORT" or statName == "ITEM_MOD_HIT_RANGED_RATING_SHORT" then
-                                simName = "Hit"
-                            elseif statName == "ITEM_MOD_ATTACK_POWER_SHORT" then
-                                simName = "AttackPower"
-                            elseif statName == "ITEM_MOD_RANGED_ATTACK_POWER_SHORT" then
-                                simName = "RangedAP"
-                            elseif statName == "ITEM_MOD_MANA_REGENERATION_SHORT" then
-                                simName = "ManaRegen"
-                            elseif statName == "ITEM_MOD_SPIRIT_SHORT" then
-                                simName = "Spirit"
-                            elseif statName == "ITEM_MOD_STAMINA_SHORT" then
-                                simName = "Stamina"
-                            elseif statName == "ITEM_MOD_DEFENSE_SKILL_RATING_SHORT" then
-                                simName = isTank and "Defense" or "None"
-                            elseif statName == "ITEM_MOD_DODGE_RATING_SHORT" then
-                                simName = isTank and "Dodge" or "None"
-                            elseif statName == "ITEM_MOD_PARRY_RATING_SHORT" then
-                                simName = isTank and "Parry" or "None"
-                            elseif statName == "ITEM_MOD_BLOCK_RATING_SHORT" then
-                                simName = isTank and "Block" or "None"
-                            elseif statName == "ITEM_MOD_BLOCK_VALUE_SHORT" then
-                                simName = isTank and "BlockValue" or "None"
-                            elseif statName == "ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT" then
-                                simName = "ArmorPenetration"
-                            elseif statName == "ITEM_MOD_EXPERTISE_RATING_SHORT" then
-                                simName = "Expertise"
-                            elseif statName == "ITEM_MOD_ARMOR_SHORT" or statName == "ITEM_MOD_EXTRA_ARMOR_SHORT" then
-                                simName = isTank and "Armor" or "None"
-                            elseif statName == "ITEM_MOD_INTELLECT_SHORT" or statName == "ITEM_MOD_AGILITY_SHORT" or statName == "ITEM_MOD_STRENGTH_SHORT" then
-                                if rule.stat == 4 then
-                                    simName = "Intellect"
-                                elseif rule.stat == 2 then
-                                    simName = "Agility"
-                                elseif rule.stat == 1 then
-                                    simName = "Strength"
+                            -- Shields already evaluate base armor and block value above with exact shield coefficients
+                            if not (itm.itemEquipLoc == "INVTYPE_SHIELD" and (statName == "ITEM_MOD_ARMOR_SHORT" or statName == "ITEM_MOD_EXTRA_ARMOR_SHORT" or statName == "ITEM_MOD_BLOCK_VALUE_SHORT")) then
+                                local simName = "None"
+                                if statName == "ITEM_MOD_CRIT_RATING_SHORT" or statName == "ITEM_MOD_CRIT_SPELL_RATING_SHORT" or statName == "ITEM_MOD_CRIT_MELEE_RATING_SHORT" or statName == "ITEM_MOD_CRIT_RANGED_RATING_SHORT" then
+                                    simName = "Crit"
+                                elseif statName == "ITEM_MOD_HASTE_RATING_SHORT" or statName == "ITEM_MOD_HASTE_SPELL_RATING_SHORT" or statName == "ITEM_MOD_HASTE_MELEE_RATING_SHORT" then
+                                    simName = "Haste"
+                                elseif statName == "ITEM_MOD_MASTERY_RATING_SHORT" then
+                                    simName = "Mastery"
+                                elseif statName == "ITEM_MOD_VERSATILITY" then
+                                    simName = "Versatility"
+                                elseif statName == "ITEM_MOD_SPELL_POWER_SHORT" or statName == "ITEM_MOD_SPELL_DAMAGE_DONE_SHORT" then
+                                    simName = "SpellPower"
+                                elseif statName == "ITEM_MOD_SPELL_HEALING_DONE_SHORT" then
+                                    simName = "Healing"
+                                elseif statName == "ITEM_MOD_HIT_RATING_SHORT" or statName == "ITEM_MOD_HIT_SPELL_RATING_SHORT" or statName == "ITEM_MOD_HIT_MELEE_RATING_SHORT" or statName == "ITEM_MOD_HIT_RANGED_RATING_SHORT" then
+                                    simName = "Hit"
+                                elseif statName == "ITEM_MOD_ATTACK_POWER_SHORT" then
+                                    simName = "AttackPower"
+                                elseif statName == "ITEM_MOD_RANGED_ATTACK_POWER_SHORT" then
+                                    simName = "RangedAP"
+                                elseif statName == "ITEM_MOD_MANA_REGENERATION_SHORT" then
+                                    simName = "ManaRegen"
+                                elseif statName == "ITEM_MOD_SPIRIT_SHORT" then
+                                    simName = "Spirit"
+                                elseif statName == "ITEM_MOD_STAMINA_SHORT" then
+                                    simName = "Stamina"
+                                elseif statName == "ITEM_MOD_DEFENSE_SKILL_RATING_SHORT" then
+                                    simName = isTank and "Defense" or "None"
+                                elseif statName == "ITEM_MOD_DODGE_RATING_SHORT" then
+                                    simName = isTank and "Dodge" or "None"
+                                elseif statName == "ITEM_MOD_PARRY_RATING_SHORT" then
+                                    simName = isTank and "Parry" or "None"
+                                elseif statName == "ITEM_MOD_BLOCK_RATING_SHORT" then
+                                    simName = isTank and "Block" or "None"
+                                elseif statName == "ITEM_MOD_BLOCK_VALUE_SHORT" then
+                                    simName = isTank and "BlockValue" or "None"
+                                elseif statName == "ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT" then
+                                    simName = "ArmorPenetration"
+                                elseif statName == "ITEM_MOD_EXPERTISE_RATING_SHORT" then
+                                    simName = "Expertise"
+                                elseif statName == "ITEM_MOD_ARMOR_SHORT" or statName == "ITEM_MOD_EXTRA_ARMOR_SHORT" then
+                                    simName = isTank and "Armor" or "None"
+                                elseif statName == "ITEM_MOD_INTELLECT_SHORT" or statName == "ITEM_MOD_AGILITY_SHORT" or statName == "ITEM_MOD_STRENGTH_SHORT" then
+                                    if rule.stat == 4 then
+                                        simName = "Intellect"
+                                    elseif rule.stat == 2 then
+                                        simName = "Agility"
+                                    elseif rule.stat == 1 then
+                                        simName = "Strength"
+                                    end
                                 end
-                            end
 
-                            if simName ~= "None" then
-                                local weight = pweights[simName]
-                                if not weight and isClassicSpec then
-                                    local isCamelot = sfui.isCamelot or (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_camelot))
-                                        or (sfui.version and sfui.version.camelot)
-                                    if isCamelot and simName == "Healing" and not isHeal then
-                                        -- On Camelot, bonus healing converts 1/3 to spell damage
-                                        weight = (pweights["SpellPower"] or 0) / 3
-                                    elseif simName == "SpellPower" and isHeal then
-                                        -- Spell Power converts 1:1 to healing for healers
+                                if simName ~= "None" then
+                                    local weight = pweights[simName]
+                                    if not weight and isClassicSpec then
+                                        local isCamelot = sfui.isCamelot or (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_camelot))
+                                            or (sfui.version and sfui.version.camelot)
+                                        if isCamelot and simName == "Healing" and not isHeal then
+                                            -- On Camelot, bonus healing converts 1/3 to spell damage
+                                            weight = (pweights["SpellPower"] or 0) / 3
+                                        elseif simName == "SpellPower" and isHeal then
+                                            -- Spell Power converts 1:1 to healing for healers
+                                            weight = pweights["Healing"]
+                                        end
+                                    elseif weight and isClassicSpec and simName == "SpellPower" and isHeal and pweights["Healing"] and pweights["Healing"] > weight then
+                                        -- Ensure Spell Power is worth at least full Healing for healers
                                         weight = pweights["Healing"]
                                     end
-                                elseif weight and isClassicSpec and simName == "SpellPower" and isHeal and pweights["Healing"] and pweights["Healing"] > weight then
-                                    -- Ensure Spell Power is worth at least full Healing for healers
-                                    weight = pweights["Healing"]
+                                    if weight and weight > 0 then
+                                        score = score + (statAmount * weight)
+                                    end
                                 end
-                                if weight and weight > 0 then
-                                    score = score + (statAmount * weight)
-                                end
-                            end
 
-                            -- Tertiary stat modifiers
-                            if statName == "ITEM_MOD_CR_LIFESTEAL_SHORT" or statName == "ITEM_MOD_CR_SPEED_SHORT" then
-                                score = score + statAmount
+                                -- Tertiary stat modifiers
+                                if statName == "ITEM_MOD_CR_LIFESTEAL_SHORT" or statName == "ITEM_MOD_CR_SPEED_SHORT" then
+                                    score = score + statAmount
+                                end
                             end
                         end
                     elseif statWeights then
                         for statName, statAmount in pairs(itemStats) do
-                            -- Strictly exclude defensive stats if not a tank
-                            local isDefensive = (statName == "ITEM_MOD_DEFENSE_SKILL_RATING_SHORT" or
-                                                 statName == "ITEM_MOD_DODGE_RATING_SHORT" or
-                                                 statName == "ITEM_MOD_PARRY_RATING_SHORT" or
-                                                 statName == "ITEM_MOD_BLOCK_RATING_SHORT" or
-                                                 statName == "ITEM_MOD_BLOCK_VALUE_SHORT")
-                            if not (not isTank and isDefensive) then
-                                local mappedStatName = statName
-                                if statName == "ITEM_MOD_SPELL_DAMAGE_DONE_SHORT" then
-                                    mappedStatName = "ITEM_MOD_SPELL_POWER_SHORT"
-                                elseif statName == "ITEM_MOD_CRIT_SPELL_RATING_SHORT" or statName == "ITEM_MOD_CRIT_MELEE_RATING_SHORT" or statName == "ITEM_MOD_CRIT_RANGED_RATING_SHORT" then
-                                    mappedStatName = "ITEM_MOD_CRIT_RATING_SHORT"
-                                elseif statName == "ITEM_MOD_HIT_SPELL_RATING_SHORT" or statName == "ITEM_MOD_HIT_MELEE_RATING_SHORT" or statName == "ITEM_MOD_HIT_RANGED_RATING_SHORT" then
-                                    mappedStatName = "ITEM_MOD_HIT_RATING_SHORT"
-                                elseif statName == "ITEM_MOD_EXTRA_ARMOR_SHORT" then
-                                    mappedStatName = "ITEM_MOD_ARMOR_SHORT"
-                                elseif statName == "ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT" then
-                                    mappedStatName = "ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT"
-                                elseif statName == "ITEM_MOD_EXPERTISE_RATING_SHORT" then
-                                    mappedStatName = "ITEM_MOD_EXPERTISE_RATING_SHORT"
-                                elseif not isClassicSpec and (statName == "ITEM_MOD_INTELLECT_SHORT" or statName == "ITEM_MOD_AGILITY_SHORT" or statName == "ITEM_MOD_STRENGTH_SHORT") then
-                                    mappedStatName = common.get_stat_key(rule.stat) or statName
+                            if not (itm.itemEquipLoc == "INVTYPE_SHIELD" and (statName == "ITEM_MOD_ARMOR_SHORT" or statName == "ITEM_MOD_EXTRA_ARMOR_SHORT" or statName == "ITEM_MOD_BLOCK_VALUE_SHORT")) then
+                                -- Strictly exclude defensive stats if not a tank
+                                local isDefensive = (statName == "ITEM_MOD_DEFENSE_SKILL_RATING_SHORT" or
+                                                     statName == "ITEM_MOD_DODGE_RATING_SHORT" or
+                                                     statName == "ITEM_MOD_PARRY_RATING_SHORT" or
+                                                     statName == "ITEM_MOD_BLOCK_RATING_SHORT" or
+                                                     statName == "ITEM_MOD_BLOCK_VALUE_SHORT")
+                                if not (not isTank and isDefensive) then
+                                    local mappedStatName = statName
+                                    if statName == "ITEM_MOD_SPELL_DAMAGE_DONE_SHORT" then
+                                        mappedStatName = "ITEM_MOD_SPELL_POWER_SHORT"
+                                    elseif statName == "ITEM_MOD_CRIT_SPELL_RATING_SHORT" or statName == "ITEM_MOD_CRIT_MELEE_RATING_SHORT" or statName == "ITEM_MOD_CRIT_RANGED_RATING_SHORT" then
+                                        mappedStatName = "ITEM_MOD_CRIT_RATING_SHORT"
+                                    elseif statName == "ITEM_MOD_HIT_SPELL_RATING_SHORT" or statName == "ITEM_MOD_HIT_MELEE_RATING_SHORT" or statName == "ITEM_MOD_HIT_RANGED_RATING_SHORT" then
+                                        mappedStatName = "ITEM_MOD_HIT_RATING_SHORT"
+                                    elseif statName == "ITEM_MOD_EXTRA_ARMOR_SHORT" then
+                                        mappedStatName = "ITEM_MOD_ARMOR_SHORT"
+                                    elseif statName == "ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT" then
+                                        mappedStatName = "ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT"
+                                    elseif statName == "ITEM_MOD_EXPERTISE_RATING_SHORT" then
+                                        mappedStatName = "ITEM_MOD_EXPERTISE_RATING_SHORT"
+                                    elseif not isClassicSpec and (statName == "ITEM_MOD_INTELLECT_SHORT" or statName == "ITEM_MOD_AGILITY_SHORT" or statName == "ITEM_MOD_STRENGTH_SHORT") then
+                                        mappedStatName = common.get_stat_key(rule.stat) or statName
+                                    end
+
+                                    if statWeights[mappedStatName] then
+                                        score = score + (statAmount * statWeights[mappedStatName])
+                                    end
                                 end
 
-                                if statWeights[mappedStatName] then
-                                    score = score + (statAmount * statWeights[mappedStatName])
+                                -- Tertiary stat modifiers
+                                if statName == "ITEM_MOD_CR_LIFESTEAL_SHORT" or statName == "ITEM_MOD_CR_SPEED_SHORT" then
+                                    score = score + statAmount
                                 end
-                            end
-
-                            -- Tertiary stat modifiers
-                            if statName == "ITEM_MOD_CR_LIFESTEAL_SHORT" or statName == "ITEM_MOD_CR_SPEED_SHORT" then
-                                score = score + statAmount
                             end
                         end
                     end
@@ -1719,7 +1828,7 @@ function sfui.highest.GetBestItems(isPvP)
                 or (ohQ == 4 and 1200)
                 or (ohQ == 3 and 600)
                 or (ohQ == 2 and 250)
-                or (ohQ == 1 and 50)
+                or (ohQ == 1 and 20)
                 or 0
             local ohBase = (bestOH.ilvl * (isPvP and 20 or 10)) + ohQBonus
             local ohStatScore = math.max(0, (bestOH.score or 0) - ohBase)
@@ -1739,7 +1848,7 @@ function sfui.highest.GetBestItems(isPvP)
                         or (q == 4 and 1200)
                         or (q == 3 and 600)
                         or (q == 2 and 250)
-                        or (q == 1 and 50)
+                        or (q == 1 and 20)
                         or 0
                     score2H = score2H + qBonus
                 end
@@ -1781,6 +1890,7 @@ function sfui.highest.GetBestItems(isPvP)
         local isPaladinWeap = isClassicSpec and (classID == 1486 or specID == 1486 or (specID and specID >= 14861 and specID <= 14863))
         local isWarriorWeap = isClassicSpec and (classID == 1491 or specID == 1491 or (specID and specID >= 14911 and specID <= 14913))
         local isShamanWeap  = isClassicSpec and (classID == 1489 or specID == 1489 or (specID and specID >= 14891 and specID <= 14893))
+        local isRogueWeap   = isClassicSpec and (classID == 1488 or specID == 1488 or (specID and specID >= 14881 and specID <= 14883))
 
         -- Classic Tank Override: Classic Warrior (1491) and Paladin (1486) tanks NEVER use 2H weapons!
         if isClassicSpec and isTank and (isWarriorWeap or isPaladinWeap) then
@@ -1804,36 +1914,70 @@ function sfui.highest.GetBestItems(isPvP)
                 local can1HGoOffHand = (best1H.itemEquipLoc == "INVTYPE_WEAPON" or best1H.itemEquipLoc == "INVTYPE_WEAPONOFFHAND" or (best1H.itemEquipLoc == "INVTYPE_2HWEAPON" and rule.weaps["2H_Dual"]))
 
                 if canOHGoMainHand and can1HGoOffHand then
-                    -- Dual Wielding two weapons:
-                    -- Rule: Always equip the higher DPS 1H in the Main Hand (slot 16)!
-                    local dps1 = GetWeaponDPS(best1H)
-                    local dps2 = GetWeaponDPS(bestOH)
                     local preferOHinMH = false
-                    local isDpsEqual = (math.abs(dps1 - dps2) < 0.05)
+                    if isRogueWeap then
+                        -- Rogue Weapon Assignment:
+                        -- Main Hand (Slot 16): Slowest, highest-damage-per-hit weapon (Sinister Strike scaling).
+                        -- If Backstab is used: Main Hand MUST be a Dagger (subclassID == 15).
+                        -- Off Hand (Slot 17): Secondary one-handed weapon for poison application (fast weapon preferred).
+                        local usesBackstab = DoesRogueUseBackstab(specID)
+                        local _, _, _, _, _, _, sub1 = common.get_item_instant_info(best1H.link)
+                        local _, _, _, _, _, _, sub2 = common.get_item_instant_info(bestOH.link)
+                        local w1Dagger = (sub1 == 15)
+                        local w2Dagger = (sub2 == 15)
 
-                    if not isDpsEqual then
-                        preferOHinMH = (dps2 > dps1)
-                    else
-                        -- DPS is equal: compare item level
-                        local ilvl1 = best1H.ilvl or 0
-                        local ilvl2 = bestOH.ilvl or 0
-                        if ilvl2 ~= ilvl1 then
-                            preferOHinMH = (ilvl2 > ilvl1)
+                        if usesBackstab and (w1Dagger ~= w2Dagger) then
+                            -- Only one weapon is a dagger; dagger MUST go into Main Hand
+                            preferOHinMH = w2Dagger
                         else
-                            -- DPS and ilvl are identical: evaluate enchant / runeforge preferences
-                            if specID == 251 then
-                                local w1Razor = HasRazoriceEnchant(best1H)
-                                local w2Razor = HasRazoriceEnchant(bestOH)
-                                if hasFrostbane then
-                                    -- Frost DK with Frostbane: Put Razorice in Main Hand
-                                    preferOHinMH = (w2Razor and not w1Razor)
-                                else
-                                    -- Standard Frost DK without Frostbane:
-                                    -- Put Fallen Crusader (non-Razorice) in Main Hand, Razorice in Off Hand
-                                    preferOHinMH = (w1Razor and not w2Razor)
-                                end
+                            local dps1 = GetWeaponDPS(best1H)
+                            local dps2 = GetWeaponDPS(bestOH)
+                            local _, speed1, min1, max1 = common.get_weapon_stats(best1H.link)
+                            local _, speed2, min2, max2 = common.get_weapon_stats(bestOH.link)
+                            local avgDmg1 = (min1 > 0 and max1 > 0) and ((min1 + max1) / 2) or (dps1 * (speed1 or 2.0))
+                            local avgDmg2 = (min2 > 0 and max2 > 0) and ((min2 + max2) / 2) or (dps2 * (speed2 or 2.0))
+
+                            if math.abs(avgDmg1 - avgDmg2) > 0.05 then
+                                -- Highest damage-per-hit weapon goes in Main Hand
+                                preferOHinMH = (avgDmg2 > avgDmg1)
+                            elseif math.abs((speed2 or 0) - (speed1 or 0)) > 0.05 then
+                                -- Slower weapon goes in Main Hand (leaving faster in Off Hand for poison procs)
+                                preferOHinMH = ((speed2 or 0) > (speed1 or 0))
                             else
                                 preferOHinMH = ((bestOH.score or 0) > (best1H.score or 0))
+                            end
+                        end
+                    else
+                        -- Dual Wielding two weapons (Frost DK / Warrior / Retail):
+                        -- Rule: Always equip the higher DPS 1H in the Main Hand (slot 16)!
+                        local dps1 = GetWeaponDPS(best1H)
+                        local dps2 = GetWeaponDPS(bestOH)
+                        local isDpsEqual = (math.abs(dps1 - dps2) < 0.05)
+
+                        if not isDpsEqual then
+                            preferOHinMH = (dps2 > dps1)
+                        else
+                            -- DPS is equal: compare item level
+                            local ilvl1 = best1H.ilvl or 0
+                            local ilvl2 = bestOH.ilvl or 0
+                            if ilvl2 ~= ilvl1 then
+                                preferOHinMH = (ilvl2 > ilvl1)
+                            else
+                                -- DPS and ilvl are identical: evaluate enchant / runeforge preferences
+                                if specID == 251 then
+                                    local w1Razor = HasRazoriceEnchant(best1H)
+                                    local w2Razor = HasRazoriceEnchant(bestOH)
+                                    if hasFrostbane then
+                                        -- Frost DK with Frostbane: Put Razorice in Main Hand
+                                        preferOHinMH = (w2Razor and not w1Razor)
+                                    else
+                                        -- Standard Frost DK without Frostbane:
+                                        -- Put Fallen Crusader (non-Razorice) in Main Hand, Razorice in Off Hand
+                                        preferOHinMH = (w1Razor and not w2Razor)
+                                    end
+                                else
+                                    preferOHinMH = ((bestOH.score or 0) > (best1H.score or 0))
+                                end
                             end
                         end
                     end
@@ -1912,6 +2056,27 @@ function sfui.highest.GetBestItems(isPvP)
                             break
                         end
                     end
+                end
+            end
+        end
+    end
+
+    -- Enforce Off Hand weapon safety: "One-Handed" or "Off Hand", never "Main-Hand Only"
+    if finalPick[17] and finalPick[17].itemEquipLoc == "INVTYPE_WEAPONMAINHAND" then
+        finalPick[17] = nil
+    end
+
+    -- Classic Rogue without Dual Wield: unequip any offhand weapon
+    local isRogueClass = isClassicSpec and (classID == 1488 or specID == 1488 or (specID and specID >= 14881 and specID <= 14883))
+    if isRogueClass then
+        local hasDualWield = sfui.common.is_rogue_dual_wield_known and sfui.common.is_rogue_dual_wield_known() or false
+        if not hasDualWield then
+            finalPick[17] = nil
+            local curOH = GetInventoryItemLink("player", 17)
+            if curOH then
+                local _, _, _, equipLoc = common.get_item_instant_info(curOH)
+                if equipLoc == "INVTYPE_WEAPON" or equipLoc == "INVTYPE_WEAPONOFFHAND" then
+                    finalPick[17] = { isUnequip = true, isEquipped = false }
                 end
             end
         end
