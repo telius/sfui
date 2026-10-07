@@ -1073,27 +1073,81 @@ end
 -- Helper to systematically hide specific Blizzard CooldownViewer frames
 local cooldownViewersInitialized = false
 
-function sfui.common.hide_blizzard_cooldown_viewers()
-    -- On Classic / Forever, Blizzard_CooldownViewer is an unsupported partial port
-    -- that crashes with secret boolean errors on GetTotemInfo if force-loaded or enabled.
-    if not sfui.isRetail then
-        local viewers = {
-            "EssentialCooldownViewer",
-            "UtilityCooldownViewer",
-            "BuffBarCooldownViewer",
-        }
-        for _, viewerName in ipairs(viewers) do
-            local viewer = _G[viewerName]
-            if viewer then
-                viewer:SetAlpha(0)
-                viewer:EnableMouse(false)
-            end
+local function disarm_and_hide_viewer(viewer)
+    if not viewer then return end
+
+    -- Neutralize ManagedFrameSystem so BottomManagedFrameContainer doesn't manage or stomp alpha
+    viewer.hideWhenActionBarIsOverriden = false
+    viewer.ignoreFramePositionManager = true
+
+    if not InCombatLockdown() then
+        local bmfc = _G.GetBottomManagedFrameContainer and _G.GetBottomManagedFrameContainer()
+        if bmfc and bmfc.RemoveManagedFrame then
+            bmfc:RemoveManagedFrame(viewer)
         end
-        return
     end
 
-    -- Ensure the addon is loaded first (Retail only)
-    sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
+    -- Hook SetAlpha to prevent Blizzard (EditMode, anims, or ManagedFrameSystem) from restoring alpha > 0
+    if not viewer._sfuiAlphaHooked and hooksecurefunc then
+        viewer._sfuiAlphaHooked = true
+        hooksecurefunc(viewer, "SetAlpha", function(self, alpha)
+            if self._sfuiSettingAlpha then return end
+            if alpha ~= 0 then
+                self._sfuiSettingAlpha = true
+                self:SetAlpha(0)
+                self._sfuiSettingAlpha = false
+            end
+        end)
+    end
+
+    -- Hook EnableMouse to prevent mouse interaction
+    if not viewer._sfuiMouseHooked and hooksecurefunc then
+        viewer._sfuiMouseHooked = true
+        hooksecurefunc(viewer, "EnableMouse", function(self, enabled)
+            if self._sfuiSettingMouse then return end
+            if enabled then
+                self._sfuiSettingMouse = true
+                self:EnableMouse(false)
+                self._sfuiSettingMouse = false
+            end
+        end)
+    end
+
+    -- Hook OnShow to enforce alpha 0 and mouse disabled if frame ever re-shows
+    if not viewer._sfuiShowHooked and viewer.HookScript then
+        viewer._sfuiShowHooked = true
+        viewer:HookScript("OnShow", function(self)
+            if not self._sfuiSettingAlpha then
+                self._sfuiSettingAlpha = true
+                self:SetAlpha(0)
+                self._sfuiSettingAlpha = false
+            end
+            if not self._sfuiSettingMouse and self.EnableMouse then
+                self._sfuiSettingMouse = true
+                self:EnableMouse(false)
+                self._sfuiSettingMouse = false
+            end
+        end)
+    end
+
+    if not viewer._sfuiSettingAlpha then
+        viewer._sfuiSettingAlpha = true
+        viewer:SetAlpha(0)
+        viewer._sfuiSettingAlpha = false
+    end
+    if not viewer._sfuiSettingMouse and viewer.EnableMouse then
+        viewer._sfuiSettingMouse = true
+        viewer:EnableMouse(false)
+        viewer._sfuiSettingMouse = false
+    end
+end
+
+function sfui.common.hide_blizzard_cooldown_viewers()
+    -- Ensure the addon is loaded first on Retail; on Classic / Forever it is loaded on demand
+    -- by tracking modules to avoid unsupported CVar side-effects.
+    if sfui.isRetail and not InCombatLockdown() then
+        sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
+    end
 
     local viewers = {
         "EssentialCooldownViewer",
@@ -1111,8 +1165,7 @@ function sfui.common.hide_blizzard_cooldown_viewers()
     for _, viewerName in ipairs(viewers) do
         local viewer = _G[viewerName]
         if viewer then
-            viewer:SetAlpha(0)
-            viewer:EnableMouse(false)
+            disarm_and_hide_viewer(viewer)
         end
     end
 
@@ -1141,7 +1194,7 @@ function sfui.common.hide_blizzard_cooldown_viewers()
             end)
         end
 
-        -- Game events for cinematics, movies, challenge mode, and layout updates
+        -- Game events for cinematics, movies, challenge mode, layout updates, and stance/bar shifts
         sfui.events.RegisterEvent("CINEMATIC_STOP", function()
             sfui.common.hide_blizzard_cooldown_viewers()
         end)
@@ -1155,6 +1208,12 @@ function sfui.common.hide_blizzard_cooldown_viewers()
             sfui.common.hide_blizzard_cooldown_viewers()
         end)
         sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
+            sfui.common.hide_blizzard_cooldown_viewers()
+        end)
+        sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORM", function()
+            sfui.common.hide_blizzard_cooldown_viewers()
+        end)
+        sfui.events.RegisterEvent("UPDATE_BONUS_ACTIONBAR", function()
             sfui.common.hide_blizzard_cooldown_viewers()
         end)
         sfui.events.RegisterEvent("ADDON_LOADED", function(event, loadedAddon)
