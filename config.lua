@@ -337,7 +337,7 @@ sfui.config = {
         showDualBars = true,            -- Show both XP and Reputation bars stacked when tracking a faction
         repHeight = 12,                 -- Height of the stacked reputation bar
         repOnTop = true,                -- Dock reputation bar above XP bar
-        showText = "ALWAYS",            -- "ALWAYS", "MOUSEOVER", "NEVER"
+        showText = "MOUSEOVER",         -- "ALWAYS", "MOUSEOVER", "NEVER"
         textFormat = "PERCENT_CURRENT", -- "PERCENT_CURRENT", "PERCENT", "REMAINING", "FRACTION"
         showRate = true,
         showTTL = true,
@@ -381,6 +381,20 @@ sfui.config = {
     item_frame = {
         width = 200,
         height = 70,
+    },
+
+    triage = {
+        enabled = true,
+        threshold = 1,                 -- Trigger when free regular slots <= threshold (0, 1, or 2)
+        checkConsumables = true,       -- Evaluate consumables when no greys are found
+        protectFoodWater = true,       -- Protect food/water matching player's level tier
+        soundAlert = true,             -- Play sound when triage prompt appears
+        pos = {
+            point = "BOTTOM",
+            relativePoint = "BOTTOM",
+            x = 0,
+            y = 220,
+        },
     },
 
     cvars_on_load = {
@@ -980,5 +994,27 @@ sfui.config = {
         hide_focus_frame             = false,
         hide_micromenu               = false,
         hide_bagsbar                 = false,
+        hide_totem_bar               = false,
+    },
+
+    -- ─── Totem Bar (Vanilla / Camelot only) ─────────────────────────
+    -- Dedicated tracking bar for shaman totems (frames/bars/totembar.lua).
+    totembar = {
+        enabled         = true,
+        size            = 36,
+        spacing         = 4,
+        colorByElement  = true,
+        showTimerText      = true,
+        showGlow           = true,
+        castOrder          = { "Earth", "Fire", "Water", "Air" },
+        resetTimer         = 15,
+        showSequenceButton = false,
+        pos                = { point = "BOTTOM", relPoint = "BOTTOM", x = 0, y = 88 },
+        selectedTotems  = {
+            Earth = "Stoneskin Totem",
+            Fire  = "Searing Totem",
+            Water = "Healing Stream Totem",
+            Air   = "Windfury Totem",
+        },
     },
 }

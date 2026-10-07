@@ -14,6 +14,7 @@ local GetTime = _G.GetTime
 local UnitIsDeadOrGhost = _G.UnitIsDeadOrGhost
 local IsMounted = _G.IsMounted
 local UnitOnTaxi = _G.UnitOnTaxi
+local InCombatLockdown = _G.InCombatLockdown
 local tostring = _G.tostring
 
 -- Default settings
@@ -132,8 +133,22 @@ local function CreateBuffIcon(index, parent)
     countText:SetShadowOffset(1, -1)
     btn.countText = countText
 
+    btn:EnableMouseWheel(true)
+    btn:SetScript("OnMouseWheel", function(self, delta)
+        if self.record and self.record.entry and self.record.entry.key == "consumable_food" then
+            if sfui.buffs.consumables and sfui.buffs.consumables.CycleFood then
+                sfui.buffs.consumables.CycleFood(delta)
+                if self.isHovered and GameTooltip and GameTooltip:GetOwner() == self then
+                    local onEnter = self:GetScript("OnEnter")
+                    if onEnter then onEnter(self) end
+                end
+            end
+        end
+    end)
+
     -- Tooltip interaction
     btn:SetScript("OnEnter", function(self)
+        self.isHovered = true
         if not self.record then return end
         local rec = self.record
         local entry = rec.entry
@@ -166,20 +181,76 @@ local function CreateBuffIcon(index, parent)
             GameTooltip:AddLine("summon your active pet", 0.6, 0.6, 0.6)
         elseif entry.type == "stance" then
             GameTooltip:AddLine("activate your combat stance", 0.6, 0.6, 0.6)
-        else
-            GameTooltip:AddLine("cast your class self-buff", 0.6, 0.6, 0.6)
+        elseif entry.type == "tracking" then
+            GameTooltip:AddLine("activate resource tracking", 0.6, 0.6, 0.6)
         end
 
-        local db = SfuiDB and SfuiDB.buffReminders
-        if db and db.clickToCast ~= false and not isTestMode then
-            local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
-            if inCombat then
-                GameTooltip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
-            else
-                local castSpell = sfui.buffs.data and sfui.buffs.data.GetBestCastSpell and
-                    sfui.buffs.data.GetBestCastSpell(entry)
-                if castSpell then
-                    GameTooltip:AddLine("|cff55ff55[click to cast]|r " .. castSpell, 0.3, 1, 0.3)
+        if entry.key == "consumable_food" and sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedFood then
+            local selectedFood, allFoods = sfui.buffs.consumables.GetSelectedFood()
+            if selectedFood and (selectedFood.itemLink or selectedFood.itemID) then
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:SetHyperlink(selectedFood.itemLink or ("item:" .. selectedFood.itemID))
+
+                GameTooltip:AddLine(" ")
+                if rec.isMissing then
+                    GameTooltip:AddLine("|cffff4444[missing well fed buff]|r", 1, 0.4, 0.4)
+                elseif rec.isExpiring then
+                    local rem = (rec.expirationTime and rec.expirationTime > 0) and (rec.expirationTime - GetTime()) or 0
+                    if rem > 0 then
+                        GameTooltip:AddLine(string_format("|cffffcc00[expiring well fed]|r remaining: |cffffd100%s|r", FormatTime(rem)), 1, 0.8, 0)
+                    else
+                        GameTooltip:AddLine("|cffffcc00[expiring well fed]|r", 1, 0.8, 0)
+                    end
+                else
+                    GameTooltip:AddLine("|cff00ff00[well fed active]|r", 0.4, 1, 0.4)
+                end
+
+                if selectedFood.count and selectedFood.count > 0 then
+                    local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
+                    if inCombat then
+                        GameTooltip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
+                    else
+                        GameTooltip:AddLine("|cff55ff55[click to eat]|r " .. selectedFood.name:lower(), 0.3, 1, 0.3)
+                    end
+                else
+                    GameTooltip:AddLine("|cffff5555no food with buff in bags|r", 0.9, 0.4, 0.4)
+                end
+
+                if allFoods and #allFoods > 1 then
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("scroll wheel to select food:", 0.5, 0.8, 1)
+                    for _, fInfo in ipairs(allFoods) do
+                        local isCur = (fInfo.name == selectedFood.name or fInfo.itemID == selectedFood.itemID)
+                        local cStr = string_format(" (%d)", fInfo.count or 0)
+                        if isCur then
+                            GameTooltip:AddLine("  > " .. fInfo.name:lower() .. cStr, 1, 0.82, 0)
+                        else
+                            GameTooltip:AddLine("    " .. fInfo.name:lower() .. cStr, 0.6, 0.6, 0.6)
+                        end
+                    end
+                end
+
+                if isUnlocked then
+                    GameTooltip:AddLine("|cff888888(drag to reposition reminders)|r", 0.5, 0.5, 0.5)
+                end
+                GameTooltip:Show()
+                return
+            end
+
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("|cffff5555no food with buff in bags|r", 0.9, 0.4, 0.4)
+        else
+            local db = SfuiDB and SfuiDB.buffReminders
+            if db and db.clickToCast ~= false and not isTestMode then
+                local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
+                if inCombat then
+                    GameTooltip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
+                else
+                    local castSpell = sfui.buffs.data and sfui.buffs.data.GetBestCastSpell and
+                        sfui.buffs.data.GetBestCastSpell(entry, rec.activeEnchant)
+                    if castSpell then
+                        GameTooltip:AddLine("|cff55ff55[click to cast]|r " .. castSpell:lower(), 0.3, 1, 0.3)
+                    end
                 end
             end
         end
@@ -191,6 +262,7 @@ local function CreateBuffIcon(index, parent)
     end)
 
     btn:SetScript("OnLeave", function(self)
+        self.isHovered = false
         GameTooltip:Hide()
     end)
 
@@ -317,19 +389,38 @@ function sfui.buffs.OnCombatEnter()
         sfui.events.UnregisterUpdate("SfuiBuffCountdown")
     end
     if container then
-        container:Hide()
+        container:SetAlpha(0)
+        if not InCombatLockdown() then
+            container:Hide()
+        end
     end
 end
 
 function sfui.buffs.OnCombatLeave()
     hasPendingCombatUpdate = false
+    if InCombatLockdown and InCombatLockdown() then
+        hasPendingCombatUpdate = true
+        local cTimer = _G.C_Timer
+        if cTimer and cTimer.After then
+            cTimer.After(0.15, function()
+                if not InCombatLockdown() then
+                    hasPendingCombatUpdate = false
+                    sfui.buffs.UpdateDisplay()
+                end
+            end)
+        end
+        return
+    end
     sfui.buffs.UpdateDisplay()
 end
 
 function sfui.buffs.UpdateDisplay()
     -- Only active on Camelot / Classic clients
     if not sfui.isCamelot and not sfui.isClassic then
-        if container then container:Hide() end
+        if container then
+            container:SetAlpha(0)
+            if not InCombatLockdown() then container:Hide() end
+        end
         return
     end
 
@@ -339,17 +430,21 @@ function sfui.buffs.UpdateDisplay()
         if sfui.events and sfui.events.UnregisterUpdate then
             sfui.events.UnregisterUpdate("SfuiBuffCountdown")
         end
-        f:Hide()
+        f:SetAlpha(0)
+        if not InCombatLockdown() then f:Hide() end
         return
     end
 
     -- Suppression check: strictly hide in combat
-    local inCombat = sfui.common.is_in_combat()
+    local inCombat = sfui.common.is_in_combat() or InCombatLockdown()
     if inCombat and not isUnlocked and not isTestMode then
         if sfui.events and sfui.events.UnregisterUpdate then
             sfui.events.UnregisterUpdate("SfuiBuffCountdown")
         end
-        f:Hide()
+        f:SetAlpha(0)
+        if not InCombatLockdown() then
+            f:Hide()
+        end
         hasPendingCombatUpdate = true
         return
     end
@@ -364,7 +459,10 @@ function sfui.buffs.UpdateDisplay()
         if sfui.events and sfui.events.UnregisterUpdate then
             sfui.events.UnregisterUpdate("SfuiBuffCountdown")
         end
-        f:Hide()
+        f:SetAlpha(0)
+        if not InCombatLockdown() then
+            f:Hide()
+        end
         return
     end
 
@@ -375,9 +473,16 @@ function sfui.buffs.UpdateDisplay()
         if sfui.events and sfui.events.UnregisterUpdate then
             sfui.events.UnregisterUpdate("SfuiBuffCountdown")
         end
-        f:Hide()
+        f:SetAlpha(0)
+        if not InCombatLockdown() then
+            f:Hide()
+        end
         return
     end
+
+    -- Past suppression checks: restore full container alpha
+    hasPendingCombatUpdate = false
+    f:SetAlpha(1.0)
 
     -- If unlocked but no records, show test preview so the anchor is grabbable
     if isUnlocked and numRecords == 0 then
@@ -397,13 +502,22 @@ function sfui.buffs.UpdateDisplay()
             iconPool[i] = icon
         end
 
+        icon:EnableMouse(true)
+        icon:SetAlpha(1.0)
         icon:SetSize(size, size)
         icon:ClearAllPoints()
         icon:SetPoint("LEFT", f, "LEFT", (i - 1) * (size + spacing), 0)
         icon.record = rec
 
+        local isFood = (rec.entry and rec.entry.key == "consumable_food")
+        local selectedFood = isFood and sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedFood and sfui.buffs.consumables.GetSelectedFood()
+
         -- Set texture
-        icon.texture:SetTexture(rec.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+        if isFood and selectedFood and selectedFood.icon then
+            icon.texture:SetTexture(selectedFood.icon)
+        else
+            icon.texture:SetTexture(rec.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+        end
 
         -- Appearance based on status (missing or expiring only)
         if rec.isMissing then
@@ -458,8 +572,18 @@ function sfui.buffs.UpdateDisplay()
             icon:SetAlpha(1.0)
         end
 
-        -- Charges count (cached to avoid redundant SetText)
-        local cStr = (rec.charges and rec.charges > 1) and tostring(rec.charges) or ""
+        -- Charges / stack count (cached to avoid redundant SetText)
+        local cStr = ""
+        if isFood then
+            if selectedFood and selectedFood.count and selectedFood.count > 0 then
+                cStr = tostring(selectedFood.count)
+            elseif rec.isMissing then
+                cStr = "0"
+            end
+        elseif rec.charges and rec.charges > 1 then
+            cStr = tostring(rec.charges)
+        end
+
         if icon._lastCountText ~= cStr then
             icon._lastCountText = cStr
             if cStr ~= "" then
@@ -473,28 +597,73 @@ function sfui.buffs.UpdateDisplay()
 
         -- Out-of-combat click-to-cast configuration with attribute caching
         if not inCombat then
-            if db and db.clickToCast ~= false and not isTestMode and rec.entry then
-                local castSpell = sfui.buffs.data and sfui.buffs.data.GetBestCastSpell and
-                    sfui.buffs.data.GetBestCastSpell(rec.entry)
-                if castSpell then
-                    if icon._lastSpell ~= castSpell then
-                        icon._lastSpell = castSpell
-                        icon:SetAttribute("type", "spell")
-                        icon:SetAttribute("spell", castSpell)
-                        icon:SetAttribute("unit", "player")
+            if isFood then
+                if db and db.clickToCast ~= false and not isTestMode and selectedFood and selectedFood.count and selectedFood.count > 0 then
+                    local itemName = selectedFood.name
+                    if icon._lastItem ~= itemName or icon._lastSpell ~= nil or icon._lastSlot ~= nil then
+                        icon._lastItem = itemName
+                        icon._lastSpell = nil
+                        icon._lastSlot = nil
+                        icon:SetAttribute("type", "item")
+                        icon:SetAttribute("item", itemName)
+                        icon:SetAttribute("spell", nil)
+                        icon:SetAttribute("target-slot", nil)
+                        icon:SetAttribute("unit", nil)
                     end
                 else
-                    if icon._lastSpell ~= nil then
+                    if icon._lastItem ~= nil or icon._lastSpell ~= nil or icon._lastSlot ~= nil then
+                        icon._lastItem = nil
                         icon._lastSpell = nil
+                        icon._lastSlot = nil
+                        icon:SetAttribute("type", nil)
+                        icon:SetAttribute("item", nil)
+                        icon:SetAttribute("spell", nil)
+                        icon:SetAttribute("target-slot", nil)
+                        icon:SetAttribute("unit", nil)
+                    end
+                end
+            elseif db and db.clickToCast ~= false and not isTestMode and rec.entry then
+                local castSpell = sfui.buffs.data and sfui.buffs.data.GetBestCastSpell and
+                    sfui.buffs.data.GetBestCastSpell(rec.entry, rec.activeEnchant)
+                local targetSlot = (rec.entry.type == "weapon_enchant") and (rec.entry.slot or 16) or nil
+                if castSpell then
+                    if icon._lastSpell ~= castSpell or icon._lastSlot ~= targetSlot or icon._lastItem ~= nil then
+                        icon._lastSpell = castSpell
+                        icon._lastSlot = targetSlot
+                        icon._lastItem = nil
+                        icon:SetAttribute("type", "spell")
+                        icon:SetAttribute("spell", castSpell)
+                        icon:SetAttribute("item", nil)
+                        if targetSlot then
+                            icon:SetAttribute("target-slot", targetSlot)
+                            icon:SetAttribute("unit", nil)
+                        else
+                            icon:SetAttribute("target-slot", nil)
+                            icon:SetAttribute("unit", "player")
+                        end
+                    end
+                else
+                    if icon._lastSpell ~= nil or icon._lastSlot ~= nil or icon._lastItem ~= nil then
+                        icon._lastSpell = nil
+                        icon._lastSlot = nil
+                        icon._lastItem = nil
                         icon:SetAttribute("type", nil)
                         icon:SetAttribute("spell", nil)
+                        icon:SetAttribute("item", nil)
+                        icon:SetAttribute("target-slot", nil)
+                        icon:SetAttribute("unit", nil)
                     end
                 end
             else
-                if icon._lastSpell ~= nil then
+                if icon._lastSpell ~= nil or icon._lastSlot ~= nil or icon._lastItem ~= nil then
                     icon._lastSpell = nil
+                    icon._lastSlot = nil
+                    icon._lastItem = nil
                     icon:SetAttribute("type", nil)
                     icon:SetAttribute("spell", nil)
+                    icon:SetAttribute("item", nil)
+                    icon:SetAttribute("target-slot", nil)
+                    icon:SetAttribute("unit", nil)
                 end
             end
             icon:Show()
@@ -507,10 +676,15 @@ function sfui.buffs.UpdateDisplay()
     for i = numRecords + 1, #iconPool do
         if not inCombat then
             iconPool[i]:Hide()
-            if iconPool[i]._lastSpell ~= nil then
+            if iconPool[i]._lastSpell ~= nil or iconPool[i]._lastSlot ~= nil or iconPool[i]._lastItem ~= nil then
                 iconPool[i]._lastSpell = nil
+                iconPool[i]._lastSlot = nil
+                iconPool[i]._lastItem = nil
                 iconPool[i]:SetAttribute("type", nil)
                 iconPool[i]:SetAttribute("spell", nil)
+                iconPool[i]:SetAttribute("item", nil)
+                iconPool[i]:SetAttribute("target-slot", nil)
+                iconPool[i]:SetAttribute("unit", nil)
             end
         else
             iconPool[i]:SetAlpha(0)
@@ -522,7 +696,10 @@ function sfui.buffs.UpdateDisplay()
     -- Resize container frame to encompass the active icons
     local totalWidth = math.max(size, (numRecords * size) + (math.max(0, numRecords - 1) * spacing))
     f:SetSize(totalWidth, size)
-    f:Show()
+    f:SetAlpha(1.0)
+    if not InCombatLockdown() then
+        f:Show()
+    end
 
     -- Start or stop live countdown ticker via central dispatcher
     local hasExpiring = false
@@ -548,6 +725,8 @@ function sfui.buffs.ToggleLock()
     isUnlocked = not isUnlocked
 
     if isUnlocked then
+        f:SetAlpha(1.0)
+        if not InCombatLockdown() then f:Show() end
         f.dragOverlay:Show()
         sfui.common.print("buff reminders |cff00ff00unlocked|r: drag to move, then type |cffffd100/sfui buffs lock|r")
     else
@@ -559,7 +738,12 @@ function sfui.buffs.ToggleLock()
 end
 
 function sfui.buffs.ToggleTest()
+    local f = InitContainer()
     isTestMode = not isTestMode
+    if isTestMode then
+        f:SetAlpha(1.0)
+        if not InCombatLockdown() then f:Show() end
+    end
     sfui.common.print("buff reminders test mode: " .. (isTestMode and "|cff00ff00enabled|r" or "|cffff4444disabled|r"))
     sfui.buffs.UpdateDisplay()
 end
@@ -599,7 +783,21 @@ local function InitBuffReminders()
             enabled = true,
             iconSize = DEFAULT_SIZE,
             spacing = DEFAULT_SPACING,
+            shamanImbueMH = "auto",
+            shamanImbueOH = "auto",
         }
+        if SfuiDB.buffReminders.shamanImbueMH == nil then
+            SfuiDB.buffReminders.shamanImbueMH = "auto"
+        end
+        if SfuiDB.buffReminders.shamanImbueOH == nil then
+            SfuiDB.buffReminders.shamanImbueOH = "auto"
+        end
+        if SfuiDB.buffReminders.trackMinerals == nil then
+            SfuiDB.buffReminders.trackMinerals = true
+        end
+        if SfuiDB.buffReminders.trackHerbs == nil then
+            SfuiDB.buffReminders.trackHerbs = true
+        end
     end
 
     InitContainer()
@@ -622,6 +820,7 @@ function sfui.buffs_debug_info()
     _buffsDebug.enabled = (SfuiDB and SfuiDB.buffReminders and SfuiDB.buffReminders.enabled ~= false) or false
     _buffsDebug.containerCreated = (container ~= nil)
     _buffsDebug.containerShown = (container ~= nil and container:IsShown() == true)
+    _buffsDebug.containerAlpha = (container ~= nil and container:GetAlpha()) or 0
     _buffsDebug.iconPool = #iconPool
     _buffsDebug.activeIcons = (container and container.activeIconCount) or 0
     _buffsDebug.activeResults = (sInfo and sInfo.activeResults) or 0

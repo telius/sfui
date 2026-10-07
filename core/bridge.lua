@@ -300,6 +300,10 @@ function sfui.gear.GetClassicRole(specID, db)
         elseif r == "dps" or r == "damager" then
             if numID == 14892 or specID == 263 then return "enh" else return "ele" end
         end
+        local playerLvl = (UnitLevel and UnitLevel("player")) or 1
+        if playerLvl < 10 and (numID == 1489 or numID == 14891) then
+            return "enh"
+        end
         return (numID == 14893 and "resto") or (numID == 14892 and "enh") or "ele"
     elseif classID == 1487 or (numID >= 14871 and numID <= 14873) then -- Priest: disc holy shad
         if r == "disc" or r == "holy" or r == "shad" or r == "shadow" then

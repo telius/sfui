@@ -1437,7 +1437,9 @@ end
 
 function sfui.trackedbars.initialize()
     if container then return end
-    sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
+    if sfui.isRetail and not sfui.common.is_addon_loaded("Blizzard_CooldownViewer") then
+        sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
+    end
     container = CreateFrame("Frame", "SfuiTrackedBarsContainer", UIParent)
     local cfg = sfui.config.trackedBars
     container:SetSize(cfg.width, cfg.height)

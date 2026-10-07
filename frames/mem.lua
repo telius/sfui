@@ -722,6 +722,21 @@ function sfui.mem.GetModuleStats()
             targetMod.line2 = string_format("target exists: %s", tg.hasTarget and "yes" or "no")
         end
         stats["target"] = targetMod
+
+        -- Totem Bar Module (Camelot / Classic)
+        local totemMod = {
+            name = "totem bar",
+            status = "|cff888888idle|r",
+            line1 = "active totems: 0",
+            line2 = "state: locked",
+        }
+        local tot = GetDebug("totembar_debug_info", "totembar")
+        if tot then
+            totemMod.status = (tot.activeTotems and tot.activeTotems > 0) and "|cff00ff88active|r" or (tot.enabled and "|cff888888idle|r" or "|cffff4444disabled|r")
+            totemMod.line1 = string_format("active totems: %d", tonumber(tot.activeTotems) or 0)
+            totemMod.line2 = string_format("frame: %s • state: %s", tot.frameCreated and "ready" or "none", tot.isUnlocked and "unlocked" or "locked")
+        end
+        stats["totembar"] = totemMod
     end
 
     return stats
@@ -984,7 +999,7 @@ local MODULE_SECTIONS = {
     {
         title = "bars & combat",
         modules = sfui.isRetail and { "bars", "castbars", "vehicle", "soulfragments", "experience" }
-                                 or { "bars", "threat", "target", "swing", "castbars", "vehicle", "experience" },
+                                 or { "bars", "threat", "target", "swing", "totembar", "castbars", "vehicle", "experience" },
     },
     {
         title = "tracking & cooldowns",

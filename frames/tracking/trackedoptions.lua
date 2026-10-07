@@ -363,7 +363,9 @@ function sfui.trackedoptions.toggle_viewer()
             -- Default to Assignments tab
             select_tab(frame, 1)
 
-            sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
+            if sfui.isRetail and not sfui.common.is_addon_loaded("Blizzard_CooldownViewer") then
+                sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
+            end
         end)
         frame:Show()
     else
@@ -1400,7 +1402,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     PSlider(s2c, "Columns", "columns", 1, 20, 1, 155, s2y, 140)
     s2y = s2y - 48
 
-    PCheck(s2c, "Span Width", "spanWidth", "Auto-scale icons to fill the target frame width.", 0, s2y)
+    PCheck(s2c, "Span Width", "spanWidth", "Auto-scale icons to fill the target frame width (only active with 4 or more icons).", 0, s2y)
     s2y = s2y - 35
 
     local lG = s2c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")

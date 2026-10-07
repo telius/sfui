@@ -14,6 +14,7 @@ local GetBindingKey = _G.GetBindingKey
 -- ────────────────────────────────────────────────────────────────────────────
 BINDING_HEADER_SFUI = "SFUI"
 _G["BINDING_NAME_CLICK SfuiHammerPopup:LeftButton"] = "master's hammer repair"
+_G["BINDING_NAME_CLICK SfuiTotemSequenceBtn:LeftButton"] = "cast selected totems (sequence)"
 _G["BINDING_NAME_SFUI_MATCHMOUNT"] = "match target mount"
 _G["BINDING_NAME_SFUI_PORTALS"] = "portals"
 _G["BINDING_NAME_SFUI_ALTS"] = "alts / warband"
@@ -87,11 +88,19 @@ SlashCmdList["SFUI"] = function(msg)
         if sfui.mem and sfui.mem.HandleSlash then
             sfui.mem.HandleSlash((cmd == "gc" and "gc") or arg)
         end
+    elseif cmd == "totembar" or cmd == "totems" then
+        if not sfui.isRetail and sfui.totembar and sfui.totembar.ToggleUnlock then
+            sfui.totembar.ToggleUnlock()
+        end
     elseif cmd == "rl" or cmd == "reload" then
         C_UI.Reload()
     elseif cmd == "help" or cmd == "?" then
         if sfui.common and sfui.common.print then
-            sfui.common.print("commands: /sfui [tab] | /sfmem | /rl")
+            if sfui.isRetail then
+                sfui.common.print("commands: /sfui [tab] | /sfmem | /rl")
+            else
+                sfui.common.print("commands: /sfui [tab] | /sfmem | /rl | /totembar")
+            end
         end
     else
         -- If a tab name was specified (e.g. /sfui experience, /sfui bars, /sfui theme), open options directly to that tab
@@ -99,6 +108,17 @@ SlashCmdList["SFUI"] = function(msg)
             sfui.toggle_options_panel(cmd)
         elseif sfui.common and sfui.common.print then
             sfui.common.print("unknown command: /sfui " .. tostring(cmd) .. ". type /sfui for options.")
+        end
+    end
+end
+
+-- Totem Bar Unlock & Move (/totembar) (Vanilla / Camelot only)
+if not sfui.isRetail then
+    SLASH_SFUITOTEM1 = "/totembar"
+    SLASH_SFUITOTEM2 = "/sftotems"
+    SlashCmdList["SFUITOTEM"] = function()
+        if sfui.totembar and sfui.totembar.ToggleUnlock then
+            sfui.totembar.ToggleUnlock()
         end
     end
 end

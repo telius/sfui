@@ -36,6 +36,10 @@ sfui.options.RegisterTab({
             trackFood = false,
             trackFlask = false,
             trackWeaponOil = false,
+            trackMinerals = true,
+            trackHerbs = true,
+            shamanImbueMH = "auto",
+            shamanImbueOH = "auto",
             disabledBuffs = {},
         }
         SfuiDB.buffRemindersPos = SfuiDB.buffRemindersPos or {
@@ -276,9 +280,37 @@ sfui.options.RegisterTab({
         end, "reminds you when equipped weapons lack a sharpening stone, weightstone, or wizard/mana oil.")
         stone_cb:SetPoint("TOPLEFT", food_cb, "BOTTOMLEFT", 0, -8)
 
-        -- ── Section 5: Tracked Class Buffs ───────────────────────────────────
+        -- ── Section 5: Resource Tracking ─────────────────────────────────────
+        local track_header = p:CreateFontString(nil, "OVERLAY", g.font)
+        track_header:SetPoint("TOPLEFT", stone_cb, "BOTTOMLEFT", 0, -SECTION_GAP)
+        track_header:SetTextColor(0, 1, 1, 1)
+        track_header:SetText("tracking spells (gathering)")
+
+        local min_cb = create_checkbox(p, "track \"find minerals\" (mining)", function()
+            return SfuiDB.buffReminders.trackMinerals ~= false
+        end, function(checked)
+            SfuiDB.buffReminders.trackMinerals = checked
+            if sfui.buffs and sfui.buffs.scan then
+                sfui.buffs.scan.RefreshSpellKnowledge()
+                sfui.buffs.scan.RequestScan()
+            end
+        end, "reminds you when 'find minerals' is not active (if mining is learned).")
+        min_cb:SetPoint("TOPLEFT", track_header, "BOTTOMLEFT", 0, -8)
+
+        local herb_cb = create_checkbox(p, "track \"find herbs\" (herbalism)", function()
+            return SfuiDB.buffReminders.trackHerbs ~= false
+        end, function(checked)
+            SfuiDB.buffReminders.trackHerbs = checked
+            if sfui.buffs and sfui.buffs.scan then
+                sfui.buffs.scan.RefreshSpellKnowledge()
+                sfui.buffs.scan.RequestScan()
+            end
+        end, "reminds you when 'find herbs' is not active (if herbalism is learned).")
+        herb_cb:SetPoint("LEFT", min_cb, "LEFT", COL_OFFSET_X, 0)
+
+        -- ── Section 6: Tracked Class Buffs ───────────────────────────────────
         local class_header = p:CreateFontString(nil, "OVERLAY", g.font)
-        class_header:SetPoint("TOPLEFT", stone_cb, "BOTTOMLEFT", 0, -SECTION_GAP)
+        class_header:SetPoint("TOPLEFT", min_cb, "BOTTOMLEFT", 0, -SECTION_GAP)
         class_header:SetTextColor(0, 1, 1, 1)
 
         local playerClass = sfui.buffs and sfui.buffs.playerClass or "CLASS"
@@ -308,6 +340,60 @@ sfui.options.RegisterTab({
 
             entry_cb:SetPoint("TOPLEFT", last_entry_anchor, "BOTTOMLEFT", 0, -8)
             last_entry_anchor = entry_cb
+        end
+
+        if playerClass == "SHAMAN" then
+            local shamanImbueOptions = {
+                { text = "auto (smart priority)", value = "auto" },
+                { text = "rockbiter weapon",      value = "rockbiter" },
+                { text = "flametongue weapon",    value = "flametongue" },
+                { text = "frostbrand weapon",     value = "frostbrand" },
+                { text = "windfury weapon",       value = "windfury" },
+                { text = "earthliving weapon",    value = "earthliving" },
+            }
+
+            local imbue_mh_label = p:CreateFontString(nil, "OVERLAY", g.font)
+            imbue_mh_label:SetPoint("TOPLEFT", last_entry_anchor, "BOTTOMLEFT", 0, -12)
+            imbue_mh_label:SetTextColor(white[1], white[2], white[3])
+            imbue_mh_label:SetText("preferred weapon imbue (main hand):")
+
+            local create_dropdown = common.create_dropdown
+            local curMH = (SfuiDB.buffReminders and SfuiDB.buffReminders.shamanImbueMH) or "auto"
+            local mh_dropdown = create_dropdown(p, 200, shamanImbueOptions, function(val)
+                SfuiDB.buffReminders = SfuiDB.buffReminders or {}
+                SfuiDB.buffReminders.shamanImbueMH = val
+                if sfui.buffs and sfui.buffs.scan then
+                    sfui.buffs.scan.RequestScan()
+                end
+                if sfui.buffs and sfui.buffs.UpdateDisplay then
+                    sfui.buffs.UpdateDisplay()
+                end
+            end, curMH, nil, 200)
+            mh_dropdown:SetPoint("TOPLEFT", imbue_mh_label, "BOTTOMLEFT", 0, -4)
+            mh_dropdown.tooltip = "selects the preferred weapon imbue to cast and remind for the main hand weapon."
+            last_entry_anchor = mh_dropdown
+
+            if not sfui.isCamelot and not sfui.isClassic then
+                local imbue_oh_label = p:CreateFontString(nil, "OVERLAY", g.font)
+                imbue_oh_label:SetPoint("TOPLEFT", mh_dropdown, "BOTTOMLEFT", 0, -10)
+                imbue_oh_label:SetTextColor(white[1], white[2], white[3])
+                imbue_oh_label:SetText("preferred weapon imbue (off hand):")
+
+                local curOH = (SfuiDB.buffReminders and SfuiDB.buffReminders.shamanImbueOH) or "auto"
+                local oh_dropdown = create_dropdown(p, 200, shamanImbueOptions, function(val)
+                    SfuiDB.buffReminders = SfuiDB.buffReminders or {}
+                    SfuiDB.buffReminders.shamanImbueOH = val
+                    if sfui.buffs and sfui.buffs.scan then
+                        sfui.buffs.scan.RequestScan()
+                    end
+                    if sfui.buffs and sfui.buffs.UpdateDisplay then
+                        sfui.buffs.UpdateDisplay()
+                    end
+                end, curOH, nil, 200)
+                oh_dropdown:SetPoint("TOPLEFT", imbue_oh_label, "BOTTOMLEFT", 0, -4)
+                oh_dropdown.tooltip = "selects the preferred weapon imbue to cast and remind for the off hand weapon."
+                last_entry_anchor = oh_dropdown
+            end
         end
 
         p:SetScript("OnShow", function()

@@ -511,7 +511,9 @@ local function RenderTrackedBarsRightSide(parent, width)
     local yPos = -25
 
     -- Ensure Blizzard_CooldownViewer is loaded so CooldownViewerSettings data provider is accessible
-    sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
+    if sfui.isRetail and not sfui.common.is_addon_loaded("Blizzard_CooldownViewer") then
+        sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
+    end
 
     local cat = (Enum and Enum.CooldownViewerCategory and Enum.CooldownViewerCategory.TrackedBar) or 3
     local list = {}

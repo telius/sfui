@@ -45,12 +45,42 @@ local function ResolveTexture(spellID, fallback)
 end
 sfui.buffs.data.ResolveTexture = ResolveTexture
 
+-- Helper to check if player knows a specific spell ID across all WoW clients and engines
+local function IsSpellActuallyKnown(targetSpellID)
+    if not targetSpellID or targetSpellID <= 0 then return false end
+    local talents = sfui.talents
+    if talents and talents._talentKnownResolver then
+        if talents._talentKnownResolver(targetSpellID) then return true end
+    end
+    local cBook = _G.C_SpellBook
+    local bank = (_G.Enum and _G.Enum.SpellBookSpellBank and _G.Enum.SpellBookSpellBank.Player) or 1
+    if cBook then
+        if cBook.IsSpellKnown and cBook.IsSpellKnown(targetSpellID, bank) then return true end
+        if cBook.IsSpellInSpellBook and cBook.IsSpellInSpellBook(targetSpellID, bank, false) then return true end
+        if cBook.IsSpellInSpellBook and cBook.IsSpellInSpellBook(targetSpellID, bank, true) then return true end
+        if cBook.IsSpellKnownOrInSpellBook and cBook.IsSpellKnownOrInSpellBook(targetSpellID, bank, true) then return true end
+        if cBook.FindSpellBookSlotForSpell and cBook.FindSpellBookSlotForSpell(targetSpellID, true, true, false, false) then return true end
+    end
+    local cSpell = _G.C_Spell
+    if cSpell then
+        if cSpell.IsSpellLearned and cSpell.IsSpellLearned(targetSpellID) then return true end
+        if cSpell.IsSpellKnown and cSpell.IsSpellKnown(targetSpellID) then return true end
+        if cSpell.IsSpellKnownOrOverridesKnown and cSpell.IsSpellKnownOrOverridesKnown(targetSpellID) then return true end
+    end
+    if _G.IsPlayerSpell and _G.IsPlayerSpell(targetSpellID) then return true end
+    local isKnownOrOverrides = _G.IsSpellKnownOrOverridesKnown
+    if isKnownOrOverrides and isKnownOrOverrides(targetSpellID) then return true end
+    if _G.IsSpellKnown and _G.IsSpellKnown(targetSpellID) then return true end
+    return false
+end
+sfui.buffs.data.IsSpellActuallyKnown = IsSpellActuallyKnown
+
 -- Helper to check if player knows any of the provided spell IDs
 local function IsAnySpellKnown(spellIDs)
     if not spellIDs then return false end
     for i = 1, #spellIDs do
         local id = spellIDs[i]
-        if (IsPlayerSpell and IsPlayerSpell(id)) or (IsSpellKnown and IsSpellKnown(id)) then
+        if IsSpellActuallyKnown(id) then
             return true, id
         end
     end
@@ -70,16 +100,167 @@ local function IsProtectionPaladin()
 end
 sfui.buffs.data.IsProtectionPaladin = IsProtectionPaladin
 
+local GetInventoryItemLink = _G.GetInventoryItemLink
+local select = _G.select
+
+local function GetItemEquipLoc(itemLink)
+    if not itemLink then return nil end
+    local common = sfui.common
+    if common and common.get_item_equip_loc then
+        local loc = common.get_item_equip_loc(itemLink)
+        if loc and loc ~= "" then return loc end
+    end
+    if common and common.get_item_instant_info then
+        local loc = select(4, common.get_item_instant_info(itemLink))
+        if loc and loc ~= "" then return loc end
+    end
+    if common and common.get_item_info then
+        local loc = select(9, common.get_item_info(itemLink))
+        if loc and loc ~= "" then return loc end
+    end
+    local cItem = _G.C_Item
+    local getInstant = (cItem and cItem.GetItemInfoInstant) or _G.GetItemInfoInstant
+    if getInstant then
+        local loc = select(4, getInstant(itemLink))
+        if loc and loc ~= "" then return loc end
+    end
+    local getInfo = (cItem and cItem.GetItemInfo) or _G.GetItemInfo
+    if getInfo then
+        local loc = select(9, getInfo(itemLink))
+        if loc and loc ~= "" then return loc end
+    end
+    return nil
+end
+sfui.buffs.data.GetItemEquipLoc = GetItemEquipLoc
+
+local SHAMAN_IMBUE_DATA = {
+    rockbiter = {
+        key = "rockbiter",
+        name = "Rockbiter Weapon",
+        displayName = "rockbiter",
+        ids = { 8017, 8018, 8019, 10399, 16314, 16315, 16316, 25479, 25485 },
+        icon = "Interface\\Icons\\Spell_Nature_RockBiter",
+    },
+    flametongue = {
+        key = "flametongue",
+        name = "Flametongue Weapon",
+        displayName = "flametongue",
+        ids = { 8024, 8027, 8030, 16339, 16341, 16342, 25489, 58785, 58789, 58790, 318038 },
+        icon = "Interface\\Icons\\Spell_Fire_FlameTounge",
+    },
+    frostbrand = {
+        key = "frostbrand",
+        name = "Frostbrand Weapon",
+        displayName = "frostbrand",
+        ids = { 8033, 8038, 10459, 16355, 16356, 25500, 58794, 58795, 58796, 196834 },
+        icon = "Interface\\Icons\\Spell_Frost_FrostBrand",
+    },
+    windfury = {
+        key = "windfury",
+        name = "Windfury Weapon",
+        displayName = "windfury",
+        ids = { 8232, 8235, 10486, 16362, 25505, 58801, 58803, 58804, 33757 },
+        icon = "Interface\\Icons\\Spell_Nature_Windfury",
+    },
+    earthliving = {
+        key = "earthliving",
+        name = "Earthliving Weapon",
+        displayName = "earthliving",
+        ids = { 51730, 51988, 51991, 51992, 51993, 51994, 382021 },
+        icon = "Interface\\Icons\\Spell_Shaman_EarthlivingWeapon",
+    },
+}
+sfui.buffs.data.SHAMAN_IMBUE_DATA = SHAMAN_IMBUE_DATA
+sfui.buffs.data.SHAMAN_IMBUE_KEYS = { "auto", "rockbiter", "flametongue", "frostbrand", "windfury", "earthliving" }
+
+local function GetHighestKnownRank(spellInfoTable)
+    if not spellInfoTable or not spellInfoTable.ids then return nil end
+    local ids = spellInfoTable.ids
+    for i = #ids, 1, -1 do
+        local id = ids[i]
+        if IsSpellActuallyKnown(id) then
+            local name = GetSpellInfo and GetSpellInfo(id)
+            if not name or name == "" then
+                name = spellInfoTable.name
+            end
+            local icon = ResolveTexture(id, spellInfoTable.icon)
+            return name, icon, id
+        end
+    end
+    return nil
+end
+sfui.buffs.data.GetHighestKnownRank = GetHighestKnownRank
+
+function sfui.buffs.data.GetBestShamanImbue(slot, activeEnchantName)
+    local cfg = SfuiDB and SfuiDB.buffReminders
+    local pref = (slot == 17) and (cfg and cfg.shamanImbueOH) or (cfg and cfg.shamanImbueMH)
+
+    -- 1. Explicit user preference
+    if pref and pref ~= "auto" and SHAMAN_IMBUE_DATA[pref] then
+        local name, icon, id = GetHighestKnownRank(SHAMAN_IMBUE_DATA[pref])
+        if name then return name, icon, id end
+    end
+
+    -- 2. If an enchant is currently active/expiring on the weapon, match it!
+    if not activeEnchantName and sfui.buffs.scan and sfui.buffs.scan.GetActiveWeaponEnchantName then
+        activeEnchantName = sfui.buffs.scan.GetActiveWeaponEnchantName(slot or 16)
+    end
+
+    if activeEnchantName then
+        local lowerActive = activeEnchantName:lower()
+        for key, info in pairs(SHAMAN_IMBUE_DATA) do
+            if lowerActive:find(key, 1, true) then
+                local name, icon, id = GetHighestKnownRank(info)
+                if name then
+                    return name, icon, id
+                else
+                    return info.name, info.icon, info.ids[1]
+                end
+            end
+        end
+    end
+
+    -- 3. Automatic detection:
+    -- If 2-Handed weapon equipped in MH: prefer Windfury > Rockbiter
+    local itemLink = GetInventoryItemLink and GetInventoryItemLink("player", slot or 16)
+    local equipLoc = itemLink and GetItemEquipLoc(itemLink)
+    if equipLoc == "INVTYPE_2HWEAPON" then
+        local wfName, wfIcon, wfId = GetHighestKnownRank(SHAMAN_IMBUE_DATA.windfury)
+        if wfName then return wfName, wfIcon, wfId end
+        local rbName, rbIcon, rbId = GetHighestKnownRank(SHAMAN_IMBUE_DATA.rockbiter)
+        if rbName then return rbName, rbIcon, rbId end
+    end
+
+    -- 4. General priority: Windfury > Flametongue > Rockbiter > Frostbrand > Earthliving
+    -- Low-level characters who only know Rockbiter will cleanly resolve Rockbiter!
+    local order = { "windfury", "flametongue", "rockbiter", "frostbrand", "earthliving" }
+    for i = 1, #order do
+        local key = order[i]
+        local name, icon, id = GetHighestKnownRank(SHAMAN_IMBUE_DATA[key])
+        if name then return name, icon, id end
+    end
+
+    return "Rockbiter Weapon", "Interface\\Icons\\Spell_Nature_RockBiter", 8017
+end
+
 --- Determines the best spell name to cast for click-to-cast
 --- @param entry table
---- @return string|nil
-local function GetBestCastSpell(entry)
+--- @param activeEnchantName string|nil
+--- @return string|nil, string|nil, number|nil
+local function GetBestCastSpell(entry, activeEnchantName)
     if not entry then return nil end
     if entry.castSpell then
         if type(entry.castSpell) == "function" then
-            return entry.castSpell(entry)
+            return entry.castSpell(entry, activeEnchantName)
         elseif type(entry.castSpell) == "string" then
-            return entry.castSpell
+            return entry.castSpell, entry.fallbackIcon, nil
+        end
+    end
+
+    if playerClass == "SHAMAN" and (entry.key == "weapon_mh" or entry.key == "weapon_oh") then
+        local spellName, spellIcon, spellID = sfui.buffs.data.GetBestShamanImbue(entry.slot or 16, activeEnchantName)
+        if spellName then
+            return spellName, spellIcon, spellID
         end
     end
 
@@ -87,19 +268,18 @@ local function GetBestCastSpell(entry)
         -- Search in reverse to find highest known rank
         for i = #entry.spellIDs, 1, -1 do
             local id = entry.spellIDs[i]
-            if (IsPlayerSpell and IsPlayerSpell(id)) or (IsSpellKnown and IsSpellKnown(id)) then
-                if GetSpellInfo then
-                    local name = GetSpellInfo(id)
-                    if name and name ~= "" then
-                        return name
-                    end
+            if IsSpellActuallyKnown(id) then
+                local name = GetSpellInfo and GetSpellInfo(id)
+                if name and name ~= "" then
+                    local icon = ResolveTexture(id, entry.fallbackIcon)
+                    return name, icon, id
                 end
             end
         end
     end
 
     if entry.names and #entry.names > 0 then
-        return entry.names[1]
+        return entry.names[1], entry.fallbackIcon, nil
     end
 
     return nil
@@ -321,8 +501,28 @@ local CLASS_BUFFS = {
             type = "weapon_enchant",
             slot = 16,
             threshold = 300,
-            spellIDs = { 8017, 8024, 8033, 8232 }, -- Rockbiter, Flametongue, Frostbrand, Windfury
-            fallbackIcon = "Interface\\Icons\\Spell_Nature_Cyclone",
+            spellIDs = {
+                -- Rockbiter Weapon (Ranks 1 - 9)
+                8017, 8018, 8019, 10399, 16314, 16315, 16316, 25479, 25485,
+                -- Flametongue Weapon (Ranks 1 - 10 + Retail)
+                8024, 8027, 8030, 16339, 16341, 16342, 25489, 58785, 58789, 58790, 318038,
+                -- Frostbrand Weapon (Ranks 1 - 9 + Retail)
+                8033, 8038, 10459, 16355, 16356, 25500, 58794, 58795, 58796, 196834,
+                -- Windfury Weapon (Ranks 1 - 8 + Retail)
+                8232, 8235, 10486, 16362, 25505, 58801, 58803, 58804, 33757,
+                -- Earthliving Weapon (Ranks 1 - 6 + Retail)
+                51730, 51988, 51991, 51992, 51993, 51994, 382021,
+            },
+            names = {
+                "Rockbiter Weapon", "Flametongue Weapon", "Frostbrand Weapon", "Windfury Weapon", "Earthliving Weapon"
+            },
+            fallbackIcon = "Interface\\Icons\\Spell_Nature_RockBiter",
+            isKnownCheck = function(entry)
+                if playerClass == "SHAMAN" and (sfui.isCamelot or sfui.isClassic) then
+                    return true
+                end
+                return IsAnySpellKnown(entry.spellIDs)
+            end,
         },
         {
             key = "weapon_oh",
@@ -330,8 +530,28 @@ local CLASS_BUFFS = {
             type = "weapon_enchant",
             slot = 17,
             threshold = 300,
-            spellIDs = { 8017, 8024, 8033, 8232 },
-            fallbackIcon = "Interface\\Icons\\Spell_Nature_Cyclone",
+            spellIDs = {
+                -- Rockbiter Weapon (Ranks 1 - 9)
+                8017, 8018, 8019, 10399, 16314, 16315, 16316, 25479, 25485,
+                -- Flametongue Weapon (Ranks 1 - 10 + Retail)
+                8024, 8027, 8030, 16339, 16341, 16342, 25489, 58785, 58789, 58790, 318038,
+                -- Frostbrand Weapon (Ranks 1 - 9 + Retail)
+                8033, 8038, 10459, 16355, 16356, 25500, 58794, 58795, 58796, 196834,
+                -- Windfury Weapon (Ranks 1 - 8 + Retail)
+                8232, 8235, 10486, 16362, 25505, 58801, 58803, 58804, 33757,
+                -- Earthliving Weapon (Ranks 1 - 6 + Retail)
+                51730, 51988, 51991, 51992, 51993, 51994, 382021,
+            },
+            names = {
+                "Rockbiter Weapon", "Flametongue Weapon", "Frostbrand Weapon", "Windfury Weapon", "Earthliving Weapon"
+            },
+            fallbackIcon = "Interface\\Icons\\Spell_Nature_RockBiter",
+            isKnownCheck = function(entry)
+                if sfui.isCamelot or sfui.isClassic then
+                    return false
+                end
+                return IsAnySpellKnown(entry.spellIDs)
+            end,
         },
     },
 
@@ -423,13 +643,90 @@ local CLASS_BUFFS = {
 
 sfui.buffs.data.CLASS_BUFFS = CLASS_BUFFS
 
+local function IsTrackingLearned(spellID, spellName)
+    if IsSpellActuallyKnown(spellID) then
+        return true
+    end
+    local targetLower = spellName and string.lower(spellName)
+    local cMinimap = _G.C_Minimap
+    if cMinimap and cMinimap.GetNumTrackingTypes and cMinimap.GetTrackingInfo then
+        local count = cMinimap.GetNumTrackingTypes() or 0
+        for i = 1, count do
+            local info = cMinimap.GetTrackingInfo(i)
+            if info then
+                if spellID and info.spellID and info.spellID == spellID then
+                    return true
+                end
+                if targetLower and info.name and string.lower(info.name) == targetLower then
+                    return true
+                end
+            end
+        end
+    elseif _G.GetNumTrackingTypes and _G.GetTrackingInfo then
+        local count = _G.GetNumTrackingTypes() or 0
+        for i = 1, count do
+            local tName = _G.GetTrackingInfo(i)
+            if targetLower and tName and string.lower(tName) == targetLower then
+                return true
+            end
+        end
+    end
+    return false
+end
+sfui.buffs.data.IsTrackingLearned = IsTrackingLearned
+
+local TRACKING_SPELLS = {
+    minerals = {
+        key = "tracking_minerals",
+        name = "find minerals",
+        displayName = "minerals",
+        type = "tracking",
+        spellIDs = { 2580 },
+        names = { "Find Minerals" },
+        fallbackIcon = "Interface\\Icons\\Spell_Nature_Earthquake",
+        isTracking = true,
+        isKnownCheck = function()
+            return IsTrackingLearned(2580, "Find Minerals")
+        end,
+    },
+    herbs = {
+        key = "tracking_herbs",
+        name = "find herbs",
+        displayName = "herbs",
+        type = "tracking",
+        spellIDs = { 2383 },
+        names = { "Find Herbs" },
+        fallbackIcon = "Interface\\Icons\\Spell_Nature_NatureTouchGrow",
+        isTracking = true,
+        isKnownCheck = function()
+            return IsTrackingLearned(2383, "Find Herbs")
+        end,
+    },
+}
+sfui.buffs.data.TRACKING_SPELLS = TRACKING_SPELLS
+
+function sfui.buffs.data.GetActiveTrackingEntries()
+    local cfg = SfuiDB and SfuiDB.buffReminders
+    local entries = {}
+    local trackMin = not cfg or (cfg.trackMinerals ~= false)
+    local trackHerb = not cfg or (cfg.trackHerbs ~= false)
+
+    if trackMin and IsTrackingLearned(2580, "Find Minerals") then
+        entries[#entries + 1] = TRACKING_SPELLS.minerals
+    end
+    if trackHerb and IsTrackingLearned(2383, "Find Herbs") then
+        entries[#entries + 1] = TRACKING_SPELLS.herbs
+    end
+    return entries
+end
+
 --- Returns the buff entries configured for the active player's class
 --- @return table
 function sfui.buffs.data.GetClassEntries()
     return CLASS_BUFFS[playerClass] or {}
 end
 
---- Returns combined list of class buffs and enabled consumables
+--- Returns combined list of class buffs, enabled consumables, and tracking spells
 --- @return table
 function sfui.buffs.data.GetAllEntries()
     local result = {}
@@ -443,6 +740,11 @@ function sfui.buffs.data.GetAllEntries()
         for i = 1, #consumablesList do
             result[#result + 1] = consumablesList[i]
         end
+    end
+
+    local trackingList = sfui.buffs.data.GetActiveTrackingEntries()
+    for i = 1, #trackingList do
+        result[#result + 1] = trackingList[i]
     end
 
     return result

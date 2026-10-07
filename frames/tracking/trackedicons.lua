@@ -1052,10 +1052,10 @@ function sfui.trackedicons.OnVisibilityEvent(_, event)
     end
 end
 
--- Helper: Apply Auto-Span Logic to fit width
+-- Helper: Apply Auto-Span Logic to fit width (only active from 4 or more icons)
 local function ApplyAutoSpan(panelConfig, activeIcons, size, spacing, numColumns, growthH, targetFrame)
     local spanWidth = GetIconValue(nil, panelConfig, "spanWidth", false)
-    if spanWidth and #activeIcons > 0 then
+    if spanWidth and activeIcons and #activeIcons >= 4 then
         local targetWidth = (sfui.config and sfui.config.healthBar and sfui.config.healthBar.width) or 300
         if targetFrame and targetFrame ~= UIParent and targetFrame.GetWidth then
             targetWidth = targetFrame:GetWidth()
@@ -1064,7 +1064,7 @@ local function ApplyAutoSpan(panelConfig, activeIcons, size, spacing, numColumns
         end
 
         local iconsPerRow = math.min(numColumns, #activeIcons)
-        if iconsPerRow <= 0 then return size, spacing end
+        if iconsPerRow < 4 then return size, spacing end
 
         -- Calculate current width with configured size/spacing
         local currentWidth = (iconsPerRow * size) + (math.max(0, iconsPerRow - 1) * spacing)
@@ -1470,8 +1470,10 @@ function sfui.trackedicons.Update(event)
 end
 
 function sfui.trackedicons.initialize()
-    -- Ensure Blizzard addon is loaded
-    sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
+    -- Ensure Blizzard addon is loaded (Retail only; on Classic/Forever it is handled natively via OptionalDeps)
+    if sfui.isRetail and not sfui.common.is_addon_loaded("Blizzard_CooldownViewer") then
+        sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
+    end
 
     -- Hide Blizzard Cooldown Frames
     sfui.common.hide_blizzard_cooldown_viewers()

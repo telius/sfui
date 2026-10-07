@@ -167,6 +167,7 @@ sfui.options.RegisterTab({
         local ufEntriesCol1 = {
             { key = "hide_player_frame", label = "hide player frame", tooltip = "hides the default blizzard player frame." },
             { key = "hide_target_frame", label = "hide target frame", tooltip = "hides the default blizzard target frame." },
+            { key = "hide_totem_bar",    label = "hide totem bar",    tooltip = "hides the default blizzard totem bar and totem frame." },
             { key = "hide_micromenu",    label = "hide game menu",    tooltip = "hides the default blizzard game menu (micro menu)." },
         }
 
@@ -237,6 +238,6 @@ sfui.options.RegisterTab({
         )
         err_cb:SetPoint("TOPLEFT", err_desc, "BOTTOMLEFT", 0, -10)
 
-        panel.customContentHeight = 720
+        panel.customContentHeight = 750
     end,
 })

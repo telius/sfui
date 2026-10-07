@@ -1,7 +1,7 @@
 ## Interface: 120100, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v12.1.0-80
+## Version: v12.1.0-81
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -10,7 +10,7 @@
 ## X-Project-Name: sfui
 ## LoadSavedVariablesFirst: 1
 ## SavedVariables: SfuiDB
-## OptionalDeps: Blizzard_ObjectiveTracker, Masque, LibStub, CallbackHandler-1.0, LibCustomGlow-1.0, LibSharedMedia-3.0, LibDataBroker-1.1, LibDBIcon-1.0
+## OptionalDeps: Blizzard_CooldownViewer, Blizzard_ObjectiveTracker, Masque, LibStub, CallbackHandler-1.0, LibCustomGlow-1.0, LibSharedMedia-3.0, LibDataBroker-1.1, LibDBIcon-1.0
 ## IconTexture: Interface/AddOns/sfui/icon.png
 
 Libs/LibStub/LibStub.lua
@@ -84,6 +84,7 @@ frames/automation/minimap.lua
 frames/automation/pets.lua
 frames/automation/rankup.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/automation/transfer.lua [AllowLoadGameType standard]
+frames/automation/triage.lua
 
 frames/bars/bars.lua
 frames/bars/swing.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
@@ -92,6 +93,7 @@ frames/bars/vehicle.lua
 frames/bars/soulfragments.lua [AllowLoadGameType standard]
 frames/bars/target.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/bars/threat.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/bars/totembar.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/experience/data.lua
 frames/experience/floating.lua
 frames/experience/bar.lua

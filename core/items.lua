@@ -187,6 +187,19 @@ function sfui.items.get_item_info(item)
 end
 sfui.common.get_item_info = sfui.items.get_item_info
 
+function sfui.items.get_item_equip_loc(item)
+    if not item then return end
+    if C_Item_GetItemInfoInstant then
+        local equipLoc = select(4, C_Item_GetItemInfoInstant(item))
+        if equipLoc and equipLoc ~= "" then return equipLoc end
+    end
+    if C_Item_GetItemInfo then
+        local equipLoc = select(9, C_Item_GetItemInfo(item))
+        if equipLoc and equipLoc ~= "" then return equipLoc end
+    end
+end
+sfui.common.get_item_equip_loc = sfui.items.get_item_equip_loc
+
 local itemStatsCache = {}
 local itemStatsCacheCount = 0
 local ITEM_STATS_CACHE_MAX = 500

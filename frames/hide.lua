@@ -44,6 +44,7 @@ local table_insert       = table.insert
 local math_min           = math.min
 local math_max           = math.max
 local math_abs           = math.abs
+local hooksecurefunc     = _G.hooksecurefunc
 
 -- Action Bar Configurations (Mouseover Fading)
 local BARS               = {
@@ -68,6 +69,7 @@ local HIDE_FRAMES        = {
     { key = "hide_focus_frame",  name = "FocusFrame",         unit = "focus",                                        label = "Focus Frame" },
     { key = "hide_micromenu",    name = "MicroMenuContainer", altNames = { "MicroMenu", "MainMenuBarMicroButtons" }, label = "Game Menu (Micro Menu)" },
     { key = "hide_bagsbar",      name = "BagsBar",            altNames = { "MainMenuBarBagButtons" },                label = "Bags Bar" },
+    { key = "hide_totem_bar",    name = "TotemFrame",         altNames = { "MultiCastActionBarFrame", "TotemBar" },  label = "Totem Bar",                   noAutoShow = true },
 }
 
 local defaults           = {
@@ -94,6 +96,7 @@ local defaults           = {
     hide_focus_frame             = false,
     hide_micromenu               = false,
     hide_bagsbar                 = false,
+    hide_totem_bar               = false,
     hide_cooldown_errors         = true,
 }
 
@@ -286,7 +289,13 @@ local function ApplyUnitFrame(entry)
                 pcall(frame.EnableMouse, frame, false)
             end
 
-            if not InCombatLockdown() and frame:IsShown() then
+            if frame.totemPool and frame.totemPool.EnumerateActive then
+                for button in frame.totemPool:EnumerateActive() do
+                    pcall(button.EnableMouse, button, false)
+                end
+            end
+
+            if not isProtected and not InCombatLockdown() and frame:IsShown() then
                 frame:Hide()
             end
         else
@@ -296,18 +305,28 @@ local function ApplyUnitFrame(entry)
                 pcall(frame.EnableMouse, frame, true)
             end
 
-            if not InCombatLockdown() and not frame:IsShown() then
-                if entry.unit == "player" or (entry.unit and UnitExists(entry.unit)) or not entry.unit then
-                    frame:Show()
+            if frame.totemPool and frame.totemPool.EnumerateActive then
+                for button in frame.totemPool:EnumerateActive() do
+                    pcall(button.EnableMouse, button, true)
+                end
+            end
+
+            if not isProtected and not InCombatLockdown() then
+                if entry.noAutoShow then
+                    if frame.UpdateShownState then
+                        pcall(frame.UpdateShownState, frame)
+                    elseif frame.Update then
+                        pcall(frame.Update, frame)
+                    elseif _G.MultiCastActionBarFrame_Update and frame == _G.MultiCastActionBarFrame then
+                        pcall(_G.MultiCastActionBarFrame_Update, frame)
+                    end
+                elseif not frame:IsShown() then
+                    if entry.unit == "player" or (entry.unit and UnitExists(entry.unit)) or not entry.unit then
+                        frame:Show()
+                    end
                 end
             end
         end
-    end
-end
-
-function sfui.hide.ApplyAllUnitFrames()
-    for _, entry in ipairs(HIDE_FRAMES) do
-        ApplyUnitFrame(entry)
     end
 end
 
@@ -320,16 +339,68 @@ local function HookUnitFrames()
                 frame:HookScript("OnShow", function(self)
                     if SfuiDB and SfuiDB[entry.key] == true then
                         self:SetAlpha(0)
-                        if not (self.IsProtected and self:IsProtected()) and self.EnableMouse then
+                        local isProtected = self.IsProtected and self:IsProtected()
+                        if not isProtected and self.EnableMouse then
                             pcall(self.EnableMouse, self, false)
                         end
-                        if not InCombatLockdown() then
+                        if self.totemPool and self.totemPool.EnumerateActive then
+                            for button in self.totemPool:EnumerateActive() do
+                                pcall(button.EnableMouse, button, false)
+                            end
+                        end
+                        if not isProtected and not InCombatLockdown() then
                             self:Hide()
                         end
                     end
                 end)
             end
         end
+    end
+
+    if hooksecurefunc then
+        if _G.TotemFrame and _G.TotemFrame.Update and not _G.TotemFrame._sfuiUpdateHooked then
+            _G.TotemFrame._sfuiUpdateHooked = true
+            hooksecurefunc(_G.TotemFrame, "Update", function(self)
+                if SfuiDB and SfuiDB.hide_totem_bar then
+                    self:SetAlpha(0)
+                    local isProtected = self.IsProtected and self:IsProtected()
+                    if not isProtected and self.EnableMouse then
+                        pcall(self.EnableMouse, self, false)
+                    end
+                    if self.totemPool and self.totemPool.EnumerateActive then
+                        for button in self.totemPool:EnumerateActive() do
+                            pcall(button.EnableMouse, button, false)
+                        end
+                    end
+                    if not isProtected and not InCombatLockdown() then
+                        self:Hide()
+                    end
+                end
+            end)
+        end
+
+        if _G.MultiCastActionBarFrame_Update and not _G._sfuiMultiCastUpdateHooked then
+            _G._sfuiMultiCastUpdateHooked = true
+            hooksecurefunc("MultiCastActionBarFrame_Update", function(self)
+                if SfuiDB and SfuiDB.hide_totem_bar and self then
+                    self:SetAlpha(0)
+                    local isProtected = self.IsProtected and self:IsProtected()
+                    if not isProtected and self.EnableMouse then
+                        pcall(self.EnableMouse, self, false)
+                    end
+                    if not isProtected and not InCombatLockdown() then
+                        self:Hide()
+                    end
+                end
+            end)
+        end
+    end
+end
+
+function sfui.hide.ApplyAllUnitFrames()
+    HookUnitFrames()
+    for _, entry in ipairs(HIDE_FRAMES) do
+        ApplyUnitFrame(entry)
     end
 end
 

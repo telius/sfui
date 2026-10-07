@@ -647,7 +647,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
                     armor = rule.armor,
                     stat = isEle and 4 or 1,
                     weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true },
-                    allowedWeapons = isEle and WEAPONS_SHAMAN_CASTER or WEAPONS_SHAMAN_ENH,
+                    allowedWeapons = rule.allowedWeapons,
                 }
             end
         end
@@ -980,7 +980,7 @@ function sfui.highest.GetBestItems(isPvP)
                     armor = rule.armor,
                     stat = isEle and 4 or 1,
                     weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true },
-                    allowedWeapons = isEle and WEAPONS_SHAMAN_CASTER or WEAPONS_SHAMAN_ENH,
+                    allowedWeapons = rule.allowedWeapons,
                 }
             end
         end
@@ -1097,6 +1097,7 @@ function sfui.highest.GetBestItems(isPvP)
         itemData.bag            = bag
         itemData.slot           = slot
         itemData.score          = nil
+        itemData.statScore      = 0
         itemData.isEmbellished  = HasEmbellishment(itemData)
         itemData.isLockedItem   = isLockedItem
         itemData.isTier         = nil
@@ -1373,7 +1374,12 @@ function sfui.highest.GetBestItems(isPvP)
                                 if slotID == 18 then
                                     dpsWeight = 25 -- Wand DPS is very valuable for leveling casters
                                 else
-                                    dpsWeight = 5 -- Caster melee weapon
+                                    local playerLvl = isClassicSpec and (UnitLevel("player") or 1) or 99
+                                    if isClassicSpec and playerLvl < 20 and (classID == 1489 or classID == 1484 or classID == 1486) then
+                                        dpsWeight = 40 -- In Classic, wandless hybrid casters (Shaman/Druid/Paladin) melee aggressively at low level
+                                    else
+                                        dpsWeight = 5 -- Caster melee weapon
+                                    end
                                 end
                             else
                                 dpsWeight = 15
@@ -1381,8 +1387,8 @@ function sfui.highest.GetBestItems(isPvP)
 
                             score = score + (wDps * dpsWeight)
 
-                            -- Slower 2H weapons hit much harder for Ret Paladin & Arms Warrior (Seal of Command, Mortal Strike)
-                            if not isHeal and itm.is2H and wSpeed and wSpeed > 2.0 and (classID == 1486 or classID == 1491) then
+                            -- Slower 2H weapons hit much harder for Ret Paladin, Arms Warrior & Shaman (Windfury, Rockbiter, Seal of Command, Mortal Strike)
+                            if not isHeal and itm.is2H and wSpeed and wSpeed > 2.0 and (classID == 1486 or classID == 1491 or classID == 1489) then
                                 score = score + (wSpeed * 15)
                             end
 
@@ -1438,8 +1444,8 @@ function sfui.highest.GetBestItems(isPvP)
                             if sBlock and sBlock > 0 then
                                 score = score + (sBlock * 25.0)
                             end
-                            -- Shield baseline bonus: Value shields for tanks and any shield-proficient classes (Warrior, Paladin, Shaman)
-                            if isTank or (classID == 1491 or classID == 1486 or classID == 1489) then
+                            -- Shield baseline bonus: Value shields for tanks and healers
+                            if isTank or isHeal then
                                 score = score + 500
                             end
                         else
@@ -1480,6 +1486,7 @@ function sfui.highest.GetBestItems(isPvP)
 
                 -- Feature 2: Socket Valuation & Stat Priority
                 local itemStats = common.get_item_stats(itm.link)
+                local statScore = 0
                 if itemStats then
                     -- Prismatic socket bonus
                     if itemStats["EMPTY_SOCKET_PRISMATIC"] then
@@ -1559,13 +1566,16 @@ function sfui.highest.GetBestItems(isPvP)
                                         weight = pweights["Healing"]
                                     end
                                     if weight and weight > 0 then
-                                        score = score + (statAmount * weight)
+                                        local add = (statAmount * weight)
+                                        score = score + add
+                                        statScore = statScore + add
                                     end
                                 end
 
                                 -- Tertiary stat modifiers
                                 if statName == "ITEM_MOD_CR_LIFESTEAL_SHORT" or statName == "ITEM_MOD_CR_SPEED_SHORT" then
                                     score = score + statAmount
+                                    statScore = statScore + statAmount
                                 end
                             end
                         end
@@ -1597,13 +1607,16 @@ function sfui.highest.GetBestItems(isPvP)
                                     end
 
                                     if statWeights[mappedStatName] then
-                                        score = score + (statAmount * statWeights[mappedStatName])
+                                        local add = (statAmount * statWeights[mappedStatName])
+                                        score = score + add
+                                        statScore = statScore + add
                                     end
                                 end
 
                                 -- Tertiary stat modifiers
                                 if statName == "ITEM_MOD_CR_LIFESTEAL_SHORT" or statName == "ITEM_MOD_CR_SPEED_SHORT" then
                                     score = score + statAmount
+                                    statScore = statScore + statAmount
                                 end
                             end
                         end
@@ -1613,8 +1626,10 @@ function sfui.highest.GetBestItems(isPvP)
                     local mult = common.get_trinket_value_multiplier(itm.link, specID)
                     if mult and mult ~= 1.0 then
                         score = score * mult
+                        statScore = statScore * mult
                     end
                 end
+                itm.statScore = statScore
                 itm.score = score
             end
         end
@@ -1821,18 +1836,9 @@ function sfui.highest.GetBestItems(isPvP)
         local scoreDual = 0
 
         if isClassicSpec and not isTank and not isHeal and bestOH and not isDualWield then
-            -- For Classic physical DPS (Ret Paladin, Arms Warrior) considering 1H + Shield/Offhand vs 2H:
+            -- For Classic physical DPS (Ret Paladin, Arms Warrior, Enhancement/leveling Shaman) considering 1H + Shield/Offhand vs 2H:
             -- An off-hand shield or frill does not deal weapon damage; evaluate based purely on weapon DPS and stats on the items.
-            local ohQ = bestOH.quality or 1
-            local ohQBonus = (ohQ == 5 and 2500)
-                or (ohQ == 4 and 1200)
-                or (ohQ == 3 and 600)
-                or (ohQ == 2 and 250)
-                or (ohQ == 1 and 20)
-                or 0
-            local ohBase = (bestOH.ilvl * (isPvP and 20 or 10)) + ohQBonus
-            local ohStatScore = math.max(0, (bestOH.score or 0) - ohBase)
-
+            local ohStatScore = bestOH.statScore or 0
             scoreDual = (best1H and best1H.score or 0) + ohStatScore
             -- score2H is best2H.score (1 weapon base + 2H weapon DPS + 2H speed bonus + 2H stats)
             -- Both score2H and scoreDual now have exactly 1 weapon slot base, so weapon DPS and item stats decide naturally!

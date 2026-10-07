@@ -112,6 +112,55 @@ function sfui.api.GetAuraData(unit, index, filter)
     return nil
 end
 
+-- Fix Blizzard 1.60.1 / Camelot bug: Blizzard_FrameXMLUtil/AuraUtil.lua line 88 calls
+-- C_UnitAuras.GetAuraDataBySpellName via CallDataProviderMethod, but the 1.60.1 C-engine
+-- does not export GetAuraDataBySpellName, resulting in "attempt to call a nil value".
+if _G.AuraUtil and not (_G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataBySpellName) then
+    _G.AuraUtil.FindAuraByName = function(auraName, unit, filter)
+        if not auraName then return nil end
+        unit = unit or "player"
+        filter = filter or "HELPFUL"
+
+        if _G.AuraUtil.ForEachAura then
+            local foundAura = nil
+            _G.AuraUtil.ForEachAura(unit, filter, nil, function(auraData)
+                if auraData and (auraData.name == auraName or (auraData.name and auraData.name:lower() == auraName:lower())) then
+                    foundAura = auraData
+                    return true
+                end
+            end, true)
+            if foundAura then
+                return _G.AuraUtil.UnpackAuraData(foundAura)
+            end
+            return nil
+        end
+
+        if _G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex then
+            for i = 1, 40 do
+                local aura = _G.C_UnitAuras.GetAuraDataByIndex(unit, i, filter)
+                if not aura then break end
+                if aura.name == auraName or (aura.name and aura.name:lower() == auraName:lower()) then
+                    return _G.AuraUtil.UnpackAuraData(aura)
+                end
+            end
+        elseif _G.UnitAura then
+            for i = 1, 40 do
+                local name, icon, count, dispelType, duration, expTime, source, isStealable,
+                      nameplateShowPersonal, spellId, canApplyAura, isBossAura,
+                      isFromPlayerOrPlayerPet, nameplateShowAll, timeMod = _G.UnitAura(unit, i, filter)
+                if not name then break end
+                if name == auraName or (name:lower() == auraName:lower()) then
+                    return name, icon, count, dispelType, duration, expTime, source, isStealable,
+                           nameplateShowPersonal, spellId, canApplyAura, isBossAura,
+                           isFromPlayerOrPlayerPet, nameplateShowAll, timeMod
+                end
+            end
+        end
+
+        return nil
+    end
+end
+
 --- Returns spell name or nil.
 --- Cascades C_Spell.GetSpellName -> C_Spell.GetSpellInfo -> legacy GetSpellInfo.
 function sfui.api.GetSpellName(spellID)

@@ -31,6 +31,7 @@ local WEAPONS_ROGUE_ASSASSIN  = { [15] = true }  -- Assassination requires Dagge
 local WEAPONS_ROGUE_ALL       = { [0] = true, [4] = true, [7] = true, [13] = true, [15] = true }
 local WEAPONS_SHAMAN_CASTER   = { [0] = true, [1] = true, [4] = true, [5] = true, [10] = true, [13] = true, [15] = true }
 local WEAPONS_SHAMAN_ENH      = { [0] = true, [4] = true, [13] = true }  -- Enhancement cannot use daggers for Stormstrike
+local WEAPONS_SHAMAN_CLASSIC  = { [0] = true, [1] = true, [4] = true, [5] = true, [10] = true, [13] = true, [15] = true }
 local WEAPONS_WARLOCK         = { [7] = true, [10] = true, [15] = true, [19] = true }
 local WEAPONS_WARRIOR         = { [0] = true, [1] = true, [4] = true, [5] = true, [6] = true, [7] = true, [8] = true,
     [10] = true, [13] = true, [15] = true }
@@ -142,10 +143,10 @@ sfui.highest.classic_rules    = {
     [1487] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_PRIEST }, -- Priest
 
     -- Shaman (1489): Elemental, Enhancement, Restoration
-    [262]  = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CASTER }, -- Elemental
-    [263]  = { armor = 3, stat = 1, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CASTER }, -- Enhancement
-    [264]  = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CASTER }, -- Restoration
-    [1489] = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CASTER }, -- Shaman
+    [262]  = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Elemental
+    [263]  = { armor = 3, stat = 1, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Enhancement
+    [264]  = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Restoration
+    [1489] = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Shaman
 
     -- Mage (1482): Arcane, Fire, Frost (1H/OH/Staff + Wand Slot 18)
     [62]   = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_MAGE }, -- Arcane
@@ -195,9 +196,9 @@ sfui.highest.classic_rules    = {
     [14882] = { armor = 2, stat = 2, weaps = { ["1H_Dual"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_ROGUE_CLASSIC }, -- Combat
     [14883] = { armor = 2, stat = 2, weaps = { ["1H_Dual"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_ROGUE_CLASSIC }, -- Subtlety
     -- Shaman (1489)
-    [14891] = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CASTER }, -- Elemental (stat=4 Int)
-    [14892] = { armor = 3, stat = 1, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_ENH },    -- Enhancement (stat=1 Str)
-    [14893] = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CASTER }, -- Restoration (stat=4 Int)
+    [14891] = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Elemental (stat=4 Int)
+    [14892] = { armor = 3, stat = 1, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Enhancement (stat=1 Str)
+    [14893] = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Restoration (stat=4 Int)
     -- Warlock (1490)
     [14901] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARLOCK }, -- Affliction
     [14902] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARLOCK }, -- Demonology

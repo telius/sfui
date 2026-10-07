@@ -15,6 +15,7 @@ sfui.options.RegisterTab({
         local CreateFlatButton = common.create_flat_button
         local create_checkbox = common.create_checkbox
         local create_slider_input = common.create_slider_input
+        local create_dropdown = common.create_dropdown
         local white = sfui.config.colors.white
 
         local COL_OFFSET_X = 265
@@ -55,9 +56,69 @@ sfui.options.RegisterTab({
             last_general_anchor = auto_rankup_cb
         end
 
-        -- ── 2. Dungeons, Raids & Grouping ─────────────────────────────────────
+        -- ── 2. Bag Triage (Inventory Overflow) ────────────────────────────────
+        local triage_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
+        triage_header:SetPoint("TOPLEFT", last_general_anchor, "BOTTOMLEFT", 0, -SECTION_GAP)
+        triage_header:SetTextColor(white[1], white[2], white[3])
+        triage_header:SetText("bag triage & inventory overflow")
+
+        local triage_cb = create_checkbox(automation_panel, "enable bag triage", function()
+            return sfui.db.Get("triage", "enabled", true)
+        end, function(checked)
+            sfui.db.Set("triage", "enabled", checked)
+        end, "prompts to delete lowest-value grey junk (or food/water) when regular inventory space reaches the free slot threshold.")
+        triage_cb:SetPoint("TOPLEFT", triage_header, "BOTTOMLEFT", 0, -10)
+
+        local triage_consumable_cb = create_checkbox(automation_panel, "fallback to food/water", function()
+            return sfui.db.Get("triage", "checkConsumables", true)
+        end, function(checked)
+            sfui.db.Set("triage", "checkConsumables", checked)
+        end, "when no grey junk items exist in regular bags, evaluate low-value or outdated food/drink.")
+        triage_consumable_cb:SetPoint("LEFT", triage_cb, "LEFT", COL_OFFSET_X, 0)
+
+        local function GetTriageThresholdOptions()
+            return {
+                { text = "0 (bags full)", value = 0 },
+                { text = "1 free slot", value = 1 },
+                { text = "2 free slots", value = 2 },
+            }
+        end
+
+        local triage_thresh_label = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
+        triage_thresh_label:SetPoint("TOPLEFT", triage_cb, "BOTTOMLEFT", 0, -12)
+        triage_thresh_label:SetTextColor(white[1], white[2], white[3])
+        triage_thresh_label:SetText("trigger threshold:")
+
+        local curThreshold = sfui.db.Get("triage", "threshold", 1)
+        if curThreshold == nil then curThreshold = 1 end
+
+        local triage_thresh_dropdown = create_dropdown(automation_panel, 140, GetTriageThresholdOptions, function(val)
+            sfui.db.Set("triage", "threshold", tonumber(val) or 0)
+            if sfui.triage and sfui.triage.EvaluateTriage then
+                sfui.triage.EvaluateTriage()
+            end
+        end, tonumber(curThreshold) or 1)
+        triage_thresh_dropdown:SetPoint("LEFT", triage_thresh_label, "RIGHT", 6, 0)
+
+        local triage_sound_cb = create_checkbox(automation_panel, "sound alert on prompt", function()
+            return sfui.db.Get("triage", "soundAlert", true)
+        end, function(checked)
+            sfui.db.Set("triage", "soundAlert", checked)
+        end, "plays a subtle audio alert when a triage prompt is displayed.")
+        triage_sound_cb:SetPoint("LEFT", triage_thresh_label, "LEFT", COL_OFFSET_X, 0)
+
+        local test_triage_btn = CreateFlatButton(automation_panel, "test preview", 100, 20)
+        test_triage_btn:SetPoint("TOPLEFT", triage_thresh_label, "BOTTOMLEFT", 0, -12)
+        test_triage_btn:SetScript("OnClick", function(self)
+            if sfui.triage and sfui.triage.ToggleTestMode then
+                local active = sfui.triage.ToggleTestMode()
+                self:SetText(active and "|cff00ff00hide test|r" or "test preview")
+            end
+        end)
+
+        -- ── 3. Dungeons, Raids & Grouping ─────────────────────────────────────
         local dungeon_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
-        dungeon_header:SetPoint("TOPLEFT", last_general_anchor, "BOTTOMLEFT", 0, -SECTION_GAP)
+        dungeon_header:SetPoint("TOPLEFT", test_triage_btn, "BOTTOMLEFT", 0, -SECTION_GAP)
         dungeon_header:SetTextColor(white[1], white[2], white[3])
         dungeon_header:SetText("dungeons, raids & grouping")
 

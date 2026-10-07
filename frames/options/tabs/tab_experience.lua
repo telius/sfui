@@ -233,7 +233,7 @@ sfui.options.RegisterTab({
 
         local vis_dropdown = create_dropdown(exp_panel, 250, textVisOptions, function(val)
             sfui.db.Set("experience", "showText", val)
-        end, sfui.db.Get("experience", "showText", "ALWAYS"), nil, 250)
+        end, sfui.db.Get("experience", "showText", "MOUSEOVER"), nil, 250)
         vis_dropdown:SetPoint("TOPLEFT", vis_label, "BOTTOMLEFT", 0, -6)
 
         -- Text Format Dropdown

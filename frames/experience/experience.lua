@@ -14,6 +14,14 @@ local modDef = {
         if sfui.db and sfui.db.RegisterDefaults and sfui.config and sfui.config.experience then
             sfui.db.RegisterDefaults("experience", sfui.config.experience)
         end
+
+        -- Auto-migrate default text visibility to MOUSEOVER for existing profiles
+        if SfuiDB and SfuiDB.experience and not SfuiDB._expTextMouseoverDefault then
+            if SfuiDB.experience.showText == "ALWAYS" then
+                SfuiDB.experience.showText = "MOUSEOVER"
+            end
+            SfuiDB._expTextMouseoverDefault = true
+        end
     end,
 
     OnEnable = function(self)

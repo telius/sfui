@@ -121,7 +121,7 @@ local function UpdateTextVisibility(isHovering)
     if not textLeft or not textCenter or not textRight then return end
 
     local cfg = sfui.config.experience or {}
-    local mode = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showText", cfg.showText or "ALWAYS")) or "ALWAYS"
+    local mode = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showText", cfg.showText or "MOUSEOVER")) or "MOUSEOVER"
 
     if mode == "ALWAYS" then
         textLeft:SetAlpha(1.0)
