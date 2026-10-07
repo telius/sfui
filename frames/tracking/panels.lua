@@ -177,7 +177,11 @@ function sfui.tracking.get_cooldown_panels()
         return _cachedPanels
     end
 
-    if not SfuiDB.cooldownPanelsBySpec or not SfuiDB.cooldownPanelsBySpec[specID] or #SfuiDB.cooldownPanelsBySpec[specID] == 0 or ((sfui.common.get_player_class() == "DRUID" or sfui.common.get_player_class() == "ROGUE") and not SfuiDB.druidMigrationV7) then
+    local playerClass = sfui.common.get_player_class()
+    local needsMigration = ((playerClass == "DRUID" or playerClass == "ROGUE") and not SfuiDB.druidMigrationV7)
+        or (playerClass == "ROGUE" and not SfuiDB.rogueStealthMigrationV1)
+
+    if not SfuiDB.cooldownPanelsBySpec or not SfuiDB.cooldownPanelsBySpec[specID] or #SfuiDB.cooldownPanelsBySpec[specID] == 0 or needsMigration then
         _cachedPanels = sfui.tracking.ensure_panels_initialized()
     else
         _cachedPanels = SfuiDB.cooldownPanelsBySpec[specID]
@@ -316,6 +320,8 @@ function sfui.tracking.ensure_panels_initialized()
         table.insert(defaultPanelSpecs, 3, { key = "center_panel", name = "BEAR", requiredForm = 5 })
         table.insert(defaultPanelSpecs, 4, { key = "center_panel", name = "MOONKIN", requiredForm = { 31, 35 } })
         table.insert(defaultPanelSpecs, 5, { key = "center_panel", name = "STEALTH", requiredForm = "stealth" })
+    elseif playerClass == "ROGUE" then
+        table.insert(defaultPanelSpecs, 2, { key = "center_panel", name = "STEALTH", requiredForm = "stealth" })
     end
 
     -- Migrate legacy trackedIcons if not already done for this spec
@@ -360,9 +366,30 @@ function sfui.tracking.ensure_panels_initialized()
             if spec.requiredForm ~= nil then
                 newPanel.requiredForm = spec.requiredForm
             end
+            if spec.name == "STEALTH" then
+                newPanel.hideOOC = false
+            end
             newPanel.name = spec.name
             newPanel.specID = specID
-            table.insert(panels, newPanel)
+
+            -- Position center form variants right after the base CENTER panel or preceding form variants
+            local insertPos = nil
+            if spec.key == "center_panel" and spec.name ~= "CENTER" then
+                for idx = #panels, 1, -1 do
+                    local p = panels[idx]
+                    local u = p and p.name and string.upper(p.name)
+                    if u == "CENTER" or u == "CAT" or u == "BEAR" or u == "MOONKIN" or u == "STEALTH" then
+                        insertPos = idx + 1
+                        break
+                    end
+                end
+            end
+
+            if insertPos and insertPos <= #panels then
+                table.insert(panels, insertPos, newPanel)
+            else
+                table.insert(panels, newPanel)
+            end
 
             -- Ensure "utility" and "center_panel" get their specific defaults applied robustly
             if spec.key == "utility" or spec.key == "center_panel" then
@@ -428,6 +455,51 @@ function sfui.tracking.ensure_panels_initialized()
             end
         end
         SfuiDB.druidMigrationV7 = true
+    end
+
+    -- Rogue stealth panel migration across all specs
+    if playerClass == "ROGUE" and not SfuiDB.rogueStealthMigrationV1 then
+        if SfuiDB.cooldownPanelsBySpec then
+            local upper = string.upper
+            for sID, specPanels in pairs(SfuiDB.cooldownPanelsBySpec) do
+                if type(specPanels) == "table" then
+                    local hasStealth = false
+                    local centerIdx = nil
+                    for idx, p in ipairs(specPanels) do
+                        local uname = p.name and upper(p.name)
+                        if uname == "CENTER" then
+                            centerIdx = idx
+                            if p.requiredForm == nil then
+                                p.requiredForm = 0
+                                changed = true
+                            end
+                        elseif uname == "STEALTH" then
+                            hasStealth = true
+                            if p.requiredForm ~= "stealth" then
+                                p.requiredForm = "stealth"
+                                changed = true
+                            end
+                        end
+                    end
+
+                    if not hasStealth then
+                        local stealthPanel = sfui.common.copy(sfui.config.cooldown_panel_defaults.center_panel)
+                        stealthPanel.name = "STEALTH"
+                        stealthPanel.requiredForm = "stealth"
+                        stealthPanel.entries = {}
+                        stealthPanel.hideOOC = false
+                        stealthPanel.specID = tonumber(sID) or specID
+                        if centerIdx and centerIdx < #specPanels then
+                            table.insert(specPanels, centerIdx + 1, stealthPanel)
+                        else
+                            table.insert(specPanels, stealthPanel)
+                        end
+                        changed = true
+                    end
+                end
+            end
+        end
+        SfuiDB.rogueStealthMigrationV1 = true
     end
 
     -- One-time migration for center panel defaults (hideOOC, hideInVehicle, hideMounted, spanWidth)

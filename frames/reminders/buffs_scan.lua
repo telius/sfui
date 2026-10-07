@@ -280,7 +280,7 @@ end
 --- @return table array of scanned reminder records
 function sfui.buffs.scan.RunScan()
     -- Bypass Blizzard API queries completely during combat or death
-    if (_G.InCombatLockdown and _G.InCombatLockdown()) or (_G.UnitAffectingCombat and _G.UnitAffectingCombat("player")) then
+    if sfui.common.is_in_combat() then
         dirty = true
         return activeResults
     end
@@ -376,7 +376,7 @@ end
 
 --- Marks the scan state dirty and schedules a throttled update
 function sfui.buffs.scan.RequestScan()
-    if (_G.InCombatLockdown and _G.InCombatLockdown()) or (_G.UnitAffectingCombat and _G.UnitAffectingCombat("player")) then
+    if sfui.common.is_in_combat() then
         dirty = true
         return
     end
@@ -388,7 +388,7 @@ function sfui.buffs.scan.RequestScan()
     throttleTimer = true
     C_Timer.After(0.08, function()
         throttleTimer = nil
-        if (_G.InCombatLockdown and _G.InCombatLockdown()) or (_G.UnitAffectingCombat and _G.UnitAffectingCombat("player")) then
+        if sfui.common.is_in_combat() then
             dirty = true
             return
         end

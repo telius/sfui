@@ -57,10 +57,10 @@ sfui.config = {
         mode = "auto", -- "auto" (detects Camelot on Forever/Classic, Modern on Retail), "camelot", "modern"
         cornerBrackets = true,
         texturedBackdrop = true,
-        minimapArt = true,             -- Camelot only: preserve brass compass & day/night dial (modern theme does not touch minimap)
+        minimapArt = true,               -- Camelot only: preserve brass compass & day/night dial (modern theme does not touch minimap)
         lootfeedStyle = "architectural", -- Camelot only: "architectural" (Option A: charcoal slate & corner brackets) or "outfit_card" (Option B: sculpted card)
-        barStyle = "castbar",          -- Camelot only: "inset" (Dark Inset Well), "bezel", "darkbronze", "castbar" (1:1 Black Replica), "heavy", "thin", "glow"
-        buttonStyle = "auctionhouse",  -- Camelot only: "auctionhouse" (Default: Auction House beveled buttons with blue hover glow & gold selection outline) or "flat" (Option: clean flat dark buttons)
+        barStyle = "castbar",            -- Camelot only: "inset" (Dark Inset Well), "bezel", "darkbronze", "castbar" (1:1 Black Replica), "heavy", "thin", "glow"
+        buttonStyle = "auctionhouse",    -- Camelot only: "auctionhouse" (Default: Auction House beveled buttons with blue hover glow & gold selection outline) or "flat" (Option: clean flat dark buttons)
     },
 
     -- shared settings for icon bars
@@ -341,13 +341,13 @@ sfui.config = {
         textFormat = "PERCENT_CURRENT", -- "PERCENT_CURRENT", "PERCENT", "REMAINING", "FRACTION"
         showRate = true,
         showTTL = true,
-        autoReputation = true,          -- Switch to reputation if max level or tracking faction
+        autoReputation = true, -- Switch to reputation if max level or tracking faction
         hideBlizzardBar = true,
         colors = {
-            xp = { 0.58, 0.0, 0.82, 1.0 },              -- Fallback active xp color (purple)
-            rested = { 0.0, 0.65, 0.90, 0.60 },          -- Rested bonus overlay (cyan/sky blue)
-            questPreview = { 0.96, 0.65, 0.12, 0.70 },    -- Completed quest turn-in preview (amber/gold)
-            reputation = { 0.0, 0.60, 0.35, 1.0 },      -- Fallback reputation green
+            xp = { 0.58, 0.0, 0.82, 1.0 },             -- Fallback active xp color (purple)
+            rested = { 0.0, 0.65, 0.90, 0.60 },        -- Rested bonus overlay (cyan/sky blue)
+            questPreview = { 0.96, 0.65, 0.12, 0.70 }, -- Completed quest turn-in preview (amber/gold)
+            reputation = { 0.0, 0.60, 0.35, 1.0 },     -- Fallback reputation green
         },
     },
 
@@ -528,6 +528,7 @@ sfui.config = {
         enabled = true,
         width = 240,
         height = 15,
+        comboPointHeight = 8,
         useClassColor = true,
         fontSize = 18,
         backdrop = {
@@ -947,7 +948,7 @@ sfui.config = {
     pets = {
         enabled       = true,
         autoResummon  = true,
-        rotationTimer = 720,       -- Seconds (12 mins, 0 to disable)
+        rotationTimer = 720, -- Seconds (12 mins, 0 to disable)
         historySize   = 4,
     },
 

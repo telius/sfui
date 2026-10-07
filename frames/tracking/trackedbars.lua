@@ -1115,9 +1115,10 @@ local function ProcessBlizzardSync()
     local db = SfuiDB and SfuiDB.trackedBars or
         (cfg and cfg.trackedBars and cfg.trackedBars.defaults) or {}
 
-    if db.hideOOC and not InCombatLockdown() then
+    local inCombat = common.is_in_combat()
+    if db.hideOOC and not inCombat then
         mustHide = true
-    elseif not InCombatLockdown() then
+    elseif not inCombat then
         if db.hideMounted and common.is_mounted_or_travel_form() then
             mustHide = true
         elseif db.hideInVehicle and (UnitHasVehicleUI("player") or UnitInVehicle("player")) then
@@ -1405,7 +1406,7 @@ end
 local _syncTimer = 0
 local _lastOOCSyncTime = 0
 local function _OnTrackedBarsUpdate(elapsed)
-    local inCombat = InCombatLockdown()
+    local inCombat = common.is_in_combat()
     local syncInterval = inCombat and 0.5 or (_numShownBars > 0 and 1.0 or 2.0)
 
     _syncTimer = _syncTimer + elapsed
@@ -1496,7 +1497,7 @@ function sfui.trackedbars.initialize()
     -- Real-time events for instant reaction with relaxed OOC pacing
     local _lastOOCAuraEvent = 0
     sfui.events.RegisterUnitEvent("UNIT_AURA", "player", function()
-        if InCombatLockdown() then
+        if common.is_in_combat() then
             SyncWithBlizzard()
         else
             local now = GetTime()
@@ -1511,7 +1512,7 @@ function sfui.trackedbars.initialize()
 
     local _lastOOCCdEvent = 0
     local function ThrottledCooldownSync()
-        if InCombatLockdown() then
+        if common.is_in_combat() then
             SyncWithBlizzard()
         else
             local now = GetTime()

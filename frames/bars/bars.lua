@@ -168,7 +168,7 @@ do
     local function update_bar_visibility()
         local isDragonflying = is_dragonflying()
         local inVehicle = is_in_vehicle()
-        local inCombat = UnitAffectingCombat("player")
+        local inCombat = sfui.common.is_in_combat()
         local hasEnemyTarget = UnitCanAttack("player", "target")
         local isFsrActive = sfui.isClassic and (fsrEndTime and fsrEndTime > GetTime()) or false
         local showCoreBars = (not inVehicle) and (inCombat or hasEnemyTarget or isFsrActive)
@@ -705,9 +705,20 @@ do
 
     function get_bar1()
         if bar1 then return bar1 end
+        local cfg = sfui.config.secondaryPowerBar
         local bar = common.create_bar("bar1", "StatusBar", UIParent, nil, "secondaryPowerBar")
+        local resource = common.get_secondary_resource()
+        local isComboPoints = (resource == Enum.PowerType.ComboPoints)
+        local targetH = isComboPoints and (cfg.comboPointHeight or 11) or (cfg.height or 15)
+        bar._currentBarHeight = targetH
+        local mult = sfui.pixelScale or 1
+        local pad = (cfg.backdrop and cfg.backdrop.padding or 2) * mult
+        bar:SetSize(cfg.width, targetH)
+        if bar.backdrop then
+            bar.backdrop:SetSize(cfg.width + pad * 2, targetH + pad * 2)
+        end
         bar.TextValue = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        bar.TextValue:SetFont("Fonts\\FRIZQT__.TTF", cfg.secondaryPowerBar.fontSize, "")
+        bar.TextValue:SetFont("Fonts\\FRIZQT__.TTF", cfg.fontSize or 18, "")
         bar.TextValue:SetShadowOffset(1, -1)
         bar.TextValue:SetPoint("CENTER")
         bar1 = bar
@@ -747,6 +758,21 @@ do
         -- Note: secondary resource values (e.g. Fury, Stagger) may also be
         -- secret in some contexts. Always pass through to SetValue unconditionally.
         local bar = get_bar1()
+        local isComboPoints = (resource == Enum.PowerType.ComboPoints)
+        local targetH = isComboPoints and (cfg.comboPointHeight or 11) or (cfg.height or 15)
+        if bar._currentBarHeight ~= targetH then
+            bar._currentBarHeight = targetH
+            local mult = sfui.pixelScale or 1
+            local pad = (cfg.backdrop and cfg.backdrop.padding or 2) * mult
+            bar:SetSize(cfg.width, targetH)
+            if bar.backdrop then
+                bar.backdrop:SetSize(cfg.width + pad * 2, targetH + pad * 2)
+            end
+            if sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+                sfui.trackedbars.ForceLayoutUpdate()
+            end
+        end
+
         bar.TextValue:SetText(current)
         bar:SetMinMaxValues(0, max)
         bar:SetValue(current)

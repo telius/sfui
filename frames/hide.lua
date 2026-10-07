@@ -344,6 +344,7 @@ function sfui.hide.ApplyErrorFilters()
         _G.LE_GAME_ERR_SPELL_COOLDOWN,
         _G.LE_GAME_ERR_ABILITY_COOLDOWN,
         _G.LE_GAME_ERR_ITEM_COOLDOWN,
+        _G.LE_GAME_ERR_OUT_OF_ENERGY,
     }
 
     local uie = _G.UIErrorsFrame
@@ -367,17 +368,21 @@ function sfui.hide.ApplyErrorFilters()
                     if messageType and (
                             (_G.LE_GAME_ERR_SPELL_COOLDOWN and messageType == _G.LE_GAME_ERR_SPELL_COOLDOWN) or
                             (_G.LE_GAME_ERR_ABILITY_COOLDOWN and messageType == _G.LE_GAME_ERR_ABILITY_COOLDOWN) or
-                            (_G.LE_GAME_ERR_ITEM_COOLDOWN and messageType == _G.LE_GAME_ERR_ITEM_COOLDOWN)
+                            (_G.LE_GAME_ERR_ITEM_COOLDOWN and messageType == _G.LE_GAME_ERR_ITEM_COOLDOWN) or
+                            (_G.LE_GAME_ERR_OUT_OF_ENERGY and messageType == _G.LE_GAME_ERR_OUT_OF_ENERGY)
                         ) then
                         return
                     end
-                    if message and type(message) == "string" and (
-                            message == _G.ERR_SPELL_COOLDOWN or
+                    if message and type(message) == "string" then
+                        local lower = message:lower()
+                        if message == _G.ERR_SPELL_COOLDOWN or
                             message == _G.ERR_ABILITY_COOLDOWN or
                             message == _G.ERR_ITEM_COOLDOWN or
-                            message:find("not ready yet", 1, true)
-                        ) then
-                        return
+                            message == _G.ERR_OUT_OF_ENERGY or
+                            lower:find("not ready yet", 1, true) or
+                            lower:find("not enough energy", 1, true) then
+                            return
+                        end
                     end
                 end
                 return origTryDisplay(self, messageType, message, r, g, b)
@@ -391,17 +396,21 @@ function sfui.hide.ApplyErrorFilters()
                     if messageType and (
                             (_G.LE_GAME_ERR_SPELL_COOLDOWN and messageType == _G.LE_GAME_ERR_SPELL_COOLDOWN) or
                             (_G.LE_GAME_ERR_ABILITY_COOLDOWN and messageType == _G.LE_GAME_ERR_ABILITY_COOLDOWN) or
-                            (_G.LE_GAME_ERR_ITEM_COOLDOWN and messageType == _G.LE_GAME_ERR_ITEM_COOLDOWN)
+                            (_G.LE_GAME_ERR_ITEM_COOLDOWN and messageType == _G.LE_GAME_ERR_ITEM_COOLDOWN) or
+                            (_G.LE_GAME_ERR_OUT_OF_ENERGY and messageType == _G.LE_GAME_ERR_OUT_OF_ENERGY)
                         ) then
                         return
                     end
-                    if msg and type(msg) == "string" and (
-                            msg == _G.ERR_SPELL_COOLDOWN or
+                    if msg and type(msg) == "string" then
+                        local lower = msg:lower()
+                        if msg == _G.ERR_SPELL_COOLDOWN or
                             msg == _G.ERR_ABILITY_COOLDOWN or
                             msg == _G.ERR_ITEM_COOLDOWN or
-                            msg:find("not ready yet", 1, true)
-                        ) then
-                        return
+                            msg == _G.ERR_OUT_OF_ENERGY or
+                            lower:find("not ready yet", 1, true) or
+                            lower:find("not enough energy", 1, true) then
+                            return
+                        end
                     end
                 end
                 return origAddMessage(self, msg, r, g, b, a, messageType)

@@ -11,6 +11,14 @@ sfui.swing = {}
 
 local cfg = sfui.config
 local common = sfui.common
+local issecretvalue = common.issecretvalue or _G.issecretvalue
+local IsAttackSpeedValid = common.IsAttackSpeedValid or function(speed)
+    if speed == nil then return false end
+    if issecretvalue and issecretvalue(speed) then
+        return true
+    end
+    return type(speed) == "number" and speed > 0
+end
 local CreateFrame = CreateFrame
 local UIParent = UIParent
 local GetTime = GetTime
@@ -64,8 +72,8 @@ local hasRangedWeapon  = false
 -- ─── Helper: Cache equipped weapon states ───────────────────────────────────
 local function UpdateEquippedWeapons()
     local _, offHandSpeed, rangedSpeed = UnitAttackSpeed("player")
-    hasOffHandWeapon = (offHandSpeed ~= nil and offHandSpeed > 0)
-    hasRangedWeapon = (rangedSpeed ~= nil and rangedSpeed > 0)
+    hasOffHandWeapon = IsAttackSpeedValid(offHandSpeed)
+    hasRangedWeapon = IsAttackSpeedValid(rangedSpeed)
 
     if not hasOffHandWeapon then
         local offHandID = GetInventoryItemID("player", INVSLOT_OFFHAND)
@@ -171,6 +179,11 @@ local function OnUpdateBar(bar)
         return
     end
 
+    if issecretvalue and (issecretvalue(endTime) or issecretvalue(bar.duration)) then
+        ClearSwingTimer(bar)
+        return
+    end
+
     local remaining = endTime - GetTime()
     if remaining <= 0 then
         ClearSwingTimer(bar)
@@ -181,7 +194,9 @@ local function OnUpdateBar(bar)
 end
 
 local function ResetSwingTimer(bar, duration)
-    if not duration or duration <= 0 then return end
+    if not duration then return end
+    if issecretvalue and issecretvalue(duration) then return end
+    if duration <= 0 then return end
     bar.duration = duration
     bar.endTime = GetTime() + duration
     bar.statusBar:SetValue(0)
@@ -427,7 +442,7 @@ function sfui.swing.UpdateVisibility(inCombat, hasEnemyTarget, isDragonflying, i
         return
     end
 
-    if inCombat == nil then inCombat = UnitAffectingCombat("player") end
+    if inCombat == nil then inCombat = common.is_in_combat and common.is_in_combat() or UnitAffectingCombat("player") end
     if hasEnemyTarget == nil then hasEnemyTarget = UnitCanAttack("player", "target") end
     if isDragonflying == nil and common.is_dragonflying then isDragonflying = common.is_dragonflying() end
     if inVehicle == nil and common.is_in_vehicle then inVehicle = common.is_in_vehicle() end
@@ -634,12 +649,12 @@ function sfui.swing_debug_info()
     _swingDebug.isAttacking = IsMeleeAttacking() or isAutoRepeating
     _swingDebug.isMelee = IsMeleeAttacking()
     _swingDebug.isAutoRepeating = isAutoRepeating
-    _swingDebug.hasMainHand = (mhSpeed ~= nil and mhSpeed > 0)
+    _swingDebug.hasMainHand = IsAttackSpeedValid(mhSpeed)
     _swingDebug.hasOffHand = hasOffHandWeapon
     _swingDebug.hasRanged = hasRangedWeapon
-    _swingDebug.mainHandSpeed = mhSpeed or 0
-    _swingDebug.offHandSpeed = ohSpeed or 0
-    _swingDebug.rangedSpeed = rSpeed or 0
+    _swingDebug.mainHandSpeed = (mhSpeed and not (issecretvalue and issecretvalue(mhSpeed))) and mhSpeed or 0
+    _swingDebug.offHandSpeed = (ohSpeed and not (issecretvalue and issecretvalue(ohSpeed))) and ohSpeed or 0
+    _swingDebug.rangedSpeed = (rSpeed and not (issecretvalue and issecretvalue(rSpeed))) and rSpeed or 0
     _swingDebug.mainShown = (mhBar and mhBar:IsShown()) or false
     _swingDebug.offShown = (ohBar and ohBar:IsShown()) or false
     _swingDebug.rangedShown = (rBar and rBar:IsShown()) or false

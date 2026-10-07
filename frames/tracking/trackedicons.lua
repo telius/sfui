@@ -22,6 +22,10 @@ local _needsStateUpdate = true -- Start dirty for initial render
 local _needsLayoutUpdate = true
 local _layoutCooldown = 0
 
+-- Centralized combat state helper
+local is_in_combat = sfui.common.is_in_combat
+sfui.trackedicons.IsInCombat = is_in_combat
+
 -- Helper: Mark icons as needing a state refresh
 local function MarkDirty(needsLayout)
     _needsStateUpdate = true
@@ -613,20 +617,16 @@ local function UpdateIconState(icon, panelConfig, event)
 
     -- Visibility Decision (Early Exit to skip cooldown/charge C-API calls when hidden)
     local hideOOC = GetIconValue(nil, panelConfig, "hideOOC", false)
-    local inCombat = InCombatLockdown()
-    if event == "PLAYER_REGEN_DISABLED" then
-        inCombat = true
-    elseif event == "PLAYER_REGEN_ENABLED" then
-        inCombat = false
-    end
-    if hideOOC and not inCombat then
+    local inCombat = is_in_combat(event)
+    local isStealthPanelActive = (panelConfig and panelConfig.requiredForm == "stealth") and IsStealthed()
+    if hideOOC and not inCombat and not isStealthPanelActive then
         if icon:IsShown() then icon:Hide() end
         if icon._glowActive then StopGlow(icon) end
         return false
     end
 
     if panelConfig then
-        if panelConfig.visibility == "combat" and not inCombat then
+        if panelConfig.visibility == "combat" and not inCombat and not isStealthPanelActive then
             if icon:IsShown() then icon:Hide() end
             if icon._glowActive then StopGlow(icon) end
             return false
@@ -976,28 +976,24 @@ local function CheckPanelVisibility(panelConfig, event)
         end
     end
 
-    -- If we are stealthed, we usually want the STEALTH bar to take priority for Human and Cat.
-    -- This hides ALL base bars to prevent overlap, even if requiredForm matches.
-    if isStealthed and (currentForm == 0 or currentForm == 1) then
-        if panelConfig.requiredForm ~= "stealth" then
+    -- If we are stealthed, we usually want the STEALTH bar to take priority for Human/Rogue and Cat.
+    -- This hides the base form bars to prevent overlap, even if requiredForm matches.
+    if isStealthed and (playerClass == "ROGUE" or currentForm == 0 or currentForm == 1) then
+        if panelConfig.requiredForm ~= nil and panelConfig.requiredForm ~= "stealth" then
             return false
         end
     end
 
-    -- 2. Robust Combat Status
-    local inCombat = InCombatLockdown()
-    if event == "PLAYER_REGEN_DISABLED" then
-        inCombat = true
-    elseif event == "PLAYER_REGEN_ENABLED" then
-        inCombat = false
-    end
+    -- 2. Robust Combat Status (centralized event-driven tracker)
+    local inCombat = is_in_combat(event)
 
     -- 3. Per-Panel Conditionals (Using GetIconValue for nested/global inheritance)
-    -- Hide if Out of Combat enabled
-    if GetIconValue(nil, panelConfig, "hideOOC", false) and not inCombat then return false end
+    -- Hide if Out of Combat enabled (bypassed if stealthed in a stealth panel)
+    local isStealthPanelActive = (panelConfig.requiredForm == "stealth" and isStealthed)
+    if not isStealthPanelActive and GetIconValue(nil, panelConfig, "hideOOC", false) and not inCombat then return false end
 
     -- Priority: Combat status always overrides mount/vehicle hide conditions
-    if not inCombat then
+    if not inCombat and not isStealthPanelActive then
         -- Hide while Mounted enabled
         if GetIconValue(nil, panelConfig, "hideMounted", false) and sfui.common.is_mounted_or_travel_form() then return false end
         -- Hide while in Vehicle UI enabled
@@ -1008,7 +1004,7 @@ local function CheckPanelVisibility(panelConfig, event)
 
     -- 4. Global Visibility Settings
     local globalVis = SfuiDB and SfuiDB.iconGlobalSettings
-    if globalVis then
+    if globalVis and not isStealthPanelActive then
         -- Legacy Global Hide OOC
         if globalVis.hideOOC and not inCombat then return false end
         -- Dragonriding
@@ -1020,7 +1016,7 @@ local function CheckPanelVisibility(panelConfig, event)
     if not visMode and globalVis then visMode = globalVis.visibility end
     visMode = visMode or "always"
 
-    if visMode == "combat" then
+    if visMode == "combat" and not isStealthPanelActive then
         if not inCombat then return false end
     elseif visMode == "noCombat" then
         if inCombat then return false end
@@ -1480,11 +1476,12 @@ function sfui.trackedicons.initialize()
     -- Hide Blizzard Cooldown Frames
     sfui.common.hide_blizzard_cooldown_viewers()
 
-    -- Helper: Update only icon states (no layout rebuild) using cached panel.config
+    -- Helper: Update only icon states (no layout rebuild) using cached panel.config.
+    -- Fast track route: only process panels that are currently shown.
     local function UpdateAllIconStates()
         for _, panel in pairs(panels) do
-            local config = panel.config
-            if panel.icons and config then
+            if panel:IsShown() and panel.icons and panel.config then
+                local config = panel.config
                 for _, icon in pairs(panel.icons) do
                     UpdateIconState(icon, config)
                 end
@@ -1565,7 +1562,7 @@ function sfui.trackedicons.initialize()
 
     -- UNIT_POWER_UPDATE covers resource pools (only in combat; passive OOC regen does not affect spell cooldowns)
     sfui.events.RegisterUnitEvent("UNIT_POWER_UPDATE", "player", function(event, unit)
-        if InCombatLockdown() then
+        if is_in_combat() then
             _needsStateUpdate = true
         end
     end)
@@ -1586,7 +1583,7 @@ function sfui.trackedicons.initialize()
     -- 11.0+ C_UnitAuras Event Migration (throttled to 0.5s out of combat to eliminate background aura tick churn, secret-safe)
     local _lastOOCAuraTime = 0
     sfui.events.RegisterUnitEvent("UNIT_AURA", "player", function()
-        if InCombatLockdown() then
+        if is_in_combat() then
             _needsStateUpdate = true
         else
             local now = GetTime()

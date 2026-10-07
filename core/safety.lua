@@ -36,9 +36,18 @@ sfui.common.HasAuraInstanceID = sfui.safety.HasAuraInstanceID
 -- Safe numeric comparison
 function sfui.safety.IsNumericAndPositive(value)
     if value == nil then return false end
+    if issecretvalue(value) then return false end
     return type(value) == "number" and value > 0
 end
 sfui.common.IsNumericAndPositive = sfui.safety.IsNumericAndPositive
+
+-- Safe attack speed validation (handles secret values when combat haste buffs are active)
+function sfui.safety.IsAttackSpeedValid(speed)
+    if speed == nil then return false end
+    if issecretvalue(speed) then return true end
+    return type(speed) == "number" and speed > 0
+end
+sfui.common.IsAttackSpeedValid = sfui.safety.IsAttackSpeedValid
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- Pre-computed String Lookup Tables (Zero-Allocation Hot Path)

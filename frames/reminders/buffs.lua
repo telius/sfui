@@ -344,8 +344,7 @@ function sfui.buffs.UpdateDisplay()
     end
 
     -- Suppression check: strictly hide in combat
-    local inCombat = (_G.InCombatLockdown and _G.InCombatLockdown()) or
-        (_G.UnitAffectingCombat and _G.UnitAffectingCombat("player"))
+    local inCombat = sfui.common.is_in_combat()
     if inCombat and not isUnlocked and not isTestMode then
         if sfui.events and sfui.events.UnregisterUpdate then
             sfui.events.UnregisterUpdate("SfuiBuffCountdown")

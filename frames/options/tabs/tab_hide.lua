@@ -233,7 +233,7 @@ sfui.options.RegisterTab({
                 notify_change("hide_cooldown_errors", checked)
                 sfui.hide.ApplyErrorFilters()
             end,
-            "filters out 'spell is not ready yet' and ability cooldown errors and alert sounds."
+            "filters out 'spell is not ready yet', 'not enough energy', and ability cooldown errors."
         )
         err_cb:SetPoint("TOPLEFT", err_desc, "BOTTOMLEFT", 0, -10)
 

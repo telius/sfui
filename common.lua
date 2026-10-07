@@ -501,6 +501,48 @@ end
 sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", flush_ooc_queue)
 
 -- ------------------------------------------------------------
+-- Central Combat State Tracker
+-- ------------------------------------------------------------
+-- InCombatLockdown() lags behind PLAYER_REGEN_DISABLED during event dispatch,
+-- so any handlers running in that window (e.g. UPDATE_STEALTH or shapeshift openers)
+-- read "out of combat" if relying solely on InCombatLockdown(). Similarly,
+-- UnitAffectingCombat("player") is the authoritative unit combat state.
+-- This helper maintains an event-driven flag synced with engine APIs.
+local InCombatLockdown = _G.InCombatLockdown
+local UnitAffectingCombat = _G.UnitAffectingCombat
+local _centralInCombat = false
+
+local function sync_combat_state()
+    local locked = InCombatLockdown and InCombatLockdown()
+    local affecting = UnitAffectingCombat and UnitAffectingCombat("player")
+    _centralInCombat = (locked or affecting) and true or false
+    sfui.in_combat = _centralInCombat
+end
+
+function sfui.common.is_in_combat(event)
+    if event == "PLAYER_REGEN_DISABLED" then return true end
+    if event == "PLAYER_REGEN_ENABLED" then return false end
+    return _centralInCombat
+end
+sfui.common.in_combat = sfui.common.is_in_combat
+sfui.is_in_combat = sfui.common.is_in_combat
+sfui.in_combat = false
+
+sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+    _centralInCombat = true
+    sfui.in_combat = true
+end)
+
+sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+    _centralInCombat = false
+    sfui.in_combat = false
+end)
+
+sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", sync_combat_state)
+
+sync_combat_state()
+
+-- ------------------------------------------------------------
 -- Central Safe CVar Accessors (Combat Lockdown Protected)
 -- ------------------------------------------------------------
 local pendingCVars = {}

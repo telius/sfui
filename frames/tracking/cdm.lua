@@ -2009,9 +2009,9 @@ function sfui.cdm.ApplyTheme()
     end
 end
 
-function sfui.cdm.UpdateVisibility()
+function sfui.cdm.UpdateVisibility(event)
     if not sfui.cdm.activeZones then return end
-    local inCombat = InCombatLockdown()
+    local inCombat = sfui.common.is_in_combat(event)
     local isMounted = IsMounted()
 
     for _, zone in ipairs(sfui.cdm.activeZones) do
@@ -2037,6 +2037,10 @@ function sfui.cdm.UpdateVisibility()
         end
     end
 end
+
+sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function() sfui.cdm.UpdateVisibility("PLAYER_REGEN_DISABLED") end)
+sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function() sfui.cdm.UpdateVisibility("PLAYER_REGEN_ENABLED") end)
+sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", function() sfui.cdm.UpdateVisibility("PLAYER_MOUNT_DISPLAY_CHANGED") end)
 
 local _cdmDebug = {}
 function sfui.cdm_debug_info()
