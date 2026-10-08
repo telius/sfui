@@ -1368,6 +1368,7 @@ local function OnBindingsUpdated()
         SfuiDB = SfuiDB or {}
         SfuiDB.totembar = SfuiDB.totembar or {}
         SfuiDB.totembar.keybind = (k1 and k1 ~= "") and k1 or nil
+        SfuiDB.classUtilityKeybind = (k1 and k1 ~= "") and k1 or nil
     end
 end
 

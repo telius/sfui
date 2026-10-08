@@ -10,55 +10,85 @@ local C_UI = C_UI
 local GetBindingKey = _G.GetBindingKey
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 1. BLIZZARD KEYBINDINGS MENU DEFINITIONS
+-- 1. BLIZZARD KEYBINDINGS MENU DEFINITIONS & DYNAMIC FILTERING
 -- ────────────────────────────────────────────────────────────────────────────
 BINDING_HEADER_SFUI = "SFUI"
-_G["BINDING_NAME_CLICK SfuiClassUtilityBtn:LeftButton"] = "class utility (totems / portals / shards)"
-_G["BINDING_NAME_CLICK SfuiHammerPopup:LeftButton"] = "master's hammer repair"
-_G["BINDING_NAME_CLICK SfuiTotemSequenceBtn:LeftButton"] = "cast selected totems (sequence)"
-_G["BINDING_NAME_CLICK SfuiPurgeSoulShards:LeftButton"] = "purge excess soul shards"
-_G["BINDING_NAME_CLICK SfuiPortalsBtn:LeftButton"] = "portals"
-_G["BINDING_NAME_SFUI_MATCHMOUNT"] = "match target mount"
 _G["BINDING_NAME_SFUI_PORTALS"] = "portals"
+
+if not sfui.isRetail then
+    _G["BINDING_NAME_CLICK SfuiClassUtilityBtn:LeftButton"] = "class utility (totems / shards)"
+    _G["BINDING_NAME_SFUI_LOOTVIEWER"] = "dungeon journal"
+else
+    _G["BINDING_NAME_SFUI_LOOTVIEWER"] = "loot browser"
+end
+
+_G["BINDING_NAME_CLICK SfuiHammerPopup:LeftButton"] = "master's hammer repair"
+_G["BINDING_NAME_SFUI_MATCHMOUNT"] = "match target mount"
 _G["BINDING_NAME_SFUI_ALTS"] = "alts / warband"
-_G["BINDING_NAME_SFUI_LOOTVIEWER"] = "loot browser"
 _G["BINDING_NAME_SFUI_FISHING"] = "cast & catch fishing"
-_G["BINDING_NAME_BETTERFISHINGKEY"] = "cast & catch fishing (better fishing compat)"
 _G["BINDING_NAME_SFUI_PET_SUMMON"] = "summon / rotate companion pet"
-_G["BINDING_NAME_SFUI_PET_MANAGER"] = "toggle pet manager"
 
--- ────────────────────────────────────────────────────────────────────────────
--- 2. KEYBIND RESOLUTION & FORMATTING HELPERS
--- ────────────────────────────────────────────────────────────────────────────
---- Formats a raw key string with standard abbreviated modifier prefixes.
---- @param key string
---- @return string
-function sfui.keybinds.format_key(key)
-    if not key or key == "" then return "" end
-    return key:gsub("SHIFT%-", "S-")
-              :gsub("CTRL%-", "C-")
-              :gsub("ALT%-", "A-")
-              :gsub("NUMPAD", "N")
-              :gsub("MOUSEWHEELUP", "WU")
-              :gsub("MOUSEWHEELDOWN", "WD")
+-- Dynamic filter for Blizzard Keybindings Settings UI:
+-- - On Retail: exclude class utility (camelot/classic only)
+-- - On Camelot: single class utility keybind (purge legacy totem/shard actions)
+-- - Universal: remove deprecated pet manager and duplicate portal bindings
+local function filter_sfui_keybindings()
+    if not _G.Settings or not _G.Settings.KEYBINDINGS_CATEGORY_ID or not _G.SettingsPanel then return end
+    local kbCategory = _G.SettingsPanel:GetCategory(_G.Settings.KEYBINDINGS_CATEGORY_ID)
+    if not kbCategory then return end
+    local layout = (_G.SettingsPanel.GetLayout and _G.SettingsPanel:GetLayout(kbCategory)) or (kbCategory.GetLayout and kbCategory:GetLayout())
+    if not layout or not layout.GetInitializers then return end
+    local initializers = layout:GetInitializers()
+    if not initializers then return end
+
+    for _, init in ipairs(initializers) do
+        if init.data and (init.data.name == "SFUI" or init.data.name == _G.BINDING_HEADER_SFUI) then
+            local list = init.data.bindingsCategories
+            if list then
+                for i = #list, 1, -1 do
+                    local entry = list[i]
+                    local action = entry and entry[2]
+                    if action then
+                        if sfui.isRetail and (action:find("SfuiClassUtilityBtn") or action:find("SfuiTotem") or action:find("PurgeSoulShards")) then
+                            table.remove(list, i)
+                        elseif action:find("SfuiTotemSequenceBtn") or action:find("SfuiPurgeSoulShards") then
+                            table.remove(list, i)
+                        elseif action == "SFUI_PET_MANAGER" or action:find("SfuiPortalsBtn") or action == "SFUI_PORTALS_CAMELOT" or action == "BETTERFISHINGKEY" then
+                            table.remove(list, i)
+                        end
+                    end
+                end
+            end
+        end
+    end
 end
 
---- Returns the primary bound key for a given action string, formatted for UI labels.
---- @param action string e.g. "ACTIONBUTTON1", "SFUI_PORTALS", "SFUI_ALTS"
---- @return string
-function sfui.keybinds.get_action_key(action)
-    if not action then return "" end
-    local key = GetBindingKey and GetBindingKey(action)
-    return sfui.keybinds.format_key(key)
+local settingsHooked = false
+local function try_hook_settings()
+    if settingsHooked then return end
+    if _G.SettingsPanel and _G.SettingsPanel.HookScript then
+        _G.SettingsPanel:HookScript("OnShow", function()
+            pcall(filter_sfui_keybindings)
+        end)
+        settingsHooked = true
+    end
+    if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
+        _G.EventRegistry:RegisterCallback("Settings.CategoryChanged", function(_, category)
+            if category and _G.Settings and category:GetID() == _G.Settings.KEYBINDINGS_CATEGORY_ID then
+                pcall(filter_sfui_keybindings)
+            end
+        end, "SFUI_FilterKeybindings")
+    end
+    pcall(filter_sfui_keybindings)
 end
 
--- Export aliases to sfui.common for cross-module convenience
-sfui.common = sfui.common or {}
-sfui.common.format_keybind = sfui.keybinds.format_key
-sfui.common.get_binding_text = sfui.keybinds.get_action_key
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("PLAYER_LOGIN", try_hook_settings)
+end
+try_hook_settings()
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 3. SLASH COMMAND HANDLERS
+-- 2. SLASH COMMAND HANDLERS
 -- ────────────────────────────────────────────────────────────────────────────
 
 -- Quick UI Reload (/rl)
@@ -91,6 +121,10 @@ SlashCmdList["SFUI"] = function(msg)
         if sfui.mem and sfui.mem.HandleSlash then
             sfui.mem.HandleSlash((cmd == "gc" and "gc") or arg)
         end
+    elseif cmd == "portals" or cmd == "portal" or cmd == "teleport" or cmd == "tp" then
+        if sfui.portals and sfui.portals.Toggle then
+            sfui.portals.Toggle()
+        end
     elseif cmd == "totembar" or cmd == "totems" then
         if not sfui.isRetail and sfui.totembar and sfui.totembar.ToggleUnlock then
             sfui.totembar.ToggleUnlock()
@@ -104,9 +138,9 @@ SlashCmdList["SFUI"] = function(msg)
     elseif cmd == "help" or cmd == "?" then
         if sfui.common and sfui.common.print then
             if sfui.isRetail then
-                sfui.common.print("commands: /sfui [tab] | /sfmem | /rl")
+                sfui.common.print("commands: /sfui [tab] | /sfui portals | /sfmem | /rl")
             else
-                sfui.common.print("commands: /sfui [tab] | /sfui shards | /sfmem | /rl | /totembar")
+                sfui.common.print("commands: /sfui [tab] | /sfui portals | /sfui shards | /sfmem | /rl | /totembar")
             end
         end
     else
@@ -116,6 +150,15 @@ SlashCmdList["SFUI"] = function(msg)
         elseif sfui.common and sfui.common.print then
             sfui.common.print("unknown command: /sfui " .. tostring(cmd) .. ". type /sfui for options.")
         end
+    end
+end
+
+-- Dedicated Portals & Teleports Slash Command (/portals, /sfportals)
+SLASH_SFUIPORTALS1 = "/sfportals"
+SLASH_SFUIPORTALS2 = "/portals"
+SlashCmdList["SFUIPORTALS"] = function()
+    if sfui.portals and sfui.portals.Toggle then
+        sfui.portals.Toggle()
     end
 end
 

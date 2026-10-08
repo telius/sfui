@@ -458,7 +458,24 @@ end
 -- ─────────────────────────────────────────────────────────────
 local _tooltip_automation_initialized = false
 
+local issecretvalue = (sfui.safety and sfui.safety.issecretvalue) or (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+
+local function is_valid_id(id)
+    if not id then return false end
+    if issecretvalue and issecretvalue(id) then return false end
+    return type(id) == "number" and id > 0
+end
+
 local function is_alt_tooltip_enabled()
+    if _G.InCombatLockdown and _G.InCombatLockdown() then
+        return false
+    end
+    if _G.UnitAffectingCombat and _G.UnitAffectingCombat("player") then
+        return false
+    end
+    if sfui.common and sfui.common.is_in_combat and sfui.common.is_in_combat() then
+        return false
+    end
     if SfuiDB and SfuiDB.tooltipAltIDs ~= nil then
         return SfuiDB.tooltipAltIDs
     end
@@ -469,7 +486,7 @@ local function is_alt_tooltip_enabled()
 end
 
 local function append_tooltip_id(tooltip, idType, id)
-    if not tooltip or not id or tooltip._sfuiAltIDAppended then return end
+    if not tooltip or not is_valid_id(id) or tooltip._sfuiAltIDAppended then return end
     tooltip._sfuiAltIDAppended = true
 
     local prefix = (idType == "item") and "item id:" or ((idType == "quest") and "quest id:" or ((idType == "achievement") and "achievement id:" or "spell id:"))
@@ -494,48 +511,53 @@ local function on_tooltip_cleared(tooltip)
 end
 
 local function get_item_id_from_tooltip(tooltip, tooltipData)
-    if tooltipData and tooltipData.id and tooltipData.id > 0 then
-        return tooltipData.id
+    local tId = tooltipData and tooltipData.id
+    if is_valid_id(tId) then
+        return tId
     end
     if tooltipData and tooltipData.guid then
         local cItem = _G.C_Item
         local link = cItem and cItem.GetItemLinkByGUID and cItem.GetItemLinkByGUID(tooltipData.guid)
-        if link then
+        if link and not (issecretvalue and issecretvalue(link)) then
             local id = tonumber(link:match("item:(%d+)"))
-            if id then return id end
+            if is_valid_id(id) then return id end
         end
     end
     if tooltipData and tooltipData.hyperlink then
-        local id = tonumber(tooltipData.hyperlink:match("item:(%d+)"))
-        if id then return id end
+        local link = tooltipData.hyperlink
+        if link and not (issecretvalue and issecretvalue(link)) then
+            local id = tonumber(link:match("item:(%d+)"))
+            if is_valid_id(id) then return id end
+        end
     end
     local toolUtil = _G.TooltipUtil
     if toolUtil and toolUtil.GetDisplayedItem then
         local _, _, id = toolUtil.GetDisplayedItem(tooltip)
-        if id and id > 0 then return id end
+        if is_valid_id(id) then return id end
     end
     if tooltip.GetItem then
         local _, link = tooltip:GetItem()
-        if link then
+        if link and not (issecretvalue and issecretvalue(link)) then
             local id = tonumber(link:match("item:(%d+)"))
-            if id then return id end
+            if is_valid_id(id) then return id end
         end
     end
     return nil
 end
 
 local function get_spell_id_from_tooltip(tooltip, tooltipData)
-    if tooltipData and tooltipData.id and tooltipData.id > 0 then
-        return tooltipData.id
+    local tId = tooltipData and tooltipData.id
+    if is_valid_id(tId) then
+        return tId
     end
     local toolUtil = _G.TooltipUtil
     if toolUtil and toolUtil.GetDisplayedSpell then
         local _, id = toolUtil.GetDisplayedSpell(tooltip)
-        if id and id > 0 then return id end
+        if is_valid_id(id) then return id end
     end
     if tooltip.GetSpell then
         local _, id = tooltip:GetSpell()
-        if id and id > 0 then return id end
+        if is_valid_id(id) then return id end
     end
     return nil
 end
@@ -543,7 +565,7 @@ end
 local function on_tooltip_set_item(tooltip, tooltipData)
     if not tooltip or not is_alt_tooltip_enabled() then return end
     local itemID = get_item_id_from_tooltip(tooltip, tooltipData)
-    if not itemID then return end
+    if not is_valid_id(itemID) then return end
 
     tooltip._sfuiCurrentType = "item"
     tooltip._sfuiCurrentID = itemID
@@ -562,7 +584,7 @@ end
 local function on_tooltip_set_spell(tooltip, tooltipData)
     if not tooltip or not is_alt_tooltip_enabled() then return end
     local spellID = get_spell_id_from_tooltip(tooltip, tooltipData)
-    if not spellID then return end
+    if not is_valid_id(spellID) then return end
 
     tooltip._sfuiCurrentType = "spell"
     tooltip._sfuiCurrentID = spellID
@@ -575,13 +597,14 @@ end
 local function on_tooltip_set_unit_aura(tooltip, tooltipData)
     if not tooltip or not is_alt_tooltip_enabled() then return end
     local spellID = tooltipData and tooltipData.id
-    if not spellID or spellID <= 0 then
+    if not is_valid_id(spellID) then
+        spellID = nil
         if tooltip.GetSpell then
             local _, id = tooltip:GetSpell()
-            if id and id > 0 then spellID = id end
+            if is_valid_id(id) then spellID = id end
         end
     end
-    if not spellID then return end
+    if not is_valid_id(spellID) then return end
 
     tooltip._sfuiCurrentType = "spell"
     tooltip._sfuiCurrentID = spellID
@@ -596,9 +619,9 @@ local function on_tooltip_set_macro(tooltip, tooltipData)
     local spellID = nil
     if tooltip.GetSpell then
         local _, id = tooltip:GetSpell()
-        if id and id > 0 then spellID = id end
+        if is_valid_id(id) then spellID = id end
     end
-    if spellID then
+    if is_valid_id(spellID) then
         tooltip._sfuiCurrentType = "spell"
         tooltip._sfuiCurrentID = spellID
         if _G.IsAltKeyDown and _G.IsAltKeyDown() then
@@ -610,9 +633,11 @@ local function on_tooltip_set_macro(tooltip, tooltipData)
     local itemID = nil
     if tooltip.GetItem then
         local _, link = tooltip:GetItem()
-        if link then itemID = tonumber(link:match("item:(%d+)")) end
+        if link and not (issecretvalue and issecretvalue(link)) then
+            itemID = tonumber(link:match("item:(%d+)"))
+        end
     end
-    if itemID then
+    if is_valid_id(itemID) then
         tooltip._sfuiCurrentType = "item"
         tooltip._sfuiCurrentID = itemID
         if _G.IsAltKeyDown and _G.IsAltKeyDown() then
@@ -622,19 +647,26 @@ local function on_tooltip_set_macro(tooltip, tooltipData)
 end
 
 local function get_quest_id_from_tooltip(tooltip, tooltipData)
-    if tooltip and tooltip._sfuiCurrentType == "quest" and tooltip._sfuiCurrentID then
+    if tooltip and tooltip._sfuiCurrentType == "quest" and is_valid_id(tooltip._sfuiCurrentID) then
         return tooltip._sfuiCurrentID
     end
-    if tooltipData and tooltipData.id and tooltipData.id > 0 then
-        return tooltipData.id
+    local qId = tooltipData and tooltipData.id
+    if is_valid_id(qId) then
+        return qId
     end
     if tooltipData and tooltipData.hyperlink then
-        local id = tonumber(tooltipData.hyperlink:match("quest:(%d+)"))
-        if id then return id end
+        local link = tooltipData.hyperlink
+        if link and not (issecretvalue and issecretvalue(link)) then
+            local id = tonumber(link:match("quest:(%d+)"))
+            if is_valid_id(id) then return id end
+        end
     end
     if tooltip and tooltip._sfuiCurrentHyperlink then
-        local id = tonumber(tooltip._sfuiCurrentHyperlink:match("quest:(%d+)"))
-        if id then return id end
+        local link = tooltip._sfuiCurrentHyperlink
+        if link and not (issecretvalue and issecretvalue(link)) then
+            local id = tonumber(link:match("quest:(%d+)"))
+            if is_valid_id(id) then return id end
+        end
     end
     return nil
 end
@@ -642,7 +674,7 @@ end
 local function on_tooltip_set_quest(tooltip, tooltipData)
     if not tooltip or not is_alt_tooltip_enabled() then return end
     local questID = get_quest_id_from_tooltip(tooltip, tooltipData)
-    if not questID then return end
+    if not is_valid_id(questID) then return end
 
     tooltip._sfuiCurrentType = "quest"
     tooltip._sfuiCurrentID = questID
@@ -675,7 +707,7 @@ local function refresh_active_tooltip(tip)
         tip:SetHyperlink(tip._sfuiCurrentHyperlink)
         return
     end
-    if _G.IsAltKeyDown and _G.IsAltKeyDown() and tip._sfuiCurrentID and not tip._sfuiAltIDAppended then
+    if _G.IsAltKeyDown and _G.IsAltKeyDown() and is_valid_id(tip._sfuiCurrentID) and not tip._sfuiAltIDAppended then
         append_tooltip_id(tip, tip._sfuiCurrentType, tip._sfuiCurrentID)
     end
 end
@@ -683,7 +715,7 @@ end
 local function update_tooltip_on_alt(tip)
     if not tip or not tip:IsShown() then return end
     if _G.IsAltKeyDown and _G.IsAltKeyDown() then
-        if tip._sfuiCurrentID and not tip._sfuiAltIDAppended then
+        if is_valid_id(tip._sfuiCurrentID) and not tip._sfuiAltIDAppended then
             append_tooltip_id(tip, tip._sfuiCurrentType, tip._sfuiCurrentID)
         else
             refresh_active_tooltip(tip)
@@ -784,9 +816,9 @@ local function init_tooltip_automation()
             if not is_alt_tooltip_enabled() or not self or not self.GetID or self.isHeader then return end
             local offset = (_G.FauxScrollFrame_GetOffset and _G.QuestLogListScrollFrame and _G.FauxScrollFrame_GetOffset(_G.QuestLogListScrollFrame)) or 0
             local index = self:GetID() + offset
-            if index and index > 0 and _G.GetQuestLogTitle then
+            if is_valid_id(index) and _G.GetQuestLogTitle then
                 local title, _, _, isHeader, _, _, _, questID = _G.GetQuestLogTitle(index)
-                if not isHeader and questID and questID > 0 then
+                if not isHeader and is_valid_id(questID) then
                     local tip = _G.GameTooltip
                     tip._sfuiCurrentType = "quest"
                     tip._sfuiCurrentID = questID
@@ -813,6 +845,11 @@ local function init_tooltip_automation()
 
     if sfui.events and sfui.events.RegisterEvent then
         sfui.events.RegisterEvent("MODIFIER_STATE_CHANGED", on_modifier_state_changed)
+        sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+            for i = 1, #commonTips do
+                on_tooltip_cleared(commonTips[i])
+            end
+        end)
     end
 end
 

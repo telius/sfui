@@ -12,7 +12,6 @@
 ## SavedVariables: SfuiDB
 ## OptionalDeps: Blizzard_CooldownViewer, Blizzard_ObjectiveTracker, Masque, LibStub, CallbackHandler-1.0, LibCustomGlow-1.0, LibSharedMedia-3.0, LibDataBroker-1.1, LibDBIcon-1.0
 ## IconTexture: Interface/AddOns/sfui/icon.png
-
 Libs/LibStub/LibStub.lua
 Libs/CallbackHandler-1.0/CallbackHandler-1.0.xml
 Libs/LibSharedMedia-3.0/LibSharedMedia-3.0.lua
@@ -49,7 +48,8 @@ frames/options/tabs/tab_main.lua
 frames/themes/tab_theme.lua
 frames/options/tabs/tab_automation.lua
 frames/options/tabs/tab_bars.lua
-frames/options/tabs/tab_classutility.lua
+frames/options/tabs/tab_classutility.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/options/tabs/tab_portals.lua
 frames/options/tabs/tab_buffs.lua [AllowLoadGameType camelot, classic]
 frames/options/tabs/tab_castbars.lua
 frames/options/tabs/tab_combattext.lua
@@ -111,7 +111,9 @@ frames/tracking/trackedbars.lua
 frames/tracking/trackedicons.lua
 
 data/portals.lua [AllowLoadGameType standard]
-frames/portals/portals.lua [AllowLoadGameType standard]
+frames/portals/portals.lua
+frames/portals/portals_standard.lua [AllowLoadGameType standard]
+frames/portals/portals_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/portals/portal_popup.lua [AllowLoadGameType standard]
 
 frames/gear/compare.lua

@@ -704,7 +704,8 @@ local function SetItemTooltip(tooltip)
         end
     end
 
-    if not itemID then return end
+    local issecretvalue = (sfui.safety and sfui.safety.issecretvalue) or (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+    if not itemID or (issecretvalue and issecretvalue(itemID)) or type(itemID) ~= "number" or itemID <= 0 then return end
 
     EnsurePlayerContext()
     SfuiDB = SfuiDB or {}

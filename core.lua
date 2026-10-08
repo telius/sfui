@@ -90,18 +90,7 @@ end)
 
 local classUtilityBtn = _G.CreateFrame("Button", "SfuiClassUtilityBtn", UIParent, "SecureActionButtonTemplate")
 classUtilityBtn:RegisterForClicks("AnyUp", "AnyDown")
-classUtilityBtn:SetScript("OnClick", function()
-    local _, pClass = _G.UnitClass("player")
-    if pClass == "WARLOCK" then
-        if sfui.triage and sfui.triage.PurgeSoulShards then
-            sfui.triage.PurgeSoulShards(true)
-        end
-    elseif pClass == "MAGE" then
-        if sfui.portals and sfui.portals.Toggle then
-            sfui.portals.Toggle()
-        end
-    end
-end)
+
 
 local function configure_class_utility_button()
     local _, pClass = _G.UnitClass("player")
@@ -113,22 +102,16 @@ local function configure_class_utility_button()
     elseif pClass == "WARLOCK" then
         classUtilityBtn:SetAttribute("type", "macro")
         classUtilityBtn:SetAttribute("macrotext", "/click SfuiPurgeSoulShards")
-    elseif pClass == "MAGE" then
-        classUtilityBtn:SetAttribute("type", "macro")
-        classUtilityBtn:SetAttribute("macrotext", "/click SfuiPortalsBtn")
+    else
+        classUtilityBtn:SetAttribute("type", nil)
+        classUtilityBtn:SetAttribute("clickbutton", nil)
+        classUtilityBtn:SetAttribute("macrotext", nil)
     end
 end
+sfui.keybinds.configure_class_utility_button = configure_class_utility_button
 configure_class_utility_button()
 
 local function get_primary_class_utility_action()
-    local _, pClass = _G.UnitClass("player")
-    if pClass == "WARLOCK" then
-        return ACTION_PURGE_SHARDS
-    elseif pClass == "SHAMAN" then
-        return ACTION_TOTEM_SEQUENCE
-    elseif pClass == "MAGE" then
-        return ACTION_PORTALS_BTN
-    end
     return ACTION_CLASS_UTILITY
 end
 
@@ -139,8 +122,6 @@ function sfui.keybinds.GetClassUtilityKey()
         ACTION_CLASS_UTILITY,
         ACTION_TOTEM_SEQUENCE,
         ACTION_PURGE_SHARDS,
-        ACTION_PORTALS_BTN,
-        ACTION_PORTALS,
     }
     local k1
     for _, action in ipairs(actions) do
@@ -175,8 +156,6 @@ function sfui.keybinds.SetClassUtilityKey(newKey)
         ACTION_CLASS_UTILITY,
         ACTION_TOTEM_SEQUENCE,
         ACTION_PURGE_SHARDS,
-        ACTION_PORTALS_BTN,
-        ACTION_PORTALS,
     }
 
     for _, action in ipairs(actions) do
@@ -207,7 +186,6 @@ function sfui.keybinds.SetClassUtilityKey(newKey)
         local _, pClass = _G.UnitClass("player")
         local role = (pClass == "SHAMAN" and "totem sequence")
             or (pClass == "WARLOCK" and "soul shard purge")
-            or (pClass == "MAGE" and "portals")
             or "class utility"
         sfui.common.print(role .. " bound to " .. formatted:lower() .. ".")
     end
@@ -226,8 +204,6 @@ function sfui.keybinds.UnbindClassUtilityKey()
         ACTION_CLASS_UTILITY,
         ACTION_TOTEM_SEQUENCE,
         ACTION_PURGE_SHARDS,
-        ACTION_PORTALS_BTN,
-        ACTION_PORTALS,
     }
     for _, action in ipairs(actions) do
         if _G.GetBindingKey and _G.SetBinding then
@@ -254,30 +230,147 @@ function sfui.keybinds.UnbindClassUtilityKey()
     return true
 end
 
--- Sync class utility keybind on player login
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Dedicated Portals & Teleports Keybind (Retail & Camelot)
+-- ─────────────────────────────────────────────────────────────────────────────
+function sfui.keybinds.GetPortalsKey()
+    local actions = {
+        ACTION_PORTALS,
+        ACTION_PORTALS_BTN,
+    }
+    local k1
+    for _, action in ipairs(actions) do
+        if _G.GetBindingKey then
+            local bk1, bk2 = _G.GetBindingKey(action)
+            k1 = (bk1 and bk1 ~= "") and bk1 or bk2
+            if k1 and k1 ~= "" then break end
+        end
+    end
+    if (not k1 or k1 == "") and SfuiDB then
+        local dbKey = sfui.isRetail and "portalsKeybind" or "portalsKeybindCamelot"
+        k1 = SfuiDB[dbKey]
+    end
+    if not k1 or k1 == "" then return nil, "" end
+    local formatted = sfui.keybinds.format_key(k1)
+    return k1, formatted
+end
+
+function sfui.keybinds.SetPortalsKey(newKey)
+    if _G.InCombatLockdown and _G.InCombatLockdown() then
+        if sfui.common and sfui.common.print then
+            sfui.common.print("cannot modify bindings in combat.")
+        end
+        return false
+    end
+    if not newKey or newKey == "" then return false end
+
+    newKey = tostring(newKey):upper()
+    local actions = {
+        ACTION_PORTALS,
+        ACTION_PORTALS_BTN,
+    }
+
+    for _, action in ipairs(actions) do
+        if _G.GetBindingKey and _G.SetBinding then
+            local k1, k2 = _G.GetBindingKey(action)
+            if k1 then _G.SetBinding(k1, nil) end
+            if k2 then _G.SetBinding(k2, nil) end
+        end
+    end
+
+    if _G.SetBinding then
+        _G.SetBinding(newKey, ACTION_PORTALS)
+    end
+
+    local bindingSet = (_G.GetCurrentBindingSet and _G.GetCurrentBindingSet()) or 1
+    if _G.SaveBindings then
+        _G.SaveBindings(bindingSet)
+    end
+
+    SfuiDB = SfuiDB or {}
+    local dbKey = sfui.isRetail and "portalsKeybind" or "portalsKeybindCamelot"
+    SfuiDB[dbKey] = newKey
+
+    if sfui.common and sfui.common.print then
+        local formatted = sfui.keybinds.format_key(newKey)
+        sfui.common.print("portals bound to " .. formatted:lower() .. ".")
+    end
+    return true
+end
+
+function sfui.keybinds.UnbindPortalsKey()
+    if _G.InCombatLockdown and _G.InCombatLockdown() then
+        if sfui.common and sfui.common.print then
+            sfui.common.print("cannot modify bindings in combat.")
+        end
+        return false
+    end
+
+    local actions = {
+        ACTION_PORTALS,
+        ACTION_PORTALS_BTN,
+    }
+    for _, action in ipairs(actions) do
+        if _G.GetBindingKey and _G.SetBinding then
+            local k1, k2 = _G.GetBindingKey(action)
+            if k1 then _G.SetBinding(k1, nil) end
+            if k2 then _G.SetBinding(k2, nil) end
+        end
+    end
+
+    local bindingSet = (_G.GetCurrentBindingSet and _G.GetCurrentBindingSet()) or 1
+    if _G.SaveBindings then
+        _G.SaveBindings(bindingSet)
+    end
+
+    SfuiDB = SfuiDB or {}
+    local dbKey = sfui.isRetail and "portalsKeybind" or "portalsKeybindCamelot"
+    SfuiDB[dbKey] = nil
+
+    if sfui.common and sfui.common.print then
+        sfui.common.print("portals keybind cleared.")
+    end
+    return true
+end
+
+-- Sync keybinds on player login
 sfui.events.RegisterEvent("PLAYER_LOGIN", function()
     if _G.InCombatLockdown and _G.InCombatLockdown() then return end
-    configure_class_utility_button()
-    local k1 = sfui.keybinds.GetClassUtilityKey()
-    if k1 and k1 ~= "" and _G.SetBinding then
-        local primaryAction = get_primary_class_utility_action()
-        local cur = _G.GetBindingKey and _G.GetBindingKey(primaryAction)
-        if not cur or cur == "" then
-            local actions = {
-                ACTION_CLASS_UTILITY,
-                ACTION_TOTEM_SEQUENCE,
-                ACTION_PURGE_SHARDS,
-                ACTION_PORTALS_BTN,
-                ACTION_PORTALS,
-            }
-            for _, act in ipairs(actions) do
-                if act ~= primaryAction and _G.GetBindingKey then
-                    local bk1, bk2 = _G.GetBindingKey(act)
-                    if bk1 == k1 then _G.SetBinding(bk1, nil) end
-                    if bk2 == k1 then _G.SetBinding(bk2, nil) end
+
+    -- Sync class utility keybind (shaman totem sequence / warlock shard purge) - camelot/classic only
+    if not sfui.isRetail then
+        configure_class_utility_button()
+        local k1 = sfui.keybinds.GetClassUtilityKey()
+        if k1 and k1 ~= "" and _G.SetBinding then
+            local primaryAction = get_primary_class_utility_action()
+            local cur = _G.GetBindingKey and _G.GetBindingKey(primaryAction)
+            if not cur or cur == "" then
+                local actions = {
+                    ACTION_CLASS_UTILITY,
+                    ACTION_TOTEM_SEQUENCE,
+                    ACTION_PURGE_SHARDS,
+                }
+                for _, act in ipairs(actions) do
+                    if act ~= primaryAction and _G.GetBindingKey then
+                        local bk1, bk2 = _G.GetBindingKey(act)
+                        if bk1 == k1 then _G.SetBinding(bk1, nil) end
+                        if bk2 == k1 then _G.SetBinding(bk2, nil) end
+                    end
                 end
+                _G.SetBinding(k1, primaryAction)
             end
-            _G.SetBinding(k1, primaryAction)
+        end
+    end
+
+    -- Sync portals keybind (retail & camelot)
+    local pk1 = sfui.keybinds.GetPortalsKey()
+    if pk1 and pk1 ~= "" and _G.SetBinding then
+        local cur = _G.GetBindingKey and _G.GetBindingKey(ACTION_PORTALS)
+        if not cur or cur == "" then
+            local curBtn = _G.GetBindingKey and _G.GetBindingKey(ACTION_PORTALS_BTN)
+            if not curBtn or curBtn == "" then
+                _G.SetBinding(pk1, ACTION_PORTALS)
+            end
         end
     end
 end)
@@ -481,7 +574,7 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
     if is_unregistered("alts") then
         sfui.alts.initialize()
     end
-    if isRetail and is_unregistered("portals") then
+    if is_unregistered("portals") and sfui.portals and sfui.portals.initialize then
         sfui.portals.initialize()
     end
     if isRetail and is_unregistered("lootspec") then
@@ -526,7 +619,7 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
             },
         }
 
-        if isRetail and sfui.portals then
+        if sfui.portals and sfui.portals.Toggle then
             table.insert(menuButtons, {
                 text = "|cffff9900portals|r",
                 func = function()

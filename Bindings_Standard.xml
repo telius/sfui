@@ -1,5 +1,4 @@
 <Bindings>
-    <Binding name="CLICK SfuiClassUtilityBtn:LeftButton" category="SFUI"/>
     <Binding name="CLICK SfuiHammerPopup:LeftButton" category="SFUI"/>
     <Binding name="SFUI_MATCHMOUNT" category="SFUI">
         sfui.automation.match_mount()
@@ -11,7 +10,7 @@
         sfui.alts.Toggle()
     </Binding>
     <Binding name="SFUI_LOOTVIEWER" category="SFUI">
-        if sfui.ToggleLootViewer then sfui.ToggleLootViewer() elseif sfui.lootviewer and sfui.lootviewer.Toggle then sfui.lootviewer.Toggle() elseif sfui.lootviewer_camelot and sfui.lootviewer_camelot.Toggle then sfui.lootviewer_camelot.Toggle() end
+        if sfui.ToggleLootViewer then sfui.ToggleLootViewer() elseif sfui.lootviewer and sfui.lootviewer.Toggle then sfui.lootviewer.Toggle() end
     </Binding>
     <Binding name="SFUI_FISHING" category="SFUI">
         sfui.fishing.RunKeybind()

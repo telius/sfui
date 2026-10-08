@@ -58,7 +58,6 @@ end
 
 -- Global keybind identifiers
 _G["BINDING_NAME_SFUI_FISHING"]     = "cast & catch fishing"
-_G["BINDING_NAME_BETTERFISHINGKEY"] = "cast & catch fishing (better fishing compat)"
 
 local SECURE_BUTTON_NAME            = "SfuiFishingButton"
 
@@ -455,7 +454,6 @@ local function update_bound_keys()
         end
     end
     add_keys("SFUI_FISHING")
-    add_keys("BETTERFISHINGKEY")
 end
 
 local function get_all_bound_keys()
