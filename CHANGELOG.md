@@ -1,12 +1,14 @@
 # Changelog
 
-## v1.85 (2026-10-08)
+## v1.86 (2026-10-08)
+
+### features
+
+- **auto-switch to gained reputation**: added an opt-in toggle in `frames/options/tabs/tab_experience.lua` (default off) that automatically activates the reputation bar and swaps the watched faction whenever reputation is gained.
+- **spillover reputation batching**: implemented a debounced multi-faction batch aggregator in `frames/experience/events.lua` that resolves simultaneous spillover reputation gains (e.g. Horde/Alliance faction turn-ins) by selecting the primary quest faction with the highest gain rather than an arbitrary spillover recipient.
+- **cross-client reputation switching**: unified modern `C_Reputation` / `C_MajorFactions` and classic `GetFactionInfo` / `SetWatchedFactionIndex` in `frames/experience/data.lua` with O(1) cached lookup and redundant-switch prevention.
 
 ### improvements & bug fixes
 
-- **versioning scheme upgrade**: transitioned to multi-client continuous release versioning (`v1.85`), decoupling addon releases from single blizzard patch cycles while declaring full compatibility across both retail (`120100`) and camelot/classic (`16001`).
-- **bag triage runtime crash fix**: fixed boolean argument crash in `frames/options/tabs/tab_classutility.lua` and `core.lua` by validating candidate tables in `execute_purge_candidate` and invoking `ExecutePurge()` cleanly without arguments.
-- **cursor item safety**: added busy-cursor safety checks in `frames/automation/triage.lua` and eliminated premature `DeleteCursorItem()` on held cursor items to protect dragged inventory items and spells from accidental deletion.
-- **smooth multi-shard purging**: excluded locked container slots from candidate selection in `get_soul_shard_data`, allowing rapid successive keypresses to immediately target the next available excess shard without false "item is locked" errors.
-- **hardware key-up debounce**: updated click handlers in `SfuiTriageDeleteBtn` and `SfuiPurgeSoulShards` to guard against duplicate key-up executions on physical keypresses.
-- **triage performance & memory optimizations**: implemented fast short-circuiting in `EvaluateTriage` to skip full 140-slot inventory scans when bag space is above threshold, isolated soul shard logic to warlocks, and converted `get_soul_shard_data` to reuse static scratch tables with `wipe()`.
+- **totem frame secret value taint fix**: resolved fatal crash `attempt to perform numeric conversion on a secret number value (execution tainted by 'sfui')` in `TotemFrame.lua` on WoW 12.1.0 (Midnight / Retail).
+- **unit frame taint elimination**: in `frames/hide.lua`, removed direct `frame:Update()` calls, eliminated `totemPool` button state mutation, stopped attaching custom fields directly to Blizzard frame tables, and restricted `TotemFrame` hiding on Retail strictly to visual opacity without touching secure layouts.

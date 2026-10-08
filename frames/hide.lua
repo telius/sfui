@@ -275,6 +275,9 @@ local function GetFramesForEntry(entry)
     return list
 end
 
+local hookedFrames = {}
+local hookedMultiCast = false
+
 local function ApplyUnitFrame(entry)
     local frames = GetFramesForEntry(entry)
     if #frames == 0 then return end
@@ -282,47 +285,36 @@ local function ApplyUnitFrame(entry)
     local shouldHide = SfuiDB and (SfuiDB[entry.key] == true)
 
     for _, frame in ipairs(frames) do
-        local isProtected = frame.IsProtected and frame:IsProtected()
-        if shouldHide then
-            frame:SetAlpha(0)
-            if not isProtected and frame.EnableMouse then
-                pcall(frame.EnableMouse, frame, false)
-            end
-
-            if frame.totemPool and frame.totemPool.EnumerateActive then
-                for button in frame.totemPool:EnumerateActive() do
-                    pcall(button.EnableMouse, button, false)
-                end
-            end
-
-            if not isProtected and not InCombatLockdown() and frame:IsShown() then
-                frame:Hide()
+        -- Special handling for TotemFrame on Retail (preserve 100% untainted state for 12.1.0 secret values)
+        if frame == _G.TotemFrame then
+            if shouldHide then
+                frame:SetAlpha(0)
+            else
+                frame:SetAlpha(1)
             end
         else
-            frame:SetAlpha(1)
-
-            if not isProtected and frame.EnableMouse then
-                pcall(frame.EnableMouse, frame, true)
-            end
-
-            if frame.totemPool and frame.totemPool.EnumerateActive then
-                for button in frame.totemPool:EnumerateActive() do
-                    pcall(button.EnableMouse, button, true)
+            local isProtected = frame.IsProtected and frame:IsProtected()
+            if shouldHide then
+                frame:SetAlpha(0)
+                if not isProtected and frame.EnableMouse then
+                    pcall(frame.EnableMouse, frame, false)
                 end
-            end
 
-            if not isProtected and not InCombatLockdown() then
-                if entry.noAutoShow then
-                    if frame.UpdateShownState then
-                        pcall(frame.UpdateShownState, frame)
-                    elseif frame.Update then
-                        pcall(frame.Update, frame)
-                    elseif _G.MultiCastActionBarFrame_Update and frame == _G.MultiCastActionBarFrame then
-                        pcall(_G.MultiCastActionBarFrame_Update, frame)
-                    end
-                elseif not frame:IsShown() then
-                    if entry.unit == "player" or (entry.unit and UnitExists(entry.unit)) or not entry.unit then
-                        frame:Show()
+                if not isProtected and not InCombatLockdown() and frame:IsShown() then
+                    frame:Hide()
+                end
+            else
+                frame:SetAlpha(1)
+
+                if not isProtected and frame.EnableMouse then
+                    pcall(frame.EnableMouse, frame, true)
+                end
+
+                if not isProtected and not InCombatLockdown() then
+                    if not entry.noAutoShow and not frame:IsShown() then
+                        if entry.unit == "player" or (entry.unit and UnitExists(entry.unit)) or not entry.unit then
+                            frame:Show()
+                        end
                     end
                 end
             end
@@ -334,19 +326,15 @@ local function HookUnitFrames()
     for _, entry in ipairs(HIDE_FRAMES) do
         local frames = GetFramesForEntry(entry)
         for _, frame in ipairs(frames) do
-            if frame and frame.HookScript and not frame._sfuiHideHooked then
-                frame._sfuiHideHooked = true
+            -- Never hook TotemFrame on Retail (avoids OnShow taint and secret value errors in 12.1.0)
+            if frame and frame ~= _G.TotemFrame and frame.HookScript and not hookedFrames[frame] then
+                hookedFrames[frame] = true
                 frame:HookScript("OnShow", function(self)
                     if SfuiDB and SfuiDB[entry.key] == true then
                         self:SetAlpha(0)
                         local isProtected = self.IsProtected and self:IsProtected()
                         if not isProtected and self.EnableMouse then
                             pcall(self.EnableMouse, self, false)
-                        end
-                        if self.totemPool and self.totemPool.EnumerateActive then
-                            for button in self.totemPool:EnumerateActive() do
-                                pcall(button.EnableMouse, button, false)
-                            end
                         end
                         if not isProtected and not InCombatLockdown() then
                             self:Hide()
@@ -357,43 +345,21 @@ local function HookUnitFrames()
         end
     end
 
-    if hooksecurefunc then
-        if _G.TotemFrame and _G.TotemFrame.Update and not _G.TotemFrame._sfuiUpdateHooked then
-            _G.TotemFrame._sfuiUpdateHooked = true
-            hooksecurefunc(_G.TotemFrame, "Update", function(self)
-                if SfuiDB and SfuiDB.hide_totem_bar then
-                    self:SetAlpha(0)
-                    local isProtected = self.IsProtected and self:IsProtected()
-                    if not isProtected and self.EnableMouse then
-                        pcall(self.EnableMouse, self, false)
-                    end
-                    if self.totemPool and self.totemPool.EnumerateActive then
-                        for button in self.totemPool:EnumerateActive() do
-                            pcall(button.EnableMouse, button, false)
-                        end
-                    end
-                    if not isProtected and not InCombatLockdown() then
-                        self:Hide()
-                    end
+    -- MultiCastActionBarFrame for Classic / Camelot only
+    if not sfui.isRetail and hooksecurefunc and _G.MultiCastActionBarFrame_Update and not hookedMultiCast then
+        hookedMultiCast = true
+        hooksecurefunc("MultiCastActionBarFrame_Update", function(self)
+            if SfuiDB and SfuiDB.hide_totem_bar and self then
+                self:SetAlpha(0)
+                local isProtected = self.IsProtected and self:IsProtected()
+                if not isProtected and self.EnableMouse then
+                    pcall(self.EnableMouse, self, false)
                 end
-            end)
-        end
-
-        if _G.MultiCastActionBarFrame_Update and not _G._sfuiMultiCastUpdateHooked then
-            _G._sfuiMultiCastUpdateHooked = true
-            hooksecurefunc("MultiCastActionBarFrame_Update", function(self)
-                if SfuiDB and SfuiDB.hide_totem_bar and self then
-                    self:SetAlpha(0)
-                    local isProtected = self.IsProtected and self:IsProtected()
-                    if not isProtected and self.EnableMouse then
-                        pcall(self.EnableMouse, self, false)
-                    end
-                    if not isProtected and not InCombatLockdown() then
-                        self:Hide()
-                    end
+                if not isProtected and not InCombatLockdown() then
+                    self:Hide()
                 end
-            end)
-        end
+            end
+        end)
     end
 end
 

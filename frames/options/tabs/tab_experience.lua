@@ -162,12 +162,19 @@ sfui.options.RegisterTab({
         end, "automatically switches the bar to tracked reputation or major faction renown when at maximum level."))
         rep_auto_cb:SetPoint("TOPLEFT", float_cb, "BOTTOMLEFT", 0, -8)
 
+        local rep_gain_cb = registerCheckbox(create_checkbox(exp_panel, "auto-switch to gained reputation", function()
+            return sfui.db.Get("experience", "autoSwitchRepOnGain", false)
+        end, function(checked)
+            sfui.db.Set("experience", "autoSwitchRepOnGain", checked)
+        end, "automatically activates and switches the watched reputation bar to any faction whenever reputation is gained."))
+        rep_gain_cb:SetPoint("TOPLEFT", rep_auto_cb, "BOTTOMLEFT", 0, -8)
+
         local dual_cb = registerCheckbox(create_checkbox(exp_panel, "enable dual stacked bars (xp & rep together)", function()
             return sfui.db.Get("experience", "showDualBars", true)
         end, function(checked)
             sfui.db.Set("experience", "showDualBars", checked)
         end, "docks the reputation bar directly with the experience bar so you can track both simultaneously while leveling."))
-        dual_cb:SetPoint("TOPLEFT", rep_auto_cb, "BOTTOMLEFT", 0, -8)
+        dual_cb:SetPoint("TOPLEFT", rep_gain_cb, "BOTTOMLEFT", 0, -8)
 
         local rep_top_cb = registerCheckbox(create_checkbox(exp_panel, "dock reputation bar on top (above xp)", function()
             return sfui.db.Get("experience", "repOnTop", true)
@@ -278,7 +285,7 @@ sfui.options.RegisterTab({
         end
 
         if exp_panel.SetContentHeight then
-            exp_panel:SetContentHeight(560)
+            exp_panel:SetContentHeight(580)
         end
     end,
 })

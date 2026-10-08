@@ -342,6 +342,7 @@ sfui.config = {
         showRate = true,
         showTTL = true,
         autoReputation = true, -- Switch to reputation if max level or tracking faction
+        autoSwitchRepOnGain = false, -- Automatically activate and switch reputation bar when reputation is gained
         hideBlizzardBar = true,
         colors = {
             xp = { 0.58, 0.0, 0.82, 1.0 },             -- Fallback active xp color (purple)

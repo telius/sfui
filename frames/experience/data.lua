@@ -15,8 +15,11 @@ local math_min = math.min
 local math_max = math.max
 local math_floor = math.floor
 local string_format = string.format
+local string_lower = string.lower
 local table_insert = table.insert
 local table_remove = table.remove
+local pairs = _G.pairs
+local pcall = _G.pcall
 local GetTime = _G.GetTime
 local UnitXP = _G.UnitXP
 local UnitXPMax = _G.UnitXPMax
@@ -337,6 +340,150 @@ function data.GetReputationData()
     _repData.remaining = 1
     return _repData
 end
+
+-- ─── Faction Lookup & Watched Faction Switching ──────────────────────────────
+local factionCache = {}
+
+--- Clear faction lookup cache
+function data.ClearFactionCache()
+    for k in pairs(factionCache) do
+        factionCache[k] = nil
+    end
+end
+
+--- Find a faction ID and index by localized or clean name
+--- @param targetName string
+--- @return number|nil factionID, number|nil factionIndex
+function data.FindFactionByName(targetName)
+    if not targetName or targetName == "" then return nil, nil end
+    local cleanTarget = string_lower(targetName):gsub("^%s*[\"']*(.-)[\"']*%s*$", "%1")
+    if cleanTarget == "" then return nil, nil end
+
+    -- 1. Check cache first
+    local cached = factionCache[cleanTarget]
+    if cached then
+        return cached.factionID, cached.index
+    end
+
+    -- 2. Modern C_Reputation API (Retail / Midnight / Camelot)
+    if C_Reputation and C_Reputation.GetNumFactions and C_Reputation.GetFactionDataByIndex then
+        local num = C_Reputation.GetNumFactions() or 0
+        for i = 1, num do
+            local fData = C_Reputation.GetFactionDataByIndex(i)
+            if fData and fData.name then
+                local clean = string_lower(fData.name):gsub("^%s*[\"']*(.-)[\"']*%s*$", "%1")
+                factionCache[clean] = { factionID = fData.factionID, index = i }
+                if clean == cleanTarget then
+                    return fData.factionID, i
+                end
+            end
+        end
+
+        -- Check Major Factions / Renown
+        if C_MajorFactions and C_MajorFactions.GetMajorFactionIDs then
+            local majorIDs = C_MajorFactions.GetMajorFactionIDs()
+            if majorIDs then
+                for _, id in ipairs(majorIDs) do
+                    local mData = C_MajorFactions.GetMajorFactionData(id)
+                    if mData and mData.name then
+                        local clean = string_lower(mData.name):gsub("^%s*[\"']*(.-)[\"']*%s*$", "%1")
+                        factionCache[clean] = { factionID = id, index = nil }
+                        if clean == cleanTarget then
+                            return id, nil
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- 3. Classic / Forever API (GetNumFactions / GetFactionInfo)
+    local getNumFactions = _G.GetNumFactions
+    local getFactionInfo = _G.GetFactionInfo
+    if getNumFactions and getFactionInfo then
+        local num = getNumFactions() or 0
+        for i = 1, num do
+            local name, _, _, _, _, _, _, _, _, _, _, _, _, fID = getFactionInfo(i)
+            if name then
+                local clean = string_lower(name):gsub("^%s*[\"']*(.-)[\"']*%s*$", "%1")
+                factionCache[clean] = { factionID = fID, index = i }
+                if clean == cleanTarget then
+                    return fID, i
+                end
+            end
+        end
+    end
+
+    return nil, nil
+end
+
+--- Set the watched reputation faction across modern and classic clients
+--- @param factionID number|nil
+--- @param factionIndex number|nil
+--- @param factionName string|nil
+--- @return boolean success
+function data.SetWatchedFaction(factionID, factionIndex, factionName)
+    local success = false
+
+    -- Modern Retail / Live: C_Reputation.SetWatchedFactionByID
+    if C_Reputation and C_Reputation.SetWatchedFactionByID and factionID and factionID > 0 then
+        local ok = pcall(C_Reputation.SetWatchedFactionByID, factionID)
+        if ok then
+            success = true
+        end
+    end
+
+    -- Modern Camelot / Fallback: C_Reputation.SetWatchedFactionByIndex
+    if not success and C_Reputation and C_Reputation.SetWatchedFactionByIndex and factionIndex and factionIndex > 0 then
+        local ok = pcall(C_Reputation.SetWatchedFactionByIndex, factionIndex)
+        if ok then
+            success = true
+        end
+    end
+
+    -- Classic / Forever: SetWatchedFactionIndex
+    local setWatchedIndex = _G.SetWatchedFactionIndex
+    if not success and setWatchedIndex and factionIndex and factionIndex > 0 then
+        local ok = pcall(setWatchedIndex, factionIndex)
+        if ok then
+            success = true
+        end
+    end
+
+    return success
+end
+
+--- Look up faction by name and set it as watched
+--- @param factionName string
+--- @return boolean success
+function data.SetWatchedFactionByName(factionName)
+    if not factionName or factionName == "" then return false end
+
+    -- Check if already watched
+    local curRep = data.GetReputationData()
+    if curRep and curRep.hasRep and curRep.name then
+        local curClean = string_lower(curRep.name):gsub("^%s*[\"']*(.-)[\"']*%s*$", "%1")
+        local newClean = string_lower(factionName):gsub("^%s*[\"']*(.-)[\"']*%s*$", "%1")
+        if curClean == newClean then
+            return true
+        end
+    end
+
+    local factionID, factionIndex = data.FindFactionByName(factionName)
+
+    -- If not found, clear cache and re-scan once (in case faction was just discovered)
+    if not factionID and not factionIndex then
+        data.ClearFactionCache()
+        factionID, factionIndex = data.FindFactionByName(factionName)
+    end
+
+    if factionID or factionIndex then
+        return data.SetWatchedFaction(factionID, factionIndex, factionName)
+    end
+
+    return false
+end
+
 
 -- ─── Session Rate & Time-To-Level Analytics ───────────────────────────────────
 --- Calculate current session metrics
