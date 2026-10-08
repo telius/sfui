@@ -13,14 +13,20 @@ manual-changelog: CHANGELOG.md
 
 ignore:
   - .agent
+  - .agents
+  - .previews
   - .vscode
   - .git
   - .github
   - .gitignore
   - .pkgmeta
   - 12.0.1.65448
+  - AGENTS.md
+  - GEMINI.md
   - description.txt
   - designgoals.txt
   - spellids.txt
   - shots
   - scripts
+  - docs
+

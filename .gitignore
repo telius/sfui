@@ -19,12 +19,16 @@ Interface/AddOns/*/
 *.swp
 *~
 
-# Internal tools
+# Internal tools and agent configs
 .agent/
+.agents/
+AGENTS.md
+GEMINI.md
 PERF*
 OPT*
 Libs/
 scratch/
+~$*
 
 # Secrets and tokens
 *token*
