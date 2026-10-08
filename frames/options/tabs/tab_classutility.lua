@@ -30,32 +30,27 @@ sfui.options.RegisterTab({
         local main_desc = p:CreateFontString(nil, "OVERLAY", g.font_small or g.font)
         main_desc:SetPoint("TOPLEFT", main_header, "BOTTOMLEFT", 0, -4)
         main_desc:SetTextColor(0.7, 0.7, 0.7)
-        main_desc:SetText("unified management for class-specific tools, automation, and shared hardware keybinds.")
+        main_desc:SetText("class-specific tools, automation, and shared keybinds.")
 
         -- ── Section 1: Singular Shared Keybind ───────────────────────────────
         local keybind_header = p:CreateFontString(nil, "OVERLAY", g.font)
-        keybind_header:SetPoint("TOPLEFT", main_desc, "BOTTOMLEFT", 0, -18)
+        keybind_header:SetPoint("TOPLEFT", main_desc, "BOTTOMLEFT", 0, -14)
         keybind_header:SetTextColor(0, 1, 1, 1)
-        keybind_header:SetText("singular class utility keybind")
+        keybind_header:SetText("class utility keybind")
 
         local role_str = (playerClass == "SHAMAN" and "|cff00fffftotem sequence|r (casts totems in order)")
-            or (playerClass == "WARLOCK" and "|cff00ffffsoul shard purge|r (deletes excess shards down to max)")
+            or (playerClass == "WARLOCK" and "|cff00ffffsoul shard purge|r (prunes excess shards)")
             or "|cffaaaaaaclass utility (dormant on this class)|r"
 
         local role_label = p:CreateFontString(nil, "OVERLAY", g.font)
         role_label:SetPoint("TOPLEFT", keybind_header, "BOTTOMLEFT", 0, -4)
         role_label:SetTextColor(white[1], white[2], white[3])
-        role_label:SetText("active function on this character: " .. role_str)
+        role_label:SetText("active function: " .. role_str)
 
         local keybind_desc = p:CreateFontString(nil, "OVERLAY", g.font_small or g.font)
-        keybind_desc:SetPoint("TOPLEFT", role_label, "BOTTOMLEFT", 0, -6)
+        keybind_desc:SetPoint("TOPLEFT", role_label, "BOTTOMLEFT", 0, -4)
         keybind_desc:SetTextColor(0.7, 0.7, 0.7)
-        keybind_desc:SetText("one shared keybind for all your characters. because totem sequencing and soul shard purging are mutually exclusive class mechanics, binding this single key automatically executes the correct hardware action without binding conflicts.")
-
-        local keybind_bullets = p:CreateFontString(nil, "OVERLAY", g.font_small or g.font)
-        keybind_bullets:SetPoint("TOPLEFT", keybind_desc, "BOTTOMLEFT", 0, -6)
-        keybind_bullets:SetTextColor(0.6, 0.6, 0.6)
-        keybind_bullets:SetText("• shaman: securely cycles and casts your active totem sequence (combat protected)\n• warlock: purges excess soul shards out of combat down to your maximum limit\n• others: dormant fallback button")
+        keybind_desc:SetText("shared keybind that adapts to your character (shaman: totem sequence, warlock: shard purge).")
 
         local keybind_widget = common.create_keybind_input(
             p,
@@ -64,31 +59,26 @@ sfui.options.RegisterTab({
             function(key) return sfui.keybinds.SetClassUtilityKey(key) end,
             function() return sfui.keybinds.UnbindClassUtilityKey() end,
             "class utility keybind",
-            "singular shared keybind: casts totem sequence (shaman) or purges shards (warlock)."
+            "casts totem sequence (shaman) or purges shards (warlock)."
         )
-        keybind_widget:SetPoint("TOPLEFT", keybind_bullets, "BOTTOMLEFT", 0, -10)
+        keybind_widget:SetPoint("TOPLEFT", keybind_desc, "BOTTOMLEFT", 0, -10)
 
         local macro_hint = p:CreateFontString(nil, "OVERLAY", g.font_small or g.font)
-        macro_hint:SetPoint("TOPLEFT", keybind_widget, "BOTTOMLEFT", 0, -8)
+        macro_hint:SetPoint("TOPLEFT", keybind_widget, "BOTTOMLEFT", 0, -6)
         macro_hint:SetTextColor(0.5, 0.75, 0.85)
-        macro_hint:SetText("macro triggers: /click SfuiTotemSequenceBtn (shaman) | /click SfuiPurgeSoulShards (warlock)")
+        macro_hint:SetText("macro: /click SfuiClassUtilityBtn")
 
         -- ── Section 2: Shaman Totem Bar & Cast Sequencer ─────────────────────
         local shaman_tag = (playerClass == "SHAMAN" and " |cff00ff00(your class)|r" or "")
         local shaman_header = p:CreateFontString(nil, "OVERLAY", g.font)
-        shaman_header:SetPoint("TOPLEFT", macro_hint, "BOTTOMLEFT", 0, -24)
+        shaman_header:SetPoint("TOPLEFT", macro_hint, "BOTTOMLEFT", 0, -20)
         shaman_header:SetTextColor(0, 1, 1, 1)
-        shaman_header:SetText("shaman: totem bar & cast sequencer" .. shaman_tag)
-
-        local shaman_desc = p:CreateFontString(nil, "OVERLAY", g.font_small or g.font)
-        shaman_desc:SetPoint("TOPLEFT", shaman_header, "BOTTOMLEFT", 0, -4)
-        shaman_desc:SetTextColor(0.7, 0.7, 0.7)
-        shaman_desc:SetText("standalone totem bar with scroll wheel selection, timers, glows, and automated /castsequence.")
+        shaman_header:SetText("shaman: totem bar" .. shaman_tag)
 
         local shaman_guide = p:CreateFontString(nil, "OVERLAY", g.font_small or g.font)
-        shaman_guide:SetPoint("TOPLEFT", shaman_desc, "BOTTOMLEFT", 0, -4)
-        shaman_guide:SetTextColor(0.6, 0.6, 0.6)
-        shaman_guide:SetText("• scroll wheel: hover over any element icon and scroll to cycle available totems\n• left-click: casts that individual totem directly\n• right-click: cancels / destroys that specific active totem in combat\n• cast sequence: press your keybind repeatedly to drop your totems in order")
+        shaman_guide:SetPoint("TOPLEFT", shaman_header, "BOTTOMLEFT", 0, -4)
+        shaman_guide:SetTextColor(0.7, 0.7, 0.7)
+        shaman_guide:SetText("scroll icon to pick totem • left-click to cast • right-click to recall/destroy.")
 
         local totem_enable_cb = create_checkbox(
             p,
@@ -107,9 +97,9 @@ sfui.options.RegisterTab({
                     sfui.totembar.ApplySettings()
                 end
             end,
-            "toggles the standalone movable totem tracking bar on or off."
+            "toggle the standalone totem bar."
         )
-        totem_enable_cb:SetPoint("TOPLEFT", shaman_guide, "BOTTOMLEFT", 0, -10)
+        totem_enable_cb:SetPoint("TOPLEFT", shaman_guide, "BOTTOMLEFT", 0, -8)
 
         local totem_element_cb = create_checkbox(
             p,
@@ -128,7 +118,7 @@ sfui.options.RegisterTab({
                     sfui.totembar.ApplySettings()
                 end
             end,
-            "colors button borders and active glows by elemental school (earth: brown, fire: orange, water: blue, air: green)."
+            "color borders and glows by elemental school."
         )
         totem_element_cb:SetPoint("LEFT", totem_enable_cb, "LEFT", COL_OFFSET_X, 0)
 
@@ -149,7 +139,7 @@ sfui.options.RegisterTab({
                     sfui.totembar.ApplySettings()
                 end
             end,
-            "shows countdown duration text below the totem icon when placed in the world."
+            "show active totem countdown timer."
         )
         totem_timer_cb:SetPoint("TOPLEFT", totem_enable_cb, "BOTTOMLEFT", 0, -8)
 
@@ -170,7 +160,7 @@ sfui.options.RegisterTab({
                     sfui.totembar.ApplySettings()
                 end
             end,
-            "shows an animated pixel glow around active totems while alive in the world."
+            "show glow around active totems."
         )
         totem_glow_cb:SetPoint("LEFT", totem_timer_cb, "LEFT", COL_OFFSET_X, 0)
 
@@ -187,9 +177,9 @@ sfui.options.RegisterTab({
                     sfui.totembar.ApplySettings()
                 end
             end,
-            "size of each totem button in pixels (default 36)."
+            "button size in pixels (default 36)."
         )
-        totem_size_slider:SetPoint("TOPLEFT", totem_timer_cb, "BOTTOMLEFT", 0, -12)
+        totem_size_slider:SetPoint("TOPLEFT", totem_timer_cb, "BOTTOMLEFT", 0, -10)
 
         local totem_spacing_slider = create_slider_input(
             p,
@@ -204,12 +194,12 @@ sfui.options.RegisterTab({
                     sfui.totembar.ApplySettings()
                 end
             end,
-            "spacing between totem buttons in pixels (default 4)."
+            "spacing between buttons (default 4)."
         )
         totem_spacing_slider:SetPoint("LEFT", totem_size_slider, "LEFT", COL_OFFSET_X, 0)
 
         local unlock_totem_btn = CreateFlatButton(p, "unlock totem bar", 140, 22)
-        unlock_totem_btn:SetPoint("TOPLEFT", totem_size_slider, "BOTTOMLEFT", 0, -12)
+        unlock_totem_btn:SetPoint("TOPLEFT", totem_size_slider, "BOTTOMLEFT", 0, -10)
         unlock_totem_btn:SetScript("OnClick", function(self)
             if sfui.totembar and sfui.totembar.ToggleUnlock then
                 local unlocked = sfui.totembar.ToggleUnlock()
@@ -242,9 +232,9 @@ sfui.options.RegisterTab({
                     sfui.totembar.ApplySettings()
                 end
             end,
-            "displays a 5th button on the totem bar displaying sequence progress and allowing manual clicks."
+            "show 5th button on bar for sequence progress."
         )
-        show_seq_cb:SetPoint("TOPLEFT", unlock_totem_btn, "BOTTOMLEFT", 0, -12)
+        show_seq_cb:SetPoint("TOPLEFT", unlock_totem_btn, "BOTTOMLEFT", 0, -10)
 
         local seq_reset_slider = create_slider_input(
             p,
@@ -259,26 +249,21 @@ sfui.options.RegisterTab({
                     sfui.totembar.ApplySettings()
                 end
             end,
-            "seconds of inactivity before the cast sequence resets back to the first totem (default 15)."
+            "seconds before sequence resets (default 15)."
         )
         seq_reset_slider:SetPoint("LEFT", show_seq_cb, "LEFT", COL_OFFSET_X, 0)
 
         -- ── Section 3: Warlock Soul Shard Purge ───────────────────────────────
         local warlock_tag = (playerClass == "WARLOCK" and " |cff00ff00(your class)|r" or "")
         local warlock_header = p:CreateFontString(nil, "OVERLAY", g.font)
-        warlock_header:SetPoint("TOPLEFT", show_seq_cb, "BOTTOMLEFT", 0, -24)
+        warlock_header:SetPoint("TOPLEFT", show_seq_cb, "BOTTOMLEFT", 0, -20)
         warlock_header:SetTextColor(0, 1, 1, 1)
-        warlock_header:SetText("warlock: soul shard purge & triage" .. warlock_tag)
-
-        local warlock_desc = p:CreateFontString(nil, "OVERLAY", g.font_small or g.font)
-        warlock_desc:SetPoint("TOPLEFT", warlock_header, "BOTTOMLEFT", 0, -4)
-        warlock_desc:SetTextColor(0.7, 0.7, 0.7)
-        warlock_desc:SetText("inventory soul shard management, dedicated soul bag protection, and excess purge.")
+        warlock_header:SetText("warlock: soul shard purge" .. warlock_tag)
 
         local warlock_guide = p:CreateFontString(nil, "OVERLAY", g.font_small or g.font)
-        warlock_guide:SetPoint("TOPLEFT", warlock_desc, "BOTTOMLEFT", 0, -4)
-        warlock_guide:SetTextColor(0.6, 0.6, 0.6)
-        warlock_guide:SetText("• manual purge: press your keybind or use /click SfuiPurgeSoulShards out of combat to prune down to your max limit\n• soul bag protection: shards inside dedicated soul bags are preserved; only spillover shards in regular bags are deleted\n• combat safety: purging is completely silent and ignored in combat to prevent chat spam and cursor taint\n• audio feedback: plays a subtle interface confirmation click when shards are deleted")
+        warlock_guide:SetPoint("TOPLEFT", warlock_header, "BOTTOMLEFT", 0, -4)
+        warlock_guide:SetTextColor(0.7, 0.7, 0.7)
+        warlock_guide:SetText("deletes excess soul shards out of combat down to your maximum limit.")
 
         local soulshard_cb = create_checkbox(
             p,
@@ -293,9 +278,9 @@ sfui.options.RegisterTab({
                     sfui.triage.CheckSoulShards()
                 end
             end,
-            "shows a triage popup prompt with a [purge] button whenever excess soul shards exist. leave unchecked if you prefer using the keybind/macro."
+            "show triage prompt popup when excess shards exist."
         )
-        soulshard_cb:SetPoint("TOPLEFT", warlock_guide, "BOTTOMLEFT", 0, -10)
+        soulshard_cb:SetPoint("TOPLEFT", warlock_guide, "BOTTOMLEFT", 0, -8)
 
         local soulshard_preserve_cb = create_checkbox(
             p,
@@ -310,7 +295,7 @@ sfui.options.RegisterTab({
                     sfui.triage.CheckSoulShards()
                 end
             end,
-            "keeps dedicated soul bags (e.g. soul pouch, box of souls, felcloth bag) intact and only prunes spillover shards taking up regular inventory bags."
+            "protect shards inside dedicated soul bags; only prune regular bags."
         )
         soulshard_preserve_cb:SetPoint("TOPLEFT", soulshard_cb, "BOTTOMLEFT", 0, -8)
 
@@ -324,7 +309,7 @@ sfui.options.RegisterTab({
             function(checked)
                 sfui.db.Set("triage", "soulShardChat", checked)
             end,
-            "prints a consolidated single-line summary to chat when soul shards are pruned."
+            "print single-line summary when shards are pruned."
         )
         soulshard_chat_cb:SetPoint("TOPLEFT", soulshard_preserve_cb, "BOTTOMLEFT", 0, -8)
 
@@ -343,16 +328,16 @@ sfui.options.RegisterTab({
                     sfui.triage.CheckSoulShards()
                 end
             end,
-            "maximum number of soul shards to retain in inventory. excess shards will be safely deleted (default 20).",
+            "max soul shards to retain in inventory (default 20).",
             220
         )
         soulshard_slider:SetPoint("TOPLEFT", soulshard_cb, "TOPLEFT", COL_OFFSET_X, 4)
 
         local purge_now_btn = CreateFlatButton(p, "purge excess now", 130, 22)
-        purge_now_btn:SetPoint("TOPLEFT", soulshard_chat_cb, "BOTTOMLEFT", 0, -12)
+        purge_now_btn:SetPoint("TOPLEFT", soulshard_chat_cb, "BOTTOMLEFT", 0, -10)
         purge_now_btn:SetScript("OnClick", function()
-            if sfui.triage and sfui.triage.PurgeSoulShards then
-                sfui.triage.PurgeSoulShards(true)
+            if sfui.triage and sfui.triage.PurgeSingleExcessSoulShard then
+                sfui.triage.PurgeSingleExcessSoulShard(true)
             end
         end)
 
@@ -361,6 +346,6 @@ sfui.options.RegisterTab({
         purge_hint:SetTextColor(0.65, 0.65, 0.65, 1)
         purge_hint:SetText("macro: /click SfuiPurgeSoulShards")
 
-        p.customContentHeight = 750
+        p.customContentHeight = 560
     end,
 })

@@ -76,6 +76,7 @@ sfui.common.format_keybind = sfui.keybinds.format_key
 sfui.common.get_binding_text = sfui.keybinds.get_action_key
 
 local ACTION_CLASS_UTILITY  = "CLICK SfuiClassUtilityBtn:LeftButton"
+local ACTION_TRIAGE_DELETE   = "CLICK SfuiTriageDeleteBtn:LeftButton"
 local ACTION_TOTEM_SEQUENCE = "CLICK SfuiTotemSequenceBtn:LeftButton"
 local ACTION_PURGE_SHARDS   = "CLICK SfuiPurgeSoulShards:LeftButton"
 local ACTION_PORTALS_BTN    = "CLICK SfuiPortalsBtn:LeftButton"
@@ -91,17 +92,35 @@ end)
 local classUtilityBtn = _G.CreateFrame("Button", "SfuiClassUtilityBtn", UIParent, "SecureActionButtonTemplate")
 classUtilityBtn:RegisterForClicks("AnyUp", "AnyDown")
 
+local purgeShardsBtn = _G.CreateFrame("Button", "SfuiPurgeSoulShards", UIParent)
+purgeShardsBtn:RegisterForClicks("AnyUp", "AnyDown")
+purgeShardsBtn:SetScript("OnClick", function()
+    if _G.SfuiBagTriagePrompt and _G.SfuiBagTriagePrompt:IsShown() and _G.SfuiTriageDeleteBtn then
+        _G.SfuiTriageDeleteBtn:Click()
+    elseif sfui.triage and sfui.triage.ExecutePurge then
+        sfui.triage.ExecutePurge()
+    elseif sfui.triage and sfui.triage.PurgeSoulShards then
+        sfui.triage.PurgeSoulShards(true)
+    end
+end)
+_G.SfuiPurgeSoulShards = purgeShardsBtn
 
 local function configure_class_utility_button()
     local _, pClass = _G.UnitClass("player")
     if pClass == "SHAMAN" then
+        classUtilityBtn:SetAttribute("*type*", "click")
+        classUtilityBtn:SetAttribute("*clickbutton*", _G.SfuiTotemSequenceBtn)
         classUtilityBtn:SetAttribute("type", "click")
         if _G.SfuiTotemSequenceBtn then
             classUtilityBtn:SetAttribute("clickbutton", _G.SfuiTotemSequenceBtn)
         end
+        classUtilityBtn:SetAttribute("macrotext", nil)
     elseif pClass == "WARLOCK" then
-        classUtilityBtn:SetAttribute("type", "macro")
-        classUtilityBtn:SetAttribute("macrotext", "/click SfuiPurgeSoulShards")
+        classUtilityBtn:SetAttribute("*type*", "click")
+        classUtilityBtn:SetAttribute("*clickbutton*", purgeShardsBtn)
+        classUtilityBtn:SetAttribute("type", "click")
+        classUtilityBtn:SetAttribute("clickbutton", purgeShardsBtn)
+        classUtilityBtn:SetAttribute("macrotext", nil)
     else
         classUtilityBtn:SetAttribute("type", nil)
         classUtilityBtn:SetAttribute("clickbutton", nil)
@@ -112,6 +131,12 @@ sfui.keybinds.configure_class_utility_button = configure_class_utility_button
 configure_class_utility_button()
 
 local function get_primary_class_utility_action()
+    local _, pClass = _G.UnitClass("player")
+    if pClass == "WARLOCK" then
+        return ACTION_CLASS_UTILITY
+    elseif pClass == "SHAMAN" then
+        return ACTION_TOTEM_SEQUENCE
+    end
     return ACTION_CLASS_UTILITY
 end
 
@@ -120,6 +145,7 @@ function sfui.keybinds.GetClassUtilityKey()
     local actions = {
         primaryAction,
         ACTION_CLASS_UTILITY,
+        ACTION_TRIAGE_DELETE,
         ACTION_TOTEM_SEQUENCE,
         ACTION_PURGE_SHARDS,
     }
@@ -154,6 +180,7 @@ function sfui.keybinds.SetClassUtilityKey(newKey)
 
     local actions = {
         ACTION_CLASS_UTILITY,
+        ACTION_TRIAGE_DELETE,
         ACTION_TOTEM_SEQUENCE,
         ACTION_PURGE_SHARDS,
     }
@@ -202,6 +229,7 @@ function sfui.keybinds.UnbindClassUtilityKey()
 
     local actions = {
         ACTION_CLASS_UTILITY,
+        ACTION_TRIAGE_DELETE,
         ACTION_TOTEM_SEQUENCE,
         ACTION_PURGE_SHARDS,
     }

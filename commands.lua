@@ -17,6 +17,8 @@ _G["BINDING_NAME_SFUI_PORTALS"] = "portals"
 
 if not sfui.isRetail then
     _G["BINDING_NAME_CLICK SfuiClassUtilityBtn:LeftButton"] = "class utility (totems / shards)"
+    _G["BINDING_NAME_CLICK SfuiTriageDeleteBtn:LeftButton"] = "triage: delete / purge active item"
+    _G["BINDING_NAME_CLICK SfuiPurgeSoulShards:LeftButton"] = "purge excess soul shards"
     _G["BINDING_NAME_SFUI_LOOTVIEWER"] = "dungeon journal"
 else
     _G["BINDING_NAME_SFUI_LOOTVIEWER"] = "loot browser"
@@ -130,8 +132,8 @@ SlashCmdList["SFUI"] = function(msg)
             sfui.totembar.ToggleUnlock()
         end
     elseif cmd == "shards" or cmd == "shard" then
-        if sfui.triage and sfui.triage.PurgeSoulShards then
-            sfui.triage.PurgeSoulShards()
+        if sfui.triage and sfui.triage.CheckSoulShards then
+            sfui.triage.CheckSoulShards()
         end
     elseif cmd == "rl" or cmd == "reload" then
         C_UI.Reload()
@@ -174,8 +176,8 @@ if not sfui.isRetail then
 
     SLASH_SFUISHARDS1 = "/sfshards"
     SlashCmdList["SFUISHARDS"] = function()
-        if sfui.triage and sfui.triage.PurgeSoulShards then
-            sfui.triage.PurgeSoulShards()
+        if sfui.triage and sfui.triage.CheckSoulShards then
+            sfui.triage.CheckSoulShards()
         end
     end
 end

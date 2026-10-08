@@ -1,6 +1,6 @@
 # Changelog
 
-## v12.1.0-81 (2026-10-08)
+## v12.1.0-82 (2026-10-08)
 
 ### features & enhancements
 
@@ -20,4 +20,6 @@
 - **secret value tooltip taint fix**: added secret-value checks and `is_valid_id` guards across tooltip id annotation in `frames/automation/automation.lua` and `frames/alts/recipes.lua` to prevent lua comparison errors when hovering over private/secret auras in delves and restricted combat encounters.
 - **gear manager pawn string relocated to options**: removed the pawn string input box and label from the gear manager card window in `frames/gear/gear.lua` to fix overflow outside the frame boundary, and moved dedicated pawn string import with live validation, stat weight parsing, and save/clear actions into `frames/options/tabs/tab_gear.lua` for retail specs.
 - **gear manager stat & operator button positioning**: fixed anchoring chain and spacing for the bottom stat row in `frames/gear/gear.lua`, resolving operator button overlap on the first stat, restoring the missing operator before the final stat, and re-enabling interactive clicking on operator buttons to toggle between strict priority (`>`) and equal priority (`=`).
+- **warlock soul shard purge & class utility keybind**: unified the triage purge button and warlock class utility keybind in `core.lua` and `frames/automation/triage.lua` to route directly to the triage prompt purge button (`SfuiTriageDeleteBtn`) when visible or `sfui.triage.ExecutePurge` when closed. registered `AnyUp` and `AnyDown` across `SfuiClassUtilityBtn`, `SfuiPurgeSoulShards`, and `SfuiTriageDeleteBtn`, eliminated early key-down exit guards, removed duplicate hook execution, debounced rapid hardware key-down/key-up re-entries within 350ms, and added direct binding registration (`CLICK SfuiTriageDeleteBtn:LeftButton`) in `Bindings.xml`, `Bindings_Camelot.xml`, and `commands.lua` so hardware keypresses execute the exact necrosis container deletion sequence cleanly without dropping clicks or printing false "item is locked" errors.
+- **class utility options cleanup**: streamlined descriptions, trimmed verbose bullet blocks, and tightened vertical layout in `frames/options/tabs/tab_classutility.lua` for a cleaner, compact settings panel.
 

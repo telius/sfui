@@ -54,6 +54,7 @@ local GetCursorInfo            = _G.GetCursorInfo
 local SOUL_SHARD_ID            = 6265
 local get_soul_shard_data
 local check_and_delete_excess_soul_shards
+local execute_purge_candidate
 
 -- Essential / Protected Item IDs (Never recommend dropping these)
 local PROTECTED_ITEM_IDS = {
@@ -125,9 +126,12 @@ local isEnabled             = true
 --- @param bag number
 --- @return boolean isRegular, number freeSlots
 local function is_regular_inventory_bag(bag)
+    local getNumFreeSlots = (C_Container and C_Container.GetContainerNumFreeSlots) or GetContainerNumFreeSlots
+    local getNumSlots = (C_Container and C_Container.GetContainerNumSlots) or GetContainerNumSlots
+
     if bag == 0 then
         -- Bag 0 is always the primary backpack
-        local freeSlots = GetContainerNumFreeSlots and GetContainerNumFreeSlots(0) or 0
+        local freeSlots = getNumFreeSlots and getNumFreeSlots(0) or 0
         return true, freeSlots or 0
     end
 
@@ -136,12 +140,12 @@ local function is_regular_inventory_bag(bag)
         return false, 0
     end
 
-    local numSlots = GetContainerNumSlots and GetContainerNumSlots(bag) or 0
+    local numSlots = getNumSlots and getNumSlots(bag) or 0
     if not numSlots or numSlots == 0 then
         return false, 0
     end
 
-    local freeSlots, bagFamily = GetContainerNumFreeSlots and GetContainerNumFreeSlots(bag)
+    local freeSlots, bagFamily = getNumFreeSlots and getNumFreeSlots(bag)
     if not freeSlots then
         return false, 0
     end
@@ -342,25 +346,25 @@ local function find_candidates()
     local deleteSoulShards = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "deleteSoulShards", cfg.deleteSoulShards or false))
     if deleteSoulShards and not ignoredInSession[SOUL_SHARD_ID] and get_soul_shard_data then
         local sData = get_soul_shard_data()
-        if sData and sData.excessCount > 0 then
+        if sData and sData.excessCount > 0 and sData.eligibleShards and #sData.eligibleShards > 0 then
+            local targetShard = sData.eligibleShards[1]
             soulShardCandidate = {
                 isSoulShardPurge = true,
+                bag = targetShard.bag,
+                slot = targetShard.slot,
                 itemID = SOUL_SHARD_ID,
-                itemName = "Soul Shards",
-                itemLink = string_format("|cff9933ffSoul Shards|r (|cffffffff%d excess|r)", sData.excessCount),
+                itemName = "Soul Shard",
+                itemLink = targetShard.itemLink or "item:6265",
+                displayName = string_format("|cff9933ffSoul Shards|r (|cffffffff%d excess|r)", sData.excessCount),
                 icon = 134075,
-                stackCount = sData.excessCount,
+                stackCount = 1,
+                sellPrice = 0,
                 totalValue = 0,
                 category = "excess soul shards",
                 deleteButtonText = "purge",
                 totalCount = sData.totalCount,
                 maxShards = sData.maxShards,
                 locationText = sData.preserveSoulBag and string_format("pruning regular bag spillover (%d/%d)", sData.totalCount, sData.maxShards) or string_format("pruning %d excess shards (%d/%d)", sData.excessCount, sData.totalCount, sData.maxShards),
-                onDelete = function()
-                    if triage.PurgeSoulShards then
-                        triage.PurgeSoulShards()
-                    end
-                end,
                 onKeep = function()
                     ignoredInSession[SOUL_SHARD_ID] = true
                     common.print("|cffaaaaaasfui triage:|r keeping soul shards for this session.")
@@ -503,6 +507,9 @@ local function create_triage_prompt()
         sfui.theme.RegisterWindow(f, apply_triage_theme, { cornerBrackets = true })
     end
     f:HookScript("OnShow", refresh_triage_frame_levels)
+    f:HookScript("OnHide", function()
+        currentCandidate = nil
+    end)
 
     -- Drag repositioning
     f:SetScript("OnDragStart", function(self)
@@ -645,96 +652,30 @@ local function create_triage_prompt()
     -- ── Action Buttons ──
     local CreateFlatButton = common.create_flat_button
 
-    -- [delete] action button (instant deletion on click)
-    local deleteBtn = CreateFlatButton(f, "delete", 68, 20)
+    -- [delete] action button (instant deletion on click, also clicked by class utility keybind)
+    local deleteBtn = CreateFrame("Button", "SfuiTriageDeleteBtn", f, "BackdropTemplate")
+    deleteBtn:SetSize(68, 20)
     deleteBtn:SetPoint("BOTTOMLEFT", 10, 8)
     deleteBtn:SetFrameLevel((f:GetFrameLevel() or 100) + 15)
-    deleteBtn:SetScript("OnClick", function()
-        local cand = currentCandidate
-        if not cand then
-            f:Hide()
-            return
+    deleteBtn:SetNormalFontObject("GameFontHighlightSmall")
+    deleteBtn:SetText("delete")
+    local dfs = deleteBtn:GetFontString()
+    if dfs then
+        local fontFile = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+        dfs:SetFont(fontFile, 11, "")
+        dfs:SetTextColor(1, 1, 1, 1)
+    end
+    if sfui.theme and sfui.theme.ApplyButtonStyle then
+        sfui.theme.ApplyButtonStyle(deleteBtn, false)
+        sfui.theme.RegisterButton(deleteBtn, false)
+    end
+    _G.SfuiTriageDeleteBtn = deleteBtn
+
+    deleteBtn:RegisterForClicks("AnyUp", "AnyDown")
+    deleteBtn:SetScript("OnClick", function(self, button, down)
+        if execute_purge_candidate then
+            execute_purge_candidate(currentCandidate)
         end
-
-        if cand.onDelete then
-            f:Hide()
-            cand.onDelete()
-            return
-        end
-
-        if isTestMode then
-            common.print(string_format("|cff00ffffsfui triage:|r [test preview] deleted %s simulated.", cand.itemLink or cand.itemName))
-            f:Hide()
-            isTestMode = false
-            return
-        end
-
-        -- Race condition guard: verify slot still holds the exact candidate item
-        local curID = GetContainerItemID and GetContainerItemID(cand.bag, cand.slot)
-        local curLink = GetContainerItemLink and GetContainerItemLink(cand.bag, cand.slot)
-        if curID ~= cand.itemID or (curLink and cand.itemLink and curLink ~= cand.itemLink) then
-            common.print("|cffff8800sfui triage:|r item moved or changed, cancel delete.")
-            f:Hide()
-            triage.EvaluateTriage()
-            return
-        end
-
-        -- Verify item is not locked by bag operations or server activity
-        local rawInfo = GetContainerItemInfo and GetContainerItemInfo(cand.bag, cand.slot)
-        local info = (type(rawInfo) == "table") and rawInfo or nil
-        if info and info.isLocked then
-            common.print("|cffff8800sfui triage:|r item is currently locked, try again in a moment.")
-            return
-        end
-
-        -- Clear cursor before picking up
-        if CursorHasItem and CursorHasItem() then
-            ClearCursor()
-        end
-
-        if PickupContainerItem then
-            PickupContainerItem(cand.bag, cand.slot)
-        end
-
-        if DeleteCursorItem then
-            DeleteCursorItem()
-        end
-
-        if ClearCursor then
-            ClearCursor()
-        end
-
-        -- Cursor safety cleanup: if native popup is not shown and item is still on cursor, clear it
-        if CursorHasItem and CursorHasItem() then
-            C_Timer.After(0.2, function()
-                if CursorHasItem and CursorHasItem() then
-                    local popupVisible = (_G.StaticPopup_Visible and (_G.StaticPopup_Visible("DELETE_ITEM") or _G.StaticPopup_Visible("DELETE_GOOD_ITEM")))
-                    if not popupVisible then
-                        ClearCursor()
-                    end
-                end
-            end)
-        end
-
-        local coinStr = (cand.totalValue and cand.totalValue > 0)
-            and common.SafeGetCoinTextureString(cand.totalValue)
-            or "0c"
-        common.print(string_format("|cff00ffffsfui triage:|r deleted %s%s (%s).",
-            cand.itemLink or cand.itemName,
-            (cand.stackCount and cand.stackCount > 1) and (" x" .. cand.stackCount) or "",
-            coinStr
-        ))
-
-        if PlaySound then
-            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856)
-        end
-
-        f:Hide()
-
-        -- Re-evaluate after 0.4s once bag updates settle
-        C_Timer.After(0.4, function()
-            triage.EvaluateTriage()
-        end)
     end)
     f.deleteBtn = deleteBtn
     f.dropBtn = deleteBtn -- alias for theme engine and backwards compatibility
@@ -799,7 +740,7 @@ function triage.DisplayCandidate(cand)
     end
 
     if cand.isSoulShardPurge then
-        f.nameText:SetText(cand.itemLink or cand.itemName)
+        f.nameText:SetText(cand.displayName or cand.itemLink or cand.itemName)
         f.infoText:SetText(string_format("retains %d shards |cff888888(%s)|r", cand.maxShards or 20, cand.category or "soul shards"))
         f.slotText:SetText(cand.locationText or "pruning regular bag spillover")
     else
@@ -952,22 +893,26 @@ get_soul_shard_data = function()
     local regularShards = {}
     local specialtyShards = {}
 
+    local getNumSlots = (C_Container and C_Container.GetContainerNumSlots) or GetContainerNumSlots
+    local getItemInfo = (C_Container and C_Container.GetContainerItemInfo) or GetContainerItemInfo
+    local getItemLink = (C_Container and C_Container.GetContainerItemLink) or GetContainerItemLink
+
     local maxBag = _G.NUM_BAG_SLOTS or 4
     for bag = 0, maxBag do
-        local numSlots = (GetContainerNumSlots and GetContainerNumSlots(bag)) or 0
+        local numSlots = (getNumSlots and getNumSlots(bag)) or 0
         if numSlots > 0 then
             local isRegular = is_regular_inventory_bag(bag)
             for slot = 1, numSlots do
                 local itemID = get_slot_item_id(bag, slot)
                 if itemID == SOUL_SHARD_ID then
-                    local rawInfo = GetContainerItemInfo and GetContainerItemInfo(bag, slot)
+                    local rawInfo = getItemInfo and getItemInfo(bag, slot)
                     local info = (type(rawInfo) == "table") and rawInfo or nil
                     local item = {
                         bag = bag,
                         slot = slot,
                         isRegular = isRegular,
                         isLocked = (info and info.isLocked) or false,
-                        itemLink = (info and info.hyperlink) or (GetContainerItemLink and GetContainerItemLink(bag, slot)) or "soul shard",
+                        itemLink = (info and info.hyperlink) or (getItemLink and getItemLink(bag, slot)) or "soul shard",
                     }
                     table_insert(allShards, item)
                     if isRegular then
@@ -1031,99 +976,181 @@ get_soul_shard_data = function()
     }
 end
 
---- Synchronously executes the soul shard deletion loop during a hardware event (click).
---- Follows the authoritative Necrosis v160001 pattern for Camelot / Classic Era.
---- @return number deletedCount
-local function execute_soul_shard_purge()
-    if is_player_combat_or_dead() then
-        return 0
+local lastNoExcessNoticeTime = 0
+local lastPurgeSuccessTime   = 0
+
+--- Purges the active triage candidate (soul shard or item) or next excess soul shard.
+--- This is the core function of the purge button, shared across the UI prompt, keybind, and macros.
+--- @param cand table|nil optional candidate; defaults to currentCandidate or next excess soul shard
+--- @return boolean success
+execute_purge_candidate = function(cand)
+    if is_player_combat_or_dead() then return false end
+
+    local now = GetTime and GetTime() or 0
+    if (now - lastPurgeSuccessTime) < 0.35 then
+        return false
     end
 
-    local doHasItem   = CursorHasItem or _G.CursorHasItem
-    local doClear     = ClearCursor or _G.ClearCursor
-    local doPickup    = (C_Container and C_Container.PickupContainerItem) or PickupContainerItem or _G.PickupContainerItem
-    local doDelete    = DeleteCursorItem or _G.DeleteCursorItem
-    local doGetCursor = GetCursorInfo or _G.GetCursorInfo
+    -- Active prompt candidate or passed candidate
+    cand = cand or currentCandidate
 
-    if doHasItem and doHasItem() and doClear then
-        doClear()
-    end
-
-    local data = get_soul_shard_data()
-    if not data or data.excessCount <= 0 or not data.eligibleShards or #data.eligibleShards == 0 then
-        return 0
-    end
-
-    local deleted = 0
-    for _, target in ipairs(data.eligibleShards) do
-        local curID = get_slot_item_id(target.bag, target.slot)
-        if curID == SOUL_SHARD_ID and doPickup then
-            doPickup(target.bag, target.slot)
-            local infoType, info1, info2 = doGetCursor and doGetCursor()
-            local isShard = doHasItem and doHasItem() and infoType == "item"
-                and (tonumber(info1) == SOUL_SHARD_ID or (type(info2) == "string" and info2:find("item:6265")))
-            if isShard then
-                if doDelete then
-                    doDelete()
-                end
-                if doHasItem and doHasItem() and doClear then
-                    doClear()
-                end
-                deleted = deleted + 1
-            elseif doHasItem and doHasItem() and doClear then
-                doClear()
-            end
+    -- If no candidate currently active, check if excess soul shards exist to purge
+    if not cand and get_soul_shard_data then
+        local sData = get_soul_shard_data()
+        if sData and sData.excessCount > 0 and sData.eligibleShards and #sData.eligibleShards > 0 then
+            local targetShard = sData.eligibleShards[1]
+            cand = {
+                isSoulShardPurge = true,
+                bag = targetShard.bag,
+                slot = targetShard.slot,
+                itemID = SOUL_SHARD_ID,
+                itemName = "Soul Shard",
+                itemLink = targetShard.itemLink or "item:6265",
+                displayName = string_format("|cff9933ffSoul Shards|r (|cffffffff%d excess|r)", sData.excessCount),
+                totalCount = sData.totalCount,
+                maxShards = sData.maxShards,
+            }
         end
     end
 
-    if doHasItem and doHasItem() and doClear then
+    if not cand then
+        local now = GetTime and GetTime() or 0
+        if (now - lastNoExcessNoticeTime) > 1.5 then
+            lastNoExcessNoticeTime = now
+            if get_soul_shard_data then
+                local data = get_soul_shard_data()
+                if data and data.totalCount and data.maxShards and data.totalCount > data.maxShards and data.preserveSoulBag then
+                    common.print(string_format("|cffaaaaaasfui triage:|r %d shards found (%d excess), but preserved in dedicated soul bag (uncheck 'preserve soul bag slots' to delete from soul bag).", data.totalCount, data.totalCount - data.maxShards))
+                elseif data and data.totalCount and data.maxShards then
+                    common.print(string_format("|cffaaaaaasfui triage:|r %d soul shard(s) (max %d), none to purge.", data.totalCount, data.maxShards))
+                else
+                    common.print("|cffaaaaaasfui triage:|r no excess soul shards to delete.")
+                end
+            end
+        end
+        if promptFrame and promptFrame:IsShown() then
+            promptFrame:Hide()
+        end
+        return false
+    end
+
+    if cand.onDelete then
+        if promptFrame and promptFrame:IsShown() then
+            promptFrame:Hide()
+        end
+        cand.onDelete()
+        return true
+    end
+
+    if isTestMode then
+        common.print(string_format("|cff00ffffsfui triage:|r [test preview] deleted %s simulated.", cand.itemLink or cand.itemName))
+        if promptFrame and promptFrame:IsShown() then
+            promptFrame:Hide()
+        end
+        isTestMode = false
+        return true
+    end
+
+    -- Race condition guard: verify slot still holds the exact candidate item
+    local curID = get_slot_item_id and get_slot_item_id(cand.bag, cand.slot)
+    if not curID and GetContainerItemID then
+        curID = GetContainerItemID(cand.bag, cand.slot)
+    end
+    if curID ~= cand.itemID then
+        common.print("|cffff8800sfui triage:|r item moved or changed, cancel delete.")
+        if promptFrame and promptFrame:IsShown() then
+            promptFrame:Hide()
+        end
+        triage.EvaluateTriage()
+        return false
+    end
+
+    -- Verify item is not locked by bag operations or server activity
+    local getItemInfo = (C_Container and C_Container.GetContainerItemInfo) or GetContainerItemInfo
+    local rawInfo = getItemInfo and getItemInfo(cand.bag, cand.slot)
+    local info = (type(rawInfo) == "table") and rawInfo or nil
+    if info and info.isLocked then
+        if (now - lastPurgeSuccessTime) > 0.8 then
+            common.print("|cffff8800sfui triage:|r item is currently locked, try again in a moment.")
+        end
+        return false
+    end
+
+    -- Clear cursor before picking up (or delete if already held)
+    if CursorHasItem and CursorHasItem() then
+        if DeleteCursorItem then DeleteCursorItem() end
+        if ClearCursor then ClearCursor() end
+    end
+
+    local doPickup = (C_Container and C_Container.PickupContainerItem) or PickupContainerItem or _G.PickupContainerItem
+    local doDelete = DeleteCursorItem or _G.DeleteCursorItem
+    local doClear  = ClearCursor or _G.ClearCursor
+
+    if doPickup then
+        doPickup(cand.bag, cand.slot)
+    end
+
+    if doDelete then
+        doDelete()
+    end
+
+    if doClear then
         doClear()
     end
 
-    return deleted
-end
+    lastPurgeSuccessTime = GetTime and GetTime() or 0
 
---- Purges excess soul shards immediately, prints chat summary, and plays audio cue.
---- Must be invoked during a hardware click (triage button, macro /click, or slash command).
---- @param isManual boolean|nil true if explicitly requested via options button click
---- @return number deletedCount
-local function purge_soul_shards(isManual)
-    if is_player_combat_or_dead() then
-        return 0
+    -- Cursor safety cleanup: if native popup is not shown and item is still on cursor, clear it
+    if CursorHasItem and CursorHasItem() then
+        C_Timer.After(0.2, function()
+            if CursorHasItem and CursorHasItem() then
+                local popupVisible = (_G.StaticPopup_Visible and (_G.StaticPopup_Visible("DELETE_ITEM") or _G.StaticPopup_Visible("DELETE_GOOD_ITEM")))
+                if not popupVisible then
+                    ClearCursor()
+                end
+            end
+        end)
     end
 
-    local count = execute_soul_shard_purge()
-    if promptFrame and promptFrame:IsShown() and currentCandidate and currentCandidate.isSoulShardPurge then
+    if cand.isSoulShardPurge then
+        local data = get_soul_shard_data()
+        local remaining = data and data.totalCount or 0
+        local cfg = sfui.config.triage or {}
+        local chatSummary = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "soulShardChat", cfg.soulShardChat ~= false))
+        if chatSummary ~= false and common and common.print then
+            common.print(string_format("|cff00ffffsfui triage:|r deleted 1 excess soul shard (%d retained).", remaining))
+        end
+    else
+        local coinStr = (cand.totalValue and cand.totalValue > 0)
+            and common.SafeGetCoinTextureString(cand.totalValue)
+            or "0c"
+        common.print(string_format("|cff00ffffsfui triage:|r deleted %s%s (%s).",
+            cand.itemLink or cand.itemName,
+            (cand.stackCount and cand.stackCount > 1) and (" x" .. cand.stackCount) or "",
+            coinStr
+        ))
+    end
+
+    if PlaySound then
+        PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856)
+    end
+
+    if promptFrame and promptFrame:IsShown() then
         promptFrame:Hide()
     end
 
-    local cfg = sfui.config.triage or {}
-    local chatSummary = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "soulShardChat", cfg.soulShardChat ~= false))
-    if count > 0 then
-        if chatSummary ~= false then
-            local data = get_soul_shard_data()
-            common.print(string_format("|cff00ffffsfui triage:|r deleted %d excess soul shard(s) (%d retained).", count, data and data.totalCount or 0))
-        end
-        if PlaySound then
-            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856)
-        end
-    elseif isManual then
-        local data = get_soul_shard_data()
-        if data and data.totalCount and data.maxShards then
-            if data.totalCount > data.maxShards and data.preserveSoulBag and (#data.eligibleShards == 0) then
-                common.print(string_format("|cffaaaaaasfui triage:|r %d shards found (%d excess), but preserved in dedicated soul bag (uncheck 'preserve soul bag slots' to delete from soul bag).", data.totalCount, data.totalCount - data.maxShards))
-            elseif data.totalCount <= data.maxShards then
-                common.print(string_format("|cffaaaaaasfui triage:|r %d soul shard(s) (max %d), none to purge.", data.totalCount, data.maxShards))
-            else
-                common.print("|cffaaaaaasfui triage:|r no excess soul shards to delete.")
-            end
-        else
-            common.print("|cffaaaaaasfui triage:|r no excess soul shards to delete.")
-        end
-    end
-    return count
+    -- Re-evaluate after 0.4s once bag updates settle
+    C_Timer.After(0.4, function()
+        triage.EvaluateTriage()
+    end)
+
+    return true
 end
-triage.PurgeSoulShards = purge_soul_shards
+triage.ExecutePurge = execute_purge_candidate
+triage.PurgeCandidate = execute_purge_candidate
+triage.PurgeSingleExcessSoulShard = execute_purge_candidate
+triage.PurgeSoulShards = execute_purge_candidate
+triage.PickUpExcessSoulShard = execute_purge_candidate
 
 --- Checks soul shard counts and triggers triage evaluation if excess exists.
 check_and_delete_excess_soul_shards = function()
@@ -1146,11 +1173,17 @@ check_and_delete_excess_soul_shards = function()
 end
 triage.CheckSoulShards = check_and_delete_excess_soul_shards
 
--- Macro-clickable button to purge shards via /click SfuiPurgeSoulShards
-local purgeShardsBtn = _G.CreateFrame("Button", "SfuiPurgeSoulShards", UIParent)
+-- Macro-clickable / keybind fallback button to purge shards via /click SfuiPurgeSoulShards
+local purgeShardsBtn = _G.SfuiPurgeSoulShards or _G.CreateFrame("Button", "SfuiPurgeSoulShards", UIParent)
+purgeShardsBtn:RegisterForClicks("AnyUp", "AnyDown")
 purgeShardsBtn:SetScript("OnClick", function()
-    purge_soul_shards(true)
+    if promptFrame and promptFrame:IsShown() and promptFrame.deleteBtn then
+        promptFrame.deleteBtn:Click()
+    else
+        execute_purge_candidate()
+    end
 end)
+_G.SfuiPurgeSoulShards = purgeShardsBtn
 
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Triage Evaluation Loop
@@ -1439,3 +1472,12 @@ local TriageModule = sfui.RegisterModule("triage", {
 })
 
 sfui.triage.module = TriageModule
+
+-- Ensure triage prompt and its named delete button exist early for keybind delegation
+local earlyPrompt = create_triage_prompt()
+if earlyPrompt then
+    earlyPrompt:Hide()
+end
+if sfui.keybinds and sfui.keybinds.configure_class_utility_button then
+    sfui.keybinds.configure_class_utility_button()
+end

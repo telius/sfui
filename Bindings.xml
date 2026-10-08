@@ -1,5 +1,7 @@
 <Bindings>
     <Binding name="CLICK SfuiClassUtilityBtn:LeftButton" category="SFUI"/>
+    <Binding name="CLICK SfuiTriageDeleteBtn:LeftButton" category="SFUI"/>
+    <Binding name="CLICK SfuiPurgeSoulShards:LeftButton" category="SFUI"/>
     <Binding name="CLICK SfuiHammerPopup:LeftButton" category="SFUI"/>
     <Binding name="SFUI_MATCHMOUNT" category="SFUI">
         sfui.automation.match_mount()
