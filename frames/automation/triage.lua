@@ -51,10 +51,30 @@ local UnitChannelInfo          = _G.UnitChannelInfo
 local SpellIsTargeting         = _G.SpellIsTargeting
 local GetCursorInfo            = _G.GetCursorInfo
 
+local _, playerClass           = _G.UnitClass("player")
+local isWarlock                = (playerClass == "WARLOCK")
+
 local SOUL_SHARD_ID            = 6265
 local get_soul_shard_data
 local check_and_delete_excess_soul_shards
 local execute_purge_candidate
+
+-- Scratch tables for soul shard calculations (eliminates garbage churn)
+local _shardAll       = {}
+local _shardRegular   = {}
+local _shardSpecialty = {}
+local _shardEligible  = {}
+local _shardDataResult = {
+    allShards = _shardAll,
+    regularShards = _shardRegular,
+    specialtyShards = _shardSpecialty,
+    totalCount = 0,
+    maxShards = 20,
+    preserveSoulBag = true,
+    excessCount = 0,
+    eligibleShards = _shardEligible,
+}
+
 
 -- Essential / Protected Item IDs (Never recommend dropping these)
 local PROTECTED_ITEM_IDS = {
@@ -233,8 +253,9 @@ local function is_item_protected(itemID, itemLink, info)
 end
 
 --- Collects and ranks discard candidates from regular bags 0 to 4 (ignoring specialty containers)
+--- @param skipInventoryScan boolean|nil if true, skips grey and consumable scan (used when bag slots > threshold)
 --- @return table candidates, string candidateType ("grey", "consumable", or "none")
-local function find_candidates()
+local function find_candidates(skipInventoryScan)
     local greyCandidates = {}
     local consumableCandidates = {}
 
@@ -248,90 +269,92 @@ local function find_candidates()
     local playerLevel = UnitLevel("player") or 1
     local maxBag = _G.NUM_BAG_SLOTS or 4
 
-    for bag = 0, maxBag do
-        local isRegular = is_regular_inventory_bag(bag)
-        -- Only scan regular inventory containers (backpack bag 0 or normal bags)
-        -- Discarding items from specialty bags (quiver, herb, mining, soul bag) does not free regular space
-        if isRegular then
-            local numSlots = GetContainerNumSlots and GetContainerNumSlots(bag) or 0
-            for slot = 1, numSlots do
-                local itemID = GetContainerItemID and GetContainerItemID(bag, slot)
-                local itemLink = GetContainerItemLink and GetContainerItemLink(bag, slot)
+    if not skipInventoryScan then
+        for bag = 0, maxBag do
+            local isRegular = is_regular_inventory_bag(bag)
+            -- Only scan regular inventory containers (backpack bag 0 or normal bags)
+            -- Discarding items from specialty bags (quiver, herb, mining, soul bag) does not free regular space
+            if isRegular then
+                local numSlots = GetContainerNumSlots and GetContainerNumSlots(bag) or 0
+                for slot = 1, numSlots do
+                    local itemID = GetContainerItemID and GetContainerItemID(bag, slot)
+                    local itemLink = GetContainerItemLink and GetContainerItemLink(bag, slot)
 
-                if itemID and itemLink then
-                    local rawInfo = GetContainerItemInfo and GetContainerItemInfo(bag, slot)
-                    local info = (type(rawInfo) == "table") and rawInfo or nil
-                    local isLocked = info and info.isLocked
+                    if itemID and itemLink then
+                        local rawInfo = GetContainerItemInfo and GetContainerItemInfo(bag, slot)
+                        local info = (type(rawInfo) == "table") and rawInfo or nil
+                        local isLocked = info and info.isLocked
 
-                    if not isLocked and not is_item_protected(itemID, itemLink, info) then
-                        local quality = info and info.quality
-                        local stackCount = (info and info.stackCount) or 1
-                        local icon = (info and info.iconFileID)
+                        if not isLocked and not is_item_protected(itemID, itemLink, info) then
+                            local quality = info and info.quality
+                            local stackCount = (info and info.stackCount) or 1
+                            local icon = (info and info.iconFileID)
 
-                        local name, _, itemQuality, _, itemMinLevel, _, _, _, _, itemTexture, itemSellPrice, classID, subClassID = common.get_item_info(itemLink)
-                        quality = quality or itemQuality or 0
-                        icon = icon or itemTexture
+                            local name, _, itemQuality, _, itemMinLevel, _, _, _, _, itemTexture, itemSellPrice, classID, subClassID = common.get_item_info(itemLink)
+                            quality = quality or itemQuality or 0
+                            icon = icon or itemTexture
 
-                        local sellPrice = (info and info.noValue) and 0 or (itemSellPrice or 0)
-                        local totalValue = sellPrice * stackCount
+                            local sellPrice = (info and info.noValue) and 0 or (itemSellPrice or 0)
+                            local totalValue = sellPrice * stackCount
 
-                        -- Phase 1: Grey Quality Items (Quality 0)
-                        if quality == 0 then
-                            greyCandidates[#greyCandidates + 1] = {
-                                bag = bag,
-                                slot = slot,
-                                itemID = itemID,
-                                itemLink = itemLink,
-                                itemName = name or "junk item",
-                                icon = icon or "Interface\\Icons\\INV_Misc_QuestionMark",
-                                quality = 0,
-                                stackCount = stackCount,
-                                sellPrice = sellPrice,
-                                totalValue = totalValue,
-                                category = "grey junk",
-                            }
-                        -- Phase 2: Consumables (Common/White Quality 1) - ONLY Food & Drink (subclass 5)
-                        -- Life-saving potions (1), elixirs (2), flasks (3), and bandages (7) are strictly protected
-                        elseif checkConsumables and quality == 1 then
-                            local isConsumableClass = (classID == 0) or (Enum and Enum.ItemClass and classID == Enum.ItemClass.Consumable)
-                            local isFoodDrink = (subClassID == 5) or (Enum and Enum.ItemConsumableSubclass and subClassID == Enum.ItemConsumableSubclass.Fooddrink)
-                            local isExcludedSubclass = (subClassID == 1 or subClassID == 2 or subClassID == 3 or subClassID == 4 or subClassID == 7)
-                                or (Enum and Enum.ItemConsumableSubclass and (
-                                    subClassID == Enum.ItemConsumableSubclass.Potion
-                                    or subClassID == Enum.ItemConsumableSubclass.Elixir
-                                    or subClassID == Enum.ItemConsumableSubclass.Flasksphials
-                                    or subClassID == Enum.ItemConsumableSubclass.Bandage
-                                ))
+                            -- Phase 1: Grey Quality Items (Quality 0)
+                            if quality == 0 then
+                                greyCandidates[#greyCandidates + 1] = {
+                                    bag = bag,
+                                    slot = slot,
+                                    itemID = itemID,
+                                    itemLink = itemLink,
+                                    itemName = name or "junk item",
+                                    icon = icon or "Interface\\Icons\\INV_Misc_QuestionMark",
+                                    quality = 0,
+                                    stackCount = stackCount,
+                                    sellPrice = sellPrice,
+                                    totalValue = totalValue,
+                                    category = "grey junk",
+                                }
+                            -- Phase 2: Consumables (Common/White Quality 1) - ONLY Food & Drink (subclass 5)
+                            -- Life-saving potions (1), elixirs (2), flasks (3), and bandages (7) are strictly protected
+                            elseif checkConsumables and quality == 1 then
+                                local isConsumableClass = (classID == 0) or (Enum and Enum.ItemClass and classID == Enum.ItemClass.Consumable)
+                                local isFoodDrink = (subClassID == 5) or (Enum and Enum.ItemConsumableSubclass and subClassID == Enum.ItemConsumableSubclass.Fooddrink)
+                                local isExcludedSubclass = (subClassID == 1 or subClassID == 2 or subClassID == 3 or subClassID == 4 or subClassID == 7)
+                                    or (Enum and Enum.ItemConsumableSubclass and (
+                                        subClassID == Enum.ItemConsumableSubclass.Potion
+                                        or subClassID == Enum.ItemConsumableSubclass.Elixir
+                                        or subClassID == Enum.ItemConsumableSubclass.Flasksphials
+                                        or subClassID == Enum.ItemConsumableSubclass.Bandage
+                                    ))
 
-                            if isConsumableClass and isFoodDrink and not isExcludedSubclass then
-                                local reqLevel = itemMinLevel or 0
-                                local levelDiff = math_max(0, playerLevel - reqLevel)
-                                local isOutdated = (playerLevel >= 15 and reqLevel <= 5)
-                                    or (playerLevel >= 25 and reqLevel <= 15)
-                                    or (playerLevel >= 35 and reqLevel <= 25)
-                                    or (levelDiff >= 15)
+                                if isConsumableClass and isFoodDrink and not isExcludedSubclass then
+                                    local reqLevel = itemMinLevel or 0
+                                    local levelDiff = math_max(0, playerLevel - reqLevel)
+                                    local isOutdated = (playerLevel >= 15 and reqLevel <= 5)
+                                        or (playerLevel >= 25 and reqLevel <= 15)
+                                        or (playerLevel >= 35 and reqLevel <= 25)
+                                        or (levelDiff >= 15)
 
-                                local canSuggest = true
-                                if protectFoodWater and not isOutdated and (reqLevel >= playerLevel - 10) then
-                                    canSuggest = false
-                                end
+                                    local canSuggest = true
+                                    if protectFoodWater and not isOutdated and (reqLevel >= playerLevel - 10) then
+                                        canSuggest = false
+                                    end
 
-                                if canSuggest then
-                                    consumableCandidates[#consumableCandidates + 1] = {
-                                        bag = bag,
-                                        slot = slot,
-                                        itemID = itemID,
-                                        itemLink = itemLink,
-                                        itemName = name or "food/water",
-                                        icon = icon or "Interface\\Icons\\INV_Misc_QuestionMark",
-                                        quality = 1,
-                                        stackCount = stackCount,
-                                        sellPrice = sellPrice,
-                                        totalValue = totalValue,
-                                        reqLevel = reqLevel,
-                                        isOutdated = isOutdated,
-                                        category = isOutdated and "outdated food/drink" or "low-value food/drink",
-                                    }
+                                    if canSuggest then
+                                        consumableCandidates[#consumableCandidates + 1] = {
+                                            bag = bag,
+                                            slot = slot,
+                                            itemID = itemID,
+                                            itemLink = itemLink,
+                                            itemName = name or "food/water",
+                                            icon = icon or "Interface\\Icons\\INV_Misc_QuestionMark",
+                                            quality = 1,
+                                            stackCount = stackCount,
+                                            sellPrice = sellPrice,
+                                            totalValue = totalValue,
+                                            reqLevel = reqLevel,
+                                            isOutdated = isOutdated,
+                                            category = isOutdated and "outdated food/drink" or "low-value food/drink",
+                                        }
+                                    end
                                 end
                             end
                         end
@@ -341,13 +364,14 @@ local function find_candidates()
         end
     end
 
-    -- Check if prompt-mode excess soul shards exist
+    -- Check if prompt-mode excess soul shards exist (Warlock only)
     local soulShardCandidate = nil
-    local deleteSoulShards = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "deleteSoulShards", cfg.deleteSoulShards or false))
+    local deleteSoulShards = isWarlock and (sfui.db and sfui.db.Get and sfui.db.Get("triage", "deleteSoulShards", cfg.deleteSoulShards or false))
     if deleteSoulShards and not ignoredInSession[SOUL_SHARD_ID] and get_soul_shard_data then
         local sData = get_soul_shard_data()
         if sData and sData.excessCount > 0 and sData.eligibleShards and #sData.eligibleShards > 0 then
             local targetShard = sData.eligibleShards[1]
+
             soulShardCandidate = {
                 isSoulShardPurge = true,
                 bag = targetShard.bag,
@@ -673,8 +697,11 @@ local function create_triage_prompt()
 
     deleteBtn:RegisterForClicks("AnyUp", "AnyDown")
     deleteBtn:SetScript("OnClick", function(self, button, down)
+        if down == false and (GetTime() - lastPurgeSuccessTime) < 0.45 then
+            return
+        end
         if execute_purge_candidate then
-            execute_purge_candidate(currentCandidate)
+            execute_purge_candidate(currentCandidate, down)
         end
     end)
     f.deleteBtn = deleteBtn
@@ -880,6 +907,13 @@ end
 --- Scans all bags and categorizes soul shards into regular spillover and specialty soul bag slots.
 --- @return table data
 get_soul_shard_data = function()
+    if not isWarlock then
+        _shardDataResult.totalCount = 0
+        _shardDataResult.excessCount = 0
+        wipe(_shardDataResult.eligibleShards)
+        return _shardDataResult
+    end
+
     local cfg = sfui.config.triage or {}
     local maxShards = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "maxSoulShards", cfg.maxSoulShards or 20))
     if maxShards == nil then maxShards = (cfg.maxSoulShards or 20) end
@@ -889,9 +923,10 @@ get_soul_shard_data = function()
     local preserveSoulBag = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "preserveSoulBag", cfg.preserveSoulBag ~= false))
     if preserveSoulBag == nil then preserveSoulBag = true end
 
-    local allShards = {}
-    local regularShards = {}
-    local specialtyShards = {}
+    wipe(_shardAll)
+    wipe(_shardRegular)
+    wipe(_shardSpecialty)
+    wipe(_shardEligible)
 
     local getNumSlots = (C_Container and C_Container.GetContainerNumSlots) or GetContainerNumSlots
     local getItemInfo = (C_Container and C_Container.GetContainerItemInfo) or GetContainerItemInfo
@@ -914,42 +949,46 @@ get_soul_shard_data = function()
                         isLocked = (info and info.isLocked) or false,
                         itemLink = (info and info.hyperlink) or (getItemLink and getItemLink(bag, slot)) or "soul shard",
                     }
-                    table_insert(allShards, item)
+                    table_insert(_shardAll, item)
                     if isRegular then
-                        table_insert(regularShards, item)
+                        table_insert(_shardRegular, item)
                     else
-                        table_insert(specialtyShards, item)
+                        table_insert(_shardSpecialty, item)
                     end
                 end
             end
         end
     end
 
-    local totalCount = #allShards
+    local totalCount = #_shardAll
     local totalExcess = totalCount - maxShards
     if totalExcess < 0 then totalExcess = 0 end
 
-    local eligible = {}
     if totalExcess > 0 then
         if preserveSoulBag then
             -- Only regular bag spillover is eligible for deletion
             -- Sort regular shards: higher bag index first, then higher slot index (end of bags first)
-            for _, item in ipairs(regularShards) do
-                table_insert(eligible, item)
+            for _, item in ipairs(_shardRegular) do
+                -- Exclude locked slots so rapid purging never selects a slot currently pending deletion
+                if not item.isLocked then
+                    table_insert(_shardEligible, item)
+                end
             end
-            table_sort(eligible, function(a, b)
+            table_sort(_shardEligible, function(a, b)
                 if a.bag ~= b.bag then return a.bag > b.bag end
                 return a.slot > b.slot
             end)
-            while #eligible > totalExcess do
-                table.remove(eligible)
+            while #_shardEligible > totalExcess do
+                table.remove(_shardEligible)
             end
         else
             -- All shards eligible, regular inventory bags pruned before dedicated soul bags
-            for _, item in ipairs(allShards) do
-                table_insert(eligible, item)
+            for _, item in ipairs(_shardAll) do
+                if not item.isLocked then
+                    table_insert(_shardEligible, item)
+                end
             end
-            table_sort(eligible, function(a, b)
+            table_sort(_shardEligible, function(a, b)
                 if a.isRegular ~= b.isRegular then
                     return a.isRegular -- true before false
                 end
@@ -958,22 +997,17 @@ get_soul_shard_data = function()
                 end
                 return a.slot > b.slot
             end)
-            while #eligible > totalExcess do
-                table.remove(eligible)
+            while #_shardEligible > totalExcess do
+                table.remove(_shardEligible)
             end
         end
     end
 
-    return {
-        allShards = allShards,
-        regularShards = regularShards,
-        specialtyShards = specialtyShards,
-        totalCount = totalCount,
-        maxShards = maxShards,
-        preserveSoulBag = preserveSoulBag,
-        excessCount = #eligible,
-        eligibleShards = eligible,
-    }
+    _shardDataResult.totalCount = totalCount
+    _shardDataResult.maxShards = maxShards
+    _shardDataResult.preserveSoulBag = preserveSoulBag
+    _shardDataResult.excessCount = #_shardEligible
+    return _shardDataResult
 end
 
 local lastNoExcessNoticeTime = 0
@@ -982,12 +1016,29 @@ local lastPurgeSuccessTime   = 0
 --- Purges the active triage candidate (soul shard or item) or next excess soul shard.
 --- This is the core function of the purge button, shared across the UI prompt, keybind, and macros.
 --- @param cand table|nil optional candidate; defaults to currentCandidate or next excess soul shard
+--- @param isDown boolean|nil optional flag indicating if click originated from key-down
 --- @return boolean success
-execute_purge_candidate = function(cand)
+execute_purge_candidate = function(cand, isDown)
     if is_player_combat_or_dead() then return false end
 
+    -- Guard non-table arguments (e.g. PurgeSoulShards(true) called by old callers)
+    if type(cand) ~= "table" then
+        cand = nil
+    end
+
     local now = GetTime and GetTime() or 0
-    if (now - lastPurgeSuccessTime) < 0.35 then
+
+    -- Hardware key-up guard: ignore key-up release if a purge was already triggered on key-down
+    if isDown == false and (now - lastPurgeSuccessTime) < 0.45 then
+        return false
+    end
+
+    if (now - lastPurgeSuccessTime) < 0.30 then
+        return false
+    end
+
+    -- Safety: never touch cursor if player is moving an item or targeting a spell
+    if is_cursor_busy() then
         return false
     end
 
@@ -995,7 +1046,7 @@ execute_purge_candidate = function(cand)
     cand = cand or currentCandidate
 
     -- If no candidate currently active, check if excess soul shards exist to purge
-    if not cand and get_soul_shard_data then
+    if not cand and isWarlock and get_soul_shard_data then
         local sData = get_soul_shard_data()
         if sData and sData.excessCount > 0 and sData.eligibleShards and #sData.eligibleShards > 0 then
             local targetShard = sData.eligibleShards[1]
@@ -1076,11 +1127,8 @@ execute_purge_candidate = function(cand)
         return false
     end
 
-    -- Clear cursor before picking up (or delete if already held)
-    if CursorHasItem and CursorHasItem() then
-        if DeleteCursorItem then DeleteCursorItem() end
-        if ClearCursor then ClearCursor() end
-    end
+    -- Safety: ensure cursor is clear before picking up
+    if ClearCursor then ClearCursor() end
 
     local doPickup = (C_Container and C_Container.PickupContainerItem) or PickupContainerItem or _G.PickupContainerItem
     local doDelete = DeleteCursorItem or _G.DeleteCursorItem
@@ -1176,11 +1224,14 @@ triage.CheckSoulShards = check_and_delete_excess_soul_shards
 -- Macro-clickable / keybind fallback button to purge shards via /click SfuiPurgeSoulShards
 local purgeShardsBtn = _G.SfuiPurgeSoulShards or _G.CreateFrame("Button", "SfuiPurgeSoulShards", UIParent)
 purgeShardsBtn:RegisterForClicks("AnyUp", "AnyDown")
-purgeShardsBtn:SetScript("OnClick", function()
+purgeShardsBtn:SetScript("OnClick", function(self, button, down)
+    if down == false and (GetTime() - lastPurgeSuccessTime) < 0.45 then
+        return
+    end
     if promptFrame and promptFrame:IsShown() and promptFrame.deleteBtn then
-        promptFrame.deleteBtn:Click()
+        promptFrame.deleteBtn:Click(button, down)
     else
-        execute_purge_candidate()
+        execute_purge_candidate(nil, down)
     end
 end)
 _G.SfuiPurgeSoulShards = purgeShardsBtn
@@ -1223,19 +1274,43 @@ function triage.EvaluateTriage()
     local free = get_num_free_regular_slots()
     lastFreeSlots = free
 
-    local candidates, cType = find_candidates()
-    local hasSoulShardPurge = (candidates and #candidates > 0 and candidates[1].isSoulShardPurge)
-
-    -- Bags have enough free space and no soul shard purge needed: hide any active prompt
-    if not hasSoulShardPurge and free > threshold then
-        if promptFrame and promptFrame:IsShown() then
-            promptFrame:Hide()
+    -- Fast short-circuit: if regular inventory has plenty of free slots
+    if free > threshold then
+        -- Only warlock with excess shard deletion enabled could possibly need a triage prompt
+        local deleteSoulShards = isWarlock and (sfui.db and sfui.db.Get and sfui.db.Get("triage", "deleteSoulShards", cfg.deleteSoulShards or false))
+        if not deleteSoulShards or ignoredInSession[SOUL_SHARD_ID] then
+            if promptFrame and promptFrame:IsShown() then
+                promptFrame:Hide()
+            end
+            return
         end
+
+        -- Check soul shards only (skips heavy 140-slot grey and consumable scan)
+        local sData = get_soul_shard_data()
+        if not sData or sData.excessCount <= 0 then
+            if promptFrame and promptFrame:IsShown() then
+                promptFrame:Hide()
+            end
+            return
+        end
+
+        -- Soul shard excess exists: find candidates with inventory scan skipped
+        local candidates = find_candidates(true)
+        if not candidates or #candidates == 0 then
+            if promptFrame and promptFrame:IsShown() then
+                promptFrame:Hide()
+            end
+            return
+        end
+
+        currentCandidates = candidates
+        currentCandidateIndex = 1
+        triage.DisplayCandidate(candidates[1])
         return
     end
 
-
-
+    -- Free slots <= threshold: full inventory triage scan
+    local candidates, cType = find_candidates(false)
     if not candidates or #candidates == 0 then
         if promptFrame and promptFrame:IsShown() then
             promptFrame:Hide()
@@ -1388,16 +1463,16 @@ function triage.Enable()
         sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", on_combat_enter)
         sfui.events.RegisterEvent("MERCHANT_SHOW", on_merchant_show)
         sfui.events.RegisterEvent("LOOT_OPENED", on_bag_update)
-        sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", on_channel_stop)
-        sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", on_cast_succeeded)
+        if isWarlock then
+            sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", on_channel_stop)
+            sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", on_cast_succeeded)
+        end
     end
     triage.EvaluateTriage()
 end
 
 function triage.Disable()
     isEnabled = false
-    shardDeletePending = false
-    batchDeletedCount = 0
     if promptFrame and promptFrame:IsShown() then
         promptFrame:Hide()
     end
@@ -1408,8 +1483,10 @@ function triage.Disable()
         sfui.events.UnregisterEvent("PLAYER_REGEN_DISABLED", on_combat_enter)
         sfui.events.UnregisterEvent("MERCHANT_SHOW", on_merchant_show)
         sfui.events.UnregisterEvent("LOOT_OPENED", on_bag_update)
-        sfui.events.UnregisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", on_channel_stop)
-        sfui.events.UnregisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", on_cast_succeeded)
+        if isWarlock then
+            sfui.events.UnregisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", on_channel_stop)
+            sfui.events.UnregisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", on_cast_succeeded)
+        end
     end
 end
 

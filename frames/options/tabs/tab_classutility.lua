@@ -336,8 +336,10 @@ sfui.options.RegisterTab({
         local purge_now_btn = CreateFlatButton(p, "purge excess now", 130, 22)
         purge_now_btn:SetPoint("TOPLEFT", soulshard_chat_cb, "BOTTOMLEFT", 0, -10)
         purge_now_btn:SetScript("OnClick", function()
-            if sfui.triage and sfui.triage.PurgeSingleExcessSoulShard then
-                sfui.triage.PurgeSingleExcessSoulShard(true)
+            if sfui.triage and sfui.triage.ExecutePurge then
+                sfui.triage.ExecutePurge()
+            elseif sfui.triage and sfui.triage.PurgeSingleExcessSoulShard then
+                sfui.triage.PurgeSingleExcessSoulShard()
             end
         end)
 

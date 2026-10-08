@@ -92,15 +92,15 @@ end)
 local classUtilityBtn = _G.CreateFrame("Button", "SfuiClassUtilityBtn", UIParent, "SecureActionButtonTemplate")
 classUtilityBtn:RegisterForClicks("AnyUp", "AnyDown")
 
-local purgeShardsBtn = _G.CreateFrame("Button", "SfuiPurgeSoulShards", UIParent)
+local purgeShardsBtn = _G.SfuiPurgeSoulShards or _G.CreateFrame("Button", "SfuiPurgeSoulShards", UIParent)
 purgeShardsBtn:RegisterForClicks("AnyUp", "AnyDown")
-purgeShardsBtn:SetScript("OnClick", function()
+purgeShardsBtn:SetScript("OnClick", function(self, button, down)
     if _G.SfuiBagTriagePrompt and _G.SfuiBagTriagePrompt:IsShown() and _G.SfuiTriageDeleteBtn then
-        _G.SfuiTriageDeleteBtn:Click()
+        _G.SfuiTriageDeleteBtn:Click(button, down)
     elseif sfui.triage and sfui.triage.ExecutePurge then
-        sfui.triage.ExecutePurge()
+        sfui.triage.ExecutePurge(nil, down)
     elseif sfui.triage and sfui.triage.PurgeSoulShards then
-        sfui.triage.PurgeSoulShards(true)
+        sfui.triage.PurgeSoulShards(nil, down)
     end
 end)
 _G.SfuiPurgeSoulShards = purgeShardsBtn
