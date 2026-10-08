@@ -13,8 +13,11 @@ local GetBindingKey = _G.GetBindingKey
 -- 1. BLIZZARD KEYBINDINGS MENU DEFINITIONS
 -- ────────────────────────────────────────────────────────────────────────────
 BINDING_HEADER_SFUI = "SFUI"
+_G["BINDING_NAME_CLICK SfuiClassUtilityBtn:LeftButton"] = "class utility (totems / portals / shards)"
 _G["BINDING_NAME_CLICK SfuiHammerPopup:LeftButton"] = "master's hammer repair"
 _G["BINDING_NAME_CLICK SfuiTotemSequenceBtn:LeftButton"] = "cast selected totems (sequence)"
+_G["BINDING_NAME_CLICK SfuiPurgeSoulShards:LeftButton"] = "purge excess soul shards"
+_G["BINDING_NAME_CLICK SfuiPortalsBtn:LeftButton"] = "portals"
 _G["BINDING_NAME_SFUI_MATCHMOUNT"] = "match target mount"
 _G["BINDING_NAME_SFUI_PORTALS"] = "portals"
 _G["BINDING_NAME_SFUI_ALTS"] = "alts / warband"
@@ -92,6 +95,10 @@ SlashCmdList["SFUI"] = function(msg)
         if not sfui.isRetail and sfui.totembar and sfui.totembar.ToggleUnlock then
             sfui.totembar.ToggleUnlock()
         end
+    elseif cmd == "shards" or cmd == "shard" then
+        if sfui.triage and sfui.triage.PurgeSoulShards then
+            sfui.triage.PurgeSoulShards()
+        end
     elseif cmd == "rl" or cmd == "reload" then
         C_UI.Reload()
     elseif cmd == "help" or cmd == "?" then
@@ -99,7 +106,7 @@ SlashCmdList["SFUI"] = function(msg)
             if sfui.isRetail then
                 sfui.common.print("commands: /sfui [tab] | /sfmem | /rl")
             else
-                sfui.common.print("commands: /sfui [tab] | /sfmem | /rl | /totembar")
+                sfui.common.print("commands: /sfui [tab] | /sfui shards | /sfmem | /rl | /totembar")
             end
         end
     else
@@ -119,6 +126,13 @@ if not sfui.isRetail then
     SlashCmdList["SFUITOTEM"] = function()
         if sfui.totembar and sfui.totembar.ToggleUnlock then
             sfui.totembar.ToggleUnlock()
+        end
+    end
+
+    SLASH_SFUISHARDS1 = "/sfshards"
+    SlashCmdList["SFUISHARDS"] = function()
+        if sfui.triage and sfui.triage.PurgeSoulShards then
+            sfui.triage.PurgeSoulShards()
         end
     end
 end

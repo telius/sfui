@@ -49,6 +49,7 @@ frames/options/tabs/tab_main.lua
 frames/themes/tab_theme.lua
 frames/options/tabs/tab_automation.lua
 frames/options/tabs/tab_bars.lua
+frames/options/tabs/tab_classutility.lua
 frames/options/tabs/tab_buffs.lua [AllowLoadGameType camelot, classic]
 frames/options/tabs/tab_castbars.lua
 frames/options/tabs/tab_combattext.lua
@@ -61,13 +62,13 @@ frames/options/tabs/tab_merchant.lua
 frames/options/tabs/tab_minimap.lua
 frames/options/tabs/tab_objectives.lua
 frames/options/tabs/tab_pets.lua
-frames/options/tabs/tab_research.lua [AllowLoadGameType standard]
+frames/options/tabs/tab_research.lua [AllowLoadGameType standard][ExcludeLoadGameType camelot, classic]
 frames/options/tabs/tab_hide.lua
 frames/options/tabs/tab_debug.lua
 
 frames/cursor.lua
 frames/hide.lua
-frames/research.lua [AllowLoadGameType standard]
+frames/research.lua [AllowLoadGameType standard][ExcludeLoadGameType camelot, classic]
 frames/merchant/merchant_filter.lua
 frames/merchant/merchant_utility.lua
 frames/merchant/merchant.lua
@@ -83,7 +84,7 @@ frames/automation/logs.lua
 frames/automation/minimap.lua
 frames/automation/pets.lua
 frames/automation/rankup.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/automation/transfer.lua [AllowLoadGameType standard]
+frames/automation/transfer.lua [AllowLoadGameType standard][ExcludeLoadGameType camelot, classic]
 frames/automation/triage.lua
 
 frames/bars/bars.lua

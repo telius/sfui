@@ -1,4 +1,6 @@
 local addonName, addon = ...
+if not sfui.isRetail then return end
+
 sfui = sfui or {}
 sfui.options = sfui.options or {}
 

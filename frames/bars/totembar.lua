@@ -533,6 +533,8 @@ local dragOverlay
 local seqBtn
 local buttons = {}      -- element -> { frame, icon, cooldown, overlay, timerText, border, activeBorder, selectedTotem }
 local activeState = {}  -- element -> { name, startTime, duration }
+local activeTotemCount = 0
+local statePool = {}
 local deferredArm = {}  -- element -> totemName (deferred if scrolled in combat)
 local deferredSeqUpdate = false
 local deferredSettingsUpdate = false
@@ -733,11 +735,15 @@ local function SetActive(element, name, startTime, duration)
     local existing = activeState[element]
     local st, dur = SanitizeTimeAndDuration(name, startTime, duration, existing)
 
-    activeState[element] = {
-        name      = name,
-        startTime = st,
-        duration  = dur,
-    }
+    local state = existing or table.remove(statePool) or {}
+    state.name      = name
+    state.startTime = st
+    state.duration  = dur
+
+    if not existing then
+        activeTotemCount = activeTotemCount + 1
+    end
+    activeState[element] = state
 
     local tex = GetIconForTotem(name)
     btn.icon:SetTexture(tex)
@@ -793,7 +799,13 @@ local function SetInactive(element)
     local btn = buttons[element]
     if not btn then return end
 
-    activeState[element] = nil
+    local existing = activeState[element]
+    if existing then
+        activeState[element] = nil
+        activeTotemCount = math.max(0, activeTotemCount - 1)
+        wipe(existing)
+        statePool[#statePool + 1] = existing
+    end
 
     StopActiveGlow(btn)
 
@@ -1163,6 +1175,11 @@ local function CreateTotemBar()
         local icon = SkinTotemButton(seqBtn, "Interface\\Icons\\INV_Misc_QuestionMark", 0, 0, 0)
         seqBtn.icon = icon
 
+        if _G.SfuiClassUtilityBtn then
+            _G.SfuiClassUtilityBtn:SetAttribute("type", "click")
+            _G.SfuiClassUtilityBtn:SetAttribute("clickbutton", seqBtn)
+        end
+
         seqBtn:HookScript("OnEnter", function(self)
             if not GameTooltip then return end
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -1236,10 +1253,13 @@ end
 -- OnUpdate Loop (Throttled Active Totem Timers)
 -- ---------------------------------------------------------------------------
 local function OnTotemUpdate(_)
+    if activeTotemCount <= 0 then return end
+
     -- Countdown timer updates on active totems
     local now = GetTime()
     local showTimer = ShouldShowTimerText()
-    for _, element in ipairs(ELEMENTS) do
+    for i = 1, #ELEMENTS do
+        local element = ELEMENTS[i]
         local state = activeState[element]
         if state then
             local rem = GetElementTimeLeft(element, state, now)
@@ -1486,123 +1506,24 @@ function sfui.totembar.ApplySettings()
 end
 
 function sfui.totembar.GetBoundKey()
-    local k1
-    if GetBindingKey then
-        local bindingContext = C_KeyBindings and C_KeyBindings.GetBindingContextForAction and
-            C_KeyBindings.GetBindingContextForAction(ACTION_SEQUENCE) or nil
-        if bindingContext then
-            local bk1, bk2 = GetBindingKey(ACTION_SEQUENCE, nil, bindingContext)
-            k1 = (bk1 and bk1 ~= "") and bk1 or bk2
-        end
-        if not k1 or k1 == "" then
-            local bk1, bk2 = GetBindingKey(ACTION_SEQUENCE)
-            k1 = (bk1 and bk1 ~= "") and bk1 or bk2
-        end
+    if sfui.keybinds and sfui.keybinds.GetClassUtilityKey then
+        return sfui.keybinds.GetClassUtilityKey()
     end
-    if (not k1 or k1 == "") and GetNumBindings and GetBinding then
-        for i = 1, GetNumBindings() do
-            local action, _, b1, b2 = GetBinding(i)
-            if action == ACTION_SEQUENCE then
-                k1 = (b1 and b1 ~= "") and b1 or b2
-                if k1 and k1 ~= "" then break end
-            end
-        end
-    end
-    if (not k1 or k1 == "") and SfuiDB and SfuiDB.totembar and SfuiDB.totembar.keybind then
-        k1 = SfuiDB.totembar.keybind
-    end
-    if not k1 or k1 == "" then return nil, "" end
-    local formatted = (sfui.keybinds and sfui.keybinds.format_key and sfui.keybinds.format_key(k1)) or k1 or ""
-    return k1, formatted
+    return nil, ""
 end
 
 function sfui.totembar.SetKeybind(newKey)
-    if InCombatLockdown and InCombatLockdown() then
-        if sfui.common and sfui.common.print then
-            sfui.common.print("cannot modify bindings in combat.")
-        end
-        return false
+    if sfui.keybinds and sfui.keybinds.SetClassUtilityKey then
+        return sfui.keybinds.SetClassUtilityKey(newKey)
     end
-    if not newKey or newKey == "" then return false end
-
-    newKey = tostring(newKey):upper()
-    local bindingContext = C_KeyBindings and C_KeyBindings.GetBindingContextForAction and
-        C_KeyBindings.GetBindingContextForAction(ACTION_SEQUENCE) or nil
-
-    if GetBindingKey and SetBinding then
-        local k1, k2 = GetBindingKey(ACTION_SEQUENCE)
-        if k1 then
-            if bindingContext then SetBinding(k1, nil, bindingContext) end
-            SetBinding(k1, nil)
-        end
-        if k2 then
-            if bindingContext then SetBinding(k2, nil, bindingContext) end
-            SetBinding(k2, nil)
-        end
-    end
-
-    if SetBinding then
-        local bound = false
-        if bindingContext then
-            bound = SetBinding(newKey, ACTION_SEQUENCE, bindingContext)
-        end
-        if not bound then
-            SetBinding(newKey, ACTION_SEQUENCE)
-        end
-    end
-
-    local bindingSet = (GetCurrentBindingSet and GetCurrentBindingSet()) or 1
-    if SaveBindings then
-        SaveBindings(bindingSet)
-    end
-
-    SfuiDB = SfuiDB or {}
-    SfuiDB.totembar = SfuiDB.totembar or {}
-    SfuiDB.totembar.keybind = newKey
-
-    if sfui.common and sfui.common.print then
-        local formatted = (sfui.keybinds and sfui.keybinds.format_key and sfui.keybinds.format_key(newKey)) or newKey
-        sfui.common.print("totem sequence bound to " .. formatted:lower() .. ".")
-    end
-    return true
+    return false
 end
 
 function sfui.totembar.UnbindKey()
-    if InCombatLockdown and InCombatLockdown() then
-        if sfui.common and sfui.common.print then
-            sfui.common.print("cannot modify bindings in combat.")
-        end
-        return false
+    if sfui.keybinds and sfui.keybinds.UnbindClassUtilityKey then
+        return sfui.keybinds.UnbindClassUtilityKey()
     end
-
-    local bindingContext = C_KeyBindings and C_KeyBindings.GetBindingContextForAction and
-        C_KeyBindings.GetBindingContextForAction(ACTION_SEQUENCE) or nil
-
-    if GetBindingKey and SetBinding then
-        local k1, k2 = GetBindingKey(ACTION_SEQUENCE)
-        if k1 then
-            if bindingContext then SetBinding(k1, nil, bindingContext) end
-            SetBinding(k1, nil)
-        end
-        if k2 then
-            if bindingContext then SetBinding(k2, nil, bindingContext) end
-            SetBinding(k2, nil)
-        end
-    end
-
-    local bindingSet = (GetCurrentBindingSet and GetCurrentBindingSet()) or 1
-    if SaveBindings then
-        SaveBindings(bindingSet)
-    end
-
-    SfuiDB = SfuiDB or {}
-    SfuiDB.totembar = SfuiDB.totembar or {}
-    SfuiDB.totembar.keybind = nil
-
-    if sfui.common and sfui.common.print then
-        sfui.common.print("totem sequence keybind cleared.")
-    end
-    return true
+    return false
 end
 
 function sfui.totembar.GetSequenceMacroText()
@@ -1699,7 +1620,7 @@ if sfui.events then
         end
     end)
     sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", OnSpellcastSucceeded)
-    sfui.events.RegisterUpdate("TotemBar", 0.05, OnTotemUpdate)
+    sfui.events.RegisterUpdate("TotemBar", 0.2, OnTotemUpdate)
     sfui.events.RegisterEvent("UPDATE_BINDINGS", OnBindingsUpdated)
     if sfui.events.RegisterMessage then
         sfui.events.RegisterMessage("SFUI_SPEC_CHANGED", UpdateActiveColors)

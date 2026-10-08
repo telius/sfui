@@ -389,6 +389,11 @@ sfui.config = {
         checkConsumables = true,       -- Evaluate consumables when no greys are found
         protectFoodWater = true,       -- Protect food/water matching player's level tier
         soundAlert = true,             -- Play sound when triage prompt appears
+        deleteSoulShards = false,      -- Opt-in: show triage prompt for excess soul shards
+        maxSoulShards = 20,            -- Maximum soul shards to keep (1 to 32)
+        preserveSoulBag = true,        -- If true, preserve shards in dedicated soul bags and only prune regular bag spillover
+        soulShardMode = "prompt",      -- "prompt" (triage prompt button) or hardware click / macro (/click SfuiPurgeSoulShards)
+        soulShardChat = true,          -- Print consolidated single-line summary to chat when pruning finishes
         pos = {
             point = "BOTTOM",
             relativePoint = "BOTTOM",
@@ -531,6 +536,7 @@ sfui.config = {
             mainHand = { 1, 1, 1, 1 },          -- Light Cyan/Blue
             offHand  = { 1.0, 0.65, 0.2, 1.0 }, -- Amber/Orange
             ranged   = { 0.3, 0.9, 0.4, 1.0 },  -- Green
+            wand     = { 0.4, 0.0, 1.0, 1.0 },  -- #6600ff Purple (Warlock / Mage / Priest)
         },
         backdrop = {
             padding = 1,
@@ -717,6 +723,7 @@ sfui.config = {
     automation = {
         auto_role_check = true,
         auto_sign_lfg = true,
+        tooltip_alt_ids = true,
     },
 
 

@@ -40,6 +40,7 @@ sfui.options.RegisterTab({
             trackHerbs = true,
             shamanImbueMH = "auto",
             shamanImbueOH = "auto",
+            selectedPet = {},
             disabledBuffs = {},
         }
         SfuiDB.buffRemindersPos = SfuiDB.buffRemindersPos or {

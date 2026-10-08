@@ -347,20 +347,22 @@ function sfui.mem.GetModuleStats()
     end
     stats["vehicle"] = vehMod
 
-    -- Currency Transfer Module
-    local transMod = {
-        name = "currency transfer",
-        status = "|cff888888idle|r",
-        line1 = "queue: 0 tasks",
-        line2 = "ticker: inactive",
-    }
-    local t = GetDebug("transfer_debug_info", "transfer")
-    if t then
-        transMod.status = t.active and "|cff00ff88active|r" or "|cff888888idle|r"
-        transMod.line1 = string_format("scan queue: %d tasks", tonumber(t.queueSize) or 0)
-        transMod.line2 = string_format("ticker: %s", t.active and "|cff00ff88processing|r" or "inactive")
+    -- Currency Transfer Module (Retail only)
+    if sfui.isRetail then
+        local transMod = {
+            name = "currency transfer",
+            status = "|cff888888idle|r",
+            line1 = "queue: 0 tasks",
+            line2 = "ticker: inactive",
+        }
+        local t = GetDebug("transfer_debug_info", "transfer")
+        if t then
+            transMod.status = t.active and "|cff00ff88active|r" or "|cff888888idle|r"
+            transMod.line1 = string_format("scan queue: %d tasks", tonumber(t.queueSize) or 0)
+            transMod.line2 = string_format("ticker: %s", t.active and "|cff00ff88processing|r" or "inactive")
+        end
+        stats["transfer"] = transMod
     end
-    stats["transfer"] = transMod
 
     -- Soul Fragments (Demon Hunter) Module
     local sfStats = {
@@ -501,19 +503,21 @@ function sfui.mem.GetModuleStats()
     end
     stats["cdm"] = cdmMod
 
-    -- Research & Talent Trees Module
-    local resMod = {
-        name = "research tree browser",
-        status = "|cff888888closed|r",
-        line1 = "side frame: none",
-        line2 = "trees: 4 expansions",
-    }
-    local r = GetDebug("research_debug_info", "research")
-    if r then
-        resMod.status = r.frameShown and "|cff00ff88open|r" or "|cff888888closed|r"
-        resMod.line1 = string_format("side frame: %s", r.frameCreated and "ready" or "none")
+    -- Research & Talent Trees Module (Retail only)
+    if sfui.isRetail then
+        local resMod = {
+            name = "research tree browser",
+            status = "|cff888888closed|r",
+            line1 = "side frame: none",
+            line2 = "trees: 4 expansions",
+        }
+        local r = GetDebug("research_debug_info", "research")
+        if r then
+            resMod.status = r.frameShown and "|cff00ff88open|r" or "|cff888888closed|r"
+            resMod.line1 = string_format("side frame: %s", r.frameCreated and "ready" or "none")
+        end
+        stats["research"] = resMod
     end
-    stats["research"] = resMod
 
     -- Fishing Automation Module
     local fishStats = {

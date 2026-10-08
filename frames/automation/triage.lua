@@ -39,9 +39,21 @@ local ClearCursor              = _G.ClearCursor
 local CursorHasItem            = _G.CursorHasItem
 
 local math_max                 = math.max
+local math_min                 = math.min
 local table_sort               = table.sort
+local table_insert             = table.insert
+local ipairs                   = ipairs
 local string_format            = string.format
 local wipe                     = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
+
+local UnitCastingInfo          = _G.UnitCastingInfo
+local UnitChannelInfo          = _G.UnitChannelInfo
+local SpellIsTargeting         = _G.SpellIsTargeting
+local GetCursorInfo            = _G.GetCursorInfo
+
+local SOUL_SHARD_ID            = 6265
+local get_soul_shard_data
+local check_and_delete_excess_soul_shards
 
 -- Essential / Protected Item IDs (Never recommend dropping these)
 local PROTECTED_ITEM_IDS = {
@@ -325,6 +337,38 @@ local function find_candidates()
         end
     end
 
+    -- Check if prompt-mode excess soul shards exist
+    local soulShardCandidate = nil
+    local deleteSoulShards = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "deleteSoulShards", cfg.deleteSoulShards or false))
+    if deleteSoulShards and not ignoredInSession[SOUL_SHARD_ID] and get_soul_shard_data then
+        local sData = get_soul_shard_data()
+        if sData and sData.excessCount > 0 then
+            soulShardCandidate = {
+                isSoulShardPurge = true,
+                itemID = SOUL_SHARD_ID,
+                itemName = "Soul Shards",
+                itemLink = string_format("|cff9933ffSoul Shards|r (|cffffffff%d excess|r)", sData.excessCount),
+                icon = 134075,
+                stackCount = sData.excessCount,
+                totalValue = 0,
+                category = "excess soul shards",
+                deleteButtonText = "purge",
+                totalCount = sData.totalCount,
+                maxShards = sData.maxShards,
+                locationText = sData.preserveSoulBag and string_format("pruning regular bag spillover (%d/%d)", sData.totalCount, sData.maxShards) or string_format("pruning %d excess shards (%d/%d)", sData.excessCount, sData.totalCount, sData.maxShards),
+                onDelete = function()
+                    if triage.PurgeSoulShards then
+                        triage.PurgeSoulShards()
+                    end
+                end,
+                onKeep = function()
+                    ignoredInSession[SOUL_SHARD_ID] = true
+                    common.print("|cffaaaaaasfui triage:|r keeping soul shards for this session.")
+                end,
+            }
+        end
+    end
+
     -- Return greys first if any exist (sorted by lowest total value, lowest unit price, then smallest stack)
     if #greyCandidates > 0 then
         table_sort(greyCandidates, function(a, b)
@@ -342,6 +386,9 @@ local function find_candidates()
             end
             return a.slot > b.slot
         end)
+        if soulShardCandidate then
+            table_insert(greyCandidates, 1, soulShardCandidate)
+        end
         return greyCandidates, "grey"
     end
 
@@ -362,7 +409,14 @@ local function find_candidates()
             end
             return a.slot > b.slot
         end)
+        if soulShardCandidate then
+            table_insert(consumableCandidates, 1, soulShardCandidate)
+        end
         return consumableCandidates, "consumable"
+    end
+
+    if soulShardCandidate then
+        return { soulShardCandidate }, "soulshard"
     end
 
     return {}, "none"
@@ -547,7 +601,9 @@ local function create_triage_prompt()
         local tip = sfui.tooltip or _G.SfuiGameTooltip
         if not tip or not currentCandidate then return end
         tip:SetOwner(self, "ANCHOR_RIGHT")
-        if currentCandidate.bag and currentCandidate.slot and not isTestMode then
+        if currentCandidate.isSoulShardPurge then
+            tip:SetHyperlink("item:6265")
+        elseif currentCandidate.bag and currentCandidate.slot and not isTestMode then
             tip:SetBagItem(currentCandidate.bag, currentCandidate.slot)
         else
             tip:SetHyperlink(currentCandidate.itemLink or "item:4865")
@@ -600,6 +656,12 @@ local function create_triage_prompt()
             return
         end
 
+        if cand.onDelete then
+            f:Hide()
+            cand.onDelete()
+            return
+        end
+
         if isTestMode then
             common.print(string_format("|cff00ffffsfui triage:|r [test preview] deleted %s simulated.", cand.itemLink or cand.itemName))
             f:Hide()
@@ -636,6 +698,10 @@ local function create_triage_prompt()
 
         if DeleteCursorItem then
             DeleteCursorItem()
+        end
+
+        if ClearCursor then
+            ClearCursor()
         end
 
         -- Cursor safety cleanup: if native popup is not shown and item is still on cursor, clear it
@@ -689,7 +755,9 @@ local function create_triage_prompt()
     keepBtn:SetPoint("LEFT", nextBtn, "RIGHT", 6, 0)
     keepBtn:SetFrameLevel((f:GetFrameLevel() or 100) + 15)
     keepBtn:SetScript("OnClick", function()
-        if currentCandidate and currentCandidate.itemID then
+        if currentCandidate and currentCandidate.onKeep then
+            currentCandidate.onKeep()
+        elseif currentCandidate and currentCandidate.itemID then
             ignoredInSession[currentCandidate.itemID] = true
             common.print(string_format("|cffaaaaaasfui triage:|r keeping %s for this session.", currentCandidate.itemLink or currentCandidate.itemName))
         end
@@ -713,6 +781,8 @@ function triage.DisplayCandidate(cand)
 
     if isTestMode then
         f.statusText:SetText("|cff00ffff[test preview]|r")
+    elseif cand.isSoulShardPurge then
+        f.statusText:SetText(string_format("|cff9933ffexcess shards (%d/%d)|r", cand.totalCount or 0, cand.maxShards or 0))
     elseif free == 0 then
         f.statusText:SetText("|cffff4444bags full (0 free)|r")
     else
@@ -728,17 +798,28 @@ function triage.DisplayCandidate(cand)
         f.countText:Hide()
     end
 
-    f.nameText:SetText(cand.itemLink or cand.itemName)
-
-    local valStr = (cand.totalValue and cand.totalValue > 0)
-        and common.SafeGetCoinTextureString(cand.totalValue)
-        or "0c (no sell value)"
-    f.infoText:SetText(string_format("value: %s |cff888888(%s)|r", valStr, cand.category or "junk"))
-
-    if cand.bag and cand.slot then
-        f.slotText:SetText(string_format("location: bag %d, slot %d", cand.bag + 1, cand.slot))
+    if cand.isSoulShardPurge then
+        f.nameText:SetText(cand.itemLink or cand.itemName)
+        f.infoText:SetText(string_format("retains %d shards |cff888888(%s)|r", cand.maxShards or 20, cand.category or "soul shards"))
+        f.slotText:SetText(cand.locationText or "pruning regular bag spillover")
     else
-        f.slotText:SetText("")
+        f.nameText:SetText(cand.itemLink or cand.itemName)
+
+        local valStr = (cand.totalValue and cand.totalValue > 0)
+            and common.SafeGetCoinTextureString(cand.totalValue)
+            or "0c (no sell value)"
+        f.infoText:SetText(string_format("value: %s |cff888888(%s)|r", valStr, cand.category or "junk"))
+
+        if cand.bag and cand.slot then
+            f.slotText:SetText(string_format("location: bag %d, slot %d", cand.bag + 1, cand.slot))
+        else
+            f.slotText:SetText("")
+        end
+    end
+
+    local actBtn = f.deleteBtn or f.dropBtn
+    if actBtn then
+        actBtn:SetText(cand.deleteButtonText or "delete")
     end
 
     if #currentCandidates > 1 then
@@ -759,6 +840,317 @@ function triage.DisplayCandidate(cand)
         PlaySound(SOUNDKIT.RAID_WARNING or 8959)
     end
 end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+--  Automated Soul Shard Pruning (Opt-In)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+
+
+--- Check if cursor is actively being used by player (moving item, spell targeting, etc.)
+local function is_cursor_busy()
+    if CursorHasItem and CursorHasItem() then
+        return true
+    end
+    if SpellIsTargeting and SpellIsTargeting() then
+        return true
+    end
+    if GetCursorInfo and GetCursorInfo() ~= nil then
+        return true
+    end
+    return false
+end
+
+--- Check if player is busy with actions that should not be interrupted
+local function is_player_busy()
+    if sfui.common.is_in_combat() or InCombatLockdown() then
+        return true
+    end
+    if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then
+        return true
+    end
+    if UnitChannelInfo and UnitChannelInfo("player") then
+        return true
+    end
+    if UnitCastingInfo and UnitCastingInfo("player") then
+        return true
+    end
+    if _G.MerchantFrame and _G.MerchantFrame:IsShown() then
+        return true
+    end
+    if _G.BankFrame and _G.BankFrame:IsShown() then
+        return true
+    end
+    if _G.TradeFrame and _G.TradeFrame:IsShown() then
+        return true
+    end
+    if _G.MailFrame and _G.MailFrame:IsShown() then
+        return true
+    end
+    return false
+end
+
+--- Check if player is in combat, dead, or actively casting/trading
+local function is_player_combat_or_dead()
+    if sfui.common.is_in_combat() or InCombatLockdown() then
+        return true
+    end
+    if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then
+        return true
+    end
+    if UnitChannelInfo and UnitChannelInfo("player") then
+        return true
+    end
+    if UnitCastingInfo and UnitCastingInfo("player") then
+        return true
+    end
+    if _G.TradeFrame and _G.TradeFrame:IsShown() then
+        return true
+    end
+    return false
+end
+
+--- Retrieves the itemID of a specific bag and slot with multi-API fallbacks
+--- @param bag number
+--- @param slot number
+--- @return number|nil itemID
+local function get_slot_item_id(bag, slot)
+    local id = (C_Container and C_Container.GetContainerItemID and C_Container.GetContainerItemID(bag, slot))
+        or (GetContainerItemID and GetContainerItemID(bag, slot))
+    if id then return id end
+    local getInfo = (C_Container and C_Container.GetContainerItemInfo) or GetContainerItemInfo
+    if getInfo then
+        local rawInfo = getInfo(bag, slot)
+        if type(rawInfo) == "table" and rawInfo.itemID then
+            return rawInfo.itemID
+        end
+    end
+    local getLink = (C_Container and C_Container.GetContainerItemLink) or GetContainerItemLink
+    if getLink then
+        local link = getLink(bag, slot)
+        if link then
+            local parsedID = link:match("item:(%d+)")
+            if parsedID then return tonumber(parsedID) end
+        end
+    end
+    return nil
+end
+
+--- Scans all bags and categorizes soul shards into regular spillover and specialty soul bag slots.
+--- @return table data
+get_soul_shard_data = function()
+    local cfg = sfui.config.triage or {}
+    local maxShards = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "maxSoulShards", cfg.maxSoulShards or 20))
+    if maxShards == nil then maxShards = (cfg.maxSoulShards or 20) end
+    maxShards = tonumber(maxShards) or 20
+    if maxShards < 0 then maxShards = 0 end
+
+    local preserveSoulBag = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "preserveSoulBag", cfg.preserveSoulBag ~= false))
+    if preserveSoulBag == nil then preserveSoulBag = true end
+
+    local allShards = {}
+    local regularShards = {}
+    local specialtyShards = {}
+
+    local maxBag = _G.NUM_BAG_SLOTS or 4
+    for bag = 0, maxBag do
+        local numSlots = (GetContainerNumSlots and GetContainerNumSlots(bag)) or 0
+        if numSlots > 0 then
+            local isRegular = is_regular_inventory_bag(bag)
+            for slot = 1, numSlots do
+                local itemID = get_slot_item_id(bag, slot)
+                if itemID == SOUL_SHARD_ID then
+                    local rawInfo = GetContainerItemInfo and GetContainerItemInfo(bag, slot)
+                    local info = (type(rawInfo) == "table") and rawInfo or nil
+                    local item = {
+                        bag = bag,
+                        slot = slot,
+                        isRegular = isRegular,
+                        isLocked = (info and info.isLocked) or false,
+                        itemLink = (info and info.hyperlink) or (GetContainerItemLink and GetContainerItemLink(bag, slot)) or "soul shard",
+                    }
+                    table_insert(allShards, item)
+                    if isRegular then
+                        table_insert(regularShards, item)
+                    else
+                        table_insert(specialtyShards, item)
+                    end
+                end
+            end
+        end
+    end
+
+    local totalCount = #allShards
+    local totalExcess = totalCount - maxShards
+    if totalExcess < 0 then totalExcess = 0 end
+
+    local eligible = {}
+    if totalExcess > 0 then
+        if preserveSoulBag then
+            -- Only regular bag spillover is eligible for deletion
+            -- Sort regular shards: higher bag index first, then higher slot index (end of bags first)
+            for _, item in ipairs(regularShards) do
+                table_insert(eligible, item)
+            end
+            table_sort(eligible, function(a, b)
+                if a.bag ~= b.bag then return a.bag > b.bag end
+                return a.slot > b.slot
+            end)
+            while #eligible > totalExcess do
+                table.remove(eligible)
+            end
+        else
+            -- All shards eligible, regular inventory bags pruned before dedicated soul bags
+            for _, item in ipairs(allShards) do
+                table_insert(eligible, item)
+            end
+            table_sort(eligible, function(a, b)
+                if a.isRegular ~= b.isRegular then
+                    return a.isRegular -- true before false
+                end
+                if a.bag ~= b.bag then
+                    return a.bag > b.bag
+                end
+                return a.slot > b.slot
+            end)
+            while #eligible > totalExcess do
+                table.remove(eligible)
+            end
+        end
+    end
+
+    return {
+        allShards = allShards,
+        regularShards = regularShards,
+        specialtyShards = specialtyShards,
+        totalCount = totalCount,
+        maxShards = maxShards,
+        preserveSoulBag = preserveSoulBag,
+        excessCount = #eligible,
+        eligibleShards = eligible,
+    }
+end
+
+--- Synchronously executes the soul shard deletion loop during a hardware event (click).
+--- Follows the authoritative Necrosis v160001 pattern for Camelot / Classic Era.
+--- @return number deletedCount
+local function execute_soul_shard_purge()
+    if is_player_combat_or_dead() then
+        return 0
+    end
+
+    local doHasItem   = CursorHasItem or _G.CursorHasItem
+    local doClear     = ClearCursor or _G.ClearCursor
+    local doPickup    = (C_Container and C_Container.PickupContainerItem) or PickupContainerItem or _G.PickupContainerItem
+    local doDelete    = DeleteCursorItem or _G.DeleteCursorItem
+    local doGetCursor = GetCursorInfo or _G.GetCursorInfo
+
+    if doHasItem and doHasItem() and doClear then
+        doClear()
+    end
+
+    local data = get_soul_shard_data()
+    if not data or data.excessCount <= 0 or not data.eligibleShards or #data.eligibleShards == 0 then
+        return 0
+    end
+
+    local deleted = 0
+    for _, target in ipairs(data.eligibleShards) do
+        local curID = get_slot_item_id(target.bag, target.slot)
+        if curID == SOUL_SHARD_ID and doPickup then
+            doPickup(target.bag, target.slot)
+            local infoType, info1, info2 = doGetCursor and doGetCursor()
+            local isShard = doHasItem and doHasItem() and infoType == "item"
+                and (tonumber(info1) == SOUL_SHARD_ID or (type(info2) == "string" and info2:find("item:6265")))
+            if isShard then
+                if doDelete then
+                    doDelete()
+                end
+                if doHasItem and doHasItem() and doClear then
+                    doClear()
+                end
+                deleted = deleted + 1
+            elseif doHasItem and doHasItem() and doClear then
+                doClear()
+            end
+        end
+    end
+
+    if doHasItem and doHasItem() and doClear then
+        doClear()
+    end
+
+    return deleted
+end
+
+--- Purges excess soul shards immediately, prints chat summary, and plays audio cue.
+--- Must be invoked during a hardware click (triage button, macro /click, or slash command).
+--- @param isManual boolean|nil true if explicitly requested via options button click
+--- @return number deletedCount
+local function purge_soul_shards(isManual)
+    if is_player_combat_or_dead() then
+        return 0
+    end
+
+    local count = execute_soul_shard_purge()
+    if promptFrame and promptFrame:IsShown() and currentCandidate and currentCandidate.isSoulShardPurge then
+        promptFrame:Hide()
+    end
+
+    local cfg = sfui.config.triage or {}
+    local chatSummary = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "soulShardChat", cfg.soulShardChat ~= false))
+    if count > 0 then
+        if chatSummary ~= false then
+            local data = get_soul_shard_data()
+            common.print(string_format("|cff00ffffsfui triage:|r deleted %d excess soul shard(s) (%d retained).", count, data and data.totalCount or 0))
+        end
+        if PlaySound then
+            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856)
+        end
+    elseif isManual then
+        local data = get_soul_shard_data()
+        if data and data.totalCount and data.maxShards then
+            if data.totalCount > data.maxShards and data.preserveSoulBag and (#data.eligibleShards == 0) then
+                common.print(string_format("|cffaaaaaasfui triage:|r %d shards found (%d excess), but preserved in dedicated soul bag (uncheck 'preserve soul bag slots' to delete from soul bag).", data.totalCount, data.totalCount - data.maxShards))
+            elseif data.totalCount <= data.maxShards then
+                common.print(string_format("|cffaaaaaasfui triage:|r %d soul shard(s) (max %d), none to purge.", data.totalCount, data.maxShards))
+            else
+                common.print("|cffaaaaaasfui triage:|r no excess soul shards to delete.")
+            end
+        else
+            common.print("|cffaaaaaasfui triage:|r no excess soul shards to delete.")
+        end
+    end
+    return count
+end
+triage.PurgeSoulShards = purge_soul_shards
+
+--- Checks soul shard counts and triggers triage evaluation if excess exists.
+check_and_delete_excess_soul_shards = function()
+    if not isEnabled then return end
+    if is_player_busy() then return end
+
+    local cfg = sfui.config.triage or {}
+    local deleteEnabled = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "deleteSoulShards", cfg.deleteSoulShards or false))
+    if not deleteEnabled then return end
+
+    local data = get_soul_shard_data()
+    if data.excessCount <= 0 then
+        if promptFrame and promptFrame:IsShown() and currentCandidate and currentCandidate.isSoulShardPurge then
+            promptFrame:Hide()
+        end
+        return
+    end
+
+    triage.EvaluateTriage()
+end
+triage.CheckSoulShards = check_and_delete_excess_soul_shards
+
+-- Macro-clickable button to purge shards via /click SfuiPurgeSoulShards
+local purgeShardsBtn = _G.CreateFrame("Button", "SfuiPurgeSoulShards", UIParent)
+purgeShardsBtn:SetScript("OnClick", function()
+    purge_soul_shards(true)
+end)
 
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Triage Evaluation Loop
@@ -798,16 +1190,20 @@ function triage.EvaluateTriage()
     local free = get_num_free_regular_slots()
     lastFreeSlots = free
 
-    -- Bags have enough free space: hide any active prompt
-    if free > threshold then
+    local candidates, cType = find_candidates()
+    local hasSoulShardPurge = (candidates and #candidates > 0 and candidates[1].isSoulShardPurge)
+
+    -- Bags have enough free space and no soul shard purge needed: hide any active prompt
+    if not hasSoulShardPurge and free > threshold then
         if promptFrame and promptFrame:IsShown() then
             promptFrame:Hide()
         end
         return
     end
 
-    local candidates, cType = find_candidates()
-    if #candidates == 0 then
+
+
+    if not candidates or #candidates == 0 then
         if promptFrame and promptFrame:IsShown() then
             promptFrame:Hide()
         end
@@ -859,6 +1255,27 @@ function triage.ToggleTestMode()
             bag = 2,
             slot = 1,
         },
+        {
+            isSoulShardPurge = true,
+            itemID = SOUL_SHARD_ID,
+            itemLink = "|cff9933ffSoul Shards|r (|cffffffff4 excess|r)",
+            itemName = "Soul Shards",
+            icon = 134075,
+            stackCount = 4,
+            sellPrice = 0,
+            totalValue = 0,
+            category = "excess soul shards",
+            deleteButtonText = "purge",
+            totalCount = 24,
+            maxShards = 20,
+            locationText = "pruning regular bag spillover",
+            onDelete = function()
+                common.print("|cff00ffffsfui triage:|r [test preview] purged 4 excess soul shards simulated.")
+            end,
+            onKeep = function()
+                common.print("|cffaaaaaasfui triage:|r [test preview] keeping soul shards for this session.")
+            end,
+        },
     }
     currentCandidateIndex = 1
     triage.DisplayCandidate(currentCandidates[1])
@@ -874,16 +1291,17 @@ end
 -- ─────────────────────────────────────────────────────────────────────────────
 
 local function on_bag_update()
-    if not isEnabled then return end
+    if not isEnabled or sfui.common.is_in_combat() then return end
     if scanTimer then return end
     scanTimer = C_Timer.After(0.3, function()
         scanTimer = nil
+        if not isEnabled or sfui.common.is_in_combat() then return end
         triage.EvaluateTriage()
     end)
 end
 
 local function on_ui_error(event, errorType, msg)
-    if not isEnabled then return end
+    if not isEnabled or sfui.common.is_in_combat() then return end
     -- Immediately evaluate if inventory full error fires
     if msg == _G.ERR_INV_FULL or (msg and msg:find("Inventory is full", 1, true)) then
         triage.EvaluateTriage()
@@ -912,6 +1330,22 @@ local function on_merchant_show()
     end
 end
 
+local function on_channel_stop(event, unit)
+    if not isEnabled or sfui.common.is_in_combat() then return end
+    C_Timer.After(0.2, function()
+        if not isEnabled or sfui.common.is_in_combat() then return end
+        triage.EvaluateTriage()
+    end)
+end
+
+local function on_cast_succeeded(event, unit)
+    if not isEnabled or sfui.common.is_in_combat() then return end
+    C_Timer.After(0.25, function()
+        if not isEnabled or sfui.common.is_in_combat() then return end
+        triage.EvaluateTriage()
+    end)
+end
+
 function triage.Enable()
     isEnabled = true
     if sfui.events and sfui.events.RegisterEvent then
@@ -921,14 +1355,28 @@ function triage.Enable()
         sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", on_combat_enter)
         sfui.events.RegisterEvent("MERCHANT_SHOW", on_merchant_show)
         sfui.events.RegisterEvent("LOOT_OPENED", on_bag_update)
+        sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", on_channel_stop)
+        sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", on_cast_succeeded)
     end
     triage.EvaluateTriage()
 end
 
 function triage.Disable()
     isEnabled = false
+    shardDeletePending = false
+    batchDeletedCount = 0
     if promptFrame and promptFrame:IsShown() then
         promptFrame:Hide()
+    end
+    if sfui.events and sfui.events.UnregisterEvent then
+        sfui.events.UnregisterEvent("BAG_UPDATE_DELAYED", on_bag_update)
+        sfui.events.UnregisterEvent("UI_ERROR_MESSAGE", on_ui_error)
+        sfui.events.UnregisterEvent("PLAYER_REGEN_ENABLED", on_combat_leave)
+        sfui.events.UnregisterEvent("PLAYER_REGEN_DISABLED", on_combat_enter)
+        sfui.events.UnregisterEvent("MERCHANT_SHOW", on_merchant_show)
+        sfui.events.UnregisterEvent("LOOT_OPENED", on_bag_update)
+        sfui.events.UnregisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", on_channel_stop)
+        sfui.events.UnregisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", on_cast_succeeded)
     end
 end
 
@@ -942,6 +1390,11 @@ function triage.GetDebugInfo()
     _debugInfo.freeRegularSlots = lastFreeSlots
     _debugInfo.candidateCount = #currentCandidates
     _debugInfo.isPromptShown = promptFrame and promptFrame:IsShown() or false
+    _debugInfo.deleteSoulShards = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "deleteSoulShards", false))
+    _debugInfo.maxSoulShards = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "maxSoulShards", 20))
+    _debugInfo.preserveSoulBag = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "preserveSoulBag", true))
+    _debugInfo.soulShardMode = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "soulShardMode", "auto"))
+    _debugInfo.soulShardChat = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "soulShardChat", true))
     return _debugInfo
 end
 
@@ -974,6 +1427,8 @@ local TriageModule = sfui.RegisterModule("triage", {
                 triage.Disable()
             end
         elseif key == "threshold" or key == "checkConsumables" or key == "protectFoodWater" then
+            triage.EvaluateTriage()
+        elseif key == "deleteSoulShards" or key == "maxSoulShards" or key == "preserveSoulBag" or key == "soulShardMode" or key == "soulShardChat" then
             triage.EvaluateTriage()
         end
     end,

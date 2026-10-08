@@ -45,32 +45,98 @@ local function ResolveTexture(spellID, fallback)
 end
 sfui.buffs.data.ResolveTexture = ResolveTexture
 
+local function CheckFlyoutSlot(flyoutID, targetSpellID)
+    if not flyoutID then return false end
+    local getInfo = _G.GetFlyoutInfo or (_G.C_SpellBook and _G.C_SpellBook.GetFlyoutInfo)
+    local getSlot = _G.GetFlyoutSlotInfo or (_G.C_SpellBook and _G.C_SpellBook.GetFlyoutSlotInfo)
+    if not getInfo or not getSlot then return false end
+    local info1, _, info3 = getInfo(flyoutID)
+    local numSlots = (type(info1) == "table" and info1.numSlots) or info3 or 0
+    for i = 1, numSlots do
+        local r1, r2, r3 = getSlot(flyoutID, i)
+        local sID, isKnown
+        if type(r1) == "table" then
+            sID = r1.spellID or r1.overrideSpellID
+            isKnown = r1.isKnown
+        else
+            sID = r1
+            local overrideID = r2
+            isKnown = r3
+            if overrideID == targetSpellID then sID = overrideID end
+        end
+        if sID == targetSpellID and isKnown then
+            return true
+        end
+    end
+    return false
+end
+
 -- Helper to check if player knows a specific spell ID across all WoW clients and engines
 local function IsSpellActuallyKnown(targetSpellID)
     if not targetSpellID or targetSpellID <= 0 then return false end
+
+    -- Verify player level requirement first if available from spell APIs
+    local minLevel = nil
+    if _G.C_Spell and _G.C_Spell.GetSpellLevelLearned then
+        minLevel = _G.C_Spell.GetSpellLevelLearned(targetSpellID)
+    elseif _G.GetSpellLevelLearned then
+        minLevel = _G.GetSpellLevelLearned(targetSpellID)
+    end
+    if minLevel and minLevel > 0 then
+        local pLevel = (_G.UnitLevel and _G.UnitLevel("player")) or 1
+        if pLevel < minLevel then
+            return false
+        end
+    end
+
     local talents = sfui.talents
     if talents and talents._talentKnownResolver then
         if talents._talentKnownResolver(targetSpellID) then return true end
     end
+
     local cBook = _G.C_SpellBook
     local bank = (_G.Enum and _G.Enum.SpellBookSpellBank and _G.Enum.SpellBookSpellBank.Player) or 1
     if cBook then
         if cBook.IsSpellKnown and cBook.IsSpellKnown(targetSpellID, bank) then return true end
-        if cBook.IsSpellInSpellBook and cBook.IsSpellInSpellBook(targetSpellID, bank, false) then return true end
-        if cBook.IsSpellInSpellBook and cBook.IsSpellInSpellBook(targetSpellID, bank, true) then return true end
-        if cBook.IsSpellKnownOrInSpellBook and cBook.IsSpellKnownOrInSpellBook(targetSpellID, bank, true) then return true end
-        if cBook.FindSpellBookSlotForSpell and cBook.FindSpellBookSlotForSpell(targetSpellID, true, true, false, false) then return true end
+        if cBook.FindSpellBookSlotForSpell then
+            local slotIndex, spellBank = cBook.FindSpellBookSlotForSpell(targetSpellID, false, true, false, false)
+            if slotIndex and spellBank then
+                local itemType, actionID = cBook.GetSpellBookItemType and cBook.GetSpellBookItemType(slotIndex, spellBank)
+                local futureType = _G.Enum and _G.Enum.SpellBookItemType and _G.Enum.SpellBookItemType.FutureSpell
+                local flyoutType = _G.Enum and _G.Enum.SpellBookItemType and _G.Enum.SpellBookItemType.Flyout
+                local isOffSpec = cBook.IsSpellBookItemOffSpec and cBook.IsSpellBookItemOffSpec(slotIndex, spellBank)
+                if not isOffSpec then
+                    if futureType and itemType == futureType then
+                        return false
+                    elseif flyoutType and itemType == flyoutType then
+                        if CheckFlyoutSlot(actionID, targetSpellID) then
+                            return true
+                        end
+                    elseif not futureType or itemType ~= futureType then
+                        return true
+                    end
+                end
+            end
+        end
     end
+
     local cSpell = _G.C_Spell
     if cSpell then
         if cSpell.IsSpellLearned and cSpell.IsSpellLearned(targetSpellID) then return true end
         if cSpell.IsSpellKnown and cSpell.IsSpellKnown(targetSpellID) then return true end
         if cSpell.IsSpellKnownOrOverridesKnown and cSpell.IsSpellKnownOrOverridesKnown(targetSpellID) then return true end
     end
+
     if _G.IsPlayerSpell and _G.IsPlayerSpell(targetSpellID) then return true end
-    local isKnownOrOverrides = _G.IsSpellKnownOrOverridesKnown
-    if isKnownOrOverrides and isKnownOrOverrides(targetSpellID) then return true end
-    if _G.IsSpellKnown and _G.IsSpellKnown(targetSpellID) then return true end
+
+    -- Never call legacy IsSpellKnown / IsSpellKnownOrOverridesKnown if C_SpellBook is present,
+    -- because in 11.0+ Blizzard maps them to C_SpellBook.IsSpellInSpellBook which returns true for unlearned future spells.
+    if not cBook then
+        local isKnownOrOverrides = _G.IsSpellKnownOrOverridesKnown
+        if isKnownOrOverrides and isKnownOrOverrides(targetSpellID) then return true end
+        if _G.IsSpellKnown and _G.IsSpellKnown(targetSpellID) then return true end
+    end
+
     return false
 end
 sfui.buffs.data.IsSpellActuallyKnown = IsSpellActuallyKnown
@@ -243,6 +309,221 @@ function sfui.buffs.data.GetBestShamanImbue(slot, activeEnchantName)
     return "Rockbiter Weapon", "Interface\\Icons\\Spell_Nature_RockBiter", 8017
 end
 
+-- ─────────────────────────────────────────────────────────────
+--  PET REMINDER MANAGEMENT (HUNTER & WARLOCK)
+-- ─────────────────────────────────────────────────────────────
+sfui.buffs.pets = sfui.buffs.pets or {}
+
+local HUNTER_PET_SPELLS = {
+    { id = 883, fallbackName = "Call Pet 1", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 1, minLevel = 10 },
+    { id = 83242, fallbackName = "Call Pet 2", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 2, minLevel = 18 },
+    { id = 83243, fallbackName = "Call Pet 3", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 3, minLevel = 42 },
+    { id = 83244, fallbackName = "Call Pet 4", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 4, minLevel = 62 },
+    { id = 83245, fallbackName = "Call Pet 5", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 5, minLevel = 82 },
+}
+
+local WARLOCK_PET_SPELLS = {
+    { id = 688, fallbackName = "Summon Imp", cleanName = "imp", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonImp", minLevel = 1 },
+    { id = 697, fallbackName = "Summon Voidwalker", cleanName = "voidwalker", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonVoidWalker", minLevel = 8 },
+    { id = 712, fallbackName = "Summon Succubus", cleanName = "succubus", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonSuccubus", minLevel = 20 },
+    { id = 691, fallbackName = "Summon Felhunter", cleanName = "felhunter", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonFelHunter", minLevel = 30 },
+    { id = 30146, fallbackName = "Summon Felguard", cleanName = "felguard", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonFelGuard", minLevel = 10, demonologyOnly = true },
+}
+
+local function IsDemonologyWarlock()
+    if playerClass ~= "WARLOCK" then return false end
+    local talents = sfui.talents
+    if talents then
+        local specID = (talents.get_current_spec_id and talents.get_current_spec_id())
+            or (talents._specResolver and talents._specResolver())
+        if specID == 266 or specID == 14902 then
+            return true
+        end
+        local specIdx = talents.get_current_spec_index and talents.get_current_spec_index()
+        if specIdx == 2 then
+            return true
+        end
+    end
+    if _G.GetSpecialization then
+        local specIdx = _G.GetSpecialization()
+        if specIdx == 2 then
+            return true
+        end
+    end
+    return false
+end
+
+local function GetHunterPetInfo(spellDef)
+    local id = spellDef.id
+    local name = GetSpellInfo and GetSpellInfo(id)
+    if not name or name == "" then
+        name = spellDef.fallbackName
+    end
+    local icon = ResolveTexture(id, spellDef.fallbackIcon)
+    local petName = nil
+    if _G.GetCallPetSpellInfo then
+        local _, pName = _G.GetCallPetSpellInfo(id)
+        if (not pName or pName == "") and spellDef.index then
+            local _, pName2 = _G.GetCallPetSpellInfo(spellDef.index)
+            if pName2 and pName2 ~= "" then
+                pName = pName2
+            end
+        end
+        if pName and pName ~= "" then
+            petName = pName
+        end
+    end
+    local displayName = name:lower()
+    if petName then
+        displayName = string.format("%s (%s)", petName:lower(), name:lower())
+    end
+    return {
+        id = id,
+        spellName = name,
+        displayName = displayName,
+        petName = petName,
+        icon = icon,
+    }
+end
+
+local function GetWarlockPetInfo(spellDef)
+    local id = spellDef.id
+    local name = GetSpellInfo and GetSpellInfo(id)
+    if not name or name == "" then
+        name = spellDef.fallbackName
+    end
+    local icon = ResolveTexture(id, spellDef.fallbackIcon)
+    local clean = spellDef.cleanName
+    if not clean or clean == "" then
+        clean = name:gsub("^[Ss][Uu][Mm][Mm][Oo][Nn]%s+", "")
+    end
+    clean = clean:lower()
+    return {
+        id = id,
+        spellName = name,
+        cleanName = clean,
+        displayName = clean,
+        icon = icon,
+    }
+end
+
+local petsDirty = true
+local cachedAvailablePets = {}
+local cachedSelectedPet = nil
+
+function sfui.buffs.pets.InvalidatePetCache()
+    petsDirty = true
+    cachedSelectedPet = nil
+end
+
+function sfui.buffs.pets.GetAvailablePets()
+    if not petsDirty and #cachedAvailablePets > 0 then
+        return cachedAvailablePets
+    end
+
+    _G.wipe(cachedAvailablePets)
+    local playerLevel = (_G.UnitLevel and _G.UnitLevel("player")) or 1
+    if playerClass == "HUNTER" then
+        for i = 1, #HUNTER_PET_SPELLS do
+            local spellDef = HUNTER_PET_SPELLS[i]
+            local minLvl = spellDef.minLevel or 0
+            if playerLevel >= minLvl and IsSpellActuallyKnown(spellDef.id) then
+                cachedAvailablePets[#cachedAvailablePets + 1] = GetHunterPetInfo(spellDef)
+            end
+        end
+    elseif playerClass == "WARLOCK" then
+        local isDemonology = IsDemonologyWarlock()
+        for i = 1, #WARLOCK_PET_SPELLS do
+            local spellDef = WARLOCK_PET_SPELLS[i]
+            local allow = true
+            if spellDef.demonologyOnly and not isDemonology then
+                allow = false
+            end
+            local minLvl = spellDef.minLevel or 0
+            if allow and playerLevel >= minLvl and IsSpellActuallyKnown(spellDef.id) then
+                cachedAvailablePets[#cachedAvailablePets + 1] = GetWarlockPetInfo(spellDef)
+            end
+        end
+    end
+    petsDirty = false
+    return cachedAvailablePets
+end
+
+function sfui.buffs.pets.GetSelectedPet()
+    local all = sfui.buffs.pets.GetAvailablePets()
+    if not all or #all == 0 then
+        cachedSelectedPet = nil
+        return nil, all
+    end
+
+    if cachedSelectedPet and not petsDirty then
+        return cachedSelectedPet, all
+    end
+
+    local db = SfuiDB and SfuiDB.buffReminders
+    local savedID = nil
+    if db and db.selectedPet then
+        if type(db.selectedPet) == "table" then
+            savedID = db.selectedPet[playerClass]
+        elseif type(db.selectedPet) == "number" or type(db.selectedPet) == "string" then
+            savedID = db.selectedPet
+        end
+    end
+
+    if savedID then
+        for i = 1, #all do
+            if all[i].id == savedID or all[i].spellName == savedID then
+                cachedSelectedPet = all[i]
+                return cachedSelectedPet, all
+            end
+        end
+    end
+
+    cachedSelectedPet = all[1]
+    return cachedSelectedPet, all
+end
+
+function sfui.buffs.pets.CyclePet(delta)
+    local cur, all = sfui.buffs.pets.GetSelectedPet()
+    if not all or #all <= 1 then
+        return cur
+    end
+
+    local curIndex = 1
+    if cur then
+        for i = 1, #all do
+            if all[i].id == cur.id then
+                curIndex = i
+                break
+            end
+        end
+    end
+
+    local nextIndex = curIndex + (delta > 0 and 1 or -1)
+    if nextIndex > #all then
+        nextIndex = 1
+    elseif nextIndex < 1 then
+        nextIndex = #all
+    end
+
+    local chosen = all[nextIndex]
+    if chosen then
+        cachedSelectedPet = chosen
+        SfuiDB = SfuiDB or {}
+        SfuiDB.buffReminders = SfuiDB.buffReminders or {}
+        if type(SfuiDB.buffReminders.selectedPet) ~= "table" then
+            SfuiDB.buffReminders.selectedPet = {}
+        end
+        SfuiDB.buffReminders.selectedPet[playerClass] = chosen.id
+
+        if sfui.buffs and sfui.buffs.UpdateDisplay then
+            sfui.buffs.UpdateDisplay()
+        end
+        return chosen
+    end
+    return cur
+end
+
 --- Determines the best spell name to cast for click-to-cast
 --- @param entry table
 --- @param activeEnchantName string|nil
@@ -261,6 +542,15 @@ local function GetBestCastSpell(entry, activeEnchantName)
         local spellName, spellIcon, spellID = sfui.buffs.data.GetBestShamanImbue(entry.slot or 16, activeEnchantName)
         if spellName then
             return spellName, spellIcon, spellID
+        end
+    end
+
+    if entry.type == "pet" and (playerClass == "HUNTER" or playerClass == "WARLOCK") then
+        if sfui.buffs.pets and sfui.buffs.pets.GetSelectedPet then
+            local selectedPet = sfui.buffs.pets.GetSelectedPet()
+            if selectedPet then
+                return selectedPet.spellName, selectedPet.icon, selectedPet.id
+            end
         end
     end
 
@@ -399,8 +689,11 @@ local CLASS_BUFFS = {
             key = "pet",
             name = "pet missing",
             type = "pet",
-            spellIDs = { 883 }, -- Call Pet
+            spellIDs = { 883, 83242, 83243, 83244, 83245 }, -- Call Pet 1-5
             fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat",
+            isKnownCheck = function(entry)
+                return sfui.buffs.pets and sfui.buffs.pets.GetAvailablePets and #sfui.buffs.pets.GetAvailablePets() > 0
+            end,
         },
         {
             key = "trueshot_aura",
@@ -597,8 +890,11 @@ local CLASS_BUFFS = {
             key = "pet",
             name = "pet missing",
             type = "pet",
-            spellIDs = { 688, 697, 712, 691 }, -- Summon Imp, Voidwalker, Succubus, Felhunter
+            spellIDs = { 688, 697, 712, 691, 30146 }, -- Summon Imp, Voidwalker, Succubus, Felhunter, Felguard
             fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonImp",
+            isKnownCheck = function(entry)
+                return sfui.buffs.pets and sfui.buffs.pets.GetAvailablePets and #sfui.buffs.pets.GetAvailablePets() > 0
+            end,
         },
         {
             key = "soul_link",

@@ -2126,3 +2126,244 @@ function sfui.widgets.create_icon_toggle(parent, opts)
     return btn
 end
 sfui.common.create_icon_toggle = sfui.widgets.create_icon_toggle
+
+function sfui.widgets.create_keybind_input(parent, labelText, getFunc, setFunc, unbindFunc, tooltipTitle, tooltipDesc, width)
+    local container = CreateFrame("Frame", nil, parent)
+    container:SetSize(width or 360, 22)
+
+    local font = sfui.config.font or "GameFontNormal"
+    local fontSmall = sfui.config.font_small or "GameFontHighlightSmall"
+
+    local label = container:CreateFontString(nil, "OVERLAY", font)
+    label:SetPoint("LEFT", container, "LEFT", 0, 0)
+    label:SetTextColor(0.9, 0.9, 0.9)
+    label:SetText(labelText or "keybind:")
+    container.label = label
+
+    local bind_btn = sfui.widgets.create_flat_button(container, "not bound", 100, 20)
+    bind_btn:SetPoint("LEFT", label, "RIGHT", 8, 0)
+    bind_btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    container.bind_btn = bind_btn
+
+    local unbind_btn = sfui.widgets.create_flat_button(container, "clear", 46, 20)
+    unbind_btn:SetPoint("LEFT", bind_btn, "RIGHT", 6, 0)
+    container.unbind_btn = unbind_btn
+
+    local keybind_hint = container:CreateFontString(nil, "OVERLAY", fontSmall)
+    keybind_hint:SetPoint("LEFT", unbind_btn, "RIGHT", 8, 0)
+    keybind_hint:SetTextColor(0.6, 0.6, 0.6)
+    container.keybind_hint = keybind_hint
+
+    local is_listening = false
+    local catcher = CreateFrame("Frame", nil, container)
+    catcher:SetFrameStrata("DIALOG")
+    catcher:SetAllPoints(UIParent or container)
+    catcher:EnableMouse(true)
+    catcher:Hide()
+    container.catcher = catcher
+
+    local function update_keybind_display()
+        if is_listening then return end
+        local rawKey, formatted
+        if getFunc then
+            rawKey, formatted = getFunc()
+        end
+        formatted = (formatted and formatted ~= "") and formatted or rawKey
+        if formatted and formatted ~= "" then
+            bind_btn:SetText("|cff00ffff" .. _G.tostring(formatted):lower() .. "|r")
+            bind_btn:SetBackdropBorderColor(0, 0.8, 1, 0.85)
+            keybind_hint:SetText("|cff666666(right-click to clear)|r")
+        else
+            bind_btn:SetText("|cff888888not bound|r")
+            bind_btn:SetBackdropBorderColor(0, 0, 0, 1)
+            keybind_hint:SetText("|cff666666(click to bind)|r")
+        end
+    end
+    container.update_keybind_display = update_keybind_display
+
+    local function stop_listening()
+        if not is_listening then return end
+        is_listening = false
+        catcher:EnableKeyboard(false)
+        if catcher.EnableGamePadButton then
+            catcher:EnableGamePadButton(false)
+        end
+        catcher:Hide()
+        bind_btn.lockColor = false
+        bind_btn:SetBackdropBorderColor(0, 0, 0, 1)
+        update_keybind_display()
+    end
+    container.stop_listening = stop_listening
+
+    local function start_listening()
+        local InCombat = _G.InCombatLockdown
+        if InCombat and InCombat() then return end
+        is_listening = true
+        bind_btn.lockColor = true
+        bind_btn:SetText("|cffffff00press key...|r")
+        bind_btn:SetBackdropBorderColor(0, 1, 1, 1)
+        keybind_hint:SetText("|cffffff00press key or button (esc to cancel)|r")
+
+        catcher:Show()
+        catcher:EnableKeyboard(true)
+        if catcher.EnableGamePadButton then
+            catcher:EnableGamePadButton(true)
+        end
+        if catcher.SetPropagateKeyboardInput then
+            catcher:SetPropagateKeyboardInput(false)
+        end
+    end
+    container.start_listening = start_listening
+
+    bind_btn:SetScript("OnClick", function(_, button)
+        local InCombat = _G.InCombatLockdown
+        if InCombat and InCombat() then return end
+        if button == "RightButton" then
+            if is_listening then
+                stop_listening()
+            else
+                if unbindFunc then unbindFunc() end
+                update_keybind_display()
+            end
+        elseif button == "LeftButton" then
+            if is_listening then
+                stop_listening()
+            else
+                start_listening()
+            end
+        end
+    end)
+
+    unbind_btn:SetScript("OnClick", function()
+        local InCombat = _G.InCombatLockdown
+        if InCombat and InCombat() then return end
+        if is_listening then
+            stop_listening()
+        end
+        if unbindFunc then unbindFunc() end
+        update_keybind_display()
+    end)
+
+    bind_btn:HookScript("OnEnter", function(self)
+        local tip = sfui.common.get_tooltip()
+        if tip then
+            tip:SetOwner(self, "ANCHOR_TOP")
+            tip:SetText(tooltipTitle or "keybind", 1, 1, 1)
+            tip:AddLine("left-click: press any key, mouse button, or controller button to bind.", 0.8, 0.8, 0.8, true)
+            tip:AddLine("right-click: unbind active key.", 0.8, 0.8, 0.8, true)
+            tip:AddLine("press esc while listening to cancel.", 0.6, 0.6, 0.6, true)
+            if tooltipDesc then
+                tip:AddLine(tooltipDesc, 0.6, 0.8, 1, true)
+            end
+            tip:Show()
+        end
+    end)
+    bind_btn:HookScript("OnLeave", function()
+        local tip = sfui.common.get_tooltip()
+        if tip then tip:Hide() end
+    end)
+
+    unbind_btn:HookScript("OnEnter", function(self)
+        local tip = sfui.common.get_tooltip()
+        if tip then
+            tip:SetOwner(self, "ANCHOR_TOP")
+            tip:SetText("clear keybind", 1, 1, 1)
+            tip:AddLine("removes the active keybind.", 0.8, 0.8, 0.8, true)
+            tip:Show()
+        end
+    end)
+    unbind_btn:HookScript("OnLeave", function()
+        local tip = sfui.common.get_tooltip()
+        if tip then tip:Hide() end
+    end)
+
+    local function is_meta_key(key)
+        if _G.IsMetaKey then return _G.IsMetaKey(key) end
+        return key == "LALT" or key == "RALT" or key == "ALT"
+            or key == "LCTRL" or key == "RCTRL" or key == "CTRL"
+            or key == "LSHIFT" or key == "RSHIFT" or key == "SHIFT"
+            or key == "LMETA" or key == "RMETA" or key == "META"
+    end
+
+    local function build_key_chord(key)
+        if not key or key == "" then return nil end
+        if _G.CreateKeyChordStringUsingMetaKeyState then
+            return _G.CreateKeyChordStringUsingMetaKeyState(key)
+        end
+        local chord = {}
+        local IsAlt = _G.IsAltKeyDown
+        local IsControl = _G.IsControlKeyDown
+        local IsShift = _G.IsShiftKeyDown
+        local IsMeta = _G.IsMetaKeyDown
+        if IsAlt and IsAlt() then table.insert(chord, "ALT") end
+        if IsControl and IsControl() then table.insert(chord, "CTRL") end
+        if IsShift and IsShift() then table.insert(chord, "SHIFT") end
+        if IsMeta and IsMeta() then table.insert(chord, "META") end
+        table.insert(chord, key)
+        return table.concat(chord, "-")
+    end
+
+    catcher:SetScript("OnKeyDown", function(_, key)
+        if key == "ESCAPE" then
+            stop_listening()
+            return
+        end
+        if is_meta_key(key) or key == "UNKNOWN" or key == "PRINTSCREEN" then
+            return
+        end
+        local chord = build_key_chord(key)
+        if chord and chord ~= "" and setFunc then
+            setFunc(chord)
+        end
+        stop_listening()
+    end)
+
+    catcher:SetScript("OnGamePadButtonDown", function(_, btn)
+        if btn and btn ~= "" and setFunc then
+            setFunc(btn)
+        end
+        stop_listening()
+    end)
+
+    catcher:SetScript("OnMouseWheel", function(_, delta)
+        local key = delta > 0 and "MOUSEWHEELUP" or "MOUSEWHEELDOWN"
+        local chord = build_key_chord(key)
+        if chord and chord ~= "" and setFunc then
+            setFunc(chord)
+        end
+        stop_listening()
+    end)
+
+    local mouse_button_map = {
+        MiddleButton = "BUTTON3",
+        Button3      = "BUTTON3",
+        Button4      = "BUTTON4",
+        Button5      = "BUTTON5",
+        Button6      = "BUTTON6",
+        Button7      = "BUTTON7",
+        Button8      = "BUTTON8",
+    }
+
+    catcher:SetScript("OnMouseDown", function(_, btn)
+        if btn == "LeftButton" or btn == "RightButton" then
+            stop_listening()
+        else
+            local mapped = mouse_button_map[btn] or (_G.GetConvertedKeyOrButton and _G.GetConvertedKeyOrButton(btn))
+            if mapped and mapped ~= "BUTTON1" and mapped ~= "BUTTON2" then
+                local chord = build_key_chord(mapped)
+                if chord and chord ~= "" and setFunc then
+                    setFunc(chord)
+                end
+            end
+            stop_listening()
+        end
+    end)
+
+    container:SetScript("OnShow", function()
+        update_keybind_display()
+    end)
+
+    update_keybind_display()
+    return container
+end
+sfui.common.create_keybind_input = sfui.widgets.create_keybind_input

@@ -45,6 +45,10 @@ sfui.options.RegisterTab({
 
         local last_general_anchor = auto_sign_cb
 
+        if SfuiDB.tooltipAltIDs == nil then SfuiDB.tooltipAltIDs = true end
+        local auto_alt_ids_cb = create_checkbox(automation_panel, "hold alt for item / spell / quest id", "tooltipAltIDs", nil,
+            "shows item id, spell id, or quest id at the bottom of tooltips while holding the alt key.")
+
         if sfui.isCamelot or sfui.isClassic or isClassic then
             if SfuiDB.autoRankUp == nil then SfuiDB.autoRankUp = true end
             local auto_rankup_cb = create_checkbox(automation_panel, "auto spell rank-up", "autoRankUp", function(checked)
@@ -53,7 +57,11 @@ sfui.options.RegisterTab({
                 end
             end, "automatically replaces lower-rank spells on action bars when learning new ranks from class trainers.")
             auto_rankup_cb:SetPoint("TOPLEFT", auto_sign_cb, "BOTTOMLEFT", 0, -10)
+            auto_alt_ids_cb:SetPoint("LEFT", auto_rankup_cb, "LEFT", COL_OFFSET_X, 0)
             last_general_anchor = auto_rankup_cb
+        else
+            auto_alt_ids_cb:SetPoint("TOPLEFT", auto_sign_cb, "BOTTOMLEFT", 0, -10)
+            last_general_anchor = auto_alt_ids_cb
         end
 
         -- ── 2. Bag Triage (Inventory Overflow) ────────────────────────────────
@@ -118,7 +126,7 @@ sfui.options.RegisterTab({
 
         -- ── 3. Dungeons, Raids & Grouping ─────────────────────────────────────
         local dungeon_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
-        dungeon_header:SetPoint("TOPLEFT", test_triage_btn, "BOTTOMLEFT", 0, -SECTION_GAP)
+        dungeon_header:SetPoint("TOPLEFT", test_triage_btn, "BOTTOMLEFT", 0, -28)
         dungeon_header:SetTextColor(white[1], white[2], white[3])
         dungeon_header:SetText("dungeons, raids & grouping")
 

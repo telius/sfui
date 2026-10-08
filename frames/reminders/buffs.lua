@@ -143,6 +143,14 @@ local function CreateBuffIcon(index, parent)
                     if onEnter then onEnter(self) end
                 end
             end
+        elseif self.record and self.record.entry and self.record.entry.type == "pet" then
+            if sfui.buffs.pets and sfui.buffs.pets.CyclePet then
+                sfui.buffs.pets.CyclePet(delta)
+                if self.isHovered and GameTooltip and GameTooltip:GetOwner() == self then
+                    local onEnter = self:GetScript("OnEnter")
+                    if onEnter then onEnter(self) end
+                end
+            end
         end
     end)
 
@@ -239,6 +247,47 @@ local function CreateBuffIcon(index, parent)
 
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine("|cffff5555no food with buff in bags|r", 0.9, 0.4, 0.4)
+        elseif entry.type == "pet" and sfui.buffs.pets and sfui.buffs.pets.GetSelectedPet then
+            local selectedPet, allPets = sfui.buffs.pets.GetSelectedPet()
+            if selectedPet then
+                GameTooltip:ClearLines()
+                if rec.isMissing then
+                    GameTooltip:AddLine("|cffff4444[missing]|r " .. selectedPet.displayName, 1, 1, 1)
+                else
+                    GameTooltip:AddLine("|cff00ff00[active]|r " .. selectedPet.displayName, 1, 1, 1)
+                end
+                GameTooltip:AddLine("summon your active pet", 0.6, 0.6, 0.6)
+
+                local db = SfuiDB and SfuiDB.buffReminders
+                if db and db.clickToCast ~= false and not isTestMode then
+                    local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
+                    if inCombat then
+                        GameTooltip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
+                    else
+                        local castLabel = (selectedPet.cleanName or selectedPet.displayName or selectedPet.spellName:gsub("^[Ss][Uu][Mm][Mm][Oo][Nn]%s+", "")):lower()
+                        GameTooltip:AddLine("|cff55ff55[click to summon]|r " .. castLabel, 0.3, 1, 0.3)
+                    end
+                end
+
+                if allPets and #allPets > 1 then
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("scroll wheel to select pet:", 0.5, 0.8, 1)
+                    for _, pInfo in ipairs(allPets) do
+                        local isCur = (pInfo.id == selectedPet.id)
+                        if isCur then
+                            GameTooltip:AddLine("  > " .. pInfo.displayName, 1, 0.82, 0)
+                        else
+                            GameTooltip:AddLine("    " .. pInfo.displayName, 0.6, 0.6, 0.6)
+                        end
+                    end
+                end
+
+                if isUnlocked then
+                    GameTooltip:AddLine("|cff888888(drag to reposition reminders)|r", 0.5, 0.5, 0.5)
+                end
+                GameTooltip:Show()
+                return
+            end
         else
             local db = SfuiDB and SfuiDB.buffReminders
             if db and db.clickToCast ~= false and not isTestMode then
@@ -512,9 +561,14 @@ function sfui.buffs.UpdateDisplay()
         local isFood = (rec.entry and rec.entry.key == "consumable_food")
         local selectedFood = isFood and sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedFood and sfui.buffs.consumables.GetSelectedFood()
 
+        local isPet = (rec.entry and rec.entry.type == "pet")
+        local selectedPet = isPet and sfui.buffs.pets and sfui.buffs.pets.GetSelectedPet and sfui.buffs.pets.GetSelectedPet()
+
         -- Set texture
         if isFood and selectedFood and selectedFood.icon then
             icon.texture:SetTexture(selectedFood.icon)
+        elseif isPet and selectedPet and selectedPet.icon then
+            icon.texture:SetTexture(selectedPet.icon)
         else
             icon.texture:SetTexture(rec.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
         end
@@ -636,6 +690,9 @@ function sfui.buffs.UpdateDisplay()
                         icon:SetAttribute("item", nil)
                         if targetSlot then
                             icon:SetAttribute("target-slot", targetSlot)
+                            icon:SetAttribute("unit", nil)
+                        elseif rec.entry.type == "pet" then
+                            icon:SetAttribute("target-slot", nil)
                             icon:SetAttribute("unit", nil)
                         else
                             icon:SetAttribute("target-slot", nil)
@@ -797,6 +854,9 @@ local function InitBuffReminders()
         end
         if SfuiDB.buffReminders.trackHerbs == nil then
             SfuiDB.buffReminders.trackHerbs = true
+        end
+        if SfuiDB.buffReminders.selectedPet == nil then
+            SfuiDB.buffReminders.selectedPet = {}
         end
     end
 

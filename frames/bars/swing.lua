@@ -44,12 +44,24 @@ local OUT_OF_RANGE_ALPHA = 0.4
 
 local swingBars = {}
 local playerClass
-local function IsHunter()
+local function GetPlayerClass()
     if not playerClass then
-        local class = sfui.common.get_player_class()
-        playerClass = class
+        local class = (sfui.common and sfui.common.get_player_class and sfui.common.get_player_class())
+            or (UnitClass and select(2, UnitClass("player")))
+        if class and class ~= "" then
+            playerClass = class
+        end
     end
-    return playerClass == "HUNTER"
+    return playerClass
+end
+
+local function IsHunter()
+    return GetPlayerClass() == "HUNTER"
+end
+
+local function IsWandCaster()
+    local class = GetPlayerClass()
+    return class == "WARLOCK" or class == "MAGE" or class == "PRIEST"
 end
 local isAutoRepeating = false
 local isAttacking = false
@@ -204,6 +216,28 @@ local function ResetSwingTimer(bar, duration)
     bar:SetScript("OnUpdate", OnUpdateBar)
 end
 
+local function GetBarColor(colorKey, swingType)
+    local barCfg = cfg.swingBar or {}
+    local colors = barCfg.colors or {}
+
+    if swingType == SWING_RANGED and IsWandCaster() then
+        return colors.wand or { 0.4, 0.0, 1.0, 1.0 }
+    end
+
+    return colors[colorKey] or { 0.4, 0.8, 1.0, 1.0 }
+end
+
+local function UpdateBarColors()
+    for _, sType in ipairs(SWING_TYPES) do
+        local bar = swingBars[sType]
+        if bar and bar.statusBar and bar.colorKey then
+            local col = GetBarColor(bar.colorKey, sType)
+            bar.statusBar:SetStatusBarColor(unpack(col))
+        end
+    end
+end
+sfui.swing.UpdateBarColors = UpdateBarColors
+
 -- ─── Bar Construction ───────────────────────────────────────────────────────
 local function CreateSwingBar(name, swingType, colorKey)
     local barCfg = cfg.swingBar or {
@@ -214,6 +248,7 @@ local function CreateSwingBar(name, swingType, colorKey)
             mainHand = { 0.4, 0.8, 1.0, 1.0 },
             offHand  = { 1.0, 0.65, 0.2, 1.0 },
             ranged   = { 0.3, 0.9, 0.4, 1.0 },
+            wand     = { 0.4, 0.0, 1.0, 1.0 },
         },
         backdrop = {
             padding = 1,
@@ -252,7 +287,7 @@ local function CreateSwingBar(name, swingType, colorKey)
     statusBar:SetStatusBarTexture(texturePath)
 
     -- Bar color
-    local col = (barCfg.colors and barCfg.colors[colorKey]) or { 0.4, 0.8, 1.0, 1.0 }
+    local col = GetBarColor(colorKey, swingType)
     statusBar:SetStatusBarColor(unpack(col))
 
     -- Leading Pip (spark) anchored directly to the status bar texture
@@ -278,17 +313,24 @@ end
 
 -- ─── Initialization ─────────────────────────────────────────────────────────
 local function EnsureBarsCreated()
+    local created = false
     if not swingBars[SWING_MAIN_HAND] then
         local bar = CreateSwingBar("MainHandSwingBar", SWING_MAIN_HAND, "mainHand")
         sfui.theme.RegisterBar(bar, "swing")
+        created = true
     end
     if not swingBars[SWING_OFF_HAND] then
         local bar = CreateSwingBar("OffHandSwingBar", SWING_OFF_HAND, "offHand")
         sfui.theme.RegisterBar(bar, "swing")
+        created = true
     end
     if not swingBars[SWING_RANGED] then
         local bar = CreateSwingBar("RangedSwingBar", SWING_RANGED, "ranged")
         sfui.theme.RegisterBar(bar, "swing")
+        created = true
+    end
+    if created then
+        UpdateBarColors()
     end
 end
 
@@ -598,6 +640,8 @@ local function OnSwingEvent(event, ...)
         if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_LOGIN" then
             isAttacking = false
             isAutoRepeating = false
+            playerClass = nil
+            UpdateBarColors()
         end
         UpdateEquippedWeapons()
         SuppressBlizzardSwingTimer()

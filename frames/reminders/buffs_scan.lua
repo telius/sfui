@@ -105,22 +105,24 @@ local function RecordActiveAura(name, spellId, duration, expirationTime, applica
     return r
 end
 
+local function AuraCollectorCallback(auraData)
+    if auraData then
+        RecordActiveAura(
+            auraData.name,
+            auraData.spellId,
+            auraData.duration,
+            auraData.expirationTime,
+            auraData.applications,
+            auraData.icon
+        )
+    end
+end
+
 local function CollectPlayerAuras()
     ReleasePlayerAuras()
 
     if AuraUtil and AuraUtil.ForEachAura then
-        AuraUtil.ForEachAura("player", "HELPFUL", nil, function(auraData)
-            if auraData then
-                RecordActiveAura(
-                    auraData.name,
-                    auraData.spellId,
-                    auraData.duration,
-                    auraData.expirationTime,
-                    auraData.applications,
-                    auraData.icon
-                )
-            end
-        end, true)
+        AuraUtil.ForEachAura("player", "HELPFUL", nil, AuraCollectorCallback, true)
     elseif C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
         for i = 1, 40 do
             local aura = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")
@@ -502,7 +504,16 @@ local function ScanPet(entry)
     if hasPet then
         return true, 0, 0, 0, nil
     end
-    return false, 0, 0, 0, nil
+
+    local petIcon = nil
+    if sfui.buffs.pets and sfui.buffs.pets.GetSelectedPet then
+        local selectedPet = sfui.buffs.pets.GetSelectedPet()
+        if selectedPet and selectedPet.icon then
+            petIcon = selectedPet.icon
+        end
+    end
+
+    return false, 0, 0, 0, petIcon
 end
 
 local MIN_TRACKING_ID = 2580
@@ -738,6 +749,9 @@ local function InitScanEvents()
     end
 
     local function on_knowledge_change()
+        if sfui.buffs.pets and sfui.buffs.pets.InvalidatePetCache then
+            sfui.buffs.pets.InvalidatePetCache()
+        end
         RefreshSpellKnowledge()
         sfui.buffs.scan.RequestScan()
     end
@@ -777,6 +791,7 @@ local function InitScanEvents()
     sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", on_knowledge_change)
     sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", on_knowledge_change)
     sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", on_knowledge_change)
+    sfui.events.RegisterEvent("PET_STABLE_UPDATE", on_knowledge_change)
 
     -- Combat state transitions
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()

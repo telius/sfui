@@ -453,6 +453,369 @@ local function init_lfg_dungeon_automation()
     end
 end
 
+-- ─────────────────────────────────────────────────────────────
+--  TOOLTIP ALT ID AUTOMATION (ITEM ID & SPELL ID)
+-- ─────────────────────────────────────────────────────────────
+local _tooltip_automation_initialized = false
+
+local function is_alt_tooltip_enabled()
+    if SfuiDB and SfuiDB.tooltipAltIDs ~= nil then
+        return SfuiDB.tooltipAltIDs
+    end
+    if sfui.config and sfui.config.automation and sfui.config.automation.tooltip_alt_ids ~= nil then
+        return sfui.config.automation.tooltip_alt_ids
+    end
+    return true
+end
+
+local function append_tooltip_id(tooltip, idType, id)
+    if not tooltip or not id or tooltip._sfuiAltIDAppended then return end
+    tooltip._sfuiAltIDAppended = true
+
+    local prefix = (idType == "item") and "item id:" or ((idType == "quest") and "quest id:" or ((idType == "achievement") and "achievement id:" or "spell id:"))
+    if tooltip.AddDoubleLine then
+        tooltip:AddDoubleLine("|cff00ffff" .. prefix .. "|r", "|cffffffff" .. tostring(id) .. "|r", 0, 1, 1, 1, 1, 1)
+    elseif tooltip.AddLine then
+        tooltip:AddLine("|cff00ffff" .. prefix .. "|r |cffffffff" .. tostring(id) .. "|r")
+    end
+    tooltip:Show()
+end
+
+sfui.automation = sfui.automation or {}
+sfui.automation.is_alt_tooltip_enabled = is_alt_tooltip_enabled
+sfui.automation.append_tooltip_id = append_tooltip_id
+
+local function on_tooltip_cleared(tooltip)
+    if not tooltip then return end
+    tooltip._sfuiAltIDAppended = nil
+    tooltip._sfuiCurrentID = nil
+    tooltip._sfuiCurrentType = nil
+    tooltip._sfuiCurrentHyperlink = nil
+end
+
+local function get_item_id_from_tooltip(tooltip, tooltipData)
+    if tooltipData and tooltipData.id and tooltipData.id > 0 then
+        return tooltipData.id
+    end
+    if tooltipData and tooltipData.guid then
+        local cItem = _G.C_Item
+        local link = cItem and cItem.GetItemLinkByGUID and cItem.GetItemLinkByGUID(tooltipData.guid)
+        if link then
+            local id = tonumber(link:match("item:(%d+)"))
+            if id then return id end
+        end
+    end
+    if tooltipData and tooltipData.hyperlink then
+        local id = tonumber(tooltipData.hyperlink:match("item:(%d+)"))
+        if id then return id end
+    end
+    local toolUtil = _G.TooltipUtil
+    if toolUtil and toolUtil.GetDisplayedItem then
+        local _, _, id = toolUtil.GetDisplayedItem(tooltip)
+        if id and id > 0 then return id end
+    end
+    if tooltip.GetItem then
+        local _, link = tooltip:GetItem()
+        if link then
+            local id = tonumber(link:match("item:(%d+)"))
+            if id then return id end
+        end
+    end
+    return nil
+end
+
+local function get_spell_id_from_tooltip(tooltip, tooltipData)
+    if tooltipData and tooltipData.id and tooltipData.id > 0 then
+        return tooltipData.id
+    end
+    local toolUtil = _G.TooltipUtil
+    if toolUtil and toolUtil.GetDisplayedSpell then
+        local _, id = toolUtil.GetDisplayedSpell(tooltip)
+        if id and id > 0 then return id end
+    end
+    if tooltip.GetSpell then
+        local _, id = tooltip:GetSpell()
+        if id and id > 0 then return id end
+    end
+    return nil
+end
+
+local function on_tooltip_set_item(tooltip, tooltipData)
+    if not tooltip or not is_alt_tooltip_enabled() then return end
+    local itemID = get_item_id_from_tooltip(tooltip, tooltipData)
+    if not itemID then return end
+
+    tooltip._sfuiCurrentType = "item"
+    tooltip._sfuiCurrentID = itemID
+    if tooltipData and tooltipData.hyperlink then
+        tooltip._sfuiCurrentHyperlink = tooltipData.hyperlink
+    elseif tooltip.GetItem then
+        local _, link = tooltip:GetItem()
+        if link then tooltip._sfuiCurrentHyperlink = link end
+    end
+
+    if _G.IsAltKeyDown and _G.IsAltKeyDown() then
+        append_tooltip_id(tooltip, "item", itemID)
+    end
+end
+
+local function on_tooltip_set_spell(tooltip, tooltipData)
+    if not tooltip or not is_alt_tooltip_enabled() then return end
+    local spellID = get_spell_id_from_tooltip(tooltip, tooltipData)
+    if not spellID then return end
+
+    tooltip._sfuiCurrentType = "spell"
+    tooltip._sfuiCurrentID = spellID
+
+    if _G.IsAltKeyDown and _G.IsAltKeyDown() then
+        append_tooltip_id(tooltip, "spell", spellID)
+    end
+end
+
+local function on_tooltip_set_unit_aura(tooltip, tooltipData)
+    if not tooltip or not is_alt_tooltip_enabled() then return end
+    local spellID = tooltipData and tooltipData.id
+    if not spellID or spellID <= 0 then
+        if tooltip.GetSpell then
+            local _, id = tooltip:GetSpell()
+            if id and id > 0 then spellID = id end
+        end
+    end
+    if not spellID then return end
+
+    tooltip._sfuiCurrentType = "spell"
+    tooltip._sfuiCurrentID = spellID
+
+    if _G.IsAltKeyDown and _G.IsAltKeyDown() then
+        append_tooltip_id(tooltip, "spell", spellID)
+    end
+end
+
+local function on_tooltip_set_macro(tooltip, tooltipData)
+    if not tooltip or not is_alt_tooltip_enabled() then return end
+    local spellID = nil
+    if tooltip.GetSpell then
+        local _, id = tooltip:GetSpell()
+        if id and id > 0 then spellID = id end
+    end
+    if spellID then
+        tooltip._sfuiCurrentType = "spell"
+        tooltip._sfuiCurrentID = spellID
+        if _G.IsAltKeyDown and _G.IsAltKeyDown() then
+            append_tooltip_id(tooltip, "spell", spellID)
+        end
+        return
+    end
+
+    local itemID = nil
+    if tooltip.GetItem then
+        local _, link = tooltip:GetItem()
+        if link then itemID = tonumber(link:match("item:(%d+)")) end
+    end
+    if itemID then
+        tooltip._sfuiCurrentType = "item"
+        tooltip._sfuiCurrentID = itemID
+        if _G.IsAltKeyDown and _G.IsAltKeyDown() then
+            append_tooltip_id(tooltip, "item", itemID)
+        end
+    end
+end
+
+local function get_quest_id_from_tooltip(tooltip, tooltipData)
+    if tooltip and tooltip._sfuiCurrentType == "quest" and tooltip._sfuiCurrentID then
+        return tooltip._sfuiCurrentID
+    end
+    if tooltipData and tooltipData.id and tooltipData.id > 0 then
+        return tooltipData.id
+    end
+    if tooltipData and tooltipData.hyperlink then
+        local id = tonumber(tooltipData.hyperlink:match("quest:(%d+)"))
+        if id then return id end
+    end
+    if tooltip and tooltip._sfuiCurrentHyperlink then
+        local id = tonumber(tooltip._sfuiCurrentHyperlink:match("quest:(%d+)"))
+        if id then return id end
+    end
+    return nil
+end
+
+local function on_tooltip_set_quest(tooltip, tooltipData)
+    if not tooltip or not is_alt_tooltip_enabled() then return end
+    local questID = get_quest_id_from_tooltip(tooltip, tooltipData)
+    if not questID then return end
+
+    tooltip._sfuiCurrentType = "quest"
+    tooltip._sfuiCurrentID = questID
+    if tooltipData and tooltipData.hyperlink then
+        tooltip._sfuiCurrentHyperlink = tooltipData.hyperlink
+    end
+
+    if _G.IsAltKeyDown and _G.IsAltKeyDown() then
+        append_tooltip_id(tooltip, "quest", questID)
+    end
+end
+
+local function refresh_active_tooltip(tip)
+    if not tip or not tip:IsShown() then return end
+    local owner = tip.GetOwner and tip:GetOwner()
+    local foci = _G.GetMouseFoci and _G.GetMouseFoci()
+    local focus = (foci and foci[1]) or (_G.GetMouseFocus and _G.GetMouseFocus())
+    local target = (focus and focus.IsMouseOver and focus:IsMouseOver() and focus) or owner
+    if target then
+        local onEnter = target.GetScript and target:GetScript("OnEnter")
+        if onEnter then
+            onEnter(target)
+            return
+        elseif target.OnEnter then
+            target:OnEnter()
+            return
+        end
+    end
+    if tip == _G.ItemRefTooltip and tip._sfuiCurrentHyperlink then
+        tip:SetHyperlink(tip._sfuiCurrentHyperlink)
+        return
+    end
+    if _G.IsAltKeyDown and _G.IsAltKeyDown() and tip._sfuiCurrentID and not tip._sfuiAltIDAppended then
+        append_tooltip_id(tip, tip._sfuiCurrentType, tip._sfuiCurrentID)
+    end
+end
+
+local function update_tooltip_on_alt(tip)
+    if not tip or not tip:IsShown() then return end
+    if _G.IsAltKeyDown and _G.IsAltKeyDown() then
+        if tip._sfuiCurrentID and not tip._sfuiAltIDAppended then
+            append_tooltip_id(tip, tip._sfuiCurrentType, tip._sfuiCurrentID)
+        else
+            refresh_active_tooltip(tip)
+        end
+    else
+        if tip._sfuiAltIDAppended then
+            refresh_active_tooltip(tip)
+        end
+    end
+end
+
+local function on_modifier_state_changed(_, key)
+    if key and not key:find("ALT", 1, true) then return end
+    if not is_alt_tooltip_enabled() then return end
+
+    update_tooltip_on_alt(_G.GameTooltip)
+    update_tooltip_on_alt(_G.ItemRefTooltip)
+    local sfuiTip = (sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()) or sfui.tooltip
+    if sfuiTip and sfuiTip ~= _G.GameTooltip then
+        update_tooltip_on_alt(sfuiTip)
+    end
+    update_tooltip_on_alt(_G.ShoppingTooltip1)
+    update_tooltip_on_alt(_G.ShoppingTooltip2)
+end
+
+local function init_tooltip_automation()
+    if _tooltip_automation_initialized then return end
+    _tooltip_automation_initialized = true
+
+    local dataProcessor = _G.TooltipDataProcessor
+    local enumType = _G.Enum and _G.Enum.TooltipDataType
+
+    local sfuiTip = (sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()) or sfui.tooltip
+
+    if dataProcessor and dataProcessor.AddTooltipPostCall and enumType then
+        if enumType.Item then
+            dataProcessor.AddTooltipPostCall(enumType.Item, on_tooltip_set_item)
+        end
+        if enumType.Spell then
+            dataProcessor.AddTooltipPostCall(enumType.Spell, on_tooltip_set_spell)
+        end
+        if enumType.UnitAura then
+            dataProcessor.AddTooltipPostCall(enumType.UnitAura, on_tooltip_set_unit_aura)
+        end
+        if enumType.Toy then
+            dataProcessor.AddTooltipPostCall(enumType.Toy, on_tooltip_set_item)
+        end
+        if enumType.Macro then
+            dataProcessor.AddTooltipPostCall(enumType.Macro, on_tooltip_set_macro)
+        end
+        if enumType.Quest then
+            dataProcessor.AddTooltipPostCall(enumType.Quest, on_tooltip_set_quest)
+        end
+    else
+        local hookedTips = {}
+        local function hook_legacy_tip(tip)
+            if not tip or hookedTips[tip] then return end
+            hookedTips[tip] = true
+            if tip.HookScript then
+                tip:HookScript("OnTooltipSetItem", on_tooltip_set_item)
+                tip:HookScript("OnTooltipSetSpell", on_tooltip_set_spell)
+                tip:HookScript("OnTooltipCleared", on_tooltip_cleared)
+                tip:HookScript("OnHide", on_tooltip_cleared)
+            end
+        end
+
+        hook_legacy_tip(_G.GameTooltip)
+        hook_legacy_tip(_G.ItemRefTooltip)
+        hook_legacy_tip(sfuiTip)
+        hook_legacy_tip(_G.ShoppingTooltip1)
+        hook_legacy_tip(_G.ShoppingTooltip2)
+    end
+
+    local function hook_tip_hyperlink(tip)
+        if not tip or not tip.SetHyperlink then return end
+        hooksecurefunc(tip, "SetHyperlink", function(self, link)
+            if not is_alt_tooltip_enabled() or not link then return end
+            local questID = tonumber(link:match("quest:(%d+)"))
+            if questID then
+                self._sfuiCurrentType = "quest"
+                self._sfuiCurrentID = questID
+                self._sfuiCurrentHyperlink = link
+                if _G.IsAltKeyDown and _G.IsAltKeyDown() then
+                    append_tooltip_id(self, "quest", questID)
+                end
+            end
+        end)
+    end
+
+    hook_tip_hyperlink(_G.GameTooltip)
+    hook_tip_hyperlink(_G.ItemRefTooltip)
+    if sfuiTip and sfuiTip ~= _G.GameTooltip then
+        hook_tip_hyperlink(sfuiTip)
+    end
+
+    if _G.QuestLogTitleButton_OnEnter then
+        hooksecurefunc("QuestLogTitleButton_OnEnter", function(self)
+            if not is_alt_tooltip_enabled() or not self or not self.GetID or self.isHeader then return end
+            local offset = (_G.FauxScrollFrame_GetOffset and _G.QuestLogListScrollFrame and _G.FauxScrollFrame_GetOffset(_G.QuestLogListScrollFrame)) or 0
+            local index = self:GetID() + offset
+            if index and index > 0 and _G.GetQuestLogTitle then
+                local title, _, _, isHeader, _, _, _, questID = _G.GetQuestLogTitle(index)
+                if not isHeader and questID and questID > 0 then
+                    local tip = _G.GameTooltip
+                    tip._sfuiCurrentType = "quest"
+                    tip._sfuiCurrentID = questID
+                    if _G.IsAltKeyDown and _G.IsAltKeyDown() then
+                        if not tip:IsShown() then
+                            tip:SetOwner(self, "ANCHOR_RIGHT")
+                            tip:SetText(title or "Quest")
+                        end
+                        append_tooltip_id(tip, "quest", questID)
+                    end
+                end
+            end
+        end)
+    end
+
+    local commonTips = { _G.GameTooltip, _G.ItemRefTooltip, sfuiTip, _G.ShoppingTooltip1, _G.ShoppingTooltip2 }
+    for i = 1, #commonTips do
+        local tip = commonTips[i]
+        if tip and tip.HookScript then
+            pcall(tip.HookScript, tip, "OnTooltipCleared", on_tooltip_cleared)
+            pcall(tip.HookScript, tip, "OnHide", on_tooltip_cleared)
+        end
+    end
+
+    if sfui.events and sfui.events.RegisterEvent then
+        sfui.events.RegisterEvent("MODIFIER_STATE_CHANGED", on_modifier_state_changed)
+    end
+end
+
 local _automation_initialized = false
 function sfui.automation.initialize()
     if _automation_initialized then return end
@@ -462,6 +825,7 @@ function sfui.automation.initialize()
     init_keystone_automation()
     init_auction_house_automation()
     init_lfg_dungeon_automation()
+    init_tooltip_automation()
     if _G.PVEFrame and not _G.PVEFrame._sfui_lfg_hooked then
         _G.PVEFrame._sfui_lfg_hooked = true
         _G.PVEFrame:HookScript("OnShow", function()
@@ -481,6 +845,7 @@ end)
 
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
     setup_lfg_dialog()
+    init_tooltip_automation()
 end)
 
 sfui.events.RegisterEvent("ADDON_LOADED", function(event, loadedAddon)
@@ -505,6 +870,7 @@ function sfui.automation_debug_info()
         autoRepair = SfuiDB and SfuiDB.autoRepair or false,
         autoSellGreys = SfuiDB and SfuiDB.autoSellGreys or false,
         autoLfgDungeonDefaults = SfuiDB and SfuiDB.autoLfgDungeonDefaults ~= false,
+        tooltipAltIDs = SfuiDB and SfuiDB.tooltipAltIDs ~= false,
     }
 end
 

@@ -140,6 +140,32 @@ sfui.common.CLASSIC_TREE_SPECS      = CLASSIC_TREE_SPECS
 sfui.talents.CLASSIC_SPEC_LOOKUP    = CLASSIC_SPEC_LOOKUP
 sfui.common.CLASSIC_SPEC_LOOKUP     = CLASSIC_SPEC_LOOKUP
 
+local function CheckFlyoutSlot(flyoutID, targetSpellID)
+    if not flyoutID then return false end
+    local getInfo = _G.GetFlyoutInfo or (_G.C_SpellBook and _G.C_SpellBook.GetFlyoutInfo)
+    local getSlot = _G.GetFlyoutSlotInfo or (_G.C_SpellBook and _G.C_SpellBook.GetFlyoutSlotInfo)
+    if not getInfo or not getSlot then return false end
+    local info1, _, info3 = getInfo(flyoutID)
+    local numSlots = (type(info1) == "table" and info1.numSlots) or info3 or 0
+    for i = 1, numSlots do
+        local r1, r2, r3 = getSlot(flyoutID, i)
+        local sID, isKnown
+        if type(r1) == "table" then
+            sID = r1.spellID or r1.overrideSpellID
+            isKnown = r1.isKnown
+        else
+            sID = r1
+            local overrideID = r2
+            isKnown = r3
+            if overrideID == targetSpellID then sID = overrideID end
+        end
+        if sID == targetSpellID and isKnown then
+            return true
+        end
+    end
+    return false
+end
+
 -- 4. Talent Known Resolver (Classic / Camelot spells)
 local function CamelotTalentKnownResolver(targetSpellID)
     if not targetSpellID or targetSpellID <= 0 then return false end
@@ -147,13 +173,30 @@ local function CamelotTalentKnownResolver(targetSpellID)
     local bank = (_G.Enum and _G.Enum.SpellBookSpellBank and _G.Enum.SpellBookSpellBank.Player) or 1
     if C_SpellBook then
         if C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(targetSpellID, bank) then return true end
-        if C_SpellBook.IsSpellInSpellBook and C_SpellBook.IsSpellInSpellBook(targetSpellID, bank, false) then return true end
-        if C_SpellBook.IsSpellInSpellBook and C_SpellBook.IsSpellInSpellBook(targetSpellID, bank, true) then return true end
-        if C_SpellBook.IsSpellKnownOrInSpellBook and C_SpellBook.IsSpellKnownOrInSpellBook(targetSpellID, bank, true) then return true end
-        if C_SpellBook.FindSpellBookSlotForSpell and C_SpellBook.FindSpellBookSlotForSpell(targetSpellID, true, true, false, false) then return true end
+        if C_SpellBook.FindSpellBookSlotForSpell then
+            local slotIndex, spellBank = C_SpellBook.FindSpellBookSlotForSpell(targetSpellID, false, true, false, false)
+            if slotIndex and spellBank then
+                local itemType, actionID = C_SpellBook.GetSpellBookItemType and C_SpellBook.GetSpellBookItemType(slotIndex, spellBank)
+                local futureType = _G.Enum and _G.Enum.SpellBookItemType and _G.Enum.SpellBookItemType.FutureSpell
+                local flyoutType = _G.Enum and _G.Enum.SpellBookItemType and _G.Enum.SpellBookItemType.Flyout
+                local isOffSpec = C_SpellBook.IsSpellBookItemOffSpec and C_SpellBook.IsSpellBookItemOffSpec(slotIndex, spellBank)
+                if not isOffSpec then
+                    if futureType and itemType == futureType then
+                        return false
+                    elseif flyoutType and itemType == flyoutType then
+                        if CheckFlyoutSlot(actionID, targetSpellID) then
+                            return true
+                        end
+                    elseif not futureType or itemType ~= futureType then
+                        return true
+                    end
+                end
+            end
+        end
     end
     if _G.IsPlayerSpell and _G.IsPlayerSpell(targetSpellID) then return true end
-    if _G.IsSpellKnown and _G.IsSpellKnown(targetSpellID) then return true end
+    -- Only call global IsSpellKnown if C_SpellBook is NOT present (in 11.0+, IsSpellKnown aliases to IsSpellInSpellBook which returns true for unlearned future spells)
+    if not C_SpellBook and _G.IsSpellKnown and _G.IsSpellKnown(targetSpellID) then return true end
     local C_Spell = _G.C_Spell
     if C_Spell and C_Spell.IsSpellLearned and C_Spell.IsSpellLearned(targetSpellID) then return true end
     return false

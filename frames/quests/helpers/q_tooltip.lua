@@ -16,6 +16,10 @@ local ipairs = ipairs
 local math_floor = math.floor
 local string_format = string.format
 
+local table_insert = table.insert
+local pcall = pcall
+local select = select
+
 local issecretvalue = sfui.common.issecretvalue
 
 local ICON_CHECK = "|TInterface\\RaidFrame\\ReadyCheck-Ready:12:12:0:0|t "
@@ -31,6 +35,236 @@ local function PickAnchor(owner)
 end
 Tooltip.PickAnchor = PickAnchor
 
+local function SafeGetQuestLogChoiceInfo(i, questID)
+    if not _G.GetQuestLogChoiceInfo then return end
+    if questID then
+        local ok, n, t, c, q, u, id = pcall(_G.GetQuestLogChoiceInfo, i, questID)
+        if ok and n then return n, t, c, q, u, id end
+    end
+    local ok, n, t, c, q, u, id = pcall(_G.GetQuestLogChoiceInfo, i)
+    if ok and n then return n, t, c, q, u, id end
+end
+
+local function SafeGetQuestLogRewardInfo(i, questID)
+    if not _G.GetQuestLogRewardInfo then return end
+    if questID then
+        local ok, n, t, c, q, u, id = pcall(_G.GetQuestLogRewardInfo, i, questID)
+        if ok and n then return n, t, c, q, u, id end
+    end
+    local ok, n, t, c, q, u, id = pcall(_G.GetQuestLogRewardInfo, i)
+    if ok and n then return n, t, c, q, u, id end
+end
+
+local function SafeGetQuestLogItemLink(rewardType, i, questID)
+    if not _G.GetQuestLogItemLink then return nil end
+    if questID then
+        local ok, link = pcall(_G.GetQuestLogItemLink, rewardType, i, questID)
+        if ok and link then return link end
+    end
+    local ok, link = pcall(_G.GetQuestLogItemLink, rewardType, i)
+    if ok and link then return link end
+    return nil
+end
+
+local function SafeGetNumQuestLogChoices(questID)
+    if not _G.GetNumQuestLogChoices then return 0 end
+    if questID then
+        local ok, count = pcall(_G.GetNumQuestLogChoices, questID)
+        if ok and type(count) == "number" then return count end
+    end
+    local ok, count = pcall(_G.GetNumQuestLogChoices)
+    if ok and type(count) == "number" then return count end
+    return 0
+end
+
+local function SafeGetNumQuestLogRewards(questID)
+    if not _G.GetNumQuestLogRewards then return 0 end
+    if questID then
+        local ok, count = pcall(_G.GetNumQuestLogRewards, questID)
+        if ok and type(count) == "number" then return count end
+    end
+    local ok, count = pcall(_G.GetNumQuestLogRewards)
+    if ok and type(count) == "number" then return count end
+    return 0
+end
+
+local function GetQuestRewardItems(questID, questLogIndex)
+    local choices = {}
+    local rewards = {}
+
+    local qIndex = questLogIndex
+    if questID and _G.GetNumQuestLogEntries and _G.GetQuestLogTitle then
+        local ok, numEntries = pcall(_G.GetNumQuestLogEntries)
+        if ok and type(numEntries) == "number" then
+            local okTitle, curID
+            if not qIndex or qIndex < 1 or qIndex > numEntries then
+                qIndex = nil
+            else
+                okTitle, curID = pcall(function() return select(8, _G.GetQuestLogTitle(qIndex)) end)
+                if not okTitle or curID ~= questID then
+                    qIndex = nil
+                end
+            end
+            if not qIndex then
+                for idx = 1, numEntries do
+                    local okEntry, _, _, _, isHeader, _, _, _, entryID = pcall(_G.GetQuestLogTitle, idx)
+                    if okEntry and not isHeader and entryID == questID then
+                        qIndex = idx
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    local prevSelection
+    local needRestore = false
+
+    if qIndex and _G.SelectQuestLogEntry and _G.GetQuestLogSelection then
+        local okSel, sel = pcall(_G.GetQuestLogSelection)
+        if okSel and sel ~= qIndex then
+            prevSelection = sel
+            pcall(_G.SelectQuestLogEntry, qIndex)
+            needRestore = true
+        end
+    end
+
+    -- Query choices
+    local numChoices = SafeGetNumQuestLogChoices(questID)
+    if numChoices > 0 and _G.GetQuestLogChoiceInfo then
+        for i = 1, numChoices do
+            local name, texture, numItems, quality, isUsable, itemID = SafeGetQuestLogChoiceInfo(i, questID)
+            local link = SafeGetQuestLogItemLink("choice", i, questID)
+
+            if (not link or not name or not texture) and itemID and _G.GetItemInfo then
+                local iName, iLink, iQuality, _, _, _, _, _, _, iTexture = _G.GetItemInfo(itemID)
+                if not link then link = iLink end
+                if not name then name = iName end
+                if not texture then texture = iTexture end
+                if not quality then quality = iQuality end
+            end
+
+            if name or link then
+                table_insert(choices, {
+                    name     = name,
+                    texture  = texture,
+                    numItems = numItems or 1,
+                    quality  = quality or 1,
+                    isUsable = isUsable,
+                    itemID   = itemID,
+                    link     = link,
+                })
+            end
+        end
+    end
+
+    -- Query fixed rewards
+    local numRewards = SafeGetNumQuestLogRewards(questID)
+    if numRewards > 0 and _G.GetQuestLogRewardInfo then
+        for i = 1, numRewards do
+            local name, texture, numItems, quality, isUsable, itemID = SafeGetQuestLogRewardInfo(i, questID)
+            local link = SafeGetQuestLogItemLink("reward", i, questID)
+
+            if (not link or not name or not texture) and itemID and _G.GetItemInfo then
+                local iName, iLink, iQuality, _, _, _, _, _, _, iTexture = _G.GetItemInfo(itemID)
+                if not link then link = iLink end
+                if not name then name = iName end
+                if not texture then texture = iTexture end
+                if not quality then quality = iQuality end
+            end
+
+            if name or link then
+                table_insert(rewards, {
+                    name     = name,
+                    texture  = texture,
+                    numItems = numItems or 1,
+                    quality  = quality or 1,
+                    isUsable = isUsable,
+                    itemID   = itemID,
+                    link     = link,
+                })
+            end
+        end
+    end
+
+    if needRestore and prevSelection and prevSelection > 0 and _G.SelectQuestLogEntry then
+        pcall(_G.SelectQuestLogEntry, prevSelection)
+    end
+
+    return choices, rewards
+end
+
+local function FormatItemRewardLine(item)
+    if not item then return "" end
+
+    local iconStr = ""
+    if item.texture and item.texture ~= "" and not issecretvalue(item.texture) then
+        iconStr = string_format("|T%s:14:14:0:0:64:64:4:60:4:60|t ", tostring(item.texture))
+    else
+        iconStr = ICON_BULLET
+    end
+
+    local itemText = ""
+    if item.link and item.link ~= "" and not issecretvalue(item.link) then
+        itemText = string.gsub(item.link, "(%b[])", function(bracketed)
+            return bracketed:lower()
+        end)
+    else
+        local dName = item.name or "reward item"
+        if not issecretvalue(dName) then
+            dName = tostring(dName):lower()
+        else
+            dName = "reward item"
+        end
+        local q = item.quality or 1
+        if _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[q] then
+            local qc = _G.ITEM_QUALITY_COLORS[q]
+            itemText = string_format("|c%s[%s]|r", qc.hex or "ffffffff", dName)
+        else
+            itemText = string_format("[%s]", dName)
+        end
+    end
+
+    if item.numItems and item.numItems > 1 and not issecretvalue(item.numItems) then
+        itemText = string_format("%s |cffffffffx%d|r", itemText, item.numItems)
+    end
+
+    return "  " .. iconStr .. itemText
+end
+
+Tooltip.GetQuestRewardItems = GetQuestRewardItems
+Tooltip.FormatItemRewardLine = FormatItemRewardLine
+
+local function check_and_append_alt_id(tip, idType, id)
+    if not tip or not idType or not id then return end
+    tip._sfuiCurrentType = idType
+    tip._sfuiCurrentID = id
+
+    local isAltEnabled = true
+    if sfui.automation and sfui.automation.is_alt_tooltip_enabled then
+        isAltEnabled = sfui.automation.is_alt_tooltip_enabled()
+    elseif SfuiDB and SfuiDB.tooltipAltIDs ~= nil then
+        isAltEnabled = SfuiDB.tooltipAltIDs
+    elseif sfui.config and sfui.config.automation and sfui.config.automation.tooltip_alt_ids ~= nil then
+        isAltEnabled = sfui.config.automation.tooltip_alt_ids
+    end
+
+    if isAltEnabled and _G.IsAltKeyDown and _G.IsAltKeyDown() then
+        if sfui.automation and sfui.automation.append_tooltip_id then
+            sfui.automation.append_tooltip_id(tip, idType, id)
+        else
+            local prefix = (idType == "item") and "item id:" or ((idType == "quest") and "quest id:" or ((idType == "achievement") and "achievement id:" or "spell id:"))
+            if tip.AddDoubleLine then
+                tip:AddDoubleLine("|cff00ffff" .. prefix .. "|r", "|cffffffff" .. tostring(id) .. "|r", 0, 1, 1, 1, 1, 1)
+            elseif tip.AddLine then
+                tip:AddLine("|cff00ffff" .. prefix .. "|r |cffffffff" .. tostring(id) .. "|r")
+            end
+            tip._sfuiAltIDAppended = true
+        end
+    end
+end
+Tooltip.CheckAndAppendAltID = check_and_append_alt_id
+
 function Tooltip.ShowBlockTooltip(owner, bData)
     local tip = sfui.common.get_tooltip()
     if not tip or not bData then return end
@@ -38,6 +272,10 @@ function Tooltip.ShowBlockTooltip(owner, bData)
     local anchor = PickAnchor(owner)
     tip:SetOwner(owner, anchor)
     tip:ClearLines()
+    tip._sfuiAltIDAppended = nil
+    tip._sfuiCurrentID = nil
+    tip._sfuiCurrentType = nil
+    tip._sfuiCurrentHyperlink = nil
 
     -- 1. Custom tooltip function or string
     if type(bData.tooltip) == "function" then
@@ -204,6 +442,9 @@ function Tooltip.ShowBlockTooltip(owner, bData)
             tip:AddLine("|cff888888left-click: show on world map|r", 1, 1, 1)
             tip:AddLine("|cff888888right-click: collapse/expand objectives|r", 1, 1, 1)
         end
+        if bData.questID and bData.questID > 0 then
+            check_and_append_alt_id(tip, "quest", bData.questID)
+        end
         tip:Show()
         return
     end
@@ -231,7 +472,7 @@ function Tooltip.ShowBlockTooltip(owner, bData)
         end
 
         if bData.suggestedGroup and bData.suggestedGroup > 1 then
-            tip:AddLine(string_format("Suggested Players: %d", bData.suggestedGroup), 0.30, 0.80, 1.00)
+            tip:AddLine(string_format("suggested players: %d", bData.suggestedGroup), 0.30, 0.80, 1.00)
         end
 
         if bData.timeLeftText and not issecretvalue(bData.timeLeftText) then
@@ -304,6 +545,25 @@ function Tooltip.ShowBlockTooltip(owner, bData)
             end
         end
 
+        -- Quest item rewards (choice items and fixed rewards)
+        local choices, rewards = GetQuestRewardItems(bData.questID, bData.questLogIndex)
+        if #choices > 0 or #rewards > 0 then
+            if #choices > 0 then
+                tip:AddLine(" ")
+                tip:AddLine("choose one:", 1, 0.82, 0)
+                for _, item in ipairs(choices) do
+                    tip:AddLine(FormatItemRewardLine(item), 1, 1, 1)
+                end
+            end
+            if #rewards > 0 then
+                tip:AddLine(" ")
+                tip:AddLine("rewards:", 1, 0.82, 0)
+                for _, item in ipairs(rewards) do
+                    tip:AddLine(FormatItemRewardLine(item), 1, 1, 1)
+                end
+            end
+        end
+
         -- Group Party Progress
         if _G.IsInGroup and _G.IsInGroup() and tip.SetQuestPartyProgress then
             pcall(tip.SetQuestPartyProgress, tip, bData.questID)
@@ -322,6 +582,10 @@ function Tooltip.ShowBlockTooltip(owner, bData)
             tip:AddLine("|cff00ff88eye button: find group in group finder|r", 1, 1, 1)
         end
 
+        if bData.questID and bData.questID > 0 then
+            check_and_append_alt_id(tip, "quest", bData.questID)
+        end
+
         tip:Show()
         return
     end
@@ -337,13 +601,22 @@ function Tooltip.ShowBlockTooltip(owner, bData)
                 end
             end
         end
+        if bData.questID and bData.questID > 0 then
+            check_and_append_alt_id(tip, "quest", bData.questID)
+        end
         tip:Show()
     end
 end
 
 function Tooltip.HideBlockTooltip(owner, bData)
     local tip = sfui.common.get_tooltip()
-    if tip then tip:Hide() end
+    if tip then
+        tip._sfuiAltIDAppended = nil
+        tip._sfuiCurrentID = nil
+        tip._sfuiCurrentType = nil
+        tip._sfuiCurrentHyperlink = nil
+        tip:Hide()
+    end
 end
 
 return Tooltip

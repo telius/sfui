@@ -901,7 +901,7 @@ function CamelotQuestsModule:BuildBlocks(container)
                 isWarbandCompleted = isWarband,
                 itemInfo           = itemInfo,
                 timerBar           = nil, -- Suppressed on Camelot
-                timeLeftText       = rawClock and ("Time Remaining: " .. rawClock) or nil,
+                timeLeftText       = rawClock and ("time remaining: " .. rawClock) or nil,
                 canFindGroup       = canFindGroup,
                 isExpanded         = isExpanded,
                 lines              = lines,

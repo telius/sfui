@@ -126,8 +126,36 @@ local function IsBuffFood(bag, slot, itemID, itemLink)
     local wellFedText = _G.GetSpellInfo and _G.GetSpellInfo(19705)
     local wellFedLower = wellFedText and wellFedText:lower() or "well fed"
 
-    local tip = sfui.tooltip or _G.SfuiGameTooltip
+    -- 1. Modern zero-UI inspection via C_TooltipInfo (Retail & Camelot / Classic Beta)
+    local C_TooltipInfo = _G.C_TooltipInfo
+    if C_TooltipInfo then
+        local data = nil
+        if bag and slot and C_TooltipInfo.GetBagItem then
+            data = C_TooltipInfo.GetBagItem(bag, slot)
+        elseif C_TooltipInfo.GetHyperlink then
+            data = C_TooltipInfo.GetHyperlink(itemLink or ("item:" .. itemID))
+        end
+        if data and data.lines and #data.lines > 1 then
+            for i = 1, #data.lines do
+                local line = data.lines[i]
+                local txt = line and line.leftText
+                if txt and type(txt) == "string" and txt ~= "" then
+                    local lower = txt:lower()
+                    if lower:find(wellFedLower, 1, true) or lower:find("well fed", 1, true) then
+                        isBuffFoodCache[itemID] = true
+                        return true
+                    end
+                end
+            end
+            isBuffFoodCache[itemID] = false
+            return false
+        end
+    end
+
+    -- 2. Legacy fallback via sfui.common.get_tooltip() (methods.md §3.7.2)
+    local tip = sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()
     if tip and tip.SetOwner and (tip.SetBagItem or tip.SetHyperlink) then
+        local tipName = tip:GetName()
         if _G.UIParent then tip:SetOwner(_G.UIParent, "ANCHOR_NONE") end
         tip:ClearLines()
         if bag and slot and tip.SetBagItem then
@@ -140,7 +168,7 @@ local function IsBuffFood(bag, slot, itemID, itemLink)
             return false -- tooltip lines not yet populated
         end
         for i = 1, numLines do
-            local fsL = _G["SfuiGameTooltipTextLeft" .. i]
+            local fsL = tipName and _G[tipName .. "TextLeft" .. i]
             if fsL then
                 local txt = fsL:GetText()
                 if txt then
@@ -159,37 +187,55 @@ local function IsBuffFood(bag, slot, itemID, itemLink)
     return false
 end
 
+local scratchCounts = {}
+local scratchOrder = {}
+local scratchItemData = {}
+
 local function ScanInventoryFoods()
-    local counts = {}
-    local order = {}
-    local itemData = {}
+    if sfui.common.is_in_combat() then
+        isFoodScanDirty = true
+        return availableFoods
+    end
+
+    local db = SfuiDB and SfuiDB.buffReminders
+    if db and (db.enabled == false or not db.trackFood) then
+        _G.wipe(availableFoods)
+        isFoodScanDirty = false
+        return availableFoods
+    end
+
+    _G.wipe(scratchCounts)
+    _G.wipe(scratchOrder)
 
     if sfui.common and sfui.common.for_each_bag_item then
         sfui.common.for_each_bag_item(function(bag, slot, itemID, itemLink, info)
             if itemID and IsBuffFood(bag, slot, itemID, itemLink) then
                 local count = (info and info.stackCount) or 1
-                if not counts[itemID] then
-                    counts[itemID] = count
-                    order[#order + 1] = itemID
+                if not scratchCounts[itemID] then
+                    scratchCounts[itemID] = count
+                    scratchOrder[#scratchOrder + 1] = itemID
+                    local entry = scratchItemData[itemID]
+                    if not entry then
+                        entry = {}
+                        scratchItemData[itemID] = entry
+                    end
                     local name, _, _, _, _, _, _, _, _, texture = sfui.common.get_item_info(itemLink or itemID)
-                    itemData[itemID] = {
-                        itemID   = itemID,
-                        itemLink = itemLink,
-                        name     = name or ("item " .. itemID),
-                        icon     = texture or "Interface\\Icons\\Spell_Misc_Food",
-                    }
+                    entry.itemID   = itemID
+                    entry.itemLink = itemLink
+                    entry.name     = name or ("item " .. itemID)
+                    entry.icon     = texture or "Interface\\Icons\\Spell_Misc_Food"
                 else
-                    counts[itemID] = counts[itemID] + count
+                    scratchCounts[itemID] = scratchCounts[itemID] + count
                 end
             end
         end, false, true, true)
     end
 
     _G.wipe(availableFoods)
-    for _, id in ipairs(order) do
-        local d = itemData[id]
+    for _, id in ipairs(scratchOrder) do
+        local d = scratchItemData[id]
         if d then
-            d.count = counts[id] or 0
+            d.count = scratchCounts[id] or 0
             availableFoods[#availableFoods + 1] = d
         end
     end
@@ -269,14 +315,43 @@ end
 
 if sfui.events then
     sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", function()
+        local db = SfuiDB and SfuiDB.buffReminders
+        if not (db and db.enabled ~= false and db.trackFood) then return end
         isFoodScanDirty = true
-        ScanInventoryFoods()
-        if sfui.buffs and sfui.buffs.UpdateDisplay then
-            sfui.buffs.UpdateDisplay()
+        if sfui.common.is_in_combat() then return end
+        if sfui.common.debounce then
+            sfui.common.debounce("sfui_food_scan", 0.1, function()
+                if sfui.common.is_in_combat() then return end
+                ScanInventoryFoods()
+                if sfui.buffs and sfui.buffs.UpdateDisplay then
+                    sfui.buffs.UpdateDisplay()
+                end
+            end)
+        else
+            ScanInventoryFoods()
+            if sfui.buffs and sfui.buffs.UpdateDisplay then
+                sfui.buffs.UpdateDisplay()
+            end
+        end
+    end)
+    sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+        if isFoodScanDirty then
+            local db = SfuiDB and SfuiDB.buffReminders
+            if not (db and db.enabled ~= false and db.trackFood) then
+                isFoodScanDirty = false
+                return
+            end
+            ScanInventoryFoods()
+            if sfui.buffs and sfui.buffs.UpdateDisplay then
+                sfui.buffs.UpdateDisplay()
+            end
         end
     end)
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
-        isFoodScanDirty = true
-        ScanInventoryFoods()
+        local db = SfuiDB and SfuiDB.buffReminders
+        if db and db.enabled ~= false and db.trackFood then
+            isFoodScanDirty = true
+            ScanInventoryFoods()
+        end
     end)
 end
