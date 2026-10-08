@@ -571,13 +571,14 @@ function sfui.gear.UpdateStatUI()
             sfui.gear.UpdateFlavorUI(ui, specID, db)
         end
 
-        -- Row 3: Stat priority buttons & pawn weight editboxes
+        -- Row 3: Stat priority buttons & operator buttons
         if ui.statBtns then
             local isTank = (sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, db)) or false
             local role = (db and db.classic_role) or (sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(specID, db))
             local pool = (sfui.gear.GetStatPool and sfui.gear.GetStatPool(specID, isTank, role)) or { "Crit", "Haste", "Mastery", "Versatility" }
             local numStats = #pool
             local currentOrder = resolveStatOrder(specID, db, pool, isTank)
+            local equals = (db and db.stat_equals) or {}
 
             for j = 1, numStats do
                 local sBtn = ui.statBtns[j]
@@ -590,11 +591,10 @@ function sfui.gear.UpdateStatUI()
                         sBtn:SetBackdropColor(bgCol[1], bgCol[2], bgCol[3], 0.85)
                     end
                 end
+                if j < numStats and ui.statTgls and ui.statTgls[j] then
+                    ui.statTgls[j]:SetText(equals[j] and "=" or ">")
+                end
             end
-        end
-
-        if ui.pawnEdit and not ui.pawnEdit:HasFocus() then
-            ui.pawnEdit:SetText(db.pawn_string or "")
         end
     end
 end
@@ -648,9 +648,6 @@ sfui.theme.RegisterWindow(gearFrame, function(frame, pal)
         for _, ui in pairs(frame.specUIs) do
             if ui.card then
                 sfui.theme.ApplyCardStyle(ui.card)
-            end
-            if ui.pawnEdit then
-                sfui.theme.ApplyInputStyle(ui.pawnEdit)
             end
         end
     end
@@ -752,18 +749,6 @@ gearFrame.content:Show()
 sfui.theme.ApplyContainerStyle(gearFrame.content)
 
 -- UI Helpers
-local function makeEditBox(parent, w, h)
-    local eb = CreateFrame("EditBox", nil, parent, "BackdropTemplate")
-    eb:SetSize(w, h)
-    eb:SetAutoFocus(false)
-    eb:SetNumeric(false)
-    eb:SetFontObject("GameFontHighlightSmall")
-    eb:SetTextInsets(6, 6, 0, 0)
-    sfui.theme.ApplyInputStyle(eb)
-    eb:SetScript("OnEscapePressed", function(s) s:ClearFocus() end)
-    return eb
-end
-
 local function mkLabel(parent, txt, r, g, b)
     local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     fs:SetText(txt and tostring(txt):lower() or "")
@@ -1151,26 +1136,31 @@ gearFrame:SetScript("OnShow", function(self)
         local statTag = mkLabel(card, "stats:", 0.65, 0.60, 0.50)
         statTag:SetPoint("TOPLEFT", card, "TOPLEFT", 10, R3Y - 4)
 
-        local statBtnW, sepW, sepGap = 32, 10, 2
-        local startX = 46
+        local statBtnW = 28
+        local sepW = 14
+        local gap = 2
 
         local function getResolvedStatOrder()
             return resolveStatOrder(id, targetDB, pool, isTank)
         end
 
         ui.statBtns = {}
+        ui.statTgls = {}
         local resolvedOrder = getResolvedStatOrder()
+        local equals = targetDB.stat_equals or {}
 
+        local curAnchor = nil
         for j = 1, numStats do
             local s = resolvedOrder[j]
             local abbr = statAbbrv[s] or (s and s:sub(1, 4):lower()) or "none"
             local sBtn = common.create_flat_button(card, abbr, statBtnW, 20)
-            local btnAnchor = (j == 1) and statTag or ui.statBtns[j - 1]
-            local btnAnchorPoint = (j == 1) and "LEFT" or "RIGHT"
-            local gap = (j == 1) and (startX - 10) or (sepW + sepGap * 2)
 
-            sBtn:SetPoint("LEFT", btnAnchor, btnAnchorPoint, gap, 0)
-            sBtn:SetPoint("TOP", card, "TOP", 0, R3Y)
+            if j == 1 then
+                sBtn:SetPoint("TOPLEFT", card, "TOPLEFT", 48, R3Y)
+            else
+                sBtn:SetPoint("LEFT", curAnchor, "RIGHT", gap, 0)
+                sBtn:SetPoint("TOP", card, "TOP", 0, R3Y)
+            end
 
             local bgCol = statBgColors[s] or statBgColors.none
             sBtn:SetBackdropColor(bgCol[1], bgCol[2], bgCol[3], 0.85)
@@ -1214,40 +1204,43 @@ gearFrame:SetScript("OnShow", function(self)
             end)
             sBtn:SetScript("OnLeave", function() hide_tooltip() end)
             ui.statBtns[j] = sBtn
+            curAnchor = sBtn
 
             if j < numStats then
-                local sep = common.create_flat_button(card, ">", sepW, 20)
-                local fs = (sep.text and sep.text.SetTextColor and sep.text) or (sep.GetFontString and sep:GetFontString())
-                if fs and fs.SetTextColor then fs:SetTextColor(0.8, 0.8, 0.8) end
-                sep:SetPoint("LEFT", btnAnchor, "RIGHT", sepGap, 0)
-                sep:SetPoint("TOP", card, "TOP", 0, R3Y)
-                sep:EnableMouse(false)
+                local tgl = common.create_flat_button(card, equals[j] and "=" or ">", sepW, 20)
+                local fs = (tgl.text and tgl.text.SetTextColor and tgl.text) or (tgl.GetFontString and tgl:GetFontString())
+                if fs and fs.SetTextColor then fs:SetTextColor(0.85, 0.85, 0.85) end
+                tgl:SetPoint("LEFT", curAnchor, "RIGHT", gap, 0)
+                tgl:SetPoint("TOP", card, "TOP", 0, R3Y)
+
+                tgl.idx = j
+                tgl:SetScript("OnClick", function(b)
+                    SfuiDB.gear[id] = SfuiDB.gear[id] or {}
+                    local ldb = SfuiDB.gear[id]
+                    local eq = ldb.stat_equals or {}
+                    eq[b.idx] = not eq[b.idx]
+                    ldb.stat_equals = eq
+                    ldb.pawn_weights = nil
+                    ldb.pawn_string = nil
+                    sfui.gear.UpdateStatUI()
+                    sfui.gear.Update()
+                end)
+
+                tgl:SetScript("OnEnter", function(b)
+                    local ldb = SfuiDB.gear and SfuiDB.gear[id]
+                    local eq = ldb and ldb.stat_equals or {}
+                    local isEq = eq[b.idx]
+                    show_tooltip(b, "ANCHOR_TOP", "priority operator", {
+                        { isEq and "stats are equal in priority (=)" or "strict priority order (>)", 1, 1, 1 },
+                        { "click to toggle between > and =", 0.7, 0.7, 0.7 },
+                    })
+                end)
+                tgl:SetScript("OnLeave", function() hide_tooltip() end)
+
+                ui.statTgls[j] = tgl
+                curAnchor = tgl
             end
         end
-
-        local pawnTag = mkLabel(card, "pawn:", 0.65, 0.60, 0.50)
-        pawnTag:SetPoint("TOPLEFT", card, "TOPLEFT", 10, R3Y - 26)
-
-        local pawnEdit = makeEditBox(card, 300, 20)
-        pawnEdit:SetPoint("LEFT", pawnTag, "RIGHT", 6, 0)
-        pawnEdit:SetPoint("TOP", card, "TOP", 0, R3Y - 24)
-        pawnEdit:SetText(targetDB.pawn_string or "")
-        pawnEdit:SetScript("OnEnterPressed", function(eb)
-            eb:ClearFocus()
-            local text = eb:GetText():trim()
-            SfuiDB.gear[id] = SfuiDB.gear[id] or {}
-            local weights = {}
-            for stat, val in text:gmatch('(%a+)%s*=%s*([%d%.]+)') do
-                local num = tonumber(val)
-                if num and num > 0 then weights[stat] = num end
-            end
-            SfuiDB.gear[id].pawn_weights = next(weights) and weights or nil
-            SfuiDB.gear[id].pawn_string = (next(weights) and text ~= "") and text or nil
-            local specName = common.get_spec_name(id) or ("spec " .. tostring(id))
-            sfui.common.print("pawn saved for " .. specName)
-            sfui.gear.UpdateStatUI()
-        end)
-        ui.pawnEdit = pawnEdit
     end
 
     local activeSpecId = common.get_current_spec_id() or (specIDs and specIDs[1])

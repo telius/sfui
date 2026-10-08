@@ -97,14 +97,76 @@ sfui.options.RegisterTab({
                 end
             end)
 
+            local isRetail = (sfui.isRetail == true) or (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic)
+
+            local STAT_MAP = {
+                critrating = "Crit", crit = "Crit",
+                hasterating = "Haste", haste = "Haste",
+                masteryrating = "Mastery", mastery = "Mastery",
+                versatility = "Versatility", versatilityrating = "Versatility",
+                intellect = "Intellect", agility = "Agility", strength = "Strength", stamina = "Stamina",
+                spellpower = "SpellPower", spelldamage = "SpellPower", healing = "Healing",
+                hitrating = "Hit", hit = "Hit", attackpower = "AttackPower", ap = "AttackPower",
+                rangedattackpower = "RangedAP", rap = "RangedAP",
+                manaregen = "ManaRegen", mp5 = "ManaRegen", spirit = "Spirit",
+                defenserating = "Defense", defense = "Defense",
+                dodgerating = "Dodge", dodge = "Dodge",
+                parryrating = "Parry", parry = "Parry",
+                blockrating = "Block", block = "Block",
+                blockvalue = "BlockValue",
+                armor = "Armor", armorpenetration = "ArmorPenetration", arp = "ArmorPenetration",
+                expertiserating = "Expertise", expertise = "Expertise",
+            }
+
+            local function SavePawnForSpec(specID, text)
+                local trimmed = text and text:match("^%s*(.-)%s*$") or ""
+                SfuiDB.gear = SfuiDB.gear or {}
+                SfuiDB.gear[specID] = SfuiDB.gear[specID] or {}
+                local sdb = SfuiDB.gear[specID]
+
+                if trimmed == "" then
+                    sdb.pawn_weights = nil
+                    sdb.pawn_string = nil
+                    local specName = (common.get_spec_name and common.get_spec_name(specID)) or ("spec " .. tostring(specID))
+                    common.print("pawn cleared for " .. tostring(specName):lower())
+                else
+                    local weights = {}
+                    for stat, val in trimmed:gmatch('(%a+)%s*=%s*([%d%.]+)') do
+                        local num = tonumber(val)
+                        if num and num > 0 then
+                            local canon = STAT_MAP[stat:lower()] or stat
+                            weights[canon] = num
+                        end
+                    end
+                    if next(weights) then
+                        sdb.pawn_weights = weights
+                        sdb.pawn_string = trimmed
+                        local specName = (common.get_spec_name and common.get_spec_name(specID)) or ("spec " .. tostring(specID))
+                        common.print("pawn saved for " .. tostring(specName):lower())
+                    else
+                        common.print("|cffff4444invalid pawn string:|r no valid stat weights found")
+                        return false
+                    end
+                end
+
+                if sfui.gear and sfui.gear.UpdateStatUI then sfui.gear.UpdateStatUI() end
+                if sfui.gear and sfui.gear.Update then sfui.gear.Update() end
+                return true
+            end
+
             local pveHeader = self:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            pveHeader:SetPoint("TOPLEFT", auto_equip_highest_cb, "BOTTOMLEFT", 45, -12)
             pveHeader:SetText("pve target")
 
             local pvpHeader = self:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            pvpHeader:SetPoint("LEFT", pveHeader, "RIGHT", 80, 0)
             pvpHeader:SetText("pvp target")
 
+            local pawnHeader = nil
+            if isRetail then
+                pawnHeader = self:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                pawnHeader:SetText("pawn string import")
+            end
+
+            local dropW = isRetail and 110 or 120
             local prevRowAnchor
             for i, id in ipairs(gearSpecIDs or {}) do
                 local icon = common.get_spec_icon(id)
@@ -118,25 +180,102 @@ sfui.options.RegisterTab({
                 end
                 iconTex:SetTexture(icon)
 
-                local pveDrop = common.create_dropdown(gear_panel, 120, GetEquipmentSetOptions, function(val)
+                local pveDrop = common.create_dropdown(gear_panel, dropW, GetEquipmentSetOptions, function(val)
                     SfuiDB.gear[id] = SfuiDB.gear[id] or { pve_set = "", pvp_set = "" }
                     SfuiDB.gear[id].pve_set = val
                     sfui.gear.Update()
                 end, "")
-                pveDrop:SetPoint("BOTTOMLEFT", iconTex, "BOTTOMRIGHT", 5, -5)
+                pveDrop:SetPoint("BOTTOMLEFT", iconTex, "BOTTOMRIGHT", 6, -5)
 
-                local pvpDrop = common.create_dropdown(gear_panel, 120, GetEquipmentSetOptions, function(val)
+                local pvpDrop = common.create_dropdown(gear_panel, dropW, GetEquipmentSetOptions, function(val)
                     SfuiDB.gear[id] = SfuiDB.gear[id] or { pve_set = "", pvp_set = "" }
                     SfuiDB.gear[id].pvp_set = val
                     sfui.gear.Update()
                 end, "")
-                pvpDrop:SetPoint("LEFT", pveDrop, "RIGHT", 5, 0)
+                pvpDrop:SetPoint("LEFT", pveDrop, "RIGHT", 6, 0)
+
+                local pawnEdit = nil
+                if isRetail then
+                    pawnEdit = CreateFrame("EditBox", nil, gear_panel, "BackdropTemplate")
+                    pawnEdit:SetSize(175, 22)
+                    pawnEdit:SetPoint("LEFT", pvpDrop, "RIGHT", 8, 0)
+                    pawnEdit:SetAutoFocus(false)
+                    pawnEdit:SetMaxLetters(0)
+                    pawnEdit:SetFontObject("GameFontHighlightSmall")
+                    pawnEdit:SetTextInsets(6, 6, 0, 0)
+                    sfui.theme.ApplyInputStyle(pawnEdit)
+                    pawnEdit:SetScript("OnEscapePressed", function(eb) eb:ClearFocus() end)
+
+                    local saveBtn = CreateFlatButton(gear_panel, "save", 36, 22)
+                    saveBtn:SetPoint("LEFT", pawnEdit, "RIGHT", 4, 0)
+
+                    local clearBtn = CreateFlatButton(gear_panel, "x", 20, 22)
+                    clearBtn:SetPoint("LEFT", saveBtn, "RIGHT", 4, 0)
+
+                    pawnEdit:SetScript("OnEnterPressed", function(eb)
+                        eb:ClearFocus()
+                        SavePawnForSpec(id, eb:GetText())
+                    end)
+
+                    saveBtn:SetScript("OnClick", function()
+                        pawnEdit:ClearFocus()
+                        SavePawnForSpec(id, pawnEdit:GetText())
+                    end)
+
+                    clearBtn:SetScript("OnClick", function()
+                        pawnEdit:SetText("")
+                        pawnEdit:ClearFocus()
+                        SavePawnForSpec(id, "")
+                    end)
+
+                    pawnEdit:SetScript("OnEnter", function(b)
+                        if GameTooltip then
+                            GameTooltip:SetOwner(b, "ANCHOR_TOP")
+                            GameTooltip:SetText("pawn string import")
+                            GameTooltip:AddLine("paste a pawn string (from raidbots / simc) and press enter or click save.", 1, 1, 1, true)
+                            GameTooltip:AddLine("example: ( Pawn: v1: \"Spec\": Intellect=1.5, CritRating=1.2, HasteRating=0.9 )", 0.6, 0.6, 0.6, true)
+                            GameTooltip:Show()
+                        end
+                    end)
+                    pawnEdit:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+                    saveBtn:SetScript("OnEnter", function(b)
+                        if GameTooltip then
+                            GameTooltip:SetOwner(b, "ANCHOR_TOP")
+                            GameTooltip:SetText("save pawn string")
+                            GameTooltip:AddLine("parse and save stat weights for this spec.", 0.8, 0.8, 0.8, true)
+                            GameTooltip:Show()
+                        end
+                    end)
+                    saveBtn:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+                    clearBtn:SetScript("OnEnter", function(b)
+                        if GameTooltip then
+                            GameTooltip:SetOwner(b, "ANCHOR_TOP")
+                            GameTooltip:SetText("clear pawn string")
+                            GameTooltip:AddLine("remove pawn weights and revert to manual stat priorities.", 0.8, 0.8, 0.8, true)
+                            GameTooltip:Show()
+                        end
+                    end)
+                    clearBtn:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+                end
+
+                if i == 1 then
+                    pveHeader:SetPoint("BOTTOMLEFT", pveDrop, "TOPLEFT", 0, 4)
+                    pvpHeader:SetPoint("BOTTOMLEFT", pvpDrop, "TOPLEFT", 0, 4)
+                    if pawnHeader and pawnEdit then
+                        pawnHeader:SetPoint("BOTTOMLEFT", pawnEdit, "TOPLEFT", 0, 4)
+                    end
+                end
 
                 table_insert(updateFuncs, function()
                     local db = SfuiDB.gear[id]
                     if db then
                         pveDrop:SetText(db.pve_set ~= "" and db.pve_set or "None")
                         pvpDrop:SetText(db.pvp_set ~= "" and db.pvp_set or "None")
+                        if pawnEdit and not pawnEdit:HasFocus() then
+                            pawnEdit:SetText(db.pawn_string or "")
+                        end
                     end
                 end)
 
