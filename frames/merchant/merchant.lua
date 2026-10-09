@@ -211,9 +211,6 @@ function sfui.merchant.create_item_button(id, parent)
                 end
             else
                 GameTooltip:SetMerchantItem(self:GetID())
-                if GameTooltip_ShowCompareItem then
-                    GameTooltip_ShowCompareItem(GameTooltip)
-                end
                 if isWarlockCamelot then
                     local link = GetMerchantItemLink(self:GetID())
                     if link and link:find("Grimoire", 1, true) and sfui.merchant.is_pet_spell_known and sfui.merchant.is_pet_spell_known(link) then
@@ -238,9 +235,6 @@ function sfui.merchant.create_item_button(id, parent)
             frame.itemHover = self:GetID()
         elseif self.link then
             GameTooltip:SetHyperlink(self.link)
-            if GameTooltip_ShowCompareItem then
-                GameTooltip_ShowCompareItem(GameTooltip)
-            end
         end
         GameTooltip:Show()
     end)

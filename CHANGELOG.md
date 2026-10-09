@@ -1,9 +1,21 @@
 # Changelog
 
+## v1.87 (2026-10-09)
+
+### improvements & bug fixes
+
+- **portals frame icon resolution**: resolved fatal Lua crash `attempt to call a nil value` in `frames/portals/portals_camelot.lua` when opening the travel hub on characters with hearthstones or engineering items. Added `sfui.api.GetItemIcon` alias in `compat.lua` along with a multi-tier fallback chain (`C_Item.GetItemIconByID`, `GetItemIcon`, and `GetItemInfoInstant`), and safeguarded item and toy icon lookups in `frames/portals/portals_camelot.lua` and `frames/portals/portals.lua`.
+- **shaman class travel**: added Astral Recall (spell ID 556) to classic/camelot class travel tracking in `frames/portals/portals_camelot.lua`.
+- **tab_portals cleanup**: cleaned up options tab descriptions in `frames/options/tabs/tab_portals.lua`, removed redundant role status labels, streamlined bullet points, and polished travel hub preview and command triggers.
+- **empty travel hub state**: added graceful empty state messaging in `frames/portals/portals_camelot.lua` when no travel items, spells, or portals are available.
+
 ## v1.86 (2026-10-08)
 
 ### features
 
+- **triage food without well fed cycling**: bag triage in `frames/automation/triage.lua` now evaluates and cycles through food items without the "Well Fed" buff alongside grey junk, while strictly protecting stat-granting buff food when `protectFoodWater` is active.
+- **food & well fed scanner engine**: implemented `get_food_drink_info` and `is_buff_food` in `core/items.lua` with localized spell and tooltip inspection (`C_TooltipInfo` and dedicated `sfuiTooltip` fallback) shared between `frames/automation/triage.lua` and `frames/reminders/buffs_consumables.lua`.
+- **bidirectional triage candidate navigation**: added mouse wheel scroll cycling (`OnMouseWheel`) and right-click backward navigation to the triage prompt frame and next button in `frames/automation/triage.lua`.
 - **auto-switch to gained reputation**: added an opt-in toggle in `frames/options/tabs/tab_experience.lua` (default off) that automatically activates the reputation bar and swaps the watched faction whenever reputation is gained.
 - **spillover reputation batching**: implemented a debounced multi-faction batch aggregator in `frames/experience/events.lua` that resolves simultaneous spillover reputation gains (e.g. Horde/Alliance faction turn-ins) by selecting the primary quest faction with the highest gain rather than an arbitrary spillover recipient.
 - **cross-client reputation switching**: unified modern `C_Reputation` / `C_MajorFactions` and classic `GetFactionInfo` / `SetWatchedFactionIndex` in `frames/experience/data.lua` with O(1) cached lookup and redundant-switch prevention.

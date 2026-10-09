@@ -18,6 +18,7 @@ sfui.lootfeed                                 = sfui.lootfeed or {}
 local _G                                      = _G
 local CreateFrame, UIParent                   = _G.CreateFrame, _G.UIParent
 local GameTooltip                             = sfui.common.get_tooltip()
+local hide_tooltip                            = sfui.common.hide_tooltip
 local ChatEdit_InsertLink                     = _G.ChatEdit_InsertLink
 local HandleModifiedItemClick                 = _G.HandleModifiedItemClick
 local DressUpLink                             = _G.DressUpLink
@@ -341,9 +342,6 @@ local function CreateRowFrame(parent)
 
         if self.itemLink then
             GameTooltip:SetHyperlink(self.itemLink)
-            if GameTooltip_ShowCompareItem then
-                GameTooltip_ShowCompareItem(GameTooltip)
-            end
             GameTooltip:Show()
         elseif self.currencyID and GameTooltip.SetCurrencyByID then
             GameTooltip:SetCurrencyByID(self.currencyID)
@@ -393,7 +391,7 @@ local function CreateRowFrame(parent)
                 end
             end
         end
-        GameTooltip:Hide()
+        if hide_tooltip then hide_tooltip() else GameTooltip:Hide() end
     end)
 
     row:SetScript("OnClick", function(self, button)

@@ -47,9 +47,10 @@ local MAGE_DESTINATIONS = {
     { spell = 49358, portal = 49361, name = "Stonard",       faction = "Horde" },
 }
 
--- Other class travel spells (Druid Moonglade)
+-- Other class travel spells (Druid Moonglade, Shaman Astral Recall)
 local CLASS_TRAVEL = {
     { spell = 18960, name = "Moonglade (Druid)", class = "DRUID" },
+    { spell = 556,   name = "Astral Recall",     class = "SHAMAN" },
 }
 
 -- Classic Engineering teleporter items (in bags)
@@ -204,7 +205,11 @@ local function build_camelot_portals_frame()
     if hasHearth then
         local bindLocation = GetBindLocation and GetBindLocation()
         local hsLabel = (bindLocation and bindLocation ~= "") and ("Hearthstone (" .. bindLocation .. ")") or "Hearthstone"
-        local hsIcon = sfui.api.GetItemIcon(6948) or 134414
+        local hsIcon = (sfui.api.GetItemIcon and sfui.api.GetItemIcon(6948))
+            or (sfui.api.GetItemIconByID and sfui.api.GetItemIconByID(6948))
+            or (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(6948))
+            or (GetItemIcon and GetItemIcon(6948))
+            or 134414
 
         local hsOpts = {
             tooltipLines = function()
@@ -254,7 +259,11 @@ local function build_camelot_portals_frame()
         p.make_section_header(frame, "engineering", curY)
         curY = curY - 18
         for _, eng in ipairs(knownEngItems) do
-            local icon = sfui.api.GetItemIcon(eng.item)
+            local icon = (sfui.api.GetItemIcon and sfui.api.GetItemIcon(eng.item))
+                or (sfui.api.GetItemIconByID and sfui.api.GetItemIconByID(eng.item))
+                or (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(eng.item))
+                or (GetItemIcon and GetItemIcon(eng.item))
+                or 134400
             local row = p.make_action_row(
                 frame,
                 nil,
@@ -273,6 +282,13 @@ local function build_camelot_portals_frame()
         end
         p.make_divider(frame, curY - 2)
         curY = curY - 8
+    end
+
+    if #frame.refreshable == 0 and not isMage then
+        local emptyFs = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        emptyFs:SetPoint("TOPLEFT", 8, curY - 2)
+        emptyFs:SetText("no travel items or spells available.")
+        curY = curY - 20
     end
 
     -- Finalize size

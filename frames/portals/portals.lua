@@ -725,9 +725,14 @@ local function make_action_row(parent, spellID, portalID, toyID, name, icon, yPo
         if not iconID and spellID then
             iconID = sfui.common.get_spell_icon(spellID)
         elseif not iconID and toyID then
-            iconID = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(toyID)
+            iconID = (sfui.api.GetItemIconByID and sfui.api.GetItemIconByID(toyID))
+                or (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(toyID))
+                or (GetItemIcon and GetItemIcon(toyID))
         elseif not iconID and itemID then
-            iconID = sfui.api.GetItemIcon(itemID) or (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID))
+            iconID = (sfui.api.GetItemIcon and sfui.api.GetItemIcon(itemID))
+                or (sfui.api.GetItemIconByID and sfui.api.GetItemIconByID(itemID))
+                or (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID))
+                or (GetItemIcon and GetItemIcon(itemID))
         end
         if iconID then
             ic:SetTexture(iconID)

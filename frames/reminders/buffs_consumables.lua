@@ -106,6 +106,9 @@ local availableFoods = {}
 local isFoodScanDirty = true
 
 local function IsBuffFood(bag, slot, itemID, itemLink)
+    if sfui.items and sfui.items.is_buff_food then
+        return sfui.items.is_buff_food(bag, slot, itemID, itemLink)
+    end
     if not itemID then return false end
     if isBuffFoodCache[itemID] ~= nil then
         return isBuffFoodCache[itemID]
@@ -248,6 +251,7 @@ local function ScanInventoryFoods()
     return availableFoods
 end
 sfui.buffs.consumables.ScanInventoryFoods = ScanInventoryFoods
+sfui.buffs.consumables.IsBuffFood = IsBuffFood
 
 function sfui.buffs.consumables.GetAvailableFoods()
     if isFoodScanDirty or #availableFoods == 0 then

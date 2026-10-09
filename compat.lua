@@ -594,14 +594,27 @@ function sfui.api.GetItemCount(itemID, includeBank, includeCharges)
     return 0
 end
 
---- Returns item icon texture path.
+--- Returns item icon texture or fileID.
 function sfui.api.GetItemIconByID(itemID)
     if not itemID then return nil end
     if _G.C_Item and _G.C_Item.GetItemIconByID then
-        return _G.C_Item.GetItemIconByID(itemID) or nil
+        local icon = _G.C_Item.GetItemIconByID(itemID)
+        if icon then return icon end
+    end
+    if _G.GetItemIcon then
+        local icon = _G.GetItemIcon(itemID)
+        if icon then return icon end
+    end
+    if _G.C_Item and _G.C_Item.GetItemInfoInstant then
+        local _, _, _, _, icon = _G.C_Item.GetItemInfoInstant(itemID)
+        if icon then return icon end
+    elseif _G.GetItemInfoInstant then
+        local _, _, _, _, icon = _G.GetItemInfoInstant(itemID)
+        if icon then return icon end
     end
     return nil
 end
+sfui.api.GetItemIcon = sfui.api.GetItemIconByID
 
 
 -- ── Map queries ───────────────────────────────────────────────────────────────

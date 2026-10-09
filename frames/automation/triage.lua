@@ -333,12 +333,44 @@ local function find_candidates(skipInventoryScan)
                                         or (playerLevel >= 35 and reqLevel <= 25)
                                         or (levelDiff >= 15)
 
+                                    local isFood, isDrink, hasWellFed = false, false, false
+                                    if sfui.items and sfui.items.get_food_drink_info then
+                                        isFood, isDrink, hasWellFed = sfui.items.get_food_drink_info(bag, slot, itemID, itemLink)
+                                    elseif sfui.items and sfui.items.is_buff_food then
+                                        hasWellFed = sfui.items.is_buff_food(bag, slot, itemID, itemLink)
+                                        isFood = true
+                                    end
+
                                     local canSuggest = true
-                                    if protectFoodWater and not isOutdated and (reqLevel >= playerLevel - 10) then
-                                        canSuggest = false
+                                    if hasWellFed then
+                                        -- Food WITH Well Fed grants stat buffs; protect when protectFoodWater is enabled
+                                        if protectFoodWater then
+                                            canSuggest = false
+                                        end
+                                    elseif isDrink and not isFood then
+                                        -- Pure drink (water): protect level-appropriate mana water for mana-using classes
+                                        local isManaUser = (playerClass ~= "WARRIOR" and playerClass ~= "ROGUE" and playerClass ~= "DEATHKNIGHT")
+                                        if protectFoodWater and isManaUser and not isOutdated and (reqLevel >= playerLevel - 10) then
+                                            canSuggest = false
+                                        end
+                                    else
+                                        -- Food WITHOUT Well Fed: eligible for bag triage discard
+                                        -- Even if player is current level, plain food without well fed can be safely discarded
+                                        canSuggest = true
                                     end
 
                                     if canSuggest then
+                                        local category
+                                        if isOutdated then
+                                            category = isFood and "outdated food" or "outdated drink"
+                                        elseif not hasWellFed and isFood then
+                                            category = "food (no well fed)"
+                                        elseif hasWellFed then
+                                            category = "buff food"
+                                        else
+                                            category = "low-value consumable"
+                                        end
+
                                         consumableCandidates[#consumableCandidates + 1] = {
                                             bag = bag,
                                             slot = slot,
@@ -352,7 +384,9 @@ local function find_candidates(skipInventoryScan)
                                             totalValue = totalValue,
                                             reqLevel = reqLevel,
                                             isOutdated = isOutdated,
-                                            category = isOutdated and "outdated food/drink" or "low-value food/drink",
+                                            hasWellFed = hasWellFed,
+                                            isFoodWithoutWellFed = (isFood and not hasWellFed),
+                                            category = category,
                                         }
                                     end
                                 end
@@ -397,7 +431,7 @@ local function find_candidates(skipInventoryScan)
         end
     end
 
-    -- Return greys first if any exist (sorted by lowest total value, lowest unit price, then smallest stack)
+    -- Sort grey candidates (lowest total value, lowest unit price, smallest stack)
     if #greyCandidates > 0 then
         table_sort(greyCandidates, function(a, b)
             if a.totalValue ~= b.totalValue then
@@ -414,17 +448,19 @@ local function find_candidates(skipInventoryScan)
             end
             return a.slot > b.slot
         end)
-        if soulShardCandidate then
-            table_insert(greyCandidates, 1, soulShardCandidate)
-        end
-        return greyCandidates, "grey"
     end
 
-    -- Fallback to consumables (outdated food/drink first, then lowest value/stack)
+    -- Sort consumable candidates:
+    -- 1. Outdated consumables first
+    -- 2. Food items without well fed next
+    -- 3. Lowest total value, lowest unit price, smallest stack
     if #consumableCandidates > 0 then
         table_sort(consumableCandidates, function(a, b)
             if a.isOutdated ~= b.isOutdated then
                 return a.isOutdated
+            end
+            if a.isFoodWithoutWellFed ~= b.isFoodWithoutWellFed then
+                return a.isFoodWithoutWellFed
             end
             if a.totalValue ~= b.totalValue then
                 return a.totalValue < b.totalValue
@@ -437,14 +473,34 @@ local function find_candidates(skipInventoryScan)
             end
             return a.slot > b.slot
         end)
-        if soulShardCandidate then
-            table_insert(consumableCandidates, 1, soulShardCandidate)
-        end
-        return consumableCandidates, "consumable"
     end
 
+    -- Assemble all candidates so triage cycles through soul shards, greys, and food items without well fed
+    local allCandidates = {}
+
+    -- 1. Soul Shards (Warlock excess)
     if soulShardCandidate then
-        return { soulShardCandidate }, "soulshard"
+        allCandidates[#allCandidates + 1] = soulShardCandidate
+    end
+
+    -- 2. Grey junk items
+    for i = 1, #greyCandidates do
+        allCandidates[#allCandidates + 1] = greyCandidates[i]
+    end
+
+    -- 3. Consumable candidates (outdated food/drink, food items without well fed)
+    for i = 1, #consumableCandidates do
+        allCandidates[#allCandidates + 1] = consumableCandidates[i]
+    end
+
+    if #allCandidates > 0 then
+        local primaryType = "grey"
+        if soulShardCandidate and #allCandidates == 1 then
+            primaryType = "soulshard"
+        elseif #greyCandidates == 0 and #consumableCandidates > 0 then
+            primaryType = "consumable"
+        end
+        return allCandidates, primaryType
     end
 
     return {}, "none"
@@ -510,7 +566,17 @@ local function create_triage_prompt()
     f:SetClampedToScreen(true)
     f:SetMovable(true)
     f:EnableMouse(true)
+    f:EnableMouseWheel(true)
     f:RegisterForDrag("LeftButton")
+    f:SetScript("OnMouseWheel", function(self, delta)
+        if #currentCandidates <= 1 then return end
+        if delta < 0 then
+            currentCandidateIndex = (currentCandidateIndex % #currentCandidates) + 1
+        else
+            currentCandidateIndex = (currentCandidateIndex - 2 + #currentCandidates) % #currentCandidates + 1
+        end
+        triage.DisplayCandidate(currentCandidates[currentCandidateIndex])
+    end)
 
     -- Clean fallback backdrop with 1px border
     local pScale = sfui.pixelScale or 1
@@ -711,9 +777,14 @@ local function create_triage_prompt()
     local nextBtn = CreateFlatButton(f, "next", 64, 20)
     nextBtn:SetPoint("LEFT", deleteBtn, "RIGHT", 6, 0)
     nextBtn:SetFrameLevel((f:GetFrameLevel() or 100) + 15)
-    nextBtn:SetScript("OnClick", function()
+    nextBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    nextBtn:SetScript("OnClick", function(self, button)
         if #currentCandidates <= 1 then return end
-        currentCandidateIndex = (currentCandidateIndex % #currentCandidates) + 1
+        if button == "RightButton" then
+            currentCandidateIndex = (currentCandidateIndex - 2 + #currentCandidates) % #currentCandidates + 1
+        else
+            currentCandidateIndex = (currentCandidateIndex % #currentCandidates) + 1
+        end
         triage.DisplayCandidate(currentCandidates[currentCandidateIndex])
     end)
     f.nextBtn = nextBtn

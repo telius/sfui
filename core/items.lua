@@ -28,10 +28,6 @@ if not sfuiTooltip.sfuiBG then
     sfuiTooltip.sfuiBG = bg
 end
 sfuiTooltip:SetFrameStrata("TOOLTIP")
--- comparison tooltips (GameTooltip_ShowCompareItem reads tooltip.shoppingTooltips)
-if not sfuiTooltip.shoppingTooltips and _G.ShoppingTooltip1 and _G.ShoppingTooltip2 then
-    sfuiTooltip.shoppingTooltips = { _G.ShoppingTooltip1, _G.ShoppingTooltip2 }
-end
 sfui.tooltip = sfuiTooltip
 sfui.common.tooltip = sfuiTooltip
 
@@ -928,3 +924,152 @@ function sfui.items.is_trinket_valid_for_spec(itemLinkOrID, specID)
     return true
 end
 sfui.common.is_trinket_valid_for_spec = sfui.items.is_trinket_valid_for_spec
+
+-- ─────────────────────────────────────────────────────────────────────────────
+--  Food & Drink / Well Fed Scanner
+-- ─────────────────────────────────────────────────────────────────────────────
+
+local foodDrinkInfoCache = {}
+
+--- Inspects an item to determine whether it is consumable food (restores health),
+--- consumable drink (restores mana), and whether it grants the "Well Fed" buff.
+--- Uses C_TooltipInfo with fallback to dedicated sfuiTooltip (zero GameTooltip taint).
+--- @param bag number|nil
+--- @param slot number|nil
+--- @param itemID number|nil
+--- @param itemLink string|nil
+--- @return boolean isFood, boolean isDrink, boolean hasWellFed
+function sfui.items.get_food_drink_info(bag, slot, itemID, itemLink)
+    if not itemID and not itemLink then return false, false, false end
+    itemID = itemID or sfui.items.get_item_id(itemLink)
+    if not itemID then return false, false, false end
+
+    local cached = foodDrinkInfoCache[itemID]
+    if cached ~= nil then
+        return cached.isFood, cached.isDrink, cached.hasWellFed
+    end
+
+    local name, _, _, _, _, _, _, _, _, _, _, classID, subClassID = sfui.items.get_item_info(itemLink or itemID)
+    if not name then
+        return false, false, false -- item info not yet loaded; do not cache false
+    end
+
+    local isConsumableClass = (classID == 0) or (_G.Enum and _G.Enum.ItemClass and classID == _G.Enum.ItemClass.Consumable)
+    local isFoodDrink = (subClassID == 5) or (_G.Enum and _G.Enum.ItemConsumableSubclass and subClassID == _G.Enum.ItemConsumableSubclass.Fooddrink)
+    if not (isConsumableClass and isFoodDrink) then
+        foodDrinkInfoCache[itemID] = { isFood = false, isDrink = false, hasWellFed = false }
+        return false, false, false
+    end
+
+    local wellFedText = _G.GetSpellInfo and _G.GetSpellInfo(19705)
+    local wellFedLower = wellFedText and wellFedText:lower() or "well fed"
+
+    local eatingText = _G.GetSpellInfo and _G.GetSpellInfo(433)
+    local eatingLower = eatingText and eatingText:lower() or "eating"
+
+    local drinkingText = _G.GetSpellInfo and _G.GetSpellInfo(430)
+    local drinkingLower = drinkingText and drinkingText:lower() or "drinking"
+
+    local healthStr = _G.HEALTH and _G.HEALTH:lower() or "health"
+    local manaStr = _G.MANA and _G.MANA:lower() or "mana"
+
+    local isFood = false
+    local isDrink = false
+    local hasWellFed = false
+    local foundLines = false
+
+    -- 1. Modern C_TooltipInfo inspection
+    local C_TooltipInfo = _G.C_TooltipInfo
+    if C_TooltipInfo then
+        local data = nil
+        if bag and slot and C_TooltipInfo.GetBagItem then
+            data = C_TooltipInfo.GetBagItem(bag, slot)
+        elseif C_TooltipInfo.GetHyperlink then
+            data = C_TooltipInfo.GetHyperlink(itemLink or ("item:" .. itemID))
+        end
+        if data and data.lines and #data.lines > 1 then
+            foundLines = true
+            for i = 1, #data.lines do
+                local line = data.lines[i]
+                local txt = line and line.leftText
+                if txt and type(txt) == "string" and txt ~= "" then
+                    local lower = txt:lower()
+                    if lower:find(wellFedLower, 1, true) or lower:find("well fed", 1, true) then
+                        hasWellFed = true
+                        isFood = true
+                    end
+                    if lower:find(eatingLower, 1, true) or lower:find("eating", 1, true) or lower:find(healthStr, 1, true) or lower:find("health", 1, true) then
+                        isFood = true
+                    end
+                    if lower:find(drinkingLower, 1, true) or lower:find("drinking", 1, true) or lower:find(manaStr, 1, true) or lower:find("mana", 1, true) then
+                        isDrink = true
+                    end
+                end
+            end
+        end
+    end
+
+    -- 2. Fallback via dedicated sfuiTooltip
+    if not foundLines then
+        local tip = sfuiTooltip
+        if tip and tip.SetOwner and (tip.SetBagItem or tip.SetHyperlink) then
+            local tipName = tip:GetName()
+            if _G.UIParent then tip:SetOwner(_G.UIParent, "ANCHOR_NONE") end
+            tip:ClearLines()
+            if bag and slot and tip.SetBagItem then
+                tip:SetBagItem(bag, slot)
+            else
+                tip:SetHyperlink(itemLink or ("item:" .. itemID))
+            end
+            local numLines = tip:NumLines() or 0
+            if numLines > 1 then
+                foundLines = true
+                for i = 1, numLines do
+                    local fsL = tipName and _G[tipName .. "TextLeft" .. i]
+                    if fsL then
+                        local txt = fsL:GetText()
+                        if txt then
+                            local lower = txt:lower()
+                            if lower:find(wellFedLower, 1, true) or lower:find("well fed", 1, true) then
+                                hasWellFed = true
+                                isFood = true
+                            end
+                            if lower:find(eatingLower, 1, true) or lower:find("eating", 1, true) or lower:find(healthStr, 1, true) or lower:find("health", 1, true) then
+                                isFood = true
+                            end
+                            if lower:find(drinkingLower, 1, true) or lower:find("drinking", 1, true) or lower:find(manaStr, 1, true) or lower:find("mana", 1, true) then
+                                isDrink = true
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if not foundLines then
+        return false, false, false -- lines not yet populated
+    end
+
+    if not isFood and not isDrink then
+        isFood = true
+    end
+
+    local res = { isFood = isFood, isDrink = isDrink, hasWellFed = hasWellFed }
+    foodDrinkInfoCache[itemID] = res
+    return isFood, isDrink, hasWellFed
+end
+sfui.common.get_food_drink_info = sfui.items.get_food_drink_info
+
+--- Determines whether an item is a consumable food that grants the "Well Fed" buff.
+--- @param bag number|nil
+--- @param slot number|nil
+--- @param itemID number|nil
+--- @param itemLink string|nil
+--- @return boolean hasWellFed
+function sfui.items.is_buff_food(bag, slot, itemID, itemLink)
+    local _, _, hasWellFed = sfui.items.get_food_drink_info(bag, slot, itemID, itemLink)
+    return hasWellFed
+end
+sfui.common.is_buff_food = sfui.items.is_buff_food
+sfui.items.has_well_fed = sfui.items.is_buff_food
