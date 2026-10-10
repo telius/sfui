@@ -13,10 +13,10 @@
     and timer countdown bars.
 ]]
 
-local addonName, addon                        = ...
-local sfui                                          = _G.sfui or {}
-sfui.tracker                                  = sfui.tracker or {}
-sfui.questlog                                 = sfui.questlog or {}
+local addonName, addon = ...
+local sfui             = _G.sfui or {}
+sfui.tracker           = sfui.tracker or {}
+sfui.questlog          = sfui.questlog or {}
 
 -- Guard: Retail only
 if not sfui.isRetail then
@@ -62,7 +62,7 @@ local Waypoints                               = sfui.tracker.helpers.waypoints
 local TimerBars                               = sfui.tracker.helpers.timerbars
 local Items                                   = sfui.tracker.helpers.items
 local FindGroup                               = sfui.tracker.helpers.findgroup
-local QuestCommon = sfui.tracker.helpers.quest
+local QuestCommon                             = sfui.tracker.helpers.quest
 
 local wipe                                    = _G.wipe or function(t)
     for k in pairs(t) do t[k] = nil end
@@ -218,7 +218,7 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
     if mouseButton == "MiddleButton" or (mouseButton == "RightButton" and IsShiftKeyDown and IsShiftKeyDown()) then
         if sfui.dungeonjournal and sfui.dungeonjournal.SelectQuest then
             local isDJ = (sfui.dj_camelot and sfui.dj_camelot.IsDungeonQuest and sfui.dj_camelot.IsDungeonQuest(questID))
-                         or (sfui.questlog and sfui.questlog.IsDungeonQuest and sfui.questlog.IsDungeonQuest(questID, questLogIndex))
+                or (sfui.questlog and sfui.questlog.IsDungeonQuest and sfui.questlog.IsDungeonQuest(questID, questLogIndex))
             if isDJ then
                 local ok = sfui.dungeonjournal.SelectQuest(nil, questID)
                 if ok then return end
@@ -268,7 +268,7 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
             end
 
             local title = questTitle or (C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID)) or
-            "Quest"
+                "Quest"
             local items = (C_QuestLog.GetAbandonQuestItems and C_QuestLog.GetAbandonQuestItems()) or nil
             if items and _G.StaticPopup_Show then
                 _G.StaticPopup_Show("ABANDON_QUEST_WITH_ITEMS", title, items)
@@ -498,7 +498,7 @@ function QuestsModule:BuildBlocks(container)
             local qID, popUpType = GetAutoQuestPopUp(i)
             if qID and qID > 0 then
                 local popTitle = (C_QuestLog and C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(qID)) or
-                "Quest"
+                    "Quest"
                 if popUpType == "OFFER" then
                     local sec = GetOrCreateSection("important", "Important", { 1.0, 0.4, 0.2 })
                     table_insert(sec.blocks, {
@@ -720,7 +720,7 @@ function QuestsModule:BuildBlocks(container)
 
             -- Group Finder (LFG) support through API
             local canFindGroup = FindGroup and FindGroup.CanFindGroup and
-            FindGroup.CanFindGroup(questID) or false
+                FindGroup.CanFindGroup(questID) or false
 
             -- SuperTracked state
             local isSuper = (superTrackedQuestID == questID)

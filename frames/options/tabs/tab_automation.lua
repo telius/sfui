@@ -97,15 +97,18 @@ sfui.options.RegisterTab({
         triage_thresh_label:SetTextColor(white[1], white[2], white[3])
         triage_thresh_label:SetText("trigger threshold:")
 
-        local curThreshold = sfui.db.Get("triage", "threshold", 1)
-        if curThreshold == nil then curThreshold = 1 end
+        local defThresh = (sfui.config and sfui.config.triage and sfui.config.triage.threshold ~= nil) and sfui.config.triage.threshold or 0
+        local curThreshold = sfui.db.Get("triage", "threshold", defThresh)
+        if curThreshold == nil then curThreshold = defThresh end
+        local initialVal = tonumber(curThreshold)
+        if initialVal == nil then initialVal = defThresh end
 
         local triage_thresh_dropdown = create_dropdown(automation_panel, 140, GetTriageThresholdOptions, function(val)
             sfui.db.Set("triage", "threshold", tonumber(val) or 0)
             if sfui.triage and sfui.triage.EvaluateTriage then
                 sfui.triage.EvaluateTriage()
             end
-        end, tonumber(curThreshold) or 1)
+        end, initialVal)
         triage_thresh_dropdown:SetPoint("LEFT", triage_thresh_label, "RIGHT", 6, 0)
 
         local triage_sound_cb = create_checkbox(automation_panel, "sound alert on prompt", function()

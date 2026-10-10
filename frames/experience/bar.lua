@@ -43,6 +43,9 @@ end
 --- @param tex string|nil
 function barModule.SetBarTexture(tex)
     tex = tex or GetBarTexture()
+    if sfui.widgets and sfui.widgets.resolve_statusbar_texture then
+        tex = sfui.widgets.resolve_statusbar_texture(tex)
+    end
     if mainBar then mainBar:SetStatusBarTexture(tex) end
     if restedBar then restedBar:SetStatusBarTexture(tex) end
     if questBar then questBar:SetStatusBarTexture(tex) end
@@ -504,6 +507,7 @@ function barModule.Create()
         sfui.experience.floating.SetAnchor(container)
     end
 
+    barModule.ApplyTheme()
     barModule.UpdateLayout()
     UpdateTextVisibility(false)
     barModule.UpdateValues()

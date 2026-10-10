@@ -386,7 +386,7 @@ sfui.config = {
 
     triage = {
         enabled = true,
-        threshold = 1,                 -- Trigger when free regular slots <= threshold (0, 1, or 2)
+        threshold = 0,                 -- Trigger when free regular slots <= threshold (0 = bags full, 1, or 2)
         checkConsumables = true,       -- Evaluate consumables (food without well fed, outdated food/drink)
         protectFoodWater = true,       -- Protect food/water matching player's level tier (and buff food)
         soundAlert = true,             -- Play sound when triage prompt appears

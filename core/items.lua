@@ -196,6 +196,60 @@ function sfui.items.get_item_equip_loc(item)
 end
 sfui.common.get_item_equip_loc = sfui.items.get_item_equip_loc
 
+function sfui.items.get_inventory_item_link(unit, slotID)
+    if not slotID then return nil end
+    unit = unit or "player"
+    local link = _G.GetInventoryItemLink and _G.GetInventoryItemLink(unit, slotID)
+    if link and link ~= "" then return link end
+
+    if unit == "player" then
+        if _G.C_TooltipInfo and _G.C_TooltipInfo.GetInventoryItem then
+            local data = _G.C_TooltipInfo.GetInventoryItem("player", slotID)
+            if data and data.hyperlink and data.hyperlink ~= "" then
+                return data.hyperlink
+            end
+        end
+
+        local itemID = _G.GetInventoryItemID and _G.GetInventoryItemID("player", slotID)
+        if itemID and itemID > 0 then
+            if _G.C_Item and _G.C_Item.RequestLoadItemDataByID then
+                _G.C_Item.RequestLoadItemDataByID(itemID)
+            end
+            local l = (_G.C_Item and _G.C_Item.GetItemLinkByItemID and _G.C_Item.GetItemLinkByItemID(itemID))
+                or select(2, _G.GetItemInfo(itemID))
+                or ("item:" .. itemID)
+            if l and l ~= "" then return l end
+        end
+
+        local scanTip = _G.SfuiHighestScanTooltip
+        if not scanTip and _G.CreateFrame then
+            scanTip = _G.CreateFrame("GameTooltip", "SfuiHighestScanTooltip", nil, "GameTooltipTemplate")
+            scanTip:SetOwner(_G.WorldFrame, "ANCHOR_NONE")
+        end
+        if scanTip and scanTip.SetInventoryItem then
+            scanTip:ClearLines()
+            local hasItem = scanTip:SetInventoryItem("player", slotID)
+            if hasItem then
+                local _, tipLink = scanTip:GetItem()
+                if tipLink and tipLink ~= "" then
+                    return tipLink
+                end
+            end
+        end
+
+        if _G.ItemLocation and _G.C_Item and _G.C_Item.GetItemLink then
+            local loc = _G.ItemLocation:CreateFromEquipmentSlot(slotID)
+            if loc and loc:IsValid() then
+                local l = _G.C_Item.GetItemLink(loc)
+                if l and l ~= "" then return l end
+            end
+        end
+    end
+
+    return nil
+end
+sfui.common.get_inventory_item_link = sfui.items.get_inventory_item_link
+
 local itemStatsCache = {}
 local itemStatsCacheCount = 0
 local ITEM_STATS_CACHE_MAX = 500

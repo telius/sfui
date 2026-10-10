@@ -15,7 +15,12 @@ local C_Item                     = _G.C_Item
 local C_Traits                   = _G.C_Traits
 local C_TradeSkillUI             = _G.C_TradeSkillUI
 local C_ProfSpecs                = _G.C_ProfSpecs
-local GetInventoryItemLink       = _G.GetInventoryItemLink
+local GetInventoryItemLink = function(unit, slotID)
+    if sfui.common and sfui.common.get_inventory_item_link then
+        return sfui.common.get_inventory_item_link(unit, slotID)
+    end
+    return _G.GetInventoryItemLink and _G.GetInventoryItemLink(unit, slotID)
+end
 local GetInventoryItemDurability = _G.GetInventoryItemDurability
 local ipairs, tonumber, tostring = ipairs, tonumber, tostring
 local math_floor                 = math.floor

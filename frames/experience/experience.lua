@@ -22,6 +22,17 @@ local modDef = {
             end
             SfuiDB._expTextMouseoverDefault = true
         end
+
+        if sfui.events and sfui.events.RegisterMessage then
+            sfui.events.RegisterMessage("SFUI_THEME_CHANGED", function()
+                if exp.bar and exp.bar.ApplyTheme then
+                    exp.bar.ApplyTheme()
+                end
+                if exp.reputation and exp.reputation.ApplyTheme then
+                    exp.reputation.ApplyTheme()
+                end
+            end)
+        end
     end,
 
     OnEnable = function(self)
@@ -77,6 +88,11 @@ local modDef = {
             else
                 self:OnDisable()
             end
+            return
+        end
+
+        if key == "barTexture" then
+            exp.SetBarTexture(value)
             return
         end
 

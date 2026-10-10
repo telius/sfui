@@ -1,7 +1,7 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
-local GameTooltip = sfui.common.get_tooltip()  -- private addon tooltip (methods.md §3.7.2)
+local GameTooltip = sfui.common.get_tooltip() -- private addon tooltip (methods.md §3.7.2)
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/dungeonjournal/dj_pins.lua
@@ -20,16 +20,16 @@ local GameTooltip = sfui.common.get_tooltip()  -- private addon tooltip (methods
 
 if sfui.isRetail then return end
 
-local theme = sfui.theme
-local common = sfui.common
+local theme              = sfui.theme
+local common             = sfui.common
 
-local entrancePinPool  = {}
+local entrancePinPool    = {}
 local activeEntrancePins = {}
 
-local questPinPool     = {}
-local activeQuestPins  = {}
+local questPinPool       = {}
+local activeQuestPins    = {}
 
-local ticker = nil
+local ticker             = nil
 
 -- ─── Helper: DB Access ────────────────────────────────────────────────────────
 local function DJ_DB()
@@ -270,11 +270,11 @@ local function IsQuestPickedUpInDungeon(q)
 end
 
 -- ─── Update Pins on Canvas ────────────────────────────────────────────────────
-local isPinsDirty      = true
-local lastMapID        = nil
-local lastCanvasW      = nil
-local lastCanvasH      = nil
-local lastPlayerLevel  = nil
+local isPinsDirty     = true
+local lastMapID       = nil
+local lastCanvasW     = nil
+local lastCanvasH     = nil
+local lastPlayerLevel = nil
 
 local function UpdatePins(force)
     if not WorldMapFrame or not WorldMapFrame:IsShown() then
@@ -308,10 +308,10 @@ local function UpdatePins(force)
 
     -- Zero-CPU early out if map view, scale, and quest status are unchanged
     if not force and not isPinsDirty
-       and mapID == lastMapID
-       and canvasW == lastCanvasW
-       and canvasH == lastCanvasH
-       and playerLevel == lastPlayerLevel then
+        and mapID == lastMapID
+        and canvasW == lastCanvasW
+        and canvasH == lastCanvasH
+        and playerLevel == lastPlayerLevel then
         return
     end
 
@@ -385,7 +385,9 @@ local function UpdatePins(force)
                         end
                     end
                     if totalQuests > 0 then
-                        GameTooltip:AddLine(string.format("quests: %d available · %d in log · %d completed", available, inLog, completed), 0.75, 0.75, 0.75)
+                        GameTooltip:AddLine(
+                        string.format("quests: %d available · %d in log · %d completed", available, inLog, completed),
+                            0.75, 0.75, 0.75)
                     end
 
                     GameTooltip:AddLine(" ")
@@ -402,7 +404,9 @@ local function UpdatePins(force)
                         if IsShiftKeyDown() then
                             sfui.dungeonjournal.SetDungeonHidden(dID, true)
                             if sfui.print then
-                                sfui.print(string.format("hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[undo]|h|r", d.name or "dungeon", dID))
+                                sfui.print(string.format(
+                                "hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[undo]|h|r",
+                                    d.name or "dungeon", dID))
                             end
                             return
                         else
@@ -413,7 +417,9 @@ local function UpdatePins(force)
                                     func = function()
                                         sfui.dungeonjournal.SetDungeonPinsHidden(dID, true)
                                         if sfui.print then
-                                            sfui.print(string.format("hidden map pins for |cffffd100%s|r. |cff00ccff|Hsfui_undo:pins:%s|h[undo]|h|r", d.name or "dungeon", dID))
+                                            sfui.print(string.format(
+                                            "hidden map pins for |cffffd100%s|r. |cff00ccff|Hsfui_undo:pins:%s|h[undo]|h|r",
+                                                d.name or "dungeon", dID))
                                         end
                                     end,
                                 },
@@ -423,7 +429,9 @@ local function UpdatePins(force)
                                     func = function()
                                         sfui.dungeonjournal.SetDungeonHidden(dID, true)
                                         if sfui.print then
-                                            sfui.print(string.format("hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[undo]|h|r", d.name or "dungeon", dID))
+                                            sfui.print(string.format(
+                                            "hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[undo]|h|r",
+                                                d.name or "dungeon", dID))
                                         end
                                     end,
                                 },
@@ -501,16 +509,20 @@ local function UpdatePins(force)
                     if steps then
                         -- Quest has a prerequisite chain: place pin for the step the player is currently on
                         if not allDone and currentStep then
-                            local stepMinLevel = currentStep.minLevel or (currentStepIndex == 1 and q.chainStart and q.chainStart.minLevel) or (db.questMinLevels and currentStep.id and db.questMinLevels[currentStep.id]) or minLevel
+                            local stepMinLevel = currentStep.minLevel or
+                            (currentStepIndex == 1 and q.chainStart and q.chainStart.minLevel) or
+                            (db.questMinLevels and currentStep.id and db.questMinLevels[currentStep.id]) or minLevel
                             local stepLevelEligible = (not requireLevel) or (playerLevel >= stepMinLevel)
                             local stepActive = currentStep.id and IsQuestActive(currentStep.id)
                             local insideDungeon = currentStep.isDungeonQuest and IsQuestPickedUpInDungeon(q)
 
                             local stepID = currentStep.id or q.id
-                            local isStepHidden = sfui.dungeonjournal and sfui.dungeonjournal.IsQuestPinHidden and sfui.dungeonjournal.IsQuestPinHidden(stepID, d.id)
+                            local isStepHidden = sfui.dungeonjournal and sfui.dungeonjournal.IsQuestPinHidden and
+                            sfui.dungeonjournal.IsQuestPinHidden(stepID, d.id)
 
                             if not isStepHidden and stepLevelEligible and not stepActive and not insideDungeon then
-                                local coords = currentStep.coords or (questCoords and currentStep.id and questCoords[currentStep.id])
+                                local coords = currentStep.coords or
+                                (questCoords and currentStep.id and questCoords[currentStep.id])
                                 if coords and coords.mapID == mapID then
                                     local cx = coords.x or 0
                                     local cy = coords.y or 0
@@ -533,13 +545,16 @@ local function UpdatePins(force)
                                             level = currentStep.level or q.level,
                                             minLevel = stepMinLevel,
                                             faction = currentStep.faction or f,
-                                            objective = currentStep.objective or string.format("Step %d of %d in the quest chain for %s.", currentStepIndex, #steps, q.name or "dungeon quest"),
+                                            objective = currentStep.objective or
+                                            string.format("Step %d of %d in the quest chain for %s.", currentStepIndex,
+                                                #steps, q.name or "dungeon quest"),
                                             isChainStep = true,
                                             chainStep = currentStepIndex,
                                             chainTotal = #steps,
                                             parentQuest = q,
                                         }
-                                        targetGroup.quests[#targetGroup.quests + 1] = AcquireGroupItem(chainItem, d, stepMinLevel)
+                                        targetGroup.quests[#targetGroup.quests + 1] = AcquireGroupItem(chainItem, d,
+                                            stepMinLevel)
                                     end
                                 end
                             end
@@ -550,7 +565,8 @@ local function UpdatePins(force)
                         local isActive = IsQuestActive(q.id)
                         local insideDungeon = IsQuestPickedUpInDungeon(q)
 
-                        local isQuestHidden = sfui.dungeonjournal and sfui.dungeonjournal.IsQuestPinHidden and sfui.dungeonjournal.IsQuestPinHidden(q.id, d.id)
+                        local isQuestHidden = sfui.dungeonjournal and sfui.dungeonjournal.IsQuestPinHidden and
+                        sfui.dungeonjournal.IsQuestPinHidden(q.id, d.id)
 
                         if not isQuestHidden and levelEligible and not isDone and not isActive and not insideDungeon then
                             local coords = (questCoords and questCoords[q.id]) or q.coords
@@ -622,23 +638,28 @@ local function UpdatePins(force)
                     GameTooltip:AddLine(q.name or "dungeon quest", 1, 0.82, 0)
                     GameTooltip:AddLine("dungeon: " .. (d.name or ""), 0.85, 0.85, 0.85)
                     if (q.isChainStep or q.isChainStart) and q.parentQuest then
-                        local stepStr = string.format("step %d of %d in quest chain for: %s", q.chainStep or 1, q.chainTotal or 1, q.parentQuest.name or "dungeon quest")
+                        local stepStr = string.format("step %d of %d in quest chain for: %s", q.chainStep or 1,
+                            q.chainTotal or 1, q.parentQuest.name or "dungeon quest")
                         GameTooltip:AddLine("|cffffaa00" .. stepStr .. "|r", 1, 0.85, 0.3)
                     end
                     if q.pickup and q.pickup ~= "" then
                         GameTooltip:AddLine("starts from: " .. q.pickup, 0.85, 0.85, 0.85)
                     end
                     if underlevel then
-                        GameTooltip:AddLine(string.format("requires level: %d  (your level %d)", minLvl, playerLevel), 1, 0.35, 0.35)
+                        GameTooltip:AddLine(string.format("requires level: %d  (your level %d)", minLvl, playerLevel), 1,
+                            0.35, 0.35)
                         GameTooltip:AddLine("status: |cffff4444locked (level requirement not met)|r", 1, 0.35, 0.35)
                     else
                         if q.level then
-                            GameTooltip:AddLine(string.format("requires level: %d  (rec %s)", minLvl, tostring(q.level)), 0.65, 0.65, 0.65)
+                            GameTooltip:AddLine(string.format("requires level: %d  (rec %s)", minLvl, tostring(q.level)),
+                                0.65, 0.65, 0.65)
                         else
                             GameTooltip:AddLine(string.format("requires level: %d", minLvl), 0.65, 0.65, 0.65)
                         end
                         if q.isChainStep or q.isChainStart then
-                            GameTooltip:AddLine(string.format("status: |cffffd100available to pick up (chain step %d/%d)|r", q.chainStep or 1, q.chainTotal or 1), 0.65, 0.65, 0.65)
+                            GameTooltip:AddLine(
+                            string.format("status: |cffffd100available to pick up (chain step %d/%d)|r", q.chainStep or 1,
+                                q.chainTotal or 1), 0.65, 0.65, 0.65)
                         else
                             GameTooltip:AddLine("status: |cffffd100available to pick up|r", 0.65, 0.65, 0.65)
                         end
@@ -664,8 +685,11 @@ local function UpdatePins(force)
                         else
                             statusBadge = string.format(" |cff888888[lvl %s]|r", tostring(q.level or minLvl))
                         end
-                        local chainBadge = (q.isChainStep or q.isChainStart) and string.format(" |cffffaa00[step %d/%d]|r", q.chainStep or 1, q.chainTotal or 1) or ""
-                        GameTooltip:AddLine(string.format("- [%s] %s%s%s", d.name or "", q.name or "", chainBadge, statusBadge), 0.9, 0.9, 0.9)
+                        local chainBadge = (q.isChainStep or q.isChainStart) and
+                        string.format(" |cffffaa00[step %d/%d]|r", q.chainStep or 1, q.chainTotal or 1) or ""
+                        GameTooltip:AddLine(
+                        string.format("- [%s] %s%s%s", d.name or "", q.name or "", chainBadge, statusBadge), 0.9, 0.9,
+                            0.9)
                     end
                 end
 
@@ -690,7 +714,9 @@ local function UpdatePins(force)
                         local qID = q.id
                         sfui.dungeonjournal.SetQuestPinHidden(qID, true)
                         if sfui.print then
-                            sfui.print(string.format("hidden quest pin |cffffd100%s|r. |cff00ccff|Hsfui_undo:quest:%s|h[undo]|h|r", q.name or "quest", tostring(qID)))
+                            sfui.print(string.format(
+                            "hidden quest pin |cffffd100%s|r. |cff00ccff|Hsfui_undo:quest:%s|h[undo]|h|r",
+                                q.name or "quest", tostring(qID)))
                         end
                         return
                     else
@@ -702,7 +728,9 @@ local function UpdatePins(force)
                                 func = function()
                                     sfui.dungeonjournal.SetQuestPinHidden(q.id, true)
                                     if sfui.print then
-                                        sfui.print(string.format("hidden quest pin |cffffd100%s|r. |cff00ccff|Hsfui_undo:quest:%s|h[undo]|h|r", q.name or "quest", tostring(q.id)))
+                                        sfui.print(string.format(
+                                        "hidden quest pin |cffffd100%s|r. |cff00ccff|Hsfui_undo:quest:%s|h[undo]|h|r",
+                                            q.name or "quest", tostring(q.id)))
                                     end
                                 end,
                             })
@@ -715,7 +743,9 @@ local function UpdatePins(force)
                                     func = function()
                                         sfui.dungeonjournal.SetQuestPinHidden(curQ.id, true)
                                         if sfui.print then
-                                            sfui.print(string.format("hidden quest pin |cffffd100%s|r. |cff00ccff|Hsfui_undo:quest:%s|h[undo]|h|r", curQ.name or "quest", tostring(curQ.id)))
+                                            sfui.print(string.format(
+                                            "hidden quest pin |cffffd100%s|r. |cff00ccff|Hsfui_undo:quest:%s|h[undo]|h|r",
+                                                curQ.name or "quest", tostring(curQ.id)))
                                         end
                                     end,
                                 })
@@ -740,7 +770,9 @@ local function UpdatePins(force)
                             func = function()
                                 sfui.dungeonjournal.SetDungeonPinsHidden(d.id, true)
                                 if sfui.print then
-                                    sfui.print(string.format("hidden map pins for |cffffd100%s|r. |cff00ccff|Hsfui_undo:pins:%s|h[undo]|h|r", d.name or "dungeon", d.id))
+                                    sfui.print(string.format(
+                                    "hidden map pins for |cffffd100%s|r. |cff00ccff|Hsfui_undo:pins:%s|h[undo]|h|r",
+                                        d.name or "dungeon", d.id))
                                 end
                             end,
                         })
@@ -751,7 +783,9 @@ local function UpdatePins(force)
                             func = function()
                                 sfui.dungeonjournal.SetDungeonHidden(d.id, true)
                                 if sfui.print then
-                                    sfui.print(string.format("hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[undo]|h|r", d.name or "dungeon", d.id))
+                                    sfui.print(string.format(
+                                    "hidden |cffffd100%s|r and its map pins. |cff00ccff|Hsfui_undo:dungeon:%s|h[undo]|h|r",
+                                        d.name or "dungeon", d.id))
                                 end
                             end,
                         })
@@ -786,7 +820,8 @@ local function UpdatePins(force)
                             func = function() end,
                         })
 
-                        local menuTitle = (#g.quests == 1) and (q.name or "Quest") or string.format("%d Quests (%s)", #g.quests, d.name or "")
+                        local menuTitle = (#g.quests == 1) and (q.name or "Quest") or
+                        string.format("%d Quests (%s)", #g.quests, d.name or "")
                         sfui.dungeonjournal.ShowContextMenu(self, menuTitle, items)
                         return
                     end
@@ -922,13 +957,17 @@ local function InitPins()
             end
         end
 
-        sfui.events.RegisterEvent("ZONE_CHANGED_NEW_AREA", function() isPinsDirty = true; UpdatePins(true) end)
-        sfui.events.RegisterEvent("ZONE_CHANGED",          function() isPinsDirty = true; UpdatePins(true) end)
+        sfui.events.RegisterEvent("ZONE_CHANGED_NEW_AREA", function()
+            isPinsDirty = true; UpdatePins(true)
+        end)
+        sfui.events.RegisterEvent("ZONE_CHANGED", function()
+            isPinsDirty = true; UpdatePins(true)
+        end)
         sfui.events.RegisterEvent("QUEST_LOG_UPDATE", OnQuestStateChanged)
-        sfui.events.RegisterEvent("QUEST_ACCEPTED",   OnQuestStateChanged)
-        sfui.events.RegisterEvent("QUEST_REMOVED",    OnQuestStateChanged)
-        sfui.events.RegisterEvent("QUEST_TURNED_IN",  OnQuestStateChanged)
-        sfui.events.RegisterEvent("PLAYER_LEVEL_UP",  OnQuestStateChanged)
+        sfui.events.RegisterEvent("QUEST_ACCEPTED", OnQuestStateChanged)
+        sfui.events.RegisterEvent("QUEST_REMOVED", OnQuestStateChanged)
+        sfui.events.RegisterEvent("QUEST_TURNED_IN", OnQuestStateChanged)
+        sfui.events.RegisterEvent("PLAYER_LEVEL_UP", OnQuestStateChanged)
     end
 
     -- Map canvas update loop via centralized sfui.events dispatcher

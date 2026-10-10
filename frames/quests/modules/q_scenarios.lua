@@ -116,7 +116,8 @@ function ScenariosModule:BuildBlocks(container)
                 weightedProgress = stepInfo.weightedProgress
             end
         elseif C_Scenario and C_Scenario.GetStepInfo then
-            stageName, stageDesc, numCriteria, stepFailed, isBonusStep, isWaitStep, _, _, _, weightedProgress = C_Scenario.GetStepInfo()
+            stageName, stageDesc, numCriteria, stepFailed, isBonusStep, isWaitStep, _, _, _, weightedProgress =
+            C_Scenario.GetStepInfo()
         end
 
         -- Check if this is a Delve
@@ -189,13 +190,13 @@ function ScenariosModule:BuildBlocks(container)
         end
 
         local scenarioBlock = {
-            title          = stageTitle,
-            titleColor     = stepFailed and { 1, 0.2, 0.2, 1 } or { 1, 1, 1, 1 },
-            isScenario     = true,
-            isExpanded     = isExpanded,
-            lines          = lines,
-            progressBar    = progressBar,
-            OnClick        = function(block, btn)
+            title       = stageTitle,
+            titleColor  = stepFailed and { 1, 0.2, 0.2, 1 } or { 1, 1, 1, 1 },
+            isScenario  = true,
+            isExpanded  = isExpanded,
+            lines       = lines,
+            progressBar = progressBar,
+            OnClick     = function(block, btn)
                 if btn == "RightButton" then
                     local st = GetQLState()
                     st.expandedBlocks = st.expandedBlocks or {}

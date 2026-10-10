@@ -224,6 +224,10 @@ local function ToggleTrackedSkill(skillID)
         UpdateAllSkillsVisuals()
     end
 
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_SKILL_TRACKING_CHANGED", skillID, isTracked)
+    end
+
     return isTracked
 end
 
@@ -566,6 +570,15 @@ function CamelotSkillsModule:BuildBlocks(container)
 
     return nil
 end
+
+sfui.camelot_skills = {
+    GetTrackedSkills = GetTrackedSkills,
+    IsSkillTracked = IsSkillTracked,
+    ToggleTrackedSkill = ToggleTrackedSkill,
+    GetSkillCategoryInfo = GetSkillCategoryInfo,
+    GetSkillInfo = GetSkillInfo,
+    OpenSkillInUI = OpenSkillInUI,
+}
 
 sfui.tracker.RegisterModule(CamelotSkillsModule)
 return CamelotSkillsModule

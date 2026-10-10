@@ -11,28 +11,67 @@ local common = sfui.common
 local GetItemInfo = sfui.common.get_item_info
 local C_Item = _G.C_Item
 local C_TooltipInfo = _G.C_TooltipInfo
-local GetInventoryItemLink = _G.GetInventoryItemLink
 local C_Container = _G.C_Container
+local GetInventoryItemLink = function(unit, slotID)
+    if sfui.common and sfui.common.get_inventory_item_link then
+        return sfui.common.get_inventory_item_link(unit, slotID)
+    end
+    return _G.GetInventoryItemLink and _G.GetInventoryItemLink(unit, slotID)
+end
 local C_Container_GetContainerItemInfo = (_G.C_Container and _G.C_Container.GetContainerItemInfo) or _G.GetContainerItemInfo
 local C_Container_GetContainerItemLink = (_G.C_Container and _G.C_Container.GetContainerItemLink) or _G.GetContainerItemLink
 local C_Container_PickupContainerItem  = (_G.C_Container and _G.C_Container.PickupContainerItem) or _G.PickupContainerItem
 local function EquipItemByName(itemInfo, slotID, bag, slot)
     if not itemInfo then return end
+
+    -- Slot 0 (INVSLOT_AMMO) cannot be used as dstSlot in EquipItemByName (causes "Invalid inventory dstSlot").
+    if slotID == 0 or slotID == "0" then
+        if bag and slot then
+            if C_Container and C_Container.UseContainerItem then
+                C_Container.UseContainerItem(bag, slot)
+                return
+            elseif _G.UseContainerItem then
+                _G.UseContainerItem(bag, slot)
+                return
+            end
+        end
+        if sfui.common and sfui.common.for_each_bag_item then
+            local foundBag, foundSlot
+            sfui.common.for_each_bag_item(function(b, s, id, link)
+                if link == itemInfo or id == itemInfo then
+                    foundBag, foundSlot = b, s
+                    return true
+                end
+            end, true, true, false)
+            if foundBag and foundSlot then
+                if C_Container and C_Container.UseContainerItem then
+                    C_Container.UseContainerItem(foundBag, foundSlot)
+                elseif _G.UseContainerItem then
+                    _G.UseContainerItem(foundBag, foundSlot)
+                end
+                return
+            end
+        end
+        return
+    end
+
+    local validSlotID = (type(slotID) == "number" and slotID >= 1 and slotID <= 19) and slotID or nil
+
     if C_Item and C_Item.EquipItemByName then
-        if slotID then
-            C_Item.EquipItemByName(itemInfo, slotID)
+        if validSlotID then
+            C_Item.EquipItemByName(itemInfo, validSlotID)
         else
             C_Item.EquipItemByName(itemInfo)
         end
     elseif _G.C_Item and _G.C_Item.EquipItemByName then
-        if slotID then
-            _G.C_Item.EquipItemByName(itemInfo, slotID)
+        if validSlotID then
+            _G.C_Item.EquipItemByName(itemInfo, validSlotID)
         else
             _G.C_Item.EquipItemByName(itemInfo)
         end
     elseif _G.EquipItemByName then
-        if slotID then
-            _G.EquipItemByName(itemInfo, slotID)
+        if validSlotID then
+            _G.EquipItemByName(itemInfo, validSlotID)
         else
             _G.EquipItemByName(itemInfo)
         end
@@ -1092,7 +1131,7 @@ function sfui.highest.GetBestItems(isPvP)
         itemData.is2H           = ((itemEquipLoc == "INVTYPE_2HWEAPON" and not rule.weaps["2H_Dual"]) or ((not isClassicSpec) and (itemEquipLoc == "INVTYPE_RANGED" or itemEquipLoc == "INVTYPE_RANGEDRIGHT")))
         itemData.isEquipped     = isEquipped
         itemData.equippedSlot   = isEquipped and slotOverride or nil
-        itemData.physId         = isEquipped and (-slotOverride) or evaluateIndex
+        itemData.physId         = isEquipped and (-(slotOverride + 1000)) or evaluateIndex
         itemData.itemEquipLoc   = itemEquipLoc
         itemData.bag            = bag
         itemData.slot           = slot
@@ -1679,7 +1718,7 @@ function sfui.highest.GetBestItems(isPvP)
                     is2H = ((itemEquipLoc == "INVTYPE_2HWEAPON" and not rule.weaps["2H_Dual"]) or ((not isClassicSpec) and (itemEquipLoc == "INVTYPE_RANGED" or itemEquipLoc == "INVTYPE_RANGEDRIGHT"))),
                     isEquipped = true,
                     equippedSlot = slotID,
-                    physId = -slotID,
+                    physId = -(slotID + 1000),
                     itemEquipLoc = itemEquipLoc,
                     score = 9999999,
                     isLockedItem = true,
@@ -2224,6 +2263,16 @@ function sfui.highest.GetBestItems(isPvP)
             neededAmmoSubclass = nil
         end
 
+        if not neededAmmoSubclass then
+            local currentAmmoLink = GetInventoryItemLink("player", 0)
+            if currentAmmoLink then
+                local _, _, _, _, _, aClassID, aSubclassID = common.get_item_instant_info(currentAmmoLink)
+                if aClassID == 6 and (aSubclassID == 2 or aSubclassID == 3) then
+                    neededAmmoSubclass = aSubclassID
+                end
+            end
+        end
+
         if neededAmmoSubclass then
             for _, itm in ipairs(best[0]) do
                 local _, _, _, _, _, aClassID, aSubclassID = common.get_item_instant_info(itm.link)
@@ -2346,7 +2395,7 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
             local isAlreadyEquippedHere = (item.isEquipped and item.equippedSlot == slotID)
             local isRecentlyAttempted = item.link and boeAttemptedAt[item.link] and (_G.GetTime() < (boeAttemptedAt[item.link] + BOE_RETRY_DELAY))
             if not isAlreadyEquippedHere and not isRecentlyAttempted then
-                local oldLink = _G.GetInventoryItemLink("player", slotID)
+                local oldLink = GetInventoryItemLink("player", slotID)
                 local oldIlvl = oldLink and common.get_item_level(oldLink) or 0
                 local oldScore = 0
                 if sfui.highest.pooledBest and sfui.highest.pooledBest[slotID] then
@@ -2614,7 +2663,11 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                 if _G.ClearCursor then _G.ClearCursor() end
                 C_Container_PickupContainerItem(targetBag, targetSlot)
                 if _G.CursorHasItem and _G.CursorHasItem() then
-                    if _G.EquipCursorItem then _G.EquipCursorItem(slotID) end
+                    if slotID == 0 then
+                        if _G.PickupInventoryItem then _G.PickupInventoryItem(0) end
+                    elseif _G.EquipCursorItem then
+                        _G.EquipCursorItem(slotID)
+                    end
                     if _G.CursorHasItem and _G.CursorHasItem() then
                         -- Swapped item is now on cursor: place it in the newly emptied bag slot
                         C_Container_PickupContainerItem(targetBag, targetSlot)
@@ -2633,7 +2686,7 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
             end
         elseif item.isEquipped and item.equippedSlot and item.equippedSlot ~= slotID then
             -- Item is already equipped in another slot (e.g. swapping Main Hand and Off Hand)
-            local currentTargetLink = _G.GetInventoryItemLink("player", slotID)
+            local currentTargetLink = GetInventoryItemLink("player", slotID)
             if currentTargetLink ~= item.link then
                 if _G.ClearCursor then _G.ClearCursor() end
                 if _G.PickupInventoryItem then

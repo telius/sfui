@@ -120,7 +120,8 @@ function WorldQuestsModule:BuildBlocks(container)
             local displayTitle = title or "World Quest"
 
             -- Time left indicator
-            local timeLeftMin = C_TaskQuest and C_TaskQuest.GetQuestTimeLeftMinutes and C_TaskQuest.GetQuestTimeLeftMinutes(questID)
+            local timeLeftMin = C_TaskQuest and C_TaskQuest.GetQuestTimeLeftMinutes and
+            C_TaskQuest.GetQuestTimeLeftMinutes(questID)
             local timeStr = FormatTimeLeft(timeLeftMin)
             if timeStr then
                 displayTitle = displayTitle .. " |cffbbbbbb(" .. timeStr .. ")|r"
@@ -167,7 +168,8 @@ function WorldQuestsModule:BuildBlocks(container)
 
             -- Waypoint direction text
             local waypointsHelper = sfui.tracker.helpers.waypoints
-            local wpText = waypointsHelper and waypointsHelper.GetWaypointText and waypointsHelper.GetWaypointText(questID, isSuper)
+            local wpText = waypointsHelper and waypointsHelper.GetWaypointText and
+            waypointsHelper.GetWaypointText(questID, isSuper)
             if isExpanded and wpText and wpText ~= "" then
                 table_insert(lines, {
                     text      = wpText,
@@ -195,7 +197,8 @@ function WorldQuestsModule:BuildBlocks(container)
             lastWQProgress[questID] = currentSig
 
             local findGroupHelper = sfui.tracker.helpers.findgroup
-            local canFindGroup = findGroupHelper and findGroupHelper.CanFindGroup and findGroupHelper.CanFindGroup(questID) or false
+            local canFindGroup = findGroupHelper and findGroupHelper.CanFindGroup and
+            findGroupHelper.CanFindGroup(questID) or false
 
             table_insert(blocks, {
                 title          = displayTitle,

@@ -40,6 +40,9 @@ end
 --- @param tex string|nil
 function repModule.SetBarTexture(tex)
     tex = tex or GetBarTexture()
+    if sfui.widgets and sfui.widgets.resolve_statusbar_texture then
+        tex = sfui.widgets.resolve_statusbar_texture(tex)
+    end
     if repBar then repBar:SetStatusBarTexture(tex) end
 end
 
@@ -359,6 +362,7 @@ function repModule.Create()
         sfui.theme.RegisterBar(repContainer, "xp")
     end
 
+    repModule.ApplyTheme()
     repModule.UpdateLayout()
     UpdateTextVisibility(false)
     repModule.UpdateValues()

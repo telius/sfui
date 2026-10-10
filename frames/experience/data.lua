@@ -425,6 +425,20 @@ end
 function data.SetWatchedFaction(factionID, factionIndex, factionName)
     local success = false
 
+    -- Unwatch currently watched faction if 0 or nil passed
+    if (not factionID or factionID == 0) and (not factionIndex or factionIndex == 0) then
+        if C_Reputation and C_Reputation.SetWatchedFactionByID then
+            pcall(C_Reputation.SetWatchedFactionByID, 0)
+        end
+        if C_Reputation and C_Reputation.SetWatchedFactionByIndex then
+            pcall(C_Reputation.SetWatchedFactionByIndex, 0)
+        end
+        if _G.SetWatchedFactionIndex then
+            pcall(_G.SetWatchedFactionIndex, 0)
+        end
+        return true
+    end
+
     -- Modern Retail / Live: C_Reputation.SetWatchedFactionByID
     if C_Reputation and C_Reputation.SetWatchedFactionByID and factionID and factionID > 0 then
         local ok = pcall(C_Reputation.SetWatchedFactionByID, factionID)

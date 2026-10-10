@@ -15,13 +15,13 @@
     - Progress-driven smart expansion with diminishing finished objectives
 ]]
 
-local addonName, addon                        = ...
-local sfui                                          = _G.sfui or {}
-sfui.tracker                                  = sfui.tracker or {}
-sfui.questlog                                 = sfui.questlog or {}
+local addonName, addon = ...
+local sfui             = _G.sfui or {}
+sfui.tracker           = sfui.tracker or {}
+sfui.questlog          = sfui.questlog or {}
 
 -- Guard: Classic / Camelot only (Exclude Retail)
-local isRetail = sfui.isRetail
+local isRetail         = sfui.isRetail
 if isRetail == nil then
     local projectID = _G.WOW_PROJECT_ID or 1
     local _, _, _, tocVersionNum = _G.GetBuildInfo()
@@ -72,7 +72,7 @@ local Difficulty                              = sfui.tracker.helpers.difficulty
 local Waypoints                               = sfui.tracker.helpers.waypoints
 local Items                                   = sfui.tracker.helpers.items
 local FindGroup                               = sfui.tracker.helpers.findgroup
-local QuestCommon = sfui.tracker.helpers.quest
+local QuestCommon                             = sfui.tracker.helpers.quest
 
 local wipe                                    = _G.wipe or function(t)
     for k in pairs(t) do t[k] = nil end
@@ -168,7 +168,7 @@ local function IsDungeonQuest(questID, questLogIndex, headerTitle)
             local QT = Enum and Enum.QuestTag
             local QTT = Enum and Enum.QuestTagType
             if (QT and (tagInfo.tagID == QT.Dungeon or tagInfo.tagID == QT.Raid or tagInfo.tagID == QT.Raid10 or tagInfo.tagID == QT.Raid25))
-               or (QTT and (tagInfo.worldQuestType == QTT.Dungeon or tagInfo.worldQuestType == QTT.Raid)) then
+                or (QTT and (tagInfo.worldQuestType == QTT.Dungeon or tagInfo.worldQuestType == QTT.Raid)) then
                 return true
             end
         end
@@ -196,7 +196,7 @@ local function IsProfessionQuest(questID, questLogIndex, headerTitle)
         local tagInfo = C_QuestLog.GetQuestTagInfo(questID)
         if tagInfo then
             if (tagInfo.tradeskillLineID and tagInfo.tradeskillLineID > 0)
-               or (Enum and Enum.QuestTagType and tagInfo.worldQuestType == Enum.QuestTagType.Profession) then
+                or (Enum and Enum.QuestTagType and tagInfo.worldQuestType == Enum.QuestTagType.Profession) then
                 return true
             end
         end
@@ -304,7 +304,7 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
     if mouseButton == "MiddleButton" or (mouseButton == "RightButton" and IsShiftKeyDown and IsShiftKeyDown()) then
         if sfui.dungeonjournal and sfui.dungeonjournal.SelectQuest then
             local isDJ = (sfui.dj_camelot and sfui.dj_camelot.IsDungeonQuest and sfui.dj_camelot.IsDungeonQuest(questID))
-                         or IsDungeonQuest(questID, questLogIndex)
+                or IsDungeonQuest(questID, questLogIndex)
             if isDJ then
                 local ok = sfui.dungeonjournal.SelectQuest(nil, questID)
                 if ok then return end
@@ -353,7 +353,8 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
                 return
             end
 
-            local title = questTitle or (C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID)) or "Quest"
+            local title = questTitle or (C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID)) or
+            "Quest"
             local items = (C_QuestLog.GetAbandonQuestItems and C_QuestLog.GetAbandonQuestItems()) or nil
             if items and _G.StaticPopup_Show then
                 _G.StaticPopup_Show("ABANDON_QUEST_WITH_ITEMS", title, items)
@@ -689,165 +690,102 @@ function CamelotQuestsModule:BuildBlocks(container)
                 local isFailed = (C_QuestLog and C_QuestLog.IsFailed and C_QuestLog.IsFailed(questID)) or false
                 local canClickToComplete = isComplete and isAutoComplete
 
-            local secondsLeft = activeTimers[questID]
-            if not secondsLeft and C_QuestLog and C_QuestLog.GetTimeAllowed and questID then
-                local total, elapsed = C_QuestLog.GetTimeAllowed(questID)
-                if total and elapsed and total > 0 and elapsed < total then
-                    secondsLeft = total - elapsed
-                    hasAnyTimers = true
+                local secondsLeft = activeTimers[questID]
+                if not secondsLeft and C_QuestLog and C_QuestLog.GetTimeAllowed and questID then
+                    local total, elapsed = C_QuestLog.GetTimeAllowed(questID)
+                    if total and elapsed and total > 0 and elapsed < total then
+                        secondsLeft = total - elapsed
+                        hasAnyTimers = true
+                    end
                 end
-            end
-            if not secondsLeft and _G.GetQuestLogTimeLeft then
-                local rem = _G.GetQuestLogTimeLeft(i)
-                if rem and rem > 0 then
-                    secondsLeft = rem
-                    hasAnyTimers = true
+                if not secondsLeft and _G.GetQuestLogTimeLeft then
+                    local rem = _G.GetQuestLogTimeLeft(i)
+                    if rem and rem > 0 then
+                        secondsLeft = rem
+                        hasAnyTimers = true
+                    end
                 end
-            end
 
-            local timerText, rawClock = nil, nil
-            if secondsLeft and secondsLeft > 0 then
-                timerText, rawClock = FormatQuestTimer(secondsLeft)
-            end
-
-            -- Format Title: Difficulty Bracket [14], [18D] and optional timer
-            local entryStub = {
-                level          = level,
-                questID        = questID,
-                questLogIndex  = i,
-                suggestedGroup = suggestedGroup,
-                timer          = timerText,
-            }
-
-            local displayTitle = title or "Quest"
-            if Difficulty and Difficulty.FormatTitle then
-                displayTitle = Difficulty.FormatTitle(entryStub, displayTitle)
-            elseif timerText then
-                displayTitle = timerText .. " " .. displayTitle
-            end
-
-            -- Determine Section ID
-            local secID, secTitle, secColor
-            local isZoneSec = false
-            local isCurZone = false
-
-            if IsDungeonQuest(questID, i, currentHeaderTitle) then
-                secID = "dungeons"
-                secTitle = "dungeons"
-                secColor = { 0.25, 0.65, 1.00 }
-            elseif IsProfessionQuest(questID, i, currentHeaderTitle) then
-                secID = "professions"
-                secTitle = "professions"
-                secColor = { 0.90, 0.65, 0.25 }
-            else
-                local zName = currentHeaderTitle or "Miscellaneous"
-                local isCur = (currentZoneName ~= "" and zName:lower() == currentZoneName:lower())
-                secID       = "zone_" .. zName
-                secTitle    = zName:lower() .. (isCur and " [Zone]" or "")
-                secColor    = isCur and { 0.00, 1.00, 1.00 } or { 1.00, 1.00, 1.00 }
-                isZoneSec   = true
-                isCurZone   = isCur
-            end
-
-            local section = GetOrCreateSection(secID, secTitle, secColor)
-            if isZoneSec then
-                section.isZoneSection = true
-                if isCurZone then
-                    section.isCurrentZone = true
+                local timerText, rawClock = nil, nil
+                if secondsLeft and secondsLeft > 0 then
+                    timerText, rawClock = FormatQuestTimer(secondsLeft)
                 end
-            end
 
-            local objs = C_QuestLog and C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(questID)
+                -- Format Title: Difficulty Bracket [14], [18D] and optional timer
+                local entryStub = {
+                    level          = level,
+                    questID        = questID,
+                    questLogIndex  = i,
+                    suggestedGroup = suggestedGroup,
+                    timer          = timerText,
+                }
 
-            -- If quest is complete, reset manual expansion override so it defaults to collapsed
-            if isComplete and manualExpanded[questID] ~= nil then
-                manualExpanded[questID] = nil
-            end
+                local displayTitle = title or "Quest"
+                if Difficulty and Difficulty.FormatTitle then
+                    displayTitle = Difficulty.FormatTitle(entryStub, displayTitle)
+                elseif timerText then
+                    displayTitle = timerText .. " " .. displayTitle
+                end
 
-            -- Smart progress-based expansion & inline tag
-            local hasProgress, inlineTag = GetQuestProgressDetails(questID, i, isComplete, objs, canClickToComplete)
-            local defaultExpanded = (hasProgress and not isComplete)
-            local isExpanded
-            if manualExpanded[questID] ~= nil then
-                isExpanded = (manualExpanded[questID] == true)
-            else
-                isExpanded = defaultExpanded
-            end
+                -- Determine Section ID
+                local secID, secTitle, secColor
+                local isZoneSec = false
+                local isCurZone = false
 
-            -- Solution 1: Inline progress on collapsed titles
-            if not isExpanded and inlineTag ~= "" then
-                displayTitle = displayTitle .. inlineTag
-            end
-
-            -- Objectives lines
-            local lines = {}
-            local progressBar = nil
-
-            if isExpanded then
-                if isComplete then
-                    local compText = (Waypoints and Waypoints.GetCompletionText(i, canClickToComplete))
-                        or (canClickToComplete and (QUEST_WATCH_QUEST_COMPLETE or "Click to complete quest"))
-                        or "Ready for turn-in"
-                    table_insert(lines, {
-                        text      = compText,
-                        completed = true,
-                        color     = canClickToComplete and { 1.0, 0.0, 1.0, 1 } or { 0.2, 1.0, 0.2, 1 },
-                    })
+                if IsDungeonQuest(questID, i, currentHeaderTitle) then
+                    secID = "dungeons"
+                    secTitle = "dungeons"
+                    secColor = { 0.25, 0.65, 1.00 }
+                elseif IsProfessionQuest(questID, i, currentHeaderTitle) then
+                    secID = "professions"
+                    secTitle = "professions"
+                    secColor = { 0.90, 0.65, 0.25 }
                 else
-                    if objs and #objs > 0 then
-                        for _, obj in ipairs(objs) do
-                            local isBar = (obj.type == "progressbar" or obj.type == 8)
-                            if isBar then
-                                local pct = 0
-                                if GetQuestProgressBarPercent then
-                                    pct = GetQuestProgressBarPercent(questID) or 0
-                                end
-                                progressBar = {
-                                    min   = 0,
-                                    max   = 100,
-                                    value = pct,
-                                    text  = string_format("%d%%", math_floor(pct + 0.5)),
-                                }
-                            else
-                                -- Solution 2: Diminishing objectives (hide completed sub-objectives)
-                                if not obj.finished then
-                                    local cleanTxt = (obj.text or ""):gsub(" / ", "/")
-                                    table_insert(lines, {
-                                        text      = cleanTxt,
-                                        completed = false,
-                                    })
-                                end
-                            end
-                        end
-                    elseif _G.GetNumQuestLeaderBoards and _G.GetQuestLogLeaderBoard then
-                        local numLeaderBoards = _G.GetNumQuestLeaderBoards(i) or 0
-                        for objIndex = 1, numLeaderBoards do
-                            local desc, _, isFinished = _G.GetQuestLogLeaderBoard(objIndex, i)
-                            if desc and desc ~= "" then
-                                -- Solution 2: Diminishing objectives (hide completed sub-objectives)
-                                if not isFinished then
-                                    local cleanTxt = desc:gsub(" / ", "/")
-                                    table_insert(lines, {
-                                        text      = cleanTxt,
-                                        completed = false,
-                                    })
-                                end
-                            end
-                        end
-                    end
+                    local zName = currentHeaderTitle or "Miscellaneous"
+                    local isCur = (currentZoneName ~= "" and zName:lower() == currentZoneName:lower())
+                    secID       = "zone_" .. zName
+                    secTitle    = zName:lower() .. (isCur and " [Zone]" or "")
+                    secColor    = isCur and { 0.00, 1.00, 1.00 } or { 1.00, 1.00, 1.00 }
+                    isZoneSec   = true
+                    isCurZone   = isCur
+                end
 
-                    -- Waypoint direction text
-                    local wpText = Waypoints and Waypoints.GetWaypointText(questID, (superTrackedQuestID == questID))
-                    if wpText and wpText ~= "" then
-                        table_insert(lines, {
-                            text      = wpText,
-                            completed = false,
-                            color     = { 0.0, 1.0, 0.8, 1 },
-                        })
+                local section = GetOrCreateSection(secID, secTitle, secColor)
+                if isZoneSec then
+                    section.isZoneSection = true
+                    if isCurZone then
+                        section.isCurrentZone = true
                     end
+                end
 
-                    -- If all individual objectives are finished but quest not yet flagged complete
-                    if #lines == 0 and not progressBar then
+                local objs = C_QuestLog and C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(questID)
+
+                -- If quest is complete, reset manual expansion override so it defaults to collapsed
+                if isComplete and manualExpanded[questID] ~= nil then
+                    manualExpanded[questID] = nil
+                end
+
+                -- Smart progress-based expansion & inline tag
+                local hasProgress, inlineTag = GetQuestProgressDetails(questID, i, isComplete, objs, canClickToComplete)
+                local defaultExpanded = (hasProgress and not isComplete)
+                local isExpanded
+                if manualExpanded[questID] ~= nil then
+                    isExpanded = (manualExpanded[questID] == true)
+                else
+                    isExpanded = defaultExpanded
+                end
+
+                -- Solution 1: Inline progress on collapsed titles
+                if not isExpanded and inlineTag ~= "" then
+                    displayTitle = displayTitle .. inlineTag
+                end
+
+                -- Objectives lines
+                local lines = {}
+                local progressBar = nil
+
+                if isExpanded then
+                    if isComplete then
                         local compText = (Waypoints and Waypoints.GetCompletionText(i, canClickToComplete))
                             or (canClickToComplete and (QUEST_WATCH_QUEST_COMPLETE or "Click to complete quest"))
                             or "Ready for turn-in"
@@ -856,60 +794,123 @@ function CamelotQuestsModule:BuildBlocks(container)
                             completed = true,
                             color     = canClickToComplete and { 1.0, 0.0, 1.0, 1 } or { 0.2, 1.0, 0.2, 1 },
                         })
+                    else
+                        if objs and #objs > 0 then
+                            for _, obj in ipairs(objs) do
+                                local isBar = (obj.type == "progressbar" or obj.type == 8)
+                                if isBar then
+                                    local pct = 0
+                                    if GetQuestProgressBarPercent then
+                                        pct = GetQuestProgressBarPercent(questID) or 0
+                                    end
+                                    progressBar = {
+                                        min   = 0,
+                                        max   = 100,
+                                        value = pct,
+                                        text  = string_format("%d%%", math_floor(pct + 0.5)),
+                                    }
+                                else
+                                    -- Solution 2: Diminishing objectives (hide completed sub-objectives)
+                                    if not obj.finished then
+                                        local cleanTxt = (obj.text or ""):gsub(" / ", "/")
+                                        table_insert(lines, {
+                                            text      = cleanTxt,
+                                            completed = false,
+                                        })
+                                    end
+                                end
+                            end
+                        elseif _G.GetNumQuestLeaderBoards and _G.GetQuestLogLeaderBoard then
+                            local numLeaderBoards = _G.GetNumQuestLeaderBoards(i) or 0
+                            for objIndex = 1, numLeaderBoards do
+                                local desc, _, isFinished = _G.GetQuestLogLeaderBoard(objIndex, i)
+                                if desc and desc ~= "" then
+                                    -- Solution 2: Diminishing objectives (hide completed sub-objectives)
+                                    if not isFinished then
+                                        local cleanTxt = desc:gsub(" / ", "/")
+                                        table_insert(lines, {
+                                            text      = cleanTxt,
+                                            completed = false,
+                                        })
+                                    end
+                                end
+                            end
+                        end
+
+                        -- Waypoint direction text
+                        local wpText = Waypoints and Waypoints.GetWaypointText(questID, (superTrackedQuestID == questID))
+                        if wpText and wpText ~= "" then
+                            table_insert(lines, {
+                                text      = wpText,
+                                completed = false,
+                                color     = { 0.0, 1.0, 0.8, 1 },
+                            })
+                        end
+
+                        -- If all individual objectives are finished but quest not yet flagged complete
+                        if #lines == 0 and not progressBar then
+                            local compText = (Waypoints and Waypoints.GetCompletionText(i, canClickToComplete))
+                                or (canClickToComplete and (QUEST_WATCH_QUEST_COMPLETE or "Click to complete quest"))
+                                or "Ready for turn-in"
+                            table_insert(lines, {
+                                text      = compText,
+                                completed = true,
+                                color     = canClickToComplete and { 1.0, 0.0, 1.0, 1 } or { 0.2, 1.0, 0.2, 1 },
+                            })
+                        end
                     end
                 end
-            end
 
-            -- Usable Quest Item
-            local itemInfo = Items.GetQuestItemInfo(i, isComplete)
+                -- Usable Quest Item
+                local itemInfo = Items.GetQuestItemInfo(i, isComplete)
 
-            -- Group Finder (LFG) support through API (disabled on Classic/Forever)
-            local canFindGroup = FindGroup and FindGroup.CanFindGroup and
-            FindGroup.CanFindGroup(questID) or false
+                -- Group Finder (LFG) support through API (disabled on Classic/Forever)
+                local canFindGroup = FindGroup and FindGroup.CanFindGroup and
+                    FindGroup.CanFindGroup(questID) or false
 
-            -- SuperTracked state
-            local isSuper = (superTrackedQuestID == questID)
+                -- SuperTracked state
+                local isSuper = (superTrackedQuestID == questID)
 
-            local titleColor = { 1, 1, 1, 1 }
-            if canClickToComplete then
-                titleColor = { 1.0, 0.0, 1.0, 1 } -- #FF00FF
-            elseif isComplete then
-                titleColor = { 0.2, 1.0, 0.2, 1 }
-            elseif isFailed then
-                titleColor = { 1.0, 0.2, 0.2, 1 }
-            end
+                local titleColor = { 1, 1, 1, 1 }
+                if canClickToComplete then
+                    titleColor = { 1.0, 0.0, 1.0, 1 } -- #FF00FF
+                elseif isComplete then
+                    titleColor = { 0.2, 1.0, 0.2, 1 }
+                elseif isFailed then
+                    titleColor = { 1.0, 0.2, 0.2, 1 }
+                end
 
-            local isWarband = false
-            if C_QuestLog and C_QuestLog.IsQuestFlaggedCompletedOnAccount then
-                isWarband = (C_QuestLog.IsQuestFlaggedCompletedOnAccount(questID) == true)
-            end
+                local isWarband = false
+                if C_QuestLog and C_QuestLog.IsQuestFlaggedCompletedOnAccount then
+                    isWarband = (C_QuestLog.IsQuestFlaggedCompletedOnAccount(questID) == true)
+                end
 
-            table_insert(section.blocks, {
-                title              = displayTitle,
-                rawTitle           = title,
-                titleColor         = titleColor,
-                isSuperTracked     = isSuper,
-                questID            = questID,
-                questLogIndex      = i,
-                zoneName           = currentHeaderTitle,
-                level              = level,
-                suggestedGroup     = suggestedGroup,
-                isComplete         = isComplete,
-                canClickToComplete = canClickToComplete,
-                isFailed           = isFailed,
-                isRepeatable       = false,
-                isWarbandCompleted = isWarband,
-                itemInfo           = itemInfo,
-                timerBar           = nil, -- Suppressed on Camelot
-                timeLeftText       = rawClock and ("time remaining: " .. rawClock) or nil,
-                canFindGroup       = canFindGroup,
-                isExpanded         = isExpanded,
-                lines              = lines,
-                progressBar        = progressBar,
-                OnClick            = function(block, btn)
-                    OnQuestBlockClick(block, btn, questID, i, title, false, isExpanded, canClickToComplete)
-                end,
-            })
+                table_insert(section.blocks, {
+                    title              = displayTitle,
+                    rawTitle           = title,
+                    titleColor         = titleColor,
+                    isSuperTracked     = isSuper,
+                    questID            = questID,
+                    questLogIndex      = i,
+                    zoneName           = currentHeaderTitle,
+                    level              = level,
+                    suggestedGroup     = suggestedGroup,
+                    isComplete         = isComplete,
+                    canClickToComplete = canClickToComplete,
+                    isFailed           = isFailed,
+                    isRepeatable       = false,
+                    isWarbandCompleted = isWarband,
+                    itemInfo           = itemInfo,
+                    timerBar           = nil, -- Suppressed on Camelot
+                    timeLeftText       = rawClock and ("time remaining: " .. rawClock) or nil,
+                    canFindGroup       = canFindGroup,
+                    isExpanded         = isExpanded,
+                    lines              = lines,
+                    progressBar        = progressBar,
+                    OnClick            = function(block, btn)
+                        OnQuestBlockClick(block, btn, questID, i, title, false, isExpanded, canClickToComplete)
+                    end,
+                })
             end
         end
     end

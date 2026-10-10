@@ -211,6 +211,7 @@ function sfui.theme.ApplyThemeBarTexture(textureName)
     sfui.options.notify_setting_changed("bars", "barTexture", val)
     sfui.options.notify_setting_changed("castbar", "barTexture", val)
     sfui.options.notify_setting_changed("trackedbars", "barTexture", val)
+    sfui.options.notify_setting_changed("experience", "barTexture", val)
     if not sfui.isRetail then
         sfui.options.notify_setting_changed("target", "barTexture", val)
     end
@@ -3170,6 +3171,17 @@ function sfui.theme.ApplyCurrentTheme()
 
     -- 12. Broadcast message to any listening modules
     sfui.events.SendMessage("SFUI_THEME_CHANGED", pal.id, pal, theme)
+
+    -- 12b. Refresh experience & reputation bar textures and theme
+    if sfui.experience and sfui.experience.SetBarTexture then
+        sfui.experience.SetBarTexture()
+    end
+    if sfui.experience and sfui.experience.bar and sfui.experience.bar.ApplyTheme then
+        sfui.experience.bar.ApplyTheme()
+    end
+    if sfui.experience and sfui.experience.reputation and sfui.experience.reputation.ApplyTheme then
+        sfui.experience.reputation.ApplyTheme()
+    end
 
     -- 13. Re-style all registered bars
     for bar, barType in pairs(registered_bars) do

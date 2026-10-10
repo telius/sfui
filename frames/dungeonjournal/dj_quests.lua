@@ -1,7 +1,7 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
-local GameTooltip = sfui.common.get_tooltip()  -- private addon tooltip (methods.md §3.7.2)
+local GameTooltip = sfui.common.get_tooltip() -- private addon tooltip (methods.md §3.7.2)
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/dungeonjournal/dj_quests.lua
@@ -14,26 +14,26 @@ local GameTooltip = sfui.common.get_tooltip()  -- private addon tooltip (methods
 if sfui.isRetail then return end
 
 -- ─── Constants ────────────────────────────────────────────────────────────────
-local QUEST_BTN_H    = 46
-local QUEST_BTN_PAD  = 4
-local REWARD_ROW_H   = 46
-local REWARD_ROW_PAD = 4
-local ICON_SZ        = 34
-local QUEST_LIST_W   = 200
+local QUEST_BTN_H        = 46
+local QUEST_BTN_PAD      = 4
+local REWARD_ROW_H       = 46
+local REWARD_ROW_PAD     = 4
+local ICON_SZ            = 34
+local QUEST_LIST_W       = 200
 
-local theme  = sfui.theme
-local common = sfui.common
+local theme              = sfui.theme
+local common             = sfui.common
 
 -- ─── Locals & State ───────────────────────────────────────────────────────────
-local questPanel        = nil
-local questListScroll   = nil
-local questListContent  = nil
-local detailScroll      = nil
-local detailContent     = nil
-local questHeaderFrame  = nil
+local questPanel         = nil
+local questListScroll    = nil
+local questListContent   = nil
+local detailScroll       = nil
+local detailContent      = nil
+local questHeaderFrame   = nil
 
-local questButtons      = {}
-local rewardButtons     = {}
+local questButtons       = {}
+local rewardButtons      = {}
 
 local selectedQuestIndex = 1
 local debounceTimer      = nil
@@ -121,7 +121,8 @@ local function GetLiveQuestObjectives(questID)
             wipe(reusedObjectiveLines)
             for _, obj in ipairs(objectives) do
                 if type(obj) == "table" and obj.text and obj.text ~= "" then
-                    local isFinished = obj.finished or (obj.numRequired and obj.numRequired > 0 and obj.numFulfilled and obj.numFulfilled >= obj.numRequired)
+                    local isFinished = obj.finished or
+                    (obj.numRequired and obj.numRequired > 0 and obj.numFulfilled and obj.numFulfilled >= obj.numRequired)
                     if isFinished then
                         reusedObjectiveLines[#reusedObjectiveLines + 1] = "|cff00ff00[done]|r " .. obj.text
                     else
@@ -311,14 +312,18 @@ local function RenderQuestDetail(quest, dungeon)
 
         local fColor = "|cffffd100"
         local fLower = quest.faction and quest.faction:lower() or "both"
-        if fLower == "alliance" then fColor = "|cff00aaff"
-        elseif fLower == "horde" then fColor = "|cffff4444" end
+        if fLower == "alliance" then
+            fColor = "|cff00aaff"
+        elseif fLower == "horde" then
+            fColor = "|cffff4444"
+        end
 
         local tagsLine1 = {}
         if dungeon and dungeon.name then
             tagsLine1[#tagsLine1 + 1] = dungeon.name
         end
-        local minLvl = quest.minLevel or (sfui.dj_camelot and sfui.dj_camelot.questMinLevels and sfui.dj_camelot.questMinLevels[quest.id])
+        local minLvl = quest.minLevel or
+        (sfui.dj_camelot and sfui.dj_camelot.questMinLevels and sfui.dj_camelot.questMinLevels[quest.id])
         if minLvl and quest.level then
             tagsLine1[#tagsLine1 + 1] = "req lvl " .. minLvl .. "  ·  rec lvl " .. quest.level
         elseif quest.level then
@@ -365,14 +370,15 @@ local function RenderQuestDetail(quest, dungeon)
     if not info then
         info = CreateFrame("Frame", nil, detailContent)
         detailContent.infoFrame = info
-        info:SetPoint("TOPLEFT",  detailContent, "TOPLEFT",  8, -6)
+        info:SetPoint("TOPLEFT", detailContent, "TOPLEFT", 8, -6)
         info:SetPoint("TOPRIGHT", detailContent, "TOPRIGHT", -8, -6)
 
         local FONT_DESC  = _G.GameFontNormalMed2 and "GameFontNormalMed2" or "GameFontNormal"
-        local FONT_LABEL = _G.GameFontHighlightMed2 and "GameFontHighlightMed2" or (_G.GameFontHighlight and "GameFontHighlight" or "GameFontNormal")
+        local FONT_LABEL = _G.GameFontHighlightMed2 and "GameFontHighlightMed2" or
+        (_G.GameFontHighlight and "GameFontHighlight" or "GameFontNormal")
 
-        local oLabel = info:CreateFontString(nil, "OVERLAY", FONT_LABEL)
-        info.oLabel = oLabel
+        local oLabel     = info:CreateFontString(nil, "OVERLAY", FONT_LABEL)
+        info.oLabel      = oLabel
         oLabel:SetText("objectives:")
         oLabel:SetTextColor(accent[1], accent[2], accent[3], 1)
 
@@ -461,7 +467,8 @@ local function RenderQuestDetail(quest, dungeon)
             if sfui.dungeonjournal and sfui.dungeonjournal.GetQuestChainInfo then
                 local steps, currentStep, currentStepIndex, allDone = sfui.dungeonjournal.GetQuestChainInfo(quest)
                 if steps and currentStep then
-                    local c = currentStep.coords or (db and ((db.GetQuestCoords and db.GetQuestCoords(currentStep.id)) or (db.questCoords and db.questCoords[currentStep.id])))
+                    local c = currentStep.coords or
+                    (db and ((db.GetQuestCoords and db.GetQuestCoords(currentStep.id)) or (db.questCoords and db.questCoords[currentStep.id])))
                     if c and c.mapID then
                         local x = c.x
                         local y = c.y
@@ -473,7 +480,8 @@ local function RenderQuestDetail(quest, dungeon)
             end
 
             -- 1. Explicit quest coordinates from database
-            local c = db and ((db.GetQuestCoords and db.GetQuestCoords(quest.id)) or (db.questCoords and db.questCoords[quest.id]))
+            local c = db and
+            ((db.GetQuestCoords and db.GetQuestCoords(quest.id)) or (db.questCoords and db.questCoords[quest.id]))
             if c and c.mapID then
                 local x = c.x
                 local y = c.y
@@ -538,7 +546,9 @@ local function RenderQuestDetail(quest, dungeon)
             local q = detailContent.activeQuest
             local mapID, x, y, src, step = ResolveQuestMapCoords(q)
             if src == "chain_step" and step then
-                GameTooltip:AddLine(string.format("Opens map and places a waypoint at current step: %s (%s).", tostring(step.name or "chain step"), tostring(step.pickup or "")), 1, 1, 1, true)
+                GameTooltip:AddLine(
+                string.format("Opens map and places a waypoint at current step: %s (%s).",
+                    tostring(step.name or "chain step"), tostring(step.pickup or "")), 1, 1, 1, true)
             elseif src == "quest" then
                 GameTooltip:AddLine("opens map and places a waypoint at the quest pickup location.", 1, 1, 1, true)
             elseif src == "entrance" then
@@ -637,7 +647,7 @@ local function RenderQuestDetail(quest, dungeon)
 
             -- Ensure Dungeon Journal remains open, visible, and elevated above the WorldMap
             local djFrame = (sfui.dungeonjournal and sfui.dungeonjournal.GetFrame and sfui.dungeonjournal.GetFrame())
-                         or (sfui.dungeonjournal and sfui.dungeonjournal.frame)
+                or (sfui.dungeonjournal and sfui.dungeonjournal.frame)
             if djFrame then
                 if not djFrame:IsShown() then
                     djFrame:Show()
@@ -681,7 +691,7 @@ local function RenderQuestDetail(quest, dungeon)
         currY = currY + oLabelH + 3
 
         info.oText:ClearAllPoints()
-        info.oText:SetPoint("TOPLEFT",  info, "TOPLEFT",  0, -currY)
+        info.oText:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
         info.oText:SetPoint("TOPRIGHT", info, "TOPRIGHT", 0, -currY)
         info.oText:SetText(objText)
         local oH = math.max(16, math.ceil(info.oText:GetStringHeight() or 16))
@@ -698,7 +708,7 @@ local function RenderQuestDetail(quest, dungeon)
     currY = currY + pLabelH + 3
 
     info.pText:ClearAllPoints()
-    info.pText:SetPoint("TOPLEFT",  info, "TOPLEFT",  0, -currY)
+    info.pText:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
     info.pText:SetPoint("TOPRIGHT", info, "TOPRIGHT", 0, -currY)
     local pickupStatusStr = ""
     if isDone then
@@ -723,7 +733,7 @@ local function RenderQuestDetail(quest, dungeon)
     currY = currY + tLabelH + 3
 
     info.tText:ClearAllPoints()
-    info.tText:SetPoint("TOPLEFT",  info, "TOPLEFT",  0, -currY)
+    info.tText:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
     info.tText:SetPoint("TOPRIGHT", info, "TOPRIGHT", 0, -currY)
     info.tText:SetText(quest.turnin or "unknown turn-in npc")
     local tH = math.max(16, math.ceil(info.tText:GetStringHeight() or 16))
@@ -796,7 +806,7 @@ local function RenderQuestDetail(quest, dungeon)
         currY = currY + cLabelH + 4
 
         info.cText:ClearAllPoints()
-        info.cText:SetPoint("TOPLEFT",  info, "TOPLEFT",  0, -currY)
+        info.cText:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
         info.cText:SetPoint("TOPRIGHT", info, "TOPRIGHT", 0, -currY)
         local cH = math.max(16, math.ceil(info.cText:GetStringHeight() or 16))
         currY = currY + cH + 12
@@ -811,7 +821,8 @@ local function RenderQuestDetail(quest, dungeon)
     local hasMap = resolveFn and (resolveFn(quest) ~= nil)
     if hasMap == nil then
         local db = sfui.dj_camelot or (sfui.data and sfui.data.dj_camelot)
-        local qcoords = db and ((db.GetQuestCoords and db.GetQuestCoords(quest.id)) or (db.questCoords and db.questCoords[quest.id]))
+        local qcoords = db and
+        ((db.GetQuestCoords and db.GetQuestCoords(quest.id)) or (db.questCoords and db.questCoords[quest.id]))
         hasMap = (qcoords ~= nil) or (GetCurrentDungeon() ~= nil)
     end
 
@@ -850,7 +861,7 @@ local function RenderQuestDetail(quest, dungeon)
 
     if #rewardItems > 0 then
         info.div:ClearAllPoints()
-        info.div:SetPoint("TOPLEFT",  info, "TOPLEFT",  0, -textBlockHeight)
+        info.div:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -textBlockHeight)
         info.div:SetPoint("TOPRIGHT", info, "TOPRIGHT", 0, -textBlockHeight)
         info.div:Show()
 
@@ -865,18 +876,20 @@ local function RenderQuestDetail(quest, dungeon)
         for _, itemID in ipairs(rewardItems) do
             local btn = AcquireRewardButton(rewardButtons, detailContent)
             btn:ClearAllPoints()
-            btn:SetPoint("TOPLEFT",  detailContent, "TOPLEFT",  8, -startY)
+            btn:SetPoint("TOPLEFT", detailContent, "TOPLEFT", 8, -startY)
             btn:SetPoint("TOPRIGHT", detailContent, "TOPRIGHT", -8, -startY)
             btn:SetHeight(REWARD_ROW_H)
 
-            local name, link, quality, iLevel, reqLevel, class, subclass, _, equipSlot, icon = common.get_item_info(itemID)
+            local name, link, quality, iLevel, reqLevel, class, subclass, _, equipSlot, icon = common.get_item_info(
+            itemID)
 
             if not name or not icon then
-                local instName, _, instQuality, _, _, _, _, _, instEquipLoc, instIcon = common.get_item_instant_info(itemID)
-                name      = instName or ("item #" .. itemID)
-                quality   = instQuality or 1
-                icon      = instIcon or 134400
-                equipSlot = instEquipLoc
+                local instName, _, instQuality, _, _, _, _, _, instEquipLoc, instIcon = common.get_item_instant_info(
+                itemID)
+                name                                                                  = instName or ("item #" .. itemID)
+                quality                                                               = instQuality or 1
+                icon                                                                  = instIcon or 134400
+                equipSlot                                                             = instEquipLoc
                 if common and common.request_item_load then
                     common.request_item_load(itemID)
                 elseif _G.C_Item and _G.C_Item.RequestLoadItemDataByID then
@@ -884,8 +897,8 @@ local function RenderQuestDetail(quest, dungeon)
                 end
             end
 
-            btn.itemID = itemID
-            btn.link   = link
+            btn.itemID    = itemID
+            btn.link      = link
 
             local r, g, b = GetQualityColor(quality)
 
@@ -982,9 +995,9 @@ local function RefreshQuestView()
 
     ReleaseAll(questButtons)
 
-    local pal    = theme.GetPalette()
-    local accent = pal and pal.accentColor or { 1, 0.78, 0.2, 1 }
-    local pLvl   = UnitLevel("player") or 1
+    local pal        = theme.GetPalette()
+    local accent     = pal and pal.accentColor or { 1, 0.78, 0.2, 1 }
+    local pLvl       = UnitLevel("player") or 1
 
     local savedQuest = DJ_DB().lastQuest or 1
     if savedQuest > #quests then savedQuest = 1 end
@@ -994,13 +1007,13 @@ local function RefreshQuestView()
     for idx, q in ipairs(quests) do
         local btn = AcquireQuestButton(questButtons, questListContent)
         btn:ClearAllPoints()
-        btn:SetPoint("TOPLEFT",  questListContent, "TOPLEFT",  0, -y)
+        btn:SetPoint("TOPLEFT", questListContent, "TOPLEFT", 0, -y)
         btn:SetPoint("TOPRIGHT", questListContent, "TOPRIGHT", 0, -y)
         btn:SetHeight(QUEST_BTN_H)
 
         -- Status check
-        local isDone   = IsQuestCompleted(q.id)
-        local isActive = not isDone and IsQuestInLog(q.id)
+        local isDone     = IsQuestCompleted(q.id)
+        local isActive   = not isDone and IsQuestInLog(q.id)
         local isSelected = (idx == selectedQuestIndex)
 
         -- Icon & Checkmark
@@ -1060,7 +1073,8 @@ local function RefreshQuestView()
             end
         end
 
-        local minLvl = q.minLevel or (sfui.dj_camelot and sfui.dj_camelot.questMinLevels and sfui.dj_camelot.questMinLevels[q.id])
+        local minLvl = q.minLevel or
+        (sfui.dj_camelot and sfui.dj_camelot.questMinLevels and sfui.dj_camelot.questMinLevels[q.id])
         local lvlStr = q.level and ("[" .. q.level .. "] ") or ""
         local statusStr = ""
         if isDone then
@@ -1124,9 +1138,12 @@ local function RefreshQuestView()
         local hasVisibleProgress = (total > 0) and (completed < total) and (inProg > 0 or completed > 0)
 
         if hasVisibleProgress then
-            local pStr = (inProg > 0) and string.format("|cff00e5ffp %d/%d|r", inProg, total) or string.format("|cff777777p %d/%d|r", inProg, total)
-            local cStr = (completed > 0) and string.format("|cff00ff00c %d/%d|r", completed, total) or string.format("|cff777777c %d/%d|r", completed, total)
-            questPanel.questSummaryBar.text:SetText(string.format("|cff888888(|r%s |cff666666-|r %s|cff888888)|r", pStr, cStr))
+            local pStr = (inProg > 0) and string.format("|cff00e5ffp %d/%d|r", inProg, total) or
+            string.format("|cff777777p %d/%d|r", inProg, total)
+            local cStr = (completed > 0) and string.format("|cff00ff00c %d/%d|r", completed, total) or
+            string.format("|cff777777c %d/%d|r", completed, total)
+            questPanel.questSummaryBar.text:SetText(string.format("|cff888888(|r%s |cff666666-|r %s|cff888888)|r", pStr,
+                cStr))
             questPanel.questSummaryBar:Show()
             if questListScroll and questPanel.questListContainer then
                 questListScroll:ClearAllPoints()
@@ -1148,7 +1165,8 @@ local function RefreshQuestView()
             GameTooltip:AddLine("dungeon quest progress", 1, 0.82, 0)
             GameTooltip:AddLine(string.format("in progress (picked up): %d / %d", inProg, total), 0, 0.9, 1)
             GameTooltip:AddLine(string.format("completed: %d / %d", completed, total), 0, 1, 0)
-            GameTooltip:AddLine(string.format("not picked up: %d / %d", total - inProg - completed, total), 0.75, 0.75, 0.75)
+            GameTooltip:AddLine(string.format("not picked up: %d / %d", total - inProg - completed, total), 0.75, 0.75,
+                0.75)
             GameTooltip:Show()
         end)
         questPanel.questSummaryBar:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -1167,9 +1185,9 @@ local function QueueQuestRefresh(itemID)
     if isQuestRefreshQueued then return end
 
     if itemID then
-        local dungeon   = GetCurrentDungeon()
-        local allQuests = dungeon and dungeon.quests or {}
-        local quests    = GetFilteredQuests(allQuests)
+        local dungeon      = GetCurrentDungeon()
+        local allQuests    = dungeon and dungeon.quests or {}
+        local quests       = GetFilteredQuests(allQuests)
         local currentQuest = quests[selectedQuestIndex]
         if not currentQuest or not currentQuest.rewardItems then return end
         local found = false
@@ -1187,9 +1205,9 @@ local function QueueQuestRefresh(itemID)
         _G.C_Timer.After(0.15, function()
             isQuestRefreshQueued = false
             if questPanel and questPanel:IsShown() then
-                local dungeon   = GetCurrentDungeon()
-                local allQuests = dungeon and dungeon.quests or {}
-                local quests    = GetFilteredQuests(allQuests)
+                local dungeon      = GetCurrentDungeon()
+                local allQuests    = dungeon and dungeon.quests or {}
+                local quests       = GetFilteredQuests(allQuests)
                 local currentQuest = quests[selectedQuestIndex]
                 if currentQuest then
                     RenderQuestDetail(currentQuest, dungeon)
@@ -1210,7 +1228,7 @@ local function OnFrameCreated(arg1, arg2)
 
     -- ── Left Sub-Panel: Quest List Container ──────────────────────────────────
     local questListContainer = CreateFrame("Frame", nil, questPanel, "BackdropTemplate")
-    questListContainer:SetPoint("TOPLEFT",    questPanel, "TOPLEFT",    0, 0)
+    questListContainer:SetPoint("TOPLEFT", questPanel, "TOPLEFT", 0, 0)
     questListContainer:SetPoint("BOTTOMLEFT", questPanel, "BOTTOMLEFT", 0, 0)
     questListContainer:SetWidth(QUEST_LIST_W)
     theme.ApplyContainerStyle(questListContainer)
@@ -1218,7 +1236,7 @@ local function OnFrameCreated(arg1, arg2)
     -- Top Notifier Bar (e.g. "(p 1/6 - c 3/6)")
     local questSummaryBar = CreateFrame("Frame", nil, questListContainer, "BackdropTemplate")
     questPanel.questSummaryBar = questSummaryBar
-    questSummaryBar:SetPoint("TOPLEFT",  questListContainer, "TOPLEFT",  4, -4)
+    questSummaryBar:SetPoint("TOPLEFT", questListContainer, "TOPLEFT", 4, -4)
     questSummaryBar:SetPoint("TOPRIGHT", questListContainer, "TOPRIGHT", -4, -4)
     questSummaryBar:SetHeight(22)
     common.apply_flat_backdrop(questSummaryBar, { 0.06, 0.06, 0.08, 0.85 }, { 0.18, 0.18, 0.22, 0.8 })
@@ -1229,8 +1247,9 @@ local function OnFrameCreated(arg1, arg2)
     sumText:SetText("")
 
     -- ScrollFrame below summary bar (width: 200 - 6 - 22 = 172)
-    questListScroll = CreateFrame("ScrollFrame", "SfuiDJQuestListScroll", questListContainer, "UIPanelScrollFrameTemplate")
-    questListScroll:SetPoint("TOPLEFT",     questSummaryBar,    "BOTTOMLEFT",  0, -3)
+    questListScroll = CreateFrame("ScrollFrame", "SfuiDJQuestListScroll", questListContainer,
+        "UIPanelScrollFrameTemplate")
+    questListScroll:SetPoint("TOPLEFT", questSummaryBar, "BOTTOMLEFT", 0, -3)
     questListScroll:SetPoint("BOTTOMRIGHT", questListContainer, "BOTTOMRIGHT", -22, 4)
 
     local QUEST_SCROLL_W = 172
@@ -1244,13 +1263,13 @@ local function OnFrameCreated(arg1, arg2)
 
     -- ── Right Sub-Panel: Quest Detail Container ───────────────────────────────
     local detailContainer = CreateFrame("Frame", nil, questPanel, "BackdropTemplate")
-    detailContainer:SetPoint("TOPLEFT",     questListContainer, "TOPRIGHT",    8, 0)
-    detailContainer:SetPoint("BOTTOMRIGHT", questPanel,         "BOTTOMRIGHT", 0, 0)
+    detailContainer:SetPoint("TOPLEFT", questListContainer, "TOPRIGHT", 8, 0)
+    detailContainer:SetPoint("BOTTOMRIGHT", questPanel, "BOTTOMRIGHT", 0, 0)
     theme.ApplyContainerStyle(detailContainer)
 
     -- Header in Detail Container
     questHeaderFrame = CreateFrame("Frame", nil, detailContainer)
-    questHeaderFrame:SetPoint("TOPLEFT",  detailContainer, "TOPLEFT",  10, -8)
+    questHeaderFrame:SetPoint("TOPLEFT", detailContainer, "TOPLEFT", 10, -8)
     questHeaderFrame:SetPoint("TOPRIGHT", detailContainer, "TOPRIGHT", -10, -8)
     questHeaderFrame:SetHeight(58)
 
@@ -1270,15 +1289,15 @@ local function OnFrameCreated(arg1, arg2)
 
     -- Divider under header
     local div = detailContainer:CreateTexture(nil, "ARTWORK")
-    div:SetPoint("TOPLEFT",  questHeaderFrame, "BOTTOMLEFT",  0, -2)
+    div:SetPoint("TOPLEFT", questHeaderFrame, "BOTTOMLEFT", 0, -2)
     div:SetPoint("TOPRIGHT", questHeaderFrame, "BOTTOMRIGHT", 0, -2)
     div:SetHeight(1)
     div:SetColorTexture(0.2, 0.2, 0.24, 0.8)
 
     -- Details ScrollFrame (width: 428 - 10 - 22 = 396)
     detailScroll = CreateFrame("ScrollFrame", "SfuiDJQuestDetailScroll", detailContainer, "UIPanelScrollFrameTemplate")
-    detailScroll:SetPoint("TOPLEFT",     questHeaderFrame, "BOTTOMLEFT",   0, -8)
-    detailScroll:SetPoint("BOTTOMRIGHT", detailContainer,  "BOTTOMRIGHT", -22, 8)
+    detailScroll:SetPoint("TOPLEFT", questHeaderFrame, "BOTTOMLEFT", 0, -8)
+    detailScroll:SetPoint("BOTTOMRIGHT", detailContainer, "BOTTOMRIGHT", -22, 8)
 
     local DETAIL_SCROLL_W = 396
     detailContent = CreateFrame("Frame", nil, detailScroll)
@@ -1308,7 +1327,6 @@ if sfui.events and sfui.events.RegisterMessage then
 end
 
 if sfui.events and sfui.events.RegisterEvent then
-
     -- Live quest updates when completing or picking up quests (debounced)
     local function DebouncedRefresh()
         if questPanel and questPanel:IsShown() then
@@ -1321,7 +1339,7 @@ if sfui.events and sfui.events.RegisterEvent then
         end
     end
     sfui.events.RegisterEvent("QUEST_LOG_UPDATE", OnQuestLogChanged)
-    sfui.events.RegisterEvent("QUEST_TURNED_IN",  OnQuestLogChanged)
+    sfui.events.RegisterEvent("QUEST_TURNED_IN", OnQuestLogChanged)
 
     -- Debounced item cache updates
     local function OnItemInfoReceived(_, itemID, success)

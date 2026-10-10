@@ -1,7 +1,7 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
-local GameTooltip = sfui.common.get_tooltip()  -- private addon tooltip (methods.md §3.7.2)
+local GameTooltip = sfui.common.get_tooltip() -- private addon tooltip (methods.md §3.7.2)
 sfui.dungeonjournal = sfui.dungeonjournal or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -31,31 +31,31 @@ if sfui.isRetail then
 end
 
 -- ─── Constants ────────────────────────────────────────────────────────────────
-local FRAME_W       = 860
-local FRAME_H       = 600
-local SIDEBAR_W     = 200
-local CONTENT_X     = SIDEBAR_W + 10
-local CONTENT_W     = FRAME_W - SIDEBAR_W - 24 -- ~636
-local HEADER_H      = 46
-local TAB_H         = 28
-local INNER_PAD     = 10
+local FRAME_W                       = 860
+local FRAME_H                       = 600
+local SIDEBAR_W                     = 200
+local CONTENT_X                     = SIDEBAR_W + 10
+local CONTENT_W                     = FRAME_W - SIDEBAR_W - 24 -- ~636
+local HEADER_H                      = 46
+local TAB_H                         = 28
+local INNER_PAD                     = 10
 
 -- ─── Locals ───────────────────────────────────────────────────────────────────
 local pairs, ipairs, type, tostring = pairs, ipairs, type, tostring
 local math_floor                    = math.floor
 local table_insert                  = table.insert
 
-local common  = sfui.common
-local theme   = sfui.theme
+local common                        = sfui.common
+local theme                         = sfui.theme
 
-local frame            = nil   -- main window (lazy-created)
-local sidebarFrame     = nil
-local bossPanel        = nil
-local questPanel       = nil
+local frame                         = nil -- main window (lazy-created)
+local sidebarFrame                  = nil
+local bossPanel                     = nil
+local questPanel                    = nil
 
-local selectedDungeonID = nil  -- dungeon id string
-local selectedMode      = "bosses"  -- "bosses" | "quests"
-local selectedTab       = "dungeons" -- "dungeons" | "raids"
+local selectedDungeonID             = nil -- dungeon id string
+local selectedMode                  = "bosses" -- "bosses" | "quests"
+local selectedTab                   = "dungeons" -- "dungeons" | "raids"
 
 -- ─── SavedVariables helpers ───────────────────────────────────────────────────
 sfui.db.RegisterDefaults("dungeonjournal", {
@@ -177,9 +177,11 @@ function sfui.dungeonjournal.ToggleWishlist(itemID)
         local _, link = common.get_item_info(id)
         local name = link or ("Item #" .. id)
         if newState then
-            sfui.print("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffcc44ffwishlist added:|r " .. name)
+            sfui.print("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffcc44ffwishlist added:|r " ..
+            name)
         else
-            sfui.print("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cff888888wishlist removed:|r " .. name)
+            sfui.print("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cff888888wishlist removed:|r " ..
+            name)
         end
     end
     return newState
@@ -276,7 +278,8 @@ local function InsertItemLinkIntoChat(link)
     local activeChat = (_G.ChatFrameUtil and _G.ChatFrameUtil.GetActiveWindow and _G.ChatFrameUtil.GetActiveWindow())
         or (_G.ChatEdit_GetActiveWindow and _G.ChatEdit_GetActiveWindow())
         or _G.ACTIVE_CHAT_EDIT_BOX
-        or (_G.LAST_ACTIVE_CHAT_EDIT_BOX and (_G.LAST_ACTIVE_CHAT_EDIT_BOX:IsShown() or _G.LAST_ACTIVE_CHAT_EDIT_BOX:IsVisible()) and _G.LAST_ACTIVE_CHAT_EDIT_BOX)
+        or
+        (_G.LAST_ACTIVE_CHAT_EDIT_BOX and (_G.LAST_ACTIVE_CHAT_EDIT_BOX:IsShown() or _G.LAST_ACTIVE_CHAT_EDIT_BOX:IsVisible()) and _G.LAST_ACTIVE_CHAT_EDIT_BOX)
 
     if activeChat and (activeChat:IsShown() or activeChat:IsVisible()) and activeChat.Insert then
         activeChat:Insert(link)
@@ -312,12 +315,14 @@ local function ResolveItemLink(btn, fallbackItemID)
     end
 
     if not (itemLink and type(itemLink) == "string" and itemLink:find("|Hitem:")) and itemID then
-        local rawName = (btn and btn.nameText and btn.nameText.GetText and btn.nameText:GetText()) or ("item #" .. itemID)
+        local rawName = (btn and btn.nameText and btn.nameText.GetText and btn.nameText:GetText()) or
+        ("item #" .. itemID)
         local cleanName = rawName:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
         local _, _, q = common.get_item_instant_info(itemID)
         local quality = q or 1
         local r, g, b = GetQualityColor(quality)
-        local hex = string.format("ff%02x%02x%02x", math_floor((r or 1) * 255 + 0.5), math_floor((g or 1) * 255 + 0.5), math_floor((b or 1) * 255 + 0.5))
+        local hex = string.format("ff%02x%02x%02x", math_floor((r or 1) * 255 + 0.5), math_floor((g or 1) * 255 + 0.5),
+            math_floor((b or 1) * 255 + 0.5))
         itemLink = string.format("|c%s|Hitem:%d:0:0:0:0:0:0:0:0:0:0:0:0|h[%s]|h|r", hex, itemID, cleanName)
         if btn then
             btn.link = itemLink
@@ -330,8 +335,10 @@ sfui.dungeonjournal.ResolveItemLink = ResolveItemLink
 
 local function HandleItemClick(btn, mouseBtn, itemID)
     if mouseBtn == "LeftButton" then
-        local isChatLink = (_G.IsModifiedClick and _G.IsModifiedClick("CHATLINK")) or (_G.IsShiftKeyDown and _G.IsShiftKeyDown())
-        local isDressUp  = (_G.IsModifiedClick and _G.IsModifiedClick("DRESSUP")) or (_G.IsControlKeyDown and _G.IsControlKeyDown())
+        local isChatLink = (_G.IsModifiedClick and _G.IsModifiedClick("CHATLINK")) or
+        (_G.IsShiftKeyDown and _G.IsShiftKeyDown())
+        local isDressUp  = (_G.IsModifiedClick and _G.IsModifiedClick("DRESSUP")) or
+        (_G.IsControlKeyDown and _G.IsControlKeyDown())
 
         if isChatLink or isDressUp then
             local itemLink = ResolveItemLink(btn, itemID)
@@ -406,7 +413,8 @@ function sfui.dungeonjournal.GetQuestChainInfo(quest)
 
     local steps = {}
     for _, s in ipairs(rawChain) do
-        local coords = s.coords or (sfui.dj_camelot and sfui.dj_camelot.questCoords and sfui.dj_camelot.questCoords[s.id])
+        local coords = s.coords or
+        (sfui.dj_camelot and sfui.dj_camelot.questCoords and sfui.dj_camelot.questCoords[s.id])
         steps[#steps + 1] = {
             id = s.id,
             name = s.name,
@@ -420,7 +428,8 @@ function sfui.dungeonjournal.GetQuestChainInfo(quest)
         }
     end
     if steps[#steps].id ~= quest.id then
-        local qCoords = (sfui.dj_camelot and sfui.dj_camelot.questCoords and sfui.dj_camelot.questCoords[quest.id]) or quest.coords
+        local qCoords = (sfui.dj_camelot and sfui.dj_camelot.questCoords and sfui.dj_camelot.questCoords[quest.id]) or
+        quest.coords
         steps[#steps + 1] = {
             id = quest.id,
             name = quest.name,
@@ -459,8 +468,10 @@ function sfui.dungeonjournal._registerSidebar(fn)
     RefreshSidebar = fn
     sfui.dungeonjournal.RefreshSidebar = fn
 end
-function sfui.dungeonjournal._registerBosses(fn)   RefreshBossView  = fn  end
-function sfui.dungeonjournal._registerQuests(fn)   RefreshQuestView = fn  end
+
+function sfui.dungeonjournal._registerBosses(fn) RefreshBossView = fn end
+
+function sfui.dungeonjournal._registerQuests(fn) RefreshQuestView = fn end
 
 -- ─── Level Range Filter Helper ───────────────────────────────────────────────
 function sfui.dungeonjournal.IsDungeonInLevelRange(dungeon, playerLevel)
@@ -586,6 +597,7 @@ function sfui.dungeonjournal.RestoreAllHidden()
         sfui.print(string.format("restored %d hidden item%s (dungeons and map pins).", total, (total > 1 and "s" or "")))
     end
 end
+
 sfui.dungeonjournal.RestoreHiddenDungeons = sfui.dungeonjournal.RestoreAllHidden
 
 function sfui.dungeonjournal.IsDungeonTrivial(dungeon, playerLevel)
@@ -1014,13 +1026,13 @@ local function UpdateTabHighlights()
     if not frame then return end
     if theme.ApplyTabStyle then
         theme.ApplyTabStyle(frame.dungeonTabBtn, selectedTab == "dungeons")
-        theme.ApplyTabStyle(frame.raidTabBtn,    selectedTab == "raids")
-        theme.ApplyTabStyle(frame.bossesTab,     selectedMode == "bosses")
-        theme.ApplyTabStyle(frame.questsTab,     selectedMode == "quests")
+        theme.ApplyTabStyle(frame.raidTabBtn, selectedTab == "raids")
+        theme.ApplyTabStyle(frame.bossesTab, selectedMode == "bosses")
+        theme.ApplyTabStyle(frame.questsTab, selectedMode == "quests")
     else
         local pal    = theme.GetPalette()
         local accent = pal and pal.accentColor or { 1, 0.78, 0.2, 1 }
-        local dim    = pal and pal.tabNormal   or { 0.6, 0.6, 0.6, 1 }
+        local dim    = pal and pal.tabNormal or { 0.6, 0.6, 0.6, 1 }
 
         if frame.dungeonTabBtn then
             local da = (selectedTab == "dungeons") and accent or dim
@@ -1048,7 +1060,7 @@ local function SetMode(mode)
 
     if not frame then return end
 
-    if bossPanel  then bossPanel:SetShown(selectedMode == "bosses")  end
+    if bossPanel then bossPanel:SetShown(selectedMode == "bosses") end
     if questPanel then questPanel:SetShown(selectedMode == "quests") end
 
     UpdateTabHighlights()
@@ -1137,7 +1149,7 @@ function sfui.dungeonjournal.SelectDungeon(dungeonID, mode)
     if not frame:IsShown() then frame:Show() end
 
     UpdateTabHighlights()
-    if bossPanel  then bossPanel:SetShown(selectedMode == "bosses")  end
+    if bossPanel then bossPanel:SetShown(selectedMode == "bosses") end
     if questPanel then questPanel:SetShown(selectedMode == "quests") end
 
     if RefreshSidebar then RefreshSidebar() end
@@ -1217,13 +1229,13 @@ end
 function sfui.dungeonjournal.CreateFrame()
     if frame then return frame end
 
-    local saved = DJ_DB()
+    local saved       = DJ_DB()
     selectedDungeonID = saved.lastDungeon or nil
-    selectedMode      = saved.lastMode    or "bosses"
-    selectedTab       = saved.lastTab     or "dungeons"
+    selectedMode      = saved.lastMode or "bosses"
+    selectedTab       = saved.lastTab or "dungeons"
 
     -- ── Main window ───────────────────────────────────────────────────────────
-    frame = CreateFrame("Frame", "SfuiDungeonJournalFrame", UIParent, "BackdropTemplate")
+    frame             = CreateFrame("Frame", "SfuiDungeonJournalFrame", UIParent, "BackdropTemplate")
     frame:SetSize(FRAME_W, FRAME_H)
     frame:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
     frame:SetFrameStrata("DIALOG")
@@ -1232,7 +1244,7 @@ function sfui.dungeonjournal.CreateFrame()
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
-    frame:SetScript("OnDragStop",  frame.StopMovingOrSizing)
+    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 
     if _G.UISpecialFrames then
         table.insert(_G.UISpecialFrames, "SfuiDungeonJournalFrame")
@@ -1300,7 +1312,8 @@ function sfui.dungeonjournal.CreateFrame()
     navWpBtn:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
         GameTooltip:AddLine("set waypoint", 1, 0.82, 0)
-        GameTooltip:AddLine("set an in-game navigation waypoint and supertrack the entrance to this dungeon.", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("set an in-game navigation waypoint and supertrack the entrance to this dungeon.", 0.8, 0.8,
+            0.8, true)
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine("|cff00ff00<click to set navigation waypoint>|r", 0, 1, 0)
         GameTooltip:Show()
@@ -1314,7 +1327,8 @@ function sfui.dungeonjournal.CreateFrame()
         end
         if C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates then
             pcall(function()
-                C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(dungeon.entrance.mapID, dungeon.entrance.x, dungeon.entrance.y))
+                C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(dungeon.entrance.mapID, dungeon.entrance.x,
+                    dungeon.entrance.y))
             end)
             if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
                 pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
@@ -1449,10 +1463,15 @@ function sfui.dungeonjournal.CreateFrame()
         return row
     end
 
-    local rowEnt  = MakeMenuCheckbox("Dungeon Entrances", "showEntrancePins", "Show dungeon and raid entrance icons on the World Map.", -28)
+    local rowEnt  = MakeMenuCheckbox("Dungeon Entrances", "showEntrancePins",
+        "Show dungeon and raid entrance icons on the World Map.", -28)
     local rowQ    = MakeMenuCheckbox("Dungeon Quests", "showQuestPins", "Show quest pickup icons on the World Map.", -50)
-    local rowLvl  = MakeMenuCheckbox("Filter Quests by Level", "questPinsRequireLevel", "When enabled (default), shows all quests with a lower or equal level requirement (including gray/trivial quests), hiding only quests that require a higher level than your character. Uncheck to show higher-level locked quests as well.", -72)
-    local rowTriv = MakeMenuCheckbox("Hide Outleveled Entrances", "autoHideTrivialPins", "Automatically hides map pins for dungeon entrances whose recommended level is gray/trivial for your character. (Quest pins are never hidden by this setting; all quests of lower level requirement remain visible).", -94)
+    local rowLvl  = MakeMenuCheckbox("Filter Quests by Level", "questPinsRequireLevel",
+        "When enabled (default), shows all quests with a lower or equal level requirement (including gray/trivial quests), hiding only quests that require a higher level than your character. Uncheck to show higher-level locked quests as well.",
+        -72)
+    local rowTriv = MakeMenuCheckbox("Hide Outleveled Entrances", "autoHideTrivialPins",
+        "Automatically hides map pins for dungeon entrances whose recommended level is gray/trivial for your character. (Quest pins are never hidden by this setting; all quests of lower level requirement remain visible).",
+        -94)
 
     mapMenu:SetSize(230, 180)
 
@@ -1576,7 +1595,7 @@ function sfui.dungeonjournal.CreateFrame()
     frame.raidTabBtn    = MakeTopTab("raids", "LEFT", frame.dungeonTabBtn)
 
     frame.dungeonTabBtn:SetScript("OnClick", function() SetTab("dungeons") end)
-    frame.raidTabBtn:SetScript("OnClick",    function() SetTab("raids")    end)
+    frame.raidTabBtn:SetScript("OnClick", function() SetTab("raids") end)
 
     -- ── Boss / Quest mode tabs (right group, top aligned with dungeon tabs) ───
     local function MakeModeTab(text, anchorRef, width)
@@ -1611,15 +1630,15 @@ function sfui.dungeonjournal.CreateFrame()
     local sidebarY = -(HEADER_H + TAB_H + 8)
     sidebarFrame = CreateFrame("Frame", nil, frame, "BackdropTemplate")
     frame.sidebarFrame = sidebarFrame
-    sidebarFrame:SetPoint("TOPLEFT",    frame, "TOPLEFT",    8,  sidebarY)
-    sidebarFrame:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 8,  8)
+    sidebarFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, sidebarY)
+    sidebarFrame:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 8, 8)
     sidebarFrame:SetWidth(SIDEBAR_W)
     theme.ApplyContainerStyle(sidebarFrame)
 
     -- ── Content area ──────────────────────────────────────────────────────────
     local contentArea = CreateFrame("Frame", nil, frame)
     frame.contentArea = contentArea
-    contentArea:SetPoint("TOPLEFT",     frame, "TOPLEFT",     SIDEBAR_W + 16, sidebarY)
+    contentArea:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDEBAR_W + 16, sidebarY)
     contentArea:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -8, 8)
 
     -- ── Boss panel container ───────────────────────────────────────────────────
@@ -1659,8 +1678,8 @@ function sfui.dungeonjournal.CreateFrame()
     }
 
     if sfui.dungeonjournal._initSidebar then sfui.dungeonjournal._initSidebar(payload) end
-    if sfui.dungeonjournal._initBosses  then sfui.dungeonjournal._initBosses(payload)  end
-    if sfui.dungeonjournal._initQuests  then sfui.dungeonjournal._initQuests(payload)  end
+    if sfui.dungeonjournal._initBosses then sfui.dungeonjournal._initBosses(payload) end
+    if sfui.dungeonjournal._initQuests then sfui.dungeonjournal._initQuests(payload) end
 
     if sfui.events and sfui.events.SendMessage then
         sfui.events.SendMessage("SFUI_DJ_FRAME_CREATED", payload)
@@ -1683,8 +1702,8 @@ function sfui.dungeonjournal.Toggle()
             questPanel   = frame.questPanel or questPanel,
         }
         if sfui.dungeonjournal._initSidebar then sfui.dungeonjournal._initSidebar(payload) end
-        if sfui.dungeonjournal._initBosses  then sfui.dungeonjournal._initBosses(payload)  end
-        if sfui.dungeonjournal._initQuests  then sfui.dungeonjournal._initQuests(payload)  end
+        if sfui.dungeonjournal._initBosses then sfui.dungeonjournal._initBosses(payload) end
+        if sfui.dungeonjournal._initQuests then sfui.dungeonjournal._initQuests(payload) end
     end
 
     if frame:IsShown() then
@@ -1696,8 +1715,9 @@ function sfui.dungeonjournal.Toggle()
         if DJ_DB().autoDetectInstance ~= false then
             local activeDungeon = GetCurrentInstanceDungeon()
             if activeDungeon then
-                selectedDungeonID = activeDungeon.id
-                selectedTab = (activeDungeon.category == "camelot_raid" or activeDungeon.category == "classic_raid") and "raids" or "dungeons"
+                selectedDungeonID   = activeDungeon.id
+                selectedTab         = (activeDungeon.category == "camelot_raid" or activeDungeon.category == "classic_raid") and
+                "raids" or "dungeons"
                 DJ_DB().lastDungeon = selectedDungeonID
                 DJ_DB().lastTab     = selectedTab
             end
@@ -1720,7 +1740,7 @@ function sfui.dungeonjournal.Toggle()
         end
 
         UpdateTabHighlights()
-        if bossPanel  then bossPanel:SetShown(selectedMode == "bosses")  end
+        if bossPanel then bossPanel:SetShown(selectedMode == "bosses") end
         if questPanel then questPanel:SetShown(selectedMode == "quests") end
 
         if RefreshSidebar then RefreshSidebar() end
@@ -1745,8 +1765,8 @@ function sfui.dungeonjournal.Open()
             questPanel   = frame.questPanel or questPanel,
         }
         if sfui.dungeonjournal._initSidebar then sfui.dungeonjournal._initSidebar(payload) end
-        if sfui.dungeonjournal._initBosses  then sfui.dungeonjournal._initBosses(payload)  end
-        if sfui.dungeonjournal._initQuests  then sfui.dungeonjournal._initQuests(payload)  end
+        if sfui.dungeonjournal._initBosses then sfui.dungeonjournal._initBosses(payload) end
+        if sfui.dungeonjournal._initQuests then sfui.dungeonjournal._initQuests(payload) end
     end
 
     if not frame:IsShown() then
@@ -1756,8 +1776,9 @@ function sfui.dungeonjournal.Open()
         if DJ_DB().autoDetectInstance ~= false then
             local activeDungeon = GetCurrentInstanceDungeon()
             if activeDungeon then
-                selectedDungeonID = activeDungeon.id
-                selectedTab = (activeDungeon.category == "camelot_raid" or activeDungeon.category == "classic_raid") and "raids" or "dungeons"
+                selectedDungeonID   = activeDungeon.id
+                selectedTab         = (activeDungeon.category == "camelot_raid" or activeDungeon.category == "classic_raid") and
+                "raids" or "dungeons"
                 DJ_DB().lastDungeon = selectedDungeonID
                 DJ_DB().lastTab     = selectedTab
             end
@@ -1780,7 +1801,7 @@ function sfui.dungeonjournal.Open()
         end
 
         UpdateTabHighlights()
-        if bossPanel  then bossPanel:SetShown(selectedMode == "bosses")  end
+        if bossPanel then bossPanel:SetShown(selectedMode == "bosses") end
         if questPanel then questPanel:SetShown(selectedMode == "quests") end
 
         if RefreshSidebar then RefreshSidebar() end
@@ -1842,7 +1863,7 @@ function sfui.dungeonjournal.ClearCache()
 end
 
 function sfui.dungeonjournal.Rebuild()
-    if RefreshSidebar  then RefreshSidebar()  end
+    if RefreshSidebar then RefreshSidebar() end
     if selectedMode == "bosses" and RefreshBossView then
         RefreshBossView()
     elseif selectedMode == "quests" and RefreshQuestView then
@@ -1855,7 +1876,7 @@ sfui.lootviewer_camelot = sfui.dungeonjournal
 sfui.ToggleLootViewer   = sfui.dungeonjournal.Toggle
 
 -- ─── Module telemetry & registration ──────────────────────────────────────────
-local _djDebug = {}
+local _djDebug          = {}
 function sfui.dungeonjournal_debug_info()
     _djDebug.isCreated       = (frame ~= nil)
     _djDebug.isShown         = (frame ~= nil and frame:IsShown() == true)
@@ -1864,6 +1885,7 @@ function sfui.dungeonjournal_debug_info()
     _djDebug.selectedDungeon = selectedDungeonID
     return _djDebug
 end
+
 sfui.dungeonjournal.GetDebugInfo = sfui.dungeonjournal_debug_info
 
 if sfui.RegisterModule then

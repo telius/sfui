@@ -26,7 +26,12 @@ local wipe = _G.wipe or function(t)
     return t
 end
 local unpack = _G.unpack or _G.table.unpack
-local GetInventoryItemLink = _G.GetInventoryItemLink
+local GetInventoryItemLink = function(unit, slotID)
+    if sfui.common and sfui.common.get_inventory_item_link then
+        return sfui.common.get_inventory_item_link(unit, slotID)
+    end
+    return _G.GetInventoryItemLink and _G.GetInventoryItemLink(unit, slotID)
+end
 local GetItemInfoInstant = sfui.common.get_item_instant_info
 local GetItemInfo = sfui.common.get_item_info
 local IsShiftKeyDown = _G.IsShiftKeyDown

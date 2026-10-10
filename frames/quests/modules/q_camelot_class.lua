@@ -11,13 +11,13 @@
     - Usable quest items & progress tracking
 ]]
 
-local addonName, addon                        = ...
-local sfui                                    = _G.sfui or {}
-sfui.tracker                                  = sfui.tracker or {}
-sfui.questlog                                 = sfui.questlog or {}
+local addonName, addon = ...
+local sfui             = _G.sfui or {}
+sfui.tracker           = sfui.tracker or {}
+sfui.questlog          = sfui.questlog or {}
 
 -- Guard: Classic / Camelot only (Exclude Retail)
-local isRetail = sfui.isRetail
+local isRetail         = sfui.isRetail
 if isRetail == nil then
     local projectID = _G.WOW_PROJECT_ID or 1
     local _, _, _, tocVersionNum = _G.GetBuildInfo()
@@ -60,7 +60,7 @@ local Difficulty                              = sfui.tracker.helpers.difficulty
 local Waypoints                               = sfui.tracker.helpers.waypoints
 local Items                                   = sfui.tracker.helpers.items
 local FindGroup                               = sfui.tracker.helpers.findgroup
-local QuestCommon = sfui.tracker.helpers.quest
+local QuestCommon                             = sfui.tracker.helpers.quest
 
 local wipe                                    = _G.wipe or function(t)
     for k in pairs(t) do t[k] = nil end
@@ -74,9 +74,9 @@ local pendingChangedQuests                    = {}
 -- ─────────────────────────────────────────────────────────
 --  CLASS DETECTION
 -- ─────────────────────────────────────────────────────────
-local GetPlayerClass = QuestCommon.GetPlayerClassLocalized
+local GetPlayerClass                          = QuestCommon.GetPlayerClassLocalized
 
-local IsClassQuest = QuestCommon.IsClassQuest
+local IsClassQuest                            = QuestCommon.IsClassQuest
 
 -- ─────────────────────────────────────────────────────────
 --  WATCH STATE & PROGRESS DETAILS
@@ -159,7 +159,8 @@ local FormatQuestTimer = QuestCommon.FormatQuestTimer
 -- ─────────────────────────────────────────────────────────
 local TryInsertQuestLink = QuestCommon.TryInsertQuestLink
 
-local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, questTitle, isWorldQuest, isCurrentlyExpanded, canClickToComplete)
+local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, questTitle, isWorldQuest,
+                                 isCurrentlyExpanded, canClickToComplete)
     if not questID then return end
 
     -- 1. Click-to-complete (Auto-complete / Talk quests)
@@ -190,7 +191,8 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
                 return
             end
 
-            local title = questTitle or (C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID)) or "Quest"
+            local title = questTitle or (C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID)) or
+            "Quest"
             local items = (C_QuestLog.GetAbandonQuestItems and C_QuestLog.GetAbandonQuestItems()) or nil
             if items and _G.StaticPopup_Show then
                 _G.StaticPopup_Show("ABANDON_QUEST_WITH_ITEMS", title, items)
