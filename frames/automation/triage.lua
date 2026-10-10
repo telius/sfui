@@ -1338,7 +1338,7 @@ function triage.EvaluateTriage()
     end
 
     local cfg = sfui.config.triage or {}
-    local defThresh = (cfg.threshold ~= nil) and cfg.threshold or 0
+    local defThresh = (cfg.threshold ~= nil) and cfg.threshold or 1
     local threshold = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "threshold", defThresh))
     if threshold == nil then threshold = defThresh end
     threshold = tonumber(threshold) or defThresh
@@ -1569,7 +1569,7 @@ local _debugInfo = {}
 function triage.GetDebugInfo()
     _debugInfo.enabled = isEnabled
     _debugInfo.freeRegularSlots = lastFreeSlots
-    _debugInfo.threshold = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "threshold", (sfui.config.triage and sfui.config.triage.threshold) or 0)) or 0
+    _debugInfo.threshold = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "threshold", (sfui.config.triage and sfui.config.triage.threshold) or 1)) or 1
     _debugInfo.candidateCount = #currentCandidates
     _debugInfo.isPromptShown = promptFrame and promptFrame:IsShown() or false
     _debugInfo.deleteSoulShards = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "deleteSoulShards", false))
@@ -1584,6 +1584,12 @@ local TriageModule = sfui.RegisterModule("triage", {
     OnInit = function(self)
         if sfui.db and sfui.db.RegisterDefaults and sfui.config and sfui.config.triage then
             sfui.db.RegisterDefaults("triage", sfui.config.triage)
+        end
+        if SfuiDB and not SfuiDB.triageThresholdDefaultV1 then
+            if SfuiDB.triage and (SfuiDB.triage.threshold == 0 or SfuiDB.triage.threshold == nil) then
+                SfuiDB.triage.threshold = 1
+            end
+            SfuiDB.triageThresholdDefaultV1 = true
         end
     end,
 

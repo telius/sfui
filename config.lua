@@ -233,6 +233,8 @@ sfui.config = {
             columns = 9,
             placement = "center",
             anchorTo = "CENTER",
+            hideOOC = true,
+            hideInVehicle = true,
             hideMounted = true,
         },
         -- Glow duration limit (seconds)
@@ -386,7 +388,7 @@ sfui.config = {
 
     triage = {
         enabled = true,
-        threshold = 0,                 -- Trigger when free regular slots <= threshold (0 = bags full, 1, or 2)
+        threshold = 1,                 -- Trigger when free regular slots <= threshold (0 = bags full, 1, or 2)
         checkConsumables = true,       -- Evaluate consumables (food without well fed, outdated food/drink)
         protectFoodWater = true,       -- Protect food/water matching player's level tier (and buff food)
         soundAlert = true,             -- Play sound when triage prompt appears

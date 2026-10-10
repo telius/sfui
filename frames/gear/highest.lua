@@ -23,6 +23,7 @@ local C_Container_GetContainerItemLink = (_G.C_Container and _G.C_Container.GetC
 local C_Container_PickupContainerItem  = (_G.C_Container and _G.C_Container.PickupContainerItem) or _G.PickupContainerItem
 local function EquipItemByName(itemInfo, slotID, bag, slot)
     if not itemInfo then return end
+    if _G.InCombatLockdown and _G.InCombatLockdown() then return end
 
     -- Slot 0 (INVSLOT_AMMO) cannot be used as dstSlot in EquipItemByName (causes "Invalid inventory dstSlot").
     if slotID == 0 or slotID == "0" then
@@ -2468,6 +2469,7 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
             local req = pendingEquipRequest
             pendingEquipRequest = nil
             _G.C_Timer.After(0.1, function()
+                if _G.InCombatLockdown and _G.InCombatLockdown() then return end
                 if not isEquippingInProgress then
                     sfui.highest.EquipHighestILvl(req.isPvP, req.silent)
                 end
@@ -2517,8 +2519,18 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
             if _G.ClearCursor then _G.ClearCursor() end
             if _G.PickupInventoryItem then _G.PickupInventoryItem(slotID) end
             _G.C_Timer.After(0.08, function()
+                if _G.InCombatLockdown and _G.InCombatLockdown() then
+                    if _G.ClearCursor then _G.ClearCursor() end
+                    onEquipFinished()
+                    return
+                end
                 if _G.PutItemInBackpack then _G.PutItemInBackpack() end
                 _G.C_Timer.After(0.05, function()
+                    if _G.InCombatLockdown and _G.InCombatLockdown() then
+                        if _G.ClearCursor then _G.ClearCursor() end
+                        onEquipFinished()
+                        return
+                    end
                     if _G.CursorHasItem and _G.CursorHasItem() then
                         if _G.PutItemInBag then
                             for b = 1, 4 do
@@ -2599,7 +2611,13 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                 if isLocked and retryCount < 10 then
                     item.bag = targetBag
                     item.slot = targetSlot
-                    _G.C_Timer.After(0.05, function() equipNext(index, retryCount + 1) end)
+                    _G.C_Timer.After(0.05, function()
+                        if _G.InCombatLockdown and _G.InCombatLockdown() then
+                            onEquipFinished()
+                            return
+                        end
+                        equipNext(index, retryCount + 1)
+                    end)
                     return
                 end
 
@@ -2617,12 +2635,20 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
 
                     -- Check if bind confirmation dialog is displayed
                     _G.C_Timer.After(0.06, function()
+                        if _G.InCombatLockdown and _G.InCombatLockdown() then
+                            onEquipFinished()
+                            return
+                        end
                         local isVis = (_G.StaticPopup_Visible and (_G.StaticPopup_Visible("EQUIP_BIND")
                             or _G.StaticPopup_Visible("EQUIP_BIND_TRADEABLE")
                             or _G.StaticPopup_Visible("EQUIP_BIND_REFUNDABLE")))
 
                         -- Fallback to UseContainerItem if dialog didn't show via EquipItemByName
                         if not isVis and targetBag and targetSlot then
+                            if _G.InCombatLockdown and _G.InCombatLockdown() then
+                                onEquipFinished()
+                                return
+                            end
                             if C_Container and C_Container.UseContainerItem then
                                 C_Container.UseContainerItem(targetBag, targetSlot)
                             elseif _G.UseContainerItem then
@@ -2638,6 +2664,11 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                             local ticks = 0
                             local watchTicker
                             watchTicker = _G.C_Timer.NewTicker(0.2, function()
+                                if _G.InCombatLockdown and _G.InCombatLockdown() then
+                                    watchTicker:Cancel()
+                                    onEquipFinished()
+                                    return
+                                end
                                 ticks = ticks + 1
                                 local stillVis = (_G.StaticPopup_Visible and (_G.StaticPopup_Visible("EQUIP_BIND")
                                     or _G.StaticPopup_Visible("EQUIP_BIND_TRADEABLE")
@@ -2645,6 +2676,10 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                                 if not stillVis or ticks > 300 then
                                     watchTicker:Cancel()
                                     _G.C_Timer.After(0.15, function()
+                                        if _G.InCombatLockdown and _G.InCombatLockdown() then
+                                            onEquipFinished()
+                                            return
+                                        end
                                         equipNext(index + 1)
                                     end)
                                 end
@@ -2652,6 +2687,10 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                         else
                             -- Equipped directly without popup (or failed): proceed with next item
                             _G.C_Timer.After(0.08, function()
+                                if _G.InCombatLockdown and _G.InCombatLockdown() then
+                                    onEquipFinished()
+                                    return
+                                end
                                 equipNext(index + 1)
                             end)
                         end
@@ -2660,9 +2699,18 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                 end
 
                 -- Soulbound gear: use fast container swap into exact vacated slot
+                if _G.InCombatLockdown and _G.InCombatLockdown() then
+                    onEquipFinished()
+                    return
+                end
                 if _G.ClearCursor then _G.ClearCursor() end
                 C_Container_PickupContainerItem(targetBag, targetSlot)
                 if _G.CursorHasItem and _G.CursorHasItem() then
+                    if _G.InCombatLockdown and _G.InCombatLockdown() then
+                        if _G.ClearCursor then _G.ClearCursor() end
+                        onEquipFinished()
+                        return
+                    end
                     if slotID == 0 then
                         if _G.PickupInventoryItem then _G.PickupInventoryItem(0) end
                     elseif _G.EquipCursorItem then
@@ -2679,6 +2727,10 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                         end
                     end
                 else
+                    if _G.InCombatLockdown and _G.InCombatLockdown() then
+                        onEquipFinished()
+                        return
+                    end
                     EquipItemByName(item.link, slotID, targetBag, targetSlot)
                 end
             else
@@ -2688,6 +2740,10 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
             -- Item is already equipped in another slot (e.g. swapping Main Hand and Off Hand)
             local currentTargetLink = GetInventoryItemLink("player", slotID)
             if currentTargetLink ~= item.link then
+                if _G.InCombatLockdown and _G.InCombatLockdown() then
+                    onEquipFinished()
+                    return
+                end
                 if _G.ClearCursor then _G.ClearCursor() end
                 if _G.PickupInventoryItem then
                     _G.PickupInventoryItem(item.equippedSlot)
@@ -2708,10 +2764,26 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
             EquipItemByName(item.link, slotID)
         end
 
-        _G.C_Timer.After(0.08, function() equipNext(index + 1) end)
+        _G.C_Timer.After(0.08, function()
+            if _G.InCombatLockdown and _G.InCombatLockdown() then
+                onEquipFinished()
+                return
+            end
+            equipNext(index + 1)
+        end)
     end
 
     equipNext(1)
 end
 sfui.highest.toggle = sfui.highest.EquipHighestILvl
+
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+        if isEquippingInProgress then
+            isEquippingInProgress = false
+            pendingEquipRequest = nil
+            if _G.ClearCursor then _G.ClearCursor() end
+        end
+    end)
+end
 

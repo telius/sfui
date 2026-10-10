@@ -522,6 +522,25 @@ function sfui.tracking.ensure_panels_initialized()
         SfuiDB.centerDefaultsV2 = true
     end
 
+    -- One-time migration for utility panel defaults (hideOOC, hideInVehicle, hideMounted)
+    if not SfuiDB.utilityDefaultsV1 then
+        if SfuiDB.cooldownPanelsBySpec then
+            for _, specPanels in pairs(SfuiDB.cooldownPanelsBySpec) do
+                if type(specPanels) == "table" then
+                    for _, p in ipairs(specPanels) do
+                        local uname = p.name and string.upper(p.name)
+                        if uname == "UTILITY" then
+                            if p.hideOOC == nil then p.hideOOC = true; changed = true end
+                            if p.hideInVehicle == nil then p.hideInVehicle = true; changed = true end
+                            if p.hideMounted == nil then p.hideMounted = true; changed = true end
+                        end
+                    end
+                end
+            end
+        end
+        SfuiDB.utilityDefaultsV1 = true
+    end
+
     -- Cleanup duplicates for the exact target names (case-insensitive)
     -- Crucial: Prefer panels that have user-configured entries, and preserve the first panel
     local seenUpperPanels = {}

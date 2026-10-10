@@ -77,6 +77,9 @@ local function GetIconValue(entrySettings, panelConfig, key, default)
         local pName = panelConfig and panelConfig.name and string.upper(panelConfig.name)
         local pDef = (pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH")
             and sfui.config and sfui.config.cooldown_panel_defaults and sfui.config.cooldown_panel_defaults.center_panel
+        if not pDef and pName == "UTILITY" then
+            pDef = sfui.config and sfui.config.cooldown_panel_defaults and sfui.config.cooldown_panel_defaults.utility
+        end
         if pDef and pDef[key] ~= nil then
             val = pDef[key]
         else

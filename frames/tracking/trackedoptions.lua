@@ -1331,6 +1331,9 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
             local pName = panel.name and string.upper(panel.name)
             local pDef = (pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH")
                 and cfg.cooldown_panel_defaults and cfg.cooldown_panel_defaults.center_panel
+            if not pDef and pName == "UTILITY" then
+                pDef = cfg.cooldown_panel_defaults and cfg.cooldown_panel_defaults.utility
+            end
             if pDef and pDef[key] ~= nil then return pDef[key] end
             local igs = SfuiDB.iconGlobalSettings or {}
             if igs[key] ~= nil then return igs[key] end
@@ -1349,6 +1352,13 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     local function PSlider(secContent, label, key, minVal, maxVal, step, x, y, w)
         local s = common.create_slider_input(secContent, label, function()
             if panel[key] ~= nil then return panel[key] end
+            local pName = panel.name and string.upper(panel.name)
+            local pDef = (pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH")
+                and cfg.cooldown_panel_defaults and cfg.cooldown_panel_defaults.center_panel
+            if not pDef and pName == "UTILITY" then
+                pDef = cfg.cooldown_panel_defaults and cfg.cooldown_panel_defaults.utility
+            end
+            if pDef and pDef[key] ~= nil then return pDef[key] end
             local igs = SfuiDB.iconGlobalSettings or {}
             if igs[key] ~= nil then return igs[key] end
             local defaults = cfg.icon_panel_global_defaults or {}
