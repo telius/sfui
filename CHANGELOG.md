@@ -1,16 +1,17 @@
 # Changelog
 
-## v1.87 (2026-10-09)
+## v1.88 (2026-10-10)
 
 ### features
 
-- **triage food without well fed cycling**: bag triage in `frames/automation/triage.lua` now evaluates and cycles through food items without the "Well Fed" buff alongside grey junk, while strictly protecting stat-granting buff food when `protectFoodWater` is active.
-- **food & well fed scanner engine**: implemented `get_food_drink_info` and `is_buff_food` in `core/items.lua` with localized spell and tooltip inspection (`C_TooltipInfo` and dedicated `sfuiTooltip` fallback) shared between `frames/automation/triage.lua` and `frames/reminders/buffs_consumables.lua`.
-- **bidirectional triage candidate navigation**: added mouse wheel scroll cycling (`OnMouseWheel`) and right-click backward navigation to the triage prompt frame and next button in `frames/automation/triage.lua`.
+- **inventory link resolution engine**: implemented `get_inventory_item_link` in `core/items.lua` with a five-tier fallback architecture (`_G.GetInventoryItemLink`, `C_TooltipInfo.GetInventoryItem`, `GetInventoryItemID`, private scanning tooltip `scanTip:SetInventoryItem`, and `ItemLocation`). seamlessly resolves equipment links across both modern and classic builds where native c functions return `nil` for slot 0.
+- **camelot skill tracking api**: exported `sfui.camelot_skills` API and added `SFUI_SKILL_TRACKING_CHANGED` event messaging in `frames/quests/modules/q_camelot_skills.lua` for tracking and toggling skill objectives.
 
 ### improvements & bug fixes
 
-- **portals frame icon resolution**: resolved fatal Lua crash `attempt to call a nil value` in `frames/portals/portals_camelot.lua` when opening the travel hub on characters with hearthstones or engineering items. Added `sfui.api.GetItemIcon` alias in `compat.lua` along with a multi-tier fallback chain (`C_Item.GetItemIconByID`, `GetItemIcon`, and `GetItemInfoInstant`), and safeguarded item and toy icon lookups in `frames/portals/portals_camelot.lua` and `frames/portals/portals.lua`.
-- **shaman class travel**: added Astral Recall (spell ID 556) to classic/camelot class travel tracking in `frames/portals/portals_camelot.lua`.
-- **tab_portals cleanup**: cleaned up options tab descriptions in `frames/options/tabs/tab_portals.lua`, removed redundant role status labels, streamlined bullet points, and polished travel hub preview and command triggers.
-- **empty travel hub state**: added graceful empty state messaging in `frames/portals/portals_camelot.lua` when no travel items, spells, or portals are available.
+- **ammo slot auto-equip loop fix**: resolved an issue where the gear manager in classic/camelot perpetually perceived slot 0 as empty and continually attempted to re-equip bag ammo in `frames/gear/highest.lua`. routed inventory queries through `get_inventory_item_link`, corrected `physId` offsets to prevent slot 0 collisions, and added fallback detection for equipped ammo subclasses.
+- **ammo equip dstslot taint protection**: guarded slot 0 in `EquipItemByName` within `frames/gear/highest.lua` to route through `C_Container.UseContainerItem(bag, slot)` instead of invalid inventory destination slots, and updated container cursor swaps to target slot 0 via `PickupInventoryItem(0)`.
+- **gear manager inventory sync**: updated `frames/gear/engine.lua`, `frames/gear/gear.lua`, and `frames/gear/hammer.lua` to utilize `get_inventory_item_link`, ensuring equipped ammo is accurately recorded in `lastEquippedItems` and properly represented in lock icons.
+- **experience & reputation bar texture sync**: ensured experience and reputation bars dynamically track and adopt the global bar texture configured in the options main tab (`frames/themes/engine.lua`, `frames/experience/bar.lua`, `frames/experience/experience.lua`, `frames/experience/reputation.lua`).
+- **dungeon journal pins & quest display**: refined pin layout, quest block navigation, and dungeon quest selection in `frames/dungeonjournal/dj_pins.lua`, `frames/dungeonjournal/dj_quests.lua`, and `frames/dungeonjournal/dungeonjournal.lua`.
+- **world events combat & secret values**: added safe handling for `issecretvalue()` and in-combat progress bar queries in `frames/quests/modules/q_worldevents.lua`, preventing arithmetic comparison errors on protected widgets.
