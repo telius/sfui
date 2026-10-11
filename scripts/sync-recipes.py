@@ -1283,22 +1283,34 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
         return
 
     # 8. Write data/recipes_camelot.lua (Atomic write via .tmp file)
-    # Pre-index by skillID and pool shared source lists to minimize memory churn & file size
+    # Pre-index by skillID, pool shared source lists and color tuples, and virtualize recipes via lazy metatable decoding
     skill_to_spells = {}
     source_usage = {}
+    color_usage = {}
+
     for sid, r in unified_recipes.items():
         sk = r["skillID"]
         skill_to_spells.setdefault(sk, []).append(sid)
         if r.get("sources"):
             key = json.dumps(r["sources"], sort_keys=True)
             source_usage[key] = source_usage.get(key, 0) + 1
+        if r.get("colors") and len(r["colors"]) == 4:
+            ckey = tuple(r["colors"])
+            color_usage[ckey] = color_usage.get(ckey, 0) + 1
 
-    source_pool = {} # json_str -> pool_id
+    # Source pool (pool all unique source lists so every recipe has a clean pool index)
+    source_pool = {}  # json_str -> pool_id
     pool_counter = 1
-    for key, count in sorted(source_usage.items(), key=lambda x: -x[1]):
-        if count >= 2:
-            source_pool[key] = pool_counter
-            pool_counter += 1
+    for key, _ in sorted(source_usage.items(), key=lambda x: -x[1]):
+        source_pool[key] = pool_counter
+        pool_counter += 1
+
+    # Color pool (pool all unique 4-color threshold tuples)
+    color_pool = {}  # tuple -> pool_id
+    color_counter = 1
+    for ckey, _ in sorted(color_usage.items(), key=lambda x: -x[1]):
+        color_pool[ckey] = color_counter
+        color_counter += 1
 
     temp_target = LUA_TARGET + ".tmp"
     print(f"\nWriting {os.path.relpath(temp_target, REPO_ROOT)}...")
@@ -1311,12 +1323,12 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
         f.write("--  sfui/data/recipes_camelot.lua\n")
         f.write("--  Authoritative Recipe & Source database for Camelot / Classic Forever.\n")
         f.write("--  Generated automatically via scripts/sync-recipes.py from Wowhead Forever.\n")
+        f.write("--  Virtualized with lazy metatable decoding to optimize Lua GC heap footprint.\n")
         f.write("-- ══════════════════════════════════════════════════════════════════════════════\n\n")
 
         # Emit shared source pool
         f.write("-- Shared source tables pool (deduplicated to optimize memory footprint)\n")
         f.write("local SRC_POOL = {\n")
-        # Invert source_pool to iterate by pool_id
         id_to_sources = {pid: json.loads(key) for key, pid in source_pool.items()}
         for pid in sorted(id_to_sources.keys()):
             sources_list = id_to_sources[pid]
@@ -1351,75 +1363,126 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
             f.write("    },\n")
         f.write("}\n\n")
 
-        f.write("sfui.recipes_camelot.recipes = {\n")
+        # Emit shared color pool
+        f.write("-- Shared color threshold tables pool (deduplicated to optimize memory footprint)\n")
+        f.write("local COLOR_POOL = {\n")
+        id_to_colors = {cid: ctuple for ctuple, cid in color_pool.items()}
+        for cid in sorted(id_to_colors.keys()):
+            c = id_to_colors[cid]
+            f.write(f"    [{cid}] = {{ {c[0]}, {c[1]}, {c[2]}, {c[3]} }},\n")
+        f.write("}\n\n")
+
+        # Emit raw compact recipes: { name, skillID, minSkill, colorPoolIdx, output, recipeItemID, srcPoolIdx, reagentStr, extra }
+        f.write("-- Compact recipe tuples: { name, skillID, minSkill, colorPoolIdx, output, recipeItemID, srcPoolIdx, reagentStr, extra }\n")
+        f.write("local RAW = {\n")
         for sid in sorted(unified_recipes.keys()):
             r = unified_recipes[sid]
-            f.write(f"    [{sid}] = {{\n")
-            f.write(f"        id = {sid},\n")
-            f.write(f'        name = "{escape_lua_str(r["name"])}",\n')
-            f.write(f'        skillID = {r["skillID"]},\n')
-            if r["minSkill"] is not None:
-                f.write(f'        minSkill = {r["minSkill"]},\n')
-            if r["colors"] and len(r["colors"]) == 4:
-                c = r["colors"]
-                f.write(f'        colors = {{ {c[0]}, {c[1]}, {c[2]}, {c[3]} }},\n')
-            if r["output"]:
-                f.write(f'        output = {r["output"]},\n')
-            if r["recipeItemID"]:
-                f.write(f'        recipeItemID = {r["recipeItemID"]},\n')
+            name = escape_lua_str(r["name"])
+            sk = r["skillID"]
+            min_sk = r["minSkill"] if r["minSkill"] is not None else -1
+            col_idx = color_pool.get(tuple(r["colors"])) if r.get("colors") and len(r["colors"]) == 4 else 0
+            out_id = r["output"] or 0
+            rec_item_id = r["recipeItemID"] or 0
+            src_key = json.dumps(r["sources"], sort_keys=True) if r.get("sources") else None
+            src_idx = source_pool.get(src_key, 0) if src_key else 0
+
+            # Reagents compact string
+            if r.get("reagents"):
+                reag_str = ",".join(f"{k}:{v}" for k, v in sorted(r["reagents"].items()))
+            else:
+                reag_str = ""
+
+            # Extra metadata fields (spec, faction, standing, event)
+            extra_parts = []
             if r.get("isEvent"):
-                f.write('        isEvent = true,\n')
-                f.write(f'        event = "{escape_lua_str(r["event"])}",\n')
+                extra_parts.append('isEvent = true')
+            if r.get("event"):
+                extra_parts.append(f'event = "{escape_lua_str(r["event"])}"')
             if r.get("spec"):
-                f.write(f'        spec = "{escape_lua_str(r["spec"])}",\n')
+                extra_parts.append(f'spec = "{escape_lua_str(r["spec"])}"')
             if r.get("faction"):
-                f.write(f'        faction = "{escape_lua_str(r["faction"])}",\n')
+                extra_parts.append(f'faction = "{escape_lua_str(r["faction"])}"')
             if r.get("standing"):
-                f.write(f'        standing = "{escape_lua_str(r["standing"])}",\n')
+                extra_parts.append(f'standing = "{escape_lua_str(r["standing"])}"')
 
-            # Reagents
-            if r["reagents"]:
-                reags = ", ".join([f"[{k}] = {v}" for k, v in sorted(r["reagents"].items())])
-                f.write(f'        reagents = {{ {reags} }},\n')
+            extra_str = f", {{ {', '.join(extra_parts)} }}" if extra_parts else ""
+            if reag_str or extra_str:
+                reag_param = f', "{reag_str}"'
+            else:
+                reag_param = ""
 
-            # Sources with coordinate bounds validation and training costs
-            if r["sources"]:
-                key = json.dumps(r["sources"], sort_keys=True)
-                if key in source_pool:
-                    f.write(f"        sources = SRC_POOL[{source_pool[key]}],\n")
-                else:
-                    f.write("        sources = {\n")
-                    for s in r["sources"]:
-                        parts = [f'type = "{s["type"]}"']
-                        if s.get("name"):
-                            parts.append(f'name = "{escape_lua_str(s["name"])}"')
-                        if s.get("desc") and s.get("desc") != s.get("type"):
-                            parts.append(f'desc = "{escape_lua_str(s["desc"])}"')
-                        if s.get("cost") and s["cost"] > 0:
-                            parts.append(f'cost = {s["cost"]}')
-                        if s.get("npcID"):
-                            parts.append(f'npcID = {s["npcID"]}')
-                        if s.get("questID"):
-                            parts.append(f'questID = {s["questID"]}')
-                        if s.get("zone"):
-                            parts.append(f'zone = "{escape_lua_str(s["zone"])}"')
-                        if s.get("faction"):
-                            parts.append(f'faction = "{escape_lua_str(s["faction"])}"')
-                        if s.get("standing"):
-                            parts.append(f'standing = "{escape_lua_str(s["standing"])}"')
-                        if s.get("tokens"):
-                            parts.append(f'tokens = "{escape_lua_str(s["tokens"])}"')
-                        if s.get("mapID") and s["mapID"] > 0:
-                            parts.append(f'mapID = {s["mapID"]}')
-                            if s.get("x") is not None and s.get("y") is not None:
-                                x, y = s["x"], s["y"]
-                                if 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0:
-                                    parts.append(f'x = {x:.4f}, y = {y:.4f}')
-                        f.write(f'            {{ {", ".join(parts)} }},\n')
-                    f.write("        },\n")
-
-            f.write("    },\n")
+            f.write(f'    [{sid}] = {{ "{name}", {sk}, {min_sk}, {col_idx}, {out_id}, {rec_item_id}, {src_idx}{reag_param}{extra_str} }},\n')
         f.write("}\n\n")
+
+        # Decoder & Lazy Metatable Accessor
+        f.write("""local tonumber = tonumber
+local pairs = pairs
+local next = next
+local setmetatable = setmetatable
+
+local decodedCache = {}
+
+local function decode_recipe(sid, raw)
+    if not raw then return nil end
+    local reagents
+    local rStr = raw[8]
+    if rStr and rStr ~= "" then
+        reagents = {}
+        for pair in rStr:gmatch("([^,]+)") do
+            local itemID, count = pair:match("^(%d+):(%d+)$")
+            if itemID then
+                reagents[tonumber(itemID)] = tonumber(count)
+            end
+        end
+    end
+
+    local rec = {
+        id           = sid,
+        name         = raw[1],
+        skillID      = raw[2],
+        minSkill     = (raw[3] and raw[3] >= 0) and raw[3] or nil,
+        colors       = (raw[4] and raw[4] > 0) and COLOR_POOL[raw[4]] or nil,
+        output       = (raw[5] and raw[5] > 0) and raw[5] or nil,
+        recipeItemID = (raw[6] and raw[6] > 0) and raw[6] or nil,
+        sources      = (raw[7] and raw[7] > 0) and SRC_POOL[raw[7]] or nil,
+        reagents     = reagents,
+    }
+
+    local extra = raw[9]
+    if extra then
+        for k, v in pairs(extra) do
+            rec[k] = v
+        end
+    end
+
+    decodedCache[sid] = rec
+    return rec
+end
+
+sfui.recipes_camelot._raw = RAW
+sfui.recipes_camelot.num_recipes = """ + str(len(unified_recipes)) + """
+sfui.recipes_camelot.recipes = setmetatable(decodedCache, {
+    __index = function(t, sid)
+        local raw = RAW[sid]
+        if raw then
+            return decode_recipe(sid, raw)
+        end
+        return nil
+    end,
+})
+
+--- Iterator across all recipes without needing to decode all entries up front
+function sfui.recipes_camelot.IterateRecipes()
+    local sid = nil
+    return function()
+        sid = next(RAW, sid)
+        if sid then
+            return sid, sfui.recipes_camelot.recipes[sid]
+        end
+    end
+end
+
+""")
 
         # Item mapping (scroll -> spellID)
         f.write("sfui.recipes_camelot.items = {\n")

@@ -194,7 +194,6 @@ end
 
 local function ParseFactionChatMessage(msg)
     if not msg or type(msg) ~= "string" then return nil, nil end
-    if sfui.common and sfui.common.is_secret and sfui.common.is_secret(msg) then return nil, nil end
 
     local patterns = GetRepPatterns()
     for _, pat in ipairs(patterns) do
@@ -264,8 +263,7 @@ local function FlushPendingRepGains()
 end
 
 local function HandleReputationGain(factionName, amount)
-    if not factionName or not amount or amount <= 0 then return end
-    if sfui.common and sfui.common.is_secret and sfui.common.is_secret(factionName) then return end
+    if not factionName or not amount or type(amount) ~= "number" or amount <= 0 then return end
 
     local enabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "autoSwitchRepOnGain", false))
     if not enabled then return end
@@ -287,27 +285,6 @@ local function OnChatMsgCombatFactionChange(event, msg)
     local faction, amount = ParseFactionChatMessage(msg)
     if faction and amount then
         HandleReputationGain(faction, amount)
-    end
-end
-
-local function OnCombatTextUpdate(event, arg1, arg2, arg3)
-    if arg1 ~= "FACTION" then return end
-
-    local enabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "autoSwitchRepOnGain", false))
-    if not enabled then return end
-
-    local factionName, amount
-    local C_CombatText = _G.C_CombatText
-    if C_CombatText and C_CombatText.GetCurrentEventInfo then
-        factionName, amount = C_CombatText.GetCurrentEventInfo()
-    else
-        factionName, amount = arg2, arg3
-    end
-    if factionName and amount then
-        local val = tonumber(amount) or 0
-        if val > 0 then
-            HandleReputationGain(factionName, val)
-        end
     end
 end
 
@@ -336,7 +313,6 @@ function events.Initialize()
     reg("PLAYER_REGEN_DISABLED", OnCombatStateChanged)
     reg("PLAYER_REGEN_ENABLED", OnCombatStateChanged)
     reg("CHAT_MSG_COMBAT_FACTION_CHANGE", OnChatMsgCombatFactionChange)
-    reg("COMBAT_TEXT_UPDATE", OnCombatTextUpdate)
 end
 
 --- Disable and unregister event listeners

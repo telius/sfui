@@ -935,8 +935,8 @@ end
 --- Real-time memory & diagnostics stats inspector for sfui.mem
 --- @return table stats
 function sfui.recipes_debug_info()
-    local numRecipes = 0
-    if sfui.recipes_camelot and sfui.recipes_camelot.recipes then
+    local numRecipes = (sfui.recipes_camelot and sfui.recipes_camelot.num_recipes) or 0
+    if numRecipes == 0 and sfui.recipes_camelot and sfui.recipes_camelot.recipes then
         for _ in pairs(sfui.recipes_camelot.recipes) do
             numRecipes = numRecipes + 1
         end

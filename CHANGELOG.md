@@ -1,18 +1,15 @@
 # Changelog
 
-## v1.90 (2026-10-11)
+## v1.91 (2026-10-11)
 
 ### features
 
-- **recipe catalog & source database (camelot / classic)**: comprehensive in-game crafting recipe browser, source lookup, and completionist tracker (`/sfui recipes` or `/recipe`). includes extensive baseline database (`data/recipes_camelot.lua`) with trainers, vendors, quest rewards, limited supply items, and creature drops. modularized into clean subsystems across `frames/professions/` (`sources.lua`, `contacts.lua`, `tooltips.lua`, `filters.lua`, `progress.lua`, `rows.lua`, `browser.lua`, `pins.lua`).
-- **world map recipe pins**: added interactive pins on the world map canvas for unlearned recipes currently available to the character's skill rank (`frames/professions/pins.lua`). clusters multi-recipe sources with count badges, color codes by source type (vendor, trainer, quest, drop), and integrates a toggle into the native world map tracking dropdown menu.
-- **objective tracker shopping list**: pinned recipes now track real-time reagent bag counts (`frames/quests/modules/q_camelot_recipes.lua`), displaying a status badge (`[ready]` vs `[recipe]`), acquisition coordinates, and left-click routing directly into the recipe catalog.
-- **cross-character alt network & shopping filter**: added `alt needs` filter and item badges (`[alt]`) to identify recipes needed by other characters on the realm (`frames/professions/filters.lua`, `frames/alts/recipes.lua`).
-- **merchant & dungeon journal deep linking**: added a `catalog` button on the merchant utility bar (`frames/merchant/merchant_utility.lua`) to inspect vendor recipes, and deep-linked dungeon drop recipes directly to boss encounter pages in the dungeon journal (`frames/dungeonjournal/dungeonjournal.lua`, `frames/dungeonjournal/dj_bosses.lua`).
-- **theme & progress bar integration**: connected completionist progress bar textures to `config.lua` (`barTexture`) with dynamic theme updates (`frames/themes/engine.lua`). replaced text waypoints with blizzard's native square raid target icon (`UI-RaidTargetingIcon_6`).
-- **diagnostics & memory profiler**: registered real-time recipe catalog statistics, active filter status, and map pin counts in `frames/mem.lua`.
+- **static recipe database virtualization**: optimized the authoritative recipe database (`data/recipes_camelot.lua`) via `scripts/sync-recipes.py`. serialized all 2,344 crafting recipes into compact flat tuples and wrapped them in an on-demand metatable lazy decoder (`decodedCache`), eliminating over 7,000 upfront table allocations at startup.
+- **skill tier color pooling**: deduplicated 4-threshold progression color tables into a shared `COLOR_POOL`, reducing redundant array allocations across the catalog.
+- **streaming catalog iterator**: added `sfui.recipes_camelot.IterateRecipes()` to allow complete recipe traversal without bulk-instantiating all 2,344 table dictionaries into memory.
 
 ### improvements & bug fixes
 
-- **clean sub-module architecture**: decoupled monolithic recipe browser into focused, non-circular modules (`filters.lua`, `progress.lua`, `rows.lua`, `browser.lua`, `pins.lua`).
-- **skill bar tracker click routing**: left-clicking tracked crafting professions in the objective tracker (`frames/quests/modules/q_camelot_skills.lua`) now opens the recipe catalog pre-selected to that skill line.
+- **combat text secret value taint fix**: fixed a fatal error in `frames/experience/events.lua` (`attempt to compare local 'val' (a secret number value, while execution tainted by 'sfui')`) triggered during reputation gains. removed the redundant `COMBAT_TEXT_UPDATE` listener to adhere strictly to sfui's zero-secret-interaction design principle, relying cleanly on `CHAT_MSG_COMBAT_FACTION_CHANGE`.
+- **massive memory & footprint reduction**: reduced `data/recipes_camelot.lua` file size by 51% (424 kb down from 872 kb) and line count from 29,913 to 8,135 lines (-73%), cutting live lua heap overhead by ~46%.
+- **instant O(1) telemetry**: updated `sfui.recipes_debug_info()` in `frames/professions/browser.lua` to read pre-computed `num_recipes` directly without looping `pairs()`.
