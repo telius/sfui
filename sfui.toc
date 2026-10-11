@@ -1,7 +1,7 @@
 ## Interface: 120100, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v1.89
+## Version: v1.90
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -137,6 +137,17 @@ frames/dungeonjournal/dj_quests.lua [AllowLoadGameType camelot, classic][Exclude
 frames/dungeonjournal/dj_pins.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/dungeonjournal/dj_tooltips.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 
+# Camelot Recipes & Professions
+data/recipes_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/professions/sources.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/professions/contacts.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/professions/tooltips.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/professions/filters.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/professions/progress.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/professions/rows.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/professions/browser.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/professions/pins.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+
 
 # Quests & Objective Tracker Engine
 frames/quests/engine/q_module.lua
@@ -164,7 +175,8 @@ frames/quests/modules/q_camelot.lua [AllowLoadGameType camelot, classic][Exclude
 frames/quests/modules/q_achievements.lua [AllowLoadGameType standard, camelot]
 frames/quests/modules/q_activities.lua [AllowLoadGameType standard, camelot]
 frames/quests/modules/q_collectables.lua [AllowLoadGameType standard, camelot]
-frames/quests/modules/q_recipes.lua [AllowLoadGameType standard, camelot]
+frames/quests/modules/q_recipes.lua [AllowLoadGameType standard]
+frames/quests/modules/q_camelot_recipes.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/quests/q_mythic.lua [AllowLoadGameType standard]
 
 # Reminders

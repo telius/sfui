@@ -68,6 +68,20 @@ local RECIPE_SUBCLASS_MAP = {
     [11] = { name = "Inscription",   skillID = 773 },
 }
 
+local SKILL_ID_TO_NAME = {
+    [165] = "Leatherworking",
+    [197] = "Tailoring",
+    [202] = "Engineering",
+    [164] = "Blacksmithing",
+    [185] = "Cooking",
+    [171] = "Alchemy",
+    [129] = "First Aid",
+    [333] = "Enchanting",
+    [356] = "Fishing",
+    [755] = "Jewelcrafting",
+    [773] = "Inscription",
+}
+
 -- Safe string trimming
 local function StrTrim(s)
     if not s then return "" end
@@ -385,12 +399,16 @@ end
 --- @param reqProf string?
 --- @param reqRank number?
 --- @param subclassID number?
+--- @param explicitSkillID number?
 --- @return boolean hasProf, boolean meetsRank, number? currentRank
-local function CheckAltEligibility(altData, reqProf, reqRank, subclassID)
+local function CheckAltEligibility(altData, reqProf, reqRank, subclassID, explicitSkillID)
     if not altData then return false, false, nil end
 
     local profKey = subclassID and RECIPE_SUBCLASS_MAP[subclassID] and RECIPE_SUBCLASS_MAP[subclassID].secKey
-    local skillID = subclassID and RECIPE_SUBCLASS_MAP[subclassID] and RECIPE_SUBCLASS_MAP[subclassID].skillID
+    local skillID = explicitSkillID or (subclassID and RECIPE_SUBCLASS_MAP[subclassID] and RECIPE_SUBCLASS_MAP[subclassID].skillID)
+    if not reqProf and skillID and SKILL_ID_TO_NAME[skillID] then
+        reqProf = SKILL_ID_TO_NAME[skillID]
+    end
     local subclassName = (subclassID and RECIPE_SUBCLASS_MAP[subclassID] and RECIPE_SUBCLASS_MAP[subclassID].name) or reqProf
 
     -- 1. Check altData.professions (Classic/Camelot & Standardized Retail)
@@ -404,6 +422,14 @@ local function CheckAltEligibility(altData, reqProf, reqRank, subclassID)
                 if type(p) == "table" and (p.skillID == skillID or (p.name and subclassName and p.name:lower() == subclassName:lower())) then
                     entry = p
                     break
+                end
+            end
+            if not entry and altData.professions.primaries then
+                for _, p in ipairs(altData.professions.primaries) do
+                    if type(p) == "table" and (p.skillID == skillID or (p.name and subclassName and p.name:lower() == subclassName:lower())) then
+                        entry = p
+                        break
+                    end
                 end
             end
         end
@@ -572,6 +598,23 @@ local function ScanCurrentTradeSkills(force)
 
     SfuiDB = SfuiDB or {}
     SfuiDB.crafts = SfuiDB.crafts or {}
+    SfuiDB.recipes = SfuiDB.recipes or {}
+
+    local function RecordKnownRecipe(spellID)
+        if not spellID or not myRealm or not myGUID then return end
+        SfuiDB.recipes[spellID] = SfuiDB.recipes[spellID] or {}
+        SfuiDB.recipes[spellID][myRealm] = SfuiDB.recipes[spellID][myRealm] or {}
+        SfuiDB.recipes[spellID][myRealm][myGUID] = true
+
+        if sfui.recipes_camelot and sfui.recipes_camelot.recipes then
+            local r = sfui.recipes_camelot.recipes[spellID]
+            if r and r.recipeItemID then
+                SfuiDB.recipes[r.recipeItemID] = SfuiDB.recipes[r.recipeItemID] or {}
+                SfuiDB.recipes[r.recipeItemID][myRealm] = SfuiDB.recipes[r.recipeItemID][myRealm] or {}
+                SfuiDB.recipes[r.recipeItemID][myRealm][myGUID] = true
+            end
+        end
+    end
 
     -- 1. Modern C_TradeSkillUI (Retail & Camelot)
     if C_TradeSkillUI and C_TradeSkillUI.GetFilteredRecipeIDs then
@@ -580,6 +623,8 @@ local function ScanCurrentTradeSkills(force)
             for _, recipeID in ipairs(recipeIDs) do
                 local recipeInfo = C_TradeSkillUI.GetRecipeInfo and C_TradeSkillUI.GetRecipeInfo(recipeID)
                 if recipeInfo and recipeInfo.learned then
+                    RecordKnownRecipe(recipeID)
+
                     -- Memoized primary output item
                     local outItemID = recipeOutputCache[recipeID]
                     if not outItemID then
@@ -630,6 +675,16 @@ local function ScanCurrentTradeSkills(force)
         for i = 1, num do
             local _, skillType = _G.GetTradeSkillInfo(i)
             if skillType ~= "header" and skillType ~= "subheader" then
+                if _G.GetTradeSkillRecipeLink then
+                    local rLink = _G.GetTradeSkillRecipeLink(i)
+                    if rLink then
+                        local sID = tonumber(rLink:match("spell:(%d+)"))
+                        if sID then
+                            RecordKnownRecipe(sID)
+                        end
+                    end
+                end
+
                 local link = _G.GetTradeSkillItemLink(i)
                 if link then
                     local itemID = tonumber(link:match("item:(%d+)"))
@@ -648,6 +703,16 @@ local function ScanCurrentTradeSkills(force)
         for i = 1, num do
             local _, _, craftType = _G.GetCraftInfo(i)
             if craftType ~= "header" then
+                if _G.GetCraftRecipeLink then
+                    local cLink = _G.GetCraftRecipeLink(i)
+                    if cLink then
+                        local sID = tonumber(cLink:match("spell:(%d+)"))
+                        if sID then
+                            RecordKnownRecipe(sID)
+                        end
+                    end
+                end
+
                 local link = _G.GetCraftItemLink(i)
                 if link then
                     local itemID = tonumber(link:match("item:(%d+)"))
@@ -673,47 +738,160 @@ local function RequestTradeSkillScan(force)
 end
 
 local function PruneOrphanCrafts()
-    if not SfuiDB or not SfuiDB.crafts or not SfuiDB.alts then return end
-    for itemID, crafters in pairs(SfuiDB.crafts) do
-        if type(crafters) == "table" then
-            for guid in pairs(crafters) do
-                if guid ~= myGUID and not SfuiDB.alts[guid] then
-                    crafters[guid] = nil
+    if not SfuiDB or not SfuiDB.alts then return end
+
+    -- Prune crafts for non-existent alts
+    if SfuiDB.crafts then
+        for itemID, crafters in pairs(SfuiDB.crafts) do
+            if type(crafters) == "table" then
+                for guid in pairs(crafters) do
+                    if guid ~= myGUID and not SfuiDB.alts[guid] then
+                        crafters[guid] = nil
+                    end
+                end
+                if not next(crafters) then
+                    SfuiDB.crafts[itemID] = nil
                 end
             end
-            if not next(crafters) then
-                SfuiDB.crafts[itemID] = nil
+        end
+    end
+
+    -- Prune recipes for non-existent alts
+    if SfuiDB.recipes then
+        for recID, realms in pairs(SfuiDB.recipes) do
+            if type(realms) == "table" then
+                for realm, guids in pairs(realms) do
+                    if type(guids) == "table" then
+                        for guid in pairs(guids) do
+                            if guid ~= myGUID and not SfuiDB.alts[guid] then
+                                guids[guid] = nil
+                            end
+                        end
+                        if not next(guids) then
+                            realms[realm] = nil
+                        end
+                    end
+                end
+                if not next(realms) then
+                    SfuiDB.recipes[recID] = nil
+                end
             end
         end
     end
 end
 
 -- ── Tooltip Post-Call Handler ─────────────────────────────────────────────────
-local function SetItemTooltip(tooltip)
-    if not tooltip then return end
-
-    -- Extract itemID
-    local itemID = nil
-    if TooltipUtil and TooltipUtil.GetDisplayedItem then
-        itemID = select(3, TooltipUtil.GetDisplayedItem(tooltip))
-    end
-    if not itemID and tooltip.GetItem then
-        local _, link = tooltip:GetItem()
-        if link then
-            itemID = tonumber(link:match("item:(%d+)"))
-        end
-    end
-
-    local issecretvalue = (sfui.safety and sfui.safety.issecretvalue) or (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
-    if not itemID or (issecretvalue and issecretvalue(itemID)) or type(itemID) ~= "number" or itemID <= 0 then return end
+--- Add cross-alt recipe knowledge and eligibility lines to any tooltip
+--- @param tooltip table GameTooltip or custom tooltip frame
+--- @param itemOrRecipe number|table itemID or recipe record table
+function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
+    if not tooltip or not itemOrRecipe then return end
 
     EnsurePlayerContext()
     SfuiDB = SfuiDB or {}
 
+    local isExplicitRecipe = (type(itemOrRecipe) == "table")
+    local r = isExplicitRecipe and itemOrRecipe or nil
+    local itemID = (type(itemOrRecipe) == "number") and itemOrRecipe or (r and (r.recipeItemID or r.output))
+    local spellID = r and r.id
+    local recipeItemID = r and r.recipeItemID
+    local outputItemID = r and r.output
+
+    -- Determine if itemID is an actual recipe scroll (Pattern, Recipe, Plans, Schematic)
+    local isRecipeScroll = false
+    if itemID then
+        isRecipeScroll = IsRecipe(itemID) or (sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID] ~= nil)
+    end
+
+    -- If only itemID is given, perform O(1) lookup in pre-indexed sfui.recipes_camelot maps
+    if not r and itemID and sfui.recipes_camelot then
+        if isRecipeScroll then
+            local sID = sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID]
+            if sID and sfui.recipes_camelot.recipes then
+                r = sfui.recipes_camelot.recipes[sID]
+                if r then
+                    spellID = r.id
+                    recipeItemID = r.recipeItemID
+                    outputItemID = r.output
+                end
+            end
+        else
+            -- Crafted output item: do not treat as recipe record, but retrieve outputItemID / spellID if needed for crafting lookup
+            local sID = sfui.recipes_camelot.outputs and sfui.recipes_camelot.outputs[itemID]
+            if sID and sfui.recipes_camelot.recipes then
+                local outRec = sfui.recipes_camelot.recipes[sID]
+                if outRec then
+                    spellID = outRec.id
+                    outputItemID = outRec.output
+                end
+            end
+        end
+    end
+
+    local skillID = r and r.skillID
+    local minSkill = r and (r.minSkill or (r.colors and r.colors[1]))
+    local profName = skillID and SKILL_ID_TO_NAME[skillID]
+    local subclassID = nil
+
+    if itemID and not profName then
+        if C_Item_GetItemInfoInstant then
+            subclassID = select(7, C_Item_GetItemInfoInstant(itemID))
+        end
+        local _, itemLink = C_Item_GetItemInfo(itemID)
+        profName, minSkill = ExtractRecipeRequirement(itemID, itemLink, subclassID)
+    end
+
+    if itemID and not subclassID and C_Item_GetItemInfoInstant then
+        subclassID = select(7, C_Item_GetItemInfoInstant(itemID))
+    end
+    if not skillID and subclassID and RECIPE_SUBCLASS_MAP[subclassID] then
+        skillID = RECIPE_SUBCLASS_MAP[subclassID].skillID
+    end
+    if not profName and skillID and SKILL_ID_TO_NAME[skillID] then
+        profName = SKILL_ID_TO_NAME[skillID]
+    end
+
+    local maxAlts = SfuiDB.recipesMaxAlts or 4
+    local showKnown = (SfuiDB.recipesShowKnown ~= false)
+    local showCanLearn = (SfuiDB.recipesShowCanLearn ~= false)
+    local showNeedsSkill = (SfuiDB.recipesShowNeedsSkill ~= false) and showCanLearn
+    local showCraftable = (SfuiDB.recipesShowCraftable ~= false)
+
+    -- Do not show "needs skill" for cooking (skillID 185 / subclassID 5) and first aid (skillID 129 / subclassID 7)
+    -- to prevent tooltip bloat across characters since every character can learn these secondary skills
+    local isSecondaryCommon = (skillID == 185 or skillID == 129 or subclassID == 5 or subclassID == 7)
+    if not isSecondaryCommon and profName then
+        local pLower = profName:lower()
+        if pLower == "cooking" or pLower == "first aid" then
+            isSecondaryCommon = true
+        end
+    end
+    if not isSecondaryCommon and profName and C_Item_GetItemSubClassInfo then
+        local locCooking = C_Item_GetItemSubClassInfo(ITEM_CLASS_RECIPE, 5)
+        local locFirstAid = C_Item_GetItemSubClassInfo(ITEM_CLASS_RECIPE, 7)
+        if (locCooking and profName == locCooking) or (locFirstAid and profName == locFirstAid) then
+            isSecondaryCommon = true
+        end
+    end
+    if isSecondaryCommon then
+        showNeedsSkill = false
+    end
+
+    local addedSpacing = false
+    local function AddLine(...)
+        if not addedSpacing then
+            tooltip:AddLine(" ")
+            addedSpacing = true
+        end
+        tooltip:AddLine(...)
+    end
+
     -- 1. Reverse Crafting Lookup ("Who Can Craft This?")
-    if (SfuiDB.recipesShowCraftable ~= false) and SfuiDB.crafts and SfuiDB.crafts[itemID] then
+    -- Only show "craftable by:" if hovering a crafted item directly (not a recipe scroll or recipe row)
+    local craftTarget = outputItemID or itemID
+    if showCraftable and (not isExplicitRecipe) and (not isRecipeScroll) and craftTarget and SfuiDB.crafts and SfuiDB.crafts[craftTarget] then
         wipe(scratchCrafterList)
-        for guid, canCraft in pairs(SfuiDB.crafts[itemID]) do
+        for guid, canCraft in pairs(SfuiDB.crafts[craftTarget]) do
             if canCraft then
                 local alt = SfuiDB.alts and SfuiDB.alts[guid]
                 local name = (alt and alt.name) or (guid == myGUID and myName)
@@ -727,7 +905,6 @@ local function SetItemTooltip(tooltip)
 
         local totalCrafters = #scratchCrafterList
         if totalCrafters > 0 then
-            local maxAlts = SfuiDB.recipesMaxAlts or 4
             local text = ""
             for i = 1, math.min(totalCrafters, maxAlts) do
                 text = (text == "") and scratchCrafterList[i] or (text .. ", " .. scratchCrafterList[i])
@@ -735,71 +912,83 @@ local function SetItemTooltip(tooltip)
             if totalCrafters > maxAlts then
                 text = string.format("%s, |cffaaaaaa+%d more|r", text, totalCrafters - maxAlts)
             end
-            tooltip:AddLine("|cffffaa00craftable by:|r " .. text, 1, 1, 1, true)
+            AddLine("|cffffaa00craftable by:|r " .. text, 1, 1, 1, true)
         end
     end
 
-    -- 2. Recipe Item Tooltip ("Known alts" & "Can learn")
-    if not IsRecipe(itemID) then
+    -- 2. Recipe Knowledge ("Known alts" & "Can learn")
+    local isRecipeItem = isExplicitRecipe or isRecipeScroll
+    if not isRecipeItem then
         return
     end
-
-    local subclassID
-    if C_Item_GetItemInfoInstant then
-        subclassID = select(7, C_Item_GetItemInfoInstant(itemID))
-    end
-
-    local _, itemLink = C_Item_GetItemInfo(itemID)
-
-    -- Refresh active player status for this recipe
-    UpdateItem(itemID)
-
-    SfuiDB.recipes = SfuiDB.recipes or {}
-    local recipeRecord = SfuiDB.recipes[itemID] or {}
-
-    local showKnown = (SfuiDB.recipesShowKnown ~= false)
-    local showCanLearn = (SfuiDB.recipesShowCanLearn ~= false)
-    local maxAlts = SfuiDB.recipesMaxAlts or 4
 
     wipe(scratchKnownList)
     wipe(scratchKnownGUIDs)
 
-    -- Gather Known Alts across all realms
-    for realm, realmList in pairs(recipeRecord) do
-        if type(realmList) == "table" then
-            for guid, isKnown in pairs(realmList) do
-                if isKnown then
-                    scratchKnownGUIDs[guid] = true
-                    local alt = SfuiDB.alts and SfuiDB.alts[guid]
-                    local name = (alt and alt.name) or (guid == myGUID and myName)
-                    local className = (alt and alt.class) or (guid == myGUID and myClass)
-                    if name then
-                        table.insert(scratchKnownList, GetColoredCharacterName(name, className, realm))
+    -- A. From SfuiDB.crafts (crafters of output item)
+    if craftTarget and SfuiDB.crafts and SfuiDB.crafts[craftTarget] then
+        for guid, canCraft in pairs(SfuiDB.crafts[craftTarget]) do
+            if canCraft and guid ~= myGUID then
+                scratchKnownGUIDs[guid] = true
+            end
+        end
+    end
+
+    -- B. From SfuiDB.recipes (recipe itemID or spellID)
+    local checkIDs = { recipeItemID, itemID, spellID }
+    if SfuiDB.recipes then
+        for _, id in ipairs(checkIDs) do
+            if id and SfuiDB.recipes[id] then
+                for realm, realmList in pairs(SfuiDB.recipes[id]) do
+                    if type(realmList) == "table" then
+                        for guid, isKnown in pairs(realmList) do
+                            if isKnown and guid ~= myGUID then
+                                scratchKnownGUIDs[guid] = true
+                            end
+                        end
                     end
                 end
             end
         end
     end
 
-    -- Gather Eligible "Can Learn" Alts
+    -- C. Base recipes (minSkill <= 0): any alt with this profession knows it automatically
+    if minSkill and minSkill <= 0 and (skillID or profName) and SfuiDB.alts then
+        for guid, altData in pairs(SfuiDB.alts) do
+            if guid ~= myGUID and not scratchKnownGUIDs[guid] then
+                local hasProf = CheckAltEligibility(altData, profName, 0, subclassID, skillID)
+                if hasProf then
+                    scratchKnownGUIDs[guid] = true
+                end
+            end
+        end
+    end
+
+    -- Format Known Alts
+    for guid in pairs(scratchKnownGUIDs) do
+        local alt = SfuiDB.alts and SfuiDB.alts[guid]
+        if alt and alt.name then
+            table.insert(scratchKnownList, GetColoredCharacterName(alt.name, alt.class, alt.realm))
+        end
+    end
+
+    -- 3. Gather Eligible "Can Learn" & "Needs Skill" Alts
     wipe(scratchCanLearnList)
     wipe(scratchLowSkillList)
 
-    if showCanLearn and SfuiDB.alts then
-        local reqProf, reqRank = ExtractRecipeRequirement(itemID, itemLink, subclassID)
-        if reqProf or (subclassID and subclassID > 0) then
-            for guid, altData in pairs(SfuiDB.alts) do
-                -- Skip if already known by this alt
-                if not scratchKnownGUIDs[guid] then
-                    local hasProf, meetsRank, currentRank = CheckAltEligibility(altData, reqProf, reqRank, subclassID)
-                    if hasProf then
-                        local formatted = GetColoredCharacterName(altData.name, altData.class, altData.realm)
-                        if meetsRank then
+    if (showCanLearn or showNeedsSkill) and SfuiDB.alts and (profName or skillID or (subclassID and subclassID > 0)) then
+        for guid, altData in pairs(SfuiDB.alts) do
+            if guid ~= myGUID and not scratchKnownGUIDs[guid] then
+                local hasProf, meetsRank, currentRank = CheckAltEligibility(altData, profName, minSkill, subclassID, skillID)
+                if hasProf then
+                    local formatted = GetColoredCharacterName(altData.name, altData.class, altData.realm)
+                    if meetsRank then
+                        if showCanLearn then
                             table.insert(scratchCanLearnList, formatted)
-                        else
-                            local lowFormatted = string.format("%s |cff888888(%d/%d)|r", formatted, currentRank or 0, reqRank or 0)
-                            table.insert(scratchLowSkillList, lowFormatted)
                         end
+                    elseif showNeedsSkill then
+                        local lowFormatted = string.format("%s |cff888888(%d/%d)|r", formatted, currentRank or 0, minSkill or 0)
+                        table.insert(scratchLowSkillList, lowFormatted)
                     end
                 end
             end
@@ -816,36 +1005,65 @@ local function SetItemTooltip(tooltip)
         if totalKnown > maxAlts then
             text = string.format("%s, |cffaaaaaa+%d more|r", text, totalKnown - maxAlts)
         end
-        tooltip:AddLine("|cff00ccffknown alts:|r " .. text, 1, 1, 1, true)
+        AddLine("|cff00ccffknown alts:|r " .. text, 1, 1, 1, true)
     end
 
     local totalCanLearn = #scratchCanLearnList
-    local totalLow = #scratchLowSkillList
-    local totalEligible = totalCanLearn + totalLow
-    if showCanLearn and totalEligible > 0 then
+    if showCanLearn and totalCanLearn > 0 then
         local text = ""
-        local count = 0
-
         for i = 1, math.min(totalCanLearn, maxAlts) do
-            count = count + 1
             text = (text == "") and scratchCanLearnList[i] or (text .. ", " .. scratchCanLearnList[i])
         end
-
-        for i = 1, totalLow do
-            if count < maxAlts then
-                count = count + 1
-                text = (text == "") and scratchLowSkillList[i] or (text .. ", " .. scratchLowSkillList[i])
-            else
-                break
-            end
+        if totalCanLearn > maxAlts then
+            text = string.format("%s, |cffaaaaaa+%d more|r", text, totalCanLearn - maxAlts)
         end
-
-        if totalEligible > maxAlts then
-            text = string.format("%s, |cffaaaaaa+%d more|r", text, totalEligible - maxAlts)
-        end
-
-        tooltip:AddLine("|cff00ff88can learn:|r " .. text, 1, 1, 1, true)
+        AddLine("|cff00ff88can learn:|r " .. text, 1, 1, 1, true)
     end
+
+    local totalLow = #scratchLowSkillList
+    if showNeedsSkill and totalLow > 0 then
+        local text = ""
+        for i = 1, math.min(totalLow, maxAlts) do
+            text = (text == "") and scratchLowSkillList[i] or (text .. ", " .. scratchLowSkillList[i])
+        end
+        if totalLow > maxAlts then
+            text = string.format("%s, |cffaaaaaa+%d more|r", text, totalLow - maxAlts)
+        end
+        AddLine("|cffffbb33needs skill:|r " .. text, 1, 1, 1, true)
+    end
+end
+
+-- ── Tooltip Post-Call Handler ─────────────────────────────────────────────────
+local function SetItemTooltip(tooltip, data)
+    if not tooltip or not tooltip.AddLine then return end
+    if tooltip._sfuiInRecipeBrowser then return end
+
+    local itemID = (data and data.id)
+    if not itemID and TooltipUtil and TooltipUtil.GetDisplayedItem then
+        itemID = select(3, TooltipUtil.GetDisplayedItem(tooltip))
+    end
+    if not itemID and tooltip.GetPrimaryTooltipData then
+        local tipData = tooltip:GetPrimaryTooltipData()
+        if tipData and tipData.type == Enum.TooltipDataType.Item then
+            itemID = tipData.id
+        end
+    end
+    if not itemID and tooltip.GetItem then
+        local _, link = tooltip:GetItem()
+        if link then
+            itemID = tonumber(link:match("item:(%d+)"))
+        end
+    end
+
+    local issecretvalue = (sfui.safety and sfui.safety.issecretvalue) or (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+    if not itemID or (issecretvalue and issecretvalue(itemID)) or type(itemID) ~= "number" or itemID <= 0 then return end
+
+    -- Update active player status for recipe items
+    if IsRecipe(itemID) then
+        UpdateItem(itemID)
+    end
+
+    sfui.recipes.AddAltKnowledgeLines(tooltip, itemID)
 end
 
 -- ── Tooltip Registration (Retail & Classic Era Compatible) ────────────────────
@@ -984,6 +1202,10 @@ sfui.events.RegisterEvent("TRADE_SKILL_SHOW", RequestTradeSkillScan)
 sfui.events.RegisterEvent("TRADE_SKILL_LIST_UPDATE", RequestTradeSkillScan)
 sfui.events.RegisterEvent("CRAFT_SHOW", RequestTradeSkillScan)
 sfui.events.RegisterEvent("CRAFT_UPDATE", RequestTradeSkillScan)
+sfui.events.RegisterEvent("SKILL_LINES_CHANGED", function()
+    RequestTradeSkillScan(true)
+    PruneOrphanCrafts()
+end)
 sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", OnItemInfoReceived)
 
 -- Attempt early hook if container mixin is already available
@@ -997,3 +1219,5 @@ sfui.recipes.InvalidateCache = InvalidateRecipeStatusCache
 sfui.recipes.UpdateItem = UpdateItem
 sfui.recipes.RequestUpdateAllItems = RequestUpdateAllItems
 sfui.recipes.ScanCurrentTradeSkills = ScanCurrentTradeSkills
+sfui.recipes.AddAltKnowledgeLines = sfui.recipes.AddAltKnowledgeLines
+sfui.recipes.CheckAltEligibility = CheckAltEligibility

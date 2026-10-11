@@ -90,6 +90,17 @@ local SECONDARY_SKILL_IDS = {
     [762] = true, -- Riding
 }
 
+local SKILL_ID_TO_PROF_NAME = {
+    [171] = "Alchemy",
+    [164] = "Blacksmithing",
+    [333] = "Enchanting",
+    [202] = "Engineering",
+    [165] = "Leatherworking",
+    [197] = "Tailoring",
+    [185] = "Cooking",
+    [129] = "First Aid",
+}
+
 local function GetSkillCategoryInfo(skillID)
     if WEAPON_SKILL_IDS[skillID] then
         return "Weapon Skills", 1, { 1.00, 0.85, 0.40 } -- Gold
@@ -539,7 +550,19 @@ function CamelotSkillsModule:BuildBlocks(container)
                     ToggleTrackedSkill(skillID)
                     return
                 end
-                OpenSkillInUI(skillID)
+                if btn == "MiddleButton" then
+                    OpenSkillInUI(skillID)
+                    return
+                end
+                local profName = SKILL_ID_TO_PROF_NAME[skillID]
+                if profName and sfui.recipes and sfui.recipes.browser and sfui.recipes.OpenBrowser then
+                    sfui.recipes.OpenBrowser()
+                    if sfui.recipes.browser.SelectProfession then
+                        sfui.recipes.browser:SelectProfession(profName)
+                    end
+                else
+                    OpenSkillInUI(skillID)
+                end
             end,
             tooltip = function(tip, owner, bData)
                 tip:AddLine(skill.name, catColor[1], catColor[2], catColor[3])
@@ -552,7 +575,13 @@ function CamelotSkillsModule:BuildBlocks(container)
                     tip:AddLine(skill.description, 0.85, 0.85, 0.85, true)
                 end
                 tip:AddLine(" ")
-                tip:AddLine("|cff888888left-click: open skills panel|r", 1, 1, 1)
+                local profName = SKILL_ID_TO_PROF_NAME[skillID]
+                if profName then
+                    tip:AddLine("|cff888888left-click: open recipe catalog|r", 1, 1, 1)
+                    tip:AddLine("|cff888888middle-click: open skills panel|r", 1, 1, 1)
+                else
+                    tip:AddLine("|cff888888left-click: open skills panel|r", 1, 1, 1)
+                end
                 tip:AddLine("|cff888888shift-click or right-click: untrack skill|r", 1, 1, 1)
             end,
         })

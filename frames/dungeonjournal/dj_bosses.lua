@@ -935,6 +935,23 @@ local function RenderLoot(boss, dungeon)
                     end
                 end
             end
+            if sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID) then
+                local status = sfui.recipes.GetRecipeStatus and sfui.recipes.GetRecipeStatus(itemID)
+                local isAlt = sfui.recipes.IsAltNeeded and sfui.recipes.IsAltNeeded(itemID)
+                local badge = ""
+                if status == "known" then
+                    badge = "  ·  |cff40c040[known]|r"
+                elseif status == "learnable" then
+                    badge = "  ·  |cff00ff88[learnable]|r"
+                elseif isAlt then
+                    badge = "  ·  |cff80c0ff[alt needs]|r"
+                elseif status == "alt_known" then
+                    badge = "  ·  |cff80c0ff[alt known]|r"
+                else
+                    badge = "  ·  |cffffa500[recipe]|r"
+                end
+                typeLabel = typeLabel .. badge
+            end
             btn.typeText:SetText(typeLabel)
 
             -- Drop rate & Level info
@@ -962,8 +979,20 @@ local function RenderLoot(boss, dungeon)
                     else
                         GameTooltip:SetItemByID(itemID)
                     end
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("|cff888888<shift-click to link · ctrl-click to view>|r", 0.6, 0.6, 0.6)
+                    local isRecipe = sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID)
+                    if isRecipe then
+                        if sfui.recipes.AddAltKnowledgeLines then
+                            sfui.recipes.AddAltKnowledgeLines(GameTooltip, itemID, true)
+                        end
+                        GameTooltip:AddLine(" ")
+                        local sID = (sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID]) or itemID
+                        local isPinned = sfui.recipes.IsRecipePinned and sfui.recipes.IsRecipePinned(sID)
+                        GameTooltip:AddLine(string.format("|cff00ff88ctrl-click: %s objective tracker|r", isPinned and "unpin from" or "track in"), 0.2, 1, 0.4)
+                        GameTooltip:AddLine("|cff888888alt-click: open recipe catalog|r", 0.7, 0.7, 0.7)
+                    else
+                        GameTooltip:AddLine(" ")
+                        GameTooltip:AddLine("|cff888888<shift-click to link · ctrl-click to view>|r", 0.6, 0.6, 0.6)
+                    end
                     GameTooltip:Show()
                 end)
                 btn:SetScript("OnLeave", function()
@@ -971,6 +1000,21 @@ local function RenderLoot(boss, dungeon)
                 end)
 
                 btn:SetScript("OnClick", function(self, mouseBtn)
+                    local isRecipe = sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID)
+                    if isRecipe and _G.IsControlKeyDown and _G.IsControlKeyDown() then
+                        local sID = (sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID]) or itemID
+                        if sfui.recipes.TogglePinRecipe then
+                            sfui.recipes.TogglePinRecipe(sID)
+                            return
+                        end
+                    end
+                    if isRecipe and _G.IsAltKeyDown and _G.IsAltKeyDown() then
+                        local sID = (sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID]) or itemID
+                        if sfui.recipes.OpenBrowserToRecipe then
+                            sfui.recipes.OpenBrowserToRecipe(sID)
+                            return
+                        end
+                    end
                     sfui.dungeonjournal.HandleItemClick(self, mouseBtn, itemID)
                 end)
 
@@ -1439,6 +1483,32 @@ local function OnFrameCreated(arg1, arg2)
 end
 
 sfui.dungeonjournal._initBosses = OnFrameCreated
+
+function sfui.dungeonjournal.SelectBoss(bossIndexOrName)
+    if not bossIndexOrName then return end
+    local dungeon = GetCurrentDungeon()
+    local encounters = GetEncounterList(dungeon)
+    if not encounters or #encounters == 0 then return end
+
+    if type(bossIndexOrName) == "number" then
+        if bossIndexOrName >= 1 and bossIndexOrName <= #encounters then
+            selectedBossIndex = bossIndexOrName
+            DJ_DB().lastBoss = bossIndexOrName
+            RefreshBossView()
+            return
+        end
+    elseif type(bossIndexOrName) == "string" then
+        local target = bossIndexOrName:lower()
+        for idx, enc in ipairs(encounters) do
+            if enc.name and (enc.name:lower() == target or enc.name:lower():find(target, 1, true)) then
+                selectedBossIndex = idx
+                DJ_DB().lastBoss = idx
+                RefreshBossView()
+                return
+            end
+        end
+    end
+end
 
 -- ─── Message & Event Hooks ───────────────────────────────────────────────────
 if sfui.events and sfui.events.RegisterMessage then

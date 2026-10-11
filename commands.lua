@@ -127,6 +127,10 @@ SlashCmdList["SFUI"] = function(msg)
         if sfui.portals and sfui.portals.Toggle then
             sfui.portals.Toggle()
         end
+    elseif cmd == "recipes" or cmd == "recipe" or cmd == "professions" or cmd == "prof" then
+        if sfui.recipes and sfui.recipes.ToggleBrowser then
+            sfui.recipes.ToggleBrowser(arg ~= "" and arg or nil)
+        end
     elseif cmd == "totembar" or cmd == "totems" then
         if not sfui.isRetail and sfui.totembar and sfui.totembar.ToggleUnlock then
             sfui.totembar.ToggleUnlock()
@@ -142,7 +146,7 @@ SlashCmdList["SFUI"] = function(msg)
             if sfui.isRetail then
                 sfui.common.print("commands: /sfui [tab] | /sfui portals | /sfmem | /rl")
             else
-                sfui.common.print("commands: /sfui [tab] | /sfui portals | /sfui shards | /sfmem | /rl | /totembar")
+                sfui.common.print("commands: /sfui [tab] | /sfui recipes | /sfui portals | /sfui shards | /sfmem | /rl | /totembar")
             end
         end
     else
@@ -161,6 +165,18 @@ SLASH_SFUIPORTALS2 = "/portals"
 SlashCmdList["SFUIPORTALS"] = function()
     if sfui.portals and sfui.portals.Toggle then
         sfui.portals.Toggle()
+    end
+end
+
+-- Dedicated Recipe Catalog Slash Command (/recipes, /sfrecipes) (Camelot only)
+if not sfui.isRetail then
+    SLASH_SFUIRECIPES1 = "/sfrecipes"
+    SLASH_SFUIRECIPES2 = "/recipes"
+    SlashCmdList["SFUIRECIPES"] = function(msg)
+        if sfui.recipes and sfui.recipes.ToggleBrowser then
+            local raw = msg and _G.strtrim and _G.strtrim(msg) or (msg or "")
+            sfui.recipes.ToggleBrowser(raw ~= "" and raw or nil)
+        end
     end
 end
 

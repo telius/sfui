@@ -1,0 +1,1479 @@
+{
+  "645": {
+    "npcID": 645,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "3081": {
+    "npcID": 3081,
+    "mapID": 1412,
+    "mapName": "mulgore",
+    "x": 0.454,
+    "y": 0.618
+  },
+  "4879": {
+    "npcID": 4879,
+    "mapID": 1445,
+    "mapName": "dustwallow marsh",
+    "x": 0.366,
+    "y": 0.31
+  },
+  "14354": {
+    "npcID": 14354,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "1684": {
+    "npcID": 1684,
+    "mapID": 1432,
+    "mapName": "loch modan",
+    "x": 0.394,
+    "y": 0.392
+  },
+  "259860": {
+    "npcID": 259860,
+    "mapID": 2548,
+    "mapName": "riverglades",
+    "x": 0.642,
+    "y": 0.84
+  },
+  "3482": {
+    "npcID": 3482,
+    "mapID": 1413,
+    "mapName": "the barrens",
+    "x": 0.516,
+    "y": 0.3
+  },
+  "4003": {
+    "npcID": 4003,
+    "mapID": 1442,
+    "mapName": "stonetalon mountains",
+    "x": 0.716,
+    "y": 0.604
+  },
+  "428": {
+    "npcID": 428,
+    "mapID": 1433,
+    "mapName": "redridge mountains",
+    "x": 0.181,
+    "y": 0.368
+  },
+  "2118": {
+    "npcID": 2118,
+    "mapID": 1420,
+    "mapName": "tirisfal glades",
+    "x": 0.61,
+    "y": 0.524
+  },
+  "2376": {
+    "npcID": 2376,
+    "mapID": 1424,
+    "mapName": "hillsbrad foothills",
+    "x": 0.354,
+    "y": 0.664
+  },
+  "8137": {
+    "npcID": 8137,
+    "mapID": 1446,
+    "mapName": "tanaris",
+    "x": 0.666,
+    "y": 0.22
+  },
+  "340": {
+    "npcID": 340,
+    "mapID": 1453,
+    "mapName": "stormwind city",
+    "x": 0.744,
+    "y": 0.364
+  },
+  "12246": {
+    "npcID": 12246,
+    "mapID": 1443,
+    "mapName": "desolace",
+    "x": 0.404,
+    "y": 0.792
+  },
+  "3673": {
+    "npcID": 3673,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "3809": {
+    "npcID": 3809,
+    "mapID": 1440,
+    "mapName": "ashenvale",
+    "x": 0.32,
+    "y": 0.388
+  },
+  "4200": {
+    "npcID": 4200,
+    "mapID": 1439,
+    "mapName": "darkshore",
+    "x": 0.368,
+    "y": 0.442
+  },
+  "2664": {
+    "npcID": 2664,
+    "mapID": 1434,
+    "mapName": "stranglethorn vale",
+    "x": 0.282,
+    "y": 0.744
+  },
+  "1397": {
+    "npcID": 1397,
+    "mapID": 1426,
+    "mapName": "dun morogh",
+    "x": 0.402,
+    "y": 0.428
+  },
+  "6779": {
+    "npcID": 6779,
+    "mapID": 1416,
+    "mapName": "alterac mountains",
+    "x": 0.86,
+    "y": 0.794
+  },
+  "9216": {
+    "npcID": 9216,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "6144": {
+    "npcID": 6144,
+    "mapID": 1447,
+    "mapName": "azshara",
+    "x": 0.5,
+    "y": 0.562
+  },
+  "6146": {
+    "npcID": 6146,
+    "mapID": 1447,
+    "mapName": "azshara",
+    "x": 0.434,
+    "y": 0.712
+  },
+  "4101": {
+    "npcID": 4101,
+    "mapID": 1441,
+    "mapName": "thousand needles",
+    "x": 0.26,
+    "y": 0.55
+  },
+  "10758": {
+    "npcID": 10758,
+    "mapID": 1441,
+    "mapName": "thousand needles",
+    "x": 0.322,
+    "y": 0.316
+  },
+  "9736": {
+    "npcID": 9736,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "1032": {
+    "npcID": 1032,
+    "mapID": 1437,
+    "mapName": "wetlands",
+    "x": 0.202,
+    "y": 0.512
+  },
+  "1036": {
+    "npcID": 1036,
+    "mapID": 1437,
+    "mapName": "wetlands",
+    "x": 0.484,
+    "y": 0.46
+  },
+  "227853": {
+    "npcID": 227853,
+    "mapID": 1434,
+    "mapName": "stranglethorn vale",
+    "x": 0.284,
+    "y": 0.758
+  },
+  "11278": {
+    "npcID": 11278,
+    "mapID": 1422,
+    "mapName": "western plaguelands",
+    "x": 0.68,
+    "y": 0.774
+  },
+  "531": {
+    "npcID": 531,
+    "mapID": 1431,
+    "mapName": "duskwood",
+    "x": 0.152,
+    "y": 0.464
+  },
+  "10264": {
+    "npcID": 10264,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "2586": {
+    "npcID": 2586,
+    "mapID": 1417,
+    "mapName": "arathi highlands",
+    "x": 0.292,
+    "y": 0.272
+  },
+  "2589": {
+    "npcID": 2589,
+    "mapID": 1417,
+    "mapName": "arathi highlands",
+    "x": 0.312,
+    "y": 0.262
+  },
+  "32287": {
+    "npcID": 32287,
+    "mapID": 1416,
+    "mapName": "alterac mountains",
+    "x": 0.14,
+    "y": 0.632
+  },
+  "14371": {
+    "npcID": 14371,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "9259": {
+    "npcID": 9259,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "9260": {
+    "npcID": 9260,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "48": {
+    "npcID": 48,
+    "mapID": 1431,
+    "mapName": "duskwood",
+    "x": 0.77,
+    "y": 0.722
+  },
+  "9264": {
+    "npcID": 9264,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "6195": {
+    "npcID": 6195,
+    "mapID": 1447,
+    "mapName": "azshara",
+    "x": 0.344,
+    "y": 0.53
+  },
+  "222261": {
+    "npcID": 222261,
+    "mapID": 1441,
+    "mapName": "thousand needles",
+    "x": 0.798,
+    "y": 0.772
+  },
+  "4151": {
+    "npcID": 4151,
+    "mapID": 1441,
+    "mapName": "thousand needles",
+    "x": 0.692,
+    "y": 0.774
+  },
+  "2103": {
+    "npcID": 2103,
+    "mapID": 1437,
+    "mapName": "wetlands",
+    "x": 0.474,
+    "y": 0.764
+  },
+  "6201": {
+    "npcID": 6201,
+    "mapID": 1447,
+    "mapName": "azshara",
+    "x": 0.502,
+    "y": 0.196
+  },
+  "15419": {
+    "npcID": 15419,
+    "mapID": 1451,
+    "mapName": "silithus",
+    "x": 0.52,
+    "y": 0.394
+  },
+  "2626": {
+    "npcID": 2626,
+    "mapID": 1434,
+    "mapName": "stranglethorn vale",
+    "x": 0.274,
+    "y": 0.77
+  },
+  "14921": {
+    "npcID": 14921,
+    "mapID": 1434,
+    "mapName": "stranglethorn vale",
+    "x": 0.15,
+    "y": 0.16
+  },
+  "6731": {
+    "npcID": 6731,
+    "mapID": 1440,
+    "mapName": "ashenvale",
+    "x": 0.182,
+    "y": 0.6
+  },
+  "10317": {
+    "npcID": 10317,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "2642": {
+    "npcID": 2642,
+    "mapID": 1425,
+    "mapName": "the hinterlands",
+    "x": 0.634,
+    "y": 0.658
+  },
+  "2644": {
+    "npcID": 2644,
+    "mapID": 1425,
+    "mapName": "the hinterlands",
+    "x": 0.578,
+    "y": 0.666
+  },
+  "6229": {
+    "npcID": 6229,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "217689": {
+    "npcID": 217689,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "264797": {
+    "npcID": 264797,
+    "mapID": 2482,
+    "mapName": "mount hyjal",
+    "x": 0.71,
+    "y": 0.512
+  },
+  "276061": {
+    "npcID": 276061,
+    "mapID": 1420,
+    "mapName": "tirisfal glades",
+    "x": 0.52,
+    "y": 0.55
+  },
+  "11874": {
+    "npcID": 11874,
+    "mapID": 1435,
+    "mapName": "swamp of sorrows",
+    "x": 0.262,
+    "y": 0.314
+  },
+  "6243": {
+    "npcID": 6243,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "10339": {
+    "npcID": 10339,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "2663": {
+    "npcID": 2663,
+    "mapID": 1434,
+    "mapName": "stranglethorn vale",
+    "x": 0.282,
+    "y": 0.744
+  },
+  "5226": {
+    "npcID": 5226,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "2668": {
+    "npcID": 2668,
+    "mapID": 1431,
+    "mapName": "duskwood",
+    "x": 0.758,
+    "y": 0.454
+  },
+  "15471": {
+    "npcID": 15471,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "2672": {
+    "npcID": 2672,
+    "mapID": 1434,
+    "mapName": "stranglethorn vale",
+    "x": 0.27,
+    "y": 0.824
+  },
+  "2679": {
+    "npcID": 2679,
+    "mapID": 1437,
+    "mapName": "wetlands",
+    "x": 0.256,
+    "y": 0.258
+  },
+  "6777": {
+    "npcID": 6777,
+    "mapID": 1416,
+    "mapName": "alterac mountains",
+    "x": 0.86,
+    "y": 0.8
+  },
+  "10363": {
+    "npcID": 10363,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "2685": {
+    "npcID": 2685,
+    "mapID": 1434,
+    "mapName": "stranglethorn vale",
+    "x": 0.284,
+    "y": 0.75
+  },
+  "3711": {
+    "npcID": 3711,
+    "mapID": 1440,
+    "mapName": "ashenvale",
+    "x": 0.064,
+    "y": 0.132
+  },
+  "2688": {
+    "npcID": 2688,
+    "mapID": 1425,
+    "mapName": "the hinterlands",
+    "x": 0.342,
+    "y": 0.378
+  },
+  "2687": {
+    "npcID": 2687,
+    "mapID": 1434,
+    "mapName": "stranglethorn vale",
+    "x": 0.51,
+    "y": 0.352
+  },
+  "4225": {
+    "npcID": 4225,
+    "mapID": 1457,
+    "mapName": "darnassus",
+    "x": 0.632,
+    "y": 0.226
+  },
+  "3715": {
+    "npcID": 3715,
+    "mapID": 1440,
+    "mapName": "ashenvale",
+    "x": 0.064,
+    "y": 0.132
+  },
+  "643": {
+    "npcID": 643,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "2697": {
+    "npcID": 2697,
+    "mapID": 1433,
+    "mapName": "redridge mountains",
+    "x": 0.838,
+    "y": 0.708
+  },
+  "11915": {
+    "npcID": 11915,
+    "mapID": 1442,
+    "mapName": "stonetalon mountains",
+    "x": 0.584,
+    "y": 0.9
+  },
+  "2699": {
+    "npcID": 2699,
+    "mapID": 1434,
+    "mapName": "stranglethorn vale",
+    "x": 0.284,
+    "y": 0.76
+  },
+  "3725": {
+    "npcID": 3725,
+    "mapID": 1440,
+    "mapName": "ashenvale",
+    "x": 0.254,
+    "y": 0.278
+  },
+  "12941": {
+    "npcID": 12941,
+    "mapID": 1423,
+    "mapName": "eastern plaguelands",
+    "x": 0.804,
+    "y": 0.576
+  },
+  "3727": {
+    "npcID": 3727,
+    "mapID": 1440,
+    "mapName": "ashenvale",
+    "x": 0.254,
+    "y": 0.278
+  },
+  "12944": {
+    "npcID": 12944,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "240785": {
+    "npcID": 240785,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "10384": {
+    "npcID": 10384,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "10899": {
+    "npcID": 10899,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "266901": {
+    "npcID": 266901,
+    "mapID": 2482,
+    "mapName": "mount hyjal",
+    "x": 0.588,
+    "y": 0.418
+  },
+  "5783": {
+    "npcID": 5783,
+    "mapID": 1414,
+    "mapName": "kalimdor",
+    "x": 0.518,
+    "y": 0.554
+  },
+  "12956": {
+    "npcID": 12956,
+    "mapID": 1451,
+    "mapName": "silithus",
+    "x": 0.818,
+    "y": 0.178
+  },
+  "12957": {
+    "npcID": 12957,
+    "mapID": 1447,
+    "mapName": "azshara",
+    "x": 0.452,
+    "y": 0.908
+  },
+  "12958": {
+    "npcID": 12958,
+    "mapID": 1425,
+    "mapName": "the hinterlands",
+    "x": 0.344,
+    "y": 0.384
+  },
+  "12959": {
+    "npcID": 12959,
+    "mapID": 1449,
+    "mapName": "un'goro crater",
+    "x": 0.432,
+    "y": 0.078
+  },
+  "674": {
+    "npcID": 674,
+    "mapID": 1434,
+    "mapName": "stranglethorn vale",
+    "x": 0.402,
+    "y": 0.424
+  },
+  "10406": {
+    "npcID": 10406,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "3757": {
+    "npcID": 3757,
+    "mapID": 1440,
+    "mapName": "ashenvale",
+    "x": 0.774,
+    "y": 0.448
+  },
+  "4278": {
+    "npcID": 4278,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "10422": {
+    "npcID": 10422,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "7864": {
+    "npcID": 7864,
+    "mapID": 1447,
+    "mapName": "azshara",
+    "x": 0.34,
+    "y": 0.586
+  },
+  "4281": {
+    "npcID": 4281,
+    "mapID": 1420,
+    "mapName": "tirisfal glades",
+    "x": 0.816,
+    "y": 0.328
+  },
+  "10426": {
+    "npcID": 10426,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "3771": {
+    "npcID": 3771,
+    "mapID": 1440,
+    "mapName": "ashenvale",
+    "x": 0.794,
+    "y": 0.502
+  },
+  "10425": {
+    "npcID": 10425,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "8897": {
+    "npcID": 8897,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "8898": {
+    "npcID": 8898,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "4292": {
+    "npcID": 4292,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "8900": {
+    "npcID": 8900,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "10438": {
+    "npcID": 10438,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "254151": {
+    "npcID": 254151,
+    "mapID": 2521,
+    "mapName": "zephras isle",
+    "x": 0.638,
+    "y": 0.36
+  },
+  "3783": {
+    "npcID": 3783,
+    "mapID": 1440,
+    "mapName": "ashenvale",
+    "x": 0.324,
+    "y": 0.674
+  },
+  "8903": {
+    "npcID": 8903,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "2252": {
+    "npcID": 2252,
+    "mapID": 1416,
+    "mapName": "alterac mountains",
+    "x": 0.418,
+    "y": 0.308
+  },
+  "7372": {
+    "npcID": 7372,
+    "mapID": 1430,
+    "mapName": "deadwind pass",
+    "x": 0.53,
+    "y": 0.642
+  },
+  "234193": {
+    "npcID": 234193,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "2261": {
+    "npcID": 2261,
+    "mapID": 1424,
+    "mapName": "hillsbrad foothills",
+    "x": 0.672,
+    "y": 0.46
+  },
+  "8920": {
+    "npcID": 8920,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "11487": {
+    "npcID": 11487,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "1763": {
+    "npcID": 1763,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "10469": {
+    "npcID": 10469,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "5861": {
+    "npcID": 5861,
+    "mapID": 1427,
+    "mapName": "searing gorge",
+    "x": 0.132,
+    "y": 0.41
+  },
+  "9447": {
+    "npcID": 9447,
+    "mapID": 1423,
+    "mapName": "eastern plaguelands",
+    "x": 0.674,
+    "y": 0.814
+  },
+  "1768": {
+    "npcID": 1768,
+    "mapID": 1421,
+    "mapName": "silverpine forest",
+    "x": 0.554,
+    "y": 0.281
+  },
+  "3817": {
+    "npcID": 3817,
+    "mapID": 1440,
+    "mapName": "ashenvale",
+    "x": 0.358,
+    "y": 0.692
+  },
+  "9452": {
+    "npcID": 9452,
+    "mapID": 1423,
+    "mapName": "eastern plaguelands",
+    "x": 0.678,
+    "y": 0.828
+  },
+  "10997": {
+    "npcID": 10997,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "12022": {
+    "npcID": 12022,
+    "mapID": 1450,
+    "mapName": "moonglade",
+    "x": 0.484,
+    "y": 0.4
+  },
+  "760": {
+    "npcID": 760,
+    "mapID": 1435,
+    "mapName": "swamp of sorrows",
+    "x": 0.43,
+    "y": 0.372
+  },
+  "2816": {
+    "npcID": 2816,
+    "mapID": 1417,
+    "mapName": "arathi highlands",
+    "x": 0.45,
+    "y": 0.468
+  },
+  "246017": {
+    "npcID": 246017,
+    "mapID": 1416,
+    "mapName": "alterac mountains",
+    "x": 0.187,
+    "y": 0.604
+  },
+  "258306": {
+    "npcID": 258306,
+    "mapID": 1455,
+    "mapName": "ironforge",
+    "x": 0.39,
+    "y": 0.324
+  },
+  "2819": {
+    "npcID": 2819,
+    "mapID": 1417,
+    "mapName": "arathi highlands",
+    "x": 0.748,
+    "y": 0.344
+  },
+  "7428": {
+    "npcID": 7428,
+    "mapID": 1452,
+    "mapName": "winterspring",
+    "x": 0.582,
+    "y": 0.674
+  },
+  "10499": {
+    "npcID": 10499,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "7940": {
+    "npcID": 7940,
+    "mapID": 1450,
+    "mapName": "moonglade",
+    "x": 0.514,
+    "y": 0.332
+  },
+  "4359": {
+    "npcID": 4359,
+    "mapID": 1445,
+    "mapName": "dustwallow marsh",
+    "x": 0.562,
+    "y": 0.218
+  },
+  "777": {
+    "npcID": 777,
+    "mapID": 1433,
+    "mapName": "redridge mountains",
+    "x": 0.238,
+    "y": 0.476
+  },
+  "4362": {
+    "npcID": 4362,
+    "mapID": 1445,
+    "mapName": "dustwallow marsh",
+    "x": 0.542,
+    "y": 0.134
+  },
+  "10508": {
+    "npcID": 10508,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "7437": {
+    "npcID": 7437,
+    "mapID": 1452,
+    "mapName": "winterspring",
+    "x": 0.54,
+    "y": 0.544
+  },
+  "4364": {
+    "npcID": 4364,
+    "mapID": 1445,
+    "mapName": "dustwallow marsh",
+    "x": 0.73,
+    "y": 0.184
+  },
+  "4366": {
+    "npcID": 4366,
+    "mapID": 1445,
+    "mapName": "dustwallow marsh",
+    "x": 0.72,
+    "y": 0.188
+  },
+  "7440": {
+    "npcID": 7440,
+    "mapID": 1452,
+    "mapName": "winterspring",
+    "x": 0.296,
+    "y": 0.368
+  },
+  "7441": {
+    "npcID": 7441,
+    "mapID": 1452,
+    "mapName": "winterspring",
+    "x": 0.304,
+    "y": 0.36
+  },
+  "7438": {
+    "npcID": 7438,
+    "mapID": 1452,
+    "mapName": "winterspring",
+    "x": 0.654,
+    "y": 0.374
+  },
+  "1813": {
+    "npcID": 1813,
+    "mapID": 1422,
+    "mapName": "western plaguelands",
+    "x": 0.612,
+    "y": 0.352
+  },
+  "9499": {
+    "npcID": 9499,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "6427": {
+    "npcID": 6427,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "250657": {
+    "npcID": 250657,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "5411": {
+    "npcID": 5411,
+    "mapID": 1446,
+    "mapName": "tanaris",
+    "x": 0.514,
+    "y": 0.288
+  },
+  "11557": {
+    "npcID": 11557,
+    "mapID": 1448,
+    "mapName": "felwood",
+    "x": 0.654,
+    "y": 0.028
+  },
+  "1836": {
+    "npcID": 1836,
+    "mapID": 1422,
+    "mapName": "western plaguelands",
+    "x": 0.42,
+    "y": 0.144
+  },
+  "14637": {
+    "npcID": 14637,
+    "mapID": 1444,
+    "mapName": "feralas",
+    "x": 0.448,
+    "y": 0.434
+  },
+  "3886": {
+    "npcID": 3886,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "1844": {
+    "npcID": 1844,
+    "mapID": 1422,
+    "mapName": "western plaguelands",
+    "x": 0.436,
+    "y": 0.348
+  },
+  "1853": {
+    "npcID": 1853,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "11582": {
+    "npcID": 11582,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "9024": {
+    "npcID": 9024,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "9025": {
+    "npcID": 9025,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "2368": {
+    "npcID": 2368,
+    "mapID": 1424,
+    "mapName": "hillsbrad foothills",
+    "x": 0.594,
+    "y": 0.74
+  },
+  "9026": {
+    "npcID": 9026,
+    "mapID": 1415,
+    "mapName": "eastern kingdoms",
+    "x": 0.48,
+    "y": 0.624
+  },
+  "9028": {
+    "npcID": 9028,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "9543": {
+    "npcID": 9543,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "15176": {
+    "npcID": 15176,
+    "mapID": 1451,
+    "mapName": "silithus",
+    "x": 0.512,
+    "y": 0.388
+  },
+  "15179": {
+    "npcID": 15179,
+    "mapID": 1451,
+    "mapName": "silithus",
+    "x": 0.498,
+    "y": 0.364
+  },
+  "2893": {
+    "npcID": 2893,
+    "mapID": 1418,
+    "mapName": "badlands",
+    "x": 0.474,
+    "y": 0.694
+  },
+  "2894": {
+    "npcID": 2894,
+    "mapID": 1418,
+    "mapName": "badlands",
+    "x": 0.482,
+    "y": 0.688
+  },
+  "8526": {
+    "npcID": 8526,
+    "mapID": 1423,
+    "mapName": "eastern plaguelands",
+    "x": 0.574,
+    "y": 0.682
+  },
+  "3413": {
+    "npcID": 3413,
+    "mapID": 1454,
+    "mapName": "orgrimmar",
+    "x": 0.75,
+    "y": 0.244
+  },
+  "6487": {
+    "npcID": 6487,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "8538": {
+    "npcID": 8538,
+    "mapID": 1423,
+    "mapName": "eastern plaguelands",
+    "x": 0.574,
+    "y": 0.682
+  },
+  "2907": {
+    "npcID": 2907,
+    "mapID": 1418,
+    "mapName": "badlands",
+    "x": 0.646,
+    "y": 0.254
+  },
+  "5981": {
+    "npcID": 5981,
+    "mapID": 1419,
+    "mapName": "blasted lands",
+    "x": 0.444,
+    "y": 0.334
+  },
+  "7524": {
+    "npcID": 7524,
+    "mapID": 1452,
+    "mapName": "winterspring",
+    "x": 0.502,
+    "y": 0.412
+  },
+  "8551": {
+    "npcID": 8551,
+    "mapID": 1423,
+    "mapName": "eastern plaguelands",
+    "x": 0.294,
+    "y": 0.238
+  },
+  "241006": {
+    "npcID": 241006,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "8561": {
+    "npcID": 8561,
+    "mapID": 1423,
+    "mapName": "eastern plaguelands",
+    "x": 0.634,
+    "y": 0.236
+  },
+  "7025": {
+    "npcID": 7025,
+    "mapID": 1428,
+    "mapName": "burning steppes",
+    "x": 0.392,
+    "y": 0.554
+  },
+  "7027": {
+    "npcID": 7027,
+    "mapID": 1428,
+    "mapName": "burning steppes",
+    "x": 0.392,
+    "y": 0.342
+  },
+  "7029": {
+    "npcID": 7029,
+    "mapID": 1428,
+    "mapName": "burning steppes",
+    "x": 0.392,
+    "y": 0.344
+  },
+  "7035": {
+    "npcID": 7035,
+    "mapID": 1428,
+    "mapName": "burning steppes",
+    "x": 0.764,
+    "y": 0.38
+  },
+  "9596": {
+    "npcID": 9596,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "7037": {
+    "npcID": 7037,
+    "mapID": 1428,
+    "mapName": "burning steppes",
+    "x": 0.54,
+    "y": 0.4
+  },
+  "10119": {
+    "npcID": 10119,
+    "mapID": 1433,
+    "mapName": "redridge mountains",
+    "x": 0.064,
+    "y": 0.912
+  },
+  "910": {
+    "npcID": 910,
+    "mapID": 1431,
+    "mapName": "duskwood",
+    "x": 0.21,
+    "y": 0.722
+  },
+  "264078": {
+    "npcID": 264078,
+    "mapID": 1412,
+    "mapName": "mulgore",
+    "x": 0.344,
+    "y": 0.228
+  },
+  "4494": {
+    "npcID": 4494,
+    "mapID": 1422,
+    "mapName": "western plaguelands",
+    "x": 0.522,
+    "y": 0.388
+  },
+  "1943": {
+    "npcID": 1943,
+    "mapID": 1421,
+    "mapName": "silverpine forest",
+    "x": 0.65,
+    "y": 0.232
+  },
+  "15263": {
+    "npcID": 15263,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "423": {
+    "npcID": 423,
+    "mapID": 1433,
+    "mapName": "redridge mountains",
+    "x": 0.089,
+    "y": 0.658
+  },
+  "6568": {
+    "npcID": 6568,
+    "mapID": 1446,
+    "mapName": "tanaris",
+    "x": 0.51,
+    "y": 0.274
+  },
+  "429": {
+    "npcID": 429,
+    "mapID": 1433,
+    "mapName": "redridge mountains",
+    "x": 0.675,
+    "y": 0.438
+  },
+  "2480": {
+    "npcID": 2480,
+    "mapID": 1416,
+    "mapName": "alterac mountains",
+    "x": 0.384,
+    "y": 0.388
+  },
+  "433": {
+    "npcID": 433,
+    "mapID": 1433,
+    "mapName": "redridge mountains",
+    "x": 0.659,
+    "y": 0.414
+  },
+  "2482": {
+    "npcID": 2482,
+    "mapID": 1434,
+    "mapName": "stranglethorn vale",
+    "x": 0.284,
+    "y": 0.754
+  },
+  "11185": {
+    "npcID": 11185,
+    "mapID": 1452,
+    "mapName": "winterspring",
+    "x": 0.608,
+    "y": 0.384
+  },
+  "11189": {
+    "npcID": 11189,
+    "mapID": 1452,
+    "mapName": "winterspring",
+    "x": 0.612,
+    "y": 0.372
+  },
+  "4022": {
+    "npcID": 4022,
+    "mapID": 1442,
+    "mapName": "stonetalon mountains",
+    "x": 0.292,
+    "y": 0.622
+  },
+  "6584": {
+    "npcID": 6584,
+    "mapID": 1449,
+    "mapName": "un'goro crater",
+    "x": 0.246,
+    "y": 0.418
+  },
+  "441": {
+    "npcID": 441,
+    "mapID": 1433,
+    "mapName": "redridge mountains",
+    "x": 0.126,
+    "y": 0.725
+  },
+  "7107": {
+    "npcID": 7107,
+    "mapID": 1448,
+    "mapName": "felwood",
+    "x": 0.364,
+    "y": 0.564
+  },
+  "7112": {
+    "npcID": 7112,
+    "mapID": 1448,
+    "mapName": "felwood",
+    "x": 0.35,
+    "y": 0.592
+  },
+  "3537": {
+    "npcID": 3537,
+    "mapID": 1424,
+    "mapName": "hillsbrad foothills",
+    "x": 0.504,
+    "y": 0.508
+  },
+  "5594": {
+    "npcID": 5594,
+    "mapID": 1446,
+    "mapName": "tanaris",
+    "x": 0.508,
+    "y": 0.27
+  },
+  "13278": {
+    "npcID": 13278,
+    "mapID": 1447,
+    "mapName": "azshara",
+    "x": 0.792,
+    "y": 0.734
+  },
+  "8678": {
+    "npcID": 8678,
+    "mapID": 1447,
+    "mapName": "azshara",
+    "x": 0.452,
+    "y": 0.908
+  },
+  "15340": {
+    "npcID": 15340,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "9198": {
+    "npcID": 9198,
+    "mapID": null,
+    "mapName": null,
+    "x": null,
+    "y": null
+  },
+  "5615": {
+    "npcID": 5615,
+    "mapID": 1446,
+    "mapName": "tanaris",
+    "x": 0.584,
+    "y": 0.364
+  },
+  "5616": {
+    "npcID": 5616,
+    "mapID": 1446,
+    "mapName": "tanaris",
+    "x": 0.588,
+    "y": 0.234
+  },
+  "5617": {
+    "npcID": 5617,
+    "mapID": 1446,
+    "mapName": "tanaris",
+    "x": 0.584,
+    "y": 0.372
+  },
+  "5618": {
+    "npcID": 5618,
+    "mapID": 1446,
+    "mapName": "tanaris",
+    "x": 0.588,
+    "y": 0.234
+  },
+  "7158": {
+    "npcID": 7158,
+    "mapID": 1448,
+    "mapName": "felwood",
+    "x": 0.602,
+    "y": 0.06
+  },
+  "6138": {
+    "npcID": 6138,
+    "mapID": 1447,
+    "mapName": "azshara",
+    "x": 0.742,
+    "y": 0.402
+  },
+  "4095": {
+    "npcID": 4095,
+    "mapID": 1441,
+    "mapName": "thousand needles",
+    "x": 0.164,
+    "y": 0.226
+  }
+}

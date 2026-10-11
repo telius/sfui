@@ -13,6 +13,7 @@ Usage:
 
 import argparse
 import glob
+import gzip
 import json
 import os
 import re
@@ -31,8 +32,29 @@ WOWHEAD_QUESTS_CACHE = os.path.join(REPO_ROOT, "data", "dj_wowhead_quests.json")
 WOWHEAD_GUIDE_URL = "https://www.wowhead.com/forever/guide/dungeons/every-dungeon-quest-location"
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate",
 }
+
+def fetch_url(url: str, timeout: int = 10, max_retries: int = 2) -> str:
+    req = urllib.request.Request(url, headers=HEADERS)
+    for attempt in range(max_retries):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read()
+                enc = resp.info().get("Content-Encoding", "").lower()
+                if "gzip" in enc or (len(raw) >= 2 and raw[:2] == b"\x1f\x8b"):
+                    try:
+                        raw = gzip.decompress(raw)
+                    except Exception:
+                        pass
+                return raw.decode("utf-8", errors="ignore")
+        except Exception:
+            if attempt < max_retries - 1:
+                time.sleep(0.5)
+    return ""
 
 # Normalization & Aliasing
 def norm_name(s: str) -> str:
@@ -121,12 +143,9 @@ def fetch_and_parse_wowhead_guide() -> dict:
     https://www.wowhead.com/forever/guide/dungeons/every-dungeon-quest-location
     Extracts all dungeon quest metadata, quest givers, coordinates, and prerequisite chain starters.
     """
-    req = urllib.request.Request(WOWHEAD_GUIDE_URL, headers=HEADERS)
-    try:
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            html = resp.read().decode("utf-8", errors="ignore")
-    except Exception as e:
-        print(f"Warning: Failed to fetch Wowhead guide: {e}", file=sys.stderr)
+    html = fetch_url(WOWHEAD_GUIDE_URL, timeout=12)
+    if not html:
+        print(f"Warning: Failed to fetch Wowhead guide from {WOWHEAD_GUIDE_URL}", file=sys.stderr)
         return {}
 
     # Extract names from WH.Gatherer.addData
@@ -285,11 +304,8 @@ def audit_against_wowhead_guide(verbose: bool = False, refresh: bool = False):
 def fetch_npc_droprates(npc_id: int) -> tuple:
     for base_url in ["https://www.wowhead.com/forever/npc=", "https://www.wowhead.com/classic/npc="]:
         url = f"{base_url}{npc_id}"
-        req = urllib.request.Request(url, headers=HEADERS)
-        try:
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                html = resp.read().decode("utf-8", errors="ignore")
-        except Exception:
+        html = fetch_url(url, timeout=8)
+        if not html:
             continue
 
         idx = html.find("id: 'drops'")
@@ -363,11 +379,8 @@ def fetch_quest_rewards(qid: int) -> tuple:
     # 1. Try Wowhead Forever and Classic
     for base_url in ["https://www.wowhead.com/forever/quest=", "https://www.wowhead.com/classic/quest="]:
         url = f"{base_url}{qid}"
-        req = urllib.request.Request(url, headers=HEADERS)
-        try:
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                html = resp.read().decode("utf-8", errors="ignore")
-        except Exception:
+        html = fetch_url(url, timeout=8)
+        if not html:
             continue
 
         r_idx = html.find("heading-size-3\">Rewards</h2>")
@@ -396,10 +409,8 @@ def fetch_quest_rewards(qid: int) -> tuple:
     # 2. Fallback to classicdb.ch (for 1.12 classic quests)
     if qid < 90000:
         url = f"https://classicdb.ch/?quest={qid}"
-        try:
-            req = urllib.request.Request(url, headers=HEADERS)
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                html = resp.read().decode("utf-8", errors="ignore")
+        html = fetch_url(url, timeout=8)
+        if html:
             r_idx = html.find("<h3>Reward</h3>")
             if r_idx != -1:
                 snippet = html[r_idx:r_idx + 2500]
@@ -415,8 +426,6 @@ def fetch_quest_rewards(qid: int) -> tuple:
                 if s and int(s.group(1)) > 0: m_parts.append(f"{s.group(1)}s")
                 if c and int(c.group(1)) > 0: m_parts.append(f"{c.group(1)}c")
                 return qid, items, " ".join(m_parts)
-        except Exception:
-            pass
 
     return qid, [], ""
 

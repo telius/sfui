@@ -192,6 +192,10 @@ function sfui.theme.ApplyThemeBarTexture(textureName)
         sfui.experience.SetBarTexture(texturePath)
     end
 
+    if sfui.recipes and sfui.recipes.SetBarTexture then
+        sfui.recipes.SetBarTexture(texturePath)
+    end
+
     if sfui.isRetail then
         if sfui.soulfragments and sfui.soulfragments.SetBarTexture then
             sfui.soulfragments.SetBarTexture(texturePath)
@@ -1762,21 +1766,27 @@ function sfui.theme.ApplyScrollBarStyle(scrollBar)
         parent.scrollBarHideable = 1
         if not parent._sfuiScrollHooked then
             parent._sfuiScrollHooked = true
-            parent:HookScript("OnScrollRangeChanged", function()
-                if scrollBar.UpdateVisibility then
-                    scrollBar:UpdateVisibility()
-                end
-            end)
-            parent:HookScript("OnSizeChanged", function()
-                if scrollBar.UpdateVisibility then
-                    scrollBar:UpdateVisibility()
-                end
-            end)
-            parent:HookScript("OnShow", function()
-                if scrollBar.UpdateVisibility then
-                    scrollBar:UpdateVisibility()
-                end
-            end)
+            if parent.HasScript and parent:HasScript("OnScrollRangeChanged") then
+                parent:HookScript("OnScrollRangeChanged", function()
+                    if scrollBar.UpdateVisibility then
+                        scrollBar:UpdateVisibility()
+                    end
+                end)
+            end
+            if parent.HasScript and parent:HasScript("OnSizeChanged") then
+                parent:HookScript("OnSizeChanged", function()
+                    if scrollBar.UpdateVisibility then
+                        scrollBar:UpdateVisibility()
+                    end
+                end)
+            end
+            if parent.HasScript and parent:HasScript("OnShow") then
+                parent:HookScript("OnShow", function()
+                    if scrollBar.UpdateVisibility then
+                        scrollBar:UpdateVisibility()
+                    end
+                end)
+            end
         end
     end
 

@@ -672,6 +672,15 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
             })
         end
 
+        if sfui.recipes and sfui.recipes.ToggleBrowser then
+            table.insert(menuButtons, {
+                text = "|cffffd100recipes|r",
+                func = function()
+                    sfui.recipes.ToggleBrowser()
+                end,
+            })
+        end
+
         if _G.C_PetJournal and _G.C_PetJournal.GetNumPets then
             table.insert(menuButtons, {
                 text = "|cffff99ccpet manager|r",

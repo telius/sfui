@@ -867,5 +867,91 @@
   "1490": {
     "rewardItems": [],
     "rewardSummary": ""
+  },
+  "132": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "135": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "141": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "142": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "155": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "871": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "872": {
+    "rewardItems": [
+      5275,
+      5328
+    ],
+    "rewardSummary": ""
+  },
+  "4183": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "4223": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "4224": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "4241": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "4242": {
+    "rewardItems": [
+      12018,
+      12021,
+      12041
+    ],
+    "rewardSummary": ""
+  },
+  "4342": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "4361": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "4362": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "4363": {
+    "rewardItems": [
+      12548,
+      12543
+    ],
+    "rewardSummary": "2s"
+  },
+  "4941": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "5727": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "6805": {
+    "rewardItems": [],
+    "rewardSummary": ""
   }
 }

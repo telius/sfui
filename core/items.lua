@@ -216,7 +216,7 @@ function sfui.items.get_inventory_item_link(unit, slotID)
                 _G.C_Item.RequestLoadItemDataByID(itemID)
             end
             local l = (_G.C_Item and _G.C_Item.GetItemLinkByItemID and _G.C_Item.GetItemLinkByItemID(itemID))
-                or select(2, _G.GetItemInfo(itemID))
+                or (C_Item_GetItemInfo and select(2, C_Item_GetItemInfo(itemID)))
                 or ("item:" .. itemID)
             if l and l ~= "" then return l end
         end

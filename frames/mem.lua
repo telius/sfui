@@ -42,12 +42,14 @@ local function FormatKB(kb)
     end
 end
 
--- Helper: Memory color coding (< 15mb green, 15-25mb yellow, 25mb+ red)
+-- Helper: Memory color coding (< 20mb green, 20-30mb yellow, 30-50mb orange, 50mb+ red)
 local function GetMemColor(kb)
-    if not kb or kb < 15360 then
+    if not kb or kb < 20480 then
         return "|cff00ff88"
-    elseif kb <= 25600 then
-        return "|cffffaa00"
+    elseif kb < 30720 then
+        return "|cffffd100"
+    elseif kb < 51200 then
+        return "|cffff8800"
     else
         return "|cffff4444"
     end
@@ -666,6 +668,21 @@ function sfui.mem.GetModuleStats()
         end
         stats["dungeonjournal"] = djStats
 
+        -- Recipe Catalog Module (Camelot / Classic)
+        local recStats = {
+            name = "recipe catalog",
+            status = "|cff888888idle|r",
+            line1 = "catalog: 0 recipes • 0 sources",
+            line2 = "filter: all • 0 shown • 0 pinned",
+        }
+        local rec = GetDebug("recipes_debug_info", "recipes")
+        if rec then
+            recStats.status = rec.isOpen and "|cff00ff88open|r" or "|cff888888idle|r"
+            recStats.line1 = string_format("catalog: %d recipes • %d sources", tonumber(rec.totalRecipes) or 0, tonumber(rec.totalSources) or 0)
+            recStats.line2 = string_format("filter: %s • %d shown • %d pinned • %d map pins", tostring(rec.activeFilter or "all"):lower(), tonumber(rec.shownCount) or 0, tonumber(rec.pinnedCount) or 0, tonumber(rec.mapPins) or 0)
+        end
+        stats["recipes"] = recStats
+
         -- Spell Rank-Up Automation (Camelot / Classic)
         local rankMod = {
             name = "spell rankup",
@@ -1028,6 +1045,7 @@ local MODULE_SECTIONS = {
                 table_insert(list, "buffs")
                 table_insert(list, "dungeonjournal")
                 table_insert(list, "rankup")
+                table_insert(list, "recipes")
             end
             table_sort(list)
             return list

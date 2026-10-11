@@ -1171,6 +1171,59 @@ function sfui.dungeonjournal.OpenToQuest(questID)
     end
 end
 
+function sfui.dungeonjournal.OpenToBoss(bossNameOrID, dungeonID)
+    if not bossNameOrID and not dungeonID then return false end
+    local dj = sfui.dj_camelot
+    if not dj then return false end
+
+    local targetBossName = bossNameOrID and tostring(bossNameOrID):lower()
+    local targetDungeon, targetBossIdx
+
+    -- 1. If dungeonID is given, search that specific dungeon
+    if dungeonID then
+        local d = dj.GetDungeonByName and dj.GetDungeonByName(dungeonID)
+        if d and d.bosses and targetBossName then
+            for idx, b in ipairs(d.bosses) do
+                if b.name and (b.name:lower() == targetBossName or b.name:lower():find(targetBossName, 1, true)) then
+                    targetDungeon = d
+                    targetBossIdx = idx
+                    break
+                end
+            end
+        end
+        targetDungeon = targetDungeon or d
+    end
+
+    -- 2. Otherwise search all dungeons and raids for boss
+    if not targetDungeon and targetBossName then
+        local allLists = { dj.dungeons or {}, dj.raids or {} }
+        for _, list in ipairs(allLists) do
+            for _, d in ipairs(list) do
+                for idx, b in ipairs(d.bosses or {}) do
+                    if b.name and (b.name:lower() == targetBossName or b.name:lower():find(targetBossName, 1, true) or targetBossName:find(b.name:lower(), 1, true)) then
+                        targetDungeon = d
+                        targetBossIdx = idx
+                        break
+                    end
+                end
+                if targetDungeon then break end
+            end
+            if targetDungeon then break end
+        end
+    end
+
+    if not targetDungeon then return false end
+
+    sfui.dungeonjournal.SelectDungeon(targetDungeon.id, "bosses")
+    if targetBossIdx and sfui.dungeonjournal.SelectBoss then
+        sfui.dungeonjournal.SelectBoss(targetBossIdx)
+    end
+    if frame and not frame:IsShown() then
+        frame:Show()
+    end
+    return true
+end
+
 function sfui.dungeonjournal.GetSelectedDungeonID()
     return selectedDungeonID
 end
