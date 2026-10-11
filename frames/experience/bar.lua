@@ -15,6 +15,7 @@ local _G = _G
 local CreateFrame = _G.CreateFrame
 local math_min = math.min
 local math_max = math.max
+local math_floor = math.floor
 local string_format = string.format
 local IsShiftKeyDown = _G.IsShiftKeyDown
 
@@ -78,6 +79,63 @@ function barModule.ToggleMode()
         currentMode = "XP"
     end
     barModule.UpdateValues()
+end
+
+local unlockOverlay = nil
+
+--- Set unlocked dragging state and toggle visual mover overlay
+--- @param unlocked boolean
+function barModule.SetUnlocked(unlocked)
+    if not container then return end
+    container._isUnlocked = unlocked
+
+    if unlocked then
+        if not unlockOverlay then
+            unlockOverlay = CreateFrame("Frame", nil, container, "BackdropTemplate")
+            unlockOverlay:SetAllPoints(container)
+            unlockOverlay:SetFrameLevel(container:GetFrameLevel() + 30)
+            unlockOverlay:EnableMouse(true)
+            unlockOverlay:RegisterForDrag("LeftButton")
+
+            local bg = unlockOverlay:CreateTexture(nil, "BACKGROUND")
+            bg:SetAllPoints()
+            bg:SetColorTexture(0.0, 0.6, 0.9, 0.45)
+            unlockOverlay.bg = bg
+
+            if sfui.widgets and sfui.widgets.create_border then
+                sfui.widgets.create_border(unlockOverlay, 1, { 0.2, 0.8, 1, 1 })
+            end
+
+            local lbl = unlockOverlay:CreateFontString(nil, "OVERLAY", sfui.config and sfui.config.font_small or "GameFontNormalSmall")
+            lbl:SetPoint("CENTER", unlockOverlay, "CENTER", 0, 0)
+            lbl:SetText("|cff00ffffexperience bar|r |cffaaaaaa(drag to move)|r")
+            unlockOverlay.lbl = lbl
+
+            unlockOverlay:SetScript("OnDragStart", function()
+                container:StartMoving()
+            end)
+            unlockOverlay:SetScript("OnDragStop", function()
+                container:StopMovingOrSizing()
+                local point, _, relPoint, x, y = container:GetPoint()
+                if sfui.db and sfui.db.Set then
+                    sfui.db.Set("experience", "pos", {
+                        point = point,
+                        relativePoint = relPoint,
+                        x = math_floor(x + 0.5),
+                        y = math_floor(y + 0.5),
+                    })
+                end
+            end)
+        end
+        container:Show()
+        container:SetAlpha(1.0)
+        unlockOverlay:Show()
+    else
+        if unlockOverlay then
+            unlockOverlay:Hide()
+        end
+        barModule.UpdateValues()
+    end
 end
 
 --- Apply theme styling to the container frame
@@ -227,8 +285,11 @@ function barModule.UpdateValues()
     local autoRep = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "autoReputation", cfg.autoReputation ~= false))
     if autoRep == nil then autoRep = true end
 
+    local isMax = xpData.isMaxLevel or xpData.isXPDisabled
+    local repOnlyAtMaxLevel = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repOnlyAtMaxLevel", cfg.repOnlyAtMaxLevel or false))
+
     if showDual then
-        if (xpData.isMaxLevel or xpData.isXPDisabled) then
+        if isMax and not container._isUnlocked then
             container:Hide()
         else
             container:Show()
@@ -236,16 +297,20 @@ function barModule.UpdateValues()
         currentMode = "XP"
     else
         -- Single bar mode: toggle between XP and Reputation
-        if xpData.isMaxLevel or xpData.isXPDisabled then
+        if isMax then
             if autoRep and repData and repData.hasRep then
                 currentMode = "REP"
                 container:Show()
-            else
+            elseif not container._isUnlocked then
                 container:Hide()
+            else
+                container:Show()
             end
         else
             container:Show()
-            if currentMode == "REP" and (not repData or not repData.hasRep) then
+            if repOnlyAtMaxLevel then
+                currentMode = "XP"
+            elseif currentMode == "REP" and (not repData or not repData.hasRep) then
                 currentMode = "XP"
             end
         end

@@ -101,7 +101,8 @@ local modDef = {
                 exp.bar.UpdateLayout()
             end
             exp.bar.UpdateValues()
-        elseif exp.reputation then
+        end
+        if exp.reputation then
             if key == "width" or key == "repHeight" or key == "repOnTop" or key == "showTicks" or key == "tickCount" then
                 exp.reputation.UpdateLayout()
             end
@@ -177,10 +178,15 @@ sfui.RegisterModule("experience", modDef)
 -- ─── Public API ───────────────────────────────────────────────────────────────
 
 --- Trigger an immediate visual update of the experience bar
+--- Trigger an immediate visual update of the experience and reputation bars
 function exp.Update()
     if exp.bar then
         exp.bar.UpdateLayout()
         exp.bar.UpdateValues()
+    end
+    if exp.reputation then
+        exp.reputation.UpdateLayout()
+        exp.reputation.UpdateValues()
     end
 end
 
@@ -199,8 +205,14 @@ end
 function exp.ResetPosition()
     local cfg = sfui.config and sfui.config.experience
     local defaultPos = (cfg and cfg.pos) or { point = "BOTTOM", relativePoint = "BOTTOM", x = 0, y = 4 }
+    local newPos = {
+        point = defaultPos.point or "BOTTOM",
+        relativePoint = defaultPos.relativePoint or defaultPos.point or "BOTTOM",
+        x = defaultPos.x or 0,
+        y = defaultPos.y or 4,
+    }
     if sfui.db and sfui.db.Set then
-        sfui.db.Set("experience", "pos", defaultPos)
+        sfui.db.Set("experience", "pos", newPos)
     end
     if exp.bar and exp.bar.UpdateLayout then
         exp.bar.UpdateLayout()
@@ -208,36 +220,107 @@ function exp.ResetPosition()
     if exp.reputation and exp.reputation.UpdateLayout then
         exp.reputation.UpdateLayout()
     end
+    if sfui.common and sfui.common.print then
+        sfui.common.print("experience bar position reset to default.")
+    end
 end
 
---- Toggle unlocked drag state for moving the experience bar
+--- Toggle unlocked drag state for moving the experience and reputation bars
 --- @return boolean
 function exp.ToggleUnlock()
-    local f = exp.bar and exp.bar.GetFrame and exp.bar.GetFrame()
-    local rf = exp.reputation and exp.reputation.GetFrame and exp.reputation.GetFrame()
-    if not f and not rf then return false end
+    if not exp.bar or not exp.bar.GetFrame or not exp.bar.GetFrame() then
+        if exp.bar and exp.bar.Create then exp.bar.Create() end
+    end
+    if not exp.reputation or not exp.reputation.GetFrame or not exp.reputation.GetFrame() then
+        if exp.reputation and exp.reputation.Create then exp.reputation.Create() end
+    end
 
-    local target = f or rf
-    target._isUnlocked = not target._isUnlocked
-    local isUnlocked = target._isUnlocked
-    if f then f._isUnlocked = isUnlocked end
-    if rf then rf._isUnlocked = isUnlocked end
+    exp._isUnlocked = not exp._isUnlocked
+    local isUnlocked = exp._isUnlocked
 
-    if isUnlocked then
-        print("|cff6600ffsf|rui: experience bar unlocked. drag to reposition.")
-    else
-        print("|cff6600ffsf|rui: experience bar locked.")
+    if exp.bar and exp.bar.SetUnlocked then
+        exp.bar.SetUnlocked(isUnlocked)
+    end
+    if exp.reputation and exp.reputation.SetUnlocked then
+        exp.reputation.SetUnlocked(isUnlocked)
+    end
+
+    if sfui.common and sfui.common.print then
+        if isUnlocked then
+            sfui.common.print("experience bar unlocked (drag to reposition).")
+        else
+            sfui.common.print("experience bar locked.")
+        end
     end
     return isUnlocked
 end
 
---- Switch between XP and Reputation display
---- @param mode string|nil "XP" or "REP"
+--- Check if experience bar is currently unlocked for dragging
+--- @return boolean
+function exp.IsUnlocked()
+    return exp._isUnlocked or false
+end
+
+--- Get current bar mode ("DUAL", "XP", "REP")
+--- @return string
+function exp.GetBarMode()
+    local cfg = sfui.config and sfui.config.experience or {}
+    local showDual = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showDualBars", cfg.showDualBars ~= false))
+    if showDual == nil then showDual = true end
+    if showDual then
+        return "DUAL"
+    end
+    local currentMode = (exp.bar and exp.bar.GetMode and exp.bar.GetMode()) or "XP"
+    return currentMode
+end
+
+--- Cycle through bar modes: DUAL -> XP -> REP -> DUAL
+--- @return string newMode
+function exp.CycleBarMode()
+    local curMode = exp.GetBarMode()
+    local nextMode = "XP"
+    if curMode == "DUAL" then
+        nextMode = "XP"
+    elseif curMode == "XP" then
+        nextMode = "REP"
+    else
+        nextMode = "DUAL"
+    end
+    exp.SetBarMode(nextMode)
+    return nextMode
+end
+
+--- Switch between Dual, XP, and Reputation display
+--- @param mode string|nil "DUAL", "XP", or "REP"
 function exp.SetBarMode(mode)
     if not exp.bar then return end
-    if mode == "XP" or mode == "REP" then
-        exp.bar.SetMode(mode)
+    if mode == "DUAL" then
+        if sfui.db and sfui.db.Set then
+            sfui.db.Set("experience", "showDualBars", true)
+        end
+        if exp.bar.SetMode then
+            exp.bar.SetMode("XP")
+        end
+    elseif mode == "REP" then
+        if sfui.db and sfui.db.Set then
+            sfui.db.Set("experience", "showDualBars", false)
+        end
+        if exp.bar.SetMode then
+            exp.bar.SetMode("REP")
+        end
+    elseif mode == "XP" then
+        if sfui.db and sfui.db.Set then
+            sfui.db.Set("experience", "showDualBars", false)
+        end
+        if exp.bar.SetMode then
+            exp.bar.SetMode("XP")
+        end
     else
-        exp.bar.ToggleMode()
+        exp.CycleBarMode()
+        return
+    end
+
+    if exp.Update then
+        exp.Update()
     end
 end

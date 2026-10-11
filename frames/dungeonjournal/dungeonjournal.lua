@@ -1080,16 +1080,28 @@ local function SetTab(tab)
     local currentEntry = selectedDungeonID and FindDungeon(selectedDungeonID)
     local list = GetList()
     local isValidInTab = false
+    local showAll = DJ_DB().showAllDungeons == true
     if currentEntry then
         for _, entry in ipairs(list) do
             if entry.id == selectedDungeonID then
-                isValidInTab = true
+                if showAll or sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
+                    isValidInTab = true
+                end
                 break
             end
         end
     end
     if not isValidInTab then
-        selectedDungeonID = (list and list[1] and list[1].id) or nil
+        local fallbackID = nil
+        if not showAll and list then
+            for _, entry in ipairs(list) do
+                if sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
+                    fallbackID = entry.id
+                    break
+                end
+            end
+        end
+        selectedDungeonID = fallbackID or (list and list[1] and list[1].id) or nil
         DJ_DB().lastDungeon = selectedDungeonID
     end
 
@@ -1121,7 +1133,7 @@ end
 sfui.dungeonjournal.GetCurrentInstanceDungeon = GetCurrentInstanceDungeon
 
 -- ─── Public SelectDungeon & Navigation ───────────────────────────────────────
-function sfui.dungeonjournal.SelectDungeon(dungeonID, mode)
+function sfui.dungeonjournal.SelectDungeon(dungeonID, mode, forceShowAll)
     local entry, tab = FindDungeon(dungeonID)
     if tab and tab ~= selectedTab then
         selectedTab = tab
@@ -1138,11 +1150,8 @@ function sfui.dungeonjournal.SelectDungeon(dungeonID, mode)
     DJ_DB().lastBoss    = 1
     DJ_DB().lastQuest   = 1
 
-    if entry and sfui.dungeonjournal.IsDungeonInLevelRange and not sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
-        PersistCharOption("showAllDungeons", true)
-        if sidebarFrame and sidebarFrame.UpdateFilterState then
-            sidebarFrame.UpdateFilterState()
-        end
+    if forceShowAll and entry and sfui.dungeonjournal.IsDungeonInLevelRange and not sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
+        sfui.dungeonjournal.SetOption("showAllDungeons", true)
     end
 
     if not frame then sfui.dungeonjournal.CreateFrame() end
@@ -1161,13 +1170,13 @@ function sfui.dungeonjournal.SelectDungeon(dungeonID, mode)
 end
 
 function sfui.dungeonjournal.OpenToDungeon(dungeonID, mode)
-    sfui.dungeonjournal.SelectDungeon(dungeonID, mode)
+    sfui.dungeonjournal.SelectDungeon(dungeonID, mode, true)
 end
 
 function sfui.dungeonjournal.OpenToQuest(questID)
     local qData = sfui.dj_camelot and sfui.dj_camelot.GetQuestDungeon and sfui.dj_camelot.GetQuestDungeon(questID)
     if qData and qData.dungeon then
-        sfui.dungeonjournal.SelectDungeon(qData.dungeon.id, "quests")
+        sfui.dungeonjournal.SelectDungeon(qData.dungeon.id, "quests", true)
     end
 end
 
@@ -1214,7 +1223,7 @@ function sfui.dungeonjournal.OpenToBoss(bossNameOrID, dungeonID)
 
     if not targetDungeon then return false end
 
-    sfui.dungeonjournal.SelectDungeon(targetDungeon.id, "bosses")
+    sfui.dungeonjournal.SelectDungeon(targetDungeon.id, "bosses", true)
     if targetBossIdx and sfui.dungeonjournal.SelectBoss then
         sfui.dungeonjournal.SelectBoss(targetBossIdx)
     end
@@ -1248,7 +1257,7 @@ function sfui.dungeonjournal.SelectQuest(dungeonID, questID)
     if not dungeonID and not questID then return false end
 
     if dungeonID then
-        sfui.dungeonjournal.SelectDungeon(dungeonID, "quests")
+        sfui.dungeonjournal.SelectDungeon(dungeonID, "quests", true)
     else
         if not frame then sfui.dungeonjournal.CreateFrame() end
         if not frame:IsShown() then frame:Show() end
@@ -1779,16 +1788,28 @@ function sfui.dungeonjournal.Toggle()
         local list = GetList()
         local currentEntry = selectedDungeonID and FindDungeon(selectedDungeonID)
         local isValidInTab = false
+        local showAll = DJ_DB().showAllDungeons == true
         if currentEntry then
             for _, entry in ipairs(list) do
                 if entry.id == selectedDungeonID then
-                    isValidInTab = true
+                    if showAll or sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
+                        isValidInTab = true
+                    end
                     break
                 end
             end
         end
         if not isValidInTab then
-            selectedDungeonID = (list and list[1] and list[1].id) or nil
+            local fallbackID = nil
+            if not showAll and list then
+                for _, entry in ipairs(list) do
+                    if sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
+                        fallbackID = entry.id
+                        break
+                    end
+                end
+            end
+            selectedDungeonID = fallbackID or (list and list[1] and list[1].id) or nil
             DJ_DB().lastDungeon = selectedDungeonID
         end
 
@@ -1840,16 +1861,28 @@ function sfui.dungeonjournal.Open()
         local list = GetList()
         local currentEntry = selectedDungeonID and FindDungeon(selectedDungeonID)
         local isValidInTab = false
+        local showAll = DJ_DB().showAllDungeons == true
         if currentEntry then
             for _, entry in ipairs(list) do
                 if entry.id == selectedDungeonID then
-                    isValidInTab = true
+                    if showAll or sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
+                        isValidInTab = true
+                    end
                     break
                 end
             end
         end
         if not isValidInTab then
-            selectedDungeonID = (list and list[1] and list[1].id) or nil
+            local fallbackID = nil
+            if not showAll and list then
+                for _, entry in ipairs(list) do
+                    if sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
+                        fallbackID = entry.id
+                        break
+                    end
+                end
+            end
+            selectedDungeonID = fallbackID or (list and list[1] and list[1].id) or nil
             DJ_DB().lastDungeon = selectedDungeonID
         end
 

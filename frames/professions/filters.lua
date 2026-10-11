@@ -1,7 +1,6 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
-sfui.professions = sfui.professions or {}
 sfui.recipes = sfui.recipes or {}
 sfui.recipes.browser = sfui.recipes.browser or {}
 
@@ -657,68 +656,155 @@ function B.GetCurrentProfessionRank(skillID)
     return 0
 end
 
---- Check if the active character knows a recipe
---- @param spellID number
---- @param r table?
+-- ─── Player Identity & Recipe State Memoization ──────────────────────────────
+local cachedPlayerGUID = nil
+local cachedPlayerRealm = nil
+
+local function GetPlayerIdentifiers()
+    if not cachedPlayerGUID and _G.UnitGUID then
+        cachedPlayerGUID = _G.UnitGUID("player")
+    end
+    if not cachedPlayerRealm then
+        cachedPlayerRealm = (_G.GetNormalizedRealmName and _G.GetNormalizedRealmName()) or (_G.GetRealmName and _G.GetRealmName()) or ""
+    end
+    return cachedPlayerGUID, cachedPlayerRealm
+end
+
+local isLearnedCache = {}
+
+--- Clear memoized recipe learned status
+function B.ClearLearnedCache()
+    wipe(isLearnedCache)
+end
+
+--- Return number of memoized recipe states for telemetry
+--- @return number count
+function B.GetLearnedCacheSize()
+    local count = 0
+    for _ in pairs(isLearnedCache) do
+        count = count + 1
+    end
+    return count
+end
+
+--- Check if the active character or an alt knows a recipe
+--- @param recipeOrSpellID table|number
+--- @param rOrGUID table|string?
+--- @param optionalRealm string?
 --- @return boolean isLearned
-function B.IsRecipeLearned(spellID, r)
-    if not spellID then return false end
+function B.IsRecipeLearned(recipeOrSpellID, rOrGUID, optionalRealm)
+    if not recipeOrSpellID then return false end
+
+    local spellID, r, targetGUID, targetRealm
+    if type(recipeOrSpellID) == "table" then
+        r = recipeOrSpellID
+        spellID = r.id
+        if type(rOrGUID) == "string" then
+            targetGUID = rOrGUID
+            targetRealm = optionalRealm
+        end
+    elseif type(recipeOrSpellID) == "number" then
+        spellID = recipeOrSpellID
+        if type(rOrGUID) == "table" then
+            r = rOrGUID
+            if type(optionalRealm) == "string" then
+                targetGUID = optionalRealm
+            end
+        elseif type(rOrGUID) == "string" then
+            targetGUID = rOrGUID
+            targetRealm = optionalRealm
+        end
+    end
+
+    local playerGUID, playerRealm = GetPlayerIdentifiers()
+    local isPlayer = (not targetGUID) or (targetGUID == playerGUID)
+
+    if isPlayer and spellID and isLearnedCache[spellID] ~= nil then
+        return isLearnedCache[spellID]
+    end
 
     -- Base / starter recipes (minSkill <= 0) are learned automatically upon learning the profession
     local minSkill = (r and (r.minSkill or (r.colors and r.colors[1]))) or 0
     if minSkill <= 0 then
         local skillID = r and r.skillID or B.selectedSkillID
-        if skillID then
-            for _, p in ipairs(B.playerProfessions) do
-                if p.skillID == skillID then
-                    return true
+        if isPlayer then
+            if skillID then
+                for _, p in ipairs(B.playerProfessions) do
+                    if p.skillID == skillID then
+                        if spellID then isLearnedCache[spellID] = true end
+                        return true
+                    end
+                end
+            end
+        else
+            if SfuiDB and SfuiDB.alts and targetGUID and SfuiDB.alts[targetGUID] then
+                local altData = SfuiDB.alts[targetGUID]
+                if altData.professions and altData.professions.primaries then
+                    for _, p in ipairs(altData.professions.primaries) do
+                        if p.skillID == skillID then
+                            return true
+                        end
+                    end
                 end
             end
         end
     end
 
-    local myRealm = GetNormalizedRealmName and GetNormalizedRealmName() or GetRealmName()
-    local targetGUID = UnitGUID and UnitGUID("player")
-    local targetRealm = myRealm
+    if isPlayer and spellID then
+        -- 1. Direct spellbook / player spell check
+        if C_SpellBook and C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(spellID) then
+            isLearnedCache[spellID] = true
+            return true
+        end
+        if C_SpellBook and C_SpellBook.IsSpellKnownOrInSpellBook and C_SpellBook.IsSpellKnownOrInSpellBook(spellID) then
+            isLearnedCache[spellID] = true
+            return true
+        end
+        if _G.IsPlayerSpell and _G.IsPlayerSpell(spellID) then
+            isLearnedCache[spellID] = true
+            return true
+        end
+        if _G.IsSpellKnown and _G.IsSpellKnown(spellID) then
+            isLearnedCache[spellID] = true
+            return true
+        end
 
-    -- 1. Direct spellbook / player spell check
-    if C_SpellBook and C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(spellID) then
-        return true
-    end
-    if C_SpellBook and C_SpellBook.IsSpellKnownOrInSpellBook and C_SpellBook.IsSpellKnownOrInSpellBook(spellID) then
-        return true
-    end
-    if _G.IsPlayerSpell and _G.IsPlayerSpell(spellID) then
-        return true
-    end
-    if _G.IsSpellKnown and _G.IsSpellKnown(spellID) then
-        return true
-    end
-
-    -- 2. C_TradeSkillUI check
-    if C_TradeSkillUI and C_TradeSkillUI.GetRecipeInfo then
-        local ok, info = pcall(C_TradeSkillUI.GetRecipeInfo, spellID)
-        if ok and type(info) == "table" and info.learned ~= nil then
-            return info.learned and true or false
+        -- 2. C_TradeSkillUI check
+        if C_TradeSkillUI and C_TradeSkillUI.GetRecipeInfo then
+            local ok, info = pcall(C_TradeSkillUI.GetRecipeInfo, spellID)
+            if ok and type(info) == "table" and info.learned ~= nil then
+                local learned = info.learned and true or false
+                isLearnedCache[spellID] = learned
+                return learned
+            end
         end
     end
 
+    local queryGUID = isPlayer and playerGUID or targetGUID
+    local queryRealm = isPlayer and playerRealm or (targetRealm or playerRealm)
+
     -- 3. Check SfuiDB.crafts for output item crafter
     if r and r.output and SfuiDB and SfuiDB.crafts and SfuiDB.crafts[r.output] then
-        if targetGUID and SfuiDB.crafts[r.output][targetGUID] then
+        if queryGUID and SfuiDB.crafts[r.output][queryGUID] then
+            if isPlayer and spellID then isLearnedCache[spellID] = true end
             return true
         end
     end
 
     -- 4. Fallback to SfuiDB.recipes alt tracker (by recipe item or spellID)
-    if SfuiDB and SfuiDB.recipes and targetRealm and targetGUID then
-        local checkIDs = { r and r.recipeItemID, spellID }
-        for _, id in ipairs(checkIDs) do
-            if id and SfuiDB.recipes[id] and SfuiDB.recipes[id][targetRealm] and SfuiDB.recipes[id][targetRealm][targetGUID] then
-                return true
-            end
+    if SfuiDB and SfuiDB.recipes and queryRealm and queryGUID then
+        local rItemID = r and r.recipeItemID
+        if rItemID and SfuiDB.recipes[rItemID] and SfuiDB.recipes[rItemID][queryRealm] and SfuiDB.recipes[rItemID][queryRealm][queryGUID] then
+            if isPlayer and spellID then isLearnedCache[spellID] = true end
+            return true
+        end
+        if spellID and SfuiDB.recipes[spellID] and SfuiDB.recipes[spellID][queryRealm] and SfuiDB.recipes[spellID][queryRealm][queryGUID] then
+            if isPlayer and spellID then isLearnedCache[spellID] = true end
+            return true
         end
     end
+
+    if isPlayer and spellID then isLearnedCache[spellID] = false end
     return false
 end
 
@@ -740,8 +826,7 @@ function sfui.recipes.IsAltNeeded(recipeOrID)
     if not r then return false end
 
     local skillID = r.skillID
-    local myGUID = _G.UnitGUID and _G.UnitGUID("player")
-    local myRealm = (_G.GetNormalizedRealmName and _G.GetNormalizedRealmName()) or (_G.GetRealmName and _G.GetRealmName()) or ""
+    local myGUID, myRealm = GetPlayerIdentifiers()
 
     local matchingAlts = nil
 
@@ -943,7 +1028,12 @@ function B.RebuildFilteredList()
                                     local passSearch = true
                                     if searchPattern then
                                         passSearch = false
-                                        if r.name and r.name:lower():find(searchPattern) then
+                                        local rLower = r._lowerName
+                                        if not rLower then
+                                            rLower = r.name and r.name:lower() or ""
+                                            r._lowerName = rLower
+                                        end
+                                        if rLower:find(searchPattern) then
                                             passSearch = true
                                         else
                                             local sources = r.sources
@@ -956,10 +1046,30 @@ function B.RebuildFilteredList()
                                             if sources then
                                                 for _, s in ipairs(sources) do
                                                     if not (sfui.recipes and sfui.recipes.IsSourceHostile and sfui.recipes.IsSourceHostile(s)) then
-                                                        if (s.name and s.name:lower():find(searchPattern))
-                                                        or (s.zone and s.zone:lower():find(searchPattern))
-                                                        or (s.desc and s.desc:lower():find(searchPattern))
-                                                        or (s.faction and s.faction:lower():find(searchPattern)) then
+                                                        local sName = s._lowerName
+                                                        if not sName and s.name then
+                                                            sName = s.name:lower()
+                                                            s._lowerName = sName
+                                                        end
+                                                        local sZone = s._lowerZone
+                                                        if not sZone and s.zone then
+                                                            sZone = s.zone:lower()
+                                                            s._lowerZone = sZone
+                                                        end
+                                                        local sDesc = s._lowerDesc
+                                                        if not sDesc and s.desc then
+                                                            sDesc = s.desc:lower()
+                                                            s._lowerDesc = sDesc
+                                                        end
+                                                        local sFaction = s._lowerFaction
+                                                        if not sFaction and s.faction then
+                                                            sFaction = s.faction:lower()
+                                                            s._lowerFaction = sFaction
+                                                        end
+                                                        if (sName and sName:find(searchPattern))
+                                                        or (sZone and sZone:find(searchPattern))
+                                                        or (sDesc and sDesc:find(searchPattern))
+                                                        or (sFaction and sFaction:find(searchPattern)) then
                                                             passSearch = true
                                                             break
                                                         end
@@ -1073,4 +1183,20 @@ function B.RebuildFilteredList()
     if B.UpdateProgressBar then
         B.UpdateProgressBar()
     end
+end
+
+-- ─── Cache Invalidation on Trade Skill / Learning Events ─────────────────────
+if sfui.events and sfui.events.RegisterEvent then
+    local function InvalidateLearnedCache()
+        wipe(isLearnedCache)
+        if B.ui and B.ui.frame and B.ui.frame:IsShown() then
+            B.RebuildFilteredList()
+            B.UpdateList()
+        end
+    end
+    sfui.events.RegisterEvent("CHAT_MSG_SKILL", InvalidateLearnedCache)
+    sfui.events.RegisterEvent("TRADE_SKILL_SHOW", InvalidateLearnedCache)
+    sfui.events.RegisterEvent("SKILL_LINES_CHANGED", InvalidateLearnedCache)
+    sfui.events.RegisterEvent("CRAFT_SHOW", InvalidateLearnedCache)
+    sfui.events.RegisterEvent("SPELLS_CHANGED", InvalidateLearnedCache)
 end

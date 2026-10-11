@@ -30,10 +30,16 @@ local function RequestDebouncedUpdate()
             if sfui.experience.bar and sfui.experience.bar.UpdateValues then
                 sfui.experience.bar.UpdateValues()
             end
+            if sfui.experience.reputation and sfui.experience.reputation.UpdateValues then
+                sfui.experience.reputation.UpdateValues()
+            end
         end)
     else
         if sfui.experience.bar and sfui.experience.bar.UpdateValues then
             sfui.experience.bar.UpdateValues()
+        end
+        if sfui.experience.reputation and sfui.experience.reputation.UpdateValues then
+            sfui.experience.reputation.UpdateValues()
         end
     end
 end
@@ -240,6 +246,12 @@ local function FlushPendingRepGains()
     pendingRepCount = 0
 
     if not bestFaction then return end
+
+    local isMax = sfui.experience.data and (sfui.experience.data.IsMaxLevel() or (sfui.experience.data.IsXPDisabled and sfui.experience.data.IsXPDisabled()))
+    local repOnlyAtMaxLevel = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repOnlyAtMaxLevel", false))
+    if repOnlyAtMaxLevel and not isMax then
+        return
+    end
 
     if sfui.experience.data and sfui.experience.data.SetWatchedFactionByName then
         sfui.experience.data.SetWatchedFactionByName(bestFaction)

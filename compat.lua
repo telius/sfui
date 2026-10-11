@@ -739,7 +739,7 @@ function sfui.api.GetMerchantItemInfo(index)
     if not index then return nil end
     if _G.C_MerchantFrame and _G.C_MerchantFrame.GetItemInfo then
         local info = _G.C_MerchantFrame.GetItemInfo(index)
-        if info and info.name then return info end
+        if info then return info end
     end
     if _G.GetMerchantItemInfo then
         local name, texture, price, stackCount, numAvailable, isPurchasable, isUsable, hasExtendedCost, currencyID =

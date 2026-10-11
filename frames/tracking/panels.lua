@@ -178,8 +178,10 @@ function sfui.tracking.get_cooldown_panels()
     end
 
     local playerClass = sfui.common.get_player_class()
+    local isClassic = sfui.isCamelot or sfui.isClassic or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic))
     local needsMigration = ((playerClass == "DRUID" or playerClass == "ROGUE") and not SfuiDB.druidMigrationV7)
         or (playerClass == "ROGUE" and not SfuiDB.rogueStealthMigrationV1)
+        or (playerClass == "WARRIOR" and isClassic and not SfuiDB.warriorStanceMigrationV1)
 
     if not SfuiDB.cooldownPanelsBySpec or not SfuiDB.cooldownPanelsBySpec[specID] or #SfuiDB.cooldownPanelsBySpec[specID] == 0 or needsMigration then
         _cachedPanels = sfui.tracking.ensure_panels_initialized()
@@ -285,6 +287,7 @@ function sfui.tracking.ensure_panels_initialized()
     end
 
     local playerClass = sfui.common.get_player_class()
+    local isClassic = sfui.isCamelot or sfui.isClassic or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic))
 
     SfuiDB.cooldownPanelsBySpec = SfuiDB.cooldownPanelsBySpec or {}
 
@@ -313,6 +316,9 @@ function sfui.tracking.ensure_panels_initialized()
     if playerClass == "DRUID" or playerClass == "ROGUE" then
         -- Inject druid/rogue specific default forms immediately after the base CENTER panel (index 1)
         defaultPanelSpecs[1].requiredForm = 0
+    elseif playerClass == "WARRIOR" and isClassic then
+        defaultPanelSpecs[1].name = "BATTLE"
+        defaultPanelSpecs[1].requiredForm = 1
     end
 
     if playerClass == "DRUID" then
@@ -322,6 +328,9 @@ function sfui.tracking.ensure_panels_initialized()
         table.insert(defaultPanelSpecs, 5, { key = "center_panel", name = "STEALTH", requiredForm = "stealth" })
     elseif playerClass == "ROGUE" then
         table.insert(defaultPanelSpecs, 2, { key = "center_panel", name = "STEALTH", requiredForm = "stealth" })
+    elseif playerClass == "WARRIOR" and isClassic then
+        table.insert(defaultPanelSpecs, 2, { key = "center_panel", name = "DEFENSIVE", requiredForm = 2 })
+        table.insert(defaultPanelSpecs, 3, { key = "center_panel", name = "BERSERKER", requiredForm = 3 })
     end
 
     -- Migrate legacy trackedIcons if not already done for this spec
@@ -341,6 +350,10 @@ function sfui.tracking.ensure_panels_initialized()
         for i, panel in ipairs(panels) do
             local uPanelName = string.upper(panel.name or "")
             if uPanelName == uSpecName then
+                panelIdx = i
+                break
+                -- Also match if the database name is "CENTER" but we are looking for "BATTLE" (and vice versa)
+            elseif (uPanelName == "CENTER" and uSpecName == "BATTLE") or (uPanelName == "BATTLE" and uSpecName == "CENTER") then
                 panelIdx = i
                 break
                 -- Also match if the database name is "CENTER" but we are looking for "CENTER" (we rename visually only in cdm)
@@ -374,11 +387,11 @@ function sfui.tracking.ensure_panels_initialized()
 
             -- Position center form variants right after the base CENTER panel or preceding form variants
             local insertPos = nil
-            if spec.key == "center_panel" and spec.name ~= "CENTER" then
+            if spec.key == "center_panel" and spec.name ~= "CENTER" and spec.name ~= "BATTLE" then
                 for idx = #panels, 1, -1 do
                     local p = panels[idx]
                     local u = p and p.name and string.upper(p.name)
-                    if u == "CENTER" or u == "CAT" or u == "BEAR" or u == "MOONKIN" or u == "STEALTH" then
+                    if u == "CENTER" or u == "BATTLE" or u == "DEFENSIVE" or u == "BERSERKER" or u == "CAT" or u == "BEAR" or u == "MOONKIN" or u == "STEALTH" then
                         insertPos = idx + 1
                         break
                     end
@@ -502,6 +515,75 @@ function sfui.tracking.ensure_panels_initialized()
         SfuiDB.rogueStealthMigrationV1 = true
     end
 
+    -- Warrior stance panel migration across all specs
+    if playerClass == "WARRIOR" and not SfuiDB.warriorStanceMigrationV1 then
+        if isClassic and SfuiDB.cooldownPanelsBySpec then
+            local upper = string.upper
+            for sID, specPanels in pairs(SfuiDB.cooldownPanelsBySpec) do
+                if type(specPanels) == "table" then
+                    local hasDefensive = false
+                    local hasBerserker = false
+                    local centerIdx = nil
+
+                    for idx, p in ipairs(specPanels) do
+                        local uname = p.name and upper(p.name)
+                        if uname == "CENTER" or uname == "BATTLE" then
+                            centerIdx = idx
+                            p.name = "BATTLE"
+                            if p.requiredForm == nil then
+                                p.requiredForm = 1
+                                changed = true
+                            end
+                        elseif uname == "DEFENSIVE" then
+                            hasDefensive = true
+                            if p.requiredForm ~= 2 then
+                                p.requiredForm = 2
+                                changed = true
+                            end
+                        elseif uname == "BERSERKER" then
+                            hasBerserker = true
+                            if p.requiredForm ~= 3 then
+                                p.requiredForm = 3
+                                changed = true
+                            end
+                        end
+                    end
+
+                    if not hasDefensive then
+                        local defPanel = sfui.common.copy(sfui.config.cooldown_panel_defaults.center_panel)
+                        defPanel.name = "DEFENSIVE"
+                        defPanel.requiredForm = 2
+                        defPanel.entries = {}
+                        defPanel.specID = tonumber(sID) or specID
+                        if centerIdx and centerIdx < #specPanels then
+                            table.insert(specPanels, centerIdx + 1, defPanel)
+                            centerIdx = centerIdx + 1
+                        else
+                            table.insert(specPanels, defPanel)
+                            centerIdx = #specPanels
+                        end
+                        changed = true
+                    end
+
+                    if not hasBerserker then
+                        local zerkPanel = sfui.common.copy(sfui.config.cooldown_panel_defaults.center_panel)
+                        zerkPanel.name = "BERSERKER"
+                        zerkPanel.requiredForm = 3
+                        zerkPanel.entries = {}
+                        zerkPanel.specID = tonumber(sID) or specID
+                        if centerIdx and centerIdx < #specPanels then
+                            table.insert(specPanels, centerIdx + 1, zerkPanel)
+                        else
+                            table.insert(specPanels, zerkPanel)
+                        end
+                        changed = true
+                    end
+                end
+            end
+        end
+        SfuiDB.warriorStanceMigrationV1 = true
+    end
+
     -- One-time migration for center panel defaults (hideOOC, hideInVehicle, hideMounted, spanWidth)
     if not SfuiDB.centerDefaultsV2 then
         if SfuiDB.cooldownPanelsBySpec then
@@ -509,7 +591,8 @@ function sfui.tracking.ensure_panels_initialized()
                 if type(specPanels) == "table" then
                     for _, p in ipairs(specPanels) do
                         local uname = p.name and string.upper(p.name)
-                        if uname == "CENTER" or uname == "CAT" or uname == "BEAR" or uname == "MOONKIN" or uname == "STEALTH" then
+                        if uname == "CENTER" or uname == "CAT" or uname == "BEAR" or uname == "MOONKIN" or uname == "STEALTH"
+                            or uname == "BATTLE" or uname == "DEFENSIVE" or uname == "BERSERKER" then
                             if p.hideOOC == nil then p.hideOOC = true; changed = true end
                             if p.hideInVehicle == nil then p.hideInVehicle = true; changed = true end
                             if p.hideMounted == nil then p.hideMounted = true; changed = true end
@@ -554,7 +637,10 @@ function sfui.tracking.ensure_panels_initialized()
         CAT = true,
         BEAR = true,
         MOONKIN = true,
-        STEALTH = true
+        STEALTH = true,
+        BATTLE = true,
+        DEFENSIVE = true,
+        BERSERKER = true,
     }
 
     for i = 1, #panels do
@@ -635,7 +721,8 @@ function sfui.tracking.add_custom_panel(name)
     local panels = sfui.tracking.get_cooldown_panels()
 
     -- Prevent creating duplicate builtin panels
-    if name == "CENTER" or name == "UTILITY" or name == "Left" or name == "Right" or name == "CAT" or name == "BEAR" or name == "MOONKIN" or name == "STEALTH" then
+    if name == "CENTER" or name == "UTILITY" or name == "Left" or name == "Right" or name == "CAT" or name == "BEAR" or name == "MOONKIN" or name == "STEALTH"
+        or name == "BATTLE" or name == "DEFENSIVE" or name == "BERSERKER" then
         for _, p in ipairs(panels) do
             if p.name == name then return #panels end
         end

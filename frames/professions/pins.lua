@@ -44,28 +44,25 @@ local table_insert, table_sort = _G.table.insert, _G.table.sort
 local string_format = string.format
 
 -- ─── Configuration & Options ──────────────────────────────────────────────────
-local function GetPinsDB()
-    SfuiDB = SfuiDB or {}
-    if SfuiDB.recipesShowMapPins == nil then
-        SfuiDB.recipesShowMapPins = true
-    end
-    return SfuiDB
-end
+local activePins = {}
 
 function sfui.recipes.pins.GetOption(key)
-    local db = GetPinsDB()
-    if key == "showMapPins" then
-        return db.recipesShowMapPins ~= false
+    if sfui.db and sfui.db.Get then
+        local val = sfui.db.Get("recipe_catalog", key)
+        if val ~= nil then return val end
     end
-    return db[key]
+    if key == "showMapPins" and SfuiDB and SfuiDB.recipesShowMapPins ~= nil then
+        return SfuiDB.recipesShowMapPins ~= false
+    end
+    return true
 end
 
 function sfui.recipes.pins.SetOption(key, val)
-    local db = GetPinsDB()
-    if key == "showMapPins" then
-        db.recipesShowMapPins = val and true or false
-    else
-        db[key] = val
+    if sfui.db and sfui.db.Set then
+        sfui.db.Set("recipe_catalog", key, val)
+    end
+    if SfuiDB and key == "showMapPins" then
+        SfuiDB.recipesShowMapPins = val and true or false
     end
     sfui.recipes.pins.isDirty = true
     if WorldMapFrame and WorldMapFrame:IsShown() then
@@ -122,7 +119,6 @@ local SOURCE_ICONS = {
 
 -- ─── Pin Frame Factory & Pool ─────────────────────────────────────────────────
 local pinPool = {}
-local activePins = {}
 
 local function AcquirePin(parent)
     for _, pin in ipairs(pinPool) do

@@ -45,10 +45,22 @@ end
 -- listener at the bottom of this file refreshes button states and the list.
 local function SetShowAll(val)
     sfui.dungeonjournal.SetOption("showAllDungeons", val and true or false)
+    if sidebarFrame and sidebarFrame.UpdateFilterState then
+        sidebarFrame.UpdateFilterState()
+    end
+    if RefreshSidebar then
+        RefreshSidebar()
+    end
 end
 
 local function SetShowHidden(val)
     sfui.dungeonjournal.SetOption("showHiddenInSidebar", val and true or false)
+    if sidebarFrame and sidebarFrame.UpdateEyeState then
+        sidebarFrame.UpdateEyeState()
+    end
+    if RefreshSidebar then
+        RefreshSidebar()
+    end
 end
 
 -- ─── Difficulty Color Helper ──────────────────────────────────────────────────
@@ -380,8 +392,17 @@ local sidebarFrame   = nil
 local scrollFrame    = nil
 local scrollContent  = nil
 
-RefreshSidebar = function()
+local isRefreshing = false
+
+local function RefreshSidebarImpl()
     if not sidebarFrame then return end
+
+    if sidebarFrame.UpdateFilterState then
+        sidebarFrame.UpdateFilterState()
+    end
+    if sidebarFrame.UpdateEyeState then
+        sidebarFrame.UpdateEyeState()
+    end
 
     ReleaseAll(sidebarButtons)
 
@@ -705,9 +726,10 @@ RefreshSidebar = function()
             end
             empty:Show()
         elseif not showAll then
-            empty.msg:SetText(string.format("no dungeons found in your level range (level %d).", playerLevel))
+            local tabLabel = (dj and dj.GetSelectedTab and dj.GetSelectedTab() == "raids") and "raids" or "dungeons"
+            empty.msg:SetText(string.format("no %s found in your level range (level %d).", tabLabel, playerLevel))
             empty.btn:Show()
-            empty.btn.text:SetText("show all dungeons")
+            empty.btn.text:SetText(string.format("show all %s", tabLabel))
             empty.btn:SetScript("OnClick", function() SetShowAll(true) end)
             empty:Show()
         else
@@ -727,6 +749,16 @@ RefreshSidebar = function()
     scrollContent:SetHeight(contentH)
     if scrollFrame and scrollFrame.ScrollBar and scrollFrame.ScrollBar.UpdateVisibility then
         scrollFrame.ScrollBar:UpdateVisibility()
+    end
+end
+
+RefreshSidebar = function()
+    if not sidebarFrame or isRefreshing then return end
+    isRefreshing = true
+    local ok, err = pcall(RefreshSidebarImpl)
+    isRefreshing = false
+    if not ok and sfui.error then
+        sfui.error("RefreshSidebar: " .. tostring(err))
     end
 end
 
@@ -885,7 +917,7 @@ if sfui.events and sfui.events.RegisterMessage then
             RefreshSidebar()
         end
     end)
-    sfui.events.RegisterMessage("SFUI_DJ_SETTING_CHANGED", function(key)
+    sfui.events.RegisterMessage("SFUI_DJ_SETTING_CHANGED", function(_, key)
         if key == "showAllDungeons" or key == "showHiddenInSidebar" or key == "hiddenDungeons" or key == "restoreAll" then
             if sidebarFrame and sidebarFrame:IsShown() then
                 if sidebarFrame.UpdateFilterState then sidebarFrame.UpdateFilterState() end

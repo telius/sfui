@@ -75,7 +75,8 @@ local function GetIconValue(entrySettings, panelConfig, key, default)
         val = panelConfig[key]
     else
         local pName = panelConfig and panelConfig.name and string.upper(panelConfig.name)
-        local pDef = (pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH")
+        local pDef = (pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH"
+            or pName == "BATTLE" or pName == "DEFENSIVE" or pName == "BERSERKER")
             and sfui.config and sfui.config.cooldown_panel_defaults and sfui.config.cooldown_panel_defaults.center_panel
         if not pDef and pName == "UTILITY" then
             pDef = sfui.config and sfui.config.cooldown_panel_defaults and sfui.config.cooldown_panel_defaults.utility
@@ -949,41 +950,87 @@ local function CheckPanelVisibility(panelConfig, event)
         end
     end
 
-    -- 1. Check Form Specificity (Druid CENTER panels mostly)
+    -- 1. Check Form Specificity (Druid CENTER panels, Rogue Stealth, Warrior Stances)
     local isStealthed = IsStealthed()
     local currentForm = GetShapeshiftFormID() or 0
     local playerClass = sfui.common.get_player_class()
 
-    if panelConfig.requiredForm ~= nil then
-        if panelConfig.requiredForm == "stealth" then
-            if not isStealthed then return false end
-
-            -- If we are a Druid in Bear or Moonkin form, we prioritize the form-specific bar over Stealth.
-            if playerClass == "DRUID" and currentForm ~= 0 and currentForm ~= 1 then
-                return false
+    if playerClass == "WARRIOR" then
+        local req = panelConfig.requiredForm
+        if req == nil then
+            local pName = panelConfig.name and string.upper(panelConfig.name)
+            if pName == "BATTLE" or pName == "CENTER" then
+                req = 1
+            elseif pName == "DEFENSIVE" then
+                req = 2
+            elseif pName == "BERSERKER" then
+                req = 3
             end
-        else
-            -- Non-stealth form panel logic
-            local matchesForm = false
-            if type(panelConfig.requiredForm) == "table" then
-                for _, id in ipairs(panelConfig.requiredForm) do
-                    if currentForm == id then
-                        matchesForm = true; break
+        end
+
+        if req ~= nil then
+            local activeStance = (GetShapeshiftForm and GetShapeshiftForm()) or 0
+            if activeStance == 0 then activeStance = 1 end
+            local matchesStance = false
+
+            local function stanceMatches(formReq)
+                if activeStance == formReq then return true end
+                if currentForm ~= 0 then
+                    if currentForm == formReq then return true end
+                    if (currentForm == 17 and formReq == 1)
+                        or (currentForm == 18 and formReq == 2)
+                        or (currentForm == 19 and formReq == 3) then
+                        return true
                     end
                 end
-            elseif currentForm == panelConfig.requiredForm then
-                matchesForm = true
+                return false
             end
 
-            if not matchesForm then return false end
-        end
-    end
+            if type(req) == "table" then
+                for _, id in ipairs(req) do
+                    if stanceMatches(id) then
+                        matchesStance = true
+                        break
+                    end
+                end
+            elseif stanceMatches(req) then
+                matchesStance = true
+            end
 
-    -- If we are stealthed, we usually want the STEALTH bar to take priority for Human/Rogue and Cat.
-    -- This hides the base form bars to prevent overlap, even if requiredForm matches.
-    if isStealthed and (playerClass == "ROGUE" or currentForm == 0 or currentForm == 1) then
-        if panelConfig.requiredForm ~= nil and panelConfig.requiredForm ~= "stealth" then
-            return false
+            if not matchesStance then return false end
+        end
+    else
+        if panelConfig.requiredForm ~= nil then
+            if panelConfig.requiredForm == "stealth" then
+                if not isStealthed then return false end
+
+                -- If we are a Druid in Bear or Moonkin form, we prioritize the form-specific bar over Stealth.
+                if playerClass == "DRUID" and currentForm ~= 0 and currentForm ~= 1 then
+                    return false
+                end
+            else
+                -- Non-stealth form panel logic
+                local matchesForm = false
+                if type(panelConfig.requiredForm) == "table" then
+                    for _, id in ipairs(panelConfig.requiredForm) do
+                        if currentForm == id then
+                            matchesForm = true; break
+                        end
+                    end
+                elseif currentForm == panelConfig.requiredForm then
+                    matchesForm = true
+                end
+
+                if not matchesForm then return false end
+            end
+        end
+
+        -- If we are stealthed, we usually want the STEALTH bar to take priority for Human/Rogue and Cat.
+        -- This hides the base form bars to prevent overlap, even if requiredForm matches.
+        if isStealthed and (playerClass == "ROGUE" or currentForm == 0 or currentForm == 1) then
+            if panelConfig.requiredForm ~= nil and panelConfig.requiredForm ~= "stealth" then
+                return false
+            end
         end
     end
 
@@ -1109,7 +1156,9 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
     local targetPoint = "BOTTOM"
     local anchorPoint = panelConfig.anchorPoint or "BOTTOM"
 
-    local isCenter = (panelConfig.name == "CENTER")
+    local uName = panelConfig.name and string.upper(panelConfig.name)
+    local isCenter = (uName == "CENTER" or uName == "CAT" or uName == "BEAR" or uName == "MOONKIN" or uName == "STEALTH"
+        or uName == "BATTLE" or uName == "DEFENSIVE" or uName == "BERSERKER")
     local isHealthBarAnchor = (anchorTo == "Health Bar")
     local isSwingBarAnchor = (anchorTo == "Swing Bar")
 
@@ -1161,9 +1210,9 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
                     resolvedTarget = otherPanel
                     break
                 else
-                    -- Target found but hidden. If it's "CENTER", we look for any visible
+                    -- Target found but hidden. If it's "CENTER" or "BATTLE", we look for any visible
                     -- "center-style" panel (one that anchors to Health Bar).
-                    if searchTarget == "CENTER" then
+                    if searchTarget == "CENTER" or searchTarget == "BATTLE" then
                         for _, p in pairs(panels) do
                             if p:IsShown() and p.config and p.config.anchorTo == "Health Bar" then
                                 resolvedTarget = p
@@ -1283,8 +1332,10 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
     local numColumns = panelConfig.columns or #activeIcons
     if numColumns < 1 then numColumns = 1 end
 
-    -- Force Single Row ONLY for the main CENTER panel
-    if panelConfig.name == "CENTER" then
+    -- Force Single Row ONLY for the main CENTER panel and stance/form variants
+    local pName = panelConfig.name and string.upper(panelConfig.name)
+    if pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH"
+        or pName == "BATTLE" or pName == "DEFENSIVE" or pName == "BERSERKER" then
         numColumns = #activeIcons
     end
 
@@ -1521,6 +1572,10 @@ function sfui.trackedicons.initialize()
     end)
     sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORM", function()
         sfui.trackedicons.Update("UPDATE_SHAPESHIFT_FORM")
+        MarkDirty(true)
+    end)
+    sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORMS", function()
+        sfui.trackedicons.Update("UPDATE_SHAPESHIFT_FORMS")
         MarkDirty(true)
     end)
     sfui.events.RegisterEvent("UPDATE_STEALTH", function()

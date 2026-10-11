@@ -1,7 +1,6 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
-sfui.professions = sfui.professions or {}
 sfui.recipes = sfui.recipes or {}
 sfui.recipes.browser = sfui.recipes.browser or {}
 
@@ -795,24 +794,6 @@ function B.CreateBrowserFrame()
         end)
     end
 
-    -- Event listener for item caching
-    f:RegisterEvent("GET_ITEM_INFO_RECEIVED")
-    f:SetScript("OnEvent", function(self, event)
-        if event == "GET_ITEM_INFO_RECEIVED" and self:IsShown() then
-            if not self.refreshPending then
-                self.refreshPending = true
-                if C_Timer and C_Timer.After then
-                    C_Timer.After(0.15, function()
-                        self.refreshPending = false
-                        if self:IsShown() then
-                            B.UpdateList()
-                        end
-                    end)
-                end
-            end
-        end
-    end)
-
     ui.frame = f
     return f
 end
@@ -1063,4 +1044,72 @@ if sfui.events and sfui.events.RegisterMessage then
             B.UpdateList()
         end
     end)
+end
+
+-- ─── Recipe Item Info Debounced Cache Listener ──────────────────────────────
+if sfui.events and sfui.events.RegisterDebouncedEvent then
+    sfui.events.RegisterDebouncedEvent("GET_ITEM_INFO_RECEIVED", 0.15, function()
+        if B.ui.frame and B.ui.frame:IsShown() then
+            B.UpdateList()
+        end
+    end)
+end
+
+-- ─── Debug Telemetry & Module Registration ───────────────────────────────────
+local debugCache = {}
+
+--- Public debug telemetry info for memory profiler and /sfui mem
+--- @return table
+function sfui.recipes_debug_info()
+    local frame = B.ui and B.ui.frame
+    debugCache.isBrowserOpen = (frame and frame:IsShown()) and true or false
+    debugCache.selectedSkillID = B.selectedSkillID or 0
+    debugCache.filterState = B.filterState or "unknown"
+    debugCache.activePins = (sfui.recipes.pins and sfui.recipes.pins.GetActiveCount and sfui.recipes.pins.GetActiveCount()) or 0
+    debugCache.learnedCacheSize = (B.GetLearnedCacheSize and B.GetLearnedCacheSize()) or 0
+    return debugCache
+end
+
+sfui.recipes.GetDebugInfo = sfui.recipes_debug_info
+
+local modDef = {
+    name = "recipe_catalog",
+    OnInit = function(self)
+        -- Sanitize any legacy config keys from alt database table SfuiDB.recipes
+        if SfuiDB and SfuiDB.recipes then
+            for k in pairs(SfuiDB.recipes) do
+                if type(k) ~= "number" then
+                    SfuiDB.recipes[k] = nil
+                end
+            end
+        end
+        if sfui.db and sfui.db.RegisterDefaults then
+            sfui.db.RegisterDefaults("recipe_catalog", {
+                showMapPins         = true,
+                filterState         = "unlearned",
+                showEventRecipes    = false,
+                showCurrentZoneOnly = false,
+            })
+        end
+    end,
+    OnEnable = function(self)
+        HookBlizzardFrames()
+    end,
+    OnSettingsChanged = function(self, key, value)
+        if key == "showMapPins" then
+            if sfui.recipes.pins and sfui.recipes.pins.UpdatePins then
+                sfui.recipes.pins.UpdatePins(true)
+            end
+        end
+    end,
+    GetDebugInfo = sfui.recipes_debug_info,
+}
+
+if sfui.RegisterModule then
+    sfui.RegisterModule("recipe_catalog", modDef)
+    sfui.recipes = sfui.recipes or {}
+    sfui.recipe_catalog = sfui.recipes
+    if sfui.modules then
+        sfui.modules["recipes"] = modDef
+    end
 end

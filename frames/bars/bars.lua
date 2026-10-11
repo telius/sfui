@@ -18,12 +18,15 @@ do
     local get_vigor_bar
     local get_mount_speed_bar
     local get_rune_bar
+    local get_warrior_stance_badge
     local update_mount_speed_bar_internal
     local update_bar_minus_1
     local update_bar0
     local update_bar1
     local update_rune_bar
     local update_vigor_bar
+    local update_warrior_stance_badge
+    local warrior_stance_badge
 
     -- 5-Second Rule (MP5 Regen Timer) for Vanilla / Classic / Camelot
     local fsrEndTime = 0
@@ -146,6 +149,12 @@ do
                 rune_bar:SetPoint("BOTTOM", topAnchor, "TOP", 0, spacing)
             end
 
+            -- Warrior Stance Badge (Camelot only: halfway across top edge of health frame)
+            if warrior_stance_badge and bar0 and bar0.backdrop then
+                warrior_stance_badge:ClearAllPoints()
+                warrior_stance_badge:SetPoint("CENTER", bar0.backdrop, "TOP", 0, 0)
+            end
+
             -- Swing Timer Bars (slotting below power bar at -2, or below health at -1 if no power bar)
             if not sfui.isRetail and sfui.swing and sfui.swing.UpdatePositions then
                 local anchor = (bar_minus_1 and bar_minus_1.backdrop and (bar_minus_1.backdrop:IsShown() or (SfuiDB == nil or SfuiDB.enablePowerBar ~= false))) and bar_minus_1.backdrop or (bar0 and bar0.backdrop)
@@ -190,6 +199,7 @@ do
                 mount_speed_bar.backdrop:Hide()
             end
             if bar0 then bar0.backdrop:Hide() end
+            if warrior_stance_badge then warrior_stance_badge:Hide() end
             if bar_minus_1 then bar_minus_1.backdrop:Hide() end
             if bar1 then bar1.backdrop:Hide() end
             if rune_bar then rune_bar:Hide() end
@@ -197,6 +207,7 @@ do
             if vigor_bar then vigor_bar.backdrop:Hide() end
             if mount_speed_bar then mount_speed_bar.backdrop:Hide() end
             if bar0 then bar0.backdrop:Hide() end
+            if warrior_stance_badge then warrior_stance_badge:Hide() end
             if bar_minus_1 then bar_minus_1.backdrop:Hide() end
             if bar1 then bar1.backdrop:Hide() end
             if rune_bar then rune_bar:Hide() end
@@ -210,6 +221,7 @@ do
                     bar0.backdrop:Show()
                 elseif bar0 then
                     bar0.backdrop:Hide()
+                    if warrior_stance_badge then warrior_stance_badge:Hide() end
                 end
 
                 -- Primary Power Bar (bar_minus_1)
@@ -251,6 +263,7 @@ do
                 if bar0 and bar0.backdrop and bar0.backdrop:IsShown() then
                     local max, current = UnitHealthMax("player"), UnitHealth("player")
                     update_bar0(current, max)
+                    update_warrior_stance_badge()
                 end
                 if bar_minus_1 and bar_minus_1.backdrop and bar_minus_1.backdrop:IsShown() then
                     update_bar_minus_1()
@@ -260,6 +273,7 @@ do
                 end
             else
                 if bar0 then bar0.backdrop:Hide() end
+                if warrior_stance_badge then warrior_stance_badge:Hide() end
                 if bar_minus_1 then bar_minus_1.backdrop:Hide() end
                 if bar1 then bar1.backdrop:Hide() end
                 if rune_bar then rune_bar:Hide() end
@@ -511,6 +525,7 @@ do
         bar.absorbBar = absorbBar
 
         sfui.theme.RegisterBar(bar, "health")
+        get_warrior_stance_badge()
         return bar
     end
 
@@ -551,6 +566,116 @@ do
         absorbBar:SetValue(absorbAmount)
         local color = SfuiDB.absorbBarColor or (cfg and cfg.absorbBarColor)
         absorbBar:SetStatusBarColor(common.unpack_color(color))
+    end
+
+    local WARRIOR_STANCES = {
+        [1] = { name = "battle stance",    spellID = 2457, defaultIcon = 132349 }, -- Ability_Warrior_OffensiveStance
+        [2] = { name = "defensive stance", spellID = 71,   defaultIcon = 132341 }, -- Ability_Warrior_DefensiveStance
+        [3] = { name = "berserker stance", spellID = 2458, defaultIcon = 132275 }, -- Ability_Warrior_InnerRage
+    }
+
+    get_warrior_stance_badge = function()
+        if warrior_stance_badge then return warrior_stance_badge end
+        local isCamelot = sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot)
+        local playerClass = common.get_player_class()
+        if not (isCamelot and playerClass == "WARRIOR") then return nil end
+
+        local bar = get_bar0()
+        if not bar or not bar.backdrop then return nil end
+
+        local badge = CreateFrame("Frame", "sfui_WarriorStanceBadge", bar.backdrop)
+        badge:SetSize(18, 18)
+        badge:SetFrameStrata(bar.backdrop:GetFrameStrata() or "MEDIUM")
+        badge:SetFrameLevel((bar.backdrop:GetFrameLevel() or 1) + 20)
+
+        if badge.CreateMaskTexture then
+            local outerMask = badge:CreateMaskTexture()
+            outerMask:SetAllPoints(badge)
+            outerMask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+
+            local bg = badge:CreateTexture(nil, "BACKGROUND")
+            bg:SetAllPoints(badge)
+            bg:SetColorTexture(0, 0, 0, 1)
+            bg:AddMaskTexture(outerMask)
+            badge.bg = bg
+
+            local iconMask = badge:CreateMaskTexture()
+            iconMask:SetPoint("TOPLEFT", badge, "TOPLEFT", 1, -1)
+            iconMask:SetPoint("BOTTOMRIGHT", badge, "BOTTOMRIGHT", -1, 1)
+            iconMask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+
+            local icon = badge:CreateTexture(nil, "ARTWORK")
+            icon:SetPoint("TOPLEFT", badge, "TOPLEFT", 1, -1)
+            icon:SetPoint("BOTTOMRIGHT", badge, "BOTTOMRIGHT", -1, 1)
+            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            icon:AddMaskTexture(iconMask)
+            badge.icon = icon
+        else
+            local bg = badge:CreateTexture(nil, "BACKGROUND")
+            bg:SetAllPoints(badge)
+            bg:SetColorTexture(0, 0, 0, 1)
+            badge.bg = bg
+
+            local icon = badge:CreateTexture(nil, "ARTWORK")
+            icon:SetPoint("TOPLEFT", badge, "TOPLEFT", 1, -1)
+            icon:SetPoint("BOTTOMRIGHT", badge, "BOTTOMRIGHT", -1, 1)
+            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            badge.icon = icon
+        end
+
+        badge:EnableMouse(false)
+
+        warrior_stance_badge = badge
+        return badge
+    end
+
+    update_warrior_stance_badge = function()
+        local isCamelot = sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot)
+        local playerClass = common.get_player_class()
+        if not (isCamelot and playerClass == "WARRIOR") then
+            if warrior_stance_badge then warrior_stance_badge:Hide() end
+            return
+        end
+
+        local badge = get_warrior_stance_badge()
+        if not badge or not bar0 or not bar0.backdrop then return end
+
+        if not bar0.backdrop:IsShown() then
+            badge:Hide()
+            return
+        end
+
+        badge:ClearAllPoints()
+        badge:SetPoint("CENTER", bar0.backdrop, "TOP", 0, 0)
+
+        local form = (GetShapeshiftForm and GetShapeshiftForm()) or 0
+        if form == 0 then form = 1 end
+
+        local stanceInfo = WARRIOR_STANCES[form] or WARRIOR_STANCES[1]
+        local texture, spellID
+        if GetShapeshiftFormInfo then
+            local formTexture, _, _, formSpellID = GetShapeshiftFormInfo(form)
+            if formTexture and formTexture ~= "" then
+                texture = formTexture
+            end
+            if formSpellID and formSpellID > 0 then
+                spellID = formSpellID
+            end
+        end
+
+        if not spellID then spellID = stanceInfo.spellID end
+        if not texture and spellID then
+            texture = common.get_spell_icon(spellID)
+        end
+        if not texture then
+            texture = stanceInfo.defaultIcon
+        end
+
+        if texture then
+            badge.icon:SetTexture(texture)
+        end
+
+        badge:Show()
     end
 
     function get_rune_bar()
@@ -1007,6 +1132,8 @@ do
     sfui.bars.UpdatePositions = update_bar_positions
     sfui.bars.update_bar_visibility = update_bar_visibility
     sfui.bars.UpdateVisibility = update_bar_visibility
+    sfui.bars.get_warrior_stance_badge = get_warrior_stance_badge
+    sfui.bars.update_warrior_stance_badge = update_warrior_stance_badge
 
     function sfui.bars.set_bar_texture(arg1, arg2)
         local texturePath = (type(arg1) == "string") and arg1 or arg2
@@ -1060,6 +1187,7 @@ do
         update_vigor_bar()
         update_rune_bar()
         update_mount_speed_bar_internal()
+        update_warrior_stance_badge()
         update_bar_visibility()
     end
 
@@ -1096,7 +1224,7 @@ do
         end
         if event == "PLAYER_TALENT_UPDATE" or event == "CHARACTER_POINTS_CHANGED" or event == "TRAIT_CONFIG_UPDATED" or event == "TRAIT_TREE_CURRENCY_INFO_UPDATED" then
             debounced_talent_state_change()
-        elseif event == "PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" or event == "VEHICLE_UPDATE" or event == "UPDATE_VEHICLE_ACTIONBAR" or event == "UPDATE_OVERRIDE_ACTIONBAR" or event == "UPDATE_POSSESS_BAR" or event == "UPDATE_BONUS_ACTIONBAR" then
+        elseif event == "PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" or event == "UPDATE_SHAPESHIFT_FORMS" or event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" or event == "VEHICLE_UPDATE" or event == "UPDATE_VEHICLE_ACTIONBAR" or event == "UPDATE_OVERRIDE_ACTIONBAR" or event == "UPDATE_POSSESS_BAR" or event == "UPDATE_BONUS_ACTIONBAR" then
             invalidate_dragonflying_cache()
             sfui.bars:on_state_changed()
         elseif event == "PLAYER_CAN_GLIDE_CHANGED" or event == "PLAYER_IS_GLIDING_CHANGED" then
@@ -1195,6 +1323,7 @@ do
     sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", on_event)
     sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", on_event)
     sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORM", on_event)
+    sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORMS", on_event)
     sfui.events.RegisterEvent("PLAYER_CAN_GLIDE_CHANGED", on_event)
     sfui.events.RegisterEvent("PLAYER_IS_GLIDING_CHANGED", on_event)
     sfui.events.RegisterEvent("SPELL_UPDATE_CHARGES", on_event)

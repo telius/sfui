@@ -1,12 +1,11 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
-sfui.professions = sfui.professions or {}
 sfui.recipes = sfui.recipes or {}
 
 local g      = sfui.config
 local common = sfui.common
-local cfg    = g.professions or {}
+local cfg    = g.recipe_catalog or g.recipes or g.professions or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/professions/contacts.lua
@@ -30,7 +29,7 @@ local C_Map                         = _G.C_Map
 local C_Item                        = _G.C_Item or {}
 local C_Item_GetItemInfoInstant     = sfui.common.get_item_instant_info
 local GetMerchantNumItems           = _G.GetMerchantNumItems
-local GetMerchantItemInfo           = _G.GetMerchantItemInfo
+local GetMerchantItemInfo           = sfui.api.GetMerchantItemInfo
 local GetMerchantItemLink           = _G.GetMerchantItemLink
 local GetNumTrainerServices         = _G.GetNumTrainerServices
 local GetTrainerServiceInfo         = _G.GetTrainerServiceInfo
@@ -50,6 +49,7 @@ local pcall, type                   = _G.pcall, _G.type
 local pairs, ipairs                 = _G.pairs, _G.ipairs
 local math_floor                    = math.floor
 local time                          = _G.time
+local table_insert                  = table.insert
 
 -- Recipe item class constant (9 = Recipe)
 local ITEM_CLASS_RECIPE = 9
@@ -148,9 +148,11 @@ local function ScanMerchant()
                     }
                 end
 
-                local _, _, price, _, avail = GetMerchantItemInfo(i)
+                local merchantInfo = GetMerchantItemInfo and GetMerchantItemInfo(i)
+                local price = merchantInfo and merchantInfo.price
+                local avail = merchantInfo and merchantInfo.numAvailable
                 local itemData = {
-                    name        = link:match("%[(.-)%]") or "recipe",
+                    name        = (merchantInfo and merchantInfo.name) or link:match("%[(.-)%]") or "recipe",
                     priceCopper = price,
                     limited     = (avail and avail >= 0) and avail or nil,
                     lastSeen    = time(),

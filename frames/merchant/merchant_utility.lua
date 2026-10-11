@@ -181,8 +181,16 @@ function sfui.merchant.update_currency_display(frame)
     end
 
     table.sort(sortedCurrencyItems, function(a, b)
-        if a.name == "Gold" then return false end -- Gold always last (greater)
-        if b.name == "Gold" then return true end
+        local moneyOrder = { Gold = 1, Silver = 2, Copper = 3 }
+        local aOrder = moneyOrder[a.name]
+        local bOrder = moneyOrder[b.name]
+        if aOrder and bOrder then
+            return aOrder < bOrder
+        elseif aOrder then
+            return false -- money always last (greater)
+        elseif bOrder then
+            return true
+        end
         return a.name < b.name
     end)
 
@@ -225,9 +233,14 @@ function sfui.merchant.update_currency_display(frame)
                     GameTooltip:SetItemByID(self.currencyID)
                 elseif self.currencyID then
                     GameTooltip:SetCurrencyByID(self.currencyID)
-                elseif self.currencyName == "Gold" then
-                    GameTooltip:SetText("gold")
-                    GameTooltip:AddLine("total money on character", 1, 1, 1)
+                elseif self.currencyName == "Gold" or self.currencyName == "Silver" or self.currencyName == "Copper" then
+                    GameTooltip:SetText(self.currencyName:lower())
+                    local totalStr = common.SafeGetCoinTextureString and common.SafeGetCoinTextureString(GetMoney())
+                    if totalStr and totalStr ~= "" then
+                        GameTooltip:AddLine("total money: " .. totalStr, 1, 1, 1)
+                    else
+                        GameTooltip:AddLine("total money on character", 1, 1, 1)
+                    end
                 else
                     GameTooltip:SetText(self.currencyName or "Currency")
                 end
@@ -265,8 +278,15 @@ function sfui.merchant.update_currency_display(frame)
 
         activeDisplays[i] = display
 
-        if totalWidth > 0 then totalWidth = totalWidth + 15 end -- Gap
+        local gap = 15
+        if prevDisplay and (prevDisplay.type == "gold" or prevDisplay.type == "silver" or prevDisplay.type == "copper")
+            and (data.type == "silver" or data.type == "copper") then
+            gap = 8
+        end
+
+        if totalWidth > 0 then totalWidth = totalWidth + gap end
         totalWidth = totalWidth + width
+        prevDisplay = data
     end
 
     container:SetWidth(totalWidth)
@@ -277,7 +297,12 @@ function sfui.merchant.update_currency_display(frame)
         if i == 1 then
             display:SetPoint("LEFT", container, "LEFT", 0, 0)
         else
-            display:SetPoint("LEFT", prev, "RIGHT", 15, 0)
+            local gap = 15
+            if prev and (prev.type == "gold" or prev.type == "silver" or prev.type == "copper")
+                and (display.type == "silver" or display.type == "copper") then
+                gap = 8
+            end
+            display:SetPoint("LEFT", prev, "RIGHT", gap, 0)
         end
         prev = display
     end

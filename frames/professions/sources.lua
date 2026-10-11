@@ -1,12 +1,11 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
-sfui.professions = sfui.professions or {}
 sfui.recipes = sfui.recipes or {}
 
 local g      = sfui.config
 local common = sfui.common
-local cfg    = g.professions or {}
+local cfg    = g.recipe_catalog or g.recipes or g.professions or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/professions/sources.lua
@@ -35,6 +34,9 @@ local table_insert            = table.insert
 --- Format copper amount to coin icons or text
 local function FormatMoney(copper)
     if not copper or copper <= 0 then return nil end
+    if common and common.SafeGetCoinTextureString then
+        return common.SafeGetCoinTextureString(copper)
+    end
     if GetCoinTextureString then
         return GetCoinTextureString(copper)
     end
@@ -1175,7 +1177,8 @@ function sfui.recipes.SetWaypoint(s)
         local zoneName = s.zone or ("map " .. tostring(s.mapID))
         local xPct = math_floor(s.x * 1000 + 0.5) / 10
         local yPct = math_floor(s.y * 1000 + 0.5) / 10
-        print(string.format("|cff6600ffsf|rui: waypoint set for %s in %s (%.1f, %.1f)", targetName, zoneName, xPct, yPct))
+        local printFn = (common and common.print) or print
+        printFn(string.format("waypoint set for %s in %s (%.1f, %.1f)", targetName, zoneName, xPct, yPct))
         return true
     end
     return false

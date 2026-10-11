@@ -52,6 +52,72 @@ function repModule.GetFrame()
     return repContainer
 end
 
+local repUnlockOverlay = nil
+
+--- Set unlocked dragging state and toggle visual mover overlay for reputation
+--- @param unlocked boolean
+function repModule.SetUnlocked(unlocked)
+    if not repContainer then return end
+    repContainer._isUnlocked = unlocked
+
+    if unlocked then
+        if not repUnlockOverlay then
+            repUnlockOverlay = CreateFrame("Frame", nil, repContainer, "BackdropTemplate")
+            repUnlockOverlay:SetAllPoints(repContainer)
+            repUnlockOverlay:SetFrameLevel(repContainer:GetFrameLevel() + 30)
+            repUnlockOverlay:EnableMouse(true)
+            repUnlockOverlay:RegisterForDrag("LeftButton")
+
+            local bg = repUnlockOverlay:CreateTexture(nil, "BACKGROUND")
+            bg:SetAllPoints()
+            bg:SetColorTexture(0.0, 0.8, 0.5, 0.45)
+            repUnlockOverlay.bg = bg
+
+            if sfui.widgets and sfui.widgets.create_border then
+                sfui.widgets.create_border(repUnlockOverlay, 1, { 0.2, 1, 0.6, 1 })
+            end
+
+            local lbl = repUnlockOverlay:CreateFontString(nil, "OVERLAY", sfui.config and sfui.config.font_small or "GameFontNormalSmall")
+            lbl:SetPoint("CENTER", repUnlockOverlay, "CENTER", 0, 0)
+            lbl:SetText("|cff00ff88reputation bar|r |cffaaaaaa(drag to move)|r")
+            repUnlockOverlay.lbl = lbl
+
+            repUnlockOverlay:SetScript("OnDragStart", function()
+                local expBar = sfui.experience.bar and sfui.experience.bar.GetFrame and sfui.experience.bar.GetFrame()
+                local isExpShown = expBar and expBar:IsShown() and expBar:GetAlpha() > 0
+                if isExpShown then
+                    expBar:StartMoving()
+                else
+                    repContainer:StartMoving()
+                end
+            end)
+            repUnlockOverlay:SetScript("OnDragStop", function()
+                local expBar = sfui.experience.bar and sfui.experience.bar.GetFrame and sfui.experience.bar.GetFrame()
+                local isExpShown = expBar and expBar:IsShown() and expBar:GetAlpha() > 0
+                local targetFrame = isExpShown and expBar or repContainer
+                targetFrame:StopMovingOrSizing()
+                local point, _, relPoint, x, y = targetFrame:GetPoint()
+                if sfui.db and sfui.db.Set then
+                    sfui.db.Set("experience", "pos", {
+                        point = point,
+                        relativePoint = relPoint,
+                        x = math_floor(x + 0.5),
+                        y = math_floor(y + 0.5),
+                    })
+                end
+            end)
+        end
+        repContainer:Show()
+        repContainer:SetAlpha(1.0)
+        repUnlockOverlay:Show()
+    else
+        if repUnlockOverlay then
+            repUnlockOverlay:Hide()
+        end
+        repModule.UpdateValues()
+    end
+end
+
 --- Apply theme styling to the reputation bar
 function repModule.ApplyTheme()
     if not repContainer then return end
@@ -201,21 +267,39 @@ function repModule.UpdateValues()
     end
 
     local repData = data.GetReputationData()
-    local isMax = data.IsMaxLevel()
+    local isMax = data.IsMaxLevel() or (data.IsXPDisabled and data.IsXPDisabled())
     local showDual = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showDualBars", cfg.showDualBars ~= false))
     if showDual == nil then showDual = true end
+
+    local repOnlyAtMaxLevel = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repOnlyAtMaxLevel", cfg.repOnlyAtMaxLevel or false))
+    if repOnlyAtMaxLevel and not isMax and not repContainer._isUnlocked then
+        repContainer:Hide()
+        return
+    end
 
     -- Determine visibility:
     -- In dual bar mode:
     -- If no watched reputation -> Hide
     -- If single bar mode (showDual is false) -> Hide (handled by bar.lua)
-    if not showDual or not repData or not repData.hasRep then
+    if (not showDual or not repData or not repData.hasRep) and not repContainer._isUnlocked then
         repContainer:Hide()
         return
     end
 
     repContainer:Show()
     repModule.UpdateLayout()
+
+    if not repData or not repData.hasRep then
+        if repBar then
+            repBar:SetMinMaxValues(0, 100)
+            repBar:SetValue(100)
+            repBar:SetStatusBarColor(0.0, 0.60, 0.35, 1.0)
+        end
+        if textLeft then textLeft:SetText("") end
+        if textCenter then textCenter:SetText("") end
+        if textRight then textRight:SetText("") end
+        return
+    end
 
     -- Set statusbar values & color
     repBar:SetMinMaxValues(0, repData.max)

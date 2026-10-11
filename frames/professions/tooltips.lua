@@ -1,12 +1,11 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
-sfui.professions = sfui.professions or {}
 sfui.recipes = sfui.recipes or {}
 
 local g      = sfui.config
 local common = sfui.common
-local cfg    = g.professions or {}
+local cfg    = g.recipes or g.professions or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/professions/tooltips.lua

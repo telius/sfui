@@ -343,6 +343,7 @@ sfui.config = {
         textFormat = "PERCENT_CURRENT", -- "PERCENT_CURRENT", "PERCENT", "REMAINING", "FRACTION"
         showRate = true,
         showTTL = true,
+        repOnlyAtMaxLevel = false, -- Only show reputation bar at maximum level
         autoReputation = true, -- Switch to reputation if max level or tracking faction
         autoSwitchRepOnGain = false, -- Automatically activate and switch reputation bar when reputation is gained
         hideBlizzardBar = true,
@@ -1026,5 +1027,14 @@ sfui.config = {
             Water = "Healing Stream Totem",
             Air   = "Windfury Totem",
         },
+    },
+
+    -- ─── Recipe Catalog & Map Pins (Vanilla / Camelot) ───────────
+    -- Settings for the recipe browser and unlearned recipe map pins (frames/professions/*).
+    recipe_catalog = {
+        showMapPins         = true,
+        filterState         = "unlearned",
+        showEventRecipes    = false,
+        showCurrentZoneOnly = false,
     },
 }

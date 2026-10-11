@@ -5,6 +5,7 @@ local g = sfui.config
 local common = sfui.common
 local _G = _G
 local type, pairs = _G.type, _G.pairs
+local ipairs = _G.ipairs
 
 local refreshTabUI = nil
 
@@ -80,12 +81,33 @@ sfui.options.RegisterTab({
             "|cff00ffffright-click|r: open experience settings  •  |cff00ffffunlock button|r: drag to reposition"
         )
 
-        -- Action Buttons
-        local unlock_btn = CreateFlatButton(exp_panel, "unlock / lock bar", 130, 22)
+        -- ─────────────────────────────────────────────────────────────────────
+        -- Quick Action Buttons
+        -- ─────────────────────────────────────────────────────────────────────
+        local function getUnlockText()
+            local isUnlocked = (sfui.experience and sfui.experience.IsUnlocked and sfui.experience.IsUnlocked()) or false
+            return isUnlocked and "lock bar" or "unlock bar"
+        end
+
+        local function getModeText()
+            local mode = (sfui.experience and sfui.experience.GetBarMode and sfui.experience.GetBarMode()) or "XP"
+            if mode == "DUAL" then
+                return "bar mode: dual stacked"
+            elseif mode == "REP" then
+                return "bar mode: single (rep)"
+            else
+                return "bar mode: single (xp)"
+            end
+        end
+
+        local unlock_btn = CreateFlatButton(exp_panel, getUnlockText(), 120, 22)
         unlock_btn:SetPoint("TOPLEFT", tips, "BOTTOMLEFT", 0, -12)
         unlock_btn:SetScript("OnClick", function()
             if sfui.experience and sfui.experience.ToggleUnlock then
                 sfui.experience.ToggleUnlock()
+                if refreshTabUI then
+                    refreshTabUI()
+                end
             end
         end)
 
@@ -97,35 +119,68 @@ sfui.options.RegisterTab({
             end
         end)
 
-        local toggle_mode_btn = CreateFlatButton(exp_panel, "toggle xp / rep mode", 150, 22)
+        local toggle_mode_btn = CreateFlatButton(exp_panel, getModeText(), 160, 22)
         toggle_mode_btn:SetPoint("LEFT", reset_pos_btn, "RIGHT", 10, 0)
         toggle_mode_btn:SetScript("OnClick", function()
-            if sfui.experience and sfui.experience.SetBarMode then
-                sfui.experience.SetBarMode()
+            if sfui.experience and sfui.experience.CycleBarMode then
+                sfui.experience.CycleBarMode()
+                if refreshTabUI then
+                    refreshTabUI()
+                end
             end
         end)
 
         -- ─────────────────────────────────────────────────────────────────────
-        -- Column 1: Feature & Layer Toggles (Left Column)
+        -- Column 1 (Left): General Settings & Leveling Progress
         -- ─────────────────────────────────────────────────────────────────────
-        local toggles_header = exp_panel:CreateFontString(nil, "OVERLAY", g.font)
-        toggles_header:SetPoint("TOPLEFT", unlock_btn, "BOTTOMLEFT", 0, -18)
-        toggles_header:SetTextColor(white[1], white[2], white[3])
-        toggles_header:SetText("features & visual layers")
+        local COL_OFFSET_X = 280
+
+        -- Section 1: General Settings
+        local general_header = exp_panel:CreateFontString(nil, "OVERLAY", g.font)
+        general_header:SetPoint("TOPLEFT", unlock_btn, "BOTTOMLEFT", 0, -18)
+        general_header:SetTextColor(white[1], white[2], white[3])
+        general_header:SetText("general settings")
 
         local enable_cb = registerCheckbox(create_checkbox(exp_panel, "enable experience bar", function()
             return sfui.db.Get("experience", "enabled", true)
         end, function(checked)
             sfui.db.Set("experience", "enabled", checked)
         end, "enable or disable the sfui experience and reputation bar."))
-        enable_cb:SetPoint("TOPLEFT", toggles_header, "BOTTOMLEFT", 0, -10)
+        enable_cb:SetPoint("TOPLEFT", general_header, "BOTTOMLEFT", 0, -10)
+
+        local blizz_cb = registerCheckbox(create_checkbox(exp_panel, "suppress default blizzard bar", function()
+            return sfui.db.Get("experience", "hideBlizzardBar", true)
+        end, function(checked)
+            sfui.db.Set("experience", "hideBlizzardBar", checked)
+        end, "safely hides blizzard's native status tracking bar manager without taint."))
+        blizz_cb:SetPoint("TOPLEFT", enable_cb, "BOTTOMLEFT", 0, -8)
+
+        local combat_cb = registerCheckbox(create_checkbox(exp_panel, "hide bar during combat", function()
+            return sfui.db.Get("experience", "hideInCombat", false)
+        end, function(checked)
+            sfui.db.Set("experience", "hideInCombat", checked)
+        end, "hides the experience bar completely while in combat to reduce clutter."))
+        combat_cb:SetPoint("TOPLEFT", blizz_cb, "BOTTOMLEFT", 0, -8)
+
+        local float_cb = registerCheckbox(create_checkbox(exp_panel, "floating combat xp gain text", function()
+            return sfui.db.Get("experience", "showFloatingText", true)
+        end, function(checked)
+            sfui.db.Set("experience", "showFloatingText", checked)
+        end, "animates smooth floating text (+xp) above the bar whenever experience is gained from kills or quests."))
+        float_cb:SetPoint("TOPLEFT", combat_cb, "BOTTOMLEFT", 0, -8)
+
+        -- Section 2: Experience & Leveling Progress
+        local exp_prog_header = exp_panel:CreateFontString(nil, "OVERLAY", g.font)
+        exp_prog_header:SetPoint("TOPLEFT", float_cb, "BOTTOMLEFT", 0, -16)
+        exp_prog_header:SetTextColor(white[1], white[2], white[3])
+        exp_prog_header:SetText("experience & leveling progress")
 
         local class_col_cb = registerCheckbox(create_checkbox(exp_panel, "use class / spec color for active xp", function()
             return sfui.db.Get("experience", "useClassColor", false)
         end, function(checked)
             sfui.db.Set("experience", "useClassColor", checked)
         end, "colors the main xp bar dynamically using your class or specialization color (disabled by default)."))
-        class_col_cb:SetPoint("TOPLEFT", enable_cb, "BOTTOMLEFT", 0, -8)
+        class_col_cb:SetPoint("TOPLEFT", exp_prog_header, "BOTTOMLEFT", 0, -10)
 
         local rested_cb = registerCheckbox(create_checkbox(exp_panel, "show rested xp bonus layer", function()
             return sfui.db.Get("experience", "showRested", true)
@@ -148,33 +203,59 @@ sfui.options.RegisterTab({
         end, "overlays subtle vertical hash lines every 5% for classic segment orientation."))
         ticks_cb:SetPoint("TOPLEFT", quest_cb, "BOTTOMLEFT", 0, -8)
 
-        local float_cb = registerCheckbox(create_checkbox(exp_panel, "floating combat xp gain text", function()
-            return sfui.db.Get("experience", "showFloatingText", true)
+        local rate_cb = registerCheckbox(create_checkbox(exp_panel, "show session rate (xp/hr)", function()
+            return sfui.db.Get("experience", "showRate", true)
         end, function(checked)
-            sfui.db.Set("experience", "showFloatingText", checked)
-        end, "animates smooth floating text (+xp) above the bar whenever experience is gained from kills or quests."))
-        float_cb:SetPoint("TOPLEFT", ticks_cb, "BOTTOMLEFT", 0, -8)
+            sfui.db.Set("experience", "showRate", checked)
+        end, "displays your current session experience rate on the right side of the bar."))
+        rate_cb:SetPoint("TOPLEFT", ticks_cb, "BOTTOMLEFT", 0, -8)
+
+        local ttl_cb = registerCheckbox(create_checkbox(exp_panel, "show estimated time-to-level (ttl)", function()
+            return sfui.db.Get("experience", "showTTL", true)
+        end, function(checked)
+            sfui.db.Set("experience", "showTTL", checked)
+        end, "displays estimated time until next level on the left side of the bar."))
+        ttl_cb:SetPoint("TOPLEFT", rate_cb, "BOTTOMLEFT", 0, -8)
+
+        -- ─────────────────────────────────────────────────────────────────────
+        -- Column 2 (Right): Reputation Tracking & Dimensions
+        -- ─────────────────────────────────────────────────────────────────────
+
+        -- Section 3: Reputation & Faction Tracking
+        local rep_header = exp_panel:CreateFontString(nil, "OVERLAY", g.font)
+        rep_header:SetPoint("TOPLEFT", general_header, "TOPLEFT", COL_OFFSET_X, 0)
+        rep_header:SetTextColor(white[1], white[2], white[3])
+        rep_header:SetText("reputation & faction tracking")
+
+        local rep_max_level_cb = registerCheckbox(create_checkbox(exp_panel, "only show reputation bar at max level", function()
+            return sfui.db.Get("experience", "repOnlyAtMaxLevel", false)
+        end, function(checked)
+            sfui.db.Set("experience", "repOnlyAtMaxLevel", checked)
+            if sfui.experience and sfui.experience.Update then
+                sfui.experience.Update()
+            end
+        end, "hides the reputation bar entirely while leveling, and only displays it once maximum level or xp disable is reached."))
+        rep_max_level_cb:SetPoint("TOPLEFT", rep_header, "BOTTOMLEFT", 0, -10)
 
         local rep_auto_cb = registerCheckbox(create_checkbox(exp_panel, "auto-switch to reputation at max level", function()
             return sfui.db.Get("experience", "autoReputation", true)
         end, function(checked)
             sfui.db.Set("experience", "autoReputation", checked)
         end, "automatically switches the bar to tracked reputation or major faction renown when at maximum level."))
-        rep_auto_cb:SetPoint("TOPLEFT", float_cb, "BOTTOMLEFT", 0, -8)
-
-        local rep_gain_cb = registerCheckbox(create_checkbox(exp_panel, "auto-switch to gained reputation", function()
-            return sfui.db.Get("experience", "autoSwitchRepOnGain", false)
-        end, function(checked)
-            sfui.db.Set("experience", "autoSwitchRepOnGain", checked)
-        end, "automatically activates and switches the watched reputation bar to any faction whenever reputation is gained."))
-        rep_gain_cb:SetPoint("TOPLEFT", rep_auto_cb, "BOTTOMLEFT", 0, -8)
+        rep_auto_cb:SetPoint("TOPLEFT", rep_max_level_cb, "BOTTOMLEFT", 0, -8)
 
         local dual_cb = registerCheckbox(create_checkbox(exp_panel, "enable dual stacked bars (xp & rep together)", function()
             return sfui.db.Get("experience", "showDualBars", true)
         end, function(checked)
             sfui.db.Set("experience", "showDualBars", checked)
+            if sfui.experience and sfui.experience.Update then
+                sfui.experience.Update()
+            end
+            if refreshTabUI then
+                refreshTabUI()
+            end
         end, "docks the reputation bar directly with the experience bar so you can track both simultaneously while leveling."))
-        dual_cb:SetPoint("TOPLEFT", rep_gain_cb, "BOTTOMLEFT", 0, -8)
+        dual_cb:SetPoint("TOPLEFT", rep_auto_cb, "BOTTOMLEFT", 0, -8)
 
         local rep_top_cb = registerCheckbox(create_checkbox(exp_panel, "dock reputation bar on top (above xp)", function()
             return sfui.db.Get("experience", "repOnTop", true)
@@ -183,34 +264,25 @@ sfui.options.RegisterTab({
         end, "when checked, the reputation bar stacks directly on top of the xp bar. when unchecked, it stacks below."))
         rep_top_cb:SetPoint("TOPLEFT", dual_cb, "BOTTOMLEFT", 0, -8)
 
-        local combat_cb = registerCheckbox(create_checkbox(exp_panel, "hide bar during combat", function()
-            return sfui.db.Get("experience", "hideInCombat", false)
+        local rep_gain_cb = registerCheckbox(create_checkbox(exp_panel, "auto-switch to gained reputation", function()
+            return sfui.db.Get("experience", "autoSwitchRepOnGain", false)
         end, function(checked)
-            sfui.db.Set("experience", "hideInCombat", checked)
-        end, "hides the experience bar completely while in combat to reduce clutter."))
-        combat_cb:SetPoint("TOPLEFT", rep_top_cb, "BOTTOMLEFT", 0, -8)
+            sfui.db.Set("experience", "autoSwitchRepOnGain", checked)
+        end, "automatically activates and switches the watched reputation bar to any faction whenever reputation is gained."))
+        rep_gain_cb:SetPoint("TOPLEFT", rep_top_cb, "BOTTOMLEFT", 0, -8)
 
-        local blizz_cb = registerCheckbox(create_checkbox(exp_panel, "suppress default blizzard bar", function()
-            return sfui.db.Get("experience", "hideBlizzardBar", true)
-        end, function(checked)
-            sfui.db.Set("experience", "hideBlizzardBar", checked)
-        end, "safely hides blizzard's native status tracking bar manager without taint."))
-        blizz_cb:SetPoint("TOPLEFT", combat_cb, "BOTTOMLEFT", 0, -8)
-
-        -- ─────────────────────────────────────────────────────────────────────
-        -- Column 2: Dimensions & Display Layout (Right Column)
-        -- ─────────────────────────────────────────────────────────────────────
-        local sliders_header = exp_panel:CreateFontString(nil, "OVERLAY", g.font)
-        sliders_header:SetPoint("TOPLEFT", toggles_header, "TOPLEFT", 280, 0)
-        sliders_header:SetTextColor(white[1], white[2], white[3])
-        sliders_header:SetText("dimensions & text formatting")
+        -- Section 4: Dimensions & Text Display
+        local dim_header = exp_panel:CreateFontString(nil, "OVERLAY", g.font)
+        dim_header:SetPoint("TOPLEFT", exp_prog_header, "TOPLEFT", COL_OFFSET_X, 0)
+        dim_header:SetTextColor(white[1], white[2], white[3])
+        dim_header:SetText("dimensions & text display")
 
         local width_slider = registerSlider(create_slider_input(exp_panel, "bar width (pixels)", function()
             return sfui.db.Get("experience", "width", 460)
         end, 200, 1200, 10, function(val)
             sfui.db.Set("experience", "width", val)
         end, "width of the experience bar in pixels.", 250))
-        width_slider:SetPoint("TOPLEFT", sliders_header, "BOTTOMLEFT", 0, -10)
+        width_slider:SetPoint("TOPLEFT", dim_header, "BOTTOMLEFT", 0, -10)
 
         local height_slider = registerSlider(create_slider_input(exp_panel, "xp bar height (pixels)", function()
             return sfui.db.Get("experience", "height", 14)
@@ -261,20 +333,6 @@ sfui.options.RegisterTab({
         end, sfui.db.Get("experience", "textFormat", "PERCENT_CURRENT"), nil, 250)
         format_dropdown:SetPoint("TOPLEFT", format_label, "BOTTOMLEFT", 0, -6)
 
-        local rate_cb = registerCheckbox(create_checkbox(exp_panel, "show session rate (xp/hr)", function()
-            return sfui.db.Get("experience", "showRate", true)
-        end, function(checked)
-            sfui.db.Set("experience", "showRate", checked)
-        end, "displays your current session experience rate on the right side of the bar."))
-        rate_cb:SetPoint("TOPLEFT", format_dropdown, "BOTTOMLEFT", 0, -12)
-
-        local ttl_cb = registerCheckbox(create_checkbox(exp_panel, "show estimated time-to-level (ttl)", function()
-            return sfui.db.Get("experience", "showTTL", true)
-        end, function(checked)
-            sfui.db.Set("experience", "showTTL", checked)
-        end, "displays estimated time until next level on the left side of the bar."))
-        ttl_cb:SetPoint("TOPLEFT", rate_cb, "BOTTOMLEFT", 0, -8)
-
         refreshTabUI = function()
             for _, cb in ipairs(allCheckboxes) do
                 if cb.update then cb:update() end
@@ -282,10 +340,22 @@ sfui.options.RegisterTab({
             for _, s in ipairs(allSliders) do
                 if s.update then s:update() end
             end
+            if vis_dropdown and vis_dropdown.SetSelectedValue then
+                vis_dropdown:SetSelectedValue(sfui.db.Get("experience", "showText", "MOUSEOVER"))
+            end
+            if format_dropdown and format_dropdown.SetSelectedValue then
+                format_dropdown:SetSelectedValue(sfui.db.Get("experience", "textFormat", "PERCENT_CURRENT"))
+            end
+            if unlock_btn and unlock_btn.SetText then
+                unlock_btn:SetText(getUnlockText())
+            end
+            if toggle_mode_btn and toggle_mode_btn.SetText then
+                toggle_mode_btn:SetText(getModeText())
+            end
         end
 
         if exp_panel.SetContentHeight then
-            exp_panel:SetContentHeight(580)
+            exp_panel:SetContentHeight(620)
         end
     end,
 })

@@ -436,11 +436,11 @@ local function UpdatePins(force)
                                     end,
                                 },
                                 {
-                                    text = "Open in Dungeon Journal",
+                                    text = "open in dungeon journal",
                                     color = { 0.4, 1.0, 0.4 },
                                     func = function()
                                         if sfui.dungeonjournal and sfui.dungeonjournal.SelectDungeon then
-                                            sfui.dungeonjournal.SelectDungeon(dID)
+                                            sfui.dungeonjournal.SelectDungeon(dID, nil, true)
                                         end
                                     end,
                                 },
@@ -448,7 +448,7 @@ local function UpdatePins(force)
                             local _, _, _, totalHidden = sfui.dungeonjournal.GetHiddenCounts()
                             if totalHidden > 0 then
                                 table.insert(items, {
-                                    text = "Manage Hidden Items (" .. totalHidden .. ")...",
+                                    text = "manage hidden items (" .. totalHidden .. ")...",
                                     color = { 1.0, 0.82, 0.0 },
                                     func = function()
                                         sfui.dungeonjournal.OpenHiddenManager()
@@ -456,16 +456,16 @@ local function UpdatePins(force)
                                 })
                             end
                             table.insert(items, {
-                                text = "Cancel",
+                                text = "cancel",
                                 color = { 0.6, 0.6, 0.6 },
                                 func = function() end,
                             })
-                            sfui.dungeonjournal.ShowContextMenu(self, d.name or "Dungeon Entrance", items)
+                            sfui.dungeonjournal.ShowContextMenu(self, d.name or "dungeon entrance", items)
                             return
                         end
                     end
                     if sfui.dungeonjournal and sfui.dungeonjournal.SelectDungeon then
-                        sfui.dungeonjournal.SelectDungeon(dID)
+                        sfui.dungeonjournal.SelectDungeon(dID, nil, true)
                     end
                 end)
 
@@ -791,14 +791,14 @@ local function UpdatePins(force)
                         })
 
                         table.insert(items, {
-                            text = "Open in Dungeon Journal",
+                            text = "open in dungeon journal",
                             color = { 0.4, 1.0, 0.4 },
                             func = function()
                                 local targetQuestID = (q.parentQuest and q.parentQuest.id) or q.id
                                 if sfui.dungeonjournal and sfui.dungeonjournal.SelectQuest then
                                     sfui.dungeonjournal.SelectQuest(d.id, targetQuestID)
                                 elseif sfui.dungeonjournal and sfui.dungeonjournal.SelectDungeon then
-                                    sfui.dungeonjournal.SelectDungeon(d.id)
+                                    sfui.dungeonjournal.SelectDungeon(d.id, nil, true)
                                 end
                             end,
                         })
@@ -806,7 +806,7 @@ local function UpdatePins(force)
                         local _, _, _, totalHidden = sfui.dungeonjournal.GetHiddenCounts()
                         if totalHidden > 0 then
                             table.insert(items, {
-                                text = "Manage Hidden Items (" .. totalHidden .. ")...",
+                                text = "manage hidden items (" .. totalHidden .. ")...",
                                 color = { 1.0, 0.82, 0.0 },
                                 func = function()
                                     sfui.dungeonjournal.OpenHiddenManager()
@@ -815,13 +815,13 @@ local function UpdatePins(force)
                         end
 
                         table.insert(items, {
-                            text = "Cancel",
+                            text = "cancel",
                             color = { 0.6, 0.6, 0.6 },
                             func = function() end,
                         })
 
-                        local menuTitle = (#g.quests == 1) and (q.name or "Quest") or
-                        string.format("%d Quests (%s)", #g.quests, d.name or "")
+                        local menuTitle = (#g.quests == 1) and (q.name or "quest") or
+                        string.format("%d quests (%s)", #g.quests, d.name or "")
                         sfui.dungeonjournal.ShowContextMenu(self, menuTitle, items)
                         return
                     end
@@ -848,7 +848,7 @@ local function UpdatePins(force)
                 if sfui.dungeonjournal and sfui.dungeonjournal.SelectQuest then
                     sfui.dungeonjournal.SelectQuest(item.dungeon.id, targetQuestID)
                 elseif sfui.dungeonjournal and sfui.dungeonjournal.SelectDungeon then
-                    sfui.dungeonjournal.SelectDungeon(item.dungeon.id)
+                    sfui.dungeonjournal.SelectDungeon(item.dungeon.id, nil, true)
                 end
             end)
 

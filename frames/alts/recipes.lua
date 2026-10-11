@@ -116,7 +116,18 @@ local myRealm = nil
 local myName = nil
 local myClass = nil
 
+local function SanitizeRecipeDB()
+    if SfuiDB and SfuiDB.recipes then
+        for k in pairs(SfuiDB.recipes) do
+            if type(k) ~= "number" then
+                SfuiDB.recipes[k] = nil
+            end
+        end
+    end
+end
+
 local function EnsurePlayerContext()
+    SanitizeRecipeDB()
     if not myGUID then
         myGUID = UnitGUID("player")
     end
@@ -259,12 +270,16 @@ end
 --- @return boolean isSuccess
 local function UpdateItem(itemID)
     EnsurePlayerContext()
-    if not itemID or not myRealm or not myGUID then return false end
+    if not itemID or type(itemID) ~= "number" or not myRealm or not myGUID then return false end
 
     SfuiDB = SfuiDB or {}
     SfuiDB.recipes = SfuiDB.recipes or {}
-    SfuiDB.recipes[itemID] = SfuiDB.recipes[itemID] or {}
-    SfuiDB.recipes[itemID][myRealm] = SfuiDB.recipes[itemID][myRealm] or {}
+    if type(SfuiDB.recipes[itemID]) ~= "table" then
+        SfuiDB.recipes[itemID] = {}
+    end
+    if type(SfuiDB.recipes[itemID][myRealm]) ~= "table" then
+        SfuiDB.recipes[itemID][myRealm] = {}
+    end
 
     local isKnown, isReady = CheckActivePlayerKnownStatus(itemID)
     if not isReady then
@@ -317,8 +332,12 @@ local function RequestUpdateAllItems()
     if not SfuiDB or not SfuiDB.recipes then return end
 
     wipe(pendingUpdateQueue)
-    for itemID in pairs(SfuiDB.recipes) do
-        pendingUpdateQueue[itemID] = true
+    for itemID, data in pairs(SfuiDB.recipes) do
+        if type(itemID) == "number" and type(data) == "table" then
+            pendingUpdateQueue[itemID] = true
+        elseif type(itemID) ~= "number" then
+            SfuiDB.recipes[itemID] = nil
+        end
     end
 
     if not isUpdateLoopRunning then
@@ -497,19 +516,23 @@ local function GetRecipeStatus(itemID)
 
     SfuiDB = SfuiDB or {}
     SfuiDB.recipes = SfuiDB.recipes or {}
-    local recipeRecord = SfuiDB.recipes[itemID]
+    local recipeRecord = (type(SfuiDB.recipes[itemID]) == "table") and SfuiDB.recipes[itemID] or nil
 
     -- 1. Check if current character knows it
     local isKnownCurrent = false
-    if recipeRecord and myRealm and recipeRecord[myRealm] and recipeRecord[myRealm][myGUID] then
+    if recipeRecord and myRealm and type(recipeRecord[myRealm]) == "table" and recipeRecord[myRealm][myGUID] then
         isKnownCurrent = true
     else
         local isKnown, isReady = CheckActivePlayerKnownStatus(itemID)
         if isReady and isKnown then
             isKnownCurrent = true
             if myRealm and myGUID then
-                SfuiDB.recipes[itemID] = SfuiDB.recipes[itemID] or {}
-                SfuiDB.recipes[itemID][myRealm] = SfuiDB.recipes[itemID][myRealm] or {}
+                if type(SfuiDB.recipes[itemID]) ~= "table" then
+                    SfuiDB.recipes[itemID] = {}
+                end
+                if type(SfuiDB.recipes[itemID][myRealm]) ~= "table" then
+                    SfuiDB.recipes[itemID][myRealm] = {}
+                end
                 SfuiDB.recipes[itemID][myRealm][myGUID] = true
             end
         end
@@ -759,7 +782,9 @@ local function PruneOrphanCrafts()
     -- Prune recipes for non-existent alts
     if SfuiDB.recipes then
         for recID, realms in pairs(SfuiDB.recipes) do
-            if type(realms) == "table" then
+            if type(recID) ~= "number" or type(realms) ~= "table" then
+                SfuiDB.recipes[recID] = nil
+            else
                 for realm, guids in pairs(realms) do
                     if type(guids) == "table" then
                         for guid in pairs(guids) do

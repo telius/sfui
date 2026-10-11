@@ -1329,7 +1329,8 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
         local cb = common.create_checkbox(secContent, label, function()
             if panel[key] ~= nil then return panel[key] end
             local pName = panel.name and string.upper(panel.name)
-            local pDef = (pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH")
+            local pDef = (pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH"
+                or pName == "BATTLE" or pName == "DEFENSIVE" or pName == "BERSERKER")
                 and cfg.cooldown_panel_defaults and cfg.cooldown_panel_defaults.center_panel
             if not pDef and pName == "UTILITY" then
                 pDef = cfg.cooldown_panel_defaults and cfg.cooldown_panel_defaults.utility
@@ -1353,7 +1354,8 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
         local s = common.create_slider_input(secContent, label, function()
             if panel[key] ~= nil then return panel[key] end
             local pName = panel.name and string.upper(panel.name)
-            local pDef = (pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH")
+            local pDef = (pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH"
+                or pName == "BATTLE" or pName == "DEFENSIVE" or pName == "BERSERKER")
                 and cfg.cooldown_panel_defaults and cfg.cooldown_panel_defaults.center_panel
             if not pDef and pName == "UTILITY" then
                 pDef = cfg.cooldown_panel_defaults and cfg.cooldown_panel_defaults.utility

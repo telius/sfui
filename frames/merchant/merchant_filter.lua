@@ -98,6 +98,36 @@ local function AddToCache(id, name, texture, count, type)
     end
 end
 
+local function EnsureMoneyInCache()
+    if sfui.merchant.currencyCache["Gold"] then return end
+    local isClassicOrCamelot = sfui.isCamelot or sfui.isClassic
+    local money = GetMoney()
+    local gold = math.floor(money / 10000)
+
+    local tGold = getTable()
+    tGold.texture = 133784
+    tGold.count = gold
+    tGold.type = "gold"
+    sfui.merchant.currencyCache["Gold"] = tGold
+
+    if isClassicOrCamelot then
+        local silver = math.floor((money % 10000) / 100)
+        local copper = money % 100
+
+        local tSilver = getTable()
+        tSilver.texture = 133785
+        tSilver.count = silver
+        tSilver.type = "silver"
+        sfui.merchant.currencyCache["Silver"] = tSilver
+
+        local tCopper = getTable()
+        tCopper.texture = 133786
+        tCopper.count = copper
+        tCopper.type = "copper"
+        sfui.merchant.currencyCache["Copper"] = tCopper
+    end
+end
+
 --------------------------------------------------------------------------------
 -- Warlock Pet Spell & Grimoire Tracking (Camelot / Classic Only)
 --------------------------------------------------------------------------------
@@ -395,12 +425,8 @@ function sfui.merchant.build_item_list()
         if mode == "merchant" then
             local itemInfo = sfui.api.GetMerchantItemInfo(i)
             if itemInfo then
-                if itemInfo.price and itemInfo.price > 0 and not sfui.merchant.currencyCache["Gold"] then
-                    local t = getTable()
-                    t.texture = 133784
-                    t.count = math.floor(GetMoney() / 10000)
-                    t.type = "gold"
-                    sfui.merchant.currencyCache["Gold"] = t
+                if itemInfo.price and itemInfo.price > 0 then
+                    EnsureMoneyInCache()
                 end
 
                 if itemInfo.currencyID then
@@ -425,7 +451,13 @@ function sfui.merchant.build_item_list()
                     end
                 end
             end
+        elseif mode == "buyback" then
+            EnsureMoneyInCache()
         end
+    end
+
+    if CanMerchantRepair and CanMerchantRepair() then
+        EnsureMoneyInCache()
     end
 
     sfui.merchant.totalMerchantItems = #sfui.merchant.filteredIndices

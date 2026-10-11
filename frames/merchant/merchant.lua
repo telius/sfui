@@ -538,6 +538,7 @@ local function on_merchant_update(event, ...)
 end
 sfui.events.RegisterEvent("MERCHANT_UPDATE",       on_merchant_update)
 sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", on_merchant_update)
+sfui.events.RegisterEvent("PLAYER_MONEY",          on_merchant_update)
 
 tinsert(UISpecialFrames, "SfuiMerchantFrame")
 frame:Hide()

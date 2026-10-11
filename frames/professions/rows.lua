@@ -1,7 +1,6 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
-sfui.professions = sfui.professions or {}
 sfui.recipes = sfui.recipes or {}
 sfui.recipes.browser = sfui.recipes.browser or {}
 

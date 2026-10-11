@@ -1,7 +1,7 @@
 ## Interface: 120100, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v1.91
+## Version: v1.92
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -147,6 +147,11 @@ frames/professions/progress.lua [AllowLoadGameType camelot, classic][ExcludeLoad
 frames/professions/rows.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/professions/browser.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/professions/pins.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+
+# Camelot Library Books
+data/books_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/map/library_pins.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+
 
 
 # Quests & Objective Tracker Engine

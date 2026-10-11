@@ -1173,7 +1173,8 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
         zone:SetBackdropColor(cc[1], cc[2], cc[3], 0.9)
         zone:SetBackdropBorderColor(0, 0, 0, 0)
         local isBuiltIn = (name == "CENTER" or name == "UTILITY" or name == "Left" or name == "Right")
-        if name and (name == "CAT" or name == "BEAR" or name == "MOONKIN" or name == "STEALTH") then isBuiltIn = true end
+        if name and (name == "CAT" or name == "BEAR" or name == "MOONKIN" or name == "STEALTH"
+            or name == "BATTLE" or name == "DEFENSIVE" or name == "BERSERKER") then isBuiltIn = true end
 
         local displayName = name or "Unnamed Panel"
         zone.label:SetText(displayName)
