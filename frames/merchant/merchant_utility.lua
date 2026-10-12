@@ -403,8 +403,8 @@ function sfui.merchant.create_utility_bar(frame)
     end)
     sfui.merchant.filterBtn = filterBtn
 
-    -- Recipe catalog quick button
-    local catalogBtn = CreateFlatButton(utilityBar, "catalog", cfg.utility_bar.button_small,
+    -- Recipe catalogue quick button
+    local catalogBtn = CreateFlatButton(utilityBar, "catalogue", cfg.utility_bar.button_small,
         cfg.utility_bar.button_height)
     catalogBtn:SetPoint("LEFT", filterBtn, "RIGHT", 5, 0)
     common.set_color(catalogBtn, cfg.button_colors.normal)
@@ -422,12 +422,12 @@ function sfui.merchant.create_utility_bar(frame)
         common.set_color(self, cfg.button_colors.filter_hover)
         if GameTooltip then
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            GameTooltip:AddLine("recipe catalog", 1, 1, 1)
+            GameTooltip:AddLine("recipe catalogue", 1, 1, 1)
             local npcName = UnitName("npc")
             if npcName then
-                GameTooltip:AddLine("click to open the recipe catalog filtered to recipes sold by " .. npcName:lower() .. ".", 0.2, 0.8, 1, true)
+                GameTooltip:AddLine("click to open the recipe catalogue filtered to recipes sold by " .. npcName:lower() .. ".", 0.2, 0.8, 1, true)
             else
-                GameTooltip:AddLine("click to open the recipe catalog.", 0.2, 0.8, 1, true)
+                GameTooltip:AddLine("click to open the recipe catalogue.", 0.2, 0.8, 1, true)
             end
             GameTooltip:Show()
         end

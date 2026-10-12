@@ -194,10 +194,7 @@ local function SuppressBlizzardTargetFrame()
     if not tf then return end
     tf:SetAlpha(0)
     if tf.EnableMouse and not InCombatLockdown() then
-        tf:EnableMouse(false)
-    end
-    if not InCombatLockdown() and tf:IsShown() then
-        tf:Hide()
+        pcall(tf.EnableMouse, tf, false)
     end
 end
 

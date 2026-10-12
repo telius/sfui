@@ -59,6 +59,36 @@ function sfui.colors.hex_to_rgb(hex)
 end
 sfui.common.hex_to_rgb = sfui.colors.hex_to_rgb
 
+--- Get RGB and hex string for character class
+--- @param className string?
+--- @return number r, number g, number b, string hex
+function sfui.colors.get_class_color(className)
+    if not className then return 0.8, 0.8, 0.8, "ffcccccc" end
+    local upper = className:upper()
+    local cc = (C_ClassColor and C_ClassColor.GetClassColor and C_ClassColor.GetClassColor(upper))
+        or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[upper])
+        or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[className])
+    if cc then
+        local r = cc.r or 1
+        local g = cc.g or 1
+        local b = cc.b or 1
+        local hex = cc.colorStr or string_format("ff%02x%02x%02x", r * 255, g * 255, b * 255)
+        return r, g, b, hex
+    end
+    return 0.8, 0.8, 0.8, "ffcccccc"
+end
+sfui.common.get_class_color = sfui.colors.get_class_color
+
+--- Format class-colored string
+--- @param name string?
+--- @param className string?
+--- @return string formatted
+function sfui.colors.class_color_name(name, className)
+    local _, _, _, hex = sfui.colors.get_class_color(className)
+    return string_format("|c%s%s|r", hex, name or "unknown")
+end
+sfui.common.class_color_name = sfui.colors.class_color_name
+
 -- ────────────────────────────────────────────────────────────────────────────
 -- Spec Color Cache (Zero table allocation in high-frequency hot-path update loops)
 -- ────────────────────────────────────────────────────────────────────────────

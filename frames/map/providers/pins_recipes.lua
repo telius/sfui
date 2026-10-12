@@ -100,7 +100,8 @@ local function OnEnterRecipePin(pin, tooltip, pinData)
         local r = item.recipe
         local s = item.source
         local minSkill = r.minSkill or (r.colors and r.colors[1]) or 0
-        local costStr = s.cost and sfui.recipes.FormatMoneyShort and (" - " .. sfui.recipes.FormatMoneyShort(s.cost)) or ""
+        local costFormatted = (s and s.cost and sfui.recipes.FormatMoneyShort) and sfui.recipes.FormatMoneyShort(s.cost)
+        local costStr = costFormatted and (" - " .. costFormatted) or ""
         local rName = r.name and r.name:lower() or "recipe"
         local isPinned = sfui.recipes.IsRecipePinned and sfui.recipes.IsRecipePinned(r.id)
         local pinTag = isPinned and " |cffffd100[pinned]|r" or ""
@@ -109,7 +110,7 @@ local function OnEnterRecipePin(pin, tooltip, pinData)
     end
 
     tooltip:AddLine(" ")
-    tooltip:AddLine("|cff00ff88left-click: open recipe catalog|r", 1, 1, 1)
+    tooltip:AddLine("|cff00ff88left-click: open recipe catalogue|r", 1, 1, 1)
     tooltip:AddLine("|cff80c0ffshift-click: set map waypoint with super-tracking|r", 1, 1, 1)
     tooltip:AddLine("|cff00e5ffctrl-click: track in objective tracker|r", 1, 1, 1)
     tooltip:Show()
@@ -237,7 +238,7 @@ pins.RegisterProvider("recipes", {
     GetPins     = GetRecipePins,
 })
 
-pins.RegisterTrackingCategory("recipe catalog", {
+pins.RegisterTrackingCategory("recipe catalogue", {
     { text = "available unlearned recipes", get = function() return sfui.recipes.pins.GetOption("showMapPins") end, set = function(v) sfui.recipes.pins.SetOption("showMapPins", v) end },
 })
 

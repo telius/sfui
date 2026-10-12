@@ -77,6 +77,10 @@ frames/alts/alts.lua
 frames/alts/alts_standard.lua [AllowLoadGameType standard]
 frames/alts/alts_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/alts/recipes.lua
+frames/alts/mail_data.lua
+frames/alts/mail_engine.lua
+frames/alts/mail_ui.lua
+frames/alts/mail_mailbox.lua
 frames/automation/automation.lua
 frames/automation/currency.lua
 frames/automation/fishing.lua

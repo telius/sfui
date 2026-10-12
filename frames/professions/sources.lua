@@ -33,7 +33,7 @@ local table_insert            = table.insert
 
 --- Format copper amount to coin icons or text
 local function FormatMoney(copper)
-    if not copper or copper <= 0 then return nil end
+    if not copper or type(copper) ~= "number" or copper <= 0 then return nil end
     if common and common.SafeGetCoinTextureString then
         return common.SafeGetCoinTextureString(copper)
     end
@@ -53,7 +53,7 @@ sfui.recipes.FormatMoney = FormatMoney
 
 --- Short text format for money (e.g. 1g 20s, 45s, 80c)
 local function FormatMoneyShort(copper)
-    if not copper or copper <= 0 then return nil end
+    if not copper or type(copper) ~= "number" or copper <= 0 then return nil end
     local g = math_floor(copper / 10000)
     local s = math_floor(copper / 100) % 100
     local c = copper % 100

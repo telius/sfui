@@ -53,6 +53,13 @@ function sfui.common.hide_tooltip()
     if ResetCursor then ResetCursor() end
 end
 
+--- Returns a valid font file path for FontString:SetFont (never passes a FontObject name)
+function sfui.common.get_font_file()
+    return (sfui.config and sfui.config.fontFile)
+        or (_G.GameFontNormal and _G.GameFontNormal:GetFont())
+        or "Fonts\\FRIZQT__.TTF"
+end
+
 -- ─── AddOn API (C_AddOns on modern clients, legacy globals on older builds) ───
 local C_AddOns_api = _G.C_AddOns or {}
 local _IsAddOnLoaded = C_AddOns_api.IsAddOnLoaded or _G.IsAddOnLoaded
@@ -1033,6 +1040,19 @@ function sfui.initialize_database()
     if SfuiDB.cursorRingScale == nil then SfuiDB.cursorRingScale = 1.0 end
     if SfuiDB.useSpecColor == nil then SfuiDB.useSpecColor = true end
     if SfuiDB.specColorFallback == nil then SfuiDB.specColorFallback = { 1, 1, 1, 1 } end
+    if SfuiDB.altMailRouting == nil then
+        SfuiDB.altMailRouting = {
+            enabled               = true,
+            autoOpenAtMailbox     = true,
+            disenchanterGUID      = nil,
+            disenchantQuality     = 2,
+            disenchantQualityMode = "all",
+            disenchantWeapons     = true,
+            disenchantArmor       = true,
+            routes                = {},
+            ignoredItems          = {},
+        }
+    end
 
     -- Bar settings
     if SfuiDB.healthBarX == nil then SfuiDB.healthBarX = 0 end

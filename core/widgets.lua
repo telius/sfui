@@ -27,14 +27,17 @@ function sfui.widgets.create_panel(parent, width, height)
 end
 sfui.common.create_panel = sfui.widgets.create_panel
 
-function sfui.widgets.create_window_header(parent, titleText)
+function sfui.widgets.create_window_header(parent, titleText, customWidth)
     if sfui.theme and sfui.theme.CreateWindowHeader then
-        return sfui.theme.CreateWindowHeader(parent, titleText)
+        return sfui.theme.CreateWindowHeader(parent, titleText, customWidth)
     end
     local headerBar = parent.headerBar or CreateFrame("Frame", nil, parent)
     parent.headerBar = headerBar
     headerBar.isWindowHeader = true
-    headerBar:SetSize(280, 26)
+    local pWidth = parent:GetWidth() or 0
+    local targetW = customWidth or (pWidth > 0 and pWidth < 300 and math.max(120, pWidth - 55)) or 280
+    headerBar.customWidth = targetW
+    headerBar:SetSize(targetW, 26)
     headerBar:ClearAllPoints()
     headerBar:SetPoint("TOP", parent, "TOP", 0, -8)
     headerBar:EnableMouse(false)
@@ -219,12 +222,12 @@ function sfui.widgets.style_text(fs, fontObj, size, flags)
 end
 sfui.common.style_text = sfui.widgets.style_text
 
-function sfui.widgets.create_flat_button(parent, text, width, height)
+function sfui.widgets.create_flat_button(parent, text, width, height, onClick)
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:SetSize(width, height)
 
     btn:SetNormalFontObject("GameFontHighlightSmall")
-    btn:SetText(text)
+    btn:SetText(text or "")
     local fs = btn:GetFontString()
     if fs then
         local fontFile = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
@@ -232,12 +235,101 @@ function sfui.widgets.create_flat_button(parent, text, width, height)
         fs:SetTextColor(1, 1, 1, 1)
     end
 
+    if onClick then
+        btn:SetScript("OnClick", onClick)
+    end
+
+    btn:HookScript("OnEnter", function(self)
+        if self.tooltip and _G.GameTooltip then
+            _G.GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            _G.GameTooltip:SetText(self.tooltip, 1, 1, 1)
+            _G.GameTooltip:Show()
+        end
+    end)
+    btn:HookScript("OnLeave", function(self)
+        if _G.GameTooltip and _G.GameTooltip:GetOwner() == self then
+            _G.GameTooltip:Hide()
+        end
+    end)
+
     sfui.theme.ApplyButtonStyle(btn, false)
     sfui.theme.RegisterButton(btn, false)
 
     return btn
 end
 sfui.common.create_flat_button = sfui.widgets.create_flat_button
+
+function sfui.widgets.set_button_mail_icon(btn, iconSize)
+    if not btn then return end
+    btn:SetText("")
+    iconSize = iconSize or 16
+
+    local icon = btn.mailIcon or btn:CreateTexture(nil, "ARTWORK")
+    btn.mailIcon = icon
+    icon:ClearAllPoints()
+    icon:SetSize(iconSize, iconSize)
+    icon:SetPoint("CENTER", btn, "CENTER", 0, 0)
+
+    if sfui.theme and sfui.theme.HasAtlas and sfui.theme.HasAtlas("ui-hud-minimap-mail-up") then
+        icon:SetAtlas("ui-hud-minimap-mail-up")
+    else
+        icon:SetTexture("Interface\\Icons\\INV_Letter_15")
+        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    end
+
+    btn:HookScript("OnMouseDown", function()
+        if icon then
+            icon:ClearAllPoints()
+            icon:SetPoint("CENTER", btn, "CENTER", 1, -1)
+        end
+    end)
+    btn:HookScript("OnMouseUp", function()
+        if icon then
+            icon:ClearAllPoints()
+            icon:SetPoint("CENTER", btn, "CENTER", 0, 0)
+        end
+    end)
+
+    return icon
+end
+sfui.common.set_button_mail_icon = sfui.widgets.set_button_mail_icon
+
+function sfui.widgets.set_button_alts_icon(btn, iconSize)
+    if not btn then return end
+    btn:SetText("")
+    iconSize = iconSize or 16
+
+    local icon = btn.altsIcon or btn:CreateTexture(nil, "ARTWORK")
+    btn.altsIcon = icon
+    icon:ClearAllPoints()
+    icon:SetSize(iconSize, iconSize)
+    icon:SetPoint("CENTER", btn, "CENTER", 0, 0)
+
+    if sfui.theme and sfui.theme.HasAtlas and sfui.theme.HasAtlas("groupfinder-icon-friend") then
+        icon:SetAtlas("groupfinder-icon-friend")
+    elseif sfui.theme and sfui.theme.HasAtlas and sfui.theme.HasAtlas("ui-hud-minimap-guild-up") then
+        icon:SetAtlas("ui-hud-minimap-guild-up")
+    else
+        icon:SetTexture("Interface\\Icons\\INV_Misc_GroupNeedMore")
+        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    end
+
+    btn:HookScript("OnMouseDown", function()
+        if icon then
+            icon:ClearAllPoints()
+            icon:SetPoint("CENTER", btn, "CENTER", 1, -1)
+        end
+    end)
+    btn:HookScript("OnMouseUp", function()
+        if icon then
+            icon:ClearAllPoints()
+            icon:SetPoint("CENTER", btn, "CENTER", 0, 0)
+        end
+    end)
+
+    return icon
+end
+sfui.common.set_button_alts_icon = sfui.widgets.set_button_alts_icon
 
 function sfui.widgets.create_submenu_button(parent, text, width, height)
     local btn = sfui.widgets.create_flat_button(parent, text or "", width or 18, height or 16)
@@ -380,7 +472,7 @@ function sfui.widgets.create_checkbox(parent, label, dbKeyOrGetter, onClickFunc,
     cb:SetScript("OnClick", function(self)
         local checked = self:GetChecked()
         if type(dbKeyOrGetter) == "string" and SfuiDB then SfuiDB[dbKeyOrGetter] = checked end
-        if onClickFunc then onClickFunc(checked) end
+        if onClickFunc then onClickFunc(checked, self) end
     end)
     cb:SetScript("OnShow", updateChecked)
     updateChecked()
@@ -789,6 +881,9 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
     if fs then
         fs:SetFont(fontFile, (width and width <= 24) and 12 or 11, "")
         fs:SetTextColor(1, 1, 1, 1)
+        if not width or width > 24 then
+            fs:SetWordWrap(false)
+        end
     end
 
     btn:SetBackdrop({
@@ -1404,6 +1499,19 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
 
     function btn:GetSelectedValue()
         return currentValue
+    end
+
+    function btn:SetOptions(newOptions, newVal)
+        options = newOptions
+        if newVal ~= nil then
+            self:SetSelectedValue(newVal)
+        elseif currentValue ~= nil then
+            self:SetSelectedValue(currentValue)
+        end
+        if menu:IsShown() then
+            updateMenuLayout()
+            fillOptions()
+        end
     end
 
     btn:HookScript("OnHide", function()

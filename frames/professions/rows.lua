@@ -369,7 +369,8 @@ function B.CreateRow(parent, index)
                 local isCur = (sIdx == (self.activeSourceIndex or 1))
                 local prefix = isCur and "|cff00ff88>|r " or "  "
                 local activeTag = isCur and " |cff00ff88[active waypoint]|r" or ""
-                local costStr = s.cost and sfui.recipes.FormatMoneyShort and (" - " .. sfui.recipes.FormatMoneyShort(s.cost)) or ""
+                local costFormatted = (s and s.cost and sfui.recipes.FormatMoneyShort) and sfui.recipes.FormatMoneyShort(s.cost)
+                local costStr = costFormatted and (" - " .. costFormatted) or ""
                 GameTooltip:AddLine(string.format("%s%d. %s, %s%s%s", prefix, sIdx, sName, sLoc ~= "" and sLoc or "world", costStr, activeTag),
                     isCur and 1 or 0.7, isCur and 1 or 0.7, isCur and 1 or 0.7, true)
             end

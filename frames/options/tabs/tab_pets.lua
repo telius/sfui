@@ -400,6 +400,18 @@ sfui.options.RegisterTab({
                 refresh_pet_list()
             end
         end)
+
+        if sfui.events and sfui.events.RegisterMessage then
+            sfui.events.RegisterMessage("SFUI_PET_FAVORITES_UPDATED", function()
+                if p and p.refresh_list then
+                    p.refresh_list()
+                end
+                if p and p.char_favs_cb and p.char_favs_cb.SetChecked then
+                    local charDB = sfui.pets.GetCharDB and sfui.pets.GetCharDB()
+                    p.char_favs_cb:SetChecked((charDB and charDB.charFavsEnabled) or false)
+                end
+            end)
+        end
     end,
     onShow = function(p, tab_button, options_frame)
         if p and p.refresh_list then

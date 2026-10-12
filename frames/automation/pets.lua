@@ -613,6 +613,9 @@ function sfui.pets.AddCurrentPetToCharFavs()
     charDB.charFavsEnabled = true
     rebuild_pet_pools()
     print_message(string.format("added |cff00ffff%s|r to character favorites (total: %d).", get_pet_name(current), #_poolFavs))
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_PET_FAVORITES_UPDATED")
+    end
 end
 
 function sfui.pets.RemoveCurrentPetFromCharFavs()
@@ -622,6 +625,9 @@ function sfui.pets.RemoveCurrentPetFromCharFavs()
     charDB.charFavs[current] = nil
     rebuild_pet_pools()
     print_message(string.format("removed |cff00ffff%s|r from character favorites.", get_pet_name(current)))
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_PET_FAVORITES_UPDATED")
+    end
 end
 
 function sfui.pets.ListCharFavs()
@@ -643,6 +649,9 @@ function sfui.pets.RemovePetFromCharFavs(petID)
     charDB.charFavs[petID] = nil
     rebuild_pet_pools()
     print_message(string.format("removed |cff00ffff%s|r from character favorites.", get_pet_name(petID)))
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_PET_FAVORITES_UPDATED")
+    end
 end
 
 function sfui.pets.SummonPetByGUID(petID)
@@ -656,6 +665,9 @@ function sfui.pets.ClearCharFavs()
     wipe(charDB.charFavs)
     rebuild_pet_pools()
     print_message("cleared all character favorites.")
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_PET_FAVORITES_UPDATED")
+    end
 end
 
 function sfui.pets.Dismiss()
@@ -669,11 +681,158 @@ function sfui.pets.Dismiss()
     return false
 end
 
-sfui.pets.GetCharDB = get_char_db
-sfui.pets.GetCharacterKey = get_character_key
-sfui.pets.RebuildPools = rebuild_pet_pools
-sfui.pets.update_settings = rebuild_pet_pools
-sfui.pets.Dismiss = sfui.pets.Dismiss
+function sfui.pets.FindPetByName(searchName)
+    if not searchName or searchName == "" then return nil end
+    local query = searchName:match("^%s*(.-)%s*$"):lower()
+    if query == "" then return nil end
+
+    -- Ensure collections UI is loaded so pet journal data is populated
+    if not _G.CollectionsJournal and _G.CollectionsJournal_LoadUI then
+        pcall(_G.CollectionsJournal_LoadUI)
+    end
+
+    -- 1. Check currently summoned pet
+    if C_PetJournal and C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetPetInfoByPetID then
+        local currentGUID = C_PetJournal.GetSummonedPetGUID()
+        if currentGUID then
+            local _, customName, _, _, _, _, _, speciesName = C_PetJournal.GetPetInfoByPetID(currentGUID)
+            local n1 = customName and customName:lower()
+            local n2 = speciesName and speciesName:lower()
+            if (n1 and n1:find(query, 1, true)) or (n2 and n2:find(query, 1, true)) then
+                return currentGUID
+            end
+        end
+    end
+
+    -- 2. Scan owned pet IDs directly (completely immune to UI search/category filters)
+    if C_PetJournal and C_PetJournal.GetOwnedPetIDs and C_PetJournal.GetPetInfoByPetID then
+        local owned = C_PetJournal.GetOwnedPetIDs()
+        if owned and #owned > 0 then
+            local partialMatch = nil
+            for i = 1, #owned do
+                local petID = owned[i]
+                local _, customName, _, _, _, _, _, speciesName = C_PetJournal.GetPetInfoByPetID(petID)
+                local n1 = customName and customName:lower()
+                local n2 = speciesName and speciesName:lower()
+                if (n1 and n1 == query) or (n2 and n2 == query) then
+                    return petID
+                end
+                if not partialMatch and ((n1 and n1:find(query, 1, true)) or (n2 and n2:find(query, 1, true))) then
+                    partialMatch = petID
+                end
+            end
+            if partialMatch then return partialMatch end
+        end
+    end
+
+    -- 3. Try Blizzard API FindPetIDByName
+    if C_PetJournal and C_PetJournal.FindPetIDByName then
+        local _, petID = C_PetJournal.FindPetIDByName(searchName:match("^%s*(.-)%s*$"))
+        if petID then return petID end
+    end
+
+    -- 4. Scan owned pets by journal index
+    if C_PetJournal and C_PetJournal.GetNumPets and C_PetJournal.GetPetInfoByIndex then
+        local numPets = C_PetJournal.GetNumPets()
+        local partialMatch = nil
+        for i = 1, numPets do
+            local petID, _, isOwned, customName, _, _, _, speciesName = C_PetJournal.GetPetInfoByIndex(i)
+            if isOwned and petID then
+                local n1 = customName and customName:lower()
+                local n2 = speciesName and speciesName:lower()
+                if (n1 and n1 == query) or (n2 and n2 == query) then
+                    return petID
+                end
+                if not partialMatch and ((n1 and n1:find(query, 1, true)) or (n2 and n2:find(query, 1, true))) then
+                    partialMatch = petID
+                end
+            end
+        end
+        if partialMatch then return partialMatch end
+    end
+    return nil
+end
+
+function sfui.pets.SummonByName(petName)
+    local petID = sfui.pets.FindPetByName(petName)
+    if not petID then
+        print_message(string.format("could not find a collected pet matching '|cff00ffff%s|r'.", tostring(petName)))
+        return false
+    end
+    _userDismissed = false
+    local res = summon_pet(petID)
+    if res then
+        print_message(string.format("summoning |cff00ffff%s|r.", get_pet_name(petID)))
+    end
+    return res
+end
+
+function sfui.pets.AddPetByName(petName)
+    local petID = sfui.pets.FindPetByName(petName)
+    if not petID then
+        print_message(string.format("could not find a collected pet matching '|cff00ffff%s|r'.", tostring(petName)))
+        return false
+    end
+    local charDB = get_char_db()
+    charDB.charFavs[petID] = true
+    charDB.charFavsEnabled = true
+    rebuild_pet_pools()
+    print_message(string.format("added |cff00ffff%s|r to character favorites (total: %d).", get_pet_name(petID), #_poolFavs))
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_PET_FAVORITES_UPDATED")
+    end
+    return true
+end
+
+_G["SLASH_SFPET1"] = "/sfpet"
+_G.SlashCmdList["SFPET"] = function(msg)
+    msg = (msg or ""):match("^%s*(.-)%s*$")
+    local cmd, arg = msg:match("^(%S+)%s*(.*)$")
+    cmd = cmd and cmd:lower() or ""
+    arg = arg and arg:match("^%s*(.-)%s*$") or ""
+
+    if cmd == "add" then
+        if arg ~= "" then
+            sfui.pets.AddPetByName(arg)
+        else
+            sfui.pets.AddCurrentPetToCharFavs()
+        end
+    elseif cmd == "summon" then
+        if arg ~= "" then
+            sfui.pets.SummonByName(arg)
+        else
+            sfui.pets.SummonNext(true)
+        end
+    elseif cmd == "remove" or cmd == "delete" then
+        if arg ~= "" then
+            local petID = sfui.pets.FindPetByName(arg)
+            if petID then
+                sfui.pets.RemovePetFromCharFavs(petID)
+            else
+                print_message(string.format("could not find pet '|cff00ffff%s|r' in favorites.", arg))
+            end
+        else
+            sfui.pets.RemoveCurrentPetFromCharFavs()
+        end
+    elseif cmd == "list" then
+        sfui.pets.ListCharFavs()
+    elseif cmd == "dismiss" then
+        sfui.pets.Dismiss()
+    elseif cmd == "next" or cmd == "random" then
+        sfui.pets.SummonNext(true)
+    elseif cmd == "clear" then
+        sfui.pets.ClearCharFavs()
+    else
+        print_message("sfui pet commands:")
+        print_message("  /sfpet summon <name> - summon a specific pet")
+        print_message("  /sfpet add <name>    - add pet to character favorites")
+        print_message("  /sfpet add           - add currently summoned pet to favorites")
+        print_message("  /sfpet remove <name> - remove pet from favorites")
+        print_message("  /sfpet list          - list character favorites")
+        print_message("  /sfpet next          - summon next random favorite pet")
+        print_message("  /sfpet dismiss       - dismiss current pet")
+    end
+end
 
 _G["SFUI_PET_SUMMON"] = function() sfui.pets.SummonNext(true) end
 

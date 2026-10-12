@@ -132,17 +132,19 @@ local PRIMARY_PROF_IDS = {
 }
 
 local SECONDARY_PROF_IDS = {
-    [129] = "firstAid",
-    [185] = "cooking",
-    [356] = "fishing",
-    [794] = "archaeology",
+    [129]  = "firstAid",
+    [185]  = "cooking",
+    [356]  = "fishing",
+    [794]  = "archaeology",
+    [3012] = "comprehension",
 }
 
 local SECONDARY_PROF_NAMES = {
-    [129] = "First Aid",
-    [185] = "Cooking",
-    [356] = "Fishing",
-    [794] = "Archaeology",
+    [129]  = "First Aid",
+    [185]  = "Cooking",
+    [356]  = "Fishing",
+    [794]  = "Archaeology",
+    [3012] = "Comprehension",
 }
 
 local PRIMARY_PROFS = {
@@ -158,9 +160,10 @@ local PRIMARY_PROFS = {
 }
 
 local SECONDARY_PROFS = {
-    ["Cooking"] = "cooking",
-    ["First Aid"] = "firstAid",
-    ["Fishing"] = "fishing",
+    ["Cooking"]       = "cooking",
+    ["First Aid"]     = "firstAid",
+    ["Fishing"]       = "fishing",
+    ["Comprehension"] = "comprehension",
 }
 
 local PROF_SHORT_NAMES = {
@@ -629,13 +632,14 @@ local function PerformSync(data, isLogout)
 
     -- Direct ID lookup fallback for secondary skills in Camelot
     if C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID then
-        local secIDs = { [129] = "First Aid", [185] = "Cooking", [356] = "Fishing" }
+        local secIDs = { [129] = "First Aid", [185] = "Cooking", [356] = "Fishing", [3012] = "Comprehension" }
         for sID, defaultName in pairs(secIDs) do
             local secKey = SECONDARY_PROF_IDS[sID]
             if secKey and not scanned[secKey] then
                 local info = C_SkillInfo.GetSkillLineInfoByID(sID)
                 if info and info.rank and info.rank > 0 then
-                    recordSkill(info.name or defaultName, info.rank, info.maxRank, info.modifier, false, sID, nil)
+                    local icon = (sID == 3012) and "Interface\\Icons\\Spell_Holy_MindSooth" or nil
+                    recordSkill(info.name or defaultName, info.rank, info.maxRank, info.modifier, false, sID, icon)
                 end
             end
         end

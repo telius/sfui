@@ -176,6 +176,39 @@ end
 -- Expose canonical GUID resolver so providers don't duplicate the logic
 sfui.alts.GetCurrentCharacterGUID = GetCurrentCharacterGUID
 
+--- Get display name for an alt, incorporating surname on Camelot/Forever
+--- @param altData table
+--- @return string displayName
+function sfui.alts.GetDisplayName(altData)
+    if not altData then return "Unknown" end
+    local NameUtil = _G.NameUtil
+    if altData.surname and altData.surname ~= "" then
+        if NameUtil and NameUtil.GetFullNameWithoutRealm then
+            local fn = NameUtil.GetFullNameWithoutRealm(altData.name, altData.surname)
+            if fn and fn ~= "" then return fn end
+        end
+        return string.format("%s %s", altData.name or "Unknown", altData.surname)
+    end
+    return altData.name or "Unknown"
+end
+sfui.common.get_alt_display_name = sfui.alts.GetDisplayName
+
+--- Get valid mail recipient string for an alt (name, or name-realm if cross-realm)
+--- @param altData table
+--- @return string recipient
+function sfui.alts.GetMailRecipient(altData)
+    if not altData then return "" end
+    local name = altData.name or ""
+    local myRealm = (GetRealmName and GetRealmName()) or ""
+    local myNormRealm = myRealm:gsub("%s+", ""):lower()
+    local targetRealm = (altData.realm or ""):gsub("%s+", "")
+    if targetRealm ~= "" and targetRealm:lower() ~= myNormRealm then
+        return string.format("%s-%s", name, targetRealm)
+    end
+    return name
+end
+sfui.common.get_alt_mail_recipient = sfui.alts.GetMailRecipient
+
 -- Provider Architecture
 sfui.alts.provider = nil
 function sfui.alts.RegisterProvider(provider)
@@ -237,16 +270,32 @@ function sfui.alts.PerformSync(isLogout)
     local guid = GetCurrentCharacterGUID()
     if not guid then return end
 
-    local name, realm = UnitName("player")
+    local name, arg2 = UnitName("player")
     if not name or name == "Unknown" then return end
 
     SfuiDB.alts = SfuiDB.alts or {}
     local d = SfuiDB.alts[guid] or {}
 
-    d.name = name
-    local r = (realm and realm ~= "") and realm or (GetRealmName and GetRealmName())
-    if r and r ~= "" then
-        d.realm = r
+    local isCamelotGame = sfui.isCamelot or (_G.NameUtil and _G.NameUtil.FormatUnitNameForDisplay)
+    if isCamelotGame then
+        d.name = name
+        d.surname = (arg2 and arg2 ~= "") and arg2 or nil
+        d.realm = (GetRealmName and GetRealmName()) or ""
+
+        -- Repair any existing corrupt entries in database where surname was stored as realm
+        local currentRealm = (GetRealmName and GetRealmName()) or ""
+        for _, alt in pairs(SfuiDB.alts) do
+            if alt.realm and alt.realm ~= "" and alt.realm ~= currentRealm and (not alt.surname or alt.surname == "") then
+                alt.surname = alt.realm
+                alt.realm = currentRealm
+            end
+        end
+    else
+        d.name = name
+        local r = (arg2 and arg2 ~= "") and arg2 or (GetRealmName and GetRealmName())
+        if r and r ~= "" then
+            d.realm = r
+        end
     end
     local englishClass = sfui.common.get_player_class()
     if englishClass and englishClass ~= "" then
@@ -625,6 +674,9 @@ function sfui.alts.CreateFrame()
         if frame.settingsBtn then
             frame.settingsBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
         end
+        if frame.mailBtn then
+            frame.mailBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+        end
         if sfui.alts.provider and sfui.alts.provider.OnFrameShow then
             sfui.alts.provider.OnFrameShow()
         end
@@ -668,6 +720,26 @@ function sfui.alts.CreateFrame()
         end
     end)
     frame.settingsBtn = settingsBtn
+
+    -- Mail Routing Button (Mail Icon)
+    local mailBtn = sfui.common.create_flat_button(frame, "", 24, 24)
+    mailBtn:ClearAllPoints()
+    mailBtn:SetPoint("TOPRIGHT", settingsBtn, "TOPLEFT", -5, 0)
+    mailBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+    mailBtn.tooltip = "alts mail routing"
+    mailBtn:SetScript("OnClick", function()
+        if settingsPanel and settingsPanel:IsShown() then
+            settingsPanel:Hide()
+        end
+        frame:Hide()
+        if sfui.alts.OpenMailConfig then
+            sfui.alts.OpenMailConfig()
+        elseif sfui.alts.ToggleMailConfig then
+            sfui.alts.ToggleMailConfig()
+        end
+    end)
+    sfui.common.set_button_mail_icon(mailBtn, 16)
+    frame.mailBtn = mailBtn
 
     -- Sidebar (Category labels)
     local sidebar = CreateFrame("Frame", nil, frame)
@@ -893,7 +965,20 @@ function sfui.alts.UpdateUI(force)
                         text:SetFontObject("GameFontNormal")
                         text:SetWidth(colW - 6)
                         text:SetWordWrap(false)
-                        text:SetText(alt.data.name or "Unknown")
+
+                        local mailTag = ""
+                        if alt.data.inboxCount and alt.data.inboxCount > 0 then
+                            local days = alt.data.inboxDaysLeft or 30
+                            local color = "|cff88ccff"
+                            if days < 3 then
+                                color = "|cffff3333"
+                            elseif days < 7 then
+                                color = "|cffffaa00"
+                            end
+                            mailTag = string.format(" %s[%d]|r", color, alt.data.inboxCount)
+                        end
+
+                        text:SetText(string.format("%s%s", sfui.alts.GetDisplayName(alt.data), mailTag))
                         text:SetTextColor(classColor.r, classColor.g, classColor.b)
 
                         local altSnap = alt
@@ -902,7 +987,7 @@ function sfui.alts.UpdateUI(force)
                             local d = altSnap.data
                             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                             local cc = RAID_CLASS_COLORS[d.class] or NORMAL_FONT_COLOR
-                            GameTooltip:AddLine(string.format("|c%s%s|r", cc.colorStr or "ffffffff", d.name or "?"), 1, 1, 1)
+                            GameTooltip:AddLine(string.format("|c%s%s|r", cc.colorStr or "ffffffff", sfui.alts.GetDisplayName(d)), 1, 1, 1)
                             if d.realm then
                                 GameTooltip:AddLine(d.realm, NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
                             end
@@ -912,6 +997,24 @@ function sfui.alts.UpdateUI(force)
                             if d.money and d.money > 0 then
                                 GameTooltip:AddLine(" ")
                                 GameTooltip:AddLine(_G.GetMoneyString(d.money, true), 1, 0.82, 0)
+                            end
+                            if d.inboxCount and d.inboxCount > 0 then
+                                GameTooltip:AddLine(" ")
+                                local days = d.inboxDaysLeft or 30
+                                local daysStr = string.format("%.1f days left", days)
+                                local r, g, b = 0.5, 0.8, 1.0
+                                if days < 3 then
+                                    r, g, b = 1.0, 0.2, 0.2
+                                    daysStr = daysStr .. " (expiring soon!)"
+                                elseif days < 7 then
+                                    r, g, b = 1.0, 0.7, 0.0
+                                end
+                                GameTooltip:AddDoubleLine("inbox mail:", string.format("%d letter(s) (%s)", d.inboxCount, daysStr),
+                                    NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, r, g, b)
+                                if d.inboxMoney and d.inboxMoney > 0 then
+                                    GameTooltip:AddDoubleLine("inbox gold:", _G.GetMoneyString(d.inboxMoney, true),
+                                        NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, 1, 0.82, 0)
+                                end
                             end
                             if sfui.alts.provider and sfui.alts.provider.showTimePlayedTooltip ~= false and d.timeplayed and d.timeplayed > 0 then
                                 local hours = math.floor(d.timeplayed / 3600)
@@ -923,6 +1026,7 @@ function sfui.alts.UpdateUI(force)
                         cell:SetScript("OnLeave", function()
                             GameTooltip:Hide()
                         end)
+
                     else
                         text:Hide()
                         local line = cell.line or cell:CreateTexture(nil, "BACKGROUND")
@@ -955,6 +1059,23 @@ function sfui.alts.UpdateUI(force)
 end
 
 local lastAltToggleTime = 0
+
+function sfui.alts.Open()
+    sfui.alts.RefreshDynamicCategories()
+    if not frame then
+        frame = sfui.alts.CreateFrame()
+    end
+    if not frame:IsShown() then
+        sfui.alts.CheckWeeklyResets()
+        if sfui.alts.provider and sfui.alts.provider.OnFrameShow then
+            sfui.alts.provider.OnFrameShow()
+        end
+        sfui.alts.PerformSync()
+        needsSync = false
+        frame:Show()
+        sfui.alts.UpdateUI(true)
+    end
+end
 
 function sfui.alts.Toggle()
     local now = GetTime()

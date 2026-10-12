@@ -131,6 +131,16 @@ SlashCmdList["SFUI"] = function(msg)
         if sfui.recipes and sfui.recipes.ToggleBrowser then
             sfui.recipes.ToggleBrowser(arg ~= "" and arg or nil)
         end
+    elseif cmd == "mail" or cmd == "mailrouting" or cmd == "altmail" then
+        if sfui.alts and sfui.alts.ToggleMailConfig then
+            sfui.alts.ToggleMailConfig()
+        end
+    elseif cmd == "pet" or cmd == "pets" or cmd == "sfpet" then
+        if arg and arg ~= "" and _G.SlashCmdList and _G.SlashCmdList["SFPET"] then
+            _G.SlashCmdList["SFPET"](arg)
+        elseif sfui.toggle_options_panel then
+            sfui.toggle_options_panel("pets")
+        end
     elseif cmd == "totembar" or cmd == "totems" then
         if not sfui.isRetail and sfui.totembar and sfui.totembar.ToggleUnlock then
             sfui.totembar.ToggleUnlock()
@@ -168,7 +178,7 @@ SlashCmdList["SFUIPORTALS"] = function()
     end
 end
 
--- Dedicated Recipe Catalog Slash Command (/recipes, /sfrecipes) (Camelot only)
+-- Dedicated Recipe Catalogue Slash Command (/recipes, /sfrecipes) (Camelot only)
 if not sfui.isRetail then
     SLASH_SFUIRECIPES1 = "/sfrecipes"
     SLASH_SFUIRECIPES2 = "/recipes"
@@ -197,3 +207,13 @@ if not sfui.isRetail then
         end
     end
 end
+
+-- Dedicated Alts Mail Routing Slash Command (/sfmail, /altsmail)
+SLASH_SFUIMAIL1 = "/sfmail"
+SLASH_SFUIMAIL2 = "/altsmail"
+SlashCmdList["SFUIMAIL"] = function()
+    if sfui.alts and sfui.alts.ToggleMailConfig then
+        sfui.alts.ToggleMailConfig()
+    end
+end
+

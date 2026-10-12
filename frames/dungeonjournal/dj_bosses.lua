@@ -988,7 +988,7 @@ local function RenderLoot(boss, dungeon)
                         local sID = (sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID]) or itemID
                         local isPinned = sfui.recipes.IsRecipePinned and sfui.recipes.IsRecipePinned(sID)
                         GameTooltip:AddLine(string.format("|cff00ff88ctrl-click: %s objective tracker|r", isPinned and "unpin from" or "track in"), 0.2, 1, 0.4)
-                        GameTooltip:AddLine("|cff888888alt-click: open recipe catalog|r", 0.7, 0.7, 0.7)
+                        GameTooltip:AddLine("|cff888888alt-click: open recipe catalogue|r", 0.7, 0.7, 0.7)
                     else
                         GameTooltip:AddLine(" ")
                         GameTooltip:AddLine("|cff888888<shift-click to link · ctrl-click to view>|r", 0.6, 0.6, 0.6)

@@ -977,28 +977,9 @@ sfui.config = {
         historySize   = 4,
     },
 
-    -- ─── Hide & Mouseover Settings ────────────────────────
-    -- Settings for action bars mouseover fading and Blizzard unitframe hiding (frames/hide.lua).
+    -- ─── Hide & Suppression Settings ──────────────────────
+    -- Settings for Blizzard unitframe and HUD suppression (frames/hide.lua).
     hide = {
-        actionbars_mouseover_enabled = true,
-        actionbars_resting_alpha     = 0.0,
-        actionbars_active_alpha      = 1.0,
-        actionbars_fade_duration     = 0.2,
-
-        -- Per-bar mouseover toggles
-        actionbars_bar_main          = true,
-        actionbars_bar_bar2          = true,
-        actionbars_bar_bar3          = true,
-        actionbars_bar_bar4          = true,
-        actionbars_bar_bar5          = true,
-        actionbars_bar_bar6          = true,
-        actionbars_bar_bar7          = true,
-        actionbars_bar_bar8          = true,
-        actionbars_bar_pet           = true,
-        actionbars_bar_stance        = true,
-        actionbars_bar_possess       = true,
-
-        -- Unit and HUD frame permanent hiding
         hide_player_frame            = false,
         hide_target_frame            = false,
         hide_pet_frame               = false,
@@ -1006,6 +987,7 @@ sfui.config = {
         hide_micromenu               = false,
         hide_bagsbar                 = false,
         hide_totem_bar               = false,
+        hide_cooldown_errors         = true,
     },
 
     -- ─── Totem Bar (Vanilla / Camelot only) ─────────────────────────

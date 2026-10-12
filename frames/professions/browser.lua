@@ -32,16 +32,22 @@ function B.UpdateProfessionTabs()
         btn:Hide()
     end
 
+    -- If character has not learned any crafting professions, do not inject all skills as filter buttons
     if #B.playerProfessions == 0 then
-        -- Character has not learned any crafting professions; fall back to all professions for browsing
-        for _, p in ipairs(B.ALL_PROFESSIONS or {}) do
-            table.insert(B.playerProfessions, {
-                skillID = p.skillID,
-                name    = p.name,
-                rank    = 0,
-                maxRank = 0,
-                icon    = p.icon,
-            })
+        -- Check if an external action explicitly requested a single profession to inspect (e.g. from vendor or chat link)
+        if B.selectedSkillID and B.ALL_PROFESSIONS then
+            for _, p in ipairs(B.ALL_PROFESSIONS) do
+                if p.skillID == B.selectedSkillID then
+                    table.insert(B.playerProfessions, {
+                        skillID = p.skillID,
+                        name    = p.name,
+                        rank    = 0,
+                        maxRank = 0,
+                        icon    = p.icon,
+                    })
+                    break
+                end
+            end
         end
     end
 
@@ -53,10 +59,14 @@ function B.UpdateProfessionTabs()
         B.RebuildFilteredList()
         B.ResetScroll()
         B.UpdateList()
+        if ui.emptyStateText then
+            ui.emptyStateText:SetText("no learned crafting professions")
+            ui.emptyStateText:Show()
+        end
         return
     end
 
-    -- Verify selectedSkillID belongs to this character or ALL_PROFESSIONS
+    -- Verify selectedSkillID belongs to this character or was explicitly requested
     local valid = false
     for _, p in ipairs(B.playerProfessions) do
         if p.skillID == B.selectedSkillID then
@@ -85,6 +95,14 @@ function B.UpdateProfessionTabs()
         B.activeCategoryFilter = nil
     end
 
+    local maxAvailW = (ui.profRow:GetWidth() and ui.profRow:GetWidth() > 300 and (ui.profRow:GetWidth() - 240)) or 560
+    local totalEstimatedW = 0
+    for _, p in ipairs(B.playerProfessions) do
+        local txt = ((p.maxRank or 0) > 0) and string.format("%s (%d/%d)", p.name:lower(), p.rank or 0, p.maxRank or 0) or p.name:lower()
+        totalEstimatedW = totalEstimatedW + (#txt * 7 + 18) + 6
+    end
+    local useCompact = (totalEstimatedW > maxAvailW)
+
     local prevBtn = nil
     for i, p in ipairs(B.playerProfessions) do
         local btn = ui.profButtons[i]
@@ -93,6 +111,7 @@ function B.UpdateProfessionTabs()
             btn:SetHeight(22)
             local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             fs:SetPoint("CENTER", btn, "CENTER", 0, 0)
+            fs:SetWordWrap(false)
             btn.fs = fs
             if btn.SetFontString then btn:SetFontString(fs) end
             ui.profButtons[i] = btn
@@ -100,11 +119,12 @@ function B.UpdateProfessionTabs()
 
         local isSelected = (p.skillID == B.selectedSkillID)
         local tabLabel
-        if (p.maxRank or 0) > 0 then
+        if not useCompact and (p.maxRank or 0) > 0 then
             tabLabel = string.format("%s (%d/%d)", p.name:lower(), p.rank or 0, p.maxRank or 0)
         else
             tabLabel = p.name:lower()
         end
+        btn.fs:SetWordWrap(false)
         btn.fs:SetText(tabLabel)
         btn:SetWidth(btn.fs:GetStringWidth() + 18)
 
@@ -124,7 +144,25 @@ function B.UpdateProfessionTabs()
         end
         prevBtn = btn
         btn.skillID = p.skillID
+        btn.profData = p
         btn:Show()
+
+        btn:SetScript("OnEnter", function(self)
+            if GameTooltip and self.profData then
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:ClearLines()
+                GameTooltip:AddLine(self.profData.name:lower(), 1, 0.82, 0)
+                if (self.profData.maxRank or 0) > 0 then
+                    GameTooltip:AddLine(string.format("rank: %d / %d", self.profData.rank or 0, self.profData.maxRank or 0), 1, 1, 1)
+                end
+                GameTooltip:Show()
+            end
+        end)
+        btn:SetScript("OnLeave", function()
+            if GameTooltip and GameTooltip:IsShown() then
+                GameTooltip:Hide()
+            end
+        end)
 
         btn:SetScript("OnClick", function()
             B.selectedSkillID = p.skillID
@@ -478,7 +516,7 @@ function B.CreateBrowserFrame()
     common.apply_flat_backdrop(f, { 0.05, 0.05, 0.07, 0.97 }, { 0.12, 0.12, 0.14, 1 })
 
     -- ── Header Bar ────────────────────────────────────────────────────────────
-    local headerBar = (theme.CreateWindowHeader or sfui.theme.CreateWindowHeader)(f, "recipe catalog")
+    local headerBar = (theme.CreateWindowHeader or sfui.theme.CreateWindowHeader)(f, "recipe catalogue")
     f.headerBar = headerBar
 
     -- ── Close Button ──────────────────────────────────────────────────────────
@@ -784,7 +822,7 @@ function B.CreateBrowserFrame()
     -- Bottom Status Bar
     ui.statusText = f:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     ui.statusText:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 12, 8)
-    ui.statusText:SetText("loading catalog...")
+    ui.statusText:SetText("loading catalogue...")
 
     -- ESC dismiss
     tinsert(UISpecialFrames, "SfuiRecipeBrowserFrame")
@@ -810,7 +848,7 @@ function B.CreateBrowserFrame()
         theme.RegisterWindow(f, function(frame, pal)
             if not pal and theme.GetPalette then pal = theme.GetPalette() end
             if frame.headerBar and theme.ApplyHeaderStyle then
-                theme.ApplyHeaderStyle(frame.headerBar, "recipe catalog")
+                theme.ApplyHeaderStyle(frame.headerBar, "recipe catalogue")
             end
             if frame.listContainer and theme.ApplyContainerStyle then
                 theme.ApplyContainerStyle(frame.listContainer)

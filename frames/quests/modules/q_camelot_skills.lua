@@ -84,21 +84,23 @@ local PRIMARY_PROFESSION_IDS = {
 
 -- Secondary Skills
 local SECONDARY_SKILL_IDS = {
-    [185] = true, -- Cooking
-    [129] = true, -- First Aid
-    [356] = true, -- Fishing
-    [762] = true, -- Riding
+    [185]  = true, -- Cooking
+    [129]  = true, -- First Aid
+    [356]  = true, -- Fishing
+    [762]  = true, -- Riding
+    [3012] = true, -- Comprehension
 }
 
 local SKILL_ID_TO_PROF_NAME = {
-    [171] = "Alchemy",
-    [164] = "Blacksmithing",
-    [333] = "Enchanting",
-    [202] = "Engineering",
-    [165] = "Leatherworking",
-    [197] = "Tailoring",
-    [185] = "Cooking",
-    [129] = "First Aid",
+    [171]  = "Alchemy",
+    [164]  = "Blacksmithing",
+    [333]  = "Enchanting",
+    [202]  = "Engineering",
+    [165]  = "Leatherworking",
+    [197]  = "Tailoring",
+    [185]  = "Cooking",
+    [129]  = "First Aid",
+    [3012] = "Comprehension",
 }
 
 local function GetSkillCategoryInfo(skillID)
@@ -577,7 +579,7 @@ function CamelotSkillsModule:BuildBlocks(container)
                 tip:AddLine(" ")
                 local profName = SKILL_ID_TO_PROF_NAME[skillID]
                 if profName then
-                    tip:AddLine("|cff888888left-click: open recipe catalog|r", 1, 1, 1)
+                    tip:AddLine("|cff888888left-click: open recipe catalogue|r", 1, 1, 1)
                     tip:AddLine("|cff888888middle-click: open skills panel|r", 1, 1, 1)
                 else
                     tip:AddLine("|cff888888left-click: open skills panel|r", 1, 1, 1)

@@ -473,18 +473,22 @@ function sfui.theme.CreateHeaderFrame(parent, height)
     return headerFrame
 end
 
---- Create and register a standardized window title header bar (280x26 centered banner).
+--- Create and register a standardized window title header bar (centered banner).
 --- @param parent Frame The window frame hosting the header
 --- @param titleText string? Title label displayed in the banner
+--- @param customWidth number? Optional custom width for the banner
 --- @return Frame headerBar The configured header frame
-function sfui.theme.CreateWindowHeader(parent, titleText)
+function sfui.theme.CreateWindowHeader(parent, titleText, customWidth)
     if not parent then return end
     local base = parent:GetFrameLevel() or 1
     local headerBar = parent.headerBar or CreateFrame("Frame", nil, parent)
     parent.headerBar = headerBar
 
     headerBar.isWindowHeader = true
-    headerBar:SetSize(280, 26)
+    local pWidth = parent:GetWidth() or 0
+    local targetW = customWidth or (pWidth > 0 and pWidth < 300 and math_max(120, pWidth - 55)) or 280
+    headerBar.customWidth = targetW
+    headerBar:SetSize(targetW, 26)
     headerBar:ClearAllPoints()
     headerBar:SetPoint("TOP", parent, "TOP", 0, -8)
     headerBar:SetFrameLevel(base + 15)
@@ -1078,7 +1082,8 @@ function sfui.theme.ApplyQuestHeaderStyle(header)
         end
         if header.isWindowHeader then
             header.bgBanner:ClearAllPoints()
-            header.bgBanner:SetSize(280, 24)
+            local bw = header.customWidth or (header:GetWidth() > 0 and header:GetWidth()) or 280
+            header.bgBanner:SetSize(bw, 24)
             header.bgBanner:SetPoint("CENTER", header, "CENTER", 0, 0)
         else
             header.bgBanner:ClearAllPoints()

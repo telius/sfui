@@ -105,6 +105,71 @@ B.ALL_PROFESSIONS = {
     { skillID = 197, name = "tailoring",      icon = "Interface\\Icons\\Trade_Tailoring" },
 }
 
+local CRAFTING_PROFESSION_IDS = {
+    [171] = true, -- alchemy
+    [164] = true, -- blacksmithing
+    [185] = true, -- cooking
+    [333] = true, -- enchanting
+    [202] = true, -- engineering
+    [129] = true, -- first aid
+    [165] = true, -- leatherworking
+    [197] = true, -- tailoring
+}
+
+local CANONICAL_PROFESSION_NAMES = {
+    [171] = "alchemy",
+    [164] = "blacksmithing",
+    [185] = "cooking",
+    [333] = "enchanting",
+    [202] = "engineering",
+    [129] = "first aid",
+    [165] = "leatherworking",
+    [197] = "tailoring",
+}
+
+local SKILL_ID_BY_NAME = {
+    ["alchemy"]                     = 171,
+    ["blacksmithing"]               = 164,
+    ["armorsmith"]                  = 164,
+    ["armorsmithing"]               = 164,
+    ["weaponsmith"]                 = 164,
+    ["weaponsmithing"]              = 164,
+    ["axesmith"]                    = 164,
+    ["axesmithing"]                 = 164,
+    ["swordsmith"]                  = 164,
+    ["swordsmithing"]               = 164,
+    ["hammersmith"]                 = 164,
+    ["hammersmithing"]              = 164,
+    ["cooking"]                     = 185,
+    ["enchanting"]                  = 333,
+    ["engineering"]                 = 202,
+    ["goblin engineer"]             = 202,
+    ["goblin engineering"]          = 202,
+    ["gnomish engineer"]            = 202,
+    ["gnomish engineering"]         = 202,
+    ["first aid"]                   = 129,
+    ["firstaid"]                    = 129,
+    ["leatherworking"]              = 165,
+    ["dragonscale leatherworking"]  = 165,
+    ["elemental leatherworking"]    = 165,
+    ["tribal leatherworking"]       = 165,
+    ["tailoring"]                   = 197,
+    ["shadoweave tailoring"]        = 197,
+    ["spellfire tailoring"]         = 197,
+    ["mooncloth tailoring"]         = 197,
+}
+
+local SKILL_ICONS_BY_ID = {
+    [171] = "Interface\\Icons\\Trade_Alchemy",
+    [164] = "Interface\\Icons\\Trade_BlackSmithing",
+    [185] = "Interface\\Icons\\INV_Misc_Food_15",
+    [333] = "Interface\\Icons\\Trade_Engraving",
+    [202] = "Interface\\Icons\\Trade_Engineering",
+    [129] = "Interface\\Icons\\Spell_Holy_SealOfSacrifice",
+    [165] = "Interface\\Icons\\Trade_LeatherWorking",
+    [197] = "Interface\\Icons\\Trade_Tailoring",
+}
+
 B.SPEC_SHORT_TAGS = {
     ["goblin engineering"]          = "[goblin]",
     ["gnomish engineering"]         = "[gnomish]",
@@ -637,20 +702,33 @@ function B.GetPlayerProfessionsList()
     local seen = {}
 
     local function addProfession(skillLine, lowerName, rank, maxRank, icon)
-        if not skillLine or not lowerName then return end
-        if EXCLUDED_PROFESSIONS[skillLine] or EXCLUDED_PROFESSION_NAMES[lowerName] then return end
-        if seen[skillLine] then return end
-        seen[skillLine] = true
+        if not lowerName or lowerName == "" then return end
+        local sID = (skillLine and CRAFTING_PROFESSION_IDS[skillLine] and skillLine)
+                 or SKILL_ID_BY_NAME[lowerName]
+        if not sID or not CRAFTING_PROFESSION_IDS[sID] then return end
+        if EXCLUDED_PROFESSIONS[sID] or EXCLUDED_PROFESSION_NAMES[lowerName] then return end
+        if seen[sID] then
+            for _, p in ipairs(list) do
+                if p.skillID == sID then
+                    if (rank or 0) > (p.rank or 0) then p.rank = rank end
+                    if (maxRank or 0) > (p.maxRank or 0) then p.maxRank = maxRank end
+                    break
+                end
+            end
+            return
+        end
+        seen[sID] = true
+        local canonName = CANONICAL_PROFESSION_NAMES[sID] or lowerName
         table.insert(list, {
-            skillID = skillLine,
-            name    = lowerName,
+            skillID = sID,
+            name    = canonName,
             rank    = rank or 0,
             maxRank = maxRank or 0,
-            icon    = icon,
+            icon    = icon or SKILL_ICONS_BY_ID[sID],
         })
     end
 
-    -- 1. Query Camelot/Classic 5-slot GetProfessions (p1, p2, faid, fish, cook) safely without nil-hole ipairs termination
+    -- 1. Query Camelot/Classic 5-slot GetProfessions (p1, p2, faid, fish, cook) safely
     if _G.GetProfessions and _G.GetProfessionInfo then
         local p1, p2, faid, fish, cook, p6, p7 = _G.GetProfessions()
         local slots = { p1, p2, faid, fish, cook, p6, p7 }
@@ -659,7 +737,11 @@ function B.GetPlayerProfessionsList()
             if idx then
                 local name, icon, rank, maxRank, _, _, skillLine = _G.GetProfessionInfo(idx)
                 local lowerName = name and name:lower()
-                addProfession(skillLine, lowerName, rank, maxRank, icon)
+                local resolvedID = (skillLine and CRAFTING_PROFESSION_IDS[skillLine] and skillLine)
+                                or (lowerName and SKILL_ID_BY_NAME[lowerName])
+                if resolvedID and CRAFTING_PROFESSION_IDS[resolvedID] then
+                    addProfession(resolvedID, lowerName, rank, maxRank, icon)
+                end
             end
         end
     end
@@ -681,7 +763,7 @@ function B.GetPlayerProfessionsList()
         end
     end
 
-    -- 3. Skill line traversal fallback for classic skill tab
+    -- 3. Skill line traversal fallback for classic skill tab (strictly filter to crafting professions)
     if (GetNumSkillLines and GetSkillLineInfo) or (C_SkillInfo and C_SkillInfo.GetNumSkillLines and C_SkillInfo.GetSkillLineInfo) then
         local numSkills = (C_SkillInfo and C_SkillInfo.GetNumSkillLines and C_SkillInfo.GetNumSkillLines())
                        or (GetNumSkillLines and GetNumSkillLines()) or 0
@@ -706,15 +788,50 @@ function B.GetPlayerProfessionsList()
 
             if sName and (sRank or 0) > 0 then
                 local lowerName = sName:lower()
-                local mappedID = sID or (lowerName == "cooking" and 185) or (lowerName == "first aid" and 129)
-                if mappedID and not seen[mappedID] then
-                    local icon = (mappedID == 185 and "Interface\\Icons\\INV_Misc_Food_15")
-                              or (mappedID == 129 and "Interface\\Icons\\Spell_Holy_SealOfSacrifice")
+                local mappedID = (sID and CRAFTING_PROFESSION_IDS[sID] and sID)
+                              or SKILL_ID_BY_NAME[lowerName]
+                if mappedID and CRAFTING_PROFESSION_IDS[mappedID] and not seen[mappedID] then
+                    local icon = SKILL_ICONS_BY_ID[mappedID]
                     addProfession(mappedID, lowerName, sRank, sMaxRank, icon)
                 end
             end
         end
     end
+
+    -- 4. Check SfuiDB.alts for player if live APIs are still warming up on initial login frame
+    if #list == 0 and SfuiDB and SfuiDB.alts and _G.UnitGUID then
+        local playerGUID = _G.UnitGUID("player")
+        local altData = playerGUID and SfuiDB.alts[playerGUID]
+        if altData and altData.professions then
+            if altData.professions.primaries then
+                for _, p in ipairs(altData.professions.primaries) do
+                    local pName = p.name and p.name:lower()
+                    local pID = (p.skillID and CRAFTING_PROFESSION_IDS[p.skillID] and p.skillID)
+                             or (pName and SKILL_ID_BY_NAME[pName])
+                    if pID and CRAFTING_PROFESSION_IDS[pID] and not seen[pID] then
+                        addProfession(pID, pName, p.rank, p.maxRank, p.icon or SKILL_ICONS_BY_ID[pID])
+                    end
+                end
+            end
+            if altData.professions.cooking and not seen[185] then
+                local c = altData.professions.cooking
+                addProfession(185, "cooking", c.rank, c.maxRank, "Interface\\Icons\\INV_Misc_Food_15")
+            end
+            if altData.professions.firstAid and not seen[129] then
+                local fa = altData.professions.firstAid
+                addProfession(129, "first aid", fa.rank, fa.maxRank, "Interface\\Icons\\Spell_Holy_SealOfSacrifice")
+            end
+        end
+    end
+
+    table.sort(list, function(a, b)
+        local aIsSec = (a.skillID == 185 or a.skillID == 129)
+        local bIsSec = (b.skillID == 185 or b.skillID == 129)
+        if aIsSec ~= bIsSec then
+            return not aIsSec
+        end
+        return (a.name or "") < (b.name or "")
+    end)
 
     return list
 end

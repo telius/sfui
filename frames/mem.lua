@@ -622,18 +622,18 @@ function sfui.mem.GetModuleStats()
     end
     stats["lootfeed"] = lfStats
 
-    -- Frame Hider & Mouseover Engine
+    -- Frame Hider Module
     local hideMod = {
-        name = "frame hider & mouseover",
+        name = "frame hider",
         status = "|cff00ff88active|r",
         line1 = "hidden frames: 0",
-        line2 = "actionbar mouseover: off",
+        line2 = "error filter: off",
     }
     local hd = GetDebug("hide_debug_info", "hide")
     if hd then
-        hideMod.status = hd.isLoopActive and "|cff00ff88watching|r" or "|cff888888idle|r"
-        hideMod.line1 = string_format("hidden frames: %d • loop: %.2fs", tonumber(hd.hiddenUnitFrames) or 0, tonumber(hd.currentInterval) or 0)
-        hideMod.line2 = string_format("bar mouseover: %s • fading: %s", hd.mouseoverEnabled and "|cff00ff88on|r" or "off", hd.isFading and "yes" or "no")
+        hideMod.status = (tonumber(hd.hiddenUnitFrames) or 0) > 0 and "|cff00ff88active|r" or "|cff888888idle|r"
+        hideMod.line1 = string_format("hidden frames: %d", tonumber(hd.hiddenUnitFrames) or 0)
+        hideMod.line2 = string_format("error filter: %s", hd.errorFilter and "|cff00ff88active|r" or "off")
     end
     stats["hide"] = hideMod
 
@@ -668,17 +668,17 @@ function sfui.mem.GetModuleStats()
         end
         stats["dungeonjournal"] = djStats
 
-        -- Recipe Catalog Module (Camelot / Classic)
+        -- Recipe Catalogue Module (Camelot / Classic)
         local recStats = {
-            name = "recipe catalog",
+            name = "recipe catalogue",
             status = "|cff888888idle|r",
-            line1 = "catalog: 0 recipes • 0 sources",
+            line1 = "catalogue: 0 recipes • 0 sources",
             line2 = "filter: all • 0 shown • 0 pinned",
         }
         local rec = GetDebug("recipes_debug_info", "recipes")
         if rec then
             recStats.status = rec.isOpen and "|cff00ff88open|r" or "|cff888888idle|r"
-            recStats.line1 = string_format("catalog: %d recipes • %d sources", tonumber(rec.totalRecipes) or 0, tonumber(rec.totalSources) or 0)
+            recStats.line1 = string_format("catalogue: %d recipes • %d sources", tonumber(rec.totalRecipes) or 0, tonumber(rec.totalSources) or 0)
             recStats.line2 = string_format("filter: %s • %d shown • %d pinned • %d map pins", tostring(rec.activeFilter or "all"):lower(), tonumber(rec.shownCount) or 0, tonumber(rec.pinnedCount) or 0, tonumber(rec.mapPins) or 0)
         end
         stats["recipes"] = recStats

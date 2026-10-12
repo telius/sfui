@@ -151,7 +151,7 @@ function B.UpdateProgressBar()
     pb:SetScript("OnEnter", function(self)
         if not GameTooltip then return end
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:AddLine(string.format("%s catalog completion", profName), 1, 0.82, 0)
+        GameTooltip:AddLine(string.format("%s catalogue completion", profName), 1, 0.82, 0)
         GameTooltip:AddDoubleLine("total known:", string.format("%d / %d (%.1f%%)", knownCount, totalCount, pct), 1, 1, 1, 0.2, 1, 0.4)
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine("source breakdown:", 0.8, 0.8, 0.8)
