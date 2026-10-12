@@ -95,6 +95,15 @@ classUtilityBtn:RegisterForClicks("AnyUp", "AnyDown")
 local purgeShardsBtn = _G.SfuiPurgeSoulShards or _G.CreateFrame("Button", "SfuiPurgeSoulShards", UIParent)
 purgeShardsBtn:RegisterForClicks("AnyUp", "AnyDown")
 purgeShardsBtn:SetScript("OnClick", function(self, button, down)
+    local inCombat = (sfui.common and sfui.common.is_in_combat and sfui.common.is_in_combat())
+        or (_G.InCombatLockdown and _G.InCombatLockdown())
+        or (_G.UnitAffectingCombat and _G.UnitAffectingCombat("player"))
+    if inCombat then
+        if _G.SfuiBagTriagePrompt and _G.SfuiBagTriagePrompt:IsShown() then
+            _G.SfuiBagTriagePrompt:Hide()
+        end
+        return
+    end
     if _G.SfuiBagTriagePrompt and _G.SfuiBagTriagePrompt:IsShown() and _G.SfuiTriageDeleteBtn then
         _G.SfuiTriageDeleteBtn:Click(button, down)
     elseif sfui.triage and sfui.triage.ExecutePurge then

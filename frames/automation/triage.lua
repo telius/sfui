@@ -23,6 +23,7 @@ local PlaySound                = _G.PlaySound
 local SOUNDKIT                 = _G.SOUNDKIT
 local UnitLevel                = _G.UnitLevel
 local UnitIsDeadOrGhost        = _G.UnitIsDeadOrGhost
+local UnitAffectingCombat      = _G.UnitAffectingCombat
 local C_Timer                  = _G.C_Timer
 local C_Container              = _G.C_Container
 local Enum                     = _G.Enum
@@ -58,6 +59,21 @@ local SOUL_SHARD_ID            = 6265
 local get_soul_shard_data
 local check_and_delete_excess_soul_shards
 local execute_purge_candidate
+local lastNoExcessNoticeTime   = 0
+local lastPurgeSuccessTime     = 0
+
+local function is_in_combat()
+    if sfui.common and sfui.common.is_in_combat and sfui.common.is_in_combat() then
+        return true
+    end
+    if InCombatLockdown and InCombatLockdown() then
+        return true
+    end
+    if UnitAffectingCombat and UnitAffectingCombat("player") then
+        return true
+    end
+    return false
+end
 
 -- Scratch tables for soul shard calculations (eliminates garbage churn)
 local _shardAll       = {}
@@ -763,7 +779,14 @@ local function create_triage_prompt()
 
     deleteBtn:RegisterForClicks("AnyUp", "AnyDown")
     deleteBtn:SetScript("OnClick", function(self, button, down)
-        if down == false and (GetTime() - lastPurgeSuccessTime) < 0.45 then
+        if is_in_combat() then
+            if f and f:IsShown() and not isTestMode then
+                f:Hide()
+            end
+            return
+        end
+        local now = GetTime and GetTime() or 0
+        if down == false and (now - (lastPurgeSuccessTime or 0)) < 0.45 then
             return
         end
         if execute_purge_candidate then
@@ -900,9 +923,19 @@ local function is_cursor_busy()
     return false
 end
 
+local function is_loot_window_open()
+    if _G.LootFrame and _G.LootFrame:IsShown() then
+        return true
+    end
+    if _G.GetNumLootItems and _G.GetNumLootItems() > 0 then
+        return true
+    end
+    return false
+end
+
 --- Check if player is busy with actions that should not be interrupted
 local function is_player_busy()
-    if sfui.common.is_in_combat() or InCombatLockdown() then
+    if is_in_combat() then
         return true
     end
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then
@@ -926,12 +959,15 @@ local function is_player_busy()
     if _G.MailFrame and _G.MailFrame:IsShown() then
         return true
     end
+    if is_loot_window_open() then
+        return true
+    end
     return false
 end
 
 --- Check if player is in combat, dead, or actively casting/trading
 local function is_player_combat_or_dead()
-    if sfui.common.is_in_combat() or InCombatLockdown() then
+    if is_in_combat() then
         return true
     end
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then
@@ -1081,16 +1117,18 @@ get_soul_shard_data = function()
     return _shardDataResult
 end
 
-local lastNoExcessNoticeTime = 0
-local lastPurgeSuccessTime   = 0
-
 --- Purges the active triage candidate (soul shard or item) or next excess soul shard.
 --- This is the core function of the purge button, shared across the UI prompt, keybind, and macros.
 --- @param cand table|nil optional candidate; defaults to currentCandidate or next excess soul shard
 --- @param isDown boolean|nil optional flag indicating if click originated from key-down
 --- @return boolean success
 execute_purge_candidate = function(cand, isDown)
-    if is_player_combat_or_dead() then return false end
+    if is_player_combat_or_dead() then
+        if promptFrame and promptFrame:IsShown() and not isTestMode then
+            promptFrame:Hide()
+        end
+        return false
+    end
 
     -- Guard non-table arguments (e.g. PurgeSoulShards(true) called by old callers)
     if type(cand) ~= "table" then
@@ -1100,11 +1138,11 @@ execute_purge_candidate = function(cand, isDown)
     local now = GetTime and GetTime() or 0
 
     -- Hardware key-up guard: ignore key-up release if a purge was already triggered on key-down
-    if isDown == false and (now - lastPurgeSuccessTime) < 0.45 then
+    if isDown == false and (now - (lastPurgeSuccessTime or 0)) < 0.45 then
         return false
     end
 
-    if (now - lastPurgeSuccessTime) < 0.30 then
+    if (now - (lastPurgeSuccessTime or 0)) < 0.30 then
         return false
     end
 
@@ -1192,7 +1230,7 @@ execute_purge_candidate = function(cand, isDown)
     local rawInfo = getItemInfo and getItemInfo(cand.bag, cand.slot)
     local info = (type(rawInfo) == "table") and rawInfo or nil
     if info and info.isLocked then
-        if (now - lastPurgeSuccessTime) > 0.8 then
+        if (now - (lastPurgeSuccessTime or 0)) > 0.8 then
             common.print("|cffff8800sfui triage:|r item is currently locked, try again in a moment.")
         end
         return false
@@ -1296,7 +1334,14 @@ triage.CheckSoulShards = check_and_delete_excess_soul_shards
 local purgeShardsBtn = _G.SfuiPurgeSoulShards or _G.CreateFrame("Button", "SfuiPurgeSoulShards", UIParent)
 purgeShardsBtn:RegisterForClicks("AnyUp", "AnyDown")
 purgeShardsBtn:SetScript("OnClick", function(self, button, down)
-    if down == false and (GetTime() - lastPurgeSuccessTime) < 0.45 then
+    if is_in_combat() then
+        if promptFrame and promptFrame:IsShown() and not isTestMode then
+            promptFrame:Hide()
+        end
+        return
+    end
+    local now = GetTime and GetTime() or 0
+    if down == false and (now - (lastPurgeSuccessTime or 0)) < 0.45 then
         return
     end
     if promptFrame and promptFrame:IsShown() and promptFrame.deleteBtn then
@@ -1317,7 +1362,10 @@ function triage.EvaluateTriage()
     if isTestMode then return end
 
     -- Safety: never prompt during combat
-    if sfui.common.is_in_combat() or InCombatLockdown() then
+    if is_in_combat() then
+        if promptFrame and promptFrame:IsShown() and not isTestMode then
+            promptFrame:Hide()
+        end
         return
     end
 
@@ -1331,6 +1379,16 @@ function triage.EvaluateTriage()
 
     -- Safety: at merchant window (selling items is preferred over dropping)
     if _G.MerchantFrame and _G.MerchantFrame:IsShown() then
+        if promptFrame and promptFrame:IsShown() then
+            promptFrame:Hide()
+        end
+        return
+    end
+
+    -- Safety: at bank, trade, or mail window
+    if (_G.BankFrame and _G.BankFrame:IsShown())
+       or (_G.TradeFrame and _G.TradeFrame:IsShown())
+       or (_G.MailFrame and _G.MailFrame:IsShown()) then
         if promptFrame and promptFrame:IsShown() then
             promptFrame:Hide()
         end
@@ -1470,17 +1528,17 @@ end
 -- ─────────────────────────────────────────────────────────────────────────────
 
 local function on_bag_update()
-    if not isEnabled or sfui.common.is_in_combat() then return end
+    if not isEnabled or is_in_combat() then return end
     if scanTimer then return end
     scanTimer = C_Timer.After(0.3, function()
         scanTimer = nil
-        if not isEnabled or sfui.common.is_in_combat() then return end
+        if not isEnabled or is_in_combat() then return end
         triage.EvaluateTriage()
     end)
 end
 
 local function on_ui_error(event, errorType, msg)
-    if not isEnabled or sfui.common.is_in_combat() then return end
+    if not isEnabled or is_in_combat() then return end
     -- Immediately evaluate if inventory full error fires
     if msg == _G.ERR_INV_FULL or (msg and msg:find("Inventory is full", 1, true)) then
         triage.EvaluateTriage()
@@ -1500,6 +1558,10 @@ local function on_combat_enter()
     if promptFrame and promptFrame:IsShown() and not isTestMode then
         promptFrame:Hide()
     end
+    if scanTimer then
+        scanTimer:Cancel()
+        scanTimer = nil
+    end
 end
 
 local function on_merchant_show()
@@ -1510,17 +1572,17 @@ local function on_merchant_show()
 end
 
 local function on_channel_stop(event, unit)
-    if not isEnabled or sfui.common.is_in_combat() then return end
+    if not isEnabled or is_in_combat() then return end
     C_Timer.After(0.2, function()
-        if not isEnabled or sfui.common.is_in_combat() then return end
+        if not isEnabled or is_in_combat() then return end
         triage.EvaluateTriage()
     end)
 end
 
 local function on_cast_succeeded(event, unit)
-    if not isEnabled or sfui.common.is_in_combat() then return end
+    if not isEnabled or is_in_combat() then return end
     C_Timer.After(0.25, function()
-        if not isEnabled or sfui.common.is_in_combat() then return end
+        if not isEnabled or is_in_combat() then return end
         triage.EvaluateTriage()
     end)
 end

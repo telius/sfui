@@ -1,15 +1,9 @@
 # Changelog
 
-## v1.93 (2026-10-12)
-
-### features
-
-- **paladin aura badge**: added a circular aura indicator centered on the top edge of the paladin healthbar in camelot (`frames/bars/bars.lua`) tracking devotion, retribution, concentration, shadow resistance, frost resistance, fire resistance, crusader, and sanctity auras.
+## v1.94 (2026-10-12)
 
 ### improvements & bug fixes
 
-- **cooldown viewer taint fix**: resolved an `attempted to index a table that cannot be accessed while tainted` error at `CooldownViewer.lua:1700` during target changes (`common.lua`). unmirrored viewers (`EssentialCooldownViewer`, `UtilityCooldownViewer`) are now completely shut down with `:Hide()`, `:UnregisterAllEvents()`, and secure `Show` hooks, and direct property injections on blizzard frame tables were eliminated in favor of local tracking tables.
-- **tracked icons viewer scan**: removed unneeded non-aura cooldown viewers from the missing buff scan list (`frames/tracking/trackedicons.lua`).
-- **libsharedmedia statusbar registration**: fixed bugsack errors caused by registering blizzard atlas element strings as statusbar files (`core.lua`). statusbar registrations now strictly validate file paths against `C_UIFileAsset.IsKnownFile` before calling `LSM:Register`, and atlas textures are safely resolved directly by sfui.
-- **texture dropdown availability**: updated statusbar texture discovery (`core/widgets.lua`) to verify client asset manifests so only available textures appear in the options menu.
-- **libsharedmedia update**: synced vendored lib (`Libs/LibSharedMedia-3.0/LibSharedMedia-3.0.lua`) to upstream revision 181 (12000004).
+- **triage arithmetic error**: fixed a nil arithmetic crash in `frames/automation/triage.lua` where `lastPurgeSuccessTime` was referenced in the delete button click handler prior to its local declaration. `lastPurgeSuccessTime` and `lastNoExcessNoticeTime` are now declared at file-level scope with nil-safe fallback guards.
+- **strict combat blocking**: added comprehensive combat safety guards across triage evaluation, button click handlers, and event listeners (`frames/automation/triage.lua` and `core.lua`). the triage prompt is automatically dismissed when combat is detected (`PLAYER_REGEN_DISABLED`, `InCombatLockdown`, or `UnitAffectingCombat`), background scan timers are cancelled on combat entry, and clicks on `deleteBtn` or `SfuiPurgeSoulShards` are blocked in combat.
+- **loot window & busy state safety**: updated `is_player_busy()` to recognize open loot windows (`LootFrame:IsShown()` and `GetNumLootItems() > 0`) to prevent background shard deletion while actively looting, and added bank, trade, and mail window checks to `triage.EvaluateTriage()`.
