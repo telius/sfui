@@ -99,33 +99,37 @@ local function AddToCache(id, name, texture, count, type)
 end
 
 local function EnsureMoneyInCache()
-    if sfui.merchant.currencyCache["Gold"] then return end
+    if sfui.merchant.currencyCache["Money"] or sfui.merchant.currencyCache["Gold"] then return end
     local isClassicOrCamelot = sfui.isCamelot or sfui.isClassic
     local money = GetMoney()
     local gold = math.floor(money / 10000)
+    local silver = math.floor((money % 10000) / 100)
+    local copper = money % 100
 
-    local tGold = getTable()
-    tGold.texture = 133784
-    tGold.count = gold
-    tGold.type = "gold"
-    sfui.merchant.currencyCache["Gold"] = tGold
+    local tMoney = getTable()
+    tMoney.texture = "Interface\\MoneyFrame\\UI-GoldIcon"
+    tMoney.atlas = "coin-gold"
+    tMoney.count = gold
+    tMoney.type = "money"
+    tMoney.gold = gold
+    tMoney.silver = silver
+    tMoney.copper = copper
 
     if isClassicOrCamelot then
-        local silver = math.floor((money % 10000) / 100)
-        local copper = money % 100
-
-        local tSilver = getTable()
-        tSilver.texture = 133785
-        tSilver.count = silver
-        tSilver.type = "silver"
-        sfui.merchant.currencyCache["Silver"] = tSilver
-
-        local tCopper = getTable()
-        tCopper.texture = 133786
-        tCopper.count = copper
-        tCopper.type = "copper"
-        sfui.merchant.currencyCache["Copper"] = tCopper
+        tMoney.displayText = string.format("%d,%02d,%02d", gold, silver, copper)
+    else
+        if gold >= 1000000 then
+            tMoney.displayText = string.format("%.1fM", gold / 1000000)
+        elseif gold >= 1000 then
+            tMoney.displayText = string.format("%.1fK", gold / 1000)
+        elseif silver > 0 or copper > 0 then
+            tMoney.displayText = string.format("%d,%02d,%02d", gold, silver, copper)
+        else
+            tMoney.displayText = tostring(gold)
+        end
     end
+
+    sfui.merchant.currencyCache["Money"] = tMoney
 end
 
 --------------------------------------------------------------------------------

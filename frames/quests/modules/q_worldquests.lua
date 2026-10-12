@@ -236,15 +236,10 @@ function WorldQuestsModule:BuildBlocks(container)
                     end
 
                     -- Left-Click: Open details or map
-                    if InCombatLockdown and InCombatLockdown() then return end
-                    if QuestMapFrame_OpenToQuestDetails then
-                        QuestMapFrame_OpenToQuestDetails(questID)
-                    elseif _G.ToggleWorldMap then
-                        _G.ToggleWorldMap()
-                    end
-
-                    if C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
-                        C_SuperTrack.SetSuperTrackedQuestID(questID)
+                    if sfui.map and sfui.map.OpenToQuest then
+                        sfui.map.OpenToQuest(questID, nil, true)
+                    elseif sfui.map and sfui.map.ToggleWorldMap then
+                        sfui.map.ToggleWorldMap()
                     end
                 end,
             })

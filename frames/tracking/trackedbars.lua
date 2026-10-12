@@ -580,7 +580,7 @@ sfui.trackedbars.UpdateAppearance = function() sfui.trackedbars.SetBarTexture() 
 local function RecycleBar(bar)
     bar:Hide()
     bar:ClearAllPoints()
-    bar:SetParent(nil)
+    bar:SetParent(UIParent)
     bar.cooldownID = nil
     bar.spellID = nil
     bar.currentStacks = nil

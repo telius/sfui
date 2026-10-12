@@ -205,8 +205,8 @@ function ScenariosModule:BuildBlocks(container)
                     return
                 end
 
-                if _G.ToggleWorldMap then
-                    _G.ToggleWorldMap()
+                if sfui.map and sfui.map.ToggleWorldMap then
+                    sfui.map.ToggleWorldMap()
                 end
             end,
         }

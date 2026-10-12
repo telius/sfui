@@ -1282,10 +1282,10 @@ function WorldEventsModule:BuildBlocks(container)
                         C_SuperTrack.ClearSuperTrackedMapPin(Enum.SuperTrackingMapPinType.AreaPOI)
                     else
                         C_SuperTrack.SetSuperTrackedMapPin(Enum.SuperTrackingMapPinType.AreaPOI, curPoiID)
-                        if _G.OpenMapToEventPoi then
-                            _G.OpenMapToEventPoi(curPoiID)
-                        elseif _G.ToggleWorldMap then
-                            _G.ToggleWorldMap()
+                        if sfui.map and sfui.map.OpenToEventPoi then
+                            sfui.map.OpenToEventPoi(curPoiID)
+                        elseif sfui.map and sfui.map.ToggleWorldMap then
+                            sfui.map.ToggleWorldMap()
                         end
                     end
                 end

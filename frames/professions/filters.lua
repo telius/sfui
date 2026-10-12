@@ -93,6 +93,18 @@ local EXCLUDED_PROFESSION_NAMES = {
     ["archaeology"] = true,
 }
 
+-- Baseline crafting & secondary professions available in camelot
+B.ALL_PROFESSIONS = {
+    { skillID = 171, name = "alchemy",        icon = "Interface\\Icons\\Trade_Alchemy" },
+    { skillID = 164, name = "blacksmithing",  icon = "Interface\\Icons\\Trade_BlackSmithing" },
+    { skillID = 185, name = "cooking",        icon = "Interface\\Icons\\INV_Misc_Food_15" },
+    { skillID = 333, name = "enchanting",     icon = "Interface\\Icons\\Trade_Engraving" },
+    { skillID = 202, name = "engineering",    icon = "Interface\\Icons\\Trade_Engineering" },
+    { skillID = 129, name = "first aid",      icon = "Interface\\Icons\\Spell_Holy_SealOfSacrifice" },
+    { skillID = 165, name = "leatherworking", icon = "Interface\\Icons\\Trade_LeatherWorking" },
+    { skillID = 197, name = "tailoring",      icon = "Interface\\Icons\\Trade_Tailoring" },
+}
+
 B.SPEC_SHORT_TAGS = {
     ["goblin engineering"]          = "[goblin]",
     ["gnomish engineering"]         = "[gnomish]",
@@ -622,24 +634,88 @@ end
 --- @return table list
 function B.GetPlayerProfessionsList()
     local list = {}
+    local seen = {}
+
+    local function addProfession(skillLine, lowerName, rank, maxRank, icon)
+        if not skillLine or not lowerName then return end
+        if EXCLUDED_PROFESSIONS[skillLine] or EXCLUDED_PROFESSION_NAMES[lowerName] then return end
+        if seen[skillLine] then return end
+        seen[skillLine] = true
+        table.insert(list, {
+            skillID = skillLine,
+            name    = lowerName,
+            rank    = rank or 0,
+            maxRank = maxRank or 0,
+            icon    = icon,
+        })
+    end
+
+    -- 1. Query Camelot/Classic 5-slot GetProfessions (p1, p2, faid, fish, cook) safely without nil-hole ipairs termination
     if _G.GetProfessions and _G.GetProfessionInfo then
-        local profIndices = { _G.GetProfessions() }
-        for _, idx in ipairs(profIndices) do
+        local p1, p2, faid, fish, cook, p6, p7 = _G.GetProfessions()
+        local slots = { p1, p2, faid, fish, cook, p6, p7 }
+        for i = 1, 7 do
+            local idx = slots[i]
             if idx then
                 local name, icon, rank, maxRank, _, _, skillLine = _G.GetProfessionInfo(idx)
                 local lowerName = name and name:lower()
-                if skillLine and lowerName and not EXCLUDED_PROFESSIONS[skillLine] and not EXCLUDED_PROFESSION_NAMES[lowerName] then
-                    table.insert(list, {
-                        skillID = skillLine,
-                        name    = lowerName,
-                        rank    = rank or 0,
-                        maxRank = maxRank or 0,
-                        icon    = icon,
-                    })
+                addProfession(skillLine, lowerName, rank, maxRank, icon)
+            end
+        end
+    end
+
+    -- 2. Direct fallback for secondary professions in Classic / Camelot (Cooking 185, First Aid 129)
+    if C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID then
+        local secIDs = {
+            [185] = { name = "cooking",   icon = "Interface\\Icons\\INV_Misc_Food_15" },
+            [129] = { name = "first aid", icon = "Interface\\Icons\\Spell_Holy_SealOfSacrifice" },
+        }
+        for sID, def in pairs(secIDs) do
+            if not seen[sID] then
+                local info = C_SkillInfo.GetSkillLineInfoByID(sID)
+                if info and info.rank and info.rank > 0 then
+                    local pName = (info.name and info.name:lower()) or def.name
+                    addProfession(sID, pName, info.rank, info.maxRank or info.rank, def.icon)
                 end
             end
         end
     end
+
+    -- 3. Skill line traversal fallback for classic skill tab
+    if (GetNumSkillLines and GetSkillLineInfo) or (C_SkillInfo and C_SkillInfo.GetNumSkillLines and C_SkillInfo.GetSkillLineInfo) then
+        local numSkills = (C_SkillInfo and C_SkillInfo.GetNumSkillLines and C_SkillInfo.GetNumSkillLines())
+                       or (GetNumSkillLines and GetNumSkillLines()) or 0
+        for i = 1, numSkills do
+            local sName, sRank, sMaxRank, sID
+            if C_SkillInfo and C_SkillInfo.GetSkillLineInfo then
+                local info = C_SkillInfo.GetSkillLineInfo(i)
+                if info and not info.isHeader then
+                    sName = info.name
+                    sRank = info.rank
+                    sMaxRank = info.maxRank
+                    sID = info.skillID
+                end
+            elseif GetSkillLineInfo then
+                local name, isHeader, _, rank, _, _, maxRank = GetSkillLineInfo(i)
+                if not isHeader then
+                    sName = name
+                    sRank = rank
+                    sMaxRank = maxRank
+                end
+            end
+
+            if sName and (sRank or 0) > 0 then
+                local lowerName = sName:lower()
+                local mappedID = sID or (lowerName == "cooking" and 185) or (lowerName == "first aid" and 129)
+                if mappedID and not seen[mappedID] then
+                    local icon = (mappedID == 185 and "Interface\\Icons\\INV_Misc_Food_15")
+                              or (mappedID == 129 and "Interface\\Icons\\Spell_Holy_SealOfSacrifice")
+                    addProfession(mappedID, lowerName, sRank, sMaxRank, icon)
+                end
+            end
+        end
+    end
+
     return list
 end
 
@@ -739,11 +815,18 @@ function B.IsRecipeLearned(recipeOrSpellID, rOrGUID, optionalRealm)
         else
             if SfuiDB and SfuiDB.alts and targetGUID and SfuiDB.alts[targetGUID] then
                 local altData = SfuiDB.alts[targetGUID]
-                if altData.professions and altData.professions.primaries then
-                    for _, p in ipairs(altData.professions.primaries) do
-                        if p.skillID == skillID then
-                            return true
+                if altData.professions then
+                    if altData.professions.primaries then
+                        for _, p in ipairs(altData.professions.primaries) do
+                            if p.skillID == skillID then
+                                return true
+                            end
                         end
+                    end
+                    if skillID == 185 and altData.professions.cooking then
+                        return true
+                    elseif skillID == 129 and altData.professions.firstAid then
+                        return true
                     end
                 end
             end

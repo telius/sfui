@@ -1101,8 +1101,10 @@ local function ResolveSkillData(skillName)
 
     -- 3. Try Retail GetProfessions / GetProfessionInfo if not found
     if not maxRank and _G.GetProfessions and _G.GetProfessionInfo then
-        local profs = { _G.GetProfessions() }
-        for _, pIdx in ipairs(profs) do
+        local p1, p2, p3, p4, p5, p6, p7 = _G.GetProfessions()
+        local profs = { p1, p2, p3, p4, p5, p6, p7 }
+        for i = 1, 7 do
+            local pIdx = profs[i]
             if pIdx and not IsSecret(pIdx) then
                 local pName, pIcon, pRank, pMaxRank = _G.GetProfessionInfo(pIdx)
                 if pName and not IsSecret(pName) and pName:lower() == cleanName then

@@ -33,6 +33,19 @@ function B.UpdateProfessionTabs()
     end
 
     if #B.playerProfessions == 0 then
+        -- Character has not learned any crafting professions; fall back to all professions for browsing
+        for _, p in ipairs(B.ALL_PROFESSIONS or {}) do
+            table.insert(B.playerProfessions, {
+                skillID = p.skillID,
+                name    = p.name,
+                rank    = 0,
+                maxRank = 0,
+                icon    = p.icon,
+            })
+        end
+    end
+
+    if #B.playerProfessions == 0 then
         B.selectedSkillID = nil
         B.activeSpecFilter = nil
         B.activeCategoryFilter = nil
@@ -43,7 +56,7 @@ function B.UpdateProfessionTabs()
         return
     end
 
-    -- Verify selectedSkillID belongs to this character
+    -- Verify selectedSkillID belongs to this character or ALL_PROFESSIONS
     local valid = false
     for _, p in ipairs(B.playerProfessions) do
         if p.skillID == B.selectedSkillID then
@@ -51,8 +64,23 @@ function B.UpdateProfessionTabs()
             break
         end
     end
+    if not valid and B.selectedSkillID and B.ALL_PROFESSIONS then
+        for _, p in ipairs(B.ALL_PROFESSIONS) do
+            if p.skillID == B.selectedSkillID then
+                valid = true
+                table.insert(B.playerProfessions, {
+                    skillID = p.skillID,
+                    name    = p.name,
+                    rank    = 0,
+                    maxRank = 0,
+                    icon    = p.icon,
+                })
+                break
+            end
+        end
+    end
     if not valid then
-        B.selectedSkillID = B.playerProfessions[1].skillID
+        B.selectedSkillID = B.playerProfessions[1] and B.playerProfessions[1].skillID
         B.activeSpecFilter = nil
         B.activeCategoryFilter = nil
     end
@@ -71,7 +99,12 @@ function B.UpdateProfessionTabs()
         end
 
         local isSelected = (p.skillID == B.selectedSkillID)
-        local tabLabel = string.format("%s (%d/%d)", p.name:lower(), p.rank, p.maxRank)
+        local tabLabel
+        if (p.maxRank or 0) > 0 then
+            tabLabel = string.format("%s (%d/%d)", p.name:lower(), p.rank or 0, p.maxRank or 0)
+        else
+            tabLabel = p.name:lower()
+        end
         btn.fs:SetText(tabLabel)
         btn:SetWidth(btn.fs:GetStringWidth() + 18)
 
@@ -903,9 +936,15 @@ function sfui.recipes.CloseBrowser()
     end
 end
 
+local lastBrowserToggleTime = 0
+
 --- Toggle the recipe browser window
 --- @param optionalProfession string|number?
 function sfui.recipes.ToggleBrowser(optionalProfession)
+    local now = GetTime()
+    if (now - lastBrowserToggleTime) < 0.15 then return end
+    lastBrowserToggleTime = now
+
     if B.ui.frame and B.ui.frame:IsShown() then
         sfui.recipes.CloseBrowser()
     else

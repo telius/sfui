@@ -1,7 +1,7 @@
 ## Interface: 120100, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v1.94
+## Version: v1.95
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -34,6 +34,7 @@ core/talents_standard.lua [AllowLoadGameType standard]
 core/talents_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 core/colors.lua
 core/items.lua
+core/map.lua
 common.lua
 core/widgets.lua
 frames/themes/engine.lua
@@ -128,14 +129,17 @@ frames/gear/bonusroll.lua [AllowLoadGameType standard]
 frames/gear/hammer.lua [AllowLoadGameType standard]
 frames/gear/lootfeed.lua
 
+# Map & Pins Engine
+frames/map/pins.lua
+
 # Camelot Dungeon Journal
 data/dj_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/dungeonjournal/dungeonjournal.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/dungeonjournal/dj_sidebar.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/dungeonjournal/dj_bosses.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/dungeonjournal/dj_quests.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/dungeonjournal/dj_pins.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/dungeonjournal/dj_tooltips.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/map/providers/pins_dungeonjournal.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 
 # Camelot Recipes & Professions
 data/recipes_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
@@ -146,11 +150,14 @@ frames/professions/filters.lua [AllowLoadGameType camelot, classic][ExcludeLoadG
 frames/professions/progress.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/professions/rows.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/professions/browser.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/professions/pins.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/map/providers/pins_recipes.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 
 # Camelot Library Books
 data/books_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/map/library_pins.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/map/providers/pins_library.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+
+# Camelot Iconic Quests & Discoveries (Sleeping Bag, Torch)
+frames/map/providers/pins_camelot_quests.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 
 
 

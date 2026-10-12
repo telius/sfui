@@ -353,15 +353,8 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
     end
 
     -- 7. Left-Click: Open Quest Details in World Map / SuperTrack
-    if InCombatLockdown and InCombatLockdown() then return end
-    if QuestMapFrame_OpenToQuestDetails then
-        QuestMapFrame_OpenToQuestDetails(questID)
-    elseif _G.QuestLog_OpenToQuest and questLogIndex then
-        _G.QuestLog_OpenToQuest(questLogIndex)
-    end
-
-    if C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
-        C_SuperTrack.SetSuperTrackedQuestID(questID)
+    if sfui.map and sfui.map.OpenToQuest then
+        sfui.map.OpenToQuest(questID, questLogIndex, true)
     end
 end
 

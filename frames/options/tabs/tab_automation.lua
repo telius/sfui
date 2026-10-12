@@ -40,7 +40,7 @@ sfui.options.RegisterTab({
         auto_sign_cb:SetPoint("TOPLEFT", auto_role_cb, "BOTTOMLEFT", 0, -10)
 
         local auto_repair_cb = create_checkbox(automation_panel, "auto-repair", "autoRepair", nil,
-            "automatically repairs gear (guild first, skips if blacksmith hammer available).")
+            "automatically repairs gear (guild first, skips if blacksmith hammer available). aborted if cost exceeds 5,000g to protect against item scaling bugs.")
         auto_repair_cb:SetPoint("LEFT", auto_sign_cb, "LEFT", COL_OFFSET_X, 0)
 
         local last_general_anchor = auto_sign_cb

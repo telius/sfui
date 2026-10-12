@@ -233,11 +233,16 @@ local function IsProfessionQuest(questID, questLogIndex, headerTitle)
 
         -- Player's learned professions fallback (Classic / Era)
         if _G.GetProfessions and _G.GetProfessionInfo then
-            for _, pIdx in ipairs({ _G.GetProfessions() }) do
-                local name = _G.GetProfessionInfo(pIdx)
-                if name and name:lower() == hLower then
-                    professionHeaders[hLower] = true
-                    return true
+            local p1, p2, p3, p4, p5, p6, p7 = _G.GetProfessions()
+            local pList = { p1, p2, p3, p4, p5, p6, p7 }
+            for i = 1, 7 do
+                local pIdx = pList[i]
+                if pIdx then
+                    local name = _G.GetProfessionInfo(pIdx)
+                    if name and name:lower() == hLower then
+                        professionHeaders[hLower] = true
+                        return true
+                    end
                 end
             end
         end
@@ -439,15 +444,8 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
     end
 
     -- 7. Left-Click: Open Quest Details in World Map / SuperTrack
-    if InCombatLockdown and InCombatLockdown() then return end
-    if QuestMapFrame_OpenToQuestDetails then
-        QuestMapFrame_OpenToQuestDetails(questID)
-    elseif _G.QuestLog_OpenToQuest and questLogIndex then
-        _G.QuestLog_OpenToQuest(questLogIndex)
-    end
-
-    if C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
-        C_SuperTrack.SetSuperTrackedQuestID(questID)
+    if sfui.map and sfui.map.OpenToQuest then
+        sfui.map.OpenToQuest(questID, questLogIndex, true)
     end
 end
 

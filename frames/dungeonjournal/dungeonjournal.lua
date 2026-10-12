@@ -1436,14 +1436,12 @@ function sfui.dungeonjournal.CreateFrame()
             if common and common.print then common.print("no map zone registered for this dungeon.") end
             return
         end
-        if not WorldMapFrame:IsShown() then
-            ShowUIPanel(WorldMapFrame)
-        end
-        if WorldMapFrame.SetMapID then
-            WorldMapFrame:SetMapID(mapID)
-        end
-        if sfui.dungeonjournal and sfui.dungeonjournal.HighlightEntrancePin then
-            sfui.dungeonjournal.HighlightEntrancePin(dungeon.id)
+        if sfui.map and sfui.map.OpenWorldMap then
+            sfui.map.OpenWorldMap(mapID, false, function()
+                if sfui.dungeonjournal and sfui.dungeonjournal.HighlightEntrancePin then
+                    sfui.dungeonjournal.HighlightEntrancePin(dungeon.id)
+                end
+            end)
         end
     end)
 
@@ -1750,8 +1748,14 @@ function sfui.dungeonjournal.CreateFrame()
     return frame
 end
 
+local lastDJToggleTime = 0
+
 -- ─── Public API ───────────────────────────────────────────────────────────────
 function sfui.dungeonjournal.Toggle()
+    local now = GetTime()
+    if (now - lastDJToggleTime) < 0.15 then return end
+    lastDJToggleTime = now
+
     if not frame then sfui.dungeonjournal.CreateFrame() end
     if not frame then return end
 

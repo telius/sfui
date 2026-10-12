@@ -103,8 +103,6 @@ else
     actionBtn:SetAttribute("pressAndHoldAction", 1)
 end
 actionBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-if actionBtn.SetPropagateMouseClicks then actionBtn:SetPropagateMouseClicks(true) end
-if actionBtn.SetPropagateMouseMotion then actionBtn:SetPropagateMouseMotion(true) end
 actionBtn:SetFrameStrata("TOOLTIP")
 actionBtn:Hide()
 
@@ -221,8 +219,10 @@ local function arm_item(itemID, frame)
 end
 sfui.portals.arm_item = arm_item
 
+local isDisarming = false
 local function disarm()
-    if currentlyClicking then return end
+    if currentlyClicking or isDisarming then return end
+    isDisarming = true
     if currentHoverFrame and currentHoverFrame.resetHover then
         currentHoverFrame.resetHover()
     end
@@ -230,7 +230,7 @@ local function disarm()
     if not InCombatLockdown() then
         actionBtn:Hide()
         actionBtn:ClearAllPoints()
-        actionBtn:SetParent(nil)
+        actionBtn:SetParent(UIParent)
         set_attr(actionBtn, "type", nil)
         set_attr(actionBtn, "typerelease", nil)
         set_attr(actionBtn, "spell", nil)
@@ -245,6 +245,7 @@ local function disarm()
         set_attr(actionBtn, "typerelease2", nil)
         set_attr(actionBtn, "spell2", nil)
     end
+    isDisarming = false
 end
 sfui.portals.disarm = disarm
 sfui.portals.is_currently_clicking = function() return currentlyClicking end
@@ -1044,11 +1045,13 @@ local function invalidate_portals_frame()
         if portalFrame.legacyMenus then
             for _, m in ipairs(portalFrame.legacyMenus) do
                 m:Hide()
-                m:SetParent(nil)
+                m:ClearAllPoints()
+                m:SetParent(UIParent)
             end
         end
         portalFrame:Hide()
-        portalFrame:SetParent(nil)
+        portalFrame:ClearAllPoints()
+        portalFrame:SetParent(UIParent)
         portalFrame = nil
     end
     if sfui.portals.on_invalidate then
@@ -1061,8 +1064,18 @@ sfui.portals.InvalidateFrame         = invalidate_portals_frame
 -- ========================
 -- Public API
 -- ========================
+local lastToggleTime = 0
+
 function sfui.portals.Toggle()
     if InCombatLockdown() then return end
+
+    -- Debounce rapid keybind spam and keyboard auto-repeat (0.15s)
+    local now = GetTime()
+    if (now - lastToggleTime) < 0.15 then
+        return
+    end
+    lastToggleTime = now
+
     if not portalFrame then
         if sfui.portals.build_frame then
             portalFrame = sfui.portals.build_frame()

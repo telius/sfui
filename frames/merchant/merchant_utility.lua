@@ -181,7 +181,7 @@ function sfui.merchant.update_currency_display(frame)
     end
 
     table.sort(sortedCurrencyItems, function(a, b)
-        local moneyOrder = { Gold = 1, Silver = 2, Copper = 3 }
+        local moneyOrder = { Money = 1, Gold = 1, Silver = 2, Copper = 3 }
         local aOrder = moneyOrder[a.name]
         local bOrder = moneyOrder[b.name]
         if aOrder and bOrder then
@@ -233,8 +233,8 @@ function sfui.merchant.update_currency_display(frame)
                     GameTooltip:SetItemByID(self.currencyID)
                 elseif self.currencyID then
                     GameTooltip:SetCurrencyByID(self.currencyID)
-                elseif self.currencyName == "Gold" or self.currencyName == "Silver" or self.currencyName == "Copper" then
-                    GameTooltip:SetText(self.currencyName:lower())
+                elseif self.currencyName == "Money" or self.currencyName == "Gold" or self.currencyName == "Silver" or self.currencyName == "Copper" or self.type == "money" then
+                    GameTooltip:SetText("money")
                     local totalStr = common.SafeGetCoinTextureString and common.SafeGetCoinTextureString(GetMoney())
                     if totalStr and totalStr ~= "" then
                         GameTooltip:AddLine("total money: " .. totalStr, 1, 1, 1)
@@ -255,19 +255,28 @@ function sfui.merchant.update_currency_display(frame)
             displays[idx] = display
         end
 
-        display.icon:SetTexture(data.texture)
+        if data.atlas and display.icon.SetAtlas and _G.C_Texture and _G.C_Texture.GetAtlasInfo and _G.C_Texture.GetAtlasInfo(data.atlas) then
+            display.icon:SetAtlas(data.atlas)
+        else
+            display.icon:SetTexCoord(0, 1, 0, 1)
+            display.icon:SetTexture(data.texture or "Interface\\MoneyFrame\\UI-GoldIcon")
+        end
         display.currencyID = data.id     -- Store ID for tooltip
         display.currencyName = item.name -- Store Name for fallback
         display.type = data.type         -- Store Type for tooltip
 
-        local count = data.count
         local displayText
-        if count >= 1000000 then
-            displayText = string.format("%.1fM", count / 1000000)
-        elseif count >= 1000 then
-            displayText = string.format("%.1fK", count / 1000)
+        if data.displayText then
+            displayText = data.displayText
         else
-            displayText = tostring(count)
+            local count = data.count or 0
+            if count >= 1000000 then
+                displayText = string.format("%.1fM", count / 1000000)
+            elseif count >= 1000 then
+                displayText = string.format("%.1fK", count / 1000)
+            else
+                displayText = tostring(count)
+            end
         end
         display.text:SetText(displayText)
 
@@ -279,7 +288,7 @@ function sfui.merchant.update_currency_display(frame)
         activeDisplays[i] = display
 
         local gap = 15
-        if prevDisplay and (prevDisplay.type == "gold" or prevDisplay.type == "silver" or prevDisplay.type == "copper")
+        if prevDisplay and (prevDisplay.type == "gold" or prevDisplay.type == "silver" or prevDisplay.type == "copper" or prevDisplay.type == "money")
             and (data.type == "silver" or data.type == "copper") then
             gap = 8
         end
@@ -298,7 +307,7 @@ function sfui.merchant.update_currency_display(frame)
             display:SetPoint("LEFT", container, "LEFT", 0, 0)
         else
             local gap = 15
-            if prev and (prev.type == "gold" or prev.type == "silver" or prev.type == "copper")
+            if prev and (prev.type == "gold" or prev.type == "silver" or prev.type == "copper" or prev.type == "money")
                 and (display.type == "silver" or display.type == "copper") then
                 gap = 8
             end
@@ -491,7 +500,7 @@ function sfui.merchant.create_utility_bar(frame)
         local isSecret = issecretvalue(repairAllCost)
 
         if canRepair and (isSecret or (repairAllCost and repairAllCost > 0)) then
-            common.SafeSetTooltipMoney(GameTooltip, repairAllCost, "Repair All")
+            common.SafeSetTooltipMoney(GameTooltip, repairAllCost, "repair all")
         else
             GameTooltip:SetText("no repair needed")
         end

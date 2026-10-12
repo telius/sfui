@@ -168,6 +168,17 @@ local function auto_sell_greys()
     end
 end
 
+if _G.StaticPopupDialogs then
+    _G.StaticPopupDialogs["SFUI_EXCESSIVE_REPAIR_COST"] = {
+        text = "|cffff3333warning:|r auto-repair was aborted because the repair cost is %s.\n\nthis exceeds the 5,000g safety threshold and may be caused by an item scaling bug.",
+        button1 = "okay",
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
+        preferredIndex = 3,
+    }
+end
+
 local function auto_repair()
     if not SfuiDB.autoRepair then return end
     if not CanMerchantRepair() then return end
@@ -175,7 +186,7 @@ local function auto_repair()
     if sfui.isRetail and sfui.hammer and SfuiDB.enableMasterHammer ~= false then
         local hasHammer, hammerName, _, hammerItemID = sfui.hammer.has_repair_hammer()
         if hasHammer and sfui.hammer.can_repair_any_damaged() then
-            local displayName = hammerName or (hammerItemID and C_Item.GetItemNameByID(hammerItemID)) or "Master's Hammer"
+            local displayName = hammerName or (hammerItemID and C_Item.GetItemNameByID(hammerItemID)) or "master's hammer"
             sfui.common.print(string.format("|cffff9900auto-repair skipped: %s detected.|r", displayName))
             sfui.hammer.update_hammer_popup()
             return
@@ -184,6 +195,16 @@ local function auto_repair()
 
     local repairAllCost, canRepair = GetRepairAllCost()
     if not canRepair or repairAllCost == 0 then return end
+
+    local maxCost = (SfuiDB.maxAutoRepairCost or 5000) * 10000
+    if repairAllCost > maxCost then
+        local costFormatted = sfui.common.SafeGetCoinTextureString(repairAllCost)
+        sfui.common.print(string.format("|cffff3333warning: auto-repair aborted - repair cost (%s) exceeds 5,000g threshold (potential repair bug).|r", costFormatted))
+        if _G.StaticPopup_Show then
+            _G.StaticPopup_Show("SFUI_EXCESSIVE_REPAIR_COST", costFormatted)
+        end
+        return
+    end
 
     local guildRepaired = false
     if CanGuildBankRepair() then

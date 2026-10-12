@@ -613,36 +613,8 @@ local function RenderQuestDetail(quest, dungeon)
 
 
             -- Open the World Map to this mapID
-            if waypointSet and _G.OpenMapToUserWaypoint then
-                pcall(_G.OpenMapToUserWaypoint)
-            elseif _G.OpenWorldMap then
-                pcall(_G.OpenWorldMap, mapID)
-            else
-                if _G.ShowUIPanel and _G.WorldMapFrame then
-                    pcall(_G.ShowUIPanel, _G.WorldMapFrame)
-                elseif _G.WorldMapFrame then
-                    _G.WorldMapFrame:Show()
-                end
-                if _G.WorldMapFrame and _G.WorldMapFrame.SetMapID then
-                    pcall(_G.WorldMapFrame.SetMapID, _G.WorldMapFrame, mapID)
-                end
-            end
-
-            -- Fallback verification: ensure WorldMapFrame is shown and set to mapID
-            if _G.WorldMapFrame then
-                if not _G.WorldMapFrame:IsShown() then
-                    if _G.ShowUIPanel then
-                        pcall(_G.ShowUIPanel, _G.WorldMapFrame)
-                    else
-                        _G.WorldMapFrame:Show()
-                    end
-                end
-                if _G.WorldMapFrame.GetMapID and _G.WorldMapFrame.SetMapID then
-                    local curID = _G.WorldMapFrame:GetMapID()
-                    if curID ~= mapID then
-                        pcall(_G.WorldMapFrame.SetMapID, _G.WorldMapFrame, mapID)
-                    end
-                end
+            if sfui.map and sfui.map.OpenWorldMap then
+                sfui.map.OpenWorldMap(mapID, waypointSet)
             end
 
             -- Ensure Dungeon Journal remains open, visible, and elevated above the WorldMap

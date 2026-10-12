@@ -77,7 +77,7 @@ end
 
 local function ReleaseColumn(f)
     f:Hide()
-    f:SetParent(nil)
+    f:SetParent(UIParent)
     f:ClearAllPoints()
     columnPool[#columnPool + 1] = f
 end
@@ -129,7 +129,7 @@ end
 
 local function ReleaseCell(f)
     f:Hide()
-    f:SetParent(nil)
+    f:SetParent(UIParent)
     f:ClearAllPoints()
     f:EnableMouse(false)
     f:SetScript("OnEnter", nil)
@@ -954,7 +954,13 @@ function sfui.alts.UpdateUI(force)
     frame:SetSize(totalWidth, totalHeight)
 end
 
+local lastAltToggleTime = 0
+
 function sfui.alts.Toggle()
+    local now = GetTime()
+    if (now - lastAltToggleTime) < 0.15 then return end
+    lastAltToggleTime = now
+
     sfui.alts.RefreshDynamicCategories()
     if not frame then
         frame = sfui.alts.CreateFrame()
