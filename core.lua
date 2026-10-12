@@ -411,25 +411,39 @@ local function initialize_sfui()
     sfui.common.invalidate_panels_cache()
     local LSM = LibStub("LibSharedMedia-3.0", true)
     if LSM then
-        if sfui.config.blizzard_bar_textures then
-            for name, path in pairs(sfui.config.blizzard_bar_textures) do
-                local isAtlas = type(path) == "string" and not path:find("^[iI]nterface[/\\]")
-                if not isAtlas or (C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(path)) then
-                    LSM:Register("statusbar", name, path)
+        local function register_statusbar_media(name, path)
+            if not name or not path then return end
+            -- LibSharedMedia only accepts file paths starting with "Interface" or numeric fileIDs.
+            -- Atlas element names cannot be registered directly in LSM and cause errors in strict LSM builds.
+            local isNumeric = type(path) == "number"
+            local isFilePath = type(path) == "string" and path:find("^[iI]nterface[/\\]")
+            if not isNumeric and not isFilePath then
+                return
+            end
+            if isFilePath and _G.C_UIFileAsset and _G.C_UIFileAsset.IsKnownFile then
+                if not _G.C_UIFileAsset.IsKnownFile(path) then
+                    return
                 end
             end
+            pcall(LSM.Register, LSM, "statusbar", name, path)
+        end
+
+        if sfui.config.blizzard_bar_textures then
+            for name, path in pairs(sfui.config.blizzard_bar_textures) do
+                register_statusbar_media(name, path)
+            end
         else
-            LSM:Register("statusbar", "Flat", "Interface/Buttons/WHITE8X8")
-            LSM:Register("statusbar", "Blizzard", "Interface/TargetingFrame/UI-StatusBar")
-            LSM:Register("statusbar", "Blizzard Target Bar", "Interface/TargetingFrame/UI-TargetingFrame-BarFill")
-            LSM:Register("statusbar", "Blizzard Character Skills Bar", "Interface/PaperDollInfoFrame/UI-Character-Skills-Bar")
-            LSM:Register("statusbar", "Blizzard Raid Bar", "Interface/RaidFrame/Raid-Bar-Hp-Fill")
-            LSM:Register("statusbar", "Blizzard Raid Resource", "Interface/RaidFrame/Raid-Bar-Resource-Fill")
-            LSM:Register("statusbar", "Blizzard Raid Health", "Interface/RaidFrame/UI-RaidFrame-HealthBar")
-            LSM:Register("statusbar", "Blizzard Shield Fill", "Interface/RaidFrame/Shield-Fill")
-            LSM:Register("statusbar", "Blizzard Absorb Fill", "Interface/RaidFrame/Absorb-Fill")
-            LSM:Register("statusbar", "Blizzard Professions", "Interface/Spellbook/Professions-Progress-Fill")
-            LSM:Register("statusbar", "Blizzard Archaeology", "Interface/Archeology/Arch-Progress-Fill")
+            register_statusbar_media("Flat", "Interface/Buttons/WHITE8X8")
+            register_statusbar_media("Blizzard", "Interface/TargetingFrame/UI-StatusBar")
+            register_statusbar_media("Blizzard Target Bar", "Interface/TargetingFrame/UI-TargetingFrame-BarFill")
+            register_statusbar_media("Blizzard Character Skills Bar", "Interface/PaperDollInfoFrame/UI-Character-Skills-Bar")
+            register_statusbar_media("Blizzard Raid Bar", "Interface/RaidFrame/Raid-Bar-Hp-Fill")
+            register_statusbar_media("Blizzard Raid Resource", "Interface/RaidFrame/Raid-Bar-Resource-Fill")
+            register_statusbar_media("Blizzard Raid Health", "Interface/RaidFrame/UI-RaidFrame-HealthBar")
+            register_statusbar_media("Blizzard Shield Fill", "Interface/RaidFrame/Shield-Fill")
+            register_statusbar_media("Blizzard Absorb Fill", "Interface/RaidFrame/Absorb-Fill")
+            register_statusbar_media("Blizzard Professions", "Interface/Spellbook/Professions-Progress-Fill")
+            register_statusbar_media("Blizzard Archaeology", "Interface/Archeology/Arch-Progress-Fill")
         end
     end
 

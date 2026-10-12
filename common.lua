@@ -1114,73 +1114,74 @@ end
 
 -- Helper to systematically hide specific Blizzard CooldownViewer frames
 local cooldownViewersInitialized = false
+local hookedAlpha = {}
+local isSettingAlpha = {}
+local hookedMouse = {}
+local isSettingMouse = {}
+local hookedShow = {}
 
-local function disarm_and_hide_viewer(viewer)
+local function disarm_and_hide_viewer(viewer, keepActiveForMirroring)
     if not viewer then return end
 
-    -- Neutralize ManagedFrameSystem so BottomManagedFrameContainer doesn't manage or stomp alpha
-    viewer.hideWhenActionBarIsOverriden = false
-    viewer.ignoreFramePositionManager = true
-
-    if not InCombatLockdown() then
-        local bmfc = _G.GetBottomManagedFrameContainer and _G.GetBottomManagedFrameContainer()
-        if bmfc and bmfc.RemoveManagedFrame then
-            bmfc:RemoveManagedFrame(viewer)
+    if not keepActiveForMirroring then
+        -- Unmirrored viewers (EssentialCooldownViewer, UtilityCooldownViewer) are not needed by sfui.
+        -- Fully hide them and unregister their events so they never process PLAYER_TARGET_CHANGED
+        -- or target updates that touch Blizzard's secure DisallowTaintedAccess aura tables.
+        if not InCombatLockdown() or not (viewer.IsProtected and viewer:IsProtected()) then
+            viewer:Hide()
         end
+        viewer:UnregisterAllEvents()
+        if viewer.SetAlpha then viewer:SetAlpha(0) end
+        if viewer.EnableMouse then viewer:EnableMouse(false) end
+
+        if not hookedShow[viewer] and hooksecurefunc then
+            hookedShow[viewer] = true
+            hooksecurefunc(viewer, "Show", function(self)
+                if not InCombatLockdown() or not (self.IsProtected and self:IsProtected()) then
+                    self:Hide()
+                end
+                self:UnregisterAllEvents()
+            end)
+        end
+        return
     end
 
-    -- Hook SetAlpha to prevent Blizzard (EditMode, anims, or ManagedFrameSystem) from restoring alpha > 0
-    if not viewer._sfuiAlphaHooked and hooksecurefunc then
-        viewer._sfuiAlphaHooked = true
+    -- For viewers mirrored by sfui (BuffBarCooldownViewer), keep the frame active at alpha 0.
+    -- Crucial: NEVER write custom fields onto the Blizzard frame table or call bmfc:RemoveManagedFrame,
+    -- which taints the frame and causes DisallowTaintedAccess crashes in CooldownViewer.
+    if not hookedAlpha[viewer] and hooksecurefunc then
+        hookedAlpha[viewer] = true
         hooksecurefunc(viewer, "SetAlpha", function(self, alpha)
-            if self._sfuiSettingAlpha then return end
+            if isSettingAlpha[self] then return end
             if alpha ~= 0 then
-                self._sfuiSettingAlpha = true
+                isSettingAlpha[self] = true
                 self:SetAlpha(0)
-                self._sfuiSettingAlpha = false
+                isSettingAlpha[self] = false
             end
         end)
     end
 
-    -- Hook EnableMouse to prevent mouse interaction
-    if not viewer._sfuiMouseHooked and hooksecurefunc then
-        viewer._sfuiMouseHooked = true
+    if not hookedMouse[viewer] and hooksecurefunc then
+        hookedMouse[viewer] = true
         hooksecurefunc(viewer, "EnableMouse", function(self, enabled)
-            if self._sfuiSettingMouse then return end
+            if isSettingMouse[self] then return end
             if enabled then
-                self._sfuiSettingMouse = true
+                isSettingMouse[self] = true
                 self:EnableMouse(false)
-                self._sfuiSettingMouse = false
+                isSettingMouse[self] = false
             end
         end)
     end
 
-    -- Hook OnShow to enforce alpha 0 and mouse disabled if frame ever re-shows
-    if not viewer._sfuiShowHooked and viewer.HookScript then
-        viewer._sfuiShowHooked = true
-        viewer:HookScript("OnShow", function(self)
-            if not self._sfuiSettingAlpha then
-                self._sfuiSettingAlpha = true
-                self:SetAlpha(0)
-                self._sfuiSettingAlpha = false
-            end
-            if not self._sfuiSettingMouse and self.EnableMouse then
-                self._sfuiSettingMouse = true
-                self:EnableMouse(false)
-                self._sfuiSettingMouse = false
-            end
-        end)
-    end
-
-    if not viewer._sfuiSettingAlpha then
-        viewer._sfuiSettingAlpha = true
+    if not isSettingAlpha[viewer] then
+        isSettingAlpha[viewer] = true
         viewer:SetAlpha(0)
-        viewer._sfuiSettingAlpha = false
+        isSettingAlpha[viewer] = false
     end
-    if not viewer._sfuiSettingMouse and viewer.EnableMouse then
-        viewer._sfuiSettingMouse = true
+    if not isSettingMouse[viewer] and viewer.EnableMouse then
+        isSettingMouse[viewer] = true
         viewer:EnableMouse(false)
-        viewer._sfuiSettingMouse = false
+        isSettingMouse[viewer] = false
     end
 end
 
@@ -1191,24 +1192,29 @@ function sfui.common.hide_blizzard_cooldown_viewers()
         sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
     end
 
-    local viewers = {
+    -- Essential and Utility cooldown viewers are not mirrored by sfui and should be fully shut down
+    local unusedViewers = {
         "EssentialCooldownViewer",
         "UtilityCooldownViewer",
-        "BuffBarCooldownViewer",
     }
+    for _, name in ipairs(unusedViewers) do
+        local viewer = _G[name]
+        if viewer then
+            disarm_and_hide_viewer(viewer, false)
+        end
+    end
+
+    -- BuffBarCooldownViewer is mirrored by sfui tracked bars and kept running invisibly at alpha 0
+    local buffBarViewer = _G["BuffBarCooldownViewer"]
+    if buffBarViewer then
+        disarm_and_hide_viewer(buffBarViewer, true)
+    end
 
     -- Ensure BuffIconCooldownViewer (Blizzard Tracked Buffs stack) remains visible and interactive
     local buffViewer = _G["BuffIconCooldownViewer"]
     if buffViewer then
         buffViewer:SetAlpha(1)
         buffViewer:EnableMouse(true)
-    end
-
-    for _, viewerName in ipairs(viewers) do
-        local viewer = _G[viewerName]
-        if viewer then
-            disarm_and_hide_viewer(viewer)
-        end
     end
 
     if not cooldownViewersInitialized then

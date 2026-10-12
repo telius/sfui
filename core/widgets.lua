@@ -1464,7 +1464,17 @@ local function get_all_statusbar_textures()
         for name, path in pairs(sfui.config.blizzard_bar_textures) do
             if not seen[name] then
                 local isAtlas = type(path) == "string" and not path:find("^[iI]nterface[/\\]")
-                if not isAtlas or (_G.C_Texture and _G.C_Texture.GetAtlasInfo and _G.C_Texture.GetAtlasInfo(path)) then
+                local isValid = false
+                if isAtlas then
+                    isValid = (_G.C_Texture and _G.C_Texture.GetAtlasInfo and _G.C_Texture.GetAtlasInfo(path)) ~= nil
+                elseif type(path) == "number" then
+                    isValid = true
+                elseif _G.C_UIFileAsset and _G.C_UIFileAsset.IsKnownFile then
+                    isValid = _G.C_UIFileAsset.IsKnownFile(path)
+                else
+                    isValid = true
+                end
+                if isValid then
                     seen[name] = true
                     table.insert(list, name)
                 end

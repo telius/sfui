@@ -544,8 +544,6 @@ end
 local _blizzViewers = {
     { name = "BuffIconCooldownViewer", isAura = true },
     { name = "BuffBarCooldownViewer", isAura = true },
-    { name = "EssentialCooldownViewer", isAura = false },
-    { name = "UtilityCooldownViewer", isAura = false },
 }
 
 local function FindBlizzCooldownItem(cooldownID)
