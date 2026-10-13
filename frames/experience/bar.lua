@@ -71,11 +71,19 @@ function barModule.SetMode(mode)
     barModule.UpdateValues()
 end
 
---- Toggle between XP and Reputation tracking
+--- Cycle between XP, Reputation, and Legacy Challenge tracking
 function barModule.ToggleMode()
+    local data = sfui.experience.data
+    local hasLegacy = data and data.HasLegacySystem and data.HasLegacySystem()
     if currentMode == "XP" then
         currentMode = "REP"
-    else
+    elseif currentMode == "REP" then
+        if hasLegacy then
+            currentMode = "LEGACY"
+        else
+            currentMode = "XP"
+        end
+    else -- "LEGACY"
         currentMode = "XP"
     end
     barModule.UpdateValues()
@@ -197,6 +205,9 @@ function barModule.UpdateLayout()
     if sfui.experience.reputation and sfui.experience.reputation.UpdateLayout then
         sfui.experience.reputation.UpdateLayout()
     end
+    if sfui.experience.challenges and sfui.experience.challenges.UpdateLayout then
+        sfui.experience.challenges.UpdateLayout()
+    end
 end
 
 --- Update or create 20-segment tick marks
@@ -296,10 +307,15 @@ function barModule.UpdateValues()
         end
         currentMode = "XP"
     else
-        -- Single bar mode: toggle between XP and Reputation
+        -- Single bar mode: toggle between XP, Reputation, and Legacy Challenges
         if isMax then
-            if autoRep and repData and repData.hasRep then
+            if currentMode == "LEGACY" and data.HasLegacySystem and data.HasLegacySystem() then
+                container:Show()
+            elseif autoRep and repData and repData.hasRep then
                 currentMode = "REP"
+                container:Show()
+            elseif autoRep and data.HasLegacySystem and data.HasLegacySystem() then
+                currentMode = "LEGACY"
                 container:Show()
             elseif not container._isUnlocked then
                 container:Hide()
@@ -311,6 +327,12 @@ function barModule.UpdateValues()
             if repOnlyAtMaxLevel then
                 currentMode = "XP"
             elseif currentMode == "REP" and (not repData or not repData.hasRep) then
+                if data.HasLegacySystem and data.HasLegacySystem() then
+                    currentMode = "LEGACY"
+                else
+                    currentMode = "XP"
+                end
+            elseif currentMode == "LEGACY" and (not data.HasLegacySystem or not data.HasLegacySystem()) then
                 currentMode = "XP"
             end
         end
@@ -320,7 +342,16 @@ function barModule.UpdateValues()
     local showRate = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showRate", cfg.showRate ~= false))
     local showTTL = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showTTL", cfg.showTTL ~= false))
 
-    if currentMode == "REP" and repData and repData.hasRep then
+    if currentMode == "LEGACY" and data.HasLegacySystem and data.HasLegacySystem() then
+        -- ─── Legacy Challenges Mode ───────────────────────────────────────────
+        restedBar:Hide()
+        questBar:Hide()
+        local ch = sfui.experience.challenges
+        if ch and ch.ApplyToBar then
+            ch.ApplyToBar(mainBar, textLeft, textCenter, textRight, textFormat)
+        end
+
+    elseif currentMode == "REP" and repData and repData.hasRep then
         -- ─── Reputation Mode ──────────────────────────────────────────────────
         restedBar:Hide()
         questBar:Hide()
@@ -515,8 +546,8 @@ function barModule.Create()
     -- Mouse Interactions & Tooltip
     container:SetScript("OnEnter", function(self)
         UpdateTextVisibility(true)
-        if sfui.experience.tooltip and sfui.experience.tooltip.OnEnterXP then
-            sfui.experience.tooltip.OnEnterXP(self)
+        if sfui.experience.tooltip and sfui.experience.tooltip.OnEnter then
+            sfui.experience.tooltip.OnEnter(self, currentMode)
         end
     end)
 
@@ -531,12 +562,14 @@ function barModule.Create()
         if InCombatLockdown and InCombatLockdown() then return end
         if IsShiftKeyDown() then
             if sfui.experience.tooltip and sfui.experience.tooltip.ShareToChat then
-                sfui.experience.tooltip.ShareToChat("XP")
+                sfui.experience.tooltip.ShareToChat(currentMode)
             end
         elseif button == "RightButton" then
             if sfui.toggle_options_panel then
                 sfui.toggle_options_panel("experience")
             end
+        elseif button == "LeftButton" then
+            barModule.ToggleMode()
         end
     end)
 
@@ -571,6 +604,17 @@ function barModule.Create()
     if sfui.experience.floating and sfui.experience.floating.SetAnchor then
         sfui.experience.floating.SetAnchor(container)
     end
+
+    container:HookScript("OnShow", function()
+        if sfui.experience.challenges and sfui.experience.challenges.UpdateLayout then
+            sfui.experience.challenges.UpdateLayout()
+        end
+    end)
+    container:HookScript("OnHide", function()
+        if sfui.experience.challenges and sfui.experience.challenges.UpdateLayout then
+            sfui.experience.challenges.UpdateLayout()
+        end
+    end)
 
     barModule.ApplyTheme()
     barModule.UpdateLayout()

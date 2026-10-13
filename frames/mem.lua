@@ -782,6 +782,60 @@ function sfui.mem.GetModuleStats()
     end
     stats["actionbars"] = abMod
 
+    -- Bag Triage Module
+    local triMod = {
+        name = "bag triage",
+        status = "|cff888888idle|r",
+        line1 = "free slots: 0 • candidates: 0",
+        line2 = "prompt: closed",
+    }
+    local tri = GetDebug("triage_debug_info", "triage")
+    if tri then
+        triMod.status = tri.promptShown and "|cff00ff88prompt open|r" or (tri.enabled and "|cff888888monitoring|r" or "|cffff4444disabled|r")
+        triMod.line1 = string_format("free slots: %d (thresh %d) • cand: %d", tonumber(tri.freeSlots) or 0, tonumber(tri.threshold) or 1, tonumber(tri.candidates) or 0)
+        triMod.line2 = string_format("prompt: %s • warlock: %s", tri.promptShown and "shown" or "idle", tri.isWarlock and "yes" or "no")
+    end
+    stats["triage"] = triMod
+
+    -- Map Pins Coordinator
+    local pinMod = {
+        name = "world map pins",
+        status = "|cff888888idle|r",
+        line1 = "active pins: 0",
+        line2 = "engine: pooled allocator",
+    }
+    if sfui.pins and sfui.pins.GetActiveCount then
+        local count = sfui.pins.GetActiveCount()
+        local wmf = _G.WorldMapFrame
+        local mapShown = wmf and wmf:IsShown()
+        pinMod.status = mapShown and "|cff00ff88map open|r" or "|cff888888idle|r"
+        pinMod.line1 = string_format("active canvas pins: %d", count or 0)
+        pinMod.line2 = "coordinator: pooled button frames"
+    end
+    stats["pins"] = pinMod
+
+    -- Alt Mail Routing System
+    local mailMod = {
+        name = "alt mail routing",
+        status = "|cff888888idle|r",
+        line1 = "dispatch: idle",
+        line2 = "inbox open-all: idle",
+    }
+    if sfui.alts and sfui.alts.mail then
+        local isDisp = sfui.alts.mail.IsDispatching and sfui.alts.mail.IsDispatching()
+        local isColl = sfui.alts.mail.IsCollectingInbox and sfui.alts.mail.IsCollectingInbox()
+        if isDisp then
+            mailMod.status = "|cff00ff88dispatching|r"
+        elseif isColl then
+            mailMod.status = "|cff00ff88collecting|r"
+        else
+            mailMod.status = "|cff888888idle|r"
+        end
+        mailMod.line1 = string_format("dispatch engine: %s", isDisp and "running" or "idle")
+        mailMod.line2 = string_format("inbox collector: %s", isColl and "running" or "idle")
+    end
+    stats["mail"] = mailMod
+
     return stats
 end
 
@@ -1058,8 +1112,8 @@ local MODULE_SECTIONS = {
         modules = (function()
             local list = {
                 "alts", "automation", "currency", "cursor", "dispatcher", "fishing",
-                "gear", "hide", "location", "logs", "lootfeed", "merchant", "minimap",
-                "pets", "quests", "stats"
+                "gear", "hide", "location", "logs", "lootfeed", "mail", "merchant", "minimap",
+                "pets", "pins", "quests", "stats", "triage"
             }
             if sfui.isRetail then
                 table_insert(list, "bonusroll")

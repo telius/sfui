@@ -1407,8 +1407,20 @@ local _syncTimer = 0
 local _lastOOCSyncTime = 0
 local function _OnTrackedBarsUpdate(elapsed)
     local inCombat = common.is_in_combat()
-    local syncInterval = inCombat and 0.5 or (_numShownBars > 0 and 1.0 or 2.0)
 
+    -- Fast out-of-combat sleep path: when no bars are active, sleep until dirty or periodic check
+    if not inCombat and _numShownBars == 0 and not sfui.trackedbars.isDirty then
+        _syncTimer = _syncTimer + elapsed
+        if _syncTimer < 2.5 then
+            return
+        end
+        _syncTimer = 0
+        _lastOOCSyncTime = GetTime()
+        ProcessBlizzardSync()
+        return
+    end
+
+    local syncInterval = inCombat and 0.5 or 1.0
     _syncTimer = _syncTimer + elapsed
 
     -- 1. Structure / Visibility Sync

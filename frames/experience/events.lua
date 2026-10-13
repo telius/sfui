@@ -33,6 +33,9 @@ local function RequestDebouncedUpdate()
             if sfui.experience.reputation and sfui.experience.reputation.UpdateValues then
                 sfui.experience.reputation.UpdateValues()
             end
+            if sfui.experience.challenges and sfui.experience.challenges.UpdateValues then
+                sfui.experience.challenges.UpdateValues()
+            end
         end)
     else
         if sfui.experience.bar and sfui.experience.bar.UpdateValues then
@@ -40,6 +43,9 @@ local function RequestDebouncedUpdate()
         end
         if sfui.experience.reputation and sfui.experience.reputation.UpdateValues then
             sfui.experience.reputation.UpdateValues()
+        end
+        if sfui.experience.challenges and sfui.experience.challenges.UpdateValues then
+            sfui.experience.challenges.UpdateValues()
         end
     end
 end
@@ -117,6 +123,14 @@ local function OnEnteringWorld()
         sfui.experience.bar.UpdateLayout()
         sfui.experience.bar.UpdateValues()
     end
+    if sfui.experience.reputation then
+        sfui.experience.reputation.UpdateLayout()
+        sfui.experience.reputation.UpdateValues()
+    end
+    if sfui.experience.challenges then
+        sfui.experience.challenges.UpdateLayout()
+        sfui.experience.challenges.UpdateValues()
+    end
 end
 
 local function OnPlayerXPUpdate()
@@ -154,6 +168,10 @@ local function OnCombatStateChanged(event)
         if sfui.experience.reputation then
             local rf = sfui.experience.reputation.GetFrame()
             if rf then rf:SetAlpha(alpha) end
+        end
+        if sfui.experience.challenges then
+            local cf = sfui.experience.challenges.GetFrame()
+            if cf then cf:SetAlpha(alpha) end
         end
     end
 end
@@ -322,13 +340,24 @@ function events.Initialize()
     regThrottled("QUEST_WATCH_LIST_CHANGED", 0.1, OnQuestOrFactionUpdate)
     regThrottled("UPDATE_FACTION", 0.1, OnQuestOrFactionUpdate)
     regThrottled("MAJOR_FACTION_RENOWN_LEVEL_CHANGED", 0.1, OnQuestOrFactionUpdate)
+    regThrottled("MAJOR_FACTION_UNLOCKED", 0.1, OnQuestOrFactionUpdate)
+    regThrottled("CURRENCY_DISPLAY_UPDATE", 0.2, OnQuestOrFactionUpdate)
+    regThrottled("TRAIT_TREE_CURRENCY_INFO_UPDATED", 0.2, OnQuestOrFactionUpdate)
     reg("PLAYER_REGEN_DISABLED", OnCombatStateChanged)
     reg("PLAYER_REGEN_ENABLED", OnCombatStateChanged)
     reg("CHAT_MSG_COMBAT_FACTION_CHANGE", OnChatMsgCombatFactionChange)
+
+    if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
+        pcall(_G.EventRegistry.RegisterCallback, _G.EventRegistry, "Legacy.UpdateCurrencyInfo", OnQuestOrFactionUpdate, events)
+    end
 end
 
 --- Disable and unregister event listeners
 function events.Disable()
+    if _G.EventRegistry and _G.EventRegistry.UnregisterCallback then
+        pcall(_G.EventRegistry.UnregisterCallback, _G.EventRegistry, "Legacy.UpdateCurrencyInfo", events)
+    end
+
     for i = 1, #registeredCallbacks do
         local item = registeredCallbacks[i]
         sfui.events.UnregisterEvent(item.event, item.callback)

@@ -375,7 +375,7 @@ do
 
     local function on_fsr_update(self, elapsed)
         self._fsrThrottle = (self._fsrThrottle or 0) + elapsed
-        if self._fsrThrottle < 0.05 then return end
+        if self._fsrThrottle < 0.1 then return end
         self._fsrThrottle = 0
 
         local now = GetTime()
@@ -603,39 +603,10 @@ do
         badge:SetFrameStrata(bar.backdrop:GetFrameStrata() or "MEDIUM")
         badge:SetFrameLevel((bar.backdrop:GetFrameLevel() or 1) + 20)
 
-        if badge.CreateMaskTexture then
-            local outerMask = badge:CreateMaskTexture()
-            outerMask:SetAllPoints(badge)
-            outerMask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-
-            local bg = badge:CreateTexture(nil, "BACKGROUND")
-            bg:SetAllPoints(badge)
-            bg:SetColorTexture(0, 0, 0, 1)
-            bg:AddMaskTexture(outerMask)
-            badge.bg = bg
-
-            local iconMask = badge:CreateMaskTexture()
-            iconMask:SetPoint("TOPLEFT", badge, "TOPLEFT", 1, -1)
-            iconMask:SetPoint("BOTTOMRIGHT", badge, "BOTTOMRIGHT", -1, 1)
-            iconMask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-
-            local icon = badge:CreateTexture(nil, "ARTWORK")
-            icon:SetPoint("TOPLEFT", badge, "TOPLEFT", 1, -1)
-            icon:SetPoint("BOTTOMRIGHT", badge, "BOTTOMRIGHT", -1, 1)
-            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-            icon:AddMaskTexture(iconMask)
-            badge.icon = icon
-        else
-            local bg = badge:CreateTexture(nil, "BACKGROUND")
-            bg:SetAllPoints(badge)
-            bg:SetColorTexture(0, 0, 0, 1)
-            badge.bg = bg
-
-            local icon = badge:CreateTexture(nil, "ARTWORK")
-            icon:SetPoint("TOPLEFT", badge, "TOPLEFT", 1, -1)
-            icon:SetPoint("BOTTOMRIGHT", badge, "BOTTOMRIGHT", -1, 1)
-            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-            badge.icon = icon
+        local icon = badge:CreateTexture(nil, "ARTWORK")
+        badge.icon = icon
+        if sfui.common and sfui.common.apply_round_icon_style then
+            sfui.common.apply_round_icon_style(badge, icon, 1)
         end
 
         badge:EnableMouse(false)
@@ -737,39 +708,10 @@ do
         badge:SetFrameStrata(bar.backdrop:GetFrameStrata() or "MEDIUM")
         badge:SetFrameLevel((bar.backdrop:GetFrameLevel() or 1) + 20)
 
-        if badge.CreateMaskTexture then
-            local outerMask = badge:CreateMaskTexture()
-            outerMask:SetAllPoints(badge)
-            outerMask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-
-            local bg = badge:CreateTexture(nil, "BACKGROUND")
-            bg:SetAllPoints(badge)
-            bg:SetColorTexture(0, 0, 0, 1)
-            bg:AddMaskTexture(outerMask)
-            badge.bg = bg
-
-            local iconMask = badge:CreateMaskTexture()
-            iconMask:SetPoint("TOPLEFT", badge, "TOPLEFT", 1, -1)
-            iconMask:SetPoint("BOTTOMRIGHT", badge, "BOTTOMRIGHT", -1, 1)
-            iconMask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-
-            local icon = badge:CreateTexture(nil, "ARTWORK")
-            icon:SetPoint("TOPLEFT", badge, "TOPLEFT", 1, -1)
-            icon:SetPoint("BOTTOMRIGHT", badge, "BOTTOMRIGHT", -1, 1)
-            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-            icon:AddMaskTexture(iconMask)
-            badge.icon = icon
-        else
-            local bg = badge:CreateTexture(nil, "BACKGROUND")
-            bg:SetAllPoints(badge)
-            bg:SetColorTexture(0, 0, 0, 1)
-            badge.bg = bg
-
-            local icon = badge:CreateTexture(nil, "ARTWORK")
-            icon:SetPoint("TOPLEFT", badge, "TOPLEFT", 1, -1)
-            icon:SetPoint("BOTTOMRIGHT", badge, "BOTTOMRIGHT", -1, 1)
-            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-            badge.icon = icon
+        local icon = badge:CreateTexture(nil, "ARTWORK")
+        badge.icon = icon
+        if sfui.common and sfui.common.apply_round_icon_style then
+            sfui.common.apply_round_icon_style(badge, icon, 1)
         end
 
         badge:EnableMouse(false)
@@ -1075,7 +1017,10 @@ do
             end
         end
 
-        bar.TextValue:SetText(current)
+        if bar._lastVal ~= current then
+            bar._lastVal = current
+            bar.TextValue:SetText(current)
+        end
         bar:SetMinMaxValues(0, max)
         bar:SetValue(current)
 

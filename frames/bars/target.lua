@@ -144,9 +144,15 @@ end
 
 -- ─── Health Color Resolver ───────────────────────────────────────────────────
 local cachedHealthR, cachedHealthG, cachedHealthB
+local lastHpState, lastHpPct
+local lastLevelVal, lastClassTag
 
 local function InvalidateHealthColorCache()
     cachedHealthR, cachedHealthG, cachedHealthB = nil, nil, nil
+    lastHpState = nil
+    lastHpPct = nil
+    lastLevelVal = nil
+    lastClassTag = nil
 end
 
 local function GetTargetHealthColor()
@@ -626,9 +632,17 @@ local function UpdateTargetHealth()
     -- Target Status & Health Text
     if hpText then
         if UnitIsDeadOrGhost("target") then
-            hpText:SetText("|cffff3333dead|r")
+            if lastHpState ~= "dead" then
+                lastHpState = "dead"
+                lastHpPct = nil
+                hpText:SetText("|cffff3333dead|r")
+            end
         elseif not UnitIsConnected("target") then
-            hpText:SetText("|cff888888offline|r")
+            if lastHpState ~= "offline" then
+                lastHpState = "offline"
+                lastHpPct = nil
+                hpText:SetText("|cff888888offline|r")
+            end
         else
             local pctFormatted
             if not isSecret then
@@ -639,9 +653,17 @@ local function UpdateTargetHealth()
                 end
             end
             if pctFormatted then
-                hpText:SetFormattedText("%d%%", pctFormatted)
+                if lastHpState ~= "alive" or lastHpPct ~= pctFormatted then
+                    lastHpState = "alive"
+                    lastHpPct = pctFormatted
+                    hpText:SetFormattedText("%d%%", pctFormatted)
+                end
             else
-                hpText:SetText("")
+                if lastHpState ~= "unknown" then
+                    lastHpState = "unknown"
+                    lastHpPct = nil
+                    hpText:SetText("")
+                end
             end
         end
     end
@@ -682,7 +704,11 @@ UpdateTargetLevel = function()
             if classification == "elite" or classification == "rareelite" then
                 classTag = "+"
             end
-            levelText:SetFormattedText("%d%s", lvl, classTag)
+            if lastLevelVal ~= lvl or lastClassTag ~= classTag then
+                lastLevelVal = lvl
+                lastClassTag = classTag
+                levelText:SetFormattedText("%d%s", lvl, classTag)
+            end
             levelText:SetTextColor(r, g, b)
         end
     end

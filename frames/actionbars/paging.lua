@@ -27,20 +27,31 @@ function paging.GetBar1Paging()
     end
 
     -- 2. Class-specific shapeshift & stance paging
+    -- 2. Class-specific shapeshift & stance paging
     if myClass == "DRUID" then
         table_insert(conditions, "[bonusbar:1,nostealth] 7")
         table_insert(conditions, "[bonusbar:1,stealth] 8")
         table_insert(conditions, "[bonusbar:2] 10")
         table_insert(conditions, "[bonusbar:3] 9")
         table_insert(conditions, "[bonusbar:4] 10")
+        -- Fallbacks for Classic/Camelot form indexing (Bear = 1, Cat = 3, Moonkin/Tree = 5)
+        table_insert(conditions, "[form:1] 9")
+        table_insert(conditions, "[form:3,stealth] 8")
+        table_insert(conditions, "[form:3] 7")
+        table_insert(conditions, "[form:5] 10")
     elseif myClass == "ROGUE" then
         table_insert(conditions, "[bonusbar:1] 7")
         table_insert(conditions, "[bonusbar:2] 8")
+        table_insert(conditions, "[form:1] 7")
+        table_insert(conditions, "[form:2] 8")
     elseif myClass == "WARRIOR" then
         if not sfui.isRetail then
             table_insert(conditions, "[bonusbar:1] 7")
             table_insert(conditions, "[bonusbar:2] 8")
             table_insert(conditions, "[bonusbar:3] 9")
+            table_insert(conditions, "[form:1] 7")
+            table_insert(conditions, "[form:2] 8")
+            table_insert(conditions, "[form:3] 9")
         end
     elseif myClass == "PRIEST" then
         if sfui.isRetail then
@@ -48,6 +59,7 @@ function paging.GetBar1Paging()
             table_insert(conditions, "[bonusbar:1] 7")
         else
             table_insert(conditions, "[form:1] 7")
+            table_insert(conditions, "[bonusbar:1] 7")
         end
     elseif myClass == "EVOKER" then
         table_insert(conditions, "[bonusbar:1] 7")
@@ -57,12 +69,18 @@ function paging.GetBar1Paging()
     end
 
     -- 3. General bonusbar, shapeshift, and multi-bar switching
-    table_insert(conditions, "[shapeshift] 13")
+    if sfui.isRetail and _G.GetTempShapeshiftBarIndex then
+        table_insert(conditions, "[shapeshift] 13")
+    end
     table_insert(conditions, "[bar:2] 2")
     table_insert(conditions, "[bar:3] 3")
     table_insert(conditions, "[bar:4] 4")
     table_insert(conditions, "[bar:5] 5")
     table_insert(conditions, "[bar:6] 6")
+    table_insert(conditions, "[bar:7] 7")
+    table_insert(conditions, "[bar:8] 8")
+    table_insert(conditions, "[bar:9] 9")
+    table_insert(conditions, "[bar:10] 10")
     table_insert(conditions, "[bonusbar:5] 11")
 
     -- 4. Default state

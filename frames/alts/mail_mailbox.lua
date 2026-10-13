@@ -175,12 +175,89 @@ local function HideProgressBar()
     sidecarFrame.progressBar.text:SetText("")
 end
 
+local lastInventorySignature = nil
+local lastManifest = nil
+local lastTotalItems = 0
+
+local function GetInventorySignature()
+    if not C_Container then return "" end
+    local sig = 0
+    local totalItems = 0
+    local lastBag = (mail.GetLastBagIndex and mail.GetLastBagIndex()) or 4
+    for bag = 0, lastBag do
+        local numSlots = C_Container.GetContainerNumSlots(bag) or 0
+        local freeSlots = C_Container.GetContainerNumFreeSlots(bag) or 0
+        sig = (sig * 37 + (numSlots * 1000 + freeSlots)) % 2147483647
+        if numSlots > freeSlots then
+            for slot = 1, numSlots do
+                local itemID = C_Container.GetContainerItemID(bag, slot)
+                if itemID then
+                    totalItems = totalItems + 1
+                    sig = (sig * 31 + (itemID + slot)) % 2147483647
+                end
+            end
+        end
+    end
+    return tostring(sig) .. ":" .. tostring(totalItems)
+end
+
+local function InvalidateManifestCache()
+    lastInventorySignature = nil
+    lastManifest = nil
+    lastTotalItems = 0
+end
+mail.InvalidateManifestCache = InvalidateManifestCache
+
+local function UpdateSidecarControls(totalItems)
+    if not sidecarFrame then return end
+    totalItems = totalItems or lastTotalItems or 0
+
+    -- 1. Update Dispatch All Button
+    if mail.IsDispatching() then
+        sidecarFrame.dispatchBtn:SetText("cancel")
+        sidecarFrame.dispatchBtn:Enable()
+    elseif totalItems > 0 then
+        sidecarFrame.emptyText:Hide()
+        sidecarFrame.dispatchBtn:SetText(string.format("send all (%d)", totalItems))
+        sidecarFrame.dispatchBtn:Enable()
+    else
+        sidecarFrame.emptyText:Show()
+        sidecarFrame.dispatchBtn:SetText("no pending mail")
+        sidecarFrame.dispatchBtn:Disable()
+    end
+
+    -- 2. Update Open All Button
+    local inboxNum = (_G.GetInboxNumItems and _G.GetInboxNumItems()) or 0
+    if sidecarFrame.openAllBtn then
+        if mail.IsCollectingInbox() then
+            sidecarFrame.openAllBtn:SetText("cancel")
+            sidecarFrame.openAllBtn:Enable()
+        elseif inboxNum > 0 then
+            sidecarFrame.openAllBtn:SetText(string.format("open all (%d)", inboxNum))
+            sidecarFrame.openAllBtn:Enable()
+        else
+            sidecarFrame.openAllBtn:SetText("inbox empty")
+            sidecarFrame.openAllBtn:Disable()
+        end
+    end
+end
+
 --- Update the sidecar manifest display
-local function RefreshSidecar()
+--- @param force boolean? If true, bypasses signature memoization and re-scans bags
+local function RefreshSidecar(force)
     if not sidecarFrame or not sidecarFrame:IsShown() then return end
 
+    local currentSig = GetInventorySignature()
+    if not force and lastInventorySignature and lastInventorySignature == currentSig and lastManifest then
+        UpdateSidecarControls(lastTotalItems)
+        return
+    end
+
+    lastInventorySignature = currentSig
     ReleaseRows()
     local manifest, totalItems = mail.ScanPendingMail()
+    lastManifest = manifest
+    lastTotalItems = totalItems
 
     local yOffset = 0
     local rowH = 40
@@ -243,7 +320,7 @@ local function RefreshSidecar()
                 if mail.IsDispatching() then
                     mail.CancelDispatch("user cancelled")
                     HideProgressBar()
-                    RefreshSidecar()
+                    RefreshSidecar(true)
                     return
                 end
 
@@ -254,9 +331,9 @@ local function RefreshSidecar()
                     end
                 end, function(success, reason)
                     HideProgressBar()
-                    RefreshSidecar()
+                    RefreshSidecar(true)
                     if C_Timer and C_Timer.After then
-                        C_Timer.After(0.8, RefreshSidecar)
+                        C_Timer.After(0.8, function() RefreshSidecar(true) end)
                     end
                 end, data.guid)
 
@@ -363,34 +440,7 @@ local function RefreshSidecar()
 
     sidecarFrame.content:SetHeight(math.max(yOffset, 150))
 
-    -- 1. Update Dispatch All Button
-    if mail.IsDispatching() then
-        sidecarFrame.dispatchBtn:SetText("cancel")
-        sidecarFrame.dispatchBtn:Enable()
-    elseif totalItems > 0 then
-        sidecarFrame.emptyText:Hide()
-        sidecarFrame.dispatchBtn:SetText(string.format("send all (%d)", totalItems))
-        sidecarFrame.dispatchBtn:Enable()
-    else
-        sidecarFrame.emptyText:Show()
-        sidecarFrame.dispatchBtn:SetText("no pending mail")
-        sidecarFrame.dispatchBtn:Disable()
-    end
-
-    -- 2. Update Open All Button
-    local inboxNum = (_G.GetInboxNumItems and _G.GetInboxNumItems()) or 0
-    if sidecarFrame.openAllBtn then
-        if mail.IsCollectingInbox() then
-            sidecarFrame.openAllBtn:SetText("cancel")
-            sidecarFrame.openAllBtn:Enable()
-        elseif inboxNum > 0 then
-            sidecarFrame.openAllBtn:SetText(string.format("open all (%d)", inboxNum))
-            sidecarFrame.openAllBtn:Enable()
-        else
-            sidecarFrame.openAllBtn:SetText("inbox empty")
-            sidecarFrame.openAllBtn:Disable()
-        end
-    end
+    UpdateSidecarControls(totalItems)
 end
 
 --- Create the mailbox sidecar frame
@@ -486,7 +536,7 @@ function mail.CreateMailboxSidecar()
         if mail.IsCollectingInbox() then
             mail.CancelInboxCollection("user cancelled")
             HideProgressBar()
-            RefreshSidecar()
+            RefreshSidecar(true)
             return
         end
 
@@ -496,11 +546,11 @@ function mail.CreateMailboxSidecar()
         end, function(success, reason)
             HideProgressBar()
             mail.RecordMailboxStatus()
-            RefreshSidecar()
+            RefreshSidecar(true)
             if C_Timer and C_Timer.After then
                 C_Timer.After(0.8, function()
                     mail.RecordMailboxStatus()
-                    RefreshSidecar()
+                    RefreshSidecar(true)
                 end)
             end
         end)
@@ -520,7 +570,7 @@ function mail.CreateMailboxSidecar()
         if mail.IsDispatching() then
             mail.CancelDispatch("user cancelled")
             HideProgressBar()
-            RefreshSidecar()
+            RefreshSidecar(true)
             return
         end
 
@@ -529,9 +579,9 @@ function mail.CreateMailboxSidecar()
             f.dispatchBtn:SetText("cancel")
         end, function(success, reason)
             HideProgressBar()
-            RefreshSidecar()
+            RefreshSidecar(true)
             if C_Timer and C_Timer.After then
-                C_Timer.After(0.8, RefreshSidecar)
+                C_Timer.After(0.8, function() RefreshSidecar(true) end)
             end
         end)
 
@@ -578,7 +628,7 @@ local function ShowSidecarAtMailbox()
     end
     f:Show()
     mail.RecordMailboxStatus()
-    RefreshSidecar()
+    RefreshSidecar(true)
 end
 
 --- Toggle sidecar docked to Blizzard MailFrame
@@ -722,11 +772,12 @@ if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("MAIL_INBOX_UPDATE", function()
         mail.RecordMailboxStatus()
         if sidecarFrame and sidecarFrame:IsShown() then
-            RefreshSidecar()
+            UpdateSidecarControls(lastTotalItems)
         end
     end)
 
     sfui.events.RegisterEvent("MAIL_CLOSED", function()
+        InvalidateManifestCache()
         if sidecarFrame then
             sidecarFrame:Hide()
         end
@@ -735,6 +786,7 @@ if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE", function(_, interactionType)
         local mailType = _G.Enum and _G.Enum.PlayerInteractionType and _G.Enum.PlayerInteractionType.MailInfo
         if not interactionType or interactionType == mailType then
+            InvalidateManifestCache()
             if sidecarFrame then
                 sidecarFrame:Hide()
             end
@@ -743,7 +795,7 @@ if sfui.events and sfui.events.RegisterEvent then
 
     sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", function()
         if sidecarFrame and sidecarFrame:IsShown() and not mail.IsDispatching() then
-            RefreshSidecar()
+            RefreshSidecar(false)
         end
     end)
 end

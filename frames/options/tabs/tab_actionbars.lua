@@ -22,7 +22,7 @@ sfui.options.RegisterTab({
             local defaults = sfui.config.actionbars
             SfuiDB.actionbars = sfui.common.copy and sfui.common.copy(defaults) or defaults
             if sfui.actionbars and sfui.actionbars.bars then
-                for i = 1, 6 do
+                for i = 1, 10 do
                     sfui.actionbars.ApplyBarLayout(i)
                 end
                 if sfui.actionbars.ApplyPetBarLayout then
@@ -50,6 +50,7 @@ sfui.options.RegisterTab({
 
         local selectedBarKey = "bar1"
         local selectedBarIndex = 1
+        local all_mouseover_cb
 
         local function get_mod_cfg()
             if not SfuiDB then return (sfui.config and sfui.config.actionbars) or {} end
@@ -111,7 +112,7 @@ sfui.options.RegisterTab({
         desc:SetPoint("RIGHT", -15, 0)
         desc:SetJustifyH("LEFT")
         desc:SetTextColor(0.8, 0.8, 0.8, 1)
-        desc:SetText("modular 3x4 action bars 1-6 with stance paging, smooth mouseover fading, and dynamic proc updates.")
+        desc:SetText("modular 3x4 action bars 1-10 with stance paging, smooth mouseover fading, and dynamic proc updates.")
 
         -- ─────────────────────────────────────────────────────────────────────
         --  COLUMN 1: General & Visibility Settings (Left Column, x = 15, width = 250)
@@ -131,11 +132,11 @@ sfui.options.RegisterTab({
             local cfg = get_mod_cfg()
             cfg.enabled = val
             if sfui.actionbars and sfui.actionbars.bars then
-                for i = 1, 6 do
+                for i = 1, 10 do
                     sfui.actionbars.ApplyBarLayout(i)
                 end
             end
-        end, "replaces blizzard action bars with modular sfui bars 1-6.")
+        end, "replaces blizzard action bars with modular sfui bars 1-10.")
         enable_cb:SetPoint("TOPLEFT", sec1, "BOTTOMLEFT", 0, -8)
 
         local mover_btn = CreateFlatButton(panel, "unlock / move bars", 150, 22, function(self)
@@ -152,6 +153,21 @@ sfui.options.RegisterTab({
         sec2:SetTextColor(0.4, 0.9, 1.0)
         sec2:SetText("visibility & mouseover")
 
+        all_mouseover_cb = create_checkbox(panel, "enable mouseover on all bars", function()
+            local cfg = get_mod_cfg()
+            return cfg.allBarsMouseover == true
+        end, function(val)
+            local cfg = get_mod_cfg()
+            cfg.allBarsMouseover = val
+            if sfui.actionbars and sfui.actionbars.mouseover and sfui.actionbars.mouseover.UpdateAllBars then
+                sfui.actionbars.mouseover.UpdateAllBars(true)
+            end
+            if update_pill_highlights then
+                update_pill_highlights()
+            end
+        end, "fades out all action bars and the pet bar until hovered.")
+        all_mouseover_cb:SetPoint("TOPLEFT", sec2, "BOTTOMLEFT", 0, -8)
+
         local resting_slider = create_slider_input(panel, "resting alpha (hidden state)", function()
             local cfg = get_mod_cfg()
             return cfg.restingAlpha or 0.0
@@ -162,7 +178,7 @@ sfui.options.RegisterTab({
                 sfui.actionbars.mouseover.UpdateAllBars()
             end
         end, "transparency level when mouse is not hovering (0 for completely hidden).", 250)
-        resting_slider:SetPoint("TOPLEFT", sec2, "BOTTOMLEFT", 0, -8)
+        resting_slider:SetPoint("TOPLEFT", all_mouseover_cb, "BOTTOMLEFT", 0, -8)
 
         local active_slider = create_slider_input(panel, "hover alpha (active state)", function()
             local cfg = get_mod_cfg()
@@ -188,7 +204,7 @@ sfui.options.RegisterTab({
             local cfg = get_mod_cfg()
             cfg.showGrid = val
             if sfui.actionbars and sfui.actionbars.bars then
-                for i = 1, 6 do
+                for i = 1, 10 do
                     sfui.actionbars.ApplyBarLayout(i)
                 end
             end
@@ -202,7 +218,7 @@ sfui.options.RegisterTab({
             local cfg = get_mod_cfg()
             cfg.showHotkeys = val
             if sfui.actionbars and sfui.actionbars.bars then
-                for i = 1, 6 do
+                for i = 1, 10 do
                     sfui.actionbars.ApplyBarLayout(i)
                 end
             end
@@ -219,7 +235,7 @@ sfui.options.RegisterTab({
             local cfg = get_mod_cfg()
             cfg.hotkeyFontSize = val
             if sfui.actionbars and sfui.actionbars.bars then
-                for i = 1, 6 do
+                for i = 1, 10 do
                     sfui.actionbars.ApplyBarLayout(i)
                 end
             end
@@ -236,7 +252,7 @@ sfui.options.RegisterTab({
             local cfg = get_mod_cfg()
             cfg.showCounts = val
             if sfui.actionbars and sfui.actionbars.bars then
-                for i = 1, 6 do
+                for i = 1, 10 do
                     sfui.actionbars.ApplyBarLayout(i)
                 end
             end
@@ -253,7 +269,7 @@ sfui.options.RegisterTab({
             local cfg = get_mod_cfg()
             cfg.showMacroNames = val
             if sfui.actionbars and sfui.actionbars.bars then
-                for i = 1, 6 do
+                for i = 1, 10 do
                     sfui.actionbars.ApplyBarLayout(i)
                 end
             end
@@ -267,7 +283,7 @@ sfui.options.RegisterTab({
             local cfg = get_mod_cfg()
             cfg.outOfRangeColoring = val and "button" or "none"
             if sfui.actionbars and sfui.actionbars.bars then
-                for i = 1, 6 do
+                for i = 1, 10 do
                     sfui.actionbars.ApplyBarLayout(i)
                 end
             end
@@ -280,25 +296,27 @@ sfui.options.RegisterTab({
         local sec_bar = panel:CreateFontString(nil, "OVERLAY", g.font)
         sec_bar:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", col2_x - col1_x, -14)
         sec_bar:SetTextColor(0.4, 0.9, 1.0)
-        sec_bar:SetText("bar layout (bars 1-6 & pet bar)")
+        sec_bar:SetText("bar layout (bars 1-10 & pet bar)")
 
         -- Bar Selector Pills
         local pillButtons = {}
-        for b = 1, 6 do
-            local pill = CreateFlatButton(panel, string_format("bar %d", b), 38, 22)
+        for b = 1, 10 do
+            local pill = CreateFlatButton(panel, string_format("bar %d", b), 44, 20)
             if b == 1 then
                 pill:SetPoint("TOPLEFT", sec_bar, "BOTTOMLEFT", 0, -8)
+            elseif b == 6 then
+                pill:SetPoint("TOPLEFT", pillButtons[1], "BOTTOMLEFT", 0, -4)
             else
                 pill:SetPoint("LEFT", pillButtons[b - 1], "RIGHT", 4, 0)
             end
             pillButtons[b] = pill
         end
 
-        local petPill = CreateFlatButton(panel, "pet bar", 80, 22)
-        petPill:SetPoint("TOPLEFT", pillButtons[1], "BOTTOMLEFT", 0, -6)
+        local petPill = CreateFlatButton(panel, "pet bar", 80, 20)
+        petPill:SetPoint("TOPLEFT", pillButtons[6], "BOTTOMLEFT", 0, -6)
 
         local barStatusText = panel:CreateFontString(nil, "OVERLAY", g.font)
-        barStatusText:SetPoint("TOPLEFT", petPill, "BOTTOMLEFT", 0, -10)
+        barStatusText:SetPoint("TOPLEFT", petPill, "BOTTOMLEFT", 0, -8)
         barStatusText:SetTextColor(1, 0.85, 0.2, 1)
 
         -- Controls forward declaration for right column sync
@@ -319,7 +337,7 @@ sfui.options.RegisterTab({
         end
 
         local function update_pill_highlights()
-            for b = 1, 6 do
+            for b = 1, 10 do
                 local pill = pillButtons[b]
                 if selectedBarKey == ("bar" .. b) then
                     pill:GetFontString():SetTextColor(0, 1, 1, 1)
@@ -354,8 +372,12 @@ sfui.options.RegisterTab({
             end
 
             local bCfg = get_bar_cfg(selectedBarKey)
+            local modCfg = get_mod_cfg()
             if bar_enabled_cb then bar_enabled_cb:SetChecked(bCfg.enabled ~= false) end
-            if bar_mouseover_cb then bar_mouseover_cb:SetChecked(bCfg.mouseover == true) end
+            if bar_mouseover_cb then
+                local isMo = (modCfg.allBarsMouseover == true) or (bCfg.mouseover == true)
+                bar_mouseover_cb:SetChecked(isMo)
+            end
             if buttons_slider and buttons_slider.slider then
                 buttons_slider.slider:SetValue(bCfg.buttons or (selectedBarKey == "pet" and 10 or 12))
             end
@@ -370,7 +392,7 @@ sfui.options.RegisterTab({
             end
         end
 
-        for b = 1, 6 do
+        for b = 1, 10 do
             pillButtons[b]:SetScript("OnClick", function()
                 selectedBarIndex = b
                 selectedBarKey = "bar" .. b
@@ -396,14 +418,23 @@ sfui.options.RegisterTab({
 
         bar_mouseover_cb = create_checkbox(panel, "fade out on mouseover", function()
             local bCfg = get_bar_cfg(selectedBarKey)
-            return bCfg.mouseover == true
+            local modCfg = get_mod_cfg()
+            return (modCfg.allBarsMouseover == true) or (bCfg.mouseover == true)
         end, function(val)
             local bCfg = get_bar_cfg(selectedBarKey)
+            local modCfg = get_mod_cfg()
             bCfg.mouseover = val
+            if not val and modCfg.allBarsMouseover == true then
+                modCfg.allBarsMouseover = false
+                if all_mouseover_cb and all_mouseover_cb.SetChecked then
+                    all_mouseover_cb:SetChecked(false)
+                end
+            end
             if sfui.actionbars and sfui.actionbars.mouseover and sfui.actionbars.mouseover.UpdateAllBars then
                 sfui.actionbars.mouseover.UpdateAllBars(true)
             end
-        end, "keeps this bar hidden until hovered.")
+            update_pill_highlights()
+        end, "keeps this bar hidden until hovered (automatically active when 'enable mouseover on all bars' is checked).")
         bar_mouseover_cb:SetPoint("TOPLEFT", bar_enabled_cb, "BOTTOMLEFT", 0, -6)
 
         grid_preset_btn = CreateFlatButton(panel, "preset: 3x4 grid", 250, 22, function()
@@ -493,6 +524,10 @@ sfui.options.RegisterTab({
             if enable_cb and enable_cb.SetChecked then
                 local cfg = get_mod_cfg()
                 enable_cb:SetChecked(cfg.enabled ~= false)
+            end
+            if all_mouseover_cb and all_mouseover_cb.SetChecked then
+                local cfg = get_mod_cfg()
+                all_mouseover_cb:SetChecked(cfg.allBarsMouseover == true)
             end
             if mover_btn and mover_btn.SetText then
                 local unlocked = sfui.actionbars and sfui.actionbars.moversUnlocked

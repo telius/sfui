@@ -31,7 +31,7 @@ local RecipesModule = {
     priority = 60,
     events   = {
         "TRACKED_RECIPE_UPDATE",
-        "BAG_UPDATE",
+        "BAG_UPDATE_DELAYED",
         "CURRENCY_DISPLAY_UPDATE",
     },
 }

@@ -102,7 +102,9 @@ local function CreateHeader(parent)
         tip:AddLine("|cff888888left-click: collapse/expand section|r", 1, 1, 1)
         local secID = self.secID
         local itemWord = "items"
-        if secID == "achievements" then
+        if secID == "challenges" or secID == "camelot_challenges" then
+            itemWord = "challenges"
+        elseif secID == "achievements" then
             itemWord = "achievements"
         elseif secID == "recipes" then
             itemWord = "recipes"
@@ -116,6 +118,11 @@ local function CreateHeader(parent)
             itemWord = "world quests"
         elseif secID == "campaign" or secID == "important" or secID == "meta" or secID == "zone" or secID == "quests" or secID == "class" or secID == "dungeons" or secID == "professions" or (type(secID) == "string" and secID:find("^zone")) then
             itemWord = "quests"
+        end
+        if secID == "challenges" or secID == "camelot_challenges" then
+            tip:AddLine("|cff888888right-click: open legacy challenges|r", 1, 1, 1)
+        elseif secID == "achievements" then
+            tip:AddLine("|cff888888right-click: open achievements|r", 1, 1, 1)
         end
         tip:AddLine("|cff888888shift-click: untrack all " .. itemWord .. " in category|r", 1, 1, 1)
         tip:Show()

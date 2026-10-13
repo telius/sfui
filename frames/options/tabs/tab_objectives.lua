@@ -58,7 +58,28 @@ sfui.options.RegisterTab({
             "When unlocked you can drag the quest log frame to a new position. " ..
             "In modern / Camelot WoW, you can also reposition and configure the objective tracker via Blizzard Edit Mode.")
         lock_ql_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
-        yOff = yOff - 30
+        yOff = yOff - 28
+
+        local isCamelotClient = sfui.isCamelot or (_G.ToggleLegacyChallenges ~= nil) or (_G.LegacySystemFrame_LoadUI ~= nil)
+        if isCamelotClient then
+            local challenges_ql_cb = create_checkbox(p, "track legacy challenges in quest log",
+                function()
+                    return SfuiDB.questlogTrackChallenges ~= false and SfuiDB.trackChallenges ~= false
+                end,
+                function(checked)
+                    SfuiDB.questlogTrackChallenges = checked
+                    for _, mod in ipairs(sfui.tracker.modules) do
+                        if mod.id == "camelot_challenges" then
+                            if mod.MarkDirty then mod:MarkDirty() end
+                        end
+                    end
+                    sfui.tracker.RequestRefresh(0.01)
+                end,
+                "camelot only: tracks active legacy challenges and points progress in the sfui quest log / objective tracker.")
+            challenges_ql_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+            yOff = yOff - 28
+        end
+        yOff = yOff - 2
 
         local reset_ql_pos_btn = CreateFlatButton(p, "reset position", 120, 22)
         reset_ql_pos_btn:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)

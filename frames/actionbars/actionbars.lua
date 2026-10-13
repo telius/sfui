@@ -13,7 +13,7 @@ local pairs = _G.pairs
 --  Offscreen Blizzard Action Bars Suppression (ElvUI / Bartender Pattern)
 -- ─────────────────────────────────────────────────────────────────────────────
 local function suppress_blizzard_actionbars()
-    local Hider = CreateFrame("Frame", "sfui_ActionBarHider", UIParent)
+    local Hider = CreateFrame("Frame", "sfui_ActionBarHider", UIParent, "SecureFrameTemplate")
     Hider:Hide()
     Hider:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, -9999)
     Hider:SetSize(1, 1)
@@ -51,20 +51,33 @@ local function suppress_blizzard_actionbars()
         "MainMenuBarMicroButtons",
     }
 
+    -- Unload Blizzard ActionBarController and ActionEvents to prevent Blizzard from
+    -- attempting to update its bars and calling protected methods (SetAttribute, ShowBase,
+    -- HideBase, SetShownBase, SetScaleBase) during combat shapeshifts / page transitions.
+    if _G.ActionBarController and _G.ActionBarController.UnregisterAllEvents then
+        _G.ActionBarController:UnregisterAllEvents()
+        if _G.ActionBarController.RegisterEvent then
+            _G.ActionBarController:RegisterEvent("SETTINGS_LOADED")
+            _G.ActionBarController:RegisterEvent("UPDATE_EXTRA_ACTIONBAR")
+        end
+    end
+    if _G.ActionBarActionEventsFrame and _G.ActionBarActionEventsFrame.UnregisterAllEvents then
+        _G.ActionBarActionEventsFrame:UnregisterAllEvents()
+    end
+    if _G.ActionBarButtonEventsFrame and _G.ActionBarButtonEventsFrame.UnregisterAllEvents then
+        _G.ActionBarButtonEventsFrame:UnregisterAllEvents()
+        if _G.ActionBarButtonEventsFrame.RegisterEvent then
+            _G.ActionBarButtonEventsFrame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
+            _G.ActionBarButtonEventsFrame:RegisterEvent("ACTIONBAR_UPDATE_COOLDOWN")
+        end
+    end
+
     for _, name in ipairs(blizzardBarNames) do
         local bar = _G[name]
         if bar then
             bar:SetParent(Hider)
-            bar:ClearAllPoints()
-            bar:SetPoint("BOTTOM", Hider, "BOTTOM", 0, 0)
-            bar:SetAlpha(0)
-            if bar.EnableMouse then
-                pcall(bar.EnableMouse, bar, false)
-            end
-            if bar.HideBase then
-                bar:HideBase()
-            else
-                bar:Hide()
+            if bar.UnregisterAllEvents then
+                bar:UnregisterAllEvents()
             end
         end
     end
@@ -166,7 +179,7 @@ local function suppress_blizzard_actionbars()
                 if not added or frame == added then
                     local name = frame and frame.GetName and frame:GetName()
                     if name and not name:match("^ExtraActionButton%d") then
-                        frames[index] = nil
+                        table.remove(frames, index)
                     end
                     if added and frame == added then break end
                 end
@@ -178,17 +191,40 @@ local function suppress_blizzard_actionbars()
             local frame = frames[index]
             local name = frame and frame.GetName and frame:GetName()
             if name and not name:match("^ExtraActionButton%d") then
-                frames[index] = nil
+                table.remove(frames, index)
             end
         end
     end
-    -- NOTE: ActionBarActionEventsFrame and ActionBarController are intentionally
-    -- kept active so game engine spell overrides, procs, and icon events continue!
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Module Registration & Lifecycle
 -- ─────────────────────────────────────────────────────────────────────────────
+local function get_actionbars_debug_info()
+    local activeBars = 0
+    local totalButtons = 0
+    local allBars = sfui.actionbars.GetAllBars and sfui.actionbars.GetAllBars()
+    if allBars then
+        for _, bar in ipairs(allBars) do
+            if bar and bar:IsShown() then
+                activeBars = activeBars + 1
+                if bar.buttons then
+                    totalButtons = totalButtons + #bar.buttons
+                end
+            end
+        end
+    end
+    return {
+        activeBars = activeBars,
+        totalButtons = totalButtons,
+        unlocked = sfui.actionbars.moversUnlocked,
+    }
+end
+
+function sfui.actionbars_debug_info()
+    return get_actionbars_debug_info()
+end
+
 local ActionBarsModule = sfui.RegisterModule("actionbars", {
     OnInit = function(self)
         if sfui.db and sfui.db.RegisterDefaults and sfui.config.actionbars then
@@ -217,7 +253,7 @@ local ActionBarsModule = sfui.RegisterModule("actionbars", {
         local bars = sfui.actionbars.bars
         if not bars then return end
 
-        for i = 1, 6 do
+        for i = 1, 10 do
             sfui.actionbars.ApplyBarLayout(i)
         end
 
@@ -230,31 +266,10 @@ local ActionBarsModule = sfui.RegisterModule("actionbars", {
         end
     end,
 
-    GetDebugInfo = function(self)
-        local activeBars = 0
-        local totalButtons = 0
-        local allBars = sfui.actionbars.GetAllBars and sfui.actionbars.GetAllBars()
-        if allBars then
-            for _, bar in ipairs(allBars) do
-                if bar and bar:IsShown() then
-                    activeBars = activeBars + 1
-                    if bar.buttons then
-                        totalButtons = totalButtons + #bar.buttons
-                    end
-                end
-            end
-        end
-        return {
-            activeBars = activeBars,
-            totalButtons = totalButtons,
-            unlocked = sfui.actionbars.moversUnlocked,
-        }
-    end,
+    GetDebugInfo = get_actionbars_debug_info,
 })
 
-sfui.actionbars.GetDebugInfo = function()
-    return ActionBarsModule:GetDebugInfo()
-end
+sfui.actionbars.GetDebugInfo = get_actionbars_debug_info
 
 -- Convenience Global Aliases
 function sfui.actionbars.ToggleMovers(forceState)
@@ -282,4 +297,13 @@ function sfui.actionbars.Apply3x4Preset(barIndex)
         sfui.actionbars.ApplyBarLayout(barIndex)
     end
 end
+
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+        if sfui.actionbars and sfui.actionbars.ProcessDeferredLayouts then
+            sfui.actionbars.ProcessDeferredLayouts()
+        end
+    end)
+end
+
 

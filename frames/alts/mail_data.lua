@@ -502,6 +502,12 @@ end
 --- @param itemID number
 function mail.AddItemToRoute(guid, itemID)
     if not guid or not itemID then return end
+    local settings = mail.GetSettings()
+    for otherGuid, otherRoute in pairs(settings.routes or {}) do
+        if otherGuid ~= guid and otherRoute.items and otherRoute.items[itemID] then
+            otherRoute.items[itemID] = nil
+        end
+    end
     local route = mail.GetRoute(guid)
     route.items = route.items or {}
     route.items[itemID] = true
@@ -832,11 +838,14 @@ end
 --- Find destination recipient for a specific bag item
 --- @param bag number
 --- @param slot number
---- @return string|nil targetGUID, string|nil targetName, string|nil targetRealm, string|nil reason
+--- @return string|nil targetGUID, string|nil targetName, string|nil targetRealm, string|nil reason, table|nil info
 function mail.FindDestinationForBagItem(bag, slot)
     if not C_Container then return nil end
     local settings = mail.GetSettings()
     if not settings.enabled then return nil end
+
+    local itemID = C_Container.GetContainerItemID(bag, slot)
+    if not itemID then return nil end
 
     local info = C_Container.GetContainerItemInfo(bag, slot)
     if not info or not info.itemID or not info.hyperlink then return nil end
@@ -860,13 +869,13 @@ function mail.FindDestinationForBagItem(bag, slot)
         subclassID = subclassID or scID
     end
 
+    local candidateAlts = mail.GetAlts(false)
+
     -- 1. Explicit item assigned directly to an alt
-    for guid, route in pairs(settings.routes or {}) do
-        if guid ~= myGUID and route.items and route.items[itemID] then
-            local alt = SfuiDB.alts and SfuiDB.alts[guid]
-            if alt and alt.name then
-                return guid, alt.name, alt.realm, "assigned_item"
-            end
+    for _, alt in ipairs(candidateAlts) do
+        local route = settings.routes and settings.routes[alt.guid]
+        if route and route.items and route.items[itemID] then
+            return alt.guid, alt.name, alt.realm, "assigned_item", info
         end
     end
 
@@ -885,14 +894,12 @@ function mail.FindDestinationForBagItem(bag, slot)
             "sendInscription",
             "sendComprehension",
         }
-        for guid, route in pairs(settings.routes or {}) do
-            if guid ~= myGUID then
+        for _, alt in ipairs(candidateAlts) do
+            local route = settings.routes and settings.routes[alt.guid]
+            if route then
                 for _, catKey in ipairs(catKeys) do
                     if route[catKey] and MatchesTradeskillCategory(classID, subclassID, catKey, itemID, itemLink) then
-                        local alt = SfuiDB.alts and SfuiDB.alts[guid]
-                        if alt and alt.name then
-                            return guid, alt.name, alt.realm, "category_" .. catKey
-                        end
+                        return alt.guid, alt.name, alt.realm, "category_" .. catKey, info
                     end
                 end
             end
@@ -904,12 +911,10 @@ function mail.FindDestinationForBagItem(bag, slot)
             local catList = mail.GetReagentCategories(itemID)
             if catList then
                 for _, catKey in ipairs(catList) do
-                    for guid, route in pairs(settings.routes or {}) do
-                        if guid ~= myGUID and route[catKey] then
-                            local alt = SfuiDB.alts and SfuiDB.alts[guid]
-                            if alt and alt.name then
-                                return guid, alt.name, alt.realm, "category_" .. catKey
-                            end
+                    for _, alt in ipairs(candidateAlts) do
+                        local route = settings.routes and settings.routes[alt.guid]
+                        if route and route[catKey] then
+                            return alt.guid, alt.name, alt.realm, "category_" .. catKey, info
                         end
                     end
                 end
@@ -922,7 +927,7 @@ function mail.FindDestinationForBagItem(bag, slot)
         if mail.IsDisenchantableBoE(itemID, itemLink, classID, subclassID, quality, bindType) then
             local alt = SfuiDB.alts and SfuiDB.alts[settings.disenchanterGUID]
             if alt and alt.name then
-                return settings.disenchanterGUID, alt.name, alt.realm, "disenchant_boe"
+                return settings.disenchanterGUID, alt.name, alt.realm, "disenchant_boe", info
             end
         end
     end
@@ -944,9 +949,9 @@ function mail.ScanPendingMail(targetGUID)
     for bag = 0, mail.GetLastBagIndex() do
         local numSlots = C_Container.GetContainerNumSlots(bag) or 0
         for slot = 1, numSlots do
-            local destGUID, destName, destRealm, reason = mail.FindDestinationForBagItem(bag, slot)
+            local destGUID, destName, destRealm, reason, itemInfo = mail.FindDestinationForBagItem(bag, slot)
             if destGUID and destName and (not targetGUID or destGUID == targetGUID) then
-                local info = C_Container.GetContainerItemInfo(bag, slot)
+                local info = itemInfo or C_Container.GetContainerItemInfo(bag, slot)
                 if info then
                     if not manifest[destGUID] then
                         local altData = SfuiDB.alts and SfuiDB.alts[destGUID]

@@ -346,12 +346,16 @@ sfui.config = {
         repOnlyAtMaxLevel = false, -- Only show reputation bar at maximum level
         autoReputation = true, -- Switch to reputation if max level or tracking faction
         autoSwitchRepOnGain = false, -- Automatically activate and switch reputation bar when reputation is gained
+        trackLegacy = true, -- Camelot only: track legacy challenges reward track (faction 2802)
+        showChallengesBar = true, -- Show stacked challenges bar when available
+        challengesHeight = 12, -- Height of the stacked challenges bar
         hideBlizzardBar = true,
         colors = {
             xp = { 0.58, 0.0, 0.82, 1.0 },             -- Fallback active xp color (purple)
             rested = { 0.0, 0.65, 0.90, 0.60 },        -- Rested bonus overlay (cyan/sky blue)
             questPreview = { 0.96, 0.65, 0.12, 0.70 }, -- Completed quest turn-in preview (amber/gold)
             reputation = { 0.0, 0.60, 0.35, 1.0 },     -- Fallback reputation green
+            legacy = { 0.08, 0.72, 0.22, 1.0 },         -- Camelot legacy challenges green (matches in-game tracker)
         },
     },
 
@@ -665,6 +669,8 @@ sfui.config = {
     minimap = {
         default_size = 220,
         defaultZoom = 0,
+        showPins = true,
+        pinSize = 14,
         button_bar = {
             spacing = 8,
             pad_x = 24,
@@ -923,6 +929,7 @@ sfui.config = {
             { id = "world",        label = "world quests", color = { 0.20, 0.85, 0.95 } },
             { id = "activities",   label = "activities",   color = { 0.35, 0.90, 0.40 } },
             { id = "zone",         label = "quests",       color = { 1.00, 1.00, 1.00 } },
+            { id = "challenges",   label = "challenges",   color = { 0.08, 0.72, 0.22 } },
             { id = "achievements", label = "achievements", color = { 0.85, 0.65, 0.35 } },
         },
     },
@@ -1025,6 +1032,7 @@ sfui.config = {
     -- smooth mouseover fading, stance paging, and dynamic proc updates.
     actionbars = {
         enabled            = true,
+        allBarsMouseover   = false,
         showGrid           = false,
         showHotkeys        = true,
         showCounts         = true,
@@ -1104,6 +1112,54 @@ sfui.config = {
                 point         = "BOTTOM",
                 relPoint      = "BOTTOM",
                 x             = 145,
+                y             = 35,
+            },
+            bar7 = {
+                enabled       = false,
+                mouseover     = false,
+                buttons       = 12,
+                buttonsPerRow = 3, -- 3x4 grid
+                buttonSize    = 28,
+                spacing       = 4,
+                point         = "BOTTOM",
+                relPoint      = "BOTTOM",
+                x             = -242,
+                y             = 35,
+            },
+            bar8 = {
+                enabled       = false,
+                mouseover     = false,
+                buttons       = 12,
+                buttonsPerRow = 3, -- 3x4 grid
+                buttonSize    = 28,
+                spacing       = 4,
+                point         = "BOTTOM",
+                relPoint      = "BOTTOM",
+                x             = 242,
+                y             = 35,
+            },
+            bar9 = {
+                enabled       = false,
+                mouseover     = false,
+                buttons       = 12,
+                buttonsPerRow = 3, -- 3x4 grid
+                buttonSize    = 28,
+                spacing       = 4,
+                point         = "BOTTOM",
+                relPoint      = "BOTTOM",
+                x             = -339,
+                y             = 35,
+            },
+            bar10 = {
+                enabled       = false,
+                mouseover     = false,
+                buttons       = 12,
+                buttonsPerRow = 3, -- 3x4 grid
+                buttonSize    = 28,
+                spacing       = 4,
+                point         = "BOTTOM",
+                relPoint      = "BOTTOM",
+                x             = 339,
                 y             = 35,
             },
             pet = {

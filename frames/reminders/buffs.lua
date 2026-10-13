@@ -195,6 +195,10 @@ local function CreateBuffIcon(index, parent)
 
         if entry.key == "consumable_food" and sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedFood then
             local selectedFood, allFoods = sfui.buffs.consumables.GetSelectedFood()
+            if (not selectedFood or not allFoods or #allFoods == 0) and sfui.buffs.consumables.ClearFoodCache then
+                sfui.buffs.consumables.ClearFoodCache()
+                selectedFood, allFoods = sfui.buffs.consumables.GetSelectedFood()
+            end
             if selectedFood and (selectedFood.itemLink or selectedFood.itemID) then
                 GameTooltip:SetOwner(self, "ANCHOR_TOP")
                 GameTooltip:SetHyperlink(selectedFood.itemLink or ("item:" .. selectedFood.itemID))

@@ -105,89 +105,32 @@ local isBuffFoodCache = {}
 local availableFoods = {}
 local isFoodScanDirty = true
 
+local function ClearFoodCache()
+    _G.wipe(isBuffFoodCache)
+    if sfui.items and sfui.items.clear_food_drink_cache then
+        sfui.items.clear_food_drink_cache()
+    end
+    isFoodScanDirty = true
+end
+sfui.buffs.consumables.ClearFoodCache = ClearFoodCache
+
 local function IsBuffFood(bag, slot, itemID, itemLink)
-    if sfui.items and sfui.items.is_buff_food then
-        return sfui.items.is_buff_food(bag, slot, itemID, itemLink)
-    end
     if not itemID then return false end
-    if isBuffFoodCache[itemID] ~= nil then
-        return isBuffFoodCache[itemID]
+    local cached = isBuffFoodCache[itemID]
+    if cached ~= nil then
+        return cached
     end
 
-    local name, _, _, _, _, _, _, _, _, _, _, classID, subClassID = sfui.common.get_item_info(itemLink or itemID)
-    if not name then
-        return false -- metadata not yet loaded; do not cache false
+    local result = false
+    if sfui.items and sfui.items.is_buff_food then
+        result = sfui.items.is_buff_food(bag, slot, itemID, itemLink) and true or false
+    elseif sfui.items and sfui.items.get_food_drink_info then
+        local _, _, hasWellFed = sfui.items.get_food_drink_info(bag, slot, itemID, itemLink)
+        result = hasWellFed and true or false
     end
 
-    local isConsumableClass = (classID == 0) or (_G.Enum and _G.Enum.ItemClass and classID == _G.Enum.ItemClass.Consumable)
-    local isFoodDrink = (subClassID == 5) or (_G.Enum and _G.Enum.ItemConsumableSubclass and subClassID == _G.Enum.ItemConsumableSubclass.Fooddrink)
-    if not (isConsumableClass and isFoodDrink) then
-        isBuffFoodCache[itemID] = false
-        return false
-    end
-
-    local wellFedText = _G.GetSpellInfo and _G.GetSpellInfo(19705)
-    local wellFedLower = wellFedText and wellFedText:lower() or "well fed"
-
-    -- 1. Modern zero-UI inspection via C_TooltipInfo (Retail & Camelot / Classic Beta)
-    local C_TooltipInfo = _G.C_TooltipInfo
-    if C_TooltipInfo then
-        local data = nil
-        if bag and slot and C_TooltipInfo.GetBagItem then
-            data = C_TooltipInfo.GetBagItem(bag, slot)
-        elseif C_TooltipInfo.GetHyperlink then
-            data = C_TooltipInfo.GetHyperlink(itemLink or ("item:" .. itemID))
-        end
-        if data and data.lines and #data.lines > 1 then
-            for i = 1, #data.lines do
-                local line = data.lines[i]
-                local txt = line and line.leftText
-                if txt and type(txt) == "string" and txt ~= "" then
-                    local lower = txt:lower()
-                    if lower:find(wellFedLower, 1, true) or lower:find("well fed", 1, true) then
-                        isBuffFoodCache[itemID] = true
-                        return true
-                    end
-                end
-            end
-            isBuffFoodCache[itemID] = false
-            return false
-        end
-    end
-
-    -- 2. Legacy fallback via sfui.common.get_tooltip() (methods.md §3.7.2)
-    local tip = sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()
-    if tip and tip.SetOwner and (tip.SetBagItem or tip.SetHyperlink) then
-        local tipName = tip:GetName()
-        if _G.UIParent then tip:SetOwner(_G.UIParent, "ANCHOR_NONE") end
-        tip:ClearLines()
-        if bag and slot and tip.SetBagItem then
-            tip:SetBagItem(bag, slot)
-        else
-            tip:SetHyperlink("item:" .. itemID)
-        end
-        local numLines = tip:NumLines() or 0
-        if numLines <= 1 then
-            return false -- tooltip lines not yet populated
-        end
-        for i = 1, numLines do
-            local fsL = tipName and _G[tipName .. "TextLeft" .. i]
-            if fsL then
-                local txt = fsL:GetText()
-                if txt then
-                    local lower = txt:lower()
-                    if lower:find(wellFedLower, 1, true) or lower:find("well fed", 1, true) then
-                        isBuffFoodCache[itemID] = true
-                        return true
-                    end
-                end
-            end
-        end
-        isBuffFoodCache[itemID] = false
-        return false
-    end
-
-    return false
+    isBuffFoodCache[itemID] = result
+    return result
 end
 
 local scratchCounts = {}
@@ -211,6 +154,7 @@ local function ScanInventoryFoods()
     _G.wipe(scratchOrder)
 
     if sfui.common and sfui.common.for_each_bag_item then
+        -- Check all equipped bags (includeReagent = true)
         sfui.common.for_each_bag_item(function(bag, slot, itemID, itemLink, info)
             if itemID and IsBuffFood(bag, slot, itemID, itemLink) then
                 local count = (info and info.stackCount) or 1
@@ -225,13 +169,13 @@ local function ScanInventoryFoods()
                     local name, _, _, _, _, _, _, _, _, texture = sfui.common.get_item_info(itemLink or itemID)
                     entry.itemID   = itemID
                     entry.itemLink = itemLink
-                    entry.name     = name or ("item " .. itemID)
-                    entry.icon     = texture or "Interface\\Icons\\Spell_Misc_Food"
+                    entry.name     = name or (info and info.hyperlink and info.hyperlink:match("%[(.-)%]")) or ("item " .. itemID)
+                    entry.icon     = texture or (info and info.iconFileID) or "Interface\\Icons\\Spell_Misc_Food"
                 else
                     scratchCounts[itemID] = scratchCounts[itemID] + count
                 end
             end
-        end, false, true, true)
+        end, true, true, true)
     end
 
     _G.wipe(availableFoods)
@@ -282,6 +226,12 @@ end
 
 function sfui.buffs.consumables.CycleFood(delta)
     local cur, all = sfui.buffs.consumables.GetSelectedFood()
+    if not all or #all <= 1 then
+        -- Refresh scan with cleared cache if cold or only 1 item loaded initially
+        ClearFoodCache()
+        ScanInventoryFoods()
+        cur, all = sfui.buffs.consumables.GetSelectedFood()
+    end
     if not all or #all <= 1 then
         return cur
     end
@@ -358,4 +308,27 @@ if sfui.events then
             ScanInventoryFoods()
         end
     end)
+    sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", function()
+        local db = SfuiDB and SfuiDB.buffReminders
+        if not (db and db.enabled ~= false and db.trackFood) then return end
+        isFoodScanDirty = true
+        if sfui.common.is_in_combat() then return end
+        if sfui.common.debounce then
+            sfui.common.debounce("sfui_food_item_info", 0.25, function()
+                if sfui.common.is_in_combat() then return end
+                ClearFoodCache()
+                ScanInventoryFoods()
+                if sfui.buffs and sfui.buffs.UpdateDisplay then
+                    sfui.buffs.UpdateDisplay()
+                end
+            end)
+        else
+            ClearFoodCache()
+            ScanInventoryFoods()
+            if sfui.buffs and sfui.buffs.UpdateDisplay then
+                sfui.buffs.UpdateDisplay()
+            end
+        end
+    end)
 end
+

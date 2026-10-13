@@ -70,7 +70,9 @@ end
 
 local function SetStepTimer(delay, callback)
     if _stepTimer then
-        _stepTimer:Cancel()
+        if _stepTimer.Cancel then
+            _stepTimer:Cancel()
+        end
         _stepTimer = nil
     end
     if delay and callback and C_Timer then
@@ -81,7 +83,9 @@ end
 
 local function SetSafetyTimer(delay, callback)
     if _safetyTimer then
-        _safetyTimer:Cancel()
+        if _safetyTimer.Cancel then
+            _safetyTimer:Cancel()
+        end
         _safetyTimer = nil
     end
     if delay and callback and C_Timer then
@@ -116,13 +120,36 @@ local function FindItemInBags(itemID)
     for bag = 0, mail.GetLastBagIndex() do
         local numSlots = C_Container.GetContainerNumSlots(bag) or 0
         for slot = 1, numSlots do
-            local info = C_Container.GetContainerItemInfo(bag, slot)
-            if info and info.itemID == itemID and not info.isLocked then
-                return bag, slot
+            local id = C_Container.GetContainerItemID(bag, slot)
+            if id == itemID then
+                local info = C_Container.GetContainerItemInfo(bag, slot)
+                if info and not info.isLocked then
+                    return bag, slot
+                end
             end
         end
     end
     return nil, nil
+end
+
+--- Check if Blizzard confirmation dialog is awaiting player input
+--- @return boolean isWaiting
+local function IsConfirmationPopupWaiting()
+    if _secureTransferActive then return true end
+    local spVisible = _G.StaticPopup_Visible
+    if spVisible then
+        return spVisible("CONFIRM_MAIL_ITEM_UNREFUNDABLE") ~= nil or spVisible("SEND_MONEY") ~= nil
+    end
+    for i = 1, 4 do
+        local sp = _G["StaticPopup" .. i]
+        if sp and sp.IsShown and sp:IsShown() then
+            local which = sp.which
+            if which == "CONFIRM_MAIL_ITEM_UNREFUNDABLE" or which == "SEND_MONEY" then
+                return true
+            end
+        end
+    end
+    return false
 end
 
 --- Cancel active mail dispatch
@@ -241,25 +268,7 @@ function VerifyAndDispatchLetter(letter, verifyAttempt)
             if not _isDispatching or #_dispatchQueue == 0 or _dispatchQueue[1] ~= letter then return end
 
             -- Extend timeout if Blizzard confirmation dialog is awaiting player input
-            local isPopupWaiting = _secureTransferActive
-            if not isPopupWaiting then
-                if _G.StaticPopup_Visible then
-                    isPopupWaiting = _G.StaticPopup_Visible("CONFIRM_MAIL_ITEM_UNREFUNDABLE") ~= nil or
-                                     _G.StaticPopup_Visible("SEND_MONEY") ~= nil
-                elseif _G.StaticPopup1 then
-                    local ok, shown = pcall(function()
-                        return _G.StaticPopup1:IsShown() and (
-                            _G.StaticPopup1.which == "CONFIRM_MAIL_ITEM_UNREFUNDABLE" or
-                            _G.StaticPopup1.which == "SEND_MONEY"
-                        )
-                    end)
-                    if ok and shown then
-                        isPopupWaiting = true
-                    end
-                end
-            end
-
-            if isPopupWaiting then
+            if IsConfirmationPopupWaiting() then
                 ScheduleSafety()
                 return
             end
@@ -638,7 +647,9 @@ end
 
 local function SetInboxStepTimer(delay, callback)
     if _inboxStepTimer then
-        _inboxStepTimer:Cancel()
+        if _inboxStepTimer.Cancel then
+            _inboxStepTimer:Cancel()
+        end
         _inboxStepTimer = nil
     end
     if delay and callback and C_Timer then
@@ -649,7 +660,9 @@ end
 
 local function SetInboxSafetyTimer(delay, callback)
     if _inboxSafetyTimer then
-        _inboxSafetyTimer:Cancel()
+        if _inboxSafetyTimer.Cancel then
+            _inboxSafetyTimer:Cancel()
+        end
         _inboxSafetyTimer = nil
     end
     if delay and callback and C_Timer then

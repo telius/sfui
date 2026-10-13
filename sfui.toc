@@ -112,6 +112,7 @@ frames/bars/target.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType 
 frames/bars/threat.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/bars/totembar.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/experience/data.lua
+frames/experience/challenges.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/experience/floating.lua
 frames/experience/bar.lua
 frames/experience/reputation.lua
@@ -199,6 +200,7 @@ frames/quests/modules/q_quests.lua [AllowLoadGameType standard]
 frames/quests/modules/q_camelot_skills.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/quests/modules/q_camelot_class.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/quests/modules/q_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/quests/modules/q_camelot_challenges.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/quests/modules/q_achievements.lua [AllowLoadGameType standard, camelot]
 frames/quests/modules/q_activities.lua [AllowLoadGameType standard, camelot]
 frames/quests/modules/q_collectables.lua [AllowLoadGameType standard, camelot]

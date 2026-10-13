@@ -129,7 +129,7 @@ local function UntrackSection(sec)
 
     -- 2. Category-level bulk untracking fallback
     local secID = sec.id
-    if secID == "achievements" then
+    if secID == "achievements" or secID == "challenges" or secID == "camelot_challenges" then
         if _G.RemoveTrackedAchievement and _G.GetTrackedAchievements then
             local tracked = { _G.GetTrackedAchievements() }
             for _, id in ipairs(tracked) do
@@ -390,6 +390,25 @@ function Layout.BuildLayout(container, sections)
                 header.secID = secID
                 local currentSec = sec
                 header:SetScript("OnClick", function(self, button)
+                    if button == "RightButton" then
+                        if secID == "challenges" or secID == "camelot_challenges" then
+                            if _G.ToggleLegacyChallenges then
+                                _G.ToggleLegacyChallenges()
+                            elseif _G.LegacySystemFrame_LoadUI then
+                                pcall(_G.LegacySystemFrame_LoadUI)
+                                if _G.LegacySystemFrame then
+                                    _G.LegacySystemFrame:Show()
+                                end
+                            end
+                            return
+                        elseif secID == "achievements" then
+                            if _G.ToggleAchievementFrame then
+                                _G.ToggleAchievementFrame()
+                            end
+                            return
+                        end
+                    end
+
                     local IsShiftKeyDown = _G.IsShiftKeyDown
                     if IsShiftKeyDown and IsShiftKeyDown() then
                         UntrackSection(currentSec)

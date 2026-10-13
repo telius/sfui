@@ -146,7 +146,6 @@ local CamelotRecipesModule = {
     id       = "camelot_recipes",
     priority = 61,
     events   = {
-        "BAG_UPDATE",
         "BAG_UPDATE_DELAYED",
         "PLAYER_ENTERING_WORLD",
         "TRACKED_RECIPE_UPDATE",

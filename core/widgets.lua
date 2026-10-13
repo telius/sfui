@@ -121,6 +121,135 @@ function sfui.widgets.apply_square_icon_style(frame, texture)
 end
 sfui.common.apply_square_icon_style = sfui.widgets.apply_square_icon_style
 
+function sfui.widgets.apply_round_icon_style(frame, texture, borderThickness, borderColor)
+    if not frame then return end
+    texture = texture or frame.icon
+
+    local mult = sfui.pixelScale or 1
+    local thickness = (borderThickness or 1) * mult
+
+    if frame.borderBackdrop then
+        frame.borderBackdrop:Hide()
+    end
+
+    if frame.CreateMaskTexture then
+        -- 1. Outer circular mask (for border)
+        if not frame.roundOuterMask then
+            local outerMask = frame:CreateMaskTexture()
+            outerMask:SetAllPoints(frame)
+            outerMask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+            frame.roundOuterMask = outerMask
+        end
+
+        -- 2. Outer circular border texture
+        if not frame.roundBorder then
+            local border = frame:CreateTexture(nil, "BACKGROUND", nil, -7)
+            border:SetAllPoints(frame)
+            border:AddMaskTexture(frame.roundOuterMask)
+            frame.roundBorder = border
+        end
+
+        -- 3. Inner circular mask (for icon, dark bg, highlight)
+        if not frame.roundInnerMask then
+            local innerMask = frame:CreateMaskTexture()
+            innerMask:SetPoint("TOPLEFT", frame, "TOPLEFT", thickness, -thickness)
+            innerMask:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -thickness, thickness)
+            innerMask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+            frame.roundInnerMask = innerMask
+        else
+            frame.roundInnerMask:SetPoint("TOPLEFT", frame, "TOPLEFT", thickness, -thickness)
+            frame.roundInnerMask:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -thickness, thickness)
+        end
+
+        -- 4. Inner background texture
+        if not frame.roundBg then
+            local bg = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
+            bg:SetPoint("TOPLEFT", frame, "TOPLEFT", thickness, -thickness)
+            bg:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -thickness, thickness)
+            bg:SetColorTexture(0.04, 0.04, 0.05, 0.95)
+            bg:AddMaskTexture(frame.roundInnerMask)
+            frame.roundBg = bg
+        else
+            frame.roundBg:SetPoint("TOPLEFT", frame, "TOPLEFT", thickness, -thickness)
+            frame.roundBg:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -thickness, thickness)
+        end
+
+        -- 5. Icon texture
+        if texture then
+            texture:ClearAllPoints()
+            texture:SetPoint("TOPLEFT", frame, "TOPLEFT", thickness, -thickness)
+            texture:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -thickness, thickness)
+            texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            if not texture.hasRoundMask then
+                texture:AddMaskTexture(frame.roundInnerMask)
+                texture.hasRoundMask = true
+            end
+        end
+
+        -- 6. Highlight texture (if button)
+        local hl = frame.highlightTexture or (frame.GetHighlightTexture and frame:GetHighlightTexture())
+        if hl and not hl.hasRoundMask then
+            hl:AddMaskTexture(frame.roundInnerMask)
+            hl.hasRoundMask = true
+        end
+    else
+        -- Fallback if engine doesn't have CreateMaskTexture
+        if texture then
+            texture:ClearAllPoints()
+            texture:SetPoint("TOPLEFT", frame, "TOPLEFT", thickness, -thickness)
+            texture:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -thickness, thickness)
+            texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        end
+    end
+
+    -- 7. Border color helper & initial coloring
+    if not frame.SetRoundBorderColor then
+        function frame:SetRoundBorderColor(r, g, b, a)
+            if self.roundBorder then
+                if type(r) == "table" then
+                    self.roundBorder:SetColorTexture(r[1] or r.r or 0, r[2] or r.g or 0, r[3] or r.b or 0, r[4] or r.a or 1)
+                else
+                    self.roundBorder:SetColorTexture(r or 0, g or 0, b or 0, a or 1)
+                end
+            end
+        end
+    end
+
+    local r, g, b, a = 0, 0, 0, 1
+    if borderColor then
+        if type(borderColor) == "table" then
+            r = borderColor[1] or borderColor.r or 0
+            g = borderColor[2] or borderColor.g or 0
+            b = borderColor[3] or borderColor.b or 0
+            a = borderColor[4] or borderColor.a or 1
+        end
+    end
+    frame:SetRoundBorderColor(r, g, b, a)
+
+    frame.isRoundStyle = true
+    return frame
+end
+sfui.common.apply_round_icon_style = sfui.widgets.apply_round_icon_style
+sfui.widgets.apply_circular_icon_style = sfui.widgets.apply_round_icon_style
+sfui.common.apply_circular_icon_style = sfui.widgets.apply_round_icon_style
+
+function sfui.widgets.create_round_icon_button(parent, size, name)
+    local btn = CreateFrame("Button", name, parent)
+    size = size or 20
+    btn:SetSize(size, size)
+    local icon = btn:CreateTexture(nil, "ARTWORK")
+    btn.icon = icon
+
+    local hi = btn:CreateTexture(nil, "HIGHLIGHT")
+    hi:SetAllPoints()
+    hi:SetColorTexture(1, 1, 1, 0.25)
+    btn.highlightTexture = hi
+
+    sfui.widgets.apply_round_icon_style(btn, icon, 1)
+    return btn
+end
+sfui.common.create_round_icon_button = sfui.widgets.create_round_icon_button
+
 function sfui.widgets.create_fade_animations(frame)
     local fadeInGroup = frame:CreateAnimationGroup()
     local fadeIn = fadeInGroup:CreateAnimation("Alpha")

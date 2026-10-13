@@ -95,6 +95,8 @@ sfui.options.RegisterTab({
                 return "bar mode: dual stacked"
             elseif mode == "REP" then
                 return "bar mode: single (rep)"
+            elseif mode == "LEGACY" then
+                return "bar mode: single (legacy)"
             else
                 return "bar mode: single (xp)"
             end
@@ -271,9 +273,34 @@ sfui.options.RegisterTab({
         end, "automatically activates and switches the watched reputation bar to any faction whenever reputation is gained."))
         rep_gain_cb:SetPoint("TOPLEFT", rep_top_cb, "BOTTOMLEFT", 0, -8)
 
+        local lastRepAnchor = rep_gain_cb
+        local isCamelotClient = sfui.isCamelot or (sfui.experience and sfui.experience.challenges and sfui.experience.challenges.IsAvailable and sfui.experience.challenges.IsAvailable())
+        if isCamelotClient then
+            local legacy_cb = registerCheckbox(create_checkbox(exp_panel, "track legacy challenges progress", function()
+                return sfui.db.Get("experience", "trackLegacy", true)
+            end, function(checked)
+                sfui.db.Set("experience", "trackLegacy", checked)
+                if sfui.experience and sfui.experience.Update then
+                    sfui.experience.Update()
+                end
+            end, "camelot only: tracks legacy challenges and points progress on the status bar."))
+            legacy_cb:SetPoint("TOPLEFT", rep_gain_cb, "BOTTOMLEFT", 0, -8)
+
+            local legacy_bar_cb = registerCheckbox(create_checkbox(exp_panel, "show dedicated legacy challenges bar", function()
+                return sfui.db.Get("experience", "showChallengesBar", true)
+            end, function(checked)
+                sfui.db.Set("experience", "showChallengesBar", checked)
+                if sfui.experience and sfui.experience.Update then
+                    sfui.experience.Update()
+                end
+            end, "camelot only: displays an emerald status bar docked above the experience and reputation bars."))
+            legacy_bar_cb:SetPoint("TOPLEFT", legacy_cb, "BOTTOMLEFT", 0, -8)
+            lastRepAnchor = legacy_bar_cb
+        end
+
         -- Section 4: Dimensions & Text Display
         local dim_header = exp_panel:CreateFontString(nil, "OVERLAY", g.font)
-        dim_header:SetPoint("TOPLEFT", rep_gain_cb, "BOTTOMLEFT", 0, -14)
+        dim_header:SetPoint("TOPLEFT", lastRepAnchor, "BOTTOMLEFT", 0, -14)
         dim_header:SetTextColor(white[1], white[2], white[3])
         dim_header:SetText("dimensions & text display")
 
@@ -298,6 +325,17 @@ sfui.options.RegisterTab({
         end, "thickness / height of the stacked reputation status bar in pixels.", 250))
         rep_height_slider:SetPoint("TOPLEFT", height_slider, "BOTTOMLEFT", 0, -12)
 
+        local lastHeightAnchor = rep_height_slider
+        if isCamelotClient then
+            local challenges_height_slider = registerSlider(create_slider_input(exp_panel, "challenges bar height (pixels)", function()
+                return sfui.db.Get("experience", "challengesHeight", 12)
+            end, 6, 32, 1, function(val)
+                sfui.db.Set("experience", "challengesHeight", val)
+            end, "thickness / height of the stacked legacy challenges status bar in pixels.", 250))
+            challenges_height_slider:SetPoint("TOPLEFT", rep_height_slider, "BOTTOMLEFT", 0, -12)
+            lastHeightAnchor = challenges_height_slider
+        end
+
         -- Text Visibility Dropdown
         local textVisOptions = {
             { text = "always visible",  value = "ALWAYS" },
@@ -306,7 +344,7 @@ sfui.options.RegisterTab({
         }
 
         local vis_label = exp_panel:CreateFontString(nil, "OVERLAY", g.font)
-        vis_label:SetPoint("TOPLEFT", rep_height_slider, "BOTTOMLEFT", 0, -14)
+        vis_label:SetPoint("TOPLEFT", lastHeightAnchor, "BOTTOMLEFT", 0, -14)
         vis_label:SetTextColor(white[1], white[2], white[3])
         vis_label:SetText("text visibility mode:")
 
@@ -355,7 +393,7 @@ sfui.options.RegisterTab({
         end
 
         if exp_panel.SetContentHeight then
-            exp_panel:SetContentHeight(660)
+            exp_panel:SetContentHeight(760)
         end
     end,
 })

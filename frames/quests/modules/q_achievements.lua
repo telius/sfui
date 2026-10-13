@@ -80,6 +80,16 @@ function AchievementsModule:Init(engine)
 end
 
 function AchievementsModule:IsEnabled()
+    local isCamelotClient = sfui.isCamelot
+        or (sfui.version and sfui.version.camelot)
+        or (sfui.compat and sfui.compat.is_camelot)
+        or (_G.ToggleLegacyChallenges ~= nil)
+        or (_G.LegacySystemFrame_LoadUI ~= nil)
+        or (_G.LegacySystem ~= nil)
+        or (_G.Constants and _G.Constants.LegacyConsts ~= nil)
+    if isCamelotClient then
+        return false
+    end
     return (GetTrackedAchievements ~= nil or C_ContentTracking ~= nil)
 end
 

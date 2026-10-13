@@ -46,13 +46,13 @@ function mouseover.GetBarTargetAlpha(bar, restingAlpha, activeAlpha)
         return activeAlpha or 1.0
     end
 
-    local barCfg = bar.barConfig or {}
-    if not barCfg.mouseover then
+    local modCfg = get_mod_cfg()
+    local isMouseover = (modCfg.allBarsMouseover == true) or (bar.barConfig and bar.barConfig.mouseover)
+    if not isMouseover then
         return 1.0
     end
 
     if not restingAlpha or not activeAlpha then
-        local modCfg = get_mod_cfg()
         restingAlpha = restingAlpha or modCfg.restingAlpha or 0.0
         activeAlpha = activeAlpha or modCfg.activeAlpha or 1.0
     end

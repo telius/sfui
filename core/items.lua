@@ -985,9 +985,114 @@ sfui.common.is_trinket_valid_for_spec = sfui.items.is_trinket_valid_for_spec
 
 local foodDrinkInfoCache = {}
 
+--- Clears the cached food and drink info table (e.g. on inventory / scan refreshes)
+function sfui.items.clear_food_drink_cache()
+    _G.wipe(foodDrinkInfoCache)
+end
+sfui.common.clear_food_drink_cache = sfui.items.clear_food_drink_cache
+
+local function GetSafeSpellName(spellID)
+    if not spellID then return nil end
+    if sfui.common and sfui.common.get_spell_name then
+        local name = sfui.common.get_spell_name(spellID)
+        if name and name ~= "" then return name end
+    end
+    if _G.C_Spell and _G.C_Spell.GetSpellName then
+        local name = _G.C_Spell.GetSpellName(spellID)
+        if name and name ~= "" then return name end
+    end
+    if _G.GetSpellInfo then
+        local name = _G.GetSpellInfo(spellID)
+        if name and name ~= "" then return name end
+    end
+    return nil
+end
+
+local function ExtractTooltipLineTexts(data, out)
+    if not (data and data.lines) then return 0 end
+    local count = #out
+    for i = 1, #data.lines do
+        local line = data.lines[i]
+        if line then
+            if line.leftText and line.leftText ~= "" then
+                count = count + 1
+                out[count] = line.leftText
+            end
+            if line.rightText and line.rightText ~= "" then
+                count = count + 1
+                out[count] = line.rightText
+            end
+            if line.args then
+                for _, arg in ipairs(line.args) do
+                    if arg.stringVal and arg.stringVal ~= "" then
+                        count = count + 1
+                        out[count] = arg.stringVal
+                    end
+                end
+            end
+        end
+    end
+    return count
+end
+
+local function ExtractTooltipFrameTexts(tip, bag, slot, itemID, itemLink, out)
+    if not (tip and (tip.SetBagItem or tip.SetHyperlink)) then return #out end
+    local tipName = tip:GetName()
+    if tip.SetOwner and _G.UIParent then tip:SetOwner(_G.UIParent, "ANCHOR_NONE") end
+
+    local link = itemLink or (itemID and ("item:" .. itemID))
+    if link and tip.SetHyperlink then
+        tip:ClearLines()
+        pcall(tip.SetHyperlink, tip, link)
+        local numLines = (tip.NumLines and tip:NumLines()) or 0
+        for i = 1, numLines do
+            local fsL = tipName and _G[tipName .. "TextLeft" .. i]
+            if fsL then
+                local txt = fsL:GetText()
+                if txt and txt ~= "" then
+                    out[#out + 1] = txt
+                end
+            end
+            local fsR = tipName and _G[tipName .. "TextRight" .. i]
+            if fsR then
+                local txt = fsR:GetText()
+                if txt and txt ~= "" then
+                    out[#out + 1] = txt
+                end
+            end
+        end
+    end
+
+    if bag and slot and tip.SetBagItem then
+        tip:ClearLines()
+        pcall(tip.SetBagItem, tip, bag, slot)
+        local numLines = (tip.NumLines and tip:NumLines()) or 0
+        for i = 1, numLines do
+            local fsL = tipName and _G[tipName .. "TextLeft" .. i]
+            if fsL then
+                local txt = fsL:GetText()
+                if txt and txt ~= "" then
+                    out[#out + 1] = txt
+                end
+            end
+            local fsR = tipName and _G[tipName .. "TextRight" .. i]
+            if fsR then
+                local txt = fsR:GetText()
+                if txt and txt ~= "" then
+                    out[#out + 1] = txt
+                end
+            end
+        end
+    end
+
+    return #out
+end
+
+local scratchTooltipTexts = {}
+
 --- Inspects an item to determine whether it is consumable food (restores health),
 --- consumable drink (restores mana), and whether it grants the "Well Fed" buff.
---- Uses C_TooltipInfo with fallback to dedicated sfuiTooltip (zero GameTooltip taint).
+--- Uses C_Item.GetItemSpell, C_TooltipInfo, and dedicated sfuiTooltip (zero GameTooltip taint).
 --- @param bag number|nil
 --- @param slot number|nil
 --- @param itemID number|nil
@@ -1005,24 +1110,74 @@ function sfui.items.get_food_drink_info(bag, slot, itemID, itemLink)
 
     local name, _, _, _, _, _, _, _, _, _, _, classID, subClassID = sfui.items.get_item_info(itemLink or itemID)
     if not name then
+        if C_Item_RequestLoadItemDataByID and itemID then
+            C_Item_RequestLoadItemDataByID(itemID)
+        end
         return false, false, false -- item info not yet loaded; do not cache false
     end
 
     local isConsumableClass = (classID == 0) or (_G.Enum and _G.Enum.ItemClass and classID == _G.Enum.ItemClass.Consumable)
-    local isFoodDrink = (subClassID == 5) or (_G.Enum and _G.Enum.ItemConsumableSubclass and subClassID == _G.Enum.ItemConsumableSubclass.Fooddrink)
-    if not (isConsumableClass and isFoodDrink) then
+    if classID ~= nil and not isConsumableClass then
         foodDrinkInfoCache[itemID] = { isFood = false, isDrink = false, hasWellFed = false }
         return false, false, false
     end
 
-    local wellFedText = _G.GetSpellInfo and _G.GetSpellInfo(19705)
-    local wellFedLower = wellFedText and wellFedText:lower() or "well fed"
+    _G.wipe(scratchTooltipTexts)
 
-    local eatingText = _G.GetSpellInfo and _G.GetSpellInfo(433)
-    local eatingLower = eatingText and eatingText:lower() or "eating"
+    -- 1. Direct spell inspection via C_Item.GetItemSpell / GetItemSpell
+    local itemSpellName, itemSpellID = nil, nil
+    if C_Item and C_Item.GetItemSpell then
+        itemSpellName, itemSpellID = C_Item.GetItemSpell(itemLink or itemID)
+    elseif _G.GetItemSpell then
+        itemSpellName, itemSpellID = _G.GetItemSpell(itemLink or itemID)
+    end
+    if itemSpellID then
+        local spellDesc = (_G.C_Spell and _G.C_Spell.GetSpellDescription and _G.C_Spell.GetSpellDescription(itemSpellID))
+            or (_G.GetSpellDescription and _G.GetSpellDescription(itemSpellID))
+        if spellDesc and spellDesc ~= "" then
+            scratchTooltipTexts[#scratchTooltipTexts + 1] = spellDesc
+        end
+        if itemSpellName and itemSpellName ~= "" then
+            scratchTooltipTexts[#scratchTooltipTexts + 1] = itemSpellName
+        end
+    end
 
-    local drinkingText = _G.GetSpellInfo and _G.GetSpellInfo(430)
-    local drinkingLower = drinkingText and drinkingText:lower() or "drinking"
+    -- 2. Modern C_TooltipInfo inspection
+    local C_TooltipInfo = _G.C_TooltipInfo
+    if C_TooltipInfo then
+        if bag and slot and C_TooltipInfo.GetBagItem then
+            local bagData = C_TooltipInfo.GetBagItem(bag, slot)
+            if bagData then
+                ExtractTooltipLineTexts(bagData, scratchTooltipTexts)
+            end
+        end
+        if C_TooltipInfo.GetHyperlink then
+            local linkData = C_TooltipInfo.GetHyperlink(itemLink or ("item:" .. itemID))
+            if linkData then
+                ExtractTooltipLineTexts(linkData, scratchTooltipTexts)
+            end
+        end
+        if itemSpellID and C_TooltipInfo.GetSpellByID then
+            local spellData = C_TooltipInfo.GetSpellByID(itemSpellID)
+            if spellData then
+                ExtractTooltipLineTexts(spellData, scratchTooltipTexts)
+            end
+        end
+    end
+
+    -- 3. Dedicated sfuiTooltip inspection (fallback only if C_TooltipInfo was unavailable or yielded 0 lines)
+    if #scratchTooltipTexts == 0 and sfuiTooltip then
+        ExtractTooltipFrameTexts(sfuiTooltip, bag, slot, itemID, itemLink, scratchTooltipTexts)
+    end
+
+    local wellFedSpellName = GetSafeSpellName(19705) or GetSafeSpellName(25941)
+    local wellFedLower = wellFedSpellName and wellFedSpellName:lower()
+
+    local eatingSpellName = GetSafeSpellName(433)
+    local eatingLower = eatingSpellName and eatingSpellName:lower() or "eating"
+
+    local drinkingSpellName = GetSafeSpellName(430)
+    local drinkingLower = drinkingSpellName and drinkingSpellName:lower() or "drinking"
 
     local healthStr = _G.HEALTH and _G.HEALTH:lower() or "health"
     local manaStr = _G.MANA and _G.MANA:lower() or "mana"
@@ -1030,82 +1185,62 @@ function sfui.items.get_food_drink_info(bag, slot, itemID, itemLink)
     local isFood = false
     local isDrink = false
     local hasWellFed = false
-    local foundLines = false
+    local hasUseOrEffect = false
 
-    -- 1. Modern C_TooltipInfo inspection
-    local C_TooltipInfo = _G.C_TooltipInfo
-    if C_TooltipInfo then
-        local data = nil
-        if bag and slot and C_TooltipInfo.GetBagItem then
-            data = C_TooltipInfo.GetBagItem(bag, slot)
-        elseif C_TooltipInfo.GetHyperlink then
-            data = C_TooltipInfo.GetHyperlink(itemLink or ("item:" .. itemID))
-        end
-        if data and data.lines and #data.lines > 1 then
-            foundLines = true
-            for i = 1, #data.lines do
-                local line = data.lines[i]
-                local txt = line and line.leftText
-                if txt and type(txt) == "string" and txt ~= "" then
-                    local lower = txt:lower()
-                    if lower:find(wellFedLower, 1, true) or lower:find("well fed", 1, true) then
-                        hasWellFed = true
-                        isFood = true
-                    end
-                    if lower:find(eatingLower, 1, true) or lower:find("eating", 1, true) or lower:find(healthStr, 1, true) or lower:find("health", 1, true) then
-                        isFood = true
-                    end
-                    if lower:find(drinkingLower, 1, true) or lower:find("drinking", 1, true) or lower:find(manaStr, 1, true) or lower:find("mana", 1, true) then
-                        isDrink = true
-                    end
-                end
+    for i = 1, #scratchTooltipTexts do
+        local txt = scratchTooltipTexts[i]
+        if type(txt) == "string" and txt ~= "" then
+            local lower = txt:lower()
+
+            -- Use / effect marker indicating tooltip has finished streaming its spell description
+            if lower:find("use:", 1, true) or lower:find("use :", 1, true)
+               or lower:find("restores", 1, true) or lower:find("eating", 1, true)
+               or lower:find("drinking", 1, true) or lower:find("seated while", 1, true) then
+                hasUseOrEffect = true
+            end
+
+            -- Well Fed / stat food effect criteria (English only)
+            if lower:find("well fed", 1, true)
+               or lower:find("well%-fed")
+               or lower:find("wellfed")
+               or (wellFedLower and lower:find(wellFedLower, 1, true))
+               or lower:find("become well fed", 1, true)
+               or lower:find("become well%-fed", 1, true)
+               or lower:find("spend at least %d+%s*sec")
+               or lower:find("spend at least %d+%s*second")
+               or lower:find("eating you will gain", 1, true)
+               or lower:find("eating, you will gain", 1, true) then
+                hasWellFed = true
+                isFood = true
+                hasUseOrEffect = true
+            end
+
+            -- Food / Drink generic inspection (English only)
+            if lower:find(eatingLower, 1, true) or lower:find("eating", 1, true)
+               or lower:find("seated while eating", 1, true)
+               or lower:find(healthStr, 1, true) or lower:find("health", 1, true) then
+                isFood = true
+            end
+            if lower:find(drinkingLower, 1, true) or lower:find("drinking", 1, true)
+               or lower:find("seated while drinking", 1, true)
+               or lower:find(manaStr, 1, true) or lower:find("mana", 1, true) then
+                isDrink = true
             end
         end
     end
 
-    -- 2. Fallback via dedicated sfuiTooltip
-    if not foundLines then
-        local tip = sfuiTooltip
-        if tip and tip.SetOwner and (tip.SetBagItem or tip.SetHyperlink) then
-            local tipName = tip:GetName()
-            if _G.UIParent then tip:SetOwner(_G.UIParent, "ANCHOR_NONE") end
-            tip:ClearLines()
-            if bag and slot and tip.SetBagItem then
-                tip:SetBagItem(bag, slot)
-            else
-                tip:SetHyperlink(itemLink or ("item:" .. itemID))
-            end
-            local numLines = tip:NumLines() or 0
-            if numLines > 1 then
-                foundLines = true
-                for i = 1, numLines do
-                    local fsL = tipName and _G[tipName .. "TextLeft" .. i]
-                    if fsL then
-                        local txt = fsL:GetText()
-                        if txt then
-                            local lower = txt:lower()
-                            if lower:find(wellFedLower, 1, true) or lower:find("well fed", 1, true) then
-                                hasWellFed = true
-                                isFood = true
-                            end
-                            if lower:find(eatingLower, 1, true) or lower:find("eating", 1, true) or lower:find(healthStr, 1, true) or lower:find("health", 1, true) then
-                                isFood = true
-                            end
-                            if lower:find(drinkingLower, 1, true) or lower:find("drinking", 1, true) or lower:find(manaStr, 1, true) or lower:find("mana", 1, true) then
-                                isDrink = true
-                            end
-                        end
-                    end
-                end
-            end
+    -- If no Use/Restores/Eating effect was found and no Well Fed was detected,
+    -- the tooltip spell data was not yet populated by the client. Do NOT cache false.
+    if not hasUseOrEffect and not hasWellFed and not isFood and not isDrink then
+        if C_Item_RequestLoadItemDataByID and itemID then
+            C_Item_RequestLoadItemDataByID(itemID)
         end
+        return false, false, false
     end
 
-    if not foundLines then
-        return false, false, false -- lines not yet populated
-    end
-
-    if not isFood and not isDrink then
+    if hasWellFed then
+        isFood = true
+    elseif not isFood and not isDrink and (subClassID == 5) then
         isFood = true
     end
 

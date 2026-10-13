@@ -50,6 +50,11 @@ local modDef = {
             if rf then rf:Show() end
         end
 
+        if exp.challenges and exp.challenges.Create then
+            local cf = exp.challenges.Create()
+            if cf then cf:Show() end
+        end
+
         if exp.events and exp.events.Initialize then
             exp.events.Initialize()
         end
@@ -78,6 +83,10 @@ local modDef = {
         if exp.reputation and exp.reputation.GetFrame then
             local rf = exp.reputation.GetFrame()
             if rf then rf:Hide() end
+        end
+        if exp.challenges and exp.challenges.GetFrame then
+            local cf = exp.challenges.GetFrame()
+            if cf then cf:Hide() end
         end
     end,
 
@@ -108,6 +117,12 @@ local modDef = {
             end
             exp.reputation.UpdateValues()
         end
+        if exp.challenges then
+            if key == "width" or key == "challengesHeight" or key == "repOnTop" or key == "showTicks" or key == "tickCount" or key == "trackLegacy" or key == "showChallengesBar" or key == "repHeight" or key == "height" then
+                exp.challenges.UpdateLayout()
+            end
+            exp.challenges.UpdateValues()
+        end
 
         if key == "hideBlizzardBar" and exp.events then
             exp.events.SuppressBlizzardBar()
@@ -117,6 +132,12 @@ local modDef = {
     OnSpecChanged = function(self, specID)
         if exp.bar and exp.bar.UpdateValues then
             exp.bar.UpdateValues()
+        end
+        if exp.reputation and exp.reputation.UpdateValues then
+            exp.reputation.UpdateValues()
+        end
+        if exp.challenges and exp.challenges.UpdateValues then
+            exp.challenges.UpdateValues()
         end
     end,
 
@@ -168,6 +189,14 @@ function sfui.experience_debug_info()
     debugCache.showTicks = showTicks
     debugCache.tickCount = tickCount
 
+    local ch = exp.challenges
+    local chData = ch and ch.GetData and ch.GetData()
+    local chFrame = ch and ch.GetFrame and ch.GetFrame()
+    debugCache.hasLegacy = chData and chData.hasData or false
+    debugCache.legacyRank = chData and chData.level or 0
+    debugCache.challengesBarCreated = (chFrame ~= nil)
+    debugCache.challengesBarShown = (chFrame and chFrame:IsShown()) and true or false
+
     return debugCache
 end
 
@@ -188,6 +217,10 @@ function exp.Update()
         exp.reputation.UpdateLayout()
         exp.reputation.UpdateValues()
     end
+    if exp.challenges then
+        exp.challenges.UpdateLayout()
+        exp.challenges.UpdateValues()
+    end
 end
 
 --- Set status bar texture across experience and reputation bars
@@ -198,6 +231,9 @@ function exp.SetBarTexture(texturePath)
     end
     if exp.reputation and exp.reputation.SetBarTexture then
         exp.reputation.SetBarTexture(texturePath)
+    end
+    if exp.challenges and exp.challenges.SetBarTexture then
+        exp.challenges.SetBarTexture(texturePath)
     end
 end
 
@@ -220,6 +256,9 @@ function exp.ResetPosition()
     if exp.reputation and exp.reputation.UpdateLayout then
         exp.reputation.UpdateLayout()
     end
+    if exp.challenges and exp.challenges.UpdateLayout then
+        exp.challenges.UpdateLayout()
+    end
     if sfui.common and sfui.common.print then
         sfui.common.print("experience bar position reset to default.")
     end
@@ -234,6 +273,9 @@ function exp.ToggleUnlock()
     if not exp.reputation or not exp.reputation.GetFrame or not exp.reputation.GetFrame() then
         if exp.reputation and exp.reputation.Create then exp.reputation.Create() end
     end
+    if not exp.challenges or not exp.challenges.GetFrame or not exp.challenges.GetFrame() then
+        if exp.challenges and exp.challenges.Create then exp.challenges.Create() end
+    end
 
     exp._isUnlocked = not exp._isUnlocked
     local isUnlocked = exp._isUnlocked
@@ -243,6 +285,9 @@ function exp.ToggleUnlock()
     end
     if exp.reputation and exp.reputation.SetUnlocked then
         exp.reputation.SetUnlocked(isUnlocked)
+    end
+    if exp.challenges and exp.challenges.SetUnlocked then
+        exp.challenges.SetUnlocked(isUnlocked)
     end
 
     if sfui.common and sfui.common.print then
@@ -274,24 +319,31 @@ function exp.GetBarMode()
     return currentMode
 end
 
---- Cycle through bar modes: DUAL -> XP -> REP -> DUAL
+--- Cycle through bar modes: DUAL -> XP -> REP -> (LEGACY) -> DUAL
 --- @return string newMode
 function exp.CycleBarMode()
     local curMode = exp.GetBarMode()
+    local hasLegacy = exp.challenges and exp.challenges.IsAvailable and exp.challenges.IsAvailable()
     local nextMode = "XP"
     if curMode == "DUAL" then
         nextMode = "XP"
     elseif curMode == "XP" then
         nextMode = "REP"
-    else
+    elseif curMode == "REP" then
+        if hasLegacy then
+            nextMode = "LEGACY"
+        else
+            nextMode = "DUAL"
+        end
+    else -- "LEGACY"
         nextMode = "DUAL"
     end
     exp.SetBarMode(nextMode)
     return nextMode
 end
 
---- Switch between Dual, XP, and Reputation display
---- @param mode string|nil "DUAL", "XP", or "REP"
+--- Switch between Dual, XP, Reputation, and Legacy display
+--- @param mode string|nil "DUAL", "XP", "REP", or "LEGACY"
 function exp.SetBarMode(mode)
     if not exp.bar then return end
     if mode == "DUAL" then
@@ -307,6 +359,13 @@ function exp.SetBarMode(mode)
         end
         if exp.bar.SetMode then
             exp.bar.SetMode("REP")
+        end
+    elseif mode == "LEGACY" then
+        if sfui.db and sfui.db.Set then
+            sfui.db.Set("experience", "showDualBars", false)
+        end
+        if exp.bar.SetMode then
+            exp.bar.SetMode("LEGACY")
         end
     elseif mode == "XP" then
         if sfui.db and sfui.db.Set then

@@ -48,16 +48,26 @@ local providerOrder       = {}     -- sorted list of provider names
 local staticPinBatches    = {}     -- name -> list of static pin tables
 local trackingCategories  = {}     -- list of { title = string, options = { { text, get, set } } }
 
-local pinPool             = {}     -- reusable Button frames
+local pinPool             = {}     -- reusable WorldMap Button frames
 local activePins          = {}     -- currently visible Button frames on canvas
 
+local minimapPinPool      = {}     -- reusable Minimap Button frames
+local activeMinimapPins   = {}     -- currently visible Button frames on minimap
+
 local isPinsDirty         = true
+local isMinimapPinsDirty  = true
 local updateTicker        = nil
 
 local lastMapID           = nil
 local lastCanvasW         = nil
 local lastCanvasH         = nil
 local lastPlayerLevel     = nil
+
+local lastMinimapPX       = nil
+local lastMinimapPY       = nil
+local lastMinimapFacing   = nil
+local lastMinimapRadius   = nil
+local lastMinimapMapID    = nil
 
 -- ─── Centralized Quest & Bag Status Cache ─────────────────────────────────────
 local activeQuestCache    = {}
@@ -151,8 +161,40 @@ function pins.FindOrCreateGroup(groups, x, y, threshold, mapID)
     return targetGroup
 end
 
--- ─── Centralized WorldMap Tracking Dropdown Menu Manager ──────────────────────
---- Registers a category section in the WorldMap tracking dropdown menu.
+-- ─── Centralized WorldMap & Minimap Tracking Dropdown Menu Manager ────────────
+if sfui.db and sfui.db.RegisterDefaults then
+    sfui.db.RegisterDefaults("map_pins", {
+        minimapShowPins = true,
+    })
+end
+
+local function GetMinimapShowPins()
+    if sfui.db and sfui.db.Get then
+        local val = sfui.db.Get("map_pins", "minimapShowPins")
+        if val ~= nil then return val end
+    end
+    if SfuiDB and SfuiDB.minimapShowPins ~= nil then
+        return SfuiDB.minimapShowPins
+    end
+    return true
+end
+
+local function SetMinimapShowPins(val)
+    if sfui.db and sfui.db.Set then
+        sfui.db.Set("map_pins", "minimapShowPins", val)
+    end
+    SfuiDB = SfuiDB or {}
+    SfuiDB.minimapShowPins = val
+    if not val then
+        if pins.ReleaseMinimapPins then pins.ReleaseMinimapPins() end
+    else
+        if pins.RequestMinimapRefresh then pins.RequestMinimapRefresh(0) end
+    end
+end
+pins.GetMinimapShowPins = GetMinimapShowPins
+pins.SetMinimapShowPins = SetMinimapShowPins
+
+--- Registers a category section in the WorldMap/Minimap tracking dropdown menu.
 --- @param title string section header title
 --- @param options table array of { text = string, get = function, set = function }
 function pins.RegisterTrackingCategory(title, options)
@@ -165,7 +207,7 @@ local function HookWorldMapTrackingMenu()
     if isTrackingMenuHooked then return end
     if _G.Menu and _G.Menu.ModifyMenu then
         isTrackingMenuHooked = true
-        pcall(_G.Menu.ModifyMenu, "MENU_WORLD_MAP_TRACKING", function(owner, rootDescription)
+        local function PopulateTrackingMenu(owner, rootDescription)
             for _, cat in ipairs(trackingCategories) do
                 rootDescription:CreateDivider()
                 rootDescription:CreateTitle(cat.title)
@@ -176,7 +218,9 @@ local function HookWorldMapTrackingMenu()
                     end)
                 end
             end
-        end)
+        end
+        pcall(_G.Menu.ModifyMenu, "MENU_WORLD_MAP_TRACKING", PopulateTrackingMenu)
+        pcall(_G.Menu.ModifyMenu, "MENU_MINIMAP_TRACKING", PopulateTrackingMenu)
     end
 end
 
@@ -243,7 +287,11 @@ local function AcquirePin(parent, defaultSize)
             pin.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
             pin.icon:SetDesaturated(false)
             pin.icon:SetVertexColor(1, 1, 1, 1)
-            pin:SetBackdropBorderColor(0, 0, 0, 1)
+            if pin.SetRoundBorderColor then
+                pin:SetRoundBorderColor(0, 0, 0, 1)
+            elseif pin.SetBackdropBorderColor then
+                pin:SetBackdropBorderColor(0, 0, 0, 1)
+            end
             pin.countText:SetText("")
             pin.countText:SetTextColor(1, 1, 1, 1)
             pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -251,26 +299,23 @@ local function AcquirePin(parent, defaultSize)
         end
     end
 
-    local pin = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    local pin = CreateFrame("Button", nil, parent)
     pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     pin:SetSize(defaultSize, defaultSize)
     pin.baseSize = defaultSize
     pin:SetFrameStrata("HIGH")
 
-    local mult = (sfui.pixelScale or 1)
-    pin:SetBackdrop({
-        bgFile   = [[Interface\Buttons\WHITE8x8]],
-        edgeFile = [[Interface\Buttons\WHITE8x8]],
-        edgeSize = mult,
-    })
-    pin:SetBackdropColor(0.04, 0.04, 0.05, 0.95)
-    pin:SetBackdropBorderColor(0, 0, 0, 1)
-
     local icon = pin:CreateTexture(nil, "ARTWORK")
-    icon:SetPoint("TOPLEFT", pin, "TOPLEFT", 1, -1)
-    icon:SetPoint("BOTTOMRIGHT", pin, "BOTTOMRIGHT", -1, 1)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     pin.icon = icon
+
+    local hi = pin:CreateTexture(nil, "HIGHLIGHT")
+    hi:SetAllPoints()
+    hi:SetColorTexture(1, 1, 1, 0.25)
+    pin.highlightTexture = hi
+
+    if sfui.common and sfui.common.apply_round_icon_style then
+        sfui.common.apply_round_icon_style(pin, icon, 1)
+    end
 
     local countText = pin:CreateFontString(nil, "OVERLAY")
     local fontPath = (sfui.config and sfui.config.fontFile)
@@ -282,11 +327,6 @@ local function AcquirePin(parent, defaultSize)
     countText:SetShadowColor(0, 0, 0, 1)
     countText:SetShadowOffset(1, -1)
     pin.countText = countText
-
-    local hi = pin:CreateTexture(nil, "HIGHLIGHT")
-    hi:SetAllPoints()
-    hi:SetColorTexture(1, 1, 1, 0.25)
-    pin.highlightTexture = hi
 
     -- Interactive Tooltip Script Handlers
     pin:SetScript("OnEnter", function(self)
@@ -416,6 +456,8 @@ function pins.RegisterProvider(name, config)
     providers[name] = config
     SortProviders()
     isPinsDirty = true
+    isMinimapPinsDirty = true
+    pins.RequestRefresh(0.05)
 end
 
 --- Unregisters a pin provider.
@@ -425,6 +467,8 @@ function pins.UnregisterProvider(name)
         providers[name] = nil
         SortProviders()
         isPinsDirty = true
+        isMinimapPinsDirty = true
+        pins.RequestRefresh(0.05)
     end
 end
 
@@ -435,6 +479,8 @@ function pins.SetPins(name, pinList)
     if not name then return end
     staticPinBatches[name] = pinList or {}
     isPinsDirty = true
+    isMinimapPinsDirty = true
+    pins.RequestRefresh(0.05)
 end
 
 --- Clears static pins for a category.
@@ -443,6 +489,8 @@ function pins.ClearPins(name)
     if staticPinBatches[name] then
         staticPinBatches[name] = nil
         isPinsDirty = true
+        isMinimapPinsDirty = true
+        pins.RequestRefresh(0.05)
     end
 end
 
@@ -454,30 +502,47 @@ end
 function pins.HighlightPin(pinID, duration, targetSize)
     if not pinID then return false end
     duration = duration or 0.5
+    local found = false
+
+    local function Pulse(pin)
+        local base = pin.baseSize or 20
+        local enlarged = targetSize or (base + 6)
+        pin:SetSize(enlarged, enlarged)
+        C_Timer.After(duration, function()
+            if pin and pin.SetSize then
+                pin:SetSize(base, base)
+            end
+        end)
+    end
+
     for _, pin in ipairs(activePins) do
         local pd = pin.pinData
         if pin.customID == pinID or (pd and (pd.id == pinID or pd.dungeonID == pinID)) then
-            local base = pin.baseSize or 20
-            local enlarged = targetSize or (base + 6)
-            pin:SetSize(enlarged, enlarged)
-            C_Timer.After(duration, function()
-                if pin and pin.SetSize then
-                    pin:SetSize(base, base)
-                end
-            end)
-            return true
+            Pulse(pin)
+            found = true
         end
     end
-    return false
+
+    for _, pin in ipairs(activeMinimapPins) do
+        local pd = pin.pinData
+        if pin.customID == pinID or (pd and (pd.id == pinID or pd.dungeonID == pinID)) then
+            Pulse(pin)
+            found = true
+        end
+    end
+
+    return found
 end
 
 --- Returns the count of currently visible pins, optionally filtered by provider/source.
 --- @param providerName string|nil
+--- @param onMinimap boolean|nil if true, counts active minimap pins instead of world map pins
 --- @return number count
-function pins.GetActiveCount(providerName)
-    if not providerName then return #activePins end
+function pins.GetActiveCount(providerName, onMinimap)
+    local targetList = onMinimap and activeMinimapPins or activePins
+    if not providerName then return #targetList end
     local count = 0
-    for _, pin in ipairs(activePins) do
+    for _, pin in ipairs(targetList) do
         if pin.pinData and (pin.pinData.provider == providerName or pin.pinData.source == providerName) then
             count = count + 1
         end
@@ -485,13 +550,11 @@ function pins.GetActiveCount(providerName)
     return count
 end
 
--- ─── Pin Setup & Visual Application ───────────────────────────────────────────
-local function SetupPin(pin, canvas, canvasW, canvasH, p)
-    pin.pinData  = p
-    pin.customID = p.id
-    pin:ClearAllPoints()
-    pin:SetPoint("CENTER", canvas, "TOPLEFT", canvasW * p.x, -canvasH * p.y)
+local reusableCandidateList = {}
+local reusablePlayerCandidateList = {}
+local scratchParentList = {}
 
+local function SetupPinVisuals(pin, p)
     if p.icon then
         pin.icon:SetTexture(p.icon)
     end
@@ -516,11 +579,11 @@ local function SetupPin(pin, canvas, canvasW, canvasH, p)
         pin.icon:SetVertexColor(1, 1, 1, 1)
     end
 
-    if p.borderColor then
+    if pin.SetRoundBorderColor then
+        pin:SetRoundBorderColor(p.borderColor or { 0, 0, 0, 1 })
+    elseif pin.SetBackdropBorderColor then
         local bc = p.borderColor
-        pin:SetBackdropBorderColor(bc[1] or 0, bc[2] or 0, bc[3] or 0, bc[4] or 1)
-    else
-        pin:SetBackdropBorderColor(0, 0, 0, 1)
+        pin:SetBackdropBorderColor(bc and bc[1] or 0, bc and bc[2] or 0, bc and bc[3] or 0, bc and bc[4] or 1)
     end
 
     if p.countText ~= nil then
@@ -537,12 +600,96 @@ local function SetupPin(pin, canvas, canvasW, canvasH, p)
     else
         pin.countText:SetTextColor(1, 1, 1, 1)
     end
+end
+
+-- ─── Pin Setup & Visual Application ───────────────────────────────────────────
+local function SetupPin(pin, canvas, canvasW, canvasH, p)
+    pin.pinData  = p
+    pin.customID = p.id
+    pin:ClearAllPoints()
+    pin:SetPoint("CENTER", canvas, "TOPLEFT", canvasW * p.x, -canvasH * p.y)
+
+    SetupPinVisuals(pin, p)
 
     pin:Show()
     activePins[#activePins + 1] = pin
 end
 
--- ─── Render Pass & Canvas Placement Loop ──────────────────────────────────────
+-- ─── Candidate Pin Collection Engine ──────────────────────────────────────────
+local function CollectCandidatePins(mapID, outList)
+    local list = outList or reusableCandidateList
+    wipe(list)
+    if not mapID then return list end
+
+    local playerLevel   = (UnitLevel and UnitLevel("player")) or 1
+    local playerFaction = (sfui.common and sfui.common.get_player_faction and sfui.common.get_player_faction()) or "Alliance"
+
+    -- 1. Dynamic Providers in Priority Order
+    for _, name in ipairs(providerOrder) do
+        local prov = providers[name]
+        local isEnabled = true
+        if prov.enabled ~= nil then
+            if type(prov.enabled) == "function" then
+                isEnabled = prov.enabled()
+            else
+                isEnabled = prov.enabled and true or false
+            end
+        end
+
+        if isEnabled and prov.GetPins then
+            local pinList = prov.GetPins(mapID, playerLevel, playerFaction)
+            if pinList and #pinList > 0 then
+                for _, p in ipairs(pinList) do
+                    p.provider = p.provider or name
+                    p.mapID = p.mapID or mapID
+                    p.size = p.size or prov.defaultSize or 20
+                    list[#list + 1] = p
+                end
+            end
+        end
+    end
+
+    -- 2. Static Pin Batches
+    for batchName, pinList in pairs(staticPinBatches) do
+        if pinList and #pinList > 0 then
+            for _, p in ipairs(pinList) do
+                if (p.mapID == mapID or not p.mapID) and p.x and p.y then
+                    p.provider = p.provider or batchName
+                    p.mapID = p.mapID or mapID
+                    p.size = p.size or 20
+                    list[#list + 1] = p
+                end
+            end
+        end
+    end
+
+    return list
+end
+pins.CollectCandidatePins = CollectCandidatePins
+
+local function CollectCandidatePinsForPlayer()
+    local playerMapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+    if not playerMapID then
+        wipe(reusablePlayerCandidateList)
+        return reusablePlayerCandidateList, nil
+    end
+
+    CollectCandidatePins(playerMapID, reusablePlayerCandidateList)
+
+    -- Also check parent map if player is currently in a subzone/micro-map
+    local mapInfo = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(playerMapID)
+    local parentMapID = mapInfo and mapInfo.parentMapID
+    if parentMapID and parentMapID > 0 and parentMapID ~= playerMapID then
+        CollectCandidatePins(parentMapID, scratchParentList)
+        for _, p in ipairs(scratchParentList) do
+            reusablePlayerCandidateList[#reusablePlayerCandidateList + 1] = p
+        end
+    end
+
+    return reusablePlayerCandidateList, playerMapID
+end
+
+-- ─── WorldMap Render Pass ─────────────────────────────────────────────────────
 local function RenderPins(force)
     local wmf = _G.WorldMapFrame
     if not wmf or not wmf:IsShown() then
@@ -568,8 +715,7 @@ local function RenderPins(force)
     local canvasW, canvasH = canvas:GetSize()
     if not canvasW or canvasW <= 0 or not canvasH or canvasH <= 0 then return end
 
-    local playerLevel   = (UnitLevel and UnitLevel("player")) or 1
-    local playerFaction = (sfui.common and sfui.common.get_player_faction and sfui.common.get_player_faction()) or "Alliance"
+    local playerLevel = (UnitLevel and UnitLevel("player")) or 1
 
     if not force and not isPinsDirty
         and mapID == lastMapID
@@ -587,57 +733,418 @@ local function RenderPins(force)
 
     ReleasePins()
 
-    -- 1. Render Dynamic Providers in Priority Order
-    for _, name in ipairs(providerOrder) do
-        local prov = providers[name]
-        local isEnabled = true
-        if prov.enabled ~= nil then
-            if type(prov.enabled) == "function" then
-                isEnabled = prov.enabled()
-            else
-                isEnabled = prov.enabled and true or false
-            end
-        end
-
-        if isEnabled and prov.GetPins then
-            local pinList = prov.GetPins(mapID, playerLevel, playerFaction)
-            if pinList and #pinList > 0 then
-                for _, p in ipairs(pinList) do
-                    p.provider = p.provider or name
-                    local pin = AcquirePin(canvas, p.size or prov.defaultSize or 20)
-                    SetupPin(pin, canvas, canvasW, canvasH, p)
-                end
-            end
-        end
-    end
-
-    -- 2. Render Static Pin Batches
-    for batchName, pinList in pairs(staticPinBatches) do
-        if pinList and #pinList > 0 then
-            for _, p in ipairs(pinList) do
-                if p.mapID == mapID and p.x and p.y then
-                    p.provider = p.provider or batchName
-                    local pin = AcquirePin(canvas, p.size or 20)
-                    SetupPin(pin, canvas, canvasW, canvasH, p)
-                end
-            end
-        end
+    local candidatePins = CollectCandidatePins(mapID)
+    for _, p in ipairs(candidatePins) do
+        local pin = AcquirePin(canvas, p.size or 20)
+        SetupPin(pin, canvas, canvasW, canvasH, p)
     end
 end
 pins.UpdatePins = RenderPins
 
---- Requests an asynchronous re-render pass on the canvas.
+-- ─── Minimap Pin Placement Engine ─────────────────────────────────────────────
+local cachedPlayerPins        = nil
+local cachedPlayerPinsMapID   = nil
+local minimapContainer        = nil
+
+local function InvalidateMinimapPins()
+    isMinimapPinsDirty = true
+    cachedPlayerPins = nil
+    cachedPlayerPinsMapID = nil
+end
+pins.InvalidateMinimapPins = InvalidateMinimapPins
+
+local function ReleaseMinimapPins()
+    for i, pin in ipairs(activeMinimapPins) do
+        pin:Hide()
+        pin.pinData = nil
+        pin.customID = nil
+        activeMinimapPins[i] = nil
+    end
+end
+pins.ReleaseMinimapPins = ReleaseMinimapPins
+
+local function GetMinimapViewRadius()
+    if _G.C_Minimap and _G.C_Minimap.GetViewRadius then
+        local ok, r = pcall(_G.C_Minimap.GetViewRadius)
+        if ok and r and r > 0 then
+            return r
+        end
+    end
+    local zoom = _G.Minimap and _G.Minimap.GetZoom and _G.Minimap:GetZoom() or 0
+    local isInside = (_G.GetCVar and _G.GetCVar("minimapInsideZoom") == "1") or (_G.IsIndoors and _G.IsIndoors())
+    local outdoorRadius = { [0] = 116.666, [1] = 100, [2] = 83.333, [3] = 66.666, [4] = 50, [5] = 33.333 }
+    local indoorRadius  = { [0] = 50, [1] = 40, [2] = 33.333, [3] = 25, [4] = 16.666, [5] = 10 }
+    local t = isInside and indoorRadius or outdoorRadius
+    return t[zoom] or 100
+end
+
+local function AcquireMinimapPin(parent, defaultSize)
+    defaultSize = defaultSize or 14
+    for _, pin in ipairs(minimapPinPool) do
+        if not pin:IsShown() then
+            pin:SetParent(parent)
+            pin:SetSize(defaultSize, defaultSize)
+            pin.baseSize = defaultSize
+            pin.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            pin.icon:SetDesaturated(false)
+            pin.icon:SetVertexColor(1, 1, 1, 1)
+            if pin.SetRoundBorderColor then
+                pin:SetRoundBorderColor(0, 0, 0, 1)
+            elseif pin.SetBackdropBorderColor then
+                pin:SetBackdropBorderColor(0, 0, 0, 1)
+            end
+            pin.countText:SetText("")
+            pin.countText:SetTextColor(1, 1, 1, 1)
+            pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+            return pin
+        end
+    end
+
+    local pin = CreateFrame("Button", nil, parent)
+    pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    pin:SetSize(defaultSize, defaultSize)
+    pin.baseSize = defaultSize
+    pin:SetFrameStrata(parent:GetFrameStrata())
+    pin:SetFrameLevel(parent:GetFrameLevel() + 5)
+    pin.isMinimapPin = true
+
+    local icon = pin:CreateTexture(nil, "ARTWORK")
+    pin.icon = icon
+
+    local hi = pin:CreateTexture(nil, "HIGHLIGHT")
+    hi:SetAllPoints()
+    hi:SetColorTexture(1, 1, 1, 0.25)
+    pin.highlightTexture = hi
+
+    if sfui.common and sfui.common.apply_round_icon_style then
+        sfui.common.apply_round_icon_style(pin, icon, 1)
+    end
+
+    local countText = pin:CreateFontString(nil, "OVERLAY")
+    local fontPath = (sfui.config and sfui.config.fontFile)
+        or (_G.STANDARD_TEXT_FONT and _G.STANDARD_TEXT_FONT ~= "" and _G.STANDARD_TEXT_FONT)
+        or "Fonts\\FRIZQT__.TTF"
+    countText:SetFont(fontPath, 8, "OUTLINE")
+    countText:SetPoint("BOTTOMRIGHT", pin, "BOTTOMRIGHT", 2, -2)
+    countText:SetTextColor(1, 1, 1, 1)
+    countText:SetShadowColor(0, 0, 0, 1)
+    countText:SetShadowOffset(1, -1)
+    pin.countText = countText
+
+    pin:SetScript("OnEnter", function(self)
+        local pinData = self.pinData
+        if not pinData then return end
+        if pinData.OnEnter then
+            pinData.OnEnter(self, GameTooltip, pinData)
+        elseif pinData.title and GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+            GameTooltip:ClearLines()
+            GameTooltip:AddLine(pinData.title, 1, 0.82, 0)
+            if pinData.description then
+                GameTooltip:AddLine(pinData.description, 0.85, 0.85, 0.85, true)
+            end
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("|cff80c0ffshift-click: set map waypoint|r", 0.7, 0.7, 0.7)
+            GameTooltip:Show()
+        end
+    end)
+
+    pin:SetScript("OnLeave", function(self)
+        local pinData = self.pinData
+        if pinData and pinData.OnLeave then
+            pinData.OnLeave(self, GameTooltip, pinData)
+        elseif GameTooltip then
+            GameTooltip:Hide()
+        end
+    end)
+
+    pin:SetScript("OnClick", function(self, button)
+        local pinData = self.pinData
+        if not pinData then return end
+
+        if IsShiftKeyDown() and button == "LeftButton" then
+            local mapID = pinData.mapID or (C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player"))
+            if SetWaypoint(mapID, pinData.x, pinData.y, pinData.title or pinData.label or "waypoint") then
+                return
+            end
+        end
+
+        if pinData.OnClick then
+            pinData.OnClick(self, button, pinData)
+        end
+    end)
+
+    minimapPinPool[#minimapPinPool + 1] = pin
+    return pin
+end
+
+local function SetupMinimapPin(pin, container, pixelX, pixelY, p)
+    pin.pinData  = p
+    pin.customID = p.id
+    pin:ClearAllPoints()
+    pin:SetPoint("CENTER", container, "CENTER", pixelX, pixelY)
+
+    SetupPinVisuals(pin, p)
+
+    pin:Show()
+    activeMinimapPins[#activeMinimapPins + 1] = pin
+end
+
+local mapWorldSizeCache = {}
+
+local function GetMapWorldSizeFast(mapID)
+    if not mapID then return nil, nil end
+    local cached = mapWorldSizeCache[mapID]
+    if cached ~= nil then
+        if cached then
+            return cached[1], cached[2]
+        end
+        return nil, nil
+    end
+
+    if C_Map and C_Map.GetMapWorldSize then
+        local ok, w, h = pcall(C_Map.GetMapWorldSize, mapID)
+        if ok and w and w > 0 and h and h > 0 then
+            mapWorldSizeCache[mapID] = { w, h }
+            return w, h
+        end
+    end
+    mapWorldSizeCache[mapID] = false
+    return nil, nil
+end
+
+local function RenderMinimapPins(force)
+    local mm = _G.Minimap
+    if not mm or not mm:IsShown() then
+        ReleaseMinimapPins()
+        return
+    end
+
+    if not GetMinimapShowPins() then
+        ReleaseMinimapPins()
+        return
+    end
+
+    local container = pins.GetMinimapContainer and pins.GetMinimapContainer()
+    if not container then
+        ReleaseMinimapPins()
+        return
+    end
+
+    local playerMapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+    if not playerMapID then
+        ReleaseMinimapPins()
+        lastMinimapMapID = nil
+        return
+    end
+
+    local mmW, mmH = mm:GetSize()
+    if not mmW or mmW <= 0 or not mmH or mmH <= 0 then
+        ReleaseMinimapPins()
+        return
+    end
+    local halfW = mmW * 0.5
+    local halfH = mmH * 0.5
+
+    local viewRadius = GetMinimapViewRadius()
+    if not viewRadius or viewRadius <= 0 then
+        ReleaseMinimapPins()
+        return
+    end
+
+    local isRotated = _G.GetCVarBool and _G.GetCVarBool("rotateMinimap")
+    local facing = isRotated and ((_G.GetPlayerFacing and _G.GetPlayerFacing()) or 0) or 0
+
+    if isMinimapPinsDirty or not cachedPlayerPins or cachedPlayerPinsMapID ~= playerMapID then
+        cachedPlayerPins, cachedPlayerPinsMapID = CollectCandidatePinsForPlayer()
+        isMinimapPinsDirty = false
+    end
+
+    if not cachedPlayerPins or #cachedPlayerPins == 0 then
+        ReleaseMinimapPins()
+        lastMinimapMapID = playerMapID
+        return
+    end
+
+    local primaryPos = C_Map.GetPlayerMapPosition(playerMapID, "player")
+    local primaryPX, primaryPY = 0, 0
+    if primaryPos then
+        primaryPX, primaryPY = primaryPos:GetXY()
+    end
+
+    if not force
+        and playerMapID == lastMinimapMapID
+        and math_abs(primaryPX - (lastMinimapPX or 0)) < 0.00005
+        and math_abs(primaryPY - (lastMinimapPY or 0)) < 0.00005
+        and math_abs(facing - (lastMinimapFacing or 0)) < 0.01
+        and viewRadius == lastMinimapRadius then
+        return
+    end
+
+    lastMinimapMapID    = playerMapID
+    lastMinimapPX       = primaryPX
+    lastMinimapPY       = primaryPY
+    lastMinimapFacing   = facing
+    lastMinimapRadius   = viewRadius
+
+    local cosF = isRotated and math.cos(facing) or 1
+    local sinF = isRotated and math.sin(facing) or 0
+    local pixelsPerYard = halfW / viewRadius
+    local maxDistYards = viewRadius * 1.15
+    local maxDistYardsSq = maxDistYards * maxDistYards
+    local defaultPinSize = (sfui.config and sfui.config.minimap and sfui.config.minimap.pinSize) or 14
+
+    local parentMapID, parentPX, parentPY = nil, nil, nil
+    local visibleCount = 0
+
+    for _, p in ipairs(cachedPlayerPins) do
+        local targetMapID = p.mapID or playerMapID
+        local px, py
+        if targetMapID == playerMapID then
+            px, py = primaryPX, primaryPY
+        else
+            if targetMapID ~= parentMapID then
+                parentMapID = targetMapID
+                local pPos = C_Map.GetPlayerMapPosition(targetMapID, "player")
+                if pPos then
+                    parentPX, parentPY = pPos:GetXY()
+                else
+                    parentPX, parentPY = nil, nil
+                end
+            end
+            px, py = parentPX, parentPY
+        end
+
+        if px and py then
+            local mapW, mapH = GetMapWorldSizeFast(targetMapID)
+            if mapW and mapH then
+                local dxYards = (p.x - px) * mapW
+                local dyYards = (py - p.y) * mapH
+                local distYardsSq = dxYards * dxYards + dyYards * dyYards
+
+                if distYardsSq <= maxDistYardsSq then
+                    local rotX, rotY
+                    if isRotated then
+                        rotX = dxYards * cosF + dyYards * sinF
+                        rotY = dyYards * cosF - dxYards * sinF
+                    else
+                        rotX = dxYards
+                        rotY = dyYards
+                    end
+
+                    local pixelX = rotX * pixelsPerYard
+                    local pixelY = rotY * pixelsPerYard
+
+                    local pinSize = p.size and math.min(p.size, 16) or defaultPinSize
+                    local pinRadius = pinSize * 0.5
+                    local margin = pinRadius + 1
+
+                    -- Always round boundary check
+                    local distPixelsSq = pixelX * pixelX + pixelY * pixelY
+                    local maxDistPixels = halfW - margin
+                    if distPixelsSq <= (maxDistPixels * maxDistPixels) then
+                        visibleCount = visibleCount + 1
+                        local pin = activeMinimapPins[visibleCount]
+                        if not pin then
+                            pin = AcquireMinimapPin(container, pinSize)
+                            activeMinimapPins[visibleCount] = pin
+                            pin.pinData = p
+                            pin.customID = p.id
+                            pin:SetSize(pinSize, pinSize)
+                            pin:ClearAllPoints()
+                            pin:SetPoint("CENTER", container, "CENTER", pixelX, pixelY)
+                            SetupPinVisuals(pin, p)
+                            pin:Show()
+                        else
+                            pin:SetSize(pinSize, pinSize)
+                            pin:ClearAllPoints()
+                            pin:SetPoint("CENTER", container, "CENTER", pixelX, pixelY)
+                            if pin.pinData ~= p then
+                                pin.pinData = p
+                                pin.customID = p.id
+                                SetupPinVisuals(pin, p)
+                            end
+                            if not pin:IsShown() then
+                                pin:Show()
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Hide any pins that were previously visible but are no longer in view
+    for i = visibleCount + 1, #activeMinimapPins do
+        local pin = activeMinimapPins[i]
+        if pin then
+            pin:Hide()
+            pin.pinData = nil
+            pin.customID = nil
+            activeMinimapPins[i] = nil
+        end
+    end
+end
+pins.UpdateMinimapPins = RenderMinimapPins
+
+local function GetMinimapContainer()
+    if minimapContainer then return minimapContainer end
+    local mm = _G.Minimap
+    if not mm then return nil end
+
+    minimapContainer = CreateFrame("Frame", "sfuiMinimapPinsContainer", mm)
+    minimapContainer:SetAllPoints(mm)
+    minimapContainer:SetFrameStrata(mm:GetFrameStrata())
+    minimapContainer:SetFrameLevel(mm:GetFrameLevel() + 5)
+    minimapContainer:EnableMouse(false)
+
+    local minimapThrottle = 0
+    minimapContainer:SetScript("OnUpdate", function(self, elapsed)
+        minimapThrottle = minimapThrottle + elapsed
+        if minimapThrottle < 0.066 then return end
+        minimapThrottle = 0
+        RenderMinimapPins(false)
+    end)
+
+    minimapContainer:HookScript("OnHide", function()
+        ReleaseMinimapPins()
+    end)
+
+    return minimapContainer
+end
+pins.GetMinimapContainer = GetMinimapContainer
+
+--- Requests an asynchronous re-render pass on the minimap.
+--- @param delay number|nil optional debounce delay in seconds (default 0.05)
+function pins.RequestMinimapRefresh(delay)
+    isMinimapPinsDirty = true
+    delay = delay or 0.05
+    if common and common.debounce then
+        common.debounce("sfui_minimap_pins_refresh", delay, function()
+            RenderMinimapPins(true)
+        end)
+    else
+        C_Timer.After(delay, function()
+            RenderMinimapPins(true)
+        end)
+    end
+end
+
+--- Requests an asynchronous re-render pass on both the canvas and minimap.
 --- @param delay number|nil optional debounce delay in seconds (default 0.05)
 function pins.RequestRefresh(delay)
     isPinsDirty = true
+    isMinimapPinsDirty = true
     delay = delay or 0.05
     if common and common.debounce then
         common.debounce("sfui_map_pins_refresh", delay, function()
             RenderPins(true)
+            RenderMinimapPins(true)
         end)
     else
         C_Timer.After(delay, function()
             RenderPins(true)
+            RenderMinimapPins(true)
         end)
     end
 end
@@ -669,6 +1176,7 @@ end
 
 local function InitPinEngine()
     HookWorldMapTrackingMenu()
+    GetMinimapContainer()
 
     local wmf = _G.WorldMapFrame
     if wmf then
@@ -685,13 +1193,25 @@ local function InitPinEngine()
         end
     end
 
+    pins.RegisterTrackingCategory("minimap pins", {
+        {
+            text = "show pins on minimap",
+            get  = GetMinimapShowPins,
+            set  = SetMinimapShowPins,
+        },
+    })
+
+    RenderMinimapPins(true)
+
     if sfui.events and sfui.events.RegisterEvent then
         local function OnStateChanged()
+            InvalidateMinimapPins()
             pins.RequestRefresh(0.1)
         end
 
         local function OnQuestStateChanged()
             InvalidateQuestCache()
+            InvalidateMinimapPins()
             pins.RequestRefresh(0.15)
         end
 
@@ -706,6 +1226,14 @@ local function InitPinEngine()
         sfui.events.RegisterEvent("PLAYER_LEVEL_UP", OnQuestStateChanged)
         sfui.events.RegisterEvent("SKILL_LINES_CHANGED", OnStateChanged)
         sfui.events.RegisterEvent("CHAT_MSG_SKILL", OnStateChanged)
+        sfui.events.RegisterEvent("MINIMAP_UPDATE_ZOOM", function()
+            pins.RequestMinimapRefresh(0)
+        end)
+        sfui.events.RegisterEvent("CVAR_UPDATE", function(cvarName)
+            if cvarName == "rotateMinimap" then
+                pins.RequestMinimapRefresh(0)
+            end
+        end)
     end
 end
 

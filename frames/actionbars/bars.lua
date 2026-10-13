@@ -13,6 +13,7 @@ local math_max = math.max
 local math_ceil = math.ceil
 local math_floor = math.floor
 local format = string.format
+local InCombatLockdown = _G.InCombatLockdown
 
 local wipe = _G.wipe
 
@@ -27,6 +28,8 @@ local PAGE_BINDING_PREFIX = {
     [4] = "MULTIACTIONBAR4BUTTON", -- MultiBarLeft (LEFT_ACTIONBAR_PAGE = 4)
     [5] = "MULTIACTIONBAR2BUTTON", -- MultiBarBottomRight (BOTTOMRIGHT_ACTIONBAR_PAGE = 5)
     [6] = "MULTIACTIONBAR1BUTTON", -- MultiBarBottomLeft (BOTTOMLEFT_ACTIONBAR_PAGE = 6)
+    [7] = "MULTIACTIONBAR6BUTTON", -- MultiBar6 (Action Bar 7 in Blizzard Keybindings)
+    [8] = "MULTIACTIONBAR7BUTTON", -- MultiBar7 (Action Bar 8 in Blizzard Keybindings)
 }
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -37,7 +40,7 @@ local allBarsList = {}
 function sfui.actionbars.GetAllBars()
     wipe(allBarsList)
     if sfui.actionbars.bars then
-        for i = 1, 6 do
+        for i = 1, 10 do
             local b = sfui.actionbars.bars[i]
             if b then
                 allBarsList[#allBarsList + 1] = b
@@ -95,6 +98,12 @@ function sfui.actionbars.ApplyBarLayout(barIndex)
     local bar = sfui.actionbars.bars[barIndex]
     if not bar then return end
 
+    if InCombatLockdown and InCombatLockdown() then
+        bar._needsLayout = true
+        return
+    end
+    bar._needsLayout = nil
+
     local barKey = "bar" .. tostring(barIndex)
     local cfg = sfui.actionbars.GetBarConfig(barKey)
     bar.barConfig = cfg
@@ -102,10 +111,17 @@ function sfui.actionbars.ApplyBarLayout(barIndex)
     if not cfg.enabled then
         bar:Hide()
         if bar.mover then bar.mover:Hide() end
+        if _G.ClearOverrideBindings then _G.ClearOverrideBindings(bar) end
         return
     end
 
     bar:Show()
+    if not InCombatLockdown or not InCombatLockdown() then
+        if _G.ClearOverrideBindings then _G.ClearOverrideBindings(bar) end
+        if sfui.actionbars.OverrideBarBindings then
+            sfui.actionbars.OverrideBarBindings(bar)
+        end
+    end
 
     local numButtons = cfg.buttons or 12
     local buttonsPerRow = cfg.buttonsPerRow or 3 -- default 3 columns for 3x4 grid
@@ -158,6 +174,12 @@ function sfui.actionbars.ApplyPetBarLayout()
     local bar = sfui.actionbars.petBar
     if not bar then return end
 
+    if InCombatLockdown and InCombatLockdown() then
+        bar._needsLayout = true
+        return
+    end
+    bar._needsLayout = nil
+
     local cfg = sfui.actionbars.GetBarConfig("pet")
     bar.barConfig = cfg
 
@@ -165,9 +187,16 @@ function sfui.actionbars.ApplyPetBarLayout()
         _G.UnregisterStateDriver(bar, "visibility")
         bar:Hide()
         if bar.mover then bar.mover:Hide() end
+        if _G.ClearOverrideBindings then _G.ClearOverrideBindings(bar) end
         return
     else
         _G.RegisterStateDriver(bar, "visibility", "[pet,nooverridebar,nopossessbar] show; hide")
+        if not InCombatLockdown or not InCombatLockdown() then
+            if _G.ClearOverrideBindings then _G.ClearOverrideBindings(bar) end
+            if sfui.actionbars.OverrideBarBindings then
+                sfui.actionbars.OverrideBarBindings(bar)
+            end
+        end
     end
 
     local numButtons = cfg.buttons or 10
@@ -225,6 +254,22 @@ function sfui.actionbars.ApplyPetBarLayout()
 
     if sfui.actionbars.mouseover and sfui.actionbars.mouseover.UpdateAllBars then
         sfui.actionbars.mouseover.UpdateAllBars(true)
+    end
+end
+
+function sfui.actionbars.ProcessDeferredLayouts()
+    if InCombatLockdown and InCombatLockdown() then return end
+    for i = 1, 10 do
+        local bar = sfui.actionbars.bars and sfui.actionbars.bars[i]
+        if bar and bar._needsLayout then
+            bar._needsLayout = nil
+            sfui.actionbars.ApplyBarLayout(i)
+        end
+    end
+    local petBar = sfui.actionbars.petBar
+    if petBar and petBar._needsLayout then
+        petBar._needsLayout = nil
+        sfui.actionbars.ApplyPetBarLayout()
     end
 end
 
@@ -312,7 +357,7 @@ function sfui.actionbars.CreateBars()
         LAB.RegisterCallback(sfui.actionbars, "OnButtonContentsChanged", on_button_changed)
     end
 
-    for barIndex = 1, 6 do
+    for barIndex = 1, 10 do
         local barKey = "bar" .. tostring(barIndex)
         local barName = "sfui_ActionBar" .. barIndex
         local bar = CreateFrame("Frame", barName, UIParent, "SecureHandlerStateTemplate")
@@ -397,7 +442,7 @@ function sfui.actionbars.CreateBars()
                 end
                 button:SetState(0, "action", i)
             else
-                -- Bars 2-6: Standard action bar pages
+                -- Bars 2-10: Standard action bar pages
                 local slot = (barIndex - 1) * 12 + i
                 button:SetState(0, "action", slot)
             end
@@ -434,7 +479,94 @@ function sfui.actionbars.CreateBars()
 
     -- Create Pet Bar
     sfui.actionbars.CreatePetBar()
+
+    -- Synchronize and override all hardware keybindings
+    sfui.actionbars.UpdateAllBindings()
 end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+--  Hardware Keybinding Override & Routing Engine (ElvUI Pattern)
+-- ─────────────────────────────────────────────────────────────────────────────
+local SetOverrideBindingClick = _G.SetOverrideBindingClick
+local ClearOverrideBindings   = _G.ClearOverrideBindings
+local GetBindingKey           = _G.GetBindingKey
+
+function sfui.actionbars.OverrideBarBindings(bar)
+    if not bar or not bar.buttons or not SetOverrideBindingClick then return end
+
+    if bar == sfui.actionbars.petBar then
+        for i = 1, 10 do
+            local btn = bar.buttons[i]
+            if btn and btn.GetName then
+                local keys = { GetBindingKey("BONUSACTIONBUTTON" .. i) }
+                for _, key in ipairs(keys) do
+                    if key and key ~= "" then
+                        SetOverrideBindingClick(bar, false, key, btn:GetName(), "LeftButton")
+                    end
+                end
+            end
+        end
+        return
+    end
+
+    for _, button in ipairs(bar.buttons) do
+        if button and button.GetName then
+            local targets = button._sfuiBindingTargets
+            if targets then
+                for _, target in ipairs(targets) do
+                    local keys = { GetBindingKey(target) }
+                    for _, key in ipairs(keys) do
+                        if key and key ~= "" then
+                            SetOverrideBindingClick(bar, false, key, button:GetName(), "LeftButton")
+                        end
+                    end
+                end
+            elseif button.keyBoundTarget then
+                local keys = { GetBindingKey(button.keyBoundTarget) }
+                for _, key in ipairs(keys) do
+                    if key and key ~= "" then
+                        SetOverrideBindingClick(bar, false, key, button:GetName(), "LeftButton")
+                    end
+                end
+            end
+        end
+    end
+end
+
+function sfui.actionbars.UpdateAllBindings()
+    if InCombatLockdown and InCombatLockdown() then
+        sfui.actionbars._needsUpdateBindings = true
+        return
+    end
+    sfui.actionbars._needsUpdateBindings = nil
+
+    local allBars = sfui.actionbars.GetAllBars and sfui.actionbars.GetAllBars()
+    if allBars and ClearOverrideBindings then
+        for _, bar in ipairs(allBars) do
+            if bar then
+                ClearOverrideBindings(bar)
+                if bar:IsShown() then
+                    sfui.actionbars.OverrideBarBindings(bar)
+                end
+            end
+        end
+    end
+end
+
+-- Hook binding updates and combat regen
+local bindEventFrame = CreateFrame("Frame")
+bindEventFrame:RegisterEvent("UPDATE_BINDINGS")
+bindEventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+bindEventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+bindEventFrame:SetScript("OnEvent", function(_, event)
+    if event == "PLAYER_REGEN_ENABLED" then
+        if sfui.actionbars._needsUpdateBindings then
+            sfui.actionbars.UpdateAllBindings()
+        end
+    else
+        sfui.actionbars.UpdateAllBindings()
+    end
+end)
 
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Keydown & Keyup Animation Hooks for Blizzard Bindings
@@ -445,6 +577,8 @@ local barNameMap = {
     MultiBarBottomRight = 5, -- page 5 (MULTIACTIONBAR2BUTTON)
     MultiBarRight = 3,       -- page 3 (MULTIACTIONBAR3BUTTON)
     MultiBarLeft = 4,        -- page 4 (MULTIACTIONBAR4BUTTON)
+    MultiBar6 = 7,           -- MultiBar6 (bar 7)
+    MultiBar7 = 8,           -- MultiBar7 (bar 8)
 }
 
 if hooksecurefunc then
@@ -560,7 +694,7 @@ if sfui.events and sfui.events.RegisterEvent then
         local isShow = (event == "SPELL_ACTIVATION_OVERLAY_GLOW_SHOW")
         local LCG = LibStub and LibStub("LibCustomGlow-1.0", true)
 
-        for barIdx = 1, 6 do
+        for barIdx = 1, 10 do
             local bar = bars[barIdx]
             if bar and bar:IsShown() and bar.buttons then
                 for btnIdx = 1, #bar.buttons do

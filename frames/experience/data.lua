@@ -35,6 +35,8 @@ local GetQuestLogRewardXP = _G.GetQuestLogRewardXP
 local C_Reputation = _G.C_Reputation
 local C_MajorFactions = _G.C_MajorFactions
 local C_GossipInfo = _G.C_GossipInfo
+local C_CurrencyInfo = _G.C_CurrencyInfo
+local Constants = _G.Constants
 local GetWatchedFactionInfo = _G.GetWatchedFactionInfo
 local FACTION_BAR_COLORS = _G.FACTION_BAR_COLORS
 
@@ -99,6 +101,8 @@ local _questData = {}
 local _repData = {}
 local _sessionData = {}
 local _repColor = { 0, 0, 0, 1 }
+local _legacyData = {}
+local _legacyColor = { 0.85, 0.65, 0.20, 1 }
 
 -- ─── Experience Data ──────────────────────────────────────────────────────────
 --- Query active experience values
@@ -339,6 +343,24 @@ function data.GetReputationData()
     _repData.percent = 0
     _repData.remaining = 1
     return _repData
+end
+
+-- ─── Camelot Legacy Challenges & Reward Track Data ────────────────────────────
+--- Check if the camelot legacy challenge reward track is available and active
+--- @return boolean
+function data.HasLegacySystem()
+    local ch = sfui.experience.challenges
+    return (ch and ch.IsAvailable and ch.IsAvailable()) or false
+end
+
+--- Query active legacy challenge reward track progress
+--- @return table
+function data.GetLegacyData()
+    local ch = sfui.experience.challenges
+    if ch and ch.GetData then
+        return ch.GetData()
+    end
+    return _legacyData
 end
 
 -- ─── Faction Lookup & Watched Faction Switching ──────────────────────────────

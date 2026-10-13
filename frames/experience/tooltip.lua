@@ -36,7 +36,12 @@ function tooltip.OnEnter(anchorFrame, explicitMode)
     tip:SetOwner(anchorFrame, "ANCHOR_TOP", 0, 6)
     tip:ClearLines()
 
-    if mode == "REP" then
+    if mode == "LEGACY" then
+        if sfui.experience.challenges and sfui.experience.challenges.RenderTooltip then
+            sfui.experience.challenges.RenderTooltip(tip)
+            return
+        end
+    elseif mode == "REP" then
         local rep = data.GetReputationData()
         if not rep or not rep.hasRep then
             tip:AddLine("reputation", 1, 1, 1)
@@ -137,6 +142,12 @@ function tooltip.OnEnterRep(anchorFrame)
     tooltip.OnEnter(anchorFrame, "REP")
 end
 
+--- Show legacy challenges tooltip specifically
+--- @param anchorFrame Frame
+function tooltip.OnEnterLegacy(anchorFrame)
+    tooltip.OnEnter(anchorFrame, "LEGACY")
+end
+
 --- Hide inspection tooltip
 function tooltip.OnLeave()
     if sfui.common and sfui.common.hide_tooltip then
@@ -148,7 +159,7 @@ function tooltip.OnLeave()
 end
 
 --- Share current progress summary into chat (on shift-click)
---- @param explicitMode string|nil "XP" or "REP"
+--- @param explicitMode string|nil "XP", "REP", or "LEGACY"
 function tooltip.ShareToChat(explicitMode)
     local data = sfui.experience.data
     if not data then return end
@@ -157,7 +168,11 @@ function tooltip.ShareToChat(explicitMode)
     local mode = explicitMode or (bar and bar.GetMode and bar.GetMode()) or "XP"
     local message = ""
 
-    if mode == "REP" then
+    if mode == "LEGACY" then
+        if sfui.experience.challenges and sfui.experience.challenges.GetShareMessage then
+            message = sfui.experience.challenges.GetShareMessage()
+        end
+    elseif mode == "REP" then
         local rep = data.GetReputationData()
         if not rep or not rep.hasRep then return end
         message = string_format("sfui: %s (%s) — %s / %s (%.1f%%) — %s remaining",
