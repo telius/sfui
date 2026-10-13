@@ -19,6 +19,19 @@ local UnitGUID = _G.UnitGUID
 local UnitName = _G.UnitName
 local UnitClass = _G.UnitClass
 
+--- Highest carried bag index to scan (backpack 0, bags 1-4, reagent bag 5 when available)
+--- @return number lastBag
+function mail.GetLastBagIndex()
+    local total = _G.NUM_TOTAL_EQUIPPED_BAG_SLOTS
+    if not total then
+        local consts = _G.Constants and _G.Constants.InventoryConstants
+        if consts and consts.NumBagSlots then
+            total = consts.NumBagSlots + (consts.NumReagentBagSlots or 0)
+        end
+    end
+    return total or _G.NUM_BAG_SLOTS or 4
+end
+
 --- Ensure accountwide database structure is initialized
 --- @return table settings
 function mail.GetSettings()
@@ -742,6 +755,80 @@ local function MatchesTradeskillCategory(classID, subclassID, categoryKey, itemI
     return false
 end
 
+-- ── recipe-usage fallback for generic trade goods ─────────────────────────────
+-- trade goods subclass 11 ("other": dyes, bleach, flux, vials, spices, salt) has no
+-- profession hint. route these by which professions consume them in the recipe db.
+local TRADE_OTHER_SUBCLASS = 11
+local SKILL_TO_CATEGORY = {
+    [197] = "sendCloth",       -- tailoring
+    [165] = "sendLeather",     -- leatherworking
+    [164] = "sendOre",         -- blacksmithing
+    [202] = "sendEngineering", -- engineering
+    [333] = "sendEnchanting",  -- enchanting
+    [171] = "sendHerbs",       -- alchemy
+    [185] = "sendCooking",     -- cooking
+    [773] = "sendInscription", -- inscription
+    [755] = "sendGems",        -- jewelcrafting
+}
+-- tie-break order when two professions use a reagent equally often
+local CATEGORY_RANK = {
+    sendCloth = 1, sendLeather = 2, sendOre = 3, sendEngineering = 4, sendEnchanting = 5,
+    sendHerbs = 6, sendCooking = 7, sendInscription = 8, sendGems = 9,
+}
+
+local reagentCounts   -- itemID -> { [catKey] = recipeCount }, built lazily (false = no db)
+local reagentSorted = {} -- itemID -> { catKey, ... } ordered by usage, memoized per item
+
+local function BuildReagentCounts()
+    reagentCounts = false
+    local db = sfui.recipes_camelot
+    local raw = db and db._raw
+    if type(raw) ~= "table" then return end
+
+    local counts = {}
+    for _, rec in pairs(raw) do
+        local catKey = SKILL_TO_CATEGORY[rec[2]]
+        local reagentStr = rec[8]
+        if catKey and type(reagentStr) == "string" then
+            for idStr in reagentStr:gmatch("(%d+):?%d*") do
+                local id = tonumber(idStr)
+                local c = counts[id]
+                if not c then
+                    c = {}
+                    counts[id] = c
+                end
+                c[catKey] = (c[catKey] or 0) + 1
+            end
+        end
+    end
+    reagentCounts = counts
+end
+
+--- Categories whose professions consume this item, most recipes first
+--- @param itemID number
+--- @return table|nil catKeys
+function mail.GetReagentCategories(itemID)
+    if not itemID then return nil end
+    local cached = reagentSorted[itemID]
+    if cached ~= nil then return cached or nil end
+
+    if reagentCounts == nil then BuildReagentCounts() end
+    local c = reagentCounts and reagentCounts[itemID]
+    if not c then
+        reagentSorted[itemID] = false
+        return nil
+    end
+
+    local list = {}
+    for catKey in pairs(c) do list[#list + 1] = catKey end
+    table.sort(list, function(a, b)
+        if c[a] ~= c[b] then return c[a] > c[b] end
+        return CATEGORY_RANK[a] < CATEGORY_RANK[b]
+    end)
+    reagentSorted[itemID] = list
+    return list
+end
+
 --- Find destination recipient for a specific bag item
 --- @param bag number
 --- @param slot number
@@ -810,6 +897,24 @@ function mail.FindDestinationForBagItem(bag, slot)
                 end
             end
         end
+
+        -- 2b. generic trade goods ("other"): route to the alt handling the profession that uses it most
+        local tradeClass = (Enum and Enum.ItemClass and Enum.ItemClass.Tradegoods) or 7
+        if (classID == tradeClass or classID == 7) and subclassID == TRADE_OTHER_SUBCLASS then
+            local catList = mail.GetReagentCategories(itemID)
+            if catList then
+                for _, catKey in ipairs(catList) do
+                    for guid, route in pairs(settings.routes or {}) do
+                        if guid ~= myGUID and route[catKey] then
+                            local alt = SfuiDB.alts and SfuiDB.alts[guid]
+                            if alt and alt.name then
+                                return guid, alt.name, alt.realm, "category_" .. catKey
+                            end
+                        end
+                    end
+                end
+            end
+        end
     end
 
     -- 3. Disenchant BoE rule
@@ -835,8 +940,8 @@ function mail.ScanPendingMail(targetGUID)
 
     if not C_Container then return manifest, 0, 0 end
 
-    -- Scan standard backpack (0) and 4 bags (1-4)
-    for bag = 0, 4 do
+    -- Scan backpack (0), bags (1-4) and reagent bag (5) when present
+    for bag = 0, mail.GetLastBagIndex() do
         local numSlots = C_Container.GetContainerNumSlots(bag) or 0
         for slot = 1, numSlots do
             local destGUID, destName, destRealm, reason = mail.FindDestinationForBagItem(bag, slot)

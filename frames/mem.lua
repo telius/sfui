@@ -68,8 +68,14 @@ local function GetDebug(globalName, modName)
             return res
         end
     end
-    if modName and sfui.modules[modName] and sfui.modules[modName].GetDebugInfo then
+    if modName and sfui.modules and sfui.modules[modName] and sfui.modules[modName].GetDebugInfo then
         local ok, res = pcall(function() return sfui.modules[modName]:GetDebugInfo() end)
+        if ok and type(res) == "table" then
+            return res
+        end
+    end
+    if modName and sfui[modName] and type(sfui[modName].GetDebugInfo) == "function" then
+        local ok, res = pcall(function() return sfui[modName]:GetDebugInfo() end)
         if ok and type(res) == "table" then
             return res
         end
@@ -760,6 +766,22 @@ function sfui.mem.GetModuleStats()
         stats["totembar"] = totemMod
     end
 
+    -- Action Bars Module (In-House Engine)
+    local abMod = {
+        name = "action bars",
+        status = "|cff888888idle|r",
+        line1 = "bars: 0 active • buttons: 0",
+        line2 = "movers: locked",
+    }
+    local ab = GetDebug("actionbars_debug_info", "actionbars")
+    if ab then
+        local actBars = tonumber(ab.activeBars) or 0
+        abMod.status = actBars > 0 and "|cff00ff88active|r" or "|cff888888idle|r"
+        abMod.line1 = string_format("bars: %d active • buttons: %d", actBars, tonumber(ab.totalButtons) or 0)
+        abMod.line2 = string_format("movers: %s", ab.unlocked and "|cffffaa00unlocked|r" or "locked")
+    end
+    stats["actionbars"] = abMod
+
     return stats
 end
 
@@ -783,26 +805,21 @@ local function GetAddonUsageKB()
     local getMem = _G.GetAddOnMemoryUsage or GetAddOnMemoryUsage
     if not getMem then return 0 end
 
-    if cachedAddonIndex then
-        local mem = getMem(cachedAddonIndex)
-        if mem and mem > 0 then
-            return mem
+    local function SafeGet(id)
+        if not id then return 0 end
+        local ok, val = pcall(getMem, id)
+        if ok and type(val) == "number" and val > 0 then
+            return val
         end
+        return 0
     end
 
-    -- 1. Try folder / addon name from file chunk vararg
-    local mem = (addonName and getMem(addonName)) or 0
-    if mem and mem > 0 then return mem end
+    if cachedAddonIndex then
+        local mem = SafeGet(cachedAddonIndex)
+        if mem > 0 then return mem end
+    end
 
-    -- 2. Try explicit "sfui"
-    mem = getMem("sfui") or 0
-    if mem and mem > 0 then return mem end
-
-    -- 3. Try uppercase "SFUI"
-    mem = getMem("SFUI") or 0
-    if mem and mem > 0 then return mem end
-
-    -- 4. Search by index across installed addons
+    -- 1. Search by index across installed addons (safest and authoritative in Blizzard API)
     local cAddOns = _G.C_AddOns
     local num = (cAddOns and cAddOns.GetNumAddOns and cAddOns.GetNumAddOns())
         or (_G.GetNumAddOns and _G.GetNumAddOns())
@@ -812,12 +829,22 @@ local function GetAddonUsageKB()
             or (_G.GetAddOnInfo and _G.GetAddOnInfo(i))
         if name and (name:lower() == "sfui" or (addonName and name:lower() == addonName:lower())) then
             cachedAddonIndex = i
-            mem = getMem(i) or 0
-            if mem and mem > 0 then return mem end
+            local mem = SafeGet(i)
+            if mem > 0 then return mem end
         end
     end
 
-    return mem or 0
+    -- 2. Try folder / addon name from file chunk vararg
+    if addonName then
+        local mem = SafeGet(addonName)
+        if mem > 0 then return mem end
+    end
+
+    -- 3. Try lowercase "sfui"
+    local mem = SafeGet("sfui")
+    if mem > 0 then return mem end
+
+    return 0
 end
 
 local function RefreshAddonMemory(force)
@@ -838,7 +865,7 @@ local function RefreshAddonMemory(force)
     if shouldUpdate then
         local updateMem = _G.UpdateAddOnMemoryUsage or UpdateAddOnMemoryUsage
         if updateMem then
-            updateMem()
+            pcall(updateMem)
         end
         lastMemoryScanTime = now
     end
@@ -1019,8 +1046,8 @@ local activeTab = "modules"
 local MODULE_SECTIONS = {
     {
         title = "bars & combat",
-        modules = sfui.isRetail and { "bars", "castbars", "vehicle", "soulfragments", "experience" }
-                                 or { "bars", "threat", "target", "swing", "totembar", "castbars", "vehicle", "experience" },
+        modules = sfui.isRetail and { "bars", "actionbars", "castbars", "vehicle", "soulfragments", "experience" }
+                                 or { "bars", "actionbars", "threat", "target", "swing", "totembar", "castbars", "vehicle", "experience" },
     },
     {
         title = "tracking & cooldowns",
@@ -1032,7 +1059,7 @@ local MODULE_SECTIONS = {
             local list = {
                 "alts", "automation", "currency", "cursor", "dispatcher", "fishing",
                 "gear", "hide", "location", "logs", "lootfeed", "merchant", "minimap",
-                "pets", "quests", "research", "stats", "transfer"
+                "pets", "quests", "stats"
             }
             if sfui.isRetail then
                 table_insert(list, "bonusroll")
@@ -1040,6 +1067,8 @@ local MODULE_SECTIONS = {
                 table_insert(list, "lootspec")
                 table_insert(list, "mythic")
                 table_insert(list, "portals")
+                table_insert(list, "research")
+                table_insert(list, "transfer")
                 table_insert(list, "worldevents")
             else
                 table_insert(list, "buffs")
@@ -1065,7 +1094,9 @@ sfui.mem.MODULE_ORDER = MODULE_ORDER
 function sfui.mem.create_mem_panel()
     if frame then return frame end
 
-    local CreateFlatButton = common.create_flat_button
+    local CreateFlatButton = (sfui.common and sfui.common.create_flat_button) or (sfui.widgets and sfui.widgets.create_flat_button)
+    local CreateCloseButton = (sfui.common and sfui.common.create_close_button) or (sfui.widgets and sfui.widgets.create_close_button)
+    local StyleScrollBar = (sfui.common and sfui.common.style_scrollbar) or (sfui.widgets and sfui.widgets.style_scrollbar)
     local FRAME_W, FRAME_H = 650, 460
 
     frame = CreateFrame("Frame", "sfui_mem_frame", UIParent, "BackdropTemplate")
@@ -1077,10 +1108,6 @@ function sfui.mem.create_mem_panel()
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-
-    -- Apply theme styling (Camelot Heavy Bronze or Modern Minimalist)
-    sfui.theme.ApplyWindowStyle(frame)
-    sfui.theme.RegisterWindow(frame)
     frame:Hide()
     table_insert(UISpecialFrames, "sfui_mem_frame")
 
@@ -1092,16 +1119,20 @@ function sfui.mem.create_mem_panel()
     headerFrame:SetFrameLevel((frame:GetFrameLevel() or 1) + 15)
     headerFrame:EnableMouse(false)
     frame.headerFrame = headerFrame
+    frame.header = headerFrame
 
     -- Header Title (Lowercase)
     local title = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightMedium")
     title:SetPoint("TOPLEFT", 12, -8)
     title:SetText("|cff6600ffsfui|r  |cffffffffmemory & diagnostics|r")
+    frame.title = title
 
     -- Close Button
-    local close_btn = common.create_close_button(frame, function() frame:Hide() end, 20)
+    local close_btn = CreateCloseButton(frame, function() frame:Hide() end, 20)
     close_btn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
     frame.close_btn = close_btn
+    frame.closeBtn = close_btn
+    frame.close_button = close_btn
 
     -- -----------------------------------------------------------------------
     -- Row 1: 3 Flat Metric KPI Cards (Lowercase)
@@ -1215,8 +1246,9 @@ function sfui.mem.create_mem_panel()
     modScroll:SetPoint("TOPLEFT", 4, -4)
     modScroll:SetPoint("BOTTOMRIGHT", -22, 4)
     modScroll:EnableMouseWheel(true)
-    if modScroll.ScrollBar then
-        common.style_scrollbar(modScroll.ScrollBar)
+    local scrollBar = modScroll.ScrollBar or _G["SfuiMemScrollScrollBar"]
+    if scrollBar and StyleScrollBar then
+        StyleScrollBar(scrollBar)
     end
     modScroll:SetScript("OnMouseWheel", function(self, delta)
         local sb = self.ScrollBar
@@ -1387,20 +1419,30 @@ function sfui.mem.create_mem_panel()
     frame.emptyHint = emptyHint
 
     -- Tab Switching
-    local function SelectTab(tabName)
+    local function SelectTab(tabName, noUpdate)
         activeTab = tabName
-        if tabName == "modules" then
+        local isMod = (tabName == "modules")
+        if isMod then
             contentBox.modView:Show()
             contentBox.lbView:Hide()
-            tab_modules:SetBackdropColor(0.4, 0.0, 1.0, 0.9)
-            tab_profiler:SetBackdropColor(0.12, 0.12, 0.16, 0.8)
         else
             contentBox.modView:Hide()
             contentBox.lbView:Show()
-            tab_profiler:SetBackdropColor(0.4, 0.0, 1.0, 0.9)
-            tab_modules:SetBackdropColor(0.12, 0.12, 0.16, 0.8)
         end
-        if frame and frame:IsShown() then
+
+        if sfui.theme and sfui.theme.SetButtonSelected then
+            sfui.theme.SetButtonSelected(tab_modules, isMod)
+            sfui.theme.SetButtonSelected(tab_profiler, not isMod)
+        else
+            if tab_modules.SetBackdropColor then
+                tab_modules:SetBackdropColor(isMod and 0.4 or 0.12, isMod and 0.0 or 0.12, isMod and 1.0 or 0.16, 0.9)
+            end
+            if tab_profiler.SetBackdropColor then
+                tab_profiler:SetBackdropColor(not isMod and 0.4 or 0.12, not isMod and 0.0 or 0.12, not isMod and 1.0 or 0.16, 0.9)
+            end
+        end
+
+        if not noUpdate and frame and frame:IsShown() then
             sfui.mem.UpdateGUI(false)
         end
     end
@@ -1408,24 +1450,40 @@ function sfui.mem.create_mem_panel()
 
     tab_modules:SetScript("OnClick", function() SelectTab("modules") end)
     tab_profiler:SetScript("OnClick", function() SelectTab("profiler") end)
-    SelectTab("modules")
+    SelectTab("modules", true)
 
     frame:SetScript("OnShow", function()
         -- Ensure modules tab is active unless profiler is currently watching
         if not watcherActive and sfui.mem.SelectTab then
-            sfui.mem.SelectTab("modules")
+            sfui.mem.SelectTab("modules", true)
         end
         sfui.mem.UpdateGUI(true)
 
         -- Register lightweight 1.0s periodic update (non-blocking, force=false)
-        sfui.events.RegisterUpdate("MemGUI", 1.0, function()
-            sfui.mem.UpdateGUI(false)
-        end)
+        if sfui.events and sfui.events.RegisterUpdate then
+            sfui.events.RegisterUpdate("MemGUI", 1.0, function()
+                sfui.mem.UpdateGUI(false)
+            end)
+        end
     end)
 
     frame:SetScript("OnHide", function()
-        sfui.events.UnregisterUpdate("MemGUI")
+        if sfui.events and sfui.events.UnregisterUpdate then
+            sfui.events.UnregisterUpdate("MemGUI")
+        end
     end)
+
+    -- Apply theme styling & register with theme engine AFTER all children and scripts are configured
+    if sfui.theme and sfui.theme.ApplyWindowStyle then
+        sfui.theme.ApplyWindowStyle(frame)
+    end
+    if sfui.theme and sfui.theme.RegisterWindow then
+        sfui.theme.RegisterWindow(frame, function(f, curPal)
+            if f.headerFrame and f.title and curPal and curPal.headerColor then
+                f.title:SetTextColor(curPal.headerColor[1], curPal.headerColor[2], curPal.headerColor[3], 1)
+            end
+        end)
+    end
 
     sfui.mem.gui = frame
     return frame
@@ -1475,6 +1533,8 @@ function sfui.mem.UpdateGUI(force)
                     card.line2:SetText(data.line2 or "")
                 end
             end
+        elseif not ok and frame and frame.actionStatusText then
+            frame.actionStatusText:SetText("|cffff4444error scanning modules: " .. tostring(modStats):lower() .. "|r")
         end
     end
 
@@ -1519,6 +1579,7 @@ end
 
 function sfui.mem.ToggleGUI()
     local f = sfui.mem.create_mem_panel()
+    if not f then return end
     if f:IsShown() then
         f:Hide()
     else

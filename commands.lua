@@ -149,6 +149,14 @@ SlashCmdList["SFUI"] = function(msg)
         if sfui.triage and sfui.triage.CheckSoulShards then
             sfui.triage.CheckSoulShards()
         end
+    elseif cmd == "move" or cmd == "unlock" then
+        if sfui.actionbars and sfui.actionbars.ToggleMovers then
+            sfui.actionbars.ToggleMovers(true)
+        end
+    elseif cmd == "lock" then
+        if sfui.actionbars and sfui.actionbars.ToggleMovers then
+            sfui.actionbars.ToggleMovers(false)
+        end
     elseif cmd == "rl" or cmd == "reload" then
         C_UI.Reload()
     elseif cmd == "help" or cmd == "?" then
@@ -216,4 +224,20 @@ SlashCmdList["SFUIMAIL"] = function()
         sfui.alts.ToggleMailConfig()
     end
 end
+
+-- Dedicated Action Bar Movers Commands (/sfmove, /sflock)
+SLASH_SFUIMOVE1 = "/sfmove"
+SlashCmdList["SFUIMOVE"] = function()
+    if sfui.actionbars and sfui.actionbars.ToggleMovers then
+        sfui.actionbars.ToggleMovers(true)
+    end
+end
+
+SLASH_SFUILOCK1 = "/sflock"
+SlashCmdList["SFUILOCK"] = function()
+    if sfui.actionbars and sfui.actionbars.ToggleMovers then
+        sfui.actionbars.ToggleMovers(false)
+    end
+end
+
 

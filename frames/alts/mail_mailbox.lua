@@ -625,8 +625,9 @@ local function SetupMailFrameHook()
             local opts = {}
             for _, a in ipairs(alts) do
                 local recipient = (sfui.alts and sfui.alts.GetMailRecipient and sfui.alts.GetMailRecipient(a)) or a.name
+                local dispName = (sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(a)) or a.name
                 table.insert(opts, {
-                    label = string.format("%s (lvl %d)", common.class_color_name(a.name, a.class), a.level or 1),
+                    label = string.format("%s (lvl %d)", common.class_color_name(dispName, a.class), a.level or 1),
                     value = recipient,
                 })
             end

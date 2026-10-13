@@ -18,6 +18,7 @@ Libs/LibSharedMedia-3.0/LibSharedMedia-3.0.lua
 Libs/LibCustomGlow-1.0/LibCustomGlow-1.0.xml
 Libs/LibDataBroker-1.1/LibDataBroker-1.1.lua
 Libs/LibDBIcon-1.0/LibDBIcon-1.0.lua
+Libs/LibActionButton-1.0/LibActionButton-1.0.lua
 config.lua
 data/spells.lua
 data/stats.lua
@@ -49,6 +50,7 @@ frames/options/tabs/tab_main.lua
 frames/themes/tab_theme.lua
 frames/options/tabs/tab_automation.lua
 frames/options/tabs/tab_bars.lua
+frames/options/tabs/tab_actionbars.lua
 frames/options/tabs/tab_classutility.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/options/tabs/tab_portals.lua
 frames/options/tabs/tab_buffs.lua [AllowLoadGameType camelot, classic]
@@ -69,6 +71,15 @@ frames/options/tabs/tab_debug.lua
 
 frames/cursor.lua
 frames/hide.lua
+
+# Action Bars Engine (Bars 1-6)
+frames/actionbars/style.lua
+frames/actionbars/paging.lua
+frames/actionbars/movers.lua
+frames/actionbars/mouseover.lua
+frames/actionbars/bars.lua
+frames/actionbars/actionbars.lua
+
 frames/research.lua [AllowLoadGameType standard][ExcludeLoadGameType camelot, classic]
 frames/merchant/merchant_filter.lua
 frames/merchant/merchant_utility.lua

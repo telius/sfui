@@ -113,7 +113,7 @@ end
 --- @return number|nil bag, number|nil slot
 local function FindItemInBags(itemID)
     if not C_Container or not itemID then return nil, nil end
-    for bag = 0, 4 do
+    for bag = 0, mail.GetLastBagIndex() do
         local numSlots = C_Container.GetContainerNumSlots(bag) or 0
         for slot = 1, numSlots do
             local info = C_Container.GetContainerItemInfo(bag, slot)
@@ -531,7 +531,7 @@ local function GetTotalFreeBagSlots()
         return C_Container.CalculateTotalNumberOfFreeBagSlots()
     end
     local free = 0
-    for bag = 0, 4 do
+    for bag = 0, mail.GetLastBagIndex() do
         if C_Container and C_Container.GetContainerNumFreeSlots then
             free = free + (C_Container.GetContainerNumFreeSlots(bag) or 0)
         end
@@ -575,6 +575,9 @@ function mail.StartDispatch(onProgress, onComplete, targetGUID)
         local recipient = (sfui.alts and sfui.alts.GetMailRecipient and sfui.alts.GetMailRecipient(data))
         if not recipient or recipient == "" then
             recipient = data.name or ""
+            if data.surname and data.surname ~= "" and not recipient:find(" ") then
+                recipient = string.format("%s %s", recipient, data.surname)
+            end
             local targetRealm = (data.realm or ""):gsub("%s+", "")
             if targetRealm ~= "" and targetRealm:lower() ~= myNormRealm then
                 recipient = string.format("%s-%s", recipient, targetRealm)

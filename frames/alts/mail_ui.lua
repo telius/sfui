@@ -356,7 +356,7 @@ function mail.CreateConfigFrame()
     f.centerTitle = centerTitle
 
     -- Center Panel Mode Tabs
-    local ignoredTab = common.create_flat_button(centerPanel, "never send", 76, 18, function()
+    local ignoredTab = common.create_flat_button(centerPanel, "blacklist", 76, 18, function()
         centerMode = "ignored"
         RefreshUI()
     end)
@@ -561,6 +561,7 @@ RefreshUI = function()
             nameText:SetPoint("TOPLEFT", 10, -5)
             nameText:SetPoint("RIGHT", btn, "RIGHT", -6, 0)
             nameText:SetJustifyH("LEFT")
+            nameText:SetWordWrap(false)
             btn.nameText = nameText
 
             local noProfText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -651,10 +652,10 @@ RefreshUI = function()
             btn:SetBackdropBorderColor(0.14, 0.14, 0.17, 0.8)
         end
 
+        local dispName = (sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(a)) or a.name
         local enchTag = a.hasEnchanting and " |cff00ff88*|r" or ""
         local lvlTag = string.format(" |cff777788%d|r", a.level or 1)
-        local curTag = a.isCurrent and " |cff888888(current)|r" or ""
-        btn.nameText:SetText(string.format("%s%s%s%s", common.class_color_name(a.name, a.class), lvlTag, curTag, enchTag))
+        btn.nameText:SetText(string.format("%s%s%s", common.class_color_name(dispName, a.class), lvlTag, enchTag))
 
         local profs = a.professions or {}
         if #profs == 0 then

@@ -36,6 +36,12 @@ local ACTION_BAR_NAMES   = {
 }
 
 local function RestoreAllBarsAlpha()
+    local abMod = sfui.config and sfui.config.actionbars
+    if SfuiDB and SfuiDB.actionbars and SfuiDB.actionbars.enabled ~= nil then
+        if SfuiDB.actionbars.enabled then return end
+    elseif abMod and abMod.enabled then
+        return
+    end
     for _, name in ipairs(ACTION_BAR_NAMES) do
         local bar = _G[name]
         if bar and bar.SetAlpha and bar.GetAlpha and bar:GetAlpha() ~= 1.0 then

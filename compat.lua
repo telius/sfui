@@ -863,20 +863,105 @@ function sfui.api.ShareQuest(questID, questLogIndex)
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
---  CAMELOT EXTENSION POINT
---  ─────────────────────────────────────────────────────────────────────────────
---  When the API lands, add capability flags to sfui.compat.has and either:
---    a) add an elseif IS_CAMELOT branch in the relevant sfui.api functions
---    b) create compat_camelot.lua for larger divergences and dofile/load it here
---
---  Template:
---
---  if IS_CAMELOT then
---      sfui.compat.has.cooldown_viewer = (CamelotCooldownViewer ~= nil)
---      sfui.compat.has.toybox          = (C_ToyBox ~= nil)
---
---      function sfui.api.GetAuraData(unit, index, filter)
---          -- Camelot implementation
---      end
---  end
+--  CAMELOT EXTENSION POINT & ENGINE WORKAROUNDS
 -- ══════════════════════════════════════════════════════════════════════════════
+if IS_CAMELOT then
+    -- Fix Blizzard 1.60.1 / Camelot Gamepad PetActionFlyout bug (PetActionFlyout.lua:156)
+    -- In Blizzard_GamepadActionBars/Camelot/PetActionFlyout.lua, PetActionFlyoutButtonMixin
+    -- is mixed into GamepadMainActionBarFrame.PageUnit.LeftClassAction during ContinueOnPlayerLogin
+    -- but never sets self.popup (omits UpdateFlyoutPopup). When a Hunter or Warlock's pet
+    -- attacks, ToggleFlash() attempts self.popup.AttackButton.Flash:SetShown(), crashing with:
+    -- "attempt to index field 'popup' (a nil value)".
+    local function patchCamelotGamepadPetFlyout()
+        local gmb = _G.GamepadMainActionBarFrame
+        local button = gmb and gmb.PageUnit and gmb.PageUnit.LeftClassAction
+        if not button then return end
+
+        if not button.popup then
+            if button.UpdateFlyoutPopup then
+                button:UpdateFlyoutPopup()
+            elseif _G.GamepadPetActionFlyout and button.SetPopup then
+                button:SetPopup(_G.GamepadPetActionFlyout)
+            else
+                button.popup = _G.GamepadPetActionFlyout
+            end
+        end
+
+        local safeSetFlashing = function(self, enabled)
+            if not self.popup then
+                if self.UpdateFlyoutPopup then
+                    self:UpdateFlyoutPopup()
+                elseif _G.GamepadPetActionFlyout and self.SetPopup then
+                    self:SetPopup(_G.GamepadPetActionFlyout)
+                else
+                    self.popup = _G.GamepadPetActionFlyout
+                end
+            end
+
+            if not (self.popup and self.popup.AttackButton and self.popup.AttackButton.Flash) then
+                if self.flashTicker then
+                    self.flashTicker:Cancel()
+                    self.flashTicker = nil
+                end
+                if self.Flash then
+                    self.Flash:SetShown(false)
+                end
+                return
+            end
+
+            local function ToggleFlash(shouldShow)
+                if shouldShow == nil then
+                    shouldShow = self.Flash and not self.Flash:IsShown()
+                end
+                if self.popup and self.popup.AttackButton and self.popup.AttackButton.Flash then
+                    self.popup.AttackButton.Flash:SetShown(shouldShow)
+                end
+                if self.Flash then
+                    self.Flash:SetShown(shouldShow)
+                end
+            end
+
+            if enabled then
+                if not self.flashTicker then
+                    local flashTime = _G.ATTACK_BUTTON_FLASH_TIME or 0.5
+                    self.flashTicker = C_Timer.NewTicker(flashTime, function() ToggleFlash() end)
+                    ToggleFlash(true)
+                end
+            elseif self.flashTicker then
+                self.flashTicker:Cancel()
+                self.flashTicker = nil
+                ToggleFlash(false)
+            end
+        end
+
+        local safeUpdateFlash = function(self)
+            local attacking = self.IsPetAttacking and self:IsPetAttacking()
+            local visible = self:IsVisible()
+            self:SetFlashing(visible and attacking)
+        end
+
+        if button.SetFlashing ~= safeSetFlashing then
+            button.SetFlashing = safeSetFlashing
+            button.UpdateFlash = safeUpdateFlash
+        end
+    end
+
+    if _G.EventUtil and _G.EventUtil.ContinueOnPlayerLogin then
+        _G.EventUtil.ContinueOnPlayerLogin(patchCamelotGamepadPetFlyout)
+    end
+
+    local watcher = _G.CreateFrame("Frame")
+    watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
+    watcher:RegisterEvent("ADDON_LOADED")
+    watcher:SetScript("OnEvent", function(self, event, arg1)
+        if event == "ADDON_LOADED" then
+            if arg1 == "Blizzard_GamepadActionBars" then
+                patchCamelotGamepadPetFlyout()
+            end
+        else
+            patchCamelotGamepadPetFlyout()
+        end
+    end)
+    patchCamelotGamepadPetFlyout()
+end
+

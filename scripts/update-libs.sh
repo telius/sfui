@@ -55,10 +55,18 @@ cp "${TMP_DIR}/LibDataBroker/LibDataBroker-1.1.lua" "${LIBS_DIR}/LibDataBroker-1
 echo "   LibDataBroker-1.1 updated."
 
 # 6. LibDBIcon-1.0
-echo "-> [6/6] Fetching LibDBIcon-1.0 (CurseForge SVN)..."
+echo "-> [6/7] Fetching LibDBIcon-1.0 (CurseForge SVN)..."
 rm -rf "${LIBS_DIR}/LibDBIcon-1.0"
 mkdir -p "${LIBS_DIR}/LibDBIcon-1.0"
 svn export --force https://repos.curseforge.com/wow/libdbicon-1-0/trunk/LibDBIcon-1.0 "${LIBS_DIR}/LibDBIcon-1.0" >/dev/null
 echo "   LibDBIcon-1.0 updated."
+
+# 7. LibActionButton-1.0
+echo "-> [7/7] Fetching LibActionButton-1.0..."
+git clone --depth 1 https://github.com/Nevcairiel/LibActionButton-1.0.git "${TMP_DIR}/LibActionButton" >/dev/null 2>&1
+mkdir -p "${LIBS_DIR}/LibActionButton-1.0"
+cp "${TMP_DIR}/LibActionButton/LibActionButton-1.0.lua" "${LIBS_DIR}/LibActionButton-1.0/"
+[ -f "${TMP_DIR}/LibActionButton/LibActionButton-1.0.toc" ] && cp "${TMP_DIR}/LibActionButton/LibActionButton-1.0.toc" "${LIBS_DIR}/LibActionButton-1.0/"
+echo "   LibActionButton-1.0 updated."
 
 echo "=== All libraries successfully updated! ==="

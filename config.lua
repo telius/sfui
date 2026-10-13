@@ -1019,4 +1019,106 @@ sfui.config = {
         showEventRecipes    = false,
         showCurrentZoneOnly = false,
     },
+
+    -- ─── Action Bars Engine (Bars 1-6) ──────────────────────────
+    -- In-house action bars replacing Blizzard bars with 3x4 grid layout,
+    -- smooth mouseover fading, stance paging, and dynamic proc updates.
+    actionbars = {
+        enabled            = true,
+        showGrid           = false,
+        showHotkeys        = true,
+        showCounts         = true,
+        showMacroNames     = false,
+        outOfRangeColoring = "button", -- "button", "hotkey", "none"
+        restingAlpha       = 0,
+        activeAlpha        = 1,
+        hotkeyFontSize     = 10,
+        bars = {
+            bar1 = {
+                enabled       = true,
+                mouseover     = false,
+                buttons       = 12,
+                buttonsPerRow = 3, -- 3x4 grid
+                buttonSize    = 28,
+                spacing       = 4,
+                point         = "BOTTOM",
+                relPoint      = "BOTTOM",
+                x             = -48,
+                y             = 35,
+            },
+            bar2 = {
+                enabled       = true,
+                mouseover     = false,
+                buttons       = 12,
+                buttonsPerRow = 3, -- 3x4 grid
+                buttonSize    = 28,
+                spacing       = 4,
+                point         = "BOTTOM",
+                relPoint      = "BOTTOM",
+                x             = 48,
+                y             = 35,
+            },
+            bar3 = {
+                enabled       = true,
+                mouseover     = true,
+                buttons       = 12,
+                buttonsPerRow = 3, -- 3x4 grid
+                buttonSize    = 28,
+                spacing       = 4,
+                point         = "RIGHT",
+                relPoint      = "RIGHT",
+                x             = -15,
+                y             = 0,
+            },
+            bar4 = {
+                enabled       = true,
+                mouseover     = true,
+                buttons       = 12,
+                buttonsPerRow = 3, -- 3x4 grid
+                buttonSize    = 28,
+                spacing       = 4,
+                point         = "RIGHT",
+                relPoint      = "RIGHT",
+                x             = -115,
+                y             = 0,
+            },
+            bar5 = {
+                enabled       = false,
+                mouseover     = false,
+                buttons       = 12,
+                buttonsPerRow = 3, -- 3x4 grid
+                buttonSize    = 28,
+                spacing       = 4,
+                point         = "BOTTOM",
+                relPoint      = "BOTTOM",
+                x             = -145,
+                y             = 35,
+            },
+            bar6 = {
+                enabled       = false,
+                mouseover     = false,
+                buttons       = 12,
+                buttonsPerRow = 3, -- 3x4 grid
+                buttonSize    = 28,
+                spacing       = 4,
+                point         = "BOTTOM",
+                relPoint      = "BOTTOM",
+                x             = 145,
+                y             = 35,
+            },
+            pet = {
+                enabled       = true,
+                mouseover     = false,
+                buttons       = 10,
+                buttonsPerRow = 10,
+                buttonSize    = 28,
+                spacing       = 4,
+                point         = "BOTTOM",
+                relPoint      = "BOTTOM",
+                x             = 0,
+                y             = 168,
+            },
+        },
+    },
 }
+

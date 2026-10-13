@@ -294,6 +294,44 @@ function sfui.widgets.set_button_mail_icon(btn, iconSize)
 end
 sfui.common.set_button_mail_icon = sfui.widgets.set_button_mail_icon
 
+--- Replace a flat button's label with a gear icon (settings / configuration)
+--- @param btn table
+--- @param iconSize number?
+--- @return table|nil icon
+function sfui.widgets.set_button_settings_icon(btn, iconSize)
+    if not btn then return end
+    btn:SetText("")
+    iconSize = iconSize or 16
+
+    local icon = btn.settingsIcon or btn:CreateTexture(nil, "ARTWORK")
+    btn.settingsIcon = icon
+    icon:ClearAllPoints()
+    icon:SetSize(iconSize, iconSize)
+    icon:SetPoint("CENTER", btn, "CENTER", 0, 0)
+
+    if sfui.theme and sfui.theme.HasAtlas and sfui.theme.HasAtlas("questlog-icon-setting") then
+        icon:SetAtlas("questlog-icon-setting")
+    else
+        icon:SetTexture("Interface\\Icons\\INV_Misc_Gear_01")
+        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    end
+
+    if not btn._sfuiSettingsIconHooked then
+        btn._sfuiSettingsIconHooked = true
+        btn:HookScript("OnMouseDown", function()
+            icon:ClearAllPoints()
+            icon:SetPoint("CENTER", btn, "CENTER", 1, -1)
+        end)
+        btn:HookScript("OnMouseUp", function()
+            icon:ClearAllPoints()
+            icon:SetPoint("CENTER", btn, "CENTER", 0, 0)
+        end)
+    end
+
+    return icon
+end
+sfui.common.set_button_settings_icon = sfui.widgets.set_button_settings_icon
+
 function sfui.widgets.set_button_alts_icon(btn, iconSize)
     if not btn then return end
     btn:SetText("")
@@ -1142,7 +1180,7 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
         local check = rowBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         check:SetPoint("LEFT", rowBtn, "LEFT", 4, 0)
         check:SetFont(fontFile, 11, "")
-        check:SetText("|cffffcc00✓|r")
+        check:SetText("|cffffcc00>|r")
         check:Hide()
 
         local label = rowBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1832,7 +1870,7 @@ function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initi
 
         local check = row:CreateFontString(nil, "OVERLAY")
         check:SetFontObject("GameFontHighlightSmall")
-        check:SetText("|cffffcc00✓|r")
+        check:SetText("|cffffcc00>|r")
         check:SetSize(14, 14)
         check:SetPoint("LEFT", row, "LEFT", 2, 0)
         check:SetJustifyH("CENTER")

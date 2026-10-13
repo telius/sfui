@@ -273,7 +273,7 @@ sfui.options.RegisterTab({
 
         -- Section 4: Dimensions & Text Display
         local dim_header = exp_panel:CreateFontString(nil, "OVERLAY", g.font)
-        dim_header:SetPoint("TOPLEFT", exp_prog_header, "TOPLEFT", COL_OFFSET_X, 0)
+        dim_header:SetPoint("TOPLEFT", rep_gain_cb, "BOTTOMLEFT", 0, -14)
         dim_header:SetTextColor(white[1], white[2], white[3])
         dim_header:SetText("dimensions & text display")
 
@@ -355,7 +355,7 @@ sfui.options.RegisterTab({
         end
 
         if exp_panel.SetContentHeight then
-            exp_panel:SetContentHeight(620)
+            exp_panel:SetContentHeight(660)
         end
     end,
 })

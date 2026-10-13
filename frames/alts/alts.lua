@@ -199,6 +199,20 @@ sfui.common.get_alt_display_name = sfui.alts.GetDisplayName
 function sfui.alts.GetMailRecipient(altData)
     if not altData then return "" end
     local name = altData.name or ""
+    if altData.surname and altData.surname ~= "" and not name:find(" ") then
+        local NameUtil = _G.NameUtil
+        if NameUtil and NameUtil.GetFullNameWithoutRealm then
+            local fn = NameUtil.GetFullNameWithoutRealm(name, altData.surname)
+            if fn and fn ~= "" then
+                name = fn
+            else
+                name = string.format("%s %s", name, altData.surname)
+            end
+        else
+            local sep = (_G.Constants and _G.Constants.CharacterNameSeparatorConsts and _G.Constants.CharacterNameSeparatorConsts.CHARACTERNAME_SURNAME_SEPARATOR) or " "
+            name = string.format("%s%s%s", name, sep, altData.surname)
+        end
+    end
     local myRealm = (GetRealmName and GetRealmName()) or ""
     local myNormRealm = myRealm:gsub("%s+", ""):lower()
     local targetRealm = (altData.realm or ""):gsub("%s+", "")
@@ -703,8 +717,8 @@ function sfui.alts.CreateFrame()
     close.tooltip = "close"
     frame.close = close
 
-    -- Settings Button (⚙)
-    local settingsBtn = sfui.common.create_flat_button(frame, "⚙", 24, 24)
+    -- Settings Button (gear icon)
+    local settingsBtn = sfui.common.create_flat_button(frame, "", 24, 24)
     settingsBtn:ClearAllPoints()
     settingsBtn:SetPoint("TOPRIGHT", close, "TOPLEFT", -5, 0)
     settingsBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
@@ -719,6 +733,7 @@ function sfui.alts.CreateFrame()
             RefreshSettingsPanel()
         end
     end)
+    sfui.common.set_button_settings_icon(settingsBtn, 16)
     frame.settingsBtn = settingsBtn
 
     -- Mail Routing Button (Mail Icon)

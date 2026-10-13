@@ -5,6 +5,7 @@ externals:
   Libs/LibSharedMedia-3.0: https://repos.curseforge.com/wow/libsharedmedia-3-0/trunk/LibSharedMedia-3.0
   Libs/LibDataBroker-1.1: https://github.com/tekkub/libdatabroker-1-1.git
   Libs/LibDBIcon-1.0: https://repos.curseforge.com/wow/libdbicon-1-0/trunk/LibDBIcon-1.0
+  Libs/LibActionButton-1.0: https://github.com/Nevcairiel/LibActionButton-1.0.git
 
 package-as: sfui
 enable-nolib-creation: yes
