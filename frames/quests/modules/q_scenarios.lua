@@ -202,16 +202,32 @@ function ScenariosModule:BuildBlocks(container)
                         local isComp = (crit.completed == true)
                         local isWeight = crit.isWeightedProgress or weightedProgress or (crit.criteriaType == 8)
 
-                        if isWeight then
-                            local pct = crit.quantity or 0
+                        if isWeight and not progressBar then
+                            local pct = crit.quantity
+                            if (not pct or pct == 0) and C_Scenario and C_Scenario.GetStepInfo then
+                                local wp = select(10, C_Scenario.GetStepInfo())
+                                if type(wp) == "number" and wp > 0 then
+                                    pct = wp
+                                end
+                            end
+                            if (not pct or pct == 0) and C_ScenarioInfo and C_ScenarioInfo.GetScenarioStepInfo then
+                                local sInfo = C_ScenarioInfo.GetScenarioStepInfo()
+                                if sInfo and type(sInfo.weightedProgress) == "number" and sInfo.weightedProgress > 0 then
+                                    pct = sInfo.weightedProgress
+                                end
+                            end
+                            local val = pct or 0
                             progressBar = {
                                 min   = 0,
                                 max   = 100,
-                                value = pct,
-                                text  = string_format("%d%%", pct),
+                                value = val,
+                                text  = string_format("%d%%", val),
                             }
-                        elseif desc and desc ~= "" and not issecretvalue(desc) then
-                            local cleanDesc = desc:gsub(" / ", "/")
+                        end
+
+                        local lineText = (desc and desc ~= "" and not issecretvalue(desc)) and desc or stageDesc
+                        if lineText and lineText ~= "" and not issecretvalue(lineText) then
+                            local cleanDesc = lineText:gsub(" / ", "/")
                             table_insert(lines, {
                                 text      = cleanDesc,
                                 completed = isComp,
@@ -225,6 +241,28 @@ function ScenariosModule:BuildBlocks(container)
                     completed = false,
                     color     = { 0.85, 0.85, 0.85, 1 },
                 })
+                -- Check for step-level weighted progress bar
+                local pct = nil
+                if C_Scenario and C_Scenario.GetStepInfo then
+                    local wp = select(10, C_Scenario.GetStepInfo())
+                    if type(wp) == "number" and wp > 0 then
+                        pct = wp
+                    end
+                end
+                if not pct and C_ScenarioInfo and C_ScenarioInfo.GetScenarioStepInfo then
+                    local sInfo = C_ScenarioInfo.GetScenarioStepInfo()
+                    if sInfo and type(sInfo.weightedProgress) == "number" and sInfo.weightedProgress > 0 then
+                        pct = sInfo.weightedProgress
+                    end
+                end
+                if pct and not progressBar then
+                    progressBar = {
+                        min   = 0,
+                        max   = 100,
+                        value = pct,
+                        text  = string_format("%d%%", pct),
+                    }
+                end
             end
         end
 

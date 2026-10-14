@@ -22,140 +22,10 @@ local C_SuperTrack     = _G.C_SuperTrack
 local C_Map            = _G.C_Map
 local pcall            = _G.pcall
 local type             = _G.type
-local hooksecurefunc   = _G.hooksecurefunc
 
--- ────────────────────────────────────────────────────────────────────────────
--- MapCanvas Pin Protection (prevents Blizzard MapCanvas protected API taint)
--- In Retail 11.0 / 12.0, Button:SetPassThroughButtons, Frame:SetPropagateMouseClicks,
--- and Frame:SetPropagateMouseMotion are protected widget methods. Blizzard's
--- MapCanvasPinMixin:CheckMouseButtonPassthrough calls self:SetPassThroughButtons(),
--- and SuperTrackablePinMixin:UpdateMousePropagation calls self:SetPropagateMouseClicks(),
--- which trigger ADDON_ACTION_BLOCKED whenever a map pin is acquired or updated
--- while an addon taint is present on the execution stack.
--- Stubbing these methods on mixins and frame instances safely intercepts the calls
--- with a no-op, preventing the protected C methods from ever being invoked.
--- ────────────────────────────────────────────────────────────────────────────
 local safe_nop = _G.nop or function() end
-
-local protected_mixins = {}
-
-local function protect_pin(pin)
-    if pin and (type(pin) == "table" or type(pin) == "userdata") then
-        pin.SetPassThroughButtons   = safe_nop
-        pin.SetPropagateMouseClicks = safe_nop
-        pin.SetPropagateMouseMotion = safe_nop
-    end
-end
-map.ProtectPin = protect_pin
-
-local function protect_mixin(mixin)
-    if not mixin or type(mixin) ~= "table" or protected_mixins[mixin] then
-        return
-    end
-    protected_mixins[mixin] = true
-    mixin.SetPassThroughButtons   = safe_nop
-    mixin.SetPropagateMouseClicks = safe_nop
-    mixin.SetPropagateMouseMotion = safe_nop
-
-    if type(mixin.SetOwningMap) == "function" then
-        pcall(hooksecurefunc, mixin, "SetOwningMap", protect_pin)
-    end
-    if type(mixin.OnAcquired) == "function" then
-        pcall(hooksecurefunc, mixin, "OnAcquired", protect_pin)
-    end
-    if type(mixin.OnLoad) == "function" then
-        pcall(hooksecurefunc, mixin, "OnLoad", protect_pin)
-    end
-    if type(mixin.CheckMouseButtonPassthrough) == "function" then
-        pcall(hooksecurefunc, mixin, "CheckMouseButtonPassthrough", protect_pin)
-    end
-    if type(mixin.UpdateMousePropagation) == "function" then
-        pcall(hooksecurefunc, mixin, "UpdateMousePropagation", protect_pin)
-    end
-end
-
-local function scan_and_protect_all_pin_mixins()
-    if _G.MapCanvasPinMixin then
-        protect_mixin(_G.MapCanvasPinMixin)
-    end
-    if _G.SuperTrackablePinMixin then
-        protect_mixin(_G.SuperTrackablePinMixin)
-    end
-    if _G.SuperTrackablePoiPinMixin then
-        protect_mixin(_G.SuperTrackablePoiPinMixin)
-    end
-    if _G.WatchedFactionToggleFrameMixin then
-        protect_mixin(_G.WatchedFactionToggleFrameMixin)
-    end
-    for k, v in pairs(_G) do
-        if type(k) == "string" and type(v) == "table" and not protected_mixins[v] then
-            if k:find("PinMixin$") or k:find("MapCanvas.*Pin")
-                or type(v.CheckMouseButtonPassthrough) == "function"
-                or type(v.UpdateMousePropagation) == "function"
-                or (type(v.SetOwningMap) == "function" and type(v.GetOwningMap) == "function") then
-                protect_mixin(v)
-            end
-        end
-    end
-end
-
-local function protect_pool(pool)
-    if not pool or type(pool) ~= "table" then return end
-    if pool.activeObjects and type(pool.activeObjects) == "table" then
-        for obj in pairs(pool.activeObjects) do
-            protect_pin(obj)
-        end
-    end
-    if pool.inactiveObjects and type(pool.inactiveObjects) == "table" then
-        for _, obj in ipairs(pool.inactiveObjects) do
-            protect_pin(obj)
-        end
-    end
-end
-
-local function sweep_canvas_pins(canvas)
-    if not canvas or type(canvas) ~= "table" then return end
-    if canvas.pinPools and type(canvas.pinPools) == "table" then
-        for _, pool in pairs(canvas.pinPools) do
-            protect_pool(pool)
-        end
-    end
-    if type(canvas.ExecuteOnAllPins) == "function" then
-        pcall(canvas.ExecuteOnAllPins, canvas, protect_pin)
-    end
-end
-
-local function sweep_all_maps()
-    scan_and_protect_all_pin_mixins()
-    if _G.WorldMapFrame then
-        sweep_canvas_pins(_G.WorldMapFrame)
-    end
-    if _G.FlightMapFrame then
-        sweep_canvas_pins(_G.FlightMapFrame)
-    end
-end
-map.SweepAllMaps = sweep_all_maps
-
-if _G.MapCanvasMixin and type(_G.MapCanvasMixin.AcquirePin) == "function" then
-    pcall(hooksecurefunc, _G.MapCanvasMixin, "AcquirePin", function(self)
-        sweep_canvas_pins(self)
-    end)
-end
-
-if _G.WorldMapFrame and type(_G.WorldMapFrame.HookScript) == "function" then
-    pcall(_G.WorldMapFrame.HookScript, _G.WorldMapFrame, "OnShow", sweep_all_maps)
-end
-
-local mapCanvasEventFrame = _G.CreateFrame and _G.CreateFrame("Frame")
-if mapCanvasEventFrame then
-    mapCanvasEventFrame:RegisterEvent("ADDON_LOADED")
-    mapCanvasEventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    mapCanvasEventFrame:SetScript("OnEvent", function()
-        sweep_all_maps()
-    end)
-end
-
-sweep_all_maps()
+map.ProtectPin   = safe_nop
+map.SweepAllMaps = safe_nop
 
 --- Checks whether the player is in combat via central state or engine APIs.
 --- @return boolean inCombat
@@ -211,10 +81,8 @@ end
 function map.OpenToQuest(questID, questLogIndex, superTrack)
     if not questID or is_in_combat() then return end
 
-    sweep_all_maps()
     C_Timer.After(0, function()
         if is_in_combat() then return end
-        sweep_all_maps()
 
         if C_QuestLog and C_QuestLog.SetSelectedQuest and questID then
             pcall(C_QuestLog.SetSelectedQuest, questID)
@@ -241,10 +109,8 @@ end
 function map.ToggleWorldMap()
     if is_in_combat() then return end
 
-    sweep_all_maps()
     C_Timer.After(0, function()
         if is_in_combat() then return end
-        sweep_all_maps()
         if _G.ToggleWorldMap then
             pcall(_G.ToggleWorldMap)
         end
@@ -259,10 +125,8 @@ end
 function map.OpenWorldMap(mapID, hasWaypoint, onOpenCallback)
     if is_in_combat() then return end
 
-    sweep_all_maps()
     C_Timer.After(0, function()
         if is_in_combat() then return end
-        sweep_all_maps()
 
         if hasWaypoint and _G.OpenMapToUserWaypoint then
             pcall(_G.OpenMapToUserWaypoint)
@@ -296,10 +160,8 @@ end
 function map.OpenToEventPoi(poiID)
     if not poiID or is_in_combat() then return end
 
-    sweep_all_maps()
     C_Timer.After(0, function()
         if is_in_combat() then return end
-        sweep_all_maps()
         if _G.OpenMapToEventPoi then
             pcall(_G.OpenMapToEventPoi, poiID)
         elseif _G.ToggleWorldMap then
@@ -313,10 +175,8 @@ end
 function map.SetSuperTrackedQuestID(questID)
     if is_in_combat() then return end
     local qID = tonumber(questID) or 0
-    sweep_all_maps()
     C_Timer.After(0, function()
         if is_in_combat() then return end
-        sweep_all_maps()
         if C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
             pcall(C_SuperTrack.SetSuperTrackedQuestID, qID)
         end
@@ -328,10 +188,8 @@ end
 function map.SetSuperTrackedUserWaypoint(enabled)
     if is_in_combat() then return end
     local state = enabled and true or false
-    sweep_all_maps()
     C_Timer.After(0, function()
         if is_in_combat() then return end
-        sweep_all_maps()
         if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
             pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, state)
         end
@@ -343,10 +201,8 @@ end
 --- @param pinID number|nil pin ID or nil/0 to clear
 function map.SetSuperTrackedMapPin(pinType, pinID)
     if is_in_combat() then return end
-    sweep_all_maps()
     C_Timer.After(0, function()
         if is_in_combat() then return end
-        sweep_all_maps()
         if not C_SuperTrack then return end
         if pinID and pinID > 0 and C_SuperTrack.SetSuperTrackedMapPin then
             pcall(C_SuperTrack.SetSuperTrackedMapPin, pinType, pinID)
@@ -361,10 +217,8 @@ end
 --- @param trackableID number
 function map.SetSuperTrackedContent(trackableType, trackableID)
     if is_in_combat() then return end
-    sweep_all_maps()
     C_Timer.After(0, function()
         if is_in_combat() then return end
-        sweep_all_maps()
         if C_SuperTrack and C_SuperTrack.SetSuperTrackedContent then
             pcall(C_SuperTrack.SetSuperTrackedContent, trackableType, trackableID)
         end
@@ -372,7 +226,7 @@ function map.SetSuperTrackedContent(trackableType, trackableID)
 end
 
 --- Safely sets a user waypoint on the map and supertracks it outside taint stacks.
---- Sweeps map pins and defers C_Map.SetUserWaypoint via C_Timer.After(0) to prevent
+--- Defers C_Map.SetUserWaypoint via C_Timer.After(0) to prevent
 --- Button:SetPassThroughButtons() action blocked errors in Blizzard waypoint data providers.
 --- @param mapID number
 --- @param x number
@@ -386,11 +240,8 @@ function map.SetUserWaypoint(mapID, x, y, label)
         return false
     end
 
-    sweep_all_maps()
-
     C_Timer.After(0, function()
         if is_in_combat() then return end
-        sweep_all_maps()
         local ok, pt = pcall(UiMapPoint.CreateFromCoordinates, mapID, x, y)
         if ok and pt then
             pcall(C_Map.SetUserWaypoint, pt)
@@ -419,5 +270,3 @@ sfui.common.set_super_tracked_waypoint = map.SetSuperTrackedUserWaypoint
 sfui.common.set_super_tracked_map_pin  = map.SetSuperTrackedMapPin
 sfui.common.set_super_tracked_content  = map.SetSuperTrackedContent
 sfui.common.set_user_waypoint         = map.SetUserWaypoint
-
-

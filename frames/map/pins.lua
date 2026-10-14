@@ -41,7 +41,6 @@ local tostring            = tostring
 local wipe                = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
 
 local common              = sfui.common
-local safe_nop            = _G.nop or function() end
 
 -- ─── Data Registries & Pools ──────────────────────────────────────────────────
 local providers           = {}     -- name -> provider table
@@ -288,9 +287,6 @@ local function AcquirePin(parent, defaultSize)
     for _, pin in ipairs(pinPool) do
         if not pin:IsShown() then
             pin:SetParent(parent)
-            pin.SetPassThroughButtons   = safe_nop
-            pin.SetPropagateMouseClicks = safe_nop
-            pin.SetPropagateMouseMotion = safe_nop
             pin:SetSize(defaultSize, defaultSize)
             pin.baseSize = defaultSize
             pin.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
@@ -309,9 +305,6 @@ local function AcquirePin(parent, defaultSize)
     end
 
     local pin = CreateFrame("Button", nil, parent)
-    pin.SetPassThroughButtons   = safe_nop
-    pin.SetPropagateMouseClicks = safe_nop
-    pin.SetPropagateMouseMotion = safe_nop
     pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     pin:SetSize(defaultSize, defaultSize)
     pin.baseSize = defaultSize
@@ -809,9 +802,6 @@ local function AcquireMinimapPin(parent, defaultSize)
     for _, pin in ipairs(minimapPinPool) do
         if not pin:IsShown() then
             pin:SetParent(parent)
-            pin.SetPassThroughButtons   = safe_nop
-            pin.SetPropagateMouseClicks = safe_nop
-            pin.SetPropagateMouseMotion = safe_nop
             pin:SetSize(defaultSize, defaultSize)
             pin.baseSize = defaultSize
             pin.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
@@ -830,9 +820,6 @@ local function AcquireMinimapPin(parent, defaultSize)
     end
 
     local pin = CreateFrame("Button", nil, parent)
-    pin.SetPassThroughButtons   = safe_nop
-    pin.SetPropagateMouseClicks = safe_nop
-    pin.SetPropagateMouseMotion = safe_nop
     pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     pin:SetSize(defaultSize, defaultSize)
     pin.baseSize = defaultSize

@@ -1600,8 +1600,11 @@ local function GetOrCreateBossRow(idx)
     row:Show()
 
     local icon = row:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(14, 14)
-    icon:SetPoint("TOPLEFT", row, "TOPLEFT", 0, -1)
+    icon:SetSize(12, 12)
+    icon:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -2)
+    if not pcall(icon.SetAtlas, icon, "ui-questtracker-objective-nub", false) then
+        icon:SetTexture("Interface/QuestFrame/UI-Quest-BulletPoint")
+    end
 
     local checkTex = row:CreateTexture(nil, "OVERLAY")
     checkTex:SetSize(14, 14)
@@ -2244,26 +2247,49 @@ local function UpdateInstanceState()
         end
     end
     -- Fallback 2: scenario step level weightedProgress (some Delves / instanced scenarios attach progress to the step)
-    if not forcesInfo and C_ScenarioInfo and C_ScenarioInfo.GetScenarioStepInfo then
-        local sInfo = C_ScenarioInfo.GetScenarioStepInfo()
-        if sInfo and sInfo.weightedProgress and sInfo.weightedProgress > 0 then
+    if not forcesInfo then
+        local wp = nil
+        if C_Scenario and C_Scenario.GetStepInfo then
+            local rawWp = select(10, C_Scenario.GetStepInfo())
+            if type(rawWp) == "number" and rawWp > 0 then
+                wp = rawWp
+            end
+        end
+        if not wp and C_ScenarioInfo and C_ScenarioInfo.GetScenarioStepInfo then
+            local sInfo = C_ScenarioInfo.GetScenarioStepInfo()
+            if sInfo and type(sInfo.weightedProgress) == "number" and sInfo.weightedProgress > 0 then
+                wp = sInfo.weightedProgress
+            end
+        end
+        if wp and wp > 0 then
             wipe(staticForcesInfo)
-            staticForcesInfo.quantity = sInfo.weightedProgress
+            staticForcesInfo.quantity = wp
             staticForcesInfo.totalQuantity = 100
-            staticForcesInfo.quantityString = string_format("%d%%", sInfo.weightedProgress)
+            staticForcesInfo.quantityString = string_format("%d%%", wp)
             staticForcesInfo.completed = false
             staticForcesInfo.isWeightedProgress = true
+            staticForcesInfo.description = stepDesc
             forcesInfo = staticForcesInfo
         end
     end
+    if forcesInfo and (not forcesInfo.description or forcesInfo.description == "") and stepDesc and stepDesc ~= "" then
+        forcesInfo.description = stepDesc
+    end
 
-    -- Forward scan: populate boss rows (skip forces index).
+    -- Forward scan: populate boss rows.
     local bossCount = 0
     if numCriteria and numCriteria > 0 then
         for i = 1, numCriteria do
-            if i ~= forcesIdx then
+            -- In Mythic+, Enemy Forces has a dedicated progress bar at the bottom and is not a boss row.
+            -- In Delves, Scenarios, and standard dungeons, progress criteria represent named objectives
+            -- (e.g. "Disrupt the Vilebranch") and must appear as an objective row.
+            local skipForForces = isMythic and (i == forcesIdx)
+            if not skipForForces then
                 local info = GetCriteriaInfoSafe(i, stepID)
                 local rawDesc = info and (info.description or info.criteriaString or info.string)
+                if (not rawDesc or rawDesc == "") and i == forcesIdx and stepDesc and stepDesc ~= "" then
+                    rawDesc = stepDesc
+                end
                 if rawDesc and rawDesc ~= "" then
                     bossCount        = bossCount + 1
                     local r          = GetOrCreateBossRow(bossCount)
@@ -2353,8 +2379,11 @@ local function UpdateInstanceState()
                     local nameStr = CleanObjectiveName(rawDesc)
                     if not isComplete and info.quantity and info.totalQuantity and info.totalQuantity > 1 then
                         if IsProgressCriteria(info) then
-                            local pct = GetCriteriaProgress(info)
-                            nameStr = nameStr .. " " .. string_format("|cff777777(%d%%)|r", math_floor(pct))
+                            -- Only append percent if this criteria is not already driving the forcesBar
+                            if not forcesInfo or i ~= forcesIdx then
+                                local pct = GetCriteriaProgress(info)
+                                nameStr = nameStr .. " " .. string_format("|cff777777(%d%%)|r", math_floor(pct))
+                            end
                         else
                             nameStr = nameStr .. " " .. string_format("|cff777777(%s/%s)|r", tostring(info.quantity), tostring(info.totalQuantity))
                         end
@@ -2417,21 +2446,31 @@ local function UpdateInstanceState()
         end
     end
 
-    -- Fallback 1: If no criteria rows were found, display the stage description
-    if bossCount == 0 and stepDesc and stepDesc ~= "" and not delveInfo then
-        bossCount = bossCount + 1
-        local r = GetOrCreateBossRow(bossCount)
-        r.check:Hide()
-        r.icon:Show()
-        r.name:SetTextColor(CLR_WHITE_R, CLR_WHITE_G, CLR_WHITE_B)
-        r.split:SetText("")
-        r.split:Hide()
-        r.name:ClearAllPoints()
-        r.name:SetPoint("TOPLEFT", r.icon, "TOPRIGHT", 4, 0)
-        r.name:SetPoint("RIGHT", r.row, "RIGHT", 0, 0)
-        r.name:SetText(CleanObjectiveName(stepDesc))
-        local textH = r.name:GetStringHeight() or 14
-        r.row:SetHeight(math_max(16, math_ceil(textH + 2)))
+    -- Fallback 1: If no criteria rows were found, display the stage description or forces description
+    if bossCount == 0 then
+        local fallbackText = (stepDesc and stepDesc ~= "" and stepDesc) or (forcesInfo and forcesInfo.description)
+        if fallbackText and fallbackText ~= "" then
+            bossCount = bossCount + 1
+            local r = GetOrCreateBossRow(bossCount)
+            local isComplete = (forcesInfo and forcesInfo.completed == true)
+            if isComplete then
+                r.icon:Hide()
+                r.check:Show()
+                r.name:SetTextColor(CLR_GREEN_R, CLR_GREEN_G, CLR_GREEN_B)
+            else
+                r.check:Hide()
+                r.icon:Show()
+                r.name:SetTextColor(CLR_WHITE_R, CLR_WHITE_G, CLR_WHITE_B)
+            end
+            r.split:SetText("")
+            r.split:Hide()
+            r.name:ClearAllPoints()
+            r.name:SetPoint("TOPLEFT", r.icon, "TOPRIGHT", 4, 0)
+            r.name:SetPoint("RIGHT", r.row, "RIGHT", 0, 0)
+            r.name:SetText(CleanObjectiveName(fallbackText))
+            local textH = r.name:GetStringHeight() or 14
+            r.row:SetHeight(math_max(16, math_ceil(textH + 2)))
+        end
     end
 
     -- Fallback 2: Instanced Scenario UI Widgets extraction (TextWithState, StatusBar)
@@ -2536,7 +2575,11 @@ local function UpdateInstanceState()
                 end
             end
 
-            MF.forcesText:SetText("100.00%" .. splitStr)
+            if isMythic then
+                MF.forcesText:SetText("100.00%" .. splitStr)
+            else
+                MF.forcesText:SetText("100%")
+            end
             if maxCount and maxCount > 0 and maxCount ~= 100 then
                 MF.forcesCountText:SetText(string_format("%d/%d", maxCount, maxCount))
             else
@@ -2544,7 +2587,11 @@ local function UpdateInstanceState()
             end
         else
             MF.forcesBar:SetStatusBarColor(0.40, 0.00, 1.00, 0.85)
-            MF.forcesText:SetText(string_format("%.2f%%", percent))
+            if not isMythic and math_abs(percent - math_floor(percent)) < 0.05 then
+                MF.forcesText:SetText(string_format("%d%%", math_floor(percent + 0.5)))
+            else
+                MF.forcesText:SetText(string_format("%.2f%%", percent))
+            end
             if maxCount and maxCount > 0 and maxCount ~= 100 and curCount then
                 MF.forcesCountText:SetText(string_format("%d/%d", curCount, maxCount))
             else

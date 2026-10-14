@@ -89,12 +89,16 @@ frame:SetScript("OnDragStop", function(self)
 end)
 
 -- Custom ESC handler (replaces UISpecialFrames management to avoid closing on spellbook open)
-frame:SetPropagateKeyboardInput(true)
 frame:SetScript("OnKeyDown", function(self, key)
     if key == "ESCAPE" then
+        if self.SetPropagateKeyboardInput then
+            self:SetPropagateKeyboardInput(false)
+        end
         if self:IsShown() then
             self:Hide()
         end
+    elseif self.SetPropagateKeyboardInput then
+        self:SetPropagateKeyboardInput(true)
     end
 end)
 

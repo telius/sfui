@@ -1,16 +1,11 @@
 # Changelog
 
-## v1.97 (2026-10-14)
-
-### features
-
-- **patch 12.1.5 compatibility**: updated interface toc targeting patch 12.1.5 (`sfui.toc`) and resolved map canvas taint issues caused by blizzard protected function calls.
-- **new cosmetic hearthstones**: cataloged new patch 12.1.5 hearthstones in `data/portals.lua` including hiveborn hearthstone (`281136`), shadeweaver's hearthstone (`281615`), naaru's embrace (`260221`), and classic deluxe dark portal (`184871`).
-- **centralized waypoint engine**: consolidated all map pin and waypoint placements into `sfui.map.SetUserWaypoint` across dungeon journal (`frames/dungeonjournal/dj_quests.lua`, `frames/dungeonjournal/dungeonjournal.lua`), professions (`frames/professions/sources.lua`), and quest objective modules.
-- **mythic+ tracker enhancements**: overhauled mythic+ objective blocks and keystone affixes display (`frames/quests/q_mythic.lua`) with refined layout, timers, and styling.
+## v1.98 (2026-10-14)
 
 ### improvements & bug fixes
 
-- **map pin taint protection**: stubbed and guarded against protected button pass-through and click propagation methods (`SetPassThroughButtons`, `SetPropagateMouseClicks`, `SetPropagateMouseMotion`) in `core/map.lua` and `frames/map/pins.lua`.
-- **quest objective tracker cleanup**: refactored quest tracker engine blocks, scenarios, and helper routines (`frames/quests/helpers/q_common.lua`, `frames/quests/modules/q_scenarios.lua`) to reduce code duplication and improve performance.
-- **professions ui**: improved recipe progress bar display, filter states, and reagent source tooltips (`frames/professions/progress.lua`, `frames/professions/rows.lua`, `frames/professions/sources.lua`).
+- **esc and casting taint protection**: resolved forbidden errors on protected functions (`SpellStopTargeting`, `SpellStopCasting`) when pressing escape by removing global mixin modifications in `core/map.lua` and `frames/map/pins.lua`, and updating keyboard input propagation in `frames/tracking/trackedoptions.lua`.
+- **delve and labyrinth objectives**: restored missing weighted progress objectives (such as "disrupt the vilebranch") in the active delve and scenario hud (`frames/quests/q_mythic.lua`) and quest tracker scenario module (`frames/quests/modules/q_scenarios.lua`).
+- **objective bullet icons**: fixed objective row icons in `frames/quests/q_mythic.lua` to render the standard blizzard objective nub atlas (`ui-questtracker-objective-nub`) with bulletpoint fallback.
+- **delve percentage formatting**: cleaned up progress bar percentage display in `frames/quests/q_mythic.lua` to show integer values without redundant decimals for delves and scenarios.
+- **criteria description fallbacks**: enhanced step-level weighted progress retrieval and fallback mechanisms across `frames/quests/q_mythic.lua` and `frames/quests/modules/q_scenarios.lua` to support delves and tiered entrances without explicit criteria lists.
