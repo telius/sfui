@@ -121,7 +121,7 @@ end
 sfui.portals.set_attr = set_attr
 
 local function arm_spell(spellID, portalID, frame)
-    if InCombatLockdown() then return end
+    if InCombatLockdown() or not portalFrame or not portalFrame:IsShown() then return end
     if currentHoverFrame and currentHoverFrame ~= frame and currentHoverFrame.resetHover then
         currentHoverFrame.resetHover()
     end
@@ -155,7 +155,6 @@ local function arm_spell(spellID, portalID, frame)
     set_attr(actionBtn, "toy1", nil)
     set_attr(actionBtn, "item", nil)
     set_attr(actionBtn, "item1", nil)
-    actionBtn:SetParent(frame)
     actionBtn:ClearAllPoints()
     actionBtn:SetAllPoints(frame)
     actionBtn:SetFrameStrata("TOOLTIP")
@@ -164,7 +163,7 @@ end
 sfui.portals.arm_spell = arm_spell
 
 local function arm_toy(toyID, frame)
-    if InCombatLockdown() then return end
+    if InCombatLockdown() or not portalFrame or not portalFrame:IsShown() then return end
     if currentHoverFrame and currentHoverFrame ~= frame and currentHoverFrame.resetHover then
         currentHoverFrame.resetHover()
     end
@@ -183,7 +182,6 @@ local function arm_toy(toyID, frame)
     set_attr(actionBtn, "spell2", nil)
     set_attr(actionBtn, "item", nil)
     set_attr(actionBtn, "item1", nil)
-    actionBtn:SetParent(frame)
     actionBtn:ClearAllPoints()
     actionBtn:SetAllPoints(frame)
     actionBtn:SetFrameStrata("TOOLTIP")
@@ -192,7 +190,7 @@ end
 sfui.portals.arm_toy = arm_toy
 
 local function arm_item(itemID, frame)
-    if InCombatLockdown() then return end
+    if InCombatLockdown() or not portalFrame or not portalFrame:IsShown() then return end
     if currentHoverFrame and currentHoverFrame ~= frame and currentHoverFrame.resetHover then
         currentHoverFrame.resetHover()
     end
@@ -211,7 +209,6 @@ local function arm_item(itemID, frame)
     set_attr(actionBtn, "spell2", nil)
     set_attr(actionBtn, "toy", nil)
     set_attr(actionBtn, "toy1", nil)
-    actionBtn:SetParent(frame)
     actionBtn:ClearAllPoints()
     actionBtn:SetAllPoints(frame)
     actionBtn:SetFrameStrata("TOOLTIP")
@@ -230,7 +227,6 @@ local function disarm()
     if not InCombatLockdown() then
         actionBtn:Hide()
         actionBtn:ClearAllPoints()
-        actionBtn:SetParent(UIParent)
         set_attr(actionBtn, "type", nil)
         set_attr(actionBtn, "typerelease", nil)
         set_attr(actionBtn, "spell", nil)
@@ -248,6 +244,7 @@ local function disarm()
     isDisarming = false
 end
 sfui.portals.disarm = disarm
+sfui.portals.get_hover_frame = function() return currentHoverFrame end
 sfui.portals.is_currently_clicking = function() return currentlyClicking end
 
 -- ========================
@@ -517,7 +514,7 @@ end
 sfui.portals.hide_tooltip = hide_tooltip
 
 -- Action button event scripts
-actionBtn:SetScript("PreClick", function(self, button)
+actionBtn:SetScript("OnMouseDown", function(self, button)
     currentlyClicking = true
 end)
 
@@ -548,8 +545,11 @@ actionBtn:SetScript("PostClick", function(self, button)
     end
 end)
 
-actionBtn:SetScript("OnLeave", function()
+actionBtn:SetScript("OnLeave", function(self)
     if currentlyClicking then return end
+    if currentHoverFrame and currentHoverFrame:IsMouseOver() then
+        return
+    end
     disarm()
     hide_tooltip()
 end)
@@ -686,11 +686,12 @@ local function make_spell_icon(parent, spellID, label, x, y)
     end)
     frame:SetScript("OnLeave", function(self)
         if currentlyClicking then return end
-        if not actionBtn:IsShown() or actionBtn:GetParent() ~= self then
-            reset_hover()
-            disarm()
-            hide_tooltip()
+        if currentHoverFrame == self and actionBtn:IsShown() then
+            return
         end
+        reset_hover()
+        disarm()
+        hide_tooltip()
     end)
 
     return frame
@@ -817,11 +818,12 @@ local function make_action_row(parent, spellID, portalID, toyID, name, icon, yPo
     end)
     frame:SetScript("OnLeave", function(self)
         if currentlyClicking then return end
-        if not actionBtn:IsShown() or actionBtn:GetParent() ~= self then
-            reset_hover()
-            disarm()
-            hide_tooltip()
+        if currentHoverFrame == self and actionBtn:IsShown() then
+            return
         end
+        reset_hover()
+        disarm()
+        hide_tooltip()
     end)
 
     return frame
@@ -926,11 +928,12 @@ local function make_toy_icon(parent, toyID, label, x, y)
     end)
     frame:SetScript("OnLeave", function(self)
         if currentlyClicking then return end
-        if not actionBtn:IsShown() or actionBtn:GetParent() ~= self then
-            reset_hover()
-            disarm()
-            hide_tooltip()
+        if currentHoverFrame == self and actionBtn:IsShown() then
+            return
         end
+        reset_hover()
+        disarm()
+        hide_tooltip()
     end)
 
     return frame
@@ -941,30 +944,44 @@ sfui.portals.make_toy_icon = make_toy_icon
 -- Base Frame Construction & Scripts
 -- ========================
 local function create_base_frame(name)
-    local f = CreateFrame("Frame", name or "SfuiPortalsFrame", UIParent, "BackdropTemplate")
-    f:SetFrameStrata("HIGH")
-    f:SetClampedToScreen(true)
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local point, relativeTo, relativePoint, x, y = self:GetPoint()
-        SfuiDB.portals_point = point
-        SfuiDB.portals_relativePoint = relativePoint
-        SfuiDB.portals_x = x
-        SfuiDB.portals_y = y
-    end)
-    f:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-        insets   = { left = 0, right = 0, top = 0, bottom = 0 },
-    })
-    f:SetBackdropColor(unpack(cfg.appearance.backdropColor))
-    f:SetBackdropBorderColor(unpack(cfg.colors.black))
-    tinsert(UISpecialFrames, name or "SfuiPortalsFrame")
+    local frameName = name or "SfuiPortalsFrame"
+    local f = _G[frameName]
+    if not f then
+        f = CreateFrame("Frame", frameName, UIParent, "BackdropTemplate")
+        f:SetFrameStrata("HIGH")
+        f:SetClampedToScreen(true)
+        f:SetMovable(true)
+        f:EnableMouse(true)
+        f:RegisterForDrag("LeftButton")
+        f:SetScript("OnDragStart", f.StartMoving)
+        f:SetScript("OnDragStop", function(self)
+            self:StopMovingOrSizing()
+            local point, relativeTo, relativePoint, x, y = self:GetPoint()
+            SfuiDB.portals_point = point
+            SfuiDB.portals_relativePoint = relativePoint
+            SfuiDB.portals_x = x
+            SfuiDB.portals_y = y
+        end)
+        f:SetBackdrop({
+            bgFile   = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+            insets   = { left = 0, right = 0, top = 0, bottom = 0 },
+        })
+        f:SetBackdropColor(unpack(cfg.appearance.backdropColor))
+        f:SetBackdropBorderColor(unpack(cfg.colors.black))
+
+        local foundSpecial = false
+        for i = 1, #UISpecialFrames do
+            if UISpecialFrames[i] == frameName then
+                foundSpecial = true
+                break
+            end
+        end
+        if not foundSpecial then
+            tinsert(UISpecialFrames, frameName)
+        end
+    end
 
     f.refreshable = {}
 
@@ -983,7 +1000,15 @@ sfui.portals.create_base_frame = create_base_frame
 
 local function setup_frame_scripts(frame)
     local refreshTicker = nil
-    local function run_refresh_pass(self)
+    local lastRefreshPass = 0
+
+    local function run_refresh_pass(self, force)
+        local now = GetTime()
+        if not force and (now - lastRefreshPass) < 0.3 then
+            return
+        end
+        lastRefreshPass = now
+
         if self.refreshable then
             for _, btn in ipairs(self.refreshable) do
                 if btn.refresh then btn.refresh() end
@@ -1008,7 +1033,7 @@ local function setup_frame_scripts(frame)
         if not refreshTicker then
             refreshTicker = C_Timer.NewTicker(1.0, function()
                 if not frame or not frame:IsShown() then return end
-                run_refresh_pass(frame)
+                run_refresh_pass(frame, true)
             end)
         end
     end)
@@ -1045,14 +1070,10 @@ local function invalidate_portals_frame()
         if portalFrame.legacyMenus then
             for _, m in ipairs(portalFrame.legacyMenus) do
                 m:Hide()
-                m:ClearAllPoints()
-                m:SetParent(UIParent)
             end
         end
         portalFrame:Hide()
-        portalFrame:ClearAllPoints()
-        portalFrame:SetParent(UIParent)
-        portalFrame = nil
+        portalFrame._needsRebuild = true
     end
     if sfui.portals.on_invalidate then
         sfui.portals.on_invalidate()
@@ -1065,28 +1086,40 @@ sfui.portals.InvalidateFrame         = invalidate_portals_frame
 -- Public API
 -- ========================
 local lastToggleTime = 0
+local isToggling = false
 
 function sfui.portals.Toggle()
-    if InCombatLockdown() then return end
-
-    -- Debounce rapid keybind spam and keyboard auto-repeat (0.15s)
     local now = GetTime()
-    if (now - lastToggleTime) < 0.15 then
+    if (now - lastToggleTime) < 0.20 or isToggling then
         return
     end
     lastToggleTime = now
+    isToggling = true
 
-    if not portalFrame then
+    if not portalFrame or portalFrame._needsRebuild then
         if sfui.portals.build_frame then
             portalFrame = sfui.portals.build_frame()
+            if portalFrame then
+                portalFrame._needsRebuild = nil
+            end
         end
     end
-    if not portalFrame then return end
+
+    if not portalFrame then
+        isToggling = false
+        return
+    end
+
     if portalFrame:IsShown() then
         portalFrame:Hide()
     else
+        if InCombatLockdown() then
+            isToggling = false
+            return
+        end
         portalFrame:Show()
     end
+    isToggling = false
 end
 
 function sfui.portals.GetPortalFrame()

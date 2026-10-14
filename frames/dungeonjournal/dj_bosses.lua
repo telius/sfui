@@ -1461,6 +1461,29 @@ local function OnFrameCreated(arg1, arg2)
         common.style_scrollbar(lootScroll.ScrollBar)
     end
 
+    local function OnItemLoadResult(_, itemID, success)
+        if success ~= false then
+            QueueLootRefresh(itemID)
+        end
+    end
+
+    bossPanel:HookScript("OnShow", function()
+        if sfui.events and sfui.events.RegisterEvent then
+            sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", OnItemLoadResult)
+            sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", OnItemLoadResult)
+        end
+    end)
+    bossPanel:HookScript("OnHide", function()
+        if sfui.events and sfui.events.UnregisterEvent then
+            sfui.events.UnregisterEvent("GET_ITEM_INFO_RECEIVED", OnItemLoadResult)
+            sfui.events.UnregisterEvent("ITEM_DATA_LOAD_RESULT", OnItemLoadResult)
+        end
+    end)
+    if bossPanel:IsShown() and sfui.events and sfui.events.RegisterEvent then
+        sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", OnItemLoadResult)
+        sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", OnItemLoadResult)
+    end
+
     -- Register with orchestrator
     sfui.dungeonjournal._registerBosses(RefreshBossView)
 
@@ -1530,16 +1553,3 @@ if sfui.events and sfui.events.RegisterMessage then
     end)
 end
 
-if sfui.events and sfui.events.RegisterEvent then
-    -- Debounced item cache updates
-    sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", function(_, itemID, success)
-        if success ~= false then
-            QueueLootRefresh(itemID)
-        end
-    end)
-    sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", function(_, itemID, success)
-        if success ~= false then
-            QueueLootRefresh(itemID)
-        end
-    end)
-end

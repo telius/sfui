@@ -1214,13 +1214,6 @@ local function OnRecipeLearned()
     RequestTradeSkillScan(true)
 end
 
-local function OnItemInfoReceived(_, itemID)
-    if itemID and isRecipeCache[itemID] then
-        recipeStatusCache[itemID] = nil
-        recipeReqCache[itemID] = nil
-    end
-end
-
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", OnLogin)
 sfui.events.RegisterEvent("NEW_RECIPE_LEARNED", OnRecipeLearned)
 sfui.events.RegisterEvent("TRADE_SKILL_SHOW", RequestTradeSkillScan)
@@ -1231,8 +1224,6 @@ sfui.events.RegisterEvent("SKILL_LINES_CHANGED", function()
     RequestTradeSkillScan(true)
     PruneOrphanCrafts()
 end)
-sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", OnItemInfoReceived)
-
 -- Attempt early hook if container mixin is already available
 HookContainerButtons()
 

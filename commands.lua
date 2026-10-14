@@ -29,6 +29,12 @@ _G["BINDING_NAME_SFUI_MATCHMOUNT"] = "match target mount"
 _G["BINDING_NAME_SFUI_ALTS"] = "alts / warband"
 _G["BINDING_NAME_SFUI_FISHING"] = "cast & catch fishing"
 _G["BINDING_NAME_SFUI_PET_SUMMON"] = "summon / rotate companion pet"
+_G["BINDING_NAME_CLICK SfuiRing_targetmarkers:LeftButton"] = "ring: target markers"
+_G["BINDING_NAME_CLICK SfuiRing_worldmarkers:LeftButton"]  = "ring: world markers"
+_G["BINDING_NAME_CLICK SfuiRing_professions:LeftButton"]   = "ring: professions"
+_G["BINDING_NAME_CLICK SfuiRing_questitems:LeftButton"]    = "ring: quest items"
+_G["BINDING_NAME_CLICK SfuiRing_tracking:LeftButton"]      = "ring: minimap tracking"
+_G["BINDING_NAME_CLICK SfuiRing_utility:LeftButton"]       = "ring: class utility & custom"
 
 -- Dynamic filter for Blizzard Keybindings Settings UI:
 -- - On Retail: exclude class utility (camelot/classic only)
@@ -157,6 +163,20 @@ SlashCmdList["SFUI"] = function(msg)
         if sfui.actionbars and sfui.actionbars.ToggleMovers then
             sfui.actionbars.ToggleMovers(false)
         end
+    elseif cmd == "ring" or cmd == "rings" then
+        if arg == "target" or arg == "markers" then
+            if sfui.ring and sfui.ring.live and sfui.ring.live.open then sfui.ring.live.open("targetmarkers") end
+        elseif arg == "world" or arg == "flares" then
+            if sfui.ring and sfui.ring.live and sfui.ring.live.open then sfui.ring.live.open("worldmarkers") end
+        elseif arg == "prof" or arg == "professions" then
+            if sfui.ring and sfui.ring.live and sfui.ring.live.open then sfui.ring.live.open("professions") end
+        elseif arg == "quest" or arg == "quests" or arg == "items" then
+            if sfui.ring and sfui.ring.live and sfui.ring.live.open then sfui.ring.live.open("questitems") end
+        elseif arg == "track" or arg == "tracking" or arg == "minimap" then
+            if sfui.ring and sfui.ring.live and sfui.ring.live.open then sfui.ring.live.open("tracking") end
+        elseif sfui.toggle_options_panel then
+            sfui.toggle_options_panel("ring")
+        end
     elseif cmd == "rl" or cmd == "reload" then
         C_UI.Reload()
     elseif cmd == "help" or cmd == "?" then
@@ -239,5 +259,14 @@ SlashCmdList["SFUILOCK"] = function()
         sfui.actionbars.ToggleMovers(false)
     end
 end
+
+-- Dedicated Radial Action Rings Slash Command (/sfring)
+SLASH_SFRING1 = "/sfring"
+SlashCmdList["SFRING"] = function(msg)
+    if _G.SlashCmdList and _G.SlashCmdList["SFUI"] then
+        _G.SlashCmdList["SFUI"]("ring " .. (msg or ""))
+    end
+end
+
 
 

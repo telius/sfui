@@ -150,7 +150,6 @@ local CamelotRecipesModule = {
         "PLAYER_ENTERING_WORLD",
         "TRACKED_RECIPE_UPDATE",
         "CURRENCY_DISPLAY_UPDATE",
-        "GET_ITEM_INFO_RECEIVED",
         "TRADE_SKILL_SHOW",
     },
 }

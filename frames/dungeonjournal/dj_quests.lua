@@ -1266,6 +1266,29 @@ local function OnFrameCreated(arg1, arg2)
         common.style_scrollbar(detailScroll.ScrollBar)
     end
 
+    local function OnItemInfoReceived(_, itemID, success)
+        if success ~= false then
+            QueueQuestRefresh(itemID)
+        end
+    end
+
+    questPanel:HookScript("OnShow", function()
+        if sfui.events and sfui.events.RegisterEvent then
+            sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", OnItemInfoReceived)
+            sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", OnItemInfoReceived)
+        end
+    end)
+    questPanel:HookScript("OnHide", function()
+        if sfui.events and sfui.events.UnregisterEvent then
+            sfui.events.UnregisterEvent("ITEM_DATA_LOAD_RESULT", OnItemInfoReceived)
+            sfui.events.UnregisterEvent("GET_ITEM_INFO_RECEIVED", OnItemInfoReceived)
+        end
+    end)
+    if questPanel:IsShown() and sfui.events and sfui.events.RegisterEvent then
+        sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", OnItemInfoReceived)
+        sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", OnItemInfoReceived)
+    end
+
     -- Register with orchestrator
     sfui.dungeonjournal._registerQuests(RefreshQuestView)
 
@@ -1298,15 +1321,6 @@ if sfui.events and sfui.events.RegisterEvent then
     end
     sfui.events.RegisterEvent("QUEST_LOG_UPDATE", OnQuestLogChanged)
     sfui.events.RegisterEvent("QUEST_TURNED_IN", OnQuestLogChanged)
-
-    -- Debounced item cache updates
-    local function OnItemInfoReceived(_, itemID, success)
-        if success ~= false then
-            QueueQuestRefresh(itemID)
-        end
-    end
-    sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", OnItemInfoReceived)
-    sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", OnItemInfoReceived)
 end
 
 -- ─── Focus / Select Quest Programmatically ──────────────────────────────────

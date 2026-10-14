@@ -827,7 +827,8 @@ function B.CreateBrowserFrame()
     -- ESC dismiss
     tinsert(UISpecialFrames, "SfuiRecipeBrowserFrame")
 
-    -- Refresh on show
+    -- Refresh on show & dynamic item info listening
+    local debouncedItemInfoHandle = nil
     f:SetScript("OnShow", function()
         B.UpdateProfessionTabs()
         B.UpdateStateButtons()
@@ -838,6 +839,21 @@ function B.CreateBrowserFrame()
         B.RebuildFilteredList()
         B.ResetScroll()
         B.UpdateList()
+
+        if sfui.events and sfui.events.RegisterDebouncedEvent then
+            debouncedItemInfoHandle = sfui.events.RegisterDebouncedEvent("GET_ITEM_INFO_RECEIVED", 0.25, function()
+                if f:IsShown() then
+                    B.UpdateList()
+                end
+            end)
+        end
+    end)
+
+    f:HookScript("OnHide", function()
+        if debouncedItemInfoHandle and sfui.events and sfui.events.UnregisterEvent then
+            sfui.events.UnregisterEvent("GET_ITEM_INFO_RECEIVED", debouncedItemInfoHandle)
+            debouncedItemInfoHandle = nil
+        end
     end)
 
     -- ── Theme registration ─────────────────────────────────────────────────────
@@ -1123,14 +1139,6 @@ if sfui.events and sfui.events.RegisterMessage then
     end)
 end
 
--- ─── Recipe Item Info Debounced Cache Listener ──────────────────────────────
-if sfui.events and sfui.events.RegisterDebouncedEvent then
-    sfui.events.RegisterDebouncedEvent("GET_ITEM_INFO_RECEIVED", 0.15, function()
-        if B.ui.frame and B.ui.frame:IsShown() then
-            B.UpdateList()
-        end
-    end)
-end
 
 -- ─── Debug Telemetry & Module Registration ───────────────────────────────────
 local debugCache = {}

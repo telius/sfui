@@ -471,6 +471,10 @@ sfui.events.RegisterEvent("MERCHANT_SHOW", function()
     frame:Show()
     sfui.merchant.build_item_list()
 
+    if sfui.events and sfui.events.RegisterEvent then
+        sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", on_merchant_update)
+    end
+
     if MerchantFrame then
         MerchantFrame:SetAlpha(0)
         C_Timer.After(0.01, function()
@@ -487,6 +491,9 @@ sfui.events.RegisterEvent("MERCHANT_SHOW", function()
 end)
 
 sfui.events.RegisterEvent("MERCHANT_CLOSED", function()
+    if sfui.events and sfui.events.UnregisterEvent then
+        sfui.events.UnregisterEvent("GET_ITEM_INFO_RECEIVED", on_merchant_update)
+    end
     wipe(sfui.merchant.lockCache)
     if sfui.merchant.decorXpCache then
         wipe(sfui.merchant.decorXpCache)
@@ -537,7 +544,6 @@ local function on_merchant_update(event, ...)
     end
 end
 sfui.events.RegisterEvent("MERCHANT_UPDATE",       on_merchant_update)
-sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", on_merchant_update)
 sfui.events.RegisterEvent("PLAYER_MONEY",          on_merchant_update)
 
 tinsert(UISpecialFrames, "SfuiMerchantFrame")

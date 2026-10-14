@@ -308,27 +308,5 @@ if sfui.events then
             ScanInventoryFoods()
         end
     end)
-    sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", function()
-        local db = SfuiDB and SfuiDB.buffReminders
-        if not (db and db.enabled ~= false and db.trackFood) then return end
-        isFoodScanDirty = true
-        if sfui.common.is_in_combat() then return end
-        if sfui.common.debounce then
-            sfui.common.debounce("sfui_food_item_info", 0.25, function()
-                if sfui.common.is_in_combat() then return end
-                ClearFoodCache()
-                ScanInventoryFoods()
-                if sfui.buffs and sfui.buffs.UpdateDisplay then
-                    sfui.buffs.UpdateDisplay()
-                end
-            end)
-        else
-            ClearFoodCache()
-            ScanInventoryFoods()
-            if sfui.buffs and sfui.buffs.UpdateDisplay then
-                sfui.buffs.UpdateDisplay()
-            end
-        end
-    end)
 end
 

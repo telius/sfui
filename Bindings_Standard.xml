@@ -1,5 +1,11 @@
 <Bindings>
     <Binding name="CLICK SfuiHammerPopup:LeftButton" category="SFUI"/>
+    <Binding name="CLICK SfuiRing_targetmarkers:LeftButton" runOnUp="true" category="SFUI"/>
+    <Binding name="CLICK SfuiRing_worldmarkers:LeftButton" runOnUp="true" category="SFUI"/>
+    <Binding name="CLICK SfuiRing_professions:LeftButton" runOnUp="true" category="SFUI"/>
+    <Binding name="CLICK SfuiRing_questitems:LeftButton" runOnUp="true" category="SFUI"/>
+    <Binding name="CLICK SfuiRing_tracking:LeftButton" runOnUp="true" category="SFUI"/>
+    <Binding name="CLICK SfuiRing_utility:LeftButton" runOnUp="true" category="SFUI"/>
     <Binding name="SFUI_MATCHMOUNT" category="SFUI">
         sfui.automation.match_mount()
     </Binding>

@@ -476,8 +476,10 @@ function SuppressBlizzardTrackers()
         if otwc.SetAlpha then otwc:SetAlpha(0) end
         if otwc.EnableMouse then otwc:EnableMouse(false) end
         if otwc.Hide then otwc:Hide() end
-        HookAlphaSuppression(otwc)
-        HookMouseSuppression(otwc)
+        -- No SetAlpha/EnableMouse hooks here: Blizzard toggles this container purely via
+        -- SetAlpha(1/0) during tracker layout and never calls Show(), so Hide() above keeps
+        -- it invisible. Hooking SetAlpha made those Blizzard calls error ("[C]: in function
+        -- 'SetAlpha' attempt to call a nil value" at ObjectiveTrackerUIWidgetContainer.lua:62).
     end
 end
 

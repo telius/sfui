@@ -836,7 +836,52 @@ local function FormatAbbreviatedGold(copper)
 end
 
 -- 2. Item Loot
-local function OnItemLoot(msg, looterName)
+local OnItemLoot
+local waitingItemListenerActive = false
+local waitingItemCleanupTimer = nil
+local StopWaitingItemListener
+local StartWaitingItemListener
+
+local function on_waiting_item_loaded(event, itemID, success)
+    if not waitingItemListenerActive then return end
+    if success and itemID and not IsSecret(itemID) and waitingItemCache[itemID] then
+        local cached = waitingItemCache[itemID]
+        waitingItemCache[itemID] = nil
+        OnItemLoot(cached.link, cached.looter)
+    end
+    if not next(waitingItemCache) then
+        StopWaitingItemListener()
+    end
+end
+
+StopWaitingItemListener = function()
+    if not waitingItemListenerActive then return end
+    waitingItemListenerActive = false
+    sfui.events.UnregisterEvent("GET_ITEM_INFO_RECEIVED", on_waiting_item_loaded)
+    sfui.events.UnregisterEvent("ITEM_DATA_LOAD_RESULT", on_waiting_item_loaded)
+    if waitingItemCleanupTimer then
+        waitingItemCleanupTimer:Cancel()
+        waitingItemCleanupTimer = nil
+    end
+end
+
+StartWaitingItemListener = function()
+    if not waitingItemListenerActive then
+        waitingItemListenerActive = true
+        sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", on_waiting_item_loaded)
+        sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", on_waiting_item_loaded)
+    end
+    if waitingItemCleanupTimer then
+        waitingItemCleanupTimer:Cancel()
+    end
+    waitingItemCleanupTimer = C_Timer.NewTimer(5.0, function()
+        waitingItemCleanupTimer = nil
+        wipe(waitingItemCache)
+        StopWaitingItemListener()
+    end)
+end
+
+OnItemLoot = function(msg, looterName)
     local cfg = GetConfig()
     if not msg or IsSecret(msg) then return end
     if looterName and IsSecret(looterName) then looterName = nil end
@@ -863,6 +908,7 @@ local function OnItemLoot(msg, looterName)
         if itemID and RequestLoadItemDataByID then
             waitingItemCache[itemID] = { link = itemLink, qty = qty, looter = looterName }
             RequestLoadItemDataByID(itemID)
+            StartWaitingItemListener()
         end
         return
     end
@@ -1398,14 +1444,6 @@ local M = sfui.RegisterModule("lootfeed", {
             OnItemLoot(msg, targetLooter)
         end
 
-        local function on_get_item_info_received(event, itemID, success)
-            if success and itemID and not IsSecret(itemID) and waitingItemCache[itemID] then
-                local cached = waitingItemCache[itemID]
-                waitingItemCache[itemID] = nil
-                OnItemLoot(cached.link, cached.looter)
-            end
-        end
-
         local function on_player_money()
             OnMoneyUpdate()
         end
@@ -1446,7 +1484,6 @@ local M = sfui.RegisterModule("lootfeed", {
 
         self.eventCallbacks = {
             ["CHAT_MSG_LOOT"] = on_chat_msg_loot,
-            ["GET_ITEM_INFO_RECEIVED"] = on_get_item_info_received,
             ["PLAYER_MONEY"] = on_player_money,
             ["PLAYER_XP_UPDATE"] = on_player_xp_update,
             ["CURRENCY_DISPLAY_UPDATE"] = on_currency_display_update,
@@ -1462,6 +1499,8 @@ local M = sfui.RegisterModule("lootfeed", {
     end,
 
     OnDisable = function(self)
+        StopWaitingItemListener()
+        wipe(waitingItemCache)
         if self.eventCallbacks then
             for ev, cb in pairs(self.eventCallbacks) do
                 sfui.events.UnregisterEvent(ev, cb)

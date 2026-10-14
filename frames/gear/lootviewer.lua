@@ -2443,6 +2443,34 @@ function sfui.lootviewer.CreateFrame()
     hint:SetText("hover: tooltip  ·  right-click item: cycle loot spec  ·  click badge: cycle spec  ·  right-click badge: clear")
     hint:SetTextColor(0.22, 0.22, 0.22, 1)
 
+    local itemDataTimer = nil
+    local function OnItemDataLoadResult(_, itemID, success)
+        if success and frame and frame:IsShown() then
+            if not itemDataTimer and C_Timer and C_Timer.NewTimer then
+                itemDataTimer = C_Timer.NewTimer(0.15, function()
+                    itemDataTimer = nil
+                    if frame and frame:IsShown() then
+                        DoRebuild()
+                    end
+                end)
+            end
+        end
+    end
+
+    local bagUpdateTimer = nil
+    local function OnBagUpdateDelayed()
+        if frame and frame:IsShown() then
+            if not bagUpdateTimer and C_Timer and C_Timer.NewTimer then
+                bagUpdateTimer = C_Timer.NewTimer(0.2, function()
+                    bagUpdateTimer = nil
+                    if frame and frame:IsShown() then
+                        DoRebuild()
+                    end
+                end)
+            end
+        end
+    end
+
     frame:SetScript("OnShow", function()
         filterSlot   = "all"
         filterSpec   = 0
@@ -2462,11 +2490,28 @@ function sfui.lootviewer.CreateFrame()
             slotDropdown:GetFontString():SetText("all slots")
         end
         DoRebuild()
+
+        if sfui.events and sfui.events.RegisterEvent then
+            sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", OnItemDataLoadResult)
+            sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", OnBagUpdateDelayed)
+        end
     end)
 
     frame:HookScript("OnHide", function()
         if slotDropdown and slotDropdown.menu and slotDropdown.menu:IsShown() then
             slotDropdown.menu:Hide()
+        end
+        if sfui.events and sfui.events.UnregisterEvent then
+            sfui.events.UnregisterEvent("ITEM_DATA_LOAD_RESULT", OnItemDataLoadResult)
+            sfui.events.UnregisterEvent("BAG_UPDATE_DELAYED", OnBagUpdateDelayed)
+        end
+        if itemDataTimer then
+            itemDataTimer:Cancel()
+            itemDataTimer = nil
+        end
+        if bagUpdateTimer then
+            bagUpdateTimer:Cancel()
+            bagUpdateTimer = nil
         end
     end)
 
@@ -2531,33 +2576,6 @@ sfui.events.RegisterEvent("CHALLENGE_MODE_MAPS_UPDATE", function()
     if frame and frame:IsShown() and activeTab == "dungeons" then DoRebuild() end
 end)
 
-local itemDataTimer = nil
-sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", function(_, itemID, success)
-    if success and frame and frame:IsShown() then
-        if not itemDataTimer then
-            itemDataTimer = C_Timer.NewTimer(0.15, function()
-                itemDataTimer = nil
-                if frame and frame:IsShown() then
-                    DoRebuild()
-                end
-            end)
-        end
-    end
-end)
-
-local bagUpdateTimer = nil
-sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", function()
-    if frame and frame:IsShown() then
-        if not bagUpdateTimer then
-            bagUpdateTimer = C_Timer.NewTimer(0.2, function()
-                bagUpdateTimer = nil
-                if frame and frame:IsShown() then
-                    DoRebuild()
-                end
-            end)
-        end
-    end
-end)
 
 -- ─── Diagnostics & Memory Watcher Telemetry ──────────────────────────────────
 local _lvDebug = {}

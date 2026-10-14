@@ -224,11 +224,12 @@ local function make_hearthstone_scroll_icon(parent, skinList, x, y)
     end)
     frame:SetScript("OnLeave", function(self)
         if p.is_currently_clicking() then return end
-        if not p.actionBtn:IsShown() or p.actionBtn:GetParent() ~= self then
-            reset_hover()
-            p.disarm()
-            p.hide_tooltip()
+        if p.get_hover_frame and p.get_hover_frame() == self and p.actionBtn:IsShown() then
+            return
         end
+        reset_hover()
+        p.disarm()
+        p.hide_tooltip()
     end)
 
     return frame
@@ -318,11 +319,12 @@ local function make_legacy_dropdown(parent, group, yPos)
         end)
         row:SetScript("OnLeave", function(self)
             if p.is_currently_clicking() then return end
-            if not p.actionBtn:IsShown() or p.actionBtn:GetParent() ~= self then
-                reset_hover()
-                p.disarm()
-                p.hide_tooltip()
+            if p.get_hover_frame and p.get_hover_frame() == self and p.actionBtn:IsShown() then
+                return
             end
+            reset_hover()
+            p.disarm()
+            p.hide_tooltip()
         end)
 
         tinsert(menu.rows, row)
@@ -533,6 +535,7 @@ p.build_frame = build_standard_portals_frame
 
 p.on_invalidate = function()
     table_wipe(dungeonSpecCache)
+    openLegacyMenu = nil
 end
 
 -- ========================

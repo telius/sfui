@@ -27,27 +27,16 @@ local standardBars = {}
 local attachedBars = {}
 local activeCooldownIDs = {}
 
--- Pandemic tracking state via Blizzard hooks (EllesmereUI pattern)
--- Detects pandemic state natively without inspecting, storing, or comparing secret values.
-local _pandemicState = setmetatable({}, { __mode = "k" })
-local _pandemicHooked = setmetatable({}, { __mode = "k" })
-
-local function _PandemicShow(frame)
-    _pandemicState[frame] = true
-end
-
-local function _PandemicHide(frame)
-    _pandemicState[frame] = nil
-end
-
-local function HookBlizzardPandemic(blizzFrame)
-    if not blizzFrame or _pandemicHooked[blizzFrame] then return end
-    if not blizzFrame.ShowPandemicStateFrame then return end
-    _pandemicHooked[blizzFrame] = true
-    hooksecurefunc(blizzFrame, "ShowPandemicStateFrame", _PandemicShow)
-    if blizzFrame.HidePandemicStateFrame then
-        hooksecurefunc(blizzFrame, "HidePandemicStateFrame", _PandemicHide)
-    end
+-- Pandemic state is read from Blizzard's own item field: CooldownViewerItemMixin sets
+-- `PandemicIcon` in ShowPandemicStateFrame and nils it in HidePandemicStateFrame.
+-- Do NOT hooksecurefunc those methods: Blizzard calls HidePandemicStateFrame every
+-- OnUpdate, and the client blocks addon hooks on these items in combat, raising
+-- "[C]: in function 'HidePandemicStateFrame' attempt to call a nil value" each tick.
+local function IsBlizzardItemInPandemic(blizzFrame)
+    local icon = blizzFrame and blizzFrame.PandemicIcon
+    if not icon or not icon.IsShown then return false end
+    local ok, shown = pcall(icon.IsShown, icon)
+    return ok and shown == true
 end
 
 -- Helper to get tracking config for a specific ID
@@ -770,18 +759,18 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
     if myBar.spellID and not (issecretvalue and issecretvalue(myBar.spellID)) then
         local cdMirrorCache = sfui.trackedbars._cdDurCache
         if cdMirrorCache then
+            -- Check secrecy with issecretvalue; never probe with arithmetic. A pcall'd
+            -- `x + 0` on a secret is still blocked by the client and logged to taint.log every tick.
             local ok, cd = pcall(C_Spell.GetSpellCooldown, myBar.spellID)
             if ok and cd and cd.duration then
-                local probe = pcall(function() return cd.duration + 0 end)
-                if probe then
+                if not (issecretvalue and issecretvalue(cd.duration)) then
                     cdMirrorCache[myBar.spellID] = cd.duration
                 end
             else
                 -- Fall back to charge recharge duration (charge-based spells).
                 local ok2, ci = pcall(C_Spell.GetSpellCharges, myBar.spellID)
                 if ok2 and ci and ci.cooldownDuration then
-                    local probe2 = pcall(function() return ci.cooldownDuration + 0 end)
-                    if probe2 and not (issecretvalue and issecretvalue(ci.cooldownDuration)) and ci.cooldownDuration > 0 then
+                    if not (issecretvalue and issecretvalue(ci.cooldownDuration)) and ci.cooldownDuration > 0 then
                         cdMirrorCache[myBar.spellID] = ci.cooldownDuration
                     end
                 end
@@ -1122,8 +1111,6 @@ local function ProcessBlizzardSync()
     -- Process Blizzard Frames
     for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
         if blizzFrame.cooldownID then
-            HookBlizzardPandemic(blizzFrame)
-
             local id = blizzFrame.cooldownID
             local info = _cdViewerInfoCache[id]
             if not info and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
@@ -1383,8 +1370,6 @@ local function UpdateBarsState()
                 end
 
                 -- Pandemic Window & Glow (Retail 12.1.5+ CooldownViewer)
-                -- EUI / Secret-safe passthrough: Hook Blizzard's native pandemic state frame
-                HookBlizzardPandemic(blizzFrame)
 
                 -- Forward Blizzard native pandemic frame directly to our bar if active
                 if blizzFrame.PandemicIcon then
@@ -1397,9 +1382,8 @@ local function UpdateBarsState()
                     end
                 end
 
-                -- Determine active pandemic state safely without inspecting secrets (EllesmereUI hook pattern)
-                local inPandemic = (_pandemicState[blizzFrame] == true)
-                    or (blizzFrame.PandemicIcon and blizzFrame.PandemicIcon.IsShown and blizzFrame.PandemicIcon:IsShown() and true or false)
+                -- Pandemic state comes from Blizzard's own PandemicIcon field (no hooks, no secrets)
+                local inPandemic = IsBlizzardItemInPandemic(blizzFrame)
 
                 local showGlow = (tBarsCfg.pandemicGlow ~= false) and (not config or config.pandemicGlow ~= false)
                 if inPandemic and showGlow then

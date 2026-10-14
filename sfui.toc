@@ -53,6 +53,7 @@ frames/options/tabs/tab_bars.lua
 frames/options/tabs/tab_actionbars.lua
 frames/options/tabs/tab_classutility.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/options/tabs/tab_portals.lua
+frames/options/tabs/tab_ring.lua
 frames/options/tabs/tab_buffs.lua [AllowLoadGameType camelot, classic]
 frames/options/tabs/tab_castbars.lua
 frames/options/tabs/tab_combattext.lua
@@ -213,6 +214,19 @@ frames/reminders/buffs_data.lua [AllowLoadGameType camelot, classic]
 frames/reminders/buffs_consumables.lua [AllowLoadGameType camelot, classic]
 frames/reminders/buffs_scan.lua [AllowLoadGameType camelot, classic]
 frames/reminders/buffs.lua [AllowLoadGameType camelot, classic]
+
+# Radial Action Rings (Quickdraw)
+frames/ring/ring_geometry.lua
+frames/ring/ring_secure.lua
+frames/ring/ring_view.lua
+frames/ring/ring_live.lua
+frames/ring/ring.lua
+frames/ring/providers/ring_markers.lua
+frames/ring/providers/ring_worldmarkers.lua
+frames/ring/providers/ring_professions.lua
+frames/ring/providers/ring_questitems.lua
+frames/ring/providers/ring_tracking.lua
+frames/ring/providers/ring_utility.lua
 
 frames/mem.lua
 commands.lua
