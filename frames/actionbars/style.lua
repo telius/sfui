@@ -348,12 +348,8 @@ if LibStub then
 end
 
 -- Clear hotkey cache when bindings update
-local bindingEventFrame = _G.CreateFrame and _G.CreateFrame("Frame")
-if bindingEventFrame then
-    bindingEventFrame:RegisterEvent("UPDATE_BINDINGS")
-    bindingEventFrame:SetScript("OnEvent", function()
-        style.ClearHotkeyCache()
-    end)
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("UPDATE_BINDINGS", style.ClearHotkeyCache)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────

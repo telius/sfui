@@ -22,9 +22,7 @@ local string_format = string.format
 
 local RECRAFT_MODES = { false, true }
 
-local function GetQLState()
-    return sfui.questlog.GetState()
-end
+local GetQLState = sfui.questlog.GetState
 
 local RecipesModule = {
     id       = "recipes",

@@ -45,27 +45,15 @@ local function GetPlayerFaction()
 end
 
 -- ─── Database & State Access ──────────────────────────────────────────────────
-local function DJ_DB()
-    return sfui.dungeonjournal.GetDB()
-end
-
-local function GetCurrentDungeon()
-    return sfui.dungeonjournal.GetCurrentDungeon()
-end
+local DJ_DB             = sfui.dungeonjournal.GetDB
+local GetCurrentDungeon = sfui.dungeonjournal.GetCurrentDungeon
 
 -- ─── Quality Color Helper ─────────────────────────────────────────────────────
-local function GetQualityColor(quality)
-    return sfui.dungeonjournal.GetQualityColor(quality)
-end
+local GetQualityColor   = sfui.dungeonjournal.GetQualityColor
 
 -- ─── Quest Status & Live Helpers ──────────────────────────────────────────────
-local function IsQuestCompleted(questID)
-    return sfui.dungeonjournal.IsQuestCompleted(questID)
-end
-
-local function IsQuestInLog(questID)
-    return sfui.dungeonjournal.IsQuestActive(questID)
-end
+local IsQuestCompleted  = sfui.dungeonjournal.IsQuestCompleted
+local IsQuestInLog      = sfui.dungeonjournal.IsQuestActive
 
 local function IsQuestShareable(questID, quest)
     if quest and quest.shareable ~= nil then
@@ -257,17 +245,9 @@ local function AcquireRewardButton(pool, parent)
     return btn
 end
 
-local function ReleaseAll(pool)
-    sfui.dungeonjournal.ReleaseAll(pool)
-end
-
-local function ResolveItemLink(btn, fallbackItemID)
-    return sfui.dungeonjournal.ResolveItemLink(btn, fallbackItemID)
-end
-
-local function InsertItemLinkIntoChat(link)
-    return sfui.dungeonjournal.InsertItemLinkIntoChat(link)
-end
+local ReleaseAll             = sfui.dungeonjournal.ReleaseAll
+local ResolveItemLink        = sfui.dungeonjournal.ResolveItemLink
+local InsertItemLinkIntoChat = sfui.dungeonjournal.InsertItemLinkIntoChat
 
 -- ─── Render Quest Detail ──────────────────────────────────────────────────────
 local function RenderQuestDetail(quest, dungeon)
@@ -578,22 +558,28 @@ local function RenderQuestDetail(quest, dungeon)
             if not mapID then return end
 
             local waypointSet = false
-            if x and y and C_Map and UiMapPoint and UiMapPoint.CreateFromCoordinates then
-                local canSet = true
-                if C_Map.CanSetUserWaypointOnMap then
-                    local ok, allowed = pcall(C_Map.CanSetUserWaypointOnMap, mapID)
-                    if ok and allowed == false then
-                        canSet = false
+            if x and y then
+                if sfui.map and sfui.map.SetUserWaypoint then
+                    waypointSet = sfui.map.SetUserWaypoint(mapID, x, y)
+                elseif C_Map and UiMapPoint and UiMapPoint.CreateFromCoordinates then
+                    local canSet = true
+                    if C_Map.CanSetUserWaypointOnMap then
+                        local ok, allowed = pcall(C_Map.CanSetUserWaypointOnMap, mapID)
+                        if ok and allowed == false then
+                            canSet = false
+                        end
                     end
-                end
-                if canSet and C_Map.SetUserWaypoint then
-                    local ok, pt = pcall(UiMapPoint.CreateFromCoordinates, mapID, x, y)
-                    if ok and pt then
-                        local okSet = pcall(C_Map.SetUserWaypoint, pt)
-                        if okSet then
-                            waypointSet = true
-                            if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
-                                pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
+                    if canSet and C_Map.SetUserWaypoint then
+                        local ok, pt = pcall(UiMapPoint.CreateFromCoordinates, mapID, x, y)
+                        if ok and pt then
+                            local okSet = pcall(C_Map.SetUserWaypoint, pt)
+                            if okSet then
+                                waypointSet = true
+                                if sfui.map and sfui.map.SetSuperTrackedUserWaypoint then
+                                    sfui.map.SetSuperTrackedUserWaypoint(true)
+                                elseif C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+                                    pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
+                                end
                             end
                         end
                     end

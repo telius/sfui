@@ -65,10 +65,10 @@ local function UntrackSection(sec)
                         _G.RemoveQuestWatch(idx)
                     end
                 end
-                if C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.SetSuperTrackedQuestID then
-                    local curSuper = C_SuperTrack.GetSuperTrackedQuestID()
+                if sfui.map and sfui.map.SetSuperTrackedQuestID then
+                    local curSuper = C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.GetSuperTrackedQuestID()
                     if curSuper and curSuper == qID then
-                        C_SuperTrack.SetSuperTrackedQuestID(0)
+                        sfui.map.SetSuperTrackedQuestID(0)
                     end
                 end
             end
@@ -270,10 +270,10 @@ local function UntrackSection(sec)
                     if match then
                         if C_QuestLog and C_QuestLog.RemoveQuestWatch then C_QuestLog.RemoveQuestWatch(qID) end
                         if _G.RemoveQuestWatch then _G.RemoveQuestWatch(i) end
-                        if C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.SetSuperTrackedQuestID then
-                            local curSuper = C_SuperTrack.GetSuperTrackedQuestID()
+                        if sfui.map and sfui.map.SetSuperTrackedQuestID then
+                            local curSuper = C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.GetSuperTrackedQuestID()
                             if curSuper and curSuper == qID then
-                                C_SuperTrack.SetSuperTrackedQuestID(0)
+                                sfui.map.SetSuperTrackedQuestID(0)
                             end
                         end
                     end
@@ -371,9 +371,9 @@ function Layout.BuildLayout(container, sections)
 
                 local countVal = sec.count or (sec.blocks and #sec.blocks) or 0
                 if isCollapsed then
-                    header.count:SetText(tostring(countVal) .. "  +")
+                    header.count:SetFormattedText("%d  +", countVal)
                 else
-                    header.count:SetText(tostring(countVal))
+                    header.count:SetFormattedText("%d", countVal)
                 end
                 if header.isCamelotHeader then
                     local pal = sfui.theme and sfui.theme.GetPalette()
@@ -665,7 +665,7 @@ function Layout.BuildLayout(container, sections)
                             pBar.text:SetText(bData.progressBar.text)
                         elseif maxV > 0 then
                             local pct = math.floor((curV / maxV) * 100 + 0.5)
-                            pBar.text:SetText(string.format("%d%%", pct))
+                            pBar.text:SetFormattedText("%d%%", pct)
                         end
 
                         pBar:EnableMouse(true)

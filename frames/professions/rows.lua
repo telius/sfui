@@ -17,6 +17,12 @@ local theme  = sfui.theme
 local GameTooltip = sfui.common.get_tooltip()
 local C_Item_GetItemInfoInstant = sfui.common.get_item_instant_info
 
+local TAG_PINNED = " |cffffd100[pinned]|r"
+local TAG_ALT_SINGLE = " |cff80c0ff[alt]|r"
+local TEXT_LEARNED = "|cff40c040[learned]|r"
+local TEXT_STARTER = "|cff40c0400|r"
+local TEXT_STARTER_SOURCE = "|cff666666-|r |cff00ccfftrainer|r |cff666666-|r |cffcccccclearned with profession|r"
+
 --- Refresh tooltip under mouse cursor if hovering over a list row
 function B.RefreshHoverTooltip()
     local focus = (_G.GetMouseFoci and _G.GetMouseFoci()[1]) or (_G.GetMouseFocus and _G.GetMouseFocus())
@@ -59,10 +65,8 @@ function B.GetItemQuality(itemID)
         q = C_Item.GetItemQualityByID(itemID)
     end
     if not q then
-        if C_Item and C_Item.GetItemInfo then
-            q = select(3, C_Item.GetItemInfo(itemID))
-        elseif _G.GetItemInfo then
-            q = select(3, _G.GetItemInfo(itemID))
+        if common and common.get_item_info then
+            q = select(3, common.get_item_info(itemID))
         end
     end
 
@@ -112,7 +116,7 @@ function B.GetRecipeDisplayLink(r)
         if C_Item and C_Item.RequestLoadItemDataByID then
             C_Item.RequestLoadItemDataByID(iid)
         end
-        local link = select(2, (C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(iid)) or (_G.GetItemInfo and _G.GetItemInfo(iid)))
+        local link = select(2, (common and common.get_item_info and common.get_item_info(iid)) or (_G.GetItemInfo and _G.GetItemInfo(iid)))
         if link and link ~= "" then
             return link, iid
         end
@@ -133,7 +137,7 @@ function B.GetRecipeDisplayLink(r)
         if C_Item and C_Item.RequestLoadItemDataByID then
             C_Item.RequestLoadItemDataByID(oid)
         end
-        local link = select(2, (C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(oid)) or (_G.GetItemInfo and _G.GetItemInfo(oid)))
+        local link = select(2, (common and common.get_item_info and common.get_item_info(oid)) or (_G.GetItemInfo and _G.GetItemInfo(oid)))
         if link and link ~= "" then
             return link, oid
         end
@@ -330,7 +334,7 @@ function B.CreateRow(parent, index)
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine("|cffffd100reagents:|r", 1, 1, 1)
             for matID, count in pairs(r.reagents) do
-                local matName = (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(matID)) or (_G.GetItemInfo and _G.GetItemInfo(matID)) or ("item #" .. matID)
+                local matName = (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(matID)) or (common and common.get_item_info and select(1, common.get_item_info(matID))) or ("item #" .. matID)
                 local inBag = (C_Item and C_Item.GetItemCount and C_Item.GetItemCount(matID)) or (_G.GetItemCount and _G.GetItemCount(matID)) or 0
                 local countCol = (inBag >= count) and "|cff00ff88" or "|cffff5555"
                 local line = string.format("  |cffffffff%dx|r %s %s(%d in bags)|r", count, matName, countCol, inBag)
@@ -404,7 +408,7 @@ function B.CreateRow(parent, index)
 
     row:SetScript("OnLeave", function()
         GameTooltip._sfuiInRecipeBrowser = nil
-        GameTooltip:Hide()
+        common.hide_tooltip()
     end)
 
     row:SetScript("OnClick", function(self)
@@ -414,8 +418,7 @@ function B.CreateRow(parent, index)
         -- Shift-Click: insert recipe hyperlink into chat
         if IsShiftKeyDown() then
             local link = self.displayLink or B.GetRecipeDisplayLink(r)
-            if link and ChatEdit_InsertLink then
-                ChatEdit_InsertLink(link)
+            if link and sfui.common.insert_link_to_chat(link) then
                 return
             end
         end
@@ -548,29 +551,40 @@ function B.UpdateList()
             local isStarter = (minSkill <= 0)
 
             local isPinned = sfui.recipes.IsRecipePinned and sfui.recipes.IsRecipePinned(r.id)
-            local pinTag = isPinned and " |cffffd100[pinned]|r" or ""
+            local pinTag = isPinned and TAG_PINNED or ""
 
             local altNeeds, altList = sfui.recipes.IsAltNeeded and sfui.recipes.IsAltNeeded(r)
             local altTag = ""
             if altNeeds and altList then
-                if #altList > 1 then
-                    altTag = string.format(" |cff80c0ff[alt: %d]|r", #altList)
-                else
-                    altTag = " |cff80c0ff[alt]|r"
+                local numAlts = #altList
+                if numAlts > 1 then
+                    altTag = string.format(" |cff80c0ff[alt: %d]|r", numAlts)
+                elseif numAlts == 1 then
+                    altTag = TAG_ALT_SINGLE
                 end
             end
 
             -- Skill requirement / learned badge / specialization
             if isLearned then
-                row.reqText:SetText("|cff40c040[learned]|r" .. altTag .. pinTag)
+                if altTag == "" and pinTag == "" then
+                    row.reqText:SetText(TEXT_LEARNED)
+                else
+                    row.reqText:SetText(TEXT_LEARNED .. altTag .. pinTag)
+                end
             elseif isStarter then
-                row.reqText:SetText("|cff40c0400|r" .. altTag .. pinTag)
+                if altTag == "" and pinTag == "" then
+                    row.reqText:SetText(TEXT_STARTER)
+                else
+                    row.reqText:SetText(TEXT_STARTER .. altTag .. pinTag)
+                end
             else
                 local meetsReq = (currentRank >= minSkill)
                 local reqCol = meetsReq and "|cff40c040" or "|cffff5555"
                 if r.spec then
                     local specTag = B.SPEC_SHORT_TAGS[r.spec] or ("[" .. r.spec .. "]")
                     row.reqText:SetText(string.format("%s%d|r |cffffa500%s|r%s%s", reqCol, minSkill, specTag, altTag, pinTag))
+                elseif altTag == "" and pinTag == "" then
+                    row.reqText:SetFormattedText("%s%d|r", reqCol, minSkill)
                 else
                     row.reqText:SetText(string.format("%s%d|r%s%s", reqCol, minSkill, altTag, pinTag))
                 end
@@ -623,7 +637,11 @@ function B.UpdateList()
             end
 
             if isStarter then
-                row.sourceText:SetText(string.format("|cff666666-|r %s|cff00ccfftrainer|r |cff666666-|r |cffcccccclearned with profession|r", eventTag))
+                if eventTag == "" then
+                    row.sourceText:SetText(TEXT_STARTER_SOURCE)
+                else
+                    row.sourceText:SetText(string.format("|cff666666-|r %s|cff00ccfftrainer|r |cff666666-|r |cffcccccclearned with profession|r", eventTag))
+                end
                 row.pinIcon:Hide()
                 row.bestSource = nil
             elseif firstSource then

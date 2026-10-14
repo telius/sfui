@@ -129,7 +129,7 @@ function sfui.research.initialize()
 end
 
 function sfui.research.open_tree(data)
-    if not data then return end
+    if not data or (_G.InCombatLockdown and _G.InCombatLockdown()) then return end
     selectedTreeInfo = data
     SfuiDB.last_research_tree = data
 
@@ -154,6 +154,7 @@ function sfui.research.open_tree(data)
 end
 
 function sfui.research.toggle_selection()
+    if _G.InCombatLockdown and _G.InCombatLockdown() then return end
     if not selectedTreeInfo then
         selectedTreeInfo = SfuiDB.last_research_tree or sfui.research.talentTrees["The War Within"][1]
     end
@@ -202,7 +203,7 @@ local function create_sfui_button(parent, text, width, height, tooltip)
         else
             self:SetBackdropBorderColor(unpack(sfui.config.colors.black))
         end
-        GameTooltip:Hide()
+        sfui.common.hide_tooltip()
     end)
     return btn
 end

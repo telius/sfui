@@ -304,9 +304,7 @@ function Blocks.AcquireLine(parent)
     return l
 end
 
-local function GetBarTexture()
-    return sfui.widgets.get_bar_texture()
-end
+local GetBarTexture = sfui.widgets.get_bar_texture
 
 -- ─── Status Bar Factory & Pool ──────────────────────────────────────────────
 local function CreateBar(parent)

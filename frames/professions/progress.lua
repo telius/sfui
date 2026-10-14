@@ -17,15 +17,7 @@ local GameTooltip = sfui.common.get_tooltip()
 
 --- Get the active status bar texture configured in config.lua / theme engine
 --- @return string texturePath
-function B.GetBarTexture()
-    if sfui.widgets and sfui.widgets.resolve_statusbar_texture and sfui.config and sfui.config.barTexture then
-        return sfui.widgets.resolve_statusbar_texture(sfui.config.barTexture)
-    end
-    if sfui.widgets and sfui.widgets.get_bar_texture then
-        return sfui.widgets.get_bar_texture()
-    end
-    return (sfui.config and sfui.config.barTexture) or "Interface/Buttons/WHITE8X8"
-end
+B.GetBarTexture = sfui.widgets.get_bar_texture
 
 --- Set status bar texture directly across recipe catalog progress bar
 --- @param texturePath string?

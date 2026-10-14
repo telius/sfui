@@ -13,7 +13,7 @@ local pins = sfui.pins
 if not pins then return end
 
 local _G                  = _G
-local GameTooltip         = _G.GameTooltip
+local GameTooltip         = sfui.common.get_tooltip()
 local IsControlKeyDown    = _G.IsControlKeyDown
 local ipairs              = _G.ipairs
 local string_format       = string.format

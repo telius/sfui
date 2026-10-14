@@ -395,13 +395,8 @@ local function IsItemMatchingFilter(filterKey, itemID, classID, subclassID, equi
 end
 
 -- ─── Database & State Access ──────────────────────────────────────────────────
-local function DJ_DB()
-    return sfui.dungeonjournal.GetDB()
-end
-
-local function GetCurrentDungeon()
-    return sfui.dungeonjournal.GetCurrentDungeon()
-end
+local DJ_DB             = sfui.dungeonjournal.GetDB
+local GetCurrentDungeon = sfui.dungeonjournal.GetCurrentDungeon
 
 local function GetEncounterList(dungeon)
     if not dungeon then return {} end
@@ -445,9 +440,7 @@ local function GetEncounterList(dungeon)
 end
 
 -- ─── Quality Color Helper ─────────────────────────────────────────────────────
-local function GetQualityColor(quality)
-    return sfui.dungeonjournal.GetQualityColor(quality)
-end
+local GetQualityColor = sfui.dungeonjournal.GetQualityColor
 
 -- ─── Wishlist Detection Helpers ───────────────────────────────────────────────
 local function GetBossWishlistInfo(boss)
@@ -686,17 +679,9 @@ local function AcquireLootButton(pool, parent)
     return btn
 end
 
-local function ReleaseAll(pool)
-    sfui.dungeonjournal.ReleaseAll(pool)
-end
-
-local function ResolveItemLink(btn, fallbackItemID)
-    return sfui.dungeonjournal.ResolveItemLink(btn, fallbackItemID)
-end
-
-local function InsertItemLinkIntoChat(link)
-    return sfui.dungeonjournal.InsertItemLinkIntoChat(link)
-end
+local ReleaseAll             = sfui.dungeonjournal.ReleaseAll
+local ResolveItemLink        = sfui.dungeonjournal.ResolveItemLink
+local InsertItemLinkIntoChat = sfui.dungeonjournal.InsertItemLinkIntoChat
 
 local function GetItemNumericDropRate(itemEntry, itemID, boss)
     local dropRate = (type(itemEntry) == "table" and (itemEntry.dropRate or itemEntry.rate or itemEntry[2]))

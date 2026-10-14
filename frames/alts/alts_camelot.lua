@@ -63,7 +63,6 @@ local C_MajorFactions = _G.C_MajorFactions
 local C_SeasonInfo = _G.C_SeasonInfo
 local BreakUpLargeNumbers = _G.BreakUpLargeNumbers or tostring
 local IsModifiedClick = _G.IsModifiedClick
-local ChatEdit_InsertLink = _G.ChatEdit_InsertLink
 
 local AcquireTable = sfui.alts.AcquireTable
 local ReleaseTable = sfui.alts.ReleaseTable
@@ -1153,8 +1152,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         cell:SetScript("OnMouseUp", function(self, button)
             if button == "LeftButton" and IsModifiedClick and IsModifiedClick("CHATLINK") then
                 local link = (C_CurrencyInfo and C_CurrencyInfo.GetCurrencyLink and C_CurrencyInfo.GetCurrencyLink(cat.id, val))
-                if link and ChatEdit_InsertLink then
-                    ChatEdit_InsertLink(link)
+                if link then
+                    sfui.common.insert_link_to_chat(link)
                 end
             end
         end)

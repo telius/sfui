@@ -31,9 +31,6 @@ local IsQuestLogSpecialItemInRange = _G.IsQuestLogSpecialItemInRange
 local UseQuestLogSpecialItem = _G.UseQuestLogSpecialItem
 local C_Minimap = _G.C_Minimap
 local IsShiftKeyDown = _G.IsShiftKeyDown
-local ChatEdit_GetActiveWindow = _G.ChatEdit_GetActiveWindow
-local ChatEdit_InsertLink = _G.ChatEdit_InsertLink
-local ChatFrameUtil = _G.ChatFrameUtil
 local pairs, next, tostring = _G.pairs, _G.next, _G.tostring
 local table_insert, table_remove = _G.table.insert, _G.table.remove
 
@@ -212,26 +209,9 @@ function Items.CreateItemButton(parent)
         if not qlIndex then return end
 
         if IsShiftKeyDown and IsShiftKeyDown() then
-            local activeChat = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
-                or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
-                or _G.ACTIVE_CHAT_EDIT_BOX
-            local isChatOpen = (activeChat and (activeChat:IsShown() or activeChat:IsVisible()))
-                or (_G.MacroFrameText and _G.MacroFrameText:IsShown())
-                or (_G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown())
-
-            if isChatOpen then
-                local link = self.itemLink or (GetQuestLogSpecialItemInfo and GetQuestLogSpecialItemInfo(qlIndex))
-                if link then
-                    if ChatFrameUtil and ChatFrameUtil.InsertLink and ChatFrameUtil.InsertLink(link) then return end
-                    if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then return end
-                    if activeChat and activeChat.Insert then
-                        activeChat:Insert(link)
-                        if activeChat.SetFocus then
-                            activeChat:SetFocus()
-                        end
-                        return
-                    end
-                end
+            local link = self.itemLink or (GetQuestLogSpecialItemInfo and GetQuestLogSpecialItemInfo(qlIndex))
+            if link and sfui.common.insert_link_to_chat(link) then
+                return
             end
         end
 

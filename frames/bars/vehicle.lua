@@ -38,7 +38,7 @@ local issecretvalue       = common.issecretvalue
 local PowerBarColor       = _G.PowerBarColor
 
 local DEFAULT_HEALTH_COLOR   = { 0, 0.8, 0.067, 1 }
-local DEFAULT_POWER_COLOR    = { r = 0, g = 0.5, b = 1, a = 1 }
+local DEFAULT_POWER_COLOR    = { 0, 0.5, 1, 1 }
 local DEFAULT_BACKDROP_COLOR = { 0, 0, 0, 0.7 }
 local DEFAULT_CAST_COLOR     = { 1, 1, 1, 1 }
 local DEFAULT_CHANNEL_COLOR  = { 0, 1, 0, 1 }
@@ -215,9 +215,7 @@ local function GetVehicleUnit()
 end
 
 -- ─── Texture Helper ─────────────────────────────────────────────────────────
-local function GetBarTexture()
-    return sfui.widgets.get_bar_texture()
-end
+local GetBarTexture = sfui.widgets.get_bar_texture
 
 -- ─── Vehicle Health Bar ──────────────────────────────────────────────────────
 local healthBackdrop = CreateFrame("Frame", "SfuiVehicleHealthBackdrop", frame, "BackdropTemplate")

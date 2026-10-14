@@ -94,21 +94,9 @@ local function DeathSortComparator(a, b)
 end
 
 local function FormatTime(secs)
-    if common and common.format_timer_clock then
-        local formatted = common.format_timer_clock(secs)
-        if formatted then return formatted end
-    end
-    if not secs or secs < 0 then secs = 0 end
-    secs        = math_floor(secs)
-    local hours = math_floor(secs / 3600)
-    local mins  = math_floor((secs % 3600) / 60)
-    local s     = secs % 60
-    if hours > 0 then
-        return string_format("%d:%02d:%02d", hours, mins, s)
-    else
-        return string_format("%d:%02d", mins, s)
-    end
+    return common.format_timer_clock(secs)
 end
+
 
 local function MakeText(parent, fontObj, r, g2, b, a, justify)
     local fs = parent:CreateFontString(nil, "OVERLAY", fontObj or "GameFontNormal")
@@ -290,6 +278,7 @@ local _lastTimeLost   = -1
 local _lastResText    = ""
 local _lastResCharges = -1
 local _lastResSec     = -1
+local _isRaid         = false
 
 local _playerList     = {} -- list of { unit = ..., guid = ..., name = ..., class = ... }
 local _playerClasses  = {} -- Name -> Class
@@ -442,14 +431,20 @@ local function GetDelveInfo()
         scenName, scenType = n, t
     end
 
-    local inDelve = (scenType == 8) or (C_DelvesUI and C_DelvesUI.HasActiveDelve and C_DelvesUI.HasActiveDelve())
+    local isTiered = (C_ScenarioInfo and C_ScenarioInfo.IsTieredEntranceScenario and C_ScenarioInfo.IsTieredEntranceScenario())
+    local inDelve = (scenType == 8)
+        or (C_DelvesUI and C_DelvesUI.HasActiveDelve and C_DelvesUI.HasActiveDelve())
+        or isTiered
     if not inDelve then
         return nil
     end
 
     local delveInfo = staticDelveInfo
     ReleaseDelveSubTables(delveInfo)
-    delveInfo.name = scenName or "Delve"
+    local isLabyrinth = (scenName and scenName:lower():find("labyrinth"))
+        or (C_DelvesUI and C_DelvesUI.GetTieredEntranceType and C_DelvesUI.GetTieredEntranceType() == 4)
+    delveInfo.isLabyrinth = isLabyrinth
+    delveInfo.name = scenName or (isLabyrinth and "Labyrinth" or "Delve")
     delveInfo.tierText = nil
     delveInfo.isBountiful = false
     delveInfo.bountyTooltip = nil
@@ -1167,9 +1162,14 @@ local function BuildHUDFrame()
     hdr:SetHeight(24)
     MF.header = hdr
 
+    MF.levelText = MakeText(hdr, "GameFontNormalLarge", 1, 0.82, 0, 1)
+    MF.levelText:SetPoint("TOPRIGHT", hdr, "TOPRIGHT", 0, 2)
+    MF.levelText:SetJustifyH("RIGHT")
+    MF.levelText:SetText("+?")
+
     MF.dungeonText = MakeText(hdr, "GameFontNormal", unpack(COLORS.cyan))
     MF.dungeonText:SetPoint("TOPLEFT", hdr, "TOPLEFT", 0, 0)
-    MF.dungeonText:SetPoint("TOPRIGHT", hdr, "TOPRIGHT", -60, 0)
+    MF.dungeonText:SetPoint("RIGHT", MF.levelText, "LEFT", -6)
     MF.dungeonText:SetJustifyH("LEFT")
     MF.dungeonText:SetText("mythic+")
 
@@ -1177,11 +1177,6 @@ local function BuildHUDFrame()
     MF.pbText:SetPoint("BOTTOMLEFT", hdr, "BOTTOMLEFT", 0, 0)
     MF.pbText:SetText("")
     MF.pbText:Hide()
-
-    MF.levelText = MakeText(hdr, "GameFontNormalLarge", 1, 0.82, 0, 1)
-    MF.levelText:SetPoint("TOPRIGHT", hdr, "TOPRIGHT", 0, 2)
-    MF.levelText:SetJustifyH("RIGHT")
-    MF.levelText:SetText("+?")
 
     -- Delve badges row (Currencies: Nemesis 3/4, Keys 1, Bountiful, Spells + Lives on Far Right)
     local delveRow = CreateFrame("Frame", nil, MF)
@@ -1602,6 +1597,7 @@ local function GetOrCreateBossRow(idx)
 
     local row = CreateFrame("Frame", nil, MF.bossContainer)
     row:SetHeight(bossRowH)
+    row:Show()
 
     local icon = row:CreateTexture(nil, "ARTWORK")
     icon:SetSize(14, 14)
@@ -1733,8 +1729,10 @@ local function RelayoutHUD(numBoss, isDelve, delveRowH, hasForces, hasCompanion)
 
     for i = 1, numBoss do
         local r = MF.bossRows[i]
-        if r and r.row:IsShown() then
-            local rH = r.row:GetHeight() or 16
+        if r then
+            r.row:Show()
+            local rH = r.row:GetHeight()
+            if not rH or rH <= 0 then rH = bossRowH or 18 end
             r.row:ClearAllPoints()
             r.row:SetPoint("LEFT", MF.bossContainer, "LEFT", 0, 0)
             r.row:SetPoint("RIGHT", MF.bossContainer, "RIGHT", 0, 0)
@@ -1774,6 +1772,10 @@ local function RelayoutHUD(numBoss, isDelve, delveRowH, hasForces, hasCompanion)
         MF.sep2:SetPoint("TOPLEFT", MF.bossContainer, "BOTTOMLEFT", 0, -4)
         MF.sep2:SetPoint("TOPRIGHT", MF.bossContainer, "BOTTOMRIGHT", 0, -4)
         MF.sep2:Show()
+
+        MF.forcesSection:ClearAllPoints()
+        MF.forcesSection:SetPoint("TOPLEFT", MF.sep2, "BOTTOMLEFT", 0, -4)
+        MF.forcesSection:SetPoint("TOPRIGHT", MF.sep2, "BOTTOMRIGHT", 0, -4)
         MF.forcesSection:Show()
 
         MF.sep3:Hide()
@@ -1814,6 +1816,10 @@ local function RelayoutHUD(numBoss, isDelve, delveRowH, hasForces, hasCompanion)
         MF.sep2:SetPoint("TOPLEFT", MF.bossContainer, "BOTTOMLEFT", 0, -4)
         MF.sep2:SetPoint("TOPRIGHT", MF.bossContainer, "BOTTOMRIGHT", 0, -4)
         MF.sep2:SetShown(hasForces)
+
+        MF.forcesSection:ClearAllPoints()
+        MF.forcesSection:SetPoint("TOPLEFT", MF.sep2, "BOTTOMLEFT", 0, -4)
+        MF.forcesSection:SetPoint("TOPRIGHT", MF.sep2, "BOTTOMRIGHT", 0, -4)
         MF.forcesSection:SetShown(hasForces)
 
         local prevSec = hasForces and MF.forcesSection or (bossH > 0 and MF.bossContainer or topAnchor)
@@ -1868,6 +1874,10 @@ local function RelayoutHUD(numBoss, isDelve, delveRowH, hasForces, hasCompanion)
         MF.sep2:SetPoint("TOPLEFT", MF.bossContainer, "BOTTOMLEFT", 0, -4)
         MF.sep2:SetPoint("TOPRIGHT", MF.bossContainer, "BOTTOMRIGHT", 0, -4)
         MF.sep2:SetShown(hasForces)
+
+        MF.forcesSection:ClearAllPoints()
+        MF.forcesSection:SetPoint("TOPLEFT", MF.sep2, "BOTTOMLEFT", 0, -4)
+        MF.forcesSection:SetPoint("TOPRIGHT", MF.sep2, "BOTTOMRIGHT", 0, -4)
         MF.forcesSection:SetShown(hasForces)
 
         MF.sep3:Hide()
@@ -1911,12 +1921,17 @@ local function UpdateInstanceState()
     local delveInfo = GetDelveInfo()
     local delveRowH = 0
     if delveInfo then
-        MF.dungeonText:SetText(delveInfo.name or "Delve")
+        MF.dungeonText:SetText(delveInfo.name or (delveInfo.isLabyrinth and "Labyrinth" or "Delve"))
         local tStr = delveInfo.tierText
         if tStr and not tostring(tStr):lower():find("tier") then
             tStr = "Tier " .. tostring(tStr)
         end
-        MF.levelText:SetText(tStr and string_format("|cffa864ff%s|r", tStr) or "|cffa864ffDelve|r")
+        local defaultLabel = delveInfo.isLabyrinth and "|cffa864ffLabyrinth|r" or "|cffa864ffDelve|r"
+        MF.levelText:SetText(tStr and string_format("|cffa864ff%s|r", tStr) or defaultLabel)
+        MF.levelText:Show()
+        MF.dungeonText:ClearAllPoints()
+        MF.dungeonText:SetPoint("TOPLEFT", MF.header, "TOPLEFT", 0, 0)
+        MF.dungeonText:SetPoint("RIGHT", MF.levelText, "LEFT", -6)
 
         -- 1. Lives remaining pinned all the way to the right
         local livesW = 0
@@ -2133,13 +2148,17 @@ local function UpdateInstanceState()
         MF.delveRow:Hide()
         MF.delveRow:SetHeight(0)
 
-        -- For non-delve scenarios and world events, update stage progression if multi-stage
-        if _mode == "dungeon" and C_Scenario and C_Scenario.GetInfo then
+        -- For non-delve scenarios and world events, update stage progression if multi-stage (skip in raids)
+        if not _isRaid and _mode == "dungeon" and C_Scenario and C_Scenario.GetInfo then
             local sName, curStage, numStages = C_Scenario.GetInfo()
             if sName and sName ~= "" then
                 MF.dungeonText:SetText(sName)
                 if numStages and numStages > 1 and curStage and curStage > 0 then
                     MF.levelText:SetText(string_format("|cff00ffccStage %d/%d|r", curStage, numStages))
+                    MF.levelText:Show()
+                    MF.dungeonText:ClearAllPoints()
+                    MF.dungeonText:SetPoint("TOPLEFT", MF.header, "TOPLEFT", 0, 0)
+                    MF.dungeonText:SetPoint("RIGHT", MF.levelText, "LEFT", -6)
                 end
             end
         end
@@ -2148,18 +2167,14 @@ local function UpdateInstanceState()
     local isMythic = (_mode == "mythic")
 
     -- Helper to test if a criteria is a progress/percentage bar objective.
-    -- In M+, enemy forces is always the LAST criteria and has isWeightedProgress=true.
-    -- We must NOT use (isMythic and total > 0) because boss criteria also have totalQuantity=1.
-    local function IsProgressCriteria(info, idx, numCrit)
+    local function IsProgressCriteria(info)
         if not info then return false end
-        -- M+: last index is always forces (matches MPlusTimer's approach)
-        if isMythic and idx and numCrit and idx == numCrit then return true end
-        -- Weighted progress flag (most reliable)
+        -- Weighted progress flag (authoritative Blizzard criteria flag)
         if info.isWeightedProgress or info.weightedProgress then return true end
         -- CriteriaType 8 = scenario progress bar
         if info.criteriaType == 8 then return true end
         local total = info.totalQuantity
-        -- Standard progress scales (but NOT generic > 0 in M+ — that hits boss criteria)
+        -- Standard progress scales (but NOT generic > 0 which matches boss criteria)
         if total and not issecretvalue(total) and (total == 100 or total == 1000 or total == 10000) then return true end
         local qStr = info.quantityString
         -- quantityString containing '%' is a strong indicator of percentage progress
@@ -2177,26 +2192,25 @@ local function UpdateInstanceState()
     end
 
     -- Find forces / progress bar criteria.
-    -- In M+: directly read the last criteria first (same as MPlusTimer's `C_ScenarioInfo.GetCriteriaInfo(steps)`).
-    -- This avoids scanning boss criteria first and accidentally matching them.
     local forcesIdx  = nil
     local forcesInfo = nil
     if numCriteria and numCriteria > 0 then
-        if isMythic then
-            -- Fast path: in M+ the last criteria IS always enemy forces
-            local info = GetCriteriaInfoSafe(numCriteria, stepID)
-            if info then
-                forcesIdx = numCriteria
+        -- 1. Check for weighted progress / scenario progress bar criteria first
+        for i = 1, numCriteria do
+            local info = GetCriteriaInfoSafe(i, stepID)
+            if info and (info.isWeightedProgress or info.weightedProgress or info.criteriaType == 8) then
+                forcesIdx = i
                 wipe(staticForcesInfo)
                 for k, v in pairs(info) do staticForcesInfo[k] = v end
                 forcesInfo = staticForcesInfo
+                break
             end
         end
-        -- Generic path (non-M+ modes): scan for isWeightedProgress / % / forces keyword
+        -- 2. Check by progress description, percentage, or scale
         if not forcesInfo then
             for i = 1, numCriteria do
                 local info = GetCriteriaInfoSafe(i, stepID)
-                if info and IsProgressCriteria(info, i, numCriteria) and not info.completed then
+                if info and IsProgressCriteria(info) and not info.completed then
                     forcesIdx  = i
                     wipe(staticForcesInfo)
                     for k, v in pairs(info) do staticForcesInfo[k] = v end
@@ -2204,18 +2218,28 @@ local function UpdateInstanceState()
                     break
                 end
             end
-            -- Fallback: if all progress criteria are completed, pick the last progress criteria
-            if not forcesInfo then
-                for i = numCriteria, 1, -1 do
-                    local info = GetCriteriaInfoSafe(i, stepID)
-                    if info and IsProgressCriteria(info, i, numCriteria) then
-                        forcesIdx  = i
-                        wipe(staticForcesInfo)
-                        for k, v in pairs(info) do staticForcesInfo[k] = v end
-                        forcesInfo = staticForcesInfo
-                        break
-                    end
+        end
+        -- 3. Fallback: if completed, check by IsProgressCriteria in reverse
+        if not forcesInfo then
+            for i = numCriteria, 1, -1 do
+                local info = GetCriteriaInfoSafe(i, stepID)
+                if info and IsProgressCriteria(info) then
+                    forcesIdx  = i
+                    wipe(staticForcesInfo)
+                    for k, v in pairs(info) do staticForcesInfo[k] = v end
+                    forcesInfo = staticForcesInfo
+                    break
                 end
+            end
+        end
+        -- 4. Fallback for M+: if still not resolved, check last criteria only if it is not a single boss criteria
+        if not forcesInfo and isMythic then
+            local lastInfo = GetCriteriaInfoSafe(numCriteria, stepID)
+            if lastInfo and (not lastInfo.totalQuantity or lastInfo.totalQuantity > 1 or lastInfo.isWeightedProgress) then
+                forcesIdx = numCriteria
+                wipe(staticForcesInfo)
+                for k, v in pairs(lastInfo) do staticForcesInfo[k] = v end
+                forcesInfo = staticForcesInfo
             end
         end
     end
@@ -2243,6 +2267,7 @@ local function UpdateInstanceState()
                 if rawDesc and rawDesc ~= "" then
                     bossCount        = bossCount + 1
                     local r          = GetOrCreateBossRow(bossCount)
+                    r.row:Show()
                     local isComplete = info.completed == true
                     local elapsedAt  = info.elapsed
 
@@ -2789,6 +2814,7 @@ local function InitRun()
         _timeLimit = 0
     end
 
+    _isRaid = false
     MF.levelText:SetTextColor(1, 0.82, 0, 1)
     if level and level > 0 then
         MF.levelText:SetText(string_format("+%d", level))
@@ -2797,6 +2823,10 @@ local function InitRun()
         MF.levelText:SetText("+?")
         BuildAffixRow(EMPTY_TABLE)
     end
+    MF.levelText:Show()
+    MF.dungeonText:ClearAllPoints()
+    MF.dungeonText:SetPoint("TOPLEFT", MF.header, "TOPLEFT", 0, 0)
+    MF.dungeonText:SetPoint("RIGHT", MF.levelText, "LEFT", -6)
 
     _forcesSplitTime = nil
     _runCompleted    = false
@@ -2863,9 +2893,9 @@ local function InitDungeon()
     _lastTimeLost   = -1
 
     -- Instance info
-    local instName, _, _, diffName
+    local instName, instType, diffID, diffName
     if _G.GetInstanceInfo then
-        instName, _, _, diffName = _G.GetInstanceInfo()
+        instName, instType, diffID, diffName = _G.GetInstanceInfo()
     end
 
     -- Scenario info (overrides raw instance name if available)
@@ -2877,12 +2907,32 @@ local function InitDungeon()
 
     local displayName = scenName or instName or "Dungeon"
 
+    local instanceType
+    if _G.IsInInstance then
+        _, instanceType = _G.IsInInstance()
+    end
+
+    _isRaid = (instType == "raid")
+        or (instanceType == "raid")
+        or (_G.IsInRaid and _G.IsInRaid())
+        or (diffName and diffName:lower():find("raid", 1, true) ~= nil)
+        or (diffID and ((diffID >= 3 and diffID <= 7) or diffID == 9 or (diffID >= 14 and diffID <= 17) or diffID == 33 or diffID == 220 or diffID == 233 or diffID == 250))
+
     -- Determine difficulty label using hoisted DIFF_ABBR table (no per-call allocation)
-    -- instName:lower():find("delve") removed — rely on scenType == 8 instead
+    local isDelveOrTiered = (scenType == 8)
+        or (C_DelvesUI and C_DelvesUI.HasActiveDelve and C_DelvesUI.HasActiveDelve())
+        or (C_ScenarioInfo and C_ScenarioInfo.IsTieredEntranceScenario and C_ScenarioInfo.IsTieredEntranceScenario())
+    local isLabyrinth = isDelveOrTiered and ((displayName and displayName:lower():find("labyrinth"))
+        or (C_DelvesUI and C_DelvesUI.GetTieredEntranceType and C_DelvesUI.GetTieredEntranceType() == 4))
+
     local typeLabel
-    if scenType == 1 then
+    if _isRaid then
+        typeLabel = ""
+    elseif scenType == 1 then
         typeLabel = "|cffff7700M+|r" -- safety net; should be caught by CHALLENGE_MODE_START
-    elseif scenType == 8 then
+    elseif isLabyrinth then
+        typeLabel = "|cffa864ffLabyrinth|r"
+    elseif isDelveOrTiered then
         typeLabel = "|cffa864ffDelve|r"
     elseif diffName and diffName ~= "" then
         typeLabel = DIFF_ABBR[diffName] or diffName
@@ -2891,8 +2941,20 @@ local function InitDungeon()
     end
 
     MF.dungeonText:SetText(displayName)
-    MF.levelText:SetText(typeLabel)
-    MF.levelText:SetTextColor(1, 0.82, 0, 1)
+    if typeLabel and typeLabel ~= "" then
+        MF.levelText:SetText(typeLabel)
+        MF.levelText:SetTextColor(1, 0.82, 0, 1)
+        MF.levelText:Show()
+        MF.dungeonText:ClearAllPoints()
+        MF.dungeonText:SetPoint("TOPLEFT", MF.header, "TOPLEFT", 0, 0)
+        MF.dungeonText:SetPoint("RIGHT", MF.levelText, "LEFT", -6)
+    else
+        MF.levelText:SetText("")
+        MF.levelText:Hide()
+        MF.dungeonText:ClearAllPoints()
+        MF.dungeonText:SetPoint("TOPLEFT", MF.header, "TOPLEFT", 0, 0)
+        MF.dungeonText:SetPoint("TOPRIGHT", MF.header, "TOPRIGHT", 0, 0)
+    end
 
     _timerID   = nil
     _timeLimit = 0
@@ -2961,6 +3023,7 @@ end
 local function HideHUD()
     StopTicker()
     _mode = nil
+    _isRaid = false
     _lastDeathText = ""
     _lastDeaths = -1
     _lastTimeLost = -1
@@ -3063,12 +3126,15 @@ local function CheckScenarioState()
     end
 
     local inScenario = false
-    if inInst then
+    if inInst or (C_ScenarioInfo and C_ScenarioInfo.IsTieredEntranceScenario and C_ScenarioInfo.IsTieredEntranceScenario()) then
         if C_Scenario and C_Scenario.IsInScenario then
             inScenario = C_Scenario.IsInScenario()
         end
         if not inScenario and C_DelvesUI and C_DelvesUI.HasActiveDelve then
             inScenario = C_DelvesUI.HasActiveDelve()
+        end
+        if not inScenario and C_ScenarioInfo and C_ScenarioInfo.IsTieredEntranceScenario then
+            inScenario = C_ScenarioInfo.IsTieredEntranceScenario()
         end
         if not inScenario and _G.IsInInstance then
             local _, instType = _G.IsInInstance()

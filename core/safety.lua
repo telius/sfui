@@ -112,14 +112,29 @@ end
 sfui.common.SafeFormatDuration = sfui.safety.SafeFormatDuration
 
 --- Formats seconds into digital clock format: "H:MM:SS" or "M:SS".
-function sfui.safety.format_timer_clock(secs)
-    if not secs or secs <= 0 then return nil end
-    secs = math.floor(secs)
-    local h = math.floor(secs / 3600)
-    local m = math.floor((secs % 3600) / 60)
-    local s = secs % 60
+--- @param secs number|nil seconds
+--- @param fallback string|nil optional fallback when secs <= 0 (defaults to "0:00")
+--- @param compact boolean|nil if true, formats < 60s as "S" rather than "0:SS"
+--- @return string|nil formattedClock
+function sfui.safety.format_timer_clock(secs, fallback, compact)
+    local defaultFallback = compact and "" or "0:00"
+    local fb = (fallback ~= nil) and fallback or defaultFallback
+    if not secs then return fb end
+    local num = tonumber(secs)
+    if not num then return fb end
+    if num <= 0 then
+        return fb
+    end
+    num = math.floor(num + 0.5)
+    local h = math.floor(num / 3600)
+    local m = math.floor((num % 3600) / 60)
+    local s = num % 60
     if h > 0 then
         return string.format("%d:%02d:%02d", h, m, s)
+    elseif m > 0 then
+        return string.format("%d:%02d", m, s)
+    elseif compact then
+        return string.format("%d", s)
     else
         return string.format("%d:%02d", m, s)
     end

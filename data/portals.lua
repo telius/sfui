@@ -53,6 +53,7 @@ sfui.portals_db.COSMETIC_HEARTHSTONES = {
     64488,  -- The Innkeeper's Daughter (Archaeology - Dwarf)
     93672,  -- Dark Portal (WoW TCG)
     142542, -- Tome of Town Portal (Diablo 20th Anniversary)
+    184871, -- Dark Portal (TBC Classic Deluxe)
     206195, -- Path of the Naaru (Promo)
     209035, -- Hearthstone of the Flame (BlizzCon / Promo)
     210455, -- Draenic Hologem (Promo)
@@ -92,10 +93,13 @@ sfui.portals_db.COSMETIC_HEARTHSTONES = {
 
     -- Midnight (12.x)
     257736, -- Lightcalled Hearthstone
+    260221, -- Naaru's Embrace
     263489, -- Naaru's Enfold
     263933, -- Preyseeker's Hearthstone
     264367, -- Mycomancer's Hearthspore
     265100, -- Corewarden's Hearthstone
+    281136, -- Hiveborn Hearthstone
+    281615, -- Shadeweaver's Hearthstone
 }
 
 

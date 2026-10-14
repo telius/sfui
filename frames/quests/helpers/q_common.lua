@@ -13,11 +13,81 @@ sfui.tracker.helpers.quest = QuestCommon
 
 local _G = _G
 local type = type
+local ipairs = ipairs
 local math_floor = math.floor
 local string_format = string.format
 local C_QuestLog = _G.C_QuestLog
 local InCombatLockdown = _G.InCombatLockdown
 local ChatFrameUtil = _G.ChatFrameUtil
+local GetQuestProgressBarPercent = _G.GetQuestProgressBarPercent
+
+--- formats progress indicators, inline objective counts, and completion tags for a quest.
+--- @param questID number
+--- @param questLogIndex number|nil optional classic quest log index
+--- @param isComplete boolean
+--- @param objs table|nil list of objective tables
+--- @param canClickToComplete boolean|nil
+--- @return boolean hasProgress, string tag
+function QuestCommon.GetQuestProgressDetails(questID, questLogIndex, isComplete, objs, canClickToComplete)
+    if isComplete then
+        local tag = canClickToComplete and " |cffff00ff(Complete)|r" or " |cff33ff33(Complete)|r"
+        return true, tag
+    end
+
+    -- 1. Progress bar percent (modern quests / bonus objectives)
+    if GetQuestProgressBarPercent then
+        local pct = GetQuestProgressBarPercent(questID)
+        if pct and pct > 0 then
+            return true, string_format(" |cffa0a0a0(%d%%)|r", math_floor(pct + 0.5))
+        end
+    end
+
+    -- 2. Modern C_QuestLog objectives
+    if objs and #objs > 0 then
+        local total = #objs
+        local finished = 0
+        local hasProgress = false
+
+        for _, obj in ipairs(objs) do
+            if obj.finished then
+                finished = finished + 1
+                hasProgress = true
+            elseif obj.numFulfilled and obj.numFulfilled > 0 then
+                hasProgress = true
+            end
+        end
+
+        local inlineTag = ""
+        if total > 1 and finished < total then
+            inlineTag = string_format(" |cffa0a0a0(%d/%d)|r", finished, total)
+        end
+
+        return hasProgress, inlineTag
+    end
+
+    -- 3. Classic / Classic Era leaderboards
+    if questLogIndex and _G.GetNumQuestLeaderBoards and _G.GetQuestLogLeaderBoard then
+        local num = _G.GetNumQuestLeaderBoards(questLogIndex) or 0
+        if num > 0 then
+            local finished = 0
+            for objIndex = 1, num do
+                local _, _, isFinished = _G.GetQuestLogLeaderBoard(objIndex, questLogIndex)
+                if isFinished then
+                    finished = finished + 1
+                end
+            end
+
+            local inlineTag = ""
+            if num > 1 and finished < num then
+                inlineTag = string_format(" |cffa0a0a0(%d/%d)|r", finished, num)
+            end
+
+            return (finished > 0), inlineTag
+        end
+    end
+
+    return false, ""
+end
 
 --- @param questID number
 --- @param questLogIndex number|nil classic quest log index
@@ -135,21 +205,7 @@ function QuestCommon.TryInsertQuestLink(questID, questLogIndex, questTitle)
     end
 
     -- 4. insert into the active edit box
-    if ChatFrameUtil and ChatFrameUtil.InsertLink and ChatFrameUtil.InsertLink(link) then
-        return true
-    end
-    if _G.ChatEdit_InsertLink and _G.ChatEdit_InsertLink(link) then
-        return true
-    end
-    if activeChat and activeChat.Insert then
-        activeChat:Insert(link)
-        if activeChat.SetFocus then
-            activeChat:SetFocus()
-        end
-        return true
-    end
-
-    return false
+    return sfui.common.insert_link_to_chat(link)
 end
 
 --- formats a quest timer with urgency colouring.

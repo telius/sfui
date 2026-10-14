@@ -1778,7 +1778,7 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
         local bestLink = GetHighestItemLink(curItem, isDungeonItem)
         if mouseBtn == "LeftButton" then
             if IsModifiedClick("CHATLINK") and bestLink then
-                ChatEdit_InsertLink(bestLink)
+                sfui.common.insert_link_to_chat(bestLink)
                 return
             elseif IsModifiedClick("DRESSUP") and bestLink then
                 DressUpItemLink(bestLink)

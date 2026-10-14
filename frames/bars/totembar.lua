@@ -18,7 +18,7 @@ if playerClass ~= "SHAMAN" then return end
 -- ---------------------------------------------------------------------------
 local CreateFrame         = _G.CreateFrame
 local UIParent            = _G.UIParent
-local GameTooltip         = _G.GameTooltip
+local GameTooltip         = sfui.common.get_tooltip()
 local InCombatLockdown    = _G.InCombatLockdown
 local GetTotemInfo        = _G.GetTotemInfo
 local GetTime             = _G.GetTime
@@ -227,17 +227,9 @@ local REST_ALPHA = 0.72
 -- Helper: Format Time
 -- ---------------------------------------------------------------------------
 local function FormatTime(seconds)
-    seconds = tonumber(seconds) or 0
-    if seconds <= 0 then return "" end
-    seconds = math_floor(seconds + 0.5)
-    local minutes = math_floor(seconds / 60)
-    local secs = seconds % 60
-    if minutes > 0 then
-        return string_format("%d:%02d", minutes, secs)
-    else
-        return string_format("%d", secs)
-    end
+    return sfui.common.format_timer_clock(seconds, "", true)
 end
+
 
 -- ---------------------------------------------------------------------------
 -- Helper: Font Path Resolver
@@ -1137,7 +1129,7 @@ local function CreateTotemBar()
 
         b:HookScript("OnLeave", function(self)
             self.isHovered = false
-            GameTooltip:Hide()
+            sfui.common.hide_tooltip()
         end)
 
         b:EnableMouseWheel(true)
@@ -1204,7 +1196,7 @@ local function CreateTotemBar()
         end)
 
         seqBtn:HookScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
+            sfui.common.hide_tooltip()
         end)
     end
 

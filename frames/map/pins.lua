@@ -29,7 +29,7 @@ local C_Timer             = _G.C_Timer
 local C_Map               = _G.C_Map
 local UiMapPoint          = _G.UiMapPoint
 local C_SuperTrack        = _G.C_SuperTrack
-local GameTooltip         = _G.GameTooltip
+local GameTooltip         = sfui.common.get_tooltip()
 local pcall               = _G.pcall
 local type                = _G.type
 local ipairs              = _G.ipairs
@@ -41,6 +41,7 @@ local tostring            = tostring
 local wipe                = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
 
 local common              = sfui.common
+local safe_nop            = _G.nop or function() end
 
 -- ─── Data Registries & Pools ──────────────────────────────────────────────────
 local providers           = {}     -- name -> provider table
@@ -260,11 +261,16 @@ end
 -- ─── Universal Shift-Click Waypoint Handler ───────────────────────────────────
 local function SetWaypoint(mapID, x, y, label)
     if not mapID or not x or not y then return false end
+    if sfui.map and sfui.map.SetUserWaypoint then
+        return sfui.map.SetUserWaypoint(mapID, x, y, label)
+    end
     if C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates then
         pcall(function()
             C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(mapID, x, y))
         end)
-        if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+        if sfui.map and sfui.map.SetSuperTrackedUserWaypoint then
+            sfui.map.SetSuperTrackedUserWaypoint(true)
+        elseif C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
             pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
         end
         if label and common and common.print then
@@ -282,6 +288,9 @@ local function AcquirePin(parent, defaultSize)
     for _, pin in ipairs(pinPool) do
         if not pin:IsShown() then
             pin:SetParent(parent)
+            pin.SetPassThroughButtons   = safe_nop
+            pin.SetPropagateMouseClicks = safe_nop
+            pin.SetPropagateMouseMotion = safe_nop
             pin:SetSize(defaultSize, defaultSize)
             pin.baseSize = defaultSize
             pin.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
@@ -300,6 +309,9 @@ local function AcquirePin(parent, defaultSize)
     end
 
     local pin = CreateFrame("Button", nil, parent)
+    pin.SetPassThroughButtons   = safe_nop
+    pin.SetPropagateMouseClicks = safe_nop
+    pin.SetPropagateMouseMotion = safe_nop
     pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     pin:SetSize(defaultSize, defaultSize)
     pin.baseSize = defaultSize
@@ -351,8 +363,8 @@ local function AcquirePin(parent, defaultSize)
         local pinData = self.pinData
         if pinData and pinData.OnLeave then
             pinData.OnLeave(self, GameTooltip, pinData)
-        elseif GameTooltip then
-            GameTooltip:Hide()
+        else
+            sfui.common.hide_tooltip()
         end
     end)
 
@@ -733,9 +745,23 @@ local function RenderPins(force)
 
     ReleasePins()
 
+    local canvasOverlay = nil
+    if sfui.map and sfui.map.GetCanvas then
+        local overlayName = "SfuiWorldMapPinsOverlay"
+        canvasOverlay = _G[overlayName]
+        if not canvasOverlay or canvasOverlay:GetParent() ~= canvas then
+            canvasOverlay = CreateFrame("Frame", overlayName, canvas)
+            canvasOverlay:SetAllPoints(canvas)
+            canvasOverlay:SetFrameStrata(canvas:GetFrameStrata())
+            canvasOverlay:SetFrameLevel(canvas:GetFrameLevel() + 15)
+            canvasOverlay:EnableMouse(false)
+        end
+    end
+    local pinParent = canvasOverlay or canvas
+
     local candidatePins = CollectCandidatePins(mapID)
     for _, p in ipairs(candidatePins) do
-        local pin = AcquirePin(canvas, p.size or 20)
+        local pin = AcquirePin(pinParent, p.size or 20)
         SetupPin(pin, canvas, canvasW, canvasH, p)
     end
 end
@@ -783,6 +809,9 @@ local function AcquireMinimapPin(parent, defaultSize)
     for _, pin in ipairs(minimapPinPool) do
         if not pin:IsShown() then
             pin:SetParent(parent)
+            pin.SetPassThroughButtons   = safe_nop
+            pin.SetPropagateMouseClicks = safe_nop
+            pin.SetPropagateMouseMotion = safe_nop
             pin:SetSize(defaultSize, defaultSize)
             pin.baseSize = defaultSize
             pin.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
@@ -801,6 +830,9 @@ local function AcquireMinimapPin(parent, defaultSize)
     end
 
     local pin = CreateFrame("Button", nil, parent)
+    pin.SetPassThroughButtons   = safe_nop
+    pin.SetPropagateMouseClicks = safe_nop
+    pin.SetPropagateMouseMotion = safe_nop
     pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     pin:SetSize(defaultSize, defaultSize)
     pin.baseSize = defaultSize
@@ -853,8 +885,8 @@ local function AcquireMinimapPin(parent, defaultSize)
         local pinData = self.pinData
         if pinData and pinData.OnLeave then
             pinData.OnLeave(self, GameTooltip, pinData)
-        elseif GameTooltip then
-            GameTooltip:Hide()
+        else
+            sfui.common.hide_tooltip()
         end
     end)
 
@@ -912,6 +944,9 @@ local function GetMapWorldSizeFast(mapID)
     mapWorldSizeCache[mapID] = false
     return nil, nil
 end
+
+local minimapPosCacheX = {}
+local minimapPosCacheY = {}
 
 local function RenderMinimapPins(force)
     local mm = _G.Minimap
@@ -994,25 +1029,26 @@ local function RenderMinimapPins(force)
     local maxDistYardsSq = maxDistYards * maxDistYards
     local defaultPinSize = (sfui.config and sfui.config.minimap and sfui.config.minimap.pinSize) or 14
 
-    local parentMapID, parentPX, parentPY = nil, nil, nil
+    wipe(minimapPosCacheX)
+    wipe(minimapPosCacheY)
+    minimapPosCacheX[playerMapID] = primaryPX
+    minimapPosCacheY[playerMapID] = primaryPY
+
     local visibleCount = 0
 
     for _, p in ipairs(cachedPlayerPins) do
         local targetMapID = p.mapID or playerMapID
-        local px, py
-        if targetMapID == playerMapID then
-            px, py = primaryPX, primaryPY
-        else
-            if targetMapID ~= parentMapID then
-                parentMapID = targetMapID
-                local pPos = C_Map.GetPlayerMapPosition(targetMapID, "player")
-                if pPos then
-                    parentPX, parentPY = pPos:GetXY()
-                else
-                    parentPX, parentPY = nil, nil
-                end
+        local px = minimapPosCacheX[targetMapID]
+        local py = minimapPosCacheY[targetMapID]
+        if px == nil then
+            local pPos = C_Map.GetPlayerMapPosition(targetMapID, "player")
+            if pPos then
+                px, py = pPos:GetXY()
+            else
+                px, py = false, false
             end
-            px, py = parentPX, parentPY
+            minimapPosCacheX[targetMapID] = px
+            minimapPosCacheY[targetMapID] = py
         end
 
         if px and py then
@@ -1182,14 +1218,24 @@ local function InitPinEngine()
     if wmf then
         wmf:HookScript("OnShow", function()
             StartTicker()
-            RenderPins(true)
+            C_Timer.After(0, function()
+                local curWmf = _G.WorldMapFrame
+                if curWmf and curWmf:IsShown() then
+                    RenderPins(true)
+                end
+            end)
         end)
         wmf:HookScript("OnHide", function()
             StopTicker()
         end)
         if wmf:IsShown() then
             StartTicker()
-            RenderPins(true)
+            C_Timer.After(0, function()
+                local curWmf = _G.WorldMapFrame
+                if curWmf and curWmf:IsShown() then
+                    RenderPins(true)
+                end
+            end)
         end
     end
 

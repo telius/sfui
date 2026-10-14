@@ -554,11 +554,7 @@ function sfui.actionbars.UpdateAllBindings()
 end
 
 -- Hook binding updates and combat regen
-local bindEventFrame = CreateFrame("Frame")
-bindEventFrame:RegisterEvent("UPDATE_BINDINGS")
-bindEventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-bindEventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-bindEventFrame:SetScript("OnEvent", function(_, event)
+local function OnBindingEvent(event)
     if event == "PLAYER_REGEN_ENABLED" then
         if sfui.actionbars._needsUpdateBindings then
             sfui.actionbars.UpdateAllBindings()
@@ -566,7 +562,13 @@ bindEventFrame:SetScript("OnEvent", function(_, event)
     else
         sfui.actionbars.UpdateAllBindings()
     end
-end)
+end
+
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("UPDATE_BINDINGS", OnBindingEvent)
+    sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", OnBindingEvent)
+    sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", OnBindingEvent)
+end
 
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Keydown & Keyup Animation Hooks for Blizzard Bindings

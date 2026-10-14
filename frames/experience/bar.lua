@@ -32,13 +32,7 @@ local currentMode = "XP" -- "XP" or "REP"
 
 --- Get the active status bar texture from SFUI theme/widgets
 --- @return string
-local function GetBarTexture()
-    if sfui.widgets and sfui.widgets.get_bar_texture then
-        local tex = sfui.widgets.get_bar_texture()
-        if tex then return tex end
-    end
-    return (sfui.config and sfui.config.barTexture) or "Interface/Buttons/WHITE8X8"
-end
+local GetBarTexture = sfui.widgets.get_bar_texture
 
 --- Set status bar texture directly
 --- @param tex string|nil

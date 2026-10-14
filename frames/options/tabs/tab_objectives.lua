@@ -91,6 +91,7 @@ sfui.options.RegisterTab({
             local open_em_btn = CreateFlatButton(p, "open edit mode", 120, 22)
             open_em_btn:SetPoint("LEFT", reset_ql_pos_btn, "RIGHT", 10, 0)
             open_em_btn:SetScript("OnClick", function()
+                if _G.InCombatLockdown and _G.InCombatLockdown() then return end
                 if _G.ShowUIPanel and _G.EditModeManagerFrame then
                     _G.ShowUIPanel(_G.EditModeManagerFrame)
                 end

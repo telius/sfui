@@ -1166,9 +1166,7 @@ function WorldEventsModule:IsEnabled()
     return sfui.worldevents.is_enabled()
 end
 
-local function GetQLState()
-    return sfui.questlog.GetState()
-end
+local GetQLState = sfui.questlog.GetState
 
 function WorldEventsModule:BuildBlocks(container)
     if not self:IsEnabled() then return {} end
@@ -1276,12 +1274,25 @@ function WorldEventsModule:BuildBlocks(container)
                 end
 
                 -- 3. Left-Click: Track & Show on Map
-                if C_SuperTrack and C_SuperTrack.SetSuperTrackedMapPin and Enum and Enum.SuperTrackingMapPinType and Enum.SuperTrackingMapPinType.AreaPOI then
-                    local _, pinID = C_SuperTrack.GetSuperTrackedMapPin(Enum.SuperTrackingMapPinType.AreaPOI)
+                if Enum and Enum.SuperTrackingMapPinType and Enum.SuperTrackingMapPinType.AreaPOI then
+                    local pinType = Enum.SuperTrackingMapPinType.AreaPOI
+                    local pinID = nil
+                    if C_SuperTrack and C_SuperTrack.GetSuperTrackedMapPin then
+                        local _, curPin = C_SuperTrack.GetSuperTrackedMapPin(pinType)
+                        pinID = curPin
+                    end
                     if pinID == curPoiID then
-                        C_SuperTrack.ClearSuperTrackedMapPin(Enum.SuperTrackingMapPinType.AreaPOI)
+                        if sfui.map and sfui.map.SetSuperTrackedMapPin then
+                            sfui.map.SetSuperTrackedMapPin(pinType, nil)
+                        elseif C_SuperTrack and C_SuperTrack.ClearSuperTrackedMapPin then
+                            pcall(C_SuperTrack.ClearSuperTrackedMapPin, pinType)
+                        end
                     else
-                        C_SuperTrack.SetSuperTrackedMapPin(Enum.SuperTrackingMapPinType.AreaPOI, curPoiID)
+                        if sfui.map and sfui.map.SetSuperTrackedMapPin then
+                            sfui.map.SetSuperTrackedMapPin(pinType, curPoiID)
+                        elseif C_SuperTrack and C_SuperTrack.SetSuperTrackedMapPin then
+                            pcall(C_SuperTrack.SetSuperTrackedMapPin, pinType, curPoiID)
+                        end
                         if sfui.map and sfui.map.OpenToEventPoi then
                             sfui.map.OpenToEventPoi(curPoiID)
                         elseif sfui.map and sfui.map.ToggleWorldMap then

@@ -118,9 +118,7 @@ end
 -- ─────────────────────────────────────────────────────────
 --  STORAGE / PERSISTENCE
 -- ─────────────────────────────────────────────────────────
-local function GetPlayerKey()
-    return sfui.common.get_player_unique_key()
-end
+local GetPlayerKey = sfui.common.get_player_unique_key
 
 local function GetTrackedSkills()
     SfuiDB = SfuiDB or {}

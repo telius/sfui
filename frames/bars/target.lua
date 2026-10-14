@@ -105,9 +105,7 @@ local UpdateTargetLevel
 local ApplyTargetStyle
 
 -- ─── Primary Texture Resolver ────────────────────────────────────────────────
-local function GetBarTexture()
-    return sfui.widgets.get_bar_texture()
-end
+local GetBarTexture = sfui.widgets.get_bar_texture
 
 function sfui.target.SetBarTexture(texturePath)
     if not texturePath or texturePath == "" then

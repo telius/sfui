@@ -48,7 +48,6 @@ local GetSavedInstanceInfo = _G.GetSavedInstanceInfo
 local GetSavedInstanceEncounterInfo = _G.GetSavedInstanceEncounterInfo
 local GetNumSavedInstances = _G.GetNumSavedInstances
 local IsModifiedClick = _G.IsModifiedClick
-local ChatEdit_InsertLink = _G.ChatEdit_InsertLink
 local ChatFrame_OpenChat = _G.ChatFrame_OpenChat
 local securecall = _G.securecall
 
@@ -1399,7 +1398,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
             cell:SetScript("OnMouseUp", function()
                 if IsModifiedClick("CHATLINK") and ksSnap.link then
-                    if not ChatEdit_InsertLink(ksSnap.link) then
+                    if not sfui.common.insert_link_to_chat(ksSnap.link) then
                         ChatFrame_OpenChat(ksSnap.link)
                     end
                 end

@@ -299,6 +299,7 @@ end)
 local blizzBtn = CreateFlatButton(frame, "blizzard manager", 120, 20)
 blizzBtn:SetPoint("LEFT", optBtn, "RIGHT", 5, 0)
 blizzBtn:SetScript("OnClick", function()
+    if _G.InCombatLockdown and _G.InCombatLockdown() then return end
     if _G.CooldownViewerSettings then
         if _G.CooldownViewerSettings:IsShown() then
             HideUIPanel(_G.CooldownViewerSettings)

@@ -23,10 +23,7 @@ local C_ContentTracking = _G.C_ContentTracking
 local C_SuperTrack = _G.C_SuperTrack
 local Enum = _G.Enum
 local IsShiftKeyDown = _G.IsShiftKeyDown
-local ChatEdit_GetActiveWindow = _G.ChatEdit_GetActiveWindow
-local ChatEdit_InsertLink = _G.ChatEdit_InsertLink
 local GetAchievementLink = _G.GetAchievementLink
-local ChatFrameUtil = _G.ChatFrameUtil
 local hooksecurefunc = _G.hooksecurefunc
 
 local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
@@ -55,9 +52,7 @@ local function GetManualStopType()
     return 2 -- ContentTrackingStopType.Manual
 end
 
-local function GetQLState()
-    return sfui.questlog.GetState()
-end
+local GetQLState = sfui.questlog.GetState
 
 local AchievementsModule = {
     id            = "achievements",
@@ -362,30 +357,9 @@ function AchievementsModule:BuildBlocks(container)
                 OnClick        = function(block, btn)
                     -- Shift-Click: insert link if chat open, otherwise untrack
                     if IsShiftKeyDown and IsShiftKeyDown() then
-                        local activeChat = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
-                            or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
-                            or _G.ACTIVE_CHAT_EDIT_BOX
-                        local isChatOpen = (activeChat and (activeChat:IsShown() or activeChat:IsVisible()))
-                            or (_G.MacroFrameText and _G.MacroFrameText:IsShown())
-                            or (_G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown())
-
-                        if isChatOpen then
-                            local link = GetAchievementLink and GetAchievementLink(achID)
-                            if link then
-                                if ChatFrameUtil and ChatFrameUtil.InsertLink and ChatFrameUtil.InsertLink(link) then
-                                    return
-                                end
-                                if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then
-                                    return
-                                end
-                                if activeChat and activeChat.Insert then
-                                    activeChat:Insert(link)
-                                    if activeChat.SetFocus then
-                                        activeChat:SetFocus()
-                                    end
-                                    return
-                                end
-                            end
+                        local link = GetAchievementLink and GetAchievementLink(achID)
+                        if link and sfui.common.insert_link_to_chat(link) then
+                            return
                         end
 
                         UntrackAchievement(achID)

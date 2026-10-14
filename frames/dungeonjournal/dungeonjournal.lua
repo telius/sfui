@@ -74,9 +74,7 @@ sfui.db.RegisterDefaults("dungeonjournal", {
     showAllDungeons     = false,
 })
 
-local function GetPlayerKey()
-    return sfui.common.get_player_unique_key()
-end
+local GetPlayerKey = sfui.common.get_player_unique_key
 
 local function GetCharHidden()
     SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
@@ -262,43 +260,7 @@ end
 sfui.dungeonjournal.GetQualityColor = GetQualityColor
 
 local function InsertItemLinkIntoChat(link)
-    if not link then return false end
-
-    if _G.ChatFrameUtil and _G.ChatFrameUtil.InsertLink and _G.ChatFrameUtil.InsertLink(link) then
-        return true
-    end
-    if _G.ChatEdit_InsertLink and _G.ChatEdit_InsertLink(link) then
-        return true
-    end
-
-    if _G.HandleModifiedItemClick and _G.HandleModifiedItemClick(link) then
-        return true
-    end
-
-    local activeChat = (_G.ChatFrameUtil and _G.ChatFrameUtil.GetActiveWindow and _G.ChatFrameUtil.GetActiveWindow())
-        or (_G.ChatEdit_GetActiveWindow and _G.ChatEdit_GetActiveWindow())
-        or _G.ACTIVE_CHAT_EDIT_BOX
-        or
-        (_G.LAST_ACTIVE_CHAT_EDIT_BOX and (_G.LAST_ACTIVE_CHAT_EDIT_BOX:IsShown() or _G.LAST_ACTIVE_CHAT_EDIT_BOX:IsVisible()) and _G.LAST_ACTIVE_CHAT_EDIT_BOX)
-
-    if activeChat and (activeChat:IsShown() or activeChat:IsVisible()) and activeChat.Insert then
-        activeChat:Insert(link)
-        if activeChat.SetFocus then
-            activeChat:SetFocus()
-        end
-        return true
-    end
-
-    if _G.MacroFrameText and _G.MacroFrameText:IsShown() and _G.MacroFrameText:HasFocus() then
-        _G.MacroFrameText:Insert(link)
-        return true
-    end
-    if _G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown() and _G.CommunitiesFrame.ChatEditBox:HasFocus() then
-        _G.CommunitiesFrame.ChatEditBox:Insert(link)
-        return true
-    end
-
-    return false
+    return sfui.common.insert_link_to_chat(link)
 end
 sfui.dungeonjournal.InsertItemLinkIntoChat = InsertItemLinkIntoChat
 
@@ -1387,16 +1349,22 @@ function sfui.dungeonjournal.CreateFrame()
             if common and common.print then common.print("no waypoint coordinates found for this dungeon.") end
             return
         end
-        if C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates then
+        local dungeonName = dungeon.name or "dungeon entrance"
+        if sfui.map and sfui.map.SetUserWaypoint then
+            sfui.map.SetUserWaypoint(dungeon.entrance.mapID, dungeon.entrance.x,
+                dungeon.entrance.y, dungeonName)
+        elseif C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates then
             pcall(function()
                 C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(dungeon.entrance.mapID, dungeon.entrance.x,
                     dungeon.entrance.y))
             end)
-            if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+            if sfui.map and sfui.map.SetSuperTrackedUserWaypoint then
+                sfui.map.SetSuperTrackedUserWaypoint(true)
+            elseif C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
                 pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
             end
             if common and common.print then
-                common.print("waypoint set for " .. (dungeon.name or "dungeon entrance"))
+                common.print("waypoint set for " .. dungeonName)
             end
         end
     end)

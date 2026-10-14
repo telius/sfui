@@ -950,10 +950,7 @@ if IS_CAMELOT then
         _G.EventUtil.ContinueOnPlayerLogin(patchCamelotGamepadPetFlyout)
     end
 
-    local watcher = _G.CreateFrame("Frame")
-    watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
-    watcher:RegisterEvent("ADDON_LOADED")
-    watcher:SetScript("OnEvent", function(self, event, arg1)
+    local function on_gamepad_flyout_event(event, arg1)
         if event == "ADDON_LOADED" then
             if arg1 == "Blizzard_GamepadActionBars" then
                 patchCamelotGamepadPetFlyout()
@@ -961,7 +958,12 @@ if IS_CAMELOT then
         else
             patchCamelotGamepadPetFlyout()
         end
-    end)
+    end
+
+    if sfui.events and sfui.events.RegisterEvent then
+        sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_gamepad_flyout_event)
+        sfui.events.RegisterEvent("ADDON_LOADED", on_gamepad_flyout_event)
+    end
     patchCamelotGamepadPetFlyout()
 end
 

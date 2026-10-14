@@ -19,7 +19,6 @@ local _G                                      = _G
 local CreateFrame, UIParent                   = _G.CreateFrame, _G.UIParent
 local GameTooltip                             = sfui.common.get_tooltip()
 local hide_tooltip                            = sfui.common.hide_tooltip
-local ChatEdit_InsertLink                     = _G.ChatEdit_InsertLink
 local HandleModifiedItemClick                 = _G.HandleModifiedItemClick
 local DressUpLink                             = _G.DressUpLink
 local IsShiftKeyDown                          = _G.IsShiftKeyDown
@@ -402,9 +401,7 @@ local function CreateRowFrame(parent)
 
         if self.itemLink then
             if IsShiftKeyDown and IsShiftKeyDown() then
-                if ChatEdit_InsertLink then
-                    ChatEdit_InsertLink(self.itemLink)
-                end
+                sfui.common.insert_link_to_chat(self.itemLink)
             elseif IsControlKeyDown and IsControlKeyDown() then
                 if DressUpLink then
                     DressUpLink(self.itemLink)

@@ -18,9 +18,6 @@ local GetNumQuestLogEntries = _G.GetNumQuestLogEntries
 local GetQuestProgressBarPercent = _G.GetQuestProgressBarPercent
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local QuestMapFrame_OpenToQuestDetails = _G.QuestMapFrame_OpenToQuestDetails
-local ChatEdit_GetActiveWindow = _G.ChatEdit_GetActiveWindow
-local ChatEdit_InsertLink = _G.ChatEdit_InsertLink
-local ChatFrameUtil = _G.ChatFrameUtil
 
 local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
 local math_floor = math.floor
@@ -30,9 +27,7 @@ local QuestCommon = sfui.tracker.helpers.quest
 
 local issecretvalue = sfui.common.issecretvalue
 
-local function GetQLState()
-    return sfui.questlog.GetState()
-end
+local GetQLState = sfui.questlog.GetState
 
 local function FormatTimeLeft(minutes)
     if not minutes or minutes <= 0 then return nil end
@@ -187,11 +182,8 @@ function WorldQuestsModule:BuildBlocks(container)
             end
             local prevSig = lastWQProgress[questID]
             if initialWQScanDone and prevSig and prevSig ~= currentSig then
-                if not InCombatLockdown or not InCombatLockdown() then
-                    if C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
-                        C_SuperTrack.SetSuperTrackedQuestID(questID)
-                        superTrackedQuestID = questID
-                    end
+                if sfui.map and sfui.map.SetSuperTrackedQuestID then
+                    sfui.map.SetSuperTrackedQuestID(questID)
                 end
             end
             lastWQProgress[questID] = currentSig

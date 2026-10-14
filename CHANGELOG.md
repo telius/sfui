@@ -1,18 +1,16 @@
 # Changelog
 
-## v1.96 (2026-10-14)
+## v1.97 (2026-10-14)
 
 ### features
 
-- **standalone action bars module**: introduced a dedicated, fully modular action bar system (`frames/actionbars/actionbars.lua`, `frames/actionbars/bars.lua`, `frames/actionbars/style.lua`) supporting bars 1 through 8, pet bar, and stance/shapeshift bar with customizable button sizing, padding, orientation, mouseover fading (`frames/actionbars/mouseover.lua`), and interactive mover frames (`frames/actionbars/movers.lua`).
-- **alt mail routing system**: added automated mailbox routing management (`frames/alts/mail_data.lua`, `frames/alts/mail_engine.lua`, `frames/alts/mail_mailbox.lua`, `frames/alts/mail_ui.lua`) allowing one-click dispatching and automated recipient sorting by item category, profession material, and consumable type.
-- **camelot challenges tracking**: integrated hardcore and challenge milestone tracking directly into the experience bar and quest objective tracker (`frames/experience/challenges.lua`, `frames/quests/modules/q_camelot_challenges.lua`) with custom visuals and detailed progress tooltips.
-- **minimap pins**: expanded the unified map pin system (`frames/map/pins.lua`) to project pins onto the minimap with edge radius clamping and coordinate conversion.
-- **standardized circular icon styling**: added a reusable circular masking utility in `core/widgets.lua` (`sfui.widgets.MakeCircleIcon`) used across map pins, tracking frames, and action bar controls.
+- **patch 12.1.5 compatibility**: updated interface toc targeting patch 12.1.5 (`sfui.toc`) and resolved map canvas taint issues caused by blizzard protected function calls.
+- **new cosmetic hearthstones**: cataloged new patch 12.1.5 hearthstones in `data/portals.lua` including hiveborn hearthstone (`281136`), shadeweaver's hearthstone (`281615`), naaru's embrace (`260221`), and classic deluxe dark portal (`184871`).
+- **centralized waypoint engine**: consolidated all map pin and waypoint placements into `sfui.map.SetUserWaypoint` across dungeon journal (`frames/dungeonjournal/dj_quests.lua`, `frames/dungeonjournal/dungeonjournal.lua`), professions (`frames/professions/sources.lua`), and quest objective modules.
+- **mythic+ tracker enhancements**: overhauled mythic+ objective blocks and keystone affixes display (`frames/quests/q_mythic.lua`) with refined layout, timers, and styling.
 
 ### improvements & bug fixes
 
-- **shapeshift & stance keybind paging**: fixed action bar keybind pagination during combat shapeshifting (`frames/actionbars/paging.lua`), binding stance state transitions cleanly to the active bar.
-- **memory & frame pool optimizations**: implemented texture mask caching and pooled reusable frame tables in `frames/map/pins.lua` and `core/widgets.lua` to minimize garbage collection spikes during high-frequency pin updates.
-- **consumables scanning**: refined food, drink, and buff consumable detection in `frames/reminders/buffs_consumables.lua` and `core/items.lua`, ensuring accurate detection for camelot items.
-- **configuration & options**: added an action bars settings tab in `frames/options/tabs/tab_actionbars.lua` with live previews and granular bar toggles.
+- **map pin taint protection**: stubbed and guarded against protected button pass-through and click propagation methods (`SetPassThroughButtons`, `SetPropagateMouseClicks`, `SetPropagateMouseMotion`) in `core/map.lua` and `frames/map/pins.lua`.
+- **quest objective tracker cleanup**: refactored quest tracker engine blocks, scenarios, and helper routines (`frames/quests/helpers/q_common.lua`, `frames/quests/modules/q_scenarios.lua`) to reduce code duplication and improve performance.
+- **professions ui**: improved recipe progress bar display, filter states, and reagent source tooltips (`frames/professions/progress.lua`, `frames/professions/rows.lua`, `frames/professions/sources.lua`).

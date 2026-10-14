@@ -369,15 +369,15 @@ function sfui.widgets.create_flat_button(parent, text, width, height, onClick)
     end
 
     btn:HookScript("OnEnter", function(self)
-        if self.tooltip and _G.GameTooltip then
-            _G.GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            _G.GameTooltip:SetText(self.tooltip, 1, 1, 1)
-            _G.GameTooltip:Show()
+        if self.tooltip and GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(self.tooltip, 1, 1, 1)
+            GameTooltip:Show()
         end
     end)
     btn:HookScript("OnLeave", function(self)
-        if _G.GameTooltip and _G.GameTooltip:GetOwner() == self then
-            _G.GameTooltip:Hide()
+        if GameTooltip and GameTooltip:GetOwner() == self then
+            sfui.common.hide_tooltip()
         end
     end)
 

@@ -42,9 +42,6 @@ local InCombatLockdown                        = _G.InCombatLockdown
 local IsShiftKeyDown                          = _G.IsShiftKeyDown
 local IsControlKeyDown                        = _G.IsControlKeyDown
 local IsAltKeyDown                            = _G.IsAltKeyDown
-local ChatEdit_GetActiveWindow                = _G.ChatEdit_GetActiveWindow
-local ChatEdit_InsertLink                     = _G.ChatEdit_InsertLink
-local ChatFrameUtil                           = _G.ChatFrameUtil
 local QuestMapFrame_OpenToQuestDetails        = _G.QuestMapFrame_OpenToQuestDetails
 
 local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
@@ -80,49 +77,8 @@ sfui.questlog.IsProfessionQuest               = sfui.questlog.IsProfessionQuest 
 local recentlyWatched                         = {}
 local manualExpanded                          = {}
 
-local function GetQuestProgressDetails(questID, questLogIndex, isComplete, objs, canClickToComplete)
-    if isComplete then
-        local tag = canClickToComplete and " |cffff00ff(Complete)|r" or " |cff33ff33(Complete)|r"
-        return true, tag
-    end
-
-    -- 1. Progress bar percent (modern quests / bonus objectives)
-    if GetQuestProgressBarPercent then
-        local pct = GetQuestProgressBarPercent(questID)
-        if pct and pct > 0 then
-            return true, string_format(" |cffa0a0a0(%d%%)|r", math_floor(pct + 0.5))
-        end
-    end
-
-    -- 2. Modern C_QuestLog objectives
-    if objs and #objs > 0 then
-        local total = #objs
-        local finished = 0
-        local hasProgress = false
-
-        for _, obj in ipairs(objs) do
-            if obj.finished then
-                finished = finished + 1
-                hasProgress = true
-            elseif obj.numFulfilled and obj.numFulfilled > 0 then
-                hasProgress = true
-            end
-        end
-
-        local inlineTag = ""
-        if total > 1 and finished < total then
-            inlineTag = string_format(" |cffa0a0a0(%d/%d)|r", finished, total)
-        end
-
-        return hasProgress, inlineTag
-    end
-
-    return false, ""
-end
-
-local function GetQLState()
-    return sfui.questlog.GetState()
-end
+local GetQuestProgressDetails                 = QuestCommon.GetQuestProgressDetails
+local GetQLState                              = sfui.questlog.GetState
 
 local function IsQuestWatched(questID, questLogIndex)
     return QuestCommon.IsQuestWatched(questID, questLogIndex, recentlyWatched)
@@ -130,8 +86,8 @@ end
 
 local IsWorldQuest = QuestCommon.IsWorldQuest
 
---- Automatically track a quest when objectives update or progress occurs
 local pendingChangedQuests = {}
+local autoCompletePopups = {}
 
 --- @param questID number Quest ID to track
 --- @param questLogIndex number|nil Optional quest log index for classic clients
@@ -369,7 +325,6 @@ local QuestsModule = {
         "QUEST_WATCH_LIST_CHANGED",
         "QUEST_WATCH_UPDATE",
         "QUEST_LOG_CRITERIA_UPDATE",
-        "QUEST_CRITERIA_UPDATE",
         "QUEST_AUTOCOMPLETE",
         "QUEST_ACCEPTED",
         "QUEST_TURNED_IN",
@@ -399,9 +354,6 @@ function QuestsModule:OnEvent(event, ...)
         if next(pendingChangedQuests) then
             for qID, qIdx in pairs(pendingChangedQuests) do
                 AutoTrackQuest(qID, type(qIdx) == "number" and qIdx or nil)
-                if C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
-                    C_SuperTrack.SetSuperTrackedQuestID(qID)
-                end
             end
             wipe(pendingChangedQuests)
             sfui.tracker.RequestRefresh(0.05)
@@ -417,17 +369,8 @@ function QuestsModule:OnEvent(event, ...)
                 pendingChangedQuests[questID] = true
             end
         end
-    elseif event == "QUEST_WATCH_UPDATE" or event == "QUEST_LOG_CRITERIA_UPDATE" or event == "QUEST_CRITERIA_UPDATE" or event == "QUEST_AUTOCOMPLETE" then
-        if questID and questID > 0 then
-            if not InCombatLockdown or not InCombatLockdown() then
-                AutoTrackQuest(questID)
-                if C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
-                    C_SuperTrack.SetSuperTrackedQuestID(questID)
-                end
-            else
-                pendingChangedQuests[questID] = true
-            end
-        end
+    elseif event == "QUEST_WATCH_UPDATE" or event == "QUEST_LOG_CRITERIA_UPDATE" or event == "QUEST_AUTOCOMPLETE" then
+        sfui.tracker.RequestRefresh(0.05)
     elseif event == "QUEST_WATCH_LIST_CHANGED" then
         if questID and questID > 0 then
             if added == false then
@@ -484,7 +427,7 @@ function QuestsModule:BuildBlocks(container)
     end
 
     -- 1. Scan Auto-Quest Popups (Retail Mode)
-    local autoCompletePopups = {}
+    wipe(autoCompletePopups)
     if GetNumAutoQuestPopUps and GetAutoQuestPopUp then
         local numPopups = GetNumAutoQuestPopUps() or 0
         for i = 1, numPopups do

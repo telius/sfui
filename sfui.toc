@@ -1,7 +1,7 @@
-## Interface: 120100, 16001
+## Interface: 120105, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v1.96
+## Version: v1.97
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -24,8 +24,8 @@ data/spells.lua
 data/stats.lua
 data/rules.lua
 data/season.lua
-compat.lua
 dispatcher.lua
+compat.lua
 core/safety.lua
 core/db.lua
 core/module.lua

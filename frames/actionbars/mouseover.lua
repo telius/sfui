@@ -162,11 +162,7 @@ function mouseover.SetDragging(isDragging)
     end
 end
 
-local dragEventFrame = _G.CreateFrame("Frame")
-dragEventFrame:RegisterEvent("ACTIONBAR_SHOWGRID")
-dragEventFrame:RegisterEvent("ACTIONBAR_HIDEGRID")
-dragEventFrame:RegisterEvent("CURSOR_CHANGED")
-dragEventFrame:SetScript("OnEvent", function(_, event)
+local function OnDragEvent(event)
     if event == "ACTIONBAR_SHOWGRID" then
         mouseover.SetDragging(true)
     elseif event == "ACTIONBAR_HIDEGRID" then
@@ -186,4 +182,10 @@ dragEventFrame:SetScript("OnEvent", function(_, event)
             end)
         end
     end
-end)
+end
+
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("ACTIONBAR_SHOWGRID", OnDragEvent)
+    sfui.events.RegisterEvent("ACTIONBAR_HIDEGRID", OnDragEvent)
+    sfui.events.RegisterEvent("CURSOR_CHANGED", OnDragEvent)
+end

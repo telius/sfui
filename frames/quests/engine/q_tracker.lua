@@ -14,6 +14,7 @@ local C_Timer = _G.C_Timer
 local InCombatLockdown = _G.InCombatLockdown
 local ipairs, pairs, type = _G.ipairs, _G.pairs, _G.type
 local table_insert, table_sort = _G.table.insert, _G.table.sort
+local wipe = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
 
 local Tracker = sfui.tracker
 local Layout  = sfui.tracker.layout
@@ -23,6 +24,9 @@ local container = nil
 local refreshTimer = nil
 local isRefreshing = false
 local isRaidSuppressed = false
+
+local allSectionsCache = {}
+local sectionMapCache = {}
 
 sfui.tracker.OnMouseWheel = function(self, delta) end
 Tracker.OnMouseWheel = sfui.tracker.OnMouseWheel
@@ -49,8 +53,10 @@ local function ExecuteLayout()
 
     local ok, err = pcall(function()
         -- Collect sections from all enabled modules and merge sections with the same ID
-        local allSections = {}
-        local sectionMap = {}
+        local allSections = allSectionsCache
+        local sectionMap = sectionMapCache
+        wipe(allSections)
+        wipe(sectionMap)
         for _, mod in ipairs(Tracker.modules or {}) do
             if mod:IsEnabled() and mod.BuildBlocks then
                 local modOk, modSections = pcall(mod.BuildBlocks, mod, container)
@@ -448,15 +454,9 @@ function SuppressBlizzardTrackers()
             for _, mod in ipairs(otf.modules) do
                 if mod.SetAlpha then mod:SetAlpha(0) end
                 if mod.EnableMouse then mod:EnableMouse(false) end
-                if mod.Hide then mod:Hide() end
-                HookAlphaSuppression(mod)
-                HookMouseSuppression(mod)
                 if mod.Header then
                     if mod.Header.SetAlpha then mod.Header:SetAlpha(0) end
                     if mod.Header.EnableMouse then mod.Header:EnableMouse(false) end
-                    if mod.Header.Hide then mod.Header:Hide() end
-                    HookAlphaSuppression(mod.Header)
-                    HookMouseSuppression(mod.Header)
                 end
             end
         end

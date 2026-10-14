@@ -1144,6 +1144,15 @@ local hookedShow = {}
 local function disarm_and_hide_viewer(viewer, keepActiveForMirroring)
     if not viewer then return end
 
+    -- CooldownViewer frames must NEVER process PLAYER_TARGET_CHANGED.
+    -- When PLAYER_TARGET_CHANGED fires from a targeting keybind (e.g. TargetNearestEnemy),
+    -- CooldownViewerMixin:OnPlayerTargetChanged calls RegisterAuraInstanceIDItemFrame,
+    -- which indexes self.auraInstanceIDToItemFramesMap (a DisallowTaintedAccess table)
+    -- and throws an unrecoverable taint error if execution has any addon context.
+    if viewer.UnregisterEvent then
+        viewer:UnregisterEvent("PLAYER_TARGET_CHANGED")
+    end
+
     if not keepActiveForMirroring then
         -- Unmirrored viewers (EssentialCooldownViewer, UtilityCooldownViewer) are not needed by sfui.
         -- Fully hide them and unregister their events so they never process PLAYER_TARGET_CHANGED
@@ -1167,7 +1176,7 @@ local function disarm_and_hide_viewer(viewer, keepActiveForMirroring)
         return
     end
 
-    -- For viewers mirrored by sfui (BuffBarCooldownViewer), keep the frame active at alpha 0.
+    -- For viewers mirrored by sfui (BuffBarCooldownViewer, BuffIconCooldownViewer), keep the frame active at alpha 0.
     -- Crucial: NEVER write custom fields onto the Blizzard frame table or call bmfc:RemoveManagedFrame,
     -- which taints the frame and causes DisallowTaintedAccess crashes in CooldownViewer.
     if not hookedAlpha[viewer] and hooksecurefunc then
@@ -1190,6 +1199,17 @@ local function disarm_and_hide_viewer(viewer, keepActiveForMirroring)
                 isSettingMouse[self] = true
                 self:EnableMouse(false)
                 isSettingMouse[self] = false
+            end
+        end)
+    end
+
+    if not hookedShow[viewer] and hooksecurefunc then
+        hookedShow[viewer] = true
+        hooksecurefunc(viewer, "Show", function(self)
+            -- Blizzard's CooldownViewerMixin:OnShow re-registers PLAYER_TARGET_CHANGED.
+            -- Immediately unregister it to prevent DisallowTaintedAccess crashes.
+            if self.UnregisterEvent then
+                self:UnregisterEvent("PLAYER_TARGET_CHANGED")
             end
         end)
     end
@@ -1225,17 +1245,16 @@ function sfui.common.hide_blizzard_cooldown_viewers()
         end
     end
 
-    -- BuffBarCooldownViewer is mirrored by sfui tracked bars and kept running invisibly at alpha 0
-    local buffBarViewer = _G["BuffBarCooldownViewer"]
-    if buffBarViewer then
-        disarm_and_hide_viewer(buffBarViewer, true)
-    end
-
-    -- Ensure BuffIconCooldownViewer (Blizzard Tracked Buffs stack) remains visible and interactive
-    local buffViewer = _G["BuffIconCooldownViewer"]
-    if buffViewer then
-        buffViewer:SetAlpha(1)
-        buffViewer:EnableMouse(true)
+    -- BuffBarCooldownViewer and BuffIconCooldownViewer are mirrored by sfui and kept running invisibly at alpha 0
+    local mirroredViewers = {
+        "BuffBarCooldownViewer",
+        "BuffIconCooldownViewer",
+    }
+    for _, name in ipairs(mirroredViewers) do
+        local viewer = _G[name]
+        if viewer then
+            disarm_and_hide_viewer(viewer, true)
+        end
     end
 
     if not cooldownViewersInitialized then
@@ -1303,6 +1322,7 @@ function sfui.common.are_blizzard_cooldown_viewers_hidden()
     local viewers = {
         "EssentialCooldownViewer",
         "UtilityCooldownViewer",
+        "BuffIconCooldownViewer",
         "BuffBarCooldownViewer",
     }
     for _, name in ipairs(viewers) do
@@ -1557,6 +1577,57 @@ function sfui.common.get_owned_keystone_info()
 end
 sfui.items = sfui.items or {}
 sfui.items.get_owned_keystone_info = sfui.common.get_owned_keystone_info
+
+--- Inserts a hyperlink into the active chat / edit box with multiple engine fallbacks.
+--- @param link string|nil Hyperlink to insert
+--- @return boolean inserted True if successfully inserted, false otherwise
+function sfui.common.insert_link_to_chat(link)
+    if not link then return false end
+
+    -- 1. Modern retail engine API
+    if _G.ChatFrameUtil and _G.ChatFrameUtil.InsertLink and _G.ChatFrameUtil.InsertLink(link) then
+        return true
+    end
+
+    -- 2. Classic / legacy chat edit box helper
+    if _G.ChatEdit_InsertLink and _G.ChatEdit_InsertLink(link) then
+        return true
+    end
+
+    -- 3. Modified click handler fallback
+    if _G.HandleModifiedItemClick and _G.HandleModifiedItemClick(link) then
+        return true
+    end
+
+    -- 4. Active chat edit box direct insert
+    local activeChat = (_G.ChatFrameUtil and _G.ChatFrameUtil.GetActiveWindow and _G.ChatFrameUtil.GetActiveWindow())
+        or (_G.ChatEdit_GetActiveWindow and _G.ChatEdit_GetActiveWindow())
+        or _G.ACTIVE_CHAT_EDIT_BOX
+        or (_G.LAST_ACTIVE_CHAT_EDIT_BOX and (_G.LAST_ACTIVE_CHAT_EDIT_BOX:IsShown() or _G.LAST_ACTIVE_CHAT_EDIT_BOX:IsVisible()) and _G.LAST_ACTIVE_CHAT_EDIT_BOX)
+
+    if activeChat and (activeChat:IsShown() or activeChat:IsVisible()) and activeChat.Insert then
+        activeChat:Insert(link)
+        if activeChat.SetFocus then
+            activeChat:SetFocus()
+        end
+        return true
+    end
+
+    -- 5. Macro text frame
+    if _G.MacroFrameText and _G.MacroFrameText:IsShown() and _G.MacroFrameText:HasFocus() then
+        _G.MacroFrameText:Insert(link)
+        return true
+    end
+
+    -- 6. Communities chat edit box
+    if _G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown() and _G.CommunitiesFrame.ChatEditBox:HasFocus() then
+        _G.CommunitiesFrame.ChatEditBox:Insert(link)
+        return true
+    end
+
+    return false
+end
+sfui.common.insert_link_into_chat = sfui.common.insert_link_to_chat
 
 
 

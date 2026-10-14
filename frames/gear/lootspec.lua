@@ -197,6 +197,9 @@ local function GetActiveDelveSpec()
     if not isDelve and C_DelvesUI and C_DelvesUI.HasActiveDelve then
         if C_DelvesUI.HasActiveDelve() then isDelve = true end
     end
+    if not isDelve and C_ScenarioInfo and C_ScenarioInfo.IsTieredEntranceScenario then
+        if C_ScenarioInfo.IsTieredEntranceScenario() then isDelve = true end
+    end
     if isDelve then
         local specID = DB().dungeons["delves"]
         return (specID and specID ~= 0) and specID or nil

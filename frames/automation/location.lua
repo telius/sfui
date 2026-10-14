@@ -274,6 +274,11 @@ local function print_instance_status()
     if lastInstancePrint and (now - lastInstancePrint < 3) then return end
     lastInstancePrint = now
 
+    local isRaid = (instanceType == "raid")
+        or (IsInRaid and IsInRaid())
+        or (difficultyName and difficultyName:lower():find("raid", 1, true) ~= nil)
+        or (difficultyID and ((difficultyID >= 3 and difficultyID <= 7) or difficultyID == 9 or (difficultyID >= 14 and difficultyID <= 17) or difficultyID == 33 or difficultyID == 220 or difficultyID == 233 or difficultyID == 250))
+
     local diffText = difficultyName or "normal"
     local activeKey = C_ChallengeMode and C_ChallengeMode.GetActiveKeystoneInfo and C_ChallengeMode.GetActiveKeystoneInfo()
     if activeKey and activeKey > 0 then
@@ -298,9 +303,14 @@ local function print_instance_status()
         specColor = string.format("|cff%02x%02x%02x", r * 255, g * 255, b * 255)
     end
 
+    local diffBadge = ""
+    if not isRaid then
+        diffBadge = " (" .. cc .. diffText .. reset_c .. ")"
+    end
+
     sfui_common.print(
         pc .. name .. reset_c
-        .. " (" .. cc .. diffText .. reset_c .. ")"
+        .. diffBadge
         .. " · loot spec: " .. specColor .. specName .. reset_c
     )
 end

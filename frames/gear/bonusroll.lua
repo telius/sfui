@@ -89,9 +89,7 @@ local EXCLUDED_ITEMS = {
     [275938] = true, -- Gaze of the Hexlord
 }
 
-local function GetPlayerKey()
-    return sfui.common.get_player_unique_key()
-end
+local GetPlayerKey = sfui.common.get_player_unique_key
 
 local function DB()
     SfuiDB = SfuiDB or {}

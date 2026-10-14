@@ -51,9 +51,8 @@ local function suppress_blizzard_actionbars()
         "MainMenuBarMicroButtons",
     }
 
-    -- Unload Blizzard ActionBarController and ActionEvents to prevent Blizzard from
-    -- attempting to update its bars and calling protected methods (SetAttribute, ShowBase,
-    -- HideBase, SetShownBase, SetScaleBase) during combat shapeshifts / page transitions.
+    -- Unload Blizzard ActionBarController to prevent Blizzard from attempting to update
+    -- its bars and calling protected methods (SetAttribute) during combat shapeshifts / page transitions.
     if _G.ActionBarController and _G.ActionBarController.UnregisterAllEvents then
         _G.ActionBarController:UnregisterAllEvents()
         if _G.ActionBarController.RegisterEvent then
@@ -61,22 +60,17 @@ local function suppress_blizzard_actionbars()
             _G.ActionBarController:RegisterEvent("UPDATE_EXTRA_ACTIONBAR")
         end
     end
-    if _G.ActionBarActionEventsFrame and _G.ActionBarActionEventsFrame.UnregisterAllEvents then
-        _G.ActionBarActionEventsFrame:UnregisterAllEvents()
-    end
-    if _G.ActionBarButtonEventsFrame and _G.ActionBarButtonEventsFrame.UnregisterAllEvents then
-        _G.ActionBarButtonEventsFrame:UnregisterAllEvents()
-        if _G.ActionBarButtonEventsFrame.RegisterEvent then
-            _G.ActionBarButtonEventsFrame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
-            _G.ActionBarButtonEventsFrame:RegisterEvent("ACTIONBAR_UPDATE_COOLDOWN")
-        end
-    end
 
     for _, name in ipairs(blizzardBarNames) do
         local bar = _G[name]
         if bar then
             bar:SetParent(Hider)
-            if bar.UnregisterAllEvents then
+            if bar.HideBase then
+                bar:HideBase()
+            else
+                bar:Hide()
+            end
+            if bar.UnregisterAllEvents and name ~= "MainActionBar" and name ~= "MainMenuBar" then
                 bar:UnregisterAllEvents()
             end
         end
@@ -169,32 +163,9 @@ local function suppress_blizzard_actionbars()
         end
     end
 
-    -- Keep only ExtraActionButtons in ActionBarButtonEventsFrame
-    if _G.ActionBarButtonEventsFrame and _G.ActionBarButtonEventsFrame.frames then
-        hooksecurefunc(_G.ActionBarButtonEventsFrame, "RegisterFrame", function(added)
-            local frames = _G.ActionBarButtonEventsFrame.frames
-            if not frames then return end
-            for index = #frames, 1, -1 do
-                local frame = frames[index]
-                if not added or frame == added then
-                    local name = frame and frame.GetName and frame:GetName()
-                    if name and not name:match("^ExtraActionButton%d") then
-                        table.remove(frames, index)
-                    end
-                    if added and frame == added then break end
-                end
-            end
-        end)
-
-        local frames = _G.ActionBarButtonEventsFrame.frames
-        for index = #frames, 1, -1 do
-            local frame = frames[index]
-            local name = frame and frame.GetName and frame:GetName()
-            if name and not name:match("^ExtraActionButton%d") then
-                table.remove(frames, index)
-            end
-        end
-    end
+    -- NOTE: ActionBarButtonEventsFrame and ActionBarActionEventsFrame are intentionally
+    -- left untouched so Blizzard native cooldowns (secret values in 12.0+) and proc glows
+    -- continue to execute in pure untainted Blizzard context without secret value errors.
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────

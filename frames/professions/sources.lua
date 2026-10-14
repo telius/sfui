@@ -1163,6 +1163,16 @@ end
 --- @return boolean isSuccess
 function sfui.recipes.SetWaypoint(s)
     if not s or not s.mapID or not s.x or not s.y then return false end
+    local targetName = s.name or s.desc or "recipe source"
+    local zoneName = s.zone or ("map " .. tostring(s.mapID))
+    local xPct = math_floor(s.x * 1000 + 0.5) / 10
+    local yPct = math_floor(s.y * 1000 + 0.5) / 10
+    local label = string.format("%s in %s (%.1f, %.1f)", targetName, zoneName, xPct, yPct)
+
+    if sfui.map and sfui.map.SetUserWaypoint then
+        return sfui.map.SetUserWaypoint(s.mapID, s.x, s.y, label)
+    end
+
     if not (C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates) then
         return false
     end
@@ -1170,15 +1180,13 @@ function sfui.recipes.SetWaypoint(s)
     local point = UiMapPoint.CreateFromCoordinates(s.mapID, s.x, s.y)
     local ok = pcall(C_Map.SetUserWaypoint, point)
     if ok then
-        if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+        if sfui.map and sfui.map.SetSuperTrackedUserWaypoint then
+            sfui.map.SetSuperTrackedUserWaypoint(true)
+        elseif C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
             pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
         end
-        local targetName = s.name or s.desc or "recipe source"
-        local zoneName = s.zone or ("map " .. tostring(s.mapID))
-        local xPct = math_floor(s.x * 1000 + 0.5) / 10
-        local yPct = math_floor(s.y * 1000 + 0.5) / 10
         local printFn = (common and common.print) or print
-        printFn(string.format("waypoint set for %s in %s (%.1f, %.1f)", targetName, zoneName, xPct, yPct))
+        printFn("waypoint set for " .. label)
         return true
     end
     return false
