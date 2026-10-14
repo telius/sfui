@@ -640,6 +640,7 @@ end
 
 function sfui.theme.ApplyWindowStyle(frame, options)
     if not frame then return end
+    sfui.common.set_pixel_snapping(frame)
     options = options or {}
 
     local activeID = sfui.theme.GetActiveThemeID()
@@ -1003,6 +1004,7 @@ end
 -- 2. Container / Card Styling (Panels, Sections, Insets)
 function sfui.theme.ApplyContainerStyle(containerPanel)
     if not containerPanel or not containerPanel.SetBackdrop then return end
+    sfui.common.set_pixel_snapping(containerPanel)
     local activeID = sfui.theme.GetActiveThemeID()
     local theme = registeredThemes[activeID] or registeredThemes.modern or {}
     local pal = sfui.theme.GetPalette()
@@ -2684,6 +2686,8 @@ function sfui.theme.ApplyStatusBarStyle(bar, barType)
     if not bar then return end
     local backdrop = bar.backdrop or bar
     if not backdrop then return end
+    sfui.common.set_pixel_snapping(bar)
+    sfui.common.set_pixel_snapping(backdrop)
 
     local activeID = sfui.theme.GetActiveThemeID()
     local theme    = registeredThemes[activeID] or registeredThemes.modern or {}

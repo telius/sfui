@@ -57,6 +57,21 @@ local button_bar = nil
 local status_container = nil
 local rest_icon_frame = nil
 local pvp_icon_frame = nil
+local weather_icon_frame = nil
+
+local WEATHER_ICONS = {
+    [1] = "Interface\\PetBattles\\Weather-Rain",
+    [2] = "Interface\\PetBattles\\Weather-Blizzard",
+    [3] = "Interface\\PetBattles\\Weather-Sandstorm",
+    [4] = "Interface\\PetBattles\\Weather-StaticField",
+}
+
+local WEATHER_NAMES = {
+    [1] = "rain",
+    [2] = "snow",
+    [3] = "sandstorm",
+    [4] = "storm",
+}
 
 local function set_default_zoom()
     if zoom_timer then
@@ -539,7 +554,7 @@ function ButtonManager:arrange_buttons()
     local isClockInside = clock and clock:IsShown() and clock:GetParent() == button_bar
     local clockWidth = isClockInside and (clock:GetWidth() > 0 and clock:GetWidth() or 48) or 0
 
-    local isStatusInside = sfui.isCamelot and status_container and status_container:IsShown() and status_container:GetParent() == button_bar
+    local isStatusInside = status_container and status_container:IsShown() and status_container:GetParent() == button_bar
     local statusWidth = isStatusInside and (status_container:GetWidth() > 0 and (status_container:GetWidth() + 6) or 0) or 0
     local rightReserved = isClockInside and (clockWidth + 14 + statusWidth) or (padX + statusWidth)
 
@@ -683,13 +698,42 @@ local function get_status_container()
         self:SetScript("OnUpdate", nil)
         GameTooltip:Hide()
     end)
-    pvp_icon_frame:Hide()
+    -- Weather indicator (flat square icon, tooltip with weather type and intensity)
+    weather_icon_frame = CreateFrame("Frame", nil, status_container, "BackdropTemplate")
+    weather_icon_frame:SetSize(size, size)
+    weather_icon_frame:EnableMouse(true)
+    local weather_tex = weather_icon_frame:CreateTexture(nil, "ARTWORK")
+    weather_tex:SetAllPoints()
+    weather_tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    weather_icon_frame.texture = weather_tex
+    skin_status_button(weather_icon_frame, weather_tex, nil)
 
+    weather_icon_frame:SetScript("OnEnter", function(self)
+        if not self.weatherInfo then return end
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+        GameTooltip:ClearLines()
+        local wType = self.weatherInfo.type
+        local wName = WEATHER_NAMES[wType] or "weather"
+        local pct = math_floor(((self.weatherInfo.intensity or 0) * 100) + 0.5)
+        GameTooltip:AddLine("weather: " .. wName, 1, 1, 1)
+        GameTooltip:AddLine(string_format("intensity: %d%%", pct), 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end)
+    weather_icon_frame:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    weather_icon_frame:Hide()
+
+    sfui.common.set_pixel_snapping(status_container)
     return status_container
 end
 
 function sfui.minimap.update_status()
-    if not sfui.isCamelot or (SfuiDB and SfuiDB.minimap_show_status == false) then
+    local hasWeatherAPI = _G.C_Weather and _G.C_Weather.GetCurrentWeather
+    local wantWeather = hasWeatherAPI and (SfuiDB and SfuiDB.minimap_show_weather ~= false)
+    local wantStatus = sfui.isCamelot and (SfuiDB and SfuiDB.minimap_show_status ~= false)
+
+    if not wantStatus and not wantWeather then
         if status_container then
             status_container:Hide()
             if rest_icon_frame then rest_icon_frame:Hide() end
@@ -697,6 +741,7 @@ function sfui.minimap.update_status()
                 pvp_icon_frame:Hide()
                 pvp_icon_frame:SetScript("OnUpdate", nil)
             end
+            if weather_icon_frame then weather_icon_frame:Hide() end
         end
         if button_bar and button_bar:IsShown() then
             ButtonManager:arrange_buttons()
@@ -713,17 +758,21 @@ function sfui.minimap.update_status()
         container:SetFrameLevel(targetParent:GetFrameLevel() + 5)
     end
 
-    local isResting = IsResting and IsResting()
-    local isFFA = UnitIsPVPFreeForAll and UnitIsPVPFreeForAll("player")
-    local isPVP = (UnitIsPVP and UnitIsPVP("player")) or isFFA
-
-    local showRest = isResting
+    local showRest = wantStatus and IsResting and IsResting()
+    local isFFA = wantStatus and UnitIsPVPFreeForAll and UnitIsPVPFreeForAll("player")
+    local isPVP = wantStatus and ((UnitIsPVP and UnitIsPVP("player")) or isFFA)
     local showPvP = isPVP
+
+    local weatherInfo = wantWeather and _G.C_Weather.GetCurrentWeather()
+    local showWeather = weatherInfo and weatherInfo.type and weatherInfo.type > 0
 
     if showRest then
         rest_icon_frame:Show()
     else
         rest_icon_frame:Hide()
+        if GameTooltip:IsOwned(rest_icon_frame) then
+            GameTooltip:Hide()
+        end
     end
 
     if showPvP then
@@ -738,26 +787,43 @@ function sfui.minimap.update_status()
         end
     end
 
+    if showWeather then
+        weather_icon_frame.weatherInfo = weatherInfo
+        weather_icon_frame.texture:SetTexture(WEATHER_ICONS[weatherInfo.type] or "Interface\\PetBattles\\Weather-Rain")
+        weather_icon_frame:Show()
+    else
+        if weather_icon_frame then
+            weather_icon_frame:Hide()
+            weather_icon_frame.weatherInfo = nil
+            if GameTooltip:IsOwned(weather_icon_frame) then
+                GameTooltip:Hide()
+            end
+        end
+    end
+
     local cfg = sfui.config.minimap.button_bar
     local iconSize = cfg.button_size or 20
     local iconSpacing = 6
 
-    if showRest and showPvP then
-        pvp_icon_frame:ClearAllPoints()
-        pvp_icon_frame:SetPoint("RIGHT", container, "RIGHT", 0, 0)
-        rest_icon_frame:ClearAllPoints()
-        rest_icon_frame:SetPoint("RIGHT", pvp_icon_frame, "LEFT", -iconSpacing, 0)
-        container:SetSize((iconSize * 2) + iconSpacing, iconSize)
-        container:Show()
-    elseif showPvP then
-        pvp_icon_frame:ClearAllPoints()
-        pvp_icon_frame:SetPoint("RIGHT", container, "RIGHT", 0, 0)
-        container:SetSize(iconSize, iconSize)
-        container:Show()
-    elseif showRest then
-        rest_icon_frame:ClearAllPoints()
-        rest_icon_frame:SetPoint("RIGHT", container, "RIGHT", 0, 0)
-        container:SetSize(iconSize, iconSize)
+    local activeIcons = {}
+    if showRest then table_insert(activeIcons, rest_icon_frame) end
+    if showPvP then table_insert(activeIcons, pvp_icon_frame) end
+    if showWeather and weather_icon_frame then table_insert(activeIcons, weather_icon_frame) end
+
+    local numActive = #activeIcons
+    if numActive > 0 then
+        local prevIcon = nil
+        for i = 1, numActive do
+            local iconFrame = activeIcons[i]
+            iconFrame:ClearAllPoints()
+            if not prevIcon then
+                iconFrame:SetPoint("RIGHT", container, "RIGHT", 0, 0)
+            else
+                iconFrame:SetPoint("RIGHT", prevIcon, "LEFT", -iconSpacing, 0)
+            end
+            prevIcon = iconFrame
+        end
+        container:SetSize((iconSize * numActive) + (iconSpacing * (numActive - 1)), iconSize)
         container:Show()
     else
         container:SetSize(0, iconSize)
@@ -993,6 +1059,9 @@ local function on_minimap_entering_world(event)
         end)
     end
 
+    -- Ensure status and weather indicators update on world entry
+    sfui.minimap.update_status()
+
     -- One-shot: unregister after first world entry
     sfui.events.UnregisterEvent("PLAYER_ENTERING_WORLD", on_minimap_entering_world)
 end
@@ -1026,6 +1095,26 @@ sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
     end
 end)
 
+-- Weather changes (Retail 12.1.5+ C_Weather)
+if _G.C_Weather then
+    sfui.events.RegisterEvent("WEATHER_CHANGED", function()
+        sfui.minimap.update_status()
+    end)
+end
+
+-- Zone changes update weather and location
+sfui.events.RegisterEvent("ZONE_CHANGED_NEW_AREA", function()
+    sfui.minimap.update_status()
+end)
+
+sfui.events.RegisterEvent("ZONE_CHANGED", function()
+    sfui.minimap.update_status()
+end)
+
+sfui.events.RegisterEvent("ZONE_CHANGED_INDOORS", function()
+    sfui.minimap.update_status()
+end)
+
 if sfui.isCamelot then
     -- Status indicator events (Resting and PvP tracking)
     sfui.events.RegisterEvent("PLAYER_UPDATE_RESTING", function()
@@ -1045,18 +1134,6 @@ if sfui.isCamelot then
     end)
 
     sfui.events.RegisterEvent("PVP_TIMER_UPDATE", function()
-        sfui.minimap.update_status()
-    end)
-
-    sfui.events.RegisterEvent("ZONE_CHANGED_NEW_AREA", function()
-        sfui.minimap.update_status()
-    end)
-
-    sfui.events.RegisterEvent("ZONE_CHANGED", function()
-        sfui.minimap.update_status()
-    end)
-
-    sfui.events.RegisterEvent("ZONE_CHANGED_INDOORS", function()
         sfui.minimap.update_status()
     end)
 end

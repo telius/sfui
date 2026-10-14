@@ -44,6 +44,14 @@ sfui.options.RegisterTab({
             last_anchor = status_cb
         end
 
+        if _G.C_Weather then
+            local weather_cb = create_checkbox(minimap_panel, "show weather indicator", "minimap_show_weather", function(checked)
+                sfui.minimap.update_status()
+            end, "shows ambient weather icon (rain, snow, sandstorm) beside the clock.")
+            weather_cb:SetPoint("TOPLEFT", last_anchor, "BOTTOMLEFT", 0, -10)
+            last_anchor = weather_cb
+        end
+
         local autozoom_cb = create_checkbox(minimap_panel, "enable autozoom", "minimap_auto_zoom", function(checked)
             sfui.minimap.reset_zoom_timer()
         end, "automatically resets minimap zoom after a delay.")

@@ -13,8 +13,20 @@ local CreateFrame = _G.CreateFrame
 local UIParent    = _G.UIParent
 local unpack      = _G.unpack or table.unpack
 
+-- Native hardware pixel snapping (Retail 12.1.5+ SetRoundLayoutToNearestPixel / PixelUtil)
+function sfui.common.set_pixel_snapping(frame, recursive)
+    if not frame then return end
+    if recursive and PixelUtil and PixelUtil.SetRoundLayoutToNearestPixelRecursively then
+        PixelUtil.SetRoundLayoutToNearestPixelRecursively(frame, true)
+    elseif frame.SetRoundLayoutToNearestPixel then
+        frame:SetRoundLayoutToNearestPixel(true)
+    end
+end
+sfui.widgets.set_pixel_snapping = sfui.common.set_pixel_snapping
+
 function sfui.widgets.create_panel(parent, width, height)
     local panel = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    sfui.common.set_pixel_snapping(panel)
     panel:SetSize(width, height)
     panel:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
@@ -34,6 +46,7 @@ function sfui.widgets.create_window_header(parent, titleText, customWidth)
     local headerBar = parent.headerBar or CreateFrame("Frame", nil, parent)
     parent.headerBar = headerBar
     headerBar.isWindowHeader = true
+    sfui.common.set_pixel_snapping(headerBar)
     local pWidth = parent:GetWidth() or 0
     local targetW = customWidth or (pWidth > 0 and pWidth < 300 and math.max(120, pWidth - 55)) or 280
     headerBar.customWidth = targetW
@@ -46,6 +59,7 @@ end
 sfui.common.create_window_header = sfui.widgets.create_window_header
 
 function sfui.widgets.create_border(frame, thickness, color, g, b, a)
+    sfui.common.set_pixel_snapping(frame)
     local mult = sfui.pixelScale or 1
     thickness = (thickness or 1) * mult
 
@@ -273,6 +287,7 @@ function sfui.widgets.create_bar(name, frameType, parent, template, configName)
     local cfg = sfui.config[configName or name]
     local mult = sfui.pixelScale or 1
     local backdrop = CreateFrame("Frame", "sfui_" .. name .. "_Backdrop", parent, "BackdropTemplate")
+    sfui.common.set_pixel_snapping(backdrop)
     backdrop:SetFrameStrata("MEDIUM")
     local padding = cfg.backdrop.padding * mult
     backdrop:SetSize(cfg.width + padding * 2, cfg.height + padding * 2)
@@ -285,6 +300,7 @@ function sfui.widgets.create_bar(name, frameType, parent, template, configName)
     backdrop:SetBackdropColor(cfg.backdrop.color[1], cfg.backdrop.color[2], cfg.backdrop.color[3], cfg.backdrop.color[4])
 
     local bar = CreateFrame(frameType, "sfui_" .. name, backdrop, template)
+    sfui.common.set_pixel_snapping(bar)
     bar:SetSize(cfg.width, cfg.height)
     bar:SetPoint("CENTER")
     if bar.SetStatusBarTexture then
@@ -353,6 +369,7 @@ sfui.common.style_text = sfui.widgets.style_text
 
 function sfui.widgets.create_flat_button(parent, text, width, height, onClick)
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    sfui.common.set_pixel_snapping(btn)
     btn:SetSize(width, height)
 
     btn:SetNormalFontObject("GameFontHighlightSmall")
@@ -515,6 +532,7 @@ sfui.common.create_submenu_button = sfui.widgets.create_submenu_button
 
 function sfui.widgets.create_styled_button(parent, text, width, height)
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    sfui.common.set_pixel_snapping(btn)
     btn:SetSize(width or 120, height or 25)
 
     btn.text = btn:CreateFontString(nil, "OVERLAY", sfui.config and sfui.config.font or "GameFontNormal")

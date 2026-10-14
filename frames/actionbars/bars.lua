@@ -281,6 +281,7 @@ function sfui.actionbars.CreatePetBar()
     end
 
     local bar = CreateFrame("Frame", "sfui_PetBar", UIParent, "SecureHandlerStateTemplate")
+    sfui.common.set_pixel_snapping(bar)
     bar.barKey = "pet"
     bar.buttons = {}
     sfui.actionbars.petBar = bar
@@ -361,6 +362,7 @@ function sfui.actionbars.CreateBars()
         local barKey = "bar" .. tostring(barIndex)
         local barName = "sfui_ActionBar" .. barIndex
         local bar = CreateFrame("Frame", barName, UIParent, "SecureHandlerStateTemplate")
+        sfui.common.set_pixel_snapping(bar)
         bar.barIndex = barIndex
         bar.barKey = barKey
         bar.buttons = {}
@@ -435,11 +437,13 @@ function sfui.actionbars.CreateBars()
 
             -- State and Action Mapping
             if barIndex == 1 then
-                -- Bar 1: Paging across 14 pages (stances, forms, possess, vehicle, bar pages)
-                for page = 1, 14 do
+                -- Bar 1: Paging across 18 pages (stances, forms, possess, vehicle, bar pages)
+                for page = 1, 18 do
                     local slot = (page - 1) * 12 + i
                     button:SetState(page, "action", slot)
                 end
+                button:SetState("possess", "action", (12 - 1) * 12 + i)
+                button:SetState("override", "action", (14 - 1) * 12 + i)
                 button:SetState(0, "action", i)
             else
                 -- Bars 2-10: Standard action bar pages

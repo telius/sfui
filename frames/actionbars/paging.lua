@@ -20,10 +20,11 @@ function paging.GetBar1Paging()
 
     -- 1. Override, Vehicle & Possess Bars
     if sfui.isRetail then
-        table_insert(conditions, "[overridebar] 14")
-        table_insert(conditions, "[vehicleui][possessbar] 12")
+        table_insert(conditions, "[overridebar] override")
+        table_insert(conditions, "[vehicleui] possess")
+        table_insert(conditions, "[possessbar] possess")
     else
-        table_insert(conditions, "[possessbar] 12")
+        table_insert(conditions, "[possessbar] possess")
     end
 
     -- 2. Class-specific shapeshift & stance paging
@@ -96,16 +97,19 @@ function paging.SetupBar1Paging(bar)
     if not bar then return end
 
     bar:SetAttribute("_onstate-page", [[
-        if newstate == 'possess' or newstate == '11' then
+        if newstate == 'possess' or newstate == 'override' or newstate == '11' or newstate == '12' or newstate == '14' then
             if HasVehicleActionBar and HasVehicleActionBar() then
-                newstate = GetVehicleBarIndex()
+                newstate = GetVehicleBarIndex() or 12
             elseif HasOverrideActionBar and HasOverrideActionBar() then
-                newstate = GetOverrideBarIndex()
+                newstate = GetOverrideBarIndex() or 12
             elseif HasTempShapeshiftActionBar and HasTempShapeshiftActionBar() then
-                newstate = GetTempShapeshiftBarIndex()
+                newstate = GetTempShapeshiftBarIndex() or 12
             elseif HasBonusActionBar and HasBonusActionBar() then
-                newstate = GetBonusBarIndex()
+                newstate = GetBonusBarIndex() or 11
             else
+                newstate = 12
+            end
+            if not newstate or newstate == 0 then
                 newstate = 12
             end
         end

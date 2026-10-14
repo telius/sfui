@@ -1,11 +1,16 @@
 # Changelog
 
-## v1.98 (2026-10-14)
+## v1.99 (2026-10-14)
+
+### features
+
+- **pandemic window & spark indicator**: added native pandemic glow and threshold spark on tracked bars (`frames/tracking/trackedbars.lua`, `config.lua`), automatically indicating the optimal carry-over refresh window.
+- **native pixel layout rounding**: integrated retail 12.1.5 `SetRoundLayoutToNearestPixel` and `PixelUtil.SetRoundLayoutToNearestPixelRecursively` across core widgets (`core/widgets.lua`), theme engine (`frames/themes/engine.lua`), and action bars (`frames/actionbars/bars.lua`) for razor-sharp borders and zero sub-pixel blurring.
+- **real-time ambient weather widget**: added live weather indicator frame with mouseover tooltip showing weather name and intensity percentage beside the minimap clock (`frames/automation/minimap.lua`, `frames/options/tabs/tab_minimap.lua`).
 
 ### improvements & bug fixes
 
-- **esc and casting taint protection**: resolved forbidden errors on protected functions (`SpellStopTargeting`, `SpellStopCasting`) when pressing escape by removing global mixin modifications in `core/map.lua` and `frames/map/pins.lua`, and updating keyboard input propagation in `frames/tracking/trackedoptions.lua`.
-- **delve and labyrinth objectives**: restored missing weighted progress objectives (such as "disrupt the vilebranch") in the active delve and scenario hud (`frames/quests/q_mythic.lua`) and quest tracker scenario module (`frames/quests/modules/q_scenarios.lua`).
-- **objective bullet icons**: fixed objective row icons in `frames/quests/q_mythic.lua` to render the standard blizzard objective nub atlas (`ui-questtracker-objective-nub`) with bulletpoint fallback.
-- **delve percentage formatting**: cleaned up progress bar percentage display in `frames/quests/q_mythic.lua` to show integer values without redundant decimals for delves and scenarios.
-- **criteria description fallbacks**: enhanced step-level weighted progress retrieval and fallback mechanisms across `frames/quests/q_mythic.lua` and `frames/quests/modules/q_scenarios.lua` to support delves and tiered entrances without explicit criteria lists.
+- **vehicle keybinds & actionbar paging**: fixed vehicle and override bar paging conditions in `frames/actionbars/paging.lua` (`[overridebar] override`, `[vehicleui] possess`, `[possessbar] possess`), expanded `_onstate-page` to resolve dynamic indices via `GetVehicleBarIndex()`, and expanded bar 1 state mapping across 18 action pages (`frames/actionbars/bars.lua`).
+- **vehicle bar priority overrides**: added priority override keybindings to `frames/bars/vehicle.lua` ensuring vehicle buttons 1–6 intercept hardware keys directly when the vehicle bar is shown.
+- **pandemic secrecy & taint protection**: eliminated calls to restricted `GetRefreshCarryOverDuration` and avoided secret value comparisons on `pandemicStartTime`, `expirationTime`, and duration values (`frames/tracking/trackedbars.lua`), resolving errors at `CooldownViewer.lua:605` and `trackedbars.lua:1470`.
+- **tracked bar recycling**: restored `bar._maxStacks = nil` cleanup in `RecycleBar` in `frames/tracking/trackedbars.lua`.

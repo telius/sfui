@@ -789,15 +789,40 @@ local function unregister_vehicle_active_events()
     sfui.events.UnregisterUnitEvents(VEHICLE_CAST_EVENTS, "vehicle", on_unit_cast)
 end
 
+-- ─── Vehicle Keybinding Overrides (Priority Routing) ─────────────────────────
+local SetOverrideBindingClick = _G.SetOverrideBindingClick
+local ClearOverrideBindings   = _G.ClearOverrideBindings
+
+local function UpdateVehicleBindings()
+    if InCombatLockdown and InCombatLockdown() then return end
+    if not ClearOverrideBindings or not SetOverrideBindingClick then return end
+    ClearOverrideBindings(frame)
+    if frame:IsShown() then
+        for i = 1, MAX_BUTTONS do
+            local btn = buttons[i]
+            if btn and btn:GetAlpha() > 0 then
+                local keys = { GetBindingKey(BINDING_NAMES[i]) }
+                for _, key in ipairs(keys) do
+                    if key and key ~= "" then
+                        SetOverrideBindingClick(frame, true, key, btn:GetName(), "LeftButton")
+                    end
+                end
+            end
+        end
+    end
+end
+
 -- ─── OnShow / OnHide ─────────────────────────────────────────────────────────
 frame:SetScript("OnShow", function()
     UpdateBar()
+    UpdateVehicleBindings()
     register_vehicle_active_events()
     sfui.events.RegisterUpdate("VehicleBar", 0.033, on_vehicle_update)
 end)
 
 frame:SetScript("OnHide", function()
     StopCastBar()
+    if ClearOverrideBindings then ClearOverrideBindings(frame) end
     unregister_vehicle_active_events()
     for i = 1, MAX_BUTTONS do
         buttons[i]._isOnCooldown = false
@@ -810,12 +835,15 @@ end)
 local function on_vehicle_global(event)
     if event == "PLAYER_REGEN_ENABLED" then
         if pendingUpdate then UpdateBar() end
+        UpdateVehicleBindings()
     elseif event == "ACTIONBAR_UPDATE_STATE" then
         -- Only update when the vehicle bar is actually active or shown
         if frame:IsShown() or GetResolvedVehicleBarIndex() then
             UpdateBar()
+            UpdateVehicleBindings()
         end
     elseif event == "UPDATE_BINDINGS" then
+        UpdateVehicleBindings()
         if frame:IsShown() then
             for i = 1, MAX_BUTTONS do
                 local keyText = sfui.keybinds and sfui.keybinds.get_action_key and sfui.keybinds.get_action_key(BINDING_NAMES[i])
@@ -825,6 +853,7 @@ local function on_vehicle_global(event)
         end
     else
         UpdateBar()
+        UpdateVehicleBindings()
     end
 end
 

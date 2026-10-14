@@ -275,6 +275,24 @@ local function CreateBar(cooldownID)
     bar:SetScript("OnLeave", function()
         if GameTooltip then GameTooltip:Hide() end
     end)
+    bar:SetScript("OnHide", function(self)
+        if self._inPandemic then
+            self._inPandemic = false
+            if sfui.glows and sfui.glows.stop_glow then
+                sfui.glows.stop_glow(self.iconFrame)
+            end
+        end
+        if self.pandemicSpark then
+            self.pandemicSpark:Hide()
+        end
+    end)
+
+    -- Pandemic Spark Indicator (Retail 12.1.5+ carry-over window)
+    bar.pandemicSpark = bar.status:CreateTexture(nil, "OVERLAY", nil, 6)
+    bar.pandemicSpark:SetTexture((sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8")
+    bar.pandemicSpark:SetSize(2, cfg.height)
+    bar.pandemicSpark:SetVertexColor(1, 0.85, 0.2, 0.9)
+    bar.pandemicSpark:Hide()
 
     return bar
 end
@@ -589,6 +607,15 @@ local function RecycleBar(bar)
     bar._lastStackNameText = nil
     bar._lastStackTimeText = nil
     bar._maxStacks = nil
+    if bar._inPandemic then
+        bar._inPandemic = false
+        if sfui.glows and sfui.glows.stop_glow then
+            sfui.glows.stop_glow(bar.iconFrame)
+        end
+    end
+    if bar.pandemicSpark then
+        bar.pandemicSpark:Hide()
+    end
     bar._inPandemic = false
     bar._auraStackCache = nil
     bar._auraStackTimer = nil
@@ -1283,6 +1310,49 @@ function sfui.trackedbars.ForceLayoutUpdate()
     UpdateLayout()
 end
 
+-- Helper: Retrieve pandemic carry-over window and status (Retail 12.1.5+ CooldownViewer)
+local function GetBarPandemicInfo(blizzFrame, _myBar)
+    local now = GetTime()
+    local inPandemic = false
+    local carriedOver = 0
+    local maxVal = 0
+
+    if blizzFrame.Bar and blizzFrame.Bar.GetMinMaxValues then
+        local ok, _, max = pcall(blizzFrame.Bar.GetMinMaxValues, blizzFrame.Bar)
+        if ok and max and not (issecretvalue and issecretvalue(max)) and type(max) == "number" then
+            maxVal = max
+        end
+    end
+
+    -- 1. Blizzard CooldownViewer active pandemic state frame (100% safe, non-secret, un-tainted)
+    if blizzFrame.PandemicIcon and blizzFrame.PandemicIcon.IsShown and blizzFrame.PandemicIcon:IsShown() then
+        inPandemic = true
+    end
+
+    -- 2. Inspect pandemic timestamps if available and neither is a secret value
+    local pStart = blizzFrame.pandemicStartTime
+    local pEnd = blizzFrame.pandemicEndTime
+    local isSecretTimestamps = issecretvalue and (issecretvalue(pStart) or issecretvalue(pEnd))
+    if not isSecretTimestamps and pStart and pEnd then
+        if not inPandemic then
+            local ok, res = pcall(function()
+                return (now >= pStart and now <= pEnd)
+            end)
+            if ok and res then
+                inPandemic = true
+            end
+        end
+        local okDiff, diff = pcall(function()
+            return pEnd - pStart
+        end)
+        if okDiff and type(diff) == "number" and not (issecretvalue and issecretvalue(diff)) and diff > 0 then
+            carriedOver = diff
+        end
+    end
+
+    return inPandemic, carriedOver, maxVal
+end
+
 -- Static update loop for bars (Eliminates OnUpdate closure churn)
 -- EUI pattern: raw API passthrough. issecretvalue-gate the arithmetic
 -- (exp - GetTime()) so we never touch a secret with an operator.
@@ -1395,6 +1465,55 @@ local function UpdateBarsState()
                             else
                                 myBar.status:SetValue(0)
                             end
+                        end
+                    end
+                end
+
+                -- Pandemic Window & Glow (Retail 12.1.5+ CooldownViewer)
+                local inPandemic, carriedOver, maxVal = GetBarPandemicInfo(blizzFrame, myBar)
+                local tBarsCfg = sfui.config and sfui.config.trackedBars or {}
+
+                local showSpark = (tBarsCfg.pandemicSpark ~= false) and (not config or config.pandemicSpark ~= false)
+                if myBar.pandemicSpark then
+                    local barWidth = myBar.status:GetWidth()
+                    local isSecretCarried = issecretvalue and issecretvalue(carriedOver)
+                    local isSecretMax = issecretvalue and issecretvalue(maxVal)
+                    local canDrawSpark = showSpark
+                        and type(barWidth) == "number" and barWidth > 0
+                        and not isSecretMax and type(maxVal) == "number" and maxVal > 0
+                        and not isSecretCarried and type(carriedOver) == "number" and carriedOver > 0
+                        and carriedOver < maxVal
+
+                    if canDrawSpark then
+                        local sparkX = barWidth * (carriedOver / maxVal)
+                        myBar.pandemicSpark:ClearAllPoints()
+                        myBar.pandemicSpark:SetPoint("BOTTOM", myBar.status, "BOTTOMLEFT", sparkX, 0)
+                        myBar.pandemicSpark:SetPoint("TOP", myBar.status, "TOPLEFT", sparkX, 0)
+                        myBar.pandemicSpark:Show()
+                    else
+                        myBar.pandemicSpark:Hide()
+                    end
+                end
+
+                local showGlow = (tBarsCfg.pandemicGlow ~= false) and (not config or config.pandemicGlow ~= false)
+                if inPandemic and showGlow then
+                    if not myBar._inPandemic then
+                        myBar._inPandemic = true
+                        if sfui.glows and sfui.glows.start_glow then
+                            sfui.glows.start_glow(myBar.iconFrame, {
+                                glowType = "pixel",
+                                glowColor = { 1, 0.85, 0.2, 1 },
+                                glowThickness = 2,
+                                glowLines = 6,
+                                glowSpeed = 0.35,
+                            })
+                        end
+                    end
+                else
+                    if myBar._inPandemic then
+                        myBar._inPandemic = false
+                        if sfui.glows and sfui.glows.stop_glow then
+                            sfui.glows.stop_glow(myBar.iconFrame)
                         end
                     end
                 end

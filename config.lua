@@ -776,6 +776,8 @@ sfui.config = {
         hideMounted = false,  -- Default to false for bars
         hideInVehicle = true, -- Hide all bars when in vehicle UI
         hideInactive = true,  -- Hide bars when cooldowns are inactive
+        pandemicGlow = true,  -- Glow tracking bar icon when in pandemic refresh window
+        pandemicSpark = true, -- Show spark indicator at pandemic refresh threshold
         -- Default bar configuration per cooldown ID
         defaults = {
             [18469] = {                     -- Ignore Pain (Warrior)
