@@ -27,6 +27,29 @@ local standardBars = {}
 local attachedBars = {}
 local activeCooldownIDs = {}
 
+-- Pandemic tracking state via Blizzard hooks (EllesmereUI pattern)
+-- Detects pandemic state natively without inspecting, storing, or comparing secret values.
+local _pandemicState = setmetatable({}, { __mode = "k" })
+local _pandemicHooked = setmetatable({}, { __mode = "k" })
+
+local function _PandemicShow(frame)
+    _pandemicState[frame] = true
+end
+
+local function _PandemicHide(frame)
+    _pandemicState[frame] = nil
+end
+
+local function HookBlizzardPandemic(blizzFrame)
+    if not blizzFrame or _pandemicHooked[blizzFrame] then return end
+    if not blizzFrame.ShowPandemicStateFrame then return end
+    _pandemicHooked[blizzFrame] = true
+    hooksecurefunc(blizzFrame, "ShowPandemicStateFrame", _PandemicShow)
+    if blizzFrame.HidePandemicStateFrame then
+        hooksecurefunc(blizzFrame, "HidePandemicStateFrame", _PandemicHide)
+    end
+end
+
 -- Helper to get tracking config for a specific ID
 local configCache = {}
 local _cdViewerInfoCache = {}
@@ -282,19 +305,27 @@ local function CreateBar(cooldownID)
                 sfui.glows.stop_glow(self.iconFrame)
             end
         end
-        if self.pandemicSpark then
-            self.pandemicSpark:Hide()
-        end
     end)
 
-    -- Pandemic Spark Indicator (Retail 12.1.5+ carry-over window)
-    bar.pandemicSpark = bar.status:CreateTexture(nil, "OVERLAY", nil, 6)
-    bar.pandemicSpark:SetTexture((sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8")
-    bar.pandemicSpark:SetSize(2, cfg.height)
-    bar.pandemicSpark:SetVertexColor(1, 0.85, 0.2, 0.9)
-    bar.pandemicSpark:Hide()
-
     return bar
+end
+
+-- Helper to resolve a bar's normal (non-pandemic) display color
+local function GetBarNormalColor(config)
+    if config then
+        if config.customColor then
+            return config.customColor
+        elseif config.useSpecColor then
+            return common.get_spec_color_table()
+        elseif SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars.defaultBarColor then
+            return SfuiDB.trackedBars.defaultBarColor
+        elseif config.color then
+            return config.color
+        end
+    elseif SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars.defaultBarColor then
+        return SfuiDB.trackedBars.defaultBarColor
+    end
+    return sfui.config.colors.purple
 end
 
 -- Helper function to setup bar content (text, icons, stack mode logic)
@@ -380,27 +411,15 @@ local function SetupBarState(bar, config, cfg)
     end
 
     -- Color Logic
-    local color = sfui.config.colors.purple -- ultimate fallback
-    if config then
-        if config.customColor then
-            color = config.customColor
-        elseif config.useSpecColor then
-            color = sfui.common.get_spec_color_table()
-        elseif SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars.defaultBarColor then
-            color = SfuiDB.trackedBars.defaultBarColor
-        elseif config.color then
-            color = config.color
-        end
-    elseif SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars.defaultBarColor then
-        color = SfuiDB.trackedBars.defaultBarColor
-    end
-
+    local color = GetBarNormalColor(config)
     bar.status:SetStatusBarColor(common.unpack_color(color))
 
     -- If the bar is currently in the pandemic window, restore the pandemic color.
     -- This ensures UpdateLayout (called on any visibility change) doesn't stomp it.
-    if config and config.pandemicEnabled and bar._inPandemic then
-        local pColor = config.pandemicColor or { 1, 0, 1, 1 }
+    local tBarsCfg = sfui.config and sfui.config.trackedBars or {}
+    local shouldRecolor = (config and config.pandemicEnabled ~= nil) and config.pandemicEnabled or (tBarsCfg.pandemicRecolor ~= false)
+    if shouldRecolor and bar._inPandemic then
+        local pColor = (config and config.pandemicColor) or tBarsCfg.pandemicColor or { 1, 0, 1, 1 }
         bar.status:SetStatusBarColor(common.unpack_color(pColor))
     end
 end
@@ -613,9 +632,6 @@ local function RecycleBar(bar)
             sfui.glows.stop_glow(bar.iconFrame)
         end
     end
-    if bar.pandemicSpark then
-        bar.pandemicSpark:Hide()
-    end
     bar._inPandemic = false
     bar._auraStackCache = nil
     bar._auraStackTimer = nil
@@ -682,66 +698,6 @@ local function _pcall_get_duration_text(blizzFrame)
     return ""
 end
 
-local function CheckPandemicState(myBar, blizzFrame, config)
-    local inPandemic = false
-
-    -- Primary: blizzFrame.PandemicIcon is set (not nil) by Blizzard while in pandemic.
-    if blizzFrame.PandemicIcon ~= nil then
-        inPandemic = true
-    else
-        -- 12.0.5+ path: use GetAuraBaseDuration + GetRefreshExtendedDuration
-        local auraUnit = blizzFrame.auraDataUnit or "player"
-        local auraInstanceID = blizzFrame.auraInstanceID
-        if auraInstanceID and common.HasAuraInstanceID(auraInstanceID)
-            and C_UnitAuras.GetAuraBaseDuration and C_UnitAuras.GetRefreshExtendedDuration
-            and not (C_Secrets and C_Secrets.ShouldAurasBeSecret and C_Secrets.ShouldAurasBeSecret())
-        then
-            local baseDur = C_UnitAuras.GetAuraBaseDuration(auraUnit, auraInstanceID)
-            if baseDur and baseDur > 0 and C_UnitAuras.GetAuraDuration then
-                local durObj = C_UnitAuras.GetAuraDuration(auraUnit, auraInstanceID)
-                if durObj and not durObj:HasSecretValues() then
-                    local remaining = durObj:GetRemainingDuration()
-                    inPandemic = remaining <= (baseDur * 0.3)
-                end
-            end
-        else
-            -- Fallback: text-parse approach for older builds or bars without auraInstanceID.
-            local text = myBar.time and myBar.time:GetText()
-            if text and text ~= "" then
-                local secs = nil
-                local plain = text:match("^(%d+%.?%d*)%s*s?$")
-                if plain then
-                    secs = tonumber(plain)
-                else
-                    local m, s = text:match("^(%d+)m%s*(%d*)%s*s?$")
-                    if m then secs = tonumber(m) * 60 + (tonumber(s) or 0) end
-                    if not secs then
-                        local mm, ss = text:match("^(%d+):(%d+)$")
-                        if mm then secs = tonumber(mm) * 60 + (tonumber(ss) or 0) end
-                    end
-                end
-
-                if secs and secs >= 0 then
-                    local prevMax = myBar._cachedMaxDur or 0
-                    if secs > prevMax then
-                        myBar._cachedMaxDur = math.min(secs, 600)
-                    end
-                    local maxDur = myBar._cachedMaxDur
-                    if maxDur and maxDur > 0 then
-                        inPandemic = (secs / maxDur) <= 0.3
-                    end
-                end
-            end
-        end
-    end
-
-    myBar._inPandemic = inPandemic
-
-    if inPandemic then
-        local pColor = config.pandemicColor or { 1, 0, 1, 1 } -- default #ff00ff
-        myBar.status:SetStatusBarColor(common.unpack_color(pColor))
-    end
-end
 
 local function _pcall_sync_bar_values(blizzFrame, status, timeString, config, currentStacks)
     -- KEY: pass GetMinMaxValues() and GetValue() return values DIRECTLY as widget-setter
@@ -1112,15 +1068,12 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
         end
     end
 
-    -- Pandemic recolor: entirely pcall-wrapped so any error is safely swallowed.
-    if config and config.pandemicEnabled and myBar:IsShown() then
-        -- Reset to false BEFORE the pcall: if detection errors, we never leave stale
-        -- "true" state that would permanently color the bar with the pandemic color.
-        myBar._inPandemic = false
-        pcall(CheckPandemicState, myBar, blizzFrame, config)
-    else
-        -- Pandemic was disabled (or toggled off); clear any stale state.
-        myBar._inPandemic = false
+    -- Pandemic recolor if bar is active in pandemic window
+    local tBarsCfg = sfui.config and sfui.config.trackedBars or {}
+    local shouldRecolor = (config and config.pandemicEnabled ~= nil) and config.pandemicEnabled or (tBarsCfg.pandemicRecolor ~= false)
+    if shouldRecolor and myBar:IsShown() and myBar._inPandemic then
+        local pColor = (config and config.pandemicColor) or tBarsCfg.pandemicColor or { 1, 0, 1, 1 }
+        myBar.status:SetStatusBarColor(common.unpack_color(pColor))
     end
 end
 
@@ -1169,6 +1122,7 @@ local function ProcessBlizzardSync()
     -- Process Blizzard Frames
     for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
         if blizzFrame.cooldownID then
+            HookBlizzardPandemic(blizzFrame)
 
             local id = blizzFrame.cooldownID
             local info = _cdViewerInfoCache[id]
@@ -1310,48 +1264,6 @@ function sfui.trackedbars.ForceLayoutUpdate()
     UpdateLayout()
 end
 
--- Helper: Retrieve pandemic carry-over window and status (Retail 12.1.5+ CooldownViewer)
-local function GetBarPandemicInfo(blizzFrame, _myBar)
-    local now = GetTime()
-    local inPandemic = false
-    local carriedOver = 0
-    local maxVal = 0
-
-    if blizzFrame.Bar and blizzFrame.Bar.GetMinMaxValues then
-        local ok, _, max = pcall(blizzFrame.Bar.GetMinMaxValues, blizzFrame.Bar)
-        if ok and max and not (issecretvalue and issecretvalue(max)) and type(max) == "number" then
-            maxVal = max
-        end
-    end
-
-    -- 1. Blizzard CooldownViewer active pandemic state frame (100% safe, non-secret, un-tainted)
-    if blizzFrame.PandemicIcon and blizzFrame.PandemicIcon.IsShown and blizzFrame.PandemicIcon:IsShown() then
-        inPandemic = true
-    end
-
-    -- 2. Inspect pandemic timestamps if available and neither is a secret value
-    local pStart = blizzFrame.pandemicStartTime
-    local pEnd = blizzFrame.pandemicEndTime
-    local isSecretTimestamps = issecretvalue and (issecretvalue(pStart) or issecretvalue(pEnd))
-    if not isSecretTimestamps and pStart and pEnd then
-        if not inPandemic then
-            local ok, res = pcall(function()
-                return (now >= pStart and now <= pEnd)
-            end)
-            if ok and res then
-                inPandemic = true
-            end
-        end
-        local okDiff, diff = pcall(function()
-            return pEnd - pStart
-        end)
-        if okDiff and type(diff) == "number" and not (issecretvalue and issecretvalue(diff)) and diff > 0 then
-            carriedOver = diff
-        end
-    end
-
-    return inPandemic, carriedOver, maxVal
-end
 
 -- Static update loop for bars (Eliminates OnUpdate closure churn)
 -- EUI pattern: raw API passthrough. issecretvalue-gate the arithmetic
@@ -1360,6 +1272,7 @@ end
 local function UpdateBarsState()
     if _numShownBars == 0 then return end
     if not BuffBarCooldownViewer or not BuffBarCooldownViewer.itemFramePool then return end
+    local tBarsCfg = sfui.config and sfui.config.trackedBars or {}
 
     for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
         if blizzFrame.cooldownID then
@@ -1470,35 +1383,27 @@ local function UpdateBarsState()
                 end
 
                 -- Pandemic Window & Glow (Retail 12.1.5+ CooldownViewer)
-                local inPandemic, carriedOver, maxVal = GetBarPandemicInfo(blizzFrame, myBar)
-                local tBarsCfg = sfui.config and sfui.config.trackedBars or {}
+                -- EUI / Secret-safe passthrough: Hook Blizzard's native pandemic state frame
+                HookBlizzardPandemic(blizzFrame)
 
-                local showSpark = (tBarsCfg.pandemicSpark ~= false) and (not config or config.pandemicSpark ~= false)
-                if myBar.pandemicSpark then
-                    local barWidth = myBar.status:GetWidth()
-                    local isSecretCarried = issecretvalue and issecretvalue(carriedOver)
-                    local isSecretMax = issecretvalue and issecretvalue(maxVal)
-                    local canDrawSpark = showSpark
-                        and type(barWidth) == "number" and barWidth > 0
-                        and not isSecretMax and type(maxVal) == "number" and maxVal > 0
-                        and not isSecretCarried and type(carriedOver) == "number" and carriedOver > 0
-                        and carriedOver < maxVal
-
-                    if canDrawSpark then
-                        local sparkX = barWidth * (carriedOver / maxVal)
-                        myBar.pandemicSpark:ClearAllPoints()
-                        myBar.pandemicSpark:SetPoint("BOTTOM", myBar.status, "BOTTOMLEFT", sparkX, 0)
-                        myBar.pandemicSpark:SetPoint("TOP", myBar.status, "TOPLEFT", sparkX, 0)
-                        myBar.pandemicSpark:Show()
-                    else
-                        myBar.pandemicSpark:Hide()
+                -- Forward Blizzard native pandemic frame directly to our bar if active
+                if blizzFrame.PandemicIcon then
+                    if blizzFrame.PandemicIcon:GetParent() ~= myBar.status then
+                        blizzFrame.PandemicIcon:SetParent(myBar.status)
+                        blizzFrame.PandemicIcon:ClearAllPoints()
+                        blizzFrame.PandemicIcon:SetPoint("TOPLEFT", myBar.status, "TOPLEFT", -6, 6)
+                        blizzFrame.PandemicIcon:SetPoint("BOTTOMRIGHT", myBar.status, "BOTTOMRIGHT", 6, -6)
+                        blizzFrame.PandemicIcon:SetFrameLevel(myBar.status:GetFrameLevel() + 5)
                     end
                 end
+
+                -- Determine active pandemic state safely without inspecting secrets (EllesmereUI hook pattern)
+                local inPandemic = (_pandemicState[blizzFrame] == true)
+                    or (blizzFrame.PandemicIcon and blizzFrame.PandemicIcon.IsShown and blizzFrame.PandemicIcon:IsShown() and true or false)
 
                 local showGlow = (tBarsCfg.pandemicGlow ~= false) and (not config or config.pandemicGlow ~= false)
                 if inPandemic and showGlow then
                     if not myBar._inPandemic then
-                        myBar._inPandemic = true
                         if sfui.glows and sfui.glows.start_glow then
                             sfui.glows.start_glow(myBar.iconFrame, {
                                 glowType = "pixel",
@@ -1510,12 +1415,29 @@ local function UpdateBarsState()
                         end
                     end
                 else
-                    if myBar._inPandemic then
-                        myBar._inPandemic = false
+                    if myBar._inPandemic and not inPandemic then
                         if sfui.glows and sfui.glows.stop_glow then
                             sfui.glows.stop_glow(myBar.iconFrame)
                         end
                     end
+                end
+
+                -- Pandemic bar recolor
+                local shouldRecolor = (config and config.pandemicEnabled ~= nil) and config.pandemicEnabled or (tBarsCfg.pandemicRecolor ~= false)
+                if shouldRecolor then
+                    if inPandemic then
+                        myBar._inPandemic = true
+                        local pColor = (config and config.pandemicColor) or tBarsCfg.pandemicColor or { 1, 0, 1, 1 }
+                        myBar.status:SetStatusBarColor(common.unpack_color(pColor))
+                    else
+                        if myBar._inPandemic then
+                            myBar._inPandemic = false
+                            local defColor = GetBarNormalColor(config)
+                            myBar.status:SetStatusBarColor(common.unpack_color(defColor))
+                        end
+                    end
+                else
+                    myBar._inPandemic = inPandemic
                 end
             end
         end
@@ -1571,6 +1493,7 @@ function sfui.trackedbars.initialize()
     if sfui.isRetail and not sfui.common.is_addon_loaded("Blizzard_CooldownViewer") then
         sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
     end
+
     container = CreateFrame("Frame", "SfuiTrackedBarsContainer", UIParent)
     local cfg = sfui.config.trackedBars
     container:SetSize(cfg.width, cfg.height)
