@@ -107,6 +107,8 @@ Dedicated power tracking panel for The War Within delves and labyrinth encounter
 ### 8. Objective Tracker & Shopping Lists
 Streamlined quest and scenario tracking with integrated trade skill reagent management.
 
+![Objective Tracker & Shopping Lists](.previews/objectivetracker.png)
+
 - **Clickable Quest Items**: Embedded action buttons alongside quest objectives for instant item usage without opening bags.
 - **Recipe Shopping Lists**: Live reagent tracking pinned to the objective tracker, detailing required crafting materials and real-time in-bag counts.
 - **Header & Section Collapse**: One-click toggles to minimize campaign quests, world quests, achievements, or scenario objectives.
@@ -116,12 +118,14 @@ Streamlined quest and scenario tracking with integrated trade skill reagent mana
 ### 9. Loot Feed, Encounters & Wishlists
 Real-time loot alerts, roll management, and cross-character encounter drop tracking.
 
-![Group Loot Rolls & Loot Feed](.previews/lootrolls.png)
+![Loot Toast Feed](.previews/lootfeed.png)
 
 - **Loot Toast Feed**: Lightweight, non-intrusive loot toast feed tracking items, gold, currencies, and quest rewards.
 - **Encounter Loot Browser**: In-game dungeon and raid encounter drop browser with spec-filtered loot views.
 - **Cross-Character Wishlist**: Tag desired items across characters with automatic toast alerts whenever a wishlisted piece drops in your group or raid.
 - **Auto-Comparison**: Automatic gear comparison integration for equippable drops in the loot feed.
+
+![Group Loot Rolls](.previews/lootrolls.png)
 
 ---
 
