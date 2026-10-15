@@ -4,7 +4,7 @@ Modular, high-performance UI suite and quality-of-life additions for World of Wa
 
 SFUI replaces bulky addon suites, complex WeakAuras, and heavy frameworks with clean, lightweight native components. Everything is driven by a single **central event dispatcher** — instead of dozens of standalone addons running separate timers and eating CPU in the background, sfui coordinates all events and updates through one engine that sleeps when frames are idle and guarantees zero combat taint.
 
-![SFUI Interface Overview](.previews/ui.png)
+![SFUI Interface Overview]
 
 ---
 
