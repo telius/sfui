@@ -23,23 +23,39 @@ function paging.GetBar1Paging()
         table_insert(conditions, "[overridebar] override")
         table_insert(conditions, "[vehicleui] possess")
         table_insert(conditions, "[possessbar] possess")
+        table_insert(conditions, "[canexitvehicle] possess")
+        table_insert(conditions, "[bonusbar:5] 11")
     else
         table_insert(conditions, "[possessbar] possess")
+        table_insert(conditions, "[canexitvehicle] possess")
     end
 
     -- 2. Class-specific shapeshift & stance paging
-    -- 2. Class-specific shapeshift & stance paging
     if myClass == "DRUID" then
-        table_insert(conditions, "[bonusbar:1,nostealth] 7")
-        table_insert(conditions, "[bonusbar:1,stealth] 8")
-        table_insert(conditions, "[bonusbar:2] 10")
-        table_insert(conditions, "[bonusbar:3] 9")
-        table_insert(conditions, "[bonusbar:4] 10")
-        -- Fallbacks for Classic/Camelot form indexing (Bear = 1, Cat = 3, Moonkin/Tree = 5)
-        table_insert(conditions, "[form:1] 9")
-        table_insert(conditions, "[form:3,stealth] 8")
-        table_insert(conditions, "[form:3] 7")
-        table_insert(conditions, "[form:5] 10")
+        if sfui.isRetail then
+            table_insert(conditions, "[bonusbar:1,stealth] 8")
+            table_insert(conditions, "[bonusbar:1,nostealth] 7")
+            table_insert(conditions, "[form:2,stealth] 8")
+            table_insert(conditions, "[form:2] 7")
+            table_insert(conditions, "[bonusbar:3] 9")
+            table_insert(conditions, "[form:1] 9")
+            table_insert(conditions, "[bonusbar:4] 10")
+            table_insert(conditions, "[form:4] 10")
+            table_insert(conditions, "[bonusbar:2] 10")
+            table_insert(conditions, "[form:3] 1")
+        else
+            table_insert(conditions, "[bonusbar:1,stealth] 8")
+            table_insert(conditions, "[bonusbar:1,nostealth] 7")
+            table_insert(conditions, "[bonusbar:2] 10")
+            table_insert(conditions, "[bonusbar:3] 9")
+            table_insert(conditions, "[bonusbar:4] 10")
+            -- Fallbacks for Classic/Camelot form indexing (Bear = 1, Cat = 3, Travel = 4, Moonkin/Tree = 5)
+            table_insert(conditions, "[form:1] 9")
+            table_insert(conditions, "[form:3,stealth] 8")
+            table_insert(conditions, "[form:3] 7")
+            table_insert(conditions, "[form:4] 1")
+            table_insert(conditions, "[form:5] 10")
+        end
     elseif myClass == "ROGUE" then
         table_insert(conditions, "[bonusbar:1] 7")
         table_insert(conditions, "[bonusbar:2] 8")
@@ -82,7 +98,6 @@ function paging.GetBar1Paging()
     table_insert(conditions, "[bar:8] 8")
     table_insert(conditions, "[bar:9] 9")
     table_insert(conditions, "[bar:10] 10")
-    table_insert(conditions, "[bonusbar:5] 11")
 
     -- 4. Default state
     table_insert(conditions, "1")
@@ -97,17 +112,16 @@ function paging.SetupBar1Paging(bar)
     if not bar then return end
 
     bar:SetAttribute("_onstate-page", [[
-        if newstate == 'possess' or newstate == 'override' or newstate == '11' or newstate == '12' or newstate == '14' then
+        if newstate == 'possess' or newstate == 'override' or newstate == '12' or newstate == '14' then
             if HasVehicleActionBar and HasVehicleActionBar() then
                 newstate = GetVehicleBarIndex() or 12
             elseif HasOverrideActionBar and HasOverrideActionBar() then
                 newstate = GetOverrideBarIndex() or 12
             elseif HasTempShapeshiftActionBar and HasTempShapeshiftActionBar() then
                 newstate = GetTempShapeshiftBarIndex() or 12
-            elseif HasBonusActionBar and HasBonusActionBar() then
-                newstate = GetBonusBarIndex() or 11
             else
-                newstate = 12
+                local v = GetVehicleBarIndex and GetVehicleBarIndex()
+                newstate = (v and v > 0) and v or 12
             end
             if not newstate or newstate == 0 then
                 newstate = 12

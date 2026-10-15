@@ -212,7 +212,7 @@ sfui.options.RegisterTab({
                 end
 
                 if feed_panel.SetContentHeight then
-                    feed_panel:SetContentHeight(610)
+                    feed_panel:SetContentHeight(640)
                 end
             else
                 camelot_label:Hide()
@@ -222,7 +222,7 @@ sfui.options.RegisterTab({
                 toggles_header:SetPoint("TOPLEFT", test_btn, "BOTTOMLEFT", 0, -18)
 
                 if feed_panel.SetContentHeight then
-                    feed_panel:SetContentHeight(560)
+                    feed_panel:SetContentHeight(590)
                 end
             end
         end
@@ -242,6 +242,18 @@ sfui.options.RegisterTab({
         end, "enable or disable the loot feed completely."))
         enable_cb:SetPoint("TOPLEFT", toggles_header, "BOTTOMLEFT", 0, -10)
 
+        local disable_blizz_cb = registerCheckbox(create_checkbox(feed_panel, "disable default blizzard loot popups", function()
+            local db = GetDB()
+            return db.disableBlizzardLootAlerts ~= false
+        end, function(checked)
+            local db = GetDB()
+            db.disableBlizzardLootAlerts = checked
+            if sfui.lootfeed and sfui.lootfeed.ApplyBlizzardAlertState then
+                sfui.lootfeed.ApplyBlizzardAlertState()
+            end
+        end, "suppresses blizzard's native loot toasts and upgrade popups so only the sfui loot feed displays (keeps roll frames and loot inspection intact)."))
+        disable_blizz_cb:SetPoint("TOPLEFT", enable_cb, "BOTTOMLEFT", 0, -8)
+
         local grow_down_cb = registerCheckbox(create_checkbox(feed_panel, "grow downwards (rows stack down from top)", function()
             local db = GetDB()
             return db.growDirection ~= "UP"
@@ -250,7 +262,7 @@ sfui.options.RegisterTab({
             db.growDirection = checked and "DOWN" or "UP"
             sfui.lootfeed:OnSettingsChanged("growDirection", db.growDirection)
         end, "when checked, new rows stack downwards with pending count on top. when unchecked, rows grow upwards."))
-        grow_down_cb:SetPoint("TOPLEFT", enable_cb, "BOTTOMLEFT", 0, -8)
+        grow_down_cb:SetPoint("TOPLEFT", disable_blizz_cb, "BOTTOMLEFT", 0, -8)
 
         local party_cb = registerCheckbox(create_checkbox(feed_panel, "track party member loot", function()
             local db = GetDB()

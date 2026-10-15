@@ -76,6 +76,18 @@ local function suppress_blizzard_actionbars()
         end
     end
 
+    -- Reparent Blizzard's default MainMenuBarVehicleLeaveButton to UIParent so it is
+    -- not suppressed alongside MainActionBar
+    if _G.MainMenuBarVehicleLeaveButton then
+        _G.MainMenuBarVehicleLeaveButton:SetParent(UIParent)
+    end
+
+    -- Reparent Blizzard's default QueueStatusButton (LFG eye) to UIParent so it is
+    -- not suppressed alongside MicroMenuContainer in retail
+    if _G.QueueStatusButton then
+        _G.QueueStatusButton:SetParent(UIParent)
+    end
+
     if _G.PetActionBar then
         _G.PetActionBar:SetAlpha(0)
         if _G.PetActionBar.EnableMouse then _G.PetActionBar:EnableMouse(false) end

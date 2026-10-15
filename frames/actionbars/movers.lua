@@ -291,7 +291,8 @@ function movers.SnapAndSavePosition(self, barKey)
     self:SetPoint("BOTTOM", UIParent, "BOTTOM", offsetX, offsetY)
 
     -- Save to database
-    if SfuiDB and SfuiDB.actionbars and SfuiDB.actionbars.bars and SfuiDB.actionbars.bars[barKey] then
+    if SfuiDB and SfuiDB.actionbars and SfuiDB.actionbars.bars then
+        SfuiDB.actionbars.bars[barKey] = SfuiDB.actionbars.bars[barKey] or {}
         local bCfg = SfuiDB.actionbars.bars[barKey]
         bCfg.point = "BOTTOM"
         bCfg.relPoint = "BOTTOM"
@@ -337,12 +338,18 @@ function movers.CreateMover(bar, barIndex, barKey)
     end
 
     local label = mover:CreateFontString(nil, "OVERLAY", (sfui.config and sfui.config.font) or "GameFontNormal")
-    label:SetPoint("CENTER", mover, "CENTER", 0, 0)
     local title = tostring(barKey)
     if barIndex then
         title = string.format("bar %d", barIndex)
+        label:SetPoint("CENTER", mover, "CENTER", 0, 0)
     elseif barKey == "pet" then
         title = "pet bar"
+        label:SetPoint("CENTER", mover, "CENTER", 0, 0)
+    elseif barKey == "vehicle" then
+        title = "vehicle leave button"
+        label:SetPoint("BOTTOM", mover, "TOP", 0, 3)
+    else
+        label:SetPoint("CENTER", mover, "CENTER", 0, 0)
     end
     label:SetText(title)
     label:SetTextColor(1, 1, 1, 1)
@@ -416,9 +423,44 @@ function movers.ToggleMovers(forceState)
             mover:SetSize(bar:GetSize())
             mover:EnableMouse(true)
             mover:Show()
+
+            -- Preview mode for frames managed by secure state drivers or EditMode
+            if barKey == "vehicle" then
+                bar.isInEditMode = true
+                bar:Show()
+                bar:SetAlpha(1)
+            elseif barKey == "pet" then
+                if _G.UnregisterStateDriver then
+                    _G.UnregisterStateDriver(bar, "visibility")
+                end
+                bar:Show()
+                bar:SetAlpha(1)
+                if bar.buttons then
+                    for i = 1, 10 do
+                        local btn = bar.buttons[i]
+                        if btn then
+                            btn:Show()
+                            btn:SetAlpha(1)
+                        end
+                    end
+                end
+            end
         else
             mover:EnableMouse(false)
             mover:Hide()
+
+            if barKey == "vehicle" then
+                bar.isInEditMode = false
+                if bar.UpdateShownState then
+                    bar:UpdateShownState()
+                elseif bar.Update then
+                    bar:Update()
+                end
+            elseif barKey == "pet" then
+                if bar and _G.RegisterStateDriver then
+                    _G.RegisterStateDriver(bar, "visibility", "[pet,nooverridebar,nopossessbar] show; hide")
+                end
+            end
         end
     end
 

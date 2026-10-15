@@ -111,6 +111,11 @@ local function reset_slot_frame(f)
     f.icon:SetTexture(nil)
     f.icon:SetTexCoord(0, 1, 0, 1)
     f.icon:SetVertexColor(1, 1, 1, 1)
+    f.icon:SetDesaturated(false)
+    if f.cooldown then
+        f.cooldown:Clear()
+        f.cooldown:Hide()
+    end
     f.count:SetText("")
     f.label:SetText("")
     f.label:Hide()
@@ -270,6 +275,52 @@ function view.render_ring(ringID, slots, title)
         else
             if frame.roundBorder then
                 frame.roundBorder:SetColorTexture(0, 0, 0, 0.85)
+            end
+        end
+
+        -- update cooldown & usable status
+        local start, duration, enable = 0, 0, 0
+        local attrs = data.attrs or {}
+        if attrs.type == "spell" and attrs.spell then
+            if C_Spell and C_Spell.GetSpellCooldown then
+                local cdInfo = C_Spell.GetSpellCooldown(attrs.spell)
+                if cdInfo then
+                    start = cdInfo.startTime or 0
+                    duration = cdInfo.duration or 0
+                    enable = cdInfo.isEnabled and 1 or 0
+                end
+            elseif _G.GetSpellCooldown then
+                start, duration, enable = _G.GetSpellCooldown(attrs.spell)
+            end
+        elseif attrs.type == "item" and (attrs.item or data.id) then
+            local itemID = tonumber(attrs.item or data.id)
+            if itemID then
+                if C_Item and C_Item.GetItemCooldown then
+                    start, duration, enable = C_Item.GetItemCooldown(itemID)
+                elseif _G.GetItemCooldown then
+                    start, duration, enable = _G.GetItemCooldown(itemID)
+                end
+            end
+        elseif attrs.type == "toy" and (attrs.toy or data.id) then
+            local toyID = tonumber(attrs.toy or data.id)
+            if toyID then
+                if C_Item and C_Item.GetItemCooldown then
+                    start, duration, enable = C_Item.GetItemCooldown(toyID)
+                elseif _G.GetItemCooldown then
+                    start, duration, enable = _G.GetItemCooldown(toyID)
+                end
+            end
+        end
+
+        if frame.cooldown then
+            if start and duration and duration > 1.5 and (enable == nil or enable == 1) then
+                frame.cooldown:SetCooldown(start, duration)
+                frame.cooldown:Show()
+                frame.icon:SetDesaturated(true)
+            else
+                frame.cooldown:Clear()
+                frame.cooldown:Hide()
+                frame.icon:SetDesaturated(false)
             end
         end
 

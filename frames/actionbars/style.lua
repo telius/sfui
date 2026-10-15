@@ -217,8 +217,14 @@ function style.SetupPressAnimation(button)
     end)
     button:HookScript("PreClick", function(self)
         self:AnimateDown()
+        if self.barIndex == 1 and sfui.vehicle and sfui.vehicle.AnimateButtonDown then
+            sfui.vehicle.AnimateButtonDown(self.buttonIndex)
+        end
     end)
     button:HookScript("PostClick", function(self)
+        if self.barIndex == 1 and sfui.vehicle and sfui.vehicle.AnimateButtonUp then
+            sfui.vehicle.AnimateButtonUp(self.buttonIndex)
+        end
         C_Timer.After(0.08, function()
             self:AnimateUp()
         end)

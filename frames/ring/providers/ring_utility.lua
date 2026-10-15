@@ -80,13 +80,39 @@ end
 u.get_item_details = get_item_details
 
 local function get_toy_details(toyID)
-    if C_ToyBox and C_ToyBox.GetToyInfo then
-        local ok, _, name, icon = pcall(C_ToyBox.GetToyInfo, toyID)
-        if ok and (name or icon) then
-            return name, icon
+    local id = tonumber(toyID) or toyID
+    local name, icon
+    if id and C_ToyBox and C_ToyBox.GetToyInfo then
+        local ok, _, tName, tIcon = pcall(C_ToyBox.GetToyInfo, id)
+        if ok then
+            name = tName
+            icon = tIcon
         end
     end
-    return get_item_details(toyID)
+    if not icon and id and C_Item and C_Item.GetItemIconByID then
+        local ok, i = pcall(C_Item.GetItemIconByID, id)
+        if ok and i then icon = i end
+    end
+    if not name or not icon then
+        local iName, iIcon = get_item_details(id or toyID)
+        name = name or iName
+        icon = icon or iIcon
+    end
+    if not name and id and C_Item and C_Item.GetItemNameByID then
+        local ok, n = pcall(C_Item.GetItemNameByID, id)
+        if ok and n then name = n end
+    end
+    if not name and id and C_ToyBox and C_ToyBox.GetToyLink then
+        local ok, link = pcall(C_ToyBox.GetToyLink, id)
+        if ok and link then
+            local clean = link:match("%[(.-)%]")
+            if clean then name = clean end
+        end
+    end
+    if not name and id then
+        name = tostring(id)
+    end
+    return name, icon
 end
 u.get_toy_details = get_toy_details
 
@@ -376,6 +402,10 @@ sfui.ring.register_provider("utility", {
         "TRAIT_CONFIG_UPDATED",
         "ACTIVE_TALENT_GROUP_CHANGED",
         "PLAYER_ENTERING_WORLD",
+        "TOYS_UPDATED",
+        "NEW_TOY_ADDED",
+        "GET_ITEM_INFO_RECEIVED",
+        "ITEM_DATA_LOAD_RESULT",
     },
     build  = function(out)
         local playerClass, specID = get_class_and_spec()
@@ -385,61 +415,68 @@ sfui.ring.register_provider("utility", {
         for i = 1, 12 do
             local item = slots[i]
             if item and item.type and item.id then
+                -- auto-promote item to toy if it is in the toy collection
+                local numID = tonumber(item.id)
+                if item.type == "item" and numID and sfui.common and sfui.common.is_item_toy and sfui.common.is_item_toy(numID) then
+                    item.type = "toy"
+                end
+
                 if item.type == "spell" then
+                    local spellID = tonumber(item.id) or item.id
                     -- strict filter: only display when actually known
-                    if is_spell_known(item.id) then
-                        local name, icon = get_spell_details(item.id)
-                        local sName = (name or item.name or tostring(item.id)):lower()
-                        local key = "spell:" .. tostring(item.id)
+                    if is_spell_known(spellID) then
+                        local name, icon = get_spell_details(spellID)
+                        local sName = (name or item.name or tostring(spellID)):lower()
+                        local key = "spell:" .. tostring(spellID)
                         if not seen[key] then
                             seen[key] = true
                             out[#out + 1] = {
-                                id    = "util_spell_" .. tostring(item.id),
+                                id    = "util_spell_" .. tostring(spellID),
                                 label = sName,
                                 icon  = icon or item.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
                                 attrs = {
                                     type  = "spell",
-                                    spell = item.id,
+                                    spell = spellID,
                                 },
                             }
                         end
                     end
                 elseif item.type == "item" then
-                    local count = GetItemCount(item.id)
-                    local name, icon = get_item_details(item.id)
-                    local iName = (name or item.name or tostring(item.id)):lower()
-                    local key = "item:" .. tostring(item.id)
+                    local itemID = tonumber(item.id) or item.id
+                    local count = GetItemCount(itemID)
+                    local name, icon = get_item_details(itemID)
+                    local iName = (name or item.name or tostring(itemID)):lower()
+                    local key = "item:" .. tostring(itemID)
                     if not seen[key] then
                         seen[key] = true
                         out[#out + 1] = {
-                            id    = "util_item_" .. tostring(item.id),
+                            id    = "util_item_" .. tostring(itemID),
                             label = iName,
                             icon  = icon or item.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
                             count = count,
                             attrs = {
                                 type = "item",
-                                item = name or item.id,
+                                item = name or itemID,
                             },
                         }
                     end
                 elseif item.type == "toy" then
-                    local is_toy_known = (sfui.common and sfui.common.is_toy_known) or PlayerHasToy
-                    if is_toy_known and is_toy_known(item.id) then
-                        local name, icon = get_toy_details(item.id)
-                        local tName = (name or item.name or tostring(item.id)):lower()
-                        local key = "toy:" .. tostring(item.id)
-                        if not seen[key] then
-                            seen[key] = true
-                            out[#out + 1] = {
-                                id    = "util_toy_" .. tostring(item.id),
-                                label = tName,
-                                icon  = icon or item.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
-                                attrs = {
-                                    type = "toy",
-                                    toy  = item.id,
-                                },
-                            }
-                        end
+                    local toyID = tonumber(item.id) or item.id
+                    local name, icon = get_toy_details(toyID)
+                    local tName = (name or item.name or tostring(toyID)):lower()
+                    local key = "toy:" .. tostring(toyID)
+                    if not seen[key] then
+                        seen[key] = true
+                        out[#out + 1] = {
+                            id    = "util_toy_" .. tostring(toyID),
+                            label = tName,
+                            icon  = icon or item.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
+                            attrs = {
+                                type      = "toy",
+                                toy       = toyID,
+                                macrotext = "/use item:" .. tostring(toyID),
+                            },
+                        }
                     end
                 elseif item.type == "macro" then
                     local name, icon = get_macro_details(item.id)

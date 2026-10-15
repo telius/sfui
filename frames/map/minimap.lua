@@ -306,8 +306,8 @@ function ButtonManager:skin_button(button)
 
     local regions = { button:GetRegions() }
 
-    -- 1. Identify icon: check button.icon first (standard in LibDBIcon), then regions
-    icon = button.icon
+    -- 1. Identify icon: check common properties first, then inspect regions
+    icon = button.icon or button.Icon or button.texture or button.Texture
     for _, region in ipairs(regions) do
         if region:IsObjectType("Texture") then
             local name = region:GetDebugName()
@@ -335,8 +335,26 @@ function ButtonManager:skin_button(button)
         end
     end
 
+    -- Fallback: if icon is still not resolved, pick the first valid non-chrome texture
+    if not icon then
+        for _, region in ipairs(regions) do
+            if region:IsObjectType("Texture") and region ~= border and region ~= background and region ~= highlight and region ~= normal then
+                if region:GetTexture() then
+                    icon = region
+                    break
+                end
+            end
+        end
+    end
+    if not icon and normal and normal:GetTexture() then
+        icon = normal
+    end
+
     -- 2. Normalize and force all collected icons into SFUI square style
     if icon then
+        icon:SetDrawLayer("ARTWORK", 1)
+        icon:Show()
+
         -- Strip any circular mask textures (e.g. TempPortraitAlphaMask or custom masks)
         if icon.GetNumMaskTextures and icon.RemoveMaskTexture then
             for i = icon:GetNumMaskTextures(), 1, -1 do
@@ -384,11 +402,18 @@ function ButtonManager:skin_button(button)
         if icon then
             sfui.common.apply_square_icon_style(button, icon)
         end
+        if border then border:SetTexture(nil) end
+        if background then background:SetTexture(nil) end
         for _, region in ipairs(regions) do
-            if region:IsObjectType("Texture") and region ~= icon then
-                region:SetTexture(nil)
+            if region:IsObjectType("Texture") and region ~= icon and region ~= highlight and region ~= normal then
+                local tex = region:GetTexture()
+                if tex == 136430 or tex == 136467 then
+                    region:SetTexture(nil)
+                end
             end
         end
+        button:SetFrameStrata("MEDIUM")
+        button:SetFrameLevel(math_max(20, button:GetFrameLevel()))
         button.sfuiSkinned = true
         return
     end
@@ -419,14 +444,15 @@ function ButtonManager:skin_button(button)
 
     sfui.common.sync_masque(button, { Icon = icon, Highlight = highlight, Border = border })
 
-    for _, region in ipairs(regions) do
-        if region:IsObjectType("Texture") and region ~= icon then region:SetTexture(nil) end
-    end
+    if border then border:SetTexture(nil) end
+    if background then background:SetTexture(nil) end
 
     pushed = isButton and button:GetPushedTexture()
     if background then background:Hide() end
     if pushed then pushed:SetAlpha(0) end
 
+    button:SetFrameStrata("MEDIUM")
+    button:SetFrameLevel(math_max(20, button:GetFrameLevel()))
     button.sfuiSkinned = true
 end
 
@@ -999,6 +1025,83 @@ function sfui.minimap.update_clock_position()
     sfui.minimap.update_status()
 end
 
+-- ------------------------------------------------------------------------------
+-- Mail & Crafting Order Indicator Management
+-- ------------------------------------------------------------------------------
+function sfui.minimap.update_indicator_positions()
+    local map = _G.Minimap
+    if not map then return end
+
+    local indicator = (MinimapCluster and MinimapCluster.IndicatorFrame) or _G.MinimapIndicatorFrame
+    if indicator then
+        indicator:SetParent(map)
+        indicator:ClearAllPoints()
+        indicator:SetPoint("TOPRIGHT", map, "TOPRIGHT", -4, -4)
+        indicator:SetFrameStrata("MEDIUM")
+        indicator:SetFrameLevel(math_max(25, indicator:GetFrameLevel()))
+    end
+
+    local mail = _G.MiniMapMailFrame
+    if mail and (not indicator or mail:GetParent() ~= indicator) then
+        mail:SetParent(map)
+        mail:ClearAllPoints()
+        mail:SetPoint("TOPRIGHT", map, "TOPRIGHT", -4, -4)
+        mail:SetFrameStrata("MEDIUM")
+        mail:SetFrameLevel(math_max(25, mail:GetFrameLevel()))
+    end
+end
+
+if _G.MiniMapIndicatorFrame_UpdatePosition then
+    hooksecurefunc("MiniMapIndicatorFrame_UpdatePosition", function()
+        sfui.minimap.update_indicator_positions()
+    end)
+end
+
+-- ------------------------------------------------------------------------------
+-- QueueStatus (Dungeon Finder / LFG Eye) Management
+-- ------------------------------------------------------------------------------
+function sfui.minimap.update_queue_status_position()
+    local btn = _G.QueueStatusButton
+    local map = _G.Minimap
+    if not btn or not map then return end
+
+    if InCombatLockdown() then return end
+
+    if btn:GetParent() ~= UIParent and btn:GetParent() ~= map then
+        btn:SetParent(UIParent)
+    end
+    btn:SetFrameStrata("MEDIUM")
+    btn:SetFrameLevel(25)
+    btn:SetScale(0.85)
+
+    btn:ClearAllPoints()
+    btn:SetPoint("BOTTOMLEFT", map, "BOTTOMLEFT", -2, -2)
+end
+
+function sfui.minimap.hook_queue_status()
+    local btn = _G.QueueStatusButton
+    if not btn or btn._sfuiPositionHooked then return end
+    btn._sfuiPositionHooked = true
+
+    if btn.UpdateDefaultAnchor then
+        hooksecurefunc(btn, "UpdateDefaultAnchor", function()
+            sfui.minimap.update_queue_status_position()
+        end)
+    end
+
+    if btn.UpdatePosition then
+        hooksecurefunc(btn, "UpdatePosition", function()
+            sfui.minimap.update_queue_status_position()
+        end)
+    end
+
+    hooksecurefunc(btn, "Show", function()
+        sfui.minimap.update_queue_status_position()
+    end)
+
+    sfui.minimap.update_queue_status_position()
+end
+
 function sfui.minimap.update_button_bar_position()
     if button_bar then
         local mapWidth = (Minimap and Minimap:GetWidth() and Minimap:GetWidth() > 0) and Minimap:GetWidth()
@@ -1069,6 +1172,7 @@ function sfui.minimap.update_position(x, y, point, relPoint)
         or 220
 
     if cluster then
+        cluster:EnableMouse(false)
         cluster:SetSize(width, height)
         if cluster.MinimapContainer then
             cluster.MinimapContainer:SetSize(width, height)
@@ -1078,6 +1182,8 @@ function sfui.minimap.update_position(x, y, point, relPoint)
     end
 
     if map then
+        map:SetFrameStrata("LOW")
+        map:SetFrameLevel(10)
         map:SetSize(width, height)
         if cluster and cluster.MinimapContainer then
             map:ClearAllPoints()
@@ -1093,6 +1199,9 @@ function sfui.minimap.update_position(x, y, point, relPoint)
     end
 
     sfui.minimap.update_button_bar_position()
+    sfui.minimap.update_indicator_positions()
+    sfui.minimap.hook_queue_status()
+    sfui.minimap.update_queue_status_position()
 
     if sfui.tracker and sfui.tracker.boons and sfui.tracker.boons.UpdateAnchor then
         sfui.tracker.boons.UpdateAnchor()
@@ -1134,6 +1243,8 @@ function sfui.minimap.update_dimensions(w, h)
 
     sfui.minimap.update_position()
     sfui.minimap.update_button_bar_position()
+    sfui.minimap.update_indicator_positions()
+    sfui.minimap.update_queue_status_position()
     if ButtonManager and ButtonManager.arrange_buttons then
         ButtonManager:arrange_buttons()
     end
@@ -1168,6 +1279,9 @@ local function on_minimap_entering_world(event)
     end
     sfui.minimap.enable_button_manager(SfuiDB.minimap_collect_buttons)
     sfui.minimap.update_clock_position()
+    sfui.minimap.update_indicator_positions()
+    sfui.minimap.hook_queue_status()
+    sfui.minimap.update_queue_status_position()
     sfui.minimap.update_status()
     sfui.minimap.UpdateMinimapTheme()
 
@@ -1182,6 +1296,8 @@ local function on_minimap_entering_world(event)
                     ButtonManager:arrange_buttons()
                 end
                 sfui.minimap.update_clock_position()
+                sfui.minimap.update_indicator_positions()
+                sfui.minimap.update_queue_status_position()
                 sfui.minimap.update_status()
             end
         end)
@@ -1198,6 +1314,9 @@ sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_minimap_entering_world)
 sfui.events.RegisterEvent("ADDON_LOADED", function(_, loadedAddon)
     if loadedAddon == "Blizzard_TimeManager" then
         sfui.minimap.update_clock_position()
+    elseif loadedAddon == "Blizzard_QueueStatusFrame" then
+        sfui.minimap.hook_queue_status()
+        sfui.minimap.update_queue_status_position()
     end
     if SfuiDB and SfuiDB.minimap_collect_buttons then
         if ButtonManager:collect_buttons() then

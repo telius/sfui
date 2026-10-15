@@ -54,6 +54,10 @@ local UnitExists          = _G.UnitExists
 local UnitInVehicle       = _G.UnitInVehicle
 local UnitHasVehicleUI    = _G.UnitHasVehicleUI
 local UnitIsUnit          = _G.UnitIsUnit
+local CanExitVehicle          = _G.CanExitVehicle
+local UnitControllingVehicle = _G.UnitControllingVehicle
+local UnitOnTaxi              = _G.UnitOnTaxi
+local TaxiRequestEarlyLanding = _G.TaxiRequestEarlyLanding
 
 local GetActionCooldown   = _G.GetActionCooldown
 local GetActionInfo       = _G.GetActionInfo
@@ -136,7 +140,9 @@ for i = 1, MAX_BUTTONS do
         "SecureActionButtonTemplate"
     )
     btn:SetSize(BTN_SIZE, BTN_SIZE)
-    btn:SetID(i)
+    -- Must be 0: SecureActionButtonMixin:CalculateAction() uses "action" attribute only when ID <= 0
+    btn:SetID(0)
+    btn.slotIndex = i
     btn:SetAttribute("type",   "action")
     btn:SetAttribute("action", i) -- initial; real value set in UpdateBar()
     btn._isOnCooldown = false
@@ -200,9 +206,54 @@ for i = 1, MAX_BUTTONS do
         if GameTooltip then GameTooltip:Hide() end
     end)
 
+    btn:HookScript("OnMouseDown", function()
+        if sfui.vehicle and sfui.vehicle.AnimateButtonDown then
+            sfui.vehicle.AnimateButtonDown(i)
+        end
+    end)
+    btn:HookScript("OnMouseUp", function()
+        if sfui.vehicle and sfui.vehicle.AnimateButtonUp then
+            sfui.vehicle.AnimateButtonUp(i)
+        end
+    end)
+
     buttons[i] = btn
 end
 sfui.vehicle.buttons = buttons
+-- ─── Tactile Button Press Animations (Visual Feedback) ───────────────────────
+function sfui.vehicle.AnimateButtonDown(i)
+    local btn = buttons and buttons[i]
+    if btn and frame:IsShown() and btn:GetAlpha() > 0 then
+        btn:SetButtonState("PUSHED")
+        if btn.icon then
+            btn.icon:ClearAllPoints()
+            btn.icon:SetPoint("TOPLEFT", btn, "TOPLEFT", 3, -3)
+            btn.icon:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
+        end
+        if btn.cooldown then
+            btn.cooldown:ClearAllPoints()
+            btn.cooldown:SetPoint("TOPLEFT", btn.icon, "TOPLEFT", 0, 0)
+            btn.cooldown:SetPoint("BOTTOMRIGHT", btn.icon, "BOTTOMRIGHT", 0, 0)
+        end
+    end
+end
+
+function sfui.vehicle.AnimateButtonUp(i)
+    local btn = buttons and buttons[i]
+    if btn then
+        btn:SetButtonState("NORMAL")
+        if btn.icon then
+            btn.icon:ClearAllPoints()
+            btn.icon:SetPoint("TOPLEFT", btn, "TOPLEFT", 2, -2)
+            btn.icon:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2, 2)
+        end
+        if btn.cooldown then
+            btn.cooldown:ClearAllPoints()
+            btn.cooldown:SetPoint("TOPLEFT", btn.icon, "TOPLEFT", 0, 0)
+            btn.cooldown:SetPoint("BOTTOMRIGHT", btn.icon, "BOTTOMRIGHT", 0, 0)
+        end
+    end
+end
 
 -- ─── Vehicle Unit Resolver ───────────────────────────────────────────────────
 local function GetVehicleUnit()
@@ -522,18 +573,77 @@ local function UpdateAnchor()
     frame:SetPoint("BOTTOM", UIParent, "BOTTOM", hx, hy - STACK_OFFSET_Y)
 end
 
+-- ─── Vehicle Keybind Helpers ────────────────────────────────────────────────
+local function GetKeysForVehicleButton(i)
+    local foundKeys = {}
+    local seen = {}
+
+    local function addTargetKeys(target)
+        if not target or not GetBindingKey then return end
+        local keys = { GetBindingKey(target) }
+        for _, k in ipairs(keys) do
+            if k and k ~= "" and not seen[k] then
+                seen[k] = true
+                foundKeys[#foundKeys + 1] = k
+            end
+        end
+    end
+
+    -- 1. Standard Blizzard action binding (e.g. ACTIONBUTTON1)
+    if BINDING_NAMES[i] then
+        addTargetKeys(BINDING_NAMES[i])
+    end
+
+    -- 2. SFUI Action Bar 1 direct button binding
+    addTargetKeys(string_format("CLICK sfui_ActionBar1_Button%d:LeftButton", i))
+
+    -- 3. Dynamic SFUI Action Bar 1 button candidate targets if loaded
+    local bar1 = sfui.actionbars and sfui.actionbars.bars and sfui.actionbars.bars[1]
+    local barBtn = bar1 and bar1.buttons and bar1.buttons[i]
+    if barBtn then
+        if barBtn._sfuiBindingTargets then
+            for _, target in ipairs(barBtn._sfuiBindingTargets) do
+                addTargetKeys(target)
+            end
+        end
+        if barBtn.keyBoundTarget then
+            addTargetKeys(barBtn.keyBoundTarget)
+        end
+    end
+
+    return foundKeys
+end
+
+local function GetPrimaryHotkeyText(i)
+    local keys = GetKeysForVehicleButton(i)
+    local key = keys and keys[1]
+    if not key or key == "" then
+        return (sfui.keybinds and sfui.keybinds.get_action_key and sfui.keybinds.get_action_key(BINDING_NAMES[i]))
+            or (GetBindingKey and GetBindingKey(BINDING_NAMES[i])) or ""
+    end
+
+    local KeyBound = _G.LibStub and _G.LibStub("LibKeyBound-1.0", true)
+    if KeyBound and KeyBound.ToShortKey then
+        return KeyBound:ToShortKey(key)
+    elseif sfui.actionbars and sfui.actionbars.style and sfui.actionbars.style.FormatHotkeyText then
+        return sfui.actionbars.style.FormatHotkeyText(key)
+    end
+    return key
+end
+
 -- ─── Bar-page resolver ───────────────────────────────────────────────────────
 local function GetResolvedVehicleBarIndex()
     if HasVehicleActionBar and HasVehicleActionBar()        then return GetVehicleBarIndex()          end
     if HasOverrideActionBar and HasOverrideActionBar()       then return GetOverrideBarIndex()         end
     if HasTempShapeshiftActionBar and HasTempShapeshiftActionBar() then return GetTempShapeshiftBarIndex()   end
-    if HasBonusActionBar and HasBonusActionBar()            then return GetBonusBarIndex()            end
-    -- Fallback for vehicle UI or possess transitions
-    if (UnitHasVehicleUI and UnitHasVehicleUI("player")) or (UnitInVehicle and UnitInVehicle("player")) then
-        return (GetVehicleBarIndex and GetVehicleBarIndex()) or 12
+    -- Fallback for vehicle UI, canexitvehicle, or possess transitions
+    if (UnitHasVehicleUI and UnitHasVehicleUI("player")) or (UnitInVehicle and UnitInVehicle("player")) or (CanExitVehicle and CanExitVehicle()) or (UnitControllingVehicle and UnitControllingVehicle("player")) then
+        local v = (GetVehicleBarIndex and GetVehicleBarIndex())
+        return (v and v > 0) and v or 12
     end
     if C_ActionBar and C_ActionBar.IsPossessBarVisible and C_ActionBar.IsPossessBarVisible() then
-        return (GetVehicleBarIndex and GetVehicleBarIndex()) or 12
+        local v = (GetVehicleBarIndex and GetVehicleBarIndex())
+        return (v and v > 0) and v or 12
     end
     return nil
 end
@@ -568,7 +678,9 @@ local function UpdateBar()
         for i = 1, MAX_BUTTONS do
             local actionID = (barIndex - 1) * 12 + i
             buttons[i]:SetAttribute("action", actionID)
+            buttons[i]:SetAttribute("actionpage", barIndex)
         end
+        frame:SetAttribute("actionpage", barIndex)
     end
 
     -- Visual updates (textures, alphas, sizing) are non-secure and safe during combat!
@@ -590,9 +702,7 @@ local function UpdateBar()
         end
 
         -- Keybind label (centralized formatter)
-        local keyText = sfui.keybinds and sfui.keybinds.get_action_key and sfui.keybinds.get_action_key(BINDING_NAMES[i])
-            or (GetBindingKey and GetBindingKey(BINDING_NAMES[i])) or ""
-        btn.kb:SetText(keyText)
+        btn.kb:SetText(GetPrimaryHotkeyText(i))
 
         -- Masque re-sync
         common.sync_masque(btn, btn.masqueSubElements)
@@ -600,6 +710,7 @@ local function UpdateBar()
     end
 
     _lastVisibleButtons = lastVisible
+
     if not InCombatLockdown() then
         -- Resize frame to fit only visible buttons (never touch protected frame size/points in combat)
         local w = math_max(1, lastVisible * BTN_SIZE + math_max(0, lastVisible - 1) * BTN_GAP)
@@ -789,43 +900,27 @@ local function unregister_vehicle_active_events()
     sfui.events.UnregisterUnitEvents(VEHICLE_CAST_EVENTS, "vehicle", on_unit_cast)
 end
 
--- ─── Vehicle Keybinding Overrides (Priority Routing) ─────────────────────────
-local SetOverrideBindingClick = _G.SetOverrideBindingClick
-local ClearOverrideBindings   = _G.ClearOverrideBindings
-
-local function UpdateVehicleBindings()
-    if InCombatLockdown and InCombatLockdown() then return end
-    if not ClearOverrideBindings or not SetOverrideBindingClick then return end
-    ClearOverrideBindings(frame)
-    if frame:IsShown() then
-        for i = 1, MAX_BUTTONS do
-            local btn = buttons[i]
-            if btn and btn:GetAlpha() > 0 then
-                local keys = { GetBindingKey(BINDING_NAMES[i]) }
-                for _, key in ipairs(keys) do
-                    if key and key ~= "" then
-                        SetOverrideBindingClick(frame, true, key, btn:GetName(), "LeftButton")
-                    end
-                end
-            end
-        end
-    end
+-- ─── Vehicle Keybind Compatibility ───────────────────────────────────────────
+function sfui.vehicle.UpdateVehicleBindings()
+    -- Keybindings remain managed on Action Bar 1 via secure state driver paging.
+    -- Vehicle bar operates exclusively as a visual feedback HUD and never touches override bindings.
 end
 
 -- ─── OnShow / OnHide ─────────────────────────────────────────────────────────
 frame:SetScript("OnShow", function()
     UpdateBar()
-    UpdateVehicleBindings()
     register_vehicle_active_events()
     sfui.events.RegisterUpdate("VehicleBar", 0.033, on_vehicle_update)
 end)
 
 frame:SetScript("OnHide", function()
     StopCastBar()
-    if ClearOverrideBindings then ClearOverrideBindings(frame) end
     unregister_vehicle_active_events()
     for i = 1, MAX_BUTTONS do
         buttons[i]._isOnCooldown = false
+        if sfui.vehicle and sfui.vehicle.AnimateButtonUp then
+            sfui.vehicle.AnimateButtonUp(i)
+        end
     end
     sfui.events.UnregisterUpdate("VehicleBar")
     frame:SetScript("OnUpdate", nil)
@@ -835,25 +930,19 @@ end)
 local function on_vehicle_global(event)
     if event == "PLAYER_REGEN_ENABLED" then
         if pendingUpdate then UpdateBar() end
-        UpdateVehicleBindings()
     elseif event == "ACTIONBAR_UPDATE_STATE" then
         -- Only update when the vehicle bar is actually active or shown
         if frame:IsShown() or GetResolvedVehicleBarIndex() then
             UpdateBar()
-            UpdateVehicleBindings()
         end
     elseif event == "UPDATE_BINDINGS" then
-        UpdateVehicleBindings()
         if frame:IsShown() then
             for i = 1, MAX_BUTTONS do
-                local keyText = sfui.keybinds and sfui.keybinds.get_action_key and sfui.keybinds.get_action_key(BINDING_NAMES[i])
-                    or (GetBindingKey and GetBindingKey(BINDING_NAMES[i])) or ""
-                buttons[i].kb:SetText(keyText)
+                buttons[i].kb:SetText(GetPrimaryHotkeyText(i))
             end
         end
     else
         UpdateBar()
-        UpdateVehicleBindings()
     end
 end
 

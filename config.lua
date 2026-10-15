@@ -361,6 +361,7 @@ sfui.config = {
 
     lootfeed = {
         enabled = true,
+        disableBlizzardLootAlerts = true,
         width = 320,
         rowHeight = 34,
         maxRows = 10,
@@ -1183,6 +1184,14 @@ sfui.config = {
                 relPoint      = "BOTTOM",
                 x             = 0,
                 y             = 168,
+            },
+            vehicle = {
+                enabled       = true,
+                buttonSize    = 34,
+                point         = "BOTTOM",
+                relPoint      = "BOTTOM",
+                x             = 0,
+                y             = 210,
             },
         },
     },

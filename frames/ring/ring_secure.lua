@@ -193,6 +193,10 @@ local SNIPPET_POST = [==[
     if down then return end
     self:SetAttribute("type", nil)
     self:SetAttribute("macrotext", nil)
+    self:SetAttribute("toy", nil)
+    self:SetAttribute("spell", nil)
+    self:SetAttribute("item", nil)
+    self:SetAttribute("macro", nil)
     local cancel = self:GetFrameRef("cancel")
     if cancel then
         cancel:ClearBindings()

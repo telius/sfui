@@ -93,11 +93,23 @@ sfui.options.RegisterTab({
         local refresh_all_slots
 
         local function handle_slot_drop(slotIdx)
-            local cursorType, val1, _, val3 = GetCursorInfo()
+            local cursorType, val1, val2, val3 = GetCursorInfo()
             if not cursorType then return end
 
             local util = sfui.ring.utility
             if not util then return end
+
+            local is_toy = (sfui.common and sfui.common.is_item_toy) or function(id)
+                if not id then return false end
+                local num = tonumber(id)
+                if not num then return false end
+                if _G.PlayerHasToy and _G.PlayerHasToy(num) then return true end
+                if _G.C_ToyBox and _G.C_ToyBox.GetToyInfo then
+                    local ok, tid = pcall(_G.C_ToyBox.GetToyInfo, num)
+                    if ok and tid then return true end
+                end
+                return false
+            end
 
             local slotData = nil
             if cursorType == "spell" then
@@ -105,21 +117,31 @@ sfui.options.RegisterTab({
                 local name, icon = util.get_spell_details(spellID)
                 slotData = {
                     type = "spell",
-                    id   = spellID,
+                    id   = tonumber(spellID) or spellID,
                     name = name or tostring(spellID),
                     icon = icon,
                 }
             elseif cursorType == "item" then
-                local itemID = val1
-                local name, icon = util.get_item_details(itemID)
-                slotData = {
-                    type = "item",
-                    id   = itemID,
-                    name = name or tostring(itemID),
-                    icon = icon,
-                }
+                local itemID = tonumber(val1) or val1
+                if is_toy(itemID) then
+                    local name, icon = util.get_toy_details(itemID)
+                    slotData = {
+                        type = "toy",
+                        id   = itemID,
+                        name = name or tostring(itemID),
+                        icon = icon,
+                    }
+                else
+                    local name, icon = util.get_item_details(itemID)
+                    slotData = {
+                        type = "item",
+                        id   = itemID,
+                        name = name or tostring(itemID),
+                        icon = icon,
+                    }
+                end
             elseif cursorType == "toy" then
-                local toyID = val1
+                local toyID = tonumber(val1) or val1
                 local name, icon = util.get_toy_details(toyID)
                 slotData = {
                     type = "toy",
@@ -127,6 +149,60 @@ sfui.options.RegisterTab({
                     name = name or tostring(toyID),
                     icon = icon,
                 }
+            elseif cursorType == "action" then
+                local actionSlot = val1
+                if actionSlot and _G.GetActionInfo then
+                    local aType, aId = _G.GetActionInfo(actionSlot)
+                    if aType == "spell" then
+                        local name, icon = util.get_spell_details(aId)
+                        slotData = {
+                            type = "spell",
+                            id   = tonumber(aId) or aId,
+                            name = name or tostring(aId),
+                            icon = icon,
+                        }
+                    elseif aType == "item" then
+                        local itemID = tonumber(aId) or aId
+                        if is_toy(itemID) then
+                            local name, icon = util.get_toy_details(itemID)
+                            slotData = {
+                                type = "toy",
+                                id   = itemID,
+                                name = name or tostring(itemID),
+                                icon = icon,
+                            }
+                        else
+                            local name, icon = util.get_item_details(itemID)
+                            slotData = {
+                                type = "item",
+                                id   = itemID,
+                                name = name or tostring(itemID),
+                                icon = icon,
+                            }
+                        end
+                    elseif aType == "macro" then
+                        local name, icon = util.get_macro_details(aId)
+                        slotData = {
+                            type = "macro",
+                            id   = aId,
+                            name = name or ("macro " .. tostring(aId)),
+                            icon = icon,
+                        }
+                    elseif aType == "companion" or aType == "mount" then
+                        local mountID = aId
+                        if _G.C_MountJournal and _G.C_MountJournal.GetMountInfoByID then
+                            local mName, spellID, mIcon = _G.C_MountJournal.GetMountInfoByID(mountID)
+                            if spellID then
+                                slotData = {
+                                    type = "spell",
+                                    id   = spellID,
+                                    name = mName or tostring(spellID),
+                                    icon = mIcon,
+                                }
+                            end
+                        end
+                    end
+                end
             elseif cursorType == "macro" then
                 local macroIdx = val1
                 local name, icon = util.get_macro_details(macroIdx)
@@ -200,8 +276,11 @@ sfui.options.RegisterTab({
                         tip:AddLine(data.name or "item", 1, 1, 1)
                     end
                 elseif data.type == "toy" then
-                    if tip.SetToyByItemID and tonumber(data.id) then
-                        tip:SetToyByItemID(tonumber(data.id))
+                    local toyID = tonumber(data.id)
+                    if toyID and tip.SetToyByItemID then
+                        tip:SetToyByItemID(toyID)
+                    elseif toyID and tip.SetItemByID then
+                        tip:SetItemByID(toyID)
                     else
                         tip:AddLine(data.name or "toy", 1, 1, 1)
                     end
@@ -412,7 +491,68 @@ sfui.options.RegisterTab({
         )
         slider_size:SetPoint("TOPLEFT", slider_deadzone, "BOTTOMLEFT", 0, -12)
 
-        -- ── Section 4: Shortcuts & Hints ──────────────────────────────────────
+        -- ── Section 4: Quest & Inventory Items Ring ──────────────────────────
+        local quest_header = p:CreateFontString(nil, "OVERLAY", g.font)
+        quest_header:SetPoint("TOPLEFT", slider_size, "BOTTOMLEFT", 0, -18)
+        quest_header:SetTextColor(0, 1, 1, 1)
+        quest_header:SetText("quest & inventory ring")
+
+        local quest_desc = p:CreateFontString(nil, "OVERLAY", g.font_small or g.font)
+        quest_desc:SetPoint("TOPLEFT", quest_header, "BOTTOMLEFT", 0, -4)
+        quest_desc:SetTextColor(0.7, 0.7, 0.7)
+        quest_desc:SetText("auto-populate the quest items ring with openable containers, knowledge items, and collectibles.")
+
+        local cb_chests = sfui.widgets.create_checkbox(
+            p,
+            "include openable chests & caches",
+            function() return sfui.db.Get("ring", "quest_include_chests", true) end,
+            function(val)
+                sfui.db.Set("ring", "quest_include_chests", val)
+                if sfui.ring and sfui.ring.request_rebuild then sfui.ring.request_rebuild("questitems") end
+            end,
+            "include reward caches, lockboxes, paragon chests, and threshold bundles (e.g. 100 coffer key shards)."
+        )
+        cb_chests:SetPoint("TOPLEFT", quest_desc, "BOTTOMLEFT", 0, -8)
+
+        local cb_knowledge = sfui.widgets.create_checkbox(
+            p,
+            "include profession knowledge & treatises",
+            function() return sfui.db.Get("ring", "quest_include_knowledge", true) end,
+            function(val)
+                sfui.db.Set("ring", "quest_include_knowledge", val)
+                if sfui.ring and sfui.ring.request_rebuild then sfui.ring.request_rebuild("questitems") end
+            end,
+            "include weekly inscription treatises (until completed for the week) and usable profession knowledge items."
+        )
+        cb_knowledge:SetPoint("TOPLEFT", cb_chests, "BOTTOMLEFT", 0, -4)
+
+        local cb_collectibles = sfui.widgets.create_checkbox(
+            p,
+            "include uncollected toys, mounts & pets",
+            function() return sfui.db.Get("ring", "quest_include_collectibles", true) end,
+            function(val)
+                sfui.db.Set("ring", "quest_include_collectibles", val)
+                if sfui.ring and sfui.ring.request_rebuild then sfui.ring.request_rebuild("questitems") end
+            end,
+            "include unlearned toys, mounts, and battle pet items sitting in bags ready to be added to your collection."
+        )
+        cb_collectibles:SetPoint("TOPLEFT", cb_knowledge, "BOTTOMLEFT", 0, -4)
+
+        local slider_max_items = sfui.widgets.create_slider_input(
+            p,
+            "max items in ring",
+            function() return sfui.db.Get("ring", "quest_max_slices", 14) end,
+            8, 24, 1,
+            function(val)
+                sfui.db.Set("ring", "quest_max_slices", val)
+                if sfui.ring and sfui.ring.request_rebuild then sfui.ring.request_rebuild("questitems") end
+            end,
+            "maximum number of items shown on the radial wheel (sorted by quest proximity and item priority).",
+            220
+        )
+        slider_max_items:SetPoint("TOPLEFT", cb_collectibles, "BOTTOMLEFT", 0, -12)
+
+        -- ── Section 5: Shortcuts & Hints ──────────────────────────────────────
         local blizz_btn = CreateFlatButton(p, "blizzard keybindings", 150, 22, function()
             if InCombatLockdown and InCombatLockdown() then return end
             if Settings and Settings.OpenToCategory and Settings.KEYBINDINGS_CATEGORY_ID then
@@ -422,7 +562,7 @@ sfui.options.RegisterTab({
                 ShowUIPanel(KeyBindingFrame)
             end
         end)
-        blizz_btn:SetPoint("TOPLEFT", slider_size, "BOTTOMLEFT", 0, -16)
+        blizz_btn:SetPoint("TOPLEFT", slider_max_items, "BOTTOMLEFT", 0, -16)
 
         local tips_text = p:CreateFontString(nil, "OVERLAY", g.font_small or g.font)
         tips_text:SetPoint("TOPLEFT", blizz_btn, "BOTTOMLEFT", 0, -12)
@@ -467,6 +607,10 @@ sfui.options.RegisterTab({
         sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", on_spec_or_spells_updated)
         sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", on_spec_or_spells_updated)
         sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", on_spec_or_spells_updated)
+        sfui.events.RegisterEvent("TOYS_UPDATED", on_spec_or_spells_updated)
+        sfui.events.RegisterEvent("NEW_TOY_ADDED", on_spec_or_spells_updated)
+        sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", on_spec_or_spells_updated)
+        sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", on_spec_or_spells_updated)
         sfui.events.RegisterMessage("SFUI_SPEC_CHANGED", on_spec_or_spells_updated)
     end,
 })

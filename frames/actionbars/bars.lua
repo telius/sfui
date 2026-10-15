@@ -71,7 +71,13 @@ end
 -- ─────────────────────────────────────────────────────────────────────────────
 function sfui.actionbars.GetBarConfig(barKey)
     if SfuiDB and SfuiDB.actionbars and SfuiDB.actionbars.bars and SfuiDB.actionbars.bars[barKey] then
-        return SfuiDB.actionbars.bars[barKey]
+        local dbCfg = SfuiDB.actionbars.bars[barKey]
+        if barKey == "vehicle" and dbCfg.x == -120 and dbCfg.y == 35 then
+            dbCfg.x = 0
+            dbCfg.y = 210
+            dbCfg.buttonSize = 34
+        end
+        return dbCfg
     end
     if sfui.config and sfui.config.actionbars and sfui.config.actionbars.bars and sfui.config.actionbars.bars[barKey] then
         return sfui.config.actionbars.bars[barKey]
@@ -88,6 +94,16 @@ function sfui.actionbars.GetBarConfig(barKey)
             relPoint = "BOTTOM",
             x = 0,
             y = 168,
+        }
+    end
+    if barKey == "vehicle" then
+        return {
+            enabled = true,
+            buttonSize = 34,
+            point = "BOTTOM",
+            relPoint = "BOTTOM",
+            x = 0,
+            y = 210,
         }
     end
     return {
@@ -177,6 +193,10 @@ function sfui.actionbars.ApplyBarLayout(barIndex)
 
     if sfui.actionbars.mouseover and sfui.actionbars.mouseover.UpdateAllBars then
         sfui.actionbars.mouseover.UpdateAllBars(true)
+    end
+
+    if barIndex == 1 and sfui.actionbars.UpdateVehicleLeaveButtonLayout then
+        sfui.actionbars.UpdateVehicleLeaveButtonLayout()
     end
 end
 
@@ -654,7 +674,174 @@ function sfui.actionbars.Apply3x4Preset(barIndex)
     sfui.actionbars.ApplyBarLayout(barIndex)
 end
 
+-- ─────────────────────────────────────────────────────────────────────────────
+--  Vehicle Leave Button (Action Bar 1 Companion)
+-- ─────────────────────────────────────────────────────────────────────────────
+function sfui.actionbars.GetVehicleExitHotkey()
+    local key = (_G.GetBindingKey and _G.GetBindingKey("VEHICLEEXIT"))
+        or (_G.GetBindingKey and _G.GetBindingKey("CLICK sfui_ActionBarVehicleLeaveButton:LeftButton"))
+    if not key or key == "" then
+        return ""
+    end
+    local KeyBound = _G.LibStub and _G.LibStub("LibKeyBound-1.0", true)
+    if KeyBound and KeyBound.ToShortKey then
+        return KeyBound:ToShortKey(key)
+    elseif sfui.actionbars and sfui.actionbars.style and sfui.actionbars.style.FormatHotkeyText then
+        return sfui.actionbars.style.FormatHotkeyText(key)
+    end
+    return key
+end
 
+function sfui.actionbars.UpdateVehicleLeaveHotkey()
+    local btn = sfui.actionbars.vehicleLeaveButton
+    if not btn or not btn.kb then return end
+    btn.kb:SetText(sfui.actionbars.GetVehicleExitHotkey())
+end
+
+function sfui.actionbars.UpdateVehicleLeaveButtonLayout()
+    local btn = sfui.actionbars.vehicleLeaveButton
+    if not btn or (InCombatLockdown and InCombatLockdown()) then return end
+    local cfg = sfui.actionbars.GetBarConfig("vehicle")
+    local bSize = (cfg and cfg.buttonSize) or 34
+    btn:SetSize(bSize, bSize)
+    if btn.mover then
+        btn.mover:SetSize(bSize, bSize)
+    end
+end
+
+function sfui.actionbars.CreateVehicleLeaveButton()
+    if sfui.actionbars.vehicleLeaveButton then return sfui.actionbars.vehicleLeaveButton end
+
+    local cfg = sfui.actionbars.GetBarConfig("vehicle")
+    local buttonSize = (cfg and cfg.buttonSize) or 34
+
+    local btn = _G.MainMenuBarVehicleLeaveButton
+    if btn then
+        -- Reparent Blizzard's default vehicle exit button directly to UIParent
+        btn:SetParent(UIParent)
+        sfui.common.set_pixel_snapping(btn)
+        btn:SetFrameStrata("MEDIUM")
+        btn:SetFrameLevel(25)
+        btn:SetSize(buttonSize, buttonSize)
+        btn.barKey = "vehicle"
+        btn.barConfig = cfg
+
+        -- 1px black backdrop border to match SFUI theme
+        if not btn.borderBackdrop then
+            btn.borderBackdrop = btn:CreateTexture(nil, "BACKGROUND")
+            btn.borderBackdrop:SetAllPoints()
+            btn.borderBackdrop:SetColorTexture(0, 0, 0, 1)
+        end
+
+        -- Hotkey text
+        if not btn.kb then
+            btn.kb = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            btn.kb:SetPoint("TOPRIGHT", -2, -2)
+        end
+        btn.kb:SetText(sfui.actionbars.GetVehicleExitHotkey())
+
+        -- Enhance CanExitVehicle to recognize passenger seats, VehicleSeatIndicator, and taxis
+        local origCanExit = btn.CanExitVehicle
+        btn.CanExitVehicle = function(self)
+            if _G.CanExitVehicle and _G.CanExitVehicle() then return true end
+            if _G.UnitOnTaxi and _G.UnitOnTaxi("player") then return true end
+            if _G.VehicleSeatIndicator and _G.VehicleSeatIndicator:IsShown() then return true end
+            if _G.UnitInVehicle and _G.UnitInVehicle("player") then return true end
+            if _G.UnitControllingVehicle and _G.UnitControllingVehicle("player") then return true end
+            if _G.UnitHasVehicleUI and _G.UnitHasVehicleUI("player") then return true end
+            if origCanExit then
+                local ok, val = pcall(origCanExit, self)
+                if ok and val then return true end
+            end
+            return false
+        end
+
+        -- Ensure button updates when VehicleSeatIndicator toggles
+        if _G.VehicleSeatIndicator and not sfui.actionbars._hookedSeatIndicator then
+            sfui.actionbars._hookedSeatIndicator = true
+            hooksecurefunc(_G.VehicleSeatIndicator, "Show", function()
+                if btn.Update then btn:Update() end
+            end)
+            hooksecurefunc(_G.VehicleSeatIndicator, "Hide", function()
+                if btn.Update then btn:Update() end
+            end)
+        end
+
+        -- Register additional vehicle and world events
+        btn:RegisterEvent("UPDATE_VEHICLE_ACTIONBAR")
+        btn:RegisterEvent("ACTIONBAR_UPDATE_STATE")
+        btn:RegisterEvent("PLAYER_ENTERING_WORLD")
+
+        -- Register mover
+        if sfui.actionbars.movers and sfui.actionbars.movers.CreateMover then
+            sfui.actionbars.movers.CreateMover(btn, nil, "vehicle")
+        end
+
+        -- Initial update
+        if btn.Update then
+            btn:Update()
+        elseif btn.UpdateShownState then
+            btn:UpdateShownState()
+        end
+
+        sfui.actionbars.vehicleLeaveButton = btn
+        sfui.actionbars.barsByKey["vehicle"] = btn
+        return btn
+    end
+
+    -- Fallback button if MainMenuBarVehicleLeaveButton is unavailable
+    local fallbackBtn = CreateFrame("Button", "sfui_VehicleLeaveButton", UIParent, "BackdropTemplate")
+    _G.sfui_ActionBarVehicleLeaveButton = fallbackBtn
+    sfui.common.set_pixel_snapping(fallbackBtn)
+    fallbackBtn:SetFrameStrata("MEDIUM")
+    fallbackBtn:SetFrameLevel(25)
+    fallbackBtn:SetSize(buttonSize, buttonSize)
+    fallbackBtn.barKey = "vehicle"
+    fallbackBtn.barConfig = cfg
+
+    fallbackBtn:RegisterForClicks("AnyUp", "AnyDown")
+    fallbackBtn:SetScript("OnClick", function()
+        if _G.UnitOnTaxi and _G.UnitOnTaxi("player") then
+            if _G.TaxiRequestEarlyLanding then _G.TaxiRequestEarlyLanding() end
+        else
+            if _G.VehicleExit then _G.VehicleExit() end
+        end
+    end)
+
+    fallbackBtn.borderBackdrop = fallbackBtn:CreateTexture(nil, "BACKGROUND")
+    fallbackBtn.borderBackdrop:SetAllPoints()
+    fallbackBtn.borderBackdrop:SetColorTexture(0, 0, 0, 1)
+
+    fallbackBtn.icon = fallbackBtn:CreateTexture(nil, "ARTWORK")
+    fallbackBtn.icon:SetTexCoord(0.140625, 0.859375, 0.140625, 0.859375)
+    fallbackBtn.icon:SetPoint("TOPLEFT", fallbackBtn, "TOPLEFT", 1, -1)
+    fallbackBtn.icon:SetPoint("BOTTOMRIGHT", fallbackBtn, "BOTTOMRIGHT", -1, 1)
+    fallbackBtn.icon:SetTexture("Interface\\Vehicles\\UI-Vehicles-Button-Exit-Up")
+
+    fallbackBtn.kb = fallbackBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    fallbackBtn.kb:SetPoint("TOPRIGHT", -2, -2)
+    fallbackBtn.kb:SetText(sfui.actionbars.GetVehicleExitHotkey())
+
+    function fallbackBtn:UpdateShownState()
+        local canExit = (_G.CanExitVehicle and _G.CanExitVehicle())
+            or (_G.UnitOnTaxi and _G.UnitOnTaxi("player"))
+            or (_G.VehicleSeatIndicator and _G.VehicleSeatIndicator:IsShown())
+            or (_G.UnitInVehicle and _G.UnitInVehicle("player"))
+        self:SetShown(self.isInEditMode or canExit)
+    end
+    function fallbackBtn:Update()
+        self:UpdateShownState()
+    end
+
+    if sfui.actionbars.movers and sfui.actionbars.movers.CreateMover then
+        sfui.actionbars.movers.CreateMover(fallbackBtn, nil, "vehicle")
+    end
+    fallbackBtn:UpdateShownState()
+
+    sfui.actionbars.vehicleLeaveButton = fallbackBtn
+    sfui.actionbars.barsByKey["vehicle"] = fallbackBtn
+    return fallbackBtn
+end
 
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Bar Creation & Engine Initialization
@@ -766,8 +953,9 @@ function sfui.actionbars.CreateBars()
                     local slot = (page - 1) * 12 + i
                     button:SetState(page, "action", slot)
                 end
+                local overrideIndex = (_G.GetOverrideBarIndex and _G.GetOverrideBarIndex()) or 14
                 button:SetState("possess", "action", (12 - 1) * 12 + i)
-                button:SetState("override", "action", (14 - 1) * 12 + i)
+                button:SetState("override", "action", (overrideIndex - 1) * 12 + i)
                 button:SetState(0, "action", i)
             else
                 -- Bars 2-10: Standard action bar pages
@@ -808,6 +996,9 @@ function sfui.actionbars.CreateBars()
     -- Create Pet Bar
     sfui.actionbars.CreatePetBar()
 
+    -- Create Vehicle Leave Button
+    sfui.actionbars.CreateVehicleLeaveButton()
+
     -- Synchronize and override all hardware keybindings
     sfui.actionbars.UpdateAllBindings()
 end
@@ -820,6 +1011,7 @@ local ClearOverrideBindings   = _G.ClearOverrideBindings
 local GetBindingKey           = _G.GetBindingKey
 
 function sfui.actionbars.OverrideBarBindings(bar)
+    if InCombatLockdown and InCombatLockdown() then return end
     if not bar or not bar.buttons or not SetOverrideBindingClick then return end
 
     if bar == sfui.actionbars.petBar then
@@ -877,6 +1069,10 @@ function sfui.actionbars.UpdateAllBindings()
     elseif sfui.actionbars.UpdatePetBar then
         sfui.actionbars.UpdatePetBar()
     end
+
+    if sfui.actionbars.UpdateVehicleLeaveHotkey then
+        sfui.actionbars.UpdateVehicleLeaveHotkey()
+    end
 end
 
 -- Hook binding updates and combat regen
@@ -920,6 +1116,9 @@ if hooksecurefunc then
             if btn and btn.AnimateDown then
                 btn:AnimateDown()
             end
+            if sfui.vehicle and sfui.vehicle.AnimateButtonDown then
+                sfui.vehicle.AnimateButtonDown(id)
+            end
         end)
     end
 
@@ -929,6 +1128,9 @@ if hooksecurefunc then
             local btn = bar and bar.buttons and bar.buttons[id]
             if btn and btn.AnimateUp then
                 btn:AnimateUp()
+            end
+            if sfui.vehicle and sfui.vehicle.AnimateButtonUp then
+                sfui.vehicle.AnimateButtonUp(id)
             end
         end)
     end
@@ -951,6 +1153,50 @@ if hooksecurefunc then
             local btn = bar and bar.buttons and bar.buttons[id]
             if btn and btn.AnimateUp then
                 btn:AnimateUp()
+            end
+        end)
+    end
+
+    if type(_G.VehicleExit) == "function" then
+        hooksecurefunc("VehicleExit", function()
+            local btn = sfui.actionbars.vehicleLeaveButton
+            if btn and btn.AnimateDown then
+                btn:AnimateDown()
+                if _G.C_Timer and _G.C_Timer.After then
+                    _G.C_Timer.After(0.1, function()
+                        if btn.AnimateUp then btn:AnimateUp() end
+                    end)
+                end
+            end
+            if sfui.vehicle and sfui.vehicle.exitButton and sfui.vehicle.exitButton.AnimateDown then
+                sfui.vehicle.exitButton:AnimateDown()
+                if _G.C_Timer and _G.C_Timer.After then
+                    _G.C_Timer.After(0.1, function()
+                        if sfui.vehicle.exitButton.AnimateUp then sfui.vehicle.exitButton:AnimateUp() end
+                    end)
+                end
+            end
+        end)
+    end
+
+    if type(_G.TaxiRequestEarlyLanding) == "function" then
+        hooksecurefunc("TaxiRequestEarlyLanding", function()
+            local btn = sfui.actionbars.vehicleLeaveButton
+            if btn and btn.AnimateDown then
+                btn:AnimateDown()
+                if _G.C_Timer and _G.C_Timer.After then
+                    _G.C_Timer.After(0.1, function()
+                        if btn.AnimateUp then btn:AnimateUp() end
+                    end)
+                end
+            end
+            if sfui.vehicle and sfui.vehicle.exitButton and sfui.vehicle.exitButton.AnimateDown then
+                sfui.vehicle.exitButton:AnimateDown()
+                if _G.C_Timer and _G.C_Timer.After then
+                    _G.C_Timer.After(0.1, function()
+                        if sfui.vehicle.exitButton.AnimateUp then sfui.vehicle.exitButton:AnimateUp() end
+                    end)
+                end
             end
         end)
     end

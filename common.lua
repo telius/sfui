@@ -560,6 +560,9 @@ local function apply_cvar(cvar, strVal)
     if not set then return false end
     if get and get(cvar) == strVal then return true end
     local ok = pcall(set, cvar, strVal)
+    if not ok and tonumber(strVal) ~= nil then
+        ok = pcall(set, cvar, tonumber(strVal))
+    end
     return ok
 end
 
@@ -897,6 +900,27 @@ function sfui.common.is_toy_known(toyID)
     if C_ToyBox and C_ToyBox.PlayerHasToy then
         local ok, hasToy = pcall(C_ToyBox.PlayerHasToy, id)
         if ok and hasToy then return true end
+    end
+    return false
+end
+
+function sfui.common.is_item_toy(itemID)
+    if not itemID then return false end
+    local id = tonumber(itemID)
+    if not id then return false end
+    if _G.PlayerHasToy then
+        local ok, hasToy = pcall(_G.PlayerHasToy, id)
+        if ok and hasToy then return true end
+    end
+    if _G.C_ToyBox then
+        if _G.C_ToyBox.GetToyInfo then
+            local ok, toyID = pcall(_G.C_ToyBox.GetToyInfo, id)
+            if ok and toyID then return true end
+        end
+        if _G.C_ToyBox.GetToyLink then
+            local ok, link = pcall(_G.C_ToyBox.GetToyLink, id)
+            if ok and link then return true end
+        end
     end
     return false
 end

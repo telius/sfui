@@ -336,22 +336,26 @@ local function CreateRowFrame(parent)
             end
         end
 
+        local tip = (sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()) or GameTooltip
         local anchor = (self:GetRight() and self:GetRight() > (UIParent:GetWidth() or 1000) / 2) and "ANCHOR_LEFT" or "ANCHOR_RIGHT"
-        GameTooltip:SetOwner(self, anchor)
+        tip:SetOwner(self, anchor)
 
         if self.itemLink then
-            GameTooltip:SetHyperlink(self.itemLink)
-            GameTooltip:Show()
-        elseif self.currencyID and GameTooltip.SetCurrencyByID then
-            GameTooltip:SetCurrencyByID(self.currencyID)
-            GameTooltip:Show()
-        elseif self.tooltipTitle then
-            GameTooltip:ClearLines()
-            GameTooltip:AddLine(self.tooltipTitle, 1, 1, 1)
-            if self.tooltipDesc then
-                GameTooltip:AddLine(self.tooltipDesc, 0.8, 0.8, 0.8, true)
+            tip:SetHyperlink(self.itemLink)
+            tip:Show()
+            if sfui.compare and sfui.compare.try_show_compare then
+                sfui.compare.try_show_compare(tip)
             end
-            GameTooltip:Show()
+        elseif self.currencyID and tip.SetCurrencyByID then
+            tip:SetCurrencyByID(self.currencyID)
+            tip:Show()
+        elseif self.tooltipTitle then
+            tip:ClearLines()
+            tip:AddLine(self.tooltipTitle, 1, 1, 1)
+            if self.tooltipDesc then
+                tip:AddLine(self.tooltipDesc, 0.8, 0.8, 0.8, true)
+            end
+            tip:Show()
         end
     end)
 
@@ -390,7 +394,8 @@ local function CreateRowFrame(parent)
                 end
             end
         end
-        if hide_tooltip then hide_tooltip() else GameTooltip:Hide() end
+        local hide_tip = (sfui.common and sfui.common.hide_tooltip) or hide_tooltip
+        if hide_tip then hide_tip() else GameTooltip:Hide() end
     end)
 
     row:SetScript("OnClick", function(self, button)
@@ -1370,6 +1375,100 @@ local function OnSkillLinesChanged()
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
+--  Blizzard Loot Toast Suppression (Toasts Only; Rolls & Loot Inspection Untouched)
+-- ─────────────────────────────────────────────────────────────────────────────
+local BLIZZARD_LOOT_TOAST_EVENTS = {
+    "LOOT_ITEM_ROLL_WON",
+    "SHOW_LOOT_TOAST",
+    "SHOW_LOOT_TOAST_UPGRADE",
+    "SHOW_PVP_FACTION_LOOT_TOAST",
+    "SHOW_RATED_PVP_REWARD_TOAST",
+    "SHOW_LOOT_TOAST_LEGENDARY_LOOTED",
+    "AZERITE_EMPOWERED_ITEM_LOOTED",
+}
+
+function sfui.lootfeed.DisableBlizzardLootAlerts()
+    -- 1. Unregister loot toast events from AlertFrame
+    local af = _G.AlertFrame
+    if af and af.UnregisterEvent then
+        for _, ev in ipairs(BLIZZARD_LOOT_TOAST_EVENTS) do
+            pcall(af.UnregisterEvent, af, ev)
+        end
+    end
+
+    -- 2. Suppress loot toast alert subsystems (leaving achievement, scenario, dungeon alerts intact)
+    local systems = {
+        _G.LootAlertSystem,
+        _G.LootUpgradeAlertSystem,
+        _G.MoneyWonAlertSystem,
+        _G.HonorAwardedAlertSystem,
+        _G.LegendaryItemAlertSystem,
+    }
+    for _, sys in ipairs(systems) do
+        if sys then
+            if sys.SetShouldIgnoreAlertsFunction then
+                pcall(sys.SetShouldIgnoreAlertsFunction, sys, function() return true end)
+            end
+            if sys.SetCanShowMoreConditionFunc then
+                pcall(sys.SetCanShowMoreConditionFunc, sys, function() return false end)
+            end
+            if sys.alertFramePool and sys.alertFramePool.ReleaseAll then
+                pcall(sys.alertFramePool.ReleaseAll, sys.alertFramePool)
+            end
+            if sys.queuedAlerts then
+                wipe(sys.queuedAlerts)
+            end
+        end
+    end
+
+    -- 3. Set CVar if available in this client
+    if _G.SetCVar and _G.GetCVar and _G.GetCVar("enableLootToasts") ~= nil then
+        pcall(_G.SetCVar, "enableLootToasts", "0")
+    end
+end
+
+function sfui.lootfeed.EnableBlizzardLootAlerts()
+    local af = _G.AlertFrame
+    if af and af.RegisterEvent then
+        for _, ev in ipairs(BLIZZARD_LOOT_TOAST_EVENTS) do
+            pcall(af.RegisterEvent, af, ev)
+        end
+    end
+
+    local systems = {
+        _G.LootAlertSystem,
+        _G.LootUpgradeAlertSystem,
+        _G.MoneyWonAlertSystem,
+        _G.HonorAwardedAlertSystem,
+        _G.LegendaryItemAlertSystem,
+    }
+    for _, sys in ipairs(systems) do
+        if sys then
+            if sys.SetShouldIgnoreAlertsFunction then
+                pcall(sys.SetShouldIgnoreAlertsFunction, sys, nil)
+            end
+            if sys.SetCanShowMoreConditionFunc then
+                pcall(sys.SetCanShowMoreConditionFunc, sys, nil)
+            end
+        end
+    end
+
+    if _G.SetCVar and _G.GetCVar and _G.GetCVar("enableLootToasts") ~= nil then
+        pcall(_G.SetCVar, "enableLootToasts", "1")
+    end
+end
+
+function sfui.lootfeed.ApplyBlizzardAlertState()
+    local cfg = GetConfig()
+    local shouldDisable = (cfg.enabled ~= false) and (cfg.disableBlizzardLootAlerts ~= false)
+    if shouldDisable then
+        sfui.lootfeed.DisableBlizzardLootAlerts()
+    else
+        sfui.lootfeed.EnableBlizzardLootAlerts()
+    end
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
 --  Module Lifecycle & Event Registration
 -- ─────────────────────────────────────────────────────────────────────────────
 local M = sfui.RegisterModule("lootfeed", {
@@ -1385,6 +1484,9 @@ local M = sfui.RegisterModule("lootfeed", {
         if db.maxRows == 8 then db.maxRows = cfg.maxRows or 10 end
         if db.fadeDuration == 0.35 then db.fadeDuration = cfg.fadeDuration or 0.5 end
         if db.minItemQuality == nil or db.minItemQuality == 1 then db.minItemQuality = cfg.minItemQuality or 0 end
+        if db.disableBlizzardLootAlerts == nil then
+            db.disableBlizzardLootAlerts = (cfg.disableBlizzardLootAlerts ~= nil) and cfg.disableBlizzardLootAlerts or true
+        end
 
         for k, v in pairs(cfg) do
             if db[k] == nil then
@@ -1405,6 +1507,9 @@ local M = sfui.RegisterModule("lootfeed", {
         lastMoney = GetMoney() or 0
         lastXP = UnitXP("player") or 0
         OnSkillLinesChanged()
+
+        -- Apply Blizzard loot toast suppression state
+        sfui.lootfeed.ApplyBlizzardAlertState()
 
         -- 1. Create Root Container Frame
         EnsureContainer()
@@ -1480,6 +1585,7 @@ local M = sfui.RegisterModule("lootfeed", {
             local xp = UnitXP("player")
             if xp and not IsSecret(xp) then lastXP = xp else lastXP = 0 end
             OnSkillLinesChanged()
+            sfui.lootfeed.ApplyBlizzardAlertState()
         end
 
         self.eventCallbacks = {
@@ -1516,9 +1622,13 @@ local M = sfui.RegisterModule("lootfeed", {
             wipe(skillCache)
             if pendingHeader then pendingHeader:Hide() end
         end
+        sfui.lootfeed.EnableBlizzardLootAlerts()
     end,
 
     OnSettingsChanged = function(self, key, value)
+        if key == "disableBlizzardLootAlerts" or key == "enabled" then
+            sfui.lootfeed.ApplyBlizzardAlertState()
+        end
         UpdateLayout()
     end,
 })

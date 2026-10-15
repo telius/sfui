@@ -201,17 +201,13 @@ local function get_or_create_backdrop()
     if backdropFrame then return backdropFrame end
     if not Minimap then return nil end
 
-    backdropFrame = CreateFrame("Frame", "sfui_SquareMinimapBackdrop", Minimap)
+    local parent = Minimap:GetParent() or MinimapCluster or UIParent
+    backdropFrame = CreateFrame("Frame", "sfui_SquareMinimapBackdrop", parent)
     backdropFrame:SetFrameStrata("BACKGROUND")
-    backdropFrame:SetFrameLevel(math_max(0, Minimap:GetFrameLevel() - 1))
+    backdropFrame:SetFrameLevel(0)
     backdropFrame:SetPoint("TOPLEFT", Minimap, "TOPLEFT", -1, 1)
     backdropFrame:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 1, -1)
     backdropFrame:EnableMouse(false)
-
-    local bg = backdropFrame:CreateTexture(nil, "BACKGROUND", nil, -8)
-    bg:SetAllPoints()
-    bg:SetColorTexture(0.02, 0.02, 0.02, 0.95)
-    backdropFrame.bg = bg
 
     square:UpdateTheme()
 
@@ -317,10 +313,29 @@ function square:Apply()
     -- 5. Mousewheel zoom
     setup_mouse_wheel()
 
-    -- 6. Notify LibDBIcon to refresh button positions if present
+    -- 6. Lock Minimap strata and frame level; prevent MinimapCluster click elevation
+    if Minimap then
+        Minimap:SetFrameStrata("LOW")
+        Minimap:SetFrameLevel(10)
+    end
+    if MinimapCluster then
+        MinimapCluster:EnableMouse(false)
+    end
+
+    -- 7. Notify LibDBIcon to refresh button positions if present
     local ldbi = _G.LibStub and _G.LibStub("LibDBIcon-1.0", true)
     if ldbi and ldbi.Refresh then
         pcall(ldbi.Refresh, ldbi)
+    end
+
+    -- 8. Synchronize mail/crafting indicators and queue status (dungeon finder) positions
+    if sfui.minimap then
+        if sfui.minimap.update_indicator_positions then
+            sfui.minimap.update_indicator_positions()
+        end
+        if sfui.minimap.update_queue_status_position then
+            sfui.minimap.update_queue_status_position()
+        end
     end
 end
 
