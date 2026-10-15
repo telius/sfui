@@ -5,7 +5,6 @@ sfui.options = sfui.options or {}
 local g = sfui.config
 local common = sfui.common
 local _G = _G
-local GameTooltip = _G.GameTooltip
 local GetCursorInfo = _G.GetCursorInfo
 local ClearCursor = _G.ClearCursor
 local InCombatLockdown = _G.InCombatLockdown
@@ -47,6 +46,7 @@ sfui.options.RegisterTab({
 
         -- keybind rows
         local rows = {
+            { id = "specs",         label = "specializations:",   title = "specializations ring keybind" },
             { id = "utility",       label = "class & custom:",    title = "class utility & custom ring keybind" },
             { id = "tracking",      label = "minimap tracking:", title = "minimap tracking keybind" },
             { id = "professions",   label = "professions:",       title = "professions keybind" },
@@ -171,8 +171,8 @@ sfui.options.RegisterTab({
                 if refresh_all_slots then
                     refresh_all_slots()
                 end
-                if GameTooltip:IsOwned(slotButtons[slotIdx]) then
-                    GameTooltip:Hide()
+                if common.hide_tooltip then
+                    common.hide_tooltip()
                 end
             elseif button == "LeftButton" then
                 if GetCursorInfo() then
@@ -182,39 +182,41 @@ sfui.options.RegisterTab({
         end
 
         local function show_slot_tooltip(self, slotIdx)
+            local tip = common.get_tooltip and common.get_tooltip()
+            if not tip then return end
             local data = self._slotData
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            tip:SetOwner(self, "ANCHOR_RIGHT")
             if data and data.type and data.id then
                 if data.type == "spell" then
-                    if GameTooltip.SetSpellByID and tonumber(data.id) then
-                        GameTooltip:SetSpellByID(tonumber(data.id))
+                    if tip.SetSpellByID and tonumber(data.id) then
+                        tip:SetSpellByID(tonumber(data.id))
                     else
-                        GameTooltip:AddLine(data.name or "spell", 1, 1, 1)
+                        tip:AddLine(data.name or "spell", 1, 1, 1)
                     end
                 elseif data.type == "item" then
-                    if GameTooltip.SetItemByID and tonumber(data.id) then
-                        GameTooltip:SetItemByID(tonumber(data.id))
+                    if tip.SetItemByID and tonumber(data.id) then
+                        tip:SetItemByID(tonumber(data.id))
                     else
-                        GameTooltip:AddLine(data.name or "item", 1, 1, 1)
+                        tip:AddLine(data.name or "item", 1, 1, 1)
                     end
                 elseif data.type == "toy" then
-                    if GameTooltip.SetToyByItemID and tonumber(data.id) then
-                        GameTooltip:SetToyByItemID(tonumber(data.id))
+                    if tip.SetToyByItemID and tonumber(data.id) then
+                        tip:SetToyByItemID(tonumber(data.id))
                     else
-                        GameTooltip:AddLine(data.name or "toy", 1, 1, 1)
+                        tip:AddLine(data.name or "toy", 1, 1, 1)
                     end
                 elseif data.type == "macro" then
-                    GameTooltip:AddLine(data.name or ("macro " .. tostring(data.id)), 1, 1, 1)
+                    tip:AddLine(data.name or ("macro " .. tostring(data.id)), 1, 1, 1)
                 end
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("|cff00e5ffslot " .. slotIdx .. "|r  |cff888888(left-click to drop, right-click to remove)|r", 0.7, 0.7, 0.7)
+                tip:AddLine(" ")
+                tip:AddLine("|cff00e5ffslot " .. slotIdx .. "|r  |cff888888(left-click to drop, right-click to remove)|r", 0.7, 0.7, 0.7)
             else
-                GameTooltip:AddLine("custom slot " .. slotIdx, 1, 1, 1)
-                GameTooltip:AddLine("empty slot", 0.6, 0.6, 0.6)
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("|cff888888drag and drop a spell, ability, item, toy, or macro here.|r", 0.7, 0.7, 0.7)
+                tip:AddLine("custom slot " .. slotIdx, 1, 1, 1)
+                tip:AddLine("empty slot", 0.6, 0.6, 0.6)
+                tip:AddLine(" ")
+                tip:AddLine("|cff888888drag and drop a spell, ability, item, toy, or macro here.|r", 0.7, 0.7, 0.7)
             end
-            GameTooltip:Show()
+            tip:Show()
         end
 
         -- create 12 interactive drop buttons (2 rows of 6)
@@ -270,7 +272,9 @@ sfui.options.RegisterTab({
                         self.roundBorder:SetColorTexture(0.2, 0.2, 0.2, 0.85)
                     end
                 end
-                GameTooltip:Hide()
+                if common.hide_tooltip then
+                    common.hide_tooltip()
+                end
             end)
 
             slotButtons[i] = btn

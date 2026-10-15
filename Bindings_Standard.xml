@@ -1,5 +1,6 @@
 <Bindings>
     <Binding name="CLICK SfuiHammerPopup:LeftButton" category="SFUI"/>
+    <Binding name="CLICK SfuiRing_specs:LeftButton" runOnUp="true" category="SFUI"/>
     <Binding name="CLICK SfuiRing_targetmarkers:LeftButton" runOnUp="true" category="SFUI"/>
     <Binding name="CLICK SfuiRing_worldmarkers:LeftButton" runOnUp="true" category="SFUI"/>
     <Binding name="CLICK SfuiRing_professions:LeftButton" runOnUp="true" category="SFUI"/>

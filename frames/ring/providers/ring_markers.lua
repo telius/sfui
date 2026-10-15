@@ -20,17 +20,21 @@ local TARGET_MARKER_DEFS = {
 sfui.ring.register_provider("targetmarkers", {
     name   = "target markers",
     title  = "target markers",
-    events = { "PLAYER_ENTERING_WORLD" },
+    events = { "PLAYER_ENTERING_WORLD", "RAID_TARGET_UPDATE", "PLAYER_TARGET_CHANGED" },
     build  = function(out)
+        local currentTargetMarker = _G.GetRaidTargetIndex and _G.GetRaidTargetIndex("target")
         for i = 1, #TARGET_MARKER_DEFS do
             local def = TARGET_MARKER_DEFS[i]
+            local isActive = (def.marker > 0 and currentTargetMarker == def.marker)
             out[#out + 1] = {
-                id        = def.id,
-                label     = def.label,
-                icon      = def.icon or RAID_ICON_TEXTURE,
-                texCoords = def.coords,
-                color     = def.color,
-                attrs     = {
+                id             = def.id,
+                label          = def.label,
+                icon           = def.icon or RAID_ICON_TEXTURE,
+                texCoords      = def.coords,
+                color          = def.color,
+                selectionColor = def.color,
+                active         = isActive,
+                attrs          = {
                     type      = "macro",
                     macrotext = "/tm [@mouseover,exists][] " .. def.marker,
                 },

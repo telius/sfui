@@ -170,6 +170,164 @@ end
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Pet Bar Layout & Creation
 -- ─────────────────────────────────────────────────────────────────────────────
+function sfui.actionbars.UpdatePetBar()
+    local bar = sfui.actionbars.petBar
+    if not bar or not bar.buttons then return end
+
+    local hasPetBar = _G.PetHasActionBar and _G.PetHasActionBar()
+
+    for i = 1, 10 do
+        local btn = bar.buttons[i]
+        if btn then
+            btn.index = i
+            if btn.SetID then btn:SetID(i) end
+
+            local icon = btn.icon or btn.Icon
+            local autoCast = btn.AutoCastOverlay or btn.AutoCastable
+            local cd = btn.cooldown
+
+            if hasPetBar and _G.GetPetActionInfo then
+                local name, texture, isToken, isActive, autoCastAllowed, autoCastEnabled, spellID, checksRange, inRange = _G.GetPetActionInfo(i)
+
+                if icon then
+                    if texture then
+                        if not isToken then
+                            icon:SetTexture(texture)
+                            btn.tooltipName = name
+                        else
+                            icon:SetTexture(_G[texture] or texture)
+                            btn.tooltipName = _G[name] or name
+                        end
+                        icon:ClearAllPoints()
+                        icon:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
+                        icon:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
+                        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                        icon:SetDrawLayer("ARTWORK", 0)
+
+                        local isUsable = not _G.GetPetActionSlotUsable or _G.GetPetActionSlotUsable(i)
+                        if isUsable then
+                            icon:SetVertexColor(1, 1, 1)
+                        else
+                            icon:SetVertexColor(0.4, 0.4, 0.4)
+                        end
+                        icon:Show()
+                    else
+                        icon:SetTexture(nil)
+                        icon:Hide()
+                        btn.tooltipName = nil
+                    end
+                end
+
+                btn.isToken = isToken
+                if spellID and spellID ~= btn.spellDataSpellID and _G.Spell and _G.Spell.CreateFromSpellID then
+                    btn.spellDataSpellID = spellID
+                    local spell = _G.Spell:CreateFromSpellID(spellID)
+                    if spell and spell.ContinueWithCancelOnSpellLoad then
+                        btn.spellDataLoadedCancelFunc = spell:ContinueWithCancelOnSpellLoad(function()
+                            btn.tooltipSubtext = spell:GetSpellSubtext()
+                        end)
+                    end
+                end
+
+                if isActive and name ~= "PET_ACTION_FOLLOW" then
+                    btn:SetChecked(true)
+                    local checkedTex = btn.GetCheckedTexture and btn:GetCheckedTexture()
+                    if checkedTex then
+                        local isAttack = _G.IsPetAttackAction and _G.IsPetAttackAction(i)
+                        checkedTex:SetAlpha(isAttack and 0.5 or 1.0)
+                    end
+                else
+                    btn:SetChecked(false)
+                end
+
+                if _G.PetActionButton_StartFlash and _G.PetActionButton_StopFlash then
+                    if isActive and _G.IsPetAttackAction and _G.IsPetAttackAction(i) then
+                        _G.PetActionButton_StartFlash(btn)
+                    else
+                        _G.PetActionButton_StopFlash(btn)
+                    end
+                elseif btn.StartFlash and btn.StopFlash then
+                    if isActive and _G.IsPetAttackAction and _G.IsPetAttackAction(i) then
+                        btn:StartFlash()
+                    else
+                        btn:StopFlash()
+                    end
+                end
+
+                if autoCast then
+                    autoCast:SetShown(autoCastAllowed)
+                    if autoCast.ShowAutoCastEnabled then
+                        autoCast:ShowAutoCastEnabled(autoCastEnabled)
+                    end
+                end
+
+                if cd and _G.GetPetActionCooldown then
+                    local start, duration, enable = _G.GetPetActionCooldown(i)
+                    if _G.CooldownFrame_Set then
+                        _G.CooldownFrame_Set(cd, start, duration, enable)
+                    elseif cd.SetCooldown then
+                        cd:SetCooldown(start, duration)
+                    end
+                end
+
+                if _G.ActionButton_UpdateRangeIndicator and checksRange ~= nil then
+                    _G.ActionButton_UpdateRangeIndicator(btn, checksRange, inRange)
+                end
+
+                if _G.HasPetActionHighlightMark and _G.SharedActionButton_RefreshSpellHighlight then
+                    _G.SharedActionButton_RefreshSpellHighlight(btn, _G.HasPetActionHighlightMark(i))
+                end
+
+                if _G.GameTooltip and _G.GameTooltip:GetOwner() == btn and btn.OnEnter then
+                    pcall(btn.OnEnter, btn)
+                end
+            else
+                if icon then
+                    icon:SetTexture(nil)
+                    icon:Hide()
+                end
+                btn:SetChecked(false)
+                if btn.StopFlash then btn:StopFlash() end
+                if autoCast then autoCast:Hide() end
+            end
+
+            -- Update hotkey text from native Blizzard binding BONUSACTIONBUTTON .. i
+            local hotkey = btn.HotKey or (btn.GetName and _G[btn:GetName() .. "HotKey"])
+            if hotkey then
+                local modCfg = (sfui.db and sfui.db.Get and sfui.db.Get("actionbars")) or (sfui.config and sfui.config.actionbars) or {}
+                if modCfg.showHotkeys == false then
+                    hotkey:Hide()
+                else
+                    local key = _G.GetBindingKey("BONUSACTIONBUTTON" .. i)
+                    if key and key ~= "" then
+                        local text = _G.GetBindingText(key, true)
+                        local formatted = (sfui.actionbars.style and sfui.actionbars.style.FormatHotkeyText and sfui.actionbars.style.FormatHotkeyText(text)) or text
+                        hotkey:SetText(formatted)
+                        hotkey:Show()
+                    else
+                        hotkey:SetText("")
+                        hotkey:Hide()
+                    end
+                end
+            end
+
+            -- Update slot grid backdrop and borders
+            if sfui.actionbars.style and sfui.actionbars.style.UpdateGrid then
+                sfui.actionbars.style.UpdateGrid(btn)
+            end
+        end
+    end
+
+    if not sfui.actionbars._inPetBarUpdate then
+        local blizzPetBar = _G.PetActionBar
+        if blizzPetBar and blizzPetBar.Update then
+            sfui.actionbars._inPetBarUpdate = true
+            pcall(blizzPetBar.Update, blizzPetBar)
+            sfui.actionbars._inPetBarUpdate = nil
+        end
+    end
+end
+
 function sfui.actionbars.ApplyPetBarLayout()
     local bar = sfui.actionbars.petBar
     if not bar then return end
@@ -252,6 +410,10 @@ function sfui.actionbars.ApplyPetBarLayout()
         end
     end
 
+    if sfui.actionbars.UpdatePetBar then
+        sfui.actionbars.UpdatePetBar()
+    end
+
     if sfui.actionbars.mouseover and sfui.actionbars.mouseover.UpdateAllBars then
         sfui.actionbars.mouseover.UpdateAllBars(true)
     end
@@ -292,6 +454,8 @@ function sfui.actionbars.CreatePetBar()
         local btn = _G["PetActionButton" .. i]
         if btn then
             btn:SetParent(bar)
+            btn.index = i
+            if btn.SetID then btn:SetID(i) end
             bar.buttons[i] = btn
             if sfui.actionbars.style and sfui.actionbars.style.SkinButton then
                 sfui.actionbars.style.SkinButton(btn)
@@ -311,6 +475,43 @@ function sfui.actionbars.CreatePetBar()
 
     -- Visibility driver: show when pet exists and not in vehicle/override
     _G.RegisterStateDriver(bar, "visibility", "[pet,nooverridebar,nopossessbar] show; hide")
+
+    if bar.HookScript then
+        bar:HookScript("OnShow", function()
+            if sfui.actionbars.UpdatePetBar then
+                sfui.actionbars.UpdatePetBar()
+            end
+        end)
+        bar:HookScript("OnHide", function(self)
+            if self.buttons then
+                for _, btn in ipairs(self.buttons) do
+                    if btn.spellDataLoadedCancelFunc then
+                        btn.spellDataLoadedCancelFunc()
+                        btn.spellDataLoadedCancelFunc = nil
+                        btn.spellDataSpellID = nil
+                    end
+                end
+            end
+        end)
+    end
+
+    local rangeElapsed = 0
+    bar:SetScript("OnUpdate", function(self, elapsed)
+        rangeElapsed = rangeElapsed + elapsed
+        if rangeElapsed >= 0.2 then
+            rangeElapsed = 0
+            if not _G.GetPetActionInfo or not _G.PetHasActionBar or not _G.PetHasActionBar() then return end
+            for i = 1, 10 do
+                local btn = self.buttons[i]
+                if btn and btn:IsShown() then
+                    local _, _, _, _, _, _, _, checksRange, inRange = _G.GetPetActionInfo(i)
+                    if _G.ActionButton_UpdateRangeIndicator and checksRange ~= nil then
+                        _G.ActionButton_UpdateRangeIndicator(btn, checksRange, inRange)
+                    end
+                end
+            end
+        end
+    end)
 
     sfui.actionbars.ApplyPetBarLayout()
 end
@@ -499,16 +700,8 @@ function sfui.actionbars.OverrideBarBindings(bar)
     if not bar or not bar.buttons or not SetOverrideBindingClick then return end
 
     if bar == sfui.actionbars.petBar then
-        for i = 1, 10 do
-            local btn = bar.buttons[i]
-            if btn and btn.GetName then
-                local keys = { GetBindingKey("BONUSACTIONBUTTON" .. i) }
-                for _, key in ipairs(keys) do
-                    if key and key ~= "" then
-                        SetOverrideBindingClick(bar, false, key, btn:GetName(), "LeftButton")
-                    end
-                end
-            end
+        if ClearOverrideBindings then
+            ClearOverrideBindings(bar)
         end
         return
     end
@@ -555,10 +748,17 @@ function sfui.actionbars.UpdateAllBindings()
             end
         end
     end
+
+    if sfui.actionbars.UpdatePetBar then
+        sfui.actionbars.UpdatePetBar()
+    end
 end
 
 -- Hook binding updates and combat regen
 local function OnBindingEvent(event)
+    if sfui.actionbars.HookPetActionBar then
+        sfui.actionbars.HookPetActionBar()
+    end
     if event == "PLAYER_REGEN_ENABLED" then
         if sfui.actionbars._needsUpdateBindings then
             sfui.actionbars.UpdateAllBindings()
@@ -730,17 +930,23 @@ if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_SHOW", on_overlay_glow)
     sfui.events.RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_HIDE", on_overlay_glow)
 
-    local function on_pet_update()
-        local bar = sfui.actionbars.petBar
-        if bar and bar.buttons then
-            for i = 1, #bar.buttons do
-                local btn = bar.buttons[i]
-                if btn and sfui.actionbars.style and sfui.actionbars.style.UpdateGrid then
-                    sfui.actionbars.style.UpdateGrid(btn)
-                end
-            end
+    local function on_pet_event(event, arg1)
+        if (event == "UNIT_FLAGS" and arg1 ~= "pet") or (event == "UNIT_PET" and arg1 ~= "player") then
+            return
+        end
+        if sfui.actionbars.UpdatePetBar then
+            sfui.actionbars.UpdatePetBar()
         end
     end
-    sfui.events.RegisterEvent("PET_BAR_UPDATE", on_pet_update)
-    sfui.events.RegisterEvent("PET_UI_UPDATE", on_pet_update)
+    sfui.events.RegisterEvent("PET_BAR_UPDATE", on_pet_event)
+    sfui.events.RegisterEvent("PET_UI_UPDATE", on_pet_event)
+    sfui.events.RegisterEvent("UNIT_PET", on_pet_event)
+    sfui.events.RegisterEvent("UNIT_FLAGS", on_pet_event)
+    sfui.events.RegisterEvent("PET_BAR_UPDATE_COOLDOWN", on_pet_event)
+    sfui.events.RegisterEvent("PET_BAR_UPDATE_USABLE", on_pet_event)
+    sfui.events.RegisterEvent("PLAYER_CONTROL_LOST", on_pet_event)
+    sfui.events.RegisterEvent("PLAYER_CONTROL_GAINED", on_pet_event)
+    sfui.events.RegisterEvent("PLAYER_FARSIGHT_FOCUS_CHANGED", on_pet_event)
+    sfui.events.RegisterEvent("SPELLS_CHANGED", on_pet_event)
+    sfui.events.RegisterEvent("UPDATE_VEHICLE_ACTIONBAR", on_pet_event)
 end

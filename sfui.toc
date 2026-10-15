@@ -147,7 +147,7 @@ frames/gear/hammer.lua [AllowLoadGameType standard]
 frames/gear/lootfeed.lua
 
 # Map & Pins Engine
-frames/map/pins.lua
+frames/map/pins.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 
 # Camelot Dungeon Journal
 data/dj_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
@@ -227,6 +227,7 @@ frames/ring/providers/ring_professions.lua
 frames/ring/providers/ring_questitems.lua
 frames/ring/providers/ring_tracking.lua
 frames/ring/providers/ring_utility.lua
+frames/ring/providers/ring_specs.lua
 
 frames/mem.lua
 commands.lua

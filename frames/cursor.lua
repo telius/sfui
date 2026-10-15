@@ -56,16 +56,15 @@ function sfui.cursor.initialize()
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD",         on_cursor_event)
     sfui.events.RegisterEvent("UI_SCALE_CHANGED",              on_cursor_event)
 
+    local lastRawX, lastRawY = -1, -1
     local function update_cursor_pos()
         if not f or not f:IsShown() then return end
         local x, y = GetCursorPosition()
+        if x == lastRawX and y == lastRawY then return end
+        lastRawX, lastRawY = x, y
         local cx = x / cachedScale
         local cy = y / cachedScale
-
-        if cx ~= lastX or cy ~= lastY then
-            lastX, lastY = cx, cy
-            f:SetPoint("CENTER", uiparent, "BOTTOMLEFT", cx, cy)
-        end
+        f:SetPoint("CENTER", uiparent, "BOTTOMLEFT", cx, cy)
     end
     f.OnUpdate = update_cursor_pos
 

@@ -93,17 +93,20 @@ sfui.portals.TOY_ICON_SPACING  = TOY_ICON_SPACING
 sfui.portals.TOY_ICONS_PER_ROW = TOY_ICONS_PER_ROW
 sfui.portals.TOY_X_OFFSET      = TOY_X_OFFSET
 
+local portalFrame = nil
+
 -- ========================
 -- Shared overlay action button (InsecureActionButtonTemplate pattern)
 -- ========================
 local actionBtn = CreateFrame("Button", "SfuiPortalsActionBtn", UIParent, "InsecureActionButtonTemplate")
-if actionBtn.SetAttributeNoHandler then
-    actionBtn:SetAttributeNoHandler("pressAndHoldAction", 1)
-else
-    actionBtn:SetAttribute("pressAndHoldAction", 1)
-end
-actionBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+actionBtn:RegisterForClicks("AnyDown", "AnyUp")
 actionBtn:SetFrameStrata("TOOLTIP")
+actionBtn:EnableMouseWheel(true)
+actionBtn:SetScript("OnMouseWheel", function(self, delta)
+    if currentHoverFrame and currentHoverFrame:GetScript("OnMouseWheel") then
+        currentHoverFrame:GetScript("OnMouseWheel")(currentHoverFrame, delta)
+    end
+end)
 actionBtn:Hide()
 
 sfui.portals.actionBtn = actionBtn
@@ -121,36 +124,34 @@ end
 sfui.portals.set_attr = set_attr
 
 local function arm_spell(spellID, portalID, frame)
-    if InCombatLockdown() or not portalFrame or not portalFrame:IsShown() then return end
+    if InCombatLockdown() or not frame or not frame:IsVisible() then return end
+    if portalFrame and not portalFrame:IsShown() then return end
     if currentHoverFrame and currentHoverFrame ~= frame and currentHoverFrame.resetHover then
         currentHoverFrame.resetHover()
     end
     currentHoverFrame = frame
-    set_attr(actionBtn, "pressAndHoldAction", 1)
+    set_attr(actionBtn, "pressAndHoldAction", nil)
     if spellID then
         set_attr(actionBtn, "type", "spell")
-        set_attr(actionBtn, "typerelease", "spell")
         set_attr(actionBtn, "spell", spellID)
         set_attr(actionBtn, "type1", "spell")
-        set_attr(actionBtn, "typerelease1", "spell")
         set_attr(actionBtn, "spell1", spellID)
     else
         set_attr(actionBtn, "type", nil)
-        set_attr(actionBtn, "typerelease", nil)
         set_attr(actionBtn, "spell", nil)
         set_attr(actionBtn, "type1", nil)
-        set_attr(actionBtn, "typerelease1", nil)
         set_attr(actionBtn, "spell1", nil)
     end
     if portalID and sfui.portals.player_has_spell(portalID) then
         set_attr(actionBtn, "type2", "spell")
-        set_attr(actionBtn, "typerelease2", "spell")
         set_attr(actionBtn, "spell2", portalID)
     else
         set_attr(actionBtn, "type2", nil)
-        set_attr(actionBtn, "typerelease2", nil)
         set_attr(actionBtn, "spell2", nil)
     end
+    set_attr(actionBtn, "typerelease", nil)
+    set_attr(actionBtn, "typerelease1", nil)
+    set_attr(actionBtn, "typerelease2", nil)
     set_attr(actionBtn, "toy", nil)
     set_attr(actionBtn, "toy1", nil)
     set_attr(actionBtn, "item", nil)
@@ -158,24 +159,27 @@ local function arm_spell(spellID, portalID, frame)
     actionBtn:ClearAllPoints()
     actionBtn:SetAllPoints(frame)
     actionBtn:SetFrameStrata("TOOLTIP")
+    actionBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 15)
     actionBtn:Show()
 end
 sfui.portals.arm_spell = arm_spell
 
 local function arm_toy(toyID, frame)
-    if InCombatLockdown() or not portalFrame or not portalFrame:IsShown() then return end
+    if InCombatLockdown() or not frame or not frame:IsVisible() then return end
+    if portalFrame and not portalFrame:IsShown() then return end
     if currentHoverFrame and currentHoverFrame ~= frame and currentHoverFrame.resetHover then
         currentHoverFrame.resetHover()
     end
     currentHoverFrame = frame
-    set_attr(actionBtn, "pressAndHoldAction", 1)
+    set_attr(actionBtn, "pressAndHoldAction", nil)
     set_attr(actionBtn, "type", "toy")
-    set_attr(actionBtn, "typerelease", "toy")
     set_attr(actionBtn, "toy", toyID)
     set_attr(actionBtn, "type1", "toy")
-    set_attr(actionBtn, "typerelease1", "toy")
     set_attr(actionBtn, "toy1", toyID)
     set_attr(actionBtn, "type2", nil)
+    set_attr(actionBtn, "toy2", nil)
+    set_attr(actionBtn, "typerelease", nil)
+    set_attr(actionBtn, "typerelease1", nil)
     set_attr(actionBtn, "typerelease2", nil)
     set_attr(actionBtn, "spell", nil)
     set_attr(actionBtn, "spell1", nil)
@@ -185,24 +189,27 @@ local function arm_toy(toyID, frame)
     actionBtn:ClearAllPoints()
     actionBtn:SetAllPoints(frame)
     actionBtn:SetFrameStrata("TOOLTIP")
+    actionBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 15)
     actionBtn:Show()
 end
 sfui.portals.arm_toy = arm_toy
 
 local function arm_item(itemID, frame)
-    if InCombatLockdown() or not portalFrame or not portalFrame:IsShown() then return end
+    if InCombatLockdown() or not frame or not frame:IsVisible() then return end
+    if portalFrame and not portalFrame:IsShown() then return end
     if currentHoverFrame and currentHoverFrame ~= frame and currentHoverFrame.resetHover then
         currentHoverFrame.resetHover()
     end
     currentHoverFrame = frame
-    set_attr(actionBtn, "pressAndHoldAction", 1)
+    set_attr(actionBtn, "pressAndHoldAction", nil)
     set_attr(actionBtn, "type", "item")
-    set_attr(actionBtn, "typerelease", "item")
     set_attr(actionBtn, "item", "item:" .. itemID)
     set_attr(actionBtn, "type1", "item")
-    set_attr(actionBtn, "typerelease1", "item")
     set_attr(actionBtn, "item1", "item:" .. itemID)
     set_attr(actionBtn, "type2", nil)
+    set_attr(actionBtn, "item2", nil)
+    set_attr(actionBtn, "typerelease", nil)
+    set_attr(actionBtn, "typerelease1", nil)
     set_attr(actionBtn, "typerelease2", nil)
     set_attr(actionBtn, "spell", nil)
     set_attr(actionBtn, "spell1", nil)
@@ -212,6 +219,7 @@ local function arm_item(itemID, frame)
     actionBtn:ClearAllPoints()
     actionBtn:SetAllPoints(frame)
     actionBtn:SetFrameStrata("TOOLTIP")
+    actionBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 15)
     actionBtn:Show()
 end
 sfui.portals.arm_item = arm_item
@@ -240,6 +248,7 @@ local function disarm()
         set_attr(actionBtn, "type2", nil)
         set_attr(actionBtn, "typerelease2", nil)
         set_attr(actionBtn, "spell2", nil)
+        set_attr(actionBtn, "pressAndHoldAction", nil)
     end
     isDisarming = false
 end
@@ -250,7 +259,6 @@ sfui.portals.is_currently_clicking = function() return currentlyClicking end
 -- ========================
 -- Helpers
 -- ========================
-local portalFrame = nil
 
 local function sort_portals_by_name(a, b)
     return (a.name or ""):lower() < (b.name or ""):lower()
@@ -529,7 +537,7 @@ end)
 actionBtn:SetScript("PostClick", function(self, button)
     local isCast = (button == "LeftButton") or (button == "RightButton" and self:GetAttribute("type2") == "spell")
     if isCast then
-        _G.C_Timer.After(0.01, function()
+        _G.C_Timer.After(0.05, function()
             currentlyClicking = false
             disarm()
             hide_tooltip()

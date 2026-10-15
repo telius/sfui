@@ -146,11 +146,10 @@ local function _OnDispatcherUpdate(_, elapsed)
     local n = #updateCallbacks
     if n == 0 then return end
 
-    for i = 1, n do
-        _snapUpdates[i] = updateCallbacks[i]
-    end
-
     if _memActive then
+        for i = 1, n do
+            _snapUpdates[i] = updateCallbacks[i]
+        end
         for i = 1, n do
             local d = _snapUpdates[i]
             _snapUpdates[i] = nil
@@ -168,8 +167,7 @@ local function _OnDispatcherUpdate(_, elapsed)
         end
     else
         for i = 1, n do
-            local d = _snapUpdates[i]
-            _snapUpdates[i] = nil
+            local d = updateCallbacks[i]
             if d and not d.removed and type(d.callback) == "function" then
                 d.elapsed = d.elapsed + elapsed
                 if d.elapsed >= d.interval then
@@ -615,4 +613,20 @@ function sfui.dispatcher_debug_info()
     _dispDebug.updateLoops = #updateCallbacks
     _dispDebug.memProfiling = _memActive
     return _dispDebug
+end
+
+function sfui.events.GetUpdateCallbacks()
+    return updateCallbacks
+end
+
+function sfui.events.GetEventCallbacks()
+    return eventCallbacks
+end
+
+function sfui.events.GetUnitEventCallbacks()
+    return unitEventCallbacks
+end
+
+function sfui.events.GetDispatcherFrame()
+    return ev_frame
 end

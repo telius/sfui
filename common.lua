@@ -834,6 +834,73 @@ function sfui.common.is_item_known(itemLink)
     return false
 end
 
+function sfui.common.is_spell_known(spellID)
+    if not spellID then return false end
+    local sID = tonumber(spellID) or spellID
+
+    local C_SpellBook = _G.C_SpellBook
+    local Enum = _G.Enum
+    if C_SpellBook then
+        local bank = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player
+        if C_SpellBook.IsSpellKnown and bank then
+            local ok, known = pcall(C_SpellBook.IsSpellKnown, sID, bank)
+            if ok and known then return true end
+        end
+        if C_SpellBook.IsSpellInSpellBook and bank then
+            local ok, known = pcall(C_SpellBook.IsSpellInSpellBook, sID, bank, true)
+            if ok and known then return true end
+        end
+        if C_SpellBook.IsSpellKnownOrInSpellBook then
+            local ok, known = pcall(C_SpellBook.IsSpellKnownOrInSpellBook, sID)
+            if ok and known then return true end
+        end
+        if C_SpellBook.FindSpellBookSlotForSpell then
+            local ok, slot = pcall(C_SpellBook.FindSpellBookSlotForSpell, sID)
+            if ok and slot and slot > 0 then return true end
+        end
+    end
+
+    local C_Spell = _G.C_Spell
+    if C_Spell then
+        if C_Spell.IsSpellKnown then
+            local ok, known = pcall(C_Spell.IsSpellKnown, sID)
+            if ok and known then return true end
+        end
+        if C_Spell.IsSpellKnownOrOverridesKnown then
+            local ok, known = pcall(C_Spell.IsSpellKnownOrOverridesKnown, sID)
+            if ok and known then return true end
+        end
+    end
+
+    if _G.IsPlayerSpell then
+        local ok, known = pcall(_G.IsPlayerSpell, sID)
+        if ok and known then return true end
+    end
+    if _G.IsSpellKnown then
+        local ok, known = pcall(_G.IsSpellKnown, sID)
+        if ok and known then return true end
+    end
+
+    return false
+end
+
+function sfui.common.is_toy_known(toyID)
+    if not toyID then return false end
+    local id = tonumber(toyID)
+    if not id then return false end
+    local PlayerHasToy = _G.PlayerHasToy
+    if PlayerHasToy then
+        local ok, hasToy = pcall(PlayerHasToy, id)
+        if ok and hasToy then return true end
+    end
+    local C_ToyBox = _G.C_ToyBox
+    if C_ToyBox and C_ToyBox.PlayerHasToy then
+        local ok, hasToy = pcall(C_ToyBox.PlayerHasToy, id)
+        if ok and hasToy then return true end
+    end
+    return false
+end
+
 function sfui.common.shorten_name(name, length)
     if not name or type(name) ~= "string" then return "" end
     length = length or 25

@@ -28,6 +28,7 @@ local defaults = {
     sound_cues  = true,
     custom_slots = {},
     bindings    = {
+        specs         = "ALT-X",
         utility       = "ALT-C",
         tracking      = "ALT-F",
         professions   = "ALT-T",
@@ -259,3 +260,42 @@ sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
         do_flush_rebuilds()
     end
 end)
+
+-- ── 6. Debug & Memory Monitoring ────────────────────────────────────────────
+function sfui.ring_debug_info()
+    local provCount = 0
+    for _ in pairs(providers) do
+        provCount = provCount + 1
+    end
+
+    local activeSlotsCount = 0
+    if ring.view and ring.view.get_active_slots_count then
+        activeSlotsCount = ring.view.get_active_slots_count()
+    end
+
+    local isShown = (ring.view and ring.view.get_frame and ring.view.get_frame():IsShown()) or false
+    local currentRing = ring.view and ring.view.get_current_ring_id and ring.view.get_current_ring_id()
+    local pendingCount = 0
+    for _ in pairs(pendingRebuilds) do
+        pendingCount = pendingCount + 1
+    end
+
+    local boundCount = 0
+    for id in pairs(providers) do
+        local b = ring.get_binding(id)
+        if b and b ~= "" then
+            boundCount = boundCount + 1
+        end
+    end
+
+    return {
+        enabled = (sfui.db and sfui.db.Get and sfui.db.Get("ring", "enabled", true)) ~= false,
+        providersCount = provCount,
+        activeSlotsCount = activeSlotsCount,
+        isShown = isShown,
+        currentRing = currentRing,
+        pendingCount = pendingCount,
+        boundCount = boundCount,
+    }
+end
+sfui.ring.GetDebugInfo = sfui.ring_debug_info

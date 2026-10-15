@@ -116,8 +116,11 @@ local myRealm = nil
 local myName = nil
 local myClass = nil
 
+local hasSanitizedRecipeDB = false
 local function SanitizeRecipeDB()
+    if hasSanitizedRecipeDB then return end
     if SfuiDB and SfuiDB.recipes then
+        hasSanitizedRecipeDB = true
         for k in pairs(SfuiDB.recipes) do
             if type(k) ~= "number" then
                 SfuiDB.recipes[k] = nil
@@ -222,7 +225,7 @@ end
 --- @return boolean? isKnown, boolean isReady
 local function CheckActivePlayerKnownStatus(itemID)
     EnsurePlayerContext()
-    if not itemID then return nil, false end
+    if not itemID or type(itemID) ~= "number" or not IsRecipe(itemID) then return nil, true end
 
     local _, itemLink = C_Item_GetItemInfo(itemID)
     if not itemLink then
@@ -270,7 +273,13 @@ end
 --- @return boolean isSuccess
 local function UpdateItem(itemID)
     EnsurePlayerContext()
-    if not itemID or type(itemID) ~= "number" or not myRealm or not myGUID then return false end
+    if not itemID or type(itemID) ~= "number" or not myRealm or not myGUID then return true end
+    if not IsRecipe(itemID) then return true end
+
+    local isKnown, isReady = CheckActivePlayerKnownStatus(itemID)
+    if not isReady then
+        return false
+    end
 
     SfuiDB = SfuiDB or {}
     SfuiDB.recipes = SfuiDB.recipes or {}
@@ -279,11 +288,6 @@ local function UpdateItem(itemID)
     end
     if type(SfuiDB.recipes[itemID][myRealm]) ~= "table" then
         SfuiDB.recipes[itemID][myRealm] = {}
-    end
-
-    local isKnown, isReady = CheckActivePlayerKnownStatus(itemID)
-    if not isReady then
-        return false
     end
 
     if isKnown then
@@ -298,28 +302,27 @@ end
 -- ── Batched Background Update Loop (Zero hitching) ───────────────────────────
 local pendingUpdateQueue = {}
 local isUpdateLoopRunning = false
-local BATCH_SIZE = 15
-local BATCH_DELAY = 0.05
+local BATCH_SIZE = 10
+local BATCH_DELAY = 0.2
 
 local function ProcessNextBatch()
     if not isUpdateLoopRunning then return end
 
     local processed = 0
-    local remaining = 0
+    local hasRemaining = false
 
     for itemID in pairs(pendingUpdateQueue) do
         if processed < BATCH_SIZE then
-            local success = UpdateItem(itemID)
-            if success then
-                pendingUpdateQueue[itemID] = nil
-            end
+            pendingUpdateQueue[itemID] = nil
+            UpdateItem(itemID)
             processed = processed + 1
         else
-            remaining = remaining + 1
+            hasRemaining = true
+            break
         end
     end
 
-    if remaining > 0 then
+    if hasRemaining then
         C_Timer.After(BATCH_DELAY, ProcessNextBatch)
     else
         isUpdateLoopRunning = false
@@ -333,14 +336,14 @@ local function RequestUpdateAllItems()
 
     wipe(pendingUpdateQueue)
     for itemID, data in pairs(SfuiDB.recipes) do
-        if type(itemID) == "number" and type(data) == "table" then
+        if type(itemID) == "number" and type(data) == "table" and IsRecipe(itemID) then
             pendingUpdateQueue[itemID] = true
         elseif type(itemID) ~= "number" then
             SfuiDB.recipes[itemID] = nil
         end
     end
 
-    if not isUpdateLoopRunning then
+    if not isUpdateLoopRunning and next(pendingUpdateQueue) then
         isUpdateLoopRunning = true
         C_Timer.After(BATCH_DELAY, ProcessNextBatch)
     end
@@ -1202,15 +1205,10 @@ local function OnLogin()
 
     PruneOrphanCrafts()
     HookContainerButtons()
-
-    -- Initial non-blocking background check
-    C_Timer.After(1.5, RequestUpdateAllItems)
 end
 
 local function OnRecipeLearned()
     InvalidateRecipeStatusCache()
-    -- Deferred update after client syncs new spell knowledge
-    C_Timer.After(0.2, RequestUpdateAllItems)
     RequestTradeSkillScan(true)
 end
 

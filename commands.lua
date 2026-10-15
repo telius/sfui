@@ -29,6 +29,7 @@ _G["BINDING_NAME_SFUI_MATCHMOUNT"] = "match target mount"
 _G["BINDING_NAME_SFUI_ALTS"] = "alts / warband"
 _G["BINDING_NAME_SFUI_FISHING"] = "cast & catch fishing"
 _G["BINDING_NAME_SFUI_PET_SUMMON"] = "summon / rotate companion pet"
+_G["BINDING_NAME_CLICK SfuiRing_specs:LeftButton"]         = "ring: specializations"
 _G["BINDING_NAME_CLICK SfuiRing_targetmarkers:LeftButton"] = "ring: target markers"
 _G["BINDING_NAME_CLICK SfuiRing_worldmarkers:LeftButton"]  = "ring: world markers"
 _G["BINDING_NAME_CLICK SfuiRing_professions:LeftButton"]   = "ring: professions"
@@ -110,6 +111,14 @@ SLASH_SFMEM1 = "/sfmem"
 SlashCmdList["SFMEM"] = function(msg)
     if sfui.mem and sfui.mem.HandleSlash then
         sfui.mem.HandleSlash(msg)
+    end
+end
+
+-- CPU Profiler (/sfcpu [seconds])
+SLASH_SFCPU1 = "/sfcpu"
+SlashCmdList["SFCPU"] = function(msg)
+    if sfui.mem and sfui.mem.StartCPUWatcher then
+        sfui.mem.StartCPUWatcher(msg)
     end
 end
 

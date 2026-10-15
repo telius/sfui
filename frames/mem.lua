@@ -778,7 +778,9 @@ function sfui.mem.GetModuleStats()
         local actBars = tonumber(ab.activeBars) or 0
         abMod.status = actBars > 0 and "|cff00ff88active|r" or "|cff888888idle|r"
         abMod.line1 = string_format("bars: %d active • buttons: %d", actBars, tonumber(ab.totalButtons) or 0)
-        abMod.line2 = string_format("movers: %s", ab.unlocked and "|cffffaa00unlocked|r" or "locked")
+        local moverStr = ab.unlocked and "|cffffaa00unlocked|r" or "locked"
+        local petStr = ab.petActive and "|cff00ff88active|r" or "none"
+        abMod.line2 = string_format("movers: %s • pet: %s • fade: %s", moverStr, petStr, ab.mouseover and "mouseover" or "normal")
     end
     stats["actionbars"] = abMod
 
@@ -835,6 +837,21 @@ function sfui.mem.GetModuleStats()
         mailMod.line2 = string_format("inbox collector: %s", isColl and "running" or "idle")
     end
     stats["mail"] = mailMod
+
+    -- Quickdraw Radial Ring Module
+    local ringMod = {
+        name = "radial action rings",
+        status = "|cff888888idle|r",
+        line1 = "rings: 0 • bindings: 0",
+        line2 = "view: closed • slots: 0",
+    }
+    local rInfo = GetDebug("ring_debug_info", "ring")
+    if rInfo then
+        ringMod.status = rInfo.isShown and "|cff00ff88open|r" or (rInfo.enabled and "|cff888888ready|r" or "|cffff4444disabled|r")
+        ringMod.line1 = string_format("rings: %d providers • bindings: %d", tonumber(rInfo.providersCount) or 0, tonumber(rInfo.boundCount) or 0)
+        ringMod.line2 = string_format("active: %s • slots: %d • pending: %d", tostring(rInfo.currentRing or "none"), tonumber(rInfo.activeSlotsCount) or 0, tonumber(rInfo.pendingCount) or 0)
+    end
+    stats["ring"] = ringMod
 
     return stats
 end
@@ -1063,6 +1080,228 @@ function sfui.mem.IsWatcherActive()
     return watcherActive
 end
 
+local cpuWatcherActive = false
+local cpuWatcherTimer = nil
+
+function sfui.mem.StartCPUWatcher(duration)
+    if cpuWatcherActive then
+        print(PREFIX .. "cpu watcher is already running.")
+        return
+    end
+
+    local scriptProfile = GetCVar and GetCVar("scriptProfile")
+    if scriptProfile ~= "1" then
+        print(PREFIX .. "|cffff4444cpu profiling requires scriptprofile enabled!|r")
+        print(PREFIX .. "type |cff00ffff/console scriptProfile 1|r and then |cff00ffff/reload|r to enable.")
+        return
+    end
+
+    duration = tonumber(duration) or 5
+    if duration < 1 then duration = 1 end
+    if duration > 60 then duration = 60 end
+
+    local UpdateAddOnCPUUsage = _G.UpdateAddOnCPUUsage
+    local GetAddOnCPUUsage = _G.GetAddOnCPUUsage
+    local GetFunctionCPUUsage = _G.GetFunctionCPUUsage
+    local GetFrameCPUUsage = _G.GetFrameCPUUsage
+    local EnumerateFrames = _G.EnumerateFrames
+
+    if UpdateAddOnCPUUsage then UpdateAddOnCPUUsage() end
+    local startAddonCPU = (GetAddOnCPUUsage and GetAddOnCPUUsage("sfui")) or 0
+
+    -- 1. Snapshot all update loops from dispatcher
+    local snapUpdates = {}
+    if sfui.events and sfui.events.GetUpdateCallbacks then
+        local updates = sfui.events.GetUpdateCallbacks()
+        for i = 1, #updates do
+            local d = updates[i]
+            if d and d.callback and GetFunctionCPUUsage then
+                snapUpdates[#snapUpdates + 1] = {
+                    name = d.name or "UpdateLoop",
+                    cb   = d.callback,
+                    cpu  = GetFunctionCPUUsage(d.callback, true) or 0,
+                }
+            end
+        end
+    end
+
+    -- 2. Snapshot event callbacks from dispatcher
+    local snapEvents = {}
+    if sfui.events and sfui.events.GetEventCallbacks then
+        local events = sfui.events.GetEventCallbacks()
+        for evtName, cbs in pairs(events) do
+            local totalEvtCpu = 0
+            for i = 1, #cbs do
+                local cb = cbs[i]
+                if cb and GetFunctionCPUUsage then
+                    totalEvtCpu = totalEvtCpu + (GetFunctionCPUUsage(cb, true) or 0)
+                end
+            end
+            snapEvents[#snapEvents + 1] = {
+                name = "Event: " .. evtName,
+                cbs  = cbs,
+                cpu  = totalEvtCpu,
+            }
+        end
+    end
+
+    -- 3. Comprehensive recursive function scan of sfui & libraries
+    local snapFuncs = {}
+    local seenFuncs = {}
+    local function scanTable(t, prefix, depth)
+        if depth > 4 then return end
+        for k, v in pairs(t) do
+            local tName = prefix .. "." .. tostring(k)
+            if type(v) == "function" and not seenFuncs[v] then
+                seenFuncs[v] = true
+                if GetFunctionCPUUsage then
+                    local cpu = GetFunctionCPUUsage(v, true)
+                    if cpu then
+                        snapFuncs[#snapFuncs + 1] = { name = tName, fn = v, cpu = cpu }
+                    end
+                end
+            elseif type(v) == "table" and v ~= _G and v ~= t and not seenFuncs[v] then
+                seenFuncs[v] = true
+                scanTable(v, tName, depth + 1)
+            end
+        end
+    end
+
+    seenFuncs[sfui] = true
+    scanTable(sfui, "sfui", 1)
+
+    local LibStub = _G.LibStub
+    if LibStub and LibStub.libs then
+        for libName, libTable in pairs(LibStub.libs) do
+            if type(libTable) == "table" and not seenFuncs[libTable] then
+                seenFuncs[libTable] = true
+                scanTable(libTable, "Lib:" .. tostring(libName), 1)
+            end
+        end
+    end
+
+    -- 4. Comprehensive frame scan across ALL UI frames
+    local snapAllFrames = {}
+    if EnumerateFrames and GetFrameCPUUsage then
+        local f = EnumerateFrames()
+        while f do
+            snapAllFrames[f] = GetFrameCPUUsage(f, false) or 0
+            f = EnumerateFrames(f)
+        end
+    end
+
+    cpuWatcherActive = true
+    print(PREFIX .. string_format("|cff00ff88measuring sfui cpu usage for %d seconds...|r (stay still / normal gameplay)", duration))
+
+    cpuWatcherTimer = C_Timer.NewTimer(duration, function()
+        cpuWatcherActive = false
+        cpuWatcherTimer = nil
+
+        if UpdateAddOnCPUUsage then UpdateAddOnCPUUsage() end
+        local endAddonCPU = (GetAddOnCPUUsage and GetAddOnCPUUsage("sfui")) or 0
+        local deltaAddonCPU = math_max(0, endAddonCPU - startAddonCPU)
+
+        local results = {}
+
+        -- Diff all scanned functions (excluding the profiler itself)
+        for i = 1, #snapFuncs do
+            local item = snapFuncs[i]
+            if not item.name:find("StartCPUWatcher") then
+                local cur = (GetFunctionCPUUsage and GetFunctionCPUUsage(item.fn, true)) or 0
+                local diff = math_max(0, cur - item.cpu)
+                if diff > 0.05 then
+                    results[#results + 1] = { name = "[fn] " .. item.name, diff = diff }
+                end
+            end
+        end
+
+        -- Diff sfui frames
+        if EnumerateFrames and GetFrameCPUUsage then
+            local f = EnumerateFrames()
+            while f do
+                local startCpu = snapAllFrames[f] or 0
+                local cur = GetFrameCPUUsage(f, false) or 0
+                local diff = math_max(0, cur - startCpu)
+                if diff > 0.05 then
+                    local name = f.GetName and f:GetName()
+                    if not name or name == "" then
+                        name = f.GetDebugName and f:GetDebugName()
+                    end
+                    if not name or name == "" then
+                        name = tostring(f)
+                    end
+                    local lowerName = name and name:lower() or ""
+                    local isSfui = false
+                    if lowerName:find("sfui", 1, true) or lowerName:find("tracked", 1, true) then
+                        isSfui = true
+                    elseif f._sfui or f.sfui or f.moduleName or f.barType or f.pinType then
+                        isSfui = true
+                    else
+                        local p = f.GetParent and f:GetParent()
+                        while p do
+                            local pName = p.GetName and p:GetName()
+                            local lpName = pName and pName:lower() or ""
+                            if lpName:find("sfui", 1, true) or lpName:find("tracked", 1, true) or p._sfui or p.sfui then
+                                isSfui = true
+                                break
+                            end
+                            p = p.GetParent and p:GetParent()
+                        end
+                    end
+
+                    if isSfui then
+                        results[#results + 1] = { name = "[frame] " .. name, diff = diff }
+                    end
+                end
+                f = EnumerateFrames(f)
+            end
+        end
+
+        -- Diff updates
+        for _, u in ipairs(snapUpdates) do
+            local cur = (GetFunctionCPUUsage and GetFunctionCPUUsage(u.cb, true)) or 0
+            local diff = math_max(0, cur - u.cpu)
+            if diff > 0.05 then
+                results[#results + 1] = { name = "[loop] " .. u.name, diff = diff }
+            end
+        end
+
+        -- Diff events
+        for _, ev in ipairs(snapEvents) do
+            local curTotal = 0
+            for _, cb in ipairs(ev.cbs) do
+                if cb and GetFunctionCPUUsage then
+                    curTotal = curTotal + (GetFunctionCPUUsage(cb, true) or 0)
+                end
+            end
+            local diff = math_max(0, curTotal - ev.cpu)
+            if diff > 0.05 then
+                results[#results + 1] = { name = "[event] " .. ev.name, diff = diff }
+            end
+        end
+
+        table_sort(results, function(a, b) return a.diff > b.diff end)
+
+        print(" ")
+        print(PREFIX .. "|cffffffff========================================|r")
+        print(PREFIX .. string_format("|cff00ffffcpu usage sample (%ds):|r |cffffffff%.2f ms total|r (%.2f ms/sec)", duration, deltaAddonCPU, deltaAddonCPU / duration))
+        print(PREFIX .. "|cffffffff----------------------------------------|r")
+
+        if #results == 0 then
+            print(PREFIX .. "|cff888888no measurable cpu activity recorded (idle/sleeping).|r")
+        else
+            local topN = math_min(#results, 15)
+            for i = 1, topN do
+                local r = results[i]
+                local pct = deltaAddonCPU > 0 and (r.diff / deltaAddonCPU * 100) or 0
+                print(string_format(PREFIX .. "|cff6600ff#%d|r |cffffffff%-35s|r : |cff00ff88%.2f ms|r (|cffffd100%.1f%%|r)", i, r.name, r.diff, pct))
+            end
+        end
+        print(PREFIX .. "|cffffffff========================================|r")
+        print(" ")
+    end)
+end
+
 -- ---------------------------------------------------------------------------
 -- 3. FORCED GARBAGE COLLECTION
 -- ---------------------------------------------------------------------------
@@ -1113,7 +1352,7 @@ local MODULE_SECTIONS = {
             local list = {
                 "alts", "automation", "currency", "cursor", "dispatcher", "fishing",
                 "gear", "hide", "location", "logs", "lootfeed", "mail", "merchant", "minimap",
-                "pets", "pins", "quests", "stats", "triage"
+                "pets", "pins", "quests", "ring", "stats", "triage"
             }
             if sfui.isRetail then
                 table_insert(list, "bonusroll")
@@ -1651,6 +1890,8 @@ function sfui.mem.HandleSlash(msg)
 
     if cmd == "gc" or cmd == "clean" or cmd == "collect" then
         sfui.mem.RunGC()
+    elseif cmd == "cpu" then
+        sfui.mem.StartCPUWatcher(arg)
     elseif cmd == "watch" or cmd == "profile" or cmd == "trace" then
         sfui.mem.StartWatcher(arg)
         local f = sfui.mem.create_mem_panel()

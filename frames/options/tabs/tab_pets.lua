@@ -219,8 +219,6 @@ sfui.options.RegisterTab({
         local function create_pet_row(index)
             local row = CreateFrame("Frame", nil, list_container, "BackdropTemplate")
             row:SetHeight(26)
-            row:SetPoint("LEFT", list_container, "LEFT", 2, 0)
-            row:SetPoint("RIGHT", list_container, "RIGHT", -2, 0)
             row:SetBackdrop({
                 bgFile = "Interface\\Buttons\\WHITE8x8",
                 edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -254,18 +252,22 @@ sfui.options.RegisterTab({
             type_text:SetTextColor(0.65, 0.65, 0.65, 1)
             row.type_text = type_text
 
-            local remove_btn = (common.create_remove_button or CreateFlatButton)(row, function()
+            local remove_btn = (common.create_close_button and common.create_close_button(row, function()
                 if row.petGUID and sfui.pets.RemovePetFromCharFavs then
                     sfui.pets.RemovePetFromCharFavs(row.petGUID)
                     p.refresh_list()
                 end
-            end, 22, 20, "remove from character favorites")
+            end, 18)) or CreateFlatButton(row, "×", 20, 20, function()
+                if row.petGUID and sfui.pets.RemovePetFromCharFavs then
+                    sfui.pets.RemovePetFromCharFavs(row.petGUID)
+                    p.refresh_list()
+                end
+            end, "remove from character favorites")
+            remove_btn:ClearAllPoints()
             remove_btn:SetPoint("RIGHT", row, "RIGHT", -4, 0)
             row.remove_btn = remove_btn
 
-            local summon_btn = CreateFlatButton(row, "summon", 55, 20)
-            summon_btn:SetPoint("RIGHT", remove_btn, "LEFT", -6, 0)
-            summon_btn:SetScript("OnClick", function()
+            local summon_btn = CreateFlatButton(row, "summon", 55, 20, function()
                 if InCombatLockdown and InCombatLockdown() then
                     sfui.common.print("cannot summon pets in combat.")
                     return
@@ -275,6 +277,8 @@ sfui.options.RegisterTab({
                     p.refresh_list()
                 end
             end)
+            summon_btn:ClearAllPoints()
+            summon_btn:SetPoint("RIGHT", remove_btn, "LEFT", -6, 0)
             row.summon_btn = summon_btn
 
             row:EnableMouse(true)
@@ -312,10 +316,14 @@ sfui.options.RegisterTab({
             wipe(active_rows)
             wipe(sorted_guids)
 
+            if not _G.CollectionsJournal and _G.CollectionsJournal_LoadUI then
+                pcall(_G.CollectionsJournal_LoadUI)
+            end
+
             local charDB = sfui.pets.GetCharDB and sfui.pets.GetCharDB()
             if charDB and charDB.charFavs then
                 for guid, enabled in pairs(charDB.charFavs) do
-                    if enabled and C_PetJournal_GetPetInfoByPetID then
+                    if enabled then
                         table_insert(sorted_guids, guid)
                     end
                 end
@@ -330,9 +338,9 @@ sfui.options.RegisterTab({
             else
                 empty_text:Hide()
                 table_sort(sorted_guids, function(a, b)
-                    local nameA = (select(8, C_PetJournal_GetPetInfoByPetID(a))) or a
-                    local nameB = (select(8, C_PetJournal_GetPetInfoByPetID(b))) or b
-                    return nameA < nameB
+                    local nameA = (C_PetJournal_GetPetInfoByPetID and select(8, C_PetJournal_GetPetInfoByPetID(a))) or a
+                    local nameB = (C_PetJournal_GetPetInfoByPetID and select(8, C_PetJournal_GetPetInfoByPetID(b))) or b
+                    return tostring(nameA) < tostring(nameB)
                 end)
 
                 local ROW_HEIGHT = 28
@@ -343,11 +351,14 @@ sfui.options.RegisterTab({
                         row_pool[i] = row
                     end
 
-                    local speciesID, customName, level, _, _, _, _, name, iconTex, petType = C_PetJournal_GetPetInfoByPetID(guid)
+                    local speciesID, customName, level, _, _, _, _, name, iconTex, petType
+                    if C_PetJournal_GetPetInfoByPetID then
+                        speciesID, customName, level, _, _, _, _, name, iconTex, petType = C_PetJournal_GetPetInfoByPetID(guid)
+                    end
                     row.petGUID = guid
-                    row.icon:SetTexture(iconTex or "Interface/Icons/INV_Misc_QuestionMark")
+                    row.icon:SetTexture(iconTex or "Interface\\Icons\\INV_Misc_QuestionMark")
 
-                    local displayName = name or "Unknown Pet"
+                    local displayName = name or "Companion Pet"
                     if customName and customName ~= "" and customName ~= name then
                         displayName = customName .. " (" .. name .. ")"
                     end
@@ -378,7 +389,9 @@ sfui.options.RegisterTab({
                         end
                     end
 
+                    row:ClearAllPoints()
                     row:SetPoint("TOPLEFT", list_container, "TOPLEFT", 2, -((i - 1) * ROW_HEIGHT + 4))
+                    row:SetPoint("RIGHT", list_container, "RIGHT", -2, 0)
                     row:Show()
                     table_insert(active_rows, row)
                 end
@@ -395,6 +408,13 @@ sfui.options.RegisterTab({
         refresh_pet_list()
 
         sfui.events.RegisterEvent("COMPANION_UPDATE", function()
+            local f = sfui.options.GetFrame()
+            if f and f:IsVisible() and f.selected_tab and f.selected_tab.tabID == "pets" then
+                refresh_pet_list()
+            end
+        end)
+
+        sfui.events.RegisterEvent("PET_JOURNAL_LIST_UPDATE", function()
             local f = sfui.options.GetFrame()
             if f and f:IsVisible() and f.selected_tab and f.selected_tab.tabID == "pets" then
                 refresh_pet_list()

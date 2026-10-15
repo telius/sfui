@@ -123,7 +123,7 @@ local function get_char_db()
 
     local isValidKey = key and key ~= "default" and not key:find("%-unknown$") and not key:find("%-$")
     if isValidKey then
-        -- Clean up/migrate any bogus "Name-" entry if the real "Name-Realm" entry exists
+        -- Clean up/migrate any bogus "Name-" or plain "Name" entry if the real "Name-Realm" entry exists
         local prefix = key:match("^(.-)%-")
         if prefix and SfuiDB.pets_per_char[prefix .. "-"] then
             local badEntry = SfuiDB.pets_per_char[prefix .. "-"]
@@ -133,6 +133,15 @@ local function get_char_db()
                 end
             end
             SfuiDB.pets_per_char[prefix .. "-"] = nil
+        end
+        if prefix and SfuiDB.pets_per_char[prefix] then
+            local badEntry = SfuiDB.pets_per_char[prefix]
+            if not SfuiDB.pets_per_char[key] then
+                if badEntry.charFavs and next(badEntry.charFavs) then
+                    SfuiDB.pets_per_char[key] = badEntry
+                end
+            end
+            SfuiDB.pets_per_char[prefix] = nil
         end
 
         if not SfuiDB.pets_per_char[key] then
@@ -853,4 +862,7 @@ function sfui.pets_debug_info()
         currentPet = C_PetJournal and C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID(),
     }
 end
-sfui.pets.GetDebugInfo = sfui.pets_debug_info
+sfui.pets.GetDebugInfo   = sfui.pets_debug_info
+sfui.pets.GetCharDB      = get_char_db
+sfui.pets.GetCharacterKey = get_character_key
+sfui.pets.RebuildPools   = rebuild_pet_pools

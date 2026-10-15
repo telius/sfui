@@ -70,10 +70,19 @@ local function suppress_blizzard_actionbars()
             else
                 bar:Hide()
             end
-            if bar.UnregisterAllEvents and name ~= "MainActionBar" and name ~= "MainMenuBar" then
+            if bar.UnregisterAllEvents and name ~= "MainActionBar" and name ~= "MainMenuBar" and name ~= "PetActionBar" and name ~= "PetActionBarFrame" then
                 bar:UnregisterAllEvents()
             end
         end
+    end
+
+    if _G.PetActionBar then
+        _G.PetActionBar:SetAlpha(0)
+        if _G.PetActionBar.EnableMouse then _G.PetActionBar:EnableMouse(false) end
+    end
+    if _G.PetActionBarFrame then
+        _G.PetActionBarFrame:SetAlpha(0)
+        if _G.PetActionBarFrame.EnableMouse then _G.PetActionBarFrame:EnableMouse(false) end
     end
 
     local offscreenFrames = {
@@ -189,6 +198,8 @@ local function get_actionbars_debug_info()
         activeBars = activeBars,
         totalButtons = totalButtons,
         unlocked = sfui.actionbars.moversUnlocked,
+        petActive = sfui.actionbars.petBar and sfui.actionbars.petBar:IsShown() or false,
+        mouseover = sfui.actionbars.mouseover and sfui.actionbars.mouseover.IsEnabled and sfui.actionbars.mouseover.IsEnabled() or false,
     }
 end
 

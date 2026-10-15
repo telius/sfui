@@ -31,20 +31,9 @@ local function is_blacklisted(name)
     return false
 end
 
-local function is_spell_known(spellID)
-    if C_SpellBook and C_SpellBook.IsSpellKnown and Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player then
-        local ok, known = pcall(C_SpellBook.IsSpellKnown, spellID, Enum.SpellBookSpellBank.Player)
-        if ok and known then return true end
-    end
-    if C_SpellBook and C_SpellBook.IsSpellInSpellBook and Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player then
-        local ok, known = pcall(C_SpellBook.IsSpellInSpellBook, spellID, Enum.SpellBookSpellBank.Player, true)
-        if ok and known then return true end
-    end
-    if _G.IsPlayerSpell and _G.IsPlayerSpell(spellID) then
-        return true
-    end
-    if _G.IsSpellKnown and _G.IsSpellKnown(spellID) then
-        return true
+local is_spell_known = function(spellID)
+    if sfui.common and sfui.common.is_spell_known then
+        return sfui.common.is_spell_known(spellID)
     end
     return false
 end

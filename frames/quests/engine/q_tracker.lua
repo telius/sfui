@@ -35,6 +35,30 @@ local isMythicSuppressed = false
 
 local SuppressBlizzardTrackers, RestoreBlizzardTrackers
 
+local SECTION_RANKS = {
+    skills       = 5,
+    scenario     = 10,
+    events       = 20,
+    worldevents  = 20,
+    event        = 20,
+    important    = 30,
+    campaign     = 40,
+    meta         = 50,
+    world        = 60,
+    worldquests  = 60,
+    activities   = 70,
+    zone         = 80,
+    achievements = 90,
+    recipes      = 100,
+    collectables = 110,
+}
+
+local function SortSectionsComparator(a, b)
+    local rA = SECTION_RANKS[a.id] or 99
+    local rB = SECTION_RANKS[b.id] or 99
+    return rA < rB
+end
+
 -- ─── Throttled Update Loop ──────────────────────────────────────────────────
 local function ExecuteLayout()
     refreshTimer = nil
@@ -89,28 +113,7 @@ local function ExecuteLayout()
         -- In Retail, sort sections by canonical hierarchy (scenario -> events -> important -> campaign -> meta -> world -> activities -> zone -> etc.)
         local isCamelot = sfui.isCamelot or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
         if not isCamelot then
-            local sectionRanks = {
-                skills       = 5,
-                scenario     = 10,
-                events       = 20,
-                worldevents  = 20,
-                event        = 20,
-                important    = 30,
-                campaign     = 40,
-                meta         = 50,
-                world        = 60,
-                worldquests  = 60,
-                activities   = 70,
-                zone         = 80,
-                achievements = 90,
-                recipes      = 100,
-                collectables = 110,
-            }
-            table_sort(allSections, function(a, b)
-                local rA = sectionRanks[a.id] or 99
-                local rB = sectionRanks[b.id] or 99
-                return rA < rB
-            end)
+            table_sort(allSections, SortSectionsComparator)
         end
 
         -- Run vertical stack layout

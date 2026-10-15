@@ -23,35 +23,9 @@ local Enum = _G.Enum
 
 -- ── 1. Spell & Item Resolution Helpers ───────────────────────────────────────
 
-local function is_spell_known(spellID)
-    if not spellID then return false end
-    if C_SpellBook and C_SpellBook.IsSpellKnown and Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player then
-        local ok, known = pcall(C_SpellBook.IsSpellKnown, spellID, Enum.SpellBookSpellBank.Player)
-        if ok and known then return true end
-    end
-    if C_SpellBook and C_SpellBook.IsSpellInSpellBook and Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player then
-        local ok, known = pcall(C_SpellBook.IsSpellInSpellBook, spellID, Enum.SpellBookSpellBank.Player, true)
-        if ok and known then return true end
-    end
-    if C_SpellBook and C_SpellBook.IsSpellKnownOrInSpellBook then
-        local ok, known = pcall(C_SpellBook.IsSpellKnownOrInSpellBook, spellID)
-        if ok and known then return true end
-    end
-    if _G.IsPlayerSpell then
-        local ok, known = pcall(_G.IsPlayerSpell, spellID)
-        if ok and known then return true end
-    end
-    if C_Spell and C_Spell.IsSpellKnown then
-        local ok, known = pcall(C_Spell.IsSpellKnown, spellID)
-        if ok and known then return true end
-    end
-    if C_Spell and C_Spell.IsSpellKnownOrOverridesKnown then
-        local ok, known = pcall(C_Spell.IsSpellKnownOrOverridesKnown, spellID)
-        if ok and known then return true end
-    end
-    if _G.IsSpellKnown then
-        local ok, known = pcall(_G.IsSpellKnown, spellID)
-        if ok and known then return true end
+local is_spell_known = function(spellID)
+    if sfui.common and sfui.common.is_spell_known then
+        return sfui.common.is_spell_known(spellID)
     end
     return false
 end
@@ -449,7 +423,8 @@ sfui.ring.register_provider("utility", {
                         }
                     end
                 elseif item.type == "toy" then
-                    if PlayerHasToy(item.id) then
+                    local is_toy_known = (sfui.common and sfui.common.is_toy_known) or PlayerHasToy
+                    if is_toy_known and is_toy_known(item.id) then
                         local name, icon = get_toy_details(item.id)
                         local tName = (name or item.name or tostring(item.id)):lower()
                         local key = "toy:" .. tostring(item.id)

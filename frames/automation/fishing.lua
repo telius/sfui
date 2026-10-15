@@ -179,25 +179,8 @@ local cachedSpellName
 
 local function is_spell_known(spellID)
     if not spellID then return false end
-    if C_SpellBook then
-        if C_SpellBook.IsSpellKnownOrInSpellBook and C_SpellBook.IsSpellKnownOrInSpellBook(spellID) then
-            return true
-        end
-        if C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(spellID) then
-            return true
-        end
-        if C_SpellBook.IsSpellInSpellBook and C_SpellBook.IsSpellInSpellBook(spellID) then
-            return true
-        end
-        if C_SpellBook.FindSpellBookSlotForSpell and C_SpellBook.FindSpellBookSlotForSpell(spellID) then
-            return true
-        end
-    end
-    if IsSpellKnown and IsSpellKnown(spellID) then
-        return true
-    end
-    if IsPlayerSpell and IsPlayerSpell(spellID) then
-        return true
+    if sfui.common and sfui.common.is_spell_known then
+        return sfui.common.is_spell_known(spellID)
     end
     return false
 end

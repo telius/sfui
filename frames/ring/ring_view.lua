@@ -70,6 +70,40 @@ local function create_slot_frame(parent)
     return f
 end
 
+local function get_selection_color(slot)
+    if slot then
+        if slot.selectionColor then
+            local sc = slot.selectionColor
+            return sc[1] or sc.r or 1, sc[2] or sc.g or 1, sc[3] or sc.b or 1
+        end
+        if (currentRingID == "targetmarkers" or currentRingID == "worldmarkers") and slot.color then
+            local sc = slot.color
+            return sc[1] or sc.r or 1, sc[2] or sc.g or 1, sc[3] or sc.b or 1
+        end
+    end
+
+    local specID = slot and slot.specID
+    if sfui.common and sfui.common.get_spec_color then
+        local r, g, b = sfui.common.get_spec_color(specID)
+        if r and g and b then
+            return r, g, b
+        end
+    end
+    if sfui.colors and sfui.colors.get_spec_color then
+        local r, g, b = sfui.colors.get_spec_color(specID)
+        if r and g and b then
+            return r, g, b
+        end
+    end
+    local sID = specID or (sfui.talents and sfui.talents.get_current_spec_id and sfui.talents.get_current_spec_id())
+    local cfg = sfui.config and sfui.config.spec_colors
+    if sID and cfg and cfg[sID] then
+        local c = cfg[sID]
+        return c[1] or c.r or 0, c[2] or c.g or 0.8, c[3] or c.b or 1
+    end
+    return 0, 0.8, 1
+end
+
 local function reset_slot_frame(f)
     f:Hide()
     f:ClearAllPoints()
@@ -123,7 +157,8 @@ local function ensure_root_frame()
     -- title label at top of ring
     local titleText = rootFrame:CreateFontString(nil, "OVERLAY", sfui.config.font_small or "GameFontHighlightSmall")
     titleText:SetPoint("BOTTOM", dz, "TOP", 0, 10)
-    titleText:SetTextColor(0, 0.8, 1, 0.8)
+    local tr, tg, tb = get_selection_color(nil)
+    titleText:SetTextColor(tr, tg, tb, 0.85)
     titleText:SetJustifyH("CENTER")
     rootFrame.titleText = titleText
 
@@ -177,6 +212,8 @@ function view.render_ring(ringID, slots, title)
 
     -- update title
     root.titleText:SetText(title and title:lower() or ringID:lower())
+    local tr, tg, tb = get_selection_color(nil)
+    root.titleText:SetTextColor(tr, tg, tb, 0.85)
     root.activeText:SetText("|cff666666cancel|r")
 
     -- position each slot
@@ -224,6 +261,18 @@ function view.render_ring(ringID, slots, title)
             frame.label:Hide()
         end
 
+        -- set default or active border
+        if data.active then
+            local ar, ag, ab = get_selection_color(data)
+            if frame.roundBorder then
+                frame.roundBorder:SetColorTexture(ar, ag, ab, 0.45)
+            end
+        else
+            if frame.roundBorder then
+                frame.roundBorder:SetColorTexture(0, 0, 0, 0.85)
+            end
+        end
+
         frame:Show()
         activeSlots[i] = frame
     end
@@ -236,30 +285,38 @@ function view.set_active_slot(index)
     activeSlotIndex = index
 
     local root = ensure_root_frame()
+    local activeSlotData = (index and currentSlotsData and currentSlotsData[index])
+    local sr, sg, sb = get_selection_color(activeSlotData)
 
     for i, frame in pairs(activeSlots) do
         if i == index then
             frame:SetScale(1.18)
             if frame.roundBorder then
-                frame.roundBorder:SetColorTexture(0, 0.9, 1, 1)
+                frame.roundBorder:SetColorTexture(sr, sg, sb, 1)
             end
         else
             frame:SetScale(1.0)
             if frame.roundBorder then
-                frame.roundBorder:SetColorTexture(0, 0, 0, 0.85)
+                if frame._slotData and frame._slotData.active then
+                    local ar, ag, ab = get_selection_color(frame._slotData)
+                    frame.roundBorder:SetColorTexture(ar, ag, ab, 0.45)
+                else
+                    frame.roundBorder:SetColorTexture(0, 0, 0, 0.85)
+                end
             end
         end
     end
 
-    if index and currentSlotsData and currentSlotsData[index] then
-        local slot = currentSlotsData[index]
-        local label = slot.label or slot.id or ""
-        root.activeText:SetText("|cffffffff" .. label:lower() .. "|r")
+    if activeSlotData then
+        local label = activeSlotData.label or activeSlotData.id or ""
+        root.activeText:SetText(label:lower())
+        root.activeText:SetTextColor(sr, sg, sb, 1)
         if root.deadzoneDisc.roundBorder then
-            root.deadzoneDisc.roundBorder:SetColorTexture(0, 0.7, 1, 0.5)
+            root.deadzoneDisc.roundBorder:SetColorTexture(sr, sg, sb, 0.6)
         end
     else
-        root.activeText:SetText("|cff666666cancel|r")
+        root.activeText:SetText("cancel")
+        root.activeText:SetTextColor(0.5, 0.5, 0.5, 0.8)
         if root.deadzoneDisc.roundBorder then
             root.deadzoneDisc.roundBorder:SetColorTexture(0.3, 0.3, 0.3, 0.4)
         end
@@ -276,4 +333,14 @@ end
 --- @return string|nil
 function view.get_current_ring_id()
     return currentRingID
+end
+
+--- get active rendered slot count.
+--- @return number
+function view.get_active_slots_count()
+    local count = 0
+    for _ in pairs(activeSlots) do
+        count = count + 1
+    end
+    return count
 end
