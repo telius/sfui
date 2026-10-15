@@ -667,7 +667,14 @@ sfui.config = {
     absorbBarColor = { 0.4, 0.0, 1.0, 0.75 },
 
     minimap = {
+        square = true,
         default_size = 220,
+        width = 220,
+        height = 220,
+        point = "TOPRIGHT",
+        relative_point = "TOPRIGHT",
+        x = 0,
+        y = 0,
         defaultZoom = 0,
         showPins = true,
         pinSize = 14,
@@ -676,7 +683,7 @@ sfui.config = {
             pad_x = 24,
             button_size = 20,
             defaultX = 0,
-            defaultY = -25,
+            defaultY = 0,
         },
     },
 

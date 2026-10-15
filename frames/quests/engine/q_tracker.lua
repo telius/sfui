@@ -809,6 +809,10 @@ function Tracker.RestorePosition()
     else
         container:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -4, -4)
     end
+
+    if sfui.tracker and sfui.tracker.boons and sfui.tracker.boons.UpdateAnchor then
+        sfui.tracker.boons.UpdateAnchor()
+    end
 end
 sfui.questlog.UpdateAnchor = Tracker.RestorePosition
 

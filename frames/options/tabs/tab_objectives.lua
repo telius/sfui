@@ -60,6 +60,20 @@ sfui.options.RegisterTab({
         lock_ql_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
         yOff = yOff - 28
 
+        local boons_cb = create_checkbox(p, "show boons details (delves & labyrinths)",
+            function()
+                return SfuiDB.showBoonsDetails ~= false
+            end,
+            function(checked)
+                SfuiDB.showBoonsDetails = checked
+                if sfui.tracker and sfui.tracker.boons and sfui.tracker.boons.Update then
+                    sfui.tracker.boons.Update()
+                end
+            end,
+            "shows accumulated boons and stat buffs below the objective tracker in delves and labyrinths.")
+        boons_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+        yOff = yOff - 28
+
         local isCamelotClient = sfui.isCamelot or (_G.ToggleLegacyChallenges ~= nil) or (_G.LegacySystemFrame_LoadUI ~= nil)
         if isCamelotClient then
             local challenges_ql_cb = create_checkbox(p, "track legacy challenges in quest log",

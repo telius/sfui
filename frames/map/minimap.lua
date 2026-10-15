@@ -1,6 +1,6 @@
 local addonName, addon = ...
 sfui = sfui or {}
-sfui.minimap = {}
+sfui.minimap = sfui.minimap or {}
 
 -- ========================
 -- Localization
@@ -558,17 +558,11 @@ function ButtonManager:arrange_buttons()
     local statusWidth = isStatusInside and (status_container:GetWidth() > 0 and (status_container:GetWidth() + 6) or 0) or 0
     local rightReserved = isClockInside and (clockWidth + 14 + statusWidth) or (padX + statusWidth)
 
-    local defaultWidth = (sfui.config and sfui.config.minimap and sfui.config.minimap.default_size) or 220
-    local shownCount = 0
-    for _, btn in ipairs(self.collectedButtons) do
-        if btn:IsShown() then
-            shownCount = shownCount + 1
-        end
-    end
-
-    local buttonsEnd = (shownCount > 0) and (padX + (shownCount * size) + ((shownCount - 1) * spacing)) or padX
-    local neededWidth = buttonsEnd + rightReserved
-    button_bar:SetWidth(math_max(defaultWidth, neededWidth))
+    local mapWidth = (Minimap and Minimap:GetWidth() and Minimap:GetWidth() > 0) and Minimap:GetWidth()
+        or (SfuiDB and SfuiDB.minimap_width)
+        or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
+        or 220
+    button_bar:SetWidth(mapWidth)
 end
 
 local function set_pvp_texture(texture_obj, isFFA, faction)
@@ -856,15 +850,17 @@ function sfui.minimap.enable_button_manager(enabled)
         if not button_bar then
             -- Parent to MinimapCluster instead of Minimap to avoid protected frame taint
             button_bar = CreateFrame("Frame", "sfui_minimap_button_bar", MinimapCluster, "BackdropTemplate")
-            button_bar:SetSize(sfui.config.minimap.default_size, 36)
+            local mapWidth = (Minimap and Minimap:GetWidth() and Minimap:GetWidth() > 0) and Minimap:GetWidth()
+                or (SfuiDB and SfuiDB.minimap_width)
+                or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
+                or 220
+            button_bar:SetSize(mapWidth, 36)
             sfui.theme.ApplyMinimapButtonBarStyle(button_bar)
+            sfui.minimap.button_bar = button_bar
         end
 
-        -- Update position from saved coordinates
-        button_bar:ClearAllPoints()
-        button_bar:SetPoint(SfuiDB.minimap_button_point or "TOP", Minimap,
-            SfuiDB.minimap_button_relative_point or "BOTTOM", SfuiDB.minimap_button_x or 0,
-            SfuiDB.minimap_button_y or sfui.config.minimap.button_bar.defaultY)
+        -- Update position and width from saved coordinates
+        sfui.minimap.update_button_bar_position()
 
         button_bar:Show()
 
@@ -1005,11 +1001,141 @@ end
 
 function sfui.minimap.update_button_bar_position()
     if button_bar then
+        local mapWidth = (Minimap and Minimap:GetWidth() and Minimap:GetWidth() > 0) and Minimap:GetWidth()
+            or (SfuiDB and SfuiDB.minimap_width)
+            or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
+            or 220
+        button_bar:SetWidth(mapWidth)
         button_bar:ClearAllPoints()
         button_bar:SetPoint(SfuiDB.minimap_button_point or "TOP", Minimap,
-            SfuiDB.minimap_button_relative_point or "BOTTOM", SfuiDB.minimap_button_x or 0,
-            SfuiDB.minimap_button_y or sfui.config.minimap.button_bar.defaultY)
+            SfuiDB.minimap_button_relative_point or "BOTTOM",
+            SfuiDB.minimap_button_x or (sfui.config and sfui.config.minimap and sfui.config.minimap.button_bar and sfui.config.minimap.button_bar.defaultX) or 0,
+            SfuiDB.minimap_button_y or (sfui.config and sfui.config.minimap and sfui.config.minimap.button_bar and sfui.config.minimap.button_bar.defaultY) or 0)
         sfui.minimap.update_clock_position()
+    end
+end
+
+local isRepositioning = false
+
+function sfui.minimap.update_position(x, y, point, relPoint)
+    local posX = x or (SfuiDB and SfuiDB.minimap_x) or (sfui.config and sfui.config.minimap and sfui.config.minimap.x) or 0
+    local posY = y or (SfuiDB and SfuiDB.minimap_y) or (sfui.config and sfui.config.minimap and sfui.config.minimap.y) or 0
+    local pt = point or (SfuiDB and SfuiDB.minimap_point) or (sfui.config and sfui.config.minimap and sfui.config.minimap.point) or "TOPRIGHT"
+    local rel = relPoint or (SfuiDB and SfuiDB.minimap_relative_point) or pt
+
+    if SfuiDB then
+        SfuiDB.minimap_x = posX
+        SfuiDB.minimap_y = posY
+        SfuiDB.minimap_point = pt
+        SfuiDB.minimap_relative_point = rel
+    end
+
+    if InCombatLockdown() then
+        sfui.minimap.pendingPosition = { x = posX, y = posY, point = pt, relPoint = rel }
+        return
+    end
+
+    if _G.EditModeManagerFrame and _G.EditModeManagerFrame.IsEditModeActive and _G.EditModeManagerFrame:IsEditModeActive() then
+        return
+    end
+
+    if isRepositioning then return end
+    isRepositioning = true
+
+    local cluster = _G.MinimapCluster
+    local map = _G.Minimap
+    local target = cluster or map
+
+    if target then
+        if target.BreakFromFrameManager then
+            target:BreakFromFrameManager()
+        end
+        target.ignoreFramePositionManager = true
+
+        local scale = (target.GetScale and target:GetScale()) or 1
+        if scale <= 0 then scale = 1 end
+
+        target.sfuiRepositioning = true
+        target:ClearAllPoints()
+        target:SetPoint(pt, UIParent, rel, posX / scale, posY / scale)
+        target.sfuiRepositioning = nil
+    end
+
+    local width = (SfuiDB and SfuiDB.minimap_width)
+        or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
+        or 220
+    local height = (SfuiDB and SfuiDB.minimap_height)
+        or (sfui.config and sfui.config.minimap and (sfui.config.minimap.height or sfui.config.minimap.default_size))
+        or 220
+
+    if cluster then
+        cluster:SetSize(width, height)
+        if cluster.MinimapContainer then
+            cluster.MinimapContainer:SetSize(width, height)
+            cluster.MinimapContainer:ClearAllPoints()
+            cluster.MinimapContainer:SetPoint("CENTER", cluster, "CENTER", 0, 0)
+        end
+    end
+
+    if map then
+        map:SetSize(width, height)
+        if cluster and cluster.MinimapContainer then
+            map:ClearAllPoints()
+            map:SetPoint("CENTER", cluster.MinimapContainer, "CENTER", 0, 0)
+        elseif cluster then
+            map:ClearAllPoints()
+            map:SetPoint("CENTER", cluster, "CENTER", 0, 0)
+        end
+    end
+
+    if _G.MinimapBackdrop then
+        _G.MinimapBackdrop:SetSize(width, height)
+    end
+
+    sfui.minimap.update_button_bar_position()
+
+    if sfui.tracker and sfui.tracker.boons and sfui.tracker.boons.UpdateAnchor then
+        sfui.tracker.boons.UpdateAnchor()
+    end
+
+    isRepositioning = false
+end
+
+function sfui.minimap.update_dimensions(w, h)
+    local width = w or (SfuiDB and SfuiDB.minimap_width)
+        or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
+        or 220
+    local height = h or (SfuiDB and SfuiDB.minimap_height)
+        or (sfui.config and sfui.config.minimap and (sfui.config.minimap.height or sfui.config.minimap.default_size))
+        or 220
+
+    if SfuiDB then
+        SfuiDB.minimap_width = width
+        SfuiDB.minimap_height = height
+    end
+
+    if InCombatLockdown() then
+        sfui.minimap.pendingDimensions = { width = width, height = height }
+        return
+    end
+
+    if Minimap then
+        Minimap:SetSize(width, height)
+    end
+    if MinimapCluster and MinimapCluster.MinimapContainer then
+        MinimapCluster.MinimapContainer:SetSize(width, height)
+    end
+    if MinimapCluster then
+        MinimapCluster:SetSize(width, height)
+    end
+    if _G.MinimapBackdrop then
+        _G.MinimapBackdrop:SetSize(width, height)
+    end
+
+    sfui.minimap.update_position()
+    sfui.minimap.update_button_bar_position()
+    if ButtonManager and ButtonManager.arrange_buttons then
+        ButtonManager:arrange_buttons()
     end
 end
 
@@ -1035,6 +1161,8 @@ local startup_scans = 0
 -- One-shot: runs once on first PLAYER_ENTERING_WORLD then unregisters itself
 local function on_minimap_entering_world(event)
     sfui.minimap.initialize_masque()
+    sfui.minimap.update_dimensions()
+    sfui.minimap.update_position()
     if SfuiDB.minimap_auto_zoom then
         set_default_zoom()
     end
@@ -1088,12 +1216,52 @@ sfui.events.RegisterEvent("MINIMAP_UPDATE_ZOOM", function()
     end
 end)
 
--- Process pending button arranges when dropping combat
+-- Process pending button arranges, dimension, and position updates when dropping combat
 sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+    if sfui.minimap.pendingDimensions then
+        local d = sfui.minimap.pendingDimensions
+        sfui.minimap.pendingDimensions = nil
+        sfui.minimap.update_dimensions(d.width, d.height)
+    end
+    if sfui.minimap.pendingPosition then
+        local p = sfui.minimap.pendingPosition
+        sfui.minimap.pendingPosition = nil
+        sfui.minimap.update_position(p.x, p.y, p.point, p.relPoint)
+    end
     if ButtonManager.pendingArrange then
         ButtonManager:arrange_buttons()
     end
 end)
+
+-- Edit Mode listeners to keep custom position locked after Edit Mode changes
+if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
+    _G.EventRegistry:RegisterCallback("EditMode.Exit", function()
+        sfui.minimap.update_position()
+    end)
+end
+
+sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
+    sfui.minimap.update_position()
+end)
+
+if _G.MinimapCluster and hooksecurefunc then
+    hooksecurefunc(_G.MinimapCluster, "SetPoint", function(self)
+        if self.sfuiRepositioning or isRepositioning then return end
+        if _G.EditModeManagerFrame and _G.EditModeManagerFrame.IsEditModeActive and _G.EditModeManagerFrame:IsEditModeActive() then
+            return
+        end
+        if InCombatLockdown() then
+            sfui.minimap.pendingPosition = {
+                x = SfuiDB and SfuiDB.minimap_x,
+                y = SfuiDB and SfuiDB.minimap_y,
+                point = SfuiDB and SfuiDB.minimap_point,
+                relPoint = SfuiDB and SfuiDB.minimap_relative_point,
+            }
+            return
+        end
+        sfui.minimap.update_position()
+    end)
+end
 
 -- Weather changes (Retail 12.1.5+ C_Weather)
 if _G.C_Weather then

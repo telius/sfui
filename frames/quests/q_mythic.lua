@@ -1522,10 +1522,17 @@ local function BuildHUDFrame()
         if sfui.questlog and sfui.questlog.UpdateAnchor then
             sfui.questlog.UpdateAnchor()
         end
+        if sfui.tracker and sfui.tracker.boons and sfui.tracker.boons.UpdateAnchor then
+            sfui.tracker.boons.UpdateAnchor()
+        end
     end)
     MF.dragBar:Hide()
 
     MF:Hide()
+
+    if sfui.tracker and sfui.tracker.boons and sfui.tracker.boons.EnsureDelveHUDHooked then
+        sfui.tracker.boons.EnsureDelveHUDHooked()
+    end
 end
 
 -- ─── Delve Badge Pool ─────────────────────────────────────
@@ -3065,6 +3072,9 @@ local function ShowHUD(forceDungeon)
         InitDungeon()
     end
     MF:Show()
+    if sfui.tracker and sfui.tracker.boons and sfui.tracker.boons.UpdateAnchor then
+        sfui.tracker.boons.UpdateAnchor()
+    end
 end
 
 local function HideHUD()
@@ -3078,6 +3088,9 @@ local function HideHUD()
     _lastResCharges = -1
     _lastResSec = -1
     if MF then MF:Hide() end
+    if sfui.tracker and sfui.tracker.boons and sfui.tracker.boons.UpdateAnchor then
+        sfui.tracker.boons.UpdateAnchor()
+    end
 end
 
 -- ─── Public Helpers for Options Tab ───────────────────────

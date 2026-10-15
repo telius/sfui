@@ -1085,6 +1085,9 @@ function sfui.initialize_database()
     SfuiDB.absorbBarColor = SfuiDB.absorbBarColor or sfui.config.absorbBarColor
 
     SfuiDB.minimap_icon = SfuiDB.minimap_icon or { hide = false }
+    if SfuiDB.minimap_square == nil then SfuiDB.minimap_square = true end
+    if SfuiDB.minimap_width == nil then SfuiDB.minimap_width = (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size)) or 220 end
+    if SfuiDB.minimap_height == nil then SfuiDB.minimap_height = (sfui.config and sfui.config.minimap and (sfui.config.minimap.height or sfui.config.minimap.default_size)) or 220 end
     SfuiDB.minimap_collect_buttons = (SfuiDB.minimap_collect_buttons == nil) and true or SfuiDB.minimap_collect_buttons
     if SfuiDB.minimap_rearrange == nil then SfuiDB.minimap_rearrange = true end
     SfuiDB.minimap_buttons_mouseover = (SfuiDB.minimap_buttons_mouseover == nil) and false or
@@ -1094,7 +1097,12 @@ function sfui.initialize_database()
     if SfuiDB.minimap_auto_zoom == nil then SfuiDB.minimap_auto_zoom = true end
     if SfuiDB.minimap_auto_zoom_delay == nil then SfuiDB.minimap_auto_zoom_delay = 5 end
     if SfuiDB.minimap_button_x == nil then SfuiDB.minimap_button_x = sfui.config.minimap.button_bar.defaultX end
-    if SfuiDB.minimap_button_y == nil then SfuiDB.minimap_button_y = sfui.config.minimap.button_bar.defaultY end
+    if SfuiDB.minimap_button_y == nil or SfuiDB.minimap_button_y == -25 then SfuiDB.minimap_button_y = sfui.config.minimap.button_bar.defaultY end
+    if SfuiDB.minimap_x == nil then SfuiDB.minimap_x = (sfui.config and sfui.config.minimap and sfui.config.minimap.x) or 0 end
+    if SfuiDB.minimap_y == nil then SfuiDB.minimap_y = (sfui.config and sfui.config.minimap and sfui.config.minimap.y) or 0 end
+    if SfuiDB.minimap_point == nil then SfuiDB.minimap_point = (sfui.config and sfui.config.minimap and sfui.config.minimap.point) or "TOPRIGHT" end
+    if SfuiDB.minimap_relative_point == nil then SfuiDB.minimap_relative_point = (sfui.config and sfui.config.minimap and sfui.config.minimap.relative_point) or "TOPRIGHT" end
+    if SfuiDB.showBoonsDetails == nil then SfuiDB.showBoonsDetails = true end
     if SfuiDB.autoSellGreys == nil then SfuiDB.autoSellGreys = true end
     if SfuiDB.autoRepair == nil then SfuiDB.autoRepair = true end
     if SfuiDB.maxAutoRepairCost == nil then SfuiDB.maxAutoRepairCost = 5000 end

@@ -780,5 +780,9 @@ function Layout.BuildLayout(container, sections)
         end
     end
 
+    if sfui.tracker and sfui.tracker.boons and sfui.tracker.boons.UpdateAnchor then
+        sfui.tracker.boons.UpdateAnchor()
+    end
+
     return totalH
 end

@@ -149,12 +149,13 @@ function mouseover.SetDragging(isDragging)
     -- Sync empty slot backgrounds and borders across all buttons
     local allBars = sfui.actionbars.GetAllBars and sfui.actionbars.GetAllBars()
     if allBars then
+        local modCfg = get_mod_cfg()
         for _, bar in ipairs(allBars) do
             if bar and bar.buttons then
                 for i = 1, #bar.buttons do
                     local btn = bar.buttons[i]
                     if btn and sfui.actionbars.style and sfui.actionbars.style.UpdateGrid then
-                        sfui.actionbars.style.UpdateGrid(btn)
+                        sfui.actionbars.style.UpdateGrid(btn, modCfg)
                     end
                 end
             end
