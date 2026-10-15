@@ -4,8 +4,6 @@ Modular, high-performance UI suite and quality-of-life additions for World of Wa
 
 SFUI replaces bulky addon suites, complex WeakAuras, and heavy frameworks with clean, lightweight native components. Everything is driven by a single **central event dispatcher** — instead of dozens of standalone addons running separate timers and eating CPU in the background, sfui coordinates all events and updates through one engine that sleeps when frames are idle and guarantees zero combat taint.
 
-![SFUI Interface Overview]
-
 ---
 
 ## Architecture & Design Principles
@@ -21,6 +19,8 @@ SFUI replaces bulky addon suites, complex WeakAuras, and heavy frameworks with c
 
 ### 1. Radial Menu Engine (Rings)
 Quick-access radial menu system for instant, muscle-memory slice selection. Hold a keybind to summon the radial ring at your cursor, flick in the direction of the desired action, and release to cast.
+
+![Radial Ring Menu](.previews/rings.png)
 
 - **7 Dedicated Ring Providers**:
   - **Specializations (`ALT-X`)**: Instant class specialization switching with active spec indicators.
@@ -50,8 +50,6 @@ Clean, modern unit frames and resource displays tailored for immediate combat cl
 
 ### 3. Action Bars & Combat HUD
 High-performance action bar layouts built with sub-millisecond mouseover responsiveness and zero memory allocations during combat.
-
-![Action Bars & Integrated Item Tracker](.previews/bars_itemtracker.png)
 
 - **Action Bar Management**: Main bar, bottom-left, bottom-right, right bar 1, right bar 2, and pet bar with configurable button sizes, padding, and layout columns.
 - **Stance & Form Paging**: Accurate class stance paging (Druid forms, Rogue stealth, Shadow dance, Skyriding flight page).
@@ -101,8 +99,6 @@ Minimalist, high-performance square minimap designed for unhindered visibility a
 ### 7. Delve & Labyrinth Boons Tracker
 Dedicated power tracking panel for The War Within delves and labyrinth encounters.
 
-![Delve & Labyrinth Boons Tracker](.previews/dynamicbuffscheck.png)
-
 - **Boon Monitoring**: Dynamic tracking for active delve powers, accumulated buff stacks, and stat augmentations (`1280098`).
 - **Responsive Layout**: Automatically anchors below the delve scenario header and quest tracker with full tooltip inspection.
 
@@ -110,8 +106,6 @@ Dedicated power tracking panel for The War Within delves and labyrinth encounter
 
 ### 8. Objective Tracker & Shopping Lists
 Streamlined quest and scenario tracking with integrated trade skill reagent management.
-
-![Objective Item Tracker](.previews/itemtracker.png)
 
 - **Clickable Quest Items**: Embedded action buttons alongside quest objectives for instant item usage without opening bags.
 - **Recipe Shopping Lists**: Live reagent tracking pinned to the objective tracker, detailing required crafting materials and real-time in-bag counts.
@@ -129,14 +123,12 @@ Real-time loot alerts, roll management, and cross-character encounter drop track
 - **Cross-Character Wishlist**: Tag desired items across characters with automatic toast alerts whenever a wishlisted piece drops in your group or raid.
 - **Auto-Comparison**: Automatic gear comparison integration for equippable drops in the loot feed.
 
-![Encounter Loot Browser & Spec Swapper](.previews/lootspec.png)
-
 ---
 
 ### 10. Gear Manager & Bag Upgrades
 Smart inventory evaluation recommending optimal gear configurations.
 
-![Gear Manager & Stat Weights](.previews/gear.png)
+![Gear Manager & Stat Weights](.previews/gearmanager.png)
 
 - **Bag Upgrade Analysis**: Automatic detection of higher item-level or better-itemized equipment sitting in your bags.
 - **Role-Based Stat Weights**: Preset and custom secondary stat prioritization for tanks, healers, and DPS specializations.
@@ -146,8 +138,6 @@ Smart inventory evaluation recommending optimal gear configurations.
 
 ### 11. Dungeon Journal & Recipe Catalogue (Classic / Camelot)
 Full in-game reference databases bringing modern compendium tools to Classic and Camelot clients.
-
-![Classic Dungeon Journal & Research Viewer](.previews/researchviewer.png)
 
 - **Classic Encounter Journal (`/dj`)**: In-depth boss tactics, ability descriptions, complete dungeon loot tables, and drop rates.
 - **Recipe Catalogue (`/recipe`)**: Exhaustive crafting compendium detailing every profession recipe, required materials, trainer locations, vendor costs, and drop sources.
@@ -206,6 +196,8 @@ Thoughtful micro-features that eliminate repetitive manual tasks.
 ---
 
 ### 16. In-Game Configuration & Telemetry
+
+![Options Panel](.previews/options.png)
 
 - **Options Panel (`/sfui`)**: Tabbed configuration suite covering all 18 subsystems. Jump directly to any section with `/sfui <tab>` (e.g. `/sfui ring`, `/sfui minimap`, `/sfui bars`, `/sfui trackedbars`).
 - **Mover Mode (`/sfui unlock`)**: Intuitive drag-and-drop frame positioning with pixel-perfect nudge buttons and coordinate readouts.
