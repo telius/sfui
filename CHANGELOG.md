@@ -1,6 +1,6 @@
 # Changelog
 
-## v2.02 (2026-10-15)
+## v2.03 (2026-10-15)
 
 ### features
 
@@ -23,3 +23,4 @@
 - **item comparison & tooltip safety**: corrected tooltip comparison hook dispatchers for modern clients, whitelisted comparison tooltips to prevent third-party inspection scanner crashes, and enabled auto-comparison integration for equippable items in the loot feed (`frames/gear/compare.lua`, `frames/gear/lootfeed.lua`).
 - **druid travel form action bar paging**: resolved an issue where retail druid travel form incorrectly paged action bar 1 to cat form due to unconstrained classic stance fallbacks, ensuring travel form remains on the primary bar (page 1) and correctly prioritizes skyriding (page 11) in flight form (`frames/actionbars/paging.lua`).
 - **custom ring toy support & execution**: resolved an issue where dragging toys from the toy box, bags, or action bars into custom utility ring slots either failed to drop, was mistakenly stored as perishable inventory items, or failed to cast due to missing bag possession; added automatic toy identification across cursor types, seamless toy promotion, secure action execution via `SECURE_ACTIONS.toy` with `/use item:id` macro fallback, toy box tooltip inspection, and radial cooldown overlays (`common.lua`, `frames/options/tabs/tab_ring.lua`, `frames/ring/providers/ring_utility.lua`, `frames/ring/ring_view.lua`, `frames/ring/ring_secure.lua`).
+- **utility ring item count resolution**: resolved a nil value exception thrown when flushing pending ring rebuilds on combat drop (`PLAYER_REGEN_ENABLED`) by replacing the deprecated retail global `_G.GetItemCount` with a safe `C_Item.GetItemCount` lookup (`frames/ring/providers/ring_utility.lua`).

@@ -11,9 +11,16 @@ local C_SpellBook = _G.C_SpellBook
 local C_Spell = _G.C_Spell
 local C_Item = _G.C_Item
 local C_ToyBox = _G.C_ToyBox
-local C_MountJournal = _G.C_MountJournal
-local GetItemCount = _G.GetItemCount
-local PlayerHasToy = _G.PlayerHasToy
+local GetItemCount = function(itemID)
+    local id = tonumber(itemID) or itemID
+    if not id then return 0 end
+    if C_Item and C_Item.GetItemCount then
+        return C_Item.GetItemCount(id) or 0
+    elseif _G.GetItemCount then
+        return _G.GetItemCount(id) or 0
+    end
+    return 0
+end
 local pcall = _G.pcall
 local tostring = _G.tostring
 local tonumber = _G.tonumber
