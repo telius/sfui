@@ -1127,6 +1127,7 @@ function sfui.initialize_database()
     if SfuiDB.minimap_height == nil then SfuiDB.minimap_height = (sfui.config and sfui.config.minimap and (sfui.config.minimap.height or sfui.config.minimap.default_size)) or 220 end
     SfuiDB.minimap_collect_buttons = (SfuiDB.minimap_collect_buttons == nil) and true or SfuiDB.minimap_collect_buttons
     SfuiDB.minimap_dock_mail = (SfuiDB.minimap_dock_mail == nil) and true or SfuiDB.minimap_dock_mail
+    SfuiDB.minimap_system_mode = SfuiDB.minimap_system_mode or "system"
     if SfuiDB.minimap_rearrange == nil then SfuiDB.minimap_rearrange = true end
     SfuiDB.minimap_buttons_mouseover = (SfuiDB.minimap_buttons_mouseover == nil) and false or
         SfuiDB.minimap_buttons_mouseover

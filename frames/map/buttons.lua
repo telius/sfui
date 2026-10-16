@@ -523,7 +523,7 @@ function ButtonManager:arrange_buttons()
         end
     end
 
-    local clock = _G.TimeManagerClockButton
+    local clock = (sfui.minimap and sfui.minimap.system_button and sfui.minimap.system_button:IsShown() and sfui.minimap.system_button) or _G.TimeManagerClockButton
     local isClockInside = clock and clock:IsShown() and clock:GetParent() == button_bar
     local clockWidth = isClockInside and (clock:GetWidth() > 0 and clock:GetWidth() or 48) or 0
 
@@ -651,14 +651,18 @@ function sfui.minimap.enable_button_manager(enabled)
         ButtonManager:restore_all()
         if button_bar then button_bar:Hide() end
         if _G.AddonCompartmentFrame then _G.AddonCompartmentFrame:Show() end
+        if sfui.minimap.system_button then
+            sfui.minimap.system_button:Hide()
+        end
         local clock = _G.TimeManagerClockButton
-        if clock and clock.sfuiAnchored then
+        if clock then
             clock.sfuiRepositioning = true
             clock:ClearAllPoints()
             clock:SetParent(MinimapCluster or Minimap)
             clock:SetPoint("TOPRIGHT", Minimap, "BOTTOMRIGHT", 0, -2)
             clock.sfuiRepositioning = nil
             clock.sfuiAnchored = nil
+            clock:Show()
         end
         if sfui.minimap.update_status then
             sfui.minimap.update_status()
@@ -673,6 +677,23 @@ end
 -- TimeManager Clock Management
 -- ------------------------------------------------------------------------------
 function sfui.minimap.update_clock_position()
+    if not button_bar then return end
+
+    if sfui.minimap.update_system_button then
+        sfui.minimap.update_system_button(button_bar)
+        local clock = _G.TimeManagerClockButton
+        if clock and clock.Hide then
+            clock:Hide()
+        end
+        if sfui.minimap.update_status then
+            sfui.minimap.update_status()
+        end
+        if sfui.minimap.update_indicator_positions then
+            sfui.minimap.update_indicator_positions()
+        end
+        return
+    end
+
     local clock = _G.TimeManagerClockButton
     if not clock then
         if sfui.common.ensure_addon_loaded("Blizzard_TimeManager") then

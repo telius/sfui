@@ -97,12 +97,37 @@ sfui.options.RegisterTab({
         end, "docks the mail notification icon into the minimap button collection frame.")
         dock_mail_cb:SetPoint("TOPLEFT", mouseover_cb, "BOTTOMLEFT", 0, -10)
 
-        local last_anchor = dock_mail_cb
+        local system_mode_label = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
+        system_mode_label:SetPoint("TOPLEFT", dock_mail_cb, "BOTTOMLEFT", 0, -12)
+        system_mode_label:SetTextColor(white[1], white[2], white[3])
+        system_mode_label:SetText("system info display:")
+
+        local system_mode_options = {
+            { text = "fps & latency", value = "system" },
+            { text = "clock", value = "clock" },
+        }
+
+        local cur_system_mode = (SfuiDB and SfuiDB.minimap_system_mode) or "system"
+        local system_dropdown = create_dropdown(minimap_panel, 180, system_mode_options, function(val)
+            if SfuiDB then
+                SfuiDB.minimap_system_mode = val
+            end
+            if sfui.minimap.update_system_button then
+                sfui.minimap.update_system_button()
+            end
+            if sfui.minimap.arrange_buttons then
+                sfui.minimap.arrange_buttons()
+            end
+        end, cur_system_mode)
+        system_dropdown:SetPoint("LEFT", system_mode_label, "RIGHT", 10, 0)
+        system_dropdown.tooltip = "choose default display for the button collection frame (left-click the text in-game to cycle anytime)."
+
+        local last_anchor = system_mode_label
         if sfui.isCamelot then
             local status_cb = create_checkbox(minimap_panel, "show status indicators", "minimap_show_status", function(checked)
                 sfui.minimap.update_location_bar()
             end, "shows resting (zzz) and pvp tags in the location text.")
-            status_cb:SetPoint("TOPLEFT", last_anchor, "BOTTOMLEFT", 0, -10)
+            status_cb:SetPoint("TOPLEFT", last_anchor, "BOTTOMLEFT", 0, -14)
             last_anchor = status_cb
         end
 

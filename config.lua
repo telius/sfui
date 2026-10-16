@@ -684,6 +684,7 @@ sfui.config = {
         zone_x = 0,
         zone_y = 35,
         dock_mail = true,
+        system_mode = "system",
         button_bar = {
             spacing = 8,
             pad_x = 24,
