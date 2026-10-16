@@ -11,7 +11,6 @@ local C_PetJournal            = _G.C_PetJournal
 local C_TooltipInfo           = _G.C_TooltipInfo
 local GetQuestLogSpecialItemInfo = _G.GetQuestLogSpecialItemInfo
 local GetNumQuestLogEntries   = _G.GetNumQuestLogEntries
-local UseQuestLogSpecialItem  = _G.UseQuestLogSpecialItem
 local InCombatLockdown        = _G.InCombatLockdown
 local PlayerHasToy            = _G.PlayerHasToy
 local GetTime                 = _G.GetTime
@@ -368,6 +367,18 @@ end
 local cachedResult = {}
 local lastScanTime = 0
 
+sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+    lastScanTime = 0
+end)
+
+sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", function()
+    lastScanTime = 0
+end)
+
+sfui.events.RegisterEvent("QUEST_LOG_UPDATE", function()
+    lastScanTime = 0
+end)
+
 sfui.ring.register_provider("questitems", {
     name   = "quest items",
     title  = "quest items",
@@ -381,6 +392,8 @@ sfui.ring.register_provider("questitems", {
         "NEW_MOUNT_ADDED",
         "NEW_PET_ADDED",
         "QUEST_TURNED_IN",
+        "PLAYER_REGEN_DISABLED",
+        "PLAYER_REGEN_ENABLED",
     },
     build  = function(out)
         -- in combat: never perform heavy multi-slot bag scanning or map queries
@@ -391,9 +404,9 @@ sfui.ring.register_provider("questitems", {
             return
         end
 
-        -- throttle out-of-combat bag scans to at most once per 2.0s
+        -- throttle out-of-combat bag scans to at most once per 0.5s
         local now = GetTime()
-        if (now - lastScanTime) < 2.0 and #cachedResult > 0 then
+        if (now - lastScanTime) < 0.5 and #cachedResult > 0 then
             for i = 1, #cachedResult do
                 out[#out + 1] = cachedResult[i]
             end
@@ -430,8 +443,8 @@ sfui.ring.register_provider("questitems", {
                             local startsQuest = itemQuestID and not isQuestActive and not is_quest_completed(itemQuestID)
                             local isQuestOnLog = isQuestActive or (itemQuestID and C_QuestLog and C_QuestLog.IsOnQuest and C_QuestLog.IsOnQuest(itemQuestID))
 
-                            -- category 1: active usable quest items (must belong to an active quest in log)
-                            if isQuest and hasSpell and isQuestOnLog then
+                            -- category 1: active usable quest items
+                            if isQuest and hasSpell and (isQuestOnLog or not is_quest_completed(itemQuestID)) then
                                 cat = 1
                                 dist = get_quest_distance(itemQuestID)
 
@@ -466,16 +479,20 @@ sfui.ring.register_provider("questitems", {
                             local itemIcon = (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID)) or 134400
 
                             items[#items + 1] = {
-                                id       = "qi_" .. itemID,
-                                itemID   = itemID,
-                                category = cat,
-                                label    = itemName:lower(),
-                                icon     = itemIcon,
-                                count    = count,
-                                dist     = dist,
-                                attrs    = {
-                                    type = "item",
-                                    item = "item:" .. itemID,
+                                id          = "qi_" .. itemID,
+                                itemID      = itemID,
+                                bag         = bag,
+                                slot        = slot,
+                                questID     = itemQuestID,
+                                startsQuest = (cat == 2) or startsQuest,
+                                category    = cat,
+                                label       = itemName:lower(),
+                                icon        = itemIcon,
+                                count       = count,
+                                dist        = dist,
+                                attrs       = {
+                                    type      = "macro",
+                                    macrotext = "/use item:" .. itemID,
                                 },
                             }
                         end
@@ -516,20 +533,19 @@ sfui.ring.register_provider("questitems", {
                             items[#items + 1] = {
                                 id            = "qi_" .. itemID,
                                 itemID        = itemID,
+                                questLogIndex = qIndex,
+                                questID       = questID,
+                                startsQuest   = false,
                                 category      = 1,
                                 label         = rawName:lower(),
                                 icon          = icon,
-                                count         = charges or 0,
+                                charges       = charges,
+                                count         = (charges and charges > 0) and charges or 0,
                                 dist          = dist,
                                 attrs         = {
-                                    type = "item",
-                                    item = "item:" .. itemID,
+                                    type      = "macro",
+                                    macrotext = "/use item:" .. itemID,
                                 },
-                                insecure_func = function()
-                                    if UseQuestLogSpecialItem and qIndex then
-                                        UseQuestLogSpecialItem(qIndex)
-                                    end
-                                end,
                             }
                         end
                     end

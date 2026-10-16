@@ -121,6 +121,78 @@ function sfui.actionbars.GetBarConfig(barKey)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
+--  Button Locking & Shift-to-Drag Management
+-- ─────────────────────────────────────────────────────────────────────────────
+function sfui.actionbars.AreButtonsLocked()
+    if SfuiDB and SfuiDB.actionbars and SfuiDB.actionbars.lockButtons ~= nil then
+        return SfuiDB.actionbars.lockButtons
+    end
+    if sfui.config and sfui.config.actionbars and sfui.config.actionbars.lockButtons ~= nil then
+        return sfui.config.actionbars.lockButtons
+    end
+    return true
+end
+
+function sfui.actionbars.SetButtonsLocked(isLocked)
+    if isLocked == nil then
+        isLocked = sfui.actionbars.AreButtonsLocked()
+    end
+
+    if SfuiDB then
+        SfuiDB.actionbars = SfuiDB.actionbars or {}
+        SfuiDB.actionbars.lockButtons = isLocked
+    end
+
+    local mod = (SfuiDB and SfuiDB.actionbars and SfuiDB.actionbars.movementModifier)
+        or (sfui.config and sfui.config.actionbars and sfui.config.actionbars.movementModifier)
+        or "SHIFT"
+
+    -- Sync Blizzard's lockActionBars CVar so native PetActionBar & flyouts require Shift
+    sfui.common.set_cvar("lockActionBars", isLocked and 1 or 0)
+    if _G.Settings and _G.Settings.SetValue then
+        pcall(_G.Settings.SetValue, "lockActionBars", isLocked)
+    end
+
+    -- ElvUI Pattern: Enforce movementModifier on PICKUPACTION (in-memory only, matching ElvUI)
+    if _G.SetModifiedClick then
+        _G.SetModifiedClick("PICKUPACTION", mod)
+    end
+
+    -- Secure button attribute updates must happen outside combat lockdown
+    if InCombatLockdown and InCombatLockdown() then
+        if sfui.common and sfui.common.run_after_combat then
+            sfui.common.run_after_combat(function()
+                sfui.actionbars.SetButtonsLocked(isLocked)
+            end)
+        end
+        return
+    end
+
+    local LAB = LibStub and LibStub("LibActionButton-1.0", true)
+    if LAB and LAB.buttonRegistry then
+        for button in pairs(LAB.buttonRegistry) do
+            if button and button.SetAttribute then
+                button:SetAttribute("buttonlock", isLocked or nil)
+                button:SetAttribute("unlockedpreventdrag", true)
+            end
+        end
+    end
+    if sfui.actionbars.bars then
+        for barIndex = 1, 10 do
+            local bar = sfui.actionbars.bars[barIndex]
+            if bar and bar.buttons then
+                for _, button in ipairs(bar.buttons) do
+                    if button and button.SetAttribute then
+                        button:SetAttribute("buttonlock", isLocked or nil)
+                        button:SetAttribute("unlockedpreventdrag", true)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
 --  Layout Application (3x4 Grid & Custom Shapes)
 -- ─────────────────────────────────────────────────────────────────────────────
 function sfui.actionbars.ApplyBarLayout(barIndex)
@@ -594,10 +666,15 @@ function sfui.actionbars.CreatePetBar()
         if btn then
             btn:SetParent(bar)
             btn.index = i
+            btn.barKey = "pet"
+            btn.commandName = "BONUSACTIONBUTTON" .. i
             if btn.SetID then btn:SetID(i) end
             bar.buttons[i] = btn
             if sfui.actionbars.style and sfui.actionbars.style.SkinButton then
                 sfui.actionbars.style.SkinButton(btn)
+            end
+            if sfui.actionbars.bind and sfui.actionbars.bind.RegisterButton then
+                sfui.actionbars.bind.RegisterButton(btn)
             end
         end
     end
@@ -725,6 +802,10 @@ function sfui.actionbars.CreateVehicleLeaveButton()
         btn:SetSize(buttonSize, buttonSize)
         btn.barKey = "vehicle"
         btn.barConfig = cfg
+        btn.commandName = "VEHICLEEXIT"
+        if sfui.actionbars.bind and sfui.actionbars.bind.RegisterButton then
+            sfui.actionbars.bind.RegisterButton(btn)
+        end
 
         -- 1px black backdrop border to match SFUI theme
         if not btn.borderBackdrop then
@@ -911,7 +992,16 @@ function sfui.actionbars.CreateBars()
             local button = LAB:CreateButton(i, buttonName, bar, btnCfg)
             button.barIndex = barIndex
             button.buttonIndex = i
+            button.commandName = candidateTargets[1]
             button._sfuiBindingTargets = candidateTargets
+
+            if sfui.actionbars.bind and sfui.actionbars.bind.RegisterButton then
+                sfui.actionbars.bind.RegisterButton(button)
+            end
+
+            local isLocked = sfui.actionbars.AreButtonsLocked()
+            button:SetAttribute("buttonlock", isLocked or nil)
+            button:SetAttribute("unlockedpreventdrag", true)
 
             -- Custom GetHotkey to resolve key from candidate targets
             button.GetHotkey = function(self)
@@ -1001,6 +1091,9 @@ function sfui.actionbars.CreateBars()
 
     -- Synchronize and override all hardware keybindings
     sfui.actionbars.UpdateAllBindings()
+
+    -- Synchronize button lock state and CVars
+    sfui.actionbars.SetButtonsLocked(sfui.actionbars.AreButtonsLocked())
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────

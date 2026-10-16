@@ -25,6 +25,7 @@ local defaults = {
     deadzone    = 28,
     slot_size   = 40,
     show_labels = true,
+    show_cooldowns = true,
     sound_cues  = true,
     quest_include_chests       = true,
     quest_include_knowledge    = true,
@@ -257,6 +258,17 @@ end)
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
     ring.rebuild()
     ring.apply_all_bindings()
+end)
+
+sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+    rebuildTimer = nil
+    for rID in pairs(pendingRebuilds) do
+        pendingRebuilds[rID] = nil
+        ring.rebuild(rID)
+    end
+    if providers["questitems"] then
+        ring.rebuild("questitems")
+    end
 end)
 
 sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()

@@ -31,6 +31,9 @@ sfui.options.RegisterTab({
                 if sfui.actionbars.mouseover and sfui.actionbars.mouseover.UpdateAllBars then
                     sfui.actionbars.mouseover.UpdateAllBars(true)
                 end
+                if sfui.actionbars.SetButtonsLocked then
+                    sfui.actionbars.SetButtonsLocked(defaults.lockButtons ~= false)
+                end
             end
             if refreshTabUI then
                 refreshTabUI()
@@ -51,6 +54,7 @@ sfui.options.RegisterTab({
         local selectedBarKey = "bar1"
         local selectedBarIndex = 1
         local all_mouseover_cb
+        local lock_cb
 
         local function get_mod_cfg()
             if not SfuiDB then return (sfui.config and sfui.config.actionbars) or {} end
@@ -139,14 +143,39 @@ sfui.options.RegisterTab({
         end, "replaces blizzard action bars with modular sfui bars 1-10.")
         enable_cb:SetPoint("TOPLEFT", sec1, "BOTTOMLEFT", 0, -8)
 
-        local mover_btn = CreateFlatButton(panel, "unlock / move bars", 150, 22, function(self)
+        lock_cb = create_checkbox(panel, "lock actionbars", function()
+            local cfg = get_mod_cfg()
+            return cfg.lockButtons ~= false
+        end, function(val)
+            local cfg = get_mod_cfg()
+            cfg.lockButtons = val
+            if sfui.db and sfui.db.Set then
+                sfui.db.Set("actionbars", "lockButtons", val)
+            end
+            if sfui.actionbars and sfui.actionbars.SetButtonsLocked then
+                sfui.actionbars.SetButtonsLocked(val)
+            end
+        end, "prevents abilities from dragging unless holding shift, preventing accidental casts while moving abilities.")
+        lock_cb:SetPoint("TOPLEFT", enable_cb, "BOTTOMLEFT", 0, -8)
+
+        local mover_btn = CreateFlatButton(panel, "unlock / move bars", 125, 22, function(self)
             if sfui.actionbars and sfui.actionbars.ToggleMovers then
                 sfui.actionbars.ToggleMovers()
                 local unlocked = sfui.actionbars.moversUnlocked
                 self:SetText(unlocked and "lock bars" or "unlock / move bars")
             end
         end)
-        mover_btn:SetPoint("TOPLEFT", enable_cb, "BOTTOMLEFT", 0, -8)
+        mover_btn:SetPoint("TOPLEFT", lock_cb, "BOTTOMLEFT", 0, -8)
+
+        local keybind_btn = CreateFlatButton(panel, "quick keybind mode", 125, 22, function()
+            if sfui.options and sfui.options.Toggle then
+                sfui.options.Toggle()
+            end
+            if sfui.actionbars and sfui.actionbars.ActivateBindMode then
+                sfui.actionbars.ActivateBindMode()
+            end
+        end)
+        keybind_btn:SetPoint("LEFT", mover_btn, "RIGHT", 6, 0)
 
         local sec2 = panel:CreateFontString(nil, "OVERLAY", g.font)
         sec2:SetPoint("TOPLEFT", mover_btn, "BOTTOMLEFT", 0, -14)
@@ -572,6 +601,10 @@ sfui.options.RegisterTab({
             if enable_cb and enable_cb.SetChecked then
                 local cfg = get_mod_cfg()
                 enable_cb:SetChecked(cfg.enabled ~= false)
+            end
+            if lock_cb and lock_cb.SetChecked then
+                local cfg = get_mod_cfg()
+                lock_cb:SetChecked(cfg.lockButtons ~= false)
             end
             if all_mouseover_cb and all_mouseover_cb.SetChecked then
                 local cfg = get_mod_cfg()

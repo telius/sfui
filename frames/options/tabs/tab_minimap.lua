@@ -23,9 +23,13 @@ sfui.options.RegisterTab({
 
         local height_slider = nil
         local width_slider = nil
+        local square_bronze_cb = nil
 
         local function update_dim_controls()
             local isSquare = sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
+            if square_bronze_cb then
+                square_bronze_cb:SetShown(isSquare)
+            end
             if isSquare then
                 if height_slider then height_slider:Show() end
                 if width_slider and width_slider.label then
@@ -53,6 +57,20 @@ sfui.options.RegisterTab({
             update_dim_controls()
         end, "forces the minimap into a sleek, lean square with 1px border.")
         square_cb:SetPoint("TOPLEFT", minimap_header, "BOTTOMLEFT", 0, -10)
+
+        square_bronze_cb = create_checkbox(minimap_panel, "bronze theme", function()
+            if sfui.map and sfui.map.square and sfui.map.square.IsBronzeTheme then
+                return sfui.map.square:IsBronzeTheme()
+            end
+            return false
+        end, function(checked)
+            SfuiDB._minimapSquareBronzeCustomized = true
+            SfuiDB.minimap_square_bronze = checked
+            if sfui.map and sfui.map.square and sfui.map.square.SetBronzeTheme then
+                sfui.map.square:SetBronzeTheme(checked)
+            end
+        end, "applies sculpted bronze metal borders and ornate corner brackets to the square minimap.")
+        square_bronze_cb:SetPoint("LEFT", square_cb.text, "RIGHT", 25, 0)
 
         local collect_cb = create_checkbox(minimap_panel, "collect buttons", "minimap_collect_buttons", function(checked)
             sfui.minimap.enable_button_manager(checked)
@@ -120,6 +138,11 @@ sfui.options.RegisterTab({
                 SfuiDB.minimap_square = not isBronzeCamelot
             elseif isBronzeCamelot and SfuiDB.minimap_square == true and not SfuiDB._minimapSquareCustomized then
                 SfuiDB.minimap_square = false
+            end
+            if SfuiDB.minimap_square_bronze == nil then
+                SfuiDB.minimap_square_bronze = (sfui.config and sfui.config.minimap and sfui.config.minimap.square_bronze ~= nil)
+                    and sfui.config.minimap.square_bronze
+                    or isBronzeCamelot
             end
             if SfuiDB.minimap_show_location == nil then
                 SfuiDB.minimap_show_location = true

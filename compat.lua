@@ -563,16 +563,31 @@ end
 
 --- Returns item cooldown: startTime, duration, enable.
 --- Cascades C_Spell.GetItemCooldown -> C_Item.GetItemCooldown -> C_Container.GetItemCooldown -> legacy GetItemCooldown.
+--- In combat lockdown, only AllowedWhenTainted APIs (C_Spell.GetItemCooldown) are used to prevent [Blocked] UNKNOWN() errors.
 --- @return number, number, number
 function sfui.api.GetItemCooldown(itemID)
     if not itemID then return 0, 0, 0 end
+    local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
+
     if _G.C_Spell and _G.C_Spell.GetItemCooldown then
         local cd = _G.C_Spell.GetItemCooldown(itemID)
         if cd then
-            return cd.startTime or 0, cd.duration or 0, (cd.isEnabled and 1 or 0)
+            local s = cd.startTime or 0
+            local d = cd.duration or 0
+            local e = cd.isEnabled and 1 or 0
+            if _G.issecretvalue and (_G.issecretvalue(s) or _G.issecretvalue(d)) then
+                return s, d, e
+            end
+            if (s and d and d > 0) or inCombat then
+                return s, d, e
+            end
         end
+    end
+
+    if inCombat then
         return 0, 0, 0
     end
+
     if _G.C_Item and _G.C_Item.GetItemCooldown then
         return _G.C_Item.GetItemCooldown(itemID)
     end
@@ -966,4 +981,42 @@ if IS_CAMELOT then
     end
     patchCamelotGamepadPetFlyout()
 end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+--  Camelot NamePlateDriver Soft-Target Crash Guard
+--  In 1.60.1 (Camelot / Classic Forever), Blizzard backported soft-target
+--  nameplate icon handling, but NamePlateDriverFrame:OnSoftTargetUpdate() throws
+--  "attempt to call a nil value" on every PLAYER_SOFT_INTERACT_CHANGED event.
+--  Unregistering the soft-target events from NamePlateDriverFrame cleanly silences
+--  this Blizzard bug with zero secure taint.
+-- ─────────────────────────────────────────────────────────────────────────────
+if sfui.isCamelot then
+    local function suppress_camelot_nameplate_soft_target()
+        local driver = _G.NamePlateDriverFrame
+        if driver and driver.UnregisterEvent then
+            driver:UnregisterEvent("PLAYER_SOFT_INTERACT_CHANGED")
+            driver:UnregisterEvent("PLAYER_SOFT_FRIEND_CHANGED")
+            driver:UnregisterEvent("PLAYER_SOFT_ENEMY_CHANGED")
+        end
+    end
+
+    if _G.EventUtil and _G.EventUtil.ContinueOnPlayerLogin then
+        _G.EventUtil.ContinueOnPlayerLogin(suppress_camelot_nameplate_soft_target)
+    end
+
+    local function on_nameplate_event(event, arg1)
+        if event == "ADDON_LOADED" and arg1 == "Blizzard_NamePlates" then
+            suppress_camelot_nameplate_soft_target()
+        elseif event == "PLAYER_ENTERING_WORLD" then
+            suppress_camelot_nameplate_soft_target()
+        end
+    end
+
+    if sfui.events and sfui.events.RegisterEvent then
+        sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_nameplate_event)
+        sfui.events.RegisterEvent("ADDON_LOADED", on_nameplate_event)
+    end
+    suppress_camelot_nameplate_soft_target()
+end
+
 

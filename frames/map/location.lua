@@ -175,8 +175,9 @@ local function get_or_create_location_frame()
 
     -- Click to toggle world map (matching Blizzard ZoneTextButton behavior)
     f:SetScript("OnClick", function(self, button)
+        if InCombatLockdown and InCombatLockdown() then return end
         if ToggleWorldMap then
-            ToggleWorldMap()
+            pcall(ToggleWorldMap)
         end
     end)
 

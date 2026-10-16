@@ -20,7 +20,7 @@ local WORLD_MARKER_DEFS = {
 sfui.ring.register_provider("worldmarkers", {
     name   = "world markers",
     title  = "world markers",
-    events = { "PLAYER_ENTERING_WORLD" },
+    events = { "PLAYER_ENTERING_WORLD", "RAID_TARGET_UPDATE" },
     build  = function(out)
         local isMarkerActive = _G.IsRaidMarkerActive
         for i = 1, #WORLD_MARKER_DEFS do

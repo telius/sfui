@@ -82,13 +82,10 @@ local SNIPPET_PRE = [==[
 
     if down then
         self:SetAttribute("type", nil)
+        self:SetAttribute("typerelease", nil)
         self:SetAttribute("sfui_idx", nil)
+        self:SetAttribute("sfui_is_insecure", nil)
         self:SetAttribute("sfui_why", "pressed")
-
-        if cancel then
-            cancel:SetBindingClick(true, "ESCAPE", cancel, "LeftButton")
-        end
-
         self:SetAttribute("sfui_ox", nil)
         self:SetAttribute("sfui_oy", nil)
         if ui then
@@ -103,14 +100,10 @@ local SNIPPET_PRE = [==[
             h:CallMethod("OpenLiveRing", self:GetAttribute("sfui_ring_id"))
         end
 
-        return nil, 1
+        return false
     end
 
     -- key up (release)
-    if cancel then
-        cancel:ClearBindings()
-    end
-
     local ox = tonumber(self:GetAttribute("sfui_ox"))
     local oy = tonumber(self:GetAttribute("sfui_oy"))
     local numSlots = tonumber(self:GetAttribute("sfui_num_slots")) or 0
@@ -118,15 +111,23 @@ local SNIPPET_PRE = [==[
 
     if not ui or not ox or not oy or numSlots <= 0 then
         self:SetAttribute("type", nil)
+        self:SetAttribute("typerelease", nil)
         self:SetAttribute("sfui_why", "no_origin")
-        return nil, 1
+        if h then
+            h:CallMethod("CloseLiveRing")
+        end
+        return false
     end
 
     local x, y = ui:GetMousePosition()
     if not x or not y then
         self:SetAttribute("type", nil)
+        self:SetAttribute("typerelease", nil)
         self:SetAttribute("sfui_why", "offscreen")
-        return nil, 1
+        if h then
+            h:CallMethod("CloseLiveRing")
+        end
+        return false
     end
 
     local cx, cy = x * ui:GetWidth(), y * ui:GetHeight()
@@ -135,9 +136,13 @@ local SNIPPET_PRE = [==[
 
     if dist < deadzone then
         self:SetAttribute("type", nil)
+        self:SetAttribute("typerelease", nil)
         self:SetAttribute("sfui_idx", nil)
         self:SetAttribute("sfui_why", "deadzone")
-        return nil, 1
+        if h then
+            h:CallMethod("CloseLiveRing")
+        end
+        return false
     end
 
     local theta = atan2(dx, dy)
@@ -154,8 +159,18 @@ local SNIPPET_PRE = [==[
     local isInsecure = self:GetAttribute("slot" .. idx .. "-insecure")
     if not actionType and not isInsecure then
         self:SetAttribute("type", nil)
+        self:SetAttribute("typerelease", nil)
         self:SetAttribute("sfui_why", "empty")
-        return nil, 1
+        if h then
+            h:CallMethod("CloseLiveRing")
+        end
+        return false
+    end
+
+    if isInsecure then
+        self:SetAttribute("sfui_is_insecure", "1")
+    else
+        self:SetAttribute("sfui_is_insecure", nil)
     end
 
     -- clear stale action attributes
@@ -181,9 +196,12 @@ local SNIPPET_PRE = [==[
     end
 
     if actionType then
+        self:SetAttribute("pressAndHoldAction", 1)
         self:SetAttribute("type", actionType)
+        self:SetAttribute("typerelease", actionType)
     else
         self:SetAttribute("type", nil)
+        self:SetAttribute("typerelease", nil)
     end
     self:SetAttribute("sfui_why", "fire")
     return nil, 1
@@ -192,22 +210,23 @@ local SNIPPET_PRE = [==[
 local SNIPPET_POST = [==[
     if down then return end
     self:SetAttribute("type", nil)
+    self:SetAttribute("typerelease", nil)
     self:SetAttribute("macrotext", nil)
     self:SetAttribute("toy", nil)
     self:SetAttribute("spell", nil)
     self:SetAttribute("item", nil)
     self:SetAttribute("macro", nil)
-    local cancel = self:GetFrameRef("cancel")
-    if cancel then
-        cancel:ClearBindings()
-    end
+    self:SetAttribute("action", nil)
+    self:SetAttribute("marker", nil)
 
     local h = self:GetFrameRef("header") or control
     if h then
         h:CallMethod("CloseLiveRing")
 
         local why = self:GetAttribute("sfui_why")
-        if why == "fire" then
+        local isInsecure = self:GetAttribute("sfui_is_insecure")
+        self:SetAttribute("sfui_is_insecure", nil)
+        if why == "fire" and isInsecure then
             local idx = self:GetAttribute("sfui_idx")
             if idx then
                 h:CallMethod("FireInsecureSlot", self:GetAttribute("sfui_ring_id"), idx)

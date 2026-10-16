@@ -669,6 +669,7 @@ sfui.config = {
 
     minimap = {
         square = true,
+        square_bronze = false,
         default_size = 220,
         width = 220,
         height = 220,
@@ -1059,6 +1060,8 @@ sfui.config = {
         restingAlpha       = 0,
         activeAlpha        = 1,
         hotkeyFontSize     = 10,
+        lockButtons        = true,
+        movementModifier   = "SHIFT",
         bars               = {
             bar1 = {
                 enabled       = true,

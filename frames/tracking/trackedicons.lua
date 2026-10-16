@@ -109,7 +109,11 @@ end
 local function update_item_cd(icon)
     local s, d, e = sfui.api.GetItemCooldown(icon.id)
     icon._start, icon._duration, icon._isEnabled = s, d, e
-    CooldownFrame_Set(icon.cooldown, s, d, e)
+    if issecretvalue and (issecretvalue(s) or issecretvalue(d)) then
+        icon.cooldown:SetCooldown(s, d)
+    else
+        CooldownFrame_Set(icon.cooldown, s, d, e)
+    end
     
     if icon.shadowCooldown then
         if not issecretvalue(s) and not issecretvalue(d) then

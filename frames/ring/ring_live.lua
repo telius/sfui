@@ -20,15 +20,26 @@ local activeSlots = nil
 local lastHoveredIndex = nil
 
 local updateThrottle = 0
+local cdThrottle = 0
 local function on_live_update(self, elapsed)
-    updateThrottle = updateThrottle + (elapsed or 0)
-    if updateThrottle < 0.016 then return end
-    updateThrottle = 0
+    elapsed = elapsed or 0
+    updateThrottle = updateThrottle + elapsed
+    cdThrottle = cdThrottle + elapsed
 
-    if not isOpen or not activeSlots then
+    if not isOpen or not activeSlots or #activeSlots == 0 then
         self:SetScript("OnUpdate", nil)
         return
     end
+
+    if cdThrottle >= 0.05 then
+        cdThrottle = 0
+        if view and view.update_live_state then
+            view.update_live_state()
+        end
+    end
+
+    if updateThrottle < 0.016 then return end
+    updateThrottle = 0
 
     local curX, curY = GetCursorPosition()
     local scale = UIParent:GetEffectiveScale() or 1
@@ -70,6 +81,7 @@ function live.open(ringID)
     lastHoveredIndex = nil
     isOpen = true
     updateThrottle = 0
+    cdThrottle = 0
 
     local curX, curY = GetCursorPosition()
     local scale = UIParent:GetEffectiveScale() or 1

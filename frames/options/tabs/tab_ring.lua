@@ -449,6 +449,15 @@ sfui.options.RegisterTab({
         )
         cb_labels:SetPoint("TOPLEFT", cb_enabled, "BOTTOMLEFT", 0, -4)
 
+        local cb_cooldowns = sfui.widgets.create_checkbox(
+            p,
+            "show cooldown numbers",
+            function() return sfui.db.Get("ring", "show_cooldowns", true) end,
+            function(val) sfui.db.Set("ring", "show_cooldowns", val) end,
+            "display digital cooldown countdown timers on radial slice icons."
+        )
+        cb_cooldowns:SetPoint("TOPLEFT", cb_labels, "BOTTOMLEFT", 0, -4)
+
         local cb_sounds = sfui.widgets.create_checkbox(
             p,
             "play sound cues on hover",
@@ -456,7 +465,7 @@ sfui.options.RegisterTab({
             function(val) sfui.db.Set("ring", "sound_cues", val) end,
             "play a subtle click sound when cursor flicks to a new slot."
         )
-        cb_sounds:SetPoint("TOPLEFT", cb_labels, "BOTTOMLEFT", 0, -4)
+        cb_sounds:SetPoint("TOPLEFT", cb_cooldowns, "BOTTOMLEFT", 0, -4)
 
         local slider_radius = sfui.widgets.create_slider_input(
             p,

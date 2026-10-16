@@ -30,6 +30,8 @@ local GetQuestLogSpecialItemCooldown = _G.GetQuestLogSpecialItemCooldown
 local IsQuestLogSpecialItemInRange = _G.IsQuestLogSpecialItemInRange
 local UseQuestLogSpecialItem = _G.UseQuestLogSpecialItem
 local C_Minimap = _G.C_Minimap
+local C_Spell = _G.C_Spell
+local InCombatLockdown = _G.InCombatLockdown
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local pairs, next, tostring = _G.pairs, _G.next, _G.tostring
 local table_insert, table_remove = _G.table.insert, _G.table.remove
@@ -45,6 +47,7 @@ local isRangeWatcherActive = false
 --  RANGE CHECK UPDATE LOOP (Throttled at 5Hz / 0.20s)
 -- ─────────────────────────────────────────────────────────
 local function OnRangeUpdate()
+    if InCombatLockdown and InCombatLockdown() then return end
     if not next(activeButtons) then
         if isRangeWatcherActive then
             sfui.events.UnregisterUpdate("QuestItemRange")
@@ -88,9 +91,44 @@ end
 --  COOLDOWN UPDATES
 -- ─────────────────────────────────────────────────────────
 local function UpdateButtonCooldown(btn)
-    if not btn or not btn.questLogIndex or not GetQuestLogSpecialItemCooldown then return end
-    local start, duration, enable = GetQuestLogSpecialItemCooldown(btn.questLogIndex)
-    if start and duration and duration > 0 and enable ~= 0 then
+    if not btn or not btn.Cooldown then return end
+    local inCombat = InCombatLockdown and InCombatLockdown()
+    local start, duration, enable = 0, 0, 0
+    local itemID = btn.itemID
+
+    if inCombat then
+        if itemID and C_Spell and C_Spell.GetItemCooldown then
+            local cd = C_Spell.GetItemCooldown(itemID)
+            if cd then
+                start = cd.startTime or 0
+                duration = cd.duration or 0
+                enable = cd.isEnabled and 1 or 0
+                if cd.isActive == false then
+                    btn.Cooldown:Clear()
+                    return
+                end
+            end
+        end
+    else
+        if btn.questLogIndex and GetQuestLogSpecialItemCooldown then
+            start, duration, enable = GetQuestLogSpecialItemCooldown(btn.questLogIndex)
+        end
+        if (not start or duration == 0) and itemID and C_Spell and C_Spell.GetItemCooldown then
+            local cd = C_Spell.GetItemCooldown(itemID)
+            if cd then
+                start = cd.startTime or 0
+                duration = cd.duration or 0
+                enable = cd.isEnabled and 1 or 0
+            end
+        end
+    end
+
+    if issecretvalue and (issecretvalue(start) or issecretvalue(duration)) then
+        btn.Cooldown:SetCooldown(start, duration)
+        return
+    end
+
+    if start and duration and duration > 0 and (enable == nil or enable ~= 0) then
         btn.Cooldown:SetCooldown(start, duration)
     else
         btn.Cooldown:Clear()
@@ -109,6 +147,7 @@ end
 --  BLOB GLOW PULSE
 -- ─────────────────────────────────────────────────────────
 local function UpdateBlobGlow(btn)
+    if InCombatLockdown and InCombatLockdown() then return end
     if not btn or not btn.questID or not C_Minimap or not C_Minimap.IsInsideQuestBlob then return end
     local inside = C_Minimap.IsInsideQuestBlob(btn.questID)
     if inside and not btn.isGlowing then
@@ -205,6 +244,7 @@ function Items.CreateItemButton(parent)
     -- Scripts
     btn:RegisterForClicks("AnyUp")
     btn:SetScript("OnClick", function(self, button)
+        if InCombatLockdown and InCombatLockdown() then return end
         local qlIndex = self.questLogIndex
         if not qlIndex then return end
 
@@ -267,6 +307,7 @@ function Items.SetupItemButton(btn, questLogIndex, questID, itemInfo)
     btn.questLogIndex = questLogIndex
     btn.questID = questID
     btn.itemLink = itemInfo.link
+    btn.itemID = itemInfo.link and tonumber(itemInfo.link:match("item:(%d+)"))
 
     btn.Icon:SetTexture(itemInfo.texture)
 
@@ -292,6 +333,7 @@ function Items.ReleaseItemButton(btn)
     btn.questLogIndex = nil
     btn.questID = nil
     btn.itemLink = nil
+    btn.itemID = nil
     btn.isGlowing = false
     if btn.GlowTex then btn.GlowTex:Hide() end
     if btn.RangeDot then btn.RangeDot:Hide() end
@@ -333,6 +375,17 @@ sfui.events.RegisterEvent("PLAYER_INSIDE_QUEST_BLOB_STATE_CHANGED", function(eve
         if btn.questID == questID then
             UpdateBlobGlow(btn)
         end
+    end
+end)
+sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+    for btn in pairs(activeButtons) do
+        if btn:IsShown() then
+            UpdateButtonCooldown(btn)
+            UpdateBlobGlow(btn)
+        end
+    end
+    if isRangeWatcherActive then
+        OnRangeUpdate()
     end
 end)
 

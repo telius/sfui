@@ -240,12 +240,58 @@ function sfui.widgets.apply_round_icon_style(frame, texture, borderThickness, bo
     end
     frame:SetRoundBorderColor(r, g, b, a)
 
+    if frame.cooldown then
+        sfui.widgets.apply_round_cooldown_style(frame.cooldown, frame, borderThickness)
+    end
+
     frame.isRoundStyle = true
     return frame
 end
 sfui.common.apply_round_icon_style = sfui.widgets.apply_round_icon_style
 sfui.widgets.apply_circular_icon_style = sfui.widgets.apply_round_icon_style
 sfui.common.apply_circular_icon_style = sfui.widgets.apply_round_icon_style
+
+function sfui.widgets.apply_round_cooldown_style(cd, parent, borderThickness)
+    if not cd then return end
+    parent = parent or cd:GetParent()
+
+    local mult = sfui.pixelScale or 1
+    local thickness = (borderThickness or 1.5) * mult
+
+    cd:ClearAllPoints()
+    if parent then
+        cd:SetPoint("TOPLEFT", parent, "TOPLEFT", thickness, -thickness)
+        cd:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -thickness, thickness)
+    end
+
+    cd:SetDrawEdge(false)
+    cd:SetDrawBling(false)
+
+    if cd.SetUseCircularEdge then
+        cd:SetUseCircularEdge(true)
+    end
+
+    if cd.SetHideCountdownNumbers then
+        cd:SetHideCountdownNumbers(true)
+    end
+
+    local cdSwipeAtlas = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo("CircleMask")
+    if cdSwipeAtlas and cd.SetSwipeTexture and cd.SetTexCoordRange then
+        cd:SetSwipeTexture(cdSwipeAtlas.file or cdSwipeAtlas.filename, 0, 0, 0, 0.65)
+        local lowTexCoords = _G.CreateVector2D and _G.CreateVector2D(cdSwipeAtlas.leftTexCoord, cdSwipeAtlas.topTexCoord)
+            or { x = cdSwipeAtlas.leftTexCoord, y = cdSwipeAtlas.topTexCoord }
+        local highTexCoords = _G.CreateVector2D and _G.CreateVector2D(cdSwipeAtlas.rightTexCoord, cdSwipeAtlas.bottomTexCoord)
+            or { x = cdSwipeAtlas.rightTexCoord, y = cdSwipeAtlas.bottomTexCoord }
+        cd:SetTexCoordRange(lowTexCoords, highTexCoords)
+    elseif cd.SetSwipeTexture then
+        cd:SetSwipeTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", 0, 0, 0, 0.65)
+    end
+
+    if cd.SetSwipeColor then
+        cd:SetSwipeColor(0, 0, 0, 0.65)
+    end
+end
+sfui.common.apply_round_cooldown_style = sfui.widgets.apply_round_cooldown_style
 
 function sfui.widgets.create_round_icon_button(parent, size, name)
     local btn = CreateFrame("Button", name, parent)

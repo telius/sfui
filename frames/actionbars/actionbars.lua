@@ -266,6 +266,13 @@ local ActionBarsModule = sfui.RegisterModule("actionbars", {
     end,
 
     OnSettingsChanged = function(self, key, value)
+        if key == "lockButtons" then
+            if sfui.actionbars and sfui.actionbars.SetButtonsLocked then
+                sfui.actionbars.SetButtonsLocked(value)
+            end
+            return
+        end
+
         local bars = sfui.actionbars.bars
         if not bars then return end
 

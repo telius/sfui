@@ -48,7 +48,7 @@ sfui.ring.register_provider("tracking", {
                 local isActive = not not active
                 out[#out + 1] = {
                     id                    = "tracking_" .. i,
-                    label                 = (isActive and "|cff00ff00" or "|cff888888") .. name:lower(),
+                    label                 = (isActive and "|cff00ff00" or "|cff888888") .. name:lower() .. "|r",
                     icon                  = texture or "Interface\\Minimap\\Tracking\\None",
                     color                 = isActive and { 1.0, 1.0, 1.0 } or { 0.45, 0.45, 0.45 },
                     active                = isActive,

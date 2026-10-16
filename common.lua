@@ -1118,6 +1118,11 @@ function sfui.initialize_database()
         -- Automatically default Bronze Camelot theme to round minimap if still using legacy default
         SfuiDB.minimap_square = false
     end
+    if SfuiDB.minimap_square_bronze == nil then
+        SfuiDB.minimap_square_bronze = (sfui.config and sfui.config.minimap and sfui.config.minimap.square_bronze ~= nil)
+            and sfui.config.minimap.square_bronze
+            or isBronzeCamelot
+    end
     if SfuiDB.minimap_width == nil then SfuiDB.minimap_width = (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size)) or 220 end
     if SfuiDB.minimap_height == nil then SfuiDB.minimap_height = (sfui.config and sfui.config.minimap and (sfui.config.minimap.height or sfui.config.minimap.default_size)) or 220 end
     SfuiDB.minimap_collect_buttons = (SfuiDB.minimap_collect_buttons == nil) and true or SfuiDB.minimap_collect_buttons
@@ -1216,6 +1221,25 @@ function sfui.initialize_database()
             x = SfuiDB.trackedBarsX or -300,
             y = SfuiDB.trackedBarsY or 300,
         }
+    end
+
+    -- Actionbars lock state & shift-to-drag sync
+    SfuiDB.actionbars = SfuiDB.actionbars or {}
+    if SfuiDB.actionbars.lockButtons == nil then
+        SfuiDB.actionbars.lockButtons = (sfui.config and sfui.config.actionbars and sfui.config.actionbars.lockButtons ~= nil) and sfui.config.actionbars.lockButtons or true
+    end
+    sfui.common.set_cvar("lockActionBars", SfuiDB.actionbars.lockButtons and 1 or 0)
+    if _G.Settings and _G.Settings.SetValue then
+        pcall(_G.Settings.SetValue, "lockActionBars", SfuiDB.actionbars.lockButtons)
+    end
+    if _G.SetModifiedClick then
+        local mod = SfuiDB.actionbars.movementModifier
+            or (sfui.config and sfui.config.actionbars and sfui.config.actionbars.movementModifier)
+            or "SHIFT"
+        _G.SetModifiedClick("PICKUPACTION", mod)
+    end
+    if _G.LoadBindings and _G.Enum and _G.Enum.BindingSet then
+        pcall(_G.LoadBindings, _G.Enum.BindingSet.Account)
     end
 end
 

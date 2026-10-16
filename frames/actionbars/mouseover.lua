@@ -48,8 +48,10 @@ end
 function mouseover.GetBarTargetAlpha(bar, restingAlpha, activeAlpha)
     if not bar then return 1.0 end
 
-    -- Always 100% visible while moving bars or dragging spells/items
-    if sfui.actionbars.moversUnlocked or mouseover.isDragging then
+    -- Always 100% visible while moving bars, dragging spells/items, or in quick keybinding mode
+    local isKeybinding = (sfui.actionbars.bind and sfui.actionbars.bind.IsActive and sfui.actionbars.bind.IsActive())
+        or (_G.KeybindFrames_InQuickKeybindMode and _G.KeybindFrames_InQuickKeybindMode())
+    if sfui.actionbars.moversUnlocked or mouseover.isDragging or isKeybinding then
         return activeAlpha or 1.0
     end
 

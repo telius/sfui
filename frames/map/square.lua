@@ -215,14 +215,122 @@ local function get_or_create_backdrop()
     return backdropFrame
 end
 
+local bronzeOverlay = nil
+
+local function get_or_create_bronze_overlay()
+    if bronzeOverlay then return bronzeOverlay end
+    if not Minimap then return nil end
+
+    local parent = MinimapCluster or Minimap:GetParent() or UIParent
+    bronzeOverlay = CreateFrame("Frame", "sfui_SquareMinimapBronzeOverlay", parent)
+    sfui.common.set_pixel_snapping(bronzeOverlay)
+    bronzeOverlay:SetFrameStrata("LOW")
+    bronzeOverlay:SetFrameLevel(math_max(5, (Minimap:GetFrameLevel() or 1) + 5))
+    bronzeOverlay:SetAllPoints(Minimap)
+    bronzeOverlay:EnableMouse(false)
+
+    -- Heavy bronze frame basic texture if supported
+    local nativeBorder = bronzeOverlay:CreateTexture(nil, "BORDER", nil, 2)
+    nativeBorder:SetPoint("TOPLEFT", bronzeOverlay, "TOPLEFT", -8, 8)
+    nativeBorder:SetPoint("BOTTOMRIGHT", bronzeOverlay, "BOTTOMRIGHT", 8, -8)
+    bronzeOverlay.nativeBorder = nativeBorder
+
+    -- 4 Sculpted corner brackets
+    bronzeOverlay.corners = {}
+    local bracketDefs = {
+        { key = "TL", point = "TOPLEFT",     x = -2, y = 2 },
+        { key = "TR", point = "TOPRIGHT",    x = 2,  y = 2 },
+        { key = "BL", point = "BOTTOMLEFT",  x = -2, y = -2 },
+        { key = "BR", point = "BOTTOMRIGHT", x = 2,  y = -2 },
+    }
+    for _, b in ipairs(bracketDefs) do
+        local tex = bronzeOverlay:CreateTexture(nil, "OVERLAY", nil, 6)
+        tex.bracketKey = b.key
+        tex.bracketPoint = b.point
+        tex.offsetX = b.x
+        tex.offsetY = b.y
+        bronzeOverlay.corners[b.key] = tex
+    end
+
+    return bronzeOverlay
+end
+
+function square:IsBronzeTheme()
+    if SfuiDB and SfuiDB.minimap_square_bronze ~= nil then
+        return SfuiDB.minimap_square_bronze
+    end
+    if sfui.config and sfui.config.minimap and sfui.config.minimap.square_bronze ~= nil then
+        return sfui.config.minimap.square_bronze
+    end
+    local isBronzeCamelot = (sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot))
+        and (sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive())
+    return isBronzeCamelot and true or false
+end
+
+function square:SetBronzeTheme(enabled)
+    SfuiDB = SfuiDB or {}
+    SfuiDB.minimap_square_bronze = enabled and true or false
+    SfuiDB._minimapSquareBronzeCustomized = true
+    self:UpdateTheme()
+end
+
 function square:UpdateTheme()
     if not backdropFrame then return end
 
+    local isSquare = self:IsEnabled()
+    local isBronze = isSquare and self:IsBronzeTheme()
     local pal = sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()
     local bCol = (pal and pal.borderColor) or { 0, 0, 0, 1 }
 
-    if sfui.widgets and sfui.widgets.create_border then
-        sfui.widgets.create_border(backdropFrame, 1, bCol)
+    if isBronze then
+        -- Burnished antique bronze 1px border on the backdrop
+        local bronzeBorderCol = { 0.82, 0.65, 0.32, 1.0 }
+        if sfui.widgets and sfui.widgets.create_border then
+            sfui.widgets.create_border(backdropFrame, 1, bronzeBorderCol)
+        end
+
+        local overlay = get_or_create_bronze_overlay()
+        if overlay then
+            overlay:SetAllPoints(Minimap)
+            overlay:Show()
+
+            local camelotDef = sfui.theme and sfui.theme.GetTheme and sfui.theme.GetTheme("camelot")
+            local atlases = camelotDef and camelotDef.atlases or {}
+
+            -- 1. Sculpted native frame texture
+            local frameAtlas = atlases.frameBorderNative or "heavybronze-frame-basic"
+            if sfui.theme and sfui.theme.HasAtlas and sfui.theme.HasAtlas(frameAtlas) then
+                overlay.nativeBorder:SetAtlas(frameAtlas)
+                overlay.nativeBorder:Show()
+            else
+                overlay.nativeBorder:Hide()
+            end
+
+            -- 2. Four sculpted corner brackets
+            local bSize = 16
+            for key, tex in pairs(overlay.corners) do
+                local atlas = (sfui.theme and sfui.theme.GetCornerBracketAtlas and sfui.theme.GetCornerBracketAtlas(key, camelotDef))
+                    or (atlases and atlases["corner" .. key .. "Native"])
+                    or ("heavybronze-horz-cornerbracket-" .. key)
+                if sfui.theme and sfui.theme.HasAtlas and sfui.theme.HasAtlas(atlas) then
+                    tex:SetAtlas(atlas, false)
+                    tex:ClearAllPoints()
+                    tex:SetPoint(tex.bracketPoint, overlay, tex.bracketPoint, tex.offsetX, tex.offsetY)
+                    tex:SetSize(bSize, bSize)
+                    tex:Show()
+                else
+                    tex:Hide()
+                end
+            end
+        end
+    else
+        -- Standard minimalist flat border
+        if sfui.widgets and sfui.widgets.create_border then
+            sfui.widgets.create_border(backdropFrame, 1, bCol)
+        end
+        if bronzeOverlay then
+            bronzeOverlay:Hide()
+        end
     end
 end
 
@@ -321,6 +429,10 @@ function square:Apply()
         backdrop:SetShown(isSquare)
         if isSquare then
             self:UpdateTheme()
+        else
+            if bronzeOverlay then
+                bronzeOverlay:Hide()
+            end
         end
     end
 

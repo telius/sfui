@@ -123,7 +123,7 @@ sfui.options.RegisterTab({
 
         -- grow the scrollable content height by the extra button rows
         local themeRows = math.ceil(#toggleButtons / THEME_BTNS_PER_ROW)
-        theme_panel.customContentHeight = 545 + (themeRows - 1) * (THEME_BTN_H + THEME_BTN_GAP)
+        theme_panel.customContentHeight = 575 + (themeRows - 1) * (THEME_BTN_H + THEME_BTN_GAP)
 
         for _, btn in ipairs(toggleButtons) do
             btn:SetScript("OnClick", function()
@@ -170,9 +170,24 @@ sfui.options.RegisterTab({
         end, "Switches to minimalist flat dark slate buttons instead of the default Auction House beveled buttons.")
         flat_btn_cb:SetPoint("TOPLEFT", textured_bg_cb, "BOTTOMLEFT", 0, -8)
 
+        local square_bronze_cb = create_checkbox(theme_panel, "use bronze square minimap", function()
+            if sfui.map and sfui.map.square and sfui.map.square.IsBronzeTheme then
+                return sfui.map.square:IsBronzeTheme()
+            end
+            return SfuiDB and SfuiDB.minimap_square_bronze ~= false
+        end, function(checked)
+            SfuiDB._minimapSquareBronzeCustomized = true
+            SfuiDB.minimap_square_bronze = checked
+            if sfui.map and sfui.map.square and sfui.map.square.SetBronzeTheme then
+                sfui.map.square:SetBronzeTheme(checked)
+            end
+            theme_panel:RefreshThemeControls()
+        end, "applies authentic heavy bronze borders and corner brackets to the square minimap.")
+        square_bronze_cb:SetPoint("TOPLEFT", flat_btn_cb, "BOTTOMLEFT", 0, -8)
+
         -- ─── Color Palette Swatches ───────────────────────────────────────────
         local palette_header = theme_panel:CreateFontString(nil, "OVERLAY", g.font)
-        palette_header:SetPoint("TOPLEFT", flat_btn_cb, "BOTTOMLEFT", 0, -20)
+        palette_header:SetPoint("TOPLEFT", square_bronze_cb, "BOTTOMLEFT", 0, -20)
         palette_header:SetTextColor(white[1], white[2], white[3])
         palette_header:SetText("accent & highlight colors")
 
@@ -305,10 +320,17 @@ sfui.options.RegisterTab({
                 brackets_cb:Show()
                 textured_bg_cb:Show()
                 flat_btn_cb:Show()
+                square_bronze_cb:Show()
             else
                 brackets_cb:Hide()
                 textured_bg_cb:Hide()
                 flat_btn_cb:Hide()
+                square_bronze_cb:Hide()
+            end
+
+            if square_bronze_cb then
+                local isBronze = sfui.map and sfui.map.square and sfui.map.square.IsBronzeTheme and sfui.map.square:IsBronzeTheme()
+                square_bronze_cb:SetChecked(isBronze and true or false)
             end
 
             -- Update Dynamically Created Toggle Buttons

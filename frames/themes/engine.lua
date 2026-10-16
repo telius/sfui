@@ -268,6 +268,12 @@ function sfui.theme.SetTheme(mode)
         end
     end
 
+    if isBronzeCamelot and not SfuiDB._minimapSquareBronzeCustomized then
+        SfuiDB.minimap_square_bronze = true
+    elseif not isBronzeCamelot and not SfuiDB._minimapSquareBronzeCustomized and activeID == "modern" then
+        SfuiDB.minimap_square_bronze = false
+    end
+
     sfui.theme.ApplyCurrentTheme()
     return true, mode
 end

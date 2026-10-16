@@ -12,6 +12,22 @@ local type         = _G.type
 local pairs        = _G.pairs
 local ipairs       = _G.ipairs
 local unpack       = _G.unpack
+local math_max     = math.max
+local math_ceil    = math.ceil
+local math_floor   = math.floor
+local string_format = string.format
+local GetTime      = _G.GetTime
+local tonumber     = _G.tonumber
+local tostring     = _G.tostring
+local UnitExists   = _G.UnitExists
+local C_Item       = _G.C_Item
+local C_Spell      = _G.C_Spell
+local C_Container  = _G.C_Container
+local C_Minimap    = _G.C_Minimap
+local C_QuestLog   = _G.C_QuestLog
+local InCombatLockdown = _G.InCombatLockdown
+local issecretvalue   = _G.issecretvalue
+local GetQuestLogSpecialItemCooldown = _G.GetQuestLogSpecialItemCooldown
 
 local rootFrame
 local slotPool
@@ -25,9 +41,253 @@ local function get_config()
     local radius   = (db and db("ring", "radius", 95)) or 95
     local deadzone = (db and db("ring", "deadzone", 28)) or 28
     local slotSize = (db and db("ring", "slot_size", 40)) or 40
-    local labels   = (db and db("ring", "show_labels", true))
-    if labels == nil then labels = true end
-    return radius, deadzone, slotSize, labels
+    local labels   = (db and db("ring", "show_labels", true)) ~= false
+    local showCooldowns = (db and db("ring", "show_cooldowns", true)) ~= false
+    return radius, deadzone, slotSize, labels, showCooldowns
+end
+
+local function format_cooldown_text(rem)
+    if not rem or rem <= 0 then return "" end
+    if rem > 86400 then
+        return math_ceil(rem / 86400) .. "d"
+    elseif rem > 3600 then
+        return math_ceil(rem / 3600) .. "h"
+    elseif rem > 90 then
+        return math_ceil(rem / 60) .. "m"
+    elseif rem >= 10 then
+        return math_ceil(rem) .. "s"
+    else
+        return string_format("%.1fs", rem)
+    end
+end
+
+local function resolve_item_id(data)
+    if not data then return nil end
+    if data.itemID and tonumber(data.itemID) then
+        return tonumber(data.itemID)
+    end
+    local attrs = data.attrs
+    if attrs and attrs.type == "item" and attrs.item then
+        local num = tonumber(attrs.item)
+        if num then return num end
+        local str = tostring(attrs.item):match("item:(%d+)") or tostring(attrs.item):match("(%d+)")
+        if str then return tonumber(str) end
+    end
+    if attrs and attrs.type == "macro" and attrs.macrotext then
+        local str = tostring(attrs.macrotext):match("item:(%d+)")
+        if str then return tonumber(str) end
+    end
+    if data.id and type(data.id) == "string" then
+        local str = data.id:match("^qi_(%d+)$") or data.id:match("^util_item_(%d+)$") or data.id:match("^item:(%d+)$")
+        if str then return tonumber(str) end
+    end
+    return nil
+end
+
+local function check_slot_range(data)
+    if not data or not (UnitExists and UnitExists("target")) then return nil end
+    local attrs = data.attrs or {}
+    if attrs.type == "spell" and attrs.spell then
+        if C_Spell and C_Spell.IsSpellInRange then
+            return C_Spell.IsSpellInRange(attrs.spell, "target")
+        elseif _G.IsSpellInRange then
+            local res = _G.IsSpellInRange(attrs.spell, "target")
+            if res == 1 then return true elseif res == 0 then return false end
+            return nil
+        end
+    end
+    -- C_Item.IsItemInRange has SecretArguments = "AllowedWhenUntainted" in 1.60.1 / 11+
+    if InCombatLockdown and InCombatLockdown() then return nil end
+    local itemID = resolve_item_id(data)
+    if itemID then
+        if C_Item and C_Item.IsItemInRange then
+            return C_Item.IsItemInRange(itemID, "target")
+        elseif _G.IsItemInRange then
+            return _G.IsItemInRange(itemID, "target")
+        end
+    end
+    return nil
+end
+
+local function check_slot_usable(data)
+    if not data then return true end
+    if InCombatLockdown and InCombatLockdown() then
+        local attrs = data.attrs or {}
+        if attrs.type == "spell" and attrs.spell and C_Spell and C_Spell.IsSpellUsable then
+            local isUsable, notEnoughMana = C_Spell.IsSpellUsable(attrs.spell)
+            if isUsable ~= nil then return isUsable and not notEnoughMana end
+        end
+        return true
+    end
+    local itemID = resolve_item_id(data)
+    if itemID then
+        if C_Item and C_Item.IsUsableItem then
+            local isUsable = C_Item.IsUsableItem(itemID)
+            if isUsable ~= nil then return isUsable end
+        elseif _G.IsUsableItem then
+            local isUsable = _G.IsUsableItem(itemID)
+            if isUsable ~= nil then return isUsable end
+        end
+    end
+    local attrs = data.attrs or {}
+    if attrs.type == "spell" and attrs.spell then
+        if C_Spell and C_Spell.IsSpellUsable then
+            local isUsable, notEnoughMana = C_Spell.IsSpellUsable(attrs.spell)
+            if isUsable ~= nil then return isUsable and not notEnoughMana end
+        elseif _G.IsUsableSpell then
+            local isUsable, notEnoughMana = _G.IsUsableSpell(attrs.spell)
+            if isUsable ~= nil then return isUsable and not notEnoughMana end
+        end
+    end
+    return true
+end
+
+local function check_quest_blob(data)
+    if InCombatLockdown and InCombatLockdown() then return false end
+    if not data or not data.questID then return false end
+    if C_Minimap and C_Minimap.IsInsideQuestBlob then
+        return C_Minimap.IsInsideQuestBlob(data.questID) or false
+    end
+    return false
+end
+
+local function get_slot_cooldown(data)
+    if not data then return 0, 0, 0, false, false end
+    local start, duration, enable = 0, 0, 0
+    local isActive, isSecret = false, false
+    local attrs = data.attrs or {}
+    local inCombat = InCombatLockdown and InCombatLockdown()
+
+    -- 1. item cooldown
+    local itemID = resolve_item_id(data)
+    if itemID then
+        if inCombat then
+            -- in combat: C_Spell.GetItemCooldown is AllowedWhenTainted
+            -- C_Item / C_Container / GetQuestLogSpecialItemCooldown are AllowedWhenUntainted
+            if C_Spell and C_Spell.GetItemCooldown then
+                local cd = C_Spell.GetItemCooldown(itemID)
+                if cd then
+                    start = cd.startTime or 0
+                    duration = cd.duration or 0
+                    enable = cd.isEnabled and 1 or 0
+                    isActive = cd.isActive or false
+                end
+            end
+        else
+            -- out of combat: quest log special items and bag slots
+            if data.questLogIndex and GetQuestLogSpecialItemCooldown then
+                local realIndex = data.questLogIndex
+                if data.questID and C_QuestLog and C_QuestLog.GetLogIndexForQuestID then
+                    local li = C_QuestLog.GetLogIndexForQuestID(data.questID)
+                    if li and li > 0 then realIndex = li end
+                end
+                start, duration, enable = GetQuestLogSpecialItemCooldown(realIndex)
+                if start and duration and duration > 0 then
+                    return start, duration, enable, true, false
+                end
+            end
+
+            if data.bag and data.slot and C_Container and C_Container.GetContainerItemCooldown then
+                start, duration, enable = C_Container.GetContainerItemCooldown(data.bag, data.slot)
+                if start and duration and duration > 0 then
+                    return start, duration, enable, true, false
+                end
+            end
+
+            if C_Spell and C_Spell.GetItemCooldown then
+                local cd = C_Spell.GetItemCooldown(itemID)
+                if cd then
+                    start = cd.startTime or 0
+                    duration = cd.duration or 0
+                    enable = cd.isEnabled and 1 or 0
+                    isActive = cd.isActive or false
+                end
+            end
+
+            if (not start or duration == 0) and sfui.api and sfui.api.GetItemCooldown then
+                start, duration, enable = sfui.api.GetItemCooldown(itemID)
+            end
+        end
+
+        if issecretvalue and (issecretvalue(start) or issecretvalue(duration)) then
+            return start, duration, enable, isActive, true
+        end
+        if start and duration and duration > 0 then
+            return start, duration, enable, (isActive or true), false
+        end
+        return 0, 0, 0, false, false
+    end
+
+    -- 2. spell cooldown
+    if attrs.type == "spell" and attrs.spell then
+        if C_Spell and C_Spell.GetSpellCooldown then
+            local cdInfo = C_Spell.GetSpellCooldown(attrs.spell)
+            if cdInfo then
+                start = cdInfo.startTime or 0
+                duration = cdInfo.duration or 0
+                enable = cdInfo.isEnabled and 1 or 0
+                isActive = cdInfo.isActive or false
+            end
+        elseif sfui.api and sfui.api.GetSpellCooldown then
+            start, duration, enable = sfui.api.GetSpellCooldown(attrs.spell)
+        elseif _G.GetSpellCooldown then
+            start, duration, enable = _G.GetSpellCooldown(attrs.spell)
+        end
+    -- 3. toy cooldown
+    elseif attrs.type == "toy" and (attrs.toy or data.id) then
+        local toyID = tonumber(attrs.toy) or tonumber(tostring(attrs.toy or data.id):match("(%d+)"))
+        if toyID then
+            if inCombat then
+                if C_Spell and C_Spell.GetItemCooldown then
+                    local cd = C_Spell.GetItemCooldown(toyID)
+                    if cd then
+                        start = cd.startTime or 0
+                        duration = cd.duration or 0
+                        enable = cd.isEnabled and 1 or 0
+                        isActive = cd.isActive or false
+                    end
+                end
+            else
+                if C_Spell and C_Spell.GetItemCooldown then
+                    local cd = C_Spell.GetItemCooldown(toyID)
+                    if cd then
+                        start = cd.startTime or 0
+                        duration = cd.duration or 0
+                        enable = cd.isEnabled and 1 or 0
+                        isActive = cd.isActive or false
+                    end
+                end
+                if (not start or duration == 0) and sfui.api and sfui.api.GetItemCooldown then
+                    start, duration, enable = sfui.api.GetItemCooldown(toyID)
+                end
+            end
+        end
+    end
+
+    if issecretvalue and (issecretvalue(start) or issecretvalue(duration)) then
+        return start, duration, enable, isActive, true
+    end
+    return start or 0, duration or 0, enable or 0, isActive, false
+end
+
+local function format_active_label(data)
+    if not data then return "cancel" end
+    local label = (data.label or data.id or ""):lower()
+    if InCombatLockdown and InCombatLockdown() then
+        return label
+    end
+    local start, duration, enable, isActive, isSecret = get_slot_cooldown(data)
+    if isSecret then
+        return label
+    end
+    local now = GetTime()
+    local rem = (start and duration and duration > 0) and ((start + duration) - now) or 0
+    if rem > 0.1 and duration > 1.5 and (enable == nil or enable == 1) then
+        return label .. " |cffff5555(" .. format_cooldown_text(rem) .. ")|r"
+    elseif check_slot_range(data) == false then
+        return label .. " |cffff4444(out of range)|r"
+    end
+    return label
 end
 
 local function create_slot_frame(parent)
@@ -44,19 +304,67 @@ local function create_slot_frame(parent)
 
     -- cooldown frame
     local cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
-    cd:SetAllPoints(f)
-    cd:SetDrawEdge(false)
-    cd:SetDrawBling(false)
-    if cd.SetSwipeColor then
-        cd:SetSwipeColor(0, 0, 0, 0.65)
+    if sfui.widgets and sfui.widgets.apply_round_cooldown_style then
+        sfui.widgets.apply_round_cooldown_style(cd, f, 1.5)
+    else
+        cd:SetAllPoints(f)
+        if cd.SetUseCircularEdge then
+            cd:SetUseCircularEdge(true)
+        end
+        if cd.SetHideCountdownNumbers then
+            cd:SetHideCountdownNumbers(true)
+        end
+        if cd.SetSwipeTexture then
+            cd:SetSwipeTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", 0, 0, 0, 0.65)
+        end
     end
     f.cooldown = cd
 
-    -- count text
-    local count = f:CreateFontString(nil, "OVERLAY", sfui.config.font_small or "GameFontHighlightSmall")
-    count:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -2, 2)
+    -- text overlay frame (positioned above cooldown swipe so numbers never get obscured)
+    local textOverlay = CreateFrame("Frame", nil, f)
+    textOverlay:SetAllPoints(f)
+    textOverlay:SetFrameLevel((cd:GetFrameLevel() or 1) + 4)
+    f.textOverlay = textOverlay
+
+    -- count / charges text
+    local count = textOverlay:CreateFontString(nil, "OVERLAY", sfui.config.font_small or "GameFontHighlightSmall")
+    count:SetPoint("BOTTOMRIGHT", textOverlay, "BOTTOMRIGHT", -2, 2)
     count:SetTextColor(1, 1, 1, 1)
+    if count.SetShadowOffset then
+        count:SetShadowOffset(1, -1)
+        count:SetShadowColor(0, 0, 0, 1)
+    end
     f.count = count
+
+    -- cd timer countdown text
+    local cdText = textOverlay:CreateFontString(nil, "OVERLAY", sfui.config.font or "GameFontNormal")
+    cdText:SetPoint("CENTER", textOverlay, "CENTER", 0, 0)
+    cdText:SetTextColor(1, 0.85, 0.2, 1)
+    if cdText.GetFont then
+        local fontPath, fontSize = cdText:GetFont()
+        if fontPath then
+            cdText:SetFont(fontPath, 13, "OUTLINE")
+        end
+    end
+    if cdText.SetShadowOffset then
+        cdText:SetShadowOffset(1, -1)
+        cdText:SetShadowColor(0, 0, 0, 1)
+    end
+    f.cdText = cdText
+
+    -- quest starter "!" exclamation badge
+    local questMark = textOverlay:CreateTexture(nil, "OVERLAY", nil, 7)
+    questMark:SetSize(16, 16)
+    questMark:SetPoint("TOPRIGHT", textOverlay, "TOPRIGHT", 3, 3)
+    if _G.TEXTURE_ITEM_QUEST_BANG then
+        questMark:SetTexture(_G.TEXTURE_ITEM_QUEST_BANG)
+    elseif C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo("QuestNormal") then
+        questMark:SetAtlas("QuestNormal")
+    else
+        questMark:SetTexture("Interface\\ContainerFrame\\UI-Icon-QuestBang")
+    end
+    questMark:Hide()
+    f.questMark = questMark
 
     -- slice label text
     local label = f:CreateFontString(nil, "OVERLAY", sfui.config.font_small or "GameFontHighlightSmall")
@@ -104,6 +412,26 @@ local function get_selection_color(slot)
     return 0, 0.8, 1
 end
 
+local function update_slot_border(frame, isSelected, activeData)
+    if not frame or not frame.roundBorder then return end
+    if isSelected then
+        frame:SetScale(1.18)
+        local sr, sg, sb = get_selection_color(activeData)
+        frame.roundBorder:SetColorTexture(sr, sg, sb, 1)
+    else
+        frame:SetScale(1.0)
+        local sData = frame._slotData
+        if sData and sData.active then
+            local ar, ag, ab = get_selection_color(sData)
+            frame.roundBorder:SetColorTexture(ar, ag, ab, 0.45)
+        elseif check_quest_blob(sData) then
+            frame.roundBorder:SetColorTexture(1.0, 0.82, 0.0, 0.95)
+        else
+            frame.roundBorder:SetColorTexture(0, 0, 0, 0.85)
+        end
+    end
+end
+
 local function reset_slot_frame(f)
     f:Hide()
     f:ClearAllPoints()
@@ -115,6 +443,13 @@ local function reset_slot_frame(f)
     if f.cooldown then
         f.cooldown:Clear()
         f.cooldown:Hide()
+    end
+    if f.cdText then
+        f.cdText:SetText("")
+        f.cdText:Hide()
+    end
+    if f.questMark then
+        f.questMark:Hide()
     end
     f.count:SetText("")
     f.label:SetText("")
@@ -185,6 +520,95 @@ function view.clear_slots()
     activeSlotIndex = nil
 end
 
+function view.update_slot_state(frame, data, showCooldowns)
+    if not frame or not data then return end
+
+    local inCombat = InCombatLockdown and InCombatLockdown()
+    local start, duration, enable, isActive, isSecret = get_slot_cooldown(data)
+    local now = GetTime()
+    local onCD = false
+    local rem = 0
+
+    if isSecret or inCombat then
+        onCD = (isActive == true)
+        if isActive == nil and start and duration then
+            onCD = true
+        end
+    else
+        if start and duration and duration > 0 then
+            rem = (start + duration) - now
+            onCD = (rem > 0.1) and (duration > 1.5) and (enable == nil or enable == 1)
+        end
+    end
+
+    local inRange = check_slot_range(data)
+    local isUsable = check_slot_usable(data)
+    local inBlob = check_quest_blob(data)
+
+    -- 1. Cooldown swipe & countdown timer
+    if frame.cooldown then
+        if onCD then
+            frame.cooldown:SetCooldown(start, duration)
+            if frame.cooldown.SetSwipeColor then
+                frame.cooldown:SetSwipeColor(0, 0, 0, 0.65)
+            end
+            frame.cooldown:Show()
+            if frame.cdText then
+                if showCooldowns ~= false and not isSecret and not inCombat then
+                    frame.cdText:SetText(format_cooldown_text(rem))
+                    frame.cdText:Show()
+                else
+                    frame.cdText:SetText("")
+                    frame.cdText:Hide()
+                end
+            end
+            frame.icon:SetDesaturated(true)
+            frame.icon:SetVertexColor(0.4, 0.4, 0.4, 1)
+        else
+            frame.cooldown:Clear()
+            frame.cooldown:Hide()
+            if frame.cdText then
+                frame.cdText:SetText("")
+                frame.cdText:Hide()
+            end
+            frame.icon:SetDesaturated(false)
+            if inRange == false then
+                frame.icon:SetVertexColor(0.9, 0.25, 0.25, 1)
+            elseif isUsable == false then
+                frame.icon:SetVertexColor(0.45, 0.45, 0.45, 1)
+            elseif data.color then
+                frame.icon:SetVertexColor(data.color[1] or 1, data.color[2] or 1, data.color[3] or 1)
+            else
+                frame.icon:SetVertexColor(1, 1, 1, 1)
+            end
+        end
+    end
+
+    -- 2. Quest starter exclamation badge ("!")
+    if frame.questMark then
+        frame.questMark:SetShown(data.startsQuest == true)
+    end
+
+    -- 3. Dynamic border coloring
+    if frame._index ~= activeSlotIndex then
+        update_slot_border(frame, false, nil)
+    end
+end
+
+function view.update_live_state()
+    local _, _, _, _, showCooldowns = get_config()
+    for _, frame in pairs(activeSlots) do
+        if frame._slotData then
+            view.update_slot_state(frame, frame._slotData, showCooldowns)
+        end
+    end
+
+    if activeSlotIndex and currentSlotsData and currentSlotsData[activeSlotIndex] then
+        local root = ensure_root_frame()
+        root.activeText:SetText(format_active_label(currentSlotsData[activeSlotIndex]))
+    end
+end
+
 --- render a ring definition around the center point.
 --- @param ringID string
 --- @param slots table list of slot definition tables
@@ -198,7 +622,7 @@ function view.render_ring(ringID, slots, title)
     local num = #currentSlotsData
     if num == 0 then return end
 
-    local radius, deadzone, slotSize, showLabels = get_config()
+    local radius, deadzone, slotSize, showLabels, showCooldowns = get_config()
     if num > 10 then
         local minCircumference = num * (slotSize + 8)
         local minRadius = math.floor(minCircumference / (2 * math.pi))
@@ -229,6 +653,33 @@ function view.render_ring(ringID, slots, title)
         frame._slotData = data
         frame:SetSize(slotSize, slotSize)
 
+        -- Scale fonts and badge with slotSize
+        if frame.cdText and frame.cdText.GetFont then
+            local fontPath = frame.cdText:GetFont()
+            if fontPath then
+                local cdFontSize = math_max(10, math_floor(slotSize * 0.32))
+                frame.cdText:SetFont(fontPath, cdFontSize, "OUTLINE")
+            end
+        end
+        if frame.count and frame.count.GetFont then
+            local fontPath = frame.count:GetFont()
+            if fontPath then
+                local countFontSize = math_max(9, math_floor(slotSize * 0.26))
+                frame.count:SetFont(fontPath, countFontSize, "OUTLINE")
+            end
+        end
+        if frame.questMark then
+            local qMarkSize = math_max(12, math_floor(slotSize * 0.40))
+            frame.questMark:SetSize(qMarkSize, qMarkSize)
+        end
+        if frame.cooldown then
+            local mult = sfui.pixelScale or 1
+            local thickness = 1.5 * mult
+            frame.cooldown:ClearAllPoints()
+            frame.cooldown:SetPoint("TOPLEFT", frame, "TOPLEFT", thickness, -thickness)
+            frame.cooldown:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -thickness, thickness)
+        end
+
         local dx, dy = geom.get_slot_offset(i, num, radius)
         frame:SetPoint("CENTER", root, "CENTER", dx, dy)
 
@@ -251,8 +702,10 @@ function view.render_ring(ringID, slots, title)
             frame.icon:SetVertexColor(1, 1, 1)
         end
 
-        -- set count
-        if data.count and data.count > 1 then
+        -- set count / charges
+        if data.charges and data.charges > 0 then
+            frame.count:SetText(data.charges)
+        elseif data.count and data.count > 1 then
             frame.count:SetText(data.count)
         else
             frame.count:SetText("")
@@ -266,63 +719,7 @@ function view.render_ring(ringID, slots, title)
             frame.label:Hide()
         end
 
-        -- set default or active border
-        if data.active then
-            local ar, ag, ab = get_selection_color(data)
-            if frame.roundBorder then
-                frame.roundBorder:SetColorTexture(ar, ag, ab, 0.45)
-            end
-        else
-            if frame.roundBorder then
-                frame.roundBorder:SetColorTexture(0, 0, 0, 0.85)
-            end
-        end
-
-        -- update cooldown & usable status
-        local start, duration, enable = 0, 0, 0
-        local attrs = data.attrs or {}
-        if attrs.type == "spell" and attrs.spell then
-            if C_Spell and C_Spell.GetSpellCooldown then
-                local cdInfo = C_Spell.GetSpellCooldown(attrs.spell)
-                if cdInfo then
-                    start = cdInfo.startTime or 0
-                    duration = cdInfo.duration or 0
-                    enable = cdInfo.isEnabled and 1 or 0
-                end
-            elseif _G.GetSpellCooldown then
-                start, duration, enable = _G.GetSpellCooldown(attrs.spell)
-            end
-        elseif attrs.type == "item" and (attrs.item or data.id) then
-            local itemID = tonumber(attrs.item or data.id)
-            if itemID then
-                if C_Item and C_Item.GetItemCooldown then
-                    start, duration, enable = C_Item.GetItemCooldown(itemID)
-                elseif _G.GetItemCooldown then
-                    start, duration, enable = _G.GetItemCooldown(itemID)
-                end
-            end
-        elseif attrs.type == "toy" and (attrs.toy or data.id) then
-            local toyID = tonumber(attrs.toy or data.id)
-            if toyID then
-                if C_Item and C_Item.GetItemCooldown then
-                    start, duration, enable = C_Item.GetItemCooldown(toyID)
-                elseif _G.GetItemCooldown then
-                    start, duration, enable = _G.GetItemCooldown(toyID)
-                end
-            end
-        end
-
-        if frame.cooldown then
-            if start and duration and duration > 1.5 and (enable == nil or enable == 1) then
-                frame.cooldown:SetCooldown(start, duration)
-                frame.cooldown:Show()
-                frame.icon:SetDesaturated(true)
-            else
-                frame.cooldown:Clear()
-                frame.cooldown:Hide()
-                frame.icon:SetDesaturated(false)
-            end
-        end
+        view.update_slot_state(frame, data, showCooldowns)
 
         frame:Show()
         activeSlots[i] = frame
@@ -340,27 +737,11 @@ function view.set_active_slot(index)
     local sr, sg, sb = get_selection_color(activeSlotData)
 
     for i, frame in pairs(activeSlots) do
-        if i == index then
-            frame:SetScale(1.18)
-            if frame.roundBorder then
-                frame.roundBorder:SetColorTexture(sr, sg, sb, 1)
-            end
-        else
-            frame:SetScale(1.0)
-            if frame.roundBorder then
-                if frame._slotData and frame._slotData.active then
-                    local ar, ag, ab = get_selection_color(frame._slotData)
-                    frame.roundBorder:SetColorTexture(ar, ag, ab, 0.45)
-                else
-                    frame.roundBorder:SetColorTexture(0, 0, 0, 0.85)
-                end
-            end
-        end
+        update_slot_border(frame, i == index, activeSlotData)
     end
 
     if activeSlotData then
-        local label = activeSlotData.label or activeSlotData.id or ""
-        root.activeText:SetText(label:lower())
+        root.activeText:SetText(format_active_label(activeSlotData))
         root.activeText:SetTextColor(sr, sg, sb, 1)
         if root.deadzoneDisc.roundBorder then
             root.deadzoneDisc.roundBorder:SetColorTexture(sr, sg, sb, 0.6)

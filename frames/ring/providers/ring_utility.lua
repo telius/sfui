@@ -438,10 +438,11 @@ sfui.ring.register_provider("utility", {
                         if not seen[key] then
                             seen[key] = true
                             out[#out + 1] = {
-                                id    = "util_spell_" .. tostring(spellID),
-                                label = sName,
-                                icon  = icon or item.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
-                                attrs = {
+                                id      = "util_spell_" .. tostring(spellID),
+                                spellID = tonumber(spellID),
+                                label   = sName,
+                                icon    = icon or item.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
+                                attrs   = {
                                     type  = "spell",
                                     spell = spellID,
                                 },
@@ -457,13 +458,14 @@ sfui.ring.register_provider("utility", {
                     if not seen[key] then
                         seen[key] = true
                         out[#out + 1] = {
-                            id    = "util_item_" .. tostring(itemID),
-                            label = iName,
-                            icon  = icon or item.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
-                            count = count,
-                            attrs = {
-                                type = "item",
-                                item = name or itemID,
+                            id     = "util_item_" .. tostring(itemID),
+                            itemID = tonumber(itemID),
+                            label  = iName,
+                            icon   = icon or item.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
+                            count  = count,
+                            attrs  = {
+                                type      = "macro",
+                                macrotext = "/use item:" .. itemID,
                             },
                         }
                     end
@@ -475,10 +477,11 @@ sfui.ring.register_provider("utility", {
                     if not seen[key] then
                         seen[key] = true
                         out[#out + 1] = {
-                            id    = "util_toy_" .. tostring(toyID),
-                            label = tName,
-                            icon  = icon or item.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
-                            attrs = {
+                            id     = "util_toy_" .. tostring(toyID),
+                            itemID = tonumber(toyID),
+                            label  = tName,
+                            icon   = icon or item.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
+                            attrs  = {
                                 type      = "toy",
                                 toy       = toyID,
                                 macrotext = "/use item:" .. tostring(toyID),
