@@ -1,6 +1,4 @@
 local addonName, addon = ...
-local _addonName, _addon = addonName, addon
-
 sfui = sfui or {}
 sfui.map = sfui.map or {}
 sfui.map.square = sfui.map.square or {}
@@ -76,7 +74,7 @@ local function restore_frame(f)
     if f.SetAlpha then
         f:SetAlpha(1)
     end
-    if f.EnableMouse then
+    if f.EnableMouse and f.IsObjectType and f:IsObjectType("Button") then
         f:EnableMouse(true)
     end
 end
@@ -106,7 +104,6 @@ local function get_suppressed_frames()
 
     if MinimapCluster then
         if MinimapCluster.BorderTop then frames[#frames + 1] = MinimapCluster.BorderTop end
-        if MinimapCluster.DielFrame then frames[#frames + 1] = MinimapCluster.DielFrame end
         if MinimapCluster.Tracking and MinimapCluster.Tracking.Background then
             frames[#frames + 1] = MinimapCluster.Tracking.Background
         end
@@ -160,9 +157,13 @@ local function apply_minimap_mask(isSquare)
             pcall(Minimap.SetMaskTexture, Minimap, MASK_SQUARE_PATH)
         end
     else
-        local ok = pcall(Minimap.SetMaskTexture, Minimap, MASK_ROUND)
-        if not ok then
-            pcall(Minimap.SetMaskTexture, Minimap, MASK_ROUND_PATH)
+        if sfui.isCamelot and MinimapCluster and MinimapCluster.UpdateMinimapConfig then
+            MinimapCluster:UpdateMinimapConfig()
+        else
+            local ok = pcall(Minimap.SetMaskTexture, Minimap, MASK_ROUND)
+            if not ok then
+                pcall(Minimap.SetMaskTexture, Minimap, MASK_ROUND_PATH)
+            end
         end
     end
 end
@@ -267,12 +268,24 @@ end
 -- Public API & State Control
 -- ------------------------------------------------------------------------------
 function square:IsEnabled()
+    local isBronzeCamelot = (sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot))
+        and (sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive())
+
     if SfuiDB and SfuiDB.minimap_square ~= nil then
+        if isBronzeCamelot and not SfuiDB._minimapSquareCustomized then
+            return false
+        end
         return SfuiDB.minimap_square
     end
     local cfg = sfui.config and sfui.config.minimap
     if cfg and cfg.square ~= nil then
+        if isBronzeCamelot and not (SfuiDB and SfuiDB._minimapSquareCustomized) then
+            return false
+        end
         return cfg.square
+    end
+    if isBronzeCamelot then
+        return false
     end
     return true
 end
@@ -280,6 +293,7 @@ end
 function square:SetEnabled(enabled)
     SfuiDB = SfuiDB or {}
     SfuiDB.minimap_square = enabled and true or false
+    SfuiDB._minimapSquareCustomized = true
     self:Apply()
 end
 
@@ -313,13 +327,16 @@ function square:Apply()
     -- 5. Mousewheel zoom
     setup_mouse_wheel()
 
-    -- 6. Lock Minimap strata and frame level; prevent MinimapCluster click elevation
+    -- 6. Keep Minimap in its natural LOW strata above backdrop, with backdrop behind it
     if Minimap then
         Minimap:SetFrameStrata("LOW")
-        Minimap:SetFrameLevel(10)
     end
     if MinimapCluster then
         MinimapCluster:EnableMouse(false)
+        if MinimapCluster.DielFrame then
+            MinimapCluster.DielFrame:SetAlpha(1)
+            MinimapCluster.DielFrame:Show()
+        end
     end
 
     -- 7. Notify LibDBIcon to refresh button positions if present
@@ -328,46 +345,41 @@ function square:Apply()
         pcall(ldbi.Refresh, ldbi)
     end
 
-    -- 8. Synchronize mail/crafting indicators and queue status (dungeon finder) positions
-    if sfui.minimap then
-        if sfui.minimap.update_indicator_positions then
-            sfui.minimap.update_indicator_positions()
-        end
-        if sfui.minimap.update_queue_status_position then
-            sfui.minimap.update_queue_status_position()
-        end
+    -- 8. Synchronize position, dimensions, and sub-modules
+    if sfui.minimap and sfui.minimap.update_position then
+        sfui.minimap.update_position()
+    end
+    if sfui.minimap and sfui.minimap.refresh then
+        sfui.minimap.refresh()
     end
 end
 
 -- ------------------------------------------------------------------------------
 -- Lifecycle Initialization
 -- ------------------------------------------------------------------------------
-local eventFrame = CreateFrame("Frame")
-eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-eventFrame:RegisterEvent("ADDON_LOADED")
+sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
+    if not isInitialized then
+        isInitialized = true
+        square:Apply()
+    else
+        -- Re-apply on reload or zone change to ensure textures remain suppressed
+        square:Apply()
+    end
+end)
 
-eventFrame:SetScript("OnEvent", function(self, event, arg1)
-    if event == "PLAYER_ENTERING_WORLD" then
-        if not isInitialized then
-            isInitialized = true
-            square:Apply()
-        else
-            -- Re-apply on reload or zone change to ensure textures remain suppressed
-            square:Apply()
-        end
-    elseif event == "PLAYER_REGEN_ENABLED" then
-        if pendingApply then
-            square:Apply()
-        end
-    elseif event == "ADDON_LOADED" then
-        if arg1 == "Blizzard_HybridMinimap" then
-            setup_hybrid_minimap(square:IsEnabled())
-        elseif arg1 == "Blizzard_TimeManager" then
-            -- Re-suppress if TimeManager restored any circular elements
-            if square:IsEnabled() then
-                apply_circular_suppression(true)
-            end
+sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+    if pendingApply then
+        square:Apply()
+    end
+end)
+
+sfui.events.RegisterEvent("ADDON_LOADED", function(_, arg1)
+    if arg1 == "Blizzard_HybridMinimap" then
+        setup_hybrid_minimap(square:IsEnabled())
+    elseif arg1 == "Blizzard_TimeManager" then
+        -- Re-suppress if TimeManager restored any circular elements
+        if square:IsEnabled() then
+            apply_circular_suppression(true)
         end
     end
 end)

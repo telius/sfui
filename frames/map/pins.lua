@@ -1062,10 +1062,17 @@ local function RenderMinimapPins(force)
                     local pinRadius = pinSize * 0.5
                     local margin = pinRadius + 1
 
-                    -- Always round boundary check
-                    local distPixelsSq = pixelX * pixelX + pixelY * pixelY
-                    local maxDistPixels = halfW - margin
-                    if distPixelsSq <= (maxDistPixels * maxDistPixels) then
+                    local isSquare = sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
+                    local inBounds = false
+                    if isSquare then
+                        inBounds = math_abs(pixelX) <= (halfW - margin) and math_abs(pixelY) <= (halfH - margin)
+                    else
+                        local distPixelsSq = pixelX * pixelX + pixelY * pixelY
+                        local maxDistPixels = halfW - margin
+                        inBounds = distPixelsSq <= (maxDistPixels * maxDistPixels)
+                    end
+
+                    if inBounds then
                         visibleCount = visibleCount + 1
                         local pin = activeMinimapPins[visibleCount]
                         if not pin then

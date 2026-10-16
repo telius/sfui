@@ -1,7 +1,7 @@
 ## Interface: 120105, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v1.101
+## Version: v1.102
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -146,6 +146,10 @@ frames/gear/hammer.lua [AllowLoadGameType standard]
 frames/gear/lootfeed.lua
 
 # Map & Minimap Engine
+frames/map/indicators.lua
+frames/map/location.lua
+frames/map/status.lua
+frames/map/buttons.lua
 frames/map/minimap.lua
 frames/map/square.lua
 frames/map/pins.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]

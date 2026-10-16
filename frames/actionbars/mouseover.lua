@@ -12,7 +12,14 @@ local GetCursorInfo = _G.GetCursorInfo
 mouseover.isDragging = false
 
 local function get_mod_cfg()
-    return (sfui.db and sfui.db.Get and sfui.db.Get("actionbars")) or (sfui.config and sfui.config.actionbars) or {}
+    if SfuiDB and SfuiDB.actionbars then
+        return SfuiDB.actionbars
+    end
+    if sfui.db and sfui.db.Get then
+        local cfg = sfui.db.Get("actionbars")
+        if cfg then return cfg end
+    end
+    return (sfui.config and sfui.config.actionbars) or {}
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -39,7 +46,7 @@ end
 --  Target Alpha Calculation
 -- ─────────────────────────────────────────────────────────────────────────────
 function mouseover.GetBarTargetAlpha(bar, restingAlpha, activeAlpha)
-    if not bar or not bar:IsShown() then return 1.0 end
+    if not bar then return 1.0 end
 
     -- Always 100% visible while moving bars or dragging spells/items
     if sfui.actionbars.moversUnlocked or mouseover.isDragging then
@@ -47,7 +54,8 @@ function mouseover.GetBarTargetAlpha(bar, restingAlpha, activeAlpha)
     end
 
     local modCfg = get_mod_cfg()
-    local isMouseover = (modCfg.allBarsMouseover == true) or (bar.barConfig and bar.barConfig.mouseover)
+    local bCfg = bar.barConfig or (bar.barKey and sfui.actionbars and sfui.actionbars.GetBarConfig and sfui.actionbars.GetBarConfig(bar.barKey))
+    local isMouseover = (modCfg.allBarsMouseover == true) or (bCfg and bCfg.mouseover == true)
     if not isMouseover then
         return 1.0
     end
@@ -69,7 +77,10 @@ end
 --  Instant Alpha Updater
 -- ─────────────────────────────────────────────────────────────────────────────
 function mouseover.UpdateBar(bar)
-    if not bar or not bar:IsShown() then return end
+    if not bar then return end
+    if bar.barKey and sfui.actionbars and sfui.actionbars.GetBarConfig then
+        bar.barConfig = sfui.actionbars.GetBarConfig(bar.barKey)
+    end
     local targetAlpha = mouseover.GetBarTargetAlpha(bar)
     bar:SetAlpha(targetAlpha)
 end
@@ -83,7 +94,10 @@ function mouseover.UpdateAllBars()
     local activeAlpha = modCfg.activeAlpha or 1.0
 
     for _, bar in ipairs(allBars) do
-        if bar and bar:IsShown() then
+        if bar then
+            if bar.barKey and sfui.actionbars and sfui.actionbars.GetBarConfig then
+                bar.barConfig = sfui.actionbars.GetBarConfig(bar.barKey)
+            end
             local targetAlpha = mouseover.GetBarTargetAlpha(bar, restingAlpha, activeAlpha)
             bar:SetAlpha(targetAlpha)
         end
@@ -97,11 +111,19 @@ function mouseover.HookBar(bar)
     if not bar or bar._sfuiMouseoverHooked then return end
     bar._sfuiMouseoverHooked = true
 
+    if bar.EnableMouse then
+        bar:EnableMouse(true)
+    end
+
     local function on_enter()
         bar._pendingLeave = nil
         local modCfg = get_mod_cfg()
         local activeAlpha = modCfg.activeAlpha or 1.0
-        bar:SetAlpha(activeAlpha)
+        local bCfg = bar.barConfig or (bar.barKey and sfui.actionbars and sfui.actionbars.GetBarConfig and sfui.actionbars.GetBarConfig(bar.barKey))
+        local isMouseover = (modCfg.allBarsMouseover == true) or (bCfg and bCfg.mouseover == true)
+        if isMouseover then
+            bar:SetAlpha(activeAlpha)
+        end
     end
 
     local function on_leave()
@@ -120,6 +142,9 @@ function mouseover.HookBar(bar)
 
     bar:HookScript("OnEnter", on_enter)
     bar:HookScript("OnLeave", on_leave)
+    bar:HookScript("OnShow", function()
+        mouseover.UpdateBar(bar)
+    end)
 
     if bar.buttons then
         for i = 1, #bar.buttons do

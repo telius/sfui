@@ -91,7 +91,7 @@ Minimalist, high-performance square minimap designed for unhindered visibility a
 - **Taint-Free Square Mask**: Engine-level square texture mask (`130937`) utilizing Blizzard's native shape APIs with global `GetMinimapShape` hooks for external addon pin placement.
 - **Dimension & Position Customization**: Dedicated sliders for width, height, scale, anchor points, and screen offsets (`/sfui minimap`).
 - **Icon Layering & Pin Styling**: Protected strata and level stacking ensuring addon icons (LibDBIcon), tracking pins, and quest indicators remain crisp and clickable above the map texture without occlusion.
-- **Status Indicators**: Cleanly anchored queue status (dungeon finder) eye at the bottom-left and mail notification at the top-right.
+- **Status Indicators**: Cleanly anchored queue status (dungeon finder) eye at the bottom-left and mail notification at the top-left.
 - **Indoor Cave Map Support**: Seamless auto-handling for cave maps, delves, and indoor environments.
 
 ---
@@ -133,6 +133,7 @@ Real-time loot alerts, roll management, and cross-character encounter drop track
 Smart inventory evaluation recommending optimal gear configurations.
 
 ![Gear Manager & Stat Weights](.previews/gearmanager.png)
+![Gear Manager (Camelot Theme)](.previews/camelotgearmanager.png)
 
 - **Bag Upgrade Analysis**: Automatic detection of higher item-level or better-itemized equipment sitting in your bags.
 - **Role-Based Stat Weights**: Preset and custom secondary stat prioritization for tanks, healers, and DPS specializations.
@@ -143,8 +144,16 @@ Smart inventory evaluation recommending optimal gear configurations.
 ### 11. Dungeon Journal & Recipe Catalogue (Classic / Camelot)
 Full in-game reference databases bringing modern compendium tools to Classic and Camelot clients.
 
+![Classic Encounter Journal](.previews/camelotdj.png)
+
 - **Classic Encounter Journal (`/dj`)**: In-depth boss tactics, ability descriptions, complete dungeon loot tables, and drop rates.
+
+![Encounter Tactics & Loot Tables](.previews/camelotdjloot.png)
+
 - **Recipe Catalogue (`/recipe`)**: Exhaustive crafting compendium detailing every profession recipe, required materials, trainer locations, vendor costs, and drop sources.
+
+![Recipe Catalogue & Crafting Compendium](.previews/camelotrecipes.png)
+
 - **WorldMap Recipe & Entrance Pins**: Interactive map pins for dungeon entrances, quest pickups, and recipe vendors with cross-alt shopping lists.
 
 ---
@@ -171,14 +180,18 @@ Consolidated teleport and hearthstone menu accessible anywhere in the world.
 
 ---
 
-### 14. Alts & Warband Dashboard
-Cross-character overview keeping track of your entire roster at a glance.
+### 14. Alts, Warband & Mail Dispatcher
+Cross-character overview keeping track of your entire roster and automated shipping across your alts.
 
 ![Alts & Warband Dashboard](.previews/alts.png)
+![Alts & Warband Overview (Camelot Theme)](.previews/altscamelot.png)
 
 - **Account Overview**: Track item levels, weekly dungeon lockouts, Great Vault progress, and rested XP across all characters.
 - **Currency & Wealth Tracking**: Consolidated tally of gold, crests, valorstones, and holiday currencies across your Warband.
 - **Profession Tracking**: Inspect known recipes, skill levels, and weekly knowledge points across alts without logging off.
+- **Mail Dispatcher (`/sfmail` or `/sfui mail`)**: Automated shipping utility routing profession reagents, BoEs, consumables, and quest turn-ins directly to designated alt recipients with 1-click batch sending.
+
+![Mail Dispatcher & Alts Shipping](.previews/maildispatcher.png)
 
 ---
 
@@ -189,7 +202,10 @@ Thoughtful micro-features that eliminate repetitive manual tasks.
 
 - **Master's Hammer Automation**: Instant Blacksmith Master's Hammer repair prompt when gear durability falls below safety thresholds.
 - **One-Key Fishing**: Single keybind to cast and reel in, complete with soft-targeting and amplified splash audio.
-- **Auto Companion Pet**: Automatically re-summons your companion pet after dismounting, with optional timed favorites rotation.
+- **Auto Companion Pet & Pet Manager**: Automatically re-summons your companion pet after dismounting, with optional timed favorites rotation and dedicated Camelot pet manager interface.
+
+![Auto Companion Pet & Camelot Pet Manager](.previews/camelotthemepetmanager.png)
+
 - **Spell Rank-Up**: Automatically replaces lower-rank abilities on your action bars when higher ranks are learned at trainers.
 - **Cinematic & Movie Skipping**: Automatic skipping for watched cutscenes and talking-head dialogues.
 - **Target Mount Matcher**: One-click keybind to summon the identical mount currently ridden by your target.
@@ -207,6 +223,18 @@ Thoughtful micro-features that eliminate repetitive manual tasks.
 - **Mover Mode (`/sfui unlock`)**: Intuitive drag-and-drop frame positioning with pixel-perfect nudge buttons and coordinate readouts.
 - **Memory & Diagnostics Profiler (`/sfmem` or `/sfui mem`)**: Live telemetry dashboard tracking addon memory usage, CPU allocation rates, garbage collection cycles, and active subsystem states.
 
+![Memory & Diagnostics Profiler](.previews/memtool.png)
+
+---
+
+### 17. Multi-Era Visual Themes (Modern & Camelot)
+Tailored visual styling seamlessly adapting to the active game client.
+
+![Camelot Parchment & Bronze Theme](.previews/camelottheme.png)
+
+- **Modern Clean (Retail)**: Minimalist flat frames, dark slate glassmorphism, crisp borders, and subdued accents.
+- **Camelot Vintage (Classic / Camelot)**: Rich medieval fantasy aesthetic with authentic parchment textures, ornate bronze filigree borders, thematic parchment scrollbars, and period typography.
+
 ---
 
 ## Slash Commands
@@ -218,6 +246,7 @@ Thoughtful micro-features that eliminate repetitive manual tasks.
 | `/sfui unlock` | Toggle frame movers to reposition UI elements |
 | `/dj` or `/sfui dj` | Open the Classic / Camelot Dungeon Journal |
 | `/recipe` or `/sfui recipes` | Open the Recipe Catalogue & Crafting Compendium |
+| `/sfmail` or `/sfui mail` | Open the Mail Dispatcher automated shipping manager |
 | `/triage` or `/sfui triage` | Open the automated Bag Triage inventory manager |
 | `/sfmem` | Open the real-time Memory & Diagnostics Profiler (`/sfmem gc` forces collection) |
 | `/rl` | Fast UI reload |

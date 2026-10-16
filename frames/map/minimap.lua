@@ -6,79 +6,35 @@ sfui.minimap = sfui.minimap or {}
 -- Localization
 -- ========================
 local _G = _G
-local type = type
-local select = select
-local ipairs = ipairs
-local pairs = pairs
-local unpack = unpack
-local table_insert = _G.table.insert
-local table_sort = _G.table.sort
-local table_wipe = _G.wipe
-local string_lower = _G.string.lower
-local string_find = _G.string.find
-local string_match = _G.string.match
-local string_gsub = _G.string.gsub
-local string_format = _G.string.format
-local tostring = _G.tostring
-local math_floor = _G.math.floor
-local math_max = _G.math.max
-
-local C_Timer = _G.C_Timer
-local C_ActionBar = _G.C_ActionBar
-local C_Texture = _G.C_Texture
-local Minimap = _G.Minimap
-local MinimapCluster = _G.MinimapCluster
-local CreateFrame = _G.CreateFrame
+local ipairs = _G.ipairs
 local InCombatLockdown = _G.InCombatLockdown
 local hooksecurefunc = _G.hooksecurefunc
-local GetTime = _G.GetTime
-local UnitOnTaxi = _G.UnitOnTaxi
-local VehicleExit = _G.VehicleExit
-local TaxiRequestEarlyLanding = _G.TaxiRequestEarlyLanding
-local LibStub = _G.LibStub
-local IsResting = _G.IsResting
-local UnitIsPVP = _G.UnitIsPVP
-local UnitIsPVPFreeForAll = _G.UnitIsPVPFreeForAll
-local IsPVPTimerRunning = _G.IsPVPTimerRunning
-local GetPVPTimer = _G.GetPVPTimer
-local GameTooltip = sfui.common.get_tooltip()
-local FREE_FOR_ALL_TERRITORY = _G.FREE_FOR_ALL_TERRITORY
-local PVP = _G.PVP
+local C_Timer = _G.C_Timer
+local UIParent = _G.UIParent
+local Minimap = _G.Minimap
+local MinimapCluster = _G.MinimapCluster
+local math_floor = _G.math.floor
 
 -- ========================
--- Local Variables
+-- Local Variables & State
 -- ========================
 local isInitialized = false
-local collectAttempts = 0
-
 local zoom_timer = nil
-local DEFAULT_ZOOM = sfui.config.minimap.defaultZoom or 0
-local button_bar = nil
-local status_container = nil
-local rest_icon_frame = nil
-local pvp_icon_frame = nil
-local weather_icon_frame = nil
+local DEFAULT_ZOOM = (sfui.config and sfui.config.minimap and sfui.config.minimap.defaultZoom) or 0
+local isRepositioning = false
+local startup_scans = 0
 
-local WEATHER_ICONS = {
-    [1] = "Interface\\PetBattles\\Weather-Rain",
-    [2] = "Interface\\PetBattles\\Weather-Blizzard",
-    [3] = "Interface\\PetBattles\\Weather-Sandstorm",
-    [4] = "Interface\\PetBattles\\Weather-StaticField",
-}
-
-local WEATHER_NAMES = {
-    [1] = "rain",
-    [2] = "snow",
-    [3] = "sandstorm",
-    [4] = "storm",
-}
-
+-- ------------------------------------------------------------------------------
+-- Minimap Zoom Management
+-- ------------------------------------------------------------------------------
 local function set_default_zoom()
     if zoom_timer then
         zoom_timer:Cancel()
         zoom_timer = nil
     end
-    Minimap:SetZoom(DEFAULT_ZOOM)
+    if Minimap and Minimap.SetZoom then
+        Minimap:SetZoom(DEFAULT_ZOOM)
+    end
 end
 
 function sfui.minimap.reset_zoom_timer()
@@ -86,1044 +42,43 @@ function sfui.minimap.reset_zoom_timer()
         zoom_timer:Cancel()
         zoom_timer = nil
     end
-    if SfuiDB.minimap_auto_zoom and Minimap:GetZoom() ~= DEFAULT_ZOOM then
+    if SfuiDB and SfuiDB.minimap_auto_zoom and Minimap and Minimap.GetZoom and Minimap:GetZoom() ~= DEFAULT_ZOOM then
         zoom_timer = C_Timer.NewTimer(SfuiDB.minimap_auto_zoom_delay or 5, set_default_zoom)
     end
 end
 
-local ButtonManager = {
-    collectedButtons = {},
-    processedButtons = {},
-}
-
-function sfui.minimap.initialize_masque()
-    -- Global and local check handled by common.get_masque_group()
-    sfui.minimap.masque_group = sfui.common.get_masque_group()
-end
-
-function ButtonManager:store_original_state(button)
-    local name = button:GetName()
-    if not name or self.processedButtons[name] then return end
-
-    local orig = {
-        parent = button:GetParent(),
-        points = {},
-        scale = button:GetScale(),
-        strata = button:GetFrameStrata(),
-        level = button:GetFrameLevel(),
-    }
-    for i = 1, button:GetNumPoints() do
-        table_insert(orig.points, { button:GetPoint(i) })
-    end
-    button.sfuiOriginalState = orig
-end
-
-function ButtonManager:restore_button(button)
-    if button and button.sfuiOriginalState then
-        local orig = button.sfuiOriginalState
-        button:SetParent(orig.parent)
-        button:ClearAllPoints()
-        for _, pointData in ipairs(orig.points) do
-            button:SetPoint(unpack(pointData))
-        end
-        button:SetScale(orig.scale)
-        button:SetFrameStrata(orig.strata)
-        button:SetFrameLevel(orig.level)
-        button.sfuiOriginalState = nil
-    end
-end
-
-function ButtonManager:restore_all()
-    for _, button in ipairs(self.collectedButtons) do
-        self:restore_button(button)
-    end
-    table_wipe(self.collectedButtons)
-    table_wipe(self.processedButtons)
-end
-
-local ignoreNameCache = {}
-local validNameCache = {}
-
-local KNOWN_ADDON_BUTTONS = {
-    "BagSync_MinimapButton",
-    "DBMMinimapButton",
-    "WIM3MinimapButton",
-    "HealBot_Button",
-    "RecipeRadarMinimapButton",
-    "AltoholicMinimapButton",
-    "OutfitterMinimapButton",
-    "ItemRack_Minimap",
-    "TomTomMinimapButton",
-    "ZGVMarker",
-    "HandyNotes_MinimapButton",
-    "RaiderIO_MinimapButton",
-    "DetailsMinimapButton",
-    "BigWigsMinimapButton",
-    "WeakAurasMinimapButton",
-    "PlaterMinimapButton",
-    "BugSack",
-    "BugGrabber",
-    "PasteMinimapButton",
-    "SimcMinimapButton",
-    "PawnMinimapButton",
-    "ArchyMinimapButton",
-    "RareScannerMinimapIcon",
-    "SilverDragonMinimapIcon",
-    "QuestieFrame",
-    "ZygorGuidesViewerMapIcon",
-}
-
--- Blizzard Core Frame / Pin Blacklist (Strictly Blizzard frames only)
-local BLIZZARD_IGNORE_PREFIXES = {
-    "minimapcluster",
-    "minimapbackdrop",
-    "minimapcompass",
-    "minimapzoomin",
-    "minimapzoomout",
-    "minimapnorthtag",
-    "timemanager",
-    "gametime",
-    "queuestatus",
-    "garrisonlanding",
-    "expansionlanding",
-    "minimaptracking",
-    "minimapinstancedifficulty",
-    "guildinstancedifficulty",
-    "minimapchallengemode",
-    "minimapworldmap",
-    "blizzard_",
-}
-
-function ButtonManager:is_button(frame)
-    if not frame or type(frame) ~= "table" then return false end
-
-    -- NEVER touch forbidden/protected frames or MapCanvas/AreaPOI pin frames
-    if frame.IsForbidden and frame:IsForbidden() then return false end
-    if frame.IsProtected and frame:IsProtected() then return false end
-    if frame.dataProvider or frame.owningMap or frame.pinTemplate or frame.GetMap or
-       frame.pinFrameLevelType or frame.normalizedX or frame.poiInfo or frame.isPin or
-       frame.superTracked or frame.textureKit or frame.GetElementData or frame.nudgeTargetFactor or
-       frame.vignetteInfo or frame.areaPoiID or frame.questID then
-        return false
-    end
-
-    local name = frame.GetName and frame:GetName()
-    if not name or type(name) ~= "string" or name == "" then
-        return false
-    end
-
-    -- Fast-track LibDBIcon buttons (always valid addon buttons)
-    if name:find("^LibDBIcon10_") or name:find("^LibDBIcon") then
-        validNameCache[name] = true
-        return true
-    end
-
-    if ignoreNameCache[name] then return false end
-    if validNameCache[name] then return true end
-
-    local lowerName = name:lower()
-
-    -- Filter out Blizzard internal/protected buttons and all map pin/POI variations
-    for _, prefix in ipairs(BLIZZARD_IGNORE_PREFIXES) do
-        if lowerName:find(prefix, 1, true) then
-            ignoreNameCache[name] = true
-            return false
-        end
-    end
-
-    if lowerName:find("poi") or lowerName:find("pin") or lowerName:find("canvas") or
-       lowerName:find("vignette") or lowerName:find("worldquest") or lowerName:find("bonus") or
-       lowerName:find("dungeon") or lowerName:find("delve") or lowerName:find("scenario") or
-       lowerName:find("worldmap") or lowerName:find("overlay") then
-        ignoreNameCache[name] = true
-        return false
-    end
-
-    if type(frame.IsObjectType) ~= "function" then return false end
-    if not frame:IsObjectType("Button") and not frame:IsObjectType("CheckButton") then return false end
-
-    validNameCache[name] = true
-    return true
-end
-
-function ButtonManager:add_button(button)
-    if not self:is_button(button) then return false end
-
-    local name = button:GetName()
-    if not name or self.processedButtons[name] then return false end
-
-    self:store_original_state(button)
-    table_insert(self.collectedButtons, button)
-    self.processedButtons[name] = true
-
-    if not button.sfuiLayoutHooked then
-        hooksecurefunc(button, "Show", function() ButtonManager:arrange_buttons() end)
-        hooksecurefunc(button, "Hide", function() ButtonManager:arrange_buttons() end)
-        button.sfuiLayoutHooked = true
-    end
-    return true
-end
-
-function ButtonManager:collect_buttons()
-    local foundNew = false
-
-    -- 1. LibDBIcon-1.0 registered objects (Details, WeakAuras, Raider.IO, BugSack, MRT, etc.)
-    local ldbi = LibStub("LibDBIcon-1.0", true)
-    if ldbi then
-        if not sfui.minimap._ldbiHooked and ldbi.Register then
-            sfui.minimap._ldbiHooked = true
-            hooksecurefunc(ldbi, "Register", function()
-                C_Timer.After(0.05, function()
-                    ButtonManager:collect_buttons()
-                    ButtonManager:arrange_buttons()
-                end)
-            end)
-        end
-
-        if ldbi.objects then
-            for _, button in pairs(ldbi.objects) do
-                if button and self:add_button(button) then foundNew = true end
-            end
-        end
-    end
-
-    -- 2. Whitelist of known standalone addon buttons
-    for _, buttonName in ipairs(KNOWN_ADDON_BUTTONS) do
-        local button = _G[buttonName]
-        if button and self:add_button(button) then foundNew = true end
-    end
-
-    return foundNew
-end
-
-function ButtonManager:skin_button(button)
-    if button.sfuiSkinned then return end
-
-    local btnName = (button.GetName and button:GetName()) or ""
-    local isButton = button:IsObjectType("Button")
-    local normal = isButton and button:GetNormalTexture()
-    local icon, highlight, pushed, border, background, iconMask
-
-    local regions = { button:GetRegions() }
-
-    -- 1. Identify icon: check common properties first, then inspect regions
-    icon = button.icon or button.Icon or button.texture or button.Texture
-    for _, region in ipairs(regions) do
-        if region:IsObjectType("Texture") then
-            local name = region:GetDebugName()
-            if name then
-                name = name:gsub(".*%.", ""):lower()
-            else
-                name = ""
-            end
-            local texture = region:GetTexture()
-            local tIsString = type(texture) == "string"
-            if tIsString then texture = texture:lower() end
-            local layer = region:GetDrawLayer()
-            if texture == 136430 or (tIsString and texture:find("minimap-trackingborder", 1, true)) then
-                border = region
-            end
-            if texture == 136467 or (tIsString and texture:find("ui-minimap-background", 1, true)) or name:find("background", 1, true) then
-                background = region
-            end
-            if not icon and (name:find("icon", 1, true) or (tIsString and texture:find("icon", 1, true))) then
-                icon = region
-            end
-            if layer == "HIGHLIGHT" or (not highlight and name:find("highlight", 1, true)) then
-                highlight = region
-            end
-        end
-    end
-
-    -- Fallback: if icon is still not resolved, pick the first valid non-chrome texture
-    if not icon then
-        for _, region in ipairs(regions) do
-            if region:IsObjectType("Texture") and region ~= border and region ~= background and region ~= highlight and region ~= normal then
-                if region:GetTexture() then
-                    icon = region
-                    break
-                end
-            end
-        end
-    end
-    if not icon and normal and normal:GetTexture() then
-        icon = normal
-    end
-
-    -- 2. Normalize and force all collected icons into SFUI square style
-    if icon then
-        icon:SetDrawLayer("ARTWORK", 1)
-        icon:Show()
-
-        -- Strip any circular mask textures (e.g. TempPortraitAlphaMask or custom masks)
-        if icon.GetNumMaskTextures and icon.RemoveMaskTexture then
-            for i = icon:GetNumMaskTextures(), 1, -1 do
-                local mask = icon:GetMaskTexture(i)
-                if mask then
-                    icon:RemoveMaskTexture(mask)
-                end
-            end
-        end
-
-        -- Determine crop coordinates:
-        -- Baked circular coin icons (like BugJar) need a deeper 22% crop to eliminate
-        -- their outer ring, while standard WoW icons get the standard 7% square bevel crop.
-        local isBakedCircle = btnName:find("BugJar", 1, true)
-            or (icon:GetTexture() and tostring(icon:GetTexture()):lower():find("bugjar", 1, true))
-            or btnName:find("HousingDecorGuide", 1, true)
-
-        local cropL, cropR, cropT, cropB = 0.07, 0.93, 0.07, 0.93
-        if isBakedCircle then
-            cropL, cropR, cropT, cropB = 0.22, 0.78, 0.22, 0.78
-        end
-
-        -- Lock coordinates & override UpdateCoord so LibDBIcon or external code cannot revert it
-        icon.UpdateCoord = function(self)
-            self:SetTexCoord(cropL, cropR, cropT, cropB)
-        end
-        if not icon._sfuiCoordHooked then
-            icon._sfuiCoordHooked = true
-            local origSetTexCoord = icon.SetTexCoord
-            icon.SetTexCoord = function(self, left, right, top, bottom)
-                origSetTexCoord(self, cropL, cropR, cropT, cropB)
-            end
-        end
-        icon:SetTexCoord(cropL, cropR, cropT, cropB)
-
-        -- Re-anchor icon to fill the square frame cleanly with a 2px margin
-        icon:ClearAllPoints()
-        icon:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -2)
-        icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)
-    end
-
-    local Masque = SfuiDB.minimap_masque and LibStub("Masque", true)
-    if not Masque then
-        -- Standard square styling if Masque is disabled or unavailable
-        if icon then
-            sfui.common.apply_square_icon_style(button, icon)
-        end
-        if border then border:SetTexture(nil) end
-        if background then background:SetTexture(nil) end
-        for _, region in ipairs(regions) do
-            if region:IsObjectType("Texture") and region ~= icon and region ~= highlight and region ~= normal then
-                local tex = region:GetTexture()
-                if tex == 136430 or tex == 136467 then
-                    region:SetTexture(nil)
-                end
-            end
-        end
-        button:SetFrameStrata("MEDIUM")
-        button:SetFrameLevel(math_max(20, button:GetFrameLevel()))
-        button.sfuiSkinned = true
-        return
-    end
-
-    if button.SetBackdrop then button:SetBackdrop(nil) end
-
-    -- Based on HidingBar's Masque integration
-    if normal and (not icon or icon ~= button.icon or icon == normal) then
-        icon = button:CreateTexture(nil, "BACKGROUND")
-        local atlas = normal:GetAtlas()
-        if atlas then
-            icon:SetAtlas(atlas)
-        else
-            icon:SetTexture(normal:GetTexture())
-        end
-        icon:SetTexCoord(normal:GetTexCoord())
-        icon:SetVertexColor(normal:GetVertexColor())
-        icon:SetSize(normal:GetSize())
-        for i = 1, normal:GetNumPoints() do
-            icon:SetPoint(normal:GetPoint(i))
-        end
-    end
-
-    local btnHighlight = isButton and button:GetHighlightTexture()
-    if not highlight or highlight == btnHighlight then
-        highlight = button:CreateTexture(nil, "HIGHLIGHT")
-    end
-
-    sfui.common.sync_masque(button, { Icon = icon, Highlight = highlight, Border = border })
-
-    if border then border:SetTexture(nil) end
-    if background then background:SetTexture(nil) end
-
-    pushed = isButton and button:GetPushedTexture()
-    if background then background:Hide() end
-    if pushed then pushed:SetAlpha(0) end
-
-    button:SetFrameStrata("MEDIUM")
-    button:SetFrameLevel(math_max(20, button:GetFrameLevel()))
-    button.sfuiSkinned = true
-end
-
-function ButtonManager:arrange_buttons()
-    if InCombatLockdown() then
-        self.pendingArrange = true
-        return
-    end
-    self.pendingArrange = false
-    if not button_bar then return end
-
-    if SfuiDB.minimap_button_order == nil then
-        SfuiDB.minimap_button_order = {}
-    end
-
-    local orderCache = {}
-    if #SfuiDB.minimap_button_order > 0 then
-        for i, name in ipairs(SfuiDB.minimap_button_order) do
-            orderCache[name] = i
-        end
-    end
-
-    table_sort(self.collectedButtons, function(a, b)
-        local aName = a:GetName() or ""
-        local bName = b:GetName() or ""
-
-        if aName == "LibDBIcon_sfui" then return false end
-        if bName == "LibDBIcon_sfui" then return true end
-
-        if #SfuiDB.minimap_button_order > 0 then
-            local aOrder = orderCache[aName] or 999
-            local bOrder = orderCache[bName] or 999
-            if aOrder == bOrder then
-                return aName < bName
-            else
-                return aOrder < bOrder
-            end
-        else
-            return aName < bName
-        end
-    end)
-
-    local lastButton = nil
-    local cfg = sfui.config.minimap.button_bar
-    local size = cfg.button_size or 20
-    local spacing = cfg.spacing or 8
-    local padX = cfg.pad_x or 24
-
-    for i, button in ipairs(self.collectedButtons) do
-        button:SetParent(button_bar)
-        if not button.isMoving then
-            button:ClearAllPoints()
-        end
-        button:SetSize(size, size)
-
-        self:skin_button(button)
-
-        if not SfuiDB.minimap_masque and button.SetBackdrop then
-            button:SetBackdrop({ edgeFile = sfui.config.textures.white, edgeSize = 1, insets = { left = 0, right = 0, top = 0, bottom = 0 } })
-            sfui.common.set_color(button, "black")
-        end
-
-        if SfuiDB.minimap_rearrange then
-            button:SetMovable(true)
-            button:RegisterForDrag("LeftButton")
-            button:SetScript("OnDragStart", function(self)
-                self.isMoving = true
-                self:StartMoving()
-                ButtonManager:arrange_buttons()
-            end)
-            button:SetScript("OnDragStop", function(self)
-                self:StopMovingOrSizing(); self.isMoving = false
-                local newIndex = 1
-                for j, btn in ipairs(ButtonManager.collectedButtons) do
-                    if self:GetCenter() > btn:GetCenter() then
-                        newIndex =
-                            j + 1
-                    end
-                end
-                local oldIndex
-                for j, btn in ipairs(ButtonManager.collectedButtons) do
-                    if btn == self then
-                        oldIndex = j; break
-                    end
-                end
-                if oldIndex then
-                    table.remove(ButtonManager.collectedButtons, oldIndex)
-                    if newIndex > oldIndex then newIndex = newIndex - 1 end
-                    if newIndex > #ButtonManager.collectedButtons + 1 then newIndex = #ButtonManager.collectedButtons + 1 end
-                    if newIndex < 1 then newIndex = 1 end
-                    table_insert(ButtonManager.collectedButtons, newIndex, self)
-                    SfuiDB.minimap_button_order = {}
-                    for _, btn in ipairs(ButtonManager.collectedButtons) do
-                        table_insert(SfuiDB.minimap_button_order,
-                            btn:GetName())
-                    end
-                    ButtonManager:arrange_buttons()
-                else
-                    ButtonManager:arrange_buttons()
-                end
-            end)
-        else
-            button:SetMovable(false)
-            button:RegisterForDrag()
-            button:SetScript("OnDragStart", nil)
-            button:SetScript("OnDragStop", nil)
-        end
-
-        if not button.isMoving then
-            if button:IsShown() then
-                if not lastButton then
-                    button:SetPoint("LEFT", button_bar, "LEFT", padX, 0)
-                    lastButton = button
-                elseif button ~= lastButton then
-                    button:SetPoint("LEFT", lastButton, "RIGHT", spacing, 0)
-                    lastButton = button
-                end
-            else
-                button:SetPoint("LEFT", button_bar, "LEFT", 0, 0)
-            end
-        end
-    end
-
-    local clock = _G.TimeManagerClockButton
-    local isClockInside = clock and clock:IsShown() and clock:GetParent() == button_bar
-    local clockWidth = isClockInside and (clock:GetWidth() > 0 and clock:GetWidth() or 48) or 0
-
-    local isStatusInside = status_container and status_container:IsShown() and status_container:GetParent() == button_bar
-    local statusWidth = isStatusInside and (status_container:GetWidth() > 0 and (status_container:GetWidth() + 6) or 0) or 0
-    local rightReserved = isClockInside and (clockWidth + 14 + statusWidth) or (padX + statusWidth)
-
-    local mapWidth = (Minimap and Minimap:GetWidth() and Minimap:GetWidth() > 0) and Minimap:GetWidth()
-        or (SfuiDB and SfuiDB.minimap_width)
-        or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
-        or 220
-    button_bar:SetWidth(mapWidth)
-end
-
-local function set_pvp_texture(texture_obj, isFFA, faction)
-    local tex = isFFA and "Interface\\Icons\\ability_dualwield"
-        or (faction == "Horde" and "Interface\\Icons\\PVPCurrency-Honor-Horde")
-        or (faction == "Alliance" and "Interface\\Icons\\PVPCurrency-Honor-Alliance")
-        or "Interface\\Icons\\ability_dualwield"
-
-    texture_obj:SetTexture(tex)
-    texture_obj:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-end
-
-local function skin_status_button(button, icon, highlight)
-    if not button or not icon then return end
-
-    local Masque = SfuiDB.minimap_masque and LibStub("Masque", true)
-    if not Masque then
-        sfui.common.apply_square_icon_style(button, icon)
-        if button.SetBackdrop then
-            button:SetBackdrop({
-                bgFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
-                edgeFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
-                tile = false,
-                tileSize = 0,
-                edgeSize = 1,
-                insets = { left = 0, right = 0, top = 0, bottom = 0 }
-            })
-            button:SetBackdropColor(0, 0, 0, 0.8)
-            button:SetBackdropBorderColor(0, 0, 0, 1)
-        end
-    else
-        sfui.common.sync_masque(button, { Icon = icon, Highlight = highlight })
-    end
-end
-
-local function update_pvp_tooltip(self)
-    if not GameTooltip:IsOwned(self) then return end
-    GameTooltip:ClearLines()
-    if UnitIsPVPFreeForAll and UnitIsPVPFreeForAll("player") then
-        GameTooltip:AddLine(FREE_FOR_ALL_TERRITORY or "Free for All PvP", 1, 0.2, 0.2)
-        GameTooltip:AddLine("you are hostile to all other players.", 0.85, 0.85, 0.85, true)
-    else
-        local faction = sfui.common.get_player_faction()
-        local factionText = faction or "PvP"
-        GameTooltip:AddLine(string_format("%s (%s)", PVP or "PvP", factionText), 1, 0.82, 0)
-        if IsPVPTimerRunning and IsPVPTimerRunning() then
-            local ms = GetPVPTimer and GetPVPTimer() or 0
-            local totalSeconds = math_floor(ms / 1000)
-            if totalSeconds > 0 then
-                local mins = math_floor(totalSeconds / 60)
-                local secs = totalSeconds % 60
-                GameTooltip:AddLine(string_format("PvP will drop in: %d:%02d", mins, secs), 0.85, 0.85, 0.85)
-            else
-                GameTooltip:AddLine("pvp dropping soon...", 0.85, 0.85, 0.85)
-            end
-            GameTooltip:AddLine("combat will reset this timer.", 0.6, 0.6, 0.6)
-        else
-            GameTooltip:AddLine("pvp flagged", 0.2, 1, 0.2)
-            GameTooltip:AddLine("open to hostile player combat.", 0.6, 0.6, 0.6)
-        end
-    end
-    GameTooltip:Show()
-end
-
-local function get_status_container()
-    if status_container then return status_container end
-
-    local cfg = sfui.config.minimap.button_bar
-    local size = cfg.button_size or 20
-
-    local parent = button_bar or MinimapCluster or Minimap
-    status_container = CreateFrame("Frame", "sfui_minimap_status_container", parent)
-    status_container:SetSize((size * 2) + 6, size)
-
-    -- Resting indicator (flat square icon, hover-only tooltip; clicks pass through)
-    rest_icon_frame = CreateFrame("Frame", nil, status_container, "BackdropTemplate")
-    rest_icon_frame:SetSize(size, size)
-    if rest_icon_frame.SetMouseMotionEnabled and rest_icon_frame.SetMouseClickEnabled then
-        rest_icon_frame:SetMouseMotionEnabled(true)
-        rest_icon_frame:SetMouseClickEnabled(false)
-    else
-        rest_icon_frame:EnableMouse(true)
-    end
-    local rest_tex = rest_icon_frame:CreateTexture(nil, "ARTWORK")
-    rest_tex:SetTexture("Interface\\Icons\\spell_nature_sleep")
-    rest_tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    rest_icon_frame.texture = rest_tex
-    skin_status_button(rest_icon_frame, rest_tex, nil)
-    sfui.common.attach_tooltip(rest_icon_frame, "resting", "earning rested experience.", "ANCHOR_BOTTOMLEFT")
-    rest_icon_frame:Hide()
-
-    -- PvP indicator (flat square icon, mouse enabled for rich tooltip and countdown)
-    pvp_icon_frame = CreateFrame("Frame", nil, status_container, "BackdropTemplate")
-    pvp_icon_frame:SetSize(size, size)
-    pvp_icon_frame:EnableMouse(true)
-    local pvp_tex = pvp_icon_frame:CreateTexture(nil, "ARTWORK")
-    pvp_icon_frame.texture = pvp_tex
-
-    local pvp_hl = pvp_icon_frame:CreateTexture(nil, "HIGHLIGHT")
-    pvp_hl:ClearAllPoints()
-    pvp_hl:SetPoint("TOPLEFT", pvp_icon_frame, "TOPLEFT", 2, -2)
-    pvp_hl:SetPoint("BOTTOMRIGHT", pvp_icon_frame, "BOTTOMRIGHT", -2, 2)
-    pvp_hl:SetColorTexture(1, 1, 1, 0.25)
-    pvp_icon_frame.highlight = pvp_hl
-
-    skin_status_button(pvp_icon_frame, pvp_tex, pvp_hl)
-
-    -- hover-scoped 1s refresh of the pvp timer line (hoisted: no per-hover closure)
-    local function pvp_tooltip_on_update(f, dt)
-        f.elapsed = (f.elapsed or 0) + dt
-        if f.elapsed >= 1.0 then
-            f.elapsed = 0
-            update_pvp_tooltip(f)
-        end
-    end
-
-    pvp_icon_frame:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
-        update_pvp_tooltip(self)
-        if IsPVPTimerRunning and IsPVPTimerRunning() then
-            self.elapsed = 0
-            self:SetScript("OnUpdate", pvp_tooltip_on_update)
-        end
-    end)
-
-    pvp_icon_frame:SetScript("OnLeave", function(self)
-        self:SetScript("OnUpdate", nil)
-        GameTooltip:Hide()
-    end)
-    -- Weather indicator (flat square icon, tooltip with weather type and intensity)
-    weather_icon_frame = CreateFrame("Frame", nil, status_container, "BackdropTemplate")
-    weather_icon_frame:SetSize(size, size)
-    weather_icon_frame:EnableMouse(true)
-    local weather_tex = weather_icon_frame:CreateTexture(nil, "ARTWORK")
-    weather_tex:SetAllPoints()
-    weather_tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    weather_icon_frame.texture = weather_tex
-    skin_status_button(weather_icon_frame, weather_tex, nil)
-
-    weather_icon_frame:SetScript("OnEnter", function(self)
-        if not self.weatherInfo then return end
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
-        GameTooltip:ClearLines()
-        local wType = self.weatherInfo.type
-        local wName = WEATHER_NAMES[wType] or "weather"
-        local pct = math_floor(((self.weatherInfo.intensity or 0) * 100) + 0.5)
-        GameTooltip:AddLine("weather: " .. wName, 1, 1, 1)
-        GameTooltip:AddLine(string_format("intensity: %d%%", pct), 0.7, 0.7, 0.7)
-        GameTooltip:Show()
-    end)
-    weather_icon_frame:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
-    weather_icon_frame:Hide()
-
-    sfui.common.set_pixel_snapping(status_container)
-    return status_container
-end
-
-function sfui.minimap.update_status()
-    local hasWeatherAPI = _G.C_Weather and _G.C_Weather.GetCurrentWeather
-    local wantWeather = hasWeatherAPI and (SfuiDB and SfuiDB.minimap_show_weather ~= false)
-    local wantStatus = sfui.isCamelot and (SfuiDB and SfuiDB.minimap_show_status ~= false)
-
-    if not wantStatus and not wantWeather then
-        if status_container then
-            status_container:Hide()
-            if rest_icon_frame then rest_icon_frame:Hide() end
-            if pvp_icon_frame then
-                pvp_icon_frame:Hide()
-                pvp_icon_frame:SetScript("OnUpdate", nil)
-            end
-            if weather_icon_frame then weather_icon_frame:Hide() end
-        end
-        if button_bar and button_bar:IsShown() then
-            ButtonManager:arrange_buttons()
-        end
-        return
-    end
-
-    local container = get_status_container()
-
-    local targetParent = (button_bar and button_bar:IsShown()) and button_bar or (MinimapCluster or Minimap)
-    if container:GetParent() ~= targetParent then
-        container:SetParent(targetParent)
-        container:SetFrameStrata(targetParent:GetFrameStrata())
-        container:SetFrameLevel(targetParent:GetFrameLevel() + 5)
-    end
-
-    local showRest = wantStatus and IsResting and IsResting()
-    local isFFA = wantStatus and UnitIsPVPFreeForAll and UnitIsPVPFreeForAll("player")
-    local isPVP = wantStatus and ((UnitIsPVP and UnitIsPVP("player")) or isFFA)
-    local showPvP = isPVP
-
-    local weatherInfo = wantWeather and _G.C_Weather.GetCurrentWeather()
-    local showWeather = weatherInfo and weatherInfo.type and weatherInfo.type > 0
-
-    if showRest then
-        rest_icon_frame:Show()
-    else
-        rest_icon_frame:Hide()
-        if GameTooltip:IsOwned(rest_icon_frame) then
-            GameTooltip:Hide()
-        end
-    end
-
-    if showPvP then
-        local faction = sfui.common.get_player_faction()
-        set_pvp_texture(pvp_icon_frame.texture, isFFA, faction)
-        pvp_icon_frame:Show()
-    else
-        pvp_icon_frame:Hide()
-        pvp_icon_frame:SetScript("OnUpdate", nil)
-        if GameTooltip:IsOwned(pvp_icon_frame) then
-            GameTooltip:Hide()
-        end
-    end
-
-    if showWeather then
-        weather_icon_frame.weatherInfo = weatherInfo
-        weather_icon_frame.texture:SetTexture(WEATHER_ICONS[weatherInfo.type] or "Interface\\PetBattles\\Weather-Rain")
-        weather_icon_frame:Show()
-    else
-        if weather_icon_frame then
-            weather_icon_frame:Hide()
-            weather_icon_frame.weatherInfo = nil
-            if GameTooltip:IsOwned(weather_icon_frame) then
-                GameTooltip:Hide()
-            end
-        end
-    end
-
-    local cfg = sfui.config.minimap.button_bar
-    local iconSize = cfg.button_size or 20
-    local iconSpacing = 6
-
-    local activeIcons = {}
-    if showRest then table_insert(activeIcons, rest_icon_frame) end
-    if showPvP then table_insert(activeIcons, pvp_icon_frame) end
-    if showWeather and weather_icon_frame then table_insert(activeIcons, weather_icon_frame) end
-
-    local numActive = #activeIcons
-    if numActive > 0 then
-        local prevIcon = nil
-        for i = 1, numActive do
-            local iconFrame = activeIcons[i]
-            iconFrame:ClearAllPoints()
-            if not prevIcon then
-                iconFrame:SetPoint("RIGHT", container, "RIGHT", 0, 0)
-            else
-                iconFrame:SetPoint("RIGHT", prevIcon, "LEFT", -iconSpacing, 0)
-            end
-            prevIcon = iconFrame
-        end
-        container:SetSize((iconSize * numActive) + (iconSpacing * (numActive - 1)), iconSize)
-        container:Show()
-    else
-        container:SetSize(0, iconSize)
-        container:Hide()
-    end
-
-    local clock = _G.TimeManagerClockButton
-    local isClockInside = clock and clock:IsShown() and clock:GetParent() == container:GetParent()
-
-    container:ClearAllPoints()
-    if isClockInside then
-        container:SetPoint("RIGHT", clock, "LEFT", -6, -1)
-    elseif container:GetParent() == button_bar then
-        container:SetPoint("RIGHT", button_bar, "RIGHT", -8, 1)
-    else
-        if clock and clock:IsShown() then
-            container:SetPoint("RIGHT", clock, "LEFT", -6, -1)
-        else
-            container:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", -4, 3)
-        end
-    end
-
-    if button_bar and button_bar:IsShown() then
-        ButtonManager:arrange_buttons()
-    end
-end
-
-function sfui.minimap.enable_button_manager(enabled)
-    if enabled then
-        if not button_bar then
-            -- Parent to MinimapCluster instead of Minimap to avoid protected frame taint
-            button_bar = CreateFrame("Frame", "sfui_minimap_button_bar", MinimapCluster, "BackdropTemplate")
-            local mapWidth = (Minimap and Minimap:GetWidth() and Minimap:GetWidth() > 0) and Minimap:GetWidth()
-                or (SfuiDB and SfuiDB.minimap_width)
-                or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
-                or 220
-            button_bar:SetSize(mapWidth, 36)
-            sfui.theme.ApplyMinimapButtonBarStyle(button_bar)
-            sfui.minimap.button_bar = button_bar
-        end
-
-        -- Update position and width from saved coordinates
-        sfui.minimap.update_button_bar_position()
-
-        button_bar:Show()
-
-        -- Mouseover logic
-        if not button_bar.sfuiMouseoverHooked then
-            local function update_alpha()
-                if SfuiDB.minimap_buttons_mouseover then
-                    local isHovering = button_bar:IsMouseOver() or Minimap:IsMouseOver()
-                    if isHovering then
-                        button_bar:SetAlpha(1)
-                        if not sfui.minimap.ldbi then
-                            sfui.minimap.ldbi = LibStub("LibDBIcon-1.0", true)
-                        end
-                        if sfui.minimap.ldbi and sfui.minimap.ldbi.OnMinimapEnter then
-                            sfui.minimap.ldbi:OnMinimapEnter()
-                        end
-                    else
-                        button_bar:SetAlpha(0)
-                        if not sfui.minimap.ldbi then
-                            sfui.minimap.ldbi = LibStub("LibDBIcon-1.0", true)
-                        end
-                        if sfui.minimap.ldbi and sfui.minimap.ldbi.OnMinimapLeave then
-                            sfui.minimap.ldbi:OnMinimapLeave()
-                        end
-                    end
-                else
-                    button_bar:SetAlpha(1)
-                end
-            end
-
-            button_bar:SetScript("OnEnter", update_alpha)
-            button_bar:SetScript("OnLeave", function() C_Timer.After(0.1, update_alpha) end)
-
-            button_bar.sfuiMouseoverHooked = true
-        end
-
-        -- Apply initial state
-        if SfuiDB.minimap_buttons_mouseover then
-            button_bar:SetAlpha(0)
-        else
-            button_bar:SetAlpha(1)
-        end
-
-        ButtonManager:collect_buttons()
-        ButtonManager:arrange_buttons()
-
-        if AddonCompartmentFrame then AddonCompartmentFrame:Hide() end
-        sfui.minimap.update_clock_position()
-        sfui.minimap.update_status()
-    else
-        ButtonManager:restore_all()
-        if button_bar then button_bar:Hide() end
-        if AddonCompartmentFrame then AddonCompartmentFrame:Show() end
-        local clock = _G.TimeManagerClockButton
-        if clock and clock.sfuiAnchored then
-            clock.sfuiRepositioning = true
-            clock:ClearAllPoints()
-            clock:SetParent(MinimapCluster or Minimap)
-            clock:SetPoint("TOPRIGHT", Minimap, "BOTTOMRIGHT", 0, -2)
-            clock.sfuiRepositioning = nil
-            clock.sfuiAnchored = nil
-        end
-        sfui.minimap.update_status()
-    end
-end
-
-function sfui.minimap.update_clock_position()
-    local clock = _G.TimeManagerClockButton
-    if not clock then
-        if sfui.common.ensure_addon_loaded("Blizzard_TimeManager") then
-            -- loaded via C_AddOns / LoadAddOn
-        elseif _G.UIParentLoadAddOn then
-            _G.UIParentLoadAddOn("Blizzard_TimeManager")
-        end
-        clock = _G.TimeManagerClockButton
-    end
-
-    if not clock or not button_bar then return end
-
-    local isClockEnabled = true
-    if _G.GetCVarBool then
-        local show = _G.GetCVarBool("showClock")
-        if show ~= nil then isClockEnabled = show end
-    end
-
-    if not isClockEnabled then
-        clock:Hide()
-        return
-    end
-
-    clock:SetParent(button_bar)
-    clock:SetFrameStrata(button_bar:GetFrameStrata())
-    clock:SetFrameLevel(button_bar:GetFrameLevel() + 5)
-
-    if not clock.sfuiAnchored then
-        -- Strip default background textures for clean text appearance
-        local regions = { clock:GetRegions() }
-        for _, region in ipairs(regions) do
-            if region:IsObjectType("Texture") then
-                local tex = region:GetTexture()
-                if tex and type(tex) == "string" and (tex:lower():find("timemanager") or tex:lower():find("clock")) then
-                    region:SetTexture(nil)
-                    region:SetAlpha(0)
-                end
-            end
-        end
-
-        if _G.TimeManagerClockTicker then
-            _G.TimeManagerClockTicker:ClearAllPoints()
-            _G.TimeManagerClockTicker:SetPoint("CENTER", clock, "CENTER", 0, 0)
-        end
-
-        hooksecurefunc(clock, "SetPoint", function(self)
-            if self.sfuiRepositioning or not button_bar or not button_bar:IsShown() then return end
-            self.sfuiRepositioning = true
-            self:ClearAllPoints()
-            self:SetPoint("RIGHT", button_bar, "RIGHT", -8, 2)
-            self.sfuiRepositioning = nil
-        end)
-
-        clock.sfuiAnchored = true
-    end
-
-    if _G.TimeManagerClockTicker then
-        _G.TimeManagerClockTicker:ClearAllPoints()
-        _G.TimeManagerClockTicker:SetPoint("CENTER", clock, "CENTER", 0, 0)
-        local tickerW = (_G.TimeManagerClockTicker.GetStringWidth and _G.TimeManagerClockTicker:GetStringWidth()) or 40
-        clock:SetSize(math_max(44, tickerW + 8), 20)
-    end
-
-    clock.sfuiRepositioning = true
-    clock:ClearAllPoints()
-    clock:SetPoint("RIGHT", button_bar, "RIGHT", -8, 2)
-    clock.sfuiRepositioning = nil
-    clock:Show()
-    sfui.minimap.update_status()
-end
-
 -- ------------------------------------------------------------------------------
--- Mail & Crafting Order Indicator Management
+-- Strata Configuration (Minimap kept in natural LOW strata above backdrop)
 -- ------------------------------------------------------------------------------
-function sfui.minimap.update_indicator_positions()
+function sfui.minimap.lock_minimap_strata()
     local map = _G.Minimap
-    if not map then return end
-
-    local indicator = (MinimapCluster and MinimapCluster.IndicatorFrame) or _G.MinimapIndicatorFrame
-    if indicator then
-        indicator:SetParent(map)
-        indicator:ClearAllPoints()
-        indicator:SetPoint("TOPRIGHT", map, "TOPRIGHT", -4, -4)
-        indicator:SetFrameStrata("MEDIUM")
-        indicator:SetFrameLevel(math_max(25, indicator:GetFrameLevel()))
+    if map then
+        map:SetFrameStrata("LOW")
     end
-
-    local mail = _G.MiniMapMailFrame
-    if mail and (not indicator or mail:GetParent() ~= indicator) then
-        mail:SetParent(map)
-        mail:ClearAllPoints()
-        mail:SetPoint("TOPRIGHT", map, "TOPRIGHT", -4, -4)
-        mail:SetFrameStrata("MEDIUM")
-        mail:SetFrameLevel(math_max(25, mail:GetFrameLevel()))
-    end
-end
-
-if _G.MiniMapIndicatorFrame_UpdatePosition then
-    hooksecurefunc("MiniMapIndicatorFrame_UpdatePosition", function()
-        sfui.minimap.update_indicator_positions()
-    end)
 end
 
 -- ------------------------------------------------------------------------------
--- QueueStatus (Dungeon Finder / LFG Eye) Management
+-- Sub-Module Refresh Coordinator
 -- ------------------------------------------------------------------------------
-function sfui.minimap.update_queue_status_position()
-    local btn = _G.QueueStatusButton
-    local map = _G.Minimap
-    if not btn or not map then return end
-
-    if InCombatLockdown() then return end
-
-    if btn:GetParent() ~= UIParent and btn:GetParent() ~= map then
-        btn:SetParent(UIParent)
-    end
-    btn:SetFrameStrata("MEDIUM")
-    btn:SetFrameLevel(25)
-    btn:SetScale(0.85)
-
-    btn:ClearAllPoints()
-    btn:SetPoint("BOTTOMLEFT", map, "BOTTOMLEFT", -2, -2)
+function sfui.minimap.refresh()
+    if sfui.minimap.update_button_bar_position then sfui.minimap.update_button_bar_position() end
+    if sfui.minimap.update_clock_position then sfui.minimap.update_clock_position() end
+    if sfui.minimap.update_indicator_positions then sfui.minimap.update_indicator_positions() end
+    if sfui.minimap.update_location_bar then sfui.minimap.update_location_bar() end
+    if sfui.minimap.update_queue_status_position then sfui.minimap.update_queue_status_position() end
+    if sfui.minimap.update_status then sfui.minimap.update_status() end
 end
 
-function sfui.minimap.hook_queue_status()
-    local btn = _G.QueueStatusButton
-    if not btn or btn._sfuiPositionHooked then return end
-    btn._sfuiPositionHooked = true
-
-    if btn.UpdateDefaultAnchor then
-        hooksecurefunc(btn, "UpdateDefaultAnchor", function()
-            sfui.minimap.update_queue_status_position()
-        end)
-    end
-
-    if btn.UpdatePosition then
-        hooksecurefunc(btn, "UpdatePosition", function()
-            sfui.minimap.update_queue_status_position()
-        end)
-    end
-
-    hooksecurefunc(btn, "Show", function()
-        sfui.minimap.update_queue_status_position()
-    end)
-
-    sfui.minimap.update_queue_status_position()
-end
-
-function sfui.minimap.update_button_bar_position()
-    if button_bar then
-        local mapWidth = (Minimap and Minimap:GetWidth() and Minimap:GetWidth() > 0) and Minimap:GetWidth()
-            or (SfuiDB and SfuiDB.minimap_width)
-            or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
-            or 220
-        button_bar:SetWidth(mapWidth)
-        button_bar:ClearAllPoints()
-        button_bar:SetPoint(SfuiDB.minimap_button_point or "TOP", Minimap,
-            SfuiDB.minimap_button_relative_point or "BOTTOM",
-            SfuiDB.minimap_button_x or (sfui.config and sfui.config.minimap and sfui.config.minimap.button_bar and sfui.config.minimap.button_bar.defaultX) or 0,
-            SfuiDB.minimap_button_y or (sfui.config and sfui.config.minimap and sfui.config.minimap.button_bar and sfui.config.minimap.button_bar.defaultY) or 0)
-        sfui.minimap.update_clock_position()
-    end
-end
-
-local isRepositioning = false
-
+-- ------------------------------------------------------------------------------
+-- Positioning & Dimensions
+-- ------------------------------------------------------------------------------
 function sfui.minimap.update_position(x, y, point, relPoint)
-    local posX = x or (SfuiDB and SfuiDB.minimap_x) or (sfui.config and sfui.config.minimap and sfui.config.minimap.x) or 0
-    local posY = y or (SfuiDB and SfuiDB.minimap_y) or (sfui.config and sfui.config.minimap and sfui.config.minimap.y) or 0
-    local pt = point or (SfuiDB and SfuiDB.minimap_point) or (sfui.config and sfui.config.minimap and sfui.config.minimap.point) or "TOPRIGHT"
+    local posX = x or (SfuiDB and SfuiDB.minimap_x) or (sfui.config and sfui.config.minimap and sfui.config.minimap.x) or
+        0
+    local posY = y or (SfuiDB and SfuiDB.minimap_y) or (sfui.config and sfui.config.minimap and sfui.config.minimap.y) or
+        35
+    local pt = point or (SfuiDB and SfuiDB.minimap_point) or
+        (sfui.config and sfui.config.minimap and sfui.config.minimap.point) or "BOTTOMRIGHT"
     local rel = relPoint or (SfuiDB and SfuiDB.minimap_relative_point) or pt
 
     if SfuiDB then
@@ -1171,37 +126,85 @@ function sfui.minimap.update_position(x, y, point, relPoint)
         or (sfui.config and sfui.config.minimap and (sfui.config.minimap.height or sfui.config.minimap.default_size))
         or 220
 
-    if cluster then
-        cluster:EnableMouse(false)
-        cluster:SetSize(width, height)
-        if cluster.MinimapContainer then
-            cluster.MinimapContainer:SetSize(width, height)
-            cluster.MinimapContainer:ClearAllPoints()
-            cluster.MinimapContainer:SetPoint("CENTER", cluster, "CENTER", 0, 0)
+    local isSquare = sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
+
+    if isSquare then
+        if cluster then
+            cluster:EnableMouse(false)
+            cluster:SetSize(width, height)
+            if cluster.MinimapContainer then
+                cluster.MinimapContainer:SetScale(1)
+                cluster.MinimapContainer:SetSize(width, height)
+                cluster.MinimapContainer:ClearAllPoints()
+                cluster.MinimapContainer:SetPoint("CENTER", cluster, "CENTER", 0, 0)
+            end
+        end
+
+        if map then
+            map:SetFrameStrata("LOW")
+            map:SetSize(width, height)
+            local anchorTarget = (cluster and cluster.MinimapContainer) or cluster
+            if anchorTarget then
+                map:ClearAllPoints()
+                map:SetPoint("CENTER", anchorTarget, "CENTER", 0, 0)
+            end
+        end
+
+        if _G.MinimapBackdrop then
+            _G.MinimapBackdrop:SetSize(width, height)
+        end
+    else
+        -- Blizzard Camelot / Round Minimap:
+        -- Native geometry:
+        --   MinimapContainer & MinimapCompassTexture: 215 x 226
+        --   Minimap aperture: 192 x 192 (sized safely inside the ~194px inner bronze rim)
+        --   Optical centering: texture bounds have top arrow & right bracket; offset (-4, 4) centers aperture
+        local baseSize = 220
+        local scale = width / baseSize
+        if scale <= 0.2 then scale = 1.0 end
+
+        if cluster then
+            cluster:EnableMouse(false)
+            if cluster.MinimapContainer then
+                -- Restore native container points (account for scale)
+                cluster.MinimapContainer:ClearAllPoints()
+                cluster.MinimapContainer:SetPoint("TOP", cluster, "TOP", 10 / scale, -30 / scale)
+                if cluster.SetEditModeScale then
+                    cluster:SetEditModeScale(scale)
+                else
+                    cluster.MinimapContainer:SetScale(scale)
+                end
+            end
+        end
+
+        -- Ensure Blizzard native atlas configuration is applied
+        if cluster and cluster.UpdateMinimapConfig then
+            cluster:UpdateMinimapConfig()
+        end
+
+        if map then
+            map:SetFrameStrata("LOW")
+            map:SetSize(192, 192)
+            local anchorTarget = (cluster and cluster.MinimapContainer) or cluster
+            if anchorTarget then
+                map:ClearAllPoints()
+                -- Optically centered inside the circular compass aperture
+                map:SetPoint("CENTER", anchorTarget, "CENTER", -4, 4)
+            end
+        end
+
+        if _G.MinimapCompassTexture and map then
+            _G.MinimapCompassTexture:ClearAllPoints()
+            _G.MinimapCompassTexture:SetPoint("CENTER", map, "CENTER", 4, -4)
+        end
+        if _G.MinimapCompassTextureUnderlay and map then
+            _G.MinimapCompassTextureUnderlay:ClearAllPoints()
+            _G.MinimapCompassTextureUnderlay:SetPoint("CENTER", map, "CENTER", 4, -4)
         end
     end
 
-    if map then
-        map:SetFrameStrata("LOW")
-        map:SetFrameLevel(10)
-        map:SetSize(width, height)
-        if cluster and cluster.MinimapContainer then
-            map:ClearAllPoints()
-            map:SetPoint("CENTER", cluster.MinimapContainer, "CENTER", 0, 0)
-        elseif cluster then
-            map:ClearAllPoints()
-            map:SetPoint("CENTER", cluster, "CENTER", 0, 0)
-        end
-    end
-
-    if _G.MinimapBackdrop then
-        _G.MinimapBackdrop:SetSize(width, height)
-    end
-
-    sfui.minimap.update_button_bar_position()
-    sfui.minimap.update_indicator_positions()
-    sfui.minimap.hook_queue_status()
-    sfui.minimap.update_queue_status_position()
+    if sfui.minimap.hook_queue_status then sfui.minimap.hook_queue_status() end
+    sfui.minimap.refresh()
 
     if sfui.tracker and sfui.tracker.boons and sfui.tracker.boons.UpdateAnchor then
         sfui.tracker.boons.UpdateAnchor()
@@ -1228,110 +231,77 @@ function sfui.minimap.update_dimensions(w, h)
         return
     end
 
-    if Minimap then
-        Minimap:SetSize(width, height)
-    end
-    if MinimapCluster and MinimapCluster.MinimapContainer then
-        MinimapCluster.MinimapContainer:SetSize(width, height)
-    end
-    if MinimapCluster then
-        MinimapCluster:SetSize(width, height)
-    end
-    if _G.MinimapBackdrop then
-        _G.MinimapBackdrop:SetSize(width, height)
-    end
-
     sfui.minimap.update_position()
-    sfui.minimap.update_button_bar_position()
-    sfui.minimap.update_indicator_positions()
-    sfui.minimap.update_queue_status_position()
-    if ButtonManager and ButtonManager.arrange_buttons then
-        ButtonManager:arrange_buttons()
+    if sfui.minimap.ButtonManager and sfui.minimap.ButtonManager.arrange_buttons then
+        sfui.minimap.ButtonManager:arrange_buttons()
     end
 end
 
+-- ------------------------------------------------------------------------------
+-- Theme Updates
+-- ------------------------------------------------------------------------------
 function sfui.minimap.UpdateMinimapTheme()
-
-    if button_bar then
+    local button_bar = sfui.minimap.button_bar
+    if button_bar and sfui.theme and sfui.theme.ApplyMinimapButtonBarStyle then
         sfui.theme.ApplyMinimapButtonBarStyle(button_bar)
     end
-    if ButtonManager and ButtonManager.collectedButtons then
-        for _, btn in ipairs(ButtonManager.collectedButtons) do
-            ButtonManager:skin_button(btn)
+    local bm = sfui.minimap.ButtonManager
+    if bm and bm.collectedButtons then
+        for _, btn in ipairs(bm.collectedButtons) do
+            bm:skin_button(btn)
         end
-        ButtonManager:arrange_buttons()
+        bm:arrange_buttons()
     end
-    if sfui.isCamelot and rest_icon_frame and pvp_icon_frame then
-        skin_status_button(rest_icon_frame, rest_icon_frame.texture, nil)
-        skin_status_button(pvp_icon_frame, pvp_icon_frame.texture, pvp_icon_frame.highlight)
+    if sfui.minimap.update_status then
+        sfui.minimap.update_status()
     end
 end
 
-local startup_scans = 0
-
--- One-shot: runs once on first PLAYER_ENTERING_WORLD then unregisters itself
+-- ------------------------------------------------------------------------------
+-- World Entry & Lifecycle
+-- ------------------------------------------------------------------------------
 local function on_minimap_entering_world(event)
-    sfui.minimap.initialize_masque()
+    isInitialized = true
+    if sfui.minimap.initialize_masque then sfui.minimap.initialize_masque() end
+    if sfui.minimap.hook_location_bar then sfui.minimap.hook_location_bar() end
+    if sfui.minimap.hook_queue_status then sfui.minimap.hook_queue_status() end
     sfui.minimap.update_dimensions()
-    sfui.minimap.update_position()
-    if SfuiDB.minimap_auto_zoom then
+    if SfuiDB and SfuiDB.minimap_auto_zoom then
         set_default_zoom()
     end
-    sfui.minimap.enable_button_manager(SfuiDB.minimap_collect_buttons)
-    sfui.minimap.update_clock_position()
-    sfui.minimap.update_indicator_positions()
-    sfui.minimap.hook_queue_status()
-    sfui.minimap.update_queue_status_position()
-    sfui.minimap.update_status()
+    if sfui.minimap.enable_button_manager then
+        sfui.minimap.enable_button_manager(SfuiDB and SfuiDB.minimap_collect_buttons)
+    end
     sfui.minimap.UpdateMinimapTheme()
 
     -- Startup timer to catch late-loading buttons and clock
-    if SfuiDB.minimap_collect_buttons then
+    if SfuiDB and SfuiDB.minimap_collect_buttons then
         C_Timer.NewTicker(2, function(self)
             startup_scans = startup_scans + 1
             if startup_scans > 5 then
                 self:Cancel()
             else
-                if ButtonManager:collect_buttons() then
-                    ButtonManager:arrange_buttons()
+                local bm = sfui.minimap.ButtonManager
+                if bm and bm:collect_buttons() then
+                    bm:arrange_buttons()
                 end
-                sfui.minimap.update_clock_position()
-                sfui.minimap.update_indicator_positions()
-                sfui.minimap.update_queue_status_position()
-                sfui.minimap.update_status()
+                sfui.minimap.refresh()
             end
         end)
     end
-
-    -- Ensure status and weather indicators update on world entry
-    sfui.minimap.update_status()
 
     -- One-shot: unregister after first world entry
     sfui.events.UnregisterEvent("PLAYER_ENTERING_WORLD", on_minimap_entering_world)
 end
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_minimap_entering_world)
 
-sfui.events.RegisterEvent("ADDON_LOADED", function(_, loadedAddon)
-    if loadedAddon == "Blizzard_TimeManager" then
-        sfui.minimap.update_clock_position()
-    elseif loadedAddon == "Blizzard_QueueStatusFrame" then
-        sfui.minimap.hook_queue_status()
-        sfui.minimap.update_queue_status_position()
-    end
-    if SfuiDB and SfuiDB.minimap_collect_buttons then
-        if ButtonManager:collect_buttons() then
-            ButtonManager:arrange_buttons()
-        end
-    end
-end)
-
 -- Autozoom on manual zoom changes
 sfui.events.RegisterEvent("MINIMAP_UPDATE_ZOOM", function()
-    if SfuiDB.minimap_auto_zoom and Minimap:GetZoom() ~= DEFAULT_ZOOM then
+    if SfuiDB and SfuiDB.minimap_auto_zoom and Minimap and Minimap.GetZoom and Minimap:GetZoom() ~= DEFAULT_ZOOM then
         if zoom_timer then
             zoom_timer:Cancel()
         end
-        zoom_timer = C_Timer.NewTimer(SfuiDB.minimap_auto_zoom_delay or 5, set_default_zoom)
+        zoom_timer = C_Timer.NewTimer((SfuiDB and SfuiDB.minimap_auto_zoom_delay) or 5, set_default_zoom)
     end
 end)
 
@@ -1347,8 +317,9 @@ sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
         sfui.minimap.pendingPosition = nil
         sfui.minimap.update_position(p.x, p.y, p.point, p.relPoint)
     end
-    if ButtonManager.pendingArrange then
-        ButtonManager:arrange_buttons()
+    local bm = sfui.minimap.ButtonManager
+    if bm and bm.pendingArrange then
+        bm:arrange_buttons()
     end
 end)
 
@@ -1382,56 +353,18 @@ if _G.MinimapCluster and hooksecurefunc then
     end)
 end
 
--- Weather changes (Retail 12.1.5+ C_Weather)
-if _G.C_Weather then
-    sfui.events.RegisterEvent("WEATHER_CHANGED", function()
-        sfui.minimap.update_status()
-    end)
-end
-
--- Zone changes update weather and location
-sfui.events.RegisterEvent("ZONE_CHANGED_NEW_AREA", function()
-    sfui.minimap.update_status()
-end)
-
-sfui.events.RegisterEvent("ZONE_CHANGED", function()
-    sfui.minimap.update_status()
-end)
-
-sfui.events.RegisterEvent("ZONE_CHANGED_INDOORS", function()
-    sfui.minimap.update_status()
-end)
-
-if sfui.isCamelot then
-    -- Status indicator events (Resting and PvP tracking)
-    sfui.events.RegisterEvent("PLAYER_UPDATE_RESTING", function()
-        sfui.minimap.update_status()
-    end)
-
-    sfui.events.RegisterEvent("PLAYER_FLAGS_CHANGED", function(_, unit)
-        if not unit or unit == "player" then
-            sfui.minimap.update_status()
-        end
-    end)
-
-    sfui.events.RegisterEvent("UNIT_FACTION", function(_, unit)
-        if not unit or unit == "player" then
-            sfui.minimap.update_status()
-        end
-    end)
-
-    sfui.events.RegisterEvent("PVP_TIMER_UPDATE", function()
-        sfui.minimap.update_status()
-    end)
-end
-
 function sfui.minimap_debug_info()
+    local button_bar = sfui.minimap.button_bar
+    local bm = sfui.minimap.ButtonManager
     return {
         isInitialized = isInitialized,
-        buttonCount = button_bar and button_bar.buttons and #button_bar.buttons or 0,
+        buttonCount = (bm and bm.collectedButtons and #bm.collectedButtons) or 0,
         autoZoomActive = zoom_timer ~= nil,
     }
 end
 
 sfui.minimap.GetDebugInfo = sfui.minimap_debug_info
 sfui.RegisterModule("minimap", sfui.minimap)
+
+if sfui.minimap.hook_location_bar then sfui.minimap.hook_location_bar() end
+sfui.minimap.refresh()

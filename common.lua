@@ -1108,24 +1108,47 @@ function sfui.initialize_database()
     sfui.config.barTexture = sfui.widgets.get_bar_texture()
     SfuiDB.absorbBarColor = SfuiDB.absorbBarColor or sfui.config.absorbBarColor
 
+    local isBronzeCamelot = (sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot))
+        and (activeThemeID == "camelot")
+
     SfuiDB.minimap_icon = SfuiDB.minimap_icon or { hide = false }
-    if SfuiDB.minimap_square == nil then SfuiDB.minimap_square = true end
+    if SfuiDB.minimap_square == nil then
+        SfuiDB.minimap_square = not isBronzeCamelot
+    elseif isBronzeCamelot and SfuiDB.minimap_square == true and not SfuiDB._minimapSquareCustomized then
+        -- Automatically default Bronze Camelot theme to round minimap if still using legacy default
+        SfuiDB.minimap_square = false
+    end
     if SfuiDB.minimap_width == nil then SfuiDB.minimap_width = (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size)) or 220 end
     if SfuiDB.minimap_height == nil then SfuiDB.minimap_height = (sfui.config and sfui.config.minimap and (sfui.config.minimap.height or sfui.config.minimap.default_size)) or 220 end
     SfuiDB.minimap_collect_buttons = (SfuiDB.minimap_collect_buttons == nil) and true or SfuiDB.minimap_collect_buttons
+    SfuiDB.minimap_dock_mail = (SfuiDB.minimap_dock_mail == nil) and true or SfuiDB.minimap_dock_mail
     if SfuiDB.minimap_rearrange == nil then SfuiDB.minimap_rearrange = true end
     SfuiDB.minimap_buttons_mouseover = (SfuiDB.minimap_buttons_mouseover == nil) and false or
         SfuiDB.minimap_buttons_mouseover
     if SfuiDB.minimap_show_status == nil then SfuiDB.minimap_show_status = true end
+    if SfuiDB.minimap_show_location == nil then SfuiDB.minimap_show_location = true end
+    if SfuiDB.minimap_zone_x == nil or not SfuiDB._minimapZoneCustomized then
+        SfuiDB.minimap_zone_x = (sfui.config and sfui.config.minimap and sfui.config.minimap.zone_x) or 0
+    end
+    if SfuiDB.minimap_zone_y == nil or not SfuiDB._minimapZoneCustomized or SfuiDB.minimap_zone_y == 50 or SfuiDB.minimap_zone_y == 40 or SfuiDB.minimap_zone_y == 30 or SfuiDB.minimap_zone_y == 10 then
+        SfuiDB.minimap_zone_y = (sfui.config and sfui.config.minimap and sfui.config.minimap.zone_y) or 35
+        SfuiDB._minimapZoneCustomized = nil
+    end
     if SfuiDB.minimap_masque == nil then SfuiDB.minimap_masque = true end
     if SfuiDB.minimap_auto_zoom == nil then SfuiDB.minimap_auto_zoom = true end
     if SfuiDB.minimap_auto_zoom_delay == nil then SfuiDB.minimap_auto_zoom_delay = 5 end
     if SfuiDB.minimap_button_x == nil then SfuiDB.minimap_button_x = sfui.config.minimap.button_bar.defaultX end
-    if SfuiDB.minimap_button_y == nil or SfuiDB.minimap_button_y == -25 then SfuiDB.minimap_button_y = sfui.config.minimap.button_bar.defaultY end
+    if SfuiDB.minimap_button_y == nil or SfuiDB.minimap_button_y == -25 or SfuiDB.minimap_button_y == 0 or SfuiDB.minimap_button_y == 15 then SfuiDB.minimap_button_y = sfui.config.minimap.button_bar.defaultY end
     if SfuiDB.minimap_x == nil then SfuiDB.minimap_x = (sfui.config and sfui.config.minimap and sfui.config.minimap.x) or 0 end
-    if SfuiDB.minimap_y == nil then SfuiDB.minimap_y = (sfui.config and sfui.config.minimap and sfui.config.minimap.y) or 0 end
-    if SfuiDB.minimap_point == nil then SfuiDB.minimap_point = (sfui.config and sfui.config.minimap and sfui.config.minimap.point) or "TOPRIGHT" end
-    if SfuiDB.minimap_relative_point == nil then SfuiDB.minimap_relative_point = (sfui.config and sfui.config.minimap and sfui.config.minimap.relative_point) or "TOPRIGHT" end
+    if SfuiDB.minimap_y == nil or (SfuiDB.minimap_y == 0 and SfuiDB.minimap_point == "TOPRIGHT" and not SfuiDB._minimapPositionCustomized) then
+        SfuiDB.minimap_y = (sfui.config and sfui.config.minimap and sfui.config.minimap.y) or 35
+    end
+    if SfuiDB.minimap_point == nil or (SfuiDB.minimap_point == "TOPRIGHT" and not SfuiDB._minimapPositionCustomized) then
+        SfuiDB.minimap_point = (sfui.config and sfui.config.minimap and sfui.config.minimap.point) or "BOTTOMRIGHT"
+    end
+    if SfuiDB.minimap_relative_point == nil or (SfuiDB.minimap_relative_point == "TOPRIGHT" and not SfuiDB._minimapPositionCustomized) then
+        SfuiDB.minimap_relative_point = (sfui.config and sfui.config.minimap and sfui.config.minimap.relative_point) or "BOTTOMRIGHT"
+    end
     if SfuiDB.showBoonsDetails == nil then SfuiDB.showBoonsDetails = true end
     if SfuiDB.autoSellGreys == nil then SfuiDB.autoSellGreys = true end
     if SfuiDB.autoRepair == nil then SfuiDB.autoRepair = true end

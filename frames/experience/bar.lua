@@ -211,8 +211,8 @@ function barModule.UpdateTicks(innerWidth, innerHeight)
     if not tickFrame then return end
 
     local cfg = sfui.config.experience or {}
-    local showTicks = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showTicks", cfg.showTicks ~= false))
-    if showTicks == nil then showTicks = true end
+    local showTicks = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showTicks", cfg.showTicks == true))
+    if showTicks == nil then showTicks = false end
 
     if not showTicks or innerWidth <= 0 then
         tickFrame:Hide()
@@ -291,7 +291,7 @@ function barModule.UpdateValues()
     if autoRep == nil then autoRep = true end
 
     local isMax = xpData.isMaxLevel or xpData.isXPDisabled
-    local repOnlyAtMaxLevel = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repOnlyAtMaxLevel", cfg.repOnlyAtMaxLevel or false))
+    local repOnlyAtMaxLevel = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repOnlyAtMaxLevel", cfg.repOnlyAtMaxLevel ~= false))
 
     if showDual then
         if isMax and not container._isUnlocked then

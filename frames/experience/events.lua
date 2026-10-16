@@ -265,8 +265,9 @@ local function FlushPendingRepGains()
 
     if not bestFaction then return end
 
+    local cfg = (sfui.config and sfui.config.experience) or {}
     local isMax = sfui.experience.data and (sfui.experience.data.IsMaxLevel() or (sfui.experience.data.IsXPDisabled and sfui.experience.data.IsXPDisabled()))
-    local repOnlyAtMaxLevel = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repOnlyAtMaxLevel", false))
+    local repOnlyAtMaxLevel = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repOnlyAtMaxLevel", cfg.repOnlyAtMaxLevel ~= false))
     if repOnlyAtMaxLevel and not isMax then
         return
     end
@@ -295,7 +296,8 @@ end
 local function HandleReputationGain(factionName, amount)
     if not factionName or not amount or type(amount) ~= "number" or amount <= 0 then return end
 
-    local enabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "autoSwitchRepOnGain", false))
+    local cfg = (sfui.config and sfui.config.experience) or {}
+    local enabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "autoSwitchRepOnGain", cfg.autoSwitchRepOnGain ~= false))
     if not enabled then return end
 
     pendingRepGains[factionName] = (pendingRepGains[factionName] or 0) + amount
@@ -309,7 +311,8 @@ local function HandleReputationGain(factionName, amount)
 end
 
 local function OnChatMsgCombatFactionChange(event, msg)
-    local enabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "autoSwitchRepOnGain", false))
+    local cfg = (sfui.config and sfui.config.experience) or {}
+    local enabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "autoSwitchRepOnGain", cfg.autoSwitchRepOnGain ~= false))
     if not enabled then return end
 
     local faction, amount = ParseFactionChatMessage(msg)

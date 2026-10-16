@@ -828,8 +828,10 @@ function sfui.widgets.create_slider_input(parent, label, dbKeyOrGetter, minVal, 
 
     local lastUpdate = 0
     local throttle = 0.05
+    local isSyncing = false
 
     slider:SetScript("OnValueChanged", function(self, value)
+        if isSyncing then return end
         local stepped = math.floor((value - minVal) / step + 0.5) * step + minVal
         if type(dbKeyOrGetter) == "string" and SfuiDB then SfuiDB[dbKeyOrGetter] = stepped end
         local displayVal = math.floor(stepped * 100) / 100
@@ -843,6 +845,7 @@ function sfui.widgets.create_slider_input(parent, label, dbKeyOrGetter, minVal, 
     end)
 
     slider:SetScript("OnMouseUp", function(self)
+        if isSyncing then return end
         local value = self:GetValue()
         local stepped = math.floor((value - minVal) / step + 0.5) * step + minVal
         if type(dbKeyOrGetter) == "string" and SfuiDB then SfuiDB[dbKeyOrGetter] = stepped end
@@ -865,17 +868,21 @@ function sfui.widgets.create_slider_input(parent, label, dbKeyOrGetter, minVal, 
     end
 
     local function syncValue()
+        isSyncing = true
         local val = readValue()
         slider:SetValue(val)
         editbox:SetText(tostring(math.floor(val * 100) / 100))
+        isSyncing = false
     end
 
     slider:SetScript("OnShow", syncValue)
     syncValue()
 
     function container:SetSliderValue(val)
+        isSyncing = true
         slider:SetValue(val)
         editbox:SetText(tostring(val))
+        isSyncing = false
     end
 
     return container

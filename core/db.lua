@@ -42,14 +42,26 @@ end
 --- @param fallback any
 --- @return any
 function sfui.db.Get(moduleName, key, fallback)
-    if not moduleName or not key then return fallback end
+    if not moduleName then return fallback end
+    if not key then
+        if SfuiDB and SfuiDB[moduleName] ~= nil then
+            return SfuiDB[moduleName]
+        end
+        if moduleDefaults[moduleName] ~= nil then
+            return moduleDefaults[moduleName]
+        end
+        if sfui.config and sfui.config[moduleName] ~= nil then
+            return sfui.config[moduleName]
+        end
+        return fallback
+    end
     if SfuiDB and SfuiDB[moduleName] and SfuiDB[moduleName][key] ~= nil then
         return SfuiDB[moduleName][key]
     end
     if moduleDefaults[moduleName] and moduleDefaults[moduleName][key] ~= nil then
         return moduleDefaults[moduleName][key]
     end
-    if sfui.config[moduleName] and sfui.config[moduleName][key] ~= nil then
+    if sfui.config and sfui.config[moduleName] and sfui.config[moduleName][key] ~= nil then
         return sfui.config[moduleName][key]
     end
     return fallback

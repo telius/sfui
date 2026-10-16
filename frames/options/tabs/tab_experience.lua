@@ -199,8 +199,11 @@ sfui.options.RegisterTab({
         quest_cb:SetPoint("TOPLEFT", rested_cb, "BOTTOMLEFT", 0, -8)
 
         local ticks_cb = registerCheckbox(create_checkbox(exp_panel, "show 20-segment tick dividers", function()
-            return sfui.db.Get("experience", "showTicks", true)
+            return sfui.db.Get("experience", "showTicks", false)
         end, function(checked)
+            if SfuiDB then
+                SfuiDB._expCustomizedTicks = true
+            end
             sfui.db.Set("experience", "showTicks", checked)
         end, "overlays subtle vertical hash lines every 5% for classic segment orientation."))
         ticks_cb:SetPoint("TOPLEFT", quest_cb, "BOTTOMLEFT", 0, -8)
@@ -230,9 +233,10 @@ sfui.options.RegisterTab({
         rep_header:SetText("reputation & faction tracking")
 
         local rep_max_level_cb = registerCheckbox(create_checkbox(exp_panel, "only show reputation bar at max level", function()
-            return sfui.db.Get("experience", "repOnlyAtMaxLevel", false)
+            return sfui.db.Get("experience", "repOnlyAtMaxLevel", true)
         end, function(checked)
             sfui.db.Set("experience", "repOnlyAtMaxLevel", checked)
+            if SfuiDB then SfuiDB._expCustomizedRepMaxLevel = true end
             if sfui.experience and sfui.experience.Update then
                 sfui.experience.Update()
             end
@@ -267,9 +271,10 @@ sfui.options.RegisterTab({
         rep_top_cb:SetPoint("TOPLEFT", dual_cb, "BOTTOMLEFT", 0, -8)
 
         local rep_gain_cb = registerCheckbox(create_checkbox(exp_panel, "auto-switch to gained reputation", function()
-            return sfui.db.Get("experience", "autoSwitchRepOnGain", false)
+            return sfui.db.Get("experience", "autoSwitchRepOnGain", true)
         end, function(checked)
             sfui.db.Set("experience", "autoSwitchRepOnGain", checked)
+            if SfuiDB then SfuiDB._expCustomizedAutoSwitchRep = true end
         end, "automatically activates and switches the watched reputation bar to any faction whenever reputation is gained."))
         rep_gain_cb:SetPoint("TOPLEFT", rep_top_cb, "BOTTOMLEFT", 0, -8)
 
@@ -287,9 +292,10 @@ sfui.options.RegisterTab({
             legacy_cb:SetPoint("TOPLEFT", rep_gain_cb, "BOTTOMLEFT", 0, -8)
 
             local legacy_bar_cb = registerCheckbox(create_checkbox(exp_panel, "show dedicated legacy challenges bar", function()
-                return sfui.db.Get("experience", "showChallengesBar", true)
+                return sfui.db.Get("experience", "showChallengesBar", false)
             end, function(checked)
                 sfui.db.Set("experience", "showChallengesBar", checked)
+                if SfuiDB then SfuiDB._expCustomizedChallengesBar = true end
                 if sfui.experience and sfui.experience.Update then
                     sfui.experience.Update()
                 end

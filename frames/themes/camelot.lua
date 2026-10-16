@@ -93,6 +93,9 @@ sfui.theme.RegisterTheme({
     lootfeed       = {
         style       = "outfit_card",
     },
+    minimap        = {
+        square      = false, -- Default to Blizzard round minimap with brass compass & day/night dial
+    },
     -- ─── Bar / StatusBar Theming ───────────────────────────────────────────────
     -- Each key matches a "barType" string used by sfui.theme.RegisterBar / ApplyStatusBarStyle.
     -- Colors follow the Camelot Heavy Bronze palette:

@@ -254,6 +254,20 @@ function sfui.theme.SetTheme(mode)
         sfui.theme.ApplyThemeBarTexture(themeBarTex)
     end
 
+    -- Default to round minimap for Bronze Camelot theme if not explicitly customized
+    local isBronzeCamelot = (sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot)) and (activeID == "camelot")
+    if isBronzeCamelot and not SfuiDB._minimapSquareCustomized then
+        SfuiDB.minimap_square = false
+        if sfui.map and sfui.map.square and sfui.map.square.Apply then
+            sfui.map.square:Apply()
+        end
+    elseif not isBronzeCamelot and not SfuiDB._minimapSquareCustomized and activeID == "modern" then
+        SfuiDB.minimap_square = true
+        if sfui.map and sfui.map.square and sfui.map.square.Apply then
+            sfui.map.square:Apply()
+        end
+    end
+
     sfui.theme.ApplyCurrentTheme()
     return true, mode
 end
@@ -3175,6 +3189,9 @@ function sfui.theme.ApplyCurrentTheme()
 
     -- 8. Refresh Minimap theme
     sfui.minimap.UpdateMinimapTheme()
+    if sfui.map and sfui.map.square and sfui.map.square.Apply then
+        sfui.map.square:Apply()
+    end
 
     -- 9. Refresh quest trackers
     sfui.tracker.RequestRefresh(0.01)

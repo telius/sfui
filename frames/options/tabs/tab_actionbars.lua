@@ -159,6 +159,20 @@ sfui.options.RegisterTab({
         end, function(val)
             local cfg = get_mod_cfg()
             cfg.allBarsMouseover = val
+            if sfui.db and sfui.db.Set then
+                sfui.db.Set("actionbars", "allBarsMouseover", val)
+            end
+            for i = 1, 10 do
+                local b = get_bar_cfg("bar" .. i)
+                if b then b.mouseover = val end
+                local barObj = sfui.actionbars and sfui.actionbars.barsByKey and sfui.actionbars.barsByKey["bar" .. i]
+                if barObj and barObj.barConfig then barObj.barConfig.mouseover = val end
+            end
+            local petCfg = get_bar_cfg("pet")
+            if petCfg then petCfg.mouseover = val end
+            local petBar = sfui.actionbars and sfui.actionbars.barsByKey and sfui.actionbars.barsByKey["pet"]
+            if petBar and petBar.barConfig then petBar.barConfig.mouseover = val end
+
             if sfui.actionbars and sfui.actionbars.mouseover and sfui.actionbars.mouseover.UpdateAllBars then
                 sfui.actionbars.mouseover.UpdateAllBars(true)
             end
@@ -174,6 +188,9 @@ sfui.options.RegisterTab({
         end, 0.0, 1.0, 0.05, function(val)
             local cfg = get_mod_cfg()
             cfg.restingAlpha = val
+            if sfui.db and sfui.db.Set then
+                sfui.db.Set("actionbars", "restingAlpha", val)
+            end
             if sfui.actionbars and sfui.actionbars.mouseover and sfui.actionbars.mouseover.UpdateAllBars then
                 sfui.actionbars.mouseover.UpdateAllBars()
             end
@@ -186,6 +203,9 @@ sfui.options.RegisterTab({
         end, 0.1, 1.0, 0.05, function(val)
             local cfg = get_mod_cfg()
             cfg.activeAlpha = val
+            if sfui.db and sfui.db.Set then
+                sfui.db.Set("actionbars", "activeAlpha", val)
+            end
             if sfui.actionbars and sfui.actionbars.mouseover and sfui.actionbars.mouseover.UpdateAllBars then
                 sfui.actionbars.mouseover.UpdateAllBars()
             end
@@ -412,6 +432,9 @@ sfui.options.RegisterTab({
         end, function(val)
             local bCfg = get_bar_cfg(selectedBarKey)
             bCfg.enabled = val
+            if SfuiDB then
+                SfuiDB["_" .. selectedBarKey .. "Customized"] = true
+            end
             apply_selected_bar_layout()
         end, "shows or hides this action bar.")
         bar_enabled_cb:SetPoint("TOPLEFT", barStatusText, "BOTTOMLEFT", 0, -8)
@@ -424,8 +447,33 @@ sfui.options.RegisterTab({
             local bCfg = get_bar_cfg(selectedBarKey)
             local modCfg = get_mod_cfg()
             bCfg.mouseover = val
+            local selectedBar = sfui.actionbars and sfui.actionbars.barsByKey and sfui.actionbars.barsByKey[selectedBarKey]
+            if selectedBar and selectedBar.barConfig then
+                selectedBar.barConfig.mouseover = val
+            end
+            if SfuiDB then
+                SfuiDB["_" .. selectedBarKey .. "MouseoverCustomized"] = true
+            end
             if not val and modCfg.allBarsMouseover == true then
                 modCfg.allBarsMouseover = false
+                if sfui.db and sfui.db.Set then
+                    sfui.db.Set("actionbars", "allBarsMouseover", false)
+                end
+                for i = 1, 10 do
+                    local k = "bar" .. i
+                    if k ~= selectedBarKey then
+                        local otherCfg = get_bar_cfg(k)
+                        if otherCfg then otherCfg.mouseover = true end
+                        local otherBar = sfui.actionbars and sfui.actionbars.barsByKey and sfui.actionbars.barsByKey[k]
+                        if otherBar and otherBar.barConfig then otherBar.barConfig.mouseover = true end
+                    end
+                end
+                if selectedBarKey ~= "pet" then
+                    local petCfg = get_bar_cfg("pet")
+                    if petCfg then petCfg.mouseover = true end
+                    local petBar = sfui.actionbars and sfui.actionbars.barsByKey and sfui.actionbars.barsByKey["pet"]
+                    if petBar and petBar.barConfig then petBar.barConfig.mouseover = true end
+                end
                 if all_mouseover_cb and all_mouseover_cb.SetChecked then
                     all_mouseover_cb:SetChecked(false)
                 end

@@ -23,6 +23,35 @@ local modDef = {
             SfuiDB._expTextMouseoverDefault = true
         end
 
+        -- Auto-migrate new experience defaults for existing profiles:
+        -- - hide dedicated legacy challenges bar by default
+        -- - enable only show reputation at max level by default
+        -- - enable auto-switch to gained reputation by default
+        if SfuiDB and not SfuiDB._expDefaultsV2 then
+            if SfuiDB.experience then
+                if not SfuiDB._expCustomizedChallengesBar then
+                    SfuiDB.experience.showChallengesBar = false
+                end
+                if not SfuiDB._expCustomizedRepMaxLevel then
+                    SfuiDB.experience.repOnlyAtMaxLevel = true
+                end
+                if not SfuiDB._expCustomizedAutoSwitchRep then
+                    SfuiDB.experience.autoSwitchRepOnGain = true
+                end
+            end
+            SfuiDB._expDefaultsV2 = true
+        end
+
+        -- Auto-migrate disable showTicks by default for existing profiles:
+        if SfuiDB and not SfuiDB._expDefaultsV3 then
+            if SfuiDB.experience then
+                if not SfuiDB._expCustomizedTicks then
+                    SfuiDB.experience.showTicks = false
+                end
+            end
+            SfuiDB._expDefaultsV3 = true
+        end
+
         if sfui.events and sfui.events.RegisterMessage then
             sfui.events.RegisterMessage("SFUI_THEME_CHANGED", function()
                 if exp.bar and exp.bar.ApplyTheme then
@@ -163,11 +192,11 @@ function sfui.experience_debug_info()
     end
 
     local isEnabled = true
-    local showTicks = true
+    local showTicks = false
     local tickCount = 20
     if sfui.db and sfui.db.Get then
         isEnabled = sfui.db.Get("experience", "enabled", true)
-        showTicks = sfui.db.Get("experience", "showTicks", true)
+        showTicks = sfui.db.Get("experience", "showTicks", false)
         tickCount = sfui.db.Get("experience", "tickCount", 20)
     end
 

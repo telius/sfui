@@ -224,6 +224,28 @@ local ActionBarsModule = sfui.RegisterModule("actionbars", {
         if sfui.db and sfui.db.RegisterDefaults and sfui.config.actionbars then
             sfui.db.RegisterDefaults("actionbars", sfui.config.actionbars)
         end
+
+        -- Auto-migrate default bar settings for existing profiles:
+        -- - bars 1-6 enabled by default
+        -- - fade out on mouseover disabled by default
+        if SfuiDB and not SfuiDB._actionbarsDefaultsV2 then
+            if SfuiDB.actionbars and SfuiDB.actionbars.bars then
+                local b = SfuiDB.actionbars.bars
+                if b.bar5 and b.bar5.enabled == false and not SfuiDB._bar5Customized then
+                    b.bar5.enabled = true
+                end
+                if b.bar6 and b.bar6.enabled == false and not SfuiDB._bar6Customized then
+                    b.bar6.enabled = true
+                end
+                if b.bar3 and b.bar3.mouseover == true and not SfuiDB._bar3MouseoverCustomized then
+                    b.bar3.mouseover = false
+                end
+                if b.bar4 and b.bar4.mouseover == true and not SfuiDB._bar4MouseoverCustomized then
+                    b.bar4.mouseover = false
+                end
+            end
+            SfuiDB._actionbarsDefaultsV2 = true
+        end
     end,
 
     OnEnable = function(self)

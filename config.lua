@@ -332,7 +332,7 @@ sfui.config = {
         },
         showRested = true,
         showQuestPreview = true,
-        showTicks = true,
+        showTicks = false,
         tickCount = 20,
         showFloatingText = true,
         useClassColor = false,
@@ -343,19 +343,19 @@ sfui.config = {
         textFormat = "PERCENT_CURRENT", -- "PERCENT_CURRENT", "PERCENT", "REMAINING", "FRACTION"
         showRate = true,
         showTTL = true,
-        repOnlyAtMaxLevel = false, -- Only show reputation bar at maximum level
-        autoReputation = true, -- Switch to reputation if max level or tracking faction
-        autoSwitchRepOnGain = false, -- Automatically activate and switch reputation bar when reputation is gained
-        trackLegacy = true, -- Camelot only: track legacy challenges reward track (faction 2802)
-        showChallengesBar = true, -- Show stacked challenges bar when available
-        challengesHeight = 12, -- Height of the stacked challenges bar
+        repOnlyAtMaxLevel = true,    -- Only show reputation bar at maximum level
+        autoReputation = true,       -- Switch to reputation if max level or tracking faction
+        autoSwitchRepOnGain = true,  -- Automatically activate and switch reputation bar when reputation is gained
+        trackLegacy = true,          -- Camelot only: track legacy challenges reward track (faction 2802)
+        showChallengesBar = false,   -- Show stacked challenges bar when available
+        challengesHeight = 12,       -- Height of the stacked challenges bar
         hideBlizzardBar = true,
         colors = {
             xp = { 0.58, 0.0, 0.82, 1.0 },             -- Fallback active xp color (purple)
             rested = { 0.0, 0.65, 0.90, 0.60 },        -- Rested bonus overlay (cyan/sky blue)
             questPreview = { 0.96, 0.65, 0.12, 0.70 }, -- Completed quest turn-in preview (amber/gold)
             reputation = { 0.0, 0.60, 0.35, 1.0 },     -- Fallback reputation green
-            legacy = { 0.08, 0.72, 0.22, 1.0 },         -- Camelot legacy challenges green (matches in-game tracker)
+            legacy = { 0.08, 0.72, 0.22, 1.0 },        -- Camelot legacy challenges green (matches in-game tracker)
         },
     },
 
@@ -394,15 +394,15 @@ sfui.config = {
 
     triage = {
         enabled = true,
-        threshold = 1,                 -- Trigger when free regular slots <= threshold (0 = bags full, 1, or 2)
-        checkConsumables = true,       -- Evaluate consumables (food without well fed, outdated food/drink)
-        protectFoodWater = true,       -- Protect food/water matching player's level tier (and buff food)
-        soundAlert = true,             -- Play sound when triage prompt appears
-        deleteSoulShards = false,      -- Opt-in: show triage prompt for excess soul shards
-        maxSoulShards = 20,            -- Maximum soul shards to keep (1 to 32)
-        preserveSoulBag = true,        -- If true, preserve shards in dedicated soul bags and only prune regular bag spillover
-        soulShardMode = "prompt",      -- "prompt" (triage prompt button) or hardware click / macro (/click SfuiPurgeSoulShards)
-        soulShardChat = true,          -- Print consolidated single-line summary to chat when pruning finishes
+        threshold = 1,            -- Trigger when free regular slots <= threshold (0 = bags full, 1, or 2)
+        checkConsumables = true,  -- Evaluate consumables (food without well fed, outdated food/drink)
+        protectFoodWater = true,  -- Protect food/water matching player's level tier (and buff food)
+        soundAlert = true,        -- Play sound when triage prompt appears
+        deleteSoulShards = false, -- Opt-in: show triage prompt for excess soul shards
+        maxSoulShards = 20,       -- Maximum soul shards to keep (1 to 32)
+        preserveSoulBag = true,   -- If true, preserve shards in dedicated soul bags and only prune regular bag spillover
+        soulShardMode = "prompt", -- "prompt" (triage prompt button) or hardware click / macro (/click SfuiPurgeSoulShards)
+        soulShardChat = true,     -- Print consolidated single-line summary to chat when pruning finishes
         pos = {
             point = "BOTTOM",
             relativePoint = "BOTTOM",
@@ -672,19 +672,26 @@ sfui.config = {
         default_size = 220,
         width = 220,
         height = 220,
-        point = "TOPRIGHT",
-        relative_point = "TOPRIGHT",
+        point = "BOTTOMRIGHT",
+        relative_point = "BOTTOMRIGHT",
         x = 0,
-        y = 0,
+        y = 35,
         defaultZoom = 0,
         showPins = true,
         pinSize = 14,
+        show_location = true,
+        zone_x = 0,
+        zone_y = 35,
+        dock_mail = true,
         button_bar = {
             spacing = 8,
             pad_x = 24,
             button_size = 20,
             defaultX = 0,
-            defaultY = 0,
+            defaultY = 30,
+        },
+        status = {
+            icon_size = 26,
         },
     },
 
@@ -780,12 +787,12 @@ sfui.config = {
             [18469] = { maxStacks = 100, spellID = 190456 }, -- Ignore Pain (Warrior)
         },
         -- Default visibility settings
-        hideOOC = false,      -- Hide all bars when out of combat
-        hideMounted = false,  -- Default to false for bars
-        hideInVehicle = true, -- Hide all bars when in vehicle UI
-        hideInactive = true,  -- Hide bars when cooldowns are inactive
-        pandemicGlow = true,    -- Glow tracking bar icon when in pandemic refresh window
-        pandemicRecolor = true, -- Recolor bar when in pandemic refresh window
+        hideOOC = false,                -- Hide all bars when out of combat
+        hideMounted = false,            -- Default to false for bars
+        hideInVehicle = true,           -- Hide all bars when in vehicle UI
+        hideInactive = true,            -- Hide bars when cooldowns are inactive
+        pandemicGlow = true,            -- Glow tracking bar icon when in pandemic refresh window
+        pandemicRecolor = true,         -- Recolor bar when in pandemic refresh window
         pandemicColor = { 1, 0, 1, 1 }, -- Default magenta color for pandemic window (#ff00ff)
         -- Default bar configuration per cooldown ID
         defaults = {
@@ -998,30 +1005,30 @@ sfui.config = {
     -- ─── Hide & Suppression Settings ──────────────────────
     -- Settings for Blizzard unitframe and HUD suppression (frames/hide.lua).
     hide = {
-        hide_player_frame            = false,
-        hide_target_frame            = false,
-        hide_pet_frame               = false,
-        hide_focus_frame             = false,
-        hide_micromenu               = false,
-        hide_bagsbar                 = false,
-        hide_totem_bar               = false,
-        hide_cooldown_errors         = true,
+        hide_player_frame    = false,
+        hide_target_frame    = false,
+        hide_pet_frame       = false,
+        hide_focus_frame     = false,
+        hide_micromenu       = false,
+        hide_bagsbar         = false,
+        hide_totem_bar       = false,
+        hide_cooldown_errors = true,
     },
 
     -- ─── Totem Bar (Vanilla / Camelot only) ─────────────────────────
     -- Dedicated tracking bar for shaman totems (frames/bars/totembar.lua).
     totembar = {
-        enabled         = true,
-        size            = 36,
-        spacing         = 4,
-        colorByElement  = true,
+        enabled            = true,
+        size               = 36,
+        spacing            = 4,
+        colorByElement     = true,
         showTimerText      = true,
         showGlow           = true,
         castOrder          = { "Earth", "Fire", "Water", "Air" },
         resetTimer         = 15,
         showSequenceButton = false,
         pos                = { point = "BOTTOM", relPoint = "BOTTOM", x = 0, y = 88 },
-        selectedTotems  = {
+        selectedTotems     = {
             Earth = "Stoneskin Totem",
             Fire  = "Searing Totem",
             Water = "Healing Stream Totem",
@@ -1052,7 +1059,7 @@ sfui.config = {
         restingAlpha       = 0,
         activeAlpha        = 1,
         hotkeyFontSize     = 10,
-        bars = {
+        bars               = {
             bar1 = {
                 enabled       = true,
                 mouseover     = false,
@@ -1079,7 +1086,7 @@ sfui.config = {
             },
             bar3 = {
                 enabled       = true,
-                mouseover     = true,
+                mouseover     = false,
                 buttons       = 12,
                 buttonsPerRow = 3, -- 3x4 grid
                 buttonSize    = 28,
@@ -1091,7 +1098,7 @@ sfui.config = {
             },
             bar4 = {
                 enabled       = true,
-                mouseover     = true,
+                mouseover     = false,
                 buttons       = 12,
                 buttonsPerRow = 3, -- 3x4 grid
                 buttonSize    = 28,
@@ -1102,7 +1109,7 @@ sfui.config = {
                 y             = 0,
             },
             bar5 = {
-                enabled       = false,
+                enabled       = true,
                 mouseover     = false,
                 buttons       = 12,
                 buttonsPerRow = 3, -- 3x4 grid
@@ -1114,7 +1121,7 @@ sfui.config = {
                 y             = 35,
             },
             bar6 = {
-                enabled       = false,
+                enabled       = true,
                 mouseover     = false,
                 buttons       = 12,
                 buttonsPerRow = 3, -- 3x4 grid
@@ -1186,14 +1193,13 @@ sfui.config = {
                 y             = 168,
             },
             vehicle = {
-                enabled       = true,
-                buttonSize    = 34,
-                point         = "BOTTOM",
-                relPoint      = "BOTTOM",
-                x             = 0,
-                y             = 210,
+                enabled    = true,
+                buttonSize = 34,
+                point      = "BOTTOM",
+                relPoint   = "BOTTOM",
+                x          = 0,
+                y          = 210,
             },
         },
     },
 }
-

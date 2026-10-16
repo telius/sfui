@@ -305,8 +305,8 @@ local function UpdateTicks(innerWidth, innerHeight)
     if not tickFrame then return end
 
     local cfg = sfui.config.experience or {}
-    local showTicks = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showTicks", cfg.showTicks ~= false))
-    if showTicks == nil then showTicks = true end
+    local showTicks = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showTicks", cfg.showTicks == true))
+    if showTicks == nil then showTicks = false end
 
     if not showTicks or innerWidth <= 0 then
         tickFrame:Hide()
@@ -457,8 +457,8 @@ function challenges.UpdateValues()
         return
     end
 
-    local showBar = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showChallengesBar", cfg.showChallengesBar ~= false))
-    if showBar == nil then showBar = true end
+    local showBar = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showChallengesBar", cfg.showChallengesBar == true))
+    if showBar == nil then showBar = false end
 
     -- Check if single bar mode is active (showDualBars is false)
     local showDual = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showDualBars", cfg.showDualBars ~= false))
