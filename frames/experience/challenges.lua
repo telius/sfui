@@ -45,20 +45,24 @@ local textCenter = nil
 local textRight = nil
 local unlockOverlay = nil
 
---- Check if the camelot legacy challenge system is available and active
+--- Check if the camelot legacy challenge system is supported by the client
 --- @return boolean
-function challenges.IsAvailable()
-    local isCamelotClient = sfui.isCamelot
-        or (sfui.version and sfui.version.camelot)
-        or (sfui.compat and sfui.compat.is_camelot)
+function challenges.IsSupported()
+    return (sfui.isCamelot == true)
+        or (sfui.version and sfui.version.camelot == true)
+        or (sfui.compat and sfui.compat.is_camelot == true)
         or (_G.ToggleLegacyChallenges ~= nil)
         or (_G.LegacySystemFrame_LoadUI ~= nil)
         or (_G.LegacySystem ~= nil)
         or (_G.Constants and _G.Constants.LegacyConsts ~= nil)
+end
 
-    if not isCamelotClient then return false end
+--- Check if the camelot legacy challenge system is available and active
+--- @return boolean
+function challenges.IsAvailable()
+    if not challenges.IsSupported() then return false end
 
-    local enabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "trackLegacy", true))
+    local enabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "trackLegacy", false))
     if enabled == false then return false end
 
     return true
@@ -457,7 +461,7 @@ function challenges.UpdateValues()
         return
     end
 
-    local showBar = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showChallengesBar", cfg.showChallengesBar == true))
+    local showBar = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showChallengesBar", false))
     if showBar == nil then showBar = false end
 
     -- Check if single bar mode is active (showDualBars is false)
@@ -631,6 +635,7 @@ function challenges.Create()
     if challengesContainer then return challengesContainer end
 
     challengesContainer = CreateFrame("Button", "SfuiChallengesBar", _G.UIParent, "BackdropTemplate")
+    challengesContainer:Hide()
     challengesContainer:SetFrameStrata("HIGH")
     challengesContainer:SetFrameLevel(20)
     challengesContainer:SetClampedToScreen(true)

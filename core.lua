@@ -615,7 +615,7 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
     if is_unregistered("automation") then
         sfui.automation.initialize()
     end
-    if is_unregistered("cursor") then
+    if is_unregistered("cursor") or not _G.SfuiCursor then
         sfui.cursor.initialize()
     end
     if is_unregistered("trackedbars") then

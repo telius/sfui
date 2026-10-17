@@ -5,8 +5,8 @@ sfui.character.infopanel = {}
 
 local panelModule = sfui.character.infopanel
 
--- Guard: Exclude Retail (Camelot & Classic only)
-if sfui.isRetail then
+-- Guard: Camelot only
+if not sfui.isCamelot then
     return
 end
 
@@ -89,25 +89,6 @@ local function GetTargetBossStats(pLevel)
     return targetLevel, targetDefenseSkill, targetWeaponSkill
 end
 
--- Weapon Subclass to Skill ID mapping (from Camelot SkillsFrame.lua)
-local WEAPON_SUBCLASS_TO_SKILL_ID = {
-    [Enum.ItemWeaponSubclass.Sword1H]  = 43,  -- Swords
-    [Enum.ItemWeaponSubclass.Axe1H]    = 44,  -- Axes
-    [Enum.ItemWeaponSubclass.Bows]     = 45,  -- Bows
-    [Enum.ItemWeaponSubclass.Guns]     = 46,  -- Guns
-    [Enum.ItemWeaponSubclass.Mace1H]   = 54,  -- Maces
-    [Enum.ItemWeaponSubclass.Sword2H]  = 55,  -- Two-Handed Swords
-    [Enum.ItemWeaponSubclass.Staff]    = 136, -- Staves
-    [Enum.ItemWeaponSubclass.Mace2H]   = 160, -- Two-Handed Maces
-    [Enum.ItemWeaponSubclass.Axe2H]    = 172, -- Two-Handed Axes
-    [Enum.ItemWeaponSubclass.Dagger]   = 173, -- Daggers
-    [Enum.ItemWeaponSubclass.Thrown]   = 176, -- Thrown
-    [Enum.ItemWeaponSubclass.Crossbow] = 226, -- Crossbows
-    [Enum.ItemWeaponSubclass.Wand]     = 228, -- Wands
-    [Enum.ItemWeaponSubclass.Polearm]  = 229, -- Polearms
-    [Enum.ItemWeaponSubclass.Unarmed]  = 162, -- Fist Weapons / Unarmed
-}
-
 local panelFrame = nil
 local toggleButton = nil
 local allRows = {}
@@ -115,72 +96,19 @@ local activeRowCount = 0
 local inCombat = false
 local pendingUpdate = false
 local updateTimer = nil
-local cachedMhInfo = {}
-local cachedOhInfo = {}
 
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Data Extraction & Combat Math
 -- ─────────────────────────────────────────────────────────────────────────────
 
---- Find skill information by skillID safely without table allocations
---- @param targetSkillID number
---- @return number|nil rank, number|nil modifier, number|nil maxRank
-local function GetSkillInfoByID(targetSkillID)
-    if not targetSkillID then return nil, nil, nil end
-    if C_SkillInfo and C_SkillInfo.GetNumSkillLines and C_SkillInfo.GetSkillLineInfo then
-        local count = C_SkillInfo.GetNumSkillLines()
-        for i = 1, count do
-            local info = C_SkillInfo.GetSkillLineInfo(i)
-            if info and info.skillID == targetSkillID then
-                return info.rank or 0, info.modifier or 0, info.maxRank or 0
-            end
-        end
-    end
-    return nil, nil, nil
-end
-
---- Get equipped weapon details and effective skill without dynamic table churn
+--- Get equipped weapon details and effective skill from Camelot gear system
 --- @param slotID number 16: main hand, 17: off hand, 18: ranged
 --- @return table|nil
 local function GetEquippedWeaponInfo(slotID)
-    local pLevel = UnitLevel("player") or 60
-    local baseSkill = pLevel * 5
-    local targetTable = (slotID == 16) and cachedMhInfo or cachedOhInfo
-
-    local itemID = _G.GetInventoryItemID and _G.GetInventoryItemID("player", slotID)
-    if not itemID then
-        if slotID == 16 then
-            local rank, modifier, maxRank = GetSkillInfoByID(162)
-            local totalSkill = (rank and (rank + (modifier or 0))) or baseSkill
-            targetTable.name = "unarmed"
-            targetTable.skill = totalSkill
-            targetTable.maxSkill = maxRank or baseSkill
-            targetTable.skillID = 162
-            targetTable.isRanged = false
-            targetTable.isDualWield = false
-            return targetTable
-        end
-        return nil
+    if sfui.gear and sfui.gear.get_equipped_weapon_info then
+        return sfui.gear.get_equipped_weapon_info(slotID)
     end
-
-    local itemName = C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(itemID)
-    local _, _, _, _, _, itemSubClassID, itemClassID = C_Item and C_Item.GetItemInfoInstant and C_Item.GetItemInfoInstant(itemID)
-
-    if slotID == 17 and itemClassID ~= Enum.ItemClass.Weapon then
-        return nil -- Shield or off-hand frill item
-    end
-
-    local skillID = WEAPON_SUBCLASS_TO_SKILL_ID[itemSubClassID] or 162
-    local rank, modifier, maxRank = GetSkillInfoByID(skillID)
-    local totalSkill = (rank and (rank + (modifier or 0))) or baseSkill
-
-    targetTable.name = itemName and itemName:lower() or "weapon"
-    targetTable.skill = totalSkill
-    targetTable.maxSkill = maxRank or baseSkill
-    targetTable.skillID = skillID
-    targetTable.isRanged = (slotID == 18)
-    targetTable.isDualWield = (slotID == 17)
-    return targetTable
+    return nil
 end
 
 --- Compute glancing blow chance and damage penalty against boss
@@ -420,9 +348,11 @@ function panelModule.UpdateValues()
         yellowHitCap = math_max(5.0, 5.0 + (skillDiff * 0.1))
     end
 
-    y = AddDataRow(scrollChild, y, "main-hand skill:", string_format("%d / %d", mhSkill, mhInfo and mhInfo.maxSkill or baseSkill),
+    local mhSkillName = (mhInfo and mhInfo.skillName) or "weapon"
+    local mhLabel = string_format("main-hand skill (%s):", mhSkillName:lower())
+    y = AddDataRow(scrollChild, y, mhLabel, string_format("%d / %d", mhSkill, mhInfo and mhInfo.maxSkill or baseSkill),
         (mhSkill >= softSkillCap) and COLOR_GREEN or COLOR_WHITE,
-        "main-hand weapon skill", string_format("effective weapon skill including racials and gear bonuses. %d+ weapon skill reduces glancing blow penalty and drops boss yellow hit cap from 9%% to 6%%.", softSkillCap))
+        "main-hand weapon skill", string_format("effective %s skill including racials and gear bonuses. %d+ weapon skill reduces glancing blow penalty and drops boss yellow hit cap from 9%% to 6%%.", mhSkillName:lower(), softSkillCap))
 
     y = AddDataRow(scrollChild, y, "glancing blow chance:", string_format("%.1f%%", mhGlanceChance),
         COLOR_YELLOW,
@@ -438,9 +368,11 @@ function panelModule.UpdateValues()
 
     local ohInfo = GetEquippedWeaponInfo(17)
     if ohInfo then
-        y = AddDataRow(scrollChild, y, "off-hand skill:", string_format("%d / %d", ohInfo.skill, ohInfo.maxSkill),
+        local ohSkillName = (ohInfo and ohInfo.skillName) or "weapon"
+        local ohLabel = string_format("off-hand skill (%s):", ohSkillName:lower())
+        y = AddDataRow(scrollChild, y, ohLabel, string_format("%d / %d", ohInfo.skill, ohInfo.maxSkill),
             (ohInfo.skill >= softSkillCap) and COLOR_GREEN or COLOR_WHITE,
-            "off-hand weapon skill", "weapon skill for your equipped off-hand weapon.")
+            "off-hand weapon skill", string_format("weapon skill for your equipped off-hand %s.", ohSkillName:lower()))
 
         local ohHitMod = (GetOffhandHitModifier and GetOffhandHitModifier()) or 0
         local totalOhHit = ohHitMod + crMeleeHit
@@ -451,7 +383,7 @@ function panelModule.UpdateValues()
         local _, ohPenalty = ComputeGlancingBlowData(ohInfo.skill, targetDefenseSkill)
         y = AddDataRow(scrollChild, y, "off-hand glancing penalty:", string_format("-%.1f%% dmg", ohPenalty),
             (ohInfo.skill >= softSkillCap) and COLOR_GREEN or COLOR_RED,
-            "off-hand glancing penalty", "damage penalty on glancing blows with your off-hand weapon.")
+            "off-hand glancing penalty", string_format("damage penalty on glancing blows with your off-hand %s.", ohSkillName:lower()))
 
         y = AddDataRow(scrollChild, y, "dual wield miss penalty:", "+19.0% miss",
             COLOR_DIM,
@@ -509,23 +441,34 @@ function panelModule.UpdateValues()
         COLOR_MID_GRAY,
         "armor damage reduction", string_format("physical damage reduction against level %d boss attacks. current armor: %s.", targetLevel, BreakUpLargeNumbers(armor)))
 
-    -- 3. Ranged & Ammo (Hunter or classes with ammo)
+    -- 3. Ranged & Ammo (Hunter or classes with equipped ranged weapon/ammo)
+    local rangedInfo = GetEquippedWeaponInfo(18)
     local usesAmmo = (UnitUsesAmmo and UnitUsesAmmo("player")) or (pClass == "HUNTER")
-    if usesAmmo then
+    if rangedInfo or usesAmmo then
         y = y - 4
         y = AddHeaderRow(scrollChild, y, "ranged & ammo")
 
-        local ammoCount = _G.GetInventoryItemCount and _G.GetInventoryItemCount("player", 0) or 0
-        local ammoID = _G.GetInventoryItemID and _G.GetInventoryItemID("player", 0)
-        local ammoName = ammoID and C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(ammoID) or "no ammo equipped"
+        if rangedInfo then
+            local rSkillName = rangedInfo.skillName or "ranged"
+            local rLabel = string_format("ranged skill (%s):", rSkillName:lower())
+            y = AddDataRow(scrollChild, y, rLabel, string_format("%d / %d", rangedInfo.skill, rangedInfo.maxSkill),
+                (rangedInfo.skill >= softSkillCap) and COLOR_GREEN or COLOR_WHITE,
+                "ranged weapon skill", string_format("effective %s skill including bonuses.", rSkillName:lower()))
+        end
 
-        y = AddDataRow(scrollChild, y, "ammo equipped:", tostring(ammoName):lower(),
-            (ammoCount > 0) and COLOR_WHITE or COLOR_RED_ALERT,
-            "equipped ammo", "current ammo equipped in your ammo slot (slot 0).")
+        if usesAmmo then
+            local ammoCount = _G.GetInventoryItemCount and _G.GetInventoryItemCount("player", 0) or 0
+            local ammoID = _G.GetInventoryItemID and _G.GetInventoryItemID("player", 0)
+            local ammoName = ammoID and C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(ammoID) or "no ammo equipped"
 
-        y = AddDataRow(scrollChild, y, "ammo count remaining:", BreakUpLargeNumbers(ammoCount),
-            (ammoCount > 500) and COLOR_GREEN or (ammoCount > 100) and COLOR_YELLOW or COLOR_RED_ALERT,
-            "ammo count", "remaining quantity of equipped ammunition.")
+            y = AddDataRow(scrollChild, y, "ammo equipped:", tostring(ammoName):lower(),
+                (ammoCount > 0) and COLOR_WHITE or COLOR_RED_ALERT,
+                "equipped ammo", "current ammo equipped in your ammo slot (slot 0).")
+
+            y = AddDataRow(scrollChild, y, "ammo count remaining:", BreakUpLargeNumbers(ammoCount),
+                (ammoCount > 500) and COLOR_GREEN or (ammoCount > 100) and COLOR_YELLOW or COLOR_RED_ALERT,
+                "ammo count", "remaining quantity of equipped ammunition.")
+        end
 
         local rangedHit = (GetRangedHitModifier and GetRangedHitModifier()) or 0
         local crRangedHit = (GetCombatRatingBonus and _G.CR_HIT_RANGED and GetCombatRatingBonus(_G.CR_HIT_RANGED)) or 0
@@ -966,6 +909,7 @@ local function Initialize()
         "UNIT_STATS",
         "CHARACTER_POINTS_CHANGED",
         "PLAYER_LEVEL_UP",
+        "UPDATE_SHAPESHIFT_FORM",
     }
 
     local watcher = CreateFrame("Frame")

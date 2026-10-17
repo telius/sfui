@@ -58,9 +58,6 @@ function repModule.GetActiveMode()
     if currentRepMode == "LEGACY" then
         return hasLegacy and "LEGACY" or "REP"
     elseif currentRepMode == "REP" then
-        if not hasRep and hasLegacy then
-            return "LEGACY"
-        end
         return "REP"
     else -- "AUTO"
         if hasRep then

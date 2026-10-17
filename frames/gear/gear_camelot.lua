@@ -1067,3 +1067,156 @@ function sfui.gear.UpdateFlavorUI(ui, specID, db)
         sfui.gear.UpdateCollapsedRoleBar(gFrame)
     end
 end
+
+-- -------------------------------------------------------------------------
+-- WEAPON & COMBAT SKILL TELEMETRY (Camelot / Classic)
+-- -------------------------------------------------------------------------
+local WEAPON_SUBCLASS_TO_SKILL_ID = {
+    [0]  = 44,  -- Axes (1H)
+    [1]  = 172, -- Two-Handed Axes
+    [2]  = 45,  -- Bows
+    [3]  = 46,  -- Guns
+    [4]  = 54,  -- Maces (1H)
+    [5]  = 160, -- Two-Handed Maces
+    [6]  = 229, -- Polearms
+    [7]  = 43,  -- Swords (1H)
+    [8]  = 55,  -- Two-Handed Swords
+    [10] = 136, -- Staves
+    [13] = 162, -- Fist Weapons / Unarmed
+    [15] = 173, -- Daggers
+    [16] = 176, -- Thrown
+    [18] = 226, -- Crossbows
+    [19] = 228, -- Wands
+    [20] = 356, -- Fishing Poles
+}
+if Enum and Enum.ItemWeaponSubclass then
+    if Enum.ItemWeaponSubclass.Axe1H then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Axe1H] = 44 end
+    if Enum.ItemWeaponSubclass.Axe2H then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Axe2H] = 172 end
+    if Enum.ItemWeaponSubclass.Bows then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Bows] = 45 end
+    if Enum.ItemWeaponSubclass.Guns then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Guns] = 46 end
+    if Enum.ItemWeaponSubclass.Mace1H then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Mace1H] = 54 end
+    if Enum.ItemWeaponSubclass.Mace2H then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Mace2H] = 160 end
+    if Enum.ItemWeaponSubclass.Polearm then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Polearm] = 229 end
+    if Enum.ItemWeaponSubclass.Sword1H then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Sword1H] = 43 end
+    if Enum.ItemWeaponSubclass.Sword2H then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Sword2H] = 55 end
+    if Enum.ItemWeaponSubclass.Staff then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Staff] = 136 end
+    if Enum.ItemWeaponSubclass.Unarmed then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Unarmed] = 162 end
+    if Enum.ItemWeaponSubclass.Dagger then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Dagger] = 173 end
+    if Enum.ItemWeaponSubclass.Thrown then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Thrown] = 176 end
+    if Enum.ItemWeaponSubclass.Crossbow then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Crossbow] = 226 end
+    if Enum.ItemWeaponSubclass.Wand then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Wand] = 228 end
+    if Enum.ItemWeaponSubclass.Fishingpole then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Fishingpole] = 356 end
+end
+
+local cachedWeaponInfo = {
+    [16] = {},
+    [17] = {},
+    [18] = {},
+}
+
+local function get_skill_line_info_by_id(targetSkillID)
+    if not targetSkillID then return nil, nil, nil, nil end
+    local C_SkillInfo = _G.C_SkillInfo
+    if C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID then
+        local info = C_SkillInfo.GetSkillLineInfoByID(targetSkillID)
+        if info then
+            return info.rank or 0, info.modifier or 0, info.maxRank or 0, info.name
+        end
+    end
+    if C_SkillInfo and C_SkillInfo.GetNumSkillLines and C_SkillInfo.GetSkillLineInfo then
+        local count = C_SkillInfo.GetNumSkillLines()
+        for i = 1, count do
+            local info = C_SkillInfo.GetSkillLineInfo(i)
+            if info and info.skillID == targetSkillID then
+                return info.rank or 0, info.modifier or 0, info.maxRank or 0, info.name
+            end
+        end
+    end
+    return nil, nil, nil, nil
+end
+
+--- Return equipped weapon details and effective skill without dynamic table churn
+--- @param slotID number 16: main hand, 17: off hand, 18: ranged
+--- @return table|nil
+function sfui.gear.get_equipped_weapon_info(slotID)
+    local pLevel = UnitLevel("player") or 60
+    local baseSkill = pLevel * 5
+    local targetTable = cachedWeaponInfo[slotID]
+    if not targetTable then return nil end
+
+    local pClass = (common and common.get_player_class and common.get_player_class()) or _G.UnitClassBase("player")
+    local isDruidInForm = (pClass == "DRUID") and (_G.GetShapeshiftForm and _G.GetShapeshiftForm() ~= 0)
+    if isDruidInForm and slotID == 16 then
+        local rank, modifier, maxRank, skillName = get_skill_line_info_by_id(3014) -- FERAL_WEAPON_SKILL
+        local totalSkill = (rank and (rank + (modifier or 0))) or baseSkill
+        targetTable.name = "feral combat"
+        targetTable.skillName = skillName or "feral combat"
+        targetTable.skill = totalSkill
+        targetTable.maxSkill = maxRank or baseSkill
+        targetTable.skillID = 3014
+        targetTable.subclassID = nil
+        targetTable.classID = nil
+        targetTable.link = nil
+        targetTable.itemID = nil
+        targetTable.isRanged = false
+        targetTable.isDualWield = false
+        return targetTable
+    end
+
+    local itemID = _G.GetInventoryItemID and _G.GetInventoryItemID("player", slotID)
+    if not itemID then
+        if slotID == 16 then
+            local rank, modifier, maxRank, skillName = get_skill_line_info_by_id(162)
+            local totalSkill = (rank and (rank + (modifier or 0))) or baseSkill
+            targetTable.name = "unarmed"
+            targetTable.skillName = skillName or "unarmed"
+            targetTable.skill = totalSkill
+            targetTable.maxSkill = maxRank or baseSkill
+            targetTable.skillID = 162
+            targetTable.subclassID = 13
+            targetTable.classID = 2
+            targetTable.link = nil
+            targetTable.itemID = nil
+            targetTable.isRanged = false
+            targetTable.isDualWield = false
+            return targetTable
+        end
+        return nil
+    end
+
+    local link = _G.GetInventoryItemLink and _G.GetInventoryItemLink("player", slotID)
+    local itemName = link and (C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(link)) or (C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(itemID))
+    local itemClassID, itemSubClassID
+    if C_Item and C_Item.GetItemInfoInstant then
+        _, _, _, _, _, itemClassID, itemSubClassID = C_Item.GetItemInfoInstant(itemID)
+    end
+    if not itemClassID and _G.GetItemInfo then
+        local _, _, _, _, _, _, _, _, _, _, _, cID, scID = _G.GetItemInfo(itemID)
+        itemClassID = cID
+        itemSubClassID = scID
+    end
+
+    local weaponClass = (Enum and Enum.ItemClass and Enum.ItemClass.Weapon) or 2
+    if itemClassID and itemClassID ~= weaponClass then
+        return nil -- Shield, off-hand frill, relic, etc.
+    end
+
+    local skillID = (itemSubClassID and WEAPON_SUBCLASS_TO_SKILL_ID[itemSubClassID]) or 162
+    local rank, modifier, maxRank, skillName = get_skill_line_info_by_id(skillID)
+    local totalSkill = (rank and (rank + (modifier or 0))) or baseSkill
+
+    targetTable.name = itemName and itemName:lower() or "weapon"
+    targetTable.skillName = skillName or (itemSubClassID and "weapon") or "unarmed"
+    targetTable.skill = totalSkill
+    targetTable.maxSkill = maxRank or baseSkill
+    targetTable.skillID = skillID
+    targetTable.subclassID = itemSubClassID
+    targetTable.classID = itemClassID
+    targetTable.link = link
+    targetTable.itemID = itemID
+    targetTable.isRanged = (slotID == 18)
+    targetTable.isDualWield = (slotID == 17)
+    return targetTable
+end
+
+sfui.gear.GetEquippedWeaponInfo = sfui.gear.get_equipped_weapon_info

@@ -52,6 +52,19 @@ local modDef = {
             SfuiDB._expDefaultsV3 = true
         end
 
+        -- Auto-migrate disable challenge bar & trackLegacy by default for existing profiles:
+        if SfuiDB and not SfuiDB._expDefaultsV4 then
+            if SfuiDB.experience then
+                if not SfuiDB._expCustomizedTrackLegacy then
+                    SfuiDB.experience.trackLegacy = false
+                end
+                if not SfuiDB._expCustomizedChallengesBar then
+                    SfuiDB.experience.showChallengesBar = false
+                end
+            end
+            SfuiDB._expDefaultsV4 = true
+        end
+
         if sfui.events and sfui.events.RegisterMessage then
             sfui.events.RegisterMessage("SFUI_THEME_CHANGED", function()
                 if exp.bar and exp.bar.ApplyTheme then

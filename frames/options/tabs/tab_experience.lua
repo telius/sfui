@@ -279,12 +279,13 @@ sfui.options.RegisterTab({
         rep_gain_cb:SetPoint("TOPLEFT", rep_top_cb, "BOTTOMLEFT", 0, -8)
 
         local lastRepAnchor = rep_gain_cb
-        local isCamelotClient = sfui.isCamelot or (sfui.experience and sfui.experience.challenges and sfui.experience.challenges.IsAvailable and sfui.experience.challenges.IsAvailable())
+        local isCamelotClient = sfui.isCamelot or (sfui.experience and sfui.experience.challenges and ((sfui.experience.challenges.IsSupported and sfui.experience.challenges.IsSupported()) or (sfui.experience.challenges.IsAvailable and sfui.experience.challenges.IsAvailable())))
         if isCamelotClient then
             local legacy_cb = registerCheckbox(create_checkbox(exp_panel, "track legacy challenges progress", function()
-                return sfui.db.Get("experience", "trackLegacy", true)
+                return sfui.db.Get("experience", "trackLegacy", false)
             end, function(checked)
                 sfui.db.Set("experience", "trackLegacy", checked)
+                if SfuiDB then SfuiDB._expCustomizedTrackLegacy = true end
                 if sfui.experience and sfui.experience.Update then
                     sfui.experience.Update()
                 end
