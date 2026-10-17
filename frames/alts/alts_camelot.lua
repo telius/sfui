@@ -450,14 +450,34 @@ local function PerformSync(data, isLogout)
 
     if GetPVPLifetimeStats then
         local hk, highestRank = GetPVPLifetimeStats()
-        if hk and hk > 0 then data.pvp.lifetimeHK = hk end
+        if hk and hk >= 0 then data.pvp.lifetimeHK = hk end
         if highestRank and highestRank > 0 then data.pvp.highestRank = highestRank end
+    end
+
+    if GetPVPSessionStats and not isLeaving then
+        local hk, honor = GetPVPSessionStats()
+        if hk and hk >= 0 then data.pvp.todayHK = hk end
+        if honor and honor >= 0 then data.pvp.todayHonor = honor end
+    end
+
+    if GetPVPYesterdayStats and not isLeaving then
+        local hk, honor = GetPVPYesterdayStats()
+        if hk and hk >= 0 then data.pvp.yesterdayHK = hk end
+        if honor and honor >= 0 then data.pvp.yesterdayHonor = honor end
     end
 
     if GetPVPThisWeekStats and not isLeaving then
         local hk, honor = GetPVPThisWeekStats()
         if hk and hk >= 0 then data.pvp.thisWeekHK = hk end
         if honor and honor >= 0 then data.pvp.thisWeekHonor = honor end
+    end
+
+    if GetPVPLastWeekStats and not isLeaving then
+        local hk, honor, standing, rank = GetPVPLastWeekStats()
+        if hk and hk >= 0 then data.pvp.lastWeekHK = hk end
+        if honor and honor >= 0 then data.pvp.lastWeekHonor = honor end
+        if standing and standing > 0 then data.pvp.lastWeekStanding = standing end
+        if rank and rank > 0 then data.pvp.lastWeekRank = rank end
     end
 
     -- BG Marks
@@ -792,19 +812,19 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 text:SetTextColor(0, 0.6, 1) -- Private to Knight (Blue)
             end
 
-            text:SetText(string.format("R%d (%d%%)", rankNum, progress))
+            text:SetText(string.format("r%d (%d%%)", rankNum, progress))
 
             cell:EnableMouse(true)
             cell:SetScript("OnEnter", function(self)
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:AddLine(string.format("Rank %d: %s", rankNum, rankTitle), 1, 1, 1)
+                GameTooltip:AddLine(string.format("rank %d: %s", rankNum, tostring(rankTitle):lower()), 1, 1, 1)
                 if pvp.rankPoints and pvp.rankThreshold and pvp.rankThreshold > 0 then
                     GameTooltip:AddDoubleLine("rank progress:", string.format("%s / %s (%d%%)", BreakUpLargeNumbers(pvp.rankPoints), BreakUpLargeNumbers(pvp.rankThreshold), progress), 1, 1, 1, 1, 0.82, 0)
                 else
-                    GameTooltip:AddDoubleLine("rank progress:", string.format("%d%% to Rank %d", progress, rankNum + 1), 1, 1, 1, 1, 0.82, 0)
+                    GameTooltip:AddDoubleLine("rank progress:", string.format("%d%% to rank %d", progress, rankNum + 1), 1, 1, 1, 1, 0.82, 0)
                 end
                 if pvp.currentWeekMax and pvp.currentWeekMax > 0 then
-                    GameTooltip:AddDoubleLine("weekly cap:", string.format("Rank %d", pvp.currentWeekMax), 1, 1, 1, 0.8, 0.8, 1)
+                    GameTooltip:AddDoubleLine("weekly cap:", string.format("rank %d", pvp.currentWeekMax), 1, 1, 1, 0.8, 0.8, 1)
                 end
                 if pvp.seasonTimeLeft and pvp.seasonTimeUpdated then
                     local sLeft = math_max(0, pvp.seasonTimeLeft - (now - pvp.seasonTimeUpdated))
@@ -816,7 +836,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                     GameTooltip:AddDoubleLine("lifetime hks:", BreakUpLargeNumbers(pvp.lifetimeHK), 1, 1, 1, 1, 1, 1)
                 end
                 if pvp.highestRank and pvp.highestRank > 0 then
-                    GameTooltip:AddDoubleLine("highest rank attained:", "Rank " .. pvp.highestRank, 1, 1, 1, 0.8, 0.8, 0.8)
+                    GameTooltip:AddDoubleLine("highest rank attained:", "rank " .. pvp.highestRank, 1, 1, 1, 0.8, 0.8, 0.8)
                 end
                 GameTooltip:Show()
             end)
@@ -831,17 +851,32 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
 
     elseif cat.type == "classic_pvp_honor" then
         local pvp = altData.pvp
-        if pvp and (pvp.thisWeekHonor and pvp.thisWeekHonor > 0 or pvp.thisWeekHK and pvp.thisWeekHK > 0) then
-            local honorStr = pvp.thisWeekHonor >= 1000 and string.format("%.1fk", pvp.thisWeekHonor / 1000) or tostring(pvp.thisWeekHonor or 0)
-            text:SetText(string.format("%s (%d HK)", honorStr, pvp.thisWeekHK or 0))
+        local thisWeekHonor = pvp and pvp.thisWeekHonor or 0
+        local thisWeekHK = pvp and pvp.thisWeekHK or 0
+        local todayHonor = pvp and pvp.todayHonor or 0
+        local todayHK = pvp and pvp.todayHK or 0
+        local hasHonor = pvp and ((thisWeekHonor > 0 or thisWeekHK > 0) or (todayHonor > 0 or todayHK > 0) or (pvp.yesterdayHonor and pvp.yesterdayHonor > 0))
+
+        if hasHonor then
+            local honorVal = thisWeekHonor > 0 and thisWeekHonor or todayHonor
+            local honorStr = honorVal >= 1000 and string.format("%.1fk", honorVal / 1000) or tostring(honorVal)
+            local hkCount = thisWeekHK > 0 and thisWeekHK or todayHK
+            text:SetText(string.format("%s (%d hk)", honorStr, hkCount))
             text:SetTextColor(unpack(sfui.config.colors.white))
 
             cell:EnableMouse(true)
             cell:SetScript("OnEnter", function(self)
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:AddLine("this week's pvp standing", 1, 1, 1)
-                GameTooltip:AddDoubleLine("estimated honor:", BreakUpLargeNumbers(pvp.thisWeekHonor or 0), 1, 1, 1, 1, 0.82, 0)
-                GameTooltip:AddDoubleLine("honorable kills:", BreakUpLargeNumbers(pvp.thisWeekHK or 0), 1, 1, 1, 1, 1, 1)
+                GameTooltip:AddLine("pvp & honor overview", 1, 1, 1)
+                GameTooltip:AddDoubleLine("today:", string.format("%s honor (%d hk)", BreakUpLargeNumbers(todayHonor), todayHK), 0.8, 0.8, 0.8, 1, 1, 1)
+                if pvp.yesterdayHonor or pvp.yesterdayHK then
+                    GameTooltip:AddDoubleLine("yesterday:", string.format("%s honor (%d hk)", BreakUpLargeNumbers(pvp.yesterdayHonor or 0), pvp.yesterdayHK or 0), 0.8, 0.8, 0.8, 0.9, 0.9, 0.9)
+                end
+                GameTooltip:AddDoubleLine("this week:", string.format("%s honor (%d hk)", BreakUpLargeNumbers(thisWeekHonor), thisWeekHK), 1, 1, 1, 1, 0.82, 0)
+                if pvp.lastWeekHonor or pvp.lastWeekHK then
+                    local rankStr = pvp.lastWeekRank and (" (rank " .. pvp.lastWeekRank .. ")") or ""
+                    GameTooltip:AddDoubleLine("last week:", string.format("%s honor (%d hk)%s", BreakUpLargeNumbers(pvp.lastWeekHonor or 0), pvp.lastWeekHK or 0, rankStr), 0.8, 0.8, 0.8, 0.7, 0.7, 0.7)
+                end
                 if pvp.seasonTimeLeft and pvp.seasonTimeUpdated then
                     local sLeft = math_max(0, pvp.seasonTimeLeft - (now - pvp.seasonTimeUpdated))
                     if sLeft > 0 then
@@ -1221,6 +1256,8 @@ sfui.alts.RegisterProvider({
         sfui.events.RegisterEvent("CURRENCY_DISPLAY_UPDATE",       on_sync)
         sfui.events.RegisterEvent("MAJOR_FACTION_RENOWN_LEVEL_CHANGED", on_sync)
         sfui.events.RegisterEvent("UPDATE_FACTION",                     on_sync)
+        sfui.events.RegisterEvent("PLAYER_PVP_KILLS_CHANGED",           on_sync)
+        sfui.events.RegisterEvent("PLAYER_PVP_RANK_CHANGED",            on_sync)
         sfui.events.RegisterEvent("BAG_UPDATE_DELAYED",            on_sync)
     end,
 })

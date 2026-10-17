@@ -1019,7 +1019,12 @@ do
 
         if bar._lastVal ~= current then
             bar._lastVal = current
-            bar.TextValue:SetText(current)
+            if isComboPoints then
+                bar.TextValue:SetText(current)
+            else
+                local fmt = (common.format_number and common.format_number(current)) or (_G.BreakUpLargeNumbers and _G.BreakUpLargeNumbers(current)) or tostring(current)
+                bar.TextValue:SetText(fmt)
+            end
         end
         bar:SetMinMaxValues(0, max)
         bar:SetValue(current)

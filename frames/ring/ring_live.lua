@@ -12,6 +12,32 @@ local UIParent          = _G.UIParent
 local PlaySound         = _G.PlaySound
 local SOUNDKIT          = _G.SOUNDKIT
 
+local function get_cursor_pos()
+    local curX, curY
+    if _G.GetCursorCenterPosition then
+        curX, curY = _G.GetCursorCenterPosition()
+    elseif _G.C_Input and _G.C_Input.GetCursorCenterPosition then
+        curX, curY = _G.C_Input.GetCursorCenterPosition()
+    elseif GetCursorPosition then
+        curX, curY = GetCursorPosition()
+    else
+        curX, curY = 0, 0
+    end
+    local scale = (UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
+    return (curX or 0) / scale, (curY or 0) / scale
+end
+
+local function is_cursor_visible()
+    if _G.IsCursorVisible then
+        return _G.IsCursorVisible()
+    elseif _G.C_Input and _G.C_Input.IsCursorVisible then
+        return _G.C_Input.IsCursorVisible()
+    elseif _G.IsMouselooking then
+        return not _G.IsMouselooking()
+    end
+    return true
+end
+
 local isOpen = false
 local originX = 0
 local originY = 0
@@ -41,11 +67,11 @@ local function on_live_update(self, elapsed)
     if updateThrottle < 0.016 then return end
     updateThrottle = 0
 
-    local curX, curY = GetCursorPosition()
-    local scale = UIParent:GetEffectiveScale() or 1
-    local scaledX = curX / scale
-    local scaledY = curY / scale
+    if not is_cursor_visible() then
+        return
+    end
 
+    local scaledX, scaledY = get_cursor_pos()
     local dx = scaledX - originX
     local dy = scaledY - originY
 
@@ -83,10 +109,7 @@ function live.open(ringID)
     updateThrottle = 0
     cdThrottle = 0
 
-    local curX, curY = GetCursorPosition()
-    local scale = UIParent:GetEffectiveScale() or 1
-    originX = curX / scale
-    originY = curY / scale
+    originX, originY = get_cursor_pos()
 
     local frame = view.get_frame()
     frame:ClearAllPoints()

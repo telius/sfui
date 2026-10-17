@@ -30,28 +30,67 @@ local defaultCVars = {
     WorldTextScale = "1",
 }
 
+local cvar_counterparts = {
+    ["floatingCombatTextCombatDamage"] = "floatingCombatTextCombatDamage_v2",
+    ["floatingCombatTextCombatDamage_v2"] = "floatingCombatTextCombatDamage",
+    ["floatingCombatTextCombatLogPeriodicSpells"] = "floatingCombatTextCombatLogPeriodicSpells_v2",
+    ["floatingCombatTextCombatLogPeriodicSpells_v2"] = "floatingCombatTextCombatLogPeriodicSpells",
+    ["floatingCombatTextCombatHealing"] = "floatingCombatTextCombatHealing_v2",
+    ["floatingCombatTextCombatHealing_v2"] = "floatingCombatTextCombatHealing",
+    ["floatingCombatTextDodgeParryMiss"] = "floatingCombatTextDodgeParryMiss_v2",
+    ["floatingCombatTextDodgeParryMiss_v2"] = "floatingCombatTextDodgeParryMiss",
+    ["floatingCombatTextDamageReduction"] = "floatingCombatTextDamageReduction_v2",
+    ["floatingCombatTextDamageReduction_v2"] = "floatingCombatTextDamageReduction",
+    ["floatingCombatTextEnergyGains"] = "floatingCombatTextEnergyGains_v2",
+    ["floatingCombatTextEnergyGains_v2"] = "floatingCombatTextEnergyGains",
+    ["floatingCombatTextAuras"] = "floatingCombatTextAuras_v2",
+    ["floatingCombatTextAuras_v2"] = "floatingCombatTextAuras",
+    ["floatingCombatTextCombatState"] = "floatingCombatTextCombatState_v2",
+    ["floatingCombatTextCombatState_v2"] = "floatingCombatTextCombatState",
+}
+
 local function set_cvar(cvar, val)
+    local counterpart = cvar_counterparts[cvar]
+    local valStr = tostring(val)
     if sfui.common and sfui.common.set_cvar then
-        sfui.common.set_cvar(cvar, tostring(val))
+        sfui.common.set_cvar(cvar, valStr)
+        if counterpart then
+            sfui.common.set_cvar(counterpart, valStr)
+        end
     elseif (not InCombatLockdown or not InCombatLockdown()) then
         local set = (C_CVar and C_CVar.SetCVar) or SetCVar
-        if set then set(cvar, tostring(val)) end
+        if set then
+            set(cvar, valStr)
+            if counterpart then pcall(set, counterpart, valStr) end
+        end
     end
     if SfuiDB then
-        if val == "1" or val == "0" then
-            SfuiDB[cvar] = (val == "1")
-        else
-            SfuiDB[cvar] = val
+        local dbVal = (val == "1" or val == "0") and (val == "1") or val
+        SfuiDB[cvar] = dbVal
+        if counterpart then
+            SfuiDB[counterpart] = dbVal
         end
     end
 end
 
 local function get_cvar(cvar)
+    local val
     if sfui.common and sfui.common.get_cvar then
-        return sfui.common.get_cvar(cvar)
+        val = sfui.common.get_cvar(cvar)
+    else
+        local get = (C_CVar and C_CVar.GetCVar) or GetCVar
+        val = get and get(cvar)
     end
-    local get = (C_CVar and C_CVar.GetCVar) or GetCVar
-    return get and get(cvar)
+    if (val == nil or val == "") and cvar_counterparts[cvar] then
+        local alt = cvar_counterparts[cvar]
+        if sfui.common and sfui.common.get_cvar then
+            val = sfui.common.get_cvar(alt)
+        else
+            local get = (C_CVar and C_CVar.GetCVar) or GetCVar
+            val = get and get(alt)
+        end
+    end
+    return val
 end
 
 -- Refresh handle populated during build

@@ -60,6 +60,9 @@ local modDef = {
                 if exp.reputation and exp.reputation.ApplyTheme then
                     exp.reputation.ApplyTheme()
                 end
+                if exp.pet and exp.pet.ApplyTheme then
+                    exp.pet.ApplyTheme()
+                end
             end)
         end
     end,
@@ -82,6 +85,11 @@ local modDef = {
         if exp.challenges and exp.challenges.Create then
             local cf = exp.challenges.Create()
             if cf then cf:Show() end
+        end
+
+        if exp.pet and exp.pet.Create then
+            local pf = exp.pet.Create()
+            if pf and exp.pet.UpdateValues then exp.pet.UpdateValues() end
         end
 
         if exp.events and exp.events.Initialize then
@@ -116,6 +124,10 @@ local modDef = {
         if exp.challenges and exp.challenges.GetFrame then
             local cf = exp.challenges.GetFrame()
             if cf then cf:Hide() end
+        end
+        if exp.pet and exp.pet.GetFrame then
+            local pf = exp.pet.GetFrame()
+            if pf then pf:Hide() end
         end
     end,
 
@@ -152,6 +164,9 @@ local modDef = {
             end
             exp.challenges.UpdateValues()
         end
+        if exp.pet and exp.pet.UpdateValues then
+            exp.pet.UpdateValues()
+        end
 
         if key == "hideBlizzardBar" and exp.events then
             exp.events.SuppressBlizzardBar()
@@ -167,6 +182,9 @@ local modDef = {
         end
         if exp.challenges and exp.challenges.UpdateValues then
             exp.challenges.UpdateValues()
+        end
+        if exp.pet and exp.pet.UpdateValues then
+            exp.pet.UpdateValues()
         end
     end,
 
@@ -250,6 +268,9 @@ function exp.Update()
         exp.challenges.UpdateLayout()
         exp.challenges.UpdateValues()
     end
+    if exp.pet and exp.pet.UpdateValues then
+        exp.pet.UpdateValues()
+    end
 end
 
 --- Set status bar texture across experience and reputation bars
@@ -263,6 +284,9 @@ function exp.SetBarTexture(texturePath)
     end
     if exp.challenges and exp.challenges.SetBarTexture then
         exp.challenges.SetBarTexture(texturePath)
+    end
+    if exp.pet and exp.pet.ApplyTheme then
+        exp.pet.ApplyTheme()
     end
 end
 

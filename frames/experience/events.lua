@@ -36,6 +36,9 @@ local function RequestDebouncedUpdate()
             if sfui.experience.challenges and sfui.experience.challenges.UpdateValues then
                 sfui.experience.challenges.UpdateValues()
             end
+            if sfui.experience.pet and sfui.experience.pet.UpdateValues then
+                sfui.experience.pet.UpdateValues()
+            end
         end)
     else
         if sfui.experience.bar and sfui.experience.bar.UpdateValues then
@@ -46,6 +49,9 @@ local function RequestDebouncedUpdate()
         end
         if sfui.experience.challenges and sfui.experience.challenges.UpdateValues then
             sfui.experience.challenges.UpdateValues()
+        end
+        if sfui.experience.pet and sfui.experience.pet.UpdateValues then
+            sfui.experience.pet.UpdateValues()
         end
     end
 end
@@ -349,6 +355,9 @@ function events.Initialize()
     reg("PLAYER_REGEN_DISABLED", OnCombatStateChanged)
     reg("PLAYER_REGEN_ENABLED", OnCombatStateChanged)
     reg("CHAT_MSG_COMBAT_FACTION_CHANGE", OnChatMsgCombatFactionChange)
+    reg("UNIT_PET_EXPERIENCE", RequestDebouncedUpdate)
+    reg("UNIT_PET", RequestDebouncedUpdate)
+    reg("PET_UI_UPDATE", RequestDebouncedUpdate)
 
     if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
         pcall(_G.EventRegistry.RegisterCallback, _G.EventRegistry, "Legacy.UpdateCurrencyInfo", OnQuestOrFactionUpdate, events)

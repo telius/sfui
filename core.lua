@@ -524,12 +524,14 @@ local function initialize_sfui()
         "floatingCombatTextDamageReduction",
         "floatingCombatTextEnergyGains",
         "floatingCombatTextAuras",
-        "floatingCombatTextCombatState"
+        "floatingCombatTextCombatState",
+        "floatingCombatTextCombatDamage",
+        "floatingCombatTextCombatLogPeriodicSpells",
+        "floatingCombatTextCombatHealing",
     }
     for _, legacy in ipairs(legacyCVars) do
-        if SfuiDB[legacy] ~= nil then
+        if SfuiDB[legacy] ~= nil and SfuiDB[legacy .. "_v2"] == nil then
             SfuiDB[legacy .. "_v2"] = SfuiDB[legacy]
-            SfuiDB[legacy] = nil
         end
     end
 
@@ -537,8 +539,11 @@ local function initialize_sfui()
     local combatTextCVars = {
         "enableFloatingCombatText",
         "floatingCombatTextCombatDamage",
+        "floatingCombatTextCombatDamage_v2",
         "floatingCombatTextCombatLogPeriodicSpells",
+        "floatingCombatTextCombatLogPeriodicSpells_v2",
         "floatingCombatTextCombatHealing",
+        "floatingCombatTextCombatHealing_v2",
         "floatingCombatTextPetMeleeDamage",
         "floatingCombatTextPetSpellDamage",
         "floatingCombatTextDodgeParryMiss_v2",

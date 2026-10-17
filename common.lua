@@ -249,6 +249,15 @@ function sfui.common.request_spell_load(spellID)
     end
 end
 
+-- Returns normalized item cooldown info: startTime, duration, isEnabled
+-- Prioritizes C_Spell.GetItemCooldown (AllowedWhenTainted in Camelot) for combat taint safety.
+function sfui.common.get_item_cooldown(itemID)
+    if sfui.api and sfui.api.GetItemCooldown then
+        return sfui.api.GetItemCooldown(itemID)
+    end
+    return 0, 0, 0
+end
+
 -- ────────────────────────────────────────────────────────────────────────────
 -- Container & Bag Engine (C_Container Modernization)
 -- ────────────────────────────────────────────────────────────────────────────
@@ -424,7 +433,7 @@ local primaryResourcesCache = {
 local secondaryResourcesCache = {
     DEATHKNIGHT = Enum.PowerType.Runes,
     DEMONHUNTER = nil,
-    DRUID = { [1] = Enum.PowerType.ComboPoints },
+    DRUID = { [1] = Enum.PowerType.ComboPoints, [5] = Enum.PowerType.Mana },
     EVOKER = Enum.PowerType.Essence,
     HUNTER = nil,
     MAGE = { [62] = Enum.PowerType.ArcaneCharges },
@@ -775,8 +784,17 @@ function sfui.common.get_secondary_resource()
     local res
     if pClass == "DRUID" then
         local form = GetShapeshiftFormID and GetShapeshiftFormID() or 0
-        local druidCache = secondaryResourcesCache[pClass]
-        res = druidCache and druidCache[form]
+        local isCamelotOrClassic = not sfui.isRetail or sfui.isClassic or sfui.isCamelot
+        if isCamelotOrClassic then
+            if form == 1 then
+                res = Enum.PowerType.ComboPoints
+            elseif form == 5 or (UnitPowerType and UnitPowerType("player") ~= Enum.PowerType.Mana) then
+                res = Enum.PowerType.Mana
+            end
+        else
+            local druidCache = secondaryResourcesCache[pClass]
+            res = druidCache and druidCache[form]
+        end
     else
         local cache = secondaryResourcesCache[pClass]
         if type(cache) == "table" then
