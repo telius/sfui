@@ -1060,6 +1060,7 @@ local function CreateTotemBar()
     bar:SetSize(4 * bSize + 3 * spacing + 8, bSize + 8)
     bar:SetFrameStrata("MEDIUM")
     bar:SetClampedToScreen(true)
+    bar:SetMovable(true)
 
     local pos = cfg.pos or { point = "BOTTOM", relPoint = "BOTTOM", x = 0, y = 88 }
     bar:SetPoint(pos.point or "BOTTOM", UIParent, pos.relPoint or "BOTTOM", pos.x or 0, pos.y or 88)
@@ -1222,10 +1223,13 @@ local function CreateTotemBar()
     dragText:SetText("totem bar (drag)")
 
     dragOverlay:SetScript("OnDragStart", function()
+        if InCombatLockdown and InCombatLockdown() then return end
+        bar:SetMovable(true)
         bar:StartMoving()
     end)
     dragOverlay:SetScript("OnDragStop", function()
         bar:StopMovingOrSizing()
+        bar:SetUserPlaced(false)
         local pt, _, relPt, x, y = bar:GetPoint(1)
         SfuiDB = SfuiDB or {}
         SfuiDB.totembar = SfuiDB.totembar or {}
@@ -1549,6 +1553,7 @@ function sfui.totembar.ResetPosition()
     if not bar then return end
     bar:ClearAllPoints()
     bar:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 88)
+    bar:SetUserPlaced(false)
     SfuiDB = SfuiDB or {}
     SfuiDB.totembar = SfuiDB.totembar or {}
     SfuiDB.totembar.pos = { point = "BOTTOM", relPoint = "BOTTOM", x = 0, y = 88 }

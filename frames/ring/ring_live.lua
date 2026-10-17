@@ -13,29 +13,10 @@ local PlaySound         = _G.PlaySound
 local SOUNDKIT          = _G.SOUNDKIT
 
 local function get_cursor_pos()
-    local curX, curY
-    if _G.GetCursorCenterPosition then
-        curX, curY = _G.GetCursorCenterPosition()
-    elseif _G.C_Input and _G.C_Input.GetCursorCenterPosition then
-        curX, curY = _G.C_Input.GetCursorCenterPosition()
-    elseif GetCursorPosition then
-        curX, curY = GetCursorPosition()
-    else
-        curX, curY = 0, 0
-    end
-    local scale = (UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
+    local curX, curY = GetCursorPosition()
+    local scale = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()
+    if not scale or scale == 0 then scale = 1 end
     return (curX or 0) / scale, (curY or 0) / scale
-end
-
-local function is_cursor_visible()
-    if _G.IsCursorVisible then
-        return _G.IsCursorVisible()
-    elseif _G.C_Input and _G.C_Input.IsCursorVisible then
-        return _G.C_Input.IsCursorVisible()
-    elseif _G.IsMouselooking then
-        return not _G.IsMouselooking()
-    end
-    return true
 end
 
 local isOpen = false
@@ -45,11 +26,9 @@ local activeRingID = nil
 local activeSlots = nil
 local lastHoveredIndex = nil
 
-local updateThrottle = 0
 local cdThrottle = 0
 local function on_live_update(self, elapsed)
     elapsed = elapsed or 0
-    updateThrottle = updateThrottle + elapsed
     cdThrottle = cdThrottle + elapsed
 
     if not isOpen or not activeSlots or #activeSlots == 0 then
@@ -57,6 +36,12 @@ local function on_live_update(self, elapsed)
         return
     end
 
+    -- 1. smooth radial animations (opening expansion and hover scale lerp)
+    if view and view.update_animations then
+        view.update_animations(elapsed)
+    end
+
+    -- 2. throttled cooldown updates
     if cdThrottle >= 0.05 then
         cdThrottle = 0
         if view and view.update_live_state then
@@ -64,13 +49,7 @@ local function on_live_update(self, elapsed)
         end
     end
 
-    if updateThrottle < 0.016 then return end
-    updateThrottle = 0
-
-    if not is_cursor_visible() then
-        return
-    end
-
+    -- 3. cursor tracking & slot selection
     local scaledX, scaledY = get_cursor_pos()
     local dx = scaledX - originX
     local dy = scaledY - originY
@@ -106,7 +85,6 @@ function live.open(ringID)
     activeSlots = slots
     lastHoveredIndex = nil
     isOpen = true
-    updateThrottle = 0
     cdThrottle = 0
 
     originX, originY = get_cursor_pos()
@@ -135,6 +113,9 @@ function live.close()
         frame:Hide()
     end
     view.set_active_slot(nil)
+    if view and view.on_close then
+        view.on_close()
+    end
 end
 
 --- check if the radial ring is currently open on screen.

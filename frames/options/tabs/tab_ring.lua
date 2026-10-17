@@ -390,6 +390,11 @@ sfui.options.RegisterTab({
                         end
                     end
                     btn.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+                    if sfui.widgets and sfui.widgets.set_round_icon_coords then
+                        sfui.widgets.set_round_icon_coords(btn.icon, nil)
+                    else
+                        btn.icon:SetTexCoord(0.12, 0.88, 0.12, 0.88)
+                    end
                     btn.icon:Show()
                     btn.slotNum:Hide()
                     if btn.roundBorder then
@@ -467,6 +472,15 @@ sfui.options.RegisterTab({
         )
         cb_sounds:SetPoint("TOPLEFT", cb_cooldowns, "BOTTOMLEFT", 0, -4)
 
+        local cb_animations = sfui.widgets.create_checkbox(
+            p,
+            "enable smooth animations",
+            function() return sfui.db.Get("ring", "animations", true) end,
+            function(val) sfui.db.Set("ring", "animations", val) end,
+            "smooth radial entrance expansion and hover scale transitions."
+        )
+        cb_animations:SetPoint("TOPLEFT", cb_sounds, "BOTTOMLEFT", 0, -4)
+
         local slider_radius = sfui.widgets.create_slider_input(
             p,
             "ring radius",
@@ -476,7 +490,7 @@ sfui.options.RegisterTab({
             "distance of slot icons from the ring center.",
             220
         )
-        slider_radius:SetPoint("TOPLEFT", cb_sounds, "BOTTOMLEFT", 0, -12)
+        slider_radius:SetPoint("TOPLEFT", cb_animations, "BOTTOMLEFT", 0, -12)
 
         local slider_deadzone = sfui.widgets.create_slider_input(
             p,

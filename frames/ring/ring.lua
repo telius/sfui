@@ -21,6 +21,7 @@ local registeredEvents = {}
 -- ── 1. Configuration & Module Registration ──────────────────────────────────
 local defaults = {
     enabled     = true,
+    animations  = true,
     radius      = 95,
     deadzone    = 28,
     slot_size   = 40,

@@ -1209,6 +1209,10 @@ function sfui.initialize_database()
     if SfuiDB.enableVigorBar == nil then SfuiDB.enableVigorBar = true end
     if SfuiDB.enableMountSpeedBar == nil then SfuiDB.enableMountSpeedBar = true end
     if SfuiDB.enableSwingBars == nil then SfuiDB.enableSwingBars = true end
+    if SfuiDB.enableThreatBar == nil then SfuiDB.enableThreatBar = true end
+    if SfuiDB.threatBarGroup == nil then SfuiDB.threatBarGroup = true end
+    if SfuiDB.threatBarPet == nil then SfuiDB.threatBarPet = true end
+    if SfuiDB.threatBarSolo == nil then SfuiDB.threatBarSolo = false end
 
     -- Castbar settings
     if SfuiDB.castBarEnabled == nil then SfuiDB.castBarEnabled = sfui.config.castBar.enabled end
@@ -1794,5 +1798,52 @@ function sfui.common.insert_link_to_chat(link)
 end
 sfui.common.insert_link_into_chat = sfui.common.insert_link_to_chat
 
+-- ---------------------------------------------------------------------------
+-- CHARACTER FRAME HEADER BUTTONS
+-- ---------------------------------------------------------------------------
+sfui.character = sfui.character or {}
 
+function sfui.character.AlignHeaderButtons()
+    local charFrame = _G.CharacterFrame
+    local closeBtn = _G.CharacterFrameCloseButton
+    if not charFrame or not closeBtn then return end
 
+    local isChonky = (sfui.common and sfui.common.is_addon_loaded and sfui.common.is_addon_loaded("ChonkyCharacterSheet"))
+        or _G.CCSsetbtn ~= nil
+
+    local gearBtn = _G.SfuiGearToggleBtn
+    local statsBtn = _G.SfuiCombatStatsToggleBtn
+
+    -- chonky's buttons (settings gear + camera) sit to the left of the close button (~42px)
+    local baseOffset = isChonky and -56 or -6
+
+    if gearBtn then
+        gearBtn:SetSize(16, 16)
+        gearBtn:ClearAllPoints()
+        gearBtn:SetPoint("RIGHT", closeBtn, "LEFT", baseOffset, 0)
+    end
+
+    if statsBtn then
+        statsBtn:SetSize(16, 16)
+        statsBtn:ClearAllPoints()
+        if gearBtn and gearBtn:IsShown() then
+            statsBtn:SetPoint("RIGHT", gearBtn, "LEFT", -4, 0)
+        else
+            statsBtn:SetPoint("RIGHT", closeBtn, "LEFT", baseOffset, 0)
+        end
+    end
+end
+
+function sfui.character.HookHeaderButtons()
+    if sfui.character._header_hooked then return end
+    local charFrame = _G.CharacterFrame
+    if not charFrame or not charFrame.HookScript then return end
+    sfui.character._header_hooked = true
+
+    charFrame:HookScript("OnShow", function()
+        sfui.character.AlignHeaderButtons()
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0, sfui.character.AlignHeaderButtons)
+        end
+    end)
+end

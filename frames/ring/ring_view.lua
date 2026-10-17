@@ -13,6 +13,8 @@ local pairs        = _G.pairs
 local ipairs       = _G.ipairs
 local unpack       = _G.unpack
 local math_max     = math.max
+local math_min     = math.min
+local math_abs     = math.abs
 local math_ceil    = math.ceil
 local math_floor   = math.floor
 local string_format = string.format
@@ -36,6 +38,10 @@ local activeSlotIndex = nil
 local currentRingID = nil
 local currentSlotsData = nil
 
+local openAnimActive = false
+local openAnimTimer = 0
+local openAnimDuration = 0.10
+
 local function get_config()
     local db = sfui.db and sfui.db.Get
     local radius   = (db and db("ring", "radius", 95)) or 95
@@ -43,7 +49,8 @@ local function get_config()
     local slotSize = (db and db("ring", "slot_size", 40)) or 40
     local labels   = (db and db("ring", "show_labels", true)) ~= false
     local showCooldowns = (db and db("ring", "show_cooldowns", true)) ~= false
-    return radius, deadzone, slotSize, labels, showCooldowns
+    local animations = (db and db("ring", "animations", true)) ~= false
+    return radius, deadzone, slotSize, labels, showCooldowns, animations
 end
 
 local function format_cooldown_text(rem)
@@ -415,11 +422,9 @@ end
 local function update_slot_border(frame, isSelected, activeData)
     if not frame or not frame.roundBorder then return end
     if isSelected then
-        frame:SetScale(1.18)
         local sr, sg, sb = get_selection_color(activeData)
         frame.roundBorder:SetColorTexture(sr, sg, sb, 1)
     else
-        frame:SetScale(1.0)
         local sData = frame._slotData
         if sData and sData.active then
             local ar, ag, ab = get_selection_color(sData)
@@ -436,8 +441,17 @@ local function reset_slot_frame(f)
     f:Hide()
     f:ClearAllPoints()
     f:SetScale(1.0)
+    f:SetAlpha(1.0)
+    f._targetScale = 1.0
+    f._currentScale = 1.0
+    f._targetDx = nil
+    f._targetDy = nil
     f.icon:SetTexture(nil)
-    f.icon:SetTexCoord(0, 1, 0, 1)
+    if sfui.widgets and sfui.widgets.set_round_icon_coords then
+        sfui.widgets.set_round_icon_coords(f.icon, nil)
+    else
+        f.icon:SetTexCoord(0.12, 0.88, 0.12, 0.88)
+    end
     f.icon:SetVertexColor(1, 1, 1, 1)
     f.icon:SetDesaturated(false)
     if f.cooldown then
@@ -511,6 +525,8 @@ end
 
 --- clear all active slot frames back to the pool.
 function view.clear_slots()
+    openAnimActive = false
+    openAnimTimer = 0
     if slotPool then
         slotPool:release_all()
     end
@@ -622,7 +638,7 @@ function view.render_ring(ringID, slots, title)
     local num = #currentSlotsData
     if num == 0 then return end
 
-    local radius, deadzone, slotSize, showLabels, showCooldowns = get_config()
+    local radius, deadzone, slotSize, showLabels, showCooldowns, animations = get_config()
     if num > 10 then
         local minCircumference = num * (slotSize + 8)
         local minRadius = math.floor(minCircumference / (2 * math.pi))
@@ -643,7 +659,24 @@ function view.render_ring(ringID, slots, title)
     root.titleText:SetText(title and title:lower() or ringID:lower())
     local tr, tg, tb = get_selection_color(nil)
     root.titleText:SetTextColor(tr, tg, tb, 0.85)
-    root.activeText:SetText("|cff666666cancel|r")
+    root.activeText:SetText("cancel")
+    root.activeText:SetTextColor(0.5, 0.5, 0.5, 0.8)
+
+    if animations then
+        openAnimActive = true
+        openAnimTimer = 0
+        root.deadzoneDisc:SetScale(0.70)
+        root.deadzoneDisc:SetAlpha(0.2)
+        root.titleText:SetAlpha(0)
+        root.activeText:SetAlpha(0)
+    else
+        openAnimActive = false
+        openAnimTimer = 0
+        root.deadzoneDisc:SetScale(1.0)
+        root.deadzoneDisc:SetAlpha(1.0)
+        root.titleText:SetAlpha(1.0)
+        root.activeText:SetAlpha(1.0)
+    end
 
     -- position each slot
     for i = 1, num do
@@ -681,15 +714,31 @@ function view.render_ring(ringID, slots, title)
         end
 
         local dx, dy = geom.get_slot_offset(i, num, radius)
-        frame:SetPoint("CENTER", root, "CENTER", dx, dy)
+        frame._targetDx = dx
+        frame._targetDy = dy
+        frame._targetScale = 1.0
+        frame._currentScale = 1.0
+
+        frame:ClearAllPoints()
+        if animations then
+            frame:SetPoint("CENTER", root, "CENTER", dx * 0.40, dy * 0.40)
+            frame:SetAlpha(0)
+            frame:SetScale(1.0)
+        else
+            frame:SetPoint("CENTER", root, "CENTER", dx, dy)
+            frame:SetAlpha(1.0)
+            frame:SetScale(1.0)
+        end
 
         -- set icon
         if data.icon then
             frame.icon:SetTexture(data.icon)
-            if data.texCoords then
+            if sfui.widgets and sfui.widgets.set_round_icon_coords then
+                sfui.widgets.set_round_icon_coords(frame.icon, data.texCoords)
+            elseif data.texCoords then
                 frame.icon:SetTexCoord(unpack(data.texCoords))
             else
-                frame.icon:SetTexCoord(0, 1, 0, 1)
+                frame.icon:SetTexCoord(0.12, 0.88, 0.12, 0.88)
             end
         else
             frame.icon:SetTexture(nil)
@@ -735,9 +784,16 @@ function view.set_active_slot(index)
     local root = ensure_root_frame()
     local activeSlotData = (index and currentSlotsData and currentSlotsData[index])
     local sr, sg, sb = get_selection_color(activeSlotData)
+    local _, _, _, _, _, animations = get_config()
 
     for i, frame in pairs(activeSlots) do
-        update_slot_border(frame, i == index, activeSlotData)
+        local isSelected = (i == index)
+        frame._targetScale = isSelected and 1.20 or 1.0
+        if not animations then
+            frame._currentScale = frame._targetScale
+            frame:SetScale(frame._targetScale)
+        end
+        update_slot_border(frame, isSelected, activeSlotData)
     end
 
     if activeSlotData then
@@ -752,6 +808,98 @@ function view.set_active_slot(index)
         if root.deadzoneDisc.roundBorder then
             root.deadzoneDisc.roundBorder:SetColorTexture(0.3, 0.3, 0.3, 0.4)
         end
+    end
+end
+
+--- update opening expansion and hover scale lerp animations every frame.
+--- @param elapsed number frame delta time in seconds
+function view.update_animations(elapsed)
+    elapsed = elapsed or 0
+    local root = rootFrame
+    if not root or not root:IsShown() then return end
+
+    local _, _, _, _, _, animations = get_config()
+    if not animations then return end
+
+    -- 1. opening radial expansion animation
+    if openAnimActive then
+        openAnimTimer = openAnimTimer + elapsed
+        local p = math_min(1, openAnimTimer / openAnimDuration)
+        -- cubic ease-out
+        local ease = 1 - (1 - p) * (1 - p) * (1 - p)
+
+        local distMult = 0.40 + 0.60 * ease
+        for _, frame in pairs(activeSlots) do
+            if frame._targetDx and frame._targetDy then
+                frame:ClearAllPoints()
+                frame:SetPoint("CENTER", root, "CENTER", frame._targetDx * distMult, frame._targetDy * distMult)
+            end
+            frame:SetAlpha(ease)
+        end
+
+        if root.deadzoneDisc then
+            root.deadzoneDisc:SetScale(0.70 + 0.30 * ease)
+            root.deadzoneDisc:SetAlpha(0.2 + 0.8 * ease)
+        end
+        if root.titleText then
+            root.titleText:SetAlpha(ease)
+        end
+        if root.activeText then
+            root.activeText:SetAlpha(ease)
+        end
+
+        if p >= 1 then
+            openAnimActive = false
+            for _, frame in pairs(activeSlots) do
+                if frame._targetDx and frame._targetDy then
+                    frame:ClearAllPoints()
+                    frame:SetPoint("CENTER", root, "CENTER", frame._targetDx, frame._targetDy)
+                end
+                frame:SetAlpha(1.0)
+            end
+            if root.deadzoneDisc then
+                root.deadzoneDisc:SetScale(1.0)
+                root.deadzoneDisc:SetAlpha(1.0)
+            end
+            if root.titleText then root.titleText:SetAlpha(1.0) end
+            if root.activeText then root.activeText:SetAlpha(1.0) end
+        end
+    end
+
+    -- 2. smooth slot scale lerping
+    for _, frame in pairs(activeSlots) do
+        local cur = frame._currentScale or 1.0
+        local target = frame._targetScale or 1.0
+        if cur ~= target then
+            local diff = target - cur
+            if math_abs(diff) < 0.005 then
+                frame._currentScale = target
+            else
+                frame._currentScale = cur + diff * math_min(1, elapsed * 24)
+            end
+            frame:SetScale(frame._currentScale)
+        end
+    end
+end
+
+--- reset animation states when ring closes.
+function view.on_close()
+    openAnimActive = false
+    openAnimTimer = 0
+    local root = rootFrame
+    if root then
+        if root.deadzoneDisc then
+            root.deadzoneDisc:SetScale(1.0)
+            root.deadzoneDisc:SetAlpha(1.0)
+        end
+        if root.titleText then root.titleText:SetAlpha(1.0) end
+        if root.activeText then root.activeText:SetAlpha(1.0) end
+    end
+    for _, frame in pairs(activeSlots) do
+        frame._targetScale = 1.0
+        frame._currentScale = 1.0
+        frame:SetScale(1.0)
+        frame:SetAlpha(1.0)
     end
 end
 

@@ -135,6 +135,25 @@ function sfui.widgets.apply_square_icon_style(frame, texture)
 end
 sfui.common.apply_square_icon_style = sfui.widgets.apply_square_icon_style
 
+sfui.widgets.ROUND_ICON_ZOOM = 0.12
+sfui.common.ROUND_ICON_ZOOM = sfui.widgets.ROUND_ICON_ZOOM
+
+function sfui.widgets.set_round_icon_coords(texture, coords)
+    if not texture then return end
+    local zoom = sfui.widgets.ROUND_ICON_ZOOM or 0.12
+    if not coords then
+        texture:SetTexCoord(zoom, 1 - zoom, zoom, 1 - zoom)
+        return
+    end
+    local left, right, top, bottom = coords[1], coords[2], coords[3], coords[4]
+    if (not left) or (left == 0 and right == 1 and top == 0 and bottom == 1) then
+        texture:SetTexCoord(zoom, 1 - zoom, zoom, 1 - zoom)
+    else
+        texture:SetTexCoord(left, right, top, bottom)
+    end
+end
+sfui.common.set_round_icon_coords = sfui.widgets.set_round_icon_coords
+
 function sfui.widgets.apply_round_icon_style(frame, texture, borderThickness, borderColor)
     if not frame then return end
     texture = texture or frame.icon
@@ -191,9 +210,23 @@ function sfui.widgets.apply_round_icon_style(frame, texture, borderThickness, bo
         -- 5. Icon texture
         if texture then
             texture:ClearAllPoints()
-            texture:SetPoint("TOPLEFT", frame, "TOPLEFT", thickness, -thickness)
-            texture:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -thickness, thickness)
-            texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            texture:SetAllPoints(frame)
+            if not texture._sfuiRoundCoordHooked then
+                texture._sfuiRoundCoordHooked = true
+                local origSetTexCoord = texture.SetTexCoord
+                texture.SetTexCoord = function(self, left, right, top, bottom, ...)
+                    if select("#", ...) > 0 then
+                        return origSetTexCoord(self, left, right, top, bottom, ...)
+                    end
+                    local zoom = sfui.widgets.ROUND_ICON_ZOOM or 0.12
+                    if (not left) or (left == 0 and right == 1 and top == 0 and bottom == 1) then
+                        origSetTexCoord(self, zoom, 1 - zoom, zoom, 1 - zoom)
+                    else
+                        origSetTexCoord(self, left, right, top, bottom)
+                    end
+                end
+            end
+            texture:SetTexCoord(0, 1, 0, 1)
             if not texture.hasRoundMask then
                 texture:AddMaskTexture(frame.roundInnerMask)
                 texture.hasRoundMask = true
@@ -212,7 +245,22 @@ function sfui.widgets.apply_round_icon_style(frame, texture, borderThickness, bo
             texture:ClearAllPoints()
             texture:SetPoint("TOPLEFT", frame, "TOPLEFT", thickness, -thickness)
             texture:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -thickness, thickness)
-            texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            if not texture._sfuiRoundCoordHooked then
+                texture._sfuiRoundCoordHooked = true
+                local origSetTexCoord = texture.SetTexCoord
+                texture.SetTexCoord = function(self, left, right, top, bottom, ...)
+                    if select("#", ...) > 0 then
+                        return origSetTexCoord(self, left, right, top, bottom, ...)
+                    end
+                    local zoom = sfui.widgets.ROUND_ICON_ZOOM or 0.12
+                    if (not left) or (left == 0 and right == 1 and top == 0 and bottom == 1) then
+                        origSetTexCoord(self, zoom, 1 - zoom, zoom, 1 - zoom)
+                    else
+                        origSetTexCoord(self, left, right, top, bottom)
+                    end
+                end
+            end
+            texture:SetTexCoord(0, 1, 0, 1)
         end
     end
 

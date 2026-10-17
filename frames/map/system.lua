@@ -27,6 +27,7 @@ local C_Discord = _G.C_Discord
 local C_VoiceChat = _G.C_VoiceChat
 local MenuUtil = _G.MenuUtil
 local IsAltKeyDown = _G.IsAltKeyDown
+local IsInGuild = _G.IsInGuild
 local GetNumAddOns = (C_AddOns and C_AddOns.GetNumAddOns) or _G.GetNumAddOns
 local GetAddOnInfo = (C_AddOns and C_AddOns.GetAddOnInfo) or _G.GetAddOnInfo
 local IsAddOnLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or _G.IsAddOnLoaded
@@ -185,7 +186,9 @@ local function update_tooltip(btn)
         GameTooltip:AddLine(string.format("|cff888888... and %d more (hold shift to show all)|r", #list - displayed))
     end
 
-    if C_Discord and C_Discord.IsEnabled and C_Discord.IsEnabled() then
+    local inGuild = IsInGuild and IsInGuild()
+    local showDiscord = inGuild and C_Discord and C_Discord.IsEnabled and C_Discord.IsEnabled()
+    if showDiscord then
         GameTooltip:AddLine(" ")
         local isAuthed = C_Discord.IsUserOAuthed and C_Discord.IsUserOAuthed()
         GameTooltip:AddDoubleLine("discord:", isAuthed and "|cff5865f2connected|r" or "|cff888888unlinked|r", 0.8, 0.8, 0.8, 1, 1, 1)
@@ -206,7 +209,9 @@ local function update_tooltip(btn)
     GameTooltip:AddLine("|cff888888<left-click>|r cycle clock / stats")
     GameTooltip:AddLine("|cff888888<right-click>|r toggle stopwatch & alarm")
     GameTooltip:AddLine("|cff888888<middle-click>|r toggle calendar")
-    GameTooltip:AddLine("|cff888888<alt-click>|r discord voice & options")
+    if showDiscord then
+        GameTooltip:AddLine("|cff888888<alt-click>|r discord voice & options")
+    end
     GameTooltip:AddLine("|cff888888<shift-click>|r clean memory & collect garbage")
     GameTooltip:Show()
 end
@@ -228,7 +233,8 @@ local function on_click(self, button)
         return
     end
 
-    if IsAltKeyDown and IsAltKeyDown() and C_Discord and C_Discord.IsEnabled and C_Discord.IsEnabled() then
+    local inGuild = IsInGuild and IsInGuild()
+    if inGuild and IsAltKeyDown and IsAltKeyDown() and C_Discord and C_Discord.IsEnabled and C_Discord.IsEnabled() then
         if MenuUtil and MenuUtil.CreateContextMenu then
             MenuUtil.CreateContextMenu(self, function(owner, rootDescription)
                 rootDescription:CreateTitle("discord integration")
@@ -352,12 +358,17 @@ function sfui.minimap.init_system_button(parent)
 
     btn:RegisterEvent("MODIFIER_STATE_CHANGED")
     btn:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+    btn:RegisterEvent("PLAYER_GUILD_UPDATE")
     btn:RegisterEvent("DISCORD_STATUS_UPDATE")
     btn:RegisterEvent("DISCORD_LINK_UPDATE")
     btn:RegisterEvent("VOICE_CHAT_VOICE_PROVIDER_CHANGED")
     btn:SetScript("OnEvent", function(self, event)
         if event == "PLAYER_SPECIALIZATION_CHANGED" then
             sfui.minimap.update_system_button()
+        elseif event == "DISCORD_STATUS_UPDATE" or event == "DISCORD_LINK_UPDATE" then
+            if IsInGuild and IsInGuild() and self.isHovered then
+                update_tooltip(self)
+            end
         elseif self.isHovered then
             update_tooltip(self)
         end

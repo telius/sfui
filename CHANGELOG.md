@@ -1,16 +1,17 @@
 # Changelog
 
-## v1.104 (2026-10-17)
+## v1.105 (2026-10-17)
 
 ### features
 
-- **minimap performance & clock databar widget**: replaced the static time manager clock on the button collection frame with a clean, low-profile performance databar widget displaying real-time framerate and latency (`60 fps  24 ms`) with click-to-cycle toggling between clock time and system metrics (`frames/map/system.lua`, `frames/map/buttons.lua`, `frames/options/tabs/tab_minimap.lua`, `config.lua`, `common.lua`, `sfui.toc`).
-- **specialization-colored performance telemetry**: tinted `"fps"` and `"ms"` metric unit labels with the player's active specialization / class color while keeping numerical values clean and uncolored with flat typography, zero outline, and zero shadow (`frames/map/system.lua`).
-- **rich system & memory breakdown tooltip**: on hover, displays local and realm time, framerate, home and world latency, total addon memory, total lua garbage memory, and a sorted per-addon memory consumption table with suite aggregation (details, dbm, bigwigs, raider.io, etc.), shift-to-expand, and highlighted sfui memory footprint (`frames/map/system.lua`).
-- **interactive clock & utility actions**: right-click toggles the stopwatch and alarm, middle-click opens the calendar, and shift-click triggers garbage collection with chat reporting on freed memory (`frames/map/system.lua`).
-- **minimap options configuration**: added a system info display dropdown in the minimap options tab allowing players to configure default startup mode between `fps & latency` and `clock` (`frames/options/tabs/tab_minimap.lua`, `config.lua`, `common.lua`).
+- **character telemetry & gear management buttons**: repositioned and resized launcher buttons on the character sheet to avoid overlapping third-party addon controls (like chonky), while ensuring the info panel only opens on demand or alongside the character frame (`frames/character/infopanel.lua`).
+- **radial ring opening & lerp animations**: restored and polished radial ring menu animations with fluid radial expansion easing from center disc on open and smooth hover scale lerping (`frames/ring/ring_view.lua`, `frames/ring/ring_live.lua`, `frames/ring/ring.lua`).
+- **borderless circular ring icons**: eliminated square border artifacts on round ring icons by implementing a 12% icon zoom (`0.12, 0.88, 0.12, 0.88`), extending texture quads beneath the circular mask, and securing texture coordinate hooks against unzoomed coordinate resets (`core/widgets.lua`, `frames/ring/ring_view.lua`, `frames/options/tabs/tab_ring.lua`).
+- **threat bar auto-enable options**: threat bar is now disabled by default with smart auto-enable options when grouped or when managing an active combat pet (`frames/bars/threat.lua`, `frames/options/tabs/tab_bars.lua`).
+- **hunter & warlock pet experience tracking**: integrated full pet experience bar tracking and leveling progress indicators (`frames/experience/pet.lua`, `frames/experience/events.lua`, `frames/experience/experience.lua`).
 
 ### improvements & bug fixes
 
-- **zero-overhead background monitoring**: lightweight 1.0s background timer only polls cheap c-engine counters (`GetFramerate()`, `GetNetStats()`) and keeps expensive `UpdateAddOnMemoryUsage()` strictly lazy on hover (`frames/map/system.lua`).
-- **dynamic button collection bar layout**: dynamic width reservation and anchoring in `ButtonManager:arrange_buttons()` smoothly accounts for the system widget width alongside collected minimap buttons and docked indicators, cleanly restoring blizzard's clock when the button collection bar is disabled (`frames/map/buttons.lua`).
+- **character info panel stability**: resolved anchor family connection setpoint failures and added safe combat pause to prevent heavy cpu calculations and combat lockdown errors (`frames/character/infopanel.lua`).
+- **shaman totem bar movable fix**: resolved `SfuiTotemBar:StartMoving(): Frame is not movable` error by enabling `SetMovable(true)` during bar initialization, adding combat lockdown safeguards during drag, and releasing user-placed flags on drag stop (`frames/bars/totembar.lua`).
+- **system panel guild safeguards**: disabled discord webhook ping checks when the character is not in a guild (`frames/map/system.lua`).

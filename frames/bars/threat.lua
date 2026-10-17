@@ -112,35 +112,83 @@ local function UpdateDimensionsAndPosition(force)
     end
 end
 
+-- ─── Group & Pet Auto-Enable Checkers ─────────────────────────────────────────
+local function IsPlayerInGroup()
+    if _G.IsInGroup then
+        return _G.IsInGroup()
+    elseif _G.GetNumGroupMembers then
+        return _G.GetNumGroupMembers() > 0
+    elseif _G.GetNumSubgroupMembers then
+        return _G.GetNumSubgroupMembers() > 0
+    end
+    return false
+end
+
+local function HasActivePet()
+    return UnitExists("pet") and not UnitIsDeadOrGhost("pet")
+end
+
+local function ShouldShowThreatBar()
+    if SfuiDB and SfuiDB.enableThreatBar == false then
+        return false
+    end
+
+    local inGroup = IsPlayerInGroup()
+    local hasPet = HasActivePet()
+    local autoGroup = (SfuiDB == nil or SfuiDB.threatBarGroup ~= false)
+    local autoPet = (SfuiDB == nil or SfuiDB.threatBarPet ~= false)
+    local allowSolo = (SfuiDB and SfuiDB.threatBarSolo == true)
+
+    if allowSolo then
+        return true
+    end
+    if inGroup and autoGroup then
+        return true
+    end
+    if hasPet and autoPet then
+        return true
+    end
+
+    return false
+end
+
+local function SetThreatBarShown(show)
+    if not threatBar or not threatBar.backdrop then return end
+    local wasShown = threatBar.backdrop:IsShown()
+    if show and not wasShown then
+        threatBar.backdrop:Show()
+        if sfui.bars and sfui.bars.update_bar_positions then
+            sfui.bars:update_bar_positions()
+        end
+    elseif not show and wasShown then
+        threatBar.backdrop:Hide()
+        if sfui.bars and sfui.bars.update_bar_positions then
+            sfui.bars:update_bar_positions()
+        end
+    end
+end
+
 -- ─── Threat State Update ─────────────────────────────────────────────────────
 local function UpdateThreat()
     if not threatBar or not threatBar.backdrop then return end
 
-    if SfuiDB and SfuiDB.enableThreatBar == false then
-        if threatBar.backdrop:IsShown() then
-            threatBar.backdrop:Hide()
-        end
+    if not ShouldShowThreatBar() then
+        SetThreatBarShown(false)
         return
     end
 
     if not UnitExists("target") or not UnitCanAttack("player", "target") or UnitIsDeadOrGhost("target") then
-        if threatBar.backdrop:IsShown() then
-            threatBar.backdrop:Hide()
-        end
+        SetThreatBarShown(false)
         return
     end
 
     local anchor = GetPlayerHealthBar()
     if anchor and not anchor:IsShown() then
-        if threatBar.backdrop:IsShown() then
-            threatBar.backdrop:Hide()
-        end
+        SetThreatBarShown(false)
         return
     end
 
-    if not threatBar.backdrop:IsShown() then
-        threatBar.backdrop:Show()
-    end
+    SetThreatBarShown(true)
 
     if not lastThreatW then
         UpdateDimensionsAndPosition(false)
@@ -287,7 +335,27 @@ local function Initialize()
         OnThreatUnitEvent
     )
 
-    -- Register global combat & target events
+    -- Register pet unit events (for auto-enabling with pet)
+    sfui.events.RegisterUnitEvents(
+        {
+            "UNIT_PET",
+        },
+        "player",
+        function()
+            UpdateThreat()
+        end
+    )
+
+    sfui.events.RegisterUnitEvents(
+        {
+            "UNIT_THREAT_SITUATION_UPDATE",
+        },
+        "pet",
+        OnThreatUnitEvent
+    )
+
+    -- Register global combat, target, and group roster events
+    sfui.events.RegisterEvent("GROUP_ROSTER_UPDATE", UpdateThreat)
     sfui.events.RegisterEvent("PLAYER_TARGET_CHANGED", OnTargetChanged)
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", OnPlayerRegen)
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", OnPlayerRegen)
@@ -305,6 +373,9 @@ function sfui.threat_debug_info()
     _threatDebug.shown = (threatBar ~= nil and threatBar:IsShown() == true)
     _threatDebug.status = (threatBar and threatBar.status) or 0
     _threatDebug.pct = (threatBar and threatBar.pct) or 0
+    _threatDebug.inGroup = IsPlayerInGroup()
+    _threatDebug.hasPet = HasActivePet()
+    _threatDebug.shouldShow = ShouldShowThreatBar()
     return _threatDebug
 end
 sfui.threat.GetDebugInfo = sfui.threat_debug_info

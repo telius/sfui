@@ -89,37 +89,44 @@ function petModule.ApplyTheme()
 
     petBar:SetStatusBarColor(PET_BAR_COLOR[1], PET_BAR_COLOR[2], PET_BAR_COLOR[3], PET_BAR_COLOR[4])
 
-    local font = (sfui.config and sfui.config.font) or "GameFontHighlightSmall"
+    local fontFile = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file())
+        or (sfui.config and sfui.config.fontFile)
+        or (_G.GameFontNormal and _G.GameFontNormal:GetFont())
+        or "Fonts\\FRIZQT__.TTF"
     local fontSize = 10
     if textLeft then
-        textLeft:SetFont(font, fontSize, "")
+        textLeft:SetFont(fontFile, fontSize, "")
         textLeft:SetShadowOffset(1, -1)
         textLeft:SetShadowColor(0, 0, 0, 1)
     end
     if textCenter then
-        textCenter:SetFont(font, fontSize, "")
+        textCenter:SetFont(fontFile, fontSize, "")
         textCenter:SetShadowOffset(1, -1)
         textCenter:SetShadowColor(0, 0, 0, 1)
     end
     if textRight then
-        textRight:SetFont(font, fontSize, "")
+        textRight:SetFont(fontFile, fontSize, "")
         textRight:SetShadowOffset(1, -1)
         textRight:SetShadowColor(0, 0, 0, 1)
     end
 
     if petContainer then
-        local mult = sfui.pixelScale or 1
-        local pad = 1 * mult
-        petContainer:SetBackdrop({
-            bgFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
-            edgeFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
-            tile = false,
-            tileSize = 0,
-            edgeSize = mult,
-            insets = { left = pad, right = pad, top = pad, bottom = pad },
-        })
-        petContainer:SetBackdropColor(0.04, 0.04, 0.04, 0.85)
-        petContainer:SetBackdropBorderColor(0, 0, 0, 1)
+        if sfui.theme and sfui.theme.ApplyStatusBarStyle then
+            sfui.theme.ApplyStatusBarStyle(petContainer, "xp")
+        else
+            local mult = sfui.pixelScale or 1
+            local pad = 1 * mult
+            petContainer:SetBackdrop({
+                bgFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
+                edgeFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
+                tile = false,
+                tileSize = 0,
+                edgeSize = mult,
+                insets = { left = pad, right = pad, top = pad, bottom = pad },
+            })
+            petContainer:SetBackdropColor(0.04, 0.04, 0.04, 0.85)
+            petContainer:SetBackdropBorderColor(0, 0, 0, 1)
+        end
     end
 end
 

@@ -190,11 +190,45 @@ sfui.options.RegisterTab({
             end
 
             if sfui.threat then
-                local threat_bar_cb = create_checkbox(bars_panel, "enable threat bar", "enableThreatBar", function(checked)
+                local threat_bar_cb = create_checkbox(bars_panel, "enable threat bar", function()
+                    return (SfuiDB == nil or SfuiDB.enableThreatBar ~= false)
+                end, function(checked)
+                    SfuiDB = SfuiDB or {}
+                    SfuiDB.enableThreatBar = checked
                     sfui.threat.UpdateVisibility()
-                end, "toggles the threat bar above the player health bar.")
+                end, "master toggle for the threat bar above the player health bar.")
                 threat_bar_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -10)
                 last_toggle_cb = threat_bar_cb
+
+                local threat_group_cb = create_checkbox(bars_panel, "auto enable while grouped", function()
+                    return (SfuiDB == nil or SfuiDB.threatBarGroup ~= false)
+                end, function(checked)
+                    SfuiDB = SfuiDB or {}
+                    SfuiDB.threatBarGroup = checked
+                    sfui.threat.UpdateVisibility()
+                end, "automatically show threat bar when in a party or raid.")
+                threat_group_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -6)
+                last_toggle_cb = threat_group_cb
+
+                local threat_pet_cb = create_checkbox(bars_panel, "auto enable with pet", function()
+                    return (SfuiDB == nil or SfuiDB.threatBarPet ~= false)
+                end, function(checked)
+                    SfuiDB = SfuiDB or {}
+                    SfuiDB.threatBarPet = checked
+                    sfui.threat.UpdateVisibility()
+                end, "automatically show threat bar when you have an active pet.")
+                threat_pet_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -6)
+                last_toggle_cb = threat_pet_cb
+
+                local threat_solo_cb = create_checkbox(bars_panel, "show when solo", function()
+                    return (SfuiDB and SfuiDB.threatBarSolo == true)
+                end, function(checked)
+                    SfuiDB = SfuiDB or {}
+                    SfuiDB.threatBarSolo = checked
+                    sfui.threat.UpdateVisibility()
+                end, "show threat bar even when solo without a pet (disabled by default).")
+                threat_solo_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -6)
+                last_toggle_cb = threat_solo_cb
             end
         end
 
@@ -255,6 +289,6 @@ sfui.options.RegisterTab({
             end)
         bg_color_swatch:SetPoint("LEFT", bg_color_label, "RIGHT", 5, 0)
 
-        bars_panel.customContentHeight = 360
+        bars_panel.customContentHeight = 440
     end,
 })

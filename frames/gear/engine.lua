@@ -421,19 +421,46 @@ local function InitToggleHook()
     if not CharacterFrame or not CharacterFrameCloseButton then return end
     sfui.gear.toggle_hooked = true
 
-    local toggleBtn = CreateFrame("Button", "SfuiGearToggleBtn", CharacterFrame)
-    toggleBtn:SetSize(22, 22)
-    toggleBtn:SetPoint("RIGHT", CharacterFrameCloseButton, "LEFT", -5, 0)
+    local toggleBtn = CreateFrame("Button", "SfuiGearToggleBtn", CharacterFrame, "BackdropTemplate")
+    toggleBtn:SetSize(16, 16)
+    toggleBtn:SetHitRectInsets(-2, -2, -2, -2)
     toggleBtn:SetNormalTexture("Interface\\Icons\\inv_misc_gear_01")
     toggleBtn:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     if toggleBtn:GetNormalTexture() then
         toggleBtn:GetNormalTexture():SetTexCoord(0.08, 0.92, 0.08, 0.92)
     end
 
+    local mult = sfui.pixelScale or 1
+    toggleBtn:SetBackdrop({
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = mult,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    })
+    toggleBtn:SetBackdropBorderColor(0, 0, 0, 1)
+
+    if CharacterFrameCloseButton and CharacterFrameCloseButton.GetFrameLevel then
+        toggleBtn:SetFrameLevel((CharacterFrameCloseButton:GetFrameLevel() or 500) + 5)
+    end
+
     toggleBtn:SetScript("OnEnter", function(self)
-        show_tooltip(self, "ANCHOR_RIGHT", "sfui gear manager")
+        local tip = sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()
+        if tip then
+            tip:SetOwner(self, "ANCHOR_RIGHT")
+            tip:ClearLines()
+            tip:AddLine("gear manager", 1, 1, 1)
+            tip:AddLine("click to toggle sfui gear manager & item sets.", 0.8, 0.8, 0.8, true)
+            tip:Show()
+        elseif show_tooltip then
+            show_tooltip(self, "ANCHOR_RIGHT", "sfui gear manager")
+        end
     end)
-    toggleBtn:SetScript("OnLeave", function() hide_tooltip() end)
+    toggleBtn:SetScript("OnLeave", function()
+        if sfui.common and sfui.common.hide_tooltip then
+            sfui.common.hide_tooltip()
+        elseif hide_tooltip then
+            hide_tooltip()
+        end
+    end)
     toggleBtn:SetScript("OnClick", function()
         sfui.gear.toggle()
     end)
@@ -443,12 +470,23 @@ local function InitToggleHook()
         if SfuiGearManagerFrame and SfuiDB.gear and SfuiDB.gear.auto_open ~= false then
             SfuiGearManagerFrame:Show()
         end
+        if sfui.character and sfui.character.AlignHeaderButtons then
+            sfui.character.AlignHeaderButtons()
+        end
     end)
     toggleBtn:SetScript("OnHide", function()
         if SfuiGearManagerFrame and SfuiDB.gear and SfuiDB.gear.auto_open ~= false then
             SfuiGearManagerFrame:Hide()
         end
+        if sfui.character and sfui.character.AlignHeaderButtons then
+            sfui.character.AlignHeaderButtons()
+        end
     end)
+
+    if sfui.character and sfui.character.AlignHeaderButtons then
+        sfui.character.HookHeaderButtons()
+        sfui.character.AlignHeaderButtons()
+    end
 end
 
 -- -------------------------------------------------------------------------
