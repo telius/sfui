@@ -1109,7 +1109,8 @@ gearFrame:SetScript("OnShow", function(self)
                         { "shift+click = toggle pvp lock", PVP_COLOR[1], PVP_COLOR[2], PVP_COLOR[3] },
                     })
                 else
-                    show_tooltip(b, "ANCHOR_TOP", "nothing equipped in " .. def.label, {
+                    local slotDesc = def.name or def.label
+                    show_tooltip(b, "ANCHOR_TOP", "nothing equipped in " .. slotDesc, {
                         { "equip an item to toggle its lock state.", 0.6, 0.6, 0.6 }
                     })
                 end

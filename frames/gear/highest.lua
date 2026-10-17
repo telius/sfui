@@ -580,7 +580,16 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
     if not rule then return false end
 
     local isClassic = isClassicOrVanilla()
-    local playerClassID = isClassic and ((sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)) or nil
+    local playerClass, pClassID = sfui.talents.get_player_class()
+    local playerClassID = isClassic and ((sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)) or pClassID
+
+    local isPaladin = (playerClass == "PALADIN" or playerClassID == 1486 or specID == 1486 or specID == 65 or specID == 66 or specID == 70 or (specID and specID >= 14861 and specID <= 14863))
+    local isWarrior = (playerClass == "WARRIOR" or playerClassID == 1491 or specID == 1491 or specID == 71 or specID == 72 or specID == 73 or (specID and specID >= 14911 and specID <= 14913))
+    local isShaman  = (playerClass == "SHAMAN" or playerClassID == 1489 or specID == 1489 or specID == 262 or specID == 263 or specID == 264 or (specID and specID >= 14891 and specID <= 14893))
+    local isDruid   = (playerClass == "DRUID" or playerClassID == 1484 or specID == 1484 or specID == 102 or specID == 103 or specID == 104 or specID == 105 or (specID and specID >= 14841 and specID <= 14844))
+    local isPriest  = (playerClass == "PRIEST" or playerClassID == 1487 or specID == 1487 or specID == 256 or specID == 257 or specID == 258 or (specID and specID >= 14871 and specID <= 14873))
+    local isRogue   = (playerClass == "ROGUE" or playerClassID == 1488 or specID == 1488 or specID == 259 or specID == 260 or specID == 261 or (specID and specID >= 14881 and specID <= 14883))
+    local isDK      = (playerClass == "DEATHKNIGHT" or playerClassID == 1483 or specID == 1483 or specID == 250 or specID == 251 or specID == 252 or (specID and specID >= 14831 and specID <= 14833))
 
     -- Dynamic Frost DK Talent Overrides (ignored for general loot eligibility)
     if not ignoreTalents and specID == 251 and not isClassic then
@@ -590,7 +599,6 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
     end
 
     -- Classic Rogue Dual Wield check (requires level 10 + trainer passive ability 674)
-    local isRogue = (playerClassID == 1488 or specID == 1488 or (specID and specID >= 14881 and specID <= 14883))
     if isClassic and isRogue then
         local hasDualWield = true
         if not ignoreTalents then
@@ -620,12 +628,6 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
         isHeal = (specDB and specDB.is_healer)
             or (cRoleLower == "heal" or cRoleLower == "resto" or cRoleLower == "holy" or cRoleLower == "disc")
             or (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
-
-        local isPaladin = (playerClassID == 1486 or specID == 1486 or (specID and specID >= 14861 and specID <= 14863))
-        local isWarrior = (playerClassID == 1491 or specID == 1491 or (specID and specID >= 14911 and specID <= 14913))
-        local isShaman  = (playerClassID == 1489 or specID == 1489 or (specID and specID >= 14891 and specID <= 14893))
-        local isDruid   = (playerClassID == 1484 or specID == 1484 or (specID and specID >= 14841 and specID <= 14844))
-        local isPriest  = (playerClassID == 1487 or specID == 1487 or (specID and specID >= 14871 and specID <= 14873))
 
         if isTank and (isWarrior or isPaladin) then
             rule = {
@@ -696,7 +698,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
     local primaryStatName = common.get_stat_key(rule.stat)
     local optimalArmor = rule.armor
 
-    local itemID, itemType, itemSubType, itemEquipLoc, _, classID, subclassID = common.get_item_instant_info(itemLink)
+    local itemID, itemType, itemSubType, itemEquipLoc, _, itemClassID, subclassID = common.get_item_instant_info(itemLink)
     if not itemEquipLoc or itemEquipLoc == "" then return false end
 
     -- Check if player can actually use/equip the item (unlearned weapon skills, unmet class, unmet level, etc.)
@@ -733,8 +735,8 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
     -- Check if the player meets the required level for the item
     if not ignorePlayerLevel and itemMinLevel and itemMinLevel > UnitLevel("player") then return false end
 
-    -- Use robust numeric ID checks instead of localized strings. classID 4 = Armor
-    if classID == 4 then
+    -- Use robust numeric ID checks instead of localized strings. itemClassID 4 = Armor
+    if itemClassID == 4 then
         if itemEquipLoc ~= "INVTYPE_CLOAK" and itemEquipLoc ~= "INVTYPE_FINGER" and itemEquipLoc ~= "INVTYPE_TRINKET" and itemEquipLoc ~= "INVTYPE_NECK" and itemEquipLoc ~= "INVTYPE_HOLDABLE" and itemEquipLoc ~= "INVTYPE_SHIELD" and itemEquipLoc ~= "INVTYPE_RELIC" then
             if isClassic then
                 local playerLvl = UnitLevel("player") or 1
@@ -775,7 +777,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
     end
 
     -- Weapon restriction rules
-    if classID == 2 then
+    if itemClassID == 2 then
         -- Enforce class/spec weapon proficiencies (e.g. Demon Hunters cannot use Daggers [15] or 1H Maces [4])
         if rule.allowedWeapons and subclassID and not rule.allowedWeapons[subclassID] then
             return false
@@ -792,7 +794,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
         else
             return false
         end
-    elseif classID == 4 then
+    elseif itemClassID == 4 then
         if itemEquipLoc == "INVTYPE_SHIELD" then
             if not rule.weaps["1H_Shield"] then return false end
         elseif itemEquipLoc == "INVTYPE_HOLDABLE" then
@@ -801,20 +803,20 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
             if not rule.weaps["1H_Dual"] and not rule.weaps["1H_Off"] then return false end
         elseif itemEquipLoc == "INVTYPE_RELIC" then
             -- In Classic / Vanilla / Camelot, Relics occupy slot 18:
-            -- Druid: Idols (8/11), Paladin: Librams (7/11), Shaman: Totems (9/11), DK: Sigils (10/11)
-            if classID == 1484 or specID == 1484 or specID == 102 or specID == 103 or specID == 104 or specID == 105 or (specID and specID >= 14841 and specID <= 14844) then
-                if subclassID ~= 8 and subclassID ~= 11 then return false end
-            elseif classID == 1486 or specID == 1486 or specID == 65 or specID == 66 or specID == 70 then
-                if subclassID ~= 7 and subclassID ~= 11 then return false end
-            elseif classID == 1489 or specID == 1489 or specID == 262 or specID == 263 or specID == 264 then
-                if subclassID ~= 9 and subclassID ~= 11 then return false end
-            elseif specID == 250 or specID == 251 or specID == 252 then
-                if subclassID ~= 10 and subclassID ~= 11 then return false end
+            -- Druid: Idols (8/11/0), Paladin: Librams (7/11/0), Shaman: Totems (9/11/0), DK: Sigils (10/11/0)
+            if isDruid then
+                if subclassID ~= 8 and subclassID ~= 11 and subclassID ~= 0 then return false end
+            elseif isPaladin then
+                if subclassID ~= 7 and subclassID ~= 11 and subclassID ~= 0 then return false end
+            elseif isShaman then
+                if subclassID ~= 9 and subclassID ~= 11 and subclassID ~= 0 then return false end
+            elseif isDK then
+                if subclassID ~= 10 and subclassID ~= 11 and subclassID ~= 0 then return false end
             else
                 return false
             end
         end
-    elseif classID == 6 then
+    elseif itemClassID == 6 then
         -- Projectile / Ammo (Vanilla / Classic only)
         if not isClassic then return false end
         local usesAmmo = sfui.api.UnitUsesAmmo and sfui.api.UnitUsesAmmo("player")
@@ -823,7 +825,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
         if subclassID ~= 2 and subclassID ~= 3 then return false end
     end
 
-    local isNonDynamicStatPiece = isClassic or (classID == 2 or itemEquipLoc == "INVTYPE_TRINKET" or itemEquipLoc == "INVTYPE_CLOAK" or itemEquipLoc == "INVTYPE_NECK" or itemEquipLoc == "INVTYPE_FINGER" or itemEquipLoc == "INVTYPE_HOLDABLE" or itemEquipLoc == "INVTYPE_SHIELD" or itemEquipLoc == "INVTYPE_RELIC" or itemEquipLoc == "INVTYPE_AMMO")
+    local isNonDynamicStatPiece = isClassic or (itemClassID == 2 or itemEquipLoc == "INVTYPE_TRINKET" or itemEquipLoc == "INVTYPE_CLOAK" or itemEquipLoc == "INVTYPE_NECK" or itemEquipLoc == "INVTYPE_FINGER" or itemEquipLoc == "INVTYPE_HOLDABLE" or itemEquipLoc == "INVTYPE_SHIELD" or itemEquipLoc == "INVTYPE_RELIC" or itemEquipLoc == "INVTYPE_AMMO")
 
     if isNonDynamicStatPiece then
         if not HasPrimaryStat(itemLink, primaryStatName, specID) then return false end
@@ -914,7 +916,16 @@ function sfui.highest.GetBestItems(isPvP)
     local best2H = nil
 
     local isClassicSpec = isClassicOrVanilla()
-    local classID = isClassicSpec and ((sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)) or nil
+    local playerClass, pClassID = sfui.talents.get_player_class()
+    local classID = isClassicSpec and ((sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)) or pClassID
+
+    local isPaladin = (playerClass == "PALADIN" or classID == 1486 or specID == 1486 or specID == 65 or specID == 66 or specID == 70 or (specID and specID >= 14861 and specID <= 14863))
+    local isWarrior = (playerClass == "WARRIOR" or classID == 1491 or specID == 1491 or specID == 71 or specID == 72 or specID == 73 or (specID and specID >= 14911 and specID <= 14913))
+    local isShaman  = (playerClass == "SHAMAN" or classID == 1489 or specID == 1489 or specID == 262 or specID == 263 or specID == 264 or (specID and specID >= 14891 and specID <= 14893))
+    local isDruid   = (playerClass == "DRUID" or classID == 1484 or specID == 1484 or specID == 102 or specID == 103 or specID == 104 or specID == 105 or (specID and specID >= 14841 and specID <= 14844))
+    local isPriest  = (playerClass == "PRIEST" or classID == 1487 or specID == 1487 or specID == 256 or specID == 257 or specID == 258 or (specID and specID >= 14871 and specID <= 14873))
+    local isRogue   = (playerClass == "ROGUE" or classID == 1488 or specID == 1488 or specID == 259 or specID == 260 or specID == 261 or (specID and specID >= 14881 and specID <= 14883))
+    local isDK      = (playerClass == "DEATHKNIGHT" or classID == 1483 or specID == 1483 or specID == 250 or specID == 251 or specID == 252 or (specID and specID >= 14831 and specID <= 14833))
 
     -- Dynamic Frost DK Talent Overrides
     if not isClassicSpec and specID == 251 then
@@ -941,13 +952,6 @@ function sfui.highest.GetBestItems(isPvP)
 
     -- Classic Role Weapon & Stat Override: Warrior/Paladin tanks & Paladin/Shaman/Druid/Priest healers
     if isClassicSpec then
-        local isPaladin = (classID == 1486 or specID == 1486 or (specID and specID >= 14861 and specID <= 14863))
-        local isWarrior = (classID == 1491 or specID == 1491 or (specID and specID >= 14911 and specID <= 14913))
-        local isShaman  = (classID == 1489 or specID == 1489 or (specID and specID >= 14891 and specID <= 14893))
-        local isDruid   = (classID == 1484 or specID == 1484 or (specID and specID >= 14841 and specID <= 14844))
-        local isPriest  = (classID == 1487 or specID == 1487 or (specID and specID >= 14871 and specID <= 14873))
-        local isRogue   = (classID == 1488 or specID == 1488 or (specID and specID >= 14881 and specID <= 14883))
-
         if isRogue then
             local hasDualWield = sfui.common.is_rogue_dual_wield_known and sfui.common.is_rogue_dual_wield_known() or false
             if not hasDualWield then
@@ -1152,7 +1156,19 @@ function sfui.highest.GetBestItems(isPvP)
                 itemData.equipReason = "Locked Neck"
             elseif itemEquipLoc == "INVTYPE_AMMO" then
                 itemData.equipReason = "Locked Ammo"
-            elseif itemEquipLoc == "INVTYPE_WEAPON" or itemEquipLoc == "INVTYPE_2HWEAPON" or itemEquipLoc == "INVTYPE_WEAPONMAINHAND" or itemEquipLoc == "INVTYPE_WEAPONOFFHAND" or itemEquipLoc == "INVTYPE_SHIELD" or itemEquipLoc == "INVTYPE_HOLDABLE" or itemEquipLoc == "INVTYPE_RANGED" or itemEquipLoc == "INVTYPE_RANGEDRIGHT" or itemEquipLoc == "INVTYPE_THROWN" or itemEquipLoc == "INVTYPE_RELIC" then
+            elseif itemEquipLoc == "INVTYPE_RELIC" then
+                if isShaman then
+                    itemData.equipReason = "Locked Totem"
+                elseif isPaladin then
+                    itemData.equipReason = "Locked Libram"
+                elseif isDruid then
+                    itemData.equipReason = "Locked Idol"
+                elseif isDK then
+                    itemData.equipReason = "Locked Sigil"
+                else
+                    itemData.equipReason = "Locked Relic"
+                end
+            elseif itemEquipLoc == "INVTYPE_WEAPON" or itemEquipLoc == "INVTYPE_2HWEAPON" or itemEquipLoc == "INVTYPE_WEAPONMAINHAND" or itemEquipLoc == "INVTYPE_WEAPONOFFHAND" or itemEquipLoc == "INVTYPE_SHIELD" or itemEquipLoc == "INVTYPE_HOLDABLE" or itemEquipLoc == "INVTYPE_RANGED" or itemEquipLoc == "INVTYPE_RANGEDRIGHT" or itemEquipLoc == "INVTYPE_THROWN" then
                 itemData.equipReason = "Locked Weapon"
             else
                 itemData.equipReason = "Locked Item"
@@ -1726,6 +1742,13 @@ function sfui.highest.GetBestItems(isPvP)
                     equipReason = (slotID == 13 or slotID == 14) and "Locked Trinket"
                         or (slotID == 11 or slotID == 12) and "Locked Ring"
                         or (slotID == 2) and "Locked Neck"
+                        or (slotID == 18 and itemEquipLoc == "INVTYPE_RELIC") and (
+                            isShaman and "Locked Totem"
+                            or isPaladin and "Locked Libram"
+                            or isDruid and "Locked Idol"
+                            or isDK and "Locked Sigil"
+                            or "Locked Relic"
+                        )
                         or (slotID == 16 or slotID == 17 or slotID == 18) and "Locked Weapon"
                         or (slotID == 0) and "Locked Ammo"
                         or "Locked Item",

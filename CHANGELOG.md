@@ -1,17 +1,9 @@
-# Changelog
+# changelog
 
-## v1.105 (2026-10-17)
-
-### features
-
-- **character telemetry & gear management buttons**: repositioned and resized launcher buttons on the character sheet to avoid overlapping third-party addon controls (like chonky), while ensuring the info panel only opens on demand or alongside the character frame (`frames/character/infopanel.lua`).
-- **radial ring opening & lerp animations**: restored and polished radial ring menu animations with fluid radial expansion easing from center disc on open and smooth hover scale lerping (`frames/ring/ring_view.lua`, `frames/ring/ring_live.lua`, `frames/ring/ring.lua`).
-- **borderless circular ring icons**: eliminated square border artifacts on round ring icons by implementing a 12% icon zoom (`0.12, 0.88, 0.12, 0.88`), extending texture quads beneath the circular mask, and securing texture coordinate hooks against unzoomed coordinate resets (`core/widgets.lua`, `frames/ring/ring_view.lua`, `frames/options/tabs/tab_ring.lua`).
-- **threat bar auto-enable options**: threat bar is now disabled by default with smart auto-enable options when grouped or when managing an active combat pet (`frames/bars/threat.lua`, `frames/options/tabs/tab_bars.lua`).
-- **hunter & warlock pet experience tracking**: integrated full pet experience bar tracking and leveling progress indicators (`frames/experience/pet.lua`, `frames/experience/events.lua`, `frames/experience/experience.lua`).
+## v1.106 (2026-10-17)
 
 ### improvements & bug fixes
 
-- **character info panel stability**: resolved anchor family connection setpoint failures and added safe combat pause to prevent heavy cpu calculations and combat lockdown errors (`frames/character/infopanel.lua`).
-- **shaman totem bar movable fix**: resolved `SfuiTotemBar:StartMoving(): Frame is not movable` error by enabling `SetMovable(true)` during bar initialization, adding combat lockdown safeguards during drag, and releasing user-placed flags on drag stop (`frames/bars/totembar.lua`).
-- **system panel guild safeguards**: disabled discord webhook ping checks when the character is not in a guild (`frames/map/system.lua`).
+- **naked gear stripping durability protection**: slot 18 is now excluded from unconditional unequip during naked mode. relics (totems, librams, idols, sigils) have no durability, take no death penalty, and have no visual model, so they remain safely equipped. ranged weapons with durability (bows, guns, crossbows, wands, thrown) continue to be unequipped dynamically for corpse runs (`frames/gear/gear_camelot.lua`).
+- **shaman totem & paladin relic re-equipping**: fixed spec validation variable collision and added camelot spec id ranges (`14891..14893` for shamans, `14861..14863` for paladins) in `IsItemValidForSpec_Internal`, ensuring totems, librams, idols, and sigils are properly recognized, scored, and re-equipped into slot 18 (`frames/gear/highest.lua`).
+- **dynamic relic slot labels & notifications**: slot 18 lock buttons and paperdoll shift-click notifications now dynamically label relics as "totem", "libram", "idol", or "sigil" instead of generic "rg"/"ranged" (`frames/gear/gear_camelot.lua`, `frames/gear/gear.lua`, `frames/gear/engine.lua`).

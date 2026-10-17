@@ -521,7 +521,17 @@ local function InitPaperDollLockHook()
                     elseif slot == 17 then
                         slotName = "off hand"
                     elseif slot == 18 then
-                        slotName = "ranged"
+                        local _, _, _, equipLoc, _, _, itemSubClassID = common.get_item_instant_info(link)
+                        if equipLoc == "INVTYPE_RELIC" then
+                            if itemSubClassID == 7 then slotName = "libram"
+                            elseif itemSubClassID == 8 then slotName = "idol"
+                            elseif itemSubClassID == 9 then slotName = "totem"
+                            elseif itemSubClassID == 10 then slotName = "sigil"
+                            else slotName = "relic"
+                            end
+                        else
+                            slotName = "ranged"
+                        end
                     elseif slot == 0 then
                         slotName = "ammo"
                     end

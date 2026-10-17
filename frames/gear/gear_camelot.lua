@@ -327,8 +327,11 @@ function sfui.gear.UnequipDurabilityItems()
     local seen = {}
 
     -- 1. Weapons and armor slots (strictly excluding shirt [4] and tabard [19])
+    -- Note: slot 18 (ranged/relic) is excluded from unconditional strip because relics
+    -- (totems, librams, idols, sigils) have no durability. Ranged weapons with durability
+    -- are dynamically caught by step 2 below.
     local nakedSlots = {
-        16, 17, 18,
+        16, 17,
         1, 3, 5, 6, 7, 8, 9, 10, 15,
     }
     for _, slot in ipairs(nakedSlots) do
@@ -468,19 +471,36 @@ end
 -- LOCK SLOTS EXTENSION (Adds Ranged & Ammo)
 -- -------------------------------------------------------------------------
 function sfui.gear.GetLockSlots(specID)
+    local relicLabel = "rg"
+    local relicName = "ranged"
+    local playerClass = select(2, UnitClass("player"))
+    if playerClass == "SHAMAN" then
+        relicLabel = "tt"
+        relicName = "totem"
+    elseif playerClass == "PALADIN" then
+        relicLabel = "lb"
+        relicName = "libram"
+    elseif playerClass == "DRUID" then
+        relicLabel = "id"
+        relicName = "idol"
+    elseif playerClass == "DEATHKNIGHT" then
+        relicLabel = "sg"
+        relicName = "sigil"
+    end
+
     local slots = {
-        { label = "t1", slot = 13 },
-        { label = "t2", slot = 14 },
-        { label = "r1", slot = 11 },
-        { label = "r2", slot = 12 },
-        { label = "nk", slot = 2 },
-        { label = "w1", slot = 16 },
-        { label = "w2", slot = 17 },
-        { label = "rg", slot = 18 },
+        { label = "t1", slot = 13, name = "trinket 1" },
+        { label = "t2", slot = 14, name = "trinket 2" },
+        { label = "r1", slot = 11, name = "ring 1" },
+        { label = "r2", slot = 12, name = "ring 2" },
+        { label = "nk", slot = 2,  name = "neck" },
+        { label = "w1", slot = 16, name = "main hand" },
+        { label = "w2", slot = 17, name = "off hand" },
+        { label = relicLabel, slot = 18, name = relicName },
     }
     local usesAmmo = sfui.api and sfui.api.UnitUsesAmmo and sfui.api.UnitUsesAmmo("player")
     if usesAmmo then
-        table.insert(slots, { label = "am", slot = 0 })
+        table.insert(slots, { label = "am", slot = 0, name = "ammo" })
     end
     return slots
 end
@@ -877,7 +897,7 @@ function sfui.gear.BuildCardModifiers(card, ui, specID, curLockX)
         local title = isNaked and "naked (active - auto-equip paused)" or "naked (unequip gear)"
         show_tooltip(b, "ANCHOR_TOP", title, {
             { isNaked and "click to resume auto-equip and re-equip your gear." or "unequips all weapons and armor into your bags.", 0.8, 0.8, 0.8, true },
-            { "leaves jewelry (rings, trinkets, neck), shirt, and tabard equipped.", 0.6, 0.9, 0.6, true },
+            { "leaves non-durability items (jewelry, relics/totems, shirt, tabard) equipped.", 0.6, 0.9, 0.6, true },
             { "pauses gear manager auto-equip until clicked again or role/pve/pvp is clicked.", 0.4, 0.8, 1.0, true },
         })
     end)
