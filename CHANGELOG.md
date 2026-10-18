@@ -1,15 +1,25 @@
 # changelog
 
-## v1.109 (2026-10-18)
+## v1.110 (2026-10-18)
 
 ### features
 
-- **comprehensive hunter pet experience & progression bar in camelot**: full redesign and feature integration for the hunter pet experience bar (`frames/experience/pet.lua`), displaying live level, xp progress, loyalty rank with sub-rank loyalty progression points, pet happiness with damage modifier breakdowns (125% happy / 100% content / 75% unhappy), pet diet preferences with supported food categories, and unspent/total pet training points. left-clicking opens the pet character panel (with camelot sidebar tab 4 support), and right-clicking opens the pet context menu.
-- **player health bar unitframe menu**: right-clicking the player health bar now triggers the player context menu via secure action button template (`core/widgets.lua`, `frames/bars/bars.lua`), mirroring standard unitframe behavior.
+- **modular architecture for highest gear engine**: refactored the complex gear scoring, validation, combinatorial solving, and equipment swapping pipeline in `frames/gear/highest.lua` into clean decoupled modules under `frames/gear/highest/`:
+  - `frames/gear/highest/tooltips.lua`: fast cached tooltip scanning, stat weight extraction, and equipment heuristics.
+  - `frames/gear/highest/validator.lua`: equipment eligibility rules, level checks, and two-handed slot validation.
+  - `frames/gear/highest/scorer.lua`: dynamic item scoring, weapon dps priority for camelot hunters and classic/camelot retribution paladins, and retail two-handed specialization constraints.
+  - `frames/gear/highest/solvers.lua`: dedicated single-slot, dual-wield, and ring/trinket pairing solvers.
+  - `frames/gear/highest/executor.lua`: queued equip execution, equipment set synchronization, and post-swap telemetry.
+  - `frames/gear/highest.lua`: lightweight event coordinator and options manager.
 
 ### improvements & bug fixes
 
-- **highest gear weapon selection based on weapon dps**: resolved an issue in `frames/gear/highest.lua` where missing off-hand weapons unconditionally forced 2-handed weapons over superior 1-handers; camelot hunters and classic/camelot retribution paladins now choose 1-handed weapons over 2-handers whenever weapon dps or overall item score is higher.
-- **retail retribution paladin 2-hander enforcement**: in retail, retribution paladins are strictly constrained to 2-handed weapons exclusively (`frames/gear/highest.lua`).
-- **pet bar tooltip placement**: anchored the pet bar tooltip to the right of the pet unit frame (`frames/bars/pet.lua`), preventing overlap with default game world tooltips.
-- **multi-bar experience switcher synchronization**: ensured smooth integration and tracking updates between player xp, reputation, challenges, and hunter pet experience across events and bar switching (`frames/experience/bar.lua`, `frames/experience/experience.lua`, `frames/experience/events.lua`, `frames/experience/challenges.lua`, `frames/experience/reputation.lua`).
+- **recipe catalogue map waypoint tooltips**: fixed an uninitialized coordinate variable in `frames/professions/rows.lua`, restoring the click-to-waypoint super-tracking tooltip hint on catalogue rows.
+- **immutable recipe source pool**: prevented coordinate data corruption in pooled source tables (`data/recipes_camelot.lua`) by shallow copying source records before injecting dynamic coordinates (`frames/professions/rows.lua`).
+- **map pin shift-click waypoint navigation**: added missing shift-click handler in `frames/map/providers/pins_recipes.lua` to set super-tracked map waypoints directly from world map recipe pins.
+- **metatable iteration safety**: replaced direct metatable pairs iteration with dedicated iterator helpers across `frames/professions/filters.lua`, `frames/professions/browser.lua`, and `data/recipes_camelot.lua`.
+- **classic era recipe compendium support**: harmonized client load guards across all profession modules (`frames/professions/sources.lua`, `frames/professions/browser.lua`, `frames/professions/filters.lua`, `frames/professions/rows.lua`, `frames/professions/progress.lua`, `frames/professions/contacts.lua`, `frames/professions/tooltips.lua`) to enable the catalogue and `/recipes` slash commands on classic era.
+- **curated and live source precedence**: prioritized curated and live vendor discoveries ahead of generic baseline entries in catalogue search and filtering routines (`frames/professions/filters.lua`).
+- **memory diagnostics telemetry**: eliminated duplicate conflicting debug definitions in `frames/professions/browser.lua`, restoring full recipe telemetry in `/sfui mem`.
+- **objective tracker recipe routing**: removed broken router override and resolved canonical profession names in tracker tooltips (`frames/quests/modules/q_camelot_recipes.lua`, `frames/professions/sources.lua`).
+- **live trainer case-insensitive matching**: ensured live trainer skill lookups handle title-cased spell names without dropping training cost or skill requirements (`frames/professions/sources.lua`).

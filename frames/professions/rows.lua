@@ -9,7 +9,7 @@ sfui.recipes.browser = sfui.recipes.browser or {}
 --  Recipe Catalog Rows, Item Links, Tooltips & FauxScroll View
 -- ══════════════════════════════════════════════════════════════════════════════
 
-if not sfui.isCamelot then return end
+if sfui.isRetail then return end
 
 local B = sfui.recipes.browser
 local common = sfui.common
@@ -389,6 +389,8 @@ function B.CreateRow(parent, index)
             end
         end
 
+        local hasCoords = (self.pinIcon and self.pinIcon:IsShown())
+            or (self.bestSource and self.bestSource.mapID and self.bestSource.x and self.bestSource.y)
         if isDropBoss then
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine("|cff00e5ffclick to view boss encounter in dungeon journal|r", 0.3, 0.85, 1)
@@ -748,9 +750,22 @@ function B.UpdateList()
                         end
                         if curCoords and not hasCoords then
                             hasCoords = true
-                            firstSource.mapID = curCoords.mapID
-                            firstSource.x = curCoords.x
-                            firstSource.y = curCoords.y
+                            firstSource = {
+                                type     = firstSource.type,
+                                name     = firstSource.name,
+                                desc     = firstSource.desc,
+                                npcID    = firstSource.npcID,
+                                questID  = firstSource.questID,
+                                zone     = firstSource.zone,
+                                mapID    = curCoords.mapID,
+                                x        = curCoords.x,
+                                y        = curCoords.y,
+                                cost     = firstSource.cost,
+                                limited  = firstSource.limited,
+                                faction  = firstSource.faction,
+                                standing = firstSource.standing,
+                                isLive   = firstSource.isLive,
+                            }
                         end
                     end
                     if isGeneric and _G.C_TradeSkillUI and _G.C_TradeSkillUI.GetRecipeSourceText then

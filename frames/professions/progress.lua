@@ -9,7 +9,7 @@ sfui.recipes.browser = sfui.recipes.browser or {}
 --  Recipe Catalog Completionist Progress Bar & Breakdown Tooltip
 -- ══════════════════════════════════════════════════════════════════════════════
 
-if not sfui.isCamelot then return end
+if sfui.isRetail then return end
 
 local B = sfui.recipes.browser
 local common = sfui.common

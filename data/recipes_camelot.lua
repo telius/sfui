@@ -4414,6 +4414,7 @@ local function decode_recipe(sid, raw)
 end
 
 sfui.recipes_camelot._raw = RAW
+sfui.recipes_camelot.sources = SRC_POOL
 sfui.recipes_camelot.num_recipes = 2344
 sfui.recipes_camelot.recipes = setmetatable(decodedCache, {
     __index = function(t, sid)

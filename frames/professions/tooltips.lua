@@ -16,7 +16,7 @@ local cfg    = g.recipes or g.professions or {}
 --  Provides click-to-pin and Ctrl-click map waypoint navigation.
 -- ══════════════════════════════════════════════════════════════════════════════
 
-if not sfui.isCamelot then return end
+if sfui.isRetail then return end
 
 -- Localized APIs
 local GameTooltip                   = sfui.common.get_tooltip()

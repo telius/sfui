@@ -120,21 +120,16 @@ function sfui.recipes.TogglePinRecipe(spellID)
     return isPinned
 end
 
-function sfui.recipes.OpenBrowserToRecipe(spellID)
-    if InCombatLockdown and InCombatLockdown() then return end
-    spellID = tonumber(spellID) or spellID
-    if not spellID then return end
+if not sfui.recipes.OpenBrowserToRecipe then
+    function sfui.recipes.OpenBrowserToRecipe(spellID)
+        if InCombatLockdown and InCombatLockdown() then return end
+        spellID = tonumber(spellID) or spellID
+        if not spellID then return end
 
-    local db = sfui.recipes_camelot and sfui.recipes_camelot.recipes
-    local r = db and db[spellID]
-
-    if sfui.recipes.browser and sfui.recipes.OpenBrowser then
-        sfui.recipes.OpenBrowser()
-        if r and r.profession and sfui.recipes.browser.SelectProfession then
-            sfui.recipes.browser:SelectProfession(r.profession)
-        end
-        if r and r.name and sfui.recipes.browser.SetSearch then
-            sfui.recipes.browser:SetSearch(r.name:lower())
+        if sfui.recipes.browser and sfui.recipes.browser.SelectRecipe then
+            sfui.recipes.browser.SelectRecipe(spellID)
+        elseif sfui.recipes.OpenBrowser then
+            sfui.recipes.OpenBrowser()
         end
     end
 end
@@ -400,9 +395,10 @@ function CamelotRecipesModule:BuildBlocks(container)
             end,
             tooltip    = function(tip, owner, bData)
                 tip:AddLine(recipeName, titleColor[1], titleColor[2], titleColor[3])
-                if r and r.profession then
+                local profName = (r and r.profession) or (r and r.skillID and sfui.recipes.GetProfessionName and sfui.recipes.GetProfessionName(r.skillID))
+                if profName then
                     local minSkill = r.minSkill or (r.colors and r.colors[1]) or 0
-                    tip:AddLine(string_format("%s (rank %d)", r.profession:lower(), minSkill), 0.70, 0.70, 0.70)
+                    tip:AddLine(string_format("%s (rank %d)", profName:lower(), minSkill), 0.70, 0.70, 0.70)
                 end
                 if isComplete then
                     tip:AddLine("all required crafting materials collected", 0.20, 1.00, 0.35, true)

@@ -133,6 +133,13 @@ local function OnClickRecipePin(pin, mouseBtn, pinData)
         return
     end
 
+    if _G.IsShiftKeyDown and _G.IsShiftKeyDown() then
+        if group.mapID and group.x and group.y and sfui.recipes and sfui.recipes.SetWaypoint then
+            sfui.recipes.SetWaypoint(group)
+            return
+        end
+    end
+
     if sfui.recipes and sfui.recipes.OpenBrowserForVendor and group.name then
         sfui.recipes.OpenBrowserForVendor(group.name)
     elseif sfui.recipes and sfui.recipes.OpenBrowser then

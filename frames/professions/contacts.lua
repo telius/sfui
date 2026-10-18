@@ -17,7 +17,7 @@ local cfg    = g.recipe_catalog or g.recipes or g.professions or {}
 --  Uses sfui.events central dispatcher (zero standalone frames).
 -- ══════════════════════════════════════════════════════════════════════════════
 
-if not sfui.isCamelot then return end
+if sfui.isRetail then return end
 
 -- Localized APIs
 local UnitName                      = _G.UnitName

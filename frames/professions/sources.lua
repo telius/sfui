@@ -17,7 +17,7 @@ local cfg    = g.recipe_catalog or g.recipes or g.professions or {}
 --  live player discoveries (SfuiDB.contacts & SfuiDB.recipe_finds).
 -- ══════════════════════════════════════════════════════════════════════════════
 
-if not sfui.isCamelot then return end
+if sfui.isRetail then return end
 
 -- Localized APIs
 local C_Map                   = _G.C_Map
@@ -676,6 +676,7 @@ end
 --- @param id number
 --- @return table? recipe
 function sfui.recipes.GetRecipe(id)
+    id = tonumber(id) or id
     if not id then return nil end
     local db = sfui.recipes_camelot
     if not db or not db.recipes then return nil end
@@ -871,7 +872,7 @@ function sfui.recipes.GetSource(id)
                 for _, npcID in ipairs(trainerNpcIDs) do
                     local trainer = SfuiDB.contacts.trainers[npcID]
                     if trainer and trainer.spells then
-                        local trSp = trainer.spells[spellID] or (recipe.name and trainer.spells[recipe.name])
+                        local trSp = trainer.spells[spellID] or (recipe.name and (trainer.spells[recipe.name:lower()] or trainer.spells[recipe.name]))
                         local key = "trainer:" .. tostring(npcID)
                         if not seenKeys[key] then
                             seenKeys[key] = true
@@ -1062,6 +1063,14 @@ function sfui.recipes.GetAllNonHostileSources(r)
     return list
 end
 
+--- Return the first non-hostile source for a recipe record (trainers, vendors, quests, drops)
+--- @param r table
+--- @return table? source
+function sfui.recipes.GetFirstNonHostileSource(r)
+    local list = sfui.recipes.GetAllNonHostileSources and sfui.recipes.GetAllNonHostileSources(r)
+    return list and list[1] or nil
+end
+
 
 --- Format a single source entry for tooltip rendering (strictly lowercase)
 --- @param s table
@@ -1191,3 +1200,24 @@ function sfui.recipes.SetWaypoint(s)
     end
     return false
 end
+
+-- ─── Profession Mapping Helpers ───────────────────────────────────────────────
+local SKILL_ID_TO_CANONICAL_NAME = {
+    [171] = "alchemy",
+    [164] = "blacksmithing",
+    [185] = "cooking",
+    [333] = "enchanting",
+    [202] = "engineering",
+    [129] = "first aid",
+    [165] = "leatherworking",
+    [197] = "tailoring",
+}
+
+--- Get canonical profession name from skillLine ID
+--- @param skillID number
+--- @return string? name
+function sfui.recipes.GetProfessionName(skillID)
+    skillID = tonumber(skillID)
+    return skillID and SKILL_ID_TO_CANONICAL_NAME[skillID] or nil
+end
+

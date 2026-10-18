@@ -14,7 +14,7 @@ sfui.recipes.browser = sfui.recipes.browser or {}
 --  Shift-clicking any row inserts the recipe hyperlink directly into chat.
 -- ══════════════════════════════════════════════════════════════════════════════
 
-if not sfui.isCamelot then return end
+if sfui.isRetail then return end
 
 local B = sfui.recipes.browser
 local common = sfui.common
@@ -1006,18 +1006,21 @@ function sfui.recipes.ToggleBrowser(optionalProfession)
     end
 end
 
+local debugCache = {}
+
 --- Real-time memory & diagnostics stats inspector for sfui.mem
 --- @return table stats
 function sfui.recipes_debug_info()
     local numRecipes = (sfui.recipes_camelot and sfui.recipes_camelot.num_recipes) or 0
-    if numRecipes == 0 and sfui.recipes_camelot and sfui.recipes_camelot.recipes then
-        for _ in pairs(sfui.recipes_camelot.recipes) do
+    if numRecipes == 0 and sfui.recipes_camelot and sfui.recipes_camelot._raw then
+        for _ in pairs(sfui.recipes_camelot._raw) do
             numRecipes = numRecipes + 1
         end
     end
     local numSources = 0
-    if sfui.recipes and sfui.recipes.sources then
-        for _ in pairs(sfui.recipes.sources) do
+    local srcPool = (sfui.recipes_camelot and sfui.recipes_camelot.sources) or (sfui.recipes and sfui.recipes.sources)
+    if srcPool then
+        for _ in pairs(srcPool) do
             numSources = numSources + 1
         end
     end
@@ -1038,17 +1041,23 @@ function sfui.recipes_debug_info()
             pinnedCount = pinnedCount + 1
         end
     end
+    local mapPins = (sfui.recipes.pins and sfui.recipes.pins.GetActiveCount and sfui.recipes.pins.GetActiveCount()) or 0
 
-    return {
-        isOpen       = isShown,
-        totalRecipes = numRecipes,
-        totalSources = numSources,
-        activeFilter = curProf:lower(),
-        shownCount   = shownCount,
-        pinnedCount  = pinnedCount,
-        mapPins      = (sfui.recipes.pins and sfui.recipes.pins.GetActiveCount and sfui.recipes.pins.GetActiveCount()) or 0,
-        poolSize     = (B.ui and B.ui.rows and #B.ui.rows) or 0,
-    }
+    debugCache.isOpen           = isShown
+    debugCache.isBrowserOpen    = isShown
+    debugCache.totalRecipes     = numRecipes
+    debugCache.totalSources     = numSources
+    debugCache.activeFilter     = curProf:lower()
+    debugCache.shownCount       = shownCount
+    debugCache.pinnedCount      = pinnedCount
+    debugCache.mapPins          = mapPins
+    debugCache.activePins       = mapPins
+    debugCache.selectedSkillID  = B.selectedSkillID or 0
+    debugCache.filterState      = B.filterState or "unknown"
+    debugCache.learnedCacheSize = (B.GetLearnedCacheSize and B.GetLearnedCacheSize()) or 0
+    debugCache.poolSize         = (B.ui and B.ui.rows and #B.ui.rows) or 0
+
+    return debugCache
 end
 
 -- ─── Blizzard TradeSkill Frame Hook ───────────────────────────────────────────
@@ -1141,20 +1150,6 @@ end
 
 
 -- ─── Debug Telemetry & Module Registration ───────────────────────────────────
-local debugCache = {}
-
---- Public debug telemetry info for memory profiler and /sfui mem
---- @return table
-function sfui.recipes_debug_info()
-    local frame = B.ui and B.ui.frame
-    debugCache.isBrowserOpen = (frame and frame:IsShown()) and true or false
-    debugCache.selectedSkillID = B.selectedSkillID or 0
-    debugCache.filterState = B.filterState or "unknown"
-    debugCache.activePins = (sfui.recipes.pins and sfui.recipes.pins.GetActiveCount and sfui.recipes.pins.GetActiveCount()) or 0
-    debugCache.learnedCacheSize = (B.GetLearnedCacheSize and B.GetLearnedCacheSize()) or 0
-    return debugCache
-end
-
 sfui.recipes.GetDebugInfo = sfui.recipes_debug_info
 
 local modDef = {

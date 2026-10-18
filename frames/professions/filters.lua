@@ -9,7 +9,7 @@ sfui.recipes.browser = sfui.recipes.browser or {}
 --  Recipe Catalog Filtering, Spec, Category & Search Engine
 -- ══════════════════════════════════════════════════════════════════════════════
 
-if not sfui.isCamelot then return end
+if sfui.isRetail then return end
 
 local B = sfui.recipes.browser
 
@@ -312,6 +312,27 @@ end
 --- Check if a recipe matches a specific source filter
 --- @param r table
 --- @param filterKey string
+--- Get all resolved source records for a recipe (checking live and curated sources first)
+--- @param r table
+--- @return table? sources
+function B.GetRecipeSources(r)
+    if not r then return nil end
+    local sources = nil
+    if sfui.recipes and sfui.recipes.GetSource and r.id then
+        local res = sfui.recipes.GetSource(r.id)
+        if res and res.sources and #res.sources > 0 then
+            sources = res.sources
+        end
+    end
+    if not sources or #sources == 0 then
+        sources = r.sources
+    end
+    return sources
+end
+
+--- Check if a recipe matches a specific source filter key
+--- @param r table
+--- @param filterKey string
 --- @return boolean
 function B.RecipeMatchesSource(r, filterKey)
     if not r then return false end
@@ -323,13 +344,7 @@ function B.RecipeMatchesSource(r, filterKey)
         return filterKey == "trainer"
     end
 
-    local sources = r.sources
-    if (not sources or #sources == 0) and sfui.recipes and sfui.recipes.GetSource then
-        local res = sfui.recipes.GetSource(r.id)
-        if res and res.sources and #res.sources > 0 then
-            sources = res.sources
-        end
-    end
+    local sources = B.GetRecipeSources(r)
 
     if filterKey == "alt_unlearned" then
         return sfui.recipes.IsAltNeeded and sfui.recipes.IsAltNeeded(r)
@@ -670,13 +685,7 @@ function B.HasAnyNonHostileSource(r)
         return true
     end
 
-    local sources = r.sources
-    if (not sources or #sources == 0) and sfui.recipes and sfui.recipes.GetSource then
-        local res = sfui.recipes.GetSource(r.id)
-        if res and res.sources and #res.sources > 0 then
-            sources = res.sources
-        end
-    end
+    local sources = B.GetRecipeSources(r)
     if not sources or #sources == 0 then
         return true
     end
@@ -1119,14 +1128,16 @@ function B.GetCandidatesForSkill(skillID)
             end
         end
     else
-        for spellID, r in pairs(db.recipes) do
-            if r.skillID == skillID and B.DoesSpellExistCached(spellID) then
-                local rReq = r.minSkill or (r.colors and r.colors[1]) or 0
-                if rReq <= 320 then
-                    local normName = r.name and r.name:lower() or tostring(spellID)
-                    local existing = candidatesByName[normName]
-                    if not existing or (spellID < existing.id) then
-                        candidatesByName[normName] = r
+        if sfui.recipes_camelot and sfui.recipes_camelot.IterateRecipes then
+            for spellID, r in sfui.recipes_camelot.IterateRecipes() do
+                if r and r.skillID == skillID and B.DoesSpellExistCached(spellID) then
+                    local rReq = r.minSkill or (r.colors and r.colors[1]) or 0
+                    if rReq <= 320 then
+                        local normName = r.name and r.name:lower() or tostring(spellID)
+                        local existing = candidatesByName[normName]
+                        if not existing or (spellID < existing.id) then
+                            candidatesByName[normName] = r
+                        end
                     end
                 end
             end
@@ -1236,13 +1247,7 @@ function B.RebuildFilteredList()
                                         if rLower:find(searchPattern) then
                                             passSearch = true
                                         else
-                                            local sources = r.sources
-                                            if (not sources or #sources == 0) and sfui.recipes and sfui.recipes.GetSource then
-                                                local res = sfui.recipes.GetSource(r.id)
-                                                if res and res.sources and #res.sources > 0 then
-                                                    sources = res.sources
-                                                end
-                                            end
+                                            local sources = B.GetRecipeSources(r)
                                             if sources then
                                                 for _, s in ipairs(sources) do
                                                     if not (sfui.recipes and sfui.recipes.IsSourceHostile and sfui.recipes.IsSourceHostile(s)) then
