@@ -1,11 +1,16 @@
 # changelog
 
-## v1.107 (2026-10-17)
+## v1.108 (2026-10-18)
+
+### features
+
+- **companion pet frame for camelot hunters & warlocks**: added a dedicated pet unit frame anchored to the right of the player health bar with matching theme, borders, health, power, level, and pet happiness tracking (`frames/bars/pet.lua`, `sfui.toc`, `config.lua`, `frames/options/tabs/tab_bars.lua`).
+- **out-of-combat visibility options**: added dynamic visibility controls for player health, power, and pet bars with options to always show out of combat, show on missing health (player or pet), show on missing power or rage, show while casting/channeling, and show on friendly target (`frames/bars/bars.lua`, `frames/bars/pet.lua`, `config.lua`, `common.lua`, `frames/options/tabs/tab_bars.lua`).
+- **hunter ammo counter on power bar**: added live ammo count indicator anchored on the mana bar for hunters in camelot (`frames/bars/bars.lua`).
 
 ### improvements & bug fixes
 
-- **combat telemetry equipped weapon skill tracking**: main-hand, off-hand, and ranged skill rows now dynamically follow the equipped weapon's skill category (e.g. swords, daggers, bows) and effective skill including racials and gear bonuses. druid shapeshift forms map to feral combat (skill 3014) and unarmed fallback (skill 162) (`frames/character/infopanel.lua`, `frames/gear/gear_camelot.lua`).
-- **camelot gear system skill extraction**: weapon detection, subclass mapping, and skill calculation are integrated directly into `sfui.gear.get_equipped_weapon_info` in `frames/gear/gear_camelot.lua` with zero-allocation caching, eliminating redundant item parsing in `infopanel.lua`.
-- **camelot guard & shapeshift reactivity**: strictly guarded `frames/character/infopanel.lua` to camelot only (`if not sfui.isCamelot then return end`) and added `UPDATE_SHAPESHIFT_FORM` to the telemetry event watcher for real-time form updates (`frames/character/infopanel.lua`).
-- **mouse cursor ring fix & sizing**: restored the mouse cursor ring frame lifecycle and visibility tracking, guaranteed initialization on login, and reduced the ring diameter to 75% (48px) for optimal mouse targeting clarity (`frames/cursor.lua`, `core.lua`).
-- **challenge bar disabled by default**: set `trackLegacy = false` and disabled the challenge progress bar by default across experience frames and settings (`config.lua`, `frames/experience/challenges.lua`, `frames/experience/experience.lua`, `frames/experience/reputation.lua`, `frames/options/tabs/tab_experience.lua`).
+- **auto-equip lower level ammo on depletion**: resolved an issue where empty equipped ammo slots outscored bag ammo and failed to auto-equip lower-level reserve ammo stacks upon running out of ammo; implemented direct slot 0 cursor equipping and hooked inventory change events (`frames/gear/highest.lua`, `frames/gear/engine.lua`).
+- **target-based defense & avoidance calculations**: defense rating, armor damage reduction, miss, dodge, parry, block, and crit reduction are now calculated dynamically against the current target's level (defaulting to +3 boss when no target is selected), with shortened row descriptions to eliminate text overlap (`frames/character/infopanel.lua`).
+- **pet action button secure handling**: resolved protected action button state errors on pet action bars (`frames/actionbars/actionbars.lua`, `frames/actionbars/bars.lua`).
+- **minimap system text font size**: reduced the system fps/ms text in the minimap button collection bar by 2 points (`frames/map/system.lua`).

@@ -1193,7 +1193,17 @@ function sfui.highest.GetBestItems(isPvP)
     for slotID = minEquippedSlot, maxEquippedSlot do
         if slotID ~= 4 then -- skip shirt
             local link = GetInventoryItemLink("player", slotID)
-            if link then evaluate(link, true, slotID) end
+            if link then
+                if slotID == 0 then
+                    local count = _G.GetInventoryItemCount and _G.GetInventoryItemCount("player", 0) or 0
+                    if issecretvalue and issecretvalue(count) then count = 0 end
+                    if type(count) == "number" and count > 0 then
+                        evaluate(link, true, slotID)
+                    end
+                else
+                    evaluate(link, true, slotID)
+                end
+            end
         end
     end
 
@@ -1717,7 +1727,9 @@ function sfui.highest.GetBestItems(isPvP)
     local lockedSlotIDs = isClassicSpec and (usesAmmo and { 2, 11, 12, 13, 14, 16, 17, 18, 0 } or { 2, 11, 12, 13, 14, 16, 17, 18 }) or { 2, 11, 12, 13, 14, 16, 17 }
     for _, slotID in ipairs(lockedSlotIDs) do
         local link = GetInventoryItemLink("player", slotID)
-        if link then
+        local count = (slotID == 0) and (_G.GetInventoryItemCount and _G.GetInventoryItemCount("player", 0) or 0) or 1
+        if issecretvalue and issecretvalue(count) then count = 0 end
+        if link and (slotID ~= 0 or (type(count) == "number" and count > 0)) then
             local itemID = common.get_item_id(link)
             local specGear = itemID and SfuiDB and SfuiDB.gear and SfuiDB.gear[specID]
             local lockTable = specGear and (isPvP and specGear.locked_items_pvp or specGear.locked_items_pve)
@@ -2283,10 +2295,6 @@ function sfui.highest.GetBestItems(isPvP)
             end
         end
 
-        if C_PaperDollInfo and C_PaperDollInfo.AmmoNeeded and not C_PaperDollInfo.AmmoNeeded() and not (finalPick[18] and neededAmmoSubclass) then
-            neededAmmoSubclass = nil
-        end
-
         if not neededAmmoSubclass then
             local currentAmmoLink = GetInventoryItemLink("player", 0)
             if currentAmmoLink then
@@ -2438,7 +2446,13 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                     local oldID = common.get_item_id(oldLink)
                     local newID = common.get_item_id(item.link)
                     if oldID and newID and oldID == newID then
-                        if slotID == 0 or (item.score or 0) <= oldScore then
+                        if slotID == 0 then
+                            local eqCount = _G.GetInventoryItemCount and _G.GetInventoryItemCount("player", 0) or 0
+                            if issecretvalue and issecretvalue(eqCount) then eqCount = 0 end
+                            if type(eqCount) == "number" and eqCount > 0 then
+                                isAlreadyEquippedHere = true
+                            end
+                        elseif (item.score or 0) <= oldScore then
                             isAlreadyEquippedHere = true
                         end
                     end
@@ -2638,6 +2652,33 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                             return
                         end
                         equipNext(index, retryCount + 1)
+                    end)
+                    return
+                end
+
+                -- Special handling for Slot 0 (Ammo):
+                -- Ammo is never soulbound, does not prompt an EQUIP_BIND dialog, and cannot be equipped via EquipItemByName.
+                -- It must be placed into CharacterAmmoSlot (slot 0) via container/inventory cursor pick up.
+                if slotID == 0 then
+                    if _G.ClearCursor then _G.ClearCursor() end
+                    C_Container_PickupContainerItem(targetBag, targetSlot)
+                    if _G.CursorHasItem and _G.CursorHasItem() then
+                        if _G.PickupInventoryItem then
+                            _G.PickupInventoryItem(0)
+                        end
+                        if _G.CursorHasItem and _G.CursorHasItem() then
+                            C_Container_PickupContainerItem(targetBag, targetSlot)
+                            if _G.CursorHasItem and _G.CursorHasItem() and _G.ClearCursor then
+                                _G.ClearCursor()
+                            end
+                        end
+                    end
+                    _G.C_Timer.After(0.08, function()
+                        if _G.InCombatLockdown and _G.InCombatLockdown() then
+                            onEquipFinished()
+                            return
+                        end
+                        equipNext(index + 1)
                     end)
                     return
                 end

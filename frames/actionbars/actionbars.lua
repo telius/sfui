@@ -70,7 +70,7 @@ local function suppress_blizzard_actionbars()
             else
                 bar:Hide()
             end
-            if bar.UnregisterAllEvents and name ~= "MainActionBar" and name ~= "MainMenuBar" and name ~= "PetActionBar" and name ~= "PetActionBarFrame" then
+            if bar.UnregisterAllEvents and name ~= "MainActionBar" and name ~= "MainMenuBar" then
                 bar:UnregisterAllEvents()
             end
         end
@@ -89,12 +89,32 @@ local function suppress_blizzard_actionbars()
     end
 
     if _G.PetActionBar then
+        if _G.PetActionBar.UnregisterAllEvents then
+            _G.PetActionBar:UnregisterAllEvents()
+        end
+        _G.PetActionBar:SetScript("OnEvent", nil)
+        _G.PetActionBar:SetScript("OnUpdate", nil)
+        _G.PetActionBar:SetScript("OnShow", nil)
+        _G.PetActionBar:SetScript("OnHide", nil)
         _G.PetActionBar:SetAlpha(0)
         if _G.PetActionBar.EnableMouse then _G.PetActionBar:EnableMouse(false) end
+        if _G.PetActionBar.UpdateShownButtons then
+            _G.PetActionBar.UpdateShownButtons = function() end
+        end
     end
     if _G.PetActionBarFrame then
+        if _G.PetActionBarFrame.UnregisterAllEvents then
+            _G.PetActionBarFrame:UnregisterAllEvents()
+        end
+        _G.PetActionBarFrame:SetScript("OnEvent", nil)
+        _G.PetActionBarFrame:SetScript("OnUpdate", nil)
+        _G.PetActionBarFrame:SetScript("OnShow", nil)
+        _G.PetActionBarFrame:SetScript("OnHide", nil)
         _G.PetActionBarFrame:SetAlpha(0)
         if _G.PetActionBarFrame.EnableMouse then _G.PetActionBarFrame:EnableMouse(false) end
+        if _G.PetActionBarFrame.UpdateShownButtons then
+            _G.PetActionBarFrame.UpdateShownButtons = function() end
+        end
     end
 
     local offscreenFrames = {

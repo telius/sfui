@@ -327,7 +327,7 @@ function sfui.minimap.init_system_button(parent)
         or "Fonts\\FRIZQT__.TTF"
 
     btn.text = btn:CreateFontString(nil, "OVERLAY")
-    btn.text:SetFont(fontFile, 12, "")
+    btn.text:SetFont(fontFile, 10, "")
     btn.text:SetShadowOffset(0, 0)
     btn.text:SetShadowColor(0, 0, 0, 0)
     btn.text:SetTextColor(0.9, 0.9, 0.9, 1)

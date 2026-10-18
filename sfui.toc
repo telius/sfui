@@ -1,7 +1,7 @@
 ## Interface: 120105, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v1.107
+## Version: v1.108
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -112,6 +112,7 @@ frames/bars/soulfragments.lua [AllowLoadGameType standard]
 frames/bars/target.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/bars/threat.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/bars/totembar.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/bars/pet.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/experience/data.lua
 frames/experience/challenges.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
 frames/experience/pet.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]

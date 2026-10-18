@@ -527,6 +527,14 @@ sfui.config = {
         },
     },
 
+    barVisibility = {
+        oocAlways = false,
+        showHealthMissing = true,
+        showPowerMissing = false,
+        showCasting = false,
+        showFriendlyTarget = false,
+    },
+
     healthBar = {
         enabled = true,
         width = 300,
@@ -536,6 +544,18 @@ sfui.config = {
         backdrop = {
             padding = 2,
             color = { 0, 0, 0, 0.5 }, -- Black/Transparent
+        },
+    },
+
+    petBar = {
+        enabled = true,
+        width = 110,
+        height = 20,
+        powerHeight = 10,
+        color = { 0.2, 0.2, 0.2 },
+        backdrop = {
+            padding = 2,
+            color = { 0, 0, 0, 0.5 },
         },
     },
 

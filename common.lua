@@ -1213,6 +1213,12 @@ function sfui.initialize_database()
     if SfuiDB.threatBarGroup == nil then SfuiDB.threatBarGroup = true end
     if SfuiDB.threatBarPet == nil then SfuiDB.threatBarPet = true end
     if SfuiDB.threatBarSolo == nil then SfuiDB.threatBarSolo = false end
+    if SfuiDB.enablePetBar == nil then SfuiDB.enablePetBar = true end
+    if SfuiDB.bars_oocAlways == nil then SfuiDB.bars_oocAlways = false end
+    if SfuiDB.bars_showHealthMissing == nil then SfuiDB.bars_showHealthMissing = true end
+    if SfuiDB.bars_showPowerMissing == nil then SfuiDB.bars_showPowerMissing = false end
+    if SfuiDB.bars_showCasting == nil then SfuiDB.bars_showCasting = false end
+    if SfuiDB.bars_showFriendlyTarget == nil then SfuiDB.bars_showFriendlyTarget = false end
 
     -- Castbar settings
     if SfuiDB.castBarEnabled == nil then SfuiDB.castBarEnabled = sfui.config.castBar.enabled end

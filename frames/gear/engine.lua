@@ -42,6 +42,7 @@ local GetItemInfoInstant = sfui.common.get_item_instant_info
 local GetItemInfo = sfui.common.get_item_info
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local GetTime = _G.GetTime
+local issecretvalue = (common and common.issecretvalue) or _G.issecretvalue or function() return false end
 
 local function isWarModeDesired()
     return (C_PvP and C_PvP.IsWarModeDesired and C_PvP.IsWarModeDesired()) or false
@@ -354,13 +355,23 @@ sfui.events.RegisterEvent("EQUIPMENT_SETS_CHANGED", function()
     equipSetOptionsCache = nil
 end)
 
-sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", function()
+sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", function(event, slotID)
     equipSetOptionsCache = nil
     scanEquippedForChanges()
+    if slotID == 0 and not InCombatLockdown() then
+        local count = _G.GetInventoryItemCount and _G.GetInventoryItemCount("player", 0) or 0
+        if issecretvalue and issecretvalue(count) then count = 0 end
+        if type(count) == "number" and count <= 0 then
+            sfui.gear.Update()
+        end
+    end
 end)
 
 sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
     sfui.gear.handle_player_regen()
+    if not InCombatLockdown() then
+        sfui.gear.Update()
+    end
 end)
 
 sfui.events.RegisterEvent("ZONE_CHANGED_NEW_AREA", function()
@@ -382,6 +393,21 @@ sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", function()
     if not bagUpdatePending then
         bagUpdatePending = true
         C_Timer.After(0.4, _OnBagUpdateDebounce)
+    end
+end)
+
+sfui.events.RegisterUnitEvent("UNIT_INVENTORY_CHANGED", "player", function()
+    local isClassicSpec = (sfui.isClassic or sfui.isCamelot or (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_classic_era or sfui.compat.is_classic)))
+    local usesAmmo = sfui.api and sfui.api.UnitUsesAmmo and sfui.api.UnitUsesAmmo("player")
+    if isClassicSpec and usesAmmo and not InCombatLockdown() then
+        local count = _G.GetInventoryItemCount and _G.GetInventoryItemCount("player", 0) or 0
+        if issecretvalue and issecretvalue(count) then count = 0 end
+        if type(count) == "number" and count <= 0 then
+            if not bagUpdatePending then
+                bagUpdatePending = true
+                C_Timer.After(0.2, _OnBagUpdateDebounce)
+            end
+        end
     end
 end)
 

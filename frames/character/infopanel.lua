@@ -33,6 +33,13 @@ local UnitLevel = _G.UnitLevel
 local UnitDefenseSkill = _G.UnitDefenseSkill
 local UnitPowerType = _G.UnitPowerType
 local UnitUsesAmmo = _G.UnitUsesAmmo
+local UnitExists = _G.UnitExists
+local UnitName = _G.UnitName
+local UnitCanAttack = _G.UnitCanAttack
+local UnitIsDeadOrGhost = _G.UnitIsDeadOrGhost
+local UnitIsPlayer = _G.UnitIsPlayer
+local UnitClassification = _G.UnitClassification
+local GetCreatureDifficultyColor = _G.GetCreatureDifficultyColor
 local GetGlancingBlowChance = _G.GetGlancingBlowChance
 local GetGlancingBlowPenalty = _G.GetGlancingBlowPenalty
 local GetOffhandHitModifier = _G.GetOffhandHitModifier
@@ -68,7 +75,17 @@ local COLOR_MANA_BLUE    = { 0.4, 0.8, 1.0 }
 local COLOR_PURPLE_BLUE  = { 0.85, 0.85, 1.0 }
 local COLOR_ACCENT_FALLBACK = { 0.4, 0.8, 1.0 }
 
--- Target Calculations (Dynamic: Character Level + 3)
+local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+
+local function safe_num(val, default)
+    if val == nil or issecretvalue(val) then
+        return default or 0
+    end
+    local n = tonumber(val)
+    return n or (default or 0)
+end
+
+-- Target Calculations (Dynamic: Character Level + 3, or Selected Target Out of Combat)
 local TARGET_LEVEL_OFFSET = 3
 
 --- Get target boss stats based on player level
@@ -82,6 +99,71 @@ local function GetTargetBossStats(pLevel)
     return targetLevel, targetDefenseSkill, targetWeaponSkill
 end
 
+--- Get active telemetry target info (valid target if selected, or default boss)
+--- @param pLevel number?
+--- @return table
+local function GetActiveTelemetryTarget(pLevel)
+    pLevel = pLevel or UnitLevel("player") or 60
+
+    if UnitExists and UnitExists("target") and (not UnitIsDeadOrGhost or not UnitIsDeadOrGhost("target")) then
+        local targetName = (UnitName and UnitName("target")) or "target"
+        local rawLevel = (UnitLevel and UnitLevel("target")) or -1
+        local isPlayer = (UnitIsPlayer and UnitIsPlayer("target")) or false
+        local classification = (UnitClassification and UnitClassification("target")) or "normal"
+        local isSkull = (rawLevel <= 0) or (classification == "worldboss")
+
+        local effectiveLevel = isSkull and (pLevel + TARGET_LEVEL_OFFSET) or rawLevel
+        local defenseSkill = effectiveLevel * 5
+        local weaponSkill = effectiveLevel * 5
+
+        local r, g, b = 0.5, 0.5, 0.5
+        if GetCreatureDifficultyColor then
+            local diffColor = GetCreatureDifficultyColor(isSkull and (pLevel + TARGET_LEVEL_OFFSET) or effectiveLevel)
+            if diffColor then
+                r, g, b = diffColor.r, diffColor.g, diffColor.b
+            end
+        else
+            local lvlDelta = effectiveLevel - pLevel
+            if isSkull or lvlDelta >= 5 then
+                r, g, b = 1.0, 0.2, 0.2
+            elseif lvlDelta >= 3 then
+                r, g, b = 1.0, 0.5, 0.2
+            elseif lvlDelta >= -2 then
+                r, g, b = 1.0, 1.0, 0.2
+            elseif lvlDelta >= -6 then
+                r, g, b = 0.2, 1.0, 0.2
+            else
+                r, g, b = 0.5, 0.5, 0.5
+            end
+        end
+
+        return {
+            isTarget = true,
+            isPlayer = isPlayer,
+            isSkull = isSkull,
+            name = targetName,
+            level = effectiveLevel,
+            rawLevel = rawLevel,
+            defenseSkill = defenseSkill,
+            weaponSkill = weaponSkill,
+            color = { r, g, b },
+        }
+    end
+
+    local bLevel = pLevel + TARGET_LEVEL_OFFSET
+    return {
+        isTarget = false,
+        isPlayer = false,
+        isSkull = true,
+        name = "boss",
+        level = bLevel,
+        rawLevel = -1,
+        defenseSkill = bLevel * 5,
+        weaponSkill = bLevel * 5,
+        color = nil,
+    }
+end
+
 local panelFrame = nil
 local toggleButton = nil
 local allRows = {}
@@ -89,6 +171,7 @@ local activeRowCount = 0
 local inCombat = false
 local pendingUpdate = false
 local updateTimer = nil
+local OnStateChanged = nil
 
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Data Extraction & Combat Math
@@ -115,14 +198,14 @@ local function ComputeGlancingBlowData(weaponSkill, targetDefenseSkill)
 
     if GetGlancingBlowChance then
         local rawChance = GetGlancingBlowChance(weaponSkill, targetDefenseSkill)
-        if rawChance and rawChance >= 0 then
+        if rawChance and not issecretvalue(rawChance) and rawChance >= 0 then
             chance = rawChance * 100
         end
     end
 
     if GetGlancingBlowPenalty then
         local rawPenalty = GetGlancingBlowPenalty(weaponSkill, targetDefenseSkill)
-        if rawPenalty and rawPenalty >= 0 then
+        if rawPenalty and not issecretvalue(rawPenalty) and rawPenalty >= 0 then
             penalty = rawPenalty * 100
         end
     else
@@ -138,6 +221,45 @@ local function ComputeGlancingBlowData(weaponSkill, targetDefenseSkill)
     return chance, penalty
 end
 
+--- Compute armor physical damage reduction percentage
+--- Authoritatively queries PaperDollFrame_GetArmorReductionAgainstTarget or PaperDollFrame_GetArmorReduction
+--- with fallback to the official Classic Era 60+ formula.
+--- @param armor number
+--- @param target table
+--- @return number armorDR (percentage, capped at 75%)
+local function ComputeArmorReduction(armor, target)
+    armor = safe_num(armor, 0)
+    if armor <= 0 then return 0.0 end
+
+    if target and target.isTarget and _G.PaperDollFrame_GetArmorReductionAgainstTarget then
+        local targetDR = _G.PaperDollFrame_GetArmorReductionAgainstTarget(armor)
+        if targetDR and not issecretvalue(targetDR) and targetDR > 0 then
+            return math_min(75.0, targetDR)
+        end
+    end
+
+    local attackerLevel = (target and target.level) or 63
+    if _G.PaperDollFrame_GetArmorReduction then
+        local lvlDR = _G.PaperDollFrame_GetArmorReduction(armor, attackerLevel)
+        if lvlDR and not issecretvalue(lvlDR) and lvlDR > 0 then
+            return math_min(75.0, lvlDR)
+        end
+    end
+
+    if C_PaperDollInfo and C_PaperDollInfo.GetArmorEffectiveness then
+        local eff = C_PaperDollInfo.GetArmorEffectiveness(armor, attackerLevel)
+        if eff and not issecretvalue(eff) and eff > 0 then
+            return math_min(75.0, eff * 100)
+        end
+    end
+
+    -- Classic Era / Camelot formula:
+    -- Level 1-59: 400 + 85 * level
+    -- Level 60+:  400 + 85 * (level + 4.5 * (level - 59))
+    local k = (attackerLevel >= 60) and (400 + 85 * (attackerLevel + 4.5 * (attackerLevel - 59))) or (400 + 85 * attackerLevel)
+    return math_min(75.0, (armor / (armor + k)) * 100)
+end
+
 -- ─────────────────────────────────────────────────────────────────────────────
 --  UI Creation & Layout
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -151,17 +273,19 @@ local function GetRow(parent)
         row:EnableMouse(true)
         row:ClearAllPoints()
 
-        local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        label:SetPoint("LEFT", row, "LEFT", 6, 0)
-        label:SetJustifyH("LEFT")
-        label:SetTextColor(0.72, 0.72, 0.72, 1.0)
-        row.label = label
-
         local value = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         value:SetPoint("RIGHT", row, "RIGHT", -6, 0)
         value:SetJustifyH("RIGHT")
         value:SetTextColor(1.0, 1.0, 1.0, 1.0)
         row.value = value
+
+        local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        label:SetPoint("LEFT", row, "LEFT", 6, 0)
+        label:SetPoint("RIGHT", value, "LEFT", -6, 0)
+        label:SetJustifyH("LEFT")
+        label:SetWordWrap(false)
+        label:SetTextColor(0.72, 0.72, 0.72, 1.0)
+        row.label = label
 
         local highlight = row:CreateTexture(nil, "BACKGROUND")
         highlight:SetAllPoints(row)
@@ -215,6 +339,9 @@ local function AddHeaderRow(parent, yOffset, titleText)
         header:SetHeight(22)
         header.currentY = yOffset
         header.isHeader = true
+        header.label:ClearAllPoints()
+        header.label:SetPoint("LEFT", header, "LEFT", 6, 0)
+        header.label:SetPoint("RIGHT", header, "RIGHT", -6, 0)
     end
 
     header.label:SetText(titleText)
@@ -258,6 +385,9 @@ local function AddDataRow(parent, yOffset, labelText, valueText, valColor, tipTi
         row:SetHeight(18)
         row.currentY = yOffset
         row.isHeader = false
+        row.label:ClearAllPoints()
+        row.label:SetPoint("LEFT", row, "LEFT", 6, 0)
+        row.label:SetPoint("RIGHT", row.value, "LEFT", -6, 0)
     end
 
     if row.sep then
@@ -307,128 +437,233 @@ function panelModule.UpdateValues()
     local y = -4
 
     local pLevel = UnitLevel("player") or 60
-    local targetLevel, targetDefenseSkill, targetWeaponSkill = GetTargetBossStats(pLevel)
+    local target = GetActiveTelemetryTarget(pLevel)
     local baseSkill = pLevel * 5
     local softSkillCap = baseSkill + 5
-    local defCritImmunity = targetWeaponSkill + 125
+    local defCritImmunity = target.weaponSkill + 125
+    local isPvp = target.isTarget and target.isPlayer
+
+    local pal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()) or {}
+    local dim = pal.dimTextColor or { 0.5, 0.5, 0.5 }
 
     if panelFrame and panelFrame.subTitle then
-        panelFrame.subTitle:SetText(string_format("vs lv %d boss (+3 lvl, %d def)", targetLevel, targetDefenseSkill))
+        if target.isTarget then
+            if target.isSkull then
+                panelFrame.subTitle:SetText(string_format("vs %s (boss / +3 lvl, %d def)", target.name:lower(), target.defenseSkill))
+            else
+                panelFrame.subTitle:SetText(string_format("vs %s (lv %d, %d def)", target.name:lower(), target.level, target.defenseSkill))
+            end
+            panelFrame.subTitle:SetTextColor(target.color[1], target.color[2], target.color[3], 1.0)
+        else
+            panelFrame.subTitle:SetText(string_format("vs lv %d boss (+3 lvl, %d def)", target.level, target.defenseSkill))
+            panelFrame.subTitle:SetTextColor(dim[1], dim[2], dim[3], 1.0)
+        end
     end
 
     local pClass = (sfui.common and sfui.common.get_player_class and sfui.common.get_player_class()) or _G.UnitClassBase("player")
 
-    -- 1. Weapons & Boss Glancing Math
-    y = AddHeaderRow(scrollChild, y, "weapon skills & boss glancing")
+    -- 1. Weapons & Glancing Math
+    local wpnHeaderText = target.isTarget
+        and string_format("weapon skills & glancing (%s)", target.isSkull and "vs boss" or string_format("vs lv %d", target.level))
+        or string_format("weapon skills & glancing (vs lv %d boss)", target.level)
+    y = AddHeaderRow(scrollChild, y, wpnHeaderText)
 
     local mhInfo = GetEquippedWeaponInfo(16)
     local mhSkill = mhInfo and mhInfo.skill or baseSkill
-    local mhGlanceChance, mhGlancePenalty = ComputeGlancingBlowData(mhSkill, targetDefenseSkill)
+    local mhGlanceChance, mhGlancePenalty = 0.0, 0.0
 
-    local mhHitMod = (GetHitModifier and GetHitModifier()) or 0
-    local crMeleeHit = (GetCombatRatingBonus and _G.CR_HIT_MELEE and GetCombatRatingBonus(_G.CR_HIT_MELEE)) or 0
+    if isPvp then
+        mhGlanceChance = 0.0
+        mhGlancePenalty = 0.0
+    elseif target.isTarget and (target.level < pLevel) and not target.isSkull then
+        mhGlanceChance = 0.0
+        mhGlancePenalty = 0.0
+    elseif target.isSkull or (target.level >= pLevel + 3) then
+        mhGlanceChance, mhGlancePenalty = ComputeGlancingBlowData(mhSkill, target.defenseSkill)
+    else
+        local rawChance = GetGlancingBlowChance and GetGlancingBlowChance(mhSkill, target.defenseSkill)
+        if rawChance and not issecretvalue(rawChance) and rawChance >= 0 then
+            mhGlanceChance = rawChance * 100
+        else
+            local skillDiff = target.defenseSkill - mhSkill
+            mhGlanceChance = math_max(0.0, math_min(40.0, 10.0 + (skillDiff * 2.0)))
+        end
+        local _, rawPenalty = ComputeGlancingBlowData(mhSkill, target.defenseSkill)
+        mhGlancePenalty = rawPenalty
+    end
+
+    local mhHitMod = safe_num(GetHitModifier and GetHitModifier())
+    local crMeleeHit = safe_num(GetCombatRatingBonus and _G.CR_HIT_MELEE and GetCombatRatingBonus(_G.CR_HIT_MELEE))
     local totalMeleeHit = mhHitMod + crMeleeHit
 
-    local skillDiff = targetDefenseSkill - mhSkill
-    local yellowHitCap = 6.0
-    if skillDiff > 10 then
-        yellowHitCap = 7.0 + ((skillDiff - 10) * 0.4)
+    local yellowHitCap = 5.0
+    if isPvp then
+        yellowHitCap = 5.0
     else
-        yellowHitCap = math_max(5.0, 5.0 + (skillDiff * 0.1))
+        local skillDiff = target.defenseSkill - mhSkill
+        if skillDiff > 10 then
+            yellowHitCap = 7.0 + ((skillDiff - 10) * 0.4)
+        elseif skillDiff >= 0 then
+            yellowHitCap = math_max(5.0, 5.0 + (skillDiff * 0.1))
+        else
+            yellowHitCap = math_max(0.0, 5.0 + (skillDiff * 0.1))
+        end
     end
 
     local mhSkillName = (mhInfo and mhInfo.skillName) or "weapon"
-    local mhLabel = string_format("main-hand skill (%s):", mhSkillName:lower())
-    y = AddDataRow(scrollChild, y, mhLabel, string_format("%d / %d", mhSkill, mhInfo and mhInfo.maxSkill or baseSkill),
+    local mhSkillTip = string_format("effective %s skill (soft cap %d).", mhSkillName:lower(), softSkillCap)
+    y = AddDataRow(scrollChild, y, "main-hand:", string_format("%d / %d", mhSkill, mhInfo and mhInfo.maxSkill or baseSkill),
         (mhSkill >= softSkillCap) and COLOR_GREEN or COLOR_WHITE,
-        "main-hand weapon skill", string_format("effective %s skill including racials and gear bonuses. %d+ weapon skill reduces glancing blow penalty and drops boss yellow hit cap from 9%% to 6%%.", mhSkillName:lower(), softSkillCap))
+        "main-hand weapon skill", mhSkillTip)
 
-    y = AddDataRow(scrollChild, y, "glancing blow chance:", string_format("%.1f%%", mhGlanceChance),
-        COLOR_YELLOW,
-        "boss glancing blow chance", string_format("all white melee attacks against higher-level targets suffer a flat 40%% glancing blow chance against level %d boss. glancing blows cannot crit.", targetLevel))
+    local glanceChanceText = isPvp and "0.0% (pvp)"
+        or (target.isTarget and target.level < pLevel and not target.isSkull) and "0.0% (lower level)"
+        or string_format("%.1f%%", mhGlanceChance)
+    local glanceChanceColor = (isPvp or (target.isTarget and target.level < pLevel and not target.isSkull)) and COLOR_GREEN or COLOR_YELLOW
+    local glanceChanceTip = isPvp and "attacks against players never glance."
+        or (target.isTarget and target.level < pLevel and not target.isSkull) and "attacks against lower level mobs do not glance."
+        or string_format("glancing blow chance on white attacks against %s.", target.isTarget and target.name:lower() or "bosses")
+    y = AddDataRow(scrollChild, y, "glance chance:", glanceChanceText,
+        glanceChanceColor,
+        isPvp and "pvp: no glancing blows" or "glancing blow chance", glanceChanceTip)
 
-    y = AddDataRow(scrollChild, y, "glancing blow penalty:", string_format("-%.1f%% dmg", mhGlancePenalty),
-        (mhSkill >= softSkillCap) and COLOR_GREEN or COLOR_RED,
-        "glancing blow damage penalty", string_format("damage penalty suffered on glancing hits. baseline at %d skill is ~35%% penalty. with %d weapon skill, damage penalty drops to ~15%%.", baseSkill, softSkillCap))
+    local glancePenaltyText = (isPvp or mhGlanceChance == 0) and "none" or string_format("-%.1f%% dmg", mhGlancePenalty)
+    local glancePenaltyColor = (isPvp or mhGlanceChance == 0 or mhSkill >= softSkillCap) and COLOR_GREEN or COLOR_RED
+    local glancePenaltyTip = (isPvp or mhGlanceChance == 0) and "no damage penalty suffered."
+        or "damage penalty suffered on glancing blows."
+    y = AddDataRow(scrollChild, y, "glance penalty:", glancePenaltyText,
+        glancePenaltyColor,
+        "glancing blow damage penalty", glancePenaltyTip)
 
-    y = AddDataRow(scrollChild, y, "special / yellow hit cap:", string_format("%.1f%% (have %.1f%%)", yellowHitCap, totalMeleeHit),
+    local hitCapTip = isPvp and "hit chance needed to never miss players (5.0%)."
+        or string_format("hit chance needed for specials to never miss %s.", target.isTarget and target.name:lower() or "bosses")
+    y = AddDataRow(scrollChild, y, "yellow hit cap:", string_format("%.1f%% (have %.1f%%)", yellowHitCap, totalMeleeHit),
         (totalMeleeHit >= yellowHitCap) and COLOR_GREEN or COLOR_YELLOW,
-        "boss special / yellow hit cap", string_format("required hit chance to guarantee special abilities (sinister strike, mortal strike, bloodthirst) never miss against a level %d boss.", targetLevel))
+        "special / yellow hit cap", hitCapTip)
 
     local ohInfo = GetEquippedWeaponInfo(17)
     if ohInfo then
         local ohSkillName = (ohInfo and ohInfo.skillName) or "weapon"
-        local ohLabel = string_format("off-hand skill (%s):", ohSkillName:lower())
-        y = AddDataRow(scrollChild, y, ohLabel, string_format("%d / %d", ohInfo.skill, ohInfo.maxSkill),
+        y = AddDataRow(scrollChild, y, "off-hand:", string_format("%d / %d", ohInfo.skill, ohInfo.maxSkill),
             (ohInfo.skill >= softSkillCap) and COLOR_GREEN or COLOR_WHITE,
-            "off-hand weapon skill", string_format("weapon skill for your equipped off-hand %s.", ohSkillName:lower()))
+            "off-hand weapon skill", string_format("effective %s skill for off-hand attacks.", ohSkillName:lower()))
 
-        local ohHitMod = (GetOffhandHitModifier and GetOffhandHitModifier()) or 0
+        local ohHitMod = safe_num(GetOffhandHitModifier and GetOffhandHitModifier())
         local totalOhHit = ohHitMod + crMeleeHit
-        y = AddDataRow(scrollChild, y, "off-hand hit modifier:", string_format("+%.1f%%", totalOhHit),
+        y = AddDataRow(scrollChild, y, "off-hand hit:", string_format("+%.1f%%", totalOhHit),
             COLOR_LIGHT_BLUE,
-            "off-hand hit modifier", "current hit bonus applied to off-hand attacks.")
+            "off-hand hit modifier", "hit bonus applied to off-hand attacks.")
 
-        local _, ohPenalty = ComputeGlancingBlowData(ohInfo.skill, targetDefenseSkill)
-        y = AddDataRow(scrollChild, y, "off-hand glancing penalty:", string_format("-%.1f%% dmg", ohPenalty),
-            (ohInfo.skill >= softSkillCap) and COLOR_GREEN or COLOR_RED,
-            "off-hand glancing penalty", string_format("damage penalty on glancing blows with your off-hand %s.", ohSkillName:lower()))
+        local ohPenalty = 0.0
+        if not isPvp and not (target.isTarget and target.level < pLevel and not target.isSkull) then
+            local _, rawOhPenalty = ComputeGlancingBlowData(ohInfo.skill, target.defenseSkill)
+            ohPenalty = rawOhPenalty
+        end
+        local ohPenaltyText = (isPvp or mhGlanceChance == 0) and "none" or string_format("-%.1f%% dmg", ohPenalty)
+        local ohPenaltyColor = (isPvp or mhGlanceChance == 0 or ohInfo.skill >= softSkillCap) and COLOR_GREEN or COLOR_RED
+        y = AddDataRow(scrollChild, y, "off-hand glance:", ohPenaltyText,
+            ohPenaltyColor,
+            "off-hand glancing penalty", "damage penalty on off-hand glancing blows.")
 
-        y = AddDataRow(scrollChild, y, "dual wield miss penalty:", "+19.0% miss",
+        y = AddDataRow(scrollChild, y, "dual wield miss:", "+19.0% miss",
             COLOR_DIM,
-            "dual wield penalty", "dual wielding adds a 19% miss penalty to all white auto-attacks. special abilities are not affected.")
+            "dual wield penalty", "dual wielding adds a 19% miss penalty to white attacks.")
     end
 
-    -- 2. Defense & Avoidance vs Boss
+    -- 2. Defense & Avoidance vs Target/Boss
     y = y - 4
-    y = AddHeaderRow(scrollChild, y, string_format("defense & avoidance (vs lv %d)", targetLevel))
+    local defHeaderText = target.isTarget
+        and string_format("defense & avoidance (%s)", target.isSkull and "vs boss" or string_format("vs lv %d", target.level))
+        or string_format("defense & avoidance (vs lv %d boss)", target.level)
+    y = AddHeaderRow(scrollChild, y, defHeaderText)
 
     local effDef, baseDef, modDef, maxDef = baseSkill, baseSkill, 0, baseSkill
     if UnitDefenseSkill then
-        baseDef, modDef = UnitDefenseSkill("player")
-        baseDef = baseDef or baseSkill
-        modDef = modDef or 0
+        local b, m = UnitDefenseSkill("player")
+        baseDef = safe_num(b, baseSkill)
+        modDef = safe_num(m, 0)
         effDef = math_max(0, baseDef + modDef)
         maxDef = baseSkill
     end
 
-    y = AddDataRow(scrollChild, y, "defense skill:", string_format("%d / %d", effDef, maxDef),
+    local defTip = string_format("reduces incoming crit/hit chance (%d defense needed vs %s).", defCritImmunity, target.isTarget and target.name:lower() or "bosses")
+    y = AddDataRow(scrollChild, y, "defense:", string_format("%d / %d", effDef, maxDef),
         (effDef >= defCritImmunity) and COLOR_GREEN or COLOR_WHITE,
-        "defense skill", string_format("your defense skill. %d defense (%d above base %d) achieves crit immunity against level %d boss attacks.", defCritImmunity, defCritImmunity - baseSkill, baseSkill, targetLevel))
+        "defense skill", defTip)
 
-    local bossSkillDiff = targetWeaponSkill - effDef
-    local bossCritAgainstPlayer = math_max(0.0, math_min(100.0, 5.0 + (bossSkillDiff * 0.04)))
-    y = AddDataRow(scrollChild, y, "boss crit against you:", (effDef >= defCritImmunity) and "0.0% (immune)" or string_format("%.2f%%", bossCritAgainstPlayer),
-        (effDef >= defCritImmunity) and COLOR_GREEN or COLOR_RED,
-        "boss crit chance", string_format("chance for a level %d boss to critically hit you. reaches 0.0%% (crit immunity) at %d defense.", targetLevel, defCritImmunity))
+    local targetSkillDiff = target.weaponSkill - effDef
+    local critAgainstPlayer = math_max(0.0, math_min(100.0, 5.0 + (targetSkillDiff * 0.04)))
+    local critValText = (not isPvp and effDef >= defCritImmunity) and "0.0% (immune)" or string_format("%.2f%%", critAgainstPlayer)
+    local critValColor = (not isPvp and effDef >= defCritImmunity) and COLOR_GREEN or COLOR_RED
+    local critTip = string_format("chance for %s to crit you (0.0%% at %d defense).", target.isTarget and target.name:lower() or "bosses", defCritImmunity)
+    y = AddDataRow(scrollChild, y, "crit vs you:", critValText,
+        critValColor,
+        "crit chance against you", critTip)
 
-    local crushingDiff = targetWeaponSkill - math_min(effDef, maxDef)
-    local crushingChance = (crushingDiff >= 15) and math_max(0.0, math_min(100.0, (crushingDiff * 2.0) - 15.0)) or 0.0
-    y = AddDataRow(scrollChild, y, "boss crushing blow:", string_format("%.1f%%", crushingChance),
-        COLOR_ORANGE,
-        "boss crushing blow chance", "mobs 3+ levels higher have a 15% chance to land a crushing blow for 150% damage unless pushed off the table via 102.4% total avoidance.")
+    local crushingChance = 0.0
+    local crushingText = "0.0%"
+    local crushingColor = COLOR_ORANGE
+    local crushingTip = ""
 
-    local dodge = (GetDodgeChance and GetDodgeChance()) or 0
-    local parry = (GetParryChance and GetParryChance()) or 0
-    local block = (GetBlockChance and GetBlockChance()) or 0
-    local blockVal = (GetShieldBlock and GetShieldBlock()) or 0
-    local missChance = math_max(0.0, math_min(100.0, 5.0 - (bossSkillDiff * 0.04)))
-    local totalAvoidance = missChance + dodge + parry + block
+    if isPvp then
+        crushingChance = 0.0
+        crushingText = "0.0% (pvp)"
+        crushingColor = COLOR_GREEN
+        crushingTip = "players cannot deal crushing blows."
+    elseif target.isTarget and (target.level < pLevel + 3) and not target.isSkull then
+        crushingChance = 0.0
+        crushingText = "0.0% (target < +3 lv)"
+        crushingColor = COLOR_GREEN
+        crushingTip = string_format("mobs must be 3+ levels higher (lv %d+) to crush.", pLevel + 3)
+    else
+        local crushingDiff = target.weaponSkill - math_min(effDef, maxDef)
+        crushingChance = (crushingDiff >= 15) and math_max(0.0, math_min(100.0, (crushingDiff * 2.0) - 15.0)) or 0.0
+        crushingText = string_format("%.1f%%", crushingChance)
+        crushingColor = (crushingChance > 0) and COLOR_ORANGE or COLOR_GREEN
+        crushingTip = "150% damage attacks from 3+ level higher mobs unless avoided."
+    end
 
-    y = AddDataRow(scrollChild, y, "dodge / parry / block:", string_format("%.1f / %.1f / %.1f%%", dodge, parry, block),
+    y = AddDataRow(scrollChild, y, "crushing blow:", crushingText,
+        crushingColor,
+        "crushing blow chance", crushingTip)
+
+    local rawDodge = safe_num(GetDodgeChance and GetDodgeChance())
+    local rawParry = safe_num(GetParryChance and GetParryChance())
+    local rawBlock = safe_num(GetBlockChance and GetBlockChance())
+    local blockVal = safe_num(GetShieldBlock and GetShieldBlock())
+
+    local skillMod = (baseSkill - target.weaponSkill) * 0.04
+    local effDodge = math_max(0.0, rawDodge + skillMod)
+    local effParry = (rawParry > 0) and math_max(0.0, rawParry + skillMod) or 0.0
+    local effBlock = (rawBlock > 0) and math_max(0.0, rawBlock + skillMod) or 0.0
+
+    y = AddDataRow(scrollChild, y, "dodge/parry/block:", string_format("%.1f / %.1f / %.1f%%", effDodge, effParry, effBlock),
         COLOR_LIGHT_GRAY,
-        "avoidance chances", string_format("dodge: %.1f%%  |  parry: %.1f%%  |  block: %.1f%% (absorbs %d dmg)", dodge, parry, block, blockVal))
+        "avoidance chances", string_format("dodge: %.1f%%  |  parry: %.1f%%  |  block: %.1f%% (absorbs %d dmg)", effDodge, effParry, effBlock, blockVal))
 
-    y = AddDataRow(scrollChild, y, "total avoidance (vs 102.4%):", string_format("%.1f%%", totalAvoidance),
-        (totalAvoidance >= 102.4) and COLOR_GREEN or COLOR_LIGHT_GRAY_2,
-        "total avoidance", "sum of miss, dodge, parry, and block. when active avoidance reaches 102.4% (e.g. through shield block), crushing blows are pushed off the combat table.")
+    local effMiss = math_max(0.0, math_min(100.0, 5.0 + ((effDef - target.weaponSkill) * 0.04)))
+    local totalAvoidance = effMiss + effDodge + effParry + effBlock
+    local avoidanceGoal = 100.0
+    local avoidanceTip = target.isTarget
+        and string_format("effective avoidance vs %s (100%% pushes crushing/hits off table).", target.name:lower())
+        or "effective avoidance vs boss (100% pushes crushing/hits off table, 102.4% raw)."
 
-    local armor = _G.UnitArmor and _G.UnitArmor("player") or 0
-    local armorDR = (armor > 0) and (armor / (armor + 400 + 85 * targetLevel) * 100) or 0
-    armorDR = math_min(75.0, armorDR)
-    y = AddDataRow(scrollChild, y, "armor dr vs boss:", string_format("%.1f%% (cap: 75%%)", armorDR),
+    y = AddDataRow(scrollChild, y, "total avoidance:", string_format("%.1f%%", totalAvoidance),
+        (totalAvoidance >= avoidanceGoal) and COLOR_GREEN or COLOR_LIGHT_GRAY_2,
+        "total avoidance", avoidanceTip)
+
+    local effectiveArmor = 0
+    if _G.UnitArmor then
+        local _, eff = _G.UnitArmor("player")
+        effectiveArmor = safe_num(eff, 0)
+    end
+    local armorDR = ComputeArmorReduction(effectiveArmor, target)
+    local armorTipTitle = target.isTarget and "armor damage reduction vs target" or "armor damage reduction vs boss"
+    local armorTipText = string_format("physical damage reduction from %s armor against %s (75%% cap).", BreakUpLargeNumbers(effectiveArmor), target.isTarget and (target.name:lower() .. " attacks") or "boss attacks")
+
+    y = AddDataRow(scrollChild, y, "armor dr:", string_format("%.1f%%", armorDR),
         COLOR_MID_GRAY,
-        "armor damage reduction", string_format("physical damage reduction against level %d boss attacks. current armor: %s.", targetLevel, BreakUpLargeNumbers(armor)))
+        armorTipTitle, armorTipText)
 
     -- 3. Ranged & Ammo (Hunter or classes with equipped ranged weapon/ammo)
     local rangedInfo = GetEquippedWeaponInfo(18)
@@ -439,34 +674,35 @@ function panelModule.UpdateValues()
 
         if rangedInfo then
             local rSkillName = rangedInfo.skillName or "ranged"
-            local rLabel = string_format("ranged skill (%s):", rSkillName:lower())
-            y = AddDataRow(scrollChild, y, rLabel, string_format("%d / %d", rangedInfo.skill, rangedInfo.maxSkill),
+            y = AddDataRow(scrollChild, y, "ranged skill:", string_format("%d / %d", rangedInfo.skill, rangedInfo.maxSkill),
                 (rangedInfo.skill >= softSkillCap) and COLOR_GREEN or COLOR_WHITE,
-                "ranged weapon skill", string_format("effective %s skill including bonuses.", rSkillName:lower()))
+                "ranged weapon skill", string_format("effective %s weapon skill.", rSkillName:lower()))
         end
 
         if usesAmmo then
             local ammoCount = _G.GetInventoryItemCount and _G.GetInventoryItemCount("player", 0) or 0
+            if issecretvalue(ammoCount) then ammoCount = 0 end
             local ammoID = _G.GetInventoryItemID and _G.GetInventoryItemID("player", 0)
+            if issecretvalue(ammoID) then ammoID = nil end
             local ammoName = ammoID and C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(ammoID) or "no ammo equipped"
 
-            y = AddDataRow(scrollChild, y, "ammo equipped:", tostring(ammoName):lower(),
+            y = AddDataRow(scrollChild, y, "ammo type:", tostring(ammoName):lower(),
                 (ammoCount > 0) and COLOR_WHITE or COLOR_RED_ALERT,
-                "equipped ammo", "current ammo equipped in your ammo slot (slot 0).")
+                "equipped ammo", "currently equipped ammunition in slot 0.")
 
-            y = AddDataRow(scrollChild, y, "ammo count remaining:", BreakUpLargeNumbers(ammoCount),
+            y = AddDataRow(scrollChild, y, "ammo count:", BreakUpLargeNumbers(ammoCount),
                 (ammoCount > 500) and COLOR_GREEN or (ammoCount > 100) and COLOR_YELLOW or COLOR_RED_ALERT,
                 "ammo count", "remaining quantity of equipped ammunition.")
         end
 
-        local rangedHit = (GetRangedHitModifier and GetRangedHitModifier()) or 0
-        local crRangedHit = (GetCombatRatingBonus and _G.CR_HIT_RANGED and GetCombatRatingBonus(_G.CR_HIT_RANGED)) or 0
+        local rangedHit = safe_num(GetRangedHitModifier and GetRangedHitModifier())
+        local crRangedHit = safe_num(GetCombatRatingBonus and _G.CR_HIT_RANGED and GetCombatRatingBonus(_G.CR_HIT_RANGED))
         local totalRangedHit = rangedHit + crRangedHit
-        local rangedCrit = (GetRangedCritChance and GetRangedCritChance()) or 0
+        local rangedCrit = safe_num(GetRangedCritChance and GetRangedCritChance())
 
-        y = AddDataRow(scrollChild, y, "ranged hit / crit:", string_format("%.1f%% / %.1f%%", totalRangedHit, rangedCrit),
+        y = AddDataRow(scrollChild, y, "ranged hit/crit:", string_format("%.1f%% / %.1f%%", totalRangedHit, rangedCrit),
             COLOR_LIGHT_GRAY,
-            "ranged hit and crit", "ranged physical hit bonus and critical strike chance.")
+            "ranged hit and crit", "ranged hit bonus and critical strike chance.")
     end
 
     -- 4. Spell & Mana (Mana users)
@@ -476,30 +712,67 @@ function panelModule.UpdateValues()
         y = y - 4
         y = AddHeaderRow(scrollChild, y, "spellcasting & mana")
 
-        local spellHit = (GetSpellHitModifier and GetSpellHitModifier()) or 0
-        local crSpellHit = (GetCombatRatingBonus and _G.CR_HIT_SPELL and GetCombatRatingBonus(_G.CR_HIT_SPELL)) or 0
+        local spellHit = safe_num(GetSpellHitModifier and GetSpellHitModifier())
+        local crSpellHit = safe_num(GetCombatRatingBonus and _G.CR_HIT_SPELL and GetCombatRatingBonus(_G.CR_HIT_SPELL))
         local totalSpellHit = spellHit + crSpellHit
-        y = AddDataRow(scrollChild, y, "spell hit (vs 16% cap):", string_format("%.1f%% / 16.0%%", totalSpellHit),
-            (totalSpellHit >= 16.0) and COLOR_GREEN or COLOR_WHITE,
-            "spell hit chance", string_format("against a level %d boss (+3 levels), base spell hit chance is 83%%. 16%% spell hit is required to reach the 99%% hit cap (1%% is always resisted).", targetLevel))
 
-        local spellCrit = (GetSpellCritChance and GetSpellCritChance()) or 0
-        y = AddDataRow(scrollChild, y, "spell crit chance:", string_format("%.2f%%", spellCrit),
+        local spellHitCap = 16.0
+        local baseSpellHit = 83.0
+
+        if isPvp then
+            spellHitCap = 3.0
+            baseSpellHit = 96.0
+        else
+            local lvlDelta = target.level - pLevel
+            if target.isSkull or lvlDelta >= 3 then
+                spellHitCap = 16.0
+                baseSpellHit = 83.0
+            elseif lvlDelta == 2 then
+                spellHitCap = 6.0
+                baseSpellHit = 94.0
+            elseif lvlDelta == 1 then
+                spellHitCap = 5.0
+                baseSpellHit = 95.0
+            elseif lvlDelta == 0 then
+                spellHitCap = 4.0
+                baseSpellHit = 96.0
+            else
+                spellHitCap = math_max(1.0, 4.0 + lvlDelta)
+                baseSpellHit = 100.0 - (spellHitCap + 1.0)
+            end
+        end
+
+        local spellHitTip = string_format("spell hit chance against %s (%.1f%% cap).", target.isTarget and target.name:lower() or "bosses", spellHitCap)
+
+        y = AddDataRow(scrollChild, y, "spell hit:", string_format("%.1f%% / %.1f%%", totalSpellHit, spellHitCap),
+            (totalSpellHit >= spellHitCap) and COLOR_GREEN or COLOR_WHITE,
+            "spell hit chance", spellHitTip)
+
+        local spellCrit = safe_num(GetSpellCritChance and GetSpellCritChance())
+        if GetSpellCritChance then
+            for school = 2, 7 do
+                local sCrit = safe_num(GetSpellCritChance(school))
+                if sCrit > spellCrit then
+                    spellCrit = sCrit
+                end
+            end
+        end
+        y = AddDataRow(scrollChild, y, "spell crit:", string_format("%.2f%%", spellCrit),
             COLOR_PURPLE_BLUE,
             "spell crit chance", "base spell critical strike chance.")
 
-        local spellPen = (GetSpellPenetration and GetSpellPenetration()) or 0
-        y = AddDataRow(scrollChild, y, "spell penetration:", tostring(spellPen),
+        local spellPen = safe_num(GetSpellPenetration and GetSpellPenetration())
+        y = AddDataRow(scrollChild, y, "spell pen:", tostring(spellPen),
             COLOR_MID_GRAY,
-            "spell penetration", "reduces the target's magic resistance against your spells.")
+            "spell penetration", "reduces target magic resistance against your spells.")
 
         if GetManaRegen then
             local baseRegen, castingRegen = GetManaRegen()
-            baseRegen = (baseRegen or 0) * 5
-            castingRegen = (castingRegen or 0) * 5
-            y = AddDataRow(scrollChild, y, "mana regen (5s / cast):", string_format("%.0f / %.0f", baseRegen, castingRegen),
+            baseRegen = safe_num(baseRegen) * 5
+            castingRegen = safe_num(castingRegen) * 5
+            y = AddDataRow(scrollChild, y, "mana regen:", string_format("%.0f / %.0f", baseRegen, castingRegen),
                 COLOR_MANA_BLUE,
-                "mana regeneration", "mana restored per 5 seconds. first value is outside 5-second rule (not casting). second value is while casting (meditation/talents).")
+                "mana regeneration", "mana restored per 5 seconds (not casting / while casting).")
         end
     end
 
@@ -586,6 +859,41 @@ local function ApplyTheme(frame, pal)
     end
 end
 
+-- ─────────────────────────────────────────────────────────────────────────────
+--  Lifecycle & Debounced State Updates
+-- ─────────────────────────────────────────────────────────────────────────────
+
+local DEBOUNCE_OUT_OF_COMBAT = 0.4
+local DEBOUNCE_IN_COMBAT     = 2.0
+
+OnStateChanged = function()
+    if not panelFrame or not panelFrame:IsShown() or (CharacterFrame and not CharacterFrame:IsShown()) then
+        pendingUpdate = true
+        return
+    end
+
+    if updateTimer then
+        pendingUpdate = true
+        return
+    end
+
+    local isCombatActive = inCombat or (InCombatLockdown and InCombatLockdown())
+    local delay = isCombatActive and DEBOUNCE_IN_COMBAT or DEBOUNCE_OUT_OF_COMBAT
+
+    pendingUpdate = false
+    updateTimer = C_Timer.NewTimer(delay, function()
+        updateTimer = nil
+        if panelFrame and panelFrame:IsShown() and (not CharacterFrame or CharacterFrame:IsShown()) then
+            panelModule.UpdateValues()
+            if pendingUpdate then
+                OnStateChanged()
+            end
+        else
+            pendingUpdate = true
+        end
+    end)
+end
+
 function panelModule.CreatePanel()
     if panelFrame then return panelFrame end
 
@@ -593,7 +901,7 @@ function panelModule.CreatePanel()
     panelFrame:Hide()
     panelFrame:SetFrameStrata("HIGH")
     panelFrame:SetFrameLevel((CharacterFrame and CharacterFrame:GetFrameLevel() or 10) + 5)
-    panelFrame:SetSize(280, 420)
+    panelFrame:SetSize(290, 420)
     panelFrame:SetClampedToScreen(true)
     panelFrame:SetMovable(true)
     panelFrame:EnableMouse(true)
@@ -610,6 +918,10 @@ function panelModule.CreatePanel()
 
     panelFrame:SetScript("OnHide", function(self)
         self:StopMovingOrSizing()
+        if updateTimer then
+            updateTimer:Cancel()
+            updateTimer = nil
+        end
     end)
 
     -- Header Bar
@@ -676,6 +988,9 @@ function panelModule.CreatePanel()
     local subTitle = panelFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     panelFrame.subTitle = subTitle
     subTitle:SetPoint("TOP", headerBar, "BOTTOM", 0, -2)
+    subTitle:SetWidth(270)
+    subTitle:SetWordWrap(false)
+    subTitle:SetJustifyH("CENTER")
     local pLevelInit = UnitLevel("player") or 60
     local tLvlInit, tDefInit = GetTargetBossStats(pLevelInit)
     subTitle:SetText(string_format("vs lv %d boss (+3 lvl, %d def)", tLvlInit, tDefInit))
@@ -720,10 +1035,10 @@ function panelModule.CreatePanel()
 
     panelFrame:SetScript("OnShow", function()
         RestorePosition(panelFrame)
-        if inCombat or (InCombatLockdown and InCombatLockdown()) then
-            OnStateChanged()
-        else
+        if activeRowCount == 0 or not (inCombat or (InCombatLockdown and InCombatLockdown())) then
             panelModule.UpdateValues()
+        else
+            OnStateChanged()
         end
         if sfui.theme and sfui.theme.ElevateWindowContents then
             sfui.theme.ElevateWindowContents(panelFrame)
@@ -767,8 +1082,8 @@ function panelModule.CreateToggleButton()
             tip:SetOwner(self, "ANCHOR_RIGHT")
             tip:ClearLines()
             tip:AddLine("combat telemetry", 1, 1, 1)
-            tip:AddLine("click to toggle extended combat math & boss glancing blow panel.", 0.8, 0.8, 0.8, true)
-            tip:AddLine("drag to move | shift+right-click header to reset position.", 0.65, 0.65, 0.65, true)
+            tip:AddLine("click to toggle combat telemetry panel.", 0.8, 0.8, 0.8, true)
+            tip:AddLine("drag to move | shift+right-click to reset.", 0.65, 0.65, 0.65, true)
             tip:Show()
         end
     end)
@@ -785,14 +1100,9 @@ function panelModule.CreateToggleButton()
             panelFrame:Hide()
             if SfuiDB then SfuiDB.showCombatInfoPanel = false end
         else
+            if SfuiDB then SfuiDB.showCombatInfoPanel = true end
             RestorePosition(panelFrame)
             panelFrame:Show()
-            if SfuiDB then SfuiDB.showCombatInfoPanel = true end
-            if inCombat or (InCombatLockdown and InCombatLockdown()) then
-                OnStateChanged()
-            else
-                panelModule.UpdateValues()
-            end
         end
     end)
 
@@ -816,39 +1126,8 @@ function panelModule.CreateToggleButton()
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
---  Lifecycle & Events
+--  Initialization
 -- ─────────────────────────────────────────────────────────────────────────────
-
-local DEBOUNCE_OUT_OF_COMBAT = 0.4
-local DEBOUNCE_IN_COMBAT     = 2.0
-
-local function OnStateChanged()
-    if not panelFrame or not panelFrame:IsShown() or (CharacterFrame and not CharacterFrame:IsShown()) then
-        pendingUpdate = true
-        return
-    end
-
-    if updateTimer then
-        pendingUpdate = true
-        return
-    end
-
-    local isCombatActive = inCombat or (InCombatLockdown and InCombatLockdown())
-    local delay = isCombatActive and DEBOUNCE_IN_COMBAT or DEBOUNCE_OUT_OF_COMBAT
-
-    pendingUpdate = false
-    updateTimer = C_Timer.NewTimer(delay, function()
-        updateTimer = nil
-        if panelFrame and panelFrame:IsShown() and (not CharacterFrame or CharacterFrame:IsShown()) then
-            panelModule.UpdateValues()
-            if pendingUpdate then
-                OnStateChanged()
-            end
-        else
-            pendingUpdate = true
-        end
-    end)
-end
 
 local function Initialize()
     panelModule.CreatePanel()
@@ -857,12 +1136,15 @@ local function Initialize()
     if CharacterFrame then
         if CharacterFrame:IsShown() and SfuiDB and SfuiDB.showCombatInfoPanel then
             if not panelFrame then panelModule.CreatePanel() end
-            RestorePosition(panelFrame)
-            panelFrame:Show()
-            if inCombat or (InCombatLockdown and InCombatLockdown()) then
-                OnStateChanged()
+            if not panelFrame:IsShown() then
+                panelFrame:Show()
             else
-                panelModule.UpdateValues()
+                RestorePosition(panelFrame)
+                if inCombat or (InCombatLockdown and InCombatLockdown()) then
+                    OnStateChanged()
+                else
+                    panelModule.UpdateValues()
+                end
             end
         else
             if panelFrame then panelFrame:Hide() end
@@ -874,12 +1156,15 @@ local function Initialize()
             end
             if SfuiDB and SfuiDB.showCombatInfoPanel then
                 if not panelFrame then panelModule.CreatePanel() end
-                RestorePosition(panelFrame)
-                panelFrame:Show()
-                if inCombat or (InCombatLockdown and InCombatLockdown()) then
-                    OnStateChanged()
+                if not panelFrame:IsShown() then
+                    panelFrame:Show()
                 else
-                    panelModule.UpdateValues()
+                    RestorePosition(panelFrame)
+                    if inCombat or (InCombatLockdown and InCombatLockdown()) then
+                        OnStateChanged()
+                    else
+                        panelModule.UpdateValues()
+                    end
                 end
             end
         end)
@@ -896,6 +1181,7 @@ local function Initialize()
     local events = {
         "PLAYER_REGEN_DISABLED",
         "PLAYER_REGEN_ENABLED",
+        "PLAYER_TARGET_CHANGED",
         "PLAYER_EQUIPMENT_CHANGED",
         "UNIT_INVENTORY_CHANGED",
         "SKILL_LINES_CHANGED",
@@ -913,16 +1199,25 @@ local function Initialize()
     watcher:SetScript("OnEvent", function(self, event, arg1)
         if event == "PLAYER_REGEN_DISABLED" then
             inCombat = true
+            if panelFrame and panelFrame:IsShown() and (not CharacterFrame or CharacterFrame:IsShown()) then
+                OnStateChanged()
+            end
             return
         elseif event == "PLAYER_REGEN_ENABLED" then
             inCombat = false
-            if pendingUpdate and panelFrame and panelFrame:IsShown() and (not CharacterFrame or CharacterFrame:IsShown()) then
-                pendingUpdate = false
+            if panelFrame and panelFrame:IsShown() and (not CharacterFrame or CharacterFrame:IsShown()) then
                 if updateTimer then
                     updateTimer:Cancel()
                     updateTimer = nil
                 end
                 panelModule.UpdateValues()
+            end
+            return
+        end
+
+        if event == "PLAYER_TARGET_CHANGED" then
+            if panelFrame and panelFrame:IsShown() and (not CharacterFrame or CharacterFrame:IsShown()) then
+                OnStateChanged()
             end
             return
         end

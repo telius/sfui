@@ -143,7 +143,7 @@ sfui.options.RegisterTab({
         local toggles_header = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
         toggles_header:SetPoint("TOPLEFT", style_dropdown, "BOTTOMLEFT", 0, -22)
         toggles_header:SetTextColor(white[1], white[2], white[3])
-        toggles_header:SetText("bar visibility")
+        toggles_header:SetText("active bar modules")
 
         local health_bar_cb = create_checkbox(bars_panel, "enable health bar", "enableHealthBar", function(checked)
             sfui.bars:on_state_changed()
@@ -230,11 +230,57 @@ sfui.options.RegisterTab({
                 threat_solo_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -6)
                 last_toggle_cb = threat_solo_cb
             end
+
+            local _, pClass = UnitClass("player")
+            if (pClass == "HUNTER" or pClass == "WARLOCK") and sfui.pet then
+                local pet_bar_cb = create_checkbox(bars_panel, "enable pet frame", function()
+                    return (SfuiDB == nil or SfuiDB.enablePetBar ~= false)
+                end, function(checked)
+                    SfuiDB = SfuiDB or {}
+                    SfuiDB.enablePetBar = checked
+                    if sfui.pet and sfui.pet.UpdateVisibility then
+                        sfui.pet.UpdateVisibility()
+                    end
+                end, "toggles the hunter & warlock companion pet frame to the right of the healthbar.")
+                pet_bar_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -10)
+                last_toggle_cb = pet_bar_cb
+            end
         end
+
+        -- Out of Combat Visibility
+        local ooc_header = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
+        ooc_header:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -20)
+        ooc_header:SetTextColor(white[1], white[2], white[3])
+        ooc_header:SetText("out of combat visibility")
+
+        local ooc_always_cb = create_checkbox(bars_panel, "always show out of combat", "bars_oocAlways", function(checked)
+            sfui.bars.update_bar_visibility()
+        end, "always keep the health, power, and pet bars visible even when idle out of combat.")
+        ooc_always_cb:SetPoint("TOPLEFT", ooc_header, "BOTTOMLEFT", 0, -10)
+
+        local health_missing_cb = create_checkbox(bars_panel, "show when health missing", "bars_showHealthMissing", function(checked)
+            sfui.bars.update_bar_visibility()
+        end, "shows the bars out of combat when your or your pet's health is below maximum.")
+        health_missing_cb:SetPoint("TOPLEFT", ooc_always_cb, "BOTTOMLEFT", 0, -6)
+
+        local power_missing_cb = create_checkbox(bars_panel, "show when power missing", "bars_showPowerMissing", function(checked)
+            sfui.bars.update_bar_visibility()
+        end, "shows the bars out of combat when mana or energy is missing, or when rage or runic power is above zero.")
+        power_missing_cb:SetPoint("TOPLEFT", health_missing_cb, "BOTTOMLEFT", 0, -6)
+
+        local casting_cb = create_checkbox(bars_panel, "show when casting / channeling", "bars_showCasting", function(checked)
+            sfui.bars.update_bar_visibility()
+        end, "shows the bars out of combat while actively casting or channeling a spell.")
+        casting_cb:SetPoint("TOPLEFT", power_missing_cb, "BOTTOMLEFT", 0, -6)
+
+        local friendly_cb = create_checkbox(bars_panel, "show on friendly target", "bars_showFriendlyTarget", function(checked)
+            sfui.bars.update_bar_visibility()
+        end, "shows the bars out of combat whenever you have a friendly target selected.")
+        friendly_cb:SetPoint("TOPLEFT", casting_cb, "BOTTOMLEFT", 0, -6)
 
         -- Health Bar Position
         local position_header = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
-        position_header:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -20)
+        position_header:SetPoint("TOPLEFT", friendly_cb, "BOTTOMLEFT", 0, -20)
         position_header:SetTextColor(white[1], white[2], white[3])
         position_header:SetText("health bar position")
 
@@ -289,6 +335,6 @@ sfui.options.RegisterTab({
             end)
         bg_color_swatch:SetPoint("LEFT", bg_color_label, "RIGHT", 5, 0)
 
-        bars_panel.customContentHeight = 440
+        bars_panel.customContentHeight = 680
     end,
 })

@@ -665,6 +665,7 @@ function sfui.actionbars.CreatePetBar()
         local btn = _G["PetActionButton" .. i]
         if btn then
             btn:SetParent(bar)
+            btn.bar = nil
             btn.index = i
             btn.barKey = "pet"
             btn.commandName = "BONUSACTIONBUTTON" .. i
@@ -711,27 +712,24 @@ function sfui.actionbars.CreatePetBar()
         end)
     end
 
-    -- Range check ticker: only needed if Blizzard's PetActionBar doesn't already drive it
-    local blizzHasOnUpdate = _G.PetActionBar and _G.PetActionBar.GetScript and _G.PetActionBar:GetScript("OnUpdate") ~= nil
-    if not blizzHasOnUpdate then
-        local rangeElapsed = 0
-        bar:SetScript("OnUpdate", function(self, elapsed)
-            rangeElapsed = rangeElapsed + elapsed
-            if rangeElapsed >= 0.2 then
-                rangeElapsed = 0
-                if not _G.GetPetActionInfo or not _G.PetHasActionBar or not _G.PetHasActionBar() then return end
-                for i = 1, 10 do
-                    local btn = self.buttons[i]
-                    if btn and btn:IsShown() then
-                        local _, _, _, _, _, _, _, checksRange, inRange = _G.GetPetActionInfo(i)
-                        if _G.ActionButton_UpdateRangeIndicator and checksRange ~= nil then
-                            _G.ActionButton_UpdateRangeIndicator(btn, checksRange, inRange)
-                        end
+    -- Range check ticker on sfui_PetBar
+    local rangeElapsed = 0
+    bar:SetScript("OnUpdate", function(self, elapsed)
+        rangeElapsed = rangeElapsed + elapsed
+        if rangeElapsed >= 0.2 then
+            rangeElapsed = 0
+            if not _G.GetPetActionInfo or not _G.PetHasActionBar or not _G.PetHasActionBar() then return end
+            for i = 1, 10 do
+                local btn = self.buttons[i]
+                if btn and btn:IsShown() then
+                    local _, _, _, _, _, _, _, checksRange, inRange = _G.GetPetActionInfo(i)
+                    if _G.ActionButton_UpdateRangeIndicator and checksRange ~= nil then
+                        _G.ActionButton_UpdateRangeIndicator(btn, checksRange, inRange)
                     end
                 end
             end
-        end)
-    end
+        end
+    end)
 
     sfui.actionbars.ApplyPetBarLayout()
 end

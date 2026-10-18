@@ -28,6 +28,7 @@ do
     local update_vigor_bar
     local update_warrior_stance_badge
     local update_paladin_aura_badge
+    local update_hunter_ammo_text
     local warrior_stance_badge
     local paladin_aura_badge
 
@@ -102,6 +103,7 @@ do
     local invalidate_dragonflying_cache = common.invalidate_dragonflying_cache
 
     local function update_bar_positions()
+        if InCombatLockdown and InCombatLockdown() then return end
         local spacing = cfg.barLayout.spacing
 
         if bar0 and bar0.backdrop then
@@ -178,9 +180,59 @@ do
             if sfui.threat and sfui.threat.UpdatePosition then
                 sfui.threat.UpdatePosition()
             end
+            if sfui.pet and sfui.pet.UpdatePosition then
+                sfui.pet.UpdatePosition()
+            end
+            if sfui.pet and sfui.pet.UpdateVisibility then
+                sfui.pet.UpdateVisibility()
+            end
         end
         sfui.trackedbars.ForceLayoutUpdate()
         sfui.trackedicons.ForceLayoutUpdate()
+    end
+
+    local function is_player_health_missing()
+        local curHp = UnitHealth("player")
+        local maxHp = UnitHealthMax("player")
+        if curHp and maxHp and not (issecretvalue and (issecretvalue(curHp) or issecretvalue(maxHp))) then
+            if type(maxHp) == "number" and maxHp > 0 and type(curHp) == "number" and curHp < maxHp then
+                return true
+            end
+        end
+        if UnitExists("pet") then
+            local petCur = UnitHealth("pet")
+            local petMax = UnitHealthMax("pet")
+            if petCur and petMax and not (issecretvalue and (issecretvalue(petCur) or issecretvalue(petMax))) then
+                if type(petMax) == "number" and petMax > 0 and type(petCur) == "number" and petCur < petMax then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    local function is_player_power_missing()
+        local pType = UnitPowerType("player")
+        local curPwr = UnitPower("player")
+        local maxPwr = UnitPowerMax("player")
+        if curPwr and maxPwr and not (issecretvalue and (issecretvalue(curPwr) or issecretvalue(maxPwr))) then
+            if pType == Enum.PowerType.Rage or pType == Enum.PowerType.RunicPower then
+                if type(curPwr) == "number" and curPwr > 0 then
+                    return true
+                end
+            else
+                if type(maxPwr) == "number" and maxPwr > 0 and type(curPwr) == "number" and curPwr < maxPwr then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    local function is_player_casting_channeling()
+        local isCasting = (UnitCastingInfo and UnitCastingInfo("player")) or (C_Spell and C_Spell.GetCastingInfo and C_Spell.GetCastingInfo("player"))
+        local isChanneling = (UnitChannelInfo and UnitChannelInfo("player")) or (C_Spell and C_Spell.GetChannelInfo and C_Spell.GetChannelInfo("player"))
+        return (isCasting ~= nil) or (isChanneling ~= nil)
     end
 
     local function update_bar_visibility()
@@ -188,8 +240,26 @@ do
         local inVehicle = is_in_vehicle()
         local inCombat = sfui.common.is_in_combat()
         local hasEnemyTarget = UnitCanAttack("player", "target")
+        local hasAnyTarget = UnitExists("target")
         local isFsrActive = sfui.isClassic and (fsrEndTime and fsrEndTime > GetTime()) or false
-        local showCoreBars = (not inVehicle) and (inCombat or hasEnemyTarget or isFsrActive)
+
+        local vcfg = (sfui.config and sfui.config.barVisibility) or {}
+        local alwaysShow = (SfuiDB and (SfuiDB.bars_oocAlways or SfuiDB.bars_alwaysShow)) or vcfg.oocAlways
+        local showOnFriendly = ((SfuiDB and SfuiDB.bars_showFriendlyTarget) or (vcfg.showFriendlyTarget and (SfuiDB == nil or SfuiDB.bars_showFriendlyTarget ~= false))) and hasAnyTarget
+        local showOnHealthMissing = ((SfuiDB == nil and vcfg.showHealthMissing ~= false) or (SfuiDB and SfuiDB.bars_showHealthMissing ~= false)) and is_player_health_missing()
+        local showOnPowerMissing = ((SfuiDB and SfuiDB.bars_showPowerMissing) or (vcfg.showPowerMissing and (SfuiDB == nil or SfuiDB.bars_showPowerMissing ~= false))) and is_player_power_missing()
+        local showOnCasting = ((SfuiDB and SfuiDB.bars_showCasting) or (vcfg.showCasting and (SfuiDB == nil or SfuiDB.bars_showCasting ~= false))) and is_player_casting_channeling()
+
+        local showCoreBars = (not inVehicle) and (
+            alwaysShow
+            or inCombat
+            or hasEnemyTarget
+            or showOnFriendly
+            or showOnHealthMissing
+            or showOnPowerMissing
+            or showOnCasting
+            or isFsrActive
+        )
 
         if isDragonflying then
             local showVigor = (SfuiDB == nil or SfuiDB.enableVigorBar ~= false)
@@ -298,6 +368,10 @@ do
             sfui.swing.UpdateVisibility(inCombat, hasEnemyTarget, isDragonflying, inVehicle)
         end
 
+        if sfui.pet and sfui.pet.UpdateVisibility then
+            sfui.pet.UpdateVisibility()
+        end
+
         update_bar_positions()
     end
 
@@ -323,6 +397,20 @@ do
             fsrText:SetTextColor(1, 1, 1, 0.9)
             fsrText:Hide()
             bar.fsrTimerText = fsrText
+        end
+
+        -- Vanilla / Camelot: Hunter Ammo Count Remaining (anchored to the left)
+        local isClassicOrCamelot = sfui.isClassic or sfui.isCamelot or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic or sfui.compat.is_classic_era))
+        local pClass = (common.get_player_class and common.get_player_class()) or (UnitClass and select(2, UnitClass("player")))
+        if isClassicOrCamelot and pClass == "HUNTER" then
+            local ammoText = bar:CreateFontString(nil, "OVERLAY")
+            local fontSize = (cfg.powerBar and cfg.powerBar.fontSize) or 10
+            ammoText:SetFont("Fonts\\FRIZQT__.TTF", fontSize, "")
+            ammoText:SetShadowOffset(0, 0)
+            ammoText:SetPoint("LEFT", bar, "LEFT", 4, 0)
+            ammoText:SetTextColor(1, 1, 1, 0.9)
+            ammoText:Hide()
+            bar.ammoText = ammoText
         end
 
         bar_minus_1 = bar
@@ -429,6 +517,46 @@ do
         end
     end
 
+    function update_hunter_ammo_text()
+        if not bar_minus_1 or not bar_minus_1.ammoText then return end
+        if not bar_minus_1.backdrop or not bar_minus_1.backdrop:IsShown() then
+            bar_minus_1.ammoText:Hide()
+            return
+        end
+
+        local usesAmmo = (_G.UnitUsesAmmo and _G.UnitUsesAmmo("player"))
+        if usesAmmo == nil then
+            local rangedID = _G.GetInventoryItemID and _G.GetInventoryItemID("player", 18)
+            usesAmmo = rangedID ~= nil
+        end
+
+        if not usesAmmo then
+            bar_minus_1.ammoText:Hide()
+            return
+        end
+
+        local ammoCount = _G.GetInventoryItemCount and _G.GetInventoryItemCount("player", 0) or 0
+        if issecretvalue and issecretvalue(ammoCount) then
+            bar_minus_1.ammoText:SetText("")
+            bar_minus_1.ammoText:Show()
+            return
+        end
+        if ammoCount <= 0 then
+            bar_minus_1.ammoText:SetText("0")
+            bar_minus_1.ammoText:SetTextColor(1.0, 0.3, 0.3, 0.9)
+        else
+            bar_minus_1.ammoText:SetText(tostring(ammoCount))
+            if ammoCount <= 100 then
+                bar_minus_1.ammoText:SetTextColor(1.0, 0.3, 0.3, 0.9)
+            elseif ammoCount <= 500 then
+                bar_minus_1.ammoText:SetTextColor(1.0, 0.82, 0.2, 0.9)
+            else
+                bar_minus_1.ammoText:SetTextColor(1, 1, 1, 0.9)
+            end
+        end
+        bar_minus_1.ammoText:Show()
+    end
+
     function update_bar_minus_1()
         local cfg = sfui.config.powerBar
         local specID = common.get_current_spec_id()
@@ -437,6 +565,7 @@ do
 
         if not cfg.enabled or is_dragonflying() or hide then
             if bar_minus_1 and bar_minus_1.backdrop then bar_minus_1.backdrop:Hide() end
+            if bar_minus_1 and bar_minus_1.ammoText then bar_minus_1.ammoText:Hide() end
             stop_fsr_timer()
             return
         end
@@ -500,6 +629,8 @@ do
         else
             bar.marker:Hide()
         end
+
+        update_hunter_ammo_text()
     end
 
     -- UpdateFillPosition removed (Secret Values cannot be used in arithmetic).
@@ -1295,6 +1426,7 @@ do
             if sfui.swing and sfui.swing.SetBarTexture then sfui.swing.SetBarTexture(texturePath) end
             if sfui.threat and sfui.threat.SetBarTexture then sfui.threat.SetBarTexture(texturePath) end
             if sfui.target and sfui.target.SetBarTexture then sfui.target.SetBarTexture(texturePath) end
+            if sfui.pet and sfui.pet.SetBarTexture then sfui.pet.SetBarTexture(texturePath) end
         else
             if sfui.soulfragments and sfui.soulfragments.SetBarTexture then
                 sfui.soulfragments.SetBarTexture(texturePath)
@@ -1382,6 +1514,13 @@ do
             return
         end
 
+        local inCombat = sfui.common.is_in_combat()
+        local hasEnemyTarget = UnitCanAttack("player", "target")
+        local alwaysShow = (SfuiDB and (SfuiDB.bars_oocAlways or SfuiDB.bars_alwaysShow))
+        if not inCombat and not hasEnemyTarget and not alwaysShow and (SfuiDB and SfuiDB.bars_showPowerMissing) then
+            update_bar_visibility()
+        end
+
         local pShown = bar_minus_1 and bar_minus_1.backdrop and bar_minus_1.backdrop:IsShown()
         local sShown = bar1 and bar1.backdrop and bar1.backdrop:IsShown()
         if not pShown and not sShown then return end
@@ -1418,11 +1557,28 @@ do
     end
 
     local function on_unit_health()
+        local inCombat = sfui.common.is_in_combat()
+        local hasEnemyTarget = UnitCanAttack("player", "target")
+        local alwaysShow = (SfuiDB and (SfuiDB.bars_oocAlways or SfuiDB.bars_alwaysShow))
+        if not inCombat and not hasEnemyTarget and not alwaysShow then
+            update_bar_visibility()
+        end
+
         if not bar0 or not bar0.backdrop or not bar0.backdrop:IsShown() then return end
 
         if not should_throttle("bar0") then
             local max, current = UnitHealthMax("player"), UnitHealth("player")
             update_bar0(current, max)
+        end
+    end
+
+    local function on_cast_or_channel(event, unit)
+        if unit ~= "player" then return end
+        local inCombat = sfui.common.is_in_combat()
+        local hasEnemyTarget = UnitCanAttack("player", "target")
+        local alwaysShow = (SfuiDB and (SfuiDB.bars_oocAlways or SfuiDB.bars_alwaysShow))
+        if not inCombat and not hasEnemyTarget and not alwaysShow and (SfuiDB and SfuiDB.bars_showCasting) then
+            update_bar_visibility()
         end
     end
 
@@ -1432,8 +1588,23 @@ do
         "player", on_unit_health
     )
     sfui.events.RegisterUnitEvents(
+        {"UNIT_HEALTH", "UNIT_MAXHEALTH"},
+        "pet", function()
+            local inCombat = sfui.common.is_in_combat()
+            local hasEnemyTarget = UnitCanAttack("player", "target")
+            local alwaysShow = (SfuiDB and (SfuiDB.bars_oocAlways or SfuiDB.bars_alwaysShow))
+            if not inCombat and not hasEnemyTarget and not alwaysShow and (SfuiDB == nil or SfuiDB.bars_showHealthMissing ~= false) then
+                update_bar_visibility()
+            end
+        end
+    )
+    sfui.events.RegisterUnitEvents(
         {"UNIT_POWER_UPDATE", "UNIT_POWER_FREQUENT", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER"},
         "player", on_unit_power
+    )
+    sfui.events.RegisterUnitEvents(
+        {"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_STOP"},
+        "player", on_cast_or_channel
     )
 
     -- 5-Second Rule (MP5 Regen) events: strictly registered on Classic / Camelot only
@@ -1458,6 +1629,16 @@ do
     if isCamelotBars and common.get_player_class() == "PALADIN" then
         sfui.events.RegisterUnitEvent("UNIT_AURA", "player", function()
             update_paladin_aura_badge()
+        end)
+    end
+    local isClassicOrCamelot = sfui.isClassic or sfui.isCamelot or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic or sfui.compat.is_classic_era))
+    local pClassBars = (common.get_player_class and common.get_player_class()) or (UnitClass and select(2, UnitClass("player")))
+    if isClassicOrCamelot and pClassBars == "HUNTER" then
+        sfui.events.RegisterEvent("BAG_UPDATE", function()
+            update_hunter_ammo_text()
+        end)
+        sfui.events.RegisterUnitEvent("UNIT_INVENTORY_CHANGED", "player", function()
+            update_hunter_ammo_text()
         end)
     end
     sfui.events.RegisterEvent("PLAYER_CAN_GLIDE_CHANGED", on_event)
