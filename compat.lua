@@ -881,54 +881,404 @@ end
 --  CAMELOT EXTENSION POINT & ENGINE WORKAROUNDS
 -- ══════════════════════════════════════════════════════════════════════════════
 if IS_CAMELOT then
-    -- Fix Blizzard 1.60.1 / Camelot Gamepad PetActionFlyout and PetSpellFlyout bugs
-    -- In Blizzard_GamepadActionBars/Camelot/PetActionFlyout.lua and PetSpellFlyout.lua,
-    -- PetActionFlyoutButtonMixin and PetSpellFlyoutButtonMixin are mixed into
-    -- GamepadMainActionBarFrame.PageUnit.LeftClassAction and RightClassAction during ContinueOnPlayerLogin.
-    -- When a Hunter or Warlock enters combat or pet events fire (PET_BAR_UPDATE, UNIT_PET),
-    -- their Update() methods call :Show()/:Hide() on these SecureActionButtonTemplate buttons,
-    -- causing "[Blocked] sfui tried to call the protected function 'GamepadMainActionBarFramePageUnitRightClassAction:Show()'".
-    -- Since sfui provides its own action bars and suppresses GamepadMainActionBarFrame,
-    -- we disarm both buttons so their event handlers and protected show/hide routines never run.
-    local function disarmGamepadClassActionButton(button)
+    -- Fix Blizzard 1.60.1 / Camelot Gamepad Action Bars & Flyouts:
+    -- 1) Secret Value Crash:
+    --    In Blizzard_GamepadActionBars/ActionBarButton.lua:965 (GetActiveSpellID),
+    --    line 710 (HandleFlyoutClickOverride), line 842 (UpdateState), and FlyoutRadial.lua:172,
+    --    Blizzard calls C_Spell.IsActiveSpell() and performs boolean tests (if C_Spell.IsActiveSpell(...) then).
+    --    When execution is tainted by addons, C_Spell.IsActiveSpell() returns a secret boolean value,
+    --    throwing "attempt to perform boolean test on a secret boolean value (execution tainted by 'sfui')".
+    --    We install a secret-safe wrapper around C_Spell.IsActiveSpell on GamepadActionBarButtonFlyoutMixin,
+    --    GamepadActionBarStandardButtonMixin, and GamepadFlyoutPopupButtonMixin.
+    -- 2) Protected Method Blocked in Combat:
+    --    PetActionFlyoutButtonMixin and PetSpellFlyoutButtonMixin are mixed into
+    --    GamepadMainActionBarFrame buttons during ContinueOnPlayerLogin and call :Show()/:Hide() in combat.
+    --    Since sfui replaces Blizzard action bars, we comprehensively disarm all buttons across
+    --    GamepadMainActionBarFrame and associated flyouts so their event handlers and protected routines never run.
+
+    local issecretvalue = _G.issecretvalue or function() return false end
+    local function safe_isActiveSpell(spellID)
+        if not spellID then return false end
+        local C_Spell = _G.C_Spell
+        if not (C_Spell and C_Spell.IsActiveSpell) then return false end
+        local ok, active = pcall(C_Spell.IsActiveSpell, spellID)
+        if not ok or issecretvalue(active) then
+            return false
+        end
+        return active == true
+    end
+
+    local function patchCamelotGamepadFlyoutMixins()
+        local flyoutMixin = _G.GamepadActionBarButtonFlyoutMixin
+        if flyoutMixin and not flyoutMixin._sfui_secret_safe then
+            flyoutMixin._sfui_secret_safe = true
+
+            flyoutMixin.GetActiveSpellID = function(self)
+                if self.isFlyoutAction and self.EnumFlyoutSlotInfo then
+                    local onlyKnown = true
+                    for _, overrideSpellID in self:EnumFlyoutSlotInfo(onlyKnown) do
+                        if safe_isActiveSpell(overrideSpellID) then
+                            return overrideSpellID
+                        end
+                    end
+                end
+                return nil
+            end
+
+            local orig_UpdateState = flyoutMixin.UpdateState
+            flyoutMixin.UpdateState = function(self)
+                local spellID = self.GetSingleSpellID and self:GetSingleSpellID()
+                if spellID then
+                    if self.SetChecked then
+                        self:SetChecked(safe_isActiveSpell(spellID))
+                    end
+                elseif orig_UpdateState then
+                    orig_UpdateState(self)
+                end
+            end
+
+            flyoutMixin.HandleFlyoutClickOverride = function(self, button, down)
+                if not self.isFlyoutAction then return false end
+                local singleSpellID = self.GetSingleSpellID and self:GetSingleSpellID()
+                if down then
+                    if singleSpellID then
+                        if safe_isActiveSpell(singleSpellID) then
+                            if _G.C_Spell and _G.C_Spell.CancelSpellByID then
+                                _G.C_Spell.CancelSpellByID(singleSpellID)
+                            end
+                        else
+                            if _G.CastSpellByID then
+                                _G.CastSpellByID(singleSpellID)
+                            end
+                        end
+                    else
+                        if self.popup and self.popup.Toggle then
+                            local isActionBar, specID, showFullTooltip, reason = true, 0, false, nil
+                            self.popup:Toggle(self, self.flyoutID, isActionBar, specID, showFullTooltip, reason)
+                        end
+                    end
+                end
+                return true
+            end
+        end
+
+        local standardMixin = _G.GamepadActionBarStandardButtonMixin
+        if standardMixin then
+            standardMixin.OnEvent = function() end
+            standardMixin.UpdateCooldown = function() end
+            standardMixin.Update = function() end
+            standardMixin.UpdateAction = function() end
+            standardMixin.UpdateState = function() end
+            standardMixin.UpdateUsable = function() end
+            if flyoutMixin then
+                standardMixin.GetActiveSpellID = flyoutMixin.GetActiveSpellID
+                standardMixin.HandleFlyoutClickOverride = flyoutMixin.HandleFlyoutClickOverride
+            end
+        end
+
+        if flyoutMixin then
+            flyoutMixin.OnEvent = function() end
+            flyoutMixin.UpdateCooldown = function() end
+            flyoutMixin.Update = function() end
+            flyoutMixin.UpdateAction = function() end
+            flyoutMixin.UpdateState = function() end
+            flyoutMixin.UpdateUsable = function() end
+        end
+
+        local buttonMixin = _G.GamepadActionBarButtonMixin
+        if buttonMixin then
+            buttonMixin.OnEvent = function() end
+            buttonMixin.UpdateCooldown = function() end
+            buttonMixin.Update = function() end
+            buttonMixin.UpdateAction = function() end
+            buttonMixin.UpdateState = function() end
+            buttonMixin.UpdateUsable = function() end
+        end
+
+        local radialMixin = _G.GamepadFlyoutPopupButtonMixin
+        if radialMixin and not radialMixin._sfui_secret_safe then
+            radialMixin._sfui_secret_safe = true
+            radialMixin.UpdateState = function(self)
+                local isChecked = self.spellID and safe_isActiveSpell(self.spellID)
+                if self.SetChecked then self:SetChecked(isChecked) end
+                if self.CheckedOverlayTexture and self.CheckedOverlayTexture.SetShown then
+                    self.CheckedOverlayTexture:SetShown(isChecked)
+                end
+            end
+            radialMixin.HandleClick = function(self)
+                if self.spellID and safe_isActiveSpell(self.spellID) then
+                    if _G.C_Spell and _G.C_Spell.CancelSpellByID then
+                        _G.C_Spell.CancelSpellByID(self.spellID)
+                    end
+                    return true
+                end
+                return false
+            end
+        end
+
+        -- Purge and block Gamepad buttons from Blizzard's centralized ActionBarButtonEventsFrame dispatcher
+        local eventsFrame = _G.ActionBarButtonEventsFrame
+        if eventsFrame then
+            if eventsFrame.frames then
+                for i = #eventsFrame.frames, 1, -1 do
+                    local f = eventsFrame.frames[i]
+                    local name = f and f.GetName and f:GetName()
+                    if (name and (name:find("Gamepad") or name:find("GamePad"))) or (f and f.isGamepadActionButton) then
+                        table.remove(eventsFrame.frames, i)
+                    end
+                end
+            end
+            if not eventsFrame._sfui_gamepad_blocked and eventsFrame.RegisterFrame then
+                eventsFrame._sfui_gamepad_blocked = true
+                local orig_RegisterFrame = eventsFrame.RegisterFrame
+                eventsFrame.RegisterFrame = function(self, frame)
+                    local name = frame and frame.GetName and frame:GetName()
+                    if (name and (name:find("Gamepad") or name:find("GamePad"))) or (frame and frame.isGamepadActionButton) then
+                        return
+                    end
+                    return orig_RegisterFrame(self, frame)
+                end
+            end
+        end
+    end
+
+    local function disarmGamepadButton(button)
         if not button then return end
         if button.UnregisterAllEvents then
-            button:UnregisterAllEvents()
+            pcall(button.UnregisterAllEvents, button)
         end
         button.RegisterEvent = function() end
         button.RegisterUnitEvent = function() end
-        button:SetScript("OnEvent", nil)
-        button:SetScript("OnUpdate", nil)
-        button:SetScript("OnShow", nil)
-        button:SetScript("OnHide", nil)
+        if button.SetScript then
+            pcall(button.SetScript, button, "OnEvent", nil)
+            pcall(button.SetScript, button, "OnUpdate", nil)
+            pcall(button.SetScript, button, "OnShow", nil)
+            pcall(button.SetScript, button, "OnHide", nil)
+            pcall(button.SetScript, button, "OnClick", nil)
+        end
 
-        -- Neutralize Update / UpdateVisibility to prevent protected :Show()/:Hide() in combat
+        button.OnEvent = function() end
+        button.SetEnabled = function() end
+        button.Enable = function() end
+        button.Disable = function() end
+        button.SetAttribute = function() end
         button.Update = function() end
+        button.UpdateAction = function() end
         button.UpdateVisibility = function() end
         button.UpdateFlash = function() end
         button.SetFlashing = function() end
+        button.UpdateFlyoutActionIcon = function() end
+        button.UpdateState = function() end
+        button.UpdateUsable = function() end
+        button.UpdateCooldown = function() end
+        button.GetActiveSpellID = function() return nil end
+
+        if button.cooldown then
+            button.cooldown.SetCooldown = function() end
+            button.cooldown.Clear = function() end
+        end
+        if button.chargeCooldown then
+            button.chargeCooldown.SetCooldown = function() end
+            button.chargeCooldown.Clear = function() end
+        end
+        if button.lossOfControlCooldown then
+            button.lossOfControlCooldown.SetCooldown = function() end
+            button.lossOfControlCooldown.Clear = function() end
+        end
+
+        if _G.EventRegistry and _G.EventRegistry.UnregisterFrameEventAndCallback then
+            if button.playerTargetChangedOwner then
+                pcall(_G.EventRegistry.UnregisterFrameEventAndCallback, _G.EventRegistry, "PLAYER_TARGET_CHANGED", button.playerTargetChangedOwner)
+                button.playerTargetChangedOwner = nil
+            end
+            if button.raidTargetUpdateOwner then
+                pcall(_G.EventRegistry.UnregisterFrameEventAndCallback, _G.EventRegistry, "RAID_TARGET_UPDATE", button.raidTargetUpdateOwner)
+                button.raidTargetUpdateOwner = nil
+            end
+        end
+
+        if button.flashTicker then
+            pcall(button.flashTicker.Cancel, button.flashTicker)
+            button.flashTicker = nil
+        end
+        if button.rangeTicker then
+            pcall(button.rangeTicker.Cancel, button.rangeTicker)
+            button.rangeTicker = nil
+        end
+        if button.Flash and button.Flash.Hide then
+            pcall(button.Flash.Hide, button.Flash)
+        end
 
         if not InCombatLockdown or not InCombatLockdown() then
-            button:Hide()
+            pcall(button.Hide, button)
+        end
+    end
+
+    local function disarmTargetOverrideBar(bar)
+        if not bar then return end
+        if bar.UnregisterAllEvents then
+            pcall(bar.UnregisterAllEvents, bar)
+        end
+        bar.RegisterEvent = function() end
+        bar.RegisterUnitEvent = function() end
+        if bar.SetScript then
+            pcall(bar.SetScript, bar, "OnEvent", nil)
+            pcall(bar.SetScript, bar, "OnUpdate", nil)
+            pcall(bar.SetScript, bar, "OnShow", nil)
+            pcall(bar.SetScript, bar, "OnHide", nil)
+        end
+        bar.OnShow = function() end
+        bar.OnHide = function() end
+        bar.OnEvent = function() end
+
+        bar.ActivateOrDeactivateOverrideBar = function() end
+        bar.ActivateOverrideBar = function() end
+        bar.DeactivateOverrideBar = function() end
+        bar.SetUpActionButtons = function() end
+        bar.SetButtonEnabled = function(self, actionButton, isEnabled)
+            if actionButton and actionButton.SetAlpha then
+                actionButton:SetAlpha(isEnabled and 1 or 0.3)
+            end
+        end
+        bar.RefreshShootButton = function() end
+        bar.RefreshAssistButton = function() end
+        bar.RefreshGroupTargeting = function() end
+        bar.RefreshPlayerPortrait = function() end
+        bar.RefreshPetButton = function() end
+        bar.RefreshBuffsButton = function() end
+        bar.SetRangedButtonRangeCheckTimerEnabled = function() end
+        bar.RefreshShootButtonRange = function() end
+
+        if bar.rangedSpellRangeTicker then
+            pcall(bar.rangedSpellRangeTicker.Cancel, bar.rangedSpellRangeTicker)
+            bar.rangedSpellRangeTicker = nil
+        end
+
+        local gm = _G.GamepadMode
+        if gm then
+            if gm.UnregisterInputModifierStateChangeCallback then pcall(gm.UnregisterInputModifierStateChangeCallback, bar) end
+            if gm.UnregisterTargetModifierStateChanged then pcall(gm.UnregisterTargetModifierStateChanged, bar) end
+            if gm.UnregisterTargetModifierStateCancelled then pcall(gm.UnregisterTargetModifierStateCancelled, bar) end
+            if gm.UnregisterTargetModifierVisualStateChanged then pcall(gm.UnregisterTargetModifierVisualStateChanged, bar) end
+            if gm.UnregisterTargetModifierChanged then pcall(gm.UnregisterTargetModifierChanged, bar) end
+            if gm.UnregisterCrossBarModifierStateChanged then pcall(gm.UnregisterCrossBarModifierStateChanged, bar) end
+        end
+    end
+
+    local function disarmGamepadHierarchy(root, depth)
+        if not root or (depth and depth > 10) then return end
+        depth = (depth or 0) + 1
+
+        disarmGamepadButton(root)
+        disarmTargetOverrideBar(root)
+
+        if root.actionButtons then
+            for _, btn in pairs(root.actionButtons) do
+                disarmGamepadButton(btn)
+            end
+        end
+
+        if root.actionBars then
+            for _, bar in pairs(root.actionBars) do
+                disarmGamepadHierarchy(bar, depth)
+            end
+        end
+
+        if root.GetChildren then
+            local children = { root:GetChildren() }
+            for _, child in ipairs(children) do
+                disarmGamepadHierarchy(child, depth)
+            end
         end
     end
 
     local function patchCamelotGamepadPetFlyout()
-        local gmb = _G.GamepadMainActionBarFrame
-        local pageUnit = gmb and gmb.PageUnit
-        local leftBtn = (pageUnit and pageUnit.LeftClassAction) or _G.GamepadMainActionBarFramePageUnitLeftClassAction
-        local rightBtn = (pageUnit and pageUnit.RightClassAction) or _G.GamepadMainActionBarFramePageUnitRightClassAction
+        patchCamelotGamepadFlyoutMixins()
 
-        disarmGamepadClassActionButton(leftBtn)
-        disarmGamepadClassActionButton(rightBtn)
-
-        if _G.GamepadPetActionFlyout and (not InCombatLockdown or not InCombatLockdown()) then
-            _G.GamepadPetActionFlyout:Hide()
+        local targetMixins = {
+            "GamepadHostileTargetingActionBarMixin",
+            "GamepadFriendlyTargetingActionBarMixin",
+            "GamepadShortcutsActionBarMixin",
+        }
+        for _, mixinName in ipairs(targetMixins) do
+            local mixin = _G[mixinName]
+            if mixin and not mixin._sfui_disarmed then
+                mixin._sfui_disarmed = true
+                mixin.ActivateOrDeactivateOverrideBar = function() end
+                mixin.ActivateOverrideBar = function() end
+                mixin.DeactivateOverrideBar = function() end
+                mixin.SetUpActionButtons = function() end
+                mixin.SetButtonEnabled = function(self, actionButton, isEnabled)
+                    if actionButton and actionButton.SetAlpha then
+                        actionButton:SetAlpha(isEnabled and 1 or 0.3)
+                    end
+                end
+                mixin.RefreshShootButton = function() end
+                mixin.RefreshAssistButton = function() end
+                mixin.RefreshGroupTargeting = function() end
+                mixin.RefreshPlayerPortrait = function() end
+                mixin.RefreshPetButton = function() end
+                mixin.RefreshBuffsButton = function() end
+                mixin.SetRangedButtonRangeCheckTimerEnabled = function() end
+                mixin.RefreshShootButtonRange = function() end
+                mixin.OnShow = function() end
+                mixin.OnHide = function() end
+                mixin.OnEvent = function() end
+            end
         end
-        if _G.GamepadPetSpellFlyout and (not InCombatLockdown or not InCombatLockdown()) then
-            _G.GamepadPetSpellFlyout:Hide()
+
+        if _G.GamepadStanceBarMixin and not _G.GamepadStanceBarMixin._sfui_disarmed then
+            _G.GamepadStanceBarMixin._sfui_disarmed = true
+            _G.GamepadStanceBarMixin.UpdateStanceBarState = function() end
+        end
+
+        local gmb = _G.GamepadMainActionBarFrame
+        if gmb then
+            disarmGamepadHierarchy(gmb)
+
+            local gm = _G.GamepadMode
+            if gm then
+                local pageUnit = gmb.PageUnit
+                local owners = {
+                    gmb,
+                    pageUnit,
+                    pageUnit and pageUnit.HostileTargetingActionBar,
+                    pageUnit and pageUnit.FriendlyTargetingActionBar,
+                    pageUnit and pageUnit.ShortcutsActionBar,
+                    _G.GamepadMainActionBarFramePageUnitHostileTargetingActionBar,
+                    _G.GamepadMainActionBarFramePageUnitFriendlyTargetingActionBar,
+                    _G.GamepadMainActionBarFramePageUnitShortcutsActionBar,
+                }
+                for _, owner in ipairs(owners) do
+                    if owner then
+                        disarmTargetOverrideBar(owner)
+                        if gm.UnregisterInputModifierStateChangeCallback then pcall(gm.UnregisterInputModifierStateChangeCallback, owner) end
+                        if gm.UnregisterTargetModifierStateChanged then pcall(gm.UnregisterTargetModifierStateChanged, owner) end
+                        if gm.UnregisterTargetModifierStateCancelled then pcall(gm.UnregisterTargetModifierStateCancelled, owner) end
+                        if gm.UnregisterTargetModifierVisualStateChanged then pcall(gm.UnregisterTargetModifierVisualStateChanged, owner) end
+                        if gm.UnregisterTargetModifierChanged then pcall(gm.UnregisterTargetModifierChanged, owner) end
+                        if gm.UnregisterCrossBarModifierStateChanged then pcall(gm.UnregisterCrossBarModifierStateChanged, owner) end
+                    end
+                end
+            end
+        end
+
+        local flyoutFrames = {
+            "GamepadPetActionFlyout",
+            "GamepadPetSpellFlyout",
+            "GamepadSpellFlyout",
+            "GamepadFlyoutRadial",
+            "GamepadSpellFlyoutRadial",
+        }
+        for _, name in ipairs(flyoutFrames) do
+            local frame = _G[name]
+            if frame then
+                disarmGamepadHierarchy(frame)
+            end
         end
     end
+
+    sfui.compat.disarm_gamepad_action_bars = patchCamelotGamepadPetFlyout
 
     if _G.EventUtil and _G.EventUtil.ContinueOnPlayerLogin then
         _G.EventUtil.ContinueOnPlayerLogin(patchCamelotGamepadPetFlyout)

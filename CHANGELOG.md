@@ -1,29 +1,26 @@
 # changelog
 
-## v1.111 (2026-10-18)
+## v1.112 (2026-10-18)
 
 ### features
 
-- **dedicated hunter pet ring for camelot**:
-  - added dedicated pet ring provider in `frames/ring/providers/ring_pet.lua` containing beast lore, pet training, eyes of the beast, mend pet, revive pet, dismiss pet, feed pet, and call pet 1-5.
-  - bound to `alt-x` by default for hunters in camelot, while `shift-alt-x` opens specs (`frames/ring/ring.lua`).
-  - all other classes in camelot and standard expansions retain `alt-x` as their default specs keybind without conflict (`frames/ring/ring.lua`, `frames/options/tabs/tab_ring.lua`).
-- **pet experience bar & training points integration**:
-  - integrated centered pet portrait and dynamic training points counter in `frames/experience/pet.lua`.
-  - right-clicking the pet experience bar opens the beast training craft menu.
-  - middle-clicking the pet experience bar or pet unit frame triggers fast pet feeding (`frames/experience/pet.lua`, `frames/bars/pet.lua`).
-  - left-clicking toggles the pet character sheet.
+- **pet experience bar & portrait layout**:
+  - enlarged the pet portrait to twice the bar height and centered it directly in the middle of the pet experience bar (`frames/experience/pet.lua`).
+  - anchored the dynamic training points indicator immediately to the right of the centered portrait (`frames/experience/pet.lua`).
+- **player healthbar stance badge refactor**:
+  - refactored warrior stance and druid shapeshift form indicators attached to the player healthbar into a unified stance badge system (`frames/bars/bars.lua`).
+  - removed paladin aura indicators from attaching to the player healthbar (`frames/bars/bars.lua`).
 
 ### improvements & bug fixes
 
-- **raw api value forwarding & secret value safety**:
-  - resolved `Blizzard_TextStatusBar/TextStatusBar.lua:110` secret number comparison crash on character frame hide by forwarding raw api values directly to status bar fontstrings without lua-side arithmetic or relational comparisons (`core/safety.lua`).
-  - resolved `frames/bars/target.lua:638` secret number comparison crash by directly forwarding raw health and power values to target bar elements without value inspection.
-  - eliminated value inspections and redundant `pcall`s across `core/safety.lua`, `frames/bars/bars.lua`, `frames/bars/pet.lua`, and `frames/bars/target.lua`.
-  - simplified active marker logic in `frames/ring/providers/ring_markers.lua` and `frames/ring/providers/ring_worldmarkers.lua`.
-- **secure frame script taint prevention**:
-  - converted all `HookScript("OnShow")` and `HookScript("OnHide")` calls on blizzard secure frames (`CharacterFrame`, `PlayerFrame`, `PetFrame`) to `hooksecurefunc` across `frames/character/infopanel.lua`, `common.lua`, `frames/automation/currency.lua`, and `frames/hide.lua`.
-  - wrapped panel toggle actions in `securecall` to prevent propagation of execution taint into `UIParentPanelManager` (`frames/experience/pet.lua`).
-- **camelot dungeon journal & navigation**:
-  - expanded dungeon journal bosses and quest mappings for camelot instances in `data/dj_camelot.lua`.
-  - improved sidebar tooltips, quest listings, and map pin discovery (`frames/dungeonjournal/`, `frames/map/providers/pins_dungeonjournal.lua`).
+- **gamepad action bar taint & protected function prevention**:
+  - resolved `[blocked] sfui tried to call the protected function '...:SetEnabled()'` by disarming blizzard's gamepad action buttons and target override bars (`GamepadMainActionBarFramePageUnitHostileTargetingActionBar`, `FriendlyTargetingActionBar`, `ShortcutsActionBar`) (`compat.lua`, `frames/actionbars/actionbars.lua`).
+  - stubbed `:SetEnabled()`, `:Enable()`, `:Disable()`, and `:SetAttribute()` across all gamepad action buttons, preventing protected method calls from triggering under addon execution taint (`compat.lua`, `frames/actionbars/actionbars.lua`).
+  - unregistered all `GamepadMode` callbacks and `EventRegistry` callbacks (`PLAYER_TARGET_CHANGED`, `RAID_TARGET_UPDATE`) on target override action bars (`compat.lua`, `frames/actionbars/actionbars.lua`).
+- **action bar events & secret cooldown crash guard**:
+  - resolved `bad argument #1 to 'SetCooldown' (... Secret values are only allowed during untainted execution for this argument.)` in `Blizzard_ActionBar/Shared/ActionButton.lua:891` by:
+    - purging all gamepad action buttons from blizzard's central `ActionBarButtonEventsFrame.frames` list and hooking `RegisterFrame` so gamepad buttons never receive global action bar events (`compat.lua`, `frames/actionbars/actionbars.lua`).
+    - stubbing `OnEvent`, `UpdateCooldown`, `Update`, `UpdateAction`, `UpdateState`, and `UpdateUsable` across `GamepadActionBarStandardButtonMixin`, `GamepadActionBarButtonFlyoutMixin`, and `GamepadActionBarButtonMixin` (`compat.lua`).
+    - stubbing `:SetCooldown()` and `:Clear()` on gamepad button cooldown sub-frames (`cooldown`, `chargeCooldown`, `lossOfControlCooldown`) to guard against secret value propagation (`compat.lua`, `frames/actionbars/actionbars.lua`).
+- **gamepad secret boolean test safety**:
+  - resolved `attempt to perform boolean test on a secret boolean value (execution tainted by 'sfui')` in `Blizzard_GamepadActionBars/ActionBarButton.lua:965` by wrapping `C_Spell.IsActiveSpell` in secret-safe checks across gamepad flyouts (`compat.lua`).

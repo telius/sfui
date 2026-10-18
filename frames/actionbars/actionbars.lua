@@ -117,30 +117,175 @@ local function suppress_blizzard_actionbars()
         end
     end
 
-    local function disarmGamepadClassButton(btn)
-        if not btn then return end
-        if btn.UnregisterAllEvents then
-            btn:UnregisterAllEvents()
+    local function disarmGamepadButton(button)
+        if not button then return end
+        if button.UnregisterAllEvents then
+            pcall(button.UnregisterAllEvents, button)
         end
-        btn.RegisterEvent = function() end
-        btn.RegisterUnitEvent = function() end
-        btn:SetScript("OnEvent", nil)
-        btn:SetScript("OnUpdate", nil)
-        btn:SetScript("OnShow", nil)
-        btn:SetScript("OnHide", nil)
-        btn.Update = function() end
-        btn.UpdateVisibility = function() end
-        btn.UpdateFlash = function() end
-        btn.SetFlashing = function() end
+        button.RegisterEvent = function() end
+        button.RegisterUnitEvent = function() end
+        if button.SetScript then
+            pcall(button.SetScript, button, "OnEvent", nil)
+            pcall(button.SetScript, button, "OnUpdate", nil)
+            pcall(button.SetScript, button, "OnShow", nil)
+            pcall(button.SetScript, button, "OnHide", nil)
+            pcall(button.SetScript, button, "OnClick", nil)
+        end
+
+        button.OnEvent = function() end
+        button.SetEnabled = function() end
+        button.Enable = function() end
+        button.Disable = function() end
+        button.SetAttribute = function() end
+        button.Update = function() end
+        button.UpdateAction = function() end
+        button.UpdateVisibility = function() end
+        button.UpdateFlash = function() end
+        button.SetFlashing = function() end
+        button.UpdateFlyoutActionIcon = function() end
+        button.UpdateState = function() end
+        button.UpdateUsable = function() end
+        button.UpdateCooldown = function() end
+        button.GetActiveSpellID = function() return nil end
+
+        if button.cooldown then
+            button.cooldown.SetCooldown = function() end
+            button.cooldown.Clear = function() end
+        end
+        if button.chargeCooldown then
+            button.chargeCooldown.SetCooldown = function() end
+            button.chargeCooldown.Clear = function() end
+        end
+        if button.lossOfControlCooldown then
+            button.lossOfControlCooldown.SetCooldown = function() end
+            button.lossOfControlCooldown.Clear = function() end
+        end
+
+        if _G.EventRegistry and _G.EventRegistry.UnregisterFrameEventAndCallback then
+            if button.playerTargetChangedOwner then
+                pcall(_G.EventRegistry.UnregisterFrameEventAndCallback, _G.EventRegistry, "PLAYER_TARGET_CHANGED", button.playerTargetChangedOwner)
+                button.playerTargetChangedOwner = nil
+            end
+            if button.raidTargetUpdateOwner then
+                pcall(_G.EventRegistry.UnregisterFrameEventAndCallback, _G.EventRegistry, "RAID_TARGET_UPDATE", button.raidTargetUpdateOwner)
+                button.raidTargetUpdateOwner = nil
+            end
+        end
+
+        if button.flashTicker then
+            pcall(button.flashTicker.Cancel, button.flashTicker)
+            button.flashTicker = nil
+        end
+        if button.rangeTicker then
+            pcall(button.rangeTicker.Cancel, button.rangeTicker)
+            button.rangeTicker = nil
+        end
+        if button.Flash and button.Flash.Hide then
+            pcall(button.Flash.Hide, button.Flash)
+        end
+
         if not InCombatLockdown or not InCombatLockdown() then
-            btn:Hide()
+            pcall(button.Hide, button)
         end
     end
 
-    local gmb = _G.GamepadMainActionBarFrame
-    local gmbPage = gmb and gmb.PageUnit
-    disarmGamepadClassButton((gmbPage and gmbPage.LeftClassAction) or _G.GamepadMainActionBarFramePageUnitLeftClassAction)
-    disarmGamepadClassButton((gmbPage and gmbPage.RightClassAction) or _G.GamepadMainActionBarFramePageUnitRightClassAction)
+    local function disarmTargetOverrideBar(bar)
+        if not bar then return end
+        if bar.UnregisterAllEvents then
+            pcall(bar.UnregisterAllEvents, bar)
+        end
+        bar.RegisterEvent = function() end
+        bar.RegisterUnitEvent = function() end
+        if bar.SetScript then
+            pcall(bar.SetScript, bar, "OnEvent", nil)
+            pcall(bar.SetScript, bar, "OnUpdate", nil)
+            pcall(bar.SetScript, bar, "OnShow", nil)
+            pcall(bar.SetScript, bar, "OnHide", nil)
+        end
+        bar.OnShow = function() end
+        bar.OnHide = function() end
+        bar.OnEvent = function() end
+
+        bar.ActivateOrDeactivateOverrideBar = function() end
+        bar.ActivateOverrideBar = function() end
+        bar.DeactivateOverrideBar = function() end
+        bar.SetUpActionButtons = function() end
+        bar.SetButtonEnabled = function(self, actionButton, isEnabled)
+            if actionButton and actionButton.SetAlpha then
+                actionButton:SetAlpha(isEnabled and 1 or 0.3)
+            end
+        end
+        bar.RefreshShootButton = function() end
+        bar.RefreshAssistButton = function() end
+        bar.RefreshGroupTargeting = function() end
+        bar.RefreshPlayerPortrait = function() end
+        bar.RefreshPetButton = function() end
+        bar.RefreshBuffsButton = function() end
+        bar.SetRangedButtonRangeCheckTimerEnabled = function() end
+        bar.RefreshShootButtonRange = function() end
+
+        if bar.rangedSpellRangeTicker then
+            pcall(bar.rangedSpellRangeTicker.Cancel, bar.rangedSpellRangeTicker)
+            bar.rangedSpellRangeTicker = nil
+        end
+
+        local gm = _G.GamepadMode
+        if gm then
+            if gm.UnregisterInputModifierStateChangeCallback then pcall(gm.UnregisterInputModifierStateChangeCallback, bar) end
+            if gm.UnregisterTargetModifierStateChanged then pcall(gm.UnregisterTargetModifierStateChanged, bar) end
+            if gm.UnregisterTargetModifierStateCancelled then pcall(gm.UnregisterTargetModifierStateCancelled, bar) end
+            if gm.UnregisterTargetModifierVisualStateChanged then pcall(gm.UnregisterTargetModifierVisualStateChanged, bar) end
+            if gm.UnregisterTargetModifierChanged then pcall(gm.UnregisterTargetModifierChanged, bar) end
+            if gm.UnregisterCrossBarModifierStateChanged then pcall(gm.UnregisterCrossBarModifierStateChanged, bar) end
+        end
+    end
+
+    local function disarmGamepadHierarchy(root, depth)
+        if not root or (depth and depth > 10) then return end
+        depth = (depth or 0) + 1
+
+        disarmGamepadButton(root)
+        disarmTargetOverrideBar(root)
+
+        if root.actionButtons then
+            for _, btn in pairs(root.actionButtons) do
+                disarmGamepadButton(btn)
+            end
+        end
+
+        if root.actionBars then
+            for _, bar in pairs(root.actionBars) do
+                disarmGamepadHierarchy(bar, depth)
+            end
+        end
+
+        if root.GetChildren then
+            local children = { root:GetChildren() }
+            for _, child in ipairs(children) do
+                disarmGamepadHierarchy(child, depth)
+            end
+        end
+    end
+
+    local function suppressGamepadButtons()
+        if sfui.compat and sfui.compat.disarm_gamepad_action_bars then
+            sfui.compat.disarm_gamepad_action_bars()
+        end
+        local gmb = _G.GamepadMainActionBarFrame
+        if gmb then disarmGamepadHierarchy(gmb) end
+
+        local eventsFrame = _G.ActionBarButtonEventsFrame
+        if eventsFrame and eventsFrame.frames then
+            for i = #eventsFrame.frames, 1, -1 do
+                local f = eventsFrame.frames[i]
+                local name = f and f.GetName and f:GetName()
+                if (name and (name:find("Gamepad") or name:find("GamePad"))) or (f and f.isGamepadActionButton) then
+                    table.remove(eventsFrame.frames, i)
+                end
+            end
+        end
+    end
+    suppressGamepadButtons()
 
     local offscreenFrames = {
         "BagsBar",
@@ -173,34 +318,6 @@ local function suppress_blizzard_actionbars()
         end)
     end
 
-    -- Suppress Gamepad action bar child page unit and flyout buttons (Camelot / Classic)
-    local function suppressGamepadButtons()
-        local gmb = _G.GamepadMainActionBarFrame
-        local pageUnit = gmb and gmb.PageUnit
-        if pageUnit then
-            pageUnit:UnregisterAllEvents()
-            local left = pageUnit.LeftClassAction
-            if left then
-                left:Hide()
-                left:UnregisterAllEvents()
-                if left.flashTicker then
-                    left.flashTicker:Cancel()
-                    left.flashTicker = nil
-                end
-                if left.Flash then left.Flash:Hide() end
-            end
-            local right = pageUnit.RightClassAction
-            if right then
-                right:Hide()
-                right:UnregisterAllEvents()
-                if right.rangeTicker then
-                    right.rangeTicker:Cancel()
-                    right.rangeTicker = nil
-                end
-            end
-        end
-    end
-    suppressGamepadButtons()
     if _G.EventUtil and _G.EventUtil.ContinueOnPlayerLogin then
         _G.EventUtil.ContinueOnPlayerLogin(suppressGamepadButtons)
     end

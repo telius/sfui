@@ -18,19 +18,18 @@ do
     local get_vigor_bar
     local get_mount_speed_bar
     local get_rune_bar
+    local get_stance_badge
     local get_warrior_stance_badge
-    local get_paladin_aura_badge
     local update_mount_speed_bar_internal
     local update_bar_minus_1
     local update_bar0
     local update_bar1
     local update_rune_bar
     local update_vigor_bar
+    local update_stance_badge
     local update_warrior_stance_badge
-    local update_paladin_aura_badge
     local update_hunter_ammo_text
-    local warrior_stance_badge
-    local paladin_aura_badge
+    local stance_badge
 
     -- 5-Second Rule (MP5 Regen Timer) for Vanilla / Classic / Camelot
     local fsrEndTime = 0
@@ -154,16 +153,10 @@ do
                 rune_bar:SetPoint("BOTTOM", topAnchor, "TOP", 0, spacing)
             end
 
-            -- Warrior Stance Badge (Camelot only: halfway across top edge of health frame)
-            if warrior_stance_badge and bar0 and bar0.backdrop then
-                warrior_stance_badge:ClearAllPoints()
-                warrior_stance_badge:SetPoint("CENTER", bar0.backdrop, "TOP", 0, 0)
-            end
-
-            -- Paladin Aura Badge (Camelot only: halfway across top edge of health frame)
-            if paladin_aura_badge and bar0 and bar0.backdrop then
-                paladin_aura_badge:ClearAllPoints()
-                paladin_aura_badge:SetPoint("CENTER", bar0.backdrop, "TOP", 0, 0)
+            -- Stance & Shapeshift Form Badge (Camelot only: halfway across top edge of health frame)
+            if stance_badge and bar0 and bar0.backdrop then
+                stance_badge:ClearAllPoints()
+                stance_badge:SetPoint("CENTER", bar0.backdrop, "TOP", 0, 0)
             end
 
             -- Swing Timer Bars (slotting below power bar at -2, or below health at -1 if no power bar)
@@ -278,8 +271,7 @@ do
                 mount_speed_bar.backdrop:Hide()
             end
             if bar0 then bar0.backdrop:Hide() end
-            if warrior_stance_badge then warrior_stance_badge:Hide() end
-            if paladin_aura_badge then paladin_aura_badge:Hide() end
+            if stance_badge then stance_badge:Hide() end
             if bar_minus_1 then bar_minus_1.backdrop:Hide() end
             if bar1 then bar1.backdrop:Hide() end
             if rune_bar then rune_bar:Hide() end
@@ -287,8 +279,7 @@ do
             if vigor_bar then vigor_bar.backdrop:Hide() end
             if mount_speed_bar then mount_speed_bar.backdrop:Hide() end
             if bar0 then bar0.backdrop:Hide() end
-            if warrior_stance_badge then warrior_stance_badge:Hide() end
-            if paladin_aura_badge then paladin_aura_badge:Hide() end
+            if stance_badge then stance_badge:Hide() end
             if bar_minus_1 then bar_minus_1.backdrop:Hide() end
             if bar1 then bar1.backdrop:Hide() end
             if rune_bar then rune_bar:Hide() end
@@ -302,8 +293,7 @@ do
                     bar0.backdrop:Show()
                 elseif bar0 then
                     bar0.backdrop:Hide()
-                    if warrior_stance_badge then warrior_stance_badge:Hide() end
-                    if paladin_aura_badge then paladin_aura_badge:Hide() end
+                    if stance_badge then stance_badge:Hide() end
                 end
 
                 -- Primary Power Bar (bar_minus_1)
@@ -345,8 +335,7 @@ do
                 if bar0 and bar0.backdrop and bar0.backdrop:IsShown() then
                     local max, current = UnitHealthMax("player"), UnitHealth("player")
                     update_bar0(current, max)
-                    update_warrior_stance_badge()
-                    update_paladin_aura_badge()
+                    update_stance_badge()
                 end
                 if bar_minus_1 and bar_minus_1.backdrop and bar_minus_1.backdrop:IsShown() then
                     update_bar_minus_1()
@@ -356,8 +345,7 @@ do
                 end
             else
                 if bar0 then bar0.backdrop:Hide() end
-                if warrior_stance_badge then warrior_stance_badge:Hide() end
-                if paladin_aura_badge then paladin_aura_badge:Hide() end
+                if stance_badge then stance_badge:Hide() end
                 if bar_minus_1 then bar_minus_1.backdrop:Hide() end
                 if bar1 then bar1.backdrop:Hide() end
                 if rune_bar then rune_bar:Hide() end
@@ -698,8 +686,7 @@ do
         end
 
         sfui.theme.RegisterBar(bar, "health")
-        get_warrior_stance_badge()
-        get_paladin_aura_badge()
+        get_stance_badge()
         return bar
     end
 
@@ -747,16 +734,28 @@ do
         [3] = { name = "berserker stance", spellID = 2458, defaultIcon = 132275 }, -- Ability_Warrior_InnerRage
     }
 
-    get_warrior_stance_badge = function()
-        if warrior_stance_badge then return warrior_stance_badge end
+    local DRUID_FORMS = {
+        [1066]  = 136034, -- Aquatic Form
+        [768]   = 132115, -- Cat Form
+        [5487]  = 132276, -- Bear Form
+        [9634]  = 132276, -- Dire Bear Form
+        [783]   = 132144, -- Travel Form
+        [24858] = 136036, -- Moonkin Form
+        [33891] = 132145, -- Tree of Life
+        [33943] = 136077, -- Flight Form
+        [40120] = 136078, -- Swift Flight Form
+    }
+
+    get_stance_badge = function()
+        if stance_badge then return stance_badge end
         local isCamelot = sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot)
         local playerClass = common.get_player_class()
-        if not (isCamelot and playerClass == "WARRIOR") then return nil end
+        if not (isCamelot and (playerClass == "WARRIOR" or playerClass == "DRUID")) then return nil end
 
         local bar = get_bar0()
         if not bar or not bar.backdrop then return nil end
 
-        local badge = CreateFrame("Frame", "sfui_WarriorStanceBadge", bar.backdrop)
+        local badge = CreateFrame("Frame", "sfui_StanceBadge", bar.backdrop)
         badge:SetSize(18, 18)
         badge:SetFrameStrata(bar.backdrop:GetFrameStrata() or "MEDIUM")
         badge:SetFrameLevel((bar.backdrop:GetFrameLevel() or 1) + 20)
@@ -769,190 +768,111 @@ do
 
         badge:EnableMouse(false)
 
-        warrior_stance_badge = badge
+        stance_badge = badge
         return badge
+    end
+
+    get_warrior_stance_badge = function()
+        return get_stance_badge()
+    end
+
+    update_stance_badge = function()
+        local isCamelot = sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot)
+        local playerClass = common.get_player_class()
+        if not (isCamelot and (playerClass == "WARRIOR" or playerClass == "DRUID")) then
+            if stance_badge then stance_badge:Hide() end
+            return
+        end
+
+        local badge = get_stance_badge()
+        if not badge or not bar0 or not bar0.backdrop then return end
+
+        if not bar0.backdrop:IsShown() then
+            badge:Hide()
+            return
+        end
+
+        badge:ClearAllPoints()
+        badge:SetPoint("CENTER", bar0.backdrop, "TOP", 0, 0)
+
+        local form = (GetShapeshiftForm and GetShapeshiftForm()) or 0
+        local texture, spellID
+
+        if playerClass == "DRUID" then
+            -- If GetShapeshiftForm() returned 0, verify whether any form button is currently active
+            if form == 0 and GetNumShapeshiftForms and GetShapeshiftFormInfo then
+                local num = GetNumShapeshiftForms()
+                for i = 1, num do
+                    local formTexture, isActive, _, formSpellID = GetShapeshiftFormInfo(i)
+                    if isActive then
+                        form = i
+                        texture = formTexture
+                        spellID = formSpellID
+                        break
+                    end
+                end
+            end
+
+            -- Druid in caster (humanoid) form: hide stance/form badge
+            if form == 0 then
+                badge:Hide()
+                return
+            end
+
+            if not texture and GetShapeshiftFormInfo then
+                local formTexture, _, _, formSpellID = GetShapeshiftFormInfo(form)
+                if formTexture and formTexture ~= "" then
+                    texture = formTexture
+                end
+                if formSpellID and formSpellID > 0 then
+                    spellID = formSpellID
+                end
+            end
+
+            if not texture and spellID then
+                texture = common.get_spell_icon(spellID) or DRUID_FORMS[spellID]
+            end
+
+            if texture then
+                badge.icon:SetTexture(texture)
+                badge:Show()
+            else
+                badge:Hide()
+            end
+        elseif playerClass == "WARRIOR" then
+            -- Warrior is always in a stance in Classic / Camelot; default to Battle Stance (1)
+            if form == 0 then form = 1 end
+            local stanceInfo = WARRIOR_STANCES[form] or WARRIOR_STANCES[1]
+
+            if GetShapeshiftFormInfo then
+                local formTexture, _, _, formSpellID = GetShapeshiftFormInfo(form)
+                if formTexture and formTexture ~= "" then
+                    texture = formTexture
+                end
+                if formSpellID and formSpellID > 0 then
+                    spellID = formSpellID
+                end
+            end
+
+            if not spellID then spellID = stanceInfo.spellID end
+            if not texture and spellID then
+                texture = common.get_spell_icon(spellID)
+            end
+            if not texture then
+                texture = stanceInfo.defaultIcon
+            end
+
+            if texture then
+                badge.icon:SetTexture(texture)
+                badge:Show()
+            else
+                badge:Hide()
+            end
+        end
     end
 
     update_warrior_stance_badge = function()
-        local isCamelot = sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot)
-        local playerClass = common.get_player_class()
-        if not (isCamelot and playerClass == "WARRIOR") then
-            if warrior_stance_badge then warrior_stance_badge:Hide() end
-            return
-        end
-
-        local badge = get_warrior_stance_badge()
-        if not badge or not bar0 or not bar0.backdrop then return end
-
-        if not bar0.backdrop:IsShown() then
-            badge:Hide()
-            return
-        end
-
-        badge:ClearAllPoints()
-        badge:SetPoint("CENTER", bar0.backdrop, "TOP", 0, 0)
-
-        local form = (GetShapeshiftForm and GetShapeshiftForm()) or 0
-        if form == 0 then form = 1 end
-
-        local stanceInfo = WARRIOR_STANCES[form] or WARRIOR_STANCES[1]
-        local texture, spellID
-        if GetShapeshiftFormInfo then
-            local formTexture, _, _, formSpellID = GetShapeshiftFormInfo(form)
-            if formTexture and formTexture ~= "" then
-                texture = formTexture
-            end
-            if formSpellID and formSpellID > 0 then
-                spellID = formSpellID
-            end
-        end
-
-        if not spellID then spellID = stanceInfo.spellID end
-        if not texture and spellID then
-            texture = common.get_spell_icon(spellID)
-        end
-        if not texture then
-            texture = stanceInfo.defaultIcon
-        end
-
-        if texture then
-            badge.icon:SetTexture(texture)
-        end
-
-        badge:Show()
-    end
-
-    local PALADIN_AURAS = {
-        [465]   = 135893, -- Devotion Aura
-        [10290] = 135893,
-        [10291] = 135893,
-        [10292] = 135893,
-        [10293] = 135893,
-        [27149] = 135893,
-        [7294]  = 135873, -- Retribution Aura
-        [10298] = 135873,
-        [10299] = 135873,
-        [10300] = 135873,
-        [10301] = 135873,
-        [27150] = 135873,
-        [19746] = 135933, -- Concentration Aura
-        [19876] = 136154, -- Shadow Resistance Aura
-        [19895] = 136154,
-        [19896] = 136154,
-        [27151] = 136154,
-        [19888] = 135858, -- Frost Resistance Aura
-        [19897] = 135858,
-        [19898] = 135858,
-        [27152] = 135858,
-        [19891] = 135824, -- Fire Resistance Aura
-        [19899] = 135824,
-        [19900] = 135824,
-        [27153] = 135824,
-        [32223] = 135879, -- Crusader Aura
-        [20218] = 135934, -- Sanctity Aura
-    }
-
-    get_paladin_aura_badge = function()
-        if paladin_aura_badge then return paladin_aura_badge end
-        local isCamelot = sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot)
-        local playerClass = common.get_player_class()
-        if not (isCamelot and playerClass == "PALADIN") then return nil end
-
-        local bar = get_bar0()
-        if not bar or not bar.backdrop then return nil end
-
-        local badge = CreateFrame("Frame", "sfui_PaladinAuraBadge", bar.backdrop)
-        badge:SetSize(18, 18)
-        badge:SetFrameStrata(bar.backdrop:GetFrameStrata() or "MEDIUM")
-        badge:SetFrameLevel((bar.backdrop:GetFrameLevel() or 1) + 20)
-
-        local icon = badge:CreateTexture(nil, "ARTWORK")
-        badge.icon = icon
-        if sfui.common and sfui.common.apply_round_icon_style then
-            sfui.common.apply_round_icon_style(badge, icon, 1)
-        end
-
-        badge:EnableMouse(false)
-
-        paladin_aura_badge = badge
-        return badge
-    end
-
-    update_paladin_aura_badge = function()
-        local isCamelot = sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot)
-        local playerClass = common.get_player_class()
-        if not (isCamelot and playerClass == "PALADIN") then
-            if paladin_aura_badge then paladin_aura_badge:Hide() end
-            return
-        end
-
-        local badge = get_paladin_aura_badge()
-        if not badge or not bar0 or not bar0.backdrop then return end
-
-        if not bar0.backdrop:IsShown() then
-            badge:Hide()
-            return
-        end
-
-        badge:ClearAllPoints()
-        badge:SetPoint("CENTER", bar0.backdrop, "TOP", 0, 0)
-
-        local form = (GetShapeshiftForm and GetShapeshiftForm()) or 0
-        local texture, spellID
-
-        if form and form > 0 and GetShapeshiftFormInfo then
-            local formTexture, _, _, formSpellID = GetShapeshiftFormInfo(form)
-            if formTexture and formTexture ~= "" then
-                texture = formTexture
-            end
-            if formSpellID and formSpellID > 0 then
-                spellID = formSpellID
-            end
-        end
-
-        if (not texture or texture == "") and GetNumShapeshiftForms and GetShapeshiftFormInfo then
-            local num = GetNumShapeshiftForms()
-            for i = 1, num do
-                local formTexture, isActive, _, formSpellID = GetShapeshiftFormInfo(i)
-                if isActive then
-                    texture = formTexture
-                    spellID = formSpellID
-                    break
-                end
-            end
-        end
-
-        if not texture and spellID then
-            texture = common.get_spell_icon(spellID)
-        end
-        if not texture and spellID and PALADIN_AURAS[spellID] then
-            texture = PALADIN_AURAS[spellID]
-        end
-
-        if not texture then
-            for auraSpellID, iconID in pairs(PALADIN_AURAS) do
-                if C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
-                    local aura = C_UnitAuras.GetPlayerAuraBySpellID(auraSpellID)
-                    if aura and aura.icon then
-                        texture = aura.icon
-                        break
-                    end
-                elseif _G.GetPlayerAuraBySpellID then
-                    local aura = _G.GetPlayerAuraBySpellID(auraSpellID)
-                    if aura then
-                        texture = iconID
-                        break
-                    end
-                end
-            end
-        end
-
-        if texture then
-            badge.icon:SetTexture(texture)
-            badge:Show()
-        else
-            badge:Hide()
-        end
+        return update_stance_badge()
     end
 
     function get_rune_bar()
@@ -1417,10 +1337,10 @@ do
     sfui.bars.UpdatePositions = update_bar_positions
     sfui.bars.update_bar_visibility = update_bar_visibility
     sfui.bars.UpdateVisibility = update_bar_visibility
-    sfui.bars.get_warrior_stance_badge = get_warrior_stance_badge
-    sfui.bars.update_warrior_stance_badge = update_warrior_stance_badge
-    sfui.bars.get_paladin_aura_badge = get_paladin_aura_badge
-    sfui.bars.update_paladin_aura_badge = update_paladin_aura_badge
+    sfui.bars.get_stance_badge = get_stance_badge
+    sfui.bars.update_stance_badge = update_stance_badge
+    sfui.bars.get_warrior_stance_badge = get_stance_badge
+    sfui.bars.update_warrior_stance_badge = update_stance_badge
 
     function sfui.bars.set_bar_texture(arg1, arg2)
         local texturePath = (type(arg1) == "string") and arg1 or arg2
@@ -1475,8 +1395,7 @@ do
         update_vigor_bar()
         update_rune_bar()
         update_mount_speed_bar_internal()
-        update_warrior_stance_badge()
-        update_paladin_aura_badge()
+        update_stance_badge()
         update_bar_visibility()
     end
 
@@ -1652,12 +1571,7 @@ do
     sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", on_event)
     sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORM", on_event)
     sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORMS", on_event)
-    local isCamelotBars = sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot)
-    if isCamelotBars and common.get_player_class() == "PALADIN" then
-        sfui.events.RegisterUnitEvent("UNIT_AURA", "player", function()
-            update_paladin_aura_badge()
-        end)
-    end
+
     local isClassicOrCamelot = sfui.isClassic or sfui.isCamelot or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic or sfui.compat.is_classic_era))
     local pClassBars = (common.get_player_class and common.get_player_class()) or (UnitClass and select(2, UnitClass("player")))
     if isClassicOrCamelot and pClassBars == "HUNTER" then

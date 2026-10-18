@@ -35,7 +35,6 @@ local textFrame = nil
 local textLeft = nil
 local textCenter = nil
 local textRight = nil
-local centerGroup = nil
 local portraitFrame = nil
 local portraitTexture = nil
 local tpText = nil
@@ -61,9 +60,8 @@ local function UpdateTextVisibility(isHovering)
     if textLeft then textLeft:SetAlpha(alpha) end
     if textCenter then textCenter:SetAlpha(alpha) end
     if textRight then textRight:SetAlpha(alpha) end
-    if centerGroup then
-        centerGroup:SetAlpha(isHovering and 1.0 or 0.85)
-    end
+    if portraitFrame then portraitFrame:SetAlpha(isHovering and 1.0 or 0.9) end
+    if tpText then tpText:SetAlpha(isHovering and 1.0 or 0.9) end
 end
 
 --- Check if pet tracking is available and relevant
@@ -254,6 +252,11 @@ function petModule.ApplyTheme()
         textRight:SetShadowOffset(1, -1)
         textRight:SetShadowColor(0, 0, 0, 1)
     end
+    if tpText then
+        tpText:SetFont(fontFile, fontSize, "OUTLINE")
+        tpText:SetShadowOffset(1, -1)
+        tpText:SetShadowColor(0, 0, 0, 1)
+    end
 
     if petContainer then
         if sfui.theme and sfui.theme.ApplyStatusBarStyle then
@@ -431,25 +434,31 @@ function petModule.Create()
     textRight:SetJustifyH("RIGHT")
     textRight:SetTextColor(0.85, 0.85, 0.85, 1.0)
 
-    -- Center group with pet portrait and training points badge
-    centerGroup = CreateFrame("Frame", "SfuiPetExpCenterGroup", textFrame)
-    centerGroup:SetFrameLevel(petContainer:GetFrameLevel() + 3)
-    centerGroup:SetPoint("CENTER", petContainer, "CENTER", 0, 0)
-    centerGroup:EnableMouse(false)
-
-    portraitFrame = CreateFrame("Frame", nil, centerGroup)
-    portraitFrame:SetPoint("LEFT", centerGroup, "LEFT", 0, 0)
+    -- Center pet portrait (twice the bar size, centered directly in the middle of the bar)
+    portraitFrame = CreateFrame("Frame", "SfuiPetExpPortraitFrame", textFrame)
+    portraitFrame:SetFrameLevel(petContainer:GetFrameLevel() + 6)
+    portraitFrame:SetPoint("CENTER", petContainer, "CENTER", 0, 0)
     portraitFrame:EnableMouse(false)
 
     portraitTexture = portraitFrame:CreateTexture(nil, "ARTWORK")
     portraitTexture:SetAllPoints(portraitFrame)
-    if sfui.widgets and sfui.widgets.set_round_icon_coords then
+    if sfui.widgets and sfui.widgets.apply_round_icon_style then
+        sfui.widgets.apply_round_icon_style(portraitFrame, portraitTexture, 1.2, { 0, 0, 0, 0.9 })
+    elseif sfui.widgets and sfui.widgets.set_round_icon_coords then
         sfui.widgets.set_round_icon_coords(portraitTexture)
     else
         portraitTexture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     end
 
-    tpText = centerGroup:CreateFontString(nil, "OVERLAY", font)
+    -- Training points counter anchored immediately to the right of the portrait
+    local fontFile = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file())
+        or (_G.GameFontNormal and _G.GameFontNormal:GetFont())
+        or "Fonts\\FRIZQT__.TTF"
+
+    tpText = textFrame:CreateFontString(nil, "OVERLAY")
+    tpText:SetFont(fontFile, 10, "OUTLINE")
+    tpText:SetShadowOffset(1, -1)
+    tpText:SetShadowColor(0, 0, 0, 0.8)
     tpText:SetPoint("LEFT", portraitFrame, "RIGHT", 4, 0)
     tpText:SetJustifyH("LEFT")
     tpText:SetTextColor(1.0, 1.0, 1.0, 1.0)
@@ -621,7 +630,15 @@ function petModule.UpdateValues()
         end
     end
 
-    if tpText and centerGroup then
+    local barH = petContainer:GetHeight() or 10
+    local pSize = math_max(20, math_floor((barH * 2.0) + 0.5))
+    if portraitFrame then
+        portraitFrame:SetSize(pSize, pSize)
+        portraitFrame:ClearAllPoints()
+        portraitFrame:SetPoint("CENTER", petContainer, "CENTER", 0, 0)
+    end
+
+    if tpText then
         local unspentTP = data.unspentTP or 0
         if unspentTP > 0 then
             tpText:SetText("|cff33ff33" .. BreakUpLargeNumbers(unspentTP) .. " tp|r")
@@ -630,16 +647,8 @@ function petModule.UpdateValues()
         else
             tpText:SetText("|cffaaaaaa0 tp|r")
         end
-
-        local barH = petContainer:GetHeight() or 10
-        local pSize = math_max(10, math_min(barH + 2, 16))
-        if portraitFrame then
-            portraitFrame:SetSize(pSize, pSize)
-        end
-        local textW = tpText:GetStringWidth() or 24
-        centerGroup:SetSize(pSize + 4 + textW, pSize)
-        centerGroup:ClearAllPoints()
-        centerGroup:SetPoint("CENTER", petContainer, "CENTER", 0, 0)
+        tpText:ClearAllPoints()
+        tpText:SetPoint("LEFT", portraitFrame, "RIGHT", 4, 0)
     end
 
     UpdateTextVisibility(petContainer:IsMouseOver())
