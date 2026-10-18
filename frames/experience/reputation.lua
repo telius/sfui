@@ -298,6 +298,9 @@ function repModule.UpdateLayout()
     if sfui.experience.challenges and sfui.experience.challenges.UpdateLayout then
         sfui.experience.challenges.UpdateLayout()
     end
+    if sfui.experience.pet and sfui.experience.pet.UpdateLayout then
+        sfui.experience.pet.UpdateLayout()
+    end
 end
 
 --- Update values and visibility of reputation bar
@@ -513,10 +516,16 @@ function repModule.Create()
         if sfui.experience.challenges and sfui.experience.challenges.UpdateLayout then
             sfui.experience.challenges.UpdateLayout()
         end
+        if sfui.experience.pet and sfui.experience.pet.UpdateLayout then
+            sfui.experience.pet.UpdateLayout()
+        end
     end)
     repContainer:HookScript("OnHide", function()
         if sfui.experience.challenges and sfui.experience.challenges.UpdateLayout then
             sfui.experience.challenges.UpdateLayout()
+        end
+        if sfui.experience.pet and sfui.experience.pet.UpdateLayout then
+            sfui.experience.pet.UpdateLayout()
         end
     end)
 

@@ -177,8 +177,11 @@ local modDef = {
             end
             exp.challenges.UpdateValues()
         end
-        if exp.pet and exp.pet.UpdateValues then
-            exp.pet.UpdateValues()
+        if exp.pet then
+            if key == "width" or key == "petHeight" or key == "challengesHeight" or key == "repHeight" or key == "height" or key == "pos" or key == "petBarAlwaysShow" then
+                if exp.pet.UpdateLayout then exp.pet.UpdateLayout() end
+            end
+            if exp.pet.UpdateValues then exp.pet.UpdateValues() end
         end
 
         if key == "hideBlizzardBar" and exp.events then
@@ -324,6 +327,9 @@ function exp.ResetPosition()
     end
     if exp.challenges and exp.challenges.UpdateLayout then
         exp.challenges.UpdateLayout()
+    end
+    if exp.pet and exp.pet.UpdateLayout then
+        exp.pet.UpdateLayout()
     end
     if sfui.common and sfui.common.print then
         sfui.common.print("experience bar position reset to default.")

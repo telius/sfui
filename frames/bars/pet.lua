@@ -25,7 +25,6 @@ local _G                        = _G
 local CreateFrame               = _G.CreateFrame
 local UIParent                  = _G.UIParent
 local GameTooltip               = sfui.common.get_tooltip()
-local GameTooltip_SetDefaultAnchor = _G.GameTooltip_SetDefaultAnchor
 local InCombatLockdown          = _G.InCombatLockdown
 local RegisterStateDriver       = _G.RegisterStateDriver
 local UnregisterStateDriver     = _G.UnregisterStateDriver
@@ -380,7 +379,7 @@ local function init_pet_frame()
     -- mouseover tooltip
     container:SetScript("OnEnter", function(self)
         if not UnitExists("pet") then return end
-        GameTooltip_SetDefaultAnchor(GameTooltip, self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT", 4, 0)
         GameTooltip:SetUnit("pet")
         if playerClass == "HUNTER" then
             local happ, dmgPct = GetPetHappiness and GetPetHappiness()
@@ -394,7 +393,7 @@ local function init_pet_frame()
         GameTooltip:Show()
     end)
     container:SetScript("OnLeave", function(self)
-        GameTooltip:FadeOut()
+        GameTooltip:Hide()
     end)
 
     -- health bar backdrop

@@ -661,13 +661,28 @@ do
         healPredBar:SetStatusBarTexture(texturePath)
         healPredBar:SetStatusBarColor(0.0, 0.8, 0.6, 0.5)
         healPredBar:GetStatusBarTexture():SetBlendMode("ADD")
+        healPredBar:EnableMouse(false)
         bar.healPredBar = healPredBar
 
         local absorbBar = CreateFrame("StatusBar", nil, bar)
         absorbBar:SetFrameLevel(bar:GetFrameLevel() + 2)
         absorbBar:SetStatusBarTexture(texturePath)
         absorbBar:GetStatusBarTexture():SetBlendMode("ADD")
+        absorbBar:EnableMouse(false)
         bar.absorbBar = absorbBar
+
+        bar:EnableMouse(false)
+
+        -- Configure healthbar backdrop as a secure unit button identical to pet and target frames
+        local backdrop = bar.backdrop
+        if backdrop then
+            backdrop:SetAttribute("unit", "player")
+            backdrop:SetAttribute("*type1", "target")
+            backdrop:SetAttribute("*type2", "togglemenu")
+            backdrop:RegisterForClicks("AnyUp", "AnyDown")
+            backdrop:EnableMouse(true)
+            backdrop:SetClampedToScreen(true)
+        end
 
         sfui.theme.RegisterBar(bar, "health")
         get_warrior_stance_badge()

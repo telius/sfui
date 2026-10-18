@@ -1,16 +1,15 @@
 # changelog
 
-## v1.108 (2026-10-18)
+## v1.109 (2026-10-18)
 
 ### features
 
-- **companion pet frame for camelot hunters & warlocks**: added a dedicated pet unit frame anchored to the right of the player health bar with matching theme, borders, health, power, level, and pet happiness tracking (`frames/bars/pet.lua`, `sfui.toc`, `config.lua`, `frames/options/tabs/tab_bars.lua`).
-- **out-of-combat visibility options**: added dynamic visibility controls for player health, power, and pet bars with options to always show out of combat, show on missing health (player or pet), show on missing power or rage, show while casting/channeling, and show on friendly target (`frames/bars/bars.lua`, `frames/bars/pet.lua`, `config.lua`, `common.lua`, `frames/options/tabs/tab_bars.lua`).
-- **hunter ammo counter on power bar**: added live ammo count indicator anchored on the mana bar for hunters in camelot (`frames/bars/bars.lua`).
+- **comprehensive hunter pet experience & progression bar in camelot**: full redesign and feature integration for the hunter pet experience bar (`frames/experience/pet.lua`), displaying live level, xp progress, loyalty rank with sub-rank loyalty progression points, pet happiness with damage modifier breakdowns (125% happy / 100% content / 75% unhappy), pet diet preferences with supported food categories, and unspent/total pet training points. left-clicking opens the pet character panel (with camelot sidebar tab 4 support), and right-clicking opens the pet context menu.
+- **player health bar unitframe menu**: right-clicking the player health bar now triggers the player context menu via secure action button template (`core/widgets.lua`, `frames/bars/bars.lua`), mirroring standard unitframe behavior.
 
 ### improvements & bug fixes
 
-- **auto-equip lower level ammo on depletion**: resolved an issue where empty equipped ammo slots outscored bag ammo and failed to auto-equip lower-level reserve ammo stacks upon running out of ammo; implemented direct slot 0 cursor equipping and hooked inventory change events (`frames/gear/highest.lua`, `frames/gear/engine.lua`).
-- **target-based defense & avoidance calculations**: defense rating, armor damage reduction, miss, dodge, parry, block, and crit reduction are now calculated dynamically against the current target's level (defaulting to +3 boss when no target is selected), with shortened row descriptions to eliminate text overlap (`frames/character/infopanel.lua`).
-- **pet action button secure handling**: resolved protected action button state errors on pet action bars (`frames/actionbars/actionbars.lua`, `frames/actionbars/bars.lua`).
-- **minimap system text font size**: reduced the system fps/ms text in the minimap button collection bar by 2 points (`frames/map/system.lua`).
+- **highest gear weapon selection based on weapon dps**: resolved an issue in `frames/gear/highest.lua` where missing off-hand weapons unconditionally forced 2-handed weapons over superior 1-handers; camelot hunters and classic/camelot retribution paladins now choose 1-handed weapons over 2-handers whenever weapon dps or overall item score is higher.
+- **retail retribution paladin 2-hander enforcement**: in retail, retribution paladins are strictly constrained to 2-handed weapons exclusively (`frames/gear/highest.lua`).
+- **pet bar tooltip placement**: anchored the pet bar tooltip to the right of the pet unit frame (`frames/bars/pet.lua`), preventing overlap with default game world tooltips.
+- **multi-bar experience switcher synchronization**: ensured smooth integration and tracking updates between player xp, reputation, challenges, and hunter pet experience across events and bar switching (`frames/experience/bar.lua`, `frames/experience/experience.lua`, `frames/experience/events.lua`, `frames/experience/challenges.lua`, `frames/experience/reputation.lua`).

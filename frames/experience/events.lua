@@ -358,6 +358,9 @@ function events.Initialize()
     reg("UNIT_PET_EXPERIENCE", RequestDebouncedUpdate)
     reg("UNIT_PET", RequestDebouncedUpdate)
     reg("PET_UI_UPDATE", RequestDebouncedUpdate)
+    reg("UNIT_HAPPINESS", RequestDebouncedUpdate)
+    reg("UNIT_PET_TRAINING_POINTS", RequestDebouncedUpdate)
+    reg("UNIT_LEVEL", RequestDebouncedUpdate)
 
     if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
         pcall(_G.EventRegistry.RegisterCallback, _G.EventRegistry, "Legacy.UpdateCurrencyInfo", OnQuestOrFactionUpdate, events)

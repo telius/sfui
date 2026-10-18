@@ -349,6 +349,8 @@ sfui.config = {
         trackLegacy = false,         -- Camelot only: track legacy challenges reward track (faction 2802)
         showChallengesBar = false,   -- Show stacked challenges bar when available
         challengesHeight = 12,       -- Height of the stacked challenges bar
+        petHeight = 10,              -- Height of the stacked hunter pet experience / training bar
+        petBarAlwaysShow = false,    -- Keep pet bar visible even when pet has capped XP, max loyalty, and 0 unspent TP
         hideBlizzardBar = true,
         colors = {
             xp = { 0.58, 0.0, 0.82, 1.0 },             -- Fallback active xp color (purple)
@@ -356,6 +358,8 @@ sfui.config = {
             questPreview = { 0.96, 0.65, 0.12, 0.70 }, -- Completed quest turn-in preview (amber/gold)
             reputation = { 0.0, 0.60, 0.35, 1.0 },     -- Fallback reputation green
             legacy = { 0.08, 0.72, 0.22, 1.0 },        -- Camelot legacy challenges green (matches in-game tracker)
+            petXP = { 0.18, 0.65, 0.32, 1.0 },         -- Hunter pet experience green
+            petTP = { 0.88, 0.62, 0.14, 1.0 },         -- Hunter pet training points bronze/amber
         },
     },
 

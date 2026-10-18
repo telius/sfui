@@ -598,6 +598,11 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
         end
     end
 
+    -- Retail Retribution Paladin (70): ALWAYS use 2H weapons exclusively
+    if not isClassic and specID == 70 then
+        rule = { armor = rule.armor, stat = rule.stat, weaps = { ["2H"] = true }, allowedWeapons = rule.allowedWeapons }
+    end
+
     -- Classic Rogue Dual Wield check (requires level 10 + trainer passive ability 674)
     if isClassic and isRogue then
         local hasDualWield = true
@@ -926,12 +931,18 @@ function sfui.highest.GetBestItems(isPvP)
     local isPriest  = (playerClass == "PRIEST" or classID == 1487 or specID == 1487 or specID == 256 or specID == 257 or specID == 258 or (specID and specID >= 14871 and specID <= 14873))
     local isRogue   = (playerClass == "ROGUE" or classID == 1488 or specID == 1488 or specID == 259 or specID == 260 or specID == 261 or (specID and specID >= 14881 and specID <= 14883))
     local isDK      = (playerClass == "DEATHKNIGHT" or classID == 1483 or specID == 1483 or specID == 250 or specID == 251 or specID == 252 or (specID and specID >= 14831 and specID <= 14833))
+    local isHunter  = (playerClass == "HUNTER" or classID == 1485 or specID == 1485 or specID == 253 or specID == 254 or specID == 255 or (specID and specID >= 14851 and specID <= 14853))
 
     -- Dynamic Frost DK Talent Overrides
     if not isClassicSpec and specID == 251 then
         if common.is_talent_known(FROSTBANE_TALENT_ID) then
             rule = { armor = rule.armor, stat = rule.stat, weaps = { ["1H_Dual"] = true, ["2H"] = false }, allowedWeapons = rule.allowedWeapons }
         end
+    end
+
+    -- Retail Retribution Paladin (70): ALWAYS use 2H weapons exclusively
+    if not isClassicSpec and specID == 70 then
+        rule = { armor = rule.armor, stat = rule.stat, weaps = { ["2H"] = true }, allowedWeapons = rule.allowedWeapons }
     end
 
     local b = sfui.talents.SPEC_BRIDGE[specID]
@@ -949,6 +960,7 @@ function sfui.highest.GetBestItems(isPvP)
     local isHeal = (specDB and specDB.is_healer)
         or (cRoleLower == "heal" or cRoleLower == "resto" or cRoleLower == "holy" or cRoleLower == "disc")
         or (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
+    local isRetPaladin = isClassicSpec and (isPaladin or classID == 1486) and not isTank and not isHeal
 
     -- Classic Role Weapon & Stat Override: Warrior/Paladin tanks & Paladin/Shaman/Druid/Priest healers
     if isClassicSpec then
@@ -1417,18 +1429,18 @@ function sfui.highest.GetBestItems(isPvP)
                     if isWeapon then
                         local wDps, wSpeed = common.get_weapon_stats(itm.link)
                         if wDps and wDps > 0 then
-                            local isHunter = (classID == 1485) or usesAmmo
+                            local isHunterSpec = isHunter or (classID == 1485) or usesAmmo or (playerClass == "HUNTER")
                             local isPhysical = (rule.stat == 1 or rule.stat == 2)
                             local isCaster = (rule.stat == 4)
 
                             local dpsWeight = 0
                             if isHeal then
                                 dpsWeight = (slotID == 18 and 25) or 0 -- Wand DPS for wand users, 0 weapon melee damage for healers
-                            elseif isHunter then
+                            elseif isHunterSpec then
                                 if slotID == 18 then
                                     dpsWeight = 35 -- Main damage weapon for Hunter
                                 else
-                                    dpsWeight = 10 -- Melee stat stick
+                                    dpsWeight = isClassicSpec and 25 or 10 -- Melee weapon (Classic: melee combat / Raptor Strike / stat stick)
                                 end
                             elseif isPhysical then
                                 if slotID == 18 then
@@ -1918,12 +1930,12 @@ function sfui.highest.GetBestItems(isPvP)
             -- score2H is best2H.score (1 weapon base + 2H weapon DPS + 2H speed bonus + 2H stats)
             -- Both score2H and scoreDual now have exactly 1 weapon slot base, so weapon DPS and item stats decide naturally!
         else
-            if best2H then
-                -- A 2H weapon occupies two slots, so its base ilvl component must be doubled to compare
-                -- against the sum of a 1H + OH score (which organically adds two item levels together).
+            if best2H and bestOH then
+                -- A 2H weapon occupies two slots, so when replacing both MH + OH, its base ilvl component
+                -- must be doubled to compare against the sum of a 1H + OH score (which organically adds two item levels together).
                 local twoHandIlvlMult = isClassicSpec and 10 or (isPvP and 100 or 1000)
                 score2H = score2H + (best2H.ilvl * twoHandIlvlMult)
-                if isClassicSpec and bestOH then
+                if isClassicSpec then
                     local q = best2H.quality or 1
                     local qBonus = (q == 5 and 2500)
                         or (q == 4 and 1200)
@@ -1940,10 +1952,30 @@ function sfui.highest.GetBestItems(isPvP)
         local prioMH_OH = (specID == 62 or specID == 63 or specID == 64 or specID == 265 or specID == 266 or specID == 267 or specID == 258) or (isClassicSpec and isHeal)
         local choose2H = false
 
-        if best2H and (not best1H or not bestOH) then
+        if not isClassicSpec and specID == 70 then
+            -- Retail Retribution Paladin (70): ALWAYS use 2H weapons exclusively!
+            choose2H = best2H ~= nil
+        elseif best2H and not best1H then
             choose2H = true
-        elseif best2H and best1H and bestOH then
-            if prioMH_OH then
+        elseif best2H and best1H then
+            local dps1H = GetWeaponDPS(best1H)
+            local dps2H = GetWeaponDPS(best2H)
+
+            if isHunter or isRetPaladin then
+                -- Hunter & Ret Paladin in Classic / Camelot:
+                -- Melee weapon choice prioritizes weapon DPS and overall combat value.
+                -- If the 1-handed weapon has higher weapon DPS than the 2-handed weapon, ALWAYS prefer the 1-hander!
+                -- Also if the 1-handed weapon (+ shield/offhand) overall score is equal or better than the 2-hander, prefer 1H!
+                if dps1H > dps2H then
+                    choose2H = false
+                elseif scoreDual >= score2H then
+                    choose2H = false
+                elseif dps2H > dps1H then
+                    choose2H = (score2H > scoreDual)
+                else
+                    choose2H = (score2H > scoreDual)
+                end
+            elseif prioMH_OH then
                 -- For Mage, Warlock & Shadow Priest or Classic Healers: prioritize MH + OH if stats/score are equal or better
                 -- 2H is only chosen if it genuinely beats the combined dual set beyond rounding margin
                 if score2H > (scoreDual + 1.0) then
@@ -1960,7 +1992,10 @@ function sfui.highest.GetBestItems(isPvP)
                     choose2H = true
                 end
             else
-                if score2H > scoreDual then
+                if not bestOH and isClassicSpec and not isTank and not isHeal and dps1H > dps2H then
+                    -- When leveling without an offhand in Classic, never downgrade weapon DPS to equip a worse 2H
+                    choose2H = false
+                elseif score2H > scoreDual then
                     choose2H = true
                 else
                     choose2H = false
@@ -1972,6 +2007,22 @@ function sfui.highest.GetBestItems(isPvP)
         local isWarriorWeap = isClassicSpec and (classID == 1491 or specID == 1491 or (specID and specID >= 14911 and specID <= 14913))
         local isShamanWeap  = isClassicSpec and (classID == 1489 or specID == 1489 or (specID and specID >= 14891 and specID <= 14893))
         local isRogueWeap   = isClassicSpec and (classID == 1488 or specID == 1488 or (specID and specID >= 14881 and specID <= 14883))
+        local isHunterWeap  = isHunter
+
+        -- Classic Hunter & Ret Paladin Weapon DPS / Upgrade Override:
+        -- If 1H weapon DPS is higher than 2H weapon DPS, or if 1H (+ shield) score is better/equal, take 1H over 2H!
+        if (isHunterWeap or isRetPaladin) and best1H and best2H then
+            local dps1H = GetWeaponDPS(best1H)
+            local dps2H = GetWeaponDPS(best2H)
+            if dps1H > dps2H or scoreDual >= score2H then
+                choose2H = false
+            end
+        end
+
+        -- Retail Retribution Paladin Override: ALWAYS use 2H weapons!
+        if not isClassicSpec and specID == 70 and best2H then
+            choose2H = true
+        end
 
         -- Classic Tank Override: Classic Warrior (1491) and Paladin (1486) tanks NEVER use 2H weapons!
         if isClassicSpec and isTank and (isWarriorWeap or isPaladinWeap) then

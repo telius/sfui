@@ -202,6 +202,9 @@ function barModule.UpdateLayout()
     if sfui.experience.challenges and sfui.experience.challenges.UpdateLayout then
         sfui.experience.challenges.UpdateLayout()
     end
+    if sfui.experience.pet and sfui.experience.pet.UpdateLayout then
+        sfui.experience.pet.UpdateLayout()
+    end
 end
 
 --- Update or create 20-segment tick marks
@@ -603,10 +606,16 @@ function barModule.Create()
         if sfui.experience.challenges and sfui.experience.challenges.UpdateLayout then
             sfui.experience.challenges.UpdateLayout()
         end
+        if sfui.experience.pet and sfui.experience.pet.UpdateLayout then
+            sfui.experience.pet.UpdateLayout()
+        end
     end)
     container:HookScript("OnHide", function()
         if sfui.experience.challenges and sfui.experience.challenges.UpdateLayout then
             sfui.experience.challenges.UpdateLayout()
+        end
+        if sfui.experience.pet and sfui.experience.pet.UpdateLayout then
+            sfui.experience.pet.UpdateLayout()
         end
     end)
 

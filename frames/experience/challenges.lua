@@ -436,6 +436,10 @@ function challenges.UpdateLayout()
     end
     UpdateTicks(actualWidth - 2, barHeight - 2)
     challenges.ApplyTheme()
+
+    if sfui.experience.pet and sfui.experience.pet.UpdateLayout then
+        sfui.experience.pet.UpdateLayout()
+    end
 end
 
 --- Update values and visibility of challenges bar
@@ -760,6 +764,17 @@ function challenges.Create()
     if sfui.theme and sfui.theme.RegisterBar then
         sfui.theme.RegisterBar(challengesContainer, "xp")
     end
+
+    challengesContainer:HookScript("OnShow", function()
+        if sfui.experience.pet and sfui.experience.pet.UpdateLayout then
+            sfui.experience.pet.UpdateLayout()
+        end
+    end)
+    challengesContainer:HookScript("OnHide", function()
+        if sfui.experience.pet and sfui.experience.pet.UpdateLayout then
+            sfui.experience.pet.UpdateLayout()
+        end
+    end)
 
     challenges.ApplyTheme()
     challenges.UpdateLayout()
