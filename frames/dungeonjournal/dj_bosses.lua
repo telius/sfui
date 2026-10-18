@@ -424,8 +424,8 @@ local function GetEncounterList(dungeon)
     local list = {}
     list[1] = {
         isAll       = true,
-        name        = "All Bosses",
-        level       = "All",
+        name        = "all bosses",
+        level       = "all",
         subtitle    = string.format("%d encounters · %d drops", #bosses, #allItems),
         icon        = dungeon.icon or 133743,
         items       = allItems,
@@ -457,7 +457,7 @@ local function GetBossWishlistInfo(boss)
             if not names then names = {} end
             local name, link = common.get_item_info(id)
             if not name then
-                local instName = common.get_item_instant_info(id)
+                local instName = (_G.C_Item and _G.C_Item.GetItemNameByID and _G.C_Item.GetItemNameByID(id))
                 name = instName or ("item #" .. id)
             end
             names[#names + 1] = link or name or ("item #" .. id)
@@ -603,11 +603,11 @@ local function AcquireLootButton(pool, parent)
         end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         if isWish then
-            GameTooltip:SetText("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffcc44ffWishlisted Item|r")
+            GameTooltip:SetText("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffcc44ffwishlisted item|r")
             GameTooltip:AddLine("click to remove from your loot wishlist.", 0.85, 0.85, 0.85)
             GameTooltip:AddLine("wishlisted items trigger special alert banners and sounds when dropped.", 0.6, 0.6, 0.6, true)
         else
-            GameTooltip:SetText("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffffffffAdd to Wishlist|r")
+            GameTooltip:SetText("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffffffffadd to wishlist|r")
             GameTooltip:AddLine("click to track this item on your loot wishlist.", 0.85, 0.85, 0.85)
             GameTooltip:AddLine("triggers alerts and highlights whenever this item drops.", 0.6, 0.6, 0.6, true)
         end
@@ -843,11 +843,14 @@ local function RenderLoot(boss, dungeon)
 
         if not name or not icon then
             -- Fallback instant info
-            local instName, _, instQuality, _, _, _, _, _, instEquipLoc, instIcon, _, instClassID, instSubClassID = common.get_item_instant_info(itemID)
+            local _, instType, instSubType, instEquipLoc, instIcon, instClassID, instSubClassID = common.get_item_instant_info(itemID)
+            local instName = (_G.C_Item and _G.C_Item.GetItemNameByID and _G.C_Item.GetItemNameByID(itemID))
             name       = instName or ("item #" .. itemID)
-            quality    = instQuality or 1
-            icon       = instIcon or 134400
-            equipSlot  = instEquipLoc
+            quality    = common.get_item_quality(itemID) or 1
+            icon       = instIcon or (_G.C_Item and _G.C_Item.GetItemIconByID and _G.C_Item.GetItemIconByID(itemID)) or 134400
+            equipSlot  = equipSlot or instEquipLoc
+            class      = class or instType
+            subclass   = subclass or instSubType
             classID    = classID or instClassID
             subclassID = subclassID or instSubClassID
             -- Request async cache population
@@ -1113,6 +1116,8 @@ local function RefreshBossView()
         end)
 
         -- Wishlist state on boss button
+        btn.bossData = boss
+        btn.bossName = boss.name
         UpdateBossButtonWishlist(btn)
 
         btn:SetScript("OnEnter", function(self)
@@ -1522,8 +1527,9 @@ end
 if sfui.events and sfui.events.RegisterMessage then
     sfui.events.RegisterMessage("SFUI_DJ_FRAME_CREATED", OnFrameCreated)
     sfui.events.RegisterMessage("SFUI_DJ_CLEAR_CACHE", function()
-        bossButtons = {}
-        lootButtons = {}
+        itemClassUsableCache = {}
+        ReleaseAll(bossButtons)
+        ReleaseAll(lootButtons)
         RefreshBossView()
     end)
     sfui.events.RegisterMessage("SFUI_DJ_WISHLIST_UPDATED", function()

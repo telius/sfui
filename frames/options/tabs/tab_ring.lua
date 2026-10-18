@@ -45,15 +45,20 @@ sfui.options.RegisterTab({
         keybind_desc:SetText("assign hardware keybinds for each radial ring. click to bind, right-click to clear.")
 
         -- keybind rows
-        local rows = {
-            { id = "specs",         label = "specializations:",   title = "specializations ring keybind" },
-            { id = "utility",       label = "class & custom:",    title = "class utility & custom ring keybind" },
-            { id = "tracking",      label = "minimap tracking:", title = "minimap tracking keybind" },
-            { id = "professions",   label = "professions:",       title = "professions keybind" },
-            { id = "questitems",    label = "quest items:",       title = "quest items keybind" },
-            { id = "targetmarkers", label = "target markers:",    title = "target markers keybind" },
-            { id = "worldmarkers",  label = "world markers:",     title = "world markers keybind" },
-        }
+        local isCam = (sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot))
+        local _, pClass = _G.UnitClass and _G.UnitClass("player")
+        local isHunterCamelot = not not (isCam and pClass == "HUNTER")
+        local rows = {}
+        if isHunterCamelot then
+            rows[#rows + 1] = { id = "pet", label = "hunter pet:", title = "hunter pet ring keybind" }
+        end
+        rows[#rows + 1] = { id = "specs",         label = "specializations:",   title = "specializations ring keybind" }
+        rows[#rows + 1] = { id = "utility",       label = "class & custom:",    title = "class utility & custom ring keybind" }
+        rows[#rows + 1] = { id = "tracking",      label = "minimap tracking:", title = "minimap tracking keybind" }
+        rows[#rows + 1] = { id = "professions",   label = "professions:",       title = "professions keybind" }
+        rows[#rows + 1] = { id = "questitems",    label = "quest items:",       title = "quest items keybind" }
+        rows[#rows + 1] = { id = "targetmarkers", label = "target markers:",    title = "target markers keybind" }
+        rows[#rows + 1] = { id = "worldmarkers",  label = "world markers:",     title = "world markers keybind" }
 
         local keybindWidgets = {}
         local prevAnchor = keybind_desc

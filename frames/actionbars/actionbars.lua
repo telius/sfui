@@ -117,6 +117,31 @@ local function suppress_blizzard_actionbars()
         end
     end
 
+    local function disarmGamepadClassButton(btn)
+        if not btn then return end
+        if btn.UnregisterAllEvents then
+            btn:UnregisterAllEvents()
+        end
+        btn.RegisterEvent = function() end
+        btn.RegisterUnitEvent = function() end
+        btn:SetScript("OnEvent", nil)
+        btn:SetScript("OnUpdate", nil)
+        btn:SetScript("OnShow", nil)
+        btn:SetScript("OnHide", nil)
+        btn.Update = function() end
+        btn.UpdateVisibility = function() end
+        btn.UpdateFlash = function() end
+        btn.SetFlashing = function() end
+        if not InCombatLockdown or not InCombatLockdown() then
+            btn:Hide()
+        end
+    end
+
+    local gmb = _G.GamepadMainActionBarFrame
+    local gmbPage = gmb and gmb.PageUnit
+    disarmGamepadClassButton((gmbPage and gmbPage.LeftClassAction) or _G.GamepadMainActionBarFramePageUnitLeftClassAction)
+    disarmGamepadClassButton((gmbPage and gmbPage.RightClassAction) or _G.GamepadMainActionBarFramePageUnitRightClassAction)
+
     local offscreenFrames = {
         "BagsBar",
         "MainMenuBarBagButtons",

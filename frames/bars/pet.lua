@@ -97,11 +97,6 @@ local function update_health()
     local maxHp = UnitHealthMax("pet")
     if not curHp or not maxHp then return end
 
-    local isSecret = issecretvalue(curHp) or issecretvalue(maxHp)
-    if not isSecret and (type(maxHp) == "number" and maxHp <= 0) then
-        maxHp = 1
-    end
-
     healthBar:SetMinMaxValues(0, maxHp)
     healthBar:SetValue(curHp)
 
@@ -115,15 +110,6 @@ local function update_health()
     if isDead then
         hpText:SetText("|cffff3333dead|r")
         healthBar:SetValue(0)
-    elseif not isSecret then
-        local cur = (type(curHp) == "number" and curHp) or tonumber(curHp)
-        local max = (type(maxHp) == "number" and maxHp) or tonumber(maxHp)
-        if cur and max and max > 0 then
-            local pct = math_floor((cur / max) * 100 + 0.5)
-            hpText:SetFormattedText("%d%%", pct)
-        else
-            hpText:SetText("")
-        end
     else
         hpText:SetText("")
     end
@@ -163,14 +149,6 @@ local function update_power()
     local maxPwr = UnitPowerMax("pet")
     if not curPwr or not maxPwr then return end
 
-    local isSecret = issecretvalue(curPwr) or issecretvalue(maxPwr)
-    if not isSecret and (type(maxPwr) == "number" and maxPwr <= 0) then
-        powerBar:SetMinMaxValues(0, 1)
-        powerBar:SetValue(0)
-        powerText:SetText("")
-        return
-    end
-
     powerBar:SetMinMaxValues(0, maxPwr)
     powerBar:SetValue(curPwr)
 
@@ -184,11 +162,7 @@ local function update_power()
         powerBar:SetStatusBarColor(0.3, 0.5, 0.85)
     end
 
-    if isSecret then
-        powerText:SetText("")
-    else
-        powerText:SetText(tostring(curPwr))
-    end
+    powerText:SetText(curPwr)
 end
 
 local function update_name_and_happiness()
@@ -196,13 +170,7 @@ local function update_name_and_happiness()
     if not UnitExists("pet") then return end
 
     local petName = UnitName("pet")
-    if issecretvalue(petName) then
-        nameText:SetText("pet")
-    elseif not petName or petName == "" or petName == "UNKNOWN" then
-        nameText:SetText("pet")
-    else
-        nameText:SetText(petName)
-    end
+    nameText:SetText(petName or "pet")
 
     if playerClass == "HUNTER" and happinessDot then
         local happ = GetPetHappiness and GetPetHappiness()
@@ -376,6 +344,76 @@ local function init_pet_frame()
     container:SetAttribute("*type2", "togglemenu")
     container:RegisterForClicks("AnyUp", "AnyDown")
 
+    local function find_edible_pet_food()
+        local C_PetInfo = _G.C_PetInfo
+        local C_Container = _G.C_Container
+        local numBags = _G.NUM_BAG_SLOTS or 4
+        for bag = 0, numBags do
+            local numSlots = (C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bag))
+                             or (_G.GetContainerNumSlots and _G.GetContainerNumSlots(bag)) or 0
+            for slot = 1, numSlots do
+                local itemID = (C_Container and C_Container.GetContainerItemID and C_Container.GetContainerItemID(bag, slot))
+                               or (_G.GetContainerItemID and _G.GetContainerItemID(bag, slot))
+                if itemID and C_PetInfo and C_PetInfo.CanPetEatItem and C_PetInfo.CanPetEatItem(itemID) then
+                    return bag, slot, itemID
+                end
+            end
+        end
+        return nil, nil, nil
+    end
+
+    local function fast_feed_pet()
+        if InCombatLockdown and InCombatLockdown() then
+            if _G.UIErrorsFrame and _G.ERR_NOT_IN_COMBAT then
+                _G.UIErrorsFrame:AddMessage(_G.ERR_NOT_IN_COMBAT, 1, 0.1, 0.1)
+            end
+            return
+        end
+        if not UnitExists("pet") or (UnitIsDead and UnitIsDead("pet")) then return end
+
+        local bag, slot, itemID = find_edible_pet_food()
+        if not bag or not slot then
+            if _G.UIErrorsFrame then
+                _G.UIErrorsFrame:AddMessage("no suitable pet food in bags", 1, 0.5, 0.2)
+            end
+            return
+        end
+
+        local itemName
+        local C_Item = _G.C_Item
+        if C_Item and C_Item.GetItemNameByID then
+            itemName = C_Item.GetItemNameByID(itemID)
+        elseif _G.GetItemInfo then
+            itemName = _G.GetItemInfo(itemID)
+        end
+
+        _G.ClearCursor()
+        local C_Container = _G.C_Container
+        if C_Container and C_Container.PickupContainerItem then
+            C_Container.PickupContainerItem(bag, slot)
+        elseif _G.PickupContainerItem then
+            _G.PickupContainerItem(bag, slot)
+        end
+
+        if _G.CursorHasItem and _G.CursorHasItem() then
+            local dropFn = (C_Item and C_Item.DropItemOnUnit) or _G.DropItemOnUnit
+            if dropFn then
+                dropFn("pet")
+            end
+            _G.ClearCursor()
+            if sfui.common and sfui.common.print and itemName then
+                sfui.common.print("fed pet: " .. itemName:lower())
+            end
+        end
+    end
+    sfui.pet.fast_feed = fast_feed_pet
+
+    container:HookScript("OnMouseUp", function(self, button)
+        if button == "MiddleButton" then
+            fast_feed_pet()
+        end
+    end)
+
     -- mouseover tooltip
     container:SetScript("OnEnter", function(self)
         if not UnitExists("pet") then return end
@@ -388,8 +426,31 @@ local function init_pet_frame()
                 local happColor = (happ == 3 and "|cff33ff33") or (happ == 2 and "|cffffff33") or "|cffff3333"
                 GameTooltip:AddLine(string_format("happiness: %s%s|r (%d%% damage)", happColor, happText, dmgPct or 100), 1, 1, 1)
             end
+
+            local C_PetInfo = _G.C_PetInfo
+            local loyalty = C_PetInfo and C_PetInfo.GetPetLoyalty and C_PetInfo.GetPetLoyalty()
+            if loyalty and loyalty ~= "" then
+                GameTooltip:AddDoubleLine("loyalty:", loyalty:lower(), 0.8, 0.8, 0.8, 1, 1, 1)
+            end
+
+            local totalTP, usedTP = 0, 0
+            if C_PetInfo and C_PetInfo.GetPetTrainingPoints then
+                totalTP, usedTP = C_PetInfo.GetPetTrainingPoints()
+            end
+            local unspent = totalTP - usedTP
+            if unspent > 0 then
+                GameTooltip:AddDoubleLine("training points:", unspent .. " tp available", 0.8, 0.8, 0.8, 0.2, 0.9, 0.2)
+            end
+
+            local diet = C_PetInfo and C_PetInfo.GetPetFoodTypes and C_PetInfo.GetPetFoodTypes()
+            if diet and #diet > 0 then
+                GameTooltip:AddDoubleLine("diet:", table.concat(diet, ", "):lower(), 0.8, 0.8, 0.8, 0.9, 0.9, 0.9)
+            end
         end
-        GameTooltip:AddLine("<left-click to target, right-click for pet menu>", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("<left-click: target | right-click: menu>", 0.7, 0.7, 0.7)
+        if playerClass == "HUNTER" then
+            GameTooltip:AddLine("<middle-click: fast feed pet>", 0.2, 0.9, 0.2)
+        end
         GameTooltip:Show()
     end)
     container:SetScript("OnLeave", function(self)

@@ -14,7 +14,7 @@ local C_Secrets      = _G.C_Secrets
 local function issecretvalue(val)
     if val == nil then return false end
     if _issecretvalue then
-        return _issecretvalue(val)
+        return not not _issecretvalue(val)
     end
     if C_Secrets and C_Secrets.HasSecretRestrictions and not C_Secrets.HasSecretRestrictions() then
         return false
@@ -231,47 +231,28 @@ end
 sfui.common.SafeValue = sfui.safety.SafeValue
 
 
--- Safely set text on a fontstring (SetText accepts secret values)
+-- Safely set text on a fontstring (SetText accepts raw and secret values directly)
 function sfui.safety.SafeSetText(fontString, text, decimals)
-    if not fontString then return end
-    if decimals == nil and type(text) == "string" then
-        fontString:SetText(text)
+    if not fontString or not fontString.SetText or text == nil then return end
+    if decimals and type(text) == "number" then
+        fontString:SetText(sfui.safety.SafeFormatDuration(text, decimals) or text)
     else
-        fontString:SetText(sfui.safety.SafeFormatDuration(text, decimals) or "")
+        fontString:SetText(text)
     end
 end
 sfui.common.SafeSetText = sfui.safety.SafeSetText
 
--- Safely set value on a statusbar (SetValue accepts secret values)
+-- Safely set value on a statusbar (SetValue accepts raw and secret values directly)
 function sfui.safety.SafeSetValue(bar, value)
-    if not bar or not bar.SetValue then return end
-    if issecretvalue and issecretvalue(value) then
-        local ok = pcall(bar.SetValue, bar, value)
-        if not ok then bar:SetValue(0) end
-        return
-    end
-    local num = type(value) == "number" and value or tonumber(value)
-    if num and num == num and num >= -3.4e38 and num <= 3.4e38 then
-        bar:SetValue(num)
-    else
-        bar:SetValue(0)
-    end
+    if not bar or not bar.SetValue or value == nil then return end
+    bar:SetValue(value)
 end
 sfui.common.SafeSetValue = sfui.safety.SafeSetValue
 
--- Safely set min/max values on a statusbar
+-- Safely set min/max values on a statusbar (SetMinMaxValues accepts raw and secret values directly)
 function sfui.safety.SafeSetMinMaxValues(bar, minVal, maxVal)
-    if not bar or not bar.SetMinMaxValues then return end
-    if issecretvalue and (issecretvalue(minVal) or issecretvalue(maxVal)) then
-        bar:SetMinMaxValues(minVal, maxVal)
-        return
-    end
-    local nMin = type(minVal) == "number" and minVal or tonumber(minVal) or 0
-    local nMax = type(maxVal) == "number" and maxVal or tonumber(maxVal) or 1
-    if nMin ~= nMin or nMin < -3.4e38 or nMin > 3.4e38 then nMin = 0 end
-    if nMax ~= nMax or nMax < -3.4e38 or nMax > 3.4e38 then nMax = 1 end
-    if nMin > nMax then nMax = nMin end
-    bar:SetMinMaxValues(nMin, nMax)
+    if not bar or not bar.SetMinMaxValues or minVal == nil or maxVal == nil then return end
+    bar:SetMinMaxValues(minVal, maxVal)
 end
 sfui.common.SafeSetMinMaxValues = sfui.safety.SafeSetMinMaxValues
 
@@ -375,4 +356,102 @@ function sfui.safety.copy(t)
     return res
 end
 sfui.common.copy = sfui.safety.copy
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- TextStatusBar Raw Value Forwarding (Fix for Blizzard_TextStatusBar/TextStatusBar.lua:110)
+-- ────────────────────────────────────────────────────────────────────────────
+-- In WoW 12.0 / 1.60.1, StatusBar:GetValue() and StatusBar:GetMinMaxValues() return
+-- raw/secret values. Blizzard's TextStatusBarMixin:UpdateTextStringWithValues
+-- performs `tonumber(valueMax) ~= valueMax or valueMax > 0`, which crashes when looking
+-- at secret values. Instead of inspecting or using pcalls, take the raw API values and
+-- directly forward them to the text element.
+local function forward_statusbar_values(self, textString, value, valueMin, valueMax)
+    if not textString or not textString.SetText then return end
+
+    if self.LeftText and self.RightText then
+        self.LeftText:SetText("")
+        self.RightText:SetText("")
+        self.LeftText:Hide()
+        self.RightText:Hide()
+    end
+
+    if self.pauseUpdates then
+        return
+    end
+
+    if self.controlsShownState == true then
+        self:Show()
+    end
+
+    local isShown = false
+    if (self.cvar and _G.GetCVar and _G.GetCVar(self.cvar) == "1" and self.textLockable) or self.forceShow then
+        isShown = true
+    elseif self.lockShow and self.lockShow > 0 and (not self.forceHideText) then
+        isShown = true
+    end
+
+    if not isShown then
+        textString:SetText("")
+        textString:Hide()
+        return
+    end
+
+    -- Directly forward raw API values to the element without looking at them
+    if self.disableMaxValue or valueMax == nil then
+        textString:SetText(value)
+    else
+        textString:SetFormattedText("%s / %s", value, valueMax)
+    end
+    textString:Show()
+end
+
+local function install_text_status_bar_safety()
+    local mixin = _G.TextStatusBarMixin
+    if mixin and not mixin._sfui_forward then
+        mixin._sfui_forward = true
+        mixin.UpdateTextStringWithValues = forward_statusbar_values
+    end
+end
+install_text_status_bar_safety()
+
+local function protect_bar(bar)
+    if not bar or bar._sfui_forward then return end
+    bar._sfui_forward = true
+    bar.UpdateTextStringWithValues = forward_statusbar_values
+end
+
+local function protect_core_status_bars()
+    install_text_status_bar_safety()
+    local bars = {
+        _G.PlayerFrameHealthBar,
+        _G.PlayerFrameManaBar,
+        _G.PetFrameHealthBar,
+        _G.PetFrameManaBar,
+        _G.TargetFrameHealthBar,
+        _G.TargetFrameManaBar,
+        _G.FocusFrameHealthBar,
+        _G.FocusFrameManaBar,
+    }
+    if _G.PlayerFrame_GetHealthBar then
+        bars[#bars + 1] = _G.PlayerFrame_GetHealthBar()
+    end
+    if _G.PlayerFrame_GetManaBar then
+        bars[#bars + 1] = _G.PlayerFrame_GetManaBar()
+    end
+    if _G.PlayerFrame_GetAlternatePowerBar then
+        bars[#bars + 1] = _G.PlayerFrame_GetAlternatePowerBar()
+    end
+    for _, bar in ipairs(bars) do
+        protect_bar(bar)
+    end
+end
+protect_core_status_bars()
+
+local safetyEventFrame = _G.CreateFrame("Frame")
+safetyEventFrame:RegisterEvent("PLAYER_LOGIN")
+safetyEventFrame:RegisterEvent("ADDON_LOADED")
+safetyEventFrame:SetScript("OnEvent", function()
+    protect_core_status_bars()
+end)
+
 

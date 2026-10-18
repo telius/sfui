@@ -1150,30 +1150,33 @@ local function Initialize()
             if panelFrame then panelFrame:Hide() end
         end
 
-        CharacterFrame:HookScript("OnShow", function()
-            if sfui.character and sfui.character.AlignHeaderButtons then
-                sfui.character.AlignHeaderButtons()
-            end
-            if SfuiDB and SfuiDB.showCombatInfoPanel then
-                if not panelFrame then panelModule.CreatePanel() end
-                if not panelFrame:IsShown() then
-                    panelFrame:Show()
-                else
-                    RestorePosition(panelFrame)
-                    if inCombat or (InCombatLockdown and InCombatLockdown()) then
-                        OnStateChanged()
+        if not panelModule._cfHooked then
+            panelModule._cfHooked = true
+            hooksecurefunc(CharacterFrame, "Show", function()
+                if sfui.character and sfui.character.AlignHeaderButtons then
+                    sfui.character.AlignHeaderButtons()
+                end
+                if SfuiDB and SfuiDB.showCombatInfoPanel then
+                    if not panelFrame then panelModule.CreatePanel() end
+                    if not panelFrame:IsShown() then
+                        panelFrame:Show()
                     else
-                        panelModule.UpdateValues()
+                        RestorePosition(panelFrame)
+                        if inCombat or (InCombatLockdown and InCombatLockdown()) then
+                            OnStateChanged()
+                        else
+                            panelModule.UpdateValues()
+                        end
                     end
                 end
-            end
-        end)
+            end)
 
-        CharacterFrame:HookScript("OnHide", function()
-            if panelFrame and panelFrame:IsShown() then
-                panelFrame:Hide()
-            end
-        end)
+            hooksecurefunc(CharacterFrame, "Hide", function()
+                if panelFrame and panelFrame:IsShown() then
+                    panelFrame:Hide()
+                end
+            end)
+        end
     else
         if panelFrame then panelFrame:Hide() end
     end

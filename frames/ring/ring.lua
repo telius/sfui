@@ -18,6 +18,13 @@ local providers = {}
 local cachedSlots = {}
 local registeredEvents = {}
 
+local function is_hunter_in_camelot()
+    local isCam = (sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot))
+    local pClass = (sfui.common and sfui.common.get_player_class and sfui.common.get_player_class())
+                   or (_G.UnitClass and select(2, _G.UnitClass("player")))
+    return not not (isCam and pClass == "HUNTER")
+end
+
 -- ── 1. Configuration & Module Registration ──────────────────────────────────
 local defaults = {
     enabled     = true,
@@ -152,22 +159,75 @@ local function get_button_binding_action(ringID)
 end
 
 --- get the active keybinding for a given ring.
---- checks blizzard keybinding first, then sfui saved variable.
+--- checks class/context overrides, sfui saved variables, and defaults.
 --- @param ringID string
 --- @return string|nil rawKey, string|nil formattedKey
 function ring.get_binding(ringID)
+    local isHunter = is_hunter_in_camelot()
+    local dbBindings = sfui.db.Get("ring", "bindings", {}) or {}
+
+    -- 1. Non-hunters in Camelot (and all non-hunters):
+    -- Pet ring is NEVER active or bound.
+    if not isHunter and ringID == "pet" then
+        return nil, nil
+    end
+
+    -- 2. Non-hunters in Camelot (and all non-hunters):
+    -- Specs MUST stay the default ALT-X keybind!
+    if not isHunter and ringID == "specs" then
+        local userKey = dbBindings["specs"]
+        -- If unconfigured, or set to hunter default SHIFT-ALT-X, return ALT-X
+        if userKey == nil or userKey == "" or userKey == "SHIFT-ALT-X" or userKey == "ALT-X" then
+            return "ALT-X", "ALT-X"
+        end
+        if userKey == false then
+            return nil, nil
+        end
+        return userKey, userKey
+    end
+
+    -- 3. Hunters in Camelot:
+    -- Pet defaults to ALT-X, specs defaults to SHIFT-ALT-X
+    if isHunter then
+        if ringID == "pet" then
+            local petKey = dbBindings["hunter_pet"]
+            if petKey == nil then petKey = dbBindings["pet"] end
+            if petKey == nil or petKey == "" or petKey == "ALT-X" then
+                return "ALT-X", "ALT-X"
+            end
+            if petKey == false then
+                return nil, nil
+            end
+            return petKey, petKey
+        elseif ringID == "specs" then
+            local hunterSpecsKey = dbBindings["hunter_specs"]
+            if hunterSpecsKey == nil or hunterSpecsKey == "" or hunterSpecsKey == "SHIFT-ALT-X" then
+                return "SHIFT-ALT-X", "SHIFT-ALT-X"
+            end
+            if hunterSpecsKey == false then
+                return nil, nil
+            end
+            return hunterSpecsKey, hunterSpecsKey
+        end
+    end
+
+    -- 4. Other rings: check dbBindings first
+    local dbKey = dbBindings[ringID]
+    if dbKey ~= nil and dbKey ~= "" then
+        if dbKey == false then
+            return nil, nil
+        end
+        return dbKey, dbKey
+    end
+
+    -- 5. Fallback to Blizzard native binding if set
     local action = get_button_binding_action(ringID)
     local blizzKey = GetBindingKey and GetBindingKey(action)
     if blizzKey and blizzKey ~= "" then
         return blizzKey, blizzKey
     end
 
-    local dbBindings = sfui.db.Get("ring", "bindings", {})
-    local dbKey = dbBindings and dbBindings[ringID]
-    if dbKey and dbKey ~= "" then
-        return dbKey, dbKey
-    end
-
+    -- 6. Module defaults
     local defBindings = defaults.bindings
     if defBindings and defBindings[ringID] and defBindings[ringID] ~= "" then
         return defBindings[ringID], defBindings[ringID]
@@ -182,21 +242,31 @@ end
 function ring.set_binding(ringID, key)
     if not ringID or not key or key == "" then return end
 
-    local action = get_button_binding_action(ringID)
-    if SetBinding then
-        SetBinding(key, action)
-        if SaveBindings and GetCurrentBindingSet then
-            local bSet = GetCurrentBindingSet()
-            if bSet then SaveBindings(bSet) end
+    local isHunter = is_hunter_in_camelot()
+    local dbBindings = sfui.db.Get("ring", "bindings", {}) or {}
+
+    if isHunter then
+        if ringID == "pet" then
+            dbBindings["hunter_pet"] = key
+            dbBindings["pet"] = key
+        elseif ringID == "specs" then
+            dbBindings["hunter_specs"] = key
+        else
+            dbBindings[ringID] = key
+        end
+    else
+        if ringID == "specs" then
+            dbBindings["specs"] = key
+        elseif ringID ~= "pet" then
+            dbBindings[ringID] = key
         end
     end
 
-    local dbBindings = sfui.db.Get("ring", "bindings", {}) or {}
-    dbBindings[ringID] = key
     sfui.db.Set("ring", "bindings", dbBindings)
 
+    local effectiveKey = ring.get_binding(ringID)
     if ring.secure and ring.secure.apply_binding then
-        ring.secure.apply_binding(ringID, key)
+        ring.secure.apply_binding(ringID, effectiveKey)
     end
 end
 
@@ -205,19 +275,26 @@ end
 function ring.unbind(ringID)
     if not ringID then return end
 
-    local action = get_button_binding_action(ringID)
-    if GetBindingKey and SetBinding then
-        local k1, k2 = GetBindingKey(action)
-        if k1 then SetBinding(k1, nil) end
-        if k2 then SetBinding(k2, nil) end
-        if SaveBindings and GetCurrentBindingSet then
-            local bSet = GetCurrentBindingSet()
-            if bSet then SaveBindings(bSet) end
+    local isHunter = is_hunter_in_camelot()
+    local dbBindings = sfui.db.Get("ring", "bindings", {}) or {}
+
+    if isHunter then
+        if ringID == "pet" then
+            dbBindings["hunter_pet"] = false
+            dbBindings["pet"] = false
+        elseif ringID == "specs" then
+            dbBindings["hunter_specs"] = false
+        else
+            dbBindings[ringID] = false
+        end
+    else
+        if ringID == "specs" then
+            dbBindings["specs"] = false
+        elseif ringID ~= "pet" then
+            dbBindings[ringID] = false
         end
     end
 
-    local dbBindings = sfui.db.Get("ring", "bindings", {}) or {}
-    dbBindings[ringID] = nil
     sfui.db.Set("ring", "bindings", dbBindings)
 
     if ring.secure and ring.secure.clear_binding then
@@ -227,6 +304,21 @@ end
 
 --- apply all configured keybindings to their respective secure buttons.
 function ring.apply_all_bindings()
+    local isHunter = is_hunter_in_camelot()
+
+    -- Clean up any conflicting Blizzard bindings on non-hunters
+    if not isHunter and GetBindingKey and SetBinding then
+        local petAction = get_button_binding_action("pet")
+        local pk1, pk2 = GetBindingKey(petAction)
+        if pk1 then SetBinding(pk1, nil) end
+        if pk2 then SetBinding(pk2, nil) end
+
+        local specsAction = get_button_binding_action("specs")
+        local sk1, sk2 = GetBindingKey(specsAction)
+        if sk1 == "SHIFT-ALT-X" then SetBinding(sk1, nil) end
+        if sk2 == "SHIFT-ALT-X" then SetBinding(sk2, nil) end
+    end
+
     for id in pairs(providers) do
         local key = ring.get_binding(id)
         if ring.secure and ring.secure.apply_binding then

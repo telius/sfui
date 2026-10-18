@@ -1,25 +1,29 @@
 # changelog
 
-## v1.110 (2026-10-18)
+## v1.111 (2026-10-18)
 
 ### features
 
-- **modular architecture for highest gear engine**: refactored the complex gear scoring, validation, combinatorial solving, and equipment swapping pipeline in `frames/gear/highest.lua` into clean decoupled modules under `frames/gear/highest/`:
-  - `frames/gear/highest/tooltips.lua`: fast cached tooltip scanning, stat weight extraction, and equipment heuristics.
-  - `frames/gear/highest/validator.lua`: equipment eligibility rules, level checks, and two-handed slot validation.
-  - `frames/gear/highest/scorer.lua`: dynamic item scoring, weapon dps priority for camelot hunters and classic/camelot retribution paladins, and retail two-handed specialization constraints.
-  - `frames/gear/highest/solvers.lua`: dedicated single-slot, dual-wield, and ring/trinket pairing solvers.
-  - `frames/gear/highest/executor.lua`: queued equip execution, equipment set synchronization, and post-swap telemetry.
-  - `frames/gear/highest.lua`: lightweight event coordinator and options manager.
+- **dedicated hunter pet ring for camelot**:
+  - added dedicated pet ring provider in `frames/ring/providers/ring_pet.lua` containing beast lore, pet training, eyes of the beast, mend pet, revive pet, dismiss pet, feed pet, and call pet 1-5.
+  - bound to `alt-x` by default for hunters in camelot, while `shift-alt-x` opens specs (`frames/ring/ring.lua`).
+  - all other classes in camelot and standard expansions retain `alt-x` as their default specs keybind without conflict (`frames/ring/ring.lua`, `frames/options/tabs/tab_ring.lua`).
+- **pet experience bar & training points integration**:
+  - integrated centered pet portrait and dynamic training points counter in `frames/experience/pet.lua`.
+  - right-clicking the pet experience bar opens the beast training craft menu.
+  - middle-clicking the pet experience bar or pet unit frame triggers fast pet feeding (`frames/experience/pet.lua`, `frames/bars/pet.lua`).
+  - left-clicking toggles the pet character sheet.
 
 ### improvements & bug fixes
 
-- **recipe catalogue map waypoint tooltips**: fixed an uninitialized coordinate variable in `frames/professions/rows.lua`, restoring the click-to-waypoint super-tracking tooltip hint on catalogue rows.
-- **immutable recipe source pool**: prevented coordinate data corruption in pooled source tables (`data/recipes_camelot.lua`) by shallow copying source records before injecting dynamic coordinates (`frames/professions/rows.lua`).
-- **map pin shift-click waypoint navigation**: added missing shift-click handler in `frames/map/providers/pins_recipes.lua` to set super-tracked map waypoints directly from world map recipe pins.
-- **metatable iteration safety**: replaced direct metatable pairs iteration with dedicated iterator helpers across `frames/professions/filters.lua`, `frames/professions/browser.lua`, and `data/recipes_camelot.lua`.
-- **classic era recipe compendium support**: harmonized client load guards across all profession modules (`frames/professions/sources.lua`, `frames/professions/browser.lua`, `frames/professions/filters.lua`, `frames/professions/rows.lua`, `frames/professions/progress.lua`, `frames/professions/contacts.lua`, `frames/professions/tooltips.lua`) to enable the catalogue and `/recipes` slash commands on classic era.
-- **curated and live source precedence**: prioritized curated and live vendor discoveries ahead of generic baseline entries in catalogue search and filtering routines (`frames/professions/filters.lua`).
-- **memory diagnostics telemetry**: eliminated duplicate conflicting debug definitions in `frames/professions/browser.lua`, restoring full recipe telemetry in `/sfui mem`.
-- **objective tracker recipe routing**: removed broken router override and resolved canonical profession names in tracker tooltips (`frames/quests/modules/q_camelot_recipes.lua`, `frames/professions/sources.lua`).
-- **live trainer case-insensitive matching**: ensured live trainer skill lookups handle title-cased spell names without dropping training cost or skill requirements (`frames/professions/sources.lua`).
+- **raw api value forwarding & secret value safety**:
+  - resolved `Blizzard_TextStatusBar/TextStatusBar.lua:110` secret number comparison crash on character frame hide by forwarding raw api values directly to status bar fontstrings without lua-side arithmetic or relational comparisons (`core/safety.lua`).
+  - resolved `frames/bars/target.lua:638` secret number comparison crash by directly forwarding raw health and power values to target bar elements without value inspection.
+  - eliminated value inspections and redundant `pcall`s across `core/safety.lua`, `frames/bars/bars.lua`, `frames/bars/pet.lua`, and `frames/bars/target.lua`.
+  - simplified active marker logic in `frames/ring/providers/ring_markers.lua` and `frames/ring/providers/ring_worldmarkers.lua`.
+- **secure frame script taint prevention**:
+  - converted all `HookScript("OnShow")` and `HookScript("OnHide")` calls on blizzard secure frames (`CharacterFrame`, `PlayerFrame`, `PetFrame`) to `hooksecurefunc` across `frames/character/infopanel.lua`, `common.lua`, `frames/automation/currency.lua`, and `frames/hide.lua`.
+  - wrapped panel toggle actions in `securecall` to prevent propagation of execution taint into `UIParentPanelManager` (`frames/experience/pet.lua`).
+- **camelot dungeon journal & navigation**:
+  - expanded dungeon journal bosses and quest mappings for camelot instances in `data/dj_camelot.lua`.
+  - improved sidebar tooltips, quest listings, and map pin discovery (`frames/dungeonjournal/`, `frames/map/providers/pins_dungeonjournal.lua`).

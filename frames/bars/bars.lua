@@ -298,7 +298,7 @@ do
             -- Core Bars Visibility (Health, Power, Secondary Power)
             if showCoreBars then
                 -- Health Bar (bar0)
-                if bar0 and SfuiDB.enableHealthBar then
+                if bar0 and (SfuiDB == nil or SfuiDB.enableHealthBar ~= false) then
                     bar0.backdrop:Show()
                 elseif bar0 then
                     bar0.backdrop:Hide()
@@ -579,10 +579,7 @@ do
             stop_fsr_timer()
         end
         local max, current = UnitPowerMax("player", resource), UnitPower("player", resource)
-        if not max or (not (common.issecretvalue and common.issecretvalue(max)) and max <= 0) then return end
-        -- Note: UnitPower/UnitPowerMax return secret values in vehicle/M+ contexts.
-        -- Comparing them with == taints execution. SetValue handles secret values
-        -- internally in the C engine, so we always pass them through unconditionally.
+        if not max or not current then return end
         bar:SetMinMaxValues(0, max)
         bar:SetValue(current)
         local color
@@ -673,15 +670,31 @@ do
 
         bar:EnableMouse(false)
 
-        -- Configure healthbar backdrop as a secure unit button identical to pet and target frames
+        -- Configure healthbar backdrop mouse handling for player context menu and targeting
         local backdrop = bar.backdrop
         if backdrop then
-            backdrop:SetAttribute("unit", "player")
-            backdrop:SetAttribute("*type1", "target")
-            backdrop:SetAttribute("*type2", "togglemenu")
-            backdrop:RegisterForClicks("AnyUp", "AnyDown")
             backdrop:EnableMouse(true)
             backdrop:SetClampedToScreen(true)
+            backdrop:SetScript("OnMouseUp", function(self, button)
+                if button == "RightButton" then
+                    local unit = (UnitHasVehicleUI and UnitHasVehicleUI("player") and "vehicle") or "player"
+                    local which = (unit == "vehicle") and "VEHICLE" or "SELF"
+                    local contextData = {
+                        unit = unit,
+                        fromPlayerFrame = true,
+                        ownerFrame = self,
+                    }
+                    if _G.UnitPopup_OpenMenu then
+                        _G.UnitPopup_OpenMenu(which, contextData)
+                    elseif _G.ToggleDropDownMenu and _G.PlayerFrameDropDown then
+                        _G.ToggleDropDownMenu(1, nil, _G.PlayerFrameDropDown, "cursor")
+                    end
+                elseif button == "LeftButton" then
+                    if not InCombatLockdown() then
+                        TargetUnit("player")
+                    end
+                end
+            end)
         end
 
         sfui.theme.RegisterBar(bar, "health")
@@ -694,8 +707,7 @@ do
         local cfg = sfui.config.healthBar
         if not cfg.enabled then return end
         local bar = get_bar0()
-        local isSecret = issecretvalue and (issecretvalue(current) or issecretvalue(maxVal))
-        if not maxVal or (not isSecret and type(maxVal) == "number" and maxVal <= 0) then return end
+        if not maxVal or not current then return end
         bar:SetMinMaxValues(0, maxVal)
         bar:SetValue(current)
 

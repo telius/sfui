@@ -881,83 +881,52 @@ end
 --  CAMELOT EXTENSION POINT & ENGINE WORKAROUNDS
 -- ══════════════════════════════════════════════════════════════════════════════
 if IS_CAMELOT then
-    -- Fix Blizzard 1.60.1 / Camelot Gamepad PetActionFlyout bug (PetActionFlyout.lua:156)
-    -- In Blizzard_GamepadActionBars/Camelot/PetActionFlyout.lua, PetActionFlyoutButtonMixin
-    -- is mixed into GamepadMainActionBarFrame.PageUnit.LeftClassAction during ContinueOnPlayerLogin
-    -- but never sets self.popup (omits UpdateFlyoutPopup). When a Hunter or Warlock's pet
-    -- attacks, ToggleFlash() attempts self.popup.AttackButton.Flash:SetShown(), crashing with:
-    -- "attempt to index field 'popup' (a nil value)".
+    -- Fix Blizzard 1.60.1 / Camelot Gamepad PetActionFlyout and PetSpellFlyout bugs
+    -- In Blizzard_GamepadActionBars/Camelot/PetActionFlyout.lua and PetSpellFlyout.lua,
+    -- PetActionFlyoutButtonMixin and PetSpellFlyoutButtonMixin are mixed into
+    -- GamepadMainActionBarFrame.PageUnit.LeftClassAction and RightClassAction during ContinueOnPlayerLogin.
+    -- When a Hunter or Warlock enters combat or pet events fire (PET_BAR_UPDATE, UNIT_PET),
+    -- their Update() methods call :Show()/:Hide() on these SecureActionButtonTemplate buttons,
+    -- causing "[Blocked] sfui tried to call the protected function 'GamepadMainActionBarFramePageUnitRightClassAction:Show()'".
+    -- Since sfui provides its own action bars and suppresses GamepadMainActionBarFrame,
+    -- we disarm both buttons so their event handlers and protected show/hide routines never run.
+    local function disarmGamepadClassActionButton(button)
+        if not button then return end
+        if button.UnregisterAllEvents then
+            button:UnregisterAllEvents()
+        end
+        button.RegisterEvent = function() end
+        button.RegisterUnitEvent = function() end
+        button:SetScript("OnEvent", nil)
+        button:SetScript("OnUpdate", nil)
+        button:SetScript("OnShow", nil)
+        button:SetScript("OnHide", nil)
+
+        -- Neutralize Update / UpdateVisibility to prevent protected :Show()/:Hide() in combat
+        button.Update = function() end
+        button.UpdateVisibility = function() end
+        button.UpdateFlash = function() end
+        button.SetFlashing = function() end
+
+        if not InCombatLockdown or not InCombatLockdown() then
+            button:Hide()
+        end
+    end
+
     local function patchCamelotGamepadPetFlyout()
         local gmb = _G.GamepadMainActionBarFrame
-        local button = gmb and gmb.PageUnit and gmb.PageUnit.LeftClassAction
-        if not button then return end
+        local pageUnit = gmb and gmb.PageUnit
+        local leftBtn = (pageUnit and pageUnit.LeftClassAction) or _G.GamepadMainActionBarFramePageUnitLeftClassAction
+        local rightBtn = (pageUnit and pageUnit.RightClassAction) or _G.GamepadMainActionBarFramePageUnitRightClassAction
 
-        if not button.popup then
-            if button.UpdateFlyoutPopup then
-                button:UpdateFlyoutPopup()
-            elseif _G.GamepadPetActionFlyout and button.SetPopup then
-                button:SetPopup(_G.GamepadPetActionFlyout)
-            else
-                button.popup = _G.GamepadPetActionFlyout
-            end
+        disarmGamepadClassActionButton(leftBtn)
+        disarmGamepadClassActionButton(rightBtn)
+
+        if _G.GamepadPetActionFlyout and (not InCombatLockdown or not InCombatLockdown()) then
+            _G.GamepadPetActionFlyout:Hide()
         end
-
-        local safeSetFlashing = function(self, enabled)
-            if not self.popup then
-                if self.UpdateFlyoutPopup then
-                    self:UpdateFlyoutPopup()
-                elseif _G.GamepadPetActionFlyout and self.SetPopup then
-                    self:SetPopup(_G.GamepadPetActionFlyout)
-                else
-                    self.popup = _G.GamepadPetActionFlyout
-                end
-            end
-
-            if not (self.popup and self.popup.AttackButton and self.popup.AttackButton.Flash) then
-                if self.flashTicker then
-                    self.flashTicker:Cancel()
-                    self.flashTicker = nil
-                end
-                if self.Flash then
-                    self.Flash:SetShown(false)
-                end
-                return
-            end
-
-            local function ToggleFlash(shouldShow)
-                if shouldShow == nil then
-                    shouldShow = self.Flash and not self.Flash:IsShown()
-                end
-                if self.popup and self.popup.AttackButton and self.popup.AttackButton.Flash then
-                    self.popup.AttackButton.Flash:SetShown(shouldShow)
-                end
-                if self.Flash then
-                    self.Flash:SetShown(shouldShow)
-                end
-            end
-
-            if enabled then
-                if not self.flashTicker then
-                    local flashTime = _G.ATTACK_BUTTON_FLASH_TIME or 0.5
-                    self.flashTicker = C_Timer.NewTicker(flashTime, function() ToggleFlash() end)
-                    ToggleFlash(true)
-                end
-            elseif self.flashTicker then
-                self.flashTicker:Cancel()
-                self.flashTicker = nil
-                ToggleFlash(false)
-            end
-        end
-
-        local safeUpdateFlash = function(self)
-            local attacking = self.IsPetAttacking and self:IsPetAttacking()
-            local visible = self:IsVisible()
-            self:SetFlashing(visible and attacking)
-        end
-
-        if button.SetFlashing ~= safeSetFlashing then
-            button.SetFlashing = safeSetFlashing
-            button.UpdateFlash = safeUpdateFlash
+        if _G.GamepadPetSpellFlyout and (not InCombatLockdown or not InCombatLockdown()) then
+            _G.GamepadPetSpellFlyout:Hide()
         end
     end
 
@@ -978,6 +947,7 @@ if IS_CAMELOT then
     if sfui.events and sfui.events.RegisterEvent then
         sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_gamepad_flyout_event)
         sfui.events.RegisterEvent("ADDON_LOADED", on_gamepad_flyout_event)
+        sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", on_gamepad_flyout_event)
     end
     patchCamelotGamepadPetFlyout()
 end

@@ -1,7 +1,7 @@
 ## Interface: 120105, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v1.110
+## Version: v1.111
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -244,6 +244,7 @@ frames/ring/providers/ring_questitems.lua
 frames/ring/providers/ring_tracking.lua
 frames/ring/providers/ring_utility.lua
 frames/ring/providers/ring_specs.lua
+frames/ring/providers/ring_pet.lua
 
 frames/mem.lua
 commands.lua

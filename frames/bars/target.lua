@@ -578,9 +578,6 @@ local function UpdateTargetHealth()
     local maxHp = UnitHealthMax("target")
     if not curHp or not maxHp then return end
 
-    local isSecret = issecretvalue(curHp) or issecretvalue(maxHp)
-    if not isSecret and (type(maxHp) == "number" and maxHp <= 0) then return end
-
     healthBar:SetMinMaxValues(0, maxHp)
     healthBar:SetValue(curHp)
 
@@ -622,39 +619,11 @@ local function UpdateTargetHealth()
     -- Target Status & Health Text
     if hpText then
         if UnitIsDeadOrGhost("target") then
-            if lastHpState ~= "dead" then
-                lastHpState = "dead"
-                lastHpPct = nil
-                hpText:SetText("|cffff3333dead|r")
-            end
+            hpText:SetText("|cffff3333dead|r")
         elseif not UnitIsConnected("target") then
-            if lastHpState ~= "offline" then
-                lastHpState = "offline"
-                lastHpPct = nil
-                hpText:SetText("|cff888888offline|r")
-            end
+            hpText:SetText("|cff888888offline|r")
         else
-            local pctFormatted
-            if not isSecret then
-                local cur = type(curHp) == "number" and curHp or tonumber(curHp)
-                local max = type(maxHp) == "number" and maxHp or tonumber(maxHp)
-                if cur and max and max > 0 then
-                    pctFormatted = math_floor((cur / max) * 100 + 0.5)
-                end
-            end
-            if pctFormatted then
-                if lastHpState ~= "alive" or lastHpPct ~= pctFormatted then
-                    lastHpState = "alive"
-                    lastHpPct = pctFormatted
-                    hpText:SetFormattedText("%d%%", pctFormatted)
-                end
-            else
-                if lastHpState ~= "unknown" then
-                    lastHpState = "unknown"
-                    lastHpPct = nil
-                    hpText:SetText("")
-                end
-            end
+            hpText:SetFormattedText("%s / %s", curHp, maxHp)
         end
     end
 end
@@ -670,7 +639,13 @@ UpdateTargetLevel = function()
     local hasNameplateAtlas = sfui.theme and sfui.theme.HasAtlas and sfui.theme.HasAtlas("ui-hud-nameplates-levelindicator-skull")
     local useCamelotSkull = isCamelot and hasNameplateAtlas
 
-    if isLvlSecret or not lvl or (type(lvl) == "number" and lvl <= 0) or classification == "worldboss" then
+    if isLvlSecret then
+        if skullIcon then skullIcon:Hide() end
+        if levelText then levelText:SetText(lvl) end
+        return
+    end
+
+    if not lvl or (type(lvl) == "number" and lvl <= 0) or classification == "worldboss" then
         if skullIcon then
             if useCamelotSkull then
                 skullIcon:SetAtlas("ui-hud-nameplates-levelindicator-skull", false)
@@ -717,15 +692,6 @@ local function UpdateTargetPower()
     local curPower = UnitPower("target")
     local maxPower = UnitPowerMax("target")
     if not curPower or not maxPower then return end
-
-    local isPowerSecret = issecretvalue(curPower) or issecretvalue(maxPower)
-    if not isPowerSecret and (type(maxPower) == "number" and maxPower <= 0) then
-        if powerBar.backdrop:IsShown() then
-            powerBar.backdrop:Hide()
-            UpdateLayoutAnchors(false)
-        end
-        return
-    end
 
     if not powerBar.backdrop:IsShown() then
         powerBar.backdrop:Show()

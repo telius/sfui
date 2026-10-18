@@ -527,8 +527,8 @@ local function RenderQuestDetail(quest, dungeon)
             local mapID, x, y, src, step = ResolveQuestMapCoords(q)
             if src == "chain_step" and step then
                 GameTooltip:AddLine(
-                string.format("Opens map and places a waypoint at current step: %s (%s).",
-                    tostring(step.name or "chain step"), tostring(step.pickup or "")), 1, 1, 1, true)
+                string.format("opens map and places a waypoint at current step: %s (%s).",
+                    tostring(step.name or "chain step"):lower(), tostring(step.pickup or ""):lower()), 1, 1, 1, true)
             elseif src == "quest" then
                 GameTooltip:AddLine("opens map and places a waypoint at the quest pickup location.", 1, 1, 1, true)
             elseif src == "entrance" then
@@ -539,7 +539,7 @@ local function RenderQuestDetail(quest, dungeon)
             if mapID and C_Map and C_Map.GetMapInfo then
                 local minfo = C_Map.GetMapInfo(mapID)
                 if minfo and minfo.name then
-                    GameTooltip:AddLine(string.format("|cff888888Zone: %s|r", minfo.name))
+                    GameTooltip:AddLine(string.format("|cff888888zone: %s|r", tostring(minfo.name):lower()))
                 end
             end
             GameTooltip:Show()
@@ -588,7 +588,7 @@ local function RenderQuestDetail(quest, dungeon)
 
             -- TomTom integration if present
             if x and y and _G.TomTom and _G.TomTom.AddWaypoint then
-                local wpTitle = (src == "chain_step" and step and step.name) or q.name or "Dungeon Quest"
+                local wpTitle = (src == "chain_step" and step and step.name) or q.name or "dungeon quest"
                 pcall(_G.TomTom.AddWaypoint, _G.TomTom, mapID, x, y, {
                     title = wpTitle,
                     persistent = false,
@@ -742,7 +742,7 @@ local function RenderQuestDetail(quest, dungeon)
                 end
 
                 local dTag = s.isDungeonQuest and " |cff00bfff(dungeon quest)|r" or ""
-                local sName = s.name or ("Quest #" .. tostring(s.id))
+                local sName = s.name or ("quest #" .. tostring(s.id))
                 local stepHeader = string.format("%s%d.|r %s%s|r%s", numColor, i, titleColor, sName, dTag, statusBadge)
                 if s.pickup and s.pickup ~= "" then
                     local locStr = string.format("     |cff888888starts from: %s|r", s.pickup)
@@ -842,12 +842,14 @@ local function RenderQuestDetail(quest, dungeon)
             itemID)
 
             if not name or not icon then
-                local instName, _, instQuality, _, _, _, _, _, instEquipLoc, instIcon = common.get_item_instant_info(
-                itemID)
-                name                                                                  = instName or ("item #" .. itemID)
-                quality                                                               = instQuality or 1
-                icon                                                                  = instIcon or 134400
-                equipSlot                                                             = instEquipLoc
+                local _, instType, instSubType, instEquipLoc, instIcon = common.get_item_instant_info(itemID)
+                local instName = (_G.C_Item and _G.C_Item.GetItemNameByID and _G.C_Item.GetItemNameByID(itemID))
+                name       = instName or ("item #" .. itemID)
+                quality    = common.get_item_quality(itemID) or 1
+                icon       = instIcon or (_G.C_Item and _G.C_Item.GetItemIconByID and _G.C_Item.GetItemIconByID(itemID)) or 134400
+                equipSlot  = equipSlot or instEquipLoc
+                class      = class or instType
+                subclass   = subclass or instSubType
                 if common and common.request_item_load then
                     common.request_item_load(itemID)
                 elseif _G.C_Item and _G.C_Item.RequestLoadItemDataByID then
@@ -1301,8 +1303,8 @@ sfui.dungeonjournal._initQuests = OnFrameCreated
 if sfui.events and sfui.events.RegisterMessage then
     sfui.events.RegisterMessage("SFUI_DJ_FRAME_CREATED", OnFrameCreated)
     sfui.events.RegisterMessage("SFUI_DJ_CLEAR_CACHE", function()
-        questButtons  = {}
-        rewardButtons = {}
+        ReleaseAll(questButtons)
+        ReleaseAll(rewardButtons)
         RefreshQuestView()
     end)
 end

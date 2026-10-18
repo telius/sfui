@@ -27,8 +27,8 @@ local function UpdateCurrencyAnchors()
     end
 end
 
-if CharacterFrame and CharacterFrame.HookScript then
-    CharacterFrame:HookScript("OnShow", function()
+if CharacterFrame and hooksecurefunc then
+    hooksecurefunc(CharacterFrame, "Show", function()
         UpdateCurrencyAnchors()
         if sfui.update_currency_display then sfui.update_currency_display() end
         if sfui.update_item_display then sfui.update_item_display() end

@@ -58,9 +58,10 @@ local function OnEnterEntrance(pin, tooltip, pinData)
     local available = 0
     local inLog = 0
     local completed = 0
+    local pFaction = playerFaction and playerFaction:lower() or "alliance"
     for _, q in ipairs(d.quests or {}) do
-        local f = q.faction or "Both"
-        if f == "Both" or f == playerFaction then
+        local f = q.faction and q.faction:lower() or "both"
+        if f == "both" or f == pFaction then
             totalQuests = totalQuests + 1
             local minLvl = q.minLevel or (db and db.questMinLevels and db.questMinLevels[q.id]) or 1
             if pins.IsQuestCompleted(q.id) then
@@ -104,7 +105,7 @@ local function OnClickEntrance(pin, mouseBtn, pinData)
         else
             local items = {
                 {
-                    text = "hide pins for " .. (d.name or "dungeon"),
+                    text = "hide pins for " .. (d.name and d.name:lower() or "dungeon"),
                     color = { 1.0, 0.7, 0.4 },
                     func = function()
                         if sfui.dungeonjournal and sfui.dungeonjournal.SetDungeonPinsHidden then
@@ -116,7 +117,7 @@ local function OnClickEntrance(pin, mouseBtn, pinData)
                     end,
                 },
                 {
-                    text = "hide " .. (d.name or "dungeon") .. " & pins",
+                    text = "hide " .. (d.name and d.name:lower() or "dungeon") .. " & pins",
                     color = { 1.0, 0.4, 0.4 },
                     func = function()
                         if sfui.dungeonjournal and sfui.dungeonjournal.SetDungeonHidden then
@@ -160,7 +161,7 @@ local function OnClickEntrance(pin, mouseBtn, pinData)
             })
 
             if sfui.dungeonjournal and sfui.dungeonjournal.ShowContextMenu then
-                sfui.dungeonjournal.ShowContextMenu(pin, d.name or "dungeon entrance", items)
+                sfui.dungeonjournal.ShowContextMenu(pin, d.name and d.name:lower() or "dungeon entrance", items)
             end
             return
         end
@@ -307,7 +308,7 @@ local function OnClickQuestGroup(pin, mouseBtn, pinData)
             end
 
             table_insert(items, {
-                text = "hide all pins for " .. (d.name or "dungeon"),
+                text = "hide all pins for " .. (d.name and d.name:lower() or "dungeon"),
                 color = { 1.0, 0.5, 0.5 },
                 func = function()
                     if sfui.dungeonjournal and sfui.dungeonjournal.SetDungeonPinsHidden then
@@ -320,7 +321,7 @@ local function OnClickQuestGroup(pin, mouseBtn, pinData)
             })
 
             table_insert(items, {
-                text = "hide " .. (d.name or "dungeon") .. " & pins",
+                text = "hide " .. (d.name and d.name:lower() or "dungeon") .. " & pins",
                 color = { 1.0, 0.3, 0.3 },
                 func = function()
                     if sfui.dungeonjournal and sfui.dungeonjournal.SetDungeonHidden then
@@ -366,7 +367,7 @@ local function OnClickQuestGroup(pin, mouseBtn, pinData)
                 func = function() end,
             })
 
-            local menuTitle = (#g.quests == 1) and (q.name or "quest") or string_format("%d quests (%s)", #g.quests, d.name or "")
+            local menuTitle = (#g.quests == 1) and (q.name and q.name:lower() or "quest") or string_format("%d quests (%s)", #g.quests, d.name and d.name:lower() or "")
             if sfui.dungeonjournal and sfui.dungeonjournal.ShowContextMenu then
                 sfui.dungeonjournal.ShowContextMenu(pin, menuTitle, items)
             end
@@ -436,8 +437,9 @@ local function GetQuestPins(mapID, playerLevel, playerFaction)
         for _, q in ipairs(d.quests or {}) do
             local minLevel = q.minLevel or (db.questMinLevels and db.questMinLevels[q.id]) or 1
             local levelEligible = (not requireLevel) or (playerLevel >= minLevel)
-            local f = q.faction or "Both"
-            local factionEligible = (f == "Both" or f == playerFaction)
+            local f = q.faction and q.faction:lower() or "both"
+            local pFaction = playerFaction and playerFaction:lower() or "alliance"
+            local factionEligible = (f == "both" or f == pFaction)
 
             if factionEligible then
                 local steps, currentStep, currentStepIndex, allDone = nil, nil, nil, nil

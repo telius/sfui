@@ -1843,10 +1843,10 @@ end
 function sfui.character.HookHeaderButtons()
     if sfui.character._header_hooked then return end
     local charFrame = _G.CharacterFrame
-    if not charFrame or not charFrame.HookScript then return end
+    if not charFrame or not _G.hooksecurefunc then return end
     sfui.character._header_hooked = true
 
-    charFrame:HookScript("OnShow", function()
+    _G.hooksecurefunc(charFrame, "Show", function()
         sfui.character.AlignHeaderButtons()
         if C_Timer and C_Timer.After then
             C_Timer.After(0, sfui.character.AlignHeaderButtons)

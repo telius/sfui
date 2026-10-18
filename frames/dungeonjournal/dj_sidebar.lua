@@ -231,7 +231,7 @@ local function OpenDungeonContextMenu(owner, dungeon)
 
     if isHidden then
         table.insert(items, {
-            text = "Unhide " .. (dungeon.name or "Dungeon"),
+            text = "unhide " .. (dungeon.name and dungeon.name:lower() or "dungeon"),
             color = { 0.4, 1.0, 0.4 },
             func = function()
                 sfui.dungeonjournal.SetDungeonHidden(dungeon.id, false)
@@ -242,7 +242,7 @@ local function OpenDungeonContextMenu(owner, dungeon)
         })
     else
         table.insert(items, {
-            text = "Hide " .. (dungeon.name or "Dungeon") .. " & Pins",
+            text = "hide " .. (dungeon.name and dungeon.name:lower() or "dungeon") .. " & pins",
             color = { 1.0, 0.4, 0.4 },
             func = function()
                 sfui.dungeonjournal.SetDungeonHidden(dungeon.id, true)
@@ -254,7 +254,7 @@ local function OpenDungeonContextMenu(owner, dungeon)
 
         if arePinsHidden then
             table.insert(items, {
-                text = "Unhide Map Pins",
+                text = "unhide map pins",
                 color = { 0.4, 1.0, 0.4 },
                 func = function()
                     sfui.dungeonjournal.SetDungeonPinsHidden(dungeon.id, false)
@@ -265,7 +265,7 @@ local function OpenDungeonContextMenu(owner, dungeon)
             })
         else
             table.insert(items, {
-                text = "Hide Map Pins Only",
+                text = "hide map pins only",
                 color = { 1.0, 0.7, 0.4 },
                 func = function()
                     sfui.dungeonjournal.SetDungeonPinsHidden(dungeon.id, true)
@@ -307,7 +307,7 @@ local function OpenDungeonContextMenu(owner, dungeon)
         func = function() end,
     })
 
-    sfui.dungeonjournal.ShowContextMenu(owner, dungeon.name or "Dungeon", items)
+    sfui.dungeonjournal.ShowContextMenu(owner, dungeon.name and dungeon.name:lower() or "dungeon", items)
 end
 
 -- ─── Pool helpers ─────────────────────────────────────────────────────────────
@@ -447,8 +447,8 @@ local function RefreshSidebarImpl()
                     if boss.items then
                         for _, itemID in ipairs(boss.items) do
                             local name = common.get_item_info(itemID)
-                            if not name and common.get_item_instant_info then
-                                name = common.get_item_instant_info(itemID)
+                            if not name and _G.C_Item and _G.C_Item.GetItemNameByID then
+                                name = _G.C_Item.GetItemNameByID(itemID)
                             end
                             if name and name:lower():find(currentSearchFilter, 1, true) then
                                 matchFound = true
@@ -498,8 +498,12 @@ local function RefreshSidebarImpl()
             if not selectedID then
                 selectedID = displayList[1].id
             end
-            if dj and dj.SelectDungeon then
-                dj.SelectDungeon(selectedID)
+            if selectedID then
+                if dj and dj.SetSelectedDungeonID then
+                    dj.SetSelectedDungeonID(selectedID)
+                else
+                    DJ_DB().lastDungeon = selectedID
+                end
             end
         end
     end
@@ -909,7 +913,7 @@ if sfui.events and sfui.events.RegisterMessage then
     sfui.events.RegisterMessage("SFUI_DJ_FRAME_CREATED", OnFrameCreated)
     sfui.events.RegisterMessage("SFUI_DJ_CLEAR_CACHE",   function()
         InvalidateQuestProgressCache()
-        sidebarButtons = {}
+        ReleaseAll(sidebarButtons)
         RefreshSidebar()
     end)
     sfui.events.RegisterMessage("SFUI_DJ_WISHLIST_UPDATED", function()

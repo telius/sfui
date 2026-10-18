@@ -35,6 +35,10 @@ local textFrame = nil
 local textLeft = nil
 local textCenter = nil
 local textRight = nil
+local centerGroup = nil
+local portraitFrame = nil
+local portraitTexture = nil
+local tpText = nil
 
 local PET_BAR_COLOR_XP = { 0.18, 0.65, 0.32, 1.0 }
 local PET_BAR_COLOR_TP = { 0.88, 0.62, 0.14, 1.0 }
@@ -42,24 +46,23 @@ local PET_BAR_COLOR_TP = { 0.88, 0.62, 0.14, 1.0 }
 --- Update text visibility based on hover state and configuration
 --- @param isHovering boolean
 local function UpdateTextVisibility(isHovering)
-    if not textLeft or not textCenter or not textRight then return end
-
     local cfg = sfui.config and sfui.config.experience or {}
     local mode = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showText", cfg.showText or "MOUSEOVER")) or "MOUSEOVER"
 
+    local alpha = 1.0
     if mode == "ALWAYS" then
-        textLeft:SetAlpha(1.0)
-        textCenter:SetAlpha(1.0)
-        textRight:SetAlpha(1.0)
+        alpha = 1.0
     elseif mode == "MOUSEOVER" then
-        local alpha = isHovering and 1.0 or 0.0
-        textLeft:SetAlpha(alpha)
-        textCenter:SetAlpha(alpha)
-        textRight:SetAlpha(alpha)
+        alpha = isHovering and 1.0 or 0.0
     else -- "NEVER"
-        textLeft:SetAlpha(0.0)
-        textCenter:SetAlpha(0.0)
-        textRight:SetAlpha(0.0)
+        alpha = 0.0
+    end
+
+    if textLeft then textLeft:SetAlpha(alpha) end
+    if textCenter then textCenter:SetAlpha(alpha) end
+    if textRight then textRight:SetAlpha(alpha) end
+    if centerGroup then
+        centerGroup:SetAlpha(isHovering and 1.0 or 0.85)
     end
 end
 
@@ -326,21 +329,21 @@ local function TogglePetPanel()
 
         if charFrame and charFrame:IsShown() and paperDoll and paperDoll:IsShown() and petBox:IsShown() then
             if _G.HideUIPanel then
-                _G.HideUIPanel(charFrame)
+                securecall(_G.HideUIPanel, charFrame)
             else
                 charFrame:Hide()
             end
         else
             if _G.ToggleCharacter then
-                _G.ToggleCharacter("PaperDollFrame", true)
+                securecall(_G.ToggleCharacter, "PaperDollFrame", true)
             elseif charFrame then
-                if _G.ShowUIPanel then _G.ShowUIPanel(charFrame) else charFrame:Show() end
+                if _G.ShowUIPanel then securecall(_G.ShowUIPanel, charFrame) else charFrame:Show() end
             end
 
             if _G.PaperDollFrame_SetSidebar and sidebarTabs then
-                _G.PaperDollFrame_SetSidebar(sidebarTabs, 4)
-            elseif _G.PaperDollSidebarTab4 and _G.PaperDollSidebarTab4.OnClick then
-                _G.PaperDollSidebarTab4:OnClick()
+                securecall(_G.PaperDollFrame_SetSidebar, sidebarTabs, 4)
+            elseif _G.PaperDollSidebarTab4 and _G.PaperDollSidebarTab4.Click then
+                securecall(_G.PaperDollSidebarTab4.Click, _G.PaperDollSidebarTab4)
             end
         end
         return
@@ -348,13 +351,40 @@ local function TogglePetPanel()
 
     -- Classic Era / Vanilla with dedicated PetPaperDollFrame subframe
     if _G.PetPaperDollFrame and _G.ToggleCharacter then
-        _G.ToggleCharacter("PetPaperDollFrame")
+        securecall(_G.ToggleCharacter, "PetPaperDollFrame")
         return
     end
 
     -- General fallback: toggle character sheet
     if _G.ToggleCharacter then
-        _G.ToggleCharacter("PaperDollFrame")
+        securecall(_G.ToggleCharacter, "PaperDollFrame")
+    end
+end
+
+--- Open or toggle the Beast Training craft window
+local function OpenBeastTraining()
+    if _G.InCombatLockdown and _G.InCombatLockdown() then
+        if _G.UIErrorsFrame and _G.ERR_NOT_IN_COMBAT then
+            _G.UIErrorsFrame:AddMessage(_G.ERR_NOT_IN_COMBAT, 1, 0.1, 0.1)
+        end
+        return
+    end
+
+    if _G.CraftFrame and _G.CraftFrame:IsShown() then
+        if _G.HideUIPanel then securecall(_G.HideUIPanel, _G.CraftFrame) else _G.CraftFrame:Hide() end
+        return
+    end
+
+    local casted = false
+    if _G.CastSpellByID then
+        local ok = pcall(_G.CastSpellByID, 5149)
+        if ok then casted = true end
+    end
+    if not casted and _G.CastSpellByName then
+        local spellName = (_G.C_Spell and _G.C_Spell.GetSpellInfo and _G.C_Spell.GetSpellInfo(5149) and _G.C_Spell.GetSpellInfo(5149).name)
+                          or (_G.GetSpellInfo and _G.GetSpellInfo(5149))
+                          or "Beast Training"
+        pcall(_G.CastSpellByName, spellName)
     end
 end
 
@@ -394,11 +424,35 @@ function petModule.Create()
     textCenter:SetPoint("CENTER", textFrame, "CENTER", 0, 0)
     textCenter:SetJustifyH("CENTER")
     textCenter:SetTextColor(1.0, 1.0, 1.0, 1.0)
+    textCenter:Hide()
 
     textRight = textFrame:CreateFontString(nil, "OVERLAY", font)
     textRight:SetPoint("RIGHT", textFrame, "RIGHT", -4, 0)
     textRight:SetJustifyH("RIGHT")
     textRight:SetTextColor(0.85, 0.85, 0.85, 1.0)
+
+    -- Center group with pet portrait and training points badge
+    centerGroup = CreateFrame("Frame", "SfuiPetExpCenterGroup", textFrame)
+    centerGroup:SetFrameLevel(petContainer:GetFrameLevel() + 3)
+    centerGroup:SetPoint("CENTER", petContainer, "CENTER", 0, 0)
+    centerGroup:EnableMouse(false)
+
+    portraitFrame = CreateFrame("Frame", nil, centerGroup)
+    portraitFrame:SetPoint("LEFT", centerGroup, "LEFT", 0, 0)
+    portraitFrame:EnableMouse(false)
+
+    portraitTexture = portraitFrame:CreateTexture(nil, "ARTWORK")
+    portraitTexture:SetAllPoints(portraitFrame)
+    if sfui.widgets and sfui.widgets.set_round_icon_coords then
+        sfui.widgets.set_round_icon_coords(portraitTexture)
+    else
+        portraitTexture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    end
+
+    tpText = centerGroup:CreateFontString(nil, "OVERLAY", font)
+    tpText:SetPoint("LEFT", portraitFrame, "RIGHT", 4, 0)
+    tpText:SetJustifyH("LEFT")
+    tpText:SetTextColor(1.0, 1.0, 1.0, 1.0)
 
     petContainer:SetScript("OnEnter", function(self)
         UpdateTextVisibility(true)
@@ -480,8 +534,9 @@ function petModule.Create()
         end
 
         _G.GameTooltip:AddLine(" ")
-        _G.GameTooltip:AddLine("click: open pet character pane", 0.5, 0.8, 0.5)
-        _G.GameTooltip:AddLine("hint: visit a pet trainer in any major city to unlearn skills", 0.5, 0.5, 0.5)
+        _G.GameTooltip:AddLine("<left-click: open pet character pane>", 0.5, 0.8, 0.5)
+        _G.GameTooltip:AddLine("<right-click: open beast training menu>", 0.88, 0.62, 0.14)
+        _G.GameTooltip:AddLine("<middle-click: fast feed pet>", 0.2, 0.9, 0.2)
 
         _G.GameTooltip:Show()
     end)
@@ -492,7 +547,15 @@ function petModule.Create()
     end)
 
     petContainer:SetScript("OnClick", function(self, button)
-        TogglePetPanel()
+        if button == "RightButton" then
+            OpenBeastTraining()
+        elseif button == "MiddleButton" then
+            if sfui.pet and sfui.pet.fast_feed then
+                sfui.pet.fast_feed()
+            end
+        else
+            TogglePetPanel()
+        end
     end)
 
     petModule.ApplyTheme()
@@ -531,15 +594,8 @@ function petModule.UpdateValues()
         if textLeft then
             textLeft:SetText(string_format("%s (lv %d)", data.name:lower(), data.level))
         end
-        if textCenter then
-            textCenter:SetText(string_format("%s / %s (%.1f%%)", BreakUpLargeNumbers(data.currentXP), BreakUpLargeNumbers(data.maxXP), data.percentXP))
-        end
         if textRight then
-            if data.unspentTP > 0 then
-                textRight:SetText(string_format("%s to next • %s tp", BreakUpLargeNumbers(data.remainingXP), BreakUpLargeNumbers(data.unspentTP)))
-            else
-                textRight:SetText(string_format("%s to next", BreakUpLargeNumbers(data.remainingXP)))
-            end
+            textRight:SetText(string_format("%s / %s (%.1f%%)", BreakUpLargeNumbers(data.currentXP), BreakUpLargeNumbers(data.maxXP), data.percentXP))
         end
     else
         -- Mode 2: Capped XP -> Training Points & Loyalty Tracking
@@ -549,20 +605,41 @@ function petModule.UpdateValues()
         petBar:SetValue(math_min(maxPoints, math_max(0, data.usedTP)))
 
         if textLeft then
-            textLeft:SetText(string_format("%s (lv %d) • %s", data.name:lower(), data.level, data.loyaltyName))
-        end
-        if textCenter then
-            if data.unspentTP > 0 then
-                textCenter:SetText(string_format("%s unspent tp (%s / %s)", BreakUpLargeNumbers(data.unspentTP), BreakUpLargeNumbers(data.usedTP), BreakUpLargeNumbers(data.totalTP)))
-            elseif data.unspentTP < 0 then
-                textCenter:SetText(string_format("%s tp debt (gain loyalty)", BreakUpLargeNumbers(data.unspentTP)))
-            else
-                textCenter:SetText(string_format("%s / %s tp trained", BreakUpLargeNumbers(data.usedTP), BreakUpLargeNumbers(data.totalTP)))
-            end
+            textLeft:SetText(string_format("%s (lv %d)", data.name:lower(), data.level))
         end
         if textRight then
-            textRight:SetText(string_format("loyalty %d/6", data.loyaltyRank))
+            textRight:SetText(string_format("loyalty %d/6 (%s)", data.loyaltyRank, data.loyaltyName:lower()))
         end
+    end
+
+    -- Center portrait and TP counter
+    if portraitTexture then
+        if _G.SetPortraitTexture and UnitExists("pet") then
+            _G.SetPortraitTexture(portraitTexture, "pet")
+        else
+            portraitTexture:SetTexture("Interface\\Icons\\Ability_Hunter_BeastTraining")
+        end
+    end
+
+    if tpText and centerGroup then
+        local unspentTP = data.unspentTP or 0
+        if unspentTP > 0 then
+            tpText:SetText("|cff33ff33" .. BreakUpLargeNumbers(unspentTP) .. " tp|r")
+        elseif unspentTP < 0 then
+            tpText:SetText("|cffff5533" .. BreakUpLargeNumbers(unspentTP) .. " tp|r")
+        else
+            tpText:SetText("|cffaaaaaa0 tp|r")
+        end
+
+        local barH = petContainer:GetHeight() or 10
+        local pSize = math_max(10, math_min(barH + 2, 16))
+        if portraitFrame then
+            portraitFrame:SetSize(pSize, pSize)
+        end
+        local textW = tpText:GetStringWidth() or 24
+        centerGroup:SetSize(pSize + 4 + textW, pSize)
+        centerGroup:ClearAllPoints()
+        centerGroup:SetPoint("CENTER", petContainer, "CENTER", 0, 0)
     end
 
     UpdateTextVisibility(petContainer:IsMouseOver())

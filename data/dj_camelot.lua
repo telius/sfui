@@ -2080,7 +2080,8 @@ local function BuildCaches()
             -- Cache item drops
             for _, boss in ipairs(dungeon.bosses or {}) do
                 for _, itemID in ipairs(boss.items or {}) do
-                    local numID = tonumber(itemID)
+                    local rawID = type(itemID) == "table" and (itemID.id or itemID[1]) or itemID
+                    local numID = tonumber(rawID)
                     if numID and not itemSourceCache[numID] then
                         itemSourceCache[numID] = {
                             dungeonID      = dungeon.id,
@@ -2094,14 +2095,36 @@ local function BuildCaches()
                 end
             end
 
-            -- Cache quests
+            -- Cache quests (including chain steps)
             for _, quest in ipairs(dungeon.quests or {}) do
                 local qID = tonumber(quest.id)
-                if qID then
+                if qID and not questDungeonCache[qID] then
                     questDungeonCache[qID] = {
                         dungeon = dungeon,
                         quest   = quest,
                     }
+                end
+                if quest.chain then
+                    for _, step in ipairs(quest.chain) do
+                        local sID = tonumber(step.id)
+                        if sID and not questDungeonCache[sID] then
+                            questDungeonCache[sID] = {
+                                dungeon = dungeon,
+                                quest   = quest,
+                                step    = step,
+                            }
+                        end
+                    end
+                end
+                if quest.chainStart and quest.chainStart.id then
+                    local csID = tonumber(quest.chainStart.id)
+                    if csID and not questDungeonCache[csID] then
+                        questDungeonCache[csID] = {
+                            dungeon = dungeon,
+                            quest   = quest,
+                            step    = quest.chainStart,
+                        }
+                    end
                 end
             end
         end

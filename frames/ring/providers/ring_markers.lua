@@ -17,15 +17,31 @@ local TARGET_MARKER_DEFS = {
     { id = "clear",    label = "clear",    marker = 0, icon = CLEAR_ICON, coords = { 0, 1, 0, 1 }, color = { 0.8, 0.8, 0.8 }, action = "clear" },
 }
 
+local function is_secret(val)
+    if val == nil then return false end
+    local fn = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+    if fn then
+        local ok, res = pcall(fn, val)
+        if not ok or res then return true end
+    end
+    return false
+end
+
 sfui.ring.register_provider("targetmarkers", {
     name   = "target markers",
     title  = "target markers",
     events = { "PLAYER_ENTERING_WORLD", "RAID_TARGET_UPDATE", "PLAYER_TARGET_CHANGED" },
     build  = function(out)
-        local currentTargetMarker = _G.GetRaidTargetIndex and _G.GetRaidTargetIndex("target")
+        local currentTargetMarker
+        if _G.GetRaidTargetIndex then
+            local marker = _G.GetRaidTargetIndex("target")
+            if marker and not is_secret(marker) then
+                currentTargetMarker = marker
+            end
+        end
         for i = 1, #TARGET_MARKER_DEFS do
             local def = TARGET_MARKER_DEFS[i]
-            local isActive = (def.marker > 0 and currentTargetMarker == def.marker)
+            local isActive = (currentTargetMarker ~= nil and def.marker > 0 and currentTargetMarker == def.marker)
             out[#out + 1] = {
                 id             = def.id,
                 label          = def.label,

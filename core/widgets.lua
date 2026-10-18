@@ -380,8 +380,8 @@ sfui.common.create_fade_animations = sfui.widgets.create_fade_animations
 function sfui.widgets.create_bar(name, frameType, parent, template, configName, backdropType, backdropTemplate)
     local cfg = sfui.config[configName or name]
     local mult = sfui.pixelScale or 1
-    local bType = backdropType or (name == "bar0" and "Button") or "Frame"
-    local bTemplate = backdropTemplate or (name == "bar0" and "SecureActionButtonTemplate,BackdropTemplate") or "BackdropTemplate"
+    local bType = backdropType or "Frame"
+    local bTemplate = backdropTemplate or "BackdropTemplate"
     local backdrop = CreateFrame(bType, "sfui_" .. name .. "_Backdrop", parent, bTemplate)
     sfui.common.set_pixel_snapping(backdrop)
     backdrop:SetFrameStrata("MEDIUM")

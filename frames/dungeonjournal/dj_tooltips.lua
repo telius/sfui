@@ -24,12 +24,12 @@ local function DJ_DB()
     return sfui.dungeonjournal.GetDB()
 end
 
-local function OnTooltipSetItem(tooltip)
+local function OnTooltipSetItem(tooltip, data)
     if not tooltip then return end
     if DJ_DB().showItemTooltips == false then return end
 
-    local itemID = nil
-    if TooltipUtil and TooltipUtil.GetDisplayedItem then
+    local itemID = data and data.id
+    if not itemID and TooltipUtil and TooltipUtil.GetDisplayedItem then
         local _, _, id = TooltipUtil.GetDisplayedItem(tooltip)
         itemID = id
     end
@@ -59,18 +59,18 @@ local function OnTooltipSetItem(tooltip)
         local g = math_floor(a2 * 255)
         local b = math_floor(a3 * 255)
         local hex = string_format("%02x%02x%02x", r, g, b)
-        local bossName    = source.bossName or "Encounter"
-        local dungeonName = source.dungeonName or "Dungeon"
+        local bossName    = tostring(source.bossName or "encounter"):lower()
+        local dungeonName = tostring(source.dungeonName or "dungeon"):lower()
         source.accent1 = a1
         source.accent2 = a2
         source.accent3 = a3
-        source.tooltipLine = string_format("|cff%sDrops from:|r %s  ·  |cff888888%s|r", hex, bossName, dungeonName)
+        source.tooltipLine = string_format("|cff%sdrops from:|r %s  ·  |cff888888%s|r", hex, bossName, dungeonName)
     end
 
     tooltip:AddLine(source.tooltipLine, 1, 1, 1, true)
 
     if sfui.dungeonjournal and sfui.dungeonjournal.IsWishlisted and sfui.dungeonjournal.IsWishlisted(itemID) then
-        tooltip:AddLine("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t |cffcc44ffLoot Wishlist Active|r", 1, 1, 1, false)
+        tooltip:AddLine("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t |cffcc44ffloot wishlist active|r", 1, 1, 1, false)
     end
 end
 
@@ -80,21 +80,34 @@ local function OnTooltipCleared(tooltip)
     end
 end
 
+local function HookClearEvents(tip)
+    if not tip then return end
+    if tip.HookScript then
+        tip:HookScript("OnTooltipCleared", OnTooltipCleared)
+        tip:HookScript("OnHide", OnTooltipCleared)
+    end
+end
+
 -- ─── Tooltip Registration (Retail & Classic Era Compatible) ──────────────────
 if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType and Enum.TooltipDataType.Item then
     TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, OnTooltipSetItem)
 else
     if GameTooltip then
         GameTooltip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
-        GameTooltip:HookScript("OnTooltipCleared", OnTooltipCleared)
     end
-    local sfuiTip = sfui.tooltip
+    local sfuiTip = sfui.common.get_tooltip and sfui.common.get_tooltip() or sfui.tooltip
     if sfuiTip and sfuiTip ~= GameTooltip then
         sfuiTip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
-        sfuiTip:HookScript("OnTooltipCleared", OnTooltipCleared)
     end
     if ItemRefTooltip then
         ItemRefTooltip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
-        ItemRefTooltip:HookScript("OnTooltipCleared", OnTooltipCleared)
     end
+end
+
+-- Hook clear/hide unconditionally so _sfuiDJAnnotated is reset on every hide
+HookClearEvents(GameTooltip)
+HookClearEvents(ItemRefTooltip)
+local sfuiTip = sfui.common.get_tooltip and sfui.common.get_tooltip() or sfui.tooltip
+if sfuiTip and sfuiTip ~= GameTooltip then
+    HookClearEvents(sfuiTip)
 end

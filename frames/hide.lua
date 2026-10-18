@@ -142,17 +142,19 @@ local function HookUnitFrames()
         local frames = GetFramesForEntry(entry)
         for _, frame in ipairs(frames) do
             -- Never hook TotemFrame on Retail (avoids OnShow taint and secret value errors in 12.1.0)
-            if frame and frame ~= _G.TotemFrame and frame.HookScript and not hookedFrames[frame] then
+            if frame and frame ~= _G.TotemFrame and not hookedFrames[frame] then
                 hookedFrames[frame] = true
-                frame:HookScript("OnShow", function(self)
-                    if SfuiDB and SfuiDB[entry.key] == true then
-                        self:SetAlpha(0)
-                        local isProtected = self.IsProtected and self:IsProtected()
-                        if not isProtected and self.EnableMouse then
-                            pcall(self.EnableMouse, self, false)
+                if hooksecurefunc then
+                    hooksecurefunc(frame, "Show", function(self)
+                        if SfuiDB and SfuiDB[entry.key] == true then
+                            self:SetAlpha(0)
+                            local isProtected = self.IsProtected and self:IsProtected()
+                            if not isProtected and self.EnableMouse then
+                                pcall(self.EnableMouse, self, false)
+                            end
                         end
-                    end
-                end)
+                    end)
+                end
             end
         end
     end

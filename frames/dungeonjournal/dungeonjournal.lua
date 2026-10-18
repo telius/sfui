@@ -77,6 +77,7 @@ sfui.db.RegisterDefaults("dungeonjournal", {
 local GetPlayerKey = sfui.common.get_player_unique_key
 
 local function GetCharHidden()
+    SfuiDB = SfuiDB or {}
     SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
     local dj = SfuiDB.dungeonjournal
     dj.charHidden = dj.charHidden or {}
@@ -121,6 +122,7 @@ end
 sfui.dungeonjournal.GetCharHidden = GetCharHidden
 
 local function DJ_DB()
+    SfuiDB = SfuiDB or {}
     SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
     SfuiDB.dungeonjournal.wishlist = SfuiDB.dungeonjournal.wishlist or {}
     local charData = GetCharHidden()
@@ -280,8 +282,7 @@ local function ResolveItemLink(btn, fallbackItemID)
         local rawName = (btn and btn.nameText and btn.nameText.GetText and btn.nameText:GetText()) or
         ("item #" .. itemID)
         local cleanName = rawName:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
-        local _, _, q = common.get_item_instant_info(itemID)
-        local quality = q or 1
+        local quality = common.get_item_quality(itemID) or 1
         local r, g, b = GetQualityColor(quality)
         local hex = string.format("ff%02x%02x%02x", math_floor((r or 1) * 255 + 0.5), math_floor((g or 1) * 255 + 0.5),
             math_floor((b or 1) * 255 + 0.5))
@@ -680,7 +681,7 @@ function sfui.dungeonjournal.ShowContextMenu(owner, title, items)
     end
 
     local f = sharedContextMenu
-    f.title:SetText(title or "Options")
+    f.title:SetText(title or "options")
 
     local itemY = 26
     local btnW = 220
@@ -897,7 +898,7 @@ local function OpenHiddenManager()
             local hasDungeons = false
             for dID in pairs(charData.hiddenDungeons or {}) do
                 if not hasDungeons then
-                    AddHeader("Hidden Dungeons (Journal & Pins):")
+                    AddHeader("hidden dungeons (journal & pins):")
                     hasDungeons = true
                 end
                 local d = sfui.dungeonjournal.FindDungeon(dID)
@@ -912,12 +913,12 @@ local function OpenHiddenManager()
             for dID in pairs(charData.hiddenPins or {}) do
                 if not hasPins then
                     if y > 0 then y = y + 6 end
-                    AddHeader("Hidden Map Pins (Dungeon visible):")
+                    AddHeader("hidden map pins (dungeon visible):")
                     hasPins = true
                 end
                 local d = sfui.dungeonjournal.FindDungeon(dID)
                 local dName = d and d.name or dID
-                AddItemRow(dName, "Pins Only", function()
+                AddItemRow(dName, "pins only", function()
                     sfui.dungeonjournal.SetDungeonPinsHidden(dID, false)
                 end)
             end
@@ -926,10 +927,10 @@ local function OpenHiddenManager()
             for qID in pairs(charData.hiddenQuestPins or {}) do
                 if not hasQuestPins then
                     if y > 0 then y = y + 6 end
-                    AddHeader("Hidden Quest Pins:")
+                    AddHeader("hidden quest pins:")
                     hasQuestPins = true
                 end
-                local qName = "Quest #" .. tostring(qID)
+                local qName = "quest #" .. tostring(qID)
                 local cData = sfui.dj_camelot or (sfui.data and sfui.data.dj_camelot)
                 if cData then
                     for _, d in ipairs(cData.dungeons or {}) do
@@ -949,7 +950,7 @@ local function OpenHiddenManager()
                         end
                     end
                 end
-                AddItemRow(qName, "Quest Pin", function()
+                AddItemRow(qName, "quest pin", function()
                     sfui.dungeonjournal.SetQuestPinHidden(qID, false)
                 end)
             end
@@ -1197,6 +1198,18 @@ end
 
 function sfui.dungeonjournal.GetSelectedDungeonID()
     return selectedDungeonID
+end
+
+function sfui.dungeonjournal.SetSelectedDungeonID(dungeonID)
+    selectedDungeonID = dungeonID
+    DJ_DB().lastDungeon = dungeonID
+    DJ_DB().lastBoss    = 1
+    DJ_DB().lastQuest   = 1
+    if selectedMode == "bosses" and RefreshBossView then
+        RefreshBossView()
+    elseif selectedMode == "quests" and RefreshQuestView then
+        RefreshQuestView()
+    end
 end
 
 function sfui.dungeonjournal.GetSelectedMode()
@@ -1491,14 +1504,14 @@ function sfui.dungeonjournal.CreateFrame()
         return row
     end
 
-    local rowEnt  = MakeMenuCheckbox("Dungeon Entrances", "showEntrancePins",
-        "Show dungeon and raid entrance icons on the World Map.", -28)
-    local rowQ    = MakeMenuCheckbox("Dungeon Quests", "showQuestPins", "Show quest pickup icons on the World Map.", -50)
-    local rowLvl  = MakeMenuCheckbox("Filter Quests by Level", "questPinsRequireLevel",
-        "When enabled (default), shows all quests with a lower or equal level requirement (including gray/trivial quests), hiding only quests that require a higher level than your character. Uncheck to show higher-level locked quests as well.",
+    local rowEnt  = MakeMenuCheckbox("dungeon entrances", "showEntrancePins",
+        "show dungeon and raid entrance icons on the world map.", -28)
+    local rowQ    = MakeMenuCheckbox("dungeon quests", "showQuestPins", "show quest pickup icons on the world map.", -50)
+    local rowLvl  = MakeMenuCheckbox("filter quests by level", "questPinsRequireLevel",
+        "when enabled (default), shows all quests with a lower or equal level requirement (including gray/trivial quests), hiding only quests that require a higher level than your character. uncheck to show higher-level locked quests as well.",
         -72)
-    local rowTriv = MakeMenuCheckbox("Hide Outleveled Entrances", "autoHideTrivialPins",
-        "Automatically hides map pins for dungeon entrances whose recommended level is gray/trivial for your character. (Quest pins are never hidden by this setting; all quests of lower level requirement remain visible).",
+    local rowTriv = MakeMenuCheckbox("hide outleveled entrances", "autoHideTrivialPins",
+        "automatically hides map pins for dungeon entrances whose recommended level is gray/trivial for your character. (quest pins are never hidden by this setting; all quests of lower level requirement remain visible).",
         -94)
 
     mapMenu:SetSize(230, 180)
