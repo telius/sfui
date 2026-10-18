@@ -21,7 +21,6 @@ local _G = _G
 local CreateFrame = _G.CreateFrame
 local UIParent = _G.UIParent
 local CharacterFrame = _G.CharacterFrame
-local CharacterFrameCloseButton = _G.CharacterFrameCloseButton
 local InCombatLockdown = _G.InCombatLockdown
 local C_Timer = _G.C_Timer
 local math_max = math.max
@@ -29,11 +28,8 @@ local math_min = math.min
 local math_floor = math.floor
 local string_format = string.format
 local tostring = _G.tostring
-local tonumber = _G.tonumber
-local pairs = _G.pairs
 local ipairs = _G.ipairs
 local UnitLevel = _G.UnitLevel
-local UnitClass = _G.UnitClass
 local UnitDefenseSkill = _G.UnitDefenseSkill
 local UnitPowerType = _G.UnitPowerType
 local UnitUsesAmmo = _G.UnitUsesAmmo
@@ -43,20 +39,17 @@ local GetOffhandHitModifier = _G.GetOffhandHitModifier
 local GetHitModifier = _G.GetHitModifier
 local GetRangedHitModifier = _G.GetRangedHitModifier
 local GetSpellHitModifier = _G.GetSpellHitModifier
-local GetCritChance = _G.GetCritChance
 local GetRangedCritChance = _G.GetRangedCritChance
 local GetSpellCritChance = _G.GetSpellCritChance
 local GetDodgeChance = _G.GetDodgeChance
 local GetParryChance = _G.GetParryChance
 local GetBlockChance = _G.GetBlockChance
 local GetShieldBlock = _G.GetShieldBlock
-local GetArmorPenetration = _G.GetArmorPenetration
 local GetSpellPenetration = _G.GetSpellPenetration
 local GetManaRegen = _G.GetManaRegen
 local GetCombatRatingBonus = _G.GetCombatRatingBonus
 local BreakUpLargeNumbers = _G.BreakUpLargeNumbers or tostring
 local C_Item = _G.C_Item
-local C_SkillInfo = _G.C_SkillInfo
 local Enum = _G.Enum
 
 -- Static color constants to eliminate runtime table allocations on updates
@@ -300,10 +293,6 @@ end
 
 --- Refresh all combat telemetry and calculations in the panel
 function panelModule.UpdateValues()
-    if inCombat or (InCombatLockdown and InCombatLockdown()) then
-        pendingUpdate = true
-        return
-    end
     if not panelFrame or not panelFrame:IsShown() or not panelFrame.scrollChild then
         pendingUpdate = true
         return
@@ -730,12 +719,12 @@ function panelModule.CreatePanel()
     end
 
     panelFrame:SetScript("OnShow", function()
-        if inCombat or (InCombatLockdown and InCombatLockdown()) then
-            pendingUpdate = true
-            return
-        end
         RestorePosition(panelFrame)
-        panelModule.UpdateValues()
+        if inCombat or (InCombatLockdown and InCombatLockdown()) then
+            OnStateChanged()
+        else
+            panelModule.UpdateValues()
+        end
         if sfui.theme and sfui.theme.ElevateWindowContents then
             sfui.theme.ElevateWindowContents(panelFrame)
         end
@@ -796,16 +785,14 @@ function panelModule.CreateToggleButton()
             panelFrame:Hide()
             if SfuiDB then SfuiDB.showCombatInfoPanel = false end
         else
-            if inCombat or (InCombatLockdown and InCombatLockdown()) then
-                pendingUpdate = true
-                panelFrame:Show()
-                if SfuiDB then SfuiDB.showCombatInfoPanel = true end
-                return
-            end
             RestorePosition(panelFrame)
             panelFrame:Show()
             if SfuiDB then SfuiDB.showCombatInfoPanel = true end
-            panelModule.UpdateValues()
+            if inCombat or (InCombatLockdown and InCombatLockdown()) then
+                OnStateChanged()
+            else
+                panelModule.UpdateValues()
+            end
         end
     end)
 
@@ -832,25 +819,33 @@ end
 --  Lifecycle & Events
 -- ─────────────────────────────────────────────────────────────────────────────
 
+local DEBOUNCE_OUT_OF_COMBAT = 0.4
+local DEBOUNCE_IN_COMBAT     = 2.0
+
 local function OnStateChanged()
-    if inCombat or (InCombatLockdown and InCombatLockdown()) then
-        pendingUpdate = true
-        return
-    end
     if not panelFrame or not panelFrame:IsShown() or (CharacterFrame and not CharacterFrame:IsShown()) then
         pendingUpdate = true
         return
     end
-    if updateTimer then return end
-    updateTimer = C_Timer.NewTimer(0.4, function()
+
+    if updateTimer then
+        pendingUpdate = true
+        return
+    end
+
+    local isCombatActive = inCombat or (InCombatLockdown and InCombatLockdown())
+    local delay = isCombatActive and DEBOUNCE_IN_COMBAT or DEBOUNCE_OUT_OF_COMBAT
+
+    pendingUpdate = false
+    updateTimer = C_Timer.NewTimer(delay, function()
         updateTimer = nil
-        if inCombat or (InCombatLockdown and InCombatLockdown()) then
-            pendingUpdate = true
-            return
-        end
         if panelFrame and panelFrame:IsShown() and (not CharacterFrame or CharacterFrame:IsShown()) then
-            pendingUpdate = false
             panelModule.UpdateValues()
+            if pendingUpdate then
+                OnStateChanged()
+            end
+        else
+            pendingUpdate = true
         end
     end)
 end
@@ -861,12 +856,12 @@ local function Initialize()
 
     if CharacterFrame then
         if CharacterFrame:IsShown() and SfuiDB and SfuiDB.showCombatInfoPanel then
+            if not panelFrame then panelModule.CreatePanel() end
+            RestorePosition(panelFrame)
+            panelFrame:Show()
             if inCombat or (InCombatLockdown and InCombatLockdown()) then
-                pendingUpdate = true
+                OnStateChanged()
             else
-                if not panelFrame then panelModule.CreatePanel() end
-                RestorePosition(panelFrame)
-                panelFrame:Show()
                 panelModule.UpdateValues()
             end
         else
@@ -878,16 +873,14 @@ local function Initialize()
                 sfui.character.AlignHeaderButtons()
             end
             if SfuiDB and SfuiDB.showCombatInfoPanel then
-                if inCombat or (InCombatLockdown and InCombatLockdown()) then
-                    pendingUpdate = true
-                    if not panelFrame then panelModule.CreatePanel() end
-                    panelFrame:Show()
-                    return
-                end
                 if not panelFrame then panelModule.CreatePanel() end
                 RestorePosition(panelFrame)
                 panelFrame:Show()
-                panelModule.UpdateValues()
+                if inCombat or (InCombatLockdown and InCombatLockdown()) then
+                    OnStateChanged()
+                else
+                    panelModule.UpdateValues()
+                end
             end
         end)
 
@@ -906,6 +899,7 @@ local function Initialize()
         "PLAYER_EQUIPMENT_CHANGED",
         "UNIT_INVENTORY_CHANGED",
         "SKILL_LINES_CHANGED",
+        "CHAT_MSG_SKILL",
         "UNIT_STATS",
         "CHARACTER_POINTS_CHANGED",
         "PLAYER_LEVEL_UP",
@@ -916,25 +910,27 @@ local function Initialize()
     for _, evt in ipairs(events) do
         watcher:RegisterEvent(evt)
     end
-    watcher:SetScript("OnEvent", function(self, event, unit)
+    watcher:SetScript("OnEvent", function(self, event, arg1)
         if event == "PLAYER_REGEN_DISABLED" then
             inCombat = true
-            if updateTimer then
-                updateTimer:Cancel()
-                updateTimer = nil
-            end
-            pendingUpdate = true
             return
         elseif event == "PLAYER_REGEN_ENABLED" then
             inCombat = false
             if pendingUpdate and panelFrame and panelFrame:IsShown() and (not CharacterFrame or CharacterFrame:IsShown()) then
                 pendingUpdate = false
+                if updateTimer then
+                    updateTimer:Cancel()
+                    updateTimer = nil
+                end
                 panelModule.UpdateValues()
             end
             return
         end
 
-        if unit and unit ~= "player" then return end
+        if (event == "UNIT_STATS" or event == "UNIT_INVENTORY_CHANGED") and arg1 ~= "player" then
+            return
+        end
+
         OnStateChanged()
     end)
 end

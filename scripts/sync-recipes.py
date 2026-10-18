@@ -1514,10 +1514,16 @@ end
             os.remove(temp_target)
         return
 
-    # Atomic rename (POSIX safe)
-    os.replace(temp_target, LUA_TARGET)
-    file_size_kb = os.path.getsize(LUA_TARGET) / 1024
-    print(f"Atomically updated {os.path.relpath(LUA_TARGET, REPO_ROOT)} successfully ({file_size_kb:.1f} KB).")
+    import filecmp
+    if os.path.exists(LUA_TARGET) and filecmp.cmp(temp_target, LUA_TARGET, shallow=False):
+        os.remove(temp_target)
+        file_size_kb = os.path.getsize(LUA_TARGET) / 1024
+        print(f"No changes in {os.path.relpath(LUA_TARGET, REPO_ROOT)} ({file_size_kb:.1f} KB, already up to date).")
+    else:
+        # Atomic rename (POSIX safe)
+        os.replace(temp_target, LUA_TARGET)
+        file_size_kb = os.path.getsize(LUA_TARGET) / 1024
+        print(f"Atomically updated {os.path.relpath(LUA_TARGET, REPO_ROOT)} successfully ({file_size_kb:.1f} KB).")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Synchronize recipe database from Wowhead Forever.")

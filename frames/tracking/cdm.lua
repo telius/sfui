@@ -2021,9 +2021,7 @@ function sfui.cdm.UpdateVisibility(event)
         local shouldShow = true
         local panelData = zone.panelData
 
-        if zone.isTrackedBars then
-            -- Tracked Bars visibility logic (optional, currently always shown unless empty logic handled elsewhere)
-        elseif panelData then
+        if not zone.isTrackedBars and panelData then
             if panelData.hideOOC and not inCombat then shouldShow = false end
 
             -- Priority: Combat status always overrides mount/vehicle hide conditions

@@ -535,18 +535,10 @@ end
 
 -- ─── Target Classification & Level Cache ─────────────────────────────────────
 local cachedLvlPrefix
-local lastPctFormatted, lastDeadOrGhost, lastConnected
-local lastHealthVal, lastHealthMaxVal
 local lastBarR, lastBarG, lastBarB
-local lastAbsorbAnchor
 
 local function InvalidateTargetLevelCache()
     cachedLvlPrefix = nil
-    lastPctFormatted = nil
-    lastDeadOrGhost = nil
-    lastConnected = nil
-    lastHealthVal = nil
-    lastHealthMaxVal = nil
 end
 
 local function GetTargetLvlPrefix()

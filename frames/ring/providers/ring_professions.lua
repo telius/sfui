@@ -96,9 +96,10 @@ local function get_ability_spell(slot)
     if C_SpellBook and C_SpellBook.GetSpellBookItemType then
         local tOk, itemType, actionID, spellID = pcall(C_SpellBook.GetSpellBookItemType, slot, bank)
         local nOk, name = pcall(C_SpellBook.GetSpellBookItemName, slot, bank)
-        local iOk, icon
+        local icon
         if C_SpellBook.GetSpellBookItemTexture then
-            iOk, icon = pcall(C_SpellBook.GetSpellBookItemTexture, slot, bank)
+            local iOk, iTex = pcall(C_SpellBook.GetSpellBookItemTexture, slot, bank)
+            if iOk then icon = iTex end
         end
         local resolvedID = spellID or actionID
         if (tOk and resolvedID and resolvedID > 0) or (nOk and name and name ~= "") then
@@ -179,7 +180,7 @@ sfui.ring.register_provider("professions", {
                         if isFaid then seenFirstAid = true end
                         if isFish then seenFishing = true end
 
-                        local spellVal, spellName, spellIcon
+                        local spellVal, spellIcon
                         local sName = ""
                         local spellCount = numSpells or 0
 
@@ -189,7 +190,7 @@ sfui.ring.register_provider("professions", {
                                 local v, n, ic = get_ability_spell(slot)
                                 local candidateName = (n or profName or ""):lower()
                                 if candidateName ~= "" and not is_blacklisted(candidateName) then
-                                    spellVal, spellName, spellIcon = v, n, ic
+                                    spellVal, spellIcon = v, ic
                                     sName = candidateName
                                     break
                                 end
@@ -198,7 +199,6 @@ sfui.ring.register_provider("professions", {
 
                         if sName == "" and profName then
                             spellVal = profName
-                            spellName = profName
                             spellIcon = profIcon
                             sName = profName:lower()
                         end

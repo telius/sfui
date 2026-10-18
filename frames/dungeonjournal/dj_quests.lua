@@ -698,9 +698,9 @@ local function RenderQuestDetail(quest, dungeon)
     currY = currY + tH + 10
 
     -- 4. Prerequisite / Chain (if applicable)
-    local steps, currentStep, currentStepIndex, allDone = nil, nil, nil, nil
+    local steps, currentStepIndex = nil, nil
     if sfui.dungeonjournal and sfui.dungeonjournal.GetQuestChainInfo then
-        steps, currentStep, currentStepIndex, allDone = sfui.dungeonjournal.GetQuestChainInfo(quest)
+        steps, _, currentStepIndex = sfui.dungeonjournal.GetQuestChainInfo(quest)
     end
 
     local hasPrereq = quest.hasPrereq or quest.prereq or (quest.prerequisites and #quest.prerequisites > 0)

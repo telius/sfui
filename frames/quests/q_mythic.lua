@@ -272,7 +272,6 @@ local _lastBossCount  = 0  -- for HideExtraBossRows: iterate only to last count
 local _lastTimerPhase = -1 -- 0=ontime(>25%), 1=yellow, 2=red, 3=overtime
 local _lastTimerText  = "" -- skip SetText when string unchanged
 local _lastChestText  = "" -- skip SetText when string unchanged
-local _lastDeathText  = "" -- skip SetText when string unchanged
 local _lastDeaths     = -1
 local _lastTimeLost   = -1
 local _lastResText    = ""
@@ -2803,7 +2802,6 @@ local function UpdateTimer()
         else
             newDeathStr = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:13:13:0:0|t |cff8888880|r"
         end
-        _lastDeathText = newDeathStr
         MF.deathText:SetText(newDeathStr)
         if MF.deathFrame then
             MF.deathFrame:SetWidth(MF.deathText:GetStringWidth() + 4)
@@ -2840,7 +2838,6 @@ local function InitRun()
     _lastTimerPhase = -1
     _lastTimerText  = ""
     _lastChestText  = ""
-    _lastDeathText  = ""
     _lastDeaths     = -1
     _lastTimeLost   = -1
     CacheGroupMembers()
@@ -2942,7 +2939,6 @@ local function InitDungeon()
     _lastBossCount  = 0
     _lastTimerPhase = -1
     _lastTimerText  = ""
-    _lastDeathText  = ""
     _lastDeaths     = -1
     _lastTimeLost   = -1
 
@@ -3081,7 +3077,6 @@ local function HideHUD()
     StopTicker()
     _mode = nil
     _isRaid = false
-    _lastDeathText = ""
     _lastDeaths = -1
     _lastTimeLost = -1
     _lastResText = ""

@@ -740,35 +740,35 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
         if itemEquipLoc ~= "INVTYPE_CLOAK" and itemEquipLoc ~= "INVTYPE_FINGER" and itemEquipLoc ~= "INVTYPE_TRINKET" and itemEquipLoc ~= "INVTYPE_NECK" and itemEquipLoc ~= "INVTYPE_HOLDABLE" and itemEquipLoc ~= "INVTYPE_SHIELD" and itemEquipLoc ~= "INVTYPE_RELIC" then
             if isClassic then
                 local playerLvl = UnitLevel("player") or 1
-                if subclassID == 5 then
-                    -- Cosmetic is always equippable
-                elseif optimalArmor == 4 then
-                    -- Paladins/Warriors in Vanilla:
-                    -- Level < 40: Wear Mail, Leather, and at low levels (<20) starting Cloth.
-                    -- Level >= 40: Plate, Mail, Leather (Tanks prefer Plate at 50+)
-                    local maxSubclass = (playerLvl < 40 and not ignorePlayerLevel) and 3 or 4
-                    local minSubclass = (playerLvl < 20 or ignorePlayerLevel) and 1 or 2
-                    if isTank and playerLvl >= 50 and not ignorePlayerLevel then
-                        minSubclass = 4
+                if subclassID ~= 5 then
+                    if optimalArmor == 4 then
+                        -- Paladins/Warriors in Vanilla:
+                        -- Level < 40: Wear Mail, Leather, and at low levels (<20) starting Cloth.
+                        -- Level >= 40: Plate, Mail, Leather (Tanks prefer Plate at 50+)
+                        local maxSubclass = (playerLvl < 40 and not ignorePlayerLevel) and 3 or 4
+                        local minSubclass = (playerLvl < 20 or ignorePlayerLevel) and 1 or 2
+                        if isTank and playerLvl >= 50 and not ignorePlayerLevel then
+                            minSubclass = 4
+                        end
+                        if subclassID > maxSubclass or subclassID < minSubclass then return false end
+                    elseif optimalArmor == 3 then
+                        -- Hunters/Shamans in Vanilla:
+                        -- Level < 40: Wear Leather, and at low levels (<20) starting Cloth.
+                        -- Level >= 40: Mail and Leather
+                        local maxSubclass = (playerLvl < 40 and not ignorePlayerLevel) and 2 or 3
+                        local minSubclass = (playerLvl < 20 or ignorePlayerLevel) and 1 or 2
+                        if subclassID > maxSubclass or subclassID < minSubclass then return false end
+                    elseif optimalArmor == 2 then
+                        -- Rogues/Druids in Vanilla: Leather (and starting Cloth at low levels)
+                        if playerLvl < 20 then
+                            if subclassID > 2 or subclassID < 1 then return false end
+                        else
+                            if subclassID ~= 2 then return false end
+                        end
+                    elseif optimalArmor == 1 then
+                        -- Mages/Priests/Warlocks in Vanilla: strictly Cloth only
+                        if subclassID ~= 1 then return false end
                     end
-                    if subclassID > maxSubclass or subclassID < minSubclass then return false end
-                elseif optimalArmor == 3 then
-                    -- Hunters/Shamans in Vanilla:
-                    -- Level < 40: Wear Leather, and at low levels (<20) starting Cloth.
-                    -- Level >= 40: Mail and Leather
-                    local maxSubclass = (playerLvl < 40 and not ignorePlayerLevel) and 2 or 3
-                    local minSubclass = (playerLvl < 20 or ignorePlayerLevel) and 1 or 2
-                    if subclassID > maxSubclass or subclassID < minSubclass then return false end
-                elseif optimalArmor == 2 then
-                    -- Rogues/Druids in Vanilla: Leather (and starting Cloth at low levels)
-                    if playerLvl < 20 then
-                        if subclassID > 2 or subclassID < 1 then return false end
-                    else
-                        if subclassID ~= 2 then return false end
-                    end
-                elseif optimalArmor == 1 then
-                    -- Mages/Priests/Warlocks in Vanilla: strictly Cloth only
-                    if subclassID ~= 1 then return false end
                 end
             else
                 if subclassID ~= optimalArmor and subclassID ~= 5 then return false end -- subclassID 5 is Cosmetic
@@ -2413,9 +2413,7 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
 
     local equipQueue = {}
     for slotID, item in pairs(best) do
-        if skipWeaponsForFishing and (slotID == 16 or slotID == 17) then
-            -- Pause auto gear for weapon slots while fishing pole is equipped
-        else
+        if not (skipWeaponsForFishing and (slotID == 16 or slotID == 17)) then
             local isAlreadyEquippedHere = (item.isEquipped and item.equippedSlot == slotID)
             local isRecentlyAttempted = item.link and boeAttemptedAt[item.link] and (_G.GetTime() < (boeAttemptedAt[item.link] + BOE_RETRY_DELAY))
             if not isAlreadyEquippedHere and not isRecentlyAttempted then

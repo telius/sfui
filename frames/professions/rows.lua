@@ -553,7 +553,10 @@ function B.UpdateList()
             local isPinned = sfui.recipes.IsRecipePinned and sfui.recipes.IsRecipePinned(r.id)
             local pinTag = isPinned and TAG_PINNED or ""
 
-            local altNeeds, altList = sfui.recipes.IsAltNeeded and sfui.recipes.IsAltNeeded(r)
+            local altNeeds, altList
+            if sfui.recipes.IsAltNeeded then
+                altNeeds, altList = sfui.recipes.IsAltNeeded(r)
+            end
             local altTag = ""
             if altNeeds and altList then
                 local numAlts = #altList

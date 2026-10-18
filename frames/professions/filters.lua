@@ -1340,14 +1340,6 @@ function B.RebuildFilteredList()
             end
         end
 
-        local profName = "profession"
-        for _, p in ipairs(B.playerProfessions) do
-            if p.skillID == B.selectedSkillID then
-                profName = p.name
-                break
-            end
-        end
-
         local countStr = string.format("%d recipes (%s)", #B.filteredRecipes, B.filterState)
         if B.activeSpecFilter then
             countStr = countStr .. " · |cffffa500spec: " .. (B.activeSpecFilter == "general" and "general" or B.activeSpecFilter) .. "|r"

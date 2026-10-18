@@ -101,7 +101,10 @@ local function IsSpellActuallyKnown(targetSpellID)
         if cBook.FindSpellBookSlotForSpell then
             local slotIndex, spellBank = cBook.FindSpellBookSlotForSpell(targetSpellID, false, true, false, false)
             if slotIndex and spellBank then
-                local itemType, actionID = cBook.GetSpellBookItemType and cBook.GetSpellBookItemType(slotIndex, spellBank)
+                local itemType, actionID
+                if cBook.GetSpellBookItemType then
+                    itemType, actionID = cBook.GetSpellBookItemType(slotIndex, spellBank)
+                end
                 local futureType = _G.Enum and _G.Enum.SpellBookItemType and _G.Enum.SpellBookItemType.FutureSpell
                 local flyoutType = _G.Enum and _G.Enum.SpellBookItemType and _G.Enum.SpellBookItemType.Flyout
                 local isOffSpec = cBook.IsSpellBookItemOffSpec and cBook.IsSpellBookItemOffSpec(slotIndex, spellBank)

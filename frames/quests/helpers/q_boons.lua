@@ -526,8 +526,10 @@ eventFrame:SetScript("OnEvent", function(self, event, unit)
             updateTimer = nil
         end
     elseif event == "PLAYER_REGEN_ENABLED" then
-        needsUpdateAfterCombat = false
-        Boons.RequestUpdate(0.05)
+        if needsUpdateAfterCombat then
+            needsUpdateAfterCombat = false
+            Boons.RequestUpdate(0.05)
+        end
     elseif event == "UNIT_AURA" then
         if unit == "player" then
             Boons.RequestUpdate(0.05)

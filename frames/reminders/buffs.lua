@@ -26,7 +26,6 @@ local container = nil
 local iconPool = {}
 local isUnlocked = false
 local isTestMode = false
-local hasPendingCombatUpdate = false
 
 -- Test mode dummy records for previewing
 local function GetTestRecords()
@@ -437,7 +436,6 @@ local function CountdownTick()
 end
 
 function sfui.buffs.OnCombatEnter()
-    hasPendingCombatUpdate = true
     if sfui.events and sfui.events.UnregisterUpdate then
         sfui.events.UnregisterUpdate("SfuiBuffCountdown")
     end
@@ -450,14 +448,11 @@ function sfui.buffs.OnCombatEnter()
 end
 
 function sfui.buffs.OnCombatLeave()
-    hasPendingCombatUpdate = false
     if InCombatLockdown and InCombatLockdown() then
-        hasPendingCombatUpdate = true
         local cTimer = _G.C_Timer
         if cTimer and cTimer.After then
             cTimer.After(0.15, function()
                 if not InCombatLockdown() then
-                    hasPendingCombatUpdate = false
                     sfui.buffs.UpdateDisplay()
                 end
             end)
@@ -498,7 +493,6 @@ function sfui.buffs.UpdateDisplay()
         if not InCombatLockdown() then
             f:Hide()
         end
-        hasPendingCombatUpdate = true
         return
     end
 
@@ -534,7 +528,6 @@ function sfui.buffs.UpdateDisplay()
     end
 
     -- Past suppression checks: restore full container alpha
-    hasPendingCombatUpdate = false
     f:SetAlpha(1.0)
 
     -- If unlocked but no records, show test preview so the anchor is grabbable

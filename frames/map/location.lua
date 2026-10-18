@@ -191,7 +191,7 @@ local function get_or_create_location_frame()
         local r, g, b = get_zone_color()
         tip:AddLine(zoneText, r, g, b)
 
-        local pvpType, isSubZonePvP, factionName = GetZonePVPInfo and GetZonePVPInfo()
+        local pvpType = GetZonePVPInfo and GetZonePVPInfo()
         if pvpType then
             tip:AddLine("territory: " .. pvpType, 0.85, 0.85, 0.85)
         end

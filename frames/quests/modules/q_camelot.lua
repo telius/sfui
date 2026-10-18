@@ -208,11 +208,13 @@ local function AutoTrackQuest(questID, questLogIndex)
 end
 
 local function GetQuestCapacityInfo()
-    local numEntries, numQuests = 0, 0
+    local numQuests = 0
     if C_QuestLog and C_QuestLog.GetNumQuestLogEntries then
-        numEntries, numQuests = C_QuestLog.GetNumQuestLogEntries()
+        local _
+        _, numQuests = C_QuestLog.GetNumQuestLogEntries()
     elseif GetNumQuestLogEntries then
-        numEntries, numQuests = GetNumQuestLogEntries()
+        local _
+        _, numQuests = GetNumQuestLogEntries()
     end
     numQuests = numQuests or 0
 
@@ -559,10 +561,8 @@ function CamelotQuestsModule:BuildBlocks(container)
         local questID = nil
         local title = nil
         local isHeader = false
-        local isCollapsed = false
         local isComplete = false
         local isAutoComplete = false
-        local frequency = nil
         local suggestedGroup = 1
         local level = 0
 
@@ -572,20 +572,16 @@ function CamelotQuestsModule:BuildBlocks(container)
                 isHeader = info.isHeader
                 questID = info.questID
                 title = info.title
-                isCollapsed = info.isCollapsed
-                frequency = info.frequency
                 suggestedGroup = info.suggestedGroup or 1
                 level = info.level or 0
                 isAutoComplete = (info.isAutoComplete == true)
             end
         elseif GetQuestLogTitle then
-            local qTitle, qLevel, qTag, qHeader, qColl, qComp, qFreq, qID = GetQuestLogTitle(i)
+            local qTitle, qLevel, _, qHeader, _, qComp, _, qID = GetQuestLogTitle(i)
             title = qTitle
             level = qLevel or 0
             isHeader = qHeader
-            isCollapsed = qColl
             isComplete = (qComp == 1)
-            frequency = qFreq
             questID = qID
         end
 
@@ -602,9 +598,7 @@ function CamelotQuestsModule:BuildBlocks(container)
         if isHeader then
             currentHeaderTitle = title or "Miscellaneous"
         elseif questID and questID > 0 and not IsWorldQuest(questID) and IsQuestWatched(questID, i) then
-            if IsClassQuest(questID, i, currentHeaderTitle) then
-                -- Handled by dedicated CamelotClassQuestsModule (frames/quests/modules/q_camelot_class.lua)
-            else
+            if not IsClassQuest(questID, i, currentHeaderTitle) then
                 if C_QuestLog and C_QuestLog.IsComplete then
                     isComplete = C_QuestLog.IsComplete(questID) or isComplete
                 end

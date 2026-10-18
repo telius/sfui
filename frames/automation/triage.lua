@@ -181,7 +181,10 @@ local function is_regular_inventory_bag(bag)
         return false, 0
     end
 
-    local freeSlots, bagFamily = getNumFreeSlots and getNumFreeSlots(bag)
+    local freeSlots, bagFamily
+    if getNumFreeSlots then
+        freeSlots, bagFamily = getNumFreeSlots(bag)
+    end
     if not freeSlots then
         return false, 0
     end

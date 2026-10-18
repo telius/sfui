@@ -351,9 +351,9 @@ sfui.options.RegisterTab({
                         row_pool[i] = row
                     end
 
-                    local speciesID, customName, level, _, _, _, _, name, iconTex, petType
+                    local customName, level, name, iconTex, petType
                     if C_PetJournal_GetPetInfoByPetID then
-                        speciesID, customName, level, _, _, _, _, name, iconTex, petType = C_PetJournal_GetPetInfoByPetID(guid)
+                        _, customName, level, _, _, _, _, name, iconTex, petType = C_PetJournal_GetPetInfoByPetID(guid)
                     end
                     row.petGUID = guid
                     row.icon:SetTexture(iconTex or "Interface\\Icons\\INV_Misc_QuestionMark")

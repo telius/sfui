@@ -1081,7 +1081,6 @@ function sfui.mem.IsWatcherActive()
 end
 
 local cpuWatcherActive = false
-local cpuWatcherTimer = nil
 
 function sfui.mem.StartCPUWatcher(duration)
     if cpuWatcherActive then
@@ -1193,9 +1192,8 @@ function sfui.mem.StartCPUWatcher(duration)
     cpuWatcherActive = true
     print(PREFIX .. string_format("|cff00ff88measuring sfui cpu usage for %d seconds...|r (stay still / normal gameplay)", duration))
 
-    cpuWatcherTimer = C_Timer.NewTimer(duration, function()
+    C_Timer.After(duration, function()
         cpuWatcherActive = false
-        cpuWatcherTimer = nil
 
         if UpdateAddOnCPUUsage then UpdateAddOnCPUUsage() end
         local endAddonCPU = (GetAddOnCPUUsage and GetAddOnCPUUsage("sfui")) or 0

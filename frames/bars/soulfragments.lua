@@ -115,7 +115,6 @@ end
 -- Native C++ Engine Aura Container Binding (ReapMeter AuraBind Pattern)
 -- ------------------------------------------------------------
 local auraContainer   = nil
-local auraSlotButton  = nil
 local isBoundToEngine = false
 local boundCap        = nil
 
@@ -123,7 +122,6 @@ local function DropAuraContainer()
     if auraContainer then
         auraContainer:Hide()
         auraContainer   = nil
-        auraSlotButton  = nil
         isBoundToEngine = false
         boundCap        = nil
     end
@@ -152,7 +150,6 @@ local function BuildAuraContainer(specCap)
     local btn = c:AddAuraSlot("vsf", "HELPFUL|PLAYER", {
         candidateFilters = slotFilters,
         initializeFrame = function(b)
-            auraSlotButton = b
             b:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
             b:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
             b:SetFrameStrata(container:GetFrameStrata())

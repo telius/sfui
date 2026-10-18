@@ -686,8 +686,13 @@ def update_dj_camelot(boss_item_map: dict, boss_npcs: dict, rates_db: dict, ques
         print(f"Error: Generated Lua has syntax errors:\n{check.stderr}", file=sys.stderr)
         sys.exit(1)
 
-    os.replace(tmp_target, TARGET_FILE)
-    print(f"Successfully updated {TARGET_FILE} with loot items, drop rates, and quest rewards.")
+    import filecmp
+    if os.path.exists(TARGET_FILE) and filecmp.cmp(tmp_target, TARGET_FILE, shallow=False):
+        os.remove(tmp_target)
+        print(f"No changes in {TARGET_FILE} (already up to date).")
+    else:
+        os.replace(tmp_target, TARGET_FILE)
+        print(f"Successfully updated {TARGET_FILE} with loot items, drop rates, and quest rewards.")
 
 def main():
     parser = argparse.ArgumentParser(description="Synchronize Dungeon Journal drop tables, drop rates, and quest rewards.")

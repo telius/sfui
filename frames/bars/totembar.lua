@@ -532,7 +532,6 @@ local deferredSeqUpdate = false
 local deferredSettingsUpdate = false
 
 local isUnlocked = false
-local inCombat = false
 
 -- ---------------------------------------------------------------------------
 -- Active Color Resolver (Spec Color)
@@ -1036,14 +1035,14 @@ end
 -- Combat Handlers
 -- ---------------------------------------------------------------------------
 local function OnCombatStart()
-    inCombat = true
 end
 
 local function OnCombatEnd()
-    inCombat = false
-    sfui.totembar.ApplySettings()
-    deferredSettingsUpdate = false
-    deferredSeqUpdate = false
+    if deferredSettingsUpdate or deferredSeqUpdate or next(deferredArm) then
+        deferredSettingsUpdate = false
+        deferredSeqUpdate = false
+        sfui.totembar.ApplySettings()
+    end
 end
 
 -- ---------------------------------------------------------------------------

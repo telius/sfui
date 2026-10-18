@@ -696,9 +696,7 @@ function sfui.minimap.update_clock_position()
 
     local clock = _G.TimeManagerClockButton
     if not clock then
-        if sfui.common.ensure_addon_loaded("Blizzard_TimeManager") then
-            -- loaded via C_AddOns / LoadAddOn
-        elseif _G.UIParentLoadAddOn then
+        if not sfui.common.ensure_addon_loaded("Blizzard_TimeManager") and _G.UIParentLoadAddOn then
             _G.UIParentLoadAddOn("Blizzard_TimeManager")
         end
         clock = _G.TimeManagerClockButton

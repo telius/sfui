@@ -4,7 +4,6 @@ sfui.cursor = sfui.cursor or {}
 
 local f -- specific frame reference
 local BASE_SIZE = 48 -- reduced to 75% of original 64px
-local lastX, lastY = 0, 0
 local uiparent
 
 function sfui.cursor.initialize()

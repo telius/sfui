@@ -512,9 +512,9 @@ local function GetRecipeStatus(itemID)
 
     EnsurePlayerContext()
 
-    local classID, subclassID
+    local subclassID
     if C_Item_GetItemInfoInstant then
-        classID, subclassID = select(6, C_Item_GetItemInfoInstant(itemID))
+        subclassID = select(7, C_Item_GetItemInfoInstant(itemID))
     end
 
     SfuiDB = SfuiDB or {}

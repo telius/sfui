@@ -278,9 +278,8 @@ function sfui.research.apply_side_buttons(parent)
 
             for _, k in ipairs(keys) do
                 local v = items[k]
-                if type(v) == "table" and v.covenantID and v.covenantID ~= playerCovenant then
-                    -- Skip
-                elseif type(v) == "table" and not v.id then
+                if type(v) == "table" and (not v.covenantID or v.covenantID == playerCovenant) then
+                    if not v.id then
                     -- Category Label
                     local label = tree_frame.labels[labelIndex]
                     if not label then
@@ -294,41 +293,42 @@ function sfui.research.apply_side_buttons(parent)
                     yOffset = yOffset - 20
                     labelIndex = labelIndex + 1
                     populate(v)
-                elseif type(v) == "table" and v.id then
-                    -- Tree Button
-                    local btn = tree_frame.buttons[buttonIndex]
-                    if not btn then
-                        btn = create_sfui_button(tree_frame, "", 170, 24)
-                        tree_frame.buttons[buttonIndex] = btn
-                    end
-                    btn:ClearAllPoints()
-                    btn:SetPoint("TOPLEFT", 0, yOffset)
-                    btn.text:SetText(v.name or "Tree " .. v.id)
-                    btn:SetSelected(activeTreeBtn == btn)
+                elseif v.id then
+                        -- Tree Button
+                        local btn = tree_frame.buttons[buttonIndex]
+                        if not btn then
+                            btn = create_sfui_button(tree_frame, "", 170, 24)
+                            tree_frame.buttons[buttonIndex] = btn
+                        end
+                        btn:ClearAllPoints()
+                        btn:SetPoint("TOPLEFT", 0, yOffset)
+                        btn.text:SetText(v.name or "Tree " .. v.id)
+                        btn:SetSelected(activeTreeBtn == btn)
 
-                    local isAvailable = true
-                    if v.isTraitTree then
-                        local systemID = C_Traits.GetSystemIDByTreeID(v.id)
-                        if not systemID then isAvailable = false end
-                    end
+                        local isAvailable = true
+                        if v.isTraitTree then
+                            local systemID = C_Traits.GetSystemIDByTreeID(v.id)
+                            if not systemID then isAvailable = false end
+                        end
 
-                    if not isAvailable then
-                        btn.text:SetTextColor(0.5, 0.5, 0.5)
-                        btn:SetScript("OnClick",
-                            function() sfui.common.print("tree " .. v.id .. " is not available on this character.") end)
-                    else
-                        btn.text:SetTextColor(1, 1, 1)
-                        btn:SetScript("OnClick", function()
-                            if activeTreeBtn then activeTreeBtn:SetSelected(false) end
-                            activeTreeBtn = btn
-                            btn:SetSelected(true)
-                            sfui.research.open_tree(v)
-                        end)
-                    end
+                        if not isAvailable then
+                            btn.text:SetTextColor(0.5, 0.5, 0.5)
+                            btn:SetScript("OnClick",
+                                function() sfui.common.print("tree " .. v.id .. " is not available on this character.") end)
+                        else
+                            btn.text:SetTextColor(1, 1, 1)
+                            btn:SetScript("OnClick", function()
+                                if activeTreeBtn then activeTreeBtn:SetSelected(false) end
+                                activeTreeBtn = btn
+                                btn:SetSelected(true)
+                                sfui.research.open_tree(v)
+                            end)
+                        end
 
-                    btn:Show()
-                    yOffset = yOffset - 26
-                    buttonIndex = buttonIndex + 1
+                        btn:Show()
+                        yOffset = yOffset - 26
+                        buttonIndex = buttonIndex + 1
+                    end
                 end
             end
         end

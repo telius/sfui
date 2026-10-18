@@ -1089,24 +1089,6 @@ local WEAPON_SUBCLASS_TO_SKILL_ID = {
     [19] = 228, -- Wands
     [20] = 356, -- Fishing Poles
 }
-if Enum and Enum.ItemWeaponSubclass then
-    if Enum.ItemWeaponSubclass.Axe1H then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Axe1H] = 44 end
-    if Enum.ItemWeaponSubclass.Axe2H then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Axe2H] = 172 end
-    if Enum.ItemWeaponSubclass.Bows then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Bows] = 45 end
-    if Enum.ItemWeaponSubclass.Guns then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Guns] = 46 end
-    if Enum.ItemWeaponSubclass.Mace1H then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Mace1H] = 54 end
-    if Enum.ItemWeaponSubclass.Mace2H then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Mace2H] = 160 end
-    if Enum.ItemWeaponSubclass.Polearm then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Polearm] = 229 end
-    if Enum.ItemWeaponSubclass.Sword1H then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Sword1H] = 43 end
-    if Enum.ItemWeaponSubclass.Sword2H then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Sword2H] = 55 end
-    if Enum.ItemWeaponSubclass.Staff then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Staff] = 136 end
-    if Enum.ItemWeaponSubclass.Unarmed then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Unarmed] = 162 end
-    if Enum.ItemWeaponSubclass.Dagger then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Dagger] = 173 end
-    if Enum.ItemWeaponSubclass.Thrown then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Thrown] = 176 end
-    if Enum.ItemWeaponSubclass.Crossbow then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Crossbow] = 226 end
-    if Enum.ItemWeaponSubclass.Wand then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Wand] = 228 end
-    if Enum.ItemWeaponSubclass.Fishingpole then WEAPON_SUBCLASS_TO_SKILL_ID[Enum.ItemWeaponSubclass.Fishingpole] = 356 end
-end
 
 local cachedWeaponInfo = {
     [16] = {},
@@ -1205,8 +1187,13 @@ function sfui.gear.get_equipped_weapon_info(slotID)
     local rank, modifier, maxRank, skillName = get_skill_line_info_by_id(skillID)
     local totalSkill = (rank and (rank + (modifier or 0))) or baseSkill
 
+    local resolvedSkillName = skillName
+    if not resolvedSkillName and itemSubClassID then
+        resolvedSkillName = C_Item and C_Item.GetItemSubClassInfo and C_Item.GetItemSubClassInfo(2, itemSubClassID)
+    end
+
     targetTable.name = itemName and itemName:lower() or "weapon"
-    targetTable.skillName = skillName or (itemSubClassID and "weapon") or "unarmed"
+    targetTable.skillName = resolvedSkillName or (itemSubClassID and "weapon") or "unarmed"
     targetTable.skill = totalSkill
     targetTable.maxSkill = maxRank or baseSkill
     targetTable.skillID = skillID

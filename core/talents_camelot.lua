@@ -176,7 +176,10 @@ local function CamelotTalentKnownResolver(targetSpellID)
         if C_SpellBook.FindSpellBookSlotForSpell then
             local slotIndex, spellBank = C_SpellBook.FindSpellBookSlotForSpell(targetSpellID, false, true, false, false)
             if slotIndex and spellBank then
-                local itemType, actionID = C_SpellBook.GetSpellBookItemType and C_SpellBook.GetSpellBookItemType(slotIndex, spellBank)
+                local itemType, actionID
+                if C_SpellBook.GetSpellBookItemType then
+                    itemType, actionID = C_SpellBook.GetSpellBookItemType(slotIndex, spellBank)
+                end
                 local futureType = _G.Enum and _G.Enum.SpellBookItemType and _G.Enum.SpellBookItemType.FutureSpell
                 local flyoutType = _G.Enum and _G.Enum.SpellBookItemType and _G.Enum.SpellBookItemType.Flyout
                 local isOffSpec = C_SpellBook.IsSpellBookItemOffSpec and C_SpellBook.IsSpellBookItemOffSpec(slotIndex, spellBank)

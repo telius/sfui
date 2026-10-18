@@ -144,9 +144,7 @@ function sfui.theme.GetActiveThemeID()
         for _, id in ipairs(themeOrder) do
             local def = registeredThemes[id]
             if def and def.autoDetect and def.autoDetect() then
-                if id == "camelot" and not sfui.theme.IsCamelotSupported() then
-                    -- Cannot use camelot if bronze assets are not present
-                else
+                if id ~= "camelot" or sfui.theme.IsCamelotSupported() then
                     return def.id
                 end
             end
