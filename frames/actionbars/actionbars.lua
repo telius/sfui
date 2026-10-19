@@ -40,10 +40,6 @@ local function suppress_blizzard_actionbars()
         "StanceBarFrame",
         "PetActionBarFrame",
         "PossessBarFrame",
-        "GamepadMainActionBarFrame",
-        "GamepadPetActionFlyout",
-        "GamepadPetSpellFlyout",
-        "GamepadSpellFlyout",
         "BagsBar",
         "MainMenuBarBagButtons",
         "MicroMenuContainer",
@@ -117,10 +113,6 @@ local function suppress_blizzard_actionbars()
         end
     end
 
-    -- Disarm Gamepad action bars and target override bars (handled in compat.lua)
-    if sfui.compat and sfui.compat.disarm_gamepad_action_bars then
-        sfui.compat.disarm_gamepad_action_bars()
-    end
 
     local offscreenFrames = {
         "BagsBar",
@@ -170,9 +162,6 @@ local function suppress_blizzard_actionbars()
     if _G.EventUtil and _G.EventUtil.ContinueOnPlayerLogin then
         _G.EventUtil.ContinueOnPlayerLogin(function()
             silenceDispatchers()
-            if sfui.compat and sfui.compat.disarm_gamepad_action_bars then
-                sfui.compat.disarm_gamepad_action_bars()
-            end
         end)
     end
 

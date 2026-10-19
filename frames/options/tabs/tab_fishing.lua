@@ -118,7 +118,7 @@ sfui.options.RegisterTab({
         end
         update_keybind_display()
 
-        -- Modal input catcher overlay for key/mouse/gamepad capture
+        -- Modal input catcher overlay for key/mouse capture
         local catcher = CreateFrame("Button", nil, options_frame or p)
         catcher:SetAllPoints(options_frame or p)
         catcher:SetFrameStrata("DIALOG")
@@ -130,9 +130,6 @@ sfui.options.RegisterTab({
             if not is_listening then return end
             is_listening = false
             catcher:EnableKeyboard(false)
-            if catcher.EnableGamePadButton then
-                catcher:EnableGamePadButton(false)
-            end
             catcher:Hide()
 
             bind_btn:SetBackdropBorderColor(0, 0, 0, 1)
@@ -145,13 +142,10 @@ sfui.options.RegisterTab({
             bind_btn:SetText("|cffffff00press a key...|r")
             local cyan = { 0, 1, 1 }
             bind_btn:SetBackdropBorderColor(cyan[1], cyan[2], cyan[3], 1)
-            keybind_status:SetText("active keybind: |cffffff00press key or gamepad button to bind (esc to cancel)|r")
+            keybind_status:SetText("active keybind: |cffffff00press key to bind (esc to cancel)|r")
 
             catcher:Show()
             catcher:EnableKeyboard(true)
-            if catcher.EnableGamePadButton then
-                catcher:EnableGamePadButton(true)
-            end
             if catcher.SetPropagateKeyboardInput then
                 catcher:SetPropagateKeyboardInput(false)
             end
@@ -197,12 +191,6 @@ sfui.options.RegisterTab({
             stop_listening()
         end)
 
-        catcher:SetScript("OnGamePadButtonDown", function(self, button)
-            if button and button ~= "" then
-                sfui.fishing.set_keybind(button)
-            end
-            stop_listening()
-        end)
 
         catcher:SetScript("OnMouseWheel", function(self, delta)
             local key = delta > 0 and "MOUSEWHEELUP" or "MOUSEWHEELDOWN"
@@ -307,8 +295,7 @@ sfui.options.RegisterTab({
         tips_text:SetJustifyH("LEFT")
         tips_text:SetText(
             "• |cffffffff1-key cast, catch & loot|r: press your bound key once to cast. when the bobber splashes, press the exact same key to reel in. caught fish are looted automatically (or on your next keypress if loot remains).\n\n" ..
-            "• |cffffffffquick binding|r: click '|cff00ffffbind key|r' above and press any key, mouse button, or controller trigger. right-click the button or click '|cff00ffffunbind|r' to remove it.\n\n" ..
-            "• |cffffffffgamepad fishing|r: enable controller support via |cff00ffff/console GamePadEnable 1|r. in keybindings > sfui, bind your trigger or button (e.g. right trigger) to fish with one button.\n\n" ..
+            "• |cffffffffquick binding|r: click '|cff00ffffbind key|r' above and press any key or mouse button. right-click the button or click '|cff00ffffunbind|r' to remove it.\n\n" ..
             "• |cffffffffmacro & slash|r: use |cff00ffff/sffish|r or |cff00ffff/click SfuiFishingButton|r in macros or chat."
         )
 

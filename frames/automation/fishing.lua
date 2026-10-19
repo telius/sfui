@@ -107,7 +107,6 @@ local SoftTargetCVars               = {
     "SoftTargetMatchLocked",
     "SoftTargetNameplateInteract",
     "SoftTargetWorldtextFarDist",
-    "GamePadVibrationStrength",
 }
 
 -- Module State
@@ -386,8 +385,8 @@ local function set_fishing_cvars()
 
     if get_setting("softTarget", true) then
         _state.softTargetApplied = true
-        -- Adopt the gamepad targeting suite so keyboard users never lose the bobber interact icon:
-        safe_set_cvar("SoftTargetInteract", 3)            -- 3 = Any (enables soft-target interact for both KBM and Gamepad)
+        -- Enable soft-target interaction so keyboard and mouse users never lose the bobber interact icon:
+        safe_set_cvar("SoftTargetInteract", 3)            -- 3 = Always enable soft-target interact
         safe_set_cvar("SoftTargetInteractArc", 2)         -- 2 = Widest arc (anywhere in targeting area, no narrow yaw restriction)
         safe_set_cvar("SoftTargetInteractRange", 60)      -- 60 yards (covers max fishing line casts without pulling distant objects)
         safe_set_cvar("SoftTargetInteractRangeIsHard", 0) -- Soft distance cutoff rather than rigid hard cutoff
@@ -399,7 +398,6 @@ local function set_fishing_cvars()
         safe_set_cvar("SoftTargetMatchLocked", 1)         -- Synchronizes soft-target with locked targets
         safe_set_cvar("SoftTargetNameplateInteract", 0)   -- Renders 3D world icon directly over object (not 2D nameplate)
         safe_set_cvar("SoftTargetWorldtextFarDist", 60)   -- Distance cutoff for 3D world icon
-        safe_set_cvar("GamePadVibrationStrength", 1)      -- Controller rumble on fish bite if gamepad connected
     end
 end
 

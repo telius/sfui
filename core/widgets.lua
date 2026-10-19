@@ -2591,9 +2591,6 @@ function sfui.widgets.create_keybind_input(parent, labelText, getFunc, setFunc, 
         if not is_listening then return end
         is_listening = false
         catcher:EnableKeyboard(false)
-        if catcher.EnableGamePadButton then
-            catcher:EnableGamePadButton(false)
-        end
         catcher:Hide()
         bind_btn.lockColor = false
         bind_btn:SetBackdropBorderColor(0, 0, 0, 1)
@@ -2612,9 +2609,6 @@ function sfui.widgets.create_keybind_input(parent, labelText, getFunc, setFunc, 
 
         catcher:Show()
         catcher:EnableKeyboard(true)
-        if catcher.EnableGamePadButton then
-            catcher:EnableGamePadButton(true)
-        end
         if catcher.SetPropagateKeyboardInput then
             catcher:SetPropagateKeyboardInput(false)
         end
@@ -2655,7 +2649,7 @@ function sfui.widgets.create_keybind_input(parent, labelText, getFunc, setFunc, 
         if tip then
             tip:SetOwner(self, "ANCHOR_TOP")
             tip:SetText(tooltipTitle or "keybind", 1, 1, 1)
-            tip:AddLine("left-click: press any key, mouse button, or controller button to bind.", 0.8, 0.8, 0.8, true)
+            tip:AddLine("left-click: press any key or mouse button to bind.", 0.8, 0.8, 0.8, true)
             tip:AddLine("right-click: unbind active key.", 0.8, 0.8, 0.8, true)
             tip:AddLine("press esc while listening to cancel.", 0.6, 0.6, 0.6, true)
             if tooltipDesc then
@@ -2720,13 +2714,6 @@ function sfui.widgets.create_keybind_input(parent, labelText, getFunc, setFunc, 
         local chord = build_key_chord(key)
         if chord and chord ~= "" and setFunc then
             setFunc(chord)
-        end
-        stop_listening()
-    end)
-
-    catcher:SetScript("OnGamePadButtonDown", function(_, btn)
-        if btn and btn ~= "" and setFunc then
-            setFunc(btn)
         end
         stop_listening()
     end)
