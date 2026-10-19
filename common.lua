@@ -73,6 +73,14 @@ end
 
 -- loads a load-on-demand addon if needed; returns loaded, reason (never throws)
 function sfui.common.ensure_addon_loaded(name)
+    if name == "Blizzard_CooldownViewer" then
+        -- never load blizzard_cooldownviewer from addon context: calling c_addons.loadaddon
+        -- from an addon taints all cooldownviewer frames and item frame pools, causing
+        -- disallowtaintedaccess crashes when unit_aura or player_target_changed indexes
+        -- self.aurainstanceidtoitemframesmap. blizzard_cooldownviewer is loaded cleanly
+        -- by the engine via optionaldeps in sfui.toc.
+        return sfui.common.is_addon_loaded(name), "AVOID_TAINT"
+    end
     if sfui.common.is_addon_loaded(name) then return true end
     if not _LoadAddOn then return false, "NO_API" end
     local ok, loaded, reason = pcall(_LoadAddOn, name)
@@ -1309,7 +1317,7 @@ function sfui.common.get_player_display_name()
     return (name and name ~= "" and name ~= "Unknown Entity") and name or "Unknown"
 end
 
--- Helper to systematically hide specific Blizzard CooldownViewer frames
+-- helper to systematically hide specific blizzard cooldownviewer frames
 local cooldownViewersInitialized = false
 local hookedAlpha = {}
 local isSettingAlpha = {}
@@ -1320,23 +1328,34 @@ local hookedShow = {}
 local function disarm_and_hide_viewer(viewer, keepActiveForMirroring)
     if not viewer then return end
 
-    -- CooldownViewer frames must NEVER process PLAYER_TARGET_CHANGED.
-    -- When PLAYER_TARGET_CHANGED fires from a targeting keybind (e.g. TargetNearestEnemy),
-    -- CooldownViewerMixin:OnPlayerTargetChanged calls RegisterAuraInstanceIDItemFrame,
-    -- which indexes self.auraInstanceIDToItemFramesMap (a DisallowTaintedAccess table)
+    -- cooldownviewer frames must never process player_target_changed.
+    -- when player_target_changed fires from a targeting keybind (e.g. targetnearestenemy),
+    -- cooldownviewermixin:onplayertargetchanged calls registeraurainstanceiditemframe,
+    -- which indexes self.aurainstanceidtoitemframesmap (a disallowtaintedaccess table)
     -- and throws an unrecoverable taint error if execution has any addon context.
     if viewer.UnregisterEvent then
         viewer:UnregisterEvent("PLAYER_TARGET_CHANGED")
     end
 
     if not keepActiveForMirroring then
-        -- Unmirrored viewers (EssentialCooldownViewer, UtilityCooldownViewer) are not needed by sfui.
-        -- Fully hide them and unregister their events so they never process PLAYER_TARGET_CHANGED
-        -- or target updates that touch Blizzard's secure DisallowTaintedAccess aura tables.
+        -- unmirrored viewers (essentialcooldownviewer, utilitycooldownviewer, on classic/forever
+        -- also buffbarcooldownviewer and bufficoncooldownviewer) are not needed by sfui.
+        -- fully hide them, unregister their events, and strip their onupdate/onevent scripts
+        -- and eventregistry callbacks so they never touch blizzard's disallowtaintedaccess aura tables.
         if not InCombatLockdown() or not (viewer.IsProtected and viewer:IsProtected()) then
             viewer:Hide()
         end
         viewer:UnregisterAllEvents()
+        if viewer.SetScript then
+            viewer:SetScript("OnEvent", nil)
+            viewer:SetScript("OnUpdate", nil)
+        end
+        if EventRegistry and EventRegistry.UnregisterCallback then
+            EventRegistry:UnregisterCallback("CooldownViewerSettings.OnDataChanged", viewer)
+            EventRegistry:UnregisterCallback("CooldownViewerSettings.OnShow", viewer)
+            EventRegistry:UnregisterCallback("CooldownViewerSettings.OnHide", viewer)
+            EventRegistry:UnregisterCallback("EditMode.RefreshCooldownViewer", viewer)
+        end
         if viewer.SetAlpha then viewer:SetAlpha(0) end
         if viewer.EnableMouse then viewer:EnableMouse(false) end
 
@@ -1347,14 +1366,18 @@ local function disarm_and_hide_viewer(viewer, keepActiveForMirroring)
                     self:Hide()
                 end
                 self:UnregisterAllEvents()
+                if self.SetScript then
+                    self:SetScript("OnEvent", nil)
+                    self:SetScript("OnUpdate", nil)
+                end
             end)
         end
         return
     end
 
-    -- For viewers mirrored by sfui (BuffBarCooldownViewer, BuffIconCooldownViewer), keep the frame active at alpha 0.
-    -- Crucial: NEVER write custom fields onto the Blizzard frame table or call bmfc:RemoveManagedFrame,
-    -- which taints the frame and causes DisallowTaintedAccess crashes in CooldownViewer.
+    -- for viewers mirrored by sfui on retail (buffbarcooldownviewer, bufficoncooldownviewer), keep the frame active at alpha 0.
+    -- crucial: never write custom fields onto the blizzard frame table or call bmfc:removemanagedframe,
+    -- which taints the frame and causes disallowtaintedaccess crashes in cooldownviewer.
     if not hookedAlpha[viewer] and hooksecurefunc then
         hookedAlpha[viewer] = true
         hooksecurefunc(viewer, "SetAlpha", function(self, alpha)
@@ -1382,8 +1405,8 @@ local function disarm_and_hide_viewer(viewer, keepActiveForMirroring)
     if not hookedShow[viewer] and hooksecurefunc then
         hookedShow[viewer] = true
         hooksecurefunc(viewer, "Show", function(self)
-            -- Blizzard's CooldownViewerMixin:OnShow re-registers PLAYER_TARGET_CHANGED.
-            -- Immediately unregister it to prevent DisallowTaintedAccess crashes.
+            -- blizzard's cooldownviewermixin:onshow re-registers player_target_changed.
+            -- immediately unregister it to prevent disallowtaintedaccess crashes.
             if self.UnregisterEvent then
                 self:UnregisterEvent("PLAYER_TARGET_CHANGED")
             end
@@ -1403,13 +1426,13 @@ local function disarm_and_hide_viewer(viewer, keepActiveForMirroring)
 end
 
 function sfui.common.hide_blizzard_cooldown_viewers()
-    -- Ensure the addon is loaded first on Retail; on Classic / Forever it is loaded on demand
-    -- by tracking modules to avoid unsupported CVar side-effects.
+    -- ensure the addon is loaded first on retail; on classic / forever it is loaded on demand
+    -- by tracking modules to avoid unsupported cvar side-effects.
     if sfui.isRetail and not InCombatLockdown() then
         sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
     end
 
-    -- Essential and Utility cooldown viewers are not mirrored by sfui and should be fully shut down
+    -- essential and utility cooldown viewers are not mirrored by sfui and should be fully shut down
     local unusedViewers = {
         "EssentialCooldownViewer",
         "UtilityCooldownViewer",
@@ -1421,7 +1444,10 @@ function sfui.common.hide_blizzard_cooldown_viewers()
         end
     end
 
-    -- BuffBarCooldownViewer and BuffIconCooldownViewer are mirrored by sfui and kept running invisibly at alpha 0
+    -- buffbarcooldownviewer and bufficoncooldownviewer are mirrored by sfui on retail and kept running invisibly at alpha 0.
+    -- on classic / forever, c_cooldownviewer has no specialization support and returns empty sets, while loading
+    -- blizzard_cooldownviewer from addon context taints the frames and causes disallowtaintedaccess crashes on unit_aura.
+    local keepMirroredActive = sfui.isRetail and true or false
     local mirroredViewers = {
         "BuffBarCooldownViewer",
         "BuffIconCooldownViewer",
@@ -1429,7 +1455,7 @@ function sfui.common.hide_blizzard_cooldown_viewers()
     for _, name in ipairs(mirroredViewers) do
         local viewer = _G[name]
         if viewer then
-            disarm_and_hide_viewer(viewer, true)
+            disarm_and_hide_viewer(viewer, keepMirroredActive)
         end
     end
 
