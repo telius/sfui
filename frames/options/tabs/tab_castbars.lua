@@ -8,7 +8,7 @@ local common = sfui.common
 sfui.options.RegisterTab({
     id = "castbars",
     name = "castbars",
-    icon = "Interface\\Icons\\Spell_Shadow_LifeDrain02",
+    icon = "Interface\\Icons\\Spell_Shadow_Haunting",
     build = function(castbar_panel, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
         local create_checkbox = common.create_checkbox

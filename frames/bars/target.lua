@@ -193,9 +193,17 @@ end
 
 -- ─── Blizzard TargetFrame Clean Suppression ──────────────────────────────────
 local function SuppressBlizzardTargetFrame()
-    if SfuiDB and SfuiDB.enableTargetBar == false then return end
     local tf = _G.TargetFrame
     if not tf then return end
+    if SfuiDB and SfuiDB.enableTargetBar == false then
+        if tf:GetAlpha() < 1 then
+            tf:SetAlpha(1)
+            if tf.EnableMouse and not InCombatLockdown() then
+                pcall(tf.EnableMouse, tf, true)
+            end
+        end
+        return
+    end
     tf:SetAlpha(0)
     if tf.EnableMouse and not InCombatLockdown() then
         pcall(tf.EnableMouse, tf, false)
@@ -1184,6 +1192,7 @@ end
 
 local function UpdateAll(isTargetChange)
     if not targetContainer or sfui.target.unlocked then return end
+    if SfuiDB and SfuiDB.enableTargetBar == false then return end
     if not UnitExists("target") then
         return
     end
@@ -1205,6 +1214,7 @@ end
 -- ─── Event Handlers ──────────────────────────────────────────────────────────
 local function OnTargetUnitEvent(event, unit)
     if not targetContainer or not UnitExists("target") then return end
+    if SfuiDB and SfuiDB.enableTargetBar == false then return end
 
     if event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_HEAL_PREDICTION" or event == "UNIT_ABSORB_AMOUNT_CHANGED" then
         UpdateTargetHealth()
@@ -1226,6 +1236,7 @@ local function OnTargetUnitEvent(event, unit)
 end
 
 local function OnPlayerTargetChanged()
+    if SfuiDB and SfuiDB.enableTargetBar == false then return end
     if UnitExists("target") then
         UpdateAll(true)
     end
@@ -1240,7 +1251,7 @@ local function OnPlayerEnteringWorld()
             SafeRegisterUnitWatch(targetContainer)
         end
     end
-    if UnitExists("target") then
+    if UnitExists("target") and not (SfuiDB and SfuiDB.enableTargetBar == false) then
         UpdateAll(true)
     end
 end
@@ -1469,6 +1480,7 @@ local function CreateTargetFrame()
     -- 10. Range Ticker (Out-of-range alpha dimming)
     local rangeElapsed = 0
     f:SetScript("OnUpdate", function(self, elapsed)
+        if SfuiDB and SfuiDB.enableTargetBar == false then return end
         rangeElapsed = rangeElapsed + elapsed
         if rangeElapsed >= 0.15 then
             rangeElapsed = 0
@@ -1480,6 +1492,10 @@ local function CreateTargetFrame()
 
     if f.HookScript then
         f:HookScript("OnShow", function()
+            if SfuiDB and SfuiDB.enableTargetBar == false then
+                f:Hide()
+                return
+            end
             UpdateAll(false)
         end)
     end
@@ -1487,8 +1503,14 @@ local function CreateTargetFrame()
     if not (SfuiDB and SfuiDB.enableTargetBar == false) then
         SafeRegisterUnitWatch(targetContainer)
     else
+        SafeUnregisterUnitWatch(targetContainer)
+        if _G.RegisterStateDriver then
+            _G.RegisterStateDriver(targetContainer, "visibility", "hide")
+        end
         if not InCombatLockdown() then
             targetContainer:Hide()
+            targetContainer:SetAlpha(0)
+            if targetContainer.EnableMouse then targetContainer:EnableMouse(false) end
         end
     end
 
@@ -1504,6 +1526,7 @@ end
 -- ─── Public API ──────────────────────────────────────────────────────────────
 function sfui.target.Unlock()
     if InCombatLockdown() then return end
+    if SfuiDB and SfuiDB.enableTargetBar == false then return end
     sfui.target.unlocked = true
     if targetContainer then
         SafeUnregisterUnitWatch(targetContainer)
@@ -1531,12 +1554,26 @@ function sfui.target.Lock()
     sfui.target.unlocked = false
     if targetContainer then
         if not (SfuiDB and SfuiDB.enableTargetBar == false) then
+            targetContainer:SetAlpha(1)
+            if targetContainer.EnableMouse then targetContainer:EnableMouse(true) end
+            if _G.UnregisterStateDriver then
+                _G.UnregisterStateDriver(targetContainer, "visibility")
+            end
             SafeRegisterUnitWatch(targetContainer)
+            if UnitExists("target") then
+                targetContainer:Show()
+                UpdateAll(true)
+            else
+                targetContainer:Hide()
+            end
         else
+            SafeUnregisterUnitWatch(targetContainer)
+            if _G.RegisterStateDriver then
+                _G.RegisterStateDriver(targetContainer, "visibility", "hide")
+            end
             targetContainer:Hide()
-        end
-        if UnitExists("target") then
-            UpdateAll(true)
+            targetContainer:SetAlpha(0)
+            if targetContainer.EnableMouse then targetContainer:EnableMouse(false) end
         end
     end
 end
@@ -1569,21 +1606,40 @@ end)
 function sfui.target.UpdateVisibility()
     if InCombatLockdown() then return end
     if SfuiDB and SfuiDB.enableTargetBar == false then
+        sfui.target.unlocked = false
         if targetContainer then
             SafeUnregisterUnitWatch(targetContainer)
+            if _G.RegisterStateDriver then
+                _G.RegisterStateDriver(targetContainer, "visibility", "hide")
+            end
             targetContainer:Hide()
+            targetContainer:SetAlpha(0)
+            if targetContainer.EnableMouse then targetContainer:EnableMouse(false) end
         end
         local tf = _G.TargetFrame
         if tf and not InCombatLockdown() then
             tf:SetAlpha(1)
-            if tf.EnableMouse then tf:EnableMouse(true) end
+            if tf.EnableMouse then pcall(tf.EnableMouse, tf, true) end
             if UnitExists("target") then tf:Show() end
         end
     else
+        local tf = _G.TargetFrame
+        if tf and not InCombatLockdown() then
+            tf:SetAlpha(0)
+            if tf.EnableMouse then pcall(tf.EnableMouse, tf, false) end
+        end
         if targetContainer then
+            targetContainer:SetAlpha(1)
+            if targetContainer.EnableMouse then targetContainer:EnableMouse(true) end
+            if _G.UnregisterStateDriver then
+                _G.UnregisterStateDriver(targetContainer, "visibility")
+            end
             SafeRegisterUnitWatch(targetContainer)
             if UnitExists("target") then
+                targetContainer:Show()
                 UpdateAll(true)
+            else
+                targetContainer:Hide()
             end
         end
         SuppressBlizzardTargetFrame()
@@ -1623,7 +1679,7 @@ local function Initialize()
     sfui.events.RegisterEvent("SPELLS_CHANGED", ResetRangeSpellCache)
     sfui.events.RegisterEvent("LEARNED_SPELL_IN_TAB", ResetRangeSpellCache)
 
-    if UnitExists("target") then
+    if UnitExists("target") and not (SfuiDB and SfuiDB.enableTargetBar == false) then
         UpdateAll(true)
     end
 end

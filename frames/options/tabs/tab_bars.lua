@@ -11,7 +11,7 @@ local ipairs = _G.ipairs
 sfui.options.RegisterTab({
     id = "bars",
     name = "bars",
-    icon = "Interface\\Icons\\Spell_DeathKnight_BloodBoil",
+    icon = "Interface\\Icons\\Spell_Shadow_ManaBurn",
     build = function(bars_panel, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
         local create_checkbox = common.create_checkbox
@@ -146,45 +146,77 @@ sfui.options.RegisterTab({
         toggles_header:SetTextColor(white[1], white[2], white[3])
         toggles_header:SetText("active bar modules")
 
-        local health_bar_cb = create_checkbox(bars_panel, "enable health bar", "enableHealthBar", function(checked)
+        local health_bar_cb = create_checkbox(bars_panel, "enable health bar", function()
+            return (SfuiDB == nil or SfuiDB.enableHealthBar ~= false)
+        end, function(checked)
+            SfuiDB = SfuiDB or {}
+            SfuiDB.enableHealthBar = checked
             sfui.bars:on_state_changed()
         end, "toggles the health bar.")
         health_bar_cb:SetPoint("TOPLEFT", toggles_header, "BOTTOMLEFT", 0, -10)
 
-        local power_bar_cb = create_checkbox(bars_panel, "enable power bar", "enablePowerBar", function(checked)
+        local power_bar_cb = create_checkbox(bars_panel, "enable power bar", function()
+            return (SfuiDB == nil or SfuiDB.enablePowerBar ~= false)
+        end, function(checked)
+            SfuiDB = SfuiDB or {}
+            SfuiDB.enablePowerBar = checked
             sfui.bars:on_state_changed()
         end, "toggles the primary power bar.")
         power_bar_cb:SetPoint("TOPLEFT", health_bar_cb, "BOTTOMLEFT", 0, -10)
 
-        local secondary_power_cb = create_checkbox(bars_panel, "enable secondary power bar", "enableSecondaryPowerBar",
-            function(checked)
-                sfui.bars:on_state_changed()
-            end, "toggles the secondary power bar (e.g., chi, holy power).")
+        local secondary_power_cb = create_checkbox(bars_panel, "enable secondary power bar", function()
+            return (SfuiDB == nil or SfuiDB.enableSecondaryPowerBar ~= false)
+        end, function(checked)
+            SfuiDB = SfuiDB or {}
+            SfuiDB.enableSecondaryPowerBar = checked
+            sfui.bars:on_state_changed()
+        end, "toggles the secondary power bar (e.g., chi, holy power).")
         secondary_power_cb:SetPoint("TOPLEFT", power_bar_cb, "BOTTOMLEFT", 0, -10)
 
-        local vigor_bar_cb = create_checkbox(bars_panel, "enable vigor bar", "enableVigorBar", function(checked)
+        local vigor_bar_cb = create_checkbox(bars_panel, "enable vigor bar", function()
+            return (SfuiDB == nil or SfuiDB.enableVigorBar ~= false)
+        end, function(checked)
+            SfuiDB = SfuiDB or {}
+            SfuiDB.enableVigorBar = checked
             sfui.bars:on_state_changed()
         end, "toggles the vigor bar (skyriding).")
         vigor_bar_cb:SetPoint("TOPLEFT", secondary_power_cb, "BOTTOMLEFT", 0, -10)
 
-        local mount_speed_cb = create_checkbox(bars_panel, "enable mount speed bar", "enableMountSpeedBar", function(checked)
+        local mount_speed_cb = create_checkbox(bars_panel, "enable mount speed bar", function()
+            return (SfuiDB == nil or SfuiDB.enableMountSpeedBar ~= false)
+        end, function(checked)
+            SfuiDB = SfuiDB or {}
+            SfuiDB.enableMountSpeedBar = checked
             sfui.bars:on_state_changed()
         end, "toggles the mount speed bar (skyriding).")
         mount_speed_cb:SetPoint("TOPLEFT", vigor_bar_cb, "BOTTOMLEFT", 0, -10)
 
         local last_toggle_cb = mount_speed_cb
         if not sfui.isRetail and sfui.swing then
-            local swing_bar_cb = create_checkbox(bars_panel, "enable swing timer bars", "enableSwingBars", function(checked)
+            local swing_bar_cb = create_checkbox(bars_panel, "enable swing timer bars", function()
+                return (SfuiDB == nil or SfuiDB.enableSwingBars ~= false)
+            end, function(checked)
+                SfuiDB = SfuiDB or {}
+                SfuiDB.enableSwingBars = checked
+                if sfui.swing and sfui.swing.UpdateVisibility then
+                    sfui.swing.UpdateVisibility()
+                end
                 sfui.bars.update_bar_visibility()
-            end, "toggles the 3-weapon swing timer bars (Classic).")
+            end, "toggles the 3-weapon swing timer bars (classic).")
             swing_bar_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -10)
             last_toggle_cb = swing_bar_cb
         end
 
         if not sfui.isRetail then
             if sfui.target then
-                local target_bar_cb = create_checkbox(bars_panel, "enable target bar", "enableTargetBar", function(checked)
-                    sfui.target.UpdateVisibility()
+                local target_bar_cb = create_checkbox(bars_panel, "enable target bar", function()
+                    return (SfuiDB == nil or SfuiDB.enableTargetBar ~= false)
+                end, function(checked)
+                    SfuiDB = SfuiDB or {}
+                    SfuiDB.enableTargetBar = checked
+                    if sfui.target and sfui.target.UpdateVisibility then
+                        sfui.target.UpdateVisibility()
+                    end
                 end, "toggles the target bar.")
                 target_bar_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -10)
                 last_toggle_cb = target_bar_cb
@@ -254,27 +286,47 @@ sfui.options.RegisterTab({
         ooc_header:SetTextColor(white[1], white[2], white[3])
         ooc_header:SetText("out of combat visibility")
 
-        local ooc_always_cb = create_checkbox(bars_panel, "always show out of combat", "bars_oocAlways", function(checked)
+        local ooc_always_cb = create_checkbox(bars_panel, "always show out of combat", function()
+            return (SfuiDB and SfuiDB.bars_oocAlways == true)
+        end, function(checked)
+            SfuiDB = SfuiDB or {}
+            SfuiDB.bars_oocAlways = checked
             sfui.bars.update_bar_visibility()
         end, "always keep the health, power, and pet bars visible even when idle out of combat.")
         ooc_always_cb:SetPoint("TOPLEFT", ooc_header, "BOTTOMLEFT", 0, -10)
 
-        local health_missing_cb = create_checkbox(bars_panel, "show when health missing", "bars_showHealthMissing", function(checked)
+        local health_missing_cb = create_checkbox(bars_panel, "show when health missing", function()
+            return (SfuiDB == nil or SfuiDB.bars_showHealthMissing ~= false)
+        end, function(checked)
+            SfuiDB = SfuiDB or {}
+            SfuiDB.bars_showHealthMissing = checked
             sfui.bars.update_bar_visibility()
         end, "shows the bars out of combat when your or your pet's health is below maximum.")
         health_missing_cb:SetPoint("TOPLEFT", ooc_always_cb, "BOTTOMLEFT", 0, -6)
 
-        local power_missing_cb = create_checkbox(bars_panel, "show when power missing", "bars_showPowerMissing", function(checked)
+        local power_missing_cb = create_checkbox(bars_panel, "show when power missing", function()
+            return (SfuiDB and SfuiDB.bars_showPowerMissing == true)
+        end, function(checked)
+            SfuiDB = SfuiDB or {}
+            SfuiDB.bars_showPowerMissing = checked
             sfui.bars.update_bar_visibility()
         end, "shows the bars out of combat when mana or energy is missing, or when rage or runic power is above zero.")
         power_missing_cb:SetPoint("TOPLEFT", health_missing_cb, "BOTTOMLEFT", 0, -6)
 
-        local casting_cb = create_checkbox(bars_panel, "show when casting / channeling", "bars_showCasting", function(checked)
+        local casting_cb = create_checkbox(bars_panel, "show when casting / channeling", function()
+            return (SfuiDB and SfuiDB.bars_showCasting == true)
+        end, function(checked)
+            SfuiDB = SfuiDB or {}
+            SfuiDB.bars_showCasting = checked
             sfui.bars.update_bar_visibility()
         end, "shows the bars out of combat while actively casting or channeling a spell.")
         casting_cb:SetPoint("TOPLEFT", power_missing_cb, "BOTTOMLEFT", 0, -6)
 
-        local friendly_cb = create_checkbox(bars_panel, "show on friendly target", "bars_showFriendlyTarget", function(checked)
+        local friendly_cb = create_checkbox(bars_panel, "show on friendly target", function()
+            return (SfuiDB and SfuiDB.bars_showFriendlyTarget == true)
+        end, function(checked)
+            SfuiDB = SfuiDB or {}
+            SfuiDB.bars_showFriendlyTarget = checked
             sfui.bars.update_bar_visibility()
         end, "shows the bars out of combat whenever you have a friendly target selected.")
         friendly_cb:SetPoint("TOPLEFT", casting_cb, "BOTTOMLEFT", 0, -6)
@@ -306,6 +358,16 @@ sfui.options.RegisterTab({
             sfui.bars:update_health_bar_position()
         end)
 
+        if not sfui.isRetail and sfui.target then
+            local reset_target_pos_btn = CreateFlatButton(bars_panel, "reset target position", 150, 22)
+            reset_target_pos_btn:SetPoint("LEFT", reset_health_pos_btn, "RIGHT", 10, 0)
+            reset_target_pos_btn:SetScript("OnClick", function()
+                if sfui.target and sfui.target.ResetPosition then
+                    sfui.target.ResetPosition()
+                end
+            end)
+        end
+
         -- Health Bar Colors
         local color_header = bars_panel:CreateFontString(nil, "OVERLAY", g.font)
         color_header:SetPoint("TOPLEFT", reset_health_pos_btn, "BOTTOMLEFT", 0, -20)
@@ -336,6 +398,6 @@ sfui.options.RegisterTab({
             end)
         bg_color_swatch:SetPoint("LEFT", bg_color_label, "RIGHT", 5, 0)
 
-        bars_panel.customContentHeight = 680
+        bars_panel.customContentHeight = 780
     end,
 })

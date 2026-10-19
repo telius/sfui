@@ -488,6 +488,18 @@ local function initialize_sfui()
             end
         end
     end
+    -- Migration: Purge legacy generic class blue or interim orange/red-orange for Arcane (62, 14821) and Fire (63, 14822)
+    for _, sID in ipairs({ 62, 63, 14821, 14822 }) do
+        local c = SfuiDB.spec_colors[sID]
+        if c then
+            local r, g, b = c[1] or c.r or 0, c[2] or c.g or 0, c[3] or c.b or 0
+            local isLegacyClassBlue = (r >= 0.23 and r <= 0.27) and (g >= 0.76 and g <= 0.80) and (b >= 0.90 and b <= 0.94)
+            local isInterimOrange = (r >= 0.98) and (g >= 0.38 and g <= 0.55) and (b <= 0.10)
+            if isLegacyClassBlue or isInterimOrange then
+                SfuiDB.spec_colors[sID] = nil
+            end
+        end
+    end
     SfuiDB.hearthstone = SfuiDB.hearthstone or {}
     SfuiDB.theme = SfuiDB.theme or {}
     if SfuiDB.theme.mode == nil and SfuiDB.themeMode == nil then

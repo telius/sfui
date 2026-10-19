@@ -11,7 +11,7 @@ local refreshTabUI = nil
 sfui.options.RegisterTab({
     id = "lootfeed",
     name = "loot feed",
-    icon = "Interface\\Icons\\Spell_Shadow_CorpseExplode",
+    icon = "Interface\\Icons\\Spell_Shadow_GatherShadows",
     resetDefaults = function()
         if SfuiDB then
             SfuiDB.camelotLootfeedStyle = nil

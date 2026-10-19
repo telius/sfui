@@ -17,7 +17,7 @@ local refreshTabUI = nil
 sfui.options.RegisterTab({
     id = "actionbars",
     name = "action bars",
-    icon = "Interface\\Icons\\Spell_DeathKnight_ScourgeStrike",
+    icon = "Interface\\Icons\\Spell_Shadow_ShadowBolt",
     resetDefaults = function()
         if SfuiDB and sfui.config and sfui.config.actionbars then
             local defaults = sfui.config.actionbars

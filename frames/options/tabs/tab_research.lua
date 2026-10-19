@@ -14,7 +14,7 @@ local GameTooltip = sfui.common.get_tooltip()
 sfui.options.RegisterTab({
     id = "research",
     name = "research",
-    icon = "Interface\\Icons\\INV_Misc_Book_09",
+    icon = "Interface\\Icons\\Spell_Shadow_TomeOfSacrifice",
     condition = function()
         return sfui.isRetail
     end,

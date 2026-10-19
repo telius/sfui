@@ -15,7 +15,7 @@ local UIParent = _G.UIParent
 sfui.options.RegisterTab({
     id = "buffs",
     name = "buffs",
-    icon = "Interface\\Icons\\Spell_Shadow_CurseOfAchimonde",
+    icon = "Interface\\Icons\\Spell_Shadow_AbyssalProtection",
     build = function(p, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
         local create_checkbox = common.create_checkbox

@@ -113,13 +113,13 @@ sfui.config = {
         [14852] = { 0.67, 0.83, 0.45, 1 },   -- Camelot Marksmanship
         [14853] = { 0.67, 0.83, 0.45, 1 },   -- Camelot Survival
         -- Mage
-        [62] = { 0.25, 0.78, 0.92, 1 },      -- Arcane
-        [63] = { 0.25, 0.78, 0.92, 1 },      -- Fire
-        [64] = { 0.25, 0.78, 0.92, 1 },      -- Frost
-        [1482] = { 0.25, 0.78, 0.92, 1 },    -- Classic / Vanilla Base Mage
-        [14821] = { 0.25, 0.78, 0.92, 1 },   -- Camelot Arcane
-        [14822] = { 0.25, 0.78, 0.92, 1 },   -- Camelot Fire
-        [14823] = { 0.25, 0.78, 0.92, 1 },   -- Camelot Frost
+        [62] = { 0.73, 0.33, 0.98, 1 },      -- Arcane (Kirin Tor Violet)
+        [63] = { 1.00, 0.18, 0.00, 1 },      -- Fire (Scorching Flame Red)
+        [64] = { 0.25, 0.85, 1.00, 1 },      -- Frost (Glacial Ice Cyan)
+        [1482] = { 0.25, 0.78, 0.92, 1 },    -- Classic / Vanilla Base Mage (Class Blue)
+        [14821] = { 0.73, 0.33, 0.98, 1 },   -- Camelot Arcane
+        [14822] = { 1.00, 0.18, 0.00, 1 },   -- Camelot Fire
+        [14823] = { 0.25, 0.85, 1.00, 1 },   -- Camelot Frost
         -- Monk
         [268] = { 0.90, 0.60, 0.15, 1 },     -- Brewmaster
         [269] = { 0.40, 0.80, 1.00, 1 },     -- Windwalker

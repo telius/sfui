@@ -1209,6 +1209,7 @@ function sfui.initialize_database()
     if SfuiDB.enableVigorBar == nil then SfuiDB.enableVigorBar = true end
     if SfuiDB.enableMountSpeedBar == nil then SfuiDB.enableMountSpeedBar = true end
     if SfuiDB.enableSwingBars == nil then SfuiDB.enableSwingBars = true end
+    if SfuiDB.enableTargetBar == nil then SfuiDB.enableTargetBar = true end
     if SfuiDB.enableThreatBar == nil then SfuiDB.enableThreatBar = true end
     if SfuiDB.threatBarGroup == nil then SfuiDB.threatBarGroup = true end
     if SfuiDB.threatBarPet == nil then SfuiDB.threatBarPet = true end
