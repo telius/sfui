@@ -367,10 +367,6 @@ end
 local cachedResult = {}
 local lastScanTime = 0
 
-sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
-    lastScanTime = 0
-end)
-
 sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", function()
     lastScanTime = 0
 end)
@@ -392,12 +388,10 @@ sfui.ring.register_provider("questitems", {
         "NEW_MOUNT_ADDED",
         "NEW_PET_ADDED",
         "QUEST_TURNED_IN",
-        "PLAYER_REGEN_DISABLED",
-        "PLAYER_REGEN_ENABLED",
     },
     build  = function(out)
         -- in combat: never perform heavy multi-slot bag scanning or map queries
-        if InCombatLockdown and InCombatLockdown() then
+        if (InCombatLockdown and InCombatLockdown()) or sfui.common.is_in_combat() then
             for i = 1, #cachedResult do
                 out[#out + 1] = cachedResult[i]
             end

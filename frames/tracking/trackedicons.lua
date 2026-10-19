@@ -21,6 +21,7 @@ local panels = {} -- Active icon panels
 local _needsStateUpdate = true -- Start dirty for initial render
 local _needsLayoutUpdate = true
 local _layoutCooldown = 0
+local _playerAurasDirty = true
 
 -- Centralized combat state helper
 local is_in_combat = sfui.common.is_in_combat
@@ -669,27 +670,35 @@ local function UpdateIconState(icon, panelConfig, event)
         local displayCount = count
         local isAuraType = (icon.type == "buff" or icon.type == "debuff" or (icon.entry and (icon.entry.type == "buff" or icon.entry.type == "debuff")))
         if (isAuraType or linkedSpellIDs) and icon.type ~= "item" and activeID and activeID ~= 0 and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
-            local aura = nil
-            if isAuraType then
-                local baseAura = C_UnitAuras.GetPlayerAuraBySpellID(activeID)
-                if baseAura then
-                    aura = baseAura
-                end
-            end
-
-            if not aura and linkedSpellIDs then
-                -- Try resolving linked auras (e.g., Marrowrend tracking -> Bone Shield aura)
-                for _, linkedID in ipairs(linkedSpellIDs) do
-                    local linkedAura = C_UnitAuras.GetPlayerAuraBySpellID(linkedID)
-                    if linkedAura then
-                        aura = linkedAura
-                        break
+            if _playerAurasDirty or icon._cachedAuraStacks == nil then
+                local aura = nil
+                if isAuraType then
+                    local baseAura = C_UnitAuras.GetPlayerAuraBySpellID(activeID)
+                    if baseAura then
+                        aura = baseAura
                     end
                 end
+
+                if not aura and linkedSpellIDs then
+                    -- Try resolving linked auras (e.g., Marrowrend tracking -> Bone Shield aura)
+                    for _, linkedID in ipairs(linkedSpellIDs) do
+                        local linkedAura = C_UnitAuras.GetPlayerAuraBySpellID(linkedID)
+                        if linkedAura then
+                            aura = linkedAura
+                            break
+                        end
+                    end
+                end
+
+                if aura and aura.applications and (issecretvalue(aura.applications) or (type(aura.applications) == "number" and aura.applications > 1)) then
+                    icon._cachedAuraStacks = aura.applications
+                else
+                    icon._cachedAuraStacks = false
+                end
             end
 
-            if aura and aura.applications and (issecretvalue(aura.applications) or (type(aura.applications) == "number" and aura.applications > 1)) then
-                displayCount = aura.applications
+            if icon._cachedAuraStacks then
+                displayCount = icon._cachedAuraStacks
             end
         end
         UpdateCountText(icon, displayCount)
@@ -703,10 +712,13 @@ local function UpdateIconState(icon, panelConfig, event)
         -- 6. Update Glows (alert on missing buff takes priority over the ready glow)
         local missingAlert = false
         if sfui.isRetail and entrySettings.glowWhenMissing and resolvedType ~= "item" then
-            local missing = IsTrackedAuraMissing(icon, activeID, linkedSpellIDs)
-            if missing == nil then missing = icon._auraMissing or false end
-            icon._auraMissing = missing
-            missingAlert = missing
+            if _playerAurasDirty or icon._cachedAuraMissing == nil then
+                local missing = IsTrackedAuraMissing(icon, activeID, linkedSpellIDs)
+                if missing == nil then missing = icon._auraMissing or false end
+                icon._cachedAuraMissing = missing
+            end
+            icon._auraMissing = icon._cachedAuraMissing
+            missingAlert = icon._cachedAuraMissing
         end
         UpdateIconGlow(icon, entrySettings, panelConfig, isReady, missingAlert)
     return true
@@ -1545,6 +1557,7 @@ function sfui.trackedicons.initialize()
                 end
             end
         end
+        _playerAurasDirty = false
     end
 
     -- Event handling: visibility & state updates (avoid full layout rebuilds during combat/target changes)
@@ -1554,9 +1567,6 @@ function sfui.trackedicons.initialize()
     end)
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
         sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_REGEN_DISABLED")
-        MarkDirty(false)
-    end)
-    sfui.events.RegisterEvent("PLAYER_TARGET_CHANGED", function()
         MarkDirty(false)
     end)
     sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", function()
@@ -1647,6 +1657,7 @@ function sfui.trackedicons.initialize()
     -- 11.0+ C_UnitAuras Event Migration (throttled to 0.25s in combat / 0.5s OOC, secret-safe)
     local _lastAuraTime = 0
     sfui.events.RegisterUnitEvent("UNIT_AURA", "player", function()
+        _playerAurasDirty = true
         local now = GetTime()
         local interval = is_in_combat() and 0.25 or 0.5
         if (now - _lastAuraTime) >= interval then
@@ -1691,6 +1702,7 @@ function sfui.trackedicons.initialize()
     end)
 
     -- OnUpdate: Only process when dirty (zero CPU/allocations when idle)
+    local _lastStateUpdateTime = 0
     local function _OnTrackedIconsUpdate(elapsed)
 
         if _layoutCooldown > 0 then
@@ -1705,8 +1717,12 @@ function sfui.trackedicons.initialize()
             wipe(_cdInfoCache)
             sfui.trackedicons.Update()
         elseif _needsStateUpdate then
-            _needsStateUpdate = false
-            UpdateAllIconStates()
+            local now = GetTime()
+            if not is_in_combat() or (now - _lastStateUpdateTime) >= 0.20 then
+                _lastStateUpdateTime = now
+                _needsStateUpdate = false
+                UpdateAllIconStates()
+            end
         elseif _activeGlowCount > 0 then
             -- Even when idle, check icons with active glows for timeout (skip when no glows active)
             for _, panel in pairs(panels) do

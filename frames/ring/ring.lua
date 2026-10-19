@@ -354,19 +354,13 @@ sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
 end)
 
 sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+    -- pause any pending rebuilds during combat; never scan bags or rebuild rings on combat entry
     rebuildTimer = nil
-    for rID in pairs(pendingRebuilds) do
-        pendingRebuilds[rID] = nil
-        ring.rebuild(rID)
-    end
-    if providers["questitems"] then
-        ring.rebuild("questitems")
-    end
 end)
 
 sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
     if next(pendingRebuilds) then
-        do_flush_rebuilds()
+        ring.request_rebuild()
     end
 end)
 

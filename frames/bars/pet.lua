@@ -230,6 +230,7 @@ local function get_visibility_driver()
     return string_format("[@pet,noexists] hide; [canexitvehicle] hide; [vehicleui] hide; [possessbar] hide; [overridebar] hide; [combat] show; %s %s", targetRule, oocRule)
 end
 
+local lastVisibilityDriver
 local function update_visibility()
     if not container then return end
 
@@ -237,12 +238,15 @@ local function update_visibility()
     local healthEnabled = (SfuiDB == nil or SfuiDB.enableHealthBar ~= false)
 
     if not InCombatLockdown or not InCombatLockdown() then
-        if _G.UnregisterUnitWatch then
-            _G.UnregisterUnitWatch(container)
-        end
-        if RegisterStateDriver then
-            local driver = get_visibility_driver()
-            RegisterStateDriver(container, "visibility", driver)
+        local driver = get_visibility_driver()
+        if driver ~= lastVisibilityDriver then
+            lastVisibilityDriver = driver
+            if _G.UnregisterUnitWatch then
+                _G.UnregisterUnitWatch(container)
+            end
+            if RegisterStateDriver then
+                RegisterStateDriver(container, "visibility", driver)
+            end
         end
         if not petEnabled or not healthEnabled then
             container:Hide()

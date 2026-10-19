@@ -541,6 +541,34 @@ local function UpdateAuras()
     end
 end
 
+local diffColorHexCache = {}
+local diffColorRGBCache = {}
+
+local function GetDifficultyColorHex(lvl)
+    if not lvl or type(lvl) ~= "number" then return "" end
+    local hex = diffColorHexCache[lvl]
+    if hex then return hex end
+    local diff = GetCreatureDifficultyColor and GetCreatureDifficultyColor(lvl)
+    if diff then
+        hex = string.format("|cff%02x%02x%02x", diff.r * 255, diff.g * 255, diff.b * 255)
+        diffColorHexCache[lvl] = hex
+        return hex
+    end
+    return ""
+end
+
+local function GetDifficultyColorRGB(lvl)
+    if not lvl or type(lvl) ~= "number" then return 1, 1, 1 end
+    local cached = diffColorRGBCache[lvl]
+    if cached then return cached[1], cached[2], cached[3] end
+    local diff = GetCreatureDifficultyColor and GetCreatureDifficultyColor(lvl)
+    if diff then
+        diffColorRGBCache[lvl] = { diff.r, diff.g, diff.b }
+        return diff.r, diff.g, diff.b
+    end
+    return 1, 1, 1
+end
+
 -- ─── Target Classification & Level Cache ─────────────────────────────────────
 local cachedLvlPrefix
 local lastBarR, lastBarG, lastBarB
@@ -571,8 +599,7 @@ local function GetTargetLvlPrefix()
     if not lvl or isLvlSecret or (type(lvl) == "number" and lvl <= 0) then
         cachedLvlPrefix = "|cffff3333??|r" .. classTag
     else
-        local diff = GetCreatureDifficultyColor and GetCreatureDifficultyColor(lvl)
-        local diffColor = diff and string.format("|cff%02x%02x%02x", diff.r * 255, diff.g * 255, diff.b * 255) or ""
+        local diffColor = GetDifficultyColorHex(lvl)
         cachedLvlPrefix = diffColor .. tostring(lvl) .. "|r" .. classTag
     end
     return cachedLvlPrefix
@@ -671,8 +698,7 @@ UpdateTargetLevel = function()
     else
         if skullIcon then skullIcon:Hide() end
         if levelText then
-            local diff = GetCreatureDifficultyColor and GetCreatureDifficultyColor(lvl)
-            local r, g, b = (diff and diff.r) or 1, (diff and diff.g) or 1, (diff and diff.b) or 1
+            local r, g, b = GetDifficultyColorRGB(lvl)
             local classTag = ""
             if classification == "elite" or classification == "rareelite" then
                 classTag = "+"
@@ -727,26 +753,51 @@ end
 local scanTooltip
 local scanTooltipLines = {}
 local lastQuestState = nil
+local questGuidCache = {}
+
+local function ResetQuestGuidCache()
+    wipe(questGuidCache)
+end
 
 local function IsTargetQuestObjective()
+    if not UnitExists("target") or UnitIsPlayer("target") or UnitIsDeadOrGhost("target") then
+        return false
+    end
+
+    local guid = UnitGUID("target")
+    if guid and questGuidCache[guid] ~= nil then
+        return questGuidCache[guid]
+    end
+
     if _G.UnitIsQuestBoss and _G.UnitIsQuestBoss("target") then
+        if guid then questGuidCache[guid] = true end
         return true
     end
+
+    -- In combat, skip tooltip allocations to eliminate combat target-switch spikes
+    if InCombatLockdown and InCombatLockdown() then
+        return false
+    end
+
     if _G.C_TooltipInfo and _G.C_TooltipInfo.GetUnit then
         local data = _G.C_TooltipInfo.GetUnit("target")
         if data and data.lines then
             for i = 1, #data.lines do
                 local line = data.lines[i]
                 if line.type == 8 or line.type == 17 then
+                    if guid then questGuidCache[guid] = true end
                     return true
                 end
                 if line.leftText and not issecretvalue(line.leftText) and (line.leftText:find("%d+/%d+") or line.leftText:find("%d+%%")) then
+                    if guid then questGuidCache[guid] = true end
                     return true
                 end
             end
         end
+        if guid then questGuidCache[guid] = false end
         return false
     end
+
     if not scanTooltip then
         scanTooltip = CreateFrame("GameTooltip", "SfuiTargetScanTooltip", nil, "GameTooltipTemplate")
         scanTooltip:SetOwner(UIParent, "ANCHOR_NONE")
@@ -761,9 +812,11 @@ local function IsTargetQuestObjective()
         end
         local txt = fs and fs:GetText()
         if txt and not issecretvalue(txt) and (txt:find("%d+/%d+") or txt:find("%d+%%")) then
+            if guid then questGuidCache[guid] = true end
             return true
         end
     end
+    if guid then questGuidCache[guid] = false end
     return false
 end
 
@@ -1108,8 +1161,18 @@ local function UpdateTargetRange()
     end
 end
 
+local targetNameCache = {}
+local function ResetTargetNameCache()
+    wipe(targetNameCache)
+end
+
 local function GetTargetDisplayName()
     if not UnitExists("target") then return "" end
+
+    local guid = UnitGUID("target")
+    if guid and targetNameCache[guid] then
+        return targetNameCache[guid]
+    end
 
     local fullName
     if NameUtil and NameUtil.FormatUnitNameForDisplay then
@@ -1149,6 +1212,10 @@ local function GetTargetDisplayName()
         fullName = fullName .. " |cffffcc00[Rare+]|r"
     elseif c == "worldboss" then
         fullName = fullName .. " |cffff2222[Boss]|r"
+    end
+
+    if guid and fullName and not issecretvalue(fullName) then
+        targetNameCache[guid] = fullName
     end
 
     return fullName
@@ -1220,9 +1287,11 @@ local function OnTargetUnitEvent(event, unit)
         UpdateTargetHealth()
     elseif event == "UNIT_POWER_UPDATE" or event == "UNIT_MAXPOWER" or event == "UNIT_DISPLAYPOWER" then
         UpdateTargetPower()
-    elseif event == "UNIT_AURA" then
-        UpdateAuras()
     elseif event == "UNIT_NAME_UPDATE" or event == "UNIT_LEVEL" or event == "UNIT_FACTION" or event == "UNIT_CLASSIFICATION_CHANGED" then
+        if event == "UNIT_NAME_UPDATE" then
+            local guid = UnitGUID("target")
+            if guid then targetNameCache[guid] = nil end
+        end
         if event == "UNIT_FACTION" then
             InvalidateHealthColorCache()
         end
@@ -1235,11 +1304,20 @@ local function OnTargetUnitEvent(event, unit)
     end
 end
 
+local lastTargetGUID
+
 local function OnPlayerTargetChanged()
     if SfuiDB and SfuiDB.enableTargetBar == false then return end
-    if UnitExists("target") then
-        UpdateAll(true)
+    if not UnitExists("target") then
+        lastTargetGUID = nil
+        return
     end
+    local guid = UnitGUID("target")
+    if guid and guid == lastTargetGUID then
+        return
+    end
+    lastTargetGUID = guid
+    UpdateAll(true)
 end
 
 local function OnPlayerEnteringWorld()
@@ -1496,6 +1574,11 @@ local function CreateTargetFrame()
                 f:Hide()
                 return
             end
+            local guid = UnitGUID("target")
+            if guid and guid == lastTargetGUID then
+                return
+            end
+            lastTargetGUID = guid
             UpdateAll(false)
         end)
     end
@@ -1659,7 +1742,6 @@ local function Initialize()
             "UNIT_POWER_UPDATE",
             "UNIT_MAXPOWER",
             "UNIT_DISPLAYPOWER",
-            "UNIT_AURA",
             "UNIT_NAME_UPDATE",
             "UNIT_LEVEL",
             "UNIT_FACTION",
@@ -1673,9 +1755,16 @@ local function Initialize()
 
     -- Register global target change, combat, raid marker, and spell book events
     sfui.events.RegisterEvent("PLAYER_TARGET_CHANGED", OnPlayerTargetChanged)
-    sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", OnPlayerEnteringWorld)
+    sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
+        ResetQuestGuidCache()
+        ResetTargetNameCache()
+        OnPlayerEnteringWorld()
+    end)
     sfui.events.RegisterEvent("RAID_TARGET_UPDATE", UpdateRaidTargetMarker)
-    sfui.events.RegisterEvent("QUEST_LOG_UPDATE", UpdateQuestIndicator)
+    sfui.events.RegisterEvent("QUEST_LOG_UPDATE", function()
+        ResetQuestGuidCache()
+        UpdateQuestIndicator()
+    end)
     sfui.events.RegisterEvent("SPELLS_CHANGED", ResetRangeSpellCache)
     sfui.events.RegisterEvent("LEARNED_SPELL_IN_TAB", ResetRangeSpellCache)
 
