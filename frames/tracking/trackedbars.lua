@@ -1451,10 +1451,11 @@ local function _OnTrackedBarsUpdate(elapsed)
     -- 1. Structure / Visibility Sync
     if sfui.trackedbars.isDirty then
         local now = GetTime()
-        -- In combat: process immediately.
+        -- In combat: throttle structural re-scans to at least 0.25s apart to prevent API table churn.
         -- Out of combat: process immediately on first bar activation (_numShownBars == 0),
         -- otherwise relax subsequent sync calls to at least 1.0s apart.
-        if inCombat or _numShownBars == 0 or (now - _lastOOCSyncTime) >= 1.0 then
+        local minCooldown = inCombat and 0.25 or 1.0
+        if _numShownBars == 0 or (now - _lastOOCSyncTime) >= minCooldown then
             sfui.trackedbars.isDirty = false
             _lastOOCSyncTime = now
             _syncTimer = 0
@@ -1534,34 +1535,30 @@ function sfui.trackedbars.initialize()
     -- Throttled OnUpdate for smooth bar progress AND structure updates
     sfui.events.RegisterUpdate("TrackedBars", cfg.updateThrottle or 0.05, _OnTrackedBarsUpdate)
 
-    -- Real-time events for instant reaction with relaxed OOC pacing
-    local _lastOOCAuraEvent = 0
+    -- Real-time events for instant reaction with relaxed OOC pacing and combat throttling
+    local _lastAuraEvent = 0
     sfui.events.RegisterUnitEvent("UNIT_AURA", "player", function()
-        if common.is_in_combat() then
+        local inCombat = common.is_in_combat()
+        local now = GetTime()
+        local interval = inCombat and 0.25 or 1.0
+        if (now - _lastAuraEvent) >= interval then
+            _lastAuraEvent = now
             SyncWithBlizzard()
         else
-            local now = GetTime()
-            if (now - _lastOOCAuraEvent) >= 1.0 then
-                _lastOOCAuraEvent = now
-                SyncWithBlizzard()
-            else
-                sfui.trackedbars.isDirty = true
-            end
+            sfui.trackedbars.isDirty = true
         end
     end)
 
-    local _lastOOCCdEvent = 0
+    local _lastCdEvent = 0
     local function ThrottledCooldownSync()
-        if common.is_in_combat() then
+        local inCombat = common.is_in_combat()
+        local now = GetTime()
+        local interval = inCombat and 0.25 or 1.0
+        if (now - _lastCdEvent) >= interval then
+            _lastCdEvent = now
             SyncWithBlizzard()
         else
-            local now = GetTime()
-            if (now - _lastOOCCdEvent) >= 1.0 then
-                _lastOOCCdEvent = now
-                SyncWithBlizzard()
-            else
-                sfui.trackedbars.isDirty = true
-            end
+            sfui.trackedbars.isDirty = true
         end
     end
 

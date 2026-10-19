@@ -14,13 +14,45 @@ import hashlib
 import subprocess
 from datetime import datetime
 
-BUGJAR_PATHS = [
-    "/home/james/Games/World of Warcraft/_classic_beta_/WTF/Account/263111#1/SavedVariables/!BugJar.lua",
-    "/home/james/Games/World of Warcraft/_retail_/WTF/Account/JMSXL/SavedVariables/!BugJar.lua"
-]
+import glob
 
-SFUI_DIR = "/home/james/projects/sfui"
+SFUI_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 STATE_FILE = os.path.join(SFUI_DIR, ".agent", "bugjar_state.json")
+
+def get_bugjar_paths():
+    paths = []
+    # 1. Environment variable override
+    env = os.environ.get("BUGJAR_PATHS")
+    if env:
+        for p in re.split(r"[:;,]", env):
+            expanded = os.path.expanduser(p.strip())
+            if expanded and os.path.exists(expanded):
+                paths.append(expanded)
+        if paths:
+            return paths
+
+    # 2. Local gitignored config in .agent/bugjar_paths.json
+    config_file = os.path.join(SFUI_DIR, ".agent", "bugjar_paths.json")
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, "r") as f:
+                cfg = json.load(f)
+                if isinstance(cfg, list):
+                    return [os.path.expanduser(p) for p in cfg if os.path.exists(os.path.expanduser(p))]
+        except Exception:
+            pass
+
+    # 3. Dynamic glob discovery across local wow installations (zero hardcoded user/account names)
+    search_patterns = [
+        os.path.expanduser("~/Games/World of Warcraft/**/SavedVariables/!BugJar.lua"),
+        os.path.expanduser("~/.var/app/*/Games/World of Warcraft/**/SavedVariables/!BugJar.lua"),
+        os.path.expanduser("~/.wine/drive_c/**/SavedVariables/!BugJar.lua"),
+    ]
+    for pat in search_patterns:
+        for m in glob.glob(pat, recursive=True):
+            if m not in paths and not m.endswith(".bak"):
+                paths.append(m)
+    return paths
 
 def load_state():
     if os.path.exists(STATE_FILE):
@@ -117,11 +149,24 @@ def notify(summary, body):
         pass
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="SFUI BugJar Dissector and Automated Patcher")
+    parser.add_argument("--dry-run", action="store_true", help="Simulate without invoking agy or pushing to git")
+    parser.add_argument("--test-file", type=str, help="Specific BugJar file to scan instead of auto-discovering")
+    parser.add_argument("--verbose", action="store_true", help="Print verbose diagnostic details")
+    args = parser.parse_args()
+
     state = load_state()
     state["last_run"] = int(time.time())
 
+    paths_to_scan = [os.path.expanduser(args.test_file)] if args.test_file else get_bugjar_paths()
+    if args.verbose or args.dry_run:
+        print(f"scanning {len(paths_to_scan)} bugjar location(s):")
+        for p in paths_to_scan:
+            print(f"  -> {p}")
+
     all_errors = []
-    for p in BUGJAR_PATHS:
+    for p in paths_to_scan:
         errs = parse_bugjar_file(p)
         for e in errs:
             if is_sfui_error(e):
@@ -132,7 +177,8 @@ def main():
     unresolved = [e for e in all_errors if e["_fingerprint"] not in state["resolved"]]
 
     if not unresolved:
-        save_state(state)
+        if not args.dry_run:
+            save_state(state)
         print("no new sfui errors in bugjar.")
         return
 
@@ -146,40 +192,57 @@ def main():
         loc = err.get("location", "")
 
         print(f"\n--- processing error: {msg} ---")
+        print(f"fingerprint: {fp}")
         print(f"kind: {kind} | location: {loc}")
 
-        # Check for uncommitted working tree changes
-        status_proc = run_cmd(["git", "status", "--porcelain"], check=False)
-        has_local_changes = bool(status_proc.stdout.strip())
-        stash_created = False
-
-        if has_local_changes:
-            print("stashing uncommitted local working tree changes...")
-            stash_res = run_cmd(["git", "stash", "push", "-m", "bugjar-autofix-temp-stash"], check=False)
-            stash_created = (stash_res.returncode == 0)
-
-        # Pull latest
-        run_cmd(["git", "pull", "--rebase", "origin", "main"], check=False)
-
-        # Construct surgical task prompt for agy
+        # Construct surgical task prompt for agy adhering strictly to .agent directives
         prompt = (
             f"Fix this World of Warcraft Lua error recorded by BugJar for addon 'sfui':\n\n"
             f"- Error Message: {msg}\n"
             f"- Kind: {kind}\n"
             f"- Location: {loc}\n"
             f"- Stack: {stack}\n\n"
-            f"Rules and Constraints:\n"
-            f"1. Directly inspect the offending code in {SFUI_DIR}.\n"
-            f"2. Apply a surgical, minimal fix to handle/prevent this error.\n"
-            f"3. Strictly lowercase text in all code comments and chat output.\n"
-            f"4. Do NOT touch gamepad code or any gamepad related files/frames.\n"
-            f"5. Verify syntax by running `luac -p` on all modified files.\n"
-            f"6. Commit the changes directly to branch 'main' with a concise commit message: 'fix(<module>): <description>'.\n"
-            f"7. Do NOT bump the version in sfui.toc or edit CHANGELOG.md. Do NOT create git tags or releases.\n"
-            f"8. Push the commit to origin main with `git push origin main`.\n"
+            f"Mandatory Project Directives (from AGENTS.md and .agent/workflows/methods.md):\n"
+            f"1. Strictly lowercase text in all code comments, messages, and commit descriptions ('no caps').\n"
+            f"2. Always reference the in-house Blizzard Interface source trees for authoritative APIs, templates, and taint analysis (never make external web requests):\n"
+            f"   - Camelot / Forever / Classic UI: ~/projects/wow-ui-source-forever/Interface\n"
+            f"   - Retail / Midnight / Live UI: ~/projects/wow-ui-source-live/Interface\n"
+            f"3. Architecture & Taint: 100% lightweight non-secure panels, zero taint vectors, zero global frame contamination. Guard secure executions with InCombatLockdown() or defer to PLAYER_REGEN_ENABLED when needed.\n"
+            f"4. Event Handling: NEVER create standalone event frames (CreateFrame + RegisterEvent). All events MUST route through `sfui.events` (dispatcher.lua).\n"
+            f"5. Performance: Localize frequently-called globals (e.g. math_min, wipe, pcall, tonumber) in module scopes.\n"
+            f"6. Gamepad Protection: Do NOT touch gamepad code or any gamepad-related frames/settings.\n"
+            f"7. Syntax Verification: MUST run `luac -p` on all modified files before committing.\n"
+            f"8. Git Discipline: Commit directly to branch 'main' with a clean conventional commit: 'fix(<module>): <description>'. Push to origin main.\n"
+            f"9. Release Protection: Do NOT bump the version in sfui.toc, do NOT touch CHANGELOG.md, and do NOT create git tags or releases.\n"
+            f"10. Secret Values & Direct Forwarding: NEVER inspect, branch on, compare (<, >, ==), string-format (string.format, tostring), or perform arithmetic on secret/restricted values (issecretvalue). Avoid `pcall` as an exploratory crutch; forward Blizzard API return values directly and untouched to their destination widgets.\n"
         )
 
+        if args.dry_run:
+            print("\n[DRY RUN] Generated prompt for agy:")
+            print("=" * 60)
+            print(prompt.strip())
+            print("=" * 60)
+            print(f"[DRY RUN] Would execute agy to patch error.")
+            print(f"[DRY RUN] Would verify syntax using `luac -p`.")
+            print(f"[DRY RUN] Would commit to 'main' with: fix(bugjar): {msg[:60].lower()}")
+            print(f"[DRY RUN] Would push directly to origin main.")
+            print(f"[DRY RUN] Would record fingerprint: {fp}")
+            continue
+
+        # Check for uncommitted working tree changes
+        status_proc = run_cmd(["git", "status", "--porcelain"], check=False)
+        has_local_changes = bool(status_proc.stdout.strip())
+        stash_created = False
+
         try:
+            if has_local_changes:
+                print("stashing uncommitted local working tree changes...")
+                stash_res = run_cmd(["git", "stash", "push", "-m", "bugjar-autofix-temp-stash"], check=False)
+                stash_created = (stash_res.returncode == 0)
+
+            # Pull latest
+            run_cmd(["git", "pull", "--rebase", "origin", "main"], check=False)
+
             print("invoking agy agent runner to dissect and patch...")
             res = subprocess.run(
                 ["agy", "--print", prompt, "--dangerously-skip-permissions"],
@@ -196,6 +259,8 @@ def main():
                 # Verify syntax before committing
                 syntax_check = run_cmd(["bash", "-c", "find . -name '*.lua' -exec luac -p {} +"], check=False)
                 if syntax_check.returncode == 0:
+                    # Guarantee release files are never modified by the auto-fixer
+                    run_cmd(["git", "checkout", "--", "sfui.toc", "CHANGELOG.md"], check=False)
                     run_cmd(["git", "add", "-A"])
                     run_cmd(["git", "commit", "-m", f"fix(bugjar): {msg[:60].lower()}"])
                     run_cmd(["git", "push", "origin", "main"], check=False)
@@ -220,7 +285,7 @@ def main():
             notify("SFUI Auto-Patcher", f"Fixed and pushed: {msg[:50]}")
 
         except subprocess.TimeoutExpired:
-            print("agy run timed out after 600 seconds.")
+            print("agy run timed out after 1800 seconds.")
         except Exception as ex:
             print(f"error during auto-patch: {ex}")
         finally:

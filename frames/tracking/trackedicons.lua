@@ -1547,24 +1547,21 @@ function sfui.trackedicons.initialize()
         end
     end
 
-    -- Event handling
+    -- Event handling: visibility & state updates (avoid full layout rebuilds during combat/target changes)
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
         sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_REGEN_ENABLED")
-        sfui.trackedicons.Update("PLAYER_REGEN_ENABLED")
-        MarkDirty(true)
+        MarkDirty(false)
     end)
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
         sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_REGEN_DISABLED")
-        sfui.trackedicons.Update("PLAYER_REGEN_DISABLED")
-        MarkDirty(true)
+        MarkDirty(false)
     end)
     sfui.events.RegisterEvent("PLAYER_TARGET_CHANGED", function()
-        MarkDirty(true)
+        MarkDirty(false)
     end)
     sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", function()
         sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_MOUNT_DISPLAY_CHANGED")
-        sfui.trackedicons.Update("PLAYER_MOUNT_DISPLAY_CHANGED")
-        MarkDirty(true)
+        MarkDirty(false)
     end)
     sfui.events.RegisterUnitEvent("UNIT_POWER_BAR_SHOW", "player", function()
         sfui.trackedicons.OnVisibilityEvent(nil, "UNIT_POWER_BAR_SHOW")
@@ -1622,10 +1619,15 @@ function sfui.trackedicons.initialize()
         _needsStateUpdate = true
     end)
 
-    -- UNIT_POWER_UPDATE covers resource pools (only in combat; passive OOC regen does not affect spell cooldowns)
+    -- UNIT_POWER_UPDATE covers resource pools (throttled in combat to 0.25s to eliminate tick churn)
+    local _lastCombatPowerTime = 0
     sfui.events.RegisterUnitEvent("UNIT_POWER_UPDATE", "player", function(event, unit)
         if is_in_combat() then
-            _needsStateUpdate = true
+            local now = GetTime()
+            if (now - _lastCombatPowerTime) >= 0.25 then
+                _lastCombatPowerTime = now
+                _needsStateUpdate = true
+            end
         end
     end)
 
@@ -1642,17 +1644,14 @@ function sfui.trackedicons.initialize()
         _needsStateUpdate = true
     end)
 
-    -- 11.0+ C_UnitAuras Event Migration (throttled to 0.5s out of combat to eliminate background aura tick churn, secret-safe)
-    local _lastOOCAuraTime = 0
+    -- 11.0+ C_UnitAuras Event Migration (throttled to 0.25s in combat / 0.5s OOC, secret-safe)
+    local _lastAuraTime = 0
     sfui.events.RegisterUnitEvent("UNIT_AURA", "player", function()
-        if is_in_combat() then
+        local now = GetTime()
+        local interval = is_in_combat() and 0.25 or 0.5
+        if (now - _lastAuraTime) >= interval then
+            _lastAuraTime = now
             _needsStateUpdate = true
-        else
-            local now = GetTime()
-            if (now - _lastOOCAuraTime) >= 0.5 then
-                _lastOOCAuraTime = now
-                _needsStateUpdate = true
-            end
         end
     end)
 

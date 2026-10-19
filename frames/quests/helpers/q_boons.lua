@@ -511,7 +511,7 @@ end
 -- ─── Event Registration ──────────────────────────────────────────────────────
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-eventFrame:RegisterEvent("UNIT_AURA")
+eventFrame:RegisterUnitEvent("UNIT_AURA", "player")
 eventFrame:RegisterEvent("SCENARIO_UPDATE")
 eventFrame:RegisterEvent("SCENARIO_CRITERIA_UPDATE")
 eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
