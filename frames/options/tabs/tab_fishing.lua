@@ -20,6 +20,7 @@ local IsMetaKeyDown = _G.IsMetaKeyDown
 sfui.options.RegisterTab({
     id = "fishing",
     name = "fishing",
+    icon = "Interface\\Icons\\Spell_Shadow_ChillTouch",
     build = function(p, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
         local create_checkbox = common.create_checkbox

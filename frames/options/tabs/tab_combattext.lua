@@ -99,6 +99,7 @@ local refreshTabUI = nil
 sfui.options.RegisterTab({
     id = "combattext",
     name = "combat text",
+    icon = "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
     resetDefaults = function()
         for cvar, val in pairs(defaultCVars) do
             set_cvar(cvar, val)

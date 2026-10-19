@@ -12,6 +12,7 @@ local table_insert = table.insert
 sfui.options.RegisterTab({
     id = "gear",
     name = "gear swapper",
+    icon = "Interface\\Icons\\inv_chest_cloth_17",
     build = function(gear_panel, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
         local white = sfui.config.colors.white

@@ -1015,31 +1015,6 @@ if IS_CAMELOT then
                 return false
             end
         end
-
-        -- Purge and block Gamepad buttons from Blizzard's centralized ActionBarButtonEventsFrame dispatcher
-        local eventsFrame = _G.ActionBarButtonEventsFrame
-        if eventsFrame then
-            if eventsFrame.frames then
-                for i = #eventsFrame.frames, 1, -1 do
-                    local f = eventsFrame.frames[i]
-                    local name = f and f.GetName and f:GetName()
-                    if (name and (name:find("Gamepad") or name:find("GamePad"))) or (f and f.isGamepadActionButton) then
-                        table.remove(eventsFrame.frames, i)
-                    end
-                end
-            end
-            if not eventsFrame._sfui_gamepad_blocked and eventsFrame.RegisterFrame then
-                eventsFrame._sfui_gamepad_blocked = true
-                local orig_RegisterFrame = eventsFrame.RegisterFrame
-                eventsFrame.RegisterFrame = function(self, frame)
-                    local name = frame and frame.GetName and frame:GetName()
-                    if (name and (name:find("Gamepad") or name:find("GamePad"))) or (frame and frame.isGamepadActionButton) then
-                        return
-                    end
-                    return orig_RegisterFrame(self, frame)
-                end
-            end
-        end
     end
 
     local function disarmGamepadButton(button)
@@ -1072,19 +1047,6 @@ if IS_CAMELOT then
         button.UpdateUsable = function() end
         button.UpdateCooldown = function() end
         button.GetActiveSpellID = function() return nil end
-
-        if button.cooldown then
-            button.cooldown.SetCooldown = function() end
-            button.cooldown.Clear = function() end
-        end
-        if button.chargeCooldown then
-            button.chargeCooldown.SetCooldown = function() end
-            button.chargeCooldown.Clear = function() end
-        end
-        if button.lossOfControlCooldown then
-            button.lossOfControlCooldown.SetCooldown = function() end
-            button.lossOfControlCooldown.Clear = function() end
-        end
 
         if _G.EventRegistry and _G.EventRegistry.UnregisterFrameEventAndCallback then
             if button.playerTargetChangedOwner then

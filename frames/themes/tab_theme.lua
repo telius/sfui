@@ -13,6 +13,7 @@ local table_insert = _G.table.insert
 sfui.options.RegisterTab({
     id = "theme",
     name = "theme",
+    icon = "Interface\\Icons\\Spell_Shadow_AntiShadow",
     build = function(theme_panel, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
         local create_checkbox = common.create_checkbox
@@ -30,7 +31,7 @@ sfui.options.RegisterTab({
         local desc = theme_panel:CreateFontString(nil, "OVERLAY", g.font_small or "GameFontHighlightSmall")
         desc:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -6)
         desc:SetTextColor(0.7, 0.7, 0.7, 1)
-        desc:SetText("choose between camelot's heavy bronze fantasy style and retail's minimalist dark slate.")
+        desc:SetText("choose between camelot's heavy bronze fantasy style and retail's minimalist dark slate. settings are saved account-wide.")
 
         -- ─── Status Text Indicator ───────────────────────────────────────────
         local status_text = theme_panel:CreateFontString(nil, "OVERLAY", g.font_small or "GameFontHighlightSmall")
@@ -41,34 +42,35 @@ sfui.options.RegisterTab({
             local mode = (SfuiDB and (SfuiDB.themeMode or (SfuiDB.theme and SfuiDB.theme.mode))) or "auto"
             local pal = sfui.theme.GetPalette()
             local isCamelotSupported = sfui.theme.IsCamelotSupported()
-            local clientName = isCamelotSupported and "Classic Forever / Camelot" or (sfui.isClassic and "Classic Era" or "Retail")
-            local supported = isCamelotSupported and "|cff00ff00Available|r" or "|cffff3333Restricted to Camelot|r"
+            local clientName = isCamelotSupported and "classic forever / camelot" or (sfui.isClassic and "classic era" or "retail")
+            local supported = isCamelotSupported and "|cff00ff00available|r" or "|cffff3333restricted to camelot|r"
+            local palName = tostring(pal.name or activeID):lower()
 
             if not isCamelotSupported then
-                status_text:SetText(string.format("Current Style: |cff%02x%02x%02x%s|r  •  Client: |cffffffff%s|r  •  Camelot Bronze: %s",
+                status_text:SetText(string.format("current style: |cff%02x%02x%02x%s|r  •  client: |cffffffff%s|r  •  bronze: %s",
                     math.floor(pal.headerColor[1] * 255),
                     math.floor(pal.headerColor[2] * 255),
                     math.floor(pal.headerColor[3] * 255),
-                    pal.name,
+                    palName,
                     clientName,
                     supported
                 ))
             elseif mode == "auto" then
-                status_text:SetText(string.format("Current Style: |cff%02x%02x%02x%s|r  •  Auto-detected: |cffffffff%s|r  •  Camelot Bronze: %s",
+                status_text:SetText(string.format("current style: |cff%02x%02x%02x%s|r  •  auto-detected: |cffffffff%s|r  •  bronze: %s",
                     math.floor(pal.headerColor[1] * 255),
                     math.floor(pal.headerColor[2] * 255),
                     math.floor(pal.headerColor[3] * 255),
-                    pal.name,
+                    palName,
                     clientName,
                     supported
                 ))
             else
-                status_text:SetText(string.format("Current Style: |cff%02x%02x%02x%s|r (Forced %s)  •  Client: |cffffffff%s|r",
+                status_text:SetText(string.format("current style: |cff%02x%02x%02x%s|r (forced %s)  •  client: |cffffffff%s|r",
                     math.floor(pal.headerColor[1] * 255),
                     math.floor(pal.headerColor[2] * 255),
                     math.floor(pal.headerColor[3] * 255),
-                    pal.name,
-                    mode,
+                    palName,
+                    tostring(mode):lower(),
                     clientName
                 ))
             end
@@ -78,7 +80,7 @@ sfui.options.RegisterTab({
         local toggle_label = theme_panel:CreateFontString(nil, "OVERLAY", g.font)
         toggle_label:SetPoint("TOPLEFT", status_text, "BOTTOMLEFT", 0, -16)
         toggle_label:SetTextColor(white[1], white[2], white[3])
-        toggle_label:SetText("select theme mode:")
+        toggle_label:SetText("select theme mode (account-wide):")
 
         local toggleButtons = {}
         local lastBtn = nil
@@ -102,7 +104,8 @@ sfui.options.RegisterTab({
         for _, themeID in ipairs(themeOrder) do
             local themeDef = registeredThemes[themeID]
             if themeDef then
-                local label = (themeDef.name or themeID):lower()
+                local isBronzeTheme = (themeID == "camelot" or themeID == "bronze" or themeDef.id == "camelot" or themeDef.id == "bronze")
+                local label = isBronzeTheme and "bronze" or (themeDef.name or themeID):lower()
                 local btn = CreateFlatButton(theme_panel, label, THEME_BTN_W, THEME_BTN_H)
                 if countInRow >= THEME_BTNS_PER_ROW then
                     btn:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -THEME_BTN_GAP)
@@ -111,10 +114,11 @@ sfui.options.RegisterTab({
                     btn:SetPoint("LEFT", lastBtn, "RIGHT", THEME_BTN_GAP, 0)
                     countInRow = countInRow + 1
                 end
-                btn.themeMode = themeID
+                btn.themeMode = isBronzeTheme and "bronze" or themeID
                 btn.baseLabel = label
-                if themeDef.desc then
-                    sfui.common.attach_tooltip(btn, label, themeDef.desc)
+                local tooltipDesc = (themeDef.desc or ""):lower()
+                if tooltipDesc ~= "" then
+                    sfui.common.attach_tooltip(btn, label, tooltipDesc)
                 end
                 table_insert(toggleButtons, btn)
                 lastBtn = btn
@@ -128,8 +132,8 @@ sfui.options.RegisterTab({
         for _, btn in ipairs(toggleButtons) do
             btn:SetScript("OnClick", function()
                 if not sfui.theme.IsThemeAvailable(btn.themeMode) then
-                    if btn.themeMode == "camelot" then
-                        sfui.common.print("|cffff3333the bronze camelot theme is exclusive to camelot/forever (bronze assets are not present in retail).|r")
+                    if btn.themeMode == "camelot" or btn.themeMode == "bronze" then
+                        sfui.common.print("|cffff3333the bronze theme is exclusive to camelot/forever (bronze assets are not present in retail).|r")
                     else
                         sfui.common.print("|cffff3333the art for this theme is not available on this client.|r")
                     end
@@ -138,27 +142,51 @@ sfui.options.RegisterTab({
                 sfui.theme.SetTheme(btn.themeMode)
                 theme_panel:RefreshThemeControls()
                 local pal = sfui.theme.GetPalette()
-                sfui.common.print("theme mode set to '" .. btn.themeMode .. "' (active: " .. tostring(pal.name) .. ").")
+                sfui.common.print("theme mode set to '" .. btn.themeMode .. "' (active: " .. tostring(pal.name):lower() .. ").")
             end)
         end
 
         -- ─── Camelot Style Detail Checkboxes ──────────────────────────────────
         local brackets_cb = create_checkbox(theme_panel, "enable ornate corner brackets", function()
-            return SfuiDB.themeCornerBrackets ~= false
+            if sfui.db and sfui.db.Get then
+                local v = sfui.db.Get("theme", "cornerBrackets")
+                if v ~= nil then return v ~= false end
+            end
+            if SfuiDB and SfuiDB.theme and SfuiDB.theme.cornerBrackets ~= nil then
+                return SfuiDB.theme.cornerBrackets ~= false
+            end
+            return SfuiDB and SfuiDB.themeCornerBrackets ~= false
         end, function(checked)
             SfuiDB.themeCornerBrackets = checked
+            SfuiDB.theme = SfuiDB.theme or {}
+            SfuiDB.theme.cornerBrackets = checked
+            if sfui.db and sfui.db.Set then
+                sfui.db.Set("theme", "cornerBrackets", checked)
+            end
             sfui.theme.ApplyCurrentTheme()
             theme_panel:RefreshThemeControls()
-        end, "Displays sculpted heavy bronze corner brackets clamped onto window frames in Camelot mode.")
+        end, "displays sculpted heavy bronze corner brackets clamped onto window frames in bronze mode.")
         brackets_cb:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -18)
 
         local textured_bg_cb = create_checkbox(theme_panel, "use textured parchment & metal backgrounds", function()
-            return SfuiDB.themeTexturedBackdrop ~= false
+            if sfui.db and sfui.db.Get then
+                local v = sfui.db.Get("theme", "texturedBackdrop")
+                if v ~= nil then return v ~= false end
+            end
+            if SfuiDB and SfuiDB.theme and SfuiDB.theme.texturedBackdrop ~= nil then
+                return SfuiDB.theme.texturedBackdrop ~= false
+            end
+            return SfuiDB and SfuiDB.themeTexturedBackdrop ~= false
         end, function(checked)
             SfuiDB.themeTexturedBackdrop = checked
+            SfuiDB.theme = SfuiDB.theme or {}
+            SfuiDB.theme.texturedBackdrop = checked
+            if sfui.db and sfui.db.Set then
+                sfui.db.Set("theme", "texturedBackdrop", checked)
+            end
             sfui.theme.ApplyCurrentTheme()
             theme_panel:RefreshThemeControls()
-        end, "Enables rich textured dark parchment and slate background art on windows instead of flat dark fills.")
+        end, "enables rich textured dark parchment and slate background art on windows instead of flat dark fills.")
         textured_bg_cb:SetPoint("TOPLEFT", brackets_cb, "BOTTOMLEFT", 0, -8)
 
         local flat_btn_cb = create_checkbox(theme_panel, "use flat button styling", function()
@@ -167,17 +195,26 @@ sfui.options.RegisterTab({
             sfui.theme.SetFlatButtons(checked)
             sfui.theme.ApplyCurrentTheme()
             theme_panel:RefreshThemeControls()
-        end, "Switches to minimalist flat dark slate buttons instead of the default Auction House beveled buttons.")
+        end, "switches to minimalist flat dark slate buttons instead of the default auction house beveled buttons.")
         flat_btn_cb:SetPoint("TOPLEFT", textured_bg_cb, "BOTTOMLEFT", 0, -8)
 
         local square_bronze_cb = create_checkbox(theme_panel, "use bronze square minimap", function()
             if sfui.map and sfui.map.square and sfui.map.square.IsBronzeTheme then
                 return sfui.map.square:IsBronzeTheme()
             end
+            if sfui.db and sfui.db.Get then
+                local v = sfui.db.Get("theme", "minimapArt")
+                if v ~= nil then return v ~= false end
+            end
             return SfuiDB and SfuiDB.minimap_square_bronze ~= false
         end, function(checked)
             SfuiDB._minimapSquareBronzeCustomized = true
             SfuiDB.minimap_square_bronze = checked
+            SfuiDB.theme = SfuiDB.theme or {}
+            SfuiDB.theme.minimapArt = checked
+            if sfui.db and sfui.db.Set then
+                sfui.db.Set("theme", "minimapArt", checked)
+            end
             if sfui.map and sfui.map.square and sfui.map.square.SetBronzeTheme then
                 sfui.map.square:SetBronzeTheme(checked)
             end
@@ -198,8 +235,14 @@ sfui.options.RegisterTab({
         accent_label:SetText("primary accent:")
 
         local accent_swatch = create_color_swatch(theme_panel, sfui.config.appearance.accentColor, function(r, g, b)
-            sfui.config.appearance.accentColor = { r, g, b, 1 }
-            SfuiDB.customAccentColor = { r, g, b, 1 }
+            local col = { r, g, b, 1 }
+            sfui.config.appearance.accentColor = col
+            SfuiDB.customAccentColor = col
+            SfuiDB.theme = SfuiDB.theme or {}
+            SfuiDB.theme.accentColor = col
+            if sfui.db and sfui.db.Set then
+                sfui.db.Set("theme", "accentColor", col)
+            end
             sfui.theme.ApplyCurrentTheme()
             theme_panel:RefreshThemeControls()
         end)
@@ -212,8 +255,14 @@ sfui.options.RegisterTab({
         hl_label:SetText("highlight / selection:")
 
         local hl_swatch = create_color_swatch(theme_panel, sfui.config.appearance.highlightColor, function(r, g, b)
-            sfui.config.appearance.highlightColor = { r, g, b, 1 }
-            SfuiDB.customHighlightColor = { r, g, b, 1 }
+            local col = { r, g, b, 1 }
+            sfui.config.appearance.highlightColor = col
+            SfuiDB.customHighlightColor = col
+            SfuiDB.theme = SfuiDB.theme or {}
+            SfuiDB.theme.highlightColor = col
+            if sfui.db and sfui.db.Set then
+                sfui.db.Set("theme", "highlightColor", col)
+            end
             sfui.theme.ApplyCurrentTheme()
             theme_panel:RefreshThemeControls()
         end)
@@ -225,6 +274,14 @@ sfui.options.RegisterTab({
         reset_colors_btn:SetScript("OnClick", function()
             SfuiDB.customAccentColor = nil
             SfuiDB.customHighlightColor = nil
+            if SfuiDB.theme then
+                SfuiDB.theme.accentColor = nil
+                SfuiDB.theme.highlightColor = nil
+            end
+            if sfui.db and sfui.db.Set then
+                sfui.db.Set("theme", "accentColor", nil)
+                sfui.db.Set("theme", "highlightColor", nil)
+            end
             sfui.theme.ApplyCurrentTheme()
             theme_panel:RefreshThemeControls()
         end)
@@ -284,7 +341,7 @@ sfui.options.RegisterTab({
 
             local pal = sfui.theme.GetPalette()
             preview_title:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3])
-            preview_title:SetText(pal.name .. " Preview Window")
+            preview_title:SetText(tostring(pal.name or ""):lower() .. " preview window")
 
             local isC = sfui.theme.IsCamelotActive()
             if isC then
@@ -298,7 +355,7 @@ sfui.options.RegisterTab({
                 preview_body:SetTextColor(0.8, 0.8, 0.8, 1)
                 local activeDef = sfui.theme.GetTheme(sfui.theme.GetActiveThemeID())
                 if activeDef and activeDef.window and activeDef.window.style == "nineslice" and activeDef.desc then
-                    preview_body:SetText(activeDef.desc)
+                    preview_body:SetText(activeDef.desc:lower())
                 else
                     preview_body:SetText("clean, flat minimalist black border with electric cyan/purple accents and flat buttons.")
                 end
@@ -341,7 +398,8 @@ sfui.options.RegisterTab({
             )
 
             for _, btn in ipairs(toggleButtons) do
-                local isSelected = (btn.themeMode == savedMode)
+                local isSelected = (btn.themeMode == savedMode) or
+                    ((btn.themeMode == "camelot" or btn.themeMode == "bronze") and (savedMode == "camelot" or savedMode == "bronze"))
                 btn.isSelected = isSelected
                 local fs = btn:GetFontString()
 
@@ -360,7 +418,7 @@ sfui.options.RegisterTab({
                     if fs then
                         -- buttons are narrow: grey the label, explain in the tooltip
                         fs:SetText(btn.baseLabel)
-                        local reason = (btn.themeMode == "camelot") and "only available on camelot / forever."
+                        local reason = (btn.themeMode == "camelot" or btn.themeMode == "bronze") and "only available on camelot / forever."
                             or "the art for this theme is not available on this client."
                         sfui.common.attach_tooltip(btn, btn.baseLabel, "|cffff5555" .. reason .. "|r")
                         fs:SetTextColor(0.40, 0.40, 0.40, 1)
@@ -411,8 +469,8 @@ sfui.options.RegisterTab({
             end
 
             -- Update Swatches
-            local curAccent = (SfuiDB and SfuiDB.customAccentColor) or pal.accentColor
-            local curHl = (SfuiDB and SfuiDB.customHighlightColor) or pal.highlightColor
+            local curAccent = (SfuiDB and (SfuiDB.customAccentColor or (SfuiDB.theme and SfuiDB.theme.accentColor))) or pal.accentColor
+            local curHl = (SfuiDB and (SfuiDB.customHighlightColor or (SfuiDB.theme and SfuiDB.theme.highlightColor))) or pal.highlightColor
             if accent_swatch and accent_swatch.SetBackdropColor then
                 accent_swatch:SetBackdropColor(curAccent[1], curAccent[2], curAccent[3], 1)
             end

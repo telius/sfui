@@ -9,6 +9,7 @@ local isClassic = (sfui.compat and sfui.compat.is_classic)
 sfui.options.RegisterTab({
     id = "objectives",
     name = "objectives",
+    icon = "Interface\\Icons\\Spell_Shadow_DarkRitual",
     build = function(p, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
         local create_checkbox = common.create_checkbox

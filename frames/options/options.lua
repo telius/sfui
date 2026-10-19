@@ -24,6 +24,32 @@ local UISpecialFrames = _G.UISpecialFrames
 local frame = nil
 local registered_tabs = {}
 
+local default_tab_icons = {
+    ["main"]         = "Interface\\Icons\\Spell_Shadow_Shadowform",
+    ["actionbars"]   = "Interface\\Icons\\Spell_DeathKnight_ScourgeStrike",
+    ["automation"]   = "Interface\\Icons\\Spell_Shadow_SoulLeech_3",
+    ["bars"]         = "Interface\\Icons\\Spell_DeathKnight_BloodBoil",
+    ["buffs"]        = "Interface\\Icons\\Spell_Shadow_CurseOfAchimonde",
+    ["castbars"]     = "Interface\\Icons\\Spell_Shadow_LifeDrain02",
+    ["classutility"] = "Interface\\Icons\\Spell_Shadow_GhostKey",
+    ["combattext"]   = "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
+    ["currency"]     = "Interface\\Icons\\Spell_Shadow_SoulGem",
+    ["debug"]        = "Interface\\Icons\\Spell_Shadow_EvilEye",
+    ["experience"]   = "Interface\\Icons\\Spell_DeathKnight_EmpowerRuneblade",
+    ["fishing"]      = "Interface\\Icons\\Spell_Shadow_ChillTouch",
+    ["gear"]         = "Interface\\Icons\\inv_chest_cloth_17",
+    ["hide"]         = "Interface\\Icons\\Spell_Shadow_Shadesofdarkness",
+    ["lootfeed"]     = "Interface\\Icons\\Spell_Shadow_CorpseExplode",
+    ["merchant"]     = "Interface\\Icons\\Spell_Shadow_GrimWard",
+    ["minimap"]      = "Interface\\Icons\\Spell_Shadow_PsychicScream",
+    ["objectives"]   = "Interface\\Icons\\Spell_Shadow_DarkRitual",
+    ["pets"]         = "Interface\\Icons\\Ability_GhoulFrenzy",
+    ["portals"]      = "Interface\\Icons\\Spell_Shadow_Teleport",
+    ["research"]     = "Interface\\Icons\\INV_Misc_Book_09",
+    ["ring"]         = "Interface\\Icons\\Spell_Shadow_DeathPact",
+    ["theme"]        = "Interface\\Icons\\Spell_Shadow_AntiShadow",
+}
+
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Tab Registry API
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -40,6 +66,16 @@ end
 
 function sfui.options.GetRegisteredTabs()
     return registered_tabs
+end
+
+function sfui.options.GetTabIcon(tabID)
+    if not tabID then return nil end
+    for _, t in ipairs(registered_tabs) do
+        if t.id == tabID and t.icon then
+            return t.icon
+        end
+    end
+    return default_tab_icons[tabID]
 end
 
 function sfui.options.GetFrame()
@@ -106,6 +142,7 @@ local function select_tab(selected_tab_button)
     for _, tab_data in ipairs(frame.tabs) do
         tab_data.button:GetFontString():SetTextColor(normalCol[1], normalCol[2], normalCol[3])
         if tab_data.button.indicator then tab_data.button.indicator:Hide() end
+        if tab_data.button.icon then tab_data.button.icon:SetVertexColor(0.60, 0.60, 0.65, 0.85) end
         tab_data.panel:Hide()
         if tab_data.button.tabDef and tab_data.button.tabDef.onHide then
             pcall(tab_data.button.tabDef.onHide, tab_data.panel, tab_data.button, frame)
@@ -115,6 +152,7 @@ local function select_tab(selected_tab_button)
     selected_tab_button.panel:Show()
     selected_tab_button:GetFontString():SetTextColor(selectedCol[1], selectedCol[2], selectedCol[3])
     if selected_tab_button.indicator then selected_tab_button.indicator:Show() end
+    if selected_tab_button.icon then selected_tab_button.icon:SetVertexColor(1, 1, 1, 1) end
     frame.selected_tab = selected_tab_button
 
     if tabDef and tabDef.id and SfuiDB then
@@ -247,6 +285,9 @@ function sfui.create_options_panel()
     local function on_tab_enter(self)
         local curPal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()) or sfui.config.appearance
         self:GetFontString():SetTextColor(curPal.accentColor[1], curPal.accentColor[2], curPal.accentColor[3])
+        if self.icon and self ~= frame.selected_tab then
+            self.icon:SetVertexColor(0.95, 0.95, 1.0, 1.0)
+        end
     end
 
     local function on_tab_leave(self)
@@ -255,16 +296,19 @@ function sfui.create_options_panel()
         local selectedCol = curPal.tabSelected or c.tabs.selected_color
         if self == frame.selected_tab then
             self:GetFontString():SetTextColor(selectedCol[1], selectedCol[2], selectedCol[3])
+            if self.icon then self.icon:SetVertexColor(1, 1, 1, 1) end
         else
             self:GetFontString():SetTextColor(normalCol[1], normalCol[2], normalCol[3])
+            if self.icon then self.icon:SetVertexColor(0.60, 0.60, 0.65, 0.85) end
         end
     end
 
-    local function create_tab(id, displayName)
+    local function create_tab(id, displayName, tabDef)
         local tab_button = CreateFrame("Button", "sfui_options_tab_" .. id, frame)
         tab_button:SetSize(c.tabs.width, c.tabs.height)
         tab_button:SetText(displayName or id)
         tab_button.tabID = id
+        tab_button.tabDef = tabDef
         tab_button:SetFrameLevel((frame:GetFrameLevel() or 1) + 10)
 
         local curPal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()) or sfui.config.appearance
@@ -278,12 +322,34 @@ function sfui.create_options_panel()
         indicator:Hide()
         tab_button.indicator = indicator
 
+        -- Tab Icon (dark gloomy death knight / shadow priest / affliction aesthetic)
+        local icon = tab_button:CreateTexture(nil, "ARTWORK")
+        icon:SetSize(18, 18)
+        icon:SetPoint("LEFT", tab_button, "LEFT", 6, 0)
+        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        local iconPath = (tabDef and tabDef.icon) or default_tab_icons[id] or "Interface\\Icons\\Spell_Shadow_Shadowform"
+        icon:SetTexture(iconPath)
+        icon:SetVertexColor(0.60, 0.60, 0.65, 0.85)
+        tab_button.icon = icon
+
+        -- 1px dark border behind icon
+        local iconBg = tab_button:CreateTexture(nil, "BACKGROUND")
+        iconBg:SetPoint("TOPLEFT", icon, "TOPLEFT", -1, 1)
+        iconBg:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 1, -1)
+        iconBg:SetColorTexture(0.02, 0.02, 0.02, 0.9)
+        tab_button.iconBg = iconBg
+
         local font_string = tab_button:GetFontString()
-        font_string:SetFontObject(g.font)
-        font_string:SetJustifyH("LEFT")
-        font_string:SetJustifyV("MIDDLE")
-        font_string:SetPoint("LEFT", tab_button, "LEFT", 8, 0)
-        font_string:SetTextColor(normalCol[1], normalCol[2], normalCol[3])
+        if font_string then
+            font_string:SetFontObject(g.font)
+            font_string:SetJustifyH("LEFT")
+            font_string:SetJustifyV("MIDDLE")
+            font_string:SetWordWrap(false)
+            font_string:ClearAllPoints()
+            font_string:SetPoint("LEFT", icon, "RIGHT", 7, 0)
+            font_string:SetPoint("RIGHT", tab_button, "RIGHT", -2, 0)
+            font_string:SetTextColor(normalCol[1], normalCol[2], normalCol[3])
+        end
 
         local container_panel = CreateFrame("Frame", "sfui_options_container_" .. id, frame, "BackdropTemplate")
         container_panel:SetPoint("TOPLEFT", frame, "TOPLEFT", c.tabs.width + 20, -40)
@@ -440,7 +506,7 @@ function sfui.create_options_panel()
 
     local last_tab_button = nil
     for i, tabDef in ipairs(tabs_to_show) do
-        local content_panel, tab_button = create_tab(tabDef.id, tabDef.name or tabDef.id)
+        local content_panel, tab_button = create_tab(tabDef.id, tabDef.name or tabDef.id, tabDef)
         tab_button.tabDef = tabDef
         tab_button.content_panel = content_panel
 

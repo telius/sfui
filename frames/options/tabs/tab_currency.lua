@@ -14,6 +14,7 @@ local ClearCursor = _G.ClearCursor
 sfui.options.RegisterTab({
     id = "currency",
     name = "currency/items",
+    icon = "Interface\\Icons\\Spell_Shadow_SoulGem",
     build = function(currency_items_panel, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
         local white = sfui.config.colors.white

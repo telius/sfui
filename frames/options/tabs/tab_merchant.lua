@@ -8,6 +8,7 @@ local common = sfui.common
 sfui.options.RegisterTab({
     id = "merchant",
     name = "merchant",
+    icon = "Interface\\Icons\\Spell_Shadow_GrimWard",
     build = function(merchant_panel, tab_button, options_frame)
         local create_checkbox = common.create_checkbox
         local white = sfui.config.colors.white

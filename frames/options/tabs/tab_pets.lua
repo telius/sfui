@@ -24,6 +24,7 @@ local select                          = _G.select
 sfui.options.RegisterTab({
     id = "pets",
     name = "pets",
+    icon = "Interface\\Icons\\Ability_GhoulFrenzy",
     condition = function()
         return _G.C_PetJournal and _G.C_PetJournal.GetNumPets
     end,

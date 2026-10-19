@@ -61,10 +61,13 @@ local function RefreshSpellKnowledge()
                     entry.lowerNames[j] = string_lower(entry.names[j])
                 end
             end
-            if entry.spellIDs and GetSpellInfo then
+            if entry.spellIDs then
                 entry.spellbookNames = {}
                 for j = 1, #entry.spellIDs do
-                    local sName = GetSpellInfo(entry.spellIDs[j])
+                    local sID = entry.spellIDs[j]
+                    local sName = (data and data.ResolveSpellName and data.ResolveSpellName(sID))
+                        or (sfui.api and sfui.api.GetSpellName and sfui.api.GetSpellName(sID))
+                        or (GetSpellInfo and GetSpellInfo(sID))
                     if sName and sName ~= "" then
                         entry.spellbookNames[#entry.spellbookNames + 1] = string_lower(sName)
                     end

@@ -172,7 +172,6 @@ local function CreateTrackerContainer()
     -- Anchor to ObjectiveTrackerFrame when available (Blizzard Edit Mode support)
     local otf = _G.ObjectiveTrackerFrame
     if otf then
-        if otf.SetWidth then otf:SetWidth(width) end
         f:ClearAllPoints()
         f:SetPoint("TOPLEFT", otf, "TOPLEFT", 0, 0)
         f:SetPoint("TOPRIGHT", otf, "TOPRIGHT", 0, 0)
@@ -309,42 +308,7 @@ end
 
 -- ─── Blizzard Tracker Suppression (Vanilla, Camelot, Classic, Retail) ───────
 local hookedTrackers = {}
-local hookedMouseTrackers = {}
 local questWatchUpdateHooked = false
-local suppressingTrackers = false
-local suppressingMouse = false
-
-local function HookAlphaSuppression(frame)
-    if not frame or not frame.SetAlpha or hookedTrackers[frame] then return end
-    hookedTrackers[frame] = true
-    hooksecurefunc(frame, "SetAlpha", function(self, alpha)
-        if suppressingTrackers then return end
-        if InCombatLockdown and InCombatLockdown() then return end
-        if sfui.questlog.is_enabled() then
-            if alpha > 0 then
-                suppressingTrackers = true
-                self:SetAlpha(0)
-                suppressingTrackers = false
-            end
-        end
-    end)
-end
-
-local function HookMouseSuppression(frame)
-    if not frame or not frame.EnableMouse or hookedMouseTrackers[frame] then return end
-    hookedMouseTrackers[frame] = true
-    hooksecurefunc(frame, "EnableMouse", function(self, enabled)
-        if suppressingMouse then return end
-        if InCombatLockdown and InCombatLockdown() then return end
-        if sfui.questlog.is_enabled() then
-            if enabled then
-                suppressingMouse = true
-                self:EnableMouse(false)
-                suppressingMouse = false
-            end
-        end
-    end)
-end
 
 local function EnsureQuestWatchHook()
     if questWatchUpdateHooked then return end
@@ -376,8 +340,6 @@ function SuppressBlizzardTrackers()
         if qwf.SetAlpha then qwf:SetAlpha(0) end
         if qwf.EnableMouse then qwf:EnableMouse(false) end
         if qwf.Hide then qwf:Hide() end
-        HookAlphaSuppression(qwf)
-        HookMouseSuppression(qwf)
         if not hookedTrackers[qwf] and qwf.HookScript then
             hookedTrackers[qwf] = true
             qwf:HookScript("OnShow", function(self)
@@ -395,8 +357,6 @@ function SuppressBlizzardTrackers()
         if qtf.SetAlpha then qtf:SetAlpha(0) end
         if qtf.EnableMouse then qtf:EnableMouse(false) end
         if qtf.Hide then qtf:Hide() end
-        HookAlphaSuppression(qtf)
-        HookMouseSuppression(qtf)
         if not hookedTrackers[qtf] and qtf.HookScript then
             hookedTrackers[qtf] = true
             qtf:HookScript("OnShow", function(self)
@@ -415,8 +375,6 @@ function SuppressBlizzardTrackers()
         if wf.SetAlpha then wf:SetAlpha(0) end
         if wf.EnableMouse then wf:EnableMouse(false) end
         if wf.Hide then wf:Hide() end
-        HookAlphaSuppression(wf)
-        HookMouseSuppression(wf)
         if not hookedTrackers[wf] and wf.HookScript then
             hookedTrackers[wf] = true
             wf:HookScript("OnShow", function(self)
@@ -429,60 +387,15 @@ function SuppressBlizzardTrackers()
         end
     end
 
-    -- 3. Modern / Retail / Camelot (ObjectiveTrackerFrame & BlocksFrame & Modules)
-    -- NOTE: ObjectiveTrackerFrame ITSELF must stay shown at alpha 1 and interactive so Blizzard Edit Mode
-    -- can highlight, select, and drag the objective tracker. We only suppress default headers, blocks, and modules.
+    -- 3. Modern / Retail / Camelot (ObjectiveTrackerFrame)
+    -- Cleanly hide and zero-alpha the root frame without mutating or hooking its sub-modules,
+    -- headers, or dimensions (avoids DirtiableMixin and C_UnitAuras / ShouldShowMawBuffs taint).
     local otf = _G.ObjectiveTrackerFrame
     if otf then
-        if otf.SetAlpha and otf:GetAlpha() < 1 then
-            otf:SetAlpha(1)
+        if not (_G.EditModeManagerFrame and _G.EditModeManagerFrame.IsEditModeActive and _G.EditModeManagerFrame:IsEditModeActive()) then
+            if otf.SetAlpha and otf:GetAlpha() ~= 0 then otf:SetAlpha(0) end
+            if otf.Hide and otf:IsShown() then otf:Hide() end
         end
-        if otf.Show and not otf:IsShown() then
-            otf:Show()
-        end
-
-        local cfg = (sfui.config and sfui.config.questlog) or {}
-        local width = cfg.width or 280
-        if otf.SetWidth then otf:SetWidth(width) end
-
-        if otf.Header then
-            if otf.Header.SetAlpha then otf.Header:SetAlpha(0) end
-            if otf.Header.EnableMouse then otf.Header:EnableMouse(false) end
-            if otf.Header.Hide then otf.Header:Hide() end
-            HookAlphaSuppression(otf.Header)
-            HookMouseSuppression(otf.Header)
-        end
-
-        if otf.modules then
-            for _, mod in ipairs(otf.modules) do
-                if mod.SetAlpha then mod:SetAlpha(0) end
-                if mod.EnableMouse then mod:EnableMouse(false) end
-                if mod.Header then
-                    if mod.Header.SetAlpha then mod.Header:SetAlpha(0) end
-                    if mod.Header.EnableMouse then mod.Header:EnableMouse(false) end
-                end
-            end
-        end
-    end
-
-    local otbf = _G.ObjectiveTrackerBlocksFrame
-    if otbf then
-        if otbf.SetAlpha then otbf:SetAlpha(0) end
-        if otbf.EnableMouse then otbf:EnableMouse(false) end
-        if otbf.Hide then otbf:Hide() end
-        HookAlphaSuppression(otbf)
-        HookMouseSuppression(otbf)
-    end
-
-    local otwc = _G.ObjectiveTrackerUIWidgetContainer
-    if otwc then
-        if otwc.SetAlpha then otwc:SetAlpha(0) end
-        if otwc.EnableMouse then otwc:EnableMouse(false) end
-        if otwc.Hide then otwc:Hide() end
-        -- No SetAlpha/EnableMouse hooks here: Blizzard toggles this container purely via
-        -- SetAlpha(1/0) during tracker layout and never calls Show(), so Hide() above keeps
-        -- it invisible. Hooking SetAlpha made those Blizzard calls error ("[C]: in function
-        -- 'SetAlpha' attempt to call a nil value" at ObjectiveTrackerUIWidgetContainer.lua:62).
     end
 end
 
@@ -498,6 +411,7 @@ function RestoreBlizzardTrackers()
     if qtf then
         if qtf.SetAlpha then qtf:SetAlpha(1) end
         if qtf.EnableMouse then qtf:EnableMouse(true) end
+        if qtf.Show then qtf:Show() end
     end
 
     local wf = _G.WatchFrame
@@ -509,32 +423,8 @@ function RestoreBlizzardTrackers()
 
     local otf = _G.ObjectiveTrackerFrame
     if otf then
-        if otf.SetAlpha then otf:SetAlpha(1) end
-        if otf.EnableMouse then otf:EnableMouse(true) end
-        if otf.Header then
-            if otf.Header.SetAlpha then otf.Header:SetAlpha(1) end
-            if otf.Header.EnableMouse then otf.Header:EnableMouse(true) end
-        end
-        if otf.modules then
-            for _, mod in ipairs(otf.modules) do
-                if mod.SetAlpha then mod:SetAlpha(1) end
-                if mod.EnableMouse then mod:EnableMouse(true) end
-                if mod.Header and mod.Header.SetAlpha then mod.Header:SetAlpha(1) end
-                if mod.Header and mod.Header.EnableMouse then mod.Header:EnableMouse(true) end
-            end
-        end
-    end
-
-    local otbf = _G.ObjectiveTrackerBlocksFrame
-    if otbf then
-        if otbf.SetAlpha then otbf:SetAlpha(1) end
-        if otbf.EnableMouse then otbf:EnableMouse(true) end
-    end
-
-    local otwc = _G.ObjectiveTrackerUIWidgetContainer
-    if otwc then
-        if otwc.SetAlpha then otwc:SetAlpha(1) end
-        if otwc.EnableMouse then otwc:EnableMouse(true) end
+        if otf.SetAlpha and otf:GetAlpha() ~= 1 then otf:SetAlpha(1) end
+        if otf.Show and not otf:IsShown() then otf:Show() end
     end
 end
 
@@ -656,9 +546,14 @@ local function SetupEventRouting()
         EventRegistry:RegisterCallback("EditMode.Exit", function()
             local otf = _G.ObjectiveTrackerFrame
             if otf then
-                local cfg = (sfui.config and sfui.config.questlog) or {}
-                local width = cfg.width or 280
-                if otf.SetWidth then otf:SetWidth(width) end
+                if otf.SetAlpha then otf:SetAlpha(0) end
+                if otf.Hide then otf:Hide() end
+            end
+            if container then
+                container:EnableMouse(not (SfuiDB and SfuiDB.questlogLocked))
+                if container.scrollClip then
+                    container.scrollClip:EnableMouse(not (SfuiDB and SfuiDB.questlogLocked))
+                end
             end
             Tracker.RestorePosition()
             Tracker.RequestRefresh(0.05)

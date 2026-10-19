@@ -12,6 +12,7 @@ local tonumber = _G.tonumber
 sfui.options.RegisterTab({
     id = "classutility",
     name = "class utility",
+    icon = "Interface\\Icons\\Spell_Shadow_GhostKey",
     build = function(p, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
         local create_checkbox = common.create_checkbox

@@ -1,6 +1,16 @@
 local addonName, addon = ...
 sfui = sfui or {}
 
+local isCamelotClient = false
+if _G.GetBuildInfo then
+    local vStr, _, _, tocNum = _G.GetBuildInfo()
+    tocNum = tonumber(tocNum) or 0
+    local pID = _G.WOW_PROJECT_ID or 1
+    isCamelotClient = (pID == (_G.WOW_PROJECT_CAMELOT or 18))
+        or (tocNum >= 16000 and tocNum < 20000)
+        or (vStr and vStr:match("^1%.60") ~= nil)
+end
+
 sfui.config = {
     -- addon metadata
     title = "|cff6600ffsf|rui |cff6600ffgfy|r edition",
@@ -54,7 +64,7 @@ sfui.config = {
 
     -- theme configuration
     theme = {
-        mode = "auto", -- "auto" (detects Camelot on Forever/Classic, Modern on Retail), "camelot", "modern"
+        mode = isCamelotClient and "bronze" or "modern", -- default in camelot is bronze, retail is modern
         cornerBrackets = true,
         texturedBackdrop = true,
         minimapArt = true,               -- Camelot only: preserve brass compass & day/night dial (modern theme does not touch minimap)
@@ -290,11 +300,11 @@ sfui.config = {
     },
 
     options_panel = {
-        width = 700,
+        width = 735,
         height = 700,
         backdrop_color = { 0.05, 0.05, 0.05, 0.8 },
         tabs = {
-            width = 100,
+            width = 135,
             height = 30,
             color = { 0.4, 0.0, 1.0, 1 },           -- #6600FF for unselected tabs
             selected_color = { 0, 1, 1, 1 },        -- #00FFFF for selected tab

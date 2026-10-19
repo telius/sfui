@@ -94,6 +94,20 @@ local function CreateBuffIcon(index, parent)
     tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     btn.texture = tex
 
+    -- Highlight texture on mouseover
+    local hl = btn:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetColorTexture(1, 1, 1, 0.2)
+    hl:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
+    hl:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
+    btn:SetHighlightTexture(hl)
+
+    -- Pushed texture on click
+    local pushed = btn:CreateTexture(nil, "OVERLAY")
+    pushed:SetColorTexture(0, 0, 0, 0.3)
+    pushed:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
+    pushed:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
+    btn:SetPushedTexture(pushed)
+
     -- 1px pixel-perfect border around the perimeter
     if sfui.widgets and sfui.widgets.create_border then
         sfui.widgets.create_border(btn, 1, { 0, 0, 0, 1 })
@@ -657,7 +671,10 @@ function sfui.buffs.UpdateDisplay()
                         icon._lastSlot = nil
                         icon:SetAttribute("type", "item")
                         icon:SetAttribute("item", itemName)
+                        icon:SetAttribute("*type1", "item")
+                        icon:SetAttribute("*item1", itemName)
                         icon:SetAttribute("spell", nil)
+                        icon:SetAttribute("*spell1", nil)
                         icon:SetAttribute("target-slot", nil)
                         icon:SetAttribute("unit", nil)
                     end
@@ -667,24 +684,31 @@ function sfui.buffs.UpdateDisplay()
                         icon._lastSpell = nil
                         icon._lastSlot = nil
                         icon:SetAttribute("type", nil)
+                        icon:SetAttribute("*type1", nil)
                         icon:SetAttribute("item", nil)
+                        icon:SetAttribute("*item1", nil)
                         icon:SetAttribute("spell", nil)
+                        icon:SetAttribute("*spell1", nil)
                         icon:SetAttribute("target-slot", nil)
                         icon:SetAttribute("unit", nil)
                     end
                 end
             elseif db and db.clickToCast ~= false and not isTestMode and rec.entry then
-                local castSpell = sfui.buffs.data and sfui.buffs.data.GetBestCastSpell and
+                local castSpell, _, castSpellID = sfui.buffs.data and sfui.buffs.data.GetBestCastSpell and
                     sfui.buffs.data.GetBestCastSpell(rec.entry, rec.activeEnchant)
                 local targetSlot = (rec.entry.type == "weapon_enchant") and (rec.entry.slot or 16) or nil
-                if castSpell then
-                    if icon._lastSpell ~= castSpell or icon._lastSlot ~= targetSlot or icon._lastItem ~= nil then
-                        icon._lastSpell = castSpell
+                local spellToCast = (rec.entry.type == "pet" and castSpellID) or castSpell or castSpellID
+                if spellToCast then
+                    if icon._lastSpell ~= spellToCast or icon._lastSlot ~= targetSlot or icon._lastItem ~= nil then
+                        icon._lastSpell = spellToCast
                         icon._lastSlot = targetSlot
                         icon._lastItem = nil
                         icon:SetAttribute("type", "spell")
-                        icon:SetAttribute("spell", castSpell)
+                        icon:SetAttribute("spell", spellToCast)
+                        icon:SetAttribute("*type1", "spell")
+                        icon:SetAttribute("*spell1", spellToCast)
                         icon:SetAttribute("item", nil)
+                        icon:SetAttribute("*item1", nil)
                         if targetSlot then
                             icon:SetAttribute("target-slot", targetSlot)
                             icon:SetAttribute("unit", nil)
@@ -702,8 +726,11 @@ function sfui.buffs.UpdateDisplay()
                         icon._lastSlot = nil
                         icon._lastItem = nil
                         icon:SetAttribute("type", nil)
+                        icon:SetAttribute("*type1", nil)
                         icon:SetAttribute("spell", nil)
+                        icon:SetAttribute("*spell1", nil)
                         icon:SetAttribute("item", nil)
+                        icon:SetAttribute("*item1", nil)
                         icon:SetAttribute("target-slot", nil)
                         icon:SetAttribute("unit", nil)
                     end
@@ -714,8 +741,11 @@ function sfui.buffs.UpdateDisplay()
                     icon._lastSlot = nil
                     icon._lastItem = nil
                     icon:SetAttribute("type", nil)
+                    icon:SetAttribute("*type1", nil)
                     icon:SetAttribute("spell", nil)
+                    icon:SetAttribute("*spell1", nil)
                     icon:SetAttribute("item", nil)
+                    icon:SetAttribute("*item1", nil)
                     icon:SetAttribute("target-slot", nil)
                     icon:SetAttribute("unit", nil)
                 end
@@ -735,8 +765,11 @@ function sfui.buffs.UpdateDisplay()
                 iconPool[i]._lastSlot = nil
                 iconPool[i]._lastItem = nil
                 iconPool[i]:SetAttribute("type", nil)
+                iconPool[i]:SetAttribute("*type1", nil)
                 iconPool[i]:SetAttribute("spell", nil)
+                iconPool[i]:SetAttribute("*spell1", nil)
                 iconPool[i]:SetAttribute("item", nil)
+                iconPool[i]:SetAttribute("*item1", nil)
                 iconPool[i]:SetAttribute("target-slot", nil)
                 iconPool[i]:SetAttribute("unit", nil)
             end

@@ -57,12 +57,20 @@ function sfui.theme.RegisterTheme(themeDef)
     if themeDef.colors then
         sfui.theme.palettes[themeDef.id] = themeDef.colors
     end
+
+    if themeDef.id == "camelot" then
+        registeredThemes["bronze"] = themeDef
+        if themeDef.colors then
+            sfui.theme.palettes["bronze"] = themeDef.colors
+        end
+    end
 end
 
 --- Get a registered theme definition by ID.
 --- @param id string
 --- @return table|nil
 function sfui.theme.GetTheme(id)
+    if id == "bronze" then id = "camelot" end
     return registeredThemes[id]
 end
 
@@ -111,7 +119,7 @@ end
 --- @return boolean
 function sfui.theme.IsThemeAvailable(id)
     if id == "auto" then return true end
-    if id == "camelot" then return sfui.theme.IsCamelotSupported() end
+    if id == "camelot" or id == "bronze" then return sfui.theme.IsCamelotSupported() end
     local def = registeredThemes[id]
     if not def then return false end
     if def.isAvailable then
@@ -123,11 +131,15 @@ end
 
 -- ─── Active Theme Resolution & Setting ────────────────────────────────────────
 function sfui.theme.GetActiveThemeID()
+    local isCamelot = sfui.theme.IsCamelotSupported()
+    local defaultTheme = isCamelot and "camelot" or "modern"
+
     if sfui.theme.forcedMode then
-        if sfui.theme.forcedMode == "camelot" and not sfui.theme.IsCamelotSupported() then
+        local forced = sfui.theme.forcedMode
+        if (forced == "camelot" or forced == "bronze") and not isCamelot then
             return "modern"
         end
-        return sfui.theme.forcedMode
+        return (forced == "bronze") and "camelot" or forced
     end
 
     local mode
@@ -137,33 +149,24 @@ function sfui.theme.GetActiveThemeID()
     if not mode and sfui.config and sfui.config.theme then
         mode = sfui.config.theme.mode
     end
-    mode = mode or "auto"
 
-    if mode == "auto" then
-        -- Query registered themes to see if one claims auto-detect for current client
-        for _, id in ipairs(themeOrder) do
-            local def = registeredThemes[id]
-            if def and def.autoDetect and def.autoDetect() then
-                if id ~= "camelot" or sfui.theme.IsCamelotSupported() then
-                    return def.id
-                end
-            end
-        end
-        -- Default fallbacks if no autoDetect claims it
-        if sfui.theme.IsCamelotSupported() then
-            return "camelot"
-        end
-        return "modern"
+    -- Default in Camelot is bronze, Retail is modern
+    if not mode or mode == "auto" then
+        return defaultTheme
     end
 
-    if mode == "camelot" and not sfui.theme.IsCamelotSupported() then
-        return "modern"
+    if mode == "camelot" or mode == "bronze" then
+        if not isCamelot then
+            return "modern"
+        end
+        return "camelot"
     end
 
     if registeredThemes[mode] and sfui.theme.IsThemeAvailable(mode) then
         return mode
     end
-    return "modern"
+
+    return defaultTheme
 end
 
 --- Apply a bar texture to all SFUI status bars, saving it to database and updating configs/options.
@@ -226,22 +229,22 @@ sfui.ApplyThemeBarTexture = sfui.theme.ApplyThemeBarTexture
 
 function sfui.theme.SetTheme(mode)
     mode = mode and mode:lower()
-    if mode == "camelot" and not sfui.theme.IsCamelotSupported() then
-        return false, "Camelot Heavy Bronze theme is exclusive to Camelot (bronze assets are not in Retail)."
+    if (mode == "camelot" or mode == "bronze") and not sfui.theme.IsCamelotSupported() then
+        return false, "the bronze theme is exclusive to camelot/forever (bronze assets are not in retail)."
     end
 
-    if mode ~= "auto" and not registeredThemes[mode] then
+    local targetTheme = (mode == "bronze") and "camelot" or mode
+    if mode ~= "auto" and not registeredThemes[targetTheme] then
         return false, "Unknown theme mode: " .. tostring(mode)
     end
-    if not sfui.theme.IsThemeAvailable(mode) then
+    if not sfui.theme.IsThemeAvailable(targetTheme) then
         return false, "the art for this theme is not available on this client."
     end
 
     SfuiDB = SfuiDB or {}
     SfuiDB.themeMode = mode
-    if SfuiDB.theme then
-        SfuiDB.theme.mode = mode
-    end
+    SfuiDB.theme = SfuiDB.theme or {}
+    SfuiDB.theme.mode = mode
     sfui.db.Set("theme", "mode", mode)
 
     local activeID = sfui.theme.GetActiveThemeID()
@@ -253,7 +256,7 @@ function sfui.theme.SetTheme(mode)
     end
 
     -- Default to round minimap for Bronze Camelot theme if not explicitly customized
-    local isBronzeCamelot = (sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot)) and (activeID == "camelot")
+    local isBronzeCamelot = (sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot)) and (activeID == "camelot" or activeID == "bronze")
     if isBronzeCamelot and not SfuiDB._minimapSquareCustomized then
         SfuiDB.minimap_square = false
         if sfui.map and sfui.map.square and sfui.map.square.Apply then
@@ -277,7 +280,8 @@ function sfui.theme.SetTheme(mode)
 end
 
 function sfui.theme.IsCamelotActive()
-    return sfui.theme.IsCamelotSupported() and (sfui.theme.GetActiveThemeID() == "camelot")
+    local activeID = sfui.theme.GetActiveThemeID()
+    return sfui.theme.IsCamelotSupported() and (activeID == "camelot" or activeID == "bronze")
 end
 
 function sfui.theme.IsFlatButtonActive()
@@ -303,7 +307,14 @@ end
 function sfui.theme.SetFlatButtons(isFlat)
     if not SfuiDB then SfuiDB = {} end
     SfuiDB.themeFlatButtons = (isFlat == true)
-    SfuiDB.themeButtonStyle = isFlat and "flat" or "auctionhouse"
+    local style = isFlat and "flat" or "auctionhouse"
+    SfuiDB.themeButtonStyle = style
+    SfuiDB.theme = SfuiDB.theme or {}
+    SfuiDB.theme.buttonStyle = style
+    sfui.db.Set("theme", "buttonStyle", style)
+    if sfui.config and sfui.config.theme then
+        sfui.config.theme.buttonStyle = style
+    end
     SfuiDB.themeAuctionHouseButtons = not isFlat
     SfuiDB.themeBronzeButtons = nil
 end
@@ -446,11 +457,12 @@ local effBase, effAccent, effHighlight = nil, nil, nil
 
 function sfui.theme.GetPalette()
     local themeID = sfui.theme.GetActiveThemeID()
-    local theme = registeredThemes[themeID] or registeredThemes.modern
+    local fallbackDef = sfui.theme.IsCamelotSupported() and (registeredThemes.camelot or registeredThemes.bronze) or registeredThemes.modern
+    local theme = registeredThemes[themeID] or fallbackDef
     local base = (theme and theme.colors) or sfui.config.appearance
 
-    local customAccent    = SfuiDB and SfuiDB.customAccentColor
-    local customHighlight = SfuiDB and SfuiDB.customHighlightColor
+    local customAccent    = SfuiDB and (SfuiDB.customAccentColor or (SfuiDB.theme and SfuiDB.theme.accentColor))
+    local customHighlight = SfuiDB and (SfuiDB.customHighlightColor or (SfuiDB.theme and SfuiDB.theme.highlightColor))
     if not customAccent and not customHighlight then
         return base
     end
@@ -680,7 +692,7 @@ function sfui.theme.ApplyWindowStyle(frame, options)
 
     local isSculptedWindow = (style == "bronze" or style == "heavy_bronze" or style == "metal_pieces") and sfui.theme.IsCamelotSupported()
     local showBrackets = (options.cornerBrackets ~= false)
-    if SfuiDB and SfuiDB.themeCornerBrackets == false then
+    if SfuiDB and (SfuiDB.themeCornerBrackets == false or (SfuiDB.theme and SfuiDB.theme.cornerBrackets == false)) then
         showBrackets = false
     end
 
@@ -800,10 +812,11 @@ function sfui.theme.ApplyWindowStyle(frame, options)
             layers.cornerBR:ClearAllPoints()
             layers.cornerBR:SetPoint("BOTTOMRIGHT", layers.nativeBorder, "BOTTOMRIGHT", 0, 0)
 
-            -- Native Backdrop (heavybronze-frame-background)
-            -- Tucked under nativeBorder bevel (Blizzard CharacterCreate pattern: x=10, y=-10..-12)
-            -- so the background cannot bleed past the bronze frame into the game world
-            if atlases.frameBackdropNative and sfui.theme.HasAtlas(atlases.frameBackdropNative) then
+            local useTexturedBackdrop = (options.texturedBackdrop ~= false)
+            if SfuiDB and (SfuiDB.themeTexturedBackdrop == false or (SfuiDB.theme and SfuiDB.theme.texturedBackdrop == false)) then
+                useTexturedBackdrop = false
+            end
+            if useTexturedBackdrop and atlases.frameBackdropNative and sfui.theme.HasAtlas(atlases.frameBackdropNative) then
                 if not layers.nativeBackdrop then
                     layers.nativeBackdrop = layers.borderFrame:CreateTexture(nil, "BACKGROUND", nil, -7)
                 end
@@ -2335,7 +2348,7 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality, isOther)
             end
 
             -- Sculpted Corner Brackets (Blizzard heavybronze corner brackets)
-            local showBrackets = (SfuiDB and SfuiDB.themeCornerBrackets ~= false)
+            local showBrackets = (SfuiDB and (SfuiDB.themeCornerBrackets ~= false and (not SfuiDB.theme or SfuiDB.theme.cornerBrackets ~= false)))
             if showBrackets then
                 if not row.cornerTL then
                     row.cornerTL = row:CreateTexture(nil, "OVERLAY", nil, 6)
@@ -2653,7 +2666,7 @@ function sfui.theme.GetBarStyle()
     if theme.bars and theme.bars.style then
         return theme.bars.style
     end
-    return (activeID == "camelot") and "castbar" or "thin"
+    return (activeID == "camelot" or activeID == "bronze") and "castbar" or "thin"
 end
 
 --- Set the bar style and refresh all registered bars
@@ -2681,9 +2694,9 @@ function sfui.theme.SetBarStyle(style)
     SfuiDB = SfuiDB or {}
     SfuiDB.camelotBarStyle = s
     SfuiDB.themeBarStyle = s
-    if SfuiDB.theme then
-        SfuiDB.theme.barStyle = s
-    end
+    SfuiDB.theme = SfuiDB.theme or {}
+    SfuiDB.theme.barStyle = s
+    sfui.db.Set("theme", "barStyle", s)
     if sfui.config.theme then
         sfui.config.theme.barStyle = s
     end
@@ -3113,7 +3126,8 @@ end
 -- ─── Master Live Theme Refresh ────────────────────────────────────────────────
 function sfui.theme.ApplyCurrentTheme()
     local themeID = sfui.theme.GetActiveThemeID()
-    local theme = registeredThemes[themeID] or registeredThemes.modern or {}
+    local defaultTheme = sfui.theme.IsCamelotSupported() and (registeredThemes.camelot or registeredThemes.bronze) or registeredThemes.modern
+    local theme = registeredThemes[themeID] or defaultTheme or {}
     local pal = sfui.theme.GetPalette()
 
     -- Sync global config appearance tokens
@@ -3239,12 +3253,14 @@ function sfui.theme.ApplyCurrentTheme()
 end
 
 -- ─── Database Defaults ────────────────────────────────────────────────────────
+local defaultMode = (sfui.theme and sfui.theme.IsCamelotSupported and sfui.theme.IsCamelotSupported()) and "bronze" or "modern"
 sfui.db.RegisterDefaults("theme", {
-    mode             = "auto",
+    mode             = defaultMode,
     cornerBrackets   = true,
     texturedBackdrop = true,
     minimapArt       = true,
     barStyle         = "castbar",
+    buttonStyle      = "auctionhouse",
 })
 
 -- Export public API alias

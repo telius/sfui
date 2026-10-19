@@ -11,6 +11,7 @@ local ipairs = _G.ipairs
 sfui.options.RegisterTab({
     id = "bars",
     name = "bars",
+    icon = "Interface\\Icons\\Spell_DeathKnight_BloodBoil",
     build = function(bars_panel, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
         local create_checkbox = common.create_checkbox

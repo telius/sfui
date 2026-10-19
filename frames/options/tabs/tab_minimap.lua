@@ -9,6 +9,7 @@ local C_Timer = _G.C_Timer
 sfui.options.RegisterTab({
     id = "minimap",
     name = "minimap",
+    icon = "Interface\\Icons\\Spell_Shadow_PsychicScream",
     build = function(minimap_panel, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
         local create_checkbox = common.create_checkbox

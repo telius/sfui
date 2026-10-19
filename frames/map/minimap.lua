@@ -108,15 +108,12 @@ function sfui.minimap.update_position(x, y, point, relPoint)
         if target.BreakFromFrameManager then
             target:BreakFromFrameManager()
         end
-        target.ignoreFramePositionManager = true
 
         local scale = (target.GetScale and target:GetScale()) or 1
         if scale <= 0 then scale = 1 end
 
-        target.sfuiRepositioning = true
         target:ClearAllPoints()
         target:SetPoint(pt, UIParent, rel, posX / scale, posY / scale)
-        target.sfuiRepositioning = nil
     end
 
     local width = (SfuiDB and SfuiDB.minimap_width)
@@ -335,8 +332,8 @@ sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
 end)
 
 if _G.MinimapCluster and hooksecurefunc then
-    hooksecurefunc(_G.MinimapCluster, "SetPoint", function(self)
-        if self.sfuiRepositioning or isRepositioning then return end
+    hooksecurefunc(_G.MinimapCluster, "SetPoint", function()
+        if isRepositioning then return end
         if _G.EditModeManagerFrame and _G.EditModeManagerFrame.IsEditModeActive and _G.EditModeManagerFrame:IsEditModeActive() then
             return
         end
@@ -349,7 +346,13 @@ if _G.MinimapCluster and hooksecurefunc then
             }
             return
         end
-        sfui.minimap.update_position()
+        if not sfui.minimap._pendingRepositionTimer then
+            sfui.minimap._pendingRepositionTimer = true
+            _G.C_Timer.After(0, function()
+                sfui.minimap._pendingRepositionTimer = false
+                sfui.minimap.update_position()
+            end)
+        end
     end)
 end
 

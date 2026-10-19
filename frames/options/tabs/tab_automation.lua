@@ -11,6 +11,7 @@ local isClassic = (sfui.compat and sfui.compat.is_classic)
 sfui.options.RegisterTab({
     id = "automation",
     name = "automation",
+    icon = "Interface\\Icons\\Spell_Shadow_SoulLeech_3",
     build = function(automation_panel, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
         local create_checkbox = common.create_checkbox

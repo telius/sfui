@@ -489,6 +489,12 @@ local function initialize_sfui()
         end
     end
     SfuiDB.hearthstone = SfuiDB.hearthstone or {}
+    SfuiDB.theme = SfuiDB.theme or {}
+    if SfuiDB.theme.mode == nil and SfuiDB.themeMode == nil then
+        local defMode = sfui.isCamelot and "bronze" or "modern"
+        SfuiDB.theme.mode = defMode
+        SfuiDB.themeMode = defMode
+    end
 
     sfui.db.Initialize()
     sfui.InitModules()
@@ -642,6 +648,8 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
     if is_unregistered("questlog") then
         sfui.questlog.initialize()
     end
+
+    sfui.theme.ApplyCurrentTheme()
 
     if not LibStub then
         sfui.common.print("|cffff0000error:|r libstub global not found!")

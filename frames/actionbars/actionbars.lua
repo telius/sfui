@@ -117,175 +117,10 @@ local function suppress_blizzard_actionbars()
         end
     end
 
-    local function disarmGamepadButton(button)
-        if not button then return end
-        if button.UnregisterAllEvents then
-            pcall(button.UnregisterAllEvents, button)
-        end
-        button.RegisterEvent = function() end
-        button.RegisterUnitEvent = function() end
-        if button.SetScript then
-            pcall(button.SetScript, button, "OnEvent", nil)
-            pcall(button.SetScript, button, "OnUpdate", nil)
-            pcall(button.SetScript, button, "OnShow", nil)
-            pcall(button.SetScript, button, "OnHide", nil)
-            pcall(button.SetScript, button, "OnClick", nil)
-        end
-
-        button.OnEvent = function() end
-        button.SetEnabled = function() end
-        button.Enable = function() end
-        button.Disable = function() end
-        button.SetAttribute = function() end
-        button.Update = function() end
-        button.UpdateAction = function() end
-        button.UpdateVisibility = function() end
-        button.UpdateFlash = function() end
-        button.SetFlashing = function() end
-        button.UpdateFlyoutActionIcon = function() end
-        button.UpdateState = function() end
-        button.UpdateUsable = function() end
-        button.UpdateCooldown = function() end
-        button.GetActiveSpellID = function() return nil end
-
-        if button.cooldown then
-            button.cooldown.SetCooldown = function() end
-            button.cooldown.Clear = function() end
-        end
-        if button.chargeCooldown then
-            button.chargeCooldown.SetCooldown = function() end
-            button.chargeCooldown.Clear = function() end
-        end
-        if button.lossOfControlCooldown then
-            button.lossOfControlCooldown.SetCooldown = function() end
-            button.lossOfControlCooldown.Clear = function() end
-        end
-
-        if _G.EventRegistry and _G.EventRegistry.UnregisterFrameEventAndCallback then
-            if button.playerTargetChangedOwner then
-                pcall(_G.EventRegistry.UnregisterFrameEventAndCallback, _G.EventRegistry, "PLAYER_TARGET_CHANGED", button.playerTargetChangedOwner)
-                button.playerTargetChangedOwner = nil
-            end
-            if button.raidTargetUpdateOwner then
-                pcall(_G.EventRegistry.UnregisterFrameEventAndCallback, _G.EventRegistry, "RAID_TARGET_UPDATE", button.raidTargetUpdateOwner)
-                button.raidTargetUpdateOwner = nil
-            end
-        end
-
-        if button.flashTicker then
-            pcall(button.flashTicker.Cancel, button.flashTicker)
-            button.flashTicker = nil
-        end
-        if button.rangeTicker then
-            pcall(button.rangeTicker.Cancel, button.rangeTicker)
-            button.rangeTicker = nil
-        end
-        if button.Flash and button.Flash.Hide then
-            pcall(button.Flash.Hide, button.Flash)
-        end
-
-        if not InCombatLockdown or not InCombatLockdown() then
-            pcall(button.Hide, button)
-        end
+    -- Disarm Gamepad action bars and target override bars (handled in compat.lua)
+    if sfui.compat and sfui.compat.disarm_gamepad_action_bars then
+        sfui.compat.disarm_gamepad_action_bars()
     end
-
-    local function disarmTargetOverrideBar(bar)
-        if not bar then return end
-        if bar.UnregisterAllEvents then
-            pcall(bar.UnregisterAllEvents, bar)
-        end
-        bar.RegisterEvent = function() end
-        bar.RegisterUnitEvent = function() end
-        if bar.SetScript then
-            pcall(bar.SetScript, bar, "OnEvent", nil)
-            pcall(bar.SetScript, bar, "OnUpdate", nil)
-            pcall(bar.SetScript, bar, "OnShow", nil)
-            pcall(bar.SetScript, bar, "OnHide", nil)
-        end
-        bar.OnShow = function() end
-        bar.OnHide = function() end
-        bar.OnEvent = function() end
-
-        bar.ActivateOrDeactivateOverrideBar = function() end
-        bar.ActivateOverrideBar = function() end
-        bar.DeactivateOverrideBar = function() end
-        bar.SetUpActionButtons = function() end
-        bar.SetButtonEnabled = function(self, actionButton, isEnabled)
-            if actionButton and actionButton.SetAlpha then
-                actionButton:SetAlpha(isEnabled and 1 or 0.3)
-            end
-        end
-        bar.RefreshShootButton = function() end
-        bar.RefreshAssistButton = function() end
-        bar.RefreshGroupTargeting = function() end
-        bar.RefreshPlayerPortrait = function() end
-        bar.RefreshPetButton = function() end
-        bar.RefreshBuffsButton = function() end
-        bar.SetRangedButtonRangeCheckTimerEnabled = function() end
-        bar.RefreshShootButtonRange = function() end
-
-        if bar.rangedSpellRangeTicker then
-            pcall(bar.rangedSpellRangeTicker.Cancel, bar.rangedSpellRangeTicker)
-            bar.rangedSpellRangeTicker = nil
-        end
-
-        local gm = _G.GamepadMode
-        if gm then
-            if gm.UnregisterInputModifierStateChangeCallback then pcall(gm.UnregisterInputModifierStateChangeCallback, bar) end
-            if gm.UnregisterTargetModifierStateChanged then pcall(gm.UnregisterTargetModifierStateChanged, bar) end
-            if gm.UnregisterTargetModifierStateCancelled then pcall(gm.UnregisterTargetModifierStateCancelled, bar) end
-            if gm.UnregisterTargetModifierVisualStateChanged then pcall(gm.UnregisterTargetModifierVisualStateChanged, bar) end
-            if gm.UnregisterTargetModifierChanged then pcall(gm.UnregisterTargetModifierChanged, bar) end
-            if gm.UnregisterCrossBarModifierStateChanged then pcall(gm.UnregisterCrossBarModifierStateChanged, bar) end
-        end
-    end
-
-    local function disarmGamepadHierarchy(root, depth)
-        if not root or (depth and depth > 10) then return end
-        depth = (depth or 0) + 1
-
-        disarmGamepadButton(root)
-        disarmTargetOverrideBar(root)
-
-        if root.actionButtons then
-            for _, btn in pairs(root.actionButtons) do
-                disarmGamepadButton(btn)
-            end
-        end
-
-        if root.actionBars then
-            for _, bar in pairs(root.actionBars) do
-                disarmGamepadHierarchy(bar, depth)
-            end
-        end
-
-        if root.GetChildren then
-            local children = { root:GetChildren() }
-            for _, child in ipairs(children) do
-                disarmGamepadHierarchy(child, depth)
-            end
-        end
-    end
-
-    local function suppressGamepadButtons()
-        if sfui.compat and sfui.compat.disarm_gamepad_action_bars then
-            sfui.compat.disarm_gamepad_action_bars()
-        end
-        local gmb = _G.GamepadMainActionBarFrame
-        if gmb then disarmGamepadHierarchy(gmb) end
-
-        local eventsFrame = _G.ActionBarButtonEventsFrame
-        if eventsFrame and eventsFrame.frames then
-            for i = #eventsFrame.frames, 1, -1 do
-                local f = eventsFrame.frames[i]
-                local name = f and f.GetName and f:GetName()
-                if (name and (name:find("Gamepad") or name:find("GamePad"))) or (f and f.isGamepadActionButton) then
-                    table.remove(eventsFrame.frames, i)
-                end
-            end
-        end
-    end
-    suppressGamepadButtons()
 
     local offscreenFrames = {
         "BagsBar",
@@ -296,8 +131,8 @@ local function suppress_blizzard_actionbars()
     }
     for _, name in ipairs(offscreenFrames) do
         local frame = _G[name]
-        if frame and frame.HookScript then
-            frame:HookScript("OnShow", function(self)
+        if frame and hooksecurefunc then
+            hooksecurefunc(frame, "Show", function(self)
                 self:SetAlpha(0)
                 if self.EnableMouse then
                     pcall(self.EnableMouse, self, false)
@@ -305,25 +140,47 @@ local function suppress_blizzard_actionbars()
             end)
         end
     end
-    if _G.MicroMenu and hooksecurefunc then
-        hooksecurefunc(_G.MicroMenu, "Layout", function(self)
-            self:ClearAllPoints()
-            self:SetPoint("BOTTOM", Hider, "BOTTOM", 0, 0)
-        end)
+
+    -- Silence Blizzard's centralized action button event and update dispatchers so
+    -- hidden native action buttons do not process events, waste CPU, or trigger
+    -- secret value errors (e.g. cooldown:SetCooldown on ActionButton.lua:891).
+    -- sfui uses LibActionButton-1.0 and its own pet bar engine which manage events independently.
+    local actionDispatchers = {
+        "ActionBarActionEventsFrame",
+        "ActionBarButtonEventsFrame",
+        "ActionBarButtonRangeCheckFrame",
+        "ActionBarButtonUsableWatcherFrame",
+    }
+    local function silenceDispatchers()
+        for _, name in ipairs(actionDispatchers) do
+            local dispatcher = _G[name]
+            if dispatcher then
+                if dispatcher.UnregisterAllEvents then
+                    dispatcher:UnregisterAllEvents()
+                end
+                dispatcher:SetScript("OnEvent", nil)
+            end
+        end
+        if _G.ActionBarButtonUpdateFrame then
+            _G.ActionBarButtonUpdateFrame:SetScript("OnUpdate", nil)
+        end
     end
-    if _G.BagsBar and hooksecurefunc then
-        hooksecurefunc(_G.BagsBar, "Layout", function(self)
-            self:ClearAllPoints()
-            self:SetPoint("BOTTOM", Hider, "BOTTOM", 0, 0)
-        end)
-    end
+    silenceDispatchers()
 
     if _G.EventUtil and _G.EventUtil.ContinueOnPlayerLogin then
-        _G.EventUtil.ContinueOnPlayerLogin(suppressGamepadButtons)
+        _G.EventUtil.ContinueOnPlayerLogin(function()
+            silenceDispatchers()
+            if sfui.compat and sfui.compat.disarm_gamepad_action_bars then
+                sfui.compat.disarm_gamepad_action_bars()
+            end
+        end)
     end
 
-    -- Disable individual Blizzard action buttons so they don't consume events or clicks
-    -- NOTE: PetActionButton1..10 are NOT disabled here because they are managed on sfui_PetBar!
+    -- Hide native Blizzard action buttons
+    -- NOTE: PetActionButton1..10 are NOT hidden here because they are managed on sfui_PetBar!
+    -- NOTE: Do NOT call SetAttribute("statehidden", true) or UnregisterAllEvents() here,
+    -- as modifying attributes on ActionButtonTemplate buttons taints execution and causes
+    -- secret value errors during level up and combat.
     local buttonPrefixes = {
         "ActionButton",
         "MultiBarBottomLeftButton",
@@ -338,17 +195,11 @@ local function suppress_blizzard_actionbars()
     for _, prefix in ipairs(buttonPrefixes) do
         for i = 1, 12 do
             local btn = _G[prefix .. i]
-            if btn then
+            if btn and btn.Hide then
                 btn:Hide()
-                btn:UnregisterAllEvents()
-                btn:SetAttribute("statehidden", true)
             end
         end
     end
-
-    -- NOTE: ActionBarButtonEventsFrame and ActionBarActionEventsFrame are intentionally
-    -- left untouched so Blizzard native cooldowns (secret values in 12.0+) and proc glows
-    -- continue to execute in pure untainted Blizzard context without secret value errors.
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────

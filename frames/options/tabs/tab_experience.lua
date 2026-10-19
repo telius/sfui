@@ -12,6 +12,7 @@ local refreshTabUI = nil
 sfui.options.RegisterTab({
     id = "experience",
     name = "experience",
+    icon = "Interface\\Icons\\Spell_DeathKnight_EmpowerRuneblade",
     resetDefaults = function()
         if SfuiDB and SfuiDB.experience then
             local defaults = sfui.config.experience or {}

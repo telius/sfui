@@ -15,6 +15,30 @@ local C_Spell = _G.C_Spell
 local playerClass = sfui.common.get_player_class()
 sfui.buffs.playerClass = playerClass
 
+-- Helper to safely get spell name across WoW versions and engines
+local function ResolveSpellName(spellID, fallback)
+    if spellID then
+        if sfui.api and sfui.api.GetSpellName then
+            local n = sfui.api.GetSpellName(spellID)
+            if n and n ~= "" then return n end
+        end
+        if C_Spell and C_Spell.GetSpellName then
+            local ok, n = pcall(C_Spell.GetSpellName, spellID)
+            if ok and n and n ~= "" then return n end
+        end
+        if C_Spell and C_Spell.GetSpellInfo then
+            local ok, info = pcall(C_Spell.GetSpellInfo, spellID)
+            if ok and info and info.name and info.name ~= "" then return info.name end
+        end
+        if GetSpellInfo then
+            local ok, n = pcall(GetSpellInfo, spellID)
+            if ok and n and n ~= "" then return n end
+        end
+    end
+    return fallback
+end
+sfui.buffs.data.ResolveSpellName = ResolveSpellName
+
 -- Helper to safely get spell texture
 local function ResolveTexture(spellID, fallback)
     if spellID then
@@ -92,6 +116,10 @@ local function IsSpellActuallyKnown(targetSpellID)
     local talents = sfui.talents
     if talents and talents._talentKnownResolver then
         if talents._talentKnownResolver(targetSpellID) then return true end
+    end
+
+    if sfui.common and sfui.common.is_spell_known then
+        if sfui.common.is_spell_known(targetSpellID) then return true end
     end
 
     local cBook = _G.C_SpellBook
@@ -248,10 +276,7 @@ local function GetHighestKnownRank(spellInfoTable)
     for i = #ids, 1, -1 do
         local id = ids[i]
         if IsSpellActuallyKnown(id) then
-            local name = GetSpellInfo and GetSpellInfo(id)
-            if not name or name == "" then
-                name = spellInfoTable.name
-            end
+            local name = ResolveSpellName(id, spellInfoTable.name)
             local icon = ResolveTexture(id, spellInfoTable.icon)
             return name, icon, id
         end
@@ -318,19 +343,19 @@ end
 sfui.buffs.pets = sfui.buffs.pets or {}
 
 local HUNTER_PET_SPELLS = {
-    { id = 883, fallbackName = "Call Pet 1", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 1, minLevel = 10 },
-    { id = 83242, fallbackName = "Call Pet 2", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 2, minLevel = 18 },
-    { id = 83243, fallbackName = "Call Pet 3", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 3, minLevel = 42 },
-    { id = 83244, fallbackName = "Call Pet 4", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 4, minLevel = 62 },
-    { id = 83245, fallbackName = "Call Pet 5", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 5, minLevel = 82 },
+    { id = 883, fallbackName = "call pet", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 1, minLevel = 10 },
+    { id = 83242, fallbackName = "call pet 2", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 2, minLevel = 18 },
+    { id = 83243, fallbackName = "call pet 3", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 3, minLevel = 42 },
+    { id = 83244, fallbackName = "call pet 4", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 4, minLevel = 62 },
+    { id = 83245, fallbackName = "call pet 5", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 5, minLevel = 82 },
 }
 
 local WARLOCK_PET_SPELLS = {
-    { id = 688, fallbackName = "Summon Imp", cleanName = "imp", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonImp", minLevel = 1 },
-    { id = 697, fallbackName = "Summon Voidwalker", cleanName = "voidwalker", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonVoidWalker", minLevel = 8 },
-    { id = 712, fallbackName = "Summon Succubus", cleanName = "succubus", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonSuccubus", minLevel = 20 },
-    { id = 691, fallbackName = "Summon Felhunter", cleanName = "felhunter", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonFelHunter", minLevel = 30 },
-    { id = 30146, fallbackName = "Summon Felguard", cleanName = "felguard", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonFelGuard", minLevel = 10, demonologyOnly = true },
+    { id = 688, fallbackName = "summon imp", cleanName = "imp", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonImp", minLevel = 1 },
+    { id = 697, fallbackName = "summon voidwalker", cleanName = "voidwalker", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonVoidWalker", minLevel = 8 },
+    { id = 712, fallbackName = "summon succubus", cleanName = "succubus", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonSuccubus", minLevel = 20 },
+    { id = 691, fallbackName = "summon felhunter", cleanName = "felhunter", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonFelHunter", minLevel = 30 },
+    { id = 30146, fallbackName = "summon felguard", cleanName = "felguard", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonFelGuard", minLevel = 10, demonologyOnly = true },
 }
 
 local function IsDemonologyWarlock()
@@ -358,10 +383,7 @@ end
 
 local function GetHunterPetInfo(spellDef)
     local id = spellDef.id
-    local name = GetSpellInfo and GetSpellInfo(id)
-    if not name or name == "" then
-        name = spellDef.fallbackName
-    end
+    local name = ResolveSpellName(id, spellDef.fallbackName)
     local icon = ResolveTexture(id, spellDef.fallbackIcon)
     local petName = nil
     if _G.GetCallPetSpellInfo then
@@ -391,7 +413,7 @@ end
 
 local function GetWarlockPetInfo(spellDef)
     local id = spellDef.id
-    local name = GetSpellInfo and GetSpellInfo(id)
+    local name = ResolveSpellName(id, spellDef.fallbackName)
     if not name or name == "" then
         name = spellDef.fallbackName
     end
@@ -562,7 +584,7 @@ local function GetBestCastSpell(entry, activeEnchantName)
         for i = #entry.spellIDs, 1, -1 do
             local id = entry.spellIDs[i]
             if IsSpellActuallyKnown(id) then
-                local name = GetSpellInfo and GetSpellInfo(id)
+                local name = ResolveSpellName(id)
                 if name and name ~= "" then
                     local icon = ResolveTexture(id, entry.fallbackIcon)
                     return name, icon, id

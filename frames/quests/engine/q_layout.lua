@@ -768,18 +768,6 @@ function Layout.BuildLayout(container, sections)
         container:SetSize(width, contentH)
     end
 
-    if otf and otf.SetWidth then
-        otf:SetWidth(width)
-        if not (otf.IsEditModeDragging and otf:IsEditModeDragging()) then
-            if not (_G.EditModeManagerFrame and _G.EditModeManagerFrame.IsEditModeActive and _G.EditModeManagerFrame:IsEditModeActive()) then
-                if otf.IsInDefaultPosition and otf:IsInDefaultPosition() and otf.SetHeight then
-                    local finalH = (scrollBar and scrollClip) and math.min(contentH, maxAllowedHeight) or contentH
-                    otf:SetHeight(math.max(finalH, 32))
-                end
-            end
-        end
-    end
-
     if sfui.tracker and sfui.tracker.boons and sfui.tracker.boons.UpdateAnchor then
         sfui.tracker.boons.UpdateAnchor()
     end

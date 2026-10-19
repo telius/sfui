@@ -18,6 +18,7 @@ local tostring = _G.tostring
 sfui.options.RegisterTab({
     id = "ring",
     name = "rings",
+    icon = "Interface\\Icons\\Spell_Shadow_DeathPact",
     build = function(p, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
         local white = sfui.config.colors.white

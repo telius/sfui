@@ -18,6 +18,7 @@ local IsStealthed = _G.IsStealthed
 sfui.options.RegisterTab({
     id = "debug",
     name = "debug",
+    icon = "Interface\\Icons\\Spell_Shadow_EvilEye",
     build = function(debug_panel, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
         local white = sfui.config.colors.white

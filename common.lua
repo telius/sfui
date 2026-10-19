@@ -1111,23 +1111,23 @@ function sfui.initialize_database()
     if igs.readyGlow == nil then igs.readyGlow = g.readyGlow end
     if igs.glowType == nil then igs.glowType = g.glowType or "pixel" end
 
-    local activeThemeID = (sfui.theme and sfui.theme.GetActiveThemeID and sfui.theme.GetActiveThemeID()) or "modern"
+    local isCamClient = (sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot))
+    local fallbackTheme = isCamClient and "camelot" or "modern"
+    local activeThemeID = (sfui.theme and sfui.theme.GetActiveThemeID and sfui.theme.GetActiveThemeID()) or fallbackTheme
     local activeTheme = sfui.theme and sfui.theme.GetTheme and sfui.theme.GetTheme(activeThemeID)
+    local isBronzeCamelot = isCamClient and (activeThemeID == "camelot" or activeThemeID == "bronze")
     local defaultBarTexture = (activeTheme and (activeTheme.barTexture or (activeTheme.bars and activeTheme.bars.texture)))
-        or (activeThemeID == "camelot" and "Blizzard Nameplate")
+        or (isBronzeCamelot and "Blizzard Nameplate")
         or "Flat"
 
     if type(SfuiDB.barTexture) ~= "string" or SfuiDB.barTexture == "" then
         SfuiDB.barTexture = defaultBarTexture
-    elseif activeThemeID == "camelot" and SfuiDB.barTexture == "Flat" and not SfuiDB._barTextureCustomized then
+    elseif isBronzeCamelot and SfuiDB.barTexture == "Flat" and not SfuiDB._barTextureCustomized then
         -- Automatically swap Camelot to Blizzard Nameplate if still using the legacy default "Flat"
         SfuiDB.barTexture = "Blizzard Nameplate"
     end
     sfui.config.barTexture = sfui.widgets.get_bar_texture()
     SfuiDB.absorbBarColor = SfuiDB.absorbBarColor or sfui.config.absorbBarColor
-
-    local isBronzeCamelot = (sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot))
-        and (activeThemeID == "camelot")
 
     SfuiDB.minimap_icon = SfuiDB.minimap_icon or { hide = false }
     if SfuiDB.minimap_square == nil then

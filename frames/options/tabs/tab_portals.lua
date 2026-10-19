@@ -9,6 +9,7 @@ local _G = _G
 sfui.options.RegisterTab({
     id = "portals",
     name = "portals",
+    icon = "Interface\\Icons\\Spell_Shadow_Teleport",
     build = function(p, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
         local white = sfui.config.colors.white

@@ -253,9 +253,9 @@ function petModule.ApplyTheme()
         textRight:SetShadowColor(0, 0, 0, 1)
     end
     if tpText then
-        tpText:SetFont(fontFile, fontSize, "OUTLINE")
-        tpText:SetShadowOffset(1, -1)
-        tpText:SetShadowColor(0, 0, 0, 1)
+        tpText:SetFont(fontFile, fontSize, "")
+        tpText:SetShadowOffset(0, 0)
+        tpText:SetShadowColor(0, 0, 0, 0)
     end
 
     if petContainer then
@@ -456,9 +456,9 @@ function petModule.Create()
         or "Fonts\\FRIZQT__.TTF"
 
     tpText = textFrame:CreateFontString(nil, "OVERLAY")
-    tpText:SetFont(fontFile, 10, "OUTLINE")
-    tpText:SetShadowOffset(1, -1)
-    tpText:SetShadowColor(0, 0, 0, 0.8)
+    tpText:SetFont(fontFile, 10, "")
+    tpText:SetShadowOffset(0, 0)
+    tpText:SetShadowColor(0, 0, 0, 0)
     tpText:SetPoint("LEFT", portraitFrame, "RIGHT", 4, 0)
     tpText:SetJustifyH("LEFT")
     tpText:SetTextColor(1.0, 1.0, 1.0, 1.0)
@@ -610,14 +610,15 @@ function petModule.UpdateValues()
         -- Mode 2: Capped XP -> Training Points & Loyalty Tracking
         petBar:SetStatusBarColor(colorTP[1], colorTP[2], colorTP[3], colorTP[4] or 1.0)
         local maxPoints = math_max(data.totalTP, 1)
+        local availableTP = math_max(0, data.unspentTP)
         petBar:SetMinMaxValues(0, maxPoints)
-        petBar:SetValue(math_min(maxPoints, math_max(0, data.usedTP)))
+        petBar:SetValue(math_min(maxPoints, availableTP))
 
         if textLeft then
-            textLeft:SetText(string_format("%s (lv %d)", data.name:lower(), data.level))
+            textLeft:SetText(string_format("%s (lv %d - loyalty %d/6)", data.name:lower(), data.level, data.loyaltyRank))
         end
         if textRight then
-            textRight:SetText(string_format("loyalty %d/6 (%s)", data.loyaltyRank, data.loyaltyName:lower()))
+            textRight:SetText(string_format("%s / %s tp available", BreakUpLargeNumbers(availableTP), BreakUpLargeNumbers(maxPoints)))
         end
     end
 
@@ -641,11 +642,11 @@ function petModule.UpdateValues()
     if tpText then
         local unspentTP = data.unspentTP or 0
         if unspentTP > 0 then
-            tpText:SetText("|cff33ff33" .. BreakUpLargeNumbers(unspentTP) .. " tp|r")
+            tpText:SetText("|cff33ff33" .. BreakUpLargeNumbers(unspentTP) .. "|r")
         elseif unspentTP < 0 then
-            tpText:SetText("|cffff5533" .. BreakUpLargeNumbers(unspentTP) .. " tp|r")
+            tpText:SetText("|cffff5533" .. BreakUpLargeNumbers(unspentTP) .. "|r")
         else
-            tpText:SetText("|cffaaaaaa0 tp|r")
+            tpText:SetText("|cffaaaaaa0|r")
         end
         tpText:ClearAllPoints()
         tpText:SetPoint("LEFT", portraitFrame, "RIGHT", 4, 0)

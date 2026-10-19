@@ -16,6 +16,7 @@ local string_lower = string.lower
 sfui.options.RegisterTab({
     id = "main",
     name = "main",
+    icon = "Interface\\Icons\\Spell_Shadow_Shadowform",
     build = function(main_panel, tab_button, options_frame)
         local CreateFlatButton = common.create_flat_button
         local create_checkbox = common.create_checkbox

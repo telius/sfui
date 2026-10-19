@@ -23,11 +23,6 @@ local PlaySound = _G.PlaySound
 local SOUNDKIT = _G.SOUNDKIT or {}
 
 local C_AddOns = _G.C_AddOns
-local C_Discord = _G.C_Discord
-local C_VoiceChat = _G.C_VoiceChat
-local MenuUtil = _G.MenuUtil
-local IsAltKeyDown = _G.IsAltKeyDown
-local IsInGuild = _G.IsInGuild
 local GetNumAddOns = (C_AddOns and C_AddOns.GetNumAddOns) or _G.GetNumAddOns
 local GetAddOnInfo = (C_AddOns and C_AddOns.GetAddOnInfo) or _G.GetAddOnInfo
 local IsAddOnLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or _G.IsAddOnLoaded
@@ -186,32 +181,10 @@ local function update_tooltip(btn)
         GameTooltip:AddLine(string.format("|cff888888... and %d more (hold shift to show all)|r", #list - displayed))
     end
 
-    local inGuild = IsInGuild and IsInGuild()
-    local showDiscord = inGuild and C_Discord and C_Discord.IsEnabled and C_Discord.IsEnabled()
-    if showDiscord then
-        GameTooltip:AddLine(" ")
-        local isAuthed = C_Discord.IsUserOAuthed and C_Discord.IsUserOAuthed()
-        GameTooltip:AddDoubleLine("discord:", isAuthed and "|cff5865f2connected|r" or "|cff888888unlinked|r", 0.8, 0.8, 0.8, 1, 1, 1)
-        if C_Discord.GetGuildLinkStatus then
-            local isLinked, chName, srvName = C_Discord.GetGuildLinkStatus()
-            if isLinked and srvName and chName then
-                GameTooltip:AddDoubleLine("guild channel:", string.format("%s #%s", srvName, chName), 0.8, 0.8, 0.8, 0.9, 0.9, 0.9)
-            end
-        end
-        if C_Discord.IsVoiceEnabled and C_Discord.IsVoiceEnabled() then
-            local prov = (_G.GetCVar and _G.GetCVar("voiceProvider"))
-            local provStr = (prov == "1") and "discord voice" or "blizzard voice"
-            GameTooltip:AddDoubleLine("voice engine:", provStr, 0.8, 0.8, 0.8, 0.9, 0.9, 0.9)
-        end
-    end
-
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("|cff888888<left-click>|r cycle clock / stats")
     GameTooltip:AddLine("|cff888888<right-click>|r toggle stopwatch & alarm")
     GameTooltip:AddLine("|cff888888<middle-click>|r toggle calendar")
-    if showDiscord then
-        GameTooltip:AddLine("|cff888888<alt-click>|r discord voice & options")
-    end
     GameTooltip:AddLine("|cff888888<shift-click>|r clean memory & collect garbage")
     GameTooltip:Show()
 end
@@ -231,43 +204,6 @@ local function on_click(self, button)
             update_tooltip(self)
         end
         return
-    end
-
-    local inGuild = IsInGuild and IsInGuild()
-    if inGuild and IsAltKeyDown and IsAltKeyDown() and C_Discord and C_Discord.IsEnabled and C_Discord.IsEnabled() then
-        if MenuUtil and MenuUtil.CreateContextMenu then
-            MenuUtil.CreateContextMenu(self, function(owner, rootDescription)
-                rootDescription:CreateTitle("discord integration")
-                local isAuthed = C_Discord.IsUserOAuthed and C_Discord.IsUserOAuthed()
-                if not isAuthed then
-                    rootDescription:CreateButton("authorize discord account", function()
-                        if C_Discord.Authorize then C_Discord.Authorize() end
-                    end)
-                else
-                    rootDescription:CreateButton("refresh discord connection", function()
-                        if C_Discord.RefreshAuth then C_Discord.RefreshAuth() end
-                    end)
-                end
-                if C_Discord.IsVoiceEnabled and C_Discord.IsVoiceEnabled() then
-                    local isDiscordVoice = (_G.GetCVar and _G.GetCVar("voiceProvider") == "1")
-                    rootDescription:CreateCheckbox("use discord for voice chat", function()
-                        return isDiscordVoice
-                    end, function()
-                        local newProv = isDiscordVoice and 0 or 1
-                        if _G.SetCVar then _G.SetCVar("voiceProvider", newProv) end
-                        if C_VoiceChat and C_VoiceChat.SetActiveVoiceProvider then
-                            C_VoiceChat.SetActiveVoiceProvider(newProv)
-                        end
-                    end)
-                end
-                rootDescription:CreateButton("open voice chat settings", function()
-                    if _G.Settings and _G.Settings.OpenToCategory then
-                        _G.Settings.OpenToCategory(_G.Settings.AUDIO_CATEGORY_ID or 3)
-                    end
-                end)
-            end)
-            return
-        end
     end
 
     if button == "LeftButton" then
@@ -358,17 +294,9 @@ function sfui.minimap.init_system_button(parent)
 
     btn:RegisterEvent("MODIFIER_STATE_CHANGED")
     btn:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-    btn:RegisterEvent("PLAYER_GUILD_UPDATE")
-    btn:RegisterEvent("DISCORD_STATUS_UPDATE")
-    btn:RegisterEvent("DISCORD_LINK_UPDATE")
-    btn:RegisterEvent("VOICE_CHAT_VOICE_PROVIDER_CHANGED")
     btn:SetScript("OnEvent", function(self, event)
         if event == "PLAYER_SPECIALIZATION_CHANGED" then
             sfui.minimap.update_system_button()
-        elseif event == "DISCORD_STATUS_UPDATE" or event == "DISCORD_LINK_UPDATE" then
-            if IsInGuild and IsInGuild() and self.isHovered then
-                update_tooltip(self)
-            end
         elseif self.isHovered then
             update_tooltip(self)
         end
