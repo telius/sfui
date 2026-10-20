@@ -41,14 +41,8 @@ end
 -- hides the private addon tooltip and resets the cursor (replaces GameTooltip_Hide/HideResetCursor)
 function sfui.common.hide_tooltip()
     local tip = sfui.tooltip
-    if tip then
-        if tip:IsShown() then tip:Hide() end
-        local shop = tip.shoppingTooltips
-        if shop then
-            for i = 1, #shop do
-                if shop[i] and shop[i]:IsShown() then shop[i]:Hide() end
-            end
-        end
+    if tip and tip:IsShown() then
+        tip:Hide()
     end
     if ResetCursor then ResetCursor() end
 end

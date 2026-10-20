@@ -343,9 +343,6 @@ local function CreateRowFrame(parent)
         if self.itemLink then
             tip:SetHyperlink(self.itemLink)
             tip:Show()
-            if sfui.compare and sfui.compare.try_show_compare then
-                sfui.compare.try_show_compare(tip)
-            end
         elseif self.currencyID and tip.SetCurrencyByID then
             tip:SetCurrencyByID(self.currencyID)
             tip:Show()
