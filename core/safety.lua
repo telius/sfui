@@ -12,10 +12,10 @@ local _issecretvalue = _G.issecretvalue
 local C_Secrets      = _G.C_Secrets
 
 local function issecretvalue(val)
-    if val == nil then return false end
     if _issecretvalue then
         return not not _issecretvalue(val)
     end
+    if val == nil then return false end
     if C_Secrets and C_Secrets.HasSecretRestrictions and not C_Secrets.HasSecretRestrictions() then
         return false
     end
@@ -26,8 +26,8 @@ sfui.common.issecretvalue = issecretvalue
 
 -- Robust helper to check if an aura/ID is present, even if it's a secret value
 function sfui.safety.HasAuraInstanceID(value)
-    if value == nil then return false end
     if issecretvalue(value) then return true end
+    if value == nil then return false end
     if type(value) == "number" and value == 0 then return false end
     return true
 end
@@ -35,16 +35,16 @@ sfui.common.HasAuraInstanceID = sfui.safety.HasAuraInstanceID
 
 -- Safe numeric comparison
 function sfui.safety.IsNumericAndPositive(value)
-    if value == nil then return false end
     if issecretvalue(value) then return false end
+    if value == nil then return false end
     return type(value) == "number" and value > 0
 end
 sfui.common.IsNumericAndPositive = sfui.safety.IsNumericAndPositive
 
 -- Safe attack speed validation (handles secret values when combat haste buffs are active)
 function sfui.safety.IsAttackSpeedValid(speed)
-    if speed == nil then return false end
     if issecretvalue(speed) then return true end
+    if speed == nil then return false end
     return type(speed) == "number" and speed > 0
 end
 sfui.common.IsAttackSpeedValid = sfui.safety.IsAttackSpeedValid

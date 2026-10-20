@@ -174,8 +174,8 @@ local function get_slot_cooldown(data)
             if C_Spell and C_Spell.GetItemCooldown then
                 local cd = C_Spell.GetItemCooldown(itemID)
                 if cd then
-                    start = cd.startTime or 0
-                    duration = cd.duration or 0
+                    start = cd.startTime
+                    duration = cd.duration
                     enable = cd.isEnabled and 1 or 0
                     isActive = cd.isActive or false
                 end
@@ -189,6 +189,9 @@ local function get_slot_cooldown(data)
                     if li and li > 0 then realIndex = li end
                 end
                 start, duration, enable = GetQuestLogSpecialItemCooldown(realIndex)
+                if issecretvalue and (issecretvalue(start) or issecretvalue(duration)) then
+                    return start, duration, enable, true, true
+                end
                 if start and duration and duration > 0 then
                     return start, duration, enable, true, false
                 end
@@ -196,6 +199,9 @@ local function get_slot_cooldown(data)
 
             if data.bag and data.slot and C_Container and C_Container.GetContainerItemCooldown then
                 start, duration, enable = C_Container.GetContainerItemCooldown(data.bag, data.slot)
+                if issecretvalue and (issecretvalue(start) or issecretvalue(duration)) then
+                    return start, duration, enable, true, true
+                end
                 if start and duration and duration > 0 then
                     return start, duration, enable, true, false
                 end
@@ -204,11 +210,15 @@ local function get_slot_cooldown(data)
             if C_Spell and C_Spell.GetItemCooldown then
                 local cd = C_Spell.GetItemCooldown(itemID)
                 if cd then
-                    start = cd.startTime or 0
-                    duration = cd.duration or 0
+                    start = cd.startTime
+                    duration = cd.duration
                     enable = cd.isEnabled and 1 or 0
                     isActive = cd.isActive or false
                 end
+            end
+
+            if issecretvalue and (issecretvalue(start) or issecretvalue(duration)) then
+                return start, duration, enable, isActive, true
             end
 
             if (not start or duration == 0) and sfui.api and sfui.api.GetItemCooldown then
@@ -230,8 +240,8 @@ local function get_slot_cooldown(data)
         if C_Spell and C_Spell.GetSpellCooldown then
             local cdInfo = C_Spell.GetSpellCooldown(attrs.spell)
             if cdInfo then
-                start = cdInfo.startTime or 0
-                duration = cdInfo.duration or 0
+                start = cdInfo.startTime
+                duration = cdInfo.duration
                 enable = cdInfo.isEnabled and 1 or 0
                 isActive = cdInfo.isActive or false
             end
@@ -248,8 +258,8 @@ local function get_slot_cooldown(data)
                 if C_Spell and C_Spell.GetItemCooldown then
                     local cd = C_Spell.GetItemCooldown(toyID)
                     if cd then
-                        start = cd.startTime or 0
-                        duration = cd.duration or 0
+                        start = cd.startTime
+                        duration = cd.duration
                         enable = cd.isEnabled and 1 or 0
                         isActive = cd.isActive or false
                     end
@@ -258,13 +268,13 @@ local function get_slot_cooldown(data)
                 if C_Spell and C_Spell.GetItemCooldown then
                     local cd = C_Spell.GetItemCooldown(toyID)
                     if cd then
-                        start = cd.startTime or 0
-                        duration = cd.duration or 0
+                        start = cd.startTime
+                        duration = cd.duration
                         enable = cd.isEnabled and 1 or 0
                         isActive = cd.isActive or false
                     end
                 end
-                if (not start or duration == 0) and sfui.api and sfui.api.GetItemCooldown then
+                if not (issecretvalue and (issecretvalue(start) or issecretvalue(duration))) and (not start or duration == 0) and sfui.api and sfui.api.GetItemCooldown then
                     start, duration, enable = sfui.api.GetItemCooldown(toyID)
                 end
             end
@@ -547,9 +557,6 @@ function view.update_slot_state(frame, data, showCooldowns)
 
     if isSecret or inCombat then
         onCD = (isActive == true)
-        if isActive == nil and start and duration then
-            onCD = true
-        end
     else
         if start and duration and duration > 0 then
             rem = (start + duration) - now

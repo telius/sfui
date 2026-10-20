@@ -17,28 +17,22 @@ local WORLD_MARKER_DEFS = {
     { id = "clear",    label = "clear flares",   marker = 0, icon = CLEAR_ICON, coords = { 0, 1, 0, 1 }, color = { 0.8, 0.8, 0.8 }, action = "clear" },
 }
 
-local function is_secret(val)
-    if val == nil then return false end
-    local fn = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
-    if fn then
-        local ok, res = pcall(fn, val)
-        if not ok or res then return true end
-    end
-    return false
-end
+local IsRaidMarkerActive = _G.IsRaidMarkerActive
+local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
 
 sfui.ring.register_provider("worldmarkers", {
     name   = "world markers",
     title  = "world markers",
     events = { "PLAYER_ENTERING_WORLD", "RAID_TARGET_UPDATE" },
     build  = function(out)
-        local isMarkerActive = _G.IsRaidMarkerActive
+        local isMarkerActive = IsRaidMarkerActive or _G.IsRaidMarkerActive
+        local isSecret = issecretvalue or (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
         for i = 1, #WORLD_MARKER_DEFS do
             local def = WORLD_MARKER_DEFS[i]
             local isActive = false
             if def.marker > 0 and isMarkerActive then
                 local active = isMarkerActive(def.marker)
-                if active and not is_secret(active) then
+                if not (isSecret and isSecret(active)) then
                     isActive = (active == true)
                 end
             end
