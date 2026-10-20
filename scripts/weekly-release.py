@@ -39,7 +39,7 @@ def get_qualifying_commits(soak_hours=48, force=False):
     latest_tag = get_latest_tag()
     commit_range = f"{latest_tag}..HEAD" if latest_tag else "HEAD"
     
-    cmd = ["git", "log", commit_range, "--grep=^fix(bugjar):", "--format=%H|||%s"]
+    cmd = ["git", "log", commit_range, "-E", "--grep=^fix(\\([^)]+\\))?:", "--format=%H|||%s"]
     if not force and soak_hours > 0:
         cmd.append(f"--until={soak_hours} hours ago")
         
@@ -79,8 +79,10 @@ def build_changelog(next_version, commits):
     seen = set()
     for c in commits:
         subj = c["subject"]
-        # remove prefix fix(bugjar): or fix(bugjar)
+        # remove prefix fix(bugjar): or format fix(<module>): cleanly
         clean = re.sub(r"^fix\(bugjar\):\s*", "", subj, flags=re.IGNORECASE).strip()
+        clean = re.sub(r"^fix\(([^)]+)\):\s*", r"**\1**: ", clean, flags=re.IGNORECASE).strip()
+        clean = re.sub(r"^fix:\s*", "", clean, flags=re.IGNORECASE).strip()
         clean = clean.lower()
         if clean and clean not in seen:
             seen.add(clean)

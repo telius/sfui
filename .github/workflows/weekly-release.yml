@@ -1,7 +1,9 @@
-name: Weekly Release
+name: Automated Release
 
 on:
   schedule:
+    # runs every wednesday morning at 08:00 utc (10:00 cest / 09:00 cet)
+    - cron: '0 8 * * 3'
     # runs every friday at 21:00 utc (23:00 cest / 22:00 cet)
     - cron: '0 21 * * 5'
   workflow_dispatch:

@@ -74,6 +74,55 @@ def save_state(state):
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2)
 
+def unescape_lua_string(s):
+    if not isinstance(s, str):
+        return ""
+    return re.sub(
+        r'\\(\\|n|r|t|"|\')',
+        lambda m: {
+            "\\": "\\",
+            "n": "\n",
+            "r": "\r",
+            "t": "\t",
+            '"': '"',
+            "'": "'",
+        }[m.group(1)],
+        s,
+    )
+
+
+def build_sfui_source_index():
+    rel_paths = set()
+    basename_counts = {}
+    corpus_parts = []
+    generic_names = {"core.lua", "init.lua", "config.lua", "util.lua", "utils.lua", "main.lua"}
+
+    for root, dirs, files in os.walk(SFUI_DIR):
+        dirs[:] = [d for d in dirs if d not in (".git", ".agent", "scripts", ".github")]
+        for fname in files:
+            if fname.endswith((".lua", ".xml")):
+                full_path = os.path.join(root, fname)
+                rel = os.path.relpath(full_path, SFUI_DIR).replace("\\", "/").lower()
+                rel_paths.add(rel)
+                bname = fname.lower()
+                basename_counts[bname] = basename_counts.get(bname, 0) + 1
+                if fname.endswith(".lua"):
+                    try:
+                        with open(full_path, "r", encoding="utf-8", errors="replace") as f:
+                            corpus_parts.append(f.read().lower())
+                    except Exception:
+                        pass
+
+    unique_basenames = {
+        b for b, count in basename_counts.items()
+        if count == 1 and b not in generic_names
+    }
+    return rel_paths, unique_basenames, "\n".join(corpus_parts)
+
+
+SFUI_REL_PATHS, SFUI_UNIQUE_BASENAMES, SFUI_SOURCE_CORPUS = build_sfui_source_index()
+
+
 def parse_bugjar_file(filepath):
     if not os.path.exists(filepath):
         return []
@@ -88,6 +137,7 @@ def parse_bugjar_file(filepath):
 
     in_errors = False
     current_error = None
+    raw_error = None
 
     for line in lines:
         raw = line.strip()
@@ -97,10 +147,13 @@ def parse_bugjar_file(filepath):
         if in_errors:
             if raw == '{':
                 current_error = {}
+                raw_error = {}
             elif raw in ('},', '}'):
                 if current_error is not None:
+                    current_error["_raw"] = raw_error
                     errors.append(current_error)
                     current_error = None
+                    raw_error = None
                 else:
                     in_errors = False
             elif current_error is not None:
@@ -110,9 +163,11 @@ def parse_bugjar_file(filepath):
                     v = m.group(2).rstrip(',')
                     if v.startswith('"') and v.endswith('"'):
                         v = v[1:-1]
-                    current_error[k] = v
+                    raw_error[k] = v
+                    current_error[k] = unescape_lua_string(v)
 
     return errors
+
 
 def compute_fingerprint(err):
     addon = err.get("addon", "sfui")
@@ -123,21 +178,100 @@ def compute_fingerprint(err):
     key_str = f"{addon}|{kind}|{message}|{location}|{stack}"
     return hashlib.sha1(key_str.encode("utf-8")).hexdigest()
 
-def is_sfui_error(err):
-    addon = (err.get("addon") or "").lower()
-    msg = (err.get("message") or "").lower()
-    stack = (err.get("stack") or "").lower()
-    loc = (err.get("location") or "").lower()
 
-    if addon == "sfui":
-        return True
-    if "addons\\sfui\\" in stack or "addons/sfui/" in stack:
-        return True
-    if "addons\\sfui\\" in loc or "addons/sfui/" in loc:
-        return True
-    if "sfui" in msg:
-        return True
-    return False
+def is_sfui_error(err):
+    """
+    Strictly determine whether a BugJar error record was genuinely caused by sfui.
+    Returns (is_sfui: bool, reason: str).
+    """
+    addon = (err.get("addon") or "").strip().lower()
+    msg = err.get("message") or ""
+    stack = err.get("stack") or ""
+    loc = (err.get("location") or "").strip()
+    kind = (err.get("kind") or "").strip().lower()
+    combined = f"{stack}\n{msg}"
+
+    # 1. BugJar's own stack/message attribution must explicitly blame 'sfui'.
+    #    Reject errors attributed to 'Blizzard UI', 'ElvUI', 'Details', 'Macros',
+    #    'Unknown', or any other third-party addon (even if msg mentions
+    #    "(execution tainted by 'sfui')" due to ambient Midnight taint).
+    if addon != "sfui":
+        return False, f"attributed to '{err.get('addon') or 'unknown'}', not sfui"
+
+    # 2. Inspect all AddOns/<Name>/ references in stack and message from top to bottom.
+    #    Ignore '!BugJar' and 'Blizzard_*'. If another third-party addon appears
+    #    before 'sfui', that addon is the primary culprit in the call chain.
+    addon_refs = re.findall(
+        r"(?:Interface[/\\]+)?AddOns[/\\]+([^/\\:\"\'\s\]]+)",
+        combined,
+        re.IGNORECASE,
+    )
+    non_blizz_addons = [
+        a.lower() for a in addon_refs
+        if a.lower() != "!bugjar" and not a.lower().startswith("blizzard_")
+    ]
+    if non_blizz_addons and non_blizz_addons[0] != "sfui":
+        return False, f"third-party addon '{non_blizz_addons[0]}' precedes sfui in stack"
+
+    other_third_party = [a for a in non_blizz_addons if a != "sfui"]
+    if other_third_party:
+        return False, f"contaminated by third-party addon(s) in stack: {', '.join( sorted(set(other_third_party)) )}"
+
+    # 3. Check for an explicit sfui source file path (AddOns/sfui/<path>.lua) in stack or message.
+    sfui_file_matches = re.findall(
+        r"AddOns[/\\]+sfui[/\\]+([^:\"\'\n\r\]]+?\.(?:lua|xml))",
+        combined,
+        re.IGNORECASE,
+    )
+    for rel_match in sfui_file_matches:
+        norm_rel = rel_match.replace("\\", "/").lstrip("/").lower()
+        if norm_rel in SFUI_REL_PATHS:
+            return True, f"verified sfui source file '{norm_rel}' in stack/message"
+
+    # 4. If location is present (e.g. "ring_worldmarkers.lua:41" or "TextStatusBar.lua:110"),
+    #    verify that location is an actual sfui file and NOT a Blizzard or third-party file.
+    if loc:
+        loc_file = loc.split(":", 1)[0].strip().replace("\\", "/").lower()
+        if loc_file in SFUI_REL_PATHS:
+            return True, f"verified sfui location '{loc}'"
+        if loc_file in SFUI_UNIQUE_BASENAMES:
+            # Ensure location isn't actually inside Blizzard_* or another addon in the message/stack
+            if not re.search(
+                r"AddOns[/\\]+(?!sfui[/\\])[^/\\]+[/\\]+[^\n\r]*?" + re.escape(loc_file),
+                combined,
+                re.IGNORECASE,
+            ):
+                return True, f"verified unique sfui file basename '{loc_file}' at '{loc}'"
+        return False, f"location '{loc}' is outside sfui with no sfui frame in stack"
+
+    # 5. Stackless taint events (e.g. "[Blocked] sfui tried to call the protected function 'X'.").
+    #    WoW's ADDON_ACTION_BLOCKED event provides no stack trace or file:line, and often
+    #    blames an addon for ambient EditMode / Blizzard action bar calls (like SetPointBase).
+    #    Only accept if the blocked call target actually exists in sfui's Lua source code.
+    if kind == "taint":
+        m_blocked = re.search(
+            r"tried to call the protected function ['\"]([^'\"]+)['\"]",
+            msg,
+            re.IGNORECASE,
+        )
+        if m_blocked:
+            target_clean = re.sub(r"\(\)$", "", m_blocked.group(1).strip()).lower()
+            if ":" in target_clean:
+                # Require literal 'frame:method' call in sfui source for stackless taint events
+                if target_clean in SFUI_SOURCE_CORPUS:
+                    return True, f"taint target '{target_clean}' matched in sfui source"
+                return False, f"stackless taint for '{target_clean}' not called directly by sfui"
+            elif "." in target_clean:
+                if target_clean in SFUI_SOURCE_CORPUS:
+                    return True, f"taint target '{target_clean}' matched in sfui source"
+                return False, f"stackless taint for '{target_clean}' not called by sfui"
+            else:
+                if re.search(r"\b" + re.escape(target_clean) + r"\s*\(", SFUI_SOURCE_CORPUS):
+                    return True, f"taint function '{target_clean}(' matched in sfui source"
+                return False, f"stackless taint function '{target_clean}' not called by sfui"
+        return False, "stackless taint event with no verifiable sfui call site"
+
+    return False, "no verifiable sfui file or stack frame found"
 
 def run_cmd(cmd, cwd=SFUI_DIR, check=True):
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=check)
@@ -147,6 +281,25 @@ def notify(summary, body):
         subprocess.run(["notify-send", summary, body], check=False)
     except Exception:
         pass
+
+def get_best_high_model():
+    default_model = "gemini-4-argon-high"
+    try:
+        res = subprocess.run(["agy", "models"], capture_output=True, text=True, timeout=10, check=False)
+        candidates = []
+        for line in res.stdout.splitlines():
+            m = re.search(r"(gemini-(\d+(?:\.\d+)?)-[a-z0-9-]+-high)\b", line.strip())
+            if m:
+                model_id = m.group(1)
+                ver = float(m.group(2))
+                is_non_flash = 0 if "flash" in model_id else 1
+                candidates.append((ver, is_non_flash, model_id))
+        if candidates:
+            candidates.sort(reverse=True)
+            return candidates[0][2]
+    except Exception:
+        pass
+    return default_model
 
 def main():
     import argparse
@@ -169,12 +322,22 @@ def main():
     for p in paths_to_scan:
         errs = parse_bugjar_file(p)
         for e in errs:
-            if is_sfui_error(e):
+            matched, reason = is_sfui_error(e)
+            if matched:
                 e["_source_path"] = p
                 e["_fingerprint"] = compute_fingerprint(e)
+                e["_raw_fingerprint"] = compute_fingerprint(e.get("_raw", e))
+                e["_match_reason"] = reason
                 all_errors.append(e)
+            elif args.verbose or args.dry_run:
+                short_msg = (e.get("message") or "unknown").splitlines()[0][:80]
+                print(f"  [skip non-sfui] ({reason}): {short_msg}")
 
-    unresolved = [e for e in all_errors if e["_fingerprint"] not in state["resolved"]]
+    unresolved = [
+        e for e in all_errors
+        if e["_fingerprint"] not in state["resolved"]
+        and e.get("_raw_fingerprint") not in state["resolved"]
+    ]
 
     if not unresolved:
         if not args.dry_run:
@@ -190,19 +353,22 @@ def main():
         kind = err.get("kind", "error")
         stack = err.get("stack", "")
         loc = err.get("location", "")
+        reason = err.get("_match_reason", "")
 
         print(f"\n--- processing error: {msg} ---")
         print(f"fingerprint: {fp}")
-        print(f"kind: {kind} | location: {loc}")
+        print(f"kind: {kind} | location: {loc} | attribution: {reason}")
 
         # Construct surgical task prompt for agy adhering strictly to .agent directives
         prompt = (
-            f"Fix this World of Warcraft Lua error recorded by BugJar for addon 'sfui':\n\n"
+            f"Analyze and, ONLY if genuinely caused by a defect in addon 'sfui', fix this World of Warcraft Lua error recorded by BugJar:\n\n"
             f"- Error Message: {msg}\n"
             f"- Kind: {kind}\n"
             f"- Location: {loc}\n"
             f"- Stack: {stack}\n\n"
             f"Mandatory Project Directives (from AGENTS.md and .agent/workflows/methods.md):\n"
+            f"0. Root-Cause Attribution Guard (CRITICAL): First verify that this error originates in or is directly caused by a bug in the 'sfui' project.\n"
+            f"   - If the error is caused by another third-party addon, a Blizzard UI bug, or ambient Midnight secret-value/taint noise where 'sfui' is not at fault, DO NOT modify any files and DO NOT delete or gut working 'sfui' features. Simply print 'SKIP_NOT_SFUI: <reason>' and exit immediately.\n"
             f"1. Strictly lowercase text in all code comments, messages, and commit descriptions ('no caps').\n"
             f"2. Always reference the in-house Blizzard Interface source trees for authoritative APIs, templates, and taint analysis (never make external web requests):\n"
             f"   - Camelot / Forever / Classic UI: ~/projects/wow-ui-source-forever/Interface\n"
@@ -242,10 +408,12 @@ def main():
 
             # Pull latest
             run_cmd(["git", "pull", "--rebase", "origin", "main"], check=False)
+            head_before = run_cmd(["git", "rev-parse", "HEAD"], check=False).stdout.strip()
 
-            print("invoking agy agent runner to dissect and patch...")
+            best_model = get_best_high_model()
+            print(f"invoking agy agent runner ({best_model}) to dissect and patch...")
             res = subprocess.run(
-                ["agy", "--print", prompt, "--dangerously-skip-permissions"],
+                ["agy", "--model", best_model, "--effort", "high", "--print", prompt, "--dangerously-skip-permissions"],
                 cwd=SFUI_DIR,
                 capture_output=True,
                 text=True,
@@ -253,41 +421,56 @@ def main():
             )
             print("agy finished. returncode:", res.returncode)
 
+            skipped_not_sfui = "SKIP_NOT_SFUI" in (res.stdout or "")
+            if skipped_not_sfui:
+                print("agent determined error is not caused by sfui; Reverting any scratch edits.")
+                run_cmd(["git", "checkout", "--", "."], check=False)
+
             # Check if any git changes remain uncommitted or if commit was made
             diff_proc = run_cmd(["git", "status", "--porcelain"], check=False)
-            if diff_proc.stdout.strip():
-                # Verify syntax before committing
-                syntax_check = run_cmd(["bash", "-c", "find . -name '*.lua' -exec luac -p {} +"], check=False)
-                if syntax_check.returncode == 0:
-                    # Guarantee release files are never modified by the auto-fixer
-                    run_cmd(["git", "checkout", "--", "sfui.toc", "CHANGELOG.md"], check=False)
-                    run_cmd(["git", "add", "-A"])
-                    run_cmd(["git", "commit", "-m", f"fix(bugjar): {msg[:60].lower()}"])
-                    run_cmd(["git", "push", "origin", "main"], check=False)
-                else:
-                    print("syntax check failed on unstaged changes! aborting commit.")
-                    run_cmd(["git", "checkout", "."])
+            if diff_proc.stdout.strip() and not skipped_not_sfui:
+                # Guarantee release files are never modified by the auto-fixer
+                run_cmd(["git", "checkout", "--", "sfui.toc", "CHANGELOG.md"], check=False)
+                diff_after_clean = run_cmd(["git", "status", "--porcelain"], check=False)
+                if diff_after_clean.stdout.strip():
+                    # Verify syntax before committing
+                    syntax_check = run_cmd(["bash", "-c", "find . -name '*.lua' -exec luac -p {} +"], check=False)
+                    if syntax_check.returncode == 0:
+                        run_cmd(["git", "add", "-A"])
+                        run_cmd(["git", "commit", "-m", f"fix(bugjar): {msg[:60].lower()}"])
+                        run_cmd(["git", "push", "origin", "main"], check=False)
+                    else:
+                        print("syntax check failed on unstaged changes! aborting commit.")
+                        run_cmd(["git", "checkout", "--", "."], check=False)
 
-            # Record resolved state
+            head_after = run_cmd(["git", "rev-parse", "HEAD"], check=False).stdout.strip()
+            did_fix = bool(head_before and head_after and head_before != head_after)
+
+            # Record resolved state (both fixed and verified non-sfui errors so we never re-run them)
             state["resolved"][fp] = {
                 "message": msg,
                 "kind": kind,
                 "location": loc,
+                "status": "fixed" if did_fix else "skipped_not_sfui",
                 "resolved_at": int(time.time()),
                 "time_str": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
-            state["total_fixed"] = state.get("total_fixed", 0) + 1
-            clean_msg = msg.replace("[Blocked]", "").strip()[:40].lower()
-            state["last_fix"] = clean_msg
-            state["last_fix_time"] = int(time.time())
+            if did_fix:
+                state["total_fixed"] = state.get("total_fixed", 0) + 1
+                clean_msg = msg.replace("[Blocked]", "").strip()[:40].lower()
+                state["last_fix"] = clean_msg
+                state["last_fix_time"] = int(time.time())
+                notify("SFUI Auto-Patcher", f"Fixed and pushed: {msg[:50]}")
+            else:
+                print("no sfui changes committed (marked resolved/ignored in bugjar state).")
             save_state(state)
 
-            notify("SFUI Auto-Patcher", f"Fixed and pushed: {msg[:50]}")
-
         except subprocess.TimeoutExpired:
-            print("agy run timed out after 1800 seconds.")
+            print("agy run timed out after 600 seconds; cleaning up working tree.")
+            run_cmd(["git", "checkout", "--", "."], check=False)
         except Exception as ex:
             print(f"error during auto-patch: {ex}")
+            run_cmd(["git", "checkout", "--", "."], check=False)
         finally:
             if stash_created:
                 print("restoring uncommitted working tree changes from stash...")
