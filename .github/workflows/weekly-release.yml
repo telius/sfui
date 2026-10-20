@@ -1,0 +1,79 @@
+name: Weekly Release
+
+on:
+  schedule:
+    # runs every friday at 21:00 utc (23:00 cest / 22:00 cet)
+    - cron: '0 21 * * 5'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'ignore 48h soak period (release all pending autofixes)'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'dry run (preview changelog and version without committing or releasing)'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  weekly-release:
+    name: Check Autofixes & Cut Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Lua and Luacheck
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y lua5.1 luarocks
+          sudo luarocks install luacheck
+
+      - name: Pre-flight Syntax & Static Analysis
+        run: |
+          echo "=== validating lua syntax ==="
+          find . -name "*.lua" -not -path "./Libs/*" -not -path "./scratch/*" -exec luac5.1 -p {} +
+          echo "=== validating with luacheck ==="
+          luacheck .
+
+      - name: Evaluate Autofixes & Bump Version
+        id: release_check
+        run: |
+          ARGS="--soak-hours 48"
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            ARGS="$ARGS --force"
+          fi
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          python3 scripts/weekly-release.py $ARGS
+
+      - name: Push Version Bump & Tag
+        if: steps.release_check.outputs.release_created == 'true' && github.event.inputs.dry_run != 'true'
+        run: |
+          VERSION="${{ steps.release_check.outputs.release_version }}"
+          echo "pushing main and tag $VERSION to origin..."
+          git push origin main "$VERSION"
+
+      - name: Package and Release
+        if: steps.release_check.outputs.release_created == 'true' && github.event.inputs.dry_run != 'true'
+        uses: BigWigsMods/packager@v2
