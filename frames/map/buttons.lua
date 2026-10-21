@@ -319,7 +319,7 @@ function ButtonManager:skin_button(button)
             or (icon:GetTexture() and tostring(icon:GetTexture()):lower():find("bugjar", 1, true))
             or btnName:find("HousingDecorGuide", 1, true)
 
-        local cropL, cropR, cropT, cropB = 0.07, 0.93, 0.07, 0.93
+        local cropL, cropR, cropT, cropB = 0.08, 0.92, 0.08, 0.92
         if isBakedCircle then
             cropL, cropR, cropT, cropB = 0.22, 0.78, 0.22, 0.78
         end
@@ -337,10 +337,9 @@ function ButtonManager:skin_button(button)
         end
         icon:SetTexCoord(cropL, cropR, cropT, cropB)
 
-        -- Re-anchor icon to fill the square frame cleanly with a 2px margin
+        -- Re-anchor icon to fill the square frame cleanly flush
         icon:ClearAllPoints()
-        icon:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -2)
-        icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)
+        icon:SetAllPoints(button)
     end
 
     local Masque = SfuiDB and SfuiDB.minimap_masque and LibStub("Masque", true)

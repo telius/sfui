@@ -547,42 +547,34 @@ function sfui.api.GetItemInfo(itemID)
 end
 
 --- Returns item cooldown: startTime, duration, enable.
---- Cascades C_Spell.GetItemCooldown -> C_Item.GetItemCooldown -> C_Container.GetItemCooldown -> legacy GetItemCooldown.
---- In combat lockdown, only AllowedWhenTainted APIs (C_Spell.GetItemCooldown) are used to prevent [Blocked] UNKNOWN() errors.
+--- Cascades C_Container.GetItemCooldown -> C_Item.GetItemCooldown -> C_Spell.GetItemCooldown -> legacy GetItemCooldown.
 --- @return number, number, number
 function sfui.api.GetItemCooldown(itemID)
     if not itemID then return 0, 0, 0 end
-    local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
 
-    if _G.C_Spell and _G.C_Spell.GetItemCooldown then
-        local cd = _G.C_Spell.GetItemCooldown(itemID)
-        if cd then
-            local s = cd.startTime or 0
-            local d = cd.duration or 0
-            local e = cd.isEnabled and 1 or 0
-            if _G.issecretvalue and (_G.issecretvalue(s) or _G.issecretvalue(d)) then
-                return s, d, e
-            end
-            if (s and d and d > 0) or inCombat then
-                return s, d, e
-            end
-        end
-    end
-
-    if inCombat then
-        return 0, 0, 0
+    if _G.C_Container and _G.C_Container.GetItemCooldown then
+        local s, d, e = _G.C_Container.GetItemCooldown(itemID)
+        if s and d and (s > 0 or d > 0) then return s, d, e or 1 end
     end
 
     if _G.C_Item and _G.C_Item.GetItemCooldown then
-        return _G.C_Item.GetItemCooldown(itemID)
+        local s, d, e = _G.C_Item.GetItemCooldown(itemID)
+        if s and d and (s > 0 or d > 0) then return s, d, (e == false and 0 or 1) end
     end
-    if _G.C_Container and _G.C_Container.GetItemCooldown then
-        return _G.C_Container.GetItemCooldown(itemID)
+
+    if _G.C_Spell and _G.C_Spell.GetItemCooldown then
+        local cd = _G.C_Spell.GetItemCooldown(itemID)
+        if cd and cd.startTime and cd.duration and (cd.startTime > 0 or cd.duration > 0) then
+            return cd.startTime, cd.duration, (cd.isEnabled == false and 0 or 1)
+        end
     end
+
     if _G.GetItemCooldown then
-        return _G.GetItemCooldown(itemID)
+        local s, d, e = _G.GetItemCooldown(itemID)
+        if s and d and (s > 0 or d > 0) then return s, d, e or 1 end
     end
-    return 0, 0, 0
+
+    return 0, 0, 1
 end
 
 --- Returns item stack count in player bags.

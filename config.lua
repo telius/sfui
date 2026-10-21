@@ -292,7 +292,7 @@ sfui.config = {
         hotkeyOutline = "OUTLINE", -- Font outline (OUTLINE, THICKOUTLINE, or "")
 
         -- Icon Style
-        showBorder = true,  -- Show 2px black border around icons
+        showBorder = false, -- Show 2px black border around icons
         squareIcons = true, -- Crop round icon edges to square
 
         -- Panel Visibility

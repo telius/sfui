@@ -327,10 +327,10 @@ local function SetupBarState(bar, config, cfg)
     local isTimerAndStacks = wantCenteredStacks and showDurationEnabled
 
     if isStackMode then
-        bar.status:Show(); bar.time:Show(); bar.icon:Show(); bar.count:Hide()
+        bar.time:Show(); bar.icon:Show(); bar.count:Hide()
     else
         -- Standard Mode
-        bar.status:Show(); bar.name:Show(); bar.time:Show(); bar.icon:Show()
+        bar.name:Show(); bar.time:Show(); bar.icon:Show()
         bar.count:ClearAllPoints()
         bar.count:SetPoint("CENTER", bar.icon, "CENTER", 0, 0)
         common.style_text(bar.count, nil, nil)
@@ -494,10 +494,10 @@ local function UpdateLayout()
     local yOffset = 0
     for _, bar in ipairs(standardBars) do
         local config = GetTrackedBarConfig(bar.cooldownID)
-        bar:SetParent(container)
+        if bar:GetParent() ~= container then bar:SetParent(container) end
         bar.iconFrame:Show()
         bar.iconFrame:SetSize(iconSize, iconSize) -- Apply global icon size override
-        if bar.iconFrame.borderBackdrop then bar.iconFrame.borderBackdrop:Show() end
+        if bar.iconFrame.borderBackdrop then bar.iconFrame.borderBackdrop:Hide() end
         yOffset = ApplyBarStyling(bar, yOffset, config, cfg, globalDB)
     end
 
@@ -518,7 +518,7 @@ local function UpdateLayout()
 
         if anchor and anchor:IsShown() then
             for _, bar in ipairs(attachedBars) do
-                bar:SetParent(UIParent)
+                if bar:GetParent() ~= UIParent then bar:SetParent(UIParent) end
                 bar:ClearAllPoints()
 
                 local width = sfui.config.healthBar.width * (cfg.attachedWidthMultiplier or 0.8)

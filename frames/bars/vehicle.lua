@@ -147,16 +147,16 @@ for i = 1, MAX_BUTTONS do
     btn:SetAttribute("action", i) -- initial; real value set in UpdateBar()
     btn._isOnCooldown = false
 
-    -- Black border: plain BACKGROUND texture (matches trackedicons CreateIconFrame)
+    -- Black border: plain BACKGROUND texture (hidden by default)
     btn.borderBackdrop = btn:CreateTexture(nil, "BACKGROUND")
     btn.borderBackdrop:SetAllPoints()
     btn.borderBackdrop:SetColorTexture(0, 0, 0, 1)
+    btn.borderBackdrop:Hide()
 
-    -- Custom square icon — same layer approach as trackedicons.lua
+    -- Custom square icon — flat and borderless
     btn.icon = btn:CreateTexture(nil, "ARTWORK")
-    btn.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    btn.icon:SetPoint("TOPLEFT",     btn, "TOPLEFT",      2, -2)
-    btn.icon:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2,  2)
+    btn.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    btn.icon:SetAllPoints(btn)
 
     -- Cooldown (anchored to inset icon)
     local cd = CreateFrame("Cooldown", "SfuiVehicleBtn" .. i .. "Cooldown", btn, "CooldownFrameTemplate")

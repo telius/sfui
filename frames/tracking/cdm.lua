@@ -219,62 +219,197 @@ local function OnZoneIconClick(self, button)
     end
 end
 
+local SPELL_CATEGORY_METADATA = (sfui.tracking and sfui.tracking.SPELL_CATEGORY_METADATA) or {
+    [4] = {
+        icon = "Interface/ICONS/INV_POTION_114",
+        tooltipTitle = "combat potion",
+        tooltipDescription = "use combat potion",
+        fallbackItemID = nil,
+    },
+    [30] = {
+        icon = "Interface/ICONS/INV_POTION_54",
+        tooltipTitle = "health potion",
+        tooltipDescription = "use health potion",
+        fallbackItemID = nil,
+    },
+    [1711] = {
+        icon = "Interface/ICONS/Warlock_ Healthstone",
+        tooltipTitle = "healthstone",
+        fallbackItemID = 5512,
+    },
+    [2566] = {
+        icon = "Interface/ICONS/Warlock_ Bloodstone",
+        tooltipTitle = "demonic healthstone",
+        fallbackItemID = 224464,
+    },
+}
+sfui.tracking = sfui.tracking or {}
+sfui.tracking.SPELL_CATEGORY_METADATA = SPELL_CATEGORY_METADATA
+
+local function ResolveCooldownMetadata(cdID, entry)
+    local meta = {
+        id = (type(entry) == "table" and entry.id) or (type(cdID) == "table" and cdID.id) or cdID,
+        cooldownID = (type(entry) == "table" and entry.cooldownID) or (type(cdID) == "table" and cdID.cooldownID) or (type(cdID) == "number" and cdID) or nil,
+        type = (type(entry) == "table" and entry.type) or (type(cdID) == "table" and cdID.type) or "spell",
+        equipSlot = (type(entry) == "table" and entry.equipSlot) or (type(cdID) == "table" and cdID.equipSlot) or nil,
+        spellCategoryID = (type(entry) == "table" and entry.spellCategoryID) or (type(cdID) == "table" and cdID.spellCategoryID) or nil,
+        itemID = (type(entry) == "table" and entry.itemID) or (type(cdID) == "table" and cdID.itemID) or nil,
+        spellID = (type(entry) == "table" and entry.spellID) or (type(cdID) == "table" and cdID.spellID) or nil,
+        name = nil,
+        icon = nil,
+    }
+
+    local cdInfo = nil
+    if meta.cooldownID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
+        local ok, info = pcall(C_CooldownViewer.GetCooldownViewerCooldownInfo, meta.cooldownID)
+        if ok and info then cdInfo = info end
+    end
+
+    if cdInfo then
+        if cdInfo.equipSlot then
+            meta.equipSlot = cdInfo.equipSlot
+            meta.type = "item"
+        end
+        if cdInfo.spellCategoryID then
+            meta.spellCategoryID = cdInfo.spellCategoryID
+            meta.type = "item"
+        end
+        if cdInfo.itemID and cdInfo.itemID > 0 then
+            meta.itemID = cdInfo.itemID
+            meta.type = "item"
+        end
+        if cdInfo.spellID and cdInfo.spellID > 0 then
+            meta.spellID = cdInfo.overrideSpellID or cdInfo.spellID
+        end
+    end
+
+    if meta.equipSlot then
+        meta.type = "item"
+        local slotItem = GetInventoryItemID and GetInventoryItemID("player", meta.equipSlot)
+        if slotItem then
+            meta.itemID = slotItem
+            meta.name = C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(slotItem)
+            meta.icon = GetInventoryItemTexture and GetInventoryItemTexture("player", meta.equipSlot)
+        end
+        if not meta.name then
+            meta.name = (meta.equipSlot == 14) and "trinket 2" or "trinket 1"
+        end
+        if not meta.icon then
+            local slotName = (meta.equipSlot == 14) and "Trinket1Slot" or "Trinket0Slot"
+            local _, slotTex = GetInventorySlotInfo(slotName)
+            meta.icon = slotTex or 134400
+        end
+        return meta
+    end
+
+    if meta.spellCategoryID then
+        meta.type = "item"
+        local catData = SPELL_CATEGORY_METADATA[meta.spellCategoryID]
+        local catItemID = (cdInfo and cdInfo.lastItemIDForCategory) or (catData and catData.fallbackItemID) or meta.itemID
+        if catItemID and catItemID > 0 then
+            meta.itemID = catItemID
+            meta.name = C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(catItemID)
+        end
+        if catData then
+            meta.icon = catData.icon
+            meta.name = meta.name or catData.tooltipTitle
+        elseif catItemID and catItemID > 0 then
+            meta.icon = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(catItemID)
+        end
+        meta.name = meta.name or ("category " .. meta.spellCategoryID)
+        meta.icon = meta.icon or 134400
+        return meta
+    end
+
+    if meta.type == "item" or (meta.itemID and meta.itemID > 0) then
+        local itID = meta.itemID or meta.id
+        meta.type = "item"
+        meta.name = C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(itID) or ("item " .. tostring(itID))
+        meta.icon = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itID) or 134400
+        return meta
+    end
+
+    local spID = meta.spellID or meta.id
+    meta.name = C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(spID) or ("spell " .. tostring(spID))
+    meta.icon = C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(spID) or 134400
+    return meta
+end
+
+local function GetSharedIconTexture(cdID)
+    local meta = ResolveCooldownMetadata(cdID, type(cdID) == "table" and cdID or nil)
+    return meta.icon or 134400
+end
+
+local function GetCooldownName(cdID, typeHint)
+    local meta = ResolveCooldownMetadata(cdID, type(cdID) == "table" and cdID or { id = cdID, type = typeHint })
+    return meta.name or ("id: " .. tostring(cdID))
+end
+
 local function OnZoneIconEnter(self)
     local tip = sfui.common.get_tooltip()
     if not tip or not self.id then return end
     tip:SetOwner(self, "ANCHOR_RIGHT")
-    if self.info then
-        if self.info.spellID then
-            tip:SetSpellByID(self.info.spellID)
-        elseif self.info.itemID then
-            tip:SetItemByID(self.info.itemID)
-        else
-            tip:SetText(self.info.name or "Unknown")
-        end
 
+    local meta = ResolveCooldownMetadata(self.cooldownID or self.id, self.entry)
+    if self.info then
+        meta.name = self.info.name or meta.name
+        meta.spellID = self.info.spellID or meta.spellID
+        meta.itemID = self.info.itemID or meta.itemID
+        meta.equipSlot = self.info.equipSlot or meta.equipSlot
+        meta.spellCategoryID = self.info.spellCategoryID or meta.spellCategoryID
+    end
+
+    if meta.equipSlot then
+        local hasItem = tip:SetInventoryItem("player", meta.equipSlot)
+        if not hasItem then
+            tip:SetText(meta.name or ((meta.equipSlot == 14) and "trinket 2" or "trinket 1"))
+            tip:AddLine("|cff888888empty equipment slot|r")
+        end
         tip:AddLine(" ")
         if self.cooldownID then
             tip:AddDoubleLine("cooldown id:", "|cffffffff" .. self.cooldownID .. "|r")
         end
-        if self.info.spellID then
-            tip:AddDoubleLine("spell id:", "|cffffffff" .. self.info.spellID .. "|r")
-        end
-        if self.info.itemID then
-            tip:AddDoubleLine("item id:", "|cffffffff" .. self.info.itemID .. "|r")
-        end
-    elseif self.isRightSidePool then
-        local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(self.id)
-        if cdInfo and cdInfo.spellID then
-            tip:SetSpellByID(cdInfo.spellID)
-        elseif cdInfo and cdInfo.itemID then
-            tip:SetItemByID(cdInfo.itemID)
+        tip:AddDoubleLine("equip slot:", "|cffffffff" .. meta.equipSlot .. "|r")
+    elseif meta.spellCategoryID then
+        local catData = SPELL_CATEGORY_METADATA[meta.spellCategoryID]
+        local displayItemID = meta.itemID or (catData and catData.fallbackItemID)
+        if displayItemID and displayItemID > 0 then
+            tip:SetItemByID(displayItemID)
+        elseif catData and catData.tooltipTitle then
+            tip:SetText(catData.tooltipTitle)
+            if catData.tooltipDescription then
+                tip:AddLine(catData.tooltipDescription, 1, 1, 1, true)
+            end
         else
-            tip:SetText("cooldown " .. self.id)
+            tip:SetText(meta.name or ("category " .. meta.spellCategoryID))
         end
         tip:AddLine(" ")
-        tip:AddDoubleLine("cooldown id:", "|cffffffff" .. self.id .. "|r")
-        if cdInfo and cdInfo.spellID then
-            tip:AddDoubleLine("spell id:", "|cffffffff" .. cdInfo.spellID .. "|r")
-        elseif cdInfo and cdInfo.itemID then
-            tip:AddDoubleLine("item id:", "|cffffffff" .. cdInfo.itemID .. "|r")
+        if self.cooldownID then
+            tip:AddDoubleLine("cooldown id:", "|cffffffff" .. self.cooldownID .. "|r")
         end
+        tip:AddDoubleLine("category id:", "|cffffffff" .. meta.spellCategoryID .. "|r")
+        if displayItemID then
+            tip:AddDoubleLine("item id:", "|cffffffff" .. displayItemID .. "|r")
+        end
+    elseif meta.spellID and meta.spellID > 0 then
+        tip:SetSpellByID(meta.spellID)
+        tip:AddLine(" ")
+        if self.cooldownID then
+            tip:AddDoubleLine("cooldown id:", "|cffffffff" .. self.cooldownID .. "|r")
+        end
+        tip:AddDoubleLine("spell id:", "|cffffffff" .. meta.spellID .. "|r")
+    elseif meta.itemID and meta.itemID > 0 then
+        tip:SetItemByID(meta.itemID)
+        tip:AddLine(" ")
+        if self.cooldownID then
+            tip:AddDoubleLine("cooldown id:", "|cffffffff" .. self.cooldownID .. "|r")
+        end
+        tip:AddDoubleLine("item id:", "|cffffffff" .. meta.itemID .. "|r")
     else
-        if self.isTrackedBars then
-            local info = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(self.id)
-            if info and info.itemID then
-                tip:SetItemByID(info.itemID)
-            elseif info and info.spellID then
-                tip:SetSpellByID(info.spellID)
-            else
-                tip:SetSpellByID(self.id)
-            end
-        else
-            local entryType = self.type or "spell"
-            if entryType == "item" then
-                tip:SetItemByID(self.id)
-            else
-                tip:SetSpellByID(self.id)
-            end
+        tip:SetText(meta.name or ("cooldown " .. tostring(self.id)))
+        tip:AddLine(" ")
+        if self.cooldownID then
+            tip:AddDoubleLine("cooldown id:", "|cffffffff" .. self.cooldownID .. "|r")
         end
     end
 
@@ -448,53 +583,6 @@ local function ResetBucketPool()
     previewBarCount = 0
 end
 
-local function GetSharedIconTexture(cdID)
-    local id = (type(cdID) == "table" and cdID.id) or cdID
-    local typeStr = (type(cdID) == "table" and cdID.type) or "spell"
-
-    local activeEntry = { id = id, type = typeStr }
-    if type(cdID) == "table" then
-        for k, v in pairs(cdID) do activeEntry[k] = v end
-    end
-
-    if activeEntry.type == "cooldown" or activeEntry.cooldownID then
-        local searchId = activeEntry.cooldownID or activeEntry.id
-        local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(searchId)
-        if cdInfo then
-            if cdInfo.spellID then
-                activeEntry.id = cdInfo.spellID
-                activeEntry.type = "spell"
-            elseif cdInfo.itemID then
-                activeEntry.id = cdInfo.itemID
-                activeEntry.type = "item"
-            end
-        end
-    end
-
-    local tex, _ = sfui.trackedicons.GetIconTexture(activeEntry.id, activeEntry.type, activeEntry)
-    return tex or 134400
-end
-
-local function GetCooldownName(cdID, typeHint)
-    local isCooldown = (typeHint == "cooldown")
-
-    if isCooldown then
-        local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(cdID)
-        if cdInfo then
-            if cdInfo.spellID then
-                return C_Spell.GetSpellName(cdInfo.spellID) or ("Spell: " .. cdInfo.spellID)
-            elseif cdInfo.itemID then
-                return C_Item.GetItemNameByID(cdInfo.itemID) or ("Item: " .. cdInfo.itemID)
-            end
-        end
-    end
-
-    if typeHint == "item" then
-        return C_Item.GetItemNameByID(cdID) or ("Item: " .. cdID)
-    end
-    return C_Spell.GetSpellName(cdID) or ("ID: " .. cdID)
-end
-
 local function RenderTrackedBarsRightSide(parent, width)
     if parent and sfui.trackedoptions.ReleaseSettingsWidgets then
         sfui.trackedoptions.ReleaseSettingsWidgets(parent)
@@ -515,7 +603,17 @@ local function RenderTrackedBarsRightSide(parent, width)
         sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
     end
 
-    local cat = (Enum and Enum.CooldownViewerCategory and Enum.CooldownViewerCategory.TrackedBar) or 3
+    local cats = { 3, 2, 8, 6 }
+    if Enum and Enum.CooldownViewerCategory then
+        cats = {}
+        for _, catKey in ipairs({ "TrackedBar", "TrackedBuff", "EquipSlotTracked", "SpecAgnosticTracked" }) do
+            if Enum.CooldownViewerCategory[catKey] ~= nil then
+                table.insert(cats, Enum.CooldownViewerCategory[catKey])
+            end
+        end
+    end
+    if #cats == 0 then cats = { 3, 2, 8, 6 } end
+
     local list = {}
     local seen = {}
 
@@ -531,9 +629,11 @@ local function RenderTrackedBarsRightSide(parent, width)
     if dp then
         -- Query category list (allow unlearned so player can configure any bar assigned in Blizzard UI)
         if dp.GetOrderedCooldownIDsForCategory then
-            local ok, ids = pcall(dp.GetOrderedCooldownIDsForCategory, dp, cat, true)
-            if ok and ids then
-                for _, id in ipairs(ids) do addID(id) end
+            for _, cat in ipairs(cats) do
+                local ok, ids = pcall(dp.GetOrderedCooldownIDsForCategory, dp, cat, true)
+                if ok and ids then
+                    for _, id in ipairs(ids) do addID(id) end
+                end
             end
         end
 
@@ -541,10 +641,12 @@ local function RenderTrackedBarsRightSide(parent, width)
         if dp.GetOrderedCooldownIDs and dp.GetCooldownInfoForID then
             local ok, allIDs = pcall(dp.GetOrderedCooldownIDs, dp)
             if ok and allIDs then
+                local catLookup = {}
+                for _, c in ipairs(cats) do catLookup[c] = true end
                 for _, id in ipairs(allIDs) do
                     if not seen[id] then
                         local okInfo, info = pcall(dp.GetCooldownInfoForID, dp, id)
-                        if okInfo and info and info.category == cat then
+                        if okInfo and info and catLookup[info.category] then
                             addID(id)
                         end
                     end
@@ -562,10 +664,12 @@ local function RenderTrackedBarsRightSide(parent, width)
 
     -- 3. C_CooldownViewer static category set fallback (learned + unlearned)
     if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
-        for _, allowUnlearned in ipairs({ true, false }) do
-            local ok, ids = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, cat, allowUnlearned)
-            if ok and ids then
-                for _, id in ipairs(ids) do addID(id) end
+        for _, cat in ipairs(cats) do
+            for _, allowUnlearned in ipairs({ true, false }) do
+                local ok, ids = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, cat, allowUnlearned)
+                if ok and ids then
+                    for _, id in ipairs(ids) do addID(id) end
+                end
             end
         end
     end
@@ -593,26 +697,22 @@ local function RenderTrackedBarsRightSide(parent, width)
         local row = math.floor((i - 1) / cols)
         icon:SetPoint("TOPLEFT", col * (ICON_SIZE + spacing), y - row * (ICON_SIZE + spacing))
 
-        -- Ensure cooldownID resolution for the pool icon
-        local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(cdID)
-        if not cdInfo and dp and dp.GetCooldownInfoForID then
-            local okInfo, info = pcall(dp.GetCooldownInfoForID, dp, cdID)
-            if okInfo then cdInfo = info end
-        end
-        local typeHint = "cooldown"
-        if cdInfo then
-            if cdInfo.spellID and cdInfo.spellID > 0 then
-                typeHint = "spell"
-            elseif cdInfo.itemID and cdInfo.itemID > 0 then
-                typeHint = "item"
-            end
-        end
+        local meta = ResolveCooldownMetadata(cdID)
+        local typeHint = meta.type or "cooldown"
 
         icon.id = cdID
         icon.type = typeHint
         icon.cooldownID = cdID
-        icon.entry = { id = cdID, type = typeHint, cooldownID = cdID }
-        icon.texture:SetTexture(GetSharedIconTexture(icon.entry))
+        icon.entry = {
+            id = cdID,
+            type = typeHint,
+            cooldownID = cdID,
+            equipSlot = meta.equipSlot,
+            spellCategoryID = meta.spellCategoryID,
+            itemID = meta.itemID,
+            spellID = meta.spellID,
+        }
+        icon.texture:SetTexture(meta.icon)
 
         -- Set attributes for shared interaction handlers
         icon.isFromTrackedBars = false
@@ -620,22 +720,17 @@ local function RenderTrackedBarsRightSide(parent, width)
         icon.isRightSidePool = true
         icon.entries = entries
 
-        local iconName = GetCooldownName(cdID, typeHint)
-        if not iconName and typeHint == "spell" then
-            local spellID = (cdInfo and cdInfo.spellID and cdInfo.spellID > 0) and cdInfo.spellID or cdID
-            iconName = C_Spell.GetSpellName(spellID)
-        elseif not iconName and typeHint == "item" then
-            local itemID = (cdInfo and cdInfo.itemID and cdInfo.itemID > 0) and cdInfo.itemID or cdID
-            iconName = C_Item.GetItemNameByID(itemID)
-        end
-
         icon.info = {
-            spellID = (cdInfo and cdInfo.spellID and cdInfo.spellID > 0) and cdInfo.spellID or nil,
-            itemID = (cdInfo and cdInfo.itemID and cdInfo.itemID > 0) and cdInfo.itemID or nil,
-            name = iconName or ("Unknown (" .. cdID .. ")")
+            spellID = meta.spellID,
+            itemID = meta.itemID,
+            equipSlot = meta.equipSlot,
+            spellCategoryID = meta.spellCategoryID,
+            name = meta.name or ("unknown (" .. cdID .. ")"),
         }
 
-        if cdInfo and cdInfo.isKnown == false then
+        local isItem = (meta.equipSlot ~= nil or meta.spellCategoryID ~= nil or (meta.itemID and meta.itemID > 0))
+        local cdInfo = meta.cooldownID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(meta.cooldownID)
+        if not isItem and cdInfo and cdInfo.isKnown == false then
             icon.texture:SetDesaturated(true)
         else
             icon.texture:SetDesaturated(false)
@@ -941,10 +1036,12 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
 
         -- Import Dropdown
         local options = {
-            { text = "Import: Essential",    value = 0 },
-            { text = "Import: Utility",      value = 1 },
-            { text = "Import: Buffs",        value = 2 },
-            { text = "Import: Tracked Bars", value = 3 },
+            { text = "import: essential",    value = 0 },
+            { text = "import: utility",      value = 1 },
+            { text = "import: buffs",        value = 2 },
+            { text = "import: tracked bars", value = 3 },
+            { text = "import: trinkets",     value = 7 },
+            { text = "import: items/pots",   value = 5 },
         }
         local importBtn = common.create_dropdown(zone, 80, options, function(gId)
             if type(gId) ~= "number" or gId < 0 then return end
@@ -974,10 +1071,17 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
                             common.print("|cffff0000cdm error:|r skipping invalid id " ..
                                 tostring(cooldownID) .. " (outside 32-bit range)")
                         else
-                            local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID)
-                            local spellID = (cdInfo and cdInfo.spellID and cdInfo.spellID > 0) and cdInfo.spellID or nil
-                            local itemID = (cdInfo and cdInfo.itemID and cdInfo.itemID > 0) and cdInfo.itemID or nil
-                            local entry = { id = cooldownID, type = "cooldown", cooldownID = cooldownID, spellID = spellID, itemID = itemID }
+                            local meta = ResolveCooldownMetadata(cooldownID)
+                            local entry = {
+                                id = cooldownID,
+                                type = meta.type or "cooldown",
+                                cooldownID = cooldownID,
+                                spellID = meta.spellID,
+                                itemID = meta.itemID,
+                                equipSlot = meta.equipSlot,
+                                spellCategoryID = meta.spellCategoryID,
+                                settings = { textEnabled = true, showText = true },
+                            }
                             if zone.isTrackedBars then
                                 entries[cooldownID] = entry
                             else
@@ -1224,17 +1328,30 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
             if icon.borders then
                 for _, b in ipairs(icon.borders) do b:Hide() end
             end
-            -- Ensure it has the necessary info for dragging and clicking
             local iconId = (type(cdID) == "table" and cdID.id) or cdID
             local entry = (type(cdID) == "table") and cdID or
                 { id = iconId, type = isTrackedBars and "cooldown" or "spell" }
-            local cooldownID = entry.cooldownID or (entry.type == "cooldown" and iconId)
+            local meta = ResolveCooldownMetadata(entry.cooldownID or iconId, entry)
 
-            local cdInfo = cooldownID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID)
-            local spellID = cdInfo and cdInfo.spellID or (entry.type == "spell" and iconId)
-            local itemID = cdInfo and cdInfo.itemID or (entry.type == "item" and iconId)
+            if meta.equipSlot then
+                entry.equipSlot = meta.equipSlot
+                entry.type = "item"
+            end
+            if meta.spellCategoryID then
+                entry.spellCategoryID = meta.spellCategoryID
+                entry.type = "item"
+            end
+            if meta.itemID and not entry.itemID then
+                entry.itemID = meta.itemID
+            end
+            if meta.spellID and not entry.spellID then
+                entry.spellID = meta.spellID
+            end
 
-            if cdInfo and cdInfo.isKnown == false then
+            local isItem = (meta.equipSlot ~= nil or meta.spellCategoryID ~= nil or (meta.itemID and meta.itemID > 0))
+            local cdInfo = meta.cooldownID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(meta.cooldownID)
+
+            if not isItem and cdInfo and cdInfo.isKnown == false then
                 icon.texture:SetDesaturated(true)
             else
                 icon.texture:SetDesaturated(false)
@@ -1243,9 +1360,9 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
             -- Set attributes for the shared click/drag/tooltip handlers
             icon.id = iconId
             icon.cdID = cdID
-            icon.cooldownID = cooldownID
+            icon.cooldownID = meta.cooldownID
             icon.entry = entry -- Store original entry for re-insertion
-            icon.type = entry.type
+            icon.type = meta.type
             icon.isTrackedBars = isTrackedBars
             icon.isFromTrackedBars = zone.isTrackedBars
             icon.isRightSidePool = false
@@ -1255,17 +1372,13 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
             icon:SetScript("OnClick", OnZoneIconClick)
 
             table.insert(content.icons, icon)
-            local iconName = GetCooldownName(cooldownID or iconId, entry.type)
-            if not iconName and entry.type == "spell" then
-                iconName = C_Spell.GetSpellName(iconId)
-            elseif not iconName and entry.type == "item" then
-                iconName = C_Item.GetItemNameByID(iconId)
-            end
 
             icon.info = {
-                spellID = spellID,
-                itemID = itemID,
-                name = iconName or ("Unknown (" .. iconId .. ")")
+                spellID = meta.spellID,
+                itemID = meta.itemID,
+                equipSlot = meta.equipSlot,
+                spellCategoryID = meta.spellCategoryID,
+                name = meta.name or ("unknown (" .. iconId .. ")")
             }
 
 
@@ -1290,31 +1403,54 @@ local function RenderAssignmentsIconPool(parent, width, entries)
         parent._assignPoolTitle = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         parent._assignPoolTitle:SetPoint("TOPLEFT", 0, -5)
     end
-    parent._assignPoolTitle:SetText("assignments pool (0, 1)")
+    parent._assignPoolTitle:SetText("assignments pool")
     parent._assignPoolTitle:Show()
 
     local yPos = -25
     local list = {}
-    if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
-        local cats = { 0, 1 }
-        if Enum and Enum.CooldownViewerCategory then
-            cats = {}
-            if Enum.CooldownViewerCategory.Essential ~= nil then table.insert(cats, Enum.CooldownViewerCategory.Essential) else table.insert(cats, 0) end
-            if Enum.CooldownViewerCategory.Utility ~= nil then table.insert(cats, Enum.CooldownViewerCategory.Utility) else table.insert(cats, 1) end
+    local seen = {}
+
+    local function addID(id, cat)
+        if not id or common.issecretvalue(id) or not IsValidID(id) or seen[id] then return end
+        local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
+        local isItemCategory = (cat == 5 or cat == 7 or (cdInfo and (cdInfo.equipSlot ~= nil or cdInfo.spellCategoryID ~= nil or (cdInfo.itemID and cdInfo.itemID > 0))))
+        if isItemCategory or not cdInfo or cdInfo.isKnown ~= false then
+            seen[id] = true
+            table.insert(list, id)
         end
+    end
+
+    if sfui.isRetail and not sfui.common.is_addon_loaded("Blizzard_CooldownViewer") then
+        sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
+    end
+
+    local cats = { 0, 1, 7, 5 }
+    if Enum and Enum.CooldownViewerCategory then
+        cats = {}
+        for _, catKey in ipairs({ "Essential", "Utility", "EquipSlotEssential", "SpecAgnosticEssential" }) do
+            if Enum.CooldownViewerCategory[catKey] ~= nil then
+                table.insert(cats, Enum.CooldownViewerCategory[catKey])
+            end
+        end
+    end
+    if #cats == 0 then cats = { 0, 1, 7, 5 } end
+
+    local dp = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and CooldownViewerSettings:GetDataProvider()
+    if dp and dp.GetOrderedCooldownIDsForCategory then
         for _, cat in ipairs(cats) do
-            if type(cat) == "number" and cat >= 0 then
-                local ok, ids = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, cat, false)
+            local ok, ids = pcall(dp.GetOrderedCooldownIDsForCategory, dp, cat, true)
+            if ok and ids then
+                for _, id in ipairs(ids) do addID(id, cat) end
+            end
+        end
+    end
+
+    if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
+        for _, cat in ipairs(cats) do
+            for _, allowUnlearned in ipairs({ true, false }) do
+                local ok, ids = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, cat, allowUnlearned)
                 if ok and ids then
-                    for _, id in ipairs(ids) do
-                        if not common.issecretvalue(id) and IsValidID(id) then
-                            local cdInfo = C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
-                            -- Only collect if it is explicitly known or has no restrictive known metadata
-                            if not cdInfo or cdInfo.isKnown ~= false then
-                                table.insert(list, id)
-                            end
-                        end
-                    end
+                    for _, id in ipairs(ids) do addID(id, cat) end
                 end
             end
         end
@@ -1332,38 +1468,35 @@ local function RenderAssignmentsIconPool(parent, width, entries)
         local row = math.floor((i - 1) / cols)
         icon:SetPoint("TOPLEFT", col * (ICON_SIZE + spacing), y - row * (ICON_SIZE + spacing))
 
-        local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(cdID)
-        local typeHint = "cooldown"
-        if cdInfo then
-            if cdInfo.spellID and cdInfo.spellID > 0 then
-                typeHint = "spell"
-            elseif cdInfo.itemID and cdInfo.itemID > 0 then
-                typeHint = "item"
-            end
-        end
+        local meta = ResolveCooldownMetadata(cdID)
+        local typeHint = meta.type or "cooldown"
 
         icon.id = cdID
         icon.type = typeHint
         icon.cooldownID = cdID
-        icon.entry = { id = cdID, type = typeHint, cooldownID = cdID }
-        icon.texture:SetTexture(GetSharedIconTexture(icon.entry))
+        icon.entry = {
+            id = cdID,
+            type = typeHint,
+            cooldownID = cdID,
+            equipSlot = meta.equipSlot,
+            spellCategoryID = meta.spellCategoryID,
+            itemID = meta.itemID,
+            spellID = meta.spellID,
+            settings = { textEnabled = true, showText = true },
+        }
+        icon.texture:SetTexture(meta.icon)
 
         -- Set attributes for the shared click/drag/tooltip handlers
         icon.isTrackedBars = true
         icon.isFromTrackedBars = false
         icon.isRightSidePool = true
 
-        local iconName = GetCooldownName(cdID, typeHint)
-        if not iconName and typeHint == "spell" then
-            iconName = C_Spell.GetSpellName(cdID)
-        elseif not iconName and typeHint == "item" then
-            iconName = C_Item.GetItemNameByID(cdID)
-        end
-
         icon.info = {
-            spellID = (cdInfo and cdInfo.spellID and cdInfo.spellID > 0) and cdInfo.spellID or nil,
-            itemID = (cdInfo and cdInfo.itemID and cdInfo.itemID > 0) and cdInfo.itemID or nil,
-            name = iconName or ("Unknown (" .. cdID .. ")")
+            spellID = meta.spellID,
+            itemID = meta.itemID,
+            equipSlot = meta.equipSlot,
+            spellCategoryID = meta.spellCategoryID,
+            name = meta.name or ("unknown (" .. cdID .. ")"),
         }
 
         -- Re-apply global border preferences, ensuring our green selection frame is hidden initially
@@ -1411,9 +1544,16 @@ local function RenderAssignmentsIconPool(parent, width, entries)
                 table.remove(entries, existingIndex)
             else
                 if type(entries) == "table" then
-                    local spellID = (icon.info and icon.info.spellID and icon.info.spellID > 0) and icon.info.spellID or nil
-                    local itemID = (icon.info and icon.info.itemID and icon.info.itemID > 0) and icon.info.itemID or nil
-                    table.insert(entries, { id = cdID, type = "cooldown", cooldownID = cdID, spellID = spellID, itemID = itemID })
+                    table.insert(entries, {
+                        id = cdID,
+                        type = icon.entry.type or "cooldown",
+                        cooldownID = cdID,
+                        equipSlot = icon.entry.equipSlot,
+                        spellCategoryID = icon.entry.spellCategoryID,
+                        itemID = icon.entry.itemID,
+                        spellID = icon.entry.spellID,
+                        settings = { textEnabled = true, showText = true },
+                    })
                 end
             end
             common.invalidate_panels_cache()
@@ -1422,8 +1562,6 @@ local function RenderAssignmentsIconPool(parent, width, entries)
             sfui.trackedoptions.UpdateSettings()
             if RefreshZones then RefreshZones() end
         end)
-
-
 
         if i == #list then
             yPos = y - row * (ICON_SIZE + spacing) - ICON_SIZE - 20
@@ -1441,8 +1579,8 @@ local function RenderAssignmentsIconPool(parent, width, entries)
             parent._assignNoIconsLabel:SetText("drag spells directly from your spellbook into any panel on the left.")
             parent._assignNoIconsLabel:SetTextColor(0.8, 0.8, 0.8, 0.9)
         else
-            parent._assignPoolTitle:SetText("assignments pool (0, 1)")
-            parent._assignNoIconsLabel:SetText("no icons found in groups 0 or 1.")
+            parent._assignPoolTitle:SetText("assignments pool")
+            parent._assignNoIconsLabel:SetText("no cooldown icons or items found.")
             parent._assignNoIconsLabel:SetTextColor(0.6, 0.6, 0.6, 1)
         end
         parent._assignNoIconsLabel:ClearAllPoints()
@@ -1450,7 +1588,7 @@ local function RenderAssignmentsIconPool(parent, width, entries)
         parent._assignNoIconsLabel:Show()
         yPos = yPos - 20
     else
-        parent._assignPoolTitle:SetText("assignments pool (0, 1)")
+        parent._assignPoolTitle:SetText("assignments pool")
         parent._assignNoIconsLabel:Hide()
     end
 
@@ -1759,16 +1897,31 @@ OnZoneReceiveDrag = function(zoneFrame, panelData, isTrackedBars)
         local itID = (draggedInfo.info and draggedInfo.info.itemID and draggedInfo.info.itemID > 0 and draggedInfo.info.itemID)
             or (entryType == "item" and type(incomingId) == "number" and incomingId) or nil
 
+        local meta = ResolveCooldownMetadata(draggedInfo.cooldownID or incomingId, draggedInfo.entry)
+        if meta and meta.type then
+            if not draggedInfo.cooldownID then entryType = meta.type end
+            sID = sID or meta.spellID
+            itID = itID or meta.itemID
+        end
+
         local entry = draggedInfo.entry or {
             id = incomingId,
             type = entryType,
             cooldownID = draggedInfo.cooldownID,
             spellID = sID,
             itemID = itID,
+            equipSlot = (draggedInfo.info and draggedInfo.info.equipSlot) or (meta and meta.equipSlot),
+            spellCategoryID = (draggedInfo.info and draggedInfo.info.spellCategoryID) or (meta and meta.spellCategoryID),
         }
         if entry then
             if not entry.spellID and sID then entry.spellID = sID end
             if not entry.itemID and itID then entry.itemID = itID end
+            if not entry.equipSlot and ((draggedInfo.info and draggedInfo.info.equipSlot) or (meta and meta.equipSlot)) then
+                entry.equipSlot = (draggedInfo.info and draggedInfo.info.equipSlot) or (meta and meta.equipSlot)
+            end
+            if not entry.spellCategoryID and ((draggedInfo.info and draggedInfo.info.spellCategoryID) or (meta and meta.spellCategoryID)) then
+                entry.spellCategoryID = (draggedInfo.info and draggedInfo.info.spellCategoryID) or (meta and meta.spellCategoryID)
+            end
         end
 
         if zoneFrame.dropInsertIndex and zoneFrame.dropInsertIndex <= #panelData.entries then
@@ -1818,16 +1971,29 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
     elseif cursorType == "item" then
         -- cursorType, itemID, itemLink
         draggedItemID = arg1
-        entry = { id = arg1, type = "item" }
+        entry = {
+            id = arg1,
+            type = "item",
+            itemID = arg1,
+            settings = { textEnabled = true, showText = true },
+        }
     elseif cursorType == "cooldown" or cursorType == "cooldownItem" then
         -- Native 12.0 CooldownViewer drag payload
-        entry = { id = arg1, type = "cooldown", cooldownID = arg1 }
+        entry = {
+            id = arg1,
+            type = "cooldown",
+            cooldownID = arg1,
+            settings = { textEnabled = true, showText = true },
+        }
 
         -- Try to resolve spell/item immediately for tooltip correctness
-        local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(arg1)
-        if cdInfo then
-            draggedSpellID = (cdInfo.spellID and cdInfo.spellID > 0) and cdInfo.spellID or nil
-            draggedItemID = (cdInfo.itemID and cdInfo.itemID > 0) and cdInfo.itemID or nil
+        local meta = ResolveCooldownMetadata(arg1)
+        if meta then
+            draggedSpellID = meta.spellID
+            draggedItemID = meta.itemID
+            entry.equipSlot = meta.equipSlot
+            entry.spellCategoryID = meta.spellCategoryID
+            if meta.type == "item" then entry.type = "item" end
         end
     elseif cursorType == "petaction" or cursorType == "macro" then
         common.print("macros and pet actions are not supported.")
@@ -1846,7 +2012,8 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
     -- Reverse lookup cooldownID from spellID or itemID (skip if configured as aura)
     if not entry.trackAsAura and not entry.cooldownID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
         local foundCooldownID = nil
-        local cats = { 0, 1, 2, 3 }
+        local foundCooldownInfo = nil
+        local cats = { 0, 1, 2, 3, 7, 5, 8, 6 }
         if Enum and Enum.CooldownViewerCategory then
             cats = {}
             for _, val in pairs(Enum.CooldownViewerCategory) do
@@ -1855,7 +2022,7 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
                 end
             end
         end
-        if #cats == 0 then cats = { 0, 1, 2, 3 } end
+        if #cats == 0 then cats = { 0, 1, 2, 3, 7, 5, 8, 6 } end
         for _, cat in ipairs(cats) do
             if type(cat) == "number" and cat >= 0 then
                 local ok, ids = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, cat, true)
@@ -1865,9 +2032,14 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
                         if cdInfo then
                             if draggedSpellID and cdInfo.spellID == draggedSpellID then
                                 foundCooldownID = cid
+                                foundCooldownInfo = cdInfo
                                 break
-                            elseif draggedItemID and cdInfo.itemID == draggedItemID then
+                            elseif draggedItemID and (cdInfo.itemID == draggedItemID
+                                or (cdInfo.equipSlot and GetInventoryItemID and GetInventoryItemID("player", cdInfo.equipSlot) == draggedItemID)
+                                or (cdInfo.lastItemIDForCategory and cdInfo.lastItemIDForCategory == draggedItemID)
+                                or (cdInfo.spellCategoryID and SPELL_CATEGORY_METADATA[cdInfo.spellCategoryID] and SPELL_CATEGORY_METADATA[cdInfo.spellCategoryID].fallbackItemID == draggedItemID)) then
                                 foundCooldownID = cid
+                                foundCooldownInfo = cdInfo
                                 break
                             end
                         end
@@ -1877,13 +2049,40 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
             if foundCooldownID then break end
         end
         if foundCooldownID then
+            local isItem = (foundCooldownInfo and (foundCooldownInfo.equipSlot ~= nil or foundCooldownInfo.spellCategoryID ~= nil or (foundCooldownInfo.itemID and foundCooldownInfo.itemID > 0)))
             entry.cooldownID = foundCooldownID
-            entry.type = "cooldown"
+            entry.type = isItem and "item" or "cooldown"
             entry.id = foundCooldownID -- Normalize ID to cooldownID for sfui backend
-            entry.spellID = draggedSpellID
-            entry.itemID = draggedItemID
+            entry.spellID = draggedSpellID or (foundCooldownInfo and foundCooldownInfo.spellID)
+            entry.itemID = draggedItemID or (foundCooldownInfo and foundCooldownInfo.itemID)
+            entry.equipSlot = foundCooldownInfo and foundCooldownInfo.equipSlot
+            entry.spellCategoryID = foundCooldownInfo and foundCooldownInfo.spellCategoryID
         end
     end
+
+    if draggedItemID and not entry.equipSlot then
+        local slot13 = GetInventoryItemID and GetInventoryItemID("player", 13)
+        local slot14 = GetInventoryItemID and GetInventoryItemID("player", 14)
+        if slot13 and slot13 == draggedItemID then
+            entry.equipSlot = 13
+            entry.type = "item"
+        elseif slot14 and slot14 == draggedItemID then
+            entry.equipSlot = 14
+            entry.type = "item"
+        end
+    end
+
+    if draggedItemID and not entry.spellCategoryID then
+        if draggedItemID == 5512 then
+            entry.spellCategoryID = 1711
+            entry.type = "item"
+        elseif draggedItemID == 224464 then
+            entry.spellCategoryID = 2566
+            entry.type = "item"
+        end
+    end
+
+    entry.settings = entry.settings or { textEnabled = true, showText = true }
 
     local incomingId = entry.id
 

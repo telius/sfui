@@ -110,28 +110,14 @@ sfui.common.create_border = sfui.widgets.create_border
 function sfui.widgets.apply_square_icon_style(frame, texture)
     if not frame or not texture then return end
 
-    texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     texture:ClearAllPoints()
-    texture:SetPoint("TOPLEFT", frame, "TOPLEFT", 2, -2)
-    texture:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
+    texture:SetAllPoints(frame)
     texture:SetDrawLayer("ARTWORK", 1)
 
-    if not frame.borderBackdrop then
-        frame.borderBackdrop = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-        frame.borderBackdrop:SetAllPoints(frame)
-        frame.borderBackdrop:EnableMouse(false)
-
-        frame.borderBackdrop:SetBackdrop({
-            edgeFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
-            tile = false,
-            tileSize = 0,
-            edgeSize = 1,
-            insets = { left = 0, right = 0, top = 0, bottom = 0 }
-        })
+    if frame.borderBackdrop then
+        frame.borderBackdrop:Hide()
     end
-    frame.borderBackdrop:SetBackdropColor(0, 0, 0, 0)
-    frame.borderBackdrop:SetBackdropBorderColor(0, 0, 0, 1)
-    frame.borderBackdrop:Show()
 end
 sfui.common.apply_square_icon_style = sfui.widgets.apply_square_icon_style
 

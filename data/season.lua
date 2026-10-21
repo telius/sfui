@@ -45,8 +45,7 @@ sfui.season.CURRENCIES = {
             { id = 3310, icon = 133016 },  -- Coffer Key Shard
         }
     },
-    -- 12.0.5 / 12.1 Currencies and Items
-    { id = 3418,   label = "voidcore", icon = 0 },                         -- Nebulous Voidcore
+    { id = 280562, label = "venomstone", isItem = true, icon = 0 }, -- Ascendant Venomstone
 }
 
 -- ─── Weekly Quest Definitions ───────────────────────────────────────────────

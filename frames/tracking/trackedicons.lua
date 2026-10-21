@@ -70,10 +70,16 @@ local function GetIconValue(entrySettings, panelConfig, key, default)
         return val
     end
 
+    local altKey = (key == "textEnabled") and "showText" or ((key == "showText") and "textEnabled" or nil)
+
     if entrySettings and entrySettings[key] ~= nil then
         val = entrySettings[key]
+    elseif altKey and entrySettings and entrySettings[altKey] ~= nil then
+        val = entrySettings[altKey]
     elseif panelConfig and panelConfig[key] ~= nil then
         val = panelConfig[key]
+    elseif altKey and panelConfig and panelConfig[altKey] ~= nil then
+        val = panelConfig[altKey]
     else
         local pName = panelConfig and panelConfig.name and string.upper(panelConfig.name)
         local pDef = (pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH"
@@ -107,23 +113,132 @@ local function GetIconValue(entrySettings, panelConfig, key, default)
     return val
 end
 
-local function update_item_cd(icon)
-    local s, d, e = sfui.api.GetItemCooldown(icon.id)
-    icon._start, icon._duration, icon._isEnabled = s, d, e
-    if issecretvalue and (issecretvalue(s) or issecretvalue(d)) then
-        icon.cooldown:SetCooldown(s, d)
-    else
-        CooldownFrame_Set(icon.cooldown, s, d, e)
+local _cdInfoCache = {}
+local _cdInfoCacheCount = 0
+
+local function SafeGetCooldownViewerCooldownInfo(id)
+    if not id or not C_CooldownViewer or not C_CooldownViewer.GetCooldownViewerCooldownInfo then return nil end
+    local cid = tonumber(id)
+    if cid and cid >= -2147483648 and cid <= 2147483647 then
+        if not _cdInfoCache[cid] then
+            _cdInfoCacheCount = _cdInfoCacheCount + 1
+            -- Wipe cache if it grows too large (e.g. 500 entries)
+            if _cdInfoCacheCount > 500 then
+                wipe(_cdInfoCache)
+                _cdInfoCacheCount = 1
+            end
+            local info = C_CooldownViewer.GetCooldownViewerCooldownInfo(cid)
+            _cdInfoCache[cid] = info or false
+        end
+        return _cdInfoCache[cid] or nil
     end
-    
-    if icon.shadowCooldown then
-        if not issecretvalue(s) and not issecretvalue(d) then
-            icon.shadowCooldown:SetCooldown(s, d)
-        else
-            icon.shadowCooldown:Clear()
+    return nil
+end
+
+-- forwards the category cooldown source straight into the spell cooldown sinks.
+-- GetLastCategoryCooldownSource is SecretWhenCooldownsRestricted: its returns are never
+-- stored, compared or tested — select("#") only counts them (MayReturnNothing), and the
+-- spell id is handed directly to apis that accept secret arguments when tainted.
+-- only NeverSecret fields (isActive / isEnabled / isOnGCD) are read back.
+local function forward_category_cooldown(icon, ...)
+    if select("#", ...) == 0 then return false, true end
+    local scd = C_Spell.GetSpellCooldown((...))
+    if not scd then return false, true end
+    local enabled = scd.isEnabled ~= false
+    if not scd.isActive or scd.isOnGCD then return false, enabled end
+    local durationObj = C_Spell.GetSpellCooldownDuration and C_Spell.GetSpellCooldownDuration((...), true)
+    if durationObj and icon.cooldown.SetCooldownFromDurationObject then
+        icon.cooldown:SetCooldownFromDurationObject(durationObj)
+        if icon.shadowCooldown and icon.shadowCooldown.SetCooldownFromDurationObject then
+            icon.shadowCooldown:SetCooldownFromDurationObject(durationObj)
+        end
+        return true, enabled
+    end
+    return false, enabled
+end
+
+-- applies a plain (non-secret) start/duration pair. item apis used here
+-- (GetInventoryItemCooldown, C_Container.GetItemCooldown) are not secret-flagged.
+local function apply_plain_item_cooldown(icon, s, d)
+    if not (s and d and s > 0 and d > 0 and (s + d) > GetTime()) then
+        return false
+    end
+    if icon.cooldown.SetCooldownFromDurationObject and C_DurationUtil and C_DurationUtil.CreateDuration then
+        local dObj = icon._durationObj or C_DurationUtil.CreateDuration()
+        icon._durationObj = dObj
+        dObj:SetTimeFromStart(s, d, 1)
+        icon.cooldown:SetCooldownFromDurationObject(dObj)
+        if icon.shadowCooldown and icon.shadowCooldown.SetCooldownFromDurationObject then
+            icon.shadowCooldown:SetCooldownFromDurationObject(dObj)
+        end
+    else
+        icon.cooldown:SetCooldown(s, d)
+        if icon.shadowCooldown then icon.shadowCooldown:SetCooldown(s, d) end
+    end
+    return true
+end
+
+local function update_item_cd(icon)
+    local entry = icon.entry
+    local equipSlot = entry and entry.equipSlot
+    local spellCategoryID = entry and entry.spellCategoryID
+    local cooldownID = entry and entry.cooldownID
+    local itemID = entry and entry.itemID
+    if itemID == cooldownID then itemID = nil end
+
+    if cooldownID and ((not equipSlot and not spellCategoryID) or not itemID) then
+        local cdInfo = SafeGetCooldownViewerCooldownInfo(cooldownID)
+        if cdInfo then
+            equipSlot = equipSlot or cdInfo.equipSlot
+            spellCategoryID = spellCategoryID or cdInfo.spellCategoryID
+            if not itemID and cdInfo.itemID and cdInfo.itemID > 0 then
+                itemID = cdInfo.itemID
+            end
         end
     end
-    return sfui.api.GetItemCount(icon.id)
+
+    local count = 0
+    local onCooldown, enabled = false, true
+
+    if equipSlot then
+        count = "" -- equipped items do not show stack badges
+        local s, d, e = GetInventoryItemCooldown("player", equipSlot)
+        enabled = (e ~= 0 and e ~= false)
+        onCooldown = apply_plain_item_cooldown(icon, s, d)
+    elseif spellCategoryID then
+        local catData = sfui.tracking and sfui.tracking.SPELL_CATEGORY_METADATA and sfui.tracking.SPELL_CATEGORY_METADATA[spellCategoryID]
+        if C_Spell and C_Spell.GetLastCategoryCooldownSource then
+            onCooldown, enabled = forward_category_cooldown(icon, C_Spell.GetLastCategoryCooldownSource(spellCategoryID))
+        end
+        -- counts / bag fallback only ever use plain ids from saved entries or static metadata
+        local plainItemID = itemID or (catData and catData.fallbackItemID)
+        if plainItemID and sfui.api then
+            if not onCooldown and sfui.api.GetItemCooldown then
+                local s, d = sfui.api.GetItemCooldown(plainItemID)
+                onCooldown = apply_plain_item_cooldown(icon, s, d)
+            end
+            if sfui.api.GetItemCount then
+                count = sfui.api.GetItemCount(plainItemID) or 0
+            end
+        end
+    else
+        local targetID = itemID or icon.id
+        if targetID and sfui.api and sfui.api.GetItemCooldown then
+            local s, d, e = sfui.api.GetItemCooldown(targetID)
+            enabled = (e ~= 0 and e ~= false)
+            onCooldown = apply_plain_item_cooldown(icon, s, d)
+            count = (sfui.api.GetItemCount and sfui.api.GetItemCount(targetID)) or 0
+        end
+    end
+
+    if not onCooldown then
+        icon.cooldown:Clear()
+        if icon.shadowCooldown then icon.shadowCooldown:Clear() end
+    end
+
+    icon._itemOnCooldown = onCooldown
+    icon._isEnabled = enabled
+    return count
 end
 
 -- pcall_spell_cd and pcall_sync_swipe removed — no longer needed
@@ -246,8 +361,20 @@ local function UpdateIconCooldown(icon, activeID, resolvedType)
         local countVal = update_item_cd(icon)
         count = countVal or 0
         isEnabled = icon._isEnabled
-        local d = icon._duration
-        if d ~= nil and d > 0 then isOnCooldown = true end
+        isOnCooldown = icon._itemOnCooldown == true
+        if icon.entry and icon.entry.equipSlot then
+            local invID = GetInventoryItemID and GetInventoryItemID("player", icon.entry.equipSlot)
+            isUsable = (invID ~= nil)
+        elseif icon.entry and icon.entry.spellCategoryID then
+            local catData = sfui.tracking and sfui.tracking.SPELL_CATEGORY_METADATA and sfui.tracking.SPELL_CATEGORY_METADATA[icon.entry.spellCategoryID]
+            if catData and not catData.fallbackItemID and count == 0 and not isOnCooldown then
+                isUsable = true
+            else
+                isUsable = (count ~= "" and count ~= 0) or isOnCooldown
+            end
+        else
+            isUsable = (count ~= "" and count ~= 0) or (isEnabled ~= false)
+        end
     else
         -- Spell: officially supports tainted spellIdentifiers
         local cdInfo = C_Spell.GetSpellCooldown(activeID)
@@ -520,27 +647,7 @@ local function UpdateIconGlow(icon, entrySettings, panelConfig, isReady, missing
     end
 end
 
-local _cdInfoCache = {}
-local _cdInfoCacheCount = 0
 
-local function SafeGetCooldownViewerCooldownInfo(id)
-    if not id or not C_CooldownViewer or not C_CooldownViewer.GetCooldownViewerCooldownInfo then return nil end
-    local cid = tonumber(id)
-    if cid and cid >= -2147483648 and cid <= 2147483647 then
-        if not _cdInfoCache[cid] then
-            _cdInfoCacheCount = _cdInfoCacheCount + 1
-            -- Wipe cache if it grows too large (e.g. 500 entries)
-            if _cdInfoCacheCount > 500 then
-                wipe(_cdInfoCache)
-                _cdInfoCacheCount = 1
-            end
-            local info = C_CooldownViewer.GetCooldownViewerCooldownInfo(cid)
-            _cdInfoCache[cid] = info or false
-        end
-        return _cdInfoCache[cid] or nil
-    end
-    return nil
-end
 
 -- ─── alert: missing buff detection (retail) ──────────────────────────────────
 -- blizzard's cdm viewers are hidden by sfui (alpha 0) but still updated by secure code,
@@ -658,6 +765,9 @@ local function UpdateIconState(icon, panelConfig, event)
         return false
     end
 
+    -- Visibility / Settings check: ensure countdown numbers setting is applied before cooldown is set
+    icon.cooldown:SetHideCountdownNumbers(not GetIconValue(entrySettings, panelConfig, "textEnabled", true))
+
     -- 3. Update Cooldown & Logic
     local count, isReady, isUsable, notEnoughPower, isOnCooldown = UpdateIconCooldown(icon, activeID, resolvedType)
 
@@ -731,8 +841,52 @@ function sfui.trackedicons.GetIconTexture(id, type, entry)
     local resolvedType = type
     local linkedSpellIDs = nil
 
+    local equipSlot = entry and entry.equipSlot
+    local spellCategoryID = entry and entry.spellCategoryID
+    local cdID = entry and (entry.cooldownID or (type == "cooldown" and id)) or nil
+
+    if not equipSlot and not spellCategoryID and cdID then
+        local cdInfo = SafeGetCooldownViewerCooldownInfo(cdID)
+        if cdInfo then
+            equipSlot = cdInfo.equipSlot
+            spellCategoryID = cdInfo.spellCategoryID
+            linkedSpellIDs = cdInfo.linkedSpellIDs
+            if cdInfo.spellID and cdInfo.spellID > 0 then
+                activeID = cdInfo.overrideSpellID or cdInfo.spellID
+                resolvedType = "spell"
+            elseif cdInfo.itemID and cdInfo.itemID > 0 then
+                activeID = cdInfo.itemID
+                resolvedType = "item"
+            end
+        end
+    end
+
+    if equipSlot then
+        resolvedType = "item"
+        activeID = GetInventoryItemID and GetInventoryItemID("player", equipSlot) or equipSlot
+        iconTexture = GetInventoryItemTexture and GetInventoryItemTexture("player", equipSlot)
+        if not iconTexture then
+            local slotName = (equipSlot == 14) and "Trinket1Slot" or "Trinket0Slot"
+            local _, slotTex = GetInventorySlotInfo(slotName)
+            iconTexture = slotTex
+        end
+        return iconTexture or 134400, activeID, resolvedType, nil
+    end
+
+    if spellCategoryID then
+        resolvedType = "item"
+        local catData = (sfui.tracking and sfui.tracking.SPELL_CATEGORY_METADATA and sfui.tracking.SPELL_CATEGORY_METADATA[spellCategoryID])
+        local cdInfo = cdID and SafeGetCooldownViewerCooldownInfo(cdID)
+        activeID = (cdInfo and cdInfo.lastItemIDForCategory) or (entry and entry.itemID) or (catData and catData.fallbackItemID) or id
+        if catData and catData.icon then
+            iconTexture = catData.icon
+        elseif activeID and activeID > 0 then
+            iconTexture = C_Item.GetItemIconByID(activeID)
+        end
+        return iconTexture or 134400, activeID, resolvedType, nil
+    end
+
     if type == "cooldown" and entry and entry.cooldownID then
-        -- Get cooldown info from Blizzard's CDM
         local cdInfo = SafeGetCooldownViewerCooldownInfo(entry.cooldownID)
         if cdInfo then
             linkedSpellIDs = cdInfo.linkedSpellIDs
@@ -766,13 +920,30 @@ function sfui.trackedicons.GetIconTexture(id, type, entry)
             end
         end
     elseif type == "item" then
+        activeID = (entry and entry.itemID) or id
         iconTexture = C_Item.GetItemIconByID(activeID)
         resolvedType = "item"
     else
         -- Smart Detection: if it's a simple ID, check if it exists in CooldownViewer categories
         local cdInfo = SafeGetCooldownViewerCooldownInfo(activeID)
         if cdInfo then
-            if cdInfo.spellID and cdInfo.spellID > 0 then
+            if cdInfo.equipSlot then
+                resolvedType = "item"
+                activeID = GetInventoryItemID and GetInventoryItemID("player", cdInfo.equipSlot) or cdInfo.equipSlot
+                iconTexture = GetInventoryItemTexture and GetInventoryItemTexture("player", cdInfo.equipSlot)
+                if not iconTexture then
+                    local slotName = (cdInfo.equipSlot == 14) and "Trinket1Slot" or "Trinket0Slot"
+                    local _, slotTex = GetInventorySlotInfo(slotName)
+                    iconTexture = slotTex
+                end
+                return iconTexture or 134400, activeID, resolvedType, nil
+            elseif cdInfo.spellCategoryID then
+                resolvedType = "item"
+                local catData = (sfui.tracking and sfui.tracking.SPELL_CATEGORY_METADATA and sfui.tracking.SPELL_CATEGORY_METADATA[cdInfo.spellCategoryID])
+                activeID = cdInfo.lastItemIDForCategory or (catData and catData.fallbackItemID) or id
+                iconTexture = catData and catData.icon or (activeID and C_Item.GetItemIconByID(activeID))
+                return iconTexture or 134400, activeID, resolvedType, nil
+            elseif cdInfo.spellID and cdInfo.spellID > 0 then
                 activeID = cdInfo.overrideSpellID or cdInfo.spellID
                 iconTexture = C_Spell.GetSpellTexture(activeID)
                 resolvedType = "spell"
@@ -818,7 +989,7 @@ function sfui.trackedicons.ApplyIconBorderStyle(icon, panelConfig)
 
     -- TexCoord: square crops the round WoW icon edges
     if squareIcons then
-        icon.texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        icon.texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     else
         icon.texture:SetTexCoord(0, 1, 0, 1)
     end
@@ -929,19 +1100,53 @@ local function CreateIconFrame(parent, id, entry, panelConfig)
     -- Tooltips still work via OnEnter/OnLeave scripts below
 
     f:SetScript("OnEnter", function(self)
-        local showTooltips = GetIconValue(self.entry.settings, panelConfig, "showTooltips", false)
-        if showTooltips and GameTooltip and self.id and not issecretvalue(self.id) then
-            GameTooltip:SetOwner(self:GetParent(), "ANCHOR_RIGHT")
-            if self.entry.type == "item" then
-                GameTooltip:SetItemByID(self.id)
-            else
-                GameTooltip:SetSpellByID(self.id)
+        local showTooltips = GetIconValue(self.entry and self.entry.settings, panelConfig, "showTooltips", false)
+        if showTooltips and self.id and not (issecretvalue and issecretvalue(self.id)) then
+            local tip = sfui.common.get_tooltip()
+            if not tip then return end
+            tip:SetOwner(self:GetParent(), "ANCHOR_RIGHT")
+
+            local equipSlot = self.entry and self.entry.equipSlot
+            local spellCategoryID = self.entry and self.entry.spellCategoryID
+            local cdID = self.entry and (self.entry.cooldownID or (self.entry.type == "cooldown" and self.id)) or nil
+
+            if not equipSlot and not spellCategoryID and cdID then
+                local cdInfo = SafeGetCooldownViewerCooldownInfo(cdID)
+                if cdInfo then
+                    equipSlot = cdInfo.equipSlot
+                    spellCategoryID = cdInfo.spellCategoryID
+                end
             end
-            GameTooltip:Show()
+
+            if equipSlot then
+                local hasItem = tip:SetInventoryItem("player", equipSlot)
+                if not hasItem then
+                    local slotName = (equipSlot == 14) and "trinket 2" or "trinket 1"
+                    tip:SetText(slotName)
+                end
+            elseif spellCategoryID then
+                local catData = (sfui.tracking and sfui.tracking.SPELL_CATEGORY_METADATA and sfui.tracking.SPELL_CATEGORY_METADATA[spellCategoryID])
+                local itemID = (self.entry and self.entry.itemID) or (catData and catData.fallbackItemID) or self._lastActiveID
+                if itemID and itemID > 0 then
+                    tip:SetItemByID(itemID)
+                elseif catData and catData.tooltipTitle then
+                    tip:SetText(catData.tooltipTitle)
+                    if catData.tooltipDescription then
+                        tip:AddLine(catData.tooltipDescription, 1, 1, 1, true)
+                    end
+                else
+                    tip:SetText("cooldown category " .. spellCategoryID)
+                end
+            elseif self._resolvedType == "item" or (self.entry and self.entry.type == "item") then
+                tip:SetItemByID(self._lastActiveID or self.id)
+            else
+                tip:SetSpellByID(self._lastActiveID or self.id)
+            end
+            tip:Show()
         end
     end)
     f:SetScript("OnLeave", function(self)
-        if GameTooltip then GameTooltip:Hide() end
+        sfui.common.hide_tooltip()
     end)
 
     -- Initial State: Show immediately
@@ -1651,6 +1856,15 @@ function sfui.trackedicons.initialize()
     end)
 
     sfui.events.RegisterEvent("BAG_UPDATE_COOLDOWN", function()
+        _needsStateUpdate = true
+    end)
+
+    sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", function()
+        MarkDirty(not InCombatLockdown())
+        _needsStateUpdate = true
+    end)
+
+    sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", function()
         _needsStateUpdate = true
     end)
 

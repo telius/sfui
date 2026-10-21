@@ -83,6 +83,50 @@ local function GetShortProfName(name)
     return name:lower()
 end
 
+local FALLBACK_NAMES = {
+    [280562] = "ascendant venomstone",
+    [268552] = "ascendant voidcore",
+    [274476] = "spark of tides",
+    [3509]   = "tidal spark dust",
+    [3418]   = "nebulous voidcore",
+    [3316]   = "voidlight marl",
+    [3465]   = "venomblight manaflux",
+    [3448]   = "corrosive coin",
+    [3028]   = "restored coffer key",
+    [3310]   = "coffer key shard",
+    [3443]   = "veteran mistcrest",
+    [3444]   = "champion mistcrest",
+    [3445]   = "hero mistcrest",
+    [3446]   = "myth mistcrest",
+}
+
+local function ResolveCurrencyOrItemName(itemConfig)
+    if not itemConfig then return "currency" end
+    local id = itemConfig.id
+    local name
+    if itemConfig.isItem then
+        name = sfui.common.get_item_info and sfui.common.get_item_info(id)
+        if (not name or name == "") and itemConfig.fallbackIDs then
+            for _, fbID in ipairs(itemConfig.fallbackIDs) do
+                name = sfui.common.get_item_info and sfui.common.get_item_info(fbID)
+                if name and name ~= "" then break end
+            end
+        end
+    else
+        name = sfui.common.get_currency_name and sfui.common.get_currency_name(id)
+        if (not name or name == "") and itemConfig.fallbackIDs then
+            for _, fbID in ipairs(itemConfig.fallbackIDs) do
+                name = sfui.common.get_currency_name and sfui.common.get_currency_name(fbID)
+                if name and name ~= "" then break end
+            end
+        end
+    end
+    if not name or name == "" then
+        name = FALLBACK_NAMES[id] or (itemConfig.isItem and "item" or "currency")
+    end
+    return string.lower(name)
+end
+
 local BASE_CATEGORIES = {
     { name = "GENERAL",       label = "character",     type = "header" },
     { name = "ILVL",          label = "level / ilvl",  type = "stat",       key = "iLvl",     format = "%.1f" },
@@ -184,11 +228,12 @@ local function RefreshDynamicCategories(force)
 
     -- Add Currencies from hardcoded list
     local ch = AcquireTable()
-    ch.name, ch.label, ch.type = "CURRENCY_HEADER", "currency", "header"
+    ch.name, ch.label, ch.type, ch.isDynamic = "CURRENCY_HEADER", "currency", "header", true
     table.insert(CATEGORIES, ch)
 
     for _, currencyDef in ipairs(CURRENCIES) do
         local cc = AcquireTable()
+        cc.isDynamic = true
         if currencyDef.isGroup then
             cc.name = "CURRENCY_GROUP_" .. currencyDef.items[1].id
             cc.label = currencyDef.label
@@ -198,12 +243,20 @@ local function RefreshDynamicCategories(force)
                 local itemConfig = AcquireTable()
                 itemConfig.id = itemDef.id
                 itemConfig.isItem = itemDef.isItem
+                itemConfig.fallbackIDs = itemDef.fallbackIDs
                 itemConfig.showSeasonEarned = itemDef.showSeasonEarned
                 itemConfig.isSparkDust = itemDef.isSparkDust
                 local icon = itemDef.icon
                 if not icon or icon == 0 then
                     if itemConfig.isItem and C_Item and C_Item.GetItemIconByID then
-                        icon = C_Item.GetItemIconByID(itemConfig.id) or 134400
+                        icon = C_Item.GetItemIconByID(itemConfig.id)
+                        if (not icon or icon == 0) and itemDef.fallbackIDs then
+                            for _, fbID in ipairs(itemDef.fallbackIDs) do
+                                icon = C_Item.GetItemIconByID(fbID)
+                                if icon and icon ~= 0 then break end
+                            end
+                        end
+                        icon = icon or 134400
                     else
                         icon = sfui.common.get_currency_icon(itemConfig.id) or 134400
                     end
@@ -215,11 +268,19 @@ local function RefreshDynamicCategories(force)
             cc.name, cc.label, cc.type = "CURRENCY_" .. currencyDef.id, currencyDef.label, "currency"
             cc.id = currencyDef.id
             cc.isItem = currencyDef.isItem
+            cc.fallbackIDs = currencyDef.fallbackIDs
 
             local icon = currencyDef.icon
             if not icon or icon == 0 then
                 if cc.isItem and C_Item and C_Item.GetItemIconByID then
-                    icon = C_Item.GetItemIconByID(cc.id) or 134400
+                    icon = C_Item.GetItemIconByID(cc.id)
+                    if (not icon or icon == 0) and currencyDef.fallbackIDs then
+                        for _, fbID in ipairs(currencyDef.fallbackIDs) do
+                            icon = C_Item.GetItemIconByID(fbID)
+                            if icon and icon ~= 0 then break end
+                        end
+                    end
+                    icon = icon or 134400
                 else
                     icon = sfui.common.get_currency_icon(cc.id) or 134400
                 end
@@ -353,7 +414,7 @@ local function CheckWeeklyResets()
     end
 
     -- Clean up retired currencies
-    local retiredCurrencies = { 3405, 3373, 267051 }
+    local retiredCurrencies = { 3405, 3373, 267051, 3418, 268552, 3316 }
     for _, retID in ipairs(retiredCurrencies) do
         if SfuiDB.currencyCaps and SfuiDB.currencyCaps[retID] then
             SfuiDB.currencyCaps[retID] = nil
@@ -501,9 +562,27 @@ local function SyncCurrency(d, cDef)
     d.currencies = d.currencies or {}
     if cDef.isItem then
         local count = (C_Item and C_Item.GetItemCount and C_Item.GetItemCount(cDef.id, true)) or 0
+        if count == 0 and cDef.fallbackIDs then
+            for _, fbID in ipairs(cDef.fallbackIDs) do
+                local fbCount = (C_Item and C_Item.GetItemCount and C_Item.GetItemCount(fbID, true)) or 0
+                if fbCount > 0 then
+                    count = fbCount
+                    break
+                end
+            end
+        end
         d.currencies[cDef.id] = count
     elseif C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo then
         local info = C_CurrencyInfo.GetCurrencyInfo(cDef.id)
+        if (not info or not info.quantity or info.quantity == 0) and cDef.fallbackIDs then
+            for _, fbID in ipairs(cDef.fallbackIDs) do
+                local fbInfo = C_CurrencyInfo.GetCurrencyInfo(fbID)
+                if fbInfo and fbInfo.quantity and fbInfo.quantity > 0 then
+                    info = fbInfo
+                    break
+                end
+            end
+        end
         if info then
             local curr          = d.currencies[cDef.id] or {}
             curr.val            = info.quantity or 0
@@ -1499,6 +1578,27 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         local tooltipLines = {}
 
         for _, itemConfig in ipairs(items) do
+            -- Re-query icon if not yet cached on startup
+            if not itemConfig.icon or itemConfig.icon == 134400 or itemConfig.icon == 0 then
+                if itemConfig.isItem and C_Item and C_Item.GetItemIconByID then
+                    local freshIcon = C_Item.GetItemIconByID(itemConfig.id)
+                    if (not freshIcon or freshIcon == 0) and itemConfig.fallbackIDs then
+                        for _, fbID in ipairs(itemConfig.fallbackIDs) do
+                            freshIcon = C_Item.GetItemIconByID(fbID)
+                            if freshIcon and freshIcon ~= 0 then break end
+                        end
+                    end
+                    if freshIcon and freshIcon ~= 0 then
+                        itemConfig.icon = freshIcon
+                    end
+                else
+                    local freshIcon = sfui.common.get_currency_icon(itemConfig.id)
+                    if freshIcon and freshIcon ~= 0 then
+                        itemConfig.icon = freshIcon
+                    end
+                end
+            end
+
             local cData = altData.currencies and altData.currencies[itemConfig.id]
             -- Check weekly cap
             local isCapped = false
@@ -1545,16 +1645,16 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                     colorCode = "|cffff4444" -- Red: no dust earned yet
                 end
                 displayText = displayText ..
-                    string.format("|T%d:12:12:0:0|t %s%s|r", itemConfig.icon or 134400, colorCode, displayVal)
+                    string.format("|T%s:12:12:0:0|t %s%s|r", tostring(itemConfig.icon or 134400), colorCode, displayVal)
             elseif isCapped then
                 local errCol = (sfui.config.appearance and sfui.config.appearance.errorColor) or
                 { 1, 0.2, 0.2 }
                 local r, g, b = unpack(errCol)
                 local colorCode = string.format("|cff%02x%02x%02x", r * 255, g * 255, b * 255)
                 displayText = displayText ..
-                    string.format("|T%d:12:12:0:0|t %s%s|r", itemConfig.icon or 134400, colorCode, displayVal)
+                    string.format("|T%s:12:12:0:0|t %s%s|r", tostring(itemConfig.icon or 134400), colorCode, displayVal)
             else
-                displayText = displayText .. string.format("|T%d:12:12:0:0|t %s", itemConfig.icon or 134400, displayVal)
+                displayText = displayText .. string.format("|T%s:12:12:0:0|t %s", tostring(itemConfig.icon or 134400), displayVal)
             end
 
             table.insert(tooltipLines, {
@@ -1578,16 +1678,9 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             if not isGroup then
                 local tLine = tooltipLines[1]
                 if tLine and tLine.itemConfig then
-                    local name = tLine.name
-                    if not name then
-                        if tLine.itemConfig.isItem then
-                            name = (sfui.common.get_item_info(tLine.itemConfig.id)) or "Item"
-                        else
-                            name = sfui.common.get_currency_name(tLine.itemConfig.id) or "Currency"
-                        end
-                    end
+                    local name = tLine.name or ResolveCurrencyOrItemName(tLine.itemConfig)
 
-                    GameTooltip:AddLine(string.format("|T%d:16:16:0:0|t %s", tLine.itemConfig.icon or 134400, name))
+                    GameTooltip:AddLine(string.format("|T%s:16:16:0:0|t %s", tostring(tLine.itemConfig.icon or 134400), name))
 
                     if tLine.cData and type(tLine.cData) == "table" then
                         if tLine.cData.max and tLine.cData.max > 0 then
@@ -1617,20 +1710,9 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
 
             GameTooltip:AddLine(cat.label or "currencies", 1, 1, 1)
             for _, tLine in ipairs(tooltipLines) do
-                local name = tLine.name
+                local name = tLine.name or ResolveCurrencyOrItemName(tLine.itemConfig)
                 local icon = tLine.itemConfig and tLine.itemConfig.icon
-                if not name then
-                    if tLine.itemConfig and tLine.itemConfig.isItem then
-                        name = (sfui.common.get_item_info(tLine.itemConfig.id)) or
-                        (tLine.itemConfig.id == 274476 and "Spark of Tides" or "Item")
-                    elseif tLine.itemConfig then
-                        name = sfui.common.get_currency_name(tLine.itemConfig.id) or
-                        (tLine.itemConfig.id == 3509 and "Tidal Spark Dust" or "Currency")
-                    else
-                        name = "Currency"
-                    end
-                end
-                local iconPrefix = (icon and icon > 0) and string.format("|T%d:14:14:0:0|t ", icon) or ""
+                local iconPrefix = (icon and icon ~= 0 and icon ~= "") and string.format("|T%s:14:14:0:0|t ", tostring(icon)) or ""
                 local cData = tLine.cData
                 local val = tLine.count or 0
                 local maxQty = tLine.displayMaxQuantity or 0
@@ -2343,6 +2425,7 @@ sfui.alts.RegisterProvider({
         sfui.events.RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE", on_sync)
         sfui.events.RegisterThrottledEvent("BAG_UPDATE_DELAYED", 1.0, on_sync)
         sfui.events.RegisterThrottledEvent("CURRENCY_DISPLAY_UPDATE", 0.5, on_sync)
+        sfui.events.RegisterThrottledEvent("GET_ITEM_INFO_RECEIVED", 0.5, on_sync)
         sfui.events.RegisterEvent("QUEST_TURNED_IN", function(_, questID)
             OnQuestTurnedIn(questID)
             if SfuiAltsFrame and SfuiAltsFrame:IsShown() then

@@ -20,6 +20,31 @@ local CooldownViewerSettings = _G.CooldownViewerSettings
 local C_ClassTalents = _G.C_ClassTalents
 local wipe = _G.wipe or table.wipe
 
+sfui.tracking.SPELL_CATEGORY_METADATA = {
+    [4] = {
+        icon = "Interface/ICONS/INV_POTION_114",
+        tooltipTitle = "combat potion",
+        tooltipDescription = "use combat potion",
+        fallbackItemID = nil,
+    },
+    [30] = {
+        icon = "Interface/ICONS/INV_POTION_54",
+        tooltipTitle = "health potion",
+        tooltipDescription = "use health potion",
+        fallbackItemID = nil,
+    },
+    [1711] = {
+        icon = "Interface/ICONS/Warlock_ Healthstone",
+        tooltipTitle = "healthstone",
+        fallbackItemID = 5512,
+    },
+    [2566] = {
+        icon = "Interface/ICONS/Warlock_ Bloodstone",
+        tooltipTitle = "demonic healthstone",
+        fallbackItemID = 224464,
+    },
+}
+
 -- ────────────────────────────────────────────────────────────────────────────
 -- 1. Tracked Bar DB Accessors
 -- ────────────────────────────────────────────────────────────────────────────
@@ -83,22 +108,28 @@ sfui.common.migrate_cooldown_panels_to_spec = sfui.tracking.migrate_cooldown_pan
 
 -- Shared helper to get categorized CDM entries
 local function get_all_cdm_entries()
-    local cat0 = {} -- Essential
-    local cat1 = {} -- Utility
+    local cat0 = {} -- Essential + EquipSlotEssential (trinkets)
+    local cat1 = {} -- Utility + SpecAgnosticEssential (potions / healthstones)
 
     local function categorize(cooldownID, info)
-        if not info or not info.isKnown then return end
+        if not info then return end
+        local isItemCooldown = (info.equipSlot ~= nil or info.spellCategoryID ~= nil or (info.itemID and info.itemID > 0))
+        if not isItemCooldown and not info.isKnown then return end
+
         local entry = {
-            type = "cooldown",
+            type = isItemCooldown and "item" or "cooldown",
             cooldownID = cooldownID,
             spellID = info.spellID,
-            id = info.spellID or cooldownID,
+            itemID = info.itemID,
+            equipSlot = info.equipSlot,
+            spellCategoryID = info.spellCategoryID,
+            id = info.spellID or info.itemID or cooldownID,
             settings = { showText = true }
         }
         local cat = info.category
-        if cat == 0 or not cat then
+        if cat == 0 or cat == 7 or not cat then
             table.insert(cat0, entry)
-        elseif cat == 1 then
+        elseif cat == 1 or cat == 5 then
             table.insert(cat1, entry)
         end
     end
@@ -118,8 +149,8 @@ local function get_all_cdm_entries()
 
     -- Fallback: use C_CooldownViewer direct API if provider not ready or empty
     if #cat0 == 0 and #cat1 == 0 and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
-        for cat = 0, 1 do
-            local cooldownIDs = C_CooldownViewer.GetCooldownViewerCategorySet(cat, false)
+        for _, cat in ipairs({ 0, 1, 7, 5 }) do
+            local cooldownIDs = C_CooldownViewer.GetCooldownViewerCategorySet(cat, true)
             if cooldownIDs then
                 for _, cooldownID in ipairs(cooldownIDs) do
                     categorize(cooldownID, C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID))
@@ -219,14 +250,19 @@ function sfui.tracking.get_active_panel_entries(panelConfig, outTable)
         if (typeHint == "cooldown" or (type(entry) == "table" and entry.cooldownID)) and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
             local cdID = (type(entry) == "table" and entry.cooldownID) or (type(entry) == "table" and entry.id) or entry
             local ok, cdInfo = pcall(C_CooldownViewer.GetCooldownViewerCooldownInfo, cdID)
-            if ok and cdInfo and cdInfo.isKnown == false then
-                local spellKnown = false
-                local sID = (type(entry) == "table" and entry.spellID) or (cdInfo.spellID and cdInfo.spellID > 0 and cdInfo.spellID)
-                if sID then
-                    spellKnown = (_G.IsPlayerSpell and _G.IsPlayerSpell(sID)) or (_G.C_SpellBook and _G.C_SpellBook.HasSpell and _G.C_SpellBook.HasSpell(sID)) or false
-                end
-                if not spellKnown then
-                    isKnown = false
+            if ok and cdInfo then
+                local isItemCooldown = (type(entry) == "table" and (entry.equipSlot ~= nil or entry.spellCategoryID ~= nil or (entry.itemID and entry.itemID > 0) or entry.type == "item"))
+                    or (cdInfo.equipSlot ~= nil or cdInfo.spellCategoryID ~= nil or (cdInfo.itemID and cdInfo.itemID > 0))
+
+                if not isItemCooldown and cdInfo.isKnown == false then
+                    local spellKnown = false
+                    local sID = (type(entry) == "table" and entry.spellID) or (cdInfo.spellID and cdInfo.spellID > 0 and cdInfo.spellID)
+                    if sID then
+                        spellKnown = (_G.IsPlayerSpell and _G.IsPlayerSpell(sID)) or (_G.C_SpellBook and _G.C_SpellBook.HasSpell and _G.C_SpellBook.HasSpell(sID)) or false
+                    end
+                    if not spellKnown then
+                        isKnown = false
+                    end
                 end
             end
         end
