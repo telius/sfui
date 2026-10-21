@@ -10,6 +10,7 @@ sfui.common = sfui.common or {}
 
 local _issecretvalue = _G.issecretvalue
 local C_Secrets      = _G.C_Secrets
+local GetCVar        = _G.GetCVar
 
 local function issecretvalue(val)
     if _issecretvalue then
@@ -379,12 +380,12 @@ local function forward_statusbar_values(self, textString, value, valueMin, value
         return
     end
 
-    if self.controlsShownState == true then
-        self:Show()
-    end
+    -- do not call self:show() here: unit frame status bars inherit
+    -- secureframeparentpropagationtemplate and are protected in combat,
+    -- which triggers addon_action_blocked on statusbar:show().
 
     local isShown = false
-    if (self.cvar and _G.GetCVar and _G.GetCVar(self.cvar) == "1" and self.textLockable) or self.forceShow then
+    if (self.cvar and GetCVar and GetCVar(self.cvar) == "1" and self.textLockable) or self.forceShow then
         isShown = true
     elseif self.lockShow and self.lockShow > 0 and (not self.forceHideText) then
         isShown = true
@@ -396,7 +397,7 @@ local function forward_statusbar_values(self, textString, value, valueMin, value
         return
     end
 
-    -- Directly forward raw API values to the element without looking at them
+    -- directly forward raw api values to the element without looking at them
     if self.disableMaxValue or valueMax == nil then
         textString:SetText(value)
     else
