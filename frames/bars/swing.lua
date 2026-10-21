@@ -169,7 +169,7 @@ local function ClearSwingTimer(bar)
     bar.pip:Hide()
     bar:SetScript("OnUpdate", nil)
 
-    local shouldHide = false
+    local shouldHide
     if bar.swingType == SWING_RANGED then
         shouldHide = not isAutoRepeating
     else
@@ -483,9 +483,6 @@ function sfui.swing.UpdateVisibility(inCombat, hasEnemyTarget, isDragonflying, i
         end
         return
     end
-
-    if inCombat == nil then inCombat = common.is_in_combat and common.is_in_combat() or UnitAffectingCombat("player") end
-    if hasEnemyTarget == nil then hasEnemyTarget = UnitCanAttack("player", "target") end
     if isDragonflying == nil and common.is_dragonflying then isDragonflying = common.is_dragonflying() end
     if inVehicle == nil and common.is_in_vehicle then inVehicle = common.is_in_vehicle() end
 

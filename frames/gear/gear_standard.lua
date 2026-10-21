@@ -16,25 +16,7 @@ local type = _G.type
 local table = _G.table
 local tostring = _G.tostring
 
-local function show_tooltip(owner, anchor, title, lines)
-    local tip = sfui.common.get_tooltip()
-    if not tip or not owner then return end
-    tip:SetOwner(owner, anchor or "ANCHOR_RIGHT")
-    if title then
-        tip:SetText(tostring(title):lower())
-    end
-    if lines then
-        for _, line in ipairs(lines) do
-            if type(line) == "table" then
-                local txt = line[1] and tostring(line[1]):lower() or ""
-                tip:AddLine(txt, line[2], line[3], line[4], line[5])
-            else
-                tip:AddLine(tostring(line):lower())
-            end
-        end
-    end
-    tip:Show()
-end
+local show_tooltip = sfui.gear.show_tooltip -- defined in engine.lua
 
 local hide_tooltip = sfui.common.hide_tooltip
 

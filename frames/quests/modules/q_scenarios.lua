@@ -92,7 +92,7 @@ function ScenariosModule:BuildBlocks(container)
     -- ═════════════════════════════════════════════════════════
     local inScenario = C_Scenario and C_Scenario.IsInScenario and C_Scenario.IsInScenario()
     if inScenario then
-        local name, currentStage, numStages, flags, _, _, _, xp, money, scenarioType = nil
+        local name, currentStage, numStages, scenarioType = nil, nil, nil, nil
         if C_ScenarioInfo and C_ScenarioInfo.GetScenarioInfo then
             local sInfo = C_ScenarioInfo.GetScenarioInfo()
             if sInfo then
@@ -102,10 +102,10 @@ function ScenariosModule:BuildBlocks(container)
                 scenarioType = sInfo.scenarioType
             end
         elseif C_Scenario and C_Scenario.GetInfo then
-            name, currentStage, numStages, flags, _, _, _, xp, money, scenarioType = C_Scenario.GetInfo()
+            name, currentStage, numStages, _, _, _, _, _, _, scenarioType = C_Scenario.GetInfo()
         end
 
-        local stageName, stageDesc, numCriteria, stepFailed, isBonusStep, isWaitStep = nil, nil, 0, false, false, false
+        local stageName, stageDesc, numCriteria, stepFailed = nil, nil, 0, false
         local weightedProgress = false
         if C_ScenarioInfo and C_ScenarioInfo.GetScenarioStepInfo then
             local stepInfo = C_ScenarioInfo.GetScenarioStepInfo()
@@ -114,11 +114,10 @@ function ScenariosModule:BuildBlocks(container)
                 stageDesc = stepInfo.description
                 numCriteria = stepInfo.numCriteria or 0
                 stepFailed = stepInfo.failed
-                isBonusStep = stepInfo.isBonusStep
                 weightedProgress = stepInfo.weightedProgress
             end
         elseif C_Scenario and C_Scenario.GetStepInfo then
-            stageName, stageDesc, numCriteria, stepFailed, isBonusStep, isWaitStep, _, _, _, weightedProgress =
+            stageName, stageDesc, numCriteria, stepFailed, _, _, _, _, _, weightedProgress =
             C_Scenario.GetStepInfo()
         end
 

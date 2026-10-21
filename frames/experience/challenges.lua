@@ -348,27 +348,13 @@ local function UpdateTicks(innerWidth, innerHeight)
 end
 
 --- Update text display visibility based on mouseover setting
---- @param isHovering boolean
 local function UpdateTextVisibility(isHovering)
     if not textLeft or not textCenter or not textRight then return end
-
-    local cfg = sfui.config.experience or {}
-    local mode = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showText", cfg.showText or "MOUSEOVER")) or "MOUSEOVER"
-
-    if mode == "ALWAYS" then
-        textLeft:SetAlpha(1.0)
-        textCenter:SetAlpha(1.0)
-        textRight:SetAlpha(1.0)
-    elseif mode == "MOUSEOVER" then
-        local alpha = isHovering and 1.0 or 0.0
-        textLeft:SetAlpha(alpha)
-        textCenter:SetAlpha(alpha)
-        textRight:SetAlpha(alpha)
-    else -- "NEVER"
-        textLeft:SetAlpha(0.0)
-        textCenter:SetAlpha(0.0)
-        textRight:SetAlpha(0.0)
-    end
+    local data = sfui.experience.data
+    local alpha = data and data.GetTextAlpha and data.GetTextAlpha(isHovering) or (isHovering and 1.0 or 0.0)
+    textLeft:SetAlpha(alpha)
+    textCenter:SetAlpha(alpha)
+    textRight:SetAlpha(alpha)
 end
 
 --- Update layout and docking position relative to experience or reputation bars

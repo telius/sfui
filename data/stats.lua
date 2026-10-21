@@ -631,101 +631,285 @@ sfui.base_class_definitions = sfui.data.BASE_CLASS_DEFINITIONS
 sfui.stat_keys              = sfui.data.STAT_KEYS
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- Camelot / Classic Secondary Stat Formulas & Calculations
--- Authoritatively grounded in Blizzard_UIPanels_Game/Camelot/PaperDollFrameStats.lua
+-- Camelot / Classic Combat Stat Formulas & Calculations
+-- Single source of truth for combat-table math (consumed by frames/character/infopanel.lua).
+-- Authoritatively grounded in Blizzard_UIPanels_Game/Camelot/PaperDollFrameStats.lua,
+-- PaperDollFrame.lua and SkillsFrame.lua. Native C APIs are preferred; formulas are fallbacks.
 -- ══════════════════════════════════════════════════════════════════════════════
 
 sfui.stats = sfui.stats or {}
 
 local math_max = math.max
 local math_min = math.min
+local tonumber = tonumber
 local InCombatLockdown = _G.InCombatLockdown
+local _issecret = _G.issecretvalue
+
+local SKILL_PER_LEVEL    = 5 -- SKILL_RANKS_PER_SKILL_LEVEL
+local FIRST_SPELL_SCHOOL = 2 -- GetSpellBonusDamage luaIndex: 1 physical, 2 holy .. 7 arcane
+local LAST_SPELL_SCHOOL  = 7
+
+--- Coerce an API return into a plain number. Secret / nil values collapse to `fallback`
+--- without ever being inspected, compared or formatted.
+local function num(v, fallback)
+    if fallback == nil then fallback = 0 end
+    if v == nil or (_issecret and _issecret(v)) then return fallback end
+    return tonumber(v) or fallback
+end
+sfui.stats.num = num
+
+local function clamp(v, lo, hi)
+    if v < lo then return lo end
+    if v > hi then return hi end
+    return v
+end
+
+local function player_level()
+    return (_G.UnitLevel and _G.UnitLevel("player")) or 60
+end
+
+-- ─── Defense & Incoming Attacks ──────────────────────────────────────────────
 
 --- Returns effective defense skill and breakdown (effective, base, modifier, maxDefense, excess)
 function sfui.stats.GetEffectiveDefense(unit)
     unit = unit or "player"
     local lvl = (_G.UnitLevel and _G.UnitLevel(unit)) or 60
-    local maxDef = lvl * 5
+    local maxDef = lvl * SKILL_PER_LEVEL
     if InCombatLockdown and InCombatLockdown() then
         return maxDef, maxDef, 0, maxDef, 0
     end
     if not _G.UnitDefenseSkill then return 0, 0, 0, 0, 0 end
     local base, mod = _G.UnitDefenseSkill(unit)
-    base = base or 0
-    mod = mod or 0
+    base = num(base)
+    mod = num(mod)
     local effective = math_max(0, base + mod)
     local excess = math_max(0, effective - maxDef)
     return effective, base, mod, maxDef, excess
 end
 
+--- Incoming melee table for an attacker with `enemyWeaponSkill` against the player's `defenseSkill`.
+--- Writes into `out` so hot callers can reuse a single table.
+--- @return table out { skillDiff, missChance, critChance, crushingChance, avoidanceMod }
+function sfui.stats.GetIncomingCombatTable(enemyWeaponSkill, defenseSkill, isPlayerAttacker, out)
+    out = out or {}
+    local levelCap = player_level() * SKILL_PER_LEVEL
+    local skillDiff = enemyWeaponSkill - defenseSkill
+    out.skillDiff = skillDiff
+    out.missChance = clamp(5.0 - skillDiff * 0.04, 0, 100)
+    out.critChance = clamp(5.0 + skillDiff * 0.04, 0, 100)
+    -- crushing blows: creatures only, attacker skill must exceed (capped) defense by 15+
+    local crushDiff = enemyWeaponSkill - math_min(defenseSkill, levelCap)
+    out.crushingChance = (not isPlayerAttacker and crushDiff >= 15) and clamp(crushDiff * 2.0 - 15.0, 0, 100) or 0
+    -- dodge / parry / block shrink by 0.04% per attacker skill point above the player's level cap
+    out.avoidanceMod = (levelCap - enemyWeaponSkill) * 0.04
+    return out
+end
+
 --- Computes enemy combat table chances against the player based on level offset (e.g. 3 for boss)
 --- and player's defense skill. Also provides glancing blow damage penalties.
 function sfui.stats.GetEnemyCombatTable(levelOffset, defenseSkill)
-    local playerLevel = (_G.UnitLevel and _G.UnitLevel("player")) or 60
     levelOffset = levelOffset or 3
     if not defenseSkill then
-        local eff = sfui.stats.GetEffectiveDefense("player")
-        defenseSkill = eff
+        defenseSkill = sfui.stats.GetEffectiveDefense("player")
     end
-    local enemyWeaponSkill = (playerLevel + levelOffset) * 5
-    local skillDiff = enemyWeaponSkill - defenseSkill
-    local missChance = math_max(0.0, math_min(100.0, 5.0 - (skillDiff * 0.04)))
-    local critChance = math_max(0.0, math_min(100.0, 5.0 + (skillDiff * 0.04)))
-    local crushingChance = 0.0
-    local crushingSkillDiff = enemyWeaponSkill - math_min(defenseSkill, playerLevel * 5)
-    if crushingSkillDiff >= 15 then
-        crushingChance = math_max(0.0, math_min(100.0, (crushingSkillDiff * 2.0) - 15.0))
-    end
-    -- Glancing blow damage penalty for melee attacks against higher level targets:
-    -- Low penalty: low = 1.30 - 0.05 * skillDiff, capped between 0.01 and 1.2
-    -- High penalty: high = 1.20 - 0.03 * skillDiff, capped at 0.99
-    local glancingLow = math_max(0.01, math_min(1.2, 1.30 - (skillDiff * 0.05)))
-    local glancingHigh = math_max(0.01, math_min(0.99, 1.20 - (skillDiff * 0.03)))
-
-    return {
-        enemyWeaponSkill = enemyWeaponSkill,
-        skillDiff = skillDiff,
-        missChance = missChance,
-        critChance = critChance,
-        crushingChance = crushingChance,
-        glancingLow = glancingLow,
-        glancingHigh = glancingHigh,
-    }
+    local enemyWeaponSkill = (player_level() + levelOffset) * SKILL_PER_LEVEL
+    local t = sfui.stats.GetIncomingCombatTable(enemyWeaponSkill, defenseSkill, false, {})
+    t.enemyWeaponSkill = enemyWeaponSkill
+    t.glancingLow = math_max(0.01, math_min(1.2, 1.30 - (t.skillDiff * 0.05)))
+    t.glancingHigh = math_max(0.01, math_min(0.99, 1.20 - (t.skillDiff * 0.03)))
+    return t
 end
+
+--- Physical damage reduction from armor (percent, 75% cap).
+--- Uses C_PaperDollInfo (PaperDollFrame_GetArmorReduction*) with the Classic formula as fallback.
+function sfui.stats.GetArmorReduction(armor, attackerLevel, againstTarget)
+    armor = num(armor)
+    if armor <= 0 then return 0 end
+    attackerLevel = attackerLevel or (player_level() + 3)
+    local C = _G.C_PaperDollInfo
+    if C then
+        if againstTarget and C.GetArmorEffectivenessAgainstTarget then
+            local eff = num(C.GetArmorEffectivenessAgainstTarget(armor))
+            if eff > 0 then return math_min(75.0, eff * 100) end
+        end
+        if C.GetArmorEffectiveness then
+            local eff = num(C.GetArmorEffectiveness(armor, attackerLevel))
+            if eff > 0 then return math_min(75.0, eff * 100) end
+        end
+    end
+    local k = (attackerLevel >= 60) and (400 + 85 * (attackerLevel + 4.5 * (attackerLevel - 59)))
+        or (400 + 85 * attackerLevel)
+    return math_min(75.0, armor / (armor + k) * 100)
+end
+
+--- Average magic damage resisted (percent, 75% cap) for a resistance value against a caster level.
+--- Mirrors ExpectedSpellResistance() in Blizzard_UIPanels_Game/Camelot/PaperDollFrameStats.lua.
+function sfui.stats.GetResistanceReduction(resistance, casterLevel)
+    casterLevel = math_max(1, casterLevel or player_level())
+    local expected = _G.ExpectedSpellResistance
+    local frac = expected and num(expected(casterLevel, resistance))
+        or (0.75 * resistance / (casterLevel * SKILL_PER_LEVEL))
+    return clamp(frac * 100, 0, 75)
+end
+
+--- Player resistance in one school.
+--- @param damageClass number Enum.Damageclass (2 fire, 3 nature, 4 frost, 5 shadow, 6 arcane)
+--- @param casterLevel number|nil level of the attacking caster for the mitigation estimate
+--- @return number effective, number bonus, number reductionPct
+function sfui.stats.GetResistance(damageClass, casterLevel)
+    if not _G.UnitResistance then return 0, 0, 0 end
+    local _, _, effective, bonus = _G.UnitResistance("player", damageClass)
+    effective, bonus = num(effective), num(bonus)
+    return effective, bonus, sfui.stats.GetResistanceReduction(effective, casterLevel)
+end
+
+-- ─── Outgoing Attacks ────────────────────────────────────────────────────────
 
 --- Calculates Hit Chance across Melee, Ranged, and Spell
 function sfui.stats.GetHitChance(unit)
     unit = unit or "player"
     local meleeHit, rangedHit, spellHit = 0, 0, 0
     if unit == "player" then
-        local crMelee = (_G.GetCombatRatingBonus and _G.CR_HIT_MELEE and _G.GetCombatRatingBonus(_G.CR_HIT_MELEE)) or 0
-        local modHit = (_G.GetHitModifier and _G.GetHitModifier()) or 0
+        local CR = _G.GetCombatRatingBonus
+        local crMelee = num(CR and _G.CR_HIT_MELEE and CR(_G.CR_HIT_MELEE))
+        local modHit = num(_G.GetHitModifier and _G.GetHitModifier())
         meleeHit = crMelee + modHit
 
-        local crRanged = (_G.GetCombatRatingBonus and _G.CR_HIT_RANGED and _G.GetCombatRatingBonus(_G.CR_HIT_RANGED)) or 0
-        local modRanged = (_G.GetRangedHitModifier and _G.GetRangedHitModifier()) or 0
+        local crRanged = num(CR and _G.CR_HIT_RANGED and CR(_G.CR_HIT_RANGED))
+        local modRanged = num(_G.GetRangedHitModifier and _G.GetRangedHitModifier())
         rangedHit = crRanged + modRanged
 
-        local crSpell = (_G.GetCombatRatingBonus and _G.CR_HIT_SPELL and _G.GetCombatRatingBonus(_G.CR_HIT_SPELL)) or 0
-        local modSpell = (_G.GetSpellHitModifier and _G.GetSpellHitModifier()) or 0
+        local crSpell = num(CR and _G.CR_HIT_SPELL and CR(_G.CR_HIT_SPELL))
+        local modSpell = num(_G.GetSpellHitModifier and _G.GetSpellHitModifier())
         spellHit = crSpell + modSpell
     elseif unit == "pet" then
-        meleeHit = (_G.GetPetHitChanceModifier and _G.GetPetHitChanceModifier()) or 0
+        meleeHit = num(_G.GetPetHitChanceModifier and _G.GetPetHitChanceModifier())
         rangedHit = meleeHit
-        spellHit = (_G.GetPetSpellHitChanceModifier and _G.GetPetSpellHitChanceModifier()) or 0
+        spellHit = num(_G.GetPetSpellHitChanceModifier and _G.GetPetSpellHitChanceModifier())
     end
     local maxHit = math_max(meleeHit, rangedHit, spellHit)
     return maxHit, meleeHit, rangedHit, spellHit
 end
 
 --- Calculates Critical Strike Chance across Melee, Ranged, and Spell
-function sfui.stats.GetCritChance(unit)
-    unit = unit or "player"
-    local meleeCrit = (_G.GetCritChance and _G.GetCritChance()) or 0
-    local rangedCrit = (_G.GetRangedCritChance and _G.GetRangedCritChance()) or 0
-    local spellCrit = (_G.GetSpellCritChance and _G.GetSpellCritChance()) or 0
+function sfui.stats.GetCritChance()
+    local meleeCrit = num(_G.GetCritChance and _G.GetCritChance())
+    local rangedCrit = num(_G.GetRangedCritChance and _G.GetRangedCritChance())
+    local spellCrit = num(_G.GetSpellCritChance and _G.GetSpellCritChance())
     local maxCrit = math_max(meleeCrit, rangedCrit, spellCrit)
     return maxCrit, meleeCrit, rangedCrit, spellCrit
+end
+
+--- Melee / ranged miss chance for a weapon skill against a target defense.
+--- @return number miss   base miss on special (yellow) attacks, percent
+--- @return number cap    hit needed to never miss specials (includes the >10 skill-gap hit suppression)
+--- @return number dwCap  hit needed to remove the dual-wield white-swing miss
+function sfui.stats.GetMeleeMissChance(weaponSkill, targetDefense, isPlayerTarget)
+    local diff = targetDefense - weaponSkill
+    local miss, suppression = nil, 0
+    if isPlayerTarget or diff <= 0 then
+        miss = 5.0 + diff * 0.04
+    elseif diff > 10 then
+        miss, suppression = 5.0 + diff * 0.2, 1.0
+    else
+        miss = 5.0 + diff * 0.1
+    end
+    miss = clamp(miss, 0, 100)
+    return miss, miss + suppression, clamp(miss * 0.8 + 20.0, 0, 100) + suppression
+end
+
+--- Spell miss chance by level difference (target - player). 1% of spells always miss.
+--- @return number miss, number cap
+function sfui.stats.GetSpellMissChance(levelDelta, isPlayerTarget)
+    local miss
+    if levelDelta <= 2 then
+        miss = 4 + levelDelta
+    elseif isPlayerTarget then
+        miss = 13 + (levelDelta - 3) * 7
+    else
+        miss = 17 + (levelDelta - 3) * 11
+    end
+    miss = clamp(miss, 1, 99)
+    return miss, miss - 1
+end
+
+--- Glancing blows on white melee swings (creatures at or above the player's level only).
+--- Prefers GetGlancingBlowChance / GetGlancingBlowPenalty as used by Camelot SkillsFrame.lua.
+--- @return number chance, number penalty (percent)
+function sfui.stats.GetGlancingBlow(weaponSkill, targetLevel, isPlayerTarget)
+    local pLevel = player_level()
+    if isPlayerTarget or targetLevel < pLevel then return 0, 0 end
+    local targetDefense = targetLevel * SKILL_PER_LEVEL
+    local diff = targetDefense - weaponSkill
+
+    local GetChance, GetPenalty = _G.GetGlancingBlowChance, _G.GetGlancingBlowPenalty
+    local chance = GetChance and num(GetChance(weaponSkill, targetDefense), -1) or -1
+    if chance >= 0 then
+        chance = chance * 100
+    else
+        chance = clamp(10.0 + (targetDefense - math_min(weaponSkill, pLevel * SKILL_PER_LEVEL)) * 2.0, 0, 100)
+    end
+
+    local penalty = GetPenalty and num(GetPenalty(weaponSkill, targetDefense), -1) or -1
+    if penalty >= 0 then
+        penalty = penalty * 100
+    else
+        local low = clamp(1.30 - diff * 0.05, 0.01, 0.91)
+        local high = clamp(1.20 - diff * 0.03, 0.20, 0.99)
+        penalty = math_max(0, (1 - (low + high) / 2) * 100)
+    end
+    return chance, penalty
+end
+
+--- Attack power (melee or ranged).
+--- @return number effective, number base, number posBuff, number negBuff
+function sfui.stats.GetAttackPower(ranged)
+    local fn = ranged and _G.UnitRangedAttackPower or _G.UnitAttackPower
+    if not fn then return 0, 0, 0, 0 end
+    local base, pos, neg = fn("player")
+    base, pos, neg = num(base), num(pos), num(neg)
+    return math_max(0, base + pos + neg), base, pos, neg
+end
+
+--- Ranged weapon damage (bows, guns, thrown, wands). Mirrors GetRangedDamage() in Camelot PaperDollFrame.lua.
+--- @return number dps, number minDamage, number maxDamage, number speed
+function sfui.stats.GetRangedDamage()
+    if not _G.UnitRangedDamage then return 0, 0, 0, 0 end
+    local speed, minDamage, maxDamage = _G.UnitRangedDamage("player")
+    speed, minDamage, maxDamage = num(speed), num(minDamage), num(maxDamage)
+    local dps = (speed > 0) and ((minDamage + maxDamage) / 2 / speed) or 0
+    return dps, minDamage, maxDamage, speed
+end
+
+-- ─── Spellcasting ────────────────────────────────────────────────────────────
+
+--- Spell damage per school and bonus healing.
+--- Mirrors PaperDollFrame_SetSpellBonusDamage / CharacterSpellBonusDamage_OnEnter.
+--- @param out table|nil reusable table filled with [schoolLuaIndex] = bonus (2 holy .. 7 arcane)
+--- @return number minDamage, number maxDamage, number maxSchool, number healing
+function sfui.stats.GetSpellPower(out)
+    local GetDmg = _G.GetSpellBonusDamage
+    local minD, maxD, maxSchool = 0, 0, FIRST_SPELL_SCHOOL
+    if GetDmg then
+        minD = num(GetDmg(FIRST_SPELL_SCHOOL))
+        maxD = minD
+        if out then out[FIRST_SPELL_SCHOOL] = minD end
+        for school = FIRST_SPELL_SCHOOL + 1, LAST_SPELL_SCHOOL do
+            local v = num(GetDmg(school))
+            if out then out[school] = v end
+            if v < minD then minD = v end
+            if v > maxD then maxD, maxSchool = v, school end
+        end
+    end
+    local healing = num(_G.GetSpellBonusHealing and _G.GetSpellBonusHealing())
+    return minD, maxD, maxSchool, healing
+end
+
+--- Mana regeneration per 5 seconds (not casting, while casting).
+function sfui.stats.GetManaRegen()
+    if not _G.GetManaRegen then return 0, 0 end
+    local base, casting = _G.GetManaRegen()
+    return math.floor(num(base) * 5.0), math.floor(num(casting) * 5.0)
 end
 
 --- Calculates Haste percentage across Melee, Ranged, and Spell
@@ -733,16 +917,15 @@ function sfui.stats.GetHaste(unit)
     unit = unit or "player"
     local meleeHaste = 0
     local rangedHaste = 0
-    local spellHaste = (_G.UnitSpellHaste and _G.UnitSpellHaste(unit)) or 0
+    local spellHaste = num(_G.UnitSpellHaste and _G.UnitSpellHaste(unit))
     if unit == "player" then
-        meleeHaste = (_G.GetMeleeHaste and _G.GetMeleeHaste()) or 0
+        meleeHaste = num(_G.GetMeleeHaste and _G.GetMeleeHaste())
         if _G.GetRangedHaste then
             local baseRanged, ammoHaste = _G.GetRangedHaste()
-            local usesAmmo = sfui.api.UnitUsesAmmo and sfui.api.UnitUsesAmmo(unit)
-            rangedHaste = (baseRanged or 0) + ((usesAmmo and ammoHaste) or ammoHaste or 0)
+            rangedHaste = num(baseRanged) + num(ammoHaste)
         end
     elseif unit == "pet" then
-        meleeHaste = (_G.GetPetMeleeHaste and _G.GetPetMeleeHaste()) or 0
+        meleeHaste = num(_G.GetPetMeleeHaste and _G.GetPetMeleeHaste())
     end
     local maxHaste = math_max(meleeHaste, rangedHaste, spellHaste)
     return maxHaste, meleeHaste, rangedHaste, spellHaste
@@ -751,16 +934,16 @@ end
 --- Returns Armor Penetration
 function sfui.stats.GetArmorPenetration(unit)
     if unit and unit ~= "player" then return 0 end
-    return (_G.GetArmorPenetration and _G.GetArmorPenetration()) or 0
+    return num(_G.GetArmorPenetration and _G.GetArmorPenetration())
 end
 
 --- Returns Expertise breakdown (maxExpertise, mainHand, offHand, ranged)
 function sfui.stats.GetExpertise(unit)
     if (unit and unit ~= "player") or not _G.GetExpertise then return 0, 0, 0, 0 end
     local exp, ohExp, rangedExp = _G.GetExpertise()
-    exp = exp or 0
-    ohExp = ohExp or 0
-    rangedExp = rangedExp or 0
+    exp = num(exp)
+    ohExp = num(ohExp)
+    rangedExp = num(rangedExp)
     local maxExp = math_max(exp, ohExp, rangedExp)
     return maxExp, exp, ohExp, rangedExp
 end
@@ -768,7 +951,7 @@ end
 --- Returns Shield Block chance and Block value
 function sfui.stats.GetBlockInfo(unit)
     if unit and unit ~= "player" then return 0, 0 end
-    local chance = (_G.GetBlockChance and _G.GetBlockChance()) or 0
-    local val = (_G.GetShieldBlock and _G.GetShieldBlock()) or 0
+    local chance = num(_G.GetBlockChance and _G.GetBlockChance())
+    local val = num(_G.GetShieldBlock and _G.GetShieldBlock())
     return chance, val
 end

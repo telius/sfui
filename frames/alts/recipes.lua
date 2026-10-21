@@ -47,6 +47,7 @@ local select                        = _G.select
 local tonumber                      = _G.tonumber
 local type                          = _G.type
 local wipe                          = _G.wipe
+local InCombatLockdown               = _G.InCombatLockdown
 local GameTooltip                   = sfui.common.get_tooltip()
 local ItemRefTooltip                = _G.ItemRefTooltip
 
@@ -1065,6 +1066,8 @@ end
 local function SetItemTooltip(tooltip, data)
     if not tooltip or not tooltip.AddLine then return end
     if tooltip._sfuiInRecipeBrowser then return end
+    if InCombatLockdown and InCombatLockdown() then return end
+    if tooltip ~= _G.GameTooltip and tooltip ~= _G.ItemRefTooltip and tooltip ~= sfui.tooltip then return end
 
     local itemID = (data and data.id)
     if not itemID and TooltipUtil and TooltipUtil.GetDisplayedItem then

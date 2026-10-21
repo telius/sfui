@@ -47,7 +47,7 @@ sfui.options.RegisterTab({
 
         -- keybind rows
         local isCam = (sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot))
-        local _, pClass = _G.UnitClass and _G.UnitClass("player")
+        local pClass = common.get_player_class and common.get_player_class()
         local isHunterCamelot = not not (isCam and pClass == "HUNTER")
         local rows = {}
         if isHunterCamelot then

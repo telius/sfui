@@ -1533,7 +1533,7 @@ end
 local function on_bag_update()
     if not isEnabled or is_in_combat() then return end
     if scanTimer then return end
-    scanTimer = C_Timer.After(0.3, function()
+    scanTimer = C_Timer.NewTimer(0.3, function()
         scanTimer = nil
         if not isEnabled or is_in_combat() then return end
         triage.EvaluateTriage()

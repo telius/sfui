@@ -396,7 +396,7 @@ end
 function exp.CycleBarMode()
     local curMode = exp.GetBarMode()
     local hasLegacy = exp.challenges and exp.challenges.IsAvailable and exp.challenges.IsAvailable()
-    local nextMode = "XP"
+    local nextMode
     if curMode == "DUAL" then
         nextMode = "XP"
     elseif curMode == "XP" then

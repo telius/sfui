@@ -120,19 +120,8 @@ function sfui.recipes.TogglePinRecipe(spellID)
     return isPinned
 end
 
-if not sfui.recipes.OpenBrowserToRecipe then
-    function sfui.recipes.OpenBrowserToRecipe(spellID)
-        if InCombatLockdown and InCombatLockdown() then return end
-        spellID = tonumber(spellID) or spellID
-        if not spellID then return end
-
-        if sfui.recipes.browser and sfui.recipes.browser.SelectRecipe then
-            sfui.recipes.browser.SelectRecipe(spellID)
-        elseif sfui.recipes.OpenBrowser then
-            sfui.recipes.OpenBrowser()
-        end
-    end
-end
+-- sfui.recipes.OpenBrowserToRecipe is defined by frames/professions/browser.lua,
+-- which loads earlier under the same game types.
 
 -- ─────────────────────────────────────────────────────────
 --  OBJECTIVE TRACKER MODULE

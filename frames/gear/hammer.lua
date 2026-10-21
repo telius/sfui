@@ -15,12 +15,7 @@ local C_Item                     = _G.C_Item
 local C_Traits                   = _G.C_Traits
 local C_TradeSkillUI             = _G.C_TradeSkillUI
 local C_ProfSpecs                = _G.C_ProfSpecs
-local GetInventoryItemLink = function(unit, slotID)
-    if sfui.common and sfui.common.get_inventory_item_link then
-        return sfui.common.get_inventory_item_link(unit, slotID)
-    end
-    return _G.GetInventoryItemLink and _G.GetInventoryItemLink(unit, slotID)
-end
+local GetInventoryItemLink = sfui.common.get_inventory_item_link
 local GetInventoryItemDurability = _G.GetInventoryItemDurability
 local ipairs, tonumber, tostring = ipairs, tonumber, tostring
 local math_floor                 = math.floor
@@ -884,22 +879,7 @@ function sfui.hammer.print_hammer_status(debugMode)
     p("  tip: type |cff00ffff/sfui hammer test|r to preview and reposition the button.")
 end
 
-local function on_hammer_cast_finished(event, unit, _, spellID)
-    if unit == "player" then
-        local _, _, _, hammerItemID = sfui.hammer.has_repair_hammer()
-        local hammerSpellID
-        if hammerItemID and C_Item.GetItemSpell then
-            _, hammerSpellID = C_Item.GetItemSpell(hammerItemID)
-        end
-        if (hammerSpellID and spellID == hammerSpellID) or spellID == 382404 or spellID == 382403 or (not hammerSpellID and (spellID == 382404 or spellID == 382403)) then
-            currentTargetSlot = nil
-            sfui.hammer.update_hammer_popup()
-            sfui.hammer.unregister_transient_listeners()
-        end
-    end
-end
-
-local function on_hammer_cast_interrupted(event, unit, _, spellID)
+local function on_hammer_cast_end(event, unit, _, spellID)
     if unit == "player" then
         local _, _, _, hammerItemID = sfui.hammer.has_repair_hammer()
         local hammerSpellID
@@ -915,14 +895,14 @@ local function on_hammer_cast_interrupted(event, unit, _, spellID)
 end
 
 function sfui.hammer.register_transient_listeners()
-    sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", on_hammer_cast_finished)
-    sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player", on_hammer_cast_interrupted)
+    sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", on_hammer_cast_end)
+    sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player", on_hammer_cast_end)
     C_Timer.After(5, sfui.hammer.unregister_transient_listeners)
 end
 
 function sfui.hammer.unregister_transient_listeners()
-    sfui.events.UnregisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", on_hammer_cast_finished)
-    sfui.events.UnregisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player", on_hammer_cast_interrupted)
+    sfui.events.UnregisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", on_hammer_cast_end)
+    sfui.events.UnregisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player", on_hammer_cast_end)
 end
 
 local function on_traits_updated()

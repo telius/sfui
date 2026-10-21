@@ -8,6 +8,7 @@ local common = sfui.common
 local C_EquipmentSet = _G.C_EquipmentSet
 local ipairs = _G.ipairs
 local table_insert = table.insert
+local GameTooltip = common.get_tooltip()
 
 sfui.options.RegisterTab({
     id = "gear",

@@ -175,8 +175,10 @@ local function get_or_create_location_frame()
 
     -- Click to toggle world map (matching Blizzard ZoneTextButton behavior)
     f:SetScript("OnClick", function(self, button)
-        if InCombatLockdown and InCombatLockdown() then return end
-        if ToggleWorldMap then
+        if (InCombatLockdown and InCombatLockdown()) or (sfui.map and sfui.map.IsInCombat and sfui.map.IsInCombat()) then return end
+        if sfui.map and sfui.map.ToggleWorldMap then
+            sfui.map.ToggleWorldMap()
+        elseif ToggleWorldMap then
             pcall(ToggleWorldMap)
         end
     end)

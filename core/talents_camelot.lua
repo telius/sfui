@@ -153,31 +153,7 @@ local function match_classic_tree_index(vSpecID, di, fallbackIndex)
     return fallbackIndex or 1
 end
 
-local function CheckFlyoutSlot(flyoutID, targetSpellID)
-    if not flyoutID then return false end
-    local getInfo = _G.GetFlyoutInfo or (_G.C_SpellBook and _G.C_SpellBook.GetFlyoutInfo)
-    local getSlot = _G.GetFlyoutSlotInfo or (_G.C_SpellBook and _G.C_SpellBook.GetFlyoutSlotInfo)
-    if not getInfo or not getSlot then return false end
-    local info1, _, info3 = getInfo(flyoutID)
-    local numSlots = (type(info1) == "table" and info1.numSlots) or info3 or 0
-    for i = 1, numSlots do
-        local r1, r2, r3 = getSlot(flyoutID, i)
-        local sID, isKnown
-        if type(r1) == "table" then
-            sID = r1.spellID or r1.overrideSpellID
-            isKnown = r1.isKnown
-        else
-            sID = r1
-            local overrideID = r2
-            isKnown = r3
-            if overrideID == targetSpellID then sID = overrideID end
-        end
-        if sID == targetSpellID and isKnown then
-            return true
-        end
-    end
-    return false
-end
+local CheckFlyoutSlot = sfui.common.check_flyout_slot
 
 -- 4. Talent Known Resolver (Classic / Camelot spells)
 local function CamelotTalentKnownResolver(targetSpellID)

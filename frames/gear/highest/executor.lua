@@ -22,12 +22,7 @@ local function sfprint(msg)
     sfui.common.print(msg)
 end
 
-local function GetInventoryItemLink(unit, slotID)
-    if sfui.common and sfui.common.get_inventory_item_link then
-        return sfui.common.get_inventory_item_link(unit, slotID)
-    end
-    return _G.GetInventoryItemLink and _G.GetInventoryItemLink(unit, slotID)
-end
+local GetInventoryItemLink = sfui.common.get_inventory_item_link
 
 local C_Container_GetContainerItemInfo = (_G.C_Container and _G.C_Container.GetContainerItemInfo) or _G.GetContainerItemInfo
 local C_Container_GetContainerItemLink = (_G.C_Container and _G.C_Container.GetContainerItemLink) or _G.GetContainerItemLink

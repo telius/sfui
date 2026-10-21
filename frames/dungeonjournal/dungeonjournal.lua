@@ -323,18 +323,7 @@ local function HandleItemClick(btn, mouseBtn, itemID)
 end
 sfui.dungeonjournal.HandleItemClick = HandleItemClick
 
-local function IsQuestCompleted(questID)
-    if not questID then return false end
-    if _G.C_QuestLog and _G.C_QuestLog.IsQuestFlaggedCompleted then
-        local ok, done = pcall(_G.C_QuestLog.IsQuestFlaggedCompleted, questID)
-        if ok and done then return true end
-    end
-    if _G.IsQuestFlaggedCompleted then
-        local ok, done = pcall(_G.IsQuestFlaggedCompleted, questID)
-        if ok and done then return true end
-    end
-    return false
-end
+local IsQuestCompleted = sfui.common.is_quest_completed
 sfui.dungeonjournal.IsQuestCompleted = IsQuestCompleted
 sfui.dungeonjournal.IsQuestDone      = IsQuestCompleted
 

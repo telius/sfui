@@ -390,6 +390,7 @@ function Layout.BuildLayout(container, sections)
                 header.secID = secID
                 local currentSec = sec
                 header:SetScript("OnClick", function(self, button)
+                    if InCombatLockdown and InCombatLockdown() then return end
                     if button == "RightButton" then
                         if secID == "challenges" or secID == "camelot_challenges" then
                             if _G.ToggleLegacyChallenges then
@@ -549,6 +550,7 @@ function Layout.BuildLayout(container, sections)
 
                     -- Mouse handlers for block
                     block:SetScript("OnClick", function(self, btn)
+                        if InCombatLockdown and InCombatLockdown() then return end
                         if bData.OnClick then
                             bData.OnClick(self, btn)
                         end
@@ -629,6 +631,7 @@ function Layout.BuildLayout(container, sections)
                                 end
                             end)
                             line:SetScript("OnMouseUp", function(_, btn)
+                                if InCombatLockdown and InCombatLockdown() then return end
                                 if bData.OnClick then
                                     bData.OnClick(block, btn)
                                 end
@@ -691,6 +694,7 @@ function Layout.BuildLayout(container, sections)
                             end
                         end)
                         pBar:SetScript("OnMouseUp", function(_, btn)
+                            if InCombatLockdown and InCombatLockdown() then return end
                             if bData.OnClick then
                                 bData.OnClick(block, btn)
                             end

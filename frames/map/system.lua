@@ -18,7 +18,7 @@ local GetFramerate = _G.GetFramerate
 local GetNetStats = _G.GetNetStats
 local GetAddOnMemoryUsage = _G.GetAddOnMemoryUsage
 local UpdateAddOnMemoryUsage = _G.UpdateAddOnMemoryUsage
-local GameTooltip = _G.GameTooltip
+local GameTooltip = sfui.common.get_tooltip()
 local PlaySound = _G.PlaySound
 local SOUNDKIT = _G.SOUNDKIT or {}
 
@@ -292,13 +292,9 @@ function sfui.minimap.init_system_button(parent)
         end
     end)
 
-    btn:RegisterEvent("MODIFIER_STATE_CHANGED")
-    btn:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-    btn:SetScript("OnEvent", function(self, event)
-        if event == "PLAYER_SPECIALIZATION_CHANGED" then
-            sfui.minimap.update_system_button()
-        elseif self.isHovered then
-            update_tooltip(self)
+    sfui.events.RegisterEvent("MODIFIER_STATE_CHANGED", function()
+        if btn.isHovered then
+            update_tooltip(btn)
         end
     end)
 

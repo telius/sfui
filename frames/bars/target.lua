@@ -142,13 +142,10 @@ end
 
 -- ─── Health Color Resolver ───────────────────────────────────────────────────
 local cachedHealthR, cachedHealthG, cachedHealthB
-local lastHpState, lastHpPct
 local lastLevelVal, lastClassTag
 
 local function InvalidateHealthColorCache()
     cachedHealthR, cachedHealthG, cachedHealthB = nil, nil, nil
-    lastHpState = nil
-    lastHpPct = nil
     lastLevelVal = nil
     lastClassTag = nil
 end

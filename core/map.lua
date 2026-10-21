@@ -22,6 +22,9 @@ local C_SuperTrack     = _G.C_SuperTrack
 local C_Map            = _G.C_Map
 local pcall            = _G.pcall
 local type             = _G.type
+local pairs            = _G.pairs
+local ipairs           = _G.ipairs
+local rawget           = _G.rawget
 
 local safe_nop = _G.nop or function() end
 map.ProtectPin   = safe_nop
@@ -256,6 +259,141 @@ function map.SetUserWaypoint(mapID, x, y, label)
     end
     return true
 end
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- MapCanvas Protected Method Combat Guards
+-- ────────────────────────────────────────────────────────────────────────────
+-- In modern WoW (11.0 / 12.0+), Button:SetPassThroughButtons() and
+-- Frame:SetPropagateMouseClicks() are protected widget methods.
+-- During combat lockdown, if the world map is opened, MapCanvasPinMixin and
+-- SuperTrackablePinMixin attempt to invoke these methods on every acquired pin.
+-- If any addon execution or taint exists in the UI environment, Blizzard's C
+-- engine blocks these calls, spawning dozens of Action Blocked errors.
+--
+-- We neutralize this by gating pin passthrough and mouse propagation updates
+-- behind not InCombatLockdown(). When combat ends (PLAYER_REGEN_ENABLED),
+-- any open map is cleanly refreshed outside combat lockdown to synchronize state.
+local TARGET_PIN_MIXINS = {
+    "MapCanvasPinMixin",
+    "SuperTrackablePinMixin",
+    "BaseMapPoiPinMixin",
+    "AreaPOIPinMixin",
+    "SuperTrackablePoiPinMixin",
+    "SuperTrackableVignettePinMixin",
+    "QuestOfferPinMixin",
+    "QuestPinMixin",
+    "WorldQuestPinMixin",
+    "WorldQuestSpellEffectPinMixin",
+    "BonusObjectivePinMixin",
+    "VignettePinBaseMixin",
+    "ScenarioPinMixin",
+    "WaypointLocationPinMixin",
+    "SuperTrackWaypointPinMixin",
+    "GroupMembersPinMixin",
+    "MapExplorationPinMixin",
+    "FlightMap_FlightPointPinMixin",
+    "EncounterJournalPinMixin",
+    "ContentTrackingPinMixin",
+    "DungeonEntrancePinMixin",
+    "DelveEntrancePinMixin",
+}
+
+local function guard_mixin(mixin)
+    if not mixin or type(mixin) ~= "table" then return end
+
+    if mixin.CheckMouseButtonPassthrough and not mixin._sfuiGuardedPassthrough then
+        local orig = mixin.CheckMouseButtonPassthrough
+        mixin.CheckMouseButtonPassthrough = function(self, ...)
+            if InCombatLockdown and InCombatLockdown() then return end
+            return orig(self, ...)
+        end
+        mixin._sfuiGuardedPassthrough = true
+    end
+
+    if mixin.UpdateMousePropagation and not mixin._sfuiGuardedPropagation then
+        local orig = mixin.UpdateMousePropagation
+        mixin.UpdateMousePropagation = function(self, ...)
+            if InCombatLockdown and InCombatLockdown() then return end
+            return orig(self, ...)
+        end
+        mixin._sfuiGuardedPropagation = true
+    end
+end
+
+local function guard_pin_instance(pin)
+    if not pin or type(pin) ~= "table" then return end
+
+    if rawget(pin, "CheckMouseButtonPassthrough") and not pin._sfuiGuardedPassthrough then
+        local orig = pin.CheckMouseButtonPassthrough
+        pin.CheckMouseButtonPassthrough = function(self, ...)
+            if InCombatLockdown and InCombatLockdown() then return end
+            return orig(self, ...)
+        end
+        pin._sfuiGuardedPassthrough = true
+    end
+
+    if rawget(pin, "UpdateMousePropagation") and not pin._sfuiGuardedPropagation then
+        local orig = pin.UpdateMousePropagation
+        pin.UpdateMousePropagation = function(self, ...)
+            if InCombatLockdown and InCombatLockdown() then return end
+            return orig(self, ...)
+        end
+        pin._sfuiGuardedPropagation = true
+    end
+end
+
+local function guard_all_map_pin_mixins()
+    -- 1. Explicit target Blizzard mixins
+    for _, name in ipairs(TARGET_PIN_MIXINS) do
+        local mixin = _G[name]
+        if type(mixin) == "table" then
+            guard_mixin(mixin)
+        end
+    end
+
+    -- 2. Dynamically guard any other pin mixin in _G ending with PinMixin
+    for k, v in pairs(_G) do
+        if type(k) == "string" and type(v) == "table" and k:find("PinMixin$") then
+            guard_mixin(v)
+        end
+    end
+
+    -- 3. Guard any active pins already created in WorldMapFrame pools
+    local wmf = _G.WorldMapFrame
+    if wmf and wmf.pinPools then
+        for _, pool in pairs(wmf.pinPools) do
+            if type(pool) == "table" and pool.EnumerateActive then
+                for pin in pool:EnumerateActive() do
+                    guard_pin_instance(pin)
+                end
+            end
+        end
+    end
+end
+
+local guardFrame = _G.CreateFrame and _G.CreateFrame("Frame")
+if guardFrame then
+    guardFrame:RegisterEvent("ADDON_LOADED")
+    guardFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    guardFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+    guardFrame:SetScript("OnEvent", function(_, event, arg1)
+        if event == "ADDON_LOADED" then
+            if arg1 and (arg1 == "Blizzard_MapCanvas" or arg1 == "Blizzard_SharedMapDataProviders" or arg1 == "Blizzard_WorldMap") then
+                guard_all_map_pin_mixins()
+            end
+        elseif event == "PLAYER_ENTERING_WORLD" then
+            guard_all_map_pin_mixins()
+        elseif event == "PLAYER_REGEN_ENABLED" then
+            local wmf = _G.WorldMapFrame
+            if wmf and wmf:IsShown() and wmf.RefreshAllDataProviders then
+                pcall(wmf.RefreshAllDataProviders, wmf)
+            end
+        end
+    end)
+end
+
+-- Run immediately on load for already registered mixins
+guard_all_map_pin_mixins()
 
 -- Export convenience aliases to sfui.common
 sfui.common = sfui.common or {}

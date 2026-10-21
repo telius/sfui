@@ -40,13 +40,7 @@ local function is_blacklisted(name)
     return false
 end
 
-local function is_spell_known(spellID)
-    if not spellID then return false end
-    if sfui.common and sfui.common.is_spell_known then
-        return sfui.common.is_spell_known(spellID)
-    end
-    return false
-end
+local is_spell_known = sfui.common.is_spell_known
 
 local function get_spell_info_compat(spellID, fallbackName, fallbackIcon)
     local name, icon

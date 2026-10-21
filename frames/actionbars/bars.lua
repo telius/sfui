@@ -735,21 +735,6 @@ function sfui.actionbars.CreatePetBar()
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
---  3x4 Grid Preset Helper
--- ─────────────────────────────────────────────────────────────────────────────
-function sfui.actionbars.Apply3x4Preset(barIndex)
-    local barKey = "bar" .. tostring(barIndex)
-    if SfuiDB and SfuiDB.actionbars and SfuiDB.actionbars.bars and SfuiDB.actionbars.bars[barKey] then
-        local cfg = SfuiDB.actionbars.bars[barKey]
-        cfg.buttons = 12
-        cfg.buttonsPerRow = 3
-        cfg.buttonSize = 28
-        cfg.spacing = 4
-    end
-    sfui.actionbars.ApplyBarLayout(barIndex)
-end
-
--- ─────────────────────────────────────────────────────────────────────────────
 --  Vehicle Leave Button (Action Bar 1 Companion)
 -- ─────────────────────────────────────────────────────────────────────────────
 function sfui.actionbars.GetVehicleExitHotkey()

@@ -365,27 +365,8 @@ local currentGroup = {
     notifiedJoin = false,
 }
 
-local function get_activity_id(data)
-    if not data then return nil end
-    if type(data.activityID) == "number" and data.activityID > 0 then
-        return data.activityID
-    end
-    if type(data.activityIDs) == "table" and data.activityIDs[1] then
-        return data.activityIDs[1]
-    end
-    return nil
-end
-
-local function is_valid_dungeon_activity(actInfo)
-    if not actInfo then return false end
-    if actInfo.isMythicPlusActivity or actInfo.isMythicActivity then
-        return true
-    end
-    if actInfo.categoryID == 2 then -- Dungeons category
-        return true
-    end
-    return false
-end
+local get_activity_id = sfui_common.get_activity_id
+local is_valid_dungeon_activity = sfui_common.is_valid_dungeon_activity
 
 local function check_group_full()
     if not is_enabled() then return end

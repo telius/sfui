@@ -853,7 +853,7 @@ function mail.FindDestinationForBagItem(bag, slot)
     -- Soulbound items can never be mailed
     if info.isBound then return nil end
 
-    local itemID = info.itemID
+    itemID = info.itemID
 
     -- Check if item is explicitly blacklisted
     if mail.IsItemIgnored(itemID) then return nil end

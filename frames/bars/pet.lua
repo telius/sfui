@@ -424,7 +424,8 @@ local function init_pet_frame()
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT", 4, 0)
         GameTooltip:SetUnit("pet")
         if playerClass == "HUNTER" then
-            local happ, dmgPct = GetPetHappiness and GetPetHappiness()
+            local happ, dmgPct
+            if GetPetHappiness then happ, dmgPct = GetPetHappiness() end
             if happ then
                 local happText = (happ == 3 and "happy") or (happ == 2 and "content") or "unhappy"
                 local happColor = (happ == 3 and "|cff33ff33") or (happ == 2 and "|cffffff33") or "|cffff3333"

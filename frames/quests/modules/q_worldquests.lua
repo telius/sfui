@@ -17,6 +17,7 @@ local C_SuperTrack = _G.C_SuperTrack
 local GetNumQuestLogEntries = _G.GetNumQuestLogEntries
 local GetQuestProgressBarPercent = _G.GetQuestProgressBarPercent
 local IsShiftKeyDown = _G.IsShiftKeyDown
+local InCombatLockdown = _G.InCombatLockdown
 local QuestMapFrame_OpenToQuestDetails = _G.QuestMapFrame_OpenToQuestDetails
 
 local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
@@ -182,7 +183,7 @@ function WorldQuestsModule:BuildBlocks(container)
             end
             local prevSig = lastWQProgress[questID]
             if initialWQScanDone and prevSig and prevSig ~= currentSig then
-                if sfui.map and sfui.map.SetSuperTrackedQuestID then
+                if not (InCombatLockdown and InCombatLockdown()) and sfui.map and sfui.map.SetSuperTrackedQuestID then
                     sfui.map.SetSuperTrackedQuestID(questID)
                 end
             end

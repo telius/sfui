@@ -694,8 +694,11 @@ function sfui.buffs.UpdateDisplay()
                     end
                 end
             elseif db and db.clickToCast ~= false and not isTestMode and rec.entry then
-                local castSpell, _, castSpellID = sfui.buffs.data and sfui.buffs.data.GetBestCastSpell and
-                    sfui.buffs.data.GetBestCastSpell(rec.entry, rec.activeEnchant)
+                local castSpell, castSpellID
+                local buffsData = sfui.buffs.data
+                if buffsData and buffsData.GetBestCastSpell then
+                    castSpell, _, castSpellID = buffsData.GetBestCastSpell(rec.entry, rec.activeEnchant)
+                end
                 local targetSlot = (rec.entry.type == "weapon_enchant") and (rec.entry.slot or 16) or nil
                 local spellToCast = (rec.entry.type == "pet" and castSpellID) or castSpell or castSpellID
                 if spellToCast then

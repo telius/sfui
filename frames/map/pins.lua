@@ -5,6 +5,9 @@ sfui.map = sfui.map or {}
 sfui.map.pins = sfui.pins
 local pins = sfui.pins
 
+-- Guard: Camelot & Classic only. Retail provides native map data providers.
+if sfui.isRetail then return end
+
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/map/pins.lua
 --  Unified WorldMap Pin Placement Engine
@@ -107,18 +110,7 @@ local function RebuildActiveQuestCache()
     isQuestCacheValid = true
 end
 
-function pins.IsQuestCompleted(questID)
-    if not questID then return false end
-    if _G.C_QuestLog and _G.C_QuestLog.IsQuestFlaggedCompleted then
-        local ok, done = pcall(_G.C_QuestLog.IsQuestFlaggedCompleted, questID)
-        if ok and done then return true end
-    end
-    if _G.IsQuestFlaggedCompleted then
-        local ok, done = pcall(_G.IsQuestFlaggedCompleted, questID)
-        if ok and done then return true end
-    end
-    return false
-end
+pins.IsQuestCompleted = sfui.common.is_quest_completed
 
 function pins.IsQuestActive(questID)
     if not questID then return false end
@@ -696,6 +688,7 @@ end
 
 -- ─── WorldMap Render Pass ─────────────────────────────────────────────────────
 local function RenderPins(force)
+    if InCombatLockdown and InCombatLockdown() then return end
     local wmf = _G.WorldMapFrame
     if not wmf or not wmf:IsShown() then
         ReleasePins()
@@ -1183,8 +1176,10 @@ end
 
 -- ─── Lifecycle & Map Ticker Integration ───────────────────────────────────────
 local function StartTicker()
+    if InCombatLockdown and InCombatLockdown() then return end
     if updateTicker then return end
     updateTicker = C_Timer.NewTicker(0.5, function()
+        if InCombatLockdown and InCombatLockdown() then return end
         local wmf = _G.WorldMapFrame
         if wmf and wmf:IsShown() then
             RenderPins(false)
@@ -1213,8 +1208,10 @@ local function InitPinEngine()
     local wmf = _G.WorldMapFrame
     if wmf then
         wmf:HookScript("OnShow", function()
+            if InCombatLockdown and InCombatLockdown() then return end
             StartTicker()
             C_Timer.After(0, function()
+                if InCombatLockdown and InCombatLockdown() then return end
                 local curWmf = _G.WorldMapFrame
                 if curWmf and curWmf:IsShown() then
                     RenderPins(true)

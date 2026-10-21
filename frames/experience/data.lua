@@ -608,3 +608,18 @@ function data.FormatTime(seconds)
         return string_format("%ds", sec)
     end
 end
+
+--- Get text visibility alpha based on mouseover setting
+--- @param isHovering boolean
+--- @return number alpha
+function data.GetTextAlpha(isHovering)
+    local cfg = sfui.config and sfui.config.experience or {}
+    local mode = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showText", cfg.showText or "MOUSEOVER")) or "MOUSEOVER"
+    if mode == "ALWAYS" then
+        return 1.0
+    elseif mode == "MOUSEOVER" then
+        return isHovering and 1.0 or 0.0
+    else
+        return 0.0
+    end
+end

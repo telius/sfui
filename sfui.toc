@@ -32,7 +32,7 @@ core/module.lua
 core/bridge.lua
 core/talents.lua
 core/talents_standard.lua [AllowLoadGameType standard]
-core/talents_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+core/talents_camelot.lua [AllowLoadGameType camelot, classic]
 core/colors.lua
 core/items.lua
 core/map.lua
@@ -51,7 +51,7 @@ frames/themes/tab_theme.lua
 frames/options/tabs/tab_automation.lua
 frames/options/tabs/tab_bars.lua
 frames/options/tabs/tab_actionbars.lua
-frames/options/tabs/tab_classutility.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/options/tabs/tab_classutility.lua [AllowLoadGameType camelot, classic]
 frames/options/tabs/tab_portals.lua
 frames/options/tabs/tab_ring.lua
 frames/options/tabs/tab_buffs.lua [AllowLoadGameType camelot, classic]
@@ -66,7 +66,7 @@ frames/options/tabs/tab_merchant.lua
 frames/options/tabs/tab_minimap.lua
 frames/options/tabs/tab_objectives.lua
 frames/options/tabs/tab_pets.lua
-frames/options/tabs/tab_research.lua [AllowLoadGameType standard][ExcludeLoadGameType camelot, classic]
+frames/options/tabs/tab_research.lua [AllowLoadGameType standard]
 frames/options/tabs/tab_hide.lua
 frames/options/tabs/tab_debug.lua
 
@@ -82,13 +82,13 @@ frames/actionbars/bars.lua
 frames/actionbars/bind.lua
 frames/actionbars/actionbars.lua
 
-frames/research.lua [AllowLoadGameType standard][ExcludeLoadGameType camelot, classic]
+frames/research.lua [AllowLoadGameType standard]
 frames/merchant/merchant_filter.lua
 frames/merchant/merchant_utility.lua
 frames/merchant/merchant.lua
 frames/alts/alts.lua
 frames/alts/alts_standard.lua [AllowLoadGameType standard]
-frames/alts/alts_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/alts/alts_camelot.lua [AllowLoadGameType camelot, classic]
 frames/alts/recipes.lua
 frames/alts/mail_data.lua
 frames/alts/mail_engine.lua
@@ -100,22 +100,22 @@ frames/automation/fishing.lua
 frames/automation/location.lua
 frames/automation/logs.lua
 frames/automation/pets.lua
-frames/automation/rankup.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/automation/transfer.lua [AllowLoadGameType standard][ExcludeLoadGameType camelot, classic]
+frames/automation/rankup.lua [AllowLoadGameType camelot, classic]
+frames/automation/transfer.lua [AllowLoadGameType standard]
 frames/automation/triage.lua
 
 frames/bars/bars.lua
-frames/bars/swing.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/bars/swing.lua [AllowLoadGameType camelot, classic]
 frames/bars/castbar.lua
 frames/bars/vehicle.lua
 frames/bars/soulfragments.lua [AllowLoadGameType standard]
-frames/bars/target.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/bars/threat.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/bars/totembar.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/bars/pet.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/bars/target.lua [AllowLoadGameType camelot, classic]
+frames/bars/threat.lua [AllowLoadGameType camelot, classic]
+frames/bars/totembar.lua [AllowLoadGameType camelot, classic]
+frames/bars/pet.lua [AllowLoadGameType camelot, classic]
 frames/experience/data.lua
-frames/experience/challenges.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/experience/pet.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/experience/challenges.lua [AllowLoadGameType camelot, classic]
+frames/experience/pet.lua [AllowLoadGameType camelot, classic]
 frames/experience/floating.lua
 frames/experience/bar.lua
 frames/experience/reputation.lua
@@ -133,22 +133,22 @@ frames/tracking/trackedicons.lua
 data/portals.lua [AllowLoadGameType standard]
 frames/portals/portals.lua
 frames/portals/portals_standard.lua [AllowLoadGameType standard]
-frames/portals/portals_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/portals/portals_camelot.lua [AllowLoadGameType camelot, classic]
 frames/portals/portal_popup.lua [AllowLoadGameType standard]
 
 frames/gear/compare.lua
 frames/gear/engine.lua
 frames/gear/gear.lua
 frames/gear/gear_standard.lua [AllowLoadGameType standard]
-frames/gear/gear_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/character/infopanel.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/gear/gear_camelot.lua [AllowLoadGameType camelot, classic]
+frames/character/infopanel.lua [AllowLoadGameType camelot, classic]
 frames/gear/highest/tooltips.lua
 frames/gear/highest/validator.lua
 frames/gear/highest/scorer.lua
 frames/gear/highest/solvers.lua
 frames/gear/highest/executor.lua
 frames/gear/highest.lua
-frames/gear/lootspec.lua [AllowLoadGameType standard][ExcludeLoadGameType camelot, classic]
+frames/gear/lootspec.lua [AllowLoadGameType standard]
 frames/gear/lootviewer.lua [AllowLoadGameType standard]
 frames/gear/bonusroll.lua [AllowLoadGameType standard]
 frames/gear/hammer.lua [AllowLoadGameType standard]
@@ -162,34 +162,34 @@ frames/map/system.lua
 frames/map/buttons.lua
 frames/map/minimap.lua
 frames/map/square.lua
-frames/map/pins.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/map/pins.lua [AllowLoadGameType camelot, classic]
 
 # Camelot Dungeon Journal
-data/dj_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/dungeonjournal/dungeonjournal.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/dungeonjournal/dj_sidebar.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/dungeonjournal/dj_bosses.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/dungeonjournal/dj_quests.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/dungeonjournal/dj_tooltips.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/map/providers/pins_dungeonjournal.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+data/dj_camelot.lua [AllowLoadGameType camelot, classic]
+frames/dungeonjournal/dungeonjournal.lua [AllowLoadGameType camelot, classic]
+frames/dungeonjournal/dj_sidebar.lua [AllowLoadGameType camelot, classic]
+frames/dungeonjournal/dj_bosses.lua [AllowLoadGameType camelot, classic]
+frames/dungeonjournal/dj_quests.lua [AllowLoadGameType camelot, classic]
+frames/dungeonjournal/dj_tooltips.lua [AllowLoadGameType camelot, classic]
+frames/map/providers/pins_dungeonjournal.lua [AllowLoadGameType camelot, classic]
 
 # Camelot Recipes & Professions
-data/recipes_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/professions/sources.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/professions/contacts.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/professions/tooltips.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/professions/filters.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/professions/progress.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/professions/rows.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/professions/browser.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/map/providers/pins_recipes.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+data/recipes_camelot.lua [AllowLoadGameType camelot, classic]
+frames/professions/sources.lua [AllowLoadGameType camelot, classic]
+frames/professions/contacts.lua [AllowLoadGameType camelot, classic]
+frames/professions/tooltips.lua [AllowLoadGameType camelot, classic]
+frames/professions/filters.lua [AllowLoadGameType camelot, classic]
+frames/professions/progress.lua [AllowLoadGameType camelot, classic]
+frames/professions/rows.lua [AllowLoadGameType camelot, classic]
+frames/professions/browser.lua [AllowLoadGameType camelot, classic]
+frames/map/providers/pins_recipes.lua [AllowLoadGameType camelot, classic]
 
 # Camelot Library Books
-data/books_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/map/providers/pins_library.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+data/books_camelot.lua [AllowLoadGameType camelot, classic]
+frames/map/providers/pins_library.lua [AllowLoadGameType camelot, classic]
 
 # Camelot Iconic Quests & Discoveries (Sleeping Bag, Torch)
-frames/map/providers/pins_camelot_quests.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/map/providers/pins_camelot_quests.lua [AllowLoadGameType camelot, classic]
 
 
 
@@ -214,15 +214,15 @@ frames/quests/modules/q_scenarios.lua [AllowLoadGameType standard, camelot]
 frames/quests/modules/q_worldevents.lua [AllowLoadGameType standard]
 frames/quests/modules/q_worldquests.lua [AllowLoadGameType standard, camelot]
 frames/quests/modules/q_quests.lua [AllowLoadGameType standard]
-frames/quests/modules/q_camelot_skills.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/quests/modules/q_camelot_class.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/quests/modules/q_camelot.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
-frames/quests/modules/q_camelot_challenges.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/quests/modules/q_camelot_skills.lua [AllowLoadGameType camelot, classic]
+frames/quests/modules/q_camelot_class.lua [AllowLoadGameType camelot, classic]
+frames/quests/modules/q_camelot.lua [AllowLoadGameType camelot, classic]
+frames/quests/modules/q_camelot_challenges.lua [AllowLoadGameType camelot, classic]
 frames/quests/modules/q_achievements.lua [AllowLoadGameType standard, camelot]
 frames/quests/modules/q_activities.lua [AllowLoadGameType standard, camelot]
 frames/quests/modules/q_collectables.lua [AllowLoadGameType standard, camelot]
 frames/quests/modules/q_recipes.lua [AllowLoadGameType standard]
-frames/quests/modules/q_camelot_recipes.lua [AllowLoadGameType camelot, classic][ExcludeLoadGameType standard]
+frames/quests/modules/q_camelot_recipes.lua [AllowLoadGameType camelot, classic]
 frames/quests/q_mythic.lua [AllowLoadGameType standard]
 
 # Reminders

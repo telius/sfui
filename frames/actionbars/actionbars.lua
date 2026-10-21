@@ -159,10 +159,35 @@ local function suppress_blizzard_actionbars()
     end
     silenceDispatchers()
 
+    -- Camelot gamepad pet flyout guard (hunter / warlock):
+    -- Blizzard_GamepadActionBars mixes PetActionFlyoutButtonMixin into
+    -- GamepadMainActionBarFrame.PageUnit.LeftClassAction at login, but its popup
+    -- (GamepadPetActionFlyout) is only assigned when ActionBarButtonEventsFrame
+    -- relays PLAYER_ENTERING_WORLD -> UpdateAction -> UpdateFlyout. With the
+    -- dispatcher silenced above, the popup stays nil and the button's own
+    -- UNIT_FLAGS / PET_BAR_UPDATE handlers crash in ToggleFlash
+    -- (PetActionFlyout.lua:156) whenever the pet attacks. Only its flash events
+    -- are dropped (no fields or attributes written, so nothing is tainted), and only
+    -- while the popup is actually missing.
+    local function defuseGamepadPetFlash()
+        local bar = _G.GamepadMainActionBarFrame
+        local page = bar and bar.PageUnit
+        local btn = page and page.LeftClassAction
+        if not btn or not btn.IsPetAttacking or btn.popup then return end
+        btn:UnregisterEvent("UNIT_FLAGS")
+        btn:UnregisterEvent("PET_BAR_UPDATE")
+    end
+
     if _G.EventUtil and _G.EventUtil.ContinueOnPlayerLogin then
         _G.EventUtil.ContinueOnPlayerLogin(function()
             silenceDispatchers()
+            defuseGamepadPetFlash()
         end)
+    end
+    -- PLAYER_ENTERING_WORLD fires after every PLAYER_LOGIN callback, so Blizzard's
+    -- mixin is guaranteed to be applied by then regardless of callback order.
+    if sfui.events and sfui.events.RegisterEvent then
+        sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", defuseGamepadPetFlash)
     end
 
     -- Hide native Blizzard action buttons

@@ -59,31 +59,9 @@ function sfui.location.on_roster_update()
     end
 end
 
-local function get_activity_id(data)
-    if not data then return nil end
-    if type(data.activityID) == "number" and data.activityID > 0 then
-        return data.activityID
-    end
-    if type(data.activityIDs) == "table" and data.activityIDs[1] then
-        return data.activityIDs[1]
-    end
-    return nil
-end
-
-local function is_valid_dungeon_activity(actInfo)
-    if not actInfo then return false end
-    if actInfo.isMythicPlusActivity or actInfo.isMythicActivity then
-        return true
-    end
-    if actInfo.categoryID == 2 then
-        return true
-    end
-    return false
-end
-
-local function parse_keystone_level(str)
-    return sfui_common.parse_keystone_level(str)
-end
+local get_activity_id = sfui_common.get_activity_id
+local is_valid_dungeon_activity = sfui_common.is_valid_dungeon_activity
+local parse_keystone_level = sfui_common.parse_keystone_level
 
 local function get_group_leader_name()
     if UnitIsGroupLeader("player") or not IsInGroup() then

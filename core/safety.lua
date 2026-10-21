@@ -422,36 +422,27 @@ end
 
 local function protect_core_status_bars()
     install_text_status_bar_safety()
-    local bars = {
-        _G.PlayerFrameHealthBar,
-        _G.PlayerFrameManaBar,
-        _G.PetFrameHealthBar,
-        _G.PetFrameManaBar,
-        _G.TargetFrameHealthBar,
-        _G.TargetFrameManaBar,
-        _G.FocusFrameHealthBar,
-        _G.FocusFrameManaBar,
-    }
+    protect_bar(_G.PlayerFrameHealthBar)
+    protect_bar(_G.PlayerFrameManaBar)
+    protect_bar(_G.PetFrameHealthBar)
+    protect_bar(_G.PetFrameManaBar)
+    protect_bar(_G.TargetFrameHealthBar)
+    protect_bar(_G.TargetFrameManaBar)
+    protect_bar(_G.FocusFrameHealthBar)
+    protect_bar(_G.FocusFrameManaBar)
     if _G.PlayerFrame_GetHealthBar then
-        bars[#bars + 1] = _G.PlayerFrame_GetHealthBar()
+        protect_bar(_G.PlayerFrame_GetHealthBar())
     end
     if _G.PlayerFrame_GetManaBar then
-        bars[#bars + 1] = _G.PlayerFrame_GetManaBar()
+        protect_bar(_G.PlayerFrame_GetManaBar())
     end
     if _G.PlayerFrame_GetAlternatePowerBar then
-        bars[#bars + 1] = _G.PlayerFrame_GetAlternatePowerBar()
-    end
-    for _, bar in ipairs(bars) do
-        protect_bar(bar)
+        protect_bar(_G.PlayerFrame_GetAlternatePowerBar())
     end
 end
 protect_core_status_bars()
 
-local safetyEventFrame = _G.CreateFrame("Frame")
-safetyEventFrame:RegisterEvent("PLAYER_LOGIN")
-safetyEventFrame:RegisterEvent("ADDON_LOADED")
-safetyEventFrame:SetScript("OnEvent", function()
-    protect_core_status_bars()
-end)
+sfui.events.RegisterEvent("PLAYER_LOGIN", protect_core_status_bars)
+sfui.events.RegisterEvent("ADDON_LOADED", protect_core_status_bars)
 
 

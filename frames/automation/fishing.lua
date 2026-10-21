@@ -176,13 +176,7 @@ end
 local cachedFishingID
 local cachedSpellName
 
-local function is_spell_known(spellID)
-    if not spellID then return false end
-    if sfui.common and sfui.common.is_spell_known then
-        return sfui.common.is_spell_known(spellID)
-    end
-    return false
-end
+local is_spell_known = sfui.common.is_spell_known
 
 local function find_fishing_spell_in_spellbook()
     if C_SpellBook and C_SpellBook.GetSpellBookItemType and C_SpellBook.GetSpellBookItemName then
@@ -483,14 +477,9 @@ local function is_fishing_pole_item(itemID, itemLink)
     local _, _, _, _, _, cID, scID = sfui.common.get_item_instant_info(itemID or itemLink)
     if is_pole_class(cID, scID) then return true end
 
-    if _G.GetItemInfoInstant then
-        local _, _, _, _, _, cID, scID = _G.GetItemInfoInstant(itemID or itemLink)
-        if is_pole_class(cID, scID) then return true end
-    end
-
-    if _G.GetItemInfo then
-        local _, _, _, _, _, _, subType, _, _, _, _, cID, scID = _G.GetItemInfo(itemLink or itemID)
-        if is_pole_class(cID, scID) then return true end
+    do
+        local _, _, _, _, _, _, subType, _, _, _, _, cID2, scID2 = sfui.common.get_item_info(itemLink or itemID)
+        if is_pole_class(cID2, scID2) then return true end
         if subType then
             local sLower = subType:lower()
             if sLower:find("fishing") or sLower:find("angel") or sLower:find("peche") or sLower:find("pesca") then
@@ -498,9 +487,6 @@ local function is_fishing_pole_item(itemID, itemLink)
             end
         end
     end
-
-    local _, _, _, _, _, cID, scID = sfui.common.get_item_instant_info(itemID or itemLink)
-    if is_pole_class(cID, scID) then return true end
 
     if itemLink then
         local bracketName = itemLink:match("%[(.-)%]")
@@ -909,7 +895,6 @@ function sfui.fishing.RunKeybind(fromSlash)
     end
 
     -- 3. In Classic/Vanilla, if no fishing pole is equipped, auto-equip it from bags!
-    local isClassic = is_classic_client()
     if isClassic and not is_fishing_pole_equipped() then
         local equipped = equip_fishing_pole_from_bags()
         if equipped then

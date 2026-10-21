@@ -28,6 +28,7 @@ local UnitCreatureFamily = _G.UnitCreatureFamily
 local GetPetExperience = _G.GetPetExperience
 local BreakUpLargeNumbers = _G.BreakUpLargeNumbers or tostring
 local C_PetInfo = _G.C_PetInfo
+local GameTooltip = sfui.common.get_tooltip()
 
 local petContainer = nil
 local petBar = nil
@@ -45,17 +46,8 @@ local PET_BAR_COLOR_TP = { 0.88, 0.62, 0.14, 1.0 }
 --- Update text visibility based on hover state and configuration
 --- @param isHovering boolean
 local function UpdateTextVisibility(isHovering)
-    local cfg = sfui.config and sfui.config.experience or {}
-    local mode = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showText", cfg.showText or "MOUSEOVER")) or "MOUSEOVER"
-
-    local alpha = 1.0
-    if mode == "ALWAYS" then
-        alpha = 1.0
-    elseif mode == "MOUSEOVER" then
-        alpha = isHovering and 1.0 or 0.0
-    else -- "NEVER"
-        alpha = 0.0
-    end
+    local data = sfui.experience.data
+    local alpha = data and data.GetTextAlpha and data.GetTextAlpha(isHovering) or (isHovering and 1.0 or 0.0)
 
     if textLeft then textLeft:SetAlpha(alpha) end
     if textCenter then textCenter:SetAlpha(alpha) end
@@ -84,11 +76,10 @@ function petModule.IsAvailable()
     if petLevel <= 0 then return false end
 
     local playerLevel = UnitLevel("player") or 0
-    local currXP, nextXP = 0, 0
+    local nextXP = 0
     if GetPetExperience then
-        currXP, nextXP = GetPetExperience()
+        _, nextXP = GetPetExperience()
     end
-    currXP = currXP or 0
     nextXP = nextXP or 0
 
     local totalTP, usedTP = 0, 0
@@ -468,14 +459,14 @@ function petModule.Create()
         local data = petModule.GetData()
         if not data then return end
 
-        _G.GameTooltip:SetOwner(self, "ANCHOR_TOP", 0, 4)
-        _G.GameTooltip:ClearLines()
+        GameTooltip:SetOwner(self, "ANCHOR_TOP", 0, 4)
+        GameTooltip:ClearLines()
 
         -- Title line: name (family) — level lvl
         local titleLeft = data.name:lower() .. (data.family and (" (" .. data.family:lower() .. ")") or "")
         local titleRight = "level " .. data.level
-        _G.GameTooltip:AddDoubleLine(titleLeft, titleRight, 0.18, 0.65, 0.32, 1, 1, 1)
-        _G.GameTooltip:AddLine(" ")
+        GameTooltip:AddDoubleLine(titleLeft, titleRight, 0.18, 0.65, 0.32, 1, 1, 1)
+        GameTooltip:AddLine(" ")
 
         -- Loyalty
         local loyaltyR, loyaltyG, loyaltyB = 1, 1, 1
@@ -486,12 +477,12 @@ function petModule.Create()
         elseif data.loyaltyRate < 0 then
             loyaltyR, loyaltyG, loyaltyB = 0.9, 0.2, 0.2
         end
-        _G.GameTooltip:AddDoubleLine("loyalty:", string_format("%s (rank %d of 6)", data.loyaltyName, data.loyaltyRank), 0.8, 0.8, 0.8, loyaltyR, loyaltyG, loyaltyB)
+        GameTooltip:AddDoubleLine("loyalty:", string_format("%s (rank %d of 6)", data.loyaltyName, data.loyaltyRank), 0.8, 0.8, 0.8, loyaltyR, loyaltyG, loyaltyB)
 
         if data.loyaltyRate > 0 then
-            _G.GameTooltip:AddDoubleLine("loyalty trend:", "gaining loyalty (keep pet happy)", 0.6, 0.6, 0.6, 0.2, 0.9, 0.2)
+            GameTooltip:AddDoubleLine("loyalty trend:", "gaining loyalty (keep pet happy)", 0.6, 0.6, 0.6, 0.2, 0.9, 0.2)
         elseif data.loyaltyRate < 0 then
-            _G.GameTooltip:AddDoubleLine("loyalty trend:", "losing loyalty (feed your pet)", 0.6, 0.6, 0.6, 0.9, 0.2, 0.2)
+            GameTooltip:AddDoubleLine("loyalty trend:", "losing loyalty (feed your pet)", 0.6, 0.6, 0.6, 0.9, 0.2, 0.2)
         end
 
         -- Happiness
@@ -504,55 +495,55 @@ function petModule.Create()
             hapText = "unhappy"
             hapR, hapG, hapB = 0.95, 0.2, 0.2
         end
-        _G.GameTooltip:AddDoubleLine("happiness:", string_format("%s (%d%% damage)", hapText, data.damagePct), 0.8, 0.8, 0.8, hapR, hapG, hapB)
+        GameTooltip:AddDoubleLine("happiness:", string_format("%s (%d%% damage)", hapText, data.damagePct), 0.8, 0.8, 0.8, hapR, hapG, hapB)
 
         -- Diet
         if data.diet and #data.diet > 0 then
             local dietStr = table_concat(data.diet, ", "):lower()
-            _G.GameTooltip:AddDoubleLine("diet:", dietStr, 0.8, 0.8, 0.8, 0.9, 0.9, 0.9)
+            GameTooltip:AddDoubleLine("diet:", dietStr, 0.8, 0.8, 0.8, 0.9, 0.9, 0.9)
         end
 
-        _G.GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(" ")
 
         -- Experience section
-        _G.GameTooltip:AddLine("pet experience", 0.18, 0.65, 0.32)
+        GameTooltip:AddLine("pet experience", 0.18, 0.65, 0.32)
         if data.isXpCapped then
-            _G.GameTooltip:AddDoubleLine("status:", "capped at player level", 0.8, 0.8, 0.8, 1, 0.82, 0.2)
+            GameTooltip:AddDoubleLine("status:", "capped at player level", 0.8, 0.8, 0.8, 1, 0.82, 0.2)
         else
-            _G.GameTooltip:AddDoubleLine("current xp:", string_format("%s / %s (%.1f%%)", BreakUpLargeNumbers(data.currentXP), BreakUpLargeNumbers(data.maxXP), data.percentXP), 0.8, 0.8, 0.8, 1, 1, 1)
-            _G.GameTooltip:AddDoubleLine("xp remaining:", BreakUpLargeNumbers(data.remainingXP), 0.8, 0.8, 0.8, 1, 0.82, 0.4)
-            _G.GameTooltip:AddDoubleLine("xp rule:", "kills within 5 levels of pet", 0.6, 0.6, 0.6, 0.7, 0.7, 0.7)
+            GameTooltip:AddDoubleLine("current xp:", string_format("%s / %s (%.1f%%)", BreakUpLargeNumbers(data.currentXP), BreakUpLargeNumbers(data.maxXP), data.percentXP), 0.8, 0.8, 0.8, 1, 1, 1)
+            GameTooltip:AddDoubleLine("xp remaining:", BreakUpLargeNumbers(data.remainingXP), 0.8, 0.8, 0.8, 1, 0.82, 0.4)
+            GameTooltip:AddDoubleLine("xp rule:", "kills within 5 levels of pet", 0.6, 0.6, 0.6, 0.7, 0.7, 0.7)
         end
 
-        _G.GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(" ")
 
         -- Training points section
-        _G.GameTooltip:AddLine("pet training points", 0.88, 0.62, 0.14)
+        GameTooltip:AddLine("pet training points", 0.88, 0.62, 0.14)
         if data.unspentTP > 0 then
-            _G.GameTooltip:AddDoubleLine("unspent points:", string_format("%s tp available", BreakUpLargeNumbers(data.unspentTP)), 0.8, 0.8, 0.8, 0.2, 0.9, 0.2)
+            GameTooltip:AddDoubleLine("unspent points:", string_format("%s tp available", BreakUpLargeNumbers(data.unspentTP)), 0.8, 0.8, 0.8, 0.2, 0.9, 0.2)
         elseif data.unspentTP < 0 then
-            _G.GameTooltip:AddDoubleLine("points debt:", string_format("%s tp", BreakUpLargeNumbers(data.unspentTP)), 0.8, 0.8, 0.8, 0.95, 0.2, 0.2)
+            GameTooltip:AddDoubleLine("points debt:", string_format("%s tp", BreakUpLargeNumbers(data.unspentTP)), 0.8, 0.8, 0.8, 0.95, 0.2, 0.2)
         else
-            _G.GameTooltip:AddDoubleLine("unspent points:", "0 tp", 0.8, 0.8, 0.8, 0.7, 0.7, 0.7)
+            GameTooltip:AddDoubleLine("unspent points:", "0 tp", 0.8, 0.8, 0.8, 0.7, 0.7, 0.7)
         end
-        _G.GameTooltip:AddDoubleLine("points spent:", string_format("%s / %s tp", BreakUpLargeNumbers(data.usedTP), BreakUpLargeNumbers(data.totalTP)), 0.8, 0.8, 0.8, 1, 1, 1)
-        _G.GameTooltip:AddDoubleLine("formula:", "level x (loyalty rank - 1)", 0.6, 0.6, 0.6, 0.7, 0.7, 0.7)
+        GameTooltip:AddDoubleLine("points spent:", string_format("%s / %s tp", BreakUpLargeNumbers(data.usedTP), BreakUpLargeNumbers(data.totalTP)), 0.8, 0.8, 0.8, 1, 1, 1)
+        GameTooltip:AddDoubleLine("formula:", "level x (loyalty rank - 1)", 0.6, 0.6, 0.6, 0.7, 0.7, 0.7)
 
         if data.unspentTP < 0 then
-            _G.GameTooltip:AddLine("tamed pet has negative tp balance until loyalty increases", 0.9, 0.4, 0.2)
+            GameTooltip:AddLine("tamed pet has negative tp balance until loyalty increases", 0.9, 0.4, 0.2)
         end
 
-        _G.GameTooltip:AddLine(" ")
-        _G.GameTooltip:AddLine("<left-click: open pet character pane>", 0.5, 0.8, 0.5)
-        _G.GameTooltip:AddLine("<right-click: open beast training menu>", 0.88, 0.62, 0.14)
-        _G.GameTooltip:AddLine("<middle-click: fast feed pet>", 0.2, 0.9, 0.2)
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("<left-click: open pet character pane>", 0.5, 0.8, 0.5)
+        GameTooltip:AddLine("<right-click: open beast training menu>", 0.88, 0.62, 0.14)
+        GameTooltip:AddLine("<middle-click: fast feed pet>", 0.2, 0.9, 0.2)
 
-        _G.GameTooltip:Show()
+        GameTooltip:Show()
     end)
 
     petContainer:SetScript("OnLeave", function()
         UpdateTextVisibility(false)
-        _G.GameTooltip:Hide()
+        GameTooltip:Hide()
     end)
 
     petContainer:SetScript("OnClick", function(self, button)

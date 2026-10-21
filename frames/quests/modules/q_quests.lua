@@ -472,7 +472,6 @@ function QuestsModule:BuildBlocks(container)
         local questID = nil
         local title = nil
         local isHeader = false
-        local isCollapsed = false
         local isComplete = false
         local isAutoComplete = false
         local frequency = nil
@@ -487,7 +486,6 @@ function QuestsModule:BuildBlocks(container)
                 isHeader = info.isHeader
                 questID = info.questID
                 title = info.title
-                isCollapsed = info.isCollapsed
                 frequency = info.frequency
                 questClassification = info.questClassification
                 campaignID = info.campaignID
@@ -496,11 +494,10 @@ function QuestsModule:BuildBlocks(container)
                 isAutoComplete = (info.isAutoComplete == true)
             end
         elseif GetQuestLogTitle then
-            local qTitle, qLevel, qTag, qHeader, qColl, qComp, qFreq, qID = GetQuestLogTitle(i)
+            local qTitle, qLevel, _, qHeader, _, qComp, qFreq, qID = GetQuestLogTitle(i)
             title = qTitle
             level = qLevel or 0
             isHeader = qHeader
-            isCollapsed = qColl
             isComplete = (qComp == 1)
             frequency = qFreq
             questID = qID

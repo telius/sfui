@@ -26,35 +26,12 @@ local wipe = _G.wipe or function(t)
     return t
 end
 local unpack = _G.unpack or _G.table.unpack
-local GetInventoryItemLink = function(unit, slotID)
-    if sfui.common and sfui.common.get_inventory_item_link then
-        return sfui.common.get_inventory_item_link(unit, slotID)
-    end
-    return _G.GetInventoryItemLink and _G.GetInventoryItemLink(unit, slotID)
-end
+local GetInventoryItemLink = sfui.common.get_inventory_item_link
 local GetItemInfoInstant = sfui.common.get_item_instant_info
 local GetItemInfo = sfui.common.get_item_info
 local IsShiftKeyDown = _G.IsShiftKeyDown
 
-local function show_tooltip(owner, anchor, title, lines)
-    local tip = sfui.common.get_tooltip()
-    if not tip or not owner then return end
-    tip:SetOwner(owner, anchor or "ANCHOR_RIGHT")
-    if title then
-        tip:SetText(tostring(title):lower())
-    end
-    if lines then
-        for _, line in ipairs(lines) do
-            if type(line) == "table" then
-                local txt = line[1] and tostring(line[1]):lower() or ""
-                tip:AddLine(txt, line[2], line[3], line[4], line[5])
-            else
-                tip:AddLine(tostring(line):lower())
-            end
-        end
-    end
-    tip:Show()
-end
+local show_tooltip = sfui.gear.show_tooltip -- defined in engine.lua
 
 local function show_item_tooltip(owner, itemID, anchor, extraLines)
     local tip = sfui.common.get_tooltip()

@@ -186,6 +186,16 @@ function sfui.gear.GetClassicClassID(specID)
     return nil
 end
 
+--- Resolve the saved gear profile for a spec, falling back through its camelot tree and class IDs.
+--- @param specID number|nil
+--- @return table|nil
+function sfui.gear.GetSpecDB(specID)
+    local gearDB = specID and _G.SfuiDB and _G.SfuiDB.gear
+    if not gearDB then return nil end
+    local b = SPEC_BRIDGE[specID]
+    return gearDB[specID] or (b and b.camelotID and gearDB[b.camelotID]) or (b and b.classID and gearDB[b.classID])
+end
+
 local function isClassicGameClient()
     if sfui.isRetail == true or (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic) then
         return false
@@ -373,10 +383,7 @@ function sfui.gear.IsTankSpec(specID, db)
         return false
     end
 
-    if not db and specID and _G.SfuiDB and _G.SfuiDB.gear then
-        local b = SPEC_BRIDGE[specID]
-        db = _G.SfuiDB.gear[specID] or (b and b.camelotID and _G.SfuiDB.gear[b.camelotID]) or (b and b.classID and _G.SfuiDB.gear[b.classID])
-    end
+    db = db or sfui.gear.GetSpecDB(specID)
     if db and (db.classic_role or db.role) then
         local cRole = db.classic_role and db.classic_role:lower()
         if cRole == "tank" or cRole == "bear" or cRole == "prot" or db.role == "TANK" then
@@ -415,10 +422,7 @@ function sfui.gear.IsHealerSpec(specID, db)
         return false
     end
 
-    if not db and specID and _G.SfuiDB and _G.SfuiDB.gear then
-        local b = SPEC_BRIDGE[specID]
-        db = _G.SfuiDB.gear[specID] or (b and b.camelotID and _G.SfuiDB.gear[b.camelotID]) or (b and b.classID and _G.SfuiDB.gear[b.classID])
-    end
+    db = db or sfui.gear.GetSpecDB(specID)
     if db and (db.classic_role or db.role) then
         local cRole = db.classic_role and db.classic_role:lower()
         if cRole == "heal" or cRole == "resto" or cRole == "holy" or cRole == "disc" or db.role == "HEALER" then

@@ -108,7 +108,7 @@ local function RefreshItemGrid(contentFrame)
     ReleaseItemSlots()
     if not contentFrame then return end
 
-    local items = {}
+    local items
     if centerMode == "ignored" then
         items = mail.GetIgnoredItems()
     else

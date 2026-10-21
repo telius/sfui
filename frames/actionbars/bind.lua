@@ -520,9 +520,7 @@ bind.IsActive = sfui.actionbars.IsBindModeActive
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Combat Safety Watcher
 -- ─────────────────────────────────────────────────────────────────────────────
-local combatFrame = CreateFrame("Frame")
-combatFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
-combatFrame:SetScript("OnEvent", function()
+sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
     if bind.isActive then
         sfui.actionbars.DeactivateBindMode(false)
         if sfui.common and sfui.common.print then

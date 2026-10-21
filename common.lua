@@ -907,6 +907,45 @@ function sfui.common.is_spell_known(spellID)
     return false
 end
 
+function sfui.common.check_flyout_slot(flyoutID, targetSpellID)
+    if not flyoutID then return false end
+    local getInfo = _G.GetFlyoutInfo or (_G.C_SpellBook and _G.C_SpellBook.GetFlyoutInfo)
+    local getSlot = _G.GetFlyoutSlotInfo or (_G.C_SpellBook and _G.C_SpellBook.GetFlyoutSlotInfo)
+    if not getInfo or not getSlot then return false end
+    local info1, _, info3 = getInfo(flyoutID)
+    local numSlots = (type(info1) == "table" and info1.numSlots) or info3 or 0
+    for i = 1, numSlots do
+        local r1, r2, r3 = getSlot(flyoutID, i)
+        local sID, isKnown
+        if type(r1) == "table" then
+            sID = r1.spellID or r1.overrideSpellID
+            isKnown = r1.isKnown
+        else
+            sID = r1
+            local overrideID = r2
+            isKnown = r3
+            if overrideID == targetSpellID then sID = overrideID end
+        end
+        if sID == targetSpellID and isKnown then
+            return true
+        end
+    end
+    return false
+end
+
+function sfui.common.is_quest_completed(questID)
+    if not questID then return false end
+    if _G.C_QuestLog and _G.C_QuestLog.IsQuestFlaggedCompleted then
+        local ok, done = pcall(_G.C_QuestLog.IsQuestFlaggedCompleted, questID)
+        if ok and done then return true end
+    end
+    if _G.IsQuestFlaggedCompleted then
+        local ok, done = pcall(_G.IsQuestFlaggedCompleted, questID)
+        if ok and done then return true end
+    end
+    return false
+end
+
 function sfui.common.is_toy_known(toyID)
     if not toyID then return false end
     local id = tonumber(toyID)
@@ -1600,6 +1639,28 @@ function sfui.common.parse_keystone_level(str)
     return nil
 end
 
+function sfui.common.get_activity_id(data)
+    if not data then return nil end
+    if type(data.activityID) == "number" and data.activityID > 0 then
+        return data.activityID
+    end
+    if type(data.activityIDs) == "table" and data.activityIDs[1] then
+        return data.activityIDs[1]
+    end
+    return nil
+end
+
+function sfui.common.is_valid_dungeon_activity(actInfo)
+    if not actInfo then return false end
+    if actInfo.isMythicPlusActivity or actInfo.isMythicActivity then
+        return true
+    end
+    if actInfo.categoryID == 2 then
+        return true
+    end
+    return false
+end
+
 --- Authoritative M+ keystone query across bags, C_MythicPlus, and C_LFGList.
 --- Prioritizes physical bags for instant reflection of downgrades/rerolls/upgrades.
 --- @return table|nil { mapID = number|nil, level = number, link = string|nil, name = string|nil, itemID = number|nil }
@@ -1736,9 +1797,9 @@ function sfui.common.get_owned_keystone_info()
 
     -- 3. Fall back to C_LFGList if still missing or out of bounds
     if (not bagMapID or not bagLevel or bagLevel >= 100) and C_LFGList and C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel then
-        local activityID, groupID, lfgLevel = C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel()
+        local activityID, _, lfgLevel = C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel()
         if not activityID then
-            activityID, groupID, lfgLevel = C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel(true)
+            activityID, _, lfgLevel = C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel(true)
         end
         if lfgLevel and lfgLevel > 0 and lfgLevel < 100 then
             if not bagLevel or bagLevel >= 100 then bagLevel = lfgLevel end

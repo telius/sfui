@@ -12,12 +12,7 @@ local select = _G.select
 
 local FROSTBANE_TALENT_ID = 455993
 
-local function GetInventoryItemLink(unit, slotID)
-    if sfui.common and sfui.common.get_inventory_item_link then
-        return sfui.common.get_inventory_item_link(unit, slotID)
-    end
-    return _G.GetInventoryItemLink and _G.GetInventoryItemLink(unit, slotID)
-end
+local GetInventoryItemLink = sfui.common.get_inventory_item_link
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Tier Set Solver

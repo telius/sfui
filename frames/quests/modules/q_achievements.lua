@@ -173,6 +173,7 @@ local function UntrackAchievement(achID)
 end
 
 local function OpenAchievementInUI(achID)
+    if InCombatLockdown and InCombatLockdown() then return end
     if not achID or achID <= 0 then return end
 
     if not _G.AchievementFrame and _G.AchievementFrame_LoadUI then
@@ -233,9 +234,10 @@ function AchievementsModule:BuildBlocks(container)
     end
 
     for _, achID in ipairs(trackedIDs) do
-        local id, name, points, completed, month, day, year, description, flags, icon, rewardText, isGuild, wasEarnedByMe = nil
+        local name, completed, description, wasEarnedByMe
         if GetAchievementInfo then
-            id, name, points, completed, month, day, year, description, flags, icon, rewardText, isGuild, wasEarnedByMe = GetAchievementInfo(achID)
+            local _1, _2, _3, _4, _5, _6, _7, _8, _9
+            _1, name, _2, completed, _3, _4, _5, description, _6, _7, _8, _9, wasEarnedByMe = GetAchievementInfo(achID)
         end
 
         -- Check filters: Only hide if completed by the current character.

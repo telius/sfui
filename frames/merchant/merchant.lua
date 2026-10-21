@@ -461,8 +461,6 @@ end
 -- Central Event Wiring
 --------------------------------------------------------------------------------
 
-local isSystemClose = false
-
 sfui.events.RegisterEvent("MERCHANT_SHOW", function()
     wipe(sfui.merchant.lockCache)
     update_header()
@@ -498,10 +496,12 @@ sfui.events.RegisterEvent("MERCHANT_CLOSED", function()
     if sfui.merchant.decorXpCache then
         wipe(sfui.merchant.decorXpCache)
     end
-    isSystemClose = true
     frame:Hide()
-    isSystemClose = false
-    GameTooltip_Hide()
+    if sfui.common and sfui.common.hide_tooltip then
+        sfui.common.hide_tooltip()
+    else
+        GameTooltip_Hide()
+    end
     if MerchantFrame then
         MerchantFrame:SetAlpha(1)
         if not (MerchantFrame.IsProtected and MerchantFrame:IsProtected()) and MerchantFrame.EnableMouse then

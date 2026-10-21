@@ -54,16 +54,23 @@ sfui.db.RegisterDefaults("ring", defaults)
 
 -- ── 2. Provider Registry ────────────────────────────────────────────────────
 local pendingRebuilds = {}
-local rebuildTimer = nil
+local rebuildPending = false -- C_Timer.After returns nil, so track the pending flush with a flag
 
 local function do_flush_rebuilds()
-    rebuildTimer = nil
+    rebuildPending = false
     if InCombatLockdown and InCombatLockdown() then
         return
     end
     for rID in pairs(pendingRebuilds) do
         pendingRebuilds[rID] = nil
         ring.rebuild(rID)
+    end
+end
+
+local function schedule_flush()
+    if not rebuildPending and C_Timer and C_Timer.After then
+        rebuildPending = true
+        C_Timer.After(0.35, do_flush_rebuilds)
     end
 end
 
@@ -83,9 +90,7 @@ function ring.request_rebuild(ringID)
         return
     end
 
-    if not rebuildTimer and C_Timer and C_Timer.After then
-        rebuildTimer = C_Timer.After(0.35, do_flush_rebuilds)
-    end
+    schedule_flush()
 end
 
 --- register a content provider for radial rings.
@@ -353,14 +358,11 @@ sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
     ring.apply_all_bindings()
 end)
 
-sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
-    -- pause any pending rebuilds during combat; never scan bags or rebuild rings on combat entry
-    rebuildTimer = nil
-end)
-
+-- pending rebuilds stay queued through combat (do_flush_rebuilds bails out in combat);
+-- never scan bags or rebuild rings on combat entry. flush only what was queued.
 sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
     if next(pendingRebuilds) then
-        ring.request_rebuild()
+        schedule_flush()
     end
 end)
 

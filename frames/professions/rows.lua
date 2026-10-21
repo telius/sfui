@@ -116,7 +116,7 @@ function B.GetRecipeDisplayLink(r)
         if C_Item and C_Item.RequestLoadItemDataByID then
             C_Item.RequestLoadItemDataByID(iid)
         end
-        local link = select(2, (common and common.get_item_info and common.get_item_info(iid)) or (_G.GetItemInfo and _G.GetItemInfo(iid)))
+        local _, link = common.get_item_info(iid)
         if link and link ~= "" then
             return link, iid
         end
@@ -137,7 +137,7 @@ function B.GetRecipeDisplayLink(r)
         if C_Item and C_Item.RequestLoadItemDataByID then
             C_Item.RequestLoadItemDataByID(oid)
         end
-        local link = select(2, (common and common.get_item_info and common.get_item_info(oid)) or (_G.GetItemInfo and _G.GetItemInfo(oid)))
+        local _, link = common.get_item_info(oid)
         if link and link ~= "" then
             return link, oid
         end

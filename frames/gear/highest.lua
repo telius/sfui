@@ -24,12 +24,7 @@ local function dbgSlotPrint(msg)
     sfprint("|cffffff00[debug]|r " .. tostring(msg))
 end
 
-local function GetInventoryItemLink(unit, slotID)
-    if sfui.common and sfui.common.get_inventory_item_link then
-        return sfui.common.get_inventory_item_link(unit, slotID)
-    end
-    return _G.GetInventoryItemLink and _G.GetInventoryItemLink(unit, slotID)
-end
+local GetInventoryItemLink = sfui.common.get_inventory_item_link
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Item Upgrade Evaluator (Loot / Feed / Tooltips)

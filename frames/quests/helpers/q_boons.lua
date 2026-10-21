@@ -509,42 +509,40 @@ function Boons.RequestUpdate(delay)
 end
 
 -- ─── Event Registration ──────────────────────────────────────────────────────
-local eventFrame = CreateFrame("Frame")
-eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-eventFrame:RegisterUnitEvent("UNIT_AURA", "player")
-eventFrame:RegisterEvent("SCENARIO_UPDATE")
-eventFrame:RegisterEvent("SCENARIO_CRITERIA_UPDATE")
-eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-eventFrame:RegisterEvent("ZONE_CHANGED")
-eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
-eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-
-eventFrame:SetScript("OnEvent", function(self, event, unit)
-    if event == "PLAYER_REGEN_DISABLED" then
-        if updateTimer then
-            updateTimer:Cancel()
-            updateTimer = nil
-        end
-    elseif event == "PLAYER_REGEN_ENABLED" then
-        if needsUpdateAfterCombat then
-            needsUpdateAfterCombat = false
-            Boons.RequestUpdate(0.05)
-        end
-    elseif event == "UNIT_AURA" then
-        if unit == "player" then
-            Boons.RequestUpdate(0.05)
-        end
-    elseif event == "PLAYER_ENTERING_WORLD" then
-        C_Timer.After(0.5, function()
-            Boons.Update()
-        end)
-        C_Timer.After(1.0, function()
-            Boons.UpdateAnchor()
-        end)
-    else
-        Boons.RequestUpdate(0.1)
+local function on_regen_disabled()
+    if updateTimer then
+        updateTimer:Cancel()
+        updateTimer = nil
+        -- the cancelled refresh still has to happen once combat ends
+        needsUpdateAfterCombat = true
     end
-end)
+end
+
+local function on_regen_enabled()
+    if needsUpdateAfterCombat then
+        needsUpdateAfterCombat = false
+        Boons.RequestUpdate(0.05)
+    end
+end
+
+local function on_entering_world()
+    C_Timer.After(0.5, Boons.Update)
+    C_Timer.After(1.0, Boons.UpdateAnchor)
+end
+
+local function on_aura_or_zone(event)
+    Boons.RequestUpdate(event == "UNIT_AURA" and 0.05 or 0.1)
+end
+
+local events = sfui.events
+events.RegisterEvent("PLAYER_ENTERING_WORLD", on_entering_world)
+events.RegisterEvent("PLAYER_REGEN_DISABLED", on_regen_disabled)
+events.RegisterEvent("PLAYER_REGEN_ENABLED", on_regen_enabled)
+events.RegisterUnitEvent("UNIT_AURA", "player", on_aura_or_zone)
+events.RegisterEvent("SCENARIO_UPDATE", on_aura_or_zone)
+events.RegisterEvent("SCENARIO_CRITERIA_UPDATE", on_aura_or_zone)
+events.RegisterEvent("ZONE_CHANGED_NEW_AREA", on_aura_or_zone)
+events.RegisterEvent("ZONE_CHANGED", on_aura_or_zone)
 
 -- Safe Theme Registration
 if sfui.theme and sfui.theme.RegisterThemeCallback then

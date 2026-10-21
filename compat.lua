@@ -413,21 +413,6 @@ function sfui.api.GetSpellInfo(spellID)
     return nil
 end
 
---- Returns spell name or nil.
---- Cascades C_Spell.GetSpellName -> C_Spell.GetSpellInfo.
-function sfui.api.GetSpellName(spellID)
-    if not spellID then return nil end
-    if _G.C_Spell and _G.C_Spell.GetSpellName then
-        local name = _G.C_Spell.GetSpellName(spellID)
-        if name and name ~= "" then return name end
-    end
-    if _G.C_Spell and _G.C_Spell.GetSpellInfo then
-        local info = _G.C_Spell.GetSpellInfo(spellID)
-        if info and info.name and info.name ~= "" then return info.name end
-    end
-    return nil
-end
-
 --- Returns clickable spell link string or nil.
 function sfui.api.GetSpellLink(spellID)
     if not spellID then return nil end
