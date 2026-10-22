@@ -658,7 +658,7 @@ do
 
         bar:EnableMouse(false)
 
-        -- Configure healthbar backdrop mouse handling for player context menu and targeting
+        -- configure healthbar backdrop mouse handling for player context menu
         local backdrop = bar.backdrop
         if backdrop then
             backdrop:EnableMouse(true)
@@ -676,10 +676,6 @@ do
                         _G.UnitPopup_OpenMenu(which, contextData)
                     elseif _G.ToggleDropDownMenu and _G.PlayerFrameDropDown then
                         _G.ToggleDropDownMenu(1, nil, _G.PlayerFrameDropDown, "cursor")
-                    end
-                elseif button == "LeftButton" then
-                    if not InCombatLockdown() then
-                        TargetUnit("player")
                     end
                 end
             end)
