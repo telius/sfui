@@ -2587,6 +2587,9 @@ function sfui.lootviewer.Rebuild()
     DoRebuild()
 end
 
+sfui.lootviewer.GetRaidData    = GetRaidData
+sfui.lootviewer.GetDungeonData = GetDungeonData
+
 function sfui.lootviewer.initialize()
     -- Add delay on initialization so Blizzard_EncounterJournal loads and stabilizes cleanly
     C_Timer.After(2.0, function()

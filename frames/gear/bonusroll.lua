@@ -213,7 +213,7 @@ function sfui.bonusroll.ToggleTarget(keyID, isBoss)
         SyncExternalTargets(keyID, isBoss, true)
     end
 
-    if sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
+    if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() and sfui.lootviewer.Rebuild then
         sfui.lootviewer.Rebuild()
     end
     sfui.alts.UpdateUI(true)
@@ -243,7 +243,7 @@ function sfui.bonusroll.ToggleItemTarget(keyID, isBoss, itemID)
         SyncExternalTargets(keyID, isBoss, true)
     end
 
-    if sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
+    if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() and sfui.lootviewer.Rebuild then
         sfui.lootviewer.Rebuild()
     end
     sfui.alts.UpdateUI(true)
@@ -299,7 +299,7 @@ function sfui.bonusroll.AutoclearItemTarget(itemID, itemLink)
     sfui.common.print(string.format("|cff00ff00◆ bonus roll target acquired:|r %s obtained! target cleared.", link))
     PlaySound(SOUNDKIT.UI_EPICLOOT_TOAST or 51570, "Master")
 
-    if sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
+    if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() and sfui.lootviewer.Rebuild then
         sfui.lootviewer.Rebuild()
     end
     sfui.alts.UpdateUI(true)
@@ -407,7 +407,7 @@ function sfui.bonusroll.SetUsed(itemID, value, itemLink)
         pcall(_G.KeystoneLoot.Voidcore.SetUsed, _G.KeystoneLoot.Voidcore, itemID, value)
     end
 
-    if sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
+    if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() and sfui.lootviewer.Rebuild then
         sfui.lootviewer.Rebuild()
     end
 end
@@ -425,13 +425,15 @@ local function GetLootTableForChest(chestItemId)
 
     if source.challengeModeId then
         -- Look up dungeon loot in sfui.lootviewer cache or challenge mode table
-        local dungeons = sfui.lootviewer.GetDungeonData()
-        for _, d in ipairs(dungeons) do
-            if d.mapID == source.challengeModeId then
-                for _, it in ipairs(d.loot or {}) do
-                    lootList[#lootList + 1] = it.id
+        if sfui.lootviewer and sfui.lootviewer.GetDungeonData then
+            local dungeons = sfui.lootviewer.GetDungeonData()
+            for _, d in ipairs(dungeons or {}) do
+                if d.mapID == source.challengeModeId then
+                    for _, it in ipairs(d.loot or {}) do
+                        lootList[#lootList + 1] = it.id
+                    end
+                    break
                 end
-                break
             end
         end
         -- Fallback: check KeystoneLoot database if available
@@ -450,14 +452,16 @@ local function GetLootTableForChest(chestItemId)
         end
     elseif source.bossId then
         -- Look up raid boss loot in sfui.lootviewer
-        local raids = sfui.lootviewer.GetRaidData()
-        for _, r in ipairs(raids) do
-            for _, b in ipairs(r.bosses or {}) do
-                if b.encounterID == source.bossId or b.dungeonEncounterID == source.bossId then
-                    for _, it in ipairs(b.loot or {}) do
-                        lootList[#lootList + 1] = it.id
+        if sfui.lootviewer and sfui.lootviewer.GetRaidData then
+            local raids = sfui.lootviewer.GetRaidData()
+            for _, r in ipairs(raids or {}) do
+                for _, b in ipairs(r.bosses or {}) do
+                    if b.encounterID == source.bossId or b.dungeonEncounterID == source.bossId then
+                        for _, it in ipairs(b.loot or {}) do
+                            lootList[#lootList + 1] = it.id
+                        end
+                        break
                     end
-                    break
                 end
             end
         end
@@ -634,7 +638,7 @@ function sfui.bonusroll.CheckAll(rescan)
                 printMsg("(Bonus Roll): Bonus roll tracking is up to date.")
             end
             DB().checked = true
-            if sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() then
+            if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() and sfui.lootviewer.Rebuild then
                 sfui.lootviewer.Rebuild()
             end
             return
