@@ -6,6 +6,7 @@ local _G = _G
 local CreateFrame = _G.CreateFrame
 local UIParent = _G.UIParent
 local hooksecurefunc = _G.hooksecurefunc
+local InCombatLockdown = _G.InCombatLockdown
 local ipairs = _G.ipairs
 local pairs = _G.pairs
 
@@ -66,8 +67,14 @@ local function suppress_blizzard_actionbars()
             else
                 bar:Hide()
             end
-            if bar.UnregisterAllEvents and name ~= "MainActionBar" and name ~= "MainMenuBar" then
+            if bar.UnregisterAllEvents then
                 bar:UnregisterAllEvents()
+            end
+            if bar.UpdateVisibility then
+                bar.UpdateVisibility = function() end
+            end
+            if bar.IsInDefaultPosition then
+                bar.IsInDefaultPosition = function() return false end
             end
         end
     end
@@ -76,12 +83,32 @@ local function suppress_blizzard_actionbars()
     -- not suppressed alongside MainActionBar
     if _G.MainMenuBarVehicleLeaveButton then
         _G.MainMenuBarVehicleLeaveButton:SetParent(UIParent)
+        if _G.MainMenuBarVehicleLeaveButton.IsInDefaultPosition then
+            _G.MainMenuBarVehicleLeaveButton.IsInDefaultPosition = function() return false end
+        end
     end
 
     -- Reparent Blizzard's default QueueStatusButton (LFG eye) to UIParent so it is
     -- not suppressed alongside MicroMenuContainer in retail
     if _G.QueueStatusButton then
         _G.QueueStatusButton:SetParent(UIParent)
+    end
+
+    -- Defuse MainActionBar and PetActionBar visibility/layout cascades.
+    -- In retail, MainMenuBarVehicleLeaveButton:Update() calls PetActionBar:Show() whenever
+    -- PetHasActionBar() is true. PetActionBar:Show() -> UpdateVisibility() ->
+    -- EditModeManagerFrame:UpdateActionBarLayout() -> UpdateBottomActionBarPositions() ->
+    -- MainActionBar:ClearAllPoints(), triggering [Blocked] MainActionBar:ClearAllPointsBase()
+    -- in combat. Neutralizing Show/ShowOverride/UpdateVisibility and IsInDefaultPosition
+    -- halts this cascade completely.
+    if _G.MainActionBar then
+        if _G.MainActionBar.UnregisterAllEvents then
+            _G.MainActionBar:UnregisterAllEvents()
+        end
+        _G.MainActionBar.Show = function() end
+        _G.MainActionBar.ShowOverride = function() end
+        _G.MainActionBar.UpdateVisibility = function() end
+        _G.MainActionBar.IsInDefaultPosition = function() return false end
     end
 
     if _G.PetActionBar then
@@ -97,6 +124,10 @@ local function suppress_blizzard_actionbars()
         if _G.PetActionBar.UpdateShownButtons then
             _G.PetActionBar.UpdateShownButtons = function() end
         end
+        _G.PetActionBar.Show = function() end
+        _G.PetActionBar.ShowOverride = function() end
+        _G.PetActionBar.UpdateVisibility = function() end
+        _G.PetActionBar.IsInDefaultPosition = function() return false end
     end
     if _G.PetActionBarFrame then
         if _G.PetActionBarFrame.UnregisterAllEvents then
@@ -110,6 +141,39 @@ local function suppress_blizzard_actionbars()
         if _G.PetActionBarFrame.EnableMouse then _G.PetActionBarFrame:EnableMouse(false) end
         if _G.PetActionBarFrame.UpdateShownButtons then
             _G.PetActionBarFrame.UpdateShownButtons = function() end
+        end
+        _G.PetActionBarFrame.Show = function() end
+        _G.PetActionBarFrame.ShowOverride = function() end
+        _G.PetActionBarFrame.UpdateVisibility = function() end
+        _G.PetActionBarFrame.IsInDefaultPosition = function() return false end
+    end
+
+    -- Guard Blizzard EditMode action bar repositioning from running during combat.
+    -- Calling ClearAllPoints/SetPoint on protected action bars during combat lockdown
+    -- is forbidden by the engine when tainted.
+    if _G.EditModeManagerFrame then
+        local origUpdateBottom = _G.EditModeManagerFrame.UpdateBottomActionBarPositions
+        if origUpdateBottom then
+            _G.EditModeManagerFrame.UpdateBottomActionBarPositions = function(self, ...)
+                if InCombatLockdown and InCombatLockdown() then return end
+                return origUpdateBottom(self, ...)
+            end
+        end
+
+        local origUpdateRight = _G.EditModeManagerFrame.UpdateRightActionBarPositions
+        if origUpdateRight then
+            _G.EditModeManagerFrame.UpdateRightActionBarPositions = function(self, ...)
+                if InCombatLockdown and InCombatLockdown() then return end
+                return origUpdateRight(self, ...)
+            end
+        end
+
+        local origUpdateLayout = _G.EditModeManagerFrame.UpdateActionBarLayout
+        if origUpdateLayout then
+            _G.EditModeManagerFrame.UpdateActionBarLayout = function(self, ...)
+                if InCombatLockdown and InCombatLockdown() then return end
+                return origUpdateLayout(self, ...)
+            end
         end
     end
 

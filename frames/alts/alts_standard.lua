@@ -414,7 +414,7 @@ local function CheckWeeklyResets()
     end
 
     -- Clean up retired currencies
-    local retiredCurrencies = { 3405, 3373, 267051, 3418, 268552, 3316 }
+    local retiredCurrencies = { 3405, 3373, 267051, 268552, 3316 }
     for _, retID in ipairs(retiredCurrencies) do
         if SfuiDB.currencyCaps and SfuiDB.currencyCaps[retID] then
             SfuiDB.currencyCaps[retID] = nil

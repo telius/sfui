@@ -46,6 +46,7 @@ sfui.season.CURRENCIES = {
         }
     },
     { id = 280562, label = "venomstone", isItem = true, icon = 0 }, -- Ascendant Venomstone
+    { id = 3418,   label = "voidcore",   icon = 0 },                -- Nebulous Voidcore
 }
 
 -- ─── Weekly Quest Definitions ───────────────────────────────────────────────
