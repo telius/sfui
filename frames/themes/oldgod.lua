@@ -445,7 +445,9 @@ function oldGodTheme.ApplyContainer(containerPanel, theme)
         }
     end
 
-    containerPanel.sfuiOldGodContainer.frame:Show()
+    local bFrame = containerPanel.sfuiOldGodContainer.frame
+    bFrame:SetFrameLevel(math.max(1, (containerPanel:GetFrameLevel() or 1) + 1))
+    bFrame:Show()
     if containerPanel.SetBackdrop then
         containerPanel:SetBackdrop(nil)
     end

@@ -1,25 +1,13 @@
 # changelog
 
-## v1.118 (2026-10-22)
-
-### features
-
-- **bespoke maw and necrolord themes**:
-  - implemented full bespoke texture suites and theme handlers for `maw` and `necrolord` styles (`frames/themes/maw.lua`, `frames/themes/necrolord.lua`, `sfui.toc`).
-  - integrated themes into theme switcher options with interactive preview cards, palette definitions, and slash commands (`frames/themes/tab_theme.lua`, `frames/themes/nineslice_themes.lua`, `commands.lua`).
-  - enhanced stylized framing and banners for `oldgod` and `fallensanctum` themes (`frames/themes/oldgod.lua`, `frames/themes/fallensanctum.lua`).
-
-- **window framing for loot viewer and portals**:
-  - applied theme window borders and nine-slice chrome to the standard loot browser (`frames/gear/lootviewer.lua`).
-  - added themed window framing to portals browser and portal popup dialogs across retail and classic/camelot (`frames/portals/portals.lua`, `frames/portals/portals_standard.lua`, `frames/portals/portals_camelot.lua`, `frames/portals/portal_popup.lua`).
-
-- **theme backdrop toggle**:
-  - added an opt-in toggle in theme options to configure or disable solid background fills across themed frames (`frames/themes/tab_theme.lua`, `frames/themes/engine.lua`).
+## v1.119 (2026-10-22)
 
 ### improvements & bug fixes
 
-- **quest tracker header vertical accent bar suppression**:
-  - suppressed the vertical left accent bar on quest headers when any non-modern theme is active, preserving themed banner art and styling (`frames/quests/engine/q_layout.lua`, `frames/themes/engine.lua`).
+- **combat telemetry theme backdrop occlusion fix**:
+  - resolved frame level inversion where themed container backdrops in `oldgod`, `fallensanctum`, `maw`, and `necrolord` themes occluded scrollable text in combat telemetry (`frames/themes/engine.lua`, `frames/character/infopanel.lua`, `frames/themes/oldgod.lua`, `frames/themes/fallensanctum.lua`, `frames/themes/maw.lua`, `frames/themes/necrolord.lua`).
+  - properly elevated content containers, scroll frames, scroll children, and telemetry rows above container decoration layers.
+  - parented telemetry subtitle to an elevated overlay frame to prevent occlusion by outer window backdrops (`frames/character/infopanel.lua`).
 
-- **forbidden targetunit call removal**:
-  - removed forbidden `TargetUnit` invocation from unit health bar click handler to prevent combat lockdown taint (`frames/bars/bar.lua`).
+- **camelot talent known resolver flyout fix**:
+  - fixed a load-order issue where `CheckFlyoutSlot` captured an uninitialized nil reference in `core/talents_camelot.lua`, resolving nil call errors on `PLAYER_TALENT_UPDATE`, `Msg:SFUI_SPEC_CHANGED`, and `SPELLS_CHANGED` (`core/talents_camelot.lua`, `frames/reminders/buffs_data.lua`).

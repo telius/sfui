@@ -253,6 +253,7 @@ local function acquire_row()
         row = CreateFrame("Button", nil, scrollChild)
         row:SetHeight(18)
         row:EnableMouse(true)
+        row:SetFrameLevel((scrollChild:GetFrameLevel() or 1) + 1)
 
         local value = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         value:SetPoint("RIGHT", row, "RIGHT", -6, 0)
@@ -281,6 +282,10 @@ end
 
 --- Position a pooled row at the cursor, re-anchoring only when its slot or kind changed.
 local function place_row(row, isHeader, height)
+    local targetLevel = (scrollChild:GetFrameLevel() or 1) + 1
+    if row:GetFrameLevel() ~= targetLevel then
+        row:SetFrameLevel(targetLevel)
+    end
     if row.currentY == cursorY and row.isHeader == isHeader then return end
     row:ClearAllPoints()
     row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, cursorY)
@@ -804,8 +809,15 @@ function panelModule.CreatePanel()
         sfui.theme.ApplyCloseButtonStyle(closeBtn)
     end
 
+    -- Overlay Frame for headers / subtitles (elevated above theme window backdrops)
+    local overlay = CreateFrame("Frame", nil, panelFrame)
+    overlay:SetAllPoints(panelFrame)
+    overlay:SetFrameLevel((panelFrame:GetFrameLevel() or 10) + 4)
+    overlay:EnableMouse(false)
+    panelFrame.overlayFrame = overlay
+
     -- Subtitle (spec / form label + target context, filled on every refresh)
-    local subTitle = panelFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    local subTitle = overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     panelFrame.subTitle = subTitle
     subTitle:SetPoint("TOP", headerBar, "BOTTOM", 0, -2)
     subTitle:SetWidth(270)
@@ -820,7 +832,7 @@ function panelModule.CreatePanel()
     panelFrame.content = content
     content:SetPoint("TOPLEFT", panelFrame, "TOPLEFT", 8, -48)
     content:SetPoint("BOTTOMRIGHT", panelFrame, "BOTTOMRIGHT", -8, 8)
-    content:SetFrameLevel((panelFrame:GetFrameLevel() or 10) + 5)
+    content:SetFrameLevel((panelFrame:GetFrameLevel() or 10) + 2)
     if sfui.theme and sfui.theme.ApplyContainerStyle then
         sfui.theme.ApplyContainerStyle(content)
     end
@@ -830,7 +842,7 @@ function panelModule.CreatePanel()
     panelFrame.scrollFrame = sf
     sf:SetPoint("TOPLEFT", content, "TOPLEFT", 4, -4)
     sf:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -18, 4)
-    sf:SetFrameLevel((content:GetFrameLevel() or 15) + 2)
+    sf:SetFrameLevel((content:GetFrameLevel() or 12) + 2)
     sf:EnableMouseWheel(true)
     if sf.ScrollBar and common.style_scrollbar then
         common.style_scrollbar(sf.ScrollBar)
@@ -839,6 +851,7 @@ function panelModule.CreatePanel()
     local sc = CreateFrame("Frame", nil, sf)
     sc:SetWidth(238)
     sc:SetHeight(1)
+    sc:SetFrameLevel((sf:GetFrameLevel() or 14) + 1)
     sf:SetScrollChild(sc)
     panelFrame.scrollChild = sc
 
@@ -856,10 +869,10 @@ function panelModule.CreatePanel()
             return
         end
         RestorePosition(self)
-        panelModule.UpdateValues()
         if sfui.theme and sfui.theme.ElevateWindowContents then
             sfui.theme.ElevateWindowContents(self)
         end
+        panelModule.UpdateValues()
     end)
 
     RestorePosition(panelFrame)

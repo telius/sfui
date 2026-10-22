@@ -590,6 +590,12 @@ function sfui.theme.ElevateWindowContents(frame)
     if frame.sfuiFallenSanctumLayers and frame.sfuiFallenSanctumLayers.borderFrame then
         frame.sfuiFallenSanctumLayers.borderFrame:SetFrameLevel(base + 1)
     end
+    if frame.sfuiMawLayers and frame.sfuiMawLayers.borderFrame then
+        frame.sfuiMawLayers.borderFrame:SetFrameLevel(base + 1)
+    end
+    if frame.sfuiNecrolordLayers and frame.sfuiNecrolordLayers.borderFrame then
+        frame.sfuiNecrolordLayers.borderFrame:SetFrameLevel(base + 1)
+    end
     local h = frame.headerFrame or frame.headerBar or frame.header
     if h and h.SetFrameLevel then
         h:SetFrameLevel(base + 15)
@@ -651,11 +657,41 @@ function sfui.theme.ElevateWindowContents(frame)
             w:SetFrameLevel(base + 10)
         end
     end
+
+    local content = frame.content or frame.contentPanel or frame.container
+    if not content and frame.scrollFrame then
+        local p = frame.scrollFrame:GetParent()
+        if p and p ~= frame and p ~= _G.UIParent then
+            content = p
+        end
+    end
+    local cLevel = base + 2
+    if content and content.SetFrameLevel then
+        content:SetFrameLevel(cLevel)
+        if content.sfuiOldGodContainer and content.sfuiOldGodContainer.frame then
+            content.sfuiOldGodContainer.frame:SetFrameLevel(cLevel + 1)
+        end
+        if content.sfuiFallenSanctumContainer and content.sfuiFallenSanctumContainer.frame then
+            content.sfuiFallenSanctumContainer.frame:SetFrameLevel(cLevel + 1)
+        end
+        if content.sfuiMawContainer and content.sfuiMawContainer.frame then
+            content.sfuiMawContainer.frame:SetFrameLevel(cLevel + 1)
+        end
+        if content.sfuiNecrolordContainer and content.sfuiNecrolordContainer.frame then
+            content.sfuiNecrolordContainer.frame:SetFrameLevel(cLevel + 1)
+        end
+    end
+
+    local scrollBase = content and (cLevel + 2) or (base + 3)
     if frame.scrollFrame and frame.scrollFrame.SetFrameLevel then
-        frame.scrollFrame:SetFrameLevel(base + 3)
+        frame.scrollFrame:SetFrameLevel(scrollBase)
     end
     if frame.scrollChild and frame.scrollChild.SetFrameLevel then
-        frame.scrollChild:SetFrameLevel(base + 4)
+        frame.scrollChild:SetFrameLevel(scrollBase + 1)
+    end
+    local sb = frame.scrollFrame and (frame.scrollFrame.ScrollBar or frame.scrollFrame.scrollbar)
+    if sb and sb.SetFrameLevel then
+        sb:SetFrameLevel(scrollBase + 2)
     end
     if frame.refreshable then
         for _, btn in ipairs(frame.refreshable) do

@@ -69,7 +69,13 @@ local function ResolveTexture(spellID, fallback)
 end
 sfui.buffs.data.ResolveTexture = ResolveTexture
 
-local CheckFlyoutSlot = sfui.common.check_flyout_slot
+local function CheckFlyoutSlot(flyoutID, targetSpellID)
+    local fn = sfui.common and sfui.common.check_flyout_slot
+    if fn then
+        return fn(flyoutID, targetSpellID)
+    end
+    return false
+end
 
 -- Helper to check if player knows a specific spell ID across all WoW clients and engines
 local function IsSpellActuallyKnown(targetSpellID)
