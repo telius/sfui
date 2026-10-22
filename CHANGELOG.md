@@ -1,16 +1,25 @@
 # changelog
 
-## v1.117 (2026-10-22)
+## v1.118 (2026-10-22)
+
+### features
+
+- **bespoke maw and necrolord themes**:
+  - implemented full bespoke texture suites and theme handlers for `maw` and `necrolord` styles (`frames/themes/maw.lua`, `frames/themes/necrolord.lua`, `sfui.toc`).
+  - integrated themes into theme switcher options with interactive preview cards, palette definitions, and slash commands (`frames/themes/tab_theme.lua`, `frames/themes/nineslice_themes.lua`, `commands.lua`).
+  - enhanced stylized framing and banners for `oldgod` and `fallensanctum` themes (`frames/themes/oldgod.lua`, `frames/themes/fallensanctum.lua`).
+
+- **window framing for loot viewer and portals**:
+  - applied theme window borders and nine-slice chrome to the standard loot browser (`frames/gear/lootviewer.lua`).
+  - added themed window framing to portals browser and portal popup dialogs across retail and classic/camelot (`frames/portals/portals.lua`, `frames/portals/portals_standard.lua`, `frames/portals/portals_camelot.lua`, `frames/portals/portal_popup.lua`).
+
+- **theme backdrop toggle**:
+  - added an opt-in toggle in theme options to configure or disable solid background fills across themed frames (`frames/themes/tab_theme.lua`, `frames/themes/engine.lua`).
 
 ### improvements & bug fixes
 
-- **pet combat protected actionbar clearallpoints taint fix**:
-  - prevented blizzard editmode action bar updates from calling protected `MainActionBar:ClearAllPointsBase()` during combat with a pet out (`frames/actionbars/actionbars.lua`).
-  - neutralized `Show`, `ShowOverride`, and `UpdateVisibility` cascades on suppressed `PetActionBar`, `PetActionBarFrame`, and `MainActionBar` so ambient pet state and vehicle leave button triggers do not invoke editmode layout recalculations (`frames/actionbars/actionbars.lua`).
-  - unverified/tainted events fully purged by unregistering events across all suppressed bars and returning `false` for `IsInDefaultPosition()`, and added `InCombatLockdown()` early-outs to `UpdateBottomActionBarPositions`, `UpdateRightActionBarPositions`, and `UpdateActionBarLayout` on `EditModeManagerFrame` (`frames/actionbars/actionbars.lua`).
+- **quest tracker header vertical accent bar suppression**:
+  - suppressed the vertical left accent bar on quest headers when any non-modern theme is active, preserving themed banner art and styling (`frames/quests/engine/q_layout.lua`, `frames/themes/engine.lua`).
 
-- **alts overview nebulous voidcore tracking restoration**:
-  - restored nebulous voidcore (`3418`) to `sfui.season.CURRENCIES` for active tracking and removed it from the weekly reset currency purge table (`data/season.lua`, `frames/alts/alts_standard.lua`).
-
-- **text status bar protected show taint fix**:
-  - removed redundant `self:Show()` invocation from `forward_statusbar_values` on status bars inheriting `SecureFrameParentPropagationTemplate`, preventing combat action blocked errors during text status bar value updates (`core/safety.lua`).
+- **forbidden targetunit call removal**:
+  - removed forbidden `TargetUnit` invocation from unit health bar click handler to prevent combat lockdown taint (`frames/bars/bar.lua`).

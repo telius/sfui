@@ -173,6 +173,10 @@ function sfui.theme.GetActiveThemeID()
         return "camelot"
     end
 
+    if mode == "oldgods" then
+        mode = "oldgod"
+    end
+
     if registeredThemes[mode] and sfui.theme.IsThemeAvailable(mode) then
         return mode
     end
@@ -590,6 +594,9 @@ function sfui.theme.ElevateWindowContents(frame)
     if h and h.SetFrameLevel then
         h:SetFrameLevel(base + 15)
     end
+    if frame.overlayFrame and frame.overlayFrame.SetFrameLevel then
+        frame.overlayFrame:SetFrameLevel(base + 4)
+    end
     if frame.collapsedRoleBar and frame.collapsedRoleBar.SetFrameLevel then
         frame.collapsedRoleBar:SetFrameLevel(base + 15)
     end
@@ -612,6 +619,55 @@ function sfui.theme.ElevateWindowContents(frame)
             end
             if tab_data.button and tab_data.button.SetFrameLevel then
                 tab_data.button:SetFrameLevel(base + 10)
+            end
+        end
+    end
+    if frame.tabBtns then
+        for _, btn in ipairs(frame.tabBtns) do
+            if btn and btn.SetFrameLevel then
+                btn:SetFrameLevel(base + 10)
+            end
+        end
+    end
+    if frame.specBtns then
+        for _, btn in ipairs(frame.specBtns) do
+            if btn and btn.SetFrameLevel then
+                btn:SetFrameLevel(base + 10)
+            end
+        end
+    end
+    if frame.statBtns then
+        for _, btn in ipairs(frame.statBtns) do
+            if btn and btn.SetFrameLevel then
+                btn:SetFrameLevel(base + 10)
+            end
+        end
+    end
+    local extraWidgets = {
+        frame.slotDropdown, frame.defBtn, frame.searchBox, frame.enableCB, frame.card,
+    }
+    for _, w in ipairs(extraWidgets) do
+        if w and w.SetFrameLevel then
+            w:SetFrameLevel(base + 10)
+        end
+    end
+    if frame.scrollFrame and frame.scrollFrame.SetFrameLevel then
+        frame.scrollFrame:SetFrameLevel(base + 3)
+    end
+    if frame.scrollChild and frame.scrollChild.SetFrameLevel then
+        frame.scrollChild:SetFrameLevel(base + 4)
+    end
+    if frame.refreshable then
+        for _, btn in ipairs(frame.refreshable) do
+            if btn and btn.SetFrameLevel then
+                btn:SetFrameLevel(base + 5)
+            end
+        end
+    end
+    if frame.legacyHeaders then
+        for _, btn in ipairs(frame.legacyHeaders) do
+            if btn and btn.SetFrameLevel then
+                btn:SetFrameLevel(base + 5)
             end
         end
     end
@@ -649,6 +705,15 @@ local function hide_nineslice_layers(frame, keepLayout)
     if not cache then return end
     for layoutName, container in pairs(cache) do
         if layoutName ~= keepLayout then container:Hide() end
+    end
+end
+
+local function hide_oldgod_layers(frame)
+    if frame.sfuiOldGodLayers and frame.sfuiOldGodLayers.borderFrame then
+        frame.sfuiOldGodLayers.borderFrame:Hide()
+    end
+    if frame.sfuiOldGodContainer and frame.sfuiOldGodContainer.frame then
+        frame.sfuiOldGodContainer.frame:Hide()
     end
 end
 
@@ -694,6 +759,38 @@ local function apply_nineslice_window(frame, theme, pal)
     container:Show()
     frame.sfuiActiveNineSlice = container
 
+    -- Optional top overlay crest/topper (e.g. Nzoth-tooltip-topper)
+    if win and win.overlayTopAtlas and sfui.theme.HasAtlas(win.overlayTopAtlas) then
+        if not container.topOverlay then
+            container.topOverlay = container:CreateTexture(nil, "OVERLAY", nil, 6)
+        end
+        container.topOverlay:SetAtlas(win.overlayTopAtlas, true)
+        local scale = win.overlayTopScale or 0.75
+        container.topOverlay:SetScale(scale)
+        container.topOverlay:ClearAllPoints()
+        container.topOverlay:SetPoint("CENTER", container, "TOP", win.overlayTopXOffset or 0, win.overlayTopYOffset or -1)
+        local frameW = frame.GetWidth and frame:GetWidth()
+        if frameW and frameW > 0 and frameW < 180 then
+            container.topOverlay:Hide()
+        else
+            container.topOverlay:Show()
+        end
+        if not container._sfuiSizeHooked and container.HookScript then
+            container._sfuiSizeHooked = true
+            container:HookScript("OnSizeChanged", function(self, w)
+                if self.topOverlay and win and win.overlayTopAtlas then
+                    if w and w > 0 and w < 180 then
+                        self.topOverlay:Hide()
+                    else
+                        self.topOverlay:Show()
+                    end
+                end
+            end)
+        end
+    elseif container.topOverlay then
+        container.topOverlay:Hide()
+    end
+
     -- flat fill under the border; inset keeps the fill inside thick frame art
     if frame.SetBackdrop then
         local inset = win.fillInset or 4
@@ -705,6 +802,9 @@ local function apply_nineslice_window(frame, theme, pal)
         })
         local bg = pal.backdropColor or { 0.05, 0.05, 0.05, 0.9 }
         frame:SetBackdropColor(bg[1], bg[2], bg[3], bg[4] or 0.94)
+        if frame.SetBackdropBorderColor then
+            frame:SetBackdropBorderColor(0, 0, 0, 0)
+        end
     end
 
     frame.isCamelotThemed = false
@@ -726,6 +826,12 @@ function sfui.theme.ApplyWindowStyle(frame, options)
     end
     if activeID ~= "fallensanctum" and frame.sfuiFallenSanctumLayers and frame.sfuiFallenSanctumLayers.borderFrame then
         frame.sfuiFallenSanctumLayers.borderFrame:Hide()
+    end
+    if activeID ~= "maw" and frame.sfuiMawLayers and frame.sfuiMawLayers.borderFrame then
+        frame.sfuiMawLayers.borderFrame:Hide()
+    end
+    if activeID ~= "necrolord" and frame.sfuiNecrolordLayers and frame.sfuiNecrolordLayers.borderFrame then
+        frame.sfuiNecrolordLayers.borderFrame:Hide()
     end
 
     -- Allow theme definition to supply custom ApplyWindow hook
@@ -1097,6 +1203,12 @@ function sfui.theme.ApplyContainerStyle(containerPanel)
     if activeID ~= "fallensanctum" and containerPanel.sfuiFallenSanctumContainer and containerPanel.sfuiFallenSanctumContainer.frame then
         containerPanel.sfuiFallenSanctumContainer.frame:Hide()
     end
+    if activeID ~= "maw" and containerPanel.sfuiMawContainer and containerPanel.sfuiMawContainer.frame then
+        containerPanel.sfuiMawContainer.frame:Hide()
+    end
+    if activeID ~= "necrolord" and containerPanel.sfuiNecrolordContainer and containerPanel.sfuiNecrolordContainer.frame then
+        containerPanel.sfuiNecrolordContainer.frame:Hide()
+    end
 
     if theme.ApplyContainer then
         theme.ApplyContainer(containerPanel, theme)
@@ -1164,8 +1276,15 @@ function sfui.theme.ApplyQuestHeaderStyle(header)
     if activeID ~= "fallensanctum" and header.sfuiFallenSanctumHeader then
         header.sfuiFallenSanctumHeader:Hide()
     end
+    if activeID ~= "maw" and header.sfuiMawHeader then
+        header.sfuiMawHeader:Hide()
+    end
+    if activeID ~= "necrolord" and header.sfuiNecrolordHeader then
+        header.sfuiNecrolordHeader:Hide()
+    end
 
     if theme.ApplyHeader then
+        header.isCamelotHeader = false
         theme.ApplyHeader(header, theme)
         return
     end
@@ -1210,22 +1329,29 @@ function sfui.theme.ApplyQuestHeaderStyle(header)
     else
         if header.bgBanner then header.bgBanner:Hide() end
         local mult = (sfui.pixelScale or 1)
+        local isOldGod = (activeID == "oldgod")
         if header.SetBackdrop then
             header:SetBackdrop({
                 bgFile   = "Interface\\Buttons\\WHITE8x8",
                 edgeFile = "Interface\\Buttons\\WHITE8x8",
                 edgeSize = mult,
             })
-            header:SetBackdropColor(0, 0, 0, 0.50)
-            header:SetBackdropBorderColor(0, 0, 0, 0.50)
+            if isOldGod then
+                header:SetBackdropColor(0.08, 0.05, 0.14, 0.70)
+                header:SetBackdropBorderColor(0.24, 0.16, 0.34, 0.75)
+            else
+                header:SetBackdropColor(0, 0, 0, 0.50)
+                header:SetBackdropBorderColor(0, 0, 0, 0.50)
+            end
         end
         if header.accent then
-            if header.isWindowHeader then
-                header.accent:Hide()
-            else
+            local isModern = (activeID == "modern")
+            if isModern and not header.isWindowHeader then
                 header.accent:Show()
                 local col = header.defColor or pal.accentColor
                 header.accent:SetColorTexture(col[1] or 1, col[2] or 1, col[3] or 1, 1)
+            else
+                header.accent:Hide()
             end
         end
 
@@ -1348,6 +1474,32 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
                 fs:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3], 1.0)
                 fs:SetShadowOffset(0, 0)
             end
+        elseif activeID == "oldgod" then
+            if btn.SetBackdropColor then
+                if btn.isSelected or btn.isSelectedTab then
+                    btn:SetBackdropColor(0.22, 0.12, 0.35, 0.98)
+                else
+                    btn:SetBackdropColor(isStyled and 0.14 or 0.08, isStyled and 0.09 or 0.05, isStyled and 0.20 or 0.12, 0.95)
+                end
+            end
+            if btn.SetBackdropBorderColor then
+                if btn.isSelected or btn.isSelectedTab then
+                    btn:SetBackdropBorderColor(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 1.0)
+                else
+                    btn:SetBackdropBorderColor(pal.borderColor[1], pal.borderColor[2], pal.borderColor[3], 0.90)
+                end
+            end
+            local fs = btn:GetFontString() or btn.text or btn.fs
+            if fs then
+                if btn.isSelected or btn.isSelectedTab then
+                    fs:SetTextColor(1.0, 0.95, 1.0, 1.0)
+                elseif not btn:IsEnabled() then
+                    fs:SetTextColor(pal.dimTextColor[1], pal.dimTextColor[2], pal.dimTextColor[3], 1.0)
+                else
+                    fs:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3], 1.0)
+                end
+                fs:SetShadowOffset(0, 0)
+            end
         else
             if btn.SetBackdropColor then
                 btn:SetBackdropColor(isStyled and 0.2 or 0, isStyled and 0.2 or 0, isStyled and 0.2 or 0, 1.0)
@@ -1376,11 +1528,16 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
                 end
             else
                 local p = sfui.theme.GetPalette()
-                local hl = p.highlightColor or { 0.4, 0, 1, 1 }
+                local aID = sfui.theme.GetActiveThemeID()
+                local hl = (aID == "oldgod" and p.accentColor) or p.highlightColor or { 0.4, 0, 1, 1 }
                 self:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1.0)
                 local sfs = self:GetFontString() or self.text or self.fs
-                if sfs and (sfui.theme.GetActiveThemeID() == "camelot") then
-                    sfs:SetTextColor(1.0, 0.95, 0.70, 1.0)
+                if sfs then
+                    if aID == "camelot" then
+                        sfs:SetTextColor(1.0, 0.95, 0.70, 1.0)
+                    elseif aID == "oldgod" then
+                        sfs:SetTextColor(1.0, 1.0, 1.0, 1.0)
+                    end
                 end
             end
         end)
@@ -1403,17 +1560,26 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
                 end
             else
                 if not (self.isSelected or self.lockColor) then
-                    if sfui.theme.GetActiveThemeID() == "camelot" then
+                    local aID = sfui.theme.GetActiveThemeID()
+                    local p = sfui.theme.GetPalette()
+                    if aID == "camelot" then
                         self:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
                         local sfs = self:GetFontString() or self.text or self.fs
                         if sfs then
-                            local p = sfui.theme.GetPalette()
+                            sfs:SetTextColor(p.tabNormal[1], p.tabNormal[2], p.tabNormal[3], 1.0)
+                        end
+                    elseif aID == "oldgod" then
+                        self:SetBackdropBorderColor(p.borderColor[1], p.borderColor[2], p.borderColor[3], 0.90)
+                        local sfs = self:GetFontString() or self.text or self.fs
+                        if sfs and self:IsEnabled() then
                             sfs:SetTextColor(p.tabNormal[1], p.tabNormal[2], p.tabNormal[3], 1.0)
                         end
                     else
                         self:SetBackdropBorderColor(0, 0, 0, 1.0)
                         local sfs = self:GetFontString() or self.text or self.fs
-                        if sfs then sfs:SetTextColor(1.0, 1.0, 1.0, 1.0) end
+                        if sfs and self:IsEnabled() then
+                            sfs:SetTextColor(1.0, 1.0, 1.0, 1.0)
+                        end
                     end
                 end
             end
@@ -1527,6 +1693,18 @@ function sfui.theme.ApplyDropdownStyle(btn)
             if btn.menu then
                 btn.menu:SetBackdropColor(0.08, 0.07, 0.06, 0.98)
                 btn.menu:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.90)
+            end
+        elseif activeID == "oldgod" then
+            if btn.SetBackdropColor then btn:SetBackdropColor(0.10, 0.07, 0.15, 0.95) end
+            if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(pal.borderColor[1], pal.borderColor[2], pal.borderColor[3], 0.90) end
+            local fs = btn:GetFontString() or btn.text or btn.fs
+            if fs then
+                fs:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3], 1.0)
+                fs:SetShadowOffset(0, 0)
+            end
+            if btn.menu then
+                btn.menu:SetBackdropColor(0.06, 0.04, 0.09, 0.98)
+                btn.menu:SetBackdropBorderColor(0.40, 0.25, 0.58, 0.95)
             end
         else
             if btn.SetBackdropColor then btn:SetBackdropColor(0, 0, 0, 1.0) end
@@ -1760,6 +1938,27 @@ function sfui.theme.ApplyTabStyle(btn, isSelected)
                 if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0.22, 0.18, 0.12, 0.85) end
                 if fs then
                     local normColor = pal.tabNormal or { 0.78, 0.70, 0.55, 1.0 }
+                    fs:SetTextColor(normColor[1], normColor[2], normColor[3], 1.0)
+                    fs:SetShadowOffset(0, 0)
+                end
+            end
+        elseif activeID == "oldgod" then
+            if btn.isSelectedTab then
+                if btn.SetBackdropColor then btn:SetBackdropColor(0.22, 0.12, 0.35, 0.98) end
+                if btn.SetBackdropBorderColor then
+                    local hl = pal.accentColor or { 0.78, 0.48, 1.00, 1.0 }
+                    btn:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1.0)
+                end
+                if fs then
+                    local selColor = pal.tabSelected or pal.accentColor or { 0.82, 0.52, 1.00, 1.0 }
+                    fs:SetTextColor(selColor[1], selColor[2], selColor[3], 1.0)
+                    fs:SetShadowOffset(0, 0)
+                end
+            else
+                if btn.SetBackdropColor then btn:SetBackdropColor(0.08, 0.05, 0.12, 0.90) end
+                if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0.28, 0.18, 0.38, 0.85) end
+                if fs then
+                    local normColor = pal.tabNormal or { 0.65, 0.55, 0.78, 1.0 }
                     fs:SetTextColor(normColor[1], normColor[2], normColor[3], 1.0)
                     fs:SetShadowOffset(0, 0)
                 end
@@ -2262,7 +2461,13 @@ function sfui.theme.ApplyScrollBarStyle(scrollBar)
         if thumb then
             thumb:SetAlpha(0.75)
             thumb:SetSize(6, 30)
-            thumb:SetColorTexture(1, 1, 1, 0.75)
+            local pal = sfui.theme.GetPalette()
+            local aID = sfui.theme.GetActiveThemeID()
+            if aID == "oldgod" then
+                thumb:SetColorTexture(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 0.85)
+            else
+                thumb:SetColorTexture(1, 1, 1, 0.75)
+            end
         end
     end
 
@@ -2307,8 +2512,13 @@ function sfui.theme.ApplyMinimapButtonBarStyle(bar)
                 tileSize = 16,
                 insets   = { left = 0, right = 0, top = 0, bottom = 0 }
             })
-            bar:SetBackdropColor(0, 0, 0, 0.50)
-            bar:SetBackdropBorderColor(0, 0, 0, 0.50)
+            if activeID == "oldgod" then
+                bar:SetBackdropColor(0.08, 0.05, 0.14, 0.65)
+                bar:SetBackdropBorderColor(0.24, 0.16, 0.34, 0.70)
+            else
+                bar:SetBackdropColor(0, 0, 0, 0.50)
+                bar:SetBackdropBorderColor(0, 0, 0, 0.50)
+            end
         end
         if not bar.accent then
             local accent = bar:CreateTexture(nil, "OVERLAY")
@@ -2627,6 +2837,11 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality, isOther)
                 row:SetBackdropColor(0.22, 0.22, 0.26, 0.75)
                 if row.SetBackdropBorderColor then
                     row:SetBackdropBorderColor(0.42, 0.42, 0.48, 0.85)
+                end
+            elseif activeID == "oldgod" then
+                row:SetBackdropColor(0.08, 0.04, 0.12, 0.75)
+                if row.SetBackdropBorderColor then
+                    row:SetBackdropBorderColor(0.28, 0.16, 0.40, 0.85)
                 end
             else
                 row:SetBackdropColor(0, 0, 0, 0.50)

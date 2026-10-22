@@ -210,9 +210,9 @@ SlashCmdList["SFUI"] = function(msg)
     elseif cmd == "help" or cmd == "?" then
         if sfui.common and sfui.common.print then
             if sfui.isRetail then
-                sfui.common.print("commands: /sfui [tab] | /sfui portals | /sfmem | /rl")
+                sfui.common.print("commands: /sfui [tab] | /sfui theme [mode] | /sfui portals | /sfmem | /rl")
             else
-                sfui.common.print("commands: /sfui [tab] | /sfui recipes | /sfui portals | /sfui shards | /sfmem | /rl | /totembar")
+                sfui.common.print("commands: /sfui [tab] | /sfui theme [mode] | /sfui recipes | /sfui portals | /sfui shards | /sfmem | /rl | /totembar")
             end
         end
     else
@@ -222,6 +222,17 @@ SlashCmdList["SFUI"] = function(msg)
         elseif sfui.common and sfui.common.print then
             sfui.common.print("unknown command: /sfui " .. tostring(cmd) .. ". type /sfui for options.")
         end
+    end
+end
+
+-- Dedicated Theme Slash Command (/sftheme [mode])
+SLASH_SFUITHEME1 = "/sftheme"
+SlashCmdList["SFUITHEME"] = function(msg)
+    local target = msg and _G.strtrim and _G.strtrim(msg) or (msg or "")
+    if target ~= "" then
+        _G.SlashCmdList["SFUI"]("theme " .. target)
+    else
+        _G.SlashCmdList["SFUI"]("theme")
     end
 end
 

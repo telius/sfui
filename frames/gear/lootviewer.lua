@@ -2120,11 +2120,20 @@ function sfui.lootviewer.CreateFrame()
     end
 
     -- ── Title + close ────────────────────────────────────────────────────────
-    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local headerFrame = CreateFrame("Frame", nil, frame)
+    headerFrame:SetAllPoints(frame)
+    headerFrame:SetFrameLevel((frame:GetFrameLevel() or 1) + 15)
+    headerFrame:EnableMouse(false)
+    frame.headerFrame = headerFrame
+
+    local title = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 10, -10)
     title:SetText("|cff6600ffsfui|r loot & spec browser")
+    frame.title = title
 
     local closeBtn = sfui.common.create_close_button(frame, function() frame:Hide() end, 24)
+    frame.closeBtn = closeBtn
+    closeBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
 
     -- ── Slot filter row ───────────────────────────────────────────────────────
     local filterY = -32
@@ -2157,13 +2166,13 @@ function sfui.lootviewer.CreateFrame()
         slotDropdown.menu:SetPoint("TOPLEFT", slotDropdown, "BOTTOMLEFT", 0, -2)
     end
 
-    local slotLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local slotLabel = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     slotLabel:SetPoint("RIGHT", slotDropdown, "LEFT", -6, 0)
     slotLabel:SetText("slot:")
     slotLabel:SetTextColor(0.4, 0.4, 0.4, 1)
 
     -- ── Default spec toggle ──────────────────────────────────────────────────
-    local defLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local defLabel = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     defLabel:SetPoint("LEFT", slotDropdown, "RIGHT", 14, 0)
     defLabel:SetText("default:")
     defLabel:SetTextColor(0.4, 0.4, 0.4, 1)
@@ -2267,7 +2276,7 @@ function sfui.lootviewer.CreateFrame()
         self:SetBackdropColor(0.08, 0.08, 0.08, 1)
     end)
 
-    local searchHint = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local searchHint = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     searchHint:SetPoint("RIGHT", searchBox, "LEFT", -3, 0)
     searchHint:SetText("search:")
     searchHint:SetTextColor(0.4, 0.4, 0.4, 1)
@@ -2289,7 +2298,7 @@ function sfui.lootviewer.CreateFrame()
 
     -- ── Spec filter row (all specs / per-spec) ───────────────────────────────
     InitPlayerSpecs()
-    local specLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local specLabel = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     specLabel:SetPoint("LEFT", tabRaid, "RIGHT", 14, 0)
     specLabel:SetText("spec:")
     specLabel:SetTextColor(0.4, 0.4, 0.4, 1)
@@ -2346,7 +2355,7 @@ function sfui.lootviewer.CreateFrame()
 
     -- ── Stat highlight toggles (beneath spec filter row) ────────────────────
     local statY = tabY - 24
-    local statLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local statLabel = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     statLabel:SetText("stats:")
     statLabel:SetTextColor(0.4, 0.4, 0.4, 1)
 
@@ -2401,7 +2410,7 @@ function sfui.lootviewer.CreateFrame()
         end
     end
 
-    local sepTex = frame:CreateTexture(nil, "ARTWORK")
+    local sepTex = headerFrame:CreateTexture(nil, "ARTWORK")
     sepTex:SetHeight(1)
     sepTex:SetPoint("TOPLEFT",  0, statY - 24)
     sepTex:SetPoint("TOPRIGHT", 0, statY - 24)
@@ -2437,8 +2446,16 @@ function sfui.lootviewer.CreateFrame()
     frame.scrollChild = sc
     frame.scrollFrame = sf
 
+    frame.tabBtns      = { tabDung, tabRaid }
+    frame.specBtns     = specBtns
+    frame.statBtns     = statBtns
+    frame.slotDropdown = slotDropdown
+    frame.defBtn       = defBtn
+    frame.searchBox    = searchBox
+    frame.enableCB     = enableCB
+
     -- ── Footer hint ───────────────────────────────────────────────────────────
-    local hint = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local hint = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     hint:SetPoint("BOTTOMLEFT", 10, 8)
     hint:SetText("hover: tooltip  ·  right-click item: cycle loot spec  ·  click badge: cycle spec  ·  right-click badge: clear")
     hint:SetTextColor(0.22, 0.22, 0.22, 1)
@@ -2472,6 +2489,12 @@ function sfui.lootviewer.CreateFrame()
     end
 
     frame:SetScript("OnShow", function()
+        if sfui.theme and sfui.theme.ApplyWindowStyle then
+            sfui.theme.ApplyWindowStyle(frame, { cornerBrackets = true })
+            if sfui.theme.ElevateWindowContents then
+                sfui.theme.ElevateWindowContents(frame)
+            end
+        end
         filterSlot   = "all"
         filterSpec   = 0
         filterSearch = ""
@@ -2514,6 +2537,28 @@ function sfui.lootviewer.CreateFrame()
             bagUpdateTimer = nil
         end
     end)
+
+    if sfui.theme and sfui.theme.RegisterWindow then
+        sfui.theme.RegisterWindow(frame, function(f, pal)
+            if sfui.theme.ApplyCloseButtonStyle then
+                sfui.theme.ApplyCloseButtonStyle(closeBtn)
+            end
+            if title and pal and pal.headerColor then
+                title:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3], 1)
+            end
+            if slotDropdown and sfui.theme.ApplyDropdownStyle then
+                sfui.theme.ApplyDropdownStyle(slotDropdown)
+            end
+            if sf and sf.ScrollBar and sfui.theme.ApplyScrollBarStyle then
+                sfui.theme.ApplyScrollBarStyle(sf.ScrollBar)
+            end
+        end, { cornerBrackets = true })
+    elseif sfui.theme and sfui.theme.ApplyWindowStyle then
+        sfui.theme.ApplyWindowStyle(frame, { cornerBrackets = true })
+        if sfui.theme.ApplyCloseButtonStyle then
+            sfui.theme.ApplyCloseButtonStyle(closeBtn)
+        end
+    end
 
     frame:Hide()
     sfui.lootviewer.frame = frame

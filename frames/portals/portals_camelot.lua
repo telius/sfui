@@ -285,8 +285,8 @@ local function build_camelot_portals_frame()
     end
 
     if #frame.refreshable == 0 and not isMage then
-        local emptyFs = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-        emptyFs:SetPoint("TOPLEFT", 8, curY - 2)
+        local emptyFs = (frame.overlayFrame or frame):CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        emptyFs:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, curY - 2)
         emptyFs:SetText("no travel items or spells available.")
         curY = curY - 20
     end
@@ -303,6 +303,12 @@ local function build_camelot_portals_frame()
     end
 
     p.setup_frame_scripts(frame)
+    if sfui.theme and sfui.theme.ApplyWindowStyle then
+        sfui.theme.ApplyWindowStyle(frame, { cornerBrackets = true })
+        if sfui.theme.ElevateWindowContents then
+            sfui.theme.ElevateWindowContents(frame)
+        end
+    end
     return frame
 end
 p.build_frame = build_camelot_portals_frame

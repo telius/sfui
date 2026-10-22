@@ -246,6 +246,29 @@ sfui.options.RegisterTab({
         end, "opt in to the charred torghast crypt stone backdrop on windows (disabled by default for clean visibility).")
         fallensanctum_bg_cb:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -18)
 
+        -- ─── Maw Detail Checkboxes ────────────────────────────────────────────
+        local maw_bg_cb = create_checkbox(theme_panel, "use textured soul-slate background", function()
+            return sfui.theme.IsMawBackdropActive and sfui.theme.IsMawBackdropActive()
+        end, function(checked)
+            if sfui.theme.SetMawBackdrop then
+                sfui.theme.SetMawBackdrop(checked)
+            end
+            sfui.theme.ApplyCurrentTheme()
+            theme_panel:RefreshThemeControls()
+        end, "opt in to the cold swirling soul-slate anima fog backdrop on windows (disabled by default for clean visibility).")
+        maw_bg_cb:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -18)
+
+        -- ─── Necrolord Detail Checkboxes ──────────────────────────────────────
+        local necrolord_bg_cb = create_checkbox(theme_panel, "use textured crypt moss background", function()
+            return sfui.theme.IsNecrolordBackdropActive and sfui.theme.IsNecrolordBackdropActive()
+        end, function(checked)
+            if sfui.theme.SetNecrolordBackdrop then
+                sfui.theme.SetNecrolordBackdrop(checked)
+            end
+            sfui.theme.ApplyCurrentTheme()
+            theme_panel:RefreshThemeControls()
+        end, "opt in to the deep crypt moss and bone texture backdrop on windows (disabled by default for clean visibility).")
+        necrolord_bg_cb:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -18)
         -- ─── Color Palette Swatches ───────────────────────────────────────────
         local palette_header = theme_panel:CreateFontString(nil, "OVERLAY", g.font)
         palette_header:SetPoint("TOPLEFT", square_bronze_cb, "BOTTOMLEFT", 0, -20)
@@ -384,10 +407,10 @@ sfui.options.RegisterTab({
                 preview_body:SetText("bespoke torghast crypt stone: horned gargoyle skull crest, hanging soul chains, blood crimson crypt iron, and soul-fire teal accents.")
             elseif activeID == "maw" then
                 preview_body:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3])
-                preview_body:SetText("jagged grey stone frame, maw tooltip topper crest, icy soul-chill blue glow, and deep dark soul-slate fill.")
+                preview_body:SetText("authentic bespoke maw theme: sculpted saronite maw spikes, horned domination crown crest, frost-rimmed soul chains, icy soul-chill blue glow (#65e6f2), and dark soul-slate.")
             elseif activeID == "necrolord" then
                 preview_body:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3])
-                preview_body:SetText("maldraxxus necrolord covenant theme: bone-plate chitin frame, covenant sigil crest, necrotic slime green accents, and bone ivory headers.")
+                preview_body:SetText("authentic bespoke necrolord theme: carved bone-plate chitin, horned beast skull crest, ribbed vertebrae spine columns, toxic necrotic slime green (#59d98c), and bone ivory headers.")
             else
                 preview_body:SetTextColor(0.8, 0.8, 0.8, 1)
                 local activeDef = sfui.theme.GetTheme(activeID)
@@ -413,6 +436,8 @@ sfui.options.RegisterTab({
             local activeID = sfui.theme.GetActiveThemeID()
             local isOldGod = (activeID == "oldgod")
             local isFallenSanctum = (activeID == "fallensanctum")
+            local isMaw = (activeID == "maw")
+            local isNecrolord = (activeID == "necrolord")
 
             if isCamelotSupported and isCamelot then
                 brackets_cb:Show()
@@ -421,6 +446,8 @@ sfui.options.RegisterTab({
                 square_bronze_cb:Show()
                 oldgod_bg_cb:Hide()
                 fallensanctum_bg_cb:Hide()
+                maw_bg_cb:Hide()
+                necrolord_bg_cb:Hide()
                 palette_header:ClearAllPoints()
                 palette_header:SetPoint("TOPLEFT", square_bronze_cb, "BOTTOMLEFT", 0, -20)
             elseif isOldGod then
@@ -430,6 +457,8 @@ sfui.options.RegisterTab({
                 square_bronze_cb:Hide()
                 oldgod_bg_cb:Show()
                 fallensanctum_bg_cb:Hide()
+                maw_bg_cb:Hide()
+                necrolord_bg_cb:Hide()
                 oldgod_bg_cb:ClearAllPoints()
                 oldgod_bg_cb:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -18)
                 palette_header:ClearAllPoints()
@@ -441,10 +470,38 @@ sfui.options.RegisterTab({
                 square_bronze_cb:Hide()
                 oldgod_bg_cb:Hide()
                 fallensanctum_bg_cb:Show()
+                maw_bg_cb:Hide()
+                necrolord_bg_cb:Hide()
                 fallensanctum_bg_cb:ClearAllPoints()
                 fallensanctum_bg_cb:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -18)
                 palette_header:ClearAllPoints()
                 palette_header:SetPoint("TOPLEFT", fallensanctum_bg_cb, "BOTTOMLEFT", 0, -20)
+            elseif isMaw then
+                brackets_cb:Hide()
+                textured_bg_cb:Hide()
+                flat_btn_cb:Hide()
+                square_bronze_cb:Hide()
+                oldgod_bg_cb:Hide()
+                fallensanctum_bg_cb:Hide()
+                maw_bg_cb:Show()
+                necrolord_bg_cb:Hide()
+                maw_bg_cb:ClearAllPoints()
+                maw_bg_cb:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -18)
+                palette_header:ClearAllPoints()
+                palette_header:SetPoint("TOPLEFT", maw_bg_cb, "BOTTOMLEFT", 0, -20)
+            elseif isNecrolord then
+                brackets_cb:Hide()
+                textured_bg_cb:Hide()
+                flat_btn_cb:Hide()
+                square_bronze_cb:Hide()
+                oldgod_bg_cb:Hide()
+                fallensanctum_bg_cb:Hide()
+                maw_bg_cb:Hide()
+                necrolord_bg_cb:Show()
+                necrolord_bg_cb:ClearAllPoints()
+                necrolord_bg_cb:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -18)
+                palette_header:ClearAllPoints()
+                palette_header:SetPoint("TOPLEFT", necrolord_bg_cb, "BOTTOMLEFT", 0, -20)
             else
                 brackets_cb:Hide()
                 textured_bg_cb:Hide()
@@ -452,6 +509,8 @@ sfui.options.RegisterTab({
                 square_bronze_cb:Hide()
                 oldgod_bg_cb:Hide()
                 fallensanctum_bg_cb:Hide()
+                maw_bg_cb:Hide()
+                necrolord_bg_cb:Hide()
                 palette_header:ClearAllPoints()
                 palette_header:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -20)
             end
@@ -506,6 +565,18 @@ sfui.options.RegisterTab({
                         if isCamelot then
                             btn:SetBackdropColor(0.24, 0.18, 0.10, 0.98)
                             btn:SetBackdropBorderColor(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 1)
+                        elseif btn.themeMode == "oldgod" then
+                            btn:SetBackdropColor(0.22, 0.12, 0.35, 0.98)
+                            btn:SetBackdropBorderColor(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 1)
+                        elseif btn.themeMode == "fallensanctum" then
+                            btn:SetBackdropColor(0.24, 0.08, 0.10, 0.98)
+                            btn:SetBackdropBorderColor(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 1)
+                        elseif btn.themeMode == "maw" then
+                            btn:SetBackdropColor(0.08, 0.14, 0.18, 0.98)
+                            btn:SetBackdropBorderColor(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 1)
+                        elseif btn.themeMode == "necrolord" then
+                            btn:SetBackdropColor(0.06, 0.14, 0.08, 0.98)
+                            btn:SetBackdropBorderColor(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 1)
                         else
                             btn:SetBackdropColor(0.18, 0.12, 0.28, 0.98)
                             btn:SetBackdropBorderColor(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 1)
@@ -527,6 +598,9 @@ sfui.options.RegisterTab({
                         if isCamelot then
                             btn:SetBackdropColor(0.09, 0.08, 0.06, 0.90)
                             btn:SetBackdropBorderColor(0.22, 0.18, 0.12, 0.8)
+                        elseif btn.themeMode == "oldgod" then
+                            btn:SetBackdropColor(0.08, 0.05, 0.12, 0.90)
+                            btn:SetBackdropBorderColor(0.28, 0.18, 0.38, 0.85)
                         else
                             btn:SetBackdropColor(0.04, 0.04, 0.04, 0.90)
                             btn:SetBackdropBorderColor(0.16, 0.16, 0.16, 1)
@@ -534,7 +608,11 @@ sfui.options.RegisterTab({
                     end
                     if fs then
                         fs:SetText(btn.baseLabel)
-                        fs:SetTextColor(0.60, 0.60, 0.60, 1)
+                        if btn.themeMode == "oldgod" then
+                            fs:SetTextColor(0.68, 0.58, 0.80, 1)
+                        else
+                            fs:SetTextColor(0.60, 0.60, 0.60, 1)
+                        end
                     end
                 end
             end

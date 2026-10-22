@@ -420,17 +420,19 @@ end
 sfui.portals.fmt_cd = fmt_cd
 
 local function make_section_header(parent, text, yOffset)
-    local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    fs:SetPoint("TOPLEFT", 5, yOffset)
+    local host = (parent and parent.overlayFrame) or parent
+    local fs = host:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    fs:SetPoint("TOPLEFT", parent, "TOPLEFT", 5, yOffset)
     fs:SetText("|cff6600ff" .. text .. "|r")
     return fs
 end
 sfui.portals.make_section_header = make_section_header
 
 local function make_divider(parent, yOffset, width)
-    local line = parent:CreateTexture(nil, "ARTWORK")
+    local host = (parent and parent.overlayFrame) or parent
+    local line = host:CreateTexture(nil, "ARTWORK")
     line:SetSize(width or (FRAME_WIDTH - 14), 1)
-    line:SetPoint("TOPLEFT", 7, yOffset)
+    line:SetPoint("TOPLEFT", parent, "TOPLEFT", 7, yOffset)
     line:SetColorTexture(unpack(cfg.colors.gray))
     return line
 end
@@ -989,6 +991,12 @@ local function create_base_frame(name)
         if not foundSpecial then
             tinsert(UISpecialFrames, frameName)
         end
+
+        local overlay = CreateFrame("Frame", nil, f)
+        overlay:SetAllPoints(f)
+        overlay:SetFrameLevel((f:GetFrameLevel() or 1) + 4)
+        overlay:EnableMouse(false)
+        f.overlayFrame = overlay
     end
 
     f.refreshable = {}
@@ -1001,6 +1009,16 @@ local function create_base_frame(name)
     else
         f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     end
+
+    if not f.isThemeRegistered and sfui.theme and sfui.theme.RegisterWindow then
+        f.isThemeRegistered = true
+        sfui.theme.RegisterWindow(f, function(frame, pal)
+            if sfui.theme.ElevateWindowContents then
+                sfui.theme.ElevateWindowContents(frame)
+            end
+        end, { cornerBrackets = true })
+    end
+
     f:Hide()
     return f
 end
@@ -1037,6 +1055,12 @@ local function setup_frame_scripts(frame)
     end
 
     frame:SetScript("OnShow", function(self)
+        if sfui.theme and sfui.theme.ApplyWindowStyle then
+            sfui.theme.ApplyWindowStyle(self, { cornerBrackets = true })
+            if sfui.theme.ElevateWindowContents then
+                sfui.theme.ElevateWindowContents(self)
+            end
+        end
         run_refresh_pass(self)
         if not refreshTicker then
             refreshTicker = C_Timer.NewTicker(1.0, function()

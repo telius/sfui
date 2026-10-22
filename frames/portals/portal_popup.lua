@@ -94,9 +94,16 @@ local function get_or_create_popup()
     end, 18)
     closeBtn:ClearAllPoints()
     closeBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -5, -5)
+    f.closeBtn = closeBtn
+
+    local headerFrame = CreateFrame("Frame", nil, f)
+    headerFrame:SetAllPoints(f)
+    headerFrame:SetFrameLevel((f:GetFrameLevel() or 1) + 15)
+    headerFrame:EnableMouse(false)
+    f.headerFrame = headerFrame
 
     -- Header Title
-    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local title = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -8)
     title:SetPoint("TOPRIGHT", closeBtn, "TOPLEFT", -6, 0)
     title:SetJustifyH("LEFT")
@@ -192,6 +199,26 @@ local function get_or_create_popup()
     local y = (SfuiDB and SfuiDB.portalPopupY) or defPos.y
     f:ClearAllPoints()
     f:SetPoint("CENTER", UIParent, "CENTER", x, y)
+
+    f:HookScript("OnShow", function(self)
+        if sfui.theme and sfui.theme.ApplyWindowStyle then
+            sfui.theme.ApplyWindowStyle(self, { cornerBrackets = true })
+            if sfui.theme.ElevateWindowContents then
+                sfui.theme.ElevateWindowContents(self)
+            end
+        end
+    end)
+
+    if sfui.theme and sfui.theme.RegisterWindow then
+        sfui.theme.RegisterWindow(f, function(frame, pal)
+            if sfui.theme.ApplyCloseButtonStyle then
+                sfui.theme.ApplyCloseButtonStyle(closeBtn)
+            end
+            if title and pal and pal.headerColor then
+                title:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3], 1)
+            end
+        end, { cornerBrackets = true })
+    end
 
     popupFrame = f
     return f

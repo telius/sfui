@@ -250,6 +250,12 @@ function fallenSanctumTheme.ApplyWindow(frame, options, theme)
     if frame.sfuiOldGodLayers and frame.sfuiOldGodLayers.borderFrame then
         frame.sfuiOldGodLayers.borderFrame:Hide()
     end
+    if frame.sfuiMawLayers and frame.sfuiMawLayers.borderFrame then
+        frame.sfuiMawLayers.borderFrame:Hide()
+    end
+    if frame.sfuiNecrolordLayers and frame.sfuiNecrolordLayers.borderFrame then
+        frame.sfuiNecrolordLayers.borderFrame:Hide()
+    end
     if frame.sfuiNineSlices then
         for _, c in pairs(frame.sfuiNineSlices) do c:Hide() end
     end
@@ -364,6 +370,12 @@ function fallenSanctumTheme.ApplyContainer(containerPanel, theme)
     if containerPanel.sfuiOldGodContainer and containerPanel.sfuiOldGodContainer.frame then
         containerPanel.sfuiOldGodContainer.frame:Hide()
     end
+    if containerPanel.sfuiMawContainer and containerPanel.sfuiMawContainer.frame then
+        containerPanel.sfuiMawContainer.frame:Hide()
+    end
+    if containerPanel.sfuiNecrolordContainer and containerPanel.sfuiNecrolordContainer.frame then
+        containerPanel.sfuiNecrolordContainer.frame:Hide()
+    end
 
     if not containerPanel.sfuiFallenSanctumContainer then
         local bFrame = CreateFrame("Frame", nil, containerPanel)
@@ -452,6 +464,9 @@ function fallenSanctumTheme.ApplyHeader(header, theme)
     end
 
     header.sfuiFallenSanctumHeader:Show()
+    if header.sfuiOldGodHeader then header.sfuiOldGodHeader:Hide() end
+    if header.sfuiMawHeader then header.sfuiMawHeader:Hide() end
+    if header.sfuiNecrolordHeader then header.sfuiNecrolordHeader:Hide() end
     if header.bgBanner then header.bgBanner:Hide() end
     if header.accent then header.accent:Hide() end
     if header.SetBackdrop then header:SetBackdrop(nil) end

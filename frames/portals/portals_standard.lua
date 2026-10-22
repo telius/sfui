@@ -252,6 +252,8 @@ local function make_legacy_dropdown(parent, group, yPos)
 
     local header = sfui.common.create_flat_button(parent, group.label, menuWidth, 20)
     header:SetPoint("TOPLEFT", 5, yPos)
+    parent.legacyHeaders = parent.legacyHeaders or {}
+    tinsert(parent.legacyHeaders, header)
 
     local menu = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
     parent.legacyMenus = parent.legacyMenus or {}
@@ -529,6 +531,12 @@ local function build_standard_portals_frame()
 
     portalFrame:SetSize(FRAME_WIDTH, math.abs(curY) + 4)
     p.setup_frame_scripts(portalFrame)
+    if sfui.theme and sfui.theme.ApplyWindowStyle then
+        sfui.theme.ApplyWindowStyle(portalFrame, { cornerBrackets = true })
+        if sfui.theme.ElevateWindowContents then
+            sfui.theme.ElevateWindowContents(portalFrame)
+        end
+    end
     return portalFrame
 end
 p.build_frame = build_standard_portals_frame

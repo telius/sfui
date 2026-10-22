@@ -348,12 +348,13 @@ function Layout.BuildLayout(container, sections)
                 header.defLabel = titleText
                 header.capFormatted = sec.capFormatted
 
+                local isModern = (not sfui.theme or not sfui.theme.GetActiveThemeID or sfui.theme.GetActiveThemeID() == "modern")
                 if header.accent then
-                    if header.isCamelotHeader then
-                        header.accent:Hide()
-                    else
+                    if isModern and not header.isCamelotHeader and not header.isWindowHeader then
                         header.accent:Show()
                         header.accent:SetColorTexture(r, g, b, 1)
+                    else
+                        header.accent:Hide()
                     end
                 end
 
