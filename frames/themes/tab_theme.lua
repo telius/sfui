@@ -222,6 +222,30 @@ sfui.options.RegisterTab({
         end, "applies authentic heavy bronze borders and corner brackets to the square minimap.")
         square_bronze_cb:SetPoint("TOPLEFT", flat_btn_cb, "BOTTOMLEFT", 0, -8)
 
+        -- ─── Old Gods Detail Checkboxes ───────────────────────────────────────
+        local oldgod_bg_cb = create_checkbox(theme_panel, "use textured void nebula background", function()
+            return sfui.theme.IsOldGodBackdropActive and sfui.theme.IsOldGodBackdropActive()
+        end, function(checked)
+            if sfui.theme.SetOldGodBackdrop then
+                sfui.theme.SetOldGodBackdrop(checked)
+            end
+            sfui.theme.ApplyCurrentTheme()
+            theme_panel:RefreshThemeControls()
+        end, "opt in to the cosmic purple void nebula texture backdrop on windows (disabled by default for clean visibility).")
+        oldgod_bg_cb:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -18)
+
+        -- ─── Fallen Sanctum Detail Checkboxes ─────────────────────────────────
+        local fallensanctum_bg_cb = create_checkbox(theme_panel, "use textured crypt background", function()
+            return sfui.theme.IsFallenSanctumBackdropActive and sfui.theme.IsFallenSanctumBackdropActive()
+        end, function(checked)
+            if sfui.theme.SetFallenSanctumBackdrop then
+                sfui.theme.SetFallenSanctumBackdrop(checked)
+            end
+            sfui.theme.ApplyCurrentTheme()
+            theme_panel:RefreshThemeControls()
+        end, "opt in to the charred torghast crypt stone backdrop on windows (disabled by default for clean visibility).")
+        fallensanctum_bg_cb:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -18)
+
         -- ─── Color Palette Swatches ───────────────────────────────────────────
         local palette_header = theme_panel:CreateFontString(nil, "OVERLAY", g.font)
         palette_header:SetPoint("TOPLEFT", square_bronze_cb, "BOTTOMLEFT", 0, -20)
@@ -344,6 +368,7 @@ sfui.options.RegisterTab({
             preview_title:SetText(tostring(pal.name or ""):lower() .. " preview window")
 
             local isC = sfui.theme.IsCamelotActive()
+            local activeID = sfui.theme.GetActiveThemeID()
             if isC then
                 preview_body:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3])
                 if sfui.theme.IsAuctionHouseButtonActive() then
@@ -351,9 +376,21 @@ sfui.options.RegisterTab({
                 else
                     preview_body:SetText("tactile cast-bronze window, ornate corner brackets, embossed banners, clean flat dark buttons, and red/gold close button.")
                 end
+            elseif activeID == "oldgod" then
+                preview_body:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3])
+                preview_body:SetText("authentic chonky old gods theme: sculpted blackened void alloy, curling tentacles, glowing void eye crest, side tentacle pillars, and soft void amethyst.")
+            elseif activeID == "fallensanctum" then
+                preview_body:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3])
+                preview_body:SetText("bespoke torghast crypt stone: horned gargoyle skull crest, hanging soul chains, blood crimson crypt iron, and soul-fire teal accents.")
+            elseif activeID == "maw" then
+                preview_body:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3])
+                preview_body:SetText("jagged grey stone frame, maw tooltip topper crest, icy soul-chill blue glow, and deep dark soul-slate fill.")
+            elseif activeID == "necrolord" then
+                preview_body:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3])
+                preview_body:SetText("maldraxxus necrolord covenant theme: bone-plate chitin frame, covenant sigil crest, necrotic slime green accents, and bone ivory headers.")
             else
                 preview_body:SetTextColor(0.8, 0.8, 0.8, 1)
-                local activeDef = sfui.theme.GetTheme(sfui.theme.GetActiveThemeID())
+                local activeDef = sfui.theme.GetTheme(activeID)
                 if activeDef and activeDef.window and activeDef.window.style == "nineslice" and activeDef.desc then
                     preview_body:SetText(activeDef.desc:lower())
                 else
@@ -372,17 +409,51 @@ sfui.options.RegisterTab({
             -- Update Status Text
             update_status_text()
 
-            -- Hide Camelot-specific checkboxes on Retail
-            if isCamelotSupported then
+            -- Dynamic theme-specific checkboxes
+            local activeID = sfui.theme.GetActiveThemeID()
+            local isOldGod = (activeID == "oldgod")
+            local isFallenSanctum = (activeID == "fallensanctum")
+
+            if isCamelotSupported and isCamelot then
                 brackets_cb:Show()
                 textured_bg_cb:Show()
                 flat_btn_cb:Show()
                 square_bronze_cb:Show()
+                oldgod_bg_cb:Hide()
+                fallensanctum_bg_cb:Hide()
+                palette_header:ClearAllPoints()
+                palette_header:SetPoint("TOPLEFT", square_bronze_cb, "BOTTOMLEFT", 0, -20)
+            elseif isOldGod then
+                brackets_cb:Hide()
+                textured_bg_cb:Hide()
+                flat_btn_cb:Hide()
+                square_bronze_cb:Hide()
+                oldgod_bg_cb:Show()
+                fallensanctum_bg_cb:Hide()
+                oldgod_bg_cb:ClearAllPoints()
+                oldgod_bg_cb:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -18)
+                palette_header:ClearAllPoints()
+                palette_header:SetPoint("TOPLEFT", oldgod_bg_cb, "BOTTOMLEFT", 0, -20)
+            elseif isFallenSanctum then
+                brackets_cb:Hide()
+                textured_bg_cb:Hide()
+                flat_btn_cb:Hide()
+                square_bronze_cb:Hide()
+                oldgod_bg_cb:Hide()
+                fallensanctum_bg_cb:Show()
+                fallensanctum_bg_cb:ClearAllPoints()
+                fallensanctum_bg_cb:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -18)
+                palette_header:ClearAllPoints()
+                palette_header:SetPoint("TOPLEFT", fallensanctum_bg_cb, "BOTTOMLEFT", 0, -20)
             else
                 brackets_cb:Hide()
                 textured_bg_cb:Hide()
                 flat_btn_cb:Hide()
                 square_bronze_cb:Hide()
+                oldgod_bg_cb:Hide()
+                fallensanctum_bg_cb:Hide()
+                palette_header:ClearAllPoints()
+                palette_header:SetPoint("TOPLEFT", rowFirstBtn, "BOTTOMLEFT", 0, -20)
             end
 
             if square_bronze_cb then

@@ -186,6 +186,25 @@ SlashCmdList["SFUI"] = function(msg)
         elseif sfui.toggle_options_panel then
             sfui.toggle_options_panel("ring")
         end
+    elseif cmd == "theme" or cmd == "themes" or cmd == "style" then
+        if arg and arg ~= "" then
+            local targetTheme = arg:lower():gsub("%s+", "")
+            if sfui.theme and sfui.theme.SetTheme then
+                if sfui.theme.IsThemeAvailable and not sfui.theme.IsThemeAvailable(targetTheme) then
+                    if sfui.common and sfui.common.print then
+                        sfui.common.print("theme '" .. arg .. "' is not available on this client.")
+                    end
+                else
+                    sfui.theme.SetTheme(targetTheme)
+                    local pal = sfui.theme.GetPalette and sfui.theme.GetPalette()
+                    if sfui.common and sfui.common.print then
+                        sfui.common.print("theme mode set to '" .. targetTheme .. "' (active: " .. tostring(pal and pal.name or targetTheme):lower() .. ").")
+                    end
+                end
+            end
+        elseif sfui.toggle_options_panel then
+            sfui.toggle_options_panel("theme")
+        end
     elseif cmd == "rl" or cmd == "reload" then
         C_UI.Reload()
     elseif cmd == "help" or cmd == "?" then

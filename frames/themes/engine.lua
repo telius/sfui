@@ -71,6 +71,9 @@ end
 --- @return table|nil
 function sfui.theme.GetTheme(id)
     if id == "bronze" then id = "camelot" end
+    if id == "oldgods" then id = "oldgod" end
+    if id == "sanctum" or id == "torghast" then id = "fallensanctum" end
+    if id == "necrolords" or id == "maldraxxus" then id = "necrolord" end
     return registeredThemes[id]
 end
 
@@ -155,6 +158,14 @@ function sfui.theme.GetActiveThemeID()
         return defaultTheme
     end
 
+    if mode == "oldgods" then
+        mode = "oldgod"
+    elseif mode == "sanctum" or mode == "torghast" then
+        mode = "fallensanctum"
+    elseif mode == "necrolords" or mode == "maldraxxus" then
+        mode = "necrolord"
+    end
+
     if mode == "camelot" or mode == "bronze" then
         if not isCamelot then
             return "modern"
@@ -232,6 +243,10 @@ function sfui.theme.SetTheme(mode)
     if (mode == "camelot" or mode == "bronze") and not sfui.theme.IsCamelotSupported() then
         return false, "the bronze theme is exclusive to camelot/forever (bronze assets are not in retail)."
     end
+
+    if mode == "oldgods" then mode = "oldgod" end
+    if mode == "sanctum" or mode == "torghast" then mode = "fallensanctum" end
+    if mode == "necrolords" or mode == "maldraxxus" then mode = "necrolord" end
 
     local targetTheme = (mode == "bronze") and "camelot" or mode
     if mode ~= "auto" and not registeredThemes[targetTheme] then
@@ -438,13 +453,36 @@ function sfui.theme.SetButtonSelected(btn, isSelected)
     end
     if not useAH then
         local pal = sfui.theme.GetPalette()
+        local activeID = sfui.theme.GetActiveThemeID()
         if isSelected then
             local hl = pal.accentColor or pal.highlightColor or { 0.82, 0.65, 0.32, 1.0 }
             if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1.0) end
-            if btn.SetBackdropColor then btn:SetBackdropColor(0.18, 0.14, 0.10, 0.98) end
+            if btn.SetBackdropColor then
+                if activeID == "camelot" then
+                    btn:SetBackdropColor(0.18, 0.14, 0.10, 0.98)
+                elseif activeID == "oldgod" then
+                    btn:SetBackdropColor(0.22, 0.12, 0.35, 0.98)
+                elseif activeID == "fallensanctum" then
+                    btn:SetBackdropColor(0.28, 0.08, 0.09, 0.98)
+                elseif activeID == "maw" then
+                    btn:SetBackdropColor(0.08, 0.14, 0.18, 0.98)
+                elseif activeID == "necrolord" then
+                    btn:SetBackdropColor(0.08, 0.18, 0.10, 0.98)
+                else
+                    btn:SetBackdropColor(0.15, 0.15, 0.15, 1.0)
+                end
+            end
         else
-            if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85) end
-            if btn.SetBackdropColor then btn:SetBackdropColor(0.12, 0.10, 0.08, 0.95) end
+            if activeID == "camelot" then
+                if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85) end
+                if btn.SetBackdropColor then btn:SetBackdropColor(0.12, 0.10, 0.08, 0.95) end
+            elseif activeID == "oldgod" or activeID == "fallensanctum" or activeID == "maw" or activeID == "necrolord" then
+                if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(pal.borderColor[1], pal.borderColor[2], pal.borderColor[3], 0.90) end
+                if btn.SetBackdropColor then btn:SetBackdropColor(pal.containerColor[1], pal.containerColor[2], pal.containerColor[3], 0.95) end
+            else
+                if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0, 0, 0, 1) end
+                if btn.SetBackdropColor then btn:SetBackdropColor(0, 0, 0, 1) end
+            end
         end
     end
 end
@@ -541,6 +579,12 @@ function sfui.theme.ElevateWindowContents(frame)
     end
     if frame.sfuiActiveNineSlice then
         frame.sfuiActiveNineSlice:SetFrameLevel(base + 1)
+    end
+    if frame.sfuiOldGodLayers and frame.sfuiOldGodLayers.borderFrame then
+        frame.sfuiOldGodLayers.borderFrame:SetFrameLevel(base + 1)
+    end
+    if frame.sfuiFallenSanctumLayers and frame.sfuiFallenSanctumLayers.borderFrame then
+        frame.sfuiFallenSanctumLayers.borderFrame:SetFrameLevel(base + 1)
     end
     local h = frame.headerFrame or frame.headerBar or frame.header
     if h and h.SetFrameLevel then
@@ -676,6 +720,13 @@ function sfui.theme.ApplyWindowStyle(frame, options)
     local activeID = sfui.theme.GetActiveThemeID()
     local theme = registeredThemes[activeID] or registeredThemes.modern or {}
     local pal = sfui.theme.GetPalette()
+
+    if activeID ~= "oldgod" and frame.sfuiOldGodLayers and frame.sfuiOldGodLayers.borderFrame then
+        frame.sfuiOldGodLayers.borderFrame:Hide()
+    end
+    if activeID ~= "fallensanctum" and frame.sfuiFallenSanctumLayers and frame.sfuiFallenSanctumLayers.borderFrame then
+        frame.sfuiFallenSanctumLayers.borderFrame:Hide()
+    end
 
     -- Allow theme definition to supply custom ApplyWindow hook
     if theme.ApplyWindow then
@@ -1040,6 +1091,13 @@ function sfui.theme.ApplyContainerStyle(containerPanel)
     local theme = registeredThemes[activeID] or registeredThemes.modern or {}
     local pal = sfui.theme.GetPalette()
 
+    if activeID ~= "oldgod" and containerPanel.sfuiOldGodContainer and containerPanel.sfuiOldGodContainer.frame then
+        containerPanel.sfuiOldGodContainer.frame:Hide()
+    end
+    if activeID ~= "fallensanctum" and containerPanel.sfuiFallenSanctumContainer and containerPanel.sfuiFallenSanctumContainer.frame then
+        containerPanel.sfuiFallenSanctumContainer.frame:Hide()
+    end
+
     if theme.ApplyContainer then
         theme.ApplyContainer(containerPanel, theme)
         return
@@ -1099,6 +1157,13 @@ function sfui.theme.ApplyQuestHeaderStyle(header)
     local activeID = sfui.theme.GetActiveThemeID()
     local theme = registeredThemes[activeID] or registeredThemes.modern or {}
     local pal = sfui.theme.GetPalette()
+
+    if activeID ~= "oldgod" and header.sfuiOldGodHeader then
+        header.sfuiOldGodHeader:Hide()
+    end
+    if activeID ~= "fallensanctum" and header.sfuiFallenSanctumHeader then
+        header.sfuiFallenSanctumHeader:Hide()
+    end
 
     if theme.ApplyHeader then
         theme.ApplyHeader(header, theme)
@@ -1532,6 +1597,18 @@ function sfui.theme.ApplyCloseButtonStyle(btn)
             if activeID == "camelot" then
                 btn:SetBackdropColor(0.20, 0.08, 0.08, 0.95)
                 btn:SetBackdropBorderColor(0.65, 0.50, 0.25, 1)
+            elseif activeID == "oldgod" then
+                btn:SetBackdropColor(0.14, 0.08, 0.20, 0.95)
+                btn:SetBackdropBorderColor(0.45, 0.22, 0.65, 1)
+            elseif activeID == "fallensanctum" then
+                btn:SetBackdropColor(0.20, 0.05, 0.06, 0.95)
+                btn:SetBackdropBorderColor(0.65, 0.15, 0.15, 1)
+            elseif activeID == "maw" then
+                btn:SetBackdropColor(0.05, 0.08, 0.10, 0.95)
+                btn:SetBackdropBorderColor(0.25, 0.45, 0.55, 1)
+            elseif activeID == "necrolord" then
+                btn:SetBackdropColor(0.04, 0.08, 0.05, 0.95)
+                btn:SetBackdropBorderColor(0.30, 0.65, 0.40, 1)
             else
                 btn:SetBackdropColor(0, 0, 0, 1)
                 btn:SetBackdropBorderColor(0, 0, 0, 1)
@@ -1544,9 +1621,61 @@ function sfui.theme.ApplyCloseButtonStyle(btn)
             fs:SetText("X")
             if activeID == "camelot" then
                 fs:SetTextColor(1.0, 0.85, 0.55, 1)
+            elseif activeID == "oldgod" then
+                fs:SetTextColor(0.85, 0.65, 1.00, 1)
+            elseif activeID == "fallensanctum" then
+                fs:SetTextColor(0.95, 0.65, 0.65, 1)
+            elseif activeID == "maw" then
+                fs:SetTextColor(0.75, 0.85, 0.90, 1)
+            elseif activeID == "necrolord" then
+                fs:SetTextColor(0.84, 0.82, 0.73, 1)
             else
                 fs:SetTextColor(1, 1, 1, 1)
             end
+        end
+
+        if not btn._sfuiThemeCloseHook then
+            btn._sfuiThemeCloseHook = true
+            btn:HookScript("OnEnter", function(self)
+                local aID = sfui.theme.GetActiveThemeID()
+                local sfs = self:GetFontString()
+                if aID == "camelot" then
+                    self:SetBackdropBorderColor(0.90, 0.75, 0.40, 1.0)
+                    if sfs then sfs:SetTextColor(1.0, 0.95, 0.70, 1.0) end
+                elseif aID == "oldgod" then
+                    self:SetBackdropBorderColor(0.85, 0.45, 1.00, 1.0)
+                    if sfs then sfs:SetTextColor(1.0, 0.70, 1.0, 1.0) end
+                elseif aID == "fallensanctum" then
+                    self:SetBackdropBorderColor(0.114, 0.949, 0.776, 1.0)
+                    if sfs then sfs:SetTextColor(0.114, 0.949, 0.776, 1.0) end
+                elseif aID == "maw" then
+                    self:SetBackdropBorderColor(0.40, 0.90, 0.95, 1.0)
+                    if sfs then sfs:SetTextColor(0.40, 0.90, 0.95, 1.0) end
+                elseif aID == "necrolord" then
+                    self:SetBackdropBorderColor(0.35, 0.85, 0.55, 1.0)
+                    if sfs then sfs:SetTextColor(0.35, 0.85, 0.55, 1.0) end
+                end
+            end)
+            btn:HookScript("OnLeave", function(self)
+                local aID = sfui.theme.GetActiveThemeID()
+                local sfs = self:GetFontString()
+                if aID == "camelot" then
+                    self:SetBackdropBorderColor(0.65, 0.50, 0.25, 1.0)
+                    if sfs then sfs:SetTextColor(1.0, 0.85, 0.55, 1.0) end
+                elseif aID == "oldgod" then
+                    self:SetBackdropBorderColor(0.45, 0.22, 0.65, 1.0)
+                    if sfs then sfs:SetTextColor(0.85, 0.65, 1.00, 1.0) end
+                elseif aID == "fallensanctum" then
+                    self:SetBackdropBorderColor(0.65, 0.15, 0.15, 1.0)
+                    if sfs then sfs:SetTextColor(0.95, 0.65, 0.65, 1.0) end
+                elseif aID == "maw" then
+                    self:SetBackdropBorderColor(0.25, 0.45, 0.55, 1.0)
+                    if sfs then sfs:SetTextColor(0.75, 0.85, 0.90, 1.0) end
+                elseif aID == "necrolord" then
+                    self:SetBackdropBorderColor(0.30, 0.65, 0.40, 1.0)
+                    if sfs then sfs:SetTextColor(0.84, 0.82, 0.73, 1.0) end
+                end
+            end)
         end
         btn.isThemedClose = false
     end
@@ -3064,10 +3193,12 @@ function sfui.theme.ApplyCastBarDecoration(bar)
     -- Style the cast spark / leading pip
     local spark = bar.Spark
     if spark then
-        if isCamelot then
-            -- Warm gold radiant spark for Camelot
-            local sc = (bars_def.castbar and bars_def.castbar.sparkColor) or { 1.0, 0.85, 0.55, 1.0 }
+        local sc = (bars_def.castbar and bars_def.castbar.sparkColor) or (bars_def.sparkColor)
+        if sc then
             spark:SetVertexColor(sc[1], sc[2], sc[3], sc[4] or 1.0)
+        elseif isCamelot then
+            -- Warm gold radiant spark for Camelot
+            spark:SetVertexColor(1.0, 0.85, 0.55, 1.0)
         else
             spark:SetVertexColor(1, 1, 1, 0.9)
         end
