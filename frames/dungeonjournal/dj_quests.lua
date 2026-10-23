@@ -22,6 +22,19 @@ local REWARD_ROW_PAD     = 4
 local ICON_SZ            = 34
 local QUEST_LIST_W       = 200
 
+local _G                 = _G
+local CreateFrame        = _G.CreateFrame
+local UnitLevel          = _G.UnitLevel
+local ipairs             = _G.ipairs
+local pcall              = _G.pcall
+local tostring           = _G.tostring
+local type               = _G.type
+local wipe               = _G.wipe
+local math_ceil          = _G.math.ceil
+local math_max           = _G.math.max
+local string_format      = _G.string.format
+local table_concat       = _G.table.concat
+
 local theme              = sfui.theme
 local common             = sfui.common
 
@@ -37,7 +50,6 @@ local questButtons       = {}
 local rewardButtons      = {}
 
 local selectedQuestIndex = 1
-local debounceTimer      = nil
 
 -- ─── Player Faction Helper ────────────────────────────────────────────────────
 local function GetPlayerFaction()
@@ -47,7 +59,12 @@ end
 
 -- ─── Database & State Access ──────────────────────────────────────────────────
 local function DJ_DB()
-    return (sfui.dungeonjournal and sfui.dungeonjournal.GetDB and sfui.dungeonjournal.GetDB()) or {}
+    if sfui.dungeonjournal and sfui.dungeonjournal.GetDB then
+        return sfui.dungeonjournal.GetDB()
+    end
+    _G.SfuiDB = _G.SfuiDB or {}
+    _G.SfuiDB.dungeonjournal = _G.SfuiDB.dungeonjournal or {}
+    return _G.SfuiDB.dungeonjournal
 end
 
 local function GetCurrentDungeon()
@@ -59,12 +76,21 @@ local function GetQualityColor(quality)
     if sfui.dungeonjournal and sfui.dungeonjournal.GetQualityColor then
         return sfui.dungeonjournal.GetQualityColor(quality)
     end
+    if common and common.get_item_quality_color then
+        return common.get_item_quality_color(quality)
+    end
     return 0.8, 0.8, 0.8
 end
 
 -- ─── Quest Status & Live Helpers ──────────────────────────────────────────────
 local function IsQuestCompleted(questID)
-    return (sfui.dungeonjournal and sfui.dungeonjournal.IsQuestCompleted and sfui.dungeonjournal.IsQuestCompleted(questID)) or false
+    if sfui.dungeonjournal and sfui.dungeonjournal.IsQuestCompleted then
+        return sfui.dungeonjournal.IsQuestCompleted(questID)
+    end
+    if common and common.is_quest_completed then
+        return common.is_quest_completed(questID)
+    end
+    return false
 end
 
 local function IsQuestInLog(questID)
@@ -135,7 +161,7 @@ local function GetLiveQuestObjectives(questID)
                 end
             end
             if #reusedObjectiveLines > 0 then
-                return table.concat(reusedObjectiveLines, "\n")
+                return table_concat(reusedObjectiveLines, "\n")
             end
         end
     end
@@ -273,12 +299,6 @@ local function ResolveItemLink(btn, fallbackItemID)
     end
 end
 
-local function InsertItemLinkIntoChat(link)
-    if sfui.dungeonjournal and sfui.dungeonjournal.InsertItemLinkIntoChat then
-        return sfui.dungeonjournal.InsertItemLinkIntoChat(link)
-    end
-end
-
 -- ─── Render Quest Detail ──────────────────────────────────────────────────────
 local function RenderQuestDetail(quest, dungeon)
     if not detailScroll or not detailContent then return end
@@ -366,8 +386,8 @@ local function RenderQuestDetail(quest, dungeon)
             tagsLine2[#tagsLine2 + 1] = "|cff888888not shareable|r"
         end
 
-        local str1 = table.concat(tagsLine1, "  ·  ")
-        local str2 = table.concat(tagsLine2, "  ·  ")
+        local str1 = table_concat(tagsLine1, "  ·  ")
+        local str2 = table_concat(tagsLine2, "  ·  ")
         if str2 ~= "" then
             questHeaderFrame.sub:SetText(str1 .. "\n" .. str2)
         else
@@ -557,7 +577,7 @@ local function RenderQuestDetail(quest, dungeon)
             local mapID, x, y, src, step = ResolveQuestMapCoords(q)
             if src == "chain_step" and step then
                 GameTooltip:AddLine(
-                string.format("opens map and places a waypoint at current step: %s (%s).",
+                string_format("opens map and places a waypoint at current step: %s (%s).",
                     tostring(step.name or "chain step"):lower(), tostring(step.pickup or ""):lower()), 1, 1, 1, true)
             elseif src == "quest" then
                 GameTooltip:AddLine("opens map and places a waypoint at the quest pickup location.", 1, 1, 1, true)
@@ -569,7 +589,7 @@ local function RenderQuestDetail(quest, dungeon)
             if mapID and C_Map and C_Map.GetMapInfo then
                 local minfo = C_Map.GetMapInfo(mapID)
                 if minfo and minfo.name then
-                    GameTooltip:AddLine(string.format("|cff888888zone: %s|r", tostring(minfo.name):lower()))
+                    GameTooltip:AddLine(string_format("|cff888888zone: %s|r", tostring(minfo.name):lower()))
                 end
             end
             GameTooltip:Show()
@@ -675,14 +695,14 @@ local function RenderQuestDetail(quest, dungeon)
 
         info.oLabel:ClearAllPoints()
         info.oLabel:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
-        local oLabelH = math.max(14, math.ceil(info.oLabel:GetStringHeight() or 14))
+        local oLabelH = math_max(14, math_ceil(info.oLabel:GetStringHeight() or 14))
         currY = currY + oLabelH + 3
 
         info.oText:ClearAllPoints()
         info.oText:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
         info.oText:SetPoint("TOPRIGHT", info, "TOPRIGHT", 0, -currY)
         info.oText:SetText(objText)
-        local oH = math.max(16, math.ceil(info.oText:GetStringHeight() or 16))
+        local oH = math_max(16, math_ceil(info.oText:GetStringHeight() or 16))
         currY = currY + oH + 10
     else
         info.oLabel:Hide()
@@ -692,7 +712,7 @@ local function RenderQuestDetail(quest, dungeon)
     -- 2. Starts from
     info.pLabel:ClearAllPoints()
     info.pLabel:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
-    local pLabelH = math.max(14, math.ceil(info.pLabel:GetStringHeight() or 14))
+    local pLabelH = math_max(14, math_ceil(info.pLabel:GetStringHeight() or 14))
     currY = currY + pLabelH + 3
 
     info.pText:ClearAllPoints()
@@ -711,20 +731,20 @@ local function RenderQuestDetail(quest, dungeon)
         pickupStr = pickupStr .. "  |cff00e5ff(inside dungeon)|r"
     end
     info.pText:SetText(pickupStr)
-    local pH = math.max(16, math.ceil(info.pText:GetStringHeight() or 16))
+    local pH = math_max(16, math_ceil(info.pText:GetStringHeight() or 16))
     currY = currY + pH + 10
 
     -- 3. Turns in to
     info.tLabel:ClearAllPoints()
     info.tLabel:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
-    local tLabelH = math.max(14, math.ceil(info.tLabel:GetStringHeight() or 14))
+    local tLabelH = math_max(14, math_ceil(info.tLabel:GetStringHeight() or 14))
     currY = currY + tLabelH + 3
 
     info.tText:ClearAllPoints()
     info.tText:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
     info.tText:SetPoint("TOPRIGHT", info, "TOPRIGHT", 0, -currY)
     info.tText:SetText(quest.turnin or "unknown turn-in npc")
-    local tH = math.max(16, math.ceil(info.tText:GetStringHeight() or 16))
+    local tH = math_max(16, math_ceil(info.tText:GetStringHeight() or 16))
     currY = currY + tH + 10
 
     -- 4. Prerequisite / Chain (if applicable)
@@ -740,7 +760,7 @@ local function RenderQuestDetail(quest, dungeon)
         info.cText:Show()
 
         if steps and #steps > 0 then
-            info.cLabel:SetText(string.format("quest chain (%d steps):", #steps))
+            info.cLabel:SetText(string_format("quest chain (%d steps):", #steps))
             info.cLabel:SetTextColor(accent[1], accent[2], accent[3], 1)
 
             local lines = {}
@@ -773,15 +793,15 @@ local function RenderQuestDetail(quest, dungeon)
 
                 local dTag = s.isDungeonQuest and " |cff00bfff(dungeon quest)|r" or ""
                 local sName = s.name or ("quest #" .. tostring(s.id))
-                local stepHeader = string.format("%s%d.|r %s%s|r%s", numColor, i, titleColor, sName, dTag, statusBadge)
+                local stepHeader = string_format("%s%d.|r %s%s|r%s%s", numColor, i, titleColor, sName, dTag, statusBadge)
                 if s.pickup and s.pickup ~= "" then
-                    local locStr = string.format("     |cff888888starts from: %s|r", s.pickup)
+                    local locStr = string_format("     |cff888888starts from: %s|r", s.pickup)
                     lines[#lines + 1] = stepHeader .. "\n" .. locStr
                 else
                     lines[#lines + 1] = stepHeader
                 end
             end
-            info.cText:SetText(table.concat(lines, "\n\n"))
+            info.cText:SetText(table_concat(lines, "\n\n"))
         else
             info.cLabel:SetText("prerequisite:")
             info.cLabel:SetTextColor(accent[1], accent[2], accent[3], 1)
@@ -790,13 +810,13 @@ local function RenderQuestDetail(quest, dungeon)
 
         info.cLabel:ClearAllPoints()
         info.cLabel:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
-        local cLabelH = math.max(14, math.ceil(info.cLabel:GetStringHeight() or 14))
+        local cLabelH = math_max(14, math_ceil(info.cLabel:GetStringHeight() or 14))
         currY = currY + cLabelH + 4
 
         info.cText:ClearAllPoints()
         info.cText:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
         info.cText:SetPoint("TOPRIGHT", info, "TOPRIGHT", 0, -currY)
-        local cH = math.max(16, math.ceil(info.cText:GetStringHeight() or 16))
+        local cH = math_max(16, math_ceil(info.cText:GetStringHeight() or 16))
         currY = currY + cH + 12
     else
         info.cLabel:Hide()
@@ -858,7 +878,7 @@ local function RenderQuestDetail(quest, dungeon)
         info.rLabel:Show()
         info.rLabel:ClearAllPoints()
         info.rLabel:SetPoint("TOPLEFT", detailContent, "TOPLEFT", 8, -startY)
-        local rLabelH = math.max(14, math.ceil(info.rLabel:GetStringHeight() or 14))
+        local rLabelH = math_max(14, math_ceil(info.rLabel:GetStringHeight() or 14))
         startY = startY + rLabelH + 6
 
         for _, itemID in ipairs(rewardItems) do
@@ -950,11 +970,11 @@ local function RenderQuestDetail(quest, dungeon)
             btn:Show()
             startY = startY + REWARD_ROW_H + REWARD_ROW_PAD
         end
-        detailContent:SetHeight(math.max(1, startY + 10))
+        detailContent:SetHeight(math_max(1, startY + 10))
     else
         info.div:Hide()
         info.rLabel:Hide()
-        detailContent:SetHeight(math.max(1, textBlockHeight + 14))
+        detailContent:SetHeight(math_max(1, textBlockHeight + 14))
     end
     if detailScroll and detailScroll.ScrollBar and detailScroll.ScrollBar.UpdateVisibility then
         detailScroll.ScrollBar:UpdateVisibility()
@@ -1093,7 +1113,7 @@ local function RefreshQuestView()
         end
 
         if #badges > 0 then
-            btn.statusText:SetText(statusStr .. "  ·  " .. table.concat(badges, " · "))
+            btn.statusText:SetText(statusStr .. "  ·  " .. table_concat(badges, " · "))
         else
             btn.statusText:SetText(statusStr)
         end
@@ -1109,7 +1129,7 @@ local function RefreshQuestView()
         y = y + QUEST_BTN_H + QUEST_BTN_PAD
     end
 
-    questListContent:SetHeight(math.max(1, y))
+    questListContent:SetHeight(math_max(1, y))
     if questListScroll and questListScroll.ScrollBar and questListScroll.ScrollBar.UpdateVisibility then
         questListScroll.ScrollBar:UpdateVisibility()
     end
@@ -1130,11 +1150,11 @@ local function RefreshQuestView()
         local hasVisibleProgress = (total > 0) and (completed < total) and (inProg > 0 or completed > 0)
 
         if hasVisibleProgress then
-            local pStr = (inProg > 0) and string.format("|cff00e5ffp %d/%d|r", inProg, total) or
-            string.format("|cff777777p %d/%d|r", inProg, total)
-            local cStr = (completed > 0) and string.format("|cff00ff00c %d/%d|r", completed, total) or
-            string.format("|cff777777c %d/%d|r", completed, total)
-            questPanel.questSummaryBar.text:SetText(string.format("|cff888888(|r%s |cff666666-|r %s|cff888888)|r", pStr,
+            local pStr = (inProg > 0) and string_format("|cff00e5ffp %d/%d|r", inProg, total) or
+            string_format("|cff777777p %d/%d|r", inProg, total)
+            local cStr = (completed > 0) and string_format("|cff00ff00c %d/%d|r", completed, total) or
+            string_format("|cff777777c %d/%d|r", completed, total)
+            questPanel.questSummaryBar.text:SetText(string_format("|cff888888(|r%s |cff666666-|r %s|cff888888)|r", pStr,
                 cStr))
             questPanel.questSummaryBar:Show()
             if questListScroll and questPanel.questListContainer then
@@ -1155,9 +1175,9 @@ local function RefreshQuestView()
         questPanel.questSummaryBar:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:AddLine("dungeon quest progress", 1, 0.82, 0)
-            GameTooltip:AddLine(string.format("in progress (picked up): %d / %d", inProg, total), 0, 0.9, 1)
-            GameTooltip:AddLine(string.format("completed: %d / %d", completed, total), 0, 1, 0)
-            GameTooltip:AddLine(string.format("not picked up: %d / %d", total - inProg - completed, total), 0.75, 0.75,
+            GameTooltip:AddLine(string_format("in progress (picked up): %d / %d", inProg, total), 0, 0.9, 1)
+            GameTooltip:AddLine(string_format("completed: %d / %d", completed, total), 0, 1, 0)
+            GameTooltip:AddLine(string_format("not picked up: %d / %d", total - inProg - completed, total), 0.75, 0.75,
                 0.75)
             GameTooltip:Show()
         end)
