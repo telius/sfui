@@ -70,6 +70,21 @@ local function suppress_blizzard_actionbars()
             if bar.UnregisterAllEvents then
                 bar:UnregisterAllEvents()
             end
+            if bar.SetScript then
+                bar:SetScript("OnEvent", nil)
+                bar:SetScript("OnUpdate", nil)
+                bar:SetScript("OnShow", nil)
+                bar:SetScript("OnHide", nil)
+            end
+            if bar.UpdateShownButtons then
+                bar.UpdateShownButtons = function() end
+            end
+            if bar.UpdateFrameStrata then
+                bar.UpdateFrameStrata = function() end
+            end
+            if bar.SetShowGrid then
+                bar.SetShowGrid = function() end
+            end
             if bar.UpdateVisibility then
                 bar.UpdateVisibility = function() end
             end
@@ -105,9 +120,16 @@ local function suppress_blizzard_actionbars()
         if _G.MainActionBar.UnregisterAllEvents then
             _G.MainActionBar:UnregisterAllEvents()
         end
+        if _G.MainActionBar.SetScript then
+            _G.MainActionBar:SetScript("OnEvent", nil)
+            _G.MainActionBar:SetScript("OnUpdate", nil)
+        end
         _G.MainActionBar.Show = function() end
         _G.MainActionBar.ShowOverride = function() end
         _G.MainActionBar.UpdateVisibility = function() end
+        _G.MainActionBar.UpdateShownButtons = function() end
+        _G.MainActionBar.UpdateFrameStrata = function() end
+        _G.MainActionBar.SetShowGrid = function() end
         _G.MainActionBar.IsInDefaultPosition = function() return false end
     end
 
