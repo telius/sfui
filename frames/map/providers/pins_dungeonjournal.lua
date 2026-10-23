@@ -1,6 +1,7 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
+sfui.dungeonjournal = sfui.dungeonjournal or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/map/providers/pins_dungeonjournal.lua
@@ -578,10 +579,10 @@ pins.RegisterProvider("dj_quests", {
 })
 
 pins.RegisterTrackingCategory("dungeon journal", {
-    { text = "dungeon entrances", get = function() return sfui.dungeonjournal.GetOption("showEntrancePins") end, set = function(v) sfui.dungeonjournal.SetOption("showEntrancePins", v) end },
-    { text = "dungeon quests", get = function() return sfui.dungeonjournal.GetOption("showQuestPins") end, set = function(v) sfui.dungeonjournal.SetOption("showQuestPins", v) end },
-    { text = "filter quests by level", get = function() return sfui.dungeonjournal.GetOption("questPinsRequireLevel") end, set = function(v) sfui.dungeonjournal.SetOption("questPinsRequireLevel", v) end },
-    { text = "hide outleveled entrances", get = function() return sfui.dungeonjournal.GetOption("autoHideTrivialPins") end, set = function(v) sfui.dungeonjournal.SetOption("autoHideTrivialPins", v) end },
+    { text = "dungeon entrances", get = function() return sfui.dungeonjournal and sfui.dungeonjournal.GetOption and sfui.dungeonjournal.GetOption("showEntrancePins") end, set = function(v) if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then sfui.dungeonjournal.SetOption("showEntrancePins", v) end end },
+    { text = "dungeon quests", get = function() return sfui.dungeonjournal and sfui.dungeonjournal.GetOption and sfui.dungeonjournal.GetOption("showQuestPins") end, set = function(v) if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then sfui.dungeonjournal.SetOption("showQuestPins", v) end end },
+    { text = "filter quests by level", get = function() return sfui.dungeonjournal and sfui.dungeonjournal.GetOption and sfui.dungeonjournal.GetOption("questPinsRequireLevel") end, set = function(v) if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then sfui.dungeonjournal.SetOption("questPinsRequireLevel", v) end end },
+    { text = "hide outleveled entrances", get = function() return sfui.dungeonjournal and sfui.dungeonjournal.GetOption and sfui.dungeonjournal.GetOption("autoHideTrivialPins") end, set = function(v) if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then sfui.dungeonjournal.SetOption("autoHideTrivialPins", v) end end },
 })
 
 sfui.dungeonjournal = sfui.dungeonjournal or {}

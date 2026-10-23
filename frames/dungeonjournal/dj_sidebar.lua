@@ -27,11 +27,11 @@ local common = sfui.common
 
 -- ─── DB & Hidden Dungeons Storage ─────────────────────────────────────────────
 local function DJ_DB()
-    return sfui.dungeonjournal.GetDB()
+    return (sfui.dungeonjournal and sfui.dungeonjournal.GetDB and sfui.dungeonjournal.GetDB()) or {}
 end
 
 local function IsDungeonHidden(dungeonID)
-    return sfui.dungeonjournal.IsDungeonHidden(dungeonID)
+    return (sfui.dungeonjournal and sfui.dungeonjournal.IsDungeonHidden and sfui.dungeonjournal.IsDungeonHidden(dungeonID)) or false
 end
 
 -- Forward declaration of RefreshSidebar & search query
@@ -39,7 +39,10 @@ local RefreshSidebar = nil
 local currentSearchFilter = nil
 
 local function IsDungeonInLevelRange(dungeon, playerLevel)
-    return sfui.dungeonjournal.IsDungeonInLevelRange(dungeon, playerLevel)
+    if sfui.dungeonjournal and sfui.dungeonjournal.IsDungeonInLevelRange then
+        return sfui.dungeonjournal.IsDungeonInLevelRange(dungeon, playerLevel)
+    end
+    return true
 end
 
 -- all sidebar filter toggles route through SetOption; the SFUI_DJ_SETTING_CHANGED
@@ -385,7 +388,9 @@ local function AcquireButton(pool, parent)
 end
 
 local function ReleaseAll(pool)
-    sfui.dungeonjournal.ReleaseAll(pool)
+    if sfui.dungeonjournal and sfui.dungeonjournal.ReleaseAll then
+        sfui.dungeonjournal.ReleaseAll(pool)
+    end
 end
 
 -- ─── Main Refresh ─────────────────────────────────────────────────────────────
@@ -902,7 +907,9 @@ local function OnFrameCreated(arg1, arg2)
 
 
     -- Register refresh function with orchestrator
-    sfui.dungeonjournal._registerSidebar(RefreshSidebar)
+    if sfui.dungeonjournal and sfui.dungeonjournal._registerSidebar then
+        sfui.dungeonjournal._registerSidebar(RefreshSidebar)
+    end
 
     RefreshSidebar()
 end

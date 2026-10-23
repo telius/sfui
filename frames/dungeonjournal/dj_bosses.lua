@@ -396,8 +396,13 @@ local function IsItemMatchingFilter(filterKey, itemID, classID, subclassID, equi
 end
 
 -- ─── Database & State Access ──────────────────────────────────────────────────
-local DJ_DB             = sfui.dungeonjournal.GetDB
-local GetCurrentDungeon = sfui.dungeonjournal.GetCurrentDungeon
+local function DJ_DB()
+    return (sfui.dungeonjournal and sfui.dungeonjournal.GetDB and sfui.dungeonjournal.GetDB()) or {}
+end
+
+local function GetCurrentDungeon()
+    return sfui.dungeonjournal and sfui.dungeonjournal.GetCurrentDungeon and sfui.dungeonjournal.GetCurrentDungeon()
+end
 
 local function GetEncounterList(dungeon)
     if not dungeon then return {} end
@@ -441,7 +446,12 @@ local function GetEncounterList(dungeon)
 end
 
 -- ─── Quality Color Helper ─────────────────────────────────────────────────────
-local GetQualityColor = sfui.dungeonjournal.GetQualityColor
+local function GetQualityColor(quality)
+    if sfui.dungeonjournal and sfui.dungeonjournal.GetQualityColor then
+        return sfui.dungeonjournal.GetQualityColor(quality)
+    end
+    return 0.8, 0.8, 0.8
+end
 
 -- ─── Wishlist Detection Helpers ───────────────────────────────────────────────
 local function GetBossWishlistInfo(boss)
@@ -680,9 +690,23 @@ local function AcquireLootButton(pool, parent)
     return btn
 end
 
-local ReleaseAll             = sfui.dungeonjournal.ReleaseAll
-local ResolveItemLink        = sfui.dungeonjournal.ResolveItemLink
-local InsertItemLinkIntoChat = sfui.dungeonjournal.InsertItemLinkIntoChat
+local function ReleaseAll(pool)
+    if sfui.dungeonjournal and sfui.dungeonjournal.ReleaseAll then
+        sfui.dungeonjournal.ReleaseAll(pool)
+    end
+end
+
+local function ResolveItemLink(btn, fallbackItemID)
+    if sfui.dungeonjournal and sfui.dungeonjournal.ResolveItemLink then
+        return sfui.dungeonjournal.ResolveItemLink(btn, fallbackItemID)
+    end
+end
+
+local function InsertItemLinkIntoChat(link)
+    if sfui.dungeonjournal and sfui.dungeonjournal.InsertItemLinkIntoChat then
+        return sfui.dungeonjournal.InsertItemLinkIntoChat(link)
+    end
+end
 
 local function GetItemNumericDropRate(itemEntry, itemID, boss)
     local dropRate = (type(itemEntry) == "table" and (itemEntry.dropRate or itemEntry.rate or itemEntry[2]))
@@ -1004,7 +1028,9 @@ local function RenderLoot(boss, dungeon)
                             return
                         end
                     end
-                    sfui.dungeonjournal.HandleItemClick(self, mouseBtn, itemID)
+                    if sfui.dungeonjournal and sfui.dungeonjournal.HandleItemClick then
+                        sfui.dungeonjournal.HandleItemClick(self, mouseBtn, itemID)
+                    end
                 end)
 
                 btn:Show()
@@ -1491,7 +1517,9 @@ local function OnFrameCreated(arg1, arg2)
     end
 
     -- Register with orchestrator
-    sfui.dungeonjournal._registerBosses(RefreshBossView)
+    if sfui.dungeonjournal and sfui.dungeonjournal._registerBosses then
+        sfui.dungeonjournal._registerBosses(RefreshBossView)
+    end
 
     RefreshBossView()
 end

@@ -46,15 +46,30 @@ local function GetPlayerFaction()
 end
 
 -- ─── Database & State Access ──────────────────────────────────────────────────
-local DJ_DB             = sfui.dungeonjournal.GetDB
-local GetCurrentDungeon = sfui.dungeonjournal.GetCurrentDungeon
+local function DJ_DB()
+    return (sfui.dungeonjournal and sfui.dungeonjournal.GetDB and sfui.dungeonjournal.GetDB()) or {}
+end
+
+local function GetCurrentDungeon()
+    return sfui.dungeonjournal and sfui.dungeonjournal.GetCurrentDungeon and sfui.dungeonjournal.GetCurrentDungeon()
+end
 
 -- ─── Quality Color Helper ─────────────────────────────────────────────────────
-local GetQualityColor   = sfui.dungeonjournal.GetQualityColor
+local function GetQualityColor(quality)
+    if sfui.dungeonjournal and sfui.dungeonjournal.GetQualityColor then
+        return sfui.dungeonjournal.GetQualityColor(quality)
+    end
+    return 0.8, 0.8, 0.8
+end
 
 -- ─── Quest Status & Live Helpers ──────────────────────────────────────────────
-local IsQuestCompleted  = sfui.dungeonjournal.IsQuestCompleted
-local IsQuestInLog      = sfui.dungeonjournal.IsQuestActive
+local function IsQuestCompleted(questID)
+    return (sfui.dungeonjournal and sfui.dungeonjournal.IsQuestCompleted and sfui.dungeonjournal.IsQuestCompleted(questID)) or false
+end
+
+local function IsQuestInLog(questID)
+    return (sfui.dungeonjournal and sfui.dungeonjournal.IsQuestActive and sfui.dungeonjournal.IsQuestActive(questID)) or false
+end
 
 local function IsQuestShareable(questID, quest)
     if quest and quest.shareable ~= nil then
@@ -246,9 +261,23 @@ local function AcquireRewardButton(pool, parent)
     return btn
 end
 
-local ReleaseAll             = sfui.dungeonjournal.ReleaseAll
-local ResolveItemLink        = sfui.dungeonjournal.ResolveItemLink
-local InsertItemLinkIntoChat = sfui.dungeonjournal.InsertItemLinkIntoChat
+local function ReleaseAll(pool)
+    if sfui.dungeonjournal and sfui.dungeonjournal.ReleaseAll then
+        sfui.dungeonjournal.ReleaseAll(pool)
+    end
+end
+
+local function ResolveItemLink(btn, fallbackItemID)
+    if sfui.dungeonjournal and sfui.dungeonjournal.ResolveItemLink then
+        return sfui.dungeonjournal.ResolveItemLink(btn, fallbackItemID)
+    end
+end
+
+local function InsertItemLinkIntoChat(link)
+    if sfui.dungeonjournal and sfui.dungeonjournal.InsertItemLinkIntoChat then
+        return sfui.dungeonjournal.InsertItemLinkIntoChat(link)
+    end
+end
 
 -- ─── Render Quest Detail ──────────────────────────────────────────────────────
 local function RenderQuestDetail(quest, dungeon)
@@ -913,7 +942,9 @@ local function RenderQuestDetail(quest, dungeon)
             btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
             btn:SetScript("OnClick", function(self, mouseBtn)
-                sfui.dungeonjournal.HandleItemClick(self, mouseBtn, itemID)
+                if sfui.dungeonjournal and sfui.dungeonjournal.HandleItemClick then
+                    sfui.dungeonjournal.HandleItemClick(self, mouseBtn, itemID)
+                end
             end)
 
             btn:Show()
@@ -1293,7 +1324,9 @@ local function OnFrameCreated(arg1, arg2)
     end
 
     -- Register with orchestrator
-    sfui.dungeonjournal._registerQuests(RefreshQuestView)
+    if sfui.dungeonjournal and sfui.dungeonjournal._registerQuests then
+        sfui.dungeonjournal._registerQuests(RefreshQuestView)
+    end
 
     RefreshQuestView()
 end

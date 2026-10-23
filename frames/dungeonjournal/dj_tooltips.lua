@@ -22,7 +22,7 @@ local math_floor           = _G.math.floor
 local string_format        = _G.string.format
 
 local function DJ_DB()
-    return sfui.dungeonjournal.GetDB()
+    return (sfui.dungeonjournal and sfui.dungeonjournal.GetDB and sfui.dungeonjournal.GetDB()) or {}
 end
 
 local function OnTooltipSetItem(tooltip, data)
