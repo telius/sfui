@@ -26,8 +26,39 @@ local function DJ_DB()
     if sfui.dungeonjournal and sfui.dungeonjournal.GetDB then
         return sfui.dungeonjournal.GetDB()
     end
-    return {}
+    SfuiDB = SfuiDB or {}
+    SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
+    return SfuiDB.dungeonjournal
 end
+
+local function GetOption(key)
+    if sfui.dungeonjournal and sfui.dungeonjournal.GetOption and sfui.dungeonjournal.GetOption ~= GetOption then
+        return sfui.dungeonjournal.GetOption(key) == true
+    end
+    local saved = DJ_DB()
+    if key == "showEntrancePins" or key == "showQuestPins" or key == "questPinsRequireLevel" then
+        return saved[key] ~= false
+    elseif key == "autoHideTrivialPins" then
+        return saved[key] == true
+    end
+    return saved[key] == true
+end
+
+local function SetOption(key, val)
+    if sfui.dungeonjournal and sfui.dungeonjournal.SetOption and sfui.dungeonjournal.SetOption ~= SetOption then
+        sfui.dungeonjournal.SetOption(key, val)
+        return
+    end
+    local saved = DJ_DB()
+    saved[key] = val
+    pins.RequestRefresh(0)
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_DJ_SETTING_CHANGED", key, val)
+    end
+end
+
+sfui.dungeonjournal.GetOption = sfui.dungeonjournal.GetOption or GetOption
+sfui.dungeonjournal.SetOption = sfui.dungeonjournal.SetOption or SetOption
 
 local function IsQuestPickedUpInDungeon(q)
     if not q then return false end
@@ -567,25 +598,24 @@ end
 pins.RegisterProvider("dj_entrances", {
     priority    = 10,
     defaultSize = 22,
-    enabled     = function() return DJ_DB().showEntrancePins ~= false end,
+    enabled     = function() return GetOption("showEntrancePins") end,
     GetPins     = GetEntrancePins,
 })
 
 pins.RegisterProvider("dj_quests", {
     priority    = 15,
     defaultSize = 20,
-    enabled     = function() return DJ_DB().showQuestPins ~= false end,
+    enabled     = function() return GetOption("showQuestPins") end,
     GetPins     = GetQuestPins,
 })
 
 pins.RegisterTrackingCategory("dungeon journal", {
-    { text = "dungeon entrances", get = function() return sfui.dungeonjournal and sfui.dungeonjournal.GetOption and sfui.dungeonjournal.GetOption("showEntrancePins") end, set = function(v) if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then sfui.dungeonjournal.SetOption("showEntrancePins", v) end end },
-    { text = "dungeon quests", get = function() return sfui.dungeonjournal and sfui.dungeonjournal.GetOption and sfui.dungeonjournal.GetOption("showQuestPins") end, set = function(v) if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then sfui.dungeonjournal.SetOption("showQuestPins", v) end end },
-    { text = "filter quests by level", get = function() return sfui.dungeonjournal and sfui.dungeonjournal.GetOption and sfui.dungeonjournal.GetOption("questPinsRequireLevel") end, set = function(v) if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then sfui.dungeonjournal.SetOption("questPinsRequireLevel", v) end end },
-    { text = "hide outleveled entrances", get = function() return sfui.dungeonjournal and sfui.dungeonjournal.GetOption and sfui.dungeonjournal.GetOption("autoHideTrivialPins") end, set = function(v) if sfui.dungeonjournal and sfui.dungeonjournal.SetOption then sfui.dungeonjournal.SetOption("autoHideTrivialPins", v) end end },
+    { text = "dungeon entrances", get = function() return GetOption("showEntrancePins") end, set = function(v) SetOption("showEntrancePins", v) end },
+    { text = "dungeon quests", get = function() return GetOption("showQuestPins") end, set = function(v) SetOption("showQuestPins", v) end },
+    { text = "filter quests by level", get = function() return GetOption("questPinsRequireLevel") end, set = function(v) SetOption("questPinsRequireLevel", v) end },
+    { text = "hide outleveled entrances", get = function() return GetOption("autoHideTrivialPins") end, set = function(v) SetOption("autoHideTrivialPins", v) end },
 })
 
-sfui.dungeonjournal = sfui.dungeonjournal or {}
 function sfui.dungeonjournal.UpdatePins() pins.RequestRefresh(0) end
 function sfui.dungeonjournal.HighlightEntrancePin(dungeonID)
     if not dungeonID then return end

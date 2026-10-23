@@ -204,10 +204,16 @@ local function HookWorldMapTrackingMenu()
                 rootDescription:CreateDivider()
                 rootDescription:CreateTitle(cat.title)
                 for _, opt in ipairs(cat.options) do
-                    rootDescription:CreateCheckbox(opt.text, opt.get, function()
-                        local cur = opt.get()
-                        opt.set(not cur)
-                    end)
+                    local getFn = opt.get
+                    local setFn = opt.set
+                    if type(getFn) == "function" and type(setFn) == "function" then
+                        rootDescription:CreateCheckbox(opt.text, function()
+                            return getFn() == true
+                        end, function()
+                            local cur = getFn() == true
+                            setFn(not cur)
+                        end)
+                    end
                 end
             end
         end
