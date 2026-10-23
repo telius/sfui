@@ -1279,7 +1279,10 @@ function sfui.dungeonjournal.CreateFrame()
     common.apply_flat_backdrop(frame, { 0.05, 0.05, 0.07, 0.97 }, { 0.12, 0.12, 0.14, 1 })
 
     -- ── Header bar ────────────────────────────────────────────────────────────
-    local headerBar = (theme.CreateWindowHeader or sfui.theme.CreateWindowHeader)(frame, "dungeon journal")
+    local createHeader = (theme and theme.CreateWindowHeader) or (sfui.theme and sfui.theme.CreateWindowHeader)
+    if createHeader then
+        frame.headerBar = createHeader(frame, "dungeon journal")
+    end
 
     local closeBtn = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
     frame.closeBtn = closeBtn
