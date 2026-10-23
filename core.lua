@@ -3,18 +3,20 @@ sfui = sfui or {}
 sfui.lootviewer = sfui.lootviewer or {}
 sfui.is_ready_for_vendor_frame = false
 
-function sfui.ToggleLootViewer()
-    if not sfui.isRetail and sfui.lootviewer_camelot and sfui.lootviewer_camelot.Toggle then
-        sfui.lootviewer_camelot.Toggle()
-    elseif sfui.lootviewer and sfui.lootviewer.Toggle and sfui.lootviewer.Toggle ~= sfui.ToggleLootViewer then
+local function default_lootviewer_toggle()
+    if not sfui.isRetail then
+        local dj = sfui.lootviewer_camelot or sfui.dungeonjournal
+        if dj and dj.Toggle and dj.Toggle ~= default_lootviewer_toggle then
+            dj.Toggle()
+        end
+    elseif sfui.lootviewer and sfui.lootviewer.Toggle and sfui.lootviewer.Toggle ~= default_lootviewer_toggle then
         sfui.lootviewer.Toggle()
     end
 end
+sfui.ToggleLootViewer = default_lootviewer_toggle
 
 if not sfui.lootviewer.Toggle then
-    sfui.lootviewer.Toggle = function()
-        sfui.ToggleLootViewer()
-    end
+    sfui.lootviewer.Toggle = default_lootviewer_toggle
 end
 
 -- Localize Globals
