@@ -1,6 +1,7 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
+sfui.dungeonjournal = sfui.dungeonjournal or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/dungeonjournal/dj_tooltips.lua

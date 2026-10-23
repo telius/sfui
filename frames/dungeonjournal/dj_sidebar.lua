@@ -2,6 +2,7 @@ local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui = sfui or {}
 local GameTooltip = sfui.common.get_tooltip()  -- private addon tooltip (methods.md §3.7.2)
+sfui.dungeonjournal = sfui.dungeonjournal or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/dungeonjournal/dj_sidebar.lua
