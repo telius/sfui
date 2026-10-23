@@ -42,14 +42,18 @@ def get_bugjar_paths():
         except Exception:
             pass
 
-    # 3. Dynamic glob discovery across local wow installations (zero hardcoded user/account names)
+    # 3. Dynamic glob discovery across local wow installations (prioritizing _forever_ and _retail_)
     search_patterns = [
-        os.path.expanduser("~/Games/World of Warcraft/**/SavedVariables/!BugJar.lua"),
-        os.path.expanduser("~/.var/app/*/Games/World of Warcraft/**/SavedVariables/!BugJar.lua"),
-        os.path.expanduser("~/.wine/drive_c/**/SavedVariables/!BugJar.lua"),
+        os.path.expanduser("~/Games/World of Warcraft/_forever_/WTF/Account/*/SavedVariables/!BugJar.lua"),
+        os.path.expanduser("~/Games/World of Warcraft/_retail_/WTF/Account/*/SavedVariables/!BugJar.lua"),
+        os.path.expanduser("~/Games/World of Warcraft/_*/WTF/Account/*/SavedVariables/!BugJar.lua"),
+        os.path.expanduser("~/.var/app/*/Games/World of Warcraft/_*/WTF/Account/*/SavedVariables/!BugJar.lua"),
+        os.path.expanduser("~/.wine/drive_c/**/World of Warcraft/_*/WTF/Account/*/SavedVariables/!BugJar.lua"),
     ]
     for pat in search_patterns:
         for m in glob.glob(pat, recursive=True):
+            if "/_classic_beta_/" in m:
+                continue
             if m not in paths and not m.endswith(".bak"):
                 paths.append(m)
     return paths
