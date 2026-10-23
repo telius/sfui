@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: 'ignore 48h soak period (release all pending autofixes)'
+        description: 'ignore 24h soak period (release all pending autofixes)'
         required: false
         type: boolean
         default: false
@@ -60,7 +60,7 @@ jobs:
       - name: Evaluate Autofixes & Bump Version
         id: release_check
         run: |
-          ARGS="--soak-hours 48"
+          ARGS="--soak-hours 24"
           if [ "${{ github.event.inputs.force }}" = "true" ]; then
             ARGS="$ARGS --force"
           fi

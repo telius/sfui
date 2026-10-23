@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 sfui weekly automated release script
-checks for qualifying fix(bugjar): commits that have passed the soak period (default: 48h).
+checks for qualifying fix(bugjar): commits that have passed the soak period (default: 24h).
 if found, bumps version in sfui.toc, generates CHANGELOG.md, commits, tags, and pushes.
 """
 
@@ -35,7 +35,7 @@ def get_latest_tag():
         return res.stdout.strip()
     return None
 
-def get_qualifying_commits(soak_hours=48, force=False):
+def get_qualifying_commits(soak_hours=24, force=False):
     latest_tag = get_latest_tag()
     commit_range = f"{latest_tag}..HEAD" if latest_tag else "HEAD"
     
@@ -100,7 +100,7 @@ def build_changelog(next_version, commits):
 
 def main():
     parser = argparse.ArgumentParser(description="sfui weekly automated release")
-    parser.add_argument("--soak-hours", type=int, default=48, help="minimum hours since commit (default: 48)")
+    parser.add_argument("--soak-hours", type=int, default=24, help="minimum hours since commit (default: 24)")
     parser.add_argument("--dry-run", action="store_true", help="preview changes without modifying files or git")
     parser.add_argument("--force", action="store_true", help="ignore soak hours filter")
     parser.add_argument("--push", action="store_true", help="push commit and tag to origin main")
