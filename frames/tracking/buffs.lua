@@ -44,6 +44,7 @@ local DEFAULT_PREVIEW_ICONS = {
 }
 
 local CreateSocketContainer -- forward declaration
+local SyncWithBlizzard      -- forward declaration
 
 -- check if blizzard buff item is in pandemic refresh window
 local function IsBlizzardItemInPandemic(blizzFrame)
@@ -195,23 +196,52 @@ local function UpdatePosition()
     local defY = (bCfg and bCfg.anchor and bCfg.anchor.y) or -220
 
     -- heal previous default if unchanged
-    if db and db.anchor and db.anchor.x == 0 and db.anchor.y == -110 then
-        db.anchor.y = -220
+    if db and db.anchor and db.anchor.x == 0 and (db.anchor.y == -220 or db.anchor.y == -110) and not db.anchor.isCustom then
+        db.anchor.isCustom = false
     end
     if db and db.size == 36 then
         db.size = 42
     end
 
-    local point = (db and db.anchor and db.anchor.point) or defPoint
-    local x = (db and db.anchor and db.anchor.x) or defX
-    local y = (db and db.anchor and db.anchor.y) or defY
+    local isCustom = false
+    if db and db.anchor then
+        if db.anchor.isCustom == true then
+            isCustom = true
+        elseif db.anchor.isCustom == nil then
+            -- if not explicitly marked custom, check if coordinates differ from legacy hardcoded defaults
+            if db.anchor.x ~= 0 or (db.anchor.y ~= -220 and db.anchor.y ~= -110) then
+                isCustom = true
+            end
+        end
+    end
 
-    socketContainer:ClearAllPoints()
-    socketContainer:SetPoint(point, UIParent, point, x, y)
+    if not isCustom then
+        local topAnchor = sfui.trackedbars and sfui.trackedbars.GetTopAnchor and sfui.trackedbars.GetTopAnchor()
+        if not topAnchor and sfui.trackedbars and sfui.trackedbars.UpdateTopAnchor then
+            topAnchor = sfui.trackedbars.UpdateTopAnchor()
+        end
+        topAnchor = topAnchor or _G["SfuiTrackedBarsTopAnchor"] or _G["sfui_bar0_Backdrop"] or UIParent
 
-    if mover then
-        mover:ClearAllPoints()
-        mover:SetPoint(point, UIParent, point, x, y)
+        socketContainer:ClearAllPoints()
+        socketContainer:SetPoint("BOTTOM", topAnchor, "TOP", 0, 4)
+
+        if mover then
+            mover:ClearAllPoints()
+            mover:SetPoint("BOTTOM", topAnchor, "TOP", 0, 4)
+        end
+    else
+        local defPoint = (bCfg and bCfg.anchor and bCfg.anchor.point) or "CENTER"
+        local point = (db and db.anchor and db.anchor.point) or defPoint
+        local x = (db and db.anchor and db.anchor.x) or 0
+        local y = (db and db.anchor and db.anchor.y) or 0
+
+        socketContainer:ClearAllPoints()
+        socketContainer:SetPoint(point, UIParent, point, x, y)
+
+        if mover then
+            mover:ClearAllPoints()
+            mover:SetPoint(point, UIParent, point, x, y)
+        end
     end
 end
 sfui.trackedbuffs.UpdatePosition = UpdatePosition
@@ -399,6 +429,7 @@ CreateSocketContainer = function()
         SfuiDB.trackedBuffs.anchor.point = "CENTER"
         SfuiDB.trackedBuffs.anchor.x = offsetX
         SfuiDB.trackedBuffs.anchor.y = offsetY
+        SfuiDB.trackedBuffs.anchor.isCustom = true
 
         if socketContainer then
             socketContainer:ClearAllPoints()
@@ -467,7 +498,7 @@ function sfui.trackedbuffs.IsMoverShown()
 end
 
 -- synchronize active buff items from blizzard's bufficoncooldownviewer
-local function SyncWithBlizzard()
+SyncWithBlizzard = function()
     if not socketContainer then CreateSocketContainer() end
     if not socketContainer then return end
 

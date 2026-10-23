@@ -546,6 +546,97 @@ local function UpdateLayout()
             end
         end
     end
+
+    if sfui.trackedbars.UpdateTopAnchor then
+        sfui.trackedbars.UpdateTopAnchor()
+    end
+end
+
+-- Top Anchor Management (Static anchor positioned at the highest tracked bar slot)
+local topAnchor
+
+local function GetBaseAttachedAnchor()
+    local anchor = _G["sfui_bar0_Backdrop"]
+    if _G["SfuiSoulFragmentsBar"] and (_G["SfuiSoulFragmentsBar"]:IsShown() or (SfuiDB and SfuiDB.enableSoulFragments ~= false)) then
+        anchor = _G["SfuiSoulFragmentsBar"]
+    elseif _G["sfui_bar1_Backdrop"] and (_G["sfui_bar1_Backdrop"]:IsShown() or (SfuiDB and SfuiDB.enablePowerBar ~= false)) then
+        anchor = _G["sfui_bar1_Backdrop"]
+    elseif _G["sfui_runeBar"] and (_G["sfui_runeBar"]:IsShown() or (SfuiDB and SfuiDB.enableRuneBar ~= false)) then
+        anchor = _G["sfui_runeBar"]
+    end
+    return anchor or _G["sfui_bar0_Backdrop"]
+end
+sfui.trackedbars.GetBaseAttachedAnchor = GetBaseAttachedAnchor
+
+local function GetNumConfiguredAttachedBars()
+    local count = 0
+    local specBars = common.get_tracked_bars and common.get_tracked_bars()
+    local checked = {}
+    if specBars then
+        for id, _ in pairs(specBars) do
+            if type(id) == "number" then
+                checked[id] = true
+                local bCfg = GetTrackedBarConfig(id)
+                if bCfg and bCfg.stackAboveHealth then
+                    count = count + 1
+                end
+            end
+        end
+    end
+    local tCfg = sfui.config.trackedBars
+    if tCfg and tCfg.defaults then
+        local currentSpec = common.get_current_spec_id and common.get_current_spec_id()
+        for id, def in pairs(tCfg.defaults) do
+            if not checked[id] and (not def.specID or def.specID == currentSpec) then
+                if def.stackAboveHealth then
+                    count = count + 1
+                end
+            end
+        end
+    end
+    return count
+end
+sfui.trackedbars.GetNumConfiguredAttachedBars = GetNumConfiguredAttachedBars
+
+local function UpdateTopAnchor()
+    if not topAnchor then
+        topAnchor = CreateFrame("Frame", "SfuiTrackedBarsTopAnchor", UIParent)
+        topAnchor:SetSize(1, 1)
+    end
+
+    local base = GetBaseAttachedAnchor()
+    if not base then
+        base = _G["sfui_bar0_Backdrop"]
+    end
+    if not base then return topAnchor end
+
+    local tBarsCfg = sfui.config.trackedBars or {}
+    local spacing = sfui.config.barLayout and sfui.config.barLayout.spacing or 1
+    local height = tBarsCfg.attachedHeight or 20
+    local numConfigured = GetNumConfiguredAttachedBars()
+    local numActive = attachedBars and #attachedBars or 0
+    local numBars = math.max(numConfigured, numActive)
+
+    local totalOffset = 0
+    if numBars > 0 then
+        totalOffset = numBars * (height + spacing)
+    end
+
+    topAnchor:ClearAllPoints()
+    topAnchor:SetPoint("TOP", base, "TOP", 0, totalOffset)
+    topAnchor:Show()
+
+    if sfui.trackedbuffs and sfui.trackedbuffs.UpdatePosition then
+        sfui.trackedbuffs.UpdatePosition()
+    end
+
+    return topAnchor
+end
+sfui.trackedbars.UpdateTopAnchor = UpdateTopAnchor
+
+function sfui.trackedbars.GetTopAnchor()
+    if not topAnchor then UpdateTopAnchor() end
+    return topAnchor
 end
 
 -- Update Position External Reference
@@ -1508,6 +1599,9 @@ function sfui.trackedbars.initialize()
     end)
     sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", function()
         if SyncWithBlizzard then SyncWithBlizzard() end
+    end)
+    sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function()
+        if sfui.trackedbars.UpdateTopAnchor then sfui.trackedbars.UpdateTopAnchor() end
     end)
 
     -- 12.0.5+: fires when Blizzard switches the aura data provider to/from obfuscated

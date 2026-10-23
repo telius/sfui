@@ -584,13 +584,16 @@ local function SyncCurrency(d, cDef)
             end
         end
         if info then
-            local curr          = d.currencies[cDef.id] or {}
-            curr.val            = info.quantity or 0
-            curr.earned         = info.totalEarned or 0 -- season total (used for season-earned display)
-            curr.totalEarned    = info.totalEarned or 0 -- same value, stored under the name the renderer reads
-            curr.max            = info.maxWeeklyQuantity or 0
-            curr.maxQuantity    = info.maxQuantity or 0
-            curr.useTotalEarned = info.useTotalEarnedForMaxQty or false
+            local curr                  = d.currencies[cDef.id] or {}
+            curr.val                    = info.quantity or 0
+            curr.earned                 = info.totalEarned or 0 -- season total (used for season-earned display)
+            curr.totalEarned            = info.totalEarned or 0 -- same value, stored under the name the renderer reads
+            curr.max                    = info.maxWeeklyQuantity or 0
+            curr.maxWeeklyQuantity      = info.maxWeeklyQuantity or 0
+            curr.canEarnPerWeek         = info.canEarnPerWeek or false
+            curr.quantityEarnedThisWeek = info.quantityEarnedThisWeek or 0
+            curr.maxQuantity            = info.maxQuantity or 0
+            curr.useTotalEarned         = info.useTotalEarnedForMaxQty or false
 
             if info.maxQuantity and info.maxQuantity > 0 then
                 SfuiDB.currencyCaps = SfuiDB.currencyCaps or {}
@@ -1600,15 +1603,29 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             end
 
             local cData = altData.currencies and altData.currencies[itemConfig.id]
-            -- Check weekly cap
+            -- Check weekly, seasonal, or holding cap
             local isCapped = false
             local displayMaxQuantity = cData and type(cData) == "table" and cData.maxQuantity or 0
             if SfuiDB and SfuiDB.currencyCaps and SfuiDB.currencyCaps[itemConfig.id] and SfuiDB.currencyCaps[itemConfig.id] > displayMaxQuantity then
                 displayMaxQuantity = SfuiDB.currencyCaps[itemConfig.id]
             end
 
+            local hasWeeklyLimit = false
+            local weeklyEarned = 0
+            local weeklyMax = 0
             if cData and type(cData) == "table" then
-                if cData.max and cData.max > 0 and cData.earned and cData.earned >= cData.max then
+                if cData.canEarnPerWeek and cData.maxWeeklyQuantity and cData.maxWeeklyQuantity > 0 then
+                    hasWeeklyLimit = true
+                    weeklyEarned = cData.quantityEarnedThisWeek or 0
+                    weeklyMax = cData.maxWeeklyQuantity
+                elseif (cData.canEarnPerWeek == nil) and cData.max and cData.max > 0 and not cData.useTotalEarned then
+                    -- legacy fallback for data recorded before canEarnPerWeek was tracked
+                    hasWeeklyLimit = true
+                    weeklyEarned = cData.quantityEarnedThisWeek or cData.earned or 0
+                    weeklyMax = cData.max
+                end
+
+                if hasWeeklyLimit and weeklyMax > 0 and weeklyEarned >= weeklyMax then
                     isCapped = true
                 elseif displayMaxQuantity > 0 then
                     if cData.useTotalEarned and cData.totalEarned and cData.totalEarned >= displayMaxQuantity then
@@ -1665,6 +1682,9 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 count = val,
                 earned = currentEarned,
                 max = displayMaxQuantity,
+                hasWeeklyLimit = hasWeeklyLimit,
+                weeklyEarned = weeklyEarned,
+                weeklyMax = weeklyMax,
             })
         end
 
@@ -1683,21 +1703,25 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                     GameTooltip:AddLine(string.format("|T%s:16:16:0:0|t %s", tostring(tLine.itemConfig.icon or 134400), name))
 
                     if tLine.cData and type(tLine.cData) == "table" then
-                        if tLine.cData.max and tLine.cData.max > 0 then
+                        if tLine.hasWeeklyLimit and tLine.weeklyMax > 0 then
                             GameTooltip:AddDoubleLine("weekly earned:",
-                                string.format("%d / %d", tLine.cData.earned or 0, tLine.cData.max), 1, 1, 1, 1, 1, 1)
+                                string.format("%d / %d", tLine.weeklyEarned or 0, tLine.weeklyMax), 1, 1, 1, 1, 1, 1)
                         elseif tLine.displayMaxQuantity > 0 then
-                            local currentAmount = tLine.cData.useTotalEarned and tLine.cData.totalEarned or
-                                tLine.cData.val
-                            GameTooltip:AddDoubleLine("season earned:",
-                                string.format("%d / %d", currentAmount or 0, tLine.displayMaxQuantity), 1, 1, 1, 1,
-                                1, 1)
+                            if tLine.cData.useTotalEarned then
+                                GameTooltip:AddDoubleLine("season earned:",
+                                    string.format("%d / %d", tLine.cData.totalEarned or 0, tLine.displayMaxQuantity), 1, 1, 1, 1, 1, 1)
+                            else
+                                GameTooltip:AddDoubleLine("holding cap:",
+                                    string.format("%d / %d", tLine.cData.val or 0, tLine.displayMaxQuantity), 1, 1, 1, 1, 1, 1)
+                            end
                         else
                             local val = tLine.cData.val or 0
                             GameTooltip:AddDoubleLine("total:", tostring(val), 1, 1, 1, 1, 1, 1)
                         end
                         if tLine.isCapped then
-                            GameTooltip:AddLine("season/weekly cap reached!", 1, 0, 0)
+                            local capMsg = tLine.hasWeeklyLimit and "weekly cap reached!" or
+                                (tLine.cData.useTotalEarned and "season cap reached!" or "holding cap reached!")
+                            GameTooltip:AddLine(capMsg, 1, 0, 0)
                         end
                     else
                         local val = tLine.cData or 0
@@ -1728,17 +1752,24 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                             string.format("%s%d / %d|r", statusColor, earned, maxQty), 1, 1, 1, 1, 1, 1)
                     end
                 elseif cData and type(cData) == "table" then
-                    if cData.max and cData.max > 0 then
+                    if tLine.hasWeeklyLimit and tLine.weeklyMax > 0 then
                         GameTooltip:AddDoubleLine(iconPrefix .. name .. ":",
-                            string.format("%d (weekly: %d / %d)", val, cData.earned or 0, cData.max), 1, 1, 1, 1, 1, 1)
+                            string.format("%d (weekly: %d / %d)", val, tLine.weeklyEarned or 0, tLine.weeklyMax), 1, 1, 1, 1, 1, 1)
                     elseif maxQty > 0 then
-                        GameTooltip:AddDoubleLine(iconPrefix .. name .. ":",
-                            string.format("%d (season: %d / %d)", val, earned, maxQty), 1, 1, 1, 1, 1, 1)
+                        if cData.useTotalEarned then
+                            GameTooltip:AddDoubleLine(iconPrefix .. name .. ":",
+                                string.format("%d (season: %d / %d)", val, earned, maxQty), 1, 1, 1, 1, 1, 1)
+                        else
+                            GameTooltip:AddDoubleLine(iconPrefix .. name .. ":",
+                                string.format("%d (holding cap: %d / %d)", val, val, maxQty), 1, 1, 1, 1, 1, 1)
+                        end
                     else
                         GameTooltip:AddDoubleLine(iconPrefix .. name .. ":", tostring(val), 1, 1, 1, 1, 1, 1)
                     end
                     if tLine.isCapped then
-                        GameTooltip:AddLine("season/weekly cap reached!", 1, 0, 0)
+                        local capMsg = tLine.hasWeeklyLimit and "weekly cap reached!" or
+                            (cData.useTotalEarned and "season cap reached!" or "holding cap reached!")
+                        GameTooltip:AddLine(capMsg, 1, 0, 0)
                     end
                 else
                     GameTooltip:AddDoubleLine(iconPrefix .. name .. ":", tostring(val), 1, 1, 1, 1, 1, 1)

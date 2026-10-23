@@ -1179,19 +1179,15 @@ function sfui.trackedoptions.RenderBuffsTab(parent)
     local db = SfuiDB.trackedBuffs
     local buff_cfg = cfg.trackedBuffs or {}
 
-    local defX = (buff_cfg.anchor and buff_cfg.anchor.x) or 0
-    local defY = (buff_cfg.anchor and buff_cfg.anchor.y) or -220
+    local defX = 0
+    local defY = 4
 
     -- heal previous default if unchanged
-    if db.anchor and db.anchor.x == 0 and db.anchor.y == -110 then
-        db.anchor.y = -220
+    if db.anchor and db.anchor.x == 0 and (db.anchor.y == -220 or db.anchor.y == -110) and not db.anchor.isCustom then
+        db.anchor.isCustom = false
     end
     if db.size == 36 then
         db.size = 42
-    end
-
-    if not db.anchor then
-        db.anchor = { point = "CENTER", x = defX, y = defY }
     end
 
     local function Refresh()
@@ -1271,16 +1267,24 @@ function sfui.trackedoptions.RenderBuffsTab(parent)
     lPos:SetPoint("TOPLEFT", col2x, s1y)
     lPos:SetText("position & size")
 
-    BSlider(sec1c, "x offset", function() return (db.anchor and db.anchor.x) or defX end, -1000, 1000, 1,
+    BSlider(sec1c, "x offset", function()
+        if db.anchor and db.anchor.isCustom then return db.anchor.x or 0 end
+        return 0
+    end, -1000, 1000, 1,
         function(v)
-            if not db.anchor then db.anchor = { point = "CENTER", x = defX, y = defY } end
+            if not db.anchor then db.anchor = { point = "CENTER", x = 0, y = 0 } end
             db.anchor.x = v
+            db.anchor.isCustom = true
         end, col2x, s1y - 20, 120)
 
-    BSlider(sec1c, "y offset", function() return (db.anchor and db.anchor.y) or defY end, -1000, 1000, 1,
+    BSlider(sec1c, "y offset", function()
+        if db.anchor and db.anchor.isCustom then return db.anchor.y or 0 end
+        return 0
+    end, -1000, 1000, 1,
         function(v)
-            if not db.anchor then db.anchor = { point = "CENTER", x = defX, y = defY } end
+            if not db.anchor then db.anchor = { point = "CENTER", x = 0, y = 0 } end
             db.anchor.y = v
+            db.anchor.isCustom = true
         end, col2x + 130, s1y - 20, 120)
 
     BSlider(sec1c, "icon size", function() return db.size or buff_cfg.size or 42 end, 20, 64, 1,
@@ -1290,7 +1294,7 @@ function sfui.trackedoptions.RenderBuffsTab(parent)
         function(v) db.spacing = v end, col2x + 130, s1y - 65, 120)
 
     -- Toggle Mover button
-    local moverBtn = CreateFlatButton(sec1c, "toggle mover", 250, 26, function()
+    local moverBtn = CreateFlatButton(sec1c, "toggle mover", 120, 26, function()
         if sfui.trackedbuffs and sfui.trackedbuffs.ToggleMover then
             local isShown = sfui.trackedbuffs.ToggleMover()
             if isShown then
@@ -1301,6 +1305,21 @@ function sfui.trackedoptions.RenderBuffsTab(parent)
         end
     end)
     moverBtn:SetPoint("TOPLEFT", col2x, s1y - 120)
+
+    -- Reset to default button
+    local resetBtn = CreateFlatButton(sec1c, "reset default", 120, 26, function()
+        if db.anchor then
+            db.anchor.isCustom = false
+            db.anchor.x = nil
+            db.anchor.y = nil
+        end
+        Refresh()
+        if sfui.trackedoptions and sfui.trackedoptions.buffsContent and sfui.trackedoptions.buffsContent._generated then
+            sfui.trackedoptions.RenderBuffsTab(sfui.trackedoptions.buffsContent)
+        end
+        common.print("tracked buffs reset to default position above highest tracked bar.")
+    end)
+    resetBtn:SetPoint("TOPLEFT", col2x + 130, s1y - 120)
 
     sec1:SetHeight(h1 + 180)
     yPos = yPos - sec1:GetHeight() - 20

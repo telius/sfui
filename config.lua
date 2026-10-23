@@ -864,9 +864,8 @@ sfui.config = {
         hideInVehicle = true,
         hideDragonriding = true,
         anchor = {
-            point = "CENTER",
-            x = 0,
-            y = -220,
+            point = "BOTTOM",
+            spacing = 4, -- 4px spacing above the highest tracked bar
         },
     },
 
