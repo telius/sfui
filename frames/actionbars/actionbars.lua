@@ -148,36 +148,6 @@ local function suppress_blizzard_actionbars()
         _G.PetActionBarFrame.IsInDefaultPosition = function() return false end
     end
 
-    -- Guard Blizzard EditMode action bar repositioning from running during combat.
-    -- Calling ClearAllPoints/SetPoint on protected action bars during combat lockdown
-    -- is forbidden by the engine when tainted.
-    if _G.EditModeManagerFrame then
-        local origUpdateBottom = _G.EditModeManagerFrame.UpdateBottomActionBarPositions
-        if origUpdateBottom then
-            _G.EditModeManagerFrame.UpdateBottomActionBarPositions = function(self, ...)
-                if InCombatLockdown and InCombatLockdown() then return end
-                return origUpdateBottom(self, ...)
-            end
-        end
-
-        local origUpdateRight = _G.EditModeManagerFrame.UpdateRightActionBarPositions
-        if origUpdateRight then
-            _G.EditModeManagerFrame.UpdateRightActionBarPositions = function(self, ...)
-                if InCombatLockdown and InCombatLockdown() then return end
-                return origUpdateRight(self, ...)
-            end
-        end
-
-        local origUpdateLayout = _G.EditModeManagerFrame.UpdateActionBarLayout
-        if origUpdateLayout then
-            _G.EditModeManagerFrame.UpdateActionBarLayout = function(self, ...)
-                if InCombatLockdown and InCombatLockdown() then return end
-                return origUpdateLayout(self, ...)
-            end
-        end
-    end
-
-
     local offscreenFrames = {
         "BagsBar",
         "MainMenuBarBagButtons",

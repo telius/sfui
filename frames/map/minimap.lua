@@ -166,10 +166,9 @@ function sfui.minimap.update_position(x, y, point, relPoint)
                 -- Restore native container points (account for scale)
                 cluster.MinimapContainer:ClearAllPoints()
                 cluster.MinimapContainer:SetPoint("TOP", cluster, "TOP", 10 / scale, -30 / scale)
-                if cluster.SetEditModeScale then
-                    cluster:SetEditModeScale(scale)
-                else
-                    cluster.MinimapContainer:SetScale(scale)
+                cluster.MinimapContainer:SetScale(scale)
+                if cluster.TrackingFrame then
+                    cluster.TrackingFrame:SetScale(scale)
                 end
             end
         end
