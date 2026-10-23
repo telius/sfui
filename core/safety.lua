@@ -407,6 +407,10 @@ local function forward_statusbar_values(self, textString, value, valueMin, value
 end
 
 local function install_text_status_bar_safety()
+    -- On Retail (12.1.0+), Blizzard's native C++ status bar engine handles secret values
+    -- correctly. Overriding TextStatusBarMixin taints Blizzard unit frames and triggers
+    -- secret value comparison errors in CompactUnitFrame (e.g. oldR ~= r).
+    if sfui.isRetail then return end
     local mixin = _G.TextStatusBarMixin
     if mixin and not mixin._sfui_forward then
         mixin._sfui_forward = true
@@ -416,12 +420,14 @@ end
 install_text_status_bar_safety()
 
 local function protect_bar(bar)
+    if sfui.isRetail then return end
     if not bar or bar._sfui_forward then return end
     bar._sfui_forward = true
     bar.UpdateTextStringWithValues = forward_statusbar_values
 end
 
 local function protect_core_status_bars()
+    if sfui.isRetail then return end
     install_text_status_bar_safety()
     protect_bar(_G.PlayerFrameHealthBar)
     protect_bar(_G.PlayerFrameManaBar)

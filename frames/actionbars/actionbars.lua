@@ -76,30 +76,41 @@ local function suppress_blizzard_actionbars()
                 bar:SetScript("OnShow", nil)
                 bar:SetScript("OnHide", nil)
             end
-            if bar.UpdateShownButtons then
-                bar.UpdateShownButtons = function() end
-            end
-            if bar.UpdateFrameStrata then
-                bar.UpdateFrameStrata = function() end
-            end
-            if bar.SetShowGrid then
-                bar.SetShowGrid = function() end
-            end
-            if bar.UpdateVisibility then
-                bar.UpdateVisibility = function() end
-            end
-            if bar.IsInDefaultPosition then
-                bar.IsInDefaultPosition = function() return false end
+            if bar.systemInfo then
+                bar.systemInfo.isInDefaultPosition = false
             end
         end
+    end
+
+    -- Hook EditModeSystemMixin.UpdateSystem so any suppressed bar keeps isInDefaultPosition = false
+    -- natively, preventing Blizzard's layout engine from attempting to reposition it in combat
+    local function hookEditModeSystemMixin()
+        local mixin = _G.EditModeSystemMixin
+        if mixin and type(mixin.UpdateSystem) == "function" and hooksecurefunc and not sfui.actionbars._hookedUpdateSystem then
+            sfui.actionbars._hookedUpdateSystem = true
+            hooksecurefunc(mixin, "UpdateSystem", function(self)
+                if self._sfuiSuppressed and self.systemInfo then
+                    self.systemInfo.isInDefaultPosition = false
+                end
+            end)
+        end
+    end
+    hookEditModeSystemMixin()
+    if sfui.events and sfui.events.RegisterEvent then
+        sfui.events.RegisterEvent("ADDON_LOADED", function(event, addonLoaded)
+            if addonLoaded == "Blizzard_EditMode" then
+                hookEditModeSystemMixin()
+            end
+        end)
     end
 
     -- Reparent Blizzard's default MainMenuBarVehicleLeaveButton to UIParent so it is
     -- not suppressed alongside MainActionBar
     if _G.MainMenuBarVehicleLeaveButton then
         _G.MainMenuBarVehicleLeaveButton:SetParent(UIParent)
-        if _G.MainMenuBarVehicleLeaveButton.IsInDefaultPosition then
-            _G.MainMenuBarVehicleLeaveButton.IsInDefaultPosition = function() return false end
+        _G.MainMenuBarVehicleLeaveButton._sfuiSuppressed = true
+        if _G.MainMenuBarVehicleLeaveButton.systemInfo then
+            _G.MainMenuBarVehicleLeaveButton.systemInfo.isInDefaultPosition = false
         end
     end
 
@@ -109,13 +120,10 @@ local function suppress_blizzard_actionbars()
         _G.QueueStatusButton:SetParent(UIParent)
     end
 
-    -- Defuse MainActionBar and PetActionBar visibility/layout cascades.
-    -- In retail, MainMenuBarVehicleLeaveButton:Update() calls PetActionBar:Show() whenever
-    -- PetHasActionBar() is true. PetActionBar:Show() -> UpdateVisibility() ->
-    -- EditModeManagerFrame:UpdateActionBarLayout() -> UpdateBottomActionBarPositions() ->
-    -- MainActionBar:ClearAllPoints(), triggering [Blocked] MainActionBar:ClearAllPointsBase()
-    -- in combat. Neutralizing Show/ShowOverride/UpdateVisibility and IsInDefaultPosition
-    -- halts this cascade completely.
+    -- Clean suppression of MainActionBar and PetActionBar without monkey-patching methods
+    -- Never overwrite frame virtual methods (.Show, .UpdateVisibility, .IsInDefaultPosition, etc.)
+    -- as calling them from Blizzard EditMode immediately taints execution and triggers forbidden
+    -- protected calls (e.g. TargetUnit) or secret value comparison failures.
     if _G.MainActionBar then
         if _G.MainActionBar.UnregisterAllEvents then
             _G.MainActionBar:UnregisterAllEvents()
@@ -124,50 +132,35 @@ local function suppress_blizzard_actionbars()
             _G.MainActionBar:SetScript("OnEvent", nil)
             _G.MainActionBar:SetScript("OnUpdate", nil)
         end
-        _G.MainActionBar.Show = function() end
-        _G.MainActionBar.ShowOverride = function() end
-        _G.MainActionBar.UpdateVisibility = function() end
-        _G.MainActionBar.UpdateShownButtons = function() end
-        _G.MainActionBar.UpdateFrameStrata = function() end
-        _G.MainActionBar.SetShowGrid = function() end
-        _G.MainActionBar.IsInDefaultPosition = function() return false end
+        _G.MainActionBar:SetAlpha(0)
+        if _G.MainActionBar.EnableMouse then _G.MainActionBar:EnableMouse(false) end
     end
 
     if _G.PetActionBar then
         if _G.PetActionBar.UnregisterAllEvents then
             _G.PetActionBar:UnregisterAllEvents()
         end
-        _G.PetActionBar:SetScript("OnEvent", nil)
-        _G.PetActionBar:SetScript("OnUpdate", nil)
-        _G.PetActionBar:SetScript("OnShow", nil)
-        _G.PetActionBar:SetScript("OnHide", nil)
+        if _G.PetActionBar.SetScript then
+            _G.PetActionBar:SetScript("OnEvent", nil)
+            _G.PetActionBar:SetScript("OnUpdate", nil)
+            _G.PetActionBar:SetScript("OnShow", nil)
+            _G.PetActionBar:SetScript("OnHide", nil)
+        end
         _G.PetActionBar:SetAlpha(0)
         if _G.PetActionBar.EnableMouse then _G.PetActionBar:EnableMouse(false) end
-        if _G.PetActionBar.UpdateShownButtons then
-            _G.PetActionBar.UpdateShownButtons = function() end
-        end
-        _G.PetActionBar.Show = function() end
-        _G.PetActionBar.ShowOverride = function() end
-        _G.PetActionBar.UpdateVisibility = function() end
-        _G.PetActionBar.IsInDefaultPosition = function() return false end
     end
     if _G.PetActionBarFrame then
         if _G.PetActionBarFrame.UnregisterAllEvents then
             _G.PetActionBarFrame:UnregisterAllEvents()
         end
-        _G.PetActionBarFrame:SetScript("OnEvent", nil)
-        _G.PetActionBarFrame:SetScript("OnUpdate", nil)
-        _G.PetActionBarFrame:SetScript("OnShow", nil)
-        _G.PetActionBarFrame:SetScript("OnHide", nil)
+        if _G.PetActionBarFrame.SetScript then
+            _G.PetActionBarFrame:SetScript("OnEvent", nil)
+            _G.PetActionBarFrame:SetScript("OnUpdate", nil)
+            _G.PetActionBarFrame:SetScript("OnShow", nil)
+            _G.PetActionBarFrame:SetScript("OnHide", nil)
+        end
         _G.PetActionBarFrame:SetAlpha(0)
         if _G.PetActionBarFrame.EnableMouse then _G.PetActionBarFrame:EnableMouse(false) end
-        if _G.PetActionBarFrame.UpdateShownButtons then
-            _G.PetActionBarFrame.UpdateShownButtons = function() end
-        end
-        _G.PetActionBarFrame.Show = function() end
-        _G.PetActionBarFrame.ShowOverride = function() end
-        _G.PetActionBarFrame.UpdateVisibility = function() end
-        _G.PetActionBarFrame.IsInDefaultPosition = function() return false end
     end
 
     local offscreenFrames = {

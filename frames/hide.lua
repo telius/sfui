@@ -106,9 +106,14 @@ end
 local hookedFrames = {}
 local hookedMultiCast = false
 
+local function IsEditModeActive()
+    return _G.EditModeManagerFrame and _G.EditModeManagerFrame.IsEditModeActive and _G.EditModeManagerFrame:IsEditModeActive()
+end
+
 local function ApplyUnitFrame(entry)
     local frames = GetFramesForEntry(entry)
     if #frames == 0 then return end
+    if IsEditModeActive() then return end
 
     local shouldHide = SfuiDB and (SfuiDB[entry.key] == true)
 
@@ -124,12 +129,12 @@ local function ApplyUnitFrame(entry)
             local isProtected = frame.IsProtected and frame:IsProtected()
             if shouldHide then
                 frame:SetAlpha(0)
-                if not isProtected and frame.EnableMouse then
+                if not isProtected and frame.EnableMouse and not InCombatLockdown() then
                     pcall(frame.EnableMouse, frame, false)
                 end
             else
                 frame:SetAlpha(1)
-                if not isProtected and frame.EnableMouse then
+                if not isProtected and frame.EnableMouse and not InCombatLockdown() then
                     pcall(frame.EnableMouse, frame, true)
                 end
             end
@@ -146,10 +151,11 @@ local function HookUnitFrames()
                 hookedFrames[frame] = true
                 if hooksecurefunc then
                     hooksecurefunc(frame, "Show", function(self)
+                        if IsEditModeActive() then return end
                         if SfuiDB and SfuiDB[entry.key] == true then
                             self:SetAlpha(0)
                             local isProtected = self.IsProtected and self:IsProtected()
-                            if not isProtected and self.EnableMouse then
+                            if not isProtected and self.EnableMouse and not InCombatLockdown() then
                                 pcall(self.EnableMouse, self, false)
                             end
                         end
@@ -166,10 +172,31 @@ local function HookUnitFrames()
             if SfuiDB and SfuiDB.hide_totem_bar and self then
                 self:SetAlpha(0)
                 local isProtected = self.IsProtected and self:IsProtected()
-                if not isProtected and self.EnableMouse then
+                if not isProtected and self.EnableMouse and not InCombatLockdown() then
                     pcall(self.EnableMouse, self, false)
                 end
             end
+        end)
+    end
+
+    if _G.EventRegistry and _G.EventRegistry.RegisterCallback and not sfui.hide._hookedEditMode then
+        sfui.hide._hookedEditMode = true
+        _G.EventRegistry:RegisterCallback("EditMode.Enter", function()
+            for _, entry in ipairs(HIDE_FRAMES) do
+                local frames = GetFramesForEntry(entry)
+                for _, frame in ipairs(frames) do
+                    if frame and frame.SetAlpha then
+                        frame:SetAlpha(1)
+                        local isProtected = frame.IsProtected and frame:IsProtected()
+                        if not isProtected and frame.EnableMouse and not InCombatLockdown() then
+                            pcall(frame.EnableMouse, frame, true)
+                        end
+                    end
+                end
+            end
+        end)
+        _G.EventRegistry:RegisterCallback("EditMode.Exit", function()
+            sfui.hide.ApplyAllUnitFrames()
         end)
     end
 end

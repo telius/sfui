@@ -92,6 +92,11 @@ function ScenariosModule:BuildBlocks(container)
     -- ═════════════════════════════════════════════════════════
     local inScenario = C_Scenario and C_Scenario.IsInScenario and C_Scenario.IsInScenario()
     if inScenario then
+        -- Dedicated Abundance module takes precedence over generic scenario tracking
+        if sfui.abundance and sfui.abundance.IsActive and sfui.abundance.IsActive() then
+            return sections
+        end
+
         local name, currentStage, numStages, scenarioType = nil, nil, nil, nil
         if C_ScenarioInfo and C_ScenarioInfo.GetScenarioInfo then
             local sInfo = C_ScenarioInfo.GetScenarioInfo()

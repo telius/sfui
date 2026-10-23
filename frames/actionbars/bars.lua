@@ -804,20 +804,23 @@ function sfui.actionbars.CreateVehicleLeaveButton()
         end
         btn.kb:SetText(sfui.actionbars.GetVehicleExitHotkey())
 
-        -- Enhance CanExitVehicle to recognize passenger seats, VehicleSeatIndicator, and taxis
-        local origCanExit = btn.CanExitVehicle
-        btn.CanExitVehicle = function(self)
-            if _G.CanExitVehicle and _G.CanExitVehicle() then return true end
-            if _G.UnitOnTaxi and _G.UnitOnTaxi("player") then return true end
-            if _G.VehicleSeatIndicator and _G.VehicleSeatIndicator:IsShown() then return true end
-            if _G.UnitInVehicle and _G.UnitInVehicle("player") then return true end
-            if _G.UnitControllingVehicle and _G.UnitControllingVehicle("player") then return true end
-            if _G.UnitHasVehicleUI and _G.UnitHasVehicleUI("player") then return true end
-            if origCanExit then
-                local ok, val = pcall(origCanExit, self)
-                if ok and val then return true end
-            end
-            return false
+        -- Enhance button visibility to recognize passenger seats, VehicleSeatIndicator, and taxis
+        -- Use secure hook on UpdateShownState without monkey-patching CanExitVehicle (which would
+        -- taint Blizzard EditMode RefreshVehicleLeaveButton execution thread)
+        if hooksecurefunc and not sfui.actionbars._hookedVehicleShownState then
+            sfui.actionbars._hookedVehicleShownState = true
+            hooksecurefunc(btn, "UpdateShownState", function(self)
+                if not self:IsShown() and not (InCombatLockdown and InCombatLockdown()) then
+                    local extraShown = (_G.UnitOnTaxi and _G.UnitOnTaxi("player"))
+                        or (_G.VehicleSeatIndicator and _G.VehicleSeatIndicator:IsShown())
+                        or (_G.UnitInVehicle and _G.UnitInVehicle("player"))
+                        or (_G.UnitControllingVehicle and _G.UnitControllingVehicle("player"))
+                        or (_G.UnitHasVehicleUI and _G.UnitHasVehicleUI("player"))
+                    if extraShown then
+                        self:Show()
+                    end
+                end
+            end)
         end
 
         -- Ensure button updates when VehicleSeatIndicator toggles

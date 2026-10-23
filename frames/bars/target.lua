@@ -192,6 +192,15 @@ end
 local function SuppressBlizzardTargetFrame()
     local tf = _G.TargetFrame
     if not tf then return end
+    if _G.EditModeManagerFrame and _G.EditModeManagerFrame.IsEditModeActive and _G.EditModeManagerFrame:IsEditModeActive() then
+        if tf:GetAlpha() < 1 then
+            tf:SetAlpha(1)
+            if tf.EnableMouse and not InCombatLockdown() then
+                pcall(tf.EnableMouse, tf, true)
+            end
+        end
+        return
+    end
     if SfuiDB and SfuiDB.enableTargetBar == false then
         if tf:GetAlpha() < 1 then
             tf:SetAlpha(1)
@@ -211,10 +220,26 @@ local function HookBlizzardTargetFrame()
     local tf = _G.TargetFrame
     if not tf or tf._sfuiTargetHooked then return end
     tf._sfuiTargetHooked = true
-    if tf.HookScript then
+    if hooksecurefunc then
+        hooksecurefunc(tf, "Show", SuppressBlizzardTargetFrame)
+    elseif tf.HookScript then
         tf:HookScript("OnShow", SuppressBlizzardTargetFrame)
     end
     SuppressBlizzardTargetFrame()
+
+    if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
+        _G.EventRegistry:RegisterCallback("EditMode.Enter", function()
+            if _G.TargetFrame then
+                _G.TargetFrame:SetAlpha(1)
+                if _G.TargetFrame.EnableMouse and not InCombatLockdown() then
+                    pcall(_G.TargetFrame.EnableMouse, _G.TargetFrame, true)
+                end
+            end
+        end)
+        _G.EventRegistry:RegisterCallback("EditMode.Exit", function()
+            SuppressBlizzardTargetFrame()
+        end)
+    end
 end
 
 -- ─── Native AuraContainer Button Initializers ────────────────────────────────

@@ -1,7 +1,7 @@
 ## Interface: 120105, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v1.119
+## Version: v1.120
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -133,6 +133,7 @@ frames/tracking/glows.lua
 frames/tracking/trackedoptions.lua
 frames/tracking/trackedbars.lua
 frames/tracking/trackedicons.lua
+frames/tracking/buffs.lua [AllowLoadGameType standard]
 
 data/portals.lua [AllowLoadGameType standard]
 frames/portals/portals.lua
@@ -215,6 +216,7 @@ frames/quests/helpers/q_boons.lua
 
 # Tracker Content Modules
 frames/quests/modules/q_scenarios.lua [AllowLoadGameType standard, camelot]
+frames/quests/modules/q_abundance.lua [AllowLoadGameType standard]
 frames/quests/modules/q_worldevents.lua [AllowLoadGameType standard]
 frames/quests/modules/q_worldquests.lua [AllowLoadGameType standard, camelot]
 frames/quests/modules/q_quests.lua [AllowLoadGameType standard]

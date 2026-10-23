@@ -22,7 +22,10 @@ local table_insert, table_wipe = _G.table.insert, _G.wipe
 local math_max, math_min = _G.math.max, _G.math.min
 local tostring = _G.tostring
 
-local BOONS_SPELL_ID = 1280098
+local BOONS_SPELL_IDS = {
+    1280098, -- Delves & Labyrinths Boons
+    1229266, -- Blessing of Abundance (Midnight World Event)
+}
 local DEFAULT_WIDTH = 280
 
 local boonsFrame = nil
@@ -30,6 +33,7 @@ local rowPool = {}
 local activeRows = {}
 local scanTooltip = nil
 local currentAuraInstanceID = nil
+local currentSpellID = nil
 local pendingUpdate = false
 local updateTimer = nil
 local needsUpdateAfterCombat = false
@@ -56,9 +60,12 @@ end
 -- ─── Aura Lookup ─────────────────────────────────────────────────────────────
 local function FindBoonsAura()
     if C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
-        local ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, BOONS_SPELL_ID)
-        if ok and aura then
-            return aura
+        for _, sID in ipairs(BOONS_SPELL_IDS) do
+            local ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, sID)
+            if ok and aura then
+                aura.spellId = aura.spellId or sID
+                return aura
+            end
         end
         return nil
     end
@@ -68,15 +75,17 @@ local function FindBoonsAura()
         for i = 1, 40 do
             local ok, name, icon, count, debuffType, duration, expirationTime, unitCaster, canStealOrPurge, nameplateShowPersonal, spellID = pcall(_G.UnitBuff, "player", i)
             if not ok or not name then break end
-            if spellID == BOONS_SPELL_ID then
-                return {
-                    name = name,
-                    icon = icon,
-                    spellId = spellID,
-                    applications = count,
-                    auraInstanceID = nil,
-                    index = i,
-                }
+            for _, sID in ipairs(BOONS_SPELL_IDS) do
+                if spellID == sID then
+                    return {
+                        name = name,
+                        icon = icon,
+                        spellId = spellID,
+                        applications = count,
+                        auraInstanceID = nil,
+                        index = i,
+                    }
+                end
             end
         end
     end
@@ -273,14 +282,14 @@ local function GetOrCreateBoonsFrame()
 
     -- Tooltip Hover: Show Blizzard Aura Tooltip
     f:SetScript("OnEnter", function(self)
-        if currentAuraInstanceID or BOONS_SPELL_ID then
+        if currentAuraInstanceID or currentSpellID then
             local tip = (sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()) or _G.GameTooltip
             if tip then
                 tip:SetOwner(self, "ANCHOR_LEFT", -8, 0)
                 if tip.SetUnitBuffByAuraInstanceID and currentAuraInstanceID then
                     pcall(tip.SetUnitBuffByAuraInstanceID, tip, "player", currentAuraInstanceID)
-                elseif tip.SetSpellByID then
-                    pcall(tip.SetSpellByID, tip, BOONS_SPELL_ID)
+                elseif tip.SetSpellByID and currentSpellID then
+                    pcall(tip.SetSpellByID, tip, currentSpellID)
                 end
                 tip:Show()
             end
@@ -405,11 +414,13 @@ function Boons.Update()
     local aura = FindBoonsAura()
     if not aura then
         currentAuraInstanceID = nil
+        currentSpellID = nil
         if boonsFrame then boonsFrame:Hide() end
         return
     end
 
     currentAuraInstanceID = aura.auraInstanceID
+    currentSpellID = aura.spellId or aura.spellID
     local f = GetOrCreateBoonsFrame()
 
     -- Set Icon

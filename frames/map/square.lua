@@ -32,15 +32,32 @@ local type = _G.type
 local ipairs = _G.ipairs
 local math_max = _G.math.max
 
--- Texture / FileID Constants
-local MASK_SQUARE = 130937
-local MASK_ROUND = 186178
+-- Texture / Atlas / FileID Constants
+local MASK_SQUARE_ATLAS = "SquareMask"
+local MASK_SQUARE_FILEID = 130937
 local MASK_SQUARE_PATH = "Interface\\ChatFrame\\ChatFrameBackground"
-local MASK_ROUND_PATH = "Textures\\MinimapMask"
+local MASK_ROUND_ATLAS = "ui-hud-minimap-frame-generic-mask"
+local MASK_ROUND_PATH = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+local MASK_ROUND_LEGACY = 186178
 
 local isInitialized = false
 local pendingApply = false
 local backdropFrame = nil
+
+-- ------------------------------------------------------------------------------
+-- Ground Textures Watchdog
+-- ------------------------------------------------------------------------------
+-- Blizzard's HybridMinimap calls C_Minimap.SetDrawGroundTextures(false) on show.
+-- If desynced or hidden irregularly, ground textures remain disabled in the C++
+-- engine until character logout. Assert true whenever HybridMinimap is inactive.
+local function ensure_ground_textures()
+    if _G.C_Minimap and _G.C_Minimap.SetDrawGroundTextures then
+        local hybrid = _G.HybridMinimap
+        if not (hybrid and hybrid:IsShown()) then
+            _G.C_Minimap.SetDrawGroundTextures(true)
+        end
+    end
+end
 
 -- ------------------------------------------------------------------------------
 -- Global Addon Contract: GetMinimapShape
@@ -152,17 +169,23 @@ local function apply_minimap_mask(isSquare)
     if not Minimap or not Minimap.SetMaskTexture then return end
 
     if isSquare then
-        local ok = pcall(Minimap.SetMaskTexture, Minimap, MASK_SQUARE)
+        local ok = pcall(Minimap.SetMaskTexture, Minimap, MASK_SQUARE_ATLAS)
         if not ok then
-            pcall(Minimap.SetMaskTexture, Minimap, MASK_SQUARE_PATH)
+            ok = pcall(Minimap.SetMaskTexture, Minimap, MASK_SQUARE_FILEID)
+            if not ok then
+                pcall(Minimap.SetMaskTexture, Minimap, MASK_SQUARE_PATH)
+            end
         end
     else
         if sfui.isCamelot and MinimapCluster and MinimapCluster.UpdateMinimapConfig then
             MinimapCluster:UpdateMinimapConfig()
         else
-            local ok = pcall(Minimap.SetMaskTexture, Minimap, MASK_ROUND)
+            local ok = pcall(Minimap.SetMaskTexture, Minimap, MASK_ROUND_ATLAS)
             if not ok then
-                pcall(Minimap.SetMaskTexture, Minimap, MASK_ROUND_PATH)
+                ok = pcall(Minimap.SetMaskTexture, Minimap, MASK_ROUND_PATH)
+                if not ok then
+                    pcall(Minimap.SetMaskTexture, Minimap, MASK_ROUND_LEGACY)
+                end
             end
         end
     end
@@ -175,23 +198,43 @@ local function setup_hybrid_minimap(isSquare)
     local hybrid = _G.HybridMinimap
     if not hybrid then return end
 
-    if hybrid.CircleMask and hybrid.CircleMask.SetTexture then
-        if isSquare then
-            local ok = pcall(hybrid.CircleMask.SetTexture, hybrid.CircleMask, MASK_SQUARE)
-            if not ok then
-                pcall(hybrid.CircleMask.SetTexture, hybrid.CircleMask, MASK_SQUARE_PATH)
-            end
-        else
-            local ok = pcall(hybrid.CircleMask.SetTexture, hybrid.CircleMask, MASK_ROUND)
-            if not ok then
-                pcall(hybrid.CircleMask.SetTexture, hybrid.CircleMask, MASK_ROUND_PATH)
+    local canvas = hybrid.MapCanvas
+    if isSquare then
+        -- On square minimap, HybridMinimap already clips all children to the square frame
+        -- via native clipChildren="true". Disabling canvas mask texture completely avoids
+        -- shader alpha evaluation bugs where non-alpha masks turn cave/scenario tiles pitch black.
+        if canvas and canvas.SetUseMaskTexture then
+            pcall(canvas.SetUseMaskTexture, canvas, false)
+        end
+        if hybrid.CircleMask and hybrid.CircleMask.SetAtlas then
+            pcall(hybrid.CircleMask.SetAtlas, hybrid.CircleMask, MASK_SQUARE_ATLAS)
+        end
+    else
+        -- Restore circular masking for default Blizzard layout
+        if hybrid.CircleMask and hybrid.CircleMask.SetTexture then
+            pcall(hybrid.CircleMask.SetTexture, hybrid.CircleMask, MASK_ROUND_PATH)
+        end
+        if canvas and canvas.SetMaskTexture and hybrid.CircleMask then
+            canvas:SetMaskTexture(hybrid.CircleMask)
+            if canvas.SetUseMaskTexture then
+                pcall(canvas.SetUseMaskTexture, canvas, true)
             end
         end
     end
 
-    local canvas = hybrid.MapCanvas
-    if canvas and canvas.SetMaskTexture and hybrid.CircleMask then
-        canvas:SetMaskTexture(hybrid.CircleMask)
+    -- Hook HybridMinimap lifecycle once to guard ground textures and canvas masking
+    if not hybrid._sfuiHybridHooked and hybrid.HookScript then
+        hybrid._sfuiHybridHooked = true
+        hybrid:HookScript("OnShow", function(self)
+            if square and square:IsEnabled() then
+                if self.MapCanvas and self.MapCanvas.SetUseMaskTexture then
+                    pcall(self.MapCanvas.SetUseMaskTexture, self.MapCanvas, false)
+                end
+            end
+        end)
+        hybrid:HookScript("OnHide", function()
+            ensure_ground_textures()
+        end)
     end
 end
 
@@ -464,12 +507,16 @@ function square:Apply()
     if sfui.minimap and sfui.minimap.refresh then
         sfui.minimap.refresh()
     end
+
+    -- 9. Guarantee ground textures are restored if HybridMinimap is not shown
+    ensure_ground_textures()
 end
 
 -- ------------------------------------------------------------------------------
 -- Lifecycle Initialization
 -- ------------------------------------------------------------------------------
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
+    ensure_ground_textures()
     if not isInitialized then
         isInitialized = true
         square:Apply()
@@ -477,6 +524,14 @@ sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
         -- Re-apply on reload or zone change to ensure textures remain suppressed
         square:Apply()
     end
+end)
+
+sfui.events.RegisterEvent("ZONE_CHANGED_NEW_AREA", function()
+    ensure_ground_textures()
+end)
+
+sfui.events.RegisterEvent("ZONE_CHANGED", function()
+    ensure_ground_textures()
 end)
 
 sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
@@ -500,7 +555,7 @@ end)
 if Minimap and hooksecurefunc then
     hooksecurefunc(Minimap, "SetMaskTexture", function(self, mask)
         if square and square._internalMaskChange then return end
-        if square:IsEnabled() and mask ~= MASK_SQUARE and mask ~= MASK_SQUARE_PATH then
+        if square:IsEnabled() and mask ~= MASK_SQUARE_ATLAS and mask ~= MASK_SQUARE_FILEID and mask ~= MASK_SQUARE_PATH then
             square._internalMaskChange = true
             apply_minimap_mask(true)
             square._internalMaskChange = nil

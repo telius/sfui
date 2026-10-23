@@ -37,6 +37,7 @@ local SuppressBlizzardTrackers, RestoreBlizzardTrackers
 
 local SECTION_RANKS = {
     skills       = 5,
+    abundance    = 8,
     scenario     = 10,
     events       = 20,
     worldevents  = 20,

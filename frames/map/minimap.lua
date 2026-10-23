@@ -206,6 +206,10 @@ function sfui.minimap.update_position(x, y, point, relPoint)
         sfui.tracker.boons.UpdateAnchor()
     end
 
+    if not (_G.HybridMinimap and _G.HybridMinimap:IsShown()) and _G.C_Minimap and _G.C_Minimap.SetDrawGroundTextures then
+        _G.C_Minimap.SetDrawGroundTextures(true)
+    end
+
     isRepositioning = false
 end
 

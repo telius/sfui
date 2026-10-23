@@ -853,6 +853,23 @@ sfui.config = {
         },
     },
 
+    -- Tracked Buffs (Blizzard CDM Buff Socket)
+    trackedBuffs = {
+        enabled = true,
+        size = 42,
+        spacing = 4,
+        glow = true,
+        hideOOC = false,
+        hideMounted = false,
+        hideInVehicle = true,
+        hideDragonriding = true,
+        anchor = {
+            point = "CENTER",
+            x = 0,
+            y = -220,
+        },
+    },
+
     -- Demon Hunter Soul Fragments HUD
     soulFragments = {
         enabled = true,
@@ -978,6 +995,7 @@ sfui.config = {
         defaultHidden = false,
         maxScreenHeight = 0.50,
         sections = {
+            { id = "abundance",    label = "abundance",    color = { 1.00, 0.78, 0.15 } },
             { id = "scenario",     label = "world event",  color = { 1.00, 0.60, 0.10 } },
             { id = "events",       label = "events",       color = { 0.90, 0.45, 0.90 } },
             { id = "important",    label = "important",    color = { 1.00, 0.40, 0.35 } },
