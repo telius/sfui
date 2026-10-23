@@ -41,8 +41,14 @@ local TAB_H                         = 28
 local INNER_PAD                     = 10
 
 -- ─── Locals ───────────────────────────────────────────────────────────────────
-local pairs, ipairs, type, tostring = pairs, ipairs, type, tostring
-local math_floor                    = math.floor
+local CreateFrame                   = _G.CreateFrame
+local UIParent                      = _G.UIParent
+local GetTime                       = _G.GetTime
+local InCombatLockdown              = _G.InCombatLockdown
+local pairs, ipairs, next           = _G.pairs, _G.ipairs, _G.next
+local pcall, type, tostring, tonumber = _G.pcall, _G.type, _G.tostring, _G.tonumber
+local math_floor, math_max          = math.floor, math.max
+local string_format                 = string.format
 local table_insert                  = table.insert
 
 local common                        = sfui.common
@@ -175,13 +181,11 @@ function sfui.dungeonjournal.ToggleWishlist(itemID)
     end
     if sfui.print then
         local _, link = common.get_item_info(id)
-        local name = link or ("Item #" .. id)
+        local name = link or ("item #" .. id)
         if newState then
-            sfui.print("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffcc44ffwishlist added:|r " ..
-            name)
+            sfui.print("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffcc44ffwishlist added:|r " .. name)
         else
-            sfui.print("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cff888888wishlist removed:|r " ..
-            name)
+            sfui.print("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cff888888wishlist removed:|r " .. name)
         end
     end
     return newState
@@ -279,14 +283,13 @@ local function ResolveItemLink(btn, fallbackItemID)
     end
 
     if not (itemLink and type(itemLink) == "string" and itemLink:find("|Hitem:")) and itemID then
-        local rawName = (btn and btn.nameText and btn.nameText.GetText and btn.nameText:GetText()) or
-        ("item #" .. itemID)
+        local rawName = (btn and btn.nameText and btn.nameText.GetText and btn.nameText:GetText()) or ("item #" .. itemID)
         local cleanName = rawName:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
         local quality = common.get_item_quality(itemID) or 1
         local r, g, b = GetQualityColor(quality)
-        local hex = string.format("ff%02x%02x%02x", math_floor((r or 1) * 255 + 0.5), math_floor((g or 1) * 255 + 0.5),
+        local hex = string_format("ff%02x%02x%02x", math_floor((r or 1) * 255 + 0.5), math_floor((g or 1) * 255 + 0.5),
             math_floor((b or 1) * 255 + 0.5))
-        itemLink = string.format("|c%s|Hitem:%d:0:0:0:0:0:0:0:0:0:0:0:0|h[%s]|h|r", hex, itemID, cleanName)
+        itemLink = string_format("|c%s|Hitem:%d:0:0:0:0:0:0:0:0:0:0:0:0|h[%s]|h|r", hex, itemID, cleanName)
         if btn then
             btn.link = itemLink
         end
@@ -298,10 +301,10 @@ sfui.dungeonjournal.ResolveItemLink = ResolveItemLink
 
 local function HandleItemClick(btn, mouseBtn, itemID)
     if mouseBtn == "LeftButton" then
-        local isChatLink = (_G.IsModifiedClick and _G.IsModifiedClick("CHATLINK")) or
-        (_G.IsShiftKeyDown and _G.IsShiftKeyDown())
-        local isDressUp  = (_G.IsModifiedClick and _G.IsModifiedClick("DRESSUP")) or
-        (_G.IsControlKeyDown and _G.IsControlKeyDown())
+        local isChatLink = (_G.IsModifiedClick and _G.IsModifiedClick("CHATLINK"))
+            or (_G.IsShiftKeyDown and _G.IsShiftKeyDown())
+        local isDressUp  = (_G.IsModifiedClick and _G.IsModifiedClick("DRESSUP"))
+            or (_G.IsControlKeyDown and _G.IsControlKeyDown())
 
         if isChatLink or isDressUp then
             local itemLink = ResolveItemLink(btn, itemID)
@@ -365,8 +368,8 @@ function sfui.dungeonjournal.GetQuestChainInfo(quest)
 
     local steps = {}
     for _, s in ipairs(rawChain) do
-        local coords = s.coords or
-        (sfui.dj_camelot and sfui.dj_camelot.questCoords and sfui.dj_camelot.questCoords[s.id])
+        local coords = s.coords
+            or (sfui.dj_camelot and sfui.dj_camelot.questCoords and sfui.dj_camelot.questCoords[s.id])
         steps[#steps + 1] = {
             id = s.id,
             name = s.name,
@@ -546,7 +549,7 @@ function sfui.dungeonjournal.RestoreAllHidden()
         sfui.events.SendMessage("SFUI_DJ_SETTING_CHANGED", "restoreAll", total)
     end
     if sfui.print and total > 0 then
-        sfui.print(string.format("restored %d hidden item%s (dungeons and map pins).", total, (total > 1 and "s" or "")))
+        sfui.print(string_format("restored %d hidden item%s (dungeons and map pins).", total, (total > 1 and "s" or "")))
     end
 end
 
@@ -569,9 +572,9 @@ function sfui.dungeonjournal.IsDungeonTrivial(dungeon, playerLevel)
     if pLvl <= 5 then
         grayDiff = 0
     elseif pLvl <= 39 then
-        grayDiff = 5 + math.floor(pLvl / 10)
+        grayDiff = 5 + math_floor(pLvl / 10)
     elseif pLvl <= 59 then
-        grayDiff = 1 + math.floor(pLvl / 5)
+        grayDiff = 1 + math_floor(pLvl / 5)
     else
         grayDiff = 9
     end
@@ -590,19 +593,19 @@ if _G.hooksecurefunc then
                 sfui.dungeonjournal.SetDungeonHidden(idStr, false)
                 local d = sfui.dungeonjournal.FindDungeon(idStr)
                 if sfui.print then
-                    sfui.print(string.format("restored |cffffd100%s|r to dungeon journal and map.", d and d.name or idStr))
+                    sfui.print(string_format("restored |cffffd100%s|r to dungeon journal and map.", d and d.name or idStr))
                 end
             elseif kind == "pins" then
                 sfui.dungeonjournal.SetDungeonPinsHidden(idStr, false)
                 local d = sfui.dungeonjournal.FindDungeon(idStr)
                 if sfui.print then
-                    sfui.print(string.format("restored map pins for |cffffd100%s|r.", d and d.name or idStr))
+                    sfui.print(string_format("restored map pins for |cffffd100%s|r.", d and d.name or idStr))
                 end
             elseif kind == "quest" then
                 local qid = tonumber(idStr) or idStr
                 sfui.dungeonjournal.SetQuestPinHidden(qid, false)
                 if sfui.print then
-                    sfui.print(string.format("restored quest pin |cffffd100#%s|r to map.", tostring(qid)))
+                    sfui.print(string_format("restored quest pin |cffffd100#%s|r to map.", tostring(qid)))
                 end
             end
         end
@@ -944,7 +947,7 @@ local function OpenHiddenManager()
                 end)
             end
 
-            content:SetHeight(math.max(1, y))
+            content:SetHeight(math_max(1, y))
             local total = (hasDungeons or hasPins or hasQuestPins) and y > 0
             if total then
                 dlg.emptyMsg:Hide()
@@ -1273,7 +1276,7 @@ function sfui.dungeonjournal.CreateFrame()
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 
     if _G.UISpecialFrames then
-        table.insert(_G.UISpecialFrames, "SfuiDungeonJournalFrame")
+        table_insert(_G.UISpecialFrames, "SfuiDungeonJournalFrame")
     end
 
     common.apply_flat_backdrop(frame, { 0.05, 0.05, 0.07, 0.97 }, { 0.12, 0.12, 0.14, 1 })
@@ -1536,7 +1539,7 @@ function sfui.dungeonjournal.CreateFrame()
         if total > 0 then
             manageText:SetText("manage hidden items...")
             manageText:SetTextColor(1, 0.82, 0, 1)
-            manageCount:SetText(string.format("(%d)", total))
+            manageCount:SetText(string_format("(%d)", total))
             manageCount:SetTextColor(0.4, 1.0, 0.4, 1)
             manageBtn:Enable()
         else
