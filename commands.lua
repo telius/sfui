@@ -88,7 +88,6 @@ local function try_hook_settings()
             end
         end, "SFUI_FilterKeybindings")
     end
-    pcall(filter_sfui_keybindings)
 end
 
 if sfui.events and sfui.events.RegisterEvent then
@@ -204,6 +203,12 @@ SlashCmdList["SFUI"] = function(msg)
             end
         elseif sfui.toggle_options_panel then
             sfui.toggle_options_panel("theme")
+        end
+    elseif cmd == "bug" or cmd == "bugs" or cmd == "errors" then
+        if _G.SlashCmdList and _G.SlashCmdList["SFUIBUG"] then
+            _G.SlashCmdList["SFUIBUG"](arg or "")
+        elseif sfui.common and sfui.common.print then
+            sfui.common.print("sfuibug companion addon is not loaded.")
         end
     elseif cmd == "rl" or cmd == "reload" then
         C_UI.Reload()

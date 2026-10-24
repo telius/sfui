@@ -88,20 +88,6 @@ frame:SetScript("OnDragStop", function(self)
     SfuiDB.trackedOptionsWindow.height = self:GetHeight()
 end)
 
--- Custom ESC handler (replaces UISpecialFrames management to avoid closing on spellbook open)
-frame:SetScript("OnKeyDown", function(self, key)
-    if key == "ESCAPE" then
-        if self.SetPropagateKeyboardInput then
-            self:SetPropagateKeyboardInput(false)
-        end
-        if self:IsShown() then
-            self:Hide()
-        end
-    elseif self.SetPropagateKeyboardInput then
-        self:SetPropagateKeyboardInput(true)
-    end
-end)
-
 -- Make resizable
 frame:SetResizable(true)
 frame:SetResizeBounds(600, 400, 1200, 800)
@@ -136,7 +122,9 @@ frame:HookScript("OnHide", function()
         end
     end
 end)
--- tinsert(UISpecialFrames, "SfuiCooldownsViewer") -- Removed to prevent closing when Spellbook/other panels open
+if _G.UISpecialFrames then
+    tinsert(_G.UISpecialFrames, "SfuiCooldownsViewer")
+end
 
 -- (Title removed for better space efficiency)
 

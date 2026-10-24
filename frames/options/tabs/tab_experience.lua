@@ -279,7 +279,19 @@ sfui.options.RegisterTab({
         end, "automatically activates and switches the watched reputation bar to any faction whenever reputation is gained."))
         rep_gain_cb:SetPoint("TOPLEFT", rep_top_cb, "BOTTOMLEFT", 0, -8)
 
-        local lastRepAnchor = rep_gain_cb
+        local disable_rep_btn = CreateFlatButton(exp_panel, "disable reputation tracking", 200, 22)
+        disable_rep_btn:SetPoint("TOPLEFT", rep_gain_cb, "BOTTOMLEFT", 0, -10)
+        disable_rep_btn.tooltip = "stops watching the current faction, disables auto-switching on reputation gains, and hides the reputation bar."
+        disable_rep_btn:SetScript("OnClick", function()
+            if sfui.experience and sfui.experience.DisableReputationTracking then
+                sfui.experience.DisableReputationTracking()
+                if refreshTabUI then
+                    refreshTabUI()
+                end
+            end
+        end)
+
+        local lastRepAnchor = disable_rep_btn
         local isCamelotClient = sfui.isCamelot or (sfui.experience and sfui.experience.challenges and ((sfui.experience.challenges.IsSupported and sfui.experience.challenges.IsSupported()) or (sfui.experience.challenges.IsAvailable and sfui.experience.challenges.IsAvailable())))
         if isCamelotClient then
             local legacy_cb = registerCheckbox(create_checkbox(exp_panel, "track legacy challenges progress", function()
@@ -291,7 +303,7 @@ sfui.options.RegisterTab({
                     sfui.experience.Update()
                 end
             end, "camelot only: tracks legacy challenges and points progress on the status bar."))
-            legacy_cb:SetPoint("TOPLEFT", rep_gain_cb, "BOTTOMLEFT", 0, -8)
+            legacy_cb:SetPoint("TOPLEFT", disable_rep_btn, "BOTTOMLEFT", 0, -8)
 
             local legacy_bar_cb = registerCheckbox(create_checkbox(exp_panel, "show dedicated legacy challenges bar", function()
                 return sfui.db.Get("experience", "showChallengesBar", false)

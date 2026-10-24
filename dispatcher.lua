@@ -64,6 +64,42 @@ local function _err(ctx, msg)
     print("|cff6600ffsfui|r dispatcher error (" .. tostring(ctx) .. "): " .. tostring(msg))
 end
 
+-- ─── Callback source metadata & error dispatch ──────────────────────────────
+local _cbMeta = setmetatable({}, { __mode = "k" })
+local _curDispatchCtx = nil
+
+local function _record_caller(cb, fallbackMod)
+    if type(cb) ~= "function" or _cbMeta[cb] then return end
+    local stack = debugstack(3, 1, 0)
+    if stack and string.find(stack, "dispatcher%.lua") then
+        stack = debugstack(4, 1, 0)
+    end
+    local file, line = string.match(stack or "", "[Aa]dd[Oo]ns/[Ss][Ff][Uu][Ii]/([^:]+%.lua):(%d+)")
+    if file then
+        local mod = string.match(file, "^frames/([^/]+)")
+            or string.match(file, "^core/([^/]+)")
+            or string.match(file, "^data/([^/]+)")
+            or string.match(file, "^([^/%.]+)%.lua")
+        _cbMeta[cb] = {
+            module = mod or fallbackMod or "core",
+            file = file,
+            line = tonumber(line) or 0,
+        }
+    end
+end
+
+local function _dispatcher_error_handler(err)
+    local stack = debugstack(2, 10, 10)
+    if _G.sfuibug and _G.sfuibug.RecordError then
+        _G.sfuibug.RecordError(_curDispatchCtx, err, stack)
+    else
+        local label = _curDispatchCtx and (_curDispatchCtx.label or _curDispatchCtx.event) or "dispatcher"
+        _err(label, err)
+    end
+    return err
+end
+
+
 -- ─── Memory profiling ───────────────────────────────────────────────────────
 -- Checked lazily: _memActive is false unless sfui.mem turns on the watcher.
 -- This avoids 3 table lookups + a function call on every single event fire.
@@ -124,8 +160,13 @@ ev_frame:SetScript("OnEvent", function(_, event, ...)
             local cb = snap[i]
             snap[i] = nil
             if type(cb) == "function" then
-                local ok, err = pcall(cb, event, ...)
-                if not ok then _err(event, err) end
+                local prevCtx = _curDispatchCtx
+                local meta = _cbMeta[cb]
+                _curDispatchCtx = meta or { event = event, label = event }
+                _curDispatchCtx.event = event
+                _curDispatchCtx.label = event
+                xpcall(cb, _dispatcher_error_handler, event, ...)
+                _curDispatchCtx = prevCtx
             end
         end
         _mem_after(event, before)
@@ -134,8 +175,13 @@ ev_frame:SetScript("OnEvent", function(_, event, ...)
             local cb = snap[i]
             snap[i] = nil
             if type(cb) == "function" then
-                local ok, err = pcall(cb, event, ...)
-                if not ok then _err(event, err) end
+                local prevCtx = _curDispatchCtx
+                local meta = _cbMeta[cb]
+                _curDispatchCtx = meta or { event = event, label = event }
+                _curDispatchCtx.event = event
+                _curDispatchCtx.label = event
+                xpcall(cb, _dispatcher_error_handler, event, ...)
+                _curDispatchCtx = prevCtx
             end
         end
     end
@@ -158,8 +204,13 @@ local function _OnDispatcherUpdate(_, elapsed)
                 if d.elapsed >= d.interval then
                     local label = d.name or "UpdateLoop"
                     local before = collectgarbage("count")
-                    local ok, err = pcall(d.callback, d.elapsed)
-                    if not ok then _err(label, err) end
+                    local prevCtx = _curDispatchCtx
+                    local meta = _cbMeta[d.callback]
+                    _curDispatchCtx = meta or { label = label, event = "OnUpdate" }
+                    _curDispatchCtx.label = label
+                    _curDispatchCtx.event = "OnUpdate"
+                    xpcall(d.callback, _dispatcher_error_handler, d.elapsed)
+                    _curDispatchCtx = prevCtx
                     _mem_after(label, before)
                     d.elapsed = 0
                 end
@@ -171,8 +222,14 @@ local function _OnDispatcherUpdate(_, elapsed)
             if d and not d.removed and type(d.callback) == "function" then
                 d.elapsed = d.elapsed + elapsed
                 if d.elapsed >= d.interval then
-                    local ok, err = pcall(d.callback, d.elapsed)
-                    if not ok then _err(d.name or "UpdateLoop", err) end
+                    local label = d.name or "UpdateLoop"
+                    local prevCtx = _curDispatchCtx
+                    local meta = _cbMeta[d.callback]
+                    _curDispatchCtx = meta or { label = label, event = "OnUpdate" }
+                    _curDispatchCtx.label = label
+                    _curDispatchCtx.event = "OnUpdate"
+                    xpcall(d.callback, _dispatcher_error_handler, d.elapsed)
+                    _curDispatchCtx = prevCtx
                     d.elapsed = 0
                 end
             end
@@ -207,8 +264,13 @@ local function get_or_create_unit_frame(unit)
                     local cb = snap[i]
                     snap[i] = nil
                     if type(cb) == "function" then
-                        local ok, err = pcall(cb, event, u, ...)
-                        if not ok then _err(event .. "/" .. tostring(u), err) end
+                        local prevCtx = _curDispatchCtx
+                        local meta = _cbMeta[cb]
+                        _curDispatchCtx = meta or { event = event, label = event .. "/" .. tostring(u) }
+                        _curDispatchCtx.event = event
+                        _curDispatchCtx.label = event .. "/" .. tostring(u)
+                        xpcall(cb, _dispatcher_error_handler, event, u, ...)
+                        _curDispatchCtx = prevCtx
                     end
                 end
                 _mem_after(event, before)
@@ -217,8 +279,13 @@ local function get_or_create_unit_frame(unit)
                     local cb = snap[i]
                     snap[i] = nil
                     if type(cb) == "function" then
-                        local ok, err = pcall(cb, event, u, ...)
-                        if not ok then _err(event .. "/" .. tostring(u), err) end
+                        local prevCtx = _curDispatchCtx
+                        local meta = _cbMeta[cb]
+                        _curDispatchCtx = meta or { event = event, label = event .. "/" .. tostring(u) }
+                        _curDispatchCtx.event = event
+                        _curDispatchCtx.label = event .. "/" .. tostring(u)
+                        xpcall(cb, _dispatcher_error_handler, event, u, ...)
+                        _curDispatchCtx = prevCtx
                     end
                 end
             end
@@ -234,9 +301,14 @@ end
 --- If event == "PLAYER_LOGIN" and the player is already logged in, fires immediately.
 function sfui.events.RegisterEvent(event, callback)
     if not event or type(callback) ~= "function" then return end
+    _record_caller(callback)
     if event == "PLAYER_LOGIN" and IsLoggedIn() then
-        local ok, err = pcall(callback, event)
-        if not ok then _err("PLAYER_LOGIN immediate", err) end
+        local prevCtx = _curDispatchCtx
+        _curDispatchCtx = _cbMeta[callback] or { event = "PLAYER_LOGIN", label = "PLAYER_LOGIN immediate" }
+        _curDispatchCtx.event = "PLAYER_LOGIN"
+        _curDispatchCtx.label = "PLAYER_LOGIN immediate"
+        xpcall(callback, _dispatcher_error_handler, event)
+        _curDispatchCtx = prevCtx
         return
     end
 
@@ -275,6 +347,7 @@ end
 --- @param callback function(event, unit, ...)
 function sfui.events.RegisterUnitEvent(event, unit, callback)
     if not unit or not event or not callback then return end
+    _record_caller(callback)
 
     if not unitEventCallbacks[unit] then
         unitEventCallbacks[unit] = {}
@@ -349,6 +422,7 @@ function sfui.events.RegisterUpdate(arg1, arg2, arg3)
         interval, callback = arg1, arg2
     end
     interval = math.max(interval or 0, MIN_UPDATE_INTERVAL)
+    _record_caller(callback)
 
     if name then
         for i = 1, #updateCallbacks do
@@ -505,6 +579,7 @@ local messageCallbacks = {}   -- [messageName] = { cb1, cb2, ... }
 --- Callback signature: function(message, ...)
 function sfui.events.RegisterMessage(message, callback)
     if not message or type(callback) ~= "function" then return end
+    _record_caller(callback)
     if not messageCallbacks[message] then
         messageCallbacks[message] = {}
     end
@@ -545,8 +620,14 @@ function sfui.events.SendMessage(message, ...)
             local cb = snap[i]
             snap[i] = nil
             if type(cb) == "function" then
-                local ok, err = pcall(cb, message, ...)
-                if not ok then _err("Msg:" .. tostring(message), err) end
+                local prevCtx = _curDispatchCtx
+                local meta = _cbMeta[cb]
+                local label = "Msg:" .. tostring(message)
+                _curDispatchCtx = meta or { event = label, label = label }
+                _curDispatchCtx.event = label
+                _curDispatchCtx.label = label
+                xpcall(cb, _dispatcher_error_handler, message, ...)
+                _curDispatchCtx = prevCtx
             end
         end
         _mem_after("Msg:" .. tostring(message), before)
@@ -555,8 +636,14 @@ function sfui.events.SendMessage(message, ...)
             local cb = snap[i]
             snap[i] = nil
             if type(cb) == "function" then
-                local ok, err = pcall(cb, message, ...)
-                if not ok then _err("Msg:" .. tostring(message), err) end
+                local prevCtx = _curDispatchCtx
+                local meta = _cbMeta[cb]
+                local label = "Msg:" .. tostring(message)
+                _curDispatchCtx = meta or { event = label, label = label }
+                _curDispatchCtx.event = label
+                _curDispatchCtx.label = label
+                xpcall(cb, _dispatcher_error_handler, message, ...)
+                _curDispatchCtx = prevCtx
             end
         end
     end

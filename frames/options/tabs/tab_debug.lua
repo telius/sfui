@@ -10,6 +10,7 @@ local tonumber = _G.tonumber
 local type = _G.type
 local pairs = _G.pairs
 local string_format = _G.string.format
+local string_match = _G.string.match
 local Enum = _G.Enum
 local GetShapeshiftFormID = _G.GetShapeshiftFormID
 local GetShapeshiftForm = _G.GetShapeshiftForm
@@ -192,6 +193,87 @@ sfui.options.RegisterTab({
         local swing_bars_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
         swing_bars_value:SetPoint("LEFT", swing_bars_label, "RIGHT", 5, 0)
 
+        -- ── Row 3: sfuibug (inhouse bugtracker) ──────────────────────────────
+        local sfuibug_header = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+        sfuibug_header:SetPoint("TOPLEFT", debug_panel, "TOPLEFT", 15, -450)
+        sfuibug_header:SetTextColor(0, 1, 1, 1)
+        sfuibug_header:SetText("sfuibug (inhouse bugtracker)")
+
+        local sfuibug_list_btn = CreateFlatButton(debug_panel, "list errors", 90, 22)
+        sfuibug_list_btn:SetPoint("TOPLEFT", sfuibug_header, "BOTTOMLEFT", 0, -8)
+        sfuibug_list_btn:SetScript("OnClick", function()
+            if _G.sfuibug and _G.sfuibug.List then
+                _G.sfuibug.List()
+            end
+        end)
+
+        local sfuibug_clear_btn = CreateFlatButton(debug_panel, "clear errors", 95, 22)
+        sfuibug_clear_btn:SetPoint("LEFT", sfuibug_list_btn, "RIGHT", 8, 0)
+        sfuibug_clear_btn:SetScript("OnClick", function()
+            if _G.sfuibug and _G.sfuibug.Clear then
+                _G.sfuibug.Clear()
+            end
+            if debug_panel.update_debug_info then
+                debug_panel.update_debug_info()
+            end
+        end)
+
+        local sfuibug_minimap_cb = common.create_checkbox(
+            debug_panel,
+            "show minimap icon",
+            function()
+                return _G.SfuiBugDB and _G.SfuiBugDB.minimap and not _G.SfuiBugDB.minimap.hide
+            end,
+            function()
+                if _G.sfuibug and _G.sfuibug.ToggleMinimap then
+                    _G.sfuibug.ToggleMinimap()
+                end
+                if debug_panel.update_debug_info then
+                    debug_panel.update_debug_info()
+                end
+            end
+        )
+        sfuibug_minimap_cb:SetPoint("LEFT", sfuibug_clear_btn, "RIGHT", 14, 0)
+
+        -- Column 1
+        local bug_status_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+        bug_status_label:SetPoint("TOPLEFT", sfuibug_list_btn, "BOTTOMLEFT", 0, -12)
+        bug_status_label:SetText("hook status:")
+        local bug_status_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+        bug_status_value:SetPoint("LEFT", bug_status_label, "RIGHT", 5, 0)
+
+        local bug_active_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+        bug_active_label:SetPoint("TOPLEFT", bug_status_label, "BOTTOMLEFT", 0, -10)
+        bug_active_label:SetText("active errors:")
+        local bug_active_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+        bug_active_value:SetPoint("LEFT", bug_active_label, "RIGHT", 5, 0)
+
+        local bug_total_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+        bug_total_label:SetPoint("TOPLEFT", bug_active_label, "BOTTOMLEFT", 0, -10)
+        bug_total_label:SetText("total recorded:")
+        local bug_total_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+        bug_total_value:SetPoint("LEFT", bug_total_label, "RIGHT", 5, 0)
+
+        -- Column 2
+        local bug_file_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+        bug_file_label:SetPoint("LEFT", debug_panel, "LEFT", 280, 0)
+        bug_file_label:SetPoint("TOP", bug_status_label, "TOP", 0, 0)
+        bug_file_label:SetText("savedvariables:")
+        local bug_file_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+        bug_file_value:SetPoint("LEFT", bug_file_label, "RIGHT", 5, 0)
+
+        local bug_minimap_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+        bug_minimap_label:SetPoint("TOPLEFT", bug_file_label, "BOTTOMLEFT", 0, -10)
+        bug_minimap_label:SetText("minimap button:")
+        local bug_minimap_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+        bug_minimap_value:SetPoint("LEFT", bug_minimap_label, "RIGHT", 5, 0)
+
+        local bug_recent_label = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+        bug_recent_label:SetPoint("TOPLEFT", bug_minimap_label, "BOTTOMLEFT", 0, -10)
+        bug_recent_label:SetText("latest error:")
+        local bug_recent_value = debug_panel:CreateFontString(nil, "OVERLAY", g.font)
+        bug_recent_value:SetPoint("LEFT", bug_recent_label, "RIGHT", 5, 0)
+
         local function update_debug_info()
             local specID = common.get_current_spec_id()
             spec_id_value:SetText(specID > 0 and tostring(specID) or "n/a")
@@ -308,6 +390,80 @@ sfui.options.RegisterTab({
                     swing_state_value:SetText("idle")
                     swing_bars_value:SetText("none")
                 end
+            end
+
+            -- ── sfuibug Details & Options ─────────────────────────────────────
+            local has_sfuibug = (_G.sfuibug ~= nil)
+                or (_G.C_AddOns and _G.C_AddOns.IsAddOnLoaded and _G.C_AddOns.IsAddOnLoaded("sfuibug"))
+                or (_G.IsAddOnLoaded and _G.IsAddOnLoaded("sfuibug"))
+
+            if has_sfuibug then
+                sfuibug_header:Show()
+                sfuibug_list_btn:Show()
+                sfuibug_clear_btn:Show()
+                if sfuibug_minimap_cb then sfuibug_minimap_cb:Show() end
+                bug_status_label:Show()
+                bug_status_value:Show()
+                bug_active_label:Show()
+                bug_active_value:Show()
+                bug_total_label:Show()
+                bug_total_value:Show()
+                bug_file_label:Show()
+                bug_file_value:Show()
+                bug_minimap_label:Show()
+                bug_minimap_value:Show()
+                bug_recent_label:Show()
+                bug_recent_value:Show()
+
+                bug_status_value:SetText("|cff00ff88active (xpcall + global hook)|r")
+
+                local db = _G.SfuiBugDB or {}
+                local activeCount = db.order and #db.order or 0
+                local totalCount = db.total_recorded or activeCount
+                if activeCount > 0 then
+                    bug_active_value:SetText(string_format("|cffff4444%d unique error%s|r", activeCount, activeCount == 1 and "" or "s"))
+                else
+                    bug_active_value:SetText("|cff00ff880 errors (clean)|r")
+                end
+                bug_total_value:SetText(string_format("%d occurrences", totalCount))
+                bug_file_value:SetText("|cffaaaaaasfuibug.lua (~2-5kb)|r")
+
+                local isMinimapHidden = db.minimap and db.minimap.hide
+                bug_minimap_value:SetText(isMinimapHidden and "|cff888888hidden|r" or "|cff00ff88visible (curse of doom)|r")
+
+                if sfuibug_minimap_cb and sfuibug_minimap_cb.SetChecked then
+                    sfuibug_minimap_cb:SetChecked(not isMinimapHidden)
+                end
+
+                if activeCount > 0 then
+                    local latestFp = db.order[activeCount]
+                    local latestErr = db.errors and db.errors[latestFp]
+                    if latestErr then
+                        local shortFile = string_match(latestErr.file or "", "([^/]+%.lua)$") or latestErr.file or "unknown"
+                        bug_recent_value:SetText(string_format("[%s] %s:%d (x%d)", latestErr.module or "core", shortFile, latestErr.line or 0, latestErr.count or 1))
+                    else
+                        bug_recent_value:SetText("none")
+                    end
+                else
+                    bug_recent_value:SetText("|cff888888none|r")
+                end
+            else
+                sfuibug_header:Hide()
+                sfuibug_list_btn:Hide()
+                sfuibug_clear_btn:Hide()
+                if sfuibug_minimap_cb then sfuibug_minimap_cb:Hide() end
+                bug_status_label:Hide()
+                bug_status_value:Hide()
+                bug_active_label:Hide()
+                bug_active_value:Hide()
+                bug_total_label:Hide()
+                bug_total_value:Hide()
+                bug_file_label:Hide()
+                bug_file_value:Hide()
+                bug_minimap_label:Hide()
+                bug_minimap_value:Hide()
+                bug_recent_label:Hide()
+                bug_recent_value:Hide()
             end
         end
 

@@ -11,258 +11,71 @@ local ipairs = _G.ipairs
 local pairs = _G.pairs
 
 -- ─────────────────────────────────────────────────────────────────────────────
---  Offscreen Blizzard Action Bars Suppression (ElvUI / Bartender Pattern)
+--  Offscreen Blizzard Action Bars Suppression (Bartender4 Pattern)
 -- ─────────────────────────────────────────────────────────────────────────────
+local function hide_bar_frame(frame, clearEvents)
+    if not frame then return end
+    if clearEvents and frame.UnregisterAllEvents then
+        frame:UnregisterAllEvents()
+    end
+    if frame.system then
+        rawset(frame, "isShownExternal", nil)
+    end
+    if frame.HideBase then
+        frame:HideBase()
+    else
+        frame:Hide()
+    end
+    local Hider = sfui.actionbars.Hider
+    if Hider and frame.SetParent then
+        frame:SetParent(Hider)
+    end
+end
+
 local function suppress_blizzard_actionbars()
-    local Hider = CreateFrame("Frame", "sfui_ActionBarHider", UIParent, "SecureFrameTemplate")
-    Hider:Hide()
-    Hider:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, -9999)
-    Hider:SetSize(1, 1)
-    sfui.actionbars.Hider = Hider
-
-    -- List of Blizzard action bar containers to move offscreen
-    local blizzardBarNames = {
-        "MainActionBar",
-        "MainMenuBar",
-        "MultiBarBottomLeft",
-        "MultiBarBottomRight",
-        "MultiBarRight",
-        "MultiBarLeft",
-        "MultiBar5",
-        "MultiBar6",
-        "MultiBar7",
-        "OverrideActionBar",
-        "StanceBar",
-        "PetActionBar",
-        "PossessActionBar",
-        "StatusTrackingBarManager",
-        "MainMenuBarArtFrame",
-        "ShapeshiftBarFrame",
-        "StanceBarFrame",
-        "PetActionBarFrame",
-        "PossessBarFrame",
-        "BagsBar",
-        "MainMenuBarBagButtons",
-        "MicroMenuContainer",
-        "MicroMenu",
-        "MainMenuBarMicroButtons",
-    }
-
-    -- Unload Blizzard ActionBarController to prevent Blizzard from attempting to update
-    -- its bars and calling protected methods (SetAttribute) during combat shapeshifts / page transitions.
-    if _G.ActionBarController and _G.ActionBarController.UnregisterAllEvents then
-        _G.ActionBarController:UnregisterAllEvents()
-        if _G.ActionBarController.RegisterEvent then
-            _G.ActionBarController:RegisterEvent("SETTINGS_LOADED")
-            _G.ActionBarController:RegisterEvent("UPDATE_EXTRA_ACTIONBAR")
+    if InCombatLockdown and InCombatLockdown() then
+        if sfui.common and sfui.common.run_after_combat then
+            sfui.common.run_after_combat(suppress_blizzard_actionbars)
         end
+        return
     end
 
-    for _, name in ipairs(blizzardBarNames) do
-        local bar = _G[name]
-        if bar then
-            bar:SetParent(Hider)
-            if bar.HideBase then
-                bar:HideBase()
-            else
-                bar:Hide()
-            end
-            if bar.UnregisterAllEvents then
-                bar:UnregisterAllEvents()
-            end
-            if bar.SetScript then
-                bar:SetScript("OnEvent", nil)
-                bar:SetScript("OnUpdate", nil)
-                bar:SetScript("OnShow", nil)
-                bar:SetScript("OnHide", nil)
-            end
-            if bar.systemInfo then
-                bar.systemInfo.isInDefaultPosition = false
-            end
-        end
+    local Hider = sfui.actionbars.Hider
+    if not Hider then
+        Hider = CreateFrame("Frame", "sfui_ActionBarHider", UIParent)
+        Hider:Hide()
+        sfui.actionbars.Hider = Hider
     end
 
-    -- Hook EditModeSystemMixin.UpdateSystem so any suppressed bar keeps isInDefaultPosition = false
-    -- natively, preventing Blizzard's layout engine from attempting to reposition it in combat
-    local function hookEditModeSystemMixin()
-        local mixin = _G.EditModeSystemMixin
-        if mixin and type(mixin.UpdateSystem) == "function" and hooksecurefunc and not sfui.actionbars._hookedUpdateSystem then
-            sfui.actionbars._hookedUpdateSystem = true
-            hooksecurefunc(mixin, "UpdateSystem", function(self)
-                if self._sfuiSuppressed and self.systemInfo then
-                    self.systemInfo.isInDefaultPosition = false
-                end
-            end)
-        end
-    end
-    hookEditModeSystemMixin()
-    if sfui.events and sfui.events.RegisterEvent then
-        sfui.events.RegisterEvent("ADDON_LOADED", function(event, addonLoaded)
-            if addonLoaded == "Blizzard_EditMode" then
-                hookEditModeSystemMixin()
-            end
-        end)
-    end
+    -- Retail Action Bars
+    hide_bar_frame(_G.MainActionBar, false)
+    hide_bar_frame(_G.MultiBarBottomLeft, true)
+    hide_bar_frame(_G.MultiBarBottomRight, true)
+    hide_bar_frame(_G.MultiBarRight, true)
+    hide_bar_frame(_G.MultiBarLeft, true)
+    hide_bar_frame(_G.MultiBar5, true)
+    hide_bar_frame(_G.MultiBar6, true)
+    hide_bar_frame(_G.MultiBar7, true)
+    hide_bar_frame(_G.StanceBar, true)
+    hide_bar_frame(_G.PossessActionBar, true)
+    hide_bar_frame(_G.PetActionBar, true)
 
-    -- Reparent Blizzard's default MainMenuBarVehicleLeaveButton to UIParent so it is
-    -- not suppressed alongside MainActionBar
-    if _G.MainMenuBarVehicleLeaveButton then
-        _G.MainMenuBarVehicleLeaveButton:SetParent(UIParent)
-        _G.MainMenuBarVehicleLeaveButton._sfuiSuppressed = true
-        if _G.MainMenuBarVehicleLeaveButton.systemInfo then
-            _G.MainMenuBarVehicleLeaveButton.systemInfo.isInDefaultPosition = false
-        end
-    end
+    -- Classic / Camelot compatibility bars
+    hide_bar_frame(_G.MainMenuBar, false)
+    hide_bar_frame(_G.MainMenuBarArtFrame, true)
+    hide_bar_frame(_G.ShapeshiftBarFrame, true)
+    hide_bar_frame(_G.StanceBarFrame, true)
+    hide_bar_frame(_G.PetActionBarFrame, true)
+    hide_bar_frame(_G.PossessBarFrame, true)
+    hide_bar_frame(_G.MultiCastActionBarFrame, false)
+end
 
-    -- Reparent Blizzard's default QueueStatusButton (LFG eye) to UIParent so it is
-    -- not suppressed alongside MicroMenuContainer in retail
-    if _G.QueueStatusButton then
-        _G.QueueStatusButton:SetParent(UIParent)
-    end
-
-    -- Clean suppression of MainActionBar and PetActionBar without monkey-patching methods
-    -- Never overwrite frame virtual methods (.Show, .UpdateVisibility, .IsInDefaultPosition, etc.)
-    -- as calling them from Blizzard EditMode immediately taints execution and triggers forbidden
-    -- protected calls (e.g. TargetUnit) or secret value comparison failures.
-    if _G.MainActionBar then
-        if _G.MainActionBar.UnregisterAllEvents then
-            _G.MainActionBar:UnregisterAllEvents()
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("ADDON_LOADED", function(event, addonLoaded)
+        if addonLoaded == "Blizzard_ActionBar" then
+            suppress_blizzard_actionbars()
         end
-        if _G.MainActionBar.SetScript then
-            _G.MainActionBar:SetScript("OnEvent", nil)
-            _G.MainActionBar:SetScript("OnUpdate", nil)
-        end
-        _G.MainActionBar:SetAlpha(0)
-        if _G.MainActionBar.EnableMouse then _G.MainActionBar:EnableMouse(false) end
-    end
-
-    if _G.PetActionBar then
-        if _G.PetActionBar.UnregisterAllEvents then
-            _G.PetActionBar:UnregisterAllEvents()
-        end
-        if _G.PetActionBar.SetScript then
-            _G.PetActionBar:SetScript("OnEvent", nil)
-            _G.PetActionBar:SetScript("OnUpdate", nil)
-            _G.PetActionBar:SetScript("OnShow", nil)
-            _G.PetActionBar:SetScript("OnHide", nil)
-        end
-        _G.PetActionBar:SetAlpha(0)
-        if _G.PetActionBar.EnableMouse then _G.PetActionBar:EnableMouse(false) end
-    end
-    if _G.PetActionBarFrame then
-        if _G.PetActionBarFrame.UnregisterAllEvents then
-            _G.PetActionBarFrame:UnregisterAllEvents()
-        end
-        if _G.PetActionBarFrame.SetScript then
-            _G.PetActionBarFrame:SetScript("OnEvent", nil)
-            _G.PetActionBarFrame:SetScript("OnUpdate", nil)
-            _G.PetActionBarFrame:SetScript("OnShow", nil)
-            _G.PetActionBarFrame:SetScript("OnHide", nil)
-        end
-        _G.PetActionBarFrame:SetAlpha(0)
-        if _G.PetActionBarFrame.EnableMouse then _G.PetActionBarFrame:EnableMouse(false) end
-    end
-
-    local offscreenFrames = {
-        "BagsBar",
-        "MainMenuBarBagButtons",
-        "MicroMenuContainer",
-        "MicroMenu",
-        "MainMenuBarMicroButtons",
-    }
-    for _, name in ipairs(offscreenFrames) do
-        local frame = _G[name]
-        if frame and hooksecurefunc then
-            hooksecurefunc(frame, "Show", function(self)
-                self:SetAlpha(0)
-                if self.EnableMouse then
-                    pcall(self.EnableMouse, self, false)
-                end
-            end)
-        end
-    end
-
-    -- Silence Blizzard's centralized action button event and update dispatchers so
-    -- hidden native action buttons do not process events, waste CPU, or trigger
-    -- secret value errors (e.g. cooldown:SetCooldown on ActionButton.lua:891).
-    -- sfui uses LibActionButton-1.0 and its own pet bar engine which manage events independently.
-    local actionDispatchers = {
-        "ActionBarActionEventsFrame",
-        "ActionBarButtonEventsFrame",
-        "ActionBarButtonRangeCheckFrame",
-        "ActionBarButtonUsableWatcherFrame",
-    }
-    local function silenceDispatchers()
-        for _, name in ipairs(actionDispatchers) do
-            local dispatcher = _G[name]
-            if dispatcher then
-                if dispatcher.UnregisterAllEvents then
-                    dispatcher:UnregisterAllEvents()
-                end
-                dispatcher:SetScript("OnEvent", nil)
-            end
-        end
-        if _G.ActionBarButtonUpdateFrame then
-            _G.ActionBarButtonUpdateFrame:SetScript("OnUpdate", nil)
-        end
-    end
-    silenceDispatchers()
-
-    -- Camelot gamepad pet flyout guard (hunter / warlock):
-    -- Blizzard_GamepadActionBars mixes PetActionFlyoutButtonMixin into
-    -- GamepadMainActionBarFrame.PageUnit.LeftClassAction at login, but its popup
-    -- (GamepadPetActionFlyout) is only assigned when ActionBarButtonEventsFrame
-    -- relays PLAYER_ENTERING_WORLD -> UpdateAction -> UpdateFlyout. With the
-    -- dispatcher silenced above, the popup stays nil and the button's own
-    -- UNIT_FLAGS / PET_BAR_UPDATE handlers crash in ToggleFlash
-    -- (PetActionFlyout.lua:156) whenever the pet attacks. Only its flash events
-    -- are dropped (no fields or attributes written, so nothing is tainted), and only
-    -- while the popup is actually missing.
-    local function defuseGamepadPetFlash()
-        local bar = _G.GamepadMainActionBarFrame
-        local page = bar and bar.PageUnit
-        local btn = page and page.LeftClassAction
-        if not btn or not btn.IsPetAttacking or btn.popup then return end
-        btn:UnregisterEvent("UNIT_FLAGS")
-        btn:UnregisterEvent("PET_BAR_UPDATE")
-    end
-
-    if _G.EventUtil and _G.EventUtil.ContinueOnPlayerLogin then
-        _G.EventUtil.ContinueOnPlayerLogin(function()
-            silenceDispatchers()
-            defuseGamepadPetFlash()
-        end)
-    end
-    -- PLAYER_ENTERING_WORLD fires after every PLAYER_LOGIN callback, so Blizzard's
-    -- mixin is guaranteed to be applied by then regardless of callback order.
-    if sfui.events and sfui.events.RegisterEvent then
-        sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", defuseGamepadPetFlash)
-    end
-
-    -- Hide native Blizzard action buttons
-    -- NOTE: PetActionButton1..10 are NOT hidden here because they are managed on sfui_PetBar!
-    -- NOTE: Do NOT call SetAttribute("statehidden", true) or UnregisterAllEvents() here,
-    -- as modifying attributes on ActionButtonTemplate buttons taints execution and causes
-    -- secret value errors during level up and combat.
-    local buttonPrefixes = {
-        "ActionButton",
-        "MultiBarBottomLeftButton",
-        "MultiBarBottomRightButton",
-        "MultiBarRightButton",
-        "MultiBarLeftButton",
-        "MultiBar5Button",
-        "MultiBar6Button",
-        "MultiBar7Button",
-        "StanceButton",
-    }
-    for _, prefix in ipairs(buttonPrefixes) do
-        for i = 1, 12 do
-            local btn = _G[prefix .. i]
-            if btn and btn.Hide then
-                btn:Hide()
-            end
-        end
-    end
+    end)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────

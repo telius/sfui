@@ -42,8 +42,11 @@ def get_bugjar_paths():
         except Exception:
             pass
 
-    # 3. Dynamic glob discovery across local wow installations (prioritizing _forever_ and _retail_)
+    # 3. Dynamic glob discovery across local wow installations (prioritizing sfuibug then !BugJar)
     search_patterns = [
+        os.path.expanduser("~/Games/World of Warcraft/_forever_/WTF/Account/*/SavedVariables/sfuibug.lua"),
+        os.path.expanduser("~/Games/World of Warcraft/_retail_/WTF/Account/*/SavedVariables/sfuibug.lua"),
+        os.path.expanduser("~/Games/World of Warcraft/_*/WTF/Account/*/SavedVariables/sfuibug.lua"),
         os.path.expanduser("~/Games/World of Warcraft/_forever_/WTF/Account/*/SavedVariables/!BugJar.lua"),
         os.path.expanduser("~/Games/World of Warcraft/_retail_/WTF/Account/*/SavedVariables/!BugJar.lua"),
         os.path.expanduser("~/Games/World of Warcraft/_*/WTF/Account/*/SavedVariables/!BugJar.lua"),
@@ -173,7 +176,57 @@ def parse_bugjar_file(filepath):
     return errors
 
 
+def parse_sfuibug_file(filepath):
+    if not os.path.exists(filepath):
+        return []
+
+    errors = []
+    try:
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+    except Exception as e:
+        print(f"error reading {filepath}: {e}")
+        return []
+
+    in_errors = False
+    current_error = None
+
+    for line in lines:
+        raw = line.strip()
+        if raw.startswith('["errors"] = {'):
+            in_errors = True
+            continue
+
+        if in_errors:
+            if re.match(r'\[\"[a-f0-9]+\"\]\s*=\s*\{', raw):
+                current_error = {
+                    "addon": "sfui",
+                    "source": "sfuibug",
+                    "kind": "error",
+                }
+            elif raw in ('},', '}'):
+                if current_error is not None:
+                    if "file" in current_error and "line" in current_error:
+                        current_error["location"] = f"{current_error['file']}:{current_error['line']}"
+                    errors.append(current_error)
+                    current_error = None
+                else:
+                    in_errors = False
+            elif current_error is not None:
+                m = re.match(r'\[\"([^\"]+)\"\]\s*=\s*(.*?),?$', raw)
+                if m:
+                    k = m.group(1)
+                    v = m.group(2).rstrip(',')
+                    if v.startswith('"') and v.endswith('"'):
+                        v = v[1:-1]
+                    current_error[k] = unescape_lua_string(v)
+
+    return errors
+
+
 def compute_fingerprint(err):
+    if err.get("source") == "sfuibug" and err.get("fingerprint"):
+        return f"sfuibug:{err['fingerprint']}"
     addon = err.get("addon", "sfui")
     kind = err.get("kind", "")
     message = err.get("message", "")
@@ -185,9 +238,13 @@ def compute_fingerprint(err):
 
 def is_sfui_error(err):
     """
-    Strictly determine whether a BugJar error record was genuinely caused by sfui.
+    Strictly determine whether an error record was genuinely caused by sfui.
     Returns (is_sfui: bool, reason: str).
     """
+    if err.get("source") == "sfuibug":
+        mod = err.get("module", "core")
+        loc = err.get("location", "")
+        return True, f"verified sfuibug record [{mod}] at {loc}"
     addon = (err.get("addon") or "").strip().lower()
     msg = err.get("message") or ""
     stack = err.get("stack") or ""
@@ -324,7 +381,10 @@ def main():
 
     all_errors = []
     for p in paths_to_scan:
-        errs = parse_bugjar_file(p)
+        if "sfuibug.lua" in p:
+            errs = parse_sfuibug_file(p)
+        else:
+            errs = parse_bugjar_file(p)
         for e in errs:
             matched, reason = is_sfui_error(e)
             if matched:

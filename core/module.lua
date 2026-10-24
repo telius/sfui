@@ -26,7 +26,15 @@ local function _safe_call(mod, method, ...)
     if mod and type(mod[method]) == "function" then
         local ok, err = pcall(mod[method], mod, ...)
         if not ok then
-            print("|cffff0000[sfui module error]|r " .. tostring(mod.name) .. ":" .. method .. "(): " .. tostring(err))
+            if _G.sfuibug and _G.sfuibug.RecordError then
+                _G.sfuibug.RecordError({
+                    module = mod.name or "core",
+                    file = "core/module.lua",
+                    label = tostring(mod.name) .. ":" .. method .. "()",
+                }, err)
+            else
+                print("|cffff0000[sfui module error]|r " .. tostring(mod.name) .. ":" .. method .. "(): " .. tostring(err))
+            end
         end
     end
 end

@@ -455,3 +455,35 @@ function exp.SetBarMode(mode)
         exp.Update()
     end
 end
+
+--- Disable reputation tracking: unwatch active faction and disable auto-switch on gain
+function exp.DisableReputationTracking()
+    if exp.data and exp.data.SetWatchedFaction then
+        exp.data.SetWatchedFaction(0)
+    end
+    if sfui.db and sfui.db.Set then
+        sfui.db.Set("experience", "autoSwitchRepOnGain", false)
+    end
+    if SfuiDB then
+        SfuiDB._expCustomizedAutoSwitchRep = true
+    end
+    if exp.reputation and exp.reputation.GetFrame then
+        local rf = exp.reputation.GetFrame()
+        if rf and not rf._isUnlocked then
+            rf:Hide()
+        end
+    end
+    local mode = exp.GetBarMode()
+    if mode == "REP" then
+        exp.SetBarMode("XP")
+    elseif exp.Update then
+        exp.Update()
+    end
+    if sfui.common and sfui.common.print then
+        sfui.common.print("reputation tracking disabled and cleared.")
+    end
+end
+
+exp.ClearWatchedReputation = exp.DisableReputationTracking
+exp.UntrackReputation = exp.DisableReputationTracking
+

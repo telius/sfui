@@ -445,7 +445,23 @@ function ButtonManager:arrange_buttons()
     local cfg = sfui.config and sfui.config.minimap and sfui.config.minimap.button_bar or {}
     local size = cfg.button_size or 20
     local spacing = cfg.spacing or 8
-    local padX = cfg.pad_x or 24
+    local basePadX = cfg.pad_x or 8
+
+    local indicator = (MinimapCluster and MinimapCluster.IndicatorFrame) or _G.MinimapIndicatorFrame
+    local mailFrame = (indicator and indicator.MailFrame) or _G.MiniMapMailFrame or indicator
+    local hasMail = (indicator and indicator:IsShown() and ((indicator.MailFrame and indicator.MailFrame:IsShown()) or (indicator.CraftingOrderFrame and indicator.CraftingOrderFrame:IsShown()) or (not indicator.MailFrame and indicator:GetWidth() > 0)))
+        or (mailFrame and mailFrame:IsShown())
+    local isMailInside = button_bar and (
+        (indicator and indicator:GetParent() == button_bar and hasMail) or
+        (mailFrame and mailFrame:GetParent() == button_bar and hasMail)
+    )
+    local mailWidth = 0
+    if isMailInside then
+        local w = (indicator and indicator:IsShown() and indicator:GetWidth()) or (mailFrame and mailFrame:IsShown() and mailFrame:GetWidth()) or 0
+        mailWidth = (w and w > 0) and (w + 4) or 24
+    end
+
+    local startX = basePadX + (isMailInside and (mailWidth + spacing) or 0)
 
     for i, button in ipairs(self.collectedButtons) do
         button:SetParent(button_bar)
@@ -510,7 +526,7 @@ function ButtonManager:arrange_buttons()
         if not button.isMoving then
             if button:IsShown() then
                 if not lastButton then
-                    button:SetPoint("LEFT", button_bar, "LEFT", padX, 0)
+                    button:SetPoint("LEFT", button_bar, "LEFT", startX, 0)
                     lastButton = button
                 elseif button ~= lastButton then
                     button:SetPoint("LEFT", lastButton, "RIGHT", spacing, 0)
@@ -530,12 +546,7 @@ function ButtonManager:arrange_buttons()
     local isStatusInside = status_container and status_container:IsShown() and status_container:GetParent() == button_bar
     local statusWidth = isStatusInside and (status_container:GetWidth() > 0 and (status_container:GetWidth() + 6) or 0) or 0
 
-    local indicator = (MinimapCluster and MinimapCluster.IndicatorFrame) or _G.MinimapIndicatorFrame
-    local mailFrame = (indicator and indicator.MailFrame) or _G.MiniMapMailFrame or indicator
-    local isMailInside = button_bar and ((indicator and indicator:GetParent() == button_bar and indicator:IsShown()) or (mailFrame and mailFrame:GetParent() == button_bar and mailFrame:IsShown()))
-    local mailWidth = isMailInside and (indicator and indicator:GetWidth() > 0 and (indicator:GetWidth() + 8) or 26) or 0
-
-    local rightReserved = isClockInside and (clockWidth + 14 + statusWidth + mailWidth) or (padX + statusWidth + mailWidth)
+    local rightReserved = isClockInside and (clockWidth + 14 + statusWidth) or (basePadX + statusWidth)
 
     local mapWidth = (Minimap and Minimap:GetWidth() and Minimap:GetWidth() > 0) and Minimap:GetWidth()
         or (SfuiDB and SfuiDB.minimap_width)

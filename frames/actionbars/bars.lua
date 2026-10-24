@@ -771,6 +771,7 @@ end
 
 function sfui.actionbars.CreateVehicleLeaveButton()
     if sfui.actionbars.vehicleLeaveButton then return sfui.actionbars.vehicleLeaveButton end
+    if InCombatLockdown and InCombatLockdown() then return nil end
 
     local cfg = sfui.actionbars.GetBarConfig("vehicle")
     local buttonSize = (cfg and cfg.buttonSize) or 34
@@ -827,10 +828,10 @@ function sfui.actionbars.CreateVehicleLeaveButton()
         if _G.VehicleSeatIndicator and not sfui.actionbars._hookedSeatIndicator then
             sfui.actionbars._hookedSeatIndicator = true
             hooksecurefunc(_G.VehicleSeatIndicator, "Show", function()
-                if btn.Update then btn:Update() end
+                if not (InCombatLockdown and InCombatLockdown()) and btn.Update then btn:Update() end
             end)
             hooksecurefunc(_G.VehicleSeatIndicator, "Hide", function()
-                if btn.Update then btn:Update() end
+                if not (InCombatLockdown and InCombatLockdown()) and btn.Update then btn:Update() end
             end)
         end
 

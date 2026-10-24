@@ -100,39 +100,35 @@ function sfui.minimap.update_indicator_positions()
     local mail = _G.MiniMapMailFrame
 
     if dockMail and isButtonBarActive then
-        local clock = _G.TimeManagerClockButton
-        local isClockInside = clock and clock:IsShown() and clock:GetParent() == button_bar
-
         local targetParent = button_bar
         local strata = button_bar:GetFrameStrata()
         local level = button_bar:GetFrameLevel() + 5
+        local basePadX = (sfui.config and sfui.config.minimap and sfui.config.minimap.button_bar and sfui.config.minimap.button_bar.pad_x) or 8
 
         if indicator then
             indicator.sfuiRepositioning = true
             indicator:SetParent(targetParent)
             indicator:ClearAllPoints()
-            if isClockInside then
-                indicator:SetPoint("RIGHT", clock, "LEFT", -6, 0)
-            else
-                indicator:SetPoint("RIGHT", button_bar, "RIGHT", -8, 0)
-            end
+            indicator:SetPoint("LEFT", button_bar, "LEFT", basePadX, 0)
             indicator:SetFrameStrata(strata)
             indicator:SetFrameLevel(level)
             indicator:SetScale(0.85)
             indicator.sfuiRepositioning = nil
             hook_indicator_frame(indicator)
             hook_mail_visibility(indicator)
+            if indicator.MailFrame then
+                hook_mail_visibility(indicator.MailFrame)
+            end
+            if indicator.CraftingOrderFrame then
+                hook_mail_visibility(indicator.CraftingOrderFrame)
+            end
         end
 
         if mail and (not indicator or mail:GetParent() ~= indicator) then
             mail.sfuiRepositioning = true
             mail:SetParent(targetParent)
             mail:ClearAllPoints()
-            if isClockInside then
-                mail:SetPoint("RIGHT", clock, "LEFT", -6, 0)
-            else
-                mail:SetPoint("RIGHT", button_bar, "RIGHT", -8, 0)
-            end
+            mail:SetPoint("LEFT", button_bar, "LEFT", basePadX, 0)
             mail:SetFrameStrata(strata)
             mail:SetFrameLevel(level)
             mail:SetScale(0.85)
@@ -177,6 +173,10 @@ function sfui.minimap.update_indicator_positions()
         MinimapCluster.DielFrame:EnableMouse(false)
         MinimapCluster.DielFrame:SetAlpha(1)
         MinimapCluster.DielFrame:Show()
+    end
+
+    if sfui.minimap.arrange_buttons then
+        sfui.minimap.arrange_buttons()
     end
 end
 

@@ -36,6 +36,7 @@ local ACTION_BAR_NAMES   = {
 }
 
 local function RestoreAllBarsAlpha()
+    if InCombatLockdown and InCombatLockdown() then return end
     local abMod = sfui.config and sfui.config.actionbars
     if SfuiDB and SfuiDB.actionbars and SfuiDB.actionbars.enabled ~= nil then
         if SfuiDB.actionbars.enabled then return end
@@ -122,7 +123,7 @@ local function ApplyUnitFrame(entry)
         if frame == _G.TotemFrame then
             if shouldHide then
                 frame:SetAlpha(0)
-            else
+            elseif frame.GetAlpha and frame:GetAlpha() ~= 1.0 then
                 frame:SetAlpha(1)
             end
         else
@@ -132,7 +133,7 @@ local function ApplyUnitFrame(entry)
                 if not isProtected and frame.EnableMouse and not InCombatLockdown() then
                     pcall(frame.EnableMouse, frame, false)
                 end
-            else
+            elseif frame.GetAlpha and frame:GetAlpha() ~= 1.0 then
                 frame:SetAlpha(1)
                 if not isProtected and frame.EnableMouse and not InCombatLockdown() then
                     pcall(frame.EnableMouse, frame, true)
