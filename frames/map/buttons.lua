@@ -570,7 +570,7 @@ function sfui.minimap.update_button_bar_position()
             or (Minimap and Minimap:GetWidth() and Minimap:GetWidth() > 0 and Minimap:GetWidth())
             or 220
         button_bar:SetWidth(barWidth)
-        local anchorTarget = (not isSquare and MinimapCluster and MinimapCluster.MinimapContainer) or Minimap
+        local anchorTarget = sfui.minimap.Holder or Minimap
         button_bar:ClearAllPoints()
         button_bar:SetPoint(
             (SfuiDB and SfuiDB.minimap_button_point) or "TOP",
@@ -581,7 +581,7 @@ function sfui.minimap.update_button_bar_position()
             0,
             (SfuiDB and SfuiDB.minimap_button_y) or
             (sfui.config and sfui.config.minimap and sfui.config.minimap.button_bar and sfui.config.minimap.button_bar.defaultY) or
-            30
+            0
         )
         sfui.minimap.update_clock_position()
     end
@@ -590,8 +590,8 @@ end
 function sfui.minimap.enable_button_manager(enabled)
     if enabled then
         if not button_bar then
-            -- Parent to MinimapCluster instead of Minimap to avoid protected frame taint
-            button_bar = CreateFrame("Frame", "sfui_minimap_button_bar", MinimapCluster, "BackdropTemplate")
+            -- Parent to UIParent to decouple from Blizzard Edit Mode
+            button_bar = CreateFrame("Frame", "sfui_minimap_button_bar", UIParent, "BackdropTemplate")
             local mapWidth = (Minimap and Minimap:GetWidth() and Minimap:GetWidth() > 0) and Minimap:GetWidth()
                 or (SfuiDB and SfuiDB.minimap_width)
                 or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
@@ -668,7 +668,7 @@ function sfui.minimap.enable_button_manager(enabled)
         if clock then
             clock.sfuiRepositioning = true
             clock:ClearAllPoints()
-            clock:SetParent(MinimapCluster or Minimap)
+            clock:SetParent(sfui.minimap.Holder or Minimap or UIParent)
             clock:SetPoint("TOPRIGHT", Minimap, "BOTTOMRIGHT", 0, -2)
             clock.sfuiRepositioning = nil
             clock.sfuiAnchored = nil

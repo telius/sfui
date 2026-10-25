@@ -77,8 +77,17 @@ function events.SuppressBlizzardBar()
     if not hideBlizz then return end
 
     local mgr = _G.StatusTrackingBarManager
-    if mgr and mgr.SetAlpha and mgr:GetAlpha() ~= 0 then
-        mgr:SetAlpha(0)
+    if mgr then
+        mgr.defaultHideSelection = true
+        if mgr.SetAlpha and mgr:GetAlpha() ~= 0 then
+            mgr:SetAlpha(0)
+        end
+        if mgr.EnableMouse then mgr:EnableMouse(false) end
+        if mgr.Selection then
+            mgr.Selection:Hide()
+            if mgr.Selection.SetAlpha then mgr.Selection:SetAlpha(0) end
+            if mgr.Selection.EnableMouse then mgr.Selection:EnableMouse(false) end
+        end
     end
 
     local oldExpBar = _G.MainMenuExpBar
@@ -337,6 +346,7 @@ function events.Initialize()
     reg("UNIT_HAPPINESS", RequestDebouncedUpdate)
     reg("UNIT_PET_TRAINING_POINTS", RequestDebouncedUpdate)
     reg("UNIT_LEVEL", RequestDebouncedUpdate)
+    reg("EDIT_MODE_LAYOUTS_UPDATED", events.SuppressBlizzardBar)
 
     if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
         pcall(_G.EventRegistry.RegisterCallback, _G.EventRegistry, "Legacy.UpdateCurrencyInfo", OnQuestOrFactionUpdate, events)

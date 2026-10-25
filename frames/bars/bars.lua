@@ -108,8 +108,21 @@ do
         if bar0 and bar0.backdrop then
             bar0.backdrop:ClearAllPoints()
             local cfg = sfui.config.healthBar
-            bar0.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", SfuiDB.healthBarX or cfg.pos.x,
-                SfuiDB.healthBarY or cfg.pos.y)
+            local pt = (SfuiDB and SfuiDB.healthBarPoint) or "BOTTOM"
+            local relPt = (SfuiDB and SfuiDB.healthBarRelPoint) or pt
+            local x = (SfuiDB and SfuiDB.healthBarX) or cfg.pos.x
+            local y = (SfuiDB and SfuiDB.healthBarY) or cfg.pos.y
+            bar0.backdrop:SetPoint(pt, UIParent, relPt, x, y)
+        end
+
+        local pf = _G.PlayerFrame
+        if pf then
+            pf.defaultHideSelection = true
+            if pf.Selection then
+                pf.Selection:Hide()
+                if pf.Selection.SetAlpha then pf.Selection:SetAlpha(0) end
+                if pf.Selection.EnableMouse then pf.Selection:EnableMouse(false) end
+            end
         end
 
         if is_dragonflying() then
@@ -683,6 +696,53 @@ do
 
         sfui.theme.RegisterBar(bar, "health")
         get_stance_badge()
+
+        if sfui.movers and sfui.movers.Register and bar.backdrop then
+            sfui.movers.Register(bar.backdrop, {
+                key = "healthbar",
+                label = "player health bar",
+                preferredPoint = "BOTTOM",
+                customSize = function()
+                    return bar.backdrop:GetWidth(), bar.backdrop:GetHeight()
+                end,
+                getPoint = function()
+                    local hCfg = sfui.config.healthBar
+                    local pt = (SfuiDB and SfuiDB.healthBarPoint) or "BOTTOM"
+                    local relPt = (SfuiDB and SfuiDB.healthBarRelPoint) or pt
+                    local x = (SfuiDB and SfuiDB.healthBarX) or (hCfg and hCfg.pos and hCfg.pos.x) or 0
+                    local y = (SfuiDB and SfuiDB.healthBarY) or (hCfg and hCfg.pos and hCfg.pos.y) or 150
+                    return pt, UIParent, relPt, x, y
+                end,
+                setPoint = function(point, relTo, relPoint, x, y)
+                    SfuiDB = SfuiDB or {}
+                    SfuiDB.healthBarPoint = point
+                    SfuiDB.healthBarRelPoint = relPoint
+                    SfuiDB.healthBarX = x
+                    SfuiDB.healthBarY = y
+                    update_bar_positions()
+                end,
+                resetPosition = function()
+                    SfuiDB = SfuiDB or {}
+                    local hCfg = sfui.config.healthBar
+                    SfuiDB.healthBarPoint = "BOTTOM"
+                    SfuiDB.healthBarRelPoint = "BOTTOM"
+                    SfuiDB.healthBarX = (hCfg and hCfg.pos and hCfg.pos.x) or 0
+                    SfuiDB.healthBarY = (hCfg and hCfg.pos and hCfg.pos.y) or 150
+                    update_bar_positions()
+                end,
+                isEnabled = function()
+                    return bar.backdrop ~= nil and (sfui.config.healthBar and sfui.config.healthBar.enabled ~= false)
+                end,
+                onEnterEditMode = function()
+                    bar.backdrop:Show()
+                    bar.backdrop:SetAlpha(1)
+                end,
+                onExitEditMode = function()
+                    update_bar_positions()
+                end,
+            })
+        end
+
         return bar
     end
 

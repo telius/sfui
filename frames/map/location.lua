@@ -29,7 +29,6 @@ local locationFrame = nil
 local function suppress_blizzard_elements()
     local btn = (MinimapCluster and MinimapCluster.ZoneTextButton) or _G.MinimapZoneTextButton
     if btn then
-        btn:Hide()
         btn:SetAlpha(0)
         if btn.EnableMouse then btn:EnableMouse(false) end
         if btn.StateTexture then btn.StateTexture:SetAlpha(0) end
@@ -90,12 +89,10 @@ local function suppress_blizzard_elements()
 
     local tracking = (MinimapCluster and MinimapCluster.Tracking) or _G.MiniMapTracking
     if tracking then
-        tracking:Hide()
         tracking:SetAlpha(0)
         if tracking.EnableMouse then tracking:EnableMouse(false) end
     end
     if _G.MiniMapTrackingButton then
-        _G.MiniMapTrackingButton:Hide()
         _G.MiniMapTrackingButton:SetAlpha(0)
         _G.MiniMapTrackingButton:EnableMouse(false)
     end
@@ -177,7 +174,7 @@ end
 local function get_or_create_location_frame()
     if locationFrame then return locationFrame end
 
-    local parent = _G.MinimapCluster or _G.UIParent
+    local parent = sfui.minimap.Holder or _G.Minimap or _G.UIParent
     local f = CreateFrame("Button", "sfui_MinimapLocation", parent)
     f.ignoreInLayout = true
     f:SetFrameStrata("MEDIUM")

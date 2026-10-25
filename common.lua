@@ -1202,8 +1202,8 @@ function sfui.initialize_database()
     if SfuiDB.minimap_masque == nil then SfuiDB.minimap_masque = true end
     if SfuiDB.minimap_auto_zoom == nil then SfuiDB.minimap_auto_zoom = true end
     if SfuiDB.minimap_auto_zoom_delay == nil then SfuiDB.minimap_auto_zoom_delay = 5 end
-    if SfuiDB.minimap_button_x == nil then SfuiDB.minimap_button_x = sfui.config.minimap.button_bar.defaultX end
-    if SfuiDB.minimap_button_y == nil or SfuiDB.minimap_button_y == -25 or SfuiDB.minimap_button_y == 0 or SfuiDB.minimap_button_y == 15 then SfuiDB.minimap_button_y = sfui.config.minimap.button_bar.defaultY end
+    if SfuiDB.minimap_button_x == nil then SfuiDB.minimap_button_x = (sfui.config and sfui.config.minimap and sfui.config.minimap.button_bar and sfui.config.minimap.button_bar.defaultX) or 0 end
+    if SfuiDB.minimap_button_y == nil then SfuiDB.minimap_button_y = (sfui.config and sfui.config.minimap and sfui.config.minimap.button_bar and sfui.config.minimap.button_bar.defaultY) or 0 end
     if SfuiDB.minimap_x == nil then SfuiDB.minimap_x = (sfui.config and sfui.config.minimap and sfui.config.minimap.x) or 0 end
     if SfuiDB.minimap_y == nil or (SfuiDB.minimap_y == 0 and SfuiDB.minimap_point == "TOPRIGHT" and not SfuiDB._minimapPositionCustomized) then
         SfuiDB.minimap_y = (sfui.config and sfui.config.minimap and sfui.config.minimap.y) or 35

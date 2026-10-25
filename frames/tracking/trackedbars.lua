@@ -646,6 +646,8 @@ function sfui.trackedbars.UpdatePosition()
     local defX = (cfg.trackedBars and cfg.trackedBars.anchor and cfg.trackedBars.anchor.x) or (SfuiDB and SfuiDB.trackedBarsX) or -300
     local defY = (cfg.trackedBars and cfg.trackedBars.anchor and cfg.trackedBars.anchor.y) or (SfuiDB and SfuiDB.trackedBarsY) or 300
 
+    local point = (db and db.anchor and db.anchor.point) or "BOTTOM"
+    local relPoint = (db and db.anchor and db.anchor.relPoint) or point
     local x = db and db.anchor and db.anchor.x
     local y = db and db.anchor and db.anchor.y
 
@@ -654,6 +656,8 @@ function sfui.trackedbars.UpdatePosition()
         x = defX
         y = defY
         if db and db.anchor then
+            db.anchor.point = point
+            db.anchor.relPoint = relPoint
             db.anchor.x = x
             db.anchor.y = y
         end
@@ -663,7 +667,7 @@ function sfui.trackedbars.UpdatePosition()
     y = y or defY
 
     container:ClearAllPoints()
-    container:SetPoint("BOTTOM", UIParent, "BOTTOM", x, y)
+    container:SetPoint(point, UIParent, relPoint, x, y)
 end
 
 function sfui.trackedbars.SetColor(cooldownID, r, g, b)
@@ -1589,6 +1593,53 @@ function sfui.trackedbars.initialize()
 
     -- Position
     sfui.trackedbars.UpdatePosition()
+
+    if sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(container, {
+            key = "trackedbars",
+            label = "tracked cooldown bars",
+            preferredPoint = "BOTTOM",
+            customSize = function()
+                return container:GetWidth(), container:GetHeight()
+            end,
+            getPoint = function()
+                local db = SfuiDB and SfuiDB.trackedBars
+                local pt = (db and db.anchor and db.anchor.point) or "BOTTOM"
+                local relPt = (db and db.anchor and db.anchor.relPoint) or pt
+                local x = (db and db.anchor and db.anchor.x) or -300
+                local y = (db and db.anchor and db.anchor.y) or 300
+                return pt, UIParent, relPt, x, y
+            end,
+            setPoint = function(point, relTo, relPoint, x, y)
+                local db = common.ensure_tracked_bar_db()
+                db.anchor = db.anchor or {}
+                db.anchor.point = point
+                db.anchor.relPoint = relPoint
+                db.anchor.x = x
+                db.anchor.y = y
+                sfui.trackedbars.UpdatePosition()
+            end,
+            resetPosition = function()
+                local db = common.ensure_tracked_bar_db()
+                db.anchor = db.anchor or {}
+                db.anchor.point = "BOTTOM"
+                db.anchor.relPoint = "BOTTOM"
+                db.anchor.x = -300
+                db.anchor.y = 300
+                sfui.trackedbars.UpdatePosition()
+            end,
+            isEnabled = function()
+                return container ~= nil
+            end,
+            onEnterEditMode = function()
+                container:Show()
+                container:SetAlpha(1)
+            end,
+            onExitEditMode = function()
+                -- normal visibility update logic will manage it
+            end,
+        })
+    end
 
     -- Event listener for visibility updates
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()

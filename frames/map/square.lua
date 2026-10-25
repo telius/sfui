@@ -245,7 +245,7 @@ local function get_or_create_backdrop()
     if backdropFrame then return backdropFrame end
     if not Minimap then return nil end
 
-    local parent = Minimap:GetParent() or MinimapCluster or UIParent
+    local parent = sfui.minimap.Holder or Minimap or UIParent
     backdropFrame = CreateFrame("Frame", "sfui_SquareMinimapBackdrop", parent)
     backdropFrame:SetFrameStrata("BACKGROUND")
     backdropFrame:SetFrameLevel(0)
@@ -264,7 +264,7 @@ local function get_or_create_bronze_overlay()
     if bronzeOverlay then return bronzeOverlay end
     if not Minimap then return nil end
 
-    local parent = MinimapCluster or Minimap:GetParent() or UIParent
+    local parent = sfui.minimap.Holder or Minimap or UIParent
     bronzeOverlay = CreateFrame("Frame", "sfui_SquareMinimapBronzeOverlay", parent)
     sfui.common.set_pixel_snapping(bronzeOverlay)
     bronzeOverlay:SetFrameStrata("LOW")
@@ -487,7 +487,12 @@ function square:Apply()
         Minimap:SetFrameStrata("LOW")
     end
     if MinimapCluster then
+        MinimapCluster:SetAlpha(0)
         MinimapCluster:EnableMouse(false)
+        if MinimapCluster.Selection then
+            MinimapCluster.Selection:SetAlpha(0)
+            MinimapCluster.Selection:EnableMouse(false)
+        end
         if MinimapCluster.DielFrame then
             MinimapCluster.DielFrame:SetAlpha(1)
             MinimapCluster.DielFrame:Show()

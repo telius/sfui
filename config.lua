@@ -728,7 +728,7 @@ sfui.config = {
             pad_x = 8,
             button_size = 20,
             defaultX = 0,
-            defaultY = 30,
+            defaultY = 0,
         },
         status = {
             icon_size = 26,

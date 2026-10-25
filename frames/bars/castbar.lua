@@ -740,8 +740,12 @@ function sfui.castbar.update_settings()
                 playerBar.backdrop:Hide()
                 ResetBar(playerBar)
             else
+                local pt = (SfuiDB and SfuiDB.castBarPoint) or "BOTTOM"
+                local relPt = (SfuiDB and SfuiDB.castBarRelPoint) or pt
+                local x = (SfuiDB and SfuiDB.castBarX) or pCfg.pos.x
+                local y = (SfuiDB and SfuiDB.castBarY) or pCfg.pos.y
                 playerBar.backdrop:ClearAllPoints()
-                playerBar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", pCfg.pos.x, pCfg.pos.y)
+                playerBar.backdrop:SetPoint(pt, UIParent, relPt, x, y)
             end
         end
 
@@ -757,8 +761,12 @@ function sfui.castbar.update_settings()
                 targetBar.casting = nil
                 targetBar.channeling = nil
             else
+                local pt = (SfuiDB and SfuiDB.targetCastBarPoint) or "BOTTOM"
+                local relPt = (SfuiDB and SfuiDB.targetCastBarRelPoint) or pt
+                local x = (SfuiDB and SfuiDB.targetCastBarX) or tCfg.pos.x
+                local y = (SfuiDB and SfuiDB.targetCastBarY) or tCfg.pos.y
                 targetBar.backdrop:ClearAllPoints()
-                targetBar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", tCfg.pos.x, tCfg.pos.y)
+                targetBar.backdrop:SetPoint(pt, UIParent, relPt, x, y)
             end
         end
     end
@@ -932,14 +940,164 @@ function sfui.castbar.initialize()
         "UNIT_SPELLCAST_NOT_INTERRUPTIBLE",
     }, "target", Target_OnUnitEvent)
 
-    if _G.PlayerCastingBarFrame then
-        _G.PlayerCastingBarFrame:SetAlpha(0)
-        _G.PlayerCastingBarFrame:Hide()
+    -- Register castbars with sfui.movers
+    local playerBar = sfui.castbar.bars and sfui.castbar.bars["player"]
+    if playerBar and sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(playerBar.backdrop, {
+            key = "player_castbar",
+            label = "cast bar (player)",
+            preferredPoint = "BOTTOM",
+            customSize = function()
+                return playerBar.backdrop:GetWidth(), playerBar.backdrop:GetHeight()
+            end,
+            getPoint = function()
+                local pt = (SfuiDB and SfuiDB.castBarPoint) or "BOTTOM"
+                local relPt = (SfuiDB and SfuiDB.castBarRelPoint) or pt
+                local x = (SfuiDB and SfuiDB.castBarX) or (g.castBar and g.castBar.pos and g.castBar.pos.x) or 0
+                local y = (SfuiDB and SfuiDB.castBarY) or (g.castBar and g.castBar.pos and g.castBar.pos.y) or 120
+                return pt, UIParent, relPt, x, y
+            end,
+            setPoint = function(point, relTo, relPoint, x, y)
+                SfuiDB = SfuiDB or {}
+                SfuiDB.castBarPoint = point
+                SfuiDB.castBarRelPoint = relPoint
+                SfuiDB.castBarX = x
+                SfuiDB.castBarY = y
+                if g.castBar and g.castBar.pos then
+                    g.castBar.pos.x = x
+                    g.castBar.pos.y = y
+                end
+                playerBar.backdrop:ClearAllPoints()
+                playerBar.backdrop:SetPoint(point, UIParent, relPoint, x, y)
+            end,
+            resetPosition = function()
+                SfuiDB = SfuiDB or {}
+                local defX = (g.castBar and g.castBar.pos and g.castBar.pos.x) or 0
+                local defY = (g.castBar and g.castBar.pos and g.castBar.pos.y) or 120
+                SfuiDB.castBarPoint = "BOTTOM"
+                SfuiDB.castBarRelPoint = "BOTTOM"
+                SfuiDB.castBarX = defX
+                SfuiDB.castBarY = defY
+                playerBar.backdrop:ClearAllPoints()
+                playerBar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", defX, defY)
+            end,
+            isEnabled = function()
+                return (SfuiDB and SfuiDB.castBarEnabled ~= nil) and SfuiDB.castBarEnabled or (g.castBar and g.castBar.enabled ~= false)
+            end,
+            onEnterEditMode = function()
+                playerBar.backdrop:Show()
+                playerBar.backdrop:SetAlpha(1)
+                playerBar:SetMinMaxValues(0, 100)
+                playerBar:SetValue(60)
+                if playerBar.Text then playerBar.Text:SetText("Cast Bar (Player)") end
+                if playerBar.TimerText then playerBar.TimerText:SetText("1.5") end
+                if playerBar.Icon then playerBar.Icon:SetTexture(136121) end
+            end,
+            onExitEditMode = function()
+                if not playerBar.casting and not playerBar.channeling then
+                    playerBar.backdrop:Hide()
+                    ResetBar(playerBar)
+                end
+            end,
+        })
     end
 
-    if _G.OverlayPlayerCastingBarFrame then
-        _G.OverlayPlayerCastingBarFrame:SetAlpha(0)
-        _G.OverlayPlayerCastingBarFrame:Hide()
+    local targetBar = sfui.castbar.bars and sfui.castbar.bars["target"]
+    if targetBar and sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(targetBar.backdrop, {
+            key = "target_castbar",
+            label = "cast bar (target)",
+            preferredPoint = "BOTTOM",
+            customSize = function()
+                return targetBar.backdrop:GetWidth(), targetBar.backdrop:GetHeight()
+            end,
+            getPoint = function()
+                local pt = (SfuiDB and SfuiDB.targetCastBarPoint) or "BOTTOM"
+                local relPt = (SfuiDB and SfuiDB.targetCastBarRelPoint) or pt
+                local x = (SfuiDB and SfuiDB.targetCastBarX) or (g.targetCastBar and g.targetCastBar.pos and g.targetCastBar.pos.x) or 0
+                local y = (SfuiDB and SfuiDB.targetCastBarY) or (g.targetCastBar and g.targetCastBar.pos and g.targetCastBar.pos.y) or 200
+                return pt, UIParent, relPt, x, y
+            end,
+            setPoint = function(point, relTo, relPoint, x, y)
+                SfuiDB = SfuiDB or {}
+                SfuiDB.targetCastBarPoint = point
+                SfuiDB.targetCastBarRelPoint = relPoint
+                SfuiDB.targetCastBarX = x
+                SfuiDB.targetCastBarY = y
+                if g.targetCastBar and g.targetCastBar.pos then
+                    g.targetCastBar.pos.x = x
+                    g.targetCastBar.pos.y = y
+                end
+                targetBar.backdrop:ClearAllPoints()
+                targetBar.backdrop:SetPoint(point, UIParent, relPoint, x, y)
+            end,
+            resetPosition = function()
+                SfuiDB = SfuiDB or {}
+                local defX = (g.targetCastBar and g.targetCastBar.pos and g.targetCastBar.pos.x) or 0
+                local defY = (g.targetCastBar and g.targetCastBar.pos and g.targetCastBar.pos.y) or 200
+                SfuiDB.targetCastBarPoint = "BOTTOM"
+                SfuiDB.targetCastBarRelPoint = "BOTTOM"
+                SfuiDB.targetCastBarX = defX
+                SfuiDB.targetCastBarY = defY
+                targetBar.backdrop:ClearAllPoints()
+                targetBar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", defX, defY)
+            end,
+            isEnabled = function()
+                return (SfuiDB and SfuiDB.targetCastBarEnabled ~= nil) and SfuiDB.targetCastBarEnabled or (g.targetCastBar and g.targetCastBar.enabled ~= false)
+            end,
+            onEnterEditMode = function()
+                targetBar.backdrop:Show()
+                targetBar.backdrop:SetAlpha(1)
+                targetBar:SetMinMaxValues(0, 100)
+                targetBar:SetValue(60)
+                if targetBar.Text then targetBar.Text:SetText("Cast Bar (Target)") end
+                if targetBar.TimerText then targetBar.TimerText:SetText("1.5") end
+                if targetBar.Icon then targetBar.Icon:SetTexture(136121) end
+            end,
+            onExitEditMode = function()
+                if not targetBar.casting and not targetBar.channeling then
+                    targetBar.backdrop:Hide()
+                    ResetBar(targetBar)
+                end
+            end,
+        })
+    end
+
+    local function DecoupleBlizzCastbar(bar)
+        if not bar then return end
+        bar.defaultHideSelection = true
+        if bar.SetAlpha then bar:SetAlpha(0) end
+        if bar.EnableMouse then bar:EnableMouse(false) end
+        if bar.EnableMouseClicks then bar:EnableMouseClicks(false) end
+        if bar.EnableMouseMotion then bar:EnableMouseMotion(false) end
+        if bar.Selection then
+            bar.Selection:Hide()
+            if bar.Selection.SetAlpha then bar.Selection:SetAlpha(0) end
+            if bar.Selection.EnableMouse then bar.Selection:EnableMouse(false) end
+            if bar.Selection.EnableMouseClicks then bar.Selection:EnableMouseClicks(false) end
+            if bar.Selection.EnableMouseMotion then bar.Selection:EnableMouseMotion(false) end
+            if not bar.Selection._sfuiHooked then
+                bar.Selection._sfuiHooked = true
+                hooksecurefunc(bar.Selection, "Show", function(self)
+                    C_Timer.After(0, function()
+                        self:SetAlpha(0)
+                        self:EnableMouse(false)
+                    end)
+                end)
+            end
+        end
+    end
+
+    DecoupleBlizzCastbar(_G.PlayerCastingBarFrame)
+    DecoupleBlizzCastbar(_G.OverlayPlayerCastingBarFrame)
+
+    if sfui.events and sfui.events.RegisterEvent then
+        sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
+            C_Timer.After(0, function()
+                DecoupleBlizzCastbar(_G.PlayerCastingBarFrame)
+                DecoupleBlizzCastbar(_G.OverlayPlayerCastingBarFrame)
+            end)
+        end)
     end
 end
 

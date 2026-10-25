@@ -133,6 +133,10 @@ SlashCmdList["SFUI"] = function(msg)
         if sfui.toggle_options_panel then
             sfui.toggle_options_panel(arg ~= "" and arg or nil)
         end
+    elseif cmd == "reload" or cmd == "popup" or cmd == "reloadpopup" then
+        if sfui.hide and sfui.hide.ShowEditModeReloadPopup then
+            sfui.hide.ShowEditModeReloadPopup()
+        end
     elseif cmd == "mem" or cmd == "memory" or cmd == "gc" then
         if sfui.mem and sfui.mem.HandleSlash then
             sfui.mem.HandleSlash((cmd == "gc" and "gc") or arg)

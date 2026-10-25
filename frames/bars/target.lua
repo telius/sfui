@@ -190,11 +190,23 @@ end
 
 -- ─── Blizzard TargetFrame Clean Suppression (ElvUI HiddenFrame pattern) ──────
 local function SuppressBlizzardTargetFrame()
+    local tf = _G.TargetFrame
     if SfuiDB and SfuiDB.enableTargetBar == false then
         if sfui.hide and sfui.hide.RestoreTargetFrame then
             sfui.hide.RestoreTargetFrame()
         end
         return
+    end
+
+    if tf then
+        tf.defaultHideSelection = true
+        if tf.Selection then
+            tf.Selection:Hide()
+            if tf.Selection.SetAlpha then tf.Selection:SetAlpha(0) end
+            if tf.Selection.EnableMouse then tf.Selection:EnableMouse(false) end
+            if tf.Selection.EnableMouseClicks then tf.Selection:EnableMouseClicks(false) end
+            if tf.Selection.EnableMouseMotion then tf.Selection:EnableMouseMotion(false) end
+        end
     end
 
     if sfui.hide and sfui.hide.SuppressTargetFrame then
@@ -479,13 +491,13 @@ ApplyTargetPosition = function()
     targetContainer:ClearAllPoints()
 
     local savedPos = SfuiDB and SfuiDB.targetBar_pos
-
-    if savedPos and savedPos.isCustom and savedPos.point == "TOP" and savedPos.x and savedPos.y then
-        targetContainer:SetPoint("TOP", UIParent, "TOP", savedPos.x, savedPos.y)
+    if savedPos and savedPos.isCustom and savedPos.point then
+        targetContainer:SetPoint(savedPos.point, UIParent, savedPos.relPoint or savedPos.point, savedPos.x or 0, savedPos.y or 0)
     else
         local tCfg = (sfui.config and sfui.config.targetBar) or cfg
         local pos = (tCfg and tCfg.pos) or { point = "TOP", x = 0, y = -35 }
-        targetContainer:SetPoint("TOP", UIParent, "TOP", pos.x or 0, pos.y or -35)
+        local pt = pos.point or "TOP"
+        targetContainer:SetPoint(pt, UIParent, pt, pos.x or 0, pos.y or -35)
     end
 end
 
@@ -1395,18 +1407,6 @@ local function CreateTargetFrame()
 
     targetContainer = f
 
-    -- Migrate legacy coordinates to new center-top default
-    if SfuiDB and SfuiDB.targetBar_pos then
-        local p = SfuiDB.targetBar_pos
-        if not p.isCustom or
-           p.point ~= "TOP" or
-           p.y == -200 or
-           p.y == -100 or
-           (p.x and math.abs(p.x) <= 20 and p.x ~= 0) then
-            SfuiDB.targetBar_pos = nil
-        end
-    end
-
     ApplyTargetPosition()
 
     if sfui.movers and sfui.movers.Register then
@@ -1420,14 +1420,16 @@ local function CreateTargetFrame()
             getPoint = function()
                 local p = SfuiDB and SfuiDB.targetBar_pos
                 local pt = (p and p.point) or "TOP"
+                local relPt = (p and p.relPoint) or pt
                 local x = (p and p.x) or 0
                 local y = (p and p.y) or -35
-                return pt, UIParent, pt, x, y
+                return pt, UIParent, relPt, x, y
             end,
             setPoint = function(point, relTo, relPoint, x, y)
                 SfuiDB = SfuiDB or {}
                 SfuiDB.targetBar_pos = {
                     point = point,
+                    relPoint = relPoint,
                     x = x,
                     y = y,
                     isCustom = true,
@@ -1436,10 +1438,14 @@ local function CreateTargetFrame()
             end,
             resetPosition = function()
                 SfuiDB = SfuiDB or {}
+                local tCfg = (sfui.config and sfui.config.targetBar) or cfg
+                local pos = (tCfg and tCfg.pos) or { point = "TOP", x = 0, y = -35 }
+                local pt = pos.point or "TOP"
                 SfuiDB.targetBar_pos = {
-                    point = "TOP",
-                    x = 0,
-                    y = -35,
+                    point = pt,
+                    relPoint = pt,
+                    x = pos.x or 0,
+                    y = pos.y or -35,
                     isCustom = false,
                 }
                 ApplyTargetPosition()
@@ -1450,10 +1456,37 @@ local function CreateTargetFrame()
             onEnterEditMode = function()
                 targetContainer:Show()
                 targetContainer:SetAlpha(1)
+                if healthBar then
+                    healthBar.backdrop:Show()
+                    healthBar:SetMinMaxValues(0, 100)
+                    healthBar:SetValue(100)
+                end
+                if hpText then
+                    hpText:SetText("100%")
+                    hpText:Show()
+                end
+                if nameText then
+                    nameText:SetText("target frame")
+                    nameText:Show()
+                end
+                if powerBar and powerBar.backdrop then
+                    powerBar.backdrop:Show()
+                    powerBar:SetMinMaxValues(0, 100)
+                    powerBar:SetValue(100)
+                end
+                if levelFrame then
+                    levelFrame:Show()
+                    if levelText then
+                        levelText:SetText("80")
+                        levelText:Show()
+                    end
+                end
             end,
             onExitEditMode = function()
                 if not UnitExists("target") then
                     targetContainer:Hide()
+                else
+                    UpdateAll()
                 end
             end,
         })

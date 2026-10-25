@@ -75,6 +75,56 @@ function sfui.minimap.refresh()
 end
 
 -- ------------------------------------------------------------------------------
+-- Decouple Minimap from Blizzard Edit Mode
+-- ------------------------------------------------------------------------------
+local function decouple_minimap()
+    if InCombatLockdown() then return end
+    local map = _G.Minimap
+    if not map then return end
+
+    if map:GetParent() ~= UIParent then
+        map:SetParent(UIParent)
+    end
+
+    if not sfui.minimap._parentHooked then
+        sfui.minimap._parentHooked = true
+        hooksecurefunc(map, "SetParent", function(self, parent)
+            if parent ~= UIParent and not InCombatLockdown() then
+                self:SetParent(UIParent)
+            end
+        end)
+    end
+
+    if map.SetFixedFrameStrata then map:SetFixedFrameStrata(true) end
+    if map.SetFixedFrameLevel then map:SetFixedFrameLevel(true) end
+    map:SetFrameStrata("LOW")
+    map:SetFrameLevel(10)
+
+    -- Suppress Blizzard MinimapCluster & its Edit Mode selection outline completely
+    local cluster = _G.MinimapCluster
+    if cluster then
+        cluster.defaultHideSelection = true
+        cluster:SetAlpha(0)
+        cluster:EnableMouse(false)
+        if cluster.Selection then
+            cluster.Selection:Hide()
+            cluster.Selection:SetAlpha(0)
+            cluster.Selection:EnableMouse(false)
+            if not cluster.Selection._sfuiHooked then
+                cluster.Selection._sfuiHooked = true
+                hooksecurefunc(cluster.Selection, "Show", function(self)
+                    C_Timer.After(0, function()
+                        self:SetAlpha(0)
+                        self:EnableMouse(false)
+                    end)
+                end)
+            end
+        end
+    end
+end
+sfui.minimap.decouple_minimap = decouple_minimap
+
+-- ------------------------------------------------------------------------------
 -- Positioning & Dimensions
 -- ------------------------------------------------------------------------------
 function sfui.minimap.update_position(x, y, point, relPoint)
@@ -98,7 +148,6 @@ function sfui.minimap.update_position(x, y, point, relPoint)
         return
     end
 
-
     local width = (SfuiDB and SfuiDB.minimap_width)
         or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
         or 220
@@ -110,94 +159,47 @@ function sfui.minimap.update_position(x, y, point, relPoint)
     MinimapHolder:SetPoint(pt, UIParent, rel, posX, posY)
     MinimapHolder:SetSize(width, height)
 
-
     if isRepositioning then return end
     isRepositioning = true
 
-    local cluster = _G.MinimapCluster
-    local map = _G.Minimap
-    local target = cluster or map
+    decouple_minimap()
 
-    if target then
-        local clearPoints = target.ClearAllPointsBase or target.ClearAllPoints
-        clearPoints(target)
-        local setPoint = target.SetPointBase or target.SetPoint
-        setPoint(target, "TOPRIGHT", MinimapHolder, "TOPRIGHT", 0, 0)
+    local map = _G.Minimap
+    if map then
+        map:ClearAllPoints()
+        map:SetPoint("CENTER", MinimapHolder, "CENTER", 0, 0)
+        map:SetSize(width, height)
     end
 
     local isSquare = sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
 
     if isSquare then
-        if cluster then
-            cluster:EnableMouse(false)
-            cluster:SetSize(width, height)
-            if cluster.MinimapContainer then
-                cluster.MinimapContainer:SetScale(1)
-                cluster.MinimapContainer:SetSize(width, height)
-                cluster.MinimapContainer:ClearAllPoints()
-                cluster.MinimapContainer:SetPoint("CENTER", cluster, "CENTER", 0, 0)
-            end
+        if _G.MinimapCompassTexture then
+            _G.MinimapCompassTexture:Hide()
         end
-
-        if map then
-            map:SetFrameStrata("LOW")
-            map:SetSize(width, height)
-            local anchorTarget = (cluster and cluster.MinimapContainer) or cluster
-            if anchorTarget then
-                map:ClearAllPoints()
-                map:SetPoint("CENTER", anchorTarget, "CENTER", 0, 0)
-            end
+        if _G.MinimapCompassTextureUnderlay then
+            _G.MinimapCompassTextureUnderlay:Hide()
         end
-
         if _G.MinimapBackdrop then
             _G.MinimapBackdrop:SetSize(width, height)
         end
     else
         -- Blizzard Camelot / Round Minimap:
-        -- Native geometry:
-        --   MinimapContainer & MinimapCompassTexture: 215 x 226
-        --   Minimap aperture: 192 x 192 (sized safely inside the ~194px inner bronze rim)
-        --   Optical centering: texture bounds have top arrow & right bracket; offset (-4, 4) centers aperture
-        local baseSize = 220
-        local scale = width / baseSize
-        if scale <= 0.2 then scale = 1.0 end
-
-        if cluster then
-            cluster:EnableMouse(false)
-            if cluster.MinimapContainer then
-                -- Restore native container points (account for scale)
-                cluster.MinimapContainer:ClearAllPoints()
-                cluster.MinimapContainer:SetPoint("TOP", cluster, "TOP", 10 / scale, -30 / scale)
-                cluster.MinimapContainer:SetScale(scale)
-                if cluster.TrackingFrame then
-                    cluster.TrackingFrame:SetScale(scale)
-                end
-            end
+        local compass = _G.MinimapCompassTexture
+        if compass and map then
+            compass:ClearAllPoints()
+            compass:SetPoint("CENTER", map, "CENTER", 0, 0)
+            compass:SetSize(width * (215 / 198), height * (226 / 198))
+            compass:SetAlpha(1)
+            compass:Show()
         end
-
-        -- Ensure Blizzard native atlas configuration is applied
-        if cluster and cluster.UpdateMinimapConfig then
-            cluster:UpdateMinimapConfig()
-        end
-
-        if map then
-            map:SetFrameStrata("LOW")
-            map:SetSize(192, 192)
-            local anchorTarget = (cluster and cluster.MinimapContainer) or cluster
-            if anchorTarget then
-                map:ClearAllPoints()
-                -- Optically centered inside the circular compass aperture
-                map:SetPoint("CENTER", anchorTarget, "CENTER", -4, 4)
-            end
-        end
-
-        if _G.MinimapCompassTexture and map then
-            _G.MinimapCompassTexture:ClearAllPoints()
-            _G.MinimapCompassTexture:SetPoint("CENTER", map, "CENTER", 4, -4)
-        end
-        if _G.MinimapCompassTextureUnderlay and map then
-            _G.MinimapCompassTextureUnderlay:ClearAllPoints()
-            _G.MinimapCompassTextureUnderlay:SetPoint("CENTER", map, "CENTER", 4, -4)
+        local underlay = _G.MinimapCompassTextureUnderlay
+        if underlay and map then
+            underlay:ClearAllPoints()
+            underlay:SetPoint("CENTER", map, "CENTER", 0, 0)
+            underlay:SetSize(width * (215 / 198), height * (226 / 198))
+            underlay:SetAlpha(1)
+            underlay:Show()
         end
     end
 
@@ -264,6 +266,7 @@ end
 -- ------------------------------------------------------------------------------
 local function on_minimap_entering_world(event)
     isInitialized = true
+    decouple_minimap()
     if sfui.minimap.initialize_masque then sfui.minimap.initialize_masque() end
     if sfui.minimap.hook_location_bar then sfui.minimap.hook_location_bar() end
     if sfui.minimap.hook_queue_status then sfui.minimap.hook_queue_status() end
@@ -297,6 +300,14 @@ local function on_minimap_entering_world(event)
 end
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_minimap_entering_world)
 
+-- Re-assert decoupling if Blizzard Edit Mode updates layouts
+sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
+    if not InCombatLockdown() then
+        decouple_minimap()
+        sfui.minimap.update_position()
+    end
+end)
+
 -- Autozoom on manual zoom changes
 sfui.events.RegisterEvent("MINIMAP_UPDATE_ZOOM", function()
     if SfuiDB and SfuiDB.minimap_auto_zoom and Minimap and Minimap.GetZoom and Minimap:GetZoom() ~= DEFAULT_ZOOM then
@@ -309,6 +320,7 @@ end)
 
 -- Process pending button arranges, dimension, and position updates when dropping combat
 sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+    decouple_minimap()
     if sfui.minimap.pendingDimensions then
         local d = sfui.minimap.pendingDimensions
         sfui.minimap.pendingDimensions = nil
@@ -374,5 +386,6 @@ if sfui.movers and sfui.movers.Register then
 end
 
 if sfui.minimap.hook_location_bar then sfui.minimap.hook_location_bar() end
+C_Timer.After(0, decouple_minimap)
 sfui.minimap.refresh()
 

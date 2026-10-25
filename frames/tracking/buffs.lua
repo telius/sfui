@@ -456,8 +456,33 @@ CreateSocketContainer = function()
         end
     end)
 
-    -- register with actionbars movers list
-    if sfui.actionbars and sfui.actionbars.movers and sfui.actionbars.movers.list then
+    -- register with sfui movers
+    if sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(mover, {
+            key = "trackedBuffs",
+            label = "tracked buffs",
+            preferredPoint = "BOTTOM",
+            getPoint = function()
+                local pt, relTo, relPt, x, y = mover:GetPoint()
+                return pt or "BOTTOM", relTo or UIParent, relPt or "BOTTOM", x or 0, y or 260
+            end,
+            setPoint = function(point, relTo, relPoint, x, y)
+                mover:ClearAllPoints()
+                mover:SetPoint(point, UIParent, relPoint, x, y)
+                if sfui.trackedbuffs.SavePosition then
+                    sfui.trackedbuffs.SavePosition(point, relPoint, x, y)
+                end
+            end,
+            onEnterEditMode = function()
+                if not isPreviewMode then
+                    sfui.trackedbuffs.SetPreviewMode(true)
+                end
+            end,
+            onExitEditMode = function()
+                sfui.trackedbuffs.SetPreviewMode(false)
+            end,
+        })
+    elseif sfui.actionbars and sfui.actionbars.movers and sfui.actionbars.movers.list then
         sfui.actionbars.movers.list["trackedBuffs"] = mover
     end
 
