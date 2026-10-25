@@ -1352,109 +1352,11 @@ end
 
 -- helper to systematically hide specific blizzard cooldownviewer frames
 local cooldownViewersInitialized = false
-local hookedAlpha = {}
-local isSettingAlpha = {}
-local hookedMouse = {}
-local isSettingMouse = {}
-local hookedShow = {}
-
-local function disarm_and_hide_viewer(viewer, keepActiveForMirroring)
+local function disarm_and_hide_viewer(viewer)
     if not viewer then return end
 
-    -- cooldownviewer frames must never process player_target_changed.
-    -- when player_target_changed fires from a targeting keybind (e.g. targetnearestenemy),
-    -- cooldownviewermixin:onplayertargetchanged calls registeraurainstanceiditemframe,
-    -- which indexes self.aurainstanceidtoitemframesmap (a disallowtaintedaccess table)
-    -- and throws an unrecoverable taint error if execution has any addon context.
-    if viewer.UnregisterEvent then
-        viewer:UnregisterEvent("PLAYER_TARGET_CHANGED")
-    end
-
-    if not keepActiveForMirroring then
-        -- unmirrored viewers (essentialcooldownviewer, utilitycooldownviewer, on classic/forever
-        -- also buffbarcooldownviewer and bufficoncooldownviewer) are not needed by sfui.
-        -- fully hide them, unregister their events, and strip their onupdate/onevent scripts
-        -- and eventregistry callbacks so they never touch blizzard's disallowtaintedaccess aura tables.
-        if not InCombatLockdown() or not (viewer.IsProtected and viewer:IsProtected()) then
-            viewer:Hide()
-        end
-        viewer:UnregisterAllEvents()
-        if viewer.SetScript then
-            viewer:SetScript("OnEvent", nil)
-            viewer:SetScript("OnUpdate", nil)
-        end
-        if EventRegistry and EventRegistry.UnregisterCallback then
-            EventRegistry:UnregisterCallback("CooldownViewerSettings.OnDataChanged", viewer)
-            EventRegistry:UnregisterCallback("CooldownViewerSettings.OnShow", viewer)
-            EventRegistry:UnregisterCallback("CooldownViewerSettings.OnHide", viewer)
-            EventRegistry:UnregisterCallback("EditMode.RefreshCooldownViewer", viewer)
-        end
-        if viewer.SetAlpha then viewer:SetAlpha(0) end
-        if viewer.EnableMouse then viewer:EnableMouse(false) end
-
-        if not hookedShow[viewer] and hooksecurefunc then
-            hookedShow[viewer] = true
-            hooksecurefunc(viewer, "Show", function(self)
-                if not InCombatLockdown() or not (self.IsProtected and self:IsProtected()) then
-                    self:Hide()
-                end
-                self:UnregisterAllEvents()
-                if self.SetScript then
-                    self:SetScript("OnEvent", nil)
-                    self:SetScript("OnUpdate", nil)
-                end
-            end)
-        end
-        return
-    end
-
-    -- for viewers mirrored by sfui on retail (buffbarcooldownviewer, bufficoncooldownviewer), keep the frame active at alpha 0.
-    -- crucial: never write custom fields onto the blizzard frame table or call bmfc:removemanagedframe,
-    -- which taints the frame and causes disallowtaintedaccess crashes in cooldownviewer.
-    if not hookedAlpha[viewer] and hooksecurefunc then
-        hookedAlpha[viewer] = true
-        hooksecurefunc(viewer, "SetAlpha", function(self, alpha)
-            if isSettingAlpha[self] then return end
-            if alpha ~= 0 then
-                isSettingAlpha[self] = true
-                self:SetAlpha(0)
-                isSettingAlpha[self] = false
-            end
-        end)
-    end
-
-    if not hookedMouse[viewer] and hooksecurefunc then
-        hookedMouse[viewer] = true
-        hooksecurefunc(viewer, "EnableMouse", function(self, enabled)
-            if isSettingMouse[self] then return end
-            if enabled then
-                isSettingMouse[self] = true
-                self:EnableMouse(false)
-                isSettingMouse[self] = false
-            end
-        end)
-    end
-
-    if not hookedShow[viewer] and hooksecurefunc then
-        hookedShow[viewer] = true
-        hooksecurefunc(viewer, "Show", function(self)
-            -- blizzard's cooldownviewermixin:onshow re-registers player_target_changed.
-            -- immediately unregister it to prevent disallowtaintedaccess crashes.
-            if self.UnregisterEvent then
-                self:UnregisterEvent("PLAYER_TARGET_CHANGED")
-            end
-        end)
-    end
-
-    if not isSettingAlpha[viewer] then
-        isSettingAlpha[viewer] = true
+    if viewer.SetAlpha and viewer:GetAlpha() ~= 0 then
         viewer:SetAlpha(0)
-        isSettingAlpha[viewer] = false
-    end
-    if not isSettingMouse[viewer] and viewer.EnableMouse then
-        isSettingMouse[viewer] = true
-        viewer:EnableMouse(false)
-        isSettingMouse[viewer] = false
     end
 end
 
@@ -1465,30 +1367,16 @@ function sfui.common.hide_blizzard_cooldown_viewers()
         sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
     end
 
-    -- essential and utility cooldown viewers are not mirrored by sfui and should be fully shut down
-    local unusedViewers = {
+    local viewers = {
         "EssentialCooldownViewer",
         "UtilityCooldownViewer",
-    }
-    for _, name in ipairs(unusedViewers) do
-        local viewer = _G[name]
-        if viewer then
-            disarm_and_hide_viewer(viewer, false)
-        end
-    end
-
-    -- buffbarcooldownviewer and bufficoncooldownviewer are mirrored by sfui on retail and kept running invisibly at alpha 0.
-    -- on classic / forever, c_cooldownviewer has no specialization support and returns empty sets, while loading
-    -- blizzard_cooldownviewer from addon context taints the frames and causes disallowtaintedaccess crashes on unit_aura.
-    local keepMirroredActive = sfui.isRetail and true or false
-    local mirroredViewers = {
         "BuffBarCooldownViewer",
         "BuffIconCooldownViewer",
     }
-    for _, name in ipairs(mirroredViewers) do
+    for _, name in ipairs(viewers) do
         local viewer = _G[name]
         if viewer then
-            disarm_and_hide_viewer(viewer, keepMirroredActive)
+            disarm_and_hide_viewer(viewer)
         end
     end
 
@@ -1512,12 +1400,9 @@ function sfui.common.hide_blizzard_cooldown_viewers()
             EventRegistry:RegisterCallback("CinematicFrame.CinematicStopped", function()
                 sfui.common.hide_blizzard_cooldown_viewers()
             end)
-            EventRegistry:RegisterCallback("EditMode.Exit", function()
-                sfui.common.hide_blizzard_cooldown_viewers()
-            end)
         end
 
-        -- Game events for cinematics, movies, challenge mode, layout updates, and stance/bar shifts
+        -- Game events for cinematics, movies, challenge mode, and stance/bar shifts
         sfui.events.RegisterEvent("CINEMATIC_STOP", function()
             sfui.common.hide_blizzard_cooldown_viewers()
         end)
@@ -1528,9 +1413,6 @@ function sfui.common.hide_blizzard_cooldown_viewers()
             sfui.common.hide_blizzard_cooldown_viewers()
         end)
         sfui.events.RegisterEvent("CHALLENGE_MODE_RESET", function()
-            sfui.common.hide_blizzard_cooldown_viewers()
-        end)
-        sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
             sfui.common.hide_blizzard_cooldown_viewers()
         end)
         sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORM", function()
@@ -1562,7 +1444,7 @@ function sfui.common.are_blizzard_cooldown_viewers_hidden()
     }
     for _, name in ipairs(viewers) do
         local f = _G[name]
-        if f and (f:GetAlpha() > 0 or f:IsMouseEnabled()) then
+        if f and f.GetAlpha and f:GetAlpha() > 0 then
             return false
         end
     end

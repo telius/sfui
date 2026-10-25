@@ -159,11 +159,31 @@ sfui.options.RegisterTab({
         end, "prevents abilities from dragging unless holding shift, preventing accidental casts while moving abilities.")
         lock_cb:SetPoint("TOPLEFT", enable_cb, "BOTTOMLEFT", 0, -8)
 
-        local mover_btn = CreateFlatButton(panel, "unlock / move bars", 125, 22, function(self)
-            if sfui.actionbars and sfui.actionbars.ToggleMovers then
-                sfui.actionbars.ToggleMovers()
-                local unlocked = sfui.actionbars.moversUnlocked
-                self:SetText(unlocked and "lock bars" or "unlock / move bars")
+        local function is_movers_unlocked()
+            return (sfui.movers and sfui.movers.isUnlocked)
+                or (sfui.actionbars and sfui.actionbars.moversUnlocked)
+                or false
+        end
+
+        local mover_btn = CreateFlatButton(panel, is_movers_unlocked() and "lock UI" or "unlock / move UI", 125, 22, function(self)
+            local currentlyUnlocked = is_movers_unlocked()
+            if currentlyUnlocked then
+                if sfui.movers and sfui.movers.Toggle then
+                    sfui.movers.Toggle(false)
+                elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
+                    sfui.actionbars.ToggleMovers(false)
+                end
+                self:SetText("unlock / move UI")
+            else
+                if sfui.options and sfui.options.Toggle then
+                    sfui.options.Toggle()
+                end
+                if sfui.movers and sfui.movers.Toggle then
+                    sfui.movers.Toggle(true)
+                elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
+                    sfui.actionbars.ToggleMovers(true)
+                end
+                self:SetText("lock UI")
             end
         end)
         mover_btn:SetPoint("TOPLEFT", lock_cb, "BOTTOMLEFT", 0, -8)
@@ -612,8 +632,8 @@ sfui.options.RegisterTab({
                 all_mouseover_cb:SetChecked(cfg.allBarsMouseover == true)
             end
             if mover_btn and mover_btn.SetText then
-                local unlocked = sfui.actionbars and sfui.actionbars.moversUnlocked
-                mover_btn:SetText(unlocked and "lock bars" or "unlock / move bars")
+                local unlocked = is_movers_unlocked()
+                mover_btn:SetText(unlocked and "lock UI" or "unlock / move UI")
             end
             update_pill_highlights()
         end

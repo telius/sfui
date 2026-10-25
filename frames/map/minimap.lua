@@ -24,6 +24,11 @@ local DEFAULT_ZOOM = (sfui.config and sfui.config.minimap and sfui.config.minima
 local isRepositioning = false
 local startup_scans = 0
 
+local MinimapHolder = CreateFrame("Frame", "sfui_MinimapHolder", UIParent)
+MinimapHolder:SetSize(220, 220)
+MinimapHolder:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", 0, 35)
+sfui.minimap.Holder = MinimapHolder
+
 -- ------------------------------------------------------------------------------
 -- Minimap Zoom Management
 -- ------------------------------------------------------------------------------
@@ -93,9 +98,18 @@ function sfui.minimap.update_position(x, y, point, relPoint)
         return
     end
 
-    if _G.EditModeManagerFrame and _G.EditModeManagerFrame.IsEditModeActive and _G.EditModeManagerFrame:IsEditModeActive() then
-        return
-    end
+
+    local width = (SfuiDB and SfuiDB.minimap_width)
+        or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
+        or 220
+    local height = (SfuiDB and SfuiDB.minimap_height)
+        or (sfui.config and sfui.config.minimap and (sfui.config.minimap.height or sfui.config.minimap.default_size))
+        or 220
+
+    MinimapHolder:ClearAllPoints()
+    MinimapHolder:SetPoint(pt, UIParent, rel, posX, posY)
+    MinimapHolder:SetSize(width, height)
+
 
     if isRepositioning then return end
     isRepositioning = true
@@ -105,23 +119,11 @@ function sfui.minimap.update_position(x, y, point, relPoint)
     local target = cluster or map
 
     if target then
-        if target.BreakFromFrameManager then
-            target:BreakFromFrameManager()
-        end
-
-        local scale = (target.GetScale and target:GetScale()) or 1
-        if scale <= 0 then scale = 1 end
-
-        target:ClearAllPoints()
-        target:SetPoint(pt, UIParent, rel, posX / scale, posY / scale)
+        local clearPoints = target.ClearAllPointsBase or target.ClearAllPoints
+        clearPoints(target)
+        local setPoint = target.SetPointBase or target.SetPoint
+        setPoint(target, "TOPRIGHT", MinimapHolder, "TOPRIGHT", 0, 0)
     end
-
-    local width = (SfuiDB and SfuiDB.minimap_width)
-        or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
-        or 220
-    local height = (SfuiDB and SfuiDB.minimap_height)
-        or (sfui.config and sfui.config.minimap and (sfui.config.minimap.height or sfui.config.minimap.default_size))
-        or 220
 
     local isSquare = sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
 
@@ -323,41 +325,6 @@ sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
     end
 end)
 
--- Edit Mode listeners to keep custom position locked after Edit Mode changes
-if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
-    _G.EventRegistry:RegisterCallback("EditMode.Exit", function()
-        sfui.minimap.update_position()
-    end)
-end
-
-sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
-    sfui.minimap.update_position()
-end)
-
-if _G.MinimapCluster and hooksecurefunc then
-    hooksecurefunc(_G.MinimapCluster, "SetPoint", function()
-        if isRepositioning then return end
-        if _G.EditModeManagerFrame and _G.EditModeManagerFrame.IsEditModeActive and _G.EditModeManagerFrame:IsEditModeActive() then
-            return
-        end
-        if InCombatLockdown() then
-            sfui.minimap.pendingPosition = {
-                x = SfuiDB and SfuiDB.minimap_x,
-                y = SfuiDB and SfuiDB.minimap_y,
-                point = SfuiDB and SfuiDB.minimap_point,
-                relPoint = SfuiDB and SfuiDB.minimap_relative_point,
-            }
-            return
-        end
-        if not sfui.minimap._pendingRepositionTimer then
-            sfui.minimap._pendingRepositionTimer = true
-            _G.C_Timer.After(0, function()
-                sfui.minimap._pendingRepositionTimer = false
-                sfui.minimap.update_position()
-            end)
-        end
-    end)
-end
 
 function sfui.minimap_debug_info()
     local button_bar = sfui.minimap.button_bar
@@ -372,5 +339,40 @@ end
 sfui.minimap.GetDebugInfo = sfui.minimap_debug_info
 sfui.RegisterModule("minimap", sfui.minimap)
 
+if sfui.movers and sfui.movers.Register then
+    sfui.movers.Register(MinimapHolder, {
+        key = "minimap",
+        label = "minimap",
+        preferredPoint = "BOTTOMRIGHT",
+        customSize = function()
+            local w = (SfuiDB and SfuiDB.minimap_width)
+                or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
+                or 220
+            local h = (SfuiDB and SfuiDB.minimap_height)
+                or (sfui.config and sfui.config.minimap and (sfui.config.minimap.height or sfui.config.minimap.default_size))
+                or 220
+            return w, h
+        end,
+        getPoint = function()
+            local p = (SfuiDB and SfuiDB.minimap_point) or (sfui.config and sfui.config.minimap and sfui.config.minimap.point) or "BOTTOMRIGHT"
+            local rel = (SfuiDB and SfuiDB.minimap_relative_point) or p
+            local x = (SfuiDB and SfuiDB.minimap_x) or (sfui.config and sfui.config.minimap and sfui.config.minimap.x) or 0
+            local y = (SfuiDB and SfuiDB.minimap_y) or (sfui.config and sfui.config.minimap and sfui.config.minimap.y) or 35
+            return p, UIParent, rel, x, y
+        end,
+        setPoint = function(point, relTo, relPoint, x, y)
+            sfui.minimap.update_position(x, y, point, relPoint)
+        end,
+        resetPosition = function()
+            local defPoint = (sfui.config and sfui.config.minimap and sfui.config.minimap.point) or "BOTTOMRIGHT"
+            local defX = (sfui.config and sfui.config.minimap and sfui.config.minimap.x) or 0
+            local defY = (sfui.config and sfui.config.minimap and sfui.config.minimap.y) or 35
+            sfui.minimap.update_position(defX, defY, defPoint, defPoint)
+        end,
+        isEnabled = function() return true end,
+    })
+end
+
 if sfui.minimap.hook_location_bar then sfui.minimap.hook_location_bar() end
 sfui.minimap.refresh()
+

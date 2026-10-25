@@ -89,9 +89,8 @@ local function _record_caller(cb, fallbackMod)
 end
 
 local function _dispatcher_error_handler(err)
-    local stack = debugstack(2, 10, 10)
     if _G.sfuibug and _G.sfuibug.RecordError then
-        _G.sfuibug.RecordError(_curDispatchCtx, err, stack)
+        _G.sfuibug.RecordError(_curDispatchCtx, err)
     else
         local label = _curDispatchCtx and (_curDispatchCtx.label or _curDispatchCtx.event) or "dispatcher"
         _err(label, err)

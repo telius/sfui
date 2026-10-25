@@ -1241,6 +1241,40 @@ local function CreateTotemBar()
     end)
     dragOverlay:Hide()
 
+    if sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(bar, {
+            key = "totembar",
+            label = "totem bar",
+            preferredPoint = "BOTTOM",
+            customSize = function()
+                return bar:GetWidth(), bar:GetHeight()
+            end,
+            getPoint = function()
+                local p = (SfuiDB and SfuiDB.totembar and SfuiDB.totembar.pos) or { point = "BOTTOM", relPoint = "BOTTOM", x = 0, y = 88 }
+                return p.point or "BOTTOM", UIParent, p.relPoint or "BOTTOM", p.x or 0, p.y or 88
+            end,
+            setPoint = function(point, relTo, relPoint, x, y)
+                SfuiDB = SfuiDB or {}
+                SfuiDB.totembar = SfuiDB.totembar or {}
+                SfuiDB.totembar.pos = { point = point, relPoint = relPoint, x = x, y = y }
+                sfui.totembar.ApplySettings()
+            end,
+            resetPosition = function()
+                sfui.totembar.ResetPosition()
+            end,
+            isEnabled = function()
+                return bar ~= nil and not (SfuiDB and SfuiDB.totembar and SfuiDB.totembar.enabled == false)
+            end,
+            onEnterEditMode = function()
+                bar:Show()
+                bar:SetAlpha(1)
+            end,
+            onExitEditMode = function()
+                sfui.totembar.ApplySettings()
+            end,
+        })
+    end
+
     sfui.totembar.ApplySettings()
 end
 

@@ -16,28 +16,28 @@ local MinimapCluster = _G.MinimapCluster
 -- ------------------------------------------------------------------------------
 -- Mail & Crafting Order Indicator Management
 -- ------------------------------------------------------------------------------
+local isRepositioning = {}
 local indicatorHooked = false
 local mailHooked = false
+
+local function on_indicator_anchor_changed(self)
+    if isRepositioning[self] then return end
+    isRepositioning[self] = true
+    C_Timer.After(0, function()
+        isRepositioning[self] = nil
+        sfui.minimap.update_indicator_positions()
+    end)
+end
 
 local function hook_indicator_frame(frame)
     if not frame or indicatorHooked then return end
     indicatorHooked = true
 
     if frame.SetPoint then
-        hooksecurefunc(frame, "SetPoint", function(self)
-            if self.sfuiRepositioning then return end
-            self.sfuiRepositioning = true
-            sfui.minimap.update_indicator_positions()
-            self.sfuiRepositioning = nil
-        end)
+        hooksecurefunc(frame, "SetPoint", on_indicator_anchor_changed)
     end
     if frame.ClearAllPoints then
-        hooksecurefunc(frame, "ClearAllPoints", function(self)
-            if self.sfuiRepositioning then return end
-            self.sfuiRepositioning = true
-            sfui.minimap.update_indicator_positions()
-            self.sfuiRepositioning = nil
-        end)
+        hooksecurefunc(frame, "ClearAllPoints", on_indicator_anchor_changed)
     end
 end
 
@@ -46,20 +46,10 @@ local function hook_mail_frame(frame)
     mailHooked = true
 
     if frame.SetPoint then
-        hooksecurefunc(frame, "SetPoint", function(self)
-            if self.sfuiRepositioning then return end
-            self.sfuiRepositioning = true
-            sfui.minimap.update_indicator_positions()
-            self.sfuiRepositioning = nil
-        end)
+        hooksecurefunc(frame, "SetPoint", on_indicator_anchor_changed)
     end
     if frame.ClearAllPoints then
-        hooksecurefunc(frame, "ClearAllPoints", function(self)
-            if self.sfuiRepositioning then return end
-            self.sfuiRepositioning = true
-            sfui.minimap.update_indicator_positions()
-            self.sfuiRepositioning = nil
-        end)
+        hooksecurefunc(frame, "ClearAllPoints", on_indicator_anchor_changed)
     end
 end
 
@@ -106,14 +96,14 @@ function sfui.minimap.update_indicator_positions()
         local basePadX = (sfui.config and sfui.config.minimap and sfui.config.minimap.button_bar and sfui.config.minimap.button_bar.pad_x) or 8
 
         if indicator then
-            indicator.sfuiRepositioning = true
+            isRepositioning[indicator] = true
             indicator:SetParent(targetParent)
             indicator:ClearAllPoints()
             indicator:SetPoint("LEFT", button_bar, "LEFT", basePadX, 0)
             indicator:SetFrameStrata(strata)
             indicator:SetFrameLevel(level)
             indicator:SetScale(0.85)
-            indicator.sfuiRepositioning = nil
+            isRepositioning[indicator] = nil
             hook_indicator_frame(indicator)
             hook_mail_visibility(indicator)
             if indicator.MailFrame then
@@ -125,14 +115,14 @@ function sfui.minimap.update_indicator_positions()
         end
 
         if mail and (not indicator or mail:GetParent() ~= indicator) then
-            mail.sfuiRepositioning = true
+            isRepositioning[mail] = true
             mail:SetParent(targetParent)
             mail:ClearAllPoints()
             mail:SetPoint("LEFT", button_bar, "LEFT", basePadX, 0)
             mail:SetFrameStrata(strata)
             mail:SetFrameLevel(level)
             mail:SetScale(0.85)
-            mail.sfuiRepositioning = nil
+            isRepositioning[mail] = nil
             hook_mail_frame(mail)
             hook_mail_visibility(mail)
         end
@@ -142,26 +132,26 @@ function sfui.minimap.update_indicator_positions()
         local posY = isSquare and -6 or -18
 
         if indicator then
-            indicator.sfuiRepositioning = true
+            isRepositioning[indicator] = true
             indicator:SetParent(map)
             indicator:ClearAllPoints()
             indicator:SetPoint("TOPLEFT", map, "TOPLEFT", posX, posY)
             indicator:SetFrameStrata("MEDIUM")
             indicator:SetFrameLevel(math_max(25, indicator:GetFrameLevel()))
             indicator:SetScale(0.75)
-            indicator.sfuiRepositioning = nil
+            isRepositioning[indicator] = nil
             hook_indicator_frame(indicator)
         end
 
         if mail and (not indicator or mail:GetParent() ~= indicator) then
-            mail.sfuiRepositioning = true
+            isRepositioning[mail] = true
             mail:SetParent(map)
             mail:ClearAllPoints()
             mail:SetPoint("TOPLEFT", map, "TOPLEFT", posX, posY)
             mail:SetFrameStrata("MEDIUM")
             mail:SetFrameLevel(math_max(25, mail:GetFrameLevel()))
             mail:SetScale(0.75)
-            mail.sfuiRepositioning = nil
+            isRepositioning[mail] = nil
             hook_mail_frame(mail)
         end
     end
@@ -182,7 +172,9 @@ end
 
 if _G.MiniMapIndicatorFrame_UpdatePosition then
     hooksecurefunc("MiniMapIndicatorFrame_UpdatePosition", function()
-        sfui.minimap.update_indicator_positions()
+        C_Timer.After(0, function()
+            sfui.minimap.update_indicator_positions()
+        end)
     end)
 end
 
@@ -207,6 +199,15 @@ function sfui.minimap.update_queue_status_position()
     btn:SetPoint("BOTTOMLEFT", map, "BOTTOMLEFT", -2, -2)
 end
 
+local function on_queue_status_anchor_changed(self)
+    if isRepositioning[self] then return end
+    isRepositioning[self] = true
+    C_Timer.After(0, function()
+        isRepositioning[self] = nil
+        sfui.minimap.update_queue_status_position()
+    end)
+end
+
 local queueStatusHooked = false
 function sfui.minimap.hook_queue_status()
     if queueStatusHooked then return end
@@ -216,26 +217,18 @@ function sfui.minimap.hook_queue_status()
     queueStatusHooked = true
 
     if btn.SetPoint then
-        hooksecurefunc(btn, "SetPoint", function(self)
-            if self.sfuiRepositioning then return end
-            self.sfuiRepositioning = true
-            sfui.minimap.update_queue_status_position()
-            self.sfuiRepositioning = nil
-        end)
+        hooksecurefunc(btn, "SetPoint", on_queue_status_anchor_changed)
     end
 
     if btn.ClearAllPoints then
-        hooksecurefunc(btn, "ClearAllPoints", function(self)
-            if self.sfuiRepositioning then return end
-            self.sfuiRepositioning = true
-            sfui.minimap.update_queue_status_position()
-            self.sfuiRepositioning = nil
-        end)
+        hooksecurefunc(btn, "ClearAllPoints", on_queue_status_anchor_changed)
     end
 
     if _G.QueueStatusFrame_UpdatePosition then
         hooksecurefunc("QueueStatusFrame_UpdatePosition", function()
-            sfui.minimap.update_queue_status_position()
+            C_Timer.After(0, function()
+                sfui.minimap.update_queue_status_position()
+            end)
         end)
     end
 

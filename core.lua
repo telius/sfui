@@ -684,6 +684,16 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
                 func = function() sfui.toggle_options_panel() end,
             },
             {
+                text = "|cff00ffffedit mode (movers)|r",
+                func = function()
+                    if sfui.movers and sfui.movers.Toggle then
+                        sfui.movers.Toggle()
+                    elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
+                        sfui.actionbars.ToggleMovers()
+                    end
+                end,
+            },
+            {
                 text = "|cff00ff00tracking manager|r",
                 func = function()
                     sfui.trackedoptions.toggle_viewer()
@@ -796,15 +806,26 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
                 icon = sfui.config.appearance.addonIcon,
                 OnClick = function(self, button)
                     if button == "LeftButton" then
-                        if SfuiMinimapMenu:IsShown() then
-                            SfuiMinimapMenu:Hide()
+                        if IsShiftKeyDown() then
+                            if SfuiMinimapMenu and SfuiMinimapMenu:IsShown() then
+                                SfuiMinimapMenu:Hide()
+                            end
+                            if sfui.movers and sfui.movers.Toggle then
+                                sfui.movers.Toggle()
+                            elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
+                                sfui.actionbars.ToggleMovers()
+                            end
                         else
-                            SfuiMinimapMenu.anchor = self
-                            SfuiMinimapMenu.throttle = 0
-                            SfuiMinimapMenu.hideTimer = 0
-                            SfuiMinimapMenu:ClearAllPoints()
-                            SfuiMinimapMenu:SetPoint("TOPRIGHT", self, "BOTTOMRIGHT", 0, -5)
-                            SfuiMinimapMenu:Show()
+                            if SfuiMinimapMenu:IsShown() then
+                                SfuiMinimapMenu:Hide()
+                            else
+                                SfuiMinimapMenu.anchor = self
+                                SfuiMinimapMenu.throttle = 0
+                                SfuiMinimapMenu.hideTimer = 0
+                                SfuiMinimapMenu:ClearAllPoints()
+                                SfuiMinimapMenu:SetPoint("TOPRIGHT", self, "BOTTOMRIGHT", 0, -5)
+                                SfuiMinimapMenu:Show()
+                            end
                         end
                     elseif button == "RightButton" then
                         if IsShiftKeyDown() then
@@ -817,6 +838,7 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
                 OnTooltipShow = function(tooltip)
                     tooltip:AddLine("sfui")
                     tooltip:AddLine("left-click for menu", 0.2, 1, 0.2)
+                    tooltip:AddLine("shift+left-click to lock/unlock movers", 0, 1, 1)
                     tooltip:AddLine("right-click for alts", 0.4, 0.7, 1)
                     tooltip:AddLine("shift+right-click to reload ui", 1, 0.2, 0.2)
                 end,

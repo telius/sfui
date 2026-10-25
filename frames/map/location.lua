@@ -35,19 +35,37 @@ local function suppress_blizzard_elements()
         if btn.StateTexture then btn.StateTexture:SetAlpha(0) end
         if btn.AddTexture then btn.AddTexture:SetAlpha(0) end
 
-        if not btn._sfuiSuppressed then
-            btn._sfuiSuppressed = true
+        if not sfui.minimap._zoneBtnSuppressed then
+            sfui.minimap._zoneBtnSuppressed = true
             hooksecurefunc(btn, "SetAlpha", function(self, a)
-                if a > 0 then self:SetAlpha(0) end
+                if a > 0 then
+                    C_Timer.After(0, function()
+                        if self and self.SetAlpha and self:GetAlpha() > 0 then
+                            self:SetAlpha(0)
+                        end
+                    end)
+                end
             end)
             if btn.EnableMouse then
                 hooksecurefunc(btn, "EnableMouse", function(self, e)
-                    if e then self:EnableMouse(false) end
+                    if e then
+                        C_Timer.After(0, function()
+                            if self and self.EnableMouse and not InCombatLockdown() then
+                                self:EnableMouse(false)
+                            end
+                        end)
+                    end
                 end)
             end
             if btn.StateTexture then
                 hooksecurefunc(btn.StateTexture, "SetAlpha", function(self, a)
-                    if a > 0 then self:SetAlpha(0) end
+                    if a > 0 then
+                        C_Timer.After(0, function()
+                            if self and self.SetAlpha and self:GetAlpha() > 0 then
+                                self:SetAlpha(0)
+                            end
+                        end)
+                    end
                 end)
             end
         end
@@ -56,10 +74,16 @@ local function suppress_blizzard_elements()
     local zoneText = _G.MinimapZoneText
     if zoneText then
         zoneText:SetAlpha(0)
-        if not zoneText._sfuiSuppressed then
-            zoneText._sfuiSuppressed = true
+        if not sfui.minimap._zoneTextSuppressed then
+            sfui.minimap._zoneTextSuppressed = true
             hooksecurefunc(zoneText, "SetAlpha", function(self, a)
-                if a > 0 then self:SetAlpha(0) end
+                if a > 0 then
+                    C_Timer.After(0, function()
+                        if self and self.SetAlpha and self:GetAlpha() > 0 then
+                            self:SetAlpha(0)
+                        end
+                    end)
+                end
             end)
         end
     end

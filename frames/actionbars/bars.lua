@@ -293,17 +293,16 @@ function sfui.actionbars.UpdatePetCooldowns()
     if not bar or not bar.buttons then return end
     if not _G.PetHasActionBar or not _G.PetHasActionBar() or not _G.GetPetActionCooldown then return end
 
-    local CooldownFrame_Set = _G.CooldownFrame_Set
     local GetPetActionCooldown = _G.GetPetActionCooldown
     for i = 1, 10 do
         local btn = bar.buttons[i]
         local cd = btn and btn.cooldown
         if cd then
             local start, duration, enable = GetPetActionCooldown(i)
-            if CooldownFrame_Set then
-                CooldownFrame_Set(cd, start, duration, enable)
-            elseif cd.SetCooldown then
+            if cd.SetCooldown and start and duration and (enable ~= false and enable ~= 0) then
                 cd:SetCooldown(start, duration)
+            elseif cd.Clear then
+                cd:Clear()
             end
         end
     end
@@ -400,7 +399,6 @@ function sfui.actionbars.UpdatePetBar()
     local GetPetActionInfo = _G.GetPetActionInfo
     local GetPetActionSlotUsable = _G.GetPetActionSlotUsable
     local GetPetActionCooldown = _G.GetPetActionCooldown
-    local CooldownFrame_Set = _G.CooldownFrame_Set
     local IsPetAttackAction = _G.IsPetAttackAction
     local PetActionButton_StartFlash = _G.PetActionButton_StartFlash
     local PetActionButton_StopFlash = _G.PetActionButton_StopFlash
@@ -482,10 +480,10 @@ function sfui.actionbars.UpdatePetBar()
 
                 if cd and GetPetActionCooldown then
                     local start, duration, enable = GetPetActionCooldown(i)
-                    if CooldownFrame_Set then
-                        CooldownFrame_Set(cd, start, duration, enable)
-                    elseif cd.SetCooldown then
+                    if cd.SetCooldown and start and duration and (enable ~= false and enable ~= 0) then
                         cd:SetCooldown(start, duration)
+                    elseif cd.Clear then
+                        cd:Clear()
                     end
                 end
 
@@ -778,71 +776,44 @@ function sfui.actionbars.CreateVehicleLeaveButton()
 
     local btn = _G.MainMenuBarVehicleLeaveButton
     if btn then
-        -- Reparent Blizzard's default vehicle exit button directly to UIParent
+        local holder = CreateFrame("Frame", "sfui_VehicleLeaveButtonHolder", UIParent)
+        holder:SetSize(buttonSize, buttonSize)
+        holder.barKey = "vehicle"
+        holder.barConfig = cfg
+
+        -- Reparent Blizzard's default vehicle exit button directly to UIParent and anchor to holder
+        local clearPoints = btn.ClearAllPointsBase or btn.ClearAllPoints
+        clearPoints(btn)
         btn:SetParent(UIParent)
+        local setPoint = btn.SetPointBase or btn.SetPoint
+        setPoint(btn, "CENTER", holder, "CENTER", 0, 0)
         sfui.common.set_pixel_snapping(btn)
         btn:SetFrameStrata("MEDIUM")
         btn:SetFrameLevel(25)
         btn:SetSize(buttonSize, buttonSize)
-        btn.barKey = "vehicle"
-        btn.barConfig = cfg
-        btn.commandName = "VEHICLEEXIT"
-        if sfui.actionbars.bind and sfui.actionbars.bind.RegisterButton then
-            sfui.actionbars.bind.RegisterButton(btn)
-        end
 
         -- 1px black backdrop border to match SFUI theme
-        if not btn.borderBackdrop then
-            btn.borderBackdrop = btn:CreateTexture(nil, "BACKGROUND")
-            btn.borderBackdrop:SetAllPoints()
-            btn.borderBackdrop:SetColorTexture(0, 0, 0, 1)
+        if not holder.borderBackdrop then
+            holder.borderBackdrop = holder:CreateTexture(nil, "BACKGROUND")
+            holder.borderBackdrop:SetAllPoints()
+            holder.borderBackdrop:SetColorTexture(0, 0, 0, 1)
         end
 
         -- Hotkey text
-        if not btn.kb then
-            btn.kb = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            btn.kb:SetPoint("TOPRIGHT", -2, -2)
+        if not holder.kb then
+            holder.kb = holder:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            holder.kb:SetPoint("TOPRIGHT", -2, -2)
         end
-        btn.kb:SetText(sfui.actionbars.GetVehicleExitHotkey())
+        holder.kb:SetText(sfui.actionbars.GetVehicleExitHotkey())
 
-        -- Enhance button visibility to recognize passenger seats, VehicleSeatIndicator, and taxis
-        -- Use secure hook on UpdateShownState without monkey-patching CanExitVehicle (which would
-        -- taint Blizzard EditMode RefreshVehicleLeaveButton execution thread)
-        if hooksecurefunc and not sfui.actionbars._hookedVehicleShownState then
-            sfui.actionbars._hookedVehicleShownState = true
-            hooksecurefunc(btn, "UpdateShownState", function(self)
-                if not self:IsShown() and not (InCombatLockdown and InCombatLockdown()) then
-                    local extraShown = (_G.UnitOnTaxi and _G.UnitOnTaxi("player"))
-                        or (_G.VehicleSeatIndicator and _G.VehicleSeatIndicator:IsShown())
-                        or (_G.UnitInVehicle and _G.UnitInVehicle("player"))
-                        or (_G.UnitControllingVehicle and _G.UnitControllingVehicle("player"))
-                        or (_G.UnitHasVehicleUI and _G.UnitHasVehicleUI("player"))
-                    if extraShown then
-                        self:Show()
-                    end
-                end
-            end)
+        -- Register keybinding hover and mover on holder instead of Blizzard button
+        holder.commandName = "VEHICLEEXIT"
+        if sfui.actionbars.bind and sfui.actionbars.bind.RegisterButton then
+            sfui.actionbars.bind.RegisterButton(holder)
         end
 
-        -- Ensure button updates when VehicleSeatIndicator toggles
-        if _G.VehicleSeatIndicator and not sfui.actionbars._hookedSeatIndicator then
-            sfui.actionbars._hookedSeatIndicator = true
-            hooksecurefunc(_G.VehicleSeatIndicator, "Show", function()
-                if not (InCombatLockdown and InCombatLockdown()) and btn.Update then btn:Update() end
-            end)
-            hooksecurefunc(_G.VehicleSeatIndicator, "Hide", function()
-                if not (InCombatLockdown and InCombatLockdown()) and btn.Update then btn:Update() end
-            end)
-        end
-
-        -- Register additional vehicle and world events
-        btn:RegisterEvent("UPDATE_VEHICLE_ACTIONBAR")
-        btn:RegisterEvent("ACTIONBAR_UPDATE_STATE")
-        btn:RegisterEvent("PLAYER_ENTERING_WORLD")
-
-        -- Register mover
         if sfui.actionbars.movers and sfui.actionbars.movers.CreateMover then
-            sfui.actionbars.movers.CreateMover(btn, nil, "vehicle")
+            sfui.actionbars.movers.CreateMover(holder, nil, "vehicle")
         end
 
         -- Initial update
@@ -853,7 +824,7 @@ function sfui.actionbars.CreateVehicleLeaveButton()
         end
 
         sfui.actionbars.vehicleLeaveButton = btn
-        sfui.actionbars.barsByKey["vehicle"] = btn
+        sfui.actionbars.barsByKey["vehicle"] = holder
         return btn
     end
 
@@ -1285,39 +1256,7 @@ if hooksecurefunc then
     local function TryHookPetActionBar()
         if hookedPetBar then return end
 
-        if _G.PetActionBar and type(_G.PetActionBar.PetActionButtonDown) == "function" then
-            hookedPetBar = true
-            hooksecurefunc(_G.PetActionBar, "PetActionButtonDown", function(_, id)
-                local bar = sfui.actionbars.petBar
-                local btn = bar and bar.buttons and bar.buttons[id]
-                if btn and btn.AnimateDown then
-                    btn:AnimateDown()
-                end
-            end)
-            hooksecurefunc(_G.PetActionBar, "PetActionButtonUp", function(_, id)
-                local bar = sfui.actionbars.petBar
-                local btn = bar and bar.buttons and bar.buttons[id]
-                if btn and btn.AnimateUp then
-                    btn:AnimateUp()
-                end
-            end)
-        elseif _G.PetActionBarMixin and type(_G.PetActionBarMixin.PetActionButtonDown) == "function" then
-            hookedPetBar = true
-            hooksecurefunc(_G.PetActionBarMixin, "PetActionButtonDown", function(_, id)
-                local bar = sfui.actionbars.petBar
-                local btn = bar and bar.buttons and bar.buttons[id]
-                if btn and btn.AnimateDown then
-                    btn:AnimateDown()
-                end
-            end)
-            hooksecurefunc(_G.PetActionBarMixin, "PetActionButtonUp", function(_, id)
-                local bar = sfui.actionbars.petBar
-                local btn = bar and bar.buttons and bar.buttons[id]
-                if btn and btn.AnimateUp then
-                    btn:AnimateUp()
-                end
-            end)
-        elseif type(_G.PetActionButtonDown) == "function" then
+        if not sfui.isRetail and type(_G.PetActionButtonDown) == "function" then
             hookedPetBar = true
             hooksecurefunc("PetActionButtonDown", function(id)
                 local bar = sfui.actionbars.petBar

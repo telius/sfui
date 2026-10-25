@@ -1724,7 +1724,6 @@ function sfui.trackedbars.initialize()
     -- Hide Blizzard Frame
     if BuffBarCooldownViewer then
         BuffBarCooldownViewer:SetAlpha(0)
-        BuffBarCooldownViewer:EnableMouse(false)
     end
 
     -- Hide Blizzard Cooldown Frames

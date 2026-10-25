@@ -294,6 +294,36 @@ sfui.options.RegisterTab({
             sfui.minimap.update_position(defX, defY, defPoint, defPoint)
         end)
 
+        local function is_movers_unlocked()
+            return (sfui.movers and sfui.movers.isUnlocked)
+                or (sfui.actionbars and sfui.actionbars.moversUnlocked)
+                or false
+        end
+
+        local edit_mode_btn = CreateFlatButton(minimap_panel, is_movers_unlocked() and "lock UI" or "unlock / move UI", 120, 22)
+        edit_mode_btn:SetPoint("LEFT", reset_map_pos_btn, "RIGHT", 10, 0)
+        edit_mode_btn:SetScript("OnClick", function(self)
+            local currentlyUnlocked = is_movers_unlocked()
+            if currentlyUnlocked then
+                if sfui.movers and sfui.movers.Toggle then
+                    sfui.movers.Toggle(false)
+                elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
+                    sfui.actionbars.ToggleMovers(false)
+                end
+                self:SetText("unlock / move UI")
+            else
+                if sfui.options and sfui.options.Toggle then
+                    sfui.options.Toggle()
+                end
+                if sfui.movers and sfui.movers.Toggle then
+                    sfui.movers.Toggle(true)
+                elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
+                    sfui.actionbars.ToggleMovers(true)
+                end
+                self:SetText("lock UI")
+            end
+        end)
+
         local bar_header = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
         bar_header:SetPoint("TOPLEFT", reset_map_pos_btn, "BOTTOMLEFT", 0, -18)
         bar_header:SetTextColor(white[1], white[2], white[3])

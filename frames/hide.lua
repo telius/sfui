@@ -84,8 +84,14 @@ local function InitDB()
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
---  Blizzard Unit & HUD Frames Permanent Suppression
+--  Blizzard Unit & HUD Frames Permanent Suppression (Taint-Free Alpha Pattern)
 -- ─────────────────────────────────────────────────────────────────────────────
+local HiddenFrame = CreateFrame("Frame", nil, UIParent)
+HiddenFrame:SetPoint("BOTTOM")
+HiddenFrame:SetSize(1, 1)
+HiddenFrame:Hide()
+sfui.hide.HiddenFrame = HiddenFrame
+
 local function GetFramesForEntry(entry)
     local list = {}
     if entry.name and _G[entry.name] then
@@ -104,68 +110,70 @@ local function GetFramesForEntry(entry)
     return list
 end
 
-local hookedFrames = {}
 local hookedMultiCast = false
 
-local function IsEditModeActive()
-    return _G.EditModeManagerFrame and _G.EditModeManagerFrame.IsEditModeActive and _G.EditModeManagerFrame:IsEditModeActive()
+local function ShouldHide(key)
+    if not SfuiDB then return false end
+    if key == "hide_target_frame" then
+        return (SfuiDB.hide_target_frame == true) or (SfuiDB.enableTargetBar ~= false)
+    end
+    return SfuiDB[key] == true
+end
+
+local function SuppressFrame(frame, entry)
+    if not frame then return end
+    if frame.SetAlpha and (not frame.GetAlpha or frame:GetAlpha() ~= 0) then
+        frame:SetAlpha(0)
+    end
+    local isProtected = frame.IsProtected and frame:IsProtected()
+    if not isProtected and frame.EnableMouse and not (InCombatLockdown and InCombatLockdown()) then
+        pcall(frame.EnableMouse, frame, false)
+    end
+    if frame.totFrame then
+        if frame.totFrame.SetAlpha and (not frame.totFrame.GetAlpha or frame.totFrame:GetAlpha() ~= 0) then
+            frame.totFrame:SetAlpha(0)
+        end
+        if not isProtected and frame.totFrame.EnableMouse and not (InCombatLockdown and InCombatLockdown()) then
+            pcall(frame.totFrame.EnableMouse, frame.totFrame, false)
+        end
+    end
+end
+
+local function RestoreFrame(frame, entry)
+    if not frame then return end
+    if frame.GetAlpha and frame:GetAlpha() ~= 1.0 then
+        frame:SetAlpha(1.0)
+    end
+    local isProtected = frame.IsProtected and frame:IsProtected()
+    if not isProtected and frame.EnableMouse and not (InCombatLockdown and InCombatLockdown()) then
+        pcall(frame.EnableMouse, frame, true)
+    end
+    if frame.totFrame then
+        if frame.totFrame.GetAlpha and frame.totFrame:GetAlpha() ~= 1.0 then
+            frame.totFrame:SetAlpha(1.0)
+        end
+        if not isProtected and frame.totFrame.EnableMouse and not (InCombatLockdown and InCombatLockdown()) then
+            pcall(frame.totFrame.EnableMouse, frame.totFrame, true)
+        end
+    end
 end
 
 local function ApplyUnitFrame(entry)
     local frames = GetFramesForEntry(entry)
     if #frames == 0 then return end
-    if IsEditModeActive() then return end
 
-    local shouldHide = SfuiDB and (SfuiDB[entry.key] == true)
+    local shouldHide = ShouldHide(entry.key)
 
     for _, frame in ipairs(frames) do
-        -- Special handling for TotemFrame on Retail (preserve 100% untainted state for 12.1.0 secret values)
-        if frame == _G.TotemFrame then
-            if shouldHide then
-                frame:SetAlpha(0)
-            elseif frame.GetAlpha and frame:GetAlpha() ~= 1.0 then
-                frame:SetAlpha(1)
-            end
+        if shouldHide then
+            SuppressFrame(frame, entry)
         else
-            local isProtected = frame.IsProtected and frame:IsProtected()
-            if shouldHide then
-                frame:SetAlpha(0)
-                if not isProtected and frame.EnableMouse and not InCombatLockdown() then
-                    pcall(frame.EnableMouse, frame, false)
-                end
-            elseif frame.GetAlpha and frame:GetAlpha() ~= 1.0 then
-                frame:SetAlpha(1)
-                if not isProtected and frame.EnableMouse and not InCombatLockdown() then
-                    pcall(frame.EnableMouse, frame, true)
-                end
-            end
+            RestoreFrame(frame, entry)
         end
     end
 end
 
 local function HookUnitFrames()
-    for _, entry in ipairs(HIDE_FRAMES) do
-        local frames = GetFramesForEntry(entry)
-        for _, frame in ipairs(frames) do
-            -- Never hook TotemFrame on Retail (avoids OnShow taint and secret value errors in 12.1.0)
-            if frame and frame ~= _G.TotemFrame and not hookedFrames[frame] then
-                hookedFrames[frame] = true
-                if hooksecurefunc then
-                    hooksecurefunc(frame, "Show", function(self)
-                        if IsEditModeActive() then return end
-                        if SfuiDB and SfuiDB[entry.key] == true then
-                            self:SetAlpha(0)
-                            local isProtected = self.IsProtected and self:IsProtected()
-                            if not isProtected and self.EnableMouse and not InCombatLockdown() then
-                                pcall(self.EnableMouse, self, false)
-                            end
-                        end
-                    end)
-                end
-            end
-        end
-    end
-
     -- MultiCastActionBarFrame for Classic / Camelot only
     if not sfui.isRetail and hooksecurefunc and _G.MultiCastActionBarFrame_Update and not hookedMultiCast then
         hookedMultiCast = true
@@ -179,28 +187,26 @@ local function HookUnitFrames()
             end
         end)
     end
+end
 
-    if _G.EventRegistry and _G.EventRegistry.RegisterCallback and not sfui.hide._hookedEditMode then
-        sfui.hide._hookedEditMode = true
-        _G.EventRegistry:RegisterCallback("EditMode.Enter", function()
-            for _, entry in ipairs(HIDE_FRAMES) do
-                local frames = GetFramesForEntry(entry)
-                for _, frame in ipairs(frames) do
-                    if frame and frame.SetAlpha then
-                        frame:SetAlpha(1)
-                        local isProtected = frame.IsProtected and frame:IsProtected()
-                        if not isProtected and frame.EnableMouse and not InCombatLockdown() then
-                            pcall(frame.EnableMouse, frame, true)
-                        end
-                    end
-                end
-            end
-        end)
-        _G.EventRegistry:RegisterCallback("EditMode.Exit", function()
-            sfui.hide.ApplyAllUnitFrames()
-        end)
+-- Stubs & helpers for external modules
+sfui.hide.SuppressFrame = SuppressFrame
+sfui.hide.RestoreFrame = RestoreFrame
+
+function sfui.hide.SuppressTargetFrame()
+    local tf = _G.TargetFrame
+    if tf then
+        SuppressFrame(tf, { key = "hide_target_frame" })
     end
 end
+
+function sfui.hide.RestoreTargetFrame()
+    local tf = _G.TargetFrame
+    if tf then
+        RestoreFrame(tf, { key = "hide_target_frame" })
+    end
+end
+
 
 function sfui.hide.ApplyAllUnitFrames()
     HookUnitFrames()
@@ -323,6 +329,13 @@ local function init_module(self)
 
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", on_regen_enabled)
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_player_entering_world)
+    sfui.events.RegisterEvent("ADDON_LOADED", function(event, loadedAddon)
+        if loadedAddon == "Blizzard_Minimap" or loadedAddon == "Blizzard_ObjectiveTracker" then
+            C_Timer.After(0, function()
+                sfui.hide.ApplyAllUnitFrames()
+            end)
+        end
+    end)
 end
 
 sfui.hide.OnInit = function(self)

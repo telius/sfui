@@ -13,24 +13,16 @@ local pairs = _G.pairs
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Offscreen Blizzard Action Bars Suppression (Bartender4 Pattern)
 -- ─────────────────────────────────────────────────────────────────────────────
-local function hide_bar_frame(frame, clearEvents)
-    if not frame then return end
-    if clearEvents and frame.UnregisterAllEvents then
-        frame:UnregisterAllEvents()
-    end
-    if frame.system then
-        rawset(frame, "isShownExternal", nil)
-    end
-    if frame.HideBase then
-        frame:HideBase()
-    else
-        frame:Hide()
-    end
-    local Hider = sfui.actionbars.Hider
-    if Hider and frame.SetParent then
-        frame:SetParent(Hider)
-    end
-end
+--  Blizzard Action Bar Suppression (ElvUI Untaint Pattern)
+-- ─────────────────────────────────────────────────────────────────────────────
+local UNTAINT_BARS = {
+    "MultiBar5", "MultiBar6", "MultiBar7", "MultiBarLeft", "MultiBarRight",
+    "MultiBarBottomLeft", "MultiBarBottomRight", "MicroButtonAndBagsBar",
+    "OverrideActionBar", "MainMenuBar", "MainActionBar", "StanceBar",
+    "PetActionBar", "PossessActionBar", "MainMenuBarArtFrame",
+    "ShapeshiftBarFrame", "StanceBarFrame", "PetActionBarFrame",
+    "PossessBarFrame", "MultiCastActionBarFrame",
+}
 
 local function suppress_blizzard_actionbars()
     if InCombatLockdown and InCombatLockdown() then
@@ -40,40 +32,30 @@ local function suppress_blizzard_actionbars()
         return
     end
 
-    local Hider = sfui.actionbars.Hider
-    if not Hider then
-        Hider = CreateFrame("Frame", "sfui_ActionBarHider", UIParent)
-        Hider:Hide()
-        sfui.actionbars.Hider = Hider
+    for _, name in ipairs(UNTAINT_BARS) do
+        local bar = _G[name]
+        if bar then
+            if bar.SetAlpha then
+                bar:SetAlpha(0)
+            end
+            local isProtected = bar.IsProtected and bar:IsProtected()
+            if not isProtected and bar.EnableMouse and not InCombatLockdown() then
+                pcall(bar.EnableMouse, bar, false)
+            end
+        end
     end
 
-    -- Retail Action Bars
-    hide_bar_frame(_G.MainActionBar, false)
-    hide_bar_frame(_G.MultiBarBottomLeft, true)
-    hide_bar_frame(_G.MultiBarBottomRight, true)
-    hide_bar_frame(_G.MultiBarRight, true)
-    hide_bar_frame(_G.MultiBarLeft, true)
-    hide_bar_frame(_G.MultiBar5, true)
-    hide_bar_frame(_G.MultiBar6, true)
-    hide_bar_frame(_G.MultiBar7, true)
-    hide_bar_frame(_G.StanceBar, true)
-    hide_bar_frame(_G.PossessActionBar, true)
-    hide_bar_frame(_G.PetActionBar, true)
-
-    -- Classic / Camelot compatibility bars
-    hide_bar_frame(_G.MainMenuBar, false)
-    hide_bar_frame(_G.MainMenuBarArtFrame, true)
-    hide_bar_frame(_G.ShapeshiftBarFrame, true)
-    hide_bar_frame(_G.StanceBarFrame, true)
-    hide_bar_frame(_G.PetActionBarFrame, true)
-    hide_bar_frame(_G.PossessBarFrame, true)
-    hide_bar_frame(_G.MultiCastActionBarFrame, false)
+    -- StatusTrackingBarManager
+    local stbm = _G.StatusTrackingBarManager
+    if stbm and stbm.SetAlpha then
+        stbm:SetAlpha(0)
+    end
 end
 
 if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("ADDON_LOADED", function(event, addonLoaded)
         if addonLoaded == "Blizzard_ActionBar" then
-            suppress_blizzard_actionbars()
+            C_Timer.After(0, suppress_blizzard_actionbars)
         end
     end)
 end

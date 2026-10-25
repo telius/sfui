@@ -358,20 +358,19 @@ local function SuppressBlizzardSwingTimer()
 
     -- Unregister events on the manager frame so it stops processing swings
     local mgr = _G["SwingTimerManagerFrame"]
-    if mgr then
-        mgr:UnregisterAllEvents()
+    if mgr and mgr.SetAlpha then
+        mgr:SetAlpha(0)
     end
 
-    -- Unregister, hide, set alpha 0, disable mouse, and lock OnShow on the visual frames
     local allFound = true
     for i = 1, 3 do
         local f = _G[BLIZZARD_FRAME_NAMES[i]]
         if f then
-            f:UnregisterAllEvents()
-            f:SetAlpha(0)
-            if f.EnableMouse then f:EnableMouse(false) end
-            f:Hide()
-            f:SetScript("OnShow", f.Hide)
+            if f.SetAlpha then f:SetAlpha(0) end
+            local isProtected = f.IsProtected and f:IsProtected()
+            if not isProtected and f.EnableMouse and not (InCombatLockdown and InCombatLockdown()) then
+                pcall(f.EnableMouse, f, false)
+            end
         else
             allFound = false
         end

@@ -456,22 +456,24 @@ function exp.SetBarMode(mode)
     end
 end
 
---- Disable reputation tracking: unwatch active faction and disable auto-switch on gain
+--- Whether the user has disabled reputation tracking
+--- @return boolean
+function exp.IsReputationTrackingDisabled()
+    return (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repDisabled", false)) == true
+end
+
+--- Disable reputation tracking: unwatch active faction, disable auto-switch on gain,
+--- and persist a flag so the rep bar stays hidden until tracking is re-enabled
 function exp.DisableReputationTracking()
-    if exp.data and exp.data.SetWatchedFaction then
-        exp.data.SetWatchedFaction(0)
-    end
     if sfui.db and sfui.db.Set then
+        sfui.db.Set("experience", "repDisabled", true)
         sfui.db.Set("experience", "autoSwitchRepOnGain", false)
     end
     if SfuiDB then
         SfuiDB._expCustomizedAutoSwitchRep = true
     end
-    if exp.reputation and exp.reputation.GetFrame then
-        local rf = exp.reputation.GetFrame()
-        if rf and not rf._isUnlocked then
-            rf:Hide()
-        end
+    if exp.data and exp.data.SetWatchedFaction then
+        exp.data.SetWatchedFaction(0)
     end
     local mode = exp.GetBarMode()
     if mode == "REP" then
@@ -480,7 +482,29 @@ function exp.DisableReputationTracking()
         exp.Update()
     end
     if sfui.common and sfui.common.print then
-        sfui.common.print("reputation tracking disabled and cleared.")
+        sfui.common.print("reputation tracking disabled.")
+    end
+end
+
+--- Re-enable reputation tracking (does not re-watch a faction; the next watched
+--- faction or reputation gain with auto-switch on brings the bar back)
+function exp.EnableReputationTracking()
+    if sfui.db and sfui.db.Set then
+        sfui.db.Set("experience", "repDisabled", false)
+    end
+    if exp.Update then
+        exp.Update()
+    end
+    if sfui.common and sfui.common.print then
+        sfui.common.print("reputation tracking enabled.")
+    end
+end
+
+function exp.ToggleReputationTracking()
+    if exp.IsReputationTrackingDisabled() then
+        exp.EnableReputationTracking()
+    else
+        exp.DisableReputationTracking()
     end
 end
 

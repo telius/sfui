@@ -356,6 +356,7 @@ sfui.config = {
         repOnlyAtMaxLevel = true,    -- Only show reputation bar at maximum level
         autoReputation = true,       -- Switch to reputation if max level or tracking faction
         autoSwitchRepOnGain = true,  -- Automatically activate and switch reputation bar when reputation is gained
+        repDisabled = false,         -- User disabled reputation tracking (rep bar stays hidden)
         trackLegacy = false,         -- Camelot only: track legacy challenges reward track (faction 2802)
         showChallengesBar = false,   -- Show stacked challenges bar when available
         challengesHeight = 12,       -- Height of the stacked challenges bar

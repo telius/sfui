@@ -414,8 +414,13 @@ sfui.options.RegisterTab({
                 bug_minimap_value:Show()
                 bug_recent_label:Show()
                 bug_recent_value:Show()
-
-                bug_status_value:SetText("|cff00ff88active (xpcall + global hook)|r")
+                local mode = _G.sfuibug and _G.sfuibug.captureMode or "active"
+                local sunk = _G.sfuibug and _G.sfuibug.GetSunkCount and _G.sfuibug.GetSunkCount() or 0
+                local statusText = string_format("|cff00ff88active (%s sink)|r", mode)
+                if sunk > 0 then
+                    statusText = statusText .. string_format(" |cff888888(%d sunk)|r", sunk)
+                end
+                bug_status_value:SetText(statusText)
 
                 local db = _G.SfuiBugDB or {}
                 local activeCount = db.order and #db.order or 0

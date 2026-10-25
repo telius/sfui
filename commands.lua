@@ -163,12 +163,16 @@ SlashCmdList["SFUI"] = function(msg)
         if sfui.triage and sfui.triage.CheckSoulShards then
             sfui.triage.CheckSoulShards()
         end
-    elseif cmd == "move" or cmd == "unlock" then
-        if sfui.actionbars and sfui.actionbars.ToggleMovers then
+    elseif cmd == "move" or cmd == "unlock" or cmd == "edit" then
+        if sfui.movers and sfui.movers.Toggle then
+            sfui.movers.Toggle(true)
+        elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
             sfui.actionbars.ToggleMovers(true)
         end
     elseif cmd == "lock" then
-        if sfui.actionbars and sfui.actionbars.ToggleMovers then
+        if sfui.movers and sfui.movers.Toggle then
+            sfui.movers.Toggle(false)
+        elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
             sfui.actionbars.ToggleMovers(false)
         end
     elseif cmd == "ring" or cmd == "rings" then
@@ -215,9 +219,9 @@ SlashCmdList["SFUI"] = function(msg)
     elseif cmd == "help" or cmd == "?" then
         if sfui.common and sfui.common.print then
             if sfui.isRetail then
-                sfui.common.print("commands: /sfui [tab] | /sfui theme [mode] | /sfui portals | /sfmem | /rl")
+                sfui.common.print("commands: /sfui [tab] | /sfui edit | /sfui theme [mode] | /sfui portals | /sfmem | /rl")
             else
-                sfui.common.print("commands: /sfui [tab] | /sfui theme [mode] | /sfui recipes | /sfui portals | /sfui shards | /sfmem | /rl | /totembar")
+                sfui.common.print("commands: /sfui [tab] | /sfui edit | /sfui theme [mode] | /sfui recipes | /sfui portals | /sfui shards | /sfmem | /rl | /totembar")
             end
         end
     else
@@ -289,17 +293,24 @@ SlashCmdList["SFUIMAIL"] = function()
     end
 end
 
--- Dedicated Action Bar Movers Commands (/sfmove, /sflock)
+-- Dedicated Standalone SFUI Edit Mode Commands (/sfmove, /sfedit, /sflock)
 SLASH_SFUIMOVE1 = "/sfmove"
+SLASH_SFUIMOVE2 = "/sfedit"
+SLASH_SFUIMOVE3 = "/sfuiunlock"
 SlashCmdList["SFUIMOVE"] = function()
-    if sfui.actionbars and sfui.actionbars.ToggleMovers then
+    if sfui.movers and sfui.movers.Toggle then
+        sfui.movers.Toggle(true)
+    elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
         sfui.actionbars.ToggleMovers(true)
     end
 end
 
 SLASH_SFUILOCK1 = "/sflock"
+SLASH_SFUILOCK2 = "/sfuilock"
 SlashCmdList["SFUILOCK"] = function()
-    if sfui.actionbars and sfui.actionbars.ToggleMovers then
+    if sfui.movers and sfui.movers.Toggle then
+        sfui.movers.Toggle(false)
+    elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
         sfui.actionbars.ToggleMovers(false)
     end
 end

@@ -202,9 +202,25 @@ function data.GetQuestXPData(maxXP)
 end
 
 -- ─── Reputation & Renown Data ─────────────────────────────────────────────────
+local function EmptyRepData()
+    _repData.hasRep = false
+    _repData.name = nil
+    _repData.current = 0
+    _repData.max = 1
+    _repData.percent = 0
+    _repData.remaining = 1
+    return _repData
+end
+
 --- Query watched faction, renown, or friendship progress
 --- @return table
 function data.GetReputationData()
+    -- User disabled reputation tracking: report no watched faction even if the
+    -- client still returns one (unwatching is server-acknowledged and async).
+    if sfui.db and sfui.db.Get and sfui.db.Get("experience", "repDisabled", false) then
+        return EmptyRepData()
+    end
+
     -- 1. Retail / Midnight API: C_Reputation.GetWatchedFactionData()
     if C_Reputation and C_Reputation.GetWatchedFactionData then
         local watched = C_Reputation.GetWatchedFactionData()
@@ -336,13 +352,7 @@ function data.GetReputationData()
         end
     end
 
-    _repData.hasRep = false
-    _repData.name = nil
-    _repData.current = 0
-    _repData.max = 1
-    _repData.percent = 0
-    _repData.remaining = 1
-    return _repData
+    return EmptyRepData()
 end
 
 -- ─── Camelot Legacy Challenges & Reward Track Data ────────────────────────────

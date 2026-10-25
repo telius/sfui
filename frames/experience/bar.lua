@@ -609,5 +609,58 @@ function barModule.Create()
     UpdateTextVisibility(false)
     barModule.UpdateValues()
 
+    if sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(container, {
+            key = "experience",
+            label = "experience bar",
+            preferredPoint = "BOTTOM",
+            customSize = function()
+                local cfg = sfui.config.experience or {}
+                local w = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "width", cfg.width or 460)) or 460
+                local h = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "height", cfg.height or 14)) or 14
+                return w, h
+            end,
+            getPoint = function()
+                local cfg = sfui.config.experience or {}
+                local pos = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "pos", cfg.pos)) or cfg.pos or { point = "BOTTOM", x = 0, y = 4 }
+                return pos.point or "BOTTOM", _G.UIParent, pos.relativePoint or pos.point or "BOTTOM", pos.x or 0, pos.y or 4
+            end,
+            setPoint = function(point, relTo, relPoint, x, y)
+                if sfui.db and sfui.db.Set then
+                    sfui.db.Set("experience", "pos", {
+                        point = point,
+                        relativePoint = relPoint,
+                        x = x,
+                        y = y,
+                    })
+                end
+                barModule.UpdateLayout()
+            end,
+            resetPosition = function()
+                local expMod = sfui.experience
+                if expMod and expMod.ResetPosition then
+                    expMod.ResetPosition()
+                else
+                    local cfg = sfui.config.experience or {}
+                    local defPos = cfg.pos or { point = "BOTTOM", x = 0, y = 4 }
+                    if sfui.db and sfui.db.Set then
+                        sfui.db.Set("experience", "pos", defPos)
+                    end
+                    barModule.UpdateLayout()
+                end
+            end,
+            isEnabled = function()
+                return container ~= nil
+            end,
+            onEnterEditMode = function()
+                container:Show()
+                container:SetAlpha(1.0)
+            end,
+            onExitEditMode = function()
+                barModule.UpdateValues()
+            end,
+        })
+    end
+
     return container
 end

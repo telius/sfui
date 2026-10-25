@@ -102,16 +102,36 @@ sfui.options.RegisterTab({
             sfui.questlog.reset_position()
         end)
 
-        if _G.EditModeManagerFrame then
-            local open_em_btn = CreateFlatButton(p, "open edit mode", 120, 22)
-            open_em_btn:SetPoint("LEFT", reset_ql_pos_btn, "RIGHT", 10, 0)
-            open_em_btn:SetScript("OnClick", function()
-                if _G.InCombatLockdown and _G.InCombatLockdown() then return end
-                if _G.ShowUIPanel and _G.EditModeManagerFrame then
-                    _G.ShowUIPanel(_G.EditModeManagerFrame)
-                end
-            end)
+        local function is_movers_unlocked()
+            return (sfui.movers and sfui.movers.isUnlocked)
+                or (sfui.actionbars and sfui.actionbars.moversUnlocked)
+                or false
         end
+
+        local toggle_movers_btn = CreateFlatButton(p, is_movers_unlocked() and "lock UI" or "unlock / move UI", 120, 22)
+        toggle_movers_btn:SetPoint("LEFT", reset_ql_pos_btn, "RIGHT", 10, 0)
+        toggle_movers_btn:SetScript("OnClick", function(self)
+            if _G.InCombatLockdown and _G.InCombatLockdown() then return end
+            local currentlyUnlocked = is_movers_unlocked()
+            if currentlyUnlocked then
+                if sfui.movers and sfui.movers.Toggle then
+                    sfui.movers.Toggle(false)
+                elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
+                    sfui.actionbars.ToggleMovers(false)
+                end
+                self:SetText("unlock / move UI")
+            else
+                if sfui.options and sfui.options.Toggle then
+                    sfui.options.Toggle()
+                end
+                if sfui.movers and sfui.movers.Toggle then
+                    sfui.movers.Toggle(true)
+                elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
+                    sfui.actionbars.ToggleMovers(true)
+                end
+                self:SetText("lock UI")
+            end
+        end)
         yOff = yOff - 36
 
         -- ── Section: Dungeon Journal & World Map Pins (Classic & Camelot) ────

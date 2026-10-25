@@ -103,14 +103,34 @@ sfui.options.RegisterTab({
             end
         end
 
-        local unlock_btn = CreateFlatButton(exp_panel, getUnlockText(), 120, 22)
+        local function is_movers_unlocked()
+            return (sfui.movers and sfui.movers.isUnlocked)
+                or (sfui.actionbars and sfui.actionbars.moversUnlocked)
+                or (sfui.experience and sfui.experience.IsUnlocked and sfui.experience.IsUnlocked())
+                or false
+        end
+
+        local unlock_btn = CreateFlatButton(exp_panel, is_movers_unlocked() and "lock UI" or "unlock / move UI", 120, 22)
         unlock_btn:SetPoint("TOPLEFT", tips, "BOTTOMLEFT", 0, -12)
-        unlock_btn:SetScript("OnClick", function()
-            if sfui.experience and sfui.experience.ToggleUnlock then
-                sfui.experience.ToggleUnlock()
-                if refreshTabUI then
-                    refreshTabUI()
+        unlock_btn:SetScript("OnClick", function(self)
+            local currentlyUnlocked = is_movers_unlocked()
+            if currentlyUnlocked then
+                if sfui.movers and sfui.movers.Toggle then
+                    sfui.movers.Toggle(false)
+                elseif sfui.experience and sfui.experience.ToggleUnlock then
+                    sfui.experience.ToggleUnlock()
                 end
+                self:SetText("unlock / move UI")
+            else
+                if sfui.options and sfui.options.Toggle then
+                    sfui.options.Toggle()
+                end
+                if sfui.movers and sfui.movers.Toggle then
+                    sfui.movers.Toggle(true)
+                elseif sfui.experience and sfui.experience.ToggleUnlock then
+                    sfui.experience.ToggleUnlock()
+                end
+                self:SetText("lock UI")
             end
         end)
 
@@ -276,15 +296,25 @@ sfui.options.RegisterTab({
         end, function(checked)
             sfui.db.Set("experience", "autoSwitchRepOnGain", checked)
             if SfuiDB then SfuiDB._expCustomizedAutoSwitchRep = true end
+            if checked and sfui.db.Get("experience", "repDisabled", false) then
+                sfui.db.Set("experience", "repDisabled", false)
+                if sfui.experience and sfui.experience.Update then sfui.experience.Update() end
+                if refreshTabUI then refreshTabUI() end
+            end
         end, "automatically activates and switches the watched reputation bar to any faction whenever reputation is gained."))
         rep_gain_cb:SetPoint("TOPLEFT", rep_top_cb, "BOTTOMLEFT", 0, -8)
 
-        local disable_rep_btn = CreateFlatButton(exp_panel, "disable reputation tracking", 200, 22)
+        local function getRepTrackingText()
+            local disabled = sfui.experience and sfui.experience.IsReputationTrackingDisabled and sfui.experience.IsReputationTrackingDisabled()
+            return disabled and "enable reputation tracking" or "disable reputation tracking"
+        end
+
+        local disable_rep_btn = CreateFlatButton(exp_panel, getRepTrackingText(), 200, 22)
         disable_rep_btn:SetPoint("TOPLEFT", rep_gain_cb, "BOTTOMLEFT", 0, -10)
-        disable_rep_btn.tooltip = "stops watching the current faction, disables auto-switching on reputation gains, and hides the reputation bar."
+        disable_rep_btn.tooltip = "disable: stops watching the current faction, turns off auto-switching on reputation gains, and keeps the reputation bar hidden. enable: allows the reputation bar again."
         disable_rep_btn:SetScript("OnClick", function()
-            if sfui.experience and sfui.experience.DisableReputationTracking then
-                sfui.experience.DisableReputationTracking()
+            if sfui.experience and sfui.experience.ToggleReputationTracking then
+                sfui.experience.ToggleReputationTracking()
                 if refreshTabUI then
                     refreshTabUI()
                 end
@@ -409,6 +439,9 @@ sfui.options.RegisterTab({
             end
             if toggle_mode_btn and toggle_mode_btn.SetText then
                 toggle_mode_btn:SetText(getModeText())
+            end
+            if disable_rep_btn and disable_rep_btn.SetText then
+                disable_rep_btn:SetText(getRepTrackingText())
             end
         end
 

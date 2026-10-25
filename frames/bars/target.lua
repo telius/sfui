@@ -188,58 +188,22 @@ local function GetTargetHealthColor()
     return 0.85, 0.22, 0.22
 end
 
--- ─── Blizzard TargetFrame Clean Suppression ──────────────────────────────────
+-- ─── Blizzard TargetFrame Clean Suppression (ElvUI HiddenFrame pattern) ──────
 local function SuppressBlizzardTargetFrame()
-    local tf = _G.TargetFrame
-    if not tf then return end
-    if _G.EditModeManagerFrame and _G.EditModeManagerFrame.IsEditModeActive and _G.EditModeManagerFrame:IsEditModeActive() then
-        if tf:GetAlpha() < 1 then
-            tf:SetAlpha(1)
-            if tf.EnableMouse and not InCombatLockdown() then
-                pcall(tf.EnableMouse, tf, true)
-            end
-        end
-        return
-    end
     if SfuiDB and SfuiDB.enableTargetBar == false then
-        if tf:GetAlpha() < 1 then
-            tf:SetAlpha(1)
-            if tf.EnableMouse and not InCombatLockdown() then
-                pcall(tf.EnableMouse, tf, true)
-            end
+        if sfui.hide and sfui.hide.RestoreTargetFrame then
+            sfui.hide.RestoreTargetFrame()
         end
         return
     end
-    tf:SetAlpha(0)
-    if tf.EnableMouse and not InCombatLockdown() then
-        pcall(tf.EnableMouse, tf, false)
+
+    if sfui.hide and sfui.hide.SuppressTargetFrame then
+        sfui.hide.SuppressTargetFrame()
     end
 end
 
 local function HookBlizzardTargetFrame()
-    local tf = _G.TargetFrame
-    if not tf or tf._sfuiTargetHooked then return end
-    tf._sfuiTargetHooked = true
-    if hooksecurefunc then
-        hooksecurefunc(tf, "Show", SuppressBlizzardTargetFrame)
-    elseif tf.HookScript then
-        tf:HookScript("OnShow", SuppressBlizzardTargetFrame)
-    end
     SuppressBlizzardTargetFrame()
-
-    if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
-        _G.EventRegistry:RegisterCallback("EditMode.Enter", function()
-            if _G.TargetFrame then
-                _G.TargetFrame:SetAlpha(1)
-                if _G.TargetFrame.EnableMouse and not InCombatLockdown() then
-                    pcall(_G.TargetFrame.EnableMouse, _G.TargetFrame, true)
-                end
-            end
-        end)
-        _G.EventRegistry:RegisterCallback("EditMode.Exit", function()
-            SuppressBlizzardTargetFrame()
-        end)
-    end
 end
 
 -- ─── Native AuraContainer Button Initializers ────────────────────────────────
@@ -1445,6 +1409,56 @@ local function CreateTargetFrame()
 
     ApplyTargetPosition()
 
+    if sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(targetContainer, {
+            key = "targetbar",
+            label = "target bar",
+            preferredPoint = "TOP",
+            customSize = function()
+                return targetContainer:GetWidth(), targetContainer:GetHeight()
+            end,
+            getPoint = function()
+                local p = SfuiDB and SfuiDB.targetBar_pos
+                local pt = (p and p.point) or "TOP"
+                local x = (p and p.x) or 0
+                local y = (p and p.y) or -35
+                return pt, UIParent, pt, x, y
+            end,
+            setPoint = function(point, relTo, relPoint, x, y)
+                SfuiDB = SfuiDB or {}
+                SfuiDB.targetBar_pos = {
+                    point = point,
+                    x = x,
+                    y = y,
+                    isCustom = true,
+                }
+                ApplyTargetPosition()
+            end,
+            resetPosition = function()
+                SfuiDB = SfuiDB or {}
+                SfuiDB.targetBar_pos = {
+                    point = "TOP",
+                    x = 0,
+                    y = -35,
+                    isCustom = false,
+                }
+                ApplyTargetPosition()
+            end,
+            isEnabled = function()
+                return targetContainer ~= nil and not (SfuiDB and SfuiDB.enableTargetBar == false)
+            end,
+            onEnterEditMode = function()
+                targetContainer:Show()
+                targetContainer:SetAlpha(1)
+            end,
+            onExitEditMode = function()
+                if not UnitExists("target") then
+                    targetContainer:Hide()
+                end
+            end,
+        })
+    end
+
     -- 2. Clean Health Bar (Centered horizontally inside container)
     healthBar = CreateCleanBar("SfuiTargetHealthBar", f, barW, barH, pad, bgCol)
     healthBar.backdrop:SetPoint("TOP", f, "TOP", 0, -22)
@@ -1549,6 +1563,13 @@ local function CreateTargetFrame()
     buffContainer:SetUnit("target")
     buffContainer:SetFlowLayoutAnchorPoint("TOPLEFT")
     buffContainer:SetFlowLayoutGrowthDirection(flowDirRight, flowDirDown)
+    if buffContainer.SetEditModePreviewEnabled then
+        buffContainer:SetEditModePreviewEnabled(false)
+    end
+    buffContainer.editModePreviewEnabled = false
+    if buffContainer.UnregisterEvent then
+        buffContainer:UnregisterEvent("AURA_DATA_PROVIDER_SWITCH")
+    end
     buffContainer:AddAuraGroup("Buffs", "HELPFUL", {
         maxFrameCount = maxBuffs,
         initializeFrame = InitializeBuffButton,
@@ -1565,6 +1586,13 @@ local function CreateTargetFrame()
     debuffContainer:SetUnit("target")
     debuffContainer:SetFlowLayoutAnchorPoint("TOPRIGHT")
     debuffContainer:SetFlowLayoutGrowthDirection(flowDirLeft, flowDirDown)
+    if debuffContainer.SetEditModePreviewEnabled then
+        debuffContainer:SetEditModePreviewEnabled(false)
+    end
+    debuffContainer.editModePreviewEnabled = false
+    if debuffContainer.UnregisterEvent then
+        debuffContainer:UnregisterEvent("AURA_DATA_PROVIDER_SWITCH")
+    end
     debuffContainer:AddAuraGroup("Debuffs", "HARMFUL", {
         maxFrameCount = maxDebuffs,
         initializeFrame = InitializeDebuffButton,
@@ -1721,18 +1749,17 @@ function sfui.target.UpdateVisibility()
             targetContainer:SetAlpha(0)
             if targetContainer.EnableMouse then targetContainer:EnableMouse(false) end
         end
-        local tf = _G.TargetFrame
-        if tf and not InCombatLockdown() then
-            tf:SetAlpha(1)
-            if tf.EnableMouse then pcall(tf.EnableMouse, tf, true) end
-            if UnitExists("target") then tf:Show() end
+        if sfui.hide and sfui.hide.RestoreTargetFrame then
+            sfui.hide.RestoreTargetFrame()
+        else
+            local tf = _G.TargetFrame
+            if tf and not InCombatLockdown() then
+                if tf.SetAlpha then tf:SetAlpha(1) end
+                if UnitExists("target") and tf.Show then tf:Show() end
+            end
         end
     else
-        local tf = _G.TargetFrame
-        if tf and not InCombatLockdown() then
-            tf:SetAlpha(0)
-            if tf.EnableMouse then pcall(tf.EnableMouse, tf, false) end
-        end
+        SuppressBlizzardTargetFrame()
         if targetContainer then
             targetContainer:SetAlpha(1)
             if targetContainer.EnableMouse then targetContainer:EnableMouse(true) end
@@ -1747,7 +1774,6 @@ function sfui.target.UpdateVisibility()
                 targetContainer:Hide()
             end
         end
-        SuppressBlizzardTargetFrame()
     end
 end
 

@@ -71,46 +71,22 @@ local function DisableFrameMouse(f)
     end
 end
 
---- Suppress Blizzard's default StatusTrackingBarManager safely without taint
 function events.SuppressBlizzardBar()
     local hideBlizz = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "hideBlizzardBar", true))
     if hideBlizz == nil then hideBlizz = true end
     if not hideBlizz then return end
 
     local mgr = _G.StatusTrackingBarManager
-    if mgr then
+    if mgr and mgr.SetAlpha and mgr:GetAlpha() ~= 0 then
         mgr:SetAlpha(0)
-        DisableFrameMouse(mgr)
-        if _G.MainStatusTrackingBarContainer then DisableFrameMouse(_G.MainStatusTrackingBarContainer) end
-        if _G.SecondaryStatusTrackingBarContainer then DisableFrameMouse(_G.SecondaryStatusTrackingBarContainer) end
-        if not mgr._sfuiHooked then
-            mgr._sfuiHooked = true
-            mgr:HookScript("OnShow", function(self)
-                local shouldHide = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "hideBlizzardBar", true))
-                if shouldHide ~= false then
-                    self:SetAlpha(0)
-                    DisableFrameMouse(self)
-                    if _G.MainStatusTrackingBarContainer then DisableFrameMouse(_G.MainStatusTrackingBarContainer) end
-                    if _G.SecondaryStatusTrackingBarContainer then DisableFrameMouse(_G.SecondaryStatusTrackingBarContainer) end
-                end
-            end)
-        end
     end
 
     local oldExpBar = _G.MainMenuExpBar
     if oldExpBar then
-        oldExpBar:SetAlpha(0)
-        if oldExpBar.EnableMouse then oldExpBar:EnableMouse(false) end
-        if not oldExpBar._sfuiHooked then
-            oldExpBar._sfuiHooked = true
-            oldExpBar:HookScript("OnShow", function(self)
-                local shouldHide = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "hideBlizzardBar", true))
-                if shouldHide ~= false then
-                    self:SetAlpha(0)
-                    if self.EnableMouse then self:EnableMouse(false) end
-                end
-            end)
+        if oldExpBar.SetAlpha and oldExpBar:GetAlpha() ~= 0 then
+            oldExpBar:SetAlpha(0)
         end
+        if oldExpBar.EnableMouse then oldExpBar:EnableMouse(false) end
     end
 end
 

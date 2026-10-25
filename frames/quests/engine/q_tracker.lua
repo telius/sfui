@@ -170,70 +170,100 @@ local function CreateTrackerContainer()
     f:SetMovable(true)
     f:EnableMouse(false)
 
-    -- Anchor to ObjectiveTrackerFrame when available (Blizzard Edit Mode support)
-    local otf = _G.ObjectiveTrackerFrame
-    if otf then
-        f:ClearAllPoints()
-        f:SetPoint("TOPLEFT", otf, "TOPLEFT", 0, 0)
-        f:SetPoint("TOPRIGHT", otf, "TOPRIGHT", 0, 0)
-    else
-        -- Saved position restoration (default: TOPRIGHT -4, -4 from UIParent)
-        local point = SfuiDB and (SfuiDB.questlogPoint or SfuiDB.mythicHudPoint)
-        local relPoint = SfuiDB and (SfuiDB.questlogRelativePoint or SfuiDB.mythicHudRelativePoint)
-        local x = SfuiDB and (SfuiDB.questlogX or SfuiDB.mythicHudX)
-        local y = SfuiDB and (SfuiDB.questlogY or SfuiDB.mythicHudY)
+    -- Independent tracker positioning and restoration
+    local point = SfuiDB and (SfuiDB.questlogPoint or SfuiDB.mythicHudPoint)
+    local relPoint = SfuiDB and (SfuiDB.questlogRelativePoint or SfuiDB.mythicHudRelativePoint)
+    local x = SfuiDB and (SfuiDB.questlogX or SfuiDB.mythicHudX)
+    local y = SfuiDB and (SfuiDB.questlogY or SfuiDB.mythicHudY)
 
-        if not point and x and x > 0 then
-            -- Handle legacy position saved from StopMovingOrSizing (which sets BOTTOMLEFT)
-            point = "BOTTOMLEFT"
-            relPoint = "BOTTOMLEFT"
-        end
-
-        f:ClearAllPoints()
-        if x and y then
-            f:SetPoint(point or "TOPRIGHT", UIParent, relPoint or "TOPRIGHT", x, y)
-        else
-            f:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -4, -4)
-        end
+    if not point and x and x > 0 then
+        point = "BOTTOMLEFT"
+        relPoint = "BOTTOMLEFT"
     end
 
-    -- Drag handling when unlocked (in modern WoW, Blizzard Edit Mode is the primary repositioning tool)
+    f:ClearAllPoints()
+    if x and y then
+        f:SetPoint(point or "TOPRIGHT", UIParent, relPoint or "TOPRIGHT", x, y)
+    else
+        f:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -4, -4)
+    end
+
+    -- Drag handling when unlocked
     local function OnTrackerDragStart()
         if not (SfuiDB and SfuiDB.questlogLocked) then
-            local activeOtf = _G.ObjectiveTrackerFrame
-            if activeOtf and activeOtf.StartMoving and activeOtf:IsMovable() then
-                activeOtf:StartMoving()
-            else
-                f:StartMoving()
-            end
+            f:StartMoving()
         end
     end
     local function OnTrackerDragStop()
-        local activeOtf = _G.ObjectiveTrackerFrame
-        if activeOtf and activeOtf.StopMovingOrSizing and activeOtf:IsMovable() then
-            activeOtf:StopMovingOrSizing()
-            if activeOtf.OnDragStop then
-                pcall(activeOtf.OnDragStop, activeOtf)
-            end
-        else
-            f:StopMovingOrSizing()
-            local p, _, relP, posX, posY = f:GetPoint()
-            if p and SfuiDB then
-                SfuiDB.questlogPoint = p
-                SfuiDB.questlogRelativePoint = relP
-                SfuiDB.questlogX = math.floor(posX + 0.5)
-                SfuiDB.questlogY = math.floor(posY + 0.5)
-                SfuiDB.mythicHudPoint = p
-                SfuiDB.mythicHudRelativePoint = relP
-                SfuiDB.mythicHudX = SfuiDB.questlogX
-                SfuiDB.mythicHudY = SfuiDB.questlogY
-            end
+        f:StopMovingOrSizing()
+        local p, _, relP, posX, posY = f:GetPoint()
+        if p and SfuiDB then
+            SfuiDB.questlogPoint = p
+            SfuiDB.questlogRelativePoint = relP
+            SfuiDB.questlogX = math.floor(posX + 0.5)
+            SfuiDB.questlogY = math.floor(posY + 0.5)
+            SfuiDB.mythicHudPoint = p
+            SfuiDB.mythicHudRelativePoint = relP
+            SfuiDB.mythicHudX = SfuiDB.questlogX
+            SfuiDB.mythicHudY = SfuiDB.questlogY
         end
     end
 
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", OnTrackerDragStart)
     f:SetScript("OnDragStop", OnTrackerDragStop)
+
+    -- Register with standalone SFUI Edit Mode
+    if sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(f, {
+            key = "questtracker",
+            label = "quest tracker",
+            preferredPoint = "TOPRIGHT",
+            customSize = function()
+                local c = (sfui.config and sfui.config.questlog) or {}
+                local w = c.width or 280
+                local h = (f and f:GetHeight()) or 300
+                if h < 100 then h = 300 end
+                return w, h
+            end,
+            getPoint = function()
+                local point = SfuiDB and (SfuiDB.questlogPoint or SfuiDB.mythicHudPoint) or "TOPRIGHT"
+                local relPoint = SfuiDB and (SfuiDB.questlogRelativePoint or SfuiDB.mythicHudRelativePoint) or point
+                local x = SfuiDB and (SfuiDB.questlogX or SfuiDB.mythicHudX) or -4
+                local y = SfuiDB and (SfuiDB.questlogY or SfuiDB.mythicHudY) or -4
+                return point, UIParent, relPoint, x, y
+            end,
+            setPoint = function(point, relTo, relPoint, x, y)
+                if SfuiDB then
+                    SfuiDB.questlogPoint = point
+                    SfuiDB.questlogRelativePoint = relPoint
+                    SfuiDB.questlogX = x
+                    SfuiDB.questlogY = y
+                    SfuiDB.mythicHudPoint = point
+                    SfuiDB.mythicHudRelativePoint = relPoint
+                    SfuiDB.mythicHudX = x
+                    SfuiDB.mythicHudY = y
+                end
+                Tracker.RestorePosition()
+            end,
+            resetPosition = function()
+                if SfuiDB then
+                    SfuiDB.questlogPoint = "TOPRIGHT"
+                    SfuiDB.questlogRelativePoint = "TOPRIGHT"
+                    SfuiDB.questlogX = -4
+                    SfuiDB.questlogY = -4
+                    SfuiDB.mythicHudPoint = "TOPRIGHT"
+                    SfuiDB.mythicHudRelativePoint = "TOPRIGHT"
+                    SfuiDB.mythicHudX = -4
+                    SfuiDB.mythicHudY = -4
+                end
+                Tracker.RestorePosition()
+            end,
+            isEnabled = function()
+                return sfui.questlog and sfui.questlog.is_enabled and sfui.questlog.is_enabled()
+            end,
+        })
+    end
 
     -- Scrollbar (Slider)
     local scrollBar = CreateFrame("Slider", nil, f, BackdropTemplateMixin and "BackdropTemplate" or nil)
@@ -393,10 +423,8 @@ function SuppressBlizzardTrackers()
     -- headers, or dimensions (avoids DirtiableMixin and C_UnitAuras / ShouldShowMawBuffs taint).
     local otf = _G.ObjectiveTrackerFrame
     if otf then
-        if not (_G.EditModeManagerFrame and _G.EditModeManagerFrame.IsEditModeActive and _G.EditModeManagerFrame:IsEditModeActive()) then
-            if otf.SetAlpha and otf:GetAlpha() ~= 0 then otf:SetAlpha(0) end
-            if otf.Hide and otf:IsShown() then otf:Hide() end
-        end
+        if otf.SetAlpha and otf:GetAlpha() ~= 0 then otf:SetAlpha(0) end
+        if otf.Hide and otf:IsShown() then otf:Hide() end
     end
 end
 
@@ -525,49 +553,8 @@ local function SetupEventRouting()
         SuppressBlizzardTrackers()
     end)
 
-    -- Blizzard Edit Mode Integration
-    if EventRegistry and EventRegistry.RegisterCallback then
-        EventRegistry:RegisterCallback("EditMode.Enter", function()
-            local otf = _G.ObjectiveTrackerFrame
-            if otf then
-                if otf.SetAlpha then otf:SetAlpha(1) end
-                if otf.Show and not otf:IsShown() then otf:Show() end
-                if otf.Selection and otf.Selection.SetFrameLevel then
-                    otf.Selection:SetFrameLevel(math.max(100, (container and container:GetFrameLevel() or 10) + 20))
-                end
-            end
-            if container then
-                container:EnableMouse(false)
-                if container.scrollClip then
-                    container.scrollClip:EnableMouse(false)
-                end
-            end
-        end)
-
-        EventRegistry:RegisterCallback("EditMode.Exit", function()
-            local otf = _G.ObjectiveTrackerFrame
-            if otf then
-                if otf.SetAlpha then otf:SetAlpha(0) end
-                if otf.Hide then otf:Hide() end
-            end
-            if container then
-                container:EnableMouse(not (SfuiDB and SfuiDB.questlogLocked))
-                if container.scrollClip then
-                    container.scrollClip:EnableMouse(not (SfuiDB and SfuiDB.questlogLocked))
-                end
-            end
-            Tracker.RestorePosition()
-            Tracker.RequestRefresh(0.05)
-        end)
-    end
-
-    sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
-        Tracker.RestorePosition()
-        Tracker.RequestRefresh(0.05)
-    end)
-
     sfui.events.RegisterEvent("ADDON_LOADED", function(event, loadedAddon)
-        if loadedAddon == "Blizzard_ObjectiveTracker" or loadedAddon == "Blizzard_UIPanels_Game" or loadedAddon == "Blizzard_EditMode" then
+        if loadedAddon == "Blizzard_ObjectiveTracker" or loadedAddon == "Blizzard_UIPanels_Game" then
             EnsureQuestWatchHook()
             SuppressBlizzardTrackers()
             Tracker.RestorePosition()
@@ -677,17 +664,6 @@ end
 
 function Tracker.RestorePosition()
     if not container then return end
-
-    local otf = _G.ObjectiveTrackerFrame
-    if otf then
-        local cfg = (sfui.config and sfui.config.questlog) or {}
-        local width = cfg.width or 280
-        if otf.SetWidth then otf:SetWidth(width) end
-        container:ClearAllPoints()
-        container:SetPoint("TOPLEFT", otf, "TOPLEFT", 0, 0)
-        container:SetPoint("TOPRIGHT", otf, "TOPRIGHT", 0, 0)
-        return
-    end
 
     local point = SfuiDB and (SfuiDB.questlogPoint or SfuiDB.mythicHudPoint)
     local relPoint = SfuiDB and (SfuiDB.questlogRelativePoint or SfuiDB.mythicHudRelativePoint)
