@@ -205,24 +205,14 @@ end
 --- @param tex string|nil
 function petModule.SetBarTexture(tex)
     if not petBar then return end
-    tex = tex or (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()) or "Interface\\TargetingFrame\\UI-StatusBar"
-    if sfui.widgets and sfui.widgets.resolve_statusbar_texture then
-        tex = sfui.widgets.resolve_statusbar_texture(tex)
-    end
-    petBar:SetStatusBarTexture(tex)
+    petBar:SetStatusBarTexture(sfui.common.get_bar_texture(tex))
 end
 
 --- Apply theme and styling
 function petModule.ApplyTheme()
     if not petBar then return end
 
-    local tex = (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture())
-        or (sfui.config and sfui.config.textures and sfui.config.textures.status)
-        or "Interface\\TargetingFrame\\UI-StatusBar"
-    if sfui.widgets and sfui.widgets.resolve_statusbar_texture then
-        tex = sfui.widgets.resolve_statusbar_texture(tex)
-    end
-    petBar:SetStatusBarTexture(tex)
+    petBar:SetStatusBarTexture(sfui.common.get_bar_texture())
 
     local fontFile = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file())
         or (sfui.config and sfui.config.fontFile)

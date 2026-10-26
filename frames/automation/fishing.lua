@@ -270,8 +270,7 @@ local function get_fishing_spell_name()
     if cachedSpellName then return cachedSpellName end
     local id = get_known_fishing_id() or get_default_fishing_id()
     if id then
-        local name = (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(id))
-            or (_G.GetSpellInfo and _G.GetSpellInfo(id))
+        local name = sfui.common.get_spell_name(id)
         if name and name ~= "" then
             if get_known_fishing_id() then
                 cachedSpellName = name

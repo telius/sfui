@@ -666,16 +666,7 @@ local function GetOrCreateEditModeDialog()
     sub:SetPoint("LEFT", dialog, "LEFT", 14, -8)
     sub:SetText("|cff777777drag to move • esc to lock|r")
 
-    local CreateButton = sfui.common and sfui.common.create_flat_button or function(parent, text, w, h, onClick)
-        local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
-        b:SetSize(w, h)
-        b:SetScript("OnClick", onClick)
-        local fs = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        fs:SetPoint("CENTER")
-        fs:SetText(text)
-        b.fs = fs
-        return b
-    end
+    local CreateButton = sfui.common.create_flat_button
 
     -- Close 'X' Button
     local closeBtn = CreateButton(dialog, "|cffaaaaaax|r", 18, 18, function()

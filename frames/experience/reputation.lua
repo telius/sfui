@@ -27,17 +27,10 @@ local textCenter = nil
 local textRight = nil
 
 --- Get the active status bar texture
---- @return string
-local GetBarTexture = sfui.widgets.get_bar_texture
-
 --- Set status bar texture directly
 --- @param tex string|nil
 function repModule.SetBarTexture(tex)
-    tex = tex or GetBarTexture()
-    if sfui.widgets and sfui.widgets.resolve_statusbar_texture then
-        tex = sfui.widgets.resolve_statusbar_texture(tex)
-    end
-    if repBar then repBar:SetStatusBarTexture(tex) end
+    if repBar then repBar:SetStatusBarTexture(sfui.common.get_bar_texture(tex)) end
 end
 
 --- Get reputation container frame
@@ -180,8 +173,7 @@ function repModule.ApplyTheme()
         repContainer:SetBackdropBorderColor(0.0, 0.0, 0.0, 1.0)
     end
 
-    local tex = GetBarTexture()
-    repModule.SetBarTexture(tex)
+    repModule.SetBarTexture()
 end
 
 --- Update 20-segment tick marks

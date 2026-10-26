@@ -550,7 +550,7 @@ local function CreateSettingsPanel()
     sfui.theme.ApplyWindowStyle(settingsPanel)
     sfui.theme.RegisterWindow(settingsPanel)
 
-    local pClose = (sfui.common.create_close_button or sfui.common.create_flat_button)(settingsPanel, function()
+    local pClose = sfui.common.create_close_button(settingsPanel, function()
         settingsPanel:Hide()
     end, 20)
     pClose:ClearAllPoints()
@@ -710,7 +710,7 @@ function sfui.alts.CreateFrame()
     local headerBar = (sfui.theme and sfui.theme.CreateWindowHeader) and sfui.theme.CreateWindowHeader(frame, "alts manager")
     frame.headerBar = headerBar
 
-    local close = (sfui.common.create_close_button or sfui.common.create_flat_button)(frame, function() frame:Hide() end, 24)
+    local close = sfui.common.create_close_button(frame, function() frame:Hide() end, 24)
     close:ClearAllPoints()
     close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -5, -5)
     close:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)

@@ -40,16 +40,7 @@ local function parseRank(subtext)
 end
 
 local function getSpellName(spellID)
-    if not spellID then return nil end
-    if C_Spell and C_Spell.GetSpellName then
-        local name = C_Spell.GetSpellName(spellID)
-        if name and name ~= "" then return name end
-    end
-    if _G.GetSpellInfo then
-        local name = _G.GetSpellInfo(spellID)
-        if name and name ~= "" then return name end
-    end
-    return nil
+    return sfui.common.get_spell_name(spellID)
 end
 
 local function getSpellSubtext(spellID)

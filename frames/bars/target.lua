@@ -51,8 +51,6 @@ local GameTooltip                  = sfui.common.get_tooltip()
 local issecretvalue                = common.issecretvalue
 local GetUnitName                  = _G.GetUnitName
 local NameUtil                     = _G.NameUtil
-local C_Spell                      = _G.C_Spell
-local GetSpellInfo                 = _G.GetSpellInfo
 
 -- ─── Secure Unit Watch Helpers ───────────────────────────────────────────────
 local function SafeRegisterUnitWatch(frame)
@@ -1044,43 +1042,10 @@ local HELP_SPELLS_BY_CLASS = {
 local cachedPlayerClass
 local cachedHarmSpell
 local cachedHelpSpell
-local spellIdToName = {}
 
 local function ResetRangeSpellCache()
     cachedHarmSpell = nil
     cachedHelpSpell = nil
-    wipe(spellIdToName)
-end
-
-local function SafeIsSpellInRange(spell, unit)
-    if not spell or not unit then return nil end
-    if C_Spell and C_Spell.IsSpellInRange then
-        local inRange = C_Spell.IsSpellInRange(spell, unit)
-        if inRange ~= nil and not issecretvalue(inRange) then
-            return inRange
-        end
-    elseif _G.IsSpellInRange then
-        local spellName = spell
-        if type(spell) == "number" then
-            spellName = spellIdToName[spell]
-            if not spellName then
-                if C_Spell and C_Spell.GetSpellName then
-                    spellName = C_Spell.GetSpellName(spell) or spell
-                elseif GetSpellInfo then
-                    spellName = GetSpellInfo(spell) or spell
-                else
-                    spellName = spell
-                end
-                spellIdToName[spell] = spellName
-            end
-        end
-        local inRange = _G.IsSpellInRange(spellName, unit)
-        if inRange ~= nil and not issecretvalue(inRange) then
-            if inRange == 1 then return true end
-            if inRange == 0 then return false end
-        end
-    end
-    return nil
 end
 
 local function IsTargetInRange()
@@ -1098,7 +1063,7 @@ local function IsTargetInRange()
     if isFriend then
         -- Friendly Range Check
         if cachedHelpSpell then
-            local inRange = SafeIsSpellInRange(cachedHelpSpell, "target")
+            local inRange = sfui.common.is_spell_in_range(cachedHelpSpell, "target")
             if inRange ~= nil then
                 return inRange
             end
@@ -1109,7 +1074,7 @@ local function IsTargetInRange()
         if helpList then
             for i = 1, #helpList do
                 local spell = helpList[i]
-                local inRange = SafeIsSpellInRange(spell, "target")
+                local inRange = sfui.common.is_spell_in_range(spell, "target")
                 if inRange ~= nil then
                     cachedHelpSpell = spell
                     return inRange
@@ -1122,7 +1087,7 @@ local function IsTargetInRange()
     else
         -- Hostile / Neutral Range Check
         if cachedHarmSpell then
-            local inRange = SafeIsSpellInRange(cachedHarmSpell, "target")
+            local inRange = sfui.common.is_spell_in_range(cachedHarmSpell, "target")
             if inRange ~= nil then
                 return inRange
             end
@@ -1133,7 +1098,7 @@ local function IsTargetInRange()
         if harmList then
             for i = 1, #harmList do
                 local spell = harmList[i]
-                local inRange = SafeIsSpellInRange(spell, "target")
+                local inRange = sfui.common.is_spell_in_range(spell, "target")
                 if inRange ~= nil then
                     cachedHarmSpell = spell
                     return inRange

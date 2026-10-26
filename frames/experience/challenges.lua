@@ -194,18 +194,10 @@ function challenges.GetData()
     return _challengeData
 end
 
---- Get status bar texture
---- @return string
-local GetBarTexture = sfui.widgets.get_bar_texture
-
 --- Set status bar texture directly
 --- @param tex string|nil
 function challenges.SetBarTexture(tex)
-    tex = tex or GetBarTexture()
-    if sfui.widgets and sfui.widgets.resolve_statusbar_texture then
-        tex = sfui.widgets.resolve_statusbar_texture(tex)
-    end
-    if challengesBar then challengesBar:SetStatusBarTexture(tex) end
+    if challengesBar then challengesBar:SetStatusBarTexture(sfui.common.get_bar_texture(tex)) end
 end
 
 --- Get challenges container frame
@@ -234,8 +226,7 @@ function challenges.ApplyTheme()
         challengesContainer:SetBackdropBorderColor(0.0, 0.0, 0.0, 1.0)
     end
 
-    local tex = GetBarTexture()
-    challenges.SetBarTexture(tex)
+    challenges.SetBarTexture()
 end
 
 --- Set unlocked dragging state and toggle visual mover overlay for challenges bar

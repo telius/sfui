@@ -367,7 +367,7 @@ end, function(checked)
 end, "when enabled, keybinding changes are saved only for this character.")
 perCharCB:SetPoint("TOPLEFT", descText, "BOTTOMLEFT", 0, -10)
 
-local CreateFlatButton = (sfui.common and sfui.common.create_flat_button) or (sfui.widgets and sfui.widgets.create_flat_button)
+local CreateFlatButton = sfui.common.create_flat_button
 
 local discardBtn = CreateFlatButton(dialog, "discard", 150, 22, function()
     sfui.actionbars.DeactivateBindMode(false)

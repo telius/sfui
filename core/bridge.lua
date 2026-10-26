@@ -197,7 +197,7 @@ function sfui.gear.GetSpecDB(specID)
 end
 
 local function isClassicGameClient()
-    if sfui.isRetail == true or (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic) then
+    if sfui.isRetail then
         return false
     end
     return (sfui.isClassic == true or sfui.isEra == true or sfui.isCamelot == true)

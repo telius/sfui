@@ -225,8 +225,7 @@ function mail.CreateConfigFrame()
         widgets.create_window_header(f, "alts mail routing", 200)
     f.headerBar = headerBar
 
-    -- Close Button
-    local close = (common.create_close_button or common.create_flat_button)(f, function() f:Hide() end, 24)
+    local close = common.create_close_button(f, function() f:Hide() end, 24)
     close:ClearAllPoints()
     close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -6, -6)
     close:SetFrameLevel((f:GetFrameLevel() or 1) + 20)

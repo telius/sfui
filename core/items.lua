@@ -496,8 +496,7 @@ function sfui.items.get_item_stats(itemLink)
         for k, v in pairs(raw) do stats[k] = v end
     end
 
-    local isRetail = (sfui.isRetail == true) or (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic)
-    if isRetail then
+    if sfui.isRetail then
         itemStatsCache[itemLink] = raw or {}
         return raw or {}
     end

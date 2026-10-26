@@ -9,44 +9,14 @@ local tostring = _G.tostring
 local pcall = _G.pcall
 
 local function is_hunter_in_camelot()
-    local isCam = (sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot))
-    local pClass = (sfui.common and sfui.common.get_player_class and sfui.common.get_player_class())
-                   or (UnitClass and select(2, UnitClass("player")))
-    return not not (isCam and pClass == "HUNTER")
+    return sfui.isCamelot and sfui.common.get_player_class() == "HUNTER"
 end
 
-local function is_spell_known(spellID)
-    if sfui.common and sfui.common.is_spell_known then
-        return sfui.common.is_spell_known(spellID)
-    end
-    if _G.IsSpellKnown then
-        local ok, known = pcall(_G.IsSpellKnown, spellID)
-        if ok and known then return true end
-    end
-    if _G.IsPlayerSpell then
-        local ok, known = pcall(_G.IsPlayerSpell, spellID)
-        if ok and known then return true end
-    end
-    return false
-end
+local is_spell_known = sfui.common.is_spell_known
 
 local function get_spell_details(spellID)
-    local C_Spell = _G.C_Spell
-    local name, icon
-    if C_Spell and C_Spell.GetSpellInfo then
-        local ok, info = pcall(C_Spell.GetSpellInfo, spellID)
-        if ok and info then
-            name = info.name
-            icon = info.iconID
-        end
-    end
-    if not name and _G.GetSpellInfo then
-        local ok, n, _, i = pcall(_G.GetSpellInfo, spellID)
-        if ok then
-            name = n
-            icon = i
-        end
-    end
+    local name = sfui.common.get_spell_name(spellID)
+    local icon = sfui.common.get_spell_icon(spellID)
     return name, icon
 end
 

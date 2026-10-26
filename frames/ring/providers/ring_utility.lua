@@ -30,36 +30,12 @@ local Enum = _G.Enum
 
 -- ── 1. Spell & Item Resolution Helpers ───────────────────────────────────────
 
-local is_spell_known = function(spellID)
-    if sfui.common and sfui.common.is_spell_known then
-        return sfui.common.is_spell_known(spellID)
-    end
-    return false
-end
+local is_spell_known = sfui.common.is_spell_known
 u.is_spell_known = is_spell_known
 
 local function get_spell_details(spellID)
-    local name, icon
-    if C_Spell and C_Spell.GetSpellInfo then
-        local ok, info = pcall(C_Spell.GetSpellInfo, spellID)
-        if ok and info then
-            name = info.name
-            icon = info.iconID
-        end
-    end
-    if not name and C_Spell and C_Spell.GetSpellName then
-        local ok, n = pcall(C_Spell.GetSpellName, spellID)
-        if ok then name = n end
-    end
-    if not icon and C_Spell and C_Spell.GetSpellTexture then
-        local ok, i = pcall(C_Spell.GetSpellTexture, spellID)
-        if ok then icon = i end
-    end
-    if not name and _G.GetSpellInfo then
-        local n, _, i = _G.GetSpellInfo(spellID)
-        name = n
-        icon = icon or i
-    end
+    local name = sfui.common.get_spell_name(spellID)
+    local icon = sfui.common.get_spell_icon(spellID)
     return name, icon
 end
 u.get_spell_details = get_spell_details

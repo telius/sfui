@@ -95,13 +95,7 @@ local function check_slot_range(data)
     if not data or not (UnitExists and UnitExists("target")) then return nil end
     local attrs = data.attrs or {}
     if attrs.type == "spell" and attrs.spell then
-        if C_Spell and C_Spell.IsSpellInRange then
-            return C_Spell.IsSpellInRange(attrs.spell, "target")
-        elseif _G.IsSpellInRange then
-            local res = _G.IsSpellInRange(attrs.spell, "target")
-            if res == 1 then return true elseif res == 0 then return false end
-            return nil
-        end
+        return sfui.common.is_spell_in_range(attrs.spell, "target")
     end
     -- C_Item.IsItemInRange has SecretArguments = "AllowedWhenUntainted" in 1.60.1 / 11+
     if InCombatLockdown and InCombatLockdown() then return nil end

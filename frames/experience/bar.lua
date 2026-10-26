@@ -30,20 +30,13 @@ local textCenter = nil
 local textRight = nil
 local currentMode = "XP" -- "XP" or "REP"
 
---- Get the active status bar texture from SFUI theme/widgets
---- @return string
-local GetBarTexture = sfui.widgets.get_bar_texture
-
 --- Set status bar texture directly
 --- @param tex string|nil
 function barModule.SetBarTexture(tex)
-    tex = tex or GetBarTexture()
-    if sfui.widgets and sfui.widgets.resolve_statusbar_texture then
-        tex = sfui.widgets.resolve_statusbar_texture(tex)
-    end
-    if mainBar then mainBar:SetStatusBarTexture(tex) end
-    if restedBar then restedBar:SetStatusBarTexture(tex) end
-    if questBar then questBar:SetStatusBarTexture(tex) end
+    local resolvedTex = sfui.common.get_bar_texture(tex)
+    if mainBar then mainBar:SetStatusBarTexture(resolvedTex) end
+    if restedBar then restedBar:SetStatusBarTexture(resolvedTex) end
+    if questBar then questBar:SetStatusBarTexture(resolvedTex) end
 end
 
 --- Get container frame reference
@@ -157,8 +150,7 @@ function barModule.ApplyTheme()
         container:SetBackdropBorderColor(0.0, 0.0, 0.0, 1.0)
     end
 
-    local tex = GetBarTexture()
-    barModule.SetBarTexture(tex)
+    barModule.SetBarTexture()
 end
 
 --- Update position and dimensions from config/saved variables

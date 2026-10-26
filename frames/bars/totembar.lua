@@ -271,15 +271,11 @@ local function GetIconForTotem(totemName)
         return iconCache[totemName]
     end
 
-    local getTexture = (C_Spell and C_Spell.GetSpellTexture) or _G.GetSpellTexture
-    if getTexture then
-        for _, query in ipairs({ TOTEM_SPELL_IDS[totemName] or totemName, totemName }) do
-            local ok, texture = pcall(getTexture, query)
-            if ok and IsUsableTotemIcon(texture) then
-                iconCache[totemName] = texture
-                return texture
-            end
-        end
+    local query = TOTEM_SPELL_IDS[totemName] or totemName
+    local texture = sfui.common.get_spell_icon(query)
+    if IsUsableTotemIcon(texture) then
+        iconCache[totemName] = texture
+        return texture
     end
 
     local file = ICON_FILES[totemName]
@@ -351,12 +347,9 @@ local function IsTotemKnown(totemName)
             return true
         end
 
-        local getSpellName = (C_Spell and C_Spell.GetSpellName) or _G.GetSpellInfo
-        if getSpellName then
-            local ok, locName = pcall(getSpellName, id)
-            if ok and locName and (knownSpellsCache[locName] or knownSpellsCache[StripRank(locName)]) then
-                return true
-            end
+        local locName = sfui.common.get_spell_name(id)
+        if locName and (knownSpellsCache[locName] or knownSpellsCache[StripRank(locName)]) then
+            return true
         end
 
         if C_SpellBook and C_SpellBook.IsSpellKnown then
@@ -1325,15 +1318,8 @@ end
 local function OnSpellcastSucceeded(_, unit, castGUID, spellID)
     if unit ~= "player" then return end
 
-    local spellName
     local id = type(spellID) == "number" and spellID or (type(castGUID) == "number" and castGUID)
-    if id then
-        if C_Spell and C_Spell.GetSpellName then
-            spellName = C_Spell.GetSpellName(id)
-        elseif _G.GetSpellInfo then
-            spellName = _G.GetSpellInfo(id)
-        end
-    end
+    local spellName = id and sfui.common.get_spell_name(id)
     if not spellName or spellName == "" then
         if type(castGUID) == "string" and TOTEM_ELEMENT[castGUID] then
             spellName = castGUID

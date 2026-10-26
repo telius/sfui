@@ -8,8 +8,6 @@ local ipairs, pairs = _G.ipairs, _G.pairs
 local UnitClass = _G.UnitClass
 local IsPlayerSpell = _G.IsPlayerSpell
 local IsSpellKnown = _G.IsSpellKnown
-local GetSpellInfo = _G.GetSpellInfo
-local GetSpellTexture = _G.GetSpellTexture
 local C_Spell = _G.C_Spell
 
 local playerClass = sfui.common.get_player_class()
@@ -18,22 +16,8 @@ sfui.buffs.playerClass = playerClass
 -- Helper to safely get spell name across WoW versions and engines
 local function ResolveSpellName(spellID, fallback)
     if spellID then
-        if sfui.api and sfui.api.GetSpellName then
-            local n = sfui.api.GetSpellName(spellID)
-            if n and n ~= "" then return n end
-        end
-        if C_Spell and C_Spell.GetSpellName then
-            local ok, n = pcall(C_Spell.GetSpellName, spellID)
-            if ok and n and n ~= "" then return n end
-        end
-        if C_Spell and C_Spell.GetSpellInfo then
-            local ok, info = pcall(C_Spell.GetSpellInfo, spellID)
-            if ok and info and info.name and info.name ~= "" then return info.name end
-        end
-        if GetSpellInfo then
-            local ok, n = pcall(GetSpellInfo, spellID)
-            if ok and n and n ~= "" then return n end
-        end
+        local name = sfui.common.get_spell_name(spellID)
+        if name and name ~= "" then return name end
     end
     return fallback
 end
@@ -42,28 +26,8 @@ sfui.buffs.data.ResolveSpellName = ResolveSpellName
 -- Helper to safely get spell texture
 local function ResolveTexture(spellID, fallback)
     if spellID then
-        if sfui.api and sfui.api.GetSpellTexture then
-            local tex = sfui.api.GetSpellTexture(spellID)
-            if tex then return tex end
-        end
-        if C_Spell and C_Spell.GetSpellTexture then
-            local tex = C_Spell.GetSpellTexture(spellID)
-            if tex then return tex end
-        end
-        if C_Spell and C_Spell.GetSpellInfo then
-            local info = C_Spell.GetSpellInfo(spellID)
-            if info and (info.iconID or info.originalIconID) then
-                return info.iconID or info.originalIconID
-            end
-        end
-        if GetSpellInfo then
-            local _, _, tex = GetSpellInfo(spellID)
-            if tex then return tex end
-        end
-        if GetSpellTexture then
-            local tex = GetSpellTexture(spellID)
-            if tex then return tex end
-        end
+        local tex = sfui.common.get_spell_icon(spellID)
+        if tex then return tex end
     end
     return fallback or "Interface\\Icons\\INV_Misc_QuestionMark"
 end

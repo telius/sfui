@@ -1427,9 +1427,9 @@ sfui.mem.MODULE_ORDER = MODULE_ORDER
 function sfui.mem.create_mem_panel()
     if frame then return frame end
 
-    local CreateFlatButton = (sfui.common and sfui.common.create_flat_button) or (sfui.widgets and sfui.widgets.create_flat_button)
-    local CreateCloseButton = (sfui.common and sfui.common.create_close_button) or (sfui.widgets and sfui.widgets.create_close_button)
-    local StyleScrollBar = (sfui.common and sfui.common.style_scrollbar) or (sfui.widgets and sfui.widgets.style_scrollbar)
+    local CreateFlatButton = sfui.common.create_flat_button
+    local CreateCloseButton = sfui.common.create_close_button
+    local StyleScrollBar = sfui.common.style_scrollbar
     local FRAME_W, FRAME_H = 650, 460
 
     frame = CreateFrame("Frame", "sfui_mem_frame", UIParent, "BackdropTemplate")

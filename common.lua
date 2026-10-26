@@ -2,6 +2,8 @@ local addonName, addon = ...
 sfui = sfui or {}
 sfui.common = sfui.common or {}
 
+local issecretvalue = _G.issecretvalue or function() return false end
+
 function sfui.common.print(msg, ...)
     local prefix = (sfui.config and sfui.config.prefix) or "|cff6600ffsfui:|r"
     if msg == nil then
@@ -53,6 +55,20 @@ function sfui.common.get_font_file()
         or (_G.GameFontNormal and _G.GameFontNormal:GetFont())
         or "Fonts\\FRIZQT__.TTF"
 end
+
+--- Rounds a number to the specified number of decimal places (default 0)
+--- @param num number|nil
+--- @param decimals number|nil
+--- @return number
+function sfui.common.round(num, decimals)
+    if not num then return 0 end
+    if not decimals or decimals == 0 then
+        return math.floor(num + 0.5)
+    end
+    local mult = 10 ^ decimals
+    return math.floor(num * mult + 0.5) / mult
+end
+sfui.round = sfui.common.round
 
 -- ─── AddOn API (C_AddOns on modern clients, legacy globals on older builds) ───
 local C_AddOns_api = _G.C_AddOns or {}
@@ -194,6 +210,37 @@ function sfui.common.get_spell_icon(spellID)
     if _G.GetSpellTexture then
         local icon = _G.GetSpellTexture(spellID)
         if icon then return icon end
+    end
+    return nil
+end
+
+local _spellIdToNameCache = {}
+
+--- Cross-client safe spell range check (supports Retail C_Spell, Classic/Camelot _G, and protects secret values)
+--- @param spell number|string
+--- @param unit string
+--- @return boolean|nil inRange returns true if in range, false if out of range, nil if invalid/unknown
+function sfui.common.is_spell_in_range(spell, unit)
+    if not spell or not unit then return nil end
+    if C_Spell and C_Spell.IsSpellInRange then
+        local inRange = C_Spell.IsSpellInRange(spell, unit)
+        if inRange ~= nil and not issecretvalue(inRange) then
+            return inRange == true
+        end
+    elseif _G.IsSpellInRange then
+        local spellName = spell
+        if type(spell) == "number" then
+            spellName = _spellIdToNameCache[spell]
+            if not spellName then
+                spellName = sfui.common.get_spell_name(spell) or spell
+                _spellIdToNameCache[spell] = spellName
+            end
+        end
+        local inRange = _G.IsSpellInRange(spellName, unit)
+        if inRange ~= nil and not issecretvalue(inRange) then
+            if inRange == 1 then return true end
+            if inRange == 0 then return false end
+        end
     end
     return nil
 end

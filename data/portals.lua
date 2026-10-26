@@ -8,8 +8,7 @@
 -- Names use GetRealZoneText(instance) automatically when instance is set.
 -- Set name="" to force instance-based name lookup.
 
-local isRetail = (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic)
-if not isRetail then return end
+if not sfui or not sfui.isRetail then return end
 
 sfui = sfui or {}
 sfui.portals_db = {}

@@ -43,27 +43,8 @@ end
 local is_spell_known = sfui.common.is_spell_known
 
 local function get_spell_info_compat(spellID, fallbackName, fallbackIcon)
-    local name, icon
-    if C_Spell and C_Spell.GetSpellInfo then
-        local ok, info = pcall(C_Spell.GetSpellInfo, spellID)
-        if ok and info then
-            name = info.name
-            icon = info.iconID
-        end
-    end
-    if not name and C_Spell and C_Spell.GetSpellName then
-        local ok, n = pcall(C_Spell.GetSpellName, spellID)
-        if ok then name = n end
-    end
-    if not icon and C_Spell and C_Spell.GetSpellTexture then
-        local ok, i = pcall(C_Spell.GetSpellTexture, spellID)
-        if ok then icon = i end
-    end
-    if not name and _G.GetSpellInfo then
-        local n, _, i = _G.GetSpellInfo(spellID)
-        name = n
-        icon = icon or i
-    end
+    local name = sfui.common.get_spell_name(spellID)
+    local icon = sfui.common.get_spell_icon(spellID)
     return name or fallbackName, icon or fallbackIcon
 end
 
@@ -78,9 +59,8 @@ local function get_ability_spell(slot)
             local name = info.name
             local icon = info.iconID
             if (spellID and spellID > 0) or (name and name ~= "") then
-                if not icon and spellID and C_Spell and C_Spell.GetSpellTexture then
-                    local sOk, sIcon = pcall(C_Spell.GetSpellTexture, spellID)
-                    if sOk and sIcon then icon = sIcon end
+                if not icon and spellID then
+                    icon = sfui.common.get_spell_icon(spellID)
                 end
                 return spellID or name, name or (spellID and tostring(spellID)), icon
             end
@@ -97,9 +77,8 @@ local function get_ability_spell(slot)
         end
         local resolvedID = spellID or actionID
         if (tOk and resolvedID and resolvedID > 0) or (nOk and name and name ~= "") then
-            if not icon and resolvedID and C_Spell and C_Spell.GetSpellTexture then
-                local sOk, sIcon = pcall(C_Spell.GetSpellTexture, resolvedID)
-                if sOk and sIcon then icon = sIcon end
+            if not icon and resolvedID then
+                icon = sfui.common.get_spell_icon(resolvedID)
             end
             return resolvedID or name, name or (resolvedID and tostring(resolvedID)), icon
         end
