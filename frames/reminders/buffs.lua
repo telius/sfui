@@ -196,7 +196,20 @@ local function CreateBuffIcon(index, parent)
             GameTooltip:AddLine(string_format("charges: |cffffffff%d|r", rec.charges), 0.8, 0.8, 0.8)
         end
 
-        if entry.type == "weapon_enchant" then
+        if entry.isFishingLure then
+            local skillRank = (sfui.fishing and sfui.fishing.GetSkill and sfui.fishing.GetSkill()) or 0
+            local bestLure = sfui.fishing_data and sfui.fishing_data.FindBestLureInBags and sfui.fishing_data.FindBestLureInBags(skillRank)
+            if bestLure then
+                GameTooltip:AddLine(string_format("best lure: |cff00ffff%s|r (+%d skill, %d in bags)", bestLure.name, bestLure.bonus, bestLure.count or 1), 0.8, 0.8, 0.8)
+                if inCombat then
+                    GameTooltip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
+                else
+                    GameTooltip:AddLine("|cff55ff55[click to apply lure]|r", 0.3, 1, 0.3)
+                end
+            else
+                GameTooltip:AddLine("|cffff5555no compatible lures in bags|r", 0.9, 0.4, 0.4)
+            end
+        elseif entry.type == "weapon_enchant" then
             GameTooltip:AddLine("apply weapon temporary enchant / poison", 0.6, 0.6, 0.6)
         elseif entry.type == "pet" then
             GameTooltip:AddLine("summon your active pet", 0.6, 0.6, 0.6)
@@ -676,6 +689,39 @@ function sfui.buffs.UpdateDisplay()
                         icon:SetAttribute("spell", nil)
                         icon:SetAttribute("*spell1", nil)
                         icon:SetAttribute("target-slot", nil)
+                        icon:SetAttribute("unit", nil)
+                    end
+                else
+                    if icon._lastItem ~= nil or icon._lastSpell ~= nil or icon._lastSlot ~= nil then
+                        icon._lastItem = nil
+                        icon._lastSpell = nil
+                        icon._lastSlot = nil
+                        icon:SetAttribute("type", nil)
+                        icon:SetAttribute("*type1", nil)
+                        icon:SetAttribute("item", nil)
+                        icon:SetAttribute("*item1", nil)
+                        icon:SetAttribute("spell", nil)
+                        icon:SetAttribute("*spell1", nil)
+                        icon:SetAttribute("target-slot", nil)
+                        icon:SetAttribute("unit", nil)
+                    end
+                end
+            elseif db and db.clickToCast ~= false and not isTestMode and rec.entry and rec.entry.isFishingLure then
+                local skillRank = (sfui.fishing and sfui.fishing.GetSkill and sfui.fishing.GetSkill()) or 0
+                local bestLure = sfui.fishing_data and sfui.fishing_data.FindBestLureInBags and sfui.fishing_data.FindBestLureInBags(skillRank)
+                if bestLure and bestLure.itemID then
+                    local itemRef = "item:" .. bestLure.itemID
+                    if icon._lastItem ~= itemRef or icon._lastSlot ~= 16 or icon._lastSpell ~= nil then
+                        icon._lastItem = itemRef
+                        icon._lastSpell = nil
+                        icon._lastSlot = 16
+                        icon:SetAttribute("type", "item")
+                        icon:SetAttribute("item", itemRef)
+                        icon:SetAttribute("*type1", "item")
+                        icon:SetAttribute("*item1", itemRef)
+                        icon:SetAttribute("spell", nil)
+                        icon:SetAttribute("*spell1", nil)
+                        icon:SetAttribute("target-slot", 16)
                         icon:SetAttribute("unit", nil)
                     end
                 else

@@ -176,7 +176,7 @@ end
 local cachedFishingID
 local cachedSpellName
 
-local is_spell_known = sfui.common.is_spell_known
+local is_spell_known = sfui.common.is_spell_known or _G.IsSpellKnown or function() return false end
 
 local function find_fishing_spell_in_spellbook()
     if C_SpellBook and C_SpellBook.GetSpellBookItemType and C_SpellBook.GetSpellBookItemName then
@@ -282,6 +282,161 @@ local function get_fishing_spell_name()
     return "Fishing"
 end
 sfui.fishing.get_fishing_spell_name = get_fishing_spell_name
+
+local function get_fishing_skill()
+    if GetProfessions and GetProfessionInfo then
+        local p1, p2, p3, p4, p5 = GetProfessions()
+        local slots = { p4, p1, p2, p3, p5 }
+        for _, idx in ipairs(slots) do
+            if idx then
+                local name, _, rank, maxRank, _, _, skillLine, modifier = GetProfessionInfo(idx)
+                if skillLine == 356 or (name and name:lower():find("fishing")) then
+                    rank = rank or 0
+                    modifier = modifier or 0
+                    return rank, maxRank or rank, modifier, rank + modifier
+                end
+            end
+        end
+    end
+    -- Fallback for classic skill lines
+    if _G.GetNumSkillLines and _G.GetSkillLineInfo then
+        for i = 1, _G.GetNumSkillLines() do
+            local skillName, isHeader, _, skillRank, _, skillModifier, skillMaxRank = _G.GetSkillLineInfo(i)
+            if not isHeader and skillName and skillName:lower():find("fishing") then
+                skillRank = skillRank or 0
+                skillModifier = skillModifier or 0
+                return skillRank, skillMaxRank or skillRank, skillModifier, skillRank + skillModifier
+            end
+        end
+    end
+    return 0, 0, 0, 0
+end
+sfui.fishing.GetFishingSkill = get_fishing_skill
+sfui.fishing.GetSkill = function()
+    local rank, maxRank, mod, total = get_fishing_skill()
+    return rank, maxRank, mod, total
+end
+
+-- ─── Catch & Session Statistics ──────────────────────────────────────────────
+
+sfui.fishing.session = {
+    startTime = GetTime(),
+    casts = 0,
+    catches = 0,
+    getaways = 0,
+    streak = 0,
+    value = 0,
+}
+
+function sfui.fishing.ResetSession()
+    sfui.fishing.session = {
+        startTime = GetTime(),
+        casts = 0,
+        catches = 0,
+        getaways = 0,
+        streak = 0,
+        value = 0,
+    }
+    if sfui.fishing.hud and sfui.fishing.hud.Update then sfui.fishing.hud.Update() end
+    if sfui.fishing.atlas and sfui.fishing.atlas.Update then sfui.fishing.atlas.Update() end
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_FISHING_SESSION_RESET")
+    end
+    sfui.common.print("fishing: session stats reset.")
+end
+
+function sfui.fishing.RecordCatch(itemID, quantity, quality, mapID, link)
+    if not itemID then return end
+    quantity = quantity or 1
+    mapID = mapID or sfui.common.get_player_map_id()
+    local serverTime = (_G.GetServerTime and _G.GetServerTime()) or time()
+
+    SfuiDB = SfuiDB or {}
+    SfuiDB.fishing = SfuiDB.fishing or {}
+    SfuiDB.fishing.catches = SfuiDB.fishing.catches or {}
+    SfuiDB.fishing.species = SfuiDB.fishing.species or {}
+    SfuiDB.fishing.zones = SfuiDB.fishing.zones or {}
+    SfuiDB.fishing.records = SfuiDB.fishing.records or { longestStreak = 0, bestRate = 0 }
+
+    -- Update session
+    local s = sfui.fishing.session
+    if s then
+        s.catches = (s.catches or 0) + quantity
+        s.streak = (s.streak or 0) + 1
+        if s.streak > (SfuiDB.fishing.records.longestStreak or 0) then
+            SfuiDB.fishing.records.longestStreak = s.streak
+        end
+        local sellPrice = sfui.common.get_item_info(itemID) and select(11, sfui.common.get_item_info(itemID))
+        if sellPrice and sellPrice > 0 then
+            s.value = (s.value or 0) + (sellPrice * quantity)
+        end
+    end
+
+    -- Update lifetime catches
+    SfuiDB.fishing.catches[itemID] = (SfuiDB.fishing.catches[itemID] or 0) + quantity
+
+    -- Update species entry
+    local sp = SfuiDB.fishing.species[itemID]
+    if not sp then
+        sp = { n = 0, first = serverTime, fz = mapID }
+        SfuiDB.fishing.species[itemID] = sp
+    end
+    sp.n = sp.n + quantity
+    sp.last = serverTime
+    sp.lz = mapID
+
+    -- Update zone breakdown
+    if mapID and mapID > 0 then
+        local z = SfuiDB.fishing.zones[mapID]
+        if not z then
+            z = { casts = 0, catches = 0, getaways = 0, fish = {} }
+            SfuiDB.fishing.zones[mapID] = z
+        end
+        z.catches = (z.catches or 0) + quantity
+        z.fish = z.fish or {}
+        z.fish[itemID] = (z.fish[itemID] or 0) + quantity
+    end
+
+    -- Rare catch announcement
+    if quality and quality >= 2 then
+        local display = link or ("item:" .. itemID)
+        sfui.common.print("rare catch: " .. display:lower() .. "!")
+        if _G.PlaySound and _G.SOUNDKIT and _G.SOUNDKIT.AUCTION_WINDOW_CLOSE then
+            _G.PlaySound(_G.SOUNDKIT.AUCTION_WINDOW_CLOSE)
+        end
+    end
+
+    if sfui.fishing.hud and sfui.fishing.hud.Update then sfui.fishing.hud.Update() end
+    if sfui.fishing.atlas and sfui.fishing.atlas.Update then sfui.fishing.atlas.Update() end
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_FISHING_CATCH_RECORDED", itemID, quantity, quality, mapID, link)
+    end
+end
+
+function sfui.fishing.RecordGetaway(mapID)
+    mapID = mapID or sfui.common.get_player_map_id()
+    local s = sfui.fishing.session
+    if s then
+        s.getaways = (s.getaways or 0) + 1
+        s.streak = 0
+    end
+    SfuiDB = SfuiDB or {}
+    SfuiDB.fishing = SfuiDB.fishing or {}
+    SfuiDB.fishing.zones = SfuiDB.fishing.zones or {}
+    if mapID and mapID > 0 then
+        local z = SfuiDB.fishing.zones[mapID]
+        if not z then
+            z = { casts = 0, catches = 0, getaways = 0, fish = {} }
+            SfuiDB.fishing.zones[mapID] = z
+        end
+        z.getaways = (z.getaways or 0) + 1
+    end
+    if sfui.fishing.hud and sfui.fishing.hud.Update then sfui.fishing.hud.Update() end
+    if sfui.fishing.atlas and sfui.fishing.atlas.Update then sfui.fishing.atlas.Update() end
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_FISHING_GETAWAY_RECORDED", mapID)
+    end
+end
 
 
 -- ─── Deferred Execution for Combat Safety ────────────────────────────────────
@@ -513,27 +668,17 @@ local function find_fishing_pole_in_bags()
     local bestBag, bestSlot, bestLink = nil, nil, nil
     local bestIlvl = -1
 
-    local numBags = _G.NUM_BAG_SLOTS or 4
-    for bag = 0, numBags do
-        local numSlots = (_G.C_Container and _G.C_Container.GetContainerNumSlots and _G.C_Container.GetContainerNumSlots(bag))
-            or (_G.GetContainerNumSlots and _G.GetContainerNumSlots(bag)) or 0
-        for slot = 1, numSlots do
-            local link = (_G.C_Container and _G.C_Container.GetContainerItemLink and _G.C_Container.GetContainerItemLink(bag, slot))
-                or (_G.GetContainerItemLink and _G.GetContainerItemLink(bag, slot))
-            if link then
-                local itemID = tonumber(link:match("item:(%d+)"))
-                if is_fishing_pole_item(itemID, link) then
-                    local ilvl = sfui.common.get_item_level(link) or 0
-                    if ilvl > bestIlvl then
-                        bestIlvl = ilvl
-                        bestBag = bag
-                        bestSlot = slot
-                        bestLink = link
-                    end
-                end
+    sfui.common.for_each_bag_item(function(bag, slot, itemID, link)
+        if link and is_fishing_pole_item(itemID, link) then
+            local ilvl = sfui.common.get_item_level(link) or 0
+            if ilvl > bestIlvl then
+                bestIlvl = ilvl
+                bestBag = bag
+                bestSlot = slot
+                bestLink = link
             end
         end
-    end
+    end, false, true, false)
 
     if bestBag and bestSlot then
         return { bag = bestBag, slot = bestSlot, link = bestLink }
@@ -937,6 +1082,24 @@ local function on_channel_start(event, unit, castGUID, spellID)
     refresh_session()
     set_fishing_cvars()
 
+    local mapID = sfui.common.get_player_map_id()
+    local s = sfui.fishing.session
+    if s then
+        s.casts = (s.casts or 0) + 1
+    end
+    if mapID and mapID > 0 then
+        SfuiDB = SfuiDB or {}
+        SfuiDB.fishing = SfuiDB.fishing or {}
+        SfuiDB.fishing.zones = SfuiDB.fishing.zones or {}
+        local z = SfuiDB.fishing.zones[mapID]
+        if not z then
+            z = { casts = 0, catches = 0, getaways = 0, fish = {} }
+            SfuiDB.fishing.zones[mapID] = z
+        end
+        z.casts = (z.casts or 0) + 1
+    end
+    if sfui.fishing.hud and sfui.fishing.hud.Update then sfui.fishing.hud.Update() end
+
     local btn = get_secure_button()
     if SetOverrideBinding and btn then
         local keys = get_all_bound_keys()
@@ -969,11 +1132,27 @@ local function on_channel_stop(event, unit, castGUID, spellID)
     end
 end
 
+local function record_current_loot()
+    local num = GetNumLootItems and GetNumLootItems() or 0
+    if num > 0 then
+        local mapID = sfui.common.get_player_map_id()
+        for i = 1, num do
+            local link = _G.GetLootSlotLink and _G.GetLootSlotLink(i)
+            local itemID = link and tonumber(link:match("item:(%d+)"))
+            if itemID then
+                local _, _, quantity, _, quality = _G.GetLootSlotInfo(i)
+                sfui.fishing.RecordCatch(itemID, quantity or 1, quality or 0, mapID, link)
+            end
+        end
+    end
+end
+
 local function on_loot_ready(event)
     if not get_setting("enabled", true) then return end
     local now = GetTime()
     if _state.wasFishing or _state.isFishing or (now - (_state.lastChannelStopTime or 0)) < 4 then
         refresh_session()
+        record_current_loot()
         if get_setting("autoLoot", true) then
             loot_all_items()
             arm_fishing_keys()
@@ -982,6 +1161,18 @@ local function on_loot_ready(event)
             if ClearOverrideBindings and btn and (not InCombatLockdown or not InCombatLockdown()) then
                 ClearOverrideBindings(btn)
             end
+        end
+    end
+end
+
+local function on_error_message(event, messageType, message)
+    if not (_state.isFishing or _state.wasFishing or (GetTime() - (_state.lastChannelStopTime or 0)) < 3) then
+        return
+    end
+    if message and type(message) == "string" then
+        local msgLower = message:lower()
+        if msgLower:find("away") or msgLower:find("entkommen") or msgLower:find("échappé") or msgLower:find("escapó") then
+            sfui.fishing.RecordGetaway()
         end
     end
 end
@@ -1157,6 +1348,7 @@ sfui.RegisterModule("fishing", {
         sfui.events.RegisterEvent("TRAINER_CLOSED", on_spells_or_skills_changed)
         sfui.events.RegisterEvent("PLAYER_LOGOUT", reset_fishing_cvars)
         sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", on_equipment_changed)
+        sfui.events.RegisterEvent("UI_ERROR_MESSAGE", on_error_message)
         sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", check_mount_or_taxi)
         sfui.events.RegisterEvent("TAXIMAP_OPENED", check_mount_or_taxi)
         sfui.events.RegisterUnitEvent("UNIT_AURA", "player", check_mount_or_taxi)
@@ -1187,6 +1379,9 @@ sfui.RegisterModule("fishing", {
 _G["SFUI_FISHING_RUN"] = sfui.fishing.RunKeybind
 
 function sfui.fishing_debug_info()
+    local hud = sfui.fishing.hud
+    local atlas = sfui.fishing.atlas
+    local s = sfui.fishing.session
     return {
         enabled = get_setting("enabled", true),
         hasSkill = get_known_fishing_id() ~= nil,
@@ -1200,7 +1395,36 @@ function sfui.fishing_debug_info()
         poleEquipped = is_fishing_pole_equipped(),
         soundsEnhanced = _state.soundsEnhanced,
         pendingCount = #_state.pendingTasks,
+        hudCreated = (hud and hud.GetFrame and hud.GetFrame() ~= nil) or false,
+        hudShown = (hud and hud.GetFrame and hud.GetFrame() and hud.GetFrame():IsShown()) or false,
+        hudLocked = (hud and hud.IsLocked and hud.IsLocked()) or false,
+        atlasCreated = (atlas and atlas.GetFrame and atlas.GetFrame() ~= nil) or false,
+        atlasShown = (atlas and atlas.GetFrame and atlas.GetFrame() and atlas.GetFrame():IsShown()) or false,
+        atlasPools = (atlas and atlas.GetPoolStats and atlas.GetPoolStats()) or nil,
+        sessionCatches = (s and s.catches) or 0,
+        sessionCasts = (s and s.casts) or 0,
+        sessionStreak = (s and s.streak) or 0,
+        sessionGetaways = (s and s.getaways) or 0,
     }
 end
 
 sfui.fishing.GetDebugInfo = sfui.fishing_debug_info
+
+if sfui.db and sfui.db.RegisterDefaults then
+    sfui.db.RegisterDefaults("fishing", {
+        enabled = true,
+        autoLoot = true,
+        enhanceSounds = true,
+        softTarget = true,
+        hud = {
+            enabled = true,
+        },
+        records = {
+            longestStreak = 0,
+            bestRate = 0,
+        },
+        zones = {},
+        species = {},
+        catches = {},
+    })
+end

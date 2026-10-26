@@ -22,20 +22,33 @@ local modules = sfui.modules
 local _isAddonLoaded = false
 local _isPlayerLoggedIn = false
 
+local _curModuleCtx = nil
+
+local function _module_error_handler(err)
+    local stack = debugstack and debugstack(2, 20, 20)
+    if _G.sfuibug and _G.sfuibug.RecordError then
+        _G.sfuibug.RecordError(_curModuleCtx, err, stack)
+    elseif _G.CallErrorHandler then
+        _G.CallErrorHandler(err)
+    elseif _G.geterrorhandler and _G.geterrorhandler() then
+        _G.geterrorhandler()(err)
+    else
+        local lbl = _curModuleCtx and _curModuleCtx.label or "module"
+        print("|cffff0000[sfui module error]|r " .. tostring(lbl) .. ": " .. tostring(err))
+    end
+    return err
+end
+
 local function _safe_call(mod, method, ...)
     if mod and type(mod[method]) == "function" then
-        local ok, err = pcall(mod[method], mod, ...)
-        if not ok then
-            if _G.sfuibug and _G.sfuibug.RecordError then
-                _G.sfuibug.RecordError({
-                    module = mod.name or "core",
-                    file = "core/module.lua",
-                    label = tostring(mod.name) .. ":" .. method .. "()",
-                }, err)
-            else
-                print("|cffff0000[sfui module error]|r " .. tostring(mod.name) .. ":" .. method .. "(): " .. tostring(err))
-            end
-        end
+        local prevCtx = _curModuleCtx
+        _curModuleCtx = {
+            module = mod.name or "core",
+            file = "core/module.lua",
+            label = tostring(mod.name) .. ":" .. method .. "()",
+        }
+        xpcall(mod[method], _module_error_handler, mod, ...)
+        _curModuleCtx = prevCtx
     end
 end
 

@@ -62,6 +62,19 @@ local CONSUMABLES = {
         fallbackIcon = "Interface\\Icons\\INV_Stone_SharpeningStone_04",
         isConsumable = true,
     },
+    fishing_lure = {
+        key = "consumable_fishing_lure",
+        name = "fishing lure",
+        type = "weapon_enchant",
+        slot = 16,
+        isFishingLure = true,
+        threshold = 60,
+        fallbackIcon = "Interface\\Icons\\INV_Misc_Fish_02",
+        isConsumable = true,
+        isKnownCheck = function()
+            return sfui.fishing and sfui.fishing.IsFishingPoleEquipped and sfui.fishing.IsFishingPoleEquipped()
+        end,
+    },
 }
 
 sfui.buffs.consumables.DEFINITIONS = CONSUMABLES
@@ -81,7 +94,13 @@ function sfui.buffs.consumables.GetActiveConsumableEntries()
         result[#result + 1] = CONSUMABLES.flask
     end
 
-    if db.trackWeaponOil then
+    local isFishingPole = sfui.fishing and sfui.fishing.IsFishingPoleEquipped and sfui.fishing.IsFishingPoleEquipped()
+
+    if db.trackFishingLure ~= false and isFishingPole then
+        result[#result + 1] = CONSUMABLES.fishing_lure
+    end
+
+    if db.trackWeaponOil and not isFishingPole then
         local pClass = sfui.buffs.playerClass
         -- Rogue and Shaman already track class-specific weapon enchants (poisons & weapon imbues)
         if pClass ~= "ROGUE" and pClass ~= "SHAMAN" then

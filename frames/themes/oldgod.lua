@@ -380,7 +380,7 @@ function oldGodTheme.ApplyContainer(containerPanel, theme)
     if not containerPanel.sfuiOldGodContainer then
         local bFrame = CreateFrame("Frame", nil, containerPanel)
         bFrame:SetAllPoints(containerPanel)
-        bFrame:SetFrameLevel(math.max(1, (containerPanel:GetFrameLevel() or 1) + 1))
+        bFrame:SetFrameLevel(math.max(1, (containerPanel:GetFrameLevel() or 1)))
         bFrame:EnableMouse(false)
 
         local solid = bFrame:CreateTexture(nil, "BACKGROUND", nil, -8)
@@ -446,7 +446,7 @@ function oldGodTheme.ApplyContainer(containerPanel, theme)
     end
 
     local bFrame = containerPanel.sfuiOldGodContainer.frame
-    bFrame:SetFrameLevel(math.max(1, (containerPanel:GetFrameLevel() or 1) + 1))
+    bFrame:SetFrameLevel(math.max(1, (containerPanel:GetFrameLevel() or 1)))
     bFrame:Show()
     if containerPanel.SetBackdrop then
         containerPanel:SetBackdrop(nil)

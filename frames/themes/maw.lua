@@ -331,7 +331,7 @@ function mawTheme.ApplyContainer(containerPanel, theme)
     if not containerPanel.sfuiMawContainer then
         local bFrame = CreateFrame("Frame", nil, containerPanel)
         bFrame:SetAllPoints(containerPanel)
-        bFrame:SetFrameLevel(math.max(1, containerPanel:GetFrameLevel() + 1))
+        bFrame:SetFrameLevel(math.max(1, (containerPanel:GetFrameLevel() or 1)))
 
         local solid = containerPanel:CreateTexture(nil, "BACKGROUND", nil, -5)
         solid:SetAllPoints(containerPanel)
@@ -396,7 +396,7 @@ function mawTheme.ApplyContainer(containerPanel, theme)
     end
 
     local bFrame = containerPanel.sfuiMawContainer.frame
-    bFrame:SetFrameLevel(math.max(1, (containerPanel:GetFrameLevel() or 1) + 1))
+    bFrame:SetFrameLevel(math.max(1, (containerPanel:GetFrameLevel() or 1)))
     bFrame:Show()
     if containerPanel.SetBackdrop then
         containerPanel:SetBackdrop(nil)

@@ -21,8 +21,27 @@ local pairs = _G.pairs
 local hiddenParent = (sfui.hide and sfui.hide.HiddenFrame)
 if not hiddenParent then
     hiddenParent = CreateFrame("Frame", "SfuiActionBarsHiddenDump", UIParent)
-    hiddenParent:SetAllPoints(UIParent)
+    hiddenParent:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", 0, -10000)
+    hiddenParent:SetSize(1, 1)
     hiddenParent:Hide()
+end
+
+local _inOffscreenSetPoint = false
+local function ParkFrameOffscreen(frame)
+    if not frame or (InCombatLockdown and InCombatLockdown()) then return end
+    _inOffscreenSetPoint = true
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", 0, -10000)
+    _inOffscreenSetPoint = false
+end
+
+local function HookBarSetPoint(bar)
+    if not bar or bar._sfuiSetPointHooked then return end
+    bar._sfuiSetPointHooked = true
+    hooksecurefunc(bar, "SetPoint", function(self)
+        if _inOffscreenSetPoint or (InCombatLockdown and InCombatLockdown()) then return end
+        ParkFrameOffscreen(self)
+    end)
 end
 
 local function SilenceSelection(selection)
@@ -69,16 +88,78 @@ local function QuietButton(btn)
     if btn.EnableMouse then btn:EnableMouse(false) end
     if btn.EnableMouseClicks then btn:EnableMouseClicks(false) end
     if btn.EnableMouseMotion then btn:EnableMouseMotion(false) end
+    if btn.SetAlpha then btn:SetAlpha(0) end
+
+    if not btn._sfuiQuietHooked then
+        btn._sfuiQuietHooked = true
+        if btn.HookScript then
+            btn:HookScript("OnEnter", function()
+                if _G.GameTooltip and _G.GameTooltip.Hide then
+                    _G.GameTooltip:Hide()
+                end
+            end)
+            btn:HookScript("OnShow", function(self)
+                if self.EnableMouse then self:EnableMouse(false) end
+                if self.EnableMouseClicks then self:EnableMouseClicks(false) end
+                if self.EnableMouseMotion then self:EnableMouseMotion(false) end
+                if self.SetAlpha then self:SetAlpha(0) end
+            end)
+        end
+        if btn.EnableMouse then
+            hooksecurefunc(btn, "EnableMouse", function(self, enabled)
+                if enabled and not (InCombatLockdown and InCombatLockdown()) then
+                    self:EnableMouse(false)
+                end
+            end)
+        end
+        if btn.EnableMouseMotion then
+            hooksecurefunc(btn, "EnableMouseMotion", function(self, enabled)
+                if enabled and not (InCombatLockdown and InCombatLockdown()) then
+                    self:EnableMouseMotion(false)
+                end
+            end)
+        end
+    end
 end
 
+local function QuietContainer(container)
+    if not container then return end
+    if container.EnableMouse then container:EnableMouse(false) end
+    if container.EnableMouseClicks then container:EnableMouseClicks(false) end
+    if container.EnableMouseMotion then container:EnableMouseMotion(false) end
+    if container.SetAlpha then container:SetAlpha(0) end
+end
+
+local BAR_BUTTON_PATTERNS = {
+    { bar = "MainActionBar", prefix = "ActionButton", count = 12 },
+    { bar = "MultiBarBottomLeft", prefix = "MultiBarBottomLeftButton", count = 12 },
+    { bar = "MultiBarBottomRight", prefix = "MultiBarBottomRightButton", count = 12 },
+    { bar = "MultiBarLeft", prefix = "MultiBarLeftButton", count = 12 },
+    { bar = "MultiBarRight", prefix = "MultiBarRightButton", count = 12 },
+    { bar = "MultiBar5", prefix = "MultiBar5Button", count = 12 },
+    { bar = "MultiBar6", prefix = "MultiBar6Button", count = 12 },
+    { bar = "MultiBar7", prefix = "MultiBar7Button", count = 12 },
+    { bar = "StanceBar", prefix = "StanceButton", count = 10 },
+    { bar = "PetActionBar", prefix = "PetActionButton", count = 10 },
+    { bar = "PossessActionBar", prefix = "PossessButton", count = 10 },
+}
+
 local UNTAINT_BARS = {
+    "MainActionBar", "MultiBarBottomLeft", "MultiBarBottomRight",
     "MultiBar5", "MultiBar6", "MultiBar7", "MultiBarLeft", "MultiBarRight",
-    "MultiBarBottomLeft", "MultiBarBottomRight", "MicroButtonAndBagsBar",
-    "OverrideActionBar", "MainMenuBar", "MainActionBar", "StanceBar",
+    "MicroButtonAndBagsBar", "OverrideActionBar", "MainMenuBar", "StanceBar",
     "PetActionBar", "PossessActionBar", "MainMenuBarArtFrame",
     "ShapeshiftBarFrame", "StanceBarFrame", "PetActionBarFrame",
     "PossessBarFrame", "MultiCastActionBarFrame",
 }
+
+local SUPPRESSED_BAR_LOOKUP = {}
+for _, name in ipairs(UNTAINT_BARS) do
+    SUPPRESSED_BAR_LOOKUP[name] = true
+end
+for _, info in ipairs(BAR_BUTTON_PATTERNS) do
+    SUPPRESSED_BAR_LOOKUP[info.bar] = true
+end
 
 local function suppress_blizzard_actionbars()
     if InCombatLockdown and InCombatLockdown() then
@@ -88,7 +169,7 @@ local function suppress_blizzard_actionbars()
         return
     end
 
-    -- 1. MainActionBar (kept in parent chain for pet battle transitions, fully silenced)
+    -- 1. MainActionBar
     local mainBar = _G.MainActionBar
     if mainBar then
         mainBar.defaultHideSelection = true
@@ -96,10 +177,14 @@ local function suppress_blizzard_actionbars()
         if mainBar.EnableMouse then mainBar:EnableMouse(false) end
         if mainBar.EnableMouseClicks then mainBar:EnableMouseClicks(false) end
         if mainBar.EnableMouseMotion then mainBar:EnableMouseMotion(false) end
+        ParkFrameOffscreen(mainBar)
+        HookBarSetPoint(mainBar)
         KillPagerMouse(mainBar)
         if mainBar.Selection then SilenceSelection(mainBar.Selection) end
         if mainBar.BorderArt then mainBar.BorderArt:Hide() end
         if mainBar.QuickKeybindGlow then mainBar.QuickKeybindGlow:Hide() end
+        if mainBar.QuickKeybindBottomShadow then mainBar.QuickKeybindBottomShadow:Hide() end
+        if mainBar.QuickKeybindRightShadow then mainBar.QuickKeybindRightShadow:Hide() end
 
         local caps = mainBar.EndCaps
         if caps then
@@ -112,66 +197,95 @@ local function suppress_blizzard_actionbars()
             end
         end
 
+        if mainBar:GetParent() ~= hiddenParent then
+            mainBar:SetParent(hiddenParent)
+        end
+
         if not mainBar._sfuiHooked then
             mainBar._sfuiHooked = true
             hooksecurefunc(mainBar, "Show", function(self)
-                self:SetAlpha(0)
-                KillPagerMouse(self)
-            end)
-        end
-
-        if mainBar.actionButtons and type(mainBar.actionButtons) == "table" then
-            for _, btn in pairs(mainBar.actionButtons) do
-                QuietButton(btn)
-            end
-        else
-            for i = 1, 12 do
-                QuietButton(_G["ActionButton" .. i])
-            end
-        end
-    end
-
-    -- 2. Reparent and silence all secondary action bars
-    for _, name in ipairs(UNTAINT_BARS) do
-        if name ~= "MainActionBar" then
-            local bar = _G[name]
-            if bar then
-                bar.defaultHideSelection = true
-                if bar.SetAlpha then bar:SetAlpha(0) end
-                if bar.EnableMouse then bar:EnableMouse(false) end
-                if bar.EnableMouseClicks then bar:EnableMouseClicks(false) end
-                if bar.EnableMouseMotion then bar:EnableMouseMotion(false) end
-                if bar.Selection then SilenceSelection(bar.Selection) end
-
-                if bar:GetParent() ~= hiddenParent then
-                    bar:SetParent(hiddenParent)
-                end
-
-                if not bar._sfuiReparkHooked then
-                    bar._sfuiReparkHooked = true
-                    bar:HookScript("OnShow", function(self)
-                        if not InCombatLockdown() and self:GetParent() ~= hiddenParent then
-                            self:SetParent(hiddenParent)
-                        end
-                    end)
-                end
-
-                if bar.actionButtons and type(bar.actionButtons) == "table" then
-                    for _, btn in pairs(bar.actionButtons) do
-                        QuietButton(btn)
+                if not (InCombatLockdown and InCombatLockdown()) then
+                    self:SetAlpha(0)
+                    ParkFrameOffscreen(self)
+                    KillPagerMouse(self)
+                    if self:GetParent() ~= hiddenParent then
+                        self:SetParent(hiddenParent)
                     end
                 end
+            end)
+        end
+    end
+
+    -- 2. Reparent, move offscreen, and silence all secondary action bars
+    for _, name in ipairs(UNTAINT_BARS) do
+        local bar = _G[name]
+        if bar then
+            bar.defaultHideSelection = true
+            if bar.SetAlpha then bar:SetAlpha(0) end
+            if bar.EnableMouse then bar:EnableMouse(false) end
+            if bar.EnableMouseClicks then bar:EnableMouseClicks(false) end
+            if bar.EnableMouseMotion then bar:EnableMouseMotion(false) end
+            if bar.Selection then SilenceSelection(bar.Selection) end
+
+            ParkFrameOffscreen(bar)
+            HookBarSetPoint(bar)
+
+            if bar:GetParent() ~= hiddenParent then
+                bar:SetParent(hiddenParent)
+            end
+
+            if not bar._sfuiReparkHooked then
+                bar._sfuiReparkHooked = true
+                bar:HookScript("OnShow", function(self)
+                    if not (InCombatLockdown and InCombatLockdown()) then
+                        self:SetAlpha(0)
+                        ParkFrameOffscreen(self)
+                        if self:GetParent() ~= hiddenParent then
+                            self:SetParent(hiddenParent)
+                        end
+                    end
+                end)
             end
         end
     end
 
-    -- StatusTrackingBarManager
+    -- 3. Silence all buttons and containers for all bars (explicit global + bar.actionButtons)
+    for _, info in ipairs(BAR_BUTTON_PATTERNS) do
+        for i = 1, info.count do
+            QuietButton(_G[info.prefix .. i])
+            QuietContainer(_G[info.bar .. "ButtonContainer" .. i])
+        end
+        local bar = _G[info.bar]
+        if bar and bar.actionButtons and type(bar.actionButtons) == "table" then
+            for _, btn in pairs(bar.actionButtons) do
+                QuietButton(btn)
+                if btn.container then
+                    QuietContainer(btn.container)
+                end
+            end
+        end
+    end
+
+    -- 4. StatusTrackingBarManager (XP, Rep, Honor bars in center of screen)
     local stbm = _G.StatusTrackingBarManager
     if stbm then
         stbm.defaultHideSelection = true
         if stbm.SetAlpha then stbm:SetAlpha(0) end
         if stbm.EnableMouse then stbm:EnableMouse(false) end
         if stbm.Selection then SilenceSelection(stbm.Selection) end
+        ParkFrameOffscreen(stbm)
+        HookBarSetPoint(stbm)
+
+        local subContainers = { _G.MainStatusTrackingBarContainer, _G.SecondaryStatusTrackingBarContainer }
+        for _, sub in ipairs(subContainers) do
+            if sub then
+                sub.defaultHideSelection = true
+                if sub.SetAlpha then sub:SetAlpha(0) end
+                if sub.EnableMouse then sub:EnableMouse(false) end
+                ParkFrameOffscreen(sub)
+                HookBarSetPoint(sub)
+            end
+        end
     end
 end
 
@@ -186,12 +300,33 @@ local function HookEditModeActionBars()
             suppress_blizzard_actionbars()
         end)
     end
+
+    local emsm = _G.EditModeSystemMixin
+    if emsm and not emsm._sfuiApplyAnchorHooked then
+        emsm._sfuiApplyAnchorHooked = true
+        hooksecurefunc(emsm, "ApplySystemAnchor", function(self)
+            if InCombatLockdown and InCombatLockdown() then return end
+            local name = self and self.GetName and self:GetName()
+            if name and SUPPRESSED_BAR_LOOKUP[name] then
+                ParkFrameOffscreen(self)
+            end
+        end)
+    end
 end
 HookEditModeActionBars()
 
 if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
         C_Timer.After(0, suppress_blizzard_actionbars)
+    end)
+    sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
+        C_Timer.After(0, suppress_blizzard_actionbars)
+    end)
+    sfui.events.RegisterEvent("UPDATE_BINDINGS", function()
+        C_Timer.After(0, suppress_blizzard_actionbars)
+    end)
+    sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+        suppress_blizzard_actionbars()
     end)
     sfui.events.RegisterEvent("ADDON_LOADED", function(event, addonLoaded)
         if addonLoaded == "Blizzard_ActionBar" or addonLoaded == "Blizzard_EditMode" then
@@ -200,6 +335,7 @@ if sfui.events and sfui.events.RegisterEvent then
         end
     end)
 end
+
 
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Module Registration & Lifecycle

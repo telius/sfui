@@ -2199,10 +2199,14 @@ function sfui.theme.ApplyScrollBarStyle(scrollBar)
     scrollBar.downBtn = downBtn
 
     -- Clean up default background textures from UIPanelScrollBarTemplate
+    local thumb = (scrollBar.GetThumbTexture and scrollBar:GetThumbTexture())
+        or (scrollBar.GetThumb and scrollBar:GetThumb())
+        or scrollBar.Thumb
+
     if scrollBar.GetNumRegions then
         for i = 1, scrollBar:GetNumRegions() do
             local region = select(i, scrollBar:GetRegions())
-            if region and region:IsObjectType("Texture") and region ~= scrollBar:GetThumbTexture() then
+            if region and region:IsObjectType("Texture") and region ~= thumb then
                 region:SetTexture(nil)
             end
         end
@@ -2212,8 +2216,7 @@ function sfui.theme.ApplyScrollBarStyle(scrollBar)
         Mixin(scrollBar, BackdropTemplateMixin)
     end
 
-    local thumb = scrollBar:GetThumbTexture()
-    if not thumb and scrollBar.CreateTexture then
+    if not thumb and scrollBar.CreateTexture and scrollBar.SetThumbTexture then
         thumb = scrollBar:CreateTexture(nil, "ARTWORK")
         scrollBar:SetThumbTexture(thumb)
     end
@@ -2247,13 +2250,17 @@ function sfui.theme.ApplyScrollBarStyle(scrollBar)
             pcall(p.UpdateScrollChildRect, p)
         end
         local range = (p.GetVerticalScrollRange and p:GetVerticalScrollRange()) or 0
-        local minVal, maxVal = self:GetMinMaxValues()
+        local minVal, maxVal
+        if self.GetMinMaxValues then
+            minVal, maxVal = self:GetMinMaxValues()
+        end
         local maxRange = maxVal and (maxVal - (minVal or 0)) or 0
         local child = p.GetScrollChild and p:GetScrollChild()
         local childH = (child and child.GetHeight and child:GetHeight()) or 0
         local frameH = (p.GetHeight and p:GetHeight()) or 0
 
-        local isScrollable = (range > 0.5) or (maxRange > 0.5) or (childH > (frameH + 1) and frameH > 0)
+        local hasModernExtent = self.HasScrollableExtent and self:HasScrollableExtent()
+        local isScrollable = (hasModernExtent == true) or (range > 0.5) or (maxRange > 0.5) or (childH > (frameH + 1) and frameH > 0)
         local camelotActive = sfui.theme.IsCamelotActive()
 
         if isScrollable then
@@ -2495,14 +2502,15 @@ function sfui.theme.ApplyScrollBarStyle(scrollBar)
         end
 
         if thumb then
-            thumb:SetAlpha(0.75)
-            thumb:SetSize(6, 30)
+            if thumb.SetAlpha then thumb:SetAlpha(0.75) end
+            if thumb.SetSize then thumb:SetSize(6, 30) end
             local pal = sfui.theme.GetPalette()
             local aID = sfui.theme.GetActiveThemeID()
-            if aID == "oldgod" then
-                thumb:SetColorTexture(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3], 0.85)
-            else
-                thumb:SetColorTexture(1, 1, 1, 0.75)
+            local color = (aID == "oldgod" and pal.accentColor) or { 1, 1, 1, 0.75 }
+            if thumb.SetColorTexture then
+                thumb:SetColorTexture(color[1], color[2], color[3], color[4] or 0.75)
+            elseif thumb.SetVertexColor then
+                thumb:SetVertexColor(color[1], color[2], color[3], color[4] or 0.75)
             end
         end
     end

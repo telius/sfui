@@ -552,6 +552,19 @@ local function GetBestCastSpell(entry, activeEnchantName)
         end
     end
 
+    if entry.isFishingLure then
+        local skillRank = (sfui.fishing and sfui.fishing.GetSkill and sfui.fishing.GetSkill()) or 0
+        local bestLure = sfui.fishing_data and sfui.fishing_data.FindBestLureInBags and sfui.fishing_data.FindBestLureInBags(skillRank)
+        if bestLure then
+            local icon = (sfui.common and sfui.common.get_item_instant_info and select(5, sfui.common.get_item_instant_info(bestLure.itemID)))
+                or (_G.C_Item and _G.C_Item.GetItemIconByID and _G.C_Item.GetItemIconByID(bestLure.itemID))
+                or (_G.GetItemIcon and _G.GetItemIcon(bestLure.itemID))
+                or entry.fallbackIcon
+            return bestLure.name, icon, bestLure.itemID
+        end
+        return nil, entry.fallbackIcon, nil
+    end
+
     if entry.type == "pet" and (playerClass == "HUNTER" or playerClass == "WARLOCK") then
         if sfui.buffs.pets and sfui.buffs.pets.GetSelectedPet then
             local selectedPet = sfui.buffs.pets.GetSelectedPet()

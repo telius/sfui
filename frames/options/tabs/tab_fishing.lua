@@ -37,6 +37,37 @@ sfui.options.RegisterTab({
         fishing_header:SetTextColor(white[1], white[2], white[3])
         fishing_header:SetText("fishing automation")
 
+        local atlas_btn = CreateFlatButton(p, "open fishing atlas", 130, 22)
+        atlas_btn:SetPoint("LEFT", fishing_header, "RIGHT", 20, 0)
+        atlas_btn:SetScript("OnClick", function()
+            if sfui.fishing and sfui.fishing.atlas and sfui.fishing.atlas.Toggle then
+                sfui.fishing.atlas.Toggle()
+            end
+        end)
+
+        local hud_toggle_btn = CreateFlatButton(p, "toggle hud", 90, 22)
+        hud_toggle_btn:SetPoint("LEFT", atlas_btn, "RIGHT", 6, 0)
+        hud_toggle_btn:SetScript("OnClick", function()
+            if sfui.fishing and sfui.fishing.hud then
+                SfuiDB = SfuiDB or {}
+                SfuiDB.fishing = SfuiDB.fishing or {}
+                SfuiDB.fishing.hud = SfuiDB.fishing.hud or {}
+                SfuiDB.fishing.hud.enabled = not SfuiDB.fishing.hud.enabled
+                if sfui.fishing.hud.CheckVisibility then
+                    sfui.fishing.hud.CheckVisibility()
+                end
+            end
+        end)
+
+        local hud_lock_btn = CreateFlatButton(p, "lock / unlock hud", 115, 22)
+        hud_lock_btn:SetPoint("LEFT", hud_toggle_btn, "RIGHT", 6, 0)
+        hud_lock_btn:SetScript("OnClick", function()
+            if sfui.fishing and sfui.fishing.hud and sfui.fishing.hud.ToggleLock then
+                local locked = sfui.fishing.hud.ToggleLock()
+                hud_lock_btn:SetText(locked and "unlock hud" or "lock hud")
+            end
+        end)
+
         -- ── Section 1: Casting & Interaction ─────────────────────────────────
         local cast_header = p:CreateFontString(nil, "OVERLAY", g.font)
         cast_header:SetPoint("TOPLEFT", fishing_header, "BOTTOMLEFT", 0, -18)
@@ -294,8 +325,9 @@ sfui.options.RegisterTab({
         tips_text:SetWidth(480)
         tips_text:SetJustifyH("LEFT")
         tips_text:SetText(
-            "• |cffffffff1-key cast, catch & loot|r: press your bound key once to cast. when the bobber splashes, press the exact same key to reel in. caught fish are looted automatically (or on your next keypress if loot remains).\n\n" ..
-            "• |cffffffffquick binding|r: click '|cff00ffffbind key|r' above and press any key or mouse button. right-click the button or click '|cff00ffffunbind|r' to remove it.\n\n" ..
+            "• |cffffffff1-key cast, catch & loot|r: press your bound key once to cast. when the bobber splashes, press the exact same key to reel in. caught fish are looted automatically.\n\n" ..
+            "• |cfffffffffishing atlas & journal|r: type |cff00ffff/sffish|r or |cff00ffff/sffish atlas|r to view all species, drop rates, zone skill requirements, and personal catch logs.\n\n" ..
+            "• |cfffffffffloating status hud|r: a compact pill appears automatically when a fishing pole is equipped, showing zone difficulty, lure timers, and species drop rates.\n\n" ..
             "• |cffffffffmacro & slash|r: use |cff00ffff/sffish|r or |cff00ffff/click SfuiFishingButton|r in macros or chat."
         )
 

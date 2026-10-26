@@ -287,6 +287,8 @@ local function FormatCoinString(amount)
 end
 sfui.safety.FormatCoinString = FormatCoinString
 sfui.common.FormatCoinString = FormatCoinString
+sfui.safety.format_money = FormatCoinString
+sfui.common.format_money = FormatCoinString
 
 -- Safely get a coin texture string
 function sfui.safety.SafeGetCoinTextureString(amount)

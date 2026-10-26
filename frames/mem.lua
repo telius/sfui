@@ -527,16 +527,25 @@ function sfui.mem.GetModuleStats()
         stats["research"] = resMod
     end
 
-    -- Fishing Automation Module
+    -- Fishing Automation & Atlas Module
     local fishStats = {
-        name = "fishing automation",
+        name = "fishing suite",
         status = "|cff888888idle|r",
-        line1 = "keys: unarm • skill: none",
-        line2 = "audio boost: off • soft target: off",
+        line1 = "keys: unarm • pole: no",
+        line2 = "hud: none • atlas: none • pools: 0",
     }
     local f = GetDebug("fishing_debug_info", "fishing")
     if f then
-        fishStats.status = f.isFishing and "|cff00ff88casting / reeling|r" or (f.enabled and "|cff00ff88armed|r" or "|cff888888disabled|r")
+        if f.isFishing then
+            fishStats.status = "|cff00ff88casting / reeling|r"
+        elseif f.poleEquipped then
+            fishStats.status = "|cff00ffffpole equipped|r"
+        elseif f.enabled then
+            fishStats.status = "|cff00ff88armed|r"
+        else
+            fishStats.status = "|cff888888disabled|r"
+        end
+
         local keyList = {}
         if type(f.boundKeys) == "table" then
             for _, k in ipairs(f.boundKeys) do
@@ -546,8 +555,14 @@ function sfui.mem.GetModuleStats()
             end
         end
         local keysStr = #keyList > 0 and table.concat(keyList, ",") or "none"
-        fishStats.line1 = string_format("skill: %s (id: %s) • keys: %s", f.hasSkill and "|cff00ff88learned|r" or "|cff888888unlearned|r", tostring(f.knownSpellID or "none"), keysStr)
-        fishStats.line2 = string_format("audio: %s • soft: %s • auto-loot: %s", f.enhanceSounds and (f.soundsEnhanced and "|cff00ff88active|r" or "on") or "off", f.softTarget and "on" or "off", f.autoLoot and "on" or "off")
+        local poleStr = f.poleEquipped and "|cff00ff88yes|r" or "no"
+        local catchMetric = string_format("%d/%d (%d getaway)", tonumber(f.sessionCatches) or 0, tonumber(f.sessionCasts) or 0, tonumber(f.sessionGetaways) or 0)
+        fishStats.line1 = string_format("keys: %s • pole: %s • catches: %s", keysStr, poleStr, catchMetric)
+
+        local hudState = f.hudShown and "|cff00ff88open|r" or (f.hudCreated and "hidden" or "none")
+        local atlasState = f.atlasShown and "|cff00ff88open|r" or (f.atlasCreated and "closed" or "ready")
+        local poolTotal = (f.atlasPools and f.atlasPools.total) or 0
+        fishStats.line2 = string_format("hud: %s • atlas: %s • pooled: %d frames", hudState, atlasState, poolTotal)
     end
     stats["fishing"] = fishStats
 

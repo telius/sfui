@@ -37,6 +37,7 @@ sfui.options.RegisterTab({
             trackFood = false,
             trackFlask = false,
             trackWeaponOil = false,
+            trackFishingLure = true,
             trackMinerals = true,
             trackHerbs = true,
             shamanImbueMH = "auto",
@@ -281,6 +282,17 @@ sfui.options.RegisterTab({
             end
         end, "reminds you when equipped weapons lack a sharpening stone, weightstone, or wizard/mana oil.")
         stone_cb:SetPoint("TOPLEFT", food_cb, "BOTTOMLEFT", 0, -8)
+
+        local lure_cb = create_checkbox(p, "track fishing lures (pole equipped)", function()
+            return SfuiDB.buffReminders.trackFishingLure ~= false
+        end, function(checked)
+            SfuiDB.buffReminders.trackFishingLure = checked
+            if sfui.buffs and sfui.buffs.scan then
+                sfui.buffs.scan.RefreshSpellKnowledge()
+                sfui.buffs.scan.RequestScan()
+            end
+        end, "reminds you when an equipped fishing pole has no active lure or is expiring.")
+        lure_cb:SetPoint("LEFT", stone_cb, "LEFT", COL_OFFSET_X, 0)
 
         -- ── Section 5: Resource Tracking ─────────────────────────────────────
         local track_header = p:CreateFontString(nil, "OVERLAY", g.font)

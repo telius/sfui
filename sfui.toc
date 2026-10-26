@@ -196,6 +196,11 @@ frames/map/providers/pins_library.lua [AllowLoadGameType camelot, classic]
 # Camelot Iconic Quests & Discoveries (Sleeping Bag, Torch)
 frames/map/providers/pins_camelot_quests.lua [AllowLoadGameType camelot, classic]
 
+# Camelot Fishing Atlas & Waters
+data/fishing_camelot.lua [AllowLoadGameType camelot, classic]
+frames/fishing/fishing_hud.lua [AllowLoadGameType camelot, classic]
+frames/fishing/fishing_atlas.lua [AllowLoadGameType camelot, classic]
+
 
 
 # Quests & Objective Tracker Engine

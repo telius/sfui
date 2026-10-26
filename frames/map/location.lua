@@ -26,13 +26,18 @@ local locationFrame = nil
 -- ------------------------------------------------------------------------------
 -- Suppress Blizzard Clutter (Find / Tracking, Calendar, and default ZoneTextButton)
 -- ------------------------------------------------------------------------------
+local function is_valid_region(obj)
+    local t = type(obj)
+    return (t == "table" or t == "userdata") and obj.SetAlpha ~= nil
+end
+
 local function suppress_blizzard_elements()
     local btn = (MinimapCluster and MinimapCluster.ZoneTextButton) or _G.MinimapZoneTextButton
     if btn then
         btn:SetAlpha(0)
         if btn.EnableMouse then btn:EnableMouse(false) end
-        if btn.StateTexture then btn.StateTexture:SetAlpha(0) end
-        if btn.AddTexture then btn.AddTexture:SetAlpha(0) end
+        if is_valid_region(btn.StateTexture) then btn.StateTexture:SetAlpha(0) end
+        if is_valid_region(btn.AddTexture) then btn.AddTexture:SetAlpha(0) end
 
         if not sfui.minimap._zoneBtnSuppressed then
             sfui.minimap._zoneBtnSuppressed = true
@@ -56,8 +61,19 @@ local function suppress_blizzard_elements()
                     end
                 end)
             end
-            if btn.StateTexture then
+            if is_valid_region(btn.StateTexture) then
                 hooksecurefunc(btn.StateTexture, "SetAlpha", function(self, a)
+                    if a > 0 then
+                        C_Timer.After(0, function()
+                            if self and self.SetAlpha and self:GetAlpha() > 0 then
+                                self:SetAlpha(0)
+                            end
+                        end)
+                    end
+                end)
+            end
+            if is_valid_region(btn.AddTexture) then
+                hooksecurefunc(btn.AddTexture, "SetAlpha", function(self, a)
                     if a > 0 then
                         C_Timer.After(0, function()
                             if self and self.SetAlpha and self:GetAlpha() > 0 then

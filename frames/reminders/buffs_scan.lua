@@ -446,6 +446,29 @@ local function ScanWeaponEnchant(entry)
 
     local pClass = sfui.buffs.playerClass or (sfui.common and sfui.common.get_player_class and sfui.common.get_player_class())
 
+    if entry.isFishingLure then
+        local isPole = sfui.fishing and sfui.fishing.IsFishingPoleEquipped and sfui.fishing.IsFishingPoleEquipped()
+        if not isPole then
+            return true, 0, 0, 0, nil
+        end
+        local hasMH, expSec, chargesMH = GetSlotWeaponEnchant(16)
+        local skillRank = (sfui.fishing and sfui.fishing.GetSkill and sfui.fishing.GetSkill()) or 0
+        local bestLure = sfui.fishing_data and sfui.fishing_data.FindBestLureInBags and sfui.fishing_data.FindBestLureInBags(skillRank)
+        local lureIcon = nil
+        if bestLure and bestLure.itemID then
+            lureIcon = (sfui.common and sfui.common.get_item_instant_info and select(5, sfui.common.get_item_instant_info(bestLure.itemID)))
+                or (_G.C_Item and _G.C_Item.GetItemIconByID and _G.C_Item.GetItemIconByID(bestLure.itemID))
+                or (_G.GetItemIcon and _G.GetItemIcon(bestLure.itemID))
+        end
+        lureIcon = lureIcon or entry.fallbackIcon
+
+        if not hasMH then
+            return false, 0, 0, 0, lureIcon, nil
+        end
+        local now = GetTime()
+        return true, 600, now + expSec, chargesMH or 0, lureIcon, "Fishing Lure"
+    end
+
     if slot == 16 then
         local hasMH, expSec, chargesMH, idMH = GetSlotWeaponEnchant(16)
         local activeEnchant = hasMH and GetActiveWeaponEnchantName(16, idMH)

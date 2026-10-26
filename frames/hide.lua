@@ -90,7 +90,7 @@ end
 --  Blizzard Unit & HUD Frames Permanent Suppression (Taint-Free Alpha Pattern)
 -- ─────────────────────────────────────────────────────────────────────────────
 local HiddenFrame = CreateFrame("Frame", nil, UIParent)
-HiddenFrame:SetPoint("BOTTOM")
+HiddenFrame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", 0, -10000)
 HiddenFrame:SetSize(1, 1)
 HiddenFrame:Hide()
 sfui.hide.HiddenFrame = HiddenFrame

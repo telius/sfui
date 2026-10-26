@@ -1020,10 +1020,14 @@ function sfui.widgets.style_scrollbar(scrollBar)
     if scrollBar.Track and scrollBar.Track.Hide then
         scrollBar.Track:Hide()
     end
+    local thumb = (scrollBar.GetThumbTexture and scrollBar:GetThumbTexture())
+        or (scrollBar.GetThumb and scrollBar:GetThumb())
+        or scrollBar.Thumb
+
     if scrollBar.GetNumRegions then
         for i = 1, scrollBar:GetNumRegions() do
             local region = select(i, scrollBar:GetRegions())
-            if region and region:IsObjectType("Texture") and region ~= scrollBar:GetThumbTexture() then
+            if region and region:IsObjectType("Texture") and region ~= thumb then
                 region:SetTexture(nil)
             end
         end
@@ -1036,14 +1040,17 @@ function sfui.widgets.style_scrollbar(scrollBar)
         scrollBar:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
         scrollBar:SetBackdropColor(0, 0, 0, 0.3)
     end
-    local thumb = scrollBar:GetThumbTexture()
-    if not thumb and scrollBar.CreateTexture then
+    if not thumb and scrollBar.CreateTexture and scrollBar.SetThumbTexture then
         thumb = scrollBar:CreateTexture(nil, "ARTWORK")
         scrollBar:SetThumbTexture(thumb)
     end
     if thumb then
-        thumb:SetSize(6, 30)
-        thumb:SetColorTexture(1, 1, 1, 0.75)
+        if thumb.SetSize then thumb:SetSize(6, 30) end
+        if thumb.SetColorTexture then
+            thumb:SetColorTexture(1, 1, 1, 0.75)
+        elseif thumb.SetVertexColor then
+            thumb:SetVertexColor(1, 1, 1, 0.75)
+        end
     end
     local parent = scrollBar:GetParent()
     if parent and scrollBar.ClearAllPoints then

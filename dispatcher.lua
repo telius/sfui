@@ -60,8 +60,15 @@ sfui.events = {}
 local eventCallbacks     = {}  -- [eventName] = { cb, cb, ... }
 local updateCallbacks    = {}  -- { { name, interval, elapsed, callback }, ... }
 
+local _issecretvalue = _G.issecretvalue
+
+local function _safe_str(val)
+    if _issecretvalue and _issecretvalue(val) then return "<secret>" end
+    return tostring(val)
+end
+
 local function _err(ctx, msg)
-    print("|cff6600ffsfui|r dispatcher error (" .. tostring(ctx) .. "): " .. tostring(msg))
+    print("|cff6600ffsfui|r dispatcher error (" .. _safe_str(ctx) .. "): " .. _safe_str(msg))
 end
 
 -- ─── Callback source metadata & error dispatch ──────────────────────────────
@@ -89,8 +96,13 @@ local function _record_caller(cb, fallbackMod)
 end
 
 local function _dispatcher_error_handler(err)
+    local stack = debugstack and debugstack(2, 20, 20)
     if _G.sfuibug and _G.sfuibug.RecordError then
-        _G.sfuibug.RecordError(_curDispatchCtx, err)
+        _G.sfuibug.RecordError(_curDispatchCtx, err, stack)
+    elseif _G.CallErrorHandler then
+        _G.CallErrorHandler(err)
+    elseif _G.geterrorhandler and _G.geterrorhandler() then
+        _G.geterrorhandler()(err)
     else
         local label = _curDispatchCtx and (_curDispatchCtx.label or _curDispatchCtx.event) or "dispatcher"
         _err(label, err)

@@ -149,6 +149,29 @@ SlashCmdList["SFUI"] = function(msg)
         if sfui.recipes and sfui.recipes.ToggleBrowser then
             sfui.recipes.ToggleBrowser(arg ~= "" and arg or nil)
         end
+    elseif cmd == "fish" or cmd == "fishing" or cmd == "atlas" then
+        if not sfui.isRetail and (arg == "atlas" or arg == "book" or cmd == "atlas") then
+            if sfui.fishing and sfui.fishing.atlas and sfui.fishing.atlas.Toggle then
+                sfui.fishing.atlas.Toggle()
+            end
+        elseif arg == "hud" then
+            if sfui.fishing and sfui.fishing.hud and sfui.fishing.hud.CheckVisibility then
+                SfuiDB = SfuiDB or {}
+                SfuiDB.fishing = SfuiDB.fishing or {}
+                SfuiDB.fishing.hud = SfuiDB.fishing.hud or {}
+                SfuiDB.fishing.hud.enabled = not SfuiDB.fishing.hud.enabled
+                sfui.fishing.hud.CheckVisibility()
+                if sfui.common and sfui.common.print then
+                    sfui.common.print("fishing hud: " .. (SfuiDB.fishing.hud.enabled and "enabled" or "disabled"))
+                end
+            end
+        elseif arg == "reset" then
+            if sfui.fishing and sfui.fishing.ResetSession then
+                sfui.fishing.ResetSession()
+            end
+        elseif sfui.toggle_options_panel then
+            sfui.toggle_options_panel("fishing")
+        end
     elseif cmd == "mail" or cmd == "mailrouting" or cmd == "altmail" then
         if sfui.alts and sfui.alts.ToggleMailConfig then
             sfui.alts.ToggleMailConfig()
@@ -266,6 +289,45 @@ if not sfui.isRetail then
         if sfui.recipes and sfui.recipes.ToggleBrowser then
             local raw = msg and _G.strtrim and _G.strtrim(msg) or (msg or "")
             sfui.recipes.ToggleBrowser(raw ~= "" and raw or nil)
+        end
+    end
+
+    -- Dedicated Fishing Atlas Slash Command (/sffish, /fishing) (Camelot only)
+    SLASH_SFUIFISHING1 = "/sffish"
+    SLASH_SFUIFISHING2 = "/fishing"
+    SlashCmdList["SFUIFISHING"] = function(msg)
+        local raw = msg and _G.strtrim and _G.strtrim(msg) or (msg or "")
+        local clean = raw:lower()
+        if clean == "hud" then
+            SfuiDB = SfuiDB or {}
+            SfuiDB.fishing = SfuiDB.fishing or {}
+            SfuiDB.fishing.hud = SfuiDB.fishing.hud or {}
+            SfuiDB.fishing.hud.enabled = not SfuiDB.fishing.hud.enabled
+            if sfui.fishing and sfui.fishing.hud and sfui.fishing.hud.CheckVisibility then
+                sfui.fishing.hud.CheckVisibility()
+            end
+            if sfui.common and sfui.common.print then
+                sfui.common.print("fishing hud: " .. (SfuiDB.fishing.hud.enabled and "enabled" or "disabled"))
+            end
+        elseif clean == "lock" or clean == "unlock" then
+            if sfui.fishing and sfui.fishing.hud and sfui.fishing.hud.ToggleLock then
+                local locked = sfui.fishing.hud.ToggleLock()
+                if sfui.common and sfui.common.print then
+                    sfui.common.print("fishing hud: " .. (locked and "locked" or "unlocked (draggable)"))
+                end
+            end
+        elseif clean == "reset" then
+            if sfui.fishing and sfui.fishing.ResetSession then
+                sfui.fishing.ResetSession()
+            end
+        elseif clean == "opt" or clean == "options" or clean == "config" then
+            if sfui.toggle_options_panel then
+                sfui.toggle_options_panel("fishing")
+            end
+        else
+            if sfui.fishing and sfui.fishing.atlas and sfui.fishing.atlas.Toggle then
+                sfui.fishing.atlas.Toggle()
+            end
         end
     end
 end
