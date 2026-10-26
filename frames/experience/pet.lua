@@ -40,6 +40,11 @@ local portraitFrame = nil
 local portraitTexture = nil
 local tpText = nil
 
+local cachedPetData = {}
+local _, playerClass = _G.UnitClass("player")
+local isHunterClass = (playerClass == "HUNTER")
+local isCamelotOrClassic = not sfui.isRetail or sfui.isClassic or sfui.isCamelot
+
 local PET_BAR_COLOR_XP = { 0.18, 0.65, 0.32, 1.0 }
 local PET_BAR_COLOR_TP = { 0.88, 0.62, 0.14, 1.0 }
 
@@ -59,11 +64,7 @@ end
 --- Check if pet tracking is available and relevant
 --- @return boolean
 function petModule.IsAvailable()
-    local isCamelotOrClassic = not sfui.isRetail or sfui.isClassic or sfui.isCamelot
-    if not isCamelotOrClassic then return false end
-
-    local pClass = (sfui.common and sfui.common.get_player_class and sfui.common.get_player_class()) or _G.UnitClassBase("player")
-    if pClass ~= "HUNTER" then return false end
+    if not isHunterClass or not isCamelotOrClassic then return false end
 
     if not UnitExists("pet") then return false end
 
@@ -178,26 +179,26 @@ function petModule.GetData()
     local percent = (nextXP > 0) and (currXP / nextXP * 100) or 100
     local remaining = math_max(0, nextXP - currXP)
 
-    return {
-        name = petName,
-        family = family,
-        level = petLevel,
-        playerLevel = playerLevel,
-        isXpCapped = isXpCapped,
-        currentXP = currXP,
-        maxXP = nextXP,
-        percentXP = percent,
-        remainingXP = remaining,
-        totalTP = totalTP,
-        usedTP = usedTP,
-        unspentTP = unspentTP,
-        loyaltyName = loyaltyName:lower(),
-        loyaltyRank = loyaltyRank,
-        happiness = happiness,
-        damagePct = dmgPct,
-        loyaltyRate = loyaltyRate,
-        diet = diet,
-    }
+    cachedPetData.name = petName
+    cachedPetData.family = family
+    cachedPetData.level = petLevel
+    cachedPetData.playerLevel = playerLevel
+    cachedPetData.isXpCapped = isXpCapped
+    cachedPetData.currentXP = currXP
+    cachedPetData.maxXP = nextXP
+    cachedPetData.percentXP = percent
+    cachedPetData.remainingXP = remaining
+    cachedPetData.totalTP = totalTP
+    cachedPetData.usedTP = usedTP
+    cachedPetData.unspentTP = unspentTP
+    cachedPetData.loyaltyName = loyaltyName:lower()
+    cachedPetData.loyaltyRank = loyaltyRank
+    cachedPetData.happiness = happiness
+    cachedPetData.damagePct = dmgPct
+    cachedPetData.loyaltyRate = loyaltyRate
+    cachedPetData.diet = diet
+
+    return cachedPetData
 end
 
 --- Set status bar texture directly

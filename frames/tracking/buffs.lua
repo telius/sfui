@@ -25,7 +25,7 @@ local BuffIconCooldownViewer = BuffIconCooldownViewer
 local CooldownViewerSettings = CooldownViewerSettings
 
 -- static reuse & throttling (memory & cpu optimization)
-local UPDATE_THROTTLE = 0.05
+local UPDATE_THROTTLE = 0.08
 local activeFrames = {}
 local slots = {}
 local previewSlots = {}
@@ -46,12 +46,21 @@ local DEFAULT_PREVIEW_ICONS = {
 local CreateSocketContainer -- forward declaration
 local SyncWithBlizzard      -- forward declaration
 
+-- static comparator for active cooldown frame ordering
+local function CompareActiveFrames(a, b)
+    local la = a.layoutIndex or 999
+    local lb = b.layoutIndex or 999
+    if la ~= lb then
+        return la < lb
+    end
+    return (a.cooldownID or 0) < (b.cooldownID or 0)
+end
+
 -- check if blizzard buff item is in pandemic refresh window
 local function IsBlizzardItemInPandemic(blizzFrame)
     local icon = blizzFrame and blizzFrame.PandemicIcon
     if not icon or not icon.IsShown then return false end
-    local ok, shown = pcall(icon.IsShown, icon)
-    return ok and shown == true
+    return icon:IsShown() == true
 end
 
 -- determine if item is currently active without inspecting secret cooldown values
@@ -61,10 +70,7 @@ local function IsItemActive(blizzFrame)
         return blizzFrame.isActive == true
     end
     if blizzFrame.IsActive then
-        local ok, active = pcall(blizzFrame.IsActive, blizzFrame)
-        if ok and active ~= nil then
-            return active == true
-        end
+        return blizzFrame:IsActive() == true
     end
     return blizzFrame:IsShown() == true
 end
@@ -532,8 +538,14 @@ SyncWithBlizzard = function()
         socketContainer:Hide()
         HidePreview()
         for _, slot in ipairs(slots) do
-            slot:Hide()
-            if sfui.glows and sfui.glows.stop_glow then sfui.glows.stop_glow(slot) end
+            if slot:IsShown() then
+                slot:Hide()
+                slot._posX = nil
+                if slot._isGlowing then
+                    slot._isGlowing = false
+                    if sfui.glows and sfui.glows.stop_glow then sfui.glows.stop_glow(slot) end
+                end
+            end
         end
         return
     end
@@ -559,8 +571,14 @@ SyncWithBlizzard = function()
         socketContainer:Hide()
         HidePreview()
         for _, slot in ipairs(slots) do
-            slot:Hide()
-            if sfui.glows and sfui.glows.stop_glow then sfui.glows.stop_glow(slot) end
+            if slot:IsShown() then
+                slot:Hide()
+                slot._posX = nil
+                if slot._isGlowing then
+                    slot._isGlowing = false
+                    if sfui.glows and sfui.glows.stop_glow then sfui.glows.stop_glow(slot) end
+                end
+            end
         end
         return
     end
@@ -577,14 +595,7 @@ SyncWithBlizzard = function()
 
     -- sort by blizzard layoutIndex to preserve user cdm ordering
     if #activeFrames > 1 then
-        table_sort(activeFrames, function(a, b)
-            local la = a.layoutIndex or 999
-            local lb = b.layoutIndex or 999
-            if la ~= lb then
-                return la < lb
-            end
-            return (a.cooldownID or 0) < (b.cooldownID or 0)
-        end)
+        table_sort(activeFrames, CompareActiveFrames)
     end
 
     local numActive = #activeFrames
@@ -601,8 +612,14 @@ SyncWithBlizzard = function()
         end
         socketContainer:Hide()
         for _, slot in ipairs(slots) do
-            slot:Hide()
-            if sfui.glows and sfui.glows.stop_glow then sfui.glows.stop_glow(slot) end
+            if slot:IsShown() then
+                slot:Hide()
+                slot._posX = nil
+                if slot._isGlowing then
+                    slot._isGlowing = false
+                    if sfui.glows and sfui.glows.stop_glow then sfui.glows.stop_glow(slot) end
+                end
+            end
         end
         return
     end
@@ -611,15 +628,26 @@ SyncWithBlizzard = function()
     if previewActive then
         HidePreview()
     end
-    socketContainer:Show()
+    if not socketContainer:IsShown() then
+        socketContainer:Show()
+    end
 
     local size = db.size or (bCfg and bCfg.size) or 42
     local spacing = db.spacing or 4
     local totalWidth = numActive * size + (numActive - 1) * spacing
-    socketContainer:SetSize(totalWidth, size)
+    if socketContainer._lastWidth ~= totalWidth or socketContainer._lastHeight ~= size then
+        socketContainer:SetSize(totalWidth, size)
+        socketContainer._lastWidth = totalWidth
+        socketContainer._lastHeight = size
+    end
 
     if mover then
-        mover:SetSize(math_max(totalWidth, 120), size)
+        local moverW = math_max(totalWidth, 120)
+        if mover._lastWidth ~= moverW or mover._lastHeight ~= size then
+            mover:SetSize(moverW, size)
+            mover._lastWidth = moverW
+            mover._lastHeight = size
+        end
     end
 
     -- center active icons symmetrically around socket center
@@ -628,7 +656,10 @@ SyncWithBlizzard = function()
     for i = 1, numActive do
         local blizzFrame = activeFrames[i]
         local slot = GetOrCreateSlot(i)
-        slot:SetSize(size, size)
+        if slot._size ~= size then
+            slot:SetSize(size, size)
+            slot._size = size
+        end
 
         -- skin blizzard frame
         SkinBlizzardItem(blizzFrame)
@@ -636,46 +667,63 @@ SyncWithBlizzard = function()
         -- socket blizzard frame into slot
         if blizzFrame:GetParent() ~= slot then
             blizzFrame:SetParent(slot)
+            blizzFrame:ClearAllPoints()
+            blizzFrame:SetPoint("TOPLEFT", slot, "TOPLEFT", 1, -1)
+            blizzFrame:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -1, 1)
         end
-        blizzFrame:ClearAllPoints()
-        blizzFrame:SetPoint("TOPLEFT", slot, "TOPLEFT", 1, -1)
-        blizzFrame:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -1, 1)
-        blizzFrame:SetAlpha(1)
-        blizzFrame:Show()
+        if not blizzFrame:IsShown() then
+            blizzFrame:SetAlpha(1)
+            blizzFrame:Show()
+        end
 
         -- pandemic / alert glow
         local inPandemic = IsBlizzardItemInPandemic(blizzFrame)
         if inPandemic and (db.glow ~= false) then
-            if blizzFrame.PandemicIcon then
+            if blizzFrame.PandemicIcon and blizzFrame.PandemicIcon:GetAlpha() ~= 0 then
                 blizzFrame.PandemicIcon:SetAlpha(0)
             end
-            if sfui.glows and sfui.glows.start_glow then
-                sfui.glows.start_glow(slot, {
-                    glowType = "pixel",
-                    glowColor = { 1, 0.85, 0.2, 1 },
-                    glowLines = 8,
-                    glowThickness = 2,
-                })
+            if not slot._isGlowing then
+                slot._isGlowing = true
+                if sfui.glows and sfui.glows.start_glow then
+                    sfui.glows.start_glow(slot, {
+                        glowType = "pixel",
+                        glowColor = { 1, 0.85, 0.2, 1 },
+                        glowLines = 8,
+                        glowThickness = 2,
+                    })
+                end
             end
         else
-            if sfui.glows and sfui.glows.stop_glow then
-                sfui.glows.stop_glow(slot)
+            if slot._isGlowing then
+                slot._isGlowing = false
+                if sfui.glows and sfui.glows.stop_glow then
+                    sfui.glows.stop_glow(slot)
+                end
             end
         end
 
         -- position slot centered
         local posX = startX + (i - 1) * (size + spacing)
-        slot:ClearAllPoints()
-        slot:SetPoint("CENTER", socketContainer, "CENTER", posX, 0)
-        slot:Show()
+        if slot._posX ~= posX or not slot:IsShown() then
+            slot:ClearAllPoints()
+            slot:SetPoint("CENTER", socketContainer, "CENTER", posX, 0)
+            slot._posX = posX
+            slot:Show()
+        end
     end
 
     -- hide remaining inactive slots
     for i = numActive + 1, #slots do
         local slot = slots[i]
-        slot:Hide()
-        if sfui.glows and sfui.glows.stop_glow then
-            sfui.glows.stop_glow(slot)
+        if slot:IsShown() then
+            slot:Hide()
+            slot._posX = nil
+            if slot._isGlowing then
+                slot._isGlowing = false
+                if sfui.glows and sfui.glows.stop_glow then
+                    sfui.glows.stop_glow(slot)
+                end
+            end
         end
     end
 end
@@ -855,6 +903,21 @@ function sfui.trackedbuffs.OnEnable()
     UpdatePosition()
     SyncWithBlizzard()
 end
+
+-- telemetry & debug for mem.lua
+function sfui.trackedbuffs_debug_info()
+    local db = SfuiDB and SfuiDB.trackedBuffs
+    return {
+        enabled = not db or db.enabled ~= false,
+        activeCount = #activeFrames,
+        slotCount = #slots,
+        previewActive = previewActive,
+        containerShown = (socketContainer and socketContainer:IsShown()) == true,
+        isHooked = isHooked,
+        isMoverShown = (mover and mover:IsShown()) == true,
+    }
+end
+sfui.trackedbuffs.GetDebugInfo = sfui.trackedbuffs_debug_info
 
 -- register module with sfui
 if sfui.RegisterModule then

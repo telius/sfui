@@ -165,6 +165,30 @@ function sfui.mem.GetModuleStats()
     end
     stats["trackedicons"] = tiStats
 
+    if sfui.isRetail then
+        -- Tracked Buffs Module (Retail CDM Buff Icons)
+        local tbuffStats = {
+            name = "tracked buffs",
+            status = "|cff888888idle|r",
+            line1 = "buffs: 0 active / 0 slots",
+            line2 = "preview: off • blizzard cdm: hooked",
+        }
+        local tb = GetDebug("trackedbuffs_debug_info", "trackedbuffs")
+        if tb then
+            if tb.previewActive then
+                tbuffStats.status = "|cffff9900preview|r"
+            elseif tb.containerShown then
+                tbuffStats.status = "|cff00ff88active|r"
+            elseif tb.enabled then
+                tbuffStats.status = "|cff888888idle|r"
+            else
+                tbuffStats.status = "|cffff4444disabled|r"
+            end
+            tbuffStats.line1 = string_format("buffs: %d active / %d slots", tonumber(tb.activeCount) or 0, tonumber(tb.slotCount) or 0)
+            tbuffStats.line2 = string_format("preview: %s • cdm hooked: %s", tb.previewActive and "yes" or "no", tb.isHooked and "yes" or "no")
+        end
+        stats["trackedbuffs"] = tbuffStats
+    end
 
     -- World Events Module
     local weStats = {
@@ -422,10 +446,11 @@ function sfui.mem.GetModuleStats()
             repText = "none"
         end
 
-        local barStatus = (ep.barShown and "xp shown") or (ep.repBarShown and "rep shown") or "hidden"
+        local barStatus = (ep.barShown and "xp shown") or (ep.repBarShown and "rep shown") or (ep.petBarShown and "pet shown") or "hidden"
         expStats.line1 = string_format("%s • %s • rep: %s", xpText, barStatus, repText)
         local ticksStr = ep.showTicks and string_format("%d ticks", tonumber(ep.tickCount) or 20) or "no ticks"
-        expStats.line2 = string_format("float text: %d act / %d pool • %s", tonumber(ep.floatingActive) or 0, tonumber(ep.floatingPool) or 0, ticksStr)
+        local petStr = ep.petBarShown and string_format(" • pet: %s (lv %d)", tostring(ep.petName or "pet"), tonumber(ep.petLevel) or 0) or ""
+        expStats.line2 = string_format("float text: %d act / %d pool • %s%s", tonumber(ep.floatingActive) or 0, tonumber(ep.floatingPool) or 0, ticksStr, petStr)
     end
     stats["experience"] = expStats
 
@@ -761,7 +786,8 @@ function sfui.mem.GetModuleStats()
         if tg then
             targetMod.status = tg.hasTarget and "|cff00ff88target active|r" or "|cff888888no target|r"
             targetMod.line1 = string_format("frame: %s • shown: %s", tg.created and "ready" or "none", tg.shown and "yes" or "no")
-            targetMod.line2 = string_format("target exists: %s", tg.hasTarget and "yes" or "no")
+            local dimStr = tg.dimmed and "out-of-range (55%)" or "in-range"
+            targetMod.line2 = string_format("target exists: %s • %s", tg.hasTarget and "yes" or "no", dimStr)
         end
         stats["target"] = targetMod
 
@@ -1357,7 +1383,8 @@ local MODULE_SECTIONS = {
     },
     {
         title = "tracking & cooldowns",
-        modules = { "trackedbars", "trackedicons", "cdm", "glows" },
+        modules = sfui.isRetail and { "trackedbars", "trackedicons", "trackedbuffs", "cdm", "glows" }
+                                 or { "trackedbars", "trackedicons", "cdm", "glows" },
     },
     {
         title = "general & utilities",

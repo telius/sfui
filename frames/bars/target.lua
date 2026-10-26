@@ -1044,30 +1044,38 @@ local HELP_SPELLS_BY_CLASS = {
 local cachedPlayerClass
 local cachedHarmSpell
 local cachedHelpSpell
+local spellIdToName = {}
 
 local function ResetRangeSpellCache()
     cachedHarmSpell = nil
     cachedHelpSpell = nil
+    wipe(spellIdToName)
 end
 
 local function SafeIsSpellInRange(spell, unit)
     if not spell or not unit then return nil end
     if C_Spell and C_Spell.IsSpellInRange then
-        local ok, inRange = pcall(C_Spell.IsSpellInRange, spell, unit)
-        if ok and inRange ~= nil and not issecretvalue(inRange) then
+        local inRange = C_Spell.IsSpellInRange(spell, unit)
+        if inRange ~= nil and not issecretvalue(inRange) then
             return inRange
         end
     elseif _G.IsSpellInRange then
         local spellName = spell
         if type(spell) == "number" then
-            if C_Spell and C_Spell.GetSpellName then
-                spellName = C_Spell.GetSpellName(spell) or spell
-            elseif GetSpellInfo then
-                spellName = GetSpellInfo(spell) or spell
+            spellName = spellIdToName[spell]
+            if not spellName then
+                if C_Spell and C_Spell.GetSpellName then
+                    spellName = C_Spell.GetSpellName(spell) or spell
+                elseif GetSpellInfo then
+                    spellName = GetSpellInfo(spell) or spell
+                else
+                    spellName = spell
+                end
+                spellIdToName[spell] = spellName
             end
         end
-        local ok, inRange = pcall(_G.IsSpellInRange, spellName, unit)
-        if ok and inRange ~= nil and not issecretvalue(inRange) then
+        local inRange = _G.IsSpellInRange(spellName, unit)
+        if inRange ~= nil and not issecretvalue(inRange) then
             if inRange == 1 then return true end
             if inRange == 0 then return false end
         end
@@ -1639,16 +1647,6 @@ local function CreateTargetFrame()
     debuffContainer:Show()
 
     -- 10. Range Ticker (Out-of-range alpha dimming)
-    local rangeElapsed = 0
-    f:SetScript("OnUpdate", function(self, elapsed)
-        if SfuiDB and SfuiDB.enableTargetBar == false then return end
-        rangeElapsed = rangeElapsed + elapsed
-        if rangeElapsed >= 0.15 then
-            rangeElapsed = 0
-            UpdateTargetRange()
-        end
-    end)
-
     targetContainer = f
 
     if f.HookScript then
@@ -1657,12 +1655,24 @@ local function CreateTargetFrame()
                 f:Hide()
                 return
             end
+            if sfui.events and sfui.events.RegisterUpdate then
+                sfui.events.RegisterUpdate("SfuiTargetRange", 0.15, UpdateTargetRange)
+            end
             local guid = UnitGUID("target")
             if guid and guid == lastTargetGUID then
                 return
             end
             lastTargetGUID = guid
             UpdateAll(false)
+        end)
+        f:HookScript("OnHide", function()
+            if sfui.events and sfui.events.UnregisterUpdate then
+                sfui.events.UnregisterUpdate("SfuiTargetRange")
+            end
+            if lastTargetAlpha ~= 1.0 then
+                f:SetAlpha(1.0)
+                lastTargetAlpha = 1.0
+            end
         end)
     end
 
@@ -1862,6 +1872,7 @@ function sfui.target_debug_info()
     _targetDebug.created = (targetContainer ~= nil)
     _targetDebug.shown = (targetContainer ~= nil and targetContainer:IsShown() == true)
     _targetDebug.hasTarget = UnitExists("target") == true
+    _targetDebug.dimmed = (lastTargetAlpha ~= nil and lastTargetAlpha < 1.0)
     return _targetDebug
 end
 sfui.target.GetDebugInfo = sfui.target_debug_info

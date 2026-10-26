@@ -260,6 +260,14 @@ function sfui.experience_debug_info()
     debugCache.challengesBarCreated = (chFrame ~= nil)
     debugCache.challengesBarShown = (chFrame and chFrame:IsShown()) and true or false
 
+    local pet = exp.pet
+    local petData = pet and pet.GetData and pet.GetData()
+    local petFrame = pet and pet.GetFrame and pet.GetFrame()
+    debugCache.petBarCreated = (petFrame ~= nil)
+    debugCache.petBarShown = (petFrame and petFrame:IsShown()) and true or false
+    debugCache.petName = petData and petData.name
+    debugCache.petLevel = petData and petData.level
+
     return debugCache
 end
 

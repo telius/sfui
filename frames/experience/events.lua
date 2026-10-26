@@ -22,6 +22,8 @@ local string_lower = string.lower
 
 local lastPlayerXP = nil
 local registeredCallbacks = {}
+local _, playerClass = _G.UnitClass("player")
+local isHunterClass = (playerClass == "HUNTER")
 
 --- Request a debounced bar update via sfui.common.debounce
 local function RequestDebouncedUpdate()
@@ -36,7 +38,7 @@ local function RequestDebouncedUpdate()
             if sfui.experience.challenges and sfui.experience.challenges.UpdateValues then
                 sfui.experience.challenges.UpdateValues()
             end
-            if sfui.experience.pet and sfui.experience.pet.UpdateValues then
+            if isHunterClass and sfui.experience.pet and sfui.experience.pet.UpdateValues then
                 sfui.experience.pet.UpdateValues()
             end
         end)
@@ -50,7 +52,7 @@ local function RequestDebouncedUpdate()
         if sfui.experience.challenges and sfui.experience.challenges.UpdateValues then
             sfui.experience.challenges.UpdateValues()
         end
-        if sfui.experience.pet and sfui.experience.pet.UpdateValues then
+        if isHunterClass and sfui.experience.pet and sfui.experience.pet.UpdateValues then
             sfui.experience.pet.UpdateValues()
         end
     end

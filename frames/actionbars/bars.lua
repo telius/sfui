@@ -359,12 +359,34 @@ function sfui.actionbars.UpdatePetHotkeys()
     end
 end
 
+local function UpdatePetBarRange()
+    local bar = sfui.actionbars.petBar
+    if not bar or not bar:IsShown() or not _G.GetPetActionInfo or not _G.PetHasActionBar or not _G.PetHasActionBar() then
+        if sfui.events and sfui.events.UnregisterUpdate then
+            sfui.events.UnregisterUpdate("SfuiPetBarRange")
+        end
+        return
+    end
+    for i = 1, 10 do
+        local btn = bar.buttons[i]
+        if btn and btn:IsShown() then
+            local _, _, _, _, _, _, _, checksRange, inRange = _G.GetPetActionInfo(i)
+            if _G.ActionButton_UpdateRangeIndicator and checksRange ~= nil then
+                _G.ActionButton_UpdateRangeIndicator(btn, checksRange, inRange)
+            end
+        end
+    end
+end
+
 function sfui.actionbars.UpdatePetBar()
     local bar = sfui.actionbars.petBar
     if not bar or not bar.buttons then return end
 
     local hasPetBar = _G.PetHasActionBar and _G.PetHasActionBar()
     if not hasPetBar then
+        if sfui.events and sfui.events.UnregisterUpdate then
+            sfui.events.UnregisterUpdate("SfuiPetBarRange")
+        end
         if not bar._isCleared then
             bar._isCleared = true
             for i = 1, 10 do
@@ -534,6 +556,10 @@ function sfui.actionbars.UpdatePetBar()
             end
         end
     end
+
+    if bar:IsShown() and sfui.events and sfui.events.RegisterUpdate then
+        sfui.events.RegisterUpdate("SfuiPetBarRange", 0.2, UpdatePetBarRange)
+    end
 end
 
 function sfui.actionbars.ApplyPetBarLayout()
@@ -696,8 +722,14 @@ function sfui.actionbars.CreatePetBar()
             if sfui.actionbars.UpdatePetBar then
                 sfui.actionbars.UpdatePetBar()
             end
+            if _G.PetHasActionBar and _G.PetHasActionBar() and sfui.events and sfui.events.RegisterUpdate then
+                sfui.events.RegisterUpdate("SfuiPetBarRange", 0.2, UpdatePetBarRange)
+            end
         end)
         bar:HookScript("OnHide", function(self)
+            if sfui.events and sfui.events.UnregisterUpdate then
+                sfui.events.UnregisterUpdate("SfuiPetBarRange")
+            end
             if self.buttons then
                 for _, btn in ipairs(self.buttons) do
                     if btn.spellDataLoadedCancelFunc then
@@ -709,25 +741,6 @@ function sfui.actionbars.CreatePetBar()
             end
         end)
     end
-
-    -- Range check ticker on sfui_PetBar
-    local rangeElapsed = 0
-    bar:SetScript("OnUpdate", function(self, elapsed)
-        rangeElapsed = rangeElapsed + elapsed
-        if rangeElapsed >= 0.2 then
-            rangeElapsed = 0
-            if not _G.GetPetActionInfo or not _G.PetHasActionBar or not _G.PetHasActionBar() then return end
-            for i = 1, 10 do
-                local btn = self.buttons[i]
-                if btn and btn:IsShown() then
-                    local _, _, _, _, _, _, _, checksRange, inRange = _G.GetPetActionInfo(i)
-                    if _G.ActionButton_UpdateRangeIndicator and checksRange ~= nil then
-                        _G.ActionButton_UpdateRangeIndicator(btn, checksRange, inRange)
-                    end
-                end
-            end
-        end
-    end)
 
     sfui.actionbars.ApplyPetBarLayout()
 end

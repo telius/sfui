@@ -2165,23 +2165,11 @@ function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initi
     menu:EnableMouseWheel(true)
     menu:SetScript("OnMouseWheel", onTextureWheel)
 
-    -- Thumb dragging logic
-    local isDragging = false
+    -- Thumb dragging logic (attached only during active drag to eliminate idle frame updates)
     local dragStartY = 0
     local dragStartOffset = 0
 
-    thumb:SetScript("OnMouseDown", function(_, mouseBtn)
-        if mouseBtn == "LeftButton" then
-            isDragging = true
-            dragStartY = select(2, _G.GetCursorPosition()) / (_G.UIParent:GetEffectiveScale() or 1)
-            dragStartOffset = menu.scrollOffset
-        end
-    end)
-    thumb:SetScript("OnMouseUp", function()
-        isDragging = false
-    end)
-    menu:SetScript("OnUpdate", function()
-        if not isDragging then return end
+    local function onDragUpdate()
         local numTextures = #allTextures
         local maxOffset = math.max(0, numTextures - MAX_VISIBLE)
         if maxOffset <= 0 then return end
@@ -2195,7 +2183,20 @@ function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initi
             menu.scrollOffset = math.max(0, math.min(maxOffset, newOffset))
             updateList()
         end
+    end
+
+    local function stopDragging()
+        menu:SetScript("OnUpdate", nil)
+    end
+
+    thumb:SetScript("OnMouseDown", function(_, mouseBtn)
+        if mouseBtn == "LeftButton" then
+            dragStartY = select(2, _G.GetCursorPosition()) / (_G.UIParent:GetEffectiveScale() or 1)
+            dragStartOffset = menu.scrollOffset
+            menu:SetScript("OnUpdate", onDragUpdate)
+        end
     end)
+    thumb:SetScript("OnMouseUp", stopDragging)
 
     -- Scrollbar track clicking
     scrollbar:SetScript("OnMouseDown", function(_, mouseBtn)
@@ -2215,7 +2216,7 @@ function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initi
     end)
 
     menu:SetScript("OnHide", function(self)
-        isDragging = false
+        self:SetScript("OnUpdate", nil)
         self:UnregisterEvent("GLOBAL_MOUSE_DOWN")
         if activeTextureMenu == self then
             activeTextureMenu = nil

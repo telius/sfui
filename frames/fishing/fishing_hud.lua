@@ -392,6 +392,10 @@ function HUD.ToggleLock()
     return isHudLocked
 end
 
+function HUD.IsLocked()
+    return isHudLocked == true
+end
+
 function HUD.GetFrame()
     return hudFrame
 end
