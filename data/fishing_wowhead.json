@@ -1,0 +1,1730 @@
+{
+  "6291": {
+    "name": "raw brilliant smallfish",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_08",
+    "zones": [
+      {
+        "zone_id": 1412,
+        "name": "mulgore",
+        "count": 5940,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1426,
+        "name": "dun morogh",
+        "count": 5940,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1429,
+        "name": "elwynn forest",
+        "count": 5940,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1432,
+        "name": "loch modan",
+        "count": 1460,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1436,
+        "name": "westfall",
+        "count": 1830,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1438,
+        "name": "teldrassil",
+        "count": 5940,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1453,
+        "name": "stormwind city",
+        "count": 1830,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1454,
+        "name": "orgrimmar",
+        "count": 1830,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1455,
+        "name": "ironforge",
+        "count": 1830,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1456,
+        "name": "thunder bluff",
+        "count": 1830,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1457,
+        "name": "darnassus",
+        "count": 1830,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1458,
+        "name": "undercity",
+        "count": 1510,
+        "outof": 10000
+      },
+      {
+        "zone_id": 2521,
+        "name": "zephras isle",
+        "count": 5360,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028533
+  },
+  "6289": {
+    "name": "raw longjaw mud snapper",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_32",
+    "zones": [
+      {
+        "zone_id": 1412,
+        "name": "mulgore",
+        "count": 4040,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1420,
+        "name": "tirisfal glades",
+        "count": 6670,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1421,
+        "name": "silverpine forest",
+        "count": 6670,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1424,
+        "name": "hillsbrad foothills",
+        "count": 3550,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1426,
+        "name": "dun morogh",
+        "count": 4040,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1429,
+        "name": "elwynn forest",
+        "count": 4040,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1431,
+        "name": "duskwood",
+        "count": 3550,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1432,
+        "name": "loch modan",
+        "count": 4050,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1433,
+        "name": "redridge mountains",
+        "count": 3550,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1436,
+        "name": "westfall",
+        "count": 5080,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1437,
+        "name": "wetlands",
+        "count": 3550,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1438,
+        "name": "teldrassil",
+        "count": 4040,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1440,
+        "name": "ashenvale",
+        "count": 3550,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1442,
+        "name": "stonetalon mountains",
+        "count": 3550,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1453,
+        "name": "stormwind city",
+        "count": 5080,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1454,
+        "name": "orgrimmar",
+        "count": 5080,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1455,
+        "name": "ironforge",
+        "count": 5080,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1456,
+        "name": "thunder bluff",
+        "count": 5080,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1457,
+        "name": "darnassus",
+        "count": 5080,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1458,
+        "name": "undercity",
+        "count": 4830,
+        "outof": 10000
+      },
+      {
+        "zone_id": 2521,
+        "name": "zephras isle",
+        "count": 4640,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028533
+  },
+  "6299": {
+    "name": "sickly looking fish",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_28",
+    "zones": [
+      {
+        "zone_id": 1420,
+        "name": "tirisfal glades",
+        "count": 3329,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1421,
+        "name": "silverpine forest",
+        "count": 3329,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1458,
+        "name": "undercity",
+        "count": 1810,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028534
+  },
+  "6303": {
+    "name": "raw slitherskin mackerel",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_24",
+    "zones": [
+      {
+        "zone_id": 1411,
+        "name": "durotar",
+        "count": 9800,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1413,
+        "name": "the barrens",
+        "count": 3350,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1439,
+        "name": "darkshore",
+        "count": 2060,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028534
+  },
+  "6317": {
+    "name": "raw loch frenzy",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_03",
+    "zones": [
+      {
+        "zone_id": 38,
+        "name": "loch modan",
+        "count": 4821,
+        "outof": 23740
+      }
+    ],
+    "fetched_at": 1793028382
+  },
+  "6361": {
+    "name": "raw rainbow fin albacore",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_25",
+    "zones": [
+      {
+        "zone_id": 1413,
+        "name": "the barrens",
+        "count": 5000,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1439,
+        "name": "darkshore",
+        "count": 3329,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028534
+  },
+  "6308": {
+    "name": "raw bristle whisker catfish",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_30",
+    "zones": [
+      {
+        "zone_id": 1424,
+        "name": "hillsbrad foothills",
+        "count": 6420,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1431,
+        "name": "duskwood",
+        "count": 6420,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1432,
+        "name": "loch modan",
+        "count": 2430,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1433,
+        "name": "redridge mountains",
+        "count": 6420,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1436,
+        "name": "westfall",
+        "count": 3050,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1437,
+        "name": "wetlands",
+        "count": 6420,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1440,
+        "name": "ashenvale",
+        "count": 6420,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1442,
+        "name": "stonetalon mountains",
+        "count": 6420,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1453,
+        "name": "stormwind city",
+        "count": 3050,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1454,
+        "name": "orgrimmar",
+        "count": 3050,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1455,
+        "name": "ironforge",
+        "count": 3050,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1456,
+        "name": "thunder bluff",
+        "count": 3050,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1457,
+        "name": "darnassus",
+        "count": 3050,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1458,
+        "name": "undercity",
+        "count": 1810,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1416,
+        "name": "arathi highlands",
+        "count": 4050,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1417,
+        "name": "badlands",
+        "count": 4050,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1434,
+        "name": "stranglethorn vale",
+        "count": 4050,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1435,
+        "name": "swamp of sorrows",
+        "count": 4050,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1441,
+        "name": "thousand needles",
+        "count": 4050,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1443,
+        "name": "desolace",
+        "count": 4050,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1444,
+        "name": "feralas",
+        "count": 2030,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1445,
+        "name": "dustwallow marsh",
+        "count": 4050,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028534
+  },
+  "6362": {
+    "name": "raw rockscale cod",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_04",
+    "zones": [
+      {
+        "zone_id": 1446,
+        "name": "tanaris",
+        "count": 840,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028535
+  },
+  "8365": {
+    "name": "raw mithril head trout",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_02",
+    "zones": [
+      {
+        "zone_id": 1416,
+        "name": "arathi highlands",
+        "count": 5920,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1417,
+        "name": "badlands",
+        "count": 5920,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1422,
+        "name": "western plaguelands",
+        "count": 1010,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1425,
+        "name": "the hinterlands",
+        "count": 1010,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1434,
+        "name": "stranglethorn vale",
+        "count": 5920,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1435,
+        "name": "swamp of sorrows",
+        "count": 5920,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1441,
+        "name": "thousand needles",
+        "count": 5920,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1443,
+        "name": "desolace",
+        "count": 5920,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1444,
+        "name": "feralas",
+        "count": 3470,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1445,
+        "name": "dustwallow marsh",
+        "count": 5920,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1447,
+        "name": "azshara",
+        "count": 840,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1448,
+        "name": "felwood",
+        "count": 1010,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1449,
+        "name": "un'goro crater",
+        "count": 1010,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1450,
+        "name": "moonglade",
+        "count": 1010,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028535
+  },
+  "6522": {
+    "name": "deviate fish",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_monsterhead_01",
+    "zones": [],
+    "fetched_at": 1793028915
+  },
+  "4603": {
+    "name": "raw spotted yellowtail",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_01",
+    "zones": [
+      {
+        "zone_id": 1446,
+        "name": "tanaris",
+        "count": 2120,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028535
+  },
+  "21071": {
+    "name": "raw sagefish",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_20",
+    "zones": [],
+    "fetched_at": 1793028915
+  },
+  "13758": {
+    "name": "raw redgill",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_06",
+    "zones": [
+      {
+        "zone_id": 1422,
+        "name": "western plaguelands",
+        "count": 3590,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1423,
+        "name": "eastern plaguelands",
+        "count": 509,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1425,
+        "name": "the hinterlands",
+        "count": 3590,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1428,
+        "name": "burning steppes",
+        "count": 509,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1444,
+        "name": "feralas",
+        "count": 1789,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1447,
+        "name": "azshara",
+        "count": 2980,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1448,
+        "name": "felwood",
+        "count": 3590,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1449,
+        "name": "un'goro crater",
+        "count": 3590,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1450,
+        "name": "moonglade",
+        "count": 3590,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1451,
+        "name": "silithus",
+        "count": 509,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1452,
+        "name": "winterspring",
+        "count": 509,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028536
+  },
+  "13759": {
+    "name": "raw nightfin snapper",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_23",
+    "zones": [
+      {
+        "zone_id": 1422,
+        "name": "western plaguelands",
+        "count": 1820,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1423,
+        "name": "eastern plaguelands",
+        "count": 1720,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1425,
+        "name": "the hinterlands",
+        "count": 1820,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1428,
+        "name": "burning steppes",
+        "count": 1720,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1444,
+        "name": "feralas",
+        "count": 910,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1447,
+        "name": "azshara",
+        "count": 1520,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1448,
+        "name": "felwood",
+        "count": 1820,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1449,
+        "name": "un'goro crater",
+        "count": 1820,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1450,
+        "name": "moonglade",
+        "count": 1820,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1451,
+        "name": "silithus",
+        "count": 1720,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1452,
+        "name": "winterspring",
+        "count": 1720,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028536
+  },
+  "13760": {
+    "name": "raw sunscale salmon",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_19",
+    "zones": [
+      {
+        "zone_id": 1422,
+        "name": "western plaguelands",
+        "count": 1820,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1423,
+        "name": "eastern plaguelands",
+        "count": 1720,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1425,
+        "name": "the hinterlands",
+        "count": 1820,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1428,
+        "name": "burning steppes",
+        "count": 1720,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1444,
+        "name": "feralas",
+        "count": 910,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1447,
+        "name": "azshara",
+        "count": 1520,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1448,
+        "name": "felwood",
+        "count": 1820,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1449,
+        "name": "un'goro crater",
+        "count": 1820,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1450,
+        "name": "moonglade",
+        "count": 1820,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1451,
+        "name": "silithus",
+        "count": 1720,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1452,
+        "name": "winterspring",
+        "count": 1720,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028536
+  },
+  "13754": {
+    "name": "raw glossy mightfish",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_monsterhead_03",
+    "zones": [
+      {
+        "zone_id": 1446,
+        "name": "tanaris",
+        "count": 1260,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028536
+  },
+  "13755": {
+    "name": "raw winter squid",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_13",
+    "zones": [
+      {
+        "zone_id": 1446,
+        "name": "tanaris",
+        "count": 840,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1447,
+        "name": "azshara",
+        "count": 840,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028536
+  },
+  "13756": {
+    "name": "raw summer bass",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_03",
+    "zones": [
+      {
+        "zone_id": 1446,
+        "name": "tanaris",
+        "count": 2100,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1447,
+        "name": "azshara",
+        "count": 840,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028537
+  },
+  "13757": {
+    "name": "lightning eel",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_12",
+    "zones": [
+      {
+        "zone_id": 1422,
+        "name": "western plaguelands",
+        "count": 710,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1423,
+        "name": "eastern plaguelands",
+        "count": 1210,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1425,
+        "name": "the hinterlands",
+        "count": 710,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1428,
+        "name": "burning steppes",
+        "count": 1210,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1430,
+        "name": "deadwind pass",
+        "count": 10000,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1444,
+        "name": "feralas",
+        "count": 350,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1447,
+        "name": "azshara",
+        "count": 590,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1448,
+        "name": "felwood",
+        "count": 710,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1449,
+        "name": "un'goro crater",
+        "count": 710,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1450,
+        "name": "moonglade",
+        "count": 710,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1451,
+        "name": "silithus",
+        "count": 1210,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1452,
+        "name": "winterspring",
+        "count": 1210,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028537
+  },
+  "13889": {
+    "name": "raw whitescale salmon",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_20",
+    "zones": [
+      {
+        "zone_id": 1423,
+        "name": "eastern plaguelands",
+        "count": 3080,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1428,
+        "name": "burning steppes",
+        "count": 3080,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1451,
+        "name": "silithus",
+        "count": 3080,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1452,
+        "name": "winterspring",
+        "count": 3080,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028537
+  },
+  "21153": {
+    "name": "raw greater sagefish",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_21",
+    "zones": [],
+    "fetched_at": 1793028915
+  },
+  "6358": {
+    "name": "oily blackmouth",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_monsterhead_04",
+    "zones": [
+      {
+        "zone_id": 1413,
+        "name": "the barrens",
+        "count": 1500,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1439,
+        "name": "darkshore",
+        "count": 1110,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1422,
+        "name": "western plaguelands",
+        "count": 1010,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1425,
+        "name": "the hinterlands",
+        "count": 1010,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1444,
+        "name": "feralas",
+        "count": 509,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1447,
+        "name": "azshara",
+        "count": 840,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1448,
+        "name": "felwood",
+        "count": 1010,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1449,
+        "name": "un'goro crater",
+        "count": 1010,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1450,
+        "name": "moonglade",
+        "count": 1010,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028537
+  },
+  "6359": {
+    "name": "firefin snapper",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_monsterhead_01",
+    "zones": [
+      {
+        "zone_id": 1446,
+        "name": "tanaris",
+        "count": 840,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028538
+  },
+  "13422": {
+    "name": "stonescale eel",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_11",
+    "zones": [
+      {
+        "zone_id": 1446,
+        "name": "tanaris",
+        "count": 1260,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028538
+  },
+  "13888": {
+    "name": "darkclaw lobster",
+    "kind": "f",
+    "quality": 1,
+    "icon": "inv_misc_fish_14",
+    "zones": [],
+    "fetched_at": 1793028916
+  },
+  "6356": {
+    "name": "battered chest",
+    "kind": "c",
+    "quality": 1,
+    "icon": "inv_box_01",
+    "zones": [
+      {
+        "zone_id": 1411,
+        "name": "durotar",
+        "count": 200,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028538
+  },
+  "6353": {
+    "name": "small chest",
+    "kind": "c",
+    "quality": 1,
+    "icon": "inv_box_01",
+    "zones": [
+      {
+        "zone_id": 1413,
+        "name": "the barrens",
+        "count": 50,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1439,
+        "name": "darkshore",
+        "count": 60,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028539
+  },
+  "6643": {
+    "name": "bloated brilliant smallfish",
+    "kind": "c",
+    "quality": 2,
+    "icon": "inv_misc_fish_08",
+    "zones": [
+      {
+        "zone_id": 1412,
+        "name": "mulgore",
+        "count": 20,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1426,
+        "name": "dun morogh",
+        "count": 20,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1429,
+        "name": "elwynn forest",
+        "count": 20,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1438,
+        "name": "teldrassil",
+        "count": 20,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028539
+  },
+  "6645": {
+    "name": "bloated mud snapper",
+    "kind": "c",
+    "quality": 2,
+    "icon": "inv_misc_fish_31",
+    "zones": [
+      {
+        "zone_id": 1432,
+        "name": "loch modan",
+        "count": 20,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1436,
+        "name": "westfall",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1453,
+        "name": "stormwind city",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1454,
+        "name": "orgrimmar",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1455,
+        "name": "ironforge",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1456,
+        "name": "thunder bluff",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1457,
+        "name": "darnassus",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1458,
+        "name": "undercity",
+        "count": 40,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028539
+  },
+  "6647": {
+    "name": "bloated bristle whisker catfish",
+    "kind": "c",
+    "quality": 2,
+    "icon": "inv_misc_fish_30",
+    "zones": [
+      {
+        "zone_id": 1424,
+        "name": "hillsbrad foothills",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1431,
+        "name": "duskwood",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1433,
+        "name": "redridge mountains",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1437,
+        "name": "wetlands",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1440,
+        "name": "ashenvale",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1442,
+        "name": "stonetalon mountains",
+        "count": 30,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028539
+  },
+  "6307": {
+    "name": "message in a bottle",
+    "kind": "c",
+    "quality": 1,
+    "icon": "inv_drink_12",
+    "zones": [
+      {
+        "zone_id": 1413,
+        "name": "the barrens",
+        "count": 50,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1439,
+        "name": "darkshore",
+        "count": 60,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028539
+  },
+  "8366": {
+    "name": "bloated mithril head trout",
+    "kind": "c",
+    "quality": 2,
+    "icon": "inv_misc_fish_02",
+    "zones": [
+      {
+        "zone_id": 1416,
+        "name": "arathi highlands",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1417,
+        "name": "badlands",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1434,
+        "name": "stranglethorn vale",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1435,
+        "name": "swamp of sorrows",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1441,
+        "name": "thousand needles",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1443,
+        "name": "desolace",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1444,
+        "name": "feralas",
+        "count": 10,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1445,
+        "name": "dustwallow marsh",
+        "count": 30,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028540
+  },
+  "13881": {
+    "name": "bloated redgill",
+    "kind": "c",
+    "quality": 2,
+    "icon": "inv_misc_fish_06",
+    "zones": [
+      {
+        "zone_id": 1422,
+        "name": "western plaguelands",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1425,
+        "name": "the hinterlands",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1444,
+        "name": "feralas",
+        "count": 20,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1447,
+        "name": "azshara",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1448,
+        "name": "felwood",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1449,
+        "name": "un'goro crater",
+        "count": 30,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1450,
+        "name": "moonglade",
+        "count": 30,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028540
+  },
+  "13874": {
+    "name": "heavy crate",
+    "kind": "c",
+    "quality": 1,
+    "icon": "inv_crate_03",
+    "zones": [
+      {
+        "zone_id": 1446,
+        "name": "tanaris",
+        "count": 40,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028540
+  },
+  "13875": {
+    "name": "ironbound locked chest",
+    "kind": "c",
+    "quality": 1,
+    "icon": "inv_box_01",
+    "zones": [
+      {
+        "zone_id": 1446,
+        "name": "tanaris",
+        "count": 40,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028540
+  },
+  "13891": {
+    "name": "bloated whitescale salmon",
+    "kind": "c",
+    "quality": 2,
+    "icon": "inv_misc_fish_20",
+    "zones": [
+      {
+        "zone_id": 1423,
+        "name": "eastern plaguelands",
+        "count": 40,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1428,
+        "name": "burning steppes",
+        "count": 40,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1451,
+        "name": "silithus",
+        "count": 40,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1452,
+        "name": "winterspring",
+        "count": 40,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028540
+  },
+  "6351": {
+    "name": "dented crate",
+    "kind": "c",
+    "quality": 1,
+    "icon": "inv_crate_05",
+    "zones": [
+      {
+        "zone_id": 1413,
+        "name": "the barrens",
+        "count": 50,
+        "outof": 10000
+      },
+      {
+        "zone_id": 1439,
+        "name": "darkshore",
+        "count": 60,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028541
+  },
+  "7973": {
+    "name": "big-mouth clam",
+    "kind": "c",
+    "quality": 1,
+    "icon": "inv_misc_shell_03",
+    "zones": [
+      {
+        "zone_id": 1446,
+        "name": "tanaris",
+        "count": 670,
+        "outof": 10000
+      }
+    ],
+    "fetched_at": 1793028541
+  },
+  "5523": {
+    "name": "small barnacled clam",
+    "kind": "c",
+    "quality": 1,
+    "icon": "inv_misc_shell_01",
+    "zones": [],
+    "fetched_at": 1793028916
+  },
+  "5524": {
+    "name": "thick-shelled clam",
+    "kind": "c",
+    "quality": 1,
+    "icon": "inv_misc_shell_02",
+    "zones": [],
+    "fetched_at": 1793028916
+  },
+  "16968": {
+    "name": "sar'theris striker",
+    "kind": "q",
+    "quality": 1,
+    "icon": "inv_misc_fish_32",
+    "zones": [],
+    "fetched_at": 1793028916
+  },
+  "16969": {
+    "name": "savage coast blue sailfin",
+    "kind": "q",
+    "quality": 1,
+    "icon": "inv_misc_fish_08",
+    "zones": [],
+    "fetched_at": 1793028916
+  },
+  "16970": {
+    "name": "misty reed mahi mahi",
+    "kind": "q",
+    "quality": 1,
+    "icon": "inv_misc_fish_21",
+    "zones": [],
+    "fetched_at": 1793028917
+  },
+  "16971": {
+    "name": "clamlette surprise",
+    "kind": "q",
+    "quality": 1,
+    "icon": "inv_misc_shell_03",
+    "zones": [],
+    "fetched_at": 1793028917
+  },
+  "19807": {
+    "name": "speckled tastyfish",
+    "kind": "q",
+    "quality": 1,
+    "icon": "inv_misc_fish_21",
+    "zones": [],
+    "fetched_at": 1793028917
+  },
+  "19803": {
+    "name": "brownell's blue striped racer",
+    "kind": "q",
+    "quality": 2,
+    "icon": "inv_misc_fish_10",
+    "zones": [],
+    "fetched_at": 1793028917
+  },
+  "19805": {
+    "name": "keefer's angelfish",
+    "kind": "q",
+    "quality": 2,
+    "icon": "inv_misc_fish_08",
+    "zones": [],
+    "fetched_at": 1793028917
+  },
+  "19806": {
+    "name": "dezian queenfish",
+    "kind": "q",
+    "quality": 2,
+    "icon": "inv_misc_fish_09",
+    "zones": [],
+    "fetched_at": 1793028918
+  },
+  "13887": {
+    "name": "52 pound redgill",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_fish_06",
+    "zones": [],
+    "fetched_at": 1793028918
+  },
+  "13882": {
+    "name": "42 pound redgill",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_fish_06",
+    "zones": [],
+    "fetched_at": 1793028918
+  },
+  "13883": {
+    "name": "45 pound redgill",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_fish_06",
+    "zones": [],
+    "fetched_at": 1793028918
+  },
+  "13884": {
+    "name": "49 pound redgill",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_fish_06",
+    "zones": [],
+    "fetched_at": 1793028918
+  },
+  "13885": {
+    "name": "34 pound redgill",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_fish_06",
+    "zones": [],
+    "fetched_at": 1793028919
+  },
+  "13886": {
+    "name": "37 pound redgill",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_fish_06",
+    "zones": [],
+    "fetched_at": 1793028919
+  },
+  "13905": {
+    "name": "29 pound salmon",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_fish_02",
+    "zones": [],
+    "fetched_at": 1793028919
+  },
+  "13906": {
+    "name": "32 pound salmon",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_fish_02",
+    "zones": [],
+    "fetched_at": 1793028919
+  },
+  "13907": {
+    "name": "7 pound lobster",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_fish_14",
+    "zones": [],
+    "fetched_at": 1793028920
+  },
+  "13908": {
+    "name": "9 pound lobster",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_fish_14",
+    "zones": [],
+    "fetched_at": 1793028920
+  },
+  "13909": {
+    "name": "12 pound lobster",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_fish_14",
+    "zones": [],
+    "fetched_at": 1793028920
+  },
+  "13910": {
+    "name": "15 pound lobster",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_fish_14",
+    "zones": [],
+    "fetched_at": 1793028920
+  },
+  "13911": {
+    "name": "19 pound lobster",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_fish_14",
+    "zones": [],
+    "fetched_at": 1793028921
+  },
+  "13912": {
+    "name": "21 pound lobster",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_fish_14",
+    "zones": [],
+    "fetched_at": 1793028921
+  },
+  "13913": {
+    "name": "22 pound lobster",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_fish_14",
+    "zones": [],
+    "fetched_at": 1793028921
+  },
+  "13914": {
+    "name": "70 pound mightfish",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_monsterhead_02",
+    "zones": [],
+    "fetched_at": 1793028921
+  },
+  "13915": {
+    "name": "85 pound mightfish",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_monsterhead_02",
+    "zones": [],
+    "fetched_at": 1793028921
+  },
+  "13916": {
+    "name": "92 pound mightfish",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_monsterhead_02",
+    "zones": [],
+    "fetched_at": 1793028922
+  },
+  "13917": {
+    "name": "103 pound mightfish",
+    "kind": "t",
+    "quality": 1,
+    "icon": "inv_misc_monsterhead_02",
+    "zones": [],
+    "fetched_at": 1793028922
+  }
+}
