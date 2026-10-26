@@ -236,27 +236,38 @@ end
 
 -- ─── Dynamic HUD Update Loop ─────────────────────────────────────────────────
 
-UpdateHud = function()
-    if not hudFrame or not hudFrame:IsShown() then return end
+-- ─── Dynamic HUD Update Loop ─────────────────────────────────────────────────
 
+local function SetTextIfChanged(fs, text, fieldKey)
+    if hudFrame and hudFrame[fieldKey] ~= text then
+        hudFrame[fieldKey] = text
+        fs:SetText(text)
+    end
+end
+
+local function UpdateZone()
+    if not hudFrame or not hudFrame:IsShown() then return end
     local mapID = common.get_player_map_id()
     local zoneName = common.get_player_map_name() or "zone"
     local reqSkill = data.GetZoneRequirement(mapID)
-    local rank, maxRank, mod, totalSkill = sfui.fishing.GetFishingSkill()
+    local _, _, _, totalSkill = sfui.fishing.GetFishingSkill()
 
-    -- 1. Zone Text & Skill Feasibility
+    local zoneStr
     if reqSkill then
         if totalSkill >= reqSkill then
-            hudFrame.zoneText:SetText(string_format("|cff00ff88%s|r (|cffffd100%d|r)", zoneName:lower(), reqSkill))
+            zoneStr = string_format("|cff00ff88%s|r (|cffffd100%d|r)", zoneName:lower(), reqSkill)
         else
             local deficit = reqSkill - totalSkill
-            hudFrame.zoneText:SetText(string_format("|cffff4444%s|r (|cffff8800-%d skill|r)", zoneName:lower(), deficit))
+            zoneStr = string_format("|cffff4444%s|r (|cffff8800-%d skill|r)", zoneName:lower(), deficit)
         end
     else
-        hudFrame.zoneText:SetText(string_format("|cffffffff%s|r", zoneName:lower()))
+        zoneStr = string_format("|cffffffff%s|r", zoneName:lower())
     end
+    SetTextIfChanged(hudFrame.zoneText, zoneStr, "_lastZoneText")
+end
 
-    -- 2. Bag Capacity Warning
+local function UpdateBags()
+    if not hudFrame or not hudFrame:IsShown() then return end
     local freeSlots = 0
     local numBags = _G.NUM_BAG_SLOTS or 4
     for b = 0, numBags do
@@ -264,22 +275,30 @@ UpdateHud = function()
             or (_G.GetContainerNumFreeSlots and _G.GetContainerNumFreeSlots(b)) or 0
         freeSlots = freeSlots + free
     end
-    if freeSlots <= 2 then
-        hudFrame.bagText:SetText(string_format("|cffff2222bags: %d|r", freeSlots))
-    elseif freeSlots <= 5 then
-        hudFrame.bagText:SetText(string_format("|cffffaa00bags: %d|r", freeSlots))
-    else
-        hudFrame.bagText:SetText("")
-    end
 
-    -- 3. Skill & Lure Row
+    local bagStr = ""
+    if freeSlots <= 2 then
+        bagStr = string_format("|cffff2222bags: %d|r", freeSlots)
+    elseif freeSlots <= 5 then
+        bagStr = string_format("|cffffaa00bags: %d|r", freeSlots)
+    end
+    SetTextIfChanged(hudFrame.bagText, bagStr, "_lastBagText")
+end
+
+local function UpdateSkill()
+    if not hudFrame or not hudFrame:IsShown() then return end
+    local rank, maxRank, mod = sfui.fishing.GetFishingSkill()
     local skillStr
     if mod and mod > 0 then
         skillStr = string_format("skill: |cffffffff%d|r/|cffffffff%d|r (|cff00ffff+%d|r)", rank, maxRank, mod)
     else
         skillStr = string_format("skill: |cffffffff%d|r/|cffffffff%d|r", rank, maxRank)
     end
-    hudFrame.skillText:SetText(skillStr)
+    SetTextIfChanged(hudFrame.skillText, skillStr, "_lastSkillText")
+end
+
+local function UpdateLure()
+    if not hudFrame or not hudFrame:IsShown() then return end
 
     -- Query active weapon enchant on main hand for lure
     local hasLure, expSec = false, 0
@@ -293,35 +312,50 @@ UpdateHud = function()
         end
     end
 
-    local bestLure = data.FindBestLureInBags(rank)
-    local bagLureCount = bestLure and bestLure.count or 0
-
+    local lureStr
     if hasLure and expSec > 0 then
         if expSec <= 60 then
-            hudFrame.lureText:SetText(string_format("|cffff4444lure: %s|r", FormatDuration(expSec)))
+            lureStr = string_format("|cffff4444lure: %s|r", FormatDuration(expSec))
         else
-            hudFrame.lureText:SetText(string_format("lure: |cff00ff88%s|r", FormatDuration(expSec)))
+            lureStr = string_format("lure: |cff00ff88%s|r", FormatDuration(expSec))
         end
     else
+        local rank = sfui.fishing.GetFishingSkill()
+        local bestLure = data.FindBestLureInBags(rank)
+        local bagLureCount = bestLure and bestLure.count or 0
         if bagLureCount > 0 then
-            hudFrame.lureText:SetText(string_format("|cffffaa00no lure|r (|cff00ffff%d in bags|r)", bagLureCount))
+            lureStr = string_format("|cffffaa00no lure|r (|cff00ffff%d in bags|r)", bagLureCount)
         else
-            hudFrame.lureText:SetText("|cff888888no lure (0 bags)|r")
+            lureStr = "|cff888888no lure (0 bags)|r"
         end
     end
+    SetTextIfChanged(hudFrame.lureText, lureStr, "_lastLureText")
+end
 
-    -- 4. Session Metrics
+local function UpdateSession()
+    if not hudFrame or not hudFrame:IsShown() then return end
     local s = sfui.fishing.session
+    local sessionStr
     if s then
         local elapsed = GetTime() - (s.startTime or GetTime())
         local fph = (elapsed >= 60 and s.catches and s.catches > 0)
             and math_floor((s.catches / (elapsed / 3600)) + 0.5)
             or 0
         local streakStr = (s.streak and s.streak > 1) and string_format(" • |cff00ff88%dx streak|r", s.streak) or ""
-        hudFrame.sessionText:SetText(string_format("catches: |cffffffff%d|r (|cffffd100%d/hr|r)%s", s.catches or 0, fph, streakStr))
+        sessionStr = string_format("catches: |cffffffff%d|r (|cffffd100%d/hr|r)%s", s.catches or 0, fph, streakStr)
     else
-        hudFrame.sessionText:SetText("catches: |cffffffff0|r")
+        sessionStr = "catches: |cffffffff0|r"
     end
+    SetTextIfChanged(hudFrame.sessionText, sessionStr, "_lastSessionText")
+end
+
+UpdateHud = function()
+    if not hudFrame or not hudFrame:IsShown() then return end
+    UpdateZone()
+    UpdateBags()
+    UpdateSkill()
+    UpdateLure()
+    UpdateSession()
 end
 HUD.Update = UpdateHud
 
@@ -377,18 +411,44 @@ end
 local function OnPoleEquipChanged(event, slot)
     if slot == 16 or not slot then
         CheckVisibility()
+        if hudFrame and hudFrame:IsShown() then
+            UpdateSkill()
+            UpdateLure()
+        end
     end
 end
 
 local function OnZoneChanged()
     if hudFrame and hudFrame:IsShown() then
-        UpdateHud()
+        UpdateZone()
+    end
+end
+
+local function OnBagsChanged()
+    if hudFrame and hudFrame:IsShown() then
+        UpdateBags()
+        UpdateLure()
+    end
+end
+
+local function OnSkillChanged()
+    if hudFrame and hudFrame:IsShown() then
+        UpdateSkill()
+        UpdateZone()
+        UpdateLure()
+    end
+end
+
+local function OnSessionEvent()
+    if hudFrame and hudFrame:IsShown() then
+        UpdateSession()
     end
 end
 
 OnHudTick = function()
     if hudFrame and hudFrame:IsShown() then
-        UpdateHud()
+        UpdateLure()
+        UpdateSession()
     end
 end
 
@@ -396,23 +456,10 @@ events.RegisterEvent("PLAYER_LOGIN", CheckVisibility)
 events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", OnPoleEquipChanged)
 events.RegisterEvent("ZONE_CHANGED_NEW_AREA", OnZoneChanged)
 events.RegisterEvent("ZONE_CHANGED", OnZoneChanged)
-events.RegisterEvent("BAG_UPDATE_DELAYED", OnZoneChanged)
+events.RegisterEvent("BAG_UPDATE_DELAYED", OnBagsChanged)
+events.RegisterEvent("SKILL_LINES_CHANGED", OnSkillChanged)
 
 -- Internal pub/sub message listeners for instant HUD refreshes
-events.RegisterMessage("SFUI_FISHING_CATCH_RECORDED", function()
-    if hudFrame and hudFrame:IsShown() then
-        UpdateHud()
-    end
-end)
-
-events.RegisterMessage("SFUI_FISHING_GETAWAY_RECORDED", function()
-    if hudFrame and hudFrame:IsShown() then
-        UpdateHud()
-    end
-end)
-
-events.RegisterMessage("SFUI_FISHING_SESSION_RESET", function()
-    if hudFrame and hudFrame:IsShown() then
-        UpdateHud()
-    end
-end)
+events.RegisterMessage("SFUI_FISHING_CATCH_RECORDED", OnSessionEvent)
+events.RegisterMessage("SFUI_FISHING_GETAWAY_RECORDED", OnSessionEvent)
+events.RegisterMessage("SFUI_FISHING_SESSION_RESET", OnSessionEvent)

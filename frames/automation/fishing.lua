@@ -608,6 +608,9 @@ sfui.fishing.loot_all_items = loot_all_items
 
 -- ─── Fishing Pole & Session Management ───────────────────────────────────────
 
+local _poleItemCache = {}
+local _cachedBestPole = { bag = 0, slot = 0, link = "" }
+
 --- Determines if an item is a fishing pole by itemID or itemLink
 --- Authoritatively uses Item Class (Weapon = 2, Profession = 19) and Item Subclass (Fishingpole = 20, Fishing = 9).
 local function is_fishing_pole_item(itemID, itemLink)
@@ -615,6 +618,9 @@ local function is_fishing_pole_item(itemID, itemLink)
         itemID = tonumber(itemLink:match("item:(%d+)"))
     end
     if not itemID and not itemLink then return false end
+    if itemID and _poleItemCache[itemID] ~= nil then
+        return _poleItemCache[itemID]
+    end
 
     local function is_pole_class(classID, subclassID)
         if not classID or not subclassID then return false end
@@ -629,31 +635,36 @@ local function is_fishing_pole_item(itemID, itemLink)
         return false
     end
 
+    local result = false
     local _, _, _, _, _, cID, scID = sfui.common.get_item_instant_info(itemID or itemLink)
-    if is_pole_class(cID, scID) then return true end
-
-    do
+    if is_pole_class(cID, scID) then
+        result = true
+    else
         local _, _, _, _, _, _, subType, _, _, _, _, cID2, scID2 = sfui.common.get_item_info(itemLink or itemID)
-        if is_pole_class(cID2, scID2) then return true end
-        if subType then
+        if is_pole_class(cID2, scID2) then
+            result = true
+        elseif subType then
             local sLower = subType:lower()
             if sLower:find("fishing") or sLower:find("angel") or sLower:find("peche") or sLower:find("pesca") then
-                return true
+                result = true
+            end
+        end
+
+        if not result and itemLink then
+            local bracketName = itemLink:match("%[(.-)%]")
+            if bracketName then
+                local bLower = bracketName:lower()
+                if bLower:find("fishing") or bLower:find("angel") or bLower:find("peche") or bLower:find("pesca") or bLower:find("angler") then
+                    result = true
+                end
             end
         end
     end
 
-    if itemLink then
-        local bracketName = itemLink:match("%[(.-)%]")
-        if bracketName then
-            local bLower = bracketName:lower()
-            if bLower:find("fishing") or bLower:find("angel") or bLower:find("peche") or bLower:find("pesca") or bLower:find("angler") then
-                return true
-            end
-        end
+    if itemID then
+        _poleItemCache[itemID] = result
     end
-
-    return false
+    return result
 end
 sfui.fishing.IsFishingPoleItem = is_fishing_pole_item
 
@@ -681,7 +692,10 @@ local function find_fishing_pole_in_bags()
     end, false, true, false)
 
     if bestBag and bestSlot then
-        return { bag = bestBag, slot = bestSlot, link = bestLink }
+        _cachedBestPole.bag = bestBag
+        _cachedBestPole.slot = bestSlot
+        _cachedBestPole.link = bestLink
+        return _cachedBestPole
     end
     return nil
 end

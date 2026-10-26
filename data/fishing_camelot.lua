@@ -263,22 +263,35 @@ function D.GetAllWaters()
     return waters
 end
 
+-- ─── Lure Detection & Memoized Bag Cache ─────────────────────────────────────
+local cachedLure = nil
+local cachedLureRank = nil
+local lureCacheDirty = true
+
+function D.InvalidateLureCache()
+    lureCacheDirty = true
+end
+
 --- Returns best bag lure that the player can use given their current skill rank
 --- @param skillRank number
 --- @return table|nil { itemID, bonus, bag, slot, link, count }
 function D.FindBestLureInBags(skillRank)
     skillRank = skillRank or 0
-    local best = nil
+    if not lureCacheDirty and cachedLureRank == skillRank then
+        return cachedLure
+    end
 
     local common = sfui.common
     if not common or not common.for_each_bag_item then return nil end
 
+    local bestItemID, bestName, bestBonus, bestSkill, bestBag, bestSlot, bestLink, bestCount = nil, nil, -1, 0, nil, nil, nil, 0
     local C_Container = _G.C_Container
+
     common.for_each_bag_item(function(bag, slot, itemID, itemLink)
         if itemID and D.LURE_ITEM_IDS[itemID] then
             local lureDef = D.LURE_ITEM_IDS[itemID]
             if skillRank >= lureDef.skill then
-                if not best or lureDef.bonus > best.bonus then
+                if lureDef.bonus > bestBonus then
                     local count = 1
                     if C_Container and C_Container.GetContainerItemInfo then
                         local info = C_Container.GetContainerItemInfo(bag, slot)
@@ -287,21 +300,41 @@ function D.FindBestLureInBags(skillRank)
                         local _, c = _G.GetContainerItemInfo(bag, slot)
                         if c and c > 0 then count = c end
                     end
-                    best = {
-                        itemID = itemID,
-                        name = lureDef.name,
-                        bonus = lureDef.bonus,
-                        skill = lureDef.skill,
-                        bag = bag,
-                        slot = slot,
-                        link = itemLink,
-                        count = count,
-                    }
+                    bestItemID = itemID
+                    bestName = lureDef.name
+                    bestBonus = lureDef.bonus
+                    bestSkill = lureDef.skill
+                    bestBag = bag
+                    bestSlot = slot
+                    bestLink = itemLink
+                    bestCount = count
                 end
             end
         end
     end, false, true, false)
 
-    return best
+    if bestItemID then
+        if not cachedLure then cachedLure = {} end
+        cachedLure.itemID = bestItemID
+        cachedLure.name = bestName
+        cachedLure.bonus = bestBonus
+        cachedLure.skill = bestSkill
+        cachedLure.bag = bestBag
+        cachedLure.slot = bestSlot
+        cachedLure.link = bestLink
+        cachedLure.count = bestCount
+    else
+        cachedLure = nil
+    end
+
+    cachedLureRank = skillRank
+    lureCacheDirty = false
+    return cachedLure
+end
+
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", D.InvalidateLureCache)
+    sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", D.InvalidateLureCache)
+    sfui.events.RegisterEvent("SKILL_LINES_CHANGED", D.InvalidateLureCache)
 end
 
