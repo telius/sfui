@@ -5,56 +5,91 @@ sfui.cursor = sfui.cursor or {}
 local f -- specific frame reference
 local BASE_SIZE = 48 -- reduced to 75% of original 64px
 local uiparent
+local ring
+local cachedScale = 1
+local lastX, lastY = -9999, -9999
+
+local function update_scale_cache()
+    local s = uiparent and uiparent.GetEffectiveScale and uiparent:GetEffectiveScale()
+    cachedScale = (s and s > 0) and s or 1
+end
+
+local function get_update_interval()
+    if SfuiDB and SfuiDB.cursorRing144hz then
+        return 0.0069
+    end
+    return 0.016
+end
+
+local function update_cursor_pos()
+    if not f or not f:IsShown() then return end
+    local x, y = GetCursorPosition()
+    if not x or not y then return end
+    if cachedScale <= 0 then update_scale_cache() end
+    local cx = math.floor(x / cachedScale + 0.5)
+    local cy = math.floor(y / cachedScale + 0.5)
+    if cx ~= lastX or cy ~= lastY then
+        lastX, lastY = cx, cy
+        f:SetPoint("CENTER", uiparent, "BOTTOMLEFT", cx, cy)
+    end
+end
+
+-- Helper: Update Color
+local function UpdateColor()
+    local specID = sfui.common and sfui.common.get_current_spec_id and sfui.common.get_current_spec_id()
+    local r, g, b = 1, 1, 1
+    if sfui.common and sfui.common.get_spec_color then
+        r, g, b = sfui.common.get_spec_color(specID)
+    end
+    if ring then
+        ring:SetVertexColor(r or 1, g or 1, b or 1, 0.8)
+    end
+end
+sfui.cursor.UpdateColor = UpdateColor
 
 function sfui.cursor.initialize()
     if _G.SfuiCursor then
         f = _G.SfuiCursor
+        local isEnabled = not SfuiDB or (SfuiDB.enableCursorRing ~= false)
+        sfui.cursor.toggle(isEnabled)
         return
     end
 
     -- Cache UIParent reference
     uiparent = UIParent or _G.UIParent
-    local GetCursorPosition = GetCursorPosition
-
-    local cachedScale = 1
-    local function update_scale_cache()
-        local s = uiparent and uiparent.GetEffectiveScale and uiparent:GetEffectiveScale()
-        cachedScale = (s and s > 0) and s or 1
-    end
     update_scale_cache()
 
-    -- Create Frame
+    -- Create Frame (start hidden so f:Show() cleanly triggers OnShow)
     f = CreateFrame("Frame", "SfuiCursor", uiparent)
+    f:Hide()
     f:SetSize(BASE_SIZE, BASE_SIZE)
     f:SetFrameStrata("TOOLTIP")
     f:SetFrameLevel(9999)
     f:EnableMouse(false)
     f:SetClampedToScreen(false)
-    -- Set initial anchor once (never cleared)
-    f:SetPoint("CENTER", uiparent, "BOTTOMLEFT", 0, 0)
+
+    -- Immediately position at current cursor or off-screen
+    local x, y = GetCursorPosition()
+    if x and y then
+        local cx = math.floor(x / cachedScale + 0.5)
+        local cy = math.floor(y / cachedScale + 0.5)
+        lastX, lastY = cx, cy
+        f:SetPoint("CENTER", uiparent, "BOTTOMLEFT", cx, cy)
+    else
+        f:SetPoint("CENTER", uiparent, "BOTTOMLEFT", -9999, -9999)
+    end
 
     -- Create Texture
-    local ring = f:CreateTexture(nil, "OVERLAY")
+    ring = f:CreateTexture(nil, "OVERLAY")
     ring:SetAllPoints(f)
     ring:SetTexture("Interface\\AddOns\\sfui\\ring.tga")
-
-    -- Helper: Update Color
-    local function UpdateColor()
-        local specID = sfui.common and sfui.common.get_current_spec_id and sfui.common.get_current_spec_id()
-        local r, g, b = 1, 1, 1
-        if sfui.common and sfui.common.get_spec_color then
-            r, g, b = sfui.common.get_spec_color(specID)
-        end
-        if ring then
-            ring:SetVertexColor(r or 1, g or 1, b or 1, 0.8)
-        end
-    end
-    sfui.cursor.UpdateColor = UpdateColor
+    f.ring = ring
 
     -- Event Handler (via central dispatcher)
     local function on_cursor_event(event)
         if event == "UI_SCALE_CHANGED" or event == "PLAYER_ENTERING_WORLD" then
             update_scale_cache()
+            update_cursor_pos()
         end
         if event ~= "UI_SCALE_CHANGED" then
             UpdateColor()
@@ -68,33 +103,14 @@ function sfui.cursor.initialize()
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD",         on_cursor_event)
     sfui.events.RegisterEvent("UI_SCALE_CHANGED",              on_cursor_event)
 
-    local lastX, lastY = -9999, -9999
-    local function update_cursor_pos()
-        if not f or not f:IsShown() then return end
-        local x, y = GetCursorPosition()
-        if not x or not y then return end
-        local cx = math.floor(x / cachedScale + 0.5)
-        local cy = math.floor(y / cachedScale + 0.5)
-        if cx ~= lastX or cy ~= lastY then
-            lastX, lastY = cx, cy
-            f:SetPoint("CENTER", uiparent, "BOTTOMLEFT", cx, cy)
-        end
-    end
     f.OnUpdate = update_cursor_pos
-
-    local function get_update_interval()
-        if SfuiDB and SfuiDB.cursorRing144hz then
-            return 0.0069
-        end
-        return 0.016
-    end
 
     f:SetScript("OnShow", function()
         lastX, lastY = -9999, -9999
         update_scale_cache()
         if not SfuiDB or SfuiDB.enableCursorRing ~= false then
-            sfui.events.RegisterUpdate("CursorRing", get_update_interval(), f.OnUpdate)
-            if f.OnUpdate then f.OnUpdate() end
+            sfui.events.RegisterUpdate("CursorRing", get_update_interval(), update_cursor_pos)
+            update_cursor_pos()
         end
     end)
 
@@ -122,8 +138,7 @@ function sfui.cursor.set_high_refresh(enabled)
         SfuiDB.cursorRing144hz = enabled and true or false
     end
     if f and f:IsShown() and (not SfuiDB or SfuiDB.enableCursorRing ~= false) then
-        local interval = (SfuiDB and SfuiDB.cursorRing144hz) and 0.0069 or 0.016
-        sfui.events.RegisterUpdate("CursorRing", interval, f.OnUpdate)
+        sfui.events.RegisterUpdate("CursorRing", get_update_interval(), update_cursor_pos)
     end
 end
 
@@ -145,8 +160,12 @@ function sfui.cursor.toggle(enabled)
     if enabled then
         sfui.cursor.update_scale()
         f:Show()
+        update_scale_cache()
+        update_cursor_pos()
+        sfui.events.RegisterUpdate("CursorRing", get_update_interval(), update_cursor_pos)
     else
         f:Hide()
+        sfui.events.UnregisterUpdate("CursorRing")
     end
 end
 

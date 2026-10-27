@@ -17,8 +17,15 @@ local ITEMS_PER_PAGE = NUM_ROWS * NUM_COLS
 
 local isWarlockCamelot = (sfui.isCamelot or sfui.isClassic) and (sfui.common.get_player_class() == "WARLOCK")
 
-local GameTooltip = sfui.common.get_tooltip()
-local GameTooltip_Hide = sfui.common.hide_tooltip
+local GameTooltip = _G.GameTooltip
+local function GameTooltip_Hide()
+    if _G.GameTooltip_HideResetCursor then
+        _G.GameTooltip_HideResetCursor()
+    elseif _G.GameTooltip and _G.GameTooltip:IsShown() then
+        _G.GameTooltip:Hide()
+        if ResetCursor then ResetCursor() end
+    end
+end
 
 --------------------------------------------------------------------------------
 -- Main Merchant Window & Header
@@ -236,8 +243,14 @@ function sfui.merchant.create_item_button(id, parent)
         elseif self.link then
             GameTooltip:SetHyperlink(self.link)
         end
+
+        if sfui.merchant.mode ~= "buyback" and GameTooltip_ShowCompareItem then
+            GameTooltip_ShowCompareItem(GameTooltip)
+        end
         GameTooltip:Show()
     end)
+    btn.UpdateTooltip = btn:GetScript("OnEnter")
+
     btn:SetScript("OnLeave", function(self)
         GameTooltip_Hide()
         frame.itemHover = nil
@@ -497,10 +510,9 @@ sfui.events.RegisterEvent("MERCHANT_CLOSED", function()
         wipe(sfui.merchant.decorXpCache)
     end
     frame:Hide()
+    GameTooltip_Hide()
     if sfui.common and sfui.common.hide_tooltip then
         sfui.common.hide_tooltip()
-    else
-        GameTooltip_Hide()
     end
     if MerchantFrame then
         MerchantFrame:SetAlpha(1)
