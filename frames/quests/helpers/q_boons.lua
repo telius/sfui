@@ -94,6 +94,22 @@ local function FindBoonsAura()
 end
 
 -- ─── Tooltip Data Extraction ─────────────────────────────────────────────────
+local function IsSpellIDLine(line)
+    if not line or line == "" then return true end
+    local l = line:lower():gsub("^%s+", ""):gsub("%s+$", "")
+    -- Exact number only (e.g. "1280098")
+    if tonumber(l) then return true end
+    -- "spellid: 12345", "spell id: 12345", "spellid 12345", "spell id 12345"
+    if l:find("^spell%s*id") then return true end
+    -- "id: 12345", "id 12345"
+    if l:match("^id%s*:%s*%d+") or l:match("^id%s+%d+") then return true end
+    -- "spell: 12345"
+    if l:match("^spell%s*:%s*%d+") or l:match("^spell%s+%d+") then return true end
+    -- "aura id: 12345", "aura: 12345", "auraid: 12345", "aurainstanceid: 12345"
+    if l:find("^aura%s*id") or l:match("^aura%s*:%s*%d+") or l:find("^aurainstanceid") then return true end
+    return false
+end
+
 local function GetBoonsLines(aura)
     local rawLines = {}
     if not aura then return rawLines end
@@ -109,7 +125,7 @@ local function GetBoonsLines(aura)
                     if txt and txt ~= "" and not issecretvalue(txt) then
                         for line in txt:gmatch("[^\r\n]+") do
                             local clean = line:gsub("^%s+", ""):gsub("%s+$", "")
-                            if clean ~= "" then
+                            if clean ~= "" and not IsSpellIDLine(clean) then
                                 table_insert(rawLines, clean)
                             end
                         end
@@ -133,7 +149,7 @@ local function GetBoonsLines(aura)
                 if txt and txt ~= "" and not issecretvalue(txt) then
                     for line in txt:gmatch("[^\r\n]+") do
                         local clean = line:gsub("^%s+", ""):gsub("%s+$", "")
-                        if clean ~= "" then
+                        if clean ~= "" and not IsSpellIDLine(clean) then
                             table_insert(rawLines, clean)
                         end
                     end
@@ -156,7 +172,7 @@ local function GetBoonsLines(aura)
             if txt and txt ~= "" and not issecretvalue(txt) then
                 for line in txt:gmatch("[^\r\n]+") do
                     local clean = line:gsub("^%s+", ""):gsub("%s+$", "")
-                    if clean ~= "" then
+                    if clean ~= "" and not IsSpellIDLine(clean) then
                         table_insert(rawLines, clean)
                     end
                 end
@@ -173,7 +189,7 @@ local function GetBoonsLines(aura)
                 if txt and txt ~= "" and not issecretvalue(txt) then
                     for line in txt:gmatch("[^\r\n]+") do
                         local clean = line:gsub("^%s+", ""):gsub("%s+$", "")
-                        if clean ~= "" then
+                        if clean ~= "" and not IsSpellIDLine(clean) then
                             table_insert(rawLines, clean)
                         end
                     end
@@ -436,15 +452,20 @@ function Boons.Update()
         local lClean = line:lower()
         if idx == 1 and (lClean == "boons" or lClean == (aura.name and aura.name:lower())) then
             customTitle = lClean
-        else
+        elseif not IsSpellIDLine(line) then
             -- Match "Stat Name: Value"
             local stat, val = line:match("^([^:]+):%s*(.+)$")
             if stat and val then
-                val = val:gsub("%.$", "")
-                table_insert(stats, {
-                    label = stat:lower() .. ":",
-                    value = val:lower(),
-                })
+                local sLow = stat:lower():gsub("^%s+", ""):gsub("%s+$", "")
+                if sLow == "spellid" or sLow == "spell id" or sLow == "spell" or sLow == "id" or sLow == "aura id" or sLow == "aurainstanceid" or sLow == "aura" then
+                    -- Skip spell ID / aura ID lines
+                else
+                    val = val:gsub("%.$", "")
+                    table_insert(stats, {
+                        label = stat:lower() .. ":",
+                        value = val:lower(),
+                    })
+                end
             else
                 table_insert(stats, {
                     label = line:lower(),

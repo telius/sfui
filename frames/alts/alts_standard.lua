@@ -246,6 +246,7 @@ local function RefreshDynamicCategories(force)
                 itemConfig.fallbackIDs = itemDef.fallbackIDs
                 itemConfig.showSeasonEarned = itemDef.showSeasonEarned
                 itemConfig.isSparkDust = itemDef.isSparkDust
+                itemConfig.uncapped = itemDef.uncapped
                 local icon = itemDef.icon
                 if not icon or icon == 0 then
                     if itemConfig.isItem and C_Item and C_Item.GetItemIconByID then
@@ -269,6 +270,7 @@ local function RefreshDynamicCategories(force)
             cc.id = currencyDef.id
             cc.isItem = currencyDef.isItem
             cc.fallbackIDs = currencyDef.fallbackIDs
+            cc.uncapped = currencyDef.uncapped
 
             local icon = currencyDef.icon
             if not icon or icon == 0 then
@@ -427,6 +429,26 @@ local function CheckWeeklyResets()
         if d.currencies then
             for _, retID in ipairs(retiredCurrencies) do
                 d.currencies[retID] = nil
+            end
+        end
+    end
+
+    -- Clean up stale caps for uncapped seasonal currencies (e.g. hero & myth mistcrests)
+    local uncappedCurrencies = { 3445, 3446 }
+    for _, uID in ipairs(uncappedCurrencies) do
+        if SfuiDB.currencyCaps and SfuiDB.currencyCaps[uID] then
+            SfuiDB.currencyCaps[uID] = nil
+        end
+    end
+    for _, d in pairs(SfuiDB.alts or {}) do
+        if d.currencies then
+            for _, uID in ipairs(uncappedCurrencies) do
+                if d.currencies[uID] and type(d.currencies[uID]) == "table" then
+                    d.currencies[uID].maxQuantity = 0
+                    d.currencies[uID].maxWeeklyQuantity = 0
+                    d.currencies[uID].max = 0
+                    d.currencies[uID].canEarnPerWeek = false
+                end
             end
         end
     end
@@ -595,7 +617,16 @@ local function SyncCurrency(d, cDef)
             curr.maxQuantity            = info.maxQuantity or 0
             curr.useTotalEarned         = info.useTotalEarnedForMaxQty or false
 
-            if info.maxQuantity and info.maxQuantity > 0 then
+            local isUncapped = cDef.uncapped or (info.maxQuantity == 0 and info.maxWeeklyQuantity == 0 and not info.canEarnPerWeek)
+            if isUncapped then
+                if SfuiDB.currencyCaps and SfuiDB.currencyCaps[cDef.id] then
+                    SfuiDB.currencyCaps[cDef.id] = nil
+                end
+                curr.maxQuantity = 0
+                curr.maxWeeklyQuantity = 0
+                curr.max = 0
+                curr.canEarnPerWeek = false
+            elseif info.maxQuantity and info.maxQuantity > 0 then
                 SfuiDB.currencyCaps = SfuiDB.currencyCaps or {}
                 if not SfuiDB.currencyCaps[cDef.id] or info.maxQuantity > SfuiDB.currencyCaps[cDef.id] then
                     SfuiDB.currencyCaps[cDef.id] = info.maxQuantity
@@ -1605,15 +1636,19 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             local cData = altData.currencies and altData.currencies[itemConfig.id]
             -- Check weekly, seasonal, or holding cap
             local isCapped = false
-            local displayMaxQuantity = cData and type(cData) == "table" and cData.maxQuantity or 0
-            if SfuiDB and SfuiDB.currencyCaps and SfuiDB.currencyCaps[itemConfig.id] and SfuiDB.currencyCaps[itemConfig.id] > displayMaxQuantity then
-                displayMaxQuantity = SfuiDB.currencyCaps[itemConfig.id]
+            local isUncapped = itemConfig.uncapped or (cData and type(cData) == "table" and cData.maxQuantity == 0 and (cData.maxWeeklyQuantity or 0) == 0 and not cData.canEarnPerWeek)
+            local displayMaxQuantity = 0
+            if not isUncapped then
+                displayMaxQuantity = cData and type(cData) == "table" and cData.maxQuantity or 0
+                if SfuiDB and SfuiDB.currencyCaps and SfuiDB.currencyCaps[itemConfig.id] and SfuiDB.currencyCaps[itemConfig.id] > displayMaxQuantity then
+                    displayMaxQuantity = SfuiDB.currencyCaps[itemConfig.id]
+                end
             end
 
             local hasWeeklyLimit = false
             local weeklyEarned = 0
             local weeklyMax = 0
-            if cData and type(cData) == "table" then
+            if not isUncapped and cData and type(cData) == "table" then
                 if cData.canEarnPerWeek and cData.maxWeeklyQuantity and cData.maxWeeklyQuantity > 0 then
                     hasWeeklyLimit = true
                     weeklyEarned = cData.quantityEarnedThisWeek or 0

@@ -23,8 +23,8 @@ sfui.season.CURRENCIES = {
         isGroup = true,
         label = "mistcrests",
         items = {
-            { id = 3445, icon = 0 }, -- Hero Mistcrest
-            { id = 3446, icon = 0 }, -- Myth Mistcrest
+            { id = 3445, icon = 0, uncapped = true }, -- Hero Mistcrest
+            { id = 3446, icon = 0, uncapped = true }, -- Myth Mistcrest
         }
     },
     {
