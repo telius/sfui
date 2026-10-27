@@ -55,21 +55,12 @@ local NameUtil                     = _G.NameUtil
 -- ─── Secure Unit Watch Helpers ───────────────────────────────────────────────
 local function SafeRegisterUnitWatch(frame)
     if not frame then return end
-    if _G.RegisterUnitWatch then
-        _G.RegisterUnitWatch(frame)
-    elseif _G.RegisterStateDriver then
-        _G.RegisterStateDriver(frame, "visibility", "[@target,exists] show; hide")
-    end
+    sfui.safety.register_unit_watch(frame)
 end
 
 local function SafeUnregisterUnitWatch(frame)
     if not frame then return end
-    if _G.UnregisterUnitWatch then
-        _G.UnregisterUnitWatch(frame)
-    end
-    if _G.UnregisterStateDriver then
-        _G.UnregisterStateDriver(frame, "visibility")
-    end
+    sfui.safety.unregister_unit_watch(frame)
 end
 
 local function IsUnitWatchRegistered(frame)

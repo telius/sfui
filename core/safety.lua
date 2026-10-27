@@ -454,4 +454,154 @@ protect_core_status_bars()
 sfui.events.RegisterEvent("PLAYER_LOGIN", protect_core_status_bars)
 sfui.events.RegisterEvent("ADDON_LOADED", protect_core_status_bars)
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Unified Out-of-Combat Execution Queue
+-- ─────────────────────────────────────────────────────────────────────────────
+sfui.combat = sfui.combat or {}
+
+local outOfCombatQueue = {}
+local outOfCombatOrder = {}
+local _inCombatLockdown = _G.InCombatLockdown
+
+local function is_in_combat()
+    if _inCombatLockdown and _inCombatLockdown() then return true end
+    if sfui.common and sfui.common.is_in_combat and sfui.common.is_in_combat() then return true end
+    return false
+end
+
+local function drain_combat_queue()
+    if is_in_combat() then return end
+    if #outOfCombatOrder == 0 then return end
+
+    local keys = outOfCombatOrder
+    outOfCombatOrder = {}
+
+    for i = 1, #keys do
+        local key = keys[i]
+        local item = outOfCombatQueue[key]
+        if item then
+            outOfCombatQueue[key] = nil
+            if type(item.fn) == "function" then
+                if item.args and #item.args > 0 then
+                    pcall(item.fn, unpack(item.args))
+                else
+                    pcall(item.fn)
+                end
+            end
+        end
+    end
+end
+
+--- Queue an action to run immediately if out of combat, or deferred to PLAYER_REGEN_ENABLED.
+--- Deduplicates by key to prevent redundant execution of deferred updates.
+--- @param key string Unique identifier for this action (e.g. "reanchor_bars", "scale_target")
+--- @param func function Function to execute
+--- @param ... any Optional arguments to pass to func
+function sfui.combat.after_combat(key, func, ...)
+    if type(func) ~= "function" then return end
+    key = key or tostring(func)
+
+    if not is_in_combat() then
+        func(...)
+        return
+    end
+
+    if not outOfCombatQueue[key] then
+        outOfCombatOrder[#outOfCombatOrder + 1] = key
+    end
+    outOfCombatQueue[key] = {
+        fn = func,
+        args = { ... },
+    }
+end
+
+sfui.combat.run_after_combat = sfui.combat.after_combat
+sfui.common.after_combat = sfui.combat.after_combat
+sfui.common.run_after_combat = sfui.combat.after_combat
+
+sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", drain_combat_queue)
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Consolidated Secure Unit Watch & State Driver Helpers
+-- ─────────────────────────────────────────────────────────────────────────────
+local RegisterUnitWatch     = _G.RegisterUnitWatch
+local UnregisterUnitWatch   = _G.UnregisterUnitWatch
+local RegisterStateDriver   = _G.RegisterStateDriver
+local UnregisterStateDriver = _G.UnregisterStateDriver
+
+--- Safely register a frame with Blizzard's RegisterUnitWatch without taint errors.
+--- Automatically defers to after combat if currently in combat lockdown.
+--- @param frame Frame
+--- @param asState boolean|nil
+function sfui.safety.register_unit_watch(frame, asState)
+    if not frame then return end
+    if is_in_combat() then
+        local key = "unitwatch_" .. tostring(frame:GetName() or frame)
+        sfui.combat.after_combat(key, function()
+            sfui.safety.register_unit_watch(frame, asState)
+        end)
+        return
+    end
+    if RegisterUnitWatch then
+        RegisterUnitWatch(frame, asState)
+    end
+end
+
+--- Safely unregister a frame from Blizzard's RegisterUnitWatch.
+--- @param frame Frame
+function sfui.safety.unregister_unit_watch(frame)
+    if not frame then return end
+    if is_in_combat() then
+        local key = "un_unitwatch_" .. tostring(frame:GetName() or frame)
+        sfui.combat.after_combat(key, function()
+            sfui.safety.unregister_unit_watch(frame)
+        end)
+        return
+    end
+    if UnregisterUnitWatch then
+        UnregisterUnitWatch(frame)
+    end
+end
+
+--- Safely register a state driver on a frame.
+--- @param frame Frame
+--- @param state string
+--- @param conditional string
+function sfui.safety.register_state_driver(frame, state, conditional)
+    if not frame or not state or not conditional then return end
+    if is_in_combat() then
+        local key = "statedriver_" .. tostring(frame:GetName() or frame) .. "_" .. state
+        sfui.combat.after_combat(key, function()
+            sfui.safety.register_state_driver(frame, state, conditional)
+        end)
+        return
+    end
+    if RegisterStateDriver then
+        RegisterStateDriver(frame, state, conditional)
+    end
+end
+
+--- Safely unregister a state driver from a frame.
+--- @param frame Frame
+--- @param state string
+function sfui.safety.unregister_state_driver(frame, state)
+    if not frame or not state then return end
+    if is_in_combat() then
+        local key = "un_statedriver_" .. tostring(frame:GetName() or frame) .. "_" .. state
+        sfui.combat.after_combat(key, function()
+            sfui.safety.unregister_state_driver(frame, state)
+        end)
+        return
+    end
+    if UnregisterStateDriver then
+        UnregisterStateDriver(frame, state)
+    end
+end
+
+sfui.common.register_unit_watch = sfui.safety.register_unit_watch
+sfui.common.unregister_unit_watch = sfui.safety.unregister_unit_watch
+sfui.common.register_state_driver = sfui.safety.register_state_driver
+sfui.common.unregister_state_driver = sfui.safety.unregister_state_driver
+
+
 

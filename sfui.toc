@@ -29,6 +29,7 @@ compat.lua
 core/safety.lua
 core/db.lua
 core/module.lua
+core/pool.lua
 core/bridge.lua
 core/talents.lua
 core/talents_standard.lua [AllowLoadGameType standard]

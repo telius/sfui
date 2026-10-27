@@ -709,6 +709,52 @@ function sfui.theme.ElevateWindowContents(frame)
     end
 end
 
+--- Create, style, and register a complete standard window with theme, header, and close button.
+--- @param name string|nil Global frame name (optional, registers in UISpecialFrames if provided)
+--- @param width number Width in pixels
+--- @param height number Height in pixels
+--- @param titleText string|nil Title text displayed in header
+--- @param opts table|nil Options { movable = boolean, escClose = boolean, closeSize = number, onClose = function, headerWidth = number }
+--- @return table window Window frame with .headerBar, .closeBtn, .title, and standard methods
+function sfui.theme.create_window(name, width, height, titleText, opts)
+    opts = opts or {}
+    local f = CreateFrame("Frame", name, _G.UIParent, "BackdropTemplate")
+    f:SetSize(width or 400, height or 300)
+    f:SetPoint("CENTER")
+    f:SetClampedToScreen(true)
+
+    if opts.movable ~= false then
+        f:SetMovable(true)
+        f:EnableMouse(true)
+        f:RegisterForDrag("LeftButton")
+        f:SetScript("OnDragStart", f.StartMoving)
+        f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    end
+
+    sfui.theme.ApplyWindowStyle(f)
+    sfui.theme.RegisterWindow(f)
+
+    if titleText and titleText ~= "" then
+        local headerBar = sfui.theme.CreateWindowHeader(f, titleText, opts.headerWidth)
+        f.headerBar = headerBar
+    end
+
+    local closeSize = opts.closeSize or 24
+    local closeBtn = sfui.common.create_close_button(f, opts.onClose or function() f:Hide() end, closeSize)
+    f.closeBtn = closeBtn
+    f.close = closeBtn
+
+    if opts.escClose ~= false and name and _G.UISpecialFrames then
+        table_insert(_G.UISpecialFrames, name)
+    end
+
+    sfui.theme.ElevateWindowContents(f)
+    return f
+end
+
+sfui.theme.CreateWindow = sfui.theme.create_window
+sfui.common.create_window = sfui.theme.create_window
+
 -- 1. Window Styling (Frames / Dialogs / Windows)
 -- ─── Nine-slice window style (blizzard NineSliceLayouts) ──────────────────────
 -- themes with window.style = "nineslice" and window.layout = "<NineSliceLayouts key>"

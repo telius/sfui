@@ -11,16 +11,39 @@ sfui.db = {}
 -- ══════════════════════════════════════════════════════════════════════════════
 
 local moduleDefaults = {}
+local moduleVersions = {}
+local moduleMigrations = {}
 local _isInitialized = false
 
---- Register default configuration table for a module.
+local function run_migration(moduleName, targetVersion, migrationFunc)
+    if not _isInitialized or not SfuiDB or not targetVersion or not migrationFunc then return end
+    SfuiDB.__versions = SfuiDB.__versions or {}
+    local curVersion = SfuiDB.__versions[moduleName] or 0
+    if curVersion < targetVersion then
+        if SfuiDB[moduleName] then
+            pcall(migrationFunc, SfuiDB[moduleName], curVersion, targetVersion)
+        end
+        SfuiDB.__versions[moduleName] = targetVersion
+    end
+end
+
+--- Register default configuration table for a module with optional schema version and migration.
 --- @param moduleName string
 --- @param defaults table
-function sfui.db.RegisterDefaults(moduleName, defaults)
+--- @param schemaVersion number|nil Optional schema version integer
+--- @param migrationFunc function|nil Optional migration callback function(currentDB, oldVersion, newVersion)
+function sfui.db.RegisterDefaults(moduleName, defaults, schemaVersion, migrationFunc)
     if not moduleName or type(defaults) ~= "table" then return end
     moduleDefaults[moduleName] = defaults
+    if schemaVersion then
+        moduleVersions[moduleName] = schemaVersion
+        moduleMigrations[moduleName] = migrationFunc
+    end
 
     if _isInitialized and SfuiDB then
+        if schemaVersion and migrationFunc then
+            run_migration(moduleName, schemaVersion, migrationFunc)
+        end
         if SfuiDB[moduleName] == nil then
             SfuiDB[moduleName] = {}
         end
@@ -90,6 +113,16 @@ function sfui.db.Initialize()
     _isInitialized = true
 
     SfuiDB = SfuiDB or {}
+    SfuiDB.__versions = SfuiDB.__versions or {}
+
+    -- Run registered schema migrations
+    for moduleName, targetVersion in pairs(moduleVersions) do
+        local migrationFunc = moduleMigrations[moduleName]
+        if targetVersion and migrationFunc then
+            run_migration(moduleName, targetVersion, migrationFunc)
+        end
+    end
+
     for moduleName, defs in pairs(moduleDefaults) do
         if SfuiDB[moduleName] == nil then
             SfuiDB[moduleName] = {}
@@ -105,6 +138,12 @@ function sfui.db.Initialize()
         end
     end
 end
+
+sfui.db.get = sfui.db.Get
+sfui.db.set = sfui.db.Set
+sfui.db.register_defaults = sfui.db.RegisterDefaults
+sfui.common.db_get = sfui.db.Get
+sfui.common.db_set = sfui.db.Set
 
 -- ─── Safe Logout Persistence Guard ──────────────────────────────────────────
 -- On client shutdown or reload, broadcast flush intent to modules.

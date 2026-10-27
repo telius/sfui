@@ -167,3 +167,167 @@ end
 if sfui.stats then
     sfui.RegisterModule("stats", sfui.stats)
 end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Declarative Module Taxonomy & Dynamic Discovery
+-- ─────────────────────────────────────────────────────────────────────────────
+
+local DEFAULT_TAXONOMY = {
+    -- bars & combat
+    bars           = { category = "bars & combat", client = "all", order = 10 },
+    actionbars     = { category = "bars & combat", client = "all", order = 20 },
+    castbars       = { category = "bars & combat", client = "all", order = 30 },
+    vehicle        = { category = "bars & combat", client = "all", order = 40 },
+    soulfragments  = { category = "bars & combat", client = "retail", order = 50 },
+    threat         = { category = "bars & combat", client = "classic", order = 60 },
+    target         = { category = "bars & combat", client = "classic", order = 70 },
+    swing          = { category = "bars & combat", client = "classic", order = 80 },
+    totembar       = { category = "bars & combat", client = "classic", order = 90 },
+    experience     = { category = "bars & combat", client = "all", order = 100 },
+
+    -- tracking & cooldowns
+    trackedbars    = { category = "tracking & cooldowns", client = "all", order = 10 },
+    trackedicons   = { category = "tracking & cooldowns", client = "all", order = 20 },
+    trackedbuffs   = { category = "tracking & cooldowns", client = "retail", order = 30 },
+    cdm            = { category = "tracking & cooldowns", client = "all", order = 40 },
+    glows          = { category = "tracking & cooldowns", client = "all", order = 50 },
+
+    -- objectives
+    quests         = { category = "objectives", client = "all", order = 10 },
+    mythic         = { category = "objectives", client = "retail", order = 20 },
+    dungeonjournal = { category = "objectives", client = "classic", order = 30 },
+    worldevents    = { category = "objectives", client = "retail", order = 40 },
+    location       = { category = "objectives", client = "all", order = 50 },
+    pins           = { category = "objectives", client = "all", order = 60 },
+    research       = { category = "objectives", client = "retail", order = 70 },
+
+    -- automation
+    automation     = { category = "automation", client = "all", order = 10 },
+    fishing        = { category = "automation", client = "all", order = 20 },
+    merchant       = { category = "automation", client = "all", order = 30 },
+    triage         = { category = "automation", client = "all", order = 40 },
+    transfer       = { category = "automation", client = "retail", order = 50 },
+    rankup         = { category = "automation", client = "classic", order = 60 },
+    pets           = { category = "automation", client = "all", order = 70 },
+    hammer         = { category = "automation", client = "retail", order = 80 },
+    bonusroll      = { category = "automation", client = "retail", order = 90 },
+    lootspec       = { category = "automation", client = "retail", order = 100 },
+    recipes        = { category = "automation", client = "classic", order = 110 },
+    mail           = { category = "automation", client = "all", order = 120 },
+
+    -- general & utilities
+    alts           = { category = "general & utilities", client = "all", order = 10 },
+    buffs          = { category = "general & utilities", client = "classic", order = 20 },
+    currency       = { category = "general & utilities", client = "all", order = 30 },
+    cursor         = { category = "general & utilities", client = "all", order = 40 },
+    dispatcher     = { category = "general & utilities", client = "all", order = 50 },
+    gear           = { category = "general & utilities", client = "all", order = 60 },
+    hide           = { category = "general & utilities", client = "all", order = 70 },
+    logs           = { category = "general & utilities", client = "all", order = 80 },
+    lootfeed       = { category = "general & utilities", client = "all", order = 90 },
+    minimap        = { category = "general & utilities", client = "all", order = 100 },
+    portals        = { category = "general & utilities", client = "retail", order = 110 },
+    ring           = { category = "general & utilities", client = "all", order = 120 },
+    stats          = { category = "general & utilities", client = "all", order = 130 },
+}
+
+local CATEGORY_ORDER = {
+    ["bars & combat"]        = 1,
+    ["tracking & cooldowns"] = 2,
+    ["objectives"]           = 3,
+    ["automation"]           = 4,
+    ["general & utilities"]  = 5,
+}
+
+local function is_module_client_eligible(client)
+    if not client or client == "all" then return true end
+    if client == "retail" then return sfui.isRetail == true end
+    if client == "classic" then return sfui.isRetail ~= true end
+    if client == "camelot" then return sfui.isCamelot == true end
+    return true
+end
+
+--- Get dynamic module sections filtered by active client flavor.
+--- @return table Array of { title = string, modules = { string, ... } }
+function sfui.GetModuleSections()
+    local sections = {}
+    local secMap = {}
+
+    local function get_or_create_section(catName)
+        if not secMap[catName] then
+            local sec = { title = catName, modules = {} }
+            secMap[catName] = sec
+            sections[#sections + 1] = sec
+        end
+        return secMap[catName]
+    end
+
+    local seen = {}
+    local allKeys = {}
+
+    for name in pairs(DEFAULT_TAXONOMY) do
+        if not seen[name] then
+            seen[name] = true
+            allKeys[#allKeys + 1] = name
+        end
+    end
+    for name in pairs(modules) do
+        if not seen[name] then
+            seen[name] = true
+            allKeys[#allKeys + 1] = name
+        end
+    end
+
+    for _, name in ipairs(allKeys) do
+        local mod = modules[name]
+        local def = DEFAULT_TAXONOMY[name]
+        local client = (mod and mod.client) or (def and def.client) or "all"
+        if is_module_client_eligible(client) then
+            local cat = (mod and mod.category) or (def and def.category) or "general & utilities"
+            local sec = get_or_create_section(cat)
+            table.insert(sec.modules, name)
+        end
+    end
+
+    -- Sort modules within each section: by order if defined, then alphabetical
+    for _, sec in ipairs(sections) do
+        table.sort(sec.modules, function(a, b)
+            local modA, modB = modules[a], modules[b]
+            local defA, defB = DEFAULT_TAXONOMY[a], DEFAULT_TAXONOMY[b]
+            local orderA = (modA and modA.order) or (defA and defA.order)
+            local orderB = (modB and modB.order) or (defB and defB.order)
+            if orderA and orderB and orderA ~= orderB then
+                return orderA < orderB
+            elseif orderA and not orderB then
+                return true
+            elseif not orderA and orderB then
+                return false
+            end
+            return a < b
+        end)
+    end
+
+    -- Sort sections by predefined category order
+    table.sort(sections, function(a, b)
+        local oA = CATEGORY_ORDER[a.title] or 99
+        local oB = CATEGORY_ORDER[b.title] or 99
+        if oA ~= oB then return oA < oB end
+        return a.title < b.title
+    end)
+
+    return sections
+end
+
+--- Get flattened list of module keys in display order.
+--- @return table Array of module key strings
+function sfui.GetModuleOrder()
+    local sections = sfui.GetModuleSections()
+    local order = {}
+    for _, sec in ipairs(sections) do
+        for _, modKey in ipairs(sec.modules) do
+            table.insert(order, modKey)
+        end
+    end
+    return order
+end
+

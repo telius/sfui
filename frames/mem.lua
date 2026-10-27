@@ -1375,57 +1375,18 @@ local moduleCards = {}
 local leaderboardRows = {}
 local activeTab = "modules"
 
-local MODULE_SECTIONS = {
-    {
-        title = "bars & combat",
-        modules = sfui.isRetail and { "bars", "actionbars", "castbars", "vehicle", "soulfragments", "experience" }
-                                 or { "bars", "actionbars", "threat", "target", "swing", "totembar", "castbars", "vehicle", "experience" },
-    },
-    {
-        title = "tracking & cooldowns",
-        modules = sfui.isRetail and { "trackedbars", "trackedicons", "trackedbuffs", "cdm", "glows" }
-                                 or { "trackedbars", "trackedicons", "cdm", "glows" },
-    },
-    {
-        title = "general & utilities",
-        modules = (function()
-            local list = {
-                "alts", "automation", "currency", "cursor", "dispatcher", "fishing",
-                "gear", "hide", "location", "logs", "lootfeed", "mail", "merchant", "minimap",
-                "pets", "pins", "quests", "ring", "stats", "triage"
-            }
-            if sfui.isRetail then
-                table_insert(list, "bonusroll")
-                table_insert(list, "hammer")
-                table_insert(list, "lootspec")
-                table_insert(list, "mythic")
-                table_insert(list, "portals")
-                table_insert(list, "research")
-                table_insert(list, "transfer")
-                table_insert(list, "worldevents")
-            else
-                table_insert(list, "buffs")
-                table_insert(list, "dungeonjournal")
-                table_insert(list, "rankup")
-                table_insert(list, "recipes")
-            end
-            table_sort(list)
-            return list
-        end)(),
-    },
-}
-
-local MODULE_ORDER = {}
-for _, sec in ipairs(MODULE_SECTIONS) do
-    for _, modKey in ipairs(sec.modules) do
-        table_insert(MODULE_ORDER, modKey)
-    end
-end
+local MODULE_SECTIONS = (sfui.GetModuleSections and sfui.GetModuleSections()) or {}
+local MODULE_ORDER = (sfui.GetModuleOrder and sfui.GetModuleOrder()) or {}
 sfui.mem.MODULE_SECTIONS = MODULE_SECTIONS
 sfui.mem.MODULE_ORDER = MODULE_ORDER
 
 function sfui.mem.create_mem_panel()
     if frame then return frame end
+
+    MODULE_SECTIONS = (sfui.GetModuleSections and sfui.GetModuleSections()) or MODULE_SECTIONS
+    MODULE_ORDER = (sfui.GetModuleOrder and sfui.GetModuleOrder()) or MODULE_ORDER
+    sfui.mem.MODULE_SECTIONS = MODULE_SECTIONS
+    sfui.mem.MODULE_ORDER = MODULE_ORDER
 
     local CreateFlatButton = sfui.common.create_flat_button
     local CreateCloseButton = sfui.common.create_close_button

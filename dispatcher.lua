@@ -533,6 +533,14 @@ function sfui.events.RegisterDebouncedEvent(event, delay, callback)
     delay = (type(delay) == "number" and delay > 0 and delay) or 0.15
     local timer = nil
     local lastA1, lastA2, lastA3
+
+    local onTimerFired = function()
+        timer = nil
+        local a, b, c = lastA1, lastA2, lastA3
+        lastA1, lastA2, lastA3 = nil, nil, nil
+        callback(event, a, b, c)
+    end
+
     local wrapper = function(ev, a1, a2, a3)
         lastA1, lastA2, lastA3 = a1, a2, a3
         if timer then
@@ -541,12 +549,7 @@ function sfui.events.RegisterDebouncedEvent(event, delay, callback)
         end
         local C_Timer = _G.C_Timer
         if C_Timer and C_Timer.NewTimer then
-            timer = C_Timer.NewTimer(delay, function()
-                timer = nil
-                local a, b, c = lastA1, lastA2, lastA3
-                lastA1, lastA2, lastA3 = nil, nil, nil
-                callback(ev, a, b, c)
-            end)
+            timer = C_Timer.NewTimer(delay, onTimerFired)
         else
             callback(ev, a1, a2, a3)
         end
@@ -561,6 +564,14 @@ function sfui.events.RegisterDebouncedUnitEvent(event, unit, delay, callback)
     delay = (type(delay) == "number" and delay > 0 and delay) or 0.15
     local timer = nil
     local lastA1, lastA2, lastA3
+
+    local onTimerFired = function()
+        timer = nil
+        local a, b, c = lastA1, lastA2, lastA3
+        lastA1, lastA2, lastA3 = nil, nil, nil
+        callback(event, unit, a, b, c)
+    end
+
     local wrapper = function(ev, u, a1, a2, a3)
         lastA1, lastA2, lastA3 = a1, a2, a3
         if timer then
@@ -569,12 +580,7 @@ function sfui.events.RegisterDebouncedUnitEvent(event, unit, delay, callback)
         end
         local C_Timer = _G.C_Timer
         if C_Timer and C_Timer.NewTimer then
-            timer = C_Timer.NewTimer(delay, function()
-                timer = nil
-                local a, b, c = lastA1, lastA2, lastA3
-                lastA1, lastA2, lastA3 = nil, nil, nil
-                callback(ev, u, a, b, c)
-            end)
+            timer = C_Timer.NewTimer(delay, onTimerFired)
         else
             callback(ev, u, a1, a2, a3)
         end
