@@ -76,9 +76,29 @@ end
 function events.SuppressBlizzardBar()
     local hideBlizz = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "hideBlizzardBar", true))
     if hideBlizz == nil then hideBlizz = true end
-    if not hideBlizz then return end
 
     local mgr = _G.StatusTrackingBarManager
+    local oldExpBar = _G.MainMenuExpBar
+
+    if not hideBlizz then
+        if mgr then
+            mgr.defaultHideSelection = false
+            if mgr.SetAlpha then mgr:SetAlpha(1) end
+            if mgr.EnableMouse then mgr:EnableMouse(true) end
+            if mgr.Selection then
+                mgr.Selection:Show()
+                if mgr.Selection.SetAlpha then mgr.Selection:SetAlpha(1) end
+                if mgr.Selection.EnableMouse then mgr.Selection:EnableMouse(true) end
+            end
+            if mgr.UpdateBarsShown then pcall(mgr.UpdateBarsShown, mgr) end
+        end
+        if oldExpBar then
+            if oldExpBar.SetAlpha then oldExpBar:SetAlpha(1) end
+            if oldExpBar.EnableMouse then oldExpBar:EnableMouse(true) end
+        end
+        return
+    end
+
     if mgr then
         mgr.defaultHideSelection = true
         if mgr.SetAlpha and mgr:GetAlpha() ~= 0 then
@@ -92,7 +112,6 @@ function events.SuppressBlizzardBar()
         end
     end
 
-    local oldExpBar = _G.MainMenuExpBar
     if oldExpBar then
         if oldExpBar.SetAlpha and oldExpBar:GetAlpha() ~= 0 then
             oldExpBar:SetAlpha(0)
@@ -152,21 +171,30 @@ end
 
 local function OnCombatStateChanged(event)
     local hideInCombat = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "hideInCombat", false))
-    if hideInCombat then
-        local alpha = (event == "PLAYER_REGEN_DISABLED") and 0 or 1.0
-        if sfui.experience.bar then
-            local f = sfui.experience.bar.GetFrame()
-            if f then f:SetAlpha(alpha) end
-        end
-        if sfui.experience.reputation then
-            local rf = sfui.experience.reputation.GetFrame()
-            if rf then rf:SetAlpha(alpha) end
-        end
-        if sfui.experience.challenges then
-            local cf = sfui.experience.challenges.GetFrame()
-            if cf then cf:SetAlpha(alpha) end
-        end
+    local inCombat = (event == "PLAYER_REGEN_DISABLED")
+    local alpha = (hideInCombat and inCombat) and 0 or 1.0
+
+    if sfui.experience.bar then
+        local f = sfui.experience.bar.GetFrame()
+        if f then f:SetAlpha(alpha) end
     end
+    if sfui.experience.reputation then
+        local rf = sfui.experience.reputation.GetFrame()
+        if rf then rf:SetAlpha(alpha) end
+    end
+    if sfui.experience.challenges then
+        local cf = sfui.experience.challenges.GetFrame()
+        if cf then cf:SetAlpha(alpha) end
+    end
+    if isHunterClass and sfui.experience.pet then
+        local pf = sfui.experience.pet.GetFrame()
+        if pf then pf:SetAlpha(alpha) end
+    end
+end
+
+function events.OnCombatSettingChanged()
+    local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
+    OnCombatStateChanged(inCombat and "PLAYER_REGEN_DISABLED" or "PLAYER_REGEN_ENABLED")
 end
 
 -- ─── Reputation Gain Detection & Auto-Switching ─────────────────────────────
@@ -314,8 +342,63 @@ local function OnChatMsgCombatFactionChange(event, msg)
     end
 end
 
+local hooksInstalled = false
+
+local function InstallReputationHooks()
+    if hooksInstalled then return end
+    hooksInstalled = true
+
+    local hooksecurefunc = _G.hooksecurefunc
+    if not hooksecurefunc then return end
+
+    local C_Rep = _G.C_Reputation
+    if C_Rep and C_Rep.SetWatchedFactionByID then
+        pcall(hooksecurefunc, C_Rep, "SetWatchedFactionByID", function(factionID)
+            if factionID and factionID > 0 then
+                if sfui.experience and sfui.experience.OnReputationTracked then
+                    sfui.experience.OnReputationTracked(factionID)
+                end
+            else
+                if sfui.experience and sfui.experience.Update then
+                    sfui.experience.Update()
+                end
+            end
+        end)
+    end
+
+    if C_Rep and C_Rep.SetWatchedFactionByIndex then
+        pcall(hooksecurefunc, C_Rep, "SetWatchedFactionByIndex", function(factionIndex)
+            if factionIndex and factionIndex > 0 then
+                if sfui.experience and sfui.experience.OnReputationTracked then
+                    sfui.experience.OnReputationTracked(nil, factionIndex)
+                end
+            else
+                if sfui.experience and sfui.experience.Update then
+                    sfui.experience.Update()
+                end
+            end
+        end)
+    end
+
+    if _G.SetWatchedFactionIndex then
+        pcall(hooksecurefunc, "SetWatchedFactionIndex", function(factionIndex)
+            if factionIndex and factionIndex > 0 then
+                if sfui.experience and sfui.experience.OnReputationTracked then
+                    sfui.experience.OnReputationTracked(nil, factionIndex)
+                end
+            else
+                if sfui.experience and sfui.experience.Update then
+                    sfui.experience.Update()
+                end
+            end
+        end)
+    end
+end
+
 --- Initialize event listeners using central sfui.events dispatcher
 function events.Initialize()
+    InstallReputationHooks()
+
     if #registeredCallbacks > 0 then return end
 
     local function reg(eventName, callback)

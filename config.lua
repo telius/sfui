@@ -332,6 +332,8 @@ sfui.config = {
 
     experience = {
         enabled = true,
+        showXP = true,                  -- Show player experience bar
+        repEnabled = true,              -- Show reputation bar
         width = 460,
         height = 14,
         pos = {

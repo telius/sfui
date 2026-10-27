@@ -212,12 +212,34 @@ local function EmptyRepData()
     return _repData
 end
 
+--- Query raw watched faction ID and name directly from Blizzard API without checking repDisabled
+--- @return number|nil factionID, string|nil factionName
+function data.GetRawWatchedFaction()
+    -- 1. Retail / Live API: C_Reputation.GetWatchedFactionData()
+    if C_Reputation and C_Reputation.GetWatchedFactionData then
+        local watched = C_Reputation.GetWatchedFactionData()
+        if watched and watched.factionID and watched.factionID > 0 then
+            return watched.factionID, watched.name
+        end
+    end
+
+    -- 2. Classic / Forever API: GetWatchedFactionInfo()
+    if GetWatchedFactionInfo then
+        local name, _, _, _, _, factionID = GetWatchedFactionInfo()
+        if name and name ~= "" then
+            return factionID or 1, name
+        end
+    end
+
+    return nil, nil
+end
+
 --- Query watched faction, renown, or friendship progress
 --- @return table
 function data.GetReputationData()
-    -- User disabled reputation tracking: report no watched faction even if the
-    -- client still returns one (unwatching is server-acknowledged and async).
-    if sfui.db and sfui.db.Get and sfui.db.Get("experience", "repDisabled", false) then
+    local repEnabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repEnabled", nil))
+    local isRepDisabled = (repEnabled == false) or (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repDisabled", false) == true)
+    if isRepDisabled then
         return EmptyRepData()
     end
 
@@ -494,6 +516,10 @@ function data.SetWatchedFaction(factionID, factionIndex, factionName)
         if ok then
             success = true
         end
+    end
+
+    if success and sfui.experience and sfui.experience.OnReputationTracked then
+        sfui.experience.OnReputationTracked(factionID, factionName)
     end
 
     return success

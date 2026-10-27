@@ -248,6 +248,7 @@ end
 --- Update text display visibility based on mouseover setting
 local function UpdateTextVisibility(isHovering)
     if not textLeft or not textCenter or not textRight then return end
+    local data = sfui.experience.data
     local alpha = data and data.GetTextAlpha and data.GetTextAlpha(isHovering) or (isHovering and 1.0 or 0.0)
     textLeft:SetAlpha(alpha)
     textCenter:SetAlpha(alpha)
@@ -272,6 +273,36 @@ function barModule.UpdateValues()
 
     local isMax = xpData.isMaxLevel or xpData.isXPDisabled
     local repOnlyAtMaxLevel = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repOnlyAtMaxLevel", cfg.repOnlyAtMaxLevel ~= false))
+
+    local showXP = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showXP", cfg.showXP ~= false))
+    if showXP == nil then showXP = true end
+
+    local repEnabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repEnabled", cfg.repEnabled ~= false))
+    if repEnabled == nil then
+        local repDisabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repDisabled", false))
+        repEnabled = not repDisabled
+    end
+
+    if not showXP and not container._isUnlocked then
+        if showDual then
+            container:Hide()
+            UpdateTextVisibility(false)
+            if sfui.experience.reputation and sfui.experience.reputation.UpdateValues then
+                sfui.experience.reputation.UpdateValues()
+            end
+            return
+        else
+            if repEnabled and repData and repData.hasRep then
+                currentMode = "REP"
+            elseif data.HasLegacySystem and data.HasLegacySystem() then
+                currentMode = "LEGACY"
+            else
+                container:Hide()
+                UpdateTextVisibility(false)
+                return
+            end
+        end
+    end
 
     if showDual then
         if isMax and not container._isUnlocked then
@@ -298,7 +329,7 @@ function barModule.UpdateValues()
             end
         else
             container:Show()
-            if repOnlyAtMaxLevel then
+            if repOnlyAtMaxLevel and (not repData or not repData.hasRep) then
                 currentMode = "XP"
             elseif currentMode == "REP" and (not repData or not repData.hasRep) then
                 if data.HasLegacySystem and data.HasLegacySystem() then

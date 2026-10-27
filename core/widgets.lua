@@ -758,6 +758,9 @@ function sfui.widgets.create_checkbox(parent, label, dbKeyOrGetter, onClickFunc,
             if tip then tip:Hide() end
         end)
     end
+
+    cb.update = updateChecked
+    cb.Update = updateChecked
     return cb
 end
 sfui.common.create_checkbox = sfui.widgets.create_checkbox
@@ -966,6 +969,9 @@ function sfui.widgets.create_slider_input(parent, label, dbKeyOrGetter, minVal, 
         editbox:SetText(tostring(val))
         isSyncing = false
     end
+
+    container.update = syncValue
+    container.Update = syncValue
 
     return container
 end

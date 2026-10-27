@@ -8,21 +8,30 @@ local type, pairs = _G.type, _G.pairs
 local ipairs = _G.ipairs
 
 local refreshTabUI = nil
+local expPanelRef = nil
+
+local _, playerClass = _G.UnitClass("player")
+local isHunterClass = (playerClass == "HUNTER")
+local isCamelotOrClassic = not sfui.isRetail or sfui.isClassic or sfui.isCamelot
 
 sfui.options.RegisterTab({
     id = "experience",
     name = "experience",
     icon = "Interface\\Icons\\Spell_DeathKnight_EmpowerRuneblade",
     resetDefaults = function()
-        if SfuiDB and SfuiDB.experience then
-            local defaults = sfui.config.experience or {}
+        local defaults = sfui.config and sfui.config.experience
+        if defaults then
             for k, v in pairs(defaults) do
                 if type(v) == "table" then
-                    SfuiDB.experience[k] = {}
-                    for subK, subV in pairs(v) do SfuiDB.experience[k][subK] = subV end
+                    local copy = {}
+                    for subK, subV in pairs(v) do copy[subK] = subV end
+                    sfui.db.Set("experience", k, copy)
                 else
-                    SfuiDB.experience[k] = v
+                    sfui.db.Set("experience", k, v)
                 end
+            end
+            if sfui.experience and sfui.experience.ResetPosition then
+                sfui.experience.ResetPosition()
             end
             if sfui.experience and sfui.experience.Update then
                 sfui.experience.Update()
@@ -38,6 +47,7 @@ sfui.options.RegisterTab({
         end
     end,
     build = function(exp_panel)
+        expPanelRef = exp_panel
         local CreateFlatButton = common.create_flat_button
         local create_checkbox = common.create_checkbox
         local create_slider_input = common.create_slider_input
@@ -85,9 +95,15 @@ sfui.options.RegisterTab({
         -- ─────────────────────────────────────────────────────────────────────
         -- Quick Action Buttons
         -- ─────────────────────────────────────────────────────────────────────
+        local function is_movers_unlocked()
+            return (sfui.movers and sfui.movers.isUnlocked)
+                or (sfui.actionbars and sfui.actionbars.moversUnlocked)
+                or (sfui.experience and sfui.experience.IsUnlocked and sfui.experience.IsUnlocked())
+                or false
+        end
+
         local function getUnlockText()
-            local isUnlocked = (sfui.experience and sfui.experience.IsUnlocked and sfui.experience.IsUnlocked()) or false
-            return isUnlocked and "lock bar" or "unlock bar"
+            return is_movers_unlocked() and "lock ui" or "unlock / move ui"
         end
 
         local function getModeText()
@@ -103,14 +119,7 @@ sfui.options.RegisterTab({
             end
         end
 
-        local function is_movers_unlocked()
-            return (sfui.movers and sfui.movers.isUnlocked)
-                or (sfui.actionbars and sfui.actionbars.moversUnlocked)
-                or (sfui.experience and sfui.experience.IsUnlocked and sfui.experience.IsUnlocked())
-                or false
-        end
-
-        local unlock_btn = CreateFlatButton(exp_panel, is_movers_unlocked() and "lock UI" or "unlock / move UI", 120, 22)
+        local unlock_btn = CreateFlatButton(exp_panel, getUnlockText(), 120, 22)
         unlock_btn:SetPoint("TOPLEFT", tips, "BOTTOMLEFT", 0, -12)
         unlock_btn:SetScript("OnClick", function(self)
             local currentlyUnlocked = is_movers_unlocked()
@@ -120,7 +129,6 @@ sfui.options.RegisterTab({
                 elseif sfui.experience and sfui.experience.ToggleUnlock then
                     sfui.experience.ToggleUnlock()
                 end
-                self:SetText("unlock / move UI")
             else
                 if sfui.options and sfui.options.Toggle then
                     sfui.options.Toggle()
@@ -130,7 +138,9 @@ sfui.options.RegisterTab({
                 elseif sfui.experience and sfui.experience.ToggleUnlock then
                     sfui.experience.ToggleUnlock()
                 end
-                self:SetText("lock UI")
+            end
+            if refreshTabUI then
+                refreshTabUI()
             end
         end)
 
@@ -154,7 +164,7 @@ sfui.options.RegisterTab({
         end)
 
         -- ─────────────────────────────────────────────────────────────────────
-        -- Column 1 (Left): General Settings & Leveling Progress
+        -- Column 1 (Left): General Settings, Leveling & Pet Progress
         -- ─────────────────────────────────────────────────────────────────────
         local COL_OFFSET_X = 280
 
@@ -165,10 +175,16 @@ sfui.options.RegisterTab({
         general_header:SetText("general settings")
 
         local enable_cb = registerCheckbox(create_checkbox(exp_panel, "enable experience bar", function()
+            local showXP = sfui.db.Get("experience", "showXP", nil)
+            if showXP ~= nil then return showXP end
             return sfui.db.Get("experience", "enabled", true)
         end, function(checked)
-            sfui.db.Set("experience", "enabled", checked)
-        end, "enable or disable the sfui experience and reputation bar."))
+            sfui.db.Set("experience", "showXP", checked)
+            if checked then
+                sfui.db.Set("experience", "enabled", true)
+            end
+            if refreshTabUI then refreshTabUI() end
+        end, "show or hide the player experience status bar."))
         enable_cb:SetPoint("TOPLEFT", general_header, "BOTTOMLEFT", 0, -10)
 
         local blizz_cb = registerCheckbox(create_checkbox(exp_panel, "suppress default blizzard bar", function()
@@ -243,6 +259,22 @@ sfui.options.RegisterTab({
         end, "displays estimated time until next level on the left side of the bar."))
         ttl_cb:SetPoint("TOPLEFT", rate_cb, "BOTTOMLEFT", 0, -8)
 
+        local lastCol1Anchor = ttl_cb
+        if isHunterClass and isCamelotOrClassic then
+            local pet_header = exp_panel:CreateFontString(nil, "OVERLAY", g.font)
+            pet_header:SetPoint("TOPLEFT", ttl_cb, "BOTTOMLEFT", 0, -16)
+            pet_header:SetTextColor(white[1], white[2], white[3])
+            pet_header:SetText("hunter pet tracking")
+
+            local pet_always_cb = registerCheckbox(create_checkbox(exp_panel, "always show pet experience bar", function()
+                return sfui.db.Get("experience", "petBarAlwaysShow", false)
+            end, function(checked)
+                sfui.db.Set("experience", "petBarAlwaysShow", checked)
+            end, "keeps the pet status bar visible even when your pet is at capped xp, max loyalty, and 0 unspent training points."))
+            pet_always_cb:SetPoint("TOPLEFT", pet_header, "BOTTOMLEFT", 0, -10)
+            lastCol1Anchor = pet_always_cb
+        end
+
         -- ─────────────────────────────────────────────────────────────────────
         -- Column 2 (Right): Reputation Tracking & Dimensions
         -- ─────────────────────────────────────────────────────────────────────
@@ -253,16 +285,32 @@ sfui.options.RegisterTab({
         rep_header:SetTextColor(white[1], white[2], white[3])
         rep_header:SetText("reputation & faction tracking")
 
+        local rep_enable_cb = registerCheckbox(create_checkbox(exp_panel, "enable reputation bar", function()
+            local repEnabled = sfui.db.Get("experience", "repEnabled", nil)
+            if repEnabled ~= nil then return repEnabled end
+            return not sfui.db.Get("experience", "repDisabled", false)
+        end, function(checked)
+            sfui.db.Set("experience", "repEnabled", checked)
+            sfui.db.Set("experience", "repDisabled", not checked)
+            if checked then
+                sfui.db.Set("experience", "enabled", true)
+                if sfui.db.Get("experience", "repOnlyAtMaxLevel", false) then
+                    sfui.db.Set("experience", "repOnlyAtMaxLevel", false)
+                    if SfuiDB then SfuiDB._expCustomizedRepMaxLevel = true end
+                end
+            end
+            if refreshTabUI then refreshTabUI() end
+        end, "show or hide the reputation status bar."))
+        rep_enable_cb:SetPoint("TOPLEFT", rep_header, "BOTTOMLEFT", 0, -10)
+
         local rep_max_level_cb = registerCheckbox(create_checkbox(exp_panel, "only show reputation bar at max level", function()
             return sfui.db.Get("experience", "repOnlyAtMaxLevel", true)
         end, function(checked)
             sfui.db.Set("experience", "repOnlyAtMaxLevel", checked)
             if SfuiDB then SfuiDB._expCustomizedRepMaxLevel = true end
-            if sfui.experience and sfui.experience.Update then
-                sfui.experience.Update()
-            end
-        end, "hides the reputation bar entirely while leveling, and only displays it once maximum level or xp disable is reached."))
-        rep_max_level_cb:SetPoint("TOPLEFT", rep_header, "BOTTOMLEFT", 0, -10)
+            if refreshTabUI then refreshTabUI() end
+        end, "hides the reputation bar while leveling, and only displays it at maximum level or when xp is disabled. tracking a reputation in the faction pane will automatically re-enable this bar."))
+        rep_max_level_cb:SetPoint("TOPLEFT", rep_enable_cb, "BOTTOMLEFT", 0, -8)
 
         local rep_auto_cb = registerCheckbox(create_checkbox(exp_panel, "auto-switch to reputation at max level", function()
             return sfui.db.Get("experience", "autoReputation", true)
@@ -275,13 +323,10 @@ sfui.options.RegisterTab({
             return sfui.db.Get("experience", "showDualBars", true)
         end, function(checked)
             sfui.db.Set("experience", "showDualBars", checked)
-            if sfui.experience and sfui.experience.Update then
-                sfui.experience.Update()
-            end
             if refreshTabUI then
                 refreshTabUI()
             end
-        end, "docks the reputation bar directly with the experience bar so you can track both simultaneously while leveling."))
+        end, "docks the reputation bar directly with the experience bar so you can track both simultaneously. uncheck to use single-bar mode."))
         dual_cb:SetPoint("TOPLEFT", rep_auto_cb, "BOTTOMLEFT", 0, -8)
 
         local rep_top_cb = registerCheckbox(create_checkbox(exp_panel, "dock reputation bar on top (above xp)", function()
@@ -298,30 +343,13 @@ sfui.options.RegisterTab({
             if SfuiDB then SfuiDB._expCustomizedAutoSwitchRep = true end
             if checked and sfui.db.Get("experience", "repDisabled", false) then
                 sfui.db.Set("experience", "repDisabled", false)
-                if sfui.experience and sfui.experience.Update then sfui.experience.Update() end
-                if refreshTabUI then refreshTabUI() end
+                sfui.db.Set("experience", "repEnabled", true)
             end
+            if refreshTabUI then refreshTabUI() end
         end, "automatically activates and switches the watched reputation bar to any faction whenever reputation is gained."))
         rep_gain_cb:SetPoint("TOPLEFT", rep_top_cb, "BOTTOMLEFT", 0, -8)
 
-        local function getRepTrackingText()
-            local disabled = sfui.experience and sfui.experience.IsReputationTrackingDisabled and sfui.experience.IsReputationTrackingDisabled()
-            return disabled and "enable reputation tracking" or "disable reputation tracking"
-        end
-
-        local disable_rep_btn = CreateFlatButton(exp_panel, getRepTrackingText(), 200, 22)
-        disable_rep_btn:SetPoint("TOPLEFT", rep_gain_cb, "BOTTOMLEFT", 0, -10)
-        disable_rep_btn.tooltip = "disable: stops watching the current faction, turns off auto-switching on reputation gains, and keeps the reputation bar hidden. enable: allows the reputation bar again."
-        disable_rep_btn:SetScript("OnClick", function()
-            if sfui.experience and sfui.experience.ToggleReputationTracking then
-                sfui.experience.ToggleReputationTracking()
-                if refreshTabUI then
-                    refreshTabUI()
-                end
-            end
-        end)
-
-        local lastRepAnchor = disable_rep_btn
+        local lastRepAnchor = rep_gain_cb
         local isCamelotClient = sfui.isCamelot or (sfui.experience and sfui.experience.challenges and ((sfui.experience.challenges.IsSupported and sfui.experience.challenges.IsSupported()) or (sfui.experience.challenges.IsAvailable and sfui.experience.challenges.IsAvailable())))
         if isCamelotClient then
             local legacy_cb = registerCheckbox(create_checkbox(exp_panel, "track legacy challenges progress", function()
@@ -329,20 +357,14 @@ sfui.options.RegisterTab({
             end, function(checked)
                 sfui.db.Set("experience", "trackLegacy", checked)
                 if SfuiDB then SfuiDB._expCustomizedTrackLegacy = true end
-                if sfui.experience and sfui.experience.Update then
-                    sfui.experience.Update()
-                end
             end, "camelot only: tracks legacy challenges and points progress on the status bar."))
-            legacy_cb:SetPoint("TOPLEFT", disable_rep_btn, "BOTTOMLEFT", 0, -8)
+            legacy_cb:SetPoint("TOPLEFT", rep_gain_cb, "BOTTOMLEFT", 0, -8)
 
             local legacy_bar_cb = registerCheckbox(create_checkbox(exp_panel, "show dedicated legacy challenges bar", function()
                 return sfui.db.Get("experience", "showChallengesBar", false)
             end, function(checked)
                 sfui.db.Set("experience", "showChallengesBar", checked)
                 if SfuiDB then SfuiDB._expCustomizedChallengesBar = true end
-                if sfui.experience and sfui.experience.Update then
-                    sfui.experience.Update()
-                end
             end, "camelot only: displays an emerald status bar docked above the experience and reputation bars."))
             legacy_bar_cb:SetPoint("TOPLEFT", legacy_cb, "BOTTOMLEFT", 0, -8)
             lastRepAnchor = legacy_bar_cb
@@ -384,6 +406,16 @@ sfui.options.RegisterTab({
             end, "thickness / height of the stacked legacy challenges status bar in pixels.", 250))
             challenges_height_slider:SetPoint("TOPLEFT", rep_height_slider, "BOTTOMLEFT", 0, -12)
             lastHeightAnchor = challenges_height_slider
+        end
+
+        if isHunterClass and isCamelotOrClassic then
+            local pet_height_slider = registerSlider(create_slider_input(exp_panel, "pet bar height (pixels)", function()
+                return sfui.db.Get("experience", "petHeight", 10)
+            end, 6, 32, 1, function(val)
+                sfui.db.Set("experience", "petHeight", val)
+            end, "thickness / height of the stacked hunter pet status bar in pixels.", 250))
+            pet_height_slider:SetPoint("TOPLEFT", lastHeightAnchor, "BOTTOMLEFT", 0, -12)
+            lastHeightAnchor = pet_height_slider
         end
 
         -- Text Visibility Dropdown
@@ -440,13 +472,18 @@ sfui.options.RegisterTab({
             if toggle_mode_btn and toggle_mode_btn.SetText then
                 toggle_mode_btn:SetText(getModeText())
             end
-            if disable_rep_btn and disable_rep_btn.SetText then
-                disable_rep_btn:SetText(getRepTrackingText())
-            end
         end
 
         if exp_panel.SetContentHeight then
-            exp_panel:SetContentHeight(760)
+            exp_panel:SetContentHeight(840)
         end
     end,
 })
+
+if sfui.events and sfui.events.RegisterMessage then
+    sfui.events.RegisterMessage("SFUI_SETTING_CHANGED", function(_, moduleName)
+        if moduleName == "experience" and refreshTabUI and expPanelRef and expPanelRef:IsShown() then
+            refreshTabUI()
+        end
+    end)
+end

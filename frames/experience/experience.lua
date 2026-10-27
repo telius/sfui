@@ -82,17 +82,23 @@ local modDef = {
 
     OnEnable = function(self)
         local enabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "enabled", true))
-        if enabled == nil then enabled = true end
-        if not enabled then return end
+        local showXP = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showXP", true))
+        local repEnabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repEnabled", nil))
+        if repEnabled == nil then
+            local repDisabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repDisabled", false))
+            repEnabled = not repDisabled
+        end
+
+        if enabled == false and not showXP and not repEnabled then return end
 
         if exp.bar and exp.bar.Create then
             local f = exp.bar.Create()
-            if f then f:Show() end
+            if f and (showXP or not exp.bar.GetMode or exp.bar.GetMode() ~= "XP") then f:Show() end
         end
 
         if exp.reputation and exp.reputation.Create then
             local rf = exp.reputation.Create()
-            if rf then rf:Show() end
+            if rf and repEnabled then rf:Show() end
         end
 
         if exp.challenges and exp.challenges.Create then
@@ -116,6 +122,10 @@ local modDef = {
         local tex = (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()) or (sfui.config and sfui.config.barTexture)
         if tex then
             exp.SetBarTexture(tex)
+        end
+
+        if exp.Update then
+            exp.Update()
         end
     end,
 
@@ -145,13 +155,27 @@ local modDef = {
     end,
 
     OnSettingsChanged = function(self, key, value)
-        if key == "enabled" then
-            if value then
-                self:OnEnable()
-            else
-                self:OnDisable()
+        if key == "enabled" or key == "showXP" or key == "repEnabled" or key == "repDisabled" then
+            local enabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "enabled", true))
+            local showXP = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showXP", true))
+            local repEnabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repEnabled", nil))
+            if repEnabled == nil then
+                local repDisabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repDisabled", false))
+                repEnabled = not repDisabled
             end
-            return
+
+            if not enabled or (not showXP and not repEnabled) then
+                local chalAvailable = exp.challenges and exp.challenges.IsAvailable and exp.challenges.IsAvailable()
+                local petAvailable = exp.pet and exp.pet.IsAvailable and exp.pet.IsAvailable()
+                if not enabled or (not showXP and not repEnabled and not chalAvailable and not petAvailable) then
+                    self:OnDisable()
+                    return
+                end
+            else
+                if not exp.bar or not exp.bar.GetFrame or not exp.bar.GetFrame() then
+                    self:OnEnable()
+                end
+            end
         end
 
         if key == "barTexture" then
@@ -159,48 +183,22 @@ local modDef = {
             return
         end
 
-        if exp.bar then
-            if key == "width" or key == "height" or key == "pos" or key == "showTicks" or key == "tickCount" or key == "repHeight" or key == "repOnTop" then
-                exp.bar.UpdateLayout()
-            end
-            exp.bar.UpdateValues()
-        end
-        if exp.reputation then
-            if key == "width" or key == "repHeight" or key == "repOnTop" or key == "showTicks" or key == "tickCount" then
-                exp.reputation.UpdateLayout()
-            end
-            exp.reputation.UpdateValues()
-        end
-        if exp.challenges then
-            if key == "width" or key == "challengesHeight" or key == "repOnTop" or key == "showTicks" or key == "tickCount" or key == "trackLegacy" or key == "showChallengesBar" or key == "repHeight" or key == "height" then
-                exp.challenges.UpdateLayout()
-            end
-            exp.challenges.UpdateValues()
-        end
-        if exp.pet then
-            if key == "width" or key == "petHeight" or key == "challengesHeight" or key == "repHeight" or key == "height" or key == "pos" or key == "petBarAlwaysShow" then
-                if exp.pet.UpdateLayout then exp.pet.UpdateLayout() end
-            end
-            if exp.pet.UpdateValues then exp.pet.UpdateValues() end
+        if key == "hideBlizzardBar" and exp.events and exp.events.SuppressBlizzardBar then
+            exp.events.SuppressBlizzardBar()
         end
 
-        if key == "hideBlizzardBar" and exp.events then
-            exp.events.SuppressBlizzardBar()
+        if key == "hideInCombat" and exp.events and exp.events.OnCombatSettingChanged then
+            exp.events.OnCombatSettingChanged()
+        end
+
+        if exp.Update then
+            exp.Update()
         end
     end,
 
     OnSpecChanged = function(self, specID)
-        if exp.bar and exp.bar.UpdateValues then
-            exp.bar.UpdateValues()
-        end
-        if exp.reputation and exp.reputation.UpdateValues then
-            exp.reputation.UpdateValues()
-        end
-        if exp.challenges and exp.challenges.UpdateValues then
-            exp.challenges.UpdateValues()
-        end
-        if exp.pet and exp.pet.UpdateValues then
-            exp.pet.UpdateValues()
+        if exp.Update then
+            exp.Update()
         end
     end,
 
@@ -277,8 +275,7 @@ sfui.RegisterModule("experience", modDef)
 
 -- ─── Public API ───────────────────────────────────────────────────────────────
 
---- Trigger an immediate visual update of the experience bar
---- Trigger an immediate visual update of the experience and reputation bars
+--- Trigger an immediate visual update of all experience and reputation bars
 function exp.Update()
     if exp.bar then
         exp.bar.UpdateLayout()
@@ -292,9 +289,18 @@ function exp.Update()
         exp.challenges.UpdateLayout()
         exp.challenges.UpdateValues()
     end
-    if exp.pet and exp.pet.UpdateValues then
-        exp.pet.UpdateValues()
+    if exp.pet then
+        if exp.pet.UpdateLayout then exp.pet.UpdateLayout() end
+        if exp.pet.UpdateValues then exp.pet.UpdateValues() end
     end
+end
+
+--- Trigger layout update across all experience and reputation bars
+function exp.UpdateLayout()
+    if exp.bar and exp.bar.UpdateLayout then exp.bar.UpdateLayout() end
+    if exp.reputation and exp.reputation.UpdateLayout then exp.reputation.UpdateLayout() end
+    if exp.challenges and exp.challenges.UpdateLayout then exp.challenges.UpdateLayout() end
+    if exp.pet and exp.pet.UpdateLayout then exp.pet.UpdateLayout() end
 end
 
 --- Set status bar texture across experience and reputation bars
@@ -467,6 +473,10 @@ end
 --- Whether the user has disabled reputation tracking
 --- @return boolean
 function exp.IsReputationTrackingDisabled()
+    local repEnabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repEnabled", nil))
+    if repEnabled ~= nil then
+        return not repEnabled
+    end
     return (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repDisabled", false)) == true
 end
 
@@ -474,6 +484,7 @@ end
 --- and persist a flag so the rep bar stays hidden until tracking is re-enabled
 function exp.DisableReputationTracking()
     if sfui.db and sfui.db.Set then
+        sfui.db.Set("experience", "repEnabled", false)
         sfui.db.Set("experience", "repDisabled", true)
         sfui.db.Set("experience", "autoSwitchRepOnGain", false)
     end
@@ -498,7 +509,12 @@ end
 --- faction or reputation gain with auto-switch on brings the bar back)
 function exp.EnableReputationTracking()
     if sfui.db and sfui.db.Set then
+        sfui.db.Set("experience", "repEnabled", true)
         sfui.db.Set("experience", "repDisabled", false)
+        sfui.db.Set("experience", "repOnlyAtMaxLevel", false)
+    end
+    if SfuiDB then
+        SfuiDB._expCustomizedRepMaxLevel = true
     end
     if exp.Update then
         exp.Update()
@@ -506,6 +522,47 @@ function exp.EnableReputationTracking()
     if sfui.common and sfui.common.print then
         sfui.common.print("reputation tracking enabled.")
     end
+end
+
+--- Called when a reputation is tracked or watched
+--- Enables reputation tracking and ensures the reputation bar is shown
+--- @param factionID number|nil
+--- @param factionName string|nil
+--- @return boolean changed
+function exp.OnReputationTracked(factionID, factionName)
+    local changed = false
+
+    local isRepDisabled = exp.IsReputationTrackingDisabled()
+    if isRepDisabled then
+        if sfui.db and sfui.db.Set then
+            sfui.db.Set("experience", "repEnabled", true)
+            sfui.db.Set("experience", "repDisabled", false)
+        end
+        changed = true
+    end
+
+    if sfui.db and sfui.db.Get and sfui.db.Get("experience", "repOnlyAtMaxLevel", false) then
+        if sfui.db.Set then
+            sfui.db.Set("experience", "repOnlyAtMaxLevel", false)
+        end
+        if SfuiDB then
+            SfuiDB._expCustomizedRepMaxLevel = true
+        end
+        changed = true
+    end
+
+    local showDual = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showDualBars", true))
+    if not showDual then
+        if exp.bar and exp.bar.SetMode then
+            exp.bar.SetMode("REP")
+        end
+    end
+
+    if exp.Update then
+        exp.Update()
+    end
+
+    return changed
 end
 
 function exp.ToggleReputationTracking()

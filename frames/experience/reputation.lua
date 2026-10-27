@@ -291,7 +291,19 @@ function repModule.UpdateValues()
     local cfg = sfui.config.experience or {}
     local enabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "enabled", true))
     if enabled == nil then enabled = true end
-    if not enabled then
+
+    local repEnabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repEnabled", cfg.repEnabled ~= false))
+    if repEnabled == nil then
+        local repDisabled = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repDisabled", false))
+        repEnabled = not repDisabled
+    end
+
+    if not repEnabled and not repContainer._isUnlocked then
+        repContainer:Hide()
+        return
+    end
+
+    if not enabled and not repEnabled and not repContainer._isUnlocked then
         repContainer:Hide()
         return
     end
