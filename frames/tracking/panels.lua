@@ -12,12 +12,13 @@ sfui.common = sfui.common or {}
 --  All public APIs remain bound to sfui.common.* for backward compatibility.
 -- ══════════════════════════════════════════════════════════════════════════════
 
-local type, ipairs, pairs, tonumber, tostring = type, ipairs, pairs, tonumber, tostring
+local type, ipairs, pairs, tonumber, tostring, pcall = type, ipairs, pairs, tonumber, tostring, pcall
 local table, math, string = table, math, string
 local C_Timer = _G.C_Timer
 local C_CooldownViewer = _G.C_CooldownViewer
 local CooldownViewerSettings = _G.CooldownViewerSettings
 local C_ClassTalents = _G.C_ClassTalents
+local Enum = _G.Enum
 local wipe = _G.wipe or table.wipe
 
 sfui.tracking.SPELL_CATEGORY_METADATA = {
@@ -147,9 +148,22 @@ local function get_all_cdm_entries()
         end
     end
 
-    -- Fallback: use C_CooldownViewer direct API if provider not ready or empty
+    -- fallback: use c_cooldownviewer direct api if provider not ready or empty
     if #cat0 == 0 and #cat1 == 0 and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
-        for _, cat in ipairs({ 0, 1, 7, 5 }) do
+        local cats = {}
+        local catEnum = Enum and Enum.CooldownViewerCategory
+        if catEnum then
+            for _, catKey in ipairs({ "Essential", "Utility", "EquipSlotEssential", "SpecAgnosticEssential" }) do
+                local val = catEnum[catKey]
+                if type(val) == "number" and val >= 0 then
+                    table.insert(cats, val)
+                end
+            end
+        end
+        if #cats == 0 then
+            cats = { 0, 1 }
+        end
+        for _, cat in ipairs(cats) do
             local cooldownIDs = C_CooldownViewer.GetCooldownViewerCategorySet(cat, true)
             if cooldownIDs then
                 for _, cooldownID in ipairs(cooldownIDs) do
