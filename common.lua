@@ -1405,6 +1405,26 @@ local function disarm_and_hide_viewer(viewer)
     if viewer.SetAlpha and viewer:GetAlpha() ~= 0 then
         viewer:SetAlpha(0)
     end
+
+    if not InCombatLockdown() then
+        if _G.BottomManagedFrameContainer and _G.BottomManagedFrameContainer.RemoveManagedFrame then
+            _G.BottomManagedFrameContainer:RemoveManagedFrame(viewer)
+        end
+        if viewer.layoutParent and viewer.layoutParent.RemoveManagedFrame then
+            viewer.layoutParent:RemoveManagedFrame(viewer)
+        end
+
+        local clearPoints = viewer.ClearAllPointsBase or viewer.ClearAllPoints
+        local setPoint = viewer.SetPointBase or viewer.SetPoint
+        if clearPoints and setPoint then
+            clearPoints(viewer)
+            setPoint(viewer, "BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -10000, -10000)
+        end
+    elseif sfui.combat and sfui.combat.after_combat then
+        sfui.combat.after_combat(function()
+            disarm_and_hide_viewer(viewer)
+        end)
+    end
 end
 
 function sfui.common.hide_blizzard_cooldown_viewers()
@@ -1447,9 +1467,12 @@ function sfui.common.hide_blizzard_cooldown_viewers()
             EventRegistry:RegisterCallback("CinematicFrame.CinematicStopped", function()
                 sfui.common.hide_blizzard_cooldown_viewers()
             end)
+            EventRegistry:RegisterCallback("EditMode.Exit", function()
+                sfui.common.hide_blizzard_cooldown_viewers()
+            end)
         end
 
-        -- Game events for cinematics, movies, challenge mode, and stance/bar shifts
+        -- Game events for cinematics, movies, challenge mode, stance shifts, and edit mode
         sfui.events.RegisterEvent("CINEMATIC_STOP", function()
             sfui.common.hide_blizzard_cooldown_viewers()
         end)
@@ -1466,6 +1489,12 @@ function sfui.common.hide_blizzard_cooldown_viewers()
             sfui.common.hide_blizzard_cooldown_viewers()
         end)
         sfui.events.RegisterEvent("UPDATE_BONUS_ACTIONBAR", function()
+            sfui.common.hide_blizzard_cooldown_viewers()
+        end)
+        sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
+            sfui.common.hide_blizzard_cooldown_viewers()
+        end)
+        sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
             sfui.common.hide_blizzard_cooldown_viewers()
         end)
         sfui.events.RegisterEvent("ADDON_LOADED", function(event, loadedAddon)
