@@ -23,7 +23,8 @@ local ipairs = ipairs
 local pairs = pairs
 local next = next
 local type = type
-local GameTooltip = sfui.common.get_tooltip()
+local select = select
+local GameTooltip = (sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()) or _G.GameTooltip
 local NORMAL_FONT_COLOR = _G.NORMAL_FONT_COLOR
 local GREEN_FONT_COLOR = _G.GREEN_FONT_COLOR
 local RED_FONT_COLOR = _G.RED_FONT_COLOR
@@ -33,6 +34,8 @@ local C_WeeklyRewards = _G.C_WeeklyRewards
 local C_CurrencyInfo = _G.C_CurrencyInfo
 local C_UIWidgetManager = _G.C_UIWidgetManager
 local C_Item = _G.C_Item
+local GetItemInfo = (C_Item and C_Item.GetItemInfo) or _G.GetItemInfo
+local GetDetailedItemLevelInfo = (C_Item and C_Item.GetDetailedItemLevelInfo) or _G.GetDetailedItemLevelInfo
 local C_TradeSkillUI = _G.C_TradeSkillUI
 local C_DateAndTime = _G.C_DateAndTime
 local C_QuestLog = _G.C_QuestLog
@@ -100,23 +103,48 @@ local FALLBACK_NAMES = {
     [3446]   = "myth mistcrest",
 }
 
+local function get_item_info(item)
+    if not item then return nil end
+    local fn = (sfui.common and sfui.common.get_item_info)
+        or (sfui.items and sfui.items.get_item_info)
+        or GetItemInfo
+    if fn then
+        return fn(item)
+    end
+    return nil
+end
+
+local function get_item_level(itemLinkOrID)
+    if not itemLinkOrID then return 0 end
+    local fn = (sfui.common and sfui.common.get_item_level)
+        or (sfui.items and sfui.items.get_item_level)
+    if fn then
+        return fn(itemLinkOrID) or 0
+    end
+    local ilvl = GetDetailedItemLevelInfo and GetDetailedItemLevelInfo(itemLinkOrID)
+    if (not ilvl or ilvl == 0) and GetItemInfo then
+        ilvl = select(4, GetItemInfo(itemLinkOrID))
+    end
+    return ilvl or 0
+end
+
 local function ResolveCurrencyOrItemName(itemConfig)
     if not itemConfig then return "currency" end
     local id = itemConfig.id
     local name
     if itemConfig.isItem then
-        name = sfui.common.get_item_info and sfui.common.get_item_info(id)
+        name = get_item_info(id)
         if (not name or name == "") and itemConfig.fallbackIDs then
             for _, fbID in ipairs(itemConfig.fallbackIDs) do
-                name = sfui.common.get_item_info and sfui.common.get_item_info(fbID)
+                name = get_item_info(fbID)
                 if name and name ~= "" then break end
             end
         end
     else
-        name = sfui.common.get_currency_name and sfui.common.get_currency_name(id)
+        name = sfui.common and sfui.common.get_currency_name and sfui.common.get_currency_name(id)
         if (not name or name == "") and itemConfig.fallbackIDs then
             for _, fbID in ipairs(itemConfig.fallbackIDs) do
-                name = sfui.common.get_currency_name and sfui.common.get_currency_name(fbID)
+                name = sfui.common and sfui.common.get_currency_name and sfui.common.get_currency_name(fbID)
                 if name and name ~= "" then break end
             end
         end
@@ -259,7 +287,7 @@ local function RefreshDynamicCategories(force)
                         end
                         icon = icon or 134400
                     else
-                        icon = sfui.common.get_currency_icon(itemConfig.id) or 134400
+                        icon = (sfui.common and sfui.common.get_currency_icon and sfui.common.get_currency_icon(itemConfig.id)) or 134400
                     end
                 end
                 itemConfig.icon = icon
@@ -284,7 +312,7 @@ local function RefreshDynamicCategories(force)
                     end
                     icon = icon or 134400
                 else
-                    icon = sfui.common.get_currency_icon(cc.id) or 134400
+                    icon = (sfui.common and sfui.common.get_currency_icon and sfui.common.get_currency_icon(cc.id)) or 134400
                 end
             end
             cc.icon = icon
@@ -565,11 +593,11 @@ local function recordVaultActivity(d, activity, defaultGroup)
             if (not ilvl or ilvl == 0) and activity.id and C_WeeklyRewards and C_WeeklyRewards.GetExampleRewardItemHyperlinks then
                 local link = C_WeeklyRewards.GetExampleRewardItemHyperlinks(activity.id)
                 if link then
-                    ilvl = sfui.common.get_item_level(link)
+                    ilvl = get_item_level(link)
                 end
             end
             if (not ilvl or ilvl == 0) and activity.exampleItemHyperlink then
-                ilvl = sfui.common.get_item_level(activity.exampleItemHyperlink)
+                ilvl = get_item_level(activity.exampleItemHyperlink)
             end
             targetSlot.itemLevel = ilvl or 0
         else
@@ -975,7 +1003,11 @@ local function PerformSync(data, isLogout)
     -- 2. Keystone
     local ks = nil
     if isMaxLevel then
-        ks = sfui.common.get_owned_keystone_info()
+        local get_ks = (sfui.common and sfui.common.get_owned_keystone_info)
+            or (sfui.items and sfui.items.get_owned_keystone_info)
+        if get_ks then
+            ks = get_ks()
+        end
         if (not ks or not ks.level or ks.level <= 0 or ks.level >= 100) and challengeModeValidGUID == playerGUID and C_MythicPlus and C_MythicPlus.GetOwnedKeystoneChallengeMapID then
             local mapID = C_MythicPlus.GetOwnedKeystoneChallengeMapID()
             local level = C_MythicPlus.GetOwnedKeystoneLevel and C_MythicPlus.GetOwnedKeystoneLevel()
@@ -1254,7 +1286,8 @@ local function PerformSync(data, isLogout)
                     end
 
                     if tracking.catchup then
-                        local currencyInfo = sfui.common.get_currency_info(tracking.catchup)
+                        local currencyInfo = (sfui.common and sfui.common.get_currency_info and sfui.common.get_currency_info(tracking.catchup))
+                            or (C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo and C_CurrencyInfo.GetCurrencyInfo(tracking.catchup))
                         if currencyInfo and currencyInfo.maxQuantity and currencyInfo.quantity then
                             local remaining = currencyInfo.maxQuantity - currencyInfo.quantity
                             if remaining > 0 then
@@ -1337,7 +1370,7 @@ local function GetVaultItemLevel(g, l, vData)
     if vData and vData.id and C_WeeklyRewards and C_WeeklyRewards.GetExampleRewardItemHyperlinks then
         local link = C_WeeklyRewards.GetExampleRewardItemHyperlinks(vData.id)
         if link then
-            local ilvl = sfui.common.get_item_level(link)
+            local ilvl = get_item_level(link)
             if ilvl and ilvl > 0 then return ilvl end
         end
     end
@@ -1471,9 +1504,9 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 end
             end
 
-            local name = ks.mapID and sfui.common.get_short_map_name(ks.mapID)
+            local name = ks.mapID and sfui.common and sfui.common.get_short_map_name and sfui.common.get_short_map_name(ks.mapID)
             if not name and ks.name then
-                name = sfui.common.get_short_string(ks.name)
+                name = (sfui.common and sfui.common.get_short_string and sfui.common.get_short_string(ks.name)) or ks.name
             end
             if name then
                 text:SetText(string.format("%s +%d", name, ks.level))
@@ -1511,8 +1544,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
             cell:SetScript("OnMouseUp", function()
                 if IsModifiedClick("CHATLINK") and ksSnap.link then
-                    if not sfui.common.insert_link_to_chat(ksSnap.link) then
-                        ChatFrame_OpenChat(ksSnap.link)
+                    if not (sfui.common and sfui.common.insert_link_to_chat and sfui.common.insert_link_to_chat(ksSnap.link)) then
+                        if ChatFrame_OpenChat then ChatFrame_OpenChat(ksSnap.link) end
                     end
                 end
             end)
@@ -1626,7 +1659,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                         itemConfig.icon = freshIcon
                     end
                 else
-                    local freshIcon = sfui.common.get_currency_icon(itemConfig.id)
+                    local freshIcon = sfui.common and sfui.common.get_currency_icon and sfui.common.get_currency_icon(itemConfig.id)
                     if freshIcon and freshIcon ~= 0 then
                         itemConfig.icon = freshIcon
                     end
