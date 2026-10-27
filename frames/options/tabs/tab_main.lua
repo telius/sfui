@@ -140,11 +140,18 @@ sfui.options.RegisterTab({
             end)
         cursor_scale_slider:SetPoint("LEFT", enable_ring_cursor_cb, "RIGHT", 150, 0)
 
+        local enable_144hz_cb = create_checkbox(main_panel, "enable 144hz cursor ring", "cursorRing144hz", function(checked)
+            if sfui.cursor and sfui.cursor.set_high_refresh then
+                sfui.cursor.set_high_refresh(checked)
+            end
+        end, "updates the cursor ring at ~144hz (0.007s) instead of 60hz (0.016s) for high-refresh monitors.")
+        enable_144hz_cb:SetPoint("TOPLEFT", enable_ring_cursor_cb, "BOTTOMLEFT", 0, -10)
+
         local enable_auto_compare_cb = create_checkbox(main_panel, "enable auto compare", "enableAutoCompare",
             function(checked)
                 sfui.compare.init()
             end, "automatically sets 'alwaysCompareItems' cvar.")
-        enable_auto_compare_cb:SetPoint("TOPLEFT", enable_ring_cursor_cb, "BOTTOMLEFT", 0, -10)
+        enable_auto_compare_cb:SetPoint("TOPLEFT", enable_144hz_cb, "BOTTOMLEFT", 0, -10)
 
         local use_spec_color_cb = create_checkbox(main_panel, "use spec color", "useSpecColor", function(checked)
             notify_spec_colors_updated()

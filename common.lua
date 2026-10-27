@@ -34,6 +34,7 @@ function sfui.common.print(msg, ...)
         print(prefix .. " " .. text, ...)
     end
 end
+
 sfui.print = sfui.common.print
 
 function sfui.common.get_tooltip()
@@ -68,10 +69,11 @@ function sfui.common.round(num, decimals)
     local mult = 10 ^ decimals
     return math.floor(num * mult + 0.5) / mult
 end
-sfui.round = sfui.common.round
+
+sfui.round           = sfui.common.round
 
 -- ─── AddOn API (C_AddOns on modern clients, legacy globals on older builds) ───
-local C_AddOns_api = _G.C_AddOns or {}
+local C_AddOns_api   = _G.C_AddOns or {}
 local _IsAddOnLoaded = C_AddOns_api.IsAddOnLoaded or _G.IsAddOnLoaded
 local _LoadAddOn     = C_AddOns_api.LoadAddOn or _G.LoadAddOn
 local _GetMetadata   = C_AddOns_api.GetAddOnMetadata or _G.GetAddOnMetadata
@@ -121,7 +123,6 @@ function sfui.common.get_tracked_bar_db(id)
     return (SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars[id]) or {}
 end
 
-
 -- ────────────────────────────────────────────────────────────────────────────
 -- Domain Services Note:
 -- Safety, Colors, Talents, and Items have been extracted to /core:
@@ -135,13 +136,13 @@ end
 -- ────────────────────────────────────────────────────────────────────────────
 -- Spell Engine (C_Spell Modernization & Normalization)
 -- ────────────────────────────────────────────────────────────────────────────
-local C_Spell                         = _G.C_Spell or {}
-local C_Spell_GetSpellInfo            = C_Spell.GetSpellInfo
-local C_Spell_GetSpellName            = C_Spell.GetSpellName
-local C_Spell_GetSpellTexture         = C_Spell.GetSpellTexture or _G.GetSpellTexture
-local C_Spell_GetSpellCooldown        = C_Spell.GetSpellCooldown or _G.GetSpellCooldown
+local C_Spell                          = _G.C_Spell or {}
+local C_Spell_GetSpellInfo             = C_Spell.GetSpellInfo
+local C_Spell_GetSpellName             = C_Spell.GetSpellName
+local C_Spell_GetSpellTexture          = C_Spell.GetSpellTexture or _G.GetSpellTexture
+local C_Spell_GetSpellCooldown         = C_Spell.GetSpellCooldown or _G.GetSpellCooldown
 local C_Spell_GetSpellCooldownDuration = C_Spell.GetSpellCooldownDuration
-local C_Spell_RequestLoadSpellData    = C_Spell.RequestLoadSpellData
+local C_Spell_RequestLoadSpellData     = C_Spell.RequestLoadSpellData
 
 -- Returns unified spell info table or nil
 -- Compatible with both modern C_Spell.GetSpellInfo (table) and legacy _G.GetSpellInfo (multi-return)
@@ -268,7 +269,6 @@ function sfui.common.is_known_aura_spell(spellIDOrName)
 
     return false, name
 end
-
 
 -- Returns normalized cooldown info: startTime, duration, isEnabled, modRate
 function sfui.common.get_spell_cooldown(spellID)
@@ -456,7 +456,6 @@ function sfui.common.get_currency_icon(currencyID)
     return info and (info.iconFileID or info.icon) or nil
 end
 
-
 -- ────────────────────────────────────────────────────────────────────────────
 -- Cooldown Panels & Tracked Bars DB:
 -- Extracted to sfui/frames/tracking/panels.lua (sfui.tracking -> sfui.common)
@@ -589,6 +588,7 @@ function sfui.common.is_in_combat(event)
     if event == "PLAYER_REGEN_ENABLED" then return false end
     return _centralInCombat
 end
+
 sfui.common.in_combat = sfui.common.is_in_combat
 sfui.is_in_combat = sfui.common.is_in_combat
 sfui.in_combat = false
@@ -703,17 +703,17 @@ local function on_glide_or_vehicle_event()
     sfui.common.invalidate_dragonflying_cache()
 end
 
-sfui.events.RegisterEvent("PLAYER_CAN_GLIDE_CHANGED",     on_glide_or_vehicle_event)
-sfui.events.RegisterEvent("PLAYER_IS_GLIDING_CHANGED",    on_glide_or_vehicle_event)
+sfui.events.RegisterEvent("PLAYER_CAN_GLIDE_CHANGED", on_glide_or_vehicle_event)
+sfui.events.RegisterEvent("PLAYER_IS_GLIDING_CHANGED", on_glide_or_vehicle_event)
 sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", on_glide_or_vehicle_event)
-sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORM",       on_glide_or_vehicle_event)
-sfui.events.RegisterUnitEvents({"UNIT_ENTERED_VEHICLE", "UNIT_EXITED_VEHICLE"}, "player", on_glide_or_vehicle_event)
-sfui.events.RegisterEvent("VEHICLE_UPDATE",               on_glide_or_vehicle_event)
-sfui.events.RegisterEvent("UPDATE_VEHICLE_ACTIONBAR",     on_glide_or_vehicle_event)
-sfui.events.RegisterEvent("UPDATE_OVERRIDE_ACTIONBAR",    on_glide_or_vehicle_event)
-sfui.events.RegisterEvent("UPDATE_POSSESS_BAR",           on_glide_or_vehicle_event)
-sfui.events.RegisterEvent("UPDATE_BONUS_ACTIONBAR",       on_glide_or_vehicle_event)
-sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD",        on_glide_or_vehicle_event)
+sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORM", on_glide_or_vehicle_event)
+sfui.events.RegisterUnitEvents({ "UNIT_ENTERED_VEHICLE", "UNIT_EXITED_VEHICLE" }, "player", on_glide_or_vehicle_event)
+sfui.events.RegisterEvent("VEHICLE_UPDATE", on_glide_or_vehicle_event)
+sfui.events.RegisterEvent("UPDATE_VEHICLE_ACTIONBAR", on_glide_or_vehicle_event)
+sfui.events.RegisterEvent("UPDATE_OVERRIDE_ACTIONBAR", on_glide_or_vehicle_event)
+sfui.events.RegisterEvent("UPDATE_POSSESS_BAR", on_glide_or_vehicle_event)
+sfui.events.RegisterEvent("UPDATE_BONUS_ACTIONBAR", on_glide_or_vehicle_event)
+sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_glide_or_vehicle_event)
 
 
 function sfui.common.update_widget_bar(widget_frame, icons_pool, labels_pool, source_data, get_details_func)
@@ -1163,7 +1163,8 @@ function sfui.common.is_housing_zone()
         end
     end
 
-    local subzone = (_G.GetSubZoneText and _G.GetSubZoneText()) or (_G.GetMinimapZoneText and _G.GetMinimapZoneText()) or ""
+    local subzone = (_G.GetSubZoneText and _G.GetSubZoneText()) or (_G.GetMinimapZoneText and _G.GetMinimapZoneText()) or
+    ""
     if subzone ~= "" then
         local lower = subzone:lower()
         if lower:find("razorwind") or lower:find("founder") then
@@ -1182,7 +1183,6 @@ function sfui.common.is_housing_zone()
 
     return false
 end
-
 
 -- ========================
 -- Utility Helpers
@@ -1229,8 +1229,10 @@ function sfui.initialize_database()
             and sfui.config.minimap.square_bronze
             or isBronzeCamelot
     end
-    if SfuiDB.minimap_width == nil then SfuiDB.minimap_width = (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size)) or 220 end
-    if SfuiDB.minimap_height == nil then SfuiDB.minimap_height = (sfui.config and sfui.config.minimap and (sfui.config.minimap.height or sfui.config.minimap.default_size)) or 220 end
+    if SfuiDB.minimap_width == nil then SfuiDB.minimap_width = (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size)) or
+        220 end
+    if SfuiDB.minimap_height == nil then SfuiDB.minimap_height = (sfui.config and sfui.config.minimap and (sfui.config.minimap.height or sfui.config.minimap.default_size)) or
+        220 end
     SfuiDB.minimap_collect_buttons = (SfuiDB.minimap_collect_buttons == nil) and true or SfuiDB.minimap_collect_buttons
     SfuiDB.minimap_dock_mail = (SfuiDB.minimap_dock_mail == nil) and true or SfuiDB.minimap_dock_mail
     SfuiDB.minimap_system_mode = SfuiDB.minimap_system_mode or "system"
@@ -1249,9 +1251,12 @@ function sfui.initialize_database()
     if SfuiDB.minimap_masque == nil then SfuiDB.minimap_masque = true end
     if SfuiDB.minimap_auto_zoom == nil then SfuiDB.minimap_auto_zoom = true end
     if SfuiDB.minimap_auto_zoom_delay == nil then SfuiDB.minimap_auto_zoom_delay = 5 end
-    if SfuiDB.minimap_button_x == nil then SfuiDB.minimap_button_x = (sfui.config and sfui.config.minimap and sfui.config.minimap.button_bar and sfui.config.minimap.button_bar.defaultX) or 0 end
-    if SfuiDB.minimap_button_y == nil then SfuiDB.minimap_button_y = (sfui.config and sfui.config.minimap and sfui.config.minimap.button_bar and sfui.config.minimap.button_bar.defaultY) or 0 end
-    if SfuiDB.minimap_x == nil then SfuiDB.minimap_x = (sfui.config and sfui.config.minimap and sfui.config.minimap.x) or 0 end
+    if SfuiDB.minimap_button_x == nil then SfuiDB.minimap_button_x = (sfui.config and sfui.config.minimap and sfui.config.minimap.button_bar and sfui.config.minimap.button_bar.defaultX) or
+        0 end
+    if SfuiDB.minimap_button_y == nil then SfuiDB.minimap_button_y = (sfui.config and sfui.config.minimap and sfui.config.minimap.button_bar and sfui.config.minimap.button_bar.defaultY) or
+        0 end
+    if SfuiDB.minimap_x == nil then SfuiDB.minimap_x = (sfui.config and sfui.config.minimap and sfui.config.minimap.x) or
+        0 end
     if SfuiDB.minimap_y == nil or (SfuiDB.minimap_y == 0 and SfuiDB.minimap_point == "TOPRIGHT" and not SfuiDB._minimapPositionCustomized) then
         SfuiDB.minimap_y = (sfui.config and sfui.config.minimap and sfui.config.minimap.y) or 35
     end
@@ -1259,7 +1264,8 @@ function sfui.initialize_database()
         SfuiDB.minimap_point = (sfui.config and sfui.config.minimap and sfui.config.minimap.point) or "BOTTOMRIGHT"
     end
     if SfuiDB.minimap_relative_point == nil or (SfuiDB.minimap_relative_point == "TOPRIGHT" and not SfuiDB._minimapPositionCustomized) then
-        SfuiDB.minimap_relative_point = (sfui.config and sfui.config.minimap and sfui.config.minimap.relative_point) or "BOTTOMRIGHT"
+        SfuiDB.minimap_relative_point = (sfui.config and sfui.config.minimap and sfui.config.minimap.relative_point) or
+        "BOTTOMRIGHT"
     end
     if SfuiDB.showBoonsDetails == nil then SfuiDB.showBoonsDetails = true end
     if SfuiDB.autoSellGreys == nil then SfuiDB.autoSellGreys = true end
@@ -1272,6 +1278,7 @@ function sfui.initialize_database()
     if SfuiDB.repairIconColor == nil then SfuiDB.repairIconColor = sfui.config.masterHammer.defaultColor end
     if SfuiDB.enableCursorRing == nil then SfuiDB.enableCursorRing = true end
     if SfuiDB.cursorRingScale == nil then SfuiDB.cursorRingScale = 1.0 end
+    if SfuiDB.cursorRing144hz == nil then SfuiDB.cursorRing144hz = false end
     if SfuiDB.useSpecColor == nil then SfuiDB.useSpecColor = true end
     if SfuiDB.specColorFallback == nil then SfuiDB.specColorFallback = { 1, 1, 1, 1 } end
     if SfuiDB.altMailRouting == nil then
@@ -1344,7 +1351,8 @@ function sfui.initialize_database()
     -- Actionbars lock state & shift-to-drag sync
     SfuiDB.actionbars = SfuiDB.actionbars or {}
     if SfuiDB.actionbars.lockButtons == nil then
-        SfuiDB.actionbars.lockButtons = (sfui.config and sfui.config.actionbars and sfui.config.actionbars.lockButtons ~= nil) and sfui.config.actionbars.lockButtons or true
+        SfuiDB.actionbars.lockButtons = (sfui.config and sfui.config.actionbars and sfui.config.actionbars.lockButtons ~= nil) and
+        sfui.config.actionbars.lockButtons or true
     end
     sfui.common.set_cvar("lockActionBars", SfuiDB.actionbars.lockButtons and 1 or 0)
     if _G.Settings and _G.Settings.SetValue then
@@ -1397,8 +1405,9 @@ function sfui.common.get_player_display_name()
     return (name and name ~= "" and name ~= "Unknown Entity") and name or "Unknown"
 end
 
--- helper to systematically hide specific blizzard cooldownviewer frames
+-- helper to systematically hide and move blizzard cooldownviewer frames offscreen
 local cooldownViewersInitialized = false
+
 local function disarm_and_hide_viewer(viewer)
     if not viewer then return end
 
@@ -1407,18 +1416,9 @@ local function disarm_and_hide_viewer(viewer)
     end
 
     if not InCombatLockdown() then
-        if _G.BottomManagedFrameContainer and _G.BottomManagedFrameContainer.RemoveManagedFrame then
-            _G.BottomManagedFrameContainer:RemoveManagedFrame(viewer)
-        end
-        if viewer.layoutParent and viewer.layoutParent.RemoveManagedFrame then
-            viewer.layoutParent:RemoveManagedFrame(viewer)
-        end
-
-        local clearPoints = viewer.ClearAllPointsBase or viewer.ClearAllPoints
-        local setPoint = viewer.SetPointBase or viewer.SetPoint
-        if clearPoints and setPoint then
-            clearPoints(viewer)
-            setPoint(viewer, "BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -10000, -10000)
+        if viewer.ClearAllPoints and viewer.SetPoint then
+            viewer:ClearAllPoints()
+            viewer:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -10000, -10000)
         end
     elseif sfui.combat and sfui.combat.after_combat then
         sfui.combat.after_combat(function()
@@ -1635,8 +1635,9 @@ function sfui.common.get_owned_keystone_info()
     local C_ChallengeMode = _G.C_ChallengeMode
 
     -- 1. Query the C_MythicPlus API directly (the exact Blizzard API that powers the in-game M+ Challenges panel)
-    local mpMap = C_MythicPlus and C_MythicPlus.GetOwnedKeystoneChallengeMapID and C_MythicPlus.GetOwnedKeystoneChallengeMapID()
-    local mpLvl = C_MythicPlus and C_MythicPlus.GetOwnedKeystoneLevel and C_MythicPlus.GetOwnedKeystoneLevel()
+    local mpMap           = C_MythicPlus and C_MythicPlus.GetOwnedKeystoneChallengeMapID and
+    C_MythicPlus.GetOwnedKeystoneChallengeMapID()
+    local mpLvl           = C_MythicPlus and C_MythicPlus.GetOwnedKeystoneLevel and C_MythicPlus.GetOwnedKeystoneLevel()
 
     local bagMapID, bagLevel, bagLink, bagItemID, linkDungeonName
     if mpLvl and mpLvl > 0 and mpLvl < 100 then
@@ -1648,110 +1649,110 @@ function sfui.common.get_owned_keystone_info()
 
     -- 2. Scan physical bags to retrieve clickable item link (for chat linking & tooltips) or as fallback
     sfui.common.for_each_bag_item(function(bag, slot, itemID, itemLink)
-            if not itemLink and _G.C_Container and _G.C_Container.GetContainerItemLink then
-                itemLink = _G.C_Container.GetContainerItemLink(bag, slot)
-            end
-            if itemLink then
-                local isKeystone = (itemID and (itemID == 180653 or itemID == 187786 or itemID == 151086 or (C_Item and C_Item.IsItemKeystoneByID and C_Item.IsItemKeystoneByID(itemID))))
-                    or string.find(itemLink, "keystone", 1, true)
-                    or string.find(itemLink, "item:180653", 1, true)
-                    or string.find(itemLink, "item:187786", 1, true)
-                    or string.find(itemLink, "item:151086", 1, true)
+        if not itemLink and _G.C_Container and _G.C_Container.GetContainerItemLink then
+            itemLink = _G.C_Container.GetContainerItemLink(bag, slot)
+        end
+        if itemLink then
+            local isKeystone = (itemID and (itemID == 180653 or itemID == 187786 or itemID == 151086 or (C_Item and C_Item.IsItemKeystoneByID and C_Item.IsItemKeystoneByID(itemID))))
+                or string.find(itemLink, "keystone", 1, true)
+                or string.find(itemLink, "item:180653", 1, true)
+                or string.find(itemLink, "item:187786", 1, true)
+                or string.find(itemLink, "item:151086", 1, true)
 
-                if isKeystone then
-                    bagItemID = itemID or bagItemID or 180653
-                    bagLink   = itemLink
+            if isKeystone then
+                bagItemID                    = itemID or bagItemID or 180653
+                bagLink                      = itemLink
 
-                    -- A. Bracket notation from display link text: [Keystone: Dungeon Name (12)]
-                    local rawBracket, bracketLvl = string.match(itemLink, "%[(.-)%s*%((%d+)%)%]")
-                    if not bagLevel and bracketLvl then
-                        local bl = tonumber(bracketLvl)
-                        if bl and bl > 0 and bl < 100 then
-                            bagLevel = bl
-                        end
-                    end
-                    if rawBracket then
-                        local cleanName = string.match(rawBracket, ":%s*(.+)") or rawBracket
-                        linkDungeonName = cleanName:match("^%s*(.-)%s*$")
-                    end
-
-                    -- B. Hyperlink payload:
-                    -- Modern Retail: keystone:itemID:mapID:level:... (e.g. keystone:180653:587:12:...)
-                    -- Legacy:        keystone:mapID:level:... (e.g. keystone:587:12:...)
-                    if not bagMapID or not bagLevel then
-                        local p1, p2, p3 = string.match(itemLink, "keystone:(%d+):(%d+):?(%d*)")
-                        if p1 then
-                            local n1 = tonumber(p1)
-                            local n2 = tonumber(p2)
-                            local n3 = tonumber(p3)
-                            if n1 and n1 > 10000 and n2 and n3 then
-                                bagItemID = n1
-                                if not bagMapID then bagMapID = n2 end
-                                if not bagLevel or bagLevel >= 100 then bagLevel = n3 end
-                            elseif n1 and n2 then
-                                if not bagMapID then bagMapID = n1 end
-                                if not bagLevel or bagLevel >= 100 then bagLevel = n2 end
-                            end
-                        end
-                    end
-
-                    -- C. Item hyperlink format: item:180653:... (modifiers 17 = mapID, 18 = level)
-                    if (not bagMapID or not bagLevel or bagLevel >= 100) and string.find(itemLink, "item:", 1, true) then
-                        local raw = string.match(itemLink, "item:%d+:([^|]+)")
-                        if raw then
-                            local temp = { strsplit(":", itemLink) }
-                            for i = 1, #temp - 1 do
-                                if temp[i] == "17" and not bagMapID then
-                                    bagMapID = tonumber(temp[i + 1])
-                                elseif temp[i] == "18" and (not bagLevel or bagLevel >= 100) then
-                                    local l = tonumber(temp[i + 1])
-                                    if l and l > 0 and l < 100 then
-                                        bagLevel = l
-                                    end
-                                end
-                            end
-                        end
-                    end
-
-                    -- D. Parenthesized fallback: %(%d+%)
-                    if not bagLevel or bagLevel >= 100 then
-                        local nameLevel = string.match(itemLink, "%((%d+)%)")
-                        if nameLevel then
-                            local nl = tonumber(nameLevel)
-                            if nl and nl > 0 and nl < 100 then
-                                bagLevel = nl
-                            end
-                        end
-                    end
-
-                    -- Validate bagMapID against C_ChallengeMode: if invalid mapID, clear it
-                    if bagMapID and bagMapID > 0 and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
-                        local testName = C_ChallengeMode.GetMapUIInfo(bagMapID)
-                        if not testName then
-                            bagMapID = nil
-                        end
-                    end
-
-                    -- Fallback: resolve mapID from dungeon name against current season maps
-                    if not bagMapID and linkDungeonName and C_ChallengeMode and C_ChallengeMode.GetMapTable then
-                        local maps = C_ChallengeMode.GetMapTable()
-                        if maps then
-                            for _, mID in ipairs(maps) do
-                                local mName = C_ChallengeMode.GetMapUIInfo(mID)
-                                if mName and (mName == linkDungeonName or string.find(mName, linkDungeonName, 1, true) or string.find(linkDungeonName, mName, 1, true)) then
-                                    bagMapID = mID
-                                    break
-                                end
-                            end
-                        end
-                    end
-
-                    if bagLevel and bagLevel > 0 and bagMapID and bagMapID > 0 then
-                        return true
+                -- A. Bracket notation from display link text: [Keystone: Dungeon Name (12)]
+                local rawBracket, bracketLvl = string.match(itemLink, "%[(.-)%s*%((%d+)%)%]")
+                if not bagLevel and bracketLvl then
+                    local bl = tonumber(bracketLvl)
+                    if bl and bl > 0 and bl < 100 then
+                        bagLevel = bl
                     end
                 end
+                if rawBracket then
+                    local cleanName = string.match(rawBracket, ":%s*(.+)") or rawBracket
+                    linkDungeonName = cleanName:match("^%s*(.-)%s*$")
+                end
+
+                -- B. Hyperlink payload:
+                -- Modern Retail: keystone:itemID:mapID:level:... (e.g. keystone:180653:587:12:...)
+                -- Legacy:        keystone:mapID:level:... (e.g. keystone:587:12:...)
+                if not bagMapID or not bagLevel then
+                    local p1, p2, p3 = string.match(itemLink, "keystone:(%d+):(%d+):?(%d*)")
+                    if p1 then
+                        local n1 = tonumber(p1)
+                        local n2 = tonumber(p2)
+                        local n3 = tonumber(p3)
+                        if n1 and n1 > 10000 and n2 and n3 then
+                            bagItemID = n1
+                            if not bagMapID then bagMapID = n2 end
+                            if not bagLevel or bagLevel >= 100 then bagLevel = n3 end
+                        elseif n1 and n2 then
+                            if not bagMapID then bagMapID = n1 end
+                            if not bagLevel or bagLevel >= 100 then bagLevel = n2 end
+                        end
+                    end
+                end
+
+                -- C. Item hyperlink format: item:180653:... (modifiers 17 = mapID, 18 = level)
+                if (not bagMapID or not bagLevel or bagLevel >= 100) and string.find(itemLink, "item:", 1, true) then
+                    local raw = string.match(itemLink, "item:%d+:([^|]+)")
+                    if raw then
+                        local temp = { strsplit(":", itemLink) }
+                        for i = 1, #temp - 1 do
+                            if temp[i] == "17" and not bagMapID then
+                                bagMapID = tonumber(temp[i + 1])
+                            elseif temp[i] == "18" and (not bagLevel or bagLevel >= 100) then
+                                local l = tonumber(temp[i + 1])
+                                if l and l > 0 and l < 100 then
+                                    bagLevel = l
+                                end
+                            end
+                        end
+                    end
+                end
+
+                -- D. Parenthesized fallback: %(%d+%)
+                if not bagLevel or bagLevel >= 100 then
+                    local nameLevel = string.match(itemLink, "%((%d+)%)")
+                    if nameLevel then
+                        local nl = tonumber(nameLevel)
+                        if nl and nl > 0 and nl < 100 then
+                            bagLevel = nl
+                        end
+                    end
+                end
+
+                -- Validate bagMapID against C_ChallengeMode: if invalid mapID, clear it
+                if bagMapID and bagMapID > 0 and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
+                    local testName = C_ChallengeMode.GetMapUIInfo(bagMapID)
+                    if not testName then
+                        bagMapID = nil
+                    end
+                end
+
+                -- Fallback: resolve mapID from dungeon name against current season maps
+                if not bagMapID and linkDungeonName and C_ChallengeMode and C_ChallengeMode.GetMapTable then
+                    local maps = C_ChallengeMode.GetMapTable()
+                    if maps then
+                        for _, mID in ipairs(maps) do
+                            local mName = C_ChallengeMode.GetMapUIInfo(mID)
+                            if mName and (mName == linkDungeonName or string.find(mName, linkDungeonName, 1, true) or string.find(linkDungeonName, mName, 1, true)) then
+                                bagMapID = mID
+                                break
+                            end
+                        end
+                    end
+                end
+
+                if bagLevel and bagLevel > 0 and bagMapID and bagMapID > 0 then
+                    return true
+                end
             end
-        end, true, true, true)
+        end
+    end, true, true, true)
 
     -- 3. Fall back to C_LFGList if still missing or out of bounds
     if (not bagMapID or not bagLevel or bagLevel >= 100) and C_LFGList and C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel then
@@ -1780,16 +1781,17 @@ function sfui.common.get_owned_keystone_info()
             mapName = linkDungeonName
         end
         return {
-            mapID   = bagMapID,
-            level   = bagLevel,
-            link    = bagLink,
-            name    = mapName,
-            itemID  = bagItemID or 180653,
+            mapID  = bagMapID,
+            level  = bagLevel,
+            link   = bagLink,
+            name   = mapName,
+            itemID = bagItemID or 180653,
         }
     end
 
     return nil
 end
+
 sfui.items = sfui.items or {}
 sfui.items.get_owned_keystone_info = sfui.common.get_owned_keystone_info
 
@@ -1818,7 +1820,8 @@ function sfui.common.insert_link_to_chat(link)
     local activeChat = (_G.ChatFrameUtil and _G.ChatFrameUtil.GetActiveWindow and _G.ChatFrameUtil.GetActiveWindow())
         or (_G.ChatEdit_GetActiveWindow and _G.ChatEdit_GetActiveWindow())
         or _G.ACTIVE_CHAT_EDIT_BOX
-        or (_G.LAST_ACTIVE_CHAT_EDIT_BOX and (_G.LAST_ACTIVE_CHAT_EDIT_BOX:IsShown() or _G.LAST_ACTIVE_CHAT_EDIT_BOX:IsVisible()) and _G.LAST_ACTIVE_CHAT_EDIT_BOX)
+        or
+        (_G.LAST_ACTIVE_CHAT_EDIT_BOX and (_G.LAST_ACTIVE_CHAT_EDIT_BOX:IsShown() or _G.LAST_ACTIVE_CHAT_EDIT_BOX:IsVisible()) and _G.LAST_ACTIVE_CHAT_EDIT_BOX)
 
     if activeChat and (activeChat:IsShown() or activeChat:IsVisible()) and activeChat.Insert then
         activeChat:Insert(link)
@@ -1842,6 +1845,7 @@ function sfui.common.insert_link_to_chat(link)
 
     return false
 end
+
 sfui.common.insert_link_into_chat = sfui.common.insert_link_to_chat
 
 -- ---------------------------------------------------------------------------

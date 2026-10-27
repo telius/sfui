@@ -360,7 +360,7 @@ function sfui.mem.GetModuleStats()
     if cur then
         curMod.status = cur.enabled and "|cff00ff88enabled|r" or "|cff888888disabled|r"
         curMod.line1 = string_format("frame: %s (shown: %s)", cur.frameCreated and "ready" or "none", cur.frameShown and "yes" or "no")
-        curMod.line2 = "scale cache: cached uiparent"
+        curMod.line2 = string_format("mode: %s • scale: %.2fx", cur.highRefresh and "144hz" or "60hz", (SfuiDB and SfuiDB.cursorRingScale) or 1.0)
     end
     stats["cursor"] = curMod
 

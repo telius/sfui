@@ -12,11 +12,15 @@ local UIParent          = _G.UIParent
 local PlaySound         = _G.PlaySound
 local SOUNDKIT          = _G.SOUNDKIT
 
+local activeScale = 1
+local function update_scale()
+    local s = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()
+    activeScale = (s and s > 0) and s or 1
+end
+
 local function get_cursor_pos()
     local curX, curY = GetCursorPosition()
-    local scale = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()
-    if not scale or scale == 0 then scale = 1 end
-    return (curX or 0) / scale, (curY or 0) / scale
+    return (curX or 0) / activeScale, (curY or 0) / activeScale
 end
 
 local isOpen = false
@@ -25,10 +29,15 @@ local originY = 0
 local activeRingID = nil
 local activeSlots = nil
 local lastHoveredIndex = nil
+local lastScaledX = -9999
+local lastScaledY = -9999
 
+local updateThrottle = 0
 local cdThrottle = 0
+
 local function on_live_update(self, elapsed)
     elapsed = elapsed or 0
+    updateThrottle = updateThrottle + elapsed
     cdThrottle = cdThrottle + elapsed
 
     if not isOpen or not activeSlots or #activeSlots == 0 then
@@ -41,7 +50,7 @@ local function on_live_update(self, elapsed)
         view.update_animations(elapsed)
     end
 
-    -- 2. throttled cooldown updates
+    -- 2. throttled cooldown updates (20 fps)
     if cdThrottle >= 0.05 then
         cdThrottle = 0
         if view and view.update_live_state then
@@ -49,23 +58,38 @@ local function on_live_update(self, elapsed)
         end
     end
 
-    -- 3. cursor tracking & slot selection
-    local scaledX, scaledY = get_cursor_pos()
-    local dx = scaledX - originX
-    local dy = scaledY - originY
+    -- 3. cursor tracking & slot selection (throttled to ~60 fps)
+    if updateThrottle >= 0.016 then
+        updateThrottle = 0
 
-    local total = #activeSlots
-    local deadzone = (sfui.db and sfui.db.Get("ring", "deadzone", 28)) or 28
+        local curX, curY = GetCursorPosition()
+        if curX and curY then
+            local scaledX = curX / activeScale
+            local scaledY = curY / activeScale
 
-    local idx = geom.point_to_slot(dx, dy, total, deadzone)
+            -- blizzard-style early exit if cursor coordinates have not changed
+            if scaledX ~= lastScaledX or scaledY ~= lastScaledY then
+                lastScaledX = scaledX
+                lastScaledY = scaledY
 
-    if idx ~= lastHoveredIndex then
-        lastHoveredIndex = idx
-        view.set_active_slot(idx)
+                local dx = scaledX - originX
+                local dy = scaledY - originY
 
-        local soundEnabled = (sfui.db and sfui.db.Get("ring", "sound_cues", true))
-        if soundEnabled and idx and SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
-            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON, "Master")
+                local total = #activeSlots
+                local deadzone = (sfui.db and sfui.db.Get("ring", "deadzone", 28)) or 28
+
+                local idx = geom.point_to_slot(dx, dy, total, deadzone)
+
+                if idx ~= lastHoveredIndex then
+                    lastHoveredIndex = idx
+                    view.set_active_slot(idx)
+
+                    local soundEnabled = (sfui.db and sfui.db.Get("ring", "sound_cues", true))
+                    if soundEnabled and idx and SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
+                        PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON, "Master")
+                    end
+                end
+            end
         end
     end
 end
@@ -85,8 +109,12 @@ function live.open(ringID)
     activeSlots = slots
     lastHoveredIndex = nil
     isOpen = true
+    updateThrottle = 0
     cdThrottle = 0
+    lastScaledX = -9999
+    lastScaledY = -9999
 
+    update_scale()
     originX, originY = get_cursor_pos()
 
     local frame = view.get_frame()
@@ -106,6 +134,10 @@ function live.close()
     activeRingID = nil
     activeSlots = nil
     lastHoveredIndex = nil
+    lastScaledX = -9999
+    lastScaledY = -9999
+    updateThrottle = 0
+    cdThrottle = 0
 
     local frame = view.get_frame()
     if frame then
@@ -122,4 +154,12 @@ end
 --- @return boolean
 function live.is_open()
     return isOpen
+end
+
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("UI_SCALE_CHANGED", function()
+        if isOpen then
+            update_scale()
+        end
+    end)
 end

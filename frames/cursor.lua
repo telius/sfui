@@ -16,12 +16,12 @@ function sfui.cursor.initialize()
     uiparent = UIParent or _G.UIParent
     local GetCursorPosition = GetCursorPosition
 
-    local function get_scale()
+    local cachedScale = 1
+    local function update_scale_cache()
         local s = uiparent and uiparent.GetEffectiveScale and uiparent:GetEffectiveScale()
-        if not s or s <= 0 then s = 1 end
-        return s
+        cachedScale = (s and s > 0) and s or 1
     end
-    local cachedScale = get_scale()
+    update_scale_cache()
 
     -- Create Frame
     f = CreateFrame("Frame", "SfuiCursor", uiparent)
@@ -54,7 +54,7 @@ function sfui.cursor.initialize()
     -- Event Handler (via central dispatcher)
     local function on_cursor_event(event)
         if event == "UI_SCALE_CHANGED" or event == "PLAYER_ENTERING_WORLD" then
-            cachedScale = get_scale()
+            update_scale_cache()
         end
         if event ~= "UI_SCALE_CHANGED" then
             UpdateColor()
@@ -68,23 +68,32 @@ function sfui.cursor.initialize()
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD",         on_cursor_event)
     sfui.events.RegisterEvent("UI_SCALE_CHANGED",              on_cursor_event)
 
-    local lastRawX, lastRawY = -1, -1
+    local lastX, lastY = -9999, -9999
     local function update_cursor_pos()
         if not f or not f:IsShown() then return end
         local x, y = GetCursorPosition()
         if not x or not y then return end
-        if x == lastRawX and y == lastRawY then return end
-        lastRawX, lastRawY = x, y
-        local scale = cachedScale or get_scale()
-        local cx = x / scale
-        local cy = y / scale
-        f:SetPoint("CENTER", uiparent, "BOTTOMLEFT", cx, cy)
+        local cx = math.floor(x / cachedScale + 0.5)
+        local cy = math.floor(y / cachedScale + 0.5)
+        if cx ~= lastX or cy ~= lastY then
+            lastX, lastY = cx, cy
+            f:SetPoint("CENTER", uiparent, "BOTTOMLEFT", cx, cy)
+        end
     end
     f.OnUpdate = update_cursor_pos
 
+    local function get_update_interval()
+        if SfuiDB and SfuiDB.cursorRing144hz then
+            return 0.0069
+        end
+        return 0.016
+    end
+
     f:SetScript("OnShow", function()
+        lastX, lastY = -9999, -9999
+        update_scale_cache()
         if not SfuiDB or SfuiDB.enableCursorRing ~= false then
-            sfui.events.RegisterUpdate("CursorRing", 0.016, f.OnUpdate)
+            sfui.events.RegisterUpdate("CursorRing", get_update_interval(), f.OnUpdate)
             if f.OnUpdate then f.OnUpdate() end
         end
     end)
@@ -108,6 +117,16 @@ function sfui.cursor.update_scale()
     f:SetSize(BASE_SIZE * scale, BASE_SIZE * scale)
 end
 
+function sfui.cursor.set_high_refresh(enabled)
+    if SfuiDB then
+        SfuiDB.cursorRing144hz = enabled and true or false
+    end
+    if f and f:IsShown() and (not SfuiDB or SfuiDB.enableCursorRing ~= false) then
+        local interval = (SfuiDB and SfuiDB.cursorRing144hz) and 0.0069 or 0.016
+        sfui.events.RegisterUpdate("CursorRing", interval, f.OnUpdate)
+    end
+end
+
 function sfui.cursor.toggle(enabled)
     if enabled == nil then
         enabled = not SfuiDB or SfuiDB.enableCursorRing ~= false
@@ -124,19 +143,17 @@ function sfui.cursor.toggle(enabled)
     end
 
     if enabled then
-        f:Show()
         sfui.cursor.update_scale()
-        sfui.events.RegisterUpdate("CursorRing", 0.016, f.OnUpdate)
-        if f.OnUpdate then f.OnUpdate() end
+        f:Show()
     else
         f:Hide()
-        sfui.events.UnregisterUpdate("CursorRing")
     end
 end
 
 function sfui.cursor_debug_info()
     return {
         enabled = not SfuiDB or (SfuiDB.enableCursorRing ~= false),
+        highRefresh = (SfuiDB and SfuiDB.cursorRing144hz) or false,
         frameCreated = f ~= nil,
         frameShown = f and f:IsShown() or false,
     }
@@ -146,6 +163,7 @@ sfui.cursor.OnInit = function(self)
     if SfuiDB then
         if SfuiDB.enableCursorRing == nil then SfuiDB.enableCursorRing = true end
         if SfuiDB.cursorRingScale == nil then SfuiDB.cursorRingScale = 1.0 end
+        if SfuiDB.cursorRing144hz == nil then SfuiDB.cursorRing144hz = false end
     end
 end
 
@@ -162,6 +180,8 @@ sfui.cursor.OnSettingsChanged = function(self, key, value)
         self.toggle(value)
     elseif key == "cursorRingScale" then
         self.update_scale()
+    elseif key == "cursorRing144hz" then
+        self.set_high_refresh(value)
     end
 end
 

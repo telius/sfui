@@ -20,7 +20,7 @@ sfui = sfui or {}
 --   * Isolated Per-Unit Frames (`SfuiDispatcherUnitFrame_<unit>`) for RegisterUnitEvent.
 --   * Snapshot scratch table (`_snap`) prevents mid-dispatch mutation errors.
 --   * Zero-overhead dispatch loop with conditional profiling (`_memActive`).
---   * Minimum update interval floor (0.016s ≈ 60fps) on all RegisterUpdate loops.
+--   * Minimum update interval floor (0.005s ≈ 200fps) on all RegisterUpdate loops.
 --
 -- Subsystems & Routing Destinations:
 --   Core & State:
@@ -150,9 +150,8 @@ end
 local _snapUpdates = {}
 
 -- Minimum interval (seconds) enforced on all RegisterUpdate callbacks.
--- Prevents any update loop from running faster than ~60fps regardless of
--- the caller's requested interval (including interval=0).
-local MIN_UPDATE_INTERVAL = 0.016
+-- Prevents runaway 0s loops while allowing high-refresh loops up to ~144-200fps.
+local MIN_UPDATE_INTERVAL = 0.005
 
 -- ─── Global event frame ─────────────────────────────────────────────────────
 local ev_frame = CreateFrame("Frame", "SfuiDispatcherFrame")
@@ -424,7 +423,7 @@ end
 
 --- Register a throttled OnUpdate callback.
 --- sfui.events.RegisterUpdate([name,] interval, callback)
---- Intervals below MIN_UPDATE_INTERVAL (0.016s ≈ 60fps) are clamped up.
+--- Intervals below MIN_UPDATE_INTERVAL (0.005s ≈ 200fps) are clamped up.
 function sfui.events.RegisterUpdate(arg1, arg2, arg3)
     local name, interval, callback
     if type(arg1) == "string" then
