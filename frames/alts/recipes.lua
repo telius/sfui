@@ -25,8 +25,8 @@ local UnitName                      = _G.UnitName
 local UnitClass                     = _G.UnitClass
 local GetRealmName                  = _G.GetNormalizedRealmName or _G.GetRealmName
 local C_Item                        = _G.C_Item or {}
-local C_Item_GetItemInfo            = sfui.common.get_item_info
-local C_Item_GetItemInfoInstant     = sfui.common.get_item_instant_info
+local C_Item_GetItemInfo            = (sfui.common and sfui.common.get_item_info) or C_Item.GetItemInfo or _G.GetItemInfo
+local C_Item_GetItemInfoInstant     = (sfui.common and sfui.common.get_item_instant_info) or C_Item.GetItemInfoInstant or _G.GetItemInfoInstant
 local C_Item_GetItemSubClassInfo    = C_Item.GetItemSubClassInfo or _G.GetItemSubClassInfo
 local C_Item_RequestLoadItemDataByID= C_Item.RequestLoadItemDataByID
 local C_TooltipInfo                 = _G.C_TooltipInfo
@@ -228,7 +228,7 @@ local function CheckActivePlayerKnownStatus(itemID)
     EnsurePlayerContext()
     if not itemID or type(itemID) ~= "number" or not IsRecipe(itemID) then return nil, true end
 
-    local _, itemLink = C_Item_GetItemInfo(itemID)
+    local _, itemLink = C_Item_GetItemInfo and C_Item_GetItemInfo(itemID)
     if not itemLink then
         if C_Item_RequestLoadItemDataByID then
             C_Item_RequestLoadItemDataByID(itemID)
@@ -569,7 +569,7 @@ local function GetRecipeStatus(itemID)
     end
 
     -- 3. Check if current player or any alt can learn it
-    local _, itemLink = C_Item_GetItemInfo(itemID)
+    local _, itemLink = C_Item_GetItemInfo and C_Item_GetItemInfo(itemID)
     local reqProf, reqRank = ExtractRecipeRequirement(itemID, itemLink, subclassID)
 
     if not itemLink and not reqProf then
@@ -866,7 +866,7 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
         if C_Item_GetItemInfoInstant then
             subclassID = select(7, C_Item_GetItemInfoInstant(itemID))
         end
-        local _, itemLink = C_Item_GetItemInfo(itemID)
+        local _, itemLink = C_Item_GetItemInfo and C_Item_GetItemInfo(itemID)
         profName, minSkill = ExtractRecipeRequirement(itemID, itemLink, subclassID)
     end
 
