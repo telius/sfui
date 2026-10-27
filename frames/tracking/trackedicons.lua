@@ -751,18 +751,20 @@ local function UpdateIconState(icon, panelConfig, event)
         end
     end
 
-    local hideMounted = GetIconValue(nil, panelConfig, "hideMounted", false)
-    if hideMounted and sfui.common.is_mounted_or_travel_form() then
-        if icon:IsShown() then icon:Hide() end
-        if icon._glowActive then StopGlow(icon) end
-        return false
-    end
+    if not inCombat and not isStealthPanelActive then
+        local hideMounted = GetIconValue(nil, panelConfig, "hideMounted", false)
+        if hideMounted and sfui.common.is_mounted_or_travel_form() then
+            if icon:IsShown() then icon:Hide() end
+            if icon._glowActive then StopGlow(icon) end
+            return false
+        end
 
-    local hideInVehicle = GetIconValue(nil, panelConfig, "hideInVehicle", true)
-    if hideInVehicle and (UnitHasVehicleUI("player") or UnitInVehicle("player")) then
-        if icon:IsShown() then icon:Hide() end
-        if icon._glowActive then StopGlow(icon) end
-        return false
+        local hideInVehicle = GetIconValue(nil, panelConfig, "hideInVehicle", true)
+        if hideInVehicle and (UnitHasVehicleUI("player") or UnitInVehicle("player")) then
+            if icon:IsShown() then icon:Hide() end
+            if icon._glowActive then StopGlow(icon) end
+            return false
+        end
     end
 
     -- Visibility / Settings check: ensure countdown numbers setting is applied before cooldown is set
@@ -1174,7 +1176,8 @@ local function CheckPanelVisibility(panelConfig, event)
     local currentForm = GetShapeshiftFormID() or 0
     local playerClass = sfui.common.get_player_class()
 
-    if playerClass == "WARRIOR" then
+    local isClassic = not sfui.isRetail
+    if playerClass == "WARRIOR" and isClassic then
         local req = panelConfig.requiredForm
         if req == nil then
             local pName = panelConfig.name and string.upper(panelConfig.name)
@@ -1774,6 +1777,14 @@ function sfui.trackedicons.initialize()
         sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_REGEN_DISABLED")
         MarkDirty(false)
     end)
+    sfui.events.RegisterUnitEvent("UNIT_FLAGS", "player", function()
+        sfui.trackedicons.OnVisibilityEvent(nil, "UNIT_FLAGS")
+        MarkDirty(false)
+    end)
+    sfui.events.RegisterEvent("PLAYER_FLAGS_CHANGED", function()
+        sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_FLAGS_CHANGED")
+        MarkDirty(false)
+    end)
     sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", function()
         sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_MOUNT_DISPLAY_CHANGED")
         MarkDirty(false)
@@ -1917,7 +1928,16 @@ function sfui.trackedicons.initialize()
 
     -- OnUpdate: Only process when dirty (zero CPU/allocations when idle)
     local _lastStateUpdateTime = 0
+    local _lastCombatState = nil
     local function _OnTrackedIconsUpdate(elapsed)
+        local inCombat = is_in_combat()
+        if _lastCombatState == nil then
+            _lastCombatState = inCombat
+        elseif _lastCombatState ~= inCombat then
+            _lastCombatState = inCombat
+            sfui.trackedicons.OnVisibilityEvent(nil, inCombat and "PLAYER_REGEN_DISABLED" or "PLAYER_REGEN_ENABLED")
+            MarkDirty(false)
+        end
 
         if _layoutCooldown > 0 then
             _layoutCooldown = _layoutCooldown - elapsed

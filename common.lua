@@ -581,12 +581,29 @@ local function sync_combat_state()
     local affecting = UnitAffectingCombat and UnitAffectingCombat("player")
     _centralInCombat = (locked or affecting) and true or false
     sfui.in_combat = _centralInCombat
+    return _centralInCombat
 end
 
 function sfui.common.is_in_combat(event)
-    if event == "PLAYER_REGEN_DISABLED" then return true end
-    if event == "PLAYER_REGEN_ENABLED" then return false end
-    return _centralInCombat
+    if event == "PLAYER_REGEN_DISABLED" then
+        _centralInCombat = true
+        sfui.in_combat = true
+        return true
+    end
+    if event == "PLAYER_REGEN_ENABLED" then
+        _centralInCombat = false
+        sfui.in_combat = false
+        return false
+    end
+    if _centralInCombat then return true end
+    local locked = InCombatLockdown and InCombatLockdown()
+    local affecting = UnitAffectingCombat and UnitAffectingCombat("player")
+    if locked or affecting then
+        _centralInCombat = true
+        sfui.in_combat = true
+        return true
+    end
+    return false
 end
 
 sfui.common.in_combat = sfui.common.is_in_combat
@@ -604,6 +621,8 @@ sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
 end)
 
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", sync_combat_state)
+sfui.events.RegisterUnitEvent("UNIT_FLAGS", "player", sync_combat_state)
+sfui.events.RegisterEvent("PLAYER_FLAGS_CHANGED", sync_combat_state)
 
 sync_combat_state()
 

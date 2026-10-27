@@ -1,25 +1,26 @@
 # changelog
 
-## v1.122 (2026-10-24)
+## v1.123 (2026-10-27)
 
 ### features
 
-- **sfuibug companion integration (`dispatcher.lua`, `core/module.lua`, `commands.lua`, `frames/options/tabs/tab_debug.lua`, `scripts/bugjar-autofix.py`)**:
-  - integrated standalone `sfuibug` companion error tracker for lightweight, dedicated savedvariables captures and telemetry.
-  - upgraded `dispatcher.lua` to capture caller registration metadata and preserve live stack traces in `xpcall` handlers.
-  - routed module lifecycle exceptions in `core/module.lua` to `sfuibug`.
-  - added `/sfui bug`, `/sfui bugs`, and `/sfui errors` slash command routing to `sfuibug`.
-  - added debug tab controls in `frames/options/tabs/tab_debug.lua` with error inspection, database reset, minimap toggle, and live status.
-  - updated `scripts/bugjar-autofix.py` to prioritize native parsing of `WTF/.../SavedVariables/sfuibug.lua`.
+- **cursor ring 144hz mode & performance optimizations (`frames/cursor.lua`, `frames/ring/ring_live.lua`, `dispatcher.lua`, `frames/options/tabs/tab_main.lua`, `frames/mem.lua`)**:
+  - added toggle in `tab_main` to enable optional 144hz mode for cursor ring (`SfuiDB.cursorRing144hz`, disabled by default).
+  - lowered dispatcher `MIN_UPDATE_INTERVAL` floor to 0.005s (~200fps) to support high-refresh cursor updates.
+  - restored stationary cursor guard in `ring_live.lua` and pixel deadband rounding in `cursor.lua` to eliminate redundant redraws and scale calculations.
+  - added active refresh rate indicator in memory profile viewer.
 
-- **minimap mail indicator alignment (`frames/map/indicators.lua`, `frames/map/buttons.lua`, `config.lua`)**:
-  - repositioned docked mail indicator to the far-left of the minimap button bar, isolating it completely from the system stats area.
-  - updated `ButtonManager:arrange_buttons()` to dynamically offset collected addon icons when the mail indicator is active and visible.
-  - hooked retail `IndicatorFrame.MailFrame` and `IndicatorFrame.CraftingOrderFrame` visibility changes for instant layout updates.
-  - set `button_bar.pad_x` default to 8px in `config.lua` for symmetrical padding.
+- **core module taxonomy & pooling utilities (`core/module.lua`, `core/pool.lua`)**:
+  - added `object_pool` and `window_pool` utilities in `core/pool.lua`.
+  - added `objectives` and `automation` categories in `core/module.lua`.
 
 ### improvements & bug fixes
 
-- **action bars & experience hud (`frames/actionbars/actionbars.lua`, `frames/actionbars/bars.lua`, `frames/experience/experience.lua`, `frames/hide.lua`, `frames/options/tabs/tab_experience.lua`, `frames/tracking/trackedoptions.lua`)**:
-  - refined action bar mover handling and bar state management.
-  - enhanced experience bar updates and tracking options.
+- **combat visibility & hide out of combat fixes (`common.lua`, `frames/tracking/trackedicons.lua`)**:
+  - synchronized `sfui.common.is_in_combat()` with `InCombatLockdown()` and `UnitAffectingCombat("player")` as authoritative fallbacks, preventing rest area / city target dummy combat from being evaluated as out of combat.
+  - registered `UNIT_FLAGS` and `PLAYER_FLAGS_CHANGED` listeners and added combat state transition edge detection in `_OnTrackedIconsUpdate`.
+  - gated `hideMounted` and `hideInVehicle` icon early-exits behind combat verification so travel forms or mounted combat do not hide icons.
+  - scoped warrior stance panel form matching strictly to classic builds.
+
+- **blizzard cooldown viewer offscreen parking (`common.lua`)**:
+  - moved blizzard cooldown viewer frames offscreen cleanly using native anchor methods to prevent phantom mouseover tooltips without tainting secure frame tables.
