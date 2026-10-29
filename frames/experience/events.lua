@@ -82,11 +82,9 @@ function events.SuppressBlizzardBar()
 
     if not hideBlizz then
         if mgr then
-            mgr.defaultHideSelection = false
             if mgr.SetAlpha then mgr:SetAlpha(1) end
             if mgr.EnableMouse then mgr:EnableMouse(true) end
             if mgr.Selection then
-                mgr.Selection:Show()
                 if mgr.Selection.SetAlpha then mgr.Selection:SetAlpha(1) end
                 if mgr.Selection.EnableMouse then mgr.Selection:EnableMouse(true) end
             end
@@ -100,13 +98,11 @@ function events.SuppressBlizzardBar()
     end
 
     if mgr then
-        mgr.defaultHideSelection = true
         if mgr.SetAlpha and mgr:GetAlpha() ~= 0 then
             mgr:SetAlpha(0)
         end
         if mgr.EnableMouse then mgr:EnableMouse(false) end
         if mgr.Selection then
-            mgr.Selection:Hide()
             if mgr.Selection.SetAlpha then mgr.Selection:SetAlpha(0) end
             if mgr.Selection.EnableMouse then mgr.Selection:EnableMouse(false) end
         end

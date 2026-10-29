@@ -37,6 +37,7 @@ end
 
 local _lfg_dialog_handled = false
 local _lfg_dialog_hooked = false
+local _lfg_dialog_show_hooked = false
 
 local function handle_lfg_dialog(dialog)
     dialog = dialog or _G.LFGListApplicationDialog
@@ -103,8 +104,8 @@ local function setup_lfg_dialog()
         end)
     end
 
-    if _G.LFGListApplicationDialog_Show and not _G.LFGListApplicationDialog_Show_sfui_hooked then
-        _G.LFGListApplicationDialog_Show_sfui_hooked = true
+    if _G.LFGListApplicationDialog_Show and not _lfg_dialog_show_hooked then
+        _lfg_dialog_show_hooked = true
         hooksecurefunc("LFGListApplicationDialog_Show", function(d)
             setup_lfg_dialog()
             handle_lfg_dialog(d)

@@ -9,10 +9,11 @@ sfui.theme = sfui.theme or {}
 --  on the running client (see sfui.theme.HasNineSliceLayout / IsThemeAvailable).
 -- ══════════════════════════════════════════════════════════════════════════════
 
--- Ensure NineSliceLayouts has the Necrolord covenant layout defined if missing
-_G.NineSliceLayouts = _G.NineSliceLayouts or {}
-if not _G.NineSliceLayouts.Necrolord then
-    _G.NineSliceLayouts.Necrolord = {
+-- Keep custom fallback NineSlice layouts in sfui.theme.customNineSliceLayouts
+-- (NEVER write to _G.NineSliceLayouts, which taints Blizzard's NineSliceUtil.GetLayout in Edit Mode)
+sfui.theme.customNineSliceLayouts = sfui.theme.customNineSliceLayouts or {}
+if not sfui.theme.customNineSliceLayouts.Necrolord then
+    sfui.theme.customNineSliceLayouts.Necrolord = {
         TopRightCorner    = { atlas = "Necrolord-NineSlice-CornerTopRight" },
         TopLeftCorner     = { atlas = "Necrolord-NineSlice-CornerTopLeft" },
         BottomLeftCorner  = { atlas = "Necrolord-NineSlice-CornerBottomLeft" },

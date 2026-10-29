@@ -558,7 +558,9 @@ end
 sfui.events.RegisterEvent("MERCHANT_UPDATE",       on_merchant_update)
 sfui.events.RegisterEvent("PLAYER_MONEY",          on_merchant_update)
 
-tinsert(UISpecialFrames, "SfuiMerchantFrame")
+if sfui.common and sfui.common.register_special_frame then
+    sfui.common.register_special_frame(frame)
+end
 frame:Hide()
 
 function sfui.merchant_debug_info()

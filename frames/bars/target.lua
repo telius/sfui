@@ -187,15 +187,11 @@ local function SuppressBlizzardTargetFrame()
         return
     end
 
-    if tf then
-        tf.defaultHideSelection = true
-        if tf.Selection then
-            tf.Selection:Hide()
-            if tf.Selection.SetAlpha then tf.Selection:SetAlpha(0) end
-            if tf.Selection.EnableMouse then tf.Selection:EnableMouse(false) end
-            if tf.Selection.EnableMouseClicks then tf.Selection:EnableMouseClicks(false) end
-            if tf.Selection.EnableMouseMotion then tf.Selection:EnableMouseMotion(false) end
-        end
+    if tf and tf.Selection then
+        if tf.Selection.SetAlpha then tf.Selection:SetAlpha(0) end
+        if tf.Selection.EnableMouse then tf.Selection:EnableMouse(false) end
+        if tf.Selection.EnableMouseClicks then tf.Selection:EnableMouseClicks(false) end
+        if tf.Selection.EnableMouseMotion then tf.Selection:EnableMouseMotion(false) end
     end
 
     if sfui.hide and sfui.hide.SuppressTargetFrame then

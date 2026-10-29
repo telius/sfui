@@ -26,40 +26,14 @@ if not hiddenParent then
     hiddenParent:Hide()
 end
 
-local _inOffscreenSetPoint = false
-local function ParkFrameOffscreen(frame)
-    if not frame or (InCombatLockdown and InCombatLockdown()) then return end
-    _inOffscreenSetPoint = true
-    frame:ClearAllPoints()
-    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", 0, -10000)
-    _inOffscreenSetPoint = false
-end
-
-local function HookBarSetPoint(bar)
-    if not bar or bar._sfuiSetPointHooked then return end
-    bar._sfuiSetPointHooked = true
-    hooksecurefunc(bar, "SetPoint", function(self)
-        if _inOffscreenSetPoint or (InCombatLockdown and InCombatLockdown()) then return end
-        ParkFrameOffscreen(self)
-    end)
-end
+local _editModeCallbacksRegistered = false
 
 local function SilenceSelection(selection)
     if not selection then return end
-    selection:Hide()
     if selection.SetAlpha then selection:SetAlpha(0) end
     if selection.EnableMouse then selection:EnableMouse(false) end
     if selection.EnableMouseClicks then selection:EnableMouseClicks(false) end
     if selection.EnableMouseMotion then selection:EnableMouseMotion(false) end
-    if not selection._sfuiHooked then
-        selection._sfuiHooked = true
-        hooksecurefunc(selection, "Show", function(self)
-            C_Timer.After(0, function()
-                self:SetAlpha(0)
-                self:EnableMouse(false)
-            end)
-        end)
-    end
 end
 
 local function KillPagerMouse(bar)
@@ -84,42 +58,10 @@ end
 local function QuietButton(btn)
     if not btn then return end
     if btn.UnregisterAllEvents then btn:UnregisterAllEvents() end
-    if btn.SetAttributeNoHandler then btn:SetAttributeNoHandler("statehidden", true) end
     if btn.EnableMouse then btn:EnableMouse(false) end
     if btn.EnableMouseClicks then btn:EnableMouseClicks(false) end
     if btn.EnableMouseMotion then btn:EnableMouseMotion(false) end
     if btn.SetAlpha then btn:SetAlpha(0) end
-
-    if not btn._sfuiQuietHooked then
-        btn._sfuiQuietHooked = true
-        if btn.HookScript then
-            btn:HookScript("OnEnter", function()
-                if _G.GameTooltip and _G.GameTooltip.Hide then
-                    _G.GameTooltip:Hide()
-                end
-            end)
-            btn:HookScript("OnShow", function(self)
-                if self.EnableMouse then self:EnableMouse(false) end
-                if self.EnableMouseClicks then self:EnableMouseClicks(false) end
-                if self.EnableMouseMotion then self:EnableMouseMotion(false) end
-                if self.SetAlpha then self:SetAlpha(0) end
-            end)
-        end
-        if btn.EnableMouse then
-            hooksecurefunc(btn, "EnableMouse", function(self, enabled)
-                if enabled and not (InCombatLockdown and InCombatLockdown()) then
-                    self:EnableMouse(false)
-                end
-            end)
-        end
-        if btn.EnableMouseMotion then
-            hooksecurefunc(btn, "EnableMouseMotion", function(self, enabled)
-                if enabled and not (InCombatLockdown and InCombatLockdown()) then
-                    self:EnableMouseMotion(false)
-                end
-            end)
-        end
-    end
 end
 
 local function QuietContainer(container)
@@ -150,16 +92,8 @@ local UNTAINT_BARS = {
     "MicroButtonAndBagsBar", "OverrideActionBar", "MainMenuBar", "StanceBar",
     "PetActionBar", "PossessActionBar", "MainMenuBarArtFrame",
     "ShapeshiftBarFrame", "StanceBarFrame", "PetActionBarFrame",
-    "PossessBarFrame", "MultiCastActionBarFrame",
+    "PossessBarFrame", "MultiCastActionBarFrame", "MainMenuBarVehicleLeaveButton",
 }
-
-local SUPPRESSED_BAR_LOOKUP = {}
-for _, name in ipairs(UNTAINT_BARS) do
-    SUPPRESSED_BAR_LOOKUP[name] = true
-end
-for _, info in ipairs(BAR_BUTTON_PATTERNS) do
-    SUPPRESSED_BAR_LOOKUP[info.bar] = true
-end
 
 local function suppress_blizzard_actionbars()
     if InCombatLockdown and InCombatLockdown() then
@@ -172,23 +106,20 @@ local function suppress_blizzard_actionbars()
     -- 1. MainActionBar
     local mainBar = _G.MainActionBar
     if mainBar then
-        mainBar.defaultHideSelection = true
         if mainBar.SetAlpha then mainBar:SetAlpha(0) end
         if mainBar.EnableMouse then mainBar:EnableMouse(false) end
         if mainBar.EnableMouseClicks then mainBar:EnableMouseClicks(false) end
         if mainBar.EnableMouseMotion then mainBar:EnableMouseMotion(false) end
-        ParkFrameOffscreen(mainBar)
-        HookBarSetPoint(mainBar)
         KillPagerMouse(mainBar)
         if mainBar.Selection then SilenceSelection(mainBar.Selection) end
-        if mainBar.BorderArt then mainBar.BorderArt:Hide() end
-        if mainBar.QuickKeybindGlow then mainBar.QuickKeybindGlow:Hide() end
-        if mainBar.QuickKeybindBottomShadow then mainBar.QuickKeybindBottomShadow:Hide() end
-        if mainBar.QuickKeybindRightShadow then mainBar.QuickKeybindRightShadow:Hide() end
+        if mainBar.BorderArt and mainBar.BorderArt.SetAlpha then mainBar.BorderArt:SetAlpha(0) end
+        if mainBar.QuickKeybindGlow and mainBar.QuickKeybindGlow.SetAlpha then mainBar.QuickKeybindGlow:SetAlpha(0) end
+        if mainBar.QuickKeybindBottomShadow and mainBar.QuickKeybindBottomShadow.SetAlpha then mainBar.QuickKeybindBottomShadow:SetAlpha(0) end
+        if mainBar.QuickKeybindRightShadow and mainBar.QuickKeybindRightShadow.SetAlpha then mainBar.QuickKeybindRightShadow:SetAlpha(0) end
 
         local caps = mainBar.EndCaps
         if caps then
-            caps:Hide()
+            if caps.SetAlpha then caps:SetAlpha(0) end
             if caps.LeftEndCap and caps.LeftEndCap.Selection then
                 SilenceSelection(caps.LeftEndCap.Selection)
             end
@@ -200,51 +131,20 @@ local function suppress_blizzard_actionbars()
         if mainBar:GetParent() ~= hiddenParent then
             mainBar:SetParent(hiddenParent)
         end
-
-        if not mainBar._sfuiHooked then
-            mainBar._sfuiHooked = true
-            hooksecurefunc(mainBar, "Show", function(self)
-                if not (InCombatLockdown and InCombatLockdown()) then
-                    self:SetAlpha(0)
-                    ParkFrameOffscreen(self)
-                    KillPagerMouse(self)
-                    if self:GetParent() ~= hiddenParent then
-                        self:SetParent(hiddenParent)
-                    end
-                end
-            end)
-        end
     end
 
-    -- 2. Reparent, move offscreen, and silence all secondary action bars
+    -- 2. Reparent to hiddenParent and silence all secondary action bars without mutating anchor points
     for _, name in ipairs(UNTAINT_BARS) do
         local bar = _G[name]
         if bar then
-            bar.defaultHideSelection = true
             if bar.SetAlpha then bar:SetAlpha(0) end
             if bar.EnableMouse then bar:EnableMouse(false) end
             if bar.EnableMouseClicks then bar:EnableMouseClicks(false) end
             if bar.EnableMouseMotion then bar:EnableMouseMotion(false) end
             if bar.Selection then SilenceSelection(bar.Selection) end
 
-            ParkFrameOffscreen(bar)
-            HookBarSetPoint(bar)
-
             if bar:GetParent() ~= hiddenParent then
                 bar:SetParent(hiddenParent)
-            end
-
-            if not bar._sfuiReparkHooked then
-                bar._sfuiReparkHooked = true
-                bar:HookScript("OnShow", function(self)
-                    if not (InCombatLockdown and InCombatLockdown()) then
-                        self:SetAlpha(0)
-                        ParkFrameOffscreen(self)
-                        if self:GetParent() ~= hiddenParent then
-                            self:SetParent(hiddenParent)
-                        end
-                    end
-                end)
             end
         end
     end
@@ -269,48 +169,30 @@ local function suppress_blizzard_actionbars()
     -- 4. StatusTrackingBarManager (XP, Rep, Honor bars in center of screen)
     local stbm = _G.StatusTrackingBarManager
     if stbm then
-        stbm.defaultHideSelection = true
         if stbm.SetAlpha then stbm:SetAlpha(0) end
         if stbm.EnableMouse then stbm:EnableMouse(false) end
         if stbm.Selection then SilenceSelection(stbm.Selection) end
-        ParkFrameOffscreen(stbm)
-        HookBarSetPoint(stbm)
 
         local subContainers = { _G.MainStatusTrackingBarContainer, _G.SecondaryStatusTrackingBarContainer }
         for _, sub in ipairs(subContainers) do
             if sub then
-                sub.defaultHideSelection = true
                 if sub.SetAlpha then sub:SetAlpha(0) end
                 if sub.EnableMouse then sub:EnableMouse(false) end
-                ParkFrameOffscreen(sub)
-                HookBarSetPoint(sub)
             end
         end
     end
 end
 
 local function HookEditModeActionBars()
-    local emm = _G.EditModeManagerFrame
-    if emm and not emm._sfuiActionBarHooked then
-        emm._sfuiActionBarHooked = true
-        hooksecurefunc(emm, "ShowSystemSelections", function()
-            suppress_blizzard_actionbars()
-        end)
-        hooksecurefunc(emm, "UpdateSystems", function()
-            suppress_blizzard_actionbars()
-        end)
-    end
-
-    local emsm = _G.EditModeSystemMixin
-    if emsm and not emsm._sfuiApplyAnchorHooked then
-        emsm._sfuiApplyAnchorHooked = true
-        hooksecurefunc(emsm, "ApplySystemAnchor", function(self)
-            if InCombatLockdown and InCombatLockdown() then return end
-            local name = self and self.GetName and self:GetName()
-            if name and SUPPRESSED_BAR_LOOKUP[name] then
-                ParkFrameOffscreen(self)
-            end
-        end)
+    if _editModeCallbacksRegistered then return end
+    if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
+        _editModeCallbacksRegistered = true
+        _G.EventRegistry:RegisterCallback("EditMode.Enter", function()
+            C_Timer.After(0, suppress_blizzard_actionbars)
+        end, sfui.actionbars)
+        _G.EventRegistry:RegisterCallback("EditMode.Exit", function()
+            C_Timer.After(0, suppress_blizzard_actionbars)
+        end, sfui.actionbars)
     end
 end
 HookEditModeActionBars()

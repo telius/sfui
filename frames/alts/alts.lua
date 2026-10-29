@@ -658,7 +658,9 @@ function sfui.alts.CreateFrame()
     if frame then return frame end
 
     frame = CreateFrame("Frame", "SfuiAltsFrame", UIParent, "BackdropTemplate")
-    table.insert(_G.UISpecialFrames, "SfuiAltsFrame")
+    if sfui.common and sfui.common.register_special_frame then
+        sfui.common.register_special_frame(frame)
+    end
     frame:SetFrameStrata("DIALOG")
     frame:SetSize(cfg.width or 1000, cfg.height or 650)
     frame:SetPoint("CENTER")

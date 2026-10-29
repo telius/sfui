@@ -744,8 +744,8 @@ function sfui.theme.create_window(name, width, height, titleText, opts)
     f.closeBtn = closeBtn
     f.close = closeBtn
 
-    if opts.escClose ~= false and name and _G.UISpecialFrames then
-        table_insert(_G.UISpecialFrames, name)
+    if opts.escClose ~= false and sfui.common and sfui.common.register_special_frame then
+        sfui.common.register_special_frame(f)
     end
 
     sfui.theme.ElevateWindowContents(f)
@@ -801,8 +801,13 @@ end
 
 --- resolves a NineSliceLayouts entry by name (nil when missing on this client)
 function sfui.theme.GetNineSliceLayout(layoutName)
+    if not layoutName then return nil end
     local layouts = _G.NineSliceLayouts
-    return layoutName and layouts and layouts[layoutName] or nil
+    if layouts and layouts[layoutName] then
+        return layouts[layoutName]
+    end
+    local custom = sfui.theme.customNineSliceLayouts
+    return custom and custom[layoutName] or nil
 end
 
 --- true when every atlas referenced by a NineSliceLayouts entry exists on this client

@@ -981,15 +981,8 @@ local function create_base_frame(name)
         f:SetBackdropColor(unpack(cfg.appearance.backdropColor))
         f:SetBackdropBorderColor(unpack(cfg.colors.black))
 
-        local foundSpecial = false
-        for i = 1, #UISpecialFrames do
-            if UISpecialFrames[i] == frameName then
-                foundSpecial = true
-                break
-            end
-        end
-        if not foundSpecial then
-            tinsert(UISpecialFrames, frameName)
+        if sfui.common and sfui.common.register_special_frame then
+            sfui.common.register_special_frame(f)
         end
 
         local overlay = CreateFrame("Frame", nil, f)

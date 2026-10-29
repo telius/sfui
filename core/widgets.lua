@@ -1088,6 +1088,7 @@ sfui.common.create_scroll_frame = sfui.widgets.create_scroll_frame
 --  Dropdown System (Clean & Modern Rebuild)
 -- ─────────────────────────────────────────────────────────────────────────────
 local activeDropdown = nil
+local activeTextureMenu = nil
 
 -- Clean up any legacy blocking catcher frames from prior versions
 if sfui._dropdownCatcher then
@@ -1824,7 +1825,6 @@ sfui.common.create_dropdown = sfui.widgets.create_dropdown
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Texture Selection Dropdown (ElvUI / SharedMedia Style)
 -- ─────────────────────────────────────────────────────────────────────────────
-local activeTextureMenu = nil
 local resolve_statusbar_texture = sfui.widgets.resolve_statusbar_texture
 
 

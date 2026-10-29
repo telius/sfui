@@ -208,6 +208,7 @@ function sfui.merchant.update_currency_display(frame)
     local activeDisplays = frame._activeCurrencyDisplays
     wipe(activeDisplays)
     local totalWidth = 0
+    local prevDisplay
 
     for i, item in ipairs(sortedCurrencyItems) do
         local idx = i

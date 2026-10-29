@@ -207,8 +207,16 @@ sfui.options.RegisterTab({
             end
         end)
 
+        local sfuibug_inspect_btn = CreateFlatButton(debug_panel, "inspect last", 95, 22)
+        sfuibug_inspect_btn:SetPoint("LEFT", sfuibug_list_btn, "RIGHT", 8, 0)
+        sfuibug_inspect_btn:SetScript("OnClick", function()
+            if _G.sfuibug and _G.sfuibug.Inspect then
+                _G.sfuibug.Inspect("last")
+            end
+        end)
+
         local sfuibug_clear_btn = CreateFlatButton(debug_panel, "clear errors", 95, 22)
-        sfuibug_clear_btn:SetPoint("LEFT", sfuibug_list_btn, "RIGHT", 8, 0)
+        sfuibug_clear_btn:SetPoint("LEFT", sfuibug_inspect_btn, "RIGHT", 8, 0)
         sfuibug_clear_btn:SetScript("OnClick", function()
             if _G.sfuibug and _G.sfuibug.Clear then
                 _G.sfuibug.Clear()
@@ -400,6 +408,7 @@ sfui.options.RegisterTab({
             if has_sfuibug then
                 sfuibug_header:Show()
                 sfuibug_list_btn:Show()
+                sfuibug_inspect_btn:Show()
                 sfuibug_clear_btn:Show()
                 if sfuibug_minimap_cb then sfuibug_minimap_cb:Show() end
                 bug_status_label:Show()
@@ -445,7 +454,8 @@ sfui.options.RegisterTab({
                     local latestErr = db.errors and db.errors[latestFp]
                     if latestErr then
                         local shortFile = string_match(latestErr.file or "", "([^/]+%.lua)$") or latestErr.file or "unknown"
-                        bug_recent_value:SetText(string_format("[%s] %s:%d (x%d)", latestErr.module or "core", shortFile, latestErr.line or 0, latestErr.count or 1))
+                        local evSuffix = (latestErr.event and latestErr.event ~= "none") and (" [" .. latestErr.event .. "]") or ""
+                        bug_recent_value:SetText(string_format("[%s] %s:%d%s (x%d)", latestErr.module or "core", shortFile, latestErr.line or 0, evSuffix, latestErr.count or 1))
                     else
                         bug_recent_value:SetText("none")
                     end
@@ -455,6 +465,7 @@ sfui.options.RegisterTab({
             else
                 sfuibug_header:Hide()
                 sfuibug_list_btn:Hide()
+                sfuibug_inspect_btn:Hide()
                 sfuibug_clear_btn:Hide()
                 if sfuibug_minimap_cb then sfuibug_minimap_cb:Hide() end
                 bug_status_label:Hide()

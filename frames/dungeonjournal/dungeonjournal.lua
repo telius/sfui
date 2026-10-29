@@ -1275,8 +1275,8 @@ function sfui.dungeonjournal.CreateFrame()
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 
-    if _G.UISpecialFrames then
-        table_insert(_G.UISpecialFrames, "SfuiDungeonJournalFrame")
+    if sfui.common and sfui.common.register_special_frame then
+        sfui.common.register_special_frame(frame)
     end
 
     common.apply_flat_backdrop(frame, { 0.05, 0.05, 0.07, 0.97 }, { 0.12, 0.12, 0.14, 1 })

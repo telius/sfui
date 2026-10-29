@@ -122,8 +122,8 @@ frame:HookScript("OnHide", function()
         end
     end
 end)
-if _G.UISpecialFrames then
-    tinsert(_G.UISpecialFrames, "SfuiCooldownsViewer")
+if sfui.common and sfui.common.register_special_frame then
+    sfui.common.register_special_frame(frame)
 end
 
 -- (Title removed for better space efficiency)

@@ -21,9 +21,7 @@ sfui = sfui or {}
 --   WOW_PROJECT_MAINLINE (1)  -> Retail
 --   WOW_PROJECT_CLASSIC  (2)  -> Classic Era / Season of Discovery
 --   WOW_PROJECT_CAMELOT  (18) -> Camelot / Classic Forever
-if not _G.WOW_PROJECT_CAMELOT then
-    _G.WOW_PROJECT_CAMELOT = 18
-end
+local WOW_PROJECT_CAMELOT = _G.WOW_PROJECT_CAMELOT or 18
 local PROJECT_ID = _G.WOW_PROJECT_ID or 1
 
 -- Inspect client version from GetBuildInfo() to accurately distinguish Classic Forever from Retail
@@ -31,7 +29,7 @@ local versionStr, buildStr, dateStr, tocVersionNum = _G.GetBuildInfo()
 tocVersionNum = tonumber(tocVersionNum) or 0
 
 -- Classic Forever / Camelot uses WOW_PROJECT_CAMELOT (18) or WOW_PROJECT_MAINLINE (1) with tocVersion 16001 (build 1.60.x)
-local IS_CAMELOT     = (PROJECT_ID == (_G.WOW_PROJECT_CAMELOT or 18))
+local IS_CAMELOT     = (PROJECT_ID == WOW_PROJECT_CAMELOT)
     or (tocVersionNum >= 16000 and tocVersionNum < 20000)
     or (versionStr and versionStr:match("^1%.60") ~= nil)
 local IS_CLASSIC_ERA = (PROJECT_ID == (_G.WOW_PROJECT_CLASSIC or 2)) and not IS_CAMELOT
@@ -115,7 +113,7 @@ end
 -- Fix Blizzard 1.60.1 / Camelot bug: Blizzard_FrameXMLUtil/AuraUtil.lua line 88 calls
 -- C_UnitAuras.GetAuraDataBySpellName via CallDataProviderMethod, but the 1.60.1 C-engine
 -- does not export GetAuraDataBySpellName, resulting in "attempt to call a nil value".
-if _G.AuraUtil and not (_G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataBySpellName) then
+if not IS_RETAIL and _G.AuraUtil and not (_G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataBySpellName) then
     _G.AuraUtil.FindAuraByName = function(auraName, unit, filter)
         if not auraName then return nil end
         unit = unit or "player"

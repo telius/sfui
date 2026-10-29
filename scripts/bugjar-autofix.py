@@ -206,6 +206,20 @@ def parse_sfuibug_file(filepath):
                 }
             elif raw in ('},', '}'):
                 if current_error is not None:
+                    # Recover crash file/line from stack if legacy entry had file="unknown"
+                    c_file = current_error.get("file", "unknown")
+                    c_line = current_error.get("line", "0")
+                    if (c_file == "unknown" or str(c_line) == "0") and current_error.get("stack"):
+                        for stk_line in current_error["stack"].splitlines():
+                            m_stk = re.search(r"([A-Za-z0-9_/\-]+?\.lua)[\"\]]*:(\d+)", stk_line)
+                            if m_stk:
+                                cand_f = re.sub(r"^.*?AddOns/sfui/", "", m_stk.group(1), flags=re.IGNORECASE)
+                                if not cand_f.lower().startswith("blizzard_") and cand_f not in ("dispatcher.lua", "sfuibug.lua"):
+                                    if c_file == "unknown":
+                                        current_error["file"] = cand_f
+                                    if str(c_line) == "0":
+                                        current_error["line"] = m_stk.group(2)
+                                    break
                     if "file" in current_error and "line" in current_error:
                         current_error["location"] = f"{current_error['file']}:{current_error['line']}"
                     errors.append(current_error)
@@ -418,10 +432,38 @@ def main():
         stack = err.get("stack", "")
         loc = err.get("location", "")
         reason = err.get("_match_reason", "")
+        func_name = err.get("func", "")
+        dispatch_kind = err.get("dispatch_kind", "")
+        event_name = err.get("event", "")
+        dispatch_args = err.get("args", "")
+        registered_at = err.get("registered_at", "")
+        caller_site = err.get("caller", "")
+        locals_dump = err.get("locals", "")
+        in_combat = err.get("in_combat", "")
+        client_ver = err.get("client_version", "")
 
         print(f"\n--- processing error: {msg} ---")
         print(f"fingerprint: {fp}")
         print(f"kind: {kind} | location: {loc} | attribution: {reason}")
+
+        extra_ctx_lines = []
+        if func_name:
+            extra_ctx_lines.append(f"- Function: {func_name}")
+        if dispatch_kind or (event_name and event_name != "none"):
+            extra_ctx_lines.append(f"- Dispatch Context: {dispatch_kind or 'event'} ({event_name})")
+        if dispatch_args:
+            extra_ctx_lines.append(f"- Dispatch Arguments: {dispatch_args}")
+        if registered_at:
+            extra_ctx_lines.append(f"- Callback Registered At: {registered_at}")
+        if caller_site:
+            extra_ctx_lines.append(f"- SFUI Caller Site: {caller_site}")
+        if in_combat != "":
+            extra_ctx_lines.append(f"- In Combat Lockdown: {in_combat}")
+        if client_ver:
+            extra_ctx_lines.append(f"- Client Version: {client_ver} (TOC {err.get('toc_version', '')})")
+        if locals_dump:
+            extra_ctx_lines.append(f"- Local Variables at Crash Frame:\n{locals_dump}")
+        extra_ctx_block = ("\n".join(extra_ctx_lines) + "\n") if extra_ctx_lines else ""
 
         # Construct surgical task prompt for agy adhering strictly to .agent directives
         prompt = (
@@ -429,7 +471,8 @@ def main():
             f"- Error Message: {msg}\n"
             f"- Kind: {kind}\n"
             f"- Location: {loc}\n"
-            f"- Stack: {stack}\n\n"
+            f"{extra_ctx_block}"
+            f"- Stack:\n{stack}\n\n"
             f"Mandatory Project Directives (from AGENTS.md and .agent/workflows/methods.md):\n"
             f"0. Root-Cause Attribution Guard (CRITICAL): First verify that this error originates in or is directly caused by a bug in the 'sfui' project.\n"
             f"   - If the error is caused by another third-party addon, a Blizzard UI bug, or ambient Midnight secret-value/taint noise where 'sfui' is not at fault, DO NOT modify any files and DO NOT delete or gut working 'sfui' features. Simply print 'SKIP_NOT_SFUI: <reason>' and exit immediately.\n"

@@ -2078,7 +2078,9 @@ function sfui.lootviewer.CreateFrame()
     if frame then return frame end
 
     frame = CreateFrame("Frame", "SfuiLootViewerFrame", UIParent, "BackdropTemplate")
-    table.insert(UISpecialFrames, "SfuiLootViewerFrame")
+    if sfui.common and sfui.common.register_special_frame then
+        sfui.common.register_special_frame(frame)
+    end
     frame:SetFrameStrata("DIALOG")
     frame:SetSize(FRAME_W, FRAME_H)
     frame:SetPoint("CENTER")

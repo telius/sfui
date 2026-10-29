@@ -20,7 +20,6 @@ local data = sfui.fishing_data
 local _G = _G
 local CreateFrame = _G.CreateFrame
 local UIParent = _G.UIParent
-local UISpecialFrames = _G.UISpecialFrames
 local ipairs, pairs = _G.ipairs, _G.pairs
 local table_sort = _G.table.sort
 local table_insert = _G.table.insert
@@ -99,8 +98,10 @@ local function CreateAtlasWindow()
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
 
-    -- Register with UISpecialFrames so Escape closes it
-    table_insert(UISpecialFrames, "SfuiFishingAtlasFrame")
+    -- Register special frame so Escape closes it without tainting UISpecialFrames
+    if common and common.register_special_frame then
+        common.register_special_frame(f)
+    end
 
     -- Native window header bar
     if theme and theme.CreateWindowHeader then

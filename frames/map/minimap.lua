@@ -103,26 +103,23 @@ local function decouple_minimap()
     -- Suppress Blizzard MinimapCluster & its Edit Mode selection outline completely
     local cluster = _G.MinimapCluster
     if cluster then
-        cluster.defaultHideSelection = true
         cluster:SetAlpha(0)
         cluster:EnableMouse(false)
         if cluster.Selection then
-            cluster.Selection:Hide()
             cluster.Selection:SetAlpha(0)
             cluster.Selection:EnableMouse(false)
-            if not cluster.Selection._sfuiHooked then
-                cluster.Selection._sfuiHooked = true
-                hooksecurefunc(cluster.Selection, "Show", function(self)
-                    C_Timer.After(0, function()
-                        self:SetAlpha(0)
-                        self:EnableMouse(false)
-                    end)
-                end)
-            end
+            if cluster.Selection.EnableMouseClicks then cluster.Selection:EnableMouseClicks(false) end
+            if cluster.Selection.EnableMouseMotion then cluster.Selection:EnableMouseMotion(false) end
         end
     end
 end
 sfui.minimap.decouple_minimap = decouple_minimap
+
+if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
+    _G.EventRegistry:RegisterCallback("EditMode.Enter", function()
+        C_Timer.After(0, decouple_minimap)
+    end, sfui.minimap)
+end
 
 -- ------------------------------------------------------------------------------
 -- Positioning & Dimensions

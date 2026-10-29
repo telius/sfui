@@ -509,26 +509,45 @@ local _oocProcessing = false
 local _debounceGen = {}
 function sfui.common.debounce(key, delay, fn)
     if type(fn) ~= "function" then return end
+    if sfui.events and sfui.events.RecordCaller then
+        sfui.events.RecordCaller(fn, nil, "debounce")
+    end
     local gen = (_debounceGen[key] or 0) + 1
     _debounceGen[key] = gen
+    local label = "debounce:" .. tostring(key)
     if not (C_Timer and C_Timer.After) then
         _debounceGen[key] = nil
-        fn()
+        if sfui.events and sfui.events.SafeCall then
+            sfui.events.SafeCall(fn, "debounce", tostring(key), label)
+        else
+            fn()
+        end
         return
     end
     C_Timer.After(delay or 0, function()
         if _debounceGen[key] ~= gen then return end
         _debounceGen[key] = nil
-        fn()
+        if sfui.events and sfui.events.SafeCall then
+            sfui.events.SafeCall(fn, "debounce", tostring(key), label)
+        else
+            fn()
+        end
     end)
 end
 
 function sfui.common.run_after_combat(callback)
     if type(callback) ~= "function" then return end
+    if sfui.events and sfui.events.RecordCaller then
+        sfui.events.RecordCaller(callback, nil, "ooc")
+    end
     if not InCombatLockdown() then
-        local ok, err = pcall(callback)
-        if not ok then
-            print("|cff6600ffsfui|r run_after_combat error: " .. tostring(err))
+        if sfui.events and sfui.events.SafeCall then
+            sfui.events.SafeCall(callback, "ooc", "run_after_combat", "run_after_combat (immediate)")
+        else
+            local ok, err = pcall(callback)
+            if not ok then
+                print("|cff6600ffsfui|r run_after_combat error: " .. tostring(err))
+            end
         end
     else
         _oocQueue[#_oocQueue + 1] = callback
@@ -543,9 +562,13 @@ local function flush_ooc_queue()
         local fn = _oocQueue[i]
         _oocQueue[i] = nil
         if fn then
-            local ok, err = pcall(fn)
-            if not ok then
-                print("|cff6600ffsfui|r ooc callback error: " .. tostring(err))
+            if sfui.events and sfui.events.SafeCall then
+                sfui.events.SafeCall(fn, "ooc", "PLAYER_REGEN_ENABLED", "run_after_combat (queued)")
+            else
+                local ok, err = pcall(fn)
+                if not ok then
+                    print("|cff6600ffsfui|r ooc callback error: " .. tostring(err))
+                end
             end
         end
     end
@@ -1424,7 +1447,7 @@ function sfui.common.get_player_display_name()
     return (name and name ~= "" and name ~= "Unknown Entity") and name or "Unknown"
 end
 
--- helper to systematically hide and move blizzard cooldownviewer frames offscreen
+-- helper to systematically hide blizzard cooldownviewer frames without mutating EditModeSystemMixin anchors
 local cooldownViewersInitialized = false
 
 local function disarm_and_hide_viewer(viewer)
@@ -1433,16 +1456,13 @@ local function disarm_and_hide_viewer(viewer)
     if viewer.SetAlpha and viewer:GetAlpha() ~= 0 then
         viewer:SetAlpha(0)
     end
-
     if not InCombatLockdown() then
-        if viewer.ClearAllPoints and viewer.SetPoint then
-            viewer:ClearAllPoints()
-            viewer:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -10000, -10000)
+        local isProtected = viewer.IsProtected and viewer:IsProtected()
+        if not isProtected then
+            if viewer.EnableMouse then viewer:EnableMouse(false) end
+            if viewer.EnableMouseClicks then viewer:EnableMouseClicks(false) end
+            if viewer.EnableMouseMotion then viewer:EnableMouseMotion(false) end
         end
-    elseif sfui.combat and sfui.combat.after_combat then
-        sfui.combat.after_combat(function()
-            disarm_and_hide_viewer(viewer)
-        end)
     end
 end
 
@@ -1915,4 +1935,107 @@ function sfui.character.HookHeaderButtons()
             C_Timer.After(0, sfui.character.AlignHeaderButtons)
         end
     end)
+end
+
+-- ---------------------------------------------------------------------------
+-- TAINT-FREE ESCAPE DISMISSAL (PRIVATE SPECIAL FRAMES REGISTRY)
+-- ---------------------------------------------------------------------------
+-- Never insert addon frame names into _G.UISpecialFrames: in Retail 12.x,
+-- ToggleGameMenu() -> TryHandleGameMenuEsc() -> CloseAllWindows() ->
+-- CloseWindows() iterates pairs(UISpecialFrames) inside CloseSpecialWindows()
+-- and returns a tainted boolean that taints GameMenuFrame:InitButtons() and
+-- EditModeManagerFrame.
+local _specialFrames = {}
+local _specialFrameSet = {}
+local _specialFrameWatched = {}
+local _escButton = nil
+local _escBound = false
+
+local function ResolveSpecialFrame(entry)
+    if type(entry) == "string" then
+        return _G[entry]
+    elseif type(entry) == "table" then
+        return entry
+    end
+    return nil
+end
+
+local function SyncSpecialFramesEscBinding()
+    if not _escButton then return end
+    if InCombatLockdown and InCombatLockdown() then return end
+
+    local anyShown = false
+    for i = 1, #_specialFrames do
+        local f = ResolveSpecialFrame(_specialFrames[i])
+        if f and f.IsShown and f:IsShown() then
+            anyShown = true
+            break
+        end
+    end
+
+    if anyShown and not _escBound then
+        if _G.SetOverrideBindingClick then
+            _G.SetOverrideBindingClick(_escButton, true, "ESCAPE", "SfuiSpecialFramesEscButton")
+            _escBound = true
+        end
+    elseif not anyShown and _escBound then
+        if _G.ClearOverrideBindings then
+            _G.ClearOverrideBindings(_escButton)
+        end
+        _escBound = false
+    end
+end
+
+local function EnsureSpecialFrameWatched(f)
+    if not f or type(f) ~= "table" or _specialFrameWatched[f] then return end
+    _specialFrameWatched[f] = true
+
+    if CreateFrame then
+        local ok, watcher = pcall(CreateFrame, "Frame", nil, f)
+        if ok and watcher then
+            watcher:SetScript("OnShow", SyncSpecialFramesEscBinding)
+            watcher:SetScript("OnHide", SyncSpecialFramesEscBinding)
+        end
+    end
+
+    if _G.hooksecurefunc then
+        if f.Show then _G.hooksecurefunc(f, "Show", SyncSpecialFramesEscBinding) end
+        if f.Hide then _G.hooksecurefunc(f, "Hide", SyncSpecialFramesEscBinding) end
+    end
+end
+
+local function EnsureEscButton()
+    if _escButton or not CreateFrame then return end
+    _escButton = CreateFrame("Button", "SfuiSpecialFramesEscButton", UIParent)
+    _escButton:Hide()
+    _escButton:SetScript("OnClick", function()
+        for i = #_specialFrames, 1, -1 do
+            local f = ResolveSpecialFrame(_specialFrames[i])
+            if f and f.IsShown and f:IsShown() and f.Hide then
+                EnsureSpecialFrameWatched(f)
+                f:Hide()
+            end
+        end
+        SyncSpecialFramesEscBinding()
+    end)
+    _escButton:RegisterEvent("PLAYER_REGEN_ENABLED")
+    _escButton:SetScript("OnEvent", function()
+        SyncSpecialFramesEscBinding()
+    end)
+end
+
+function sfui.common.register_special_frame(frameOrName)
+    if not frameOrName then return end
+    EnsureEscButton()
+    if not _specialFrameSet[frameOrName] then
+        _specialFrameSet[frameOrName] = true
+        _specialFrames[#_specialFrames + 1] = frameOrName
+    end
+    local f = ResolveSpecialFrame(frameOrName)
+    if f then
+        EnsureSpecialFrameWatched(f)
+        if f.IsShown and f:IsShown() then
+            SyncSpecialFramesEscBinding()
+        end
+    end
 end

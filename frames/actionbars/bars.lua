@@ -787,61 +787,7 @@ function sfui.actionbars.CreateVehicleLeaveButton()
     local cfg = sfui.actionbars.GetBarConfig("vehicle")
     local buttonSize = (cfg and cfg.buttonSize) or 34
 
-    local btn = _G.MainMenuBarVehicleLeaveButton
-    if btn then
-        local holder = CreateFrame("Frame", "sfui_VehicleLeaveButtonHolder", UIParent)
-        holder:SetSize(buttonSize, buttonSize)
-        holder.barKey = "vehicle"
-        holder.barConfig = cfg
-
-        -- Reparent Blizzard's default vehicle exit button directly to UIParent and anchor to holder
-        local clearPoints = btn.ClearAllPointsBase or btn.ClearAllPoints
-        clearPoints(btn)
-        btn:SetParent(UIParent)
-        local setPoint = btn.SetPointBase or btn.SetPoint
-        setPoint(btn, "CENTER", holder, "CENTER", 0, 0)
-        sfui.common.set_pixel_snapping(btn)
-        btn:SetFrameStrata("MEDIUM")
-        btn:SetFrameLevel(25)
-        btn:SetSize(buttonSize, buttonSize)
-
-        -- 1px black backdrop border to match SFUI theme
-        if not holder.borderBackdrop then
-            holder.borderBackdrop = holder:CreateTexture(nil, "BACKGROUND")
-            holder.borderBackdrop:SetAllPoints()
-            holder.borderBackdrop:SetColorTexture(0, 0, 0, 1)
-        end
-
-        -- Hotkey text
-        if not holder.kb then
-            holder.kb = holder:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            holder.kb:SetPoint("TOPRIGHT", -2, -2)
-        end
-        holder.kb:SetText(sfui.actionbars.GetVehicleExitHotkey())
-
-        -- Register keybinding hover and mover on holder instead of Blizzard button
-        holder.commandName = "VEHICLEEXIT"
-        if sfui.actionbars.bind and sfui.actionbars.bind.RegisterButton then
-            sfui.actionbars.bind.RegisterButton(holder)
-        end
-
-        if sfui.actionbars.movers and sfui.actionbars.movers.CreateMover then
-            sfui.actionbars.movers.CreateMover(holder, nil, "vehicle")
-        end
-
-        -- Initial update
-        if btn.Update then
-            btn:Update()
-        elseif btn.UpdateShownState then
-            btn:UpdateShownState()
-        end
-
-        sfui.actionbars.vehicleLeaveButton = btn
-        sfui.actionbars.barsByKey["vehicle"] = holder
-        return btn
-    end
-
-    -- Fallback button if MainMenuBarVehicleLeaveButton is unavailable
+    -- Standalone sfui vehicle exit button (never mutates Blizzard's EditModeVehicleLeaveButtonSystemTemplate)
     local fallbackBtn = CreateFrame("Button", "sfui_VehicleLeaveButton", UIParent, "BackdropTemplate")
     _G.sfui_ActionBarVehicleLeaveButton = fallbackBtn
     sfui.common.set_pixel_snapping(fallbackBtn)
@@ -850,6 +796,11 @@ function sfui.actionbars.CreateVehicleLeaveButton()
     fallbackBtn:SetSize(buttonSize, buttonSize)
     fallbackBtn.barKey = "vehicle"
     fallbackBtn.barConfig = cfg
+    fallbackBtn.commandName = "VEHICLEEXIT"
+
+    function fallbackBtn:HasAction()
+        return true
+    end
 
     fallbackBtn:RegisterForClicks("AnyUp", "AnyDown")
     fallbackBtn:SetScript("OnClick", function()
@@ -857,6 +808,32 @@ function sfui.actionbars.CreateVehicleLeaveButton()
             if _G.TaxiRequestEarlyLanding then _G.TaxiRequestEarlyLanding() end
         else
             if _G.VehicleExit then _G.VehicleExit() end
+        end
+    end)
+
+    fallbackBtn:SetScript("OnEnter", function(self)
+        if self.AnimateEnter then self:AnimateEnter() end
+        local gt = _G.GameTooltip
+        if not gt then return end
+        gt:SetOwner(self, "ANCHOR_RIGHT")
+        if _G.UnitOnTaxi and _G.UnitOnTaxi("player") then
+            if _G.GameTooltip_SetTitle then
+                _G.GameTooltip_SetTitle(gt, _G.TAXI_CANCEL)
+            end
+            if _G.TAXI_CANCEL_DESCRIPTION and _G.NORMAL_FONT_COLOR then
+                gt:AddLine(_G.TAXI_CANCEL_DESCRIPTION, _G.NORMAL_FONT_COLOR.r, _G.NORMAL_FONT_COLOR.g, _G.NORMAL_FONT_COLOR.b, true)
+            end
+        else
+            if _G.GameTooltip_SetTitle then
+                _G.GameTooltip_SetTitle(gt, _G.LEAVE_VEHICLE)
+            end
+        end
+        gt:Show()
+    end)
+    fallbackBtn:SetScript("OnLeave", function(self)
+        if self.AnimateLeave then self:AnimateLeave() end
+        if _G.GameTooltip and _G.GameTooltip.Hide then
+            _G.GameTooltip:Hide()
         end
     end)
 
@@ -874,6 +851,14 @@ function sfui.actionbars.CreateVehicleLeaveButton()
     fallbackBtn.kb:SetPoint("TOPRIGHT", -2, -2)
     fallbackBtn.kb:SetText(sfui.actionbars.GetVehicleExitHotkey())
 
+    if sfui.actionbars.style and sfui.actionbars.style.SetupPressAnimation then
+        sfui.actionbars.style.SetupPressAnimation(fallbackBtn)
+    end
+
+    if sfui.actionbars.bind and sfui.actionbars.bind.RegisterButton then
+        sfui.actionbars.bind.RegisterButton(fallbackBtn)
+    end
+
     function fallbackBtn:UpdateShownState()
         local canExit = (_G.CanExitVehicle and _G.CanExitVehicle())
             or (_G.UnitOnTaxi and _G.UnitOnTaxi("player"))
@@ -883,6 +868,19 @@ function sfui.actionbars.CreateVehicleLeaveButton()
     end
     function fallbackBtn:Update()
         self:UpdateShownState()
+    end
+
+    if sfui.events and sfui.events.RegisterEvent then
+        local function on_vehicle_state_changed()
+            fallbackBtn:UpdateShownState()
+        end
+        sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_vehicle_state_changed)
+        sfui.events.RegisterEvent("UPDATE_BONUS_ACTIONBAR", on_vehicle_state_changed)
+        sfui.events.RegisterEvent("UPDATE_MULTI_CAST_ACTIONBAR", on_vehicle_state_changed)
+        sfui.events.RegisterEvent("UNIT_ENTERED_VEHICLE", on_vehicle_state_changed)
+        sfui.events.RegisterEvent("UNIT_EXITED_VEHICLE", on_vehicle_state_changed)
+        sfui.events.RegisterEvent("VEHICLE_UPDATE", on_vehicle_state_changed)
+        sfui.events.RegisterEvent("UPDATE_VEHICLE_ACTIONBAR", on_vehicle_state_changed)
     end
 
     if sfui.actionbars.movers and sfui.actionbars.movers.CreateMover then

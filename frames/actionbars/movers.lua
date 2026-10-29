@@ -641,8 +641,10 @@ local function GetOrCreateEditModeDialog()
     dialog:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
     dialog:Hide()
 
-    -- Register in UISpecialFrames so pressing ESC cleanly locks and closes edit mode
-    tinsert(_G.UISpecialFrames, "sfui_EditModeDialog")
+    -- Register special frame so pressing ESC cleanly locks and closes edit mode without tainting UISpecialFrames
+    if sfui.common and sfui.common.register_special_frame then
+        sfui.common.register_special_frame(dialog)
+    end
 
     dialog:SetScript("OnHide", function(self)
         if movers.isUnlocked and not movers._isToggling then

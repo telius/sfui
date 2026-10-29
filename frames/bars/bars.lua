@@ -116,13 +116,11 @@ do
         end
 
         local pf = _G.PlayerFrame
-        if pf then
-            pf.defaultHideSelection = true
-            if pf.Selection then
-                pf.Selection:Hide()
-                if pf.Selection.SetAlpha then pf.Selection:SetAlpha(0) end
-                if pf.Selection.EnableMouse then pf.Selection:EnableMouse(false) end
-            end
+        if pf and pf.Selection then
+            if pf.Selection.SetAlpha then pf.Selection:SetAlpha(0) end
+            if pf.Selection.EnableMouse then pf.Selection:EnableMouse(false) end
+            if pf.Selection.EnableMouseClicks then pf.Selection:EnableMouseClicks(false) end
+            if pf.Selection.EnableMouseMotion then pf.Selection:EnableMouseMotion(false) end
         end
 
         if is_dragonflying() then

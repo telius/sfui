@@ -379,7 +379,9 @@ local saveBtn = CreateFlatButton(dialog, "save", 150, 22, function()
 end)
 saveBtn:SetPoint("BOTTOMRIGHT", dialog, "BOTTOMRIGHT", -14, 12)
 
-tinsert(_G.UISpecialFrames, "sfui_KeybindDialog")
+if sfui.common and sfui.common.register_special_frame then
+    sfui.common.register_special_frame(dialog)
+end
 dialog:SetScript("OnHide", function(self)
     if bind.isActive then
         sfui.actionbars.DeactivateBindMode(false)

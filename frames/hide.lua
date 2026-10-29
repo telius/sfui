@@ -125,25 +125,14 @@ end
 
 local function SilenceSelection(selection)
     if not selection then return end
-    selection:Hide()
     if selection.SetAlpha then selection:SetAlpha(0) end
     if selection.EnableMouse then selection:EnableMouse(false) end
     if selection.EnableMouseClicks then selection:EnableMouseClicks(false) end
     if selection.EnableMouseMotion then selection:EnableMouseMotion(false) end
-    if not selection._sfuiHooked then
-        selection._sfuiHooked = true
-        hooksecurefunc(selection, "Show", function(self)
-            C_Timer.After(0, function()
-                self:SetAlpha(0)
-                self:EnableMouse(false)
-            end)
-        end)
-    end
 end
 
 local function SuppressFrame(frame, entry)
     if not frame then return end
-    frame.defaultHideSelection = true
     if frame.SetAlpha and (not frame.GetAlpha or frame:GetAlpha() ~= 0) then
         frame:SetAlpha(0)
     end
@@ -157,7 +146,6 @@ local function SuppressFrame(frame, entry)
         SilenceSelection(frame.Selection)
     end
     if frame.totFrame then
-        frame.totFrame.defaultHideSelection = true
         if frame.totFrame.SetAlpha and (not frame.totFrame.GetAlpha or frame.totFrame:GetAlpha() ~= 0) then
             frame.totFrame:SetAlpha(0)
         end
@@ -174,7 +162,6 @@ end
 
 local function RestoreFrame(frame, entry)
     if not frame then return end
-    frame.defaultHideSelection = false
     if frame.GetAlpha and frame:GetAlpha() ~= 1.0 then
         frame:SetAlpha(1.0)
     end
@@ -185,7 +172,6 @@ local function RestoreFrame(frame, entry)
         if frame.EnableMouseMotion then pcall(frame.EnableMouseMotion, frame, true) end
     end
     if frame.totFrame then
-        frame.totFrame.defaultHideSelection = false
         if frame.totFrame.GetAlpha and frame.totFrame:GetAlpha() ~= 1.0 then
             frame.totFrame:SetAlpha(1.0)
         end
@@ -363,7 +349,6 @@ if _G.StaticPopupDialogs then
         button1 = "reload ui",
         button2 = "later",
         OnAccept = function()
-            PurgeSfuiBug()
             if _G.C_UI and _G.C_UI.Reload then
                 _G.C_UI.Reload()
             elseif _G.ReloadUI then
@@ -444,17 +429,8 @@ local function GetOrCreateReloadPopup()
         pcall(sfui.common.apply_flat_backdrop, popup, { 0.05, 0.05, 0.07, 0.95 }, { accent[1], accent[2], accent[3], 1 })
     end
 
-    if _G.UISpecialFrames then
-        local exists = false
-        for _, name in ipairs(_G.UISpecialFrames) do
-            if name == "sfui_EditModeReloadPopup" then
-                exists = true
-                break
-            end
-        end
-        if not exists then
-            table_insert(_G.UISpecialFrames, "sfui_EditModeReloadPopup")
-        end
+    if sfui.common and sfui.common.register_special_frame then
+        sfui.common.register_special_frame(popup)
     end
 
     local title = popup:CreateFontString(nil, "OVERLAY", (sfui.config and sfui.config.font) or "GameFontNormal")
@@ -476,10 +452,9 @@ local function GetOrCreateReloadPopup()
     msg:SetPoint("RIGHT", popup, "RIGHT", -14, 0)
     msg:SetJustifyH("LEFT")
     msg:SetSpacing(3)
-    msg:SetText("blizzard edit mode was closed.\na ui reload is required to apply layout cleanly and prevent taint.\n|cff55ff55sfuibug error log has been purged.|r")
+    msg:SetText("blizzard edit mode was closed.\na ui reload is recommended to apply layout changes cleanly.")
 
     local reloadBtn = CreatePopupButton(popup, "reload ui", 100, 24, function()
-        PurgeSfuiBug()
         popup:Hide()
         if _G.C_UI and _G.C_UI.Reload then
             _G.C_UI.Reload()
@@ -522,8 +497,6 @@ function sfui.hide.OnBlizzardEditModeClosed()
     if now - _lastEditModeCloseTime < 0.8 then return end
     _lastEditModeCloseTime = now
 
-    PurgeSfuiBug()
-
     if C_Timer and C_Timer.After then
         C_Timer.After(0.05, function()
             if InCombatLockdown and InCombatLockdown() then
@@ -541,39 +514,23 @@ function sfui.hide.OnBlizzardEditModeClosed()
     end
 end
 
-local function HookEditModeFrame()
-    local emm = _G.EditModeManagerFrame
-    if emm and not emm._sfuiCloseHooked then
-        emm._sfuiCloseHooked = true
-        hooksecurefunc(emm, "Hide", function()
+local _editModeCallbacksRegistered = false
+
+local function RegisterEditModeCallbacks()
+    if _editModeCallbacksRegistered then return end
+    if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
+        _editModeCallbacksRegistered = true
+        _G.EventRegistry:RegisterCallback("EditMode.Enter", function()
+            C_Timer.After(0, sfui.hide.ApplyAllUnitFrames)
+        end, sfui.hide)
+        _G.EventRegistry:RegisterCallback("EditMode.Exit", function()
+            C_Timer.After(0, sfui.hide.ApplyAllUnitFrames)
             sfui.hide.OnBlizzardEditModeClosed()
-        end)
-        hooksecurefunc(emm, "ExitEditMode", function()
-            sfui.hide.OnBlizzardEditModeClosed()
-        end)
-        emm:HookScript("OnHide", function()
-            sfui.hide.OnBlizzardEditModeClosed()
-        end)
+        end, sfui.hide)
     end
 end
 
-HookEditModeFrame()
-
-if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
-    pcall(function()
-        _G.EventRegistry:RegisterCallback("EditMode.Exit", function()
-            sfui.hide.OnBlizzardEditModeClosed()
-        end)
-    end)
-end
-
-if _G.HideUIPanel then
-    hooksecurefunc("HideUIPanel", function(frame)
-        if frame and (frame == _G.EditModeManagerFrame or (frame.GetName and frame:GetName() == "EditModeManagerFrame")) then
-            sfui.hide.OnBlizzardEditModeClosed()
-        end
-    end)
-end
+RegisterEditModeCallbacks()
 
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Module Registration & Lifecycle Protocol
@@ -593,7 +550,7 @@ local function on_player_entering_world()
     InitDB()
     RestoreAllBarsAlpha()
     HookUnitFrames()
-    HookEditModeFrame()
+    RegisterEditModeCallbacks()
     sfui.hide.ApplyAllUnitFrames()
     sfui.hide.ApplyErrorFilters()
 end
@@ -603,23 +560,9 @@ local function init_module(self)
     InitDB()
     RestoreAllBarsAlpha()
     HookUnitFrames()
-    HookEditModeFrame()
+    RegisterEditModeCallbacks()
     sfui.hide.ApplyAllUnitFrames()
     sfui.hide.ApplyErrorFilters()
-
-    local function HookEditModeSelections()
-        local emm = _G.EditModeManagerFrame
-        if emm and not emm._sfuiSelectionsHooked then
-            emm._sfuiSelectionsHooked = true
-            hooksecurefunc(emm, "ShowSystemSelections", function()
-                sfui.hide.ApplyAllUnitFrames()
-            end)
-            hooksecurefunc(emm, "UpdateSystems", function()
-                sfui.hide.ApplyAllUnitFrames()
-            end)
-        end
-    end
-    HookEditModeSelections()
 
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", on_regen_enabled)
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_player_entering_world)
@@ -630,8 +573,7 @@ local function init_module(self)
     end)
     sfui.events.RegisterEvent("ADDON_LOADED", function(event, loadedAddon)
         if loadedAddon == "Blizzard_EditMode" then
-            HookEditModeFrame()
-            HookEditModeSelections()
+            RegisterEditModeCallbacks()
             C_Timer.After(0, function()
                 sfui.hide.ApplyAllUnitFrames()
             end)

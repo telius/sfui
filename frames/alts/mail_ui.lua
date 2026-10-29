@@ -203,7 +203,9 @@ function mail.CreateConfigFrame()
     if configFrame then return configFrame end
 
     local f = CreateFrame("Frame", "SfuiAltMailConfigFrame", UIParent, "BackdropTemplate")
-    table.insert(_G.UISpecialFrames, "SfuiAltMailConfigFrame")
+    if sfui.common and sfui.common.register_special_frame then
+        sfui.common.register_special_frame(f)
+    end
     f:SetFrameStrata("DIALOG")
     f:SetSize(800, 480)
     f:SetPoint("CENTER")

@@ -509,8 +509,8 @@ function B.CreateBrowserFrame()
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     f:SetClampedToScreen(true)
 
-    if _G.UISpecialFrames then
-        table.insert(_G.UISpecialFrames, "SfuiRecipeBrowserFrame")
+    if sfui.common and sfui.common.register_special_frame then
+        sfui.common.register_special_frame(f)
     end
 
     common.apply_flat_backdrop(f, { 0.05, 0.05, 0.07, 0.97 }, { 0.12, 0.12, 0.14, 1 })
@@ -825,7 +825,9 @@ function B.CreateBrowserFrame()
     ui.statusText:SetText("loading catalogue...")
 
     -- ESC dismiss
-    tinsert(UISpecialFrames, "SfuiRecipeBrowserFrame")
+    if sfui.common and sfui.common.register_special_frame then
+        sfui.common.register_special_frame(f)
+    end
 
     -- Refresh on show & dynamic item info listening
     local debouncedItemInfoHandle = nil

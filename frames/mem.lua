@@ -26,7 +26,6 @@ local UpdateAddOnMemoryUsage = UpdateAddOnMemoryUsage
 local GetAddOnMemoryUsage = GetAddOnMemoryUsage
 local CreateFrame = CreateFrame
 local UIParent = UIParent
-local UISpecialFrames = UISpecialFrames
 local C_Timer = C_Timer
 local wipe = table.wipe or _G.wipe or function(t) for k in pairs(t) do t[k] = nil end end
 
@@ -1403,7 +1402,9 @@ function sfui.mem.create_mem_panel()
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
     frame:Hide()
-    table_insert(UISpecialFrames, "sfui_mem_frame")
+    if sfui.common and sfui.common.register_special_frame then
+        sfui.common.register_special_frame(frame)
+    end
 
     -- Header Frame & Title (Elevated above theme layers)
     local headerFrame = CreateFrame("Frame", nil, frame)

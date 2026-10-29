@@ -19,7 +19,6 @@ local table_insert = table.insert
 local table_sort = table.sort
 local math_min = math.min
 local math_max = math.max
-local UISpecialFrames = _G.UISpecialFrames
 
 local frame = nil
 local registered_tabs = {}
@@ -242,17 +241,8 @@ function sfui.create_options_panel()
     frame:Hide()
     frame.tabs = {}
 
-    if _G.UISpecialFrames then
-        local found = false
-        for _, name in ipairs(_G.UISpecialFrames) do
-            if name == "sfui_options_frame" then
-                found = true
-                break
-            end
-        end
-        if not found then
-            table_insert(_G.UISpecialFrames, "sfui_options_frame")
-        end
+    if sfui.common and sfui.common.register_special_frame then
+        sfui.common.register_special_frame(frame)
     end
 
     local pal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()) or sfui.config.appearance

@@ -419,12 +419,19 @@ function SuppressBlizzardTrackers()
     end
 
     -- 3. Modern / Retail / Camelot (ObjectiveTrackerFrame)
-    -- Cleanly hide and zero-alpha the root frame without mutating or hooking its sub-modules,
-    -- headers, or dimensions (avoids DirtiableMixin and C_UnitAuras / ShouldShowMawBuffs taint).
+    -- Cleanly zero-alpha and disable mouse on the root frame without calling Hide() (which invokes
+    -- EditModeSystemMixin:HideOverride / OnSystemHide -> ManageFramePositions()) or mutating sub-modules.
     local otf = _G.ObjectiveTrackerFrame
     if otf then
         if otf.SetAlpha and otf:GetAlpha() ~= 0 then otf:SetAlpha(0) end
-        if otf.Hide and otf:IsShown() then otf:Hide() end
+        if not (InCombatLockdown and InCombatLockdown()) then
+            local isProtected = otf.IsProtected and otf:IsProtected()
+            if not isProtected then
+                if otf.EnableMouse then otf:EnableMouse(false) end
+                if otf.EnableMouseClicks then otf:EnableMouseClicks(false) end
+                if otf.EnableMouseMotion then otf:EnableMouseMotion(false) end
+            end
+        end
     end
 end
 
@@ -453,7 +460,14 @@ function RestoreBlizzardTrackers()
     local otf = _G.ObjectiveTrackerFrame
     if otf then
         if otf.SetAlpha and otf:GetAlpha() ~= 1 then otf:SetAlpha(1) end
-        if otf.Show and not otf:IsShown() then otf:Show() end
+        if not (InCombatLockdown and InCombatLockdown()) then
+            local isProtected = otf.IsProtected and otf:IsProtected()
+            if not isProtected then
+                if otf.EnableMouse then otf:EnableMouse(true) end
+                if otf.EnableMouseClicks then otf:EnableMouseClicks(true) end
+                if otf.EnableMouseMotion then otf:EnableMouseMotion(true) end
+            end
+        end
     end
 end
 

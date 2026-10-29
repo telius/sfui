@@ -1065,31 +1065,29 @@ function sfui.castbar.initialize()
 
     local function DecoupleBlizzCastbar(bar)
         if not bar then return end
-        bar.defaultHideSelection = true
         if bar.SetAlpha then bar:SetAlpha(0) end
         if bar.EnableMouse then bar:EnableMouse(false) end
-        if bar.EnableMouseClicks then bar:EnableMouseClicks(false) end
-        if bar.EnableMouseMotion then bar:EnableMouseMotion(false) end
+        if bar.EnableMouseClicks then bar.EnableMouseClicks(bar, false) end
+        if bar.EnableMouseMotion then bar.EnableMouseMotion(bar, false) end
         if bar.Selection then
-            bar.Selection:Hide()
             if bar.Selection.SetAlpha then bar.Selection:SetAlpha(0) end
             if bar.Selection.EnableMouse then bar.Selection:EnableMouse(false) end
             if bar.Selection.EnableMouseClicks then bar.Selection:EnableMouseClicks(false) end
             if bar.Selection.EnableMouseMotion then bar.Selection:EnableMouseMotion(false) end
-            if not bar.Selection._sfuiHooked then
-                bar.Selection._sfuiHooked = true
-                hooksecurefunc(bar.Selection, "Show", function(self)
-                    C_Timer.After(0, function()
-                        self:SetAlpha(0)
-                        self:EnableMouse(false)
-                    end)
-                end)
-            end
         end
     end
 
     DecoupleBlizzCastbar(_G.PlayerCastingBarFrame)
     DecoupleBlizzCastbar(_G.OverlayPlayerCastingBarFrame)
+
+    if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
+        _G.EventRegistry:RegisterCallback("EditMode.Enter", function()
+            C_Timer.After(0, function()
+                DecoupleBlizzCastbar(_G.PlayerCastingBarFrame)
+                DecoupleBlizzCastbar(_G.OverlayPlayerCastingBarFrame)
+            end)
+        end, sfui.castbar)
+    end
 
     if sfui.events and sfui.events.RegisterEvent then
         sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()

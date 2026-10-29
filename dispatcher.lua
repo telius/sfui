@@ -57,13 +57,29 @@ sfui.events = {}
 
 -- ─── Locals ─────────────────────────────────────────────────────────────────
 
+local type, tostring, tonumber, pairs, select = _G.type, _G.tostring, _G.tonumber, _G.pairs, _G.select
+local pcall, xpcall, rawget, getmetatable = _G.pcall, _G.xpcall, _G.rawget, _G.getmetatable
+local string_match, string_gsub, string_format = string.match, string.gsub, string.format
+local string_sub, string_gmatch, string_find = string.sub, string.gmatch, string.find
+local table_concat, table_remove = table.concat, table.remove
+local debugstack, debuglocals = _G.debugstack, _G.debuglocals
+
 local eventCallbacks     = {}  -- [eventName] = { cb, cb, ... }
 local updateCallbacks    = {}  -- { { name, interval, elapsed, callback }, ... }
 
-local _issecretvalue = _G.issecretvalue
+local _issecretvalue  = _G.issecretvalue
+local _canaccessvalue = _G.canaccessvalue
+local _canaccesstable = _G.canaccesstable
+
+local function _is_secret(val)
+    if _issecretvalue and _issecretvalue(val) then return true end
+    if _canaccessvalue and not _canaccessvalue(val) then return true end
+    if type(val) == "table" and _canaccesstable and not _canaccesstable(val) then return true end
+    return false
+end
 
 local function _safe_str(val)
-    if _issecretvalue and _issecretvalue(val) then return "<secret>" end
+    if _is_secret(val) then return "<secret>" end
     return tostring(val)
 end
 
@@ -73,38 +89,195 @@ end
 
 -- ─── Callback source metadata & error dispatch ──────────────────────────────
 local _cbMeta = setmetatable({}, { __mode = "k" })
-local _curDispatchCtx = nil
 
-local function _record_caller(cb, fallbackMod)
-    if type(cb) ~= "function" or _cbMeta[cb] then return end
-    local stack = debugstack(3, 1, 0)
-    if stack and string.find(stack, "dispatcher%.lua") then
-        stack = debugstack(4, 1, 0)
+-- Zero-allocation active dispatch registers (materialized into a table only on error)
+local _curCb       = nil
+local _curKind     = nil
+local _curEvent    = nil
+local _curLabel    = nil
+local _curUnit     = nil
+local _curArgCount = 0
+local _curArg1, _curArg2, _curArg3, _curArg4 = nil, nil, nil, nil
+
+local function _extract_mod(file)
+    if not file then return "core" end
+    return string_match(file, "^frames/([^/]+)")
+        or string_match(file, "^core/([^/]+)")
+        or string_match(file, "^data/([^/]+)")
+        or string_match(file, "^([^/%.]+)%.lua")
+        or "core"
+end
+
+-- Walk a stack string to find the first sfui lua frame (skipping dispatcher.lua and optionally common.lua)
+local function _extract_sfui_frame(stack, skipCommon)
+    if not stack or _is_secret(stack) then return nil end
+    local norm = string_gsub(stack, "\\", "/")
+    local cFunc = string_match(norm, "^%[C%]: in function [`'\"]([^'\"]+)['\"]")
+    local idx = 0
+    for line in string_gmatch(norm, "[^\r\n]+") do
+        idx = idx + 1
+        local file, lineNum = string_match(line, "[Aa]dd[Oo]ns/[Ss][Ff][Uu][Ii]/([^:\"%]]+%.[lL][uU][aA])[\"%]]*:(%d+)")
+        if not file then
+            file, lineNum = string_match(line, "%.%.%.[^/:\r\n\"<>]*/[Ss][Ff][Uu][Ii]/([^:\"%]]+%.[lL][uU][aA])[\"%]]*:(%d+)")
+        end
+        if file and file ~= "dispatcher.lua" and (not skipCommon or file ~= "common.lua") then
+            local func = string_match(line, "in function [`'\"]([^'\"]+)['\"]")
+            if not func then
+                local defLine = string_match(line, "in function <[^:>]*:(%d+)>")
+                if defLine then
+                    func = "<line " .. defLine .. ">"
+                elseif string_find(line, "in main chunk", 1, true) then
+                    func = "<main chunk>"
+                end
+            end
+            if cFunc and idx == 2 then
+                func = (func and (func .. " -> ") or "") .. "[C]:" .. cFunc
+            end
+            return file, tonumber(lineNum) or 0, func, idx
+        end
     end
-    local file, line = string.match(stack or "", "[Aa]dd[Oo]ns/[Ss][Ff][Uu][Ii]/([^:]+%.lua):(%d+)")
+    return nil
+end
+
+local function _record_caller(cb, fallbackMod, kind, skipCommon)
+    if type(cb) ~= "function" then return end
+    local existing = _cbMeta[cb]
+    if existing then
+        if kind and not existing.kind then existing.kind = kind end
+        return existing
+    end
+    local stack = debugstack and debugstack(2, 10, 0)
+    local file, line, func = _extract_sfui_frame(stack, skipCommon)
     if file then
-        local mod = string.match(file, "^frames/([^/]+)")
-            or string.match(file, "^core/([^/]+)")
-            or string.match(file, "^data/([^/]+)")
-            or string.match(file, "^([^/%.]+)%.lua")
-        _cbMeta[cb] = {
-            module = mod or fallbackMod or "core",
-            file = file,
-            line = tonumber(line) or 0,
+        local meta = {
+            module        = _extract_mod(file) or fallbackMod or "core",
+            file          = file,
+            line          = line or 0,
+            func          = func,
+            kind          = kind,
+            registered_at = file .. ":" .. tostring(line or 0),
         }
+        _cbMeta[cb] = meta
+        return meta
+    end
+    return nil
+end
+
+local function _format_single_arg(val)
+    if _is_secret(val) then return "<secret>" end
+    local t = type(val)
+    if t == "nil" then
+        return "nil"
+    elseif t == "boolean" or t == "number" then
+        return tostring(val)
+    elseif t == "string" then
+        if #val > 40 then
+            return string_format("%q", string_sub(val, 1, 37) .. "...")
+        end
+        return string_format("%q", val)
+    elseif t == "table" then
+        local parts = {}
+        local count = 0
+        for k, v in pairs(val) do
+            count = count + 1
+            if #parts < 4 and not _is_secret(k) then
+                local ks = tostring(k)
+                if _is_secret(v) then
+                    parts[#parts + 1] = ks .. "=<secret>"
+                else
+                    local vt = type(v)
+                    if vt == "number" or vt == "boolean" then
+                        parts[#parts + 1] = ks .. "=" .. tostring(v)
+                    elseif vt == "string" then
+                        parts[#parts + 1] = ks .. "=" .. string_format("%q", #v > 20 and (string_sub(v, 1, 17) .. "...") or v)
+                    elseif vt == "table" then
+                        parts[#parts + 1] = ks .. "={...}"
+                    end
+                end
+            end
+        end
+        if #parts > 0 then
+            local suffix = count > #parts and ", ..." or ""
+            return "{" .. table_concat(parts, ", ") .. suffix .. "}"
+        end
+        return "{}"
+    else
+        return "<" .. t .. ">"
     end
 end
 
+local function _format_dispatch_args(kind, argc, a1, a2, a3, a4)
+    if not argc or argc <= 0 then return nil end
+    if kind == "update" then
+        local el = (type(a1) == "number" and not _is_secret(a1)) and string_format("%.3fs", a1) or _format_single_arg(a1)
+        local iv = (type(a2) == "number" and not _is_secret(a2)) and string_format("%.3fs", a2) or nil
+        return iv and ("elapsed=" .. el .. ", interval=" .. iv) or ("elapsed=" .. el)
+    end
+    local limit = argc < 4 and argc or 4
+    local list = { a1, a2, a3, a4 }
+    local out = {}
+    for i = 1, limit do
+        out[i] = _format_single_arg(list[i])
+    end
+    if argc > 4 then
+        out[#out + 1] = "... (+" .. tostring(argc - 4) .. " more)"
+    end
+    return table_concat(out, ", ")
+end
+
+local _lastErrCb  = nil
+local _lastErrMsg = nil
+
 local function _dispatcher_error_handler(err)
-    local stack = debugstack and debugstack(2, 20, 20)
-    if _G.sfuibug and _G.sfuibug.RecordError then
-        _G.sfuibug.RecordError(_curDispatchCtx, err, stack)
+    local sfuibug = _G.sfuibug
+    if sfuibug and sfuibug.RecordError then
+        -- Fast-path repeat check: if the exact same callback threw the exact same error string
+        -- and sfuibug already recorded it, let RecordError increment its counter without rebuilding stack/locals.
+        if _curCb and _curCb == _lastErrCb and err == _lastErrMsg and sfuibug.HasFastCachedError and sfuibug.HasFastCachedError(err) then
+            sfuibug.RecordError(nil, err, nil)
+            return err
+        end
+        _lastErrCb  = _curCb
+        _lastErrMsg = err
+
+        local stack = debugstack and debugstack(2, 20, 20)
+        local crashFile, crashLine, crashFunc, frameIdx = _extract_sfui_frame(stack, false)
+        local meta = _curCb and _cbMeta[_curCb]
+        local kind = _curKind or (meta and meta.kind) or "dispatcher"
+
+        -- Capture local variables at the crashing sfui stack frame before xpcall unwinds
+        local localsStr = nil
+        if debuglocals then
+            local targetLevel = (frameIdx or 1) + 1
+            local rawLocals = debuglocals(targetLevel, true)
+            if (not rawLocals or rawLocals == "") and targetLevel ~= 2 then
+                rawLocals = debuglocals(2, true)
+            end
+            if rawLocals and not _is_secret(rawLocals) and rawLocals ~= "" then
+                localsStr = rawLocals
+            end
+        end
+
+        local ctx = {
+            module        = (crashFile and _extract_mod(crashFile)) or (meta and meta.module) or "core",
+            file          = crashFile or (meta and meta.file),
+            line          = (crashFile and crashLine) or (meta and meta.line) or 0,
+            func          = crashFunc or (meta and meta.func),
+            registered_at = meta and meta.registered_at or nil,
+            dispatch_kind = kind,
+            event         = _curEvent or "none",
+            label         = _curLabel or _curEvent or "dispatcher",
+            unit          = _curUnit,
+            args          = _format_dispatch_args(kind, _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4),
+            locals        = localsStr,
+        }
+        sfuibug.RecordError(ctx, err, stack)
     elseif _G.CallErrorHandler then
         _G.CallErrorHandler(err)
     elseif _G.geterrorhandler and _G.geterrorhandler() then
         _G.geterrorhandler()(err)
     else
-        local label = _curDispatchCtx and (_curDispatchCtx.label or _curDispatchCtx.event) or "dispatcher"
+        local label = _curLabel or _curEvent or "dispatcher"
         _err(label, err)
     end
     return err
@@ -164,19 +337,23 @@ ev_frame:SetScript("OnEvent", function(_, event, ...)
     local snap = _acquire_snap()
     for i = 1, n do snap[i] = cbs[i] end
 
+    local prevCb, prevKind, prevEvent, prevLabel, prevUnit = _curCb, _curKind, _curEvent, _curLabel, _curUnit
+    local prevArgc, prevA1, prevA2, prevA3, prevA4 = _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4
+    _curKind     = "event"
+    _curEvent    = event
+    _curLabel    = event
+    _curUnit     = nil
+    _curArgCount = select("#", ...)
+    _curArg1, _curArg2, _curArg3, _curArg4 = ...
+
     if _memActive then
         local before = collectgarbage("count")
         for i = 1, n do
             local cb = snap[i]
             snap[i] = nil
             if type(cb) == "function" then
-                local prevCtx = _curDispatchCtx
-                local meta = _cbMeta[cb]
-                _curDispatchCtx = meta or { event = event, label = event }
-                _curDispatchCtx.event = event
-                _curDispatchCtx.label = event
+                _curCb = cb
                 xpcall(cb, _dispatcher_error_handler, event, ...)
-                _curDispatchCtx = prevCtx
             end
         end
         _mem_after(event, before)
@@ -185,22 +362,23 @@ ev_frame:SetScript("OnEvent", function(_, event, ...)
             local cb = snap[i]
             snap[i] = nil
             if type(cb) == "function" then
-                local prevCtx = _curDispatchCtx
-                local meta = _cbMeta[cb]
-                _curDispatchCtx = meta or { event = event, label = event }
-                _curDispatchCtx.event = event
-                _curDispatchCtx.label = event
+                _curCb = cb
                 xpcall(cb, _dispatcher_error_handler, event, ...)
-                _curDispatchCtx = prevCtx
             end
         end
     end
+
+    _curCb, _curKind, _curEvent, _curLabel, _curUnit = prevCb, prevKind, prevEvent, prevLabel, prevUnit
+    _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4 = prevArgc, prevA1, prevA2, prevA3, prevA4
     _release_snap()
 end)
 
 local function _OnDispatcherUpdate(_, elapsed)
     local n = #updateCallbacks
     if n == 0 then return end
+
+    local prevCb, prevKind, prevEvent, prevLabel, prevUnit = _curCb, _curKind, _curEvent, _curLabel, _curUnit
+    local prevArgc, prevA1, prevA2, prevA3, prevA4 = _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4
 
     if _memActive then
         for i = 1, n do
@@ -214,13 +392,14 @@ local function _OnDispatcherUpdate(_, elapsed)
                 if d.elapsed >= d.interval then
                     local label = d.name or "UpdateLoop"
                     local before = collectgarbage("count")
-                    local prevCtx = _curDispatchCtx
-                    local meta = _cbMeta[d.callback]
-                    _curDispatchCtx = meta or { label = label, event = "OnUpdate" }
-                    _curDispatchCtx.label = label
-                    _curDispatchCtx.event = "OnUpdate"
+                    _curCb       = d.callback
+                    _curKind     = "update"
+                    _curEvent    = "OnUpdate"
+                    _curLabel    = label
+                    _curUnit     = nil
+                    _curArgCount = 2
+                    _curArg1, _curArg2, _curArg3, _curArg4 = d.elapsed, d.interval, nil, nil
                     xpcall(d.callback, _dispatcher_error_handler, d.elapsed)
-                    _curDispatchCtx = prevCtx
                     _mem_after(label, before)
                     d.elapsed = 0
                 end
@@ -233,18 +412,22 @@ local function _OnDispatcherUpdate(_, elapsed)
                 d.elapsed = d.elapsed + elapsed
                 if d.elapsed >= d.interval then
                     local label = d.name or "UpdateLoop"
-                    local prevCtx = _curDispatchCtx
-                    local meta = _cbMeta[d.callback]
-                    _curDispatchCtx = meta or { label = label, event = "OnUpdate" }
-                    _curDispatchCtx.label = label
-                    _curDispatchCtx.event = "OnUpdate"
+                    _curCb       = d.callback
+                    _curKind     = "update"
+                    _curEvent    = "OnUpdate"
+                    _curLabel    = label
+                    _curUnit     = nil
+                    _curArgCount = 2
+                    _curArg1, _curArg2, _curArg3, _curArg4 = d.elapsed, d.interval, nil, nil
                     xpcall(d.callback, _dispatcher_error_handler, d.elapsed)
-                    _curDispatchCtx = prevCtx
                     d.elapsed = 0
                 end
             end
         end
     end
+
+    _curCb, _curKind, _curEvent, _curLabel, _curUnit = prevCb, prevKind, prevEvent, prevLabel, prevUnit
+    _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4 = prevArgc, prevA1, prevA2, prevA3, prevA4
 end
 
 -- ─── Unit event frames (per-unit isolation) ─────────────────────────────────
@@ -268,19 +451,24 @@ local function get_or_create_unit_frame(unit)
             local snap = _acquire_snap()
             for i = 1, n do snap[i] = eventCbs[i] end
 
+            local prevCb, prevKind, prevEvent, prevLabel, prevUnit = _curCb, _curKind, _curEvent, _curLabel, _curUnit
+            local prevArgc, prevA1, prevA2, prevA3, prevA4 = _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4
+            local label = event .. "/" .. _safe_str(u)
+            _curKind     = "unit_event"
+            _curEvent    = event
+            _curLabel    = label
+            _curUnit     = u
+            _curArgCount = select("#", u, ...)
+            _curArg1, _curArg2, _curArg3, _curArg4 = u, ...
+
             if _memActive then
                 local before = collectgarbage("count")
                 for i = 1, n do
                     local cb = snap[i]
                     snap[i] = nil
                     if type(cb) == "function" then
-                        local prevCtx = _curDispatchCtx
-                        local meta = _cbMeta[cb]
-                        _curDispatchCtx = meta or { event = event, label = event .. "/" .. tostring(u) }
-                        _curDispatchCtx.event = event
-                        _curDispatchCtx.label = event .. "/" .. tostring(u)
+                        _curCb = cb
                         xpcall(cb, _dispatcher_error_handler, event, u, ...)
-                        _curDispatchCtx = prevCtx
                     end
                 end
                 _mem_after(event, before)
@@ -289,16 +477,14 @@ local function get_or_create_unit_frame(unit)
                     local cb = snap[i]
                     snap[i] = nil
                     if type(cb) == "function" then
-                        local prevCtx = _curDispatchCtx
-                        local meta = _cbMeta[cb]
-                        _curDispatchCtx = meta or { event = event, label = event .. "/" .. tostring(u) }
-                        _curDispatchCtx.event = event
-                        _curDispatchCtx.label = event .. "/" .. tostring(u)
+                        _curCb = cb
                         xpcall(cb, _dispatcher_error_handler, event, u, ...)
-                        _curDispatchCtx = prevCtx
                     end
                 end
             end
+
+            _curCb, _curKind, _curEvent, _curLabel, _curUnit = prevCb, prevKind, prevEvent, prevLabel, prevUnit
+            _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4 = prevArgc, prevA1, prevA2, prevA3, prevA4
             _release_snap()
         end)
     end
@@ -307,18 +493,36 @@ end
 
 -- ─── Public API ─────────────────────────────────────────────────────────────
 
+--- Record caller metadata for an arbitrary callback function (e.g. from common.lua).
+function sfui.events.RecordCaller(callback, fallbackMod, kind)
+    return _record_caller(callback, fallbackMod, kind, true)
+end
+
+--- Execute a callback under dispatcher xpcall isolation with full context.
+function sfui.events.SafeCall(callback, kind, eventName, label, ...)
+    if type(callback) ~= "function" then return false end
+    local prevCb, prevKind, prevEvent, prevLabel, prevUnit = _curCb, _curKind, _curEvent, _curLabel, _curUnit
+    local prevArgc, prevA1, prevA2, prevA3, prevA4 = _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4
+    _curCb       = callback
+    _curKind     = kind or "call"
+    _curEvent    = eventName or label or "SafeCall"
+    _curLabel    = label or eventName or "SafeCall"
+    _curUnit     = nil
+    _curArgCount = select("#", ...)
+    _curArg1, _curArg2, _curArg3, _curArg4 = ...
+    local ok = xpcall(callback, _dispatcher_error_handler, ...)
+    _curCb, _curKind, _curEvent, _curLabel, _curUnit = prevCb, prevKind, prevEvent, prevLabel, prevUnit
+    _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4 = prevArgc, prevA1, prevA2, prevA3, prevA4
+    return ok
+end
+
 --- Register a callback for a global game event.
 --- If event == "PLAYER_LOGIN" and the player is already logged in, fires immediately.
 function sfui.events.RegisterEvent(event, callback)
     if not event or type(callback) ~= "function" then return end
-    _record_caller(callback)
+    _record_caller(callback, nil, "event")
     if event == "PLAYER_LOGIN" and IsLoggedIn() then
-        local prevCtx = _curDispatchCtx
-        _curDispatchCtx = _cbMeta[callback] or { event = "PLAYER_LOGIN", label = "PLAYER_LOGIN immediate" }
-        _curDispatchCtx.event = "PLAYER_LOGIN"
-        _curDispatchCtx.label = "PLAYER_LOGIN immediate"
-        xpcall(callback, _dispatcher_error_handler, event)
-        _curDispatchCtx = prevCtx
+        sfui.events.SafeCall(callback, "event_immediate", "PLAYER_LOGIN", "PLAYER_LOGIN (immediate)", event)
         return
     end
 
@@ -342,7 +546,7 @@ function sfui.events.UnregisterEvent(event, callback)
     local cbs = eventCallbacks[event]
     if not cbs then return end
     for i = #cbs, 1, -1 do
-        if cbs[i] == callback then table.remove(cbs, i) end
+        if cbs[i] == callback then table_remove(cbs, i) end
     end
     if #cbs == 0 then
         ev_frame:UnregisterEvent(event)
@@ -357,7 +561,7 @@ end
 --- @param callback function(event, unit, ...)
 function sfui.events.RegisterUnitEvent(event, unit, callback)
     if not unit or not event or not callback then return end
-    _record_caller(callback)
+    _record_caller(callback, nil, "unit_event")
 
     if not unitEventCallbacks[unit] then
         unitEventCallbacks[unit] = {}
@@ -376,7 +580,7 @@ function sfui.events.RegisterUnitEvent(event, unit, callback)
     if #cbs == 1 then
         local ok = pcall(f.RegisterUnitEvent, f, event, unit)
         if not ok then
-            table.remove(cbs)
+            table_remove(cbs)
             return
         end
     end
@@ -389,6 +593,7 @@ end
 --- @param unit     string     e.g. "player"
 --- @param callback function(event, unit, ...)
 function sfui.events.RegisterUnitEvents(events, unit, callback)
+    _record_caller(callback, nil, "unit_event")
     for i = 1, #events do
         sfui.events.RegisterUnitEvent(events[i], unit, callback)
     end
@@ -400,7 +605,7 @@ function sfui.events.UnregisterUnitEvent(event, unit, callback)
     if not cbs then return end
     for i = #cbs, 1, -1 do
         if cbs[i] == callback then
-            table.remove(cbs, i)
+            table_remove(cbs, i)
         end
     end
     if #cbs == 0 then
@@ -432,7 +637,7 @@ function sfui.events.RegisterUpdate(arg1, arg2, arg3)
         interval, callback = arg1, arg2
     end
     interval = math.max(interval or 0, MIN_UPDATE_INTERVAL)
-    _record_caller(callback)
+    _record_caller(callback, nil, "update")
 
     if name then
         for i = 1, #updateCallbacks do
@@ -464,7 +669,7 @@ function sfui.events.UnregisterUpdate(target)
         local d = updateCallbacks[i]
         if d and (d.name == target or d.callback == target) then
             d.removed = true
-            table.remove(updateCallbacks, i)
+            table_remove(updateCallbacks, i)
         end
     end
     if #updateCallbacks == 0 then
@@ -481,6 +686,7 @@ end
 ---   local handle = sfui.events.RegisterThrottledEvent("CURRENCY_DISPLAY_UPDATE", 0.2, myFn)
 ---   sfui.events.UnregisterEvent("CURRENCY_DISPLAY_UPDATE", handle)  -- to remove
 function sfui.events.RegisterThrottledEvent(event, interval, callback)
+    local meta = _record_caller(callback, nil, "throttled_event")
     local lastFired = 0
     local wrapper = function(ev, ...)
         local now = GetTime()
@@ -489,6 +695,7 @@ function sfui.events.RegisterThrottledEvent(event, interval, callback)
             callback(ev, ...)
         end
     end
+    if meta then _cbMeta[wrapper] = meta end
     sfui.events.RegisterEvent(event, wrapper)
     return wrapper
 end
@@ -502,6 +709,7 @@ end
 ---   sfui.events.UnregisterUnitEvent("UNIT_AURA", "player", handle)  -- to remove
 function sfui.events.RegisterThrottledUnitEvent(event, unit, interval, callback)
     if not unit or not event or not callback then return end
+    local meta = _record_caller(callback, nil, "throttled_unit_event")
     local lastFired = 0
     local wrapper = function(ev, u, ...)
         local now = GetTime()
@@ -510,6 +718,7 @@ function sfui.events.RegisterThrottledUnitEvent(event, unit, interval, callback)
             callback(ev, u, ...)
         end
     end
+    if meta then _cbMeta[wrapper] = meta end
     sfui.events.RegisterUnitEvent(event, unit, wrapper)
     return wrapper
 end
@@ -529,19 +738,37 @@ end
 ---   sfui.events.UnregisterEvent("SPELLS_CHANGED", handle)  -- to remove
 function sfui.events.RegisterDebouncedEvent(event, delay, callback)
     if not event or not callback then return end
+    local meta = _record_caller(callback, nil, "debounced_event")
     delay = (type(delay) == "number" and delay > 0 and delay) or 0.15
     local timer = nil
     local lastA1, lastA2, lastA3
+    local lastArgc = 0
+    local label = event .. " (debounced)"
 
     local onTimerFired = function()
         timer = nil
         local a, b, c = lastA1, lastA2, lastA3
+        local argc = lastArgc
         lastA1, lastA2, lastA3 = nil, nil, nil
-        callback(event, a, b, c)
+        lastArgc = 0
+
+        local prevCb, prevKind, prevEvent, prevLabel, prevUnit = _curCb, _curKind, _curEvent, _curLabel, _curUnit
+        local prevArgc, prevA1, prevA2, prevA3, prevA4 = _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4
+        _curCb       = callback
+        _curKind     = "debounced_event"
+        _curEvent    = event
+        _curLabel    = label
+        _curUnit     = nil
+        _curArgCount = argc
+        _curArg1, _curArg2, _curArg3, _curArg4 = a, b, c, nil
+        xpcall(callback, _dispatcher_error_handler, event, a, b, c)
+        _curCb, _curKind, _curEvent, _curLabel, _curUnit = prevCb, prevKind, prevEvent, prevLabel, prevUnit
+        _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4 = prevArgc, prevA1, prevA2, prevA3, prevA4
     end
 
     local wrapper = function(ev, a1, a2, a3)
         lastA1, lastA2, lastA3 = a1, a2, a3
+        lastArgc = (a3 ~= nil and 3) or (a2 ~= nil and 2) or (a1 ~= nil and 1) or 0
         if timer then
             timer:Cancel()
             timer = nil
@@ -553,6 +780,7 @@ function sfui.events.RegisterDebouncedEvent(event, delay, callback)
             callback(ev, a1, a2, a3)
         end
     end
+    if meta then _cbMeta[wrapper] = meta end
     sfui.events.RegisterEvent(event, wrapper)
     return wrapper
 end
@@ -560,19 +788,37 @@ end
 --- Register a unit event callback that is debounced (trailing-edge) for that unit.
 function sfui.events.RegisterDebouncedUnitEvent(event, unit, delay, callback)
     if not unit or not event or not callback then return end
+    local meta = _record_caller(callback, nil, "debounced_unit_event")
     delay = (type(delay) == "number" and delay > 0 and delay) or 0.15
     local timer = nil
     local lastA1, lastA2, lastA3
+    local lastArgc = 0
+    local label = event .. "/" .. _safe_str(unit) .. " (debounced)"
 
     local onTimerFired = function()
         timer = nil
         local a, b, c = lastA1, lastA2, lastA3
+        local argc = lastArgc
         lastA1, lastA2, lastA3 = nil, nil, nil
-        callback(event, unit, a, b, c)
+        lastArgc = 0
+
+        local prevCb, prevKind, prevEvent, prevLabel, prevUnit = _curCb, _curKind, _curEvent, _curLabel, _curUnit
+        local prevArgc, prevA1, prevA2, prevA3, prevA4 = _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4
+        _curCb       = callback
+        _curKind     = "debounced_unit_event"
+        _curEvent    = event
+        _curLabel    = label
+        _curUnit     = unit
+        _curArgCount = argc + 1
+        _curArg1, _curArg2, _curArg3, _curArg4 = unit, a, b, c
+        xpcall(callback, _dispatcher_error_handler, event, unit, a, b, c)
+        _curCb, _curKind, _curEvent, _curLabel, _curUnit = prevCb, prevKind, prevEvent, prevLabel, prevUnit
+        _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4 = prevArgc, prevA1, prevA2, prevA3, prevA4
     end
 
     local wrapper = function(ev, u, a1, a2, a3)
         lastA1, lastA2, lastA3 = a1, a2, a3
+        lastArgc = (a3 ~= nil and 3) or (a2 ~= nil and 2) or (a1 ~= nil and 1) or 0
         if timer then
             timer:Cancel()
             timer = nil
@@ -584,6 +830,7 @@ function sfui.events.RegisterDebouncedUnitEvent(event, unit, delay, callback)
             callback(ev, u, a1, a2, a3)
         end
     end
+    if meta then _cbMeta[wrapper] = meta end
     sfui.events.RegisterUnitEvent(event, unit, wrapper)
     return wrapper
 end
@@ -595,7 +842,7 @@ local messageCallbacks = {}   -- [messageName] = { cb1, cb2, ... }
 --- Callback signature: function(message, ...)
 function sfui.events.RegisterMessage(message, callback)
     if not message or type(callback) ~= "function" then return end
-    _record_caller(callback)
+    _record_caller(callback, nil, "message")
     if not messageCallbacks[message] then
         messageCallbacks[message] = {}
     end
@@ -612,7 +859,7 @@ function sfui.events.UnregisterMessage(message, callback)
     if not cbs then return end
     for i = #cbs, 1, -1 do
         if cbs[i] == callback then
-            table.remove(cbs, i)
+            table_remove(cbs, i)
         end
     end
     if #cbs == 0 then
@@ -630,39 +877,40 @@ function sfui.events.SendMessage(message, ...)
     local snap = _acquire_snap()
     for i = 1, n do snap[i] = cbs[i] end
 
+    local label = "Msg:" .. _safe_str(message)
+    local prevCb, prevKind, prevEvent, prevLabel, prevUnit = _curCb, _curKind, _curEvent, _curLabel, _curUnit
+    local prevArgc, prevA1, prevA2, prevA3, prevA4 = _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4
+    _curKind     = "message"
+    _curEvent    = _safe_str(message)
+    _curLabel    = label
+    _curUnit     = nil
+    _curArgCount = select("#", ...)
+    _curArg1, _curArg2, _curArg3, _curArg4 = ...
+
     if _memActive then
         local before = collectgarbage("count")
         for i = 1, n do
             local cb = snap[i]
             snap[i] = nil
             if type(cb) == "function" then
-                local prevCtx = _curDispatchCtx
-                local meta = _cbMeta[cb]
-                local label = "Msg:" .. tostring(message)
-                _curDispatchCtx = meta or { event = label, label = label }
-                _curDispatchCtx.event = label
-                _curDispatchCtx.label = label
+                _curCb = cb
                 xpcall(cb, _dispatcher_error_handler, message, ...)
-                _curDispatchCtx = prevCtx
             end
         end
-        _mem_after("Msg:" .. tostring(message), before)
+        _mem_after(label, before)
     else
         for i = 1, n do
             local cb = snap[i]
             snap[i] = nil
             if type(cb) == "function" then
-                local prevCtx = _curDispatchCtx
-                local meta = _cbMeta[cb]
-                local label = "Msg:" .. tostring(message)
-                _curDispatchCtx = meta or { event = label, label = label }
-                _curDispatchCtx.event = label
-                _curDispatchCtx.label = label
+                _curCb = cb
                 xpcall(cb, _dispatcher_error_handler, message, ...)
-                _curDispatchCtx = prevCtx
             end
         end
     end
+
+    _curCb, _curKind, _curEvent, _curLabel, _curUnit = prevCb, prevKind, prevEvent, prevLabel, prevUnit
+    _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4 = prevArgc, prevA1, prevA2, prevA3, prevA4
     _release_snap()
 end
 
