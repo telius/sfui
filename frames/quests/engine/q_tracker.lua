@@ -432,6 +432,29 @@ function SuppressBlizzardTrackers()
                 if otf.EnableMouseMotion then otf:EnableMouseMotion(false) end
             end
         end
+        if not hookedTrackers[otf] then
+            hookedTrackers[otf] = true
+            local isClampingAlpha = false
+            if _G.hooksecurefunc and otf.SetAlpha then
+                _G.hooksecurefunc(otf, "SetAlpha", function(self, alpha)
+                    if isClampingAlpha then return end
+                    if alpha and alpha > 0 and sfui.questlog.is_enabled() then
+                        isClampingAlpha = true
+                        self:SetAlpha(0)
+                        isClampingAlpha = false
+                    end
+                end)
+            end
+            if otf.HookScript then
+                otf:HookScript("OnShow", function(self)
+                    if sfui.questlog.is_enabled() then
+                        if self.SetAlpha and self:GetAlpha() ~= 0 then
+                            self:SetAlpha(0)
+                        end
+                    end
+                end)
+            end
+        end
     end
 end
 
@@ -494,7 +517,16 @@ local function SetupEventRouting()
             Tracker.RequestRefresh(0.1)
         end
         SuppressBlizzardTrackers()
+        C_Timer.After(0.2, SuppressBlizzardTrackers)
+        C_Timer.After(1.0, SuppressBlizzardTrackers)
     end)
+
+    -- Raid wipe / release / fade-to-black recovery (ManagedFrameContainerMixin:AnimInManagedFrames & boss mods)
+    sfui.events.RegisterEvent("PLAYER_DEAD", SuppressBlizzardTrackers)
+    sfui.events.RegisterEvent("PLAYER_ALIVE", SuppressBlizzardTrackers)
+    sfui.events.RegisterEvent("PLAYER_UNGHOST", SuppressBlizzardTrackers)
+    sfui.events.RegisterEvent("CINEMATIC_STOP", SuppressBlizzardTrackers)
+    sfui.events.RegisterEvent("STOP_MOVIE", SuppressBlizzardTrackers)
 
     -- Encounter / Boss updates in raids & dungeons
     sfui.events.RegisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT", function()

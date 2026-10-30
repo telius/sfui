@@ -43,7 +43,6 @@ do
         bar_minus_1 = { lastUpdate = 0, interval = tCfg.power },
         absorb = { lastUpdate = 0, interval = tCfg.absorb },
         visibility = { lastUpdate = 0, interval = tCfg.visibility },
-        runes = { lastUpdate = 0, interval = 0.05 },
     }
 
     local function should_throttle(key)
@@ -978,7 +977,7 @@ do
         return rune_bar
     end
 
-    -- Pre-allocated comparator to avoid closure allocation on every table.sort call
+        -- Pre-allocated comparator to avoid closure allocation on every table.sort call
     local function runeInfoComparator(a, b)
         if a.ready and not b.ready then return true end
         if not a.ready and b.ready then return false end
@@ -990,10 +989,54 @@ do
         return a.id < b.id
     end
 
+    local function rune_bar_on_update(self, elapsed)
+        local acc = (self._elapsed or 0) + elapsed
+        if acc < 0.02 then
+            self._elapsed = acc
+            return
+        end
+        self._elapsed = 0
+
+        local now = GetTime()
+        local anyRecharging = false
+        local needsRefresh = false
+        local runes = self.runes
+
+        for i = 1, 6 do
+            local rune = runes[i]
+            if rune and not rune.ready then
+                local dur = (rune.duration and rune.duration > 0) and rune.duration or 1
+                local start = rune.start or 0
+                if start > 0 then
+                    local current = now - start
+                    if current >= dur then
+                        needsRefresh = true
+                    else
+                        anyRecharging = true
+                        rune:SetValue(current > 0 and current or 0)
+                    end
+                end
+            end
+        end
+
+        if needsRefresh then
+            update_rune_bar()
+        elseif not anyRecharging then
+            self._onUpdateActive = false
+            self:SetScript("OnUpdate", nil)
+        end
+    end
+
     function update_rune_bar()
         local secResource = common.get_secondary_resource()
         if secResource ~= Enum.PowerType.Runes then
-            if rune_bar then rune_bar:Hide() end
+            if rune_bar then
+                if rune_bar._onUpdateActive then
+                    rune_bar._onUpdateActive = false
+                    rune_bar:SetScript("OnUpdate", nil)
+                end
+                rune_bar:Hide()
+            end
             return
         end
 
@@ -1010,10 +1053,13 @@ do
 
         local runeHeight = 10
 
-        bar:SetSize(usedWidth, runeHeight)
-
-        -- Update tracked bars layout to respect Rune Bar presence
-        sfui.trackedbars.ForceLayoutUpdate()
+        if bar._lastUsedWidth ~= usedWidth or bar._lastRuneHeight ~= runeHeight then
+            bar._lastUsedWidth = usedWidth
+            bar._lastRuneHeight = runeHeight
+            bar:SetSize(usedWidth, runeHeight)
+            -- Update tracked bars layout to respect Rune Bar presence
+            sfui.trackedbars.ForceLayoutUpdate()
+        end
 
         -- Sorting Logic — reuse pre-allocated table to avoid GC pressure
         local runeInfo = bar._runeInfo
@@ -1034,8 +1080,9 @@ do
 
         table.sort(runeInfo, runeInfoComparator)
 
-
         local specColor = common.get_class_or_spec_color()
+        local now = GetTime()
+        local anyRecharging = false
 
         -- Position frames according to sorted order
         for pos = 1, 6 do
@@ -1069,13 +1116,25 @@ do
                 rune:SetMinMaxValues(0, 1)
                 rune:SetValue(1)
             else
+                anyRecharging = true
                 -- Charging: #444444 (Lighter Grey)
                 rune:SetStatusBarColor(0.266, 0.266, 0.266)
                 local dur = (info.duration and info.duration > 0) and info.duration or 1
                 rune:SetMinMaxValues(0, dur)
-                local current = (info.start and info.start > 0) and (GetTime() - info.start) or 0
+                local current = (info.start and info.start > 0) and (now - info.start) or 0
                 rune:SetValue(math.max(0, math.min(current, dur)))
             end
+        end
+
+        if anyRecharging then
+            if not bar._onUpdateActive then
+                bar._onUpdateActive = true
+                bar._elapsed = 0
+                bar:SetScript("OnUpdate", rune_bar_on_update)
+            end
+        elseif bar._onUpdateActive then
+            bar._onUpdateActive = false
+            bar:SetScript("OnUpdate", nil)
         end
     end
 
@@ -1501,9 +1560,7 @@ do
         elseif event == "SPELL_UPDATE_CHARGES" then
             update_vigor_bar()
         elseif event == "RUNE_POWER_UPDATE" then
-            if not should_throttle("runes") then
-                update_rune_bar()
-            end
+            update_rune_bar()
         end
     end
 
