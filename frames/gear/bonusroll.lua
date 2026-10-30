@@ -532,7 +532,7 @@ end
 function sfui.bonusroll.ApplyResults(candidates, remainingNames)
     for _, itemID in ipairs(candidates) do
         if Item and Item.CreateFromItemID then
-            local itemObj = Item.CreateFromItemID(itemID)
+            local itemObj = Item:CreateFromItemID(itemID)
             itemObj:ContinueOnItemLoad(function()
                 local name = itemObj:GetItemName()
                 local obtained = (name ~= nil and not remainingNames[name])
