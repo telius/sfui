@@ -35,6 +35,8 @@ local CreateFrame = _G.CreateFrame
 local C_Container = _G.C_Container
 local C_Timer = _G.C_Timer
 local GetMoney = _G.GetMoney
+local GetInventoryItemDurability = _G.GetInventoryItemDurability
+local issecretvalue = _G.issecretvalue
 local UnitGUID = _G.UnitGUID
 local UnitClass = _G.UnitClass
 local UnitExists = _G.UnitExists
@@ -48,15 +50,16 @@ local IsShiftKeyDown = _G.IsShiftKeyDown
 local wipe = _G.wipe
 
 local ROW_H = 18
-local HUD_W = 196
+local HUD_W = 218
 
 local isActive           = false
 local hudFrame           = nil
 local hudRows            = {}
-local liveStats          = {} -- [cleanKey] = { free, slots, money }
+local liveStats          = {} -- [cleanKey] = { free, slots, money, dur }
 local lastSentFree       = nil
 local lastSentSlots      = nil
 local lastSentMoney      = nil
+local lastSentDur        = nil
 local statsBroadcastPend = false
 local pendingRefresh     = false
 
@@ -84,6 +87,22 @@ local function format_gold(copper)
     return string_format("|cffc7c7cf%ds|r", s)
 end
 
+local function compute_local_durability()
+    local lowest = 100
+    if GetInventoryItemDurability then
+        for slot = 1, 18 do
+            local cur, maxD = GetInventoryItemDurability(slot)
+            if cur and maxD and not (issecretvalue and (issecretvalue(cur) or issecretvalue(maxD))) and maxD > 0 then
+                local pct = (cur / maxD) * 100
+                if pct < lowest then
+                    lowest = pct
+                end
+            end
+        end
+    end
+    return math_floor(lowest)
+end
+
 local function compute_local_bag_stats()
     local free, total = 0, 0
     local maxBag = (_G.NUM_BAG_SLOTS and _G.NUM_BAG_SLOTS) or 4
@@ -103,39 +122,44 @@ local function compute_local_bag_stats()
         end
     end
     local money = (GetMoney and GetMoney()) or 0
+    local dur   = compute_local_durability()
     local myKey = multibox.CleanKey(multibox.FullName("player") or "")
     if myKey ~= "" then
         liveStats[myKey] = {
             free  = free,
             slots = total,
             money = money,
+            dur   = dur,
         }
     end
     local myGUID = UnitGUID and UnitGUID("player")
     if myGUID and SfuiDB and type(SfuiDB.alts) == "table" and type(SfuiDB.alts[myGUID]) == "table" then
-        SfuiDB.alts[myGUID].money     = money
-        SfuiDB.alts[myGUID].bagsFree  = free
-        SfuiDB.alts[myGUID].bagsTotal = total
+        SfuiDB.alts[myGUID].money      = money
+        SfuiDB.alts[myGUID].bagsFree   = free
+        SfuiDB.alts[myGUID].bagsTotal  = total
+        SfuiDB.alts[myGUID].durability = dur
     end
-    return free, total, money
+    return free, total, money, dur
 end
 
 local function broadcast_local_stats(force)
     if not isActive or not multibox.IsActiveSyncParty() then return end
-    local free, slots, money = compute_local_bag_stats()
-    if not force and free == lastSentFree and slots == lastSentSlots and money == lastSentMoney then
+    local free, slots, money, dur = compute_local_bag_stats()
+    if not force and free == lastSentFree and slots == lastSentSlots and money == lastSentMoney and dur == lastSentDur then
         return
     end
     lastSentFree  = free
     lastSentSlots = slots
     lastSentMoney = money
+    lastSentDur   = dur
     local s = sync.GetSettings and sync.GetSettings()
     sync.Broadcast("DELTA_HUD_STATS", {
         pass = (s and s.passcode ~= "" and s.passcode) or nil,
         f    = free,
         s    = slots,
         m    = money,
-    }, false, false)
+        d    = dur,
+    }, true, false)
 end
 
 local function schedule_stats_broadcast()
@@ -175,6 +199,7 @@ local function get_stats_for_char(name)
         fallbackStatsScratch.free  = tonumber(alt.bagsFree)
         fallbackStatsScratch.slots = tonumber(alt.bagsTotal)
         fallbackStatsScratch.money = tonumber(alt.money) or 0
+        fallbackStatsScratch.dur   = tonumber(alt.durability)
         return fallbackStatsScratch
     end
     return nil
@@ -209,6 +234,16 @@ local function format_bag_free_badge(st)
     local free = tonumber(st.free) or 0
     local color = (free == 0 and "ff3333") or (free < 5 and "ff9933") or "9999a5"
     return string_format("|cff%s%d|r", color, free)
+end
+
+local function format_durability_badge(st)
+    if not st or st.dur == nil then return "" end
+    local dur = tonumber(st.dur) or 100
+    local color = (dur <= 10 and "ff3333")
+        or (dur < 30 and "ff8833")
+        or (dur < 60 and "ffcc33")
+        or "8899aa"
+    return string_format("|cff%s%d%%|r", color, dur)
 end
 
 local function push_member(idx, name, key, unit, isMe, inGrp, guid, class)
@@ -288,7 +323,7 @@ local function show_footer_tooltip(owner)
     if not tip then return end
     tip:SetOwner(owner, "ANCHOR_BOTTOM")
     tip:ClearLines()
-    tip:AddLine("sync party gold & bag space", 0.4, 0.85, 1.0)
+    tip:AddLine("sync party gold, durability & bag space", 0.4, 0.85, 1.0)
 
     local members = collect_team_members()
     local partyGold = 0
@@ -296,6 +331,9 @@ local function show_footer_tooltip(owner)
         local st = get_stats_for_char(m.name)
         local money = (st and tonumber(st.money)) or 0
         partyGold = partyGold + money
+        local durStr = (st and st.dur ~= nil)
+            and (" " .. format_durability_badge(st))
+            or ""
         local bagStr = (st and st.free ~= nil and st.slots and st.slots > 0)
             and string_format(" |cff888899(%d/%d free)|r", st.free, st.slots)
             or ""
@@ -303,7 +341,7 @@ local function show_footer_tooltip(owner)
         if m.class and common and common.class_color_name then
             nameStr = common.class_color_name(nameStr, m.class)
         end
-        tip:AddDoubleLine(nameStr .. bagStr, format_gold(money), 1, 1, 1, 1, 1, 1)
+        tip:AddDoubleLine(nameStr .. durStr .. bagStr, format_gold(money), 1, 1, 1, 1, 1, 1)
     end
 
     tip:AddLine(" ")
@@ -347,11 +385,17 @@ local function acquire_hud_row(index)
 
     row.bagsFs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.bagsFs:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+    row.bagsFs:SetWidth(20)
     row.bagsFs:SetJustifyH("RIGHT")
+
+    row.durFs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.durFs:SetPoint("RIGHT", row.bagsFs, "LEFT", -6, 0)
+    row.durFs:SetWidth(34)
+    row.durFs:SetJustifyH("RIGHT")
 
     row.nameFs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.nameFs:SetPoint("LEFT", row.markFs, "RIGHT", 2, 0)
-    row.nameFs:SetPoint("RIGHT", row.bagsFs, "LEFT", -4, 0)
+    row.nameFs:SetPoint("RIGHT", row.durFs, "LEFT", -4, 0)
     row.nameFs:SetJustifyH("LEFT")
     row.nameFs:SetWordWrap(false)
 
@@ -391,10 +435,13 @@ local function acquire_hud_row(index)
 
         local st = get_stats_for_char(self.memberName)
         if st then
+            local durPart = (st.dur ~= nil)
+                and ("   •   durability: " .. format_durability_badge(st))
+                or ""
             local bagPart = (st.free ~= nil and st.slots and st.slots > 0)
                 and string_format("   •   %d/%d bag slots free", st.free, st.slots)
                 or ""
-            tip:AddLine(format_gold(st.money or 0) .. bagPart, 0.85, 0.85, 0.9)
+            tip:AddLine(format_gold(st.money or 0) .. durPart .. bagPart, 0.85, 0.85, 0.9)
         end
 
         if sync.IsAway(self.memberName) then
@@ -543,6 +590,7 @@ function hud.RefreshStatsOnly()
     for _, row in ipairs(hudRows) do
         if row:IsShown() and row.memberName then
             local st = get_stats_for_char(row.memberName)
+            row.durFs:SetText(format_durability_badge(st))
             row.bagsFs:SetText(format_bag_free_badge(st))
             if st and tonumber(st.money) then
                 totalGold = totalGold + tonumber(st.money)
@@ -613,6 +661,7 @@ function hud.Refresh()
         row.nameFs:SetText(dispName)
 
         local st = get_stats_for_char(m.name)
+        row.durFs:SetText(format_durability_badge(st))
         row.bagsFs:SetText(format_bag_free_badge(st))
         if st and tonumber(st.money) then
             totalGold = totalGold + tonumber(st.money)
@@ -650,11 +699,25 @@ function hud.HandleSyncMessage(sender, msgType, data)
     if msgType ~= "DELTA_HUD_STATS" or type(data) ~= "table" then return end
     local key = multibox.CleanKey(sender or "")
     if key == "" then return end
+    local free  = tonumber(data.f)
+    local slots = tonumber(data.s)
+    local money = tonumber(data.m) or 0
+    local dur   = tonumber(data.d)
     liveStats[key] = {
-        free  = tonumber(data.f),
-        slots = tonumber(data.s),
-        money = tonumber(data.m) or 0,
+        free  = free,
+        slots = slots,
+        money = money,
+        dur   = dur,
     }
+    if multibox.GetAltByCleanKey then
+        local alt = multibox.GetAltByCleanKey(key)
+        if type(alt) == "table" then
+            if free ~= nil then alt.bagsFree = free end
+            if slots ~= nil then alt.bagsTotal = slots end
+            if data.m ~= nil then alt.money = money end
+            if dur ~= nil then alt.durability = dur end
+        end
+    end
     hud.RefreshStatsOnly()
 end
 
@@ -666,9 +729,10 @@ local function on_player_regen_enabled()
 end
 
 local HUD_EVENTS = {
-    { "BAG_UPDATE_DELAYED",   schedule_stats_broadcast },
-    { "PLAYER_MONEY",         schedule_stats_broadcast },
-    { "PLAYER_REGEN_ENABLED", on_player_regen_enabled },
+    { "BAG_UPDATE_DELAYED",          schedule_stats_broadcast },
+    { "PLAYER_MONEY",                schedule_stats_broadcast },
+    { "UPDATE_INVENTORY_DURABILITY", schedule_stats_broadcast },
+    { "PLAYER_REGEN_ENABLED",        on_player_regen_enabled },
 }
 
 function hud.Enable()
