@@ -510,15 +510,18 @@ local function FetchEncounterLoot(bossID)
                                 quality    = sfui.common.get_item_quality(itemID or info.link) or 4,
                                 link       = info.link,
                                 specs      = {},
+                                ejSpecs    = {},
                                 filterType = info.filterType,
                                 isSetToken = isToken,
                             }
                             lootMap[itemID] = entry
                             lootOrder[#lootOrder + 1] = entry
                         end
+                        entry.ejSpecs[specID] = true
                         if isToken then
                             for _, sID in ipairs(playerSpecIDs) do
                                 entry.specs[sID] = true
+                                entry.ejSpecs[sID] = true
                             end
                         else
                             local allowSpec = true
@@ -565,6 +568,7 @@ local function FetchEncounterLoot(bossID)
                         quality    = sfui.common.get_item_quality(itemID or info.link) or 4,
                         link       = info.link,
                         specs      = {},
+                        ejSpecs    = {},
                         filterType = info.filterType,
                         isSetToken = true,
                     }
@@ -572,6 +576,7 @@ local function FetchEncounterLoot(bossID)
                     lootOrder[#lootOrder + 1] = entry
                     for _, sID in ipairs(playerSpecIDs) do
                         entry.specs[sID] = true
+                        entry.ejSpecs[sID] = true
                     end
                 else
                     -- For non-tokens appearing only under spec 0: ONLY add if native
@@ -587,6 +592,7 @@ local function FetchEncounterLoot(bossID)
                             quality    = sfui.common.get_item_quality(itemID or info.link) or 4,
                             link       = info.link,
                             specs      = {},
+                            ejSpecs    = {},
                             filterType = info.filterType,
                             isSetToken = false,
                         }
@@ -594,6 +600,18 @@ local function FetchEncounterLoot(bossID)
                         lootOrder[#lootOrder + 1] = entry
                         for sID in pairs(specificSpecs) do
                             entry.specs[sID] = true
+                        end
+                        local rawSpecs = sfui.common.get_item_spec_info(info.link) or sfui.common.get_item_spec_info(itemID)
+                        if rawSpecs and #rawSpecs > 0 then
+                            for _, sID in ipairs(rawSpecs) do
+                                if playerSpecs[sID] then
+                                    entry.ejSpecs[sID] = true
+                                end
+                            end
+                        else
+                            for sID in pairs(specificSpecs) do
+                                entry.ejSpecs[sID] = true
+                            end
                         end
                     end
                 end
@@ -1799,7 +1817,7 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
 
             if IsAltKeyDown() and sfui.bonusroll and sfui.bonusroll.IsEligible and sfui.bonusroll.IsEligible(itemID) then
                 local curUsed = sfui.bonusroll.IsUsed(itemID)
-                sfui.bonusroll.SetUsed(itemID, not curUsed)
+                sfui.bonusroll.SetUsed(itemID, not curUsed, nil, nil, true)
                 SetupItemButton(b, curItem, keyID, isBoss, card)
                 if GameTooltip:IsOwned(b) then
                     b:GetScript("OnEnter")(b)
@@ -2513,6 +2531,9 @@ function sfui.lootviewer.CreateFrame()
             slotDropdown:SetSelectedValue("all")
         elseif slotDropdown and slotDropdown.GetFontString and slotDropdown:GetFontString() then
             slotDropdown:GetFontString():SetText("all slots")
+        end
+        if sfui.bonusroll and sfui.bonusroll.EnsureCurrentSpecScanned then
+            sfui.bonusroll.EnsureCurrentSpecScanned()
         end
         DoRebuild()
 

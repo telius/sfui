@@ -163,7 +163,147 @@ local scratchLowSkillList    = {}
 
 local function InvalidateRecipeStatusCache()
     wipe(recipeStatusCache)
+    if sfui.recipes and sfui.recipes.browser and sfui.recipes.browser.ClearLearnedCache then
+        sfui.recipes.browser.ClearLearnedCache()
+    end
 end
+
+--- Check if a recipe ID (itemID or spellID) is marked known for a specific GUID across any realm key
+--- @param id number?
+--- @param guid string?
+--- @return boolean
+local function IsRecipeKnownInDB(id, guid)
+    if not id or not guid or not SfuiDB or type(SfuiDB.recipes) ~= "table" then
+        return false
+    end
+    local realmMap = SfuiDB.recipes[id]
+    if type(realmMap) ~= "table" then
+        return false
+    end
+    for _, guidMap in pairs(realmMap) do
+        if type(guidMap) == "table" and guidMap[guid] then
+            return true
+        end
+    end
+    return false
+end
+
+--- Check if a recipe ID (itemID or spellID) is marked known for any alt (excluding excludeGUID)
+--- @param id number?
+--- @param excludeGUID string?
+--- @return boolean
+local function IsRecipeKnownByAnyAltInDB(id, excludeGUID)
+    if not id or not SfuiDB or type(SfuiDB.recipes) ~= "table" then
+        return false
+    end
+    local realmMap = SfuiDB.recipes[id]
+    if type(realmMap) ~= "table" then
+        return false
+    end
+    for _, guidMap in pairs(realmMap) do
+        if type(guidMap) == "table" then
+            for guid, known in pairs(guidMap) do
+                if known and guid ~= excludeGUID then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+--- Check if the active player knows a recipe spellID via native spellbook API (O(1) hash lookup)
+--- @param spellID number?
+--- @param allowTradeSkillUI boolean?
+--- @return boolean
+local function IsSpellKnownByActivePlayer(spellID, allowTradeSkillUI)
+    if not spellID or type(spellID) ~= "number" then return false end
+    if _G.C_SpellBook and _G.C_SpellBook.IsSpellKnown and _G.C_SpellBook.IsSpellKnown(spellID) then
+        return true
+    end
+    if _G.C_SpellBook and _G.C_SpellBook.IsSpellKnownOrInSpellBook and _G.C_SpellBook.IsSpellKnownOrInSpellBook(spellID) then
+        return true
+    end
+    if _G.IsPlayerSpell and _G.IsPlayerSpell(spellID) then
+        return true
+    end
+    if _G.IsSpellKnown and _G.IsSpellKnown(spellID) then
+        return true
+    end
+    if allowTradeSkillUI and _G.C_TradeSkillUI and _G.C_TradeSkillUI.GetRecipeInfo then
+        local info = _G.C_TradeSkillUI.GetRecipeInfo(spellID)
+        if type(info) == "table" and info.learned == true then
+            return true
+        end
+    end
+    return false
+end
+
+--- Cross-populate SfuiDB.recipes (both spellID and recipeItemID) and SfuiDB.crafts (outputItemID) for a character
+--- @param spellOrItemID number?
+--- @param guid string?
+--- @param realm string?
+--- @return boolean changed
+local function RecordKnownRecipeForChar(spellOrItemID, guid, realm)
+    EnsurePlayerContext()
+    guid = guid or myGUID
+    realm = realm or myRealm
+    if not spellOrItemID or type(spellOrItemID) ~= "number" or not guid or not realm or realm == "" then
+        return false
+    end
+
+    SfuiDB = SfuiDB or {}
+    SfuiDB.recipes = SfuiDB.recipes or {}
+    SfuiDB.crafts = SfuiDB.crafts or {}
+
+    local changed = false
+    local function markRecipeID(id)
+        if not id or type(id) ~= "number" then return end
+        if type(SfuiDB.recipes[id]) ~= "table" then
+            SfuiDB.recipes[id] = {}
+        end
+        if type(SfuiDB.recipes[id][realm]) ~= "table" then
+            SfuiDB.recipes[id][realm] = {}
+        end
+        if not SfuiDB.recipes[id][realm][guid] then
+            SfuiDB.recipes[id][realm][guid] = true
+            changed = true
+        end
+    end
+
+    markRecipeID(spellOrItemID)
+
+    local db = sfui.recipes_camelot
+    if db then
+        local r = db.recipes and db.recipes[spellOrItemID]
+        if not r and db.items and db.items[spellOrItemID] then
+            local sID = db.items[spellOrItemID]
+            r = sID and db.recipes and db.recipes[sID]
+        end
+        if r then
+            if r.id then
+                markRecipeID(r.id)
+            end
+            if r.recipeItemID then
+                markRecipeID(r.recipeItemID)
+            end
+            if r.output then
+                if type(SfuiDB.crafts[r.output]) ~= "table" then
+                    SfuiDB.crafts[r.output] = {}
+                end
+                if not SfuiDB.crafts[r.output][guid] then
+                    SfuiDB.crafts[r.output][guid] = true
+                    changed = true
+                end
+            end
+        end
+    end
+
+    return changed
+end
+sfui.recipes.IsRecipeKnownInDB = IsRecipeKnownInDB
+sfui.recipes.IsSpellKnownByActivePlayer = IsSpellKnownByActivePlayer
+sfui.recipes.RecordKnownRecipeForChar = RecordKnownRecipeForChar
 
 --- Synchronous, permanent check if itemID is a recipe (O(1) memoized)
 --- @param itemID number
@@ -221,12 +361,33 @@ local function GetOrCreateScanTooltip()
     return scanTooltip
 end
 
---- Scan tooltip lines for an item link or item ID to check if active player knows it
+--- Scan tooltip lines and spellbook for an item link or item ID to check if active player knows it
 --- @param itemID number
 --- @return boolean? isKnown, boolean isReady
 local function CheckActivePlayerKnownStatus(itemID)
     EnsurePlayerContext()
     if not itemID or type(itemID) ~= "number" or not IsRecipe(itemID) then return nil, true end
+
+    -- Fast O(1) check via Camelot recipe DB (spellbook / saved DB / crafts)
+    if sfui.recipes_camelot and sfui.recipes_camelot.items then
+        local spellID = sfui.recipes_camelot.items[itemID]
+        if spellID then
+            if IsSpellKnownByActivePlayer(spellID) then
+                return true, true
+            end
+            if myGUID and (IsRecipeKnownInDB(spellID, myGUID) or IsRecipeKnownInDB(itemID, myGUID)) then
+                return true, true
+            end
+            local r = sfui.recipes_camelot.recipes and sfui.recipes_camelot.recipes[spellID]
+            if r and r.output and myGUID and SfuiDB and SfuiDB.crafts and SfuiDB.crafts[r.output] and SfuiDB.crafts[r.output][myGUID] then
+                return true, true
+            end
+        end
+    end
+
+    if myGUID and IsRecipeKnownInDB(itemID, myGUID) then
+        return true, true
+    end
 
     local _, itemLink = C_Item_GetItemInfo and C_Item_GetItemInfo(itemID)
     if not itemLink then
@@ -270,6 +431,8 @@ local function CheckActivePlayerKnownStatus(itemID)
 end
 
 --- Update active player's recipe state in SfuiDB.recipes
+--- Note: Never delete an already-known recipe when a tooltip omits "Already known"
+--- (Classic clients do not populate "Already known" on recipe scrolls until TradeSkillFrame is opened).
 --- @param itemID number
 --- @return boolean isSuccess
 local function UpdateItem(itemID)
@@ -282,19 +445,14 @@ local function UpdateItem(itemID)
         return false
     end
 
-    SfuiDB = SfuiDB or {}
-    SfuiDB.recipes = SfuiDB.recipes or {}
-    if type(SfuiDB.recipes[itemID]) ~= "table" then
-        SfuiDB.recipes[itemID] = {}
-    end
-    if type(SfuiDB.recipes[itemID][myRealm]) ~= "table" then
-        SfuiDB.recipes[itemID][myRealm] = {}
-    end
-
     if isKnown then
-        SfuiDB.recipes[itemID][myRealm][myGUID] = true
-    else
-        SfuiDB.recipes[itemID][myRealm][myGUID] = nil
+        local changed = RecordKnownRecipeForChar(itemID, myGUID, myRealm)
+        if changed then
+            InvalidateRecipeStatusCache()
+            if sfui.events and sfui.events.SendMessage then
+                sfui.events.SendMessage("SFUI_RECIPE_KNOWN_UPDATED", itemID, myRealm, myGUID, true)
+            end
+        end
     end
 
     return true
@@ -520,46 +678,53 @@ local function GetRecipeStatus(itemID)
 
     SfuiDB = SfuiDB or {}
     SfuiDB.recipes = SfuiDB.recipes or {}
-    local recipeRecord = (type(SfuiDB.recipes[itemID]) == "table") and SfuiDB.recipes[itemID] or nil
+
+    local r, spellID, outputItemID, skillID, minSkill
+    if sfui.recipes_camelot then
+        spellID = sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID]
+        if spellID and sfui.recipes_camelot.recipes then
+            r = sfui.recipes_camelot.recipes[spellID]
+            if r then
+                outputItemID = r.output
+                skillID = r.skillID
+                minSkill = r.minSkill or (r.colors and r.colors[1])
+            end
+        end
+    end
 
     -- 1. Check if current character knows it
     local isKnownCurrent = false
-    if recipeRecord and myRealm and type(recipeRecord[myRealm]) == "table" and recipeRecord[myRealm][myGUID] then
+    if myGUID and (IsRecipeKnownInDB(itemID, myGUID) or (spellID and IsRecipeKnownInDB(spellID, myGUID))) then
+        isKnownCurrent = true
+    elseif outputItemID and myGUID and SfuiDB.crafts and SfuiDB.crafts[outputItemID] and SfuiDB.crafts[outputItemID][myGUID] then
+        isKnownCurrent = true
+    elseif spellID and IsSpellKnownByActivePlayer(spellID) then
         isKnownCurrent = true
     else
         local isKnown, isReady = CheckActivePlayerKnownStatus(itemID)
         if isReady and isKnown then
             isKnownCurrent = true
-            if myRealm and myGUID then
-                if type(SfuiDB.recipes[itemID]) ~= "table" then
-                    SfuiDB.recipes[itemID] = {}
-                end
-                if type(SfuiDB.recipes[itemID][myRealm]) ~= "table" then
-                    SfuiDB.recipes[itemID][myRealm] = {}
-                end
-                SfuiDB.recipes[itemID][myRealm][myGUID] = true
-            end
         end
     end
 
     if isKnownCurrent then
+        if myRealm and myGUID then
+            RecordKnownRecipeForChar(itemID, myGUID, myRealm)
+        end
         recipeStatusCache[itemID] = "KNOWN_CURRENT"
         return "KNOWN_CURRENT", STATUS_COLORS.KNOWN_CURRENT
     end
 
     -- 2. Check if any alt knows it
-    local isKnownAlt = false
-    if recipeRecord then
-        for realm, realmList in pairs(recipeRecord) do
-            if type(realmList) == "table" then
-                for guid, known in pairs(realmList) do
-                    if known and guid ~= myGUID then
-                        isKnownAlt = true
-                        break
-                    end
-                end
+    local isKnownAlt = IsRecipeKnownByAnyAltInDB(itemID, myGUID)
+                    or (spellID and IsRecipeKnownByAnyAltInDB(spellID, myGUID))
+                    or false
+    if not isKnownAlt and outputItemID and SfuiDB.crafts and type(SfuiDB.crafts[outputItemID]) == "table" then
+        for guid, known in pairs(SfuiDB.crafts[outputItemID]) do
+            if known and guid ~= myGUID then
+                isKnownAlt = true
+                break
             end
-            if isKnownAlt then break end
         end
     end
 
@@ -571,15 +736,21 @@ local function GetRecipeStatus(itemID)
     -- 3. Check if current player or any alt can learn it
     local _, itemLink = C_Item_GetItemInfo and C_Item_GetItemInfo(itemID)
     local reqProf, reqRank = ExtractRecipeRequirement(itemID, itemLink, subclassID)
+    if not reqProf and skillID and SKILL_ID_TO_NAME[skillID] then
+        reqProf = SKILL_ID_TO_NAME[skillID]
+    end
+    if not reqRank and minSkill then
+        reqRank = minSkill
+    end
 
-    if not itemLink and not reqProf then
+    if not itemLink and not reqProf and not skillID then
         -- Item data not yet cached by client; return nil to avoid premature unlearnable tint
         return nil, nil
     end
 
     -- Current player eligibility
     if SfuiDB.alts and myGUID and SfuiDB.alts[myGUID] then
-        local hasProf, meetsRank = CheckAltEligibility(SfuiDB.alts[myGUID], reqProf, reqRank, subclassID)
+        local hasProf, meetsRank = CheckAltEligibility(SfuiDB.alts[myGUID], reqProf, reqRank, subclassID, skillID)
         if hasProf and meetsRank then
             recipeStatusCache[itemID] = "CAN_LEARN_CURRENT"
             return "CAN_LEARN_CURRENT", STATUS_COLORS.CAN_LEARN_CURRENT
@@ -591,7 +762,7 @@ local function GetRecipeStatus(itemID)
     if SfuiDB.alts then
         for guid, altData in pairs(SfuiDB.alts) do
             if guid ~= myGUID then
-                local hasProf, meetsRank = CheckAltEligibility(altData, reqProf, reqRank, subclassID)
+                local hasProf, meetsRank = CheckAltEligibility(altData, reqProf, reqRank, subclassID, skillID)
                 if hasProf and meetsRank then
                     altCanLearn = true
                     break
@@ -609,9 +780,108 @@ local function GetRecipeStatus(itemID)
     return "UNLEARNABLE", STATUS_COLORS.UNLEARNABLE
 end
 
--- ── Reverse Crafting Scanner ("Who Can Craft This?") ──────────────────────────
+-- ── Reverse Crafting & Catalog Cross-Indexing Scanner ─────────────────────────
 local isTradeSkillScanPending = false
 local lastTradeSkillScanTime = 0
+
+--- Reconcile SfuiDB.recipes[spellID], SfuiDB.recipes[recipeItemID], SfuiDB.crafts[outputItemID],
+--- and active player spellbook across sfui.recipes_camelot (runs once at login)
+local hasReconciledCatalog = false
+local function ScanKnownRecipesFromCatalog(force)
+    if hasReconciledCatalog and not force then return false end
+    EnsurePlayerContext()
+    if not myGUID or not myRealm then return false end
+    local db = sfui.recipes_camelot
+    if not db or type(db.recipes) ~= "table" then return false end
+    hasReconciledCatalog = true
+
+    SfuiDB = SfuiDB or {}
+    SfuiDB.recipes = SfuiDB.recipes or {}
+    SfuiDB.crafts = SfuiDB.crafts or {}
+
+    local changedForMe = false
+    local anyChanged = false
+
+    -- 1. Cross-link existing entries in SfuiDB.recipes (only iterates already-known IDs)
+    local existingIDs = {}
+    for recID in pairs(SfuiDB.recipes) do
+        if type(recID) == "number" then
+            existingIDs[#existingIDs + 1] = recID
+        end
+    end
+    for _, recID in ipairs(existingIDs) do
+        local realmMap = SfuiDB.recipes[recID]
+        if type(realmMap) == "table" then
+            for rName, guidMap in pairs(realmMap) do
+                if type(guidMap) == "table" then
+                    for guid, known in pairs(guidMap) do
+                        if known then
+                            local targetRealm = (SfuiDB.alts and SfuiDB.alts[guid] and SfuiDB.alts[guid].realm) or rName or myRealm
+                            if RecordKnownRecipeForChar(recID, guid, targetRealm) then
+                                anyChanged = true
+                                if guid == myGUID then changedForMe = true end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- 2. Cross-link existing entries in SfuiDB.crafts -> SfuiDB.recipes
+    if db.outputs then
+        for outID, crafters in pairs(SfuiDB.crafts) do
+            local sID = db.outputs[outID]
+            if sID and type(crafters) == "table" then
+                for guid, canCraft in pairs(crafters) do
+                    if canCraft then
+                        local targetRealm = (SfuiDB.alts and SfuiDB.alts[guid] and SfuiDB.alts[guid].realm) or myRealm
+                        if RecordKnownRecipeForChar(sID, guid, targetRealm) then
+                            anyChanged = true
+                            if guid == myGUID then changedForMe = true end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- 3. Check active player's spellbook only for professions the player actually has
+    if db.by_skill and SfuiDB.alts and SfuiDB.alts[myGUID] and SfuiDB.alts[myGUID].professions then
+        local profs = SfuiDB.alts[myGUID].professions
+        local mySkills = {}
+        if profs.primaries then
+            for _, p in ipairs(profs.primaries) do
+                if p.skillID then mySkills[p.skillID] = true end
+            end
+        end
+        if profs.cooking then mySkills[185] = true end
+        if profs.firstAid then mySkills[129] = true end
+
+        for sID in pairs(mySkills) do
+            local spellList = db.by_skill[sID]
+            if spellList then
+                for _, spellID in ipairs(spellList) do
+                    if IsSpellKnownByActivePlayer(spellID, false) then
+                        if RecordKnownRecipeForChar(spellID, myGUID, myRealm) then
+                            changedForMe = true
+                            anyChanged = true
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if anyChanged then
+        InvalidateRecipeStatusCache()
+    end
+    if changedForMe and sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_RECIPE_BATCH_UPDATED", myRealm, myGUID)
+    end
+    return anyChanged
+end
+sfui.recipes.ScanKnownRecipesFromCatalog = ScanKnownRecipesFromCatalog
 
 local function ScanCurrentTradeSkills(force)
     EnsurePlayerContext()
@@ -627,19 +897,11 @@ local function ScanCurrentTradeSkills(force)
     SfuiDB.crafts = SfuiDB.crafts or {}
     SfuiDB.recipes = SfuiDB.recipes or {}
 
+    local changed = false
     local function RecordKnownRecipe(spellID)
         if not spellID or not myRealm or not myGUID then return end
-        SfuiDB.recipes[spellID] = SfuiDB.recipes[spellID] or {}
-        SfuiDB.recipes[spellID][myRealm] = SfuiDB.recipes[spellID][myRealm] or {}
-        SfuiDB.recipes[spellID][myRealm][myGUID] = true
-
-        if sfui.recipes_camelot and sfui.recipes_camelot.recipes then
-            local r = sfui.recipes_camelot.recipes[spellID]
-            if r and r.recipeItemID then
-                SfuiDB.recipes[r.recipeItemID] = SfuiDB.recipes[r.recipeItemID] or {}
-                SfuiDB.recipes[r.recipeItemID][myRealm] = SfuiDB.recipes[r.recipeItemID][myRealm] or {}
-                SfuiDB.recipes[r.recipeItemID][myRealm][myGUID] = true
-            end
+        if RecordKnownRecipeForChar(spellID, myGUID, myRealm) then
+            changed = true
         end
     end
 
@@ -674,7 +936,10 @@ local function ScanCurrentTradeSkills(force)
                     end
                     if outItemID then
                         SfuiDB.crafts[outItemID] = SfuiDB.crafts[outItemID] or {}
-                        SfuiDB.crafts[outItemID][myGUID] = true
+                        if not SfuiDB.crafts[outItemID][myGUID] then
+                            SfuiDB.crafts[outItemID][myGUID] = true
+                            changed = true
+                        end
                     end
 
                     -- Multiple quality tiers (TWW / Midnight tiers 1, 2, 3)
@@ -684,28 +949,29 @@ local function ScanCurrentTradeSkills(force)
                             for _, qItemID in ipairs(qIDs) do
                                 if qItemID and qItemID > 0 then
                                     SfuiDB.crafts[qItemID] = SfuiDB.crafts[qItemID] or {}
-                                    SfuiDB.crafts[qItemID][myGUID] = true
+                                    if not SfuiDB.crafts[qItemID][myGUID] then
+                                        SfuiDB.crafts[qItemID][myGUID] = true
+                                        changed = true
+                                    end
                                 end
                             end
                         end
                     end
                 end
             end
-            InvalidateRecipeStatusCache()
-            return
         end
     end
 
     -- 2. Legacy TradeSkill (Classic Era)
     if _G.GetNumTradeSkills and _G.GetTradeSkillItemLink then
-        local num = _G.GetNumTradeSkills()
+        local num = _G.GetNumTradeSkills() or 0
         for i = 1, num do
-            local _, skillType = _G.GetTradeSkillInfo(i)
+            local skillName, skillType = _G.GetTradeSkillInfo(i)
             if skillType ~= "header" and skillType ~= "subheader" then
                 if _G.GetTradeSkillRecipeLink then
                     local rLink = _G.GetTradeSkillRecipeLink(i)
                     if rLink then
-                        local sID = tonumber(rLink:match("spell:(%d+)"))
+                        local sID = tonumber(rLink:match("spell:(%d+)") or rLink:match("enchant:(%d+)"))
                         if sID then
                             RecordKnownRecipe(sID)
                         end
@@ -717,7 +983,18 @@ local function ScanCurrentTradeSkills(force)
                     local itemID = tonumber(link:match("item:(%d+)"))
                     if itemID then
                         SfuiDB.crafts[itemID] = SfuiDB.crafts[itemID] or {}
-                        SfuiDB.crafts[itemID][myGUID] = true
+                        if not SfuiDB.crafts[itemID][myGUID] then
+                            SfuiDB.crafts[itemID][myGUID] = true
+                            changed = true
+                        end
+                        if sfui.recipes_camelot and sfui.recipes_camelot.outputs and sfui.recipes_camelot.outputs[itemID] then
+                            RecordKnownRecipe(sfui.recipes_camelot.outputs[itemID])
+                        end
+                    else
+                        local enchID = tonumber(link:match("enchant:(%d+)") or link:match("spell:(%d+)"))
+                        if enchID then
+                            RecordKnownRecipe(enchID)
+                        end
                     end
                 end
             end
@@ -726,14 +1003,14 @@ local function ScanCurrentTradeSkills(force)
 
     -- 3. Legacy Craft (Classic Era Enchanting)
     if _G.GetNumCrafts and _G.GetCraftItemLink then
-        local num = _G.GetNumCrafts()
+        local num = _G.GetNumCrafts() or 0
         for i = 1, num do
             local _, _, craftType = _G.GetCraftInfo(i)
             if craftType ~= "header" then
                 if _G.GetCraftRecipeLink then
                     local cLink = _G.GetCraftRecipeLink(i)
                     if cLink then
-                        local sID = tonumber(cLink:match("spell:(%d+)"))
+                        local sID = tonumber(cLink:match("spell:(%d+)") or cLink:match("enchant:(%d+)"))
                         if sID then
                             RecordKnownRecipe(sID)
                         end
@@ -742,17 +1019,31 @@ local function ScanCurrentTradeSkills(force)
 
                 local link = _G.GetCraftItemLink(i)
                 if link then
+                    local sID = tonumber(link:match("enchant:(%d+)") or link:match("spell:(%d+)"))
+                    if sID then
+                        RecordKnownRecipe(sID)
+                    end
                     local itemID = tonumber(link:match("item:(%d+)"))
                     if itemID then
                         SfuiDB.crafts[itemID] = SfuiDB.crafts[itemID] or {}
-                        SfuiDB.crafts[itemID][myGUID] = true
+                        if not SfuiDB.crafts[itemID][myGUID] then
+                            SfuiDB.crafts[itemID][myGUID] = true
+                            changed = true
+                        end
+                        if sfui.recipes_camelot and sfui.recipes_camelot.outputs and sfui.recipes_camelot.outputs[itemID] then
+                            RecordKnownRecipe(sfui.recipes_camelot.outputs[itemID])
+                        end
                     end
                 end
             end
         end
     end
 
+    ScanKnownRecipesFromCatalog()
     InvalidateRecipeStatusCache()
+    if changed and sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_RECIPE_BATCH_UPDATED", myRealm, myGUID)
+    end
 end
 
 local function RequestTradeSkillScan(force)
@@ -945,7 +1236,7 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
         end
     end
 
-    -- 2. Recipe Knowledge ("Known alts" & "Can learn")
+    -- 2. Recipe Knowledge ("known by", "can learn", "needs skill")
     local isRecipeItem = isExplicitRecipe or isRecipeScroll
     if not isRecipeItem then
         return
@@ -954,10 +1245,29 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
     wipe(scratchKnownList)
     wipe(scratchKnownGUIDs)
 
+    -- 0. Check if active player knows it directly
+    if myGUID then
+        if (spellID and IsSpellKnownByActivePlayer(spellID))
+        or (recipeItemID and IsRecipeKnownInDB(recipeItemID, myGUID))
+        or (itemID and IsRecipeKnownInDB(itemID, myGUID))
+        or (spellID and IsRecipeKnownInDB(spellID, myGUID))
+        or (craftTarget and SfuiDB.crafts and SfuiDB.crafts[craftTarget] and SfuiDB.crafts[craftTarget][myGUID]) then
+            scratchKnownGUIDs[myGUID] = true
+        elseif isRecipeScroll and itemID then
+            local kNow, kReady = CheckActivePlayerKnownStatus(itemID)
+            if kReady and kNow then
+                scratchKnownGUIDs[myGUID] = true
+                if myRealm then
+                    RecordKnownRecipeForChar(itemID, myGUID, myRealm)
+                end
+            end
+        end
+    end
+
     -- A. From SfuiDB.crafts (crafters of output item)
     if craftTarget and SfuiDB.crafts and SfuiDB.crafts[craftTarget] then
         for guid, canCraft in pairs(SfuiDB.crafts[craftTarget]) do
-            if canCraft and guid ~= myGUID then
+            if canCraft then
                 scratchKnownGUIDs[guid] = true
             end
         end
@@ -968,10 +1278,10 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
     if SfuiDB.recipes then
         for _, id in ipairs(checkIDs) do
             if id and SfuiDB.recipes[id] then
-                for realm, realmList in pairs(SfuiDB.recipes[id]) do
+                for _, realmList in pairs(SfuiDB.recipes[id]) do
                     if type(realmList) == "table" then
                         for guid, isKnown in pairs(realmList) do
-                            if isKnown and guid ~= myGUID then
+                            if isKnown then
                                 scratchKnownGUIDs[guid] = true
                             end
                         end
@@ -981,10 +1291,10 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
         end
     end
 
-    -- C. Base recipes (minSkill <= 0): any alt with this profession knows it automatically
+    -- C. Base recipes (minSkill <= 0): any character with this profession knows it automatically
     if minSkill and minSkill <= 0 and (skillID or profName) and SfuiDB.alts then
         for guid, altData in pairs(SfuiDB.alts) do
-            if guid ~= myGUID and not scratchKnownGUIDs[guid] then
+            if not scratchKnownGUIDs[guid] then
                 local hasProf = CheckAltEligibility(altData, profName, 0, subclassID, skillID)
                 if hasProf then
                     scratchKnownGUIDs[guid] = true
@@ -993,19 +1303,39 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
         end
     end
 
-    -- Format Known Alts
+    -- Format Known Characters (active player first, then alts)
+    if myGUID and scratchKnownGUIDs[myGUID] and myName then
+        table.insert(scratchKnownList, GetColoredCharacterName(myName, myClass, myRealm))
+    end
     for guid in pairs(scratchKnownGUIDs) do
-        local alt = SfuiDB.alts and SfuiDB.alts[guid]
-        if alt and alt.name then
-            table.insert(scratchKnownList, GetColoredCharacterName(alt.name, alt.class, alt.realm))
+        if guid ~= myGUID then
+            local alt = SfuiDB.alts and SfuiDB.alts[guid]
+            if alt and alt.name then
+                table.insert(scratchKnownList, GetColoredCharacterName(alt.name, alt.class, alt.realm))
+            end
         end
     end
 
-    -- 3. Gather Eligible "Can Learn" & "Needs Skill" Alts
+    -- 3. Gather Eligible "Can Learn" & "Needs Skill" Characters (active player first, then alts)
     wipe(scratchCanLearnList)
     wipe(scratchLowSkillList)
 
     if (showCanLearn or showNeedsSkill) and SfuiDB.alts and (profName or skillID or (subclassID and subclassID > 0)) then
+        if myGUID and not scratchKnownGUIDs[myGUID] and SfuiDB.alts[myGUID] then
+            local myData = SfuiDB.alts[myGUID]
+            local hasProf, meetsRank, currentRank = CheckAltEligibility(myData, profName, minSkill, subclassID, skillID)
+            if hasProf then
+                local formatted = GetColoredCharacterName(myData.name or myName, myData.class or myClass, myData.realm or myRealm)
+                if meetsRank then
+                    if showCanLearn then
+                        table.insert(scratchCanLearnList, formatted)
+                    end
+                elseif showNeedsSkill then
+                    local lowFormatted = string.format("%s |cff888888(%d/%d)|r", formatted, currentRank or 0, minSkill or 0)
+                    table.insert(scratchLowSkillList, lowFormatted)
+                end
+            end
+        end
         for guid, altData in pairs(SfuiDB.alts) do
             if guid ~= myGUID and not scratchKnownGUIDs[guid] then
                 local hasProf, meetsRank, currentRank = CheckAltEligibility(altData, profName, minSkill, subclassID, skillID)
@@ -1034,7 +1364,7 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
         if totalKnown > maxAlts then
             text = string.format("%s, |cffaaaaaa+%d more|r", text, totalKnown - maxAlts)
         end
-        AddLine("|cff00ccffknown alts:|r " .. text, 1, 1, 1, true)
+        AddLine("|cff00ccffknown by:|r " .. text, 1, 1, 1, true)
     end
 
     local totalCanLearn = #scratchCanLearnList
@@ -1208,6 +1538,13 @@ local function OnLogin()
 
     PruneOrphanCrafts()
     HookContainerButtons()
+    if C_Timer and C_Timer.After then
+        C_Timer.After(1.5, function()
+            ScanKnownRecipesFromCatalog()
+        end)
+    else
+        ScanKnownRecipesFromCatalog()
+    end
 end
 
 local function OnRecipeLearned()

@@ -716,6 +716,109 @@ local function SetupTargetBar(configName, unit)
     return bar
 end
 
+local function IsPlayerCastBarEnabled()
+    if SfuiDB and SfuiDB.castBarEnabled ~= nil then
+        return SfuiDB.castBarEnabled
+    end
+    return not (g.castBar and g.castBar.enabled == false)
+end
+
+local _hookedBlizzBars = {}
+local _hookedBlizzContainers = false
+
+local function MoveUnattachedCastbarOffscreen(bar)
+    if not bar or not IsPlayerCastBarEnabled() then return end
+    if bar.attachedToPlayerFrame then return end
+    if _G.InCombatLockdown and _G.InCombatLockdown() then
+        if common and common.run_after_combat then
+            common.run_after_combat(function()
+                MoveUnattachedCastbarOffscreen(bar)
+            end)
+        end
+        return
+    end
+    bar:ClearAllPoints()
+    bar:SetPoint("TOP", UIParent, "BOTTOM", 0, -5000)
+end
+
+local function SyncBlizzCastbar(bar, isPlayerBar)
+    if not bar then return end
+    local enabled = IsPlayerCastBarEnabled()
+    if enabled then
+        if bar.SetAlpha then bar:SetAlpha(0) end
+        if bar.EnableMouse then bar:EnableMouse(false) end
+        if bar.EnableMouseClicks then bar:EnableMouseClicks(false) end
+        if bar.EnableMouseMotion then bar:EnableMouseMotion(false) end
+        if bar.Selection then
+            if bar.Selection.SetAlpha then bar.Selection:SetAlpha(0) end
+            if bar.Selection.EnableMouse then bar.Selection:EnableMouse(false) end
+            if bar.Selection.EnableMouseClicks then bar.Selection:EnableMouseClicks(false) end
+            if bar.Selection.EnableMouseMotion then bar.Selection:EnableMouseMotion(false) end
+        end
+        if isPlayerBar then
+            MoveUnattachedCastbarOffscreen(bar)
+        end
+    else
+        if bar.SetAlpha then bar:SetAlpha(1) end
+        if bar.EnableMouse then bar:EnableMouse(true) end
+        if bar.EnableMouseClicks then bar:EnableMouseClicks(true) end
+        if bar.EnableMouseMotion then bar:EnableMouseMotion(true) end
+        if isPlayerBar and not bar.attachedToPlayerFrame and bar.ApplySystemAnchor and not (_G.InCombatLockdown and _G.InCombatLockdown()) then
+            bar:ApplySystemAnchor()
+        end
+    end
+
+    if not _hookedBlizzBars[bar] then
+        _hookedBlizzBars[bar] = true
+        if bar.HookScript then
+            bar:HookScript("OnShow", function(self)
+                if IsPlayerCastBarEnabled() then
+                    if self.SetAlpha then self:SetAlpha(0) end
+                    if isPlayerBar then
+                        MoveUnattachedCastbarOffscreen(self)
+                    end
+                end
+            end)
+        end
+        if _G.hooksecurefunc then
+            if bar.ApplyAlpha then
+                _G.hooksecurefunc(bar, "ApplyAlpha", function(self, alpha)
+                    if alpha and alpha > 0 and IsPlayerCastBarEnabled() then
+                        self:SetAlpha(0)
+                    end
+                end)
+            end
+            if isPlayerBar and bar.ApplySystemAnchor then
+                _G.hooksecurefunc(bar, "ApplySystemAnchor", function(self)
+                    MoveUnattachedCastbarOffscreen(self)
+                end)
+            end
+        end
+    end
+end
+
+local function SyncAllBlizzCastbars()
+    SyncBlizzCastbar(_G.PlayerCastingBarFrame, true)
+    if _G.CastingBarFrame and _G.CastingBarFrame ~= _G.PlayerCastingBarFrame then
+        SyncBlizzCastbar(_G.CastingBarFrame, true)
+    end
+    SyncBlizzCastbar(_G.OverlayPlayerCastingBarFrame, false)
+
+    if not _hookedBlizzContainers and _G.hooksecurefunc then
+        _hookedBlizzContainers = true
+        if _G.BottomManagedFrameContainer and _G.BottomManagedFrameContainer.Layout then
+            _G.hooksecurefunc(_G.BottomManagedFrameContainer, "Layout", function()
+                MoveUnattachedCastbarOffscreen(_G.PlayerCastingBarFrame)
+            end)
+        end
+        if _G.PlayerFrame_DetachCastBar then
+            _G.hooksecurefunc("PlayerFrame_DetachCastBar", function()
+                MoveUnattachedCastbarOffscreen(_G.PlayerCastingBarFrame)
+            end)
+        end
+    end
+end
+
 function sfui.castbar.update_settings()
     -- Sync config from DB
     if SfuiDB.castBarEnabled ~= nil then g.castBar.enabled = SfuiDB.castBarEnabled end
@@ -725,6 +828,8 @@ function sfui.castbar.update_settings()
     if SfuiDB.targetCastBarEnabled ~= nil then g.targetCastBar.enabled = SfuiDB.targetCastBarEnabled end
     if SfuiDB.targetCastBarX ~= nil then g.targetCastBar.pos.x = SfuiDB.targetCastBarX end
     if SfuiDB.targetCastBarY ~= nil then g.targetCastBar.pos.y = SfuiDB.targetCastBarY end
+
+    SyncAllBlizzCastbars()
 
     -- Apply to active bars
     if sfui.castbar.bars then
@@ -1063,38 +1168,17 @@ function sfui.castbar.initialize()
         })
     end
 
-    local function DecoupleBlizzCastbar(bar)
-        if not bar then return end
-        if bar.SetAlpha then bar:SetAlpha(0) end
-        if bar.EnableMouse then bar:EnableMouse(false) end
-        if bar.EnableMouseClicks then bar.EnableMouseClicks(bar, false) end
-        if bar.EnableMouseMotion then bar.EnableMouseMotion(bar, false) end
-        if bar.Selection then
-            if bar.Selection.SetAlpha then bar.Selection:SetAlpha(0) end
-            if bar.Selection.EnableMouse then bar.Selection:EnableMouse(false) end
-            if bar.Selection.EnableMouseClicks then bar.Selection:EnableMouseClicks(false) end
-            if bar.Selection.EnableMouseMotion then bar.Selection:EnableMouseMotion(false) end
-        end
-    end
-
-    DecoupleBlizzCastbar(_G.PlayerCastingBarFrame)
-    DecoupleBlizzCastbar(_G.OverlayPlayerCastingBarFrame)
+    SyncAllBlizzCastbars()
 
     if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
         _G.EventRegistry:RegisterCallback("EditMode.Enter", function()
-            C_Timer.After(0, function()
-                DecoupleBlizzCastbar(_G.PlayerCastingBarFrame)
-                DecoupleBlizzCastbar(_G.OverlayPlayerCastingBarFrame)
-            end)
+            C_Timer.After(0, SyncAllBlizzCastbars)
         end, sfui.castbar)
     end
 
     if sfui.events and sfui.events.RegisterEvent then
         sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
-            C_Timer.After(0, function()
-                DecoupleBlizzCastbar(_G.PlayerCastingBarFrame)
-                DecoupleBlizzCastbar(_G.OverlayPlayerCastingBarFrame)
-            end)
+            C_Timer.After(0, SyncAllBlizzCastbars)
         end)
     end
 end

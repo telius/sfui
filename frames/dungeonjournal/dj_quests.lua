@@ -823,6 +823,75 @@ local function RenderQuestDetail(quest, dungeon)
         info.cText:Hide()
     end
 
+    -- 4b. Synced Characters Status (Party & Cross-Account Alts)
+    local peerStatuses = (quest.id and sfui.sync and sfui.sync.GetQuestPeerStatuses)
+        and sfui.sync.GetQuestPeerStatuses(quest.id, true) or nil
+    if peerStatuses and #peerStatuses > 0 then
+        if not info.syncLabel then
+            info.syncLabel = info:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            info.syncLabel:SetJustifyH("LEFT")
+        end
+        if not info.syncText then
+            info.syncText = info:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            info.syncText:SetJustifyH("LEFT")
+            info.syncText:SetWordWrap(true)
+            if info.syncText.SetSpacing then info.syncText:SetSpacing(3) end
+        end
+        info.syncLabel:SetText("synced characters:")
+        info.syncLabel:SetTextColor(accent[1], accent[2], accent[3], 1)
+        info.syncLabel:ClearAllPoints()
+        info.syncLabel:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
+        info.syncLabel:Show()
+        local sLabelH = math_max(14, math_ceil(info.syncLabel:GetStringHeight() or 14))
+        currY = currY + sLabelH + 4
+
+        local sLines = {}
+        for _, peer in ipairs(peerStatuses) do
+            local pTag = peer.inParty and " |cff88ccff(party)|r" or ""
+            local stBadge = ""
+            if peer.status == "completed" then
+                stBadge = "|cff00ff00[completed]|r"
+            elseif peer.status == "ready" then
+                stBadge = "|cff44ff44[ready for turn-in]|r"
+            elseif peer.status == "active" then
+                stBadge = "|cff00e5ff[picked up]|r"
+            else
+                local chainHint = nil
+                if steps and #steps > 0 and SfuiDB and SfuiDB.alts and SfuiDB.alts[peer.guid] then
+                    local alt = SfuiDB.alts[peer.guid]
+                    for sIdx = #steps, 1, -1 do
+                        local stId = steps[sIdx] and steps[sIdx].id
+                        if stId then
+                            if (alt.activeQuests and alt.activeQuests[stId]) or (alt.djQuests and alt.djQuests[stId] == 1) then
+                                chainHint = string_format("on step %d/%d", sIdx, #steps)
+                                break
+                            elseif (alt.completedQuests and alt.completedQuests[stId]) or (alt.djQuests and alt.djQuests[stId] == 2) then
+                                chainHint = string_format("done step %d/%d", sIdx, #steps)
+                                break
+                            end
+                        end
+                    end
+                end
+                if chainHint then
+                    stBadge = "|cffffaa00[missing · " .. chainHint .. "]|r"
+                else
+                    stBadge = "|cffff5555[not picked up]|r"
+                end
+            end
+            sLines[#sLines + 1] = string_format("• %s%s  %s", peer.coloredName or peer.name or "?", pTag, stBadge)
+        end
+        info.syncText:SetText(table_concat(sLines, "\n"))
+        info.syncText:ClearAllPoints()
+        info.syncText:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
+        info.syncText:SetPoint("TOPRIGHT", info, "TOPRIGHT", 0, -currY)
+        info.syncText:Show()
+        local sTextH = math_max(16, math_ceil(info.syncText:GetStringHeight() or 16))
+        currY = currY + sTextH + 12
+    else
+        if info.syncLabel then info.syncLabel:Hide() end
+        if info.syncText then info.syncText:Hide() end
+    end
+
     -- 5. Action Buttons (Share Quest & Show on Map)
     local hasShare = CanShareQuestNow(quest.id, quest)
     local resolveFn = info.ResolveQuestMapCoords
@@ -1110,6 +1179,10 @@ local function RefreshQuestView()
         local shareable = IsQuestShareable(q.id, q)
         if shareable == false then
             badges[#badges + 1] = "|cff888888no share|r"
+        end
+        local missingParty = q.id and sfui.sync and sfui.sync.GetPartyMissingQuestPeers and sfui.sync.GetPartyMissingQuestPeers(q.id)
+        if missingParty and #missingParty > 0 then
+            badges[#badges + 1] = "|cffff5555[!party]|r"
         end
 
         if #badges > 0 then

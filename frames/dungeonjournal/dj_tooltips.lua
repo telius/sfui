@@ -71,7 +71,12 @@ local function OnTooltipSetItem(tooltip, data)
     tooltip:AddLine(source.tooltipLine, 1, 1, 1, true)
 
     if sfui.dungeonjournal and sfui.dungeonjournal.IsWishlisted and sfui.dungeonjournal.IsWishlisted(itemID) then
-        tooltip:AddLine("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t |cffcc44ffloot wishlist active|r", 1, 1, 1, false)
+        local wishChars = sfui.dungeonjournal.GetWishlistCharacters and sfui.dungeonjournal.GetWishlistCharacters(itemID)
+        if wishChars and #wishChars > 0 then
+            tooltip:AddLine("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t |cffcc44ffloot wishlist:|r " .. table.concat(wishChars, ", "), 1, 1, 1, true)
+        else
+            tooltip:AddLine("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t |cffcc44ffloot wishlist active|r", 1, 1, 1, false)
+        end
     end
 end
 

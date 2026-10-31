@@ -1,7 +1,7 @@
 ## Interface: 120105, 16001
 ## Title: |cff6600ffsf|rui
 ## Author: teli
-## Version: v1.126
+## Version: v1.127
 ## Notes: modular and dynamic uistuffs for world of warcraft.
 ## X-Category: Interface
 ## X-Website: https://github.com/telius/sfui
@@ -49,6 +49,15 @@ frames/themes/necrolord.lua
 frames/themes/nineslice_themes.lua
 core.lua
 
+# Multi-Account Content Sync Engine
+frames/sync/codec.lua
+frames/sync/merge.lua
+frames/sync/sync.lua
+frames/sync/multibox.lua
+frames/sync/quests.lua
+frames/sync/trade.lua
+frames/sync/hud.lua
+
 # Options System
 frames/options/options.lua
 frames/options/tabs/tab_main.lua
@@ -72,6 +81,7 @@ frames/options/tabs/tab_minimap.lua
 frames/options/tabs/tab_objectives.lua
 frames/options/tabs/tab_pets.lua
 frames/options/tabs/tab_research.lua [AllowLoadGameType standard]
+frames/options/tabs/tab_sync.lua
 frames/options/tabs/tab_hide.lua
 frames/options/tabs/tab_debug.lua
 

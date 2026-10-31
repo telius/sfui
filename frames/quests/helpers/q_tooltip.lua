@@ -569,6 +569,34 @@ function Tooltip.ShowBlockTooltip(owner, bData)
             pcall(tip.SetQuestPartyProgress, tip, bData.questID)
         end
 
+        -- Synced Party / Linked Peer Progress
+        if bData.questID and sfui.sync and sfui.sync.GetQuestPeerStatuses then
+            local peerStatuses = sfui.sync.GetQuestPeerStatuses(bData.questID, false)
+            if peerStatuses and #peerStatuses > 0 then
+                tip:AddLine(" ")
+                tip:AddLine("synced peers:", 1, 0.82, 0)
+                for _, peer in ipairs(peerStatuses) do
+                    local pLabel = "  " .. (peer.coloredName or peer.name or "?")
+                    if peer.status == "missing" then
+                        tip:AddDoubleLine(pLabel, "|cffff5555missing quest|r", 1, 1, 1, 1, 0.35, 0.35)
+                    elseif peer.status == "completed" then
+                        tip:AddDoubleLine(pLabel, "|cff44ff44completed|r", 1, 1, 1, 0.27, 1, 0.27)
+                    elseif peer.status == "ready" then
+                        tip:AddDoubleLine(pLabel, "|cff44ff44ready for turn-in|r", 1, 1, 1, 0.27, 1, 0.27)
+                    else
+                        if peer.objs and #peer.objs > 0 then
+                            tip:AddDoubleLine(pLabel, "|cffffd100in progress|r", 1, 1, 1, 1, 0.82, 0)
+                            for _, oTxt in ipairs(peer.objs) do
+                                tip:AddLine("    • " .. tostring(oTxt):lower(), 0.75, 0.75, 0.75, true)
+                            end
+                        else
+                            tip:AddDoubleLine(pLabel, "|cffffd100in log|r", 1, 1, 1, 1, 0.82, 0)
+                        end
+                    end
+                end
+            end
+        end
+
         -- Click hints
         tip:AddLine(" ")
         tip:AddLine("|cff888888left-click: open quest details / map|r", 1, 1, 1)

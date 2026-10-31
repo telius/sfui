@@ -1213,25 +1213,11 @@ local function ProcessBlizzardSync()
                 if info then _cdViewerInfoCache[id] = info end
             end
 
-            -- ONLY sync Native Blizzard Tracked Bars (Category 3)
-            -- We manage this category directly in cdm.lua via CooldownViewerSettings
+            -- Every frame in BuffBarCooldownViewer.itemFramePool is an active TrackedBar (Category 3);
+            -- avoid calling CooldownViewerSettings:GetDataProvider():GetCooldownInfoForID() which taints LayoutManager
             local specBars = common.get_tracked_bars()
             local isManuallyTracked = specBars and specBars[id]
-
-            local isValidTrackedBar = false
-            if isManuallyTracked then
-                isValidTrackedBar = true
-            elseif info and info.category == 3 then
-                isValidTrackedBar = true
-            elseif info and Enum and Enum.CooldownViewerCategory and info.category == Enum.CooldownViewerCategory.TrackedBar then
-                isValidTrackedBar = true
-            elseif CooldownViewerSettings and CooldownViewerSettings.GetDataProvider then
-                local dp = CooldownViewerSettings:GetDataProvider()
-                local dpInfo = dp and dp:GetCooldownInfoForID(id)
-                if dpInfo and (dpInfo.category == 3 or (Enum and Enum.CooldownViewerCategory and dpInfo.category == Enum.CooldownViewerCategory.TrackedBar)) then
-                    isValidTrackedBar = true
-                end
-            end
+            local isValidTrackedBar = true
 
             if isValidTrackedBar then
                 local isSpecRestricted = false

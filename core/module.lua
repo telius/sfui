@@ -229,6 +229,7 @@ local DEFAULT_TAXONOMY = {
     portals        = { category = "general & utilities", client = "retail", order = 110 },
     ring           = { category = "general & utilities", client = "all", order = 120 },
     stats          = { category = "general & utilities", client = "all", order = 130 },
+    sync           = { category = "general & utilities", client = "all", order = 140 },
 }
 
 local CATEGORY_ORDER = {

@@ -505,6 +505,9 @@ def main():
         # Check for uncommitted working tree changes
         status_proc = run_cmd(["git", "status", "--porcelain"], check=False)
         has_local_changes = bool(status_proc.stdout.strip())
+        if has_local_changes:
+            print("working tree has uncommitted changes; skipping auto-patch to avoid disrupting active development.")
+            return
         stash_created = False
 
         try:

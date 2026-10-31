@@ -214,6 +214,9 @@ local function ScanMerchant()
         if sfui.recipes and sfui.recipes.InvalidateLiveIndices then
             sfui.recipes.InvalidateLiveIndices()
         end
+        if sfui.events and sfui.events.SendMessage then
+            sfui.events.SendMessage("SFUI_CONTACTS_UPDATED", "vendor", npcID)
+        end
     end
 end
 
@@ -261,6 +264,9 @@ local function ScanTrainer()
     if sfui.recipes and sfui.recipes.InvalidateLiveIndices then
         sfui.recipes.InvalidateLiveIndices()
     end
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_CONTACTS_UPDATED", "trainer", npcID)
+    end
 end
 
 -- ── 3. Loot Observer (LOOT_OPENED) ────────────────────────────────────────────
@@ -276,6 +282,7 @@ local function ScanLoot()
     end
 
     local dbRecipes = sfui.recipes_camelot and sfui.recipes_camelot.items or {}
+    local updatedDrop = nil
 
     for i = 1, numItems do
         local link = GetLootSlotLink(i)
@@ -296,7 +303,7 @@ local function ScanLoot()
                     local found = false
 
                     for _, entry in ipairs(list) do
-                        if entry.mob == (targetName or "creature") and entry.zone == (pos and pos.zone) then
+                        if entry.mob == (targetName and targetName:lower() or "creature") and entry.zone == (pos and pos.zone) then
                             entry.count = (entry.count or 1) + 1
                             entry.lastSeen = time()
                             found = true
@@ -315,9 +322,14 @@ local function ScanLoot()
                             lastSeen = time(),
                         })
                     end
+                    updatedDrop = cleanName
                 end
             end
         end
+    end
+
+    if updatedDrop and sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_CONTACTS_UPDATED", "drop", updatedDrop)
     end
 end
 
@@ -330,6 +342,7 @@ local function ScanQuest()
     local giverName = UnitExists("npc") and UnitName("npc") or nil
     local pos = GetPlayerPosition()
     local dbRecipes = sfui.recipes_camelot and sfui.recipes_camelot.items or {}
+    local updatedQuest = nil
 
     for _, kind in ipairs({ "reward", "choice" }) do
         local count = (kind == "reward" and GetNumQuestRewards and GetNumQuestRewards())
@@ -368,11 +381,16 @@ local function ScanQuest()
                                 zone     = pos and pos.zone,
                                 lastSeen = time(),
                             })
+                            updatedQuest = cleanName
                         end
                     end
                 end
             end
         end
+    end
+
+    if updatedQuest and sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_CONTACTS_UPDATED", "quest", updatedQuest)
     end
 end
 

@@ -9,30 +9,31 @@ end
 
 sfui.bonusroll = {}
 
-local CreateFrame               = CreateFrame
-local UIParent                  = UIParent
-local UnitClass                 = UnitClass
-local UnitGUID                  = UnitGUID
-local UnitName                  = UnitName
-local GetRealmName              = GetRealmName
-local C_TooltipInfo             = C_TooltipInfo
-local C_Timer                   = C_Timer
-local C_Item                    = C_Item
-local Item                      = Item
-local tonumber                  = tonumber
-local tostring                  = tostring
-local pairs                     = pairs
-local ipairs                    = ipairs
-local print                     = print
-local string                    = string
-local table                     = table
+local UnitGUID      = UnitGUID
+local UnitFullName  = UnitFullName
+local UnitName      = UnitName
+local GetRealmName  = GetRealmName
+local C_TooltipInfo = C_TooltipInfo
+local C_Timer       = C_Timer
+local C_Item        = C_Item
+local Item          = Item
+local tonumber      = tonumber
+local pairs         = pairs
+local ipairs        = ipairs
+local next          = next
+local select        = select
+local type          = type
+local pcall         = pcall
+local string        = string
+local table         = table
+local PlaySound     = PlaySound
+local SOUNDKIT      = SOUNDKIT
 
 -- ─── Constants & Configuration ────────────────────────────────────────────────
 local POLL_INTERVAL  = 0.3
 local EMPTY_ATTEMPTS = 5
 local STABLE_NEEDED  = 3
 local MAX_ATTEMPTS   = 10
-local OTHER_SLOT     = 14
 
 -- ─── Reward Chest Item Database (KeystoneLoot / Retail Voidcore Mappings) ─────
 local CHEST_DATABASE = {
@@ -78,6 +79,7 @@ local CHEST_DATABASE = {
 
 local MIRROR_ITEMS = {
     [249806] = 260235, -- Radiant Feather -> Umbral Feather
+    [260235] = 249806,
 }
 
 local EXCLUDED_ITEMS = {
@@ -90,6 +92,25 @@ local EXCLUDED_ITEMS = {
 }
 
 local GetPlayerKey = sfui.common.get_player_unique_key
+local SCAN_VERSION = 3
+
+local sessionScannedSpecs = {}
+local isScanningAll = false
+local pendingScanTimer = nil
+
+local function IsPlayerAtMaxLevel()
+    local maxLvl = (_G.GetMaxLevelForPlayerExpansion and _G.GetMaxLevelForPlayerExpansion()) or 80
+    local curLvl = (_G.UnitLevel and _G.UnitLevel("player")) or 0
+    return curLvl >= maxLvl
+end
+
+local function GetActiveLootSpecID()
+    local lootSpec = _G.GetLootSpecialization and _G.GetLootSpecialization()
+    if lootSpec and lootSpec > 0 then
+        return lootSpec
+    end
+    return sfui.common.get_current_spec_id()
+end
 
 local function DB()
     SfuiDB = SfuiDB or {}
@@ -97,9 +118,14 @@ local function DB()
     local key = GetPlayerKey()
     if not SfuiDB.bonusroll[key] then
         SfuiDB.bonusroll[key] = {
-            used    = {},
-            checked = false,
-            targets = {
+            used            = {},
+            usedBySpec      = {},
+            rolledItems     = {},
+            rolledBySpec    = {},
+            manual          = {},
+            checked         = false,
+            scanVersion     = SCAN_VERSION,
+            targets         = {
                 dungeons = {},
                 bosses   = {},
                 items    = {},
@@ -107,7 +133,45 @@ local function DB()
         }
     end
     local db = SfuiDB.bonusroll[key]
-    db.targets = db.targets or {}
+    if db.scanVersion ~= SCAN_VERSION then
+        db.used         = {}
+        db.usedBySpec   = db.usedBySpec or {}
+        db.rolledItems  = db.rolledItems or {}
+        db.rolledBySpec = db.rolledBySpec or {}
+        db.manual       = db.manual or {}
+        db.checked      = false
+        db.scanVersion  = SCAN_VERSION
+        for itemID in pairs(db.rolledItems) do
+            db.used[itemID] = true
+        end
+        for _, specMap in pairs(db.rolledBySpec) do
+            if type(specMap) == "table" then
+                for itemID in pairs(specMap) do
+                    db.used[itemID] = true
+                end
+            end
+        end
+        for _, specMap in pairs(db.usedBySpec) do
+            if type(specMap) == "table" then
+                for itemID in pairs(specMap) do
+                    db.used[itemID] = true
+                end
+            end
+        end
+        for itemID, state in pairs(db.manual) do
+            if state then
+                db.used[itemID] = true
+            else
+                db.used[itemID] = nil
+            end
+        end
+    end
+    db.used         = db.used or {}
+    db.usedBySpec   = db.usedBySpec or {}
+    db.rolledItems  = db.rolledItems or {}
+    db.rolledBySpec = db.rolledBySpec or {}
+    db.manual       = db.manual or {}
+    db.targets      = db.targets or {}
     db.targets.dungeons = db.targets.dungeons or {}
     db.targets.bosses   = db.targets.bosses or {}
     db.targets.items    = db.targets.items or {}
@@ -194,7 +258,7 @@ function sfui.bonusroll.ToggleTarget(keyID, isBoss)
     local db = DB()
     local group = isBoss and "bosses" or "dungeons"
     local entry = db.targets[group][keyID]
-    local isTargeted, itemCount, items = sfui.bonusroll.GetTargetStatus(keyID, isBoss)
+    local isTargeted = sfui.bonusroll.GetTargetStatus(keyID, isBoss)
 
     if isTargeted then
         -- Clear card target and any targeted items for this card
@@ -295,7 +359,7 @@ function sfui.bonusroll.AutoclearItemTarget(itemID, itemLink)
         SyncExternalTargets(keyID, isBoss, nil)
     end
 
-    local link = itemLink or select(2, sfui.common.get_item_info(itemID)) or ("Item " .. itemID)
+    local link = itemLink or select(2, sfui.common.get_item_info(itemID)) or ("item " .. itemID)
     sfui.common.print(string.format("|cff00ff00◆ bonus roll target acquired:|r %s obtained! target cleared.", link))
     PlaySound(SOUNDKIT.UI_EPICLOOT_TOAST or 51570, "Master")
 
@@ -306,7 +370,7 @@ function sfui.bonusroll.AutoclearItemTarget(itemID, itemLink)
 end
 
 function sfui.bonusroll.NotifyTarget(keyID, isBoss, defaultName)
-    local isTargeted, itemCount, itemsMap = sfui.bonusroll.GetTargetStatus(keyID, isBoss)
+    local isTargeted, _, itemsMap = sfui.bonusroll.GetTargetStatus(keyID, isBoss)
     if not isTargeted then return end
 
     local itemLinks = {}
@@ -315,44 +379,144 @@ function sfui.bonusroll.NotifyTarget(keyID, isBoss, defaultName)
         if not link then
             sfui.common.request_item_load(id)
             local name = select(1, sfui.common.get_item_info(id))
-            link = name and ("[" .. name .. "]") or ("Item " .. id)
+            link = name and ("[" .. name .. "]") or ("item " .. id)
         end
         itemLinks[#itemLinks + 1] = link
     end
 
     local prefix = "|cffcc44ff◆ bonus roll reminder:|r "
-    local name = defaultName or (isBoss and ("Boss " .. keyID) or ("Dungeon " .. keyID))
+    local name = defaultName or (isBoss and ("boss " .. keyID) or ("dungeon " .. keyID))
 
     if #itemLinks > 0 then
         if isBoss then
             sfui.common.print(string.format("%s%s — target: %s! use your bonus roll item!", prefix, name, table.concat(itemLinks, ", ")))
         else
-            sfui.common.print(string.format("%suse a |cffffcc00Nebulous Voidcore|r on %s for %s!", prefix, name, table.concat(itemLinks, ", ")))
+            sfui.common.print(string.format("%suse a |cffffcc00nebulous voidcore|r on %s for %s!", prefix, name, table.concat(itemLinks, ", ")))
         end
     else
         if isBoss then
             sfui.common.print(string.format("%s%s — use your bonus roll item!", prefix, name))
         else
-            sfui.common.print(string.format("%suse a |cffffcc00Nebulous Voidcore|r on %s!", prefix, name))
+            sfui.common.print(string.format("%suse a |cffffcc00nebulous voidcore|r on %s!", prefix, name))
         end
     end
 
     PlaySound(SOUNDKIT.UI_BONUS_LOOT_ROLL_START or 39516, "Master")
 end
 
--- ─── Item & Spec Eligibility ──────────────────────────────────────────────────
-local itemToChestMap = nil
-local function BuildItemToChestMap()
-    if itemToChestMap then return itemToChestMap end
-    itemToChestMap = {}
-    return itemToChestMap
+-- ─── Item, Token & Spec Eligibility (TheAlmightyBonusRoll + Voidcore) ─────────
+local tokenToChildren = {}
+local childToToken = {}
+local playerSpecSet = nil
+
+local function GetPlayerSpecSet()
+    if playerSpecSet and next(playerSpecSet) then return playerSpecSet end
+    playerSpecSet = {}
+    local numSpecs = _G.GetNumSpecializations and _G.GetNumSpecializations() or 0
+    for i = 1, numSpecs do
+        local specID = _G.GetSpecializationInfo and _G.GetSpecializationInfo(i)
+        if specID then
+            playerSpecSet[specID] = true
+        end
+    end
+    return playerSpecSet
 end
 
-function sfui.bonusroll.IsEligible(itemID)
+local function ItemMatchesSpec(itemID, specID, ejSpecs)
+    if not itemID or not specID or specID <= 0 then return true end
+    if C_Item and C_Item.GetItemSpecInfo then
+        local ok, specs = pcall(C_Item.GetItemSpecInfo, itemID)
+        if ok and type(specs) == "table" and #specs > 0 then
+            for _, allowedSpecID in ipairs(specs) do
+                if tonumber(allowedSpecID) == tonumber(specID) then
+                    return true
+                end
+            end
+            return false
+        end
+    end
+    if type(ejSpecs) == "table" and next(ejSpecs) ~= nil then
+        return ejSpecs[specID] == true
+    end
+    return true
+end
+
+local function RegisterTokenLinks(tokenID)
+    tokenID = tonumber(tokenID)
+    if not tokenID or tokenID <= 0 then return nil end
+    if tokenToChildren[tokenID] then return tokenToChildren[tokenID] end
+    if not C_Item or not C_Item.GetItemChildInfo then return nil end
+
+    local _, _, _, parentEquipLoc = sfui.common.get_item_instant_info(tokenID)
+    if parentEquipLoc and parentEquipLoc ~= "" and parentEquipLoc ~= "INVTYPE_NON_EQUIP_IGNORE" then
+        return nil
+    end
+
+    local ok, children = pcall(C_Item.GetItemChildInfo, tokenID)
+    if not ok or type(children) ~= "table" or #children == 0 then
+        return nil
+    end
+
+    local pSpecs = GetPlayerSpecSet()
+    local matchedChildren = {}
+    local allCached = true
+    for _, rawChildID in ipairs(children) do
+        local childID = tonumber(rawChildID)
+        if childID and childID > 0 then
+            local _, _, _, equipLoc = sfui.common.get_item_instant_info(childID)
+            if equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_NON_EQUIP_IGNORE" then
+                local specs = C_Item.GetItemSpecInfo and C_Item.GetItemSpecInfo(childID)
+                if type(specs) == "table" and #specs > 0 then
+                    for _, allowedSpecID in ipairs(specs) do
+                        local sID = tonumber(allowedSpecID)
+                        if sID and pSpecs[sID] then
+                            matchedChildren[childID] = true
+                            childToToken[childID] = tokenID
+                            break
+                        end
+                    end
+                else
+                    allCached = false
+                    sfui.common.request_item_load(childID)
+                end
+            end
+        end
+    end
+
+    if next(matchedChildren) then
+        if allCached then
+            tokenToChildren[tokenID] = matchedChildren
+        end
+        return matchedChildren
+    end
+    return nil
+end
+
+local function GetLinkedIDs(itemID)
+    itemID = tonumber(itemID)
+    if not itemID or itemID <= 0 then return nil end
+    local linked = {}
+    local mirror = MIRROR_ITEMS[itemID]
+    if mirror then
+        linked[mirror] = true
+    end
+    local children = RegisterTokenLinks(itemID)
+    if children then
+        for childID in pairs(children) do
+            linked[childID] = true
+        end
+    end
+    local parentToken = childToToken[itemID]
+    if parentToken then
+        linked[parentToken] = true
+    end
+    return next(linked) and linked or nil
+end
+
+local function IsChestPoolEligible(itemID)
     if not itemID or itemID <= 0 then return false end
     if EXCLUDED_ITEMS[itemID] then return false end
 
-    -- Check if item is non-equipment / generic "Other" slot
     local _, _, _, itemEquipLoc, _, classID, subclassID = sfui.common.get_item_instant_info(itemID)
     if classID == 5 and subclassID == 2 then return false end
     if not itemEquipLoc or itemEquipLoc == "" or itemEquipLoc == "INVTYPE_NON_EQUIP_IGNORE" then
@@ -362,13 +526,158 @@ function sfui.bonusroll.IsEligible(itemID)
     return true
 end
 
-function sfui.bonusroll.IsUsed(itemID)
+function sfui.bonusroll.IsEligible(itemID)
+    itemID = tonumber(itemID)
     if not itemID or itemID <= 0 then return false end
+    if EXCLUDED_ITEMS[itemID] then return false end
+    if IsChestPoolEligible(itemID) then return true end
+    if RegisterTokenLinks(itemID) or childToToken[itemID] then return true end
+    if C_Item and C_Item.GetItemChildInfo then
+        local ok, children = pcall(C_Item.GetItemChildInfo, itemID)
+        if ok and type(children) == "table" and #children > 0 then
+            return true
+        end
+    end
+    return false
+end
 
-    -- Check local database
+local function UpdateEffectiveUsedForSingleID(db, id)
+    if db.manual and db.manual[id] ~= nil then
+        if db.manual[id] then
+            db.used[id] = true
+        else
+            db.used[id] = nil
+        end
+        return
+    end
+    if db.rolledItems and db.rolledItems[id] then
+        db.used[id] = true
+        return
+    end
+    if db.rolledBySpec then
+        for _, specMap in pairs(db.rolledBySpec) do
+            if type(specMap) == "table" and specMap[id] then
+                db.used[id] = true
+                return
+            end
+        end
+    end
+    if db.usedBySpec then
+        for _, specMap in pairs(db.usedBySpec) do
+            if type(specMap) == "table" and specMap[id] then
+                db.used[id] = true
+                return
+            end
+        end
+    end
+    db.used[id] = nil
+end
+
+local function ApplyStateToID(db, id, value, specID, isManual, isDirectRoll)
+    if isManual then
+        if value then
+            db.manual[id] = true
+        else
+            db.manual[id] = false
+        end
+    elseif isDirectRoll then
+        db.manual[id] = nil
+        if specID and specID > 0 then
+            db.rolledBySpec[specID] = db.rolledBySpec[specID] or {}
+            db.rolledBySpec[specID][id] = value and true or nil
+            db.usedBySpec[specID] = db.usedBySpec[specID] or {}
+            db.usedBySpec[specID][id] = value and true or nil
+        else
+            db.rolledItems[id] = value and true or nil
+        end
+    elseif specID and specID > 0 then
+        db.usedBySpec[specID] = db.usedBySpec[specID] or {}
+        if value then
+            db.usedBySpec[specID][id] = true
+        else
+            db.usedBySpec[specID][id] = nil
+        end
+    else
+        if value then
+            db.rolledItems[id] = true
+        else
+            db.rolledItems[id] = nil
+            for _, specMap in pairs(db.rolledBySpec) do
+                if type(specMap) == "table" then specMap[id] = nil end
+            end
+            for _, specMap in pairs(db.usedBySpec) do
+                if type(specMap) == "table" then specMap[id] = nil end
+            end
+        end
+    end
+    UpdateEffectiveUsedForSingleID(db, id)
+end
+
+local externalSynced = false
+local function SyncFromExternalAddons()
+    if externalSynced then return end
+    local tabrDB = _G.TheAlmightyBonusRollDB
+    if type(tabrDB) ~= "table" or type(tabrDB.history) ~= "table" then return end
+    externalSynced = true
+
+    local name, realm = UnitFullName and UnitFullName("player")
+    if not name or name == "" then name = UnitName and UnitName("player") end
+    realm = (realm and realm ~= "" and realm) or (GetRealmName and GetRealmName()) or ""
+    if not name or name == "" then return end
+    local charKey = name .. "-" .. realm
+
+    local seasonKey = nil
+    if _G.TheAlmightyBonusRoll and type(_G.TheAlmightyBonusRoll.GetSeasonKey) == "function" then
+        local ok, key = pcall(_G.TheAlmightyBonusRoll.GetSeasonKey, _G.TheAlmightyBonusRoll)
+        if ok and type(key) == "string" then seasonKey = key end
+    end
+
     local db = DB()
+    for _, entry in ipairs(tabrDB.history) do
+        if type(entry) == "table" and entry.characterKey == charKey and (not seasonKey or not entry.seasonKey or entry.seasonKey == seasonKey) then
+            local specID = tonumber(entry.lootSpecID) or tonumber(entry.serverSpecID) or 0
+            local isManual = entry.manual == true
+            for _, rawID in ipairs({ entry.itemID, entry.tokenItemID }) do
+                local id = tonumber(rawID)
+                if id and id > 0 then
+                    ApplyStateToID(db, id, true, specID, isManual, not isManual)
+                    local linked = GetLinkedIDs(id)
+                    if linked then
+                        for linkedID in pairs(linked) do
+                            ApplyStateToID(db, linkedID, true, specID, isManual, not isManual)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+function sfui.bonusroll.IsUsed(itemID)
+    itemID = tonumber(itemID)
+    if not itemID or itemID <= 0 then return false end
+    if not IsPlayerAtMaxLevel() then return false end
+
+    SyncFromExternalAddons()
+
+    local db = DB()
+    if db.manual and db.manual[itemID] ~= nil then
+        return db.manual[itemID] == true
+    end
     if db.used and db.used[itemID] == true then
         return true
+    end
+
+    local linked = GetLinkedIDs(itemID)
+    if linked then
+        for linkedID in pairs(linked) do
+            if db.manual and db.manual[linkedID] ~= nil then
+                return db.manual[linkedID] == true
+            end
+            if db.used and db.used[linkedID] == true then
+                return true
+            end
+        end
     end
 
     -- Compatibility: Check KeystoneLoot if loaded
@@ -382,29 +691,33 @@ function sfui.bonusroll.IsUsed(itemID)
     return false
 end
 
-function sfui.bonusroll.SetUsed(itemID, value, itemLink)
+function sfui.bonusroll.SetUsed(itemID, value, itemLink, specID, isManual, isDirectRoll)
+    itemID = tonumber(itemID)
     if not itemID or itemID <= 0 then return end
+    if value and not IsPlayerAtMaxLevel() then return end
+
     local db = DB()
-    db.used = db.used or {}
-    if value then
-        db.used[itemID] = true
-        sfui.bonusroll.AutoclearItemTarget(itemID, itemLink)
-    else
-        db.used[itemID] = nil
+    ApplyStateToID(db, itemID, value, specID, isManual, isDirectRoll)
+
+    local linked = GetLinkedIDs(itemID)
+    if linked then
+        for linkedID in pairs(linked) do
+            ApplyStateToID(db, linkedID, value, specID, isManual, isDirectRoll)
+        end
     end
 
-    local mirror = MIRROR_ITEMS[itemID]
-    if mirror then
-        if value then
-            db.used[mirror] = true
-        else
-            db.used[mirror] = nil
+    if value and db.used[itemID] then
+        sfui.bonusroll.AutoclearItemTarget(itemID, itemLink)
+        if linked then
+            for linkedID in pairs(linked) do
+                sfui.bonusroll.AutoclearItemTarget(linkedID, itemLink)
+            end
         end
     end
 
     -- Compatibility: sync with KeystoneLoot if active
     if _G.KeystoneLoot and _G.KeystoneLoot.Voidcore and _G.KeystoneLoot.Voidcore.SetUsed then
-        pcall(_G.KeystoneLoot.Voidcore.SetUsed, _G.KeystoneLoot.Voidcore, itemID, value)
+        pcall(_G.KeystoneLoot.Voidcore.SetUsed, _G.KeystoneLoot.Voidcore, itemID, db.used[itemID] or nil)
     end
 
     if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() and sfui.lootviewer.Rebuild then
@@ -417,97 +730,87 @@ local function GetChestSource(chestItemId)
     return CHEST_DATABASE[chestItemId]
 end
 
-local function GetLootTableForChest(chestItemId)
+local function GetRawChestEntries(chestItemId)
     local source = GetChestSource(chestItemId)
     if not source then return {} end
 
-    local lootList = {}
+    local entries = {}
+    local seen = {}
+
+    local function CollectFromLootTable(loot)
+        for _, it in ipairs(loot or {}) do
+            if type(it) == "table" and it.id then
+                local numID = tonumber(it.id)
+                if numID and numID > 0 then
+                    if it.isSetToken or it.slot == "token" then
+                        RegisterTokenLinks(numID)
+                    elseif it.slot ~= "other" and not seen[numID] and IsChestPoolEligible(numID) then
+                        seen[numID] = true
+                        entries[#entries + 1] = {
+                            id      = numID,
+                            ejSpecs = it.ejSpecs or it.specs,
+                        }
+                    end
+                end
+            end
+        end
+    end
 
     if source.challengeModeId then
-        -- Look up dungeon loot in sfui.lootviewer cache or challenge mode table
         if sfui.lootviewer and sfui.lootviewer.GetDungeonData then
             local dungeons = sfui.lootviewer.GetDungeonData()
             for _, d in ipairs(dungeons or {}) do
                 if d.mapID == source.challengeModeId then
-                    for _, it in ipairs(d.loot or {}) do
-                        lootList[#lootList + 1] = it.id
-                    end
+                    CollectFromLootTable(d.loot)
                     break
                 end
             end
         end
-        -- Fallback: check KeystoneLoot database if available
-        if #lootList == 0 and _G.KeystoneLoot and _G.KeystoneLoot.Query and _G.KeystoneLoot.Query.GetDungeons then
-            local ok, dList = pcall(_G.KeystoneLoot.Query.GetDungeons, _G.KeystoneLoot.Query)
-            if ok and dList then
-                for _, d in ipairs(dList) do
-                    if d.challengeModeId == source.challengeModeId and d.lootTable then
-                        for _, id in ipairs(d.lootTable) do
-                            lootList[#lootList + 1] = id
-                        end
-                        break
-                    end
-                end
-            end
-        end
     elseif source.bossId then
-        -- Look up raid boss loot in sfui.lootviewer
         if sfui.lootviewer and sfui.lootviewer.GetRaidData then
             local raids = sfui.lootviewer.GetRaidData()
             for _, r in ipairs(raids or {}) do
                 for _, b in ipairs(r.bosses or {}) do
                     if b.encounterID == source.bossId or b.dungeonEncounterID == source.bossId then
-                        for _, it in ipairs(b.loot or {}) do
-                            lootList[#lootList + 1] = it.id
-                        end
+                        CollectFromLootTable(b.loot)
                         break
                     end
                 end
             end
         end
-        -- Fallback: check KeystoneLoot raid database
-        if #lootList == 0 and _G.KeystoneLoot and _G.KeystoneLoot.Query and _G.KeystoneLoot.Query.GetRaids then
-            local ok, rList = pcall(_G.KeystoneLoot.Query.GetRaids, _G.KeystoneLoot.Query)
-            if ok and rList then
-                for _, r in ipairs(rList) do
-                    for _, b in ipairs(r.bossList or {}) do
-                        if b.bossId == source.bossId and b.lootTable then
-                            local mythicTable = b.lootTable[16] or b.lootTable[DifficultyUtil and DifficultyUtil.ID and DifficultyUtil.ID.PrimaryRaidMythic or 16] or b.lootTable[1]
-                            if mythicTable then
-                                for _, id in ipairs(mythicTable) do
-                                    lootList[#lootList + 1] = id
-                                end
-                            end
-                            break
-                        end
-                    end
-                end
-            end
-        end
     end
 
-    return lootList
+    return entries
 end
 
 function sfui.bonusroll.GetSourceItems(chestItemId, specID)
-    local lootTable = GetLootTableForChest(chestItemId)
-    if not lootTable or #lootTable == 0 then return {} end
-
-    local activeSpec = (specID and specID > 0 and specID) or sfui.common.get_current_spec_id()
+    local activeSpec = (specID and specID > 0 and specID) or GetActiveLootSpecID()
+    local rawEntries = GetRawChestEntries(chestItemId)
+    if #rawEntries == 0 then return {} end
 
     local results = {}
-    for _, itemID in ipairs(lootTable) do
-        if sfui.bonusroll.IsEligible(itemID) then
-            results[#results + 1] = itemID
+    for _, entry in ipairs(rawEntries) do
+        if ItemMatchesSpec(entry.id, activeSpec, entry.ejSpecs) then
+            results[#results + 1] = entry.id
         end
     end
-
     return results
 end
 
-function sfui.bonusroll.ResetSource(candidates)
+function sfui.bonusroll.ResetSource(candidates, specID)
+    local db = DB()
     for _, itemID in ipairs(candidates) do
-        sfui.bonusroll.SetUsed(itemID, nil)
+        local numID = tonumber(itemID)
+        if numID then
+            if specID and specID > 0 then
+                if db.rolledBySpec and db.rolledBySpec[specID] then
+                    db.rolledBySpec[specID][numID] = nil
+                end
+                sfui.bonusroll.SetUsed(numID, nil, nil, specID)
+            else
+                sfui.bonusroll.SetUsed(numID, nil)
+            end
+        end
     end
 end
 
@@ -529,35 +832,160 @@ local function GetRemainingNamesFromTooltip(tooltipData)
     return names
 end
 
-function sfui.bonusroll.ApplyResults(candidates, remainingNames)
-    for _, itemID in ipairs(candidates) do
+local function CountMatchesForSpec(entries, resolvedNames, remainingNames, specID)
+    local matched = 0
+    local totalForSpec = 0
+    local matchedNames = {}
+    for _, entry in ipairs(entries) do
+        local numID = entry.id
+        if ItemMatchesSpec(numID, specID, entry.ejSpecs) then
+            totalForSpec = totalForSpec + 1
+            local name = resolvedNames[numID]
+            if name and remainingNames[name] and not matchedNames[name] then
+                matchedNames[name] = true
+                matched = matched + 1
+            end
+        end
+    end
+    return matched, totalForSpec
+end
+
+function sfui.bonusroll.ApplyResults(candidatesOrEntries, remainingNames, onApplied, explicitSpecID)
+    local entries = {}
+    for _, item in ipairs(candidatesOrEntries or {}) do
+        if type(item) == "table" and item.id then
+            entries[#entries + 1] = item
+        else
+            local numID = tonumber(item)
+            if numID and numID > 0 then
+                entries[#entries + 1] = { id = numID }
+            end
+        end
+    end
+    if #entries == 0 then
+        if onApplied then onApplied(0) end
+        return
+    end
+
+    local remainingCount = 0
+    for _ in pairs(remainingNames or {}) do
+        remainingCount = remainingCount + 1
+    end
+    if remainingCount == 0 then
+        if onApplied then onApplied(0) end
+        return
+    end
+
+    local resolvedNames = {}
+    local pending = #entries
+
+    local function Finalize()
+        for _, entry in ipairs(entries) do
+            local name = resolvedNames[entry.id]
+            if not name or name == "" then
+                if onApplied then onApplied(0) end
+                return
+            end
+        end
+
+        local lootSpecID = (explicitSpecID and explicitSpecID > 0 and explicitSpecID) or GetActiveLootSpecID()
+        local curSpecID = sfui.common.get_current_spec_id()
+        local tooltipSpecID = lootSpecID
+
+        if curSpecID and curSpecID > 0 and curSpecID ~= lootSpecID then
+            local lootMatched = CountMatchesForSpec(entries, resolvedNames, remainingNames, lootSpecID)
+            local curMatched = CountMatchesForSpec(entries, resolvedNames, remainingNames, curSpecID)
+            if curMatched > lootMatched then
+                tooltipSpecID = curSpecID
+            end
+        end
+
+        local specCandidates = {}
+        local matchedInTooltip = 0
+        local matchedTooltipNames = {}
+        local missingIDs = {}
+
+        for _, entry in ipairs(entries) do
+            local numID = entry.id
+            if ItemMatchesSpec(numID, tooltipSpecID, entry.ejSpecs) then
+                specCandidates[#specCandidates + 1] = numID
+                local name = resolvedNames[numID]
+                if remainingNames[name] then
+                    if not matchedTooltipNames[name] then
+                        matchedTooltipNames[name] = true
+                        matchedInTooltip = matchedInTooltip + 1
+                    end
+                else
+                    missingIDs[#missingIDs + 1] = numID
+                end
+            end
+        end
+
+        if matchedInTooltip == 0 then
+            if onApplied then onApplied(0) end
+            return
+        end
+
+        if #missingIDs == 0 then
+            -- Full pool for this spec is present in the chest tooltip -> clear spec state
+            sfui.bonusroll.ResetSource(specCandidates, tooltipSpecID)
+            if onApplied then onApplied(0) end
+            return
+        end
+
+        -- Partial pool in tooltip -> mark present items as available for this spec and missing items as used
+        local db = DB()
+        for _, numID in ipairs(specCandidates) do
+            local name = resolvedNames[numID]
+            if remainingNames[name] then
+                if db.rolledBySpec and db.rolledBySpec[tooltipSpecID] then
+                    db.rolledBySpec[tooltipSpecID][numID] = nil
+                end
+                sfui.bonusroll.SetUsed(numID, nil, nil, tooltipSpecID)
+            end
+        end
+
+        for _, numID in ipairs(missingIDs) do
+            sfui.bonusroll.SetUsed(numID, true, nil, tooltipSpecID)
+        end
+
+        if onApplied then onApplied(#missingIDs) end
+    end
+
+    for _, entry in ipairs(entries) do
+        local numID = entry.id
         if Item and Item.CreateFromItemID then
-            local itemObj = Item:CreateFromItemID(itemID)
+            local itemObj = Item:CreateFromItemID(numID)
             itemObj:ContinueOnItemLoad(function()
-                local name = itemObj:GetItemName()
-                local obtained = (name ~= nil and not remainingNames[name])
-                if obtained then
-                    sfui.bonusroll.SetUsed(itemID, true)
+                resolvedNames[numID] = itemObj:GetItemName()
+                pending = pending - 1
+                if pending == 0 then
+                    Finalize()
                 end
             end)
         else
-            local name = select(1, sfui.common.get_item_info(itemID))
-            if name and not remainingNames[name] then
-                sfui.bonusroll.SetUsed(itemID, true)
+            resolvedNames[numID] = select(1, sfui.common.get_item_info(numID))
+            pending = pending - 1
+            if pending == 0 then
+                Finalize()
             end
         end
     end
 end
 
 function sfui.bonusroll.CheckSupply(chestItemId, onDone)
-    local activeSpecID = sfui.common.get_current_spec_id()
-    local candidates = sfui.bonusroll.GetSourceItems(chestItemId, activeSpecID)
-
-    if #candidates == 0 then
+    if not IsPlayerAtMaxLevel() then
         if onDone then onDone(0) end
         return
     end
 
+    local entries = GetRawChestEntries(chestItemId)
+    if #entries == 0 then
+        if onDone then onDone(0) end
+        return
+    end
+
+    local activeSpecID = GetActiveLootSpecID()
     local attempts   = 0
     local prevCount  = -1
     local stableHits = 0
@@ -585,14 +1013,7 @@ function sfui.bonusroll.CheckSupply(chestItemId, onDone)
         if count == prevCount then
             stableHits = stableHits + 1
             if stableHits >= STABLE_NEEDED then
-                if count >= #candidates then
-                    -- Full pool visible in tooltip -> fresh character or reset, clear source items
-                    sfui.bonusroll.ResetSource(candidates)
-                    if onDone then onDone(0) end
-                else
-                    sfui.bonusroll.ApplyResults(candidates, remaining)
-                    if onDone then onDone(#candidates - count) end
-                end
+                sfui.bonusroll.ApplyResults(entries, remaining, onDone, activeSpecID)
                 return
             end
         else
@@ -601,7 +1022,7 @@ function sfui.bonusroll.CheckSupply(chestItemId, onDone)
         end
 
         if attempts >= MAX_ATTEMPTS then
-            if onDone then onDone(0) end
+            sfui.bonusroll.ApplyResults(entries, remaining, onDone, activeSpecID)
             return
         end
 
@@ -612,6 +1033,18 @@ function sfui.bonusroll.CheckSupply(chestItemId, onDone)
 end
 
 function sfui.bonusroll.CheckAll(rescan)
+    if not IsPlayerAtMaxLevel() then
+        return
+    end
+    if isScanningAll then
+        return
+    end
+
+    SyncFromExternalAddons()
+
+    local scanSpecID = GetActiveLootSpecID()
+    isScanningAll = true
+
     local chestIds = {}
     for chestItemId in pairs(CHEST_DATABASE) do
         chestIds[#chestIds + 1] = chestItemId
@@ -619,9 +1052,7 @@ function sfui.bonusroll.CheckAll(rescan)
 
     local printMsg = sfui.common.print
     if rescan then
-        printMsg("(Bonus Roll): Rescanning server bonus roll history...")
-    else
-        printMsg("(Bonus Roll): Checking past bonus rolls...")
+        printMsg("(bonus roll): rescanning server bonus roll history...")
     end
 
     local total = 0
@@ -632,10 +1063,16 @@ function sfui.bonusroll.CheckAll(rescan)
         index = index + 1
         local chestItemId = chestIds[index]
         if not chestItemId then
-            if total > 0 then
-                printMsg(string.format("(Bonus Roll): %d past bonus roll(s) detected and synced.", total))
-            else
-                printMsg("(Bonus Roll): Bonus roll tracking is up to date.")
+            isScanningAll = false
+            if scanSpecID and scanSpecID > 0 then
+                sessionScannedSpecs[scanSpecID] = true
+            end
+            if rescan then
+                if total > 0 then
+                    printMsg(string.format("(bonus roll): %d bonus-rolled item(s) detected and synced.", total))
+                else
+                    printMsg("(bonus roll): bonus roll tracking is up to date.")
+                end
             end
             DB().checked = true
             if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() and sfui.lootviewer.Rebuild then
@@ -650,58 +1087,94 @@ function sfui.bonusroll.CheckAll(rescan)
     Next()
 end
 
+function sfui.bonusroll.EnsureCurrentSpecScanned()
+    if not IsPlayerAtMaxLevel() then return end
+    SyncFromExternalAddons()
+    local specID = GetActiveLootSpecID()
+    if specID and specID > 0 and not sessionScannedSpecs[specID] and not isScanningAll then
+        sfui.bonusroll.CheckAll(false)
+    end
+end
+
+local function ScheduleSpecScan(delay)
+    if pendingScanTimer then
+        pendingScanTimer:Cancel()
+        pendingScanTimer = nil
+    end
+    pendingScanTimer = C_Timer.NewTimer(delay or 1.5, function()
+        pendingScanTimer = nil
+        sfui.bonusroll.EnsureCurrentSpecScanned()
+    end)
+end
+
 -- ─── Real-Time Bonus Roll Event Handler ───────────────────────────────────────
-function sfui.bonusroll.OnBonusRoll(itemID, rewardLink)
-    if not sfui.bonusroll.IsEligible(itemID) then return end
+local function FindChestForItem(itemID)
+    itemID = tonumber(itemID)
+    if not itemID then return nil end
+    local checkIDs = { [itemID] = true }
+    local linked = GetLinkedIDs(itemID)
+    if linked then
+        for linkedID in pairs(linked) do
+            checkIDs[linkedID] = true
+        end
+    end
 
-    sfui.bonusroll.SetUsed(itemID, true, rewardLink)
-
-    -- Look up chest item ID for this item
-    local chestItemId = nil
     for cId in pairs(CHEST_DATABASE) do
-        local sourceItems = sfui.bonusroll.GetSourceItems(cId)
-        for _, id in ipairs(sourceItems) do
-            if id == itemID then
-                chestItemId = cId
-                break
+        local entries = GetRawChestEntries(cId)
+        for _, entry in ipairs(entries) do
+            if checkIDs[entry.id] then
+                return cId
             end
         end
-        if chestItemId then break end
     end
+    return nil
+end
 
+function sfui.bonusroll.OnBonusRoll(itemID, rewardLink, serverSpecID)
+    itemID = tonumber(itemID)
+    if not sfui.bonusroll.IsEligible(itemID) then return end
+
+    local activeSpecID = (tonumber(serverSpecID) and tonumber(serverSpecID) > 0 and tonumber(serverSpecID)) or GetActiveLootSpecID()
+    sfui.bonusroll.SetUsed(itemID, true, rewardLink, activeSpecID, false, true)
+
+    local chestItemId = FindChestForItem(itemID)
     if not chestItemId then return end
 
-    -- If all candidates for this chest are now used, Blizzard resets the chest pool -> reset source
-    local activeSpecID = sfui.common.get_current_spec_id()
-    local candidates = sfui.bonusroll.GetSourceItems(chestItemId, activeSpecID)
-
-    for _, candId in ipairs(candidates) do
-        if not sfui.bonusroll.IsUsed(candId) then
-            return
-        end
-    end
-
-    sfui.bonusroll.ResetSource(candidates)
+    -- Re-verify chest tooltip shortly after roll to sync exact server pool state (including full-pool reset)
+    C_Timer.After(2.0, function()
+        sfui.bonusroll.CheckSupply(chestItemId, function()
+            if sfui.lootviewer and sfui.lootviewer.frame and sfui.lootviewer.frame:IsShown() and sfui.lootviewer.Rebuild then
+                sfui.lootviewer.Rebuild()
+            end
+        end)
+    end)
 end
 
 -- ─── Event Registrations ──────────────────────────────────────────────────────
-sfui.events.RegisterEvent("BONUS_ROLL_RESULT", function(_, rewardType, rewardLink)
-    if rewardType ~= "item" or not rewardLink then return end
-    local itemID = sfui.common.get_item_id(rewardLink)
+sfui.events.RegisterEvent("BONUS_ROLL_RESULT", function(_, rewardType, rewardLink, _, serverSpecID)
+    if type(rewardLink) ~= "string" or not rewardLink:find("item:", 1, true) then
+        if rewardType ~= "item" or not rewardLink then return end
+    end
+    local itemID = sfui.common.get_item_id(rewardLink) or tonumber(type(rewardLink) == "string" and rewardLink:match("item:(%d+)"))
     if itemID then
-        sfui.bonusroll.OnBonusRoll(itemID, rewardLink)
+        sfui.bonusroll.OnBonusRoll(itemID, rewardLink, serverSpecID)
     end
 end)
 
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function(_, isLogin, isReload)
     if isLogin or isReload then
-        C_Timer.After(4.0, function()
-            local db = DB()
-            if not db.checked then
-                sfui.bonusroll.CheckAll(false)
-            end
-        end)
+        ScheduleSpecScan(4.0)
     end
+end)
+
+sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", function(_, unit)
+    if not unit or unit == "player" then
+        ScheduleSpecScan(1.5)
+    end
+end)
+
+sfui.events.RegisterEvent("PLAYER_LOOT_SPEC_UPDATED", function()
+    ScheduleSpecScan(1.5)
 end)
 
 local _brDebug = {}

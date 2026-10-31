@@ -893,6 +893,40 @@ function sfui.mem.GetModuleStats()
     end
     stats["ring"] = ringMod
 
+    -- Multi-Account Content Sync Module
+    local syncMod = {
+        name = "multi-account sync",
+        status = "|cff888888idle|r",
+        line1 = "peers: 0 • pkts: 0 tx / 0 rx",
+        line2 = "queue: 0 • remote alts: 0 • recipes: 0",
+    }
+    local syInfo = GetDebug("sync_debug_info", "sync")
+    if syInfo then
+        if not syInfo.enabled then
+            syncMod.status = "|cffff4444disabled|r"
+        elseif syInfo.tickerActive or (tonumber(syInfo.queueSize) or 0) > 0 then
+            syncMod.status = "|cff00ffffsyncing|r"
+        elseif (tonumber(syInfo.onlinePeers) or 0) > 0 then
+            syncMod.status = "|cff00ff88active|r"
+        else
+            syncMod.status = "|cff888888ready|r"
+        end
+        syncMod.line1 = string_format(
+            "peers: %d (%d online) • pkts: %d tx / %d rx",
+            tonumber(syInfo.peersCount) or 0,
+            tonumber(syInfo.onlinePeers) or 0,
+            tonumber(syInfo.packetsSent) or 0,
+            tonumber(syInfo.packetsReceived) or 0
+        )
+        syncMod.line2 = string_format(
+            "queue: %d • remote alts: %d • recipes: %d",
+            tonumber(syInfo.queueSize) or 0,
+            tonumber(syInfo.remoteAltsCount) or 0,
+            tonumber(syInfo.recipesCount) or 0
+        )
+    end
+    stats["sync"] = syncMod
+
     return stats
 end
 

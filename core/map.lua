@@ -235,8 +235,9 @@ end
 --- @param x number
 --- @param y number
 --- @param label string|nil optional waypoint name for confirmation chat message
+--- @param fromRemote boolean|nil true when set via incoming cross-account sync
 --- @return boolean isSuccess
-function map.SetUserWaypoint(mapID, x, y, label)
+function map.SetUserWaypoint(mapID, x, y, label, fromRemote)
     if not mapID or not x or not y or is_in_combat() then return false end
     local UiMapPoint = _G.UiMapPoint
     if not (C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates) then
@@ -256,6 +257,9 @@ function map.SetUserWaypoint(mapID, x, y, label)
 
     if label and sfui.common and sfui.common.print then
         sfui.common.print("waypoint set for " .. label)
+    end
+    if not fromRemote and sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_WAYPOINT_SET", mapID, x, y, label)
     end
     return true
 end

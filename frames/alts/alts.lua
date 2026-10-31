@@ -353,7 +353,14 @@ function sfui.alts.PerformSync(isLogout)
         sfui.alts.provider.PerformSync(d, isLogout)
     end
 
+    if SfuiDB.sync and SfuiDB.sync.accountLabel and SfuiDB.sync.accountLabel ~= "" then
+        d.accountLabel = SfuiDB.sync.accountLabel
+    end
+
     SfuiDB.alts[guid] = d
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_ALT_SYNCED", guid, isLogout)
+    end
 end
 
 -- UI Implementation

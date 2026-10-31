@@ -682,7 +682,9 @@ function CamelotQuestsModule:BuildBlocks(container)
 
                 -- Smart progress-based expansion & inline tag
                 local hasProgress, inlineTag = GetQuestProgressDetails(questID, i, isComplete, objs, canClickToComplete)
-                local defaultExpanded = (hasProgress and not isComplete)
+                local missingPartyPeers = sfui.sync and sfui.sync.GetPartyMissingQuestPeers and sfui.sync.GetPartyMissingQuestPeers(questID)
+                local hasMissingParty = (missingPartyPeers and #missingPartyPeers > 0) or false
+                local defaultExpanded = ((hasProgress or hasMissingParty) and not isComplete)
                 local isExpanded
                 if manualExpanded[questID] ~= nil then
                     isExpanded = (manualExpanded[questID] == true)
@@ -694,12 +696,22 @@ function CamelotQuestsModule:BuildBlocks(container)
                 if not isExpanded and inlineTag ~= "" then
                     displayTitle = displayTitle .. inlineTag
                 end
+                if hasMissingParty then
+                    displayTitle = displayTitle .. " |cffff5555[!party]|r"
+                end
 
                 -- Objectives lines
                 local lines = {}
                 local progressBar = nil
 
                 if isExpanded then
+                    if hasMissingParty then
+                        table_insert(lines, {
+                            text      = "! missing: " .. table.concat(missingPartyPeers, ", "),
+                            completed = false,
+                            color     = { 1.0, 0.35, 0.35, 1 },
+                        })
+                    end
                     if isComplete then
                         local compText = (Waypoints and Waypoints.GetCompletionText(i, canClickToComplete))
                             or (canClickToComplete and (QUEST_WATCH_QUEST_COMPLETE or "Click to complete quest"))

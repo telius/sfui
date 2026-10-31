@@ -26,7 +26,6 @@ local tonumber = _G.tonumber
 local tostring = _G.tostring
 local table_insert = table.insert
 local math_max = math.max
-local math_min = math.min
 local UnitGUID = _G.UnitGUID
 local GetRealmName = _G.GetRealmName
 local GetServerTime = _G.GetServerTime
@@ -94,6 +93,9 @@ function merge.MergeAlt(guid, incomingData, peerAccountLabel, peerAccountID)
             merged.accountID = existing.accountID
         end
         SfuiDB.alts[guid] = merged
+        if sfui.sync and sfui.sync.multibox and sfui.sync.multibox.InvalidatePeerCache then
+            sfui.sync.multibox.InvalidatePeerCache()
+        end
         if sfui.alts and sfui.alts.UpdateUI then
             sfui.alts.UpdateUI(true)
         end
@@ -949,6 +951,80 @@ function merge.MergeDJWishlist(payload)
 end
 
 -- ── 8. Manifest / Digest Builder ──────────────────────────────────────────────
+local function count_all_char_known_recipes()
+    local seenByGuid = {}
+    local counts = {}
+    local function mark(guid, id)
+        local s = seenByGuid[guid]
+        if not s then
+            s = {}
+            seenByGuid[guid] = s
+        end
+        if not s[id] then
+            s[id] = true
+            counts[guid] = (counts[guid] or 0) + 1
+        end
+    end
+
+    if type(SfuiDB.recipes) == "table" then
+        for itemID, realmMap in pairs(SfuiDB.recipes) do
+            if type(itemID) == "number" and type(realmMap) == "table" then
+                for _, guidMap in pairs(realmMap) do
+                    if type(guidMap) == "table" then
+                        for guid, known in pairs(guidMap) do
+                            if known then mark(guid, itemID) end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if type(SfuiDB.crafts) == "table" and sfui.recipes_camelot and sfui.recipes_camelot.outputs then
+        local outputs = sfui.recipes_camelot.outputs
+        local recipes = sfui.recipes_camelot.recipes
+        for outID, crafters in pairs(SfuiDB.crafts) do
+            if type(crafters) == "table" then
+                local sID = outputs[outID]
+                if sID then
+                    local r = recipes and recipes[sID]
+                    local rItemID = r and r.recipeItemID
+                    for guid, known in pairs(crafters) do
+                        if known then
+                            mark(guid, sID)
+                            if rItemID then mark(guid, rItemID) end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return counts
+end
+
+function merge.GetContactsCounts()
+    SfuiDB = SfuiDB or {}
+    local vCount, tCount, dCount, qCount = 0, 0, 0, 0
+    if SfuiDB.contacts then
+        if type(SfuiDB.contacts.vendors) == "table" then
+            for _ in pairs(SfuiDB.contacts.vendors) do vCount = vCount + 1 end
+        end
+        if type(SfuiDB.contacts.trainers) == "table" then
+            for _ in pairs(SfuiDB.contacts.trainers) do tCount = tCount + 1 end
+        end
+    end
+    if SfuiDB.recipe_finds then
+        if type(SfuiDB.recipe_finds.drops) == "table" then
+            for _ in pairs(SfuiDB.recipe_finds.drops) do dCount = dCount + 1 end
+        end
+        if type(SfuiDB.recipe_finds.quests) == "table" then
+            for _ in pairs(SfuiDB.recipe_finds.quests) do qCount = qCount + 1 end
+        end
+    end
+    return { v = vCount, t = tCount, d = dCount, q = qCount }
+end
+
 function merge.BuildManifest(syncCfg)
     SfuiDB = SfuiDB or {}
     syncCfg = syncCfg or (SfuiDB.sync or {})
@@ -962,6 +1038,7 @@ function merge.BuildManifest(syncCfg)
     local manifest = {
         accountID    = myAccountID,
         accountLabel = syncCfg.accountLabel or "",
+        settings     = (sfui.sync and sfui.sync.BuildSharedSettingsPayload and sfui.sync.BuildSharedSettingsPayload(syncCfg)) or nil,
         alts         = {},
         quests       = {},
         djWishlist   = {},
@@ -969,6 +1046,9 @@ function merge.BuildManifest(syncCfg)
         fishing      = {},
         roster       = {},
     }
+
+    local recipeCountsByGuid = (syncCfg.syncRecipes ~= false) and count_all_char_known_recipes() or nil
+    local defaultRealm = (GetRealmName and GetRealmName()) or ""
 
     if SfuiDB.alts then
         for guid, d in pairs(SfuiDB.alts) do
@@ -982,22 +1062,20 @@ function merge.BuildManifest(syncCfg)
                     table_insert(manifest.roster, {
                         guid         = guid,
                         name         = d.name,
-                        realm        = d.realm or (GetRealmName and GetRealmName()) or "",
+                        realm        = d.realm or defaultRealm,
                         class        = d.class,
                         level        = d.level,
                         accountID    = myAccountID,
                         accountLabel = d.accountLabel or syncCfg.accountLabel or "",
                     })
                 end
-                local realm = d.realm or (GetRealmName and GetRealmName()) or ""
-                if realm ~= "" then
-                    local knownList = merge.GetCharKnownRecipes(realm, guid)
-                    if #knownList > 0 then
-                        manifest.recipes[guid] = {
-                            r = realm,
-                            n = #knownList,
-                        }
-                    end
+                local realm = d.realm or defaultRealm
+                local rCount = recipeCountsByGuid and recipeCountsByGuid[guid] or 0
+                if realm ~= "" and rCount > 0 then
+                    manifest.recipes[guid] = {
+                        r = realm,
+                        n = rCount,
+                    }
                 end
             end
         end
@@ -1020,24 +1098,7 @@ function merge.BuildManifest(syncCfg)
         end
     end
 
-    local vCount, tCount, dCount, qCount = 0, 0, 0, 0
-    if SfuiDB.contacts then
-        if type(SfuiDB.contacts.vendors) == "table" then
-            for _ in pairs(SfuiDB.contacts.vendors) do vCount = vCount + 1 end
-        end
-        if type(SfuiDB.contacts.trainers) == "table" then
-            for _ in pairs(SfuiDB.contacts.trainers) do tCount = tCount + 1 end
-        end
-    end
-    if SfuiDB.recipe_finds then
-        if type(SfuiDB.recipe_finds.drops) == "table" then
-            for _ in pairs(SfuiDB.recipe_finds.drops) do dCount = dCount + 1 end
-        end
-        if type(SfuiDB.recipe_finds.quests) == "table" then
-            for _ in pairs(SfuiDB.recipe_finds.quests) do qCount = qCount + 1 end
-        end
-    end
-    manifest.contacts = { v = vCount, t = tCount, d = dCount, q = qCount }
+    manifest.contacts = merge.GetContactsCounts()
 
     return manifest
 end

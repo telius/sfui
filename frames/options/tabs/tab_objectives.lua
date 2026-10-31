@@ -61,6 +61,27 @@ sfui.options.RegisterTab({
         lock_ql_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
         yOff = yOff - 28
 
+        local warband_ql_cb = create_checkbox(p, "recolor warbound completed quests",
+            function()
+                return SfuiDB.questlogRecolorWarband ~= false
+            end,
+            function(checked)
+                SfuiDB.questlogRecolorWarband = checked
+                if sfui.tracker then
+                    for _, mod in ipairs(sfui.tracker.modules or {}) do
+                        if mod.id == "quests" and mod.MarkDirty then
+                            mod:MarkDirty()
+                        end
+                    end
+                    if sfui.tracker.RequestRefresh then
+                        sfui.tracker.RequestRefresh(0.01)
+                    end
+                end
+            end,
+            "tints quest titles in dark red when a quest has already been completed on another character in your warband.")
+        warband_ql_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
+        yOff = yOff - 28
+
         local boons_cb = create_checkbox(p, "show boons details (delves & labyrinths)",
             function()
                 return SfuiDB.showBoonsDetails ~= false

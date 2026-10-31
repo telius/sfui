@@ -889,6 +889,23 @@ function B.GetLearnedCacheSize()
     return count
 end
 
+--- Check if a recipe ID is marked known for a character GUID in SfuiDB.recipes across any realm key
+local function IsKnownInRecipeDB(id, guid)
+    if not id or not guid or not SfuiDB or type(SfuiDB.recipes) ~= "table" then
+        return false
+    end
+    local realmMap = SfuiDB.recipes[id]
+    if type(realmMap) ~= "table" then
+        return false
+    end
+    for _, guidMap in pairs(realmMap) do
+        if type(guidMap) == "table" and guidMap[guid] then
+            return true
+        end
+    end
+    return false
+end
+
 --- Check if the active character or an alt knows a recipe
 --- @param recipeOrSpellID table|number
 --- @param rOrGUID table|string?
@@ -916,6 +933,10 @@ function B.IsRecipeLearned(recipeOrSpellID, rOrGUID, optionalRealm)
             targetGUID = rOrGUID
             targetRealm = optionalRealm
         end
+    end
+
+    if not r and spellID and sfui.recipes_camelot and sfui.recipes_camelot.recipes then
+        r = sfui.recipes_camelot.recipes[spellID]
     end
 
     local playerGUID, playerRealm = GetPlayerIdentifiers()
@@ -960,37 +981,34 @@ function B.IsRecipeLearned(recipeOrSpellID, rOrGUID, optionalRealm)
     end
 
     if isPlayer and spellID then
+        local foundLive = false
         -- 1. Direct spellbook / player spell check
         if C_SpellBook and C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(spellID) then
-            isLearnedCache[spellID] = true
-            return true
-        end
-        if C_SpellBook and C_SpellBook.IsSpellKnownOrInSpellBook and C_SpellBook.IsSpellKnownOrInSpellBook(spellID) then
-            isLearnedCache[spellID] = true
-            return true
-        end
-        if _G.IsPlayerSpell and _G.IsPlayerSpell(spellID) then
-            isLearnedCache[spellID] = true
-            return true
-        end
-        if _G.IsSpellKnown and _G.IsSpellKnown(spellID) then
-            isLearnedCache[spellID] = true
-            return true
+            foundLive = true
+        elseif C_SpellBook and C_SpellBook.IsSpellKnownOrInSpellBook and C_SpellBook.IsSpellKnownOrInSpellBook(spellID) then
+            foundLive = true
+        elseif _G.IsPlayerSpell and _G.IsPlayerSpell(spellID) then
+            foundLive = true
+        elseif _G.IsSpellKnown and _G.IsSpellKnown(spellID) then
+            foundLive = true
+        elseif C_TradeSkillUI and C_TradeSkillUI.GetRecipeInfo then
+            -- 2. C_TradeSkillUI check (only trust positive learned == true; closed TradeSkill UI returns learned = false)
+            local info = C_TradeSkillUI.GetRecipeInfo(spellID)
+            if type(info) == "table" and info.learned == true then
+                foundLive = true
+            end
         end
 
-        -- 2. C_TradeSkillUI check
-        if C_TradeSkillUI and C_TradeSkillUI.GetRecipeInfo then
-            local ok, info = pcall(C_TradeSkillUI.GetRecipeInfo, spellID)
-            if ok and type(info) == "table" and info.learned ~= nil then
-                local learned = info.learned and true or false
-                isLearnedCache[spellID] = learned
-                return learned
+        if foundLive then
+            isLearnedCache[spellID] = true
+            if sfui.recipes and sfui.recipes.RecordKnownRecipeForChar then
+                sfui.recipes.RecordKnownRecipeForChar(spellID, playerGUID, playerRealm)
             end
+            return true
         end
     end
 
     local queryGUID = isPlayer and playerGUID or targetGUID
-    local queryRealm = isPlayer and playerRealm or (targetRealm or playerRealm)
 
     -- 3. Check SfuiDB.crafts for output item crafter
     if r and r.output and SfuiDB and SfuiDB.crafts and SfuiDB.crafts[r.output] then
@@ -1000,14 +1018,11 @@ function B.IsRecipeLearned(recipeOrSpellID, rOrGUID, optionalRealm)
         end
     end
 
-    -- 4. Fallback to SfuiDB.recipes alt tracker (by recipe item or spellID)
-    if SfuiDB and SfuiDB.recipes and queryRealm and queryGUID then
+    -- 4. Fallback to SfuiDB.recipes alt tracker (by recipe item or spellID across all realm keys)
+    if queryGUID then
         local rItemID = r and r.recipeItemID
-        if rItemID and SfuiDB.recipes[rItemID] and SfuiDB.recipes[rItemID][queryRealm] and SfuiDB.recipes[rItemID][queryRealm][queryGUID] then
-            if isPlayer and spellID then isLearnedCache[spellID] = true end
-            return true
-        end
-        if spellID and SfuiDB.recipes[spellID] and SfuiDB.recipes[spellID][queryRealm] and SfuiDB.recipes[spellID][queryRealm][queryGUID] then
+        if (rItemID and IsKnownInRecipeDB(rItemID, queryGUID))
+        or (spellID and IsKnownInRecipeDB(spellID, queryGUID)) then
             if isPlayer and spellID then isLearnedCache[spellID] = true end
             return true
         end
@@ -1036,13 +1051,15 @@ function sfui.recipes.IsAltNeeded(recipeOrID)
 
     local skillID = r.skillID
     local myGUID, myRealm = GetPlayerIdentifiers()
+    local normMyRealm = myRealm and myRealm:gsub("[%s%-']", ""):lower() or ""
 
     local matchingAlts = nil
 
     for guid, altData in pairs(SfuiDB.alts) do
         if guid ~= myGUID and altData then
             local altRealm = altData.realm or myRealm
-            if altRealm == myRealm then
+            local normAltRealm = altRealm and altRealm:gsub("[%s%-']", ""):lower() or ""
+            if normAltRealm == "" or normMyRealm == "" or normAltRealm == normMyRealm then
                 local hasProf = false
                 if altData.professions then
                     if altData.professions.primaries then

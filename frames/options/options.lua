@@ -46,6 +46,7 @@ local default_tab_icons = {
     ["portals"]      = "Interface\\Icons\\Spell_Shadow_Teleport",
     ["research"]     = "Interface\\Icons\\Spell_Shadow_TomeOfSacrifice",
     ["ring"]         = "Interface\\Icons\\Spell_Shadow_DeathPact",
+    ["sync"]         = "Interface\\Icons\\Spell_Shadow_MindTwisting",
     ["theme"]        = "Interface\\Icons\\Spell_Shadow_AntiShadow",
 }
 

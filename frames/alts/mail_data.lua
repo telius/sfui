@@ -837,23 +837,37 @@ end
 
 --- Find destination recipient for a specific bag item
 --- @param bag number
+local ROUTING_CAT_KEYS = {
+    "sendHerbs",
+    "sendOre",
+    "sendCloth",
+    "sendLeather",
+    "sendEnchanting",
+    "sendGems",
+    "sendElemental",
+    "sendCooking",
+    "sendEngineering",
+    "sendInscription",
+    "sendComprehension",
+}
+
 --- @param slot number
+--- @param candidateAlts table? Optional pre-fetched `mail.GetAlts(false)` list
+--- @param preloadedInfo table? Optional pre-fetched `C_Container.GetContainerItemInfo(bag, slot)`
+--- @param ignoreEnabledCheck boolean? When true, evaluates routing rules even if auto-mail checkbox is off
 --- @return string|nil targetGUID, string|nil targetName, string|nil targetRealm, string|nil reason, table|nil info
-function mail.FindDestinationForBagItem(bag, slot)
+function mail.FindDestinationForBagItem(bag, slot, candidateAlts, preloadedInfo, ignoreEnabledCheck)
     if not C_Container then return nil end
     local settings = mail.GetSettings()
-    if not settings.enabled then return nil end
+    if not ignoreEnabledCheck and not settings.enabled then return nil end
 
-    local itemID = C_Container.GetContainerItemID(bag, slot)
-    if not itemID then return nil end
-
-    local info = C_Container.GetContainerItemInfo(bag, slot)
+    local info = preloadedInfo or C_Container.GetContainerItemInfo(bag, slot)
     if not info or not info.itemID or not info.hyperlink then return nil end
 
-    -- Soulbound items can never be mailed
+    -- Soulbound items can never be mailed or traded
     if info.isBound then return nil end
 
-    itemID = info.itemID
+    local itemID = info.itemID
 
     -- Check if item is explicitly blacklisted
     if mail.IsItemIgnored(itemID) then return nil end
@@ -869,7 +883,7 @@ function mail.FindDestinationForBagItem(bag, slot)
         subclassID = subclassID or scID
     end
 
-    local candidateAlts = mail.GetAlts(false)
+    candidateAlts = candidateAlts or mail.GetAlts(false)
 
     -- 1. Explicit item assigned directly to an alt
     for _, alt in ipairs(candidateAlts) do
@@ -881,23 +895,10 @@ function mail.FindDestinationForBagItem(bag, slot)
 
     -- 2. Category match (herbs, ore, cloth, leather, enchanting, gems, elemental, cooking, engineering, inscription, comprehension)
     if classID and subclassID then
-        local catKeys = {
-            "sendHerbs",
-            "sendOre",
-            "sendCloth",
-            "sendLeather",
-            "sendEnchanting",
-            "sendGems",
-            "sendElemental",
-            "sendCooking",
-            "sendEngineering",
-            "sendInscription",
-            "sendComprehension",
-        }
         for _, alt in ipairs(candidateAlts) do
             local route = settings.routes and settings.routes[alt.guid]
             if route then
-                for _, catKey in ipairs(catKeys) do
+                for _, catKey in ipairs(ROUTING_CAT_KEYS) do
                     if route[catKey] and MatchesTradeskillCategory(classID, subclassID, catKey, itemID, itemLink) then
                         return alt.guid, alt.name, alt.realm, "category_" .. catKey, info
                     end
@@ -944,12 +945,13 @@ function mail.ScanPendingMail(targetGUID)
     local recipientCount = 0
 
     if not C_Container then return manifest, 0, 0 end
+    local candidateAlts = mail.GetAlts(false)
 
     -- Scan backpack (0), bags (1-4) and reagent bag (5) when present
     for bag = 0, mail.GetLastBagIndex() do
         local numSlots = C_Container.GetContainerNumSlots(bag) or 0
         for slot = 1, numSlots do
-            local destGUID, destName, destRealm, reason, itemInfo = mail.FindDestinationForBagItem(bag, slot)
+            local destGUID, destName, destRealm, reason, itemInfo = mail.FindDestinationForBagItem(bag, slot, candidateAlts)
             if destGUID and destName and (not targetGUID or destGUID == targetGUID) then
                 local info = itemInfo or C_Container.GetContainerItemInfo(bag, slot)
                 if info then

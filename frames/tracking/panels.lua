@@ -16,7 +16,6 @@ local type, ipairs, pairs, tonumber, tostring, pcall = type, ipairs, pairs, tonu
 local table, math, string = table, math, string
 local C_Timer = _G.C_Timer
 local C_CooldownViewer = _G.C_CooldownViewer
-local CooldownViewerSettings = _G.CooldownViewerSettings
 local C_ClassTalents = _G.C_ClassTalents
 local Enum = _G.Enum
 local wipe = _G.wipe or table.wipe
@@ -135,21 +134,9 @@ local function get_all_cdm_entries()
         end
     end
 
-    -- Try using CooldownViewerSettings DataProvider
-    if CooldownViewerSettings and CooldownViewerSettings.GetDataProvider then
-        local dataProvider = CooldownViewerSettings:GetDataProvider()
-        local cooldownIDs = dataProvider and dataProvider:GetOrderedCooldownIDs()
-        if cooldownIDs then
-            for _, cooldownID in ipairs(cooldownIDs) do
-                if not (sfui.common.issecretvalue and sfui.common.issecretvalue(cooldownID)) then
-                    categorize(cooldownID, dataProvider:GetCooldownInfoForID(cooldownID))
-                end
-            end
-        end
-    end
-
-    -- fallback: use c_cooldownviewer direct api if provider not ready or empty
-    if #cat0 == 0 and #cat1 == 0 and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
+    -- Query C_CooldownViewer direct C API (avoids calling CooldownViewerSettings:GetDataProvider()
+    -- methods which invoke CheckBuildDisplayData() and taint CooldownViewerLayoutManager)
+    if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
         local cats = {}
         local catEnum = Enum and Enum.CooldownViewerCategory
         if catEnum then
@@ -167,7 +154,9 @@ local function get_all_cdm_entries()
             local cooldownIDs = C_CooldownViewer.GetCooldownViewerCategorySet(cat, true)
             if cooldownIDs then
                 for _, cooldownID in ipairs(cooldownIDs) do
-                    categorize(cooldownID, C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID))
+                    if not (sfui.common.issecretvalue and sfui.common.issecretvalue(cooldownID)) then
+                        categorize(cooldownID, C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID))
+                    end
                 end
             end
         end

@@ -829,7 +829,13 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
                         end
                     elseif button == "RightButton" then
                         if IsShiftKeyDown() then
-                            if C_UI and C_UI.Reload then C_UI.Reload() elseif _G.ReloadUI then _G.ReloadUI() end
+                            if sfui.sync and sfui.sync.ReloadAllClients then
+                                sfui.sync.ReloadAllClients()
+                            elseif C_UI and C_UI.Reload then
+                                C_UI.Reload()
+                            elseif _G.ReloadUI then
+                                _G.ReloadUI()
+                            end
                         else
                             sfui.alts.Toggle()
                         end
@@ -840,7 +846,7 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
                     tooltip:AddLine("left-click for menu", 0.2, 1, 0.2)
                     tooltip:AddLine("shift+left-click to lock/unlock movers", 0, 1, 1)
                     tooltip:AddLine("right-click for alts", 0.4, 0.7, 1)
-                    tooltip:AddLine("shift+right-click to reload ui", 1, 0.2, 0.2)
+                    tooltip:AddLine("shift+right-click to reload ui (all synced clients)", 1, 0.2, 0.2)
                 end,
             })
         end

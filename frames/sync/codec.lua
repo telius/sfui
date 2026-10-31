@@ -295,6 +295,12 @@ function codec.GetQueueStats()
     return #sendQueue, queueTicker ~= nil, reassemblyCount
 end
 
+function codec.FlushQueue()
+    while #sendQueue > 0 do
+        process_send_queue()
+    end
+end
+
 function codec.SendMessage(prefix, msgType, dataTable, channel, target, bnetIDAccount)
     local env = acquire_tbl()
     env.t = msgType

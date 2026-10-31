@@ -353,8 +353,11 @@ function sfui.merchant.build_item_list()
             local isRecipe = itemID and sfui.recipes.IsRecipe(itemID)
 
             if isRecipe then
+                if common.is_item_known(link) and sfui.recipes.RecordKnownRecipeForChar then
+                    sfui.recipes.RecordKnownRecipeForChar(itemID)
+                end
                 local status = sfui.recipes.GetRecipeStatus(itemID)
-                if status == "KNOWN_CURRENT" then
+                if status == "KNOWN_CURRENT" or common.is_item_known(link) then
                     isKnown = true
                 elseif (sfui.merchant.filterKnown == 2) and (status == "KNOWN_ALT") then
                     isKnown = true
@@ -518,26 +521,58 @@ function sfui.merchant.get_item_lock_status(index, itemID, isUsable)
         return cachedLock.locked, cachedLock.reason
     end
 
-    local locked, reason = not isUsable, "Unusable"
+    local locked, reason = not isUsable, "unusable"
+    local alreadyKnown = false
+    local knownStr = _G.ITEM_SPELL_KNOWN or "Already known"
     local tip = C_TooltipInfo and C_TooltipInfo.GetMerchantItem and C_TooltipInfo.GetMerchantItem(index)
     if tip and tip.lines then
         local reasons = getTable()
         for _, line in ipairs(tip.lines) do
-            local clr = line.leftColor
-            if clr and clr.r > 0.9 and clr.g < 0.2 and clr.b < 0.2 and line.leftText then
-                local text = line.leftText
-                if not text:find("Already known") then
-                    text = text:gsub("Requires", "R"):gsub("Rank ", ""):gsub("Defeat ", ""):gsub(
-                        "Reputation ", "");
-                    table.insert(reasons, text)
-                    locked = true
+            local text = line.leftText
+            if text then
+                if text == knownStr or text:find(knownStr, 1, true) or text:find("Already known", 1, true) then
+                    alreadyKnown = true
+                    if itemID and sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID) and sfui.recipes.RecordKnownRecipeForChar then
+                        sfui.recipes.RecordKnownRecipeForChar(itemID)
+                    end
+                else
+                    local clr = line.leftColor
+                    if clr and clr.r > 0.9 and clr.g < 0.2 and clr.b < 0.2 then
+                        text = text:gsub("Requires", "R"):gsub("Rank ", ""):gsub("Defeat ", ""):gsub(
+                            "Reputation ", "");
+                        table.insert(reasons, text)
+                        locked = true
+                    end
                 end
             end
         end
-        if #reasons > 0 then
+        if alreadyKnown then
+            locked = true
+            reason = "already known"
+        elseif #reasons > 0 then
             reason = table.concat(reasons, ", ")
         end
         releaseTable(reasons)
+    end
+
+    if itemID and sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID) and sfui.recipes.GetRecipeStatus then
+        local rStatus = sfui.recipes.GetRecipeStatus(itemID)
+        if rStatus == "KNOWN_CURRENT" then
+            locked = true
+            reason = "already known"
+        elseif rStatus == "KNOWN_ALT" then
+            if locked and reason ~= "unusable" then
+                reason = reason .. " · alt known"
+            else
+                reason = "known by alt"
+            end
+        elseif rStatus == "CAN_LEARN_ALT" and locked then
+            if reason ~= "unusable" then
+                reason = reason .. " · alt can learn"
+            else
+                reason = "alt can learn"
+            end
+        end
     end
 
     if itemID then

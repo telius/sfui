@@ -161,7 +161,50 @@ function sfui.dungeonjournal.IsWishlisted(itemID)
     local id = tonumber(itemID)
     if not id then return false end
     local db = DJ_DB()
-    return db.wishlist and db.wishlist[id] == true
+    if db.wishlist and db.wishlist[id] == true then
+        return true
+    end
+    if type(db.charWishlist) == "table" then
+        for _, charMap in pairs(db.charWishlist) do
+            if type(charMap) == "table" and charMap[id] == true then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+function sfui.dungeonjournal.GetWishlistCharacters(itemID)
+    if not itemID then return nil end
+    local id = tonumber(itemID)
+    if not id then return nil end
+    local db = DJ_DB()
+    local names = nil
+    local seen = {}
+    local myGUID = _G.UnitGUID and _G.UnitGUID("player")
+    if type(db.charWishlist) == "table" then
+        for guid, charMap in pairs(db.charWishlist) do
+            if type(charMap) == "table" and charMap[id] == true then
+                local alt = SfuiDB and SfuiDB.alts and SfuiDB.alts[guid]
+                local rawName = (alt and alt.name) or (guid == myGUID and (_G.UnitName and _G.UnitName("player"))) or nil
+                if rawName and rawName ~= "" then
+                    local clean = (rawName:match("^([^%-]+)") or rawName):lower()
+                    if not seen[clean] then
+                        seen[clean] = true
+                        local classToken = (alt and alt.class) or (guid == myGUID and select(2, _G.UnitClass("player")))
+                        local cTbl = classToken and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[classToken]
+                        if cTbl then
+                            local hex = cTbl.colorStr or string.format("ff%02x%02x%02x", math.floor((cTbl.r or 1) * 255), math.floor((cTbl.g or 1) * 255), math.floor((cTbl.b or 1) * 255))
+                            clean = "|c" .. hex .. clean .. "|r"
+                        end
+                        names = names or {}
+                        names[#names + 1] = clean
+                    end
+                end
+            end
+        end
+    end
+    return names
 end
 
 function sfui.dungeonjournal.ToggleWishlist(itemID)
@@ -170,11 +213,37 @@ function sfui.dungeonjournal.ToggleWishlist(itemID)
     if not id then return false end
     local db = DJ_DB()
     db.wishlist = db.wishlist or {}
-    local newState = not db.wishlist[id]
+    db.charWishlist = db.charWishlist or {}
+    db.charWishlistRev = db.charWishlistRev or {}
+    local myGUID = _G.UnitGUID and _G.UnitGUID("player")
+    local newState
+    if myGUID then
+        db.charWishlist[myGUID] = db.charWishlist[myGUID] or {}
+        if db.charWishlist[myGUID][id] ~= nil then
+            newState = not db.charWishlist[myGUID][id]
+        else
+            newState = not db.wishlist[id]
+        end
+        if newState then
+            db.charWishlist[myGUID][id] = true
+        else
+            db.charWishlist[myGUID][id] = nil
+        end
+        db.charWishlistRev[myGUID] = (_G.time and _G.time()) or 1
+    else
+        newState = not db.wishlist[id]
+    end
     if newState then
         db.wishlist[id] = true
     else
-        db.wishlist[id] = nil
+        local stillWanted = false
+        for _, charMap in pairs(db.charWishlist) do
+            if type(charMap) == "table" and charMap[id] == true then
+                stillWanted = true
+                break
+            end
+        end
+        db.wishlist[id] = stillWanted and true or nil
     end
     if sfui.events and sfui.events.SendMessage then
         sfui.events.SendMessage("SFUI_DJ_WISHLIST_UPDATED", id, newState)

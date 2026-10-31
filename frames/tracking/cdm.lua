@@ -118,39 +118,15 @@ local OnZoneReceiveDrag
 local HandleExternalDrop
 local cursor
 
-local function CanSaveBlizzardCDM()
-    if InCombatLockdown() then
-        return false
-    end
-    if not sfui.isRetail then
-        return false
-    end
-    if CooldownViewerUtil and CooldownViewerUtil.GetCurrentClassAndSpecTag then
-        local tag = CooldownViewerUtil.GetCurrentClassAndSpecTag()
-        if not tag then
-            return false
-        end
-    end
-    return true
-end
-
 local function SafeSaveBlizzardLayout()
-    if not CanSaveBlizzardCDM() or InCombatLockdown() then return end
-    local layoutManager = CooldownViewerSettings and CooldownViewerSettings.GetLayoutManager and
-        CooldownViewerSettings:GetLayoutManager()
-    if layoutManager and layoutManager.SaveLayouts then
-        pcall(function() layoutManager:SaveLayouts() end)
-    end
-    if ShowReloadPrompt then ShowReloadPrompt() end
+    -- Do not call CooldownViewerSettings:GetLayoutManager():SaveLayouts() from addon context:
+    -- NotifyListeners() triggers "CooldownViewerSettings.OnDataChanged" which invokes protected
+    -- C_UnitAuras.SetHiddenGroupBuffs() and C_UnitAuras.SetGroupBuffVisualAlerts().
 end
 
 local function SafeSetBlizzardCooldownCategory(cdID, category)
-    if not CanSaveBlizzardCDM() or InCombatLockdown() then return end
-    local dp = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and
-        CooldownViewerSettings:GetDataProvider()
-    if dp and dp.SetCooldownToCategory then
-        pcall(function() dp:SetCooldownToCategory(cdID, category) end)
-    end
+    -- Do not call CooldownViewerSettings:GetDataProvider():SetCooldownToCategory() from addon context:
+    -- mutating CooldownViewerLayoutManager taints it and invokes protected C_UnitAuras functions.
 end
 
 local function OnZoneIconDragStart(self)
@@ -624,45 +600,14 @@ local function RenderTrackedBarsRightSide(parent, width)
         end
     end
 
-    -- 1. CooldownViewerSettings DataProvider (where user custom bar assignments live in Blizzard UI)
-    local dp = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and CooldownViewerSettings:GetDataProvider()
-    if dp then
-        -- Query category list (allow unlearned so player can configure any bar assigned in Blizzard UI)
-        if dp.GetOrderedCooldownIDsForCategory then
-            for _, cat in ipairs(cats) do
-                local ok, ids = pcall(dp.GetOrderedCooldownIDsForCategory, dp, cat, true)
-                if ok and ids then
-                    for _, id in ipairs(ids) do addID(id) end
-                end
-            end
-        end
-
-        -- Scan all ordered cooldown IDs in case category was updated in the layout
-        if dp.GetOrderedCooldownIDs and dp.GetCooldownInfoForID then
-            local ok, allIDs = pcall(dp.GetOrderedCooldownIDs, dp)
-            if ok and allIDs then
-                local catLookup = {}
-                for _, c in ipairs(cats) do catLookup[c] = true end
-                for _, id in ipairs(allIDs) do
-                    if not seen[id] then
-                        local okInfo, info = pcall(dp.GetCooldownInfoForID, dp, id)
-                        if okInfo and info and catLookup[info.category] then
-                            addID(id)
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    -- 2. Blizzard's active BuffBarCooldownViewer itemFramePool (frames live on screen)
+    -- 1. Blizzard's active BuffBarCooldownViewer itemFramePool (frames live on screen)
     if BuffBarCooldownViewer and BuffBarCooldownViewer.itemFramePool and BuffBarCooldownViewer.itemFramePool.EnumerateActive then
         for blizzFrame in BuffBarCooldownViewer.itemFramePool:EnumerateActive() do
             addID(blizzFrame.cooldownID)
         end
     end
 
-    -- 3. C_CooldownViewer static category set fallback (learned + unlearned)
+    -- 2. C_CooldownViewer static category set (learned + unlearned, taint-safe C API)
     if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
         for _, cat in ipairs(cats) do
             for _, allowUnlearned in ipairs({ true, false }) do
@@ -1046,14 +991,7 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
         local importBtn = common.create_dropdown(zone, 80, options, function(gId)
             if type(gId) ~= "number" or gId < 0 then return end
             local list = nil
-            local dp = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and CooldownViewerSettings:GetDataProvider()
-            if dp and dp.GetOrderedCooldownIDsForCategory then
-                local ok, dpList = pcall(dp.GetOrderedCooldownIDsForCategory, dp, gId, true)
-                if ok and dpList and #dpList > 0 then
-                    list = dpList
-                end
-            end
-            if not list and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
+            if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
                 local ok, cList = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, gId, true)
                 if ok and cList then
                     list = cList
@@ -1434,16 +1372,6 @@ local function RenderAssignmentsIconPool(parent, width, entries)
         end
     end
     if #cats == 0 then cats = { 0, 1, 7, 5 } end
-
-    local dp = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and CooldownViewerSettings:GetDataProvider()
-    if dp and dp.GetOrderedCooldownIDsForCategory then
-        for _, cat in ipairs(cats) do
-            local ok, ids = pcall(dp.GetOrderedCooldownIDsForCategory, dp, cat, true)
-            if ok and ids then
-                for _, id in ipairs(ids) do addID(id, cat) end
-            end
-        end
-    end
 
     if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
         for _, cat in ipairs(cats) do

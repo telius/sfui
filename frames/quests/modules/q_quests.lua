@@ -667,7 +667,7 @@ function QuestsModule:BuildBlocks(container)
                 titleColor = { 1.0, 0.2, 0.2, 1 }
             elseif isRepeatable then
                 titleColor = { 0.00, 1.00, 1.00, 1 } -- #00FFFF for repeatable / daily quests
-            elseif isWarband then
+            elseif isWarband and (not SfuiDB or SfuiDB.questlogRecolorWarband ~= false) then
                 titleColor = { 0.75, 0.15, 0.15, 1 } -- Dark red
             end
 

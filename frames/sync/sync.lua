@@ -23,6 +23,7 @@ local pairs = _G.pairs
 local ipairs = _G.ipairs
 local tonumber = _G.tonumber
 local tostring = _G.tostring
+local wipe = _G.wipe
 local table_insert = table.insert
 local string_lower = string.lower
 local string_match = string.match
@@ -64,23 +65,31 @@ local onlinePeers  = {}
 local offlinePeers = {}
 
 local DEFAULT_SETTINGS = {
-    enabled         = true,
-    accountLabel    = "",
-    passcode        = "",
-    accountID       = "",
-    syncAlts        = true,
-    syncQuests      = true,
-    syncWaypoints   = true,
-    syncRecipes     = true,
-    syncContacts    = true,
-    syncFishing     = true,
-    syncMail        = true,
-    useParty        = true,
-    useWhisper      = true,
-    useGuild        = false,
-    useBNet         = true,
-    autoSyncOnLogin = true,
-    peers           = {},
+    enabled            = true,
+    accountLabel       = "",
+    passcode           = "",
+    accountID          = "",
+    syncAlts           = true,
+    syncQuests         = true,
+    syncWaypoints      = true,
+    syncRecipes        = true,
+    syncContacts       = true,
+    syncFishing        = true,
+    syncMail           = true,
+    mbAutoFollow       = true,
+    mbAutoInvite       = true,
+    mbAutoQuest        = true,
+    mbAutoTaxi         = true,
+    mbAutoTrade        = true,
+    mbCorpseAlert      = true,
+    mbShowHud          = true,
+    mbFollowerPassLoot = false,
+    useParty           = true,
+    useWhisper         = true,
+    useGuild           = false,
+    useBNet            = true,
+    autoSyncOnLogin    = true,
+    peers              = {},
 }
 
 if sfui.db and sfui.db.RegisterDefaults then
@@ -111,12 +120,23 @@ function sync.GetSettings()
     if s.syncFishing == nil then s.syncFishing = true end
     if s.syncMail == nil then s.syncMail = true end
 
+    -- Multibox & levelling helper toggles
+    if s.mbAutoFollow == nil then s.mbAutoFollow = true end
+    if s.mbAutoInvite == nil then s.mbAutoInvite = true end
+    if s.mbAutoQuest == nil then s.mbAutoQuest = true end
+    if s.mbAutoTaxi == nil then s.mbAutoTaxi = true end
+    if s.mbAutoTrade == nil then s.mbAutoTrade = true end
+    if s.mbCorpseAlert == nil then s.mbCorpseAlert = true end
+    if s.mbShowHud == nil then s.mbShowHud = true end
+    if s.mbFollowerPassLoot == nil then s.mbFollowerPassLoot = false end
+
     -- Transport channel toggles
     if s.useParty == nil then s.useParty = true end
     if s.useWhisper == nil then s.useWhisper = true end
     if s.useGuild == nil then s.useGuild = false end
     if s.useBNet == nil then s.useBNet = true end
     if s.autoSyncOnLogin == nil then s.autoSyncOnLogin = true end
+    if s.settingsRev == nil then s.settingsRev = 0 end
 
     if type(s.peers) ~= "table" then
         s.peers = {}
@@ -150,9 +170,28 @@ function sync.GetSettings()
     return s
 end
 
+local cachedCurrentRealm = nil
 local function get_current_realm()
+    if cachedCurrentRealm and cachedCurrentRealm ~= "" then
+        return cachedCurrentRealm
+    end
     local r = (GetRealmName and GetRealmName()) or ""
-    return r:gsub("%s+", "")
+    r = r:gsub("%s+", "")
+    if r ~= "" then
+        cachedCurrentRealm = r
+    end
+    return r
+end
+
+-- Returns the full player name for a unit token.
+-- On Forever/Camelot (`not sfui.isRetail`), `GetUnitName(unit, true)` returns the full character
+-- name (which may contain spaces like "First Last") with no realm suffix.
+function sync.FullName(unit)
+    unit = unit or "player"
+    local GetUnitName = _G.GetUnitName
+    local n = (GetUnitName and GetUnitName(unit, true)) or (UnitName and UnitName(unit))
+    if not n or n == "" or n == _G.UNKNOWNOBJECT then return nil end
+    return n
 end
 
 local function normalize_peer_key(nameOrFull, defaultRealm)
@@ -160,30 +199,59 @@ local function normalize_peer_key(nameOrFull, defaultRealm)
     local trimmed = nameOrFull:gsub("^%s+", ""):gsub("%s+$", "")
     if trimmed == "" then return nil, nil, nil end
 
-    local shortName, realm = string_match(trimmed, "^([^%-]+)%-(.+)$")
-    if not shortName then
-        shortName = trimmed
-        realm = defaultRealm or get_current_realm()
+    local shortName, realm
+    if not sfui.isRetail then
+        -- Forever character names can contain spaces ("First Last") and do not use Name-Realm in-game;
+        -- only split on '-' if the suffix matches the current realm name.
+        local curRealm = get_current_realm()
+        local base, suffix = string_match(trimmed, "^(.+)%-([^%-]+)$")
+        if base and suffix and curRealm ~= "" and string_lower(suffix:gsub("%s+", "")) == string_lower(curRealm) then
+            shortName = base:gsub("^%s+", ""):gsub("%s+$", "")
+            realm = curRealm
+        else
+            shortName = trimmed
+            realm = defaultRealm or curRealm
+        end
     else
-        realm = realm:gsub("%s+", "")
+        shortName, realm = string_match(trimmed, "^([^%-]+)%-(.+)$")
+        if not shortName then
+            shortName = trimmed
+            realm = defaultRealm or get_current_realm()
+        else
+            realm = realm:gsub("%s+", "")
+        end
     end
 
     local key = string_lower(shortName) .. "-" .. string_lower(realm or "")
     return key, shortName, realm
 end
 
+function sync.CommandName(nameOrFull)
+    if type(nameOrFull) ~= "string" or nameOrFull == "" then return "" end
+    local _, shortName, realm = normalize_peer_key(nameOrFull)
+    if not shortName then return nameOrFull end
+    if not sfui.isRetail then
+        return shortName
+    end
+    local curRealm = get_current_realm()
+    if not realm or realm == "" or string_lower(realm) == string_lower(curRealm) then
+        return shortName
+    end
+    return shortName .. "-" .. realm
+end
+
 local function get_whisper_target(nameOrFull, peer)
     local _, shortName, realm = normalize_peer_key(nameOrFull, peer and peer.realm)
     if not shortName then return nameOrFull end
     local curRealm = get_current_realm()
-    if sfui.isCamelot or not realm or realm == "" or string_lower(realm) == string_lower(curRealm) then
+    if not sfui.isRetail or not realm or realm == "" or string_lower(realm) == string_lower(curRealm) then
         return shortName
     end
     return shortName .. "-" .. realm
 end
 
 local function is_self_character(nameOrFull)
-    local myName = UnitName and UnitName("player")
+    local myName = sync.FullName("player") or (UnitName and UnitName("player"))
     if not myName then return false end
     local key, shortName = normalize_peer_key(nameOrFull)
     local myKey, myShort = normalize_peer_key(myName)
@@ -212,6 +280,91 @@ local function is_self_character(nameOrFull)
     return false
 end
 
+-- Machine-wide shared store via `Blizzard_Console_SavedVars` (`SavedVariablesMachine` per PC)
+local function sync_machine_store()
+    local bcs = _G.Blizzard_Console_SavedVars
+    if type(bcs) ~= "table" then return end
+    bcs.sfui_sync = type(bcs.sfui_sync) == "table" and bcs.sfui_sync or {}
+    local ms = bcs.sfui_sync
+    ms.peers = type(ms.peers) == "table" and ms.peers or {}
+
+    local s = sync.GetSettings()
+    local myName = sync.FullName("player")
+    local myGUID = UnitGUID and UnitGUID("player")
+    local _, myClass = _G.UnitClass and _G.UnitClass("player")
+    local myLevel = _G.UnitLevel and _G.UnitLevel("player")
+    local now = (GetServerTime and GetServerTime()) or time()
+
+    if myName and myName ~= "" then
+        local myKey, shortName, realm = normalize_peer_key(myName)
+        if myKey and shortName then
+            ms.peers[myKey] = {
+                name         = shortName,
+                realm        = realm or get_current_realm(),
+                guid         = myGUID,
+                class        = myClass,
+                level        = myLevel,
+                accountID    = s.accountID,
+                accountLabel = s.accountLabel,
+                lastSeen     = now,
+            }
+        end
+    end
+
+    -- Import any machine-wide characters from other accounts on this PC
+    for k, mp in pairs(ms.peers) do
+        if type(mp) == "table" and mp.name and mp.accountID ~= s.accountID and not is_self_character(mp.name) then
+            local existing = s.peers[k]
+            if not existing then
+                s.peers[k] = {
+                    name         = mp.name,
+                    realm        = mp.realm or get_current_realm(),
+                    guid         = mp.guid,
+                    class        = mp.class,
+                    level        = mp.level,
+                    trusted      = true,
+                    addedAt      = now,
+                    lastSeen     = tonumber(mp.lastSeen) or 0,
+                    accountID    = mp.accountID or "peer-acct-default",
+                    accountLabel = mp.accountLabel,
+                }
+            else
+                if mp.guid then existing.guid = mp.guid end
+                if mp.class then existing.class = mp.class end
+                if mp.level then existing.level = mp.level end
+                if mp.accountID and mp.accountID ~= "" then existing.accountID = mp.accountID end
+                if mp.accountLabel and mp.accountLabel ~= "" then existing.accountLabel = mp.accountLabel end
+            end
+        end
+    end
+
+    -- Export our known peers to the machine store
+    for k, lp in pairs(s.peers) do
+        if type(lp) == "table" and lp.name and not ms.peers[k] then
+            ms.peers[k] = {
+                name         = lp.name,
+                realm        = lp.realm,
+                guid         = lp.guid,
+                class        = lp.class,
+                level        = lp.level,
+                accountID    = lp.accountID,
+                accountLabel = lp.accountLabel,
+                lastSeen     = lp.lastSeen,
+            }
+        end
+    end
+
+    -- Reconcile shared settings across accounts on the same PC
+    local locRev = tonumber(s.settingsRev) or 0
+    local macSettings = ms.settings
+    local macRev = (type(macSettings) == "table" and tonumber(macSettings.rev)) or 0
+    if macRev > locRev then
+        sync.ApplySharedSettings(macSettings, "machine", true)
+    elseif locRev > macRev then
+        ms.settings = sync.BuildSharedSettingsPayload(s)
+    end
+end
+
 function sync.FindPeer(sender)
     if not sender then return nil, nil end
     local s = sync.GetSettings()
@@ -229,6 +382,9 @@ function sync.FindPeer(sender)
     end
     return nil, key
 end
+
+local liveOnlineCache = {}
+local liveOnlineCacheTime = 0
 
 function sync.MarkPeerOnline(nameOrFull, peerAccountID)
     local _, shortName = normalize_peer_key(nameOrFull)
@@ -252,6 +408,7 @@ function sync.MarkPeerOnline(nameOrFull, peerAccountID)
 
     onlinePeers[lowerShort] = now
     offlinePeers[lowerShort] = nil
+    liveOnlineCacheTime = 0
 end
 
 function sync.MarkPeerOffline(nameOrFull)
@@ -260,14 +417,22 @@ function sync.MarkPeerOffline(nameOrFull)
     local lowerShort = string_lower(shortName)
     onlinePeers[lowerShort] = nil
     offlinePeers[lowerShort] = (GetTime and GetTime()) or 1
+    liveOnlineCacheTime = 0
     if codec and codec.CancelWhispersToTarget then
         codec.CancelWhispersToTarget(shortName)
     end
 end
 
--- Check Party/Raid, Friends, BNet, Guild, and session cache to see who is actually online
+-- Check Party/Raid, Friends, BNet, Guild, and session cache to see who is actually online (cached for 2s)
 local function build_live_online_map()
-    local map = {}
+    local now = (GetTime and GetTime()) or 0
+    if liveOnlineCacheTime > 0 and (now - liveOnlineCacheTime) < 2.0 then
+        return liveOnlineCache
+    end
+    liveOnlineCacheTime = now
+    local map = liveOnlineCache
+    wipe(map)
+
     for k, ts in pairs(onlinePeers) do
         if not offlinePeers[k] then
             map[k] = ts
@@ -297,12 +462,10 @@ local function build_live_online_map()
         for i = 1, numFriends do
             local info = C_FriendList.GetFriendInfoByIndex(i)
             if info and info.connected and info.name then
-                local _, shortName = normalize_peer_key(info.name)
-                if shortName then
-                    local lower = string_lower(shortName)
-                    map[lower] = true
-                    offlinePeers[lower] = nil
-                end
+                local shortName = string_match(info.name, "^([^%-]+)") or info.name
+                local lower = string_lower(shortName)
+                map[lower] = true
+                offlinePeers[lower] = nil
             end
         end
     end
@@ -323,23 +486,31 @@ local function build_live_online_map()
         end
     end
 
-    -- 4. Guild Roster
-    if IsInGuild and IsInGuild() and GetNumGuildMembers and GetGuildRosterInfo then
+    -- 4. Guild Roster (only when guild sync is enabled)
+    local s = sync.GetSettings()
+    if s.useGuild and IsInGuild and IsInGuild() and GetNumGuildMembers and GetGuildRosterInfo then
         local numGuild = GetNumGuildMembers() or 0
         for i = 1, numGuild do
             local fullName, _, _, _, _, _, _, _, online = GetGuildRosterInfo(i)
             if online and fullName then
-                local _, shortName = normalize_peer_key(fullName)
-                if shortName then
-                    local lower = string_lower(shortName)
-                    map[lower] = true
-                    offlinePeers[lower] = nil
-                end
+                local shortName = string_match(fullName, "^([^%-]+)") or fullName
+                local lower = string_lower(shortName)
+                map[lower] = true
+                offlinePeers[lower] = nil
             end
         end
     end
 
     return map
+end
+
+function sync.IsPeerOnline(nameOrFull)
+    if type(nameOrFull) ~= "string" or nameOrFull == "" then return false end
+    local _, shortName = normalize_peer_key(nameOrFull)
+    local key = string_lower(shortName or nameOrFull)
+    if offlinePeers[key] then return false end
+    local map = build_live_online_map()
+    return map[key] ~= nil
 end
 
 function sync.AddOrUpdatePeer(nameOrFull, meta)
@@ -566,6 +737,88 @@ function sync.Broadcast(msgType, dataTable, includeWhisperPeers, forceProbe)
     end
 end
 
+local SHARED_SETTING_KEYS = {
+    "syncAlts",
+    "syncQuests",
+    "syncWaypoints",
+    "syncRecipes",
+    "syncContacts",
+    "syncFishing",
+    "syncMail",
+    "mbAutoFollow",
+    "mbAutoInvite",
+    "mbAutoQuest",
+    "mbAutoTaxi",
+    "mbAutoTrade",
+    "mbCorpseAlert",
+    "mbShowHud",
+    "mbFollowerPassLoot",
+    "autoSyncOnLogin",
+    "useParty",
+    "useWhisper",
+    "useGuild",
+    "useBNet",
+}
+
+local SHARED_KEY_LOOKUP = {}
+for _, k in ipairs(SHARED_SETTING_KEYS) do
+    SHARED_KEY_LOOKUP[k] = true
+end
+
+function sync.BuildSharedSettingsPayload(s)
+    s = s or sync.GetSettings()
+    local cfg = {}
+    for _, k in ipairs(SHARED_SETTING_KEYS) do
+        cfg[k] = (s[k] == true) and 1 or 0
+    end
+    return {
+        rev = tonumber(s.settingsRev) or 0,
+        cfg = cfg,
+    }
+end
+
+function sync.ApplySharedSettings(payload, sender, silent)
+    if type(payload) ~= "table" or type(payload.cfg) ~= "table" then return false end
+    local s = sync.GetSettings()
+    local inRev = tonumber(payload.rev) or 0
+    local changed = false
+
+    sync._applyingRemoteSettings = true
+    for _, k in ipairs(SHARED_SETTING_KEYS) do
+        local raw = payload.cfg[k]
+        if raw ~= nil then
+            local newVal = (raw == 1 or raw == true)
+            if (s[k] == true) ~= newVal then
+                s[k] = newVal
+                changed = true
+            end
+        end
+    end
+    if inRev > (tonumber(s.settingsRev) or 0) then
+        s.settingsRev = inRev
+    end
+    sync._applyingRemoteSettings = false
+
+    if changed then
+        if sfui.events and sfui.events.SendMessage then
+            sfui.events.SendMessage("SFUI_SYNC_STATUS_UPDATED")
+        end
+        if not silent and sfui.common and sfui.common.print and sender then
+            sfui.common.print("sync: applied shared sync settings from |cff00ffff" .. string_lower(tostring(sender)) .. "|r.")
+        end
+    end
+    return changed
+end
+
+function sync.BroadcastSettingsNow()
+    local s = sync.GetSettings()
+    if not s.enabled then return end
+    s.settingsRev = (GetServerTime and GetServerTime()) or time()
+    local payload = sync.BuildSharedSettingsPayload(s)
+    sync_machine_store()
+    sync.Broadcast("DELTA_SYNC_SETTINGS", payload, true, false)
+end
+
 -- ── Full & Targeted Content Sync Triggers ─────────────────────────────────────
 function sync.SendHelloToPeer(peerName, channel, bnetIDAccount)
     local s = sync.GetSettings()
@@ -587,12 +840,161 @@ function sync.SyncAllNow()
         sfui.common.print("sync: multi-account sync is currently disabled.")
         return
     end
+    if (tonumber(s.settingsRev) or 0) == 0 then
+        s.settingsRev = (GetServerTime and GetServerTime()) or time()
+    end
+    sync_machine_store()
     if sfui.alts and sfui.alts.PerformSync then
         sfui.alts.PerformSync(false)
     end
     local manifest = merge.BuildManifest(s)
     sync.Broadcast("HELLO", manifest, true, true)
     sfui.common.print("sync: broadcasting content manifest to linked accounts...")
+end
+
+local hwReloadFrame = nil
+
+local function do_raw_reload()
+    if _G.C_UI and _G.C_UI.Reload then
+        _G.C_UI.Reload()
+    elseif _G.ReloadUI then
+        _G.ReloadUI()
+    elseif _G.ConsoleExec then
+        _G.ConsoleExec("reloadui")
+    end
+end
+
+local function arm_hardware_reload_catcher(sender)
+    if _G.InCombatLockdown and _G.InCombatLockdown() then
+        sync._pendingRemoteReload = tostring(sender or "peer")
+        return
+    end
+
+    if not hwReloadFrame then
+        hwReloadFrame = CreateFrame("Button", "SfuiRemoteReloadCatcher", _G.UIParent, "BackdropTemplate")
+        hwReloadFrame:SetAllPoints(_G.UIParent)
+        hwReloadFrame:SetFrameStrata("FULLSCREEN_DIALOG")
+        hwReloadFrame:SetFrameLevel(9999)
+        hwReloadFrame:EnableMouse(true)
+        hwReloadFrame:EnableMouseWheel(true)
+        hwReloadFrame:EnableKeyboard(true)
+        hwReloadFrame:RegisterForClicks("AnyDown", "AnyUp")
+
+        local banner = CreateFrame("Frame", nil, hwReloadFrame, "BackdropTemplate")
+        banner:SetSize(400, 52)
+        banner:SetPoint("TOP", hwReloadFrame, "TOP", 0, -140)
+        if sfui.common and sfui.common.apply_flat_backdrop then
+            sfui.common.apply_flat_backdrop(banner, { 0.05, 0.05, 0.08, 0.95 }, { 0.0, 0.85, 1.0, 1.0 })
+        end
+
+        local line1 = banner:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        line1:SetPoint("TOP", banner, "TOP", 0, -10)
+        line1:SetTextColor(0.0, 1.0, 1.0)
+        hwReloadFrame.line1 = line1
+
+        local line2 = banner:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        line2:SetPoint("TOP", line1, "BOTTOM", 0, -4)
+        line2:SetTextColor(0.9, 0.9, 0.95)
+        line2:SetText("click anywhere or press any key to reload ui")
+        hwReloadFrame.line2 = line2
+
+        local function trigger_now()
+            hwReloadFrame:Hide()
+            sync._pendingRemoteReload = false
+            do_raw_reload()
+        end
+
+        hwReloadFrame:SetScript("OnClick", trigger_now)
+        hwReloadFrame:SetScript("OnMouseDown", trigger_now)
+        hwReloadFrame:SetScript("OnMouseWheel", trigger_now)
+        hwReloadFrame:SetScript("OnKeyDown", trigger_now)
+        hwReloadFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
+        hwReloadFrame:SetScript("OnEvent", function(self, ev)
+            if ev == "PLAYER_REGEN_DISABLED" and self:IsShown() then
+                sync._pendingRemoteReload = self.senderName or "peer"
+                self:Hide()
+            end
+        end)
+    end
+
+    local cleanSender = string_lower(tostring(sender or "linked account"))
+    hwReloadFrame.senderName = cleanSender
+    if hwReloadFrame.line1 then
+        hwReloadFrame.line1:SetText("sync: reload requested by " .. cleanSender)
+    end
+    if hwReloadFrame.SetPropagateKeyboardInput and not (_G.InCombatLockdown and _G.InCombatLockdown()) then
+        pcall(hwReloadFrame.SetPropagateKeyboardInput, hwReloadFrame, false)
+    end
+    hwReloadFrame:Show()
+end
+
+local function execute_local_reload(isRemote, sender)
+    if isRemote then
+        if _G.ConsoleIsActive and _G.ConsoleIsActive() and _G.ConsoleExec then
+            _G.ConsoleExec("reloadui")
+            return
+        end
+        arm_hardware_reload_catcher(sender)
+        return
+    end
+    do_raw_reload()
+end
+
+function sync.ReloadAllClients()
+    local s = sync.GetSettings()
+    if s.enabled then
+        sync_machine_store()
+        local payload = {
+            pass = (s.passcode ~= "" and s.passcode) or nil,
+            t    = (GetServerTime and GetServerTime()) or time(),
+        }
+        sync.Broadcast("CMD_RELOAD", payload, true, true)
+        if not s.useParty and IsInGroup and IsInGroup() then
+            local ch = (IsInRaid and IsInRaid()) and "RAID" or "PARTY"
+            codec.SendMessage(PREFIX, "CMD_RELOAD", payload, ch)
+        end
+        if codec and codec.FlushQueue then
+            codec.FlushQueue()
+        end
+    end
+    execute_local_reload(false)
+end
+
+local pendingOutgoingPairs = {}
+local PENDING_PAIR_TTL = 180
+
+local function mark_pending_outgoing_pair(nameOrKey)
+    local now = (GetServerTime and GetServerTime()) or time()
+    if not nameOrKey or nameOrKey == "" then return end
+    local normKey, shortName = normalize_peer_key(nameOrKey)
+    if normKey then
+        pendingOutgoingPairs[string_lower(normKey)] = now
+    end
+    if shortName then
+        pendingOutgoingPairs[string_lower(shortName)] = now
+    end
+end
+
+local function is_pending_outgoing_pair(sender)
+    local now = (GetServerTime and GetServerTime()) or time()
+    local partyTs = pendingOutgoingPairs["*party*"]
+    if partyTs and (now - partyTs) <= PENDING_PAIR_TTL then
+        return true
+    end
+    local normKey, shortName = normalize_peer_key(sender)
+    if normKey then
+        local ts = pendingOutgoingPairs[string_lower(normKey)]
+        if ts and (now - ts) <= PENDING_PAIR_TTL then
+            return true
+        end
+    end
+    if shortName then
+        local ts = pendingOutgoingPairs[string_lower(shortName)]
+        if ts and (now - ts) <= PENDING_PAIR_TTL then
+            return true
+        end
+    end
+    return false
 end
 
 function sync.PairWithCharacter(targetName)
@@ -606,6 +1008,9 @@ function sync.PairWithCharacter(targetName)
     end
 
     local s = sync.GetSettings()
+    if (tonumber(s.settingsRev) or 0) == 0 then
+        s.settingsRev = (GetServerTime and GetServerTime()) or time()
+    end
     if sfui.alts and sfui.alts.PerformSync then
         sfui.alts.PerformSync(false)
     end
@@ -613,9 +1018,10 @@ function sync.PairWithCharacter(targetName)
     if shortName then
         offlinePeers[string_lower(shortName)] = nil
     end
-    local peer = sync.AddOrUpdatePeer(targetName, { lastSeen = (GetServerTime and GetServerTime()) or time() })
+    mark_pending_outgoing_pair(targetName)
+    local existingPeer = sync.FindPeer(targetName)
     local manifest = merge.BuildManifest(s)
-    local whisperTarget = get_whisper_target(targetName, peer)
+    local whisperTarget = get_whisper_target(targetName, existingPeer)
     codec.SendMessage(PREFIX, "PAIR_REQ", {
         passcode     = s.passcode or "",
         accountID    = s.accountID or "",
@@ -623,7 +1029,7 @@ function sync.PairWithCharacter(targetName)
         roster       = manifest.roster,
         manifest     = manifest,
     }, "WHISPER", whisperTarget)
-    sfui.common.print("sync: sent pairing & roster link request to |cff00ffff" .. whisperTarget:lower() .. "|r.")
+    sfui.common.print("sync: sent pair request to |cff00ffff" .. whisperTarget:lower() .. "|r (awaiting confirmation)...")
     return true
 end
 
@@ -632,9 +1038,8 @@ function sync.PairWithTarget()
         sfui.common.print("sync: target a player character on your other account first.")
         return false
     end
-    local name, realm = UnitName("target")
-    if not name or name == "" then return false end
-    local full = (realm and realm ~= "" and not sfui.isCamelot) and (name .. "-" .. realm:gsub("%s+", "")) or name
+    local full = sync.FullName("target")
+    if not full or full == "" then return false end
     return sync.PairWithCharacter(full)
 end
 
@@ -644,24 +1049,25 @@ function sync.PairWithParty()
         return false
     end
     local s = sync.GetSettings()
+    if (tonumber(s.settingsRev) or 0) == 0 then
+        s.settingsRev = (GetServerTime and GetServerTime()) or time()
+    end
     if sfui.alts and sfui.alts.PerformSync then
         sfui.alts.PerformSync(false)
     end
 
+    local now = (GetServerTime and GetServerTime()) or time()
+    pendingOutgoingPairs["*party*"] = now
     local count = 0
     local n = (GetNumGroupMembers and GetNumGroupMembers()) or 0
     local prefixUnit = (IsInRaid and IsInRaid()) and "raid" or "party"
     for i = 1, n do
         local u = prefixUnit .. i
         if UnitExists and UnitExists(u) and UnitIsPlayer and UnitIsPlayer(u) then
-            local name, realm = UnitName(u)
-            if name and name ~= "" then
-                local full = (realm and realm ~= "" and not sfui.isCamelot) and (name .. "-" .. realm:gsub("%s+", "")) or name
-                if not is_self_character(full) then
-                    sync.MarkPeerOnline(full)
-                    sync.AddOrUpdatePeer(full, { lastSeen = (GetServerTime and GetServerTime()) or time() })
-                    count = count + 1
-                end
+            local full = sync.FullName(u)
+            if full and full ~= "" and not is_self_character(full) then
+                mark_pending_outgoing_pair(full)
+                count = count + 1
             end
         end
     end
@@ -675,7 +1081,7 @@ function sync.PairWithParty()
         roster       = manifest.roster,
         manifest     = manifest,
     }, ch)
-    sfui.common.print(string_format("sync: linked %d party member(s) and broadcasted account roster.", count))
+    sfui.common.print(string_format("sync: sent pair request to %d party member(s) (awaiting confirmation)...", count))
     return true
 end
 
@@ -695,6 +1101,15 @@ local function handle_manifest_from_peer(sender, peer, remoteManifest, replyChan
     end
     if remoteManifest.roster then
         sync.ImportPeerRoster(remoteManifest.roster, remoteManifest.accountLabel, remoteManifest.accountID, sender)
+    end
+    if type(remoteManifest.settings) == "table" then
+        local remRev = tonumber(remoteManifest.settings.rev) or 0
+        local locRev = tonumber(s.settingsRev) or 0
+        if remRev > locRev then
+            sync.ApplySharedSettings(remoteManifest.settings, sender, true)
+        elseif locRev > remRev then
+            send_to_peer(sender, "DELTA_SYNC_SETTINGS", sync.BuildSharedSettingsPayload(s), replyChannel, bnetIDAccount)
+        end
     end
 
     local want = {
@@ -858,8 +1273,7 @@ local function handle_manifest_from_peer(sender, peer, remoteManifest, replyChan
 
     -- 4. Reconcile Contacts & Recipe Finds
     if s.syncContacts and type(remoteManifest.contacts) == "table" then
-        local locManifest = merge.BuildManifest(s)
-        local lc = locManifest.contacts or {}
+        local lc = (merge.GetContactsCounts and merge.GetContactsCounts()) or {}
         local rc = remoteManifest.contacts
         if (tonumber(rc.v) or 0) > (lc.v or 0)
             or (tonumber(rc.t) or 0) > (lc.t or 0)
@@ -898,7 +1312,7 @@ local function handle_manifest_from_peer(sender, peer, remoteManifest, replyChan
     sync.stats.lastSyncTime = now
     sync.stats.lastPeer = sender
     if sfui.events and sfui.events.SendMessage then
-        sfui.events.SendMessage("SFUI_SYNC_STATUS_UPDATED")
+        sfui.events.SendMessage("SFUI_SYNC_STATUS_UPDATED", "MANIFEST")
     end
 end
 
@@ -966,6 +1380,68 @@ local function handle_want_from_peer(sender, want, replyChannel, bnetIDAccount)
     end
 end
 
+local pendingIncomingPairReq = nil
+
+local function accept_incoming_pair_request(req)
+    if type(req) ~= "table" or not req.sender or type(req.data) ~= "table" then return end
+    local s = sync.GetSettings()
+    local now = (GetServerTime and GetServerTime()) or time()
+    local sender = req.sender
+    local data = req.data
+    local channel = req.channel
+    local bnetIDAccount = req.bnetIDAccount
+
+    sync.MarkPeerOnline(sender, data.accountID)
+    local peer = sync.AddOrUpdatePeer(sender, {
+        accountID    = data.accountID,
+        accountLabel = data.accountLabel,
+        lastSeen     = now,
+        lastSync     = now,
+    })
+    local imported = sync.ImportPeerRoster(data.roster, data.accountLabel, data.accountID, sender)
+    sync_machine_store()
+
+    local myManifest = merge.BuildManifest(s)
+    send_to_peer(sender, "PAIR_ACK", {
+        accountID    = s.accountID or "",
+        accountLabel = s.accountLabel or "",
+        roster       = myManifest.roster,
+        manifest     = myManifest,
+    }, channel, bnetIDAccount)
+    if data.manifest then
+        handle_manifest_from_peer(sender, peer, data.manifest, channel, bnetIDAccount)
+    end
+    sfui.common.print(string_format("sync: linked with |cff00ffff%s|r (%d character(s) registered).",
+        sender:lower(), imported + 1))
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_SYNC_STATUS_UPDATED")
+    end
+end
+
+if _G.StaticPopupDialogs then
+    _G.StaticPopupDialogs["SFUI_SYNC_PAIR_CONFIRM"] = {
+        text = "sfui sync: |cff00ffff%s|r%s wants to link accounts and sync character data with you.\n\ndo you want to accept this pairing request?",
+        button1 = "accept & link",
+        button2 = "decline",
+        OnAccept = function(self, reqData)
+            local req = reqData or pendingIncomingPairReq
+            pendingIncomingPairReq = nil
+            accept_incoming_pair_request(req)
+        end,
+        OnCancel = function(self, reqData)
+            local req = reqData or pendingIncomingPairReq
+            pendingIncomingPairReq = nil
+            if req and req.sender and sfui.common and sfui.common.print then
+                sfui.common.print("sync: declined pairing request from |cff00ffff" .. string_lower(tostring(req.sender)) .. "|r.")
+            end
+        end,
+        timeout = 60,
+        whileDead = true,
+        hideOnEscape = true,
+        preferredIndex = 3,
+    }
+end
+
 -- ── Incoming Message Dispatcher ───────────────────────────────────────────────
 local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
     if not sender or is_self_character(sender) then return end
@@ -977,36 +1453,44 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
 
     -- Handle pairing handshake (PAIR_REQ / PAIR_ACK)
     if msgType == "PAIR_REQ" and type(data) == "table" then
+        if peer and peer.trusted then
+            accept_incoming_pair_request({
+                sender        = sender,
+                data          = data,
+                channel       = channel,
+                bnetIDAccount = bnetIDAccount,
+            })
+            return
+        end
+
         local myPass = s.passcode or ""
         local inPass = data.passcode or ""
-        local isTrustedOrMatchingPass = (peer and peer.trusted)
-            or (myPass ~= "" and inPass == myPass)
-            or (myPass == "" and (channel == "PARTY" or channel == "RAID" or channel == "BNET"))
+        if myPass ~= "" and inPass ~= myPass then
+            sfui.common.print("sync: ignored pair request from |cff00ffff" .. sender:lower() .. "|r (passcode mismatch).")
+            return
+        end
 
-        if isTrustedOrMatchingPass then
-            sync.MarkPeerOnline(sender, data.accountID)
-            peer = sync.AddOrUpdatePeer(sender, {
-                accountID    = data.accountID,
-                accountLabel = data.accountLabel,
-                lastSeen     = now,
-                lastSync     = now,
-            })
-            local imported = sync.ImportPeerRoster(data.roster, data.accountLabel, data.accountID, sender)
-            local myManifest = merge.BuildManifest(s)
-            send_to_peer(sender, "PAIR_ACK", {
-                accountID    = s.accountID or "",
-                accountLabel = s.accountLabel or "",
-                roster       = myManifest.roster,
-                manifest     = myManifest,
-            }, channel, bnetIDAccount)
-            if data.manifest then
-                handle_manifest_from_peer(sender, peer, data.manifest, channel, bnetIDAccount)
+        local req = {
+            sender        = sender,
+            data          = data,
+            channel       = channel,
+            bnetIDAccount = bnetIDAccount,
+        }
+        pendingIncomingPairReq = req
+        local labelTag = (data.accountLabel and data.accountLabel ~= "")
+            and (" |cff888888[" .. string_lower(tostring(data.accountLabel)) .. "]|r")
+            or ""
+        if _G.StaticPopup_Show then
+            local dlg = _G.StaticPopup_Show("SFUI_SYNC_PAIR_CONFIRM", string_lower(tostring(sender)), labelTag)
+            if dlg then
+                dlg.data = req
             end
-            sfui.common.print(string_format("sync: linked with |cff00ffff%s|r (%d character(s) registered).",
-                sender:lower(), imported + 1))
         end
         return
     elseif msgType == "PAIR_ACK" and type(data) == "table" then
+        if not (peer and peer.trusted) and not is_pending_outgoing_pair(sender) then
+            return
+        end
         sync.MarkPeerOnline(sender, data.accountID)
         peer = sync.AddOrUpdatePeer(sender, {
             accountID    = data.accountID,
@@ -1015,11 +1499,15 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
             lastSync     = now,
         })
         local imported = sync.ImportPeerRoster(data.roster, data.accountLabel, data.accountID, sender)
+        sync_machine_store()
         if data.manifest then
             handle_manifest_from_peer(sender, peer, data.manifest, channel, bnetIDAccount)
         end
         sfui.common.print(string_format("sync: pairing confirmed by |cff00ffff%s|r (%d character(s) linked).",
             sender:lower(), imported + 1))
+        if sfui.events and sfui.events.SendMessage then
+            sfui.events.SendMessage("SFUI_SYNC_STATUS_UPDATED")
+        end
         return
     end
 
@@ -1100,10 +1588,26 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
         if merge.MergeMail(data) then
             peer.lastSync = now
         end
+    elseif msgType == "DELTA_SYNC_SETTINGS" and type(data) == "table" then
+        if sync.ApplySharedSettings(data, sender, false) then
+            peer.lastSync = now
+        end
+    elseif msgType == "CMD_RELOAD" then
+        sync_machine_store()
+        if _G.InCombatLockdown and _G.InCombatLockdown() then
+            if sfui.common and sfui.common.print then
+                sfui.common.print("sync: reload request from |cff00ffff" .. string_lower(tostring(sender)) .. "|r deferred until combat ends.")
+            end
+            sync._pendingRemoteReload = tostring(sender or "peer")
+        else
+            execute_local_reload(true, sender)
+        end
+    elseif sync.multibox and sync.multibox.HandleSyncMessage then
+        sync.multibox.HandleSyncMessage(sender, msgType, data)
     end
 
     if sfui.events and sfui.events.SendMessage then
-        sfui.events.SendMessage("SFUI_SYNC_STATUS_UPDATED")
+        sfui.events.SendMessage("SFUI_SYNC_STATUS_UPDATED", "PACKET")
     end
 end
 
@@ -1392,21 +1896,27 @@ local function format_colored_char_name(alt, fallbackName)
     if classToken and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[classToken] then
         local c = _G.RAID_CLASS_COLORS[classToken]
         local hex = c.colorStr or string.format("ff%02x%02x%02x", math.floor((c.r or 1) * 255), math.floor((c.g or 1) * 255), math.floor((c.b or 1) * 255))
-        return "|c" .. hex .. cleanName .. "|r", cleanName
+        return "|c" .. hex .. cleanName .. "|r"
     end
-    return cleanName, cleanName
+    return cleanName
 end
 
+local cachedPartyGuidMap = {}
+local cachedPartyNameMap = {}
+local partyMapCacheTime = 0
+
 local function build_party_guid_and_name_maps()
-    local guidMap = {}
-    local nameMap = {}
-    if not (IsInGroup and IsInGroup()) then
-        return guidMap, nameMap
+    local now = (GetTime and GetTime()) or 0
+    if partyMapCacheTime > 0 and (now - partyMapCacheTime) < 1.0 then
+        return cachedPartyGuidMap, cachedPartyNameMap
     end
-    local UnitExists = _G.UnitExists
+    partyMapCacheTime = now
+    wipe(cachedPartyGuidMap)
+    wipe(cachedPartyNameMap)
+    if not (IsInGroup and IsInGroup()) then
+        return cachedPartyGuidMap, cachedPartyNameMap
+    end
     local UnitIsUnit = _G.UnitIsUnit
-    local UnitGUID   = _G.UnitGUID
-    local UnitName   = _G.UnitName
     local isRaid = IsInRaid and IsInRaid()
     local count = (GetNumGroupMembers and GetNumGroupMembers()) or 0
     local prefix = isRaid and "raid" or "party"
@@ -1416,11 +1926,20 @@ local function build_party_guid_and_name_maps()
         if UnitExists and UnitExists(u) and not (UnitIsUnit and UnitIsUnit(u, "player")) then
             local g = UnitGUID and UnitGUID(u)
             local n = UnitName and UnitName(u)
-            if g then guidMap[g] = true end
-            if n and n ~= "" then nameMap[short_name(n):lower()] = true end
+            if g then cachedPartyGuidMap[g] = true end
+            if n and n ~= "" then cachedPartyNameMap[short_name(n):lower()] = true end
         end
     end
-    return guidMap, nameMap
+    return cachedPartyGuidMap, cachedPartyNameMap
+end
+
+local function is_alt_quest_done(alt, questID)
+    if not alt then return false end
+    local cq = alt.completedQuests and alt.completedQuests[questID]
+    if cq ~= nil and cq ~= false and cq ~= 0 then
+        return true
+    end
+    return (alt.djQuests and alt.djQuests[questID] == 2) or false
 end
 
 -- Returns an array of class-colored lowercase character names for synced party
@@ -1444,8 +1963,7 @@ function sync.GetPartyMissingQuestPeers(questID)
             if (partyGUIDs[guid] or (cleanName ~= "" and partyNames[cleanName])) and not seenNames[cleanName] then
                 seenNames[cleanName] = true
                 local hasActive = (alt.activeQuests[questID] ~= nil)
-                local hasCompleted = (alt.completedQuests and alt.completedQuests[questID] == true)
-                    or (alt.djQuests and alt.djQuests[questID] == 2)
+                local hasCompleted = is_alt_quest_done(alt, questID)
                 if not hasActive and not hasCompleted then
                     local colored = format_colored_char_name(alt, cleanName)
                     missing = missing or {}
@@ -1483,8 +2001,7 @@ function sync.GetQuestPeerStatuses(questID, includeAllAlts)
                     seenNames[cleanName] = true
                     local status = "missing"
                     local objs = nil
-                    if (alt.completedQuests and alt.completedQuests[questID] == true)
-                        or (alt.djQuests and alt.djQuests[questID] == 2) then
+                    if is_alt_quest_done(alt, questID) then
                         status = "completed"
                     elseif alt.activeQuests and alt.activeQuests[questID] then
                         local qEntry = alt.activeQuests[questID]
@@ -1527,6 +2044,12 @@ function sync.GetQuestPeerStatuses(questID, includeAllAlts)
 end
 
 local function on_regen_enabled()
+    if sync._pendingRemoteReload then
+        local pendingSender = sync._pendingRemoteReload
+        sync._pendingRemoteReload = false
+        execute_local_reload(true, pendingSender)
+        return
+    end
     if deferredAfterCombat.alt then
         deferredAfterCombat.alt = false
         on_local_alt_synced()
@@ -1565,12 +2088,15 @@ local function on_entering_world()
         sfui.fishing.EnsureCharLedger()
     end
 
+    sync_machine_store()
+
     if not loginSynced then
         loginSynced = true
         if C_Timer and C_Timer.After then
             C_Timer.After(4.5, function()
                 local s = sync.GetSettings()
                 if s.enabled then
+                    sync_machine_store()
                     if s.syncQuests ~= false and merge.ScanLocalQuestsAndDJ then
                         merge.ScanLocalQuestsAndDJ()
                     end
@@ -1586,6 +2112,8 @@ end
 
 local groupRosterPending = false
 local function on_group_roster_update()
+    partyMapCacheTime = 0
+    liveOnlineCacheTime = 0
     if groupRosterPending then return end
     local s = sync.GetSettings()
     if not s.enabled or not s.useParty or not (IsInGroup and IsInGroup()) then return end
@@ -1637,15 +2165,7 @@ function sync.GetContentCounts()
         end
     end
 
-    local contactsCount = 0
-    if SfuiDB.contacts then
-        for _ in pairs(SfuiDB.contacts.vendors or {}) do contactsCount = contactsCount + 1 end
-        for _ in pairs(SfuiDB.contacts.trainers or {}) do contactsCount = contactsCount + 1 end
-    end
-    if SfuiDB.recipe_finds then
-        for _ in pairs(SfuiDB.recipe_finds.drops or {}) do contactsCount = contactsCount + 1 end
-        for _ in pairs(SfuiDB.recipe_finds.quests or {}) do contactsCount = contactsCount + 1 end
-    end
+    local contactsCount = (merge and merge.GetContactsCounts and merge.GetContactsCounts()) or 0
 
     local fishSpeciesCount = 0
     if SfuiDB.fishing and type(SfuiDB.fishing.species) == "table" then
@@ -1719,6 +2239,9 @@ function sync:OnEnable()
 end
 
 function sync:OnSettingsChanged(key, value)
+    if SHARED_KEY_LOOKUP[key] and not sync._applyingRemoteSettings then
+        sync.BroadcastSettingsNow()
+    end
     if sfui.events and sfui.events.SendMessage then
         sfui.events.SendMessage("SFUI_SYNC_STATUS_UPDATED", key, value)
     end

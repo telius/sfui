@@ -952,18 +952,24 @@ local function RenderLoot(boss, dungeon)
                 local status = sfui.recipes.GetRecipeStatus and sfui.recipes.GetRecipeStatus(itemID)
                 local isAlt = sfui.recipes.IsAltNeeded and sfui.recipes.IsAltNeeded(itemID)
                 local badge = ""
-                if status == "known" then
+                if status == "KNOWN_CURRENT" or status == "known" then
                     badge = "  ·  |cff40c040[known]|r"
-                elseif status == "learnable" then
+                elseif status == "CAN_LEARN_CURRENT" or status == "learnable" then
                     badge = "  ·  |cff00ff88[learnable]|r"
-                elseif isAlt then
+                elseif status == "CAN_LEARN_ALT" or isAlt then
                     badge = "  ·  |cff80c0ff[alt needs]|r"
-                elseif status == "alt_known" then
+                elseif status == "KNOWN_ALT" or status == "alt_known" then
                     badge = "  ·  |cff80c0ff[alt known]|r"
                 else
                     badge = "  ·  |cffffa500[recipe]|r"
                 end
                 typeLabel = typeLabel .. badge
+            end
+            if isWish and sfui.dungeonjournal and sfui.dungeonjournal.GetWishlistCharacters then
+                local wishChars = sfui.dungeonjournal.GetWishlistCharacters(itemID)
+                if wishChars and #wishChars > 0 then
+                    typeLabel = typeLabel .. "  ·  |cffcc44ff[" .. table.concat(wishChars, ", ") .. "]|r"
+                end
             end
             btn.typeText:SetText(typeLabel)
 

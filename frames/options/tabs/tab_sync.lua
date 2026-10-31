@@ -11,19 +11,19 @@ local common = sfui.common
 --  Multi-Account Content Synchronization Setup & Account Linking Panel
 -- ══════════════════════════════════════════════════════════════════════════════
 
-local CreateFrame  = _G.CreateFrame
-local pairs        = _G.pairs
-local ipairs       = _G.ipairs
-local tostring     = _G.tostring
-local tonumber     = _G.tonumber
-local table_insert = table.insert
-local table_sort   = table.sort
-local math_floor   = math.floor
-local math_max     = math.max
+local CreateFrame   = _G.CreateFrame
+local pairs         = _G.pairs
+local ipairs        = _G.ipairs
+local tostring      = _G.tostring
+local tonumber      = _G.tonumber
+local table_insert  = table.insert
+local table_sort    = table.sort
+local math_floor    = math.floor
+local math_max      = math.max
 local string_format = string.format
-local string_lower = string.lower
+local string_lower  = string.lower
 local GetServerTime = _G.GetServerTime
-local time         = _G.time
+local time          = _G.time
 
 local function create_styled_editbox(parent, width, height, placeholder, onCommit)
     local app = sfui.config.appearance
@@ -41,7 +41,7 @@ local function create_styled_editbox(parent, width, height, placeholder, onCommi
     eb:SetBackdropBorderColor(0, 0, 0, 1)
 
     if placeholder then
-        local ph = eb:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+        local ph = eb:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
         ph:SetPoint("LEFT", eb, "LEFT", 6, 0)
         ph:SetText(placeholder)
         ph:SetTextColor(0.45, 0.45, 0.5, 0.9)
@@ -89,6 +89,15 @@ local function format_ago(ts)
     return string_format("%dd ago", math_floor(diff / 86400))
 end
 
+local function create_section_divider(parent, anchorFrame, offsetY)
+    local sep = parent:CreateTexture(nil, "ARTWORK")
+    sep:SetHeight(1)
+    sep:SetPoint("TOPLEFT", anchorFrame, "BOTTOMLEFT", 0, offsetY or -12)
+    sep:SetPoint("RIGHT", parent, "RIGHT", -15, 0)
+    sep:SetColorTexture(0.2, 0.2, 0.28, 0.9)
+    return sep
+end
+
 sfui.options.RegisterTab({
     id   = "sync",
     name = "sync",
@@ -101,6 +110,8 @@ sfui.options.RegisterTab({
         local white              = g.colors.white
         local accent             = g.appearance.highlightColor
 
+        local COL_OFFSET_X = 265
+
         local function set_sync_setting(key, val)
             if sfui.db and sfui.db.Set then
                 sfui.db.Set("sync", key, val)
@@ -109,90 +120,199 @@ sfui.options.RegisterTab({
             end
         end
 
-        -- ── Left Column: Configuration & Quick Actions ────────────────────────
-        local header = panel:CreateFontString(nil, "OVERLAY", g.font)
-        header:SetPoint("TOPLEFT", 15, -15)
+        -- ── 1. Header, Identity & Quick Actions ───────────────────────────────
+        local header = panel:CreateFontString(nil, "OVERLAY", g.font_large or g.font)
+        header:SetPoint("TOPLEFT", 15, -14)
         header:SetTextColor(white[1], white[2], white[3])
         header:SetText("multi-account content sync")
 
         local subtext = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         subtext:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -4)
         subtext:SetTextColor(0.65, 0.65, 0.72)
-        subtext:SetText("syncs content data only (alts, recipes, contacts, fishing, mail routes). ui layout is never touched.")
+        subtext:SetText("syncs content databases & multibox helpers across linked accounts. ui layout is never touched.")
 
-        local enable_cb = create_checkbox(panel, "enable multi-account content sync",
+        local enable_cb = create_checkbox(panel, "enable multi-account sync",
             function() return sync.GetSettings().enabled end,
             function(checked) set_sync_setting("enabled", checked) end,
-            "enables in-game synchronization of content databases across linked accounts.")
+            "enables in-game synchronization of content databases and party helpers across linked accounts.")
         enable_cb:SetPoint("TOPLEFT", subtext, "BOTTOMLEFT", 0, -10)
 
-        -- Identity inputs (Account Label & Pairing Passcode)
         local label_title = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        label_title:SetPoint("TOPLEFT", enable_cb, "BOTTOMLEFT", 0, -12)
+        label_title:SetPoint("LEFT", enable_cb, "LEFT", 210, 0)
         label_title:SetTextColor(0.85, 0.85, 0.9)
-        label_title:SetText("this account label:")
+        label_title:SetText("account label:")
 
-        local label_eb = create_styled_editbox(panel, 110, 20, "e.g. main, box2", function(val)
+        local label_eb = create_styled_editbox(panel, 82, 20, "e.g. box2", function(val)
             local trimmed = val:gsub("^%s+", ""):gsub("%s+$", "")
             set_sync_setting("accountLabel", trimmed)
             if sfui.alts and sfui.alts.PerformSync then
                 sfui.alts.PerformSync(false)
             end
         end)
-        label_eb:SetPoint("LEFT", label_title, "LEFT", 115, 0)
+        label_eb:SetPoint("LEFT", label_title, "RIGHT", 6, 0)
         label_eb:SetText(s.accountLabel or "")
 
         local pass_title = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        pass_title:SetPoint("TOPLEFT", label_title, "BOTTOMLEFT", 0, -10)
+        pass_title:SetPoint("LEFT", label_eb, "RIGHT", 12, 0)
         pass_title:SetTextColor(0.85, 0.85, 0.9)
-        pass_title:SetText("pairing passcode:")
+        pass_title:SetText("passcode:")
 
-        local pass_eb = create_styled_editbox(panel, 110, 20, "optional pin", function(val)
+        local pass_eb = create_styled_editbox(panel, 76, 20, "optional pin", function(val)
             local trimmed = val:gsub("^%s+", ""):gsub("%s+$", "")
             set_sync_setting("passcode", trimmed)
         end)
-        pass_eb:SetPoint("LEFT", pass_title, "LEFT", 115, 0)
+        pass_eb:SetPoint("LEFT", pass_title, "RIGHT", 6, 0)
         pass_eb:SetText(s.passcode or "")
 
-        -- Action Buttons Row
-        local sync_now_btn = create_flat_button(panel, "sync all now", 88, 22, function()
+        -- Single-row Quick Action Bar (5 buttons across 520px)
+        local sync_now_btn = create_flat_button(panel, "sync all now", 98, 20, function()
             if sync and sync.SyncAllNow then sync.SyncAllNow() end
             if panel.RefreshSyncUI then panel.RefreshSyncUI() end
         end)
-        sync_now_btn:SetPoint("TOPLEFT", pass_title, "BOTTOMLEFT", 0, -14)
+        sync_now_btn:SetPoint("TOPLEFT", enable_cb, "BOTTOMLEFT", 0, -10)
         sync_now_btn.tooltip = "broadcasts your content manifest and synchronizes all enabled modules with linked accounts."
 
-        local pair_target_btn = create_flat_button(panel, "pair target", 82, 22, function()
+        local pair_target_btn = create_flat_button(panel, "pair target", 98, 20, function()
             if sync and sync.PairWithTarget then sync.PairWithTarget() end
             if panel.RefreshSyncUI then panel.RefreshSyncUI() end
         end)
-        pair_target_btn:SetPoint("LEFT", sync_now_btn, "RIGHT", 6, 0)
-        pair_target_btn.tooltip = "links with your currently targeted character and exchanges full alt rosters between both accounts."
+        pair_target_btn:SetPoint("LEFT", sync_now_btn, "RIGHT", 7, 0)
+        pair_target_btn.tooltip = "sends a pairing request to your currently targeted character and exchanges full alt rosters once confirmed."
 
-        local pair_party_btn = create_flat_button(panel, "pair party", 82, 22, function()
+        local pair_party_btn = create_flat_button(panel, "pair party", 98, 20, function()
             if sync and sync.PairWithParty then sync.PairWithParty() end
             if panel.RefreshSyncUI then panel.RefreshSyncUI() end
         end)
-        pair_party_btn:SetPoint("LEFT", pair_target_btn, "RIGHT", 6, 0)
-        pair_party_btn.tooltip = "links with all party/raid members running sfui and exchanges full alt rosters."
+        pair_party_btn:SetPoint("LEFT", pair_target_btn, "RIGHT", 7, 0)
+        pair_party_btn.tooltip = "sends a pairing request to party/raid members running sfui and exchanges full alt rosters once confirmed."
 
-        -- Content Modules Section
+        local form_party_btn = create_flat_button(panel, "form party", 98, 20, function()
+            if sync and sync.FormSyncedParty then sync.FormSyncedParty() end
+        end)
+        form_party_btn:SetPoint("LEFT", pair_party_btn, "RIGHT", 7, 0)
+        form_party_btn.tooltip = "invites all online linked accounts into your party (synced peers auto-accept)."
+
+        local reload_all_btn = create_flat_button(panel, "reload all", 98, 20, function()
+            if sync and sync.ReloadAllClients then sync.ReloadAllClients() end
+        end)
+        reload_all_btn:SetPoint("LEFT", form_party_btn, "RIGHT", 7, 0)
+        reload_all_btn.tooltip = "reloads the ui across all online synced clients (also available via shift+right-click on the minimap icon)."
+
+        -- Full-width Live Status Summary Card
+        local status_box = CreateFrame("Frame", nil, panel, "BackdropTemplate")
+        status_box:SetPoint("TOPLEFT", sync_now_btn, "BOTTOMLEFT", 0, -8)
+        status_box:SetPoint("RIGHT", panel, "RIGHT", -15, 0)
+        status_box:SetHeight(44)
+        common.apply_flat_backdrop(status_box, { 0.05, 0.05, 0.08, 0.85 }, { 0.2, 0.2, 0.28, 1 })
+
+        local status_line1 = status_box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        status_line1:SetPoint("TOPLEFT", status_box, "TOPLEFT", 10, -7)
+        status_line1:SetPoint("RIGHT", status_box, "RIGHT", -10, 0)
+        status_line1:SetJustifyH("LEFT")
+
+        local status_line2 = status_box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        status_line2:SetPoint("TOPLEFT", status_line1, "BOTTOMLEFT", 0, -5)
+        status_line2:SetPoint("RIGHT", status_box, "RIGHT", -10, 0)
+        status_line2:SetJustifyH("LEFT")
+
+        -- ── 2. Multibox & Party Helpers ───────────────────────────────────────
+        local sep1 = create_section_divider(panel, status_box, -10)
+
+        local mb_header = panel:CreateFontString(nil, "OVERLAY", g.font)
+        mb_header:SetPoint("TOPLEFT", sep1, "BOTTOMLEFT", 0, -10)
+        mb_header:SetTextColor(accent[1], accent[2], accent[3])
+        mb_header:SetText("multibox & party helpers (hold shift to bypass)")
+
+        local cb_mb_follow = create_checkbox(panel, "follow range & broken-follow alerts",
+            function() return sync.GetSettings().mbAutoFollow ~= false end,
+            function(v) set_sync_setting("mbAutoFollow", v) end,
+            "alerts the party lead when /follow fails to engage out of range or breaks while moving.")
+        cb_mb_follow:SetPoint("TOPLEFT", mb_header, "BOTTOMLEFT", 0, -8)
+
+        local cb_mb_invite = create_checkbox(panel, "auto-accept invite / summon / res",
+            function() return sync.GetSettings().mbAutoInvite ~= false end,
+            function(v) set_sync_setting("mbAutoInvite", v) end,
+            "automatically accepts party invites, summons, and resurrections from synced characters.")
+        cb_mb_invite:SetPoint("LEFT", cb_mb_follow, "LEFT", COL_OFFSET_X, 0)
+
+        local cb_mb_quest = create_checkbox(panel, "auto-quest, abandon & dialog sync",
+            function() return sync.GetSettings().mbAutoQuest ~= false end,
+            function(v) set_sync_setting("mbAutoQuest", v) end,
+            "auto-accepts and turns in quests, syncs quest abandon, picks smart quest rewards, and mirrors lead gossip/dialog choices.")
+        cb_mb_quest:SetPoint("TOPLEFT", cb_mb_follow, "BOTTOMLEFT", 0, -6)
+
+        local cb_mb_taxi = create_checkbox(panel, "sync flight master destinations",
+            function() return sync.GetSettings().mbAutoTaxi ~= false end,
+            function(v) set_sync_setting("mbAutoTaxi", v) end,
+            "automatically takes the same flight master destination that a synced party member selected within the last 45 seconds.")
+        cb_mb_taxi:SetPoint("LEFT", cb_mb_quest, "LEFT", COL_OFFSET_X, 0)
+
+        local cb_mb_trade = create_checkbox(panel, "auto-fill trade with routed mats",
+            function() return sync.GetSettings().mbAutoTrade ~= false end,
+            function(v) set_sync_setting("mbAutoTrade", v) end,
+            "extends alt mail routing & synced professions into trading with synced party members, plus 'give mats' and 'dump junk' buttons on the trade frame.")
+        cb_mb_trade:SetPoint("TOPLEFT", cb_mb_quest, "BOTTOMLEFT", 0, -6)
+
+        local cb_mb_loot = create_checkbox(panel, "follower auto-pass loot rolls",
+            function() return sync.GetSettings().mbFollowerPassLoot == true end,
+            function(v) set_sync_setting("mbFollowerPassLoot", v) end,
+            "when not the party leader in a synced group, automatically passes on loot rolls unless the item is on this character's dungeon journal wishlist.")
+        cb_mb_loot:SetPoint("LEFT", cb_mb_trade, "LEFT", COL_OFFSET_X, 0)
+
+        local cb_mb_corpse = create_checkbox(panel, "corpse quest-item loot alerts",
+            function() return sync.GetSettings().mbCorpseAlert ~= false end,
+            function(v) set_sync_setting("mbCorpseAlert", v) end,
+            "alerts the lead window after looting a per-player quest item from a corpse if another synced party member still needs to loot their own copy.")
+        cb_mb_corpse:SetPoint("TOPLEFT", cb_mb_trade, "BOTTOMLEFT", 0, -6)
+
+        local cb_mb_hud = create_checkbox(panel, "show party status & bag/gold hud",
+            function() return sync.GetSettings().mbShowHud ~= false end,
+            function(v)
+                set_sync_setting("mbShowHud", v)
+                if sync.multibox and sync.multibox.UpdatePartySyncState then
+                    sync.multibox.UpdatePartySyncState()
+                end
+            end,
+            "shows a compact draggable party status bar with live free bag slots, team gold, click-to-target, and alt+click away/paused mode when grouped with synced characters.")
+        cb_mb_hud:SetPoint("LEFT", cb_mb_corpse, "LEFT", COL_OFFSET_X, 0)
+
+        -- ── 3. Content Modules & Transport Channels (2-Column Grid) ───────────
+        local sep2 = create_section_divider(panel, cb_mb_corpse, -10)
+
         local mod_header = panel:CreateFontString(nil, "OVERLAY", g.font)
-        mod_header:SetPoint("TOPLEFT", sync_now_btn, "BOTTOMLEFT", 0, -18)
+        mod_header:SetPoint("TOPLEFT", sep2, "BOTTOMLEFT", 0, -10)
         mod_header:SetTextColor(accent[1], accent[2], accent[3])
         mod_header:SetText("content modules")
 
+        local chan_header = panel:CreateFontString(nil, "OVERLAY", g.font)
+        chan_header:SetPoint("LEFT", mod_header, "LEFT", COL_OFFSET_X, 0)
+        chan_header:SetTextColor(accent[1], accent[2], accent[3])
+        chan_header:SetText("transport channels")
+
+        -- Left column: Content Modules
         local cb_alts = create_checkbox(panel, "sync alts & inventory",
             function() return sync.GetSettings().syncAlts end,
             function(v) set_sync_setting("syncAlts", v) end,
             "synchronizes character levels, gold, professions, bags/bank, lockouts, currencies, and reputation.")
         cb_alts:SetPoint("TOPLEFT", mod_header, "BOTTOMLEFT", 0, -8)
 
+        local cb_quests = create_checkbox(panel, "sync quests, journal & wishlists",
+            function() return sync.GetSettings().syncQuests ~= false end,
+            function(v) set_sync_setting("syncQuests", v) end,
+            "synchronizes active quests, party missing-quest markers, dungeon journal quest chains, and per-character loot wishlists.")
+        cb_quests:SetPoint("TOPLEFT", cb_alts, "BOTTOMLEFT", 0, -6)
+
+        local cb_waypoints = create_checkbox(panel, "sync map waypoints to peers",
+            function() return sync.GetSettings().syncWaypoints ~= false end,
+            function(v) set_sync_setting("syncWaypoints", v) end,
+            "automatically shares quest and dungeon journal map pins with online linked party peers.")
+        cb_waypoints:SetPoint("TOPLEFT", cb_quests, "BOTTOMLEFT", 0, -6)
+
         local cb_recipes = create_checkbox(panel, "sync recipes & known status",
             function() return sync.GetSettings().syncRecipes end,
             function(v) set_sync_setting("syncRecipes", v) end,
             "synchronizes known crafting recipes across all characters so tooltips and recipe browser show cross-account alts.")
-        cb_recipes:SetPoint("TOPLEFT", cb_alts, "BOTTOMLEFT", 0, -6)
+        cb_recipes:SetPoint("TOPLEFT", cb_waypoints, "BOTTOMLEFT", 0, -6)
 
         local cb_contacts = create_checkbox(panel, "sync profession contacts & finds",
             function() return sync.GetSettings().syncContacts end,
@@ -206,94 +326,53 @@ sfui.options.RegisterTab({
             "synchronizes per-character fishing catches, species records, and zone statistics without double-counting.")
         cb_fishing:SetPoint("TOPLEFT", cb_contacts, "BOTTOMLEFT", 0, -6)
 
-        local cb_mail = create_checkbox(panel, "sync auto-mail routing rules",
-            function() return sync.GetSettings().syncMail end,
-            function(v) set_sync_setting("syncMail", v) end,
-            "synchronizes auto-mail item routes and disenchanter assignments across linked accounts.")
-        cb_mail:SetPoint("TOPLEFT", cb_fishing, "BOTTOMLEFT", 0, -6)
-
-        local cb_quests = create_checkbox(panel, "sync quests, dungeon journal & wishlists",
-            function() return sync.GetSettings().syncQuests ~= false end,
-            function(v) set_sync_setting("syncQuests", v) end,
-            "synchronizes active quests, party missing-quest markers, dungeon journal quest chains, and per-character loot wishlists.")
-        cb_quests:SetPoint("TOPLEFT", cb_mail, "BOTTOMLEFT", 0, -6)
-
-        local cb_waypoints = create_checkbox(panel, "sync map waypoints to peers",
-            function() return sync.GetSettings().syncWaypoints ~= false end,
-            function(v) set_sync_setting("syncWaypoints", v) end,
-            "automatically shares quest and dungeon journal map pins with online linked party peers.")
-        cb_waypoints:SetPoint("TOPLEFT", cb_quests, "BOTTOMLEFT", 0, -6)
-
-        -- Channels Section
-        local chan_header = panel:CreateFontString(nil, "OVERLAY", g.font)
-        chan_header:SetPoint("TOPLEFT", cb_waypoints, "BOTTOMLEFT", 0, -14)
-        chan_header:SetTextColor(accent[1], accent[2], accent[3])
-        chan_header:SetText("transport channels")
-
+        -- Right column: Transport Channels + Auto-Mail
         local cb_login = create_checkbox(panel, "auto-sync on login / reload",
             function() return sync.GetSettings().autoSyncOnLogin end,
             function(v) set_sync_setting("autoSyncOnLogin", v) end,
             "automatically exchanges content manifests with online linked accounts shortly after logging in.")
-        cb_login:SetPoint("TOPLEFT", chan_header, "BOTTOMLEFT", 0, -8)
+        cb_login:SetPoint("LEFT", cb_alts, "LEFT", COL_OFFSET_X, 0)
 
         local cb_party = create_checkbox(panel, "sync via party / raid",
             function() return sync.GetSettings().useParty end,
             function(v) set_sync_setting("useParty", v) end,
             "uses party/raid addon channel when grouped with your other accounts.")
-        cb_party:SetPoint("TOPLEFT", cb_login, "BOTTOMLEFT", 0, -6)
+        cb_party:SetPoint("LEFT", cb_quests, "LEFT", COL_OFFSET_X, 0)
 
-        local cb_whisper = create_checkbox(panel, "sync via whisper (linked characters)",
+        local cb_whisper = create_checkbox(panel, "sync via whisper (linked chars)",
             function() return sync.GetSettings().useWhisper end,
             function(v) set_sync_setting("useWhisper", v) end,
             "uses direct addon whispers to linked characters on the same realm/faction even when ungrouped.")
-        cb_whisper:SetPoint("TOPLEFT", cb_party, "BOTTOMLEFT", 0, -6)
-
-        local cb_guild = create_checkbox(panel, "sync via guild",
-            function() return sync.GetSettings().useGuild end,
-            function(v) set_sync_setting("useGuild", v) end,
-            "uses guild addon channel when characters share a guild.")
-        cb_guild:SetPoint("TOPLEFT", cb_whisper, "BOTTOMLEFT", 0, -6)
+        cb_whisper:SetPoint("LEFT", cb_waypoints, "LEFT", COL_OFFSET_X, 0)
 
         local cb_bnet = create_checkbox(panel, "sync via battle.net friends",
             function() return sync.GetSettings().useBNet end,
             function(v) set_sync_setting("useBNet", v) end,
             "uses battle.net gamedata channel when your accounts are battle.net friends.")
-        cb_bnet:SetPoint("TOPLEFT", cb_guild, "BOTTOMLEFT", 0, -6)
+        cb_bnet:SetPoint("LEFT", cb_recipes, "LEFT", COL_OFFSET_X, 0)
 
-        -- ── Right Column: Live Status & Linked Characters List ────────────────
-        local right_x = 305
+        local cb_guild = create_checkbox(panel, "sync via guild",
+            function() return sync.GetSettings().useGuild end,
+            function(v) set_sync_setting("useGuild", v) end,
+            "uses guild addon channel when characters share a guild.")
+        cb_guild:SetPoint("LEFT", cb_contacts, "LEFT", COL_OFFSET_X, 0)
 
-        local status_box = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-        status_box:SetPoint("TOPLEFT", panel, "TOPLEFT", right_x, -42)
-        status_box:SetPoint("RIGHT", panel, "RIGHT", -15, 0)
-        status_box:SetHeight(92)
-        common.apply_flat_backdrop(status_box, { 0.05, 0.05, 0.08, 0.85 }, { 0.2, 0.2, 0.28, 1 })
+        local cb_mail = create_checkbox(panel, "sync auto-mail routing rules",
+            function() return sync.GetSettings().syncMail end,
+            function(v) set_sync_setting("syncMail", v) end,
+            "synchronizes auto-mail item routes and disenchanter assignments across linked accounts.")
+        cb_mail:SetPoint("LEFT", cb_fishing, "LEFT", COL_OFFSET_X, 0)
 
-        local status_title = status_box:CreateFontString(nil, "OVERLAY", g.font)
-        status_title:SetPoint("TOPLEFT", 10, -8)
-        status_title:SetTextColor(accent[1], accent[2], accent[3])
-        status_title:SetText("sync status & database summary")
+        -- ── 4. Linked Characters & Accounts (Full-Width List) ─────────────────
+        local sep3 = create_section_divider(panel, cb_fishing, -10)
 
-        local status_line1 = status_box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        status_line1:SetPoint("TOPLEFT", status_title, "BOTTOMLEFT", 0, -6)
-        status_line1:SetJustifyH("LEFT")
-
-        local status_line2 = status_box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        status_line2:SetPoint("TOPLEFT", status_line1, "BOTTOMLEFT", 0, -5)
-        status_line2:SetJustifyH("LEFT")
-
-        local status_line3 = status_box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        status_line3:SetPoint("TOPLEFT", status_line2, "BOTTOMLEFT", 0, -5)
-        status_line3:SetJustifyH("LEFT")
-
-        -- Add Linked Character Row
         local peers_header = panel:CreateFontString(nil, "OVERLAY", g.font)
-        peers_header:SetPoint("TOPLEFT", status_box, "BOTTOMLEFT", 0, -14)
+        peers_header:SetPoint("TOPLEFT", sep3, "BOTTOMLEFT", 0, -10)
         peers_header:SetTextColor(accent[1], accent[2], accent[3])
         peers_header:SetText("linked characters & accounts")
 
-        local add_eb = create_styled_editbox(panel, 165, 22, "character name (or name-realm)", nil)
-        add_eb:SetPoint("TOPLEFT", peers_header, "BOTTOMLEFT", 0, -8)
+        local add_eb = create_styled_editbox(panel, 220, 20, "character name (or name-realm)", nil)
+        add_eb:SetPoint("LEFT", peers_header, "LEFT", COL_OFFSET_X - 45, 0)
 
         local function do_add_peer()
             local txt = add_eb:GetText() or ""
@@ -313,23 +392,23 @@ sfui.options.RegisterTab({
             do_add_peer()
         end)
 
-        local add_btn = create_flat_button(panel, "add & pair", 82, 22, do_add_peer)
+        local add_btn = create_flat_button(panel, "add & pair", 84, 20, do_add_peer)
         add_btn:SetPoint("LEFT", add_eb, "RIGHT", 6, 0)
         add_btn.tooltip = "adds this character to your linked peers and sends a whisper pairing request to import all alts on that account."
 
-        -- Scrollable Peer List Container
         local list_bg = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-        list_bg:SetPoint("TOPLEFT", add_eb, "BOTTOMLEFT", 0, -8)
-        list_bg:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -15, 15)
+        list_bg:SetPoint("TOPLEFT", peers_header, "BOTTOMLEFT", 0, -10)
+        list_bg:SetPoint("RIGHT", panel, "RIGHT", -15, 0)
+        list_bg:SetHeight(132)
         common.apply_flat_backdrop(list_bg, { 0.04, 0.04, 0.06, 0.9 }, { 0.18, 0.18, 0.25, 1 })
 
-        local sf, sc = common.create_scroll_frame(list_bg, nil, 260, 200)
+        local sf, sc = common.create_scroll_frame(list_bg, nil, 500, 126)
         sf:SetPoint("TOPLEFT", list_bg, "TOPLEFT", 4, -4)
         sf:SetPoint("BOTTOMRIGHT", list_bg, "BOTTOMRIGHT", -14, 4)
 
         local empty_label = list_bg:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
         empty_label:SetPoint("CENTER", list_bg, "CENTER", 0, 0)
-        empty_label:SetText("no linked characters yet.\ntarget your other character and click 'pair target',\nor type a character name above.")
+        empty_label:SetText("no linked characters yet — target your other character and click 'pair target', or type a character name above.")
         empty_label:SetJustifyH("CENTER")
 
         local peerRows = {}
@@ -343,23 +422,47 @@ sfui.options.RegisterTab({
             common.apply_flat_backdrop(row, { 0.08, 0.08, 0.11, 0.85 }, { 0.16, 0.16, 0.22, 1 })
 
             row.nameFs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            row.nameFs:SetPoint("LEFT", row, "LEFT", 6, 0)
+            row.nameFs:SetPoint("LEFT", row, "LEFT", 8, 0)
             row.nameFs:SetJustifyH("LEFT")
 
             row.removeBtn = common.create_remove_button(row, nil, 18, 18, "remove linked character")
-            row.removeBtn:SetPoint("RIGHT", row, "RIGHT", -3, 0)
+            row.removeBtn:SetPoint("RIGHT", row, "RIGHT", -4, 0)
 
-            row.syncBtn = create_flat_button(row, "sync", 40, 18)
-            row.syncBtn:SetPoint("RIGHT", row.removeBtn, "LEFT", -4, 0)
+            row.syncBtn = create_flat_button(row, "sync", 44, 18)
+            row.syncBtn:SetPoint("RIGHT", row.removeBtn, "LEFT", -6, 0)
             row.syncBtn.tooltip = "whisper-sync content with this character now."
 
             row.metaFs = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-            row.metaFs:SetPoint("RIGHT", row.syncBtn, "LEFT", -6, 0)
+            row.metaFs:SetPoint("RIGHT", row.syncBtn, "LEFT", -10, 0)
             row.metaFs:SetJustifyH("RIGHT")
 
             peerRows[idx] = row
             return row
         end
+
+        local allCheckboxes = {
+            { cb = enable_cb,    get = function(c) return c.enabled == true end },
+            { cb = cb_alts,      get = function(c) return c.syncAlts == true end },
+            { cb = cb_recipes,   get = function(c) return c.syncRecipes == true end },
+            { cb = cb_contacts,  get = function(c) return c.syncContacts == true end },
+            { cb = cb_fishing,   get = function(c) return c.syncFishing == true end },
+            { cb = cb_mail,      get = function(c) return c.syncMail == true end },
+            { cb = cb_quests,    get = function(c) return c.syncQuests ~= false end },
+            { cb = cb_waypoints, get = function(c) return c.syncWaypoints ~= false end },
+            { cb = cb_login,     get = function(c) return c.autoSyncOnLogin == true end },
+            { cb = cb_party,     get = function(c) return c.useParty == true end },
+            { cb = cb_whisper,   get = function(c) return c.useWhisper == true end },
+            { cb = cb_guild,     get = function(c) return c.useGuild == true end },
+            { cb = cb_bnet,      get = function(c) return c.useBNet == true end },
+            { cb = cb_mb_follow, get = function(c) return c.mbAutoFollow ~= false end },
+            { cb = cb_mb_invite, get = function(c) return c.mbAutoInvite ~= false end },
+            { cb = cb_mb_quest,  get = function(c) return c.mbAutoQuest ~= false end },
+            { cb = cb_mb_taxi,   get = function(c) return c.mbAutoTaxi ~= false end },
+            { cb = cb_mb_trade,  get = function(c) return c.mbAutoTrade ~= false end },
+            { cb = cb_mb_corpse, get = function(c) return c.mbCorpseAlert ~= false end },
+            { cb = cb_mb_hud,    get = function(c) return c.mbShowHud ~= false end },
+            { cb = cb_mb_loot,   get = function(c) return c.mbFollowerPassLoot == true end },
+        }
 
         function panel.RefreshSyncUI()
             local cur = sync.GetSettings()
@@ -368,6 +471,11 @@ sfui.options.RegisterTab({
             end
             if not pass_eb:HasFocus() then
                 pass_eb:SetText(cur.passcode or "")
+            end
+            for _, entry in ipairs(allCheckboxes) do
+                if entry.cb and entry.cb.SetChecked then
+                    entry.cb:SetChecked(entry.get(cur))
+                end
             end
 
             local counts = (sync.GetContentCounts and sync.GetContentCounts()) or {}
@@ -378,13 +486,10 @@ sfui.options.RegisterTab({
                 "|cffaaaaaaalts:|r %d |cff888888(%d remote)|r   |cffaaaaaarecipes:|r %d   |cffaaaaaacontacts:|r %d   |cffaaaaaafish:|r %d",
                 counts.alts or 0, counts.remoteAlts or 0, counts.recipes or 0, counts.contacts or 0, counts.fish or 0
             ))
-            status_line2:SetText(string_format(
-                "|cffaaaaaalinked chars:|r %d   |cffaaaaaapackets:|r %d sent / %d recv   |cffaaaaaaqueue:|r %d",
-                counts.peers or 0, st.packetsSent or 0, st.packetsReceived or 0, qLen
-            ))
             local lastPeerStr = st.lastPeer and (" |cff00ffff(" .. tostring(st.lastPeer):lower() .. ")|r") or ""
-            status_line3:SetText(string_format(
-                "|cffaaaaaalast sync:|r %s%s",
+            status_line2:SetText(string_format(
+                "|cffaaaaaalinked chars:|r %d   |cffaaaaaapackets:|r %d sent / %d recv   |cffaaaaaaqueue:|r %d   |   |cffaaaaaalast sync:|r %s%s",
+                counts.peers or 0, st.packetsSent or 0, st.packetsReceived or 0, qLen,
                 format_ago(st.lastSyncTime), lastPeerStr
             ))
 
@@ -412,12 +517,12 @@ sfui.options.RegisterTab({
 
             if #list == 0 then
                 empty_label:Show()
-                sc:SetHeight(100)
+                sc:SetHeight(80)
                 return
             end
 
             empty_label:Hide()
-            local rowW = math_max(220, (sf:GetWidth() or 260) - 4)
+            local rowW = math_max(460, (sf:GetWidth() or 500) - 4)
             sc:SetWidth(rowW)
 
             local y = 0
@@ -438,8 +543,11 @@ sfui.options.RegisterTab({
                 if p.accountLabel and p.accountLabel ~= "" then
                     nameDisplay = nameDisplay .. " |cff8888aa[" .. string_lower(p.accountLabel) .. "]|r"
                 end
+                if p.level and tonumber(p.level) and tonumber(p.level) > 0 then
+                    nameDisplay = nameDisplay .. " |cff777777lv." .. tonumber(p.level) .. "|r"
+                end
                 row.nameFs:SetText(nameDisplay)
-                row.metaFs:SetText(format_ago(p.lastSync or p.lastSeen))
+                row.metaFs:SetText("last sync: " .. format_ago(p.lastSync or p.lastSeen))
 
                 local targetName = p.name
                 local peerKey = item.key
@@ -460,7 +568,7 @@ sfui.options.RegisterTab({
                 y = y + 26
             end
 
-            sc:SetHeight(math_max(100, y))
+            sc:SetHeight(math_max(80, y))
         end
 
         if sfui.events and sfui.events.RegisterMessage then
@@ -479,9 +587,9 @@ sfui.options.RegisterTab({
         panel.RefreshSyncUI()
     end,
     onShow = function(panel)
-        if panel and panel.RefreshSyncUI then
-            panel.RefreshSyncUI()
+        local content = panel.content_panel or panel
+        if content and content.RefreshSyncUI then
+            content.RefreshSyncUI()
         end
     end,
 })
-

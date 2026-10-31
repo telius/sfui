@@ -412,20 +412,27 @@ sfui.merchant.update_merchant = function()
 
                 local id = get_item_id(data.link)
                 local locked, reason = sfui.merchant.get_item_lock_status(index, id, data.isUsable)
+                local isRecipe = id and sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(id)
+                local rStatus, rColor
+                if isRecipe and sfui.recipes.GetRecipeStatus then
+                    rStatus, rColor = sfui.recipes.GetRecipeStatus(id)
+                end
 
                 if locked then
                     btn.lockBackground:Show(); btn.lockReason:SetText(reason); btn.lockReason:Show(); btn.subName:Hide()
-                    btn.icon:SetVertexColor(1, 0.1, 0.1); btn.icon:SetDesaturated(true)
+                    if (SfuiDB and SfuiDB.recipesTintIcons ~= false) and isRecipe and rColor and rStatus ~= "UNLEARNABLE" then
+                        btn.icon:SetVertexColor(rColor.r, rColor.g, rColor.b)
+                        btn.icon:SetDesaturated(false)
+                    else
+                        btn.icon:SetVertexColor(1, 0.1, 0.1); btn.icon:SetDesaturated(true)
+                    end
                 else
                     btn.lockBackground:Hide(); btn.lockReason:Hide(); btn.subName:Show()
                     local tinted = false
-                    if (SfuiDB and SfuiDB.recipesTintIcons ~= false) and id and sfui.recipes.IsRecipe(id) then
-                        local _, color = sfui.recipes.GetRecipeStatus(id)
-                        if color then
-                            btn.icon:SetVertexColor(color.r, color.g, color.b)
-                            btn.icon:SetDesaturated(false)
-                            tinted = true
-                        end
+                    if (SfuiDB and SfuiDB.recipesTintIcons ~= false) and isRecipe and rColor then
+                        btn.icon:SetVertexColor(rColor.r, rColor.g, rColor.b)
+                        btn.icon:SetDesaturated(false)
+                        tinted = true
                     end
                     if not tinted then
                         btn.icon:SetVertexColor(1, 1, 1); btn.icon:SetDesaturated(false)

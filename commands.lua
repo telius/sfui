@@ -7,7 +7,6 @@ sfui.keybinds = sfui.keybinds or {}
 local _G = _G
 local tostring = tostring
 local C_UI = C_UI
-local GetBindingKey = _G.GetBindingKey
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- 1. BLIZZARD KEYBINDINGS MENU DEFINITIONS & DYNAMIC FILTERING
@@ -175,6 +174,38 @@ SlashCmdList["SFUI"] = function(msg)
     elseif cmd == "mail" or cmd == "mailrouting" or cmd == "altmail" then
         if sfui.alts and sfui.alts.ToggleMailConfig then
             sfui.alts.ToggleMailConfig()
+        end
+    elseif cmd == "lead" or cmd == "makelead" then
+        if sfui.sync and sfui.sync.MakeMeLead then
+            sfui.sync.MakeMeLead()
+        end
+    elseif cmd == "party" or cmd == "formparty" or cmd == "invite" then
+        if sfui.sync and sfui.sync.FormSyncedParty then
+            sfui.sync.FormSyncedParty()
+        end
+    elseif cmd == "reloadall" or cmd == "rlall" then
+        if sfui.sync and sfui.sync.ReloadAllClients then
+            sfui.sync.ReloadAllClients()
+        end
+    elseif cmd == "away" or cmd == "pause" then
+        if sfui.sync and sfui.sync.ToggleAway then
+            sfui.sync.ToggleAway(arg ~= "" and arg or nil)
+        end
+    elseif cmd == "sync" or cmd == "multibox" then
+        if arg == "now" or arg == "all" then
+            if sfui.sync and sfui.sync.SyncAllNow then sfui.sync.SyncAllNow() end
+        elseif arg == "invite" or arg == "form" then
+            if sfui.sync and sfui.sync.FormSyncedParty then sfui.sync.FormSyncedParty() end
+        elseif arg == "reload" or arg == "rl" then
+            if sfui.sync and sfui.sync.ReloadAllClients then sfui.sync.ReloadAllClients() end
+        elseif arg == "target" then
+            if sfui.sync and sfui.sync.PairWithTarget then sfui.sync.PairWithTarget() end
+        elseif arg == "party" or arg == "group" then
+            if sfui.sync and sfui.sync.PairWithParty then sfui.sync.PairWithParty() end
+        elseif arg and arg ~= "" then
+            if sfui.sync and sfui.sync.PairWithCharacter then sfui.sync.PairWithCharacter(arg) end
+        elseif sfui.toggle_options_panel then
+            sfui.toggle_options_panel("sync")
         end
     elseif cmd == "pet" or cmd == "pets" or cmd == "sfpet" then
         if arg and arg ~= "" and _G.SlashCmdList and _G.SlashCmdList["SFPET"] then

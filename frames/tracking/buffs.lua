@@ -22,7 +22,6 @@ local UnitInVehicle = UnitInVehicle
 local C_CooldownViewer = C_CooldownViewer
 local C_Item = C_Item
 local BuffIconCooldownViewer = BuffIconCooldownViewer
-local CooldownViewerSettings = CooldownViewerSettings
 
 -- static reuse & throttling (memory & cpu optimization)
 local UPDATE_THROTTLE = 0.08
@@ -798,11 +797,10 @@ function sfui.trackedbuffs.GetTrackedBuffs()
         end
     end
 
-    -- 2. check cdm data provider for configured but inactive buffs
-    local dp = CooldownViewerSettings and CooldownViewerSettings.GetDataProvider and CooldownViewerSettings:GetDataProvider()
+    -- 2. check c_cooldownviewer for configured but inactive buffs (taint-safe C API)
     local cat = (Enum and Enum.CooldownViewerCategory and Enum.CooldownViewerCategory.TrackedBuff) or 2
-    if dp and dp.GetOrderedCooldownIDsForCategory then
-        local ok, ids = pcall(dp.GetOrderedCooldownIDsForCategory, dp, cat, true)
+    if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
+        local ok, ids = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, cat, true)
         if ok and ids then
             for idx, id in ipairs(ids) do
                 if not seen[id] then
