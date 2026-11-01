@@ -1378,6 +1378,10 @@ local function handle_want_from_peer(sender, want, replyChannel, bnetIDAccount)
             send_to_peer(sender, "DATA_MAIL", payload, replyChannel, bnetIDAccount)
         end
     end
+
+    if sfui.camelot_skills and sfui.camelot_skills.BroadcastTrackedSkills then
+        sfui.camelot_skills.BroadcastTrackedSkills(true)
+    end
 end
 
 local pendingIncomingPairReq = nil

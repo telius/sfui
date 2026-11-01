@@ -41,8 +41,13 @@ local EventRegistry = _G.EventRegistry
 local InCombatLockdown = _G.InCombatLockdown
 
 local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
-local table_insert, table_sort = _G.table.insert, _G.table.sort
-local string_format = string.format
+local next = _G.next
+local math_floor = math.floor
+local table_insert, table_sort, table_concat = _G.table.insert, _G.table.sort, _G.table.concat
+local string_format, string_lower, string_match = string.format, string.lower, string.match
+local GetTime = _G.GetTime
+local UnitClass = _G.UnitClass
+local C_Timer = _G.C_Timer
 local wipe = _G.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
 
 -- ─────────────────────────────────────────────────────────
@@ -206,7 +211,19 @@ end
 local UpdateEntryTrackingVisual
 local UpdateDetailFrameCheckbox
 local UpdateAllSkillsVisuals
+local ScheduleSkillsSyncBroadcast
 local CamelotSkillsModule
+
+local function GetLocalSpecColor()
+    local sc = sfui.common and sfui.common.get_class_or_spec_color and sfui.common.get_class_or_spec_color()
+    if sc then
+        local r = tonumber(sc[1] or sc.r) or 0.22
+        local g = tonumber(sc[2] or sc.g) or 0.58
+        local b = tonumber(sc[3] or sc.b) or 0.98
+        return { r, g, b, 0.90 }
+    end
+    return { 0.22, 0.58, 0.98, 0.90 }
+end
 
 local function ToggleTrackedSkill(skillID)
     skillID = tonumber(skillID) or skillID
@@ -233,6 +250,10 @@ local function ToggleTrackedSkill(skillID)
 
     if UpdateAllSkillsVisuals then
         UpdateAllSkillsVisuals()
+    end
+
+    if ScheduleSkillsSyncBroadcast then
+        ScheduleSkillsSyncBroadcast(true)
     end
 
     if sfui.events and sfui.events.SendMessage then
@@ -456,6 +477,233 @@ local function SetupSkillsFrameHooks()
 end
 
 -- ─────────────────────────────────────────────────────────
+--  CROSS-CLIENT SYNC (TRACKED SKILLS & SPEC COLORS)
+-- ─────────────────────────────────────────────────────────
+local remotePeerSkills      = {} -- [peerKey] = { name, class, spec, cr, cg, cb, list = { { id, name, r, m }, ... } }
+local lastSentSkillsSig     = nil
+local skillsBroadcastQueued = false
+
+local function CleanPeerKey(name)
+    if type(name) ~= "string" or name == "" then return "" end
+    if sfui.sync and sfui.sync.multibox and sfui.sync.multibox.CleanKey then
+        return sfui.sync.multibox.CleanKey(name)
+    end
+    local short = string_match(name, "^([^%-]+)") or name
+    return string_lower(short)
+end
+
+local function FormatColoredName(name, classToken)
+    local clean = string_lower(string_match(tostring(name or "player"), "^([^%-]+)") or tostring(name or "player"))
+    if classToken and sfui.common and sfui.common.class_color_name then
+        return sfui.common.class_color_name(clean, classToken)
+    end
+    return clean
+end
+
+local function ResolvePeerSpecColor(peer)
+    if not peer then return GetLocalSpecColor() end
+    local specID = tonumber(peer.spec) or 0
+    if SfuiDB and SfuiDB.useSpecColor ~= false and specID > 0 and SfuiDB.spec_colors and SfuiDB.spec_colors[specID] then
+        local c = SfuiDB.spec_colors[specID]
+        return { tonumber(c[1] or c.r) or 0.22, tonumber(c[2] or c.g) or 0.58, tonumber(c[3] or c.b) or 0.98, 0.90 }
+    end
+    if peer.cr and peer.cg and peer.cb then
+        return { peer.cr / 255, peer.cg / 255, peer.cb / 255, 0.90 }
+    end
+    if specID > 0 and sfui.colors and sfui.colors.get_spec_color_table then
+        local t = sfui.colors.get_spec_color_table(specID)
+        if t then
+            return { tonumber(t[1] or t.r) or 0.22, tonumber(t[2] or t.g) or 0.58, tonumber(t[3] or t.b) or 0.98, 0.90 }
+        end
+    end
+    if peer.class and sfui.common and sfui.common.get_class_color then
+        local r, g, b = sfui.common.get_class_color(peer.class)
+        if r and g and b then
+            return { r, g, b, 0.90 }
+        end
+    end
+    return GetLocalSpecColor()
+end
+
+local function IsSyncActive()
+    local sync = sfui.sync
+    if not sync or not sync.GetSettings then return false end
+    local s = sync.GetSettings()
+    return (s and s.enabled == true) or false
+end
+
+local function IsPeerSkillsVisible(peerKey, peer)
+    if not IsSyncActive() or not peer or type(peer.list) ~= "table" or #peer.list == 0 then
+        return false
+    end
+    local myKey = CleanPeerKey((UnitName and UnitName("player")) or "")
+    if peerKey == "" or peerKey == myKey then
+        return false
+    end
+    local sync = sfui.sync
+    if sync and sync.IsPeerOffline and sync.IsPeerOffline(peer.name) then
+        return false
+    end
+    local mb = sync and sync.multibox
+    if mb and mb.IsActiveSyncParty and mb.IsActiveSyncParty() then
+        local unit = mb.FindPartyUnitByName and mb.FindPartyUnitByName(peer.name)
+        if unit then return true end
+    end
+    return true
+end
+
+local function BroadcastTrackedSkills(force, isInit)
+    if not IsSyncActive() then return end
+    local sync = sfui.sync
+    if not sync or not sync.Broadcast then return end
+
+    local tracked = GetTrackedSkills()
+    local ids = {}
+    if tracked then
+        for skillID, isTracked in pairs(tracked) do
+            local numID = tonumber(skillID)
+            if isTracked and numID then
+                table_insert(ids, numID)
+            end
+        end
+    end
+    table_sort(ids)
+
+    local items = {}
+    local sigParts = {}
+    for _, skillID in ipairs(ids) do
+        local info = GetSkillInfo(skillID)
+        if info and info.name then
+            local r = tonumber(info.rank) or 0
+            local m = (info.maxRank and info.maxRank > 0) and tonumber(info.maxRank) or 1
+            table_insert(items, {
+                id   = skillID,
+                name = info.name,
+                r    = r,
+                m    = m,
+            })
+            table_insert(sigParts, string_format("%d:%d:%d", skillID, r, m))
+        end
+    end
+
+    local sc = GetLocalSpecColor()
+    local cr = math_floor((sc[1] or 0.22) * 255 + 0.5)
+    local cg = math_floor((sc[2] or 0.58) * 255 + 0.5)
+    local cb = math_floor((sc[3] or 0.98) * 255 + 0.5)
+    local specID = (sfui.talents and sfui.talents.get_current_spec_id and sfui.talents.get_current_spec_id()) or 0
+    local _, classToken = UnitClass and UnitClass("player")
+
+    local sig = string_format("%d:%d:%d:%d|%s", specID, cr, cg, cb, table_concat(sigParts, ","))
+    if not force and sig == lastSentSkillsSig then
+        return
+    end
+    lastSentSkillsSig = sig
+
+    local s = sync.GetSettings and sync.GetSettings()
+    sync.Broadcast("DELTA_TRACKED_SKILLS", {
+        pass  = (s and s.passcode ~= "" and s.passcode) or nil,
+        init  = isInit and 1 or nil,
+        spec  = specID,
+        class = classToken,
+        cr    = cr,
+        cg    = cg,
+        cb    = cb,
+        list  = items,
+    }, true, false)
+end
+
+ScheduleSkillsSyncBroadcast = function(force, isInit)
+    if not IsSyncActive() then return end
+    if force then
+        lastSentSkillsSig = nil
+    end
+    if skillsBroadcastQueued then return end
+    skillsBroadcastQueued = true
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.35, function()
+            skillsBroadcastQueued = false
+            BroadcastTrackedSkills(force, isInit)
+        end)
+    else
+        skillsBroadcastQueued = false
+        BroadcastTrackedSkills(force, isInit)
+    end
+end
+
+local function RequestRemoteSkillUntrack(peerKey, skillID)
+    skillID = tonumber(skillID)
+    if not skillID then return end
+    local peer = peerKey and remotePeerSkills[peerKey]
+    if peer and type(peer.list) == "table" then
+        for i = #peer.list, 1, -1 do
+            if tonumber(peer.list[i].id) == skillID then
+                table.remove(peer.list, i)
+            end
+        end
+    end
+    if IsSyncActive() and sfui.sync and sfui.sync.Broadcast then
+        local s = sfui.sync.GetSettings and sfui.sync.GetSettings()
+        sfui.sync.Broadcast("DELTA_SKILL_UNTRACK", {
+            pass   = (s and s.passcode ~= "" and s.passcode) or nil,
+            target = peer and peer.name or peerKey,
+            id     = skillID,
+        }, true, false)
+    end
+    if CamelotSkillsModule and CamelotSkillsModule.MarkDirty then
+        CamelotSkillsModule:MarkDirty(0)
+    end
+    sfui.tracker.RequestRefresh(0)
+end
+
+local function HandleSkillsSyncMessage(sender, msgType, data)
+    if type(data) ~= "table" then return end
+    if msgType == "DELTA_TRACKED_SKILLS" then
+        local peerKey = CleanPeerKey(sender)
+        if peerKey == "" then return end
+        local cleanList = {}
+        if type(data.list) == "table" then
+            for _, entry in ipairs(data.list) do
+                local id = tonumber(entry and entry.id)
+                if id and entry.name then
+                    table_insert(cleanList, {
+                        id   = id,
+                        name = tostring(entry.name),
+                        r    = tonumber(entry.r) or 0,
+                        m    = math.max(1, tonumber(entry.m) or 1),
+                    })
+                end
+            end
+        end
+        remotePeerSkills[peerKey] = {
+            name      = sender,
+            class     = data.class,
+            spec      = tonumber(data.spec) or 0,
+            cr        = tonumber(data.cr),
+            cg        = tonumber(data.cg),
+            cb        = tonumber(data.cb),
+            list      = cleanList,
+            updatedAt = (GetTime and GetTime()) or 0,
+        }
+        if CamelotSkillsModule and CamelotSkillsModule.MarkDirty then
+            CamelotSkillsModule:MarkDirty(0)
+        end
+        sfui.tracker.RequestRefresh(0.02)
+
+        if tonumber(data.init) == 1 then
+            ScheduleSkillsSyncBroadcast(true, false)
+        end
+    elseif msgType == "DELTA_SKILL_UNTRACK" then
+        local skillID = tonumber(data.id)
+        if not skillID then return end
+        local myKey = CleanPeerKey((UnitName and UnitName("player")) or "")
+        local targetKey = data.target and CleanPeerKey(data.target) or ""
+        if (targetKey == "" or targetKey == myKey) and IsSkillTracked(skillID) then
+            ToggleTrackedSkill(skillID)
+        end
+    end
+end
+
+-- ─────────────────────────────────────────────────────────
 --  OBJECTIVE TRACKER MODULE
 -- ─────────────────────────────────────────────────────────
 CamelotSkillsModule = {
@@ -465,6 +713,7 @@ CamelotSkillsModule = {
         "SKILL_LINES_CHANGED",
         "CHAT_MSG_SKILL",
         "PLAYER_ENTERING_WORLD",
+        "GROUP_ROSTER_UPDATE",
         "ADDON_LOADED",
     },
 }
@@ -472,6 +721,44 @@ CamelotSkillsModule = {
 function CamelotSkillsModule:Init(engine)
     self.engine = engine
     SetupSkillsFrameHooks()
+
+    if sfui.events and sfui.events.RegisterMessage then
+        sfui.events.RegisterMessage("SFUI_SPEC_CHANGED", function()
+            self:MarkDirty(0)
+            sfui.tracker.RequestRefresh(0.02)
+            ScheduleSkillsSyncBroadcast(true, false)
+        end)
+        sfui.events.RegisterMessage("SFUI_SPEC_COLORS_UPDATED", function()
+            self:MarkDirty(0)
+            sfui.tracker.RequestRefresh(0.02)
+            ScheduleSkillsSyncBroadcast(true, false)
+        end)
+        sfui.events.RegisterMessage("SFUI_SYNC_STATUS_UPDATED", function(_, key)
+            if key == "PACKET" then return end
+            self:MarkDirty(0.02)
+            sfui.tracker.RequestRefresh(0.02)
+            ScheduleSkillsSyncBroadcast(true, false)
+        end)
+    end
+
+    if sfui.sync and sfui.sync.multibox and sfui.sync.multibox.RegisterPartySubmodule then
+        sfui.sync.multibox.RegisterPartySubmodule({
+            Enable = function()
+                ScheduleSkillsSyncBroadcast(true, true)
+                self:MarkDirty(0.02)
+                sfui.tracker.RequestRefresh(0.02)
+            end,
+            Disable = function()
+                self:MarkDirty(0.02)
+                sfui.tracker.RequestRefresh(0.02)
+            end,
+            Refresh = function()
+                ScheduleSkillsSyncBroadcast(false, false)
+                self:MarkDirty(0.02)
+                sfui.tracker.RequestRefresh(0.02)
+            end,
+        })
+    end
 end
 
 function CamelotSkillsModule:IsEnabled()
@@ -489,6 +776,15 @@ function CamelotSkillsModule:OnEvent(event, ...)
 
     if event == "PLAYER_ENTERING_WORLD" then
         SetupSkillsFrameHooks()
+        if C_Timer and C_Timer.After then
+            C_Timer.After(2.0, function()
+                ScheduleSkillsSyncBroadcast(true, true)
+            end)
+        end
+    elseif event == "GROUP_ROSTER_UPDATE" then
+        ScheduleSkillsSyncBroadcast(true, true)
+    elseif event == "SKILL_LINES_CHANGED" or event == "CHAT_MSG_SKILL" then
+        ScheduleSkillsSyncBroadcast(false, false)
     end
 
     self:MarkDirty(0.02)
@@ -497,16 +793,95 @@ end
 
 function CamelotSkillsModule:BuildBlocks(container)
     local tracked = GetTrackedSkills()
-    if not tracked or not next(tracked) then
-        return nil
+    local entriesBySkill = {}
+    local skillList = {}
+
+    local localSpecColor = GetLocalSpecColor()
+    local myName = (UnitName and UnitName("player")) or "player"
+    local _, myClass = UnitClass and UnitClass("player")
+    local myColoredName = FormatColoredName(myName, myClass)
+
+    if tracked then
+        for rawID, isTracked in pairs(tracked) do
+            local skillID = tonumber(rawID)
+            if isTracked and skillID then
+                local info = GetSkillInfo(skillID)
+                if info and info.name then
+                    local rank = tonumber(info.rank) or 0
+                    local maxRank = (info.maxRank and info.maxRank > 0) and tonumber(info.maxRank) or 1
+                    local entry = {
+                        skillID     = skillID,
+                        name        = info.name,
+                        description = info.description,
+                        hasLocal    = true,
+                        bars        = {
+                            {
+                                min          = 0,
+                                max          = maxRank,
+                                value        = rank,
+                                text         = string_format("%d / %d", rank, maxRank),
+                                color        = localSpecColor,
+                                isLocal      = true,
+                                ownerName    = myName,
+                                coloredOwner = myColoredName,
+                                rank         = rank,
+                                maxRank      = maxRank,
+                            },
+                        },
+                    }
+                    entriesBySkill[skillID] = entry
+                    table_insert(skillList, entry)
+                end
+            end
+        end
     end
 
-    local skillList = {}
-    for skillID, isTracked in pairs(tracked) do
-        if isTracked then
-            local info = GetSkillInfo(skillID)
-            if info and info.name then
-                table_insert(skillList, info)
+    if IsSyncActive() and next(remotePeerSkills) then
+        local peerKeys = {}
+        for k, peer in pairs(remotePeerSkills) do
+            if IsPeerSkillsVisible(k, peer) then
+                table_insert(peerKeys, k)
+            end
+        end
+        table_sort(peerKeys)
+
+        for _, peerKey in ipairs(peerKeys) do
+            local peer = remotePeerSkills[peerKey]
+            local peerColor = ResolvePeerSpecColor(peer)
+            local peerColoredName = FormatColoredName(peer.name, peer.class)
+
+            for _, remSkill in ipairs(peer.list) do
+                local skillID = tonumber(remSkill.id)
+                if skillID then
+                    local rank = tonumber(remSkill.r) or 0
+                    local maxRank = (remSkill.m and remSkill.m > 0) and tonumber(remSkill.m) or 1
+                    local entry = entriesBySkill[skillID]
+                    if not entry then
+                        local localInfo = GetSkillInfo(skillID)
+                        entry = {
+                            skillID     = skillID,
+                            name        = (localInfo and localInfo.name) or remSkill.name or ("Skill " .. tostring(skillID)),
+                            description = localInfo and localInfo.description or nil,
+                            hasLocal    = false,
+                            bars        = {},
+                        }
+                        entriesBySkill[skillID] = entry
+                        table_insert(skillList, entry)
+                    end
+                    table_insert(entry.bars, {
+                        min          = 0,
+                        max          = maxRank,
+                        value        = rank,
+                        text         = string_format("%d / %d", rank, maxRank),
+                        color        = peerColor,
+                        isLocal      = false,
+                        peerKey      = peerKey,
+                        ownerName    = peer.name,
+                        coloredOwner = peerColoredName,
+                        rank         = rank,
+                        maxRank      = maxRank,
+                    })
+                end
             end
         end
     end
@@ -529,25 +904,29 @@ function CamelotSkillsModule:BuildBlocks(container)
     for _, skill in ipairs(skillList) do
         local skillID = skill.skillID
         local catName, _, catColor = GetSkillCategoryInfo(skillID)
-        local rank = skill.rank or 0
-        local maxRank = (skill.maxRank and skill.maxRank > 0) and skill.maxRank or 1
-        local isMaxed = (rank >= maxRank)
-        local barColor = isMaxed and { 0.20, 0.85, 0.30, 0.90 } or { 0.22, 0.58, 0.98, 0.90 }
+        local bars = skill.bars
 
         table_insert(blocks, {
-            id          = "skill_" .. tostring(skillID),
-            title       = skill.name,
-            titleColor  = catColor,
-            progressBar = {
-                min   = 0,
-                max   = maxRank,
-                value = rank,
-                text  = string_format("%d / %d", rank, maxRank),
-                color = barColor,
-            },
-            OnClick = function(block, btn)
+            id           = "skill_" .. tostring(skillID),
+            title        = skill.name,
+            titleColor   = catColor,
+            progressBar  = bars[1],
+            progressBars = bars,
+            OnClick = function(block, btn, clickedBar)
                 if btn == "RightButton" or (IsShiftKeyDown and IsShiftKeyDown()) then
-                    ToggleTrackedSkill(skillID)
+                    if clickedBar then
+                        if clickedBar.isLocal then
+                            ToggleTrackedSkill(skillID)
+                        elseif clickedBar.peerKey then
+                            RequestRemoteSkillUntrack(clickedBar.peerKey, skillID)
+                        end
+                        return
+                    end
+                    if skill.hasLocal then
+                        ToggleTrackedSkill(skillID)
+                    elseif bars[1] and bars[1].peerKey then
+                        RequestRemoteSkillUntrack(bars[1].peerKey, skillID)
+                    end
                     return
                 end
                 if btn == "MiddleButton" then
@@ -569,7 +948,13 @@ function CamelotSkillsModule:BuildBlocks(container)
                 if catName then
                     tip:AddLine(catName, 0.70, 0.70, 0.70)
                 end
-                tip:AddLine(string_format("Rank: %d / %d", rank, maxRank), 1, 1, 1)
+                if #bars == 1 and bars[1].isLocal then
+                    tip:AddLine(string_format("Rank: %d / %d", bars[1].rank, bars[1].maxRank), 1, 1, 1)
+                else
+                    for _, b in ipairs(bars) do
+                        tip:AddDoubleLine(b.coloredOwner or b.ownerName or "player", string_format("%d / %d", b.rank, b.maxRank), 1, 1, 1, 1, 1, 1)
+                    end
+                end
                 if skill.description and skill.description ~= "" then
                     tip:AddLine(" ")
                     tip:AddLine(skill.description, 0.85, 0.85, 0.85, true)
@@ -607,6 +992,10 @@ sfui.camelot_skills = {
     GetSkillCategoryInfo = GetSkillCategoryInfo,
     GetSkillInfo = GetSkillInfo,
     OpenSkillInUI = OpenSkillInUI,
+    BroadcastTrackedSkills = function(force)
+        ScheduleSkillsSyncBroadcast(force == true, force == true)
+    end,
+    HandleSyncMessage = HandleSkillsSyncMessage,
 }
 
 sfui.tracker.RegisterModule(CamelotSkillsModule)

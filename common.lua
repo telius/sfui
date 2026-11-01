@@ -1505,10 +1505,10 @@ function sfui.common.hide_blizzard_cooldown_viewers()
         if EventRegistry and EventRegistry.RegisterCallback then
             EventRegistry:RegisterCallback("CinematicFrame.CinematicStopped", function()
                 sfui.common.hide_blizzard_cooldown_viewers()
-            end)
+            end, "sfui_hide_cdv")
             EventRegistry:RegisterCallback("EditMode.Exit", function()
                 sfui.common.hide_blizzard_cooldown_viewers()
-            end)
+            end, "sfui_hide_cdv")
         end
 
         -- Game events for cinematics, movies, challenge mode, stance shifts, and edit mode
@@ -1541,12 +1541,6 @@ function sfui.common.hide_blizzard_cooldown_viewers()
                 sfui.common.hide_blizzard_cooldown_viewers()
             end
         end)
-    end
-
-    -- Ensure the CVar is set to 1 so Blizzard's internal data systems are active.
-    -- We hide the frames visually, but we need the data provider to function.
-    if sfui.isRetail then
-        sfui.common.set_cvar("cooldownViewerEnabled", 1)
     end
 end
 

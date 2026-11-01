@@ -539,12 +539,12 @@ if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
         if sfui.actionbars and sfui.actionbars.mouseover and sfui.actionbars.mouseover.UpdateAllBars then
             sfui.actionbars.mouseover.UpdateAllBars()
         end
-    end)
+    end, "sfui_keybind")
     _G.EventRegistry:RegisterCallback("QuickKeybindFrame.QuickKeybindModeDisabled", function()
         if sfui.actionbars and sfui.actionbars.mouseover and sfui.actionbars.mouseover.UpdateAllBars then
             sfui.actionbars.mouseover.UpdateAllBars()
         end
-    end)
+    end, "sfui_keybind")
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────

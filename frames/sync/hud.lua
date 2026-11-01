@@ -341,6 +341,9 @@ local function show_footer_tooltip(owner)
         if m.class and common and common.class_color_name then
             nameStr = common.class_color_name(nameStr, m.class)
         end
+        if m.unit and m.unit ~= "" then
+            nameStr = nameStr .. " |cff8899aa(" .. string_lower(m.unit) .. ")|r"
+        end
         tip:AddDoubleLine(nameStr .. durStr .. bagStr, format_gold(money), 1, 1, 1, 1, 1, 1)
     end
 
@@ -424,6 +427,9 @@ local function acquire_hud_row(index)
         tip:ClearLines()
         local lowerName = string_lower(self.memberName)
         local title = self.class and common and common.class_color_name and common.class_color_name(lowerName, self.class) or lowerName
+        if self.unit and self.unit ~= "" then
+            title = title .. " |cff8899aa(" .. string_lower(self.unit) .. ")|r"
+        end
         tip:AddLine(title, 1, 1, 1)
 
         if self.guid and sfui.alts and sfui.alts.mail and sfui.alts.mail.GetAltProfessionHandles then

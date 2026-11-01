@@ -90,7 +90,6 @@ local SoundCVars                    = {
     "Sound_MusicVolume",
     "Sound_EnableAllSound",
     "Sound_EnablePetSounds",
-    "Sound_EnableSoundWhenGameIsInBG",
     "Sound_EnableSFX",
 }
 
@@ -116,6 +115,8 @@ local _state                        = {
     wasFishing = false,
     lastChannelStopTime = 0,
     soundsEnhanced = false,
+    bgSoundApplied = false,
+    prevBgSound = nil,
     soundCache = {},
     interactCVarCache = {},
     pendingTasks = {},
@@ -740,12 +741,37 @@ local function enhance_sounds(enable)
         safe_set_cvar("Sound_EnablePetSounds", 0)
 
         safe_set_cvar("Sound_EnableSFX", 1)
-        safe_set_cvar("Sound_EnableSoundWhenGameIsInBG", 1)
         safe_set_cvar("Sound_EnableAllSound", 1)
 
         local scale = get_setting("enhanceSoundsScale", 1.0) or 1.0
         safe_set_cvar("Sound_SFXVolume", scale)
         safe_set_cvar("Sound_MasterVolume", scale)
+    end
+end
+
+local function enable_bg_sound()
+    if _state.bgSoundApplied then return end
+    local cur = safe_get_cvar("Sound_EnableSoundWhenGameIsInBG")
+    if cur ~= nil then
+        _state.prevBgSound = tostring(cur)
+        if SfuiDB then
+            SfuiDB.fishingPrevBgSound = _state.prevBgSound
+        end
+    end
+    _state.bgSoundApplied = true
+    safe_set_cvar("Sound_EnableSoundWhenGameIsInBG", 1)
+end
+
+local function restore_bg_sound()
+    if not _state.bgSoundApplied then return end
+    _state.bgSoundApplied = false
+    local prev = _state.prevBgSound or (SfuiDB and SfuiDB.fishingPrevBgSound)
+    _state.prevBgSound = nil
+    if SfuiDB then
+        SfuiDB.fishingPrevBgSound = nil
+    end
+    if prev ~= nil then
+        safe_set_cvar("Sound_EnableSoundWhenGameIsInBG", prev)
     end
 end
 
@@ -755,6 +781,7 @@ local clear_fishing_binds
 local arm_fishing_keys
 
 local function set_fishing_cvars()
+    enable_bg_sound()
     enhance_sounds(true)
 
     if get_setting("softTarget", true) then
@@ -777,6 +804,7 @@ end
 
 local function reset_fishing_cvars(isLogout)
     enhance_sounds(false)
+    restore_bg_sound()
 
     if _state.softTargetApplied then
         _state.softTargetApplied = false
@@ -1379,7 +1407,7 @@ end
 
 local function on_channel_stop(event, unit, castGUID, spellID)
     if unit ~= "player" then return end
-    if (spellID and FishingIDs[spellID]) or _state.isFishing or _state.wasFishing or _state.soundsEnhanced then
+    if (spellID and FishingIDs[spellID]) or _state.isFishing or _state.wasFishing or _state.soundsEnhanced or _state.bgSoundApplied then
         _state.isFishing = false
         _state.lastChannelStopTime = GetTime()
         refresh_session()
@@ -1533,6 +1561,7 @@ end
 -- Dedicated manual or auto recovery function to restore normal audio CVars
 local function restore_sound_defaults()
     _state.soundsEnhanced = false
+    restore_bg_sound()
 
     local master = safe_get_cvar("Sound_MasterVolume")
     local mus = safe_get_cvar("Sound_MusicVolume")
@@ -1544,7 +1573,6 @@ local function restore_sound_defaults()
         Sound_MusicVolume = (mus == "0" or mus == 0) and "0.5" or (mus or "0.5"),
         Sound_EnableAllSound = "1",
         Sound_EnablePetSounds = "1",
-        Sound_EnableSoundWhenGameIsInBG = "1",
         Sound_EnableSFX = "1",
     }
 
@@ -1565,6 +1593,11 @@ sfui.fishing.RestoreSoundDefaults = restore_sound_defaults
 
 sfui.RegisterModule("fishing", {
     OnInit = function(self)
+        if SfuiDB and SfuiDB.fishingPrevBgSound ~= nil then
+            safe_set_cvar("Sound_EnableSoundWhenGameIsInBG", SfuiDB.fishingPrevBgSound)
+            SfuiDB.fishingPrevBgSound = nil
+        end
+
         local savedBaseline = SfuiDB and SfuiDB.soundBaseline
 
         for _, cvar in ipairs(SoundCVars) do

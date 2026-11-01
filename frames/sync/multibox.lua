@@ -1090,6 +1090,9 @@ function multibox.HandleSyncMessage(sender, msgType, data)
         sync.quests.HandleSyncMessage(sender, msgType, data)
     elseif msgType == "DELTA_HUD_STATS" and sync.hud and sync.hud.HandleSyncMessage then
         sync.hud.HandleSyncMessage(sender, msgType, data)
+    elseif (msgType == "DELTA_TRACKED_SKILLS" or msgType == "DELTA_SKILL_UNTRACK")
+        and sfui.camelot_skills and sfui.camelot_skills.HandleSyncMessage then
+        sfui.camelot_skills.HandleSyncMessage(sender, msgType, data)
     end
 end
 

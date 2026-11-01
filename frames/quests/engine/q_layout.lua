@@ -644,66 +644,69 @@ function Layout.BuildLayout(container, sections)
                         end
                     end
 
-                    -- 4. Progress Status Bar (if any)
-                    if bData.progressBar then
-                        local pBar = Blocks.AcquireBar(content)
-                        pBar:ClearAllPoints()
-                        pBar:SetPoint("TOPLEFT", content, "TOPLEFT", 12, yOffset - 2)
-                        pBar:SetPoint("TOPRIGHT", content, "TOPRIGHT", -4, yOffset - 2)
+                    -- 4. Progress Status Bar(s) (if any)
+                    local barList = bData.progressBars or (bData.progressBar and { bData.progressBar })
+                    if barList then
+                        for _, barData in ipairs(barList) do
+                            local pBar = Blocks.AcquireBar(content)
+                            pBar:ClearAllPoints()
+                            pBar:SetPoint("TOPLEFT", content, "TOPLEFT", 12, yOffset - 2)
+                            pBar:SetPoint("TOPRIGHT", content, "TOPRIGHT", -4, yOffset - 2)
 
-                        local minV = bData.progressBar.min or 0
-                        local maxV = bData.progressBar.max or 100
-                        local curV = bData.progressBar.value or 0
-                        pBar:SetMinMaxValues(minV, maxV)
-                        pBar:SetValue(curV)
+                            local minV = barData.min or 0
+                            local maxV = barData.max or 100
+                            local curV = barData.value or 0
+                            pBar:SetMinMaxValues(minV, maxV)
+                            pBar:SetValue(curV)
 
-                        if bData.progressBar.color then
-                            pBar:SetStatusBarColor(unpack(bData.progressBar.color))
-                        else
-                            pBar:SetStatusBarColor(0.40, 0.00, 1.00, 0.90) -- #6600ff signature purple
-                        end
-
-                        pBar.text:SetShadowOffset(0, 0)
-                        pBar.text:SetShadowColor(0, 0, 0, 0)
-                        if bData.progressBar.text then
-                            pBar.text:SetText(bData.progressBar.text)
-                        elseif maxV > 0 then
-                            local pct = math.floor((curV / maxV) * 100 + 0.5)
-                            pBar.text:SetFormattedText("%d%%", pct)
-                        end
-
-                        pBar:EnableMouse(true)
-                        pBar:EnableMouseWheel(true)
-                        pBar:SetScript("OnMouseWheel", function(self, delta)
-                            sfui.tracker.OnMouseWheel(self, delta)
-                        end)
-                        pBar:SetScript("OnEnter", function()
-                            if block.hl then block.hl:SetColorTexture(1, 1, 1, 0.05) end
-                            local tooltipHelper = sfui.tracker.helpers.tooltip
-                            if tooltipHelper and tooltipHelper.ShowBlockTooltip then
-                                tooltipHelper.ShowBlockTooltip(block, bData)
-                            end
-                        end)
-                        pBar:SetScript("OnLeave", function()
-                            if block.hl then block.hl:SetColorTexture(1, 1, 1, 0) end
-                            local tooltipHelper = sfui.tracker.helpers.tooltip
-                            if tooltipHelper and tooltipHelper.HideBlockTooltip then
-                                tooltipHelper.HideBlockTooltip(block, bData)
+                            if barData.color then
+                                pBar:SetStatusBarColor(unpack(barData.color))
                             else
-                                local tip = sfui.common.get_tooltip()
-                                if tip then tip:Hide() end
+                                pBar:SetStatusBarColor(0.40, 0.00, 1.00, 0.90) -- #6600ff signature purple
                             end
-                        end)
-                        pBar:SetScript("OnMouseUp", function(_, btn)
-                            if InCombatLockdown and InCombatLockdown() then return end
-                            if bData.OnClick then
-                                bData.OnClick(block, btn)
-                            end
-                        end)
 
-                        local barH = 12
-                        pBar:SetHeight(barH)
-                        yOffset = yOffset - barH - 4
+                            pBar.text:SetShadowOffset(0, 0)
+                            pBar.text:SetShadowColor(0, 0, 0, 0)
+                            if barData.text then
+                                pBar.text:SetText(barData.text)
+                            elseif maxV > 0 then
+                                local pct = math.floor((curV / maxV) * 100 + 0.5)
+                                pBar.text:SetFormattedText("%d%%", pct)
+                            end
+
+                            pBar:EnableMouse(true)
+                            pBar:EnableMouseWheel(true)
+                            pBar:SetScript("OnMouseWheel", function(self, delta)
+                                sfui.tracker.OnMouseWheel(self, delta)
+                            end)
+                            pBar:SetScript("OnEnter", function()
+                                if block.hl then block.hl:SetColorTexture(1, 1, 1, 0.05) end
+                                local tooltipHelper = sfui.tracker.helpers.tooltip
+                                if tooltipHelper and tooltipHelper.ShowBlockTooltip then
+                                    tooltipHelper.ShowBlockTooltip(block, bData)
+                                end
+                            end)
+                            pBar:SetScript("OnLeave", function()
+                                if block.hl then block.hl:SetColorTexture(1, 1, 1, 0) end
+                                local tooltipHelper = sfui.tracker.helpers.tooltip
+                                if tooltipHelper and tooltipHelper.HideBlockTooltip then
+                                    tooltipHelper.HideBlockTooltip(block, bData)
+                                else
+                                    local tip = sfui.common.get_tooltip()
+                                    if tip then tip:Hide() end
+                                end
+                            end)
+                            pBar:SetScript("OnMouseUp", function(_, btn)
+                                if InCombatLockdown and InCombatLockdown() then return end
+                                if bData.OnClick then
+                                    bData.OnClick(block, btn, barData)
+                                end
+                            end)
+
+                            local barH = 12
+                            pBar:SetHeight(barH)
+                            yOffset = yOffset - barH - 4
+                        end
                     end
 
                     -- 5. Countdown Timer Bar (if any)
