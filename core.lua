@@ -741,6 +741,15 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
             })
         end
 
+        if not isRetail and sfui.fishing and sfui.fishing.atlas and sfui.fishing.atlas.Toggle then
+            table.insert(menuButtons, {
+                text = "|cff33ccfffishing atlas|r",
+                func = function()
+                    sfui.fishing.atlas.Toggle()
+                end,
+            })
+        end
+
         if _G.C_PetJournal and _G.C_PetJournal.GetNumPets then
             table.insert(menuButtons, {
                 text = "|cffff99ccpet manager|r",

@@ -615,8 +615,10 @@ function sfui.fishing.RecordCatch(itemID, quantity, quality, mapID, link)
 
     -- Rare catch announcement
     if quality and quality >= 2 then
-        local display = link or ("item:" .. itemID)
-        sfui.common.print("rare catch: " .. display:lower() .. "!")
+        local display = (link and link:gsub("%b[]", string.lower))
+            or (sfui.fishing_data and sfui.fishing_data.GetSpeciesName and sfui.fishing_data.GetSpeciesName(itemID))
+            or ("item:" .. itemID)
+        sfui.common.print("rare catch: " .. display .. "!")
         if _G.PlaySound and _G.SOUNDKIT and _G.SOUNDKIT.AUCTION_WINDOW_CLOSE then
             _G.PlaySound(_G.SOUNDKIT.AUCTION_WINDOW_CLOSE)
         end
@@ -1346,6 +1348,7 @@ local function on_channel_start(event, unit, castGUID, spellID)
 
     _state.isFishing = true
     _state.wasFishing = true
+    _state.lootRecorded = false
     refresh_session()
     set_fishing_cvars()
 
@@ -1416,8 +1419,10 @@ local function on_channel_stop(event, unit, castGUID, spellID)
 end
 
 local function record_current_loot()
+    if _state.lootRecorded then return end
     local num = GetNumLootItems and GetNumLootItems() or 0
     if num > 0 then
+        _state.lootRecorded = true
         local mapID = sfui.common.get_player_map_id()
         for i = 1, num do
             local link = _G.GetLootSlotLink and _G.GetLootSlotLink(i)
@@ -1433,7 +1438,9 @@ end
 local function on_loot_ready(event)
     if not get_setting("enabled", true) then return end
     local now = GetTime()
-    if _state.wasFishing or _state.isFishing or (now - (_state.lastChannelStopTime or 0)) < 4 then
+    local isFishingLoot = (_G.IsFishingLoot and _G.IsFishingLoot())
+        or (_G.IsFishingLoot == nil and (_state.wasFishing or _state.isFishing or (now - (_state.lastChannelStopTime or 0)) < 4))
+    if isFishingLoot then
         refresh_session()
         record_current_loot()
         if get_setting("autoLoot", true) then
@@ -1462,6 +1469,7 @@ end
 
 local function on_loot_closed(event)
     _state.wasFishing = false
+    _state.lootRecorded = false
     refresh_session()
     defer_action(arm_fishing_keys)
 end

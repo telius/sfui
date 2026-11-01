@@ -23,6 +23,8 @@ local _G = _G
 local CreateFrame = _G.CreateFrame
 local UIParent = _G.UIParent
 local GetTime = _G.GetTime
+local IsAltKeyDown = _G.IsAltKeyDown
+local InCombatLockdown = _G.InCombatLockdown
 local math_floor = _G.math.floor
 local string_format = _G.string.format
 local tostring = _G.tostring
@@ -74,11 +76,25 @@ local function OnHudEnter(self)
 
     tip:AddDoubleLine("your fishing skill:", string_format("%d / %d (|cff00ffff+%d bonus|r = %d)", rank, maxRank, mod, totalSkill), 0.8, 0.8, 0.8, 1, 1, 1)
 
+    if data.GetActiveMilestone then
+        local playerLevel = _G.UnitLevel and _G.UnitLevel("player")
+        local m, st = data.GetActiveMilestone(rank, maxRank, playerLevel)
+        if m and st then
+            if st == "capped" then
+                tip:AddDoubleLine("trainer milestone:", string_format("|cffff4444[capped at %d]|r %s", maxRank, m.text), 1, 0.4, 0.4, 1, 0.82, 0.5)
+            elseif st == "available" then
+                tip:AddDoubleLine("trainer milestone:", string_format("|cffffaa00[ready]|r %s", m.text), 0.9, 0.82, 0.5, 1, 1, 1)
+            elseif st == "level_locked" then
+                tip:AddDoubleLine("trainer milestone:", string_format("|cffffaa00[need lvl %d]|r %s", m.reqLevel or 0, m.text), 0.9, 0.82, 0.5, 0.8, 0.8, 0.8)
+            end
+        end
+    end
+
     -- Local Zone Species Breakdown
     local lootEntries, isClassic = data.GetZoneLoot(mapID)
     if lootEntries and #lootEntries > 0 then
         tip:AddLine(" ")
-        tip:AddLine("zone species (cmangos drop rates):", 0, 1, 1)
+        tip:AddLine("zone species (drop rates):", 0, 1, 1)
 
         local savedZones = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.zones
         local zoneStats = savedZones and savedZones[mapID]
@@ -97,10 +113,13 @@ local function OnHudEnter(self)
             local count = caughtCounts[itemID] or 0
             if count > 0 and kind == "f" then knownCaught = knownCaught + 1 end
 
-            local displayLink = itemLink or itemName or ("item:" .. itemID)
+            local displayLink = (itemLink and itemLink:gsub("%b[]", string.lower))
+                or (itemName and itemName:lower())
+                or (data.GetSpeciesName and data.GetSpeciesName(itemID))
+                or ("item:" .. itemID)
             local rightText = string_format("%.1f%%  (caught: %d)", share or 0, count)
             local r, g, b = (count > 0) and 0.2 or 0.7, (count > 0) and 1 or 0.7, (count > 0) and 0.4 or 0.7
-            tip:AddDoubleLine("  " .. displayLink:lower(), rightText, 1, 1, 1, r, g, b)
+            tip:AddDoubleLine("  " .. displayLink, rightText, 1, 1, 1, r, g, b)
         end
 
         tip:AddDoubleLine("species caught here:", string_format("%d / %d kinds", knownCaught, totalKinds), 0.6, 0.8, 1, 1, 1, 1)
@@ -117,13 +136,10 @@ local function OnHudEnter(self)
         tip:AddDoubleLine("catches / casts:", string_format("%d / %d", session.catches or 0, session.casts or 0), 0.8, 0.8, 0.8, 1, 1, 1)
         tip:AddDoubleLine("getaways:", string_format("%d", session.getaways or 0), 0.8, 0.8, 0.8, 1, 1, 1)
         tip:AddDoubleLine("current streak:", string_format("%d in a row", session.streak or 0), 0.8, 0.8, 0.8, 0.2, 1, 0.4)
-        if session.value and session.value > 0 then
-            tip:AddDoubleLine("vendor value:", common.format_money(session.value), 0.8, 0.8, 0.8, 1, 1, 1)
-        end
     end
 
     tip:AddLine(" ")
-    tip:AddLine("|cff888888click /sffish atlas for the complete fishing journal|r", 0.5, 0.5, 0.5)
+    tip:AddLine("|cff888888right-click for fishing atlas • alt+drag to move|r", 0.5, 0.5, 0.5)
     tip:Show()
 end
 
@@ -133,6 +149,17 @@ end
 
 -- ─── Frame Creation ──────────────────────────────────────────────────────────
 
+local function RestoreHudPosition()
+    if not hudFrame then return end
+    local pos = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.hudPos
+    hudFrame:ClearAllPoints()
+    if pos and pos.point then
+        hudFrame:SetPoint(pos.point, UIParent, pos.relPoint or pos.point, pos.x or 0, pos.y or -120)
+    else
+        hudFrame:SetPoint("TOP", UIParent, "TOP", 0, -120)
+    end
+end
+
 local function CreateHudFrame()
     if hudFrame then return hudFrame end
 
@@ -140,6 +167,7 @@ local function CreateHudFrame()
     f:SetSize(220, 52)
     f:SetFrameStrata("MEDIUM")
     f:SetClampedToScreen(true)
+    f:SetMovable(true)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
 
@@ -151,18 +179,31 @@ local function CreateHudFrame()
         f:SetPoint("TOP", UIParent, "TOP", 0, -120)
     end
 
-    -- Dragging logic
+    -- Dragging logic (unlocked via /sffish lock, sfui edit mode movers, or holding alt like lootfeed)
     f:SetScript("OnDragStart", function(self)
-        if not isHudLocked then
+        if InCombatLockdown and InCombatLockdown() then return end
+        if not isHudLocked or (IsAltKeyDown and IsAltKeyDown()) or (sfui.movers and sfui.movers.isUnlocked) then
             self:StartMoving()
+            self._isMoving = true
         end
     end)
     f:SetScript("OnDragStop", function(self)
+        if not self._isMoving then return end
         self:StopMovingOrSizing()
+        self._isMoving = false
         local point, _, relPoint, x, y = self:GetPoint()
-        SfuiDB = SfuiDB or {}
-        SfuiDB.fishing = SfuiDB.fishing or {}
-        SfuiDB.fishing.hudPos = { point = point, relPoint = relPoint, x = math_floor(x + 0.5), y = math_floor(y + 0.5) }
+        if point then
+            local rx = math_floor((x or 0) + 0.5)
+            local ry = math_floor((y or 0) + 0.5)
+            SfuiDB = SfuiDB or {}
+            SfuiDB.fishing = SfuiDB.fishing or {}
+            SfuiDB.fishing.hudPos = { point = point, relPoint = relPoint or point, x = rx, y = ry }
+            local mover = sfui.movers and sfui.movers.list and sfui.movers.list["fishinghud"]
+            if mover then
+                mover:ClearAllPoints()
+                mover:SetPoint(point, UIParent, relPoint or point, rx, ry)
+            end
+        end
     end)
 
     f:SetScript("OnEnter", OnHudEnter)
@@ -176,21 +217,33 @@ local function CreateHudFrame()
     end)
     f:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
+    -- Dedicated elevated overlay frame so text always renders above theme borderFrames/backdrops
+    local overlay = CreateFrame("Frame", nil, f)
+    overlay:SetAllPoints(f)
+    overlay:SetFrameLevel((f:GetFrameLevel() or 1) + 5)
+    overlay:EnableMouse(false)
+    f.overlayFrame = overlay
+
     -- Apply native theme styling
-    local function ApplyHudTheme(frame, pal)
-        if theme and theme.ApplyContainerStyle then
-            theme.ApplyContainerStyle(frame)
-        else
+    local function ApplyHudTheme(frame)
+        if not (theme and theme.RegisterWindow) then
             common.apply_flat_backdrop(frame, { 0.08, 0.08, 0.10, 0.90 }, { 0.25, 0.25, 0.30, 0.85 })
         end
+        if frame.overlayFrame then
+            frame.overlayFrame:SetFrameLevel((frame:GetFrameLevel() or 1) + 5)
+        end
     end
-    ApplyHudTheme(f)
     if theme and theme.RegisterWindow then
         theme.RegisterWindow(f, ApplyHudTheme)
+    else
+        ApplyHudTheme(f)
     end
 
     -- Lifecycle-managed update ticker (only runs when HUD is visible)
     f:HookScript("OnShow", function()
+        if f.overlayFrame then
+            f.overlayFrame:SetFrameLevel((f:GetFrameLevel() or 1) + 5)
+        end
         events.RegisterUpdate("sfui_fishing_hud", 0.5, OnHudTick)
     end)
     f:HookScript("OnHide", function()
@@ -198,39 +251,84 @@ local function CreateHudFrame()
     end)
 
     -- Top Row: Zone label (left) & Bag warning (right)
-    local zoneText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    zoneText:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -6)
-    zoneText:SetPoint("RIGHT", f, "RIGHT", -60, 0)
+    local zoneText = overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    zoneText:SetPoint("TOPLEFT", overlay, "TOPLEFT", 8, -6)
+    zoneText:SetPoint("RIGHT", overlay, "RIGHT", -60, 0)
     zoneText:SetJustifyH("LEFT")
     zoneText:SetWordWrap(false)
     f.zoneText = zoneText
 
-    local bagText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    bagText:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -6)
+    local bagText = overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    bagText:SetPoint("TOPRIGHT", overlay, "TOPRIGHT", -8, -6)
     bagText:SetJustifyH("RIGHT")
     f.bagText = bagText
 
     -- Middle Row: Fishing skill rank & lure status
-    local skillText = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    skillText:SetPoint("LEFT", f, "LEFT", 8, 2)
+    local skillText = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    skillText:SetPoint("LEFT", overlay, "LEFT", 8, 2)
     skillText:SetJustifyH("LEFT")
     f.skillText = skillText
 
-    local lureText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    lureText:SetPoint("RIGHT", f, "RIGHT", -8, 2)
+    local lureText = overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    lureText:SetPoint("RIGHT", overlay, "RIGHT", -8, 2)
     lureText:SetJustifyH("RIGHT")
     f.lureText = lureText
 
     -- Bottom Row: Session stats (catches, fish/hr, streak)
-    local sessionText = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    sessionText:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 8, 6)
-    sessionText:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -8, 6)
+    local sessionText = overlay:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    sessionText:SetPoint("BOTTOMLEFT", overlay, "BOTTOMLEFT", 8, 6)
+    sessionText:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -8, 6)
     sessionText:SetJustifyH("LEFT")
     sessionText:SetWordWrap(false)
     f.sessionText = sessionText
 
     f:Hide()
     hudFrame = f
+
+    -- Register with SFUI Edit Mode (Movers)
+    if sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(f, {
+            key = "fishinghud",
+            label = "fishing hud",
+            preferredPoint = "TOP",
+            customSize = { 220, 52 },
+            getPoint = function()
+                local p = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.hudPos
+                local pt = (p and p.point) or "TOP"
+                local relPt = (p and p.relPoint) or pt
+                local x = (p and p.x) or 0
+                local y = (p and p.y) or -120
+                return pt, UIParent, relPt, x, y
+            end,
+            setPoint = function(point, relTo, relPoint, x, y)
+                SfuiDB = SfuiDB or {}
+                SfuiDB.fishing = SfuiDB.fishing or {}
+                SfuiDB.fishing.hudPos = { point = point, relPoint = relPoint or point, x = x, y = y }
+                RestoreHudPosition()
+            end,
+            resetPosition = function()
+                HUD.ResetPosition()
+            end,
+            isEnabled = function()
+                if SfuiDB and SfuiDB.fishing and SfuiDB.fishing.hud and SfuiDB.fishing.hud.enabled ~= nil then
+                    return SfuiDB.fishing.hud.enabled
+                end
+                return true
+            end,
+            onEnterEditMode = function(mover, target)
+                isHudLocked = false
+                if target then
+                    target:Show()
+                    UpdateHud()
+                end
+            end,
+            onExitEditMode = function(mover, target)
+                isHudLocked = true
+                HUD.CheckVisibility()
+            end,
+        })
+    end
+
     return f
 end
 
@@ -288,11 +386,15 @@ end
 local function UpdateSkill()
     if not hudFrame or not hudFrame:IsShown() then return end
     local rank, maxRank, mod = sfui.fishing.GetFishingSkill()
+    local isCapped = (maxRank and maxRank > 0 and maxRank < 300 and rank >= maxRank)
+    local rankPart = isCapped
+        and string_format("|cffff4444%d/%d|r", rank, maxRank)
+        or string_format("|cffffffff%d|r/|cffffffff%d|r", rank, maxRank)
     local skillStr
     if mod and mod > 0 then
-        skillStr = string_format("skill: |cffffffff%d|r/|cffffffff%d|r (|cff00ffff+%d|r)", rank, maxRank, mod)
+        skillStr = string_format("skill: %s (|cff00ffff+%d|r)", rankPart, mod)
     else
-        skillStr = string_format("skill: |cffffffff%d|r/|cffffffff%d|r", rank, maxRank)
+        skillStr = string_format("skill: %s", rankPart)
     end
     SetTextIfChanged(hudFrame.skillText, skillStr, "_lastSkillText")
 end
@@ -362,16 +464,17 @@ HUD.Update = UpdateHud
 -- ─── Visibility Management ───────────────────────────────────────────────────
 
 local function CheckVisibility()
+    if not hudFrame then
+        CreateHudFrame()
+    end
     local isPole = sfui.fishing and sfui.fishing.IsFishingPoleEquipped and sfui.fishing.IsFishingPoleEquipped()
+    local isEditMode = sfui.movers and sfui.movers.isUnlocked
     local enabled = true
     if SfuiDB and SfuiDB.fishing and SfuiDB.fishing.hud and SfuiDB.fishing.hud.enabled ~= nil then
         enabled = SfuiDB.fishing.hud.enabled
     end
 
-    if isPole and enabled then
-        if not hudFrame then
-            CreateHudFrame()
-        end
+    if (isPole or isEditMode) and enabled then
         if hudFrame and not hudFrame:IsShown() then
             hudFrame:Show()
             UpdateHud()
@@ -387,7 +490,7 @@ HUD.CheckVisibility = CheckVisibility
 function HUD.ToggleLock()
     isHudLocked = not isHudLocked
     if hudFrame then
-        hudFrame:SetMovable(not isHudLocked)
+        hudFrame:SetMovable(true)
     end
     return isHudLocked
 end

@@ -33,13 +33,13 @@ end
 
 -- ─── 2. Zone Skill Requirements ──────────────────────────────────────────────
 -- Minimum fishing skill (base + lure + gear) needed for 0% escape rate by classic UiMap ID.
--- Calculation: CMaNGOS classic-db base_level + 95.
 D.ZONE_SKILL = {
     [1411] = 25,  -- Durotar
     [1412] = 25,  -- Mulgore
     [1413] = 75,  -- The Barrens
-    [1416] = 225,  -- Arathi Highlands
-    [1417] = 225,  -- Badlands
+    [1416] = 225,  -- Alterac Mountains
+    [1417] = 225,  -- Arathi Highlands
+    [1419] = 300,  -- Blasted Lands
     [1420] = 25,  -- Tirisfal Glades
     [1421] = 75,  -- Silverpine Forest
     [1422] = 300,  -- Western Plaguelands
@@ -78,6 +78,7 @@ D.ZONE_SKILL = {
     [1456] = 75,  -- Thunder Bluff
     [1457] = 75,  -- Darnassus
     [1458] = 75,  -- Undercity
+    [1459] = 300,  -- Alterac Valley
     [2521] = 25,  -- Zephras Isle
 }
 
@@ -88,65 +89,142 @@ D.ZONE_SKILL_PARTS = {
     [1447] = { skill = 425, area = "bay of storms / scalebeard" },
 }
 
--- Trainer milestone reminders
+-- Trainer milestone reminders (ordered by progression tier)
 D.MILESTONES = {
-    [75] = { from = 50, text = "learn journeyman fishing from a fishing trainer." },
-    [150] = { from = 125, text = "buy 'expert fishing - the bass and you' from old man heming in booty bay." },
-    [225] = { from = 225, text = "complete the quest 'nat pagle, angler extreme' (dustwallow marsh) for artisan." },
+    { tier = "apprentice", reqSkill = 0, reqLevel = 5, capBefore = 0, maxRank = 75, text = "learn apprentice fishing from any fishing trainer (unlocks 75 cap)." },
+    { tier = "journeyman", reqSkill = 50, reqLevel = 10, capBefore = 75, maxRank = 150, text = "learn journeyman fishing from any fishing trainer at skill 50 / level 10 (unlocks 150 cap)." },
+    { tier = "expert", reqSkill = 125, reqLevel = 20, capBefore = 150, maxRank = 225, text = "buy 'expert fishing - the bass and you' from old man heming in booty bay at skill 125 / level 20 (unlocks 225 cap)." },
+    { tier = "artisan", reqSkill = 225, reqLevel = 35, capBefore = 225, maxRank = 300, text = "complete 'nat pagle, angler extreme' in dustwallow marsh at skill 225 / level 35 (unlocks 300 cap)." },
 }
 
--- ─── 3. Zone Loot Tables ─────────────────────────────────────────────────────
+-- ─── 3. Zone Loot Tables (Wowhead Forever Empirical Drop Rates) ──────────────
 -- Mapping: [mapID] = { { itemID, sharePercent, kind }, ... }
 -- kind: "f" = fish, "c" = container / trunk / chest / clam, "q" = quest, "t" = trophy
 D.ZONE_FISH = {
-    [1411] = { { 6303, 98.0, "f" }, { 6356, 2.0, "c" } }, -- Durotar
-    [1412] = { { 6291, 59.4, "f" }, { 6289, 40.4, "f" }, { 6643, 0.2, "c" } }, -- Mulgore
-    [1413] = { { 6361, 50.0, "f" }, { 6303, 33.5, "f" }, { 6358, 15.0, "f" }, { 6307, 0.5, "c" }, { 6351, 0.5, "c" }, { 6353, 0.5, "c" } }, -- The Barrens
-    [1420] = { { 6289, 66.7, "f" }, { 6299, 33.3, "f" } }, -- Tirisfal Glades
-    [1421] = { { 6289, 66.7, "f" }, { 6299, 33.3, "f" } }, -- Silverpine Forest
-    [1424] = { { 6308, 64.2, "f" }, { 6289, 35.5, "f" }, { 6647, 0.3, "c" } }, -- Hillsbrad Foothills
-    [1426] = { { 6291, 59.4, "f" }, { 6289, 40.4, "f" }, { 6643, 0.2, "c" } }, -- Dun Morogh
-    [1429] = { { 6291, 59.4, "f" }, { 6289, 40.4, "f" }, { 6643, 0.2, "c" } }, -- Elwynn Forest
-    [1431] = { { 6308, 64.2, "f" }, { 6289, 35.5, "f" }, { 6647, 0.3, "c" } }, -- Duskwood
-    [1432] = { { 6317, 37.7, "f" }, { 6289, 31.7, "f" }, { 6308, 19.0, "f" }, { 6291, 11.4, "f" }, { 6645, 0.2, "c" } }, -- Loch Modan
-    [1433] = { { 6308, 64.2, "f" }, { 6289, 35.5, "f" }, { 6647, 0.3, "c" } }, -- Redridge Mountains
-    [1436] = { { 6289, 50.9, "f" }, { 6308, 30.5, "f" }, { 6291, 18.3, "f" }, { 6645, 0.3, "c" } }, -- Westfall
-    [1437] = { { 6308, 64.2, "f" }, { 6289, 35.5, "f" }, { 6647, 0.3, "c" } }, -- Wetlands
-    [1438] = { { 6291, 59.4, "f" }, { 6289, 40.4, "f" }, { 6643, 0.2, "c" } }, -- Teldrassil
-    [1439] = { { 6361, 33.2, "f" }, { 12238, 33.3, "f" }, { 6303, 20.6, "f" }, { 6358, 11.1, "f" }, { 6307, 0.6, "c" }, { 6351, 0.6, "c" }, { 6353, 0.6, "c" } }, -- Darkshore
-    [1440] = { { 6308, 64.2, "f" }, { 6289, 35.5, "f" }, { 6647, 0.3, "c" } }, -- Ashenvale
-    [1442] = { { 6308, 64.2, "f" }, { 6289, 35.5, "f" }, { 6647, 0.3, "c" } }, -- Stonetalon Mountains
-    [1453] = { { 6289, 50.9, "f" }, { 6308, 30.5, "f" }, { 6291, 18.3, "f" }, { 6645, 0.3, "c" } }, -- Stormwind City
-    [1454] = { { 6289, 50.9, "f" }, { 6308, 30.5, "f" }, { 6291, 18.3, "f" }, { 6645, 0.3, "c" } }, -- Orgrimmar
-    [1455] = { { 6289, 50.9, "f" }, { 6308, 30.5, "f" }, { 6291, 18.3, "f" }, { 6645, 0.3, "c" } }, -- Ironforge
-    [1456] = { { 6289, 50.9, "f" }, { 6308, 30.5, "f" }, { 6291, 18.3, "f" }, { 6645, 0.3, "c" } }, -- Thunder Bluff
-    [1457] = { { 6289, 50.9, "f" }, { 6308, 30.5, "f" }, { 6291, 18.3, "f" }, { 6645, 0.3, "c" } }, -- Darnassus
-    [1458] = { { 6289, 48.3, "f" }, { 6299, 18.1, "f" }, { 6308, 18.1, "f" }, { 6291, 15.1, "f" }, { 6645, 0.4, "c" } }, -- Undercity
+    [1411] = { { 6303, 59.7, "f" }, { 6291, 22.2, "f" }, { 6289, 15.5, "f" }, { 6356, 1.2, "c" }, { 6308, 0.6, "f" }, { 6292, 0.3, "t" }, { 6294, 0.1, "t" }, { 6643, 0.1, "c" } }, -- Durotar
+    [1412] = { { 6291, 59.8, "f" }, { 6289, 38.2, "f" }, { 6292, 0.7, "t" }, { 6294, 0.4, "t" }, { 6643, 0.1, "c" }, { 6295, 0.1, "t" } }, -- Mulgore
+    [1413] = { { 6522, 26.6, "f" }, { 6358, 18.3, "f" }, { 6289, 17.9, "f" }, { 6361, 8.0, "f" }, { 6308, 6.4, "f" }, { 6303, 5.5, "f" }, { 6291, 5.1, "f" }, { 20708, 4.9, "c" }, { 6359, 0.6, "f" }, { 21150, 0.4, "c" }, { 6309, 0.1, "t" }, { 6353, 0.1, "c" }, { 6351, 0.1, "c" }, { 6307, 0.1, "c" }, { 6310, 0.1, "t" } }, -- The Barrens
+    [1420] = { { 6291, 45.4, "f" }, { 6289, 29.0, "f" }, { 6299, 14.8, "f" }, { 6303, 1.3, "f" }, { 8365, 1.2, "f" }, { 6308, 0.8, "f" }, { 6292, 0.6, "t" }, { 6294, 0.4, "t" }, { 6295, 0.1, "t" }, { 6643, 0.1, "c" } }, -- Tirisfal Glades
+    [1421] = { { 6358, 36.4, "f" }, { 6361, 18.7, "f" }, { 6303, 12.4, "f" }, { 20708, 8.0, "c" }, { 21071, 5.4, "f" }, { 6289, 5.2, "f" }, { 6308, 1.9, "f" }, { 6291, 1.3, "f" }, { 6299, 0.9, "f" }, { 6351, 0.2, "c" }, { 6307, 0.2, "c" }, { 6353, 0.1, "c" } }, -- Silverpine Forest
+    [1424] = { { 21071, 25.0, "f" }, { 6358, 16.1, "f" }, { 6308, 13.4, "f" }, { 6361, 12.3, "f" }, { 6359, 11.9, "f" }, { 6289, 7.4, "f" }, { 21113, 6.7, "c" }, { 6354, 0.1, "c" }, { 6352, 0.1, "c" }, { 6307, 0.1, "c" } }, -- Hillsbrad Foothills
+    [1426] = { { 6291, 59.9, "f" }, { 6289, 38.1, "f" }, { 6292, 0.7, "t" }, { 6294, 0.4, "t" }, { 6295, 0.1, "t" }, { 6643, 0.1, "c" } }, -- Dun Morogh
+    [1429] = { { 6291, 58.9, "f" }, { 6289, 37.1, "f" }, { 6292, 0.7, "t" }, { 6294, 0.4, "t" }, { 6643, 0.1, "c" }, { 6295, 0.1, "t" } }, -- Elwynn Forest
+    [1431] = { { 6308, 47.2, "f" }, { 6289, 30.3, "f" }, { 13889, 5.2, "f" }, { 19975, 4.5, "q" }, { 6291, 3.4, "f" }, { 13759, 2.2, "f" }, { 13760, 2.1, "f" }, { 13890, 2.1, "f" }, { 13757, 1.2, "f" }, { 13758, 0.7, "f" }, { 6310, 0.2, "t" }, { 6309, 0.1, "t" }, { 6292, 0.1, "t" }, { 6294, 0.1, "t" } }, -- Duskwood
+    [1432] = { { 6289, 30.0, "f" }, { 6317, 21.7, "f" }, { 21071, 21.4, "f" }, { 6308, 11.6, "f" }, { 6291, 8.7, "f" }, { 20708, 2.9, "c" }, { 6309, 0.1, "t" }, { 6310, 0.1, "t" } }, -- Loch Modan
+    [1433] = { { 6308, 63.9, "f" }, { 6289, 35.2, "f" }, { 1467, 7.1, "q" }, { 6310, 0.2, "t" }, { 6309, 0.2, "t" }, { 6311, 0.1, "t" } }, -- Redridge Mountains
+    [1436] = { { 6358, 41.1, "f" }, { 6361, 20.3, "f" }, { 6303, 13.9, "f" }, { 20708, 8.4, "c" }, { 6289, 4.3, "f" }, { 6308, 1.7, "f" }, { 6291, 1.2, "f" }, { 6353, 0.2, "c" }, { 6307, 0.2, "c" }, { 6351, 0.2, "c" }, { 19975, 0.2, "q" } }, -- Westfall
+    [1437] = { { 6361, 48.8, "f" }, { 6358, 24.4, "f" }, { 6359, 17.0, "f" }, { 21113, 3.0, "c" }, { 6308, 1.7, "f" }, { 6289, 1.0, "f" }, { 6352, 0.4, "c" }, { 6354, 0.4, "c" }, { 6307, 0.4, "c" } }, -- Wetlands
+    [1438] = { { 6303, 56.2, "f" }, { 6291, 25.5, "f" }, { 6289, 16.2, "f" }, { 6356, 1.2, "c" }, { 6292, 0.3, "t" }, { 6294, 0.2, "t" }, { 6643, 0.1, "c" } }, -- Teldrassil
+    [1439] = { { 12238, 29.6, "f" }, { 6361, 19.1, "f" }, { 6358, 16.3, "f" }, { 6303, 13.1, "f" }, { 6289, 9.9, "f" }, { 6718, 4.6, "q" }, { 6717, 4.0, "q" }, { 6308, 3.5, "f" }, { 6291, 2.8, "f" }, { 20708, 2.5, "c" }, { 6307, 0.2, "c" }, { 6353, 0.2, "c" }, { 6351, 0.2, "c" }, { 6309, 0.1, "t" } }, -- Darkshore
+    [1440] = { { 6308, 39.2, "f" }, { 6289, 21.3, "f" }, { 6361, 19.3, "f" }, { 6358, 7.8, "f" }, { 21071, 5.6, "f" }, { 6359, 3.2, "f" }, { 13758, 0.8, "f" }, { 21113, 0.5, "c" }, { 13759, 0.2, "f" }, { 13760, 0.2, "f" }, { 8365, 0.2, "f" }, { 6307, 0.2, "c" }, { 6352, 0.1, "c" }, { 6354, 0.1, "c" }, { 6310, 0.1, "t" }, { 6309, 0.1, "t" }, { 6522, 0.1, "f" } }, -- Ashenvale
+    [1442] = { { 6308, 48.9, "f" }, { 6289, 27.3, "f" }, { 6359, 8.7, "f" }, { 21071, 6.8, "f" }, { 21113, 3.3, "c" }, { 6458, 0.2, "f" }, { 6310, 0.2, "t" }, { 6309, 0.1, "t" } }, -- Stonetalon Mountains
+    [1453] = { { 6289, 59.9, "f" }, { 6308, 21.9, "f" }, { 6291, 17.1, "f" }, { 6309, 0.3, "t" }, { 6310, 0.2, "t" } }, -- Stormwind City
+    [1454] = { { 6289, 59.8, "f" }, { 6308, 22.3, "f" }, { 6291, 16.9, "f" }, { 6309, 0.3, "t" }, { 6310, 0.1, "t" } }, -- Orgrimmar
+    [1456] = { { 6289, 60.0, "f" }, { 6308, 21.9, "f" }, { 6291, 17.0, "f" }, { 6309, 0.3, "t" }, { 6310, 0.2, "t" } }, -- Thunder Bluff
+    [1457] = { { 6289, 59.9, "f" }, { 6308, 22.0, "f" }, { 6291, 17.0, "f" }, { 6309, 0.4, "t" }, { 6310, 0.1, "t" } }, -- Darnassus
+    [1458] = { { 6289, 41.7, "f" }, { 6299, 15.2, "f" }, { 6308, 15.0, "f" }, { 6291, 11.7, "f" }, { 6309, 0.2, "t" }, { 6310, 0.1, "t" } }, -- Undercity
     [2521] = { { 6291, 53.6, "f" }, { 6289, 46.4, "f" } }, -- Zephras Isle
 }
 
--- Higher-level zones (Level 30+) and contested waters
+-- Higher-level zones (Level 30+) and endgame waters
 D.ZONE_FISH_CLASSIC = {
-    [1416] = { { 8365, 59.2, "f" }, { 6308, 40.5, "f" }, { 8366, 0.3, "c" } }, -- Arathi Highlands
-    [1417] = { { 8365, 59.2, "f" }, { 6308, 40.5, "f" }, { 8366, 0.3, "c" } }, -- Badlands
-    [1422] = { { 13758, 36.0, "f" }, { 13759, 18.2, "f" }, { 13760, 18.2, "f" }, { 6358, 10.1, "f" }, { 8365, 10.1, "f" }, { 13757, 7.1, "f" }, { 13881, 0.3, "c" } }, -- Western Plaguelands
-    [1423] = { { 13889, 30.8, "f" }, { 13759, 17.2, "f" }, { 13760, 17.2, "f" }, { 13890, 17.2, "f" }, { 13757, 12.1, "f" }, { 13758, 5.1, "f" }, { 13891, 0.4, "c" } }, -- Eastern Plaguelands
-    [1425] = { { 13758, 36.0, "f" }, { 13759, 18.2, "f" }, { 13760, 18.2, "f" }, { 6358, 10.1, "f" }, { 8365, 10.1, "f" }, { 13757, 7.1, "f" }, { 13881, 0.3, "c" } }, -- The Hinterlands
-    [1428] = { { 13889, 30.8, "f" }, { 13759, 17.2, "f" }, { 13760, 17.2, "f" }, { 13890, 17.2, "f" }, { 13757, 12.1, "f" }, { 13758, 5.1, "f" }, { 13891, 0.4, "c" } }, -- Burning Steppes
-    [1430] = { { 13757, 100.0, "f" } }, -- Deadwind Pass
-    [1434] = { { 8365, 59.2, "f" }, { 6308, 40.5, "f" }, { 8366, 0.3, "c" } }, -- Stranglethorn Vale
-    [1435] = { { 8365, 59.2, "f" }, { 6308, 40.5, "f" }, { 8366, 0.3, "c" } }, -- Swamp of Sorrows
-    [1441] = { { 8365, 59.2, "f" }, { 6308, 40.5, "f" }, { 8366, 0.3, "c" } }, -- Thousand Needles
-    [1443] = { { 8365, 59.2, "f" }, { 6308, 40.5, "f" }, { 8366, 0.3, "c" } }, -- Desolace
-    [1444] = { { 8365, 34.7, "f" }, { 6308, 20.3, "f" }, { 13758, 17.9, "f" }, { 13759, 9.1, "f" }, { 13760, 9.1, "f" }, { 6358, 5.1, "f" }, { 13757, 3.5, "f" }, { 13881, 0.2, "c" }, { 8366, 0.1, "c" } }, -- Feralas
-    [1445] = { { 8365, 59.2, "f" }, { 6308, 40.5, "f" }, { 8366, 0.3, "c" } }, -- Dustwallow Marsh
-    [1446] = { { 4603, 21.1, "f" }, { 13756, 21.0, "f" }, { 13422, 12.6, "f" }, { 13754, 12.6, "f" }, { 6359, 8.4, "f" }, { 6362, 8.4, "f" }, { 13755, 8.4, "f" }, { 7973, 6.7, "c" }, { 13874, 0.4, "c" }, { 13875, 0.4, "c" } }, -- Tanaris
-    [1447] = { { 13758, 29.8, "f" }, { 13759, 15.2, "f" }, { 13760, 15.2, "f" }, { 6358, 8.4, "f" }, { 8365, 8.4, "f" }, { 13755, 8.4, "f" }, { 13756, 8.4, "f" }, { 13757, 5.9, "f" }, { 13881, 0.3, "c" } }, -- Azshara
-    [1448] = { { 13758, 36.0, "f" }, { 13759, 18.2, "f" }, { 13760, 18.2, "f" }, { 6358, 10.1, "f" }, { 8365, 10.1, "f" }, { 13757, 7.1, "f" }, { 13881, 0.3, "c" } }, -- Felwood
-    [1449] = { { 13758, 36.0, "f" }, { 13759, 18.2, "f" }, { 13760, 18.2, "f" }, { 6358, 10.1, "f" }, { 8365, 10.1, "f" }, { 13757, 7.1, "f" }, { 13881, 0.3, "c" } }, -- Un'Goro Crater
-    [1450] = { { 13758, 36.0, "f" }, { 13759, 18.2, "f" }, { 13760, 18.2, "f" }, { 6358, 10.1, "f" }, { 8365, 10.1, "f" }, { 13757, 7.1, "f" }, { 13881, 0.3, "c" } }, -- Moonglade
-    [1451] = { { 13889, 30.8, "f" }, { 13759, 17.2, "f" }, { 13760, 17.2, "f" }, { 13890, 17.2, "f" }, { 13757, 12.1, "f" }, { 13758, 5.1, "f" }, { 13891, 0.4, "c" } }, -- Silithus
-    [1452] = { { 13889, 30.8, "f" }, { 13759, 17.2, "f" }, { 13760, 17.2, "f" }, { 13890, 17.2, "f" }, { 13757, 12.1, "f" }, { 13758, 5.1, "f" }, { 13891, 0.4, "c" } }, -- Winterspring
+    [1416] = { { 21153, 50.0, "f" }, { 8365, 23.4, "f" }, { 6308, 12.4, "f" }, { 21150, 8.4, "c" }, { 6310, 0.1, "t" }, { 6309, 0.1, "t" } }, -- Alterac Mountains
+    [1417] = { { 8365, 46.2, "f" }, { 6308, 25.6, "f" }, { 6362, 8.8, "f" }, { 6359, 6.4, "f" }, { 6358, 5.3, "f" }, { 4603, 3.2, "f" }, { 21150, 2.1, "c" }, { 6289, 0.2, "f" }, { 6310, 0.1, "t" }, { 6309, 0.1, "t" }, { 6357, 0.1, "c" }, { 6311, 0.1, "t" }, { 6355, 0.1, "c" } }, -- Arathi Highlands
+    [1419] = { { 6289, 33.3, "f" }, { 19975, 30.3, "q" }, { 6522, 12.1, "f" }, { 6291, 9.1, "f" }, { 6308, 9.1, "f" }, { 13760, 3.0, "f" }, { 13889, 3.0, "f" } }, -- Blasted Lands
+    [1422] = { { 13758, 50.3, "f" }, { 13759, 20.0, "f" }, { 8365, 10.1, "f" }, { 6358, 10.0, "f" }, { 13760, 7.7, "f" }, { 13757, 0.9, "f" }, { 13885, 0.2, "t" }, { 13886, 0.2, "t" }, { 13882, 0.1, "t" } }, -- Western Plaguelands
+    [1423] = { { 13889, 37.4, "f" }, { 13759, 19.0, "f" }, { 13890, 16.2, "f" }, { 13760, 10.9, "f" }, { 13757, 7.6, "f" }, { 13758, 6.9, "f" }, { 8365, 0.5, "f" }, { 6358, 0.5, "f" }, { 13901, 0.1, "t" }, { 13902, 0.1, "t" } }, -- Eastern Plaguelands
+    [1425] = { { 13758, 24.2, "f" }, { 4603, 21.5, "f" }, { 13759, 10.0, "f" }, { 13754, 5.6, "f" }, { 6359, 5.3, "f" }, { 6362, 5.3, "f" }, { 13422, 5.1, "f" }, { 6358, 4.8, "f" }, { 8365, 4.7, "f" }, { 7973, 4.1, "c" }, { 13760, 3.2, "f" }, { 13755, 2.9, "f" }, { 13756, 2.0, "f" }, { 13757, 0.4, "f" }, { 13875, 0.2, "c" }, { 13876, 0.1, "t" }, { 13874, 0.1, "c" }, { 13885, 0.1, "t" }, { 13877, 0.1, "t" }, { 13886, 0.1, "t" } }, -- The Hinterlands
+    [1428] = { { 13889, 34.6, "f" }, { 13757, 20.5, "f" }, { 13760, 17.9, "f" }, { 13759, 11.5, "f" }, { 13890, 6.4, "f" }, { 13758, 5.1, "f" } }, -- Burning Steppes
+    [1430] = { { 13889, 40.1, "f" }, { 13759, 19.0, "f" }, { 13890, 16.6, "f" }, { 13760, 10.7, "f" }, { 13757, 7.8, "f" }, { 13758, 4.8, "f" }, { 13901, 0.1, "t" }, { 13902, 0.1, "t" } }, -- Deadwind Pass
+    [1434] = { { 6362, 18.4, "f" }, { 6359, 17.8, "f" }, { 6358, 15.7, "f" }, { 4603, 7.3, "f" }, { 19807, 6.8, "q" }, { 21153, 5.2, "f" }, { 21228, 5.1, "c" }, { 21150, 4.9, "c" }, { 13422, 4.9, "f" }, { 8365, 2.8, "f" }, { 6308, 1.5, "f" }, { 19975, 0.6, "q" }, { 13889, 0.4, "f" }, { 16969, 0.3, "q" }, { 13759, 0.2, "f" }, { 13754, 0.2, "f" }, { 6355, 0.2, "c" }, { 13890, 0.2, "f" }, { 6357, 0.1, "c" }, { 7973, 0.1, "c" }, { 13760, 0.1, "f" }, { 13755, 0.1, "f" }, { 13757, 0.1, "f" }, { 13758, 0.1, "f" } }, -- Stranglethorn Vale
+    [1435] = { { 6362, 49.0, "f" }, { 4603, 17.5, "f" }, { 6359, 10.4, "f" }, { 6358, 10.3, "f" }, { 8365, 7.5, "f" }, { 16970, 6.7, "q" }, { 6308, 4.0, "f" }, { 6357, 0.4, "c" }, { 6355, 0.4, "c" }, { 13758, 0.1, "f" } }, -- Swamp of Sorrows
+    [1441] = { { 8365, 62.8, "f" }, { 6308, 35.0, "f" }, { 6289, 0.5, "f" }, { 6522, 0.4, "f" }, { 6291, 0.3, "f" }, { 6310, 0.3, "t" }, { 6309, 0.1, "t" }, { 6311, 0.1, "t" } }, -- Thousand Needles
+    [1443] = { { 8365, 26.5, "f" }, { 6362, 17.5, "f" }, { 6359, 14.8, "f" }, { 6308, 14.4, "f" }, { 6358, 11.0, "f" }, { 4603, 6.4, "f" }, { 21150, 4.2, "c" }, { 16968, 2.2, "q" }, { 13758, 1.0, "f" }, { 13759, 0.3, "f" }, { 13760, 0.3, "f" }, { 6357, 0.1, "c" }, { 6355, 0.1, "c" }, { 6310, 0.1, "t" }, { 6309, 0.1, "t" } }, -- Desolace
+    [1444] = { { 13758, 31.8, "f" }, { 13759, 12.1, "f" }, { 6358, 9.3, "f" }, { 4603, 9.0, "f" }, { 8365, 6.3, "f" }, { 13760, 5.7, "f" }, { 6359, 5.3, "f" }, { 13422, 5.0, "f" }, { 21228, 2.4, "c" }, { 13754, 2.2, "f" }, { 6362, 2.2, "f" }, { 7973, 1.9, "c" }, { 13755, 1.7, "f" }, { 13757, 0.9, "f" }, { 13889, 0.7, "f" }, { 13756, 0.5, "f" }, { 13890, 0.3, "f" }, { 16967, 0.3, "q" }, { 13885, 0.1, "t" }, { 13886, 0.1, "t" }, { 13875, 0.1, "c" }, { 13876, 0.1, "t" } }, -- Feralas
+    [1445] = { { 6362, 27.1, "f" }, { 8365, 23.6, "f" }, { 6308, 12.9, "f" }, { 6359, 10.9, "f" }, { 4603, 10.0, "f" }, { 6358, 9.9, "f" }, { 21150, 2.7, "c" }, { 6357, 0.3, "c" }, { 6355, 0.2, "c" }, { 6310, 0.1, "t" }, { 6309, 0.1, "t" } }, -- Dustwallow Marsh
+    [1446] = { { 4603, 27.4, "f" }, { 6359, 14.3, "f" }, { 13422, 13.6, "f" }, { 6358, 7.7, "f" }, { 6362, 7.0, "f" }, { 13754, 6.5, "f" }, { 21228, 6.0, "c" }, { 7973, 5.9, "c" }, { 13755, 5.3, "f" }, { 13756, 1.6, "f" }, { 13875, 0.2, "c" }, { 13876, 0.2, "t" }, { 13874, 0.1, "c" }, { 13877, 0.1, "t" } }, -- Tanaris
+    [1447] = { { 13888, 26.1, "f" }, { 13755, 13.6, "f" }, { 13422, 11.8, "f" }, { 4603, 11.1, "f" }, { 7973, 7.9, "c" }, { 13893, 5.4, "f" }, { 13758, 4.1, "f" }, { 6359, 3.3, "f" }, { 13754, 2.4, "f" }, { 6362, 2.3, "f" }, { 6358, 1.7, "f" }, { 21228, 1.5, "c" }, { 13759, 1.4, "f" }, { 13756, 1.1, "f" }, { 8365, 0.8, "f" }, { 13760, 0.8, "f" }, { 13918, 0.6, "c" }, { 13874, 0.3, "c" }, { 13907, 0.1, "t" }, { 13757, 0.1, "f" }, { 13908, 0.1, "t" }, { 13875, 0.1, "c" }, { 13876, 0.1, "t" }, { 13909, 0.1, "t" } }, -- Azshara
+    [1448] = { { 13758, 50.6, "f" }, { 13759, 18.7, "f" }, { 8365, 9.9, "f" }, { 6358, 9.6, "f" }, { 13760, 8.8, "f" }, { 13757, 1.4, "f" }, { 13885, 0.2, "t" }, { 13886, 0.2, "t" }, { 13882, 0.1, "t" } }, -- Felwood
+    [1449] = { { 13758, 49.5, "f" }, { 13759, 21.6, "f" }, { 8365, 10.2, "f" }, { 6358, 10.0, "f" }, { 13760, 6.3, "f" }, { 13757, 0.9, "f" }, { 13885, 0.2, "t" }, { 13886, 0.1, "t" }, { 13882, 0.1, "t" } }, -- Un'Goro Crater
+    [1450] = { { 13758, 50.2, "f" }, { 13759, 21.8, "f" }, { 8365, 10.0, "f" }, { 6358, 10.0, "f" }, { 13760, 6.2, "f" }, { 13757, 0.7, "f" }, { 13885, 0.2, "t" }, { 13886, 0.2, "t" }, { 13882, 0.1, "t" } }, -- Moonglade
+    [1451] = { { 13889, 37.3, "f" }, { 13760, 21.9, "f" }, { 13757, 13.3, "f" }, { 13890, 11.1, "f" }, { 13759, 6.1, "f" }, { 13758, 4.1, "f" }, { 19975, 3.6, "q" }, { 6522, 0.6, "f" }, { 6289, 0.4, "f" }, { 6308, 0.3, "f" }, { 6291, 0.2, "f" }, { 13902, 0.1, "t" } }, -- Silithus
+    [1452] = { { 13889, 39.4, "f" }, { 13759, 19.8, "f" }, { 13890, 17.4, "f" }, { 13760, 10.6, "f" }, { 13757, 6.8, "f" }, { 13758, 5.0, "f" }, { 13901, 0.1, "t" }, { 13902, 0.1, "t" } }, -- Winterspring
+    [1459] = { { 13889, 39.4, "f" }, { 13759, 15.9, "f" }, { 13890, 15.1, "f" }, { 13760, 14.0, "f" }, { 13757, 9.5, "f" }, { 13758, 5.0, "f" }, { 13902, 0.1, "t" }, { 13901, 0.1, "t" } }, -- Alterac Valley
+}
+
+-- Authoritative lowercase species names (fallback before client item cache resolves)
+D.SPECIES_NAMES = {
+    [1467] = "spotted sunfish",
+    [4603] = "raw spotted yellowtail",
+    [6289] = "raw longjaw mud snapper",
+    [6291] = "raw brilliant smallfish",
+    [6292] = "10 pound mud snapper",
+    [6294] = "12 pound mud snapper",
+    [6295] = "15 pound mud snapper",
+    [6299] = "sickly looking fish",
+    [6303] = "raw slitherskin mackerel",
+    [6307] = "message in a bottle",
+    [6308] = "raw bristle whisker catfish",
+    [6309] = "17 pound catfish",
+    [6310] = "19 pound catfish",
+    [6311] = "22 pound catfish",
+    [6317] = "raw loch frenzy",
+    [6351] = "dented crate",
+    [6352] = "waterlogged crate",
+    [6353] = "small chest",
+    [6354] = "small locked chest",
+    [6355] = "sturdy locked chest",
+    [6356] = "battered chest",
+    [6357] = "sealed crate",
+    [6358] = "oily blackmouth",
+    [6359] = "firefin snapper",
+    [6361] = "raw rainbow fin albacore",
+    [6362] = "raw rockscale cod",
+    [6458] = "oil covered fish",
+    [6522] = "deviate fish",
+    [6643] = "bloated brilliant smallfish",
+    [6717] = "gaffer jack",
+    [6718] = "electropeller",
+    [7973] = "big-mouth clam",
+    [8365] = "raw mithril head trout",
+    [12238] = "darkshore grouper",
+    [13422] = "stonescale eel",
+    [13754] = "raw glossy mightfish",
+    [13755] = "raw winter squid",
+    [13756] = "raw summer bass",
+    [13757] = "lightning eel",
+    [13758] = "raw redgill",
+    [13759] = "raw nightfin snapper",
+    [13760] = "raw sunscale salmon",
+    [13874] = "heavy crate",
+    [13875] = "ironbound locked chest",
+    [13876] = "40 pound yellowtail",
+    [13877] = "47 pound yellowtail",
+    [13882] = "42 pound redgill",
+    [13885] = "34 pound redgill",
+    [13886] = "37 pound redgill",
+    [13888] = "darkclaw lobster",
+    [13889] = "raw whitescale salmon",
+    [13890] = "raw plated armorfish",
+    [13893] = "large raw mightfish",
+    [13901] = "15 pound salmon",
+    [13902] = "18 pound salmon",
+    [13907] = "7 pound lobster",
+    [13908] = "9 pound lobster",
+    [13909] = "12 pound lobster",
+    [13918] = "reinforced locked chest",
+    [16967] = "feralas ahi",
+    [16968] = "sar'theris striker",
+    [16969] = "savage coast blue sailfin",
+    [16970] = "misty reed mahi mahi",
+    [19807] = "speckled tastyfish",
+    [19975] = "zulian mudskunk",
+    [20708] = "tightly sealed trunk",
+    [21071] = "raw sagefish",
+    [21113] = "watertight trunk",
+    [21150] = "iron bound trunk",
+    [21153] = "raw greater sagefish",
+    [21228] = "mithril bound trunk",
 }
 
 -- ─── 4. Pre-Indexed Catalog of All Species ───────────────────────────────────
@@ -167,17 +245,24 @@ local function BuildSpeciesCatalog()
                 if not item then
                     item = {
                         itemID = itemID,
+                        name = D.SPECIES_NAMES[itemID],
                         kind = kind,
                         isContainer = (kind == "c"),
                         zones = {},
                         minSkill = 9999,
+                        minSkillAny = 9999,
                     }
                     speciesCatalog[itemID] = item
                 end
 
                 local reqSkill = D.ZONE_SKILL[mapID] or 0
-                if reqSkill > 0 and reqSkill < item.minSkill then
-                    item.minSkill = reqSkill
+                if reqSkill > 0 then
+                    if reqSkill < item.minSkillAny then
+                        item.minSkillAny = reqSkill
+                    end
+                    if (share or 0) >= 1.5 and reqSkill < item.minSkill then
+                        item.minSkill = reqSkill
+                    end
                 end
 
                 table.insert(item.zones, {
@@ -195,7 +280,9 @@ local function BuildSpeciesCatalog()
 
     -- Sort zones per fish by highest drop percentage
     for _, item in pairs(speciesCatalog) do
+        if item.minSkill == 9999 then item.minSkill = item.minSkillAny end
         if item.minSkill == 9999 then item.minSkill = 0 end
+        item.minSkillAny = nil
         table_sort(item.zones, function(a, b)
             return (a.share or 0) > (b.share or 0)
         end)
@@ -205,6 +292,52 @@ local function BuildSpeciesCatalog()
 end
 
 -- ─── 5. Public Query API ─────────────────────────────────────────────────────
+
+--- Returns the fallback lowercase name for a species itemID
+--- @param itemID number
+--- @return string|nil
+function D.GetSpeciesName(itemID)
+    return itemID and D.SPECIES_NAMES[itemID] or nil
+end
+
+--- Evaluates a milestone tier against the player's current rank, maxRank, and level
+--- @param m table
+--- @param rank number
+--- @param maxRank number
+--- @param playerLevel number|nil
+--- @return string state ('learned' | 'capped' | 'available' | 'level_locked' | 'locked')
+function D.GetMilestoneStatus(m, rank, maxRank, playerLevel)
+    rank = rank or 0
+    maxRank = maxRank or 0
+    if maxRank >= (m.maxRank or 0) then
+        return "learned"
+    end
+    if (m.capBefore or 0) > 0 and rank >= m.capBefore then
+        return "capped"
+    end
+    if rank >= (m.reqSkill or 0) then
+        if playerLevel and m.reqLevel and playerLevel < m.reqLevel then
+            return "level_locked"
+        end
+        return "available"
+    end
+    return "locked"
+end
+
+--- Returns the next actionable trainer milestone (if currently capped or available)
+--- @param rank number
+--- @param maxRank number
+--- @param playerLevel number|nil
+--- @return table|nil milestone, string|nil state
+function D.GetActiveMilestone(rank, maxRank, playerLevel)
+    for _, m in ipairs(D.MILESTONES) do
+        local st = D.GetMilestoneStatus(m, rank, maxRank, playerLevel)
+        if st == "capped" or st == "available" or st == "level_locked" then
+            return m, st
+        end
+    end
+    return nil, nil
+end
 
 --- Returns the required fishing skill for a given mapID
 --- @param mapID number
