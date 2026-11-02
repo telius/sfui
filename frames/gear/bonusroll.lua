@@ -613,21 +613,32 @@ local function ApplyStateToID(db, id, value, specID, isManual, isDirectRoll)
     UpdateEffectiveUsedForSingleID(db, id)
 end
 
+local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+
 local externalSynced = false
 local function SyncFromExternalAddons()
     if externalSynced then return end
     local tabrDB = _G.TheAlmightyBonusRollDB
     if type(tabrDB) ~= "table" or type(tabrDB.history) ~= "table" then return end
-    externalSynced = true
 
     local name, realm
     if UnitFullName then
         name, realm = UnitFullName("player")
     end
-    if not name or name == "" then name = UnitName and UnitName("player") end
-    realm = (realm and realm ~= "" and realm) or (GetRealmName and GetRealmName()) or ""
+    if issecretvalue(name) or issecretvalue(realm) then return end
+    if not name or name == "" then
+        name = UnitName and UnitName("player")
+        if issecretvalue(name) then return end
+    end
     if not name or name == "" then return end
+
+    local rawRealm = GetRealmName and GetRealmName() or ""
+    if issecretvalue(rawRealm) then rawRealm = "" end
+    realm = (realm and realm ~= "" and realm) or rawRealm
+    externalSynced = true
+
     local charKey = name .. "-" .. realm
+    local altCharKey = (rawRealm ~= "" and rawRealm ~= realm) and (name .. "-" .. rawRealm) or nil
 
     local seasonKey = nil
     if _G.TheAlmightyBonusRoll and type(_G.TheAlmightyBonusRoll.GetSeasonKey) == "function" then
@@ -637,7 +648,8 @@ local function SyncFromExternalAddons()
 
     local db = DB()
     for _, entry in ipairs(tabrDB.history) do
-        if type(entry) == "table" and entry.characterKey == charKey and (not seasonKey or not entry.seasonKey or entry.seasonKey == seasonKey) then
+        local entryKey = type(entry) == "table" and entry.characterKey
+        if entryKey and (entryKey == charKey or (altCharKey and entryKey == altCharKey)) and (not seasonKey or not entry.seasonKey or entry.seasonKey == seasonKey) then
             local specID = tonumber(entry.lootSpecID) or tonumber(entry.serverSpecID) or 0
             local isManual = entry.manual == true
             for _, rawID in ipairs({ entry.itemID, entry.tokenItemID }) do
