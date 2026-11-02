@@ -11,6 +11,12 @@ local math = _G.math
 local select = _G.select
 
 local FROSTBANE_TALENT_ID = 455993
+local BREATH_OF_SINDRAGOSA_ID_1 = 1249658
+local BREATH_OF_SINDRAGOSA_ID_2 = 152279
+
+local function IsBreathOfSindragosaKnown()
+    return common.is_talent_known(BREATH_OF_SINDRAGOSA_ID_1) or common.is_talent_known(BREATH_OF_SINDRAGOSA_ID_2)
+end
 
 local GetInventoryItemLink = sfui.common.get_inventory_item_link
 
@@ -127,6 +133,7 @@ function sfui.highest.SolveWeapons(best, finalPick, specID, rule, context)
 
     if not finalPick[16] and not finalPick[17] then
         local hasFrostbane = (specID == 251) and common.is_talent_known(FROSTBANE_TALENT_ID)
+        local hasBreath = (specID == 251) and IsBreathOfSindragosaKnown()
         best2H = nil
         local best1H = nil
         local bestOH = nil
@@ -147,7 +154,7 @@ function sfui.highest.SolveWeapons(best, finalPick, specID, rule, context)
             end
         end
 
-        -- Frost DK with Frostbane: MUST equip the Rune of Razorice weapon in the Main Hand (slot 16)
+        -- Frost DK with Frostbane: MUST equip a Rune of Razorice weapon (Main Hand by default, or Off Hand if Main Hand is locked to another weapon)
         if hasFrostbane and best[16] then
             local bestRazor1H = nil
             for _, itm in ipairs(best[16]) do
@@ -158,16 +165,74 @@ function sfui.highest.SolveWeapons(best, finalPick, specID, rule, context)
             end
 
             if bestRazor1H then
+                bestRazor1H.equipReason = bestRazor1H.equipReason or "Frostbane"
                 best1H = bestRazor1H
                 bestOH = nil
                 if best[17] then
                     for _, itm in ipairs(best[17]) do
-                        if not itm.is2H and (bestRazor1H.physId ~= itm.physId) then
-                            bestOH = itm
+                        if not itm.is2H and (bestRazor1H.physId ~= itm.physId) and itm.itemEquipLoc ~= "INVTYPE_WEAPONMAINHAND" then
+                            local itemID = itm.itemID
+                            local pickedID = bestRazor1H.itemID
+                            local isUnique = false
+                            if itemID and pickedID and itemID == pickedID then
+                                local unique = select(17, GetItemInfo(itm.link))
+                                isUnique = unique or false
+                            end
+                            if not isUnique then
+                                bestOH = itm
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Frost DK with Breath of Sindragosa: MUST equip a Rune of the Stoneskin Gargoyle weapon in the Off Hand (slot 17)
+        if hasBreath and best[17] then
+            local bestGargoyleOH = nil
+            for _, itm in ipairs(best[17]) do
+                if not itm.is2H and itm.itemEquipLoc ~= "INVTYPE_WEAPONMAINHAND" and sfui.highest.HasStoneskinGargoyleEnchant(itm) then
+                    if not best1H or (best1H.physId ~= itm.physId) then
+                        local itemID = itm.itemID
+                        local pickedID = best1H and best1H.itemID
+                        local isUnique = false
+                        if itemID and pickedID and itemID == pickedID then
+                            local unique = select(17, GetItemInfo(itm.link))
+                            isUnique = unique or false
+                        end
+                        if not isUnique then
+                            bestGargoyleOH = itm
                             break
                         end
                     end
                 end
+            end
+            if not bestGargoyleOH and best1H and sfui.highest.HasStoneskinGargoyleEnchant(best1H) then
+                -- best1H itself is the only Stoneskin Gargoyle weapon; move it to bestOH and pick another 1H for best1H
+                bestGargoyleOH = best1H
+                best1H = nil
+                if best[16] then
+                    for _, itm in ipairs(best[16]) do
+                        if not itm.is2H and (bestGargoyleOH.physId ~= itm.physId) then
+                            local itemID = itm.itemID
+                            local pickedID = bestGargoyleOH.itemID
+                            local isUnique = false
+                            if itemID and pickedID and itemID == pickedID then
+                                local unique = select(17, GetItemInfo(itm.link))
+                                isUnique = unique or false
+                            end
+                            if not isUnique then
+                                best1H = itm
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+            if bestGargoyleOH then
+                bestGargoyleOH.equipReason = bestGargoyleOH.equipReason or "Breath of Sindragosa"
+                bestOH = bestGargoyleOH
             end
         end
 
@@ -317,8 +382,15 @@ function sfui.highest.SolveWeapons(best, finalPick, specID, rule, context)
                         local dps1 = sfui.highest.GetWeaponDPS(best1H)
                         local dps2 = sfui.highest.GetWeaponDPS(bestOH)
                         local isDpsEqual = (math.abs(dps1 - dps2) < 0.05)
+                        local w1Garg = (specID == 251) and hasBreath and sfui.highest.HasStoneskinGargoyleEnchant(best1H)
+                        local w2Garg = (specID == 251) and hasBreath and sfui.highest.HasStoneskinGargoyleEnchant(bestOH)
 
-                        if not isDpsEqual then
+                        if (bestOH.isLockedItem or false) ~= (best1H.isLockedItem or false) then
+                            preferOHinMH = (bestOH.isLockedItem == true)
+                        elseif hasBreath and (w1Garg ~= w2Garg) then
+                            -- Breath of Sindragosa requires Rune of the Stoneskin Gargoyle in the Off Hand (slot 17)
+                            preferOHinMH = (w1Garg and not w2Garg)
+                        elseif not isDpsEqual then
                             preferOHinMH = (dps2 > dps1)
                         else
                             local ilvl1 = best1H.ilvl or 0
@@ -358,19 +430,62 @@ function sfui.highest.SolveWeapons(best, finalPick, specID, rule, context)
             end
         end
     elseif finalPick[16] and not finalPick[17] then
+        local hasFrostbane = (specID == 251) and common.is_talent_known(FROSTBANE_TALENT_ID)
+        local hasBreath = (specID == 251) and IsBreathOfSindragosaKnown()
         if not finalPick[16].is2H and best[17] then
-            for _, itm in ipairs(best[17]) do
-                if not itm.is2H and (finalPick[16].physId ~= itm.physId) then
-                    local itemID = itm.itemID
-                    local pickedID = finalPick[16].itemID
-                    local isUnique = false
-                    if itemID and pickedID and itemID == pickedID then
-                        local unique = select(17, GetItemInfo(itm.link))
-                        isUnique = unique or false
+            local pickedItem = nil
+            if hasBreath and not sfui.highest.HasStoneskinGargoyleEnchant(finalPick[16]) then
+                for _, itm in ipairs(best[17]) do
+                    if not itm.is2H and (finalPick[16].physId ~= itm.physId) and itm.itemEquipLoc ~= "INVTYPE_WEAPONMAINHAND" and sfui.highest.HasStoneskinGargoyleEnchant(itm) then
+                        local itemID = itm.itemID
+                        local pickedID = finalPick[16].itemID
+                        local isUnique = false
+                        if itemID and pickedID and itemID == pickedID then
+                            local unique = select(17, GetItemInfo(itm.link))
+                            isUnique = unique or false
+                        end
+                        if not isUnique then
+                            pickedItem = itm
+                            pickedItem.equipReason = pickedItem.equipReason or "Breath of Sindragosa"
+                            break
+                        end
                     end
-                    if not isUnique then
-                        finalPick[17] = itm
-                        break
+                end
+            end
+            if not pickedItem and hasFrostbane and not sfui.highest.HasRazoriceEnchant(finalPick[16]) then
+                for _, itm in ipairs(best[17]) do
+                    if not itm.is2H and (finalPick[16].physId ~= itm.physId) and itm.itemEquipLoc ~= "INVTYPE_WEAPONMAINHAND" and sfui.highest.HasRazoriceEnchant(itm) then
+                        local itemID = itm.itemID
+                        local pickedID = finalPick[16].itemID
+                        local isUnique = false
+                        if itemID and pickedID and itemID == pickedID then
+                            local unique = select(17, GetItemInfo(itm.link))
+                            isUnique = unique or false
+                        end
+                        if not isUnique then
+                            pickedItem = itm
+                            pickedItem.equipReason = pickedItem.equipReason or "Frostbane"
+                            break
+                        end
+                    end
+                end
+            end
+            if pickedItem then
+                finalPick[17] = pickedItem
+            else
+                for _, itm in ipairs(best[17]) do
+                    if not itm.is2H and (finalPick[16].physId ~= itm.physId) and itm.itemEquipLoc ~= "INVTYPE_WEAPONMAINHAND" then
+                        local itemID = itm.itemID
+                        local pickedID = finalPick[16].itemID
+                        local isUnique = false
+                        if itemID and pickedID and itemID == pickedID then
+                            local unique = select(17, GetItemInfo(itm.link))
+                            isUnique = unique or false
+                        end
+                        if not isUnique then
+                            finalPick[17] = itm
+                            break
+                        end
                     end
                 end
             end
@@ -379,7 +494,7 @@ function sfui.highest.SolveWeapons(best, finalPick, specID, rule, context)
         local hasFrostbane = (specID == 251) and common.is_talent_known(FROSTBANE_TALENT_ID)
         if best[16] then
             local pickedItem = nil
-            if hasFrostbane then
+            if hasFrostbane and not sfui.highest.HasRazoriceEnchant(finalPick[17]) then
                 for _, itm in ipairs(best[16]) do
                     if not itm.is2H and (finalPick[17].physId ~= itm.physId) and sfui.highest.HasRazoriceEnchant(itm) then
                         local itemID = itm.itemID
@@ -391,6 +506,7 @@ function sfui.highest.SolveWeapons(best, finalPick, specID, rule, context)
                         end
                         if not isUnique then
                             pickedItem = itm
+                            pickedItem.equipReason = pickedItem.equipReason or "Frostbane"
                             break
                         end
                     end

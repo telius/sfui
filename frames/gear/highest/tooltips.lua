@@ -271,6 +271,8 @@ sfui.highest.HasEmbellishment = HasEmbellishment
 -- ══════════════════════════════════════════════════════════════════════════════
 local RAZORICE_SPELL_ID = 53343
 local cachedRazoriceName = nil
+local STONESKIN_GARGOYLE_SPELL_ID = 62158
+local cachedStoneskinName = nil
 
 local function HasRazoriceEnchant(itemData)
     if not itemData or not itemData.link then return false end
@@ -315,6 +317,50 @@ local function HasRazoriceEnchant(itemData)
     return false
 end
 sfui.highest.HasRazoriceEnchant = HasRazoriceEnchant
+
+local function HasStoneskinGargoyleEnchant(itemData)
+    if not itemData or not itemData.link then return false end
+    local link = itemData.link
+
+    -- 1. Direct enchantID check (3847 = Rune of the Stoneskin Gargoyle)
+    local enchantID = tonumber(link:match("item:%d+:(%d+):"))
+    if enchantID == 3847 then
+        return true
+    end
+
+    if not cachedStoneskinName then
+        local spellName = common.get_spell_name(STONESKIN_GARGOYLE_SPELL_ID) or "Stoneskin Gargoyle"
+        if spellName and spellName ~= "" then
+            cachedStoneskinName = spellName:lower()
+        end
+    end
+
+    -- 2. Tooltip scan for Runeforged enchant text
+    if C_TooltipInfo then
+        local data
+        if itemData.bag and itemData.slot then
+            data = C_TooltipInfo.GetBagItem(itemData.bag, itemData.slot)
+        elseif itemData.equippedSlot then
+            data = C_TooltipInfo.GetInventoryItem("player", itemData.equippedSlot)
+        else
+            data = C_TooltipInfo.GetHyperlink(link)
+        end
+        if data and data.lines then
+            for _, line in ipairs(data.lines) do
+                local txt = line.leftText
+                if txt and type(txt) == "string" and txt ~= "" then
+                    local lowerTxt = txt:lower()
+                    if (cachedStoneskinName and lowerTxt:find(cachedStoneskinName, 1, true)) or lowerTxt:find("stoneskin gargoyle", 1, true) then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+
+    return false
+end
+sfui.highest.HasStoneskinGargoyleEnchant = HasStoneskinGargoyleEnchant
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Rogue Spec & Backstab Detection

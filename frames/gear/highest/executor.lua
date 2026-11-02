@@ -165,14 +165,16 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                 if oldLink and item.link then
                     local oldID = common.get_item_id(oldLink)
                     local newID = common.get_item_id(item.link)
-                    if oldID and newID and oldID == newID then
+                    local oldEnchant = oldLink:match("item:%d+:(%d*):") or ""
+                    local newEnchant = item.link:match("item:%d+:(%d*):") or ""
+                    if oldID and newID and oldID == newID and oldEnchant == newEnchant then
                         if slotID == 0 then
                             local eqCount = _G.GetInventoryItemCount and _G.GetInventoryItemCount("player", 0) or 0
                             if issecretvalue and issecretvalue(eqCount) then eqCount = 0 end
                             if type(eqCount) == "number" and eqCount > 0 then
                                 isAlreadyEquippedHere = true
                             end
-                        elseif (item.score or 0) <= oldScore then
+                        elseif (item.score or 0) <= oldScore and not item.equipReason then
                             isAlreadyEquippedHere = true
                         end
                     end

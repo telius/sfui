@@ -16,6 +16,8 @@ local setmetatable = _G.setmetatable
 local wipe = _G.wipe
 
 local FROSTBANE_TALENT_ID = 455993
+local BREATH_OF_SINDRAGOSA_ID_1 = 1249658
+local BREATH_OF_SINDRAGOSA_ID_2 = 152279
 
 local function isClassicOrVanilla()
     return not sfui.isRetail
@@ -205,7 +207,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
 
     -- Dynamic Frost DK Talent Overrides (ignored for general loot eligibility)
     if not ignoreTalents and specID == 251 and not isClassic then
-        if common.is_talent_known(FROSTBANE_TALENT_ID) then
+        if common.is_talent_known(FROSTBANE_TALENT_ID) or common.is_talent_known(BREATH_OF_SINDRAGOSA_ID_1) or common.is_talent_known(BREATH_OF_SINDRAGOSA_ID_2) then
             rule = { armor = rule.armor, stat = rule.stat, weaps = { ["1H_Dual"] = true, ["2H"] = false }, allowedWeapons = rule.allowedWeapons }
         end
     end
