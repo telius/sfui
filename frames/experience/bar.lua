@@ -159,7 +159,7 @@ function barModule.UpdateLayout()
 
     local cfg = sfui.config.experience or {}
     local width = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "width", cfg.width or 460)) or 460
-    local height = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "height", cfg.height or 14)) or 14
+    local height = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "height", cfg.height or 8)) or 8
     local pos = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "pos", cfg.pos)) or cfg.pos or { point = "BOTTOM", x = 0, y = 4 }
 
     container:SetSize(width, height)
@@ -640,7 +640,7 @@ function barModule.Create()
             customSize = function()
                 local cfg = sfui.config.experience or {}
                 local w = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "width", cfg.width or 460)) or 460
-                local h = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "height", cfg.height or 14)) or 14
+                local h = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "height", cfg.height or 8)) or 8
                 return w, h
             end,
             getPoint = function()

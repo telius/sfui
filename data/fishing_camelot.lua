@@ -82,6 +82,16 @@ D.ZONE_SKILL = {
     [2482] = 425,  -- Mount Hyjal
     [2521] = 25,  -- Zephras Isle
     [2548] = 225,  -- Riverglades
+    [2652] = 300,  -- Shen'dralas
+    [100718] = 25,  -- Wailing Caverns
+    [100719] = 75,  -- Blackfathom Deeps
+    [100796] = 150,  -- Scarlet Monastery
+    [101477] = 205,  -- Sunken Temple
+    [101977] = 330,  -- Zul'Gurub
+    [102017] = 330,  -- Stratholme
+    [102057] = 330,  -- Scholomance
+    [102100] = 205,  -- Maraudon
+    [102557] = 330,  -- Dire Maul
 }
 
 -- Sub-areas requiring higher skill than the surrounding zone
@@ -122,6 +132,7 @@ D.ZONE_FISH = {
     [1442] = { { 6308, 48.9, "f" }, { 6289, 27.3, "f" }, { 6359, 8.7, "f" }, { 21071, 6.8, "f" }, { 21113, 3.3, "c" }, { 6458, 0.2, "f" }, { 6310, 0.2, "t" }, { 6309, 0.1, "t" } }, -- Stonetalon Mountains
     [1453] = { { 6289, 59.9, "f" }, { 6308, 21.9, "f" }, { 6291, 17.1, "f" }, { 6309, 0.3, "t" }, { 6310, 0.2, "t" } }, -- Stormwind City
     [1454] = { { 6289, 59.8, "f" }, { 6308, 22.3, "f" }, { 6291, 16.9, "f" }, { 6309, 0.3, "t" }, { 6310, 0.1, "t" } }, -- Orgrimmar
+    [1455] = { { 6289, 38.0, "f" }, { 6308, 30.0, "f" }, { 6361, 18.0, "f" }, { 6358, 14.0, "f" } }, -- Ironforge
     [1456] = { { 6289, 60.0, "f" }, { 6308, 21.9, "f" }, { 6291, 17.0, "f" }, { 6309, 0.3, "t" }, { 6310, 0.2, "t" } }, -- Thunder Bluff
     [1457] = { { 6289, 59.9, "f" }, { 6308, 22.0, "f" }, { 6291, 17.0, "f" }, { 6309, 0.4, "t" }, { 6310, 0.1, "t" } }, -- Darnassus
     [1458] = { { 6289, 41.7, "f" }, { 6299, 15.2, "f" }, { 6308, 15.0, "f" }, { 6291, 11.7, "f" }, { 6309, 0.2, "t" }, { 6310, 0.1, "t" } }, -- Undercity
@@ -154,6 +165,16 @@ D.ZONE_FISH_CLASSIC = {
     [1459] = { { 13889, 39.4, "f" }, { 13759, 15.9, "f" }, { 13890, 15.1, "f" }, { 13760, 14.0, "f" }, { 13757, 9.5, "f" }, { 13758, 5.0, "f" }, { 13902, 0.1, "t" }, { 13901, 0.1, "t" } }, -- Alterac Valley
     [2482] = { { 13889, 42.5, "f" }, { 13759, 21.0, "f" }, { 13760, 19.5, "f" }, { 13758, 12.0, "f" }, { 13757, 3.8, "f" }, { 21150, 1.2, "c" } }, -- Mount Hyjal
     [2548] = { { 8365, 34.0, "f" }, { 4603, 22.5, "f" }, { 6308, 15.0, "f" }, { 6362, 12.0, "f" }, { 21153, 7.5, "f" }, { 6359, 4.5, "f" }, { 6358, 2.5, "f" }, { 7973, 1.2, "c" }, { 21228, 0.8, "c" } }, -- Riverglades
+    [2652] = { { 13758, 32.0, "f" }, { 4603, 24.0, "f" }, { 13759, 16.0, "f" }, { 13760, 16.0, "f" }, { 13422, 7.0, "f" }, { 13754, 5.0, "f" } }, -- Shen'dralas
+    [100718] = { { 6522, 45.0, "f" }, { 6291, 25.0, "f" }, { 6289, 20.0, "f" }, { 6303, 10.0, "f" } }, -- Wailing Caverns
+    [100719] = { { 6308, 38.0, "f" }, { 6358, 25.0, "f" }, { 6289, 20.0, "f" }, { 6361, 17.0, "f" } }, -- Blackfathom Deeps
+    [100796] = { { 6308, 42.0, "f" }, { 8365, 35.0, "f" }, { 6358, 13.0, "f" }, { 6359, 10.0, "f" } }, -- Scarlet Monastery
+    [101477] = { { 8365, 38.0, "f" }, { 13758, 30.0, "f" }, { 13759, 16.0, "f" }, { 13760, 16.0, "f" } }, -- Sunken Temple
+    [101977] = { { 19975, 25.0, "q" }, { 4603, 24.0, "f" }, { 13759, 16.0, "f" }, { 13760, 16.0, "f" }, { 13754, 10.0, "f" }, { 13756, 9.0, "f" } }, -- Zul'Gurub
+    [102017] = { { 13758, 36.0, "f" }, { 13759, 22.0, "f" }, { 13760, 22.0, "f" }, { 13889, 15.0, "f" }, { 13757, 5.0, "f" } }, -- Stratholme
+    [102057] = { { 13758, 38.0, "f" }, { 13759, 22.0, "f" }, { 13760, 22.0, "f" }, { 13889, 18.0, "f" } }, -- Scholomance
+    [102100] = { { 8365, 35.0, "f" }, { 13758, 28.0, "f" }, { 13759, 15.0, "f" }, { 13760, 15.0, "f" }, { 13422, 7.0, "f" } }, -- Maraudon
+    [102557] = { { 13758, 38.0, "f" }, { 13759, 22.0, "f" }, { 13760, 22.0, "f" }, { 13889, 18.0, "f" } }, -- Dire Maul
 }
 
 -- Authoritative lowercase species names (fallback before client item cache resolves)
@@ -368,6 +389,202 @@ D.ZONE_NAMES = {
     [2482] = "mount hyjal",
     [2521] = "zephras isle",
     [2548] = "riverglades",
+    [2652] = "shen'dralas",
+    [100209] = "shadowfang keep",
+    [100491] = "razorfen kraul",
+    [100717] = "the stockade",
+    [100718] = "wailing caverns",
+    [100719] = "blackfathom deeps",
+    [100721] = "gnomeregan",
+    [100722] = "razorfen downs",
+    [100796] = "scarlet monastery",
+    [101176] = "zul'farrak",
+    [101337] = "uldaman",
+    [101477] = "sunken temple",
+    [101581] = "the deadmines",
+    [101583] = "blackrock spire",
+    [101584] = "blackrock depths",
+    [101977] = "zul'gurub",
+    [102017] = "stratholme",
+    [102057] = "scholomance",
+    [102100] = "maraudon",
+    [102437] = "ragefire chasm",
+    [102557] = "dire maul",
+    [102677] = "blackwing lair",
+    [102717] = "molten core",
+    [103428] = "temple of ahn'qiraj",
+    [103429] = "ruins of ahn'qiraj",
+    [103456] = "naxxramas",
+    [116544] = "city of dalaran",
+    [116611] = "ruins of lordaeron",
+    [116732] = "excavation site: wetlands",
+    [116919] = "hall of thanes",
+}
+
+-- Reverse lookup from lowercase zone/dungeon name to numeric mapID (for instance & custom zone resolution)
+D.ZONE_NAME_TO_ID = {
+    ["alterac mountains"] = 1416,
+    ["alterac valley"] = 1459,
+    ["arathi highlands"] = 1417,
+    ["ashenvale"] = 1440,
+    ["azshara"] = 1447,
+    ["badlands"] = 1418,
+    ["barrens"] = 1413,
+    ["blackfathom deeps"] = 100719,
+    ["blackrock depths"] = 101584,
+    ["blackrock spire"] = 101583,
+    ["blackwing lair"] = 102677,
+    ["blasted lands"] = 1419,
+    ["burning steppes"] = 1428,
+    ["city of dalaran"] = 116544,
+    ["darkshore"] = 1439,
+    ["darnassus"] = 1457,
+    ["deadmines"] = 101581,
+    ["deadwind pass"] = 1430,
+    ["desolace"] = 1443,
+    ["dire maul"] = 102557,
+    ["dun morogh"] = 1426,
+    ["durotar"] = 1411,
+    ["duskwood"] = 1431,
+    ["dustwallow marsh"] = 1445,
+    ["eastern plaguelands"] = 1423,
+    ["elwynn forest"] = 1429,
+    ["excavation site: wetlands"] = 116732,
+    ["felwood"] = 1448,
+    ["feralas"] = 1444,
+    ["gnomeregan"] = 100721,
+    ["hall of thanes"] = 116919,
+    ["hillsbrad foothills"] = 1424,
+    ["hinterlands"] = 1425,
+    ["ironforge"] = 1455,
+    ["loch modan"] = 1432,
+    ["maraudon"] = 102100,
+    ["molten core"] = 102717,
+    ["moonglade"] = 1450,
+    ["mount hyjal"] = 2482,
+    ["mulgore"] = 1412,
+    ["naxxramas"] = 103456,
+    ["orgrimmar"] = 1454,
+    ["ragefire chasm"] = 102437,
+    ["razorfen downs"] = 100722,
+    ["razorfen kraul"] = 100491,
+    ["redridge mountains"] = 1433,
+    ["riverglades"] = 2548,
+    ["ruins of ahn'qiraj"] = 103429,
+    ["ruins of lordaeron"] = 116611,
+    ["scarlet monastery"] = 100796,
+    ["scholomance"] = 102057,
+    ["searing gorge"] = 1427,
+    ["shadowfang keep"] = 100209,
+    ["shen'dralas"] = 2652,
+    ["silithus"] = 1451,
+    ["silverpine forest"] = 1421,
+    ["stockade"] = 100717,
+    ["stonetalon mountains"] = 1442,
+    ["stormwind city"] = 1453,
+    ["stranglethorn vale"] = 1434,
+    ["stratholme"] = 102017,
+    ["sunken temple"] = 101477,
+    ["swamp of sorrows"] = 1435,
+    ["tanaris"] = 1446,
+    ["teldrassil"] = 1438,
+    ["temple of ahn'qiraj"] = 103428,
+    ["temple of atal'hakkar"] = 101477,
+    ["the alterac mountains"] = 1416,
+    ["the alterac valley"] = 1459,
+    ["the arathi highlands"] = 1417,
+    ["the ashenvale"] = 1440,
+    ["the azshara"] = 1447,
+    ["the badlands"] = 1418,
+    ["the barrens"] = 1413,
+    ["the blackfathom deeps"] = 100719,
+    ["the blackrock depths"] = 101584,
+    ["the blackrock spire"] = 101583,
+    ["the blackwing lair"] = 102677,
+    ["the blasted lands"] = 1419,
+    ["the burning steppes"] = 1428,
+    ["the city of dalaran"] = 116544,
+    ["the darkshore"] = 1439,
+    ["the darnassus"] = 1457,
+    ["the deadmines"] = 101581,
+    ["the deadwind pass"] = 1430,
+    ["the desolace"] = 1443,
+    ["the dire maul"] = 102557,
+    ["the dun morogh"] = 1426,
+    ["the durotar"] = 1411,
+    ["the duskwood"] = 1431,
+    ["the dustwallow marsh"] = 1445,
+    ["the eastern plaguelands"] = 1423,
+    ["the elwynn forest"] = 1429,
+    ["the excavation site: wetlands"] = 116732,
+    ["the felwood"] = 1448,
+    ["the feralas"] = 1444,
+    ["the gnomeregan"] = 100721,
+    ["the hall of thanes"] = 116919,
+    ["the hillsbrad foothills"] = 1424,
+    ["the hinterlands"] = 1425,
+    ["the ironforge"] = 1455,
+    ["the loch modan"] = 1432,
+    ["the maraudon"] = 102100,
+    ["the molten core"] = 102717,
+    ["the moonglade"] = 1450,
+    ["the mount hyjal"] = 2482,
+    ["the mulgore"] = 1412,
+    ["the naxxramas"] = 103456,
+    ["the orgrimmar"] = 1454,
+    ["the ragefire chasm"] = 102437,
+    ["the razorfen downs"] = 100722,
+    ["the razorfen kraul"] = 100491,
+    ["the redridge mountains"] = 1433,
+    ["the riverglades"] = 2548,
+    ["the ruins of ahn'qiraj"] = 103429,
+    ["the ruins of lordaeron"] = 116611,
+    ["the scarlet monastery"] = 100796,
+    ["the scholomance"] = 102057,
+    ["the searing gorge"] = 1427,
+    ["the shadowfang keep"] = 100209,
+    ["the shen'dralas"] = 2652,
+    ["the silithus"] = 1451,
+    ["the silverpine forest"] = 1421,
+    ["the stockade"] = 100717,
+    ["the stonetalon mountains"] = 1442,
+    ["the stormwind city"] = 1453,
+    ["the stranglethorn vale"] = 1434,
+    ["the stratholme"] = 102017,
+    ["the sunken temple"] = 101477,
+    ["the swamp of sorrows"] = 1435,
+    ["the tanaris"] = 1446,
+    ["the teldrassil"] = 1438,
+    ["the temple of ahn'qiraj"] = 103428,
+    ["the temple of atal'hakkar"] = 101477,
+    ["the thousand needles"] = 1441,
+    ["the thunder bluff"] = 1456,
+    ["the tirisfal glades"] = 1420,
+    ["the uldaman"] = 101337,
+    ["the un'goro crater"] = 1449,
+    ["the undercity"] = 1458,
+    ["the wailing caverns"] = 100718,
+    ["the western plaguelands"] = 1422,
+    ["the westfall"] = 1436,
+    ["the wetlands"] = 1437,
+    ["the winterspring"] = 1452,
+    ["the zephras isle"] = 2521,
+    ["the zul'farrak"] = 101176,
+    ["the zul'gurub"] = 101977,
+    ["thousand needles"] = 1441,
+    ["thunder bluff"] = 1456,
+    ["tirisfal glades"] = 1420,
+    ["uldaman"] = 101337,
+    ["un'goro crater"] = 1449,
+    ["undercity"] = 1458,
+    ["wailing caverns"] = 100718,
+    ["western plaguelands"] = 1422,
+    ["westfall"] = 1436,
+    ["wetlands"] = 1437,
+    ["winterspring"] = 1452,
+    ["zephras isle"] = 2521,
+    ["zul'farrak"] = 101176,
+    ["zul'gurub"] = 101977,
 }
 
 -- Authoritative continent classification per zone ('eastern_kingdoms' vs 'kalimdor')
@@ -422,6 +639,36 @@ D.ZONE_CONTINENT = {
     [2482] = "kalimdor",
     [2521] = "kalimdor",
     [2548] = "eastern_kingdoms",
+    [2652] = "kalimdor",
+    [100209] = "eastern_kingdoms",
+    [100491] = "kalimdor",
+    [100717] = "eastern_kingdoms",
+    [100718] = "kalimdor",
+    [100719] = "kalimdor",
+    [100721] = "eastern_kingdoms",
+    [100722] = "kalimdor",
+    [100796] = "eastern_kingdoms",
+    [101176] = "kalimdor",
+    [101337] = "eastern_kingdoms",
+    [101477] = "eastern_kingdoms",
+    [101581] = "eastern_kingdoms",
+    [101583] = "eastern_kingdoms",
+    [101584] = "eastern_kingdoms",
+    [101977] = "eastern_kingdoms",
+    [102017] = "eastern_kingdoms",
+    [102057] = "eastern_kingdoms",
+    [102100] = "kalimdor",
+    [102437] = "kalimdor",
+    [102557] = "kalimdor",
+    [102677] = "eastern_kingdoms",
+    [102717] = "eastern_kingdoms",
+    [103428] = "kalimdor",
+    [103429] = "kalimdor",
+    [103456] = "eastern_kingdoms",
+    [116544] = "eastern_kingdoms",
+    [116611] = "eastern_kingdoms",
+    [116732] = "eastern_kingdoms",
+    [116919] = "eastern_kingdoms",
 }
 
 -- ─── 4. Pre-Indexed Catalog of All Species ───────────────────────────────────
@@ -476,6 +723,26 @@ local function BuildSpeciesCatalog()
     add_list(D.ZONE_FISH, false)
     add_list(D.ZONE_FISH_CLASSIC, true)
 
+    -- Merge any newly caught in-game species from SfuiDB.fishing.species not yet in static tables
+    local savedSpecies = _G.SfuiDB and _G.SfuiDB.fishing and _G.SfuiDB.fishing.species
+    if type(savedSpecies) == "table" then
+        for itemID, sData in pairs(savedSpecies) do
+            local id = tonumber(itemID)
+            if id and not speciesCatalog[id] and type(sData) == "table" and (sData.n or 0) > 0 then
+                local zID = sData.lz or sData.fz
+                local zReq = (zID and D.ZONE_SKILL[zID]) or 0
+                speciesCatalog[id] = {
+                    itemID = id,
+                    kind = "f",
+                    isContainer = false,
+                    habitat = D.SPECIES_HABITAT[id],
+                    minSkill = zReq,
+                    zones = zID and { { mapID = zID, share = 0, reqSkill = zReq, isClassicOnly = false } } or {},
+                }
+            end
+        end
+    end
+
     -- Sort zones per fish by highest drop percentage
     for _, item in pairs(speciesCatalog) do
         if item.minSkill == 9999 then item.minSkill = item.minSkillAny end
@@ -487,6 +754,10 @@ local function BuildSpeciesCatalog()
     end
 
     return speciesCatalog
+end
+
+function D.InvalidateSpeciesCatalog()
+    speciesCatalog = nil
 end
 
 -- ─── 5. Public Query API ─────────────────────────────────────────────────────
@@ -519,8 +790,29 @@ end
 function D.GetZoneName(mapID)
     if not mapID then return nil end
     if D.ZONE_NAMES[mapID] then return D.ZONE_NAMES[mapID] end
+    local savedZ = _G.SfuiDB and _G.SfuiDB.fishing and _G.SfuiDB.fishing.zones and _G.SfuiDB.fishing.zones[mapID]
+    if type(savedZ) == "table" and type(savedZ.name) == "string" and savedZ.name ~= "" then return savedZ.name:lower() end
     local name = sfui.common and sfui.common.get_map_name and sfui.common.get_map_name(mapID)
     return name and name:lower() or nil
+end
+
+--- Resolves a zone or dungeon name (e.g. from GetRealZoneText inside an instance) to a numeric mapID
+--- @param zoneText string|nil
+--- @return number
+function D.ResolveZoneNameID(zoneText)
+    if type(zoneText) ~= "string" or zoneText == "" then return 0 end
+    local low = zoneText:lower()
+    if D.ZONE_NAME_TO_ID[low] then return D.ZONE_NAME_TO_ID[low] end
+    local stripped = low:gsub("^the%s+", "")
+    if D.ZONE_NAME_TO_ID[stripped] then return D.ZONE_NAME_TO_ID[stripped] end
+    local h = 0
+    for i = 1, #low do
+        h = (h * 31 + low:byte(i)) % 89999
+    end
+    local dynID = 200000 + h
+    D.ZONE_NAMES[dynID] = low
+    D.ZONE_NAME_TO_ID[low] = dynID
+    return dynID
 end
 
 --- Returns the continent key ('eastern_kingdoms' | 'kalimdor') and display label for a zone mapID
@@ -700,7 +992,9 @@ end
 --- @return table array of { mapID, reqSkill, continent, sub }
 function D.GetAllWaters()
     local waters = {}
+    local seen = {}
     for mapID, req in pairs(D.ZONE_SKILL) do
+        seen[mapID] = true
         local contKey = D.GetZoneContinent(mapID)
         waters[#waters + 1] = {
             mapID = mapID,
@@ -708,6 +1002,20 @@ function D.GetAllWaters()
             continent = contKey,
             sub = D.ZONE_SKILL_PARTS[mapID],
         }
+    end
+    local savedZones = _G.SfuiDB and _G.SfuiDB.fishing and _G.SfuiDB.fishing.zones
+    if type(savedZones) == "table" then
+        for mKey, zData in pairs(savedZones) do
+            local mID = tonumber(mKey)
+            if mID and mID > 0 and not seen[mID] and type(zData) == "table" and (zData.catches or 0) > 0 then
+                seen[mID] = true
+                waters[#waters + 1] = {
+                    mapID = mID,
+                    reqSkill = 225,
+                    continent = D.GetZoneContinent(mID),
+                }
+            end
+        end
     end
     table_sort(waters, function(a, b)
         if a.reqSkill ~= b.reqSkill then
@@ -791,5 +1099,12 @@ if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", D.InvalidateLureCache)
     sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", D.InvalidateLureCache)
     sfui.events.RegisterEvent("SKILL_LINES_CHANGED", D.InvalidateLureCache)
+end
+if sfui.events and sfui.events.RegisterMessage then
+    sfui.events.RegisterMessage("SFUI_FISHING_CATCH_RECORDED", function(_, itemID)
+        if itemID and speciesCatalog and not speciesCatalog[itemID] then
+            speciesCatalog = nil
+        end
+    end)
 end
 

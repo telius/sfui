@@ -65,6 +65,19 @@ local modDef = {
             SfuiDB._expDefaultsV4 = true
         end
 
+        -- Auto-migrate default height of experience and reputation bars to 8px for existing profiles:
+        if SfuiDB and not SfuiDB._expDefaultsV5 then
+            if SfuiDB.experience then
+                if SfuiDB.experience.height == 14 then
+                    SfuiDB.experience.height = 8
+                end
+                if SfuiDB.experience.repHeight == 12 then
+                    SfuiDB.experience.repHeight = 8
+                end
+            end
+            SfuiDB._expDefaultsV5 = true
+        end
+
         if sfui.events and sfui.events.RegisterMessage then
             sfui.events.RegisterMessage("SFUI_THEME_CHANGED", function()
                 if exp.bar and exp.bar.ApplyTheme then

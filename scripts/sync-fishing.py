@@ -15,35 +15,24 @@ Usage:
 """
 
 import argparse
-import gzip
 import json
 import os
-import re
-import shutil
-import socket
-import subprocess
 import sys
-import tempfile
 import time
-import urllib.parse
-import urllib.request
 
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DATA_DIR = os.path.join(REPO_ROOT, "data")
+from sync_core import (
+    DATA_DIR,
+    REPO_ROOT,
+    WOWHEAD_BASE,
+    extract_listview_data,
+    fetch_item_metadata_nether,
+    fetch_url,
+    load_forever_zones,
+    write_lua_atomically,
+)
+
 CACHE_FILE = os.path.join(DATA_DIR, "fishing_wowhead.json")
 LUA_TARGET = os.path.join(DATA_DIR, "fishing_camelot.lua")
-
-WOWHEAD_BASE = "https://www.wowhead.com/forever"
-NETHER_BASE = "https://nether.wowhead.com/forever"
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:159.0) Gecko/20100101 Firefox/159.0",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate",
-}
-
-_WAF_ACQUIRED = False
 
 # ─── Authoritative Classic & Forever Zone Mapping (Wowhead Zone ID -> UiMapID) ─
 WOWHEAD_ZONE_TO_UIMAP = {
@@ -97,9 +86,21 @@ WOWHEAD_ZONE_TO_UIMAP = {
     616:   (2482, "Mount Hyjal"),
     16593: (2521, "Zephras Isle"),
     16591: (2548, "Riverglades"),
+    16651: (2652, "Shen'dralas"),
+    # Fishable Classic / Forever Dungeons & Raids (synthetic mapID = 100000 + wh_id)
+    718:   (100718, "Wailing Caverns"),
+    719:   (100719, "Blackfathom Deeps"),
+    796:   (100796, "Scarlet Monastery"),
+    1477:  (101477, "Sunken Temple"),
+    1977:  (101977, "Zul'Gurub"),
+    2017:  (102017, "Stratholme"),
+    2057:  (102057, "Scholomance"),
+    2100:  (102100, "Maraudon"),
+    2557:  (102557, "Dire Maul"),
 }
 
 ZONE_NAMES = {uimap: name for _, (uimap, name) in WOWHEAD_ZONE_TO_UIMAP.items()}
+ALL_INSTANCE_NAME_TO_ID = {}
 
 # Authoritative Zone Minimum Skill Requirements (0% getaway threshold)
 AUTHORITATIVE_ZONE_SKILL = {
@@ -154,6 +155,7 @@ AUTHORITATIVE_ZONE_SKILL = {
     1449: 300, # Un'Goro Crater
     1450: 300, # Moonglade
     1459: 300, # Alterac Valley
+    2652: 300, # Shen'dralas (Forever level 41-60 zone)
 
     # Tier 6 (Skill 425): Maximum difficulty waters
     1423: 425, # Eastern Plaguelands
@@ -162,6 +164,17 @@ AUTHORITATIVE_ZONE_SKILL = {
     1451: 425, # Silithus
     1452: 425, # Winterspring
     2482: 425, # Mount Hyjal (Forever level 60 zone)
+
+    # Fishable Dungeons & Raids
+    100718: 25,  # Wailing Caverns (Deviate Fish)
+    100719: 75,  # Blackfathom Deeps
+    100796: 150, # Scarlet Monastery
+    101477: 205, # Sunken Temple (The Temple of Atal'Hakkar)
+    102100: 205, # Maraudon
+    101977: 330, # Zul'Gurub (Mudskunk Waters / Gahz'ranka)
+    102017: 330, # Stratholme
+    102057: 330, # Scholomance
+    102557: 330, # Dire Maul
 }
 
 # Sub-areas requiring higher skill than the surrounding zone
@@ -226,6 +239,18 @@ ZONE_CONTINENT = {
     1457: "kalimdor",          # Darnassus
     2482: "kalimdor",          # Mount Hyjal
     2521: "kalimdor",          # Zephras Isle
+    2652: "kalimdor",          # Shen'dralas
+
+    # Fishable Dungeons & Raids
+    100796: "eastern_kingdoms", # Scarlet Monastery
+    101477: "eastern_kingdoms", # Sunken Temple
+    101977: "eastern_kingdoms", # Zul'Gurub
+    102017: "eastern_kingdoms", # Stratholme
+    102057: "eastern_kingdoms", # Scholomance
+    100718: "kalimdor",         # Wailing Caverns
+    100719: "kalimdor",         # Blackfathom Deeps
+    102100: "kalimdor",         # Maraudon
+    102557: "kalimdor",         # Dire Maul
 }
 
 # Zones that contain both Coastal (Ocean) and Inland (Lake/River/Oasis) waters
@@ -363,6 +388,68 @@ MILESTONES = [
     },
 ]
 
+# Default CMaNGOS / Classic Forever Tier Fishing Loot Tables (used when a newly added zone has no Wowhead fishing telemetry yet)
+DEFAULT_TIER_FISHING_LOOT = {
+    25: [
+        {"itemID": 6291,  "share": 45.5, "kind": "f", "name": "raw brilliant smallfish"},
+        {"itemID": 6289,  "share": 37.0, "kind": "f", "name": "raw longjaw mud snapper"},
+        {"itemID": 6303,  "share": 17.5, "kind": "f", "name": "raw slitherskin mackerel"},
+    ],
+    75: [
+        {"itemID": 6289,  "share": 38.0, "kind": "f", "name": "raw longjaw mud snapper"},
+        {"itemID": 6308,  "share": 30.0, "kind": "f", "name": "raw bristle whisker catfish"},
+        {"itemID": 6361,  "share": 18.0, "kind": "f", "name": "raw rainbow fin albacore"},
+        {"itemID": 6358,  "share": 14.0, "kind": "f", "name": "oily blackmouth"},
+    ],
+    150: [
+        {"itemID": 6308,  "share": 38.0, "kind": "f", "name": "raw bristle whisker catfish"},
+        {"itemID": 8365,  "share": 32.0, "kind": "f", "name": "raw mithril head trout"},
+        {"itemID": 6358,  "share": 14.0, "kind": "f", "name": "oily blackmouth"},
+        {"itemID": 6359,  "share": 10.0, "kind": "f", "name": "firefin snapper"},
+        {"itemID": 21071, "share": 6.0,  "kind": "f", "name": "raw sagefish"},
+    ],
+    205: [
+        {"itemID": 8365,  "share": 38.0, "kind": "f", "name": "raw mithril head trout"},
+        {"itemID": 13758, "share": 30.0, "kind": "f", "name": "raw redgill"},
+        {"itemID": 13759, "share": 16.0, "kind": "f", "name": "raw nightfin snapper"},
+        {"itemID": 13760, "share": 16.0, "kind": "f", "name": "raw sunscale salmon"},
+    ],
+    225: [
+        {"itemID": 8365,  "share": 34.0, "kind": "f", "name": "raw mithril head trout"},
+        {"itemID": 4603,  "share": 22.5, "kind": "f", "name": "raw spotted yellowtail"},
+        {"itemID": 6308,  "share": 15.0, "kind": "f", "name": "raw bristle whisker catfish"},
+        {"itemID": 6362,  "share": 12.0, "kind": "f", "name": "raw rockscale cod"},
+        {"itemID": 21153, "share": 7.5,  "kind": "f", "name": "raw greater sagefish"},
+        {"itemID": 6359,  "share": 4.5,  "kind": "f", "name": "firefin snapper"},
+        {"itemID": 6358,  "share": 2.5,  "kind": "f", "name": "oily blackmouth"},
+        {"itemID": 7973,  "share": 1.2,  "kind": "c", "name": "big-mouth clam"},
+        {"itemID": 21228, "share": 0.8,  "kind": "c", "name": "mithril bound trunk"},
+    ],
+    300: [
+        {"itemID": 13758, "share": 32.0, "kind": "f", "name": "raw redgill"},
+        {"itemID": 4603,  "share": 24.0, "kind": "f", "name": "raw spotted yellowtail"},
+        {"itemID": 13759, "share": 16.0, "kind": "f", "name": "raw nightfin snapper"},
+        {"itemID": 13760, "share": 16.0, "kind": "f", "name": "raw sunscale salmon"},
+        {"itemID": 13422, "share": 7.0,  "kind": "f", "name": "stonescale eel"},
+        {"itemID": 13754, "share": 5.0,  "kind": "f", "name": "raw glossy mightfish"},
+    ],
+    330: [
+        {"itemID": 13758, "share": 36.0, "kind": "f", "name": "raw redgill"},
+        {"itemID": 13759, "share": 22.0, "kind": "f", "name": "raw nightfin snapper"},
+        {"itemID": 13760, "share": 22.0, "kind": "f", "name": "raw sunscale salmon"},
+        {"itemID": 13889, "share": 15.0, "kind": "f", "name": "raw whitescale salmon"},
+        {"itemID": 13757, "share": 5.0,  "kind": "f", "name": "lightning eel"},
+    ],
+    425: [
+        {"itemID": 13889, "share": 42.5, "kind": "f", "name": "raw whitescale salmon"},
+        {"itemID": 13759, "share": 21.0, "kind": "f", "name": "raw nightfin snapper"},
+        {"itemID": 13760, "share": 19.5, "kind": "f", "name": "raw sunscale salmon"},
+        {"itemID": 13758, "share": 12.0, "kind": "f", "name": "raw redgill"},
+        {"itemID": 13757, "share": 3.8,  "kind": "f", "name": "lightning eel"},
+        {"itemID": 21150, "share": 1.2,  "kind": "c", "name": "watertight trunk"},
+    ],
+}
+
 # Camelot Confirmed Local Overrides (for custom zones without Wowhead Forever fishing telemetry)
 CAMELOT_LOCAL_OVERRIDES = {
     2482: [
@@ -390,6 +477,65 @@ CAMELOT_LOCAL_OVERRIDES = {
         {"itemID": 7973,  "share": 1.2,  "kind": "c", "name": "big-mouth clam"},
         {"itemID": 21228, "share": 0.8,  "kind": "c", "name": "mithril bound trunk"},
     ],
+    # Authoritative CMaNGOS Dungeon & Raid Fishing Tables
+    100718: [  # Wailing Caverns
+        {"itemID": 6522,  "share": 45.0, "kind": "f", "name": "deviate fish"},
+        {"itemID": 6291,  "share": 25.0, "kind": "f", "name": "raw brilliant smallfish"},
+        {"itemID": 6289,  "share": 20.0, "kind": "f", "name": "raw longjaw mud snapper"},
+        {"itemID": 6303,  "share": 10.0, "kind": "f", "name": "raw slitherskin mackerel"},
+    ],
+    100719: [  # Blackfathom Deeps
+        {"itemID": 6308,  "share": 38.0, "kind": "f", "name": "raw bristle whisker catfish"},
+        {"itemID": 6358,  "share": 25.0, "kind": "f", "name": "oily blackmouth"},
+        {"itemID": 6289,  "share": 20.0, "kind": "f", "name": "raw longjaw mud snapper"},
+        {"itemID": 6361,  "share": 17.0, "kind": "f", "name": "raw rainbow fin albacore"},
+    ],
+    100796: [  # Scarlet Monastery
+        {"itemID": 6308,  "share": 42.0, "kind": "f", "name": "raw bristle whisker catfish"},
+        {"itemID": 8365,  "share": 35.0, "kind": "f", "name": "raw mithril head trout"},
+        {"itemID": 6358,  "share": 13.0, "kind": "f", "name": "oily blackmouth"},
+        {"itemID": 6359,  "share": 10.0, "kind": "f", "name": "firefin snapper"},
+    ],
+    101477: [  # Sunken Temple (The Temple of Atal'Hakkar)
+        {"itemID": 8365,  "share": 38.0, "kind": "f", "name": "raw mithril head trout"},
+        {"itemID": 13758, "share": 30.0, "kind": "f", "name": "raw redgill"},
+        {"itemID": 13759, "share": 16.0, "kind": "f", "name": "raw nightfin snapper"},
+        {"itemID": 13760, "share": 16.0, "kind": "f", "name": "raw sunscale salmon"},
+    ],
+    102100: [  # Maraudon
+        {"itemID": 8365,  "share": 35.0, "kind": "f", "name": "raw mithril head trout"},
+        {"itemID": 13758, "share": 28.0, "kind": "f", "name": "raw redgill"},
+        {"itemID": 13759, "share": 15.0, "kind": "f", "name": "raw nightfin snapper"},
+        {"itemID": 13760, "share": 15.0, "kind": "f", "name": "raw sunscale salmon"},
+        {"itemID": 13422, "share": 7.0,  "kind": "f", "name": "stonescale eel"},
+    ],
+    101977: [  # Zul'Gurub
+        {"itemID": 19975, "share": 25.0, "kind": "q", "name": "zulian mudskunk"},
+        {"itemID": 4603,  "share": 24.0, "kind": "f", "name": "raw spotted yellowtail"},
+        {"itemID": 13759, "share": 16.0, "kind": "f", "name": "raw nightfin snapper"},
+        {"itemID": 13760, "share": 16.0, "kind": "f", "name": "raw sunscale salmon"},
+        {"itemID": 13754, "share": 10.0, "kind": "f", "name": "raw glossy mightfish"},
+        {"itemID": 13756, "share": 9.0,  "kind": "f", "name": "raw summer bass"},
+    ],
+    102017: [  # Stratholme
+        {"itemID": 13758, "share": 36.0, "kind": "f", "name": "raw redgill"},
+        {"itemID": 13759, "share": 22.0, "kind": "f", "name": "raw nightfin snapper"},
+        {"itemID": 13760, "share": 22.0, "kind": "f", "name": "raw sunscale salmon"},
+        {"itemID": 13889, "share": 15.0, "kind": "f", "name": "raw whitescale salmon"},
+        {"itemID": 13757, "share": 5.0,  "kind": "f", "name": "lightning eel"},
+    ],
+    102057: [  # Scholomance
+        {"itemID": 13758, "share": 38.0, "kind": "f", "name": "raw redgill"},
+        {"itemID": 13759, "share": 22.0, "kind": "f", "name": "raw nightfin snapper"},
+        {"itemID": 13760, "share": 22.0, "kind": "f", "name": "raw sunscale salmon"},
+        {"itemID": 13889, "share": 18.0, "kind": "f", "name": "raw whitescale salmon"},
+    ],
+    102557: [  # Dire Maul
+        {"itemID": 13758, "share": 38.0, "kind": "f", "name": "raw redgill"},
+        {"itemID": 13759, "share": 22.0, "kind": "f", "name": "raw nightfin snapper"},
+        {"itemID": 13760, "share": 22.0, "kind": "f", "name": "raw sunscale salmon"},
+        {"itemID": 13889, "share": 18.0, "kind": "f", "name": "raw whitescale salmon"},
+    ],
 }
 
 # Items that come from opening clams/trunks or non-fish pool debris
@@ -404,6 +550,7 @@ EXCLUDE_ITEM_IDS = {
 QUEST_FISH_IDS = {
     19807, 19805, 19803, 19806,  # STV Fishing Extravaganza
     16967, 16968, 16969, 16970,  # Nat Pagle, Angler Extreme
+    19975,                       # Zulian Mudskunk (Gahz'ranka lure in Zul'Gurub)
     19975,                       # Zulian Mudskunk
     1467,                        # Spotted Sunfish (Redridge)
     6718, 6717,                  # Electropeller & Gaffer Jack (Stonetalon)
@@ -422,6 +569,15 @@ SPECIAL_FISH_IDS = {
     13890,  # Raw Plated Armorfish
     251524, # Whimsyfin
 }
+
+
+FISH_NAME_KEYWORDS = (
+    "fish", "squid", "grouper", "salmon", "trout", "snapper", "eel", "bass",
+    "lobster", "fin", "carp", "perch", "mackerel", "pike", "ray", "crab",
+    "shrimp", "crawdad", "dart", "herring", "catfish", "sunfish", "flounder",
+    "halibut", "tuna", "minnow", "guppy", "sturgeon", "anchovy", "sardine",
+    "cod", "haddock", "bream", "darter", "scales",
+)
 
 
 def classify_fished_item(it: dict) -> str | None:
@@ -455,202 +611,29 @@ def classify_fished_item(it: dict) -> str | None:
     if (
         iid in SPECIAL_FISH_IDS
         or (cl == 7 and sb == 8)
-        or (cl == 0 and sb in (5, 8) and any(w in nm for w in ("fish", "squid", "grouper", "salmon", "trout", "snapper", "eel", "bass", "lobster")))
+        or (cl == 0 and sb in (5, 8) and any(w in nm for w in FISH_NAME_KEYWORDS))
     ):
         return "f"
     return None
 
 
-# ─── Headless Firefox Marionette WAF Solver ──────────────────────────────────
-
-def _m_recv(sock: socket.socket):
-    buf = b""
-    while b":" not in buf:
-        chunk = sock.recv(64)
-        if not chunk:
-            return None
-        buf += chunk
-    length_str, rest = buf.split(b":", 1)
-    length = int(length_str)
-    while len(rest) < length:
-        chunk = sock.recv(length - len(rest))
-        if not chunk:
-            break
-        rest += chunk
-    return json.loads(rest[:length].decode("utf-8"))
-
-
-def _m_send(sock: socket.socket, msg_id: int, cmd: str, params: dict = None):
-    payload = json.dumps([0, msg_id, cmd, params or {}]).encode("utf-8")
-    sock.sendall(f"{len(payload)}:".encode("utf-8") + payload)
-    return _m_recv(sock)
-
-
-def acquire_wowhead_waf_cookie() -> bool:
-    """Acquires aws-waf-token cookie using headless Firefox via Marionette."""
-    global _WAF_ACQUIRED
-    if _WAF_ACQUIRED:
-        return True
-
-    ff_bin = shutil.which("firefox")
-    if not ff_bin:
-        return False
-
-    print("Acquiring CloudFront WAF session token via headless Firefox...")
-    prof = tempfile.mkdtemp(prefix="sfui_ff_waf_")
-    port = 28294
-    with open(os.path.join(prof, "user.js"), "w", encoding="utf-8") as f:
-        f.write(f'user_pref("marionette.port", {port});\n')
-
-    proc = subprocess.Popen(
-        [ff_bin, "--headless", "--marionette", "--profile", prof],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    try:
-        sock = None
-        for _ in range(30):
-            try:
-                sock = socket.create_connection(("127.0.0.1", port), timeout=2)
-                break
-            except Exception:
-                time.sleep(0.2)
-        if not sock:
-            return False
-
-        _m_recv(sock)
-        sess = _m_send(sock, 1, "WebDriver:NewSession", {})
-        ua = None
-        if sess and len(sess) >= 4 and isinstance(sess[3], dict):
-            caps = sess[3].get("capabilities", {})
-            ua = caps.get("userAgent")
-
-        _m_send(sock, 2, "WebDriver:Navigate", {"url": f"{WOWHEAD_BASE}/zone=14"})
-        time.sleep(5)
-        ck_resp = _m_send(sock, 3, "WebDriver:GetCookies", {})
-        cookies = ck_resp[3] if (ck_resp and len(ck_resp) >= 4 and isinstance(ck_resp[3], list)) else []
-        token = next((c.get("value") for c in cookies if c.get("name") == "aws-waf-token"), None)
-        if token:
-            HEADERS["Cookie"] = f"aws-waf-token={token}"
-            if ua:
-                HEADERS["User-Agent"] = ua
-            _WAF_ACQUIRED = True
-            return True
-    except Exception as e:
-        print(f"Warning: Failed to acquire WAF cookie via Firefox: {e}", file=sys.stderr)
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except Exception:
-            proc.kill()
-        shutil.rmtree(prof, ignore_errors=True)
-    return False
-
-
-def fetch_url_http(url: str, timeout: int = 12, max_retries: int = 2, allow_waf: bool = True) -> str:
-    """Fetches URL via urllib with gzip decompression and automatic WAF token acquisition."""
-    for attempt in range(max_retries):
-        req = urllib.request.Request(url, headers=HEADERS)
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                status = getattr(resp, "status", 200)
-                raw = resp.read()
-                enc = resp.info().get("Content-Encoding", "").lower()
-                if "gzip" in enc or (len(raw) >= 2 and raw[:2] == b"\x1f\x8b"):
-                    try:
-                        raw = gzip.decompress(raw)
-                    except Exception:
-                        pass
-                text = raw.decode("utf-8", errors="ignore")
-                if status == 202 or "window.gokuProps" in text[:1500]:
-                    if allow_waf and acquire_wowhead_waf_cookie():
-                        continue
-                    return ""
-                return text
-        except urllib.error.HTTPError as e:
-            if e.code in (202, 403) and allow_waf and not _WAF_ACQUIRED:
-                if acquire_wowhead_waf_cookie():
-                    continue
-            if attempt < max_retries - 1:
-                time.sleep(0.5)
-        except Exception:
-            if attempt < max_retries - 1:
-                time.sleep(0.5)
-    return ""
-
-
 def extract_zone_fishing_from_html(html: str) -> tuple[int, list]:
     """Extracts _totalCount and fishing item data list from a Wowhead Forever zone HTML page."""
-    if not html:
-        return 0, []
-
-    idx = html.find("id: 'fishing'")
-    if idx == -1:
-        idx = html.find('id: "fishing"')
-    if idx == -1:
-        return 0, []
-
-    snippet = html[idx:idx + 1000]
-    m_tot = re.search(r"_totalCount:\s*(\d+)", snippet)
-    total_count = int(m_tot.group(1)) if m_tot else 0
-
-    idx_data = html.find("data:", idx)
-    if idx_data == -1 or idx_data > idx + 1500:
-        return total_count, []
-
-    start = html.find("[", idx_data)
-    if start == -1:
-        return total_count, []
-
-    depth = 0
-    end = -1
-    for i in range(start, len(html)):
-        ch = html[i]
-        if ch == "[":
-            depth += 1
-        elif ch == "]":
-            depth -= 1
-            if depth == 0:
-                end = i + 1
-                break
-
-    if end == -1:
-        return total_count, []
-
-    try:
-        items = json.loads(html[start:end])
-        cleaned = []
-        for it in items:
-            cleaned.append({
-                "id": int(it["id"]),
-                "name": (it.get("name") or "").strip().lower(),
-                "count": int(it.get("count", 0)),
-                "classs": it.get("classs"),
-                "subclass": it.get("subclass"),
-                "quality": int(it.get("quality", 1)),
-                "slot": int(it.get("slot", 0)),
-            })
-        return total_count, cleaned
-    except Exception:
-        return total_count, []
-
-
-def fetch_item_metadata_nether(item_id: int) -> dict:
-    """Fetches clean item name, quality, and icon from Wowhead Forever CDN."""
-    url = f"{NETHER_BASE}/tooltip/item/{item_id}"
-    raw = fetch_url_http(url, timeout=6, max_retries=2, allow_waf=False)
-    if not raw:
-        return {}
-    try:
-        data = json.loads(raw)
-        return {
-            "name": (data.get("name") or "").strip().lower(),
-            "quality": int(data.get("quality", 1)),
-            "icon": data.get("icon", ""),
-        }
-    except Exception:
-        return {}
+    total_count, items = extract_listview_data(html, "fishing")
+    cleaned = []
+    for it in items:
+        if not isinstance(it, dict) or "id" not in it:
+            continue
+        cleaned.append({
+            "id": int(it["id"]),
+            "name": (it.get("name") or "").strip().lower(),
+            "count": int(it.get("count", 0)),
+            "classs": it.get("classs"),
+            "subclass": it.get("subclass"),
+            "quality": int(it.get("quality", 1)),
+            "slot": int(it.get("slot", 0)),
+        })
+    return total_count, cleaned
 
 
 def save_cache_file(cache_data: dict):
@@ -662,9 +645,148 @@ def save_cache_file(cache_data: dict):
         print(f"Warning: Failed to save cache: {e}", file=sys.stderr)
 
 
+def merge_discovered_zones_into_tables(forever_zones: dict):
+    """Merges newly discovered Forever open-world zones and dungeons/raids into the fishing registries."""
+    for _, zinfo in forever_zones.items():
+        wh_id = zinfo.get("wh_id")
+        uimap = zinfo.get("uimap")
+        cat = zinfo.get("category")
+        f_skill = zinfo.get("fishing_skill")
+        if not wh_id or not uimap:
+            continue
+        wh_id = int(wh_id)
+        uimap = int(uimap)
+        zname = zinfo.get("name") or f"Zone {uimap}"
+        if uimap not in ZONE_NAMES:
+            ZONE_NAMES[uimap] = zname
+        ALL_INSTANCE_NAME_TO_ID[zname.lower()] = uimap
+        if zname.lower().startswith("the "):
+            ALL_INSTANCE_NAME_TO_ID[zname.lower()[4:]] = uimap
+        else:
+            ALL_INSTANCE_NAME_TO_ID["the " + zname.lower()] = uimap
+        if uimap not in ZONE_CONTINENT and zinfo.get("continent"):
+            ZONE_CONTINENT[uimap] = zinfo.get("continent")
+        if not f_skill or cat not in (0, 1, 2, 3, 6):
+            continue
+        if wh_id not in WOWHEAD_ZONE_TO_UIMAP:
+            WOWHEAD_ZONE_TO_UIMAP[wh_id] = (uimap, zname)
+        if uimap not in AUTHORITATIVE_ZONE_SKILL:
+            AUTHORITATIVE_ZONE_SKILL[uimap] = int(f_skill)
+        if uimap not in ZONE_CONTINENT:
+            ZONE_CONTINENT[uimap] = zinfo.get("continent") or ("kalimdor" if cat == 1 else "eastern_kingdoms")
+        if (
+            uimap >= 2000
+            and uimap < 100000
+            and uimap not in MIXED_ZONES
+            and any(kw in zname.lower() for kw in ("isle", "island", "coast", "bay", "strand", "glade", "river"))
+        ):
+            MIXED_ZONES.append(uimap)
+    ALL_INSTANCE_NAME_TO_ID["the temple of atal'hakkar"] = 101477
+    ALL_INSTANCE_NAME_TO_ID["temple of atal'hakkar"] = 101477
+
+
+def discover_custom_forever_fish(forever_zones: dict, verbose: bool = False) -> dict[int, list[dict]]:
+    """
+    Scans Wowhead Forever custom Trade Goods & Consumables (id >= 240000) for newly added
+    catchable Forever fish (non-crafted, fish icon or fish keyword) and maps them to their
+    fished-in zones or custom Forever zones of matching skill bracket.
+    Returns {uimap: [{"itemID": iid, "share": 2.5, "kind": "f", "name": nm}, ...]}.
+    """
+    discovered_by_uimap: dict[int, list[dict]] = {}
+    search_urls = [
+        f"{WOWHEAD_BASE}/items/trade-goods?filter=151;2;240000",
+        f"{WOWHEAD_BASE}/items/consumables/food-and-drink?filter=151;2;240000",
+    ]
+    seen_ids = set()
+    for url in search_urls:
+        html = fetch_url(url, timeout=15, max_retries=2, allow_waf=True)
+        if not html:
+            continue
+        _, items = extract_listview_data(html, "items")
+        for it in items:
+            if not isinstance(it, dict) or "id" not in it:
+                continue
+            iid = int(it["id"])
+            if iid < 240000 or iid in seen_ids or iid in EXCLUDE_ITEM_IDS:
+                continue
+            seen_ids.add(iid)
+            src = it.get("source") or []
+            if isinstance(src, list) and 1 in src:
+                continue  # Crafted item (e.g., cooked fish or potion)
+            nm = (it.get("name") or "").strip().lower()
+            if nm.startswith((
+                "ensemble:", "craftsman's writ:", "recipe:", "plans:", "pattern:",
+                "schematic:", "formula:", "manual:", "cooked ", "grilled ", "baked ",
+                "smoked ", "steamed ", "fried ", "spiced ", "poached ", "seasonal ",
+                "expiring ",
+            )):
+                continue
+            cl = it.get("classs")
+            sb = it.get("subclass")
+            if cl == 0 and sb not in (5, 8, 0, None):
+                continue
+            is_fish_kw = any(w in nm for w in FISH_NAME_KEYWORDS)
+            if not is_fish_kw:
+                continue
+            meta = fetch_item_metadata_nether(iid)
+            icon = (meta.get("icon") or "").lower()
+            if not icon.startswith("inv_misc_fish"):
+                continue
+
+            SPECIAL_FISH_IDS.add(iid)
+            if iid not in SPECIES_HABITAT:
+                SPECIES_HABITAT[iid] = "inland"
+
+            # Check /forever/item=<iid> for explicit fished-in zones
+            target_uimaps = []
+            item_html = fetch_url(f"{WOWHEAD_BASE}/item={iid}", timeout=12, max_retries=2, allow_waf=True)
+            if item_html:
+                _, fished_in = extract_listview_data(item_html, "fished-in")
+                for z in fished_in:
+                    if isinstance(z, dict) and z.get("id"):
+                        zid = int(z["id"])
+                        if zid in WOWHEAD_ZONE_TO_UIMAP:
+                            target_uimaps.append(WOWHEAD_ZONE_TO_UIMAP[zid][0])
+
+            # Fallback: match item level to custom Forever zones of the corresponding fishing skill tier
+            if not target_uimaps:
+                ilvl = int(it.get("level") or 1)
+                if ilvl <= 15:
+                    target_skill = 25
+                elif ilvl <= 25:
+                    target_skill = 75
+                elif ilvl <= 35:
+                    target_skill = 150
+                elif ilvl <= 45:
+                    target_skill = 225
+                elif ilvl <= 55:
+                    target_skill = 300
+                else:
+                    target_skill = 425
+                for wh_id, (uimap, _) in WOWHEAD_ZONE_TO_UIMAP.items():
+                    if (wh_id >= 16000 or (2000 <= uimap < 100000)) and AUTHORITATIVE_ZONE_SKILL.get(uimap) == target_skill:
+                        target_uimaps.append(uimap)
+
+            for uimap in target_uimaps:
+                discovered_by_uimap.setdefault(uimap, []).append({
+                    "itemID": iid,
+                    "share": 2.5,
+                    "kind": "f",
+                    "name": (meta.get("name") or nm).lower(),
+                })
+                if verbose:
+                    print(f"  [Custom Fish Discovery] Mapped {nm} ({iid}) -> zone uimap={uimap}")
+
+    return discovered_by_uimap
+
+
 def sync_fishing(refresh: bool = False, dry_run: bool = False, verbose: bool = False, check_only: bool = False):
     """Main synchronization pipeline for fishing atlas and waters."""
     os.makedirs(DATA_DIR, exist_ok=True)
+
+    # 0. Sync shared Forever zone registry (discovers any newly added Forever zones)
+    forever_zones = load_forever_zones(refresh=(refresh and not check_only), verbose=verbose)
+    merge_discovered_zones_into_tables(forever_zones)
 
     # 1. Load existing cache (supports both new {"zones": ..., "species": ...} and legacy format)
     cache_data = {"zones": {}, "species": {}}
@@ -675,7 +797,6 @@ def sync_fishing(refresh: bool = False, dry_run: bool = False, verbose: bool = F
             if isinstance(loaded, dict) and "zones" in loaded and "species" in loaded:
                 cache_data = loaded
             elif isinstance(loaded, dict):
-                # Migrate any valid icon metadata from legacy flat item dict
                 for k, v in loaded.items():
                     if isinstance(v, dict) and v.get("icon"):
                         cache_data["species"][str(k)] = {
@@ -689,14 +810,29 @@ def sync_fishing(refresh: bool = False, dry_run: bool = False, verbose: bool = F
 
     zones_cache = cache_data.setdefault("zones", {})
     species_cache = cache_data.setdefault("species", {})
+    custom_fish_cache = cache_data.setdefault("custom_fish_by_zone", {})
 
     if check_only:
-        zone_loot_tables, species_summary = build_tables_from_zones(zones_cache, species_cache)
+        zone_loot_tables, species_summary = build_tables_from_zones(zones_cache, species_cache, custom_fish_cache)
         print_database_summary(species_summary, zone_loot_tables)
         return
 
     # 2. Poll zone fishing tables from Wowhead Forever
     cache_dirty = False
+    if refresh or not custom_fish_cache:
+        discovered_custom_fish = discover_custom_forever_fish(forever_zones, verbose=verbose)
+        custom_fish_cache.clear()
+        for k, v in discovered_custom_fish.items():
+            custom_fish_cache[str(k)] = v
+        cache_dirty = True
+    else:
+        for _, f_entries in custom_fish_cache.items():
+            for fe in f_entries:
+                iid = int(fe["itemID"])
+                SPECIAL_FISH_IDS.add(iid)
+                if iid not in SPECIES_HABITAT:
+                    SPECIES_HABITAT[iid] = "inland"
+
     zone_items = sorted(WOWHEAD_ZONE_TO_UIMAP.items(), key=lambda x: x[1][0])
     total_zones = len(zone_items)
 
@@ -707,7 +843,7 @@ def sync_fishing(refresh: bool = False, dry_run: bool = False, verbose: bool = F
 
         if needs_fetch:
             print(f"[{idx}/{total_zones}] Polling zone {zname} (uimap={uimap}, wh_zone={wh_id}) from Wowhead Forever...")
-            html = fetch_url_http(f"{WOWHEAD_BASE}/zone={wh_id}", timeout=12, max_retries=2, allow_waf=True)
+            html = fetch_url(f"{WOWHEAD_BASE}/zone={wh_id}", timeout=12, max_retries=2, allow_waf=True)
             total_count, items = extract_zone_fishing_from_html(html)
             zones_cache[str_uimap] = {
                 "uimap": uimap,
@@ -724,7 +860,7 @@ def sync_fishing(refresh: bool = False, dry_run: bool = False, verbose: bool = F
             time.sleep(0.1)
 
     # 3. Classify discovered species across all zones and enrich metadata via Nether CDN
-    zone_loot_tables, discovered_species = build_tables_from_zones(zones_cache, species_cache)
+    zone_loot_tables, discovered_species = build_tables_from_zones(zones_cache, species_cache, custom_fish_cache)
 
     for str_iid, sp_info in sorted(discovered_species.items(), key=lambda x: int(x[0])):
         iid = int(str_iid)
@@ -743,6 +879,12 @@ def sync_fishing(refresh: bool = False, dry_run: bool = False, verbose: bool = F
             sp_info["quality"] = existing_meta.get("quality", sp_info["quality"])
         species_cache[str_iid] = sp_info
 
+        # Auto-infer habitat ('inland' vs 'coastal') for any newly discovered fish not in SPECIES_HABITAT
+        if iid not in SPECIES_HABITAT and sp_info.get("kind") in ("f", "q", "t"):
+            drop_uimaps = [z["uimap"] for z in sp_info.get("zones", []) if z.get("uimap")]
+            if drop_uimaps and all(u not in MIXED_ZONES and u != 2521 for u in drop_uimaps):
+                SPECIES_HABITAT[iid] = "inland"
+
     if cache_dirty:
         save_cache_file(cache_data)
         print(f"Saved authoritative fishing scrape cache to {CACHE_FILE}")
@@ -752,10 +894,11 @@ def sync_fishing(refresh: bool = False, dry_run: bool = False, verbose: bool = F
     print_database_summary(species_cache, zone_loot_tables)
 
 
-def build_tables_from_zones(zones_cache: dict, existing_species: dict) -> tuple[dict, dict]:
+def build_tables_from_zones(zones_cache: dict, existing_species: dict, custom_fish_cache: dict = None) -> tuple[dict, dict]:
     """Builds per-zone drop rate tables and discovered species index from raw zone fishing data."""
     zone_loot_tables = {}
     discovered_species = {}
+    custom_fish_cache = custom_fish_cache or {}
 
     for str_uimap, zdata in sorted(zones_cache.items(), key=lambda x: int(x[0])):
         uimap = int(str_uimap)
@@ -807,8 +950,10 @@ def build_tables_from_zones(zones_cache: dict, existing_species: dict) -> tuple[
         if loot_list:
             zone_loot_tables[uimap] = [[x["itemID"], x["share"], x["kind"]] for x in loot_list]
 
-    # Incorporate Camelot local overrides (e.g. Zephras Isle)
+    # Incorporate Camelot local overrides (e.g. Zephras Isle & CMaNGOS dungeons)
     for uimap, entries in CAMELOT_LOCAL_OVERRIDES.items():
+        if uimap not in AUTHORITATIVE_ZONE_SKILL:
+            continue
         zone_loot_tables[uimap] = [[e["itemID"], e["share"], e["kind"]] for e in entries]
         for e in entries:
             str_iid = str(e["itemID"])
@@ -826,6 +971,62 @@ def build_tables_from_zones(zones_cache: dict, existing_species: dict) -> tuple[
                 "outof": 1000,
                 "share": e["share"],
             })
+
+    # Fallback: synthesize tier loot table + discovered custom fish for any fishable zone without Wowhead telemetry yet
+    for uimap, req_skill in sorted(AUTHORITATIVE_ZONE_SKILL.items()):
+        if uimap in zone_loot_tables:
+            # Also inject any newly discovered custom fish into existing zone tables if not already present
+            extra_custom = custom_fish_cache.get(str(uimap)) or []
+            existing_ids = {row[0] for row in zone_loot_tables[uimap]}
+            for fe in extra_custom:
+                iid = int(fe["itemID"])
+                if iid not in existing_ids:
+                    zone_loot_tables[uimap].append([iid, fe["share"], fe["kind"]])
+                    str_iid = str(iid)
+                    sp_entry = discovered_species.setdefault(str_iid, {
+                        "name": fe.get("name", ""),
+                        "kind": fe["kind"],
+                        "quality": 1,
+                        "icon": existing_species.get(str_iid, {}).get("icon", ""),
+                        "zones": [],
+                    })
+                    sp_entry["zones"].append({
+                        "uimap": uimap,
+                        "name": ZONE_NAMES.get(uimap, "").lower(),
+                        "count": int(fe["share"] * 10),
+                        "outof": 1000,
+                        "share": fe["share"],
+                    })
+            continue
+
+        # No crowdsourced table or override: synthesize from DEFAULT_TIER_FISHING_LOOT + custom fish
+        tier_template = DEFAULT_TIER_FISHING_LOOT.get(req_skill) or DEFAULT_TIER_FISHING_LOOT.get(225, [])
+        synth_entries = [dict(e) for e in tier_template]
+        extra_custom = custom_fish_cache.get(str(uimap)) or []
+        for fe in extra_custom:
+            if not any(int(e["itemID"]) == int(fe["itemID"]) for e in synth_entries):
+                if synth_entries:
+                    synth_entries[0]["share"] = round(max(1.0, synth_entries[0]["share"] - float(fe["share"])), 1)
+                synth_entries.append(dict(fe))
+
+        if synth_entries:
+            zone_loot_tables[uimap] = [[int(e["itemID"]), float(e["share"]), e["kind"]] for e in synth_entries]
+            for e in synth_entries:
+                str_iid = str(e["itemID"])
+                sp_entry = discovered_species.setdefault(str_iid, {
+                    "name": e.get("name", ""),
+                    "kind": e["kind"],
+                    "quality": 1,
+                    "icon": existing_species.get(str_iid, {}).get("icon", ""),
+                    "zones": [],
+                })
+                sp_entry["zones"].append({
+                    "uimap": uimap,
+                    "name": ZONE_NAMES.get(uimap, "").lower(),
+                    "count": int(float(e["share"]) * 10),
+                    "outof": 1000,
+                    "share": float(e["share"]),
+                })
 
     # Filter discovered_species to only items that appear in at least one zone loot table
     active_species = {k: v for k, v in discovered_species.items() if v.get("zones")}
@@ -904,9 +1105,8 @@ def generate_lua_database(zone_loot_tables: dict, species_cache: dict, dry_run: 
 
     # Primary zones (Tier 1-3 starter, secondary, and capital city waters)
     primary_zones = [
-        1411, 1412, 1413, 1420, 1421, 1424, 1426, 1429, 1431, 1432,
-        1433, 1436, 1437, 1438, 1439, 1440, 1442, 1453, 1454, 1455,
-        1456, 1457, 1458, 2521,
+        k for k, req in AUTHORITATIVE_ZONE_SKILL.items()
+        if k < 100000 and req <= 150
     ]
     lines.append("D.ZONE_FISH = {")
     for uimap in sorted(primary_zones):
@@ -962,6 +1162,16 @@ def generate_lua_database(zone_loot_tables: dict, species_cache: dict, dry_run: 
     for uimap in sorted(ZONE_NAMES.keys()):
         zname_low = ZONE_NAMES[uimap].lower().replace('"', '\\"')
         lines.append(f'    [{uimap}] = "{zname_low}",')
+    lines.append("}")
+    lines.append("")
+
+    lines.append("-- Reverse lookup from lowercase zone/dungeon name to numeric mapID (for instance & custom zone resolution)")
+    lines.append("D.ZONE_NAME_TO_ID = {")
+    name_to_id_merged = {v.lower(): k for k, v in ZONE_NAMES.items()}
+    name_to_id_merged.update(ALL_INSTANCE_NAME_TO_ID)
+    for zname_low in sorted(name_to_id_merged.keys()):
+        esc_name = zname_low.replace('"', '\\"')
+        lines.append(f'    ["{esc_name}"] = {name_to_id_merged[zname_low]},')
     lines.append("}")
     lines.append("")
 
@@ -1025,6 +1235,26 @@ def generate_lua_database(zone_loot_tables: dict, species_cache: dict, dry_run: 
     lines.append("    add_list(D.ZONE_FISH, false)")
     lines.append("    add_list(D.ZONE_FISH_CLASSIC, true)")
     lines.append("")
+    lines.append("    -- Merge any newly caught in-game species from SfuiDB.fishing.species not yet in static tables")
+    lines.append("    local savedSpecies = _G.SfuiDB and _G.SfuiDB.fishing and _G.SfuiDB.fishing.species")
+    lines.append("    if type(savedSpecies) == \"table\" then")
+    lines.append("        for itemID, sData in pairs(savedSpecies) do")
+    lines.append("            local id = tonumber(itemID)")
+    lines.append("            if id and not speciesCatalog[id] and type(sData) == \"table\" and (sData.n or 0) > 0 then")
+    lines.append("                local zID = sData.lz or sData.fz")
+    lines.append("                local zReq = (zID and D.ZONE_SKILL[zID]) or 0")
+    lines.append("                speciesCatalog[id] = {")
+    lines.append("                    itemID = id,")
+    lines.append('                    kind = "f",')
+    lines.append("                    isContainer = false,")
+    lines.append("                    habitat = D.SPECIES_HABITAT[id],")
+    lines.append("                    minSkill = zReq,")
+    lines.append("                    zones = zID and { { mapID = zID, share = 0, reqSkill = zReq, isClassicOnly = false } } or {},")
+    lines.append("                }")
+    lines.append("            end")
+    lines.append("        end")
+    lines.append("    end")
+    lines.append("")
     lines.append("    -- Sort zones per fish by highest drop percentage")
     lines.append("    for _, item in pairs(speciesCatalog) do")
     lines.append("        if item.minSkill == 9999 then item.minSkill = item.minSkillAny end")
@@ -1036,6 +1266,10 @@ def generate_lua_database(zone_loot_tables: dict, species_cache: dict, dry_run: 
     lines.append("    end")
     lines.append("")
     lines.append("    return speciesCatalog")
+    lines.append("end")
+    lines.append("")
+    lines.append("function D.InvalidateSpeciesCatalog()")
+    lines.append("    speciesCatalog = nil")
     lines.append("end")
     lines.append("")
 
@@ -1070,8 +1304,29 @@ def generate_lua_database(zone_loot_tables: dict, species_cache: dict, dry_run: 
     lines.append("function D.GetZoneName(mapID)")
     lines.append("    if not mapID then return nil end")
     lines.append("    if D.ZONE_NAMES[mapID] then return D.ZONE_NAMES[mapID] end")
+    lines.append("    local savedZ = _G.SfuiDB and _G.SfuiDB.fishing and _G.SfuiDB.fishing.zones and _G.SfuiDB.fishing.zones[mapID]")
+    lines.append('    if type(savedZ) == "table" and type(savedZ.name) == "string" and savedZ.name ~= "" then return savedZ.name:lower() end')
     lines.append("    local name = sfui.common and sfui.common.get_map_name and sfui.common.get_map_name(mapID)")
     lines.append("    return name and name:lower() or nil")
+    lines.append("end")
+    lines.append("")
+    lines.append("--- Resolves a zone or dungeon name (e.g. from GetRealZoneText inside an instance) to a numeric mapID")
+    lines.append("--- @param zoneText string|nil")
+    lines.append("--- @return number")
+    lines.append("function D.ResolveZoneNameID(zoneText)")
+    lines.append('    if type(zoneText) ~= "string" or zoneText == "" then return 0 end')
+    lines.append("    local low = zoneText:lower()")
+    lines.append("    if D.ZONE_NAME_TO_ID[low] then return D.ZONE_NAME_TO_ID[low] end")
+    lines.append('    local stripped = low:gsub("^the%s+", "")')
+    lines.append("    if D.ZONE_NAME_TO_ID[stripped] then return D.ZONE_NAME_TO_ID[stripped] end")
+    lines.append("    local h = 0")
+    lines.append("    for i = 1, #low do")
+    lines.append("        h = (h * 31 + low:byte(i)) % 89999")
+    lines.append("    end")
+    lines.append("    local dynID = 200000 + h")
+    lines.append("    D.ZONE_NAMES[dynID] = low")
+    lines.append("    D.ZONE_NAME_TO_ID[low] = dynID")
+    lines.append("    return dynID")
     lines.append("end")
     lines.append("")
     lines.append("--- Returns the continent key ('eastern_kingdoms' | 'kalimdor') and display label for a zone mapID")
@@ -1251,7 +1506,9 @@ def generate_lua_database(zone_loot_tables: dict, species_cache: dict, dry_run: 
     lines.append("--- @return table array of { mapID, reqSkill, continent, sub }")
     lines.append("function D.GetAllWaters()")
     lines.append("    local waters = {}")
+    lines.append("    local seen = {}")
     lines.append("    for mapID, req in pairs(D.ZONE_SKILL) do")
+    lines.append("        seen[mapID] = true")
     lines.append("        local contKey = D.GetZoneContinent(mapID)")
     lines.append("        waters[#waters + 1] = {")
     lines.append("            mapID = mapID,")
@@ -1259,6 +1516,20 @@ def generate_lua_database(zone_loot_tables: dict, species_cache: dict, dry_run: 
     lines.append("            continent = contKey,")
     lines.append("            sub = D.ZONE_SKILL_PARTS[mapID],")
     lines.append("        }")
+    lines.append("    end")
+    lines.append("    local savedZones = _G.SfuiDB and _G.SfuiDB.fishing and _G.SfuiDB.fishing.zones")
+    lines.append("    if type(savedZones) == \"table\" then")
+    lines.append("        for mKey, zData in pairs(savedZones) do")
+    lines.append("            local mID = tonumber(mKey)")
+    lines.append("            if mID and mID > 0 and not seen[mID] and type(zData) == \"table\" and (zData.catches or 0) > 0 then")
+    lines.append("                seen[mID] = true")
+    lines.append("                waters[#waters + 1] = {")
+    lines.append("                    mapID = mID,")
+    lines.append("                    reqSkill = 225,")
+    lines.append("                    continent = D.GetZoneContinent(mID),")
+    lines.append("                }")
+    lines.append("            end")
+    lines.append("        end")
     lines.append("    end")
     lines.append("    table_sort(waters, function(a, b)")
     lines.append("        if a.reqSkill ~= b.reqSkill then")
@@ -1343,17 +1614,20 @@ def generate_lua_database(zone_loot_tables: dict, species_cache: dict, dry_run: 
     lines.append('    sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", D.InvalidateLureCache)')
     lines.append('    sfui.events.RegisterEvent("SKILL_LINES_CHANGED", D.InvalidateLureCache)')
     lines.append("end")
+    lines.append("if sfui.events and sfui.events.RegisterMessage then")
+    lines.append('    sfui.events.RegisterMessage("SFUI_FISHING_CATCH_RECORDED", function(_, itemID)')
+    lines.append("        if itemID and speciesCatalog and not speciesCatalog[itemID] then")
+    lines.append("            speciesCatalog = nil")
+    lines.append("        end")
+    lines.append("    end)")
+    lines.append("end")
     lines.append("")
 
     content = "\n".join(lines) + "\n"
-
-    if dry_run:
-        print("[Dry-Run] Generated Lua output preview:")
-        print(f"Total lines: {len(lines)}, total characters: {len(content)}")
-    else:
-        with open(LUA_TARGET, "w", encoding="utf-8") as f:
-            f.write(content)
-        print(f"Generated authoritative Lua database: {LUA_TARGET} ({len(lines)} lines)")
+    changed = write_lua_atomically(LUA_TARGET, content, dry_run=dry_run)
+    if not dry_run:
+        status_msg = "Updated" if changed else "Up-to-date"
+        print(f"[{status_msg}] Authoritative Lua database: {LUA_TARGET} ({len(lines)} lines)")
 
 
 def print_database_summary(species_cache: dict, zone_loot_tables: dict = None):

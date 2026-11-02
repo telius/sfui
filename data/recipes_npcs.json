@@ -1475,5 +1475,47 @@
     "mapName": "thousand needles",
     "x": 0.164,
     "y": 0.226
+  },
+  "256629": {
+    "npcID": 256629,
+    "mapID": 2482,
+    "mapName": "mount hyjal",
+    "x": 0.21,
+    "y": 0.786
+  },
+  "3255": {
+    "npcID": 3255,
+    "mapID": 1413,
+    "mapName": "the barrens",
+    "x": 0.402,
+    "y": 0.288
+  },
+  "256731": {
+    "npcID": 256731,
+    "mapID": 1433,
+    "mapName": "redridge mountains",
+    "x": 0.108,
+    "y": 0.724
+  },
+  "855": {
+    "npcID": 855,
+    "mapID": 1434,
+    "mapName": "stranglethorn vale",
+    "x": 0.234,
+    "y": 0.154
+  },
+  "248198": {
+    "npcID": 248198,
+    "mapID": 1413,
+    "mapName": "the barrens",
+    "x": 0.496,
+    "y": 0.294
+  },
+  "1020": {
+    "npcID": 1020,
+    "mapID": 1437,
+    "mapName": "wetlands",
+    "x": 0.2,
+    "y": 0.496
   }
 }

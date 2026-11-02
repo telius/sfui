@@ -365,6 +365,9 @@ local function get_or_create_zone_bucket(zonesTable, mapID)
     local z = zonesTable[mapID]
     if not z then
         z = { casts = 0, catches = 0, getaways = 0, fish = {} }
+        if mapID >= 100000 and sfui.fishing_data and sfui.fishing_data.GetZoneName then
+            z.name = sfui.fishing_data.GetZoneName(mapID)
+        end
         zonesTable[mapID] = z
     else
         z.fish = z.fish or {}
@@ -805,6 +808,9 @@ function sfui.fishing.RecordCatch(itemID, quantity, quality, mapID, link)
     if not sp then
         sp = { n = 0, first = serverTime, fz = mapID }
         SfuiDB.fishing.species[itemID] = sp
+        if sfui.fishing_data and sfui.fishing_data.InvalidateSpeciesCatalog and not (sfui.fishing_data.SPECIES_NAMES and sfui.fishing_data.SPECIES_NAMES[itemID]) then
+            sfui.fishing_data.InvalidateSpeciesCatalog()
+        end
     end
     sp.n = sp.n + quantity
     sp.last = serverTime
@@ -822,7 +828,9 @@ function sfui.fishing.RecordCatch(itemID, quantity, quality, mapID, link)
         local display = (link and link:gsub("%b[]", string.lower))
             or (sfui.fishing_data and sfui.fishing_data.GetSpeciesDisplay and sfui.fishing_data.GetSpeciesDisplay(itemID, true))
             or ("item:" .. itemID)
-        sfui.common.print("rare catch: " .. display .. "!")
+        if sfui.common and sfui.common.print then
+            sfui.common.print("rare catch: " .. display .. "!")
+        end
         if _G.PlaySound and _G.SOUNDKIT and _G.SOUNDKIT.AUCTION_WINDOW_CLOSE then
             _G.PlaySound(_G.SOUNDKIT.AUCTION_WINDOW_CLOSE)
         end

@@ -370,11 +370,18 @@ local C_Map                   = _G.C_Map or {}
 local C_Map_GetBestMapForUnit = C_Map.GetBestMapForUnit
 local C_Map_GetMapInfo        = C_Map.GetMapInfo
 
---- Returns the player's current best uiMapID, or 0
+--- Returns the player's current best uiMapID (or synthetic dungeon/instance ID when C_Map is nil inside instances)
 --- @return number
 function sfui.common.get_player_map_id()
     if C_Map_GetBestMapForUnit then
-        return C_Map_GetBestMapForUnit("player") or 0
+        local mapID = C_Map_GetBestMapForUnit("player")
+        if mapID and mapID > 0 then
+            return mapID
+        end
+    end
+    local zText = (_G.GetRealZoneText and _G.GetRealZoneText()) or (_G.GetZoneText and _G.GetZoneText())
+    if zText and zText ~= "" and sfui.fishing_data and sfui.fishing_data.ResolveZoneNameID then
+        return sfui.fishing_data.ResolveZoneNameID(zText)
     end
     return 0
 end

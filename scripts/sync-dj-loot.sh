@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SFUI Dungeon Journal Loot Synchronizer Wrapper
+# SFUI Dungeon Journal Loot Synchronizer Wrapper -> Unified sync-data.py
 # ─────────────────────────────────────────────────────────────────────────────
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-python3 "${SCRIPT_DIR}/sync-dj-loot.py" "$@"
+exec python3 "${SCRIPT_DIR}/sync-data.py" --only dj "$@"

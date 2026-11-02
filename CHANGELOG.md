@@ -1,19 +1,15 @@
 # changelog
 
-## v1.129 (2026-11-01)
+## v1.130 (2026-11-02)
 
 ### features & improvements
 
-- **camelot synced skill tracking & `spec_color` bars (`frames/quests/modules/q_camelot_skills.lua`, `frames/quests/engine/q_layout.lua`, `frames/sync/multibox.lua`, `frames/sync/sync.lua`)**:
-  - tracked skill progress bars in the camelot objective tracker now inherit `spec_color` (`sfui.common.get_class_or_spec_color()`), updating automatically on `SFUI_SPEC_CHANGED` and `SFUI_SPEC_COLORS_UPDATED`.
-  - added live cross-client tracked skills synchronization (`DELTA_TRACKED_SKILLS` and `DELTA_SKILL_UNTRACK`) so tracked skills from synced peers are displayed on both clients in their character's `spec_color`, with multi-bar stacking (`bData.progressBars`), per-character rank tooltips, and remote untrack support via shift-click or right-click.
-- **sync party hud unit tokens on mouseover (`frames/sync/hud.lua`)**:
-  - added client-assigned unit tokens (`(player)`, `(party1)`, `(party2)`, etc.) to the per-character mouseover tooltip and footer summary tooltip on the sync party hud.
-- **fishing background sound management (`frames/automation/fishing.lua`)**:
-  - added dedicated `enable_bg_sound()` and `restore_bg_sound()` helpers so `Sound_EnableSoundWhenGameIsInBG` is always enabled while fishing (independent of `enhanceSounds`) and reliably restored to its previous user setting when done fishing, on logout, or on reload recovery.
-
-### bug fixes
-
-- **`SetHiddenGroupBuffs()` / `SetGroupBuffVisualAlerts()` taint fix (`common.lua`, `frames/actionbars/bind.lua`)**:
-  - removed early `SetCVar("cooldownViewerEnabled", 1)` from `sfui.common.hide_blizzard_cooldown_viewers()` during `ADDON_LOADED` before `VARIABLES_LOADED`, preventing `CooldownViewerSettings:GetDataProvider().displayData` from being initialized in an addon-tainted execution context prior to `GroupBuffFilter`'s `CooldownViewerSettings.OnDataChanged` callback.
-  - passed explicit `owner` arguments to `EventRegistry:RegisterCallback` calls in `common.lua` and `frames/actionbars/bind.lua` so `CallbackRegistry`'s internal `generateOwnerID` counter is never incremented from addon context.
+- **fishing atlas, hud & camelot waters database (`frames/fishing/fishing_atlas.lua`, `frames/fishing/fishing_hud.lua`, `frames/automation/fishing.lua`, `data/fishing_camelot.lua`, `frames/sync/merge.lua`, `frames/sync/sync.lua`)**:
+  - added the fishing atlas ui with species catalog, waters & zones breakdown (organized into eastern kingdoms and kalimdor continent sections with filter pills), pools & schools guide, and lures & milestones tracker.
+  - synced 58 camelot / classic forever waters (including custom forever zones `zephras isle`, `riverglades`, `mount hyjal`, `shen'dralas`, and 9 fishable dungeons), sub-zone skill & habitat overrides (`coastal`, `inland`, `oasis`), and runtime fallback discovery for newly caught in-game fish and unindexed zones.
+  - added cross-account fishing ledger synchronization (`DATA_FISHING`, `DELTA_FISHING_CATCH`) and consolidated shared helper functions across all fishing modules.
+- **unified zero-knowledge data synchronization pipeline (`scripts/sync-data.py`, `scripts/sync-data.sh`, `scripts/sync_core.py`, `scripts/sync-dj-loot.py`, `scripts/sync-recipes.py`, `scripts/sync-fishing.py`, `data/forever_zones.json`, `data/dj_camelot.lua`, `data/recipes_camelot.lua`, `data/fishing_camelot.lua`)**:
+  - unified zone, dungeon journal, profession recipe, and fishing synchronization into a single runner (`scripts/sync-data.sh`) with shared wowhead waf token caching and rate-limit pacing.
+  - added automatic zero-knowledge self-discovery of newly added wowhead forever outdoor zones (`uiMapId`, level brackets, continent, fishing skill tiers), dungeon encounters & loot tables from official dungeon overview guides, custom recipes, and custom fish species.
+- **experience & reputation bar height defaults (`config.lua`, `frames/experience/bar.lua`, `frames/experience/reputation.lua`, `frames/experience/experience.lua`, `frames/options/tabs/tab_experience.lua`)**:
+  - updated the default height of both the experience and reputation status bars to `8px` with automatic migration (`_expDefaultsV5`) for existing profiles.

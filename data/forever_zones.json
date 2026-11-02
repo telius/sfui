@@ -1,0 +1,645 @@
+{
+  "1": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 25,
+    "name": "Dun Morogh",
+    "uimap": 1426,
+    "wh_id": 1
+  },
+  "10": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 150,
+    "name": "Duskwood",
+    "uimap": 1431,
+    "wh_id": 10
+  },
+  "11": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 150,
+    "name": "Wetlands",
+    "uimap": 1437,
+    "wh_id": 11
+  },
+  "1176": {
+    "category": 2,
+    "continent": "kalimdor",
+    "fishing_skill": null,
+    "name": "Zul'Farrak",
+    "uimap": 101176,
+    "wh_id": 1176
+  },
+  "12": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 25,
+    "name": "Elwynn Forest",
+    "uimap": 1429,
+    "wh_id": 12
+  },
+  "130": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 75,
+    "name": "Silverpine Forest",
+    "uimap": 1421,
+    "wh_id": 130
+  },
+  "1337": {
+    "category": 2,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "name": "Uldaman",
+    "uimap": 101337,
+    "wh_id": 1337
+  },
+  "1377": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 425,
+    "name": "Silithus",
+    "uimap": 1451,
+    "wh_id": 1377
+  },
+  "139": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 425,
+    "name": "Eastern Plaguelands",
+    "uimap": 1423,
+    "wh_id": 139
+  },
+  "14": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 25,
+    "name": "Durotar",
+    "uimap": 1411,
+    "wh_id": 14
+  },
+  "141": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 25,
+    "name": "Teldrassil",
+    "uimap": 1438,
+    "wh_id": 141
+  },
+  "1477": {
+    "category": 2,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 205,
+    "name": "Sunken Temple",
+    "uimap": 101477,
+    "wh_id": 1477
+  },
+  "148": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 75,
+    "name": "Darkshore",
+    "uimap": 1439,
+    "wh_id": 148
+  },
+  "1497": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 75,
+    "name": "Undercity",
+    "uimap": 1458,
+    "wh_id": 1497
+  },
+  "15": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 225,
+    "name": "Dustwallow Marsh",
+    "uimap": 1445,
+    "wh_id": 15
+  },
+  "1519": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 75,
+    "name": "Stormwind City",
+    "uimap": 1453,
+    "wh_id": 1519
+  },
+  "1537": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 75,
+    "name": "Ironforge",
+    "uimap": 1455,
+    "wh_id": 1537
+  },
+  "1581": {
+    "category": 2,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "name": "The Deadmines",
+    "uimap": 101581,
+    "wh_id": 1581
+  },
+  "1583": {
+    "category": 2,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "name": "Blackrock Spire",
+    "uimap": 101583,
+    "wh_id": 1583
+  },
+  "1584": {
+    "category": 2,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "name": "Blackrock Depths",
+    "uimap": 101584,
+    "wh_id": 1584
+  },
+  "16": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 330,
+    "name": "Azshara",
+    "uimap": 1447,
+    "wh_id": 16
+  },
+  "1637": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 75,
+    "name": "Orgrimmar",
+    "uimap": 1454,
+    "wh_id": 1637
+  },
+  "1638": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 75,
+    "name": "Thunder Bluff",
+    "uimap": 1456,
+    "wh_id": 1638
+  },
+  "16544": {
+    "alt_wh_ids": [
+      16560
+    ],
+    "category": 2,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "name": "City of Dalaran",
+    "uimap": 116544,
+    "wh_id": 16544
+  },
+  "1657": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 75,
+    "name": "Darnassus",
+    "uimap": 1457,
+    "wh_id": 1657
+  },
+  "16591": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 225,
+    "name": "Riverglades",
+    "uimap": 2548,
+    "wh_id": 16591
+  },
+  "16593": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 25,
+    "name": "Zephras Isle",
+    "uimap": 2521,
+    "wh_id": 16593
+  },
+  "16611": {
+    "category": 2,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "name": "Ruins of Lordaeron",
+    "uimap": 116611,
+    "wh_id": 16611
+  },
+  "16651": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 300,
+    "name": "Shen'dralas",
+    "uimap": 2652,
+    "wh_id": 16651
+  },
+  "16732": {
+    "category": 2,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "name": "Excavation Site: Wetlands",
+    "uimap": 116732,
+    "wh_id": 16732
+  },
+  "16919": {
+    "category": 2,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "name": "Hall of Thanes",
+    "uimap": 116919,
+    "wh_id": 16919
+  },
+  "17": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 75,
+    "name": "The Barrens",
+    "uimap": 1413,
+    "wh_id": 17
+  },
+  "1977": {
+    "category": 3,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 330,
+    "name": "Zul'Gurub",
+    "uimap": 101977,
+    "wh_id": 1977
+  },
+  "2017": {
+    "category": 2,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 330,
+    "name": "Stratholme",
+    "uimap": 102017,
+    "wh_id": 2017
+  },
+  "2057": {
+    "category": 2,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 330,
+    "name": "Scholomance",
+    "uimap": 102057,
+    "wh_id": 2057
+  },
+  "209": {
+    "category": 2,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "name": "Shadowfang Keep",
+    "uimap": 100209,
+    "wh_id": 209
+  },
+  "2100": {
+    "category": 2,
+    "continent": "kalimdor",
+    "fishing_skill": 205,
+    "name": "Maraudon",
+    "uimap": 102100,
+    "wh_id": 2100
+  },
+  "215": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 25,
+    "name": "Mulgore",
+    "uimap": 1412,
+    "wh_id": 215
+  },
+  "2437": {
+    "category": 2,
+    "continent": "kalimdor",
+    "fishing_skill": null,
+    "name": "Ragefire Chasm",
+    "uimap": 102437,
+    "wh_id": 2437
+  },
+  "2557": {
+    "category": 2,
+    "continent": "kalimdor",
+    "fishing_skill": 330,
+    "name": "Dire Maul",
+    "uimap": 102557,
+    "wh_id": 2557
+  },
+  "2597": {
+    "category": 6,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 330,
+    "name": "Alterac Valley",
+    "uimap": 1459,
+    "wh_id": 2597
+  },
+  "267": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 150,
+    "name": "Hillsbrad Foothills",
+    "uimap": 1424,
+    "wh_id": 267
+  },
+  "2677": {
+    "category": 3,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "name": "Blackwing Lair",
+    "uimap": 102677,
+    "wh_id": 2677
+  },
+  "2717": {
+    "category": 3,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "name": "Molten Core",
+    "uimap": 102717,
+    "wh_id": 2717
+  },
+  "28": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 330,
+    "name": "Western Plaguelands",
+    "uimap": 1422,
+    "wh_id": 28
+  },
+  "3": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "name": "Badlands",
+    "uimap": 1418,
+    "wh_id": 3
+  },
+  "33": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 225,
+    "name": "Stranglethorn Vale",
+    "uimap": 1434,
+    "wh_id": 33
+  },
+  "331": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 150,
+    "name": "Ashenvale",
+    "uimap": 1440,
+    "wh_id": 331
+  },
+  "3428": {
+    "category": 3,
+    "continent": "kalimdor",
+    "fishing_skill": null,
+    "name": "Temple of Ahn'Qiraj",
+    "uimap": 103428,
+    "wh_id": 3428
+  },
+  "3429": {
+    "category": 3,
+    "continent": "kalimdor",
+    "fishing_skill": null,
+    "name": "Ruins of Ahn'Qiraj",
+    "uimap": 103429,
+    "wh_id": 3429
+  },
+  "3456": {
+    "category": 3,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "name": "Naxxramas",
+    "uimap": 103456,
+    "wh_id": 3456
+  },
+  "357": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 330,
+    "name": "Feralas",
+    "uimap": 1444,
+    "wh_id": 357
+  },
+  "36": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 225,
+    "name": "Alterac Mountains",
+    "uimap": 1416,
+    "wh_id": 36
+  },
+  "361": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 330,
+    "name": "Felwood",
+    "uimap": 1448,
+    "wh_id": 361
+  },
+  "38": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 75,
+    "name": "Loch Modan",
+    "uimap": 1432,
+    "wh_id": 38
+  },
+  "4": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 1,
+    "name": "Blasted Lands",
+    "uimap": 1419,
+    "wh_id": 4
+  },
+  "40": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 75,
+    "name": "Westfall",
+    "uimap": 1436,
+    "wh_id": 40
+  },
+  "400": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 225,
+    "name": "Thousand Needles",
+    "uimap": 1441,
+    "wh_id": 400
+  },
+  "405": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 225,
+    "name": "Desolace",
+    "uimap": 1443,
+    "wh_id": 405
+  },
+  "406": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 150,
+    "name": "Stonetalon Mountains",
+    "uimap": 1442,
+    "wh_id": 406
+  },
+  "41": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 425,
+    "name": "Deadwind Pass",
+    "uimap": 1430,
+    "wh_id": 41
+  },
+  "44": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 150,
+    "name": "Redridge Mountains",
+    "uimap": 1433,
+    "wh_id": 44
+  },
+  "440": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 330,
+    "name": "Tanaris",
+    "uimap": 1446,
+    "wh_id": 440
+  },
+  "45": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 225,
+    "name": "Arathi Highlands",
+    "uimap": 1417,
+    "wh_id": 45
+  },
+  "46": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 425,
+    "name": "Burning Steppes",
+    "uimap": 1428,
+    "wh_id": 46
+  },
+  "47": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 330,
+    "name": "The Hinterlands",
+    "uimap": 1425,
+    "wh_id": 47
+  },
+  "490": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 330,
+    "name": "Un'Goro Crater",
+    "uimap": 1449,
+    "wh_id": 490
+  },
+  "491": {
+    "category": 2,
+    "continent": "kalimdor",
+    "fishing_skill": null,
+    "name": "Razorfen Kraul",
+    "uimap": 100491,
+    "wh_id": 491
+  },
+  "493": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 330,
+    "name": "Moonglade",
+    "uimap": 1450,
+    "wh_id": 493
+  },
+  "51": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "name": "Searing Gorge",
+    "uimap": 1427,
+    "wh_id": 51
+  },
+  "616": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 425,
+    "name": "Mount Hyjal",
+    "uimap": 2482,
+    "wh_id": 616
+  },
+  "618": {
+    "category": 1,
+    "continent": "kalimdor",
+    "fishing_skill": 425,
+    "name": "Winterspring",
+    "uimap": 1452,
+    "wh_id": 618
+  },
+  "717": {
+    "category": 2,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "name": "The Stockade",
+    "uimap": 100717,
+    "wh_id": 717
+  },
+  "718": {
+    "category": 2,
+    "continent": "kalimdor",
+    "fishing_skill": 25,
+    "name": "Wailing Caverns",
+    "uimap": 100718,
+    "wh_id": 718
+  },
+  "719": {
+    "category": 2,
+    "continent": "kalimdor",
+    "fishing_skill": 75,
+    "name": "Blackfathom Deeps",
+    "uimap": 100719,
+    "wh_id": 719
+  },
+  "721": {
+    "category": 2,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "name": "Gnomeregan",
+    "uimap": 100721,
+    "wh_id": 721
+  },
+  "722": {
+    "category": 2,
+    "continent": "kalimdor",
+    "fishing_skill": null,
+    "name": "Razorfen Downs",
+    "uimap": 100722,
+    "wh_id": 722
+  },
+  "796": {
+    "category": 2,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 150,
+    "name": "Scarlet Monastery",
+    "uimap": 100796,
+    "wh_id": 796
+  },
+  "8": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 225,
+    "name": "Swamp of Sorrows",
+    "uimap": 1435,
+    "wh_id": 8
+  },
+  "85": {
+    "category": 0,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": 25,
+    "name": "Tirisfal Glades",
+    "uimap": 1420,
+    "wh_id": 85
+  }
+}

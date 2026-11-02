@@ -12,49 +12,27 @@ Usage:
 """
 
 import argparse
-import glob
-import gzip
 import json
 import os
 import re
-import subprocess
 import sys
 import time
-import urllib.parse
-import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-TARGET_FILE = os.path.join(REPO_ROOT, "data", "dj_camelot.lua")
-CACHE_FILE = os.path.join(REPO_ROOT, "data", "dj_droprates.json")
-QUEST_CACHE_FILE = os.path.join(REPO_ROOT, "data", "dj_questrewards.json")
-WOWHEAD_QUESTS_CACHE = os.path.join(REPO_ROOT, "data", "dj_wowhead_quests.json")
+from sync_core import (
+    DATA_DIR,
+    REPO_ROOT,
+    extract_listview_data,
+    fetch_url,
+    load_forever_zones,
+    write_lua_atomically,
+)
+
+TARGET_FILE = os.path.join(DATA_DIR, "dj_camelot.lua")
+CACHE_FILE = os.path.join(DATA_DIR, "dj_droprates.json")
+QUEST_CACHE_FILE = os.path.join(DATA_DIR, "dj_questrewards.json")
+WOWHEAD_QUESTS_CACHE = os.path.join(DATA_DIR, "dj_wowhead_quests.json")
 WOWHEAD_GUIDE_URL = "https://www.wowhead.com/forever/guide/dungeons/every-dungeon-quest-location"
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate",
-}
-
-def fetch_url(url: str, timeout: int = 10, max_retries: int = 2) -> str:
-    req = urllib.request.Request(url, headers=HEADERS)
-    for attempt in range(max_retries):
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                raw = resp.read()
-                enc = resp.info().get("Content-Encoding", "").lower()
-                if "gzip" in enc or (len(raw) >= 2 and raw[:2] == b"\x1f\x8b"):
-                    try:
-                        raw = gzip.decompress(raw)
-                    except Exception:
-                        pass
-                return raw.decode("utf-8", errors="ignore")
-        except Exception:
-            if attempt < max_retries - 1:
-                time.sleep(0.5)
-    return ""
 
 # Normalization & Aliasing
 def norm_name(s: str) -> str:
@@ -308,52 +286,44 @@ def fetch_npc_droprates(npc_id: int) -> tuple:
         if not html:
             continue
 
-        idx = html.find("id: 'drops'")
-        if idx == -1: idx = html.find('id: "drops"')
-        if idx == -1: idx = html.find("id: 'drops-normal'")
-        if idx == -1: idx = html.find("'drops'")
-        if idx == -1: idx = html.find('"drops"')
-        if idx == -1: continue
+        _, items = extract_listview_data(html, ("drops", "drops-normal"))
+        if not items:
+            continue
 
-        data_idx = html.find("data:[", idx)
-        if data_idx == -1: data_idx = html.find("data: [", idx)
-        if data_idx == -1: continue
-
-        start = html.find("[", data_idx)
-        brace_count = 0
-        end = start
-        for i in range(start, len(html)):
-            if html[i] == "[": brace_count += 1
-            elif html[i] == "]":
-                brace_count -= 1
-                if brace_count == 0:
-                    end = i + 1
-                    break
-        try:
-            items = json.loads(html[start:end])
-            rates = {}
-            for it in items:
-                cnt = it.get("count", 0)
-                outof = it.get("outof", 1)
-                if outof > 0 and cnt > 0:
-                    pct = round(cnt / outof * 100, 1)
-                    rates[str(it["id"])] = pct
-            if rates:
-                return npc_id, rates
-        except Exception:
-            pass
+        rates = {}
+        custom_equip = []
+        is_forever_endpoint = "/forever/" in base_url
+        for it in items:
+            iid = int(it.get("id", 0))
+            if not iid:
+                continue
+            cnt = it.get("count", 0)
+            outof = it.get("outof", 1)
+            if outof > 0 and cnt > 0:
+                pct = round(cnt / outof * 100, 1)
+                rates[str(iid)] = pct
+                # Auto-discover custom Forever boss equipment drops (id >= 250000, weapons/armor, quality >= 2, drop rate >= 5%)
+                if is_forever_endpoint and iid >= 250000 and it.get("classs") in (2, 4) and it.get("quality", 0) >= 2 and pct >= 5.0:
+                    custom_equip.append(iid)
+        if rates:
+            if custom_equip:
+                rates["_custom_equip"] = custom_equip
+            return npc_id, rates
     return npc_id, {}
 
 def get_or_fetch_droprates(npc_ids: list, refresh: bool = False) -> dict:
     rates_db = {}
-    if os.path.exists(CACHE_FILE) and not refresh:
+    if os.path.exists(CACHE_FILE):
         try:
             with open(CACHE_FILE, "r", encoding="utf-8") as f:
                 rates_db = json.load(f)
         except Exception:
             rates_db = {}
 
-    missing_npcs = [nid for nid in npc_ids if str(nid) not in rates_db]
+    if not refresh and rates_db:
+        return rates_db
+
+    missing_npcs = npc_ids if refresh else [nid for nid in npc_ids if str(nid) not in rates_db]
     if missing_npcs:
         print(f"Fetching drop rates for {len(missing_npcs)} boss NPCs from Wowhead...")
         t0 = time.time()
@@ -374,10 +344,13 @@ def get_or_fetch_droprates(npc_ids: list, refresh: bool = False) -> dict:
 def fetch_quest_rewards(qid: int) -> tuple:
     """
     Fetches quest rewards (reward item IDs, formatted money string) for a given quest ID.
-    Tries Wowhead Forever, Wowhead Classic, and falls back to classicdb.ch if Wowhead fails.
+    Tries Wowhead Forever, Wowhead Classic (for qid < 90000), and falls back to classicdb.ch if Wowhead fails.
     """
-    # 1. Try Wowhead Forever and Classic
-    for base_url in ["https://www.wowhead.com/forever/quest=", "https://www.wowhead.com/classic/quest="]:
+    # 1. Try Wowhead Forever (and Classic only for non-Forever quests)
+    base_urls = ["https://www.wowhead.com/forever/quest="]
+    if qid < 90000:
+        base_urls.append("https://www.wowhead.com/classic/quest=")
+    for base_url in base_urls:
         url = f"{base_url}{qid}"
         html = fetch_url(url, timeout=8)
         if not html:
@@ -488,6 +461,7 @@ def update_dj_camelot(boss_item_map: dict, boss_npcs: dict, rates_db: dict, ques
     with open(TARGET_FILE, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
+    in_raids = False
     in_bosses = False
     in_quests = False
     current_boss = None
@@ -500,8 +474,13 @@ def update_dj_camelot(boss_item_map: dict, boss_npcs: dict, rates_db: dict, ques
 
     for line in lines:
         if "sfui.dj_camelot.raids = {" in line:
+            in_raids = True
             in_bosses = False
             in_quests = False
+
+        if in_raids:
+            updated_lines.append(line)
+            continue
 
         if "bosses = {" in line:
             in_bosses = True
@@ -545,13 +524,19 @@ def update_dj_camelot(boss_item_map: dict, boss_npcs: dict, rates_db: dict, ques
 
                 # Determine item IDs
                 if nb in boss_item_map and boss_item_map[nb]:
-                    item_ids = boss_item_map[nb]
+                    item_ids = list(boss_item_map[nb])
                 else:
                     m_items = re.search(r"items\s*=\s*\{([^}]*)\}", line)
                     if m_items:
                         item_ids = [int(x.strip()) for x in m_items.group(1).split(",") if x.strip().isdigit()]
                     else:
                         item_ids = []
+
+                npc_key = str(current_npc) if current_npc else ""
+                known_rates = rates_db.get(npc_key, {}) if isinstance(rates_db.get(npc_key), dict) else {}
+                for ce_id in known_rates.get("_custom_equip", []):
+                    if ce_id not in item_ids:
+                        item_ids.append(ce_id)
 
                 if item_ids:
                     new_items_str = "items = { " + ", ".join(str(x) for x in item_ids) + " }"
@@ -565,16 +550,14 @@ def update_dj_camelot(boss_item_map: dict, boss_npcs: dict, rates_db: dict, ques
 
                 # Calculate drop rates
                 if item_ids:
-                    npc_key = str(current_npc) if current_npc else ""
-                    known_rates = rates_db.get(npc_key, {})
-
                     final_rates = {}
                     known_sum = 0
                     missing = []
                     for iid in item_ids:
                         iid_str = str(iid)
-                        if iid_str in known_rates and known_rates[iid_str] > 0:
-                            r = round(known_rates[iid_str])
+                        val = known_rates.get(iid_str, 0)
+                        if isinstance(val, (int, float)) and val > 0:
+                            r = round(val)
                             if r == 0: r = 1
                             final_rates[iid] = r
                             known_sum += r
@@ -671,28 +654,284 @@ def update_dj_camelot(boss_item_map: dict, boss_npcs: dict, rates_db: dict, ques
             print(f"      Old: {old_s}")
             print(f"      New: {new_s}")
 
-    if dry_run:
-        print("\n[Dry Run] No files modified.")
-        return
+    changed = write_lua_atomically(TARGET_FILE, "".join(updated_lines), dry_run=dry_run)
+    if not dry_run:
+        if changed:
+            print(f"Successfully updated {TARGET_FILE} with loot items, drop rates, and quest rewards.")
+        else:
+            print(f"No changes in {TARGET_FILE} (already up to date).")
 
-    # Write to temp file and verify syntax before committing
-    tmp_target = TARGET_FILE + ".tmp"
-    with open(tmp_target, "w", encoding="utf-8") as f:
-        f.writelines(updated_lines)
 
-    check = subprocess.run(["luac", "-p", tmp_target], capture_output=True, text=True)
-    if check.returncode != 0:
-        os.remove(tmp_target)
-        print(f"Error: Generated Lua has syntax errors:\n{check.stderr}", file=sys.stderr)
-        sys.exit(1)
+def discover_new_forever_dungeons(lua_text: str, refresh: bool = False, verbose: bool = False, forever_zones: dict = None) -> list[str]:
+    """
+    Checks `load_forever_zones()` for any newly added custom Forever dungeons/raids (`wh_id >= 15000`, `category in (2, 3)`)
+    that are not yet present in `data/dj_camelot.lua`. When `refresh=True`, scrapes `/forever/zone=<wh_id>` (plus any
+    alternate zone IDs and linked Wowhead Dungeon Overview Guides) for bosses (`npcs` with custom equipment drops)
+    and Forever quests (`id >= 90000`) and emits ready-to-insert Lua blocks.
+    """
+    if not refresh:
+        return []
 
-    import filecmp
-    if os.path.exists(TARGET_FILE) and filecmp.cmp(tmp_target, TARGET_FILE, shallow=False):
-        os.remove(tmp_target)
-        print(f"No changes in {TARGET_FILE} (already up to date).")
-    else:
-        os.replace(tmp_target, TARGET_FILE)
-        print(f"Successfully updated {TARGET_FILE} with loot items, drop rates, and quest rewards.")
+    existing_norm = set()
+    for m in re.finditer(r'id\s*=\s*"([^"]+)",\s*\n\s*name\s*=\s*"([^"]+)"', lua_text):
+        existing_norm.add(norm_name(m.group(1)))
+        existing_norm.add(norm_name(m.group(2)))
+        existing_norm.add(norm_name(m.group(2).replace("The ", "")))
+
+    if forever_zones is None:
+        forever_zones = load_forever_zones(refresh=False, verbose=verbose)
+    guide_quests_db = get_or_fetch_wowhead_guide(refresh=False)
+    new_blocks = []
+
+    for str_zid, zinfo in sorted(forever_zones.items(), key=lambda x: int(x[0])):
+        wh_id = int(zinfo.get("wh_id") or 0)
+        cat = zinfo.get("category")
+        zname = (zinfo.get("name") or "").strip()
+        if wh_id < 15000 or cat not in (2, 3) or not zname:
+            continue
+
+        znorm = norm_name(zname)
+        znorm_short = norm_name(re.sub(r"^the\s+", "", zname, flags=re.I))
+        if znorm in existing_norm or znorm_short in existing_norm:
+            continue
+
+        all_wh_ids = [wh_id] + [int(x) for x in (zinfo.get("alt_wh_ids") or []) if int(x) != wh_id]
+        npcs_by_id = {}
+        quests_by_id = {}
+        guide_urls = []
+
+        for zid in all_wh_ids:
+            html = fetch_url(f"https://www.wowhead.com/forever/zone={zid}", timeout=10)
+            if not html:
+                continue
+            _, z_npcs = extract_listview_data(html, "npcs")
+            for n in z_npcs:
+                nid = int(n.get("id") or 0)
+                if nid >= 240000 and (n.get("boss") or n.get("classification") in (1, 2, 3)):
+                    npcs_by_id[nid] = n
+            _, z_quests = extract_listview_data(html, "quests")
+            for q in z_quests:
+                qid = int(q.get("id") or 0)
+                if qid >= 90000 and (q.get("_type") == 1 or q.get("category") in all_wh_ids):
+                    quests_by_id[qid] = q
+            _, z_guides = extract_listview_data(html, "guides")
+            for g in z_guides:
+                gurl = g.get("url")
+                if gurl and gurl not in guide_urls:
+                    guide_urls.append(gurl)
+
+        guide_boss_loot = []
+        for gurl in guide_urls[:2]:
+            if gurl.startswith("/"):
+                gurl = "https://www.wowhead.com" + gurl
+            g_html = fetch_url(gurl, timeout=10)
+            if not g_html:
+                continue
+            for m_gnpcs in re.finditer(r"WH\.Gatherer\.addData\(1,\s*16,\s*(\{.*?\})\);", g_html):
+                try:
+                    g_npcs_dict = json.loads(m_gnpcs.group(1))
+                    for k_str, v_info in g_npcs_dict.items():
+                        nid = int(k_str)
+                        if nid >= 240000 and nid not in npcs_by_id:
+                            npcs_by_id[nid] = {"id": nid, "name": v_info.get("name_enus") or f"Boss {nid}", "classification": 1}
+                except Exception:
+                    pass
+            # Extract boss loot tabs from the official guide (e.g. [tab name="Boss Name"]...[item=273036]...[/tab])
+            for tname, tbody in re.findall(r'\[tab name=\\"([^\\"]+)\\"\](.*?)\[\\/tab\]', g_html, re.DOTALL):
+                if "quest" in tname.lower():
+                    continue
+                t_items = list(dict.fromkeys([int(x) for x in re.findall(r"\[item=(\d+)\]", tbody) if int(x) >= 240000]))
+                if len(t_items) >= 2:
+                    guide_boss_loot.append((tname.strip(), t_items))
+
+        npcs_by_norm_name = {norm_name(n.get("name") or ""): nid for nid, n in npcs_by_id.items() if n.get("name")}
+        if guide_boss_loot:
+            candidate_ids = sorted({
+                npcs_by_norm_name[norm_name(bname_raw)]
+                for bname_raw, _ in guide_boss_loot
+                if norm_name(bname_raw) in npcs_by_norm_name
+            })
+        else:
+            candidate_ids = sorted(npcs_by_id.keys())
+
+        rates_db = get_or_fetch_droprates([], refresh=False)
+        fetched_rates = {}
+        missing_cands = [bid for bid in candidate_ids if str(bid) not in rates_db]
+        for bid in candidate_ids:
+            if str(bid) in rates_db:
+                fetched_rates[bid] = rates_db[str(bid)]
+        if missing_cands:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                for bid, r in pool.map(fetch_npc_droprates, missing_cands):
+                    fetched_rates[bid] = r
+                    if r:
+                        rates_db[str(bid)] = r
+
+        boss_entries = []
+        seen_boss_ids = set()
+
+        # 1. Add bosses from official guide Loot tabs (preserves exact dungeon encounter order & guide loot tables)
+        for bname_raw, g_items in guide_boss_loot:
+            bid = npcs_by_norm_name.get(norm_name(bname_raw), 0)
+            if bid:
+                seen_boss_ids.add(bid)
+            b_info = npcs_by_id.get(bid, {})
+            b_rates = fetched_rates.get(bid, {}) if isinstance(fetched_rates.get(bid), dict) else {}
+            merged_items = list(g_items)
+            for ce_id in b_rates.get("_custom_equip", []):
+                if ce_id not in merged_items:
+                    merged_items.append(ce_id)
+            even_share = max(1, round(100 / max(1, len(merged_items))))
+            bname_esc = bname_raw.replace('"', '\\"')
+            blvl = str(b_info.get("maxlevel") or b_info.get("minlevel") or zinfo.get("maxlevel") or "??")
+            items_str = ", ".join(str(i) for i in merged_items)
+            rates_str = ", ".join(f"[{i}] = {max(1, round(b_rates.get(str(i), even_share)))}" for i in merged_items)
+            boss_entries.append(
+                f'            {{ name = "{bname_esc}", displayId = 0, npcID = {bid or "nil"}, level = "{blvl}",\n'
+                f'              items = {{ {items_str} }}, dropRates = {{ {rates_str} }} }},'
+            )
+
+        # 2. Add any remaining bosses discovered via crowdsourced custom equipment drops on /forever/zone=<id>
+        for bid in candidate_ids:
+            if bid in seen_boss_ids:
+                continue
+            b = npcs_by_id[bid]
+            b_rates = fetched_rates.get(bid, {})
+            ce = b_rates.get("_custom_equip", []) if isinstance(b_rates, dict) else []
+            if len(ce) >= 2 or (b.get("boss") and len(ce) >= 1):
+                bname = (b.get("name") or f"Boss {bid}").replace('"', '\\"')
+                blvl = str(b.get("maxlevel") or b.get("minlevel") or "??")
+                items_str = ", ".join(str(i) for i in ce)
+                rates_str = ", ".join(f"[{i}] = {max(1, round(b_rates.get(str(i), 25)))}" for i in ce)
+                boss_entries.append(
+                    f'            {{ name = "{bname}", displayId = 0, npcID = {bid}, level = "{blvl}",\n'
+                    f'              items = {{ {items_str} }}, dropRates = {{ {rates_str} }} }},'
+                )
+
+        forever_quests = list(quests_by_id.values())
+        if not boss_entries and not forever_quests:
+            continue
+
+        qlvls = sorted([int(q.get("level") or q.get("reqlevel") or 0) for q in forever_quests if int(q.get("level") or q.get("reqlevel") or 0) > 0])
+        min_l = int(zinfo.get("minlevel") or 0)
+        max_l = int(zinfo.get("maxlevel") or 0)
+        if (min_l == 0 or max_l == 0) and qlvls:
+            min_l = max(1, min(qlvls) - 3)
+            max_l = max(qlvls) + 2
+        if min_l == 0:
+            min_l = 1
+        if max_l == 0:
+            max_l = 60
+
+        slug = re.sub(r"[^a-z0-9]+", "_", re.sub(r"^the\s+", "", zname.lower())).strip("_")
+        lvl_str = f"{min_l} - {max_l}" if min_l > 0 and max_l > 0 else "60"
+
+        seen_quest_keys = set()
+        quest_entries = []
+        for q in sorted(forever_quests, key=lambda x: int(x["id"])):
+            qid = int(q["id"])
+            qname = (q.get("name") or f"Quest {qid}").replace('"', '\\"')
+            side_code = q.get("side")
+            faction = "Alliance" if side_code == 1 else ("Horde" if side_code == 2 else "Both")
+            q_dedup_key = (qname.lower(), faction)
+            if q_dedup_key in seen_quest_keys:
+                continue
+            seen_quest_keys.add(q_dedup_key)
+
+            qlvl = int(q.get("level") or q.get("reqlevel") or max_l or 60)
+            qmin = int(q.get("reqlevel") or min_l or 1)
+
+            r_items = []
+            for pair in (q.get("itemchoices") or []) + (q.get("itemrewards") or []):
+                if isinstance(pair, list) and pair and int(pair[0]) >= 240000 and int(pair[0]) not in r_items:
+                    r_items.append(int(pair[0]))
+
+            r_money = ""
+            money_c = int(q.get("money") or 0)
+            if money_c > 0:
+                g_c, s_c, c_c = money_c // 10000, (money_c % 10000) // 100, money_c % 100
+                m_parts = []
+                if g_c > 0: m_parts.append(f"{g_c}g")
+                if s_c > 0: m_parts.append(f"{s_c}s")
+                if c_c > 0: m_parts.append(f"{c_c}c")
+                r_money = " ".join(m_parts)
+
+            gq = guide_quests_db.get(str(qid), {})
+            pickup_str = gq.get("npc_name") or zname
+            if gq.get("zone") and gq["zone"] not in pickup_str:
+                pickup_str = f"{pickup_str}, {gq['zone']}" if gq.get("npc_name") else gq["zone"]
+            pickup_str = pickup_str.replace('"', '\\"')
+
+            r_items_str = "{ " + ", ".join(str(x) for x in r_items) + " }" if r_items else "{}"
+            quest_entries.append(
+                f'            {{ id = {qid}, name = "{qname}", level = {qlvl}, minLevel = {qmin}, faction = "{faction}",\n'
+                f'              pickup = "{pickup_str}", turnin = "{pickup_str}", pickedUpInDungeon = false, shareable = true,\n'
+                f'              objective = "Complete {qname} in {zname}.",\n'
+                f'              rewardItems = {r_items_str}, rewardSummary = "{r_money}" }},'
+            )
+
+        block = (
+            f"    {{\n"
+            f'        id       = "{slug}",\n'
+            f'        name     = "{zname}",\n'
+            f'        level    = "{lvl_str}",\n'
+            f"        minLevel = {min_l},\n"
+            f"        maxLevel = {max_l},\n"
+            f'        zone     = "{zname}",\n'
+            f"        icon     = 134400,\n"
+            f'        iconStr  = "Interface\\\\Icons\\\\INV_Misc_QuestionMark",\n'
+            f'        category = "camelot",\n'
+            f"        bosses = {{\n"
+            + ("\n".join(boss_entries) + "\n" if boss_entries else "")
+            + f"        }},\n"
+            f"        quests = {{\n"
+            + ("\n".join(quest_entries) + "\n" if quest_entries else "")
+            + f"        }},\n"
+            f"    }},\n\n"
+        )
+        new_blocks.append(block)
+        existing_norm.add(znorm)
+        existing_norm.add(znorm_short)
+        print(f"  [Auto-Discovered Forever Instance] {zname} (wh_id={wh_id}, {len(boss_entries)} bosses, {len(quest_entries)} quests)")
+
+    return new_blocks
+
+
+def sync_dj(
+    refresh_rates: bool = False,
+    refresh_quests: bool = False,
+    refresh_guide: bool = False,
+    check_guide: bool = False,
+    dry_run: bool = False,
+    verbose: bool = False,
+):
+    if check_guide or refresh_guide:
+        audit_against_wowhead_guide(verbose=verbose, refresh=refresh_guide)
+        if not refresh_rates and not refresh_quests and not dry_run:
+            return
+
+    if refresh_rates and os.path.isfile(TARGET_FILE):
+        with open(TARGET_FILE, "r", encoding="utf-8") as f:
+            raw_lua = f.read()
+        new_dungeon_blocks = discover_new_forever_dungeons(raw_lua, refresh=True, verbose=verbose)
+        if new_dungeon_blocks and not dry_run:
+            marker = "-- ─── 2. Classic Dungeons"
+            if marker in raw_lua:
+                raw_lua = raw_lua.replace(marker, "".join(new_dungeon_blocks) + "    " + marker, 1)
+                write_lua_atomically(TARGET_FILE, raw_lua, dry_run=False)
+
+    boss_map, boss_npcs, unique_qids = load_base_data_from_lua(TARGET_FILE)
+    print(f"Loaded {len(boss_map)} boss loot tables and {len(boss_npcs)} NPC IDs directly from {os.path.relpath(TARGET_FILE, REPO_ROOT)}.")
+
+    unique_npcs = list(set(boss_npcs.values()))
+    rates_db = get_or_fetch_droprates(unique_npcs, refresh=refresh_rates)
+    print(f"Loaded drop rates for {len(rates_db)} bosses.")
+
+    quest_rewards_db = get_or_fetch_quest_rewards(unique_qids, {}, refresh=refresh_quests)
+    print(f"Loaded quest rewards for {len(quest_rewards_db)} quests.")
+
+    update_dj_camelot(boss_map, boss_npcs, rates_db, quest_rewards_db, dry_run=dry_run, verbose=verbose)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Synchronize Dungeon Journal drop tables, drop rates, and quest rewards.")
@@ -717,25 +956,15 @@ def main():
         args.refresh_quests = True
         args.refresh_guide = True
 
-    if args.check_guide or args.refresh_guide:
-        audit_against_wowhead_guide(verbose=args.verbose, refresh=args.refresh_guide)
-        if not args.refresh_rates and not args.refresh_quests and not args.refresh_all and not args.dry_run:
-            sys.exit(0)
+    sync_dj(
+        refresh_rates=args.refresh_rates,
+        refresh_quests=args.refresh_quests,
+        refresh_guide=args.refresh_guide,
+        check_guide=args.check_guide,
+        dry_run=args.dry_run,
+        verbose=args.verbose,
+    )
 
-    # 1. Load baseline data directly from SFUI data/dj_camelot.lua (self-contained)
-    boss_map, boss_npcs, unique_qids = load_base_data_from_lua(TARGET_FILE)
-    print(f"Loaded {len(boss_map)} boss loot tables and {len(boss_npcs)} NPC IDs directly from {os.path.relpath(TARGET_FILE, REPO_ROOT)}.")
-
-    # 2. Drop rates (from repo cache data/dj_droprates.json or Wowhead)
-    unique_npcs = list(set(boss_npcs.values()))
-    rates_db = get_or_fetch_droprates(unique_npcs, refresh=args.refresh_rates)
-    print(f"Loaded drop rates for {len(rates_db)} bosses.")
-
-    # 3. Quest rewards (from repo cache data/dj_questrewards.json or Wowhead)
-    quest_rewards_db = get_or_fetch_quest_rewards(unique_qids, {}, refresh=args.refresh_quests)
-    print(f"Loaded quest rewards for {len(quest_rewards_db)} quests.")
-
-    update_dj_camelot(boss_map, boss_npcs, rates_db, quest_rewards_db, dry_run=args.dry_run, verbose=args.verbose)
 
 if __name__ == "__main__":
     main()

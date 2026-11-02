@@ -4,12 +4,12 @@
       {
         "id": 818,
         "name": "Basic Campfire",
-        "learnedat": 0,
+        "learnedat": 25,
         "colors": [
           0,
-          0,
-          0,
-          0
+          25,
+          50,
+          75
         ],
         "reagents": [
           [
@@ -21,7 +21,7 @@
       {
         "id": 2538,
         "name": "Charred Wolf Meat",
-        "learnedat": 0,
+        "learnedat": 45,
         "colors": [
           0,
           45,
@@ -73,7 +73,7 @@
       {
         "id": 2540,
         "name": "Roasted Boar Meat",
-        "learnedat": 0,
+        "learnedat": 45,
         "colors": [
           0,
           45,
@@ -1387,9 +1387,9 @@
       {
         "id": 13028,
         "name": "Goldthorn Tea",
-        "learnedat": 175,
+        "learnedat": 215,
         "colors": [
-          175,
+          0,
           215,
           235,
           255
@@ -2272,9 +2272,9 @@
       {
         "id": 24801,
         "name": "Smoked Desert Dumplings",
-        "learnedat": 285,
+        "learnedat": 325,
         "colors": [
-          285,
+          0,
           325,
           345,
           365
@@ -2383,60 +2383,6 @@
           ],
           [
             2692,
-            1
-          ]
-        ],
-        "source": [
-          5
-        ]
-      },
-      {
-        "id": 470359,
-        "name": "Darkclaw Bisque",
-        "learnedat": 300,
-        "colors": [
-          300,
-          325,
-          345,
-          365
-        ],
-        "creates": [
-          232436,
-          1,
-          1
-        ],
-        "reagents": [
-          [
-            13888,
-            1
-          ],
-          [
-            227813,
-            1
-          ]
-        ],
-        "source": [
-          5
-        ]
-      },
-      {
-        "id": 470370,
-        "name": "Smoked Redgill",
-        "learnedat": 300,
-        "colors": [
-          300,
-          325,
-          345,
-          365
-        ],
-        "creates": [
-          232438,
-          1,
-          1
-        ],
-        "reagents": [
-          [
-            13758,
             1
           ]
         ],
@@ -3367,6 +3313,7 @@
           ]
         ],
         "source": [
+          2,
           4
         ]
       },
@@ -3559,7 +3506,8 @@
           ]
         ],
         "source": [
-          2
+          2,
+          5
         ]
       },
       {
@@ -3691,7 +3639,8 @@
           ]
         ],
         "source": [
-          2
+          2,
+          5
         ]
       },
       {
@@ -3741,6 +3690,9 @@
             3713,
             1
           ]
+        ],
+        "source": [
+          5
         ]
       },
       {
@@ -4386,6 +4338,11 @@
         "name": "Recipe: Savory Deviate Delight",
         "source": [
           2
+        ],
+        "sourcemore": [
+          {
+            "z": 17
+          }
         ]
       },
       {
@@ -4705,6 +4662,7 @@
         "sourcemore": [
           {
             "bd": 1,
+            "dd": -1,
             "n": "Pusillin",
             "t": 1,
             "ti": 14354,
@@ -4755,30 +4713,6 @@
         "name": "Recipe: Sagefish Delight",
         "source": [
           5
-        ]
-      },
-      {
-        "id": 232437,
-        "name": "Recipe: Darkclaw Bisque",
-        "source": [
-          5
-        ],
-        "sourcemore": [
-          {
-            "z": 1377
-          }
-        ]
-      },
-      {
-        "id": 232443,
-        "name": "Recipe: Smoked Redgill",
-        "source": [
-          5
-        ],
-        "sourcemore": [
-          {
-            "z": 1377
-          }
         ]
       },
       {
@@ -4867,42 +4801,144 @@
         "name": "Recipe: Venomous Smoothie",
         "source": [
           5
-        ]
+        ],
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248198,
+            "n": "Aza'bek",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256731,
+            "n": "Kalsey Sanden",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 249886,
         "name": "Recipe: Slimy Smoothie",
         "source": [
           5
-        ]
+        ],
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248198,
+            "n": "Aza'bek",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256731,
+            "n": "Kalsey Sanden",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 249887,
         "name": "Recipe: Mrrggl Smrrthle",
         "source": [
           5
-        ]
+        ],
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248198,
+            "n": "Aza'bek",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256731,
+            "n": "Kalsey Sanden",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 249888,
         "name": "Recipe: Calcified Smoothie",
         "source": [
           5
-        ]
+        ],
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248198,
+            "n": "Aza'bek",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256731,
+            "n": "Kalsey Sanden",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 249889,
         "name": "Recipe: Spicy Smoothie",
         "source": [
           5
-        ]
+        ],
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248198,
+            "n": "Aza'bek",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256731,
+            "n": "Kalsey Sanden",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 249890,
         "name": "Recipe: Wicked Smoothie",
         "source": [
           5
-        ]
+        ],
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248198,
+            "n": "Aza'bek",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256731,
+            "n": "Kalsey Sanden",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250173,
@@ -4966,9 +5002,16 @@
         "id": 250185,
         "name": "Recipe: Twice-Spiced Raptor Slice",
         "source": [
+          2,
           4
         ],
         "sourcemore": [
+          {
+            "n": "Young Stranglethorn Raptor",
+            "t": 1,
+            "ti": 855,
+            "z": 33
+          },
           {
             "c": 16732,
             "c2": 2,
@@ -4987,7 +5030,24 @@
         "name": "Recipe: Tasty Raptor Bites",
         "source": [
           2
-        ]
+        ],
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 1020,
+            "n": "Mottled Raptor",
+            "st": "drop",
+            "z": 11
+          },
+          {
+            "t": 1,
+            "ti": 3255,
+            "n": "Sunscale Screecher",
+            "st": "drop",
+            "z": 17
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250188,
@@ -5013,7 +5073,8 @@
         "name": "Recipe: Savory Whimsyfin Delight",
         "source": [
           2
-        ]
+        ],
+        "sm_checked": true
       },
       {
         "id": 263511,
@@ -5090,7 +5151,18 @@
       },
       {
         "id": 274415,
-        "name": "Recipe: Sweetpaw Jam"
+        "name": "Recipe: Sweetpaw Jam",
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Dala Fairmaw",
+            "t": 1,
+            "ti": 256629,
+            "z": 616
+          }
+        ]
       },
       {
         "id": 274972,
@@ -5116,7 +5188,7 @@
         "name": "Recipe: Plated Armorfish"
       }
     ],
-    "fetched_at": 1791660692
+    "fetched_at": 1793582898
   },
   "first-aid": {
     "spells": [

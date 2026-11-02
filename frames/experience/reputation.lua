@@ -240,7 +240,7 @@ function repModule.UpdateLayout()
     if not expBar then return end
 
     local width = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "width", cfg.width or 460)) or 460
-    local repHeight = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repHeight", cfg.repHeight or 12)) or 12
+    local repHeight = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repHeight", cfg.repHeight or 8)) or 8
     local repOnTop = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "repOnTop", cfg.repOnTop ~= false))
     if repOnTop == nil then repOnTop = true end
 

@@ -384,14 +384,14 @@ sfui.options.RegisterTab({
         width_slider:SetPoint("TOPLEFT", dim_header, "BOTTOMLEFT", 0, -10)
 
         local height_slider = registerSlider(create_slider_input(exp_panel, "xp bar height (pixels)", function()
-            return sfui.db.Get("experience", "height", 14)
+            return sfui.db.Get("experience", "height", 8)
         end, 6, 32, 1, function(val)
             sfui.db.Set("experience", "height", val)
         end, "thickness / height of the experience status bar in pixels.", 250))
         height_slider:SetPoint("TOPLEFT", width_slider, "BOTTOMLEFT", 0, -12)
 
         local rep_height_slider = registerSlider(create_slider_input(exp_panel, "reputation bar height (pixels)", function()
-            return sfui.db.Get("experience", "repHeight", 12)
+            return sfui.db.Get("experience", "repHeight", 8)
         end, 6, 32, 1, function(val)
             sfui.db.Set("experience", "repHeight", val)
         end, "thickness / height of the stacked reputation status bar in pixels.", 250))

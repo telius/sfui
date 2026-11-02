@@ -18,31 +18,28 @@ Usage:
 """
 
 import argparse
-import gzip
 import json
 import os
 import re
 import subprocess
 import sys
 import time
-import urllib.parse
-import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DATA_DIR = os.path.join(REPO_ROOT, "data")
+from sync_core import (
+    DATA_DIR,
+    REPO_ROOT,
+    extract_listview_data,
+    fetch_url,
+    load_forever_zones,
+    parse_relaxed_json,
+)
+
 CACHE_FILE = os.path.join(DATA_DIR, "recipes_wowhead.json")
 NPC_CACHE_FILE = os.path.join(DATA_DIR, "recipes_npcs.json")
 ZONE_CACHE_FILE = os.path.join(DATA_DIR, "recipes_zones.json")
 REP_CACHE_FILE = os.path.join(DATA_DIR, "recipes_rep_cache.json")
 LUA_TARGET = os.path.join(DATA_DIR, "recipes_camelot.lua")
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate",
-}
 
 PROFESSIONS = {
     "cooking":        { "skillID": 185, "type": "secondary", "name": "Cooking" },
@@ -632,43 +629,12 @@ def escape_lua_str(val: str) -> str:
         return ""
     return str(val).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
-def parse_relaxed_json(raw: str):
-    """Parses relaxed JavaScript object literal syntax returned in Wowhead variables."""
-    # Quote unquoted property names: e.g. { id: 123, name: "foo" }
-    fixed = re.sub(r'([,{]\s*)([a-zA-Z0-9_]+)\s*:', r'\1"\2":', raw)
-    # Remove trailing commas before } or ]
-    fixed = re.sub(r',\s*([}\]])', r'\1', fixed)
-    return json.loads(fixed)
-
-def fetch_url(url: str, timeout: int = 12, max_retries: int = 3) -> str:
-    req = urllib.request.Request(url, headers=HEADERS)
-    last_err = None
-    for attempt in range(max_retries):
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                raw = resp.read()
-                # Handle gzip decompression
-                enc = resp.info().get("Content-Encoding", "").lower()
-                if "gzip" in enc or (len(raw) >= 2 and raw[:2] == b"\x1f\x8b"):
-                    try:
-                        raw = gzip.decompress(raw)
-                    except Exception:
-                        pass
-                return raw.decode("utf-8", errors="ignore")
-        except Exception as e:
-            last_err = e
-            if attempt < max_retries - 1:
-                sleep_sec = 1.0 * (2 ** attempt)
-                time.sleep(sleep_sec)
-    print(f"Warning: Failed to fetch {url} after {max_retries} attempts: {last_err}", file=sys.stderr)
-    return ""
-
 def compact_spell(sp: dict) -> dict:
     keep_keys = ("id", "name", "rank", "learnedat", "colors", "creates", "trainingcost", "reagents", "source", "sourcemore")
     return {k: sp[k] for k in keep_keys if k in sp and sp[k] is not None}
 
 def compact_item(it: dict) -> dict:
-    keep_keys = ("id", "name", "source", "sourcemore", "buyprice")
+    keep_keys = ("id", "name", "source", "sourcemore", "buyprice", "sm_checked")
     return {k: it[k] for k in keep_keys if k in it and it[k] is not None}
 
 def fetch_spells_for_profession(prof_slug: str, prof_info: dict) -> list:
@@ -678,9 +644,8 @@ def fetch_spells_for_profession(prof_slug: str, prof_info: dict) -> list:
         html = fetch_url(url)
         if not html:
             return []
-        m = re.search(r"var listviewspells = (\[.*?\]);", html)
-        if m:
-            data = parse_relaxed_json(m.group(1))
+        _, data = extract_listview_data(html, "spells")
+        if data:
             return [compact_spell(sp) for sp in data]
     except Exception as e:
         print(f"Warning: Failed to parse spells for {prof_slug}: {e}", file=sys.stderr)
@@ -692,13 +657,77 @@ def fetch_recipe_items_for_profession(prof_slug: str) -> list:
         html = fetch_url(url)
         if not html:
             return []
-        m = re.search(r"var listviewitems = (\[.*?\]);", html)
-        if m:
-            data = parse_relaxed_json(m.group(1))
+        _, data = extract_listview_data(html, "items")
+        if data:
             return [compact_item(it) for it in data]
     except Exception as e:
         print(f"Warning: Failed to parse recipe items for {prof_slug}: {e}", file=sys.stderr)
     return []
+
+def fetch_item_sourcemore(item_id: int) -> tuple[int, list | None, bool]:
+    """
+    Scrapes /forever/item=<item_id> for multi-vendor, dungeon/zone drop, or quest sources
+    when Wowhead's recipe listview omits `sourcemore` (e.g. recipes sold by 2+ vendors or dropped in new dungeons).
+    """
+    url = f"https://www.wowhead.com/forever/item={item_id}"
+    try:
+        html = fetch_url(url, timeout=8, max_retries=2)
+        if not html:
+            return item_id, None, False
+        sm = []
+        _, sold = extract_listview_data(html, "sold-by")
+        for npc in sold[:4]:
+            nid = npc.get("id")
+            if nid:
+                locs = npc.get("location") or []
+                entry = {"t": 1, "ti": int(nid), "n": npc.get("name", ""), "st": "vendor"}
+                if locs and int(locs[0]) > 0:
+                    entry["z"] = int(locs[0])
+                sm.append(entry)
+
+        _, reward = extract_listview_data(html, "reward-from-q")
+        for q in reward[:4]:
+            qid = q.get("id")
+            if qid:
+                entry = {"t": 5, "ti": int(qid), "n": q.get("name", "")}
+                z = q.get("zone") or q.get("category")
+                if z and int(z) > 0:
+                    entry["z"] = int(z)
+                sm.append(entry)
+
+        _, objs = extract_listview_data(html, "contained-in-object")
+        for obj in objs[:2]:
+            oid = obj.get("id")
+            if oid:
+                locs = obj.get("location") or []
+                entry = {"t": 2, "ti": int(oid), "n": obj.get("name", "")}
+                if locs and int(locs[0]) > 0:
+                    entry["z"] = int(locs[0])
+                sm.append(entry)
+
+        _, dropped = extract_listview_data(html, "dropped-by")
+        if dropped and not sold:
+            if len(dropped) <= 4:
+                for npc in dropped[:4]:
+                    nid = npc.get("id")
+                    if nid:
+                        locs = npc.get("location") or []
+                        entry = {"t": 1, "ti": int(nid), "n": npc.get("name", ""), "st": "drop"}
+                        if locs and int(locs[0]) > 0:
+                            entry["z"] = int(locs[0])
+                        sm.append(entry)
+            else:
+                drop_zones = []
+                for npc in dropped:
+                    for z in (npc.get("location") or []):
+                        if z and int(z) > 0 and int(z) not in drop_zones:
+                            drop_zones.append(int(z))
+                if 1 <= len(drop_zones) <= 2:
+                    for z in drop_zones:
+                        sm.append({"z": z})
+        return item_id, sm, True
+    except Exception:
+        return item_id, None, False
 
 def fetch_npc_location(npc_id: int) -> dict:
     url = f"https://www.wowhead.com/forever/npc={npc_id}"
@@ -722,6 +751,31 @@ def fetch_npc_location(npc_id: int) -> dict:
                             "x": round(c[0] / 100.0, 4),
                             "y": round(c[1] / 100.0, 4),
                         }
+        # Fallback for dungeon / instance NPCs without outdoor g_mapperData coords:
+        m_zone = re.search(r'This NPC can be found in .*?<a href="[^"]*zone=(\d+)"[^>]*>([^<]+)</a>', html, re.I | re.S)
+        if m_zone:
+            return {
+                "npcID": npc_id,
+                "mapID": None,
+                "mapName": m_zone.group(2).strip().lower(),
+                "zoneID": int(m_zone.group(1)),
+                "x": None,
+                "y": None,
+            }
+        m_meta_zone = re.search(r'content="[^"]*?\bcan be found in ([^."]+)\.', html, re.I)
+        m_zid = re.search(r'(?:\bzone\s*:\s*|"location"\s*:\s*\[)(\d+)', html)
+        if m_meta_zone or m_zid:
+            zid_val = int(m_zid.group(1)) if m_zid else None
+            zname_val = m_meta_zone.group(1).strip().lower() if m_meta_zone else (WOWHEAD_ZONES.get(zid_val) if zid_val else None)
+            if zname_val:
+                return {
+                    "npcID": npc_id,
+                    "mapID": None,
+                    "mapName": zname_val,
+                    "zoneID": zid_val,
+                    "x": None,
+                    "y": None,
+                }
         return { "npcID": npc_id, "mapID": None, "mapName": None, "x": None, "y": None, "no_coords": True }
     except Exception:
         return { "npcID": npc_id, "mapID": None, "mapName": None, "x": None, "y": None, "error": True }
@@ -807,8 +861,11 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
         except Exception:
             npc_cache = {}
 
-    # 2.1 Load or initialize Zone cache
+    # 2.1 Load or initialize Zone cache (seeded with shared forever_zones registry)
     zone_cache = {str(k): v for k, v in WOWHEAD_ZONES.items()}
+    for zid_str, zinfo in load_forever_zones(refresh=False).items():
+        if zinfo.get("name"):
+            zone_cache[str(zid_str)] = zinfo["name"].lower()
     if os.path.exists(ZONE_CACHE_FILE):
         try:
             with open(ZONE_CACHE_FILE, "r", encoding="utf-8") as f:
@@ -865,6 +922,16 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
             items = fetch_recipe_items_for_profession(p)
             time.sleep(0.2)
 
+            if items and cached_entry.get("items"):
+                prev_by_id = {it["id"]: it for it in cached_entry["items"] if isinstance(it, dict) and "id" in it}
+                for it in items:
+                    prev = prev_by_id.get(it.get("id"))
+                    if prev:
+                        if not it.get("sourcemore") and prev.get("sourcemore"):
+                            it["sourcemore"] = prev["sourcemore"]
+                        if prev.get("sm_checked"):
+                            it["sm_checked"] = True
+
             if spells or items:
                 raw_cache[p] = {
                     "spells": spells if spells else cached_entry.get("spells", []),
@@ -875,6 +942,27 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
                 print(f"  -> {len(raw_cache[p]['spells'])} spells, {len(raw_cache[p]['items'])} recipe items")
             else:
                 print(f"  Warning: No data returned for {p}; retaining previous cache if available.", file=sys.stderr)
+
+    # 3.5 Enrich custom Forever multi-source / dungeon recipe items missing `sourcemore`
+    if refresh and not dry_run and not check_only:
+        items_to_enrich = {}
+        for p in selected_profs:
+            for it in raw_cache.get(p, {}).get("items", []):
+                iid = int(it.get("id") or 0)
+                srcs = it.get("source") or []
+                if iid >= 249000 and any(s in (2, 4, 5) for s in srcs) and not it.get("sourcemore") and not it.get("sm_checked"):
+                    items_to_enrich[iid] = it
+
+        if items_to_enrich:
+            print(f"Enriching {len(items_to_enrich)} multi-source Forever recipe items from Wowhead...")
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                for iid, sm_list, ok in executor.map(fetch_item_sourcemore, items_to_enrich.keys()):
+                    if ok:
+                        target_it = items_to_enrich[iid]
+                        if sm_list:
+                            target_it["sourcemore"] = sm_list
+                        target_it["sm_checked"] = True
+                        cache_dirty = True
 
     if cache_dirty and not dry_run and not check_only:
         with open(CACHE_FILE, "w", encoding="utf-8") as f:
@@ -1058,7 +1146,7 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
                     if sm_type == 1: # NPC
                         npc_loc = npc_cache.get(str(sm_id), {})
                         z = npc_loc.get("mapName") or zone_name
-                        s_type = "vendor" if (5 in item_sources) else ("drop" if (2 in item_sources) else "trainer")
+                        s_type = sm.get("st") or ("vendor" if (5 in item_sources) else ("drop" if (2 in item_sources) else "trainer"))
                         s_record = {
                             "type": s_type,
                             "name": sm_name.lower(),
