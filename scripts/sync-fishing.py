@@ -94,7 +94,9 @@ WOWHEAD_ZONE_TO_UIMAP = {
     1657:  (1457, "Darnassus"),
     1497:  (1458, "Undercity"),
     2597:  (1459, "Alterac Valley"),
+    616:   (2482, "Mount Hyjal"),
     16593: (2521, "Zephras Isle"),
+    16591: (2548, "Riverglades"),
 }
 
 ZONE_NAMES = {uimap: name for _, (uimap, name) in WOWHEAD_ZONE_TO_UIMAP.items()}
@@ -139,6 +141,7 @@ AUTHORITATIVE_ZONE_SKILL = {
     1441: 225, # Thousand Needles
     1443: 225, # Desolace
     1445: 225, # Dustwallow Marsh
+    2548: 225, # Riverglades (Forever level 36-44 zone)
 
     # Tier 5 (Skill 300): High-level zones
     1419: 300, # Blasted Lands
@@ -158,6 +161,7 @@ AUTHORITATIVE_ZONE_SKILL = {
     1430: 425, # Deadwind Pass
     1451: 425, # Silithus
     1452: 425, # Winterspring
+    2482: 425, # Mount Hyjal (Forever level 60 zone)
 }
 
 # Sub-areas requiring higher skill than the surrounding zone
@@ -165,6 +169,152 @@ ZONE_SKILL_PARTS = {
     1434: {"skill": 300, "area": "jaguero isle"},
     1444: {"skill": 425, "area": "jademir lake"},
     1447: {"skill": 425, "area": "bay of storms / scalebeard"},
+}
+
+# Authoritative Continent Mapping per UiMapID ('eastern_kingdoms' vs 'kalimdor')
+ZONE_CONTINENT = {
+    # Eastern Kingdoms (UiMapID 1415)
+    1416: "eastern_kingdoms",  # Alterac Mountains
+    1417: "eastern_kingdoms",  # Arathi Highlands
+    1418: "eastern_kingdoms",  # Badlands
+    1419: "eastern_kingdoms",  # Blasted Lands
+    1420: "eastern_kingdoms",  # Tirisfal Glades
+    1421: "eastern_kingdoms",  # Silverpine Forest
+    1422: "eastern_kingdoms",  # Western Plaguelands
+    1423: "eastern_kingdoms",  # Eastern Plaguelands
+    1424: "eastern_kingdoms",  # Hillsbrad Foothills
+    1425: "eastern_kingdoms",  # The Hinterlands
+    1426: "eastern_kingdoms",  # Dun Morogh
+    1427: "eastern_kingdoms",  # Searing Gorge
+    1428: "eastern_kingdoms",  # Burning Steppes
+    1429: "eastern_kingdoms",  # Elwynn Forest
+    1430: "eastern_kingdoms",  # Deadwind Pass
+    1431: "eastern_kingdoms",  # Duskwood
+    1432: "eastern_kingdoms",  # Loch Modan
+    1433: "eastern_kingdoms",  # Redridge Mountains
+    1434: "eastern_kingdoms",  # Stranglethorn Vale
+    1435: "eastern_kingdoms",  # Swamp of Sorrows
+    1436: "eastern_kingdoms",  # Westfall
+    1437: "eastern_kingdoms",  # Wetlands
+    1453: "eastern_kingdoms",  # Stormwind City
+    1455: "eastern_kingdoms",  # Ironforge
+    1458: "eastern_kingdoms",  # Undercity
+    1459: "eastern_kingdoms",  # Alterac Valley
+    2548: "eastern_kingdoms",  # Riverglades
+
+    # Kalimdor (UiMapID 1414)
+    1411: "kalimdor",          # Durotar
+    1412: "kalimdor",          # Mulgore
+    1413: "kalimdor",          # The Barrens
+    1438: "kalimdor",          # Teldrassil
+    1439: "kalimdor",          # Darkshore
+    1440: "kalimdor",          # Ashenvale
+    1441: "kalimdor",          # Thousand Needles
+    1442: "kalimdor",          # Stonetalon Mountains
+    1443: "kalimdor",          # Desolace
+    1444: "kalimdor",          # Feralas
+    1445: "kalimdor",          # Dustwallow Marsh
+    1446: "kalimdor",          # Tanaris
+    1447: "kalimdor",          # Azshara
+    1448: "kalimdor",          # Felwood
+    1449: "kalimdor",          # Un'Goro Crater
+    1450: "kalimdor",          # Moonglade
+    1451: "kalimdor",          # Silithus
+    1452: "kalimdor",          # Winterspring
+    1454: "kalimdor",          # Orgrimmar
+    1456: "kalimdor",          # Thunder Bluff
+    1457: "kalimdor",          # Darnassus
+    2482: "kalimdor",          # Mount Hyjal
+    2521: "kalimdor",          # Zephras Isle
+}
+
+# Zones that contain both Coastal (Ocean) and Inland (Lake/River/Oasis) waters
+MIXED_ZONES = [
+    1411,  # Durotar (Southfury River vs Echo Isles / Coast)
+    1413,  # The Barrens (Oases / Southfury River vs Ratchet / Merchant Coast)
+    1417,  # Arathi Highlands (Dalson's / Boulderfist vs Faldir's Cove)
+    1421,  # Silverpine Forest (Lordamere Lake vs Dawning Isles Coast)
+    1424,  # Hillsbrad Foothills (Darrowmere River vs Southshore Coast)
+    1425,  # The Hinterlands (Valorwind Lake vs Revantusk / Overlook Coast)
+    1434,  # Stranglethorn Vale (Lake Nazferiti / River vs Savage Coast / Booty Bay / Jaguero Isle)
+    1435,  # Swamp of Sorrows (Inland Marsh vs Misty Reed Strand)
+    1436,  # Westfall (Inland Streams vs Longshore / Gold Coast)
+    1437,  # Wetlands (Inland Marsh/River vs Menethil Harbor / Coast)
+    1438,  # Teldrassil (Inland Ponds/Wells vs Rut'theran Village)
+    1439,  # Darkshore (Cliffspring River vs Auberdine Coast)
+    1440,  # Ashenvale (Mystral Lake / Falfarren River vs Zoram Strand)
+    1443,  # Desolace (Inland Ponds vs Sar'theris Strand / Shadowprey)
+    1444,  # Feralas (Verdantis River / Jademir Lake vs Feathermoon / Forgotten Coast)
+    1445,  # Dustwallow Marsh (Inland Marsh vs Theramore / Alcaz Coast)
+    1447,  # Azshara (Lake Mennar vs Azshara Coast / Bay of Storms)
+    2521,  # Zephras Isle (Shen'dar / Inland Streams vs Valanaar / Island Coast)
+    2548,  # Riverglades (Meadowsbrook / Turner's Mill River vs Powderfuse Port Coast)
+]
+
+# Authoritative Water Habitat per Species ('coastal' = ocean/saltwater, 'inland' = lake/river/pond, 'oasis' = Barrens oasis)
+SPECIES_HABITAT = {
+    # Coastal / Ocean (Saltwater)
+    4603:  "coastal",  # raw spotted yellowtail
+    6303:  "coastal",  # raw slitherskin mackerel
+    6358:  "coastal",  # oily blackmouth
+    6359:  "coastal",  # firefin snapper
+    6361:  "coastal",  # raw rainbow fin albacore
+    6362:  "coastal",  # raw rockscale cod
+    7973:  "coastal",  # big-mouth clam
+    12238: "coastal",  # darkshore grouper
+    13422: "coastal",  # stonescale eel
+    13754: "coastal",  # raw glossy mightfish
+    13755: "coastal",  # raw winter squid
+    13756: "coastal",  # raw summer bass
+    13876: "coastal",  # 40 pound yellowtail
+    13877: "coastal",  # 47 pound yellowtail
+    13888: "coastal",  # darkclaw lobster
+    13893: "coastal",  # large raw mightfish
+    13907: "coastal",  # 7 pound lobster
+    13908: "coastal",  # 9 pound lobster
+    13909: "coastal",  # 12 pound lobster
+    16968: "coastal",  # sar'theris striker
+    16969: "coastal",  # savage coast blue sailfin
+    16970: "coastal",  # misty reed mahi mahi
+    19807: "coastal",  # speckled tastyfish
+
+    # Barrens Oases / Wailing Caverns
+    6522:  "oasis",    # deviate fish
+
+    # Inland Lakes, Rivers & Ponds (Freshwater)
+    1467:  "inland",   # spotted sunfish
+    6289:  "inland",   # raw longjaw mud snapper
+    6291:  "inland",   # raw brilliant smallfish
+    6292:  "inland",   # 10 pound mud snapper
+    6294:  "inland",   # 12 pound mud snapper
+    6295:  "inland",   # 15 pound mud snapper
+    6299:  "inland",   # sickly looking fish
+    6308:  "inland",   # raw bristle whisker catfish
+    6309:  "inland",   # 17 pound catfish
+    6310:  "inland",   # 19 pound catfish
+    6311:  "inland",   # 22 pound catfish
+    6317:  "inland",   # raw loch frenzy
+    6458:  "inland",   # oil covered fish
+    6643:  "inland",   # bloated brilliant smallfish
+    6717:  "inland",   # gaffer jack
+    6718:  "inland",   # electropeller
+    8365:  "inland",   # raw mithril head trout
+    13757: "inland",   # lightning eel
+    13758: "inland",   # raw redgill
+    13759: "inland",   # raw nightfin snapper
+    13760: "inland",   # raw sunscale salmon
+    13882: "inland",   # 42 pound redgill
+    13885: "inland",   # 34 pound redgill
+    13886: "inland",   # 37 pound redgill
+    13889: "inland",   # raw whitescale salmon
+    13890: "inland",   # raw plated armorfish
+    13901: "inland",   # 15 pound salmon
+    13902: "inland",   # 18 pound salmon
+    16967: "inland",   # feralas ahi
+    19975: "inland",   # zulian mudskunk
+    21071: "inland",   # raw sagefish
+    21153: "inland",   # raw greater sagefish
+    251524: "inland",  # whimsyfin
 }
 
 # Classic Lures
@@ -215,10 +365,31 @@ MILESTONES = [
 
 # Camelot Confirmed Local Overrides (for custom zones without Wowhead Forever fishing telemetry)
 CAMELOT_LOCAL_OVERRIDES = {
+    2482: [
+        {"itemID": 13889, "share": 42.5, "kind": "f", "name": "raw whitescale salmon"},
+        {"itemID": 13759, "share": 21.0, "kind": "f", "name": "raw nightfin snapper"},
+        {"itemID": 13760, "share": 19.5, "kind": "f", "name": "raw sunscale salmon"},
+        {"itemID": 13758, "share": 12.0, "kind": "f", "name": "raw redgill"},
+        {"itemID": 13757, "share": 3.8,  "kind": "f", "name": "lightning eel"},
+        {"itemID": 21150, "share": 1.2,  "kind": "c", "name": "watertight trunk"},
+    ],
     2521: [
-        {"itemID": 6291, "share": 53.6, "kind": "f", "name": "raw brilliant smallfish"},
-        {"itemID": 6289, "share": 46.4, "kind": "f", "name": "raw longjaw mud snapper"},
-    ]
+        {"itemID": 6291,   "share": 43.0, "kind": "f", "name": "raw brilliant smallfish"},
+        {"itemID": 6289,   "share": 37.0, "kind": "f", "name": "raw longjaw mud snapper"},
+        {"itemID": 6303,   "share": 17.5, "kind": "f", "name": "raw slitherskin mackerel"},
+        {"itemID": 251524, "share": 2.5,  "kind": "f", "name": "whimsyfin"},
+    ],
+    2548: [
+        {"itemID": 8365,  "share": 34.0, "kind": "f", "name": "raw mithril head trout"},
+        {"itemID": 4603,  "share": 22.5, "kind": "f", "name": "raw spotted yellowtail"},
+        {"itemID": 6308,  "share": 15.0, "kind": "f", "name": "raw bristle whisker catfish"},
+        {"itemID": 6362,  "share": 12.0, "kind": "f", "name": "raw rockscale cod"},
+        {"itemID": 21153, "share": 7.5,  "kind": "f", "name": "raw greater sagefish"},
+        {"itemID": 6359,  "share": 4.5,  "kind": "f", "name": "firefin snapper"},
+        {"itemID": 6358,  "share": 2.5,  "kind": "f", "name": "oily blackmouth"},
+        {"itemID": 7973,  "share": 1.2,  "kind": "c", "name": "big-mouth clam"},
+        {"itemID": 21228, "share": 0.8,  "kind": "c", "name": "mithril bound trunk"},
+    ],
 }
 
 # Items that come from opening clams/trunks or non-fish pool debris
@@ -249,6 +420,7 @@ SPECIAL_FISH_IDS = {
     13422,  # Stonescale Eel
     13757,  # Lightning Eel
     13890,  # Raw Plated Armorfish
+    251524, # Whimsyfin
 }
 
 
@@ -759,7 +931,7 @@ def generate_lua_database(zone_loot_tables: dict, species_cache: dict, dry_run: 
     lines.append("}")
     lines.append("")
 
-    # ── 3b. Species Fallback Names ───────────────────────────────────────────
+    # ── 3b. Species Fallback Names & Water Habitats ──────────────────────────
     lines.append("-- Authoritative lowercase species names (fallback before client item cache resolves)")
     lines.append("D.SPECIES_NAMES = {")
     for str_iid in sorted(species_cache.keys(), key=lambda x: int(x)):
@@ -767,6 +939,36 @@ def generate_lua_database(zone_loot_tables: dict, species_cache: dict, dry_run: 
         nm = (sp.get("name") or "").replace('"', '\\"')
         if nm:
             lines.append(f'    [{int(str_iid)}] = "{nm}",')
+    lines.append("}")
+    lines.append("")
+
+    lines.append("-- Water habitat classification per species ('coastal' = ocean, 'inland' = lake/river, 'oasis' = Barrens oasis)")
+    lines.append("D.SPECIES_HABITAT = {")
+    for iid in sorted(SPECIES_HABITAT.keys()):
+        lines.append(f'    [{iid}] = "{SPECIES_HABITAT[iid]}",')
+    lines.append("}")
+    lines.append("")
+
+    lines.append("-- Zones containing both coastal (ocean) and inland (lake/river/oasis) waters")
+    lines.append("D.MIXED_ZONES = {")
+    for mid in sorted(MIXED_ZONES):
+        zname = ZONE_NAMES.get(mid, f"Map {mid}")
+        lines.append(f"    [{mid}] = true, -- {zname}")
+    lines.append("}")
+    lines.append("")
+
+    lines.append("-- Authoritative lowercase zone names (fallback when C_Map.GetMapInfo is unavailable)")
+    lines.append("D.ZONE_NAMES = {")
+    for uimap in sorted(ZONE_NAMES.keys()):
+        zname_low = ZONE_NAMES[uimap].lower().replace('"', '\\"')
+        lines.append(f'    [{uimap}] = "{zname_low}",')
+    lines.append("}")
+    lines.append("")
+
+    lines.append("-- Authoritative continent classification per zone ('eastern_kingdoms' vs 'kalimdor')")
+    lines.append("D.ZONE_CONTINENT = {")
+    for uimap in sorted(ZONE_CONTINENT.keys()):
+        lines.append(f'    [{uimap}] = "{ZONE_CONTINENT[uimap]}",')
     lines.append("}")
     lines.append("")
 
@@ -790,6 +992,7 @@ def generate_lua_database(zone_loot_tables: dict, species_cache: dict, dry_run: 
     lines.append("                    item = {")
     lines.append("                        itemID = itemID,")
     lines.append("                        name = D.SPECIES_NAMES[itemID],")
+    lines.append("                        habitat = D.SPECIES_HABITAT[itemID],")
     lines.append("                        kind = kind,")
     lines.append('                        isContainer = (kind == "c"),')
     lines.append("                        zones = {},")
@@ -846,6 +1049,47 @@ def generate_lua_database(zone_loot_tables: dict, species_cache: dict, dry_run: 
     lines.append("    return itemID and D.SPECIES_NAMES[itemID] or nil")
     lines.append("end")
     lines.append("")
+    lines.append("--- Resolves lowercase display text (colored link or plain name) and icon texture for a species")
+    lines.append("--- @param itemID number")
+    lines.append("--- @param preferLink boolean|nil")
+    lines.append("--- @return string displayText, string|number|nil texture, string|nil itemName, string|nil itemLink, number|nil quality")
+    lines.append("function D.GetSpeciesDisplay(itemID, preferLink)")
+    lines.append("    local common = sfui.common")
+    lines.append("    local name, link, quality, _, _, _, _, _, _, texture")
+    lines.append("    if common and common.get_item_info then")
+    lines.append("        name, link, quality, _, _, _, _, _, _, texture = common.get_item_info(itemID)")
+    lines.append("    end")
+    lines.append('    local lowerLink = (preferLink ~= false and link) and link:gsub("%b[]", string.lower) or nil')
+    lines.append('    local lowerName = (name and name:lower()) or (itemID and D.SPECIES_NAMES[itemID]) or ("item:" .. tostring(itemID or 0))')
+    lines.append("    return (lowerLink or lowerName), texture, lowerName, lowerLink, quality")
+    lines.append("end")
+    lines.append("")
+    lines.append("--- Returns the lowercase name for a zone mapID")
+    lines.append("--- @param mapID number")
+    lines.append("--- @return string|nil")
+    lines.append("function D.GetZoneName(mapID)")
+    lines.append("    if not mapID then return nil end")
+    lines.append("    if D.ZONE_NAMES[mapID] then return D.ZONE_NAMES[mapID] end")
+    lines.append("    local name = sfui.common and sfui.common.get_map_name and sfui.common.get_map_name(mapID)")
+    lines.append("    return name and name:lower() or nil")
+    lines.append("end")
+    lines.append("")
+    lines.append("--- Returns the continent key ('eastern_kingdoms' | 'kalimdor') and display label for a zone mapID")
+    lines.append("--- @param mapID number")
+    lines.append("--- @return string continentKey, string continentLabel")
+    lines.append("function D.GetZoneContinent(mapID)")
+    lines.append("    local key = mapID and D.ZONE_CONTINENT[mapID]")
+    lines.append("    if not key and mapID and sfui.common and sfui.common.get_map_info then")
+    lines.append("        local info = sfui.common.get_map_info(mapID)")
+    lines.append("        local parentID = info and info.parentMapID")
+    lines.append('        if parentID == 1414 then key = "kalimdor"')
+    lines.append('        elseif parentID == 1415 then key = "eastern_kingdoms"')
+    lines.append("        end")
+    lines.append("    end")
+    lines.append('    key = key or "eastern_kingdoms"')
+    lines.append('    return key, (key == "kalimdor") and "kalimdor" or "eastern kingdoms"')
+    lines.append("end")
+    lines.append("")
     lines.append("--- Evaluates a milestone tier against the player's current rank, maxRank, and level")
     lines.append("--- @param m table")
     lines.append("--- @param rank number")
@@ -887,12 +1131,93 @@ def generate_lua_database(zone_loot_tables: dict, species_cache: dict, dry_run: 
     lines.append("")
     lines.append("--- Returns the required fishing skill for a given mapID")
     lines.append("--- @param mapID number")
-    lines.append("--- @return number requiredSkill, string|nil subAreaHint")
+    lines.append("--- @return number requiredSkill, table|nil subAreaHint")
     lines.append("function D.GetZoneRequirement(mapID)")
     lines.append("    if not mapID or mapID <= 0 then return nil end")
     lines.append("    local req = D.ZONE_SKILL[mapID]")
     lines.append("    local sub = D.ZONE_SKILL_PARTS[mapID]")
     lines.append("    return req, sub")
+    lines.append("end")
+    lines.append("")
+    lines.append("--- Returns water habitat ('coastal' | 'inland' | 'oasis' | nil) and formatted badge for a species")
+    lines.append("--- @param itemID number")
+    lines.append("--- @param mapID number|nil")
+    lines.append("--- @return string|nil habitat, string|nil badge")
+    lines.append("function D.GetSpeciesHabitat(itemID, mapID)")
+    lines.append("    local hab = itemID and D.SPECIES_HABITAT[itemID]")
+    lines.append("    if not hab then return nil, nil end")
+    lines.append("    if mapID and not D.MIXED_ZONES[mapID] and hab ~= \"oasis\" then")
+    lines.append("        return hab, nil")
+    lines.append("    end")
+    lines.append('    if hab == "coastal" then')
+    lines.append('        return hab, "|cff44bbff[coast]|r"')
+    lines.append('    elseif hab == "oasis" then')
+    lines.append('        return hab, "|cffffcc44[oasis]|r"')
+    lines.append('    elseif hab == "inland" then')
+    lines.append('        return hab, "|cff66dd88[inland]|r"')
+    lines.append("    end")
+    lines.append("    return hab, nil")
+    lines.append("end")
+    lines.append("")
+    lines.append("local COASTAL_KEYWORDS = {")
+    lines.append('    "coast", "strand", "shore", "beach", "bay", "cove", "harbor", "port", "dock",')
+    lines.append('    "anchorage", "isle", "island", "reef", "ratchet", "northwatch", "southshore",')
+    lines.append('    "menethil", "auberdine", "zoram", "booty bay", "theramore", "feathermoon",')
+    lines.append('    "sar\'theris", "shadowprey", "revantusk", "faldir", "rut\'theran", "longshore",')
+    lines.append('    "lighthouse", "sen\'jin", "tiragarde", "sardor", "alcaz", "steamwheedle",')
+    lines.append('    "powderfuse", "valanaar",')
+    lines.append("}")
+    lines.append("")
+    lines.append("local INLAND_KEYWORDS = {")
+    lines.append('    "lake", "river", "loch", "pond", "falls", "stream", "creek", "marsh",')
+    lines.append('    "mystral", "falfarren", "iris", "nazferiti", "verdantis", "mennar",')
+    lines.append('    "lordamere", "darrowmere", "tarren mill", "valorwind", "kurzen", "southfury",')
+    lines.append('    "meadowsbrook", "turner", "shen\'dar", "nordrassil",')
+    lines.append("}")
+    lines.append("")
+    lines.append("--- Resolves live sub-zone skill requirement and active water habitat ('coastal' | 'inland' | 'oasis')")
+    lines.append("--- @param mapID number")
+    lines.append("--- @param subZoneText string|nil")
+    lines.append("--- @return number|nil reqSkill, table|nil subAreaHint, string|nil activeHabitat, string|nil matchedSubArea, boolean isMixed")
+    lines.append("function D.ResolveSubZone(mapID, subZoneText)")
+    lines.append("    if not mapID or mapID <= 0 then return nil, nil, nil, nil, false end")
+    lines.append("    local req = D.ZONE_SKILL[mapID]")
+    lines.append("    local sub = D.ZONE_SKILL_PARTS[mapID]")
+    lines.append("    local isMixed = D.MIXED_ZONES[mapID] == true")
+    lines.append('    local sz = (type(subZoneText) == "string" and subZoneText ~= "") and subZoneText:lower() or nil')
+    lines.append("    if not sz then")
+    lines.append("        return req, sub, nil, nil, isMixed")
+    lines.append("    end")
+    lines.append("")
+    lines.append("    -- 1. Check high-skill sub-area overrides")
+    lines.append('    if mapID == 1434 and sz:find("jaguero", 1, true) then')
+    lines.append('        return 300, sub, "coastal", "jaguero isle", isMixed')
+    lines.append('    elseif mapID == 1444 and sz:find("jademir", 1, true) then')
+    lines.append('        return 425, sub, "inland", "jademir lake", isMixed')
+    lines.append('    elseif mapID == 1447 and (sz:find("bay of storms", 1, true) or sz:find("scalebeard", 1, true) or sz:find("hetaera", 1, true) or sz:find("jagged reef", 1, true)) then')
+    lines.append('        return 425, sub, "coastal", sz, isMixed')
+    lines.append("    end")
+    lines.append("")
+    lines.append("    -- 2. Check Barrens Oases")
+    lines.append('    if mapID == 1413 and (sz:find("oasis", 1, true) or sz:find("forgotten pools", 1, true) or sz:find("lushwater", 1, true) or sz:find("stagnant", 1, true) or sz:find("wailing caverns", 1, true)) then')
+    lines.append('        return req, sub, "oasis", sz, isMixed')
+    lines.append("    end")
+    lines.append("")
+    lines.append("    -- 3. Check Coastal vs Inland water keywords in mixed zones")
+    lines.append("    if isMixed then")
+    lines.append("        for _, kw in ipairs(COASTAL_KEYWORDS) do")
+    lines.append("            if sz:find(kw, 1, true) then")
+    lines.append('                return req, sub, "coastal", sz, isMixed')
+    lines.append("            end")
+    lines.append("        end")
+    lines.append("        for _, kw in ipairs(INLAND_KEYWORDS) do")
+    lines.append("            if sz:find(kw, 1, true) then")
+    lines.append('                return req, sub, "inland", sz, isMixed')
+    lines.append("            end")
+    lines.append("        end")
+    lines.append("    end")
+    lines.append("")
+    lines.append("    return req, sub, nil, nil, isMixed")
     lines.append("end")
     lines.append("")
     lines.append("--- Returns loot table entries for a specific zone")
@@ -922,14 +1247,16 @@ def generate_lua_database(zone_loot_tables: dict, species_cache: dict, dry_run: 
     lines.append("    return BuildSpeciesCatalog()")
     lines.append("end")
     lines.append("")
-    lines.append("--- Returns all known fishing zones with their requirement")
-    lines.append("--- @return table array of { mapID, reqSkill, sub }")
+    lines.append("--- Returns all known fishing zones with their requirement and continent")
+    lines.append("--- @return table array of { mapID, reqSkill, continent, sub }")
     lines.append("function D.GetAllWaters()")
     lines.append("    local waters = {}")
     lines.append("    for mapID, req in pairs(D.ZONE_SKILL) do")
+    lines.append("        local contKey = D.GetZoneContinent(mapID)")
     lines.append("        waters[#waters + 1] = {")
     lines.append("            mapID = mapID,")
     lines.append("            reqSkill = req,")
+    lines.append("            continent = contKey,")
     lines.append("            sub = D.ZONE_SKILL_PARTS[mapID],")
     lines.append("        }")
     lines.append("    end")

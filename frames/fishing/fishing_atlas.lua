@@ -36,6 +36,7 @@ local selectedZoneMapID = nil
 local speciesFilterText = ""
 local speciesCategoryFilter = "all"
 local watersFilterText = ""
+local watersContinentFilter = "all"
 
 -- ─── Formatting Helpers ──────────────────────────────────────────────────────
 
@@ -135,7 +136,7 @@ local function CreateAtlasWindow()
 
     -- Top Tab Row
     local tabContainer = CreateFrame("Frame", nil, f)
-    tabContainer:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -32)
+    tabContainer:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -36)
     tabContainer:SetSize(600, 28)
     f.tabContainer = tabContainer
 
@@ -163,7 +164,7 @@ local function CreateAtlasWindow()
 
     -- Content Container
     local content = CreateFrame("Frame", nil, f, "BackdropTemplate")
-    content:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -64)
+    content:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -66)
     content:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 12)
     f.content = content
 
@@ -177,16 +178,12 @@ local function CreateAtlasWindow()
     return f
 end
 
--- ─── Tab 1: Fish Atlas (Species Cards & Details) ─────────────────────────────
+-- ─── Shared UI Widget Builders ───────────────────────────────────────────────
 
-BuildAtlasTab = function(parent)
-    local p = CreateFrame("Frame", nil, parent)
-    p:SetAllPoints()
-
-    -- Search Bar & Category Filters
-    local searchBox = CreateFrame("EditBox", nil, p, "BackdropTemplate")
-    searchBox:SetSize(180, 22)
-    searchBox:SetPoint("TOPLEFT", p, "TOPLEFT", 4, -4)
+local function CreateSearchBox(parent, placeholderText, onChanged, width)
+    local searchBox = CreateFrame("EditBox", nil, parent, "BackdropTemplate")
+    searchBox:SetSize(width or 160, 22)
+    searchBox:SetPoint("TOPLEFT", parent, "TOPLEFT", 4, -4)
     searchBox:SetAutoFocus(false)
     searchBox:SetFontObject("GameFontHighlightSmall")
     searchBox:SetTextInsets(6, 6, 2, 2)
@@ -196,37 +193,77 @@ BuildAtlasTab = function(parent)
         common.apply_flat_backdrop(searchBox, { 0.1, 0.1, 0.12, 0.8 }, { 0.3, 0.3, 0.35, 0.8 })
     end
 
-    local searchPlaceholder = searchBox:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    searchPlaceholder:SetPoint("LEFT", searchBox, "LEFT", 8, 0)
-    searchPlaceholder:SetText("search species...")
-    searchBox.placeholder = searchPlaceholder
+    local placeholder = searchBox:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    placeholder:SetPoint("LEFT", searchBox, "LEFT", 8, 0)
+    placeholder:SetText(placeholderText)
+    searchBox.placeholder = placeholder
 
     searchBox:SetScript("OnTextChanged", function(self)
         local txt = self:GetText()
-        speciesFilterText = txt and txt:lower() or ""
-        searchPlaceholder:SetShown(speciesFilterText == "")
-        RefreshAtlasView()
+        local val = txt and txt:lower() or ""
+        placeholder:SetShown(val == "")
+        onChanged(val)
     end)
     searchBox:SetScript("OnEscapePressed", function(self)
         self:ClearFocus()
     end)
-    p.searchBox = searchBox
+    return searchBox
+end
 
-    -- Filter Buttons: all, fish, containers, caught, missing
-    local catFilters = {
-        { id = "all",        text = "all" },
-        { id = "fish",       text = "fish" },
-        { id = "containers", text = "containers" },
-        { id = "caught",     text = "caught" },
-        { id = "missing",    text = "missing" },
-    }
-    local catBtns = {}
-    local prevCat = searchBox
-    for _, c in ipairs(catFilters) do
-        local b = CreateFrame("Button", nil, p, "BackdropTemplate")
+local function CreateStyledScrollFrame(parent, globalName, childWidth)
+    local scrollFrame = CreateFrame("ScrollFrame", globalName, parent, "UIPanelScrollFrameTemplate")
+    if theme and theme.ApplyScrollBarStyle and _G[globalName .. "ScrollBar"] then
+        theme.ApplyScrollBarStyle(_G[globalName .. "ScrollBar"])
+    end
+    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
+    scrollChild:SetSize(childWidth, 1)
+    scrollFrame:SetScrollChild(scrollChild)
+    return scrollFrame, scrollChild
+end
+
+local function CreateInfoCard(parent, titleText, w, h)
+    local card = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    if w and h then card:SetSize(w, h) end
+    if theme and theme.ApplyCardStyle then
+        theme.ApplyCardStyle(card, 1)
+    else
+        common.apply_flat_backdrop(card, { 0.08, 0.08, 0.10, 0.8 }, { 0.25, 0.25, 0.30, 0.8 })
+    end
+
+    local title = card:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    title:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -10)
+    title:SetText(titleText)
+    title:SetTextColor(0, 1, 1)
+    card.title = title
+
+    local text = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    text:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
+    text:SetPoint("RIGHT", card, "RIGHT", -12, 0)
+    text:SetJustifyH("LEFT")
+    card.text = text
+
+    return card
+end
+
+local function ApplyFilterButtonStyles(btns, activeID)
+    for _, ob in pairs(btns) do
+        local isSelected = (ob.id == activeID)
+        if theme and theme.ApplyTabStyle then
+            theme.ApplyTabStyle(ob, isSelected)
+        else
+            common.apply_flat_backdrop(ob, isSelected and { 0.25, 0.20, 0.06, 0.85 } or { 0.1, 0.1, 0.12, 0.5 }, { 0.3, 0.3, 0.35, 0.8 })
+        end
+    end
+end
+
+local function CreateFilterButtons(parent, anchorTo, filters, initialID, onSelect)
+    local btns = {}
+    local prev = anchorTo
+    for _, c in ipairs(filters) do
+        local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
         b:SetHeight(22)
-        b:SetWidth(66)
-        b:SetPoint("LEFT", prevCat, (prevCat == searchBox) and "RIGHT" or "RIGHT", (prevCat == searchBox) and 8 or 4, 0)
+        b:SetWidth(c.width or 66)
+        b:SetPoint("LEFT", prev, "RIGHT", (prev == anchorTo) and 8 or 4, 0)
         local fs = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         fs:SetPoint("CENTER", b, "CENTER", 0, 0)
         fs:SetText(c.text)
@@ -234,42 +271,54 @@ BuildAtlasTab = function(parent)
         b.id = c.id
 
         b:SetScript("OnClick", function()
-            speciesCategoryFilter = c.id
-            for _, ob in pairs(catBtns) do
-                if theme and theme.ApplyTabStyle then
-                    theme.ApplyTabStyle(ob, ob.id == speciesCategoryFilter)
-                else
-                    common.apply_flat_backdrop(ob, (ob.id == speciesCategoryFilter) and { 0.25, 0.20, 0.06, 0.85 } or { 0.1, 0.1, 0.12, 0.5 }, { 0.3, 0.3, 0.35, 0.8 })
-                end
-            end
-            RefreshAtlasView()
+            ApplyFilterButtonStyles(btns, c.id)
+            onSelect(c.id)
         end)
 
-        catBtns[c.id] = b
-        prevCat = b
+        btns[c.id] = b
+        prev = b
     end
-    p.catBtns = catBtns
+    ApplyFilterButtonStyles(btns, initialID)
+    return btns
+end
+
+-- ─── Tab 1: Fish Atlas (Species Cards & Details) ─────────────────────────────
+
+BuildAtlasTab = function(parent)
+    local p = CreateFrame("Frame", nil, parent)
+    p:SetAllPoints()
+
+    -- Search Bar & Category Filters
+    local searchBox = CreateSearchBox(p, "search species...", function(val)
+        speciesFilterText = val
+        RefreshAtlasView()
+    end, 160)
+    p.searchBox = searchBox
+
+    -- Filter Buttons: all, fish, containers, caught, missing
+    local catFilters = {
+        { id = "all",        text = "all",        width = 48 },
+        { id = "fish",       text = "fish",       width = 52 },
+        { id = "containers", text = "containers", width = 76 },
+        { id = "caught",     text = "caught",     width = 58 },
+        { id = "missing",    text = "missing",    width = 58 },
+    }
+    p.catBtns = CreateFilterButtons(p, searchBox, catFilters, speciesCategoryFilter, function(id)
+        speciesCategoryFilter = id
+        RefreshAtlasView()
+    end)
 
     -- Left Scroll Container (Cards Grid)
-    local scrollFrame = CreateFrame("ScrollFrame", "SfuiFishingAtlasScroll", p, "UIPanelScrollFrameTemplate")
+    local scrollFrame, scrollChild = CreateStyledScrollFrame(p, "SfuiFishingAtlasScroll", 498)
     scrollFrame:SetPoint("TOPLEFT", p, "TOPLEFT", 4, -32)
     scrollFrame:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 4, 4)
-    scrollFrame:SetWidth(516)
-
-    if theme and theme.ApplyScrollBarStyle and _G["SfuiFishingAtlasScrollScrollBar"] then
-        theme.ApplyScrollBarStyle(_G["SfuiFishingAtlasScrollScrollBar"])
-    end
-
-    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-    scrollChild:SetSize(500, 1)
-    scrollFrame:SetScrollChild(scrollChild)
+    scrollFrame:SetWidth(498)
     p.scrollChild = scrollChild
 
-    -- Right Detail Panel
+    -- Right Detail Panel (aligned below the top filter bar at y = -32)
     local detail = CreateFrame("Frame", nil, p, "BackdropTemplate")
-    detail:SetPoint("TOPRIGHT", p, "TOPRIGHT", -4, -4)
+    detail:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", 26, 0)
     detail:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -4, 4)
-    detail:SetWidth(290)
     if theme and theme.ApplyCardStyle then
         theme.ApplyCardStyle(detail, 1)
     else
@@ -316,17 +365,9 @@ BuildAtlasTab = function(parent)
     watersHeader:SetTextColor(0, 1, 1)
     detail.watersHeader = watersHeader
 
-    local watersScroll = CreateFrame("ScrollFrame", "SfuiFishingDetailWatersScroll", detail, "UIPanelScrollFrameTemplate")
+    local watersScroll, watersChild = CreateStyledScrollFrame(detail, "SfuiFishingDetailWatersScroll", 250)
     watersScroll:SetPoint("TOPLEFT", watersHeader, "BOTTOMLEFT", 0, -4)
     watersScroll:SetPoint("BOTTOMRIGHT", detail, "BOTTOMRIGHT", -20, 10)
-
-    if theme and theme.ApplyScrollBarStyle and _G["SfuiFishingDetailWatersScrollScrollBar"] then
-        theme.ApplyScrollBarStyle(_G["SfuiFishingDetailWatersScrollScrollBar"])
-    end
-
-    local watersChild = CreateFrame("Frame", nil, watersScroll)
-    watersChild:SetSize(250, 1)
-    watersScroll:SetScrollChild(watersChild)
     detail.watersChild = watersChild
     detail.watersPool = {}
 
@@ -340,55 +381,34 @@ BuildWatersTab = function(parent)
     local p = CreateFrame("Frame", nil, parent)
     p:SetAllPoints()
 
-    -- Search Bar for Zones
-    local searchBox = CreateFrame("EditBox", nil, p, "BackdropTemplate")
-    searchBox:SetSize(180, 22)
-    searchBox:SetPoint("TOPLEFT", p, "TOPLEFT", 4, -4)
-    searchBox:SetAutoFocus(false)
-    searchBox:SetFontObject("GameFontHighlightSmall")
-    searchBox:SetTextInsets(6, 6, 2, 2)
-    if theme and theme.ApplyInputStyle then
-        theme.ApplyInputStyle(searchBox)
-    else
-        common.apply_flat_backdrop(searchBox, { 0.1, 0.1, 0.12, 0.8 }, { 0.3, 0.3, 0.35, 0.8 })
-    end
-
-    local searchPlaceholder = searchBox:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    searchPlaceholder:SetPoint("LEFT", searchBox, "LEFT", 8, 0)
-    searchPlaceholder:SetText("search zones...")
-    searchBox.placeholder = searchPlaceholder
-
-    searchBox:SetScript("OnTextChanged", function(self)
-        local txt = self:GetText()
-        watersFilterText = txt and txt:lower() or ""
-        searchPlaceholder:SetShown(watersFilterText == "")
+    -- Search Bar & Continent Filters for Zones
+    local searchBox = CreateSearchBox(p, "search zones...", function(val)
+        watersFilterText = val
         RefreshWatersView()
-    end)
-    searchBox:SetScript("OnEscapePressed", function(self)
-        self:ClearFocus()
-    end)
+    end, 160)
     p.searchBox = searchBox
 
+    local continentFilters = {
+        { id = "all",              text = "all",              width = 48 },
+        { id = "eastern_kingdoms", text = "eastern kingdoms", width = 118 },
+        { id = "kalimdor",         text = "kalimdor",         width = 76 },
+    }
+    p.continentBtns = CreateFilterButtons(p, searchBox, continentFilters, watersContinentFilter, function(id)
+        watersContinentFilter = id
+        RefreshWatersView()
+    end)
+
     -- Left Column: Zone List ScrollFrame
-    local scrollFrame = CreateFrame("ScrollFrame", "SfuiWatersListScroll", p, "UIPanelScrollFrameTemplate")
+    local scrollFrame, scrollChild = CreateStyledScrollFrame(p, "SfuiWatersListScroll", 310)
     scrollFrame:SetPoint("TOPLEFT", p, "TOPLEFT", 4, -32)
     scrollFrame:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 4, 4)
     scrollFrame:SetWidth(330)
-
-    if theme and theme.ApplyScrollBarStyle and _G["SfuiWatersListScrollScrollBar"] then
-        theme.ApplyScrollBarStyle(_G["SfuiWatersListScrollScrollBar"])
-    end
-
-    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-    scrollChild:SetSize(310, 1)
-    scrollFrame:SetScrollChild(scrollChild)
     p.scrollChild = scrollChild
 
-    -- Right Column: Zone Species Detail
+    -- Right Column: Zone Species Detail (aligned below the top filter bar at y = -32)
     local detail = CreateFrame("Frame", nil, p, "BackdropTemplate")
-    detail:SetPoint("TOPRIGHT", p, "TOPRIGHT", -4, -4)
+    detail:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", 26, 0)
     detail:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -4, 4)
-    detail:SetPoint("LEFT", scrollFrame, "RIGHT", 24, 0)
     if theme and theme.ApplyCardStyle then
         theme.ApplyCardStyle(detail, 1)
     else
@@ -408,17 +428,9 @@ BuildWatersTab = function(parent)
     zoneReq:SetJustifyH("LEFT")
     detail.req = zoneReq
 
-    local speciesScroll = CreateFrame("ScrollFrame", "SfuiWatersSpeciesScroll", detail, "UIPanelScrollFrameTemplate")
+    local speciesScroll, speciesChild = CreateStyledScrollFrame(detail, "SfuiWatersSpeciesScroll", 412)
     speciesScroll:SetPoint("TOPLEFT", zoneReq, "BOTTOMLEFT", 0, -10)
     speciesScroll:SetPoint("BOTTOMRIGHT", detail, "BOTTOMRIGHT", -24, 10)
-
-    if theme and theme.ApplyScrollBarStyle and _G["SfuiWatersSpeciesScrollScrollBar"] then
-        theme.ApplyScrollBarStyle(_G["SfuiWatersSpeciesScrollScrollBar"])
-    end
-
-    local speciesChild = CreateFrame("Frame", nil, speciesScroll)
-    speciesChild:SetSize(412, 1)
-    speciesScroll:SetScrollChild(speciesChild)
     detail.speciesChild = speciesChild
     detail.speciesPool = {}
 
@@ -429,6 +441,7 @@ BuildWatersTab = function(parent)
     detail.noFishLabel = noFish
 
     p.zoneRowsPool = {}
+    p.continentHeadersPool = {}
     return p
 end
 
@@ -438,73 +451,23 @@ BuildLogbookTab = function(parent)
     local p = CreateFrame("Frame", nil, parent)
     p:SetAllPoints()
 
-    -- 1. Current Session Card (Top)
-    local sessionCard = CreateFrame("Frame", nil, p, "BackdropTemplate")
-    sessionCard:SetSize(400, 200)
+    -- 1. Current Session Card (Top Left)
+    local sessionCard = CreateInfoCard(p, "current fishing session", 400, 200)
     sessionCard:SetPoint("TOPLEFT", p, "TOPLEFT", 8, -8)
-    if theme and theme.ApplyCardStyle then
-        theme.ApplyCardStyle(sessionCard, 1)
-    else
-        common.apply_flat_backdrop(sessionCard, { 0.08, 0.08, 0.10, 0.8 }, { 0.25, 0.25, 0.30, 0.8 })
-    end
-
-    local sTitle = sessionCard:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    sTitle:SetPoint("TOPLEFT", sessionCard, "TOPLEFT", 12, -10)
-    sTitle:SetText("current fishing session")
-    sTitle:SetTextColor(0, 1, 1)
-
-    local sText = sessionCard:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    sText:SetPoint("TOPLEFT", sTitle, "BOTTOMLEFT", 0, -8)
-    sText:SetPoint("RIGHT", sessionCard, "RIGHT", -12, 0)
-    sText:SetJustifyH("LEFT")
-    sessionCard.text = sText
 
     local resetBtn = common.create_flat_button(sessionCard, "reset session stats", 140, 22, function()
         sfui.fishing.ResetSession()
     end)
     resetBtn:SetPoint("BOTTOMLEFT", sessionCard, "BOTTOMLEFT", 12, 10)
 
-    -- 2. Lifetime Records Card (Right)
-    local recordsCard = CreateFrame("Frame", nil, p, "BackdropTemplate")
-    recordsCard:SetSize(400, 200)
+    -- 2. Lifetime Records Card (Top Right)
+    local recordsCard = CreateInfoCard(p, "lifetime records", 400, 200)
     recordsCard:SetPoint("TOPLEFT", sessionCard, "TOPRIGHT", 12, 0)
-    if theme and theme.ApplyCardStyle then
-        theme.ApplyCardStyle(recordsCard, 1)
-    else
-        common.apply_flat_backdrop(recordsCard, { 0.08, 0.08, 0.10, 0.8 }, { 0.25, 0.25, 0.30, 0.8 })
-    end
-
-    local rTitle = recordsCard:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    rTitle:SetPoint("TOPLEFT", recordsCard, "TOPLEFT", 12, -10)
-    rTitle:SetText("lifetime records")
-    rTitle:SetTextColor(0, 1, 1)
-
-    local rText = recordsCard:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    rText:SetPoint("TOPLEFT", rTitle, "BOTTOMLEFT", 0, -8)
-    rText:SetPoint("RIGHT", recordsCard, "RIGHT", -12, 0)
-    rText:SetJustifyH("LEFT")
-    recordsCard.text = rText
 
     -- 3. Milestones Card (Bottom)
-    local milestonesCard = CreateFrame("Frame", nil, p, "BackdropTemplate")
+    local milestonesCard = CreateInfoCard(p, "trainer milestones")
     milestonesCard:SetPoint("TOPLEFT", sessionCard, "BOTTOMLEFT", 0, -12)
     milestonesCard:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -8, 8)
-    if theme and theme.ApplyCardStyle then
-        theme.ApplyCardStyle(milestonesCard, 1)
-    else
-        common.apply_flat_backdrop(milestonesCard, { 0.08, 0.08, 0.10, 0.8 }, { 0.25, 0.25, 0.30, 0.8 })
-    end
-
-    local mTitle = milestonesCard:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    mTitle:SetPoint("TOPLEFT", milestonesCard, "TOPLEFT", 12, -10)
-    mTitle:SetText("trainer milestones")
-    mTitle:SetTextColor(0, 1, 1)
-
-    local mText = milestonesCard:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    mText:SetPoint("TOPLEFT", mTitle, "BOTTOMLEFT", 0, -8)
-    mText:SetPoint("RIGHT", milestonesCard, "RIGHT", -12, 0)
-    mText:SetJustifyH("LEFT")
-    milestonesCard.text = mText
 
     p.sessionCard = sessionCard
     p.recordsCard = recordsCard
@@ -513,6 +476,40 @@ BuildLogbookTab = function(parent)
 end
 
 -- ─── Detail View Updates ─────────────────────────────────────────────────────
+
+local function append_species_caught_by_tooltip(tip, speciesID)
+    if not tip or not speciesID or not sfui.fishing or not sfui.fishing.GetSpeciesCharBreakdown then return end
+    local _, totalCaught, anglers = sfui.fishing.GetSpeciesCharBreakdown(speciesID)
+    if totalCaught and totalCaught > 0 and type(anglers) == "table" and #anglers > 0 then
+        tip:AddLine(" ")
+        tip:AddLine(string_format("caught across accounts (%d):", totalCaught), 0, 1, 1)
+        for i = 1, math.min(#anglers, 8) do
+            local a = anglers[i]
+            local acctTag = a.accountTag or ""
+            if tip.AddDoubleLine then
+                tip:AddDoubleLine("  " .. (a.coloredName or a.name or "?") .. acctTag, tostring(a.count or 0), 1, 1, 1, 0, 1, 0.53)
+            else
+                tip:AddLine(string_format("  %s%s: %d", a.coloredName or a.name or "?", acctTag, a.count or 0), 1, 1, 1)
+            end
+        end
+    end
+end
+
+local function BindSpeciesTooltip(btn)
+    btn:SetScript("OnEnter", function(self)
+        if not self.speciesID then return end
+        local tip = common.get_tooltip()
+        if tip then
+            tip:SetOwner(self, "ANCHOR_RIGHT")
+            tip:SetHyperlink("item:" .. self.speciesID)
+            append_species_caught_by_tooltip(tip, self.speciesID)
+            tip:Show()
+        end
+    end)
+    btn:SetScript("OnLeave", function()
+        common.hide_tooltip()
+    end)
+end
 
 local function UpdateSpeciesDetail(speciesID)
     if not atlasFrame or not atlasFrame.atlasPanel then return end
@@ -525,33 +522,48 @@ local function UpdateSpeciesDetail(speciesID)
         return
     end
 
-    local name, link, quality, _, _, _, _, _, _, texture, sellPrice = common.get_item_info(speciesID)
+    local displayText, texture = data.GetSpeciesDisplay(speciesID, true)
     det.icon:SetTexture(texture or "Interface\\Icons\\INV_Misc_Fish_02")
-    local fallbackName = item.name or (data.GetSpeciesName and data.GetSpeciesName(speciesID))
-    local lowerLink = (link and link:gsub("%b[]", string.lower)) or (name and name:lower())
-    det.name:SetText(lowerLink or fallbackName or ("item:" .. speciesID))
+    det.name:SetText(displayText)
 
     local kindLabel = (item.kind == "q" and "quest fish")
         or (item.kind == "t" and "trophy / rare fish")
         or (item.isContainer and "container / trunk")
         or "catchable fish"
-    det.meta:SetText(string_format("%s • min required skill: %d", kindLabel, item.minSkill or 0))
+    local hab = item.habitat or data.GetSpeciesHabitat(speciesID)
+    local habLabel = (hab == "coastal" and " • |cff44bbffcoastal (ocean)|r")
+        or (hab == "inland" and " • |cff66dd88inland (freshwater)|r")
+        or (hab == "oasis" and " • |cffffcc44oasis pond|r")
+        or ""
+    det.meta:SetText(string_format("%s%s • min skill: %d", kindLabel, habLabel, item.minSkill or 0))
 
     -- Catch Statistics
     local savedSpecies = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.species and SfuiDB.fishing.species[speciesID]
-    local totalCaught = (savedSpecies and savedSpecies.n) or 0
+    local myCount, totalCaught, anglers = 0, (savedSpecies and savedSpecies.n) or 0, {}
+    if sfui.fishing and sfui.fishing.GetSpeciesCharBreakdown then
+        myCount, totalCaught, anglers = sfui.fishing.GetSpeciesCharBreakdown(speciesID)
+    end
     local firstDate = savedSpecies and FormatDate(savedSpecies.first) or "never"
-    local firstZone = (savedSpecies and savedSpecies.fz and common.get_map_name(savedSpecies.fz)) or "unknown"
+    local firstZone = (savedSpecies and savedSpecies.fz and data.GetZoneName(savedSpecies.fz)) or "unknown"
     local lastDate = savedSpecies and FormatDate(savedSpecies.last) or "never"
-    local lastZone = (savedSpecies and savedSpecies.lz and common.get_map_name(savedSpecies.lz)) or "unknown"
+    local lastZone = (savedSpecies and savedSpecies.lz and data.GetZoneName(savedSpecies.lz)) or "unknown"
 
+    local youSuffix = (totalCaught > myCount) and string_format(" |cffaaaaaa(you: %d)|r", myCount) or ""
     local statsLines = {
-        string_format("total caught: |cffffffff%d|r", totalCaught),
-        string_format("first catch: |cffffd100%s|r in %s", firstDate, firstZone:lower()),
-        string_format("last catch: |cffffd100%s|r in %s", lastDate, lastZone:lower()),
+        string_format("total caught: |cffffffff%d|r%s", totalCaught, youSuffix),
+        string_format("first catch: |cffffd100%s|r in %s", firstDate, firstZone),
+        string_format("last catch: |cffffd100%s|r in %s", lastDate, lastZone),
     }
-    if sellPrice and sellPrice > 0 then
-        statsLines[#statsLines + 1] = string_format("vendor value: %s", common.format_money(sellPrice))
+    if type(anglers) == "table" and #anglers > 0 then
+        local parts = {}
+        for i = 1, math.min(#anglers, 4) do
+            local a = anglers[i]
+            parts[#parts + 1] = string_format("%s%s (|cff00ff88%d|r)", a.coloredName or a.name or "?", a.accountTag or "", a.count or 0)
+        end
+        if #anglers > 4 then
+            parts[#parts + 1] = string_format("+%d more", #anglers - 4)
+        end
+        statsLines[#statsLines + 1] = "caught by: " .. table.concat(parts, ", ")
     end
     det.statsText:SetText(table.concat(statsLines, "\n"))
 
@@ -584,12 +596,12 @@ local function UpdateSpeciesDetail(speciesID)
 
         row:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -(i - 1) * 24)
 
-        local zoneName = common.get_map_name(z.mapID) or ("map " .. z.mapID)
+        local zoneName = data.GetZoneName(z.mapID) or ("map " .. z.mapID)
         local req = z.reqSkill or 0
         local isQualified = totalSkill >= req
         local skillCol = isQualified and "|cff00ff88" or "|cffff4444"
 
-        row.zLabel:SetText(zoneName:lower())
+        row.zLabel:SetText(zoneName)
         row.rateLabel:SetText(string_format("%.1f%%  %sskill %d|r", z.share or 0, skillCol, req))
         row:Show()
     end
@@ -605,15 +617,17 @@ end
 local function UpdateZoneDetail(mapID)
     if not atlasFrame or not atlasFrame.watersPanel then return end
     local det = atlasFrame.watersPanel.detail
-    local zoneName = common.get_map_name(mapID) or ("map " .. tostring(mapID))
+    local zoneName = data.GetZoneName(mapID) or ("map " .. tostring(mapID))
+    local _, contLabel = data.GetZoneContinent(mapID)
     local reqSkill, subArea = data.GetZoneRequirement(mapID)
     local _, _, _, totalSkill = sfui.fishing.GetFishingSkill()
 
-    det.title:SetText(zoneName:lower())
+    det.title:SetText(string_format("%s • |cff88ccff%s|r", zoneName, contLabel))
     if reqSkill then
         local color = (totalSkill >= reqSkill) and "|cff00ff88" or "|cffff4444"
         local subText = subArea and string_format(" • %s: |cffffd100%d|r", subArea.area, subArea.skill) or ""
-        det.req:SetText(string_format("required skill: %s%d|r (your skill: |cffffffff%d|r)%s", color, reqSkill, totalSkill, subText))
+        local mixText = (data.MIXED_ZONES and data.MIXED_ZONES[mapID]) and " • |cff44bbff[coast]|r & |cff66dd88[inland]|r" or ""
+        det.req:SetText(string_format("required skill: %s%d|r (your skill: |cffffffff%d|r)%s%s", color, reqSkill, totalSkill, subText, mixText))
     else
         det.req:SetText("required skill: |cff888888unknown|r")
     end
@@ -623,7 +637,7 @@ local function UpdateZoneDetail(mapID)
     local pool = det.speciesPool or {}
     det.speciesPool = pool
 
-    local lootEntries, isClassic = data.GetZoneLoot(mapID)
+    local lootEntries = data.GetZoneLoot(mapID)
     local savedZones = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.zones
     local zoneStats = savedZones and savedZones[mapID]
     local caughtCounts = zoneStats and zoneStats.fish or {}
@@ -654,19 +668,7 @@ local function UpdateZoneDetail(mapID)
                 nameFs:SetWordWrap(false)
                 row.nameFs = nameFs
 
-                row:SetScript("OnEnter", function(self)
-                    if not self.speciesID then return end
-                    local tip = common.get_tooltip()
-                    if tip then
-                        tip:SetOwner(self, "ANCHOR_RIGHT")
-                        tip:SetHyperlink("item:" .. self.speciesID)
-                        tip:Show()
-                    end
-                end)
-                row:SetScript("OnLeave", function()
-                    common.hide_tooltip()
-                end)
-
+                BindSpeciesTooltip(row)
                 pool[i] = row
             end
 
@@ -679,15 +681,21 @@ local function UpdateZoneDetail(mapID)
 
             local itemID = entry[1]
             local share = entry[2]
-            local count = caughtCounts[itemID] or 0
-            local itemName, itemLink, quality, _, _, _, _, _, _, texture = common.get_item_info(itemID)
+            local myCount, count = 0, caughtCounts[itemID] or 0
+            if sfui.fishing and sfui.fishing.GetZoneFishCharBreakdown then
+                myCount, count = sfui.fishing.GetZoneFishCharBreakdown(mapID, itemID)
+            else
+                myCount = count
+            end
 
+            local baseName, texture = data.GetSpeciesDisplay(itemID, true)
             row.ico:SetTexture(texture or "Interface\\Icons\\INV_Misc_Fish_02")
-            local lowerLink = (itemLink and itemLink:gsub("%b[]", string.lower)) or (itemName and itemName:lower())
-            row.nameFs:SetText(lowerLink or (data.GetSpeciesName and data.GetSpeciesName(itemID)) or ("item:" .. itemID))
+            local _, habBadge = data.GetSpeciesHabitat(itemID, mapID)
+            row.nameFs:SetText(habBadge and (baseName .. " " .. habBadge) or baseName)
 
             local caughtCol = (count > 0) and "|cff00ff88" or "|cff888888"
-            row.shareFs:SetText(string_format("%.1f%%  %scaught %d|r", share or 0, caughtCol, count))
+            local youTag = (count > myCount) and string_format(" |cffaaaaaa(you: %d)|r", myCount) or ""
+            row.shareFs:SetText(string_format("%.1f%%  %scaught %d|r%s", share or 0, caughtCol, count, youTag))
 
             row.speciesID = itemID
             row:SetScript("OnClick", function()
@@ -730,8 +738,8 @@ RefreshAtlasView = function()
 
     local filtered = {}
     for itemID, item in pairs(allSpecies) do
-        local name = common.get_item_info(itemID) or item.name or (data.GetSpeciesName and data.GetSpeciesName(itemID)) or ("item:" .. itemID)
-        local matchSearch = (speciesFilterText == "") or (name:lower():find(speciesFilterText, 1, true))
+        local name = data.GetSpeciesDisplay(itemID, false)
+        local matchSearch = (speciesFilterText == "") or (name:find(speciesFilterText, 1, true) ~= nil)
 
         local matchCategory = true
         if speciesCategoryFilter == "fish" and item.isContainer then
@@ -791,18 +799,7 @@ RefreshAtlasView = function()
                 selectedSpeciesID = self.speciesID
                 UpdateSpeciesDetail(self.speciesID)
             end)
-            card:SetScript("OnEnter", function(self)
-                if not self.speciesID then return end
-                local tip = common.get_tooltip()
-                if tip then
-                    tip:SetOwner(self, "ANCHOR_RIGHT")
-                    tip:SetHyperlink("item:" .. self.speciesID)
-                    tip:Show()
-                end
-            end)
-            card:SetScript("OnLeave", function()
-                common.hide_tooltip()
-            end)
+            BindSpeciesTooltip(card)
 
             pool[i] = card
         end
@@ -811,14 +808,22 @@ RefreshAtlasView = function()
         local row = math_floor((i - 1) / COLS)
         card:SetPoint("TOPLEFT", child, "TOPLEFT", col * (CARD_W + 6), -row * (CARD_H + 6))
 
-        local itemName, itemLink, quality, _, _, _, _, _, _, texture = common.get_item_info(item.itemID)
+        local displayText, texture = data.GetSpeciesDisplay(item.itemID, true)
         card.ico:SetTexture(texture or "Interface\\Icons\\INV_Misc_Fish_02")
-        local lowerLink = (itemLink and itemLink:gsub("%b[]", string.lower)) or (itemName and itemName:lower())
-        card.nameFs:SetText(lowerLink or item.name or (data.GetSpeciesName and data.GetSpeciesName(item.itemID)) or ("item:" .. item.itemID))
+        card.nameFs:SetText(displayText)
 
-        local count = savedSpecies[item.itemID] and savedSpecies[item.itemID].n or 0
+        local myCount, count = 0, (savedSpecies[item.itemID] and savedSpecies[item.itemID].n) or 0
+        if sfui.fishing and sfui.fishing.GetSpeciesCharBreakdown then
+            myCount, count = sfui.fishing.GetSpeciesCharBreakdown(item.itemID)
+        else
+            myCount = count
+        end
         if count > 0 then
-            card.countFs:SetText(string_format("|cff00ff88caught: %d|r", count))
+            if count > myCount then
+                card.countFs:SetText(string_format("|cff00ff88caught: %d|r |cffaaaaaa(you: %d)|r", count, myCount))
+            else
+                card.countFs:SetText(string_format("|cff00ff88caught: %d|r", count))
+            end
         else
             card.countFs:SetText("|cffff4444not caught|r")
         end
@@ -850,6 +855,11 @@ RefreshAtlasView = function()
     end
 end
 
+local CONTINENT_SECTIONS = {
+    { key = "eastern_kingdoms", label = "eastern kingdoms" },
+    { key = "kalimdor",         label = "kalimdor" },
+}
+
 RefreshWatersView = function()
     if not atlasFrame or not atlasFrame.watersPanel then return end
     local p = atlasFrame.watersPanel
@@ -860,72 +870,136 @@ RefreshWatersView = function()
     local savedZones = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.zones or {}
     local _, _, _, totalSkill = sfui.fishing.GetFishingSkill()
 
-    local filtered = {}
+    local byContinent = {
+        eastern_kingdoms = {},
+        kalimdor         = {},
+    }
+    local filteredAll = {}
+
     for _, w in ipairs(waters) do
-        local name = common.get_map_name(w.mapID) or ("map " .. w.mapID)
-        if (watersFilterText == "") or (name:lower():find(watersFilterText, 1, true)) then
-            filtered[#filtered + 1] = w
+        local contKey = w.continent or (data.GetZoneContinent and data.GetZoneContinent(w.mapID)) or "eastern_kingdoms"
+        local matchContinent = (watersContinentFilter == "all") or (contKey == watersContinentFilter)
+        if matchContinent then
+            local name = data.GetZoneName(w.mapID) or ("map " .. w.mapID)
+            if (watersFilterText == "") or (name:find(watersFilterText, 1, true) ~= nil) then
+                local bucket = byContinent[contKey] or byContinent.eastern_kingdoms
+                bucket[#bucket + 1] = w
+                filteredAll[#filteredAll + 1] = w
+            end
         end
     end
 
     local pool = p.zoneRowsPool
+    local headerPool = p.continentHeadersPool
+    local HEADER_H = 24
     local ROW_H = 32
+    local yOffset = 0
+    local rowIdx = 0
+    local headerIdx = 0
 
-    for i, w in ipairs(filtered) do
-        local row = pool[i]
-        if not row then
-            row = CreateFrame("Button", nil, child, "BackdropTemplate")
-            row:SetSize(304, ROW_H)
+    for _, sec in ipairs(CONTINENT_SECTIONS) do
+        local list = byContinent[sec.key]
+        if list and #list > 0 then
+            headerIdx = headerIdx + 1
+            local hdr = headerPool[headerIdx]
+            if not hdr then
+                hdr = CreateFrame("Frame", nil, child, "BackdropTemplate")
+                hdr:SetSize(304, HEADER_H)
+                common.apply_flat_backdrop(hdr, { 0.12, 0.16, 0.22, 0.85 }, { 0.25, 0.35, 0.45, 0.8 })
 
-            local nameFs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            nameFs:SetPoint("LEFT", row, "LEFT", 10, 0)
-            nameFs:SetJustifyH("LEFT")
-            row.nameFs = nameFs
+                local titleFs = hdr:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                titleFs:SetPoint("LEFT", hdr, "LEFT", 8, 0)
+                titleFs:SetJustifyH("LEFT")
+                titleFs:SetTextColor(0, 1, 1)
+                hdr.titleFs = titleFs
 
-            local badge = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            badge:SetPoint("RIGHT", row, "RIGHT", -10, 0)
-            badge:SetJustifyH("RIGHT")
-            row.badge = badge
+                local countFs = hdr:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+                countFs:SetPoint("RIGHT", hdr, "RIGHT", -8, 0)
+                countFs:SetJustifyH("RIGHT")
+                hdr.countFs = countFs
 
-            row:SetScript("OnClick", function(self)
-                selectedZoneMapID = self.mapID
-                UpdateZoneDetail(self.mapID)
-            end)
+                headerPool[headerIdx] = hdr
+            end
 
-            pool[i] = row
+            if yOffset > 0 then
+                yOffset = yOffset + 6
+            end
+            hdr:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -yOffset)
+
+            local fishedZones = 0
+            for _, w in ipairs(list) do
+                local zStats = savedZones[w.mapID]
+                if zStats and (zStats.catches or 0) > 0 then
+                    fishedZones = fishedZones + 1
+                end
+            end
+            hdr.titleFs:SetText(sec.label)
+            hdr.countFs:SetText(string_format("%d / %d fished", fishedZones, #list))
+            hdr:Show()
+            yOffset = yOffset + HEADER_H + 4
+
+            for _, w in ipairs(list) do
+                rowIdx = rowIdx + 1
+                local row = pool[rowIdx]
+                if not row then
+                    row = CreateFrame("Button", nil, child, "BackdropTemplate")
+                    row:SetSize(304, ROW_H)
+
+                    local nameFs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                    nameFs:SetPoint("LEFT", row, "LEFT", 10, 0)
+                    nameFs:SetJustifyH("LEFT")
+                    row.nameFs = nameFs
+
+                    local badge = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    badge:SetPoint("RIGHT", row, "RIGHT", -10, 0)
+                    badge:SetJustifyH("RIGHT")
+                    row.badge = badge
+
+                    row:SetScript("OnClick", function(self)
+                        selectedZoneMapID = self.mapID
+                        UpdateZoneDetail(self.mapID)
+                    end)
+
+                    pool[rowIdx] = row
+                end
+
+                row:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -yOffset)
+
+                local zoneName = data.GetZoneName(w.mapID) or ("map " .. w.mapID)
+                row.nameFs:SetText(zoneName)
+
+                local isQualified = totalSkill >= w.reqSkill
+                local skillCol = isQualified and "|cff00ff88" or "|cffff4444"
+                local zStats = savedZones[w.mapID]
+                local catchesCount = zStats and zStats.catches or 0
+
+                row.badge:SetText(string_format("%sskill %d|r  (|cffffffff%d caught|r)", skillCol, w.reqSkill, catchesCount))
+
+                if theme and theme.ApplyCardStyle then
+                    theme.ApplyCardStyle(row, (w.mapID == selectedZoneMapID) and 2 or 1)
+                else
+                    common.apply_flat_backdrop(row, (w.mapID == selectedZoneMapID) and { 0.25, 0.20, 0.06, 0.85 } or { 0.08, 0.08, 0.10, 0.7 }, { 0.25, 0.25, 0.3, 0.7 })
+                end
+
+                row.mapID = w.mapID
+                row:Show()
+                yOffset = yOffset + ROW_H + 4
+            end
         end
-
-        row:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -(i - 1) * (ROW_H + 4))
-
-        local zoneName = common.get_map_name(w.mapID) or ("map " .. w.mapID)
-        row.nameFs:SetText(zoneName:lower())
-
-        local isQualified = totalSkill >= w.reqSkill
-        local skillCol = isQualified and "|cff00ff88" or "|cffff4444"
-        local zStats = savedZones[w.mapID]
-        local catchesCount = zStats and zStats.catches or 0
-
-        row.badge:SetText(string_format("%sskill %d|r  (|cffffffff%d caught|r)", skillCol, w.reqSkill, catchesCount))
-
-        if theme and theme.ApplyCardStyle then
-            theme.ApplyCardStyle(row, (w.mapID == selectedZoneMapID) and 2 or 1)
-        else
-            common.apply_flat_backdrop(row, (w.mapID == selectedZoneMapID) and { 0.25, 0.20, 0.06, 0.85 } or { 0.08, 0.08, 0.10, 0.7 }, { 0.25, 0.25, 0.3, 0.7 })
-        end
-
-        row.mapID = w.mapID
-        row:Show()
     end
 
-    for i = #filtered + 1, #pool do
+    for i = headerIdx + 1, #headerPool do
+        headerPool[i]:Hide()
+    end
+    for i = rowIdx + 1, #pool do
         pool[i]:Hide()
     end
 
-    child:SetHeight(math.max(#filtered * (ROW_H + 4), 10))
+    child:SetHeight(math.max(yOffset, 10))
     child:Show()
 
-    if not selectedZoneMapID and #filtered > 0 then
-        selectedZoneMapID = filtered[1].mapID
+    if not selectedZoneMapID and #filteredAll > 0 then
+        selectedZoneMapID = filteredAll[1].mapID
     end
     if selectedZoneMapID then
         UpdateZoneDetail(selectedZoneMapID)
@@ -937,12 +1011,8 @@ RefreshLogbookView = function()
     local p = atlasFrame.logbookPanel
 
     -- Current Session
-    local s = sfui.fishing.session
+    local s, elapsed, fph = sfui.fishing.GetSessionMetrics()
     if s then
-        local elapsed = GetTime() - (s.startTime or GetTime())
-        local fph = (elapsed >= 60 and s.catches and s.catches > 0)
-            and math_floor((s.catches / (elapsed / 3600)) + 0.5)
-            or 0
         local lines = {
             string_format("session duration: |cffffffff%s|r", common.format_time and common.format_time(elapsed) or string_format("%d mins", math_floor(elapsed / 60))),
             string_format("total casts: |cffffffff%d|r", s.casts or 0),
@@ -977,6 +1047,19 @@ RefreshLogbookView = function()
         string_format("total lifetime casts: |cffffffff%d|r", totalCasts),
         string_format("total getaways: |cffff4444%d|r (%.1f%% escape rate)", totalGetaways, escapeRate),
     }
+    local anglers = sfui.fishing and sfui.fishing.GetSyncedAnglers and sfui.fishing.GetSyncedAnglers() or nil
+    if type(anglers) == "table" and #anglers > 0 then
+        rLines[#rLines + 1] = ""
+        rLines[#rLines + 1] = "|cff00ffffsynced anglers (all accounts):|r"
+        for i = 1, math.min(#anglers, 5) do
+            local a = anglers[i]
+            local skillStr = (a.skill and a.skill > 0)
+                and string_format("skill %d/%d • ", a.skill, a.maxSkill or a.skill)
+                or ""
+            rLines[#rLines + 1] = string_format("• %s%s: %s|cff00ff88%d|r caught (%d spp)",
+                a.coloredName or a.name or "?", a.accountTag or "", skillStr, a.totalCatches or 0, a.uniqueSpecies or 0)
+        end
+    end
     p.recordsCard.text:SetText(table.concat(rLines, "\n"))
 
     -- Milestones (ordered progression tiers, evaluated against maxRank & rank)
@@ -984,8 +1067,7 @@ RefreshLogbookView = function()
     local playerLevel = _G.UnitLevel and _G.UnitLevel("player")
     local mLines = {}
     for _, m in ipairs(data.MILESTONES) do
-        local st = data.GetMilestoneStatus and data.GetMilestoneStatus(m, rank, maxRank, playerLevel)
-            or ((maxRank >= (m.maxRank or 0)) and "learned" or ((rank >= (m.reqSkill or 0)) and "available" or "locked"))
+        local st = data.GetMilestoneStatus(m, rank, maxRank, playerLevel)
         local statusBadge
         if st == "learned" then
             statusBadge = "|cff00ff88[learned]|r"
@@ -1004,6 +1086,16 @@ RefreshLogbookView = function()
 end
 
 -- ─── Tab Switching & Public API ──────────────────────────────────────────────
+
+local function RefreshActiveTab()
+    if activeTab == "atlas" then
+        RefreshAtlasView()
+    elseif activeTab == "waters" then
+        RefreshWatersView()
+    elseif activeTab == "logbook" then
+        RefreshLogbookView()
+    end
+end
 
 function ATLAS.ShowTab(tabID)
     activeTab = tabID or "atlas"
@@ -1024,13 +1116,7 @@ function ATLAS.ShowTab(tabID)
         end
     end
 
-    if activeTab == "atlas" then
-        RefreshAtlasView()
-    elseif activeTab == "waters" then
-        RefreshWatersView()
-    elseif activeTab == "logbook" then
-        RefreshLogbookView()
-    end
+    RefreshActiveTab()
 end
 
 function ATLAS.Toggle()
@@ -1045,13 +1131,7 @@ end
 
 function ATLAS.Update()
     if atlasFrame and atlasFrame:IsShown() then
-        if activeTab == "atlas" then
-            RefreshAtlasView()
-        elseif activeTab == "waters" then
-            RefreshWatersView()
-        elseif activeTab == "logbook" then
-            RefreshLogbookView()
-        end
+        RefreshActiveTab()
     end
 end
 
@@ -1077,33 +1157,17 @@ end
 
 local events = sfui.events
 if events and events.RegisterMessage then
-    events.RegisterMessage("SFUI_FISHING_CATCH_RECORDED", function()
-        if atlasFrame and atlasFrame:IsShown() then
-            ATLAS.Update()
-        end
-    end)
-
-    events.RegisterMessage("SFUI_FISHING_SESSION_RESET", function()
-        if atlasFrame and atlasFrame:IsShown() then
-            ATLAS.Update()
-        end
-    end)
+    events.RegisterMessage("SFUI_FISHING_CATCH_RECORDED", ATLAS.Update)
+    events.RegisterMessage("SFUI_FISHING_SESSION_RESET", ATLAS.Update)
+    events.RegisterMessage("SFUI_SYNC_STATUS_UPDATED", ATLAS.Update)
 end
 
 if events and events.RegisterEvent then
-    local itemInfoRefreshPending = false
     events.RegisterEvent("GET_ITEM_INFO_RECEIVED", function()
-        if not atlasFrame or not atlasFrame:IsShown() or itemInfoRefreshPending then return end
-        itemInfoRefreshPending = true
-        if _G.C_Timer and _G.C_Timer.After then
-            _G.C_Timer.After(0.25, function()
-                itemInfoRefreshPending = false
-                if atlasFrame and atlasFrame:IsShown() then
-                    ATLAS.Update()
-                end
-            end)
+        if not atlasFrame or not atlasFrame:IsShown() then return end
+        if common and common.debounce then
+            common.debounce("fishing_atlas_item_info", 0.25, ATLAS.Update)
         else
-            itemInfoRefreshPending = false
             ATLAS.Update()
         end
     end)

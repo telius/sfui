@@ -13477,6 +13477,22 @@
       "total_count": 0,
       "items": [],
       "fetched_at": 1793571006
+    },
+    "2482": {
+      "uimap": 2482,
+      "wh_zone_id": 616,
+      "name": "Mount Hyjal",
+      "total_count": 0,
+      "items": [],
+      "fetched_at": 1793575098
+    },
+    "2548": {
+      "uimap": 2548,
+      "wh_zone_id": 16591,
+      "name": "Riverglades",
+      "total_count": 0,
+      "items": [],
+      "fetched_at": 1793575098
     }
   },
   "species": {
@@ -13563,6 +13579,13 @@
           "count": 120854,
           "outof": 1086748,
           "share": 11.1
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 225,
+          "outof": 1000,
+          "share": 22.5
         }
       ]
     },
@@ -13757,9 +13780,9 @@
         {
           "uimap": 2521,
           "name": "zephras isle",
-          "count": 464,
+          "count": 370,
           "outof": 1000,
-          "share": 46.4
+          "share": 37.0
         }
       ]
     },
@@ -13912,9 +13935,9 @@
         {
           "uimap": 2521,
           "name": "zephras isle",
-          "count": 536,
+          "count": 430,
           "outof": 1000,
-          "share": 53.6
+          "share": 43.0
         }
       ]
     },
@@ -14151,6 +14174,13 @@
           "count": 18172,
           "outof": 138946,
           "share": 13.1
+        },
+        {
+          "uimap": 2521,
+          "name": "zephras isle",
+          "count": 175,
+          "outof": 1000,
+          "share": 17.5
         }
       ]
     },
@@ -14404,6 +14434,13 @@
           "name": "undercity",
           "count": 3296,
           "outof": 21972,
+          "share": 15.0
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 150,
+          "outof": 1000,
           "share": 15.0
         }
       ]
@@ -15089,6 +15126,13 @@
           "count": 21792,
           "outof": 217483,
           "share": 10.0
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 25,
+          "outof": 1000,
+          "share": 2.5
         }
       ]
     },
@@ -15195,6 +15239,13 @@
           "count": 35754,
           "outof": 1086748,
           "share": 3.3
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 45,
+          "outof": 1000,
+          "share": 4.5
         }
       ]
     },
@@ -15323,6 +15374,13 @@
           "count": 25119,
           "outof": 1086748,
           "share": 2.3
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 120,
+          "outof": 1000,
+          "share": 12.0
         }
       ]
     },
@@ -15504,6 +15562,13 @@
           "count": 85824,
           "outof": 1086748,
           "share": 7.9
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 12,
+          "outof": 1000,
+          "share": 1.2
         }
       ]
     },
@@ -15631,6 +15696,13 @@
           "count": 21810,
           "outof": 217483,
           "share": 10.0
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 340,
+          "outof": 1000,
+          "share": 34.0
         }
       ]
     },
@@ -15924,6 +15996,13 @@
           "count": 3363,
           "outof": 35300,
           "share": 9.5
+        },
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 38,
+          "outof": 1000,
+          "share": 3.8
         }
       ]
     },
@@ -16058,6 +16137,13 @@
           "count": 1771,
           "outof": 35300,
           "share": 5.0
+        },
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 120,
+          "outof": 1000,
+          "share": 12.0
         }
       ]
     },
@@ -16185,6 +16271,13 @@
           "count": 5599,
           "outof": 35300,
           "share": 15.9
+        },
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 210,
+          "outof": 1000,
+          "share": 21.0
         }
       ]
     },
@@ -16319,6 +16412,13 @@
           "count": 4939,
           "outof": 35300,
           "share": 14.0
+        },
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 195,
+          "outof": 1000,
+          "share": 19.5
         }
       ]
     },
@@ -16671,6 +16771,13 @@
           "count": 13920,
           "outof": 35300,
           "share": 39.4
+        },
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 425,
+          "outof": 1000,
+          "share": 42.5
         }
       ]
     },
@@ -17186,6 +17293,13 @@
           "count": 5113,
           "outof": 186285,
           "share": 2.7
+        },
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 12,
+          "outof": 1000,
+          "share": 1.2
         }
       ]
     },
@@ -17208,6 +17322,13 @@
           "count": 26467,
           "outof": 506684,
           "share": 5.2
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 75,
+          "outof": 1000,
+          "share": 7.5
         }
       ]
     },
@@ -17244,6 +17365,28 @@
           "count": 15764,
           "outof": 1086748,
           "share": 1.5
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 8,
+          "outof": 1000,
+          "share": 0.8
+        }
+      ]
+    },
+    "251524": {
+      "name": "whimsyfin",
+      "kind": "f",
+      "quality": 1,
+      "icon": "inv_misc_fish_68",
+      "zones": [
+        {
+          "uimap": 2521,
+          "name": "zephras isle",
+          "count": 25,
+          "outof": 1000,
+          "share": 2.5
         }
       ]
     }

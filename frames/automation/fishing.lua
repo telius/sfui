@@ -129,13 +129,21 @@ local _state                        = {
 
 -- Register module defaults with sfui.db
 local defaults                      = {
-    enabled = true,
-    autoLoot = true,
-    enhanceSounds = true,
+    enabled            = true,
+    autoLoot           = true,
+    enhanceSounds      = true,
     enhanceSoundsScale = 1.0,
-    softTarget = true,
+    softTarget         = true,
+    hud                = { enabled = true },
+    records            = { longestStreak = 0, bestRate = 0 },
+    zones              = {},
+    species            = {},
+    catches            = {},
+    chars              = {},
 }
-sfui.db.RegisterDefaults("fishing", defaults)
+if sfui.db and sfui.db.RegisterDefaults then
+    sfui.db.RegisterDefaults("fishing", defaults)
+end
 
 local optionsKeyMap = {
     enabled            = "fishingEnabled",
@@ -312,10 +320,7 @@ local function get_fishing_skill()
     return 0, 0, 0, 0
 end
 sfui.fishing.GetFishingSkill = get_fishing_skill
-sfui.fishing.GetSkill = function()
-    local rank, maxRank, mod, total = get_fishing_skill()
-    return rank, maxRank, mod, total
-end
+sfui.fishing.GetSkill = get_fishing_skill
 
 -- ─── Catch & Session Statistics ──────────────────────────────────────────────
 
@@ -327,6 +332,16 @@ sfui.fishing.session = {
     streak = 0,
     value = 0,
 }
+
+function sfui.fishing.GetSessionMetrics()
+    local s = sfui.fishing.session
+    if not s then return nil, 0, 0 end
+    local elapsed = GetTime() - (s.startTime or GetTime())
+    local fph = (elapsed >= 60 and s.catches and s.catches > 0)
+        and math.floor((s.catches / (elapsed / 3600)) + 0.5)
+        or 0
+    return s, elapsed, fph
+end
 
 function sfui.fishing.ResetSession()
     sfui.fishing.session = {
@@ -345,43 +360,16 @@ function sfui.fishing.ResetSession()
     sfui.common.print("fishing: session stats reset.")
 end
 
-local function copy_fishing_zones(src)
-    local out = {}
-    if type(src) ~= "table" then return out end
-    for mapID, z in pairs(src) do
-        if type(z) == "table" then
-            local fishCopy = {}
-            if type(z.fish) == "table" then
-                for itemID, cnt in pairs(z.fish) do
-                    fishCopy[itemID] = cnt
-                end
-            end
-            out[mapID] = {
-                casts    = z.casts or 0,
-                catches  = z.catches or 0,
-                getaways = z.getaways or 0,
-                fish     = fishCopy,
-            }
-        end
+local function get_or_create_zone_bucket(zonesTable, mapID)
+    if not zonesTable or not mapID or mapID <= 0 then return nil end
+    local z = zonesTable[mapID]
+    if not z then
+        z = { casts = 0, catches = 0, getaways = 0, fish = {} }
+        zonesTable[mapID] = z
+    else
+        z.fish = z.fish or {}
     end
-    return out
-end
-
-local function copy_fishing_species(src)
-    local out = {}
-    if type(src) ~= "table" then return out end
-    for itemID, sp in pairs(src) do
-        if type(sp) == "table" then
-            out[itemID] = {
-                n     = sp.n or 0,
-                first = sp.first,
-                fz    = sp.fz,
-                last  = sp.last,
-                lz    = sp.lz,
-            }
-        end
-    end
-    return out
+    return z
 end
 
 function sfui.fishing.EnsureCharLedger(guid)
@@ -393,7 +381,8 @@ function sfui.fishing.EnsureCharLedger(guid)
     SfuiDB.fishing.records = SfuiDB.fishing.records or { longestStreak = 0, bestRate = 0 }
     SfuiDB.fishing.chars = SfuiDB.fishing.chars or {}
 
-    guid = guid or (_G.UnitGUID and _G.UnitGUID("player"))
+    local myGUID = _G.UnitGUID and _G.UnitGUID("player")
+    guid = guid or myGUID
     if not guid then return nil end
 
     -- One-time migration of pre-existing account-wide fishing totals into current character's ledger
@@ -401,7 +390,7 @@ function sfui.fishing.EnsureCharLedger(guid)
         SfuiDB.fishing._charsMigrated = true
         if next(SfuiDB.fishing.zones) ~= nil or next(SfuiDB.fishing.species) ~= nil or next(SfuiDB.fishing.catches) ~= nil then
             local serverTime = (_G.GetServerTime and _G.GetServerTime()) or time()
-            local migSpecies = copy_fishing_species(SfuiDB.fishing.species)
+            local migSpecies = (sfui.common and sfui.common.copy and sfui.common.copy(SfuiDB.fishing.species)) or {}
             for itemID, cnt in pairs(SfuiDB.fishing.catches) do
                 if not migSpecies[itemID] then
                     migSpecies[itemID] = { n = cnt, first = serverTime, last = serverTime }
@@ -413,7 +402,7 @@ function sfui.fishing.EnsureCharLedger(guid)
                 rev           = serverTime,
                 longestStreak = (SfuiDB.fishing.records and SfuiDB.fishing.records.longestStreak) or 0,
                 bestRate      = (SfuiDB.fishing.records and SfuiDB.fishing.records.bestRate) or 0,
-                zones         = copy_fishing_zones(SfuiDB.fishing.zones),
+                zones         = (sfui.common and sfui.common.copy and sfui.common.copy(SfuiDB.fishing.zones)) or {},
                 species       = migSpecies,
             }
         end
@@ -433,7 +422,231 @@ function sfui.fishing.EnsureCharLedger(guid)
         entry.zones = entry.zones or {}
         entry.species = entry.species or {}
     end
+
+    if myGUID and guid == myGUID then
+        local uName = _G.UnitName and _G.UnitName("player")
+        if uName and uName ~= "" and uName ~= _G.UNKNOWNOBJECT then
+            entry.name = uName
+        end
+        local uRealm = _G.GetRealmName and _G.GetRealmName()
+        if uRealm and uRealm ~= "" then
+            entry.realm = uRealm
+        end
+        local uClass = _G.UnitClass and select(2, _G.UnitClass("player"))
+        if uClass and uClass ~= "" then
+            entry.class = uClass
+        end
+        if SfuiDB.sync then
+            if SfuiDB.sync.accountID and SfuiDB.sync.accountID ~= "" then
+                entry.accountID = SfuiDB.sync.accountID
+            end
+            if SfuiDB.sync.accountLabel and SfuiDB.sync.accountLabel ~= "" then
+                entry.accountLabel = SfuiDB.sync.accountLabel
+            end
+        end
+        local rank, maxRank = get_fishing_skill()
+        if rank and rank > 0 then
+            entry.skill = rank
+            entry.maxSkill = maxRank or rank
+        end
+    end
+
     return entry
+end
+
+local function resolve_angler_meta(guid, cData)
+    local alt = (SfuiDB and SfuiDB.alts and SfuiDB.alts[guid]) or nil
+    local rawName = (cData and cData.name) or (alt and alt.name) or "?"
+    local shortName = rawName:match("^([^%-]+)") or rawName
+    shortName = shortName:lower()
+
+    local classToken = (cData and cData.class) or (alt and alt.class)
+    local coloredName = (sfui.common and sfui.common.class_color_name and sfui.common.class_color_name(shortName, classToken)) or shortName
+
+    local myGUID = _G.UnitGUID and _G.UnitGUID("player")
+    local myAcctID = (SfuiDB and SfuiDB.sync and SfuiDB.sync.accountID) or ""
+    local myLabel = (SfuiDB and SfuiDB.sync and SfuiDB.sync.accountLabel) or ""
+    local acctID = (cData and cData.accountID) or (alt and alt.accountID) or ""
+    local acctLabel = ((cData and cData.accountLabel) or (alt and alt.accountLabel) or ""):lower()
+    local isRemoteAccount = (acctID ~= "" and myAcctID ~= "" and acctID ~= myAcctID)
+        or (acctLabel ~= "" and myLabel ~= "" and acctLabel ~= myLabel:lower())
+    local accountTag = (isRemoteAccount and acctLabel ~= "")
+        and (" |cff888888[" .. acctLabel .. "]|r")
+        or (isRemoteAccount and " |cff888888[sync]|r" or "")
+
+    return shortName, coloredName, acctLabel, isRemoteAccount, (myGUID and guid == myGUID) or false, accountTag
+end
+
+--- Returns per-character breakdown for a species across all synced characters/accounts
+--- @param itemID number
+--- @return number myCount, number totalCount, table anglers
+function sfui.fishing.GetSpeciesCharBreakdown(itemID)
+    itemID = tonumber(itemID) or itemID
+    local myGUID = _G.UnitGUID and _G.UnitGUID("player")
+    local chars = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.chars
+    local savedSp = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.species and SfuiDB.fishing.species[itemID]
+    local fallbackTotal = (savedSp and savedSp.n) or (SfuiDB and SfuiDB.fishing and SfuiDB.fishing.catches and SfuiDB.fishing.catches[itemID]) or 0
+
+    if type(chars) ~= "table" or next(chars) == nil then
+        return fallbackTotal, fallbackTotal, {}
+    end
+
+    local myCount = 0
+    local sumCount = 0
+    local anglers = {}
+
+    for guid, cData in pairs(chars) do
+        if type(cData) == "table" then
+            local sp = cData.species and (cData.species[itemID] or cData.species[tostring(itemID)])
+            local cnt = (sp and tonumber(sp.n)) or 0
+            if cnt <= 0 and type(cData.zones) == "table" then
+                for _, z in pairs(cData.zones) do
+                    if type(z) == "table" and type(z.fish) == "table" then
+                        cnt = cnt + (tonumber(z.fish[itemID] or z.fish[tostring(itemID)]) or 0)
+                    end
+                end
+            end
+            if cnt > 0 then
+                sumCount = sumCount + cnt
+                if myGUID and guid == myGUID then
+                    myCount = cnt
+                end
+                local shortName, coloredName, acctLabel, isRemoteAccount, isSelf, accountTag = resolve_angler_meta(guid, cData)
+                anglers[#anglers + 1] = {
+                    guid            = guid,
+                    name            = shortName,
+                    coloredName     = coloredName,
+                    accountLabel    = acctLabel,
+                    accountTag      = accountTag,
+                    isRemoteAccount = isRemoteAccount,
+                    isSelf          = isSelf,
+                    count           = cnt,
+                }
+            end
+        end
+    end
+
+    table.sort(anglers, function(a, b)
+        if a.isSelf ~= b.isSelf then return a.isSelf end
+        if a.count ~= b.count then return a.count > b.count end
+        return (a.name or "") < (b.name or "")
+    end)
+
+    local totalCount = math.max(sumCount, fallbackTotal)
+    if #anglers == 0 and totalCount > 0 then
+        myCount = totalCount
+    end
+    return myCount, totalCount, anglers
+end
+
+--- Returns current character's catch count and total synced catch count for a fish in a specific zone
+--- @param mapID number
+--- @param itemID number
+--- @return number myCount, number totalCount
+function sfui.fishing.GetZoneFishCharBreakdown(mapID, itemID)
+    mapID = tonumber(mapID) or mapID
+    itemID = tonumber(itemID) or itemID
+    local myGUID = _G.UnitGUID and _G.UnitGUID("player")
+    local savedZones = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.zones
+    local zStats = savedZones and savedZones[mapID]
+    local fallbackTotal = (zStats and zStats.fish and tonumber(zStats.fish[itemID])) or 0
+
+    local chars = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.chars
+    if type(chars) ~= "table" or next(chars) == nil then
+        return fallbackTotal, fallbackTotal
+    end
+
+    local myCount = 0
+    local sumCount = 0
+    for guid, cData in pairs(chars) do
+        if type(cData) == "table" and type(cData.zones) == "table" then
+            local cz = cData.zones[mapID] or cData.zones[tostring(mapID)]
+            if type(cz) == "table" and type(cz.fish) == "table" then
+                local cnt = tonumber(cz.fish[itemID] or cz.fish[tostring(itemID)]) or 0
+                if cnt > 0 then
+                    sumCount = sumCount + cnt
+                    if myGUID and guid == myGUID then
+                        myCount = cnt
+                    end
+                end
+            end
+        end
+    end
+
+    local totalCount = math.max(sumCount, fallbackTotal)
+    if sumCount == 0 and totalCount > 0 then
+        myCount = totalCount
+    end
+    return myCount, totalCount
+end
+
+--- Returns a sorted list of all synced characters with fishing activity or skill
+--- @return table anglers
+function sfui.fishing.GetSyncedAnglers()
+    sfui.fishing.EnsureCharLedger()
+    local chars = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.chars
+    if type(chars) ~= "table" then return {} end
+
+    local list = {}
+    for guid, cData in pairs(chars) do
+        if type(cData) == "table" then
+            local totalCatches = 0
+            local uniqueSpecies = 0
+            if type(cData.species) == "table" then
+                for _, sp in pairs(cData.species) do
+                    local n = type(sp) == "table" and tonumber(sp.n) or 0
+                    if n and n > 0 then
+                        uniqueSpecies = uniqueSpecies + 1
+                        totalCatches = totalCatches + n
+                    end
+                end
+            end
+            if totalCatches == 0 and type(cData.zones) == "table" then
+                for _, z in pairs(cData.zones) do
+                    if type(z) == "table" then
+                        totalCatches = totalCatches + (tonumber(z.catches) or 0)
+                    end
+                end
+            end
+
+            local skill = tonumber(cData.skill) or 0
+            local maxSkill = tonumber(cData.maxSkill) or 0
+            local shortName, coloredName, acctLabel, isRemoteAccount, isSelf, accountTag = resolve_angler_meta(guid, cData)
+            if isSelf then
+                local r, mr = get_fishing_skill()
+                if r and r > 0 then
+                    skill = r
+                    maxSkill = mr or r
+                end
+            end
+
+            if totalCatches > 0 or uniqueSpecies > 0 or skill > 0 then
+                list[#list + 1] = {
+                    guid            = guid,
+                    name            = shortName,
+                    coloredName     = coloredName,
+                    accountLabel    = acctLabel,
+                    accountTag      = accountTag,
+                    isRemoteAccount = isRemoteAccount,
+                    isSelf          = isSelf,
+                    skill           = skill,
+                    maxSkill        = maxSkill,
+                    totalCatches    = totalCatches,
+                    uniqueSpecies   = uniqueSpecies,
+                    longestStreak   = tonumber(cData.longestStreak) or 0,
+                }
+            end
+        end
+    end
+
+    table.sort(list, function(a, b)
+        if a.isSelf ~= b.isSelf then return a.isSelf end
+        if a.totalCatches ~= b.totalCatches then return a.totalCatches > b.totalCatches end
+        if a.skill ~= b.skill then return a.skill > b.skill end
+        return (a.name or "") < (b.name or "")
+    end)
+
+    return list
 end
 
 function sfui.fishing.RebuildAggregates()
@@ -459,28 +672,29 @@ function sfui.fishing.RebuildAggregates()
                 maxRate = cData.bestRate
             end
             if type(cData.zones) == "table" then
-                for mapID, zData in pairs(cData.zones) do
+                for rawMapID, zData in pairs(cData.zones) do
+                    local mapID = tonumber(rawMapID) or rawMapID
                     if type(zData) == "table" then
-                        local z = zones[mapID]
-                        if not z then
-                            z = { casts = 0, catches = 0, getaways = 0, fish = {} }
-                            zones[mapID] = z
-                        end
-                        z.casts = z.casts + (zData.casts or 0)
-                        z.catches = z.catches + (zData.catches or 0)
-                        z.getaways = z.getaways + (zData.getaways or 0)
-                        if type(zData.fish) == "table" then
-                            for itemID, cnt in pairs(zData.fish) do
-                                z.fish[itemID] = (z.fish[itemID] or 0) + (cnt or 0)
+                        local z = get_or_create_zone_bucket(zones, mapID)
+                        if z then
+                            z.casts = z.casts + (tonumber(zData.casts) or 0)
+                            z.catches = z.catches + (tonumber(zData.catches) or 0)
+                            z.getaways = z.getaways + (tonumber(zData.getaways) or 0)
+                            if type(zData.fish) == "table" then
+                                for rawItemID, cnt in pairs(zData.fish) do
+                                    local itemID = tonumber(rawItemID) or rawItemID
+                                    z.fish[itemID] = (z.fish[itemID] or 0) + (tonumber(cnt) or 0)
+                                end
                             end
                         end
                     end
                 end
             end
             if type(cData.species) == "table" then
-                for itemID, spData in pairs(cData.species) do
+                for rawItemID, spData in pairs(cData.species) do
+                    local itemID = tonumber(rawItemID) or rawItemID
                     if type(spData) == "table" then
-                        local n = spData.n or 0
+                        local n = tonumber(spData.n) or 0
                         if n > 0 then
                             catches[itemID] = (catches[itemID] or 0) + n
                         end
@@ -576,14 +790,9 @@ function sfui.fishing.RecordCatch(itemID, quantity, quality, mapID, link)
         csp.last = serverTime
         csp.lz = mapID
 
-        if mapID and mapID > 0 then
-            local cz = cLedger.zones[mapID]
-            if not cz then
-                cz = { casts = 0, catches = 0, getaways = 0, fish = {} }
-                cLedger.zones[mapID] = cz
-            end
+        local cz = get_or_create_zone_bucket(cLedger.zones, mapID)
+        if cz then
             cz.catches = (cz.catches or 0) + quantity
-            cz.fish = cz.fish or {}
             cz.fish[itemID] = (cz.fish[itemID] or 0) + quantity
         end
     end
@@ -602,21 +811,16 @@ function sfui.fishing.RecordCatch(itemID, quantity, quality, mapID, link)
     sp.lz = mapID
 
     -- Update zone breakdown
-    if mapID and mapID > 0 then
-        local z = SfuiDB.fishing.zones[mapID]
-        if not z then
-            z = { casts = 0, catches = 0, getaways = 0, fish = {} }
-            SfuiDB.fishing.zones[mapID] = z
-        end
+    local z = get_or_create_zone_bucket(SfuiDB.fishing.zones, mapID)
+    if z then
         z.catches = (z.catches or 0) + quantity
-        z.fish = z.fish or {}
         z.fish[itemID] = (z.fish[itemID] or 0) + quantity
     end
 
     -- Rare catch announcement
     if quality and quality >= 2 then
         local display = (link and link:gsub("%b[]", string.lower))
-            or (sfui.fishing_data and sfui.fishing_data.GetSpeciesName and sfui.fishing_data.GetSpeciesName(itemID))
+            or (sfui.fishing_data and sfui.fishing_data.GetSpeciesDisplay and sfui.fishing_data.GetSpeciesDisplay(itemID, true))
             or ("item:" .. itemID)
         sfui.common.print("rare catch: " .. display .. "!")
         if _G.PlaySound and _G.SOUNDKIT and _G.SOUNDKIT.AUCTION_WINDOW_CLOSE then
@@ -642,21 +846,13 @@ function sfui.fishing.RecordGetaway(mapID)
     local cLedger = sfui.fishing.EnsureCharLedger()
     if cLedger then
         cLedger.rev = serverTime
-        if mapID and mapID > 0 then
-            local cz = cLedger.zones[mapID]
-            if not cz then
-                cz = { casts = 0, catches = 0, getaways = 0, fish = {} }
-                cLedger.zones[mapID] = cz
-            end
+        local cz = get_or_create_zone_bucket(cLedger.zones, mapID)
+        if cz then
             cz.getaways = (cz.getaways or 0) + 1
         end
     end
-    if mapID and mapID > 0 then
-        local z = SfuiDB.fishing.zones[mapID]
-        if not z then
-            z = { casts = 0, catches = 0, getaways = 0, fish = {} }
-            SfuiDB.fishing.zones[mapID] = z
-        end
+    local z = get_or_create_zone_bucket(SfuiDB.fishing.zones, mapID)
+    if z then
         z.getaways = (z.getaways or 0) + 1
     end
     if sfui.fishing.hud and sfui.fishing.hud.Update then sfui.fishing.hud.Update() end
@@ -870,7 +1066,7 @@ local _cachedBestPole = { bag = 0, slot = 0, link = "" }
 --- Authoritatively uses Item Class (Weapon = 2, Profession = 19) and Item Subclass (Fishingpole = 20, Fishing = 9).
 local function is_fishing_pole_item(itemID, itemLink)
     if not itemID and itemLink then
-        itemID = tonumber(itemLink:match("item:(%d+)"))
+        itemID = (sfui.common and sfui.common.get_item_id and sfui.common.get_item_id(itemLink)) or tonumber(itemLink:match("item:(%d+)"))
     end
     if not itemID and not itemLink then return false end
     if itemID and _poleItemCache[itemID] ~= nil then
@@ -1093,14 +1289,10 @@ local function equip_fishing_pole_from_bags()
         end
     end
 
-    if _G.C_Container and _G.C_Container.PickupContainerItem and _G.EquipCursorItem then
+    local pickup = (_G.C_Container and _G.C_Container.PickupContainerItem) or _G.PickupContainerItem
+    if pickup and _G.EquipCursorItem then
         if _G.ClearCursor then _G.ClearCursor() end
-        _G.C_Container.PickupContainerItem(pole.bag, pole.slot)
-        _G.EquipCursorItem(16)
-        if _G.ClearCursor then _G.ClearCursor() end
-    elseif _G.PickupContainerItem and _G.EquipCursorItem then
-        if _G.ClearCursor then _G.ClearCursor() end
-        _G.PickupContainerItem(pole.bag, pole.slot)
+        pickup(pole.bag, pole.slot)
         _G.EquipCursorItem(16)
         if _G.ClearCursor then _G.ClearCursor() end
     else
@@ -1164,6 +1356,31 @@ arm_fishing_keys = function()
 end
 sfui.fishing.arm_fishing_keys = arm_fishing_keys
 
+local function clear_action_bindings(bindingContext)
+    if not (GetBindingKey and SetBinding) then return end
+    for _, action in ipairs({ "SFUI_FISHING", "BETTERFISHINGKEY" }) do
+        local k1, k2 = GetBindingKey(action)
+        if k1 then
+            if bindingContext then SetBinding(k1, nil, bindingContext) else SetBinding(k1, nil) end
+        end
+        if k2 then
+            if bindingContext then SetBinding(k2, nil, bindingContext) else SetBinding(k2, nil) end
+        end
+    end
+end
+
+local function bind_interact_keys(btn)
+    if not (SetOverrideBinding and btn) then return end
+    local keys = get_all_bound_keys()
+    for i = 1, #keys do
+        local key = keys[i]
+        SetOverrideBinding(btn, true, key, "INTERACTTARGET")
+        if not key:find("SHIFT") and not key:find("-") then
+            SetOverrideBinding(btn, true, "SHIFT-" .. key, "SFUI_FISHING")
+        end
+    end
+end
+
 local function unbind_keybinds()
     if InCombatLockdown and InCombatLockdown() then
         print_message("cannot modify bindings in combat.")
@@ -1173,17 +1390,7 @@ local function unbind_keybinds()
     local bindingContext = C_KeyBindings and C_KeyBindings.GetBindingContextForAction and
         C_KeyBindings.GetBindingContextForAction("SFUI_FISHING") or nil
 
-    if GetBindingKey and SetBinding then
-        for _, action in ipairs({ "SFUI_FISHING", "BETTERFISHINGKEY" }) do
-            local k1, k2 = GetBindingKey(action)
-            if k1 then
-                if bindingContext then SetBinding(k1, nil, bindingContext) else SetBinding(k1, nil) end
-            end
-            if k2 then
-                if bindingContext then SetBinding(k2, nil, bindingContext) else SetBinding(k2, nil) end
-            end
-        end
-    end
+    clear_action_bindings(bindingContext)
 
     local bindingSet = (GetCurrentBindingSet and GetCurrentBindingSet()) or 1
     if SaveBindings then
@@ -1210,18 +1417,7 @@ local function set_keybind(newKey)
     local bindingContext = C_KeyBindings and C_KeyBindings.GetBindingContextForAction and
         C_KeyBindings.GetBindingContextForAction("SFUI_FISHING") or nil
 
-    -- Unbind previous keys for fishing action to avoid duplicate / conflicting binds
-    if GetBindingKey and SetBinding then
-        for _, action in ipairs({ "SFUI_FISHING", "BETTERFISHINGKEY" }) do
-            local k1, k2 = GetBindingKey(action)
-            if k1 then
-                if bindingContext then SetBinding(k1, nil, bindingContext) else SetBinding(k1, nil) end
-            end
-            if k2 then
-                if bindingContext then SetBinding(k2, nil, bindingContext) else SetBinding(k2, nil) end
-            end
-        end
-    end
+    clear_action_bindings(bindingContext)
 
     if SetBinding then
         if bindingContext then
@@ -1296,15 +1492,7 @@ function sfui.fishing.RunKeybind(fromSlash)
     -- 2. If actively channeling fishing, ensure keys are bound to INTERACTTARGET to reel in
     if _state.isFishing then
         refresh_session()
-        if SetOverrideBinding and btn then
-            for i = 1, #keys do
-                local key = keys[i]
-                SetOverrideBinding(btn, true, key, "INTERACTTARGET")
-                if not key:find("SHIFT") and not key:find("-") then
-                    SetOverrideBinding(btn, true, "SHIFT-" .. key, "SFUI_FISHING")
-                end
-            end
-        end
+        bind_interact_keys(btn)
         return
     end
 
@@ -1361,24 +1549,16 @@ local function on_channel_start(event, unit, castGUID, spellID)
     local cLedger = sfui.fishing.EnsureCharLedger()
     if cLedger then
         cLedger.rev = serverTime
-        if mapID and mapID > 0 then
-            local cz = cLedger.zones[mapID]
-            if not cz then
-                cz = { casts = 0, catches = 0, getaways = 0, fish = {} }
-                cLedger.zones[mapID] = cz
-            end
+        local cz = get_or_create_zone_bucket(cLedger.zones, mapID)
+        if cz then
             cz.casts = (cz.casts or 0) + 1
         end
     end
-    if mapID and mapID > 0 then
-        SfuiDB = SfuiDB or {}
-        SfuiDB.fishing = SfuiDB.fishing or {}
-        SfuiDB.fishing.zones = SfuiDB.fishing.zones or {}
-        local z = SfuiDB.fishing.zones[mapID]
-        if not z then
-            z = { casts = 0, catches = 0, getaways = 0, fish = {} }
-            SfuiDB.fishing.zones[mapID] = z
-        end
+    SfuiDB = SfuiDB or {}
+    SfuiDB.fishing = SfuiDB.fishing or {}
+    SfuiDB.fishing.zones = SfuiDB.fishing.zones or {}
+    local z = get_or_create_zone_bucket(SfuiDB.fishing.zones, mapID)
+    if z then
         z.casts = (z.casts or 0) + 1
     end
     if sfui.fishing.hud and sfui.fishing.hud.Update then sfui.fishing.hud.Update() end
@@ -1386,17 +1566,7 @@ local function on_channel_start(event, unit, castGUID, spellID)
         sfui.events.SendMessage("SFUI_FISHING_CAST_RECORDED", mapID)
     end
 
-    local btn = get_secure_button()
-    if SetOverrideBinding and btn then
-        local keys = get_all_bound_keys()
-        for i = 1, #keys do
-            local key = keys[i]
-            SetOverrideBinding(btn, true, key, "INTERACTTARGET")
-            if not key:find("SHIFT") and not key:find("-") then
-                SetOverrideBinding(btn, true, "SHIFT-" .. key, "SFUI_FISHING")
-            end
-        end
-    end
+    bind_interact_keys(get_secure_button())
 end
 
 local function finish_channel_stop()
@@ -1426,7 +1596,7 @@ local function record_current_loot()
         local mapID = sfui.common.get_player_map_id()
         for i = 1, num do
             local link = _G.GetLootSlotLink and _G.GetLootSlotLink(i)
-            local itemID = link and tonumber(link:match("item:(%d+)"))
+            local itemID = (sfui.common and sfui.common.get_item_id and sfui.common.get_item_id(link)) or (link and tonumber(link:match("item:(%d+)")))
             if itemID then
                 local _, _, quantity, _, quality = _G.GetLootSlotInfo(i)
                 sfui.fishing.RecordCatch(itemID, quantity or 1, quality or 0, mapID, link)
@@ -1528,7 +1698,6 @@ local function on_bindings_updated()
     end
 end
 
-local spellChangeTimer = nil
 local function _perform_spells_or_skills_changed(event)
     cachedFishingID = nil
     cachedSpellName = nil
@@ -1547,18 +1716,13 @@ local function _perform_spells_or_skills_changed(event)
         btn:SetAttribute("spell", id)
     end
 
+    sfui.fishing.EnsureCharLedger()
     arm_fishing_keys()
 end
 
 local function on_spells_or_skills_changed(event)
-    if spellChangeTimer then
-        spellChangeTimer:Cancel()
-        spellChangeTimer = nil
-    end
-    local C_Timer = _G.C_Timer
-    if C_Timer and C_Timer.NewTimer then
-        spellChangeTimer = C_Timer.NewTimer(0.25, function()
-            spellChangeTimer = nil
+    if sfui.common and sfui.common.debounce then
+        sfui.common.debounce("fishing_spells_changed", 0.25, function()
             _perform_spells_or_skills_changed(event)
         end)
     else
@@ -1625,6 +1789,8 @@ sfui.RegisterModule("fishing", {
     end,
 
     OnEnable = function(self)
+        sfui.fishing.EnsureCharLedger()
+        sfui.fishing.RebuildAggregates()
         update_bound_keys()
         get_secure_button()
         _state.poleWasEquipped = is_fishing_pole_equipped()
@@ -1705,22 +1871,3 @@ function sfui.fishing_debug_info()
 end
 
 sfui.fishing.GetDebugInfo = sfui.fishing_debug_info
-
-if sfui.db and sfui.db.RegisterDefaults then
-    sfui.db.RegisterDefaults("fishing", {
-        enabled = true,
-        autoLoot = true,
-        enhanceSounds = true,
-        softTarget = true,
-        hud = {
-            enabled = true,
-        },
-        records = {
-            longestStreak = 0,
-            bestRate = 0,
-        },
-        zones = {},
-        species = {},
-        catches = {},
-    })
-end

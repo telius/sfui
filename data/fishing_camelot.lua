@@ -79,7 +79,9 @@ D.ZONE_SKILL = {
     [1457] = 75,  -- Darnassus
     [1458] = 75,  -- Undercity
     [1459] = 300,  -- Alterac Valley
+    [2482] = 425,  -- Mount Hyjal
     [2521] = 25,  -- Zephras Isle
+    [2548] = 225,  -- Riverglades
 }
 
 -- Sub-areas requiring higher skill than the surrounding zone
@@ -123,7 +125,7 @@ D.ZONE_FISH = {
     [1456] = { { 6289, 60.0, "f" }, { 6308, 21.9, "f" }, { 6291, 17.0, "f" }, { 6309, 0.3, "t" }, { 6310, 0.2, "t" } }, -- Thunder Bluff
     [1457] = { { 6289, 59.9, "f" }, { 6308, 22.0, "f" }, { 6291, 17.0, "f" }, { 6309, 0.4, "t" }, { 6310, 0.1, "t" } }, -- Darnassus
     [1458] = { { 6289, 41.7, "f" }, { 6299, 15.2, "f" }, { 6308, 15.0, "f" }, { 6291, 11.7, "f" }, { 6309, 0.2, "t" }, { 6310, 0.1, "t" } }, -- Undercity
-    [2521] = { { 6291, 53.6, "f" }, { 6289, 46.4, "f" } }, -- Zephras Isle
+    [2521] = { { 6291, 43.0, "f" }, { 6289, 37.0, "f" }, { 6303, 17.5, "f" }, { 251524, 2.5, "f" } }, -- Zephras Isle
 }
 
 -- Higher-level zones (Level 30+) and endgame waters
@@ -150,6 +152,8 @@ D.ZONE_FISH_CLASSIC = {
     [1451] = { { 13889, 37.3, "f" }, { 13760, 21.9, "f" }, { 13757, 13.3, "f" }, { 13890, 11.1, "f" }, { 13759, 6.1, "f" }, { 13758, 4.1, "f" }, { 19975, 3.6, "q" }, { 6522, 0.6, "f" }, { 6289, 0.4, "f" }, { 6308, 0.3, "f" }, { 6291, 0.2, "f" }, { 13902, 0.1, "t" } }, -- Silithus
     [1452] = { { 13889, 39.4, "f" }, { 13759, 19.8, "f" }, { 13890, 17.4, "f" }, { 13760, 10.6, "f" }, { 13757, 6.8, "f" }, { 13758, 5.0, "f" }, { 13901, 0.1, "t" }, { 13902, 0.1, "t" } }, -- Winterspring
     [1459] = { { 13889, 39.4, "f" }, { 13759, 15.9, "f" }, { 13890, 15.1, "f" }, { 13760, 14.0, "f" }, { 13757, 9.5, "f" }, { 13758, 5.0, "f" }, { 13902, 0.1, "t" }, { 13901, 0.1, "t" } }, -- Alterac Valley
+    [2482] = { { 13889, 42.5, "f" }, { 13759, 21.0, "f" }, { 13760, 19.5, "f" }, { 13758, 12.0, "f" }, { 13757, 3.8, "f" }, { 21150, 1.2, "c" } }, -- Mount Hyjal
+    [2548] = { { 8365, 34.0, "f" }, { 4603, 22.5, "f" }, { 6308, 15.0, "f" }, { 6362, 12.0, "f" }, { 21153, 7.5, "f" }, { 6359, 4.5, "f" }, { 6358, 2.5, "f" }, { 7973, 1.2, "c" }, { 21228, 0.8, "c" } }, -- Riverglades
 }
 
 -- Authoritative lowercase species names (fallback before client item cache resolves)
@@ -225,6 +229,199 @@ D.SPECIES_NAMES = {
     [21150] = "iron bound trunk",
     [21153] = "raw greater sagefish",
     [21228] = "mithril bound trunk",
+    [251524] = "whimsyfin",
+}
+
+-- Water habitat classification per species ('coastal' = ocean, 'inland' = lake/river, 'oasis' = Barrens oasis)
+D.SPECIES_HABITAT = {
+    [1467] = "inland",
+    [4603] = "coastal",
+    [6289] = "inland",
+    [6291] = "inland",
+    [6292] = "inland",
+    [6294] = "inland",
+    [6295] = "inland",
+    [6299] = "inland",
+    [6303] = "coastal",
+    [6308] = "inland",
+    [6309] = "inland",
+    [6310] = "inland",
+    [6311] = "inland",
+    [6317] = "inland",
+    [6358] = "coastal",
+    [6359] = "coastal",
+    [6361] = "coastal",
+    [6362] = "coastal",
+    [6458] = "inland",
+    [6522] = "oasis",
+    [6643] = "inland",
+    [6717] = "inland",
+    [6718] = "inland",
+    [7973] = "coastal",
+    [8365] = "inland",
+    [12238] = "coastal",
+    [13422] = "coastal",
+    [13754] = "coastal",
+    [13755] = "coastal",
+    [13756] = "coastal",
+    [13757] = "inland",
+    [13758] = "inland",
+    [13759] = "inland",
+    [13760] = "inland",
+    [13876] = "coastal",
+    [13877] = "coastal",
+    [13882] = "inland",
+    [13885] = "inland",
+    [13886] = "inland",
+    [13888] = "coastal",
+    [13889] = "inland",
+    [13890] = "inland",
+    [13893] = "coastal",
+    [13901] = "inland",
+    [13902] = "inland",
+    [13907] = "coastal",
+    [13908] = "coastal",
+    [13909] = "coastal",
+    [16967] = "inland",
+    [16968] = "coastal",
+    [16969] = "coastal",
+    [16970] = "coastal",
+    [19807] = "coastal",
+    [19975] = "inland",
+    [21071] = "inland",
+    [21153] = "inland",
+    [251524] = "inland",
+}
+
+-- Zones containing both coastal (ocean) and inland (lake/river/oasis) waters
+D.MIXED_ZONES = {
+    [1411] = true, -- Durotar
+    [1413] = true, -- The Barrens
+    [1417] = true, -- Arathi Highlands
+    [1421] = true, -- Silverpine Forest
+    [1424] = true, -- Hillsbrad Foothills
+    [1425] = true, -- The Hinterlands
+    [1434] = true, -- Stranglethorn Vale
+    [1435] = true, -- Swamp of Sorrows
+    [1436] = true, -- Westfall
+    [1437] = true, -- Wetlands
+    [1438] = true, -- Teldrassil
+    [1439] = true, -- Darkshore
+    [1440] = true, -- Ashenvale
+    [1443] = true, -- Desolace
+    [1444] = true, -- Feralas
+    [1445] = true, -- Dustwallow Marsh
+    [1447] = true, -- Azshara
+    [2521] = true, -- Zephras Isle
+    [2548] = true, -- Riverglades
+}
+
+-- Authoritative lowercase zone names (fallback when C_Map.GetMapInfo is unavailable)
+D.ZONE_NAMES = {
+    [1411] = "durotar",
+    [1412] = "mulgore",
+    [1413] = "the barrens",
+    [1416] = "alterac mountains",
+    [1417] = "arathi highlands",
+    [1418] = "badlands",
+    [1419] = "blasted lands",
+    [1420] = "tirisfal glades",
+    [1421] = "silverpine forest",
+    [1422] = "western plaguelands",
+    [1423] = "eastern plaguelands",
+    [1424] = "hillsbrad foothills",
+    [1425] = "the hinterlands",
+    [1426] = "dun morogh",
+    [1427] = "searing gorge",
+    [1428] = "burning steppes",
+    [1429] = "elwynn forest",
+    [1430] = "deadwind pass",
+    [1431] = "duskwood",
+    [1432] = "loch modan",
+    [1433] = "redridge mountains",
+    [1434] = "stranglethorn vale",
+    [1435] = "swamp of sorrows",
+    [1436] = "westfall",
+    [1437] = "wetlands",
+    [1438] = "teldrassil",
+    [1439] = "darkshore",
+    [1440] = "ashenvale",
+    [1441] = "thousand needles",
+    [1442] = "stonetalon mountains",
+    [1443] = "desolace",
+    [1444] = "feralas",
+    [1445] = "dustwallow marsh",
+    [1446] = "tanaris",
+    [1447] = "azshara",
+    [1448] = "felwood",
+    [1449] = "un'goro crater",
+    [1450] = "moonglade",
+    [1451] = "silithus",
+    [1452] = "winterspring",
+    [1453] = "stormwind city",
+    [1454] = "orgrimmar",
+    [1455] = "ironforge",
+    [1456] = "thunder bluff",
+    [1457] = "darnassus",
+    [1458] = "undercity",
+    [1459] = "alterac valley",
+    [2482] = "mount hyjal",
+    [2521] = "zephras isle",
+    [2548] = "riverglades",
+}
+
+-- Authoritative continent classification per zone ('eastern_kingdoms' vs 'kalimdor')
+D.ZONE_CONTINENT = {
+    [1411] = "kalimdor",
+    [1412] = "kalimdor",
+    [1413] = "kalimdor",
+    [1416] = "eastern_kingdoms",
+    [1417] = "eastern_kingdoms",
+    [1418] = "eastern_kingdoms",
+    [1419] = "eastern_kingdoms",
+    [1420] = "eastern_kingdoms",
+    [1421] = "eastern_kingdoms",
+    [1422] = "eastern_kingdoms",
+    [1423] = "eastern_kingdoms",
+    [1424] = "eastern_kingdoms",
+    [1425] = "eastern_kingdoms",
+    [1426] = "eastern_kingdoms",
+    [1427] = "eastern_kingdoms",
+    [1428] = "eastern_kingdoms",
+    [1429] = "eastern_kingdoms",
+    [1430] = "eastern_kingdoms",
+    [1431] = "eastern_kingdoms",
+    [1432] = "eastern_kingdoms",
+    [1433] = "eastern_kingdoms",
+    [1434] = "eastern_kingdoms",
+    [1435] = "eastern_kingdoms",
+    [1436] = "eastern_kingdoms",
+    [1437] = "eastern_kingdoms",
+    [1438] = "kalimdor",
+    [1439] = "kalimdor",
+    [1440] = "kalimdor",
+    [1441] = "kalimdor",
+    [1442] = "kalimdor",
+    [1443] = "kalimdor",
+    [1444] = "kalimdor",
+    [1445] = "kalimdor",
+    [1446] = "kalimdor",
+    [1447] = "kalimdor",
+    [1448] = "kalimdor",
+    [1449] = "kalimdor",
+    [1450] = "kalimdor",
+    [1451] = "kalimdor",
+    [1452] = "kalimdor",
+    [1453] = "eastern_kingdoms",
+    [1454] = "kalimdor",
+    [1455] = "eastern_kingdoms",
+    [1456] = "kalimdor",
+    [1457] = "kalimdor",
+    [1458] = "eastern_kingdoms",
+    [1459] = "eastern_kingdoms",
+    [2482] = "kalimdor",
+    [2521] = "kalimdor",
+    [2548] = "eastern_kingdoms",
 }
 
 -- ─── 4. Pre-Indexed Catalog of All Species ───────────────────────────────────
@@ -246,6 +443,7 @@ local function BuildSpeciesCatalog()
                     item = {
                         itemID = itemID,
                         name = D.SPECIES_NAMES[itemID],
+                        habitat = D.SPECIES_HABITAT[itemID],
                         kind = kind,
                         isContainer = (kind == "c"),
                         zones = {},
@@ -300,6 +498,47 @@ function D.GetSpeciesName(itemID)
     return itemID and D.SPECIES_NAMES[itemID] or nil
 end
 
+--- Resolves lowercase display text (colored link or plain name) and icon texture for a species
+--- @param itemID number
+--- @param preferLink boolean|nil
+--- @return string displayText, string|number|nil texture, string|nil itemName, string|nil itemLink, number|nil quality
+function D.GetSpeciesDisplay(itemID, preferLink)
+    local common = sfui.common
+    local name, link, quality, _, _, _, _, _, _, texture
+    if common and common.get_item_info then
+        name, link, quality, _, _, _, _, _, _, texture = common.get_item_info(itemID)
+    end
+    local lowerLink = (preferLink ~= false and link) and link:gsub("%b[]", string.lower) or nil
+    local lowerName = (name and name:lower()) or (itemID and D.SPECIES_NAMES[itemID]) or ("item:" .. tostring(itemID or 0))
+    return (lowerLink or lowerName), texture, lowerName, lowerLink, quality
+end
+
+--- Returns the lowercase name for a zone mapID
+--- @param mapID number
+--- @return string|nil
+function D.GetZoneName(mapID)
+    if not mapID then return nil end
+    if D.ZONE_NAMES[mapID] then return D.ZONE_NAMES[mapID] end
+    local name = sfui.common and sfui.common.get_map_name and sfui.common.get_map_name(mapID)
+    return name and name:lower() or nil
+end
+
+--- Returns the continent key ('eastern_kingdoms' | 'kalimdor') and display label for a zone mapID
+--- @param mapID number
+--- @return string continentKey, string continentLabel
+function D.GetZoneContinent(mapID)
+    local key = mapID and D.ZONE_CONTINENT[mapID]
+    if not key and mapID and sfui.common and sfui.common.get_map_info then
+        local info = sfui.common.get_map_info(mapID)
+        local parentID = info and info.parentMapID
+        if parentID == 1414 then key = "kalimdor"
+        elseif parentID == 1415 then key = "eastern_kingdoms"
+        end
+    end
+    key = key or "eastern_kingdoms"
+    return key, (key == "kalimdor") and "kalimdor" or "eastern kingdoms"
+end
+
 --- Evaluates a milestone tier against the player's current rank, maxRank, and level
 --- @param m table
 --- @param rank number
@@ -341,12 +580,93 @@ end
 
 --- Returns the required fishing skill for a given mapID
 --- @param mapID number
---- @return number requiredSkill, string|nil subAreaHint
+--- @return number requiredSkill, table|nil subAreaHint
 function D.GetZoneRequirement(mapID)
     if not mapID or mapID <= 0 then return nil end
     local req = D.ZONE_SKILL[mapID]
     local sub = D.ZONE_SKILL_PARTS[mapID]
     return req, sub
+end
+
+--- Returns water habitat ('coastal' | 'inland' | 'oasis' | nil) and formatted badge for a species
+--- @param itemID number
+--- @param mapID number|nil
+--- @return string|nil habitat, string|nil badge
+function D.GetSpeciesHabitat(itemID, mapID)
+    local hab = itemID and D.SPECIES_HABITAT[itemID]
+    if not hab then return nil, nil end
+    if mapID and not D.MIXED_ZONES[mapID] and hab ~= "oasis" then
+        return hab, nil
+    end
+    if hab == "coastal" then
+        return hab, "|cff44bbff[coast]|r"
+    elseif hab == "oasis" then
+        return hab, "|cffffcc44[oasis]|r"
+    elseif hab == "inland" then
+        return hab, "|cff66dd88[inland]|r"
+    end
+    return hab, nil
+end
+
+local COASTAL_KEYWORDS = {
+    "coast", "strand", "shore", "beach", "bay", "cove", "harbor", "port", "dock",
+    "anchorage", "isle", "island", "reef", "ratchet", "northwatch", "southshore",
+    "menethil", "auberdine", "zoram", "booty bay", "theramore", "feathermoon",
+    "sar'theris", "shadowprey", "revantusk", "faldir", "rut'theran", "longshore",
+    "lighthouse", "sen'jin", "tiragarde", "sardor", "alcaz", "steamwheedle",
+    "powderfuse", "valanaar",
+}
+
+local INLAND_KEYWORDS = {
+    "lake", "river", "loch", "pond", "falls", "stream", "creek", "marsh",
+    "mystral", "falfarren", "iris", "nazferiti", "verdantis", "mennar",
+    "lordamere", "darrowmere", "tarren mill", "valorwind", "kurzen", "southfury",
+    "meadowsbrook", "turner", "shen'dar", "nordrassil",
+}
+
+--- Resolves live sub-zone skill requirement and active water habitat ('coastal' | 'inland' | 'oasis')
+--- @param mapID number
+--- @param subZoneText string|nil
+--- @return number|nil reqSkill, table|nil subAreaHint, string|nil activeHabitat, string|nil matchedSubArea, boolean isMixed
+function D.ResolveSubZone(mapID, subZoneText)
+    if not mapID or mapID <= 0 then return nil, nil, nil, nil, false end
+    local req = D.ZONE_SKILL[mapID]
+    local sub = D.ZONE_SKILL_PARTS[mapID]
+    local isMixed = D.MIXED_ZONES[mapID] == true
+    local sz = (type(subZoneText) == "string" and subZoneText ~= "") and subZoneText:lower() or nil
+    if not sz then
+        return req, sub, nil, nil, isMixed
+    end
+
+    -- 1. Check high-skill sub-area overrides
+    if mapID == 1434 and sz:find("jaguero", 1, true) then
+        return 300, sub, "coastal", "jaguero isle", isMixed
+    elseif mapID == 1444 and sz:find("jademir", 1, true) then
+        return 425, sub, "inland", "jademir lake", isMixed
+    elseif mapID == 1447 and (sz:find("bay of storms", 1, true) or sz:find("scalebeard", 1, true) or sz:find("hetaera", 1, true) or sz:find("jagged reef", 1, true)) then
+        return 425, sub, "coastal", sz, isMixed
+    end
+
+    -- 2. Check Barrens Oases
+    if mapID == 1413 and (sz:find("oasis", 1, true) or sz:find("forgotten pools", 1, true) or sz:find("lushwater", 1, true) or sz:find("stagnant", 1, true) or sz:find("wailing caverns", 1, true)) then
+        return req, sub, "oasis", sz, isMixed
+    end
+
+    -- 3. Check Coastal vs Inland water keywords in mixed zones
+    if isMixed then
+        for _, kw in ipairs(COASTAL_KEYWORDS) do
+            if sz:find(kw, 1, true) then
+                return req, sub, "coastal", sz, isMixed
+            end
+        end
+        for _, kw in ipairs(INLAND_KEYWORDS) do
+            if sz:find(kw, 1, true) then
+                return req, sub, "inland", sz, isMixed
+            end
+        end
+    end
+
+    return req, sub, nil, nil, isMixed
 end
 
 --- Returns loot table entries for a specific zone
@@ -376,14 +696,16 @@ function D.GetAllSpecies()
     return BuildSpeciesCatalog()
 end
 
---- Returns all known fishing zones with their requirement
---- @return table array of { mapID, reqSkill, sub }
+--- Returns all known fishing zones with their requirement and continent
+--- @return table array of { mapID, reqSkill, continent, sub }
 function D.GetAllWaters()
     local waters = {}
     for mapID, req in pairs(D.ZONE_SKILL) do
+        local contKey = D.GetZoneContinent(mapID)
         waters[#waters + 1] = {
             mapID = mapID,
             reqSkill = req,
+            continent = contKey,
             sub = D.ZONE_SKILL_PARTS[mapID],
         }
     end

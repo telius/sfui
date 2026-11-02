@@ -363,6 +363,35 @@ local function sync_machine_store()
     elseif locRev > macRev then
         ms.settings = sync.BuildSharedSettingsPayload(s)
     end
+
+    -- Reconcile per-character fishing ledgers across accounts on the same PC
+    if s.syncFishing ~= false and merge and merge.MergeFishingChar then
+        if sfui.fishing and sfui.fishing.EnsureCharLedger then
+            sfui.fishing.EnsureCharLedger()
+        end
+        ms.fishing_chars = type(ms.fishing_chars) == "table" and ms.fishing_chars or {}
+        for fGuid, mData in pairs(ms.fishing_chars) do
+            if type(fGuid) == "string" and type(mData) == "table" then
+                merge.MergeFishingChar(fGuid, mData, mData.accountLabel, mData.accountID)
+            end
+        end
+        local locChars = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.chars
+        if type(locChars) == "table" then
+            for fGuid, cData in pairs(locChars) do
+                if type(fGuid) == "string" and type(cData) == "table" then
+                    local ex = ms.fishing_chars[fGuid]
+                    local lRev = tonumber(cData.rev) or 0
+                    local mRev = (type(ex) == "table" and tonumber(ex.rev)) or 0
+                    if not ex or lRev >= mRev then
+                        local payload = merge.BuildFishingCharPayload and merge.BuildFishingCharPayload(fGuid)
+                        if payload and payload.data then
+                            ms.fishing_chars[fGuid] = payload.data
+                        end
+                    end
+                end
+            end
+        end
+    end
 end
 
 function sync.FindPeer(sender)
@@ -1585,8 +1614,14 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
             peer.lastSync = now
         end
     elseif msgType == "DATA_FISHING" and s.syncFishing and type(data) == "table" then
-        if merge.MergeFishingChar(data.guid, data.data) then
+        if merge.MergeFishingChar(data.guid, data.data, peer.accountLabel, peer.accountID) then
             peer.lastSync = now
+            sync_machine_store()
+        end
+    elseif msgType == "DELTA_FISHING_CATCH" and s.syncFishing and type(data) == "table" then
+        if merge.MergeFishingCatchDelta and merge.MergeFishingCatchDelta(data, peer.accountLabel, peer.accountID) then
+            peer.lastSync = now
+            sync_machine_store()
         end
     elseif msgType == "DATA_MAIL" and s.syncMail and type(data) == "table" then
         if merge.MergeMail(data) then
@@ -1780,6 +1815,7 @@ local fishingBroadcastPending = false
 local function on_local_fishing_updated()
     local s = sync.GetSettings()
     if not s.enabled or not s.syncFishing then return end
+    sync_machine_store()
     if InCombatLockdown and InCombatLockdown() then
         deferredAfterCombat.fishing = true
         return
@@ -1802,6 +1838,25 @@ local function on_local_fishing_updated()
     else
         fishingBroadcastPending = false
     end
+end
+
+local function on_local_fishing_catch_recorded(_, itemID, quantity, quality, mapID)
+    local s = sync.GetSettings()
+    if not s.enabled or not s.syncFishing then return end
+    sync_machine_store()
+    if InCombatLockdown and InCombatLockdown() then
+        deferredAfterCombat.fishing = true
+        return
+    end
+    local myGUID = UnitGUID and UnitGUID("player")
+    if merge.BuildFishingCatchDelta then
+        local delta = merge.BuildFishingCatchDelta(myGUID, itemID, mapID)
+        if delta then
+            sync.Broadcast("DELTA_FISHING_CATCH", delta, true, false)
+            return
+        end
+    end
+    on_local_fishing_updated()
 end
 
 local questsBroadcastPending = false
@@ -2276,9 +2331,8 @@ if sfui.events and sfui.events.RegisterMessage then
     sfui.events.RegisterMessage("SFUI_RECIPE_KNOWN_UPDATED", on_local_recipe_updated)
     sfui.events.RegisterMessage("SFUI_RECIPE_BATCH_UPDATED", on_local_recipe_batch_updated)
     sfui.events.RegisterMessage("SFUI_CONTACTS_UPDATED", on_local_contacts_updated)
-    sfui.events.RegisterMessage("SFUI_FISHING_CATCH_RECORDED", on_local_fishing_updated)
+    sfui.events.RegisterMessage("SFUI_FISHING_CATCH_RECORDED", on_local_fishing_catch_recorded)
     sfui.events.RegisterMessage("SFUI_FISHING_GETAWAY_RECORDED", on_local_fishing_updated)
-    sfui.events.RegisterMessage("SFUI_FISHING_CAST_RECORDED", on_local_fishing_updated)
     sfui.events.RegisterMessage("SFUI_DJ_WISHLIST_UPDATED", on_local_dj_wishlist_updated)
     sfui.events.RegisterMessage("SFUI_WAYPOINT_SET", on_local_waypoint_set)
 end

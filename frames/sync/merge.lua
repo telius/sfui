@@ -32,15 +32,7 @@ local GetServerTime = _G.GetServerTime
 local time = _G.time
 
 local function deep_copy(orig)
-    if sfui.common and sfui.common.copy then
-        return sfui.common.copy(orig)
-    end
-    if type(orig) ~= "table" then return orig end
-    local copy = {}
-    for k, v in pairs(orig) do
-        copy[deep_copy(k)] = deep_copy(v)
-    end
-    return copy
+    return sfui.common.copy(orig)
 end
 
 -- ── 1. Alts Snapshot (`SfuiDB.alts[guid]`) ────────────────────────────────────
@@ -438,13 +430,33 @@ function merge.BuildFishingCharPayload(guid)
     end
     local cData = SfuiDB.fishing.chars[guid]
     if not cData then return nil end
+    local copy = deep_copy(cData)
+    local alt = SfuiDB.alts and SfuiDB.alts[guid]
+    if alt then
+        copy.name = copy.name or alt.name
+        copy.realm = copy.realm or alt.realm
+        copy.class = copy.class or alt.class
+        copy.accountID = copy.accountID or alt.accountID
+        copy.accountLabel = copy.accountLabel or alt.accountLabel
+    end
+    if SfuiDB.sync then
+        local myGUID = UnitGUID and UnitGUID("player")
+        if myGUID and guid == myGUID then
+            if SfuiDB.sync.accountID and SfuiDB.sync.accountID ~= "" then
+                copy.accountID = copy.accountID or SfuiDB.sync.accountID
+            end
+            if SfuiDB.sync.accountLabel and SfuiDB.sync.accountLabel ~= "" then
+                copy.accountLabel = copy.accountLabel or SfuiDB.sync.accountLabel
+            end
+        end
+    end
     return {
         guid = guid,
-        data = deep_copy(cData),
+        data = copy,
     }
 end
 
-function merge.MergeFishingChar(guid, incomingData)
+function merge.MergeFishingChar(guid, incomingData, peerAccountLabel, peerAccountID)
     if type(guid) ~= "string" or type(incomingData) ~= "table" then
         return false
     end
@@ -459,87 +471,125 @@ function merge.MergeFishingChar(guid, incomingData)
     local changed = false
 
     if not cur then
-        SfuiDB.fishing.chars[guid] = deep_copy(incomingData)
+        cur = {
+            rev           = tonumber(incomingData.rev) or 0,
+            longestStreak = tonumber(incomingData.longestStreak) or 0,
+            bestRate      = tonumber(incomingData.bestRate) or 0,
+            zones         = {},
+            species       = {},
+        }
+        SfuiDB.fishing.chars[guid] = cur
         changed = true
-    else
-        local inRev = tonumber(incomingData.rev) or 0
-        local curRev = tonumber(cur.rev) or 0
-        if inRev > curRev then
-            cur.rev = inRev
-            changed = true
-        end
+    end
 
-        if (tonumber(incomingData.longestStreak) or 0) > (tonumber(cur.longestStreak) or 0) then
-            cur.longestStreak = tonumber(incomingData.longestStreak)
-            changed = true
-        end
-        if (tonumber(incomingData.bestRate) or 0) > (tonumber(cur.bestRate) or 0) then
-            cur.bestRate = tonumber(incomingData.bestRate)
-            changed = true
-        end
+    local inRev = tonumber(incomingData.rev) or 0
+    local curRev = tonumber(cur.rev) or 0
+    if inRev > curRev then
+        cur.rev = inRev
+        changed = true
+    end
 
-        -- Merge zones (max counters per character GUID)
-        cur.zones = cur.zones or {}
-        if type(incomingData.zones) == "table" then
-            for mapID, inZ in pairs(incomingData.zones) do
-                local mid = tonumber(mapID) or mapID
-                if type(inZ) == "table" then
-                    local cz = cur.zones[mid]
-                    if not cz then
-                        cur.zones[mid] = deep_copy(inZ)
-                        changed = true
-                    else
-                        local newCasts = math_max(tonumber(cz.casts) or 0, tonumber(inZ.casts) or 0)
-                        local newCatches = math_max(tonumber(cz.catches) or 0, tonumber(inZ.catches) or 0)
-                        local newGetaways = math_max(tonumber(cz.getaways) or 0, tonumber(inZ.getaways) or 0)
-                        if newCasts ~= (cz.casts or 0) or newCatches ~= (cz.catches or 0) or newGetaways ~= (cz.getaways or 0) then
-                            cz.casts = newCasts
-                            cz.catches = newCatches
-                            cz.getaways = newGetaways
+    if incomingData.name and incomingData.name ~= "" and cur.name ~= incomingData.name then
+        cur.name = incomingData.name
+        changed = true
+    end
+    if incomingData.realm and incomingData.realm ~= "" and cur.realm ~= incomingData.realm then
+        cur.realm = incomingData.realm
+        changed = true
+    end
+    if incomingData.class and incomingData.class ~= "" and cur.class ~= incomingData.class then
+        cur.class = incomingData.class
+        changed = true
+    end
+    local effAcctID = (incomingData.accountID and incomingData.accountID ~= "" and incomingData.accountID) or peerAccountID
+    if effAcctID and effAcctID ~= "" and cur.accountID ~= effAcctID then
+        cur.accountID = effAcctID
+        changed = true
+    end
+    local effLabel = (incomingData.accountLabel and incomingData.accountLabel ~= "" and incomingData.accountLabel) or peerAccountLabel
+    if effLabel and effLabel ~= "" and cur.accountLabel ~= effLabel then
+        cur.accountLabel = effLabel
+        changed = true
+    end
+    if (tonumber(incomingData.skill) or 0) > (tonumber(cur.skill) or 0) then
+        cur.skill = tonumber(incomingData.skill)
+        changed = true
+    end
+    if (tonumber(incomingData.maxSkill) or 0) > (tonumber(cur.maxSkill) or 0) then
+        cur.maxSkill = tonumber(incomingData.maxSkill)
+        changed = true
+    end
+
+    if (tonumber(incomingData.longestStreak) or 0) > (tonumber(cur.longestStreak) or 0) then
+        cur.longestStreak = tonumber(incomingData.longestStreak)
+        changed = true
+    end
+    if (tonumber(incomingData.bestRate) or 0) > (tonumber(cur.bestRate) or 0) then
+        cur.bestRate = tonumber(incomingData.bestRate)
+        changed = true
+    end
+
+    -- Merge zones (max counters per character GUID)
+    cur.zones = cur.zones or {}
+    if type(incomingData.zones) == "table" then
+        for mapID, inZ in pairs(incomingData.zones) do
+            local mid = tonumber(mapID) or mapID
+            if type(inZ) == "table" then
+                local cz = cur.zones[mid]
+                if not cz then
+                    cz = { casts = 0, catches = 0, getaways = 0, fish = {} }
+                    cur.zones[mid] = cz
+                    changed = true
+                end
+                local newCasts = math_max(tonumber(cz.casts) or 0, tonumber(inZ.casts) or 0)
+                local newCatches = math_max(tonumber(cz.catches) or 0, tonumber(inZ.catches) or 0)
+                local newGetaways = math_max(tonumber(cz.getaways) or 0, tonumber(inZ.getaways) or 0)
+                if newCasts ~= (cz.casts or 0) or newCatches ~= (cz.catches or 0) or newGetaways ~= (cz.getaways or 0) then
+                    cz.casts = newCasts
+                    cz.catches = newCatches
+                    cz.getaways = newGetaways
+                    changed = true
+                end
+                cz.fish = cz.fish or {}
+                if type(inZ.fish) == "table" then
+                    for itemID, cnt in pairs(inZ.fish) do
+                        local iid = tonumber(itemID) or itemID
+                        local nCnt = tonumber(cnt) or 0
+                        if nCnt > (tonumber(cz.fish[iid]) or 0) then
+                            cz.fish[iid] = nCnt
                             changed = true
-                        end
-                        cz.fish = cz.fish or {}
-                        if type(inZ.fish) == "table" then
-                            for itemID, cnt in pairs(inZ.fish) do
-                                local iid = tonumber(itemID) or itemID
-                                local nCnt = tonumber(cnt) or 0
-                                if nCnt > (tonumber(cz.fish[iid]) or 0) then
-                                    cz.fish[iid] = nCnt
-                                    changed = true
-                                end
-                            end
                         end
                     end
                 end
             end
         end
+    end
 
-        -- Merge species (max count per character GUID)
-        cur.species = cur.species or {}
-        if type(incomingData.species) == "table" then
-            for itemID, inSp in pairs(incomingData.species) do
-                local iid = tonumber(itemID) or itemID
-                if type(inSp) == "table" then
-                    local csp = cur.species[iid]
-                    if not csp then
-                        cur.species[iid] = deep_copy(inSp)
+    -- Merge species (max count per character GUID)
+    cur.species = cur.species or {}
+    if type(incomingData.species) == "table" then
+        for itemID, inSp in pairs(incomingData.species) do
+            local iid = tonumber(itemID) or itemID
+            if type(inSp) == "table" then
+                local csp = cur.species[iid]
+                if not csp then
+                    cur.species[iid] = deep_copy(inSp)
+                    changed = true
+                else
+                    local nCnt = tonumber(inSp.n) or 0
+                    if nCnt > (tonumber(csp.n) or 0) then
+                        csp.n = nCnt
                         changed = true
-                    else
-                        local nCnt = tonumber(inSp.n) or 0
-                        if nCnt > (tonumber(csp.n) or 0) then
-                            csp.n = nCnt
-                            changed = true
-                        end
-                        if inSp.first and (not csp.first or inSp.first < csp.first) then
-                            csp.first = inSp.first
-                            csp.fz = inSp.fz or csp.fz
-                            changed = true
-                        end
-                        if inSp.last and (not csp.last or inSp.last > csp.last) then
-                            csp.last = inSp.last
-                            csp.lz = inSp.lz or csp.lz
-                            changed = true
-                        end
+                    end
+                    if inSp.first and (not csp.first or inSp.first < csp.first) then
+                        csp.first = inSp.first
+                        csp.fz = inSp.fz or csp.fz
+                        changed = true
+                    end
+                    if inSp.last and (not csp.last or inSp.last > csp.last) then
+                        csp.last = inSp.last
+                        csp.lz = inSp.lz or csp.lz
+                        changed = true
                     end
                 end
             end
@@ -550,6 +600,86 @@ function merge.MergeFishingChar(guid, incomingData)
         sfui.fishing.RebuildAggregates()
     end
     return changed
+end
+
+function merge.BuildFishingCatchDelta(guid, itemID, mapID)
+    if sfui.fishing and sfui.fishing.EnsureCharLedger then
+        sfui.fishing.EnsureCharLedger(guid)
+    end
+    guid = guid or (UnitGUID and UnitGUID("player"))
+    itemID = tonumber(itemID) or itemID
+    mapID = tonumber(mapID) or mapID
+    if not guid or not itemID or not SfuiDB or not SfuiDB.fishing or not SfuiDB.fishing.chars then
+        return nil
+    end
+    local cData = SfuiDB.fishing.chars[guid]
+    if not cData then return nil end
+
+    local sp = cData.species and cData.species[itemID]
+    local cz = mapID and cData.zones and cData.zones[mapID]
+
+    return {
+        g    = guid,
+        nm   = cData.name,
+        cl   = cData.class,
+        al   = cData.accountLabel,
+        aid  = cData.accountID,
+        sk   = cData.skill,
+        msk  = cData.maxSkill,
+        rev  = cData.rev,
+        str  = cData.longestStreak,
+        id   = itemID,
+        spN  = sp and sp.n or 1,
+        spF  = sp and sp.first,
+        spFZ = sp and sp.fz,
+        spL  = sp and sp.last,
+        spLZ = sp and sp.lz,
+        m    = mapID,
+        zC   = cz and cz.casts,
+        zK   = cz and cz.catches,
+        zG   = cz and cz.getaways,
+        zF   = cz and cz.fish and cz.fish[itemID],
+    }
+end
+
+function merge.MergeFishingCatchDelta(delta, peerAccountLabel, peerAccountID)
+    if type(delta) ~= "table" or type(delta.g) ~= "string" or not delta.id then
+        return false
+    end
+    local itemID = tonumber(delta.id) or delta.id
+    local mapID = tonumber(delta.m) or delta.m
+
+    local synth = {
+        rev           = tonumber(delta.rev) or ((GetServerTime and GetServerTime()) or time()),
+        name          = delta.nm,
+        class         = delta.cl,
+        accountLabel  = delta.al,
+        accountID     = delta.aid,
+        skill         = tonumber(delta.sk),
+        maxSkill      = tonumber(delta.msk),
+        longestStreak = tonumber(delta.str),
+        species       = {
+            [itemID] = {
+                n     = tonumber(delta.spN) or 1,
+                first = delta.spF,
+                fz    = delta.spFZ,
+                last  = delta.spL,
+                lz    = delta.spLZ,
+            },
+        },
+        zones = {},
+    }
+    if mapID and mapID > 0 then
+        synth.zones[mapID] = {
+            casts    = tonumber(delta.zC) or 0,
+            catches  = tonumber(delta.zK) or 0,
+            getaways = tonumber(delta.zG) or 0,
+            fish     = {
+                [itemID] = tonumber(delta.zF) or 1,
+            },
+        }
+    end
+    return merge.MergeFishingChar(delta.g, synth, peerAccountLabel, peerAccountID)
 end
 
 -- ── 5. Auto-Mail Routing Rules (`SfuiDB.altMailRouting`) ──────────────────────

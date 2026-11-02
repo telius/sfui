@@ -39,13 +39,11 @@ local OnHudTick
 
 local function FormatDuration(seconds)
     if not seconds or seconds <= 0 then return "0s" end
-    if seconds >= 60 then
-        local m = math_floor(seconds / 60)
-        local s = math_floor(seconds % 60)
-        return string_format("%d:%02d", m, s)
-    else
-        return string_format("%ds", math_floor(seconds))
+    if common.format_timer_clock then
+        return common.format_timer_clock(seconds, false, "s")
     end
+    local m, s = math_floor(seconds / 60), math_floor(seconds % 60)
+    return (m > 0) and string_format("%d:%02d", m, s) or string_format("%ds", s)
 end
 
 -- ─── Tooltip Construction ────────────────────────────────────────────────────
@@ -58,20 +56,35 @@ local function OnHudEnter(self)
     tip:ClearLines()
 
     local mapID = common.get_player_map_id()
-    local zoneName = common.get_player_map_name() or "current zone"
-    local reqSkill, subArea = data.GetZoneRequirement(mapID)
+    local zoneName = common.get_player_map_name() or (data.GetZoneName and data.GetZoneName(mapID)) or "current zone"
+    local subZone = (_G.GetSubZoneText and _G.GetSubZoneText()) or (_G.GetMinimapZoneText and _G.GetMinimapZoneText())
+    local reqSkill, subArea, activeHabitat, _, isMixed = data.ResolveSubZone(mapID, subZone)
     local rank, maxRank, mod, totalSkill = sfui.fishing.GetFishingSkill()
 
-    tip:AddLine(zoneName:lower(), 1, 0.82, 0)
+    local headerText = zoneName:lower()
+    if type(subZone) == "string" and subZone ~= "" and subZone:lower() ~= headerText then
+        headerText = string_format("%s • |cffcccccc%s|r", headerText, subZone:lower())
+    end
+    tip:AddLine(headerText, 1, 0.82, 0)
 
     if reqSkill then
         local statusColor = (totalSkill >= reqSkill) and "|cff00ff880% getaways|r" or "|cffff4444fish can escape|r"
         tip:AddDoubleLine("required skill:", string_format("%d (%s)", reqSkill, statusColor), 0.8, 0.8, 0.8, 1, 1, 1)
-        if subArea then
+        if subArea and reqSkill < (subArea.skill or 0) then
             tip:AddDoubleLine("sub-area requirement:", string_format("%s (|cffffd100%d|r)", subArea.area, subArea.skill), 0.8, 0.8, 0.8, 1, 1, 1)
         end
     else
         tip:AddDoubleLine("required skill:", "|cff888888unknown|r", 0.8, 0.8, 0.8, 1, 1, 1)
+    end
+
+    if activeHabitat == "coastal" then
+        tip:AddDoubleLine("water habitat:", "|cff44bbffcoastal / ocean|r", 0.8, 0.8, 0.8, 1, 1, 1)
+    elseif activeHabitat == "inland" then
+        tip:AddDoubleLine("water habitat:", "|cff66dd88inland (lake / river)|r", 0.8, 0.8, 0.8, 1, 1, 1)
+    elseif activeHabitat == "oasis" then
+        tip:AddDoubleLine("water habitat:", "|cffffcc44barrens oasis|r", 0.8, 0.8, 0.8, 1, 1, 1)
+    elseif isMixed then
+        tip:AddDoubleLine("water habitat:", "|cff44bbff[coast]|r & |cff66dd88[inland]|r waters", 0.8, 0.8, 0.8, 1, 1, 1)
     end
 
     tip:AddDoubleLine("your fishing skill:", string_format("%d / %d (|cff00ffff+%d bonus|r = %d)", rank, maxRank, mod, totalSkill), 0.8, 0.8, 0.8, 1, 1, 1)
@@ -109,17 +122,19 @@ local function OnHudEnter(self)
             local kind = entry[3]
             if kind == "f" then totalKinds = totalKinds + 1 end
 
-            local itemName, itemLink = common.get_item_info(itemID)
             local count = caughtCounts[itemID] or 0
             if count > 0 and kind == "f" then knownCaught = knownCaught + 1 end
 
-            local displayLink = (itemLink and itemLink:gsub("%b[]", string.lower))
-                or (itemName and itemName:lower())
-                or (data.GetSpeciesName and data.GetSpeciesName(itemID))
-                or ("item:" .. itemID)
+            local displayLink = data.GetSpeciesDisplay(itemID, true)
+            local spHab, habBadge = data.GetSpeciesHabitat(itemID, mapID)
+            local badgeSuffix = habBadge and (" " .. habBadge) or ""
             local rightText = string_format("%.1f%%  (caught: %d)", share or 0, count)
             local r, g, b = (count > 0) and 0.2 or 0.7, (count > 0) and 1 or 0.7, (count > 0) and 0.4 or 0.7
-            tip:AddDoubleLine("  " .. displayLink, rightText, 1, 1, 1, r, g, b)
+            local lr, lg, lb = 1, 1, 1
+            if activeHabitat and spHab and spHab ~= activeHabitat then
+                lr, lg, lb = 0.55, 0.55, 0.55
+            end
+            tip:AddDoubleLine("  " .. displayLink .. badgeSuffix, rightText, lr, lg, lb, r, g, b)
         end
 
         tip:AddDoubleLine("species caught here:", string_format("%d / %d kinds", knownCaught, totalKinds), 0.6, 0.8, 1, 1, 1, 1)
@@ -170,14 +185,8 @@ local function CreateHudFrame()
     f:SetMovable(true)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
-
-    -- Restore saved position or default to top-center
-    local pos = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.hudPos
-    if pos and pos.point then
-        f:SetPoint(pos.point, UIParent, pos.relPoint or pos.point, pos.x or 0, pos.y or -120)
-    else
-        f:SetPoint("TOP", UIParent, "TOP", 0, -120)
-    end
+    hudFrame = f
+    RestoreHudPosition()
 
     -- Dragging logic (unlocked via /sffish lock, sfui edit mode movers, or holding alt like lootfeed)
     f:SetScript("OnDragStart", function(self)
@@ -334,8 +343,6 @@ end
 
 -- ─── Dynamic HUD Update Loop ─────────────────────────────────────────────────
 
--- ─── Dynamic HUD Update Loop ─────────────────────────────────────────────────
-
 local function SetTextIfChanged(fs, text, fieldKey)
     if hudFrame and hudFrame[fieldKey] ~= text then
         hudFrame[fieldKey] = text
@@ -346,20 +353,30 @@ end
 local function UpdateZone()
     if not hudFrame or not hudFrame:IsShown() then return end
     local mapID = common.get_player_map_id()
-    local zoneName = common.get_player_map_name() or "zone"
-    local reqSkill = data.GetZoneRequirement(mapID)
+    local zoneName = common.get_player_map_name() or (data.GetZoneName and data.GetZoneName(mapID)) or "zone"
+    local subZone = (_G.GetSubZoneText and _G.GetSubZoneText()) or (_G.GetMinimapZoneText and _G.GetMinimapZoneText())
+    local reqSkill, _, activeHabitat = data.ResolveSubZone(mapID, subZone)
     local _, _, _, totalSkill = sfui.fishing.GetFishingSkill()
+
+    local habTag = ""
+    if activeHabitat == "coastal" then
+        habTag = " |cff44bbff[coast]|r"
+    elseif activeHabitat == "inland" then
+        habTag = " |cff66dd88[inland]|r"
+    elseif activeHabitat == "oasis" then
+        habTag = " |cffffcc44[oasis]|r"
+    end
 
     local zoneStr
     if reqSkill then
         if totalSkill >= reqSkill then
-            zoneStr = string_format("|cff00ff88%s|r (|cffffd100%d|r)", zoneName:lower(), reqSkill)
+            zoneStr = string_format("|cff00ff88%s|r (|cffffd100%d|r)%s", zoneName:lower(), reqSkill, habTag)
         else
             local deficit = reqSkill - totalSkill
-            zoneStr = string_format("|cffff4444%s|r (|cffff8800-%d skill|r)", zoneName:lower(), deficit)
+            zoneStr = string_format("|cffff4444%s|r (|cffff8800-%d skill|r)%s", zoneName:lower(), deficit, habTag)
         end
     else
-        zoneStr = string_format("|cffffffff%s|r", zoneName:lower())
+        zoneStr = string_format("|cffffffff%s|r%s", zoneName:lower(), habTag)
     end
     SetTextIfChanged(hudFrame.zoneText, zoneStr, "_lastZoneText")
 end
@@ -436,13 +453,9 @@ end
 
 local function UpdateSession()
     if not hudFrame or not hudFrame:IsShown() then return end
-    local s = sfui.fishing.session
+    local s, _, fph = sfui.fishing.GetSessionMetrics()
     local sessionStr
     if s then
-        local elapsed = GetTime() - (s.startTime or GetTime())
-        local fph = (elapsed >= 60 and s.catches and s.catches > 0)
-            and math_floor((s.catches / (elapsed / 3600)) + 0.5)
-            or 0
         local streakStr = (s.streak and s.streak > 1) and string_format(" • |cff00ff88%dx streak|r", s.streak) or ""
         sessionStr = string_format("catches: |cffffffff%d|r (|cffffd100%d/hr|r)%s", s.catches or 0, fph, streakStr)
     else
@@ -563,6 +576,7 @@ events.RegisterEvent("PLAYER_LOGIN", CheckVisibility)
 events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", OnPoleEquipChanged)
 events.RegisterEvent("ZONE_CHANGED_NEW_AREA", OnZoneChanged)
 events.RegisterEvent("ZONE_CHANGED", OnZoneChanged)
+events.RegisterEvent("ZONE_CHANGED_INDOORS", OnZoneChanged)
 events.RegisterEvent("BAG_UPDATE_DELAYED", OnBagsChanged)
 events.RegisterEvent("SKILL_LINES_CHANGED", OnSkillChanged)
 

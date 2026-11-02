@@ -402,14 +402,14 @@ end
 --- @return string|nil
 function sfui.common.get_map_name(mapID)
     local info = sfui.common.get_map_info(mapID)
-    return info and info.name or nil
+    if info and info.name then return info.name end
+    return (mapID and sfui.fishing_data and sfui.fishing_data.ZONE_NAMES and sfui.fishing_data.ZONE_NAMES[mapID]) or nil
 end
 
 --- Returns the localized name of the player's current zone/map or nil
 --- @return string|nil
 function sfui.common.get_player_map_name()
-    local info = sfui.common.get_player_map_info()
-    return info and info.name or nil
+    return sfui.common.get_map_name(sfui.common.get_player_map_id())
 end
 
 -- ────────────────────────────────────────────────────────────────────────────
