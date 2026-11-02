@@ -620,7 +620,10 @@ local function SyncFromExternalAddons()
     if type(tabrDB) ~= "table" or type(tabrDB.history) ~= "table" then return end
     externalSynced = true
 
-    local name, realm = UnitFullName and UnitFullName("player")
+    local name, realm
+    if UnitFullName then
+        name, realm = UnitFullName("player")
+    end
     if not name or name == "" then name = UnitName and UnitName("player") end
     realm = (realm and realm ~= "" and realm) or (GetRealmName and GetRealmName()) or ""
     if not name or name == "" then return end
