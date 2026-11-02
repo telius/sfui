@@ -75,14 +75,14 @@ sfui.options.RegisterTab({
             return sfui.db.Get("triage", "enabled", true)
         end, function(checked)
             sfui.db.Set("triage", "enabled", checked)
-        end, "prompts to delete lowest-value grey junk (or food/water) when regular inventory space reaches the free slot threshold.")
+        end, "prompts to delete lowest-value grey junk, food without well fed, and safe-to-delete white gear when regular inventory space reaches the free slot threshold.")
         triage_cb:SetPoint("TOPLEFT", triage_header, "BOTTOMLEFT", 0, -10)
 
         local triage_consumable_cb = create_checkbox(automation_panel, "include food/water", function()
             return sfui.db.Get("triage", "checkConsumables", true)
         end, function(checked)
             sfui.db.Set("triage", "checkConsumables", checked)
-        end, "cycles through food items without well fed and outdated food/drink alongside grey junk.")
+        end, "includes food items without well fed and outdated food/drink in the mixed vendor-value triage table.")
         triage_consumable_cb:SetPoint("LEFT", triage_cb, "LEFT", COL_OFFSET_X, 0)
 
         local function GetTriageThresholdOptions()

@@ -271,12 +271,155 @@ local function is_item_protected(itemID, itemLink, info)
     return false
 end
 
+local NON_DELETE_EQUIP_LOCS = {
+    ["INVTYPE_NON_EQUIP"]        = true,
+    ["INVTYPE_NON_EQUIP_IGNORE"] = true,
+    ["INVTYPE_BAG"]              = true,
+    ["INVTYPE_QUIVER"]           = true,
+    ["INVTYPE_AMMO"]             = true,
+    ["INVTYPE_BODY"]             = true,
+    ["INVTYPE_SHIRT"]            = true,
+    ["INVTYPE_TABARD"]           = true,
+    ["INVTYPE_FINGER"]           = true,
+    ["INVTYPE_NECK"]             = true,
+    ["INVTYPE_TRINKET"]          = true,
+    ["INVTYPE_HOLDABLE"]         = true,
+    ["INVTYPE_PROFESSION_TOOL"]  = true,
+    ["INVTYPE_PROFESSION_GEAR"]  = true,
+}
+
+--- Checks whether a Common (white, quality 1) equipable weapon/armor item is safe to delete
+--- @param bag number
+--- @param slot number
+--- @param itemID number
+--- @param itemLink string
+--- @param equipLoc string|nil
+--- @param classID number|nil
+--- @param subClassID number|nil
+--- @param baseLevel number|nil
+--- @param sellPrice number
+--- @return boolean isSafe
+local function is_safe_to_delete_white_equipable(bag, slot, itemID, itemLink, equipLoc, classID, subClassID, baseLevel, sellPrice)
+    if not sellPrice or sellPrice <= 0 then return false end
+    if not equipLoc or equipLoc == "" or NON_DELETE_EQUIP_LOCS[equipLoc] then return false end
+
+    local isWeapon = (classID == 2) or (Enum and Enum.ItemClass and classID == Enum.ItemClass.Weapon)
+    local isArmor  = (classID == 4) or (Enum and Enum.ItemClass and classID == Enum.ItemClass.Armor)
+    if not isWeapon and not isArmor then return false end
+
+    if isWeapon then
+        -- Protect miscellaneous/generic weapon tools (mining pick, skinning knife, blacksmith hammer, spanner) and fishing poles
+        local isGenericWeapon = (subClassID == 14) or (Enum and Enum.ItemWeaponSubclass and subClassID == Enum.ItemWeaponSubclass.Generic)
+        local isFishingPole = (subClassID == 20) or (Enum and Enum.ItemWeaponSubclass and subClassID == Enum.ItemWeaponSubclass.Fishingpole)
+            or (sfui.fishing and sfui.fishing.IsFishingPoleItem and sfui.fishing.IsFishingPoleItem(itemID, itemLink))
+        if isGenericWeapon or isFishingPole then return false end
+    elseif isArmor then
+        -- Only standard armor weights (1=Cloth, 2=Leather, 3=Mail, 4=Plate), Shields (6), or Cloaks
+        local isStandardArmor = (subClassID == 1 or subClassID == 2 or subClassID == 3 or subClassID == 4 or subClassID == 6)
+            or (equipLoc == "INVTYPE_CLOAK")
+        if not isStandardArmor then return false end
+    end
+
+    -- Protect items with On-Use spells (gadgets, quest disguises, teleport items)
+    local getSpell = (_G.C_Item and _G.C_Item.GetItemSpell) or _G.GetItemSpell
+    if getSpell then
+        local spellName, spellID = getSpell(itemLink or itemID)
+        if spellName or spellID then return false end
+    end
+
+    -- Protect enchanted items
+    local enchantID = tonumber(itemLink:match("item:%d+:(%d+)"))
+    if enchantID and enchantID > 0 then return false end
+
+    -- Protect special white items that carry bonus stats beyond base armor/block/weapon DPS
+    local stats = common.get_item_stats and common.get_item_stats(itemLink)
+    if stats then
+        for statKey, statVal in pairs(stats) do
+            if type(statVal) == "number" and statVal > 0
+                and statKey ~= "ITEM_MOD_ARMOR_SHORT"
+                and statKey ~= "ITEM_MOD_BLOCK_VALUE_SHORT"
+                and statKey ~= "ITEM_MOD_DAMAGE_PER_SECOND_SHORT"
+                and statKey ~= "RESISTANCE0_NAME"
+            then
+                return false
+            end
+        end
+    end
+
+    -- Protect items belonging to a saved Blizzard Equipment Set
+    local getEqSetInfo = (C_Container and C_Container.GetContainerItemEquipmentSetInfo) or _G.GetContainerItemEquipmentSetInfo
+    if getEqSetInfo then
+        local inSet = getEqSetInfo(bag, slot)
+        if inSet then return false end
+    end
+
+    -- Protect items locked in SFUI Gear Manager
+    if SfuiDB and type(SfuiDB.gear) == "table" then
+        for _, specGear in pairs(SfuiDB.gear) do
+            if type(specGear) == "table" then
+                if (specGear.locked_items_pve and specGear.locked_items_pve[itemID])
+                    or (specGear.locked_items_pvp and specGear.locked_items_pvp[itemID])
+                    or (specGear.locked_items and specGear.locked_items[itemID])
+                then
+                    return false
+                end
+            end
+        end
+    end
+
+    -- If item is not valid/usable for the player's class/spec (e.g. wrong armor type or weapon proficiency), it is safe to delete
+    local specID = common.get_current_spec_id and common.get_current_spec_id()
+    if sfui.highest and sfui.highest.IsItemValidForSpec and specID then
+        local isValidForSpec = sfui.highest.IsItemValidForSpec(itemLink, specID, true, true)
+        if not isValidForSpec then
+            return true
+        end
+    end
+
+    -- Otherwise, verify the player already has strictly better (Green+ or >= ilvl) gear equipped in the target slot(s)
+    local candIlvl = (common.get_item_level and common.get_item_level(itemLink)) or baseLevel or 1
+    local canDW = (playerClass == "ROGUE" or playerClass == "WARRIOR" or playerClass == "HUNTER")
+    local nSlots, s1, s2 = 0, nil, nil
+    if common.get_slots_for_invtype then
+        nSlots, s1, s2 = common.get_slots_for_invtype(equipLoc, canDW, false)
+    end
+    if not nSlots or nSlots == 0 or not s1 then
+        return false
+    end
+
+    local function is_slot_outclassed(targetSlot)
+        local eqLink = common.get_inventory_item_link and common.get_inventory_item_link("player", targetSlot)
+        -- If checking Off-Hand (slot 17) and it's empty because a 2H weapon is equipped in Main Hand (slot 16), compare against slot 16
+        if not eqLink and targetSlot == 17 then
+            local mhLink = common.get_inventory_item_link and common.get_inventory_item_link("player", 16)
+            if mhLink then
+                local mhEquipLoc = common.get_item_equip_loc and common.get_item_equip_loc(mhLink)
+                if mhEquipLoc == "INVTYPE_2HWEAPON" then
+                    eqLink = mhLink
+                end
+            end
+        end
+        if not eqLink then return false end
+        local _, _, eqQual, eqBaseLvl = common.get_item_info(eqLink)
+        local eqIlvl = (common.get_item_level and common.get_item_level(eqLink)) or eqBaseLvl or 0
+        if (eqQual and eqQual >= 2) or (eqIlvl >= candIlvl) then
+            return true
+        end
+        return false
+    end
+
+    if not is_slot_outclassed(s1) then return false end
+    if nSlots >= 2 and s2 and not is_slot_outclassed(s2) then return false end
+
+    return true
+end
+triage.IsSafeToDeleteWhiteEquipable = is_safe_to_delete_white_equipable
+
 --- Collects and ranks discard candidates from regular bags 0 to 4 (ignoring specialty containers)
---- @param skipInventoryScan boolean|nil if true, skips grey and consumable scan (used when bag slots > threshold)
---- @return table candidates, string candidateType ("grey", "consumable", or "none")
+--- @param skipInventoryScan boolean|nil if true, skips inventory scan (used when bag slots > threshold)
+--- @return table candidates, string candidateType ("mixed", "soulshard", or "none")
 local function find_candidates(skipInventoryScan)
-    local greyCandidates = {}
-    local consumableCandidates = {}
+    local mixedCandidates = {}
 
     local cfg = sfui.config.triage or {}
     local checkConsumables = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "checkConsumables", cfg.checkConsumables ~= false))
@@ -309,16 +452,17 @@ local function find_candidates(skipInventoryScan)
                             local stackCount = (info and info.stackCount) or 1
                             local icon = (info and info.iconFileID)
 
-                            local name, _, itemQuality, _, itemMinLevel, _, _, _, _, itemTexture, itemSellPrice, classID, subClassID = common.get_item_info(itemLink)
+                            local name, _, itemQuality, baseLevel, itemMinLevel, _, _, _, equipLoc, itemTexture, itemSellPrice, classID, subClassID = common.get_item_info(itemLink)
                             quality = quality or itemQuality or 0
                             icon = icon or itemTexture
+                            equipLoc = equipLoc or (common.get_item_equip_loc and common.get_item_equip_loc(itemLink))
 
                             local sellPrice = (info and info.noValue) and 0 or (itemSellPrice or 0)
                             local totalValue = sellPrice * stackCount
 
-                            -- Phase 1: Grey Quality Items (Quality 0)
+                            -- 1. Grey Quality Items (Quality 0)
                             if quality == 0 then
-                                greyCandidates[#greyCandidates + 1] = {
+                                mixedCandidates[#mixedCandidates + 1] = {
                                     bag = bag,
                                     slot = slot,
                                     itemID = itemID,
@@ -331,9 +475,8 @@ local function find_candidates(skipInventoryScan)
                                     totalValue = totalValue,
                                     category = "grey junk",
                                 }
-                            -- Phase 2: Consumables (Common/White Quality 1) - ONLY Food & Drink (subclass 5)
-                            -- Life-saving potions (1), elixirs (2), flasks (3), and bandages (7) are strictly protected
-                            elseif checkConsumables and quality == 1 then
+                            -- 2. Common/White Quality Items (Quality 1): Food without Well Fed / Outdated Consumables & Safe-to-Delete Equipable White Gear
+                            elseif quality == 1 then
                                 local isConsumableClass = (classID == 0) or (Enum and Enum.ItemClass and classID == Enum.ItemClass.Consumable)
                                 local isFoodDrink = (subClassID == 5) or (Enum and Enum.ItemConsumableSubclass and subClassID == Enum.ItemConsumableSubclass.Fooddrink)
                                 local isExcludedSubclass = (subClassID == 1 or subClassID == 2 or subClassID == 3 or subClassID == 4 or subClassID == 7)
@@ -344,7 +487,7 @@ local function find_candidates(skipInventoryScan)
                                         or subClassID == Enum.ItemConsumableSubclass.Bandage
                                     ))
 
-                                if isConsumableClass and isFoodDrink and not isExcludedSubclass then
+                                if checkConsumables and isConsumableClass and isFoodDrink and not isExcludedSubclass then
                                     local reqLevel = itemMinLevel or 0
                                     local levelDiff = math_max(0, playerLevel - reqLevel)
                                     local isOutdated = (playerLevel >= 15 and reqLevel <= 5)
@@ -374,7 +517,6 @@ local function find_candidates(skipInventoryScan)
                                         end
                                     else
                                         -- Food WITHOUT Well Fed: eligible for bag triage discard
-                                        -- Even if player is current level, plain food without well fed can be safely discarded
                                         canSuggest = true
                                     end
 
@@ -390,7 +532,7 @@ local function find_candidates(skipInventoryScan)
                                             category = "low-value consumable"
                                         end
 
-                                        consumableCandidates[#consumableCandidates + 1] = {
+                                        mixedCandidates[#mixedCandidates + 1] = {
                                             bag = bag,
                                             slot = slot,
                                             itemID = itemID,
@@ -408,6 +550,20 @@ local function find_candidates(skipInventoryScan)
                                             category = category,
                                         }
                                     end
+                                elseif is_safe_to_delete_white_equipable(bag, slot, itemID, itemLink, equipLoc, classID, subClassID, baseLevel, sellPrice) then
+                                    mixedCandidates[#mixedCandidates + 1] = {
+                                        bag = bag,
+                                        slot = slot,
+                                        itemID = itemID,
+                                        itemLink = itemLink,
+                                        itemName = name or "white gear",
+                                        icon = icon or "Interface\\Icons\\INV_Misc_QuestionMark",
+                                        quality = 1,
+                                        stackCount = stackCount,
+                                        sellPrice = sellPrice,
+                                        totalValue = totalValue,
+                                        category = "white gear",
+                                    }
                                 end
                             end
                         end
@@ -417,14 +573,36 @@ local function find_candidates(skipInventoryScan)
         end
     end
 
-    -- Check if prompt-mode excess soul shards exist (Warlock only)
+    -- Always suggest soul shards first (Warlock excess shards, or regular-bag spillover shards when bags reach triage threshold)
     local soulShardCandidate = nil
     local deleteSoulShards = isWarlock and (sfui.db and sfui.db.Get and sfui.db.Get("triage", "deleteSoulShards", cfg.deleteSoulShards or false))
-    if deleteSoulShards and not ignoredInSession[SOUL_SHARD_ID] and get_soul_shard_data then
+    if isWarlock and (deleteSoulShards or not skipInventoryScan) and not ignoredInSession[SOUL_SHARD_ID] and get_soul_shard_data then
         local sData = get_soul_shard_data()
-        if sData and sData.excessCount > 0 and sData.eligibleShards and #sData.eligibleShards > 0 then
-            local targetShard = sData.eligibleShards[1]
+        local targetShard = nil
+        local shardCountLabel = 0
+        local locText = nil
 
+        if sData and sData.excessCount > 0 and sData.eligibleShards and #sData.eligibleShards > 0 then
+            targetShard = sData.eligibleShards[1]
+            shardCountLabel = sData.excessCount
+            locText = sData.preserveSoulBag
+                and string_format("pruning regular bag spillover (%d/%d)", sData.totalCount, sData.maxShards)
+                or string_format("pruning %d excess shards (%d/%d)", sData.excessCount, sData.totalCount, sData.maxShards)
+        elseif not skipInventoryScan and sData and sData.regularShards and #sData.regularShards > 0 then
+            for i = #sData.regularShards, 1, -1 do
+                local sh = sData.regularShards[i]
+                if not sh.isLocked then
+                    targetShard = sh
+                    break
+                end
+            end
+            if targetShard then
+                shardCountLabel = #sData.regularShards
+                locText = string_format("pruning regular bag spillover (%d in regular bags)", shardCountLabel)
+            end
+        end
+
+        if targetShard then
             soulShardCandidate = {
                 isSoulShardPurge = true,
                 bag = targetShard.bag,
@@ -432,7 +610,7 @@ local function find_candidates(skipInventoryScan)
                 itemID = SOUL_SHARD_ID,
                 itemName = "Soul Shard",
                 itemLink = targetShard.itemLink or "item:6265",
-                displayName = string_format("|cff9933ffSoul Shards|r (|cffffffff%d excess|r)", sData.excessCount),
+                displayName = string_format("|cff9933ffSoul Shards|r (|cffffffff%d excess|r)", shardCountLabel),
                 icon = 134075,
                 stackCount = 1,
                 sellPrice = 0,
@@ -441,7 +619,7 @@ local function find_candidates(skipInventoryScan)
                 deleteButtonText = "purge",
                 totalCount = sData.totalCount,
                 maxShards = sData.maxShards,
-                locationText = sData.preserveSoulBag and string_format("pruning regular bag spillover (%d/%d)", sData.totalCount, sData.maxShards) or string_format("pruning %d excess shards (%d/%d)", sData.excessCount, sData.totalCount, sData.maxShards),
+                locationText = locText,
                 onKeep = function()
                     ignoredInSession[SOUL_SHARD_ID] = true
                     common.print("|cffaaaaaasfui triage:|r keeping soul shards for this session.")
@@ -450,11 +628,14 @@ local function find_candidates(skipInventoryScan)
         end
     end
 
-    -- Sort grey candidates (lowest total value, lowest unit price, smallest stack)
-    if #greyCandidates > 0 then
-        table_sort(greyCandidates, function(a, b)
+    -- Sort unified mixed candidates strictly by vendor value (lowest totalValue first)
+    if #mixedCandidates > 0 then
+        table_sort(mixedCandidates, function(a, b)
             if a.totalValue ~= b.totalValue then
                 return a.totalValue < b.totalValue
+            end
+            if a.quality ~= b.quality then
+                return a.quality < b.quality
             end
             if a.sellPrice ~= b.sellPrice then
                 return a.sellPrice < b.sellPrice
@@ -469,32 +650,6 @@ local function find_candidates(skipInventoryScan)
         end)
     end
 
-    -- Sort consumable candidates:
-    -- 1. Outdated consumables first
-    -- 2. Food items without well fed next
-    -- 3. Lowest total value, lowest unit price, smallest stack
-    if #consumableCandidates > 0 then
-        table_sort(consumableCandidates, function(a, b)
-            if a.isOutdated ~= b.isOutdated then
-                return a.isOutdated
-            end
-            if a.isFoodWithoutWellFed ~= b.isFoodWithoutWellFed then
-                return a.isFoodWithoutWellFed
-            end
-            if a.totalValue ~= b.totalValue then
-                return a.totalValue < b.totalValue
-            end
-            if a.sellPrice ~= b.sellPrice then
-                return a.sellPrice < b.sellPrice
-            end
-            if a.stackCount ~= b.stackCount then
-                return a.stackCount < b.stackCount
-            end
-            return a.slot > b.slot
-        end)
-    end
-
-    -- Assemble all candidates so triage cycles through soul shards, greys, and food items without well fed
     local allCandidates = {}
 
     -- 1. Soul Shards (Warlock excess)
@@ -502,23 +657,13 @@ local function find_candidates(skipInventoryScan)
         allCandidates[#allCandidates + 1] = soulShardCandidate
     end
 
-    -- 2. Grey junk items
-    for i = 1, #greyCandidates do
-        allCandidates[#allCandidates + 1] = greyCandidates[i]
-    end
-
-    -- 3. Consumable candidates (outdated food/drink, food items without well fed)
-    for i = 1, #consumableCandidates do
-        allCandidates[#allCandidates + 1] = consumableCandidates[i]
+    -- 2. Unified mixed table (grey junk, food without well fed, and safe-to-delete equipable white gear sorted by vendor value)
+    for i = 1, #mixedCandidates do
+        allCandidates[#allCandidates + 1] = mixedCandidates[i]
     end
 
     if #allCandidates > 0 then
-        local primaryType = "grey"
-        if soulShardCandidate and #allCandidates == 1 then
-            primaryType = "soulshard"
-        elseif #greyCandidates == 0 and #consumableCandidates > 0 then
-            primaryType = "consumable"
-        end
+        local primaryType = (soulShardCandidate and #allCandidates == 1) and "soulshard" or "mixed"
         return allCandidates, primaryType
     end
 
@@ -1470,6 +1615,27 @@ function triage.ToggleTestMode()
     isTestMode = true
     currentCandidates = {
         {
+            isSoulShardPurge = true,
+            itemID = SOUL_SHARD_ID,
+            itemLink = "|cff9933ffSoul Shards|r (|cffffffff4 excess|r)",
+            itemName = "Soul Shards",
+            icon = 134075,
+            stackCount = 4,
+            sellPrice = 0,
+            totalValue = 0,
+            category = "excess soul shards",
+            deleteButtonText = "purge",
+            totalCount = 24,
+            maxShards = 20,
+            locationText = "pruning regular bag spillover",
+            onDelete = function()
+                common.print("|cff00ffffsfui triage:|r [test preview] purged 4 excess soul shards simulated.")
+            end,
+            onKeep = function()
+                common.print("|cffaaaaaasfui triage:|r [test preview] keeping soul shards for this session.")
+            end,
+        },
+        {
             itemID = 4865,
             itemLink = "|cff9d9d9d|Hitem:4865::::::::1:1447::1::::|h[Broken Boar Tusk]|h|r",
             itemName = "Broken Boar Tusk",
@@ -1491,30 +1657,22 @@ function triage.ToggleTestMode()
             stackCount = 5,
             sellPrice = 2,
             totalValue = 10,
-            category = "outdated food/drink",
+            category = "food (no well fed)",
             bag = 2,
             slot = 1,
         },
         {
-            isSoulShardPurge = true,
-            itemID = SOUL_SHARD_ID,
-            itemLink = "|cff9933ffSoul Shards|r (|cffffffff4 excess|r)",
-            itemName = "Soul Shards",
-            icon = 134075,
-            stackCount = 4,
-            sellPrice = 0,
-            totalValue = 0,
-            category = "excess soul shards",
-            deleteButtonText = "purge",
-            totalCount = 24,
-            maxShards = 20,
-            locationText = "pruning regular bag spillover",
-            onDelete = function()
-                common.print("|cff00ffffsfui triage:|r [test preview] purged 4 excess soul shards simulated.")
-            end,
-            onKeep = function()
-                common.print("|cffaaaaaasfui triage:|r [test preview] keeping soul shards for this session.")
-            end,
+            itemID = 2364,
+            itemLink = "|cffffffff|Hitem:2364::::::::1:1447::1::::|h[Battered Leather Belt]|h|r",
+            itemName = "Battered Leather Belt",
+            icon = 132492,
+            quality = 1,
+            stackCount = 1,
+            sellPrice = 18,
+            totalValue = 18,
+            category = "white gear",
+            bag = 3,
+            slot = 5,
         },
     }
     currentCandidateIndex = 1
