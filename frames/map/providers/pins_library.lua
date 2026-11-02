@@ -7,7 +7,7 @@ sfui = sfui or {}
 --  WorldMap Pin Provider: Camelot Library Books & Faction Librarians
 -- ══════════════════════════════════════════════════════════════════════════════
 
-if sfui.isRetail then return end
+if not sfui.isCamelot then return end
 
 local pins = sfui.pins
 if not pins then return end

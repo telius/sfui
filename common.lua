@@ -915,19 +915,53 @@ end
 -- sfui/core/colors.lua and bound to sfui.common.*.
 -- ────────────────────────────────────────────────────────────────────────────
 
+local sharedScanTooltip
+function sfui.common.get_scan_tooltip()
+    if not sharedScanTooltip and _G.CreateFrame then
+        sharedScanTooltip = _G.CreateFrame("GameTooltip", "SfuiScanTooltip", _G.UIParent, "GameTooltipTemplate")
+    end
+    if sharedScanTooltip then
+        local owner = _G.UIParent or _G.WorldFrame
+        if sharedScanTooltip.SetOwner and owner then
+            sharedScanTooltip:SetOwner(owner, "ANCHOR_NONE")
+        end
+        if sharedScanTooltip.ClearLines then
+            sharedScanTooltip:ClearLines()
+        end
+    end
+    return sharedScanTooltip, "SfuiScanTooltip"
+end
+
 function sfui.common.is_item_known(itemLink)
     if not itemLink then return false end
 
-    local data = C_TooltipInfo.GetHyperlink(itemLink)
-    if data and data.lines then
-        for _, line in ipairs(data.lines) do
-            local text = line.leftText
-            if text then
-                if text == ITEM_SPELL_KNOWN or text == "Already known" then
-                    return true
+    if C_TooltipInfo and C_TooltipInfo.GetHyperlink then
+        local data = C_TooltipInfo.GetHyperlink(itemLink)
+        if data and data.lines then
+            for _, line in ipairs(data.lines) do
+                local text = line.leftText
+                if text then
+                    if text == ITEM_SPELL_KNOWN or text == "Already known" then
+                        return true
+                    end
+                    if string.find(text, "You've collected this appearance") then
+                        return true
+                    end
                 end
-                if string.find(text, "You've collected this appearance") then
-                    return true
+            end
+        end
+    else
+        local tip, tipName = sfui.common.get_scan_tooltip()
+        if tip and tip.SetHyperlink then
+            tip:SetHyperlink(itemLink)
+            local numLines = (tip.NumLines and tip:NumLines()) or 0
+            for i = 1, numLines do
+                local fs = _G[tipName .. "TextLeft" .. i]
+                local text = fs and fs:GetText()
+                if text then
+                    if text == ITEM_SPELL_KNOWN or text == "Already known" or string.find(text, "Already known", 1, true) then
+                        return true
+                    end
                 end
             end
         end
@@ -935,18 +969,20 @@ function sfui.common.is_item_known(itemLink)
 
     local itemID = tonumber(string.match(itemLink, "item:(%d+)"))
     if itemID then
-        local appearanceID, sourceID = C_TransmogCollection.GetItemInfo(itemID)
-        if sourceID then
-            local categoryID, visualID, canEnchant, icon, isCollected = C_TransmogCollection.GetAppearanceSourceInfo(
-                sourceID)
-            if isCollected then
-                return true
+        if C_TransmogCollection and C_TransmogCollection.GetItemInfo then
+            local appearanceID, sourceID = C_TransmogCollection.GetItemInfo(itemID)
+            if sourceID and C_TransmogCollection.GetAppearanceSourceInfo then
+                local categoryID, visualID, canEnchant, icon, isCollected = C_TransmogCollection.GetAppearanceSourceInfo(
+                    sourceID)
+                if isCollected then
+                    return true
+                end
             end
         end
 
         if C_ToyBox and C_ToyBox.GetToyInfo then
             local toyID = C_ToyBox.GetToyInfo(itemID)
-            if toyID and PlayerHasToy(itemID) then return true end
+            if toyID and PlayerHasToy and PlayerHasToy(itemID) then return true end
         end
     end
 

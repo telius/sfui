@@ -4,6 +4,7 @@ sfui.trackedbars = {}
 local cfg = sfui.config
 local common = sfui.common
 local bars = {} -- Active sfui bars
+sfui.trackedbars._bars = bars
 local container
 local issecretvalue = common.issecretvalue
 local CreateFrame = CreateFrame
@@ -316,6 +317,7 @@ local function GetBarNormalColor(config)
     end
     return sfui.config.colors.purple
 end
+sfui.trackedbars.GetBarNormalColor = GetBarNormalColor
 
 -- Helper function to setup bar content (text, icons, stack mode logic)
 local function SetupBarState(bar, config, cfg)
@@ -736,6 +738,10 @@ local function GetBarFromPool(cooldownID)
         return bar
     end
     return nil
+end
+
+function sfui.trackedbars.AcquireBar(cooldownID)
+    return GetBarFromPool(cooldownID) or CreateBar(cooldownID)
 end
 
 function sfui.trackedbars.RemoveBar(cooldownID, suppressLayout)
@@ -1168,7 +1174,12 @@ end
 
 
 local function ProcessBlizzardSync()
-    if not BuffBarCooldownViewer or not BuffBarCooldownViewer.itemFramePool then return end
+    if not BuffBarCooldownViewer or not BuffBarCooldownViewer.itemFramePool then
+        if sfui.isEra and sfui.trackedbars.ClassicSync then
+            sfui.trackedbars.ClassicSync()
+        end
+        return
+    end
 
     wipe(activeCooldownIDs)
     local layoutNeeded = false
@@ -1549,8 +1560,12 @@ local function _OnTrackedBarsUpdate(elapsed)
     end
 
     -- 2. Visual Updates (Smooth status bar progression and duration text)
-    if _numShownBars > 0 and BuffBarCooldownViewer and BuffBarCooldownViewer.itemFramePool then
-        UpdateBarsState()
+    if _numShownBars > 0 then
+        if BuffBarCooldownViewer and BuffBarCooldownViewer.itemFramePool then
+            UpdateBarsState()
+        elseif sfui.isEra and sfui.trackedbars.ClassicUpdateState then
+            sfui.trackedbars.ClassicUpdateState()
+        end
     end
 end
 

@@ -678,8 +678,9 @@ function sfui.stats.GetEffectiveDefense(unit)
     if InCombatLockdown and InCombatLockdown() then
         return maxDef, maxDef, 0, maxDef, 0
     end
-    if not _G.UnitDefenseSkill then return 0, 0, 0, 0, 0 end
-    local base, mod = _G.UnitDefenseSkill(unit)
+    local defenseFn = _G.UnitDefenseSkill or _G.UnitDefense
+    if not defenseFn then return 0, 0, 0, 0, 0 end
+    local base, mod = defenseFn(unit)
     base = num(base)
     mod = num(mod)
     local effective = math_max(0, base + mod)
@@ -758,8 +759,15 @@ end
 --- @return number effective, number bonus, number reductionPct
 function sfui.stats.GetResistance(damageClass, casterLevel)
     if not _G.UnitResistance then return 0, 0, 0 end
-    local _, _, effective, bonus = _G.UnitResistance("player", damageClass)
-    effective, bonus = num(effective), num(bonus)
+    local effective, bonus
+    if sfui.isEra then
+        local _, resistance, positive, negative = _G.UnitResistance("player", damageClass)
+        effective = num(resistance)
+        bonus = num(positive) + num(negative)
+    else
+        local _, _, eff, bon = _G.UnitResistance("player", damageClass)
+        effective, bonus = num(eff), num(bon)
+    end
     return effective, bonus, sfui.stats.GetResistanceReduction(effective, casterLevel)
 end
 
@@ -776,7 +784,7 @@ function sfui.stats.GetHitChance(unit)
         meleeHit = crMelee + modHit
 
         local crRanged = num(CR and _G.CR_HIT_RANGED and CR(_G.CR_HIT_RANGED))
-        local modRanged = num(_G.GetRangedHitModifier and _G.GetRangedHitModifier())
+        local modRanged = _G.GetRangedHitModifier and num(_G.GetRangedHitModifier()) or modHit
         rangedHit = crRanged + modRanged
 
         local crSpell = num(CR and _G.CR_HIT_SPELL and CR(_G.CR_HIT_SPELL))
@@ -792,10 +800,21 @@ function sfui.stats.GetHitChance(unit)
 end
 
 --- Calculates Critical Strike Chance across Melee, Ranged, and Spell
-function sfui.stats.GetCritChance()
+function sfui.stats.GetCritChance(outSchools)
     local meleeCrit = num(_G.GetCritChance and _G.GetCritChance())
     local rangedCrit = num(_G.GetRangedCritChance and _G.GetRangedCritChance())
-    local spellCrit = num(_G.GetSpellCritChance and _G.GetSpellCritChance())
+    local spellCrit = 0
+    if _G.GetSpellCritChance then
+        if sfui.isEra then
+            for school = FIRST_SPELL_SCHOOL, LAST_SPELL_SCHOOL do
+                local sc = num(_G.GetSpellCritChance(school))
+                if outSchools then outSchools[school] = sc end
+                if sc > spellCrit then spellCrit = sc end
+            end
+        else
+            spellCrit = num(_G.GetSpellCritChance())
+        end
+    end
     local maxCrit = math_max(meleeCrit, rangedCrit, spellCrit)
     return maxCrit, meleeCrit, rangedCrit, spellCrit
 end

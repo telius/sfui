@@ -5,8 +5,8 @@ sfui.character.infopanel = {}
 
 local panelModule = sfui.character.infopanel
 
--- Guard: Camelot only
-if not sfui.isCamelot then
+-- Guard: Camelot and Classic Era
+if not (sfui.isCamelot or sfui.isEra) then
     return
 end
 
@@ -137,6 +137,7 @@ local ctx = {
     target      = {},
     incoming    = {},
     schoolPower = {},
+    schoolCrit  = {},
 }
 
 local function IsInCombat()
@@ -208,7 +209,7 @@ local function resolve_context()
 
     local _
     _, ctx.meleeHit, ctx.rangedHit, ctx.spellHit = stats.GetHitChance("player")
-    _, ctx.meleeCrit, ctx.rangedCrit, ctx.spellCrit = stats.GetCritChance("player")
+    _, ctx.meleeCrit, ctx.rangedCrit, ctx.spellCrit = stats.GetCritChance(ctx.schoolCrit)
     _, ctx.meleeHaste, ctx.rangedHaste, ctx.spellHaste = stats.GetHaste("player")
 
     local t = resolve_target(ctx.target, pLevel)
@@ -409,8 +410,13 @@ function SECTIONS.spell(c)
     end
 
     if full then
+        local sc = c.schoolCrit
+        local critTip = (sc and (sc[2] or sc[3]) and ((sc[2] or 0) > 0 or (sc[3] or 0) > 0))
+            and string_format("holy %.1f%%  |  fire %.1f%%  |  nature %.1f%%\nfrost %.1f%%  |  shadow %.1f%%  |  arcane %.1f%%",
+                sc[2] or 0, sc[3] or 0, sc[4] or 0, sc[5] or 0, sc[6] or 0, sc[7] or 0)
+            or "critical strike chance for spells."
         row("spell crit:", string_format("%.2f%%", c.spellCrit), COLOR_SPELL,
-            "spell crit chance", "critical strike chance for spells.")
+            "spell crit chance", critTip)
         if c.spellHaste > 0 then
             row("spell haste:", string_format("%.1f%%", c.spellHaste), COLOR_LIGHT_GRAY,
                 "spell haste", "reduces cast times.")
@@ -677,12 +683,16 @@ local function RestorePosition(frame)
     local pos = SfuiDB and SfuiDB.characterInfoPanelPos
     if pos and pos.point and pos.x and pos.y then
         frame:SetPoint(pos.point, UIParent, pos.relPoint or "BOTTOMLEFT", pos.x, pos.y)
+    elseif panelModule.ApplyDefaultAnchor and CharacterFrame then
+        panelModule.ApplyDefaultAnchor(frame, CharacterFrame)
     elseif CharacterFrame then
         frame:SetPoint("TOPLEFT", CharacterFrame, "TOPRIGHT", 2, -12)
     else
         frame:SetPoint("CENTER", UIParent, "CENTER", 200, 0)
     end
 end
+panelModule.RestorePosition = RestorePosition
+panelModule.GetPanelFrame = function() return panelFrame end
 
 local function SavePosition(frame)
     if not frame or IsInCombat() then return end
@@ -899,6 +909,7 @@ local function request_refresh()
     if IsInCombat() or not is_panel_live() then return end
     common.debounce(DEBOUNCE_KEY, DEBOUNCE_DELAY, do_refresh)
 end
+panelModule.RequestRefresh = request_refresh
 
 local function hide_panel()
     if panelFrame and panelFrame:IsShown() then

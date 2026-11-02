@@ -1,5 +1,6 @@
 local addonName, addon = ...
 sfui = sfui or {}
+if not sfui.isCamelot then return end
 sfui.experience = sfui.experience or {}
 sfui.experience.challenges = {}
 

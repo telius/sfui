@@ -203,7 +203,168 @@ local function HookBlizzardTargetFrame()
     SuppressBlizzardTargetFrame()
 end
 
--- ─── Native AuraContainer Button Initializers ────────────────────────────────
+-- ─── Native AuraContainer vs Classic Era Aura Container ──────────────────────
+local HAS_NATIVE_AURA_CONTAINER = (_G.CustomAuraContainerLayoutDefaults ~= nil)
+    or (_G.C_XMLUtil ~= nil and _G.C_XMLUtil.GetTemplateInfo ~= nil and _G.C_XMLUtil.GetTemplateInfo("CustomAuraContainerTemplate") ~= nil)
+
+local CLASSIC_DEBUFF_COLORS = {
+    Magic   = { 0.20, 0.60, 1.00 },
+    Curse   = { 0.60, 0.00, 1.00 },
+    Disease = { 0.60, 0.40, 0.00 },
+    Poison  = { 0.00, 0.60, 0.00 },
+    Bleed   = { 0.80, 0.00, 0.00 },
+    None    = { 0.80, 0.00, 0.00 },
+}
+
+local function GetClassicAuraByIndex(unit, index, filter)
+    if _G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex then
+        local aura = _G.C_UnitAuras.GetAuraDataByIndex(unit, index, filter)
+        if not aura then return nil end
+        return aura.icon, aura.applications, aura.dispelName, aura.duration, aura.expirationTime
+    elseif _G.UnitAura then
+        local _, icon, count, dispelName, duration, expirationTime = _G.UnitAura(unit, index, filter)
+        return icon, count, dispelName, duration, expirationTime
+    end
+    return nil
+end
+
+local function CreateClassicAuraContainer(name, parent, unit, filter, maxCount, size, spacing, isDebuff, growLeft)
+    local container = CreateFrame("Frame", name, parent)
+    container:SetSize(maxCount * size + (maxCount - 1) * spacing, size)
+    container.buttons = {}
+
+    local function GetOrCreateButton(idx)
+        local btn = container.buttons[idx]
+        if btn then return btn end
+
+        btn = CreateFrame("Frame", nil, container)
+        btn:SetSize(size, size)
+        if btn.EnableMouse then btn:EnableMouse(true) end
+
+        if isDebuff then
+            local border = btn:CreateTexture(nil, "BACKGROUND")
+            border:SetAllPoints()
+            border:SetTexture("Interface\\Buttons\\WHITE8X8")
+            btn.border = border
+        else
+            local bg = btn:CreateTexture(nil, "BACKGROUND")
+            bg:SetAllPoints()
+            bg:SetColorTexture(0.15, 0.15, 0.15, 0.9)
+            btn.bg = bg
+        end
+
+        local icon = btn:CreateTexture(nil, "ARTWORK")
+        icon:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
+        icon:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
+        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        btn.icon = icon
+
+        local count = btn:CreateFontString(nil, "OVERLAY")
+        count:SetFont(GetFontPath(), 9, "OUTLINE")
+        count:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
+        count:SetTextColor(1, 1, 1, 1)
+        btn.count = count
+
+        local cd = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
+        cd:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
+        cd:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
+        if cd.SetReverse then cd:SetReverse(true) end
+        if cd.SetHideCountdownNumbers then cd:SetHideCountdownNumbers(true) end
+        btn.cd = cd
+
+        if btn.SetScript then
+            btn:SetScript("OnEnter", function(self)
+                if not GameTooltip or not self.auraIndex then return end
+                GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT", 15, -25)
+                if isDebuff and GameTooltip.SetUnitDebuff then
+                    GameTooltip:SetUnitDebuff(unit, self.auraIndex, filter)
+                elseif not isDebuff and GameTooltip.SetUnitBuff then
+                    GameTooltip:SetUnitBuff(unit, self.auraIndex, filter)
+                elseif GameTooltip.SetUnitAura then
+                    GameTooltip:SetUnitAura(unit, self.auraIndex, filter)
+                end
+            end)
+            btn:SetScript("OnLeave", function()
+                if GameTooltip then GameTooltip:Hide() end
+            end)
+        end
+
+        container.buttons[idx] = btn
+        return btn
+    end
+
+    function container:UpdateAllAuras()
+        if not UnitExists(unit) then
+            for i = 1, #self.buttons do
+                self.buttons[i]:Hide()
+            end
+            return
+        end
+
+        local shown = 0
+        local auraIndex = 1
+        while shown < maxCount do
+            local icon, applications, dispelName, duration, expirationTime = GetClassicAuraByIndex(unit, auraIndex, filter)
+            if not icon then
+                break
+            end
+
+            shown = shown + 1
+            local btn = GetOrCreateButton(shown)
+            btn:ClearAllPoints()
+            local offset = (shown - 1) * (size + spacing)
+            if growLeft then
+                btn:SetPoint("TOPRIGHT", self, "TOPRIGHT", -offset, 0)
+            else
+                btn:SetPoint("TOPLEFT", self, "TOPLEFT", offset, 0)
+            end
+
+            btn.auraIndex = auraIndex
+            btn.icon:SetTexture(icon)
+
+            if applications and applications > 1 then
+                btn.count:SetText(applications)
+                btn.count:Show()
+            else
+                btn.count:Hide()
+            end
+
+            if isDebuff and btn.border then
+                local col = (dispelName and CLASSIC_DEBUFF_COLORS[dispelName]) or CLASSIC_DEBUFF_COLORS.None
+                btn.border:SetVertexColor(col[1], col[2], col[3], 1)
+            end
+
+            if btn.cd then
+                if duration and duration > 0 and expirationTime and expirationTime > 0 then
+                    if _G.CooldownFrame_Set then
+                        _G.CooldownFrame_Set(btn.cd, expirationTime - duration, duration, true, true)
+                    elseif btn.cd.SetCooldown then
+                        btn.cd:SetCooldown(expirationTime - duration, duration)
+                        btn.cd:Show()
+                    end
+                else
+                    if _G.CooldownFrame_Clear then
+                        _G.CooldownFrame_Clear(btn.cd)
+                    elseif btn.cd.Clear then
+                        btn.cd:Clear()
+                    else
+                        btn.cd:Hide()
+                    end
+                end
+            end
+
+            btn:Show()
+            auraIndex = auraIndex + 1
+        end
+
+        for i = shown + 1, #self.buttons do
+            self.buttons[i]:Hide()
+        end
+    end
+
+    return container
+end
+
 local function InitializeBuffButton(frame)
     local size = (cfg.auras and cfg.auras.size) or 18
     frame:SetSize(size, size)
@@ -1245,6 +1406,8 @@ local function OnTargetUnitEvent(event, unit)
         UpdateTargetHealth()
     elseif event == "UNIT_POWER_UPDATE" or event == "UNIT_MAXPOWER" or event == "UNIT_DISPLAYPOWER" then
         UpdateTargetPower()
+    elseif event == "UNIT_AURA" then
+        UpdateAuras()
     elseif event == "UNIT_NAME_UPDATE" or event == "UNIT_LEVEL" or event == "UNIT_FACTION" or event == "UNIT_CLASSIFICATION_CHANGED" then
         if event == "UNIT_NAME_UPDATE" then
             local guid = UnitGUID("target")
@@ -1542,61 +1705,70 @@ local function CreateTargetFrame()
     -- Apply theme styling (Clean flat bars for Modern Minimalist, Nameplate bezel for Camelot)
     ApplyTargetStyle(healthBar, levelFrame)
 
-    -- 9. Aura Containers (Native AuraContainer - Positive & Negative Buckets)
+    -- 9. Aura Containers (Native AuraContainer on Camelot, Classic Aura Container on Classic Era)
     local auraCfg = cfg.auras or {}
     local spacing = auraCfg.spacing or 2
     local size = auraCfg.size or 18
     local maxBuffs = auraCfg.maxBuffs or 6
     local maxDebuffs = auraCfg.maxDebuffs or 6
-    local flowDirRight = (_G.AnchorUtil and _G.AnchorUtil.FlowDirection and _G.AnchorUtil.FlowDirection.Right) or 1
-    local flowDirLeft  = (_G.AnchorUtil and _G.AnchorUtil.FlowDirection and _G.AnchorUtil.FlowDirection.Left) or -1
-    local flowDirDown  = (_G.AnchorUtil and _G.AnchorUtil.FlowDirection and _G.AnchorUtil.FlowDirection.Down) or -1
 
-    buffContainer = CreateFrame("AuraContainer", "SfuiTargetBuffs", f, "CustomAuraContainerTemplate")
-    buffContainer:SetUnit("target")
-    buffContainer:SetFlowLayoutAnchorPoint("TOPLEFT")
-    buffContainer:SetFlowLayoutGrowthDirection(flowDirRight, flowDirDown)
-    if buffContainer.SetEditModePreviewEnabled then
-        buffContainer:SetEditModePreviewEnabled(false)
-    end
-    buffContainer.editModePreviewEnabled = false
-    if buffContainer.UnregisterEvent then
-        buffContainer:UnregisterEvent("AURA_DATA_PROVIDER_SWITCH")
-    end
-    buffContainer:AddAuraGroup("Buffs", "HELPFUL", {
-        maxFrameCount = maxBuffs,
-        initializeFrame = InitializeBuffButton,
-        layout = {
-            elementSpacing = spacing,
-            lineSpacing = spacing,
-            elementWidth = size,
-            elementHeight = size,
-        },
-    })
-    buffContainer:Show()
+    if HAS_NATIVE_AURA_CONTAINER then
+        local flowDirRight = (_G.AnchorUtil and _G.AnchorUtil.FlowDirection and _G.AnchorUtil.FlowDirection.Right) or 1
+        local flowDirLeft  = (_G.AnchorUtil and _G.AnchorUtil.FlowDirection and _G.AnchorUtil.FlowDirection.Left) or -1
+        local flowDirDown  = (_G.AnchorUtil and _G.AnchorUtil.FlowDirection and _G.AnchorUtil.FlowDirection.Down) or -1
 
-    debuffContainer = CreateFrame("AuraContainer", "SfuiTargetDebuffs", f, "CustomAuraContainerTemplate")
-    debuffContainer:SetUnit("target")
-    debuffContainer:SetFlowLayoutAnchorPoint("TOPRIGHT")
-    debuffContainer:SetFlowLayoutGrowthDirection(flowDirLeft, flowDirDown)
-    if debuffContainer.SetEditModePreviewEnabled then
-        debuffContainer:SetEditModePreviewEnabled(false)
+        buffContainer = CreateFrame("AuraContainer", "SfuiTargetBuffs", f, "CustomAuraContainerTemplate")
+        buffContainer:SetUnit("target")
+        buffContainer:SetFlowLayoutAnchorPoint("TOPLEFT")
+        buffContainer:SetFlowLayoutGrowthDirection(flowDirRight, flowDirDown)
+        if buffContainer.SetEditModePreviewEnabled then
+            buffContainer:SetEditModePreviewEnabled(false)
+        end
+        buffContainer.editModePreviewEnabled = false
+        if buffContainer.UnregisterEvent then
+            buffContainer:UnregisterEvent("AURA_DATA_PROVIDER_SWITCH")
+        end
+        buffContainer:AddAuraGroup("Buffs", "HELPFUL", {
+            maxFrameCount = maxBuffs,
+            initializeFrame = InitializeBuffButton,
+            layout = {
+                elementSpacing = spacing,
+                lineSpacing = spacing,
+                elementWidth = size,
+                elementHeight = size,
+            },
+        })
+        buffContainer:Show()
+
+        debuffContainer = CreateFrame("AuraContainer", "SfuiTargetDebuffs", f, "CustomAuraContainerTemplate")
+        debuffContainer:SetUnit("target")
+        debuffContainer:SetFlowLayoutAnchorPoint("TOPRIGHT")
+        debuffContainer:SetFlowLayoutGrowthDirection(flowDirLeft, flowDirDown)
+        if debuffContainer.SetEditModePreviewEnabled then
+            debuffContainer:SetEditModePreviewEnabled(false)
+        end
+        debuffContainer.editModePreviewEnabled = false
+        if debuffContainer.UnregisterEvent then
+            debuffContainer:UnregisterEvent("AURA_DATA_PROVIDER_SWITCH")
+        end
+        debuffContainer:AddAuraGroup("Debuffs", "HARMFUL", {
+            maxFrameCount = maxDebuffs,
+            initializeFrame = InitializeDebuffButton,
+            layout = {
+                elementSpacing = spacing,
+                lineSpacing = spacing,
+                elementWidth = size,
+                elementHeight = size,
+            },
+        })
+        debuffContainer:Show()
+    else
+        buffContainer = CreateClassicAuraContainer("SfuiTargetBuffs", f, "target", "HELPFUL", maxBuffs, size, spacing, false, false)
+        buffContainer:Show()
+
+        debuffContainer = CreateClassicAuraContainer("SfuiTargetDebuffs", f, "target", "HARMFUL", maxDebuffs, size, spacing, true, true)
+        debuffContainer:Show()
     end
-    debuffContainer.editModePreviewEnabled = false
-    if debuffContainer.UnregisterEvent then
-        debuffContainer:UnregisterEvent("AURA_DATA_PROVIDER_SWITCH")
-    end
-    debuffContainer:AddAuraGroup("Debuffs", "HARMFUL", {
-        maxFrameCount = maxDebuffs,
-        initializeFrame = InitializeDebuffButton,
-        layout = {
-            elementSpacing = spacing,
-            lineSpacing = spacing,
-            elementWidth = size,
-            elementHeight = size,
-        },
-    })
-    debuffContainer:Show()
 
     -- 10. Range Ticker (Out-of-range alpha dimming)
     targetContainer = f
@@ -1778,20 +1950,24 @@ local function Initialize()
     HookBlizzardTargetFrame()
 
     -- Register unit events with dispatcher
+    local unitEvents = {
+        "UNIT_HEALTH",
+        "UNIT_MAXHEALTH",
+        "UNIT_POWER_UPDATE",
+        "UNIT_MAXPOWER",
+        "UNIT_DISPLAYPOWER",
+        "UNIT_NAME_UPDATE",
+        "UNIT_LEVEL",
+        "UNIT_FACTION",
+        "UNIT_CLASSIFICATION_CHANGED",
+        "UNIT_HEAL_PREDICTION",
+        "UNIT_ABSORB_AMOUNT_CHANGED",
+    }
+    if not HAS_NATIVE_AURA_CONTAINER then
+        unitEvents[#unitEvents + 1] = "UNIT_AURA"
+    end
     sfui.events.RegisterUnitEvents(
-        {
-            "UNIT_HEALTH",
-            "UNIT_MAXHEALTH",
-            "UNIT_POWER_UPDATE",
-            "UNIT_MAXPOWER",
-            "UNIT_DISPLAYPOWER",
-            "UNIT_NAME_UPDATE",
-            "UNIT_LEVEL",
-            "UNIT_FACTION",
-            "UNIT_CLASSIFICATION_CHANGED",
-            "UNIT_HEAL_PREDICTION",
-            "UNIT_ABSORB_AMOUNT_CHANGED",
-        },
+        unitEvents,
         "target",
         OnTargetUnitEvent
     )

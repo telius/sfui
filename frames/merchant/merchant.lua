@@ -232,6 +232,16 @@ function sfui.merchant.create_item_button(id, parent)
                                     end
                                 end
                             end
+                        elseif GameTooltip.NumLines then
+                            local gName = (GameTooltip.GetName and GameTooltip:GetName()) or "GameTooltip"
+                            for i = 1, (GameTooltip:NumLines() or 0) do
+                                local fs = _G[gName .. "TextLeft" .. i]
+                                local txt = fs and fs:GetText()
+                                if txt and (txt == ITEM_SPELL_KNOWN or txt == "Already known") then
+                                    alreadyShown = true
+                                    break
+                                end
+                            end
                         end
                         if not alreadyShown then
                             GameTooltip:AddLine(ITEM_SPELL_KNOWN or "Already known", 1, 0.1, 0.1)
@@ -460,16 +470,36 @@ local function update_header()
     frame.merchantName:SetText(UnitName(unit) or "Merchant")
 
     local titleText = ""
-    local data = C_TooltipInfo.GetUnit(unit)
-    if data and data.lines then
-        local line2 = data.lines[2] and data.lines[2].leftText
-        if line2 and not issecretvalue(line2) and type(line2) == "string" then
-            if not string.find(line2, "Level") then
-                titleText = line2
-            else
-                local line3 = data.lines[3] and data.lines[3].leftText
-                if line3 and not issecretvalue(line3) and type(line3) == "string" then
-                    titleText = line3
+    if C_TooltipInfo and C_TooltipInfo.GetUnit then
+        local data = C_TooltipInfo.GetUnit(unit)
+        if data and data.lines then
+            local line2 = data.lines[2] and data.lines[2].leftText
+            if line2 and not issecretvalue(line2) and type(line2) == "string" then
+                if not string.find(line2, "Level") then
+                    titleText = line2
+                else
+                    local line3 = data.lines[3] and data.lines[3].leftText
+                    if line3 and not issecretvalue(line3) and type(line3) == "string" then
+                        titleText = line3
+                    end
+                end
+            end
+        end
+    elseif common.get_scan_tooltip then
+        local tip, tipName = common.get_scan_tooltip()
+        if tip and tip.SetUnit then
+            tip:SetUnit(unit)
+            local fs2 = _G[tipName .. "TextLeft2"]
+            local line2 = fs2 and fs2:GetText()
+            if line2 and not issecretvalue(line2) and type(line2) == "string" then
+                if not string.find(line2, "Level") then
+                    titleText = line2
+                else
+                    local fs3 = _G[tipName .. "TextLeft3"]
+                    local line3 = fs3 and fs3:GetText()
+                    if line3 and not issecretvalue(line3) and type(line3) == "string" then
+                        titleText = line3
+                    end
                 end
             end
         end
@@ -480,6 +510,44 @@ end
 --------------------------------------------------------------------------------
 -- Central Event Wiring
 --------------------------------------------------------------------------------
+
+local function on_merchant_update(event, ...)
+    if event == "GET_ITEM_INFO_RECEIVED" then
+        local itemID, success = ...
+        if not success or not itemID then return end
+
+        if sfui.merchant.decorXpCache then
+            sfui.merchant.decorXpCache[itemID] = nil
+        end
+
+        -- Only rebuild if the item is actually in the merchant's current stock
+        local found = false
+        for i = 1, GetMerchantNumItems() do
+            local link = GetMerchantItemLink(i)
+            if link and get_item_id(link) == itemID then
+                found = true
+                break
+            end
+        end
+        if not found then return end
+    end
+
+    if frame:IsShown() then
+        if not frame.updatePending then
+            frame.updatePending = true
+            C_Timer.After(0.05, function()
+                if frame:IsShown() then sfui.merchant.build_item_list() end
+                frame.updatePending = false
+            end)
+        end
+    end
+end
+
+frame:HookScript("OnHide", function()
+    if not frame._closingFromEvent and _G.CloseMerchant then
+        _G.CloseMerchant()
+    end
+end)
 
 sfui.events.RegisterEvent("MERCHANT_SHOW", function()
     wipe(sfui.merchant.lockCache)
@@ -516,7 +584,9 @@ sfui.events.RegisterEvent("MERCHANT_CLOSED", function()
     if sfui.merchant.decorXpCache then
         wipe(sfui.merchant.decorXpCache)
     end
+    frame._closingFromEvent = true
     frame:Hide()
+    frame._closingFromEvent = nil
     GameTooltip_Hide()
     if sfui.common and sfui.common.hide_tooltip then
         sfui.common.hide_tooltip()
@@ -531,37 +601,6 @@ sfui.events.RegisterEvent("MERCHANT_CLOSED", function()
     end
 end)
 
-local function on_merchant_update(event, ...)
-    if event == "GET_ITEM_INFO_RECEIVED" then
-        local itemID, success = ...
-        if not success or not itemID then return end
-
-        if sfui.merchant.decorXpCache then
-            sfui.merchant.decorXpCache[itemID] = nil
-        end
-
-        -- Only rebuild if the item is actually in the merchant's current stock
-        local found = false
-        for i = 1, GetMerchantNumItems() do
-            local link = GetMerchantItemLink(i)
-            if link and get_item_id(link) == itemID then
-                found = true
-                break
-            end
-        end
-        if not found then return end
-    end
-
-    if frame:IsShown() then
-        if not frame.updatePending then
-            frame.updatePending = true
-            C_Timer.After(0.05, function()
-                if frame:IsShown() then sfui.merchant.build_item_list() end
-                frame.updatePending = false
-            end)
-        end
-    end
-end
 sfui.events.RegisterEvent("MERCHANT_UPDATE",       on_merchant_update)
 sfui.events.RegisterEvent("PLAYER_MONEY",          on_merchant_update)
 

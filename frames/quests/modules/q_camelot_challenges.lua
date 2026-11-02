@@ -19,17 +19,8 @@ sfui.tracker           = sfui.tracker or {}
 sfui.questlog          = sfui.questlog or {}
 sfui.challenges        = sfui.challenges or {}
 
--- Guard: Classic / Camelot only (Exclude Retail)
-local isRetail = sfui.isRetail
-if isRetail == nil then
-    local projectID = _G.WOW_PROJECT_ID or 1
-    local _, _, _, tocVersionNum = _G.GetBuildInfo()
-    tocVersionNum = tonumber(tocVersionNum) or 0
-    local isCamelot = (tocVersionNum >= 16000 and tocVersionNum < 20000) or (projectID == 18)
-    isRetail = (projectID == 1) and not isCamelot
-end
-
-if isRetail then
+-- Guard: Camelot only
+if not sfui.isCamelot then
     return
 end
 

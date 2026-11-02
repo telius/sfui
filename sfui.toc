@@ -1,4 +1,4 @@
-## Interface: 120105, 16001
+## Interface: 120105, 16001, 11509
 ## Title: |cff6600ffsf|rui
 ## Author: teli
 ## Version: v1.130
@@ -121,6 +121,7 @@ frames/automation/triage.lua
 
 frames/bars/bars.lua
 frames/bars/swing.lua [AllowLoadGameType camelot, classic]
+frames/bars/swing_classic.lua [AllowLoadGameType classic]
 frames/bars/castbar.lua
 frames/bars/vehicle.lua
 frames/bars/soulfragments.lua [AllowLoadGameType standard]
@@ -129,7 +130,7 @@ frames/bars/threat.lua [AllowLoadGameType camelot, classic]
 frames/bars/totembar.lua [AllowLoadGameType camelot, classic]
 frames/bars/pet.lua [AllowLoadGameType camelot, classic]
 frames/experience/data.lua
-frames/experience/challenges.lua [AllowLoadGameType camelot, classic]
+frames/experience/challenges.lua [AllowLoadGameType camelot]
 frames/experience/pet.lua [AllowLoadGameType camelot, classic]
 frames/experience/floating.lua
 frames/experience/bar.lua
@@ -144,6 +145,7 @@ frames/tracking/glows.lua
 frames/tracking/trackedoptions.lua
 frames/tracking/trackedbars.lua
 frames/tracking/trackedicons.lua
+frames/tracking/tracking_classic.lua [AllowLoadGameType classic]
 frames/tracking/buffs.lua [AllowLoadGameType standard]
 
 data/portals.lua [AllowLoadGameType standard]
@@ -158,6 +160,7 @@ frames/gear/gear.lua
 frames/gear/gear_standard.lua [AllowLoadGameType standard]
 frames/gear/gear_camelot.lua [AllowLoadGameType camelot, classic]
 frames/character/infopanel.lua [AllowLoadGameType camelot, classic]
+frames/character/infopanel_classic.lua [AllowLoadGameType classic]
 frames/gear/highest/tooltips.lua
 frames/gear/highest/validator.lua
 frames/gear/highest/scorer.lua
@@ -201,11 +204,11 @@ frames/professions/browser.lua [AllowLoadGameType camelot, classic]
 frames/map/providers/pins_recipes.lua [AllowLoadGameType camelot, classic]
 
 # Camelot Library Books
-data/books_camelot.lua [AllowLoadGameType camelot, classic]
-frames/map/providers/pins_library.lua [AllowLoadGameType camelot, classic]
+data/books_camelot.lua [AllowLoadGameType camelot]
+frames/map/providers/pins_library.lua [AllowLoadGameType camelot]
 
 # Camelot Iconic Quests & Discoveries (Sleeping Bag, Torch)
-frames/map/providers/pins_camelot_quests.lua [AllowLoadGameType camelot, classic]
+frames/map/providers/pins_camelot_quests.lua [AllowLoadGameType camelot]
 
 # Camelot Fishing Atlas & Waters
 data/fishing_camelot.lua [AllowLoadGameType camelot, classic]
@@ -239,7 +242,7 @@ frames/quests/modules/q_quests.lua [AllowLoadGameType standard]
 frames/quests/modules/q_camelot_skills.lua [AllowLoadGameType camelot, classic]
 frames/quests/modules/q_camelot_class.lua [AllowLoadGameType camelot, classic]
 frames/quests/modules/q_camelot.lua [AllowLoadGameType camelot, classic]
-frames/quests/modules/q_camelot_challenges.lua [AllowLoadGameType camelot, classic]
+frames/quests/modules/q_camelot_challenges.lua [AllowLoadGameType camelot]
 frames/quests/modules/q_achievements.lua [AllowLoadGameType standard, camelot]
 frames/quests/modules/q_activities.lua [AllowLoadGameType standard, camelot]
 frames/quests/modules/q_collectables.lua [AllowLoadGameType standard, camelot]

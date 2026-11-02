@@ -245,6 +245,7 @@ local function is_module_client_eligible(client)
     if client == "retail" then return sfui.isRetail == true end
     if client == "classic" then return sfui.isRetail ~= true end
     if client == "camelot" then return sfui.isCamelot == true end
+    if client == "era" then return sfui.isEra == true end
     return true
 end
 

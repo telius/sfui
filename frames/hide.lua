@@ -158,6 +158,9 @@ local function SuppressFrame(frame, entry)
             SilenceSelection(frame.totFrame.Selection)
         end
     end
+    if sfui.isEra and entry and entry.key == "hide_target_frame" and _G.ComboFrame and _G.ComboFrame.SetParent and _G.ComboFrame:GetParent() ~= frame then
+        pcall(_G.ComboFrame.SetParent, _G.ComboFrame, frame)
+    end
 end
 
 local function RestoreFrame(frame, entry)

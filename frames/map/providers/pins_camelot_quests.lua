@@ -9,7 +9,7 @@ sfui = sfui or {}
 --  - an unfortunate end (duskwood night watchman's torch)
 -- ══════════════════════════════════════════════════════════════════════════════
 
-if sfui.isRetail then return end
+if not sfui.isCamelot then return end
 
 local pins = sfui.pins
 if not pins then return end

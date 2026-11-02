@@ -1778,8 +1778,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     -- ═══════════════════════════════════
     -- SECTION 4: INDIVIDUAL ICON OVERRIDES
     -- ═══════════════════════════════════
-    -- retail only: hero talent filter + cdm-backed aura/alert options
-    if sfui.isRetail and panel.entries and #(panel.entries) > 0 then
+    if (sfui.isRetail or sfui.isEra) and panel.entries and #(panel.entries) > 0 then
         local classID = sfui.common.get_player_class_id()
         -- Per Blizzard source, calling without args defaults to player config/spec
         local heroSpecs = C_ClassTalents and C_ClassTalents.GetHeroTalentSpecsForClassSpec() or {}

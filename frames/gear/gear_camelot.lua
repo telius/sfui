@@ -1077,26 +1077,65 @@ local cachedWeaponInfo = {
     [17] = {},
     [18] = {},
 }
+sfui.gear._cachedWeaponInfo = cachedWeaponInfo
+sfui.gear._weaponSubclassToSkillID = WEAPON_SUBCLASS_TO_SKILL_ID
 
-local function get_skill_line_info_by_id(targetSkillID)
-    if not targetSkillID then return nil, nil, nil, nil end
-    local C_SkillInfo = _G.C_SkillInfo
-    if C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID then
-        local info = C_SkillInfo.GetSkillLineInfoByID(targetSkillID)
-        if info then
-            return info.rank or 0, info.modifier or 0, info.maxRank or 0, info.name
+local function get_classic_slot_attack_skill(slotID)
+    if slotID == 16 or slotID == 17 then
+        if _G.UnitAttackBothHands then
+            local mhBase, mhMod, ohBase, ohMod = _G.UnitAttackBothHands("player")
+            if slotID == 16 then
+                return tonumber(mhBase), tonumber(mhMod) or 0
+            else
+                return tonumber(ohBase), tonumber(ohMod) or 0
+            end
+        end
+    elseif slotID == 18 then
+        if _G.UnitRangedAttack then
+            local rBase, rMod = _G.UnitRangedAttack("player")
+            return tonumber(rBase), tonumber(rMod) or 0
         end
     end
-    if C_SkillInfo and C_SkillInfo.GetNumSkillLines and C_SkillInfo.GetSkillLineInfo then
-        local count = C_SkillInfo.GetNumSkillLines()
-        for i = 1, count do
-            local info = C_SkillInfo.GetSkillLineInfo(i)
-            if info and info.skillID == targetSkillID then
+    return nil, nil
+end
+
+local function get_skill_line_info_by_id(targetSkillID, slotID, fallbackSubClassID)
+    if targetSkillID then
+        local C_SkillInfo = _G.C_SkillInfo
+        if C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID then
+            local info = C_SkillInfo.GetSkillLineInfoByID(targetSkillID)
+            if info then
                 return info.rank or 0, info.modifier or 0, info.maxRank or 0, info.name
             end
         end
+        if C_SkillInfo and C_SkillInfo.GetNumSkillLines and C_SkillInfo.GetSkillLineInfo then
+            local count = C_SkillInfo.GetNumSkillLines()
+            for i = 1, count do
+                local info = C_SkillInfo.GetSkillLineInfo(i)
+                if info and info.skillID == targetSkillID then
+                    return info.rank or 0, info.modifier or 0, info.maxRank or 0, info.name
+                end
+            end
+        end
     end
-    return nil, nil, nil, nil
+
+    local slotRank, slotMod = get_classic_slot_attack_skill(slotID)
+    local subClassName = fallbackSubClassID and C_Item and C_Item.GetItemSubClassInfo and C_Item.GetItemSubClassInfo(2, fallbackSubClassID)
+    if _G.GetNumSkillLines and _G.GetSkillLineInfo and subClassName then
+        local count = _G.GetNumSkillLines() or 0
+        local targetLower = subClassName:lower()
+        for i = 1, count do
+            local name, isHeader, _, rank, _, modifier, maxRank = _G.GetSkillLineInfo(i)
+            if not isHeader and name and name:lower() == targetLower then
+                return slotRank or rank or 0, (slotRank and slotMod) or modifier or 0, maxRank or 0, name
+            end
+        end
+    end
+
+    if slotRank and slotRank > 0 then
+        return slotRank, slotMod or 0, nil, subClassName
+    end
+    return nil, nil, nil, subClassName
 end
 
 --- Return equipped weapon details and effective skill without dynamic table churn
@@ -1111,12 +1150,14 @@ function sfui.gear.get_equipped_weapon_info(slotID)
     local pClass = (common and common.get_player_class and common.get_player_class()) or _G.UnitClassBase("player")
     local isDruidInForm = (pClass == "DRUID") and (_G.GetShapeshiftForm and _G.GetShapeshiftForm() ~= 0)
     if isDruidInForm and slotID == 16 then
-        local rank, modifier, maxRank, skillName = get_skill_line_info_by_id(3014) -- FERAL_WEAPON_SKILL
+        local rank, modifier, maxRank, skillName = get_skill_line_info_by_id(3014, 16) -- FERAL_WEAPON_SKILL
         local totalSkill = (rank and (rank + (modifier or 0))) or baseSkill
         targetTable.name = "feral combat"
         targetTable.skillName = skillName or "feral combat"
         targetTable.skill = totalSkill
-        targetTable.maxSkill = maxRank or baseSkill
+        targetTable.baseSkill = rank or baseSkill
+        targetTable.skillMod = modifier or 0
+        targetTable.maxSkill = (maxRank and maxRank > 0 and maxRank) or baseSkill
         targetTable.skillID = 3014
         targetTable.subclassID = nil
         targetTable.classID = nil
@@ -1130,12 +1171,14 @@ function sfui.gear.get_equipped_weapon_info(slotID)
     local itemID = _G.GetInventoryItemID and _G.GetInventoryItemID("player", slotID)
     if not itemID then
         if slotID == 16 then
-            local rank, modifier, maxRank, skillName = get_skill_line_info_by_id(162)
+            local rank, modifier, maxRank, skillName = get_skill_line_info_by_id(162, 16, 13)
             local totalSkill = (rank and (rank + (modifier or 0))) or baseSkill
             targetTable.name = "unarmed"
             targetTable.skillName = skillName or "unarmed"
             targetTable.skill = totalSkill
-            targetTable.maxSkill = maxRank or baseSkill
+            targetTable.baseSkill = rank or baseSkill
+            targetTable.skillMod = modifier or 0
+            targetTable.maxSkill = (maxRank and maxRank > 0 and maxRank) or baseSkill
             targetTable.skillID = 162
             targetTable.subclassID = 13
             targetTable.classID = 2
@@ -1166,7 +1209,7 @@ function sfui.gear.get_equipped_weapon_info(slotID)
     end
 
     local skillID = (itemSubClassID and WEAPON_SUBCLASS_TO_SKILL_ID[itemSubClassID]) or 162
-    local rank, modifier, maxRank, skillName = get_skill_line_info_by_id(skillID)
+    local rank, modifier, maxRank, skillName = get_skill_line_info_by_id(skillID, slotID, itemSubClassID)
     local totalSkill = (rank and (rank + (modifier or 0))) or baseSkill
 
     local resolvedSkillName = skillName
@@ -1175,9 +1218,11 @@ function sfui.gear.get_equipped_weapon_info(slotID)
     end
 
     targetTable.name = itemName and itemName:lower() or "weapon"
-    targetTable.skillName = resolvedSkillName or (itemSubClassID and "weapon") or "unarmed"
+    targetTable.skillName = (resolvedSkillName and resolvedSkillName:lower()) or (itemSubClassID and "weapon") or "unarmed"
     targetTable.skill = totalSkill
-    targetTable.maxSkill = maxRank or baseSkill
+    targetTable.baseSkill = rank or baseSkill
+    targetTable.skillMod = modifier or 0
+    targetTable.maxSkill = (maxRank and maxRank > 0 and maxRank) or baseSkill
     targetTable.skillID = skillID
     targetTable.subclassID = itemSubClassID
     targetTable.classID = itemClassID

@@ -677,6 +677,10 @@ end
 
 -- returns true (missing), false (present) or nil (unknown)
 local function IsTrackedAuraMissing(icon, activeID, linkedSpellIDs)
+    if sfui.isEra and sfui.tracking and sfui.tracking.FindClassicAura then
+        return sfui.tracking.FindClassicAura(activeID, false) == nil
+    end
+
     local entry = icon.entry
     local blizz, isAuraViewer = FindBlizzCooldownItem(entry and (entry.cooldownID or tonumber(entry.id)))
     if blizz then
@@ -786,6 +790,9 @@ local function UpdateIconState(icon, panelConfig, event)
                 local aura = nil
                 if isAuraType then
                     local baseAura = C_UnitAuras.GetPlayerAuraBySpellID(activeID)
+                    if not baseAura and sfui.isEra and sfui.tracking and sfui.tracking.FindClassicAura then
+                        baseAura = sfui.tracking.FindClassicAura(activeID, false)
+                    end
                     if baseAura then
                         aura = baseAura
                     end
@@ -823,7 +830,7 @@ local function UpdateIconState(icon, panelConfig, event)
 
         -- 6. Update Glows (alert on missing buff takes priority over the ready glow)
         local missingAlert = false
-        if sfui.isRetail and entrySettings.glowWhenMissing and resolvedType ~= "item" then
+        if (sfui.isRetail or (sfui.isEra and sfui.tracking and sfui.tracking.FindClassicAura)) and entrySettings.glowWhenMissing and resolvedType ~= "item" then
             if _playerAurasDirty or icon._cachedAuraMissing == nil then
                 local missing = IsTrackedAuraMissing(icon, activeID, linkedSpellIDs)
                 if missing == nil then missing = icon._auraMissing or false end
@@ -955,6 +962,9 @@ function sfui.trackedicons.GetIconTexture(id, type, entry)
                 resolvedType = "item"
             end
         else
+            if sfui.isEra and sfui.tracking and sfui.tracking.ResolveClassicSpellID then
+                activeID = sfui.tracking.ResolveClassicSpellID(activeID) or activeID
+            end
             iconTexture = C_Spell.GetSpellTexture(activeID)
             resolvedType = "spell"
             if not iconTexture then

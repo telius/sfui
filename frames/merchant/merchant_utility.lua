@@ -443,6 +443,7 @@ function sfui.merchant.create_utility_bar(frame)
     sfui.merchant.catalogBtn = catalogBtn
 
     -- Guild repair button
+    local hasGuildBankRepair = (not sfui.isEra) and (_G.CanGuildBankRepair ~= nil)
     local guildRepairBtn = CreateFrame("Button", nil, utilityBar, "BackdropTemplate")
     guildRepairBtn:SetSize(22, 22)
     guildRepairBtn:SetPoint("RIGHT", 0, 0)
@@ -450,6 +451,9 @@ function sfui.merchant.create_utility_bar(frame)
     grIcon:SetAllPoints()
     grIcon:SetTexture("Interface\\Icons\\INV_Misc_Coin_02") -- Coin icon
     grIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    if not hasGuildBankRepair then
+        guildRepairBtn:Hide()
+    end
 
     guildRepairBtn:SetScript("OnEnter", function(self)
         if not GameTooltip then return end
@@ -459,8 +463,8 @@ function sfui.merchant.create_utility_bar(frame)
         if canRepair and (issecretvalue(repairAllCost) or (repairAllCost and repairAllCost > 0)) then
             common.SafeSetTooltipMoney(GameTooltip, repairAllCost, "Guild Repair")
 
-            local amount = GetGuildBankMoney()
-            local withdrawLimit = GetGuildBankWithdrawMoney()
+            local amount = GetGuildBankMoney and GetGuildBankMoney() or 0
+            local withdrawLimit = GetGuildBankWithdrawMoney and GetGuildBankWithdrawMoney() or 0
             local isSecretAmount = issecretvalue(amount)
 
             if not isSecretAmount and withdrawLimit >= 0 then
@@ -479,7 +483,7 @@ function sfui.merchant.create_utility_bar(frame)
         end
     end)
     guildRepairBtn:SetScript("OnClick", function()
-        if CanMerchantRepair() and CanGuildBankRepair() then
+        if CanMerchantRepair and CanMerchantRepair() and CanGuildBankRepair and CanGuildBankRepair() then
             RepairAllItems(true)
             grIcon:SetDesaturated(true)
         end
@@ -488,7 +492,11 @@ function sfui.merchant.create_utility_bar(frame)
     -- Personal repair button
     local repairBtn = CreateFrame("Button", nil, utilityBar, "BackdropTemplate")
     repairBtn:SetSize(22, 22)
-    repairBtn:SetPoint("RIGHT", guildRepairBtn, "LEFT", -5, 0)
+    if hasGuildBankRepair then
+        repairBtn:SetPoint("RIGHT", guildRepairBtn, "LEFT", -5, 0)
+    else
+        repairBtn:SetPoint("RIGHT", 0, 0)
+    end
     local rIcon = repairBtn:CreateTexture(nil, "ARTWORK")
     rIcon:SetAllPoints()
     rIcon:SetTexture("Interface\\Icons\\Trade_BlackSmithing") -- Anvil/Hammer
@@ -549,11 +557,11 @@ function sfui.merchant.create_utility_bar(frame)
     end)
 
     local function update_repair_buttons()
-        local canRepair = CanMerchantRepair()
+        local canRepair = CanMerchantRepair and CanMerchantRepair()
         local repairAllCost, canRepairItems = GetRepairAllCost()
         local needsRepair = canRepairItems and repairAllCost > 0
 
-        if canRepair and needsRepair and CanGuildBankRepair() then
+        if hasGuildBankRepair and canRepair and needsRepair and CanGuildBankRepair and CanGuildBankRepair() then
             grIcon:SetDesaturated(false)
             guildRepairBtn:Enable()
         else

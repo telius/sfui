@@ -704,14 +704,23 @@ local function RenderTrackedBarsRightSide(parent, width)
 
     if not parent._noIconsLabel then
         parent._noIconsLabel = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        parent._noIconsLabel:SetText("no tracked bars found in blizzard cooldown manager.")
     end
     if #list == 0 then
+        if sfui.isEra then
+            parent._poolTitle:SetText("spellbook drag & drop")
+            parent._noIconsLabel:SetText("drag spells directly from your spellbook into tracked bars on the left.")
+            parent._noIconsLabel:SetTextColor(0.8, 0.8, 0.8, 0.9)
+        else
+            parent._poolTitle:SetText("tracked bars pool")
+            parent._noIconsLabel:SetText("no tracked bars found in blizzard cooldown manager.")
+            parent._noIconsLabel:SetTextColor(0.6, 0.6, 0.6, 1)
+        end
         parent._noIconsLabel:ClearAllPoints()
         parent._noIconsLabel:SetPoint("TOPLEFT", 0, yPos)
         parent._noIconsLabel:Show()
         yPos = yPos - 20
     else
+        parent._poolTitle:SetText("tracked bars pool")
         parent._noIconsLabel:Hide()
     end
 

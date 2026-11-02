@@ -32,8 +32,10 @@ tocVersionNum = tonumber(tocVersionNum) or 0
 local IS_CAMELOT     = (PROJECT_ID == WOW_PROJECT_CAMELOT)
     or (tocVersionNum >= 16000 and tocVersionNum < 20000)
     or (versionStr and versionStr:match("^1%.60") ~= nil)
-local IS_CLASSIC_ERA = (PROJECT_ID == (_G.WOW_PROJECT_CLASSIC or 2)) and not IS_CAMELOT
-local IS_RETAIL      = (PROJECT_ID == (_G.WOW_PROJECT_MAINLINE or 1)) and not IS_CAMELOT
+local IS_CLASSIC_ERA = ((PROJECT_ID == (_G.WOW_PROJECT_CLASSIC or 2))
+    or (tocVersionNum > 0 and tocVersionNum < 16000)
+    or (versionStr and versionStr:match("^1%.15") ~= nil)) and not IS_CAMELOT
+local IS_RETAIL      = (PROJECT_ID == (_G.WOW_PROJECT_MAINLINE or 1)) and not IS_CAMELOT and not IS_CLASSIC_ERA
 
 -- Expose on sfui.version and top-level sfui canonical booleans so any module
 -- can read client context cleanly (e.g. `if sfui.isClassic then ... end`).
@@ -110,35 +112,30 @@ function sfui.api.GetAuraData(unit, index, filter)
     return nil
 end
 
--- Fix Blizzard 1.60.1 / Camelot bug: Blizzard_FrameXMLUtil/AuraUtil.lua line 88 calls
--- C_UnitAuras.GetAuraDataBySpellName via CallDataProviderMethod, but the 1.60.1 C-engine
--- does not export GetAuraDataBySpellName, resulting in "attempt to call a nil value".
+-- Fix Blizzard 1.60.1 / 1.15.9 bug: Blizzard_FrameXMLUtil/AuraUtil.lua line 81/88 calls
+-- C_UnitAuras.GetAuraDataBySpellName via CallDataProviderMethod, which does not exist in
+-- the C-engine on Classic Era / Camelot, resulting in "attempt to call a nil value" at AuraUtil.lua:25.
 if not IS_RETAIL and _G.AuraUtil and not (_G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataBySpellName) then
     _G.AuraUtil.FindAuraByName = function(auraName, unit, filter)
         if not auraName then return nil end
         unit = unit or "player"
         filter = filter or "HELPFUL"
 
-        if _G.AuraUtil.ForEachAura then
-            local foundAura = nil
-            _G.AuraUtil.ForEachAura(unit, filter, nil, function(auraData)
-                if auraData and (auraData.name == auraName or (auraData.name and auraData.name:lower() == auraName:lower())) then
-                    foundAura = auraData
-                    return true
-                end
-            end, true)
-            if foundAura then
-                return _G.AuraUtil.UnpackAuraData(foundAura)
-            end
-            return nil
-        end
-
         if _G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex then
             for i = 1, 40 do
                 local aura = _G.C_UnitAuras.GetAuraDataByIndex(unit, i, filter)
                 if not aura then break end
                 if aura.name == auraName or (aura.name and aura.name:lower() == auraName:lower()) then
-                    return _G.AuraUtil.UnpackAuraData(aura)
+                    if aura.points then
+                        return aura.name, aura.icon, aura.applications, aura.dispelName, aura.duration,
+                               aura.expirationTime, aura.sourceUnit, aura.isStealable, aura.nameplateShowPersonal,
+                               aura.spellId, aura.canApplyAura, aura.isBossAura, aura.isFromPlayerOrPlayerPet,
+                               aura.nameplateShowAll, aura.timeMod, unpack(aura.points)
+                    end
+                    return aura.name, aura.icon, aura.applications, aura.dispelName, aura.duration,
+                           aura.expirationTime, aura.sourceUnit, aura.isStealable, aura.nameplateShowPersonal,
+                           aura.spellId, aura.canApplyAura, aura.isBossAura, aura.isFromPlayerOrPlayerPet,
+                           aura.nameplateShowAll, aura.timeMod
                 end
             end
         elseif _G.UnitAura then

@@ -231,12 +231,30 @@ end
 function sfui.merchant.get_grimoire_spell_info(itemLink)
     if not isWarlockCamelot or not itemLink then return nil end
 
-    -- 1. Try tooltip lines via C_TooltipInfo
+    -- 1. Try tooltip lines via C_TooltipInfo or scan tooltip fallback
     if C_TooltipInfo and C_TooltipInfo.GetHyperlink then
         local data = C_TooltipInfo.GetHyperlink(itemLink)
         if data and data.lines then
             for _, line in ipairs(data.lines) do
                 local text = line.leftText
+                if text and type(text) == "string" then
+                    local spellAndRank = text:match("[Tt]eaches your %a+%s+([^%.]+)")
+                        or text:match("[Ll]ehrt %a+%s+([^%.]+)")
+                        or text:match("[Aa]pprend [àa] votre %a+%s+([^%.]+)")
+                    if spellAndRank then
+                        return extract_spell_and_rank(spellAndRank)
+                    end
+                end
+            end
+        end
+    elseif common.get_scan_tooltip then
+        local tip, tipName = common.get_scan_tooltip()
+        if tip and tip.SetHyperlink then
+            tip:SetHyperlink(itemLink)
+            local numLines = (tip.NumLines and tip:NumLines()) or 0
+            for i = 1, numLines do
+                local fs = _G[tipName .. "TextLeft" .. i]
+                local text = fs and fs:GetText()
                 if text and type(text) == "string" then
                     local spellAndRank = text:match("[Tt]eaches your %a+%s+([^%.]+)")
                         or text:match("[Ll]ehrt %a+%s+([^%.]+)")
@@ -353,11 +371,12 @@ function sfui.merchant.build_item_list()
             local isRecipe = itemID and sfui.recipes.IsRecipe(itemID)
 
             if isRecipe then
-                if common.is_item_known(link) and sfui.recipes.RecordKnownRecipeForChar then
+                local itemKnown = common.is_item_known(link)
+                if itemKnown and sfui.recipes.RecordKnownRecipeForChar then
                     sfui.recipes.RecordKnownRecipeForChar(itemID)
                 end
                 local status = sfui.recipes.GetRecipeStatus(itemID)
-                if status == "KNOWN_CURRENT" or common.is_item_known(link) then
+                if status == "KNOWN_CURRENT" or itemKnown then
                     isKnown = true
                 elseif (sfui.merchant.filterKnown == 2) and (status == "KNOWN_ALT") then
                     isKnown = true
@@ -422,7 +441,7 @@ function sfui.merchant.build_item_list()
                 -- Spec Filter (normalize specID to DB2 retail equivalent)
                 local curSpec = playerSpecID or common.get_current_spec_id()
                 local db2SpecID = common.to_retail_spec_id(curSpec) or curSpec
-                if db2SpecID and db2SpecID > 0 and not C_Item.DoesItemContainSpec(link, playerClassID, db2SpecID) then
+                if db2SpecID and db2SpecID > 0 and C_Item and C_Item.DoesItemContainSpec and not C_Item.DoesItemContainSpec(link, playerClassID, db2SpecID) then
                     include = false
                 end
             end
@@ -553,6 +572,55 @@ function sfui.merchant.get_item_lock_status(index, itemID, isUsable)
             reason = table.concat(reasons, ", ")
         end
         releaseTable(reasons)
+    elseif common.get_scan_tooltip then
+        local scanTip, tipName = common.get_scan_tooltip()
+        if scanTip then
+            if sfui.merchant.mode == "buyback" and scanTip.SetBuybackItem then
+                scanTip:SetBuybackItem(index)
+            elseif scanTip.SetMerchantItem then
+                scanTip:SetMerchantItem(index)
+            end
+            local numLines = (scanTip.NumLines and scanTip:NumLines()) or 0
+            if numLines > 0 then
+                local reasons = getTable()
+                for i = 1, numLines do
+                    local fs = _G[tipName .. "TextLeft" .. i]
+                    local text = fs and fs:GetText()
+                    if text then
+                        if text == knownStr or text:find(knownStr, 1, true) or text:find("Already known", 1, true) then
+                            alreadyKnown = true
+                            if itemID and sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID) and sfui.recipes.RecordKnownRecipeForChar then
+                                sfui.recipes.RecordKnownRecipeForChar(itemID)
+                            end
+                        else
+                            local r, g, b = fs:GetTextColor()
+                            if r and g and b and r > 0.9 and g < 0.2 and b < 0.2 then
+                                text = text:gsub("Requires", "R"):gsub("Rank ", ""):gsub("Defeat ", ""):gsub(
+                                    "Reputation ", "")
+                                table.insert(reasons, text)
+                                locked = true
+                            end
+                        end
+                    end
+                end
+                if alreadyKnown then
+                    locked = true
+                    reason = "already known"
+                elseif #reasons > 0 then
+                    reason = table.concat(reasons, ", ")
+                end
+                releaseTable(reasons)
+            end
+        end
+    end
+
+    if not alreadyKnown and isWarlockCamelot and sfui.merchant.mode ~= "buyback" then
+        local link = GetMerchantItemLink and GetMerchantItemLink(index)
+        if link and link:find("Grimoire", 1, true) and sfui.merchant.is_pet_spell_known(link) then
+            alreadyKnown = true
+            locked = true
+            reason = "already known"
+        end
     end
 
     if itemID and sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID) and sfui.recipes.GetRecipeStatus then

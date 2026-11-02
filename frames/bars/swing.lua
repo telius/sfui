@@ -3,11 +3,11 @@ sfui = sfui or {}
 sfui.bars = sfui.bars or {}
 
 -- Strictly enabled ONLY on Classic Era and Classic Forever (never in Retail)
-if sfui.isRetail or not C_SwingTimer then
+if sfui.isRetail or (not C_SwingTimer and not sfui.isEra) then
     return
 end
 
-sfui.swing = {}
+sfui.swing = sfui.swing or {}
 
 local cfg = sfui.config
 local common = sfui.common
@@ -43,6 +43,7 @@ local SWING_TYPES     = { SWING_MAIN_HAND, SWING_OFF_HAND, SWING_RANGED }
 local OUT_OF_RANGE_ALPHA = 0.4
 
 local swingBars = {}
+sfui.swing._bars = swingBars
 local playerClass
 local function GetPlayerClass()
     if not playerClass then
@@ -84,6 +85,9 @@ local hasRangedWeapon  = false
 -- ─── Helper: Cache equipped weapon states ───────────────────────────────────
 local function UpdateEquippedWeapons()
     local _, offHandSpeed, rangedSpeed = UnitAttackSpeed("player")
+    if not rangedSpeed and _G.UnitRangedDamage then
+        rangedSpeed = _G.UnitRangedDamage("player")
+    end
     hasOffHandWeapon = IsAttackSpeedValid(offHandSpeed)
     hasRangedWeapon = IsAttackSpeedValid(rangedSpeed)
 
@@ -143,21 +147,27 @@ local function SetOutOfRange(bar, isOutOfRange)
     bar.backdrop:SetAlpha(alpha)
 end
 
+local function GetSwingTimerProvider()
+    return C_SwingTimer or _G.C_SwingTimer or sfui.swing._classicTimer
+end
+
 local function UpdateRangeCheckRegistration(bar)
     local shouldCheck = bar.backdrop:IsShown() and CanSwing(bar.swingType)
     if shouldCheck == bar.isRangeCheckEnabled then return end
     bar.isRangeCheckEnabled = shouldCheck
-    if C_SwingTimer and C_SwingTimer.EnableRangeCheck then
-        C_SwingTimer.EnableRangeCheck(bar.swingType, shouldCheck)
+    local provider = GetSwingTimerProvider()
+    if provider and provider.EnableRangeCheck then
+        provider.EnableRangeCheck(bar.swingType, shouldCheck)
     end
 end
 
 local function UpdateRangeState(bar)
-    if not bar.isRangeCheckEnabled or not C_SwingTimer or not C_SwingTimer.IsTargetWithinSwingRange then
+    local provider = GetSwingTimerProvider()
+    if not bar.isRangeCheckEnabled or not provider or not provider.IsTargetWithinSwingRange then
         SetOutOfRange(bar, false)
         return
     end
-    local isInRange = C_SwingTimer.IsTargetWithinSwingRange(bar.swingType)
+    local isInRange = provider.IsTargetWithinSwingRange(bar.swingType)
     SetOutOfRange(bar, isInRange == false)
 end
 
@@ -343,7 +353,7 @@ local BLIZZARD_FRAME_NAMES = {
 
 local blizzardSuppressed = false
 local function SuppressBlizzardSwingTimer()
-    if blizzardSuppressed then return end
+    if blizzardSuppressed or not C_SwingTimer then return end
 
     -- Keep CVar enabled so the client engine dispatches PLAYER_SWING events
     if sfui.common and sfui.common.set_cvar then
@@ -383,7 +393,7 @@ end
 
 --- Checks if swing bar tracking is possible on the current client, settings, and character
 function sfui.swing.IsPossible()
-    if sfui.isRetail or not C_SwingTimer then return false end
+    if sfui.isRetail or (not C_SwingTimer and not sfui.isEra) then return false end
     if SfuiDB and SfuiDB.enableSwingBars == false then return false end
 
     return true
@@ -473,7 +483,7 @@ end
 function sfui.swing.UpdateVisibility(inCombat, hasEnemyTarget, isDragonflying, inVehicle)
     EnsureBarsCreated()
 
-    local enabled = (SfuiDB and SfuiDB.enableSwingBars ~= false)
+    local enabled = not (SfuiDB and SfuiDB.enableSwingBars == false)
     if not enabled then
         for _, bar in pairs(swingBars) do
             bar.backdrop:Hide()
@@ -561,9 +571,15 @@ local function OnSwingEvent(event, ...)
                 isAutoRepeating = true
             end
             ResetSwingTimer(bar, duration)
-            if not bar.backdrop:IsShown() and sfui.bars and sfui.bars.UpdateVisibility then
-                sfui.bars.UpdateVisibility()
+            if not bar.backdrop:IsShown() then
+                if sfui.bars and sfui.bars.UpdateVisibility then
+                    sfui.bars.UpdateVisibility()
+                else
+                    sfui.swing.UpdateVisibility()
+                end
             else
+                UpdateRangeCheckRegistration(bar)
+                UpdateRangeState(bar)
                 sfui.swing.UpdatePositions()
             end
         end
@@ -653,8 +669,12 @@ local function OnSwingEvent(event, ...)
     end
 end
 
-sfui.events.RegisterEvent("PLAYER_SWING", OnSwingEvent)
-sfui.events.RegisterEvent("PLAYER_SWING_RANGE_UPDATE", OnSwingEvent)
+sfui.swing.OnSwingEvent = OnSwingEvent
+
+if C_SwingTimer then
+    sfui.events.RegisterEvent("PLAYER_SWING", OnSwingEvent)
+    sfui.events.RegisterEvent("PLAYER_SWING_RANGE_UPDATE", OnSwingEvent)
+end
 sfui.events.RegisterEvent("PLAYER_TARGET_CHANGED", OnSwingEvent)
 sfui.events.RegisterEvent("WEAPON_SLOT_CHANGED", OnSwingEvent)
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", OnSwingEvent)
@@ -683,6 +703,9 @@ function sfui.swing_debug_info()
     local ohBar = swingBars[SWING_OFF_HAND]
     local rBar = swingBars[SWING_RANGED]
     local mhSpeed, ohSpeed, rSpeed = UnitAttackSpeed("player")
+    if not rSpeed and _G.UnitRangedDamage then
+        rSpeed = _G.UnitRangedDamage("player")
+    end
     _swingDebug.isPossible = (sfui.swing.IsPossible and sfui.swing.IsPossible()) or false
     _swingDebug.barCount = barCount
     _swingDebug.shownCount = shownCount

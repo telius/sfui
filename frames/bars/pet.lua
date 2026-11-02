@@ -8,9 +8,10 @@ local addonName, addon = ...
 sfui = sfui or {}
 sfui.pet = sfui.pet or {}
 
--- strictly camelot and hunter/warlock only
-local isCamelot = (sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot))
-if not isCamelot then return end
+-- strictly classic / camelot and hunter/warlock only
+if not (sfui.isCamelot or sfui.isClassic or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic))) then
+    return
+end
 
 local _, playerClass = UnitClass("player")
 if playerClass ~= "HUNTER" and playerClass ~= "WARLOCK" then return end
